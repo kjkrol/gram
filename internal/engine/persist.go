@@ -71,33 +71,35 @@ func save(ecs *goke.ECS, basePath, label string, groups map[string][]any) error 
 	return err
 }
 
-// load restores a snapshot written by save into groups and a freshly constructed ecs.
-func load(ecs *goke.ECS, basePath, label string, comps []goke.CompToken, groups map[string][]any) error {
+// load restores a snapshot written by save into groups and a freshly constructed ecs, and hands
+// back every group the save holds, encoded, for values tracked after it.
+func load(ecs *goke.ECS, basePath, label string, comps []goke.CompToken, groups map[string][]any) (map[string][]byte, error) {
 	in, err := os.Open(filePath(basePath, label))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer in.Close()
 
-	if err := loadResources(in, groups); err != nil {
-		return err
+	encoded, err := loadResources(in, groups)
+	if err != nil {
+		return nil, err
 	}
 
 	tmp, err := os.CreateTemp("", "gram-ecs-*.tmp")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	tmpPath := tmp.Name()
 	defer os.Remove(tmpPath)
 	if _, err := io.Copy(tmp, in); err != nil {
 		tmp.Close()
-		return err
+		return nil, err
 	}
 	if err := tmp.Close(); err != nil {
-		return err
+		return nil, err
 	}
 
-	return ecs.Load(tmpPath, comps...)
+	return encoded, ecs.Load(tmpPath, comps...)
 }
 
 // filePath is the quicksave path when label is empty, else a named save path.
@@ -133,32 +135,41 @@ func saveResources(w io.Writer, groups map[string][]any) error {
 	return err
 }
 
-// loadResources restores groups from r by name, leaving untouched any the save does not hold.
-func loadResources(r io.Reader, groups map[string][]any) error {
+// loadResources restores groups from r by name, leaving untouched any the save does not hold, and
+// hands back every group the save holds, encoded.
+func loadResources(r io.Reader, groups map[string][]any) (map[string][]byte, error) {
 	var n uint32
 	if err := binary.Read(r, binary.BigEndian, &n); err != nil {
-		return err
+		return nil, err
 	}
 	data := make([]byte, n)
 	if _, err := io.ReadFull(r, data); err != nil {
-		return err
+		return nil, err
 	}
 
 	var encoded map[string][]byte
 	if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&encoded); err != nil {
-		return err
+		return nil, err
 	}
 
 	for name, targets := range groups {
-		blob, ok := encoded[name]
-		if !ok {
-			continue
+		if err := decodeGroup(encoded, name, targets); err != nil {
+			return nil, err
 		}
-		dec := gob.NewDecoder(bytes.NewReader(blob))
-		for _, t := range targets {
-			if err := dec.Decode(t); err != nil {
-				return fmt.Errorf("gram: decode resource %q: %w", name, err)
-			}
+	}
+	return encoded, nil
+}
+
+// decodeGroup writes the group called name, when encoded holds it, into targets.
+func decodeGroup(encoded map[string][]byte, name string, targets []any) error {
+	blob, ok := encoded[name]
+	if !ok {
+		return nil
+	}
+	dec := gob.NewDecoder(bytes.NewReader(blob))
+	for _, t := range targets {
+		if err := dec.Decode(t); err != nil {
+			return fmt.Errorf("gram: decode resource %q: %w", name, err)
 		}
 	}
 	return nil

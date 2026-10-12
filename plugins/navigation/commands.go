@@ -11,13 +11,30 @@ import (
 )
 
 // MoveTo is the command to send every Selected entity to Cell, or with Append to add Cell behind
-// the orders they already have; given by an entity for itself, it sends that entity alone. At is the world point clicked: under BodySpacing where the group
-// stands round, under CellSpacing where one standing on Cell turns instead of going anywhere.
+// the orders they already have; given by an entity for itself, it sends that entity alone. At is
+// the world point clicked: under BodySpacing where the group stands round, under CellSpacing where
+// one standing on Cell turns instead of going anywhere. Level is which of the cell's levels it is
+// sent to where a raised deck gives it two: the deck, or the ground under it.
 type MoveTo struct {
 	Cell   cell.ID
 	At     geom.Vec
 	Append bool
+	Level  Level
 }
+
+// Level is which of a cell's two levels — a raised deck and the ground under it — a goal lies on:
+// EitherLevel, whichever a route reaches first; OnGround, under the deck; OnDeck, on it. A cell
+// of one level takes any.
+type Level uint8
+
+const (
+	EitherLevel Level = iota
+	OnGround
+	OnDeck
+)
+
+// pickReach is how far under what a click picked, world units, a deck still counts as picked.
+const pickReach = 1e-2
 
 // LookAt is the command to every Selected entity — or to the entity that gives it itself — to
 // finish the step it is on, stop and turn towards At.
@@ -72,6 +89,28 @@ func (s *Settle) Aim(who uid.UID64) { s.Beside = who }
 // A look at the world, like the camera's turn: at once, in the pause too, not saved.
 type Routes struct{}
 
+func (MoveTo) Command()    {}
+func (LookAt) Command()    {}
+func (StepAside) Command() {}
+func (Detour) Command()    {}
+func (Pass) Command()      {}
+func (Hold) Command()      {}
+func (Settle) Command()    {}
+func (Stop) Command()      {}
+func (Routes) Command()    {}
+
+var (
+	_ control.Command = MoveTo{}
+	_ control.Command = LookAt{}
+	_ control.Command = StepAside{}
+	_ control.Command = Detour{}
+	_ control.Command = Pass{}
+	_ control.Command = Hold{}
+	_ control.Command = Settle{}
+	_ control.Command = Stop{}
+	_ control.Command = Routes{}
+)
+
 // clickSlop is how far, in pixels, the cursor may move between a button going down and coming up
 // for the release to be a click and not a drag.
 const clickSlop = 4
@@ -90,26 +129,36 @@ func (p *Plugin) Queues() []control.CommandQueue {
 }
 
 // DefaultBindings is a right click — the button up where it went down, within clickSlop — into a
-// MoveTo of the cell under the cursor, Shift to append; a right drag into a LookAt of the point
-// under the cursor at every move, so the selected units turn to look where the cursor goes, and
-// nothing on its release; and Shift+P into Routes.
+// MoveTo of the cell under the cursor on the level picked — a deck clicked, or the ground under it
+// seen past it, a deck's over the ground's where the camera picks nothing — Shift to append; a
+// right drag
+// into a LookAt of the point under the cursor at every move, so the selected units turn to look
+// where the cursor goes, and nothing on its release; and Shift+P into Routes.
 func (p *Plugin) DefaultBindings() []control.Binding {
-	grid := p.boardPlugin.Res.Logic.Board.Grid
+	brd := p.boardPlugin.Board()
 	to := func(appendIt bool) func(c control.Context) (MoveTo, bool) {
 		return func(c control.Context) (MoveTo, bool) {
 			if dragged(c) {
 				return MoveTo{}, false // the drag turned the units; nothing moves
 			}
-			at := c.World(c.Cursor)
-			cell, ok := grid.CellAt(at)
-			return MoveTo{Cell: cell, At: at, Append: appendIt}, ok
+			at, z, picked := c.Point(c.Cursor)
+			if !picked {
+				cell, ok := brd.CellFor(at, math.Inf(1), 0)
+				return MoveTo{Cell: cell, At: at, Append: appendIt}, ok
+			}
+			cell, deck, ok := brd.LevelFor(at, z, pickReach)
+			level := OnGround
+			if deck {
+				level = OnDeck
+			}
+			return MoveTo{Cell: cell, At: at, Append: appendIt, Level: level}, ok
 		}
 	}
 	turn := func(c control.Context) (LookAt, bool) { return LookAt{At: c.World(c.Cursor)}, dragged(c) }
 	return []control.Binding{
-		control.Command(control.Drag{Button: control.MouseButtonRight}, "Move selected units here", to(false)),
-		control.Command(control.Drag{Button: control.MouseButtonRight, Mods: control.Mods{Shift: true}}, "Add a waypoint", to(true)),
-		control.Command(control.ButtonHeld{Button: control.MouseButtonRight}, "Turn selected units to look at the cursor", turn),
-		control.Command(control.KeyPress{Key: control.KeyP, Mods: control.Mods{Shift: true}}, "Show or hide the routes of selected units", func(control.Context) (Routes, bool) { return Routes{}, true }),
+		control.Build(control.Drag{Button: control.MouseButtonRight}, "Move selected units here", to(false)),
+		control.Build(control.Drag{Button: control.MouseButtonRight, Mods: control.Mods{Shift: true}}, "Add a waypoint", to(true)),
+		control.Build(control.ButtonHeld{Button: control.MouseButtonRight}, "Turn selected units to look at the cursor", turn),
+		control.Build(control.KeyPress{Key: control.KeyP, Mods: control.Mods{Shift: true}}, "Show or hide the routes of selected units", func(control.Context) (Routes, bool) { return Routes{}, true }),
 	}
 }

@@ -2,8 +2,14 @@ package navigation
 
 import (
 	"testing"
+	"time"
 
+	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
@@ -158,4 +164,54 @@ func TestNavigation_StuckOnForbiddenGroundKeepsTheOrder(t *testing.T) {
 		}
 	}
 	t.Fatal("never reached the goal once the ground took the unit again")
+}
+
+// slantRow is a deck on a cell.
+type slantRow struct{ At cell.ID }
+
+// A route over a river crossed by a bridge running slantwise goes along the bridge, over the
+// water at the corners it cuts, and never sets foot in the water.
+func TestNavigation_CrossesABridgeRunningSlantwise(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(5, 5, 32)
+	start, goal := g.At(0, 0), g.At(4, 4)
+	prepare := func(w *world.Plugin, brd *board.Plugin) {
+		brd.Board().SetAll(water)
+		brd.Board().Set(start, cell.Kind{Cost: 1, Allows: cell.Land})
+		brd.Board().Set(goal, cell.Kind{Cost: 1, Allows: cell.Land})
+		nw, _ := grid.Direction(g, -1, -1)
+		se, _ := grid.Direction(g, 1, 1)
+		decks := board.NewEntities(brd, board.Shape{Size: 10},
+			func(r slantRow) cell.ID { return r.At })
+		decks.Define("deck",
+			comp.Const(cell.Floor{Allows: cell.Land, Links: 1<<nw | 1<<se, Width: 24}),
+			comp.Const(cell.Rail{Keeps: cell.Land}))
+		for _, c := range []cell.ID{g.At(1, 1), g.At(2, 2), g.At(3, 3)} {
+			w.Seed(decks.Named("deck").Entry(slantRow{At: c}))
+		}
+	}
+	var at goke.Comp[unit.At]
+	var order goke.OptComp[MoveOrder]
+	var q *goke.Query
+	nw := newNavWorldWith(t, 5, 5, 32, []navUnit{{
+		box:     cellBox(g, start, 10),
+		at:      start,
+		profile: &steering.Steering{MaxSpeed: 64},
+		order:   &MoveOrder{Target: goal},
+	}}, prepare, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		q = si.NewQueryBuilder(&at).Optional(&order).Build()
+	}})
+	var here cell.ID
+	for tick := range 60 * 5 {
+		nw.ecs.Tick(time.Second / 60)
+		for q.All(); q.Next(); {
+			cur := q.Cursor()
+			here = at.Slice(cur)[0].Cell
+			if x, y, _ := g.Coords(here); x != y {
+				t.Fatalf("tick %d: at %v, off the bridge", tick, here)
+			}
+		}
+	}
+	if here != goal {
+		t.Errorf("at %v after five seconds, want across the river at %v", here, goal)
+	}
 }

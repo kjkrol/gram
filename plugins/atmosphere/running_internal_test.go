@@ -40,7 +40,7 @@ func TestPlugin_RunningSwitchesTheAtmospheresWorkings(t *testing.T) {
 func TestDefaultBindings_ChangeTheWeatherWithTheCameraFreeOnly(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}})
 	for _, b := range NewPlugin(w, Config{}).DefaultBindings() {
-		if b.Command() != reflect.TypeFor[ChangeWeather]() {
+		if b.Type() != reflect.TypeFor[ChangeWeather]() {
 			continue
 		}
 		if !b.Holds(camera.Loose) || !b.Holds(camera.Centred) || b.Holds(camera.Inside) {

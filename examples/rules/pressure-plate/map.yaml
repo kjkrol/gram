@@ -1,0 +1,81 @@
+board:
+  default: grass
+  legend:
+    ".": grass
+    "_": pit
+  cells: |
+    ........................
+    ........................
+    .......__......__.......
+    .......__......__.......
+    .......__......__.......
+    .......__......__.......
+    .......__......__.......
+    .......__......__.......
+    .......__......__.......
+    .......__......__.......
+    .......__......__.......
+    .......__......__.......
+    .......__......__.......
+    .......__......__.......
+    ........................
+    ........................
+  entities:
+    - {kind: plate, name: plate west, at: [3, 14]}
+    - {kind: trapdoor, group: trapdoors west, at: [7, 2]}
+    - {kind: trapdoor, group: trapdoors west, at: [8, 2]}
+    - {kind: trapdoor, group: trapdoors west, at: [7, 3]}
+    - {kind: trapdoor, group: trapdoors west, at: [8, 3]}
+    - {kind: trapdoor, group: trapdoors west, at: [7, 4]}
+    - {kind: trapdoor, group: trapdoors west, at: [8, 4]}
+    - {kind: trapdoor, group: trapdoors west, at: [7, 5]}
+    - {kind: trapdoor, group: trapdoors west, at: [8, 5]}
+    - {kind: trapdoor, group: trapdoors west, at: [7, 6]}
+    - {kind: trapdoor, group: trapdoors west, at: [8, 6]}
+    - {kind: trapdoor, group: trapdoors west, at: [7, 7]}
+    - {kind: trapdoor, group: trapdoors west, at: [8, 7]}
+    - {kind: trapdoor, group: trapdoors west, at: [7, 8]}
+    - {kind: trapdoor, group: trapdoors west, at: [8, 8]}
+    - {kind: trapdoor, group: trapdoors west, at: [7, 9]}
+    - {kind: trapdoor, group: trapdoors west, at: [8, 9]}
+    - {kind: trapdoor, group: trapdoors west, at: [7, 10]}
+    - {kind: trapdoor, group: trapdoors west, at: [8, 10]}
+    - {kind: trapdoor, group: trapdoors west, at: [7, 11]}
+    - {kind: trapdoor, group: trapdoors west, at: [8, 11]}
+    - {kind: trapdoor, group: trapdoors west, at: [7, 12]}
+    - {kind: trapdoor, group: trapdoors west, at: [8, 12]}
+    - {kind: trapdoor, group: trapdoors west, at: [7, 13]}
+    - {kind: trapdoor, group: trapdoors west, at: [8, 13]}
+    - {kind: plate, name: plate east, at: [20, 14]}
+    - {kind: trapdoor, group: trapdoors east, at: [15, 2]}
+    - {kind: trapdoor, group: trapdoors east, at: [16, 2]}
+    - {kind: trapdoor, group: trapdoors east, at: [15, 3]}
+    - {kind: trapdoor, group: trapdoors east, at: [16, 3]}
+    - {kind: trapdoor, group: trapdoors east, at: [15, 4]}
+    - {kind: trapdoor, group: trapdoors east, at: [16, 4]}
+    - {kind: trapdoor, group: trapdoors east, at: [15, 5]}
+    - {kind: trapdoor, group: trapdoors east, at: [16, 5]}
+    - {kind: trapdoor, group: trapdoors east, at: [15, 6]}
+    - {kind: trapdoor, group: trapdoors east, at: [16, 6]}
+    - {kind: trapdoor, group: trapdoors east, at: [15, 7]}
+    - {kind: trapdoor, group: trapdoors east, at: [16, 7]}
+    - {kind: trapdoor, group: trapdoors east, at: [15, 8]}
+    - {kind: trapdoor, group: trapdoors east, at: [16, 8]}
+    - {kind: trapdoor, group: trapdoors east, at: [15, 9]}
+    - {kind: trapdoor, group: trapdoors east, at: [16, 9]}
+    - {kind: trapdoor, group: trapdoors east, at: [15, 10]}
+    - {kind: trapdoor, group: trapdoors east, at: [16, 10]}
+    - {kind: trapdoor, group: trapdoors east, at: [15, 11]}
+    - {kind: trapdoor, group: trapdoors east, at: [16, 11]}
+    - {kind: trapdoor, group: trapdoors east, at: [15, 12]}
+    - {kind: trapdoor, group: trapdoors east, at: [16, 12]}
+    - {kind: trapdoor, group: trapdoors east, at: [15, 13]}
+    - {kind: trapdoor, group: trapdoors east, at: [16, 13]}
+units:
+  - {kind: scout, side: player, start: [10, 14]}
+  - {kind: scout, side: player, start: [12, 14]}
+  - {kind: scout, side: player, start: [14, 14]}
+  - {kind: wanderer, start: [2, 3], to: [21, 3]}
+  - {kind: wanderer, start: [2, 6], to: [21, 6]}
+  - {kind: wanderer, start: [2, 9], to: [21, 9]}
+  - {kind: wanderer, start: [2, 12], to: [21, 12]}

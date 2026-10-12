@@ -52,27 +52,27 @@ func TestSquareGrid_Toroidal_CellAtWrapsNegativePositions(t *testing.T) {
 }
 
 func cellAtXY(g *Square, x, y uint32) cell.ID {
-	c := g.CellIndex(x, y)
+	c := g.At(x, y)
 	return c
 }
 
-func TestSquareGrid_CellIndex_NonToroidal(t *testing.T) {
+func TestSquareGrid_At_NonToroidal(t *testing.T) {
 	g := NewSquare(4, 4, 10)
-	if c := g.CellIndex(2, 1); c != cellAtXY(g, 2, 1) {
-		t.Errorf("CellIndex(2,1) = %v, want %v", c, cellAtXY(g, 2, 1))
+	if c := g.At(2, 1); c != cellAtXY(g, 2, 1) {
+		t.Errorf("At(2,1) = %v, want %v", c, cellAtXY(g, 2, 1))
 	}
 	defer func() {
 		if recover() == nil {
 			t.Error("col==Width on a non-toroidal grid did not panic")
 		}
 	}()
-	g.CellIndex(4, 0)
+	g.At(4, 0)
 }
 
-func TestSquareGrid_CellIndex_ToroidalWraps(t *testing.T) {
+func TestSquareGrid_At_ToroidalWraps(t *testing.T) {
 	g := &Square{Width: 4, Height: 4, CellSize: 10, WrapX: true, WrapY: true}
-	if c, origin := g.CellIndex(4, 0), g.CellIndex(0, 0); c != origin {
-		t.Errorf("CellIndex(4,0) = %v, want same cell as CellIndex(0,0) = %v", c, origin)
+	if c, origin := g.At(4, 0), g.At(0, 0); c != origin {
+		t.Errorf("At(4,0) = %v, want same cell as At(0,0) = %v", c, origin)
 	}
 }
 
@@ -141,7 +141,7 @@ func TestSquareGrid_WrapsAlongOneAxisOnly(t *testing.T) {
 	if _, ok := g.CellAt(geom.NewVec(5, -5)); ok {
 		t.Error("a position above the world has a cell, want none")
 	}
-	if a, b := g.CellIndex(5, 0), g.CellIndex(1, 0); a != b {
+	if a, b := g.At(5, 0), g.At(1, 0); a != b {
 		t.Error("column 5 not wrapped to column 1")
 	}
 	defer func() {
@@ -149,5 +149,19 @@ func TestSquareGrid_WrapsAlongOneAxisOnly(t *testing.T) {
 			t.Error("row 5 on an axis that does not wrap did not panic")
 		}
 	}()
-	g.CellIndex(0, 5)
+	g.At(0, 5)
+}
+
+// The square grid's directions in their order — the one place the numbering is spelled out.
+func TestSquareGrid_DirectionsInOrder(t *testing.T) {
+	g := NewSquare(4, 4, 10)
+	want := [8][2]int{{0, -1}, {0, 1}, {-1, 0}, {1, 0}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1}}
+	if g.Directions() != len(want) {
+		t.Fatalf("%d directions, want %d", g.Directions(), len(want))
+	}
+	for i, w := range want {
+		if a, b := g.Offset(i); a != w[0] || b != w[1] {
+			t.Errorf("direction %d is (%d, %d), want (%d, %d)", i, a, b, w[0], w[1])
+		}
+	}
 }

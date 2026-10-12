@@ -38,6 +38,12 @@ func (r *Roles) Define(name string, rules ...rule.Rule) {
 	r.w.kinds.Play(part)
 }
 
+// Lookup is the role defined as name; false for none.
+func (r *Roles) Lookup(name string) (*rule.Part, bool) {
+	part, ok := r.byName[name]
+	return part, ok
+}
+
 // Named is the role defined as name; an unknown name panics.
 func (r *Roles) Named(name string) *rule.Part {
 	part, ok := r.byName[name]

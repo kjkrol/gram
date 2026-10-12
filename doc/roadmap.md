@@ -2,20 +2,27 @@
 
 [← Back to README](../README.md)
 
-What is left to do, in no particular order yet. Take an item out when it lands.
+What is left to do. Take an item out when it lands.
+
+## Next, in this order (the demos' TODOs)
+
+1. **The notation of rules** — `rule.Then[world.Moving]("rage spreads", rule.All,
+   rule.During(rage, rule.Keep(angry)))` reads badly, and a rule needing a comment to be read is
+   a notation to change: variants to compare before deciding.
 
 ## Engine
-
-- **A Stage's plugins without `ctx`** — `stage.New(name).World(cfg).Plugins(func(*world.Plugin)
-  []plugin.Plugin)`: the stage calls `UseWorld` and `Use` itself, in the list's order; the game
-  constructs its plugins and nothing else. Every demo's `usePlugins` is that already, the
-  `Initializer` reached only for the two calls.
-- **A minimap plugin** — the split-screen demo's minimap as `plugins/minimap`: a `game.Scenic`
-  with its own camera from above fitted to the world, the composer handed over or a picture of
-  its own (the board's still, the units as dots), the players' views outlined on it, a key to
-  show and hide it, later a click on it panning the player's camera.
-- **Hover** — what is under the cursor: a `Space.Query` at a point, the players' translator's
-  work, no collision involved.
+- **A minimap plugin** — a `ui` element: a feed from a camera keeping the whole world in view
+  (`camera.Config.Whole`), the game's picture under dots of its own by kind, picked by drawing
+  rules (what my units see: `vision.Seen`), the players' views outlined on it, a key to show and
+  hide it, a click on it panning the player's view; a round or many-sided one through `ui.Masked`.
+  The click needs a picture a player only clicks through: the point under the cursor worked out
+  through the minimap's camera, the camera commands still going to the player's view — today a
+  player acts through one picture a scene, its wire (`players.Plugin.Through`) both.
+- **ui, what is left** — `Dialog`, `Toast`, `MenuBar`/`Menu`/`ContextMenu`, `Tabs`, `Scroll`,
+  `List`; `Canvas` (a tech tree), `Tooltip`, drag and drop, focus moved by keys and pads; the
+  scenes-demo's menu and the players' list of shortcuts as ui (their keys need `game.Runtime`:
+  switching the Stage, quitting); the UI drawn into one `render.Frame` in place of a draw an
+  element, once a profile asks for it.
 - **Canals and building on shaped ground** — a cell lowered to the sea turns to water; a preview of
   a shaping drag (lost with the players' marquee); the costs of shaping.
 - **`RouteStyle`** — how a route is drawn becomes a style, as `vision.ConeStyle` is: `CellArrows`,
@@ -32,8 +39,19 @@ What is left to do, in no particular order yet. Take an item out when it lands.
   along a line of its own, a ragged edge (noise on the threshold), a cover narrowed to the cells
   that can take it (a lake's shore), one that moves (a storm, a whirlpool). What stands on the
   ground and moves — fire, smoke — is sprites over it, not a cover.
-- **A demo of ways** — roads and a bridge as `cell.Way` and `cell.Crossing` over the ground, a unit
-  taking the road round the mud, in the dress of the effect demo.
+- **A demo of ways** — roads as `cell.Way` and a bridge standing on the board over the ground, a
+  unit taking the road round the mud, in the dress of the effect demo.
+- **Shots and decks** — a shot's ground (`bullet.Plugin.WithGround`) is the heights alone: it flies
+  through a deck and falls by its own `Gravity`, which gravity turned over does not touch; both
+  through `ground.Surfaces` and the world's `gravity.Pull`.
+- **Leaps, climbing and swimming planned** — the planner never plans a leap (a railing, a gap),
+  a climb or a swim; a unit under gravity does them only by hand.
+- **Bridges that turn** — a bridge runs straight; a knee (two links not opposite) is refused by
+  the board's rules and not made by `cmd/gramap`.
+- **Roads with a tool** — a player lays a road as a bridge (`control.Tool`, a road's rules beside
+  `bridges/site`'s), and takes a bridge down.
+- **Blocks' shadows over hex prisms** — the terrain over a hex grid bakes no shade, so a
+  bridge's deck and its piers cast no shadow there.
 - **Knobs on the world** — a plugin's global knobs as components on the world's own entity (the
   moon's colour and strength, for a blood moon: an effect altering `sky.Moon`, cast by a rule of
   `clock.Moment` on a full moon — a predicate of the calendar's phase), and a vocabulary in every
@@ -68,12 +86,10 @@ What is left to do, in no particular order yet. Take an item out when it lands.
 - **Shots that go on** — a shot through its target (`Body.Pierces`: the nearest contact a Landing
   that does not end the flight), a trail drawn behind it, a mine that feels a tread (a landed
   shot touching), a wounded unit slowed by its own Z in `collision.Field.Overhang`.
-- **A unit spawned in the game on the board** — `world.Spawn` of a unit with `At` and `Mover` does
-  not enter it into the board's `cell.Occupancy` (navigation seeds it at Setup alone).
 - **Live hydrology** — the water worked out as the game goes: rivers swelling after rain, drying
   in summer, courses changing with the weather and the season.
 
-## Landscape and the islands
+## Landscape and Madeira
 
 - **The surf follows the cells** — the line of breaking waves (`water.Shore`) runs along the
   cells' edges, not the rounded coast.
@@ -85,10 +101,19 @@ What is left to do, in no particular order yet. Take an item out when it lands.
 - **More knobs of the sky** — the sun and the weather as knobs on the atmosphere's entity, as
   the moon is (`sky.Moon`), so an eclipse or a spell of fog is an effect.
 
+## Open questions
+
+- **`world.Leaving`** — a moment no game uses: the world tells its rules of an entity past an open
+  edge and despawns it with none. Should it stay a moment, or should the world simply despawn
+  whoever leaves?
+- **The frozen light** freezes the hour alone, and is not saved: should it freeze the date too,
+  and come back after a load (a component on the clock's entity)?
+- **Big groups arriving** still strike each other where the column fans out to its spots.
+
 ## Housekeeping
 
-- **`BENCHMARKS.md`** — the island's numbers predate the roads, the folded quads and the outline
+- **`BENCHMARKS.md`** — the old island's numbers predate the roads, the folded quads and the outline
   fix: measure again on an idle machine, alternately against a baseline.
 - **A thumbnail in a save** — the frame at the moment of saving, for a load screen.
 - **The next tag, v0.3.0** — once this state has been reviewed; note that saves written before
-  tag families, the cell entities and the crossings (`cell.Crossing`) do not load.
+  tag families, the cell entities and what stands on the board (`cell.Built`) do not load.

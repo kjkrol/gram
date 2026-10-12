@@ -30,12 +30,9 @@ func newNight(t *testing.T, cal calendar.Config, define func(n *night), rules fu
 	t.Helper()
 	n := &night{}
 	st := stage.New("night").
-		Plugins(func(ctx game.Initializer) error {
-			n.w = ctx.UseWorld(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}})
-			n.a, n.ecs = atmosphere.NewPlugin(n.w, atmosphere.Config{Calendar: cal}), ctx.ECS()
-			return ctx.Use(n.a)
-		}).
-		Effects(func() { define(n) }).
+		World(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}}).
+		Plugins(func(w *world.Plugin) { n.w, n.a = w, atmosphere.NewPlugin(w, atmosphere.Config{Calendar: cal}) }).
+		Effects(func(ctx game.Initializer) { n.ecs = ctx.ECS(); define(n) }).
 		Rules(func() {
 			if rules != nil {
 				rules(n)
@@ -67,7 +64,7 @@ func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 	if pale != sky.DefaultMoon().Color {
 		t.Fatalf("the night is lit %v, want the moon's own %v", pale, sky.DefaultMoon().Color)
 	}
-	give := func(cmd any) {
+	give := func(cmd control.Command) {
 		t.Helper()
 		if !n.w.Carrier().Put(control.Nobody, cmd) {
 			t.Fatalf("the world carries no %T", cmd)
@@ -91,7 +88,7 @@ func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 func TestMoonrise_FiresOnceARiseAndFullPicksTheFullOnes(t *testing.T) {
 	var risen, full effect.Effect
 	day := 2 * time.Second // 120 ticks; the moon of a GameYear goes round in four days
-	n := newNight(t, calendar.Config{Day: day}, func(n *night) {
+	n := newNight(t, calendar.Config{DayRealTime: day}, func(n *night) {
 		n.w.Effects().Define("risen", effect.Spec{effect.Lasts(4 * tick)})
 		risen = n.w.Effects().Named("risen")
 		n.w.Effects().Define("full risen", effect.Spec{effect.Lasts(4 * tick)})

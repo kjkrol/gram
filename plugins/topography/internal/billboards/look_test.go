@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/internal/billboards"
 	icameras "github.com/kjkrol/gram/plugins/topography/internal/cameras"
@@ -25,25 +26,28 @@ func (sheet) Atlas() *render.Image                            { return nil }
 func (sheet) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 8, 8 }
 func (sheet) White() (u, v float32)                           { return 9, 9 }
 
-// isometricIsland is a world with a level 4x4 board in relief, seen isometrically.
-func isometricIsland() (*world.Plugin, *topography.Plugin) {
+// isometricIsland is a world with a level 4x4 board in relief, seen isometrically through its
+// camera, 128 x 64.
+func isometricIsland() (*world.Plugin, *topography.Plugin, camera.Camera) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 256, Height: 256},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
-		Camera:   camera.Config{ViewportWidth: 128, ViewportHeight: 64},
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, w)
-	b.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	return w, topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
+	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{})
+	cam.SetViewport(128, 64)
+	cam.MoveTo(0, 0)
+	return w, p, cam
 }
 
 // In relief an entity stands as a billboard drawn on the GPU: upright on its box's centre at its
 // altitude, as wide as the box and as tall as its Z says, as long as the box without one; picked and
 // outlined there. From above it lies over its box.
 func TestBillboards_StandEntitiesUprightOnTheirCentre(t *testing.T) {
-	w, _ := isometricIsland()
-	cam := w.Camera()
+	w, _, cam := isometricIsland()
 	cam.CenterOn(64, 64, 0)
 	look := w.Look()
 	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
@@ -87,8 +91,7 @@ func (s fixedSky) Air() air.Weather { return s.air }
 
 // A billboard stands upright in the calm and leans with the wind what sways.
 func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
-	w, p := isometricIsland()
-	cam := w.Camera()
+	w, p, cam := isometricIsland()
 	cam.CenterOn(48, 48, 0)
 	p.WithAtmosphere(fixedSky{sun: sky.DefaultSun, air: air.Weather{Wind: [2]float32{40, 0}}})
 
@@ -103,5 +106,28 @@ func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 	}
 	if still, swaying := lean(0), lean(1); still != 0 || swaying == 0 {
 		t.Errorf("a billboard's top leans %v unswaying, %v swaying; want upright and leaning", still, swaying)
+	}
+}
+
+// A deck lies level over its rectangle at its Altitude, its beam down its Height along its long
+// sides and its railings up their Edge: a top, two sides and two railings.
+func TestBillboards_LayADeckOnItsBeam(t *testing.T) {
+	w, _, cam := isometricIsland()
+	cam.CenterOn(64, 64, 0)
+	look := w.Look()
+	var f render.Frame
+	f.Reset(cam)
+	look.(world.DirectLook).Begin(cam)
+	box := plane.NewAABB(geom.NewVec(40, 40), 16, 16)
+	lie := world.Lie{Length: 30, Width: 12, Edged: true, Edge: 2}
+	look.(world.LyingLook).Lay(&f, cam, box, geom.NewVec(1, 0), lie,
+		world.Z{Altitude: 20, Height: 3}, sheet{}, render.Appearance{}, 0, render.Light{1, 1, 1})
+	at := map[float32]int{}
+	for _, k := range billboards.Lain(look) {
+		at[k[2]]++
+	}
+	if at[20] != 12 || at[17] != 4 || at[22] != 4 || len(at) != 3 {
+		t.Errorf("corners by height %v, want 12 at the deck (20), 4 at the beam's foot (17) "+
+			"and 4 at the railings' top (22)", at)
 	}
 }

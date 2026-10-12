@@ -25,6 +25,8 @@ func (n nudge) Subject() (uid.UID64, bool) { return n.by, !n.nobody }
 // dodge is a command about whom to dodge, told as it is given.
 type dodge struct{ Of uid.UID64 }
 
+func (dodge) Command() {}
+
 func (d *dodge) Aim(who uid.UID64) { d.Of = who }
 
 // A rule aims a command at its moment's Subject: each one nudged gives itself a dodge of the one
@@ -71,6 +73,8 @@ func TestRule_AimsItsCommandAtTheMomentsSubject(t *testing.T) {
 
 // brace is a command about nobody.
 type brace struct{}
+
+func (brace) Command() {}
 
 // An Aimed command fails while the moment names nobody: the one nudged by nobody braces instead
 // of dodging; the other dodges.

@@ -35,7 +35,7 @@ func TestFindPath_GoesRoundAHillUnlessItFlies(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 5, 10)
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land | cell.Air})
-	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	h := hill{}
 	for y := uint32(0); y < 4; y++ {
 		h[at(3, y)] = 20 // a ridge across the middle, open at the bottom row
@@ -61,7 +61,7 @@ func TestFindPath_GoesRoundAHillUnlessItFlies(t *testing.T) {
 // than straight across; where it costs as much, straight across.
 func TestFindPath_TakesTheRoadRoundWhereTheGroundCostsMore(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 5, 10)
-	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	road := cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land}
 	for _, c := range []struct {
 		ground   float64
@@ -124,7 +124,7 @@ func roadOver(brd *board.Board, road cell.Kind, cells ...cell.ID) {
 // bend cuts the corner over the grass beside the road and costs the grass, not the road.
 func TestFindPath_FollowsARoadRoundItsBendRatherThanCuttingTheCorner(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 5, 10)
-	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land})
 	road := cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land}
@@ -157,7 +157,7 @@ func TestFindPath_FollowsARoadRoundItsBendRatherThanCuttingTheCorner(t *testing.
 // across at the grass's.
 func TestFindPath_TakesADiagonalRoadAlongItsLinks(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, 10)
-	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	road := cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land}
 	for _, linked := range []bool{true, false} {
 		brd := board.NewBoard(grid)
@@ -187,33 +187,11 @@ func TestFindPath_TakesADiagonalRoadAlongItsLinks(t *testing.T) {
 	}
 }
 
-// A slantwise step beside a bridge crosses the water under it: a walker may not take it, a boat
-// may.
-func TestFindPath_CutsNoCornerOverTheWaterBesideABridge(t *testing.T) {
-	grid := grid.DefaultGrids{}.Square(3, 3, 10)
-	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
-	brd.Set(at(1, 1), cell.Kind{Name: cell.Named("river"), Cost: 1, Allows: cell.Water})
-	bridge := cell.Kind{Name: cell.Named("bridge"), Cost: 1, Allows: cell.Land}
-	brd.SetCrossing(at(1, 1), cell.Crossing{Way: cell.Way{Kind: bridge, Width: 4}})
-	pf := newPathFinder(grid, brd, nil, &cell.MultipleOccupancy{})
-	if _, ok := pf.price(at(0, 0), at(1, 1), brd.Kind(at(1, 1)), cell.Land); ok {
-		t.Error("a walker may cut the corner onto the bridge over the river")
-	}
-	if _, ok := pf.price(at(0, 1), at(1, 1), brd.Kind(at(1, 1)), cell.Land); !ok {
-		t.Error("a walker may not step straight onto the bridge")
-	}
-	if cost, ok := pf.price(at(0, 0), at(1, 1), brd.Kind(at(1, 1)), cell.Water); !ok || math.Abs(cost-math.Sqrt2) > 1e-9 {
-		t.Errorf("a boat's slantwise step onto the river under the bridge costs %v, ok %v; want √2", cost, ok)
-	}
-}
-
 // A Graded road over the ridge costs its own price alone, so the walker takes it straight over;
 // the same road ungraded is priced by the slope and the walker goes round.
 func TestFindPath_AGradedRoadIsNotPricedByTheSlope(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 5, 10)
-	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	h := hill{}
 	for y := uint32(0); y < 4; y++ {
 		h[at(3, y)] = 20

@@ -32,7 +32,7 @@ type placeWorld struct {
 func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *placeWorld) []rule.Rule) *placeWorld {
 	t.Helper()
 	pw := &placeWorld{}
-	pw.middle = grid.CellIndex(3, 3)
+	pw.middle = grid.At(3, 3)
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 8 * boardtest.CellSize, Height: 8 * boardtest.CellSize},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 8, MaxSize: 8},
@@ -41,7 +41,7 @@ func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *pl
 	pw.fx.Define("scorched", effect.Spec{})
 	pw.scorched = pw.fx.Named("scorched")
 	pw.brd = board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	pw.brd.Res.Logic.Board.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+	pw.brd.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 	rules := hook(pw)
 	if err := pw.brd.Populate(); err != nil {
 		t.Fatal(err)
@@ -98,7 +98,7 @@ func (pw *placeWorld) tick(n int) {
 // under is the set of cells whose entity is under e.
 func (pw *placeWorld) under(e effect.Effect) map[cell.ID]bool {
 	out := map[cell.ID]bool{}
-	pw.brd.Res.Logic.Board.EachCell(func(c cell.ID) {
+	pw.brd.Board().EachCell(func(c cell.ID) {
 		if id, ok := pw.brd.CellEntity(c); ok && pw.fx.Has(id, e) {
 			out[c] = true
 		}
@@ -215,8 +215,8 @@ func TestCell_FireSpreadsFromCellToCell(t *testing.T) {
 // those cells alone.
 func TestPlaces_ARuleOfARoleFiresForTheCellsPlayingIt(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 7, boardtest.CellSize)
-	a := grid.CellIndex(1, 1)
-	b := grid.CellIndex(5, 2)
+	a := grid.At(1, 1)
+	b := grid.At(5, 2)
 	pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
 		pw.w.Roles().Define("marked", rule.Then[cell.Now]("scorch the marked", rule.All, rule.Apply(pw.scorched)))
 		marked := pw.w.Roles().Named("marked")
@@ -234,8 +234,8 @@ func TestPlaces_ARuleOfARoleFiresForTheCellsPlayingIt(t *testing.T) {
 // same kind plays nothing.
 func TestPlaces_ARuleOfARoleFiresForTheOneCellTheEntryHasPlayIt(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 7, boardtest.CellSize)
-	a := grid.CellIndex(1, 1)
-	b := grid.CellIndex(5, 2)
+	a := grid.At(1, 1)
+	b := grid.At(5, 2)
 	pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
 		pw.w.Roles().Define("lake", rule.Then[cell.Now]("scorch the lake", rule.All, rule.Apply(pw.scorched)))
 		lake := pw.w.Roles().Named("lake")
@@ -254,7 +254,7 @@ func TestPlaces_ARuleOfARoleFiresForTheOneCellTheEntryHasPlayIt(t *testing.T) {
 // pressed, nothing elsewhere.
 func TestStanding_ReachesThePlaceUnderTheUnitByItsRole(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 7, boardtest.CellSize)
-	middle := grid.CellIndex(3, 3)
+	middle := grid.At(3, 3)
 	pw := newPlaceWorld(t, grid, true, func(pw *placeWorld) []rule.Rule {
 		pw.w.Roles().Define("plate")
 		plate := pw.w.Roles().Named("plate")

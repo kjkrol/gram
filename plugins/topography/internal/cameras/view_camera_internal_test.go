@@ -11,8 +11,16 @@ import (
 
 // testViews is the topography's camera over a 640 x 640 world drawn to 400 x 300, isometric to
 // begin with, reaching the perspective view when reaches.
+// sized is c shown w x h pixels from the world's top-left corner, as a camera made for that
+// screen begins.
+func sized(c *viewCamera, w, h float32) *viewCamera {
+	c.SetViewport(w, h)
+	c.MoveTo(0, 0)
+	return c
+}
+
 func testViews(reaches bool) *viewCamera {
-	return newCamera(testProjection, 640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, reaches, nil, nil, 0)
+	return sized(newCamera(testProjection, 640, 640, 0, contract.Config{}, 0, reaches, nil, nil, 0), 400, 300)
 }
 
 // middle is the ground point under the middle of the screen.
@@ -80,8 +88,8 @@ func TestViewCamera_PersistedRoundTripKeepsTheView(t *testing.T) {
 	bx, by := c.Project(300, 280, 4)
 	other := testViews(true)
 	saved, restored := c.Persisted(), other.Persisted()
-	if len(saved) != 11 || len(restored) != 11 {
-		t.Fatalf("Persisted has %d and %d values, want 11: every view's and which is in", len(saved), len(restored))
+	if len(saved) != 12 || len(restored) != 12 {
+		t.Fatalf("Persisted has %d and %d values, want 12: every view's, which is in and the fastening", len(saved), len(restored))
 	}
 	for i := range saved {
 		switch v := saved[i].(type) {
@@ -91,6 +99,8 @@ func TestViewCamera_PersistedRoundTripKeepsTheView(t *testing.T) {
 			*restored[i].(*float32) = *v
 		case *bool:
 			*restored[i].(*bool) = *v
+		case *contract.Fastening:
+			*restored[i].(*contract.Fastening) = *v
 		default:
 			t.Fatalf("Persisted()[%d] is %T", i, v)
 		}
@@ -154,7 +164,7 @@ func TestViewCamera_InsideAUnitTheScreenIsAsWideAsItsEyeSees(t *testing.T) {
 // perspective from the eye the way Ray says, from above and isometrically one way through the
 // point under the pixel at any height.
 func TestViewCamera_RaysRunThroughWhatTheScreenPointsSee(t *testing.T) {
-	c := newCamera(testProjection, 640, 640, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, nil, nil, 0)
+	c := sized(newCamera(testProjection, 640, 640, 0, contract.Config{}, 0, true, nil, nil, 0), 400, 300)
 	seen := map[string]bool{}
 	for range 3 {
 		view := "iso"

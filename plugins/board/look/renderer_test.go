@@ -120,7 +120,7 @@ func TestRenderer_Compose_HandsTheLookEveryCell(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	wood := grid.CellIndex(1, 1)
+	wood := grid.At(1, 1)
 	brd.Set(wood, cell.Kind{Cost: 1, Allows: cell.Land, Height: 8, Sway: 1})
 	var seen int
 	var amount, rise float32

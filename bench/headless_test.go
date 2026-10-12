@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
 )
@@ -22,6 +24,7 @@ type headless struct {
 	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	world   *world.Plugin
+	cam     camera.Camera // the camera a benchmark looks through, when it keeps one here
 	tracked []any
 	pending []func() []goke.System
 	tps     game.TPS
@@ -59,15 +62,25 @@ func (c *headless) Track(s plugin.Serializable) error {
 }
 
 func (c *headless) UseWorld(cfg world.Config) *world.Plugin {
-	if cfg.Camera.ViewportWidth == 0 {
-		cfg.Camera.ViewportWidth, cfg.Camera.ViewportHeight = cfg.Space.Width, cfg.Space.Height
-	}
 	c.world = world.NewPlugin(cfg)
 	c.tracked = append(c.tracked, c.world)
 	if err := c.world.Install(c); err != nil {
 		panic(err)
 	}
 	return c.world
+}
+
+// camera is the main camera of the world's cameras, made by make and shown w x h pixels from the
+// world's top-left corner: the whole world for none.
+func (c *headless) camera(make cameras.Maker, w, h float32) camera.Camera {
+	if w == 0 {
+		space := c.world.Res.Config.Space
+		w, h = float32(space.Width), float32(space.Height)
+	}
+	cam := cameras.NewPlugin(c.world).New(make, camera.Config{})
+	cam.SetViewport(w, h)
+	cam.MoveTo(0, 0)
+	return cam
 }
 
 // start runs the fresh-spawn half of entering a Stage after Init and Spawn: Populate on every

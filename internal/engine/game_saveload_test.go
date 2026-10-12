@@ -28,6 +28,9 @@ func testWorldConfig() world.Config {
 type saveTestState struct{ N int }
 type saveTestResourceB struct{ S string }
 
+func (s *saveTestState) Persisted() []any     { return []any{&s.N} }
+func (r *saveTestResourceB) Persisted() []any { return []any{&r.S} }
+
 // ecsAccessor captures ctx.ECS() during Install and queues an optional setup callback.
 type ecsAccessor struct {
 	ecs   *goke.ECS
@@ -53,12 +56,11 @@ func (a *ecsAccessor) Serializable() plugin.Serializable  { return nil }
 
 // saveLoadTestGame wires newTestWorldPlugin + ecsAccessor for the round-trip test below.
 type saveLoadTestGame struct {
-	acc      *ecsAccessor
-	setup    func(*goke.SysInit)
-	define   func(*world.Kinds) []kind.Entry
-	world    *world.Plugin
-	loadFrom string
-	loadArgs []any
+	acc     *ecsAccessor
+	setup   func(*goke.SysInit)
+	define  func(*world.Kinds) []kind.Entry
+	world   *world.Plugin
+	tracked []plugin.Serializable // the game's own state, saved beside the plugins'
 
 	stack game.Scenes
 }
@@ -69,18 +71,15 @@ func (g *saveLoadTestGame) Init(ctx game.Initializer) error {
 	if g.define != nil {
 		g.world.Seed(g.define(g.world.Kinds())...)
 	}
+	for _, s := range g.tracked {
+		if err := ctx.Track(s); err != nil {
+			return err
+		}
+	}
 	g.acc = &ecsAccessor{setup: g.setup}
 	return ctx.Use(g.acc)
 }
-func (g *saveLoadTestGame) Restore(p game.Persistence) (bool, error) {
-	if g.loadFrom == "" {
-		return false, nil
-	}
-	if err := p.Load(g.loadFrom, "", g.loadArgs...); err != nil {
-		return false, err
-	}
-	return true, nil
-}
+func (g *saveLoadTestGame) Loaded() error                     { return nil }
 func (g *saveLoadTestGame) Spawn() error                      { return nil }
 func (g *saveLoadTestGame) Update(goke.RunCtx, time.Duration) {}
 func (g *saveLoadTestGame) Stack() game.Scenes {
@@ -103,23 +102,22 @@ func (g oneStageGame) Stages() (map[string]game.Stage, string) {
 }
 
 func TestGame_SaveLoad_RoundTrip(t *testing.T) {
-	basePath := t.TempDir() + "/save"
+	props := game.Props{Saves: t.TempDir()}
 
 	var appearance goke.Comp[render.Appearance]
-	g := &saveLoadTestGame{setup: func(si *goke.SysInit) {
+	state := &saveTestState{N: 42}
+	extra := &saveTestResourceB{S: "hello"}
+	g := &saveLoadTestGame{tracked: []plugin.Serializable{state, extra}, setup: func(si *goke.SysInit) {
 		f := si.NewFactory(&appearance)
 		f.Create(1)
 		f.Next()
 		appearance.Slice(&f.Cursor)[0] = render.Appearance{SpriteID: 7}
 	}}
-	eng := engine.NewEngine(oneStageGame{stage: g, props: game.Props{}})
+	eng := engine.NewEngine(oneStageGame{stage: g, props: props})
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-
-	state := &saveTestState{N: 42}
-	extra := &saveTestResourceB{S: "hello"}
-	if err := eng.Persistence().Save(basePath, "", state, extra); err != nil {
+	if err := eng.Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
@@ -131,10 +129,12 @@ func TestGame_SaveLoad_RoundTrip(t *testing.T) {
 		setup: func(si *goke.SysInit) {
 			q = si.NewQueryBuilder(&appearance2).Build()
 		},
-		loadFrom: basePath,
-		loadArgs: []any{state2, extra2},
+		tracked: []plugin.Serializable{state2, extra2},
 	}
-	eng2 := engine.NewEngine(oneStageGame{stage: game2, props: game.Props{}})
+	eng2 := engine.NewEngine(oneStageGame{stage: game2, props: props})
+	if err := eng2.Load("", ""); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
 	if err := eng2.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -166,7 +166,7 @@ type saveTestTag struct{}
 type saveTestMark struct{ Left int }
 
 func TestGame_SaveLoad_KeepsWhatAKindGivesItsEntities(t *testing.T) {
-	basePath := t.TempDir() + "/save"
+	props := game.Props{Saves: t.TempDir()}
 	define := func(kinds *world.Kinds) []kind.Entry {
 		kind.Define[struct{}](kinds, "marked", kind.Spec{
 			comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
@@ -179,22 +179,24 @@ func TestGame_SaveLoad_KeepsWhatAKindGivesItsEntities(t *testing.T) {
 		return []kind.Entry{marked.Entry(struct{}{})}
 	}
 
-	eng := engine.NewEngine(oneStageGame{stage: &saveLoadTestGame{define: define}, props: game.Props{}})
+	eng := engine.NewEngine(oneStageGame{stage: &saveLoadTestGame{define: define}, props: props})
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	if err := eng.Persistence().Save(basePath, ""); err != nil {
+	if err := eng.Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
 	var mark goke.Comp[saveTestMark]
 	var q *goke.Query
 	loaded := &saveLoadTestGame{
-		define:   define,
-		setup:    func(si *goke.SysInit) { q = si.NewQueryBuilder(&mark).Include(goke.Include[saveTestTag]()).Build() },
-		loadFrom: basePath,
+		define: define,
+		setup:  func(si *goke.SysInit) { q = si.NewQueryBuilder(&mark).Include(goke.Include[saveTestTag]()).Build() },
 	}
-	eng2 := engine.NewEngine(oneStageGame{stage: loaded, props: game.Props{}})
+	eng2 := engine.NewEngine(oneStageGame{stage: loaded, props: props})
+	if err := eng2.Load("", ""); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
 	if err := eng2.Init(); err != nil {
 		t.Fatalf("Init from the save: %v", err)
 	}

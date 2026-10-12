@@ -36,7 +36,24 @@ func (g *Hex) foldAxial(q, r int32) (int32, int32, bool) {
 	return int32(fq), int32(fr), okQ && okR
 }
 
+// hexDirs are the hex grid's directions in axial q, r: east, north-east, north-west, west,
+// south-west, south-east — round the hex against the clock, y running down the screen.
 var hexDirs = [6][2]int32{{1, 0}, {1, -1}, {0, -1}, {-1, 0}, {-1, 1}, {0, 1}}
+
+func (g *Hex) Directions() int { return len(hexDirs) }
+
+func (g *Hex) Opposite(i int) int { return (i + 3) % 6 }
+
+func (g *Hex) Offset(i int) (int, int) { return int(hexDirs[i][0]), int(hexDirs[i][1]) }
+
+func (g *Hex) Step(i int) geom.Vec {
+	dq, dr := float64(hexDirs[i][0]), float64(hexDirs[i][1])
+	return geom.NewVec(g.Size*(math.Sqrt(3)*dq+math.Sqrt(3)/2*dr), g.Size*1.5*dr)
+}
+
+func (g *Hex) Corner(int) bool { return false }
+
+func (g *Hex) Flanks(int) (int, int, bool) { return 0, 0, false }
 
 // Toward is c's neighbour in the i-th of hexDirs, across a seam where the grid wraps; false off
 // the grid or past the directions.
@@ -147,7 +164,7 @@ func (g *Hex) Coords(c cell.ID) (uint32, uint32, bool) {
 	return uint32(q), uint32(r), q >= 0 && r >= 0 && q < int32(g.Width) && r < int32(g.Height)
 }
 
-func (g *Hex) CellIndex(q, r uint32) cell.ID {
+func (g *Hex) At(q, r uint32) cell.ID {
 	fq, fr, ok := g.foldAxial(int32(q), int32(r))
 	if !ok {
 		panic(fmt.Sprintf("board: no cell at (%d, %d)", q, r))

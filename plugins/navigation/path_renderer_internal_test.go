@@ -10,8 +10,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/topography"
-	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -39,7 +39,7 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	land := sampled{step: 32, at: relief.MeanOfCells(grid, func(c cell.ID) float64 { // a ridge down the right half
+	land := sampled{step: 32, at: ground.MeanOfCells(grid, func(c cell.ID) float64 { // a ridge down the right half
 		if x, _, _ := grid.Coords(c); x >= 2 {
 			return 10
 		}
@@ -93,7 +93,7 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	cam := isoCamera(128, 128, camera.Config{})
 	r := newPathRenderer(grid, RouteStyle{}, 0)
-	c := grid.CellIndex(2, 1)
+	c := grid.At(2, 1)
 	for _, tc := range []struct {
 		spot   geom.Vec
 		centre geom.Vec
@@ -101,7 +101,7 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 		var f render.Frame
 		f.Reset(cam)
 		r.Compose(&f, cam)
-		r.goal(geom.NewVec(10, 10), c, tc.spot)
+		r.goal(geom.NewVec(10, 10), c, tc.spot, 0)
 		var starts [][2]float32
 		f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
 			if tier != render.Marks {
@@ -133,8 +133,8 @@ func TestPathRenderer_OutlinesNoStepAside(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	cam := isoCamera(128, 128, camera.Config{})
 	r := newPathRenderer(grid, RouteStyle{}, 0)
-	a := grid.CellIndex(2, 1)
-	b := grid.CellIndex(3, 3)
+	a := grid.At(2, 1)
+	b := grid.At(3, 3)
 	for _, tc := range []struct {
 		givingWay bool
 		lines     int
@@ -144,7 +144,7 @@ func TestPathRenderer_OutlinesNoStepAside(t *testing.T) {
 		var f render.Frame
 		f.Reset(cam)
 		r.Compose(&f, cam)
-		r.goals(geom.NewVec(10, 10), &o)
+		r.goals(geom.NewVec(10, 10), cell.Land, &o)
 		n := 0
 		f.Each(func(render.Tier, float32, []render.Vertex) { n++ })
 		if n != tc.lines {
@@ -158,10 +158,9 @@ func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: width, Height: height},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 100},
-		Camera:   cfg,
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
-	topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
-	return w.Camera()
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+	return cameras.NewPlugin(w).New(p.Views(topography.Isometrically), cfg)
 }

@@ -15,10 +15,10 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/water"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/painter"
-	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -51,10 +51,10 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	if err := ctx.Use(topo); err != nil {
 		b.Fatal(err)
 	}
-	brd := p.Res.Logic.Board
+	brd := p.Board()
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	ground := topo.Relief()
-	ground.SetHeights(relief.MeanOfCells(grid, func(c cell.ID) float64 {
+	relief := topo.Relief()
+	relief.SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 12
 		}
@@ -67,7 +67,7 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	for b.Loop() {
 		for i := range 64 {
 			d := float64(i) * size / 4
-			sum += ground.At(geom.NewVec(origin.X+d*0.8, origin.Y+d*0.6))
+			sum += relief.At(geom.NewVec(origin.X+d*0.8, origin.Y+d*0.6))
 		}
 	}
 	_ = sum
@@ -93,9 +93,9 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	if err := ctx.Use(topo); err != nil {
 		b.Fatal(err)
 	}
-	brd := p.Res.Logic.Board
+	brd := p.Board()
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	topo.Relief().SetHeights(relief.MeanOfCells(grid, func(c cell.ID) float64 {
+	topo.Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 20
 		}
@@ -107,7 +107,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	p.WithRenderer(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 	src := p.Renderer().(render.Source)
-	cam := ctx.world.Camera()
+	cam := ctx.camera(topo.Views(topography.FromAbove), 0, 0)
 	var f render.Frame
 	low := fixedSky{sun: sky.Sun{Dir: [3]float32{-0.8, 0.45, 0.3}, Strength: 0.75, Ambient: 0.3}}
 	topo.WithAtmosphere(low)
@@ -149,13 +149,13 @@ func Benchmark_Board_Shores(b *testing.B) {
 	if err := ctx.Use(topo); err != nil {
 		b.Fatal(err)
 	}
-	brd := p.Res.Logic.Board
+	brd := p.Board()
 	sea := cell.Kind{Name: cell.Named("sea"), Cost: 1, Allows: cell.Water}
 	brd.SetAll(sea)
 	land := cell.Kind{Cost: 1, Allows: cell.Land}
 	for y := range uint32(h) {
 		for x := range uint32(w) {
-			if c := grid.CellIndex(x, y); x%8 < 4 && y%8 < 4 {
+			if c := grid.At(x, y); x%8 < 4 && y%8 < 4 {
 				brd.Set(c, land)
 			}
 		}
@@ -166,9 +166,9 @@ func Benchmark_Board_Shores(b *testing.B) {
 	p.WithRenderer(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 	src := p.Renderer().(render.Source)
-	cam := ctx.world.Camera()
+	cam := ctx.camera(topo.Views(topography.FromAbove), 0, 0)
 	var f render.Frame
-	far := grid.CellIndex(6, 6)
+	far := grid.At(6, 6)
 	shallows := sea
 	shallows.Cost = 2
 	for _, sc := range []struct {
@@ -203,13 +203,19 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
 		Heights:  true,
 	}
-	if far {
-		cfg.Camera.ViewportWidth, cfg.Camera.ViewportHeight = 576, 384
-	}
 	ctx.UseWorld(cfg)
 	grid := grid.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size, HeightUnit: 1, Isometric: view != "above", Perspective: view == "persp"})
+	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size, HeightUnit: 1, Perspective: view == "persp"})
+	var screenW, screenH float32 // the whole world, unless far
+	if far {
+		screenW, screenH = 576, 384
+	}
+	start := topography.Isometrically
+	if view == "above" {
+		start = topography.FromAbove
+	}
+	ctx.cam = ctx.camera(topo.Views(start), screenW, screenH)
 	kinds := p.CellKinds()
 	kinds.Define("sea", cell.Kind{Cost: 1, Allows: cell.Water})
 	kinds.Define("earth", cell.Kind{Cost: 1, Allows: cell.Land})
@@ -283,15 +289,15 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	if view == "persp" { // Tab once, from the isometric view
 		for _, q := range topo.Queues() {
 			if q.Accepts() == reflect.TypeFor[topography.View]() {
-				q.Put(control.Nobody, topography.View{Camera: ctx.world.Camera()})
+				q.Put(control.Nobody, topography.View{Camera: ctx.cam})
 			}
 		}
 		ecs.Tick(step)
 	}
 	if far {
-		ctx.world.Camera().ZoomOut(100, w*size/2, h*size/2) // as far as the world fits
+		ctx.cam.ZoomOut(100, w*size/2, h*size/2) // as far as the world fits
 	}
-	return ctx, p.Res.Logic.Board, p.Renderer().(render.Source)
+	return ctx, p.Board(), p.Renderer().(render.Source)
 }
 
 // Benchmark_Board_Island composes the whole of the island, from above and isometric, near and
@@ -306,13 +312,13 @@ func Benchmark_Board_Island(b *testing.B) {
 	}{{"above", false, false, 0}, {"iso", false, false, 0}, {"iso", false, true, 0}, {"persp", false, true, 0}, {"above", true, false, 0}, {"iso", true, false, 0},
 		{"above", false, false, 1}, {"iso", false, false, 1}, {"iso", false, true, 1}, {"persp", false, true, 1}, {"above", true, false, 1}, {"iso", true, false, 1}} {
 		ctx, brd, src := island(b, v.view, v.far, v.workers)
-		cam := ctx.world.Camera()
+		cam := ctx.cam
 		if v.screen {
 			cam.SetViewport(1920, 1080)
 			cam.CenterOn(96*32/2, 64*32/2, 0)
 		}
-		far := brd.CellIndex(48, 32)
-		rock := brd.CellIndex(48, 30)
+		far := brd.At(48, 32)
+		rock := brd.At(48, 30)
 		view := v.view
 		if v.far {
 			view += ",far"

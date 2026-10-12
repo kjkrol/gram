@@ -22,7 +22,7 @@ func bandWorld(t *testing.T, height float64, level func(cell.ID) float64) (*Fiel
 	f := New(grid, cells, level)
 	f.SetHeights(true)
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	cellAt := func(x uint32) cell.ID { c := grid.CellIndex(x, 0); return c }
+	cellAt := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 	wall := cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true, Height: height}
 	cells.Set(cellAt(3), wall)
 	cells.Set(cellAt(4), wall)
@@ -77,10 +77,10 @@ func TestBand_ASolidCellStandsFromBelowUpToItsHeight(t *testing.T) {
 	if got := solid(f, collision.Band{Bottom: 40, Top: 50}); len(got) != 2 {
 		t.Errorf("a wall of no height under a flyer: %d solid cells, want the two of the wall", len(got))
 	}
-	if f.solidBand(cellAt(3), &cell.Kind{Solid: true, Height: 0}) != collision.Everywhere {
+	if f.solidBand(cellAt(3), 0) != collision.Everywhere {
 		t.Error("a wall of no height stands at every height")
 	}
-	if got := f.solidBand(cellAt(3), &cell.Kind{Solid: true, Height: 10}); got.Bottom != math.Inf(-1) || got.Top != 10 {
+	if got := f.solidBand(cellAt(3), 10); got.Bottom != math.Inf(-1) || got.Top != 10 {
 		t.Errorf("a wall of 10 on the flat spans %v, want from below up to 10", got)
 	}
 }
@@ -93,7 +93,7 @@ func TestBand_ASideIsOpenTowardsANeighbourUnderTheEntity(t *testing.T) {
 	f := New(grid, cells, func(cell.ID) float64 { return 0 })
 	f.SetHeights(true)
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	cellAt := func(x uint32) cell.ID { c := grid.CellIndex(x, 0); return c }
+	cellAt := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 	cells.Set(cellAt(3), cell.Kind{Name: cell.Named("low"), Cost: 1, Solid: true, Height: 10})
 	cells.Set(cellAt(4), cell.Kind{Name: cell.Named("high"), Cost: 1, Solid: true, Height: 30})
 
@@ -116,7 +116,7 @@ func TestBand_AFlatWorldHasEveryCellEverywhere(t *testing.T) {
 	cells := terrain.New(grid)
 	f := New(grid, cells, func(cell.ID) float64 { return 0 })
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	cellAt := func(x uint32) cell.ID { c := grid.CellIndex(x, 0); return c }
+	cellAt := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 	cells.Set(cellAt(3), cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true})
 	if got := solid(f, collision.Band{Bottom: 40, Top: 50}); len(got) != 1 {
 		t.Errorf("%d solid cells for a band on the flat, want the wall whatever the band", len(got))

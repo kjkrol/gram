@@ -85,16 +85,18 @@ costs nothing for it. A role narrows a rule further, on top of its filter (below
 ## Who gets a rule
 
 Nobody hands a rule to a plugin: there is no hooking. A rule is obeyed by a role, and a role is
-played — by a kind of unit, by a kind of cell, by a plugin:
+played — by a kind of entity, by a kind of cell, by a plugin:
 
 ```go
 roles := s.world.Roles()
 roles.Define(MortalRole, fallIn)   // a rule of unit.Standing: the board's
-roles.Define(PlateRole, press)     // a rule of cell.Now: the board's
+roles.Define(PlateRole, press)     // a rule of collision.Meeting: collision's
 roles.Define(NightlyRole, atDusk)  // a rule of clock.Moment: the world's
 
 units.Define(ScoutKind, land, profile, rule.Plays(roles.Named(MortalRole))) // a kind of unit plays it
-kinds.Define("plate", cell.Kind{Cost: 1}, roles.Named(PlateRole))       // a kind of cell, as it is defined
+plates.Define(PlateKind, comp.Const(collision.Collider{}),
+	rule.Plays(roles.Named(PlateRole)))                                 // a kind standing on the board
+kinds.Define("lava", cell.Kind{Cost: 9}, roles.Named(ScorchingRole))     // a kind of cell, as it is defined
 layout.Cells = append(layout.Cells, water.Entry(c).Plays(lakeRole))     // one cell of the Layout alone
 s.world.Plays(roles.Named(NightlyRole))                                 // the world itself
 ```
@@ -172,8 +174,9 @@ rule.While(s.atmosphere, fx.Named(BloodMoonEf), rule.Keep(fx.Named(FrenziedEf)))
   `clock.Clock.In` reads. Run once a step, walking no entities, it takes no filter and obeys no role.
 - **Where one stands.** On a moment that is `plugin.Placed` — a `unit.Standing`, a cell's
   `cell.Now` — `rule.Here(step)` runs the step on the cells under the entity (for a cell, on
-  itself) and `rule.Around(rings, step)` on those and the rings of neighbours round them, each cell
-  once, on square and hex boards alike: an effect applied to the ground.
+  itself) and the entities standing on them, `rule.Around(rings, step)` on those and the rings of
+  neighbours round them, each cell once, on square and hex boards alike: an effect applied to the
+  ground, a lever pulled. The units there are no part of it.
 - **Now and then.** `rule.Chance(p, step)` runs the step with likelihood `p`, drawn afresh at every
   step of the game from the world's seed (`world.Config.Seed`), the game time and the entity — no
   state kept, so a load and a replay draw alike.
@@ -216,7 +219,7 @@ openWest := s.world.Commands().Named(OpenWestCmd)
 s.player.Bind(control.Give(control.KeyPress{Key: control.Key1}, "Pull the west lever", openWest)) // a key
 s.players.Issue(ai, openWest)                                                                      // an AI, a script
 rule.Order(openWest)                                                                               // a rule, a plan
-rule.If(cell.Now.Stood, rule.Trigger())                                                            // its source
+rule.Trigger()                                                                                     // its source, pressed
 ```
 
 The plugin its target belongs to carries it out — the world for those named, grouped and the
@@ -240,9 +243,9 @@ s.player.Bind(control.Give(control.KeyPress{Key: control.KeyN}, "Sound the alarm
 The guards hurry while the alarm sounds and slow down once it is over: `Keep` holds `alert` only
 while the rule fires it.
 
-The wire demo (`examples/wire-demo/demo.go`) is a whole program of it: a lever, a plate and a
-switch, each a command for a group of cells; the trapdoor and pressure plate demos are the same
-in less.
+The wire demo (`examples/rules/wire/demo.go`) is a whole program of it: a lever, a plate and a
+switch, each a command for a group of trapdoors or a gate, entities standing on the board; the
+trapdoor and pressure plate demos are the same in less.
 
 ## Roles
 
@@ -368,7 +371,7 @@ faced after `Facing` — and leaves a kind with no twin as it is; `render.Over(c
 lays one look over every kind; `Show` hides. Two states compose in the order the rules are given.
 This is what Unreal's Gameplay Ability System calls a cue: the effect grants a tag, each class
 reacts to it cosmetically; the effect never touches the look. An `Alter(Appearance)` remains a
-knob for one look for every kind (`examples/effect-demo` froze everyone pale before; now each kind
+knob for one look for every kind (`examples/rules/effect` froze everyone pale before; now each kind
 freezes in its own look).
 
 ## Dispel and order

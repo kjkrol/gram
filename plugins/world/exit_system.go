@@ -15,9 +15,8 @@ import (
 // exitSystem takes it off once the entity is back inside.
 type Outside struct{}
 
-// Leaving is what a rule hosted by world gets, every tick, for an entity carrying Outside.
-// To reconsider: no game has a rule of it yet, so the world despawns every leaver — whether it
-// stays a moment or the world simply despawns is open (doc/refactor-notes.md, Questions for review).
+// Leaving is what a rule hosted by world gets, every tick, for an entity carrying Outside; with no
+// such rule the world despawns the leaver. Whether it stays a moment is open (doc/roadmap.md).
 type Leaving struct {
 	ID   uid.UID64
 	Base *Base

@@ -170,7 +170,7 @@ func (r *pathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 				continue
 			}
 			o := &orders[i]
-			r.goals(bases[i].Pos.Size, o)
+			r.goals(bases[i].Pos.Size, unit.DomainAt(movers, i), o)
 			if !r.routes {
 				continue
 			}
@@ -186,15 +186,26 @@ func (r *pathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 	}
 }
 
-// goals outlines where o's entity, of size, will stand: its Target — not a step aside, which is no
-// goal — and every goal queued after it.
-func (r *pathRenderer) goals(size geom.Vec, o *MoveOrder) {
+// goals outlines where o's entity, of size, moving in domain, will stand: its Target — not a step
+// aside, which is no goal — and every goal queued after it.
+func (r *pathRenderer) goals(size geom.Vec, domain cell.Domain, o *MoveOrder) {
 	if !o.GivingWay {
-		r.goal(size, o.Target, o.Spot)
+		r.goal(size, o.Target, o.Spot, r.standing(r.point(o.Target, o.Spot), domain, o.Level))
 	}
 	for k := range o.Waypoints[:o.Queued] {
-		r.goal(size, o.Waypoints[k].Cell, o.Waypoints[k].Spot)
+		g := &o.Waypoints[k]
+		r.goal(size, g.Cell, g.Spot, r.standing(r.point(g.Cell, g.Spot), domain, g.Level))
 	}
+}
+
+// standing is the height whoever moves in domain stands at on a goal at p on its level: the
+// ground under a deck, else a deck carrying it over the ground.
+func (r *pathRenderer) standing(p geom.Vec, domain cell.Domain, level Level) float32 {
+	if s, ok := r.ground.(ground.Surfaces); ok && level != OnGround {
+		top, _ := s.Surface(p, domain, math.Inf(1), 0)
+		return float32(top)
+	}
+	return r.groundAt(p)
 }
 
 // point is where a goal is: its spot, or its cell's centre.
@@ -283,12 +294,11 @@ func (r *pathRenderer) on(p geom.Vec) (float32, float32) {
 	return r.camera.Project(float32(p.X), float32(p.Y), r.groundAt(p))
 }
 
-// goal outlines a box of size standing on the goal — its spot, or its cell's centre — on the
-// ground there, on the Marks tier, as the look draws it.
-func (r *pathRenderer) goal(size geom.Vec, c cell.ID, spot geom.Vec) {
+// goal outlines a box of size standing on the goal — its spot, or its cell's centre — at alt, on
+// the Marks tier, as the look draws it.
+func (r *pathRenderer) goal(size geom.Vec, c cell.ID, spot geom.Vec, alt float32) {
 	at := r.point(c, spot)
 	box := geom.NewAABBAt(geom.NewVec(at.X-size.X/2, at.Y-size.Y/2), size.X, size.Y)
-	alt := r.groundAt(at)
 	r.footprint = r.footprint[:0]
 	if r.look != nil {
 		r.footprint = r.look().Footprint(r.camera, box, alt, r.footprint)
@@ -323,9 +333,10 @@ func (r *pathRenderer) queued(id uid.UID64, domain cell.Domain, mt *MoveOrder) [
 		return nil
 	}
 	var goals [MaxWaypoints + 1]cell.ID
-	goals[0] = mt.Target
+	var levels [MaxWaypoints + 1]Level
+	goals[0], levels[0] = mt.Target, mt.Level
 	for k, g := range mt.Waypoints[:mt.Queued] {
-		goals[k+1] = g.Cell
+		goals[k+1], levels[k+1] = g.Cell, g.Level
 	}
 	if pv := r.previews[id]; pv != nil && pv.queued == mt.Queued && pv.goals == goals {
 		return pv.routes
@@ -335,7 +346,7 @@ func (r *pathRenderer) queued(id uid.UID64, domain cell.Domain, mt *MoveOrder) [
 		from, to := goals[k], goals[k+1]
 		route := []cell.ID{from}
 		if r.finder != nil {
-			if path, ok := r.finder.findPath(id, domain, from, to); ok {
+			if path, ok := r.finder.findPath(id, domain, world.Z{}, from, to, levels[k+1]); ok {
 				for _, step := range path.Steps[:path.Length] {
 					route = append(route, step)
 				}

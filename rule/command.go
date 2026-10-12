@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/rule/effect"
@@ -42,7 +43,7 @@ type Target interface{ Target() }
 // Router is a Target of a plugin's own: Route is the command that plugin carries out for c.
 type Router interface {
 	Target
-	Route(c Command) any
+	Route(c Command) control.Command
 }
 
 // Cast is the command to put e on whoever On names.
@@ -67,7 +68,7 @@ func (c Command) For(d time.Duration) Command { c.Lasts = d; return c }
 
 // Routed is the command as the plugin of its target takes it: the Command itself for the world's
 // targets. It panics for a command that names no target.
-func (c Command) Routed() any {
+func (c Command) Routed() control.Command {
 	switch t := c.Whom.(type) {
 	case nil:
 		panic(fmt.Sprintf("rule: %v names nobody: say whom with On", c))
@@ -89,6 +90,14 @@ func (c Command) String() string {
 // Triggered is the command an entity gives itself with Trigger: the world gives every Command
 // whose Source names it.
 type Triggered struct{}
+
+func (Command) Command()   {}
+func (Triggered) Command() {}
+
+var (
+	_ control.Command = Command{}
+	_ control.Command = Triggered{}
+)
 
 // Trigger gives the commands the entity sets off — those whose By names it or its group — and
 // does well at once: a plate pressed, a lever pulled.

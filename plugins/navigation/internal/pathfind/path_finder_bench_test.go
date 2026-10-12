@@ -16,7 +16,7 @@ import (
 func BenchmarkPathFinder_Terrain(b *testing.B) {
 	const side, size = 128, 16
 	grid := grid.DefaultGrids{}.Square(side, side, size)
-	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	from, to := at(0, 0), at(side-1, side-1)
 	lay := func(brd *board.Board) {
 		rng := rand.New(rand.NewPCG(3, 5))
@@ -48,7 +48,7 @@ func BenchmarkPathFinder_Terrain(b *testing.B) {
 			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
 		})
 		brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-		lay(brd.Res.Logic.Board)
+		lay(brd.Board())
 		ctx := &stubInstallCtx{ecs: goke.New()}
 		if err := w.Install(ctx); err != nil {
 			b.Fatal(err)
@@ -64,6 +64,6 @@ func BenchmarkPathFinder_Terrain(b *testing.B) {
 		if _, ok := brd.CellEntity(from); !ok {
 			b.Fatal("the board has no cell entities")
 		}
-		run(b, brd.Res.Logic.Board)
+		run(b, brd.Board())
 	})
 }

@@ -12,11 +12,24 @@ type Grid interface {
 	// Toward is c's neighbour in the grid's i-th direction, across a seam where the grid wraps;
 	// false off the grid or past its directions. A Way's Links name the directions by bit (Link).
 	Toward(c cell.ID, i int) (cell.ID, bool)
+	// Directions is how many directions a cell has neighbours in: Toward's i, and a Way's Links
+	// bit i, run below it.
+	Directions() int
+	// Opposite is the direction back from the neighbour in direction i.
+	Opposite(i int) int
+	// Offset is direction i in At's coordinates.
+	Offset(i int) (da, db int)
+	// Step is the way from a cell's middle to its neighbour's in direction i, in world units.
+	Step(i int) geom.Vec
+	// Corner reports whether direction i leaves the cell through a corner, not across an edge.
+	Corner(i int) bool
+	// Flanks are the edge directions either side of corner direction i; false for an edge one.
+	Flanks(i int) (a, b int, ok bool)
 	CellCenter(c cell.ID) geom.Vec
 	CellAt(pos geom.Vec) (cell.ID, bool)
-	// CellIndex is the cell at grid coordinates (col,row or axial q,r), wrapped where the grid
+	// At is the cell at grid coordinates (col,row or axial q,r), wrapped where the grid
 	// wraps; one off a closed axis panics by its coordinates — a game asks for cells it laid.
-	CellIndex(a, b uint32) cell.ID
+	At(a, b uint32) cell.ID
 	// NeighborCost is the geometric step cost from a to its neighbor b.
 	NeighborCost(a, b cell.ID) float64
 	// DiagonalNeighbors returns the two cells flanking the corner between a and its diagonal b.
@@ -37,7 +50,7 @@ type Grid interface {
 	EachCell(fn func(c cell.ID))
 	// Ordinal is c's index in a table with one slot per cell, below CellCount; false for no cell.
 	Ordinal(c cell.ID) (int, bool)
-	// Coords inverts CellIndex: c's grid coordinates (col, row or axial q, r).
+	// Coords inverts At: c's grid coordinates (col, row or axial q, r).
 	Coords(c cell.ID) (a, b uint32, ok bool)
 	// CellCount is how many cells the grid has.
 	CellCount() int

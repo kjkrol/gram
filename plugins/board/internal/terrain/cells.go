@@ -1,6 +1,9 @@
 package terrain
 
 import (
+	"math"
+
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
@@ -16,14 +19,26 @@ import (
 // Cells is a board's cells' terrain: its seed until the ECS is set up, then the cells' entities,
 // with the counts of changes to them. Not safe for concurrent use.
 type Cells struct {
-	grid     grid.Grid
-	square   uint64 // a square grid's cell count, its ids counting row by row; 0 for any other
-	seed     *cell.TerrainMap
-	store    *store // the cells' entities; nil before Setup
-	version  uint64
-	stamps   []uint64 // by ordinal: the count of changes when each cell last changed
-	changes  uint64   // how many cells have changed, one at a time
-	everyone uint64   // the count when every cell last changed at once
+	grid      grid.Grid
+	square    uint64 // a square grid's cell count, its ids counting row by row; 0 for any other
+	seed      *cell.TerrainMap
+	store     *store // the cells' entities; nil before Setup
+	version   uint64
+	stamps    []uint64 // by ordinal: the count of changes when each cell last changed
+	changes   uint64   // how many cells have changed, one at a time
+	everyone  uint64   // the count when every cell last changed at once
+	built     int      // how many cells something is built over, so that a board of none seeks none
+	railed    int      // how many of them carry a railing
+	bands     int      // how many carry a deck running as a band
+	narrowest float64  // how wide the narrowest band is
+	thinnest  float64  // how thick the thinnest raised band's slab is
+	reached   []bool   // by ordinal: a neighbour's band reaches into the cell
+	bridges   Bridges
+	fresh     bool       // the cells were made afresh, not found after a load
+	decks     []Deck     // scratch for the decks over a point
+	rails     []Railing  // scratch for the railings round a step
+	outline   []geom.Vec // scratch for a cell's outline
+	standing  *builtSystem
 }
 
 // New is the terrain of g's cells, every one of the zero kind until it is set.
@@ -62,25 +77,159 @@ func (t *Cells) Entity(c cell.ID) (uid.UID64, bool) {
 	return t.store.ids[i], true
 }
 
-// Kind is c's kind as whoever crosses it meets it: the ground's under its Way and its Crossing;
-// off the board, the zero kind.
+// Kind is c's kind as whoever crosses it meets it: the ground's under its Way and what is built
+// over it; off the board, the zero kind.
 func (t *Cells) Kind(c cell.ID) cell.Kind {
 	if t.store == nil {
-		return t.seed.Crossings[c].Over(t.seed.Ways[c].Over(t.seed.Kind(c)))
+		return t.seed.Ways[c].Over(t.seed.Kind(c))
 	}
 	i, ok := t.Ordinal(c)
 	if !ok {
 		return cell.Kind{}
 	}
-	return t.store.crossingOf(i).Over(t.store.wayOf(i).Over(t.store.groundOf(i).Kind))
+	k := t.store.wayOf(i).Over(t.store.groundOf(i).Kind)
+	if t.built > 0 {
+		if b := t.store.builtOf(i); b != nil {
+			k = b.Over(k)
+		}
+	}
+	return k
 }
 
-// Bare is c's ground kind, bare of what runs across it; off the board, the zero kind.
-func (t *Cells) Bare(c cell.ID) cell.Kind {
-	if k := t.KindOf(c); k != nil {
-		return *k
+// KindAt is c's kind on one of its levels where a raised Floor gives it two: on the deck what the
+// Floor carries, at its Cost (else the ground's), Graded as it is; under it the ground under its
+// Way with what else is built there; on a cell of one level, Kind.
+func (t *Cells) KindAt(c cell.ID, deck bool) cell.Kind {
+	b := t.Built(c)
+	if b.Floor.Height <= 0 {
+		return t.Kind(c)
 	}
-	return cell.Kind{}
+	i, _ := t.Ordinal(c)
+	return level(t.store.wayOf(i).Over(t.store.groundOf(i).Kind), b, deck)
+}
+
+// KindFor is c's kind at p for whoever stands with its feet at feet and steps reach high: on a
+// Floor over p — c's own over the whole cell, or a band p lies on, c's or a neighbour's — a raised
+// one once its feet are within reach of its deck, ground giving a cell's level; otherwise the
+// ground under the decks.
+func (t *Cells) KindFor(c cell.ID, p geom.Vec, feet, reach float64,
+	ground func(cell.ID) float64) cell.Kind {
+	if t.store == nil {
+		return t.seed.Ways[c].Over(t.seed.Kind(c))
+	}
+	i, ok := t.Ordinal(c)
+	if !ok {
+		return cell.Kind{}
+	}
+	k := t.store.wayOf(i).Over(t.store.groundOf(i).Kind)
+	if t.built == 0 {
+		return k
+	}
+	b := t.store.builtOf(i)
+	switch {
+	case b == nil:
+		return k
+	case b.Floor.Allows == 0 && (t.bands == 0 || !t.reached[i]):
+		return b.Over(k)
+	}
+	t.decks = t.DecksOver(c, p, t.decks[:0])
+	for _, d := range t.decks {
+		f := d.Built.Floor
+		raised := f.Height > 0 && ground != nil
+		if raised && feet < ground(d.Cell)+f.Height-reach {
+			continue
+		}
+		on := cell.Built{Floor: f, Wall: b.Wall}
+		if raised {
+			return level(k, on, true)
+		}
+		return on.Over(k)
+	}
+	return level(k, *b, false)
+}
+
+// CellFor is the cell whoever stands at p with its feet at feet and steps reach high is on: the
+// cell of the highest Floor over p it stands on — a raised one within its reach, a neighbour's band
+// reaching over p too — else the cell under p; ground gives a cell's level.
+func (t *Cells) CellFor(p geom.Vec, feet, reach float64,
+	ground func(cell.ID) float64) (cell.ID, bool) {
+	c, _, ok := t.LevelFor(p, feet, reach, ground)
+	return c, ok
+}
+
+// LevelFor is CellFor and whether whoever stands there stands on a raised deck.
+func (t *Cells) LevelFor(p geom.Vec, feet, reach float64,
+	ground func(cell.ID) float64) (cell.ID, bool, bool) {
+	c, ok := t.grid.CellAt(p)
+	if !ok || t.built == 0 || t.store == nil {
+		return c, false, ok
+	}
+	t.decks = t.DecksOver(c, p, t.decks[:0])
+	best, top, raised := c, math.Inf(-1), false
+	for _, d := range t.decks {
+		f := d.Built.Floor
+		h := f.Height
+		if ground != nil {
+			h += ground(d.Cell)
+		}
+		if f.Height > 0 && ground != nil && feet < h-reach || h <= top {
+			continue
+		}
+		best, top, raised = d.Cell, h, f.Height > 0
+	}
+	return best, raised, true
+}
+
+// level is the kind k under b on the deck of b's Floor or under it.
+func level(k cell.Kind, b cell.Built, deck bool) cell.Kind {
+	floor := b.Floor
+	b.Floor = cell.Floor{}
+	if !deck {
+		return b.Over(k)
+	}
+	on := cell.Kind{Name: k.Name, Cost: k.Cost, SpriteID: k.SpriteID}
+	if floor.Cost > 0 {
+		on.Cost = floor.Cost
+	}
+	on.Allows, on.Graded = floor.Allows, floor.Graded
+	return b.Over(on)
+}
+
+// Standing calls each with every entity standing on c (cell.On); none before the cells are made.
+func (t *Cells) Standing(c cell.ID, each func(uid.UID64)) {
+	if t.standing != nil {
+		t.standing.standing(c, each)
+	}
+}
+
+// Built is what the entities standing on c build over it; none off the board or before the cells
+// are made.
+func (t *Cells) Built(c cell.ID) cell.Built {
+	if t.built == 0 || t.store == nil {
+		return cell.Built{}
+	}
+	i, ok := t.Ordinal(c)
+	if !ok {
+		return cell.Built{}
+	}
+	if b := t.store.builtOf(i); b != nil {
+		return *b
+	}
+	return cell.Built{}
+}
+
+// Bare is c's ground kind, bare of what runs across it — a way, a bridge — with what else is built
+// over it; off the board, the zero kind.
+func (t *Cells) Bare(c cell.ID) cell.Kind {
+	k := t.KindOf(c)
+	if k == nil {
+		return cell.Kind{}
+	}
+	b := t.Built(c)
+	if b.Floor.Graded {
+		b.Floor = cell.Floor{} // a bridge runs across as a way does, the ground beside it bare
+	}
+	return b.Over(*k)
 }
 
 // KindOf is c's ground kind without the copy, nil off the board; good until the cells change.
@@ -156,39 +305,6 @@ func (t *Cells) SetWay(c cell.ID, w cell.Way) {
 	}
 	if p := t.store.wayOf(i); *p != w {
 		*p = w
-		t.touch(c)
-		t.version++
-	}
-}
-
-// Crossing is what crosses c over its Way; the zero Crossing off the board or where nothing does.
-func (t *Cells) Crossing(c cell.ID) cell.Crossing {
-	if t.store == nil {
-		return t.seed.Crossings[c]
-	}
-	i, ok := t.Ordinal(c)
-	if !ok {
-		return cell.Crossing{}
-	}
-	return *t.store.crossingOf(i)
-}
-
-// SetCrossing lays x across c over its Way, the zero Crossing taking what crossed there away.
-func (t *Cells) SetCrossing(c cell.ID, x cell.Crossing) {
-	if t.store == nil {
-		before := t.seed.Version()
-		if t.seed.SetCrossing(c, x); t.seed.Version() != before {
-			t.touch(c)
-			t.version++
-		}
-		return
-	}
-	i, ok := t.Ordinal(c)
-	if !ok {
-		return
-	}
-	if p := t.store.crossingOf(i); *p != x {
-		*p = x
 		t.touch(c)
 		t.version++
 	}

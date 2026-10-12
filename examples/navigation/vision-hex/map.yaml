@@ -1,0 +1,42 @@
+board:
+  default: grass
+  legend:
+    ".": grass
+    "#": wall
+    "T": forest
+    "^": hill
+    "=": road
+  # a hill in the first unit's way: its cone climbs the slope and stops, the hawk's passes over
+  cells: |
+    . . = = = = = = = = = = = = = = = = . .
+     . . = . . . . . . . # . . . . . . = . .
+      . . = . . . . . ^ ^ # . . . . . . = . .
+       . . = . . . . . ^ ^ # . . . . . . = . .
+        . . = . . T T T ^ ^ # . . . . . . = . .
+         . . = . . T T T . . # . . . . . . = . .
+          . . = . . T T T . . . . . . . . . = . .
+           . . = . . . . . . . # . . . . . . = . .
+            . . = . . . . . . . # . . T T T . = . .
+             . . = . . . . . . . # . . T T T . = . .
+              . . = . . . . . . . # . . T T T . = . .
+               . . = . . . . . . . # . . . . . . = . .
+relief:
+  cells: |
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 12 12 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 12 12 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 12 12 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+units:
+  - {kind: red, side: player, start: [3, 3], target: [16, 3]}
+  - {kind: blue, side: player, start: [3, 9], target: [16, 9]}
+  - {kind: yellow, side: player, start: [16, 6], target: [3, 6]}
+  # the hawk crosses the wall and the second forest head-on
+  - {kind: hawk, side: reserve, start: [1, 9], target: [18, 9]}

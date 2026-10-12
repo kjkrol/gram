@@ -44,23 +44,23 @@ func TestHexGrid_Toroidal_NeighborsWrapToCanonicalRange(t *testing.T) {
 	}
 }
 
-func TestHexGrid_CellIndex_NonToroidal(t *testing.T) {
+func TestHexGrid_At_NonToroidal(t *testing.T) {
 	g := NewHex(4, 4, 10)
-	if c := g.CellIndex(2, 1); c != packAxial(2, 1) {
-		t.Errorf("CellIndex(2,1) = %v, want %v", c, packAxial(2, 1))
+	if c := g.At(2, 1); c != packAxial(2, 1) {
+		t.Errorf("At(2,1) = %v, want %v", c, packAxial(2, 1))
 	}
 	defer func() {
 		if recover() == nil {
 			t.Error("q==Width on a non-toroidal grid did not panic")
 		}
 	}()
-	g.CellIndex(4, 0)
+	g.At(4, 0)
 }
 
-func TestHexGrid_CellIndex_ToroidalWraps(t *testing.T) {
+func TestHexGrid_At_ToroidalWraps(t *testing.T) {
 	g := &Hex{Width: 4, Height: 4, Size: 10, WrapX: true, WrapY: true}
-	if c, origin := g.CellIndex(4, 0), g.CellIndex(0, 0); c != origin {
-		t.Errorf("CellIndex(4,0) = %v, want same cell as CellIndex(0,0) = %v", c, origin)
+	if c, origin := g.At(4, 0), g.At(0, 0); c != origin {
+		t.Errorf("At(4,0) = %v, want same cell as At(0,0) = %v", c, origin)
 	}
 }
 
@@ -84,5 +84,19 @@ func TestHexGrid_WrapsAlongOneAxisOnly(t *testing.T) {
 	}
 	if _, _, ok := g.foldAxial(-1, 1); !ok {
 		t.Error("a cell left of the first column does not fold onto the grid, want it wrapped")
+	}
+}
+
+// The hex grid's directions in their order — the one place the numbering is spelled out.
+func TestHexGrid_DirectionsInOrder(t *testing.T) {
+	g := NewHex(4, 4, 10)
+	want := [6][2]int{{1, 0}, {1, -1}, {0, -1}, {-1, 0}, {-1, 1}, {0, 1}}
+	if g.Directions() != len(want) {
+		t.Fatalf("%d directions, want %d", g.Directions(), len(want))
+	}
+	for i, w := range want {
+		if a, b := g.Offset(i); a != w[0] || b != w[1] {
+			t.Errorf("direction %d is (%d, %d), want (%d, %d)", i, a, b, w[0], w[1])
+		}
 	}
 }

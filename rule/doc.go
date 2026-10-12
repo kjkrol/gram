@@ -115,12 +115,12 @@
 // are kept for Trigger, and every name they say is checked as the game starts — a name nobody
 // bears, or one two bear, stops it there.
 //
-//	roles.Define(PlateRole, rule.Then[cell.Now]("press", rule.All, rule.If(cell.Now.Stood, rule.Trigger())))
-//	kinds.Define("plate", cell.Kind{Cost: 1, Allows: cell.Land}, roles.Named(PlateRole))
+//	roles.Define(PlateRole, rule.Then[collision.Meeting]("press", rule.All, rule.Trigger()))
+//	plates.Define("plate", comp.Const(collision.Collider{}), rule.Plays(roles.Named(PlateRole)))
 //	cmds.Define(OpenWestCmd, rule.Cast(fx.Named(OpenEf)).On(entity.Group("west trapdoors")).By(entity.Named("west lever")))
 //	s.player.Bind(control.Give(control.KeyPress{Key: control.Key1}, "Pull the west lever", cmds.Named(OpenWestCmd)))
-//	// Spawn: cell.Entry{Kind: "boards", Cell: c, Group: "west trapdoors"}
-//	//        cell.Entry{Kind: "lever", Cell: l, Name: "west lever"}
+//	// the level: - {kind: trapdoor, group: west trapdoors, at: [7, 2]}
+//	//            - {kind: lever, name: west lever, at: [1, 14]}
 //
 // # Hosts
 //

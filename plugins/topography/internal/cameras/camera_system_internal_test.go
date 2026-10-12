@@ -1,6 +1,8 @@
 package cameras
 
 import (
+	"bytes"
+	"encoding/gob"
 	"math"
 	"testing"
 	"time"
@@ -40,7 +42,7 @@ type followRig struct {
 func newFollowRig(t *testing.T) *followRig {
 	t.Helper()
 	r := &followRig{t: t, ecs: goke.New()}
-	r.cam = newCamera(testProjection, 1280, 1280, 0, contract.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, nil, nil, 0)
+	r.cam = sized(newCamera(testProjection, 1280, 1280, 0, contract.Config{}, 0, true, nil, nil, 0), 400, 300)
 	r.cams = []*viewCamera{r.cam}
 	r.sys = &cameraSystem{orders: queued{turns: &r.turns, tilts: &r.tilts, rides: &r.rides, views: &r.views, looks: &r.looks}, perspective: true, cams: &r.cams}
 	var base goke.Comp[world.Base]
@@ -214,6 +216,38 @@ func TestRide_GoesRoundBehindInsideAndOverAgain(t *testing.T) {
 	r.pressV()
 	if f := r.cam.Fastening(); f.How != contract.Centred || r.sys.fastened(r.cam) != nil {
 		t.Errorf("without the perspective V behind the walker: fastened %+v, want over it again", f)
+	}
+}
+
+// A camera saved riding inside a walker comes back inside it: a load writes its fastening and the
+// system takes it in again.
+func TestRide_ACameraSavedInsideComesBackInside(t *testing.T) {
+	r := newFollowRig(t)
+	r.ridged(1000, 1001)
+	r.walk(300, 300, 1, 0)
+	r.inside()
+	if !r.cam.insideUnit() {
+		t.Fatal("fastened Inside the camera does not ride in the walker")
+	}
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	for _, v := range r.cam.Persisted() {
+		if err := enc.Encode(v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	loaded := sized(newCamera(testProjection, 1280, 1280, 0, contract.Config{}, 0, true, nil, nil, 0), 400, 300)
+	dec := gob.NewDecoder(&buf)
+	for _, v := range loaded.Persisted() {
+		if err := dec.Decode(v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	loaded.Restore()
+	r.cam, r.cams = loaded, []*viewCamera{loaded} // the camera a scene makes after the load
+	r.ecs.Tick(time.Second / 60)
+	if f := loaded.Fastening(); f != (contract.Fastening{Entity: r.walkers[0], How: contract.Inside}) || !loaded.insideUnit() {
+		t.Errorf("after a load the camera is fastened %+v, riding %v; want Inside the walker again", f, loaded.insideUnit())
 	}
 }
 

@@ -4,9 +4,11 @@ import (
 	"fmt"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
@@ -29,9 +31,18 @@ type Self struct {
 
 var _ rule.Router = (*Self)(nil)
 
-// NewSelf is the entity of the plugin called name in w, carrying knobs; call it as the plugin is
-// made. One name is one entity: a second of the same name panics.
-func NewSelf(w *Plugin, name string, knobs ...comp.Comp) *Self {
+// NewSelf is the entity of the plugin p in w, called by p's Name and carrying knobs, and notes p
+// as made over w: the Stage uses the plugins made over its world in the order made. Call it in the
+// plugin's constructor, p built but for its Self. One name is one entity: a second of the same name
+// panics.
+func NewSelf(w *Plugin, p plugin.Plugin, knobs ...comp.Comp) *Self {
+	s := newSelf(w, p.Name(), knobs...)
+	w.made.Add(p)
+	return s
+}
+
+// newSelf is the entity of the plugin called name: the world's own, which no Stage uses.
+func newSelf(w *Plugin, name string, knobs ...comp.Comp) *Self {
 	for _, other := range w.module.selves.list {
 		if other.name == name {
 			panic(fmt.Sprintf("world: the plugin %q has its entity already", name))
@@ -63,7 +74,7 @@ func (s *Self) Changed() bool { return s.w.module.selves.changed(s.id) }
 func (*Self) Target() {}
 
 // Route is c for the plugin's entity, found by its name: the world carries it out.
-func (s *Self) Route(c rule.Command) any {
+func (s *Self) Route(c rule.Command) control.Command {
 	c.Whom = entity.Named(s.name)
 	return c
 }

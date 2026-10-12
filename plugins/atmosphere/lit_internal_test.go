@@ -6,11 +6,13 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/look"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -26,16 +28,16 @@ func (litSheet) White() (u, v float32)                           { return 9, 9 }
 // ground: at midnight, frozen, they are dark and blue; without the atmosphere they are drawn as
 // they are — the light a tile composed every frame takes and the even light a still is drawn in
 // alike.
-func TestWithBoard_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
+func TestAtmosphere_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 128, Height: 128},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
 	})
+	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	b.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	b.WithRenderer(litSheet{})
-	cam := w.Camera()
 	even := func() render.Light {
 		l, ok := b.Map().Dressing().(look.EvenLit).EvenLight()
 		if !ok {
@@ -58,7 +60,9 @@ func TestWithBoard_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 	if l := even(); l != (render.Light{1, 1, 1}) {
 		t.Fatalf("without an atmosphere the tiles' even light is %v, want white", l)
 	}
-	a := NewPlugin(w, Config{Sky: sky.Config{Frozen: true, Hour: 29 * time.Minute}}).WithBoard(b) // frozen at 00:29
+	// frozen at 00:29
+	a := NewPlugin(w, Config{Sky: sky.Config{Frozen: true, Hour: 29 * time.Minute}})
+	b.WithAtmosphere(a)
 	if sun := a.Heavens().Sun; sun[2] > 0 {
 		t.Fatalf("the sun at half past midnight stands at %v, want under the horizon", sun)
 	}

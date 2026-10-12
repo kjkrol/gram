@@ -31,14 +31,16 @@ func newPathFinder(g grid.Grid, terrain cell.Terrain, slopes Slopes, occupancy c
 
 func (f testFinder) findPath(entity uid.UID64, domain cell.Domain, from, to cell.ID) (Path, bool) {
 	var path Path
-	n, ok := f.Find(entity, domain, from, to, path.Steps[:])
+	n, ok := f.Find(entity, domain, Body{}, from, to, Either, path.Steps[:])
 	path.Length = uint16(n)
 	return path, ok
 }
 
 func (f testFinder) nearestFree(entity uid.UID64, domain cell.Domain, from, target cell.ID, taken func(cell.ID) bool) (cell.ID, Path, bool) {
 	var path Path
-	dest, n, ok := f.NearestFree(entity, domain, from, target, taken, path.Steps[:])
+	takenOn := func(c cell.ID, _ bool) bool { return taken(c) }
+	dest, n, ok := f.NearestFree(entity, domain, Body{}, from, target, Either, takenOn,
+		path.Steps[:])
 	path.Length = uint16(n)
 	return dest, path, ok
 }

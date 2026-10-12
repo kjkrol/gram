@@ -4,7 +4,7 @@
 // A [Relief] ([New]) holds a height at every corner of a square grid's lattice — a cell's four
 // corners ([Corners]) — or at every cell of a hex one; [Relief.GroundAt] is the ground at any point,
 // drawn between the corners as the terrain's mesh draws it, [Relief.Altitude] a cell's mean,
-// [Relief.SetHeights] seeds it from a function (relief.MeanOfCells from one of the cells), and it is the
+// [Relief.SetHeights] seeds it from a function (ground.MeanOfCells: from one a cell), and it is the
 // board's heights (ground.Heights: At, Step, Top). A board that wraps folds its corners across the
 // seam. [Relief.Climb] prices a step from cell to cell by how steep it is as a relief.Climbing says
 // (the public package's: up costly, down gently, steep down again; free for the domains that fly);

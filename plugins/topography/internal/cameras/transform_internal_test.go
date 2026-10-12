@@ -10,7 +10,7 @@ import (
 // In every view the camera's transform for the GPU draws a world point where the camera
 // projects it.
 func TestViewCamera_ItsTransformDrawsWhereItProjects(t *testing.T) {
-	cam := newCamera(testProjection, 3200, 3200, 0, camera.Config{ViewportWidth: 400, ViewportHeight: 300}, 0, true, nil, nil, 0)
+	cam := sized(newCamera(testProjection, 3200, 3200, 0, camera.Config{}, 0, true, nil, nil, 0), 400, 300)
 	cam.CenterOn(1600, 1600, 0)
 	for view := range 3 {
 		f, ok := cam.Rays()

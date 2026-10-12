@@ -32,10 +32,11 @@ const asideGoal = 0.5
 // boxes meet as they meet.
 type openOccupancy struct{}
 
-func (openOccupancy) CanEnter(cell.ID, uid.UID64, cell.Domain) bool { return true }
-func (openOccupancy) Enter(cell.ID, uid.UID64, cell.Domain)         {}
-func (openOccupancy) Leave(cell.ID, uid.UID64)                      {}
-func (openOccupancy) Release(func(uid.UID64) bool)                  {}
+func (openOccupancy) CanEnter(cell.ID, bool, uid.UID64, cell.Domain) bool { return true }
+func (openOccupancy) Enter(cell.ID, bool, uid.UID64, cell.Domain)         {}
+func (openOccupancy) Leave(cell.ID, uid.UID64)                            {}
+func (openOccupancy) Holders(cell.ID, func(uid.UID64, cell.Domain, bool)) {}
+func (openOccupancy) Release(func(uid.UID64) bool)                        {}
 
 // bodyKeeping keeps units apart by their boxes. A unit routes over the ground alone, not knowing
 // where the others stand, and goes; striking someone is a Touch, and what it does then is the
@@ -111,29 +112,34 @@ func (k *bodyKeeping) orders(members []member, cmd MoveTo, issue func(member, Mo
 			group = append(group, m)
 		}
 	}
-	spots, _ := k.place(group, at, cmd.Cell)
+	spots, _ := k.place(group, at, cmd.Cell, cmd.Level)
 	for i, p := range spots {
 		m := group[i]
 		if !p.ok {
 			continue
 		}
 		if cmd.Append && m.order != nil {
-			m.order.Enqueue(Goal{Cell: p.cell, Spot: p.spot, At: at})
+			m.order.Enqueue(Goal{Cell: p.cell, Spot: p.spot, At: at, Level: p.level})
 			continue
 		}
-		path, ok := Path{}, m.from == p.cell
+		path, ok := Path{}, m.from == p.cell && k.finder.on(m, p.cell, p.level)
 		if !ok {
-			path, ok = k.finder.findPath(m.id, m.domain, m.from, p.cell)
+			path, ok = k.finder.findPath(m.id, m.domain, m.z, m.from, p.cell, p.level)
 		}
 		if ok {
-			issue(m, MoveOrder{Target: p.cell, Spot: p.spot, At: at, Path: path, Leg: m.leg})
+			issue(m, MoveOrder{Target: p.cell, Level: p.level, Spot: p.spot, At: at, Path: path,
+				Leg: m.leg})
 		}
 	}
 }
 
+func (k *bodyKeeping) on(m member, c cell.ID, level Level) bool {
+	return k.finder.on(m, c, level)
+}
+
 // reaches reports whether any route over the ground takes m to c.
 func (k *bodyKeeping) reaches(m member, c cell.ID) bool {
-	_, ok := k.finder.findPath(m.id, m.domain, m.from, c)
+	_, ok := k.finder.findPath(m.id, m.domain, m.z, m.from, c, EitherLevel)
 	return ok
 }
 
@@ -146,10 +152,10 @@ func (k *bodyKeeping) look(m member, at geom.Vec) MoveOrder {
 		d := v / (2 * m.brake)
 		stop = k.fold(geom.NewVec(here.X+m.vel.X*d, here.Y+m.vel.Y*d))
 	}
-	if !k.fits(m, stop, nil) {
+	if !k.fits(m, stop, m.z, nil) {
 		stop = here
 	}
-	cell, ok := k.grid.CellAt(stop)
+	cell, ok := cellOf(k.grid, k.terrain, stop, &m.z)
 	if !ok {
 		cell = m.cell
 	}
@@ -171,15 +177,15 @@ func (k *bodyKeeping) placeAgain(m member, o *MoveOrder, struck []body) {
 	if at == (geom.Vec{}) {
 		at = k.grid.CellCenter(o.Target)
 	}
-	spots, _ := k.placeClearOf([]member{m}, at, o.Target, struck)
+	spots, _ := k.placeClearOf([]member{m}, at, o.Target, o.Level, struck)
 	p := spots[0]
 	if !p.ok {
-		p = placed{spot: k.grid.CellCenter(o.Target), cell: o.Target}
+		p = placed{spot: k.grid.CellCenter(o.Target), cell: o.Target, level: o.Level}
 	}
-	if p.cell != o.Target {
+	if p.cell != o.Target || p.level != o.Level {
 		o.Path, o.Leg = Path{}, Leg{}
 	}
-	o.Target, o.Spot, o.At = p.cell, p.spot, at
+	o.Target, o.Spot, o.At, o.Level = p.cell, p.spot, at, p.level
 }
 
 // route is the way over the ground to o's Target, round the cells m found someone standing in.
@@ -187,11 +193,12 @@ func (k *bodyKeeping) route(m member, from cell.ID, o *MoveOrder) (Path, bool) {
 	if o.Avoids > 0 {
 		known := o.Avoid[:o.Avoids]
 		blocked := func(c cell.ID) bool { return c != o.Target && slices.Contains(known, c) }
-		if p, ok := k.finder.findPathAround(m.id, m.domain, from, o.Target, blocked); ok {
+		if p, ok := k.finder.findPathAround(m.id, m.domain, m.z, from, o.Target, o.Level,
+			blocked); ok {
 			return p, true
 		}
 	}
-	return k.finder.findPath(m.id, m.domain, from, o.Target)
+	return k.finder.findPath(m.id, m.domain, m.z, from, o.Target, o.Level)
 }
 
 // lost waits targetWaitTimeout for the ground to change, then stands round the point on a cell a
@@ -202,10 +209,11 @@ func (k *bodyKeeping) lost(m member, from cell.ID, o *MoveOrder, waited time.Dur
 	}
 	for _, c := range k.tilesRound(o.Target, m.domain, m.domain) {
 		if c == from {
+			o.Level = EitherLevel // where it stands, on whichever level
 			return c, Path{}, false, true
 		}
-		if p, ok := k.finder.findPath(m.id, m.domain, from, c); ok {
-			o.Spot = geom.Vec{} // placed round the point in the new cell next tick
+		if p, ok := k.finder.findPath(m.id, m.domain, m.z, from, c, EitherLevel); ok {
+			o.Spot, o.Level = geom.Vec{}, EitherLevel // placed round the point there next tick
 			return c, p, false, true
 		}
 	}
@@ -353,7 +361,8 @@ func (k *bodyKeeping) takes(m member, dir geom.Vec) bool {
 	at := k.fold(geom.NewVec(c.X+dir.X*reach, c.Y+dir.Y*reach))
 	ok := true
 	k.grid.CellsUnder(boxAt(at, h), func(cell cell.ID) {
-		ok = ok && k.terrain.Kind(cell).Admits(m.domain) && k.finder.climb(m.cell, cell, m.domain) <= yieldClimb
+		ok = ok && k.terrain.Kind(cell).Admits(m.domain) &&
+			k.finder.climb(m.cell, cell, m.domain) <= yieldClimb && k.finder.steps(m, cell)
 	})
 	for _, s := range [4][2]float64{{-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
 		if _, in := k.grid.CellAt(k.fold(geom.NewVec(at.X+s[0]*h.X, at.Y+s[1]*h.Y))); !in {
@@ -386,7 +395,8 @@ func (k *bodyKeeping) goalOf(o *MoveOrder) geom.Vec {
 const yieldLinger = time.Second
 
 // blocked is never called: the open occupancy refuses nobody.
-func (k *bodyKeeping) blocked(member, *MoveOrder, cell.ID, time.Duration) (uid.UID64, bool) {
+func (k *bodyKeeping) blocked(member, *MoveOrder, cell.ID, bool, time.Duration) (uid.UID64,
+	bool) {
 	return 0, false
 }
 
@@ -399,7 +409,7 @@ func (k *bodyKeeping) within(m member) float64 {
 
 // mayStep lets m on unless it all but touches someone just ahead along heading: walked by hand, it
 // stops at whoever it walks into.
-func (k *bodyKeeping) mayStep(m member, _ cell.ID, heading geom.Vec) bool {
+func (k *bodyKeeping) mayStep(m member, _ cell.ID, _ bool, heading geom.Vec) bool {
 	c, h := m.centre(), half(m)
 	feel := gapFor(h) / 4
 	ahead := geom.NewVec(c.X+heading.X*feel, c.Y+heading.Y*feel)
@@ -451,8 +461,9 @@ func (k *bodyKeeping) asides(m member, asker body) [2]geom.Vec {
 // open reports whether m may stand at p — the ground takes it, no steeper than yieldClimb from
 // where it stands — and who stands in the way there first, taken when someone does.
 func (k *bodyKeeping) open(m member, p geom.Vec) (ground bool, in uid.UID64, taken bool) {
-	cell, ok := k.grid.CellAt(p)
-	if !ok || !k.fits(m, p, nil) || k.finder.climb(m.cell, cell, m.domain) > yieldClimb {
+	cell, ok := cellOf(k.grid, k.terrain, p, &m.z)
+	if !ok || !k.fits(m, p, m.z, nil) || k.finder.climb(m.cell, cell, m.domain) > yieldClimb ||
+		!k.finder.steps(m, cell) {
 		return false, 0, false
 	}
 	h := half(m)
@@ -471,7 +482,7 @@ func (k *bodyKeeping) stepAside(m member, of body) (MoveOrder, bool) {
 		if ground, _, taken := k.open(m, p); !ground || taken {
 			continue
 		}
-		cell, _ := k.grid.CellAt(p)
+		cell, _ := cellOf(k.grid, k.terrain, p, &m.z)
 		o := MoveOrder{Target: cell, Spot: p, At: p, GivingWay: true}
 		if m.facing != (geom.Vec{}) {
 			here := m.centre()

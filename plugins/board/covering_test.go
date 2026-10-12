@@ -18,11 +18,11 @@ import (
 // marker, and a rule reads it of the cell under a unit (unit.Over).
 func TestCovering_AnEffectOnACellShowsOnTheBoardAndToTheRules(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(4, 4, boardtest.CellSize)
-	here := g.CellIndex(1, 1)
+	here := g.At(1, 1)
 	var iced effect.Effect
 	var slot [2]int
 	bw := boardtest.NewWorldWith(t, g, 4*boardtest.CellSize, 4*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []rule.Rule {
-		brd.Res.Logic.Board.SetAll(cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Land})
+		brd.Board().SetAll(cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Land})
 		w.Effects().Define("iced", effect.Spec{})
 		iced = w.Effects().Named("iced")
 		slot[0], slot[1] = int(brd.Covering(iced)), int(brd.Covering(iced))
@@ -34,7 +34,7 @@ func TestCovering_AnEffectOnACellShowsOnTheBoardAndToTheRules(t *testing.T) {
 	if slot[0] != slot[1] {
 		t.Errorf("the cover's slot is %d, then %d; want the same", slot[0], slot[1])
 	}
-	brd := bw.Board.Res.Logic.Board
+	brd := bw.Board.Board()
 	before := brd.Changes()
 	for range 4 {
 		bw.Tick()
@@ -42,7 +42,7 @@ func TestCovering_AnEffectOnACellShowsOnTheBoardAndToTheRules(t *testing.T) {
 	if !brd.States(here).Has(iced.Mark()) {
 		t.Error("the cell under the unit does not carry the effect's marker")
 	}
-	if other := g.CellIndex(3, 3); brd.States(other).Has(iced.Mark()) {
+	if other := g.At(3, 3); brd.States(other).Has(iced.Mark()) {
 		t.Error("a cell far off carries the effect's marker")
 	}
 	if brd.Changes() == before {

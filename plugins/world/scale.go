@@ -7,7 +7,14 @@ import "math"
 // stretch of the Earth's surface: a line of sight bends over it (Bend), the ground far off sinking
 // under the horizon. A game gives its sizes and heights in metres through Units; the atmosphere
 // works out of it how far the air lets one see.
-type Scale struct{ Metres float64 }
+//
+// Figures is how many times bigger than life the figures standing on a board are drawn — a man on
+// a map of a whole island is a speck, a game's token is not: their boxes, heights and eyes go
+// through Figure; how fast they go and how far they see stay real, through Units.
+type Scale struct {
+	Metres  float64
+	Figures float64
+}
 
 // The Earth's radius in metres, and how much the air bends a line of sight back towards the
 // ground, the standard refraction.
@@ -22,6 +29,15 @@ func (s Scale) Units(m float64) float64 {
 		return m
 	}
 	return m / s.Metres
+}
+
+// Figure is the size of a figure m metres big in life in world units: Units(m) times Figures, as
+// it is with no Figures.
+func (s Scale) Figure(m float64) float64 {
+	if s.Figures <= 0 {
+		return s.Units(m)
+	}
+	return s.Units(m) * s.Figures
 }
 
 // Bend is how far below the level of an eye the ground d world units off lies, per d²: the

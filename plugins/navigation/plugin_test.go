@@ -5,15 +5,19 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 )
 
@@ -45,14 +49,16 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
-	boardPlugin.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	navPlugin := NewPlugin(boardPlugin, worldPlugin, selection.NewPlugin(worldPlugin))
+	boardPlugin.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	sel := selection.NewPlugin(worldPlugin)
+	navPlugin := NewPlugin(boardPlugin, worldPlugin, sel, driving.NewPlugin(worldPlugin, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
 	local := pl.Local("tester")
+	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(50, 50, 0, camera.Config{}), nil)) // as a scene showing it wires it
 	if err := local.Bind(navPlugin.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
-	want := grid.CellIndex(2, 2)
+	want := grid.At(2, 2)
 
 	events := &control.InputEvents{}
 	events.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionPress)
@@ -106,10 +112,13 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
-	boardPlugin.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	navPlugin := NewPlugin(boardPlugin, worldPlugin, selection.NewPlugin(worldPlugin))
+	boardPlugin.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	sel := selection.NewPlugin(worldPlugin)
+	navPlugin := NewPlugin(boardPlugin, worldPlugin, sel, driving.NewPlugin(worldPlugin, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
-	if err := pl.Local("tester").Bind(navPlugin.DefaultBindings()...); err != nil {
+	local := pl.Local("tester")
+	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(50, 50, 0, camera.Config{}), nil)) // as a scene showing it wires it
+	if err := local.Bind(navPlugin.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
 	handle := func(ev *control.InputEvents) (looks []LookAt, moves []MoveTo) {
@@ -141,7 +150,7 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 	}
 	shaken := &control.InputEvents{MousePos: geom.NewVec(27, 26)}
 	shaken.AddClickEvent(27, 26, control.MouseButtonRight, control.ActionRelease)
-	want := grid.CellIndex(2, 2)
+	want := grid.At(2, 2)
 	if _, moves := handle(shaken); len(moves) != 1 || moves[0].Cell != want {
 		t.Errorf("a shaken click issued %v, want one MoveTo to %v", moves, want)
 	}
@@ -156,9 +165,12 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
-	navPlugin := NewPlugin(boardPlugin, worldPlugin, selection.NewPlugin(worldPlugin))
+	sel := selection.NewPlugin(worldPlugin)
+	navPlugin := NewPlugin(boardPlugin, worldPlugin, sel, driving.NewPlugin(worldPlugin, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
-	if err := pl.Local("tester").Bind(navPlugin.DefaultBindings()...); err != nil {
+	local := pl.Local("tester")
+	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(50, 50, 0, camera.Config{}), nil)) // as a scene showing it wires it
+	if err := local.Bind(navPlugin.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
 	events := &control.InputEvents{}

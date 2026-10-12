@@ -15,10 +15,12 @@ type Way struct {
 	Mix   float32
 }
 
-// Links is which ways a Way runs on out of its cell: bit i the grid's i-th direction — on a square
-// grid north, south, west, east, north-west, north-east, south-west, south-east; on a hex grid its
-// six in turn. Link finds the bit for a neighbour, Toward the neighbour for a bit.
+// Links is which ways a Way runs on out of its cell: bit i the grid's i-th direction (grid.Grid,
+// which numbers them). grid.Link finds the bit for a neighbour, Toward the neighbour for a bit.
 type Links uint8
+
+// Has reports whether the way runs out in direction i.
+func (l Links) Has(i int) bool { return l&(1<<i) != 0 }
 
 // Runs reports whether anything runs across the cell.
 func (w Way) Runs() bool { return w.Width > 0 }
@@ -31,27 +33,4 @@ func (w Way) Over(ground Kind) Kind {
 	}
 	ground.Allows, ground.Cost, ground.Costs, ground.Graded = w.Kind.Allows, w.Kind.Cost, w.Kind.Costs, w.Kind.Graded
 	return ground
-}
-
-// Crossing is what crosses a cell over its Way — a bridge over a river, a footbridge over a
-// stream: a Way of its own, a band from the cell's middle out towards each neighbour its Links
-// name. Its Kind lets whoever it admits over the cell too, at its cost, and leaves the way under it
-// as it is: the water runs on under a bridge. The zero Crossing is none.
-type Crossing struct{ Way }
-
-// Over is under — the kind the ground and its Way make — as whoever crosses the cell meets it with
-// the Crossing over it: it admits whoever either does, at the Crossing's cost for whoever it
-// admits.
-func (c Crossing) Over(under Kind) Kind {
-	if !c.Runs() {
-		return under
-	}
-	under.Allows |= c.Kind.Allows
-	for i := range under.Costs {
-		if d := Domain(1 << i); c.Kind.Allows&d != 0 {
-			under.Costs[i] = c.Kind.CostFor(d)
-		}
-	}
-	under.Graded = under.Graded || c.Kind.Graded
-	return under
 }

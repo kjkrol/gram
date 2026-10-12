@@ -10,9 +10,9 @@ import (
 // Atlas is the world's sprite sheet under construction — everything a look is, declared in one
 // place, a scene's Layers: Add each kind's sprite, chain Under for its look under an effect,
 // Turning for a sprite turned the way its entity is headed (Vel.Dir), Facing for directional
-// twins. Close it and hand it to WithRenderer — it is the render.AtlasSource the renderer draws
-// from, and the renderer applies what was declared itself: the effects' swaps, then the facing,
-// then the turning, every frame.
+// twins, Lying for one laid flat on the ground. Close it and hand it to WithRenderer — it is the
+// render.AtlasSource the renderer draws from, and the renderer applies what was declared itself:
+// the effects' swaps, then the facing, then the turning, every frame.
 type Atlas struct {
 	p        *Plugin
 	atlas    *render.Atlas
@@ -21,6 +21,9 @@ type Atlas struct {
 	unders   map[render.SpriteID][]render.SpriteID // the Under twins of each sprite: Turning reaches them
 	shaded   map[render.SpriteID]render.MaterialID // the sprites worked out per pixel instead of drawn
 	animated map[render.SpriteID]animation         // the sprites drawn frame after frame
+	lying    map[render.SpriteID]bool
+	upright  map[render.SpriteID]bool
+	edges    map[render.SpriteID]render.SpriteID // the sprite standing along a lying one's edges
 }
 
 // animation is one sprite's frames and how long each is shown.
@@ -34,7 +37,18 @@ var _ render.AtlasSource = (*Atlas)(nil)
 // NewAtlas starts the world's atlas; the twins Facing declares take their slots from the
 // world's kinds.
 func (p *Plugin) NewAtlas() *Atlas {
-	return &Atlas{p: p, atlas: render.NewAtlas(), turned: map[render.SpriteID]bool{}, faced: map[render.SpriteID][]render.SpriteID{}, unders: map[render.SpriteID][]render.SpriteID{}, shaded: map[render.SpriteID]render.MaterialID{}, animated: map[render.SpriteID]animation{}}
+	return &Atlas{
+		p:        p,
+		atlas:    render.NewAtlas(),
+		turned:   map[render.SpriteID]bool{},
+		faced:    map[render.SpriteID][]render.SpriteID{},
+		unders:   map[render.SpriteID][]render.SpriteID{},
+		shaded:   map[render.SpriteID]render.MaterialID{},
+		animated: map[render.SpriteID]animation{},
+		lying:    map[render.SpriteID]bool{},
+		upright:  map[render.SpriteID]bool{},
+		edges:    map[render.SpriteID]render.SpriteID{},
+	}
 }
 
 // Add takes look on as of's own — a kind's handle, an ammo, a slot of the kinds' own — and hands
@@ -86,6 +100,34 @@ func (s Slot) Under[L render.Look](d render.Dresser, look L) Slot {
 // Angle its Appearance holds. A look under an effect turns the same way.
 func (s Slot) Turning() Slot {
 	s.a.turned[s.id] = true
+	return s
+}
+
+// Lying has the sprite laid flat on the ground under its entity, at the entity's Altitude, rather
+// than stood up where a view in relief stands its entities up (LyingLook): a bridge's deck, a
+// ford. From above it is drawn as any other. Its looks under effects, its frames and its twins lie
+// too.
+func (s Slot) Lying() Slot {
+	s.a.lying[s.id] = true
+	return s
+}
+
+// Upright has the sprite stand true where a view in relief stands its entities up (UprightLook):
+// on the four sides of its entity's box from its Altitude up its Height and over its top, never a
+// billboard turned to the eye — a pier, a column. From above it is drawn as any other. Its looks
+// under effects, its frames and its twins stand so too.
+func (s Slot) Upright() Slot {
+	s.a.upright[s.id] = true
+	return s
+}
+
+// Edges adds the sprite standing along the long sides of what lies as an entity's Lie says when it
+// is Edged — a bridge's railings: authored seen from the side, its length along x and its height
+// along y, filling its square. Its looks under effects, its frames and its twins have the same.
+func (s Slot) Edges(draw render.SpriteDrawer) Slot {
+	edge := s.a.p.Kinds().NewSprite()
+	s.a.atlas.Add(edge, s.size, draw)
+	s.a.edges[s.id] = edge
 	return s
 }
 
@@ -141,6 +183,50 @@ func (a *Atlas) UV(id render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return a.a
 
 // White is the white texel plain colours sample — see render.AtlasSource.
 func (a *Atlas) White() (u, v float32) { return a.atlas.White() }
+
+// lain is every sprite drawn lying: those Lying marked, with their looks under effects, their
+// frames and their twins.
+func (a *Atlas) lain() map[render.SpriteID]bool { return a.withTwins(a.lying) }
+
+// stood is every sprite drawn standing true: those Upright marked, with their twins.
+func (a *Atlas) stood() map[render.SpriteID]bool { return a.withTwins(a.upright) }
+
+// withTwins is every sprite marked, with its looks under effects, its frames and its twins.
+func (a *Atlas) withTwins(marked map[render.SpriteID]bool) map[render.SpriteID]bool {
+	out := map[render.SpriteID]bool{}
+	for id := range marked {
+		out[id] = true
+		for _, twin := range a.unders[id] {
+			out[twin] = true
+		}
+		for _, frame := range a.animated[id].frames {
+			out[frame] = true
+		}
+		for _, twin := range a.faced[id] {
+			out[twin] = true
+		}
+	}
+	return out
+}
+
+// edged is the sprite standing along the edges of every sprite drawn lying that has one: those
+// Edges gave it, with their looks under effects, their frames and their twins.
+func (a *Atlas) edged() map[render.SpriteID]render.SpriteID {
+	out := map[render.SpriteID]render.SpriteID{}
+	for id, edge := range a.edges {
+		out[id] = edge
+		for _, twin := range a.unders[id] {
+			out[twin] = edge
+		}
+		for _, frame := range a.animated[id].frames {
+			out[frame] = edge
+		}
+		for _, twin := range a.faced[id] {
+			out[twin] = edge
+		}
+	}
+	return out
+}
 
 // rules are what the renderer applies for the looks declared on the atlas, in their order: the
 // facing swaps, the animations' frames (now is the tactical clock as shown), then the turning —

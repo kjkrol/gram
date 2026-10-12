@@ -16,6 +16,14 @@ type (
 	rest struct{ Long bool }
 )
 
+func (rest) Command() {}
+
+func (jump) Command() {}
+
+func (flee) Command() {}
+
+func (walk) Command() {}
+
 // done is the fact toys tells an entity, for a tick, when what it did is done.
 type done struct{ What uint8 }
 

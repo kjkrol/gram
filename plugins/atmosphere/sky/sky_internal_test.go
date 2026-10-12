@@ -72,7 +72,8 @@ func (r *rig) tick(d time.Duration) {
 }
 
 func TestSky_TheSunFollowsTheCalendarInSteps(t *testing.T) {
-	r := skyOf(t, Config{Steps: 24}, calendar.Config{Day: 24 * time.Second, Start: 12 * time.Hour})
+	cfg := calendar.Config{DayRealTime: 24 * time.Second, Start: 12 * time.Hour}
+	r := skyOf(t, Config{Steps: 24}, cfg)
 	r.tick(time.Second / 60)
 	if r.sky.Sun() != firstDay(0.5) {
 		t.Errorf("the sky's sun %+v, want noon's", r.sky.Sun())
@@ -89,7 +90,7 @@ func TestSky_TheSunFollowsTheCalendarInSteps(t *testing.T) {
 
 // Without steps the sun goes on with the calendar tick by tick.
 func TestSky_TheSunGoesOnWithTheCalendar(t *testing.T) {
-	r := skyOf(t, Config{}, calendar.Config{Day: 24 * time.Second, Start: 12 * time.Hour})
+	r := skyOf(t, Config{}, calendar.Config{DayRealTime: 24 * time.Second, Start: 12 * time.Hour})
 	r.tick(0)
 	noon := r.sky.Sun()
 	r.tick(time.Second / 60)
@@ -101,7 +102,8 @@ func TestSky_TheSunGoesOnWithTheCalendar(t *testing.T) {
 // Frozen, the light stands at its hour while the calendar goes on; Later and Earlier move it by
 // half an hour and the sun follows at once; let go, it is the hour's again.
 func TestSky_FrozenLightStandsWhileTheCalendarGoesOn(t *testing.T) {
-	r := skyOf(t, Config{Steps: 24}, calendar.Config{Day: 24 * time.Second, Start: 12 * time.Hour})
+	cfg := calendar.Config{DayRealTime: 24 * time.Second, Start: 12 * time.Hour}
+	r := skyOf(t, Config{Steps: 24}, cfg)
 	r.sky.SetFrozen(!r.sky.Frozen())
 	r.tick(0)
 	r.tick(6 * time.Second) // six hours of the day
@@ -145,7 +147,8 @@ func TestSky_EarlierBeforeMidnightIsTheEveningBefore(t *testing.T) {
 }
 
 func TestSky_BeginsFrozenAtTheConfigsHour(t *testing.T) {
-	r := skyOf(t, Config{Frozen: true, Hour: 18 * time.Hour, Steps: 24}, calendar.Config{Day: 24 * time.Second, Start: 12 * time.Hour})
+	cfg := calendar.Config{DayRealTime: 24 * time.Second, Start: 12 * time.Hour}
+	r := skyOf(t, Config{Frozen: true, Hour: 18 * time.Hour, Steps: 24}, cfg)
 	r.tick(0)
 	if !r.sky.Frozen() || r.sky.Sun() != firstDay(0.75) {
 		t.Errorf("begun frozen at 18:00 the light is %+v, want the evening's", r.sky.Sun())

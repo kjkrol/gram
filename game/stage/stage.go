@@ -6,7 +6,9 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
+	"github.com/kjkrol/gram/plugins/world"
 )
 
 // Step is what a section is given: a function defining that part of the Stage, with the
@@ -20,22 +22,23 @@ type ScenesStep interface {
 	func() []game.Scene | func() ([]game.Scene, error) | func(game.Initializer) []game.Scene | func(game.Initializer) ([]game.Scene, error)
 }
 
-// SpawnStep is what Layout and Units are given: a function seeding a fresh game.
+// SpawnStep is what Spawn is given: a function seeding a fresh game.
 type SpawnStep interface{ func() | func() error }
 
 // def is a Stage as its sections define it.
 type def struct {
-	name    string
-	steps   []step
-	scenes  func(game.Initializer) ([]game.Scene, error)
-	shows   []string
-	restore func(game.Persistence) (bool, error)
-	layout  func() error
-	units   func() error
-	update  func(goke.RunCtx, time.Duration)
+	name   string
+	steps  []step
+	scenes func(game.Initializer) ([]game.Scene, error)
+	shows  []string
+	spawn  []func() error
+	update func(goke.RunCtx, time.Duration)
 
 	ctx   game.Initializer
 	stack game.Scenes
+	world *world.Plugin   // the world World made as the Stage was last entered
+	used  []plugin.Plugin // the plugins Plugins made as the Stage was last entered
+	last  section.Part    // the last of the Stage's own parts written so far
 }
 
 type step struct {
@@ -43,8 +46,48 @@ type step struct {
 	run  func(game.Initializer) error
 }
 
+// add writes a step of one of the Stage's own parts; one written after a plugin's section that
+// comes after it panics.
 func (d *def) add(part section.Part, run func(game.Initializer) error) {
+	for _, s := range d.steps {
+		if after, _, ok := s.part.Between(); ok && after >= part {
+			panic(fmt.Sprintf("stage %q: %v is written after the section of %v, which comes after %v", d.name, part, s.part, after))
+		}
+	}
 	d.steps = append(d.steps, step{part: part, run: run})
+	d.last = part
+}
+
+// with writes the plugins' sections where the game writes them; one written after the part it
+// comes before panics.
+func (d *def) with(sections []section.Section) {
+	for _, sec := range sections {
+		_, before, ok := sec.Part.Between()
+		if !ok {
+			panic(fmt.Sprintf("stage %q: %v is a Stage's own part, no plugin's section", d.name, sec.Part))
+		}
+		if d.last >= before {
+			panic(fmt.Sprintf("stage %q: the section of %v is written after %v; it comes before %v", d.name, sec.Part, d.last, before))
+		}
+		d.steps = append(d.steps, step{part: sec.Part, run: func(game.Initializer) error {
+			used := make([]any, len(d.used))
+			for i, p := range d.used {
+				used[i] = p
+			}
+			return sec.Run(used)
+		}})
+	}
+}
+
+// use uses plugins in their order and keeps them as the Stage's.
+func (d *def) use(ctx game.Initializer, plugins []plugin.Plugin) error {
+	d.used = plugins
+	for _, p := range plugins {
+		if err := ctx.Use(p); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // stepOf is f as a section runs it.
@@ -86,8 +129,8 @@ var _ game.Stage = built{}
 
 func (b built) Name() string { return b.d.name }
 
-// Init runs the sections in their order, each told to the Initializer as it begins, then makes
-// the stack of the scenes, shows the first — or those Shows named — and tracks its Composition.
+// Init runs the sections before the world — Plugins to Controls — in their order, each told to
+// the Initializer as it begins.
 func (b built) Init(ctx game.Initializer) error {
 	d := b.d
 	d.ctx = ctx
@@ -98,16 +141,40 @@ func (b built) Init(ctx game.Initializer) error {
 			return fmt.Errorf("stage %q, %v: %w", d.name, s.part, err)
 		}
 	}
-	enter(ctx, section.Scenes)
+	return nil
+}
+
+// Loaded makes the scenes of a game loaded in place of a fresh one.
+func (b built) Loaded() error { return b.d.makeScenes() }
+
+// Spawn seeds a fresh game — its steps in their order — and makes its scenes.
+func (b built) Spawn() error {
+	d := b.d
+	defer enter(d.ctx, section.Done)
+	enter(d.ctx, section.Spawn)
+	for _, run := range d.spawn {
+		if err := run(); err != nil {
+			return fmt.Errorf("stage %q, %v: %w", d.name, section.Spawn, err)
+		}
+	}
+	return d.makeScenes()
+}
+
+// makeScenes makes the scenes once the world is there, fresh or loaded: the stack of the game's
+// and the plugins' own, the first shown — or those Shows named — and the Composition and every
+// scene keeping state of its own tracked for the saves, a loaded game's laid on them as tracked.
+func (d *def) makeScenes() error {
+	defer enter(d.ctx, section.Done)
+	enter(d.ctx, section.Scenes)
 	var scenes []game.Scene
 	if d.scenes != nil {
 		var err error
-		if scenes, err = d.scenes(ctx); err != nil {
+		if scenes, err = d.scenes(d.ctx); err != nil {
 			return fmt.Errorf("stage %q, %v: %w", d.name, section.Scenes, err)
 		}
 	}
 	first := len(scenes) > 0
-	if p, ok := ctx.(interface{ PluginScenes() []game.Scene }); ok {
+	if p, ok := d.ctx.(interface{ PluginScenes() []game.Scene }); ok {
 		scenes = append(scenes, p.PluginScenes()...) // the plugins' own, hidden until shown
 	}
 	stack, err := game.NewStack(scenes...)
@@ -123,33 +190,14 @@ func (b built) Init(ctx game.Initializer) error {
 	for _, name := range shows {
 		composition.Show(name)
 	}
-	return ctx.Track(composition)
-}
-
-func (b built) Restore(p game.Persistence) (bool, error) {
-	if b.d.restore == nil {
-		return false, nil
-	}
-	return b.d.restore(p)
-}
-
-// Spawn seeds a fresh game: the layout, then the units.
-func (b built) Spawn() error {
-	d := b.d
-	defer enter(d.ctx, section.Done)
-	for _, s := range []struct {
-		part section.Part
-		run  func() error
-	}{{section.Layout, d.layout}, {section.Units, d.units}} {
-		if s.run == nil {
-			continue
-		}
-		enter(d.ctx, s.part)
-		if err := s.run(); err != nil {
-			return fmt.Errorf("stage %q, %v: %w", d.name, s.part, err)
+	for _, sc := range scenes {
+		if s, ok := sc.(plugin.Serializable); ok { // a scene keeping state of its own: a ui scene's elements shown
+			if err := d.ctx.Track(s); err != nil {
+				return err
+			}
 		}
 	}
-	return nil
+	return d.ctx.Track(composition)
 }
 
 func (b built) Update(ctx goke.RunCtx, dt time.Duration) { b.d.update(ctx, dt) }

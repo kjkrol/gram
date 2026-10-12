@@ -44,7 +44,7 @@ func newSeedTestPlugin(t *testing.T) (*Plugin, cell.ID) {
 	p := NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
 	p.CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
 	p.CellKinds().Define("wall", cell.Kind{Cost: 1, Solid: true})
-	cell := grid.CellIndex(2, 2)
+	cell := grid.At(2, 2)
 	return p, cell
 }
 
@@ -66,16 +66,16 @@ func TestNewPlugin_RequiresACellAndAMoverOfEveryUnit(t *testing.T) {
 
 func TestPlugin_SeedPopulate_AppliesLayout(t *testing.T) {
 	p, wallCell := newSeedTestPlugin(t)
-	other := p.Res.Logic.Board.CellIndex(0, 0)
+	other := p.Board().At(0, 0)
 	p.Seed(Layout{Default: "grass", Cells: []cell.Entry{{Kind: "wall", Cell: wallCell}}})
 
 	if err := p.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)
 	}
-	if got := p.Res.Logic.Board.Kind(wallCell).Name.String(); got != "wall" {
+	if got := p.Board().Kind(wallCell).Name.String(); got != "wall" {
 		t.Errorf("Kind(wallCell) = %q, want %q", got, "wall")
 	}
-	if got := p.Res.Logic.Board.Kind(other).Name.String(); got != "grass" {
+	if got := p.Board().Kind(other).Name.String(); got != "grass" {
 		t.Errorf("Kind(other) = %q, want %q (Default)", got, "grass")
 	}
 }
@@ -87,13 +87,14 @@ func TestPlugin_Populate_UnknownKindChangesNothing(t *testing.T) {
 	if err := p.Populate(); err == nil {
 		t.Fatal("Populate: expected an error for unknown kind, got nil")
 	}
-	if got := p.Res.Logic.Board.Kind(lava).Name.String(); got != "" {
+	if got := p.Board().Kind(lava).Name.String(); got != "" {
 		t.Errorf("Kind(lava) = %q, want untouched terrain", got)
 	}
 }
 
-// The board has an atlas once it draws, none before the renderer.
-func TestPlugin_HasAnAtlasOnceItDraws(t *testing.T) {
+// The board draws from the game's atlas, kept once the renderer is made; it has no look of its
+// own, and a renderer without an atlas panics.
+func TestPlugin_DrawsFromTheGamesAtlasAlone(t *testing.T) {
 	worldPlugin := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
@@ -102,8 +103,18 @@ func TestPlugin_HasAnAtlasOnceItDraws(t *testing.T) {
 	if p.Atlas() != nil {
 		t.Fatal("an atlas before the renderer")
 	}
-	p.WithRenderer(nil)
-	if p.Atlas() == nil {
-		t.Error("no atlas after the renderer: given none, it draws from the board's own")
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Error("a renderer without an atlas: want a panic")
+			}
+		}()
+		p.WithRenderer(nil)
+	}()
+	atlas := p.NewAtlas(10)
+	atlas.Close()
+	p.WithRenderer(atlas)
+	if p.Atlas() != atlas {
+		t.Error("the renderer does not keep the game's atlas")
 	}
 }

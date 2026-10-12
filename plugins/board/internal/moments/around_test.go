@@ -14,8 +14,8 @@ func TestAround_TellsEachCellOnceRingByRing(t *testing.T) {
 		"square": grid.DefaultGrids{}.Square(9, 9, 10),
 		"hex":    grid.DefaultGrids{}.Hex(9, 9, 5),
 	} {
-		r := New(g, terrain.New(g), nil, nil)
-		middle := g.CellIndex(4, 4)
+		r := New(g, terrain.New(g), nil, nil, nil)
+		middle := g.At(4, 4)
 		for rings := range 4 {
 			told := map[cell.ID]int{}
 			var order []cell.ID

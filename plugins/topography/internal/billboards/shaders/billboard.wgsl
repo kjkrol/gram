@@ -32,13 +32,6 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) feet: vec4<f32>, @locat
     return b;
 }
 
-// project is where the world point p goes in clip space, sunk under the eye's level as far off as
-// it lies, as the ground is.
-fn project(p: vec3<f32>) -> vec4<f32> {
-    let off = p.xy - U.Eye.xy;
-    return U.ViewProj * vec4<f32>(p.xy, p.z - U.Bend * dot(off, off), 1.0);
-}
-
 // upright is where the line of sight through the billboard's point p meets the upright plane
 // through its feet base, facing the eye: where a thing standing there upright is seen at p. Looking
 // straight down there is no such plane: the feet.
@@ -59,15 +52,6 @@ fn upright(p: vec3<f32>, base: vec3<f32>) -> vec3<f32> {
     return p - d * (dot(p - base, across) / dot(d, across));
 }
 
-// nudge moves the world point p towards the eye, so the ground p stands on passes behind it.
-fn nudge(p: vec3<f32>) -> vec3<f32> {
-    var toward = -U.Look;
-    if U.Perspective > 0.5 {
-        toward = U.Eye - p;
-    }
-    return normalize(toward) * spriteLift;
-}
-
 // fs_main is the sprite's texel in its light, turned to the Fog as hazed as it is; what is less
 // than half there is left out, the depth kept for what shows.
 @fragment
@@ -78,6 +62,3 @@ fn fs_main(b: Board) -> @location(0) vec4<f32> {
     }
     return vec4<f32>(mix(c.rgb * b.light.rgb, U.Fog * c.a, b.light.a), c.a);
 }
-
-// spriteLift is how far towards the eye a billboard's depth is taken, world units.
-const spriteLift: f32 = 2.0;

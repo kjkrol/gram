@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/render"
 )
@@ -69,12 +70,16 @@ func (k Of[P]) Name() string { return k.name }
 // SpriteID is the atlas slot this kind's entities are drawn from.
 func (k Of[P]) SpriteID() render.SpriteID { return k.sprite }
 
-// Entry is one entity to spawn: its kind and its row — built only by Of.Entry.
+// EntryOf is one entity of the kind defined as name, described by row: for whoever knows the
+// row's type only as the program runs (board.Plugin.Lay); the world refuses a row of another type.
+func EntryOf(name string, row any) Entry { return Entry{kind: name, row: row} }
+
+// Entry is one entity to spawn: its kind and its row — built by Of.Entry or EntryOf.
 type Entry struct {
 	kind        string
 	row         any
 	name, group string
-	told        []any
+	told        []control.Command
 }
 
 // Named is the entry of an entity bearing name, its alone: what entity.Named finds it by.
@@ -86,13 +91,13 @@ func (e Entry) InGroup(group string) Entry { e.group = group; return e }
 
 // Told is the entry of an entity given cmds as it is made — the commands it gives itself then:
 // whose it is (players.Give), whether it may be selected (selection.Allow).
-func (e Entry) Told(cmds ...any) Entry {
-	e.told = append(append([]any(nil), e.told...), cmds...)
+func (e Entry) Told(cmds ...control.Command) Entry {
+	e.told = append(append([]control.Command(nil), e.told...), cmds...)
 	return e
 }
 
 // Commands are the commands the entity gives itself as it is made.
-func (e Entry) Commands() []any { return e.told }
+func (e Entry) Commands() []control.Command { return e.told }
 
 // Name is the name the entity bears, empty for none; Group the group it is in.
 func (e Entry) Name() string { return e.name }

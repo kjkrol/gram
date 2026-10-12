@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// Uniform is one of a program's uniforms: Size floats, 1 to 4 (f32, vec2, vec3, vec4) or 16 (a
-// mat4x4, column by column).
+// Uniform is one of a program's uniforms: Size floats, 1 to 4 (f32, vec2, vec3, vec4), 16 (a
+// mat4x4, column by column) or more, a multiple of 4 (an array of vec4s, one after another).
 type Uniform struct {
 	Name string
 	Size int
@@ -45,6 +45,10 @@ func NewLayout(us []Uniform) *Layout {
 		case 16:
 			size, align, typ = 64, 16, "mat4x4<f32>"
 		default:
+			if u.Size > 16 && u.Size%4 == 0 {
+				size, align, typ = 4*u.Size, 16, fmt.Sprintf("array<vec4<f32>, %d>", u.Size/4)
+				break
+			}
 			panic(fmt.Sprintf("gpu: uniform %s of %d floats", u.Name, u.Size))
 		}
 		off = (off + align - 1) / align * align

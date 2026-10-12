@@ -1,17 +1,13 @@
 package cell
 
 import (
-	"image/color"
-
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 )
 
-// Kind is a named terrain kind: whom it admits, what it does to movement and sight, and how
-// it looks — its Color, or a sprite drawn for it (Kinds.Draw) or given by the game's atlas
-// (board.Plugin.WithRenderer); how it looks in relief is a topography's (plugins/topography). A wall is
-// Solid; water Allows Water; a hole Allows nobody and is not Solid; a forest Allows Land and has a
-// Veil.
+// Kind is a named terrain kind: whom it admits and what it does to movement and sight; how it
+// looks is the game's atlas's (board.Plugin.NewAtlas), in a scene. A wall is Solid; water Allows
+// Water; a hole Allows nobody and is not Solid; a forest Allows Land and has a Veil.
 type Kind struct {
 	Name Name // Named("grass")
 	// Cost 1 is full speed and the cheapest step the planner counts on — a road; above 1 the cell
@@ -40,9 +36,7 @@ type Kind struct {
 	// Graded ground is built up and cut into the slope — a road, a bridge — so the slope does not
 	// slow whoever goes over it, nor count in a route: the kind's Cost is the whole price.
 	Graded bool
-	// Color is how the kind looks on a map drawn without an atlas of the game's: its cells filled
-	// with it, its ways as bands of it. Zero is grey.
-	Color    color.RGBA
+	// SpriteID is the kind's slot in the board's atlas, given as it is defined.
 	SpriteID render.SpriteID
 	// Costs overrides Cost for entities moving in a domain — Costs[i] for the domain bit i, when
 	// set; see Costing and CostFor.
@@ -97,7 +91,7 @@ func (o Of) Entry(c ID) Entry { return Entry{Kind: o.k.Name.String(), Cell: c} }
 type Kinds interface {
 	// Define registers k under name, assigning its SpriteID by call order, and has every cell the
 	// Layout lays as it play plays, for good — it hands nothing back, and Named is the kind
-	// wherever it is built on. A name defined twice panics, in a Stage's Cells section.
+	// wherever it is built on. A name defined twice panics, in a Stage's Kinds section.
 	Define(name string, k Kind, plays ...*rule.Part)
 	// Named is the kind defined as name, as the handle a game builds on — Entry for the Layout,
 	// SpriteID for the atlas; an unknown name panics.
@@ -106,7 +100,4 @@ type Kinds interface {
 	Get(name string) (Kind, bool)
 	// All returns every registered Kind.
 	All() []Kind
-	// Draw has the kind named name drawn by draw on a map drawn without an atlas of the game's,
-	// in place of its Color.
-	Draw(name string, draw render.SpriteDrawer)
 }

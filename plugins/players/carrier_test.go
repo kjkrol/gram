@@ -71,7 +71,7 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 	return ctx.Use(s.players)
 }
 
-func (s *carrierStage) Restore(game.Persistence) (bool, error) { return false, nil }
+func (s *carrierStage) Loaded() error { return nil }
 
 func (s *carrierStage) Spawn() error {
 	s.world.Seed(s.leaver.Entry(500))

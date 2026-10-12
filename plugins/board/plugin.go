@@ -3,7 +3,6 @@ package board
 import (
 	"fmt"
 	"log"
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -51,6 +50,7 @@ type Plugin struct {
 	atlas     render.AtlasSource // the renderer's
 	kinds     *terrain.Kinds
 	seeded    *Layout
+	level     *Level // the level laid last, whose entities Spawn takes
 	mapping   Map
 	simple    *simpleMap // the board's own map, which lays the covers
 	covers    map[tag.Tag[effect.States]]render.SpriteID
@@ -60,7 +60,22 @@ type Plugin struct {
 	rules       *moments.Rules
 	workers     int                 // how many goroutines at most share a frame's tiles: 0 all the CPUs, 1 none
 	grids       control.Queue[Grid] // the Grid commands given, until the next tick
+	holds       control.Queue[Holds]
+	holdsView   *occupancy.View // WithRenderer's
+	holdsShown  bool
+	bridges     Bridges
+	// the cell an entity of each kind NewEntities defines stands on, read off its row, and the
+	// file and line of a level the entity on a cell was laid by
+	cellOf map[string]func(row any) cell.ID
+	where  map[cell.ID]string
 }
+
+// Bridges is what a bridge — the cells whose Graded Floors run as bands joined along their links —
+// keeps to besides running straight and level from a head to a head (a band from the middle of a
+// flat tile at the deck into the bridge, its Links the way in alone): its deck Clearance over the
+// ground under the middle of every cell between at least. A level laying one that breaks them
+// fails with its file and line as the game begins; one built later is not built, said in the log.
+type Bridges struct{ Clearance float64 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
@@ -72,13 +87,13 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	kind.Require[unit.At](&worldPlugin.Roster().Unit, "board", "the cell it starts in")
 	kind.Require[unit.Mover](&worldPlugin.Roster().Unit, "board", "the domains it moves in")
 	p := &Plugin{
-		Self:        world.NewSelf(worldPlugin, "gram.board"),
 		occupancy:   occupancy,
 		worldPlugin: worldPlugin,
 		kinds:       terrain.NewKinds(worldPlugin.HasHeights()),
 	}
+	p.Self = world.NewSelf(worldPlugin, p)
 	p.kinds.Guard = func(name string) {
-		if err := worldPlugin.InSection(fmt.Sprintf("cell kind %q defined", name), section.Cells); err != nil {
+		if err := worldPlugin.InSection(fmt.Sprintf("cell kind %q defined", name), section.Kinds); err != nil {
 			panic("board: " + err.Error())
 		}
 	}
@@ -89,13 +104,23 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	p.simple = newSimpleMap(brd)
 	p.mapping = p.simple
 	brd.mapping = p.mapping
-	if ws, ok := p.Res.Logic.Board.Grid.(interface{ SetWrap(x, y bool) }); ok {
+	if ws, ok := p.Board().Grid.(interface{ SetWrap(x, y bool) }); ok {
 		edges := worldPlugin.Res.Config.Space.Edges
 		ws.SetWrap(edges.WrapsX(), edges.WrapsY())
 	}
 	slope := func(at, dir geom.Vec, d cell.Domain) float64 { return brd.Map().Slope(at, dir, d) }
-	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Tick, slope)
+	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Tick, slope, brd.altitude)
 	worldPlugin.Roster().Unit.Default(comp.Const(steering.Pace{Share: 1}))
+	if t := worldPlugin.Kinds().DefineTag[unit.States](unit.EnteredName); t != unit.Entered {
+		panic(fmt.Sprintf("board: the units' markers have tags of their own before %q",
+			unit.EnteredName))
+	}
+	if t := worldPlugin.Kinds().DefineTag[unit.States](unit.AirborneName); t != unit.Airborne {
+		panic(fmt.Sprintf("board: the units' markers have tags of their own before %q",
+			unit.AirborneName))
+	}
+	worldPlugin.Roster().Unit.Default(comp.Marks[unit.States]())
+	p.keepBridges()
 	return p
 }
 
@@ -108,9 +133,10 @@ func (p *Plugin) Name() string { return "gram.board" }
 // Install wires the cell entities, the occupancy's upkeep and the rules.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
-		cells:     p.Res.Logic.Board.cells.System(&p.worldPlugin.Roster().Cell),
+		cells:     p.Board().cells.System(&p.worldPlugin.Roster().Cell),
+		built:     p.Board().cells.BuiltSystem(p.worldPlugin.HasHeights(), p.worldPlugin.Space),
 		template:  &p.worldPlugin.Roster().Cell,
-		release:   occupancy.ReleaseSystem(p.occupancy),
+		keep:      occupancy.KeepSystem(p.occupancy, p.Board().footing),
 		standing:  p.rules.StandingSystem(),
 		cellRules: p.rules.CellSystem(),
 		clock:     p.worldPlugin.Clock(),
@@ -128,23 +154,55 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 			p.Res.Render.ToggleShowGridLines()
 		}
 	})
+	p.holds.Drain(func(control.Issued[Holds]) { p.ShowHolds(!p.holdsShown) })
 	p.module.RunPlan(ctx, d)
 }
 
-// WithRenderer builds the board renderer, drawing each cell's kind's SpriteID from atlas — or,
-// given nil, from the board's own atlas of the kinds' Colors and drawn sprites.
+// WithRenderer builds the board renderer, drawing each cell's kind's SpriteID from atlas, the
+// game's look of every kind (NewAtlas); a board has no look of its own, and nil panics.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	if atlas == nil {
-		atlas = p.defaultAtlas()
+		panic("board: WithRenderer needs the game's atlas of the cell kinds (board.Plugin.NewAtlas)")
 	}
 	p.atlas = atlas
-	p.renderer = look.NewRenderer(p.Res.Logic.Board, atlas, mapRef{p}, p.worldPlugin.Res.Config.Space)
+	p.renderer = look.NewRenderer(p.Board(), atlas, mapRef{p}, p.worldPlugin.Res.Config.Space)
 	if ba, ok := atlas.(*Atlas); ok {
 		p.renderer.Shade(ba.shaded)
 	}
 	p.Res.Render = p.renderer.State()
 	p.Res.Render.ShowGridLines = true
 	p.renderer.Workers(p.workers)
+	p.holdsView = occupancy.NewView(p.Board().Grid, p.occupancy, p.holdAt)
+	p.holdsView.Show(p.holdsShown)
+}
+
+// ShowHolds shows the cells the occupancy holds — each an outline in its holder's colour, on the
+// ground or on the deck — or hides them, as they start: a look, not saved; Holds (Shift+O).
+func (p *Plugin) ShowHolds(shown bool) {
+	p.holdsShown = shown
+	if p.holdsView != nil {
+		p.holdsView.Show(shown)
+	}
+}
+
+// HoldsRenderer draws the cells the occupancy holds while ShowHolds says, for a scene's composer;
+// nil before WithRenderer.
+func (p *Plugin) HoldsRenderer() render.Layer {
+	if p.holdsView == nil {
+		return nil
+	}
+	return p.holdsView
+}
+
+// holdAt is how high the point at of c lies on the ground, or on the raised deck over c.
+func (p *Plugin) holdAt(c cell.ID, at geom.Vec, deck bool) float64 {
+	if deck {
+		return p.Board().altitude(c) + p.Board().Built(c).Floor.Height
+	}
+	if h := p.Heights(); h != nil {
+		return h.At(at)
+	}
+	return 0
 }
 
 // WithLog has the board write a line to l, once for each, for a unit fallen where its domain may
@@ -152,6 +210,37 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 func (p *Plugin) WithLog(l *log.Logger) *Plugin {
 	p.rules.Log = l
 	return p
+}
+
+// WithBridges has the board's bridges keep to b; zero, as it starts, has the deck no lower than
+// the ground.
+func (p *Plugin) WithBridges(b Bridges) *Plugin {
+	p.bridges = b
+	p.keepBridges()
+	return p
+}
+
+// keepBridges hands the terrain the rules its bridges keep to and how it reads the ground.
+func (p *Plugin) keepBridges() {
+	brd := p.Board()
+	brd.cells.SetBridges(terrain.Bridges{
+		Clearance: p.bridges.Clearance,
+		Level:     brd.altitude,
+		Ground: func(at geom.Vec) float64 {
+			if h := p.Heights(); h != nil {
+				return h.At(at)
+			}
+			return 0
+		},
+		Where: func(c cell.ID) string { return p.where[c] },
+		Log: func(format string, args ...any) {
+			if p.rules.Log != nil {
+				p.rules.Log.Printf(format, args...)
+				return
+			}
+			log.Printf(format, args...)
+		},
+	})
 }
 
 // WithWorkers sets how many goroutines at most share a frame's tiles when the Map's Dressing
@@ -167,28 +256,6 @@ func (p *Plugin) WithWorkers(n int) *Plugin {
 // Atlas is the sprite sheet the board's renderer draws the cells from, WithRenderer's; nil before
 // it.
 func (p *Plugin) Atlas() render.AtlasSource { return p.atlas }
-
-// defaultAtlas is an atlas of every kind in the dictionary, a cell's size each: its drawn sprite
-// (cell.Kinds.Draw) or its Color, grey for a kind of no colour. Call it once the kinds are
-// created.
-func (p *Plugin) defaultAtlas() render.AtlasSource {
-	w, h := p.Res.Logic.Board.CellBounds()
-	size := int(math.Ceil(max(w, h)))
-	atlas := render.NewAtlas()
-	for _, k := range p.kinds.All() {
-		if draw, ok := p.kinds.Drawer(k.Name); ok {
-			atlas.Add(k.SpriteID, size, draw)
-			continue
-		}
-		c := k.Color
-		if c.A == 0 {
-			c.R, c.G, c.B, c.A = 128, 128, 128, 255
-		}
-		atlas.Add(k.SpriteID, size, render.Solid(c))
-	}
-	atlas.Close()
-	return atlas
-}
 
 // Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.
 func (p *Plugin) Renderer() render.Layer {
@@ -212,7 +279,7 @@ func (p *Plugin) Serializable() plugin.Serializable { return nil }
 // Call before Use.
 func (p *Plugin) WithMap(m Map) *Plugin {
 	p.mapping = m
-	p.Res.Logic.Board.mapping = m
+	p.Board().mapping = m
 	return p
 }
 
@@ -226,10 +293,10 @@ func (p *Plugin) Climb(from, to cell.ID, d cell.Domain) float64 { return p.mappi
 // Least is the Map's: the smallest Climb for d.
 func (p *Plugin) Least(d cell.Domain) float64 { return p.mapping.Least(d) }
 
-// CellEntity is cell c's own entity, carrying its [Plot], [Ground], [Way] and [Crossing] for as
+// CellEntity is cell c's own entity, carrying its [Plot], [Ground] and [Way] for as
 // long as the board lives, so an effect cast on it is an effect on the cell's terrain; false off
 // the board or before Setup.
-func (p *Plugin) CellEntity(c cell.ID) (uid.UID64, bool) { return p.Res.Logic.Board.CellEntity(c) }
+func (p *Plugin) CellEntity(c cell.ID) (uid.UID64, bool) { return p.Board().CellEntity(c) }
 
 // Occupancy returns the occupancy tracker this plugin was built with.
 func (p *Plugin) Occupancy() cell.Occupancy { return p.occupancy }
@@ -252,20 +319,30 @@ func (p *Plugin) Covering(e effect.Effect) render.SpriteID {
 	return id
 }
 
+// Board is the board: its terrain, read and written.
+func (p *Plugin) Board() *Board { return p.Res.Logic.Board }
+
 // CellKinds are this Plugin's registered kinds of cells.
 func (p *Plugin) CellKinds() cell.Kinds { return p.kinds }
 
 // Seed sets the terrain applied when this Stage starts fresh — see Populate.
 func (p *Plugin) Seed(layout Layout) {
-	if err := p.worldPlugin.InSection("the board's layout seeded", section.Layout); err != nil {
+	if err := p.worldPlugin.InSection("the board's layout seeded", section.Spawn); err != nil {
 		panic("board: " + err.Error())
 	}
 	p.seeded = &layout
 }
 
-// Populate applies the seeded Layout — kinds, the cells' tags, roles, names and groups, ways and crossings —
-// changing nothing and erroring on an unknown kind name.
+// Populate applies the seeded Layout — kinds, the cells' roles, names and groups, ways —
+// changing nothing and erroring on an unknown kind name, or on an entity of the level laid that
+// no Spawn took.
 func (p *Plugin) Populate() error {
+	if level := p.level; level != nil {
+		p.level = nil
+		if err := level.unspawned(); err != nil {
+			return err
+		}
+	}
 	if p.seeded == nil {
 		return nil
 	}
@@ -305,16 +382,8 @@ func (p *Plugin) Populate() error {
 		}
 		ways[i] = cell.Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade, Mix: e.Mix}
 	}
-	crossings := make([]cell.Crossing, len(p.seeded.Crossings))
-	for i, e := range p.seeded.Crossings {
-		kind, err := resolve(e.Kind)
-		if err != nil {
-			return err
-		}
-		crossings[i] = cell.Crossing{Way: cell.Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade, Mix: e.Mix}}
-	}
 
-	brd := p.Res.Logic.Board
+	brd := p.Board()
 	if p.seeded.Default != "" {
 		brd.SetAll(def)
 	}
@@ -330,9 +399,6 @@ func (p *Plugin) Populate() error {
 	for i, e := range p.seeded.Ways {
 		brd.SetWay(e.Cell, ways[i])
 	}
-	for i, e := range p.seeded.Crossings {
-		brd.SetCrossing(e.Cell, crossings[i])
-	}
 	p.seeded = nil
 	return nil
 }
@@ -340,7 +406,7 @@ func (p *Plugin) Populate() error {
 // cast gives every cell the roles it plays, as the Layout lays it: its kind's — the entry's, or
 // the Default's where the entry keeps it — and the entry's own on top.
 func (p *Plugin) cast() {
-	brd := p.Res.Logic.Board
+	brd := p.Board()
 	def := p.kinds.Plays(p.seeded.Default)
 	if def != 0 {
 		brd.Grid.EachCell(func(c cell.ID) { brd.cells.Cast(c, def) })
@@ -364,13 +430,20 @@ func (p *Plugin) cast() {
 // Heights is the board's ground heights: its Map's, nil on a flat map.
 func (p *Plugin) Heights() ground.Heights { return p.mapping.Heights() }
 
+// Surfaces is where whoever moves over the board stands — the ground or a deck — when its Map's
+// heights know; nil on a flat map.
+func (p *Plugin) Surfaces() ground.Surfaces {
+	s, _ := p.mapping.Heights().(ground.Surfaces)
+	return s
+}
+
 // Cover is what stands on the board and holds sight back — walls, forests — walked along a ray;
 // it is a ground.Readied too.
-func (p *Plugin) Cover() ground.Cover { return p.Res.Logic.Board.field }
+func (p *Plugin) Cover() ground.Cover { return p.Board().field }
 
 // WithCollision makes the board's Solid cells the solid ground c pushes colliders out of, and the
 // ground a kind does not take (Overhang) what c never pushes one over; call before Use.
 func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
-	c.WithField(p.Res.Logic.Board.field)
+	c.WithField(p.Board().field)
 	return p
 }

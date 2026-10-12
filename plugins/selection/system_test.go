@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
@@ -33,6 +34,7 @@ type harness struct {
 	space     *aabbworld.Space
 	players   *players.Plugin
 	local     *players.Player
+	cam       camera.Camera // the local player's, through which it acts over the whole screen
 	sel       *Plugin
 	world     *world.Plugin
 	sys       *SelectionSystem
@@ -63,11 +65,12 @@ func newHarness(t *testing.T) *harness {
 // newHarnessIn is newHarness over a world of the given configuration — an isometric one, say.
 func newHarnessIn(t *testing.T, cfg world.Config) *harness {
 	t.Helper()
-	return newHarnessViewed(t, cfg, nil)
+	return newHarnessViewed(t, cfg, camera.Config{}, nil)
 }
 
-// newHarnessViewed is newHarnessIn with view applied to the world before anyone asks it for a camera.
-func newHarnessViewed(t *testing.T, cfg world.Config, view func(*world.Plugin)) *harness {
+// newHarnessViewed is newHarnessIn with view applied to the world, the local player looking through
+// a camera configured by cam.
+func newHarnessViewed(t *testing.T, cfg world.Config, cam camera.Config, view func(*world.Plugin)) *harness {
 	t.Helper()
 	space, err := aabbworld.NewSpace(aabbworld.Config{
 		Width: 1000, Height: 1000,
@@ -82,16 +85,20 @@ func newHarnessViewed(t *testing.T, cfg world.Config, view func(*world.Plugin)) 
 		view(w)
 	}
 	sel := NewPlugin(w)
-	pl := players.NewPlugin(w, sel)
+	cams := cameras.NewPlugin(w)
+	pl := players.NewPlugin(w, cams, sel)
 	local := pl.Local("tester")
+	camera := cams.New(cameras.TopDown(), cam)
+	pl.Through(local).Over(geom.AABB{}, render.NewFeed(camera, nil)) // as a scene showing it wires it
 	if err := local.Bind(sel.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
-	tags := Tags{Selectable: 0, Selected: 1}
+	tags := Tags{Selectable: 0, Selected: 1, Hovered: 2}
 	sys := NewSelectionSystem(&sel.selects, space, tags, w.Look)
 	sys.marqueeQueue, sys.marquees = &sel.marqueeQueue, &sel.marquees
+	sys.hovers = &sel.hovers
 
-	return &harness{t: t, world: w, space: space, players: pl, local: local, sel: sel, sys: sys, handler: pl.EventHandler(), ecs: goke.New(), tags: tags}
+	return &harness{t: t, world: w, space: space, players: pl, local: local, cam: camera, sel: sel, sys: sys, handler: pl.EventHandler(), ecs: goke.New(), tags: tags}
 }
 
 // seed queues a Selectable size x size entity at (x,y), the local player's; the returned id is
@@ -356,7 +363,7 @@ func TestSystem_Update_SelectByID_TagsExactlyGivenEntities(t *testing.T) {
 func TestMarquee_ShowsTheBoxBeingDraggedUntilItsSelect(t *testing.T) {
 	h := newHarness(t)
 	h.start()
-	box := func() (geom.AABB, bool) { b, ok := h.sel.marquees.boxes[h.local.Camera]; return b, ok }
+	box := func() (geom.AABB, bool) { b, ok := h.sel.marquees.boxes[h.cam]; return b, ok }
 
 	press := &control.InputEvents{MousePos: geom.NewVec(10, 10)}
 	press.AddClickEvent(10, 10, control.MouseButtonLeft, control.ActionPress)
@@ -418,13 +425,13 @@ func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
 	h := newHarnessViewed(t, world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
-		Camera:   camera.Config{ViewportWidth: 800, ViewportHeight: 600},
 		Heights:  true,
-	}, func(w *world.Plugin) { w.SetLook(standing{}) })
+	}, camera.Config{}, func(w *world.Plugin) { w.SetLook(standing{}) })
 	hawk := h.seedHigh(500, 500, 10, 40)
 	walker := h.seed(560, 560, 10)
 	h.start()
-	cam := h.local.Camera
+	cam := h.cam
+	cam.SetViewport(800, 600)
 	cam.MoveTo(300, 300)
 
 	// The hawk is drawn 40 up over its box; a click there selects it.
@@ -443,5 +450,35 @@ func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
 	h.click(int(wx), int(wy), false)
 	if !h.isSelected(*walker) {
 		t.Error("clicking the walker where it stands did not select it")
+	}
+}
+
+// hoverAt has the local player point at the screen point (x, y), as its cursor over the world does
+// every tick, and runs a tick.
+func (h *harness) hoverAt(x, y float64) {
+	at := geom.NewVec(x, y)
+	if err := h.players.Issue(h.local, Hover{At: at, Screen: control.ScreenRect(at, at), Camera: h.cam}); err != nil {
+		h.t.Fatal(err)
+	}
+	h.ecs.Tick(time.Second)
+}
+
+func TestSystem_HoverMarksTheEntityUnderTheCursorAlone(t *testing.T) {
+	h := newHarness(t)
+	a := h.seed(50, 50, 10)
+	b := h.seedOwned(300, 300, 10, control.Nobody)
+	h.start()
+
+	h.hoverAt(55, 55)
+	if !h.has(*a, h.tags.Hovered) || h.has(*b, h.tags.Hovered) {
+		t.Fatalf("pointing at a: a hovered %v, b %v; want a alone", h.has(*a, h.tags.Hovered), h.has(*b, h.tags.Hovered))
+	}
+	h.hoverAt(305, 305)
+	if h.has(*a, h.tags.Hovered) || !h.has(*b, h.tags.Hovered) {
+		t.Fatalf("pointing at b, nobody's: a hovered %v, b %v; want b alone", h.has(*a, h.tags.Hovered), h.has(*b, h.tags.Hovered))
+	}
+	h.ecs.Tick(time.Second) // the cursor left the picture: no Hover this tick
+	if h.has(*b, h.tags.Hovered) {
+		t.Error("b stays hovered with the cursor gone")
 	}
 }

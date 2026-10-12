@@ -101,7 +101,7 @@ func (lw *legWorld) walls(cells ...cell.ID) {
 }
 
 func (lw *legWorld) cellAt(x, y uint32) cell.ID {
-	c := lw.grid.CellIndex(x, y)
+	c := lw.grid.At(x, y)
 	return c
 }
 
@@ -114,7 +114,7 @@ const otherEntity = uid.UID64(1 << 40)
 
 func TestNavigation_HeadOn_ResolvesWithoutOverlap(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, legCellSize)
-	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	lw := newLegWorld(t, 5, 5,
 		legUnit{start: at(2, 1), target: at(2, 4), hasOrder: true},
 		legUnit{start: at(2, 3), target: at(2, 0), hasOrder: true},
@@ -138,7 +138,7 @@ func TestNavigation_HeadOn_ResolvesWithoutOverlap(t *testing.T) {
 
 func TestNavigation_BlockedDeparture_RepathsAroundStationaryEntity(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, legCellSize)
-	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	blocker := at(1, 2)
 	lw := newLegWorld(t, 5, 5,
 		legUnit{start: at(0, 2), target: at(4, 2), hasOrder: true},
@@ -166,15 +166,16 @@ func TestNavigation_BlockedDeparture_RepathsAroundStationaryEntity(t *testing.T)
 
 func TestNavigation_Leg_HoldsFromAndToUntilArrival(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, legCellSize)
-	start := grid.CellIndex(0, 0)
-	target := grid.CellIndex(1, 0)
+	start := grid.At(0, 0)
+	target := grid.At(1, 0)
 	lw := newLegWorld(t, 5, 1, legUnit{start: start, target: target, hasOrder: true})
 
 	st := lw.tick()[lw.ids[0]]
 	if !st.order.Leg.Active || st.order.Leg.From != start || st.order.Leg.To != target {
 		t.Fatalf("Leg after departure = %+v, want active %v→%v", st.order.Leg, start, target)
 	}
-	if lw.occupancy.CanEnter(start, otherEntity, cell.Land) || lw.occupancy.CanEnter(target, otherEntity, cell.Land) {
+	if lw.occupancy.CanEnter(start, false, otherEntity, cell.Land) ||
+		lw.occupancy.CanEnter(target, false, otherEntity, cell.Land) {
 		t.Fatal("expected both From and To held while the step is in progress")
 	}
 
@@ -186,18 +187,18 @@ func TestNavigation_Leg_HoldsFromAndToUntilArrival(t *testing.T) {
 	if st.hasOrder {
 		t.Fatal("entity never arrived")
 	}
-	if !lw.occupancy.CanEnter(start, otherEntity, cell.Land) {
+	if !lw.occupancy.CanEnter(start, false, otherEntity, cell.Land) {
 		t.Error("expected From released after arrival")
 	}
-	if lw.occupancy.CanEnter(target, otherEntity, cell.Land) {
+	if lw.occupancy.CanEnter(target, false, otherEntity, cell.Land) {
 		t.Error("expected To still held after arrival")
 	}
 }
 
 func TestNavigation_Leg_DiagonalHoldsCorners(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(3, 3, legCellSize)
-	start := grid.CellIndex(0, 0)
-	target := grid.CellIndex(1, 1)
+	start := grid.At(0, 0)
+	target := grid.At(1, 1)
 	c1, c2, diag := grid.DiagonalNeighbors(start, target)
 	if !diag {
 		t.Fatal("sanity: (0,0)→(1,1) must be a diagonal step")
@@ -208,7 +209,8 @@ func TestNavigation_Leg_DiagonalHoldsCorners(t *testing.T) {
 	if !st.order.Leg.Diagonal {
 		t.Fatalf("Leg after departure = %+v, want a diagonal step", st.order.Leg)
 	}
-	if lw.occupancy.CanEnter(c1, otherEntity, cell.Land) || lw.occupancy.CanEnter(c2, otherEntity, cell.Land) {
+	if lw.occupancy.CanEnter(c1, false, otherEntity, cell.Land) ||
+		lw.occupancy.CanEnter(c2, false, otherEntity, cell.Land) {
 		t.Fatal("expected both corner cells held during a diagonal step")
 	}
 
@@ -220,7 +222,8 @@ func TestNavigation_Leg_DiagonalHoldsCorners(t *testing.T) {
 	if st.hasOrder {
 		t.Fatal("entity never arrived")
 	}
-	if !lw.occupancy.CanEnter(c1, otherEntity, cell.Land) || !lw.occupancy.CanEnter(c2, otherEntity, cell.Land) {
+	if !lw.occupancy.CanEnter(c1, false, otherEntity, cell.Land) ||
+		!lw.occupancy.CanEnter(c2, false, otherEntity, cell.Land) {
 		t.Error("expected corner cells released after arrival")
 	}
 }
@@ -233,9 +236,9 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	moves := &control.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
 
-	from := grid.CellIndex(0, 0)
-	to := grid.CellIndex(1, 0)
-	newTarget := grid.CellIndex(5, 0)
+	from := grid.At(0, 0)
+	to := grid.At(1, 0)
+	newTarget := grid.At(5, 0)
 	leg := Leg{From: from, To: to, Active: true}
 
 	var at goke.Comp[unit.At]
@@ -253,7 +256,7 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 		at.Slice(&f.Cursor)[0] = unit.At{Cell: from}
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: to, Leg: leg}
 		for _, c := range leg.cells() {
-			occupancy.Enter(c, id, cell.Land)
+			occupancy.Enter(c, false, id, cell.Land)
 		}
 		q = si.NewQueryBuilder(&at, &order).Build()
 		cmds.Init(si)
@@ -274,7 +277,7 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	if mt.Leg != leg {
 		t.Errorf("Leg = %+v, want the in-progress step %+v carried over", mt.Leg, leg)
 	}
-	next := grid.CellIndex(2, 0)
+	next := grid.At(2, 0)
 	if mt.Path.Length == 0 || mt.Path.Steps[0] != next {
 		t.Errorf("Path = %+v, want it to continue from Leg.To (first step %v)", mt.Path, next)
 	}
@@ -287,8 +290,8 @@ func TestModule_Setup_RestoresLegCells(t *testing.T) {
 	occupancy := &cell.SingleOccupancy{}
 	m := &module{navigationSystem: newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)}
 
-	from := grid.CellIndex(0, 0)
-	to := grid.CellIndex(1, 1)
+	from := grid.At(0, 0)
+	to := grid.At(1, 1)
 	c1, c2, _ := grid.DiagonalNeighbors(from, to)
 	leg := Leg{From: from, To: to, C1: c1, C2: c2, Diagonal: true, Active: true}
 
@@ -296,17 +299,20 @@ func TestModule_Setup_RestoresLegCells(t *testing.T) {
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			var cell goke.Comp[unit.At]
 			var order goke.Comp[MoveOrder]
-			f := si.NewFactory(&cell, &order)
+			var base goke.Comp[world.Base]
+			var steer goke.Comp[steering.Steering]
+			var course goke.Comp[steering.Course]
+			f := si.NewFactory(&cell, &order, &base, &steer, &course)
 			f.Create(1)
 			f.Next()
 			cell.Slice(&f.Cursor)[0] = unit.At{Cell: from}
 			order.Slice(&f.Cursor)[0] = MoveOrder{Target: to, Leg: leg}
 		}},
-		m.SetupSystems()[0],
+		m.navigationSystem, // its Init seeds the occupancy
 	)
 
 	for _, c := range leg.cells() {
-		if occupancy.CanEnter(c, otherEntity, cell.Land) {
+		if occupancy.CanEnter(c, false, otherEntity, cell.Land) {
 			t.Errorf("cell %v not held after Setup, want every Leg cell restored", c)
 		}
 	}

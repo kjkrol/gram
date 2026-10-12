@@ -29,6 +29,7 @@ type Plugin struct {
 	cover       func() ground.Cover   // what holds sight back; nil, nothing
 	hidden      bool                  // the views drawn are hidden, as they start — see Cones
 	workers     int                   // how many goroutines at most share a scan: 0 all the CPUs, 1 none
+	frequency   float64               // how often each observer is scanned a second; 0, every step
 	log         *log.Logger           // a line the first time one entity sees another, nil for none
 	cones       control.Queue[Cones]
 
@@ -42,7 +43,9 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 // NewPlugin builds the vision plugin over worldPlugin's shared spatial index; the views drawn
 // start hidden — see Cones.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
-	return &Plugin{Self: world.NewSelf(worldPlugin, "gram.vision"), worldPlugin: worldPlugin, hidden: true}
+	p := &Plugin{worldPlugin: worldPlugin, hidden: true}
+	p.Self = world.NewSelf(worldPlugin, p)
+	return p
 }
 
 // =================================================================
@@ -57,6 +60,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		h = &heights{groundOf: p.groundOf, step: p.groundStep, bend: p.worldPlugin.Scale().Bend()}
 	}
 	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.coverOf, p.workers)
+	p.module.sys.Every(p.frequency)
 	p.module.clock = p.worldPlugin.Clock()
 	p.module.sys.tick, p.module.sys.log = p.worldPlugin.Tick, p.log
 	ctx.UseModule(p.module)
@@ -67,7 +71,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan carries out the commands, then hands the scan to the simulation; call it after world's
 // RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.cones.Drain(func(control.Issued[Cones]) { p.Hide(!p.hidden) })
+	p.cones.Drain(func(control.Issued[Cones]) { p.setHidden(!p.hidden) })
 	p.module.RunPlan(ctx, d)
 }
 
@@ -98,7 +102,7 @@ func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 // WithViews has the views drawn as rules say, every frame: render.Show picks the observers
 // whose views are drawn — the selected ones, say (render.Show(selected.In)); with none, every
-// one is. An option of the plugin's making, like navigation's WithCrowd: call before Use.
+// one is. Drawing is the scene's: call it as the renderer is made (WithRenderer).
 func (p *Plugin) WithViews(rules ...render.Rule) *Plugin {
 	if err := p.drawing.Add(rules...); err != nil {
 		panic(fmt.Errorf("%w in %s", err, p.Name()))
@@ -110,16 +114,21 @@ func (p *Plugin) WithViews(rules ...render.Rule) *Plugin {
 // vision-specific
 // =================================================================
 
-// Hide hides every view drawn, or shows them again — what the Cones command toggles.
-func (p *Plugin) Hide(hidden bool) {
+// ShowCones shows every view drawn — the cones and the shadows — as the Cones command does.
+func (p *Plugin) ShowCones() { p.setHidden(false) }
+
+// HideCones hides every view drawn, as they start; the scan goes on.
+func (p *Plugin) HideCones() { p.setHidden(true) }
+
+// ConesShown reports whether the views drawn are shown.
+func (p *Plugin) ConesShown() bool { return !p.hidden }
+
+func (p *Plugin) setHidden(hidden bool) {
 	p.hidden = hidden
 	if p.renderer != nil {
 		p.renderer.Hide(hidden)
 	}
 }
-
-// Hidden reports whether the views drawn are hidden.
-func (p *Plugin) Hidden() bool { return p.hidden }
 
 // WithStyle sets how cones are drawn, in place of DefaultConeStyle; call before Use.
 func (p *Plugin) WithStyle(style ConeStyle) *Plugin {
@@ -168,7 +177,8 @@ func (p *Plugin) coverOf() ground.Cover {
 }
 
 // WithGroundStep sets how far apart a scan with heights samples the ground along a ray, in place of the
-// board's cell; a longer step is a cheaper scan. Call before Use.
+// board's cell, where the ground has no ground.Profile — a topography's relief has, and is read
+// exactly; a longer step is a cheaper scan. Call before Use.
 func (p *Plugin) WithGroundStep(step float64) *Plugin {
 	p.groundStep = step
 	return p
@@ -178,6 +188,15 @@ func (p *Plugin) WithGroundStep(step float64) *Plugin {
 // Use.
 func (p *Plugin) WithLog(l *log.Logger) *Plugin {
 	p.log = l
+	return p
+}
+
+// WithFrequency has every observer scanned perSecond times a second of game time, the observers
+// spread evenly over the steps, in place of every step (0, as it starts); between its scans an
+// observer's rules of a Sighting go on with what it saw last. A lower frequency is a cheaper
+// scan. Call before Use.
+func (p *Plugin) WithFrequency(perSecond float64) *Plugin {
+	p.frequency = max(perSecond, 0)
 	return p
 }
 

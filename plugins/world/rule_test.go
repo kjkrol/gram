@@ -94,7 +94,7 @@ func (p triggerProbe) SetupSystems() []goke.System {
 	}}}
 }
 
-func (g *triggerStage) Restore(game.Persistence) (bool, error) { return false, nil }
+func (g *triggerStage) Loaded() error { return nil }
 func (g *triggerStage) Spawn() error {
 	for _, s := range g.spots {
 		g.world.Seed(g.unit.Entry(s))

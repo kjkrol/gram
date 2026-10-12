@@ -38,7 +38,7 @@ func NewUnits[P any](brd *Plugin, shape Shape, at func(row P) geom.Vec) *Units[P
 // entities. It is kind.Define with the board's part filled in and the world's roster checked; a
 // unit standing off the board panics when spawned.
 func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steering, extra ...comp.Comp) {
-	brd := u.brd.Res.Logic.Board
+	brd := u.brd.Board()
 	heights := u.brd.worldPlugin.HasHeights()
 	if !heights && mover.Lift != 0 {
 		panic(fmt.Sprintf("board: %q has a Lift in a flat world; set world.Config.Heights", name))

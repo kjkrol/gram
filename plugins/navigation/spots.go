@@ -7,6 +7,8 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/world"
 )
 
 // placeCells is how many cells round its target a group looks over for spots.
@@ -19,11 +21,13 @@ const spacingGap = 1.0
 // gapFor is the room left round a box of half size half.
 func gapFor(half geom.Vec) float64 { return 2 * max(half.X, half.Y) * spacingGap }
 
-// placed is where one unit of a group stands: spot, in cell; ok false where none was found.
+// placed is where one unit of a group stands: spot, in cell, on its level; ok false where none
+// was found.
 type placed struct {
-	spot geom.Vec
-	cell cell.ID
-	ok   bool
+	spot  geom.Vec
+	cell  cell.ID
+	level Level
+	ok    bool
 }
 
 // spotSearch is the spots round a point, a cell at a time, the cheapest cell to reach first and,
@@ -31,6 +35,8 @@ type placed struct {
 type spotSearch struct {
 	k     *bodyKeeping
 	at    geom.Vec
+	z     world.Z  // whose feet the spots are sought for: aloft, or grounded
+	level Level    // the level asked for
 	step  geom.Vec // the lattice's spacing: the largest box and a gap
 	tiles []cell.ID
 	next  int
@@ -64,7 +70,8 @@ func (s *spotSearch) expand(c cell.ID) {
 			off := geom.NewVec(i*s.step.X, j*s.step.Y)
 			p := k.fold(geom.NewVec(s.at.X+off.X, s.at.Y+off.Y))
 			if in, ok := k.grid.CellAt(p); ok && in == c {
-				s.cands = append(s.cands, placed{spot: p, cell: c, ok: true})
+				on, level := s.on(p)
+				s.cands = append(s.cands, placed{spot: p, cell: on, level: level, ok: true})
 				s.dist = append(s.dist, math.Hypot(off.X, off.Y))
 			}
 		}
@@ -81,18 +88,42 @@ func (s *spotSearch) expand(c cell.ID) {
 	copy(s.cands[from:], sorted)
 }
 
+// on is the cell a spot at p lies in, on the deck there or the ground under it as the search asks,
+// and its level: none asked where nothing is, the deck's where the spot lies on one.
+func (s *spotSearch) on(p geom.Vec) (cell.ID, Level) {
+	k := s.k
+	f, ok := k.terrain.(interface {
+		LevelFor(p geom.Vec, feet, reach float64) (cell.ID, bool, bool)
+	})
+	if !ok {
+		c, _ := cellOf(k.grid, k.terrain, p, &s.z)
+		return c, s.level
+	}
+	c, deck, _ := f.LevelFor(p, s.z.Altitude, s.z.Reach())
+	switch {
+	case s.level == EitherLevel:
+		return c, EitherLevel
+	case deck:
+		return c, OnDeck
+	}
+	return c, OnGround
+}
+
 // place finds a spot for each of units round at on target, nearest at first: the target's cell,
 // then the cheapest round it. Only the ground and the group count: nobody knows where the others
 // stand, and whoever finds its spot taken learns it by striking the one there. Among units alike
 // the spots are then dealt far side first, the unit furthest on along the way going deepest, so
 // none has to pass one of its group standing already. The way the group comes is the second
 // result.
-func (k *bodyKeeping) place(units []member, at geom.Vec, target cell.ID) (out []placed, way geom.Vec) {
-	return k.placeClearOf(units, at, target, nil)
+func (k *bodyKeeping) place(units []member, at geom.Vec, target cell.ID,
+	level Level) (out []placed, way geom.Vec) {
+	return k.placeClearOf(units, at, target, level, nil)
 }
 
-// placeClearOf is place with no spot where struck stand.
-func (k *bodyKeeping) placeClearOf(units []member, at geom.Vec, target cell.ID, struck []body) (out []placed, way geom.Vec) {
+// placeClearOf is place with no spot where struck stand: on the level asked for — on decks, or
+// under them — either where none is asked.
+func (k *bodyKeeping) placeClearOf(units []member, at geom.Vec, target cell.ID, level Level,
+	struck []body) (out []placed, way geom.Vec) {
 	out = make([]placed, len(units))
 	if len(units) == 0 {
 		return out, way
@@ -112,7 +143,13 @@ func (k *bodyKeeping) placeClearOf(units []member, at geom.Vec, target cell.ID, 
 		da, db := k.delta(at, units[a].centre()), k.delta(at, units[b].centre())
 		return cmp.Compare(math.Hypot(da.X, da.Y), math.Hypot(db.X, db.Y))
 	})
-	s := &spotSearch{k: k, at: at, step: geom.NewVec(2*half.X+gap, 2*half.Y+gap), tiles: k.tilesRound(target, dom, units[order[0]].domain)}
+	z := aloft
+	if level == OnGround {
+		z = grounded
+	}
+	s := &spotSearch{k: k, at: at, z: z, level: level,
+		step:  geom.NewVec(2*half.X+gap, 2*half.Y+gap),
+		tiles: k.tilesRound(target, dom, units[order[0]].domain)}
 	used := map[int]bool{}
 	for _, ui := range order {
 		for ci := 0; ; ci++ {
@@ -120,7 +157,7 @@ func (k *bodyKeeping) placeClearOf(units []member, at geom.Vec, target cell.ID, 
 			if !ok {
 				break
 			}
-			if used[ci] || !k.fits(units[ui], c.spot, struck) {
+			if used[ci] || !k.fits(units[ui], c.spot, z, struck) {
 				continue
 			}
 			used[ci] = true
@@ -253,7 +290,7 @@ func (k *bodyKeeping) tilesRound(target cell.ID, dom, costs cell.Domain) []cell.
 
 // fits reports whether u may stand at p: its box on cells its domain takes, all of them on the
 // board, on no step, and clear of struck.
-func (k *bodyKeeping) fits(u member, p geom.Vec, struck []body) bool {
+func (k *bodyKeeping) fits(u member, p geom.Vec, z world.Z, struck []body) bool {
 	half := geom.NewVec(u.pos.Size.X/2, u.pos.Size.Y/2)
 	in := geom.NewVec(half.X*0.999, half.Y*0.999)
 	for _, s := range [4][2]float64{{-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
@@ -262,10 +299,20 @@ func (k *bodyKeeping) fits(u member, p geom.Vec, struck []body) bool {
 		}
 	}
 	admitted := true
-	k.grid.CellsUnder(boxAt(p, in), func(c cell.ID) {
-		admitted = admitted && k.terrain.Kind(c).Admits(u.domain)
-	})
-	if !admitted || !k.level(u, p, in) {
+	if f, decks := k.terrain.(footing); decks {
+		for _, s := range [9][2]float64{
+			{0, 0}, {-1, -1}, {0, -1}, {1, -1}, {-1, 0}, {1, 0}, {-1, 1}, {0, 1}, {1, 1},
+		} {
+			q := k.fold(geom.NewVec(p.X+s[0]*in.X, p.Y+s[1]*in.Y))
+			c, _ := k.grid.CellAt(q)
+			admitted = admitted && f.KindFor(c, q, z.Altitude, z.Reach()).Admits(u.domain)
+		}
+	} else {
+		k.grid.CellsUnder(boxAt(p, in), func(c cell.ID) {
+			admitted = admitted && k.terrain.Kind(c).Admits(u.domain)
+		})
+	}
+	if !admitted || !k.level(u, p, in, z) {
 		return false
 	}
 	gap := gapFor(half)
@@ -277,10 +324,19 @@ func (k *bodyKeeping) fits(u member, p geom.Vec, struck []body) bool {
 	return true
 }
 
+// aloft stands wherever a deck carries one, its feet over every deck: where an order's spots are
+// sought, the deck over the point before the ground under it; grounded under every deck, on the
+// ground.
+var (
+	aloft    = world.Z{Altitude: math.Inf(1)}
+	grounded = world.Z{Altitude: math.Inf(-1)}
+)
+
 // level reports whether u's box of half size in round p stands on no step: the top of the ground
-// — its kind's Height standing on it — under every corner within half u's height of the top under
-// p. A flyer, a unit of no height and a world of no heights stand anywhere.
-func (k *bodyKeeping) level(u member, p, in geom.Vec) bool {
+// — its kind's Height standing on it, a deck over it within reach of z's feet — under every corner
+// within half u's height of the top under p. A flyer, a unit of no height and a world of no
+// heights stand anywhere.
+func (k *bodyKeeping) level(u member, p, in geom.Vec, z world.Z) bool {
 	if u.lift > 0 || u.z.Height <= 0 || k.ground == nil {
 		return true
 	}
@@ -288,10 +344,15 @@ func (k *bodyKeeping) level(u member, p, in geom.Vec) bool {
 	if g == nil {
 		return true
 	}
+	surfaces, _ := g.(ground.Surfaces)
 	top := func(q geom.Vec) float64 {
 		t := g.At(q)
 		if c, ok := k.grid.CellAt(q); ok {
 			t += k.terrain.Kind(c).Height
+		}
+		if surfaces != nil {
+			floor, _ := surfaces.Surface(q, u.domain, z.Altitude, z.Reach())
+			t = max(t, floor)
 		}
 		return t
 	}

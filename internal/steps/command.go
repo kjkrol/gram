@@ -3,10 +3,11 @@ package steps
 import (
 	"fmt"
 
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/uid"
 )
 
-func NewOrder[C any](cmd C) Step {
+func NewOrder[C control.Command](cmd C) Step {
 	return leaf{sign: "order[" + typeName[C]() + "]", make: func() exec { return order[C]{cmd: cmd} }}
 }
 
@@ -14,7 +15,7 @@ func NewOrder[C any](cmd C) Step {
 // issued: whose way to step off, whose goal to swap with.
 type Aimed interface{ Aim(who uid.UID64) }
 
-type order[C any] struct {
+type order[C control.Command] struct {
 	basic
 	cmd C
 }

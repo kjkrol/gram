@@ -20,32 +20,42 @@
 // Given a [Field] (the board's Solid cells, board.Plugin.WithCollision or [Plugin.WithField]) the engine also
 // pushes every movable collider out of the solid ground on its world.Layers and, with heights, in its [Band], through the side of
 // a cell facing open ground. A contact with the ground bounces off it as off an infinite mass and
-// is recorded as a [Contact] with Terrain set and the Cell; a sensor is told and never pushed.
+// is recorded as a [Contact] with Terrain set and the Cell; a sensor is told and never pushed. A
+// unit a hand steers (steering.Driven) is never turned by the ground: it keeps the way the hand
+// walks it, and whoever rides in it its view, and only slows — a railing walked into stops it.
 // pair rules meet entities only.
 //
 // A push apart never puts a collider further over ground that does not take it — water to a
-// walker, a hole ([Field].Overhang): the side it would put there holds where it is and bounces as
-// off the ground, the other goes the whole way; a box the tick's later passes would leave further
-// over such ground is not written back. Ground turning to water under an entity is no push: it
-// stays there, fallen in.
+// walker beside a bridge's deck, a hole ([Field].Overhang): the side it would put there holds
+// where it is and bounces as off the ground, the other goes the whole way; a box the tick's later
+// passes would leave further over such ground is not written back. Ground turning to water under
+// an entity is no push: it stays there, fallen in.
 //
 // # Heights
 //
 // In a world with heights (world.Config.Heights) collision follows the entities' Z: a pair meets
-// only where the heights the two span, their [Band]s ([BandOf] a Z: its bottom to its top), share
-// a stretch, and the ground stops an entity only in a solid cell whose own band meets the entity's
-// — the Field is asked for the entity's band beside its layers. A wall of a Height stands from
-// below up to its top, so nothing passes under one on a slope and a shot over its top goes on; one
-// of no Height stands at every height, as it does on the flat. Whatever says no height — an
-// entity without a Z or with a Height of 0 — spans [Everywhere] and meets everything, as Layers 0
-// meets every plane: the game does not use Z for it, so the test does not apply. Two bands meeting
-// only at an edge do not meet (a crate on a platform). Layers and heights hold together, both must
-// agree. In a flat world every band is Everywhere and nothing changes. What follows from it: two
-// short units on stepped or sloped ground, their bands apart, pass each other — a game that wants
-// them to meet declares their true height; in a topography world only entities carrying a
-// unit.Mover get their Altitude written each step, any other collider keeps the Z it spawned with;
-// and sight reads Z its own way (an entity without one is a point on the ground, a veiled cell a
-// band from its level up), never through these bands. Overhang minds no height.
+// only where the heights the two span, their [Band]s ([BandOf] a Z: its bottom to its top), share a
+// stretch, and the ground stops an entity only in a solid cell whose own band meets the entity's —
+// the Field is asked for the entity's band beside its layers. A wall of a Height stands from below
+// up to its top, so nothing passes under one on a slope and a shot over its top goes on; one of no
+// Height stands at every height, as it does on the flat. Whatever says no height — an entity
+// without a Z or with a Height of 0 — spans [Everywhere] and meets everything, as Layers 0 meets
+// every plane: the game does not use Z for it, so the test does not apply. Two bands meeting only
+// at an edge do not meet (a crate on a platform). A band carries the entity's step (world.Z.Reach):
+// a deck's slab (cell.Floor.Thickness under its top) strikes only what of the band lies over the
+// step ([Band.Above]), so a walker steps onto a deck within its reach, passes under one it fits
+// under and strikes the slab of one it does not; railings (cell.Rail) stand from the deck up their
+// Height, and a leap over their top clears them. A field may hold walls besides its boxes
+// ([Field.Walls], collide.FieldWall): a slanted rectangle pushing out along its normal, past a
+// free end along it — a railing along a bridge running slantwise, a band's slab; a shot strikes
+// one where its step first touches it. Layers and heights hold
+// together, both must agree. In a flat world every band is Everywhere and nothing changes. What
+// follows from it: two short units on stepped or sloped ground, their bands apart, pass each other
+// — a game that wants them to meet declares their true height; in a topography world only entities
+// carrying a unit.Mover get their Altitude written each step (by the topography, or gravity for a
+// body), any other collider keeps the Z it spawned with; and sight reads Z its own way (an entity
+// without one is a point on the ground, a veiled cell a band from its level up), never through
+// these bands. Overhang minds no height.
 //
 // # Swept entities
 //

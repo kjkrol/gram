@@ -18,6 +18,8 @@ const tick = time.Second / 10
 // heard is the command the tests' rules give: which rule.
 type heard struct{ Rule string }
 
+func (heard) Command() {}
+
 // heards is where the heard commands land, for the world to carry.
 type heards struct{ control.Queue[heard] }
 
@@ -74,7 +76,7 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 			})
 			w.Clock().Replay(rc, d)
 		})
-		for _, cmd := range map[float32][]any{4: {world.Faster{}, world.Faster{}}, 0.5: {world.Slower{}}}[tempo] {
+		for _, cmd := range map[float32][]control.Command{4: {world.Faster{}, world.Faster{}}, 0.5: {world.Slower{}}}[tempo] {
 			if !w.Carrier().Put(1, cmd) {
 				t.Fatalf("the world carries no %T", cmd)
 			}

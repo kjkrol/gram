@@ -44,16 +44,19 @@ func (ks SceneKeys) Handle(events *control.InputEvents, runtime game.Runtime, co
 // ShortcutsName is the name of the shortcuts scene in a game's stack.
 const ShortcutsName = "gram.shortcuts"
 
-// Shortcuts is the scene listing every key of the game: the local players' bindings, grouped by
-// the plugin whose command each issues, and the game's own SceneKeys under "Game" with the
-// engine's F11. Shown, it holds the game in the engine's pause, like a menu; Esc or K closes it.
+// Shortcuts is the scene listing every key of the game: first the game's own — the bindings bound
+// in its Stage's Controls section and its SceneKeys — under "Game", then the plugins' keys,
+// grouped by the plugin whose command each issues, and last the players' and the engine's under
+// "General", with F11. Shown, it holds the game in the engine's pause, like a menu; Esc or K
+// closes it.
 // It is the players' own scene, in every Stage that uses them (Plugin.Scenes); K opens it (the
 // command ShowShortcuts, a default key), given the scene hands its input to Plugin.Handle.
 type Shortcuts struct {
-	p     *Plugin
-	keys  SceneKeys
-	layer *shortcutsLayer
-	held  bool // the game was paused already when the scene opened
+	p           *Plugin
+	keys        SceneKeys
+	layer       *shortcutsLayer
+	held        bool   // the game was paused already when the scene opened
+	description string // the game's (game.Props), as the scene last opened
 }
 
 var _ game.Scene = (*Shortcuts)(nil)
@@ -66,7 +69,7 @@ func newShortcuts(p *Plugin) *Shortcuts {
 }
 
 // OwnKeys gives the game's own keys — a debug toggle, something no plugin's command does — run by
-// Handle and listed under "Game" with the players'. Call it before the Stage is set up.
+// Handle and listed under "Game" with its bindings. Call it before the Stage is set up.
 func (p *Plugin) OwnKeys(keys SceneKeys) *Plugin {
 	p.shortcuts.keys = keys
 	return p
@@ -76,8 +79,10 @@ func (p *Plugin) OwnKeys(keys SceneKeys) *Plugin {
 // stack — see game.Scenic.
 func (p *Plugin) Scenes() []game.Scene { return []game.Scene{p.shortcuts} }
 
-// Open shows the scene on top and holds the game paused while it is up.
+// Open shows the scene on top, the game's description over the keys, and holds the game paused
+// while it is up.
 func (s *Shortcuts) Open(runtime game.Runtime, composition game.Composition) {
+	s.description = runtime.Props().Description
 	s.held = runtime.Paused()
 	runtime.Pause()
 	composition.Show(ShortcutsName)
@@ -113,16 +118,17 @@ type group struct {
 	lines []string
 }
 
-// groups lists the bindings of the local players holding in their cameras' modes by their
-// handlers, in the handlers' order, then the game's keys.
+// groups lists the bindings of the local players firing in their cameras' modes with what they
+// hold: the game's own and its SceneKeys under "Game", the plugins' by their handlers, in the
+// handlers' order, and the players' own and the engine's under "General".
 func (s *Shortcuts) groups() []group {
 	byHandler := map[plugin.CommandHandler][]string{}
 	seen := map[string]bool{}
-	var game []string
+	var own, general []string
 	for _, pl := range s.p.Locals() {
-		how := camera.HowOf(pl.Camera)
-		for _, b := range pl.Bindings() {
-			if !b.Holds(how) {
+		how := camera.HowOf(pl.pic.camera)
+		for i, b := range pl.Bindings() {
+			if !pl.fires(b, how) {
 				continue
 			}
 			line := fmt.Sprintf("%-22s %s", Written(b.Trigger), b.Label)
@@ -130,48 +136,46 @@ func (s *Shortcuts) groups() []group {
 				continue
 			}
 			seen[line] = true
-			if c := b.Command(); c == reflect.TypeFor[Quit]() || c == reflect.TypeFor[ShowShortcuts]() {
-				game = append(game, line) // the players' own, but the game's as a player sees it
-				continue
+			switch h := s.p.handlerOf(b.Type()); {
+			case pl.own[i]:
+				own = append(own, line)
+			case h == plugin.CommandHandler(s.p) || h == nil:
+				general = append(general, line)
+			default:
+				byHandler[h] = append(byHandler[h], line)
 			}
-			h := s.p.handlerOf(b.Command())
-			byHandler[h] = append(byHandler[h], line)
 		}
 	}
+	for _, k := range s.keys {
+		trigger := control.KeyPress{Key: k.Key, Mods: control.Mods{Shift: k.Shift}}
+		own = append(own, fmt.Sprintf("%-22s %s", Written(trigger), k.Label))
+	}
 	var out []group
+	if len(own) > 0 {
+		out = append(out, group{name: "Game", lines: own})
+	}
 	for _, h := range s.p.handlers {
 		if lines := byHandler[h]; len(lines) > 0 {
 			out = append(out, group{name: handlerName(h), lines: lines})
 		}
 	}
-	if lines := byHandler[nil]; len(lines) > 0 {
-		out = append(out, group{name: "Other", lines: lines})
-	}
-	g := group{name: "Game", lines: game}
-	for _, k := range s.keys {
-		g.lines = append(g.lines, fmt.Sprintf("%-22s %s", Written(control.KeyPress{Key: k.Key, Mods: control.Mods{Shift: k.Shift}}), k.Label))
-	}
-	g.lines = append(g.lines, fmt.Sprintf("%-22s %s", "F11", "Full screen (the engine's)"))
-	return append(out, g)
+	general = append(general, fmt.Sprintf("%-22s %s", "F11", "Full screen (the engine's)"))
+	return append(out, group{name: "General", lines: general})
 }
 
 // title is the list's heading, naming the first person while a local player's camera rides
 // in an entity.
 func (s *Shortcuts) title() string {
 	for _, pl := range s.p.Locals() {
-		if camera.HowOf(pl.Camera) == camera.Inside {
+		if camera.HowOf(pl.pic.camera) == camera.Inside {
 			return "Shortcuts: first person, riding in the unit"
 		}
 	}
 	return "Shortcuts"
 }
 
-// handlerName is a handler's heading: its plugin name without the "gram." prefix, capitalised;
-// the players' own are the camera's.
+// handlerName is a handler's heading: its plugin name without the "gram." prefix, capitalised.
 func handlerName(h plugin.CommandHandler) string {
-	if _, ok := h.(*Plugin); ok {
-		return "Camera"
-	}
 	name := reflect.TypeOf(h).String()
 	if n, ok := h.(interface{ Name() string }); ok {
 		name = n.Name()
@@ -206,6 +210,8 @@ func Written(t control.Trigger) string {
 		return "cursor at an edge"
 	case control.CursorMove:
 		return "mouse"
+	case control.CursorOver:
+		return "cursor over the world"
 	}
 	return fmt.Sprintf("%T", t)
 }
@@ -283,9 +289,17 @@ func (l *shortcutsLayer) Draw(screen *render.Image) {
 	x, y := shortcutsMargin, shortcutsMargin
 	render.DebugPrintAt(screen, l.s.title(), x, y)
 	y += 2 * shortcutsLine
+	if d := l.s.description; d != "" {
+		for _, line := range wrapped(d, (b.Dx()-2*shortcutsMargin)/render.GlyphWidth) {
+			render.DebugPrintAt(screen, line, x, y)
+			y += shortcutsLine
+		}
+		y += shortcutsLine
+	}
+	top := y
 	for _, g := range l.s.groups() {
-		if y+(len(g.lines)+2)*shortcutsLine > b.Dy()-shortcutsMargin && y > 3*shortcutsLine {
-			x, y = x+shortcutsColumn, shortcutsMargin+2*shortcutsLine // the next column
+		if y+(len(g.lines)+2)*shortcutsLine > b.Dy()-shortcutsMargin && y > top+shortcutsLine {
+			x, y = x+shortcutsColumn, top // the next column
 		}
 		render.DebugPrintAt(screen, g.name, x, y)
 		y += shortcutsLine
@@ -295,4 +309,23 @@ func (l *shortcutsLayer) Draw(screen *render.Image) {
 		}
 		y += shortcutsLine
 	}
+}
+
+// wrapped is text in lines of at most width characters, broken between words.
+func wrapped(text string, width int) []string {
+	var lines []string
+	line := ""
+	for _, word := range strings.Fields(text) {
+		if line != "" && len(line)+1+len(word) > width {
+			lines, line = append(lines, line), ""
+		}
+		if line != "" {
+			line += " "
+		}
+		line += word
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return lines
 }

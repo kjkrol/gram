@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -78,12 +79,13 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	})
 	c := collision.NewPlugin(w)
 	brd := board.NewPlugin(fw.grid, &cell.SingleOccupancy{}, w).WithCollision(c)
-	brd.Res.Logic.Board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	if lay != nil {
-		lay(brd.Res.Logic.Board, fw.at)
+		lay(brd.Board(), fw.at)
 	}
 	sel := selection.NewPlugin(w)
-	fw.nav = NewPlugin(brd, w, sel).WithCollision(c).WithSpacing(spacing)
+	drv := driving.NewPlugin(w, sel).WithGround(brd)
+	fw.nav = NewPlugin(brd, w, sel, drv).WithCollision(c).WithSpacing(spacing)
 	if configure != nil {
 		configure(fw.nav)
 	}
@@ -101,6 +103,9 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 		t.Fatal(err)
 	}
 	if err := fw.nav.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := drv.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
 	kinds := make([]kind.ID, len(units))
@@ -150,6 +155,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 		c.RunPlan(rc, d)
 		brd.RunPlan(rc, d)
 		fw.nav.RunPlan(rc, d)
+		drv.RunPlan(rc, d)
 		rc.Sync()
 		w.Clock().Replay(rc, d)
 	})
@@ -165,7 +171,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	return fw
 }
 
-func (fw *fieldWorld) at(x, y uint32) cell.ID { c := fw.grid.CellIndex(x, y); return c }
+func (fw *fieldWorld) at(x, y uint32) cell.ID { c := fw.grid.At(x, y); return c }
 
 // each calls fn with every unit.
 func (fw *fieldWorld) each(fn func(id uid.UID64, b *world.Base, cell cell.ID, o *MoveOrder, c *collision.Collider)) {

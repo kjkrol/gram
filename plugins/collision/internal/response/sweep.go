@@ -72,3 +72,42 @@ func wayOut(p, lo, hi geom.Vec) geom.Vec {
 	}
 	return ways[best].dir
 }
+
+// SweepWall is Sweep against a wall thick either side of the segment from a to b: the way out the
+// face the path enters by, and from a path starting inside the wall, across it to the side its
+// centre is on.
+func SweepWall(from, to, half, a, b geom.Vec, thick float64) (along float64, normal geom.Vec,
+	ok bool) {
+	vx, vy := b.X-a.X, b.Y-a.Y
+	length := math.Hypot(vx, vy)
+	dx, dy := 1.0, 0.0
+	if length > 0 {
+		dx, dy = vx/length, vy/length
+	}
+	d, n := geom.NewVec(dx, dy), geom.NewVec(-dy, dx)
+	mx, my := from.X-(a.X+b.X)/2, from.Y-(a.Y+b.Y)/2
+	step := geom.NewVec(to.X-from.X, to.Y-from.Y)
+	entry, exit := math.Inf(-1), math.Inf(1)
+	for _, u := range [4]geom.Vec{geom.NewVec(1, 0), geom.NewVec(0, 1), n, d} {
+		r := half.X*math.Abs(u.X) + half.Y*math.Abs(u.Y) + length/2*math.Abs(d.X*u.X+d.Y*u.Y) +
+			thick*math.Abs(n.X*u.X+n.Y*u.Y)
+		in, out, face, ok := slab(mx*u.X+my*u.Y, step.X*u.X+step.Y*u.Y, -r, r)
+		if !ok {
+			return 0, geom.Vec{}, false
+		}
+		if in > entry {
+			entry, normal = in, geom.NewVec(face*u.X, face*u.Y)
+		}
+		exit = min(exit, out)
+	}
+	if entry > exit || exit <= 0 || entry >= 1 {
+		return 0, geom.Vec{}, false
+	}
+	if entry < 0 {
+		if mx*n.X+my*n.Y <= 0 {
+			return 0, geom.NewVec(-n.X, -n.Y), true
+		}
+		return 0, n, true
+	}
+	return entry, normal, true
+}

@@ -13,17 +13,17 @@ import (
 // store is where the cells' entities are, by their ordinals: a query for each of their components,
 // so a read seeks only the column it needs.
 type store struct {
-	ids       []uid.UID64
-	plots     *goke.Query
-	grounds   *goke.Query
-	ways      *goke.Query
-	crossings *goke.Query
-	stated    *goke.Query
-	plot      goke.Comp[cell.Plot]
-	ground    goke.Comp[cell.Ground]
-	way       goke.Comp[cell.Way]
-	crossing  goke.Comp[cell.Crossing]
-	states    goke.OptComp[tag.Tags[effect.States]]
+	ids     []uid.UID64
+	plots   *goke.Query
+	grounds *goke.Query
+	ways    *goke.Query
+	builts  *goke.Query
+	stated  *goke.Query
+	plot    goke.Comp[cell.Plot]
+	ground  goke.Comp[cell.Ground]
+	way     goke.Comp[cell.Way]
+	built   goke.Comp[cell.Built]
+	states  goke.OptComp[tag.Tags[effect.States]]
 }
 
 // groundOf is the i-th cell's Ground, in place.
@@ -38,10 +38,13 @@ func (s *store) wayOf(i int) *cell.Way {
 	return s.way.At(s.ways.Cursor())
 }
 
-// crossingOf is the i-th cell's Crossing, in place.
-func (s *store) crossingOf(i int) *cell.Crossing {
-	s.seek(s.crossings, i)
-	return s.crossing.At(s.crossings.Cursor())
+// builtOf is the i-th cell's Built, in place; nil for a cell a save of an older build brought
+// back without one.
+func (s *store) builtOf(i int) *cell.Built {
+	if !s.builts.SeekH(s.ids[i]) && !s.builts.Seek(s.ids[i]) {
+		return nil
+	}
+	return s.built.At(s.builts.Cursor())
 }
 
 // statesOf are the markers of the effects on the i-th cell.

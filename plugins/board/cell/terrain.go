@@ -16,10 +16,9 @@ type Terrain interface {
 type TerrainMap struct {
 	Cells   map[ID]Kind
 	Default Kind
-	// Ways is what runs across the cells over their kinds, Crossings what crosses over the ways;
-	// Kind leaves them out — the board lays them over.
-	Ways      map[ID]Way
-	Crossings map[ID]Crossing
+	// Ways is what runs across the cells over their kinds; Kind leaves them out — the board lays
+	// them over.
+	Ways map[ID]Way
 	// Roles are the roles the cells play and Labels what they are called — a name, a group — for
 	// good, the Layout's.
 	Roles  map[ID]tag.Tags[rule.Roles]
@@ -31,7 +30,7 @@ type TerrainMap struct {
 var _ Terrain = (*TerrainMap)(nil)
 
 func NewTerrainMap() *TerrainMap {
-	return &TerrainMap{Cells: make(map[ID]Kind), Ways: make(map[ID]Way), Crossings: make(map[ID]Crossing)}
+	return &TerrainMap{Cells: make(map[ID]Kind), Ways: make(map[ID]Way)}
 }
 
 func (t *TerrainMap) Kind(c ID) Kind {
@@ -66,22 +65,6 @@ func (t *TerrainMap) SetWay(c ID, w Way) {
 	t.version++
 }
 
-// SetCrossing lays x across c over its way, the zero Crossing taking what crossed there away.
-func (t *TerrainMap) SetCrossing(c ID, x Crossing) {
-	if t.Crossings[c] == x {
-		return
-	}
-	if !x.Runs() {
-		delete(t.Crossings, c)
-	} else {
-		if t.Crossings == nil {
-			t.Crossings = make(map[ID]Crossing)
-		}
-		t.Crossings[c] = x
-	}
-	t.version++
-}
-
 // Cast has c play roles, none for 0, in place of those it played; the terrain's Version stays as
 // it was.
 func (t *TerrainMap) Cast(c ID, roles tag.Tags[rule.Roles]) {
@@ -110,6 +93,6 @@ func (t *TerrainMap) SetAll(kind Kind) {
 	t.version++
 }
 
-// Version counts the changes made through Set, SetAll, SetWay and SetCrossing — a write that
+// Version counts the changes made through Set, SetAll and SetWay — a write that
 // changes nothing does not count; a load starts it over.
 func (t *TerrainMap) Version() uint64 { return t.version }

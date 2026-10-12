@@ -1,0 +1,49 @@
+# The smith's conversations: greet is where every one begins (SmithGreetNode).
+
+smith.greet:
+  speaker: Smith
+  say: ["Hm. A traveller."]
+  choices:
+    - text: "Sorry about before."
+      if: enemy
+      then: [forgive]
+      next: smith.work
+    - text: "Good day, smith!"
+      if: "!enemy"
+      then: [please]
+      next: smith.work
+    - text: "Can you shoe my horse?"
+      next: smith.horse
+    - text: "Leave me alone."
+      then: [offend]
+      next: end
+
+smith.work:
+  speaker: Smith
+  say: ["Iron won't wait. Make it quick."]
+  choices:
+    - text: "What do you make?"
+      next: smith.make
+    - text: "Bye."
+      next: end
+
+smith.make:
+  speaker: Smith
+  say: ["Nails, horseshoes.", "A sword, now and then."]
+  choices:
+    - text: "Fine work."
+      then: [please]
+      next: end
+    - text: "Bye."
+      next: end
+
+smith.horse:
+  speaker: Smith
+  say: ["You have no horse."]
+  choices:
+    - text: "Ha, true!"
+      then: [please]
+      next: end
+    - text: "Mind your own business."
+      then: [irk]
+      next: end

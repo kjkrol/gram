@@ -1,8 +1,9 @@
 package steering
 
 import (
-	"github.com/kjkrol/gram/plugin"
 	"math"
+
+	"github.com/kjkrol/gram/plugin"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/control"
@@ -20,6 +21,16 @@ type (
 	Toward struct{ To uid.UID64 }
 	// Turn heads the entity Angle radians off the way it goes, from +X towards +Y.
 	Turn struct{ Angle float64 }
+)
+
+func (Away) Command()   {}
+func (Toward) Command() {}
+func (Turn) Command()   {}
+
+var (
+	_ control.Command = Away{}
+	_ control.Command = Toward{}
+	_ control.Command = Turn{}
 )
 
 var (

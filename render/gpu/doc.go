@@ -19,8 +19,9 @@
 // — dst the pixel's centre in the target, src and color and custom interpolated from the
 // vertices — and reads up to four images with imageSrcNAt(p), p in the texture's pixels, which
 // is transparent outside the image's rectangle (imageSrcNOrigin, imageSrcNSize), as Kage's are.
-// Its uniforms are a struct Uniforms, read as U; the program is told its fields' WGSL and hands
-// them to each draw packed by WGSL's layout (Layout).
+// Its uniforms are a struct Uniforms, read as U — floats, vectors, a matrix, arrays of vec4s — the
+// program told its fields' WGSL and handing them to each draw packed by WGSL's layout (Layout), at
+// most 4096 bytes in all.
 //
 // # Frames
 //

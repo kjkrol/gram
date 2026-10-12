@@ -1,13 +1,18 @@
 package players
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugin/section"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 )
 
 func TestWritten_SpellsATriggerAsAHelpScreenDoes(t *testing.T) {
@@ -32,10 +37,12 @@ func TestWritten_SpellsATriggerAsAHelpScreenDoes(t *testing.T) {
 }
 
 // The shortcuts list every binding of the local players under the plugin that owns its command,
-// the camera's under Camera, and the scene's keys under Game.
+// the cameras' under Cameras, the game's own scene keys first, under Game, and the players' own
+// and the engine's last, under General.
 func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
-	p := NewPlugin(w)
+	cams := cameras.NewPlugin(w)
+	p := NewPlugin(w, cams)
 	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
@@ -45,17 +52,66 @@ func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	for _, g := range groups {
 		names[g.name] = g.lines
 	}
-	if len(groups) != 3 || groups[0].name != "Camera" || groups[1].name != "World" || groups[2].name != "Game" {
-		t.Fatalf("groups %v, want Camera, World and Game in that order", names)
+	if len(groups) != 4 || groups[0].name != "Game" || groups[1].name != "World" ||
+		groups[2].name != "Cameras" || groups[3].name != "General" {
+		t.Fatalf("groups %v, want Game, World, Cameras and General in that order", names)
 	}
-	if lines := strings.Join(names["Camera"], "\n"); !strings.Contains(lines, "W (held)") || !strings.Contains(lines, "Scroll up") || !strings.Contains(lines, "wheel") {
+	if lines := strings.Join(names["Cameras"], "\n"); !strings.Contains(lines, "W (held)") || !strings.Contains(lines, "Scroll up") || !strings.Contains(lines, "wheel") {
 		t.Errorf("the camera's lines %q, want WASD and the wheel among them", lines)
 	}
 	if lines := strings.Join(names["World"], "\n"); !strings.Contains(lines, "Space") || !strings.Contains(lines, "Pause the game") {
 		t.Errorf("the world's lines %q, want the clock's Space", lines)
 	}
-	if lines := strings.Join(names["Game"], "\n"); !strings.Contains(lines, "Shift+Esc") || !strings.Contains(lines, "Quit") || !strings.Contains(lines, "K ") || !strings.Contains(lines, "Build a road") || !strings.Contains(lines, "F11") {
-		t.Errorf("the game's lines %q, want the players' K and Shift+Esc, the game's own R and the engine's F11", lines)
+	if lines := strings.Join(names["Game"], "\n"); lines != "R                      Build a road" {
+		t.Errorf("the game's lines %q, want its own R alone", lines)
+	}
+	lines := strings.Join(names["General"], "\n")
+	for _, want := range []string{"Shift+Esc", "Quit", "K ", "F11"} {
+		if !strings.Contains(lines, want) {
+			t.Errorf("the general lines %q, want the players' K, Shift+Esc and the engine's F11",
+				lines)
+			break
+		}
+	}
+}
+
+// partNow is the part of a Stage being defined, as a test says.
+type partNow section.Part
+
+func (p *partNow) Section() section.Part { return section.Part(*p) }
+
+// A binding bound in the Stage's Controls section is the game's own, listed first under Game
+// whatever plugin carries its command out; one bound with the plugins' keys, in Players, stays
+// under its plugin.
+func TestShortcuts_ListTheGamesOwnBindingsUnderGame(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 100, Height: 100},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	p := NewPlugin(w, cameras.NewPlugin(w))
+	now := partNow(section.Players)
+	p.sections = &now
+	one := p.Local("one")
+	if err := one.Bind(w.DefaultBindings()...); err != nil {
+		t.Fatal(err)
+	}
+	now = partNow(section.Controls)
+	spawn := control.Build(control.KeyPress{Key: control.KeyN}, "Spawn a walker",
+		func(control.Context) (world.Spawn, bool) { return world.Spawn{}, false })
+	if err := one.Bind(spawn); err != nil {
+		t.Fatal(err)
+	}
+	groups := p.shortcuts.groups()
+	if len(groups) < 2 || groups[0].name != "Game" || groups[1].name != "World" {
+		t.Fatalf("groups %+v, want the game's first, under Game, then World", groups)
+	}
+	if own := strings.Join(groups[0].lines, "\n"); !strings.Contains(own, "Spawn a walker") ||
+		strings.Contains(own, "Pause the game") {
+		t.Errorf("the game's lines %q, want its N alone", own)
+	}
+	if world := strings.Join(groups[1].lines, "\n"); strings.Contains(world, "Spawn a walker") ||
+		!strings.Contains(world, "Pause the game") {
+		t.Errorf("the world's lines %q, want its defaults without the game's N", world)
 	}
 }
 
@@ -63,17 +119,18 @@ func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 // entity, the free camera's WASD and edge scroll are gone and the title says so.
 func TestShortcuts_ListWhatHoldsInTheCamerasMode(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
-	p := NewPlugin(w)
+	cams := cameras.NewPlugin(w)
+	p := NewPlugin(w, cams)
+	cam := &ridingCam{Camera: cams.New(cameras.TopDown(), camera.Config{})}
 	pl := p.Local("one")
-	cam := &ridingCam{Camera: pl.Camera}
-	pl.Camera = cam
+	p.Through(pl).Over(geom.AABB{}, render.NewFeed(cam, nil)) // it acts through a picture drawn through cam
 	if err := pl.Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
 	s := p.shortcuts
 	camera := func() string {
 		for _, g := range s.groups() {
-			if g.name == "Camera" {
+			if g.name == "Cameras" {
 				return strings.Join(g.lines, "\n")
 			}
 		}
@@ -133,7 +190,10 @@ func TestSceneKeys_HandleRunsTheKeyPressedWithItsModifiers(t *testing.T) {
 type engineStub struct {
 	game.Runtime
 	quit, paused bool
+	props        game.Props
 }
+
+func (e *engineStub) Props() game.Props { return e.props }
 
 func (e *engineStub) Quit()        { e.quit = true }
 func (e *engineStub) Paused() bool { return e.paused }
@@ -148,18 +208,36 @@ type shown struct {
 
 func (c *shown) Show(name string) { c.names = append(c.names, name) }
 
-// Handle turns a scene's input into the players' commands and carries out those that need the
-// engine: K shows the list of shortcuts, Shift+Esc quits — Esc alone does not — and a key of the
-// game's own runs.
-func TestHandle_CarriesOutTheKeysThatNeedTheEngine(t *testing.T) {
+// engine takes the engine's commands in a test: they are its, not the players'.
+type engine struct {
+	saves control.Queue[game.Save]
+	loads control.Queue[game.Load]
+	quits control.Queue[game.Quit]
+}
+
+func (e *engine) Queues() []control.CommandQueue {
+	return []control.CommandQueue{&e.saves, &e.loads, &e.quits}
+}
+
+func (*engine) DefaultBindings() []control.Binding { return nil }
+
+// Handle turns a scene's input into commands: K shows the list of shortcuts at once, which needs
+// the Runtime; F5, F9 and Shift+Esc — Esc alone not — give the engine's Save, Load and Quit; a key
+// of the game's own runs.
+func TestHandle_TurnsTheGamesKeysIntoCommands(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
-	p := NewPlugin(w)
+	eng := &engine{}
+	if err := w.Carry(eng); err != nil {
+		t.Fatal(err)
+	}
+	cams := cameras.NewPlugin(w)
+	p := NewPlugin(w, cams)
 	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
 	built := 0
 	p.OwnKeys(SceneKeys{{Key: control.KeyR, Label: "Build a road", Do: func(game.Runtime, game.Composition) { built++ }}})
-	rt, comp := &engineStub{}, &shown{}
+	rt, comp := &engineStub{props: game.Props{Description: "Walk up to a host and answer it."}}, &shown{}
 	press := func(key control.Key, shift bool) {
 		events := &control.InputEvents{}
 		events.Modifiers.Shift = shift
@@ -167,69 +245,33 @@ func TestHandle_CarriesOutTheKeysThatNeedTheEngine(t *testing.T) {
 		p.Handle(events, rt, comp)
 	}
 	press(control.KeyEscape, false)
-	if rt.quit {
+	if !eng.quits.Empty() {
 		t.Fatal("Esc alone quit the game, want Shift+Esc")
 	}
 	press(control.KeyK, false)
 	if len(comp.names) != 1 || comp.names[0] != ShortcutsName || !rt.paused {
 		t.Errorf("K showed %v, paused %v; want the shortcuts shown and the game held", comp.names, rt.paused)
 	}
+	if p.shortcuts.description != "Walk up to a host and answer it." {
+		t.Errorf("the shortcuts open over %q, want the game's description", p.shortcuts.description)
+	}
 	press(control.KeyR, false)
 	if built != 1 {
 		t.Errorf("the game's own R ran %d times, want once", built)
 	}
+	press(control.KeyF5, false)
+	press(control.KeyF9, false)
 	press(control.KeyEscape, true)
-	if !rt.quit {
-		t.Error("Shift+Esc did not quit the game")
+	if eng.saves.Empty() || eng.loads.Empty() || eng.quits.Empty() {
+		t.Errorf("F5, F9 and Shift+Esc gave the engine save %v, load %v, quit %v; want each",
+			!eng.saves.Empty(), !eng.loads.Empty(), !eng.quits.Empty())
 	}
 }
 
-// vault is a game.Persistence that notes what it is asked to save.
-type vault struct {
-	game.Persistence
-	saved []string
-}
-
-func (v *vault) Save(basePath, label string, resources ...any) error {
-	v.saved = append(v.saved, basePath)
-	return nil
-}
-
-// savingEngine is a Runtime with a vault for its Persistence.
-type savingEngine struct {
-	engineStub
-	vault vault
-}
-
-func (e *savingEngine) Persistence() game.Persistence { return &e.vault }
-
-// Save is the players' own command, on F5 in a game that said where it saves: given, the game is
-// written there. A game that said nothing has no such key.
-func TestSave_WritesTheGameWhereTheGameSaid(t *testing.T) {
-	cfg := world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}}
-	hasF5 := func(p *Plugin) bool {
-		for _, b := range p.Defaults() {
-			if b.Trigger == control.Trigger(control.KeyPress{Key: control.KeyF5}) {
-				return true
-			}
-		}
-		return false
-	}
-	if hasF5(NewPlugin(world.NewPlugin(cfg))) {
-		t.Error("a game that said nowhere to save has F5 among its default keys")
-	}
-	p := NewPlugin(world.NewPlugin(cfg)).WithSaves("meadow")
-	if !hasF5(p) {
-		t.Fatal("a game with saves has no F5 among its default keys")
-	}
-	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
-		t.Fatal(err)
-	}
-	rt := &savingEngine{}
-	events := &control.InputEvents{}
-	events.AddKeyEvent(control.KeyF5, control.ActionPress)
-	p.Handle(events, rt, &shown{})
-	if len(rt.vault.saved) != 1 || rt.vault.saved[0] != "meadow" {
-		t.Errorf("F5 saved %v, want the game written under meadow once", rt.vault.saved)
+func TestWrapped_BreaksBetweenWordsWithinTheWidth(t *testing.T) {
+	got := wrapped("Walk up to a host and answer it.", 12)
+	want := []string{"Walk up to a", "host and", "answer it."}
+	if !slices.Equal(got, want) {
+		t.Errorf("wrapped %q, want %q", got, want)
 	}
 }

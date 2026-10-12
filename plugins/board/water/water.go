@@ -238,7 +238,7 @@ type mouth struct {
 // plume runs every course reaching the sea on out into it, on the way of its last step, over sea
 // no other mouth has taken: Plume by the square root of its water cells, each wider and more
 // faded than the last.
-func (n *Network) plume(grid grid.Grid, cfg Config, sea func(cell.ID) bool) {
+func (n *Network) plume(g grid.Grid, cfg Config, sea func(cell.ID) bool) {
 	if cfg.Plume <= 0 {
 		return
 	}
@@ -256,15 +256,10 @@ func (n *Network) plume(grid grid.Grid, cfg Config, sea func(cell.ID) bool) {
 		return cmp.Compare(a, b)
 	})
 	for _, c := range reaching {
-		way := -1
-		for i := range 8 {
-			if d, ok := grid.Toward(c, i); ok && d == n.Down[c] {
-				way = i
-			}
-		}
+		way, known := grid.Way(g, c, n.Down[c])
 		reach := int(math.Ceil(cfg.Plume * math.Sqrt(n.Gathered[c])))
 		prev, at := c, n.Down[c]
-		for out := 1; out <= reach && way >= 0; out++ {
+		for out := 1; out <= reach && known; out++ {
 			if !sea(at) || n.Courses[at] != Dry {
 				break
 			}
@@ -273,7 +268,7 @@ func (n *Network) plume(grid grid.Grid, cfg Config, sea func(cell.ID) bool) {
 			if prev != c {
 				n.Down[prev] = at
 			}
-			next, ok := grid.Toward(at, way)
+			next, ok := g.Toward(at, way)
 			if !ok {
 				break
 			}

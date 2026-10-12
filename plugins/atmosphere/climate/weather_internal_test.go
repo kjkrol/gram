@@ -31,6 +31,8 @@ type rig struct {
 // winterNow is the command the rig's rule gives in a winter, as the world's weather says.
 type winterNow struct{}
 
+func (winterNow) Command() {}
+
 // heards is where the winterNow commands land, for the world to carry.
 type heards struct{ control.Queue[winterNow] }
 
@@ -42,7 +44,7 @@ func (h *heards) DefaultBindings() []control.Binding { return nil }
 func weatherOf(t *testing.T, cfg Config, season calendar.Season) *rig {
 	t.Helper()
 	r := &rig{w: world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}}), clk: clock.New(clock.Config{})}
-	cal := calendar.New(r.clk, calendar.Config{Day: 4 * time.Minute, Season: season})
+	cal := calendar.New(r.clk, calendar.Config{DayRealTime: 4 * time.Minute, Season: season})
 	r.c = New(r.w, cal, cfg)
 	if err := r.w.Carry(&r.winter); err != nil {
 		t.Fatal(err)
@@ -284,7 +286,8 @@ func TestWeather_RainsLessInTheZonesDrySeason(t *testing.T) {
 // the world as a whole has no entity's components to read.
 func TestClimate_TakesARolesRuleAndRefusesAFilteredOne(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	c := New(w, calendar.New(clock.New(clock.Config{}), calendar.Config{Day: time.Minute}), Config{})
+	cfg := calendar.Config{DayRealTime: time.Minute}
+	c := New(w, calendar.New(clock.New(clock.Config{}), cfg), Config{})
 	every := rule.Then[Weathering]("any weather", rule.All, rule.Order(winterNow{}))
 	having := rule.Then[Weathering]("having", rule.Having[Weather](), rule.Order(winterNow{}))
 	if err := c.Rules().Add(having); !errors.Is(err, plugin.ErrUnhosted) {

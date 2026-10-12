@@ -19,9 +19,9 @@ import (
 // typeStage defines its kinds in whatever order it is given, so two runs can
 // disagree about which TypeID means what.
 type typeStage struct {
-	order    []string
-	spawn    string
-	loadFrom string
+	order []string
+	spawn string
+	load  bool // entered from the quicksave
 
 	world *world.Plugin
 	kinds map[string]kind.Of[struct{}]
@@ -59,15 +59,7 @@ func (g *typeStage) Init(ctx game.Initializer) error {
 	return nil
 }
 
-func (g *typeStage) Restore(p game.Persistence) (bool, error) {
-	if g.loadFrom == "" {
-		return false, nil
-	}
-	if err := p.Load(g.loadFrom, ""); err != nil {
-		return false, err
-	}
-	return true, nil
-}
+func (g *typeStage) Loaded() error { return nil }
 
 func (g *typeStage) Spawn() error {
 	if g.spawn != "" {
@@ -108,11 +100,17 @@ func onlyType(t *testing.T, g *typeStage) kind.ID {
 func runStage(t *testing.T, g *typeStage) {
 	t.Helper()
 	eng := engine.NewEngine(oneStageGame{stage: g, props: game.Props{}})
+	if g.load {
+		if err := eng.Load("", ""); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+	}
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	if g.loadFrom == "" {
-		if err := eng.Persistence().Save(t.TempDir()+"/unused", ""); err != nil {
+	if !g.load {
+		t.Chdir(t.TempDir())
+		if err := eng.Save(""); err != nil {
 			t.Fatalf("Save: %v", err)
 		}
 	}
@@ -133,7 +131,7 @@ func TestType_IsAssignedByDefineOrder(t *testing.T) {
 }
 
 func TestType_SurvivesAReorderedDictionary(t *testing.T) {
-	path := t.TempDir() + "/save"
+	t.Chdir(t.TempDir())
 
 	saver := &typeStage{order: []string{"rock", "wolf"}, spawn: "wolf"}
 	eng := engine.NewEngine(oneStageGame{stage: saver, props: game.Props{}})
@@ -143,12 +141,15 @@ func TestType_SurvivesAReorderedDictionary(t *testing.T) {
 	if got := onlyType(t, saver); got != 1 {
 		t.Fatalf("before saving, wolf has TypeID %d, want 1", got)
 	}
-	if err := eng.Persistence().Save(path, ""); err != nil {
+	if err := eng.Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
-	loader := &typeStage{order: []string{"wolf", "rock"}, loadFrom: path}
+	loader := &typeStage{order: []string{"wolf", "rock"}, load: true}
 	eng2 := engine.NewEngine(oneStageGame{stage: loader, props: game.Props{}})
+	if err := eng2.Load("", ""); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
 	if err := eng2.Init(); err != nil {
 		t.Fatalf("Init after reorder: %v", err)
 	}
@@ -163,14 +164,14 @@ func TestType_SurvivesAReorderedDictionary(t *testing.T) {
 }
 
 func TestType_PanicsWhenTheSaveNamesAKindThisBuildDropped(t *testing.T) {
-	path := t.TempDir() + "/save"
+	t.Chdir(t.TempDir())
 
 	saver := &typeStage{order: []string{"rock", "wolf"}, spawn: "wolf"}
 	eng := engine.NewEngine(oneStageGame{stage: saver, props: game.Props{}})
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	if err := eng.Persistence().Save(path, ""); err != nil {
+	if err := eng.Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
@@ -184,8 +185,8 @@ func TestType_PanicsWhenTheSaveNamesAKindThisBuildDropped(t *testing.T) {
 		}
 	}()
 
-	loader := &typeStage{order: []string{"rock", "fox"}, loadFrom: path}
-	engine.NewEngine(oneStageGame{stage: loader, props: game.Props{}}).Init()
+	loader := &typeStage{order: []string{"rock", "fox"}, load: true}
+	runStage(t, loader)
 }
 
 func TestType_DictionaryRefusesMoreKindsThanTypeIDCanName(t *testing.T) {

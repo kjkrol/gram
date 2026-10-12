@@ -11,11 +11,14 @@
 // Height over its bottom (zero: its top) — the one Eye a camera riding in the entity looks from
 // too (plugins/topography), so the cone drawn is what the rider sees. A Sight without an Eye is
 // never scanned. The outline buffer is sized for [MaxSightRadius] and MaxHalfAngleMilli; a larger
-// Sight still sees, its outline is only coarser. The [ScanSystem] scans every Sight against the
-// world's space through aabbworld's line-of-sight scan, once a tick — observers enough at a time
-// on several goroutines at once, as many as there are CPUs unless told otherwise
-// ([Plugin.WithWorkers]), each with a scanner of its own; the rules then run one observer at
-// a time, in order.
+// Sight still sees, its outline is only coarser. How far and how wide a cone reaches is the
+// entity's own, Sight.Radius and Eye.Angle: a game gives each kind its own, an effect alters them.
+// The [ScanSystem] scans every Sight against the world's space through aabbworld's line-of-sight
+// scan, once a step — or [Plugin.WithFrequency] times a second of game time, the observers taking
+// turns so that each step scans an even share — observers enough at a time on several goroutines
+// at once, as many as there are CPUs unless told otherwise ([Plugin.WithWorkers]), each with a
+// scanner of its own; the rules then run one observer at a time, in order, every step, on what
+// each saw at its last scan.
 //
 // # Transparency
 //
@@ -36,23 +39,25 @@
 // eye is where the observer's Eye stands (Eye.Level: Height over its Z.Altitude, its top for
 // none), every entity spans its world.Z, and the ground
 // is the board's heights ([Plugin.WithBoard]; [Plugin.WithHeights] and [Plugin.WithCover] for a
-// ground and a cover of one's own) sampled every [Plugin.WithGroundStep] along a ray (default:
-// the board's cell). An entity is seen when the line from the eye to its top clears every nearer ground
-// sample and every nearer blocking band within the budget, so a hawk 40 up looks over the wall, the
+// ground and a cover of one's own), read along every ray at the points where its slope changes
+// when it is a ground.Profile — a topography's relief: the edges and folds of the cells crossed,
+// exact, a few points a cell — else sampled every [Plugin.WithGroundStep] (default: the board's
+// cell). An entity is seen when the line from the eye to its top clears every nearer ground
+// and every nearer blocking band within the budget, so a hawk 40 up looks over the wall, the
 // forest and the hill a walker's cone stops at. On a world with a scale (world.Scale) the ground,
 // the cover and the entities sink under the observer's level as far off as they lie
 // (world.Scale.Drop): what lies past the observer's horizon is out of sight, a hawk's horizon far
 // beyond a walker's. Blockers are refused in a world with heights, Eye.Height in a flat one. The
-// scan costs about three times the flat one; a longer ground step is cheaper, and the Renderer
-// drapes the shadows in the same step.
+// scan costs about three times the flat one; a longer ground step is cheaper, a lower frequency
+// too, and the Renderer drapes the shadows in the ground step.
 //
 // # Sighting
 //
-// A rule of a [Sighting] (rule.Then[vision.Sighting](name, rule.Between(a, b), …)) is
-// run once a tick per observer carrying tag a, with a [Sighting]: the observer, its Base and Sight,
-// and everything in view carrying b as [Seen] values nearest first — a directed pair, grouped by
-// observer, run even when nothing is in view. Its Subject is the nearest one seen: an Aimed
-// command — steering.Away, steering.Toward — is about it, and fails while none is in view.
+// A rule of a [Sighting] (rule.Then[vision.Sighting](name, rule.Between(a, b), …)) is run once a
+// step per observer carrying tag a, scanned that step or not, with a [Sighting]: the observer, its
+// Base and Sight, and everything in view carrying b as [Seen] values nearest first — a directed
+// pair, grouped by observer, run even when nothing is in view. Its Subject is the nearest one seen:
+// an Aimed command — steering.Away, steering.Toward — is about it, and fails while none is in view.
 // Sighting.Nobody and Sighting.Closing are its conditions for a rule's If: none in view, and the
 // observer and the nearest seen on a collision course.
 //
@@ -81,12 +86,13 @@
 // it in pieces of the ground's step. A game that wants the shape on the CPU keeps SightOutline on
 // its observers; it costs a scan that much more.
 //
-// Every observer's view is drawn, unless render.Show rules given at construction pick some ([Plugin.WithViews]) —
-// render.Show(selected.In), the selected units' alone.
+// Every observer's view is drawn, unless render.Show rules pick some ([Plugin.WithViews]) —
+// render.Show(selected.In), the selected units' alone — given as the renderer is made, in a scene:
+// how sight is drawn is the scene's.
 //
 // The views start hidden. The plugin is a plugin.CommandHandler, its one key the players carry:
 // Shift+C ([Cones]) shows every view drawn — the cones and the shadows — and hides them again;
-// [Plugin.Hide] does the same from code, [Plugin.Hidden] reports it. Hidden views are a look at
-// the world, like the camera's turn: they change at once, in the tactical pause too, and are not
-// saved. The scan goes on either way.
+// [Plugin.ShowCones] and [Plugin.HideCones] do the same from code, [Plugin.ConesShown] reports
+// it. Hidden views are a look at the world, like the camera's turn: they change at once, in the
+// tactical pause too, and are not saved. The scan goes on either way.
 package vision

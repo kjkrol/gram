@@ -14,7 +14,9 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
@@ -26,7 +28,7 @@ type dial struct{ Level int }
 // skyStage is a world with a plugin's own entity carrying a dial, a storm that turns the dial up,
 // ten plain states and one scout, lit while the sky is under the storm.
 type skyStage struct {
-	loadFrom string
+	load bool // entered from the quicksave
 
 	world  *world.Plugin
 	sky    *world.Self
@@ -44,9 +46,20 @@ type skyStage struct {
 
 func (g *skyStage) Name() string { return "stage" }
 
+// skyPlugin is a plugin of a test that is only its name: what its Self is called by.
+type skyPlugin struct{}
+
+func (skyPlugin) Name() string                       { return "test.sky" }
+func (skyPlugin) Install(plugin.Installer) error     { return nil }
+func (skyPlugin) RunPlan(goke.RunCtx, time.Duration) {}
+func (skyPlugin) WithRenderer(render.AtlasSource)    {}
+func (skyPlugin) Renderer() render.Layer             { return nil }
+func (skyPlugin) EventHandler() control.EventHandler { return nil }
+func (skyPlugin) Serializable() plugin.Serializable  { return nil }
+
 func (g *skyStage) Init(ctx game.Initializer) error {
 	g.world, g.ecs = ctx.UseWorld(testWorldConfig()), ctx.ECS()
-	g.sky = world.NewSelf(g.world, "test.sky", comp.Const(dial{Level: 1}))
+	g.sky = world.NewSelf(g.world, skyPlugin{}, comp.Const(dial{Level: 1}))
 	ctx.Setup(g)
 	fx := g.world.Effects()
 	fx.Define("storm", effect.Spec{effect.Lasts(time.Hour), effect.Alter(func(d *dial) { d.Level = 5 })})
@@ -77,12 +90,7 @@ func (g *skyStage) SetupSystems() []goke.System {
 	}}}
 }
 
-func (g *skyStage) Restore(p game.Persistence) (bool, error) {
-	if g.loadFrom == "" {
-		return false, nil
-	}
-	return true, p.Load(g.loadFrom, "")
-}
+func (g *skyStage) Loaded() error { return nil }
 
 func (g *skyStage) Spawn() error {
 	g.world.Seed(g.scout.Entry(struct{}{}).Named("scout"))
@@ -99,7 +107,7 @@ func (g *skyStage) Stack() game.Scenes {
 }
 
 // give gives cmds as nobody and ticks them through.
-func (g *skyStage) give(t *testing.T, cmds ...any) {
+func (g *skyStage) give(t *testing.T, cmds ...control.Command) {
 	t.Helper()
 	for _, cmd := range cmds {
 		if !g.world.Carrier().Put(control.Nobody, cmd) {
@@ -135,6 +143,11 @@ func (g *skyStage) theScout(t *testing.T) uid.UID64 {
 func runSky(t *testing.T, g *skyStage) *engine.Engine {
 	t.Helper()
 	eng := engine.NewEngine(oneStageGame{stage: g, props: game.Props{}})
+	if g.load {
+		if err := eng.Load("", ""); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+	}
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -199,7 +212,7 @@ func TestSelf_TheWorldsOwnEntityIsTheClocks(t *testing.T) {
 func TestSelf_HoldsMoreEffectsAtOnceThanAUnit(t *testing.T) {
 	g := &skyStage{}
 	runSky(t, g)
-	var cmds []any
+	var cmds []control.Command
 	for _, e := range g.states {
 		cmds = append(cmds, rule.Cast(e).On(g.sky), rule.Cast(e).On(entity.Named("scout")))
 	}
@@ -222,15 +235,15 @@ func TestSelf_HoldsMoreEffectsAtOnceThanAUnit(t *testing.T) {
 // A loaded game brings the plugins' entities, found again by their names: none is made twice, and
 // the knob and the effect on it are as they were saved.
 func TestSelf_IsFoundAgainAfterALoad(t *testing.T) {
-	path := t.TempDir() + "/save"
+	t.Chdir(t.TempDir())
 	saver := &skyStage{}
 	eng := runSky(t, saver)
 	saver.give(t, rule.Cast(saver.storm).On(saver.sky))
-	if err := eng.Persistence().Save(path, ""); err != nil {
+	if err := eng.Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
-	g := &skyStage{loadFrom: path}
+	g := &skyStage{load: true}
 	runSky(t, g)
 	sky := g.sky.Entity()
 	if got := g.dialsOf(); len(got) != 1 || got[sky] != 5 {

@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -50,15 +51,27 @@ type navWorld struct {
 // to build what a test reads. Lay the ground through board before the first tick.
 func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, after ...goke.System) *navWorld {
 	t.Helper()
+	return newNavWorldWith(t, cols, rows, cellSize, units, nil, after...)
+}
+
+// newNavWorldWith is newNavWorld with the world and the board handed to prepare before they are
+// installed: to lay the ground and stand entities on it.
+func newNavWorldWith(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
+	prepare func(*world.Plugin, *board.Plugin), after ...goke.System) *navWorld {
+	t.Helper()
 	nw := &navWorld{grid: grid.DefaultGrids{}.Square(cols, rows, cellSize), occupancy: &cell.SingleOccupancy{}}
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: cols * cellSize, Height: rows * cellSize},
-		Entities: world.EntitiesCfg{MaxCount: max(len(units), 1), MinSize: 1, MaxSize: cellSize},
+		Entities: world.EntitiesCfg{MaxCount: len(units) + 8, MinSize: 1, MaxSize: cellSize},
 	})
 	brd := board.NewPlugin(nw.grid, nw.occupancy, w)
-	nw.board = brd.Res.Logic.Board
+	nw.board = brd.Board()
 	nw.board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	nw.nav = NewPlugin(brd, w, selection.NewPlugin(w)).WithSpacing(CellSpacing)
+	if prepare != nil {
+		prepare(w, brd)
+	}
+	sel := selection.NewPlugin(w)
+	nw.nav = NewPlugin(brd, w, sel, driving.NewPlugin(w, sel)).WithSpacing(CellSpacing)
 	if err := w.Carry(nw.nav); err != nil { // as the engine does with Use
 		t.Fatal(err)
 	}
@@ -86,7 +99,7 @@ func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, aft
 			s = append(s, comp.Load(func(u navUnit) MoveOrder { return *u.order }))
 		}
 		if u.marks {
-			s = append(s, comp.Marks[States]())
+			s = append(s, comp.Marks[unit.States]())
 		}
 		if u.owner != control.Nobody {
 			s = append(s, comp.Tagged(owner.Of(u.owner)))
@@ -111,7 +124,7 @@ func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, aft
 		for q.All(); q.Next(); {
 			cur := q.Cursor()
 			for i, id := range cur.IDs {
-				nw.occupancy.Enter(at.Slice(cur)[i].Cell, id, cell.Land)
+				nw.occupancy.Enter(at.Slice(cur)[i].Cell, false, id, cell.Land)
 				for u, k := range kinds {
 					if base.Slice(cur)[i].TypeID == k {
 						nw.ids[u] = id

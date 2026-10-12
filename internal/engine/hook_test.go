@@ -69,7 +69,7 @@ func (s *hookStage) SetupSystems() []goke.System {
 	}}}
 }
 
-func (s *hookStage) Restore(game.Persistence) (bool, error) { return false, nil }
+func (s *hookStage) Loaded() error { return nil }
 
 func (s *hookStage) Spawn() error {
 	s.world.Seed(s.walker.Entry(struct{}{}))

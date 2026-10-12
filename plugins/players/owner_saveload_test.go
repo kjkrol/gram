@@ -15,15 +15,17 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/ui"
 )
 
-// ownerStage is a world with two players and one unit the second owns; loadFrom, when set, is the
-// save it restores.
+// ownerStage is a world with two players and one unit the second owns.
 type ownerStage struct {
-	loadFrom string
+	load bool // entered from the quicksave
 
 	world   *world.Plugin
 	players *players.Plugin
+	first   *players.Player
+	second  *players.Player
 	unit    kind.Of[struct{}]
 	owners  goke.Comp[tag.Tags[owner.Family]]
 	query   *goke.Query
@@ -38,8 +40,9 @@ func (s *ownerStage) Init(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	s.players = players.NewPlugin(s.world)
-	s.players.Local("first")
+	s.first = s.players.Local("first")
 	second := s.players.Add("second")
+	s.second = second
 	ctx.Setup(ownersProbe{s})
 	kind.Define[struct{}](s.world.Kinds(), "unit", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
@@ -50,12 +53,7 @@ func (s *ownerStage) Init(ctx game.Initializer) error {
 	return ctx.Use(s.players)
 }
 
-func (s *ownerStage) Restore(p game.Persistence) (bool, error) {
-	if s.loadFrom == "" {
-		return false, nil
-	}
-	return true, p.Load(s.loadFrom, "")
-}
+func (s *ownerStage) Loaded() error { return nil }
 
 func (s *ownerStage) Spawn() error {
 	s.world.Seed(s.unit.Entry(struct{}{}))
@@ -104,7 +102,7 @@ func (g ownerGame) Stages() (map[string]game.Stage, string) {
 // A unit a player owns is that player's still after the game is saved and loaded: the owners'
 // tags are saved by name.
 func TestOwner_SurvivesASaveAndALoad(t *testing.T) {
-	path := t.TempDir() + "/save"
+	t.Chdir(t.TempDir())
 	saver := &ownerStage{}
 	eng := engine.NewEngine(ownerGame{saver})
 	if err := eng.Init(); err != nil {
@@ -113,14 +111,41 @@ func TestOwner_SurvivesASaveAndALoad(t *testing.T) {
 	if got := saver.ownersOfTheUnit(t); !owner.Obeys(got, 2) || owner.Obeys(got, 1) {
 		t.Fatalf("the unit is owned by %b, want the second player alone", got)
 	}
-	if err := eng.Persistence().Save(path, ""); err != nil {
+	if err := eng.Save(""); err != nil {
 		t.Fatal(err)
 	}
-	loader := &ownerStage{loadFrom: path}
-	if err := engine.NewEngine(ownerGame{loader}).Init(); err != nil {
+	loader := &ownerStage{load: true}
+	eng2 := engine.NewEngine(ownerGame{loader})
+	if err := eng2.Load("", ""); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := eng2.Init(); err != nil {
 		t.Fatal(err)
 	}
 	if got := loader.ownersOfTheUnit(t); !owner.Obeys(got, 2) || owner.Obeys(got, 1) {
 		t.Errorf("after a load the unit is owned by %b, want the second player alone", got)
+	}
+}
+
+// A player's picture shows elements pinned to its own units and nobody's, not another's.
+func TestThrough_ShowsWhatIsThePlayersOwn(t *testing.T) {
+	s := &ownerStage{}
+	if err := engine.NewEngine(ownerGame{s}).Init(); err != nil {
+		t.Fatal(err)
+	}
+	s.query.All()
+	s.query.Next()
+	unit := s.query.Cursor().IDs[0]
+	first, _ := s.players.Through(s.first).(ui.Owner)
+	second, _ := s.players.Through(s.second).(ui.Owner)
+	if first == nil || second == nil {
+		t.Fatal("a player's Through is no ui.Owner")
+	}
+	if first.Shows(unit) || !second.Shows(unit) {
+		t.Errorf("the second's unit shown to the first %v, to the second %v; want to the second alone",
+			first.Shows(unit), second.Shows(unit))
+	}
+	if !first.Shows(unit + 1000) {
+		t.Error("an entity the players know nothing of is hidden, want shown to all")
 	}
 }

@@ -135,3 +135,46 @@ func TestHeights_WhatLiesPastTheHorizonIsOutOfSight(t *testing.T) {
 		t.Errorf("the hawk 40 up saw %d, want the target within its horizon", seen[0].Count)
 	}
 }
+
+// ridge is ground 0 but for a ridge 20 high and 4 wide along x 150, which a sample every 10 from
+// an eye at x 5 straight east passes over.
+type ridge struct{}
+
+func (ridge) At(p geom.Vec) float64 {
+	if d := math.Abs(p.X - 150); d < 2 {
+		return 20 * (1 - d/2)
+	}
+	return 0
+}
+func (ridge) Step() float64 { return 10 }
+
+// profiled is the ridge with its profile: a ray eastward crosses its foot, its crest and its foot.
+type profiled struct{ ridge }
+
+func (r profiled) Along(origin, dir geom.Vec, length float64, visit func(d, alt float64) bool) {
+	if dir.X > 0 {
+		for _, x := range []float64{148, 150, 152} {
+			d := (x - origin.X) / dir.X
+			if d > 0 && d < length && !visit(d, r.At(geom.NewVec(x, origin.Y+dir.Y*d))) {
+				return
+			}
+		}
+	}
+	visit(length, r.At(geom.NewVec(origin.X+dir.X*length, origin.Y+dir.Y*length)))
+}
+
+// A ground that knows its profile is read along every ray at the points it names, not every step:
+// the ridge a step passes over hides the walker behind it.
+func TestHeights_AGroundIsReadAlongItsProfile(t *testing.T) {
+	walker := spawn{x: 0, y: 0, z: z(0, 2), sight: eyed(1.5)}
+	behind := spawn{x: 240, y: 0, z: z(0, 2)}
+	_, seen, _ := sceneIn(t, &relief{ground: ridge{}, step: 10}, walker, behind)
+	if seen[0].Count != 1 {
+		t.Fatalf("sampled every 10 the walker saw %d, want the one behind the ridge", seen[0].Count)
+	}
+	_, seen, _ = sceneIn(t, &relief{ground: profiled{}, step: 10}, walker, behind)
+	if seen[0].Count != 0 {
+		t.Errorf("read along its profile the walker saw %d past the ridge, want none",
+			seen[0].Count)
+	}
+}

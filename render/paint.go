@@ -19,12 +19,23 @@ func Paint(dst *Image, f *Frame) {
 		verts, indices = verts[:0], indices[:0]
 	}
 	for _, it := range f.items {
-		if it.atlas == nil || it.shape == fan {
+		if it.atlas == nil {
 			continue // only sprites are painted
 		}
 		if it.atlas != sheet {
 			flush()
 			sheet = it.atlas
+		}
+		if it.shape == fan {
+			if len(verts)+int(it.count) > chunkVertices {
+				flush()
+			}
+			base := uint16(len(verts))
+			verts = append(verts, f.verts[it.first:it.first+it.count]...)
+			for k := uint16(1); k+1 < uint16(it.count); k++ {
+				indices = append(indices, base, base+k, base+k+1)
+			}
+			continue
 		}
 		for k := it.first; k < it.first+it.count; k += 4 {
 			if len(verts)+4 > chunkVertices {

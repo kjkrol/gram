@@ -33,7 +33,7 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target cell.ID, marks boo
 	g := grid.DefaultGrids{}.Square(w, h, legCellSize)
 	profile := steering.Steering{MaxSpeed: float64(legCellSize * 2)}
 
-	var statesComp goke.OptComp[tag.Tags[States]]
+	var statesComp goke.OptComp[tag.Tags[unit.States]]
 	var orderComp goke.OptComp[MoveOrder]
 	var cellComp goke.Comp[unit.At]
 	var enteredQ, orderQ *goke.Query
@@ -53,7 +53,7 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target cell.ID, marks boo
 			cur := enteredQ.Cursor()
 			states, cells := statesComp.Slice(cur), cellComp.Slice(cur)
 			for i, id := range cur.IDs {
-				if states != nil && states[i].Has(Entered) {
+				if states != nil && states[i].Has(unit.Entered) {
 					ew.entered[id] = cells[i].Cell
 				}
 			}
@@ -77,7 +77,7 @@ func newEnteredWorld(t *testing.T, w, h uint32, start, target cell.ID, marks boo
 }
 
 func (ew *enteredWorld) cellAt(x, y uint32) cell.ID {
-	c := ew.grid.CellIndex(x, y)
+	c := ew.grid.At(x, y)
 	return c
 }
 
@@ -93,8 +93,8 @@ func TestEntered_ReportsEveryCellOnTheWayToTheTarget(t *testing.T) {
 
 func enteredOnTheWay(t *testing.T, marks bool) {
 	grid := grid.DefaultGrids{}.Square(6, 1, legCellSize)
-	start := grid.CellIndex(0, 0)
-	target := grid.CellIndex(3, 0)
+	start := grid.At(0, 0)
+	target := grid.At(3, 0)
 	ew := newEnteredWorld(t, 6, 1, start, target, marks)
 
 	const maxTicks = 600
@@ -107,7 +107,7 @@ func enteredOnTheWay(t *testing.T, marks bool) {
 		if !ew.hasOrder[ew.id] {
 			want := []cell.ID{}
 			for x := uint32(1); x <= 3; x++ {
-				c := grid.CellIndex(x, 0)
+				c := grid.At(x, 0)
 				want = append(want, c)
 			}
 			if len(reported) != len(want) {

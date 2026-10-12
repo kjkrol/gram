@@ -16,7 +16,7 @@
 // [SpaceCfg] sizes the world and sets the edge rule per axis (aabbworld.Torus, WrapX or WrapY
 // alone, OpenX or OpenY, a closed axis by default — a box stops whole at a closed edge, wraps at
 // a wrapping one, may leave by an open one); the [EntitiesCfg] bounds how many entities the world
-// holds and the sizes they spawn with; the camera.Config sizes the camera. An entity wholly past
+// holds and the sizes they spawn with. An entity wholly past
 // an open edge carries [Outside] — put on by whoever moved it there, the world's move or collision's
 // solver — and every tick it does, the rules of a [Leaving] the roles obey hear of it;
 // with none it is despawned. Put back inside, it
@@ -28,8 +28,8 @@
 // in relief (plugins/topography) writes from its ground, sight follows and collision minds (two
 // meet only where the heights they span overlap); a flat world refuses a Z. The world knows
 // its entities and nothing else: the ground is the board's, the sky the atmosphere's.
-// The Plugin exposes the shared [aabbworld.Space] ([Plugin.Space]) and the shared camera
-// ([Plugin.Camera]; the players plugin moves it through Pan and Zoom commands).
+// The Plugin exposes the shared [aabbworld.Space] ([Plugin.Space]); the cameras looking at it are
+// the cameras plugin's (plugins/cameras).
 //
 // # Base, Position and Velocity
 //
@@ -38,12 +38,14 @@
 // from, and the aabbworld.Capability bits the space indexes it under, which collision writes.
 // A host hands Base to whatever it hosts instead of anyone binding it twice. No entity moves
 // further in a tick than [StepReach] of its own shorter side ([Position.MaxStep],
-// [Position.MaxSpeed]), so mixed sizes share a world without the smallest slowing the rest.
+// [Position.MaxSpeed]), so mixed sizes share a world without the smallest slowing the rest. One
+// carrying a [Drift] (gravity's) is moved by it too, under the same cap.
 // [Eye] is where an entity looks from and how wide — its cone of sight (plugins/vision) and a
 // camera riding in it (plugins/topography) read the one Eye. These, with [Z] and [Layers], are
 // the types of package entity under the world's own names (type aliases: one type, so a
 // component is the same wherever it is named and saves do not care); the world's sub-packages
-// read them from entity, everyone else from here.
+// read them from entity, everyone else from here; [Drift], [Lie] and [Block] too — the last a solid
+// still entity whose shadow a relief bakes with its own (a bridge's deck, a pier).
 //
 // # Steering
 //
@@ -61,7 +63,10 @@
 // (1 − [Refraction])·d²/(2·[EarthRadius]), under an eye's level, so level ground past
 // [Scale.Horizon] is out of sight. A game gives heights, sizes and reaches in metres through
 // [Scale.Units]; sight (plugins/vision) and the topography's perspective read the rest, and the
-// atmosphere works out of it how far the air lets one see (plugins/atmosphere/air).
+// atmosphere works out of it how far the air lets one see (plugins/atmosphere/air). Figures is
+// how many times bigger than life a game draws its figures — a man on a map of a whole island is
+// a speck, a token is not — and [Scale.Figure] their sizes, boxes, heights and eyes; how fast they
+// go and how far they see stay real, through Units.
 //
 // # Kinds, Seed and Populate
 //
@@ -100,7 +105,9 @@
 // [Self] is the one entity a plugin has in the world, called by the plugin's name: it carries the
 // plugin's knobs — components the plugin only reads, which an effect's Alter turns — the roles
 // the plugin plays and the effects it is under, any number at once (effect.Wide). A plugin makes
-// it with [NewSelf] as it is made and embeds it, so the plugin is whom a command may be for
+// it with [NewSelf] as it is made — handing itself, which the world notes as made over it
+// ([Plugin.Made]: the Stage uses the plugins in the order made) — and embeds it, so the plugin is
+// whom a command may be for
 // (rule.Cast(bloodMoon).On(s.atmosphere)), plays roles (Plays) — the rules of its own moments
 // fire while it plays their role — and learns from Changed that its knobs were turned. The
 // world's own is the clock's entity, which entity.World names. The entities are made as the
@@ -187,20 +194,27 @@
 // (render.Look; the renderer fills the material's inputs with the entity's state: its box and
 // heading in Custom, how fast it moves in Red) — its look Under an effect (either way again),
 // Turning for a sprite turned the way its entity is headed (Appearance.Angle from Vel.Dir, 0 east
-// against the clock, render.Arrow's convention), Facing for its directional twins. [Plugin.WithRenderer] builds the entity renderer over the atlas and applies what it
-// declared itself — the effects' swaps, the facing, the turning, every frame — leaving the
+// against the clock, render.Arrow's convention), Facing for its directional twins, Lying for a
+// sprite laid flat under what stands (a bridge's deck, a ford: a [LyingLook] lays it at the
+// entity's Altitude where a view in relief stands the rest up) — level over the rectangle its
+// [Lie] says, headed its Vel.Dir, where it carries one — and Edges for the sprite standing along
+// the long sides of what lies so while its Lie is Edged (a bridge's railings); Upright for a
+// sprite standing true where a view in relief stands the rest up as billboards (an
+// [UprightLook]: the sides of its box from its Altitude up its Height, and its top — a pier).
+// [Plugin.WithRenderer] builds the
+// entity renderer over the atlas and applies what it declared itself — the effects' swaps, the
+// facing, the turning, every frame — leaving the
 // Appearance as it is. The renderer, a render.Source for a scene's render.Composer, hands it the
 // entities in the camera's view.View and nothing else, each laid on the screen by the world's [Look]
 // with its box and its [Z] — where it stands and how tall — from above its box, unless a view
 // plugin ([Plugin.SetLook], plugins/topography) stands it up as a billboard as tall as its Z says.
 // The renderer asks the Look for every entity in white light, swaying as its Appearance says: the
 // world knows no sun and no wind; the Look — a view plugin's, or the atmosphere's over a flat board
-// (atmosphere.Plugin.WithBoard) — lights the entity, leans it and lays its shadow. Picking and
+// (board.Plugin.WithAtmosphere) — lights the entity, leans it and lays its shadow. Picking and
 // outlines ask the same Look. A [DirectLook] draws the sprites itself on the GPU: the renderer, a
 // render.Direct at render.Objects, readies it every frame, hands it the sprites and has it draw
 // them — the world's own flat look as instances (render.Sprites), the topography's as billboards
-// against the ground's depth. A view plugin also makes the world's cameras ([Plugin.SetCameras],
-// [Cameras]).
+// against the ground's depth.
 //
 // # Views
 //
@@ -209,8 +223,8 @@
 // number of Views ([Plugin.ViewFor] a camera) and the view.System
 // refreshes each of them once a tick, right after movement has rebuilt the Space; a View whose
 // bounds cover the whole world is not queried and simply sees everything, as does the zero View a
-// Stage has before its first tick. [Plugin.View] is the camera's, made by the plugin itself, and
-// [Plugin.ViewFor] the View of any camera of the world's; the entity renderer reads them.
+// Stage has before its first tick. [Plugin.ViewFor] is the View of a camera, made at the first
+// call; the entity renderer reads the one of the camera it draws through.
 //
 // # Telemetry
 //

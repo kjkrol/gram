@@ -10,23 +10,26 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
 // isoCamera is a camera of a width x height world put in the isometric view, over a relief
 // raised by heights.
-func isoCamera(width, height uint32, cfg camera.Config, heights func(geom.Vec) float64) camera.Camera {
+func isoCamera(width, height uint32, screenW, screenH float32, heights func(geom.Vec) float64) camera.Camera {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: width, Height: height},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 100},
-		Camera:   cfg,
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
-	topo := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 2, Isometric: true})
+	topo := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 2})
 	topo.Relief().SetHeights(heights)
-	return w.Camera()
+	cam := cameras.NewPlugin(w).New(topo.Views(topography.Isometrically), camera.Config{})
+	cam.SetViewport(screenW, screenH)
+	cam.MoveTo(0, 0)
+	return cam
 }
 
 // plateau is ground 12 high for x in [192, 320], 0 elsewhere.
@@ -41,7 +44,7 @@ func plateau(p geom.Vec) float64 {
 type hidden struct{ camera.Camera }
 
 func TestContext_WorldAsksThePicker(t *testing.T) {
-	cam := isoCamera(640, 640, camera.Config{ViewportWidth: 400, ViewportHeight: 300}, plateau)
+	cam := isoCamera(640, 640, 400, 300, plateau)
 	if _, ok := cam.(camera.Picker); !ok {
 		t.Fatal("the topography's camera is no camera.Picker")
 	}
@@ -60,7 +63,7 @@ func TestContext_WorldAsksThePicker(t *testing.T) {
 }
 
 func TestContext_WorldThroughACameraThatPicksNothingIsTheGroundAtSeaLevel(t *testing.T) {
-	iso := isoCamera(640, 640, camera.Config{ViewportWidth: 400, ViewportHeight: 300}, func(geom.Vec) float64 { return 0 })
+	iso := isoCamera(640, 640, 400, 300, func(geom.Vec) float64 { return 0 })
 	iso.MoveTo(160, 160)
 	cam := hidden{iso}
 	sx, sy := cam.Project(250, 100, 12)

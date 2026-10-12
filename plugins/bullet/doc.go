@@ -55,7 +55,7 @@
 // What fires how and when is written in rules and effects over this vocabulary: a reloading
 // effect on the unit, a binding or a rule that Shoots Unless it; a fuse an effect on the
 // grenade, Then bang, a rule of Resting under bang that Bursts; a wounded effect a Blast rule
-// applies ForOther. See examples/bullet-demo.
+// applies ForOther. See examples/motion/bullet.
 //
 // # Dressing a shot
 //

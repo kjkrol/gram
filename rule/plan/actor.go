@@ -3,6 +3,7 @@ package plan
 import (
 	"time"
 
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
@@ -106,7 +107,7 @@ func (a *Actor) Playing(role *rule.Part, step rule.Step) rule.Step {
 // comes of it the branch waits for with the Command's Until, or it stays with Stay, so that a
 // reactive branch gives it once. A command that is Aimed is told the subject of the fact it stands
 // under first. A command no plugin used by the game handles panics.
-func (a *Actor) Order[C any](cmd C) Command { return Command{steps.NewOrder(cmd)} }
+func (a *Actor) Order[C control.Command](cmd C) Command { return Command{steps.NewOrder(cmd)} }
 
 // Command is a command an actor orders, as Order makes it: a step of its own, or followed by what
 // the branch does after it.

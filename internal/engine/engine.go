@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"image/color"
 	"log"
-	"math"
 	"os"
 	"time"
 
 	"github.com/gogpu/gogpu"
-	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/render"
@@ -43,8 +40,11 @@ type Engine struct {
 	counted     time.Time
 	spent       spent
 
-	// pendingSwitch names the Stage to enter at the top of the next Update.
+	// pendingSwitch names the Stage to enter at the top of the next Update, pendingLoad the save
+	// slot it is entered from; nil, afresh.
 	pendingSwitch     string
+	pendingLoad       *string
+	commands          commands
 	transitionOverlay render.SolidBackground
 
 	quit bool
@@ -104,18 +104,13 @@ func (e *Engine) TogglePause() {
 	}
 }
 
-// Camera returns the active Stage's world camera, or nil if the Stage has no world.
-func (e *Engine) Camera() camera.Camera {
-	if e.current.world == nil {
-		return nil
-	}
-	return e.current.world.Camera()
-}
-
 // Quit ends the loop after this tick.
 func (e *Engine) Quit() { e.quit = true }
 
 // ToggleFullscreen switches the window to fullscreen and back.
+// Props are the game's, read once as the engine was made.
+func (e *Engine) Props() game.Props { return e.props }
+
 func (e *Engine) ToggleFullscreen() {
 	if e.app != nil {
 		e.app.ToggleFullscreen()
@@ -128,19 +123,23 @@ func (e *Engine) SwitchStage(name string) error {
 	if _, ok := stages[name]; !ok {
 		return fmt.Errorf("gram: unknown stage %q", name)
 	}
-	e.pendingSwitch = name
+	e.pendingSwitch, e.pendingLoad = name, nil
 	return nil
 }
 
-// Init enters the initial Stage and makes the engine's step the only clock, loop not yet started.
+// Init enters the initial Stage — or the one Load asked for, from its save — and makes the
+// engine's step the only clock, loop not yet started.
 func (e *Engine) Init() error {
 	stages, initial := e.game.Stages()
+	if e.pendingSwitch != "" {
+		initial, e.pendingSwitch = e.pendingSwitch, ""
+	}
 	stage, ok := stages[initial]
 	if !ok {
 		return fmt.Errorf("gram: initial stage %q not found among registered Stages", initial)
 	}
 
-	current, err := e.enterStage(stage)
+	current, err := e.enterStage(stage, e.takeLoad())
 	if err != nil {
 		return err
 	}
@@ -252,7 +251,7 @@ func (e *Engine) Update() error {
 		if !ok {
 			return fmt.Errorf("gram: unknown stage %q", name)
 		}
-		current, err := e.enterStage(stage)
+		current, err := e.enterStage(stage, e.takeLoad())
 		if err != nil {
 			return err
 		}
@@ -267,6 +266,7 @@ func (e *Engine) Update() error {
 	}
 	e.controller.Update(nil, 0)
 	e.inputs.ResetTransient()
+	e.carry()
 
 	if e.current.host.ecs.Paused() {
 		return nil
@@ -290,6 +290,14 @@ func (e *Engine) Update() error {
 	return nil
 }
 
+// takeLoad is the save slot the Stage about to be entered is loaded from, nil for afresh; asked
+// once.
+func (e *Engine) takeLoad() *string {
+	slot := e.pendingLoad
+	e.pendingLoad = nil
+	return slot
+}
+
 // maxStepsAFrame is how many ticks one frame catches up on at most; past it the engine is behind.
 const maxStepsAFrame = 5
 
@@ -307,25 +315,14 @@ func (e *Engine) Draw(screen *render.Image) {
 	}
 }
 
-// Layout is the fixed screen of the Props, or with Resizable the window itself, which the active
-// world's camera is resized to follow.
+// Layout is the fixed screen of the Props, or with Resizable the window itself; the scenes lay
+// their screens over it, the pictures of the world sized as they are shown.
 func (e *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
 	if !e.props.Resizable || outsideWidth <= 0 || outsideHeight <= 0 {
 		return e.props.ScreenWidth, e.props.ScreenHeight
 	}
-	if outsideWidth != e.width || outsideHeight != e.height {
-		e.width, e.height = outsideWidth, outsideHeight
-		e.fitViewports(geom.NewAABBAt(geom.Vec{}, float64(e.width), float64(e.height)))
-	}
+	e.width, e.height = outsideWidth, outsideHeight
 	return e.width, e.height
-}
-
-// screen is the size the screen has now: the window's once a resizable one has been laid out.
-func (e *Engine) screen() (int, int) {
-	if e.props.Resizable && e.width > 0 && e.height > 0 {
-		return e.width, e.height
-	}
-	return e.props.ScreenWidth, e.props.ScreenHeight
 }
 
 // =================================================================
@@ -341,46 +338,4 @@ func (e *Engine) dispatchEvents(events *control.InputEvents) {
 	if sc, ok := stack.Get(active); ok {
 		sc.HandleEvents(events, e, comp)
 	}
-}
-
-// fitViewports sizes every camera of the visible scenes' viewports to its area on screen, and the
-// world's camera to the whole screen when no visible scene shows the world.
-func (e *Engine) fitViewports(screen geom.AABB) {
-	if e.current == nil {
-		return
-	}
-	stack := e.current.stage.Stack()
-	fitted := false
-	for _, name := range stack.Composition().Order() {
-		sc, _ := stack.Get(name)
-		if v, ok := sc.(game.Viewer); ok {
-			for _, vp := range v.Viewports(screen) {
-				fit(vp)
-			}
-			fitted = true
-		}
-	}
-	if cam := e.Camera(); !fitted && cam != nil {
-		w, h := pixels(screen)
-		cam.SetViewport(float32(w), float32(h))
-	}
-}
-
-// fit resizes vp's camera to its area, when it differs.
-func fit(vp render.Viewport) {
-	w, h := vp.Camera.Viewport()
-	if aw, ah := pixels(vp.Area); int(w) != aw || int(h) != ah {
-		vp.Camera.SetViewport(float32(aw), float32(ah))
-	}
-}
-
-// pixels is the size of a screen rectangle in whole pixels.
-func pixels(r geom.AABB) (w, h int) {
-	return int(math.Round(r.BottomRight.X - r.TopLeft.X)), int(math.Round(r.BottomRight.Y - r.TopLeft.Y))
-}
-
-// screenBox is the screen image's rectangle.
-func screenBox(screen *render.Image) geom.AABB {
-	b := screen.Bounds()
-	return geom.NewAABB(geom.NewVec(float64(b.Min.X), float64(b.Min.Y)), geom.NewVec(float64(b.Max.X), float64(b.Max.Y)))
 }

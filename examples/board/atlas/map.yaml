@@ -1,0 +1,38 @@
+board:
+  default: grass
+  legend:
+    ".": grass
+    "~": water
+    "T": wood
+  cells: |
+    ........................
+    ................TTTTTT..
+    ................TTTTTT..
+    ................TTTTTT..
+    ................TTTTTT..
+    .........~~~~~~.TTTTTT..
+    .........~~~~~~.........
+    .........~~~~~~.........
+    .........~~~~~~.........
+    .........~~~~~~.........
+    .........~~~~~~.........
+    ........................
+    ........................
+    ........................
+    ........................
+    ........................
+ways:
+  roads:
+    road:
+      width: 14
+      paths: # a ring round the pond, and spurs out to the corners
+        - [[7, 3], [16, 3], [16, 12], [7, 12], [7, 3]]
+        - [[1, 1], [7, 1], [7, 3]]
+        - [[22, 1], [16, 1], [16, 3]]
+        - [[22, 14], [16, 14], [16, 12]]
+        - [[1, 14], [7, 14], [7, 12]]
+units: # each bound for the opposite corner
+  - {kind: unit, side: player, start: [1, 1], target: [22, 14]}
+  - {kind: unit, side: player, start: [22, 1], target: [1, 14]}
+  - {kind: unit, side: player, start: [22, 14], target: [1, 1]}
+  - {kind: unit, side: player, start: [1, 14], target: [22, 1]}

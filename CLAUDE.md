@@ -6,14 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **gram** (formerly gokebiten; module `github.com/kjkrol/gram`) is a public, modular Go game engine library: a
 user-implemented `game.Game` — a named collection of `game.Stage`s, each
-with its own lifecycle (`Init`/`Restore`/`Spawn`/`Update`) and its own
+with its own lifecycle (`Init`/`Spawn` or `Loaded`/`Update`) and its own
 `game.Scene`s (`Stack`/`Composition`, the sole entry point for input) — is
 driven by a `gram.Engine` that wraps
 [goke](https://github.com/kjkrol/goke) (a type-safe, archetype-based ECS)
 in a window's loop — a tick and a picture a frame — drawing everything on the GPU through WebGPU
 ([gogpu](https://github.com/gogpu/gogpu), pure Go over Vulkan; Ebitengine is gone since 2026-09-29).
-Everything beyond the tick loop is installed as a `plugin.Plugin`, added
-from `Stage.Init` via `ctx.Use`. See "Stage / Scene" below for the model.
+Everything beyond the tick loop is installed as a `plugin.Plugin`, made by
+the game's arena over the Stage's world and used by the Stage in the order made
+(`stage.New(name).World(cfg).Plugins(a.makePlugins)`). See "Stage / Scene" below for the model.
 
 Since this is a library third parties `go get` and browse on pkg.go.dev,
 the extension contract — `game.Game`/`Stage`/`Scene`/`Stack`/`Composition`/
@@ -29,22 +30,26 @@ in `internal/engine`; root `gram` just re-exports `Engine`/`Props`/
 ```bash
 go build ./... && go vet ./... && gofmt -l . && go test ./...   # standard verification sequence
 go test ./plugins/world/... -run TestName -v                     # a single test
-make demo-collision                                                # go mod tidy && run examples/collision-demo
-make demo-navigation                                               # go mod tidy && run examples/navigation-demo (players: bindings for select, move, camera)
+make demo-collision                                                # go mod tidy && run examples/motion/collision
+make demo-navigation                                               # go mod tidy && run examples/navigation/square (players: bindings for select, move, camera)
 make demo-navigation-hex                                           # the same on a hex board
+make demo-navigation-spawn                                         # walkers spawned under the cursor (N) hold their cells at once; Shift+O shows the cells held
 make demo-navigation-vision                                        # board + navigation + vision: walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-vision-hex                                    # the same on a hex board
 make demo-effect                                                   # an ice witch: frost and frozen as effects
 make demo-bullet                                                   # a soldier on WSAD shoots rounds (F) and throws grenades (G): the bullet plugin, wounds and fuses as effects
-make demo-board                                                    # the island on the simple map: a flat board drawn from its kinds' colours, plain bands, a flat day
-make demo-board-topography                                         # the island in relief: heights, light, water, isometric or from above (Tab), the weather on the ground
+make demo-board                                                    # Madeira on the simple map: a flat board in the island's colours, bands for the ways, bridges and fords lying on it, a flat day
+make demo-board-topography                                         # Madeira in relief, its true heights: light, water, roads as Transport Tycoon lays them, bridges over the valleys, isometric or from above (Tab), the weather
+go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS
 make demo-board-atlas                                              # a small flat board drawn from the game's own atlas — the water a material, shimmering per pixel
-make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, cells with names and groups, units playing roles
+make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, entities standing on the board with names and groups, units playing roles
 make demo-material                                                 # an entity drawn by a material instead of a sprite (render.Look); C calms it into a plain sprite for a while
 make demo-animation                                                # a sprite drawn frame after frame (Slot.Animated, game time: Space freezes the gait), each frame turned the bug's way
-make demo-ember                                                    # procedural animation out of the entity's state: embers breathe standing, stream a tail driven (WSAD); D douses into soot
-make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
-make demo-vision                                                  # go mod tidy && run examples/vision-demo
+make demo-dialog                                                   # conversations from YAML: the miller and the smith, lines of their own, a window above the host, what it makes of you under it when pointed at
+make demo-ember                                                    # procedural animation out of the entity's state: embers breathe standing, stream a tail driven (WSAD); F douses into soot
+make demo-platformer                                               # a hero in a side view under gravity (plugins/gravity, a flat world): A/D walk, W jumps, G turns gravity over, a hard landing dazes
+make demo-scenes                                                  # go mod tidy && run examples/start/scenes
+make demo-vision                                                  # go mod tidy && run examples/rules/vision
 make demo-minimal                                                 # the README example
 make bench                                                        # every benchmark once, with allocations
 make bench-save                                                   # 5 repeats into bench_results/ (ignored by git)
@@ -58,7 +63,7 @@ rate and where a frame's time goes every second with `GRAM_FPS_LOG=1`, starts fu
 demo's frame (temporary `zz_*_test.go` files) include about 10 ms of waiting for the GPU's
 readback at 2560x1440, so compare them with each other, not with a frame rate.
 
-The `examples/*` programs are real GUI apps (open a gogpu window)
+The `examples/<group>/<name>` programs are real GUI apps (open a gogpu window)
 — `go test` alone can't exercise them. To sanity-check one still runs after
 a change in a headless environment: build to a temp path, run under
 `timeout <n>s`, treat exit 124 (still running, not crashed) as healthy.
@@ -87,7 +92,8 @@ declared on the world's atlas in a scene's Layers — `world.Plugin.NewAtlas`: `
 draw)`, a look `Under` an effect, `Turning`, `Facing` — the renderer applying them itself;
 `world.Plugin.Draw` and `vision.Plugin.Draw` were hooks and went on 2026-10-06, the user's word:
 "role zaczepiamy do encji", and a look is the atlas's; vision's views are its option,
-`vision.Plugin.WithViews(render.Show(...))`). The tag families join the host's queries as optional
+`vision.Plugin.WithViews(render.Show(...))`, given in the scene). The tag families join the
+host's queries as optional
 components, so a rule costs no query, and rules over one component share its column (`plugin.Own`
 shares the host's own). The moment's type —
 `collision.Meeting`, `collision.Struck`, `vision.Sighting`, `unit.Standing`, `cell.Now`,
@@ -112,7 +118,7 @@ is the handle wherever a thing is built on, and a game keeps its names as consta
 `names.go`; **every name carries a suffix saying what it is**, the user's convention: `Ef` an
 effect, `Cmd` a command, `Role`, `Plan`, `Kind` a kind of unit, `Cell` a kind of cell — one literal
 used as two things is two constants, `PlateCell` and `PlateRole`; a name worked out is a function
-named alike, `pullCmd(lever)`, `snowyCell(kind)`; `examples/island` exports its cells' names; **a name a package already gives is used from there, never
+named alike, `pullCmd(lever)`, `snowyCell(kind)`; **a name a package already gives is used from there, never
 written again in a game's dictionary** — the weathers are `weather.Clear`, `Fair`, `Cloudy`, `Rain`,
 `Storm`), its
 Stage's struct holding plugins alone. The registers are the world's, so each
@@ -136,7 +142,7 @@ entity plays it; a same-sided `collision.Meeting` rule still once a pair, `Dispa
 a `Touch` is each unit's own and a `Sighting` each observer's; an entity playing two roles that obey
 one rule obeys it once per role). A kind plays roles through one component,
 `rule.Plays(roles...)` (a `rule.Played`; a kind carrying a component type twice panics), a cell
-through its kind (`cell.Kinds.Define(name, kind, roles...)`, in the Cells section: every cell the
+through its kind (`cell.Kinds.Define(name, kind, roles...)`, in the Kinds section: every cell the
 Layout lays as that kind carries the roles' tags) or alone (`cell.Entry.Plays(roles...)` on a
 Layout entry, the lake's cells and not every water; `board.Plugin.Plays` is gone, 2026-10-06), a
 plugin through its own `Plays` (`world.Self.Plays`, which every plugin embeds). `Roles.Define`
@@ -145,8 +151,10 @@ a Layout's cells play only at Spawn, and not at all in a loaded game. A rule of 
 `climate.Weathering`, each hosted by a `plugin.StepRules`, run once a step walking no entities —
 takes no filter and fires while the entity the moment is about plays its role (`Tick.Roles`:
 the plugin's own entity carries the role's tag). **A plugin is an entity** (since 2026-10-05,
-`plugins/world/self.go`): `world.NewSelf(w, name, knobs...)`, called in the plugin's `NewPlugin`
-and embedded as `*world.Self` (all ten: the world's own is the clock's entity, made with the
+`plugins/world/self.go`): `world.NewSelf(w, p, knobs...)`, called in the plugin's `NewPlugin`
+with the plugin itself (`p := &Plugin{…}; p.Self = world.NewSelf(w, p)`), which notes `p` as made
+over the world (`world.Plugin.Made()`, a `plugin.Made`: the Stage uses the plugins in the order
+made) and calls its entity by `p.Name()`; embedded as `*world.Self` (all of them: the world's own is the clock's entity, made with the
 clock's `State` as its knob so the clock's system finds it), is one entity called by the plugin's
 name (`entity.Label`), carrying its knobs (`comp.Comp`s, listed for the saves by the world), the
 effects' markers, `tag.Tags[rule.Roles]` and an `effect.Wide` — a slot for every definable effect,
@@ -159,9 +167,10 @@ anew — there is no central refresher), `Self.Plays(roles...)` (Rules section).
 `rule.While(plugin, e, step)` is `During` for a plugin's entity (`steps.NewWhile`). One thing of a
 kind a plugin: two moons would need more entities, not built. `Part.Tag`/`Rules`, `rule.Roles` and
 `rule.NewPart` are for plugins. **What a plugin gives is in its root package** (the user's rule, 2026-10-05):
-`commands.go` holds its commands, `Queues()` and `DefaultBindings()` — `board.Grid` (B), `players.Pan`,
-`Zoom`, `Give`, `Quit` (Shift+Esc), `ShowShortcuts` (K), `Save` (F5, in a game that said where:
-`players.Plugin.WithSaves(basePath, resources...)`), `atmosphere.Freeze`/`Later`/`Earlier`/
+`commands.go` holds its commands, `Queues()` and `DefaultBindings()` — `board.Grid` (B), `Holds`
+(Shift+O), `cameras.Pan`,
+`Zoom`, `Follow`, `driving.Ahead`/`Back`/`Turn`/`Toward`, `players.Give`, `ShowShortcuts` (K),
+`atmosphere.Freeze`/`Later`/`Earlier`/
 `ChangeWeather`/`SetWeather`, `world.Spawn`, `Despawn`, `Pause` (Space)/`Faster`/`Slower`. They are
 **real types of the root package, never aliases** (aliases were tried and dropped the same day: two
 names for one thing, a poor godoc; the API has no type aliases — `world.Appearance` went on
@@ -171,13 +180,24 @@ for goke and the saves): the plugin keeps the queues and carries the commands ou
 its parts' methods (`sky.SetFrozen`/`Shift`, `climate.Change`/`Set`, `clock.TogglePause`/`Faster`/
 `Slower` — `clock`, `sky` and `climate` have no command types). **The default keys are the same in
 every game and no demo repeats one**: Space is the world's tactical pause (the engine's pause,
-`Runtime.TogglePause`, is not used by the demos), Shift+Esc quits, K lists the keys, F5 saves;
+`Runtime.TogglePause`, is not used by the demos), Shift+Esc quits, K lists the keys, F5 saves and
+F9 loads (the engine's commands, see "Game / persistence");
 `players.GameBindings()` is K and Shift+Esc for a game that binds its own camera keys
 (split-screen). A plugin with scenes of its own is a `game.Scenic` (`Scenes()`): the engine's
 initializer gathers them (`PluginScenes`) and a Stage defined in sections has them in its stack,
 hidden — the players' list of shortcuts (`players.Shortcuts`, made in `NewPlugin`) is one, so K
 works in every game without the game adding a scene. A game's own keys that are no command
 (a debug toggle) go to `players.Plugin.OwnKeys(SceneKeys)`.
+**A command is a `control.Command`** (since 2026-10-10, the user's word: one standard way of
+making commands, confirmed by an assertion): a type is one by its method `Command()`, a mark never
+called, written beside the type, and every command type is confirmed where it is defined —
+`var ( _ control.Command = MoveTo{}; … )` in the plugin's `commands.go`, beside its traits'
+`_ plugin.Aimed = …`. Whatever takes commands takes a `control.Command`, never `any`: `Queue[C]`,
+`Issued[C]`, `Carrier.Put`, `control.Give`, `control.Build[C]` (the binding built from a `Context`;
+it was `control.Command[C]`; `Binding.Type()` the command's type), `players.Issue`,
+`kind.Entry.Told`, `rule.Order`, `ui.Button`, `ui.Scene.Issue`. A command is still carried by its
+type to its handler's queue; its traits stay optional, asked for by assertion where they matter
+(`control.Routed`, `control.Contextual`, `plugin.Aimed`, `ui.About`, which is a command too).
 **Commands** ask: what somebody wants done about an effect is one
 `rule.Command` written as a sentence (`rule/command.go`, since 2026-10-05, in place of wires,
 `world.Apply`/`Dispel`, `selection.Apply` and the roles' abilities): `rule.Cast(e)` puts it on,
@@ -211,17 +231,21 @@ names, groups and the plugins' commands: `selection.Family`), `kinds.DefineTag[F
 `world.Kinds` (saved by name, remapped on load like `TypeID`), `comp.Tagged(tags...)` gives them
 to a kind, a query over the family's `Tags` narrows to entities carrying any of them, and
 flipping a bit is a value write seen the same tick. A payload's `plugin.Marks` answers
-`marks.Carries(tag)` for the families the host's rules name. This keeps goke's 128-component
+`marks.Carries(tag)` for the families the host's rules name. This keeps goke's 512-component
 budget for data. The bits serve two ways (`entity/tag` doc): **tags** are groups a kind gives
 (`comp.Tagged`); **markers** are states switched on and off — a plugin's family `States`, carried
 for good (`comp.Marks[F]()` in a kind, `Roster().Unit.Default` for every unit, attached once where
 missing), each marker a constant bit defined by name like the owners (`effect.Changed`, every
-effect's own `Effect.Mark()` "effect.<name>", `navigation.Entered`). Putting a component on or off moves the
+effect's own `Effect.Mark()` "effect.<name>", `unit.Entered`). Putting a component on or off moves the
 entity in memory (~200 ns, `Benchmark_Marker_*`) against 1–2 ns for a bit: a state that changes
 often or lasts a step is a marker; one that lasts, on few entities, walked alone (`MoveOrder`,
 `Mind`, the facts, `world.Outside`) keeps its own component. Data that comes and goes keeps its
-component, empty when off (`effect.Active`). A `Stage` builds its plugins as its own struct fields
-inside `Init` and installs each via `ctx.Use(p)`, which registers
+component, empty when off (`effect.Active`). A game's arena makes its plugins as its own struct
+fields in `makePlugins(w *world.Plugin)` — anew each time the Stage is entered, over the world
+`stage.World(cfg)` made, each plugin telling the world of itself as it is made (`world.NewSelf`)
+— and the Stage uses them in the order made (since 2026-10-09, the user's word: the order a game
+defines its plugins in is the order they are used in; no list, no `ctx` in a game's code), via
+`ctx.Use(p)`, which registers
 `p.Serializable()` (if any) and calls `p.Install`. There is no dependency
 retry mechanism: a plugin needing another plugin's *logic* takes it as
 an explicit constructor argument (e.g.
@@ -240,7 +264,7 @@ Initial state follows the same optional-interface pattern as
 `plugin.Restorer`/`plugin.PostLoader`: `Stage.Spawn` only declares it through
 each plugin's own typed `Seed` (`world.Plugin.Seed(roster)`,
 `board.Plugin.Seed(layout)`), and the engine then calls `Populate()` on every
-tracked `plugin.Populator` — only when `Restore` loaded nothing. Entity kinds
+tracked `plugin.Populator` — only for a Stage entered afresh, not from a save. Entity kinds
 are defined in `Stage.Init` with the `entity/kind` package:
 `prey := kind.Define[P](world.Kinds(), "prey", kind.Spec{...})` — a `Spec` is
 just the list of a kind's components, each made in `kind/comp`: `comp.Const(v)` (same for all) or
@@ -305,12 +329,18 @@ it is drawn for picking, its footprint for outlines) and `look.Look` (a cell, ha
 `look.Tile` with its box, sprite and kind), both flat from above by default. What a board is drawn
 and priced by beyond its cells is its `board.Map` (`Look`, `Dressing`, `Top`, `Climb`, `Least`,
 `Slope`; `board.Plugin.WithMap`): the board's own is the simple map — flat, every kind in its
-`cell.Kind.Color` or drawn sprite (`cell.Kinds.Draw`; `WithRenderer(nil)` draws from the
-board's own atlas of the kinds), the ways and crossings as plain bands (`internal/draw.Bands`), a step at its kind's
+sprite from the game's atlas (a kind is what it is, never how it looks: `cell.Kind.Color`,
+`cell.Kinds.Draw` and the board's own atlas went on 2026-10-10, the user's word; `WithRenderer`
+takes the game's `board.Plugin.NewAtlas` and panics on nil), the ways as bands cut out
+of their kinds' sprites (`internal/draw.Bands`, `render.Frame.SpriteFan`: the part of the sprite
+the band covers, laid over the tile as a cell of the kind shows it), a step at its kind's
 cost — and `plugins/topography` is the other, a map in relief: `topography.NewPlugin(world, board,
-Config{Cell, TileW, TileH, HeightUnit, Headroom, Isometric, Shaping, Climbing})`, made right after
-the world and the board, sets the world's camera factory (`world.SetCameras(icameras.Maker(…))`;
-`camera.Config` has no projection), its Look (`billboards.Look`: billboards in relief, the world's
+Config{Cell, TileW, TileH, HeightUnit, Headroom, Shaping, Climbing})`, made right after
+the world and the board, hands its cameras as makers (`Plugin.Views(start)`, a `cameras.Maker`
+each camera beginning as its `topography.Start` says — `FromAbove`, `Isometrically`: per camera,
+so one player may look down and another isometrically; `Config.Isometric` went on 2026-10-07 —
+for `cameras.Plugin.New(topography.Views(start), cfg)`; every camera of a world in relief is one of
+them, its drawing asking for `camera.Rays`; `camera.Config` has no projection), sets its Look (`billboards.Look`: billboards in relief, the world's
 `FlatLook` from above, all drawn on the GPU), the board's Map (its Look `look.Nothing`: the ground is drawn on the GPU) and
 the world's Ground (its `Relief`); it refuses a flat or a wrapping world. `Plugin.Renderer()` is
 the ground, a `render.Direct` at `Ground` a demo must put in its composer: over a square grid
@@ -336,9 +366,27 @@ round them keeping the ground point in the middle and a cell as wide
 (zoom × Cell/TileW); the view is saved with the camera. From above and isometrically the whole
 screen stays over the world at sea level (`isoCamera.place` fits the ground under the four
 corners into the world along x and y, `minZoom` is where the screen's footprint — `spanX`,
-`spanY` at zoom 1 — just fits the world, the top-down camera's rule), so a pan stops at the edge,
+`spanY` at zoom 1 — just fits the world, the top-down camera's rule), so a pan stops at the edge —
+in relief the part of it the edge stops turns the view, stopped going left the eye clockwise (the
+world anticlockwise, as Q), right the other way, and bows it stopped going forward, going back
+nothing (the user's word, 2026-10-11; `viewCamera.Pan`, `shift`, `Config.EdgeTurn`/`EdgeTilt`:
+TurnStep and TiltStep a DefaultScrollSpeed's pixels; the Behind keeper's shoulder pan turns nothing) —
 zooming out stops where the screen fits the map and the corners of a diamond map are out of reach;
-`ZoomIn` keeps the ground under the cursor at its drawn height (`ground`). The perspective keeps
+`ZoomIn` keeps the ground under the cursor at its drawn height (`ground`). A pick
+(`camera.Picker.Pick`: x, y and the height picked) finds a deck a thin slab a line of sight under
+it passes (`topography.Plugin.solidAt`, `Config.Solid`; centring reads `seenAt`, the riding eye's
+`topAt` the ground alone), stepping finer near one narrower than its step or thinner than a step
+falls (`Config.Fine`, `Board.NearDeck`, `NarrowestDeck`, `ThinnestDeck`). A bridge's deck and
+its piers are `world.Block`s, their shadows baked by the terrain with its own as the sun moves
+(`terrain.Renderer.gather`: the blocks found every frame, a deck's pieces end to end on one line
+joined, `maxBlocks` 96 in a uniform array, each strip baked with those whose shadows may fall on it,
+`shading`; `shade.wgsl`'s `blocked`: the sun's line from the ground through a block, its penumbra
+as the relief's; a change baked whole at once — nothing measurable a frame) — the user's word,
+2026-10-11, after shadows cast exactly per pixel came out sharp, far off, threefold and costly; a
+deck stands on its beam (`billboards.Look.Lay`: its sides down its Z's Height, the Floor's
+Thickness, 10 m on the island); a unit's shadow stays the soft `sky.Patch`; over hex prisms no
+block casts one yet. The first frame reading the depth makes it readable, empty that once: a
+headless probe draws twice. The perspective keeps
 the ground point in the middle of the screen over the world (`perspCamera.confine` after Pan,
 Translate, CenterOn, ZoomIn; not LookFrom/LookAt, not riding) and flies no higher than shows the
 world's diagonal across the middle of the screen at the flattest pitch (`maxAlt`, one height
@@ -355,20 +403,23 @@ Angle}` (Q/E held, `TurnStep` 2° a tick), `Tilt{Camera, Angle}` (R/F held, 1° 
 projection's `Pitch` from 10° to 90°, the 2:1 view at asin(TileH/TileW), scaling the ground down
 the screen by sin and heights by cos; saved with the camera; a fastened camera pans its unit
 `shoulder`·cos(pitch) of the screen below the middle), `Ride{Camera}` (V, since 2026-10-07: takes
-the camera closer round the entity it is fastened to — the players' `Follow`, C, fastens it
-`camera.Centred` over the one selected unit — `Centred` → `Behind` → `Inside` given
+the camera closer round the entity it is fastened to — `cameras.Follow`, C through
+`selection.FollowKey`, fastens it `camera.Centred` over the one selected unit — `Centred` → `Behind` → `Inside` given
 `Config.Perspective` → `Centred`; a camera fastened to nothing stays. **The fastening is the
 camera's** (`camera.Fastening{Entity, How}` on every `camera.Fastenable` camera, `basicCamera`
 and `viewCamera`; `camera.How` `Loose`/`Centred`/`Behind`/`Inside`, `Outside` all but `Inside`,
 `HowOf(cam)`; it replaced `camera.Mode`/`ModeOf`/`Rider`, the same fact under another name) and
-whoever keeps the camera there reads it every tick: players keep `Centred` (`CenterOn` at the
-altitude; `Pan` lets go, `Zoom` keeps), the topography's camera system `Behind` — centred, turned
+whoever keeps the camera there reads it every tick: the cameras plugin keeps `Centred` (`CenterOn`
+at the altitude; `Pan` lets go, `Zoom` keeps), the topography's camera system `Behind` — centred, turned
 with an ease of `followEase` until its `Vel.Dir` runs up the screen, held through other
 selections, orders, pans and turns — and `Inside` — first person, the eye where the unit's
 `world.Eye` stands (`Eye.Level`; its top without one), the screen as wide across as `Eye.Angle`
-(`perspCamera.across`; the camera's own field without one), the mouse `Look`
-(`control.CursorMove`, cursor captured by players; across turns the view and the unit via
-`steering.Driven.Face`, up/down the head; riding writes `Driven.Flown` and `Driven.Climb` =
+(`perspCamera.across`; the camera's own field without one), the mouse `Look` — opt-in (the user's
+word, 2026-10-07: only in first person, only once asked): `camera.Config.MouseLook` at the start,
+`cameras.MouseLook{Camera}` switching it (`cameras.MouseLookKey(key)`, board-topography's O), a
+`camera.MouseLooker` the topography's view camera is; off, the binding builds nothing and the cursor
+is not captured — (`control.CursorMove`, cursor captured by players; across turns the view and the unit via
+`steering.Driven.Look` — the eye's way, before the hand's `Face` — up/down the head; riding writes `Driven.Flown` and `Driven.Climb` =
 −sin(pitch): the drive system asks a flyer for the run (`Driven.Slope`) along the ground, and the
 altitude system, the one writer of heights, holds a flown flyer's `Z.Altitude` over sea level,
 adds the rise over the run it made this step, keeps it `Mover.Clearance` over the ground and under
@@ -376,14 +427,14 @@ adds the rise over the run it made this step, keeps it `Mover.Clearance` over th
 over the unit again. The camera system reconciles its own `following` (ease, pitch, aim) with
 every camera the control's `Maker` made (`Control.Maker` notes them): an entry for a camera
 fastened `Behind`/`Inside`, let go when the fastening changes or the entity is gone (then
-`Fasten(Fastening{})`); it writes only the eye's part of a `Driven` — `Face` while aiming, `Flown`,
-`Climb` — and clears it on letting go. Bindings `.In(camera.Inside)` fire riding: the players'
-W/S/A/D `Drive` (W with Shift `Drive.Sprint`, read from the `KeyHeld` context's `Mods.Shift`:
-`steering.Helm.RequestSprint` to `Sprint`·MaxSpeed, the world's step cap still holding), the mouse
-`Look`, V and Tab; `.In(camera.Outside)` the free camera's: Q/E, R/F, Tab, the players' WASD pan,
-the climate's Shift+W; the arrows `.In(camera.Behind)` drive the followed unit. How a unit is
-driven by hand is navigation's (`steering.Driven` from the players' hand) and
-`Raise`/`Lower`/`Level` (=, -, L-drag) the relief's. Commands carry `control.Context.Camera`, so
+`Fasten(Fastening{})`); it writes only the eye's part of a `Driven` — `Look` while aiming, `Flown`,
+`Climb` — and clears it on letting go. Bindings `.In(camera.Inside)` fire riding: the driving's
+W/S/A/D (`driving.Tank`; W with Shift `Ahead.Sprint`, read from the `KeyHeld` context's
+`Mods.Shift`: `steering.Helm.RequestSprint` to `Sprint`·MaxSpeed, the world's step cap still
+holding), the mouse `Look`, V and Tab; `.In(camera.Outside)` the free camera's: Q/E, R/F, Tab, the
+cameras' WASD pan, the climate's Shift+W; the arrows `.In(camera.Behind)` drive the followed unit.
+How a unit is driven by hand is the driving plugin's and `Raise`/`Lower`/`Level` (=, -, L-drag) the
+relief's. Commands carry `control.Context.Camera`, so
 the plugin never knows players nor selection (`WithSelection`, `theSelected` and the topography's
 `Follow`, `Drive`, `LookOut` went on 2026-10-07); cameras are no entities.
 The topography's parts are packages none of which imports the plugin (it composes them, registers
@@ -416,7 +467,8 @@ stretched by its height and pushed off by how far above the ground it stands; th
 look draws it as it is.
 The time of day, the climate and the weather are `plugins/atmosphere` on the world's clock
 (`clock`; see below). `atmosphere/calendar` is the clock at a fixed scale — a day
-every `Config.Day` of game time from the moment a fresh game begins at (`Start`, the hour on the
+every `Config.DayRealTime` of game time (the real time of a day at tempo 1) from the moment a
+fresh game begins at (`Start`, the hour on the
 clock as a `time.Duration`, in the middle of `Season`), a `GameYear` of 8 days and a 4-day moon or an `EarthYear` — with no state of
 its own: `Calendar.Now()` is a `Moment{Date, Time, Year}` (`OfYear`, `Season`, `Moon`, `Hour`,
 `Written`), `Daily`/`Yearly`/`Seasonal` give a schedule entry its period and offset.
@@ -468,7 +520,7 @@ within `shoreReach` cells of the shore (`water.Shore`, per corner of a square gr
 and breaking into foam; it reflects the sky by Fresnel against the way to the eye — per pixel in
 a perspective, `camera.Projection.Toward()` otherwise — so it pales towards the horizon. The
 skirt round the world carries the sea on to the horizon. An effect altering `Ground` can make a
-cell shiny. The islands with heights give their water 0.9.
+cell shiny. Madeira in relief gives its water 0.9.
 The climate is `atmosphere/climate`: a `climate.Zone{Latitude, Factors}` (`Factor.Shape(*Profile)`;
 `SeaCurrent`, `DrySummer`; `Equatorial` 3°, `Tropical` 20°, `Mediterranean` 38°, `Temperate` 55°,
 `Cold` 66°, `Polar` 78°) is `Zone.Profile()` — `Mean` 27 − 20 sin²φ − 27 sin⁶φ, `Year` 1 + 16 sin²φ,
@@ -500,7 +552,9 @@ kind's snowy twin, what water freezes into, what sways — and `New` defines thr
 ground, a noise's seeds, next to snow) while it snows in the frost, melting lonely and late cells
 first once warm, ice growing from the shore below −3°C, what sways swaying above a wind of 15 and
 stopping below 10; a winter begun has its drifts and shores laid at once
-(`atmosphere.Plugin.WithWeathering(board, cfg)`). `plugins/atmosphere/air` is the weather as
+(`atmosphere.Plugin.WithWeathering(board, cfg)`, called as the atmosphere is made — its three
+effects defined then, in the Plugins section, which takes any definition; the kinds it names looked
+up as the weather first touches the board). `plugins/atmosphere/air` is the weather as
 drawn (`air.Weather`): `Weather.Frame(f, sun)` hands the frame `Wind`, `Drift` (a `HeapTile` at
 most), `Cover`, `Billow` and the `Fog` colour (`air.Overcast(sky, clouds)`), `Weather.Sway` leans
 what sways, `Weather.Cloud`/`Shade` are the clouds' noise and shadow on the CPU, the very numbers
@@ -517,10 +571,14 @@ waves steepen with `Wind` (`calmSea`..`stormSea`), water reflects `overcastSky()
 takes the clouds' shadows from `atmosphere.Plugin.Clouds()` (`overcast.Renderer`, tier `Objects+50`, a Direct: a mesh
 over the viewport, the noise at its corners every 8 pixels where the camera's lines of sight meet
 the ground, the shadow per pixel) and its light by the hour through
-`atmosphere.Plugin.WithBoard(board)`, which wraps the board's Map (`litDressing`, `look.EvenLit`:
-the sun on level ground, one light for every tile, so the board is composed once and tinted on the
-GPU) and the world's Look (`litLook`: sprites lit, what sways leaning on the CPU, handing the flat
-look's GPU sprites through). A flat board without an atmosphere is drawn as it is.
+`board.Plugin.WithAtmosphere(atmosphere)` (`plugins/board/lit.go`, since 2026-10-10, the user's
+word: the board with the atmosphere, not the atmosphere with the board; `atmosphere.WithBoard`
+went), reading the sky through `board.Atmosphere{Sun, Air}` — the shape of `topography.Atmosphere`
+— which wraps the board's Map (`litDressing`, `look.EvenLit`: the sun on level ground, one light
+for every tile, so the board is composed once and tinted on the GPU) and the world's Look
+(`litLook`: sprites lit, what sways leaning on the CPU, handing the flat look's GPU sprites
+through); called in a scene, before the renderers, as `topography.WithAtmosphere` is. A flat board
+without an atmosphere is drawn as it is.
 A plugin adds lines to the telemetry through a `render.Reporter` (`Report(line func(label, value))`,
 reading its own components through its own query); a scene hands it over with
 `render.NewTelemetryRenderer(...).With(p.Reporter())` — the sky's shows the time of day. The renderers keep
@@ -652,15 +710,16 @@ a rule (`doc/rule.md`, "A game: states as effects"). A **player acts** the same 
 giving a command (see "Plugin system", Commands): `rule.Cast(e).On(sel.Selected(role))` on its own
 selected units playing a role, `.On(sel.Pointed())` on whoever the cursor points at,
 `.On(entity.World)` for a state of the whole game, which rules and plans read with `During`,
-`.On(entity.Group(name))` for the cells or units called so (the wire demo: a lever, a plate and a
-switch each a command for a group of cells; the trapdoor and pressure plate demos the same).
+`.On(entity.Group(name))` for the cells or entities called so (the wire demo: a lever, a plate and
+a switch each a command for a group of trapdoors or a gate, entities standing on the board; the
+trapdoor and pressure plate demos the same).
 
 ### Built-in plugins (`plugins/`)
 
-- **`world`** — foundation a Stage installs by calling
-  `ctx.UseWorld(cfg)` in `Init`, once (a second call panics); `cfg` sizes
-  the space, toroidality, entity bounds and camera, and a Stage that never
-  calls it gets no world. `SpaceCfg.Edges` (`aabbworld.Edges`) sets the edge rule
+- **`world`** — foundation a Stage makes from the `world.Config` its chain begins with
+  (`stage.New(name).World(cfg).Plugins(a.makePlugins)`; `ctx.UseWorld(cfg)` underneath, once — a second
+  call panics); `cfg` sizes the space, toroidality, entity bounds and camera, and a Stage without
+  `World` gets no world. `SpaceCfg.Edges` (`aabbworld.Edges`) sets the edge rule
   per axis — `aabbworld.Torus`, `WrapX`/`WrapY` alone, `OpenX`/`OpenY`, a closed
   axis by default: a box stops whole at a closed edge, wraps at a wrapping one,
   and may leave by an open one. An entity wholly past an open edge carries
@@ -686,17 +745,24 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   every plane); collision and vision read it, so a hawk on `Air` and a walker on `Land` neither
   push nor block each other. A world without heights is a set of planes: that is the 2D model.
   `world.Config{Heights: true}` gives the world heights (`Plugin.HasHeights()`): entities carry
-  `world.Z{Altitude, Height}`, written by the board in relief from its ground, sight follows
-  geometry (`world.Eye`) and collision follows Z too: a pair meets only where the heights the two
-  span (`collision.Band`, `BandOf`) overlap, the ground stops an entity only in a solid cell whose
-  band — from below up to its kind's `Height` over its level — meets the entity's; whatever says no
+  `world.Z{Altitude, Height, Step}` (`Z.Reach()`: how high it steps up without leaping, `Step` or
+  a quarter of its `Height`), written by the board in relief from its ground or by gravity, sight
+  follows geometry (`world.Eye`) and collision follows Z too: a pair meets only where the heights
+  the two span (`collision.Band{Bottom, Top, Step}`, `BandOf`) overlap, the ground stops an entity
+  only in a solid cell whose band — from below up to its kind's `Height` over its level — meets the
+  entity's, a deck's slab (`cell.Floor.Thickness` under its top) the part of its band over its step
+  (`Band.Above`: a deck within the step is stepped onto, one it fits under passed under), a
+  railing (`cell.Rail`, a slanted wall along a band's edge) its band from the deck up; whatever says no
   height (no `Z`, `Height` 0, a solid kind without `Height`) spans `Everywhere` and meets all, as
   `Layers` 0 does; a flat world asks none of it. The dimension is the game's choice in `world.Config`; no plugin
   guesses the mode from the data, and each refuses the other mode's facts where it first meets
-  them (a `Z` in a flat world, `Blockers` in one with heights). `world.Config.Scale{Metres}` says what
+  them (a `Z` in a flat world, `Blockers` in one with heights). `world.Config.Scale{Metres, Figures}` says what
   a world unit is (one unit system: heights and lengths alike; games give metres through
   `Scale.Units`); with it the ground sinks under an eye's level (`Scale.Drop`, curve and
   refraction) in the perspective and in sight, and the air hazes far off (`Weather.Visibility`).
+  `Figures` is how many times bigger than life a game draws its figures (the user's word,
+  2026-10-10: how symbolic a unit is) and `Scale.Figure(m)` their boxes, heights and eyes; speeds
+  and sight stay real, through `Units` (board-topography: a cell 333 m, figures 50 times life).
   `Base` — the one component every entity carries, holding its `Position`,
   `Velocity`, `TypeID` and `Caps` (the `aabbworld.Capability` bits the space
   indexes it under; `collision` writes them), so a host hands it to whatever it
@@ -709,10 +775,9 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `Attach`/`Detach`/`Declare` and `Bodies` were removed on 2026-10-01, no game used them) — the shared
   `*aabbworld.Space`, per-tick movement — capped per entity at half its own
   shorter side (`world.StepReach`, `Position.MaxStep`/`MaxSpeed`), so mixed
-  sizes share a world without the smallest slowing the rest — and the shared `camera.Camera` (the
-  root package `camera` is only the contract and the projections; the cameras, with their window
-  arithmetic — wrapping on a wrapping axis, held inside the world on any other — live in
-  `internal/camera`) exposed via `world.Plugin.Camera()`, more via `NewCamera()`. World hosts rules of three moments
+  sizes share a world without the smallest slowing the rest. The world makes no camera (since
+  2026-10-07, the user's word: a demo starts its camera itself): the cameras are the cameras
+  plugin's (see `cameras` below); the world keeps a `view.View` per camera (`ViewFor(cam)`). World hosts rules of three moments
   (`ctx.Hosts` in its Install): a `Moving` (every entity, in the velocity pass before it moves — the pass that also
   scales `Base.Vel.Value` by the entity's `steering.Pace`, the ground's share the board writes,
   a step late), a `Leaving` (every tick an entity is `Outside`) and a `clock.Moment` (every step,
@@ -730,16 +795,33 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   standing — degrees, 0 east, against the clock with the screen's y down, `render.Arrow`'s
   convention; a square box whose content fits the inscribed circle; a turned sprite's Under-looks
   turn with it), `.Facing(n, draw)` its directional twins (slots from the world's kinds; a look
-  under an effect keeps its own way). `WithRenderer` applies them itself, after the effects' swaps:
-  swaps, facing, turning (shown by `examples/appearance-demo` and the frozen
-  kinds of `examples/effect-demo`). The world handles `steering.Away{From}`, `Toward{To}` (aimed at the
+  under an effect keeps its own way), `.Lying()` a sprite laid flat (a bridge's deck, a ford; its
+  Under-looks, frames and twins too): a `world.LyingLook` lays it at the entity's `Altitude` — the
+  billboards' look a flat quad over the box on the ground wherever it stands higher, under what
+  stands (`shaders/lying.wgsl`, `sight.wgsl` shared), the flat look under the rest — where a
+  view in relief stands the rest up; `.Upright()` a sprite standing true in relief — the four
+  sides of its box from its Altitude up its Height and its top (`world.UprightLook`), never a
+  billboard drawn taller than it stands: a bridge's pier; an entity carrying a `world.Lie{Length,
+  Width, Edged, Edge}`
+  (`entity.Lie`, `Lie.Corners`) is laid level at its `Altitude` over that rectangle headed its
+  `Vel.Dir` (`LyingLook.Lay`), a sprite authored facing east stretched over it, and `.Edges(draw)`
+  is the sprite standing along its long sides while it is `Edged` — strips a tenth of its Width
+  from above, quads `Edge` high lit by the sun as they face in relief (the board writes the Lie
+  and the heading of a bridge's band: the demos' one deck sprite `.Lying().Edges(railing)`, since
+  2026-10-11); in relief such a deck stands on its beam, its sprite down its long sides as deep as
+  its `Z.Height` (a bridge's `Floor.Thickness`). `WithRenderer` applies them itself, after the
+  effects' swaps:
+  swaps, facing, turning (shown by `examples/look/appearance` and the frozen
+  kinds of `examples/rules/effect`). The world handles `steering.Away{From}`, `Toward{To}` (aimed at the
   moment's subject, `plugin.Aimed`) and `Turn{Angle}`, which an entity gives itself in a rule —
   the steering system asks its `Helm`, one a step — and the commands about effects
   (`rule.Command`, `rule.Triggered`; `plugins/world/effect_commands.go`). The world also defines the
   roles' tags in its kinds (as each role is defined) and loads `entity.Label`. Every `plugin.Tick` a host hands its rules comes from
   `world.Plugin.Tick(cb, d)` (a `plugin.TickSource`): the carrier, `Time` (game time at the step's
   end), `Seed` (`world.Config.Seed`), which `Chance` draws from, and `Roles`, the roles an entity plays (for `Playing`). The space keeps no state of its own between ticks:
-  the move pass (`moveSystem`, private: tests use the world plugin) moves every box under the edge rules (`Space.Move`), then hands
+  the move pass (`moveSystem`, private: tests use the world plugin) moves every box by its
+  `Velocity` and the `world.Drift` it is carried at (gravity's; one step cap for both) under the
+  edge rules (`Space.Move`), then hands
   the space every `Base` as an `aabbworld.Item` (`Space.Rebuild`) — `Query`,
   `Scan` and collisions read that grid until the next tick. After movement the `view.System` refreshes every
   `view.View` (a rectangle plus the `view.EntitySet` of entities the space finds in it;
@@ -749,21 +831,28 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   entity is gone from it on the next. Anything reading the space in its own pass
   sees the boxes as they were after the last rebuild.
 - **`board`** — optional grid + terrain over `world`; its grids wrap per axis,
-  following the world's `Edges`. The root keeps the `Plugin`, the `Board` (the terrain's façade:
-  `Kind`, `Bare`, `Set`, `SetAll`, `Way`, `SetWay`, `Crossing`, `SetCrossing`, `Along`,
-  `CellVersion`, `Changes`, `Version`, `Touch`, `Shape`), the `Layout`, the `Map` contract and
-  `NewUnits`; the ground the others meet is its field's (`Plugin.Cover`, `WithCollision`). Public
+  following the world's `Edges`. The root keeps the `Plugin`, the `Board` (`Plugin.Board()`; the
+  terrain's façade, its grid's `At(x, y)` among it: `Kind`, `KindAt`, `KindFor`, `Bare`, `Set`,
+  `SetAll`, `Way`, `SetWay`, `Along`, `DecksOver`, `Reaches`, `Fenced`, `CellVersion`, `Changes`,
+  `Version`, `Touch`, `Shape`, `Built`), the `Layout`, the `Map` contract, `NewUnits` and `NewEntities`, and `Lay` —
+  a level out of a file (`level.go`); the ground the others meet is its
+  field's (`Plugin.Cover`, `WithCollision`). Public
   subpackages: **`board/cell`** — `cell.ID`, `cell.Kind` and the board's `cell.Kinds`
   (`board.Plugin.CellKinds()`), `cell.Domain` (`cell.Land`, `Water`, `Air`), `cell.Name`/`Named`,
-  the cell entity's `cell.Plot`, `cell.Ground`, `cell.Way`/`Crossing`/`Links`, the moment `cell.Now`, the Layout's entries
+  the cell entity's `cell.Plot`, `cell.Ground`, `cell.Way`/`Links`, what stands on a cell (`cell.On`, `Floor`, `Wall`, `Built`), the moment `cell.Now`, the Layout's entries
   (`cell.Entry`, `cell.WayEntry`), `cell.Terrain`, `cell.TerrainMap` (terrain in plain maps, the
   board's seed, a `Terrain` of its own in tests), `cell.Occupancy` (`SingleOccupancy`,
   `MultipleOccupancy`); **`board/unit`** — `unit.At`, `unit.Mover`, `unit.DomainAt`, the moment
-  `unit.Standing`; **`board/grid`** — `grid.Grid` (with `Toward`), `grid.DefaultGrids`,
-  `grid.Link`, `grid.Shape`/`ShapeOf`; **`board/look`** — `look.Look`, `Dressing`, `EvenLit`,
+  `unit.Standing`; **`board/grid`** — `grid.Grid` (with `Toward`; every grid knows its own
+  directions — `Directions`, `Opposite`, `Offset`, `Step`, `Corner`, `Flanks` — and nobody else
+  writes a table, a bit, an opposite or a vector of them: the user's word, 2026-10-11; bit i of a
+  `cell.Links` is direction i, `Links.Has`), `grid.DefaultGrids`, `grid.Link`, `Way`, `Straight`,
+  `Direction`, `Nearest`, `Exit`, `Rim` (the outline's corners a direction leaves through),
+  `grid.Shape`/`ShapeOf`; **`board/look`** — `look.Look`, `Dressing`, `EvenLit`,
   `Parallel`, `ParallelLook`, `Tile`, `FlatLook`, `Nothing`, `Map` (the drawing part of
   `board.Map`), `Renderer`/`NewRenderer` (reading the board as a `look.Board`), `RenderState`,
-  `MinGridCell`; **`board/ground`** — `ground.Heights`, `Cover`, `Readied`. The machinery is in
+  `MinGridCell`; **`board/ground`** — `ground.Heights`, `Profile` (the ground along a ray
+  exactly), `Cover`, `Readied`, `Surfaces`, `MeanOfCells`. The machinery is in
   **`board/internal`**, importable only inside the board: `internal/terrain` (the cells' state —
   seed or entities, `Cells`, the entity system, the counts of changes, the kinds' dictionary),
   `internal/moments` (`Rules`: the hosts of `unit.Standing` and `cell.Now`, their passes, `Around`;
@@ -776,14 +865,14 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `Veil`s sight (a forest at 0.6) and whom it `Veils` (a forest veils `Land`, not `Air`), and
   what it costs — `Costing(domain, cost)` prices it differently per domain, and
   `CostFor(domain)` is what a unit pays in the planner and in the Moving rule board
-  registers on the world (only entities carrying `Mover` are slowed); a `Graded` kind (a road, a
-  bridge; `Way.Over` and `Crossing.Over` carry it) is spared the slope in both; `Board.Along(from,
+  registers on the world (only entities carrying `Mover` are slowed); a `Graded` kind (a road;
+  `Way.Over` carries it, a bridge's `cell.Floor.Graded` too) is spared the slope in both; `Board.Along(from,
   to)` tells a step along a way's links from one over the ground beside it, `Board.Bare(c)` is
   that ground, the kind under the way; slopes
   cost too, through the board's Map — `relief.Climbing{Up, Down, Ease, Steep, Free}`
   (`topography.Config.Climbing`, `relief.DefaultClimbing`: 1 in 10 up takes twice as long, 1 in 10 down is the
   quickest at 0.7, steeper down slows by 5 a unit, Air free), multiplying the kind's cost (the
-  island: road and bridge 1, the rest 2.5 times what it was) slows the Moving rule along the
+  old island: road and bridge 1, the rest 2.5 times what it was) slows the Moving rule along the
   heading (`Map.Slope`) and prices the planner's steps (`Map.Climb`, `Map.Least`; navigation
   takes them from `board.Plugin`) — both read a cell's slope off its own corners — so steep is the
   relief, never a kind; the simple map prices nothing beyond the kinds. A shiny kind with a `Flow`
@@ -791,8 +880,8 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   carried with the current, white where it is fast); `plugins/board/water` works brooks, streams, rivers and fords out of a relief
   (`water.Drain`, `Network.Carved` cutting their beds into the heights), handed over as a
   `plugins/board/network` graph (`Network.Net`: nodes of board kinds, `Link` for roads, `Flow`
-  down for water, `Along`, `Crossings`, laid by `Ways()`; roads by `network.Route` + `Path`, over
-  rivers as `cell.Crossing`s by `Across`), laid as a `cell.Way` — a
+  down for water, `Along`, `Crossings`, laid by `Ways()`; roads by `network.Route` + `Path`; `cell.Crossing`
+  and `Network.Across` went on 2026-10-10: a bridge is an entity), laid as a `cell.Way` — a
   second layer on every cell entity, a band through the cell's middle whose kind decides who may
   cross it (`Way.Over`, `Board.Kind`), drawn by `Tile.DrawWay`. Kinds with a `Spread` blend
   (`Tile.Blends`/`DrawBlends`, `render.Frame.SpriteBlend`): a neighbour's kind weighed at the
@@ -813,7 +902,7 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `world.Z{Height}` from the shape, runs the world's roster and `kind.Define`; `units.Named(name)` is the
   usual `kind.Of[Row]`. Every cell is an entity for good, without a `world.Base`: `Plot` (its
   cell), `Ground` (its kind, kept apart so an effect ending restores the kind alone), `Way` and
-  `Crossing`, made at Setup by the entity system of `internal/terrain` out of the seed (a
+  `Built`, made at Setup by the entity system of `internal/terrain` out of the seed (a
   `cell.TerrainMap`, the Layout's tags included) or found after a load; `terrain.Cells` reads and
   writes them, or the seed before Setup and on a board no ECS runs. `Version` and `CellVersion`
   count every change: writes through the board, effects on cell entities (`effect.Changed` on
@@ -821,43 +910,184 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   The board is flat: the ground's heights are the topography's relief (`internal/relief.Relief`; a game gets `topography.Relief`: `At`, `Step`, `Altitude`, `SetHeights`) — on a square grid a
   lattice of corners the neighbouring cells share by construction (no vertical walls, no sealing),
   on any other a level per cell; `Corners`, `SetCorners`, `Altitude`, `GroundAt`, `SetHeights`
-  (`relief.MeanOfCells`), `Lift`, `Flatten` — living on the topography's own entity as
+  (`ground.MeanOfCells`, the board's: one height a cell), `Lift`, `Flatten` — living on the topography's own entity as
   `Heights`, runs of `HeightsRun` (1024) heights of a fixed size on as many entities as
   the relief takes, so the ECS keeps them in its own memory — written when the relief's version
   changes, taken back by a loaded game when they cover it exactly — seeded by `topography.Plugin.Seed(heights)` at Populate and shaped by the commands
   (`topography.Raise`, `Lower`, `Level`, `Shaping`). The relief is the world's `Ground`; the relief's
-  `altitudeSystem` writes every `Z.Altitude` each step from the ground under the entity plus its
-  `Lift`; the board asks its Map's `Top` for a cell's level where sight needs a veil's band. In a
+  `altitudeSystem` writes every `Z.Altitude` each step from the surface under the entity plus its
+  `Lift` — `Relief.Surface` (the board's `ground.Surfaces`, `board.Plugin.Surfaces()`): the
+  highest of the ground and a `cell.Floor`'s deck carrying its domain within its step of its feet
+  (`Z.Reach`,
+  from any side: up a bridge's ramp, never from the road under it), the ceiling the underside of a
+  deck's slab over its feet — except one carrying a `world.Drift`, which gravity carries; an entity
+  standing on the board (`cell.On`) on the ground; the board asks its Map's `Top` for a cell's
+  level where sight needs a veil's band. In a
   world with heights a `cell.Kind` has a `Height` (what stands on it); a flat world refuses what stands
   at a height at the first sight (`cell.Kinds.Define`, `NewUnits`, `Units.Define`,
   `Kinds.Register`) and a topography refuses a flat world.
   Every tick, after
-  collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre, its kind, the
-  box and the `Mover`'s domain) to the rules of it; `Standing.Fallen()` is a land
-  unit in water or in a hole, and the reaction is the game's (the demos:
+  collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre, its kind on
+  the unit's level — `Board.KindFor(c, feet, reach)`: the deck's within its step of it, else what
+  lies under — the box, the `Mover`'s domain, `Airborne`) to the rules of it; `Standing.Fallen()`
+  is a land unit in water or in a hole, never one in the air (`unit.Airborne`, the units' marker
+  gravity puts on), and the reaction is the game's (the demos:
   `rule.Then[unit.Standing]("drown", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{})))`,
   `board.Plugin.WithLog(log.Default())` writing a line for each fall). The same pass writes every
   unit with a `unit.Mover` its `steering.Pace{Share}` — 1/`CostFor` its domain of the cell under
   its centre, and the Map's slope the way it goes unless the kind is `Graded` — which the world's
   velocity pass multiplies its speed by from the next step. Then, while there is a rule of it, every cell as a `cell.Now`
-  (its entity, which cell, its kind now, `Trodden`: a unit's centre lies on it this step —
-  `cell.Now.Stood` for a rule's `If`, a plate pressed). Both moments are data alone and `plugin.Placed`: the
+  (its entity, which cell, its kind now; `Trodden`/`Stood` went on 2026-10-10: a plate is an
+  entity, pressed in a `collision.Meeting`). Both moments are data alone and `plugin.Placed`: the
   board's `internal/moments.Rules` put their `around` into the `plugin.Tick.Around`, and
-  `rule.Here(step)` runs the step on the entities of the cells under the box (a `cell.Now`'s own),
-  `rule.Around(rings, step)` on the rings of neighbours too, each cell once (a scratch of passes, not
-  reentrant) — the effect demo's
-  witch freezes `Around(1, Apply(frost))`, fire spreads cell to cell from a `cell.Now`.
+  `rule.Here(step)` runs the step on the entities of the cells under the box (a `cell.Now`'s own)
+  and the entities standing on them (`terrain.Cells.Standing`: the world's space asked at the
+  cell's middle, those carrying `cell.On` of that cell — never the units), `rule.Around(rings,
+  step)` on the rings of neighbours too, each cell once (a scratch of passes, not reentrant) — the
+  effect demo's witch freezes `Around(1, Apply(frost))`, fire spreads cell to cell from a
+  `cell.Now`, the wire demo's scout pulls the lever beside it.
+  **What stands on the board is an entity, not terrain** (2026-10-10, the user's word: a lever, a
+  trapdoor, a gate, a plate "po prostu stoją sobie na terenie"): `board.NewEntities[Row](brd,
+  board.Shape{Size, Height}, at func(Row) cell.ID)`, `Define(name, extra...)` — no units' roster: a
+  box of `Size` at the cell's middle, `world.Velocity{}`, `cell.On{Cell}` and with heights a
+  `world.Z{Height}`; the game gives the rest (a plate's `collision.Collider{}` without `Physics`, a
+  sensor; the roles it plays). Its knobs `cell.Floor{Allows, Height, Thickness, Cost, Graded, Links,
+  Width}` (carries the domains over whatever the ground takes: a trapdoor over a pit — a pit kind
+  admitting nobody — a ford waded at its `Cost`, a bridge `Graded` at its deck's `Height`; with a
+  `Width` a **band** that wide from the cell's middle out to each neighbour its `Links` name, as a
+  way runs — a bridge's deck, the ground beside it the cell's own, through a corner reaching into
+  the two cells flanking it; without, the whole cell; with `Height` the
+  cell has two levels, the deck and what lies under (`Board.KindAt(c, deck)`, `KindFor`), and
+  where a unit is is its heights' — physics, not an axis (the user's word, 2026-10-11: `Along`
+  went): it steps onto a deck within its step from any side, passes under one it fits under,
+  strikes the slab, `Thickness` thick, of one it does not, falls off its edge under gravity;
+  `Board.Bare` leaves a Graded Floor out as it leaves a way; a `world.Velocity` among a kind's
+  extra takes the still one's place, its `Dir` the way the ford runs, which its look `Facing`s;
+  a band's entity is headed along it and given its `world.Lie` by the board, every
+  `NewEntities` kind carrying one), `cell.Rail{Keeps, Height}` (a railing along both edges of the
+  cell's band, from the deck up `Height`, 0 at every height; none where no band carries anyone —
+  an opened bridge loses its railings, a fence is a band at the ground's level with a Rail
+  (2026-10-11, the user's word): slanted walls in collision's field (`collide.FieldWall`,
+  aabbworld v1.12.0, `field.Walls`), a band's raised slab one too, Width wide, their ends free where
+  the bridge ends — a barrier for what drives, a leap over its top clears it; the planner never
+  steps across one (`Board.Fenced`: the step from middle to middle crossing it, a raised one
+  counting on the deck's level alone); a flat world refuses a `Height`) and `cell.Wall{Keeps,
+  Height}` (keeps them off: a gate) are gathered every step
+  by the board's `builtSystem` (`internal/terrain/built.go`, after the cells' system) on the cell's
+  entity as `cell.Built` (every cell carries one, saved; written in place where it changed, the
+  cell touched), domains joined, the highest Height and Thickness, the bands' Links joined and
+  the widest Width (a whole floor wins), a Width below 0, a band with no Links or wider than its
+  cell lets it run (an edge, or the link's length through a corner) panicking. **A bridge** —
+  the cells whose `Graded` bands join along their links (an ungraded band, a fence, is none) —
+  runs straight and level from a **head** to a head (the user's word, 2026-10-11: a bridge begins
+  and ends in the middle of a flat tile — no end in a point four cells share): a head's band runs
+  from the middle of its tile into the bridge alone (`Links` that one way), its tile flat at the
+  deck, no railings on it, so the road comes onto it from any side; its deck `Clearance` over the
+  ground under the middle of every cell between at least (`board.Plugin.WithBridges(
+  board.Bridges{Clearance})`, zero by default; a bridge is an entity a cell, many kinds of them,
+  held to hard rules): one breaking
+  them panics as a fresh board is first gathered, with the file and line of its entity in a map
+  (`Lay` notes each `NewEntities` kind's cell), one broken later — an effect, a spawn — is not
+  built, its decks and railings gone, said in the log; held to them again only when what is built
+  or the terrain changed. Over a point `Board.DecksOver(p, visit)` gives every deck, a
+  neighbour's band reaching over too, and `Board.KindFor(c, p, feet, reach)` the kind there: off a
+  band the cell's ground, so a walker beside one has fallen in; `Board.CellFor(p, feet, reach)`
+  the cell whoever stands there is on, a deck's over the ground's (navigation's and the driving's
+  cell of a unit, a right click's target), `Board.LevelFor` the same and whether on a raised deck
+  (a click's level); `Board.Reaches(c, n)` says a Floor runs from c towards
+  n, `Along` counts a band's links; a head lies half a link long `Ahead` of its middle
+  (`world.Lie.Ahead`); where a bridge may be built, and building it, is `plugins/bridges`'
+  (`board.Each[R](level, f)` hands a plugin its own lines of a level, `ground.Shaper` lays a cell
+  flat);
+  `Built.Over` adds the Floor's domains and
+  takes the Wall's off (`Solid` where it keeps any) in `Board.Kind` and `Board.Bare`, so the
+  planner, the driving, `Standing.Fallen` and collision's field (`takes` the Floor, `stops` at a
+  Wall in its band) see them unchanged; `Cells.built` counts the cells something is built over, so
+  a board of none seeks no fifth column. An effect opens one (`Alter` a `Floor`'s `Allows` or a
+  `Wall`'s `Keeps` to 0); a flat world refuses a `Height` the first step. `Board.Built(c)` reads it.
+  **A map is a file** (`map.yaml` beside a demo's code, `//go:embed map.yaml`; the user's format,
+  2026-10-10): `board.Plugin.Lay(fsys, path)` in the Spawn section seeds the board and hands back a
+  `board.Level` holding the entities; `board.Spawn[R](level, board.Sides)` seeds the world with
+  those whose kind's rows are `R`, a type of row at a time — the binding seen in the game's spawn
+  (the user's word: `R`'s fields tagged `yaml` are the file's keys, an untagged one is none); one
+  no Spawn took fails the board's Populate with its line. The file: `board` — `default`, a `legend` (a character a kind, or `{kind, plays, name,
+  group}`), the `cells` drawn a character a cell, spaces left out (a hex row is an r, indented),
+  `entities` standing on it, listed one by one like any entity — a trapdoor a line, never placed
+  by a legend's character (the user's word, 2026-10-10: entities are treated as entities); `relief` — `cells` or `corners` (a square grid), numbers in metres
+  through `world.Scale`, `Level.Heights()` for `topography.Seed`; `ways` — `roads` by kind, `width`,
+  `paths` of points `[x, y]` routed point to point close to the straight line (`network.Route`), a
+  branch beginning on another path; `rivers` a list of paths (the user's word: a river is a list of
+  paths, a tree), each flowing down in the order given to its last point, where its water goes —
+  the sea, another river's cell — and no part of it (the link the painter softens the mouth by), a
+  point `{at, kind, width}` turning its kind from there on and its width cell by cell towards the
+  next point's — the head must give both; every river's cells are laid before the flows. A road
+  never runs over a river: a point `{onto: [x, y]}` at either end of its path leads it onto the
+  bridge or the ford standing there, linked towards that cell without lying on it. With a relief
+  every cell of a `Graded` road lies as Transport Tycoon lays it (the user's word, 2026-10-10):
+  `ground.RoadFits` — level, or an even ramp of `ground.RoadSlope` (10°) at most it runs straight
+  up; a diagonal (never lower on one side than on the other: the user's word, 2026-10-11), a bend,
+  a fork, an end level;
+  on a hex grid `ground.RoadJoins`, one level — refused with the path's line, and the
+  topography's shaping (`relief.KeepRoads`) takes back whole what would break a road.
+  How a river softens into the sea is the renderer's (the painter's `into`, `Mix` by `Along`),
+  never the file's; `units`. An entry is
+  flat: `kind`, `side` (`board.Sides`: the commands a game gives a side), `name`, `group` its own,
+  every other key a field of the row tagged so (`world.Kinds().Lookup` gives the kind's row type,
+  `kind.EntryOf` builds the entry; a `cell.ID` written `[x, y]` however deep it lies, a nested
+  struct read as YAML reads it), a row tagging an entry's own key refused. Every error says the
+  file and the line. Kinds stay in Go; every demo lays its map in one `spawn`. Madeira's maps — both
+  demos (board, board-topography), 204 x 106 cells of 333 m, ten cells of sea round the land at
+  least (`area.sea`: the area grows from the Earth where the land comes nearer, the projection
+  kept on the recipe's centre, a map so grown headed `# The recipe's area begins at [W, N].` and
+  the kept `units:` shifted with it), a map of their own each, the flat one at cells of 50, roads
+  44 and decks 48 (the recipe's `flat:` block) — are made by
+  **`cmd/gramap`** (the user's word, 2026-10-10: a tool making maps of anywhere at any scale)
+  out of a recipe (`cmd/gramap/madeira.yaml`): heights from the Terrain Tiles on AWS (terrarium
+  PNGs, cached under the user's cache; SRTM, EU-DEM, GMTED2010, ETOPO1 — the README credits them),
+  a corner on land only where all four cells round it are, the ground (rock by slope or height,
+  sand on the low coast, forest between heights, earth), rivers by `water.Drain` + `Carved`
+  written as paths, roads routed with the road's height in the search (bends and diagonals keep
+  it — a diagonal on a level cell alone — straight sides climb 10° at most; bands of 20 m; what
+  grading would move priced by `grade`,
+  a leg past `deep` m of cut or fill left out and named — the user's word, 2026-10-11: no tunnels,
+  fewer roads), each leg's planned corner heights honoured by the next (`planned`, joined at one
+  height or kept apart), a road crossing itself refused but under its own bridge, bridges a leap
+  from a road's cell to a head, planned by `plugins/bridges/site` as a game plans a player's (the
+  user's word, 2026-10-11: one mechanism; `chartGround`, `rules`: `longest` cells, `high` m, the
+  dip a figure — `underpass` — deep unless over water, no span beside another bridge's; a leap
+  priced once a search, `leaps`, behind the cheap `crosses`), both heads flat at one deck — a
+  road cell before and after, graded flat whole, no bridge's head twice — the ground under them
+  cut down to it and no road's corner planned over it (`under`), its
+  width the recipe's `deck` — over a road running square across too, `underpass` its recipe's
+  `figure` (the tallest
+  figure as the map's game draws it, metres: Madeira's 90, 1.8 m at 50 times life) and 3 m to
+  spare over it, 5 m without one — fords where a river
+  is shallow, with `-flat` a bridge one cell of water along a side; the grading (`grade`) joins the
+  corners each cell's road holds level into classes (union-find) and only lets ramps apart; the map
+  is laid on a board in relief and run a step (`check`: its bridges built by the bridges plugin
+  as the demos build them, a line each, `{kind: bridge, from, to}`) before it is written and the
+  old file's `units:` kept.
   The cells' tags of places (`cell.Tags`, `Standing.Places`)
   were removed on 2026-10-05: a place is a role its cell plays or what it is called. A cell plays the roles of its kind (`cell.Kinds.Define`) and its entry's own (`cell.Entry.Plays`; a
   `tag.Tags[rule.Roles]` on its entity, `TerrainMap.Roles`) and is called by its `cell.Entry.Name`
   and `Group` (an `entity.Label`, `TerrainMap.Labels`; such cells are made apart, so whoever looks
-  for a name walks few), both for good: the wire demo's plate, lever, trapdoors and gate. The unit's own cell component is `unit.At{Cell}` (was
-  `board.Cell{ID}`). A system of its own (`internal/occupancy`) has the `cell.Occupancy` let go of
-  whoever left the world, every step (`Occupancy.Release`): a despawned unit kept its holds before,
-  blocking cells. What the board does to its terrain over time is effects on the cells' entities
-  (a `Spec`'s `Alter` of `cell.Ground`, `cell.Way`). A state of the ground is an adjective, the
-  kind the noun: an effect turns the kind's knobs in place (`g.Kind.Allows`, `Cost`, `Costing`) and
-  the cell stays the kind it is — a snowed road a road — while what lies on it is a **cover**:
+  for a name walks few), both for good. The unit's own cell component is `unit.At{Cell}` (was
+  `board.Cell{ID}`). A system of its own (`internal/occupancy`, `KeepSystem`, run after the units'
+  pass) has the `cell.Occupancy` let go of whoever left the world, every step (`Occupancy.Release`):
+  a despawned unit kept its holds before, blocking cells. A hold is of a cell on one of its levels
+  (`CanEnter(c, deck, …)`, `Enter`, `Holders` every hold of a cell; 2026-10-12): a walker on a
+  bridge's deck and one on the ground under it share a cell. The same system has every unit hold
+  the cell it stands on (`Board.footing`, `LevelFor`), each step: one holding it nothing — spawned
+  in the game, pushed, thrown while nobody leads it — lets go of the cell it was `At`, is `At` the
+  one it stands on and has `unit.Entered` on; one in the middle of a step holds both its cells and
+  is left to navigation; under a raised deck it holds its cell on the level its feet are on, as it
+  climbs on or falls off. `board.Holds` (Shift+O, `Plugin.ShowHolds`, `Plugin.HoldsRenderer` for
+  the scene's composer; `internal/occupancy.View`) outlines every cell held in its holder's colour,
+  a deck's further in (examples/navigation/spawn). What the board does to its terrain over
+  time is effects on the cells' entities (a `Spec`'s `Alter` of `cell.Ground`, `cell.Way`). A
+  state of the ground is an adjective, the kind the noun: an effect turns the kind's knobs in
+  place (`g.Kind.Allows`, `Cost`, `Costing`) and the cell stays the kind it is — a snowed road a
+  road — while what lies on it is a **cover**:
   `board.Plugin.Covering(e)` is a slot of the board's atlas (the kinds' numbering,
   `terrain.Kinds.NewSprite`) laid over the cells under `e` by the simple map's dressing
   (`internal/draw/covers.go`: the cells' `States` weighed at each tile's corners, side middles and
@@ -915,13 +1145,18 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   recording a `Contact{Terrain: true, Cell}` (no `Meeting`: pairs are of entities). A push apart
   never puts a unit further over ground that does not take it (`collision.Field.Overhang`, the board's:
   the area over cells whose kind allows none of its layers — any, for no layers — water to a
-  walker, a hole; the user's rule, 2026-09-30): `footing` in `resolve` holds the side whose half
-  push would (it bounces as the ground, `holdA`/`holdB`) and doubles the pen for the other, and
-  `moved` keeps any box the tick's later passes — which the engine asks no handler about — would
-  leave worse, rebuilding the space. That arithmetic is `collision/internal/response`, on numbers
-  alone: `Footing`, `Worse` (over a `Ground`, which a `Field` is), the impulse `Exchange` between
-  two `Side`s (inverse mass, bounce, velocity) and `Normal`; the system hands it its sides.
-  Ground turning under a unit is no push: it stays, fallen in.
+  walker, a hole — but a deck's taking one, the whole cell or the band, `BandArea`, so one pushed
+  off a bridge's side is over the water; the user's rule, 2026-09-30): `footing` in `resolve`
+  holds the side whose half push would (it bounces as the ground, `holdA`/`holdB`) and doubles
+  the pen for the other, and `moved` keeps any box the tick's later passes — which the engine
+  asks no handler about — would leave worse, rebuilding the space. That arithmetic is
+  `collision/internal/response`, on numbers alone: `Footing`, `Worse` (over a `Ground`, which a
+  `Field` is), the impulse `Exchange` between two `Side`s (inverse mass, bounce, velocity) and
+  `Normal`; the system hands it its sides.
+  Ground turning under a unit is no push: it stays, fallen in. The ground never turns a unit a
+  hand steers (`steering.Driven.Steers`; `response.Side.Steered`, `Velocity.Slow`: its speed
+  alone; 2026-10-11, the first person on a bridge swung along it walking into the railing); one
+  under orders glances along the wall, which navigation needs to come round its end.
   A bounce's velocity is the entity's own afterwards; a steered unit's speed is its steering's.
   Reactions are rules hosted inside the `collisionSystem`'s own pass: of a `Meeting` per
   confirmed contact between two tags (`rule.Between(a, b)`, `rule.All` for every pair), of a
@@ -946,7 +1181,19 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   aggregate: what the entity struck (`Collider.Contacts()`). Depends on `world`.
 - **`navigation`** — pathfinding/movement toward a `MoveOrder` across a
   `board`. The route finder is `internal/pathfind` (`Finder`: `Find`, `FindAround`,
-  `NearestFree` into a caller's buffer of steps; the plugin's `pathFinder` lays them in `Path`s);
+  `NearestFree` into a caller's buffer of steps; the plugin's `pathFinder` lays them in `Path`s),
+  given the unit's `pathfind.Body{Feet, Step, Height}` (its `Z`): in a world with heights
+  (`WithLevels`, `boardLevels` over the board) its nodes are a cell and a level — a deck's, or what
+  lies under it — on two solvers, one over cells alone where no cell has two; a step onto a deck
+  is taken where the ground at the shared edge lies within the step of the deck, off one only onto
+  a surface within the step (never a planned fall), under one only for a unit that fits under its
+  slab wherever it walks under it (`underway`: the ground read every eighth of a step under the
+  lowest deck over it, `Levels.Over`, the board's `DecksOver`; 2026-10-12, a unit sent from the
+  bridge under itself walked to the head and back along the deck), the goal reached on either
+  level — a unit on its goal's cell on the other level plans on (`keeping.on`), and the goal's
+  cell met mid-route is a waypoint (`Path.through`); a step across a railing (`Board.Fenced`) is refused, a
+  step slantwise on or off a deck taken only along it (`Board.Reaches`), over the corner it cuts,
+  which the leg holds none of (`reserveLeg`);
   `price` is what a step costs: the destination's `CostFor` over the step's
   length, times `Map.Climb` unless the kind is `Graded`; a slantwise step not `Along` a way is
   priced by the destination's `Bare` ground (the corner is cut beside the road) and refused where
@@ -998,41 +1245,46 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   cells a unit stops, re-plans and holds that route for `bumpInterval`. Both are navigation's own
   work: its pass reads the `collision.Collider` contacts of every unit under orders (`bump()`,
   `bumps` set at Install by the spacing: `anyBump` under cells (a contact `Sensed` — a shot, a sensor — bumps nobody), `groundBump` the terrain alone
-  under bodies), no rule of collision's moments. Occupancy is seeded from `At` + `Mover` at Setup. `BodySpacing`: the
+  under bodies), no rule of collision's moments. The board has every unit hold the cell it stands
+  on (from `At` + `Mover` at Setup, then every step), navigation the cells of the steps in
+  progress, each on its level: a `Path`'s steps on
+  a deck by bit (`Path.Decks`, the finder's `Decks()` of the route it found last), a `Leg`'s
+  ends (`FromDeck`, `ToDeck`), its corners on the ground; the driving's hand asks `MayStep` of a
+  level too. A unit standing off its route between steps — the board following it — plans again
+  (`Path.From`, `Path.at`). `BodySpacing`: the
   occupancy is `openOccupancy` (legs are bookkeeping), a unit routes over the ground alone and
   learns of the others by touching them; a group gets its spots from `bodyKeeping.place` (lattice
   round `MoveTo.At`, a box's width apart, far rows first) and goes cell centre to cell centre
   (lanes were tried and dropped at the user's word). Never make a unit see the others ahead: the
   user asked for it to learn by striking. Pushes are collision's and keep units on their ground
   whatever the rules (see collision).
-  **Driving by hand is the players' hand carried out by navigation** (since 2026-10-07, the user's
-  word: navigation steers each unit by what its owner drives with): `players.Drive{Ahead, Turn,
-  Way, Sprint}` summed a tick into the player's `players.Hand` (`Plugin.Hand(by)`, `OwnHand(e)` for
-  an entity's own; drained lazily at the first reader after the players' pass, so navigation reads
-  it a tick after the key as before), and navigation, given the players (`WithPlayers(p)`, after
-  players is made, before Use — players takes navigation as a handler, so the constructors are in a
-  cycle), has its `moveCommandSystem.drive` put the hand on each unit — the owner's whose camera is
-  fastened to it (`camera.Fastenable`), the owner's while the unit is `Selected` with that camera
-  fastened to nothing, or its own — writing `steering.Driven`'s `Ahead`/`Turn`/`Sprint`, `Face` from
-  `Way` (cleared with the hand unless a camera rides the unit, `Behind`/`Inside`, which writes
-  `Face` itself) and the marker `Driving`; a tick without a hand zeroes those (braking) and the
-  `driveSystem` takes the Driven off once the unit stands or has an order, so it steps aside again;
-  a Driven navigation did not give is left alone. Without `WithPlayers` nobody drives by hand.
-  A `MoveTo{Cell, At, Append}` command orders every `Selected` entity the player owns — or, given
-  by an entity for itself (`Order`), that entity alone (`LookAt` too); a
-  `plugin.CommandHandler`, its `DefaultBindings()` make a right click one, Shift appends.
+  **Driving by hand is the driving plugin's** (`plugins/driving`, since 2026-10-07, the user's word:
+  navigation depends on the driving, never the other way, and is not always in a game):
+  `navigation.NewPlugin(board, world, selection, driving)` hands the driving its `driving.Keeping`
+  (`handKeeping`: `MayStep` the spacing's `mayStep`, `Ordered` whether a unit has a `MoveOrder`);
+  a unit whose `steering.Driven.Steers()` gives its order up in navigation's pass (the leg's cells
+  let go, its own cell held); navigation's RunPlan comes before the driving's.
+  A `MoveTo{Cell, At, Append, Level}` command orders every `Selected` entity the player owns — or,
+  given by an entity for itself (`Order`), that entity alone (`LookAt` too); a
+  `plugin.CommandHandler`, its `DefaultBindings()` make a right click one, Shift appends. Its
+  `Level` (`EitherLevel`, `OnGround`, `OnDeck`; the order's and its goals' too) is what the camera
+  picked (`control.Context.Point`, `Board.LevelFor`): a bridge's deck, or the ground seen under it
+  (the user's word, 2026-10-11); a route ends on it (`pathfind.Level`), a group's spots lie on it
+  (`grounded`, `aloft`), the goal's outline stands at its height.
   `WithRenderer` builds the renderer of routes (its GPU lines are `internal/routes`): for every selected unit its goals (`goals`: not a
   `GivingWay` order's Target, a step aside being no goal) as the entity's outline where it will
   stand (`world.Look.Footprint` on the ground, `Marks` tier, always) and, on `Routes{}` (Shift+P,
   `ShowRoutes`), its routes as thin lines over the ground in pieces of the ground's step at the
   ground's depth (`Overlays`), straight through any camera (sprites were interpolated affinely in
-  perspective and wobbled); `RouteStyle` via `WithRouteStyle`. Depends on `board`, `world` and
-  `selection` (its `Selected` tag picks whom a command orders). A unit with a tree is told the
+  perspective and wobbled); `RouteStyle` via `WithRouteStyle`. Depends on `board`, `world`,
+  `selection` (its `Selected` tag picks whom a command orders) and `driving`. A unit with a tree is told the
   facts `Blocked` (from its touches while on the move, held `blockedLasts` after the last) and
   `Arrived` (its order over, until the next); `MoveOrder.HitUnit` tells a unit struck from the
   ground (entity ids start at 0: never use 0 as "nobody").
 - **`entity`** (core) — what every entity carries: `Base`, `Position` (`StepReach`, `MaxStep`,
-  `MaxSpeed`), `Velocity`, `Z`, `Layers`, and `Eye{Height, Angle}` for one that looks (where
+  `MaxSpeed`), `Velocity`, `Z` (`Step`, `Reach`), `Layers`, `Drift{X, Y, Z}` (the velocity it is
+  carried at beyond its walk — falling, thrown — written by gravity alone, moved by the world's
+  move pass with its `Velocity`), and `Eye{Height, Angle}` for one that looks (where
   from and how wide; `Eye.Level(z)`), read by vision's cone and the first-person camera alike; and
   what an entity is called, `Label{Name, Group}` (hashed; `LabelOf`), with whom a command is for,
   `Whom` (`Named`, `Group`, `World`; `label.go`). A
@@ -1050,15 +1302,16 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   `RequestSprint`, `RequestBack`, `Steerable`). `steering.System` (`steering.NewSystem()`),
   registered by the world in every simulation step before movement: turns `Vel.Dir` towards
   `Want` by at most `TurnRate` a tick after `Reflex` ticks, writes `Vel.Value` from the profile;
-  `Halted` holds speed at 0 and the heading. `steering.Driven{Ahead, Turn, Face, Sprint, Flown,
-  Climb}` is an entity steered by hand, two writers of different fields: navigation the hand's
-  (`Ahead`, `Turn`, `Sprint`, `Face` from a `Way`), the topography's camera system the eye's
-  (`Face` while aiming, `Flown`, `Climb`); navigation's `driveSystem` carries it out. Imports
+  `Halted` holds speed at 0 and the heading. `steering.Driven{Ahead, Turn, Sprint, Face, Look,
+  Flown, Climb}` is an entity steered by hand, two writers of different fields: the driving the
+  hand's (`Ahead`, `Turn`, `Sprint`, `Face` the way of a `Toward`), the topography's camera system
+  the eye's (`Look` while aiming, `Flown`, `Climb`); `Steers()` says anything steers it; the
+  driving's `driveSystem` carries it out. Imports
   `entity`, not `world`.
 - **`world/view`** — `view.View{Bounds, Culled, In}` (`Contains(id)`; the view system refreshes it),
   `view.EntitySet` (a bit set by entity index), `view.New(bounds)` and `view.System`
   (`view.NewSystem(space, &views, w, h)`), registered by the world after movement. The world's
-  `Plugin.View/ViewFor` hand out `*view.View`; `players.Player.View` is one.
+  `Plugin.View/ViewFor` hand out `*view.View`, one a camera.
   Imports nothing of the world.
 - **`clock`** (core) — the tactical clock, made and run by the world (`world.Plugin.Clock()`):
   game time is the sum of the simulation's steps, `clock.State{Time, Tempo, Paused}` on the
@@ -1121,7 +1374,7 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   bare goke system hooked before movement, was removed on 2026-10-01). A `clock.Moment` is the clock's own entity's
   (`Moment.Clock`): an effect a clock rule applies lands there, a phase. `Mind{Plan, Running, Slot,
   Since}` holds per-step slots in fixed arrays (`MaxSteps` 128, `Running` a `StepSet`; goke needs
-  exported, fixed-size fields). goke registers 128 component types at most — every fact is one.
+  exported, fixed-size fields). goke registers 512 component types at most — every fact is one.
 - **`rule/effect`** (core) — states on entities for a while, cast from anywhere, made and
   installed by the world (`world.Plugin.Effects()`): `e.Define(name, Spec{Lasts, Stacking,
   Then(next), Grant(tags...), Alter(func(*T))})` registers it and `e.Named(name)` is the `effect.Effect`, carrying its owner
@@ -1151,15 +1404,48 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   player's selected units, those playing a role named; `Plugin.Pointed()`, the entity drawn under
   the cursor a key was pressed with, the nearest; `effectCommand`, unexported, is what they route to). A `Select` hits and unselects only what the issuing player owns
   (`players/owner.Obeys` over the optional `tag.Tags[owner.Family]`), so one `Selected` tag
-  serves every player; `Plugin.Chosen(by)` is the issuer's one selected unit — a
-  `players.Chooser`, whom the players' `Follow` (C) fastens the camera over (selection's own
-  `Follow`, `FollowSystem` and the tag `Followed` went on 2026-10-07). Depends on `world` and the
-  leaf `players/owner`.
+  serves every player; `Plugin.Chosen(by)` is the issuer's one selected unit, and
+  `Plugin.FollowKey(key)` the binding building a `cameras.Follow` of it for the camera the player
+  looks through (C among the `DefaultBindings`; split-screen gives each player its own key): the
+  selection says whom, the cameras plugin knows no selection. The cursor over the world gives a
+  `Hover` every tick (`control.CursorOver`, among the `DefaultBindings`): the entity drawn under it,
+  picked as `Pointed` picks, carries the tag `Hovered` until the next tick — what a ui element
+  `Where(ui.Tagged(Hovered))` stands by; one tag for every player. Depends on `world`, `cameras` (the
+  command type) and the leaf `players/owner`.
+- **`dialog`** — conversations as data (since 2026-10-08, the user's word: content and outcomes of
+  talks are no effects — a Stage has 63 — two effects are their handles; since 2026-10-09 what a
+  talk changes is the game's, not the plugin's: no model of liking in the library):
+  `dialog.NewPlugin(world, Config{Rest})`, handed to `players.NewPlugin`. A `Node` (`Speaker`,
+  `Say`, `Choices`) of `Choice`s (`Text`, `If`, `Then`, `Next` or `End`, `Do` — command names of
+  `world.Commands()`, a `ui.It` in them the speaker), by name, the Stage's: `Plugin.Load(fsys, path)`
+  reads a YAML map of them (`go.yaml.in/yaml/v3`, known fields only; errors with the line and the
+  node), `Plugin.Define(name, node)` in code, both in the plugin's own section — `dialog.Conversations(f)`
+  written with `stage.With` after the commands, before the kinds (`ConversationsPart`) — after the names they
+  use; an answer to an undefined node panics as the Stage is set up. **What an answer changes is the
+  game's**: `Plugin.Changes().Define(name, dialog.Alter(func(v *T, listener)))` — a function of the
+  speaker's component `T`, the game's own on its kinds (`AlterListener`: the listener's), as
+  `effect.Alter[T]` is — named by an answer's `then:`; `Plugin.Conditions().Define(name,
+  dialog.When(func(v *T, listener) bool))` named by its `if:` (an effect's name on the speaker
+  too, `!` denying; a condition named as an effect panics). `T` is a component: fields of a fixed
+  length, no strings — names, nodes and functions live in the plugin, `Talk` keeps a node's hash.
+  Every unit may have lines of its own: `Plugin.Script(node)` is the `Script` component where its
+  conversations begin (`comp.Const` a kind's, `comp.Load` each one's). `DefineEffects()` (Effects
+  section) defines `dialog.TalkingEf` — on the speaker while it talks; taken off by anyone, a rule
+  seeing nobody, the conversation is over — and `TalkedEf` (`Config.Rest` after one talked to the
+  end). Commands: `Begin{At}` an entity's own, `plugin.Aimed` (the listener is the moment's subject),
+  from its `Script` without `At`, refused while either talks; `Choose{Index, Speaker}` from the
+  window's button (a `ui.About`), by a player the listener obeys (`owner.Obeys`), the index among the
+  answers offered now — its changes made, its commands given, on to its next node; `Feel{Change}` an
+  entity's own, aimed: a game's change from a rule (struck, the host likes the striker less). The
+  state is the speaker's `Talk{Node, With}`, given where missing, saved; the `talkSystem` runs under
+  `clock.Simulate`. For a scene, `ui.Text`s: `Window()` (one for every speaker, `Under(TalkingEf)`:
+  `SpeakerText`, `LineText`, a button per `ChoiceText(i)`, `MaxChoices` 6); what a game shows of its
+  own components is `ui.Of`. Depends on `world`, `ui`, `players/owner`.
 - **`players/owner`** — whose a unit is, a leaf importing only `entity/tag` and `control`: `owner.Family`, `owner.Of(id)` (bit id−1, players 1–64),
   `owner.Name`, `owner.Obeys(owners, by)` — an owned unit obeys its owners alone, an ownerless one
   the virtual player `control.Nobody` alone (the game's code, a script, an AI run as nobody). Read
-  by selection, navigation's `moveCommandSystem` and the topography's cameras (`theSelected`):
-  a player selects, orders and rides only its own units. A unit is a player's by the command
+  by selection, navigation's `moveCommandSystem` and the driving's hand: a player selects, orders
+  and drives only its own units. A unit is a player's by the command
   `players.Give{To}` (its one owner; `plugins/players/give.go`, the players' own system, drained
   in their pass), which it gives itself as it is made — `kind.Entry.Told(cmds...)`, the world
   putting an entry's commands for the new entity (`spawnRows`), refusing one no plugin carries
@@ -1167,52 +1453,136 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   Both families every unit carries, all off (roster defaults; attached where missing), so a kind
   names no tag and serves several players; told at spawn, a unit is nobody's and unselectable
   through its first step. A side of its own (the wild, a rival) is `players.Add` owning
-  its units; the island's blue walkers are such a rival's.
-- **`players`** — whoever acts in the game, over `plugin.CommandHandler`s:
-  `players.NewPlugin(world, s.selection, s.nav, ...)` has the world carry each one's `Queues()`
+  its units; board-topography's blue walkers are such a rival's.
+- **`players`** — whoever acts in the game, over `plugin.CommandHandler`s (a player holds a tool in
+  hand, `control.Tool`: `control.Take`/`Drop`, carried out by players as each pass of input
+  begins, `Player.Tool`; while it does, a binding `With` that tool takes its trigger from those of
+  no tool — the user's word, 2026-10-11, TTD's tools: the bridge's left click in place of the
+  selection's — and K lists what fires):
+  `players.NewPlugin(world, s.cameras, s.selection, s.nav, s.driving, ...)` has the world carry each one's `Queues()`
   (the `control.Queue[C]` it drains in its own pass; the world's `control.Carrier` is a stage's
   one carrier, for players and entities alike) and gathers its `DefaultBindings()`; nothing clears
   a queue — a command waits for its handler's pass, given after it for the next frame's (the old
   end-of-frame clear dropped entities' `Despawn`s given in later passes); `Defaults()` is all of
-  them plus `CameraBindings()` for players' own `Pan`/`Zoom`. `Local(name)` is a player at the
-  keyboard over the world's camera and `View`, `Add(name)` one without (an AI, a client);
+  them, the cameras' keys among them. `Local(name)` is a player at the keyboard, `Add(name)` one
+  without (an AI, a client); **a player owns no camera** (2026-10-08, the user's word: a camera's
+  kind and window are how a picture is shown, the scene's): it acts through the picture a scene
+  wires it to; nobody takes players in a constructor, so it may take every handler in its own;
   `Issue(player, cmd)` is how any command comes in (`ErrUnknownCommand` for a type no command handler
   defines). The contract — `Queue`, `Issued`, `PlayerID`/`Nobody`, `Binding` (`Trigger`s
-  `KeyPress`, `ButtonPress`, `Drag`, `Wheel`, `ButtonHeld`, `CursorAtEdge` with exact `Mods`,
-  `Command[C]` built from a `Context` with `World`/`WorldBox` through the camera — a
+  `KeyPress`, `ButtonPress`, `Drag`, `Wheel`, `ButtonHeld`, `CursorAtEdge`, `CursorOver` (once a tick
+  while the cursor lies over the player's picture, issued with `KeyHeld`'s) with exact `Mods`,
+  `Build[C]` built from a `Context` with `World`/`WorldBox` through the camera — a
   `camera.Picker`'s own pick of the ground under the cursor, else `FromScreen`) — lives in
   `control`, and `plugin.CommandHandler` names what defines and carries out commands (one handler
   per command type; events have subscribers, commands a handler), so a plugin with commands never
-  imports players. `Viewports(screen)` is what a Scene showing the world returns as its
-  `game.Viewer`: a viewport per camera the local players look through, in equal columns; players
-  draws nothing, the Scene lists every layer itself. `NewPlugin` registers the owners' family
+  imports players. A player's picture of the world on a ui screen takes `Through(pl)` as its
+  Input (`ui.Image(feed).Input(...)`) — the wire: the active scene alone, before each pass of
+  input, tells the player where the picture lies (`Player.Area`) and what it shows
+  (`ui.Input.Over(area, shown)`, the feed's camera), so the mouse over it is the player's and every
+  command it gives, from a key too, carries that picture's camera (`control.Context.Camera`); two
+  of one player's pictures in one pass panic (one view a scene), a player no scene wires gets no
+  mouse and its keys no camera (`Context.World` through none is the screen's point); it shows the
+  elements pinned to the player's own entities and nobody's (`ui.Owner`, read through a query of
+  owners) and moves its picture's camera for them (`ui.Looker`: `cameras.LookAt`); `IssueAs(pl)` is
+  how a ui scene's buttons and keys give their commands; players draws nothing. `NewPlugin` registers the owners' family
   (`players/owner`) with the world's kinds, 64 names saved by name. Its `eventHandler` is the layer from input to
   commands: per local player it keeps what it has seen of keys and buttons (`input`), matches
   events against the player's bindings and issues what they build; `Player` holds only who the
   player is.
-  `Player.OwnCamera()` (before Use; `world.Plugin.NewCamera`, saved by players) splits the screen
-  (`Columns`, `WithLayout`); keys reach every local player, the mouse the one under it in its
+  Local players acting through pictures of their own, each through a camera of its own, split the
+  screen as the scene lays out their pictures (`ui.Columns`); keys reach every local player, the mouse the one under it in its
   area's pixels; `control.KeyHeld` fires once a tick while its key is down (issued at the end of
   players' RunPlan, for the next tick, so a slow frame still drives every tick). Commands that depend
-  on a camera carry the player's (`selection.Select.Camera`, `topography.Ride{Camera}`). `Player.Bind` refuses two on one
+  on a camera carry the one of the picture the player acts through (`selection.Select.Camera`,
+  `topography.Ride{Camera}`). `Player.Bind` refuses two on one
   trigger holding in one fastening of the camera (`control.Binding.In(hows...)`, `camera.HowOf`;
   only bindings holding in the camera's `How` fire and are listed under K), Setup refuses a command nobody defines; `WithRenderer` draws the marquee of a drag.
-  **Following and driving are the players'** (since 2026-10-07): `players.Follow{}` (C, bound given a
-  `players.Chooser` among the handlers — the selection) fastens the issuer's camera
-  `camera.Centred` over the one unit it has chosen, or lets go; told by an entity as it is made
-  (`Told(players.Give{To}, players.Follow{})`, carried out after its Give in the same pass) its
-  owner's camera is fastened over it from its first step; the `followSystem` keeps every
-  `Centred` camera on its entity (`CenterOn` at its altitude), letting go of one gone; `Pan` lets
-  go. `players.Drive{Ahead, Turn, Way, Sprint}` is the hand (`Hand`, `OwnHand`; see navigation);
-  `DriveBindings()` W/S/A/D `In(camera.Outside)` for a game to bind in place of the camera's own
-  keys (ember-demo, bullet-demo), `DriveKeys(up, down, left, right)` four keys into a `Way`
-  (split-screen: WSAD the red, the arrows the blue), and the `DefaultBindings` carry W/S/A/D
-  `In(camera.Inside)` and the arrows `In(camera.Behind)` for the unit the camera is fastened to.
+  Following and driving are not the players' any more (2026-10-07, the user's word): the cameras
+  plugin follows, the driving plugin drives; players is the layer from input to commands.
   The Scene hands input to `players.Plugin.Handle(events, runtime, composition)` and nothing
-  else: the bindings turn it into commands, `players.Quit` (Shift+Esc) and `players.ShowShortcuts`
-  (K) — default keys of the players' own, listed under "Game" — are carried out there, having the
-  Runtime at hand, `players.Save` (F5) too, and the game's own `SceneKeys` (`Plugin.OwnKeys`: a debug toggle) are
-  run; `players.RunPlan` runs last and empties the queues. Depends on `world`.
+  else: the bindings turn it into commands, `players.ShowShortcuts` (K) — the players' own, which
+  needs the Runtime — is carried out there, and the game's own `SceneKeys` (`Plugin.OwnKeys`: a
+  debug toggle) are run; the other default keys, `GameBindings` (K, F5 `game.Save`, F9 `game.Load`,
+  Shift+Esc `game.Quit`; `WithSaves`, `players.Save` and `players.Quit` went on 2026-10-10), give
+  the engine's commands, listed under "General"; `players.RunPlan` runs last and empties the queues.
+  **The game's own keys are listed apart** (the user's word, 2026-10-12): K lists first, under
+  "Game" (never the game's title, the user's word), what it binds in its Stage's Controls section
+  (`Player.Bind` notes the section) and its `SceneKeys`, then the plugins' keys by plugin, then
+  "General". A plugin's keys a
+  game sets up — `driving.Tank`, `Compass`, `JumpKey`, `cameras.MouseLookKey`,
+  `selection.FollowKey` — are the plugin's, bound in the Players section with the defaults.
+  Depends on `world`.
+- **`cameras`** — the cameras a game looks through: `cameras.NewPlugin(world)` makes no camera;
+  **each is made where a scene shows it** (2026-10-08, the user's word: the kind of camera and its
+  window are how a picture is shown), beside the picture in the Scenes section,
+  `render.NewFeed(s.cameras.New(maker, camera.Config{...}), picture)`, with a maker and a config of
+  its own — `cameras.TopDown()` (`internal/camera`, a flat world, wrapping on a wrapping axis) or a
+  view plugin's (`topography.Plugin.Views(start)`, which refuses a wrapping world: a torus is a flat
+  world's). `camera.Config` has no pixels — whoever shows a camera sizes it (`render.Feed.Resize`
+  every frame) — and says how it starts: `Zoom` (the scale), `Whole` (the whole world in view at
+  every size, centred, the background in bars, not panned or zoomed — a minimap; a
+  `camera.Fitting`; a camera in relief refuses it), `Follow` (the name of the entity it starts
+  fastened `Centred` over, found by its `entity.Label` once in the world), `MinZoom`, `MaxZoom`,
+  `MouseLook`. A top-down camera starts shown at the world's size, a camera in relief as if a pixel
+  wide, both over the world's middle. Every camera is saved — its window, zoom and fastening
+  (one riding `Inside` comes back inside: the topography's camera system fastens it again) — each
+  on its own in the order made, so one made after a Load (a scene's) takes the state of the camera
+  made in its place. A game keeps no camera: tests find them in `Plugin.Cameras()`.
+  Its commands name their camera (`control.Context.Camera`), so it knows no players: `Pan` (lets
+  go of a fastening), `Zoom`, `Follow{Camera, Entity, On}` — fastens `Centred` over the entity, or
+  lets go; from an entity (`kind.Entry.Told`) over that entity — and its system keeps every
+  `Centred` camera over its entity, letting go of one gone; `LookAt{Camera, Entity}` moves it
+  once onto an entity, fastened to nothing (a ui element showing a place far off). `cameras.Keys{Up, Down, Left, Right,
+  ScrollSpeed, Wheel, Drag, Edge}` are a player's keys to its camera, `DefaultKeys()` W/S/A/D, the
+  wheel, the middle drag and the edge (`control.Context.Edges`); a demo whose WSAD drive binds
+  `cameras.Keys{Wheel, Drag, Edge}` alone. Depends on `world`. The engine has no
+  `Runtime.Camera` and sizes no camera: a `render.Feed` gives its camera the size it is shown at.
+- **`driving`** — units driven by hand, with or without navigation:
+  `driving.NewPlugin(world, selection).WithGround(board)`. Its commands `Ahead{Camera, Sprint}`,
+  `Back`, `Turn{Way}`, `Toward{Way}` (the screen's way) add up a tick into a hand — a player's
+  through the camera the command names: on the unit it is fastened to, else on the player's
+  selected units (`owner.Obeys`); an entity's own (`rule.Order`) — written into `steering.Driven`
+  (`Ahead`, `Turn`, `Sprint`, `Face`) with the marker `driving.Driving` (`handSystem`, at once);
+  the `driveSystem` (in the simulation; one query both share) turns the
+  unit — by `Turn`, or to `Look` (the eye's, a riding camera's) before `Face` — walks, brakes,
+  backs, flies it, never onto ground its domain may not take on the level of its feet
+  (`Board.KindFor`) nor where the `Keeping` says no — one under gravity (a `world.Drift`) refused
+  only what is higher than its step (the user's word, 2026-10-11: physics, not blocking; into the
+  water and off an edge as it pleases, the rules deciding) — its `unit.At` and occupancy hold
+  following it with `unit.Entered`; with no hand it brakes and is let go once it stands or
+  `Keeping.Ordered`. `Jump{Camera}` has every unit the hand is on give itself a `gravity.Leap`
+  (`driving.JumpKey(key)`; no default key — Space is the pause); a hand that only jumps drives
+  nothing. Keys are sets: `driving.Tank{Ahead, Back, Left,
+  Right, In}` and `driving.Compass{Up, Down, Left, Right, In}` (`Bindings()`), `DefaultKeys()` WSAD
+  `In(camera.Inside)` and the arrows `In(camera.Behind)`; split-screen binds a `Compass` per player,
+  ember and bullet a `Tank` `In(camera.Outside)`, the platformer a `Compass` of Left and Right.
+  Depends on `world`, `selection`, `board`, `players/owner`, `gravity` (the command's type).
+- **`gravity`** — bodies falling, standing, leaping (since 2026-10-11, the user's word: a
+  character controller as in Zelda BotW, not rigid bodies; one plugin, two modes):
+  `gravity.NewPlugin(world, Config{Pull})`, its own entity carrying the knob `gravity.Pull{X, Y,
+  Z}` (an effect's `Alter` turns it: gravity turned over is an effect; zero, the Earth's as the
+  figures feel it, `Scale.Figure(9.81)`). A kind falls carrying `gravity.Body{Leap}` (how high it
+  leaps); `giveSystem` puts a `world.Drift` on it once a tick where missing, and the topography's
+  altitude system leaves whatever carries one alone. The mode is `world.Config.Heights`, each
+  refusing the other's facts (a pull across a world with heights, `WithSurfaces` in a flat one):
+  with heights the `fallSystem` (`internal/vertical`: `Step`, `Leap`, `Throw`) stands a body
+  every step on the surface under its centre (`WithSurfaces(board.Surfaces)`, read with its feet
+  as they were before the step so a fast fall lands on a deck it came over) within its reach down
+  — a slope never puts it in the air, a deck's edge, a leap, a throw do — flies it under the pull,
+  stops its head at a slab's underside and lands it; a flat world's `planeSystem`
+  (`internal/planar`: `Settle`, `Fall`) has collision's contacts (`Collider.Contacts`, not
+  `Sensed`) take the drift running into them, a body borne by one facing against the pull (n·ĝ
+  under −0.7, and not leaving it) — the pull presses it every step so the touch is found again —
+  braked across the pull while borne, never faster than its step cap; a wall bears nothing, the
+  pull turned up lands everything on the ceiling. `unit.Airborne` (the board's units' marker) is
+  on while in the air; a body without the board's markers is no body. Commands, an entity's own:
+  `Leap{}` (v0 = √(2·g·Leap); none in the air), `Away{Speed, Rise}` (`plugin.Aimed`: thrown off
+  from the moment's subject — a `bullet.Blast`'s shot, its `Subject` — else back from the way it
+  faces), drained in the simulation's step, so none is lost at tempo ½ or in the pause. A
+  `Landing{ID, Speed}` is told the rules hosted (`plugin.Rules`) once as a body lands, its rules'
+  `If` saying how hard is a fall (the platformer's daze). Run it right after collision's RunPlan.
+  Depends on `world`, `board/ground`, `board/unit`, `collision`.
 - **`vision`** — narrowed perception: a `Sight` cone scanned against `world`'s
   space each tick fills the entity's `Sighted` (who it can see, nearest first; given by vision
   where missing — `Sight` is a knob vision only reads, `Sight.Ahead` looks the way it moves,
@@ -1227,24 +1597,61 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   sight has heights instead: the cone's eye is where the unit's `world.Eye` stands (`Eye.Level`:
   `Height` over `Z.Altitude`, its top for none) and as wide as `Eye.Angle` — the one Eye the
   first-person camera rides at, so the cone is what the rider sees; a Sight without an Eye is not
-  scanned — every entity spans its `Z`, the ground is the board's heights sampled every
-  `WithGroundStep` (default: a sixteenth of the radius; the renderer drapes the shadows in the
-  same step), and a hawk 40 up looks over the wall, the forest and the hill a walker's cone stops
-  at; `Blockers` are refused there, `Eye.Height` in a flat world. It
+  scanned — every entity spans its `Z`, the ground is the board's heights read along every ray
+  where it is a `ground.Profile` (the topography's relief, `Relief.Along`: the points where the
+  ray crosses a cell's edge or the diagonal its top is folded along, read off the corners — the
+  ground straight between them, so aabbworld's `Cone.Profile` decides what it hides exactly, the
+  ground where a ray meets a box hiding the box too; since 2026-10-11, after board-topography fell
+  to 8 FPS sampling every 50 m) and else sampled every `WithGroundStep` (default: the board's
+  cell; the renderer drapes the shadows in that step), and a hawk 40 up looks over the wall, the
+  forest and the hill a walker's cone stops at; `Blockers` are refused there, `Eye.Height` in a
+  flat world. How far and how wide a cone reaches is the entity's own — `Sight.Radius`,
+  `Eye.Angle` — given per kind (the user's word, 2026-10-11: they stay where they are). Every
+  observer is scanned every step, or `WithFrequency(perSecond)` times a second of game time, the
+  observers taking turns (`id.Index() % n` the step: an even share a step); with heights a scan is
+  shared among goroutines from 2 observers a worker (`elevatedPerWorker`), flat from 8. It
   hosts rules of a `Sighting` inside the scan's own pass: once
-  a tick per observer carrying `a` (`rule.Between(a, b)`), with everything in view carrying `b`
+  a step per observer carrying `a` (`rule.Between(a, b)`), scanned that step or not, on what it saw
+  at its last scan, with everything in view carrying `b`
   — a directed pair, grouped by observer, empty included. Its `Subject` is the nearest seen, so
   an aimed command (`steering.Away{}`, `steering.Toward{}`) given on it is about that one and
   fails with none in view. Its conditions for a rule's `If` are
   `Sighting.Nobody` (none in view) and `Sighting.Closing` (the observer and the nearest seen on a
-  collision course); chasing, fleeing and searching are the game's rules (`examples/vision-demo`). `WithLog(log.Default())` writes a line the
+  collision course); chasing, fleeing and searching are the game's rules (`examples/rules/vision`). `WithLog(log.Default())` writes a line the
   first time one sees another — the scan's own work. The views drawn are every observer's, unless
-  `render.Show` rules given at construction pick some (`vision.Plugin.WithViews(render.Show(selected.In))`,
-  an option like navigation's WithCrowd). A
+  `render.Show` rules pick some (`vision.Plugin.WithViews(render.Show(selected.In))`, given in the
+  scene as the renderer is made). A
   `plugin.CommandHandler`: the views start hidden and
   `Cones{}` (Shift+C) shows every view drawn — cones and shadows — and hides them again
-  (`Plugin.Hide`, `Hidden`; the renderer composes nothing while hidden, the scan goes on); a
-  look, not saved. Hand the plugin to `players.NewPlugin` for the key. Depends on `world`.
+  (`Plugin.ShowCones`, `HideCones`, `ConesShown`; `Hide(bool)` went on 2026-10-10; the renderer
+  composes nothing while hidden, the scan goes on); a look, not saved. Hand the plugin to
+  `players.NewPlugin` for the key. Depends on `world`.
+- **`bridges`** — bridges built by one set of rules whoever builds them (since 2026-10-11, the
+  user's word: a mechanism a player builds by and the map maker uses): `bridges.NewPlugin(world,
+  board, Config{Rules site.Rules, Builds})`, `WithShaper(ground.Shaper)` (the topography:
+  `topography.Plugin.Flatten`, a cell levelled through `KeepRoads`). `bridges/site.Plan(Ground,
+  Rules, from, to, deck)` is where one may stand, pure: straight along one of the grid's
+  directions (`Line`, the way by geometry), `Longest` cells (3, the user's word), its heads Takes
+  and on no bridge, every span's ground `Clearance` under the deck but the corners a head shares,
+  no higher than `High`, never over another bridge nor beside another's span (heads may touch),
+  something crossed — water, or ground `Under` the deck (the figures' height, never metres: the
+  user's word), in a flat world water or what the road may not take — a road under it only square
+  across and `Under` it, the heads levelled within `Reshape` breaking no road (`ground.RoadFits`
+  with the corners moved), a pier between every two spans (`Piers`); a `Refusal` says why,
+  formatted when read. Kinds: `Plugin.Types().Define(name, Spec{Allows, Width, Thickness, Cost,
+  Rail, Pier})` — the name a level's lines call a bridge by (a world kind of `bridges.Row{From,
+  To}`, never spawned), `<name>.deck` (`board.NewEntities`: a Graded band, a head one link, a span
+  both ways, Height over the cell's level) and `<name>.pier` (a still collider from the ground to
+  the slab's underside, drawn standing); `Type.Deck()`/`Pier()` the atlas's slots. A level's
+  bridges: `Plugin.Spawn(level)` in Spawn (`board.Each`), laid as the file says, held to the rules
+  at its `Populate` once the board is laid (an error with the line). A player's: `Tool`, Shift+B
+  (`control.Take`), with it the cursor `Aim`s, a left click (`Drag`) `Mark`s the first head, then
+  the other where it may stand, asking; right click and Esc `control.Drop`; the hand per player in
+  the plugin, forgotten `forget` ticks unaimed; the renderer lays it out at the deck's height,
+  yellow refused, green standing; `Window()` asks "Build the bridge?" (`ui.WindowOf` of a text
+  saying nothing while none asks, `Modal`), `Reason()` says why not; `Build` levels the heads and
+  `world.Spawn`s the parts at the next step of the simulation (the pause waits), `Cancel` keeps the
+  first head. The board's own check (`keepBridges`) stays what a built bridge must be.
 - **`bullet`** — shots as entities of the world: the plugin's own register (`Plugin.Shots()`;
   `NewShots(w)` alone in a test) — `Shots.Define(name, Body{Size, Speed,
   Range, Gravity, Lands}, extra...)` registers an ammo, `Named` the `Ammo`, a kind whose entities carry a `Collider` without
@@ -1269,7 +1676,8 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   landing cast) and is despawned; one that `Left` is marked `world.Outside` for the world's exit
   pass. A landed shot that `Lands` is a `Resting` every step; `Burst{Radius}`, an entity's own
   (`Order` in a Resting rule), has the `burstSystem` (after a Sync) query the space round it and
-  dispatch a `Blast{Self, Other, Distance}` (`plugin.PairRules`) per entity within the radius, then
+  dispatch a `Blast{Self, Other, Distance}` (`plugin.PairRules`; its `Subject` the shot, so an
+  aimed command under `ForOther` — `gravity.Away` — is about it) per entity within the radius, then
   despawn it. A wrapping world is refused at `Install`. The `Meeting` of a shot and what it struck is
   collision's. A shot is dressed as any entity: a state's look by `render.Slot.Under`, the way it
   flies out of the box: the plugin keeps a shot's heading on its `Base.Vel.Dir` (`Value` stays 0 —
@@ -1278,7 +1686,7 @@ switch each a command for a group of cells; the trapdoor and pressure plate demo
   arena holds plugins alone (the user's word, 2026-10-06; `Alter(world.Appearance)` for an
   effect's look went the same day — a look is drawing, `Under`, never the Spec's).
   A weapon — ammo, reloading, who carries it — is the game's rules and effects
-  (`examples/bullet-demo`: wounds, a fuse `Then` bang, a Resting rule under bang ordering the
+  (`examples/motion/bullet`: wounds, a fuse `Then` bang, a Resting rule under bang ordering the
   Burst). Depends on `world`, `collision`, `selection`, `players/owner`, `board/ground`.
 
 Each package has a `doc.go` describing the gameplay capability it adds.
@@ -1287,7 +1695,7 @@ Each package has a `doc.go` describing the gameplay capability it adds.
 
 A `game.Game` also supplies `Props()` (window/tick-rate config, read
 once at startup by `gram.Run(g)`; `Resizable` makes the screen the window — the engine's
-`Layout` follows it and hands the active world's camera `SetViewport`, whose zoom floor scales a
+`Layout` follows it and hands the cameras of the visible scenes' viewports `SetViewport`, whose zoom floor scales a
 world smaller than the window up to cover it; F11 toggles fullscreen in every game,
 `Runtime.ToggleFullscreen`; `TargetTPS` is the engine's own fixed
 step — the window's loop (gogpu, paced by the swapchain) runs one `Update` per frame, stepping as
@@ -1295,15 +1703,16 @@ many times as the time gone says, and a frame that falls behind runs at most 5 s
 rest, so the game slows down instead of spiralling; what is drawn goes by `clock.Clock.Shown`, the
 game time run on past the last step by the time held toward the next) alongside a named collection of
 `game.Stage`s plus which one starts active (`Stages() (map[string]Stage,
-string)`) — every game writes its own small `Game` implementation, even
-for a single Stage, since only a concrete type can supply its own `Props`.
+string)`) — `game.New(props, stages...)` is that `Game` (since 2026-10-09, the user's word: no
+mechanical `Demo` type with `Props` and `Stages`), the first stage starting unless
+`Defined.Starting(name)` says; a game wanting more writes its own.
 A `Stage` is what `Game` itself used to be:
-`Init`/`Restore`/`Spawn`/`Update`, each with its **own** `*goke.ECS`, built
-fresh (plus a fresh `world.Plugin` if its `Init` calls `ctx.UseWorld`; the
-engine only fills an unset camera viewport from the screen size) the moment `Runtime.SwitchStage`
+`Init`/`Spawn`/`Update` (`Loaded` in place of `Spawn` when entered from a save), each with its
+**own** `*goke.ECS`, built
+fresh (plus a fresh `world.Plugin` if its chain begins with `World`) the moment `Runtime.SwitchStage`
 enters it — so a menu Stage can sit idle with zero gameplay entities until
 the player actually starts the game, at which point the gameplay Stage's
-`Init`/`Restore`/`Spawn`/`ecs.Setup` run for the first time. A `Stage` is
+`Init`/`Spawn`/`ecs.Setup` run for the first time. A `Stage` is
 never a `plugin.Plugin` — it's the thing that *installs* plugins via
 `ctx.Use`, exactly like `Game` did before. Its `Init` gets a `game.Initializer`: `Use`,
 `UseWorld`, `Track`, `TPS`, the embedded `plugin.Installer`, and `Commands`; it has no way to hand a rule
@@ -1314,7 +1723,7 @@ is a plain helper function each of their `HandleEvents` calls, not an
 engine concept.
 
 Within one active `Stage`, `game.Scene` is what `Game.Draw`/`HandleEvents`
-used to be: `Name`, `Layers() []render.Layer` (built once, on entering the Stage: `render.Renderer`s drawn on the screen, `render.WorldRenderer`s — a `render.Composer` over the plugins' `Source`s — drawn per viewport of a `game.Viewer` scene, a run of them onto an image of the viewport's area unless it covers the screen; each layer is Init once however many scenes list it), `HandleEvents`,
+used to be: `Name`, `Layers() []render.Layer` (built once, on entering the Stage: `render.Renderer`s drawn on the screen, each Init once however many scenes list it; a world layer listed straight in a scene is refused — the world is shown through a `ui.Image` of a `render.Feed`, `game.Viewer` and the engine's viewports went on 2026-10-08), `HandleEvents`,
 `Focusable`. `Stage.Stack()` is the static, `Name()`-keyed registry of
 every `Scene` it can show (`game.NewStack(scenes...)`); `Stack.Composition()`
 (the only way to reach it — `Stage` has no accessor of its own) is the live
@@ -1329,51 +1738,159 @@ registers it once via `ctx.Track(composition)` in `Init` so visibility/
 order survive `Persistence.Save`/`Load` automatically, the same name-keyed
 way a `Plugin`'s own state does.
 
-`Runtime` (`Paused`/`Pause`/`Resume`/`TogglePause`/`Quit`/`SwitchStage`/
-`Persistence`/`TPS`/`Camera`) is a single, undivided interface — the exact
-same value reaches both a `Stage` (via `Initializer`/at Restore time) and
+`Runtime` (`Paused`/`Pause`/`Resume`/`TogglePause`/`Quit`/`SwitchStage`/`Save`/`Load`/`Issue`/
+`Persistence`/`TPS`/`ToggleFullscreen`/`Props`) is a single, undivided interface — the exact
+same value reaches both a `Stage` (via `Initializer`) and
 every `Scene`'s `HandleEvents`; there is no cut-down "scene-level" subset.
-A menu scene's "Start" button calls `runtime.SwitchStage(gameplayStage.
-Name())` directly, no need to bubble a click up through anything. Anything
+A menu scene's buttons give the engine's commands — `game.Enter{Stage}`, `game.Load{Stage}` —
+through the Runtime directly, no need to bubble a click up through anything. Anything
 that's a *plugin's* capability rather than an engine primitive (camera,
 selection, navigation...) reaches a `Scene` the same way it reaches a
 sibling `Plugin`: constructor injection at `Stage.Init` time, as a plain
 struct field — never through `Runtime`.
 
 **A Stage is defined a section at a time** (`game/stage`, since 2026-10-05; every demo and
-`examples/minimal`): `stage.New(name).Plugins(f).Players(f).Effects(f).Rules(f).Commands(f).Cells(f)
-.Kinds(f).Controls(f).Scenes(f).Shows(names...).Restore(f).Layout(f).Units(f).Update(f)`
-hands back a `game.Stage`. Each link returns a type holding the links after it and none before
-(`Start`, `AfterPlugins`… each embedding the next), so a chain out of order does not compile, a
-link may be left out, and `Update` alone must come. A section takes a function of whatever shape
-it needs (`stage.Step`: with the Initializer or not, an error or not; `Scenes` one returning
-`[]game.Scene`). The Stage so built keeps its name, makes the stack, shows the first scene or
-those `Shows` names, tracks the Composition, starts fresh without `Restore`, and seeds `Layout`
-then `Units` in `Spawn`. The order is what builds on what: players before the kinds, effects
-before the rules, roles before the commands for their players (`selection.Selected(role)`) and
-the kinds playing them, everything before the keys; what is drawn — atlases, an effect's looks, a
-board's covers — is the scene's `Layers`. A demo groups its plugins in an **arena** (the user's
-word, 2026-10-06), the collector every section builds on: `newArena()` makes the `arena` struct
-(plugins and players alone, no embedded Stage) and hands back it and the `game.Stage` defined on
-it (`stage.New(name).Plugins(a.usePlugins)…`), the sections the arena's methods (`usePlugins`,
-`definePlayer`, `defineEffects`, `defineRules`, `defineCommands`, `defineCells`, `defineKinds`,
-`bindKeys`, `defineLooks`, `defineScenes`, `layOut`, `placeUnits`, `update`); the demo's `Demo`
-keeps both, its scenes the arena. **A thing in its section**: the Stage tells
+`examples/start/minimal`): `stage.New(name).World(cfg).Plugins(a.makePlugins).Players(f).Effects(f)
+.Rules(f).Commands(f).Kinds(f...).Controls(f).Spawn(f...).Scenes(f).Shows(names...).Update(f)`
+hands back a
+`game.Stage` (the order since 2026-10-08, the user's word: the scenes last, once the world is
+there; `Cells` went into `Kinds` and `Layout` and `Units` into `Spawn` — the board's words left
+the core). Each link returns a type holding the links after it and none before (`Start`,
+`AfterPlugins`… each embedding the next), so a chain out of order does not compile, a link may be
+left out, and `Update` alone must come. A section takes a function of whatever shape it needs
+(`stage.Step`: with the Initializer or not, an error or not; `Scenes` one returning
+`[]game.Scene`); `Kinds` and `Spawn` take several, run in their order —
+`Kinds(s.defineCells, s.defineKinds)`, `Spawn(s.spawn)` (board-topography's
+`spawnGround`: the board and its heights). `World(cfg)` makes the world from `cfg`, anew each time
+the Stage is entered; `Plugins(func(w *world.Plugin))` after it has the arena make the plugins over
+it and uses them in the order made (the world's `Made()`); `Plugins(func(made *plugin.Made))` the
+same for a Stage without a world, each plugin adding itself to `made` (a menu's has neither; the
+`Plugins` taking the Initializer and the lists of plugins handed back went on 2026-10-09). **A plugin may have a section of its own** (since 2026-10-09, the user's word: the
+chain's words grow with the plugins, the core keeps none of theirs): `section.Define(name, after,
+before)` names a part between two of the Stage's, `section.Of[P](part, f)` is a `section.Section`
+running `f` with the plugin of type `P` the Stage uses, and every link from `World` to `Controls`
+takes `With(sections...)` — the section runs where it is written; written after the part it comes
+before, or before the part it comes after, it panics as the chain is built; a Stage using no `P`
+fails `Init`. The dialogs' is the first: `With(dialog.Conversations(s.defineConversations))` after
+the commands, before the kinds. The Stage so built keeps its name and makes its scenes once the
+world is there — in `Loaded` when the engine entered it from a save (the `Restore` link went on
+2026-10-10: loading is the engine's), else at the end of `Spawn`: the stack, the first scene shown or those `Shows` names (a loaded game those shown
+when saved), the Composition and the ui scenes tracked — a value tracked after a Load gets its
+saved state as it is tracked. The scenes are made before `Populate`: nothing in them reads the
+entities spawned. The order is what builds on what: players before the kinds, effects before the
+rules, roles before the commands for their players (`selection.Selected(role)`) and the kinds
+playing them, everything before the keys, the world before the scenes that show it; what is
+drawn — atlases, an effect's looks, a board's covers, the cameras — is the scene's. A demo groups its plugins in an **arena** (the user's
+word, 2026-10-06), the collector every section builds on. A demo's `main` is in its `demo.go`
+— no `main.go`, no `NewDemo` (the user's word, 2026-10-10) — and defines the game where it runs
+it: `props := game.Props{…}`, `a := &arena{}`, `mainStage := stage.New(name).World(cfg).Plugins(
+a.makePlugins)…Update(a.update)`, `gram.Run(game.New(props, mainStage))`. The arena holds plugins and players alone (no embedded
+Stage); the sections are its methods (`makePlugins`, `definePlayer`, `defineEffects`,
+`defineRules`, `defineCommands`, a plugin's section's own like
+`defineConversations(d *dialog.Plugin)`, `defineCells`, `defineKinds`, `bindKeys`, `spawn`,
+`defineScenes`, `update`). **A demo's scene is apart**, in `scene.go`: a
+`mainScene{arena: a, …}` builds it out of the arena's plugins — its colours, `picture()` (the
+atlases, `WithRenderer`, the composer) and `screen()` (the ui tree) — and the arena's
+`defineScenes` only makes it (`ui.NewScene(MainScene, m.screen())…`). A game's `Props.Title` is
+its window's, a short name (`"gram dialog demo"`); `Props.Description` says what it is and how it
+is played, shown under the title of the players' list of shortcuts (K; `Runtime.Props()`). A demo's names — its Stage's and its scenes' too (`…Stage`, `MainScene`) —
+are constants in `names.go`. **A thing in its section**: the Stage tells
 the engine which part begins (`plugin/section`: `Part`, `Reader`, `Writer`, `Check`, `Must`; the
 engine's `initializer` is the `Writer`), and what is defined in another is refused — `ctx.Use`
-and `UseWorld` (Plugins), `players.Add`/`Local` (Players), `cell.Kinds.Define` (Cells),
-`Effects.Define` (Effects, through `Effects.Guard`), `world.Roles().Define`, `world.Plans().Define`, `world.Plays` (Rules), `world.Commands().Define` (Commands), `kind.Define` (Kinds), `Player.Bind` (Players or
-Controls), `board.Seed` (Layout), `world.Seed` (Units) — by
+and `UseWorld` (Plugins: the Stage's `World`/`Plugins` link), `players.Add`/`Local` (Players), `Effects.Define` (Effects, through
+`Effects.Guard`), `world.Roles().Define`, `world.Plans().Define`, `world.Plays` (Rules),
+`world.Commands().Define` (Commands), `cell.Kinds.Define` and `kind.Define` (Kinds), `Player.Bind`
+(Players — the plugins' keys — or Controls — the game's own, listed apart under K), `board.Seed`,
+`board.Lay`, `topography.Seed` and `world.Seed` (Spawn), a dialog's
+`Load`, `Define`, `Changes`/`Conditions().Define` (its `ConversationsPart`) — by
 an error where the call returns one, a panic elsewhere, each through
-`world.Plugin.InSection(what, want...)`. `Plugins` takes anything (plugins define their own as
-they are made), and a Stage written by hand is in no section: nothing is refused, so every test
-installer works as before. A plugin that needs a game's definitions takes them after it is used
-(`atmosphere.Plugin.WithWeathering` any time before the Stage is set up).
+`world.Plugin.InSection(what, want...)`. `World`/`Plugins` take anything (plugins define their
+own as they are made), and a Stage written by hand is in no section: nothing is refused, so every test
+installer works as before. **How things look is the scene's** (since 2026-10-10, the user's
+word): `picture()` of a demo's `scene.go` sets what is drawing and nothing else does —
+`board.WithAtmosphere`, `topography.WithAtmosphere`, the painter's styles
+(`topography.Style`), `vision.WithViews`, `vision.ShowCones` — while `makePlugins` configures what a
+plugin does (`vision.WithBoard`, `atmosphere.WithWeathering`).
 
-See `examples/scenes-demo` for a full walkthrough: a menu `Stage` with no
-gameplay entities, "Start" switching (lazily building the ECS) into a
-gameplay `Stage`, and a togglable modal `Scene` over the still-ticking
-world plus a non-focusable HUD overlay.
+### UI: a scene's screen composed of elements (`ui`, since 2026-10-07)
+
+The user's model: a Stage has many scenes (Civilization: the game, a city, the tech tree), each a
+composition of a view built out of elements. Two levels of composing, never mixed: **the world**
+(2.5D/3D) stays `render`'s — a Composer, tiers, the shared depth buffer, `Direct`; the order there
+is depth's, so a route hides behind a hill and a unit in a tunnel behind the ground — and **the
+screen** (2D) is `ui`'s tree, the order its containers' names say. **ui knows no camera** and no
+`render` rule (the user's word, twice: "nie mieszajmy ui z kamerą", "nie można mieszać render z
+ui"): the world through a camera is a `render.Feed` (`render.NewFeed(cam, picture)`: a picture —
+any `render.Picture`, a Composer as a rule — drawn through the camera every frame into an image of
+the size it is shown at, the camera's viewport with it; `render.Surface` is `Resize` and `Draw`;
+`ToWorld`/`ToPixels` turn its pixels into the world and back), which `ui.Image(feed)` shows as any
+picture. `ui.NewScene(name, screen)` is a `game.Scene` made once the world is there, its screen
+the tree (one layer: the tree laid over the screen and drawn every frame; each picture its feeds
+show — `render.Feed.Picture` — initialised once however many feeds show it); `Scene.Input(players.Handle)`,
+`Issue(players.IssueAs(pl))` for its buttons and keys, `Keys(bindings...)` the scene's own,
+`Show`/`Hide`/`Toggle`/`Shown` by name, `Lay(screen)` (what a frame does before drawing — tests
+call it), and it saves which named elements are shown (`Persisted`/`Restore`: the Stage tracks
+every scene that is a `plugin.Serializable`, the engine keys a tracked value by its type and its
+`Name()`). **The notation says what it does** (the user's word): `ui.Layers(bottom, …, top)`
+covers, `ui.Columns`/`ui.Rows` split and never cover, each part `ui.Share(n, el)` (n parts of what
+is left: two `Share(1, …)` are halves), `ui.Fixed(px, el)`, `ui.Fit(el)`; an anchor wraps its
+element — `ui.BottomMiddle(el).Size(w, h).Margin(px)`, nine of them — never `el.At(anchor)`.
+Elements: `Panel`, `Label` (in the theme's font: `render.Font`, Go Regular through x/image's
+opentype, glyphs drawn on demand into a sheet, Polish letters and all; `render.DrawText`),
+`Image`, `Window`, `LabelOf`/`ButtonOf`/`WindowOf` (their words read off a `ui.Text` every frame,
+`Text(of, pinned)`, for the entity a pinned element is shown for — `ui.Of[T]` reads a component of
+it; a Text saying nothing leaves the element out — no room, no hit), `Button(label,
+cmds...)` (the scene's own `ui.Show`/`Hide`/`Toggle{Name}`, or any command through `Issue` — a
+button gives commands the way a key does, no callbacks into the game), `Blank` (a gap, a divider
+with a `Fill`), `Layer(renderer)` (a screen renderer as an element, the telemetry); any element
+takes `Fill`, `Border` (drawn over its content), `Padding`, `Named`, `Hidden`, `Modal` (it holds
+every click and the wheel outside it while shown) and `Masked(ui.Circle | ui.Polygon(...))`: layout
+gives boxes, the shape is drawing and hitting inside the box (a round clock, a hexagonal minimap;
+`render.Image.DrawImageIn`, `FillPolygon`). `ui.Theme{Font, Text, Shadow, Panel, Border, Title,
+Button}` is how elements look where they say nothing of their own (`Scene.Theme`; an element's own
+`Fill`/`Border` wins). A feed filling the screen is drawn straight onto it (`Feed.DrawOn`, as the
+engine drew a full-screen viewport: board-topography measured the same through ui as before).
+Input: a click goes to the topmost element hit — a
+button gives its commands, an `Image(feed).Input(players.Through(pl))` lets it through to the
+players' bindings (and, the scene being active, tells the player before each pass of input where
+its picture lies and what it shows — `ui.Input.Over(area, shown)` — so its commands go through
+that picture's camera), any other element keeps it. An anchored element may ask for a fraction of
+its parent's box (`Element.Fraction(w, h)`, kept as the window changes), an axis asked for as 0
+following the proportions of the world a feed shows whole (`render.Feed.Proportions`): a minimap a
+fifth of the screen wide. **Elements from the game are pinned to
+entities**, written as `Under` on the atlas: `ui.Label("frozen").Under(effects.Named(FrozenEf))`
+is shown once for every entity the effect is on, `.On(entity.Named/Group(...))` for those called
+so; the scene finds them in the ECS itself every frame (a query over `tag.Tags[effect.States]`,
+`entity.Base`, `Z`, `Label`), `Above` (default)/`Below`/`Beside`/`Offset` say how it stands by its
+entity in every picture of the world that has it in sight and shows it (`ui.Owner`: a player's
+picture shows its own entities and nobody's — a unit's element in its owner's half of a split
+screen), kept on the screen; `OffScreen(ui.PointAtIt
+| ui.ShowIt | ui.GoToIt)` what it does out of sight — the camera moved by a command
+(`cameras.LookAt{Camera, Entity}`, once, fastened to nothing) through the picture's Input
+(`players` implements `ui.Looker`); an entity with no place (the world's own entity, a plugin's)
+has its element where its parent lays it; a modal pinned element shows one entity at a time. A
+pinned element's button gives every `rule.Command` for `ui.It` (`rule.Lift(greeting).On(ui.It)`,
+defined in the register as any) for the entity it is shown for — `entity.ID(id)`, a `Whom` of
+identifiers the world finds at once: one window serves every host; a plugin's own command that is
+a `ui.About` (`dialog.Choose`) gets the entity the same way. `Element.Where(ui.Tagged(t))` pins an
+element to the entities carrying a tag of any family (the one hovered). A conversation is the
+dialog plugin's (`examples/rules/dialog`): the miller and the smith, lines of their own in
+`dialogs/*.yaml`, a host's rule of a `vision.Sighting` gives `dialog.Begin{}` while it is neither
+talking nor just done, another takes `TalkingEf` off once nobody is in sight; `Window()` above the
+host. What the answers change is the demo's own `Regard` (`regard.go`: how much a host likes each it
+talked with), its changes (`warm`, `offend`…) and conditions (`friend`, `enemy`) defined by name;
+under the hovered host `ui.LabelOf(ui.Of(func(r *Regard) …))` says Friend, Neutral or Enemy towards
+the selected traveller. `ui.Of[T](fn)` is a `ui.Text` read off the component `T` of the pinned
+entity (the scene binds it to its ECS as it begins). Every demo shows its world
+through a ui scene made in its `defineScenes`: `picture()` (atlases, `WithRenderer`, the composer,
+handed back, kept nowhere) and the screen — the feed through a camera made beside it, the
+player's view, a backdrop `Blank`, the telemetry and the clock's HUD as `ui.Layer`s. The scenes-demo's menu and the players' list of shortcuts stay
+scenes of screen layers: their keys switch the Stage and quit through `game.Runtime`.
+
+See `examples/start/scenes` for a full walkthrough: a menu `Stage` with no
+world, a ui scene of the engine's commands — "New game" entering (lazily building the ECS) the
+gameplay `Stage`, "Continue" entering it from its save, "Quit" — M in the game back to the menu,
+and a togglable modal panel over the still-ticking world.
 
 ### Game / persistence
 
@@ -1393,6 +1910,21 @@ or the Go type name for anything tracked without one) rather than by
 position, so a save survives plugins being added/removed/reordered
 between game versions — see `internal/engine/persist.go`.
 
+**Saving and loading are the engine's** (since 2026-10-10, the user's word: loading must be
+possible from another Stage — a menu — and saving belongs to neither the Stage nor a plugin):
+commands like any other, `game.Save{Slot}` (the active Stage), `game.Load{Stage, Slot}` (enter a
+Stage, "" the active, from its save; checked first — a save not there is an error and nothing
+changes), `game.Enter{Stage}` (afresh, `SwitchStage`), `game.Quit{}`, bound to keys (the players'
+`GameBindings`) or ui buttons (a scene without `Issue` gives them through `Runtime.Issue`, as
+nobody: scenes-demo's menu). The engine is their handler: its queues (`internal/engine/commands.go`)
+are in every Stage's carrier — the world's, or the initializer's own for a Stage without a world —
+and it carries them out after the input, before the ticks, so a rule's `Order` saves too.
+`Runtime.Save`/`Load`/`Issue` are the same at hand. A save is a Stage's: `filepath.Join(
+Props.Saves, stage)` as the base path of `persist.go`, a file a slot. `enterStage` loads it in place
+of `Restore`'s old place — after Init, before Setup — and calls `Stage.Loaded()` in place of
+`Spawn`; `Engine.Load` before `Init` has `Init` enter from the save (the tests' way: `Props.Saves`
+a temp dir or `t.Chdir`, `eng.Save("")`, a second engine `Load("", "")`, `Init`).
+
 ### Testing conventions
 
 Internal tests (`package world`, not `world_test`) are used when a test
@@ -1408,15 +1940,60 @@ that bypass it.
 `doc/roadmap.md` lists what is left to do, and only that: take an item out when it lands.
 Every package has a `doc.go` with `# Type` sections describing what it brings; the root `doc.go`
 carries the concepts, the tick lifecycle and the layered package graph. README leads with what the
-library is; its code example is `examples/minimal`, so change that program first and keep the
+library is; its code example is `examples/start/minimal`, so change that program first and keep the
 README in step. All benchmarks live in `bench/` (package `bench_test`), built on a headless
 `game.Initializer` there; `BENCHMARKS.md` records the results and the method (this machine drifts
 ~10% between runs — compare a baseline copy and the working tree alternately). `CHANGELOG.md` gets
-an entry per tag. The headless installer in `bench/headless_test.go` is the fifth copy of the same
-helper (the others are in the demo's and plugins' tests) — a candidate for one exported test helper.
+an entry per tag. The headless installer in `bench/headless_test.go` is one more copy of the same
+helper the plugins' tests keep — a candidate for one exported test helper.
 
 Comments in code are short: one or two sentences saying what a thing is and what it is for. No
 essays, no restating the signature, no background — that belongs in `doc/*.md` or a `doc.go`.
+
+**A comment says only what the code cannot** (the user's word, 2026-10-10, after deleting most of
+the comments I had written into the demos). Write the code first, then add a comment only where a
+reader would get something wrong or miss it without one. Never:
+- a comment repeating the name, the signature or the next line — `// makePlugins makes the Stage's
+  plugins…`, `// NewDemo is the dialog demo…`, `// The scene's colours: …`, `// picture dresses
+  the meadow…`, a field's `// the one at the keyboard`, `// from the bottom up: each covers those
+  before it`;
+- section banners (`// === Stage ===`) or a demo's package prose (`// Command dialog-demo is …`):
+  what a demo is and how it is played is its `Props.Description`;
+- a constant made to carry a comment for a value used once (`hostSight`, `sightHalf`): the literal
+  stays where it is used;
+- a doc comment on an example's unexported function, type or field by habit.
+
+A comment stays where it carries what the code does not: a direction or a unit (`// looking west,
+the way the traveller comes`), a non-obvious why, a fact a reader would otherwise get wrong.
+
+The examples above are from the demos, but the rule is the engine's too: no comment narrates what
+the code does. The engine's code needs only short descriptions of its API — an exported type,
+function or method: one sentence, what it is, never how it does it; its unexported code gets no
+comment unless it carries a non-obvious why.
+
+**Lines stay within 100 columns**, a tab counted as 4 (the user's word, 2026-10-10, over lines of
+150 and more in the demos). Break a call between its arguments or a chain between its links, where
+it reads: never right after an accessor (`s.world.Effects().` ↵ `Define(…)`), never by pushing a
+trailing comment past a closing parenthesis — such a comment goes above the line. A struct literal
+of many fields is written a field a line. **One value a line** (the user's word, 2026-10-10): a
+colour, a vector, a short literal stays whole on its own line (`grassColor = color.RGBA{R: 96, G:
+150, B: 70, A: 255}`, the next colour on the next line), never two assigned at once (`a, b = x,
+y`) — that is what pushes a line past 100 and gets a four-field colour broken over nine lines.
+`golines -m 100 -t 4 --no-reformat-tags` does most of it; check what it made — it breaks short
+literals field by field and calls `append(` argument by argument rather than splitting the
+statement. The examples hold to it; the library's older code does not yet.
+
+**Examples are not tested** (the user's word, 2026-10-10: there is no sense in testing an
+example): what a demo shows is tested in the library's package that does it; no new `_test.go`
+goes into `examples/`.
+
+**Examples are grouped by what they show** (the user's word, 2026-10-12), a directory a group and
+a short name in it, no `-demo`: `start` (minimal, scenes, split-screen), `look` (appearance,
+animation, material, ember), `rules` (effect, trapdoor, pressure-plate, wire, dialog, vision),
+`board` (atlas, flat, topography), `navigation` (square, hex, spawn, vision, vision-hex), `motion`
+(collision, bullet, platformer). README lists them a table a group, each from the simplest to the
+richest; the make targets keep their names (`make demo-navigation-spawn`). A new demo goes into
+the group of what it mainly shows.
 
 Commit messages use the conventional prefixes (`feat`, `fix`, `docs`, `refactor`, `perf`, `test`,
 `chore`) and carry no `Co-Authored-By` trailer.

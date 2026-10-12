@@ -38,6 +38,7 @@ type Heights struct {
 // concurrent use.
 type Relief struct {
 	grid   grid.Grid
+	board  *board.Board // the grid when it is a board's, whose Floors carry units over the ground
 	sq     grid.Shape
 	square bool
 	cols   int // corners along x on a square grid
@@ -57,6 +58,7 @@ type Relief struct {
 func New(g grid.Grid) *Relief {
 	r := &Relief{grid: g}
 	if b, ok := g.(*board.Board); ok {
+		r.board = b
 		r.sq, r.square = b.Shape()
 		r.touched = b.Touch
 	} else {
@@ -237,6 +239,30 @@ func (r *Relief) setValue(v vertex, h float32) bool {
 // Altitude is c's ground level, the mean of its corners.
 func (r *Relief) Altitude(c cell.ID) float64 { return r.Corners(c).Level() }
 
+// Surface is where whoever moves in d (none: Land) with its feet at feet stands at p: the highest
+// of the ground and the decks over p whose Floors carry d, no higher than feet+step — onto a deck
+// within a step from any side, under one out of reach — and the lowest underside of a deck over
+// its feet, +Inf for none; the ground alone where the relief lies under no board.
+func (r *Relief) Surface(p geom.Vec, d cell.Domain, feet, step float64) (floor, ceiling float64) {
+	floor, ceiling = r.GroundAt(p), math.Inf(1)
+	if r.board == nil {
+		return floor, ceiling
+	}
+	if d == 0 {
+		d = cell.Land
+	}
+	r.board.DecksOver(p, func(c cell.ID, f cell.Floor) {
+		deck := r.Altitude(c) + f.Height
+		if f.Allows&d != 0 && deck <= feet+step {
+			floor = max(floor, deck)
+		}
+		if under := deck - f.Thickness; f.Thickness > 0 && under > feet {
+			ceiling = min(ceiling, under)
+		}
+	})
+	return floor, ceiling
+}
+
 // SetHeights raises the ground to heights: sampled at every corner on a square grid, at every
 // cell's centre on any other.
 func (r *Relief) SetHeights(heights func(p geom.Vec) float64) {
@@ -352,7 +378,7 @@ func (r *Relief) touching(v vertex, fn func(c cell.ID, k int)) {
 		cx, okX := foldAxis(int64(v.x)+d[0], int64(r.sq.Cols), r.sq.WrapX)
 		cy, okY := foldAxis(int64(v.y)+d[1], int64(r.sq.Rows), r.sq.WrapY)
 		if okX && okY {
-			fn(r.grid.CellIndex(uint32(cx), uint32(cy)), 3-k)
+			fn(r.grid.At(uint32(cx), uint32(cy)), 3-k)
 		}
 	}
 }

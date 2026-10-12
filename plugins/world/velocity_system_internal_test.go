@@ -16,6 +16,8 @@ import (
 // moved is the command the tests' Moving rule gives.
 type moved struct{}
 
+func (moved) Command() {}
+
 // velocityTick runs the velocity pass once, the Moving rules hooked, over an entity going at 100
 // with a Pace of share and one with no Pace; it reports both speeds after, and who gave a moved.
 func velocityTick(t *testing.T, share float64, rules ...rule.Rule) (paced, unpaced float64, gave []uid.UID64) {

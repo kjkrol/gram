@@ -278,6 +278,31 @@ func TestFrame_AFanIsTrianglesRoundItsFirstPoint(t *testing.T) {
 	}
 }
 
+// A sprite fan takes at each point the part of the sprite lying under it when the sprite is laid
+// over the box, held to the sprite past the box's edge, as opaque as asked.
+func TestFrame_ASpriteFanIsThePartOfTheSpriteUnderIt(t *testing.T) {
+	var f Frame
+	pts := [][2]float32{{150, 100}, {200, 150}, {150, 200}, {250, 150}}
+	f.SpriteFan(Ground, 0, &sheet{}, 0, pts, [4]float32{100, 100, 200, 200}, 0.5)
+	var got []Vertex
+	f.Each(func(_ Tier, _ float32, v []Vertex) { got = append(got, v...) })
+	if len(got) != 4 {
+		t.Fatalf("%d vertices, want one a point", len(got))
+	}
+	// the sheet's sprite spans 0.5 to 31.5 once inset by half a texel
+	for i, want := range [][2]float32{{16, 0.5}, {31.5, 16}, {16, 31.5}, {31.5, 16}} {
+		if got[i].SrcX != want[0] || got[i].SrcY != want[1] {
+			t.Errorf("point %d samples %v, %v; want %v", i, got[i].SrcX, got[i].SrcY, want)
+		}
+	}
+	if c := got[0]; c.ColorR != 0.5 || c.ColorA != 0.5 {
+		t.Errorf("colour %v %v, want half opaque, premultiplied", c.ColorR, c.ColorA)
+	}
+	if it := f.items[0]; it.shape != fan || it.atlas == nil {
+		t.Errorf("the piece is %v on %v, want a fan on the sheet", it.shape, it.atlas)
+	}
+}
+
 // tint is a material registered for these tests: it paints what it reads.
 var tint = RegisterMaterials([]byte(`// TestTint paints red, the fraction and the first custom.
 fn TestTint(p: vec2<f32>, red: f32, fraction: f32, custom: vec4<f32>) -> vec4<f32> {

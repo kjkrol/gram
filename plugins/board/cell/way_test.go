@@ -25,26 +25,4 @@ func TestWay_OverTakesWhoMayCrossAndTheCostFromTheWay(t *testing.T) {
 	if got := (cell.Way{Kind: road, Width: 4}).Over(earth); !got.Graded {
 		t.Error("a graded road over earth is not graded")
 	}
-	if got := (cell.Crossing{Way: cell.Way{Kind: road, Width: 4}}).Over(earth); !got.Graded {
-		t.Error("a graded bridge over earth is not graded")
-	}
-}
-
-// A crossing lets whoever it admits over the cell at its cost, and leaves the way under it as it
-// is: a bridge over a river admits walkers and still the water.
-func TestCrossing_OverLetsWhoeverItAdmitsOverTheWay(t *testing.T) {
-	under := cell.Way{Kind: river, Width: 8}.Over(earth)
-	got := cell.Crossing{Way: cell.Way{Kind: bridge, Width: 6}}.Over(under)
-	if !got.Admits(cell.Land) || !got.Admits(cell.Water) || got.Name != earth.Name {
-		t.Errorf("a bridge over a river is %+v, want walkers and water both, the ground's name", got)
-	}
-	if c := got.CostFor(cell.Land); c != 0.5 {
-		t.Errorf("a walker pays %v on the bridge, want the bridge's 0.5", c)
-	}
-	if c := got.CostFor(cell.Water); c != under.CostFor(cell.Water) {
-		t.Errorf("the water pays %v under the bridge, want the river's %v", c, under.CostFor(cell.Water))
-	}
-	if got := (cell.Crossing{}).Over(under); got != under {
-		t.Errorf("no crossing over a river is %+v, want the river as it is", got)
-	}
 }

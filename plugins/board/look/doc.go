@@ -15,7 +15,7 @@
 // The simple map's lays the ways as bands; a topography's the grounds blending, coasts, water
 // glinting and running and the ways drawn across the cells, painted for its ground on the GPU.
 // Without a Dressing's light a tile is drawn as it is; a sky over a flat board
-// (atmosphere.Plugin.WithBoard) lights it by the hour.
+// (board.Plugin.WithAtmosphere) lights it by the hour.
 //
 // # Composed once
 //

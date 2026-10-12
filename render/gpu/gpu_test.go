@@ -2,6 +2,7 @@ package gpu
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -92,6 +93,39 @@ func TestLayout_FollowsWGSL(t *testing.T) {
 	l := NewLayout([]Uniform{{"A", 1}, {"B", 3}, {"C", 1}, {"D", 2}})
 	if l.offsets["A"] != 0 || l.offsets["B"] != 16 || l.offsets["C"] != 28 || l.offsets["D"] != 32 || l.Size != 48 {
 		t.Errorf("offsets %v size %d, want A 0, B 16, C 28, D 32, 48 in all", l.offsets, l.Size)
+	}
+	l = NewLayout([]Uniform{{"A", 1}, {"E", 20}, {"F", 1}})
+	if l.offsets["E"] != 16 || l.offsets["F"] != 96 || l.Size != 112 {
+		t.Errorf("offsets %v size %d, want an array of 5 vec4s at 16, F after it at 96, 112",
+			l.offsets, l.Size)
+	}
+	if !strings.Contains(l.Fields, "E: array<vec4<f32>, 5>,") {
+		t.Errorf("fields %q, want E an array of 5 vec4s", l.Fields)
+	}
+}
+
+// A program reads an array of vec4s uniform by index, its floats one after another.
+func TestTriangles_AProgramReadsAnArrayOfUniforms(t *testing.T) {
+	needGPU(t)
+	layout := NewLayout([]Uniform{{"Count", 1}, {"Values", 20}})
+	p := NewProgram("test array", layout.Fields, `
+fn Fragment(dst: vec4<f32>, src: vec2<f32>, color: vec4<f32>, custom: vec4<f32>) -> vec4<f32> {
+    let k = i32(U.Count);
+    return vec4<f32>(U.Values[k].x, U.Values[k].w, U.Values[4].y, 1.0);
+}`)
+	dst := NewTexture(1, 1)
+	u := make([]byte, layout.Size)
+	values := make([]float32, 20)
+	values[8], values[11], values[17] = 1, 0.5, 0.25
+	layout.Put(u, "Count", []float32{2})
+	layout.Put(u, "Values", values)
+	v := func(x, y float32) Vertex { return Vertex{DstX: x, DstY: y} }
+	Triangles(&Draw{Target: Image{Texture: dst}, Program: p, Uniforms: u, Blend: Copy},
+		[]Vertex{v(0, 0), v(1, 0), v(0, 1), v(1, 1)}, []uint16{0, 1, 2, 1, 2, 3})
+	pix := make([]byte, 4)
+	dst.ReadPixels(pix)
+	if pix[0] < 254 || pix[1] < 126 || pix[1] > 129 || pix[2] < 62 || pix[2] > 65 {
+		t.Errorf("read %v, want the third vec4's x and w, the fifth's y: 255, 128, 64", pix)
 	}
 }
 

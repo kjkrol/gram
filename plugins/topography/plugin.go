@@ -7,12 +7,14 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/look"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/topography/internal/billboards"
 	icameras "github.com/kjkrol/gram/plugins/topography/internal/cameras"
 	"github.com/kjkrol/gram/plugins/topography/internal/hexes"
@@ -43,8 +45,7 @@ func (stillSky) Air() air.Weather { return air.Weather{} }
 // Config is the topography: the isometric view — a Cell-sized square of the world is a TileW x
 // TileH diamond, a height lifts a point HeightUnit screen units per world unit, Headroom is how
 // far above the ground a camera looks for sprites; zero TileW, TileH, HeightUnit and Headroom are
-// 64, 32, 1 and 64, Cell must be set — whether a fresh game begins Isometric rather than from
-// above, how flat the eye may look along the ground (MinPitch, degrees; 30 when zero, the 2:1
+// 64, 32, 1 and 64, Cell must be set — how flat the eye may look along the ground (MinPitch, degrees; 30 when zero, the 2:1
 // view's, below which the near relief hides what lies behind it), whether View reaches a third
 // view, in Perspective — an eye at a point of the world, placed by LookFrom, LookAt and a Ride inside a unit,
 // seeing FieldOfView degrees from the top of the screen to the bottom (45 when zero) — how
@@ -55,7 +56,6 @@ type Config struct {
 	Cell, TileW, TileH float32
 	HeightUnit         float32
 	Headroom           float32
-	Isometric          bool
 	MinPitch           float32
 	Perspective        bool
 	FieldOfView        float32
@@ -88,7 +88,8 @@ type Plugin struct {
 	hexes  *hexes.Ground
 
 	cameras   *icameras.Control
-	camQueues cameraQueues // the cameras' commands, which the cameras read as their Orders
+	views     func(icameras.Config) cameras.Maker // a maker of the views starting as the Config says
+	camQueues cameraQueues                        // the cameras' commands, which the cameras read as their Orders
 	coarse    control.Queue[CoarseShadows]
 	module    *module
 }
@@ -99,10 +100,10 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ board.Map = (*Plugin)(nil)
 
 // NewPlugin puts boardPlugin, over worldPlugin, in relief as cfg says: from then on the board is
-// drawn and priced by the topography, the world's ground is its heights, its cameras are the
-// topography's and its entities stand as billboards in the isometric view. Make it right after
-// the world and the board, before anything asks for a camera; the world must have heights
-// (world.Config.Heights) and may not wrap.
+// drawn and priced by the topography, the world's ground is its heights and its entities stand as
+// billboards in the isometric view; its cameras are Views, for the cameras plugin. Make it right
+// after the world and the board; the world must have heights (world.Config.Heights) and may not
+// wrap.
 func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config) *Plugin {
 	if !worldPlugin.HasHeights() {
 		panic("topography: a map in relief needs a world with heights; set world.Config.Heights")
@@ -110,9 +111,10 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	if edges := worldPlugin.Res.Config.Space.Edges; edges.WrapsX() || edges.WrapsY() {
 		panic("topography: a world that wraps cannot be seen in relief")
 	}
-	brd := boardPlugin.Res.Logic.Board
-	p := &Plugin{Self: world.NewSelf(worldPlugin, "gram.topography"), cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, sky: stillSky{},
+	brd := boardPlugin.Board()
+	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, sky: stillSky{},
 		climbing: cfg.Climbing}
+	p.Self = world.NewSelf(worldPlugin, p)
 	if p.climbing == (relief.Climbing{}) {
 		p.climbing = relief.DefaultClimbing
 	}
@@ -125,15 +127,25 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	p.shaper = &shaper{relief: p.relief, cfg: shaping}
 	p.painter = ipainter.New(brd, p.relief, liveSky{p}, true, map[cell.Name]painter.Style{}).WithKinds(boardPlugin.CellKinds())
 	boardPlugin.WithMap(p)
-	ground := func(x, y float32) float32 { return float32(p.topAt(geom.NewVec(float64(x), float64(y)))) }
+	ground := func(x, y float32) float32 {
+		return float32(p.seenAt(geom.NewVec(float64(x), float64(y))))
+	}
 	extent := func() (float32, float32) {
 		low, high := p.relief.Extent()
 		return float32(low), float32(high)
 	}
 	views := icameras.Config{Cell: cfg.Cell, TileW: cfg.TileW, TileH: cfg.TileH, HeightUnit: cfg.HeightUnit, Headroom: cfg.Headroom,
-		Isometric: cfg.Isometric, MinPitch: cfg.MinPitch, Perspective: cfg.Perspective, FieldOfView: cfg.FieldOfView}
+		MinPitch: cfg.MinPitch, Perspective: cfg.Perspective, FieldOfView: cfg.FieldOfView,
+		EdgeTurn: TurnStep / cameras.DefaultScrollSpeed,
+		EdgeTilt: TiltStep / cameras.DefaultScrollSpeed,
+		Fine:     p.fineAt,
+		Solid:    p.solidAt}
 	p.cameras = icameras.NewControl(p.relief, p.topAt, cfg.Perspective)
-	worldPlugin.SetCameras(p.cameras.Maker(views, ground, extent, float32(worldPlugin.Scale().Bend())))
+	bend := float32(worldPlugin.Scale().Bend())
+	p.views = func(start icameras.Config) cameras.Maker {
+		views.Isometric = start.Isometric
+		return cameras.Maker(p.cameras.Maker(views, ground, extent, bend))
+	}
 	if _, _, _, _, square := p.relief.Lattice(); square {
 		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{Shadows: true, Scale: worldPlugin.Scale()})
 	} else {
@@ -141,6 +153,24 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	}
 	worldPlugin.SetLook(billboards.New(worldPlugin.FlatLook(), liveSky{p}, p.relief, p.ground))
 	return p
+}
+
+// Start is the view a camera of a world in relief begins in: FromAbove or Isometrically.
+type Start uint8
+
+const (
+	// FromAbove begins a camera looking down from above, heights not drawn.
+	FromAbove Start = iota
+	// Isometrically begins a camera in the isometric view.
+	Isometrically
+)
+
+// Views make the cameras of a world in relief, for the cameras plugin, each beginning as start
+// says: from above, isometrically and, given Config.Perspective, in perspective, View going round
+// them. Every camera of such a world is one of these: what the topography draws asks for their
+// lines of sight.
+func (p *Plugin) Views(start Start) cameras.Maker {
+	return p.views(icameras.Config{Isometric: start == Isometrically})
 }
 
 // boardSurface is the ground's look as the painter paints it out of the board's atlas — the board
@@ -183,16 +213,54 @@ func (p *Plugin) WithAtmosphere(a Atmosphere) *Plugin {
 // topAt is the top of the cell under at as it is drawn: the ground there and its kind's Height.
 func (p *Plugin) topAt(at geom.Vec) float64 {
 	top := p.relief.GroundAt(at)
-	brd := p.boardPlugin.Res.Logic.Board
+	brd := p.boardPlugin.Board()
 	if c, ok := brd.CellAt(at); ok {
 		top += brd.Kind(c).Height
 	}
 	return top
 }
 
+// fineAt is how finely a camera picks near (x, y): half the narrowest deck where one lies over the
+// cell there, and the thinnest deck's slab, else as ever.
+func (p *Plugin) fineAt(x, y float32) (float32, float32) {
+	brd := p.boardPlugin.Board()
+	if !brd.NearDeck(geom.NewVec(float64(x), float64(y))) {
+		return 0, 0
+	}
+	return float32(brd.NarrowestDeck() / 2), float32(brd.ThinnestDeck())
+}
+
+// solidAt is what a camera's pick finds solid at (x, y) and the height z, and its top: under the
+// cell's top as it is drawn, or inside a deck's slab over it — a line of sight passing under a
+// deck goes on to the ground.
+func (p *Plugin) solidAt(x, y, z float32) (float32, bool) {
+	at := geom.NewVec(float64(x), float64(y))
+	if top := float32(p.topAt(at)); z < top {
+		return top, true
+	}
+	top, in := float32(0), false
+	p.boardPlugin.Board().DecksOver(at, func(c cell.ID, f cell.Floor) {
+		deck := float32(p.relief.Altitude(c) + f.Height)
+		if f.Height > 0 && z < deck && z >= deck-max(float32(f.Thickness), 1e-3) {
+			top, in = max(top, deck), true
+		}
+	})
+	return top, in
+}
+
+// seenAt is the top of what a camera sees at a point: the cell's top as it is drawn, or a deck over
+// it.
+func (p *Plugin) seenAt(at geom.Vec) float64 {
+	top := p.topAt(at)
+	p.boardPlugin.Board().DecksOver(at, func(c cell.ID, f cell.Floor) {
+		top = max(top, p.relief.Altitude(c)+f.Height)
+	})
+	return top
+}
+
 // Relief is the ground's heights as a game reads and sets them: the height at any point and how far
 // apart it is sampled (ground.Heights), a cell's level, and all of them at once from a function
-// (relief.MeanOfCells builds one from a height per cell). Raise, Lower and Level shape it.
+// (ground.MeanOfCells builds one from a height per cell). Raise, Lower and Level shape it.
 type Relief interface {
 	ground.Heights
 	Altitude(c cell.ID) float64
@@ -201,6 +269,15 @@ type Relief interface {
 
 // Relief is the ground's heights, to read and set from a game's code.
 func (p *Plugin) Relief() Relief { return p.relief }
+
+// Flatten lays the cell c flat at h, the ground round it following within the Shaping's MaxStep,
+// and reports whether it did: never so a road would lie where Transport Tycoon would not lay it —
+// then nothing moves. It is the relief as a ground.Shaper: what a bridge's heads are levelled by.
+func (p *Plugin) Flatten(c cell.ID, h float64) bool {
+	return p.relief.KeepRoads(func() { p.relief.Level(c, h, p.cfg.Shaping.MaxStep) })
+}
+
+var _ ground.Shaper = (*Plugin)(nil)
 
 // Style sets how the kind named name looks in relief beyond its sprite; a kind without one is
 // plain ground.
@@ -234,7 +311,12 @@ func (p *Plugin) WithCoarseShadows(on bool) *Plugin {
 func (p *Plugin) ShadowsCoarse() bool { return p.ground != nil && p.ground.Coarsened() }
 
 // Seed sets the ground's heights applied when this Stage starts fresh — see Populate.
-func (p *Plugin) Seed(heights func(p geom.Vec) float64) { p.seeded = heights }
+func (p *Plugin) Seed(heights func(p geom.Vec) float64) {
+	if err := p.worldPlugin.InSection("the ground's heights seeded", section.Spawn); err != nil {
+		panic("topography: " + err.Error())
+	}
+	p.seeded = heights
+}
 
 // Populate raises the seeded heights.
 func (p *Plugin) Populate() error {
@@ -262,7 +344,7 @@ func (p *Plugin) Heights() ground.Heights { return p.relief }
 
 // Top is c's corners with its kind's Height standing on them, and its ground level.
 func (p *Plugin) Top(c cell.ID) (corners [4]float32, level float32) {
-	return p.relief.Top(c, p.boardPlugin.Res.Logic.Board.Kind(c).Height)
+	return p.relief.Top(c, p.boardPlugin.Board().Kind(c).Height)
 }
 
 // Climb is how many times as long the step from one cell to its neighbour takes whoever moves in

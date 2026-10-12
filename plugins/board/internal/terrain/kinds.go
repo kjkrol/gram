@@ -14,7 +14,6 @@ import (
 type Kinds struct {
 	entries map[cell.Name]cell.Kind
 	plays   map[cell.Name]tag.Tags[rule.Roles]
-	drawers map[cell.Name]render.SpriteDrawer
 	next    render.SpriteID
 	heights bool
 	// Guard, when set, is called with each kind's name as it is defined: the board's, which
@@ -27,11 +26,11 @@ type Kinds struct {
 
 // NewKinds is an empty dictionary; one of a flat world refuses a kind with a Height.
 func NewKinds(heights bool) *Kinds {
-	return &Kinds{entries: make(map[cell.Name]cell.Kind), plays: make(map[cell.Name]tag.Tags[rule.Roles]), drawers: make(map[cell.Name]render.SpriteDrawer), heights: heights}
-}
-
-func (d *Kinds) Draw(name string, draw render.SpriteDrawer) {
-	d.drawers[cell.Named(name)] = draw
+	return &Kinds{
+		entries: make(map[cell.Name]cell.Kind),
+		plays:   make(map[cell.Name]tag.Tags[rule.Roles]),
+		heights: heights,
+	}
 }
 
 func (d *Kinds) Define(name string, k cell.Kind, plays ...*rule.Part) {
@@ -98,10 +97,4 @@ func (d *Kinds) All() []cell.Kind {
 		all = append(all, k)
 	}
 	return all
-}
-
-// Drawer is the sprite drawn for the kind named name, if one was (Draw).
-func (d *Kinds) Drawer(name cell.Name) (render.SpriteDrawer, bool) {
-	draw, ok := d.drawers[name]
-	return draw, ok
 }

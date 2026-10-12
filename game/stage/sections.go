@@ -5,23 +5,54 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
+	"github.com/kjkrol/gram/plugins/world"
 )
 
 // New begins the Stage named name: go on with its sections, each once and in their order — any
 // may be left out — and end with Update, which hands back the game.Stage.
 func New(name string) Start {
 	d := &def{name: name}
-	return Start{AfterPlugins{AfterPlayers{AfterEffects{AfterRules{AfterCommands{AfterCells{AfterKinds{AfterControls{AfterScenes{AfterShows{AfterRestore{AfterLayout{AfterUnits{d}}}}}}}}}}}}}}
+	return Start{AfterWorld{AfterPlugins{AfterPlayers{AfterEffects{AfterRules{AfterCommands{AfterKinds{AfterControls{AfterSpawn{AfterScenes{AfterShows{d}}}}}}}}}}}}
 }
 
 // Start is a Stage of which nothing is defined yet. Each type on is the Stage after a section:
 // it has the sections that come later, never one that came before.
-type Start struct{ AfterPlugins }
+type Start struct{ AfterWorld }
 
-// Plugins makes and uses the Stage's plugins: ctx.UseWorld, ctx.Use.
-func (s Start) Plugins[F Step](f F) AfterPlugins {
-	s.d.add(section.Plugins, stepOf(f))
+// World makes the Stage's world from cfg, anew each time the Stage is entered: what its plugins
+// are made over.
+func (s Start) World(cfg world.Config) AfterWorld {
+	s.d.add(section.Plugins, func(ctx game.Initializer) error {
+		s.d.world = ctx.UseWorld(cfg)
+		return nil
+	})
+	return s.AfterWorld
+}
+
+// Plugins has plugins make the plugins of a Stage without a world — each adding itself to made as
+// it is made — and uses them in the order made.
+func (s Start) Plugins(plugins func(made *plugin.Made)) AfterPlugins {
+	s.d.add(section.Plugins, func(ctx game.Initializer) error {
+		var made plugin.Made
+		plugins(&made)
+		return s.d.use(ctx, made.All())
+	})
+	return s.AfterPlugins
+}
+
+// AfterWorld is a Stage with a world and no plugins yet.
+type AfterWorld struct{ AfterPlugins }
+
+// Plugins has plugins make the plugins over the Stage's world, anew each time the Stage is
+// entered — each telling the world of itself as it is made (world.NewSelf) — and uses them in the
+// order made: a game's arena keeps them as it makes them.
+func (s AfterWorld) Plugins(plugins func(w *world.Plugin)) AfterPlugins {
+	s.d.add(section.Plugins, func(ctx game.Initializer) error {
+		plugins(s.d.world)
+		return s.d.use(ctx, s.d.world.Made().All())
+	})
 	return s.AfterPlugins
 }
 
@@ -59,19 +90,14 @@ func (s AfterRules) Commands[F Step](f F) AfterCommands {
 	return s.AfterCommands
 }
 
-type AfterCommands struct{ AfterCells }
+type AfterCommands struct{ AfterKinds }
 
-// Cells defines the kinds of cells, each with the roles its cells play.
-func (s AfterCommands) Cells[F Step](f F) AfterCells {
-	s.d.add(section.Cells, stepOf(f))
-	return s.AfterCells
-}
-
-type AfterCells struct{ AfterKinds }
-
-// Kinds defines the kinds of units.
-func (s AfterCells) Kinds[F Step](f F) AfterKinds {
-	s.d.add(section.Kinds, stepOf(f))
+// Kinds defines the kinds — of cells, each with the roles its cells play, and of units — in steps
+// run in their order: Kinds(s.defineCells, s.defineKinds).
+func (s AfterCommands) Kinds[F Step](steps ...F) AfterKinds {
+	for _, f := range steps {
+		s.d.add(section.Kinds, stepOf(f))
+	}
 	return s.AfterKinds
 }
 
@@ -83,11 +109,23 @@ func (s AfterKinds) Controls[F Step](f F) AfterControls {
 	return s.AfterControls
 }
 
-type AfterControls struct{ AfterScenes }
+type AfterControls struct{ AfterSpawn }
 
-// Scenes makes the Stage's scenes: the first is shown, unless Shows says which; their stack and
-// its Composition, tracked for the saves, are the Stage's own doing.
-func (s AfterControls) Scenes[F ScenesStep](f F) AfterScenes {
+// Spawn seeds a fresh game's world in steps run in their order — its board, its units:
+// Spawn(s.spawnCells, s.spawnUnits). A game loaded (game.Load) skips them.
+func (s AfterControls) Spawn[F SpawnStep](steps ...F) AfterSpawn {
+	for _, f := range steps {
+		s.d.spawn = append(s.d.spawn, spawnOf(f))
+	}
+	return s.AfterSpawn
+}
+
+type AfterSpawn struct{ AfterScenes }
+
+// Scenes makes the Stage's scenes once the world is there — fresh or loaded: the first is shown,
+// unless Shows says which; their stack and its Composition, tracked for the saves, are the
+// Stage's own doing.
+func (s AfterSpawn) Scenes[F ScenesStep](f F) AfterScenes {
 	switch g := any(f).(type) {
 	case func() []game.Scene:
 		s.d.scenes = func(game.Initializer) ([]game.Scene, error) { return g(), nil }
@@ -103,42 +141,64 @@ func (s AfterControls) Scenes[F ScenesStep](f F) AfterScenes {
 
 type AfterScenes struct{ AfterShows }
 
-// Shows names the scenes shown as the Stage starts, bottom first, in place of the first alone.
+// Shows names the scenes shown as the Stage starts, bottom first, in place of the first alone; a
+// loaded game shows those shown when it was saved.
 func (s AfterScenes) Shows(names ...string) AfterShows {
 	s.d.shows = append([]string{}, names...)
 	return s.AfterShows
 }
 
-type AfterShows struct{ AfterRestore }
-
-// Restore resumes the Stage from a save, or reports false: a Stage without it starts fresh.
-func (s AfterShows) Restore(f func(game.Persistence) (bool, error)) AfterRestore {
-	s.d.restore = f
-	return s.AfterRestore
-}
-
-type AfterRestore struct{ AfterLayout }
-
-// Layout seeds a fresh game's board: which cell is what, plays what, is called what.
-func (s AfterRestore) Layout[F SpawnStep](f F) AfterLayout {
-	s.d.layout = spawnOf(f)
-	return s.AfterLayout
-}
-
-type AfterLayout struct{ AfterUnits }
-
-// Units seeds a fresh game's units, each told what it is told as it is made.
-func (s AfterLayout) Units[F SpawnStep](f F) AfterUnits {
-	s.d.units = spawnOf(f)
-	return s.AfterUnits
-}
-
-// AfterUnits is a Stage wanting only its Update.
-type AfterUnits struct{ d *def }
+// AfterShows is a Stage wanting only its Update.
+type AfterShows struct{ d *def }
 
 // Update is the Stage's tick — the plugins' RunPlans in their order — and ends the chain: the
 // game.Stage so defined.
-func (s AfterUnits) Update(f func(ctx goke.RunCtx, d time.Duration)) game.Stage {
+func (s AfterShows) Update(f func(ctx goke.RunCtx, d time.Duration)) game.Stage {
 	s.d.update = f
 	return built{s.d}
+}
+
+// With writes plugins' sections into the Stage where it stands — each between the parts its
+// plugin says, or it panics as the chain is built: With(dialog.Conversations(s.defineConversations))
+// after the rules, before the kinds. Each runs with the plugin it is of, among those World or
+// Plugins made.
+func (s AfterPlugins) With(sections ...section.Section) AfterPlugins {
+	s.d.with(sections)
+	return s
+}
+
+// With writes plugins' sections into the Stage here, as AfterPlugins.With does.
+func (s AfterPlayers) With(sections ...section.Section) AfterPlayers {
+	s.d.with(sections)
+	return s
+}
+
+// With writes plugins' sections into the Stage here, as AfterPlugins.With does.
+func (s AfterEffects) With(sections ...section.Section) AfterEffects {
+	s.d.with(sections)
+	return s
+}
+
+// With writes plugins' sections into the Stage here, as AfterPlugins.With does.
+func (s AfterRules) With(sections ...section.Section) AfterRules {
+	s.d.with(sections)
+	return s
+}
+
+// With writes plugins' sections into the Stage here, as AfterPlugins.With does.
+func (s AfterCommands) With(sections ...section.Section) AfterCommands {
+	s.d.with(sections)
+	return s
+}
+
+// With writes plugins' sections into the Stage here, as AfterPlugins.With does.
+func (s AfterKinds) With(sections ...section.Section) AfterKinds {
+	s.d.with(sections)
+	return s
+}
+
+// With writes plugins' sections into the Stage here, as AfterPlugins.With does.
+func (s AfterControls) With(sections ...section.Section) AfterControls {
+	s.d.with(sections)
+	return s
 }

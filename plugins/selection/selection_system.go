@@ -26,12 +26,15 @@ const pickReach = 160
 // flipped in place, seen the same tick — the player who gave one selecting and unselecting only
 // what it owns (owner.Obeys). A Select with a Screen rectangle hits the entities drawn into it,
 // where the world's Look draws them through the command's camera. After the Selects, a command for
-// the selected or the one pointed at (rule.Command) is carried out.
+// the selected or the one pointed at (rule.Command) is carried out, and Hovered goes to the entity
+// each Hover points at, off every other.
 type SelectionSystem struct {
 	selects    *control.Queue[Select]
 	effectCmds *control.Queue[effectCommand] // when the plugin wires them
 	effects    *effect.Effects               // the world's, which a command casts and takes off
 	whom       []uid.UID64                   // a command's targets, scratch
+	hovers     *control.Queue[Hover]         // when the plugin wires them
+	hovered    bool                          // some entity is Hovered: unhovered at the next pass
 	allows     *control.Queue[Allow]
 	forbids    *control.Queue[Forbid]
 	marksID    goke.CompID
@@ -98,6 +101,9 @@ func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	})
 	if s.effectCmds != nil {
 		s.effectCmds.Drain(func(i control.Issued[effectCommand]) { s.carry(cb, i.Player, i.Command) })
+	}
+	if s.hovers != nil {
+		s.hover()
 	}
 	if s.allows != nil {
 		s.allows.Drain(func(i control.Issued[Allow]) { s.permit(cb, i.Player, i.Entity, i.ByEntity, true, i.Command.Selected) })
@@ -173,20 +179,50 @@ func (s *SelectionSystem) carry(cb *goke.CmdBuf, by control.PlayerID, c effectCo
 	}
 }
 
-// pointed is the entity drawn under the cursor c was given with, the nearest to the ground point
-// under it; none for a command given without a cursor.
+// pointed is the entity drawn under the cursor c was given with; none for a command given without
+// a cursor.
 func (s *SelectionSystem) pointed(c effectCommand) (uid.UID64, bool) {
 	if !c.aimed || c.camera == nil {
 		return 0, false
 	}
+	return s.pick(c.at, c.screen, c.camera)
+}
+
+// hover takes Hovered off every entity and puts it on the one each Hover points at.
+func (s *SelectionSystem) hover() {
+	if s.hovered {
+		for s.query.All(); s.query.Next(); {
+			marks := s.marks.Slice(s.query.Cursor())
+			for i := range marks {
+				marks[i] = marks[i].Without(s.tags.Hovered)
+			}
+		}
+		s.hovered = false
+	}
+	s.hovers.Drain(func(i control.Issued[Hover]) {
+		h := i.Command
+		if h.Camera == nil {
+			return
+		}
+		if id, ok := s.pick(h.At, h.Screen, h.Camera); ok && s.query.Seek(id) {
+			m := s.marks.At(s.query.Cursor())
+			*m = m.With(s.tags.Hovered)
+			s.hovered = true
+		}
+	})
+}
+
+// pick is the entity drawn into the screen rectangle of cam's view, the nearest to the world point
+// at; none where nothing is drawn there.
+func (s *SelectionSystem) pick(at geom.Vec, screen geom.AABB, cam camera.Camera) (uid.UID64, bool) {
 	var best uid.UID64
 	found, nearest := false, 0.0
-	s.space.Query(grow(geom.NewAABBAt(c.at, 1, 1), pickReach), aabbworld.AnyCapability, func(id uid.UID64) {
-		if !s.drawnIn(id, c.screen, c.camera) {
+	s.space.Query(grow(geom.NewAABBAt(at, 1, 1), pickReach), aabbworld.AnyCapability, func(id uid.UID64) {
+		if !s.drawnIn(id, screen, cam) {
 			return
 		}
 		centre := s.lookupBase.At(s.lookup.Cursor()).Pos.Center()
-		dx, dy := centre.X-c.at.X, centre.Y-c.at.Y
+		dx, dy := centre.X-at.X, centre.Y-at.Y
 		if d := dx*dx + dy*dy; !found || d < nearest {
 			best, found, nearest = id, true, d
 		}

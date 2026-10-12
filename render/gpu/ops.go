@@ -71,6 +71,51 @@ func DrawImage(dst, src Image, m Affine, color [4]float32, linear bool, blend Bl
 		[]Vertex{v(0, 0), v(w, 0), v(0, h), v(w, h)}, []uint16{0, 1, 2, 1, 2, 3})
 }
 
+// Piece is a W by H rectangle of a source image, at SrcX, SrcY in it, drawn at DstX, DstY.
+type Piece struct{ DstX, DstY, SrcX, SrcY, W, H float32 }
+
+// DrawPieces draws pieces of src into dst in as few draws as the indices allow, their colours
+// times color (premultiplied): the glyphs of a line of text.
+func DrawPieces(dst, src Image, pieces []Piece, color [4]float32, blend Blend) {
+	const most = 65536 / 4 // pieces a draw's 16-bit indices reach
+	r := src.rect()
+	for len(pieces) > 0 {
+		n := min(len(pieces), most)
+		verts := make([]Vertex, 0, 4*n)
+		indices := make([]uint16, 0, 6*n)
+		for k, p := range pieces[:n] {
+			v := func(dx, dy float32) Vertex {
+				return Vertex{DstX: p.DstX + dx, DstY: p.DstY + dy, SrcX: float32(r.X) + p.SrcX + dx, SrcY: float32(r.Y) + p.SrcY + dy,
+					ColorR: color[0], ColorG: color[1], ColorB: color[2], ColorA: color[3]}
+			}
+			verts = append(verts, v(0, 0), v(p.W, 0), v(0, p.H), v(p.W, p.H))
+			b := uint16(4 * k)
+			indices = append(indices, b, b+1, b+2, b+1, b+2, b+3)
+		}
+		Triangles(&Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: make([]byte, blitLayout.Size), Blend: blend}, verts, indices)
+		pieces = pieces[n:]
+	}
+}
+
+// DrawImageIn draws src into dst, its top-left corner at (x, y), only inside the convex polygon pts
+// (dst's pixels, a fan round the first point), laid over as blend says.
+func DrawImageIn(dst, src Image, x, y float32, pts [][2]float32, blend Blend) {
+	if len(pts) < 3 {
+		return
+	}
+	r := src.rect()
+	sx, sy := float32(r.X)-x, float32(r.Y)-y
+	verts := make([]Vertex, len(pts))
+	for k, p := range pts {
+		verts[k] = Vertex{DstX: p[0], DstY: p[1], SrcX: sx + p[0], SrcY: sy + p[1], ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1}
+	}
+	indices := make([]uint16, 0, 3*(len(pts)-2))
+	for k := 1; k+1 < len(pts); k++ {
+		indices = append(indices, 0, uint16(k), uint16(k+1))
+	}
+	Triangles(&Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: make([]byte, blitLayout.Size), Blend: blend}, verts, indices)
+}
+
 // Present draws screen over the window's surface view — w by h pixels of format, its texels
 // blended where the sizes differ — into enc, the window's frame encoder, which the window submits
 // and presents; everything drawn before is submitted first.

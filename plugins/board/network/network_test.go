@@ -11,7 +11,7 @@ import (
 
 var g = grid.DefaultGrids{}.Square(5, 5, 10)
 
-func at(x, y uint32) cell.ID { c := g.CellIndex(x, y); return c }
+func at(x, y uint32) cell.ID { c := g.At(x, y); return c }
 
 const (
 	north = cell.Links(1 << 0)
@@ -139,22 +139,5 @@ func TestRoute_TakesTheCheapestWayRoundWhatMayNotBeCrossed(t *testing.T) {
 	wall[at(2, 4)] = true
 	if _, ok := network.Route(g, at(0, 0), at(4, 0), cost); ok {
 		t.Error("a route through a wall across the whole g")
-	}
-}
-
-// A road laid over a river is its own way where the river does not run, and a crossing of the
-// kind given where it does: a bridge.
-func TestNetwork_ARoadAcrossARiverBridgesIt(t *testing.T) {
-	river, road := network.New(g), network.New(g)
-	for y := range uint32(5) {
-		river.Set(at(2, y), network.Node{Kind: "river", Width: 6})
-	}
-	road.Path([]cell.ID{at(1, 2), at(2, 2), at(3, 2)}, network.Node{Kind: "road", Width: 4})
-	ways, crossings := road.Across(river, "bridge")
-	if len(ways) != 2 || len(crossings) != 1 {
-		t.Fatalf("%d ways and %d crossings, want the road's 2 ends and a bridge", len(ways), len(crossings))
-	}
-	if b := crossings[0]; b.Cell != at(2, 2) || b.Kind != "bridge" || b.Links != west|east || b.Width != 4 {
-		t.Errorf("the bridge is %+v, want one at (2, 2) running west and east, as wide as the road", b)
 	}
 }

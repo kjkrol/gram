@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -49,6 +50,7 @@ func (sorting) Wraps() bool { return false }
 
 func TestBackdrop_TheSunStandsWhereItsWayVanishesThroughAPerspective(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
+	wcam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	sun, weather := sky.Sun{}, air.Weather{}
 	b := New(w.Res.Config.Space, world.Scale{}, func() sky.Sun { return sun }, func() air.Weather { return weather })
 	cam := raying{height: 30}
@@ -78,7 +80,7 @@ func TestBackdrop_TheSunStandsWhereItsWayVanishesThroughAPerspective(t *testing.
 		t.Errorf("the sun under full cloud shows at %v", p.SunAt)
 	}
 	weather = air.Weather{}
-	if p := b.plan(shifted{Camera: w.Camera(), dx: 150}); p.SunRadius != 0 {
+	if p := b.plan(shifted{Camera: wcam, dx: 150}); p.SunRadius != 0 {
 		t.Errorf("the sun seen from above shows at %v: no way vanishes", p.SunAt)
 	}
 }

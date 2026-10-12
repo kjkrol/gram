@@ -58,6 +58,30 @@ func (r *Relief) Flatten(from, to geom.Vec, maxStep float64) {
 	}
 }
 
+// Level lays the cell c flat at h — its corners on a square grid, its level on any other — then
+// the ground round it within maxStep, as Lift.
+func (r *Relief) Level(c cell.ID, h, maxStep float64) {
+	var set []vertex
+	if !r.square {
+		if i, ok := r.grid.Ordinal(c); ok {
+			if v := (vertex{x: i}); r.setValue(v, float32(h)) {
+				set = append(set, v)
+			}
+		}
+	} else {
+		var buf [4]geom.Vec
+		for _, p := range r.grid.CellOutline(c, buf[:0]) {
+			if v, ok := r.corner(r.lattice(p)); ok && r.setValue(v, float32(h)) {
+				set = append(set, v)
+			}
+		}
+	}
+	if len(set) > 0 {
+		r.settle(set, maxStep)
+		r.version++
+	}
+}
+
 // settle walks out from the vertices changed, pulling each neighbour to within maxStep.
 func (r *Relief) settle(queue []vertex, maxStep float64) {
 	if maxStep <= 0 {

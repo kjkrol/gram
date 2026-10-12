@@ -21,7 +21,7 @@ func riverBoard() (grid.Grid, *cell.TerrainMap) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 	for x := uint32(0); x < 4; x++ {
-		c := grid.CellIndex(x, 1)
+		c := grid.At(x, 1)
 		terrain.Set(c, cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water})
 	}
 	return grid, terrain
@@ -30,9 +30,9 @@ func riverBoard() (grid.Grid, *cell.TerrainMap) {
 func TestFindPath_KeepsEachDomainToItsOwnGround(t *testing.T) {
 	grid, terrain := riverBoard()
 	pf := newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{})
-	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 
-	path, ok := pf.findPath(uid.UID64(1), cell.Land, at(0, 0), at(0, 2))
+	path, ok := pf.findPath(uid.UID64(1), cell.Land, world.Z{}, at(0, 0), at(0, 2), EitherLevel)
 	if !ok {
 		t.Fatal("a land unit found no way round the river")
 	}
@@ -45,16 +45,18 @@ func TestFindPath_KeepsEachDomainToItsOwnGround(t *testing.T) {
 		t.Errorf("route of %d steps, want the detour through the ford", path.Length)
 	}
 
-	boat, ok := pf.findPath(uid.UID64(2), cell.Water, at(0, 1), at(3, 1))
+	boat, ok := pf.findPath(uid.UID64(2), cell.Water, world.Z{}, at(0, 1), at(3, 1), EitherLevel)
 	if !ok || boat.Length != 3 {
 		t.Fatalf("a boat along the river: ok=%v, %d steps, want 3 straight", ok, boat.Length)
 	}
-	if _, ok := pf.findPath(uid.UID64(2), cell.Water, at(0, 1), at(0, 0)); ok {
+	_, ok = pf.findPath(uid.UID64(2), cell.Water, world.Z{}, at(0, 1), at(0, 0), EitherLevel)
+	if ok {
 		t.Error("a boat found a route onto grass")
 	}
 
 	amphibious := cell.Land | cell.Water
-	if direct, ok := pf.findPath(uid.UID64(3), amphibious, at(0, 0), at(0, 2)); !ok || direct.Length != 2 {
+	direct, ok := pf.findPath(uid.UID64(3), amphibious, world.Z{}, at(0, 0), at(0, 2), EitherLevel)
+	if !ok || direct.Length != 2 {
 		t.Errorf("an amphibious unit: ok=%v, %d steps, want 2 straight across", ok, direct.Length)
 	}
 }
@@ -63,8 +65,8 @@ func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing
 	grid := grid.DefaultGrids{}.Square(10, 1, 10)
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	start := grid.CellIndex(0, 0)
-	lake := grid.CellIndex(8, 0)
+	start := grid.At(0, 0)
+	lake := grid.At(8, 0)
 	terrain.Set(lake, cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water})
 
 	moves := &control.Queue[MoveTo]{}
@@ -110,20 +112,21 @@ func TestFindPath_PricesTheRouteForTheUnitsDomain(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(3, 3, 10)
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | frost})
-	at := func(x, y uint32) cell.ID { c := grid.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	// The middle row is snow: slow for anyone on foot, a highway for the frost-born.
 	for x := range uint32(3) {
 		terrain.Set(at(x, 1), cell.Kind{Name: cell.Named("snow"), Cost: 5, Allows: cell.Land | frost}.Costing(frost, 0.2))
 	}
 	pf := newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{})
 
-	walker, _ := pf.findPath(uid.UID64(1), cell.Land, at(0, 0), at(2, 0))
+	walker, _ := pf.findPath(uid.UID64(1), cell.Land, world.Z{}, at(0, 0), at(2, 0), EitherLevel)
 	for _, step := range walker.Steps[:walker.Length] {
 		if terrain.Kind(step).Name.String() == "snow" {
 			t.Fatalf("a walker's route dips into the snow at %v", step)
 		}
 	}
-	witch, _ := pf.findPath(uid.UID64(2), cell.Land|frost, at(0, 0), at(2, 0))
+	witch, _ := pf.findPath(uid.UID64(2), cell.Land|frost, world.Z{}, at(0, 0), at(2, 0),
+		EitherLevel)
 	onSnow := 0
 	for _, step := range witch.Steps[:witch.Length] {
 		if terrain.Kind(step).Name.String() == "snow" {

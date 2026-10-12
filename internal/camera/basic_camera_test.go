@@ -3,6 +3,7 @@ package camera
 import (
 	"bytes"
 	"encoding/gob"
+	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld"
@@ -199,25 +200,64 @@ func TestBasicCamera_ZoomOut_CappedByConfiguredMinZoom(t *testing.T) {
 	}
 }
 
-func TestNewFromSpaceWithConfig_AppliesViewportAndZoomLimits(t *testing.T) {
-	c := NewFromSpaceWithConfig(1000, 1000, 0, contract.Config{
-		ViewportWidth: 100, ViewportHeight: 100,
-		MinZoom: 0.5,
-		MaxZoom: 2,
-	})
-
-	if w := c.Bounds().BottomRight.X - c.Bounds().TopLeft.X; w != 100 {
-		t.Errorf("Bounds() width = %v, want 100 (ViewportWidth applied)", w)
+// A camera starts over the world's middle at its config's zoom, sized by whoever shows it, its
+// zoom held within the config's limits.
+func TestNewFromSpaceWithConfig_StartsOverTheMiddleAtItsZoom(t *testing.T) {
+	c := NewFromSpaceWithConfig(1000, 1000, 0, contract.Config{Zoom: 1.5, MinZoom: 0.5, MaxZoom: 2})
+	c.SetViewport(300, 150)
+	if c.Zoom() != 1.5 {
+		t.Errorf("Zoom() = %v, want the 1.5 it starts at", c.Zoom())
+	}
+	b := c.Bounds()
+	if mx, my := (b.TopLeft.X+b.BottomRight.X)/2, (b.TopLeft.Y+b.BottomRight.Y)/2; mx != 500 || my != 500 {
+		t.Errorf("the window's middle is (%v, %v), want the world's (500, 500)", mx, my)
+	}
+	if w := b.BottomRight.X - b.TopLeft.X; w != 200 {
+		t.Errorf("the window is %v wide, want 300 pixels at zoom 1.5: 200", w)
 	}
 
-	c.ZoomIn(10, 50, 50)
+	c.ZoomIn(10, 500, 500)
 	if c.Zoom() != 2 {
 		t.Errorf("Zoom() after ZoomIn(10,...) = %v, want 2 (MaxZoom applied)", c.Zoom())
 	}
-
-	c.ZoomOut(100, 50, 50)
+	c.ZoomOut(100, 500, 500)
 	if c.Zoom() != 0.5 {
 		t.Errorf("Zoom() after ZoomOut(100,...) = %v, want 0.5 (MinZoom applied)", c.Zoom())
+	}
+}
+
+// A camera keeping the whole world in view shows all of it at any size, centred, a world unit as
+// many pixels across as down; it is not panned or zoomed, and a load fits it again.
+func TestWholeCamera_KeepsTheWholeWorldCentred(t *testing.T) {
+	c := NewFromSpaceWithConfig(400, 200, 0, contract.Config{Whole: true})
+	for _, size := range [][2]float32{{200, 100}, {300, 100}, {100, 200}, {150, 150}} {
+		c.SetViewport(size[0], size[1])
+		x0, y0 := c.ToScreen(0, 0)
+		x1, y1 := c.ToScreen(400, 200)
+		if x0 < -1e-3 || y0 < -1e-3 || x1 > size[0]+1e-3 || y1 > size[1]+1e-3 {
+			t.Errorf("in %v the world lies (%v, %v)-(%v, %v), want all of it on the screen", size, x0, y0, x1, y1)
+		}
+		if gx, gy := size[0]-x1-x0, size[1]-y1-y0; math.Abs(float64(gx)) > 1e-3 || math.Abs(float64(gy)) > 1e-3 {
+			t.Errorf("in %v the world lies (%v, %v)-(%v, %v), want it centred", size, x0, y0, x1, y1)
+		}
+		if (x1-x0)/400 != (y1-y0)/200 {
+			t.Errorf("in %v a unit is %v across and %v down, want the world's proportions kept", size, (x1-x0)/400, (y1-y0)/200)
+		}
+		if x1-x0 < size[0]-1e-3 && y1-y0 < size[1]-1e-3 {
+			t.Errorf("in %v the world is %v x %v, want it as large as the screen takes it", size, x1-x0, y1-y0)
+		}
+	}
+	before, zoom := c.Bounds(), c.Zoom()
+	c.Pan(30, 20)
+	c.ZoomIn(2, 200, 100)
+	c.CenterOn(0, 0, 0)
+	if c.Bounds() != before || c.Zoom() != zoom {
+		t.Errorf("panned and zoomed: %v at %v, want it kept at %v at %v", c.Bounds(), c.Zoom(), before, zoom)
+	}
+	c.MoveTo(10, 10)
+	c.Restore()
+	if c.Bounds() != before {
+		t.Errorf("restored: %v, want the whole world again at %v", c.Bounds(), before)
 	}
 }
 

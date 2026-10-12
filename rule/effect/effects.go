@@ -79,11 +79,21 @@ func (e *Effects) Define(name string, spec Spec) {
 // rules, looks, commands; a game keeps its names as constants, and what runs keeps the Effect
 // itself, never the name. An unknown name panics.
 func (e *Effects) Named(name string) Effect {
-	id, ok := e.byName[name]
+	ef, ok := e.Lookup(name)
 	if !ok {
 		panic(fmt.Sprintf("effects: no effect is defined as %q", name))
 	}
-	return Effect{owner: e, id: id, mark: e.marks[id]}
+	return ef
+}
+
+// Lookup is Named for a plugin reading names a game wrote — a dialog's conditions: false for an
+// unknown one.
+func (e *Effects) Lookup(name string) (Effect, bool) {
+	id, ok := e.byName[name]
+	if !ok {
+		return Effect{}, false
+	}
+	return Effect{owner: e, id: id, mark: e.marks[id]}, true
 }
 
 // Guard has Define call guard with each effect's name first: the world's, which refuses one

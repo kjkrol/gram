@@ -34,10 +34,3 @@ func TestTerrainMap_CastAndLabelKeepRolesAndWhatACellIsCalled(t *testing.T) {
 		t.Errorf("Version moved from %d to %d: roles and names are no change of terrain", v, m.Version())
 	}
 }
-
-// Stood is Trodden: whether a unit stands on the cell now.
-func TestNow_StoodIsTrodden(t *testing.T) {
-	if !(cell.Now{Trodden: true}).Stood() || (cell.Now{}).Stood() {
-		t.Error("Stood is not Trodden")
-	}
-}

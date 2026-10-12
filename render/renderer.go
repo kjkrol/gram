@@ -1,13 +1,12 @@
 package render
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 )
 
-// Layer is one of a Scene's layers: a Renderer drawing on the screen, or a WorldRenderer drawing
-// the world through each of the scene's viewports. Init runs once, at registration.
+// Layer is a part of the picture initialised once, at registration: a Renderer drawing on the
+// screen, or a Picture drawing the world through a camera.
 type Layer interface {
 	Init(*goke.SysInit)
 }
@@ -19,20 +18,9 @@ type Renderer interface {
 	Draw(screen *Image)
 }
 
-// WorldRenderer is a layer showing the world, drawn once a frame per viewport through its camera
-// onto an image the size of the viewport's area.
-type WorldRenderer interface {
+// Picture is what is in the world before a camera: drawn through the camera it is handed, onto an
+// image the size the camera draws — a Feed's picture.
+type Picture interface {
 	Layer
 	DrawWorld(screen *Image, cam camera.Camera)
-}
-
-// Viewport is where the world is shown: through Camera, into Area of the screen, in pixels.
-type Viewport struct {
-	Camera camera.Camera
-	Area   geom.AABB
-}
-
-// Whole is the one viewport of cam over the whole screen, for a scene with a single view.
-func Whole(cam camera.Camera, screen geom.AABB) []Viewport {
-	return []Viewport{{Camera: cam, Area: screen}}
 }

@@ -5,18 +5,19 @@
 //
 // # MoveOrder and Path
 //
-// A [MoveOrder] on an entity commands it toward a Target cell and then through up to
-// [MaxWaypoints] queued [Goal]s ([MoveOrder.Enqueue]), passing each without stopping; the order is
-// removed when the last is reached — unless it has a [Round], a patrol ([Patrol]): then, reached
-// or given up, it goes on to the round's next goal, standing its pause on each one reached, for
-// ever. A kind gives a wanderer or a guard its own round (comp.Load). Where in a cell the entity stops is its Spot, zero the cell's
-// centre, and At the point the order was given for. Its [Path] is the cached route, consumed step
-// by step, at most [MaxPathLength] cells at a time with a longer route fetched in chunks; its
-// [Leg] is the single step in flight. Its markers ([States], carried for good — the plugin gives
-// them to every unit the world's roster makes) have [Entered] on for the step its At changed:
-// the At says which cell it entered. A navigated entity carries a steering.Steering profile: navigation only asks it for
-// a heading at the lookahead point and for its own top speed, braking from the profile before the
-// goal. The [Plugin], built over a board and a world, runs before the world's RunPlan.
+// A [MoveOrder] on an entity commands it toward a Target cell and then through up to [MaxWaypoints]
+// queued [Goal]s ([MoveOrder.Enqueue]), passing each without stopping; the order is removed when
+// the last is reached — unless it has a [Round], a patrol ([Patrol]): then, reached or given up, it
+// goes on to the round's next goal, standing its pause on each one reached, for ever. A kind gives
+// a wanderer or a guard its own round (comp.Load). Where in a cell the entity stops is its Spot,
+// zero the cell's centre, and At the point the order was given for. Its [Path] is the cached route,
+// consumed step by step, at most [MaxPathLength] cells at a time with a longer route fetched in
+// chunks, planned again once the entity stands off it between steps — moved by another, the board
+// following it; its [Leg] is the single step in flight. Stepping into another cell it has
+// unit.Entered on for that step (the board's marker: the At says which cell it entered). A
+// navigated entity carries a steering.Steering profile: navigation only asks it for a heading at
+// the lookahead point and for its own top speed, braking from the profile before the goal. The
+// [Plugin], built over a board and a world, runs before the world's RunPlan.
 //
 // Navigation requires of every unit a steering.Steering, the profile it is steered by, through the
 // world's kind.Roster; a MoveOrder is put on by the MoveTo command, or by the game at spawn.
@@ -25,11 +26,13 @@
 //
 // How units keep out of each other's way is the plugin's [Spacing] ([Plugin.WithSpacing]):
 //
-//   - [CellSpacing] gives a unit a cell to itself in each domain, as the board's Occupancy says. A
-//     Leg holds every cell its step touches until it reaches the next centre, a group sent to one
-//     cell spreads a unit to a cell each, and every unit stands at its cell's centre. A unit routes
-//     over the ground alone, not knowing where the others stand, and learns of them only when a
-//     step is refused, the cell held: a [Touch] of whoever holds it. Refused for stallAfter,
+//   - [CellSpacing] gives a unit a cell to itself in each domain, as the board's Occupancy says —
+//     on each of its levels: one on a bridge's deck and one on the ground under it share a cell,
+//     each holding it on the level its route lies on there (Path.Decks). A Leg holds every cell
+//     its step touches until it reaches the next centre, a group sent to one cell spreads a unit
+//     to a cell each, and every unit stands at its cell's centre. A unit routes over the ground
+//     alone, not knowing where the others stand, and learns of them only when a step is refused,
+//     the cell held: a [Touch] of whoever holds it. Refused for stallAfter,
 //     whatever the rules do, it notes the cell for its routes to go round and plans afresh; a
 //     corner of a slantwise step held is gone round square at once. One that struck someone bodily
 //     (navigation reads its collision.Collider contacts in its own pass) stops, plans again
@@ -89,8 +92,18 @@
 // the corner beside the way, over the ground bare of it (board.Board.Bare), and costs that ground
 // — none where it does not admit the unit, the water beside a bridge: a road is followed round
 // its bend rather than cut across the grass, and a road laid slantwise is taken along its links at
-// its own price. The routes are found by the plugin's own path finder (internal/pathfind); the
-// routes on the GPU are drawn by its own lines (internal/routes): neither is the game's to use.
+// its own price. In a world with heights a cell under a raised deck (cell.Floor) has two levels,
+// and a route goes by the unit's Z: onto the deck where the ground at the edge it crosses lies
+// within the unit's step of it, along it, and off it only onto a surface within the step — never a
+// fall; under it only for a unit that fits under its slab wherever it walks under it, the ground
+// read at every eighth of the step under every deck over it — a band, a neighbour's reaching over
+// a corner — so no route runs under a bridge from its head, where the ground rises to the deck.
+// A unit on its goal's cell on the other level plans on, and the goal's cell met on the way — its
+// deck, on the way down under it — is passed like any. A step across a railing (cell.Rail) is
+// never planned, one on a raised deck counting on the deck's level alone; a step slantwise on or
+// off a deck is taken only along it, over the corner it cuts. The routes are found by the plugin's
+// own path finder (internal/pathfind); the routes on the GPU are drawn by its own lines
+// (internal/routes): neither is the game's to use.
 //
 // # Commands
 //
@@ -100,33 +113,24 @@
 // button up where it went down, within a few pixels — Shift + right click an appending one, and a
 // right drag a [LookAt] at every move of the cursor: every Selected entity stops and turns to
 // look where the cursor goes, through [MoveOrder].Face, the point an entity turns towards on
-// arrival, and the drag's release moves nothing. Under CellSpacing a right click on the cell a Selected entity stands on turns
+// arrival, and the drag's release moves nothing. A cell under a bridge's deck has two levels: a
+// click the camera picks on the deck sends the units onto it, one on the ground seen past it under
+// it ([MoveTo].Level, [Level], kept by the order and its goals); a route ends on that level, the
+// group's spots lie on it, and the goal's outline is drawn at its height. Under CellSpacing a right
+// click on the cell a Selected entity stands on turns
 // it towards the point clicked (MoveTo.At) and a LookAt lets it finish its step; under BodySpacing
 // MoveTo.At is where the group stands round, a click in the entity's own cell moves it there, and a
 // LookAt stops it where its braking ends.
 //
 // # Driven by hand
 //
-// An entity carrying a steering.Driven — written every tick from the hand on it, the eye's part by
-// a camera riding in it — is carried out after the orders: it turns by hand (Turn, or towards Face:
-// where an eye riding in it looks), walks on the way it faces while the ground just ahead is a
-// cell its domain may stand on and nobody is in the way — the occupancy lets it into the cell, or,
-// under BodySpacing, it touches nobody just ahead — and stops dead otherwise, so it never walks into
-// the sea; with no hand on it, it brakes. A hand ends any order it had, giving up the cells of the
-// step in progress; with none, the order goes on. Its Cell and its hold on the occupancy follow it
-// cell by cell, with Entered.
-//
-// A player's hand is the players' (players.Drive, summed a tick into players.Hand), which
-// navigation reads given the players ([Plugin.WithPlayers]): every tick each unit a hand is on —
-// the owner's whose camera is fastened to it (camera.Fastening), the owner's while the unit is
-// selected with that camera fastened to nothing, or its own (an entity's Drive for itself) — gets
-// the hand's part of its Driven written (Ahead, Turn, Sprint, Face from the hand's Way) and the
-// marker [Driving]; a tick without a hand brakes a Driving unit, and once it stands — or has an
-// order to go on with — its Driven is taken off, so it steps aside for others again. The eye's
-// part of a Driven — Face while a camera riding in the unit turns it, Flown, Climb — is the
-// camera's and left alone; a Driven navigation did not give is left alone whole. A unit under
-// orders struck by what was only sensed — a shot, a sensor —
-// is not Bumped by it: a sensor blocks nobody.
+// Driving a unit by hand is the driving plugin's (plugins/driving), which [NewPlugin] takes: it
+// hands the driving its spacing's say over whether a driven unit may walk on into the cell ahead
+// — the occupancy lets it in, or, under BodySpacing, it touches nobody just ahead — and whether a
+// unit is under orders, which the driving leaves be with no hand on it. A unit a hand is on
+// (steering.Driven.Steers) gives its order up in navigation's pass, the cells of the step in
+// progress let go; navigation's RunPlan comes before the driving's. A unit under orders struck by
+// what was only sensed — a shot, a sensor — is not Bumped by it: a sensor blocks nobody.
 //
 // # Renderer
 //

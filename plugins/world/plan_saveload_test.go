@@ -18,14 +18,14 @@ import (
 )
 
 // treeStage spawns one unit under plan — a sentry's when nil, coming to its post, waiting an hour
-// there, then gone — or loads it from loadFrom.
+// there, then gone — or is entered from the quicksave.
 type treeStage struct {
-	loadFrom string
-	plan     *written
-	world    *world.Plugin
-	unit     kind.Of[struct{}]
-	probe    *treeProbe
-	stack    game.Scenes
+	load  bool // entered from the quicksave
+	plan  *written
+	world *world.Plugin
+	unit  kind.Of[struct{}]
+	probe *treeProbe
+	stack game.Scenes
 }
 
 type treeProbe struct {
@@ -60,12 +60,7 @@ func (g *treeStage) Init(ctx game.Initializer) error {
 	return nil
 }
 
-func (g *treeStage) Restore(p game.Persistence) (bool, error) {
-	if g.loadFrom == "" {
-		return false, nil
-	}
-	return true, p.Load(g.loadFrom, "")
-}
+func (g *treeStage) Loaded() error { return nil }
 
 func (g *treeStage) Spawn() error {
 	g.world.Seed(g.unit.Entry(struct{}{}))
@@ -107,7 +102,7 @@ func (g *treeStage) guarding(t *testing.T) (since time.Duration, running bool) {
 // The world runs an entity's tree in its simulation: the wait in progress, the tree's own state,
 // is saved with the game and goes on after a load.
 func TestPlan_RunsInTheWorldAndIsSaved(t *testing.T) {
-	path := t.TempDir() + "/save"
+	t.Chdir(t.TempDir())
 	saver := &treeStage{}
 	eng := engine.NewEngine(oneStageGame{stage: saver, props: game.Props{}})
 	if err := eng.Init(); err != nil {
@@ -123,11 +118,15 @@ func TestPlan_RunsInTheWorldAndIsSaved(t *testing.T) {
 	if since == 0 || !running {
 		t.Fatalf("the sentry's wait at its post began at %v, its tree running %v; want begun, running", since, running)
 	}
-	if err := eng.Persistence().Save(path, ""); err != nil {
+	if err := eng.Save(""); err != nil {
 		t.Fatal(err)
 	}
-	loader := &treeStage{loadFrom: path}
-	if err := engine.NewEngine(oneStageGame{stage: loader, props: game.Props{}}).Init(); err != nil {
+	loader := &treeStage{load: true}
+	eng2 := engine.NewEngine(oneStageGame{stage: loader, props: game.Props{}})
+	if err := eng2.Load("", ""); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := eng2.Init(); err != nil {
 		t.Fatal(err)
 	}
 	if at, running := loader.guarding(t); at != since || !running {
@@ -142,6 +141,11 @@ func TestPlan_OrdersTheWorldsCommands(t *testing.T) {
 		return a.Steps(a.Wait(50*time.Millisecond), a.Order(world.Despawn{}))
 	})}
 	eng := engine.NewEngine(oneStageGame{stage: stage, props: game.Props{}})
+	if stage.load {
+		if err := eng.Load("", ""); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+	}
 	if err := eng.Init(); err != nil {
 		t.Fatal(err)
 	}

@@ -14,11 +14,12 @@ type Stage interface {
 	// Init runs once, when this Stage becomes active.
 	Init(ctx Initializer) error
 
-	// Restore resumes from a save, or reports false if there's nothing to restore.
-	Restore(p Persistence) (restored bool, err error)
-
-	// Spawn runs once, only if Restore found nothing, seeding each plugin's initial state.
+	// Spawn runs once, when the Stage is entered afresh, seeding each plugin's initial state.
 	Spawn() error
+
+	// Loaded runs in place of Spawn when the Stage was entered from a save (Load), its world
+	// loaded.
+	Loaded() error
 
 	// Update advances this stage's simulation by d, once per tick.
 	Update(ctx goke.RunCtx, d time.Duration)

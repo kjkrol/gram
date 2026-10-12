@@ -10,10 +10,8 @@
 // [Network.Along] is how far a cell lies, 0 at the head of the longest flow into it to 1 at the
 // last cell before it leaves: a river taking on the sea's look as it nears it (cell.Way.Mix).
 // Where two networks run through the same cells ([Network.Crossings]) a road meets a river: a
-// ford, a bridge.
+// ford, a bridge — an entity standing on the river's cell (board.NewEntities, cell.Floor).
 //
 // A road is found over the grid ([Route]: the cheapest way from cell to cell at a cost a game
-// says, round what may not be crossed) and laid along its cells ([Network.Path]). Laid over a
-// river ([Network.Across]) it is a way of its own where the river does not run and a
-// cell.Crossing — a bridge — over the river's way where it does.
+// says, round what may not be crossed) and laid along its cells ([Network.Path]).
 package network

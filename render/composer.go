@@ -10,7 +10,7 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// Composer is a WorldRenderer drawing its Sources as one picture per viewport: every source hands
+// Composer is a Picture drawing its Sources as one picture per viewport: every source hands
 // its items to a Frame, the Composer orders them — by depth below the Marks when the camera's
 // projection sorts — and draws each run of items sampling one sheet in one call; a Direct source
 // draws its part itself where its tier comes.
@@ -34,7 +34,7 @@ type Composer struct {
 	draw func(screen *Image, verts []Vertex, indices []uint16, sheet *Image)
 }
 
-var _ WorldRenderer = (*Composer)(nil)
+var _ Picture = (*Composer)(nil)
 
 // NewComposer takes the layers to compose, which must all be Sources; a nil layer — a plugin with
 // no renderer — is left out.

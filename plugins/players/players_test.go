@@ -2,6 +2,7 @@ package players_test
 
 import (
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -10,12 +11,14 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/ui"
 )
 
 // installCtx is the plugin.Installer a Stage would hand over, minus the engine.
@@ -39,49 +42,73 @@ func (c *installCtx) ECS() *goke.ECS                                  { return c
 
 // order and note are two command types; general is the made-up plugin defining order.
 type order struct{ Cell int }
+
+func (order) Command() {}
+
 type note struct{ Text string }
+
+func (note) Command() {}
 
 type general struct{ orders control.Queue[order] }
 
 func (g *general) Queues() []control.CommandQueue     { return []control.CommandQueue{&g.orders} }
 func (g *general) DefaultBindings() []control.Binding { return nil }
 
-// rig is a players plugin over a 1000×1000 world with one local player and a general's order queue.
+// rig is a players plugin over a 1000×1000 world with one local player acting through a picture
+// over the whole screen drawn through a camera of its own, and a general's order queue.
 type rig struct {
 	t      *testing.T
 	w      *world.Plugin
+	cams   *cameras.Plugin
+	cam    camera.Camera // the local player's
 	p      *players.Plugin
 	local  *players.Player
+	wire   ui.Input // the local player's picture's
 	orders *control.Queue[order]
 }
 
-func newRig(t *testing.T, cfg ...camera.Config) *rig {
+// look has the local player act through a picture drawn through cam over the whole screen, as a
+// scene showing it wires it.
+func (r *rig) look(cam camera.Camera) {
+	r.cam = cam
+	r.wire.Over(geom.AABB{}, render.NewFeed(cam, nil))
+}
+
+func newRig(t *testing.T) *rig {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
-	if len(cfg) > 0 {
-		w.Res.Camera = icamera.NewFromSpaceWithConfig(1000, 1000, 0, cfg[0])
-	}
+	cams := cameras.NewPlugin(w)
+	cam := cams.New(cameras.TopDown(), camera.Config{})
 	g := &general{}
-	p := players.NewPlugin(w, g)
-	return &rig{t: t, w: w, p: p, local: p.Local("tester"), orders: &g.orders}
+	p := players.NewPlugin(w, cams, g)
+	local := p.Local("tester")
+	r := &rig{t: t, w: w, cams: cams, p: p, local: local, wire: p.Through(local), orders: &g.orders}
+	r.look(cam)
+	return r
 }
 
-// start installs the plugin into an ECS whose plan is players' RunPlan, so camera commands land.
+// start installs the cameras and the players into an ECS whose plan is their RunPlans, so camera
+// commands land.
 func (r *rig) start() *goke.ECS {
 	r.t.Helper()
 	ctx := &installCtx{ecs: goke.New()}
-	if err := r.p.Install(ctx); err != nil {
-		r.t.Fatal(err)
+	for _, p := range []plugin.Plugin{r.cams, r.p} {
+		if err := p.Install(ctx); err != nil {
+			r.t.Fatal(err)
+		}
 	}
 	var systems []goke.System
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
 	}
 	ctx.ecs.Setup(systems...)
-	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) { r.p.RunPlan(rc, d) })
+	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+		r.cams.RunPlan(rc, d)
+		r.p.RunPlan(rc, d)
+	})
 	return ctx.ecs
 }
 
@@ -106,16 +133,60 @@ func orderOf(n int) func(control.Context) (order, bool) {
 
 func TestBind_RefusesTwoBindingsOnOneTrigger(t *testing.T) {
 	r := newRig(t)
-	r.bind(control.Command(control.KeyPress{Key: control.KeyA}, "one", orderOf(1)))
-	err := r.local.Bind(control.Command(control.KeyPress{Key: control.KeyA}, "two", orderOf(2)))
+	r.bind(control.Build(control.KeyPress{Key: control.KeyA}, "one", orderOf(1)))
+	err := r.local.Bind(control.Build(control.KeyPress{Key: control.KeyA}, "two", orderOf(2)))
 	if err == nil {
 		t.Fatal("two bindings on KeyPress A were accepted")
 	}
-	if err := r.local.Bind(control.Command(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Shift: true}}, "shifted", orderOf(3))); err != nil {
+	if err := r.local.Bind(control.Build(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Shift: true}}, "shifted", orderOf(3))); err != nil {
 		t.Errorf("Shift+A beside A: %v, want accepted as a different rule", err)
 	}
 	if err := r.local.Bind(control.Binding{Label: "bare"}); err == nil {
 		t.Error("a Binding not built with Command was accepted")
+	}
+}
+
+// While a player holds a tool, the tool's binding on a trigger fires in place of the one of no
+// tool; put down, the one of no tool fires again. Two of one tool on one trigger are refused.
+func TestTool_ItsBindingsTakeTheirTriggersWhileHeld(t *testing.T) {
+	r := newRig(t)
+	click := control.ButtonPress{Button: control.MouseButtonLeft}
+	r.bind(
+		control.Build(click, "select", orderOf(1)),
+		control.Build(click, "a bridge's end", orderOf(2)).With("bridge"),
+		control.Build(control.KeyPress{Key: control.KeyA}, "anything", orderOf(3)),
+	)
+	if err := r.local.Bind(control.Build(click, "again", orderOf(4)).With("bridge")); err == nil {
+		t.Error("two bindings of one tool on one trigger were accepted")
+	}
+	pass := func() []int {
+		ev := &control.InputEvents{}
+		ev.AddClickEvent(5, 5, control.MouseButtonLeft, control.ActionPress)
+		ev.AddClickEvent(5, 5, control.MouseButtonLeft, control.ActionRelease)
+		ev.AddKeyEvent(control.KeyA, control.ActionPress)
+		ev.AddKeyEvent(control.KeyA, control.ActionRelease)
+		r.handle(ev)
+		var cells []int
+		for _, i := range r.drained() {
+			cells = append(cells, i.Command.Cell)
+		}
+		slices.Sort(cells)
+		return cells
+	}
+	if got := pass(); !slices.Equal(got, []int{1, 3}) {
+		t.Errorf("holding nothing a click and A issued orders %v, want 1 and 3", got)
+	}
+	if err := r.p.Issue(r.local, control.Take{Tool: "bridge"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := pass(); !slices.Equal(got, []int{2, 3}) {
+		t.Errorf("holding the bridge a click and A issued orders %v, want 2 and 3", got)
+	}
+	if err := r.p.Issue(r.local, control.Drop{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := pass(); !slices.Equal(got, []int{1, 3}) {
+		t.Errorf("put down, a click and A issued orders %v, want 1 and 3 again", got)
 	}
 }
 
@@ -167,8 +238,8 @@ func TestAdd_MakesAPlayerWithoutAKeyboard(t *testing.T) {
 
 func TestDefaults_CollectEveryHandlersBindings(t *testing.T) {
 	r := newRig(t)
-	if got, want := len(r.p.Defaults()), len(r.p.DefaultBindings())+len(r.w.DefaultBindings()); got != want {
-		t.Errorf("Defaults has %d bindings, want the players' own and the world's clock's %d (the general suggests none)", got, want)
+	if got, want := len(r.p.Defaults()), len(r.p.DefaultBindings())+len(r.w.DefaultBindings())+len(r.cams.DefaultBindings()); got != want {
+		t.Errorf("Defaults has %d bindings, want the players' own, the world's clock's and the cameras' %d (the general suggests none)", got, want)
 	}
 	if err := r.local.Bind(r.p.Defaults()...); err != nil {
 		t.Error(err)
@@ -177,7 +248,7 @@ func TestDefaults_CollectEveryHandlersBindings(t *testing.T) {
 
 func TestSetup_PanicsOnABindingNobodyListensFor(t *testing.T) {
 	r := newRig(t)
-	r.bind(control.Command(control.KeyPress{Key: control.KeyN}, "unheard", func(control.Context) (note, bool) { return note{}, true }))
+	r.bind(control.Build(control.KeyPress{Key: control.KeyN}, "unheard", func(control.Context) (note, bool) { return note{}, true }))
 	ctx := &installCtx{ecs: goke.New()}
 	if err := r.p.Install(ctx); err != nil {
 		t.Fatal(err)
@@ -197,9 +268,9 @@ func TestSetup_PanicsOnABindingNobodyListensFor(t *testing.T) {
 func TestKeysAndButtons_FireWithExactlyTheirModifiers(t *testing.T) {
 	r := newRig(t)
 	r.bind(
-		control.Command(control.KeyPress{Key: control.KeyA}, "a", orderOf(1)),
-		control.Command(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Shift: true}}, "shift a", orderOf(2)),
-		control.Command(control.ButtonPress{Button: control.MouseButtonRight}, "right", func(c control.Context) (order, bool) {
+		control.Build(control.KeyPress{Key: control.KeyA}, "a", orderOf(1)),
+		control.Build(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Shift: true}}, "shift a", orderOf(2)),
+		control.Build(control.ButtonPress{Button: control.MouseButtonRight}, "right", func(c control.Context) (order, bool) {
 			return order{int(c.Cursor.X)}, true
 		}),
 	)
@@ -224,9 +295,9 @@ func TestKeysAndButtons_FireWithExactlyTheirModifiers(t *testing.T) {
 
 func TestDrag_FiresOnReleaseAndButtonHeldKnowsWhereItBegan(t *testing.T) {
 	r := newRig(t)
-	r.bind(control.Command(control.Drag{Button: control.MouseButtonLeft}, "box", func(c control.Context) (order, bool) {
+	r.bind(control.Build(control.Drag{Button: control.MouseButtonLeft}, "box", func(c control.Context) (order, bool) {
 		return order{int(c.Start.X)*1000 + int(c.Cursor.X)}, true
-	}), control.Command(control.ButtonHeld{Button: control.MouseButtonLeft}, "dragging", func(c control.Context) (order, bool) {
+	}), control.Build(control.ButtonHeld{Button: control.MouseButtonLeft}, "dragging", func(c control.Context) (order, bool) {
 		return order{-(int(c.Start.X)*1000 + int(c.Cursor.X))}, true
 	}))
 
@@ -251,13 +322,10 @@ func TestDrag_FiresOnReleaseAndButtonHeldKnowsWhereItBegan(t *testing.T) {
 }
 
 func TestWorldBox_StaysNarrowAcrossATorusSeam(t *testing.T) {
-	w := world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 1000, Height: 1000, Edges: aabbworld.Torus},
-		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
-	})
-	w.Res.Camera = icamera.NewFromSpaceWithConfig(1000, 1000, aabbworld.Torus, camera.Config{ViewportWidth: 200, ViewportHeight: 200})
-	w.Res.Camera.MoveTo(950, 500)
-	ctx := control.Context{Camera: w.Res.Camera}
+	cam := cameras.TopDown()(1000, 1000, aabbworld.Torus, camera.Config{})
+	cam.SetViewport(200, 200)
+	cam.MoveTo(950, 500)
+	ctx := control.Context{Camera: cam}
 
 	box := ctx.WorldBox(geom.NewVec(0, 0), geom.NewVec(200, 10))
 	if width := box.BottomRight.X - box.TopLeft.X; width > 200 {
@@ -266,10 +334,10 @@ func TestWorldBox_StaysNarrowAcrossATorusSeam(t *testing.T) {
 }
 
 // cameraRig is a rig with the default camera bindings, started, so Pan and Zoom reach the camera.
-func cameraRig(t *testing.T, cfg ...camera.Config) (*rig, *goke.ECS) {
+func cameraRig(t *testing.T) (*rig, *goke.ECS) {
 	t.Helper()
-	r := newRig(t, cfg...)
-	r.bind(players.CameraBindings()...)
+	r := newRig(t)
+	r.bind(cameras.DefaultKeys().Bindings()...)
 	return r, r.start()
 }
 
@@ -280,7 +348,7 @@ func (r *rig) move(ev *control.InputEvents, ecs *goke.ECS) {
 
 func TestCamera_WheelZooms(t *testing.T) {
 	r, ecs := cameraRig(t)
-	cam := r.local.Camera
+	cam := r.cam
 	r.move(&control.InputEvents{ScrollDelta: 1}, ecs)
 	if cam.Zoom() <= 1 {
 		t.Fatalf("Zoom() after a notch up = %v, want > 1", cam.Zoom())
@@ -294,8 +362,9 @@ func TestCamera_WheelZooms(t *testing.T) {
 
 func TestCamera_MiddleDragPansOneToOneWithTheCursor(t *testing.T) {
 	for _, zoom := range []float32{1, 2} {
-		r, ecs := cameraRig(t, camera.Config{ViewportWidth: 200, ViewportHeight: 200})
-		cam := r.local.Camera
+		r, ecs := cameraRig(t)
+		cam := r.cam
+		cam.SetViewport(200, 200)
 		cam.MoveTo(400, 400)
 		cam.ZoomIn(zoom, 500, 500)
 		before := cam.Bounds()
@@ -311,8 +380,9 @@ func TestCamera_MiddleDragPansOneToOneWithTheCursor(t *testing.T) {
 
 func TestCamera_EdgeScrollIsTheSameOnScreenAtAnyZoom(t *testing.T) {
 	for _, zoom := range []float32{1, 2, 4} {
-		r, ecs := cameraRig(t, camera.Config{ViewportWidth: 200, ViewportHeight: 200})
-		cam := r.local.Camera
+		r, ecs := cameraRig(t)
+		cam := r.cam
+		cam.SetViewport(200, 200)
 		cam.MoveTo(400, 400)
 		cam.ZoomIn(zoom, 500, 500)
 		before := cam.Bounds()
@@ -320,8 +390,8 @@ func TestCamera_EdgeScrollIsTheSameOnScreenAtAnyZoom(t *testing.T) {
 		r.move(&control.InputEvents{MousePos: geom.NewVec(190, 100)}, ecs) // near the right edge of the 200-pixel window
 
 		moved := (cam.Bounds().TopLeft.X - before.TopLeft.X) * float64(zoom)
-		if moved != float64(players.DefaultScrollSpeed) {
-			t.Errorf("zoom %v: an edge scroll moved %v pixels of world, want %v", zoom, moved, players.DefaultScrollSpeed)
+		if moved != float64(cameras.DefaultScrollSpeed) {
+			t.Errorf("zoom %v: an edge scroll moved %v pixels of world, want %v", zoom, moved, cameras.DefaultScrollSpeed)
 		}
 	}
 }
@@ -340,7 +410,7 @@ func TestCamera_EdgeDeadZoneAndWindowEdges(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			r, ecs := cameraRig(t)
-			cam := r.local.Camera
+			cam := r.cam
 			cam.ZoomIn(2, 500, 500)
 			before := cam.Bounds()
 			ev := tc.ev
@@ -365,11 +435,14 @@ func TestPlugin_Contract(t *testing.T) {
 	}
 }
 
-// riding is the rig's camera, riding in an entity while on.
+// riding is the rig's camera, riding in an entity while on, looking round with the mouse.
 type riding struct {
 	camera.Camera
 	on bool
 }
+
+func (r *riding) MouseLook() bool   { return true }
+func (r *riding) SetMouseLook(bool) {}
 
 func (r *riding) Fasten(camera.Fastening) {}
 
@@ -385,13 +458,13 @@ func (r *riding) Fastening() camera.Fastening {
 func TestBind_OneKeyDoesWhatTheCamerasHowSays(t *testing.T) {
 	r := newRig(t)
 	players.CaptureWith(r.p, func(bool) {})
-	cam := &riding{Camera: r.local.Camera}
-	r.local.Camera = cam
+	cam := &riding{Camera: r.cam}
+	r.look(cam)
 	r.bind(
-		control.Command(control.KeyPress{Key: control.KeyA}, "scroll", orderOf(1)).In(camera.Outside),
-		control.Command(control.KeyPress{Key: control.KeyA}, "turn", orderOf(2)).In(camera.Inside),
+		control.Build(control.KeyPress{Key: control.KeyA}, "scroll", orderOf(1)).In(camera.Outside),
+		control.Build(control.KeyPress{Key: control.KeyA}, "turn", orderOf(2)).In(camera.Inside),
 	)
-	if err := r.local.Bind(control.Command(control.KeyPress{Key: control.KeyA}, "both", orderOf(3))); err == nil {
+	if err := r.local.Bind(control.Build(control.KeyPress{Key: control.KeyA}, "both", orderOf(3))); err == nil {
 		t.Error("a binding on A in every How beside ones in each was accepted")
 	}
 	press := func() []control.Issued[order] {
@@ -417,9 +490,9 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 	r := newRig(t)
 	var caught []bool
 	players.CaptureWith(r.p, func(on bool) { caught = append(caught, on) })
-	cam := &riding{Camera: r.local.Camera}
-	r.local.Camera = cam
-	r.bind(control.Command(control.CursorMove{}, "look", func(c control.Context) (order, bool) {
+	cam := &riding{Camera: r.cam}
+	r.look(cam)
+	r.bind(control.Build(control.CursorMove{}, "look", func(c control.Context) (order, bool) {
 		return order{int(c.Delta.X)}, true
 	}).In(camera.Inside))
 	move := func(x, y int) []control.Issued[order] {

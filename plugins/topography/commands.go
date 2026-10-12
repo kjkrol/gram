@@ -9,6 +9,12 @@ import (
 // as fine a side, a quarter of the work the GPU does while the sun goes on.
 type CoarseShadows struct{}
 
+func (CoarseShadows) Command() {}
+
+var (
+	_ control.Command = CoarseShadows{}
+)
+
 // Queues are where the view's, the shaping's and the shadows' commands land.
 func (p *Plugin) Queues() []control.CommandQueue {
 	return append(append(p.camQueues.queues(), p.shaper.queues()...), &p.coarse)
@@ -20,13 +26,13 @@ func (p *Plugin) Queues() []control.CommandQueue {
 func (p *Plugin) DefaultBindings() []control.Binding {
 	at := func(c control.Context) geom.Vec { return c.World(c.Cursor) }
 	return append(cameraBindings(p.cfg.Perspective),
-		control.Command(control.KeyPress{Key: control.KeyEqual}, "Raise the ground", func(c control.Context) (Raise, bool) { return Raise{At: at(c)}, true }),
-		control.Command(control.KeyPress{Key: control.KeyMinus}, "Lower the ground", func(c control.Context) (Lower, bool) { return Lower{At: at(c)}, true }),
-		control.Command(control.Drag{Button: control.MouseButtonLeft, Mods: control.Mods{}.Holding(control.KeyL)}, "Level the ground",
+		control.Build(control.KeyPress{Key: control.KeyEqual}, "Raise the ground", func(c control.Context) (Raise, bool) { return Raise{At: at(c)}, true }),
+		control.Build(control.KeyPress{Key: control.KeyMinus}, "Lower the ground", func(c control.Context) (Lower, bool) { return Lower{At: at(c)}, true }),
+		control.Build(control.Drag{Button: control.MouseButtonLeft, Mods: control.Mods{}.Holding(control.KeyL)}, "Level the ground",
 			func(c control.Context) (Level, bool) {
 				return Level{From: c.World(c.Start), To: c.World(c.Cursor)}, true
 			}),
-		control.Command(control.KeyPress{Key: control.KeyH}, "Coarser shadows, a quarter of the work, or fine again",
+		control.Build(control.KeyPress{Key: control.KeyH}, "Coarser shadows, a quarter of the work, or fine again",
 			func(control.Context) (CoarseShadows, bool) { return CoarseShadows{}, true }),
 	)
 }

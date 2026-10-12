@@ -42,12 +42,17 @@ type keeping interface {
 	// bump is m's answer to o marked Bumped: it struck the ground or someone bodily, or made no
 	// headway — navigation's own last word, whatever the rules do.
 	bump(m member, o *MoveOrder) bumpAnswer
-	// blocked notes that m's step into c was refused, someone holding it, for d more: who holds it.
-	blocked(m member, o *MoveOrder, c cell.ID, d time.Duration) (holder uid.UID64, known bool)
+	// blocked notes that m's step into c, on the raised deck over it where deck says, was refused,
+	// someone holding it, for d more: who holds it.
+	blocked(m member, o *MoveOrder, c cell.ID, deck bool, d time.Duration) (holder uid.UID64,
+		known bool)
 	// within is how near its goal m counts as there.
 	within(m member) float64
-	// mayStep reports whether m, driven by hand, may walk on into ahead along heading.
-	mayStep(m member, ahead cell.ID, heading geom.Vec) bool
+	// on reports whether m, standing in c, stands on its level level: any where c has one.
+	on(m member, c cell.ID, level Level) bool
+	// mayStep reports whether m, driven by hand, may walk on into ahead — onto the raised deck over
+	// it where deck says — along heading.
+	mayStep(m member, ahead cell.ID, deck bool, heading geom.Vec) bool
 	// byContact reports whether units touch by their boxes striking — Collider's contacts — or,
 	// false, by a step into a held cell refused.
 	byContact() bool
@@ -72,9 +77,9 @@ type keeping interface {
 // price (board.Map.Climb): a unit stepping aside never steps down a cliff nor up a wall.
 const yieldClimb = 3
 
-// holders is an Occupancy that tells who holds a cell: the board's.
+// holders is an Occupancy that tells who holds a cell on a level: the board's.
 type holders interface {
-	Holder(c cell.ID, d cell.Domain) (uid.UID64, bool)
+	Holder(c cell.ID, deck bool, d cell.Domain) (uid.UID64, bool)
 }
 
 // bumpAnswer is what a unit does about a bump.
@@ -146,11 +151,12 @@ func (k *cellKeeping) orders(members []member, cmd MoveTo, issue func(member, Mo
 	var moves []member
 	for _, m := range members {
 		if cmd.Append && m.order != nil {
-			m.order.Enqueue(Goal{Cell: target, At: cmd.At})
+			m.order.Enqueue(Goal{Cell: target, At: cmd.At, Level: cmd.Level})
 			continue
 		}
 		standing := m.order == nil || !m.order.Leg.Active
-		if !cmd.Append && standing && m.cell == target && cmd.At != (geom.Vec{}) {
+		if !cmd.Append && standing && m.cell == target && cmd.At != (geom.Vec{}) &&
+			k.finder.on(m, target, cmd.Level) {
 			issue(m, MoveOrder{Target: target, Face: cmd.At})
 			continue
 		}
@@ -166,16 +172,17 @@ func (k *cellKeeping) orders(members []member, cmd MoveTo, issue func(member, Mo
 		var path Path
 		ok := false
 		if n == 0 {
-			path, ok = pf.findPath(m.id, m.domain, m.from, target)
+			path, ok = pf.findPath(m.id, m.domain, m.z, m.from, target, cmd.Level)
 		}
 		if !ok {
-			dest, path, ok = pf.nearestFree(m.id, m.domain, m.from, target, func(c cell.ID) bool { return taken[c] })
+			dest, path, ok = pf.nearestFree(m.id, m.domain, m.z, m.from, target, cmd.Level,
+				func(c cell.ID, _ bool) bool { return taken[c] })
 		}
 		if !ok {
 			continue
 		}
 		taken[dest] = true
-		issue(m, MoveOrder{Target: dest, Path: path, Leg: m.leg})
+		issue(m, MoveOrder{Target: dest, Level: cmd.Level, Path: path, Leg: m.leg})
 	}
 }
 
@@ -195,16 +202,17 @@ func (k *cellKeeping) route(m member, from cell.ID, o *MoveOrder) (Path, bool) {
 	if o.Avoids > 0 {
 		known := o.Avoid[:o.Avoids]
 		blocked := func(c cell.ID) bool { return c != o.Target && slices.Contains(known, c) }
-		if p, ok := k.finder.findPathAround(m.id, m.domain, from, o.Target, blocked); ok {
+		if p, ok := k.finder.findPathAround(m.id, m.domain, m.z, from, o.Target, o.Level,
+			blocked); ok {
 			return p, true
 		}
 	}
-	return k.finder.findPath(m.id, m.domain, from, o.Target)
+	return k.finder.findPath(m.id, m.domain, m.z, from, o.Target, o.Level)
 }
 
-// held reports whether c is held against m.
-func (k *cellKeeping) held(m member) func(cell.ID) bool {
-	return func(c cell.ID) bool { return !k.occ.CanEnter(c, m.id, m.domain) }
+// held reports whether c is held against m on a level.
+func (k *cellKeeping) held(m member) func(c cell.ID, deck bool) bool {
+	return func(c cell.ID, deck bool) bool { return !k.occ.CanEnter(c, deck, m.id, m.domain) }
 }
 
 // lost waits targetWaitTimeout for the target to free, then settles on the nearest free cell.
@@ -212,8 +220,12 @@ func (k *cellKeeping) lost(m member, from cell.ID, o *MoveOrder, waited time.Dur
 	if waited < targetWaitTimeout {
 		return 0, Path{}, true, false
 	}
-	dest, path, ok := k.finder.nearestFree(m.id, m.domain, from, o.Target, k.held(m))
+	dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.z, from, o.Target, o.Level, k.held(m))
 	return dest, path, false, ok
+}
+
+func (k *cellKeeping) on(m member, c cell.ID, level Level) bool {
+	return k.finder.on(m, c, level)
 }
 
 func (k *cellKeeping) steer(_ member, st steering.Helm, dir geom.Vec, speed float64) {
@@ -235,14 +247,15 @@ func (k *cellKeeping) watch(m member, o *MoveOrder, _ cell.ID, _ geom.Vec, _ tim
 // blocked notes m's step into c refused — someone holds it — and marks o Bumped and Held for
 // bump to answer once it has been refused stallAfter: the last word against rules that never move
 // it.
-func (k *cellKeeping) blocked(m member, o *MoveOrder, c cell.ID, d time.Duration) (uid.UID64, bool) {
+func (k *cellKeeping) blocked(m member, o *MoveOrder, c cell.ID, deck bool,
+	d time.Duration) (uid.UID64, bool) {
 	if o.Toward != c {
 		o.Toward, o.Stalled = c, 0
 	}
 	var holder uid.UID64
 	known := false
 	if k.who != nil {
-		holder, known = k.who.Holder(c, m.domain)
+		holder, known = k.who.Holder(c, deck, m.domain)
 	}
 	if o.Stalled += d; o.Stalled >= stallAfter {
 		o.Bumped, o.Held, o.Hit, o.HitUnit, o.Stalled = true, true, holder, known, 0
@@ -262,7 +275,8 @@ func (k *cellKeeping) bump(m member, o *MoveOrder) bumpAnswer {
 		return giveUp
 	}
 	if o.Toward == o.Target {
-		dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.from, o.Target, k.held(m))
+		dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.z, m.from, o.Target, o.Level,
+			k.held(m))
 		if !ok {
 			return giveUp
 		}
@@ -277,8 +291,8 @@ func (k *cellKeeping) bump(m member, o *MoveOrder) bumpAnswer {
 func (k *cellKeeping) within(member) float64 { return arrivalEpsilon }
 
 // mayStep lets m on within its own cell, and into another the occupancy lets it into.
-func (k *cellKeeping) mayStep(m member, ahead cell.ID, _ geom.Vec) bool {
-	return ahead == m.cell || k.occ.CanEnter(ahead, m.id, m.domain)
+func (k *cellKeeping) mayStep(m member, ahead cell.ID, deck bool, _ geom.Vec) bool {
+	return ahead == m.cell || k.occ.CanEnter(ahead, deck, m.id, m.domain)
 }
 
 // other is whoever id was this tick.
@@ -297,7 +311,8 @@ func (k *cellKeeping) aside(m member, from cell.ID, way geom.Vec) []cell.ID {
 	}
 	var out []scored
 	for _, n := range grid.Neighbors(home) {
-		if n == from || !terrain.Kind(n).Admits(m.domain) || k.finder.climb(home, n, m.domain) > yieldClimb {
+		if n == from || !terrain.Kind(n).Admits(m.domain) ||
+			k.finder.climb(home, n, m.domain) > yieldClimb || !k.finder.steps(m, n) {
 			continue
 		}
 		c := grid.CellCenter(n)
@@ -343,7 +358,7 @@ func (k *cellKeeping) byContact() bool { return false }
 func (k *cellKeeping) stepAside(m member, of body) (MoveOrder, bool) {
 	from, way := k.wayFrom(m, of)
 	for _, c := range k.aside(m, from, way) {
-		if !k.occ.CanEnter(c, m.id, m.domain) {
+		if deck, _ := k.finder.stepsOnto(m, c); !k.occ.CanEnter(c, deck, m.id, m.domain) {
 			continue
 		}
 		o := MoveOrder{Target: c, GivingWay: true}
@@ -381,7 +396,8 @@ func (k *cellKeeping) pass(member, *MoveOrder, body) {}
 func (k *cellKeeping) onGoal(self, other body) bool { return other.cell == self.goal }
 
 func (k *cellKeeping) settle(m member, o *MoveOrder, _ body) bool {
-	dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.from, o.Target, k.held(m))
+	dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.z, m.from, o.Target, o.Level,
+		k.held(m))
 	if !ok {
 		return false
 	}

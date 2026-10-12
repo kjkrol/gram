@@ -12,7 +12,7 @@ import (
 func TestPlugin_HMakesTheShadowsCoarse(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true})
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
 	bound := false
 	for _, bd := range p.DefaultBindings() {
 		bound = bound || players.Written(bd.Trigger) == "H"

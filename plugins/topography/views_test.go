@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/topography"
 	icameras "github.com/kjkrol/gram/plugins/topography/internal/cameras"
@@ -27,12 +28,13 @@ func TestPlugin_ViewSwitchesBetweenAboveAndIsometric(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 2048, Height: 2048},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
-		Camera:   camera.Config{ViewportWidth: 128, ViewportHeight: 64},
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(64, 64, 32), &cell.MultipleOccupancy{}, w)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, TileW: 64, HeightUnit: 1})
-	cam := w.Camera()
+	cam := cameras.NewPlugin(w).New(p.Views(topography.FromAbove), camera.Config{})
+	cam.SetViewport(128, 64)
+	cam.MoveTo(0, 0)
 	if cam.Projection().Sorts() {
 		t.Fatal("a game not begun Isometric looks isometrically")
 	}
@@ -83,7 +85,7 @@ func TestPlugin_RefusesAWrappingWorld(t *testing.T) {
 func TestDefaultBindings_RidingKeysHoldInsideOnly(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Isometric: true, Perspective: true})
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Perspective: true})
 	holding := func(how camera.How) map[string]control.Binding {
 		out := map[string]control.Binding{}
 		for _, bd := range p.DefaultBindings() {
@@ -110,10 +112,17 @@ func TestDefaultBindings_RidingKeysHoldInsideOnly(t *testing.T) {
 			t.Errorf("loose, %s is not bound", key)
 		}
 	}
+	cam := topotest.Camera(w, p)
 	if bd, ok := riding["mouse"]; !ok {
-		t.Error("riding, the mouse does not look round")
-	} else if cmd, _ := bd.Build(control.Context{Delta: geom.NewVec(3, -2)}); cmd != (topography.Look{Dx: 3, Dy: -2}) {
-		t.Errorf("riding, a mouse move of (3, -2) issues %+v, want Look{Dx: 3, Dy: -2}", cmd)
+		t.Error("riding, there is no binding of the mouse")
+	} else {
+		if _, built := bd.Build(control.Context{Camera: cam, Delta: geom.NewVec(3, -2)}); built {
+			t.Error("riding, the mouse looks round with mouse look off")
+		}
+		cam.(camera.MouseLooker).SetMouseLook(true)
+		if cmd, _ := bd.Build(control.Context{Camera: cam, Delta: geom.NewVec(3, -2)}); cmd != (topography.Look{Camera: cam, Dx: 3, Dy: -2}) {
+			t.Errorf("riding, mouse look on, a move of (3, -2) issues %+v, want Look{Dx: 3, Dy: -2}", cmd)
+		}
 	}
 	if _, ok := loose["mouse"]; ok {
 		t.Error("loose, the mouse looks round")
@@ -132,5 +141,21 @@ func TestDefaultBindings_RidingKeysHoldInsideOnly(t *testing.T) {
 	}
 	if _, ok := loose["V"]; ok {
 		t.Error("loose, V is bound: there is nothing to ride")
+	}
+}
+
+// Two players of one world in relief may look at it differently: a camera begins as its Start
+// says, from above or isometrically, whatever the other's does.
+func TestViews_EveryCameraBeginsAsItsStartSays(t *testing.T) {
+	w := topotest.NewWorld(0)
+	b, _ := topotest.LevelBoard(w)
+	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+	cams := cameras.NewPlugin(w)
+	above, iso := cams.New(p.Views(topography.FromAbove), camera.Config{}), cams.New(p.Views(topography.Isometrically), camera.Config{})
+	if above.Projection().Sorts() {
+		t.Error("the camera begun FromAbove looks isometrically")
+	}
+	if !iso.Projection().Sorts() {
+		t.Error("the camera begun Isometrically looks from above")
 	}
 }

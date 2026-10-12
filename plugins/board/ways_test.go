@@ -14,22 +14,19 @@ var (
 )
 var bridge = cell.Kind{Name: cell.Named("bridge"), Cost: 1, Allows: cell.Land | cell.Air}.Costing(cell.Land, 0.5)
 
-// A step goes along a way where the way, or a crossing, links the two cells either way round.
-func TestBoard_AlongFollowsTheLinksOfWaysAndCrossings(t *testing.T) {
+// A step goes along a way where the way links the two cells either way round.
+func TestBoard_AlongFollowsTheLinksOfWays(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(3, 3, 10)
-	at := func(x, y uint32) cell.ID { c := g.CellIndex(x, y); return c }
+	at := func(x, y uint32) cell.ID { c := g.At(x, y); return c }
 	brd := board.NewBoard(g)
 	brd.SetAll(earth)
 	east, _ := grid.Link(g, at(1, 1), at(2, 1))
 	brd.SetWay(at(1, 1), cell.Way{Kind: river, Width: 4, Links: east})
-	south, _ := grid.Link(g, at(1, 1), at(1, 2))
-	brd.SetCrossing(at(1, 1), cell.Crossing{Way: cell.Way{Kind: earth, Width: 4, Links: south}})
 	for _, c := range []struct {
 		from, to cell.ID
 		want     bool
 	}{
 		{at(1, 1), at(2, 1), true}, {at(2, 1), at(1, 1), true}, // the way, and back along it
-		{at(1, 1), at(1, 2), true}, {at(1, 2), at(1, 1), true}, // the crossing
 		{at(1, 1), at(0, 1), false}, {at(1, 1), at(2, 2), false}, // no link that way
 		{at(0, 0), at(2, 2), false}, // not neighbours
 	} {

@@ -24,7 +24,7 @@ type Rules struct {
 	now      plugin.Rules[cell.Now]
 	rings    rings
 	slope    func(p, dir geom.Vec, d cell.Domain) float64 // the Map's, for every unit's Pace
-	trodden  []bool                                       // by ordinal: a unit stands on the cell this step
+	level    func(c cell.ID) float64                      // the Map's, for which level a unit is on
 
 	// Log has a line written, once for each, for a unit fallen where its domain may not be — in a
 	// hole, a walker in the water; nil for none.
@@ -33,9 +33,11 @@ type Rules struct {
 }
 
 // New is the rules of the board over g with its cells, run in the Ticks tick makes; slope is the
-// board's Map's, what a unit's Pace goes by besides the cost of the cell under it.
-func New(g grid.Grid, cells *terrain.Cells, tick plugin.TickSource, slope func(p, dir geom.Vec, d cell.Domain) float64) *Rules {
-	return &Rules{grid: g, cells: cells, tick: tick, slope: slope}
+// board's Map's, what a unit's Pace goes by besides the cost of the cell under it, and level a
+// cell's ground level, which tells a unit on a deck from one under it.
+func New(g grid.Grid, cells *terrain.Cells, tick plugin.TickSource,
+	slope func(p, dir geom.Vec, d cell.Domain) float64, level func(c cell.ID) float64) *Rules {
+	return &Rules{grid: g, cells: cells, tick: tick, slope: slope, level: level}
 }
 
 // Hosts take the rules of a unit.Standing and of a cell.Now.

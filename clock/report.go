@@ -35,8 +35,8 @@ func (c *Clock) written() string {
 }
 
 // HUD is a screen layer showing the clock in the window's bottom-left corner: the game time and,
-// when it is not real time, the pause or the tempo. Add it to a scene's layers.
-func (c *Clock) HUD() render.Layer { return &hud{c: c} }
+// when it is not real time, the pause or the tempo — a ui.Layer of a scene.
+func (c *Clock) HUD() render.Renderer { return &hud{c: c} }
 
 type hud struct{ c *Clock }
 
