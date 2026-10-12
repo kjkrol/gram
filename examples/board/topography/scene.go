@@ -129,7 +129,7 @@ func (m *mainScene) screen() *ui.Element {
 	)
 }
 
-// deck is a bridge's deck running east, planks laid across it.
+// authored running east
 func deck(dst *render.Canvas, size int) {
 	w := float32(size)
 	dst.Fill(deckColor)
@@ -138,7 +138,6 @@ func deck(dst *render.Canvas, size int) {
 	}
 }
 
-// railing is a railing seen from the side: a rail along its top on posts.
 func railing(dst *render.Canvas, size int) {
 	w := float32(size)
 	dst.FillRect(0, 0, w, w*0.2, railColor)
@@ -147,7 +146,6 @@ func railing(dst *render.Canvas, size int) {
 	}
 }
 
-// stones are a ford's stepping stones the way angle says.
 func stones(angle float64) render.SpriteDrawer {
 	return func(dst *render.Canvas, size int) {
 		x0, y0, x1, y1 := across(angle, size)
@@ -158,7 +156,6 @@ func stones(angle float64) render.SpriteDrawer {
 	}
 }
 
-// across is the line through the middle of a sprite size wide the way angle says, edge to edge.
 func across(angle float64, size int) (x0, y0, x1, y1 float32) {
 	sin, cos := math.Sincos(angle * math.Pi / 180)
 	half := float64(size) / 2

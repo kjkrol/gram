@@ -18,7 +18,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// eachOnce drops repeated tokens, as the engine does.
+// as the engine does
 func eachOnce(tokens []goke.CompToken) []goke.CompToken {
 	listed := map[string]bool{}
 	var once []goke.CompToken
@@ -31,20 +31,17 @@ func eachOnce(tokens []goke.CompToken) []goke.CompToken {
 	return once
 }
 
-// the world the cycle runs in, a few colliders in it
 const (
 	screenWidth  = 1024
 	screenHeight = 1024
 	rectSize     = uint32(5)
 )
 
-// body is a collider's row: where it starts and how it moves.
 type body struct {
 	pos world.Position
 	vel world.Velocity
 }
 
-// countCollidable reports how many entities the space offers as collision candidates.
 func countCollidable(space *aabbworld.Space) int {
 	box := geom.NewAABBAt(geom.NewVec(0, 0), screenWidth-1, screenHeight-1)
 	seen := map[uid.UID64]struct{}{}

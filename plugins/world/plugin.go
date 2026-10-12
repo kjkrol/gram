@@ -25,30 +25,28 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Resources is world's single published Resources.
+// Resources is what the world publishes: its Config and its Telemetry.
 type Resources struct {
 	Config    Config
 	Telemetry *Telemetry
 }
 
-// Plugin is the world a Stage installs via ctx.UseWorld — never construct
-// and Use your own.
+// Plugin is the world a Stage makes with its World link (ctx.UseWorld); never Use your own.
 type Plugin struct {
-	Res      Resources
-	module   *module
-	roles    Roles
-	plans    Plans
-	named    Commands    // the commands about effects, by name
-	made     plugin.Made // the plugins made over the world, in the order made: the Stage uses them
-	*Self                // the world's own entity, the clock's: what entity.World names
+	Res    Resources
+	module *module
+	roles  Roles
+	named  Commands
+	made   plugin.Made
+	*Self
 	renderer *renderer
 	kinds    *Kinds
 	roster   *kind.Roster
 	seeded   []kind.Entry
 	views    map[camera.Camera]*view.View
 	look     Look
-	looked   bool // the effects' looks are among the drawing rules
-	sections any  // the Stage's Initializer, which tells the section being defined; nil before Install
+	looked   bool
+	sections any
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -56,10 +54,10 @@ var _ plugin.Builtin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// Builtin marks Plugin as installed by the engine itself — see ctx.UseWorld.
+// Builtin marks Plugin as installed by the engine itself.
 func (*Plugin) Builtin() {}
 
-// NewPlugin builds Plugin around a fresh world, usable before Install.
+// NewPlugin makes the world from cfg, usable before Install.
 func NewPlugin(cfg Config) *Plugin {
 	m := newModule(cfg)
 	kinds := newKinds(cfg.Heights)
@@ -75,84 +73,74 @@ func NewPlugin(cfg Config) *Plugin {
 	m.effectCmds.effects, m.effectCmds.world, m.effectCmds.commands = m.effects, m.clock.Entity, &m.commands
 	m.plans = steps.NewPlans(m.clock.Time, m.clock.Entity, cfg.Seed, m.effects, &m.commands)
 	m.plans.Roles(m.effectCmds.RolesOf)
+	kinds.plans = m.plans
 	p.roster.Unit.Default(comp.Marks[effect.States]())
 	p.roster.Unit.Default(comp.Const(steering.Course{}))
 	if err := m.commands.Carry(p.Queues()...); err != nil {
 		panic(err)
 	}
-	p.roles.w, p.plans.w, p.named.w = p, p, p
-	p.Self = newSelf(p, p.Name(), comp.Const(m.clock.State())) // the clock's entity is the world's own
+	p.roles.w, p.named.w = p, p
+	// the clock's entity is the world's own
+	p.Self = newSelf(p, p.Name(), comp.Const(m.clock.State()))
 	return p
 }
 
-// Made are the plugins made over the world, in the order made — each told of itself by
-// NewSelf — which the Stage uses in that order; a plugin made over the world without an entity of
-// its own adds itself here.
+// Made are the plugins made over the world, in the order made, which the Stage uses in that
+// order.
 func (p *Plugin) Made() *plugin.Made { return &p.made }
 
-// InSection is an error for what when the Stage, built in sections (package game/stage), is
-// defining another part than those want names; nil for a Stage written by hand. For plugins,
-// which refuse what is defined out of its place.
+// InSection is an error for what defined while the Stage is in another section than those
+// want names; nil for a Stage written by hand.
 func (p *Plugin) InSection(what string, want ...section.Part) error {
 	return section.Check(p.sections, what, want...)
 }
 
-// must panics with what InSection says.
 func (p *Plugin) must(what string, want ...section.Part) {
 	if err := p.InSection(what, want...); err != nil {
 		panic("world: " + err.Error())
 	}
 }
 
-// Roles are the roles of this Stage, by name: where a game defines them and finds them again.
+// Roles is this Stage's register of roles, by name.
 func (p *Plugin) Roles() *Roles { return &p.roles }
 
-// Plans are the plans of this Stage, by name: where a game defines them and finds them again.
-func (p *Plugin) Plans() *Plans { return &p.plans }
-
-// Roster is what this world's plugins ask of the kinds a game defines; build a unit's Spec through
-// Roster().Unit.Spec.
+// Roster is what this world's plugins ask of the kinds a game defines.
 func (p *Plugin) Roster() *kind.Roster { return p.roster }
 
-// Clock is the world's tactical clock: the game time everything that simulates goes by, its
-// tactical pause and its tempo. A plugin hands it what simulates (clock.Clock.Simulate).
+// Clock is the world's tactical clock, which everything that simulates goes by.
 func (p *Plugin) Clock() *clock.Clock { return p.module.clock }
 
-// Effects are the world's effects: temporary changes to entities, counted down in the clock's time.
+// Effects is this Stage's register of effects, which last in the clock's time.
 func (p *Plugin) Effects() *effect.Effects { return p.module.effects }
 
-// Tick is the Tick a plugin hands the rules it hosts for a pass over d of the simulation: the
-// world's carrier of commands, the game time the step ends at and the world's seed.
+// Tick is the Tick a plugin hands the rules it hosts for a pass over d of the simulation.
 func (p *Plugin) Tick(cb *goke.CmdBuf, d time.Duration) plugin.Tick { return p.module.tick(cb, d) }
 
-// HasHeights reports whether this world has heights — see Config.Heights.
+// HasHeights reports whether this world has heights.
 func (p *Plugin) HasHeights() bool { return p.Res.Config.Heights }
 
-// newView keeps a View current over whatever bounds says, from the next tick on — a second
-// camera's, a remote player's, anything that watches a part of the world.
 func (p *Plugin) newView(bounds func() geom.AABB) *view.View {
 	v := view.New(bounds)
 	p.module.views = append(p.module.views, v)
 	return v
 }
 
-// Scale is how many metres a world unit spans, as the world was made with.
+// Scale is how many metres a world unit spans.
 func (p *Plugin) Scale() Scale { return p.Res.Config.Scale }
 
-// SetLook has the world's entities drawn, picked and outlined by look: a view plugin's.
+// SetLook has the world's entities drawn, picked and outlined by look, a view plugin's.
 func (p *Plugin) SetLook(look Look) { p.look = look }
 
 // Look is how the world's entities lie on the screen.
 func (p *Plugin) Look() Look { return p.look }
 
-// FlatLook is the world seen from above, its own Look before any view set another: each entity's
-// sprite over its box, split at a wrap seam.
+// FlatLook is the world's own Look, seen from above.
 func (p *Plugin) FlatLook() Look {
 	return ilook.NewFlat(float32(p.Res.Config.Space.Width), float32(p.Res.Config.Space.Height))
 }
 
-// ViewFor is the View of what cam sees, kept current from the next tick on, made at the first
-// call: what the entity renderer draws through cam.
+// ViewFor is the View of what cam sees, made at the first call and kept current from the next
+// tick on.
 func (p *Plugin) ViewFor(cam camera.Camera) *view.View {
 	if v, ok := p.views[cam]; ok {
 		return v
@@ -165,10 +153,6 @@ func (p *Plugin) ViewFor(cam camera.Camera) *view.View {
 	return v
 }
 
-// =================================================================
-// plugin.Plugin contract
-// =================================================================
-
 func (p *Plugin) Name() string { return "gram.world" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
@@ -180,15 +164,13 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 
-// RunPlan runs world's tick — call it from your own Stage.Update before whatever reads the
-// world's space, after only what moves entities itself (bullet): the clock's commands and the
-// views at once, and movement, the leavers and the effects in every step of the simulation.
+// RunPlan runs the world's tick. Call it from Stage.Update before whatever reads the world's
+// space, after only what moves entities itself.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// Carry has the world take commands — its players', its entities' (Order in a plan or a rule) — to the
-// queues of handlers; the engine carries every plugin.CommandHandler it is given with Use.
+// Carry has the world's carrier take commands to the queues of handlers.
 func (p *Plugin) Carry(handlers ...plugin.CommandHandler) error {
 	for _, h := range handlers {
 		if err := p.module.commands.Carry(h.Queues()...); err != nil {
@@ -198,12 +180,11 @@ func (p *Plugin) Carry(handlers ...plugin.CommandHandler) error {
 	return nil
 }
 
-// Carrier is what takes the commands the world's entities give themselves to their handlers:
-// a host's plugin.Tick carries it.
+// Carrier is the Stage's one carrier of commands, taking each to its handler's queue.
 func (p *Plugin) Carrier() *control.Carrier { return &p.module.commands }
 
-// WithRenderer builds this plugin's own entity renderer, drawing cam-relative sprites from atlas;
-// the looks the effects were given (effect.Effect.Look) are swapped in after the rules of Draw.
+// WithRenderer builds the world's entity renderer over atlas, applying the looks the atlas and
+// the effects declared.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	if !p.looked {
 		p.looked = true
@@ -212,7 +193,7 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 				panic(err)
 			}
 		})
-		if wa, ok := atlas.(*Atlas); ok { // the looks the world's own atlas declared: facing, frames, turning
+		if wa, ok := atlas.(*Atlas); ok {
 			if err := p.module.drawing.Add(wa.rules(p.module.clock.Shown)...); err != nil {
 				panic(err)
 			}
@@ -226,7 +207,7 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	}
 }
 
-// Renderer returns this plugin's own render.Renderer, or nil unless WithRenderer was called.
+// Renderer is the world's entity renderer, nil unless WithRenderer was called.
 func (p *Plugin) Renderer() render.Layer {
 	if p.renderer == nil {
 		return nil
@@ -234,23 +215,19 @@ func (p *Plugin) Renderer() render.Layer {
 	return p.renderer
 }
 
-// EventHandler returns nil — a player's bindings issue the world's commands.
+// EventHandler is nil: a player's bindings issue the world's commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil — the world's entities are saved with the ECS, its cameras by the cameras.
+// Serializable is nil: the world's entities are saved with the ECS.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// =================================================================
-// world-specific
-// =================================================================
-
-// Seed adds entries to the entities spawned when this Stage starts fresh — see Populate.
+// Seed adds entries to the entities spawned when this Stage starts fresh.
 func (p *Plugin) Seed(entries ...kind.Entry) {
 	p.must("units seeded", section.Spawn)
 	p.seeded = append(p.seeded, entries...)
 }
 
-// Populate spawns every seeded entity, or none and an error on an unknown kind or a wrong row.
+// Populate spawns every seeded entity, or none with an error on an unknown kind or a wrong row.
 func (p *Plugin) Populate() error {
 	var order []string
 	groups := make(map[string][]any)
@@ -280,8 +257,7 @@ func (p *Plugin) Populate() error {
 	return nil
 }
 
-// Spawn adds entities of their kinds to the running world, as the game's own (control.Nobody):
-// the command [Spawn] for each, carried out at the world's next step of the simulation.
+// Spawn gives the command [Spawn] for each entry as control.Nobody.
 func (p *Plugin) Spawn(entries ...kind.Entry) {
 	for _, e := range entries {
 		p.module.spawns.Add(control.Nobody, Spawn{Entry: e})
@@ -291,12 +267,11 @@ func (p *Plugin) Spawn(entries ...kind.Entry) {
 // Despawn takes an entity out of the ECS at the end of the tick.
 func (p *Plugin) Despawn(cb *goke.CmdBuf, id uid.UID64) { p.module.despawn(cb, id) }
 
-// Space returns world's shared space, rebuilt from every entity each tick after movement.
+// Space is the world's shared spatial index, rebuilt every tick after movement.
 func (p *Plugin) Space() *aabbworld.Space { return p.module.space }
 
-// Kinds returns this Plugin's registry of entity kinds — what kind.Define registers with.
+// Kinds is this Stage's register of entity kinds, which kind.Define registers with.
 func (p *Plugin) Kinds() *Kinds { return p.kinds }
 
-// Commands are the commands about effects of this Stage, by name: where a game defines them and
-// finds them again.
+// Commands is this Stage's register of commands about effects, by name.
 func (p *Plugin) Commands() *Commands { return &p.named }

@@ -18,19 +18,17 @@ type Runtime interface {
 
 	// Save saves the active Stage in the save slot, "" the quicksave, where Props.Saves says.
 	Save(slot string) error
-	// Load enters stage — the active one for "" — from its save slot at the start of the next
-	// Update: the Stage built anew, its world loaded instead of spawned. A save not there is an
-	// error, and nothing changes.
+	// Load enters stage ("" the active one) from its save slot, its world loaded instead of
+	// spawned. A save not there is an error, and nothing changes.
 	Load(stage, slot string) error
-	// Issue gives cmd as nobody to whoever carries it out in the active Stage — the engine its own
-	// (Save, Load, Enter, Quit) — the way a key does.
+	// Issue gives cmd as nobody to whoever carries it out in the active Stage, the way a key does.
 	Issue(cmd control.Command) error
 
 	Persistence() Persistence
 	TPS() *TPS
 
-	// ToggleFullscreen switches the window to fullscreen and back; F11 does it in every game.
+	// ToggleFullscreen switches the window to fullscreen and back.
 	ToggleFullscreen()
-	// Props are the game's, as it started: its title, its description.
+	// Props are the game's, as it started.
 	Props() Props
 }

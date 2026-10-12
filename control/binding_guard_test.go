@@ -7,15 +7,12 @@ import (
 	"github.com/kjkrol/gram/control"
 )
 
-// kept is a command a register keeps: defined or not.
 type kept struct{ name string }
 
 func (kept) Command() {}
 
 func (k kept) Defined() bool { return k.name != "" }
 
-// A command a register keeps is given to a key only as the register hands it back: one made on
-// the spot is refused, naming the key.
 func TestGive_RefusesACommandNoRegisterHolds(t *testing.T) {
 	control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten", kept{name: "hasten"}) // defined: taken
 	defer func() {

@@ -11,7 +11,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// The field reads every cell's cover once for all (Ready) and anew when a cell changes.
 func TestField_ReadyReadsTheCoverOnceAndAnewWhenACellChanges(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
@@ -38,11 +37,8 @@ func TestField_ReadyReadsTheCoverOnceAndAnewWhenACellChanges(t *testing.T) {
 	}
 }
 
-// water is ground a walker does not stand on and nothing stops: not solid.
 var water = cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water}
 
-// Overhang is the area of a box over ground that does not take an entity on the layers given — the
-// land to a swimmer too — off the board none.
 func TestGround_OverhangIsTheAreaOverGroundThatDoesNotTakeTheEntity(t *testing.T) {
 	const size = 32
 	grid := grid.DefaultGrids{}.Square(4, 4, size)

@@ -5,11 +5,9 @@ import "github.com/kjkrol/gram/plugins/board/cell"
 // At is the cell an entity on the board stands in, kept by whoever moves it.
 type At struct{ Cell cell.ID }
 
-// Mover says which domains an entity moves in and, in a world with heights, how far above the ground
-// it keeps (Lift: a hawk hundreds of metres, a walker 0), the least it keeps over the ground
-// (Clearance) and the highest over sea level it climbs to (Ceiling; 0 none). One that flies (Air),
-// flown by hand (steering.Driven.Flown), holds its height over sea level instead, climbing and
-// diving as it is steered, its Lift following; an entity on the board without it moves on Land.
+// Mover says which domains an entity moves in and, in a world with heights, how far above the
+// ground it keeps (Lift), the least it keeps over it (Clearance) and the highest over sea level it
+// climbs to (Ceiling; 0 none). An entity on the board without one moves on Land.
 type Mover struct {
 	Domain    cell.Domain
 	Lift      float64

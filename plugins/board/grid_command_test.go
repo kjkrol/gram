@@ -12,8 +12,6 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Grid is the board's own command, on B by default: given, it hides the grid at the board's
-// next tick, and given again shows it.
 func TestGrid_ShowsAndHidesTheGrid(t *testing.T) {
 	bw, _ := boardtest.SquareWorld(t)
 	keys := bw.Board.DefaultBindings()
@@ -37,9 +35,6 @@ func TestGrid_ShowsAndHidesTheGrid(t *testing.T) {
 	}
 }
 
-// Holds is the board's command, on Shift+O by default: given, it shows the cells held — a unit's
-// cell outlined, four lines on a square grid — at the board's next tick, and given again hides
-// them, as they start.
 func TestHolds_ShowsAndHidesTheCellsHeld(t *testing.T) {
 	bw, _ := boardtest.SquareWorld(t, boardtest.Mover{})
 	keys := bw.Board.DefaultBindings()

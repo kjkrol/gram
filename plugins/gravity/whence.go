@@ -9,7 +9,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// whence is where a body is thrown off from, for an Away.
 type whence struct {
 	others *goke.Query
 	obase  goke.Comp[world.Base]
@@ -17,8 +16,6 @@ type whence struct {
 
 func (w *whence) init(si *goke.SysInit) { w.others = si.NewQueryBuilder(&w.obase).Build() }
 
-// away is the way id is thrown off by a: from the one it is aimed at, else back from the way it
-// faces.
 func (w *whence) away(id uid.UID64, a Away) (geom.Vec, bool) {
 	if !w.others.Seek(id) {
 		return geom.Vec{}, false
@@ -34,7 +31,6 @@ func (w *whence) away(id uid.UID64, a Away) (geom.Vec, bool) {
 	return geom.NewVec(-facing.X, -facing.Y), true
 }
 
-// pullOf is the pull the plugin's entity carries now.
 func pullOf(q *goke.Query, pull *goke.Comp[Pull]) Pull {
 	if q.All().Next() {
 		return pull.Slice(q.Cursor())[0]

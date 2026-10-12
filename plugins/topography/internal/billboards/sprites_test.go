@@ -20,7 +20,6 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// magenta is an atlas of one sprite, 8 pixels of magenta.
 type magenta struct{ img *render.Image }
 
 func (a *magenta) Atlas() *render.Image {
@@ -37,13 +36,9 @@ func (a *magenta) Atlas() *render.Image {
 func (*magenta) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 8, 8 }
 func (*magenta) White() (u, v float32)                           { return 4, 4 }
 
-// purple reports whether the pixel is the magenta sprite's, in whatever light: red and blue, no
-// green.
+// the magenta sprite's pixel in whatever light: red and blue, no green
 func purple(px []byte) bool { return px[0] > 60 && px[2] > 60 && px[1] < px[0]/4 }
 
-// aHill is a world of level ground with a hill 90 high in its middle, seen isometrically: a point
-// on the hill's slope and one on the level ground behind it under one point of the screen, and a
-// drawing of the ground with what lay tells the look into the screen's pixels.
 type aHill struct {
 	relief        topography.Relief
 	look          world.DirectLook
@@ -76,7 +71,6 @@ func newHill(t *testing.T) aHill {
 	picker := cam.(interface {
 		Pick(sx, sy float32) (float32, float32, float32, bool)
 	})
-	// down the middle of the screen, a point seeing the hill's slope with the level ground far behind
 	var seen [][2]geom.Vec // the hill's slope and the level ground behind it, under one screen point
 	vw, vh := cam.Viewport()
 	for sy := float32(0); sy < vh; sy++ {
@@ -117,7 +111,6 @@ func newHill(t *testing.T) aHill {
 	return h
 }
 
-// purples counts the pixels of the magenta sprite.
 func purples(pix []byte) (n int) {
 	for i := 0; i < len(pix); i += 4 {
 		if purple(pix[i:]) {
@@ -127,13 +120,10 @@ func purples(pix []byte) (n int) {
 	return n
 }
 
-// Drawn on the GPU in the isometric view, a billboard standing behind a hill is hidden by it, one
-// standing on the hill's slope shows, and its shadow darkens the ground beside it.
 func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 	needGPU(t)
 	h := newHill(t)
 	atlas := &magenta{}
-	// stand lays a sprite 6 wide standing at
 	stand := func(at geom.Vec) func(f *render.Frame) {
 		return func(f *render.Frame) {
 			box := plane.NewAABB(geom.NewVec(at.X-3, at.Y-3), 6, 6)
@@ -160,8 +150,6 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 	}
 }
 
-// A sprite lying flat shows on the level ground before the hill and is hidden behind it; lying
-// where the ground stands higher than its Altitude, it lies on the ground.
 func TestSprites_ALyingSpriteLiesOnTheGround(t *testing.T) {
 	needGPU(t)
 	h := newHill(t)
@@ -197,8 +185,6 @@ func TestSprites_ALyingSpriteLiesOnTheGround(t *testing.T) {
 	}
 }
 
-// Over a hex board in relief, drawn as prisms, a billboard shows and casts its shadow on the prisms
-// it stands among, laid from the frame's depth.
 func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{
@@ -260,7 +246,6 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	}
 }
 
-// needGPU readies a device without a window; a machine without one skips.
 func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {

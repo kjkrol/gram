@@ -25,7 +25,6 @@ type ScenesStep interface {
 // SpawnStep is what Spawn is given: a function seeding a fresh game.
 type SpawnStep interface{ func() | func() error }
 
-// def is a Stage as its sections define it.
 type def struct {
 	name   string
 	steps  []step
@@ -36,9 +35,9 @@ type def struct {
 
 	ctx   game.Initializer
 	stack game.Scenes
-	world *world.Plugin   // the world World made as the Stage was last entered
-	used  []plugin.Plugin // the plugins Plugins made as the Stage was last entered
-	last  section.Part    // the last of the Stage's own parts written so far
+	world *world.Plugin
+	used  []plugin.Plugin
+	last  section.Part
 }
 
 type step struct {
@@ -46,8 +45,6 @@ type step struct {
 	run  func(game.Initializer) error
 }
 
-// add writes a step of one of the Stage's own parts; one written after a plugin's section that
-// comes after it panics.
 func (d *def) add(part section.Part, run func(game.Initializer) error) {
 	for _, s := range d.steps {
 		if after, _, ok := s.part.Between(); ok && after >= part {
@@ -58,8 +55,6 @@ func (d *def) add(part section.Part, run func(game.Initializer) error) {
 	d.last = part
 }
 
-// with writes the plugins' sections where the game writes them; one written after the part it
-// comes before panics.
 func (d *def) with(sections []section.Section) {
 	for _, sec := range sections {
 		_, before, ok := sec.Part.Between()
@@ -79,7 +74,6 @@ func (d *def) with(sections []section.Section) {
 	}
 }
 
-// use uses plugins in their order and keeps them as the Stage's.
 func (d *def) use(ctx game.Initializer, plugins []plugin.Plugin) error {
 	d.used = plugins
 	for _, p := range plugins {
@@ -90,7 +84,6 @@ func (d *def) use(ctx game.Initializer, plugins []plugin.Plugin) error {
 	return nil
 }
 
-// stepOf is f as a section runs it.
 func stepOf[F Step](f F) func(game.Initializer) error {
 	switch g := any(f).(type) {
 	case func():
@@ -115,22 +108,18 @@ func spawnOf[F SpawnStep](f F) func() error {
 	panic("stage: unreachable")
 }
 
-// enter tells ctx which part begins, where it listens.
 func enter(ctx game.Initializer, p section.Part) {
 	if w, ok := ctx.(section.Writer); ok {
 		w.Enter(p)
 	}
 }
 
-// built is the game.Stage a chain of sections ends in.
 type built struct{ d *def }
 
 var _ game.Stage = built{}
 
 func (b built) Name() string { return b.d.name }
 
-// Init runs the sections before the world — Plugins to Controls — in their order, each told to
-// the Initializer as it begins.
 func (b built) Init(ctx game.Initializer) error {
 	d := b.d
 	d.ctx = ctx
@@ -144,10 +133,8 @@ func (b built) Init(ctx game.Initializer) error {
 	return nil
 }
 
-// Loaded makes the scenes of a game loaded in place of a fresh one.
 func (b built) Loaded() error { return b.d.makeScenes() }
 
-// Spawn seeds a fresh game — its steps in their order — and makes its scenes.
 func (b built) Spawn() error {
 	d := b.d
 	defer enter(d.ctx, section.Done)
@@ -160,9 +147,6 @@ func (b built) Spawn() error {
 	return d.makeScenes()
 }
 
-// makeScenes makes the scenes once the world is there, fresh or loaded: the stack of the game's
-// and the plugins' own, the first shown — or those Shows named — and the Composition and every
-// scene keeping state of its own tracked for the saves, a loaded game's laid on them as tracked.
 func (d *def) makeScenes() error {
 	defer enter(d.ctx, section.Done)
 	enter(d.ctx, section.Scenes)
@@ -191,7 +175,7 @@ func (d *def) makeScenes() error {
 		composition.Show(name)
 	}
 	for _, sc := range scenes {
-		if s, ok := sc.(plugin.Serializable); ok { // a scene keeping state of its own: a ui scene's elements shown
+		if s, ok := sc.(plugin.Serializable); ok {
 			if err := d.ctx.Track(s); err != nil {
 				return err
 			}

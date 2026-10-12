@@ -9,9 +9,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// The atmosphere's switches reach its parts: begun with the day, the moon and the weathering
-// stopped, the light stands, the night is not moonlit and the climate's changes, wind, clouds and
-// falls go as the Running says; set going again, the light goes with the calendar.
 func TestPlugin_RunningSwitchesTheAtmospheresWorkings(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}})
 	r := AllRunning()
@@ -36,7 +33,7 @@ func TestPlugin_RunningSwitchesTheAtmospheresWorkings(t *testing.T) {
 	}
 }
 
-// Shift+W changes the weather with the camera free only: riding in a unit, W with Shift sprints.
+// riding in a unit, W with Shift sprints
 func TestDefaultBindings_ChangeTheWeatherWithTheCameraFreeOnly(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}})
 	for _, b := range NewPlugin(w, Config{}).DefaultBindings() {

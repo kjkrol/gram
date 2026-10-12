@@ -17,7 +17,6 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// needGPU readies a device without a window; a machine without one skips.
 func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
@@ -25,9 +24,6 @@ func needGPU(t *testing.T) {
 	}
 }
 
-// Drawn on the GPU over a flat world under clouds, the clouds' shadows darken the ground in
-// patches, as much as the thickest cloud takes of the sun and no more, and leave it clear between
-// them; with no clouds nothing is drawn.
 func TestClouds_ShadeAFlatWorldOnTheGPU(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 4096, Height: 4096}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})

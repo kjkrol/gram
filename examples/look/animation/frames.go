@@ -8,28 +8,23 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// The gait: how many frames it takes and how long each is shown (game time: the tactical pause
-// is a freeze-frame, the tempo hurries the step).
+// game time: the tactical pause is a freeze-frame
 const (
 	gaitFrames = 4
 )
 
-// bugFrame draws frame i of the bug's gait, authored facing east within the circle inscribed in
-// its box (it is Turning): a body with legs swinging fore and aft as it walks. A placeholder
-// until the game's own sheet lands — drop a PNG beside the demo and switch spawnUnits' drawer to
-// sheetFrames (below); nothing else changes.
+// authored facing east within the inscribed circle; a placeholder for a sheet (sheetFrames)
 func bugFrame(i int) render.SpriteDrawer {
 	return func(dst *render.Canvas, size int) {
 		s := float32(size)
 		swing := [gaitFrames]float32{-3, 0, 3, 0}[i%gaitFrames]
-		// three legs a side, swinging in counter-phase
 		for k := float32(-1); k <= 1; k++ {
 			x := s/2 + k*s/5
 			dst.FillRect(x+swing, s/5, 2, s/5, legColor)
 			dst.FillRect(x-swing, s-s/5-s/5, 2, s/5, legColor)
 		}
 		render.Dot(s/4, bodyColor)(dst, size)
-		render.Arrow(0, 3, headColor)(dst, size) // the head: the way angle 0 points
+		render.Arrow(0, 3, headColor)(dst, size)
 	}
 }
 

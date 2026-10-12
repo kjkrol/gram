@@ -17,7 +17,6 @@ import (
 
 var east = geom.NewVec(1, 0)
 
-// wall is a solid kind that also cuts sight, as a wall of stone does.
 var wall = boardtest.Wall
 
 func TestGround_AWallColumnIsSolidAndAUnitCannotEnterIt(t *testing.T) {
@@ -75,7 +74,6 @@ func TestGround_AHexIsCoveredAndKeepsAUnitOut(t *testing.T) {
 	}
 }
 
-// Knocking a cell out of the wall opens it on the next tick, and the world gains no entity.
 func TestGround_AGapKnockedInTheWallLetsAUnitThroughOnTheNextTick(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
@@ -134,7 +132,6 @@ func TestGround_AWallThatVeilsCutsSight(t *testing.T) {
 	}
 }
 
-// Solid and Veil are apart: a fence stops walkers and hides nothing.
 func TestGround_ASolidCellWithNoVeilLetsSightThrough(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
@@ -155,7 +152,6 @@ func TestGround_ASolidCellWithNoVeilLetsSightThrough(t *testing.T) {
 	}
 }
 
-// forestColumn is grass with a forest down column 3, veiling sight by veil, solid when solid.
 func forestColumn(grid grid.Grid, veil float64, solid bool) func(*board.Board) {
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	return func(brd *board.Board) {
@@ -189,8 +185,8 @@ func TestGround_AFullyVeiledCellOnlyBlocksSight(t *testing.T) {
 	}
 }
 
-// A forest column one cell (32) thick at Veil 0.6 costs 80 of reach: the target two cells past it
-// is 165 away in budget terms and 117 as the crow flies.
+// a cell (32) of Veil 0.6 costs 80 of reach: the target two cells past it is 165 away in budget
+// terms, 117 as the crow flies
 func TestGround_AVeilDimsSightByItsDepth(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
@@ -218,8 +214,6 @@ func TestGround_AVeilDimsSightByItsDepth(t *testing.T) {
 	}
 }
 
-// A Warcraft forest is solid and veiled at once: nobody walks in, sight is dimmed; cut down, it
-// lets both through on the next tick.
 func TestGround_AForestThatIsSolidAndVeiledStopsAndDimsUntilItIsCut(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
@@ -249,7 +243,6 @@ func TestGround_AForestThatIsSolidAndVeiledStopsAndDimsUntilItIsCut(t *testing.T
 	}
 }
 
-// The wall veils every layer, so it cuts sight whatever the Blockers.
 func TestGround_AWallVeilingEveryLayerCutsSightFromEveryLayer(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
@@ -263,7 +256,6 @@ func TestGround_AWallVeilingEveryLayerCutsSightFromEveryLayer(t *testing.T) {
 	}
 }
 
-// A solid kind admitting Air keeps Land and Water out: it is solid for every layer but Air.
 func TestGround_IsSolidForTheLayersItsKindKeepsOut(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
@@ -288,8 +280,6 @@ func TestGround_IsSolidForTheLayersItsKindKeepsOut(t *testing.T) {
 	}
 }
 
-// A side of a solid cell is open where the neighbour is not solid for the entity: along a wall
-// only its faces are open, so nothing is pushed along it.
 func TestGround_OpensOnlyTheSidesFacingGroundTheEntityMayStandOn(t *testing.T) {
 	bw, gap := boardtest.SquareWorld(t, boardtest.Mover{})
 	w := bw.World.Res.Config.Space.Width
@@ -331,12 +321,8 @@ func TestGround_AVeiledHexCutsSightAcrossIt(t *testing.T) {
 	}
 }
 
-// water is ground a walker does not stand on and nothing stops: not solid.
 var water = cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water}
 
-// A unit pushed by another towards water holds at the shore as at a wall: a push apart never puts
-// it over ground that does not take it, and the one pushing is stopped as by the ground. Ground
-// turning to water under a unit is no push: it stays there, nothing moves it out.
 func TestGround_AUnitPushedByAnotherHoldsAtTheWater(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }

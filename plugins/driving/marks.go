@@ -6,9 +6,8 @@ import "github.com/kjkrol/gram/entity/tag"
 // roster makes; a unit without it gets it the first time it is needed.
 type States struct{}
 
-// Driving is on while a hand drives the unit: a step without one brakes it, and once it stands —
-// or something else steers it along a route of its own (Keeping.Ordered) — the driving lets it go.
+// Driving is on while a hand drives the unit; once no hand is on it and it stands, or something
+// else steers it, the driving lets it go.
 const Driving tag.Tag[States] = 0
 
-// drivingName is the name Driving is defined under, as the saves know it.
 const drivingName = "driving.driving"

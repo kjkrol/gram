@@ -4,29 +4,26 @@ import (
 	"github.com/kjkrol/gram/camera"
 )
 
-// spritesShader draws a Sprites' run (shaders/sprites.wgsl).
 var spritesShader = NewMeshShaderWith("sprites", Files(shaderFiles, "shaders/sprites.wgsl"), []Uniform{{Name: "ViewSize", Size: 2}}).Instanced(3)
 
-// Sprites is sprites a Direct source draws on the GPU as instances — each a rectangle of the screen,
-// a part of an atlas's sprite over it, a light — in the order they came, one call a run sharing an
-// atlas: what Frame.SpriteRectUV would lay, piece for piece, without the frame.
+// Sprites is sprites a Direct source draws on the GPU as instances, in the order they came, one
+// call a run sharing an atlas: what Frame.SpriteRectUV would lay, without the frame.
 type Sprites struct {
-	runs      []spriteRun
-	instances []float32 // three vec4s a piece: its rectangle on screen, on the atlas, its light and the angle it is turned by
+	runs []spriteRun
+	// three vec4s a piece: its rectangle on screen, on the atlas, its light and its angle
+	instances []float32
 	quads     []camera.Quad
 	opts      DrawMeshOptions
 	view      []float32
 }
 
-// spriteRun is the pieces from first, count of them, sampling one atlas.
 type spriteRun struct {
 	atlas        AtlasSource
 	first, count int
 }
 
 // Rect adds sprite id of atlas over the world rectangle (x0, y0)-(x1, y1) through cam, the part
-// u0..u1, v0..v1 of it, split where it crosses a wrap seam, in light — as Frame.SpriteRectUV lays
-// it.
+// u0..u1, v0..v1 of it, split where it crosses a wrap seam, in light.
 func (s *Sprites) Rect(cam camera.Camera, atlas AtlasSource, id SpriteID, x0, y0, x1, y1, u0, v0, u1, v1 float32, light Light) {
 	s.quads = spritePieces(cam, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, s.quads[:0], func(q camera.Quad, a0, b0, a1, b1 float32) {
 		if n := len(s.runs); n == 0 || s.runs[n-1].atlas != atlas {
@@ -37,9 +34,8 @@ func (s *Sprites) Rect(cam camera.Camera, atlas AtlasSource, id SpriteID, x0, y0
 	})
 }
 
-// Turned adds the whole of sprite id of atlas over the world rectangle (x0, y0)-(x1, y1)
-// through cam, turned by angle radians about its middle, in light — one piece per wrap image,
-// never split across a seam.
+// Turned adds the whole of sprite id of atlas over the world rectangle (x0, y0)-(x1, y1) through
+// cam, turned by angle radians about its middle, in light; never split across a seam.
 func (s *Sprites) Turned(cam camera.Camera, atlas AtlasSource, id SpriteID, x0, y0, x1, y1, angle float32, light Light) {
 	sx0, sy0, sx1, sy1 := atlas.UV(id)
 	s.quads = cam.ToScreenQuads(x0, y0, x1, y1, s.quads[:0])
@@ -81,9 +77,6 @@ func (s *Sprites) Draw(t Target, cam camera.Camera) {
 	}
 }
 
-// spritePieces calls piece for every piece of sprite id of atlas over the world rectangle (x0,
-// y0)-(x1, y1) through cam, the part u0..u1, v0..v1 of it — where on screen, and where on the atlas
-// its corners lie — split where it crosses a wrap seam; quads is its scratch, given back.
 func spritePieces(cam camera.Camera, atlas AtlasSource, id SpriteID, x0, y0, x1, y1, u0, v0, u1, v1 float32, quads []camera.Quad, piece func(q camera.Quad, a0, b0, a1, b1 float32)) []camera.Quad {
 	sx0, sy0, sx1, sy1 := inset(atlas.UV(id))
 	w, h := sx1-sx0, sy1-sy0

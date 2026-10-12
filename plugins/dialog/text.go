@@ -5,19 +5,18 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// SpeakerText is who speaks in the conversation of the entity an element is pinned to, at the
-// node it stands at: a window's title.
+// SpeakerText is who speaks in the conversation of the entity an element is pinned to.
 func (p *Plugin) SpeakerText() ui.Text {
 	return nodeText{p: p, say: func(n *node, _ []*choice) (string, bool) { return n.speaker, true }}
 }
 
-// LineText is what is said there, line under line.
+// LineText is what is said in the conversation of the entity an element is pinned to.
 func (p *Plugin) LineText() ui.Text {
 	return nodeText{p: p, say: func(n *node, _ []*choice) (string, bool) { return n.line, true }}
 }
 
-// ChoiceText is the words of the answer offered there at index — nothing past the last offered,
-// so a button of none is left out.
+// ChoiceText is the words of the answer offered at index in the conversation of the entity an
+// element is pinned to; nothing past the last offered.
 func (p *Plugin) ChoiceText(index int) ui.Text {
 	return nodeText{p: p, say: func(_ *node, offered []*choice) (string, bool) {
 		if index >= len(offered) {
@@ -27,7 +26,6 @@ func (p *Plugin) ChoiceText(index int) ui.Text {
 	}}
 }
 
-// nodeText is a Text of the node the pinned entity's conversation stands at.
 type nodeText struct {
 	p   *Plugin
 	say func(n *node, offered []*choice) (string, bool)

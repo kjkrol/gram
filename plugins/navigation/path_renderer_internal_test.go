@@ -16,14 +16,13 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// ends is where a Line's piece starts and ends on screen: the middles of its sides.
+// the middles of the piece's sides
 func ends(v []render.Vertex) (x0, y0, x1, y1 float32) {
 	return (v[0].DstX + v[2].DstX) / 2, (v[0].DstY + v[2].DstY) / 2, (v[1].DstX + v[3].DstX) / 2, (v[1].DstY + v[3].DstY) / 2
 }
 
 func near32(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-2 }
 
-// sampled is ground of a height function, sampled step apart: a ground.Heights of the test's own.
 type sampled struct {
 	at   func(p geom.Vec) float64
 	step float64
@@ -32,9 +31,6 @@ type sampled struct {
 func (s sampled) At(p geom.Vec) float64 { return s.at(p) }
 func (s sampled) Step() float64         { return s.step }
 
-// A route lies on the ground as the board's heights have it, in pieces of the ground's step, each
-// on the Overlays tier at the depth of the ground under its middle; without heights, one piece on
-// the ground at 0.
 func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid)
@@ -87,8 +83,6 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 	}
 }
 
-// A goal is the entity's outline where it will stand — its box round the spot, or the cell's
-// centre — on the Marks tier, over everything.
 func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	cam := isoCamera(128, 128, camera.Config{})
@@ -128,7 +122,6 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 	}
 }
 
-// A step aside is no goal: an order to give way outlines only the goals queued after it.
 func TestPathRenderer_OutlinesNoStepAside(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	cam := isoCamera(128, 128, camera.Config{})
@@ -153,7 +146,6 @@ func TestPathRenderer_OutlinesNoStepAside(t *testing.T) {
 	}
 }
 
-// isoCamera is a camera of a width x height world put in the isometric view.
 func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: width, Height: height},

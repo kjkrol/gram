@@ -9,8 +9,6 @@ import (
 	"github.com/kjkrol/gram/rule"
 )
 
-// Cast has a cell play roles and Label calls it, each the last given; neither moves the
-// terrain's Version, and other cells play nothing and are called nothing.
 func TestTerrainMap_CastAndLabelKeepRolesAndWhatACellIsCalled(t *testing.T) {
 	const trapdoor, plate tag.Tag[rule.Roles] = 0, 5
 	m := cell.NewTerrainMap()

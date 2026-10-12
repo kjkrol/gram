@@ -29,13 +29,13 @@ func TopDown() Maker { return icamera.NewFromSpaceWithConfig }
 // Plugin makes a world's cameras and moves them: Pan, Zoom and Follow, and a camera fastened
 // Centred over an entity kept over it as it goes.
 type Plugin struct {
-	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+	*world.Self
 
 	worldPlugin *world.Plugin
-	cameras     []camera.Camera // every camera made, in order
-	saved       [][]byte        // each camera's state, by the order made, as saved or loaded
-	loaded      bool            // saved came from a Load: a camera made since takes its own
-	starts      []start         // cameras waiting for the entity their config fastens them to
+	cameras     []camera.Camera
+	saved       [][]byte
+	loaded      bool
+	starts      []start
 	pans        control.Queue[Pan]
 	zooms       control.Queue[Zoom]
 	follows     control.Queue[Follow]
@@ -55,11 +55,9 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	return p
 }
 
-// New is a camera over the world made by make and configured by cfg — each camera its own, made
-// where a scene shows it (render.NewFeed), sized by whoever shows it — saved with the game: one
-// made after a Load is as the camera made in its place was saved. In a world in relief the
-// cameras are the view plugin's (topography.Plugin.Views): what it draws asks for their lines of
-// sight.
+// New is a camera over the world made by make and configured by cfg, made where a scene shows
+// it and sized by whoever shows it. It is saved with the game: one made after a Load is as the
+// camera made in its place was saved.
 func (p *Plugin) New(make Maker, cfg camera.Config) camera.Camera {
 	space := p.worldPlugin.Res.Config.Space
 	cam := make(space.Width, space.Height, space.Edges, cfg)
@@ -79,7 +77,6 @@ func (p *Plugin) New(make Maker, cfg camera.Config) camera.Camera {
 	return cam
 }
 
-// start is a camera to fasten Centred over the entity called whom once it is in the world.
 type start struct {
 	cam  camera.Fastenable
 	whom entity.Whom
@@ -87,10 +84,6 @@ type start struct {
 
 // Cameras are every camera made, in order.
 func (p *Plugin) Cameras() []camera.Camera { return p.cameras }
-
-// =================================================================
-// plugin.Plugin contract
-// =================================================================
 
 func (p *Plugin) Name() string { return "gram.cameras" }
 
@@ -104,16 +97,16 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // entity; call it after the world's.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer is a no-op — cameras draw nothing.
+// WithRenderer is a no-op: cameras draw nothing.
 func (p *Plugin) WithRenderer(render.AtlasSource) {}
 
-// Renderer is nil — cameras draw nothing.
+// Renderer is nil: cameras draw nothing.
 func (p *Plugin) Renderer() render.Layer { return nil }
 
-// EventHandler is nil — a player's bindings (Keys) issue the commands.
+// EventHandler is nil: a player's bindings issue the commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is every camera's state — its window, zoom and fastening — in the order made.
+// Serializable is every camera's state, its window, zoom and fastening, in the order made.
 func (p *Plugin) Serializable() plugin.Serializable { return persisted{p} }
 
 // Restore gives the cameras made so far the state a Load wrote; those made later take theirs as
@@ -127,7 +120,6 @@ func (p *Plugin) Restore() {
 	}
 }
 
-// restore writes the camera made at as it was saved, and rebuilds it.
 func (p *Plugin) restore(at int) {
 	cam := p.cameras[at]
 	dec := gob.NewDecoder(bytes.NewReader(p.saved[at]))
@@ -140,8 +132,6 @@ func (p *Plugin) restore(at int) {
 	cam.Restore()
 }
 
-// persisted is what of the cameras a game saves: each camera's state on its own, so a camera made
-// after a Load finds its own.
 type persisted struct{ p *Plugin }
 
 func (s persisted) Persisted() []any {

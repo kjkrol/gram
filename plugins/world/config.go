@@ -5,23 +5,19 @@ import (
 	"github.com/kjkrol/gram/clock"
 )
 
-// Config configures world's spatial shape, the bounds its entity population must respect,
-// whether it has heights and how its clock goes.
+// Config is the world's shape, its bounds on entities, whether it has heights and how its clock
+// goes.
 type Config struct {
 	Space    SpaceCfg
 	Entities EntitiesCfg
-	// Heights gives the world heights: entities carry a Z, terrain an altitude, sight an eye, and
-	// collision meets entities only where their Zs overlap. A flat world (the default) is a set of
-	// planes — see Layers — and refuses heights where it meets them.
+	// Heights gives the world heights: entities carry a Z. A flat world (the default) is a set of
+	// planes and refuses heights where it meets them.
 	Heights bool
-	// Clock is how the tactical clock goes: its tempos, and whether a tempo is one bigger step or
-	// as many steps; the zero Config is ½, 1, 2 and 4 in steps.
+	// Clock is how the tactical clock goes; the zero Config is tempos ½, 1, 2 and 4 in steps.
 	Clock clock.Config
-	// Scale is how many metres a world unit spans: with one the world is a stretch of the Earth,
-	// its ground sinking under the horizon far off and its air thickening; zero, a board.
+	// Scale is how many metres a world unit spans; zero, a board.
 	Scale Scale
-	// Seed is what the rules' and the plans' Chance draws from: one seed, one game, the same
-	// after a load and in a replay.
+	// Seed is what the rules' and the plans' Chance draws from, the same after a load.
 	Seed uint64
 }
 

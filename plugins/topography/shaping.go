@@ -34,9 +34,6 @@ var (
 // ground round about following as in Transport Tycoon. MaxStep zero lets any slope stand.
 type Shaping struct{ Step, MaxStep float64 }
 
-// shaper carries out the shaping commands — Raise, Lower, Level — on the relief as its system runs,
-// moving the ground as its Shaping says, never so a road lies where Transport Tycoon would not lay
-// it; its queues take them.
 type shaper struct {
 	relief *irelief.Relief
 	cfg    Shaping
@@ -45,17 +42,14 @@ type shaper struct {
 	level  control.Queue[Level]
 }
 
-// queues are the shaping commands' queues: Raise, Lower, Level.
 func (s *shaper) queues() []control.CommandQueue {
 	return []control.CommandQueue{&s.raise, &s.lower, &s.level}
 }
 
-// system is the shaper as a goke.System, run once a tick in the interface part of a plan.
 func (s *shaper) system() goke.System { return shapingSystem{s} }
 
 var _ goke.System = shapingSystem{}
 
-// shapingSystem carries out the shaping commands as they come.
 type shapingSystem struct{ s *shaper }
 
 func (shapingSystem) Init(*goke.SysInit) {}

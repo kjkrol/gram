@@ -6,7 +6,6 @@ import (
 	"github.com/kjkrol/gram/camera"
 )
 
-// zoomed is a camera drawing every point at Zoom z.
 type zoomed struct {
 	camera.Camera
 	z float32
@@ -14,7 +13,6 @@ type zoomed struct {
 
 func (c zoomed) Zoom() float32 { return c.z }
 
-// perspective is a camera drawing a world unit smaller the further y is, and nothing behind y 0.
 type perspective struct{ zoomed }
 
 func (perspective) ScaleAt(_, y, _ float32) float32 {

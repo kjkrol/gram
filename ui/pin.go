@@ -26,7 +26,6 @@ const (
 	GoToIt
 )
 
-// placing is where a pinned element stands by its entity's point on the screen.
 type placing int
 
 const (
@@ -35,7 +34,6 @@ const (
 	beside
 )
 
-// pin says which entities an element is shown for, once each, and where it stands by each.
 type pin struct {
 	under     *effect.Effect
 	on        entity.Whom
@@ -44,20 +42,19 @@ type pin struct {
 	dx, dy    float64
 	off       OffScreen
 	instances []instance
-	gone      map[uid.UID64]bool // GoToIt: the entities the camera was moved to
-	show      *Element           // ShowIt: the button moving the camera, laid under the element
+	gone      map[uid.UID64]bool
+	show      *Element
 }
 
-// instance is the element shown for one entity this frame.
 type instance struct {
 	id     uid.UID64
-	box    geom.AABB  // where the element stands; zero: where its parent lays it
-	arrow  []geom.Vec // PointAtIt: the arrow's corners
-	show   bool       // ShowIt: the button is shown
-	looker Looker     // who moves the camera onto it
+	box    geom.AABB
+	arrow  []geom.Vec
+	show   bool
+	looker Looker
 }
 
-// Looker is an Input that can move its camera onto an entity (players.Plugin.Through).
+// Looker is an Input that can move its camera onto an entity.
 type Looker interface{ LookAt(entity uid.UID64) }
 
 func (e *Element) pinned() *pin {
@@ -67,9 +64,8 @@ func (e *Element) pinned() *pin {
 	return e.pin
 }
 
-// Under shows the element for every entity e is on, pinned to it: by it in the picture of the world
-// that shows it, or where its parent lays it for one with no place in the world (the world's own
-// entity, a plugin's).
+// Under shows the element for every entity ef is on, pinned to it. One with no place in the
+// world has it where its parent lays it.
 func (e *Element) Under(ef effect.Effect) *Element {
 	e.pinned().under = &ef
 	return e
@@ -81,8 +77,7 @@ func (e *Element) On(whom entity.Whom) *Element {
 	return e
 }
 
-// Where shows the element for every entity p holds, pinned to it as Under does: Tagged, the
-// entities carrying a tag — the one the cursor points at (selection's Hovered).
+// Where shows the element for every entity p holds, pinned to it as Under does.
 func (e *Element) Where(p Pin) *Element {
 	e.pinned().where = p
 	return e
@@ -90,9 +85,7 @@ func (e *Element) Where(p Pin) *Element {
 
 // Pin is the entities an element is shown for: Tagged.
 type Pin interface {
-	// bind builds what finds them on the scene's ECS.
 	bind(si *goke.SysInit)
-	// each tells every entity it holds, with its place where it has one and what it is called.
 	each(fn func(id uid.UID64, base *entity.Base, z *entity.Z, label *entity.Label))
 }
 
@@ -124,7 +117,6 @@ func (g *tagged[F]) each(fn func(id uid.UID64, base *entity.Base, z *entity.Z, l
 	}
 }
 
-// at is the i-th of a chunk's optional column, nil where the chunk has none.
 func at[T any](column []T, i int) *T {
 	if column == nil {
 		return nil
@@ -168,7 +160,6 @@ func (e *Element) OffScreen(how OffScreen) *Element {
 	return e
 }
 
-// spot is an entity a pin is shown for, and its point in the world, if it has one.
 type spot struct {
 	id     uid.UID64
 	placed bool
@@ -176,19 +167,16 @@ type spot struct {
 	z      float32
 }
 
-// locator is a picture of the world that says where a world point lies in it (render.Feed).
 type locator interface {
 	ToPixels(x, y, z float32) (px, py, depth float32, visible bool)
 }
 
-// view is a picture of the world on the screen: where it lies, and who takes its input.
 type view struct {
 	box   geom.AABB
 	at    locator
 	input Input
 }
 
-// views are the scene's pictures of the world shown, in the order drawn.
 func views(root *Element) []view {
 	var out []view
 	var visit func(e *Element)
@@ -209,19 +197,15 @@ func views(root *Element) []view {
 	return out
 }
 
-// Owner is an Input that says which entities its picture shows elements pinned to: a player's,
-// those that are its or nobody's (players.Plugin.Through). A picture without one shows them all.
+// Owner is an Input that says which entities its picture shows elements pinned to. A picture
+// without one shows them all.
 type Owner interface{ Shows(entity uid.UID64) bool }
 
-// shows reports whether v shows elements pinned to id.
 func (v view) shows(id uid.UID64) bool {
 	o, ok := v.input.(Owner)
 	return !ok || o.Shows(id)
 }
 
-// stand works out where the element stands for each of spots this frame: by its entity in every
-// picture that shows it and has it in sight — a nobody's entity in both halves of a split screen,
-// a player's in its own — or, out of sight in all, as OffScreen says in the first that shows it.
 func (p *pin) stand(e *Element, spots []spot, vs []view, screen geom.AABB) {
 	p.instances = p.instances[:0]
 	for _, s := range spots {
@@ -231,14 +215,12 @@ func (p *pin) stand(e *Element, spots []spot, vs []view, screen geom.AABB) {
 			p.place(e, s, vs, screen)
 		}
 		if e.holds && len(p.instances) > 0 {
-			p.instances = p.instances[:1] // a modal element waits its turn: one at a time
+			p.instances = p.instances[:1] // a modal element: one at a time
 			break
 		}
 	}
 }
 
-// place stands an instance by s in every view that shows it in sight, else one as OffScreen says
-// in the first view that shows it; none where no view shows it.
 func (p *pin) place(e *Element, s spot, vs []view, screen geom.AABB) {
 	e.drawnFor(s.id, true)
 	w, h := e.needs()
@@ -266,7 +248,6 @@ func (p *pin) place(e *Element, s spot, vs []view, screen geom.AABB) {
 	p.instances = append(p.instances, in)
 }
 
-// offScreen stands in in v as OffScreen says, s being out of its sight.
 func (p *pin) offScreen(v view, s spot, w, h float64, screen geom.AABB, in *instance) {
 	in.looker, _ = v.input.(Looker)
 	px, py, _, _ := v.at.ToPixels(s.x, s.y, s.z)
@@ -291,7 +272,6 @@ func (p *pin) offScreen(v view, s spot, w, h float64, screen geom.AABB, in *inst
 	}
 }
 
-// by is the box of a w by h element standing by the screen point a as the pin says.
 func (p *pin) by(a geom.Vec, w, h float64) geom.AABB {
 	var tl geom.Vec
 	switch p.placing {
@@ -305,9 +285,6 @@ func (p *pin) by(a geom.Vec, w, h float64) geom.AABB {
 	return geom.NewAABBAt(tl.Add(geom.NewVec(p.dx, p.dy)), w, h)
 }
 
-// point is where on its entity a pinned element stands by: the top of its box for Above, the
-// bottom for Below, the right side for Beside — in a world with heights its top, its foot or its
-// middle over its centre.
 func (p *pin) point(b entity.Base, z *entity.Z) (x, y, alt float32) {
 	box := b.Pos.AABB
 	c := b.Pos.Center()
@@ -333,7 +310,6 @@ func (p *pin) point(b entity.Base, z *entity.Z) (x, y, alt float32) {
 
 const arrowLength = 14
 
-// towards is the point from middle towards target, no further than reach along either axis.
 func towards(middle, target, reach geom.Vec) geom.Vec {
 	d := target.Sub(middle)
 	scale := 1.0
@@ -346,7 +322,6 @@ func towards(middle, target, reach geom.Vec) geom.Vec {
 	return middle.Add(geom.NewVec(d.X*scale, d.Y*scale))
 }
 
-// arrow is a triangle on box's edge pointing towards target.
 func arrow(box geom.AABB, target geom.Vec) []geom.Vec {
 	w, h := size(box)
 	c := box.TopLeft.Add(geom.NewVec(w/2, h/2))
@@ -363,7 +338,6 @@ func arrow(box geom.AABB, target geom.Vec) []geom.Vec {
 	return []geom.Vec{tip, base.Add(side), base.Sub(side)}
 }
 
-// clamp moves box inside screen where it fits.
 func clamp(box geom.AABB, screen geom.AABB) geom.AABB {
 	w, h := size(box)
 	x := math.Min(math.Max(box.TopLeft.X, screen.TopLeft.X), screen.BottomRight.X-w)
@@ -371,8 +345,6 @@ func clamp(box geom.AABB, screen geom.AABB) geom.AABB {
 	return geom.NewAABBAt(geom.NewVec(math.Max(x, screen.TopLeft.X), math.Max(y, screen.TopLeft.Y)), w, h)
 }
 
-// each lays the element for every instance in turn — where its parent laid it for one with no
-// place — and calls fn.
 func (p *pin) each(e *Element, parent geom.AABB, fn func(in *instance)) {
 	defer func() { e.parent = parent }()
 	for k := range p.instances {
@@ -391,7 +363,6 @@ func (p *pin) each(e *Element, parent geom.AABB, fn func(in *instance)) {
 	}
 }
 
-// paintArrow draws in's arrow.
 func paintArrow(dst *render.Image, in *instance, color color.RGBA) {
 	if len(in.arrow) != 3 {
 		return

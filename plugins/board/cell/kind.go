@@ -5,48 +5,39 @@ import (
 	"github.com/kjkrol/gram/rule"
 )
 
-// Kind is a named terrain kind: whom it admits and what it does to movement and sight; how it
-// looks is the game's atlas's (board.Plugin.NewAtlas), in a scene. A wall is Solid; water Allows
-// Water; a hole Allows nobody and is not Solid; a forest Allows Land and has a Veil.
+// Kind is a named terrain kind: whom it admits and what it does to movement and sight. A wall is
+// Solid; water Allows Water; a hole Allows nobody and is not Solid; a forest Allows Land and has
+// a Veil.
 type Kind struct {
-	Name Name // Named("grass")
-	// Cost 1 is full speed and the cheapest step the planner counts on — a road; above 1 the cell
-	// slows an entity and costs more to plan through — the ground off a road, say 2.5. Below 1
-	// would be a boost past full speed, which the planner's estimate does not allow for.
+	Name Name
+	// Cost 1 is full speed and the cheapest step the planner counts on; above 1 slows and costs
+	// more to plan through. Below 1 breaks the planner's estimate.
 	Cost float64
-	// Allows is the domains that may stand here; the planner keeps the others out, and one that
-	// ends up here anyway has fallen in — see unit.Standing.
+	// Allows is the domains that may stand here; one that ends up here anyway has fallen in.
 	Allows Domain
 	// Solid makes the cell solid ground: collision pushes out whoever Allows keeps out.
 	Solid bool
-	// Veil dims sight without blocking movement, 0 clear to 1 cutting it: a forest at 0.6 is looked
-	// through at 0.4 of the reach, 1 cuts it. Apart from Solid.
+	// Veil dims sight without blocking movement, 0 clear to 1 cutting it.
 	Veil float64
-	// Veils is whom the Veil dims, as world.Layers: a forest veiling Land is looked over from Air.
-	// Zero veils everyone.
+	// Veils is whom the Veil dims; zero veils everyone.
 	Veils Domain
-	// Height is what stands on the cell (a wall, a forest) in a world with heights; a flat world refuses
-	// it — see world.Config.Heights. The ground under it is the topography's. It is how far up a
-	// veil holds sight back and, for a Solid kind, how high the wall collision stops entities at:
-	// a Solid kind of no Height stands at every height.
+	// Height is what stands on the cell in a world with heights; a flat world refuses it. A Solid
+	// kind of no Height stands at every height.
 	Height float64
-	// Sway is how much what stands on the cell bends in the wind, 0 to 1: trees, reeds, corn — an
-	// effect sets it when the wind blows.
+	// Sway is how much what stands on the cell bends in the wind, 0 to 1.
 	Sway float64
-	// Graded ground is built up and cut into the slope — a road, a bridge — so the slope does not
-	// slow whoever goes over it, nor count in a route: the kind's Cost is the whole price.
+	// Graded ground is built into the slope, so the slope neither slows nor prices a step over it.
 	Graded bool
 	// SpriteID is the kind's slot in the board's atlas, given as it is defined.
 	SpriteID render.SpriteID
-	// Costs overrides Cost for entities moving in a domain — Costs[i] for the domain bit i, when
-	// set; see Costing and CostFor.
+	// Costs overrides Cost for entities moving in a domain, Costs[i] for the domain bit i.
 	Costs [8]float64
 }
 
 // Admits reports whether an entity moving in d may stand on this kind.
 func (k Kind) Admits(d Domain) bool { return k.Allows&d != 0 }
 
-// Costing returns the kind with cost for the domains in d: elves through a forest, a witch over snow.
+// Costing returns the kind with cost for the domains in d.
 func (k Kind) Costing(d Domain, cost float64) Kind {
 	for i := range k.Costs {
 		if d&(1<<i) != 0 {
@@ -68,11 +59,10 @@ func (k Kind) CostFor(d Domain) float64 {
 	return cost
 }
 
-// Of is one defined kind of cell, [Kinds] Named's handle — what a game builds on, as a unit
-// kind's kind.Of is: Entry for the Layout, SpriteID for the atlas, Kind for the kind itself.
+// Of is one defined kind of cell, the handle a game builds on.
 type Of struct{ k Kind }
 
-// OfKind is k as the handle Named hands out. For the board's dictionary.
+// OfKind is k as the handle Named hands out.
 func OfKind(k Kind) Of { return Of{k: k} }
 
 // Kind is the kind as it was defined.
@@ -81,20 +71,15 @@ func (o Of) Kind() Kind { return o.k }
 // SpriteID is the atlas slot the kind's cells are drawn from.
 func (o Of) SpriteID() render.SpriteID { return o.k.SpriteID }
 
-// Entry is a Layout entry laying this kind at c — the fill to the kind's definition, as a unit
-// kind's Entry is: chain Named, InGroup and Plays on it for what this one cell alone is.
+// Entry is a Layout entry laying this kind at c.
 func (o Of) Entry(c ID) Entry { return Entry{Kind: o.k.Name.String(), Cell: c} }
 
-// Kinds is a board's registered set of Kinds, keyed by Name — reached through the board plugin
-// (board.Plugin.CellKinds), never built by the game. Names are strings here, as a Layout spells
-// them.
+// Kinds is a board's registered set of Kinds, keyed by name as a Layout spells them.
 type Kinds interface {
-	// Define registers k under name, assigning its SpriteID by call order, and has every cell the
-	// Layout lays as it play plays, for good — it hands nothing back, and Named is the kind
-	// wherever it is built on. A name defined twice panics, in a Stage's Kinds section.
+	// Define registers k under name and has every cell laid as it play plays. A name defined
+	// twice panics.
 	Define(name string, k Kind, plays ...*rule.Part)
-	// Named is the kind defined as name, as the handle a game builds on — Entry for the Layout,
-	// SpriteID for the atlas; an unknown name panics.
+	// Named is the kind defined as name; an unknown name panics.
 	Named(name string) Of
 	// Get resolves name to the Kind registered under it.
 	Get(name string) (Kind, bool)

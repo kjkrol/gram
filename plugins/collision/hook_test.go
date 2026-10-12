@@ -15,7 +15,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// roles is the tag family of these tests: bullets and targets.
 type roles struct{}
 
 const (
@@ -23,19 +22,17 @@ const (
 	target
 )
 
-// tagged is one box of a rule fixture: where it is and which tags it carries.
 type tagged struct {
 	x              float64
 	bullet, target bool
 	id             uid.UID64
 }
 
-// registrar is the part of the collision engine a fixture hooks rules on.
 type registrar interface {
 	Hook(rules ...rule.Rule) error
 }
 
-// heard is the command the tests' rules give: which rule, given by the one met when Other.
+// Other: given by the one met
 type heard struct {
 	Rule  string
 	Other bool
@@ -43,27 +40,22 @@ type heard struct {
 
 func (heard) Command() {}
 
-// heards is where the heard commands land, for a world to carry.
 type heards struct{ control.Queue[heard] }
 
 func (h *heards) Queues() []control.CommandQueue     { return []control.CommandQueue{&h.Queue} }
 func (h *heards) DefaultBindings() []control.Binding { return nil }
 
-// given is every heard given since the last time.
 func (h *heards) given() []control.Issued[heard] {
 	var got []control.Issued[heard]
 	h.Drain(func(i control.Issued[heard]) { got = append(got, i) })
 	return got
 }
 
-// met is one Meeting a rule fired for: which rule, Self and Other.
 type met struct {
 	rule        string
 	self, other uid.UID64
 }
 
-// meet runs the real collision engine for one tick over boxes, rules hooked, and returns every
-// Meeting the rules fired for.
 func meet(t *testing.T, rules []rule.Rule, boxes ...*tagged) []met {
 	t.Helper()
 	return meetWith(t, func(engine registrar) {
@@ -73,7 +65,6 @@ func meet(t *testing.T, rules []rule.Rule, boxes ...*tagged) []met {
 	}, boxes...)
 }
 
-// meetWith is meet with the registering left to the caller.
 func meetWith(t *testing.T, register func(engine registrar), boxes ...*tagged) []met {
 	t.Helper()
 	var commands control.Carrier
@@ -128,10 +119,15 @@ func meetWith(t *testing.T, register func(engine registrar), boxes ...*tagged) [
 	return got
 }
 
-// heardOf is a rule named name of a Meeting between a and b: Self gives a heard of it, then
-// Other one more.
 func heardOf[F any](name string, a tag.Tag[roles], b tag.Tag[F]) rule.Rule {
-	return rule.Then[collision.Meeting](name, rule.Between(a, b), rule.Steps(rule.Order(heard{Rule: name}), rule.ForOther(rule.Order(heard{Rule: name, Other: true}))))
+	return rule.Branch[collision.Meeting]{
+		Name: name,
+		When: rule.All(rule.Self(a), rule.Other(b)),
+		Do: rule.Steps(
+			rule.Order(heard{Rule: name}),
+			rule.ForOther(rule.Order(heard{Rule: name, Other: true})),
+		),
+	}
 }
 
 func bulletsAgainstTargets() []rule.Rule { return []rule.Rule{heardOf("bullets", bullet, target)} }
@@ -169,7 +165,6 @@ func TestBetween_IgnoresPairsThatDoNotCarryBothTags(t *testing.T) {
 	}
 }
 
-// A pair of the same tag would match either way round, and is still one contact.
 func TestBetween_SameTagOnBothSides_RunsOncePerContact(t *testing.T) {
 	got := meet(t, []rule.Rule{heardOf("bullets", bullet, bullet)}, &tagged{x: 100, bullet: true}, &tagged{x: 105, bullet: true})
 
@@ -178,7 +173,6 @@ func TestBetween_SameTagOnBothSides_RunsOncePerContact(t *testing.T) {
 	}
 }
 
-// Anything stands for whatever is on the other side — tagged or not.
 func TestBetween_Anything_MatchesWhateverIsThere(t *testing.T) {
 	shot, wall := &tagged{x: 100, bullet: true}, &tagged{x: 105}
 
@@ -198,19 +192,17 @@ func TestBetween_RulesSharingATag_BothRun(t *testing.T) {
 	}
 }
 
-// elsewhere is a moment of a host other than collision's.
 type elsewhere struct{}
 
 func (elsewhere) Who() uid.UID64       { return 0 }
 func (elsewhere) Whom(func(uid.UID64)) {}
 
-// fromElsewhere is a rule of elsewhere: of a pair when paired, else of anyone.
 func fromElsewhere(paired bool) rule.Rule {
-	filter := rule.All
+	var when any
 	if paired {
-		filter = rule.Between(bullet, target)
+		when = rule.All(rule.Self(bullet), rule.Other(target))
 	}
-	return rule.Then[elsewhere]("elsewhere", filter, rule.Order(heard{}))
+	return rule.Branch[elsewhere]{Name: "elsewhere", When: when, Do: rule.Order(heard{})}
 }
 
 func TestHook_RefusesWhatItCannotHost(t *testing.T) {

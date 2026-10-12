@@ -14,13 +14,10 @@ import (
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/plan"
 )
 
-// treeStage spawns one unit under plan — a sentry's when nil, coming to its post, waiting an hour
-// there, then gone — or is entered from the quicksave.
 type treeStage struct {
-	load  bool // entered from the quicksave
+	load  bool
 	plan  *written
 	world *world.Plugin
 	unit  kind.Of[struct{}]
@@ -47,9 +44,11 @@ func (g *treeStage) Init(ctx game.Initializer) error {
 	ctx.Setup(g.probe)
 	sentry := g.plan
 	if sentry == nil {
-		sentry = write("sentry", func(a *plan.Actor) rule.Step {
-			return a.Steps(a.Wait(10*time.Millisecond), a.Wait(time.Hour), a.Order(world.Despawn{}))
-		})
+		sentry = write("sentry", rule.Steps(
+			rule.Wait(10*time.Millisecond),
+			rule.Wait(time.Hour),
+			rule.Order(world.Despawn{}),
+		))
 	}
 	kind.Define[struct{}](g.world.Kinds(), "sentry", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
@@ -76,8 +75,6 @@ func (g *treeStage) Stack() game.Scenes {
 	return g.stack
 }
 
-// minds is how many entities have a mind, and when the tree of the last began its second wait, on
-// the world's clock, and whether it runs.
 func (g *treeStage) minds() (n int, since time.Duration, running bool) {
 	for g.probe.query.All(); g.probe.query.Next(); {
 		for _, m := range g.probe.mind.Slice(g.probe.query.Cursor()) {
@@ -89,7 +86,6 @@ func (g *treeStage) minds() (n int, since time.Duration, running bool) {
 	return n, since, running
 }
 
-// guarding is when the stage's one unit began its wait, and whether its tree runs.
 func (g *treeStage) guarding(t *testing.T) (since time.Duration, running bool) {
 	t.Helper()
 	n, since, running := g.minds()
@@ -99,8 +95,6 @@ func (g *treeStage) guarding(t *testing.T) (since time.Duration, running bool) {
 	return since, running
 }
 
-// The world runs an entity's tree in its simulation: the wait in progress, the tree's own state,
-// is saved with the game and goes on after a load.
 func TestPlan_RunsInTheWorldAndIsSaved(t *testing.T) {
 	t.Chdir(t.TempDir())
 	saver := &treeStage{}
@@ -134,12 +128,11 @@ func TestPlan_RunsInTheWorldAndIsSaved(t *testing.T) {
 	}
 }
 
-// A plan orders commands as a player does: the world's own Despawn takes the entity that gives it
-// itself out of the world.
 func TestPlan_OrdersTheWorldsCommands(t *testing.T) {
-	stage := &treeStage{plan: write("leaver", func(a *plan.Actor) rule.Step {
-		return a.Steps(a.Wait(50*time.Millisecond), a.Order(world.Despawn{}))
-	})}
+	stage := &treeStage{plan: write("leaver", rule.Steps(
+		rule.Wait(50*time.Millisecond),
+		rule.Order(world.Despawn{}),
+	))}
 	eng := engine.NewEngine(oneStageGame{stage: stage, props: game.Props{}})
 	if stage.load {
 		if err := eng.Load("", ""); err != nil {
@@ -160,16 +153,8 @@ func TestPlan_OrdersTheWorldsCommands(t *testing.T) {
 	}
 }
 
-// written is a plan as a test writes it, for the Stage's world to define (world.Plans).
-type written struct {
-	name string
-	body func(a *plan.Actor) rule.Step
-}
+type written struct{ plan rule.Planned }
 
-func write(name string, body func(a *plan.Actor) rule.Step) *written { return &written{name, body} }
+func write(name string, root rule.Step) *written { return &written{rule.Plan(name, root)} }
 
-// on defines the plan in w and hands back the component of an entity following it.
-func (p *written) on(w *world.Plugin) comp.Comp {
-	w.Plans().Define(p.name, p.body)
-	return w.Plans().Named(p.name)
-}
+func (p *written) on(*world.Plugin) comp.Comp { return p.plan }

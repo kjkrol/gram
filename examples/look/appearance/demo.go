@@ -29,13 +29,11 @@ const (
 	ScreenWidth  = 800
 	ScreenHeight = 600
 
-	// Size is every entity's side; Walkers, Ghosts and Leaders how many of each there are.
 	Size    = 16
 	Walkers = 30
 	Ghosts  = 6
 	Leaders = 1
 
-	// rageFor is how long R keeps everyone angry.
 	rageFor = 3 * time.Second
 )
 
@@ -99,16 +97,11 @@ func (s *arena) defineEffects() {
 }
 
 func (s *arena) defineRules() {
-	s.world.Roles().Define(MoodyRole,
-		//TODO: trzeba poprawic mechanizm rules, skladnia wydaje mi sie niezbyt przystepna
-		rule.Then[world.Moving](
-			"rage spreads",
-			rule.All,
-			rule.During(
-				s.world.Effects().Named(RageEf),
-				rule.Keep(s.world.Effects().Named(AngryEf)),
-			),
-		))
+	s.world.Roles().Define(MoodyRole, rule.Branch[world.Moving]{
+		Name: "rage spreads",
+		When: rule.During(s.world.Effects().Named(RageEf)),
+		Do:   rule.Keep(s.world.Effects().Named(AngryEf)),
+	})
 }
 
 func (s *arena) defineCommands() {

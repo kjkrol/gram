@@ -9,21 +9,17 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// shading lays the shadows of what stands over the ground the frame drew (shaders/shade.wgsl), a
-// patch an instance.
 var shading = render.NewMeshShaderWith("topography shades", render.Files(shaders, "shaders/shade.wgsl"), []render.Uniform{
 	{Name: "Unproject", Size: 16}, {Name: "ViewSize", Size: 2}, {Name: "ViewAt", Size: 2},
 }).Instanced(3)
 
-// shades lays the shadows of what stands on a ground drawn on the GPU that lays none itself — the
-// hex prisms — read from the frame's depth: each patch where the ground under it was drawn.
+// the shadows over a ground that lays none itself (hex prisms), read from the frame's depth
 type shades struct {
 	opts      render.DrawMeshOptions
 	own       map[string][]float32
 	instances []float32
 }
 
-// draw lays patches over the ground of relief r in the target through cam.
 func (s *shades) draw(t render.Target, cam camera.Camera, r *relief.Relief, patches []sky.Patch) {
 	if t.Screen == nil || t.Depth == nil || len(patches) == 0 {
 		return
@@ -69,13 +65,10 @@ func (s *shades) draw(t render.Target, cam camera.Camera, r *relief.Relief, patc
 	t.Screen.DrawMesh(nil, shading, &s.opts)
 }
 
-// shadeHeadroom is how far over the relief's highest ground, world units, a shadow may lie: on
-// what stands there.
+// world units over the relief's highest ground a shadow may lie, on what stands there
 const shadeHeadroom = 64
 
-// covers is the rectangle of the viewport w by h the patch p may cover through tr, its corners at
-// every height from low to high, a little wider; the whole viewport where any lies behind the eye;
-// false off the viewport.
+// the whole viewport where a corner lies behind the eye; false off the viewport
 func covers(tr camera.Transform, p sky.Patch, low, high, w, h float32) ([4]float32, bool) {
 	x0, y0, x1, y1 := float32(math.Inf(1)), float32(math.Inf(1)), float32(math.Inf(-1)), float32(math.Inf(-1))
 	for _, c := range [4][2]float32{{-p.Along, -p.Wide}, {p.Along, -p.Wide}, {-p.Along, p.Wide}, {p.Along, p.Wide}} {
@@ -92,7 +85,7 @@ func covers(tr camera.Transform, p sky.Patch, low, high, w, h float32) ([4]float
 	return r, r[0] < r[2] && r[1] < r[3]
 }
 
-// set hands the shader the uniform name as v, kept between frames and boxed once.
+// kept between frames and boxed once
 func (s *shades) set(name string, v ...float32) {
 	u, ok := s.own[name]
 	if !ok || len(u) != len(v) {

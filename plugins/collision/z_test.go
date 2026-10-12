@@ -12,15 +12,11 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// raised is one entity of a Z test: where it stands along x and the heights it spans, none for
-// no Z at all.
 type raised struct {
 	x float64
 	z *world.Z
 }
 
-// zRun ticks two overlapping boxes spanning the heights given once, in a world with heights, and
-// reports whether they met and how far apart their left edges ended.
 func zRun(t *testing.T, a, b raised) (met bool, gap float64) {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
@@ -64,9 +60,6 @@ func zRun(t *testing.T, a, b raised) (met bool, gap float64) {
 
 func z(altitude, height float64) *world.Z { return &world.Z{Altitude: altitude, Height: height} }
 
-// In a world with heights two overlapping boxes meet only where the heights they span do: a hawk
-// passes over a walker, a crate on a platform touches nothing under it, and whatever says no
-// height — no Z, a Height of 0 — stands at every height and meets everything.
 func TestZ_TouchOnlyWhereTheBandsOverlap(t *testing.T) {
 	cases := map[string]struct {
 		a, b  *world.Z
@@ -93,7 +86,6 @@ func TestZ_TouchOnlyWhereTheBandsOverlap(t *testing.T) {
 	}
 }
 
-// The bands of a flat world: everything, so Band.Meets never vetoes there.
 func TestBand_OfNothingIsEverywhere(t *testing.T) {
 	if got := collision.BandOf(nil); got != collision.Everywhere {
 		t.Errorf("BandOf(nil) = %v, want Everywhere", got)

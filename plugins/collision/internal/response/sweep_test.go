@@ -8,9 +8,6 @@ import (
 	"github.com/kjkrol/gram/plugins/collision/internal/response"
 )
 
-// A path of a 4-wide box across a 10-wide box: it touches where its leading edge meets the box's
-// near face, entering by that face; one beside the box, one too short and one only grazing an
-// edge touch nothing; one starting inside touches at once, the shortest way out.
 func TestSweep_WhereThePathFirstTouchesTheBox(t *testing.T) {
 	box := geom.NewAABBAt(geom.NewVec(100, 100), 10, 10)
 	half := geom.NewVec(2, 2)
@@ -53,8 +50,6 @@ func TestSweep_WhereThePathFirstTouchesTheBox(t *testing.T) {
 	}
 }
 
-// A wall along an axis is struck where the box of its rectangle is, through the same face; a
-// slanted one through its long face, the way out square to it.
 func TestSweepWall_WhereThePathFirstTouchesTheWall(t *testing.T) {
 	box := geom.NewAABBAt(geom.NewVec(100, 100), 10, 10)
 	half := geom.NewVec(2, 2)

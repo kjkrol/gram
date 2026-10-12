@@ -30,15 +30,15 @@ type Follow struct {
 	On     bool
 }
 
-// LookAt moves Camera, once, to have Entity in the middle of the screen at its altitude, fastening
-// it to nothing: a window about a place far off showing the place.
+// LookAt moves Camera, once, to have Entity in the middle of the screen at its altitude,
+// fastening it to nothing.
 type LookAt struct {
 	Camera camera.Camera
 	Entity uid.UID64
 }
 
-// MouseLook switches whether Camera, riding in an entity (camera.Inside), looks round with the
-// mouse — the cursor captured — or not (camera.MouseLooker; camera.Config.MouseLook at the start).
+// MouseLook switches whether Camera, riding in an entity, looks round with the mouse
+// (camera.MouseLooker).
 type MouseLook struct{ Camera camera.Camera }
 
 func (Pan) Command()       {}

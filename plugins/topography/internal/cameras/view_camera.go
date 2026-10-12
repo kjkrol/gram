@@ -9,25 +9,18 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/internal/vec"
 )
 
-// viewCamera is the topography's camera: one of its views at a time — from above, isometric, in
-// perspective — every call going to the view it is in, and next switching them round with the
-// ground point in the middle of the screen, the heading, the pitch and the scale there carried
-// over. The perspective view is reached only when the game says so.
 type viewCamera struct {
 	iso     *isoCamera // from above, and isometric
 	persp   *perspCamera
 	cur     contract.Camera
-	inPersp bool // saved with the game
-	reaches bool // whether next reaches the perspective view
-	// the view the eye was in before it went into a unit, to come back to: the free perspective
-	// as it stood, or the isometric camera, left as it was
-	wasPersp bool
-	was      perspPose
-	// fastening is what the camera is fastened to and how, as the camera system keeps it
+	inPersp bool
+	reaches bool
+	// the view the eye was in before it went into a unit, to come back to
+	wasPersp  bool
+	was       perspPose
 	fastening contract.Fastening
-	mouseLook bool // the eye inside a unit looks round with the mouse
-	// edgeTurn and edgeTilt are how far a pixel of a pan the world's edge stopped turns and bows
-	// the view, radians
+	mouseLook bool
+	// radians a pixel of a pan the world's edge stopped
 	edgeTurn, edgeTilt float32
 }
 
@@ -41,9 +34,7 @@ var _ contract.Picker = (*viewCamera)(nil)
 var _ contract.Rayer = (*viewCamera)(nil)
 var _ contract.Rays = (*viewCamera)(nil)
 
-// Rays is every line of sight at once: in perspective from the eye, through the picture plane a
-// focal length ahead; from above or isometrically all one way — the way everything projects
-// along, down from Headroom over the highest ground.
+// From above or isometrically all one way, from Headroom over the highest ground.
 func (c *viewCamera) Rays() (contract.RayField, bool) {
 	if c.inPersp {
 		p := c.persp.proj
@@ -62,7 +53,6 @@ func (c *viewCamera) Rays() (contract.RayField, bool) {
 	return f, true
 }
 
-// Ray is the way the screen point looks, in perspective; the other views look from infinitely far.
 func (c *viewCamera) Ray(sx, sy float32) (float32, float32, float32, bool) {
 	if !c.inPersp {
 		return 0, 0, 0, false
@@ -70,7 +60,6 @@ func (c *viewCamera) Ray(sx, sy float32) (float32, float32, float32, bool) {
 	return c.persp.Ray(sx, sy)
 }
 
-// Pick is the first ground the screen point sees, in the view the camera is in.
 func (c *viewCamera) Pick(sx, sy float32) (float32, float32, float32, bool) {
 	if c.inPersp {
 		return c.persp.Pick(sx, sy)
@@ -78,7 +67,6 @@ func (c *viewCamera) Pick(sx, sy float32) (float32, float32, float32, bool) {
 	return c.iso.Pick(sx, sy)
 }
 
-// Eye is where the eye stands in perspective; the other views have none.
 func (c *viewCamera) Eye() (float32, float32, float32, bool) {
 	if !c.inPersp {
 		return 0, 0, 0, false
@@ -86,8 +74,6 @@ func (c *viewCamera) Eye() (float32, float32, float32, bool) {
 	return c.persp.Eye()
 }
 
-// Vanish is where the direction (dx, dy, dz) vanishes on the screen: in perspective; the other
-// views have no vanishing points.
 func (c *viewCamera) Vanish(dx, dy, dz float32) (float32, float32, bool) {
 	if !c.inPersp {
 		return 0, 0, false
@@ -95,8 +81,7 @@ func (c *viewCamera) Vanish(dx, dy, dz float32) (float32, float32, bool) {
 	return c.persp.Vanish(dx, dy, dz)
 }
 
-// worldBox is the world rectangle minX, minY to maxX, maxY clamped to a world of size, never
-// turned inside out: a rectangle off the world is an empty one at its edge.
+// never turned inside out: a rectangle off the world is an empty one at its edge
 func worldBox(minX, minY, maxX, maxY float32, size geom.Vec) contract.AABB {
 	w, h := float32(size.X), float32(size.Y)
 	x0, y0 := min(max(minX, 0), w), min(max(minY, 0), h)
@@ -104,24 +89,15 @@ func worldBox(minX, minY, maxX, maxY float32, size geom.Vec) contract.AABB {
 	return contract.AABB{TopLeft: geom.NewVec(float64(x0), float64(y0)), BottomRight: geom.NewVec(float64(x1), float64(y1))}
 }
 
-// Fasten fastens the camera to an entity, or to nothing: the camera system reads it every tick and
-// goes behind or inside the entity as it says.
 func (c *viewCamera) Fasten(f contract.Fastening) { c.fastening = f }
 
 func (c *viewCamera) Fastening() contract.Fastening { return c.fastening }
 
-// MouseLook reports whether the eye inside a unit looks round with the mouse.
 func (c *viewCamera) MouseLook() bool { return c.mouseLook }
 
-// SetMouseLook has the eye inside a unit look round with the mouse, or not.
 func (c *viewCamera) SetMouseLook(on bool) { c.mouseLook = on }
 
-// newCamera is a camera over a width x height world drawn through proj, configured by cfg, over
-// ground — its top as it is drawn — between the heights extent gives (nil: level at sea level),
-// which Pick walks over, its perspective view of fov
-// (radians), the ground far off sinking bend per distance² under the eye's level, reached when
-// reaches; it starts over the world's middle, a pixel wide until whoever shows it gives it its
-// size, and refuses a wrapping world and a camera keeping the whole world in view.
+// fov is radians; the camera starts a pixel wide until whoever shows it gives it its size
 func newCamera(proj projection, width, height uint32, edges aabbworld.Edges, cfg contract.Config, fov float32, reaches bool, ground func(x, y float32) float32, extent func() (low, high float32), bend float32) *viewCamera {
 	if cfg.Whole {
 		panic("topography: a camera in relief cannot keep the whole world in view (camera.Config.Whole): that is a top-down camera's")
@@ -148,15 +124,10 @@ func newCamera(proj projection, width, height uint32, edges aabbworld.Edges, cfg
 	return c
 }
 
-// relief reports whether the camera sees the world in relief — isometrically or in perspective —
-// rather than from above.
 func (c *viewCamera) relief() bool { return c.inPersp || !c.iso.proj.flat }
 
-// insideUnit reports whether the camera's eye is a unit's.
 func (c *viewCamera) insideUnit() bool { return c.inPersp && c.persp.inside }
 
-// next looks the next way round: from above, isometrically, in perspective when reached, from
-// above again; an eye inside a unit comes out instead.
 func (c *viewCamera) next() {
 	switch {
 	case c.insideUnit():
@@ -172,9 +143,6 @@ func (c *viewCamera) next() {
 	}
 }
 
-// toPersp switches to the perspective view over the ground point in the middle of the screen, as
-// large there as the isometric view drew it: the eye as high as that takes, over the ceiling, the
-// view narrowed where the ceiling keeps it too far.
 func (c *viewCamera) toPersp() {
 	w, h := c.iso.Viewport()
 	x, y := c.iso.Unproject(w/2, h/2, 0)
@@ -195,9 +163,6 @@ func (c *viewCamera) toPersp() {
 	c.inPersp, c.cur = true, p
 }
 
-// toIso switches from the perspective view to the isometric one over the ground point in the
-// middle of the screen, as large there as the perspective drew it, and on to the view from above
-// as the isometric view goes there, a cell as wide as it was.
 func (c *viewCamera) toIso(isometric bool) {
 	at := c.persp.target()
 	x, y := float64(at[0]), float64(at[1])
@@ -211,8 +176,6 @@ func (c *viewCamera) toIso(isometric bool) {
 	}
 }
 
-// Turn turns the view by angle radians, the world clockwise on the screen, round the ground point
-// in the middle of the screen; a view from above does not turn.
 func (c *viewCamera) Turn(angle float32) {
 	if c.inPersp {
 		c.persp.Turn(angle)
@@ -221,8 +184,6 @@ func (c *viewCamera) Turn(angle float32) {
 	c.iso.Turn(angle)
 }
 
-// Tilt bows the head by angle radians, raises it for a negative one, between the flattest and
-// straight down; a view from above looks straight down already.
 func (c *viewCamera) Tilt(angle float32) {
 	if c.inPersp {
 		c.persp.Tilt(angle)
@@ -245,8 +206,6 @@ func (c *viewCamera) Pitch() float32 {
 	return c.iso.Pitch()
 }
 
-// enterPersp switches to the perspective view when it is reached and reports whether the camera
-// is in it now.
 func (c *viewCamera) enterPersp() bool {
 	if !c.inPersp && c.reaches {
 		c.toPersp()
@@ -254,9 +213,6 @@ func (c *viewCamera) enterPersp() bool {
 	return c.inPersp
 }
 
-// LookFrom puts the eye at the world point, over the ceiling, looking at the ground point in the
-// middle of the screen, in perspective: from another view it switches to the perspective one
-// first, when reached; false when it is not, and nothing moves.
 func (c *viewCamera) LookFrom(x, y, z float32) bool {
 	if !c.enterPersp() {
 		return false
@@ -265,7 +221,6 @@ func (c *viewCamera) LookFrom(x, y, z float32) bool {
 	return true
 }
 
-// LookAt has the eye look at the world point from where it is — see LookFrom.
 func (c *viewCamera) LookAt(x, y, z float32) bool {
 	if !c.enterPersp() {
 		return false
@@ -274,9 +229,7 @@ func (c *viewCamera) LookAt(x, y, z float32) bool {
 	return true
 }
 
-// enterInside makes the eye a unit's at eye, looking along the ground from heading and seeing
-// across radians across the screen (0: the camera's own field), in perspective, minding the view
-// it was in to come back to; false when the perspective is not reached.
+// across is radians, 0 the camera's own field
 func (c *viewCamera) enterInside(eye [3]float32, heading, across float32) bool {
 	if !c.reaches {
 		return false
@@ -289,7 +242,6 @@ func (c *viewCamera) enterInside(eye [3]float32, heading, across float32) bool {
 	return true
 }
 
-// leaveInside takes an eye inside a unit out, back to the view it was in, over the unit.
 func (c *viewCamera) leaveInside() {
 	if !c.insideUnit() {
 		return
@@ -304,8 +256,6 @@ func (c *viewCamera) leaveInside() {
 	c.iso.CenterOn(float64(at[0]), float64(at[1]), float64(at[2]))
 }
 
-// ScaleAt is how many screen units a world unit spans at the point: the zoom, but for the
-// perspective, where what is further off is smaller and what is not in front of the eye 0.
 func (c *viewCamera) ScaleAt(x, y, z float32) float32 {
 	if c.inPersp {
 		return c.persp.ScaleAt(x, y, z)
@@ -333,10 +283,8 @@ func (c *viewCamera) MoveTo(x, y float64)            { c.cur.MoveTo(x, y) }
 func (c *viewCamera) CenterOn(x, y, z float64)       { c.cur.CenterOn(x, y, z) }
 func (c *viewCamera) Translate(dx, dy float64)       { c.cur.Translate(dx, dy) }
 
-// Pan shifts the view by a screen delta; where the world's edge stops it, the part stopped turns
-// it in relief — stopped going left, the eye goes round clockwise, the world anticlockwise on the
-// screen, as Q turns it; right the other way — or bows it, stopped going forward, towards looking
-// straight down; stopped going back, nothing.
+// The part the world's edge stopped turns the view in relief: stopped going left the world
+// anticlockwise as Q turns it, right the other way; forward bows it, back nothing.
 func (c *viewCamera) Pan(dx, dy float32) {
 	bx, by := c.shift(dx, dy)
 	if !c.relief() || c.insideUnit() {
@@ -350,7 +298,7 @@ func (c *viewCamera) Pan(dx, dy float32) {
 	}
 }
 
-// shift is Pan, and the part of the delta the world's edge stopped, in screen pixels.
+// bx, by: the part of the delta the world's edge stopped, screen pixels
 func (c *viewCamera) shift(dx, dy float32) (bx, by float32) {
 	if c.inPersp {
 		return c.persp.shift(dx, dy)
@@ -358,7 +306,6 @@ func (c *viewCamera) shift(dx, dy float32) (bx, by float32) {
 	return c.iso.shift(dx, dy)
 }
 
-// pushed is the part b of a delta d the edge stopped that went the way d asked, no more than d.
 func pushed(d, b float32) float32 {
 	if d == 0 || b*d <= 0 {
 		return 0
@@ -377,7 +324,6 @@ func (c *viewCamera) ZoomOut(factor, anchorX, anchorY float32) {
 }
 func (c *viewCamera) State() contract.State { return c.cur.State() }
 
-// SetViewport resizes the screen of every view, so the one switched to next is right too.
 func (c *viewCamera) SetViewport(w, h float32) {
 	c.iso.SetViewport(w, h)
 	c.persp.SetViewport(w, h)
@@ -393,9 +339,6 @@ func (c *viewCamera) SetMaxZoom(maxZoom float32) {
 	c.persp.SetMaxZoom(maxZoom)
 }
 
-// Persisted hands saves every view's state, which view the camera is in and what it is fastened
-// to; Restore puts them back, the perspective view falling back to the isometric one where the
-// game no longer reaches it — the camera system takes a camera fastened Inside back into its unit.
 func (c *viewCamera) Persisted() []any {
 	return append(append(c.iso.Persisted(), c.persp.Persisted()...), &c.inPersp, &c.fastening)
 }

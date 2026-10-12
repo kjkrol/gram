@@ -2,6 +2,7 @@ package rule_test
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"testing"
 
@@ -13,7 +14,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// roles and ranks are the tag families these tests name.
 type (
 	roles struct{}
 	ranks struct{}
@@ -30,22 +30,18 @@ const (
 	rookie
 )
 
-// armour is a component a Having rule asks for.
 type armour struct{ N int }
 
-// poke is a made-up host's moment of one entity.
 type poke struct{ self uid.UID64 }
 
 func (p poke) Who() uid.UID64 { return p.self }
 
-// glance is a made-up host's moment of a pair: one entity glancing at another, its Subject.
 type glance struct{ self, other uid.UID64 }
 
 func (g glance) Who() uid.UID64             { return g.self }
 func (g glance) Whom(each func(uid.UID64))  { each(g.other) }
 func (g glance) Subject() (uid.UID64, bool) { return g.other, true }
 
-// look is a made-up host's moment of one entity against all it sees.
 type look struct {
 	self uid.UID64
 	seen []uid.UID64
@@ -58,24 +54,20 @@ func (l look) Whom(each func(uid.UID64)) {
 	}
 }
 
-// dawn is a made-up moment of the world as a whole, about its own entity, as a clock.Moment is.
 type dawn struct{ world uid.UID64 }
 
 func (d dawn) Who() uid.UID64 { return d.world }
 
-// noted is a command a rule's entity gives itself: whom the rule fired for.
 type noted struct{}
 
 func (noted) Command() {}
 
-// toward is a command aimed at a glance's other: which pair a rule fired for.
 type toward struct{ Of uid.UID64 }
 
 func (toward) Command() {}
 
 func (c *toward) Aim(who uid.UID64) { c.Of = who }
 
-// told carries the commands the rules give to queues of their own.
 type told struct {
 	carrier control.Carrier
 	notes   control.Queue[noted]
@@ -93,7 +85,6 @@ func newTold(t *testing.T) *told {
 
 func (k *told) tick() plugin.Tick { return plugin.Tick{Commands: &k.carrier} }
 
-// who is whom the rules noted since the last call, by place in ids, sorted.
 func (k *told) who(ids []uid.UID64) []int {
 	var got []int
 	k.notes.Drain(func(i control.Issued[noted]) { got = append(got, slices.Index(ids, i.Entity)) })
@@ -101,10 +92,8 @@ func (k *told) who(ids []uid.UID64) []int {
 	return got
 }
 
-// firing is a pair a rule fired for, by the places of its entities.
 type firing struct{ self, other int }
 
-// pairs is the pairs the rules fired for since the last call, in the order they did.
 func (k *told) pairs(ids []uid.UID64) []firing {
 	var got []firing
 	k.aims.Drain(func(i control.Issued[toward]) {
@@ -113,8 +102,6 @@ func (k *told) pairs(ids []uid.UID64) []firing {
 	return got
 }
 
-// kit is what one entity of a test carries: its tags of each family (nil: not the component) and
-// armour.
 type kit struct {
 	roles  *tag.Tags[roles]
 	ranks  *tag.Tags[ranks]
@@ -131,7 +118,6 @@ func ranked(ts ...tag.Tag[ranks]) *tag.Tags[ranks] {
 	return &s
 }
 
-// spawn makes an entity of each kit, a token and all, and hands back their ids.
 func spawn(si *goke.SysInit, kits []kit) []uid.UID64 {
 	ids := make([]uid.UID64, len(kits))
 	for k, kt := range kits {
@@ -164,8 +150,6 @@ func spawn(si *goke.SysInit, kits []kit) []uid.UID64 {
 	return ids
 }
 
-// firedFor runs r through a plugin.Rules of pokes over an entity of each kit, as a host's pass
-// over its entities does, and hands back the places of the kits it fired for.
 func firedFor(t *testing.T, r rule.Rule, kits ...kit) []int {
 	t.Helper()
 	k := newTold(t)
@@ -188,8 +172,6 @@ func firedFor(t *testing.T, r rule.Rule, kits ...kit) []int {
 	return k.who(ids)
 }
 
-// marksOf binds h, spawns an entity of each kit and reads what each carries off the chunks, as a
-// host's pass walking its entities does.
 func marksOf[P any](t *testing.T, h *plugin.PairRules[P], kits ...kit) ([]plugin.Marks, []uid.UID64) {
 	t.Helper()
 	marks := make([]plugin.Marks, len(kits))
@@ -210,8 +192,6 @@ func marksOf[P any](t *testing.T, h *plugin.PairRules[P], kits ...kit) ([]plugin
 	return marks, ids
 }
 
-// firedPairs dispatches every ordered pair of an entity of each kit to a plugin.PairRules holding
-// r, as a host of directed pairs does, and hands back the pairs r fired for.
 func firedPairs(t *testing.T, r rule.Rule, kits ...kit) []firing {
 	t.Helper()
 	k := newTold(t)
@@ -230,8 +210,6 @@ func firedPairs(t *testing.T, r rule.Rule, kits ...kit) []firing {
 	return k.pairs(ids)
 }
 
-// everyPair is every ordered pair of n entities whose first is among selves and whose other among
-// others (nil: anybody), in the order firedPairs dispatches them.
 func everyPair(n int, selves, others []int) []firing {
 	var all []firing
 	for i := range n {
@@ -244,16 +222,14 @@ func everyPair(n int, selves, others []int) []firing {
 	return all
 }
 
-func noteOf[P any](name string, filter rule.Filter) rule.Rule {
-	return rule.Then[P](name, filter, rule.Order(noted{}))
+func noteOf[P any](name string, when any) rule.Rule {
+	return rule.Branch[P]{Name: name, When: when, Do: rule.Order(noted{})}
 }
 
-func aimOf[P any](name string, filter rule.Filter) rule.Rule {
-	return rule.Then[P](name, filter, rule.Order(toward{}))
+func aimOf[P any](name string, when any) rule.Rule {
+	return rule.Branch[P]{Name: name, When: when, Do: rule.Order(toward{})}
 }
 
-// A rule over every entity, narrowed to hunters, fires for those carrying the tag alone: not for
-// one without the family, one carrying another bit of it, or one of another family.
 func TestWithin_AllFiresForTheCarriersAlone(t *testing.T) {
 	kits := []kit{
 		{},                         // 0: no tags at all
@@ -263,7 +239,7 @@ func TestWithin_AllFiresForTheCarriersAlone(t *testing.T) {
 		{ranks: ranked(veteran)},   // 4: another family alone
 		{roles: as()},              // 5: the family, no bit
 	}
-	plain := noteOf[poke]("note", rule.All)
+	plain := noteOf[poke]("note", nil)
 	narrowed := rule.Within(hunter, plain)
 
 	if got, want := firedFor(t, narrowed, kits...), []int{1, 3}; !slices.Equal(got, want) {
@@ -274,7 +250,6 @@ func TestWithin_AllFiresForTheCarriersAlone(t *testing.T) {
 	}
 }
 
-// Narrowed, a Self rule needs both its own tag and the one it is narrowed to, of one family or two.
 func TestWithin_SelfNeedsBothTags(t *testing.T) {
 	spot := noteOf[poke]("spot", rule.Self(hunter))
 
@@ -304,7 +279,6 @@ func TestWithin_SelfNeedsBothTags(t *testing.T) {
 	}
 }
 
-// Narrowed, a Having rule needs both the component and the tag.
 func TestWithin_HavingNeedsTheComponentAndTheTag(t *testing.T) {
 	kits := []kit{
 		{armour: true},                    // 0
@@ -313,7 +287,7 @@ func TestWithin_HavingNeedsTheComponentAndTheTag(t *testing.T) {
 		{roles: as(hunted), armour: true}, // 3
 		{roles: as(), armour: true},       // 4
 	}
-	armoured := noteOf[poke]("armoured", rule.Having[armour]())
+	armoured := noteOf[poke]("armoured", rule.Carrying[armour]())
 
 	if got, want := firedFor(t, rule.Within(hunter, armoured), kits...), []int{2}; !slices.Equal(got, want) {
 		t.Errorf("Having[armour] within hunters fired for %v; want %v", got, want)
@@ -323,8 +297,6 @@ func TestWithin_HavingNeedsTheComponentAndTheTag(t *testing.T) {
 	}
 }
 
-// Narrowed twice, a rule needs both tags, of one family or two, and the rule narrowed once is
-// left as it was.
 func TestWithin_TwiceNeedsBothTags(t *testing.T) {
 	kits := []kit{
 		{roles: as(hunter)},                                // 0
@@ -335,7 +307,7 @@ func TestWithin_TwiceNeedsBothTags(t *testing.T) {
 		{roles: as(hunter, scout), ranks: ranked(veteran)}, // 5
 		{roles: as(hunter, scout)},                         // 6
 	}
-	hunters := rule.Within(hunter, noteOf[poke]("note", rule.All))
+	hunters := rule.Within(hunter, noteOf[poke]("note", nil))
 
 	if got, want := firedFor(t, rule.Within(veteran, hunters), kits...), []int{2, 5}; !slices.Equal(got, want) {
 		t.Errorf("within hunters and veterans the rule fired for %v; want %v", got, want)
@@ -353,42 +325,40 @@ func TestWithin_TwiceNeedsBothTags(t *testing.T) {
 		{roles: as(hunter), ranks: ranked(veteran)},               // 2
 		{ranks: ranked(veteran), armour: true},                    // 3
 	}
-	thrice := rule.Within(veteran, rule.Within(hunter, noteOf[poke]("armoured", rule.Having[armour]())))
+	inArmour := noteOf[poke]("armoured", rule.Carrying[armour]())
+	thrice := rule.Within(veteran, rule.Within(hunter, inArmour))
 	if got, want := firedFor(t, thrice, armoured...), []int{1}; !slices.Equal(got, want) {
 		t.Errorf("Having[armour] within hunters and veterans fired for %v; want %v", got, want)
 	}
 }
 
-// Within tag.Any is the rule itself, of one entity or of pairs.
 func TestWithin_AnyIsTheRuleItself(t *testing.T) {
 	for _, r := range []rule.Rule{
-		noteOf[poke]("all", rule.All),
+		noteOf[poke]("all", nil),
 		noteOf[poke]("self", rule.Self(hunter)),
-		noteOf[poke]("having", rule.Having[armour]()),
-		rule.Within(hunter, noteOf[poke]("narrowed", rule.All)),
-		aimOf[glance]("between", rule.Between(hunter, hunted)),
-		aimOf[glance]("pairs", rule.All),
+		noteOf[poke]("having", rule.Carrying[armour]()),
+		rule.Within(hunter, noteOf[poke]("narrowed", nil)),
+		aimOf[glance]("between", rule.All(rule.Self(hunter), rule.Other(hunted))),
+		aimOf[glance]("pairs", nil),
 	} {
-		if got := rule.Within(tag.Any, r); got != r {
+		if got := rule.Within(tag.Any, r); fmt.Sprint(got) != fmt.Sprint(r) {
 			t.Errorf("Within(tag.Any, %v) = %v, a rule of its own; want the rule itself", r, got)
 		}
 	}
 
 	kits := []kit{{}, {roles: as(hunter)}, {roles: as(hunted)}, {ranks: ranked(veteran)}}
-	all := noteOf[poke]("all", rule.All)
+	all := noteOf[poke]("all", nil)
 	if got, want := firedFor(t, rule.Within(tag.Any, all), kits...), firedFor(t, all, kits...); !slices.Equal(got, want) {
 		t.Errorf("within anybody the rule fired for %v; the rule itself for %v", got, want)
 	}
-	between := aimOf[glance]("between", rule.Between(hunter, hunted))
+	between := aimOf[glance]("between", rule.All(rule.Self(hunter), rule.Other(hunted)))
 	if got, want := firedPairs(t, rule.Within(tag.Any, between), kits...), firedPairs(t, between, kits...); !slices.Equal(got, want) {
 		t.Errorf("within anybody the pair rule fired for %v; the rule itself for %v", got, want)
 	}
 }
 
-// A rule of a moment of the world as a whole walks no entities: its host refuses it narrowed and
-// still takes it as it is.
 func TestWithin_StepRulesRefuseANarrowedRule(t *testing.T) {
-	wake := noteOf[dawn]("wake", rule.All)
+	wake := noteOf[dawn]("wake", nil)
 	var h plugin.StepRules[dawn]
 
 	if err := h.Add(rule.Within(hunter, wake)); !errors.Is(err, plugin.ErrUnhosted) {
@@ -407,8 +377,6 @@ func TestWithin_StepRulesRefuseANarrowedRule(t *testing.T) {
 	}
 }
 
-// Narrowed, a pair rule is dispatched for the pairs whose first entity carries the tag besides
-// its own side's, whatever the other carries; the rule narrowed is left as it was.
 func TestWithin_PairRulesDispatchForAFirstSideCarryingTheTag(t *testing.T) {
 	kits := []kit{
 		{roles: as(hunter)},                         // 0
@@ -420,7 +388,7 @@ func TestWithin_PairRulesDispatchForAFirstSideCarryingTheTag(t *testing.T) {
 		{roles: as(hunter, scout), ranks: ranked(veteran)}, // 6
 	}
 	n := len(kits)
-	between := aimOf[glance]("glance", rule.Between(hunter, hunted))
+	between := aimOf[glance]("glance", rule.All(rule.Self(hunter), rule.Other(hunted)))
 	for _, c := range []struct {
 		name string
 		r    rule.Rule
@@ -429,10 +397,15 @@ func TestWithin_PairRulesDispatchForAFirstSideCarryingTheTag(t *testing.T) {
 		{"between hunter and hunted", between, everyPair(n, []int{0, 1, 4, 6}, []int{2, 3})},
 		{"within scouts", rule.Within(scout, between), everyPair(n, []int{1, 6}, []int{2, 3})},
 		{"within veterans, another family", rule.Within(veteran, between), everyPair(n, []int{4, 6}, []int{2, 3})},
-		{"within scouts and veterans", rule.Within(veteran, rule.Within(scout, between)), everyPair(n, []int{6}, []int{2, 3})},
-		{"every pair within scouts", rule.Within(scout, aimOf[glance]("all", rule.All)), everyPair(n, []int{1, 3, 6}, nil)},
-		{"Self(hunter) within scouts", rule.Within(scout, aimOf[glance]("self", rule.Self(hunter))), everyPair(n, []int{1, 6}, nil)},
-		{"between anybody and hunted within veterans", rule.Within(veteran, aimOf[glance]("any", rule.Between(tag.Any, hunted))), everyPair(n, []int{4, 6}, []int{2, 3})},
+		{"within scouts and veterans", rule.Within(veteran, rule.Within(scout, between)),
+			everyPair(n, []int{6}, []int{2, 3})},
+		{"every pair within scouts", rule.Within(scout, aimOf[glance]("all", nil)),
+			everyPair(n, []int{1, 3, 6}, nil)},
+		{"Self(hunter) within scouts", rule.Within(scout, aimOf[glance]("self", rule.Self(hunter))),
+			everyPair(n, []int{1, 6}, nil)},
+		{"between anybody and hunted within veterans",
+			rule.Within(veteran, aimOf[glance]("any", rule.Other(hunted))),
+			everyPair(n, []int{4, 6}, []int{2, 3})},
 		{"between hunter and hunted, after Within", between, everyPair(n, []int{0, 1, 4, 6}, []int{2, 3})},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -443,8 +416,6 @@ func TestWithin_PairRulesDispatchForAFirstSideCarryingTheTag(t *testing.T) {
 	}
 }
 
-// Narrowed, a pair rule of one against many runs only for a first side carrying the tag — with the
-// others matched, or none — and never for one without it.
 func TestWithin_PairRulesDispatchGroupedForAFirstSideCarryingTheTag(t *testing.T) {
 	kits := []kit{
 		{roles: as(hunter)},        // 0
@@ -452,11 +423,11 @@ func TestWithin_PairRulesDispatchGroupedForAFirstSideCarryingTheTag(t *testing.T
 		{roles: as(hunted)},        // 2
 		{roles: as(hunted, scout)}, // 3
 	}
-	plain := noteOf[look]("look", rule.Between(hunter, hunted))
+	plain := noteOf[look]("look", rule.All(rule.Self(hunter), rule.Other(hunted)))
 	for _, c := range []struct {
 		name string
 		r    rule.Rule
-		want []int // who looked: twice each, with others in view and with none
+		want []int // twice each: with others in view and with none
 	}{
 		{"between hunter and hunted", plain, []int{0, 0, 1, 1}},
 		{"within scouts", rule.Within(scout, plain), []int{1, 1}},
@@ -497,8 +468,6 @@ func TestWithin_PairRulesDispatchGroupedForAFirstSideCarryingTheTag(t *testing.T
 	}
 }
 
-// Narrowed, a pair rule with no direction is handed the pair with the side carrying the tag as
-// its first, whichever way round the pair comes.
 func TestWithin_PairRulesDispatchEitherWayHandTheCarrierAsTheFirst(t *testing.T) {
 	kits := []kit{
 		{roles: as(hunter)},        // 0
@@ -507,7 +476,10 @@ func TestWithin_PairRulesDispatchEitherWayHandTheCarrierAsTheFirst(t *testing.T)
 	}
 	k := newTold(t)
 	h := &plugin.PairRules[glance]{}
-	if err := h.Add(rule.Within(scout, aimOf[glance]("glance", rule.Between(hunter, hunted)))); err != nil {
+	if err := h.Add(rule.Within(scout, aimOf[glance]("glance", rule.All(
+		rule.Self(hunter),
+		rule.Other(hunted),
+	)))); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	marks, ids := marksOf(t, h, kits...)
@@ -531,8 +503,6 @@ func TestWithin_PairRulesDispatchEitherWayHandTheCarrierAsTheFirst(t *testing.T)
 	}
 }
 
-// One tag on both sides runs once either way round; narrowed, the rule is no longer the same
-// either way: it runs for each side carrying the tag, as its first.
 func TestWithin_PairRulesDispatchEitherWayOfOneTagOnBothSides(t *testing.T) {
 	kits := []kit{
 		{roles: as(hunter)},        // 0
@@ -540,7 +510,7 @@ func TestWithin_PairRulesDispatchEitherWayOfOneTagOnBothSides(t *testing.T) {
 		{roles: as(hunter, scout)}, // 2
 		{roles: as(hunter)},        // 3
 	}
-	meet := aimOf[glance]("meet", rule.Between(hunter, hunter))
+	meet := aimOf[glance]("meet", rule.All(rule.Self(hunter), rule.Other(hunter)))
 	for _, c := range []struct {
 		name  string
 		r     rule.Rule
@@ -584,21 +554,27 @@ func TestWithin_PairRulesDispatchEitherWayOfOneTagOnBothSides(t *testing.T) {
 	}
 }
 
-// A rule's String is its name and its moment, and how it is narrowed; a role's names the role.
 func TestRule_StringNamesItAndItsMoment(t *testing.T) {
 	for _, c := range []struct {
 		r    rule.Rule
 		want string
 	}{
-		{noteOf[poke]("drown", rule.All), `"drown" of rule_test.poke`},
+		{noteOf[poke]("drown", nil), `"drown" of rule_test.poke`},
 		{noteOf[poke]("spot", rule.Self(hunter)), `"spot" of rule_test.poke`},
-		{noteOf[poke]("armoured", rule.Having[armour]()), `"armoured" of rule_test.poke`},
-		{aimOf[glance]("glance", rule.Between(hunter, hunted)), `"glance" of rule_test.glance`},
-		{noteOf[dawn]("wake", rule.All), `"wake" of rule_test.dawn`},
-		{rule.Within(scout, noteOf[poke]("drown", rule.All)), `"drown" of rule_test.poke, within`},
+		{noteOf[poke]("armoured", rule.Carrying[armour]()), `"armoured" of rule_test.poke`},
+		{aimOf[glance]("glance", rule.All(
+			rule.Self(hunter),
+			rule.Other(hunted),
+		)), `"glance" of rule_test.glance`},
+		{noteOf[dawn]("wake", nil), `"wake" of rule_test.dawn`},
+		{rule.Within(scout, noteOf[poke]("drown", nil)), `"drown" of rule_test.poke, within`},
 		{rule.Within(veteran, noteOf[poke]("spot", rule.Self(hunter))), `"spot" of rule_test.poke, within`},
-		{rule.Within(scout, aimOf[glance]("glance", rule.Between(hunter, hunted))), `"glance" of rule_test.glance, within`},
-		{rule.Role("string mortal").Obeys(noteOf[poke]("drown", rule.All)).Rules()[0], `"drown" of rule_test.poke, for the role string mortal`},
+		{rule.Within(scout, aimOf[glance]("glance", rule.All(
+			rule.Self(hunter),
+			rule.Other(hunted),
+		))), `"glance" of rule_test.glance, within`},
+		{rule.Role("string mortal").Obeys(noteOf[poke]("drown", nil)).Rules()[0],
+			`"drown" of rule_test.poke, for the role string mortal`},
 		{rule.Role("string mortal"), `the role string mortal`},
 	} {
 		if got := c.r.String(); got != c.want {
@@ -607,17 +583,15 @@ func TestRule_StringNamesItAndItsMoment(t *testing.T) {
 	}
 }
 
-// A rule over one entity — narrowed, Self or Having — fires through RunWhere for the entities its
-// keep lets through alone: a host's moment only some have (collision's Struck).
 func TestWithin_RunWhereKeepsToWhatKeepLetsThrough(t *testing.T) {
 	kits := []kit{{roles: as(hunter), armour: true}, {roles: as(hunter), armour: true}, {roles: as(hunted)}}
 	for _, c := range []struct {
 		name string
 		r    rule.Rule
 	}{
-		{"within", rule.Within(hunter, noteOf[poke]("drown", rule.All))},
+		{"within", rule.Within(hunter, noteOf[poke]("drown", nil))},
 		{"self", noteOf[poke]("spot", rule.Self(hunter))},
-		{"having", noteOf[poke]("armoured", rule.Having[armour]())},
+		{"having", noteOf[poke]("armoured", rule.Carrying[armour]())},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			k := newTold(t)

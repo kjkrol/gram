@@ -7,7 +7,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// edge is ground that takes nothing left of x: the area of a box lying there.
 type edge struct{ x float64 }
 
 func (e edge) Overhang(_ world.Layers, box geom.AABB) float64 {
@@ -17,7 +16,6 @@ func (e edge) Overhang(_ world.Layers, box geom.AABB) float64 {
 
 func body(x float64) Body { return Body{Box: geom.NewAABBAt(geom.NewVec(x, 0), 10, 10)} }
 
-// A side the push would put further over the edge holds, and the other one goes the whole way.
 func TestFooting_TheSideAtTheEdgeHoldsAndTheOtherGoesTheWholeWay(t *testing.T) {
 	g := edge{x: 100}
 	push, holdA, holdB := Footing(g, body(100), body(108), geom.NewVec(-2, 0))
@@ -29,8 +27,6 @@ func TestFooting_TheSideAtTheEdgeHoldsAndTheOtherGoesTheWholeWay(t *testing.T) {
 	}
 }
 
-// Away from the edge both sides take their half; an immovable side holds nothing and doubles
-// nothing.
 func TestFooting_AwayFromTheEdgeOrAgainstAWallThePushStays(t *testing.T) {
 	g := edge{x: 0}
 	if push, holdA, holdB := Footing(g, body(100), body(108), geom.NewVec(-2, 0)); holdA || holdB || push != geom.NewVec(-2, 0) {

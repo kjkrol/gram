@@ -5,79 +5,59 @@
 //
 // # Game
 //
-// A [Game] supplies [Props] — the window's title, a short name, and its size; a Description of what
-// the game is and how it is played, shown over the list of shortcuts ([Runtime].Props); and
-// TargetTPS, the engine's one fixed step —
-// and its Stages by Name, plus which starts active. Props.Resizable lets the player resize and
-// maximize the window: the screen is then the window, and the world camera draws to all of it —
-// more of a large world, a small one scaled up to cover it. F11 toggles fullscreen in every
-// game ([Runtime].ToggleFullscreen). [New] is the Game of props and stages a game keeping
-// nothing else of its own needs — game.New(props, menu, gameplay), the first starting unless
-// [Defined.Starting] names another; a game wanting more writes its own. The engine never keeps a
-// copy of the Stage set: it asks Stages() whenever it resolves a name.
+// A [Game] supplies its [Props] (the window, a Description shown over the list of shortcuts,
+// TargetTPS the engine's fixed step) and its Stages by Name, plus which starts active. [New] is
+// the Game of props and stages a game keeping nothing else of its own needs, the first stage
+// starting unless [Defined.Starting] names another; a game wanting more writes its own.
 //
 // # Stage
 //
 // A [Stage] is one self-contained context the game can be in, with its own plugins and its own
 // goke ECS, both built fresh when the Stage is entered. Init installs plugins through the
-// Initializer, may call UseWorld once and defines the game's roles and rules — package game/stage
-// does both for a game, from a world.Config and the plugins its arena makes; Spawn seeds the
-// initial state of a Stage entered afresh, Loaded is told in its place when it was entered from a
-// save; Update advances the simulation one tick by running the plugins' RunPlan in the order the
-// game needs. A Stage handles no input: that is a Scene's. A game seldom writes those by hand:
-// package game/stage defines a Stage a section at a time — the world and its plugins, players,
-// effects, rules, commands, kinds, controls, spawn, scenes, update — always in that order, a
-// plugin's own sections written among them, its scenes made once the world is there, loaded or
-// spawned.
+// Initializer; Spawn seeds the initial state of a Stage entered afresh, Loaded is told in its place
+// when it was entered from a save; Update advances the simulation one tick. A Stage handles no
+// input: that is a Scene's. A game seldom writes a Stage by hand: package game/stage defines one
+// a section at a time.
 //
 // # Saving and loading
 //
-// Saving and loading are the engine's, never a Stage's nor a plugin's, asked for by commands the
-// engine carries out — [Save] the active Stage in a slot, [Load] a Stage from its save, from any
-// Stage (a menu's Continue), [Enter] a Stage afresh, [Quit] — given like any command: a key's
-// binding, a ui button, a rule's Order (an autosave), [Runtime].Issue. Every Stage carries them,
-// one without a world too. A save is the Stage's, a file a slot in [Props].Saves; a Stage entered
-// from one is built anew and its world loaded in place of Spawn. [Runtime] Save and Load are the
-// same at hand; Load of a save not there is an error and changes nothing.
+// Saving and loading are the engine's, asked for by commands it carries out: [Save] the active
+// Stage in a slot, [Load] a Stage from its save, from any Stage (a menu's Continue), [Enter] a
+// Stage afresh, [Quit]. They are given like any command: a key's binding, a ui button, a rule's
+// Order, [Runtime].Issue. A save is the Stage's, a file a slot in [Props].Saves; a Stage entered
+// from one is built anew and its world loaded in place of Spawn.
 //
 // # Scene, Scenes and Composition
 //
-// A [Scene] is one thing a Stage can show: Layers, bottom to top, built once when the Stage is
-// entered — render.Renderers drawn on the screen; a scene showing the world is a ui.Scene, its
-// screen composed of elements, the world among them a picture through a camera (a player's view,
-// split-screen halves, a minimap); HandleEvents, this tick's input, run only while the Scene is active (the
-// moves of the game go to the players plugin's EventHandler, the rest — pause, quit — stay here); and
-// Focusable, whether it can ever be active. [Scenes], built by [NewStack], is the Stage's static
-// registry of them by Name. Its [Composition] is the live state: which Scenes are visible, in what
-// order, and Active, the topmost focusable one — so a non-focusable HUD can sit on top and never
-// steal input. Composition is Serializable; a Stage hands it to Initializer.Track so visibility and
-// order survive a save — tracked after a Load, it gets the saved state as it is tracked.
+// A [Scene] is one thing a Stage can show: Layers, bottom to top, render.Renderers drawn on the
+// screen (the world among them through a ui.Image of a render.Feed); HandleEvents, this tick's
+// input, run only while the Scene is active; and Focusable, whether it can ever be active.
+// [Scenes], built by [NewStack], is the Stage's registry of them by Name. Its [Composition] is the
+// live state: which Scenes are visible, in what order, and Active, the topmost focusable one, so a
+// non-focusable HUD can sit on top and never steal input. Composition is Serializable; a Stage
+// hands it to Initializer.Track so visibility and order survive a save.
 //
 // # Initializer
 //
-// [Initializer] is what Init receives: Use installs a plugin (registering its Serializable and
-// calling its Install), Track registers any other Serializable for saves, UseWorld builds and
-// installs this Stage's world plugin from a world.Config (a second call panics), and TPS is the
-// engine's measured tick counter. It embeds plugin.Installer, so a Stage may wire ECS modules and
-// systems of its own the way a plugin does.
+// [Initializer] is what Init receives: Use installs a plugin, Track registers any other
+// Serializable for saves, UseWorld builds this Stage's world plugin from a world.Config, and TPS is
+// the engine's measured tick counter. It embeds plugin.Installer, so a Stage may wire ECS modules
+// and systems of its own the way a plugin does.
 //
-// A Stage hands its rules to nobody: a rule is a role's (world.Roles), a role is played — by a kind
-// (rule.Plays), by a kind of cell or one cell of the Layout (cell.Kinds.Define, cell.Entry.Plays),
-// by a plugin (world.Plugin.Plays) — and once
-// Init returns the engine gives the rules of every role played to the plugin in use that catches
-// their moment, a unit.Standing's to the board, a vision.Sighting's to vision. A rule no plugin
-// in use catches fails Init with an error wrapping plugin.ErrUnhosted, naming the rule.
+// A Stage hands its rules to nobody: a rule is a role's (world.Roles), a role is played by a kind,
+// a cell or a plugin, and once Init returns the engine gives the rules of every role played to the
+// plugin in use that catches their moment. A rule no plugin in use catches fails Init with an error
+// wrapping plugin.ErrUnhosted, naming the rule.
 //
 // # Runtime
 //
-// [Runtime] is engine-level control, one undivided interface: Paused, Pause, Resume, TogglePause,
-// Quit, SwitchStage to another Stage by name, Persistence, TPS and ToggleFullscreen. The
-// same value reaches a Stage and every Scene's HandleEvents; there is no cut-down scene-level
-// subset. A menu's Start button calls SwitchStage directly.
+// [Runtime] is engine-level control, one undivided interface: the pause, Quit, SwitchStage, Save,
+// Load, Issue, Persistence, TPS and ToggleFullscreen. The same value reaches a Stage and every
+// Scene's HandleEvents.
 //
 // # Persistence
 //
 // [Persistence] is Save, Load and List over the active Stage's ECS and every tracked value, under
-// a base path and a label ("" is the quicksave). Save takes extra resources to write alongside;
-// Load restores what the snapshot holds and leaves anything absent unchanged.
+// a base path and a label ("" is the quicksave). Load restores what the snapshot holds and leaves
+// anything absent unchanged.
 package game

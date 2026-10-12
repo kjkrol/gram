@@ -14,8 +14,6 @@ import (
 	"github.com/kjkrol/gram/ui"
 )
 
-// viewedStage is a world 1000 wide seen through a camera by its one scene, a ui screen of the
-// world's feed over the whole screen.
 type viewedStage struct {
 	cams  *cameras.Plugin
 	cam   camera.Camera

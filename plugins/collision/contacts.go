@@ -5,15 +5,14 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// MaxContacts caps how many confirmed contacts one entity records in a tick;
-// extras are still separated, bounced and reported to pair rules.
+// MaxContacts caps how many contacts one entity records in a tick; extras are still separated,
+// bounced and reported to rules.
 const MaxContacts = 8
 
-// Contact is one confirmed contact: who it was against, the impulse exchanged
-// (zero when only sensed or already separating), and the way this entity leaves the other.
-// Against the world's solid ground Terrain is set, Cell names the cell and Other is zero. Along
-// is where along a swept entity's step the contact lies, 0 to 1 on both sides, 1 with no swept
-// entity in it. Sensed says the contact was only detected, one side a sensor or swept.
+// Contact is one confirmed contact: who it was against (the solid ground with Terrain set and
+// its Cell), the impulse exchanged and the way this entity leaves the other. Along is where
+// along a swept entity's step it lies, 0 to 1 (1 with none swept); Sensed that it was only
+// detected.
 type Contact struct {
 	Other   uid.UID64
 	Impact  float64

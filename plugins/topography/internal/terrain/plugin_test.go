@@ -13,8 +13,6 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Over a square grid and over a hex one the plugin draws the ground Direct at the Ground tier — a
-// mesh, prisms — and the board's Look lays no tile. G is bound to nothing.
 func TestPlugin_TheGroundOnTheGPUTakesTheTilesPlace(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)

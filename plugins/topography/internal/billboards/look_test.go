@@ -19,15 +19,12 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// sheet is an AtlasSource of one sprite with no image behind it.
 type sheet struct{}
 
 func (sheet) Atlas() *render.Image                            { return nil }
 func (sheet) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 8, 8 }
 func (sheet) White() (u, v float32)                           { return 9, 9 }
 
-// isometricIsland is a world with a level 4x4 board in relief, seen isometrically through its
-// camera, 128 x 64.
 func isometricIsland() (*world.Plugin, *topography.Plugin, camera.Camera) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 256, Height: 256},
@@ -43,9 +40,6 @@ func isometricIsland() (*world.Plugin, *topography.Plugin, camera.Camera) {
 	return w, p, cam
 }
 
-// In relief an entity stands as a billboard drawn on the GPU: upright on its box's centre at its
-// altitude, as wide as the box and as tall as its Z says, as long as the box without one; picked and
-// outlined there. From above it lies over its box.
 func TestBillboards_StandEntitiesUprightOnTheirCentre(t *testing.T) {
 	w, _, cam := isometricIsland()
 	cam.CenterOn(64, 64, 0)
@@ -72,7 +66,6 @@ func TestBillboards_StandEntitiesUprightOnTheirCentre(t *testing.T) {
 	if fp := look.Footprint(cam, box.AABB, 6, nil); len(fp) != 1 || fp[0][0][1] == fp[0][1][1] {
 		t.Errorf("footprint %v, want one diamond on the ground", fp)
 	}
-	// from above the world's own flat look: the sprite over its box
 	icameras.Switch(cam)
 	drawn = look.Drawn(cam, box.AABB, world.Z{Altitude: 6})
 	if x0, y0 := cam.Project(40, 40, 0); drawn[0][0] != x0 || drawn[0][1] != y0 {
@@ -80,7 +73,6 @@ func TestBillboards_StandEntitiesUprightOnTheirCentre(t *testing.T) {
 	}
 }
 
-// fixedSky is a billboards.Sky of a fixed sun and weather.
 type fixedSky struct {
 	sun sky.Sun
 	air air.Weather
@@ -89,7 +81,6 @@ type fixedSky struct {
 func (s fixedSky) Sun() sky.Sun     { return s.sun }
 func (s fixedSky) Air() air.Weather { return s.air }
 
-// A billboard stands upright in the calm and leans with the wind what sways.
 func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 	w, p, cam := isometricIsland()
 	cam.CenterOn(48, 48, 0)
@@ -109,8 +100,6 @@ func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 	}
 }
 
-// A deck lies level over its rectangle at its Altitude, its beam down its Height along its long
-// sides and its railings up their Edge: a top, two sides and two railings.
 func TestBillboards_LayADeckOnItsBeam(t *testing.T) {
 	w, _, cam := isometricIsland()
 	cam.CenterOn(64, 64, 0)

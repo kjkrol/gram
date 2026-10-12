@@ -2,7 +2,6 @@ package pathfind
 
 import "github.com/kjkrol/gram/plugins/board/cell"
 
-// breadthFirst returns the first cell match accepts, ring by ring from start through expand.
 func breadthFirst(start cell.ID, neighbors func(cell.ID) []cell.ID,
 	expand, match func(cell.ID) bool, maxVisited int) (cell.ID, bool) {
 	queue := []cell.ID{start}

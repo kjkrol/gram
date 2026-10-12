@@ -16,8 +16,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 )
 
-// isle is a recipe of an island 18 km by 8 km, high along its north coast, a valley cut through it
-// north to south, a road from one end to the other across it, and its heights.
+// isle is an island 18 km by 8 km, high along its north coast, a valley cut through it north to
+// south.
 func isle(t *testing.T) (recipe, elevation) {
 	t.Helper()
 	r, err := parseRecipe([]byte(`
@@ -49,7 +49,7 @@ roads:
 		x, y := metresOf(r.Area.Centre, lon, lat)
 		d := math.Hypot(x/9000, y/4000)
 		if d >= 1 {
-			return -20, nil // the open sea, however far off
+			return -20, nil
 		}
 		h := (400-50*y/1000)*(1-d*d) - 250*math.Exp(-x*x/(2*900*900))
 		return max(h, -20), nil
@@ -57,10 +57,6 @@ roads:
 	return r, height
 }
 
-// The roads of a map in relief lie where Transport Tycoon would lay them — slantwise only on a
-// level cell — its bridges each run at one deck from a flat head to a flat head, three cells at
-// most, over water or ground a figure lower, never beside another's span, and a board lays the
-// map as the bridges plugin builds them.
 func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 	r, height := isle(t)
 	c, err := build(r, height, false)
@@ -127,7 +123,6 @@ func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 	}
 }
 
-// With -flat a bridge is the one cell of running water it crosses.
 func TestBuild_AFlatBridgeIsACellLong(t *testing.T) {
 	r, height := isle(t)
 	c, err := build(r, height, true)
@@ -156,7 +151,6 @@ func TestBuild_AFlatBridgeIsACellLong(t *testing.T) {
 	}
 }
 
-// The units of a map made before stay as they were, up to the next section.
 func TestUnitsOf_KeepsTheMapsUnits(t *testing.T) {
 	old := "board:\n  default: water\nunits:\n  - {kind: walker, at: [1, 2]}\n\n" +
 		"  # the rival's\n  - {kind: rival, at: [3, 4]}\nnext: {}\n"
@@ -170,7 +164,6 @@ func TestUnitsOf_KeepsTheMapsUnits(t *testing.T) {
 	}
 }
 
-// The tiles are read as the terrarium encodes heights, fetched once into the cache.
 func TestTerrarium_ReadsTheTilesHeights(t *testing.T) {
 	img := image.NewNRGBA(image.Rect(0, 0, tilePx, tilePx))
 	for y := range tilePx {
@@ -211,8 +204,6 @@ func TestTerrarium_ReadsTheTilesHeights(t *testing.T) {
 	}
 }
 
-// With sea asked for round the land, the area grows from the Earth where the land comes nearer the
-// edge, the land where it was on the ground.
 func TestBuild_TheAreaGrowsForSeaRoundTheLand(t *testing.T) {
 	r, height := isle(t)
 	plain, err := build(r, height, true)
@@ -252,7 +243,6 @@ func TestBuild_TheAreaGrowsForSeaRoundTheLand(t *testing.T) {
 	}
 }
 
-// The units of a map made before move with the land: every cell written in them.
 func TestShiftUnits_MovesEveryCell(t *testing.T) {
 	units := "units:\n  - {kind: walker, start: [1, 2], target: [10, 20]} # to [3, 4]\n"
 	want := "units:\n  - {kind: walker, start: [4, 7], target: [13, 25]} # to [6, 9]\n"
@@ -261,7 +251,6 @@ func TestShiftUnits_MovesEveryCell(t *testing.T) {
 	}
 }
 
-// A flat map takes its own cell, roads and decks, its rivers as wide against a cell as ever.
 func TestRecipe_AFlatMapTakesItsOwnValues(t *testing.T) {
 	r, _ := isle(t)
 	r.Flat = flatCfg{Units: 64, Road: 30, Deck: 34}

@@ -8,14 +8,12 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// ecsHost owns one *goke.ECS: it queues install work until a single ecs.Setup call
-// and keeps the tracked values Save and Load need. One is built per Stage entered.
 type ecsHost struct {
 	ecs       *goke.ECS
 	resources *storage
 
 	tracked      []any
-	loaded       map[string][]byte // the groups of the last Load, encoded, for values tracked after it
+	loaded       map[string][]byte // the last Load's groups, for values tracked after it
 	pendingSetup []func() []goke.System
 	names        map[string]bool
 	layers       map[render.Layer]bool // registered, when comparable
@@ -25,11 +23,8 @@ func newECSHost() *ecsHost {
 	return &ecsHost{ecs: goke.New(), resources: newStorage(), layers: map[render.Layer]bool{}}
 }
 
-// track records v among the values the host later loads, restores, populates and saves.
 func (h *ecsHost) track(v any) { h.tracked = append(h.tracked, v) }
 
-// loadLate gives v, tracked after a Load, the state the save holds for it, and restores it: a
-// Stage's scenes, made once the world is loaded.
 func (h *ecsHost) loadLate(v any) error {
 	s, ok := v.(plugin.Serializable)
 	if !ok || h.loaded == nil {
@@ -44,7 +39,6 @@ func (h *ecsHost) loadLate(v any) error {
 	return nil
 }
 
-// addPendingSetup queues producer to run once, during flushPendingSetup.
 func (h *ecsHost) addPendingSetup(producer func() []goke.System) {
 	h.pendingSetup = append(h.pendingSetup, producer)
 }
@@ -66,7 +60,6 @@ func (h *ecsHost) regSys(factory func() goke.System) goke.Runnable {
 	return h.ecs.RegSys(factory())
 }
 
-// registerLayer has l initialised at Setup, once however many scenes list it.
 func (h *ecsHost) registerLayer(l render.Layer) {
 	if reflect.TypeOf(l).Comparable() {
 		if h.layers[l] {
@@ -78,7 +71,6 @@ func (h *ecsHost) registerLayer(l render.Layer) {
 	h.addPendingSetup(func() []goke.System { return []goke.System{sys} })
 }
 
-// providedComps collects LoadComps from every tracked goke.CompProvider, each type once.
 func (h *ecsHost) providedComps() []goke.CompToken {
 	all := goke.ProvidedComps(h.tracked...)
 	listed := make(map[string]bool, len(all))
@@ -92,7 +84,6 @@ func (h *ecsHost) providedComps() []goke.CompToken {
 	return tokens
 }
 
-// postLoadSystems collects PostLoad from every tracked value implementing PostLoader.
 func (h *ecsHost) postLoadSystems() []goke.System {
 	var systems []goke.System
 	for _, v := range h.tracked {
@@ -103,7 +94,6 @@ func (h *ecsHost) postLoadSystems() []goke.System {
 	return systems
 }
 
-// runRestore calls Restore on every tracked Restorer, right after a Load.
 func (h *ecsHost) runRestore() {
 	for _, v := range h.tracked {
 		if r, ok := v.(plugin.Restorer); ok {
@@ -112,7 +102,6 @@ func (h *ecsHost) runRestore() {
 	}
 }
 
-// runPopulate calls Populate on every tracked Populator, stopping at the first error.
 func (h *ecsHost) runPopulate() error {
 	for _, v := range h.tracked {
 		if p, ok := v.(plugin.Populator); ok {
@@ -124,8 +113,6 @@ func (h *ecsHost) runPopulate() error {
 	return nil
 }
 
-// saveTargets collects Persisted from every tracked Serializable, keyed by Go type name — and by
-// its own name too where it has one, so several of a type (a stage's ui scenes) keep theirs apart.
 func (h *ecsHost) saveTargets() map[string][]any {
 	out := make(map[string][]any)
 	for _, v := range h.tracked {
@@ -136,7 +123,7 @@ func (h *ecsHost) saveTargets() map[string][]any {
 	return out
 }
 
-// trackKey is the name a tracked value is saved under.
+// by its name too, so several of a type (a stage's ui scenes) stay apart
 func trackKey(v any) string {
 	key := reflect.TypeOf(v).String()
 	if n, ok := v.(interface{ Name() string }); ok {
@@ -145,7 +132,6 @@ func trackKey(v any) string {
 	return key
 }
 
-// persistGroups combines tracked and plugin Serializables with extra into one name-keyed map.
 func (h *ecsHost) persistGroups(extra ...any) map[string][]any {
 	groups := h.saveTargets()
 	for name, targets := range h.resources.persisted() {
@@ -157,7 +143,6 @@ func (h *ecsHost) persistGroups(extra ...any) map[string][]any {
 	return groups
 }
 
-// flushPendingSetup evaluates every deferred producer once and runs a single ecs.Setup.
 func (h *ecsHost) flushPendingSetup() {
 	if len(h.pendingSetup) == 0 {
 		return

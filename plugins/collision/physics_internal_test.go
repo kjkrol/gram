@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-// The response is given one over the weight, nothing for a wall, and Restitution held in 0 to 1.
 func TestPhysics_AsTheResponseTakesIt(t *testing.T) {
 	cases := map[string]struct {
 		p       Physics

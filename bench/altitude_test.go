@@ -21,20 +21,17 @@ import (
 
 type walkerRow struct{ At cell.ID }
 
-// Benchmark_Board_Altitude puts walkers standing still over a 64x64 board of hills 4 cells a side,
-// a deck over the fourth row, at their heights every step: the ground or the deck under each.
+// Benchmark_Board_Altitude is walkers standing still over a 64x64 board of hills with a deck
+// over the fourth row, their heights written every step.
 func Benchmark_Board_Altitude(b *testing.B) { standing(b, false, false) }
 
-// Benchmark_Gravity_Standing is Benchmark_Board_Altitude with the walkers under gravity: each
-// stood on what bears it every step.
+// Benchmark_Gravity_Standing is Benchmark_Board_Altitude with the walkers under gravity.
 func Benchmark_Gravity_Standing(b *testing.B) { standing(b, true, false) }
 
-// Benchmark_Board_AltitudeBands is Benchmark_Board_Altitude with the deck a bridge: a band half a
-// cell wide running east–west, level, railed.
+// Benchmark_Board_AltitudeBands is Benchmark_Board_Altitude with the deck a railed bridge.
 func Benchmark_Board_AltitudeBands(b *testing.B) { standing(b, false, true) }
 
-// Benchmark_Gravity_StandingBands is Benchmark_Gravity_Standing over the bridge of
-// Benchmark_Board_AltitudeBands.
+// Benchmark_Gravity_StandingBands is Benchmark_Gravity_Standing over a railed bridge.
 func Benchmark_Gravity_StandingBands(b *testing.B) { standing(b, true, true) }
 
 func standing(b *testing.B, bodies, bands bool) {

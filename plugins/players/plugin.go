@@ -22,38 +22,33 @@ import (
 var ErrUnknownCommand = errors.New("players: no plugin listens for this command")
 
 // Plugin keeps the game's players and gives their commands to the world's carrier, which takes
-// each to the handler that defines it: a player's bindings, an AI or a network issue a command,
-// and it lands in its handler's queue.
+// each to the handler that defines it.
 type Plugin struct {
-	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+	*world.Self
 
 	worldPlugin *world.Plugin
-	sections    section.Reader // the Stage's, from Install; nil for a Stage written by hand
+	sections    section.Reader
 	handlers    []plugin.CommandHandler
 	players     []*Player
 	listings    control.Queue[ShowShortcuts]
-	shortcuts   *Shortcuts  // the scene listing the keys
-	owned       *goke.Query // whose every entity is: what Through's Shows reads
+	shortcuts   *Shortcuts
+	owned       *goke.Query
 	ownedBase   goke.Comp[world.Base]
 	ownedBy     goke.OptComp[tag.Tags[owner.Family]]
 	gives       control.Queue[Give]
 	takes       control.Queue[control.Take]
 	drops       control.Queue[control.Drop]
-	pass        uint64 // the passes of input handled: a player's picture is wired anew for each
+	pass        uint64
 	module      *module
-	// captured is whether the cursor is caught, as setCapture last set it; setCapture catches or
-	// lets go of the window's cursor
-	captured   bool
-	setCapture func(on bool)
+	captured    bool
+	setCapture  func(on bool)
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// NewPlugin builds the players plugin over worldPlugin, having the world carry the commands of handlers — beside the world's own and the
-// players' — as it does those of the plugins a stage uses; two handlers of one command type
-// panic. It registers the owners' tags with the world's kinds, a
-// player each, saved by name.
+// NewPlugin builds the players plugin over worldPlugin, having the world carry the commands of
+// handlers beside its own and the players'. Two handlers of one command type panic.
 func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Plugin {
 	for id := control.PlayerID(1); int(id) <= owner.Players; id++ {
 		if tag := worldPlugin.Kinds().DefineTag[owner.Family](owner.Name(id)); tag != owner.Of(id) {
@@ -80,8 +75,8 @@ func (p *Plugin) Local(name string) *Player {
 	return pl
 }
 
-// Add adds a player without a keyboard — an AI, a remote client — whose commands come in through
-// Issue; it acts through no picture.
+// Add adds a player without a keyboard, an AI or a remote client, whose commands come in
+// through Issue.
 func (p *Plugin) Add(name string) *Player {
 	if err := p.worldPlugin.InSection(fmt.Sprintf("player %q added", name), section.Players); err != nil {
 		panic("players: " + err.Error())
@@ -118,8 +113,7 @@ func (p *Plugin) ByID(id control.PlayerID) *Player {
 	return p.players[id-1]
 }
 
-// Defaults is every handler's default bindings in one list to bind: the cameras' among them when
-// the cameras plugin is a handler.
+// Defaults is every handler's default bindings in one list to bind.
 func (p *Plugin) Defaults() []control.Binding {
 	var out []control.Binding
 	for _, c := range p.handlers {
@@ -129,7 +123,7 @@ func (p *Plugin) Defaults() []control.Binding {
 }
 
 // Issue gives cmd as player (nil for Nobody); ErrUnknownCommand when no handler defines its
-// type. Bindings, an AI or a network all come in here.
+// type.
 func (p *Plugin) Issue(player *Player, cmd control.Command) error {
 	id := control.Nobody
 	if player != nil {
@@ -141,7 +135,6 @@ func (p *Plugin) Issue(player *Player, cmd control.Command) error {
 	return nil
 }
 
-// handlerOf is the handler whose queue takes commands of type t, nil for none of the players'.
 func (p *Plugin) handlerOf(t reflect.Type) plugin.CommandHandler {
 	for _, h := range p.handlers {
 		for _, q := range h.Queues() {
@@ -153,14 +146,8 @@ func (p *Plugin) handlerOf(t reflect.Type) plugin.CommandHandler {
 	return nil
 }
 
-// =================================================================
-// what a scene hands over
-// =================================================================
-
 // Handle takes a scene's input for the tick: the players' bindings turn it into commands,
-// ShowShortcuts — which needs the Runtime — is carried out at once, and the game's own keys
-// (OwnKeys) are run. A scene showing the world calls it from its
-// HandleEvents, and nothing else.
+// ShowShortcuts is carried out at once and the game's own keys (OwnKeys) are run.
 func (p *Plugin) Handle(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
 	p.EventHandler().HandleEvents(events)
 	p.listings.Drain(func(control.Issued[ShowShortcuts]) { p.shortcuts.Open(runtime, composition) })
@@ -168,7 +155,6 @@ func (p *Plugin) Handle(events *control.InputEvents, runtime game.Runtime, compo
 	p.pass++
 }
 
-// tools hands every player the tool it took and empties the hands that put theirs down.
 func (p *Plugin) tools() {
 	p.takes.Drain(func(i control.Issued[control.Take]) {
 		if pl := p.ByID(i.Player); pl != nil {
@@ -181,10 +167,6 @@ func (p *Plugin) tools() {
 		}
 	})
 }
-
-// =================================================================
-// plugin.Plugin contract
-// =================================================================
 
 func (p *Plugin) Name() string { return "gram.players" }
 
@@ -199,15 +181,14 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // Update.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer is a no-op — players draw nothing; a selection box is selection's to draw.
+// WithRenderer is a no-op: players draw nothing.
 func (p *Plugin) WithRenderer(render.AtlasSource) {}
 
-// Renderer is nil — players draw nothing.
+// Renderer is nil: players draw nothing.
 func (p *Plugin) Renderer() render.Layer { return nil }
 
-// EventHandler translates this tick's input through every local player's bindings; call it from
-// the active Scene's HandleEvents.
+// EventHandler translates this tick's input through every local player's bindings.
 func (p *Plugin) EventHandler() control.EventHandler { return eventHandler{p} }
 
-// Serializable is nil — the players' cameras are the cameras plugin's to save.
+// Serializable is nil: players keep no state of their own.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }

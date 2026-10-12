@@ -11,13 +11,10 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// moonInclination is how far the moon's path leans from the sun's.
 const moonInclination = 5.14 * math.Pi / 180
 
-// MoonAt is the way towards the moon from p at ofYear and time of day t, moon round from new (0 to
-// 1, 0.5 full): along the ecliptic as far ahead of the sun as it is round, off it by up to its
-// inclination, turned with the sphere — rising and setting with the stars, drifting east among
-// them some 13° a day.
+// MoonAt is the way towards the moon from p at ofYear and time of day t, moon round from new (0
+// to 1, 0.5 full).
 func (p Place) MoonAt(ofYear, t, moon float32) [3]float32 {
 	long := 2 * math.Pi * float64(ofYear+moon)
 	lat := moonInclination * math.Sin(long)
@@ -33,15 +30,12 @@ func Phase(moon float32) float32 {
 	return 0.5 * (1 - float32(math.Cos(2*math.Pi*float64(moon))))
 }
 
-// moonPNG is the moon's face as it turns to the Earth, north up, grey: the near side of NASA's
-// Scientific Visualization Studio's CGI Moon Kit colour map (Lunar Reconnaissance Orbiter LROC
-// data), seen square on as a ball, the limb carried on past the disc's edge.
+// the near side, north up, from NASA's Scientific Visualization Studio's CGI Moon Kit (LROC data)
 //
 //go:embed moon.png
 var moonPNG []byte
 
-// MoonFace is the moon's face on the GPU, north up, for a sky to draw the moon's disc with; call it
-// once the GPU is there.
+// MoonFace is the moon's face on the GPU, north up. Call it once the GPU is there.
 func MoonFace() *render.Image {
 	src, err := png.Decode(bytes.NewReader(moonPNG))
 	if err != nil {

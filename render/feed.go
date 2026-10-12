@@ -2,7 +2,7 @@ package render
 
 import "github.com/kjkrol/gram/camera"
 
-// Surface is a picture shown at a size whoever shows it gives it — a Feed of the world, say.
+// Surface is a picture shown at a size whoever shows it gives it.
 type Surface interface {
 	// Resize gives the surface its size in pixels.
 	Resize(w, h int)
@@ -11,8 +11,7 @@ type Surface interface {
 }
 
 // Feed is the world seen through a camera: picture drawn through cam every frame into an image of
-// the size it is shown at. Several feeds may share one picture; whoever lists the picture
-// initialises it once.
+// the size it is shown at. Several feeds may share one picture.
 type Feed struct {
 	cam     camera.Camera
 	picture Picture
@@ -34,7 +33,7 @@ func (f *Feed) Camera() camera.Camera { return f.cam }
 func (f *Feed) Picture() Picture { return f.picture }
 
 // Proportions are the width and height of the world the feed shows whole, when its camera keeps
-// the whole world in view (camera.Fitting): what a picture of it keeps as it is laid out.
+// the whole world in view.
 func (f *Feed) Proportions() (w, h float64, ok bool) {
 	if c, is := f.cam.(camera.Fitting); is {
 		if cw, ch, whole := c.Fits(); whole {
@@ -71,16 +70,15 @@ func (f *Feed) Draw() *Image {
 	return f.img
 }
 
-// DrawOn draws the world through the camera straight onto dst, the camera's viewport dst's size:
-// a feed filling the whole screen, drawn without an image of its own between.
+// DrawOn draws the world through the camera straight onto dst, the camera's viewport dst's size.
 func (f *Feed) DrawOn(dst *Image) {
 	b := dst.Bounds()
 	f.Resize(b.Dx(), b.Dy())
 	f.picture.DrawWorld(dst, f.cam)
 }
 
-// ToWorld is the point of the world under the feed's pixel (px, py): the ground the camera picks
-// there where it can (camera.Picker), else the point at sea level; false where it sees no ground.
+// ToWorld is the point of the world under the feed's pixel (px, py), false where the camera sees
+// no ground there.
 func (f *Feed) ToWorld(px, py float32) (x, y float32, ok bool) {
 	if p, is := f.cam.(camera.Picker); is {
 		x, y, _, ok = p.Pick(px, py)

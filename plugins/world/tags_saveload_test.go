@@ -15,15 +15,12 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// moods is a tag family of the test's own.
 type moods struct{}
 
-// tagStage defines the tags of one family in whatever order it is given and spawns one entity
-// carrying the named ones, so two runs can disagree about which bit means what.
 type tagStage struct {
 	order   []string
 	carries []string
-	load    bool // entered from the quicksave
+	load    bool
 
 	world *world.Plugin
 	unit  kind.Of[struct{}]
@@ -82,7 +79,6 @@ func (g *tagStage) Stack() game.Scenes {
 	return g.stack
 }
 
-// onlyMarks reads the marks of the single entity the stage holds.
 func onlyMarks(t *testing.T, g *tagStage) tag.Tags[moods] {
 	t.Helper()
 	var got tag.Tags[moods]

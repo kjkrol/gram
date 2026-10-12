@@ -10,7 +10,6 @@ import (
 
 const step = time.Second / 60
 
-// rig is a clock in an ECS whose plan hands the clock one piece of simulation counting its runs.
 type rig struct {
 	c    *clock.Clock
 	ecs  *goke.ECS
@@ -39,8 +38,6 @@ func (r *rig) ticks(n int) int {
 	return r.runs
 }
 
-// At tempo 1 the simulation runs once a tick and game time follows; at 2 and 4 as many times, at ½
-// every other tick; in the tactical pause never, and game time stands.
 func TestClock_ReplaysTheSimulationAsTheTempoSays(t *testing.T) {
 	r := newRig(t, clock.Config{})
 	if got := r.ticks(60); got != 60 || r.c.Time() != 60*step {
@@ -68,9 +65,6 @@ func TestClock_ReplaysTheSimulationAsTheTempoSays(t *testing.T) {
 	}
 }
 
-// The time shown runs on between the ticks with the real time the engine holds toward the next,
-// at the tempo, and meets game time at each tick: at ½ the half step the tempo filled counts; in
-// the tactical pause it is game time.
 func TestClock_TheTimeShownRunsOnBetweenTheTicks(t *testing.T) {
 	r := newRig(t, clock.Config{})
 	r.ticks(1)
@@ -100,7 +94,6 @@ func TestClock_TheTimeShownRunsOnBetweenTheTicks(t *testing.T) {
 	}
 }
 
-// A BiggerStep clock replays once, over a step as long as the tempo says.
 func TestClock_ABiggerStepReplaysOnceOverALongerStep(t *testing.T) {
 	r := newRig(t, clock.Config{BiggerStep: true})
 	if err := r.c.SetTempo(4); err != nil {
@@ -111,8 +104,6 @@ func TestClock_ABiggerStepReplaysOnceOverALongerStep(t *testing.T) {
 	}
 }
 
-// The commands pause and set the tempo along the config's list, and the state lives on the
-// clock's entity.
 func TestClock_CommandsPauseAndShiftTheTempo(t *testing.T) {
 	r := newRig(t, clock.Config{})
 	r.c.Faster()
@@ -138,7 +129,6 @@ func TestClock_CommandsPauseAndShiftTheTempo(t *testing.T) {
 	}
 }
 
-// Falling behind for a while brings a tempo above 1 down a notch, once, and says so.
 func TestClock_FallingBehindBringsTheTempoDown(t *testing.T) {
 	r := newRig(t, clock.Config{})
 	if err := r.c.SetTempo(4); err != nil {

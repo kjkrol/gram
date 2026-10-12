@@ -16,7 +16,7 @@ import (
 
 // InstallCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type InstallCtx struct {
-	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
+	hosts   []plugin.Host
 	ecs     *goke.ECS
 	pending []func() []goke.System
 	tracked []any
@@ -48,18 +48,17 @@ func (c *InstallCtx) Systems() []goke.System {
 	return systems
 }
 
-// Tracked is every module and provider installed, for their components and PostLoad on a load.
+// Tracked is every module and provider installed.
 func (c *InstallCtx) Tracked() []any { return c.tracked }
 
-// Start installs w and c on a new ECS, sets their systems up and then each of after, and plans
-// Step. Seed and populate before it.
+// Start installs w and c on a new ECS, sets their systems and after up and plans Step. Seed and
+// populate before it.
 func Start(t testing.TB, w *world.Plugin, c *collision.Plugin, after ...goke.System) *goke.ECS {
 	t.Helper()
 	return StartObeying(t, w, c, nil, after...)
 }
 
-// StartObeying is Start with rules handed to the hosts of their moments once the plugins are
-// installed.
+// StartObeying is Start with rules handed to the hosts of their moments.
 func StartObeying(t testing.TB, w *world.Plugin, c *collision.Plugin, rules []rule.Rule, after ...goke.System) *goke.ECS {
 	t.Helper()
 	ctx := NewInstallCtx(goke.New())
@@ -87,9 +86,8 @@ func Step(w *world.Plugin, c *collision.Plugin) func(goke.RunCtx, time.Duration)
 	}
 }
 
-// Hosts keeps the hosts of the rules of the moments a plugin catches.
+// Hosts keeps the hosts a plugin tells of.
 func (c *InstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
-// does with the roles played once a Stage's Init returns.
+// Deliver hands rules to the hosts of their moments, as the engine does.
 func (c *InstallCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

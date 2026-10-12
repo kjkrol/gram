@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-// testClock hands perSecond a time that moves only when the test says so.
 type testClock struct{ now time.Time }
 
 func newClock() *testClock { return &testClock{now: time.Unix(1000, 0)} }

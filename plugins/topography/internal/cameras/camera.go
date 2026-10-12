@@ -8,9 +8,6 @@ import (
 	contract "github.com/kjkrol/gram/camera"
 )
 
-// isoCamera is a camera.Camera through a projection — isometric, or flat from above — switched at
-// play: the world never wraps, the window is a screen rectangle over the projected world, and the
-// visible world region is what lies under it.
 type isoCamera struct {
 	proj         projection
 	projection   contract.Projection // proj boxed once, so asking for it allocates nothing
@@ -19,32 +16,28 @@ type isoCamera struct {
 	minZoomCfg   float32
 	maxZoom      float32
 	zoom         float32
-	// pan is where the projected world origin lands on the screen, in pixels.
+	// where the projected world origin lands on the screen, pixels
 	pan geom.Vec
-	// origin is the ground point under the screen's top-left corner, heading the view's turn and
-	// pitch how steeply it looks down — what a save keeps.
+	// the ground point under the screen's top-left corner; what a save keeps, with the rest
 	origin  geom.Vec
 	heading float32
 	pitch   float32
 	flat    bool
 
-	// the ground the screen covers at zoom 1 and sea level, across and down the world, for the
-	// zoom floor; at any zoom it is this over the zoom
+	// the ground the screen covers at zoom 1 and sea level, for the zoom floor
 	spanX, spanY float32
-	// extent is the lowest and the highest ground, for what the screen may show; nil, level at 0
+	// nil, level at 0
 	extent func() (low, high float32)
-	// ground is the top of the ground as it is drawn, for Pick; nil, level at 0
+	// nil, level at 0
 	ground func(x, y float32) float32
-	// fine is how finely Pick steps near a point, finer than a cell where a deck is narrower or
-	// thinner; nil or 0, as ever
+	// nil or 0, as ever
 	fine func(x, y float32) (step, thin float32)
-	// solid is what Pick finds solid, a deck's slab too; nil, under ground alone
+	// nil, under ground alone
 	solid func(x, y, z float32) (float32, bool)
 }
 
 var _ contract.Camera = (*isoCamera)(nil)
 
-// newIsoCamera is a camera over world drawn through proj to viewport; it refuses a wrapping world.
 func newIsoCamera(proj projection, world geom.Vec, viewport contract.AABB, edges aabbworld.Edges) *isoCamera {
 	if edges.WrapsX() || edges.WrapsY() {
 		panic("topography: a world that wraps cannot be seen in relief")
@@ -58,11 +51,8 @@ func newIsoCamera(proj projection, world geom.Vec, viewport contract.AABB, edges
 	return c
 }
 
-// Isometric reports whether the camera looks isometrically rather than from above.
 func (c *isoCamera) Isometric() bool { return !c.proj.flat }
 
-// SetIsometric has the camera look isometrically, or from above, keeping the ground point in the
-// middle of the screen where it is and a cell as wide on the screen as it was.
 func (c *isoCamera) SetIsometric(iso bool) {
 	if iso == c.Isometric() {
 		return
@@ -81,21 +71,17 @@ func (c *isoCamera) SetIsometric(iso bool) {
 	c.CenterOn(float64(x), float64(y), 0)
 }
 
-// look draws through proj from now on, and measures the ground the screen covers anew.
 func (c *isoCamera) look(proj projection) {
 	c.proj, c.projection, c.heading, c.pitch, c.flat = proj, proj, proj.Heading, proj.Pitch, proj.flat
 	c.measure()
 }
 
-// measure is the ground the screen covers at zoom 1 and sea level: the projection is affine
-// there, so the screen's footprint is a parallelogram and its extent scales as one over the zoom.
+// at zoom 1 the projection is affine, so the footprint scales as one over the zoom
 func (c *isoCamera) measure() {
 	minX, maxX, minY, maxY := c.under(c.proj.Unproject)
 	c.spanX, c.spanY = maxX-minX, maxY-minY
 }
 
-// under is the world rectangle round the ground under the screen's corners at sea level, each
-// found through unproject.
 func (c *isoCamera) under(unproject func(sx, sy, z float32) (float32, float32)) (minX, maxX, minY, maxY float32) {
 	minX, maxX, minY, maxY = float32(math.Inf(1)), float32(math.Inf(-1)), float32(math.Inf(1)), float32(math.Inf(-1))
 	w, h := float32(c.viewportSize.X), float32(c.viewportSize.Y)
@@ -107,8 +93,6 @@ func (c *isoCamera) under(unproject func(sx, sy, z float32) (float32, float32)) 
 	return
 }
 
-// Turn turns the view by angle radians, the world clockwise on the screen, keeping the ground point
-// in the middle of the screen where it is; a view from above does not turn.
 func (c *isoCamera) Turn(angle float32) {
 	if c.proj.flat {
 		return
@@ -121,9 +105,6 @@ func (c *isoCamera) Turn(angle float32) {
 
 func (c *isoCamera) Heading() float32 { return c.proj.Heading }
 
-// Tilt looks down by angle radians more steeply, less for a negative one, between the flattest and
-// straight down, keeping the ground point in the middle of the screen where it is; a view from
-// above looks straight down already.
 func (c *isoCamera) Tilt(angle float32) {
 	if c.proj.flat {
 		return
@@ -162,8 +143,6 @@ func (c *isoCamera) Unproject(sx, sy, z float32) (float32, float32) {
 	return c.proj.Unproject((sx-float32(c.pan.X))/c.zoom, (sy-float32(c.pan.Y))/c.zoom, z)
 }
 
-// Pick is the first ground, or deck, the screen point sees, down its line from over the highest
-// top.
 func (c *isoCamera) Pick(sx, sy float32) (float32, float32, float32, bool) {
 	if c.ground == nil {
 		x, y := c.Unproject(sx, sy, 0)
@@ -176,7 +155,6 @@ func (c *isoCamera) Pick(sx, sy float32) (float32, float32, float32, bool) {
 	return s.pick(solidOf(c.solid, c.ground), c.fine, high-low+1, c.proj.Cell/2, high)
 }
 
-// solidOf is solid, else under ground.
 func solidOf(solid func(x, y, z float32) (float32, bool),
 	ground func(x, y float32) float32) func(x, y, z float32) (float32, bool) {
 	if solid != nil {
@@ -190,14 +168,12 @@ func (c *isoCamera) Depth(x, y, z float32) float32 { return c.proj.Depth(x, y, z
 func (c *isoCamera) ToScreen(x, y float32) (float32, float32)     { return c.Project(x, y, 0) }
 func (c *isoCamera) FromScreen(sx, sy float32) (float32, float32) { return c.Unproject(sx, sy, 0) }
 
-// ToScreenQuads is the screen rectangle round the projected world rectangle — a bound, since a
-// rectangle projects to a diamond; renderers drawing through this camera project corners instead.
+// A bound, since a rectangle projects to a diamond: renderers project corners instead.
 func (c *isoCamera) ToScreenQuads(x0, y0, x1, y1 float32, dst []contract.Quad) []contract.Quad {
 	minX, minY, maxX, maxY := c.rect(x0, y0, x1, y1, 0, 0)
 	return append(dst, contract.Quad{X0: minX, Y0: minY, X1: maxX, Y1: maxY, T0X: 0, T1X: 1, T0Y: 0, T1Y: 1})
 }
 
-// rect is the screen rectangle round a world box drawn between heights z0 and z1.
 func (c *isoCamera) rect(x0, y0, x1, y1, z0, z1 float32) (minX, minY, maxX, maxY float32) {
 	minX, minY = float32(math.Inf(1)), float32(math.Inf(1))
 	maxX, maxY = float32(math.Inf(-1)), float32(math.Inf(-1))
@@ -211,8 +187,6 @@ func (c *isoCamera) rect(x0, y0, x1, y1, z0, z1 float32) (minX, minY, maxX, maxY
 	return
 }
 
-// layer is the heights between which anything may be drawn: the lowest ground, sea level at most,
-// up to the projection's Headroom over the highest.
 func (c *isoCamera) layer() (low, high float32) {
 	if c.extent != nil {
 		low, high = c.extent()
@@ -220,17 +194,14 @@ func (c *isoCamera) layer() (low, high float32) {
 	return low, high + c.proj.Headroom
 }
 
-// Visible reports whether the box, drawn anywhere from the lowest ground up to Headroom over the
-// highest, meets the screen.
 func (c *isoCamera) Visible(box contract.AABB) bool {
 	low, high := c.layer()
 	minX, minY, maxX, maxY := c.rect(float32(box.TopLeft.X), float32(box.TopLeft.Y), float32(box.BottomRight.X), float32(box.BottomRight.Y), low, high)
 	return maxX > 0 && minX < float32(c.viewportSize.X) && maxY > 0 && minY < float32(c.viewportSize.Y)
 }
 
-// Bounds is the world rectangle round the ground the screen shows, anywhere from the lowest
-// ground up to Headroom over the highest — high ground from beyond the screen's lower edge at sea
-// level is drawn on it — clamped to the world.
+// At any height of the layer: high ground from beyond the screen's lower edge at sea level is
+// drawn on it.
 func (c *isoCamera) Bounds() contract.AABB {
 	low, high := c.layer()
 	minX, minY := float32(math.Inf(1)), float32(math.Inf(1))
@@ -246,40 +217,32 @@ func (c *isoCamera) Bounds() contract.AABB {
 	return worldBox(minX, minY, maxX, maxY, c.world)
 }
 
-// MoveTo puts the ground point (x, y) at the screen's top-left corner.
 func (c *isoCamera) MoveTo(x, y float64) {
 	sx, sy := c.proj.Project(float32(x), float32(y), 0)
 	c.place(geom.NewVec(-float64(sx)*float64(c.zoom), -float64(sy)*float64(c.zoom)))
 }
 
-// CenterOn pans so the point (x, y) at height z is drawn in the middle of the screen, as far as
-// the window may go over the projected world.
 func (c *isoCamera) CenterOn(x, y, z float64) {
 	sx, sy := c.proj.Project(float32(x), float32(y), float32(z))
 	z0 := float64(c.zoom)
 	c.place(geom.NewVec(c.viewportSize.X/2-float64(sx)*z0, c.viewportSize.Y/2-float64(sy)*z0))
 }
 
-// Translate shifts the window by a world delta along the ground.
 func (c *isoCamera) Translate(dx, dy float64) {
 	sx, sy := c.proj.Project(float32(dx), float32(dy), 0)
 	c.place(geom.NewVec(c.pan.X-float64(sx)*float64(c.zoom), c.pan.Y-float64(sy)*float64(c.zoom)))
 }
 
-// Pan shifts the window by a screen delta: the same pixels at any zoom.
 func (c *isoCamera) Pan(dx, dy float32) { c.shift(dx, dy) }
 
-// shift is Pan, and the part of the delta the world's edge stopped, in screen pixels.
+// bx, by: the part of the delta the world's edge stopped, screen pixels
 func (c *isoCamera) shift(dx, dy float32) (bx, by float32) {
 	want := geom.NewVec(c.pan.X-float64(dx), c.pan.Y-float64(dy))
 	c.place(want)
 	return float32(c.pan.X - want.X), float32(c.pan.Y - want.Y)
 }
 
-// place sets the pan and holds the whole screen over the world at sea level: the ground under
-// its corners is kept inside the world along x and along y, as the top-down camera keeps its
-// window, so at an edge the screen slides along it; a screen wider than the world along an axis
-// stands over its middle.
+// the whole screen stays over the world at sea level, as the top-down camera keeps its window
 func (c *isoCamera) place(pan geom.Vec) {
 	c.pan = pan
 	minX, maxX, minY, maxY := c.under(c.Unproject)
@@ -292,8 +255,6 @@ func (c *isoCamera) place(pan geom.Vec) {
 	c.origin = geom.NewVec(float64(x), float64(y))
 }
 
-// fitSpan is how far to move the stretch lo..hi to lie within 0..size: onto the middle when it is
-// longer than size.
 func fitSpan(lo, hi, size float32) float32 {
 	switch {
 	case hi-lo > size:
@@ -308,8 +269,7 @@ func fitSpan(lo, hi, size float32) float32 {
 
 func (c *isoCamera) Zoom() float32 { return c.zoom }
 
-// scale is how many screen units a world unit spans across the screen: the zoom from above, a
-// cell's diamond's width over its side isometrically.
+// screen units a world unit spans across the screen, which isometrically is not the zoom
 func (c *isoCamera) scale() float32 {
 	if c.proj.flat {
 		return c.zoom
@@ -317,8 +277,6 @@ func (c *isoCamera) scale() float32 {
 	return c.zoom * c.proj.TileW / (math.Sqrt2 * c.proj.Cell)
 }
 
-// ZoomIn multiplies the zoom by factor, keeping the ground point (anchorX, anchorY) where it is
-// drawn, at its own height — as far as the screen stays over the world.
 func (c *isoCamera) ZoomIn(factor float32, anchorX, anchorY float32) {
 	var z float32
 	if c.ground != nil {
@@ -341,8 +299,7 @@ func (c *isoCamera) ZoomOut(factor float32, anchorX, anchorY float32) {
 	c.ZoomIn(1/factor, anchorX, anchorY)
 }
 
-// minZoom is the zoom at which the screen just fits over the world at sea level — the top-down
-// camera's world-fit floor, for the ground the screen covers — or the configured floor if higher.
+// the top-down camera's world-fit floor, for the ground the screen covers
 func (c *isoCamera) minZoom() float32 {
 	floor := max(c.spanX/float32(c.world.X), c.spanY/float32(c.world.Y))
 	return max(floor, c.minZoomCfg)
@@ -353,8 +310,6 @@ func (c *isoCamera) SetMaxZoom(maxZoom float32) { c.maxZoom = maxZoom }
 
 func (c *isoCamera) State() contract.State { return contract.State{Viewport: c.Bounds(), Zoom: c.zoom} }
 
-// Persisted hands saves the ground point under the screen's corner, the zoom, the heading, the
-// pitch and the view; Restore puts the window back over them.
 func (c *isoCamera) Persisted() []any {
 	return []any{&c.origin, &c.zoom, &c.heading, &c.pitch, &c.flat}
 }

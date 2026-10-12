@@ -9,15 +9,14 @@ import (
 )
 
 // Star is a star of the night sky: the way towards it on the celestial sphere (an equatorial unit
-// vector: x towards right ascension 0h, y 6h, z the north pole), how bright it is (Mag, the visual
-// magnitude: smaller brighter) and its colour index (BV, B−V: bluer below 0.4, redder above).
+// vector, x towards right ascension 0h, y 6h, z the north pole), its visual magnitude (smaller
+// brighter) and its colour index B−V.
 type Star struct {
 	Dir     [3]float32
 	Mag, BV float32
 }
 
-// StarSky is which stars a sky shows at night: the real ones (RealStars, Stars), turning over the
-// world's latitude as they do, or ScatteredStars, made up, for a world of its own.
+// StarSky is which stars a sky shows at night: the real ones or made-up ones.
 type StarSky uint8
 
 const (
@@ -25,9 +24,8 @@ const (
 	ScatteredStars
 )
 
-// starsBin is the stars of the Yale Bright Star Catalogue, 5th revised edition (Hoffleit & Warren
-// 1991, CDS catalogue V/50) as bright as V 6.0, the naked eye's under a dark sky; stars_gen.go
-// writes it.
+// the Yale Bright Star Catalogue, 5th revised edition (Hoffleit & Warren 1991, CDS V/50) to V 6.0,
+// written by stars_gen.go
 //
 //go:embed stars.bin
 var starsBin []byte
@@ -37,7 +35,7 @@ var (
 	stars     []Star
 )
 
-// Stars is the real night sky's stars, brightest first: some five thousand, all the naked eye sees.
+// Stars is the real night sky's stars to magnitude 6, brightest first.
 func Stars() []Star {
 	starsOnce.Do(func() {
 		n := len(starsBin) / 8

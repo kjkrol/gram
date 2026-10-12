@@ -2,9 +2,8 @@ package render
 
 import "github.com/kjkrol/gram/render/gpu"
 
-// Paint draws f's pieces onto dst in the order they came, through the composer's shader in no
-// light and no weather: for what is painted once into an image of its own, its corners in dst's
-// pixels. A sub-image of dst clips it.
+// Paint draws f's sprites onto dst in the order they came, through the composer's shader in no
+// light and no weather, their corners in dst's pixels.
 func Paint(dst *Image, f *Frame) {
 	var (
 		verts   []Vertex
@@ -20,7 +19,7 @@ func Paint(dst *Image, f *Frame) {
 	}
 	for _, it := range f.items {
 		if it.atlas == nil {
-			continue // only sprites are painted
+			continue
 		}
 		if it.atlas != sheet {
 			flush()

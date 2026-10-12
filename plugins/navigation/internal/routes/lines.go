@@ -13,35 +13,32 @@ import (
 //go:embed shaders/*.wgsl
 var shaders embed.FS
 
-// lining lays the routes over the ground (shaders/route.wgsl), a stretch an instance.
+// a stretch an instance
 var lining = render.NewMeshShaderWith("navigation routes", render.Files(shaders, "shaders/route.wgsl"), []render.Uniform{
 	{Name: "Unproject", Size: 16}, {Name: "ViewSize", Size: 2}, {Name: "ViewAt", Size: 2},
 	{Name: "LineColor", Size: 4}, {Name: "LineWidth", Size: 1},
 }).Instanced(2)
 
-// Tier puts the routes drawn on the GPU over the ground and under what stands on it, read from
-// the depth the ground alone left.
+// Tier is where the routes come: over the ground, under what stands on it.
 const Tier = render.Ground + 60
 
-// Lines are the stretches of the routes of a world with heights drawn on the GPU: gathered as the
-// frame is composed, each with the part of the viewport it may cover, and laid over the ground the
-// frame's meshes drew, read from their depth.
+// Lines are stretches of route gathered as the frame is composed and drawn on the GPU over the
+// ground the frame drew.
 type Lines struct {
 	stretches []float32 // two vec4s a stretch: its ends, and its rectangle of the viewport
 	opts      render.DrawMeshOptions
 	own       map[string][]float32
 }
 
-// New is no stretches yet.
+// New is a Lines with no stretches yet.
 func New() *Lines {
 	g := &Lines{own: map[string][]float32{}}
 	g.opts = render.DrawMeshOptions{Vertices: 6, Uniforms: map[string]any{}}
 	return g
 }
 
-// Add gathers the stretch from a to b over the ground through cam, the ground groundAt gives
-// sampled every step to find the part of the viewport it may cover — all of it where any of the
-// stretch lies behind the eye — a little wider than width pixels.
+// Add gathers the stretch from a to b over the ground groundAt gives, sampled every step; width
+// is the line's, in pixels.
 func (g *Lines) Add(cam camera.Camera, a, b geom.Vec, groundAt func(geom.Vec) float32, step float64, width float32) {
 	w, h := cam.Viewport()
 	x0, y0, x1, y1 := float32(math.Inf(1)), float32(math.Inf(1)), float32(math.Inf(-1)), float32(math.Inf(-1))
@@ -67,13 +64,13 @@ func (g *Lines) Add(cam camera.Camera, a, b geom.Vec, groundAt func(geom.Vec) fl
 		rect = [4]float32{0, 0, w, h}
 	}
 	if rect[0] >= rect[2] || rect[1] >= rect[3] {
-		return // off the viewport
+		return
 	}
 	g.stretches = append(g.stretches, float32(a.X), float32(a.Y), float32(b.X), float32(b.Y), rect[0], rect[1], rect[2], rect[3])
 }
 
-// Draw lays the gathered stretches over the ground into the target through cam, in line and width
-// pixels wide, and starts gathering anew.
+// Draw lays the gathered stretches over the ground into the target, width pixels wide, and
+// starts gathering anew.
 func (g *Lines) Draw(t render.Target, cam camera.Camera, line color.RGBA, width float32) {
 	defer func() { g.stretches = g.stretches[:0] }()
 	if t.Screen == nil || t.Depth == nil || len(g.stretches) == 0 {
@@ -107,7 +104,7 @@ func (g *Lines) Draw(t render.Target, cam camera.Camera, line color.RGBA, width 
 	t.Screen.DrawMesh(nil, lining, &g.opts)
 }
 
-// set hands the shader the uniform name as v, kept between frames and boxed once.
+// the uniform's slice is kept between frames, boxed once
 func (g *Lines) set(name string, v ...float32) {
 	s, ok := g.own[name]
 	if !ok || len(s) != len(v) {

@@ -26,8 +26,7 @@ type Issued[C Command] struct {
 	Command  C
 }
 
-// Queue holds the commands of one type until the plugin that owns it drains them in its own pass;
-// the owner keeps it as a field and lists it in its plugin.CommandHandler's Queues.
+// Queue holds the commands of one type until the plugin that owns it drains them in its own pass.
 type Queue[C Command] struct{ items []Issued[C] }
 
 // CommandQueue is a Queue with its command type erased, as a carrier sorts commands into them.
@@ -65,9 +64,8 @@ func (q *Queue[C]) Drain(fn func(i Issued[C])) {
 // Empty reports whether nothing is waiting.
 func (q *Queue[C]) Empty() bool { return len(q.items) == 0 }
 
-// Carrier takes each command to the queue of its type: the world keeps the one carrier of a stage,
-// for the commands its players give — through the players plugin — and those its entities give
-// themselves. Nothing is dropped: a command waits in its queue for its handler's pass.
+// Carrier takes each command to the queue of its type. Nothing is dropped: a command waits in
+// its queue for its handler's pass.
 type Carrier struct{ queues map[reflect.Type]CommandQueue }
 
 // Carry adds queues to those c takes commands to; a type another queue takes already is an error.
@@ -128,7 +126,7 @@ func (c *Carrier) Empty() bool {
 }
 
 // Routed is a command written one way and carried as another: Routed is the command its handler
-// takes — a rule.Command, by whom it is for.
+// takes.
 type Routed interface{ Routed() Command }
 
 // Unwrap is cmd as its handler takes it: itself, or what a Routed command says.
@@ -146,7 +144,6 @@ func Unwrap(cmd Command) Command {
 	}
 }
 
-// queue is the queue of cmd's type.
 func (c *Carrier) queue(cmd Command) (CommandQueue, bool) {
 	if c == nil {
 		return nil, false

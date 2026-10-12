@@ -18,9 +18,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// deckWorld is a 5x3 board of grass in a world with heights, cells 10 wide, a bridge over its
-// middle row's three middle cells: a deck 10 up and 1 thick, running east–west width wide (0: over
-// the whole cell), railings 1 high along it.
 func deckWorld(t *testing.T, width float64) (collision.Field, grid.Grid) {
 	t.Helper()
 	g := grid.DefaultGrids{}.Square(5, 3, 10)
@@ -34,8 +31,6 @@ func deckWorld(t *testing.T, width float64) (collision.Field, grid.Grid) {
 	return floored(t, g, 50, 30, grass, floor, g.At(1, 1), g.At(2, 1), g.At(3, 1)), g
 }
 
-// floored is a board over g, width x height, of ground in a world with heights, floor built over
-// the cells given, with railings 1 high.
 func floored(t *testing.T, g grid.Grid, width, height uint32, ground cell.Kind, floor cell.Floor,
 	cells ...cell.ID) collision.Field {
 	t.Helper()
@@ -74,7 +69,6 @@ func floored(t *testing.T, g grid.Grid, width, height uint32, ground cell.Kind, 
 	return p.Cover().(collision.Field)
 }
 
-// solidAt is what f holds solid over the whole board for a walker spanning band.
 func solidAt(f collision.Field, band collision.Band) []collide.FieldBox {
 	var out []collide.FieldBox
 	f.Solid(world.Layers(cell.Land), band, geom.NewAABBAt(geom.NewVec(0, 0), 50, 30),
@@ -85,7 +79,6 @@ func solidAt(f collision.Field, band collision.Band) []collide.FieldBox {
 	return out
 }
 
-// wallsAt are the walls f holds over the whole board for a walker spanning band.
 func wallsAt(f collision.Field, band collision.Band) []collide.FieldWall {
 	var out []collide.FieldWall
 	f.Walls(world.Layers(cell.Land), band, geom.NewAABBAt(geom.NewVec(0, 0), 50, 30),
@@ -96,8 +89,6 @@ func wallsAt(f collision.Field, band collision.Band) []collide.FieldWall {
 	return out
 }
 
-// bands is what a deck's slab is hit by: a walker too tall to pass under it, not one who fits,
-// nor one stepping up onto it from the deck's end, nor one standing on it.
 var bands = []struct {
 	name string
 	band collision.Band
@@ -109,7 +100,6 @@ var bands = []struct {
 	{"a walker on it", collision.Band{Bottom: 10, Top: 12, Step: 0.5}, 0},
 }
 
-// A deck over the whole cell is a slab of the cell's box; no railing stands on it.
 func TestField_ADeckStrikesWhoeverItDoesNotFitOver(t *testing.T) {
 	f, _ := deckWorld(t, 0)
 	for _, c := range bands {
@@ -128,7 +118,6 @@ func TestField_ADeckStrikesWhoeverItDoesNotFitOver(t *testing.T) {
 	}
 }
 
-// A deck running as a band is a slab as wide along it, the ground beside it open.
 func TestField_ABandStrikesWhoeverItDoesNotFitOver(t *testing.T) {
 	f, _ := deckWorld(t, 6)
 	for _, c := range bands {
@@ -147,9 +136,6 @@ func TestField_ABandStrikesWhoeverItDoesNotFitOver(t *testing.T) {
 	}
 }
 
-// Railings stand along both edges of the band for a walker on it, their ends closed where the
-// bridge runs on into the next cell and open at its ends; a walker under the deck or one leaping
-// over their tops meets none.
 func TestField_RailingsKeepAWalkerOnTheDeck(t *testing.T) {
 	f, g := deckWorld(t, 6)
 	rails := func(band collision.Band) []collide.FieldWall {
@@ -192,9 +178,6 @@ func side(b geom.AABB) (float64, float64) {
 	return b.BottomRight.X - b.TopLeft.X, b.BottomRight.Y - b.TopLeft.Y
 }
 
-// Over water a band takes a walker and the cell beside it does not: a walker pushed off a bridge's
-// side is over the water, on a slantwise one too, where the band reaches over the corner into the
-// cells flanking it. A deck over the whole cell takes it all.
 func TestField_OverWaterOnlyTheBandTakesAWalker(t *testing.T) {
 	water := cell.Kind{Cost: 1, Allows: cell.Water}
 	land := world.Layers(cell.Land)

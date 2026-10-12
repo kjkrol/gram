@@ -28,19 +28,15 @@ type rig struct {
 	winter heards // the world's, told by a rule of the weather in a winter
 }
 
-// winterNow is the command the rig's rule gives in a winter, as the world's weather says.
 type winterNow struct{}
 
 func (winterNow) Command() {}
 
-// heards is where the winterNow commands land, for the world to carry.
 type heards struct{ control.Queue[winterNow] }
 
 func (h *heards) Queues() []control.CommandQueue     { return []control.CommandQueue{&h.Queue} }
 func (h *heards) DefaultBindings() []control.Binding { return nil }
 
-// weatherOf runs a weather system of cfg over a new world, on a calendar of 4-minute days begun in
-// the middle of season.
 func weatherOf(t *testing.T, cfg Config, season calendar.Season) *rig {
 	t.Helper()
 	r := &rig{w: world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}}), clk: clock.New(clock.Config{})}
@@ -49,7 +45,13 @@ func weatherOf(t *testing.T, cfg Config, season calendar.Season) *rig {
 	if err := r.w.Carry(&r.winter); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.c.Rules().Add(rule.Then[Weathering]("winter", rule.All, rule.If(func(w Weathering) bool { return w.Season == calendar.Winter && w.Weather == r.c.Air() }, rule.Order(winterNow{})))); err != nil {
+	if err := r.c.Rules().Add(rule.Branch[Weathering]{
+		Name: "winter",
+		When: func(w Weathering) bool {
+			return w.Season == calendar.Winter && w.Weather == r.c.Air()
+		},
+		Do: rule.Order(winterNow{}),
+	}); err != nil {
 		t.Fatal(err)
 	}
 	r.sys = r.c.System().(*weatherSystem)
@@ -58,13 +60,11 @@ func weatherOf(t *testing.T, cfg Config, season calendar.Season) *rig {
 	return r
 }
 
-// tick is one step of the simulation over d: the weather moves on, then the clock.
 func (r *rig) tick(d time.Duration) {
 	r.sys.Update(nil, d)
 	r.clk.Replay(nil, d)
 }
 
-// run ticks for d in steps of a tenth of a second.
 func (r *rig) run(d time.Duration) {
 	for range int(d / (100 * time.Millisecond)) {
 		r.tick(100 * time.Millisecond)
@@ -78,7 +78,6 @@ func (r *rig) now() Weather {
 	return Weather{}
 }
 
-// twoStates is a temperate climate of a clear sky lasting a second, then clouds lasting a minute.
 func twoStates() Config {
 	return Config{Weathers: []weather.State{
 		{Name: "clear", Wind: [2]float32{10, 10}, Lasts: [2]time.Duration{time.Second, time.Second}, Next: map[string]float32{"cloudy": 1}},
@@ -136,9 +135,6 @@ func TestWeather_TheWindCarriesTheClouds(t *testing.T) {
 	}
 }
 
-// With the weather's workings stopped the clear sky stays past its second, the clouds stand
-// still and the air has no wind, clouds or rain, though the weather goes on underneath; set going
-// again, all of it comes back.
 func TestClimate_RunningLeavesOutWhatIsStopped(t *testing.T) {
 	r := weatherOf(t, twoStates(), calendar.Summer)
 	r.c.SetRunning(Running{})
@@ -258,8 +254,6 @@ func TestWeather_BegunInWinterIsColdAtOnce(t *testing.T) {
 	}
 }
 
-// The weather goes by the steps it is given, the simulation's: a longer step moves it further, and
-// the rules hear the step.
 func TestWeather_GoesByTheStepsOfTheSimulation(t *testing.T) {
 	r := weatherOf(t, twoStates(), calendar.Summer)
 	r.c.Set("cloudy") // a minute long
@@ -282,14 +276,17 @@ func TestWeather_RainsLessInTheZonesDrySeason(t *testing.T) {
 	}
 }
 
-// The climate takes rules of every weather, a role's too, and refuses a filtered one: a moment of
-// the world as a whole has no entity's components to read.
+// a moment of the world as a whole has no entity's components to read
 func TestClimate_TakesARolesRuleAndRefusesAFilteredOne(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cfg := calendar.Config{DayRealTime: time.Minute}
 	c := New(w, calendar.New(clock.New(clock.Config{}), cfg), Config{})
-	every := rule.Then[Weathering]("any weather", rule.All, rule.Order(winterNow{}))
-	having := rule.Then[Weathering]("having", rule.Having[Weather](), rule.Order(winterNow{}))
+	every := rule.Branch[Weathering]{Name: "any weather", Do: rule.Order(winterNow{})}
+	having := rule.Branch[Weathering]{
+		Name: "having",
+		When: rule.Carrying[Weather](),
+		Do:   rule.Order(winterNow{}),
+	}
 	if err := c.Rules().Add(having); !errors.Is(err, plugin.ErrUnhosted) {
 		t.Errorf("Add of a filtered rule = %v; want plugin.ErrUnhosted", err)
 	}

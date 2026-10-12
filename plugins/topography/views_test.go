@@ -21,8 +21,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// From above the camera is flat — heights not drawn, screen x and y the world's — and View turns
-// it isometric and back, keeping the ground point in the middle of the screen and a cell as wide.
 func TestPlugin_ViewSwitchesBetweenAboveAndIsometric(t *testing.T) {
 	// a world wide enough that no zoom floor holds the view back
 	w := world.NewPlugin(world.Config{
@@ -78,10 +76,6 @@ func TestPlugin_RefusesAWrappingWorld(t *testing.T) {
 	topography.NewPlugin(w, b, topography.Config{Cell: 32})
 }
 
-// Riding inside a unit, the mouse looks round, V and Tab leave, and Q, E, R and F are not bound;
-// outside, Q and E turn and R and F tilt, Tab switches the view and V, over or behind the unit
-// the camera follows, takes it closer. The keys that drive the unit are the players', bound to
-// nothing here.
 func TestDefaultBindings_RidingKeysHoldInsideOnly(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
@@ -144,8 +138,6 @@ func TestDefaultBindings_RidingKeysHoldInsideOnly(t *testing.T) {
 	}
 }
 
-// Two players of one world in relief may look at it differently: a camera begins as its Start
-// says, from above or isometrically, whatever the other's does.
 func TestViews_EveryCameraBeginsAsItsStartSays(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)

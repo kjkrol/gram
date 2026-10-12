@@ -111,7 +111,7 @@ func (s *arena) definePlayers() error {
 	if err := s.redPlayer.Bind(redKeys...); err != nil {
 		return err
 	}
-	// the keyboard is one: the game's keys and the world's (Space pauses) are bound once
+	// one keyboard: bound once, not a player each
 	gameKeys := append(players.GameBindings(), s.world.DefaultBindings()...)
 	if err := s.redPlayer.Bind(gameKeys...); err != nil {
 		return err
@@ -149,7 +149,6 @@ func (s *arena) defineKinds() {
 		Brake:    BlockSpeed * 6,
 		TurnRate: 0.3,
 	}
-	// each block is its player's: it takes that player's hand alone
 	units.Define(RedKind, unit.Mover{Domain: cell.Land}, profile)
 	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile)
 }

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/gram/rule/effect"
-	"github.com/kjkrol/uid"
 )
 
 func NewApply(e effect.Effect) Step {
@@ -43,7 +42,6 @@ func (h hold) enter(c *ctx, at int) {
 	c.mind.Slot[at] = keepCast
 }
 
-// A plan's Keep in its Slot: cast, or seen on the actor since — off then, someone took it off.
 const (
 	keepCast = 1 + iota
 	keepOn
@@ -53,7 +51,7 @@ func (h hold) tick(c *ctx, at int, _ []int) Status {
 	if !c.entity {
 		return Failure
 	}
-	if c.instant { // renewed every step: it lapses once the rule stops
+	if c.instant { // renewed every step, lapsing once the rule stops
 		c.effects().CastFor(c.cb, c.id, h.e, 2*c.pass.Dt)
 		return Success
 	}
@@ -62,7 +60,7 @@ func (h hold) tick(c *ctx, at int, _ []int) Status {
 	case c.mind.Slot[at] == keepCast && on:
 		c.mind.Slot[at] = keepOn
 	case c.mind.Slot[at] == keepOn && !on:
-		c.mind.Slot[at] = 0 // taken off by someone else: the branch gives way
+		c.mind.Slot[at] = 0 // taken off by someone else
 		return Failure
 	}
 	return Running
@@ -98,8 +96,6 @@ func NewChance(p float64, step Step) Step {
 	return composite{kids: []Step{step}, sign: fmt.Sprintf("chance(%g)", p), make: func() exec { return chance{p: p} }}
 }
 
-// chance runs its step with likelihood p, drawn afresh at every step of the game, and fails
-// otherwise.
 type chance struct {
 	basic
 	p float64
@@ -123,8 +119,7 @@ func (ch chance) tick(c *ctx, at int, kids []int) Status {
 	return c.run(kids[0])
 }
 
-// draw is a number in [0, 1), the same for the same seed, time, entity and place in a rule or a
-// plan, and nothing kept: a load and a replay draw alike.
+// in [0, 1), the same for the same seed, time, entity and place: a load and a replay draw alike
 func draw(seed uint64, t time.Duration, id, salt uint64) float64 {
 	x := seed ^ uint64(t)*0x9E3779B97F4A7C15 ^ id*0xBF58476D1CE4E5B9 ^ salt*0x94D049BB133111EB
 	x ^= x >> 30
@@ -133,84 +128,4 @@ func draw(seed uint64, t time.Duration, id, salt uint64) float64 {
 	x *= 0x94D049BB133111EB
 	x ^= x >> 31
 	return float64(x>>11) / (1 << 53)
-}
-
-func NewDuring(e effect.Effect, node Step) Step {
-	return composite{kids: []Step{node}, sign: fmt.Sprintf("during(%d)", e.Mark()), make: func() exec { return during{e: e} }}
-}
-
-// NewWhile is NewDuring for the entity of names in place of the world's: a plugin's own.
-func NewWhile(of func() uid.UID64, e effect.Effect, node Step) Step {
-	return composite{kids: []Step{node}, sign: fmt.Sprintf("while(%d)", e.Mark()), make: func() exec { return during{e: e, of: of} }}
-}
-
-// during runs its step while the world — its own entity, the clock's — is under the effect, or,
-// given of, while that entity is.
-type during struct {
-	basic
-	e  effect.Effect
-	of func() uid.UID64
-}
-
-func (during) instant() {}
-
-func (d during) tick(c *ctx, _ int, kids []int) Status {
-	on := false
-	if d.of != nil {
-		on = d.e.On(d.of())
-	} else if c.instant {
-		on = d.e.On(c.pass.World)
-	} else if c.sys.world != nil {
-		on = c.sys.effects.Has(c.sys.world(), d.e)
-	}
-	if !on {
-		return Failure
-	}
-	return c.run(kids[0])
-}
-
-func NewUnless(e effect.Effect, node Step) Step {
-	return composite{kids: []Step{node}, sign: fmt.Sprintf("unless(%d)", e.Mark()), make: func() exec { return under{e: e, not: true} }}
-}
-
-// NewPlaying runs node while the entity — a place Around turned it to, too — plays the role of bit,
-// and fails while it does not.
-func NewPlaying(bit uint8, node Step) Step {
-	return composite{kids: []Step{node}, sign: fmt.Sprintf("playing(%d)", bit), make: func() exec { return playing{bit: bit} }}
-}
-
-type playing struct {
-	basic
-	bit uint8
-}
-
-func (playing) instant() {}
-
-func (p playing) tick(c *ctx, _ int, kids []int) Status {
-	if !c.entity || c.rolesOf(c.id)&(1<<p.bit) == 0 {
-		return Failure
-	}
-	return c.run(kids[0])
-}
-
-func NewUnder(e effect.Effect, node Step) Step {
-	return composite{kids: []Step{node}, sign: fmt.Sprintf("under(%d)", e.Mark()), make: func() exec { return under{e: e} }}
-}
-
-type under struct {
-	basic
-	e   effect.Effect
-	not bool
-}
-
-func (under) instant() {}
-
-func (u under) tick(c *ctx, _ int, kids []int) Status {
-	if !c.entity {
-		return Failure
-	}
-	if c.effects().Has(c.id, u.e) == u.not {
-		return Failure
-	}
-	return c.run(kids[0])
 }

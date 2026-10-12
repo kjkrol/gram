@@ -9,8 +9,6 @@ import (
 
 var _ goke.Module = (*module)(nil)
 
-// module runs the plugin's systems: the shots fired once a tick, the flights and the bursts
-// every step of the simulation.
 type module struct {
 	p   *Plugin
 	ecs *goke.ECS
@@ -21,11 +19,6 @@ type module struct {
 
 func newModule(p *Plugin, ecs *goke.ECS) *module { return &module{p: p, ecs: ecs} }
 
-// =================================================================
-// goke.Module contract
-// =================================================================
-
-// RegSystems builds and registers the plugin's systems — see [goke.Module].
 func (m *module) RegSystems(ecs *goke.ECS) {
 	if m.built {
 		return
@@ -38,8 +31,6 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	m.built = true
 }
 
-// RunPlan fires the Shoots given since the last tick, at once, and hands the flights to the
-// simulation: every step the shots fly, land and rest, then the Bursts given burst.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.shoot, d)
 	ctx.Sync()
@@ -51,10 +42,8 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	})
 }
 
-// SetupSystems is empty — the plugin seeds nothing of its own.
 func (m *module) SetupSystems() []goke.System { return nil }
 
-// LoadComps lists the component types the plugin owns — see [goke.CompProvider].
 func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{
 		goke.LoadComp[Body](),

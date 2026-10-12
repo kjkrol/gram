@@ -25,39 +25,38 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/plan"
+	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
-// A road one cell wide through a field, SingleOccupancy and collision as the board demos have them: the
-// scene of the reported deadlock, where units pushed each other for ever.
 type roadUnit struct {
 	start, target cell.ID
 	ordered       bool
-	domain        cell.Domain      // zero: Land
-	wide          bool             // the hawk's profile: faster, turning slower, looking further ahead
-	selected      bool             // Selectable and Selected, for the commands of a player
-	owner         control.PlayerID // who owns it; nobody for Nobody
-	plan          *writtenPlan     // it acts by this plan
-	group         uint32           // the group of its order
-	sensor        bool             // a Collider without Physics: only ever detected
-	loose         bool             // no At, no Mover: a body in the world, not a unit of the board
+	domain        cell.Domain // zero: Land
+	wide          bool        // the hawk's profile: faster, turning slower
+	selected      bool
+	owner         control.PlayerID
+	plan          *writtenPlan
+	group         uint32
+	sensor        bool // a Collider without Physics
+	loose         bool // no At, no Mover: a body in the world, not a unit of the board
 }
 
 type roadWorld struct {
 	t       *testing.T
 	grid    grid.Grid
+	w       *world.Plugin
 	ecs     *goke.ECS
 	nav     *Plugin
 	driving *driving.Plugin
 	players *players.Plugin
-	cams    []camera.Camera // each player's, by id − 1: what its picture is drawn through
+	cams    []camera.Camera // each player's, by id − 1
 	cell    goke.Comp[unit.At]
 	base    goke.Comp[world.Base]
 	order   goke.OptComp[MoveOrder]
 	q       *goke.Query
 	kinds   map[uid.UID64]kind.ID
-	byRow   map[int]uid.UID64 // row index → entity, in the order given
+	byRow   map[int]uid.UID64 // row index → entity
 }
 
 const roadCell = 32
@@ -69,18 +68,20 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		Space:    world.SpaceCfg{Width: width * roadCell, Height: 3 * roadCell},
 		Entities: world.EntitiesCfg{MaxCount: len(units), MinSize: 22, MaxSize: 22},
 	})
+	rw.w = w
+	w.Effects().Define("alarm", effect.Spec{})
 	occupancy := &cell.SingleOccupancy{}
 	c := collision.NewPlugin(w)
 	brd := board.NewPlugin(rw.grid, occupancy, w)
-	brd.Board().SetAll(cell.Kind{Cost: 2, Allows: cell.Land | cell.Air}) // field
+	brd.Board().SetAll(cell.Kind{Cost: 2, Allows: cell.Land | cell.Air})
 	for x := uint32(0); x < width; x++ {
 		brd.Board().Set(rw.at(x, 1), cell.Kind{Cost: 1, Allows: cell.Land | cell.Air}) // the road
 	}
 	sel := selection.NewPlugin(w)
 	rw.driving = driving.NewPlugin(w, sel).WithGround(brd)
 	rw.nav = NewPlugin(brd, w, sel, rw.driving).WithCollision(c)
-	rw.players = players.NewPlugin(w, rw.nav, rw.driving) // carries their commands, as the engine does with Use
-	for _, name := range []string{"one", "two"} {         // each acting through a picture of its own
+	rw.players = players.NewPlugin(w, rw.nav, rw.driving)
+	for _, name := range []string{"one", "two"} {
 		cam := cameras.TopDown()(width*roadCell, 3*roadCell, 0, camera.Config{})
 		rw.players.Through(rw.players.Add(name)).Over(geom.AABB{}, render.NewFeed(cam, nil))
 		rw.cams = append(rw.cams, cam)
@@ -126,7 +127,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		}
 		if !u.sensor {
 			physics := collision.Physics{}
-			if u.loose { // scenery: nothing shifts it
+			if u.loose {
 				physics.Mass = math.Inf(1)
 			}
 			s = append(s, comp.Const(physics))
@@ -141,8 +142,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 			s = append(s, comp.Tagged(owner.Of(u.owner)))
 		}
 		if u.plan != nil {
-			w.Plans().Define(u.plan.name, u.plan.body)
-			s = append(s, w.Plans().Named(u.plan.name))
+			s = append(s, u.plan.planned)
 		}
 		return s
 	}
@@ -191,7 +191,6 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 
 func (rw *roadWorld) at(x, y uint32) cell.ID { c := rw.grid.At(x, y); return c }
 
-// state is one unit's cell and order, if it still has one.
 func (rw *roadWorld) state(id uid.UID64) (cell cell.ID, order *MoveOrder) {
 	for rw.q.All(); rw.q.Next(); {
 		cur := rw.q.Cursor()
@@ -209,8 +208,7 @@ func (rw *roadWorld) state(id uid.UID64) (cell cell.ID, order *MoveOrder) {
 	return
 }
 
-// run ticks until every ordered unit has arrived — on its target, or beside it when someone stands
-// there — or the time is up; it reports the ticks taken and how many times each unit's route changed.
+// replans counts how many times each unit's route changed
 func (rw *roadWorld) run(units []roadUnit, limit time.Duration) (ticks int, replans map[uid.UID64]int) {
 	replans = map[uid.UID64]int{}
 	last := map[uid.UID64][]cell.ID{}
@@ -274,12 +272,11 @@ func TestBump_ThreeInARowUntangle(t *testing.T) {
 	}
 }
 
-// A stranger standing on a unit's target never makes way: the unit stands beside it.
 func TestBump_ATargetAStrangerStandsOnIsSettledBeside(t *testing.T) {
 	rw := newRoadWorld(t, 6, []roadUnit{{start: 0, ordered: true}})
 	units := []roadUnit{
 		{start: rw.at(0, 1), target: rw.at(4, 1), ordered: true, owner: 1},
-		{start: rw.at(4, 1), owner: 2}, // standing on the target, going nowhere
+		{start: rw.at(4, 1), owner: 2},
 	}
 	rw = newRoadWorld(t, 6, units)
 	for tick := range 60 * 4 {
@@ -295,13 +292,11 @@ func TestBump_ATargetAStrangerStandsOnIsSettledBeside(t *testing.T) {
 	t.Fatal("the unit never settled beside the occupied target within 4 s")
 }
 
-// A hawk over a road full of walkers flies straight through: they hold the Land layer of their
-// cells, it moves in Air, and neither the planner, the leg nor the solver mind the other.
 func TestBump_AFlyerPassesOverWalkersUntouched(t *testing.T) {
 	rw := newRoadWorld(t, 8, []roadUnit{{start: 0, ordered: true}})
 	units := []roadUnit{
 		{start: rw.at(0, 1), target: rw.at(7, 1), ordered: true, domain: cell.Air},
-		{start: rw.at(3, 1)}, // walkers parked across the road
+		{start: rw.at(3, 1)},
 		{start: rw.at(4, 1)},
 		{start: rw.at(5, 1)},
 	}
@@ -325,9 +320,7 @@ func TestBump_AFlyerPassesOverWalkersUntouched(t *testing.T) {
 	}
 }
 
-// A wide turner looks further ahead than half a cell, so it passes a cell of its route before its
-// centre is in it; it must keep the route it was given — here one row down along the way — rather
-// than find itself short of its cell every step and plan again.
+// a wide turner looks further ahead than half a cell, passing a cell before its centre is in it
 func TestNavigation_AWideTurnerKeepsItsRoute(t *testing.T) {
 	rw := newRoadWorld(t, 24, []roadUnit{{start: 0, ordered: true}})
 	units := []roadUnit{{start: rw.at(0, 0), target: rw.at(23, 1), ordered: true, domain: cell.Air, wide: true}}
@@ -342,7 +335,6 @@ func TestNavigation_AWideTurnerKeepsItsRoute(t *testing.T) {
 	}
 }
 
-// heading is the unit's heading after ticking for d.
 func (rw *roadWorld) heading(id uid.UID64, d time.Duration) geom.Vec {
 	for range int(d / (time.Second / 60)) {
 		rw.ecs.Tick(time.Second / 60)
@@ -386,9 +378,9 @@ func TestLook_LookAtStopsAWalkingUnitAtTheEndOfItsStepAndTurnsIt(t *testing.T) {
 	rw = newRoadWorld(t, 12, units)
 	unit := rw.byRow[0]
 
-	rw.heading(unit, 500*time.Millisecond) // under way
+	rw.heading(unit, 500*time.Millisecond)
 	here, _ := rw.state(unit)
-	south := geom.NewVec(rw.grid.CellCenter(here).X, 3000) // far south, whichever cell the step ends on
+	south := geom.NewVec(rw.grid.CellCenter(here).X, 3000)
 	rw.nav.looks.Add(control.Nobody, LookAt{At: south})
 	dir := rw.heading(unit, 3*time.Second)
 
@@ -404,9 +396,6 @@ func TestLook_LookAtStopsAWalkingUnitAtTheEndOfItsStepAndTurnsIt(t *testing.T) {
 	}
 }
 
-// A contact only sensed — a sensor, a shot — bumps nobody: the unit under orders walks on through
-// it on its first route and arrives; a body in the way, one the planner knew nothing of, still bumps
-// it into stopping and planning again (and again: the planner never sees a body off the occupancy).
 func TestBump_ASensedContactBumpsNobody(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -431,8 +420,4 @@ func TestBump_ASensedContactBumpsNobody(t *testing.T) {
 	}
 }
 
-// writtenPlan is a plan as a test writes it, for the road's world to define (world.Plans).
-type writtenPlan struct {
-	name string
-	body func(a *plan.Actor) rule.Step
-}
+type writtenPlan struct{ planned rule.Planned }

@@ -30,7 +30,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// sectioned is what a Stage built in sections keeps between them, and the order they ran in.
 type sectioned struct {
 	world *world.Plugin
 	unit  kind.Of[struct{}]
@@ -39,7 +38,6 @@ type sectioned struct {
 
 func (s *sectioned) note(name string) { s.ran = append(s.ran, name) }
 
-// makeWorld keeps the world the Stage made, and makes no plugins over it.
 func (s *sectioned) makeWorld(w *world.Plugin) {
 	s.note("plugins")
 	s.world = w
@@ -60,8 +58,6 @@ func walkerSpec() kind.Spec {
 
 func (s *sectioned) update(ctx goke.RunCtx, d time.Duration) { s.world.RunPlan(ctx, d) }
 
-// The sections run in the chain's order, each once, Kinds' and Spawn's steps in theirs; the Stage
-// keeps its name, starts fresh, and makes its scenes once the world is spawned, the first shown.
 func TestStage_RunsItsSectionsInOrder(t *testing.T) {
 	s := &sectioned{}
 	st := stage.New("meadow").
@@ -88,8 +84,8 @@ func TestStage_RunsItsSectionsInOrder(t *testing.T) {
 	}
 }
 
-// Shows names the scenes shown in place of the first; a Stage entered from a save spawns nothing
-// and still makes the scenes.
+// Shows names the scenes shown in place of the first; a loaded Stage spawns nothing and still
+// makes its scenes.
 func TestStage_ShowsAndALoadedStage(t *testing.T) {
 	props := game.Props{Saves: t.TempDir()}
 	define := func(s *sectioned) game.Stage {
@@ -127,7 +123,6 @@ func TestStage_ShowsAndALoadedStage(t *testing.T) {
 	}
 }
 
-// kept is a scene keeping state of its own, saved with the game.
 type kept struct {
 	scene
 	note     string
@@ -137,8 +132,6 @@ type kept struct {
 func (k *kept) Persisted() []any { return []any{&k.note} }
 func (k *kept) Restore()         { k.restored = true }
 
-// A loaded game's scenes, made once it is loaded, are as they were saved: the scenes shown and a
-// scene's own state.
 func TestStage_ScenesOfALoadedGameAreAsSaved(t *testing.T) {
 	props := game.Props{Saves: t.TempDir()}
 	define := func(s *sectioned, k *kept) game.Stage {
@@ -175,7 +168,6 @@ func TestStage_ScenesOfALoadedGameAreAsSaved(t *testing.T) {
 	}
 }
 
-// A section's error stops Init and names the Stage and the section.
 func TestStage_ASectionsErrorNamesIt(t *testing.T) {
 	s := &sectioned{}
 	boom := errors.New("boom")
@@ -186,13 +178,14 @@ func TestStage_ASectionsErrorNamesIt(t *testing.T) {
 	}
 }
 
-// A thing defined out of its section is refused, by error or by panic, naming the section it
-// belongs in; in its own section and in Plugins it is taken.
 func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 	type part func(s *sectioned, ctx game.Initializer) error
 	useAPlugin := func(s *sectioned, ctx game.Initializer) error { return ctx.Use(&stubPlugin{name: "late"}) }
 	plays := func(s *sectioned, _ game.Initializer) error {
-		s.world.Roles().Define("sectioned", rule.Then[clock.Moment]("leave", rule.All, rule.Order(world.Despawn{})))
+		s.world.Roles().Define("sectioned", rule.Branch[clock.Moment]{
+			Name: "leave",
+			Do:   rule.Order(world.Despawn{}),
+		})
 		s.world.Plays(s.world.Roles().Named("sectioned"))
 		return nil
 	}
@@ -263,8 +256,6 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 	}
 }
 
-// Units seeded in Controls are refused; in Spawn they are taken. The engine tells the section it is
-// in to whoever asks.
 func TestStage_SeedsInTheirSections(t *testing.T) {
 	s := &sectioned{}
 	var during section.Part
@@ -298,9 +289,6 @@ func TestStage_SeedsInTheirSections(t *testing.T) {
 	}
 }
 
-// The board and the players refuse what is theirs out of its section: a kind of cell outside
-// Kinds, a board seeded outside Spawn, a player added outside Players, keys bound outside
-// Players and Controls.
 func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 	type built struct {
 		sectioned
@@ -356,11 +344,8 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 	}
 }
 
-// testPart is a part of a test plugin's own, after the commands and before the kinds.
 var testPart = section.Define("Test", section.Commands, section.Kinds)
 
-// partPlugin is a plugin with a section of its own: it keeps the Installer it was used with, to
-// tell which part is being defined.
 type partPlugin struct {
 	stubPlugin
 	ctx plugin.Installer
@@ -372,8 +357,6 @@ func newPartPlugin() *partPlugin {
 	return p
 }
 
-// A plugin's section runs where the game writes it, with the plugin it is of, told to the plugins
-// as the plugin's own part.
 func TestStage_RunsAPluginsSectionWhereItIsWritten(t *testing.T) {
 	s := &sectioned{}
 	pp := newPartPlugin()
@@ -400,8 +383,6 @@ func TestStage_RunsAPluginsSectionWhereItIsWritten(t *testing.T) {
 	}
 }
 
-// A plugin's section written after the part it comes before, or before the part it comes after,
-// panics as the chain is built, naming it.
 func TestStage_PanicsForAPluginsSectionWrittenOutOfItsPlace(t *testing.T) {
 	sec := section.Of(testPart, func(*partPlugin) error { return nil })
 	for name, build := range map[string]func(){
@@ -419,7 +400,6 @@ func TestStage_PanicsForAPluginsSectionWrittenOutOfItsPlace(t *testing.T) {
 	}
 }
 
-// A plugin's section of a plugin the Stage does not use stops Init, naming the plugin's type.
 func TestStage_APluginsSectionNeedsItsPlugin(t *testing.T) {
 	s := &sectioned{}
 	st := stage.New("meadow").World(testWorldConfig()).Plugins(s.makeWorld).
@@ -430,7 +410,6 @@ func TestStage_APluginsSectionNeedsItsPlugin(t *testing.T) {
 	}
 }
 
-// The dialogs refuse a change defined out of their section, and take it in it.
 func TestStage_TheDialogsDefineInTheirOwnSection(t *testing.T) {
 	type mood struct{ N int8 }
 	warm := dialog.Alter(func(m *mood, _ uid.UID64) { m.N++ })
@@ -468,8 +447,6 @@ func TestStage_TheDialogsDefineInTheirOwnSection(t *testing.T) {
 	}
 }
 
-// A Stage uses the plugins made for it in the order made: those made over its world, each telling
-// the world of itself, and those of a Stage without one.
 func TestStage_UsesThePluginsInTheOrderMade(t *testing.T) {
 	var installed []string
 	stub := func(name string) *stubPlugin {

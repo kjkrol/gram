@@ -24,8 +24,6 @@ type unitRow struct {
 	Start cell.ID `yaml:"start"`
 }
 
-// A level lays the board, stands its entities on it and sets its units down: a trapdoor from
-// the file carries a walker over the pit drawn under it.
 func TestLay_StandsTheEntitiesOnTheBoardItLays(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 1, boardtest.CellSize)
 	level := fstest.MapFS{"level.yaml": {Data: []byte(`

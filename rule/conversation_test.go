@@ -1,4 +1,4 @@
-package plan_test
+package rule_test
 
 import (
 	"github.com/kjkrol/gram/internal/steps"
@@ -7,14 +7,11 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/uid"
 )
 
-// pass is the ask of the conversation tests: let me pass.
 type pass struct{}
 
-// need is the fact of wanting past Who; room of what stands beside: free, or an ally to ask on.
 type (
 	need struct{ Who uid.UID64 }
 	room struct {
@@ -28,34 +25,31 @@ func (r room) Subject() (uid.UID64, bool) { return r.Ally, r.Beside }
 func (r room) free() bool                 { return r.Free }
 func (r room) byAlly() bool               { return !r.Free && r.Beside }
 
-// asker walks on once let pass, and flees when not.
-var asker = write("asker", func(a *plan.Actor) rule.Step {
-	return a.OneOf(
-		a.When[need]("needs to pass", func(a *plan.Actor) rule.Step {
-			return a.Ask[pass]("let me pass", 500*time.Millisecond,
-				a.Order(walk{}).Stay(),
-				a.Order(flee{}).Stay())
-		}),
-		a.Idle(),
-	)
-})
+var asker = write("asker", rule.OneOf(
+	rule.Branch[need]{
+		Name: "needs to pass",
+		Do: rule.Ask[pass]("let me pass", 500*time.Millisecond,
+			rule.Order(walk{}).Stay(),
+			rule.Order(flee{}).Stay()),
+	},
+	rule.Idle(),
+))
 
-// giver lets pass where it has room — it jumps aside — asks its ally on where it has one, and
-// refuses otherwise.
-var giver = write("giver", func(a *plan.Actor) rule.Step {
-	return a.OneOf(
-		a.OnAsked[pass]("asked to let pass", func(a *plan.Actor) rule.Step {
-			return a.OneOf(
-				a.If(room.free, a.Steps(a.Agree[pass](), a.Order(jump{High: true}))),
-				a.If(room.byAlly, a.Relay[pass]()),
-				a.Refuse[pass](),
-			)
-		}),
-		a.Idle(),
-	)
-})
+var giver = write("giver", rule.OneOf(
+	rule.Branch[rule.Asked[pass]]{
+		Name: "asked to let pass",
+		Do: rule.OneOf(
+			rule.Branch[room]{
+				When: room.free,
+				Do:   rule.Steps(rule.Agree[pass](), rule.Order(jump{High: true})),
+			},
+			rule.Branch[room]{When: room.byAlly, Do: rule.Relay[pass]()},
+			rule.Refuse[pass](),
+		),
+	},
+	rule.Idle(),
+))
 
-// talk is entities each running a tree, their facts set by the test between ticks.
 type talk struct {
 	t      *testing.T
 	ecs    *goke.ECS
@@ -69,11 +63,10 @@ type talk struct {
 	toys   *toys
 }
 
-// body is what an entity with no mind is made of.
-type body struct{ Size int }
+type mindless struct{ Size int }
 
-// newTalk spawns an entity for each plan; nil spawns one without a mind.
-func newTalk(t *testing.T, plans ...any) *talk { // each a written plan, or nil for a body without a mind
+// plans: each a written plan, or nil for a body without a mind.
+func newTalk(t *testing.T, plans ...any) *talk {
 	t.Helper()
 	k := &talk{t: t, ecs: goke.New(), toys: newToys()}
 	var minds []steps.Mind
@@ -85,13 +78,13 @@ func newTalk(t *testing.T, plans ...any) *talk { // each a written plan, or nil 
 			continue
 		}
 		w := p.(written)
-		if _, ok := defined[w.name]; !ok {
-			defined[w.name] = w.mind(c)
+		if _, ok := defined[w.plan.Name()]; !ok {
+			defined[w.plan.Name()] = w.mind(c)
 		}
-		minds = append(minds, defined[w.name])
+		minds = append(minds, defined[w.plan.Name()])
 	}
 	var mind goke.Comp[steps.Mind]
-	var plain goke.Comp[body]
+	var plain goke.Comp[mindless]
 	k.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		k.needID, k.roomID = si.RegComp[need](), si.RegComp[room]()
 		k.toys.init(si)
@@ -142,7 +135,6 @@ func (k *talk) need(who, of int) {
 	k.edits = append(k.edits, func(cb *goke.CmdBuf) { cb.AddOne(id, k.needID, v) })
 }
 
-// room gives who room beside, free, or taken by the ally of index ally (-1 none).
 func (k *talk) room(who int, free bool, ally int) {
 	id := k.ids[who]
 	v := room{Free: free}
@@ -152,7 +144,6 @@ func (k *talk) room(who int, free bool, ally int) {
 	k.edits = append(k.edits, func(cb *goke.CmdBuf) { cb.AddOne(id, k.roomID, v) })
 }
 
-// is reports what entity who carries — an ask — and what it did last: a walk, a flight, a jump.
 func (k *talk) is(who int) (asked, walking, fleeing, jumping bool) {
 	id := k.ids[who]
 	if !k.look.Seek(id) {
@@ -162,7 +153,6 @@ func (k *talk) is(who int) (asked, walking, fleeing, jumping bool) {
 	return k.asked.Present(k.look.Cursor()), doing == "walk", doing == "flee", doing == "jump"
 }
 
-// An ask answered yes runs the asker's agreed branch; the one asked did what its tree says.
 func TestAsk_AYesRunsTheAgreedBranch(t *testing.T) {
 	k := newTalk(t, asker, giver)
 	k.room(1, true, -1)
@@ -176,7 +166,6 @@ func TestAsk_AYesRunsTheAgreedBranch(t *testing.T) {
 	}
 }
 
-// An ask answered no, or not in time, or to one with no mind, runs the refused branch.
 func TestAsk_ANoOrNoAnswerRunsTheRefusedBranch(t *testing.T) {
 	k := newTalk(t, asker, giver) // no room: refused
 	k.room(1, false, -1)
@@ -186,7 +175,7 @@ func TestAsk_ANoOrNoAnswerRunsTheRefusedBranch(t *testing.T) {
 		t.Errorf("refused, the asker walks %v, flees %v; want fleeing", walking, fleeing)
 	}
 
-	k = newTalk(t, asker, write("deaf", func(a *plan.Actor) rule.Step { return a.Idle() })) // never answers
+	k = newTalk(t, asker, write("deaf", rule.Idle())) // never answers
 	k.need(0, 1)
 	k.tick(4)
 	if _, _, fleeing, _ := k.is(0); fleeing {
@@ -208,8 +197,6 @@ func TestAsk_ANoOrNoAnswerRunsTheRefusedBranch(t *testing.T) {
 	}
 }
 
-// An ask passed on keeps the asker waiting past its wait; the one asked on makes way, then the
-// first one can too, and the asker walks on.
 func TestRelay_PassesTheAskOnAndTheAskerWaits(t *testing.T) {
 	k := newTalk(t, asker, giver, giver)
 	k.room(1, false, 2)
@@ -223,18 +210,17 @@ func TestRelay_PassesTheAskOnAndTheAskerWaits(t *testing.T) {
 	if _, _, _, jumping := k.is(2); !jumping {
 		t.Error("the ally asked on does not make way")
 	}
-	k.tick(4) // past the asker's wait: it waits on, the ask passed on
+	k.tick(4) // past the asker's wait
 	if _, walking, fleeing, _ := k.is(0); walking || fleeing {
 		t.Errorf("the asker walks %v, flees %v while its ask is passed on; want waiting", walking, fleeing)
 	}
-	k.room(1, true, -1) // room beside now: the first one makes way and says yes
+	k.room(1, true, -1) // room beside now
 	k.tick(3)
 	if _, walking, _, _ := k.is(0); !walking {
 		t.Error("the way made along the chain, the asker does not walk on")
 	}
 }
 
-// A no from the one asked on comes back along the chain to the asker.
 func TestRelay_ANoComesBackAlongTheChain(t *testing.T) {
 	k := newTalk(t, asker, giver, giver)
 	k.room(1, false, 2)
@@ -246,8 +232,6 @@ func TestRelay_ANoComesBackAlongTheChain(t *testing.T) {
 	}
 }
 
-// A chain ends at MaxChain, and never comes back to one on it: the last one refuses, and the no
-// comes back.
 func TestRelay_TheChainEndsAtItsLimitAndNeverLoops(t *testing.T) {
 	n := steps.MaxChain + 3
 	plans := []any{asker}
@@ -286,9 +270,8 @@ func TestRelay_TheChainEndsAtItsLimitAndNeverLoops(t *testing.T) {
 	}
 }
 
-// An ask nobody takes up is dropped after AskLife.
 func TestAsked_IsDroppedAfterItsLife(t *testing.T) {
-	k := newTalk(t, asker, write("deaf too", func(a *plan.Actor) rule.Step { return a.Idle() }))
+	k := newTalk(t, asker, write("deaf too", rule.Idle()))
 	k.need(0, 1)
 	k.tick(2)
 	if asked, _, _, _ := k.is(1); !asked {

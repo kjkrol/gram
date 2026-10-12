@@ -11,8 +11,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// viewOf fills a 1000x1000 world of the given edges with one 10x10 box per position, refreshes a
-// View over cam once, and returns it with the ids in position order.
 func viewOf(t *testing.T, edges aabbworld.Edges, cam camera.Camera, at ...geom.Vec) (*View, []uid.UID64) {
 	t.Helper()
 	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 1000, Height: 1000, Edges: edges, BucketSize: 64})
@@ -68,7 +66,8 @@ func TestViewSystem_AViewOnTheWholeWorldSeesEverythingUnqueried(t *testing.T) {
 }
 
 func TestViewSystem_SeesABoxAcrossTheSeamFromEitherSide(t *testing.T) {
-	onSeam := geom.NewVec(-5, 100) // wraps: its main piece sits at the right edge, a piece at the left
+	// wraps: its main piece at the right edge, a piece at the left
+	onSeam := geom.NewVec(-5, 100)
 	for name, cam := range map[string]camera.Camera{
 		"right edge": icamera.NewFromSpace(1000, 1000, aabbworld.Torus, geom.NewAABBAt(geom.NewVec(800, 0), 200, 200)),
 		"left edge":  icamera.NewFromSpace(1000, 1000, aabbworld.Torus, geom.NewAABBAt(geom.NewVec(0, 0), 200, 200)),

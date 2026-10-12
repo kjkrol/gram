@@ -11,8 +11,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/internal/terrain"
 )
 
-// The pass writes one line for a unit standing where it may not, however long it stands there,
-// and none for one on ground that takes it.
 func TestLog_WritesALineOnceForEachWhoFell(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(2, 1, 10)
 	cells := terrain.New(grid)

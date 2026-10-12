@@ -30,10 +30,10 @@ type builtSystem struct {
 	base  goke.OptComp[entity.Base]
 	lie   goke.OptComp[entity.Lie]
 
-	now, last []site // by cell, one a cell: what is built now and what was the step before
-	raw       []site // what was built the step before as the entities have it, before the rules
-	checked   uint64 // the terrain's version when the bridges were last held to the rules
-	laid      bool   // the board's first gathering is done: a broken bridge no longer panics
+	now, last []site
+	raw       []site // as the entities have it, before the rules
+	checked   uint64
+	laid      bool // after the first gathering a broken bridge no longer panics
 }
 
 type site struct {
@@ -41,8 +41,8 @@ type site struct {
 	built cell.Built
 }
 
-// BuiltSystem gathers the Floors and Walls of the entities standing on the cells on the cells'
-// entities every step, space the world's, where Standing finds them.
+// BuiltSystem gathers what the entities standing on the cells build onto the cells' entities
+// every step; space is the world's, where Standing finds them.
 func (t *Cells) BuiltSystem(heights bool, space func() *aabbworld.Space) goke.System {
 	return &builtSystem{cells: t, heights: heights, space: space}
 }
@@ -164,9 +164,6 @@ func (s *builtSystem) Update(*goke.CmdBuf, time.Duration) {
 	s.checked = s.cells.version
 }
 
-// lay has every entity whose floor runs as a band lie along it: a band's length, its Width wide,
-// headed along it — a head's half from the middle, headed into the bridge — its railings for
-// edges where they keep anyone off a deck carrying anyone through.
 func (s *builtSystem) lay(floors []cell.Floor, rails []cell.Rail, bases []entity.Base,
 	lies []entity.Lie) {
 	if floors == nil || lies == nil {
@@ -199,8 +196,6 @@ func (s *builtSystem) lay(floors []cell.Floor, rails []cell.Rail, bases []entity
 	}
 }
 
-// refuse panics over a floor no deck can be: a Width below 0, a band with nowhere to run, one wider
-// than its cell lets it run: a cell's edge, or the length of a link through a corner.
 func (s *builtSystem) refuse(id uid.UID64, f cell.Floor) {
 	switch {
 	case f.Width < 0:
@@ -213,8 +208,6 @@ func (s *builtSystem) refuse(id uid.UID64, f cell.Floor) {
 	}
 }
 
-// widest is how wide a band running out by links may be: a cell's edge, or the length of the
-// shortest link through a corner when it runs through corners alone.
 func (s *builtSystem) widest(links cell.Links) float64 {
 	g := s.cells.grid
 	most := math.Inf(1)
@@ -231,7 +224,6 @@ func (s *builtSystem) widest(links cell.Links) float64 {
 	return most
 }
 
-// railed is how many of sites carry a railing.
 func railed(sites []site) int {
 	n := 0
 	for _, s := range sites {
@@ -242,7 +234,7 @@ func railed(sites []site) int {
 	return n
 }
 
-// standing asks the space at the cell's middle, where whatever stands on the cell lies.
+// whatever stands on a cell lies at its middle
 func (s *builtSystem) standing(c cell.ID, each func(uid.UID64)) {
 	space := s.space()
 	if space == nil {
@@ -289,8 +281,6 @@ func gather(sites []site) []site {
 	return out
 }
 
-// widest is the width two floors on one cell make: a whole floor's, else the wider band; one
-// carrying nobody adds nothing.
 func widest(a, b cell.Floor) float64 {
 	switch {
 	case b.Allows == 0:
@@ -303,7 +293,7 @@ func widest(a, b cell.Floor) float64 {
 	return max(a.Width, b.Width)
 }
 
-// tallest is the higher Height of two walls, one of none standing at every height.
+// a Height of 0 stands at every height
 func tallest(a, b cell.Wall) float64 {
 	switch {
 	case a.Keeps == 0:

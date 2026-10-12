@@ -1,25 +1,27 @@
 package world
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/plugin"
 	ikinds "github.com/kjkrol/gram/plugins/world/internal/kinds"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
 )
 
-// Kinds is a Plugin's registered set of entity kinds and tags — reached via Plugin.Kinds and
-// handed to kind.Define, never built directly by the game. Saves keep their names, so a build
-// that defines them in another order still loads.
+// Kinds is the world's register of entity kinds and tags, handed to kind.Define. Saves keep
+// their names, so a build that defines them in another order still loads.
 type Kinds struct {
 	r      *ikinds.Registry
-	played []rule.Rule       // the roles played, each once
-	guard  func(name string) // panics for a kind defined out of its section; nil for none
+	played []rule.Rule
+	plans  *steps.Plans
+	guard  func(name string)
 }
 
 var (
@@ -37,20 +39,26 @@ func (k *Kinds) Register(name string, row reflect.Type, spec kind.Spec) (kind.ID
 		k.guard(name)
 	}
 	for _, c := range spec {
-		if p, ok := c.(rule.Played); ok {
-			k.Play(p.Parts()...)
+		switch c := c.(type) {
+		case rule.Played:
+			k.Play(c.Parts()...)
+		case rule.Planned:
+			if k.plans == nil {
+				panic(fmt.Sprintf("world: the kind %q carries the plan %q, its world runs none",
+					name, c.Name()))
+			}
+			c.Define(k.plans)
 		}
 	}
 	return k.r.Register(name, row, spec)
 }
 
-// Lookup is the kind registered as name — see kind.Registry.
+// Lookup is the kind registered as name.
 func (k *Kinds) Lookup(name string) (kind.ID, render.SpriteID, reflect.Type, bool) {
 	return k.r.Lookup(name)
 }
 
-// Play notes roles somebody plays who is no kind of the world's — a cell's kind, a plugin: for
-// the plugins, as a kind's own are noted when it is defined.
+// Play notes roles played by what is no kind of the world's, a cell's kind or a plugin.
 func (k *Kinds) Play(roles ...*rule.Part) {
 	for _, part := range roles {
 		if !slices.Contains(k.played, rule.Rule(part)) {
@@ -59,15 +67,14 @@ func (k *Kinds) Play(roles ...*rule.Part) {
 	}
 }
 
-// Played are the roles played so far, each once: what the engine hands the hosts of their rules'
-// moments once a Stage's Init returns.
+// Played are the roles played so far, each once.
 func (k *Kinds) Played() []rule.Rule { return slices.Clone(k.played) }
 
 // DefineTag registers name in family F and returns its tag, assigned by call order within the
-// family; a save records the names, so a build that defines them in another order still loads.
+// family.
 func (k *Kinds) DefineTag[F any](name string) tag.Tag[F] { return ikinds.DefineTag[F](k.r, name) }
 
-// NewSprite reserves an atlas slot that belongs to no kind — an overlay's, say.
+// NewSprite reserves an atlas slot that belongs to no kind.
 func (k *Kinds) NewSprite() render.SpriteID { return k.r.NewSprite() }
 
 // SetupSystems returns no systems.
@@ -76,5 +83,5 @@ func (k *Kinds) SetupSystems() []goke.System { return nil }
 // LoadComps lists every component type the defined kinds give their entities, each once.
 func (k *Kinds) LoadComps() []goke.CompToken { return k.r.LoadComps() }
 
-// Persisted returns the kinds' and the tags' names by order, for Persistence.Save and Load.
+// Persisted is the kinds' and the tags' names by order, for the saves.
 func (k *Kinds) Persisted() []any { return k.r.Persisted() }

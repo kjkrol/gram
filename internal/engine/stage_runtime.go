@@ -12,9 +12,6 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// stageRuntime is one active Stage: its ecsHost, its world.Plugin if it installed one, the
-// carrier of its commands, and every Scene's layers, built once at entry and keyed by
-// Scene.Name().
 type stageRuntime struct {
 	host        *ecsHost
 	stage       game.Stage
@@ -23,8 +20,6 @@ type stageRuntime struct {
 	sceneLayers map[string][]render.Layer
 }
 
-// enterStage builds a Stage from scratch: a fresh ECS, Init, the save slot loaded — Loaded — or
-// Spawn, renderers, Setup.
 func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, error) {
 	host := newECSHost()
 
@@ -56,8 +51,7 @@ func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, erro
 		}
 	}
 
-	// the game's Update lays the tick out; the world's clock then replays what simulates as many
-	// times as its tempo says, none in the tactical pause
+	// the clock replays what simulates as many times as its tempo says, none in the pause
 	if ctx.world != nil {
 		clk := ctx.world.Clock()
 		host.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
@@ -85,8 +79,6 @@ func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, erro
 	return &stageRuntime{host: host, stage: stage, world: ctx.world, carrier: carrier, sceneLayers: sceneLayers}, nil
 }
 
-// checkLayers refuses a layer that is no Renderer: a scene's layers are drawn on the screen, the
-// world among them through a ui.Image of a render.Feed.
 func checkLayers(sc game.Scene, layers []render.Layer) error {
 	for _, l := range layers {
 		if _, ok := l.(render.Renderer); ok {
@@ -103,7 +95,6 @@ func checkLayers(sc game.Scene, layers []render.Layer) error {
 	return nil
 }
 
-// drawScene draws sc's layers on the screen, bottom to top.
 func (r *stageRuntime) drawScene(screen *render.Image, sc game.Scene) {
 	for _, l := range r.sceneLayers[sc.Name()] {
 		l.(render.Renderer).Draw(screen)

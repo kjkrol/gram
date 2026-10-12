@@ -15,8 +15,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// cellWorld is world + effects + board over a 4x4 grass board, with frost defined, casting from a
-// hook at the start of each tick; boardFirst runs the board's pass before the effects'.
 type cellWorld struct {
 	ecs     *goke.ECS
 	brd     *board.Plugin
@@ -83,7 +81,6 @@ func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
 	return cw
 }
 
-// castFrost queues a frost on the target's cell entity for the next tick and returns that entity.
 func (cw *cellWorld) castFrost() uid.UID64 {
 	id, _ := cw.brd.CellEntity(cw.target)
 	cw.casting = func(cb *goke.CmdBuf) { cw.fx.Cast(cb, id, cw.frost) }
@@ -94,7 +91,6 @@ func (cw *cellWorld) board() *board.Board { return cw.brd.Board() }
 
 func (cw *cellWorld) kind() cell.Kind { return cw.board().Kind(cw.target) }
 
-// cells counts the cell entities and how many of them still have Changed on.
 func (cw *cellWorld) cells() (n, changed int) {
 	for cw.plots.All(); cw.plots.Next(); {
 		cur := cw.plots.Cursor()
@@ -147,8 +143,6 @@ func TestCells_SetWritesTheEntityAtOnceAndCountsAChange(t *testing.T) {
 	}
 }
 
-// An effect on a cell's entity is an effect on the terrain, whichever plugin's pass runs first:
-// the Version moves when it lands and when it ends, the entity stays, and no Changed is left on.
 func TestCells_AnEffectOnTheEntityChangesTheTerrainAndIsCounted(t *testing.T) {
 	for name, boardFirst := range map[string]bool{"effects then board": false, "board then effects": true} {
 		t.Run(name, func(t *testing.T) {
@@ -183,8 +177,6 @@ func TestCells_AnEffectOnTheEntityChangesTheTerrainAndIsCounted(t *testing.T) {
 	}
 }
 
-// A cell's version grows with every change to it — its kind, its way, its heights, an effect on it
-// — and a change to another cell leaves it be.
 func TestBoard_CellVersionCountsTheChangesToOneCell(t *testing.T) {
 	cw := newCellWorld(t, false)
 	brd := cw.board()

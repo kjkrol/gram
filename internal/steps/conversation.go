@@ -7,19 +7,17 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Subject is a fact or a moment about another entity — whom it was struck by, who asked, whom it
-// touched: under a When, On or If of such a fact, an Ask, a Relay or an Aimed command speaks to
-// that entity, and in a rule of such a moment an Aimed command does; false for nobody just now.
+// Subject is a fact or a moment about another entity, whom an Ask, a Relay or an Aimed command
+// under it speaks to; false for nobody just now.
 type Subject interface{ Subject() (uid.UID64, bool) }
 
-// MaxChain is how many entities an ask passes through at most, the first asker among them: a
-// Relay past it, or back to one of them, is refused.
+// MaxChain is how many entities an ask passes through at most, the first asker among them.
 const MaxChain = 4
 
-// AskLife is how long an ask or an answer waits to be taken up; older, it is dropped.
+// AskLife is how long an ask or an answer waits to be taken up before it is dropped.
 const AskLife = 3 * time.Second
 
-// Chain is who an ask passed through before its asker, the first asker first.
+// Chain is who an ask passed through, the first asker first.
 type Chain struct {
 	Who   [MaxChain]uid.UID64
 	Links uint8
@@ -35,7 +33,6 @@ func (c Chain) Has(id uid.UID64) bool {
 	return false
 }
 
-// with is c with id on its end; false when full.
 func (c Chain) with(id uid.UID64) (Chain, bool) {
 	if int(c.Links) == MaxChain {
 		return c, false
@@ -45,8 +42,7 @@ func (c Chain) with(id uid.UID64) (Chain, bool) {
 	return c, true
 }
 
-// Asked is the fact of an ask for W: From who asks, Chain who it passed through before them, At
-// when it came, on the world's clock. It stays until answered — Agree, Refuse — or AskLife is up.
+// Asked is the fact of an ask for W on the entity asked, At on the world's clock.
 type Asked[W any] struct {
 	From  uid.UID64
 	Chain Chain
@@ -70,8 +66,7 @@ const (
 	Relayed
 )
 
-// Replied is the fact of an answer to the entity's ask for W: From who answers, Answer what, At
-// when. An Ask takes it up; left, it is dropped after AskLife.
+// Replied is the fact of an answer to the entity's ask for W.
 type Replied[W any] struct {
 	From   uid.UID64
 	Answer Answer
@@ -83,7 +78,6 @@ func (r Replied[W]) Subject() (uid.UID64, bool) { return r.From, true }
 
 func (r Replied[W]) at() time.Duration { return r.At }
 
-// aged is a fact that is dropped once AskLife is up.
 type aged interface{ at() time.Duration }
 
 func NewAsk[W any](name string, wait time.Duration, agreed Step, refused ...Step) Step {
@@ -93,7 +87,6 @@ func NewAsk[W any](name string, wait time.Duration, agreed Step, refused ...Step
 		make: func() exec { return &ask[W]{wait: wait} }}
 }
 
-// The stages of an Ask, in its slot.
 const (
 	asking uint8 = iota
 	agreedTo
@@ -119,7 +112,7 @@ func (a *ask[W]) enter(c *ctx, at int) {
 	}
 	a.replied.drop(c) // an old answer is none to this ask
 	if !a.asked.putOn(c, c.subject, Asked[W]{From: c.id, At: c.now}) {
-		c.mind.Slot[at] = refusedBy // nobody there to ask
+		c.mind.Slot[at] = refusedBy
 	}
 }
 
@@ -226,7 +219,7 @@ func (r *relay[W]) tick(c *ctx, at int, _ []int) Status {
 		switch a.Answer {
 		case Refused:
 			return Failure
-		default: // passed further on, or making way further on: the asker waits again
+		default: // passed further on: the asker waits again
 			if q := r.asked.of(c); q != nil {
 				r.replied.putOn(c, q.From, Replied[W]{From: c.id, Answer: Relayed, At: c.now})
 			}
@@ -235,7 +228,6 @@ func (r *relay[W]) tick(c *ctx, at int, _ []int) Status {
 	return Running
 }
 
-// conversed is the components of an ask for W, for the saves: the asks and the answers.
 func conversed[W any]() []goke.CompToken {
 	return []goke.CompToken{goke.LoadComp[Asked[W]](), goke.LoadComp[Replied[W]]()}
 }

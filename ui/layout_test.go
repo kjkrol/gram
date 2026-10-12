@@ -105,19 +105,15 @@ func TestHits_AHiddenElementIsHitByNothing(t *testing.T) {
 	}
 }
 
-// sized is a surface that notes the size it was given.
 type sized struct{ w, h int }
 
 func (s *sized) Resize(w, h int)   { s.w, s.h = w, h }
 func (*sized) Draw() *render.Image { return nil }
 
-// proportioned is a surface showing a world 4 wide and 3 high whole.
 type proportioned struct{ sized }
 
 func (*proportioned) Proportions() (float64, float64, bool) { return 4, 3, true }
 
-// An element asking for a Fraction keeps its share of the box as the box changes, the proportions
-// of the world its picture shows whole kept; a picture without them takes its share as asked.
 func TestFraction_KeepsTheShareAndThePictureItsProportions(t *testing.T) {
 	for _, box := range []geom.AABB{screen, geom.NewAABBAt(geom.NewVec(0, 0), 800, 1000)} {
 		minimap := &proportioned{}
@@ -167,7 +163,6 @@ func TestScene_ShowsHidesAndTogglesByName(t *testing.T) {
 	}
 }
 
-// counting is a picture that counts its Inits.
 type counting struct{ inits int }
 
 func (c *counting) Init(*goke.SysInit)                   { c.inits++ }
@@ -184,7 +179,6 @@ func TestScene_InitialisesAPictureOnceHoweverManyFeedsShowIt(t *testing.T) {
 	}
 }
 
-// straight is a surface that notes whether it was drawn straight onto the screen.
 type straight struct {
 	sized
 	onto bool

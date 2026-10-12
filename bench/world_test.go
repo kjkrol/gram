@@ -15,19 +15,13 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// mover is the row a moving 20x20 box spawns from.
 type mover struct{ x, y float64 }
 
-// benchWorld installs, on ctx, a world of n entities, 20x20 each on a 30-unit lattice, all
-// drifting right at 60 units a second across a 4000x4000 torus, and returns its ECS ready to tick
-// the world plugin alone.
 func benchWorld(b *testing.B, ctx *headless, n int) *goke.ECS {
 	return benchWorldViewed(b, ctx, n, 30, 0, nil)
 }
 
-// benchWorldViewed is benchWorld with the lattice spacing given, the camera's viewport set to
-// view x view (0 for the whole world) and arrange run over the world and its kind before the
-// Stage starts.
+// view 0: the whole world
 func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint32, arrange func(*world.Plugin, kind.Of[mover])) *goke.ECS {
 	b.Helper()
 	w := ctx.UseWorld(world.Config{
@@ -51,17 +45,15 @@ func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint
 	}
 	w.Seed(entries...)
 	ctx.cam = ctx.camera(cameras.TopDown(), float32(view), float32(view))
-	w.ViewFor(ctx.cam) // its View kept from the first tick, as a player's is
+	w.ViewFor(ctx.cam) // its View kept from the first tick
 	if arrange != nil {
 		arrange(w, movers)
 	}
 	return ctx.start(b, w.RunPlan)
 }
 
-// Benchmark_World_Draw composes one frame of the entity renderer — no screen, nothing drawn — over
-// 5000 boxes spread evenly across the world, with the camera viewing all of it, a quarter, or a
-// twentieth (so a quarter, or a twentieth, of the boxes). The world has ticked once, so its View
-// of the camera is filled; the frame only reads it.
+// Benchmark_World_Draw composes one frame of the entity renderer over 5000 boxes with the camera
+// viewing all of the world, a quarter or a twentieth.
 func Benchmark_World_Draw(b *testing.B) {
 	for _, v := range []struct {
 		name string
@@ -90,8 +82,7 @@ func Benchmark_World_Draw(b *testing.B) {
 	}
 }
 
-// Benchmark_World_Tick is one tick of the world plugin alone: steering, velocity, movement under
-// the edge rules, and the space rebuilt from every entity.
+// Benchmark_World_Tick is one tick of the world plugin alone.
 func Benchmark_World_Tick(b *testing.B) {
 	for _, n := range []int{1000, 5000} {
 		b.Run(entities(n), func(b *testing.B) {
@@ -104,8 +95,8 @@ func Benchmark_World_Tick(b *testing.B) {
 	}
 }
 
-// Benchmark_World_PositionScan reads every entity's Base through a goke query, chunk by chunk:
-// the floor under any system that walks the population.
+// Benchmark_World_PositionScan reads every entity's Base through a goke query, the floor under
+// any system that walks the population.
 func Benchmark_World_PositionScan(b *testing.B) {
 	for _, n := range []int{1000, 5000} {
 		b.Run(entities(n), func(b *testing.B) {

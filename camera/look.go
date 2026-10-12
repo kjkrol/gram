@@ -1,7 +1,6 @@
 package camera
 
-// MouseLooker is a camera whose eye, riding in an entity (Inside), may look round with the mouse:
-// off unless its Config says MouseLook or a command switches it on.
+// MouseLooker is a camera whose eye, riding Inside an entity, may look round with the mouse.
 type MouseLooker interface {
 	MouseLook() bool
 	SetMouseLook(on bool)

@@ -7,8 +7,7 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Reporter is the sky's line for a render.TelemetryRenderer: whether the light goes with the
-// calendar or stands frozen, and at what hour.
+// Reporter is the sky's line for a render.TelemetryRenderer.
 func (s *Sky) Reporter() render.Reporter { return reporter{s} }
 
 type reporter struct{ s *Sky }

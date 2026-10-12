@@ -19,8 +19,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// keptBoard is a board of 5 by 3 cells, the middle row's three inner cells under a raised deck
-// running west to east, and the walkers standing on it, each seeded on the cell at its x and y.
 type keptBoard struct {
 	g         grid.Grid
 	w         *world.Plugin
@@ -89,7 +87,6 @@ func newKeptBoard(t *testing.T, seeded ...[2]uint32) *keptBoard {
 
 func (k *keptBoard) tick() { k.ecs.Tick(time.Second / 60) }
 
-// each calls f with every walker's id, box, heights, cell and markers.
 func (k *keptBoard) each(f func(uid.UID64, *world.Base, *world.Z, *unit.At,
 	*tag.Tags[unit.States])) {
 	for k.units.All(); k.units.Next(); {
@@ -102,15 +99,12 @@ func (k *keptBoard) each(f func(uid.UID64, *world.Base, *world.Z, *unit.At,
 	}
 }
 
-// holders are the entities holding c.
 func (k *keptBoard) holders(c cell.ID) []uid.UID64 {
 	var ids []uid.UID64
 	k.occupancy.Holders(c, func(e uid.UID64, _ cell.Domain, _ bool) { ids = append(ids, e) })
 	return ids
 }
 
-// The board holds the cell a unit stands on under a raised deck on the level its feet are on: on
-// the deck while it stands there, on the ground once it has fallen off it into the same cell.
 func TestOccupancy_HoldsAUnitsCellOnTheLevelOfItsFeet(t *testing.T) {
 	k := newKeptBoard(t, [2]uint32{2, 1})
 	mid := k.g.At(2, 1)
@@ -133,7 +127,6 @@ func TestOccupancy_HoldsAUnitsCellOnTheLevelOfItsFeet(t *testing.T) {
 	}
 }
 
-// A unit spawned in the game holds the cell it stands on from its first step.
 func TestOccupancy_HoldsTheCellOfAUnitSpawnedInTheGame(t *testing.T) {
 	k := newKeptBoard(t)
 	k.tick()
@@ -150,8 +143,6 @@ func TestOccupancy_HoldsTheCellOfAUnitSpawnedInTheGame(t *testing.T) {
 	})
 }
 
-// A unit moved into another cell by none who keeps its cell — pushed, thrown, a game's own system
-// — is At the cell it stands on, holds it, has let go of the one it left and has entered.
 func TestOccupancy_FollowsAUnitMovedByNoneWhoKeepsItsCell(t *testing.T) {
 	k := newKeptBoard(t, [2]uint32{1, 0})
 	from := k.g.At(1, 0)
@@ -177,8 +168,6 @@ func TestOccupancy_FollowsAUnitMovedByNoneWhoKeepsItsCell(t *testing.T) {
 	}
 }
 
-// A unit standing in a cell it holds besides its own — the one a step of it goes to — is left
-// where it is At: whoever leads it there moves it.
 func TestOccupancy_LeavesAUnitInACellItHolds(t *testing.T) {
 	k := newKeptBoard(t, [2]uint32{1, 0})
 	from := k.g.At(1, 0)

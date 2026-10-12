@@ -21,10 +21,8 @@ type fordRow struct {
 	Way [2]int  `yaml:"way"`
 }
 
-// check lays the map — its units left out, the game's — on a board as a game would and runs it a
-// step, its bridges built by the bridges plugin as the demos build them, by the rules a road's
-// bridges were planned by, so a road lying where no road may, a bridge where none may stand, or
-// anything else a board refuses, fails here.
+// check lays the map on a board as a game would and runs it a step: what a board refuses fails
+// here.
 func (w *chart) check(data []byte) (err error) {
 	units := w.r.Area.Units
 	wp := world.NewPlugin(world.Config{
@@ -116,7 +114,6 @@ func (w *chart) check(data []byte) (err error) {
 	return nil
 }
 
-// installer is the plugin.Installer a Stage would hand over, minus the engine.
 type installer struct {
 	ecs     *goke.ECS
 	pending []func() []goke.System

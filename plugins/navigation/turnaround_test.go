@@ -21,15 +21,14 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// The scene of the reported bug: a wall column on the left, a red unit standing still, a blue
-// unit above it ordered below it and, on its way past, ordered back to where it started.
+// the scene of the reported bug: a wall column on the left, a red unit standing still, a blue
+// unit above it ordered below it and, on its way past, ordered back to where it started
 type unitRow struct {
 	start   cell.ID
 	target  cell.ID
 	ordered bool
 }
 
-// turnaroundWorld is world + collision + board + navigation over a 3x4 board, as the demo runs them.
 type turnaroundWorld struct {
 	t     *testing.T
 	grid  grid.Grid
@@ -143,7 +142,6 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 
 func (tw *turnaroundWorld) at(x, y uint32) cell.ID { c := tw.grid.At(x, y); return c }
 
-// blueState is the blue unit's cell, its order if any, and its route.
 func (tw *turnaroundWorld) blueState() (cell cell.ID, mt *MoveOrder) {
 	for tw.q.All(); tw.q.Next(); {
 		cur := tw.q.Cursor()
@@ -161,7 +159,7 @@ func (tw *turnaroundWorld) blueState() (cell cell.ID, mt *MoveOrder) {
 	return
 }
 
-// runTurnaround orders blue back home after `after` ticks on its way down and reports how it went.
+// blue is ordered back home after `after` ticks on its way down
 func runTurnaround(t *testing.T, collide bool, after int) (replans int, err string) {
 	t.Helper()
 	tw := newTurnaroundWorld(t, collide)

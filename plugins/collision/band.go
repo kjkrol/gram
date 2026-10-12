@@ -6,11 +6,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// Band is a stretch of height, Bottom to Top: an entity's (its Z) or a solid cell's (from below
-// up to its Height over the ground). Everywhere is every height: an entity without a Z or with no
-// Height, a solid cell with no Height, a flat world — whatever does not say how high it is meets
-// everything, as Layers 0 meets every plane. Only a world with heights asks. An entity's Step is
-// how high it steps up: a deck's slab no higher over its feet is stepped onto, not struck.
+// Band is a stretch of height, Bottom to Top, an entity's or a solid cell's; Step is how high an
+// entity steps up. Whatever does not say how high it is spans Everywhere.
 type Band struct{ Bottom, Top, Step float64 }
 
 // Everywhere is the band of every height.

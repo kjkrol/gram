@@ -12,10 +12,10 @@ import (
 // game reaches it (Config.Perspective), from above again; a camera of another view stays as it is.
 type View struct{ Camera camera.Camera }
 
-// LookFrom puts Camera's eye at the world point (X, Y, Z), looking at the ground point in the
-// middle of the screen still, in perspective: a camera in another view goes into the perspective
-// one first, where the game reaches it, and stays as it is where not. The eye is put exactly
-// there, below the pitch floor too, until the next Tilt.
+// LookFrom puts Camera's eye at the world point (X, Y, Z) in perspective, still looking at the
+// ground point in the middle of the screen; a camera of another view goes into the perspective
+// first, or stays as it is where the game has none. The eye is put exactly there, below the pitch
+// floor too, until the next Tilt.
 type LookFrom struct {
 	Camera  camera.Camera
 	X, Y, Z float32
@@ -28,31 +28,21 @@ type LookAt struct {
 	X, Y, Z float32
 }
 
-// Look has Camera, riding in an entity, look round by a move of the mouse, Dx and Dy pixels:
-// across turns the entity to face where the eye looks, and the view with it at once, up and down
-// raise and lower the head, a seventh of a degree a pixel. A camera riding in nothing stays as it is.
+// Look has Camera, riding in an entity, look round by a move of the mouse of Dx and Dy pixels:
+// across turns the entity, up and down the head, a seventh of a degree a pixel. A camera riding
+// in nothing stays as it is.
 type Look struct {
 	Camera camera.Camera
 	Dx, Dy float32
 }
 
-// Ride takes Camera closer round the entity it is fastened to (the players' Follow, C): fastened
-// over it (camera.Centred), behind it — centred on it at its altitude and turned so that the way it
-// walks runs up the screen, from then on whatever else is done or selected — then, where the game
-// reaches the perspective (Config.Perspective), inside it, first person (camera.Inside): the eye at
-// the entity's centre, its altitude and as high as it stands, kept there as the entity goes and
-// looking the way it faces — world.Base's Vel.Dir, kept when it stops; the axis of its sight where
-// the game points the sight that way — in perspective as LookFrom; and over it again. Riding, the
-// driving's keys steer the entity (plugins/driving: W, S, A and D there; the arrows behind it), Look turns it and
-// raises and lowers the head into the sky and down to the feet (the mouse there) — one that flies
-// climbing and diving along the look as it goes — Zoom narrows the field of view, Turn does
-// nothing. The eye rides at the entity's eye, over the top of the cell it stands on. View (Tab)
-// takes an eye inside out again, over the entity; LookFrom and LookAt let go of everything first.
-// A camera fastened to nothing stays as it is.
+// Ride takes Camera closer round the entity it is fastened to: over it (camera.Centred), behind
+// it (camera.Behind), inside it in first person where the game reaches the perspective
+// (camera.Inside), and over it again. A camera fastened to nothing stays as it is.
 type Ride struct{ Camera camera.Camera }
 
-// Turn turns Camera by Angle radians, the world clockwise on the screen, keeping the ground point in
-// the middle of the screen where it is; a camera of another view stays as it is.
+// Turn turns Camera by Angle radians, the world clockwise on the screen, keeping the ground
+// point in the middle of the screen where it is; a camera of another view stays as it is.
 type Turn struct {
 	Camera camera.Camera
 	Angle  float32
@@ -84,14 +74,13 @@ var (
 	_ control.Command = Tilt{}
 )
 
-// TurnStep is how far Q and E turn the view a tick they are held: two degrees; TiltStep how far
-// R and F tilt it: one.
+// TurnStep is how far Q and E turn the view a tick they are held, in radians; TiltStep how far
+// R and F tilt it.
 const (
 	TurnStep = math.Pi / 90
 	TiltStep = math.Pi / 180
 )
 
-// cameraQueues are where the cameras' commands land, read by the cameras as their Orders.
 type cameraQueues struct {
 	turns     control.Queue[Turn]
 	tilts     control.Queue[Tilt]
@@ -104,7 +93,6 @@ type cameraQueues struct {
 
 var _ icameras.Orders = (*cameraQueues)(nil)
 
-// queues are the cameras' commands' queues.
 func (q *cameraQueues) queues() []control.CommandQueue {
 	return []control.CommandQueue{&q.turns, &q.tilts, &q.rides, &q.views, &q.lookFroms, &q.lookAts, &q.looks}
 }
@@ -137,12 +125,6 @@ func (q *cameraQueues) Looks(fn func(cam camera.Camera, dx, dy float32)) {
 	q.looks.Drain(func(i control.Issued[Look]) { fn(i.Command.Camera, i.Command.Dx, i.Command.Dy) })
 }
 
-// cameraBindings switch the player's view on Tab, turn the camera while Q or E is held, raise its
-// head while R is and bow it while F is, outside any entity (camera.Outside); V takes the camera
-// closer round the unit it follows (Ride): behind it, inside it where the game reaches the
-// perspective, over it again. Riding inside, the mouse looks round where the camera looks by mouse
-// (camera.MouseLooks: camera.Config.MouseLook, cameras.MouseLook), Tab leaves, Q, E, R and F do
-// nothing, and the driving's keys (W, S, A and D) drive the unit.
 func cameraBindings(perspective bool) []control.Binding {
 	turn := func(angle float32) func(control.Context) (Turn, bool) {
 		return func(c control.Context) (Turn, bool) { return Turn{Camera: c.Camera, Angle: angle}, true }

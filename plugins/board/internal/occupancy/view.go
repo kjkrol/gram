@@ -13,8 +13,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// View draws the cells an Occupancy holds while shown: every hold its cell's outline drawn a little
-// inside it, at its level — the ground, or the raised deck over it — in its holder's colour.
+// View draws the cells an Occupancy holds while shown: every hold its cell's outline, at its
+// level, in its holder's colour.
 type View struct {
 	grid      grid.Grid
 	occupancy cell.Occupancy
@@ -34,7 +34,7 @@ type Height func(c cell.ID, p geom.Vec, deck bool) float64
 
 const (
 	holdWidth = 2
-	// how far in a hold's outline is drawn, of the way to the cell's middle: the deck's further
+	// of the way to the cell's middle; a deck's further in
 	groundInset = 0.12
 	deckInset   = 0.26
 )
@@ -93,7 +93,7 @@ func (v *View) drawHold(e uid.UID64, _ cell.Domain, deck bool) {
 	}
 }
 
-// holderColor is e's own colour: hues a golden angle apart by its index, so neighbours differ.
+// hues a golden angle apart by index, so neighbours differ
 func holderColor(e uid.UID64) color.RGBA {
 	h := math.Mod(float64(e.Index())*0.618033988749895, 1) * 6
 	x := 1 - math.Abs(math.Mod(h, 2)-1)
@@ -115,7 +115,6 @@ func holderColor(e uid.UID64) color.RGBA {
 	return color.RGBA{R: uint8(60 + 195*r), G: uint8(60 + 195*g), B: uint8(60 + 195*b), A: 255}
 }
 
-// lighter is c halfway to white.
 func lighter(c color.RGBA) color.RGBA {
 	return color.RGBA{R: c.R/2 + 128, G: c.G/2 + 128, B: c.B/2 + 128, A: c.A}
 }

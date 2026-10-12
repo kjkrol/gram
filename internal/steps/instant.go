@@ -10,21 +10,18 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Pass is what a rule is told of the pass it fires in: the carrier its commands go to, the world's
-// effects, the tick's length, the game time the step ends at, the world's seed and own entity,
-// and the places round a moment, its system's to say.
+// Pass is what a rule is told of the pass it fires in.
 type Pass struct {
 	Commands *control.Carrier
 	Effects  *effect.Effects
 	Dt       time.Duration
-	Time     time.Duration
+	Time     time.Duration // game time at the step's end
 	Seed     uint64
-	World    uid.UID64
+	World    uid.UID64 // the world's own entity
 	Around   func(moment any, rings int, each func(uid.UID64))
-	Roles    func(id uid.UID64) uint64 // the roles an entity plays, a bit each
+	Roles    func(id uid.UID64) uint64 // a bit a role
 }
 
-// rolesOf is the roles id plays: the plans' lookup, or the one the rule's pass was given.
 func (c *ctx) rolesOf(id uid.UID64) uint64 {
 	roles := c.pass.Roles
 	if c.sys != nil {
@@ -36,7 +33,6 @@ func (c *ctx) rolesOf(id uid.UID64) uint64 {
 	return roles(id)
 }
 
-// effects is the world's effects: the plans' own, or those the rule's pass was given.
 func (c *ctx) effects() *effect.Effects {
 	if c.sys != nil {
 		return c.sys.effects
@@ -44,26 +40,22 @@ func (c *ctx) effects() *effect.Effects {
 	return c.pass.Effects
 }
 
-// instantExec is a step a rule may run: done within its pass, keeping nothing.
 type instantExec interface{ instant() }
 
-// momentExec is a step that runs on some moments alone: refuses says why not on the one payload
-// points to, empty where it runs.
+// refuses says why not on the moment payload points to, empty where it runs
 type momentExec interface{ refuses(payload any) string }
 
-// placed is a moment standing on places of their own (plugin.Placed).
 type placed interface{ Placed() }
 
-// Instant is a rule laid out for running at a moment, every step of it done within the pass; its
-// mind is scratch, every step entered afresh each firing.
+// Instant is a rule laid out for running at a moment, every step of it done within the pass.
 type Instant struct {
 	tree *tree
 	mind Mind
 	c    ctx
 }
 
-// NewInstant lays root out as the rule named name, run on the moment payload points to; it panics
-// on a step that lasts over ticks and on one the moment cannot run.
+// NewInstant lays root out as the rule named name, run on the moment payload points to. It
+// panics on a step that lasts over ticks or one the moment cannot run.
 func NewInstant(name string, root Step, payload any) *Instant {
 	r := &Instant{tree: layOut(name, root)}
 	for i, n := range r.tree.nodes {
@@ -81,11 +73,10 @@ func NewInstant(name string, root Step, payload any) *Instant {
 	return r
 }
 
-// subject is a moment that names whom it is about, or nobody just now.
 type subject interface{ Subject() (uid.UID64, bool) }
 
-// Fire runs the rule once: for id when entity says it acts for one, an Aimed command of it at
-// subject when about.
+// Fire runs the rule once for id (entity false: for nobody), an Aimed command of it at subject
+// when about.
 func (r *Instant) Fire(p Pass, cb *goke.CmdBuf, id uid.UID64, entity bool, subject uid.UID64, about bool) {
 	c := &r.c
 	c.pass, c.cb, c.prev, c.next = p, cb, StepSet{}, StepSet{}
@@ -93,8 +84,8 @@ func (r *Instant) Fire(p Pass, cb *goke.CmdBuf, id uid.UID64, entity bool, subje
 	c.run(0)
 }
 
-// NewForOther runs step on each of the others the moment met — or on its subject, for a moment of
-// one entity naming one — in place of the entity.
+// NewForOther runs step on each of the others the moment met, or on its subject, in place of
+// the entity.
 func NewForOther(step Step) Step {
 	return composite{kids: []Step{step}, sign: "forother", make: func() exec { return forOther{} }}
 }
@@ -104,7 +95,6 @@ func NewAround(rings int, step Step) Step {
 	return composite{kids: []Step{step}, sign: fmt.Sprintf("around(%d)", rings), make: func() exec { return around{rings: rings} }}
 }
 
-// met is a moment of one entity with others.
 type met interface{ Whom(each func(uid.UID64)) }
 
 type around struct {

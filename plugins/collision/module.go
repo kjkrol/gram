@@ -12,7 +12,6 @@ import (
 
 var _ goke.Module = (*module)(nil)
 
-// module is the optional collision engine, run over a *aabbworld.Space borrowed from world.
 type module struct {
 	space *aabbworld.Space
 	ecs   *goke.ECS
@@ -22,11 +21,11 @@ type module struct {
 
 	system  goke.Runnable
 	fieldOf func() Field
-	heights bool // the world has heights: the system minds every Band
+	heights bool
 	stats   *ContactStats
 	log     *log.Logger
-	clock   *clock.Clock      // the world's; nil, run at once
-	tick    plugin.TickSource // the world's, for the rules
+	clock   *clock.Clock
+	tick    plugin.TickSource
 	built   bool
 }
 
@@ -34,18 +33,12 @@ func newModule(space *aabbworld.Space, ecs *goke.ECS, pairs *plugin.PairRules[Me
 	return &module{space: space, ecs: ecs, pairs: pairs, entities: entities}
 }
 
-// =================================================================
-// goke.Module contract
-// =================================================================
-
-// RegSystems builds and registers the collision systems — see [goke.Module].
 func (m *module) RegSystems(ecs *goke.ECS) {
 	if !m.built {
 		m.build()
 	}
 }
 
-// RunPlan hands the collisions to the simulation: every step, the pairs meet and are pushed apart.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
 		ctx.Run(m.system, step)
@@ -53,10 +46,8 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	})
 }
 
-// SetupSystems is empty — the collision engine has no one-time seeding of its own.
 func (m *module) SetupSystems() []goke.System { return nil }
 
-// LoadComps lists the component types the collision engine owns — see [goke.CompProvider].
 func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{
 		goke.LoadComp[Collider](),
@@ -64,10 +55,6 @@ func (m *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[Sweep](),
 	}
 }
-
-// =================================================================
-// collision-specific
-// =================================================================
 
 func (m *module) build() {
 	s := newCollisionSystem(m.space, m.pairs, m.entities, m.fieldOf)

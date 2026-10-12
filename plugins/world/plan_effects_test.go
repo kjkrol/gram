@@ -16,10 +16,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
-	"github.com/kjkrol/gram/rule/plan"
 )
 
-// effectStage spawns one entity whose plan plan writes with the world's effects.
 type effectStage struct {
 	plan  func(fx *effect.Effects) *written
 	world *world.Plugin
@@ -64,13 +62,10 @@ func (g *effectStage) Stack() game.Scenes {
 	return g.stack
 }
 
-// tally is what a stacking effect counts on the stage's entity, once for each of it running.
 type tally struct{ N int }
 
-// counting is the Alter of an effect counting itself in the entity's tally.
 var counting = effect.Alter(func(t *tally) { t.N++ })
 
-// under reports whether the stage's one entity is under e: its marker on.
 func (g *effectStage) under(e effect.Effect) bool {
 	for g.query.All(); g.query.Next(); {
 		if m := g.marks.Slice(g.query.Cursor()); m != nil {
@@ -80,7 +75,6 @@ func (g *effectStage) under(e effect.Effect) bool {
 	return false
 }
 
-// tallied is how many of the counting effects the stage's entity runs.
 func (g *effectStage) tallied() int {
 	for g.query.All(); g.query.Next(); {
 		return g.tally.Slice(g.query.Cursor())[0].N
@@ -88,7 +82,6 @@ func (g *effectStage) tallied() int {
 	return 0
 }
 
-// run starts the stage's engine.
 func run(t *testing.T, g *effectStage) *engine.Engine {
 	t.Helper()
 	e := engine.NewEngine(oneStageGame{stage: g, props: game.Props{}})
@@ -108,17 +101,15 @@ func step(t *testing.T, e *engine.Engine, d time.Duration) {
 	}
 }
 
-// Keep holds an effect as long as its branch runs, and takes it off when the branch gives way.
 func TestPlan_KeepHoldsAnEffectAsLongAsItsBranchRuns(t *testing.T) {
 	var held effect.Effect
 	g := &effectStage{plan: func(fx *effect.Effects) *written {
 		fx.Define("held", effect.Spec{})
 		held = fx.Named("held")
-		return write("hold a while", func(a *plan.Actor) rule.Step {
-			return a.Steps(
-				a.Not(a.Timeout(300*time.Millisecond, a.Keep(held))),
-				a.Wait(time.Hour))
-		})
+		return write("hold a while", rule.Steps(
+			rule.Invert(rule.Timeout(300*time.Millisecond, rule.Keep(held))),
+			rule.Wait(time.Hour),
+		))
 	}}
 	e := run(t, g)
 	step(t, e, 150*time.Millisecond)
@@ -131,20 +122,15 @@ func TestPlan_KeepHoldsAnEffectAsLongAsItsBranchRuns(t *testing.T) {
 	}
 }
 
-// Unless keeps a memory in an effect: the tally is added only while the mark is not on, so at
-// most once a mark's while.
-func TestPlan_UnlessKeepsItsMemoryInAnEffect(t *testing.T) {
+func TestPlan_OnceKeepsItsMemoryInAnEffect(t *testing.T) {
 	var marked, tallying effect.Effect
 	g := &effectStage{plan: func(fx *effect.Effects) *written {
 		fx.Define("marked", effect.Spec{effect.Lasts(400 * time.Millisecond)})
 		marked = fx.Named("marked")
 		fx.Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
 		tallying = fx.Named("tally")
-		return write("tally once a while", func(a *plan.Actor) rule.Step {
-			return a.OneOf(
-				a.Unless(marked, a.Steps(a.Apply(marked), a.Apply(tallying))),
-				a.Idle())
-		})
+		return write("tally once a while",
+			rule.OneOf(rule.Once(marked, rule.Apply(tallying)), rule.Idle()))
 	}}
 	e := run(t, g)
 	step(t, e, time.Second)

@@ -8,25 +8,20 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/gram/rule/effect"
-	"github.com/kjkrol/gram/rule/plan"
 )
 
-// hookGlow has the world's units obey a rule keeping glow on while it fires, then a rule dispelling it at
-// the steps douse says — with shield, the dispeller casts it first and the keeper keeps off it.
 func hookGlow(r *rig, glow, shield effect.Effect, douse *bool) {
 	keep, put := rule.Keep(glow), rule.Dispel(glow)
 	if shield != (effect.Effect{}) {
-		keep = rule.Unless(shield, rule.Keep(glow))
+		keep = rule.Branch[any]{When: rule.Free(shield), Do: rule.Keep(glow)}
 		put = rule.Steps(rule.Apply(shield), rule.Dispel(glow))
 	}
 	dousing := func(world.Moving) bool { return *douse }
 	r.rules = append(r.rules,
-		rule.Then[world.Moving]("glow", rule.All, keep),
-		rule.Then[world.Moving]("douse", rule.All, rule.If(dousing, put)))
+		rule.Branch[world.Moving]{Name: "glow", Do: keep},
+		rule.Branch[world.Moving]{Name: "douse", When: dousing, Do: put})
 }
 
-// A rule's Dispel takes off an effect another rule keeps; the keeper, its cause going on, has it
-// back the step after.
 func TestRule_DispelTakesOffWhatAnotherRuleKeepsTillItsNextStep(t *testing.T) {
 	var glow effect.Effect
 	douse := false
@@ -52,7 +47,6 @@ func TestRule_DispelTakesOffWhatAnotherRuleKeepsTillItsNextStep(t *testing.T) {
 	}
 }
 
-// A shield the dispeller casts, which the keeper keeps off, lets the dispeller win while it lasts.
 func TestRule_AShieldLetsTheDispellerWin(t *testing.T) {
 	var glow, shield effect.Effect
 	douse := false
@@ -82,15 +76,16 @@ func TestRule_AShieldLetsTheDispellerWin(t *testing.T) {
 	}
 }
 
-// A plan's Dispel takes an effect off the actor.
 func TestPlan_DispelTakesAnEffectOff(t *testing.T) {
 	var glow effect.Effect
 	r := newRig(t, true, func(r *rig) {
 		r.fx.Define("glow", effect.Spec{})
 		glow = r.fx.Named("glow")
-		r.comps = append(r.comps, asPlan(r.w, "douse in a while", func(a *plan.Actor) rule.Step {
-			return a.Steps(a.Wait(3*tick), a.Dispel(glow), a.Idle())
-		}))
+		r.comps = append(r.comps, asPlan(r.w, "douse in a while", rule.Steps(
+			rule.Wait(3*tick),
+			rule.Dispel(glow),
+			rule.Idle(),
+		)))
 	})
 	r.cast(glow)
 	r.tick()
@@ -105,8 +100,6 @@ func TestPlan_DispelTakesAnEffectOff(t *testing.T) {
 	}
 }
 
-// A plan's Keep gives way when someone else takes its effect off: the branch fails and the plan
-// goes on, the effect left off.
 func TestPlan_KeepGivesWayWhenSomeoneElseDispels(t *testing.T) {
 	var glow, gaveWay effect.Effect
 	r := newRig(t, true, func(r *rig) {
@@ -114,9 +107,11 @@ func TestPlan_KeepGivesWayWhenSomeoneElseDispels(t *testing.T) {
 		glow = r.fx.Named("glow")
 		r.fx.Define("gave way", effect.Spec{})
 		gaveWay = r.fx.Named("gave way")
-		r.comps = append(r.comps, asPlan(r.w, "glow till doused", func(a *plan.Actor) rule.Step {
-			return a.Steps(a.Not(a.Keep(glow)), a.Apply(gaveWay), a.Idle())
-		}))
+		r.comps = append(r.comps, asPlan(r.w, "glow till doused", rule.Steps(
+			rule.Invert(rule.Keep(glow)),
+			rule.Apply(gaveWay),
+			rule.Idle(),
+		)))
 	})
 	for range 3 {
 		r.tick()
@@ -133,8 +128,6 @@ func TestPlan_KeepGivesWayWhenSomeoneElseDispels(t *testing.T) {
 	}
 }
 
-// A command for entity.World puts an effect on the world; a rule's During runs its step while the
-// world is under it, and a plan's alike.
 func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 	for _, planned := range []bool{false, true} {
 		var lever, open effect.Effect
@@ -144,12 +137,17 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 			r.fx.Define("open", effect.Spec{})
 			open = r.fx.Named("open")
 			if planned {
-				r.comps = append(r.comps, asPlan(r.w, "open while pulled", func(a *plan.Actor) rule.Step {
-					return a.OneOf(a.During(lever, a.Keep(open)), a.Idle())
-				}))
+				r.comps = append(r.comps, asPlan(r.w, "open while pulled", rule.OneOf(
+					rule.Branch[any]{When: rule.During(lever), Do: rule.Keep(open)},
+					rule.Idle(),
+				)))
 				return
 			}
-			r.rules = append(r.rules, rule.Then[world.Moving]("open while pulled", rule.All, rule.During(lever, rule.Keep(open))))
+			r.rules = append(r.rules, rule.Branch[world.Moving]{
+				Name: "open while pulled",
+				When: rule.During(lever),
+				Do:   rule.Keep(open),
+			})
 		})
 		if err := r.w.Carry(r.w); err != nil {
 			t.Fatal(err)
@@ -160,7 +158,7 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 			t.Fatalf("planned %v: open before the lever was pulled", planned)
 		}
 		r.w.Carrier().Put(1, rule.Cast(lever).On(entity.World))
-		r.tick() // the lever is put on the world, which carries its markers from the start
+		r.tick()
 		r.tick()
 		if !r.fx.Has(r.id, open) || !r.fx.Has(r.w.Clock().Entity(), lever) {
 			t.Fatalf("planned %v: lever on the world %v, open %v; want both", planned, r.fx.Has(r.w.Clock().Entity(), lever), r.fx.Has(r.id, open))
@@ -174,8 +172,4 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 	}
 }
 
-// asPlan defines a plan in w and hands back the component of an entity following it.
-func asPlan(w *world.Plugin, name string, body func(a *plan.Actor) rule.Step) comp.Comp {
-	w.Plans().Define(name, body)
-	return w.Plans().Named(name)
-}
+func asPlan(_ *world.Plugin, name string, root rule.Step) comp.Comp { return rule.Plan(name, root) }

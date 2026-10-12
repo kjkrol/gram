@@ -8,9 +8,6 @@ import (
 	"github.com/kjkrol/gram/control"
 )
 
-// eventHandler is players' layer from input to commands: it matches this pass's device events
-// against every local player's bindings and issues what they build. Keys reach every local player;
-// the mouse reaches the one whose part of the screen it is over, in the pixels of that part.
 type eventHandler struct{ p *Plugin }
 
 var _ control.EventHandler = eventHandler{}
@@ -18,8 +15,7 @@ var _ control.EventHandler = eventHandler{}
 func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 	t.p.tools()
 	mods := control.Mods{Shift: ev.Modifiers.Shift, Ctrl: ev.Modifiers.Ctrl, Alt: ev.Modifiers.Alt}
-	// the cursor is captured while a camera rides in an entity: the pass it is caught or let go
-	// the cursor jumps, so no move is taken from it
+	// the pass the cursor is caught or let go it jumps: no move is taken from it
 	settled := t.p.capture()
 	for _, pl := range t.p.Locals() {
 		under := covers(pl, ev.MousePos)
@@ -95,8 +91,6 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 	}
 }
 
-// fire issues the command of every binding of pl on trigger that fires however pl's camera is
-// fastened and with what pl holds, and builds one.
 func (t eventHandler) fire(pl *Player, trigger control.Trigger, ctx control.Context) {
 	how := camera.HowOf(pl.pic.camera)
 	for _, b := range pl.bindings {
@@ -111,8 +105,6 @@ func (t eventHandler) fire(pl *Player, trigger control.Trigger, ctx control.Cont
 	}
 }
 
-// hold issues, for every local player, the command of each KeyHeld binding whose key is down and
-// of its CursorOver bindings while the cursor lay over its picture, as of its last input pass.
 func (t eventHandler) hold() {
 	for _, pl := range t.p.Locals() {
 		for _, key := range pl.in.steering {
@@ -124,14 +116,13 @@ func (t eventHandler) hold() {
 	}
 }
 
-// input is what the event handler has seen of one player's keys and buttons.
 type input struct {
-	cursor   geom.Vec                         // in the pixels of the player's part of the screen
-	held     map[control.MouseButton]geom.Vec // buttons down and where they went down
-	keys     []control.Key                    // keys down that some binding holds, last pressed last
-	steering []control.Key                    // keys down that some KeyHeld binding is on
-	last     control.Context                  // the context of the last input pass
-	over     bool                             // the cursor lay over the player's picture at the last pass
+	cursor   geom.Vec // in the player's picture's pixels
+	held     map[control.MouseButton]geom.Vec
+	keys     []control.Key
+	steering []control.Key
+	last     control.Context
+	over     bool
 }
 
 func (in *input) press(button control.MouseButton, at geom.Vec) {
@@ -141,14 +132,12 @@ func (in *input) press(button control.MouseButton, at geom.Vec) {
 	in.held[button] = at
 }
 
-// release forgets the button and reports where it went down, if it was down.
 func (in *input) release(button control.MouseButton) (geom.Vec, bool) {
 	at, down := in.held[button]
 	delete(in.held, button)
 	return at, down
 }
 
-// keyDown notes key as held when one of bindings asks for it held.
 func (in *input) keyDown(bindings []control.Binding, key control.Key) {
 	if !holds(bindings, key) {
 		return
@@ -157,14 +146,12 @@ func (in *input) keyDown(bindings []control.Binding, key control.Key) {
 	in.keys = append(in.keys, key)
 }
 
-// keyUp forgets key as held.
 func (in *input) keyUp(key control.Key) {
 	if i := slices.Index(in.keys, key); i >= 0 {
 		in.keys = slices.Delete(in.keys, i, i+1)
 	}
 }
 
-// steer notes key as down when a KeyHeld binding is on it, or forgets it.
 func (in *input) steer(bindings []control.Binding, key control.Key, down bool) {
 	if i := slices.Index(in.steering, key); i >= 0 {
 		in.steering = slices.Delete(in.steering, i, i+1)
@@ -180,7 +167,6 @@ func (in *input) steer(bindings []control.Binding, key control.Key, down bool) {
 	}
 }
 
-// withHeld is mods with the last held key the bindings ask for, if one is down.
 func (in *input) withHeld(mods control.Mods) control.Mods {
 	if len(in.keys) == 0 {
 		return mods
@@ -188,7 +174,6 @@ func (in *input) withHeld(mods control.Mods) control.Mods {
 	return mods.Holding(in.keys[len(in.keys)-1])
 }
 
-// holds reports whether one of bindings asks for key held down.
 func holds(bindings []control.Binding, key control.Key) bool {
 	for _, b := range bindings {
 		var mods control.Mods
@@ -209,7 +194,6 @@ func holds(bindings []control.Binding, key control.Key) bool {
 	return false
 }
 
-// screenOf is the size of pl's picture, in pixels: its camera's screen, else its area's.
 func screenOf(pl *Player) geom.Vec {
 	if cam := pl.pic.camera; cam != nil {
 		w, h := cam.Viewport()
@@ -218,8 +202,6 @@ func screenOf(pl *Player) geom.Vec {
 	return pl.pic.area.BottomRight.Sub(pl.pic.area.TopLeft)
 }
 
-// covers reports whether the screen point at is in pl's picture; an area of zero is all of the
-// screen, and a player acting through no picture has none.
 func covers(pl *Player, at geom.Vec) bool {
 	if pl.pic.camera == nil {
 		return false
@@ -228,7 +210,6 @@ func covers(pl *Player, at geom.Vec) bool {
 	return a == (geom.AABB{}) || at.X >= a.TopLeft.X && at.X < a.BottomRight.X && at.Y >= a.TopLeft.Y && at.Y < a.BottomRight.Y
 }
 
-// localPoint is the screen point at in the pixels of pl's part of the screen.
 func localPoint(pl *Player, at geom.Vec) geom.Vec {
 	return geom.NewVec(at.X-pl.pic.area.TopLeft.X, at.Y-pl.pic.area.TopLeft.Y)
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// roles is the family of tags this test names; hunter and hunted are two of its bits.
 type roles struct{}
 
 const (
@@ -20,10 +19,8 @@ const (
 
 type hostBody struct{ N int }
 
-// sighting is a made-up host's description of a pair: who looks at whom.
 type sighting struct{ from, to uid.UID64 }
 
-// hostOf builds a host with rules registered, a hunter, a hunted, and what each carries.
 func hostOf(t *testing.T, rules ...any) (h *plugin.PairRules[sighting], hunterMarks, huntedMarks plugin.Marks, pair sighting) {
 	t.Helper()
 	h = &plugin.PairRules[sighting]{}
@@ -79,7 +76,6 @@ func TestPairRules_Dispatch_KeepsTheDirection(t *testing.T) {
 	}
 }
 
-// A pair with no direction is handed over whichever way round the tags fit.
 func TestPairRules_DispatchEitherWay_FindsTheFit(t *testing.T) {
 	var got []sighting
 	h, hunterMarks, huntedMarks, pair := hostOf(t, recording(&got))
@@ -92,7 +88,6 @@ func TestPairRules_DispatchEitherWay_FindsTheFit(t *testing.T) {
 	}
 }
 
-// The same tag on both sides matches either way round, and runs once.
 func TestPairRules_DispatchEitherWay_SameTagRunsOnce(t *testing.T) {
 	var got []sighting
 	h, hunterMarks, _, pair := hostOf(t, pairRule(hunter, hunter, func(_ plugin.Tick, s sighting) { got = append(got, s) }))
@@ -125,7 +120,6 @@ func TestPairRules_Add_RefusesARuleMadeForAnotherHost(t *testing.T) {
 	}
 }
 
-// Once the host's queries exist a rule could no longer join them.
 func TestPairRules_Add_RefusesOneThatComesAfterBind(t *testing.T) {
 	var got []sighting
 	h, _, _, _ := hostOf(t)
@@ -135,7 +129,6 @@ func TestPairRules_Add_RefusesOneThatComesAfterBind(t *testing.T) {
 	}
 }
 
-// group is a made-up host's description of one Self against many Others.
 type group struct{ others []int }
 
 func TestPairRules_DispatchGrouped_HandsOverTheOthersThatFit(t *testing.T) {

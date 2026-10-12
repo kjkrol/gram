@@ -8,9 +8,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 )
 
-// KeepRoads runs shape and takes back all it did when it left a road lying where Transport Tycoon
-// would not lay it (ground.RoadFits; ground.RoadJoins between level cells) that lay well before,
-// and reports whether it kept it.
+// KeepRoads runs shape and takes back all it did when it broke a road that lay well before
+// (ground.RoadFits, ground.RoadJoins), reporting whether it kept it.
 func (r *Relief) KeepRoads(shape func()) bool {
 	if r.board == nil {
 		shape()
@@ -36,7 +35,6 @@ func (r *Relief) KeepRoads(shape func()) bool {
 	return true
 }
 
-// roadFits reports whether a road running out of c as links say lies as Transport Tycoon lays it.
 func (r *Relief) roadFits(c cell.ID, links cell.Links) bool {
 	if !r.square {
 		for i := range r.grid.Directions() {
@@ -55,7 +53,6 @@ func (r *Relief) roadFits(c cell.ID, links cell.Links) bool {
 	return ground.RoadFits(r.grid, c, corners[:], links, r.sq.Cell)
 }
 
-// restore puts every height back as values hold it.
 func (r *Relief) restore(values []float32) {
 	for i, h := range values {
 		v := vertex{x: i}

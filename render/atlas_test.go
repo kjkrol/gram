@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-// panicOf runs f and returns what it panicked with, failing the test if it did not.
 func panicOf(t *testing.T, f func()) (msg string) {
 	t.Helper()
 	defer func() {
@@ -19,7 +18,6 @@ func panicOf(t *testing.T, f func()) (msg string) {
 	return ""
 }
 
-// overlap reports whether two sprites' sheet rects share any area.
 func overlap(a *Atlas, l, r SpriteID) bool {
 	lx0, ly0, lx1, ly1 := a.UV(l)
 	rx0, ry0, rx1, ry1 := a.UV(r)

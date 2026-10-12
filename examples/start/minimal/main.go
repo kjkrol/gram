@@ -44,7 +44,7 @@ type arena struct {
 	collision *collision.Plugin
 	cameras   *cameras.Plugin
 	players   *players.Plugin
-	player    *players.Player // the one at the keyboard
+	player    *players.Player
 	stats     collision.ContactStats
 }
 

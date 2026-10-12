@@ -10,9 +10,8 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// HighlightStyle composes one Selected entity's outline from its footprint — the ground under it
-// on screen, as the world's Look lays it, in pieces where it crosses a wrap seam; it belongs on the
-// Marks tier, over everything.
+// HighlightStyle composes one Selected entity's outline from its footprint, the ground under it
+// on screen in pieces where it crosses a wrap seam. It belongs on the Marks tier.
 type HighlightStyle interface {
 	Compose(f *render.Frame, footprint []render.Corners)
 }
@@ -35,7 +34,6 @@ func DefaultHighlightStyle() HighlightStyle {
 	})
 }
 
-// outline draws the closed polygon round pts on the Marks tier.
 func outline(f *render.Frame, pts [4][2]float32, width float32, c color.RGBA) {
 	for i, p := range pts {
 		q := pts[(i+1)%len(pts)]
@@ -65,7 +63,7 @@ func NewRenderer(selected tag.Tag[Family], look func() world.Look) *Renderer {
 	return &Renderer{style: DefaultHighlightStyle(), selected: selected, look: look}
 }
 
-// WithStyle overrides how the highlight is drawn — the escape hatch for a custom HighlightStyle.
+// WithStyle sets how the highlight is drawn.
 func (r *Renderer) WithStyle(style HighlightStyle) *Renderer {
 	r.style = style
 	return r

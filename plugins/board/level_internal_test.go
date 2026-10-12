@@ -29,8 +29,6 @@ type recruit struct {
 	Ignored cell.ID
 }
 
-// newLevelBoard is a board over g in a world of heights when heights, metres a unit, with the kinds
-// a level names: grass, water, wall, road, bridge, brook and river, a role lake and a kind of unit.
 func newLevelBoard(t *testing.T, g grid.Grid, heights bool, metres float64) *Plugin {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
@@ -62,8 +60,6 @@ func lay(t *testing.T, p *Plugin, file string) (*Level, error) {
 	return p.Lay(fsys, "level.yaml")
 }
 
-// The drawing lays a kind a character, row by row, the legend saying which — a kind, or a kind
-// with roles, a name and a group — and the default where it leaves the cell to it.
 func TestLay_TheDrawingLaysTheLegendsKinds(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(4, 2, 10)
 	p := newLevelBoard(t, g, false, 0)
@@ -110,8 +106,6 @@ board:
 	}
 }
 
-// On a hex grid a row is an r, a character a q, spaces left out: indenting each row draws the
-// board as it is.
 func TestLay_AHexRowIsAnR(t *testing.T) {
 	g := grid.DefaultGrids{}.Hex(3, 2, 10)
 	p := newLevelBoard(t, g, false, 0)
@@ -137,8 +131,6 @@ board:
 	}
 }
 
-// The relief is in metres, through the world's scale: a number a cell, the mean of the cells
-// where they meet, or a number a corner.
 func TestLay_TheReliefIsInMetres(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(2, 1, 10)
 	p := newLevelBoard(t, g, true, 2)
@@ -163,9 +155,6 @@ func TestLay_TheReliefIsInMetres(t *testing.T) {
 	}
 }
 
-// Roads and rivers run along their paths, point to point; a branch begins on another path, a
-// river widens from its head to its mouth and flows out into its last point, no part of it, and a
-// road leads onto the bridge over a river without running over it.
 func TestLay_WaysRunAlongTheirPaths(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 6, 10)
 	p := newLevelBoard(t, g, false, 0)
@@ -210,9 +199,6 @@ ways:
 	}
 }
 
-// A river changes its kind from a point that names another and its width from point to point,
-// cell by cell, keeping the last it was given; a tributary flows into the river's cell its last
-// point names.
 func TestLay_ARiverTurnsAtItsPoints(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 6, 10)
 	p := newLevelBoard(t, g, false, 0)
@@ -244,8 +230,6 @@ ways:
 	}
 }
 
-// An entry's kind, side, name and group are its own and the rest its row's fields tagged yaml, a
-// cell written as a point however deep it lies.
 func TestSpawn_AnEntrysRowIsItsTaggedKeys(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 6, 10)
 	p := newLevelBoard(t, g, false, 0)
@@ -282,8 +266,6 @@ func node(t *testing.T, s string) *yaml.Node {
 	return n.Content[0]
 }
 
-// A level wrong anywhere is an error saying where and what, a level the board cannot lay leaving
-// the board unseeded.
 func TestLay_AWrongLevelSaysWhere(t *testing.T) {
 	for name, tc := range map[string]struct{ file, want string }{
 		"a character not in the legend": {
@@ -372,7 +354,6 @@ func TestLay_AWrongLevelSaysWhere(t *testing.T) {
 	}
 }
 
-// A row tagging a field as an entry's own key is refused.
 func TestSpawn_ARowMayNotTagAnEntrysKey(t *testing.T) {
 	type named struct {
 		Name string `yaml:"name"`
@@ -394,7 +375,6 @@ func TestSpawn_ARowMayNotTagAnEntrysKey(t *testing.T) {
 
 var _ control.Command = mark{}
 
-// An entity of the level no Spawn takes fails the board's Populate, saying which and how to take it.
 func TestSpawn_AnEntityNobodySpawnsFailsPopulate(t *testing.T) {
 	p := newLevelBoard(t, grid.DefaultGrids{}.Square(4, 2, 10), false, 0)
 	if _, err := lay(t, p, "board:\n  default: grass\nunits:\n  - {kind: scout}\n"); err != nil {
@@ -407,8 +387,6 @@ func TestSpawn_AnEntityNobodySpawnsFailsPopulate(t *testing.T) {
 	}
 }
 
-// A road on a map in relief lies as Transport Tycoon lays it: level at its ends, an even ramp
-// between, no steeper than RoadSlope; anything else is refused with the line of its path.
 func TestLay_ARoadLiesAsTransportTycoonLaysIt(t *testing.T) {
 	road := "ways:\n  roads: {road: {width: 4, paths: [[[0, 0], [3, 0]]]}}\n"
 	for name, c := range map[string]struct{ corners, want string }{

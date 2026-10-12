@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/gram/game"
 )
 
-// named is a Stage of a test that is only its name.
 type named string
 
 func (n named) Name() string                    { return string(n) }

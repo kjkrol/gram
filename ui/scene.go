@@ -15,19 +15,18 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Scene is a game.Scene whose screen is a tree of elements laid over the screen; the pictures of
-// the world its feeds show are initialised once each, however many feeds show one.
+// Scene is a game.Scene whose screen is a tree of elements laid over the screen every frame.
 type Scene struct {
 	name    string
 	root    *Element
 	input   func(*control.InputEvents, game.Runtime, game.Composition)
 	keys    []control.Binding
 	issue   func(cmd control.Command) error
-	runtime game.Runtime        // the last HandleEvents's: who takes a command without an Issue
-	passed  control.InputEvents // what of this tick's input goes on to input
-	shown   []string            // the names of the elements shown, as saved
-	loaded  bool                // shown came from a save: laid on the elements once they are made
-	drawing *drawing            // the scene's layer, which finds the entities its pinned elements are for
+	runtime game.Runtime
+	passed  control.InputEvents
+	shown   []string
+	loaded  bool
+	drawing *drawing
 	theme   Theme
 }
 
@@ -35,8 +34,7 @@ var _ game.Scene = (*Scene)(nil)
 var _ plugin.Serializable = (*Scene)(nil)
 var _ plugin.Restorer = (*Scene)(nil)
 
-// NewScene is the scene name, its screen the element screen: made once the world is there (the
-// Stage's Scenes), the pictures and their cameras beside the elements that show them.
+// NewScene is the scene name, its screen the element screen, made once the world is there.
 func NewScene(name string, screen *Element) *Scene {
 	return &Scene{name: name, root: screen, theme: DefaultTheme()}
 }
@@ -49,8 +47,7 @@ func (s *Scene) Input(fn func(*control.InputEvents, game.Runtime, game.Compositi
 
 func (s *Scene) Name() string { return s.name }
 
-// Layers is the one layer drawing the screen: it initialises the pictures its feeds show, lays the
-// elements over the screen every frame and draws them.
+// Layers is the one layer drawing the screen.
 func (s *Scene) Layers() []render.Layer {
 	var pictures []render.Picture
 	if s.root != nil {
@@ -74,8 +71,7 @@ func (s *Scene) Layers() []render.Layer {
 
 func (s *Scene) Focusable() bool { return true }
 
-// Lay lays the scene's elements over screen, as every frame does before drawing: the pictures
-// get their sizes, the pinned elements their entities.
+// Lay lays the scene's elements over screen, as every frame does before drawing.
 func (s *Scene) Lay(screen geom.AABB) {
 	if s.root == nil {
 		return
@@ -86,7 +82,8 @@ func (s *Scene) Lay(screen geom.AABB) {
 		vs := views(s.root)
 		for _, e := range d.pins {
 			e.pin.stand(e, d.spots[e], vs, screen)
-			e.pin.each(e, e.parent, func(*instance) {}) // laid where it stands: its Box is by its entity
+			// laid where it stands, so its Box is by its entity
+			e.pin.each(e, e.parent, func(*instance) {})
 		}
 	}
 }
@@ -138,7 +135,6 @@ func (s *Scene) Restore() {
 	s.reveal()
 }
 
-// note writes down the names of the elements shown.
 func (s *Scene) note() {
 	s.shown = s.shown[:0]
 	if s.root == nil {
@@ -151,7 +147,6 @@ func (s *Scene) note() {
 	})
 }
 
-// reveal shows the named elements shown and hides the rest.
 func (s *Scene) reveal() {
 	if s.root == nil {
 		return
@@ -174,13 +169,12 @@ func (s *Scene) each(name string, fn func(*Element)) {
 	})
 }
 
-// drawing is the scene's layer: the screen's elements, laid and drawn every frame.
 type drawing struct {
 	scene    *Scene
 	pictures []render.Picture
-	pins     []*Element // the elements pinned to entities
+	pins     []*Element
 
-	query  *goke.Query // every entity carrying effect markers, and its place if it has one
+	query  *goke.Query
 	states goke.Comp[tag.Tags[effect.States]]
 	base   goke.OptComp[entity.Base]
 	z      goke.OptComp[entity.Z]
@@ -233,9 +227,6 @@ func (d *drawing) Draw(screen *render.Image) {
 	root.paint(screen)
 }
 
-// find notes, for every pinned element, the entities it is shown for and their points: those with
-// a place in the world, and those with none that are called something (the world's own entity, a
-// plugin's).
 func (d *drawing) find() {
 	for _, e := range d.pins {
 		d.spots[e] = d.spots[e][:0]
@@ -265,15 +256,13 @@ func (d *drawing) find() {
 	}
 }
 
-// note has e shown for the entity id: at its point where it has a place, where its parent lays
-// e where it has none but is called something.
 func (d *drawing) note(e *Element, id uid.UID64, base *entity.Base, z *entity.Z, label *entity.Label) {
 	s := spot{id: id}
 	if base != nil {
 		s.placed = true
 		s.x, s.y, s.z = e.pin.point(*base, z)
 	} else if label == nil || *label == (entity.Label{}) {
-		return // a cell, say: no place known here, and nothing that calls it
+		return // a cell: no place and no name
 	}
 	d.spots[e] = append(d.spots[e], s)
 }

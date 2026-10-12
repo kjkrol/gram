@@ -9,7 +9,6 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 )
 
-// looker is a camera that may look round with the mouse.
 type looker struct {
 	camera.Camera
 	on bool
@@ -18,8 +17,6 @@ type looker struct {
 func (l *looker) MouseLook() bool      { return l.on }
 func (l *looker) SetMouseLook(on bool) { l.on = on }
 
-// The key of MouseLook switches looking round with the mouse on the camera the player looks
-// through, and off again.
 func TestMouseLook_TheKeySwitchesItOnAndOff(t *testing.T) {
 	c := newCamp(t, func(*camp, kind.Of[float64]) []kind.Entry { return nil })
 	cam := &looker{Camera: c.cam}

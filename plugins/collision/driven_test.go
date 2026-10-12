@@ -15,8 +15,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
-// Walked by hand nearly square into a wall, a unit keeps facing the way the hand walks it — the
-// eye riding in it with it — and only stops; one nobody's hand steers glances off along the wall.
 func TestBounce_AWallTurnsNoUnitAHandSteers(t *testing.T) {
 	heading := geom.NewVec(math.Cos(2*math.Pi/180), math.Sin(2*math.Pi/180))
 	for name, driven := range map[string]bool{"by hand": true, "by nobody": false} {

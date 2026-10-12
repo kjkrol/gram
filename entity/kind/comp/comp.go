@@ -54,10 +54,10 @@ func Load[P, T any](load func(row P) T) Template[T] {
 // Resolve is the value for the entity row describes.
 func (t Template[T]) Resolve(row any) T { return t.value(row) }
 
-// Spawner is this component's column and the writing of it — see Comp.
+// Spawner is this component's column and the writing of it.
 func (t Template[T]) Spawner() Spawner { return &writer[T]{template: t} }
 
-// LoadToken names T to a save file being loaded — see Comp.
+// LoadToken names T to a save file being loaded.
 func (t Template[T]) LoadToken() goke.CompToken { return goke.LoadComp[T]() }
 
 func (t Template[T]) rowType() reflect.Type  { return t.row }

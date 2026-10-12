@@ -1,5 +1,4 @@
-// Package hosts hands rules to the hosts of the moments they are of: what the engine does with
-// the roles' rules once a Stage's Init returns, and the tests' installers after it.
+// Package hosts hands rules to the hosts of the moments they are of.
 package hosts
 
 import (
@@ -10,9 +9,9 @@ import (
 	"github.com/kjkrol/gram/rule"
 )
 
-// Deliver hands each rule — a role's, each of its rules — to the first of among that takes it,
-// trying the next while one refuses it with plugin.ErrUnhosted. A rule none takes is
-// plugin.ErrUnhosted, named by its String; any other error stops at once.
+// Deliver hands each rule, a role's each of its own, to the first of among that takes it, the
+// next tried while one refuses with plugin.ErrUnhosted. A rule none takes is plugin.ErrUnhosted
+// naming the rule; any other error stops at once.
 func Deliver(among []plugin.Host, rules ...rule.Rule) error {
 	for _, r := range rules {
 		if role, ok := r.(*rule.Part); ok {

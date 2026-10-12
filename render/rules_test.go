@@ -8,8 +8,6 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// place is what the made-up renderer reads of every entity itself: its place in the order given
-// and the way it goes. ghost marks one drawn as a ghost, mood is what one feels, marks its tags.
 type (
 	place struct{ K, Heading int }
 	ghost struct{}
@@ -19,7 +17,6 @@ type (
 
 const hit tag.Tag[fam] = 3
 
-// one is one entity of a drawing test: which way it goes and what it carries.
 type one struct {
 	heading int
 	ghost   bool
@@ -27,8 +24,7 @@ type one struct {
 	hit     bool
 }
 
-// draw runs rules over the entities, each starting from sprite 100 plus its place, as a renderer
-// reading place itself does, and returns each one's layers and whether it is shown.
+// each entity starts from sprite 100 plus its place
 func draw(t *testing.T, rules []render.Rule, entities ...one) ([][]render.Appearance, []bool) {
 	t.Helper()
 	var r render.Rules
@@ -85,7 +81,6 @@ func draw(t *testing.T, rules []render.Rule, entities ...one) ([][]render.Appear
 
 const eastward, other, spook, crown render.SpriteID = 7, 3, 9, 11
 
-// facing picks the sprite from the way the entity goes, read from the renderer's own column.
 func facing() render.Rule {
 	return render.With(func(a render.Appearance, p place) render.Appearance {
 		a.SpriteID = other
@@ -103,8 +98,6 @@ func TestWith_ReadsAComponentTheRendererReadsItself(t *testing.T) {
 	}
 }
 
-// As draws one carrying the component as something else, after the facing has turned it; the
-// others keep theirs.
 func TestAs_DrawsACarrierAsAnotherSpriteAfterTheRulesBefore(t *testing.T) {
 	got, _ := draw(t, []render.Rule{facing(), render.As[ghost](render.Appearance{SpriteID: spook})},
 		one{heading: 1, ghost: true}, one{heading: 1})
@@ -126,7 +119,6 @@ func TestOver_LaysASpriteOnACarrierAlone(t *testing.T) {
 	}
 }
 
-// A condition narrows a rule to the carriers it holds for: a tag's In to those carrying the tag.
 func TestOver_OnlyWhereItsConditionHolds(t *testing.T) {
 	got, _ := draw(t, []render.Rule{render.Over(render.Appearance{SpriteID: crown}, hit.In)}, one{hit: true}, one{})
 	if len(got[0]) != 2 || len(got[1]) != 1 {
@@ -134,7 +126,6 @@ func TestOver_OnlyWhereItsConditionHolds(t *testing.T) {
 	}
 }
 
-// With reads the component every frame: the sprite follows its value.
 func TestWith_ReworksTheSpriteByTheComponentsValue(t *testing.T) {
 	angry := render.With(func(a render.Appearance, m mood) render.Appearance {
 		if m.Angry {
@@ -149,7 +140,6 @@ func TestWith_ReworksTheSpriteByTheComponentsValue(t *testing.T) {
 	}
 }
 
-// With a condition reworks the sprite where it holds alone.
 func TestWith_ReworksOnlyWhereItsConditionHolds(t *testing.T) {
 	bump := render.With(func(a render.Appearance, _ mood) render.Appearance { a.SpriteID += 50; return a },
 		func(m mood) bool { return m.Angry })
@@ -161,8 +151,6 @@ func TestWith_ReworksOnlyWhereItsConditionHolds(t *testing.T) {
 
 const frozenEast, frozenOther render.SpriteID = 17, 13
 
-// Swap draws one its condition holds for as the twin of the sprite it would be drawn with — after
-// the facing, a twin a way faced — one with no twin as it is, and the others as they are.
 func TestSwap_DrawsTheTwinOfTheSpriteWhereItsConditionHolds(t *testing.T) {
 	twins := map[render.SpriteID]render.SpriteID{eastward: frozenEast, other: frozenOther}
 	got, _ := draw(t, []render.Rule{facing(), render.Swap(twins, hit.In)},
@@ -178,8 +166,6 @@ func TestSwap_DrawsTheTwinOfTheSpriteWhereItsConditionHolds(t *testing.T) {
 	}
 }
 
-// Two states compose in the order given: the second Swap finds the first's twin where its table
-// lists it, else leaves the first's look.
 func TestSwap_TwoStatesComposeInTheOrderGiven(t *testing.T) {
 	frozen := map[render.SpriteID]render.SpriteID{100: 30, 101: 31}
 	wounded := map[render.SpriteID]render.SpriteID{30: 50, 102: 42} // the frozen first's wounded twin; the third's
@@ -192,7 +178,6 @@ func TestSwap_TwoStatesComposeInTheOrderGiven(t *testing.T) {
 	}
 }
 
-// Without a Show rule every entity is shown; with one, those it holds for alone.
 func TestShow_DrawsOnlyThoseItHoldsFor(t *testing.T) {
 	if _, shown := draw(t, nil, one{ghost: true}, one{}); !shown[0] || !shown[1] {
 		t.Errorf("shown %v with no Show rule, want both", shown)

@@ -41,8 +41,6 @@ func TestExchange(t *testing.T) {
 	}
 }
 
-// The impulse turns both velocities along the normal, each by its share, and leaves an immovable
-// side's alone.
 func TestExchange_TurnsTheVelocities(t *testing.T) {
 	var velA, velB, still world.Velocity
 	velA.SetDelta(geom.NewVec(-3, 0))

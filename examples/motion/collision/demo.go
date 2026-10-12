@@ -26,13 +26,12 @@ const (
 	ScreenWidth  = 1024
 	ScreenHeight = 1024
 
-	// hitDuration is how long an entity keeps showing a collision.
 	hitDuration = 50 * time.Millisecond
 )
 
 const (
 	RectSize    = 5
-	EntityCount = ScreenWidth * ScreenHeight / 5 / (RectSize * RectSize) // a fifth of the screen
+	EntityCount = ScreenWidth * ScreenHeight / 5 / (RectSize * RectSize)
 
 	entityColors = 7
 	entityShapes = 4
@@ -43,7 +42,6 @@ type body struct {
 	vel world.Velocity
 }
 
-// bodyKind names the kind drawn with color ci and shape si.
 func bodyKind(ci, si int) string { return fmt.Sprintf("entity-%d-%d", ci, si) }
 
 type arena struct {
@@ -103,8 +101,10 @@ func (s *arena) defineEffects() {
 }
 
 func (s *arena) defineRules() {
-	s.world.Roles().Define(BodyRole,
-		rule.Then[collision.Struck]("hit", rule.All, rule.Apply(s.world.Effects().Named(HitEf))))
+	s.world.Roles().Define(BodyRole, rule.Branch[collision.Struck]{
+		Name: "hit",
+		Do:   rule.Apply(s.world.Effects().Named(HitEf)),
+	})
 }
 
 func (s *arena) defineKinds() {

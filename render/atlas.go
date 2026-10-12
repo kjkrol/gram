@@ -6,37 +6,33 @@ import (
 	"image/draw"
 )
 
-// SpriteID identifies a pre-baked sprite in an Atlas — resolved by array
-// index (Atlas.UV), never by map lookup, so it's safe on the draw hot path.
+// SpriteID identifies a sprite in an Atlas.
 type SpriteID uint8
 
-// SpriteDrawer paints one sprite's size x size pixels into dst — passed to
-// Atlas.Register to bake a new sprite.
+// SpriteDrawer paints one sprite's size x size pixels into dst.
 type SpriteDrawer func(dst *Canvas, size int)
 
 // AtlasSource supplies the sprite sheet a Frame draws from: each sprite's rectangle on it, and a
-// white texel plain colours sample, so they are drawn in the same call as the sprites.
+// white texel plain colours sample.
 type AtlasSource interface {
 	Atlas() *Image
 	UV(id SpriteID) (sx0, sy0, sx1, sy1 float32)
 	White() (u, v float32)
 }
 
-// maxAtlasWidth is where Close starts a new row of sprites, so that a sheet of
-// many or large sprites stays inside what a GPU accepts as one texture.
+// what a GPU accepts as one texture
 const maxAtlasWidth = 4096
 
-// Atlas is an AtlasSource built by registering sprites, each at a size of its own, and
-// then Close — which is when the sheet is laid out and baked, so nothing has to be sized up front.
+// Atlas is an AtlasSource built by adding sprites, each at a size of its own, and then Close,
+// which lays the sheet out and bakes it.
 type Atlas struct {
 	slots  []slot // indexed by SpriteID
 	image  *Image
 	closed bool
-	// white is the top-left of a 3x3 white patch after the sprites.
+	// the top-left of a 3x3 white patch after the sprites
 	whiteX, whiteY float32
 }
 
-// slot is one registered sprite: how to draw it and, after Close, where it sits on the sheet.
 type slot struct {
 	size           int
 	draw           SpriteDrawer
@@ -45,19 +41,18 @@ type slot struct {
 
 var _ AtlasSource = (*Atlas)(nil)
 
-// NewAtlas starts an empty atlas: Add its sprites, then Close it before the game loop starts.
+// NewAtlas starts an empty atlas.
 func NewAtlas() *Atlas { return &Atlas{} }
 
-// Sprited is whoever is drawn from one slot of the sheet: a kind's handle (kind.Of, cell.Of) —
-// or a bare SpriteID, which stands for itself.
+// Sprited is whoever is drawn from one slot of the sheet: a kind's handle, or a bare SpriteID,
+// which stands for itself.
 type Sprited interface{ SpriteID() SpriteID }
 
-// SpriteID is the slot itself: a bare id stands for itself wherever a Sprited is taken.
+// SpriteID is the slot itself.
 func (id SpriteID) SpriteID() SpriteID { return id }
 
-// Add takes draw on as a size x size sprite in of's slot — a kind's handle, a slot issued by the
-// world's kinds (NewSprite), a board's Covering — and hands it back as a Slot: chain Under for
-// the looks the sprite takes under an effect. Panics after Close or if the slot is taken.
+// Add takes draw on as a size x size sprite in of's slot and hands it back as a Slot. It panics
+// after Close or if the slot is taken.
 func (a *Atlas) Add(of Sprited, size int, draw SpriteDrawer) Slot {
 	id := of.SpriteID()
 	if a.closed {
@@ -76,25 +71,23 @@ func (a *Atlas) Add(of Sprited, size int, draw SpriteDrawer) Slot {
 	return Slot{a: a, id: id, size: size}
 }
 
-// Slot is one sprite added to an Atlas, what the looks under effects chain on.
+// Slot is one sprite added to an Atlas.
 type Slot struct {
 	a    *Atlas
 	id   SpriteID
 	size int
 }
 
-// Dresser issues the atlas slot drawn in place of a sprite while a state holds: rule/effect's
-// Effect is one, through its Look.
+// Dresser issues the atlas slot drawn in place of a sprite while a state holds.
 type Dresser interface{ Look(of SpriteID) SpriteID }
 
-// Under adds the sprite's look under d, the same size — drawn in its place while the effect's
-// marker is on: the witch gone white under frozen.
+// Under adds the sprite's look under d, the same size, drawn in its place while d's state holds.
 func (s Slot) Under(d Dresser, draw SpriteDrawer) Slot {
 	s.a.Add(d.Look(s.id), s.size, draw)
 	return s
 }
 
-// Close lays the registered sprites out on one sheet and bakes them; call once, after Register.
+// Close lays the sprites added out on one sheet and bakes them.
 func (a *Atlas) Close() {
 	if a.closed {
 		return
@@ -119,8 +112,6 @@ func (a *Atlas) Close() {
 	a.image.WritePixels(sheet.Pix)
 }
 
-// layout shelves the sprites in slot order, then the white patch, and reports how large a sheet
-// that takes.
 func (a *Atlas) layout() (width, height int) {
 	x, y, rowHeight := 0, 0, 0
 	for i := range a.slots {

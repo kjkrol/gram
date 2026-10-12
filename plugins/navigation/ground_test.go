@@ -19,8 +19,6 @@ var (
 	ice   = cell.Kind{Name: cell.Named("ice"), Cost: 1, Allows: cell.Land}
 )
 
-// A land unit routed over an ice bridge that melts before it gets there stops short of the water
-// and goes round by the ford.
 func TestNavigation_IceMeltingAheadRerouteWithoutSteppingIn(t *testing.T) {
 	pw := newProfiledWorld(t, 5, 3, cell.ID(0), MoveOrder{}, steering.Steering{}, true)
 	start, bridge, goal := pw.cellAt(0, 0), pw.cellAt(0, 1), pw.cellAt(0, 2)
@@ -55,8 +53,6 @@ func TestNavigation_IceMeltingAheadRerouteWithoutSteppingIn(t *testing.T) {
 	t.Fatal("never reached the goal round by the ford")
 }
 
-// A step further along the route than the current leg turning to water invalidates the route
-// as soon as the terrain changes; with no way round, the unit stops and gives the order up.
 func TestNavigation_GroundChangingUnderTheRouteIsNoticedBeforeTheLeg(t *testing.T) {
 	pw := newProfiledWorld(t, 1, 5, cell.ID(0), MoveOrder{}, steering.Steering{}, true)
 	start, far, goal := pw.cellAt(0, 0), pw.cellAt(0, 3), pw.cellAt(0, 4)
@@ -84,7 +80,6 @@ func TestNavigation_GroundChangingUnderTheRouteIsNoticedBeforeTheLeg(t *testing.
 	t.Fatal("the unit never gave up an order it cannot carry out")
 }
 
-// Weak brakes — a slipping unit — mean braking earlier, not overshooting the goal.
 func TestNavigation_WeakBrakesStillComeToRestOnTheGoal(t *testing.T) {
 	pw := newProfiledWorld(t, 8, 1, cell.ID(0), MoveOrder{}, steering.Steering{}, true)
 	goal := pw.cellAt(7, 0)
@@ -119,7 +114,6 @@ func TestNavigation_WeakBrakesStillComeToRestOnTheGoal(t *testing.T) {
 	}
 }
 
-// state reads the one entity's Base and its order, nil once the order is done.
 func (pw *profiledWorld) state() (world.Base, *MoveOrder) {
 	pw.q.All()
 	if !pw.q.Next() {
@@ -134,8 +128,6 @@ func (pw *profiledWorld) state() (world.Base, *MoveOrder) {
 	return b, nil
 }
 
-// A unit standing where its domain may not — frozen in — keeps its order and moves on once the
-// ground takes it again, instead of giving the order up as unreachable.
 func TestNavigation_StuckOnForbiddenGroundKeepsTheOrder(t *testing.T) {
 	pw := newProfiledWorld(t, 1, 6, cell.ID(0), MoveOrder{}, steering.Steering{}, true)
 	start, goal := pw.cellAt(0, 0), pw.cellAt(0, 5)
@@ -166,11 +158,8 @@ func TestNavigation_StuckOnForbiddenGroundKeepsTheOrder(t *testing.T) {
 	t.Fatal("never reached the goal once the ground took the unit again")
 }
 
-// slantRow is a deck on a cell.
 type slantRow struct{ At cell.ID }
 
-// A route over a river crossed by a bridge running slantwise goes along the bridge, over the
-// water at the corners it cuts, and never sets foot in the water.
 func TestNavigation_CrossesABridgeRunningSlantwise(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 5, 32)
 	start, goal := g.At(0, 0), g.At(4, 4)

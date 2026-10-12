@@ -1,155 +1,103 @@
-// Package gram is a modular game engine for Go: a user-implemented [game.Game] — a named set of
-// [game.Stage] values, each with its own entity-component world and its own [game.Scene]s —
-// driven by an engine that wraps the goke ECS in a window's loop, a tick and a picture a frame,
-// the picture drawn on the GPU through WebGPU (gogpu).
-// Everything beyond the tick loop is a [plugin.Plugin]: the built-in ones give a Stage a world of
-// moving boxes, collisions, sight, a board with terrain, pathfinding and mouse selection; a game
-// adds its own the same way. [Run] is the whole public surface of this package.
+// Package gram is a modular game engine for Go: a [game.Game] — named [game.Stage] values, each
+// with its own entity-component world and its own [game.Scene]s — driven by an engine that runs
+// the goke ECS in a window's loop, a tick and a picture a frame, the picture drawn on the GPU
+// through WebGPU (gogpu). Everything beyond the tick loop is a [plugin.Plugin]: the built-in ones
+// give a Stage a world of moving boxes, collisions, sight, a board with terrain, pathfinding and
+// mouse selection; a game adds its own the same way. [Run] is the whole public surface of this
+// package.
 //
 // # Game, Stage and Scene
 //
-// A Game supplies [game.Props] (window, tick rate) and its Stages by name, plus which one starts.
-// A Stage is one self-contained context the game can be in — a menu, the gameplay, a map screen —
-// with its own goke ECS, built fresh the moment [game.Runtime.SwitchStage] enters it, so a menu
-// Stage sits idle with no gameplay entities until the player starts. Its lifecycle is Init
-// (install plugins through a [game.Initializer]), Spawn (seed the initial state) or, entered from a
-// save, Loaded, and Update (one tick). Saving and loading are the engine's, asked for by commands
-// like any other — [game.Save], [game.Load], [game.Enter], [game.Quit] — bound to keys or ui
-// buttons, a Stage loaded from another's: a menu's Continue. A game defines a Stage a section at a
-// time with package game/stage — stage.New(name).World(…).Plugins(…).Players(…).Effects(…).
-// Rules(…).Commands(…).Kinds(…).Controls(…).Spawn(…).Scenes(…).Update(…) — always in that order,
-// which the compiler keeps, each plugin refusing what is defined out of its section; the scenes
-// are made once the world is there, loaded or spawned.
+// A Game supplies [game.Props] (window, tick rate) and its Stages by name. A Stage is one
+// context the game can be in — a menu, the gameplay — with its own ECS, built fresh as
+// [game.Runtime.SwitchStage] enters it: Init installs its plugins through a [game.Initializer],
+// Spawn seeds a fresh game, Loaded stands in for Spawn when the Stage is entered from a save,
+// Update is one tick. A game defines a Stage a section at a time with package game/stage —
+// World, Plugins, Players, Effects, Rules, Commands, Kinds, Controls, Spawn, Scenes, Update — in
+// that order, which the compiler keeps. Saving and loading are commands like any other
+// ([game.Save], [game.Load], [game.Enter], [game.Quit]), bound to keys or ui buttons.
 //
-// Within a Stage, a Scene is one thing it can show: its renderers (Layers, built once on entering
-// the Stage) and its input handling. The Stage's [game.Scenes] is the static registry of its
-// Scenes; the live [game.Composition] over it says which are visible, in what order, and which is
-// active — the topmost focusable one, the only Scene whose HandleEvents runs. A Stage has no input
-// handling of its own. [game.Runtime] is one undivided interface — pause, quit, switch Stage,
-// persistence, full screen — that reaches a Stage and every Scene alike. The cameras a game looks
-// through are a plugin's (plugins/cameras), made by the scene that shows them, beside the picture
-// they are seen through; a player owns none — it acts through the picture a scene wires it to.
-//
-// A scene's screen is composed out of elements with package ui: a [ui.Scene] takes a tree of
-// elements laid over the screen, made once the world is there: layers covering one another, columns and rows split by share, anchors,
-// panels, labels, windows, buttons giving commands, and the world itself as a picture through a
-// camera (a render.Feed of a render.Picture, a Composer of the plugins' renderers, shown by
-// ui.Image), knowing no camera. Elements pinned to entities — under
-// an effect, on a name — stand by them in the picture that shows them; the world's own drawing
-// keeps its order by depth, the screen's by the tree.
+// A Scene is one thing a Stage can show: its renderers and its input handling. The Stage's
+// [game.Scenes] is the registry of them; the live [game.Composition] over it says which are
+// visible, in what order, and which is active, the only one whose HandleEvents runs.
+// [game.Runtime] — pause, quit, switch Stage, persistence, full screen — reaches a Stage and
+// every Scene alike. A scene's screen is a tree of elements of package ui, the world among them
+// as a picture through a camera ([ui.Image] of a render.Feed); the cameras are the cameras
+// plugin's, made beside the picture that shows them. A player owns no camera: it acts through
+// the picture a scene wires it to.
 //
 // # Plugins and rules
 //
-// A [plugin.Plugin] is installed from Stage.Init through ctx.Use. Its Install only queues ECS
-// wiring; the engine flushes it all in one ecs.Setup after Init returns, which is what lets
-// Restore decide fresh-spawn or restore before the ECS commits to either. A plugin needing another
-// plugin takes it as a constructor argument — construction order in the game's code is the
-// dependency order; there is no registry, no lookup by name and no install-order retry.
+// A [plugin.Plugin] is used from a Stage's Plugins section. Its Install only queues ECS wiring,
+// flushed in one ecs.Setup after Init returns. A plugin needing another takes it as a
+// constructor argument: there is no registry and no lookup by name.
 //
-// Game logic that reacts to what a plugin finds is a rule (rule.Then), run inside the pass of the
-// plugin whose moment it is: a rule of a collision.Meeting for every pair of entities it meets,
-// one carrying tag A and the other B; of a unit.Standing for every entity on the board. The
-// payload type says whose the rule is — a Meeting is collision's, a Sighting is vision's. A rule
-// is a role's, and nobody hands it to a plugin: once a Stage's Init returns the engine gives the
-// rules of every role somebody plays to the plugin in use that catches their moment, and one none
-// catches is an error, never a silent no-op. What
-// lasts over ticks is a kind's plan, of the same steps (package rule): it casts effects and orders
-// commands — the same as a player's — for its entity.
-//
-// A role (world.Roles) is a behaviour an entity plays — mortal, hasty, a trapdoor — not a group:
-// the rules it obeys fire for those playing it alone. A kind plays roles through one component
-// (rule.Plays), a cell through its kind (cell.Kinds.Define) or alone (cell.Entry.Plays), the world and the atmosphere, for the
-// moments of the world as a whole, through their own Plays. What somebody
-// asks for is a command, and one about an effect is a sentence: rule.Cast(open).On(entity.Group(
-// "trapdoors")).By(entity.Named("lever")) — put the effect on, take it off (Lift) or switch it
-// (Toggle), for the entities bearing a name, those in a group, the world itself, the player's
-// selected units or the one pointed at; a key, a script and a rule give it the same way, and an
-// entity sets off the commands whose By names it (rule.Trigger): a lever, a plate and the
-// trapdoors they open.
+// What a game does about what a plugin finds is a rule, rule.Branch[P]{Name, When, Do}: run
+// inside the pass of the plugin that catches its moment P — a collision.Meeting for a pair of
+// entities, a unit.Standing for an entity on the board — when its conditions hold, its steps
+// casting effects and giving commands. A rule is a role's (world.Roles), a role is played by a
+// kind, a cell or a plugin, and once Init returns the engine hands the rules of every role
+// played to the plugin that catches their moment; one none catches is an error. What an entity
+// does over time is a plan of the same branches, rule.Plan, carried by its kind. What somebody
+// asks for is a command: a player's key, a rule's Order, and about an effect a sentence —
+// rule.Cast(open).On(entity.Group("trapdoors")).By(entity.Named("lever")).
 //
 // # Kinds and spawning
 //
-// What an entity is comes from a kind, defined in Stage.Init with package entity/kind: a
-// Spec lists the components every entity of the kind carries, each the same for all (Const) or
-// read from that entity's own row (Load). Define hands back the kind; its Entry puts one entity on
-// the world's roster (Seed), and the engine spawns the roster (Populate) only when nothing was
-// restored. Kinds also tell save files which component types to expect, so a game's own tags and
-// state survive a save without being registered anywhere else.
+// What an entity is comes from a kind (package entity/kind): a Spec of the components every
+// entity of the kind carries, the same for all (Const) or read from that entity's own row
+// (Load). A kind's Entry puts one entity on the world's roster, spawned for a Stage entered
+// afresh; a map file (board.Plugin.Lay) does the same for a board. Kinds also tell the saves
+// which component types to expect.
 //
 // # Tick
 //
 // Props.TargetTPS is the engine's one fixed step. The window's loop runs one Update per frame,
-// stepping as many times as the time gone says; a frame that falls behind runs at most five steps
-// and drops the rest, so the game slows down instead of spiralling. What is drawn goes by the
-// clock's Shown time, which runs on between the steps, so it moves every frame. Each step calls the active Scene's HandleEvents, then Stage.Update, where the game
-// runs its plugins' RunPlan in the order it needs — the world before whatever reads its space
-// (collision, vision, ...), and before it only what moves entities itself (bullet, so that the
-// same step's collision tests its flights), as the examples do.
+// stepping as many times as the time gone says, at most five, so a slow frame slows the game
+// instead of spiralling. Each step calls the active Scene's HandleEvents, then Stage.Update,
+// where the game runs its plugins' RunPlan in the order it needs: the world before whatever
+// reads its space. What is drawn goes by the clock's Shown time, which runs on between the steps.
 //
 // # Persistence
 //
-// [game.Persistence] saves and loads the active Stage's ECS together with every tracked value's
-// state: a plugin's Serializable, or anything a Stage handed to ctx.Track, such as its Scene
-// Composition. Resources are matched by name — a plugin's Name, or the Go type name of anything
-// else — never by position, so a save survives plugins being added, removed or reordered between
-// game versions. PostLoader and Restorer are the hooks run after a load.
+// [game.Persistence] saves and loads the active Stage's ECS with every tracked value's state: a
+// plugin's Serializable, or anything a Stage handed to ctx.Track. Resources are matched by name,
+// never by position, so a save survives plugins being added, removed or reordered.
 //
 // # Package dependencies
 //
 // The packages form a strict acyclic graph; each imports only layers below it:
 //
-//	Layer 0   camera              — a Camera over a world: screen conversion, culling, move and zoom
-//	Layer 1   render              — drawing: Renderer, Composer, Frame, Atlas, sprites                (→ camera)
-//	          control             — the input vocabulary: InputEvents, KeyEvent, ClickEvent, EventHandler;
-//	                                commands and bindings: Queue, Issued, Binding, Command, the rules   (→ camera)
-//	          entity/tag          — tag families: Tags, Tag, Any; a leaf                          (→ nothing)
-//	Layer 2   entity/kind         — what an entity is: Spec, Const and Load (kind/comp), Define, Of, Registry (→ render, tag)
-//	          clock               — the tactical clock: time, pause, tempo, phases, Moment, At, Every (→ control, render, tag)
-//	          rule/effect         — temporary changes to entities: Grant and Alter; made and run by the world (→ tag)
-//	Layer 3   entity              — what every entity carries: Base, Position, Velocity, Z, Layers, Eye (→ kind)
-//	          internal/steps      — the engine running the steps of rules and plans                (→ control, effect)
-//	          plugin              — the extension contract: Plugin, Installer, CommandHandler, Serializable,
-//	                                PostLoader, Populator, Restorer; the hosts of rules (Rules, PairRules,
-//	                                StepRules), Tick, Marks, the moments' faces    (→ control, render, tag, effect)
-//	          plugins/players/owner — whose a unit is: the owners' tags, Obeys, Allies; a leaf read by selection, navigation and the driving (→ control, tag)
-//	Layer 4   rule                — rules at a plugin's moments: On, Then, the filters, the steps; roles (Role, Plays)
-//	                                and commands about effects (Cast, Lift, Toggle, Trigger)    (→ control, plugin, entity, steps, tag, effect, kind/comp)
-//	Layer 5   rule/plan           — what an entity does over time: New, Actor, Command, asks; run by the world (→ rule, steps, effect, kind/comp)
-//	          plugins/world       — the foundation: Base (Position, Velocity, Caps), the Space,
-//	                                movement, kinds, Seed and Populate, Spawn, Despawn, names and groups, the carrier of commands, the Views; it runs
-//	                                the core's systems: the clock's, the plans', the effects' (→ camera, control, plugin, entity, kind, clock, rule, steps, render)
-//	Layer 6   game                — what a game implements and receives: Game, Stage, Scene, Scenes,
-//	                                Composition, Initializer, Runtime, Persistence, Props, TPS       (→ camera, control, plugin, rule, world, render)
-//	          ui                  — a scene's screen composed of elements: Layers, Columns, Rows, anchors, Panel, Label,
-//	                                Image (a render.Feed), Window, Button, words read off a Text, Theme, elements pinned to
-//	                                entities Under, On and Where, It, About (→ game, render, control, entity, effect, rule)
-//	          plugins/cameras     — the cameras a game looks through: New, Pan, Zoom, Follow, LookAt, Keys (→ world, …)
-//	          plugins/collision   — collision over the world's Space; Collider, Physics, Meeting, Struck (→ world, …)
-//	          plugins/selection   — a Select command into a Selected tag; Hovered; the roles' abilities; FollowKey (→ world, rule, cameras, …)
-//	          plugins/vision      — a Sight cone into Sighted, Sighting, SightOutline                   (→ world, …)
-//	Layer 7   plugins/board       — a grid with terrain over the world, the solid ground and cover   (→ world, …)
-//	          plugins/dialog      — conversations as data: nodes from YAML, Talk, the game's Changes and Conditions, Window (→ world, ui, players/owner, …)
-//	Layer 8   plugins/driving     — units driven by hand: Ahead, Back, Turn, Toward, Tank and Compass keys (→ world, selection, board, …)
-//	Layer 9   plugins/navigation  — MoveOrder paths across a board                                   (→ board, selection, driving, world, …)
-//	          plugins/bullet      — shots fired, flown past the step cap and swept, landing, resting and bursting (→ world, collision, selection, board/ground, …)
-//	          plugins/topography  — a map in relief drawn on the GPU: the heights, the light and the water on them, the views from above, isometric and in perspective;
-//	                                its parts relief, painter, water, terrain, hexes, billboards, cameras (→ world, board, selection, atmosphere/sky, …)
-//	          plugins/atmosphere  — the calendar, the climate, the weather and the sky on the world's clock; the celestial sphere
-//	                                (atmosphere/celestial), the clouds, what falls, the weathering (→ world, board, …)
-//	          plugins/players     — a carrier over the command handlers: players, their bindings, Through and IssueAs for a ui scene (→ world, cameras, ui, …)
-//	Layer 10  internal/engine     — the Engine: the window's loop (gogpu), one active Stage, persistence, the handing of the
-//	                                roles' rules to the plugins' hosts (→ game, plugin, rule, world, camera, control, render)
-//	Layer 11  gram                — Run; the package you import                                     (→ game, internal/engine)
+//	0  camera               a camera over a world: conversion, culling, move, zoom
+//	1  render               drawing: Composer, Frame, Atlas, Feed     → camera
+//	   control              input events, commands and bindings       → camera
+//	   entity/tag           tag families; a leaf
+//	2  entity/kind          what an entity is: Spec, Define, Of       → render, tag
+//	   clock                the tactical clock: time, pause, tempo    → control, render, tag
+//	   rule/effect          states on entities for a while            → tag
+//	3  entity               what every entity carries: Base, Z        → kind
+//	   internal/steps       the engine running rules' and plans' steps→ control, effect
+//	   plugin               the extension contract, the hosts of rules→ control, render, effect
+//	   plugins/players/owner whose a unit is; a leaf                  → control, tag
+//	4  rule                 Branch, conditions, steps; Plan; roles    → plugin, entity, steps
+//	   plugins/world        the foundation: space, movement, kinds    → plugin, clock, rule
+//	5  game                 Game, Stage, Scene, Composition, Runtime  → plugin, rule, world
+//	   ui                   a scene's screen of elements              → game, render, control
+//	   plugins/cameras, collision, selection, vision                  → world, …
+//	6  plugins/board        a grid with terrain over the world        → world, collision, …
+//	   plugins/dialog       conversations as data                     → world, ui, …
+//	7  plugins/driving      units driven by hand                      → world, selection, board
+//	8  plugins/navigation   MoveOrder paths across a board            → board, selection, driving
+//	   plugins/bullet       shots fired, flown, landing and bursting  → world, collision, board
+//	   plugins/gravity      bodies falling, standing and leaping      → world, board, collision
+//	   plugins/bridges      bridges built by one set of rules         → world, board, …
+//	   plugins/topography   a map in relief drawn on the GPU          → world, board, atmosphere
+//	   plugins/atmosphere   calendar, climate, weather, sky           → world, board, …
+//	   plugins/players      players over the command handlers         → world, cameras, ui, …
+//	9  internal/engine      the Engine: the loop, one Stage, saves    → game, plugin, rule, world
+//	10 gram                 Run; the package you import               → game, internal/engine
 //
-// Expressed as a directed graph (arrow = "is imported by"), showing the spine:
-//
-//	camera ──► render ──► plugin ──► rule ──► plugins/world ──► game ──► internal/engine ──► gram
-//	control ───┘                              │  ▲
-//	                                          ▼  │
-//	                     plugins/{cameras, collision, selection, vision} ──► plugins/board ──► plugins/driving ──► plugins/navigation
-//	                                                                            └──► plugins/bullet, plugins/topography, plugins/atmosphere
-//
-// Outside the module: goke/v3 is the ECS every Stage runs on, aabbworld the space, collisions and
-// line of sight under the world, gogpu (with wgpu and naga) the window, the loop and the GPU,
-// astar the pathfinding, and uid the entity identifiers.
+// Outside the module: goke/v3 is the ECS every Stage runs on, aabbworld the space, collisions
+// and line of sight under the world, gogpu the window, the loop and the GPU, astar the
+// pathfinding, and uid the entity identifiers.
 package gram

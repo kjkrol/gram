@@ -7,14 +7,12 @@ import (
 )
 
 // HeightsSystem is the goke.System keeping r's heights on entities of their own (Heights), saved
-// with the game: first of all, so a loaded game's heights are the relief's before anything reads
-// them; once a tick.
+// with the game. Run it first of all, so a loaded game's heights are the relief's before anything
+// reads them.
 func (r *Relief) HeightsSystem() goke.System { return &heightsSystem{relief: r} }
 
 var _ goke.System = (*heightsSystem)(nil)
 
-// heightsSystem keeps the ground's heights on entities of their own, a run of them each (Heights): found after a load — the relief takes them over — or made at Setup; written anew
-// whenever the relief has changed.
 type heightsSystem struct {
 	relief  *Relief
 	query   *goke.Query

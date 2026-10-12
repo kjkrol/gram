@@ -12,7 +12,6 @@ func testWorldConfig() world.Config {
 	}
 }
 
-// oneStageGame is a minimal game.Game wrapping a single Stage.
 type oneStageGame struct {
 	stage game.Stage
 	props game.Props

@@ -14,7 +14,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 )
 
-// listSaves returns every save found for basePath, "" (quicksave) first.
 func listSaves(basePath string) ([]string, error) {
 	var labels []string
 	if _, err := os.Stat(filePath(basePath, "")); err == nil {
@@ -35,7 +34,6 @@ func listSaves(basePath string) ([]string, error) {
 	return append(labels, named...), nil
 }
 
-// save pauses ecs and writes groups followed by the ECS snapshot to filePath(basePath, label).
 func save(ecs *goke.ECS, basePath, label string, groups map[string][]any) error {
 	ecs.Pause()
 	defer ecs.Resume()
@@ -71,8 +69,6 @@ func save(ecs *goke.ECS, basePath, label string, groups map[string][]any) error 
 	return err
 }
 
-// load restores a snapshot written by save into groups and a freshly constructed ecs, and hands
-// back every group the save holds, encoded, for values tracked after it.
 func load(ecs *goke.ECS, basePath, label string, comps []goke.CompToken, groups map[string][]any) (map[string][]byte, error) {
 	in, err := os.Open(filePath(basePath, label))
 	if err != nil {
@@ -102,7 +98,6 @@ func load(ecs *goke.ECS, basePath, label string, comps []goke.CompToken, groups 
 	return encoded, ecs.Load(tmpPath, comps...)
 }
 
-// filePath is the quicksave path when label is empty, else a named save path.
 func filePath(basePath, label string) string {
 	if label == "" {
 		return basePath + ".game.save"
@@ -110,7 +105,6 @@ func filePath(basePath, label string) string {
 	return basePath + ".game." + label + ".save"
 }
 
-// saveResources gob-encodes groups into one frame, each under its own name.
 func saveResources(w io.Writer, groups map[string][]any) error {
 	encoded := make(map[string][]byte, len(groups))
 	for name, targets := range groups {
@@ -135,8 +129,6 @@ func saveResources(w io.Writer, groups map[string][]any) error {
 	return err
 }
 
-// loadResources restores groups from r by name, leaving untouched any the save does not hold, and
-// hands back every group the save holds, encoded.
 func loadResources(r io.Reader, groups map[string][]any) (map[string][]byte, error) {
 	var n uint32
 	if err := binary.Read(r, binary.BigEndian, &n); err != nil {
@@ -160,7 +152,6 @@ func loadResources(r io.Reader, groups map[string][]any) (map[string][]byte, err
 	return encoded, nil
 }
 
-// decodeGroup writes the group called name, when encoded holds it, into targets.
 func decodeGroup(encoded map[string][]byte, name string, targets []any) error {
 	blob, ok := encoded[name]
 	if !ok {

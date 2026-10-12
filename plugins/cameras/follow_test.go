@@ -22,7 +22,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// installCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type installCtx struct {
 	ecs     *goke.ECS
 	pending []func() []goke.System
@@ -41,8 +40,6 @@ func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c
 func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
 func (c *installCtx) Hosts(...plugin.Host)                            {}
 
-// camp is a world of 10x10 units seen through a 200x200 screen, with a selection, the cameras and
-// two players: one at the keyboard, through the main camera, C following, and two without.
 type camp struct {
 	t        *testing.T
 	w        *world.Plugin
@@ -50,8 +47,8 @@ type camp struct {
 	cams     *cameras.Plugin
 	players  *players.Plugin
 	one, two *players.Player
-	cam      camera.Camera // the one one acts through
-	wire     ui.Input      // one's picture's
+	cam      camera.Camera
+	wire     ui.Input
 	ecs      *goke.ECS
 	base     goke.Comp[world.Base]
 	q        *goke.Query
@@ -112,14 +109,11 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	return c
 }
 
-// look has one act through a picture drawn through cam over the whole screen, as a scene showing
-// it wires it.
 func (c *camp) look(cam camera.Camera) {
 	c.cam = cam
 	c.wire.Over(geom.AABB{}, render.NewFeed(cam, nil))
 }
 
-// pressC presses C at the keyboard: one follows its chosen unit, or lets go.
 func (c *camp) pressC() {
 	ev := &control.InputEvents{}
 	ev.AddKeyEvent(control.KeyC, control.ActionPress)
@@ -134,7 +128,6 @@ func (c *camp) tick() {
 	}
 }
 
-// ids are the units by where they stand.
 func (c *camp) ids() map[float64]uid.UID64 {
 	out := map[float64]uid.UID64{}
 	for c.q.All(); c.q.Next(); {
@@ -146,7 +139,6 @@ func (c *camp) ids() map[float64]uid.UID64 {
 	return out
 }
 
-// moveTo puts id's box with its top-left at (x, y).
 func (c *camp) moveTo(id uid.UID64, x, y float64) {
 	if c.q.Seek(id) {
 		pos := &c.base.At(c.q.Cursor()).Pos
@@ -154,8 +146,6 @@ func (c *camp) moveTo(id uid.UID64, x, y float64) {
 	}
 }
 
-// centred reports whether one's camera draws the middle of the 10x10 box at (x, y) in the middle
-// of its screen.
 func centred(c *camp, x, y float64) bool {
 	sx, sy := c.cam.Project(float32(x+5), float32(y+5), 0)
 	return math.Abs(float64(sx-100)) < 0.5 && math.Abs(float64(sy-100)) < 0.5
@@ -163,7 +153,6 @@ func centred(c *camp, x, y float64) bool {
 
 func fastening(c *camp) camera.Fastening { return c.cam.(camera.Fastenable).Fastening() }
 
-// twoUnits is a unit of player one at 100 and one of player two at 200, both selectable.
 func twoUnits(c *camp, unit kind.Of[float64]) []kind.Entry {
 	return []kind.Entry{
 		unit.Entry(100).Told(players.Give{To: c.one.ID}, selection.Allow{}),
@@ -171,8 +160,6 @@ func twoUnits(c *camp, unit kind.Of[float64]) []kind.Entry {
 	}
 }
 
-// C fastens the player's camera Centred over the one unit it has selected and keeps it in the
-// middle of the screen as it goes; zooming keeps it there; C again lets go.
 func TestFollow_FastensTheCameraOverTheOneSelectedUnitAndKeepsItCentred(t *testing.T) {
 	c := newCamp(t, twoUnits)
 	mine := c.ids()[100]
@@ -198,7 +185,6 @@ func TestFollow_FastensTheCameraOverTheOneSelectedUnitAndKeepsItCentred(t *testi
 	}
 }
 
-// A Pan lets the camera go; with several units selected, or another player's, C fastens to none.
 func TestFollow_PanLetsGoAndSeveralOrAnothersSelectedFastenNone(t *testing.T) {
 	c := newCamp(t, func(c *camp, unit kind.Of[float64]) []kind.Entry {
 		return append(twoUnits(c, unit), unit.Entry(300).Told(players.Give{To: c.one.ID}, selection.Allow{}))
@@ -224,8 +210,6 @@ func TestFollow_PanLetsGoAndSeveralOrAnothersSelectedFastenNone(t *testing.T) {
 	}
 }
 
-// A unit told Follow as it is made has the camera it names fastened over it from its first step;
-// a Follow naming no camera does nothing; the camera lets go once the unit is gone.
 func TestFollow_ToldAtSpawnFastensTheCameraUntilTheUnitIsGone(t *testing.T) {
 	c := newCamp(t, func(c *camp, unit kind.Of[float64]) []kind.Entry {
 		return []kind.Entry{
@@ -244,7 +228,6 @@ func TestFollow_ToldAtSpawnFastensTheCameraUntilTheUnitIsGone(t *testing.T) {
 	}
 }
 
-// LookAt centres the camera on the entity once, fastened to nothing: the entity moving on leaves it.
 func TestLookAt_CentresTheCameraOnceAndLetsGo(t *testing.T) {
 	c := newCamp(t, twoUnits)
 	far := c.ids()[200]
@@ -261,8 +244,6 @@ func TestLookAt_CentresTheCameraOnceAndLetsGo(t *testing.T) {
 	}
 }
 
-// A camera whose config follows an entity by name starts fastened Centred over it once it is in
-// the world, and keeps it in the middle as it goes.
 func TestNew_ACameraStartsFastenedToTheEntityItsConfigNames(t *testing.T) {
 	c := newCamp(t, func(c *camp, unit kind.Of[float64]) []kind.Entry {
 		return []kind.Entry{unit.Entry(100), unit.Entry(300).Named("scout")}

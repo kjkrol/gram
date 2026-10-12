@@ -7,15 +7,12 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 )
 
-// ramp is ground rising 3 a unit away from the eye — up to 300 where x + y is 560, level at 0
-// from 660 on — every point of it facing the eye, which looks from where x and y grow.
+// rises 3 a unit towards where x and y grow, where the eye looks from: 0 from 660 on, 300 at 560
 func ramp(x, y float32) float32 { return min(max(3*(660-(x+y)), 0), 300) }
 
-// rampPoints lie on the slope, where the ground rises 3 a unit.
 var rampPoints = [][2]float32{{300, 320}, {310, 300}, {295, 305}, {320, 290}, {305, 330}}
 
-// settle is what the click once did: four rounds of unprojecting at the height of the last answer,
-// from sea level.
+// what the click once did: four rounds of unprojecting at the height of the last answer
 func settle(unproject func(sx, sy, z float32) (float32, float32), ground func(x, y float32) float32, sx, sy float32) (float32, float32) {
 	x, y := unproject(sx, sy, 0)
 	for range 4 {

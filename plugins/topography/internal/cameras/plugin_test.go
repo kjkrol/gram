@@ -35,8 +35,6 @@ func TestPlugin_ViewsMakeIsometricCameras(t *testing.T) {
 	}
 }
 
-// A click on the top of a kind standing on its cell lands on that cell, not on the ground behind
-// it, isometrically and in perspective: the camera picks the top as it is drawn.
 func TestPlugin_ThePickLandsOnTheTopOfAKindStandingOnItsCell(t *testing.T) {
 	for _, perspective := range []bool{false, true} {
 		w := topotest.NewWorld(0)

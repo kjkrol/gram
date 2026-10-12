@@ -1,6 +1,6 @@
 package game
 
-// Persistence provides Save/Load/List for one Engine's ECS and resources — see Runtime.Persistence.
+// Persistence saves, loads and lists the saves of the active Stage's ECS and resources.
 type Persistence interface {
 	// List returns every save found for basePath, "" (quicksave) first.
 	List(basePath string) ([]string, error)

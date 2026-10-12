@@ -17,7 +17,7 @@ var (
 // Fill puts the colour (r, g, b, a), premultiplied, 0 to 1, in place of all of dst.
 func Fill(dst Image, r, g, b, a float32) {
 	rc := dst.rect()
-	if cur == nil && windowed { // before the window's GPU is up: into what waits for it
+	if cur == nil && windowed {
 		px := [4]byte{byte(r*255 + 0.5), byte(g*255 + 0.5), byte(b*255 + 0.5), byte(a*255 + 0.5)}
 		pix := make([]byte, 0, 4*rc.W*rc.H)
 		for range rc.W * rc.H {
@@ -26,7 +26,7 @@ func Fill(dst Image, r, g, b, a float32) {
 		dst.Texture.WritePixels(rc.X, rc.Y, rc.W, rc.H, pix)
 		return
 	}
-	if rc == (Rect{0, 0, dst.Texture.w, dst.Texture.h}) { // all of it: a pass that clears, no draw
+	if rc == (Rect{0, 0, dst.Texture.w, dst.Texture.h}) {
 		d := must()
 		d.mu.Lock()
 		defer d.mu.Unlock()
@@ -54,7 +54,7 @@ func (m Affine) Apply(x, y float32) (float32, float32) {
 }
 
 // DrawImage draws src into dst, its top-left corner at the origin moved by m, its colours times
-// color (premultiplied), sampled blended between texels where linear, laid over as blend says.
+// color (premultiplied), sampled between texels where linear.
 func DrawImage(dst, src Image, m Affine, color [4]float32, linear bool, blend Blend) {
 	r := src.rect()
 	w, h := float32(r.W), float32(r.H)
@@ -74,8 +74,7 @@ func DrawImage(dst, src Image, m Affine, color [4]float32, linear bool, blend Bl
 // Piece is a W by H rectangle of a source image, at SrcX, SrcY in it, drawn at DstX, DstY.
 type Piece struct{ DstX, DstY, SrcX, SrcY, W, H float32 }
 
-// DrawPieces draws pieces of src into dst in as few draws as the indices allow, their colours
-// times color (premultiplied): the glyphs of a line of text.
+// DrawPieces draws pieces of src into dst, their colours times color (premultiplied).
 func DrawPieces(dst, src Image, pieces []Piece, color [4]float32, blend Blend) {
 	const most = 65536 / 4 // pieces a draw's 16-bit indices reach
 	r := src.rect()
@@ -97,8 +96,8 @@ func DrawPieces(dst, src Image, pieces []Piece, color [4]float32, blend Blend) {
 	}
 }
 
-// DrawImageIn draws src into dst, its top-left corner at (x, y), only inside the convex polygon pts
-// (dst's pixels, a fan round the first point), laid over as blend says.
+// DrawImageIn draws src into dst, its top-left corner at (x, y), only inside the convex polygon
+// pts, in dst's pixels.
 func DrawImageIn(dst, src Image, x, y float32, pts [][2]float32, blend Blend) {
 	if len(pts) < 3 {
 		return
@@ -116,9 +115,8 @@ func DrawImageIn(dst, src Image, x, y float32, pts [][2]float32, blend Blend) {
 	Triangles(&Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: make([]byte, blitLayout.Size), Blend: blend}, verts, indices)
 }
 
-// Present draws screen over the window's surface view — w by h pixels of format, its texels
-// blended where the sizes differ — into enc, the window's frame encoder, which the window submits
-// and presents; everything drawn before is submitted first.
+// Present draws screen over the window's surface view, w by h pixels of format, into enc, the
+// window's frame encoder. Everything drawn before is submitted first.
 func Present(enc *wgpu.CommandEncoder, view *wgpu.TextureView, format gputypes.TextureFormat, w, h int, screen *Texture) error {
 	d := must()
 	d.mu.Lock()
@@ -174,7 +172,6 @@ func Present(enc *wgpu.CommandEncoder, view *wgpu.TextureView, format gputypes.T
 	return pass.End()
 }
 
-// presentBuffers makes, once, the buffers Present draws the window's frame with.
 func (d *device) presentBuffers() error {
 	if d.presentGroup != nil {
 		return nil
@@ -200,8 +197,8 @@ func (d *device) presentBuffers() error {
 	return nil
 }
 
-// Sprites draws the triangles of verts, their Src in src's texture pixels, sampled nearest or
-// blended between texels, their colours times the vertices', laid over as blend says.
+// Sprites draws the triangles of verts, their Src in src's texture pixels, sampled between texels
+// where linear.
 func Sprites(dst, src Image, verts []Vertex, indices []uint16, linear bool, blend Blend) {
 	u := make([]byte, blitLayout.Size)
 	if linear {
@@ -210,7 +207,7 @@ func Sprites(dst, src Image, verts []Vertex, indices []uint16, linear bool, blen
 	Triangles(&Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: u, Blend: blend}, verts, indices)
 }
 
-// Colored draws the triangles of verts in their colours, premultiplied, laid over as blend says.
+// Colored draws the triangles of verts in their colours, premultiplied.
 func Colored(dst Image, verts []Vertex, indices []uint16, blend Blend) {
 	Triangles(&Draw{Target: dst, Program: fillProgram, Blend: blend}, verts, indices)
 }

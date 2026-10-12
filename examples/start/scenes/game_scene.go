@@ -30,7 +30,7 @@ func (m *gameplayScene) picture() render.Picture {
 
 func (m *gameplayScene) screen() *ui.Element {
 	g := m.arena
-	return ui.Layers( // from the bottom up: each covers those before it
+	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
 		ui.Image(render.NewFeed(g.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
 			Input(g.players.Through(g.player)),

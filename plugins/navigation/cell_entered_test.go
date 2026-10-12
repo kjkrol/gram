@@ -13,20 +13,16 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// enteredWorld is one navigated entity in a world with a board, observing its Entered marker
-// after every step.
 type enteredWorld struct {
 	ecs  *goke.ECS
 	id   uid.UID64
 	grid grid.Grid
 
-	// per-tick observations, refreshed by the observer system
 	entered  map[uid.UID64]cell.ID
 	hasOrder map[uid.UID64]bool
 }
 
-// newEnteredWorld makes the world; with marks the entity carries its markers from the start, else it
-// gets them at the first cell it enters.
+// with marks the entity carries its markers from the start, else it gets them at its first cell
 func newEnteredWorld(t *testing.T, w, h uint32, start, target cell.ID, marks bool) *enteredWorld {
 	t.Helper()
 	ew := &enteredWorld{entered: map[uid.UID64]cell.ID{}, hasOrder: map[uid.UID64]bool{}}
@@ -81,8 +77,6 @@ func (ew *enteredWorld) cellAt(x, y uint32) cell.ID {
 	return c
 }
 
-// Entered is on for the one step a unit comes into each cell on its way, and off between: one
-// report a cell, whether the unit carried its markers from the start or got them at its first cell.
 func TestEntered_ReportsEveryCellOnTheWayToTheTarget(t *testing.T) {
 	for _, marks := range []bool{true, false} {
 		t.Run(map[bool]string{true: "carried", false: "got on the way"}[marks], func(t *testing.T) {

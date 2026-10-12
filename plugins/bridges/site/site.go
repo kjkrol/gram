@@ -11,12 +11,11 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 )
 
-// Ground is what a bridge is planned over: a board and its heights, as a game has them or as a
-// map is being made.
+// Ground is what a bridge is planned over: a board and its heights.
 type Ground interface {
 	Grid() grid.Grid
 	// Heights are the ground's heights at c's outline, in CellOutline's order; on a grid of level
-	// cells — a hex grid — one, its level.
+	// cells one, its level.
 	Heights(c cell.ID, dst []float64) []float64
 	// Takes reports whether a bridge's head may stand on c: ground its road may take.
 	Takes(c cell.ID) bool
@@ -35,10 +34,8 @@ type Part struct {
 }
 
 // Rules are where a bridge may stand: Longest cells at most between its heads, the deck
-// Clearance over the ground under every one of them and no more than High over it (0: any), a
-// head's ground moved no more than Reshape to lie flat at the deck. A bridge crosses something:
-// water, or ground somewhere Under the deck — what passes under it, a figure — in a world with
-// Heights; in one without, water or cells its road may not take.
+// Clearance over the ground under every one and no more than High over it (0: any), a head's
+// ground moved no more than Reshape to lie flat at the deck, something Under the deck crossed.
 type Rules struct {
 	Longest   int
 	Under     float64
@@ -49,7 +46,7 @@ type Rules struct {
 }
 
 // Bridge is a bridge planned from one head to another: the way it runs from From, its deck's
-// height, the cells it spans between its heads and where its piers stand, between them.
+// height, the cells it spans and where its piers stand.
 type Bridge struct {
 	From, To cell.ID
 	Way      int
@@ -58,10 +55,8 @@ type Bridge struct {
 	Piers    []geom.Vec
 }
 
-// Plan is the bridge from the head from to the head to with its deck at deck, or why none may
-// stand there: it runs straight along one of the grid's directions, both heads flat at the deck
-// once their ground is moved, its spans clear of the ground, of other bridges' spans and of every
-// road but one running square across it, Under the deck; a pier between every two spans.
+// Plan is the bridge from the head from to the head to with its deck at deck, or a Refusal
+// saying why none may stand there.
 func Plan(g Ground, r Rules, from, to cell.ID, deck float64) (Bridge, error) {
 	gr := g.Grid()
 	b := Bridge{From: from, To: to, Deck: deck}
@@ -152,7 +147,7 @@ func Plan(g Ground, r Rules, from, to cell.ID, deck float64) (Bridge, error) {
 	return b, nil
 }
 
-// Piers are where the piers of a bridge spanning spans stand: between every two of them.
+// Piers are where the piers of a bridge spanning spans stand, between every two of them.
 func Piers(g grid.Grid, spans []cell.ID) []geom.Vec {
 	var out []geom.Vec
 	for i := 1; i < len(spans); i++ {
@@ -162,9 +157,8 @@ func Piers(g grid.Grid, spans []cell.ID) []geom.Vec {
 	return out
 }
 
-// Line is the way a bridge from the head from runs to the head to and the cells it spans
-// between them, or why it runs no way: along one of the grid's directions, longest cells between
-// at most.
+// Line is the way a bridge from the head from runs to the head to and the cells it spans, or
+// why it runs no way; longest cells between at most.
 func Line(g grid.Grid, from, to cell.ID, longest int) (int, []cell.ID, error) {
 	if from == to {
 		return 0, nil, refusal(g, from, "begins and ends on one cell")
@@ -201,7 +195,6 @@ func Line(g grid.Grid, from, to cell.ID, longest int) (int, []cell.ID, error) {
 	return 0, nil, refusal(g, to, "lies off every line from the other head")
 }
 
-// level says why the head h may not be levelled at deck, nil where it may.
 func level(g Ground, r Rules, h cell.ID, deck float64) error {
 	var buf [4]float64
 	heights := g.Heights(h, buf[:0])
@@ -214,8 +207,7 @@ func level(g Ground, r Rules, h cell.ID, deck float64) error {
 	return roads(g, h, deck, heights)
 }
 
-// roads says why levelling h at deck would leave a road beside it lying where Transport Tycoon
-// would not lay it, nil where none would.
+// roads refuses levelling h where a road beside it would lie as Transport Tycoon would not lay it.
 func roads(g Ground, h cell.ID, deck float64, heights []float64) error {
 	gr := g.Grid()
 	if len(heights) == 1 {
@@ -257,8 +249,6 @@ func roads(g Ground, h cell.ID, deck float64, heights []float64) error {
 	return nil
 }
 
-// under says why the road through the span s, if one runs there, may not pass under the bridge
-// running way at deck: only straight across it, Under the deck.
 func under(g Ground, r Rules, s cell.ID, way int, deck float64, heights []float64) error {
 	gr := g.Grid()
 	links := g.Road(s)
@@ -285,8 +275,7 @@ func under(g Ground, r Rules, s cell.ID, way int, deck float64, heights []float6
 	return nil
 }
 
-// middle is the highest the ground under a cell's middle may lie given its heights: a square
-// cell's top is folded along one of its diagonals, its middle halfway along it.
+// a square cell's top is folded along one of its diagonals, its middle halfway along it
 func middle(heights []float64) float64 {
 	if len(heights) != 4 {
 		return heights[0]
@@ -294,22 +283,19 @@ func middle(heights []float64) float64 {
 	return max((heights[0]+heights[2])/2, (heights[1]+heights[3])/2)
 }
 
-// on reports whether p is one of the points of ends: a corner a head shares, lying flat at the
-// deck once the head is levelled.
 func on(p geom.Vec, ends []geom.Vec, run float64) bool {
 	return slices.ContainsFunc(ends, func(q geom.Vec) bool {
 		return math.Abs(p.X-q.X) < 1e-6*run && math.Abs(p.Y-q.Y) < 1e-6*run
 	})
 }
 
-// square reports whether the ways a and b run square to each other.
 func square(g grid.Grid, a, b int) bool {
 	sa, sb := g.Step(a), g.Step(b)
 	dot := sa.X*sb.X + sa.Y*sb.Y
 	return math.Abs(dot) <= 1e-9*math.Hypot(sa.X, sa.Y)*math.Hypot(sb.X, sb.Y)
 }
 
-// Refusal is why a bridge may not stand where it was planned, said of the cell At.
+// Refusal is why a bridge may not stand where it was planned, of the cell At.
 type Refusal struct {
 	At   cell.ID
 	why  string
@@ -317,7 +303,7 @@ type Refusal struct {
 	g    grid.Grid
 }
 
-// Why is the rule broken, said.
+// Why is the rule broken.
 func (r *Refusal) Why() string { return fmt.Sprintf(r.why, r.args...) }
 
 func (r *Refusal) Error() string {

@@ -11,9 +11,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// Up a ramp rising 1 in 5 a walker goes at a third of its speed, down it carefully, slower than on
-// the flat, and a flyer over it as on the flat: what the Map's Slope tells the board's Moving
-// rule.
 func TestSlope_SlowsAClimbAndASteepDescent(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 40, Height: 10}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 4}, Heights: true})
 	grid := grid.DefaultGrids{}.Square(4, 1, 10)

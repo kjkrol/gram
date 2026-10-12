@@ -25,25 +25,20 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// fieldUnit is a unit of a fieldWorld: a box side a side round at, under order from the start
-// when it has one.
 type fieldUnit struct {
 	at       geom.Vec
 	side     float64
 	selected bool
 	driven   steering.Driven // non-zero: steered by hand
 	order    *MoveOrder
-	owner    control.PlayerID // who owns it; nobody for Nobody
+	owner    control.PlayerID
 }
 
-// standAt is the order to stand at p, as a click on p with the unit alone selected gives.
 func (fw *fieldWorld) standAt(p geom.Vec) *MoveOrder {
 	c, _ := fw.grid.CellAt(p)
 	return &MoveOrder{Target: c, Spot: p, At: p}
 }
 
-// fieldWorld is a cols x rows board of 32-unit cells with collision, its units kept apart by
-// their boxes.
 type fieldWorld struct {
 	t     *testing.T
 	grid  grid.Grid
@@ -59,13 +54,11 @@ type fieldWorld struct {
 
 const fieldCell = 32
 
-// newFieldWorld builds the field, lays its kinds and puts units on it.
 func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b *board.Board, at func(x, y uint32) cell.ID), units []fieldUnit) *fieldWorld {
 	t.Helper()
 	return newFieldWorldWith(t, cols, rows, spacing, lay, units, nil)
 }
 
-// newFieldWorldWith is newFieldWorld with navigation set up by configure before it is used.
 func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b *board.Board, at func(x, y uint32) cell.ID), units []fieldUnit, configure func(*Plugin)) *fieldWorld {
 	t.Helper()
 	fw := &fieldWorld{t: t, grid: grid.DefaultGrids{}.Square(cols, rows, fieldCell)}
@@ -89,7 +82,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	if configure != nil {
 		configure(fw.nav)
 	}
-	if err := w.Carry(fw.nav); err != nil { // as the engine does with Use
+	if err := w.Carry(fw.nav); err != nil {
 		t.Fatal(err)
 	}
 	ctx := &stubInstallCtx{ecs: goke.New()}
@@ -173,7 +166,6 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 
 func (fw *fieldWorld) at(x, y uint32) cell.ID { c := fw.grid.At(x, y); return c }
 
-// each calls fn with every unit.
 func (fw *fieldWorld) each(fn func(id uid.UID64, b *world.Base, cell cell.ID, o *MoveOrder, c *collision.Collider)) {
 	for fw.q.All(); fw.q.Next(); {
 		cur := fw.q.Cursor()
@@ -192,7 +184,6 @@ func (fw *fieldWorld) each(fn func(id uid.UID64, b *world.Base, cell cell.ID, o 
 	}
 }
 
-// centre is where unit i stands, and its order if it has one.
 func (fw *fieldWorld) centre(i int) (geom.Vec, *MoveOrder) {
 	var at geom.Vec
 	var order *MoveOrder
@@ -208,14 +199,12 @@ func (fw *fieldWorld) centre(i int) (geom.Vec, *MoveOrder) {
 	return at, order
 }
 
-// run ticks until no unit has an order, or limit; it reports whether they all settled, and how
-// many contacts were struck on the way.
 func (fw *fieldWorld) run(limit time.Duration) (settled bool, contacts int) {
 	settled, contacts, _ = fw.runLongest(limit)
 	return settled, contacts
 }
 
-// runLongest is run, and the most ticks any two units touched on end.
+// longest is the most ticks any two units touched on end
 func (fw *fieldWorld) runLongest(limit time.Duration) (settled bool, contacts, longest int) {
 	touching := map[[2]uid.UID64]int{}
 	for tick := 0; time.Duration(tick)*time.Second/60 < limit; tick++ {
@@ -249,7 +238,6 @@ func (fw *fieldWorld) runLongest(limit time.Duration) (settled bool, contacts, l
 	return false, contacts, longest
 }
 
-// overlaps lists the pairs of units whose boxes overlap.
 func (fw *fieldWorld) overlaps() []string {
 	type box struct {
 		id  uid.UID64
@@ -282,8 +270,6 @@ func TestBodySpacing_AutoPicksBodiesForUnitsSmallAgainstTheCells(t *testing.T) {
 	}
 }
 
-// A group sent to a point gathers round it: one on it, the others stopping short of their spots
-// where they touch one of the group that has arrived.
 func TestBodySpacing_AGroupStandsRoundThePointClicked(t *testing.T) {
 	var units []fieldUnit
 	for i := range 6 {
@@ -343,10 +329,6 @@ func TestBodySpacing_TwoHeadOnPassEachOtherAndOneWalksPastAStandingOne(t *testin
 	}
 }
 
-// sendCrowd orders n units side a side, laid out as layout says on a 12 x 8 field, to a point off the
-// middle of the cell (6, 4), and runs them until they stand; it reports whether they did, the most
-// ticks two touched on end, the pairs overlapping at the end and the furthest any stands from the
-// point.
 func sendCrowd(t *testing.T, n int, layout string, side float64) (settled bool, longest, overlaps int, spread float64) {
 	t.Helper()
 	var units []fieldUnit
@@ -369,7 +351,7 @@ func sendCrowd(t *testing.T, n int, layout string, side float64) (settled bool, 
 	point := geom.NewVec(c.X+5, c.Y-3)
 	fw.nav.moves.Add(control.Nobody, MoveTo{Cell: fw.at(6, 4), At: point})
 	settled, _, longest = fw.runLongest(30 * time.Second)
-	for range 30 { // the last to stop are let settle
+	for range 30 {
 		fw.ecs.Tick(time.Second / 60)
 	}
 	for i := range units {
@@ -379,10 +361,6 @@ func sendCrowd(t *testing.T, n int, layout string, side float64) (settled bool, 
 	return settled, longest, len(fw.overlaps()), spread
 }
 
-// Groups of every size and from every side stand round the point with nothing overlapping: units a
-// tenth of a cell, a fifth, and all but a third. Nobody knows where the others are, so they touch
-// on the way and at the end, but only in passing: no two press on each other for as long as
-// navigation takes for a stall.
 func TestBodySpacing_CrowdsStandRoundThePointWithoutPushing(t *testing.T) {
 	for _, n := range []int{4, 9, 16, 25} {
 		for _, layout := range []string{"column from the west", "block from the south", "scattered", "from the north-east"} {
@@ -403,8 +381,6 @@ func TestBodySpacing_CrowdsStandRoundThePointWithoutPushing(t *testing.T) {
 	}
 }
 
-// A road east with a longer way round north of it and water south: a unit nearly a cell large
-// standing on the road leaves no room to pass, so the unit on its way east goes round by the north.
 func TestBodySpacing_OneStandingInTheWayIsGoneRoundAndWithNoWayRoundTheUnitStands(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(9, 3, fieldCell)}
 	road := func(b *board.Board, at func(x, y uint32) cell.ID) {
@@ -441,9 +417,6 @@ func TestBodySpacing_OneStandingInTheWayIsGoneRoundAndWithNoWayRoundTheUnitStand
 	}
 }
 
-// Two sent alone to one point each go for it, not knowing of the other: the one there first gives
-// way to the late one striking it, the late one takes the point, and the first, back to find its
-// place taken, stands beside it round the same point.
 func TestBodySpacing_ASpotTakenMeanwhileGivesAnother(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 3, fieldCell)}
 	goal := probe.grid.CellCenter(probe.at(8, 1))
@@ -475,8 +448,6 @@ func TestBodySpacing_ASpotTakenMeanwhileGivesAnother(t *testing.T) {
 	}
 }
 
-// A click inside the cell a unit stands on moves it to the point; Shift queues the next point,
-// passed on the way; a LookAt stops a unit on the move where its braking ends and turns it.
 func TestBodySpacing_ClicksInItsOwnCellShiftAndLookAt(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 3, fieldCell)}
 	home := probe.grid.CellCenter(probe.at(1, 1))
@@ -532,7 +503,6 @@ func TestBodySpacing_ClicksInItsOwnCellShiftAndLookAt(t *testing.T) {
 	}
 }
 
-// A unit walked by hand stops short of one standing ahead and does not push it.
 func TestBodySpacing_ByHandAUnitStopsShortOfAnother(t *testing.T) {
 	fw := newFieldWorld(t, 10, 3, BodySpacing, nil, []fieldUnit{
 		{at: geom.NewVec(40, 48), side: 6, driven: steering.Driven{Ahead: 1, Face: geom.NewVec(1, 0)}},
@@ -551,8 +521,6 @@ func TestBodySpacing_ByHandAUnitStopsShortOfAnother(t *testing.T) {
 	}
 }
 
-// Walking along the shore into one standing in its way, a unit steps round it by the land, never
-// over the water: the demo drowns whoever stands where its domain may not.
 func TestBodySpacing_StrikingSomeoneByTheShoreItStepsRoundByLand(t *testing.T) {
 	shore := func(b *board.Board, at func(x, y uint32) cell.ID) {
 		for x := uint32(0); x < 10; x++ {
@@ -580,8 +548,6 @@ func TestBodySpacing_StrikingSomeoneByTheShoreItStepsRoundByLand(t *testing.T) {
 	}
 }
 
-// One standing in the way of one on the move, struck by it, steps off its way — square to it, not
-// pushed along it — lets it pass and stays there.
 func TestBodySpacing_OneStandingStepsAsideAndStays(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)

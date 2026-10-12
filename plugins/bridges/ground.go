@@ -11,14 +11,12 @@ import (
 	"github.com/kjkrol/gram/plugins/bridges/site"
 )
 
-// boardGround is the board and its heights as a bridge is planned over them: the bridges built
-// read off the decks over the cells, and those laid besides — a level's, before its entities are.
 type boardGround struct {
 	brd     *board.Board
 	heights func(p geom.Vec) float64 // nil: flat at 0
 	allows  cell.Domain
 	hex     bool
-	laid    []site.Bridge
+	laid    []site.Bridge // a level's, before its entities are
 	outline []geom.Vec
 }
 
@@ -50,7 +48,6 @@ func (g *boardGround) at(p geom.Vec) float64 {
 	return g.heights(p)
 }
 
-// level is c's ground level: its heights' mean, as a relief has it.
 func (g *boardGround) level(c cell.ID) float64 {
 	var buf [4]float64
 	hs := g.Heights(c, buf[:0])
@@ -75,8 +72,6 @@ func (g *boardGround) Road(c cell.ID) cell.Links {
 	return 0
 }
 
-// Bridged reads a bridge's part on c off the laid ones, else off the band over c: a Graded deck
-// a link long is a head, longer a span.
 func (g *boardGround) Bridged(c cell.ID) (site.Part, bool) {
 	gr := g.brd.Grid
 	for _, b := range g.laid {

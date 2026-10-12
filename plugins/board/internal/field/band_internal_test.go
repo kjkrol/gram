@@ -13,8 +13,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// bandWorld is a row of eight cells of ten with a wall of the height given on the third and
-// fourth, the ground level as level says, in a world with heights.
 func bandWorld(t *testing.T, height float64, level func(cell.ID) float64) (*Field, func(x uint32) cell.ID) {
 	t.Helper()
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
@@ -29,8 +27,6 @@ func bandWorld(t *testing.T, height float64, level func(cell.ID) float64) (*Fiel
 	return f, cellAt
 }
 
-// solid is what f holds solid across the whole row for a walker spanning band, by cell, with
-// the sides it opens.
 func solid(f *Field, band collision.Band) map[uint64]collide.Sides {
 	out := map[uint64]collide.Sides{}
 	f.Solid(world.Layers(cell.Land), band, geom.NewAABBAt(geom.NewVec(0, 0), 80, 10), func(fb collision.FieldBox) bool {
@@ -40,9 +36,6 @@ func solid(f *Field, band collision.Band) map[uint64]collide.Sides {
 	return out
 }
 
-// A wall of a height stands from below up to its top: a walker on the ground meets it, a flyer
-// over its top does not, and a wall on a slope stops whoever comes to its foot or stands on the
-// slope. A wall of no height stands at every height.
 func TestBand_ASolidCellStandsFromBelowUpToItsHeight(t *testing.T) {
 	flat := func(cell.ID) float64 { return 0 }
 	f, cellAt := bandWorld(t, 10, flat)
@@ -85,8 +78,6 @@ func TestBand_ASolidCellStandsFromBelowUpToItsHeight(t *testing.T) {
 	}
 }
 
-// A side of a solid cell is open towards a neighbour the entity passes over: a low wall next to
-// a high one is open ground to a shot flying over the low one, so the high wall opens that face.
 func TestBand_ASideIsOpenTowardsANeighbourUnderTheEntity(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
@@ -110,7 +101,6 @@ func TestBand_ASideIsOpenTowardsANeighbourUnderTheEntity(t *testing.T) {
 	}
 }
 
-// A flat world asks no band: every solid cell stands at every height.
 func TestBand_AFlatWorldHasEveryCellEverywhere(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)

@@ -29,7 +29,7 @@ type InputEvents struct {
 		Shift, Ctrl, Alt bool
 	}
 	MiddleDown bool
-	// WindowFillsScreen reports whether the window covers the whole monitor, fullscreen or borderless.
+	// WindowFillsScreen reports whether the window covers the whole monitor.
 	WindowFillsScreen bool
 
 	ClickQueue  []ClickEvent
@@ -48,7 +48,6 @@ func (e *InputEvents) AddKeyEvent(key Key, action KeyAction) {
 	e.KeyEvents = append(e.KeyEvents, KeyEvent{Key: key, Action: action})
 }
 
-// AddClickEvent takes plain int for caller ergonomics — stored as geom.Vec.
 func (e *InputEvents) AddClickEvent(x, y int, button MouseButton, action KeyAction) {
 	e.ClickQueue = append(e.ClickQueue, ClickEvent{
 		Pos:    geom.NewVec(float64(x), float64(y)),
@@ -57,7 +56,6 @@ func (e *InputEvents) AddClickEvent(x, y int, button MouseButton, action KeyActi
 	})
 }
 
-// cursorCapture is the window's way to catch the cursor, the engine's; nil without a window.
 var cursorCapture func(on bool)
 
 // SetCursorCapture is the engine's: how the window catches its cursor and lets it go.

@@ -34,16 +34,12 @@ type spanRow struct {
 	Head bool
 }
 
-// valleyBridge is an 8 x 8 board of cells 32 wide in relief, 10 up but for a valley running
-// south-west to north-east across the middle, bridged slantwise from a head on (1, 1) to a head on
-// (5, 5), a deck 10 up, 12 wide, railed; a walker 3 wide at at ordered to target, kept apart by
-// its body as the island's walkers are.
+// a valley from south-west to north-east across the middle, bridged slantwise
 func valleyBridge(t *testing.T, at geom.Vec, target cell.ID, extra ...goke.System) (*goke.ECS,
 	*goke.Query, *goke.Comp[world.Base], *world.Plugin) {
 	return valleyBridgeTo(t, at, target, EitherLevel, extra...)
 }
 
-// valleyBridgeTo is valleyBridge, the walker ordered to the level of target.
 func valleyBridgeTo(t *testing.T, at geom.Vec, target cell.ID, level Level,
 	extra ...goke.System) (*goke.ECS, *goke.Query, *goke.Comp[world.Base], *world.Plugin) {
 	t.Helper()
@@ -61,9 +57,6 @@ func valleyBridgeTo(t *testing.T, at geom.Vec, target cell.ID, level Level,
 	return bridged(t, slantwise, at, target, level, extra...)
 }
 
-// bridgeSite is a board 8 x 8 of cells 32 wide in relief, its heights, the cells of it under
-// water, and a bridge running straight from a head on from to a head on to, a deck 10 up; its
-// walkers kept a cell each where cells says, and others besides the one bridged places.
 type bridgeSite struct {
 	heights  func(geom.Vec) float64
 	wet      []cell.ID
@@ -72,9 +65,6 @@ type bridgeSite struct {
 	others   []walkerRow
 }
 
-// bridged is the site, its bridge's deck 12 wide and railed, a walker 3 wide at at ordered to
-// the level of target, kept apart by its body as the island's walkers are, unless the site keeps
-// them a cell each.
 func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level Level,
 	extra ...goke.System) (*goke.ECS, *goke.Query, *goke.Comp[world.Base], *world.Plugin) {
 	t.Helper()
@@ -186,8 +176,6 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 	return ctx.ecs, q, &base, w
 }
 
-// A walker standing anywhere by the way onto a slantwise bridge — on its head, beside the corner
-// its deck cuts — crosses it to the other side.
 func TestNavigation_ByASlantwiseBridgesCornerItCrossesWithoutCircling(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	for _, at := range []geom.Vec{
@@ -219,8 +207,6 @@ func TestNavigation_ByASlantwiseBridgesCornerItCrossesWithoutCircling(t *testing
 	}
 }
 
-// Sent to a cell the bridge runs over, a walker ends on the level asked for: on the deck, or down
-// in the valley under it.
 func TestNavigation_ToACellUnderABridgeOnTheLevelAsked(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	for level, want := range map[Level]float64{OnDeck: 10, OnGround: 0} {
@@ -252,10 +238,6 @@ func TestNavigation_ToACellUnderABridgeOnTheLevelAsked(t *testing.T) {
 	}
 }
 
-// Standing on a bridge over a valley, a walker sent down under a cell of it goes off the bridge
-// and comes in under the deck from beside it, ending on the valley's floor — under the cell it
-// stands on, of a slantwise bridge and of a straight one whose heads lie flat at its deck; under
-// the next, the way down by the near head under water, over the deck of its goal to the far one.
 func TestNavigation_FromABridgeDownUnderIt(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	valley := func(p geom.Vec) float64 {
@@ -329,8 +311,6 @@ func TestNavigation_FromABridgeDownUnderIt(t *testing.T) {
 	}
 }
 
-// Kept a cell each, a walker standing on a bridge's deck and one sent to the ground under it share
-// the cell: each holds its own level of it.
 func TestNavigation_KeptACellEachUnderAWalkerOnADeck(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	goal := g.At(3, 3)
@@ -375,8 +355,6 @@ func TestNavigation_KeptACellEachUnderAWalkerOnADeck(t *testing.T) {
 	}
 }
 
-// A step along a deck through a corner passes over the corner's cells — entering one is no step
-// off the way — but holds none of them: the deck carries the unit over.
 func TestLeg_AlongADeckPassesOverItsCornersHoldingNone(t *testing.T) {
 	leg := Leg{From: 1, To: 2, C1: 3, C2: 4, Diagonal: true, Decked: true, Active: true}
 	if got := leg.cells(); len(got) != 4 {

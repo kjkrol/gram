@@ -39,8 +39,8 @@ func (c *installer) RegSys(f func() goke.System) goke.Runnable { return c.ecs.Re
 func (c *installer) ECS() *goke.ECS                            { return c.ecs }
 func (c *installer) Hosts(...plugin.Host)                      {}
 
-// dale is a board 10 x 6 of cells 10 wide in relief, the ground 20 up but for a valley at 0 from
-// x 30 to 60, the bridges' kind "bridge" defined, the relief levelling their heads.
+// dale is a board 10 x 6 of cells 10 wide, the ground 20 up but for a valley at 0 from x 30 to
+// 60.
 type dale struct {
 	t       *testing.T
 	g       grid.Grid
@@ -154,7 +154,6 @@ func (d *dale) ticks(n int) {
 	}
 }
 
-// decks are the bands standing on the board, by cell.
 func (d *dale) decks() map[cell.ID]cell.Floor {
 	out := map[cell.ID]cell.Floor{}
 	for d.floors.All(); d.floors.Next(); {
@@ -176,9 +175,6 @@ func (d *dale) pierPoints() []geom.Vec {
 	return out
 }
 
-// A player marks a head, points the bridge on and marks the other head where it may stand: asked,
-// it builds — a band on each cell from head to head, a pier between every two spans — its heads
-// levelled at the deck. Where the bridge may not stand, the second mark asks nothing.
 func TestTool_APlayerLaysABridgeOutAndBuildsIt(t *testing.T) {
 	d := newDale(t)
 	d.start(func(p geom.Vec) float64 {
@@ -228,7 +224,6 @@ func TestTool_APlayerLaysABridgeOutAndBuildsIt(t *testing.T) {
 	}
 }
 
-// A player asked may say no: nothing is built, the first head still marked.
 func TestTool_CancelBuildsNothing(t *testing.T) {
 	d := newDale(t)
 	d.start(valley)
@@ -250,8 +245,6 @@ func TestTool_CancelBuildsNothing(t *testing.T) {
 	}
 }
 
-// A level's bridge, a line from head to head, is built as it is spawned; one that may not stand
-// fails with its line.
 func TestSpawn_ALevelsBridges(t *testing.T) {
 	file := func(entity string) fstest.MapFS {
 		var corners strings.Builder

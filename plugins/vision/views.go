@@ -14,13 +14,11 @@ import (
 //go:embed shaders/*.wgsl
 var shaders embed.FS
 
-// sighted bakes the sight of every view drawn (shaders/sighted.wgsl) over the ground and its cover.
 var sighted = render.NewShaderWith("vision sight", render.Files(shaders, "shaders/ground.wgsl", "shaders/sighted.wgsl"), []render.Uniform{
 	{Name: "GroundStep", Size: 1}, {Name: "GroundCount", Size: 2}, {Name: "GroundWrap", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
 	{Name: "SightBend", Size: 1}, {Name: "March", Size: 1}, {Name: "Spokes", Size: 1}, {Name: "Rings", Size: 1},
 })
 
-// viewing lays the views over what the frame drew (shaders/views.wgsl), an observer an instance.
 var viewing = render.NewMeshShaderWith("vision views", render.Files(shaders, "shaders/ground.wgsl", "shaders/views.wgsl"), []render.Uniform{
 	{Name: "Unproject", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1}, {Name: "Perspective", Size: 1},
 	{Name: "ViewSize", Size: 2}, {Name: "ViewAt", Size: 2}, {Name: "PixelSpan", Size: 2}, {Name: "FlatGround", Size: 1},
@@ -29,24 +27,18 @@ var viewing = render.NewMeshShaderWith("vision views", render.Files(shaders, "sh
 }).Instanced(3)
 
 const (
-	// spokes and rings are how many texels across and out an observer's sight is baked in;
-	// maxViews how many views a frame draws at most
+	// texels across and out an observer's sight is baked in
 	spokes, rings = 64, 64
 	maxViews      = 128
-	// maxGround is how many texels a side the copy of the ground holds at most
+	// texels a side of the ground's copy at most
 	maxGround = 4096
 )
 
-// views are the views drawn on the GPU: the ground and its cover copied into images as they change,
-// every observer's sight baked each frame into a block of its own, then laid over the ground the
-// frame's meshes drew, read from their depth — or over the level ground of a world without heights,
-// found along the camera's lines of sight — the ground out of sight veiled, the cone stroked; over
-// a wrapping world the copy wraps and a view is laid again past a seam it reaches over.
 type views struct {
-	observers []observer // the frame's, in sight of its camera
+	observers []observer
 
-	ground, bands *render.Image // the ground and its cover, a texel every step
-	groundAt      [2]uint64     // the ground's version and the cover's the copy holds, 1 more; 0 none
+	ground, bands *render.Image
+	groundAt      [2]uint64
 	nx, ny        int
 	step          float32
 	wrap          [2]bool
@@ -55,21 +47,18 @@ type views struct {
 	covers        []coverTexel
 	pix, bandPix  []byte
 
-	sight     *render.Image // spokes by rings texels an observer
-	verts     []render.Vertex
-	indices   []uint16
-	baking    render.DrawTrianglesShaderOptions
-	drawing   render.DrawMeshOptions
-	instances []float32
-	// the uniforms of the bake and of the draw, kept between frames
+	sight            *render.Image
+	verts            []render.Vertex
+	indices          []uint16
+	baking           render.DrawTrianglesShaderOptions
+	drawing          render.DrawMeshOptions
+	instances        []float32
 	bakeOwn, drawOwn map[string][]float32
 }
 
-// observer is one view to draw: the eye (X, Y, Eye its level) and how far it reaches, the way it
-// faces and half its angle, radians.
+// Facing and Half in radians
 type observer struct{ X, Y, Eye, Reach, Facing, Half float32 }
 
-// coverTexel is the cover at a texel of the copy: how see-through, its bottom and its top.
 type coverTexel struct{ tau, bottom, top float64 }
 
 func newViews() *views {
@@ -79,7 +68,6 @@ func newViews() *views {
 	return v
 }
 
-// look notes the view of an observer in sight of cam for the frame being composed.
 func (v *views) look(cam camera.Camera, o observer) {
 	r := float64(o.Reach)
 	if len(v.observers) >= maxViews || !cam.Visible(geom.NewAABBAt(geom.NewVec(float64(o.X)-r, float64(o.Y)-r), 2*r, 2*r)) {
@@ -88,9 +76,6 @@ func (v *views) look(cam camera.Camera, o observer) {
 	v.observers = append(v.observers, o)
 }
 
-// draw bakes the frame's views and draws them into the target through cam, over ground — nil,
-// level at 0 — and cover, the world w by h wrapping along the axes wrap says, the ground copied
-// every step; shadow veils the ground out of sight, bend sinks it under an eye's level per d².
 func (v *views) draw(t render.Target, cam camera.Camera, ground ground.Heights, cover ground.Cover, w, h, step float32, wrap [2]bool, bend float64, shadow Shadow) {
 	defer func() { v.observers = v.observers[:0] }()
 	if t.Screen == nil || t.Depth == nil || len(v.observers) == 0 || step <= 0 {
@@ -119,7 +104,7 @@ func (v *views) draw(t render.Target, cam camera.Camera, ground ground.Heights, 
 	if f.DDX != ([3]float32{}) || f.DDY != ([3]float32{}) {
 		persp, span = 1, [2]float32{0, length(f.DDX)}
 	}
-	// a view is laid again past each seam of a wrapping world, wherever it shows in the viewport
+	// a view is laid again past each seam of a wrapping world
 	images := [][2]float32{{0, 0}}
 	for axis, size := range [2]float32{w, h} {
 		if !wrap[axis] {
@@ -170,9 +155,6 @@ func (v *views) draw(t render.Target, cam camera.Camera, ground ground.Heights, 
 	t.Screen.DrawMesh(nil, viewing, &v.drawing)
 }
 
-// covered is the rectangle of the viewport w by h the cone of o may cover through tr, pixels: the
-// cone's rim and apex at the lowest and the highest the copy of the ground holds, a little wider;
-// all of the viewport where any of it lies behind the eye.
 func (v *views) covered(tr camera.Transform, o observer, w, h float32) [4]float32 {
 	x0, y0, x1, y1 := float32(math.Inf(1)), float32(math.Inf(1)), float32(math.Inf(-1)), float32(math.Inf(-1))
 	take := func(x, y float32) bool {
@@ -200,12 +182,10 @@ func (v *views) covered(tr camera.Transform, o observer, w, h float32) [4]float3
 	return [4]float32{max(x0-pad, 0), max(y0-pad, 0), min(x1+pad, w), min(y1+pad, h)}
 }
 
-// length is how long a is.
 func length(a [3]float32) float32 {
 	return float32(math.Sqrt(float64(a[0]*a[0] + a[1]*a[1] + a[2]*a[2])))
 }
 
-// bake works out every view's sight into its block of the sight image.
 func (v *views) bake(bend float64) {
 	n := len(v.observers)
 	if height := rings * n; v.sight == nil || v.sight.Bounds().Dy() < height {
@@ -233,7 +213,6 @@ func (v *views) bake(bend float64) {
 	v.sight.DrawTrianglesShader(v.verts, v.indices, sighted, &v.baking)
 }
 
-// groundUniforms hands a shader where the copy of the ground lies and what it holds.
 func (v *views) groundUniforms(u map[string]any, own map[string][]float32) {
 	set(u, own, "GroundStep", v.step)
 	set(u, own, "GroundCount", float32(v.nx), float32(v.ny))
@@ -244,7 +223,7 @@ func (v *views) groundUniforms(u map[string]any, own map[string][]float32) {
 	set(u, own, "Rings", rings)
 }
 
-// set puts the uniform name, vals, into u, in a slice own keeps between frames and boxed once.
+// own keeps the slices between frames, so each is boxed into u once
 func set(u map[string]any, own map[string][]float32, name string, vals ...float32) {
 	s, ok := own[name]
 	if !ok || len(s) != len(vals) {
@@ -255,9 +234,6 @@ func set(u map[string]any, own map[string][]float32, name string, vals ...float3
 	copy(s, vals)
 }
 
-// copy copies the ground — nil, level at 0 — and its cover into images, a texel every step over
-// the world w by h, the last on its far edge or, along an axis that wraps, a step short of it, anew
-// where either has changed since — or every frame for one that does not count its changes.
 func (v *views) copy(ground ground.Heights, cover ground.Cover, w, h, step float32, wrap [2]bool) {
 	count := func(size float32, wraps bool) int {
 		if wraps {
@@ -317,7 +293,7 @@ func (v *views) copy(ground ground.Heights, cover ground.Cover, w, h, step float
 	for k := range n {
 		hi, lo := enc(v.heights[k])
 		c := v.covers[k]
-		// a band without end — a flat world's cover — has it all: alpha none
+		// a band without end, a flat world's cover, has it all: alpha none
 		whole := byte(255)
 		if math.IsInf(c.bottom, 0) || math.IsInf(c.top, 0) {
 			whole = 0
@@ -338,9 +314,7 @@ func (v *views) copy(ground ground.Heights, cover ground.Cover, w, h, step float
 	v.bands.WritePixels(v.bandPix)
 }
 
-// versionOf tells a copy of a ground or a cover when to be made anew: a number that changes with
-// its Version and, where it keeps one, the count of its cells' Changes; 1 for none at all, 0 for
-// one that keeps no count, made anew every frame.
+// 1 for none at all, 0 for one that keeps no count: its copy is made anew every frame
 func versionOf(x any) uint64 {
 	if x == nil {
 		return 1
@@ -370,7 +344,6 @@ func resizeCover(s []coverTexel, n int) []coverTexel {
 	return s[:n]
 }
 
-// pow2 is the least power of two at least n.
 func pow2(n int) int {
 	p := 1
 	for p < n {
@@ -379,12 +352,10 @@ func pow2(n int) int {
 	return p
 }
 
-// unitColor is c, premultiplied as the frame takes a colour, 0 to 1 a channel.
 func unitColor(c color.RGBA) [4]float32 {
 	return [4]float32{float32(c.R) / 255, float32(c.G) / 255, float32(c.B) / 255, float32(c.A) / 255}
 }
 
-// flag is b as a shader reads it: 1 for true.
 func flag(b bool) float32 {
 	if b {
 		return 1

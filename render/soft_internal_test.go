@@ -5,9 +5,6 @@ import (
 	"testing"
 )
 
-// However large a softly faded piece — one thrown millions of pixels off by a perspective — its
-// fades never pass for a blended sprite's mark, which the shaders tell apart at half of it; a
-// blended sprite's always does.
 func TestSoft_NeverPassesForABlendedSprite(t *testing.T) {
 	var f Frame
 	f.Reset(nil)
@@ -33,7 +30,6 @@ func TestSoft_NeverPassesForABlendedSprite(t *testing.T) {
 			}
 		}
 	})
-	// a piece a few fades long fades as before: 1 on the faded side, 1 plus its length in fades
 	var h Frame
 	h.Reset(nil)
 	h.Soft(Air, 0, Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}, color.RGBA{A: 200}, Fade{Bottom: 4})
@@ -44,15 +40,12 @@ func TestSoft_NeverPassesForABlendedSprite(t *testing.T) {
 	})
 }
 
-// blendSheet is an AtlasSource of one sprite with no image behind it.
 type blendSheet struct{}
 
 func (blendSheet) Atlas() *Image                            { return nil }
 func (blendSheet) UV(SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 8, 8 }
 func (blendSheet) White() (u, v float32)                    { return 9, 9 }
 
-// A plain sprite far off in the air reads how much of it the air hides in its alpha, over 1 and
-// under an overlay's mark; a sprite that is no plain one is left alone.
 func TestFog_TheSpriteReadsItInItsAlphaUnderTheOverlaysMark(t *testing.T) {
 	var f Frame
 	f.Reset(nil)

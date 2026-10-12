@@ -15,7 +15,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// roles is the family of tags these tests name.
 type roles struct{}
 
 const (
@@ -23,44 +22,36 @@ const (
 	hunted
 )
 
-// token is a component every entity of a made-up host carries.
 type token struct{ N int }
 
-// poke is a made-up host's moment of one entity.
 type poke struct{ self uid.UID64 }
 
 func (p poke) Who() uid.UID64 { return p.self }
 
-// glance is a made-up host's moment of a pair: one looking at another.
 type glance struct{ self, other uid.UID64 }
 
 func (g glance) Who() uid.UID64            { return g.self }
 func (g glance) Whom(each func(uid.UID64)) { each(g.other) }
 
-// dawn is a made-up moment of the world as a whole, about its own entity, as a clock.Moment is.
 type dawn struct{ world uid.UID64 }
 
 func (d dawn) Who() uid.UID64 { return d.world }
 
-// noted is a command a rule's entity gives itself.
 type noted struct{}
 
 func (noted) Command() {}
 
-func noteOf[P any](name string, filter rule.Filter) rule.Rule {
-	return rule.Then[P](name, filter, rule.Order(noted{}))
+func noteOf[P any](name string, when any) rule.Rule {
+	return rule.Branch[P]{Name: name, When: when, Do: rule.Order(noted{})}
 }
 
-// narrowed is r for the players of a role alone, as a role's Obeys makes it.
 func narrowed(r rule.Rule) rule.Rule { return rule.NewPart("hookon scout", 0).Obeys(r).Rules()[0] }
 
-// host is a made-up plugin's host of rules over the one its adder is — a plugin.Rules, PairRules
-// or StepRules — counting what it is asked and keeping what it took.
 type host struct {
 	name  string
 	adds  plugin.Host
 	asked int
-	took  []rule.Rule
+	took  []string
 }
 
 func (h *host) Add(r any) error {
@@ -68,11 +59,18 @@ func (h *host) Add(r any) error {
 	if err := h.adds.Add(r); err != nil {
 		return fmt.Errorf("%w in %s", err, h.name)
 	}
-	h.took = append(h.took, r.(rule.Rule))
+	h.took = append(h.took, fmt.Sprint(r))
 	return nil
 }
 
-// broken is a made-up host failing for another reason than the moment.
+func names(rules ...rule.Rule) []string {
+	out := make([]string, len(rules))
+	for i, r := range rules {
+		out[i] = fmt.Sprint(r)
+	}
+	return out
+}
+
 type broken struct{ asked int }
 
 var errBroken = errors.New("broken host")
@@ -82,18 +80,16 @@ func (b *broken) Add(any) error {
 	return errBroken
 }
 
-// Deliver hands each rule to the host of its moment, skipping whoever refuses the rule's moment,
-// and never asks a host after the one that took it.
 func TestDeliver_HandsEachRuleToTheHostOfItsMoment(t *testing.T) {
 	pokes := &host{name: "pokes", adds: &plugin.Rules[poke]{}}
 	glances := &host{name: "glances", adds: &plugin.PairRules[glance]{}}
 	dawns := &host{name: "dawns", adds: &plugin.StepRules[dawn]{}}
 	among := []plugin.Host{glances, dawns, pokes}
 
-	wake := noteOf[dawn]("wake", rule.All)
+	wake := noteOf[dawn]("wake", nil)
 	spot := noteOf[poke]("spot", rule.Self(hunter))
-	stare := noteOf[glance]("stare", rule.Between(hunter, hunted))
-	drown := noteOf[poke]("drown", rule.All)
+	stare := noteOf[glance]("stare", rule.All(rule.Self(hunter), rule.Other(hunted)))
+	drown := noteOf[poke]("drown", nil)
 	scouting := narrowed(drown)
 	scoutStare := narrowed(stare)
 
@@ -102,12 +98,12 @@ func TestDeliver_HandsEachRuleToTheHostOfItsMoment(t *testing.T) {
 	}
 	for _, c := range []struct {
 		h     *host
-		took  []rule.Rule
+		took  []string
 		asked int
 	}{
-		{glances, []rule.Rule{stare, scoutStare}, 6},
-		{dawns, []rule.Rule{wake}, 4},
-		{pokes, []rule.Rule{spot, drown, scouting}, 3},
+		{glances, names(stare, scoutStare), 6},
+		{dawns, names(wake), 4},
+		{pokes, names(spot, drown, scouting), 3},
 	} {
 		if !slices.Equal(c.h.took, c.took) {
 			t.Errorf("%s took %v; want %v", c.h.name, c.h.took, c.took)
@@ -118,26 +114,23 @@ func TestDeliver_HandsEachRuleToTheHostOfItsMoment(t *testing.T) {
 	}
 }
 
-// Of two hosts of one moment the first has the rule; the second is never asked.
 func TestDeliver_TheFirstHostToTakeTheRuleHasIt(t *testing.T) {
 	first := &host{name: "first", adds: &plugin.Rules[poke]{}}
 	second := &host{name: "second", adds: &plugin.Rules[poke]{}}
-	drown := noteOf[poke]("drown", rule.All)
+	drown := noteOf[poke]("drown", nil)
 
 	if err := hosts.Deliver([]plugin.Host{first, second}, drown); err != nil {
 		t.Fatalf("Deliver = %v", err)
 	}
-	if !slices.Equal(first.took, []rule.Rule{drown}) || second.asked != 0 {
+	if !slices.Equal(first.took, names(drown)) || second.asked != 0 {
 		t.Errorf("first took %v, second was asked %d times; want first to take it, second never asked", first.took, second.asked)
 	}
 }
 
-// Any error but plugin.ErrUnhosted stops Deliver at once: no later host is asked, no later rule
-// tried.
 func TestDeliver_StopsAtAnotherError(t *testing.T) {
 	b := &broken{}
 	pokes := &host{name: "pokes", adds: &plugin.Rules[poke]{}}
-	drown, spot := noteOf[poke]("drown", rule.All), noteOf[poke]("spot", rule.Self(hunter))
+	drown, spot := noteOf[poke]("drown", nil), noteOf[poke]("spot", rule.Self(hunter))
 
 	err := hosts.Deliver([]plugin.Host{b, pokes}, drown, spot)
 	if !errors.Is(err, errBroken) || errors.Is(err, plugin.ErrUnhosted) {
@@ -148,8 +141,6 @@ func TestDeliver_StopsAtAnotherError(t *testing.T) {
 	}
 }
 
-// A host whose system is built refuses with plugin.ErrHostBuilt: Deliver reports it and asks no
-// later host, though one would take the rule.
 func TestDeliver_StopsAtAHostAlreadyBuilt(t *testing.T) {
 	bound := &plugin.Rules[poke]{}
 	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
@@ -159,7 +150,7 @@ func TestDeliver_StopsAtAHostAlreadyBuilt(t *testing.T) {
 	built := &host{name: "built", adds: bound}
 	later := &host{name: "later", adds: &plugin.Rules[poke]{}}
 
-	err := hosts.Deliver([]plugin.Host{built, later}, noteOf[poke]("drown", rule.All))
+	err := hosts.Deliver([]plugin.Host{built, later}, noteOf[poke]("drown", nil))
 	if !errors.Is(err, plugin.ErrHostBuilt) {
 		t.Errorf("Deliver = %v; want plugin.ErrHostBuilt", err)
 	}
@@ -168,12 +159,10 @@ func TestDeliver_StopsAtAHostAlreadyBuilt(t *testing.T) {
 	}
 }
 
-// A rule no host takes is plugin.ErrUnhosted naming the rule, and so is any rule among no hosts
-// at all.
 func TestDeliver_RefusesARuleNoHostTakes(t *testing.T) {
 	pokes := &host{name: "pokes", adds: &plugin.Rules[poke]{}}
 	dawns := &host{name: "dawns", adds: &plugin.StepRules[dawn]{}}
-	stare := noteOf[glance]("stare", rule.Between(hunter, hunted))
+	stare := noteOf[glance]("stare", rule.All(rule.Self(hunter), rule.Other(hunted)))
 
 	for _, c := range []struct {
 		name  string
@@ -181,7 +170,8 @@ func TestDeliver_RefusesARuleNoHostTakes(t *testing.T) {
 		r     rule.Rule
 	}{
 		{"a moment nobody hosts", []plugin.Host{pokes, dawns}, stare},
-		{"a filtered rule of the world", []plugin.Host{pokes, dawns}, noteOf[dawn]("wake", rule.Having[token]())},
+		{"a filtered rule of the world", []plugin.Host{pokes, dawns},
+			noteOf[dawn]("wake", rule.Carrying[token]())},
 		{"no hosts", nil, stare},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -199,12 +189,11 @@ func TestDeliver_RefusesARuleNoHostTakes(t *testing.T) {
 	}
 }
 
-// A role's rule of the world as a whole is taken by the host of its moment, and a role is
-// delivered rule by rule.
 func TestDeliver_ARoleIsDeliveredRuleByRule(t *testing.T) {
 	pokes := &host{name: "pokes", adds: &plugin.Rules[poke]{}}
 	dawns := &host{name: "dawns", adds: &plugin.StepRules[dawn]{}}
-	role := rule.NewPart("hosts early", 1).Obeys(noteOf[dawn]("wake", rule.All), noteOf[poke]("drown", rule.All))
+	role := rule.NewPart("hosts early", 1).
+		Obeys(noteOf[dawn]("wake", nil), noteOf[poke]("drown", nil))
 
 	if err := hosts.Deliver([]plugin.Host{pokes, dawns}, role); err != nil {
 		t.Fatalf("Deliver = %v", err)
@@ -214,7 +203,6 @@ func TestDeliver_ARoleIsDeliveredRuleByRule(t *testing.T) {
 	}
 }
 
-// No rules is nothing to deliver.
 func TestDeliver_NoRulesIsNothing(t *testing.T) {
 	if err := hosts.Deliver(nil); err != nil {
 		t.Errorf("Deliver(nil) = %v; want nil", err)

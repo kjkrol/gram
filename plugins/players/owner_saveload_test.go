@@ -18,9 +18,8 @@ import (
 	"github.com/kjkrol/gram/ui"
 )
 
-// ownerStage is a world with two players and one unit the second owns.
 type ownerStage struct {
-	load bool // entered from the quicksave
+	load bool
 
 	world   *world.Plugin
 	players *players.Plugin
@@ -69,7 +68,6 @@ func (s *ownerStage) Stack() game.Scenes {
 	return s.stack
 }
 
-// ownersOfTheUnit is what the stage's one unit is owned by.
 func (s *ownerStage) ownersOfTheUnit(t *testing.T) tag.Tags[owner.Family] {
 	t.Helper()
 	var got tag.Tags[owner.Family]
@@ -85,7 +83,6 @@ func (s *ownerStage) ownersOfTheUnit(t *testing.T) tag.Tags[owner.Family] {
 	return got
 }
 
-// ownersProbe builds the stage's query of the owners as the stage is set up.
 type ownersProbe struct{ s *ownerStage }
 
 func (p ownersProbe) SetupSystems() []goke.System {
@@ -99,8 +96,6 @@ func (g ownerGame) Stages() (map[string]game.Stage, string) {
 	return map[string]game.Stage{g.stage.Name(): g.stage}, g.stage.Name()
 }
 
-// A unit a player owns is that player's still after the game is saved and loaded: the owners'
-// tags are saved by name.
 func TestOwner_SurvivesASaveAndALoad(t *testing.T) {
 	t.Chdir(t.TempDir())
 	saver := &ownerStage{}
@@ -127,7 +122,6 @@ func TestOwner_SurvivesASaveAndALoad(t *testing.T) {
 	}
 }
 
-// A player's picture shows elements pinned to its own units and nobody's, not another's.
 func TestThrough_ShowsWhatIsThePlayersOwn(t *testing.T) {
 	s := &ownerStage{}
 	if err := engine.NewEngine(ownerGame{s}).Init(); err != nil {

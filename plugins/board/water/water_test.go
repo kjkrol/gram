@@ -13,8 +13,6 @@ import (
 
 const size = 10
 
-// valley is a slope falling south into a sea along the bottom rows, a valley down its middle and a
-// hollow halfway down it.
 func valley() (grid.Grid, func(geom.Vec) float64, func(cell.ID) bool) {
 	g := grid.DefaultGrids{}.Square(12, 24, size)
 	heights := func(p geom.Vec) float64 {
@@ -31,12 +29,10 @@ func valley() (grid.Grid, func(geom.Vec) float64, func(cell.ID) bool) {
 	return g, heights, sea
 }
 
-// names are the board kinds the tests lay courses as.
 var names = map[water.Course]string{water.Brook: "brook", water.Stream: "stream", water.River: "river", water.Ford: "ford", water.Mouth: "mouth"}
 
 var cfg = water.Config{BrookAt: 4, StreamAt: 8, RiverAt: 30, BrookDepth: 1, StreamDepth: 2, RiverDepth: 4, FordEvery: 4, FordSlope: 0.5, WidthPerRoot: 1}
 
-// Every cell of land drains to the sea, the hollow's too, and the valley gathers a river.
 func TestDrain_EveryCellDrainsToTheSeaAndTheValleyGathersARiver(t *testing.T) {
 	g, heights, sea := valley()
 	n, err := water.Drain(g, heights, sea, cfg)
@@ -71,8 +67,6 @@ func TestDrain_EveryCellDrainsToTheSeaAndTheValleyGathersARiver(t *testing.T) {
 	}
 }
 
-// The carved bed never rises downstream, the sea's corners stay at 0, and a corner of a course
-// lies below the ground it was cut from.
 func TestCarved_CutsABedFallingToTheSea(t *testing.T) {
 	g, heights, sea := valley()
 	n, _ := water.Drain(g, heights, sea, cfg)
@@ -105,7 +99,6 @@ func TestCarved_CutsABedFallingToTheSea(t *testing.T) {
 	}
 }
 
-// Fords cross the river every FordEvery cells from its mouth, only where it runs gently.
 func TestDrain_FordsCrossTheRiverWhereItIsGentle(t *testing.T) {
 	g, heights, sea := valley()
 	n, _ := water.Drain(g, heights, sea, cfg)
@@ -135,8 +128,6 @@ func TestDrain_RefusesAGridOtherThanSquare(t *testing.T) {
 	}
 }
 
-// A valley running slantwise gathers a river running slantwise: its water goes down across the
-// corners of its cells, not round them in steps.
 func TestDrain_ARiverRunsSlantwiseDownASlantingValley(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(20, 20, size)
 	heights := func(p geom.Vec) float64 {
@@ -167,8 +158,6 @@ func TestDrain_ARiverRunsSlantwiseDownASlantingValley(t *testing.T) {
 	}
 }
 
-// A course is laid as a network linking down to where its water goes and up to each course
-// draining into it, of its course's kind, the wider the more water it gathers, a cell wide at most.
 func TestNet_LinksACourseUpAndDownAndWidensItWithItsWater(t *testing.T) {
 	g, heights, sea := valley()
 	n, _ := water.Drain(g, heights, sea, cfg)
@@ -208,8 +197,6 @@ func TestNet_LinksACourseUpAndDownAndWidensItWithItsWater(t *testing.T) {
 	}
 }
 
-// A course reaching the sea runs on out into it, the way of its last step, each cell wider and more
-// faded than the last, linked on from cell to cell; none without a Plume.
 func TestDrain_ACourseRunsOnOutIntoTheSea(t *testing.T) {
 	g, heights, sea := valley()
 	plume := cfg
@@ -251,8 +238,6 @@ func TestDrain_ACourseRunsOnOutIntoTheSea(t *testing.T) {
 	}
 }
 
-// Along a course laid as a network the way down grows from 0 at its head to 1 at its last cell
-// ashore, never falling downstream.
 func TestNet_AlongGrowsDownACourseToTheSea(t *testing.T) {
 	g, heights, sea := valley()
 	n, err := water.Drain(g, heights, sea, cfg)

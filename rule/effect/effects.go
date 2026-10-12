@@ -10,9 +10,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Effects puts effects on entities — temporary changes to their components: tags granted for a
-// while, values altered and restored — cast from anywhere. The world makes and runs it
-// (world.Plugin.Effects); nothing installs it by hand.
+// Effects is a Stage's register of effects, which the world makes and runs
+// (world.Plugin.Effects).
 type Effects struct {
 	defs      []def
 	originals *originals
@@ -21,15 +20,14 @@ type Effects struct {
 	module    *module
 
 	byName  map[string]effectID
-	marks   []tag.Tag[States]                     // by effect: its own marker
-	sprite  func() render.SpriteID                // the world's issuer of atlas slots
+	marks   []tag.Tag[States] // by effect
+	sprite  func() render.SpriteID
 	looks   []map[render.SpriteID]render.SpriteID // by effect: a sprite's twin under it
-	settled bool                                  // the world took the looks for its renderer
-	guard   func(name string)                     // panics for an effect defined out of its place; nil for none
+	settled bool
+	guard   func(name string)
 }
 
-// New makes the effects, naming each effect's marker with name — the world's Kinds, so the saves
-// know it by name; name gives Changed first. For the world, which makes the game's.
+// New makes the effects, naming each effect's marker with name, which must give Changed first.
 func New(name func(name string) tag.Tag[States]) *Effects {
 	if t := name(changedName); t != Changed {
 		panic(fmt.Sprintf("effects: the markers have tags of their own before %q", changedName))
@@ -40,12 +38,10 @@ func New(name func(name string) tag.Tag[States]) *Effects {
 	return e
 }
 
-// markerPrefix comes before an effect's name in the name of its marker: "effect.burning".
 const markerPrefix = "effect."
 
-// Define registers an effect under name, with its own marker on while it runs (Effect.Mark);
-// call it in Init, before the game runs. It hands nothing back: Named is the effect, for whoever
-// builds on it.
+// Define registers an effect under name, with its own marker on while it runs (Effect.Mark). It
+// panics once the game is set up, or past 63 effects.
 func (e *Effects) Define(name string, spec Spec) {
 	if e.guard != nil {
 		e.guard(name)
@@ -75,9 +71,7 @@ func (e *Effects) Define(name string, spec Spec) {
 	e.byName[name] = id
 }
 
-// Named is the effect defined as name, for whoever builds on it in Init or in a scene's Layers —
-// rules, looks, commands; a game keeps its names as constants, and what runs keeps the Effect
-// itself, never the name. An unknown name panics.
+// Named is the effect defined as name. An unknown name panics.
 func (e *Effects) Named(name string) Effect {
 	ef, ok := e.Lookup(name)
 	if !ok {
@@ -86,8 +80,7 @@ func (e *Effects) Named(name string) Effect {
 	return ef
 }
 
-// Lookup is Named for a plugin reading names a game wrote — a dialog's conditions: false for an
-// unknown one.
+// Lookup is Named for a name that may be unknown: false for one.
 func (e *Effects) Lookup(name string) (Effect, bool) {
 	id, ok := e.byName[name]
 	if !ok {
@@ -96,15 +89,14 @@ func (e *Effects) Lookup(name string) (Effect, bool) {
 	return Effect{owner: e, id: id, mark: e.marks[id]}, true
 }
 
-// Guard has Define call guard with each effect's name first: the world's, which refuses one
-// defined out of its section of a Stage. For the world.
+// Guard has Define call guard with each effect's name first.
 func (e *Effects) Guard(guard func(name string)) { e.guard = guard }
 
-// Sprites has the effects' looks take their atlas slots from issue. For the world.
+// Sprites has the effects' looks take their atlas slots from issue.
 func (e *Effects) Sprites(issue func() render.SpriteID) { e.sprite = issue }
 
-// Looks calls each with every effect that has looks — its marker and the twins of the sprites
-// drawn under it — and settles which effects have any. For the world's renderer.
+// Looks calls each with every effect that has looks, its marker and the twins of the sprites
+// drawn under it, and settles which effects have any.
 func (e *Effects) Looks(each func(mark tag.Tag[States], twins map[render.SpriteID]render.SpriteID)) {
 	e.settled = true
 	for id, twins := range e.looks {
@@ -114,9 +106,8 @@ func (e *Effects) Looks(each func(mark tag.Tag[States], twins map[render.SpriteI
 	}
 }
 
-// Cast puts effect on id for as long as its Spec says; cast again, it is refreshed unless it
-// stacks. The change lands with the effects' next pass. For plugins: a game casts by a rule's or a
-// plan's Apply.
+// Cast puts effect on id for as long as its Spec says, landing with the effects' next pass; cast
+// again, it is refreshed unless it stacks.
 func (e *Effects) Cast(cb *goke.CmdBuf, id uid.UID64, effect Effect) {
 	e.CastFor(cb, id, effect, e.lasts(effect.id))
 }
@@ -126,15 +117,14 @@ func (e *Effects) CastFor(cb *goke.CmdBuf, id uid.UID64, effect Effect, d time.D
 	e.system.cast(cb, id, effect.id, d)
 }
 
-// Dispel ends effect on id with the effects' next pass; nothing happens without it. For plugins.
+// Dispel ends effect on id with the effects' next pass.
 func (e *Effects) Dispel(id uid.UID64, effect Effect) { e.system.dispel(id, effect.id) }
 
-// Has reports whether id is under effect. For plugins.
+// Has reports whether id is under effect.
 func (e *Effects) Has(id uid.UID64, effect Effect) bool { return e.system.has(id, effect.id) }
 
 func (e *Effects) lasts(effect effectID) time.Duration { return lastsOf(&e.defs[effect]) }
 
-// lastsOf is how long a cast of d lasts when nobody says: its Lasts, or Forever.
 func lastsOf(d *def) time.Duration {
 	if d.lasts > 0 {
 		return d.lasts
@@ -142,11 +132,9 @@ func lastsOf(d *def) time.Duration {
 	return Forever
 }
 
-// Module is the effects as a goke.Module, for the world to install: its system, its components
-// and the originals it saves.
+// Module is the effects as a goke.Module, for the world to install.
 func (e *Effects) Module() goke.Module { return e.module }
 
-// module runs the effect system, lists its components and saves the originals of what is altered.
 type module struct {
 	system    *effectSystem
 	originals *originals
@@ -155,44 +143,35 @@ type module struct {
 
 var _ goke.Module = (*module)(nil)
 
-// RegSystems registers the effect system once, however many times the module is registered: the
-// world registers it with its own systems and installs it as a module of its own.
+// once, however many times the module is registered
 func (m *module) RegSystems(ecs *goke.ECS) {
 	if m.runnable == nil {
 		m.runnable = ecs.RegSys(m.system)
 	}
 }
 
-// RunPlan advances every effect over d — a step of the simulation.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.runnable, d)
 	ctx.Sync()
 }
 
-// SetupSystems is empty — effects are cast at runtime.
 func (m *module) SetupSystems() []goke.System { return nil }
 
-// LoadComps lists the component types effects owns — see [goke.CompProvider].
 func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{goke.LoadComp[Active](), goke.LoadComp[Wide](), goke.LoadComp[tag.Tags[States]]()}
 }
 
-// Persisted returns the saved originals for Persistence.Save and Load.
 func (m *module) Persisted() []any { return []any{&m.originals.byEntity} }
 
-// Effect is one effect defined with its Effects: what a plan or a rule casts, the Effects it
-// belongs to carried along.
+// Effect is one effect defined with its Effects: what a rule or a plan casts.
 type Effect struct {
 	owner *Effects
 	id    effectID
 	mark  tag.Tag[States]
 }
 
-// Look is the atlas slot drawn under the effect in place of the sprite of: issued the first time
-// it is asked for, the same after. Add what it shows to the world's atlas — render.Slot.Under
-// does both, the Effect being a render.Dresser through this method; the world's
-// renderer swaps it in while the effect's marker is on. An effect's first look comes before the
-// world's renderer is made (world.Plugin.WithRenderer), or it panics.
+// Look is the atlas slot drawn under the effect in place of the sprite of, issued the first time
+// it is asked for. It panics for a first look after the world's renderer was made.
 func (e Effect) Look(of render.SpriteID) render.SpriteID {
 	o := e.owner
 	twins := o.looks[e.id]
@@ -214,16 +193,15 @@ func (e Effect) Look(of render.SpriteID) render.SpriteID {
 	return id
 }
 
-// Shows says something is drawn by the effect's marker — a cover on a board's cells: the entity's
-// Changed goes on as the effect begins and ends, though it alters nothing. For plugins.
+// Shows says something is drawn by the effect's marker: the entity's Changed goes on as the
+// effect begins and ends, though it alters nothing.
 func (e Effect) Shows() { e.owner.defs[e.id].shows = true }
 
-// Mark is the effect's own marker, on while it runs: what rules of other plugins filter by —
-// rule.Self(burning.Mark()).
+// Mark is the effect's own marker, on while it runs.
 func (e Effect) Mark() tag.Tag[States] { return e.mark }
 
-// Description is what the Spec's Described said of the effect — for a UI, a tooltip; "" without one.
+// Description is what the Spec's Described said of the effect, "" without one.
 func (e Effect) Description() string { return e.owner.defs[e.id].describe }
 
-// On reports whether id is under the effect. For plugins.
+// On reports whether id is under the effect.
 func (e Effect) On(id uid.UID64) bool { return e.owner.Has(id, e) }

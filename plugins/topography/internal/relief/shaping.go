@@ -7,11 +7,11 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
-// shapeTolerance keeps float32 heights from chasing a slope limit they cannot store exactly.
+// keeps float32 heights from chasing a slope limit they cannot store exactly
 const shapeTolerance = 1e-3
 
-// Lift moves the ground at p by `by`, then the ground round it until no two neighbouring corners
-// differ by more than maxStep (zero: any).
+// Lift moves the ground at p by `by`, then the ground round it until no two neighbouring
+// corners differ by more than maxStep (zero: any).
 func (r *Relief) Lift(p geom.Vec, by, maxStep float64) {
 	v, ok := r.vertexAt(p)
 	if !ok || by == 0 {
@@ -23,8 +23,8 @@ func (r *Relief) Lift(p geom.Vec, by, maxStep float64) {
 	}
 }
 
-// Flatten brings the ground between from and to to the height at from, then the ground round it
-// within maxStep, as Lift.
+// Flatten brings the ground between from and to to the height at from, then the ground round
+// it within maxStep, as Lift.
 func (r *Relief) Flatten(from, to geom.Vec, maxStep float64) {
 	v0, ok := r.vertexAt(from)
 	if !ok {
@@ -58,8 +58,7 @@ func (r *Relief) Flatten(from, to geom.Vec, maxStep float64) {
 	}
 }
 
-// Level lays the cell c flat at h — its corners on a square grid, its level on any other — then
-// the ground round it within maxStep, as Lift.
+// Level lays the cell c flat at h, then the ground round it within maxStep, as Lift.
 func (r *Relief) Level(c cell.ID, h, maxStep float64) {
 	var set []vertex
 	if !r.square {
@@ -82,7 +81,6 @@ func (r *Relief) Level(c cell.ID, h, maxStep float64) {
 	}
 }
 
-// settle walks out from the vertices changed, pulling each neighbour to within maxStep.
 func (r *Relief) settle(queue []vertex, maxStep float64) {
 	if maxStep <= 0 {
 		return
@@ -110,13 +108,12 @@ func (r *Relief) settle(queue []vertex, maxStep float64) {
 	}
 }
 
-// lattice is the square grid's corner nearest p, unfolded.
+// unfolded
 func (r *Relief) lattice(p geom.Vec) (x, y int64) {
 	w, h := r.grid.CellBounds()
 	return int64(math.Round(p.X / w)), int64(math.Round(p.Y / h))
 }
 
-// vertexAt is the vertex shaped for p: the nearest corner, or the cell under p on a hex grid.
 func (r *Relief) vertexAt(p geom.Vec) (vertex, bool) {
 	if !r.square {
 		c, ok := r.grid.CellAt(p)
@@ -131,7 +128,6 @@ func (r *Relief) vertexAt(p geom.Vec) (vertex, bool) {
 
 func (r *Relief) heightAt(v vertex) float64 { return float64(r.values[r.index(v)]) }
 
-// vertexNeighbours lists the vertices one edge away from v.
 func (r *Relief) vertexNeighbours(v vertex, dst []vertex) []vertex {
 	if !r.square {
 		var here cell.ID

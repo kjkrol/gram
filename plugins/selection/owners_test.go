@@ -8,11 +8,8 @@ import (
 	"github.com/kjkrol/gram/control"
 )
 
-// everywhere is a box over the whole test world.
 var everywhere = geom.AABB{TopLeft: geom.NewVec(0, 0), BottomRight: geom.NewVec(1000, 1000)}
 
-// A player's drag over everything selects its own units alone: not another player's, not those
-// nobody owns.
 func TestSelect_APlayerSelectsItsOwnUnitsAlone(t *testing.T) {
 	h := newHarness(t)
 	mine := h.seed(100, 100, 10)
@@ -26,7 +23,6 @@ func TestSelect_APlayerSelectsItsOwnUnitsAlone(t *testing.T) {
 	}
 }
 
-// A player's new selection unselects its own units alone: another player's selection stays.
 func TestSelect_AnotherPlayersSelectionStays(t *testing.T) {
 	h := newHarness(t)
 	mine := h.seed(100, 100, 10)
@@ -43,7 +39,6 @@ func TestSelect_AnotherPlayersSelectionStays(t *testing.T) {
 	}
 }
 
-// A Select nobody gave — the game's code, a script — selects the units nobody owns alone.
 func TestSelect_NobodySelectsTheOwnerlessAlone(t *testing.T) {
 	h := newHarness(t)
 	mine := h.seed(100, 100, 10)

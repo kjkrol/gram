@@ -10,19 +10,16 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// MaxPathLength is how many steps a Path holds, as the navigation's.
+// as the navigation's
 const MaxPathLength = 64
 
-// legCellSize is the side of the tests' cells.
 const legCellSize = uint32(32)
 
-// Path is a route as the navigation keeps it: its steps and how many.
 type Path struct {
 	Steps  [MaxPathLength]cell.ID
 	Length uint16
 }
 
-// testFinder is a Finder laying its routes in Paths, as the navigation does.
 type testFinder struct{ *Finder }
 
 func newPathFinder(g grid.Grid, terrain cell.Terrain, slopes Slopes, occupancy cell.Occupancy) testFinder {
@@ -67,7 +64,6 @@ func openTerrain() *cell.TerrainMap {
 	return terrain
 }
 
-// stubInstallCtx is a minimal plugin.Installer for tests that call Install directly.
 type stubInstallCtx struct {
 	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
@@ -88,9 +84,7 @@ func (c *stubInstallCtx) RegSys(factory func() goke.System) goke.Runnable {
 }
 func (c *stubInstallCtx) ECS() *goke.ECS { return c.ecs }
 
-// Hosts keeps the hosts of the rules of the moments a plugin catches.
 func (c *stubInstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
-// does with the roles played once a Stage's Init returns.
+// as the engine does with the roles played once a Stage's Init returns
 func (c *stubInstallCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

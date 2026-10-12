@@ -5,15 +5,12 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
-// outlined is a grid whose cells cellsUnder can find by sampling.
 type outlined interface {
 	CellBounds() (w, h float64)
 	CellAt(pos geom.Vec) (cell.ID, bool)
 	CellOutline(c cell.ID, dst []geom.Vec) []geom.Vec
 }
 
-// cellsUnder is CellsUnder for any grid: candidates from CellAt on a lattice over the box grown by
-// half a cell, kept when their outline meets the box.
 func cellsUnder(g outlined, box geom.AABB, fn func(c cell.ID)) {
 	w, h := g.CellBounds()
 	step := min(w, h) / 2
@@ -40,7 +37,6 @@ func cellsUnder(g outlined, box geom.AABB, fn func(c cell.ID)) {
 	}
 }
 
-// polygonMeetsBox reports whether a convex polygon and a box share any point.
 func polygonMeetsBox(poly []geom.Vec, box geom.AABB) bool {
 	const eps = 1e-9
 	for _, p := range poly {
@@ -65,7 +61,7 @@ func polygonMeetsBox(poly []geom.Vec, box geom.AABB) bool {
 	return false
 }
 
-// pointInConvex reports whether p lies in the convex polygon poly, given in one winding order.
+// poly in one winding order
 func pointInConvex(poly []geom.Vec, p geom.Vec) bool {
 	sign := 0.0
 	for i := range poly {
@@ -82,7 +78,6 @@ func pointInConvex(poly []geom.Vec, p geom.Vec) bool {
 	return true
 }
 
-// segmentsCross reports whether segments ab and cd intersect.
 func segmentsCross(a, b, c, d geom.Vec) bool {
 	orient := func(p, q, r geom.Vec) float64 { return (q.X-p.X)*(r.Y-p.Y) - (q.Y-p.Y)*(r.X-p.X) }
 	o1, o2 := orient(a, b, c), orient(a, b, d)
@@ -90,7 +85,6 @@ func segmentsCross(a, b, c, d geom.Vec) bool {
 	return o1*o2 < 0 && o3*o4 < 0
 }
 
-// foldAxis maps v onto [0,size): wrapped when the axis wraps, refused outside it otherwise.
 func foldAxis(v, size int64, wraps bool) (int64, bool) {
 	if wraps {
 		return wrapModI64(v, size), true

@@ -9,8 +9,7 @@ import (
 
 var _ goke.System = (*giveSystem)(nil)
 
-// giveSystem puts a world.Drift on every body without one, once a tick before the simulation's
-// steps: whatever a body is told in them finds its drift there.
+// before the simulation's steps, so whatever a body is told in them finds its drift there
 type giveSystem struct {
 	driftless *goke.Query
 	id        goke.CompID

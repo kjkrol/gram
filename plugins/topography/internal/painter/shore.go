@@ -6,10 +6,8 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 )
 
-// Shore is the way from each corner of the tile's top to the nearest cell within a few that does not
-// shine — the shore of the water the tile is part of — how far it is and how near; open water
-// beyond, and on a grid other than square. A Look hands it to [Glint] with the Shine.
-// Too far off for a surf to show, it is open water all round.
+// Shore is the way from each corner of the tile's top to the nearest shore within shoreReach.
+// It is open water all round off a square grid or too far off for a surf to show.
 func (t *tile) Shore() water.Shores {
 	if t.px() < shoreCell {
 		return water.Shores{}
@@ -17,14 +15,11 @@ func (t *tile) Shore() water.Shores {
 	return t.r.shoreOf(t.X0, t.Y0, t.X1, t.Y1)
 }
 
-// cornerShore is the shore as one corner of the grid sees it.
 type cornerShore struct {
 	corner water.Shore
 	stamp  uint32
 }
 
-// nextShores starts a Compose: when the terrain has changed since the last one, every shore is
-// worked out anew as it comes into sight.
 func (l *Painter) nextShores() {
 	if !l.square {
 		return
@@ -42,11 +37,9 @@ func (l *Painter) nextShores() {
 	}
 }
 
-// shoreReach is how many cells from a shore its waves turn to face it.
+// cells from a shore within which its waves turn to face it
 const shoreReach = 3
 
-// shoreOf is the shore from each corner of the box x0..x1, y0..y1 of a cell: open water everywhere
-// off a square grid.
 func (l *Painter) shoreOf(x0, y0, x1, y1 float32) water.Shores {
 	if !l.square {
 		return water.Shores{}
@@ -54,8 +47,6 @@ func (l *Painter) shoreOf(x0, y0, x1, y1 float32) water.Shores {
 	return water.Shores{l.shoreAt(x0, y0), l.shoreAt(x1, y0), l.shoreAt(x0, y1), l.shoreAt(x1, y1)}
 }
 
-// shoreAt is the shore from the grid's corner at (x, y), worked out the first time it is asked
-// for since the terrain changed.
 func (l *Painter) shoreAt(x, y float32) water.Shore {
 	sq := l.sq
 	size := float32(sq.Cell)
@@ -72,8 +63,6 @@ func (l *Painter) shoreAt(x, y float32) water.Shore {
 	return s.corner
 }
 
-// cornerSlot is corner g of n cells along an axis, folded onto 0..n-1 when it wraps; false off the
-// grid.
 func cornerSlot(g, n int64, wrap bool) (int64, bool) {
 	if wrap {
 		return (g%n + n) % n, true
@@ -81,14 +70,12 @@ func cornerSlot(g, n int64, wrap bool) (int64, bool) {
 	return g, g >= 0 && g <= n
 }
 
-// workShore is the way from the grid's corner gx, gy to the nearest cell within shoreReach that
-// does not shine, how far it is and how near; on the shore itself, the way into the land it
-// touches.
+// on the shore itself, the way into the land it touches
 func (l *Painter) workShore(gx, gy int64, size float32) water.Shore {
 	reach := shoreReach * size
 	px, py := float32(gx)*size, float32(gy)*size
 	best, bx, by := reach*reach, float32(0), float32(0)
-	var ax, ay float32 // on the shore: towards the middles of the land cells touching the corner
+	var ax, ay float32
 	look := func(cx, cy int64) {
 		c, ok := l.cellAt(cx, cy)
 		if !ok || l.topOf(c).shine > 0 {
@@ -104,7 +91,6 @@ func (l *Painter) workShore(gx, gy int64, size float32) water.Shore {
 			best, bx, by = d, dx, dy
 		}
 	}
-	// ring r is the cells r away from the four touching the corner, none of them nearer than r cells
 	for r := int64(0); r <= shoreReach; r++ {
 		if near := float32(r) * size; near*near >= best {
 			break
@@ -133,19 +119,15 @@ func (l *Painter) workShore(gx, gy int64, size float32) water.Shore {
 	return corner
 }
 
-// coast is the way to the shore from every corner of a square grid, row by row, for the ground
-// drawn on the GPU: worked out anew only round the cells whose shine has changed.
 type coast struct {
-	shining []bool // by ordinal, whether the cell's own kind shines
+	shining []bool
 	shores  []water.Shore
-	seen    uint64 // one more than the board's count of changes when last brought up to date
-	version uint64 // counts the changes to shores
+	seen    uint64
+	version uint64
 }
 
 // Coast is the way to the shore from every corner of the square grid, row by row, how far off a
-// shore is seen, and a count of the changes: brought up to date with the board, round the cells
-// that began or ceased to shine alone — not with the relief, which moves no shore; nil off a
-// square grid.
+// shore is seen, and a count of the changes. It is nil off a square grid.
 func (l *Painter) Coast() ([]water.Shore, float32, uint64) {
 	if !l.square {
 		return nil, 0, 0
@@ -177,7 +159,7 @@ func (l *Painter) Coast() ([]water.Shore, float32, uint64) {
 		if full {
 			continue
 		}
-		x, y := i%cols, i/cols // the corners whose shore the cell may be
+		x, y := i%cols, i/cols
 		for gy := max(0, y-shoreReach-1); gy <= min(rows, y+shoreReach+2); gy++ {
 			for gx := max(0, x-shoreReach-1); gx <= min(cols, x+shoreReach+2); gx++ {
 				work(gx, gy)

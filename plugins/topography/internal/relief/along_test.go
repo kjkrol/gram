@@ -10,9 +10,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 )
 
-// Along the ray the ground lies straight between the profile's points: every point of the ray, the
-// ground under it where the board ends included, is where the profile's line through its two
-// points says.
 func TestRelief_AlongIsTheGroundAlongARay(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(12, 9, 32)
 	r := New(board.NewBoard(g))

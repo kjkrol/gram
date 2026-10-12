@@ -14,14 +14,12 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// sheet is an AtlasSource of one 32x32 sprite with no image behind it.
 type sheet struct{ name string }
 
 func (sheet) Atlas() *Image                            { return nil }
 func (sheet) UV(SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 32, 32 }
 func (sheet) White() (u, v float32)                    { return 40, 40 }
 
-// items is a Source composing whatever its function says.
 type items func(f *Frame)
 
 func (items) Init(*goke.SysInit)                  {}
@@ -36,7 +34,6 @@ var unit = Corners{{0, 0}, {1, 0}, {0, 1}, {1, 1}}
 
 func topDown() camera.Camera { return icamera.NewFromSpace(1024, 1024, 0) }
 
-// sorted is a camera whose projection sorts by depth, as a view with height does.
 func sorted() camera.Camera { return sortingCamera{icamera.NewFromSpace(1024, 1024, 0)} }
 
 type sortingCamera struct{ camera.Camera }
@@ -47,8 +44,6 @@ type sortingProjection struct{ camera.TopDown }
 
 func (sortingProjection) Sorts() bool { return true }
 
-// drawn composes the sources through cam and lists the items in the order they are drawn, as
-// tier:depth.
 func drawn(cam camera.Camera, sources ...Layer) (*Composer, []item) {
 	c := NewComposer(sources...)
 	c.compose(cam)
@@ -105,7 +100,6 @@ func TestComposer_ThroughAProjectionThatSortsDrawsBackToFrontWithMarksOnTop(t *t
 	}
 }
 
-// calls counts the draw calls of a render and the sheets they sampled.
 func calls(c *Composer) []string {
 	var out []string
 	c.draw = func(_ *Image, _ []Vertex, _ []uint16, _ *Image) { out = append(out, "call") }
@@ -278,8 +272,6 @@ func TestFrame_AFanIsTrianglesRoundItsFirstPoint(t *testing.T) {
 	}
 }
 
-// A sprite fan takes at each point the part of the sprite lying under it when the sprite is laid
-// over the box, held to the sprite past the box's edge, as opaque as asked.
 func TestFrame_ASpriteFanIsThePartOfTheSpriteUnderIt(t *testing.T) {
 	var f Frame
 	pts := [][2]float32{{150, 100}, {200, 150}, {150, 200}, {250, 150}}
@@ -303,15 +295,12 @@ func TestFrame_ASpriteFanIsThePartOfTheSpriteUnderIt(t *testing.T) {
 	}
 }
 
-// tint is a material registered for these tests: it paints what it reads.
 var tint = RegisterMaterials([]byte(`// TestTint paints red, the fraction and the first custom.
 fn TestTint(p: vec2<f32>, red: f32, fraction: f32, custom: vec4<f32>) -> vec4<f32> {
     return vec4<f32>(red, fraction, custom.x, 1.0);
 }
 `), nil, "TestTint")[0]
 
-// needGPU readies a device without a window, the software rasteriser with GRAM_GPU=software; a
-// machine without either skips.
 func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
@@ -329,8 +318,6 @@ func TestComposer_ItsShaderCompilesWithTheMaterialsRegistered(t *testing.T) {
 	}
 }
 
-// An overlay is a quad over the sprite marked with its material and what the material reads:
-// where each corner lies in the world, red, the fraction and the customs.
 func TestFrame_AnOverlayIsAQuadOverTheSpriteMarkedWithItsMaterialAndWhatItReads(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
@@ -359,8 +346,6 @@ func TestFrame_AnOverlayIsAQuadOverTheSpriteMarkedWithItsMaterialAndWhatItReads(
 	}
 }
 
-// Over a rect split at a wrap seam an overlay follows each piece, what it reads blended to where
-// the seam cuts.
 func TestFrame_AnOverlayFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
 	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
 	cam.Translate(1000, 0)
@@ -379,8 +364,6 @@ func TestFrame_AnOverlayFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
 	}
 }
 
-// A top whose corner stands apart folds along the diagonal whose corners stand nearer in height,
-// and what is laid over it folds with it; a level top keeps the usual diagonal.
 func TestFrame_ATopFoldsAlongTheDiagonalOfTheNearerHeights(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
@@ -398,7 +381,6 @@ func TestFrame_ATopFoldsAlongTheDiagonalOfTheNearerHeights(t *testing.T) {
 	}
 }
 
-// A tile's outline laid after what lies on it goes over it, along the tile's own edges.
 func TestFrame_AnOutlineLiesOverWhatLiesOnTheTile(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
@@ -416,7 +398,6 @@ func TestFrame_AnOutlineLiesOverWhatLiesOnTheTile(t *testing.T) {
 	}
 }
 
-// A glaze shows as much as its opacity at each corner: its light and its alpha scaled by it.
 func TestFrame_AGlazeShowsAsMuchAsItsOpacity(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
@@ -428,7 +409,6 @@ func TestFrame_AGlazeShowsAsMuchAsItsOpacity(t *testing.T) {
 	}
 }
 
-// A part of a sheet is drawn from the pixels asked for, not from a sprite.
 func TestFrame_APartOfASheetSamplesThePixelsAskedFor(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
@@ -439,8 +419,6 @@ func TestFrame_APartOfASheetSamplesThePixelsAskedFor(t *testing.T) {
 	}
 }
 
-// An overlay laid on a sprite drawn earlier lies over it, at its tier and depth, not over the last;
-// over a rect split at a seam it follows each of its pieces still.
 func TestFrame_AnOverlayOnAnEarlierSpriteLiesOverIt(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
@@ -472,8 +450,6 @@ func TestFrame_AnOverlayOnAnEarlierSpriteLiesOverIt(t *testing.T) {
 	}
 }
 
-// An overlay Under a sprite takes how faint it is and how it fades; one Blended over a blended
-// sprite takes its weight and mark; one over a slanted band lies where its corners do.
 func TestFrame_AnOverlayTakesWhatItShouldOfTheSpriteUnderIt(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
@@ -527,9 +503,6 @@ func TestFrame_ATileSplitAtAWrapSeamIsOutlinedOnlyAlongItsOwnEdges(t *testing.T)
 	}
 }
 
-// The shader is handed the composer's own uniforms — the way towards the eye, the clock, the
-// world units a pixel spans — and every one the sources set; one set in an earlier frame and not
-// this one is zeroed, and a warm frame allocates none of it.
 func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T) {
 	var at float32
 	set := true
@@ -576,13 +549,11 @@ func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T)
 	}
 }
 
-// direct is a Direct source for tests: it hands the frame nothing and notes, when it draws, how
-// many calls the composer had issued before it.
 type direct struct {
 	tier  Tier
 	after *int
 	drawn []int
-	sun   []float32 // the uniform Seen as the composer handed it
+	sun   []float32
 }
 
 func (*direct) Init(*goke.SysInit)            {}
@@ -593,8 +564,6 @@ func (d *direct) Draw(_ Target, _ camera.Camera, u Uniforms) {
 	d.sun = u.Get("Seen")
 }
 
-// A Direct source draws after every piece the frame orders before its tier and before the rest,
-// whatever order the sources came in; a nil layer is left out.
 func TestComposer_ADirectSourceDrawsWhereItsTierComes(t *testing.T) {
 	a := sheet{"a"}
 	calls := 0
@@ -623,9 +592,6 @@ func TestComposer_ADirectSourceDrawsWhereItsTierComes(t *testing.T) {
 	}
 }
 
-// A shader built on the composer's library with a fragment of its own compiles, holds every
-// material registered and reads its own uniforms beside the composer's, and seals them: none may
-// come after.
 func TestNewShaderWith_BuildsOnTheLibraryAndSealsTheMaterials(t *testing.T) {
 	needGPU(t)
 	s := NewShaderWith("test", []byte(`

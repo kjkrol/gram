@@ -15,123 +15,82 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// keeping is how navigation keeps units out of each other's way, as Spacing says: cellKeeping
-// holds cells, bodyKeeping keeps boxes apart. The systems ask it where the two differ.
 type keeping interface {
-	// occupancy is what steps and routes hold and ask.
 	occupancy() cell.Occupancy
-	// begin readies a tick; gather lists every unit as it stands, for a keeping that needs them.
 	begin(gather func([]body) []body)
-	// orders gives the members their orders towards cmd: issue hands a fresh one, and an appended
-	// goal is queued on the member's own order.
+	// an appended goal is queued on the member's own order, not issued
 	orders(members []member, cmd MoveTo, issue func(member, MoveOrder))
-	// look is m's order to stop and turn towards at.
 	look(m member, at geom.Vec) MoveOrder
-	// ready readies o before m is steered by it; it may move o's Target and Spot.
+	// ready may move o's Target and Spot
 	ready(m member, o *MoveOrder)
-	// route is the way for m from from to o's Target.
 	route(m member, from cell.ID, o *MoveOrder) (Path, bool)
-	// lost is what o does when no route reaches its Target, after waiting waited: waits on, settles
-	// on dest along path, or, with neither, gives up.
+	// lost: wait on, or settle on dest along path, or with neither give up
 	lost(m member, from cell.ID, o *MoveOrder, waited time.Duration) (dest cell.ID, path Path, wait, ok bool)
-	// steer asks st for heading dir, zero keeping the one it has, and speed, clear of the others.
+	// a zero dir keeps the heading m has
 	steer(m member, st steering.Helm, dir geom.Vec, speed float64)
-	// watch follows o's headway towards want, the point of toward, marking o Bumped when it has
-	// made none for too long.
 	watch(m member, o *MoveOrder, toward cell.ID, want geom.Vec, d time.Duration)
-	// bump is m's answer to o marked Bumped: it struck the ground or someone bodily, or made no
-	// headway — navigation's own last word, whatever the rules do.
 	bump(m member, o *MoveOrder) bumpAnswer
-	// blocked notes that m's step into c, on the raised deck over it where deck says, was refused,
-	// someone holding it, for d more: who holds it.
 	blocked(m member, o *MoveOrder, c cell.ID, deck bool, d time.Duration) (holder uid.UID64,
 		known bool)
-	// within is how near its goal m counts as there.
 	within(m member) float64
-	// on reports whether m, standing in c, stands on its level level: any where c has one.
 	on(m member, c cell.ID, level Level) bool
-	// mayStep reports whether m, driven by hand, may walk on into ahead — onto the raised deck over
-	// it where deck says — along heading.
 	mayStep(m member, ahead cell.ID, deck bool, heading geom.Vec) bool
-	// byContact reports whether units touch by their boxes striking — Collider's contacts — or,
-	// false, by a step into a held cell refused.
+	// true: by their boxes striking; false: by a step into a held cell refused
 	byContact() bool
 
-	// What a Touch tells and what the commands a unit gives itself do:
-	// other is whoever id was this tick.
 	other(id uid.UID64) (body, bool)
-	// onGoal reports whether other stands on self's goal.
 	onGoal(self, other body) bool
-	// stepAside is m's order to step off of's way, where the ground takes it, no steeper than
-	// yieldClimb, and nobody stands.
 	stepAside(m member, of body) (MoveOrder, bool)
-	// detour has m, on the move, go round other.
 	detour(m member, o *MoveOrder, other body) bumpAnswer
-	// pass has m, on the move, go on past other, who makes way for it.
 	pass(m member, o *MoveOrder, other body)
-	// settle has o stand beside its goal, clear of other; false with nowhere to.
 	settle(m member, o *MoveOrder, other body) bool
 }
 
-// yieldClimb is how many times as long as on the level a step aside may take at most, the slope's
-// price (board.Map.Climb): a unit stepping aside never steps down a cliff nor up a wall.
+// times as long as on the level a step aside may take at most (board.Map.Climb)
 const yieldClimb = 3
 
-// holders is an Occupancy that tells who holds a cell on a level: the board's.
 type holders interface {
 	Holder(c cell.ID, deck bool, d cell.Domain) (uid.UID64, bool)
 }
 
-// bumpAnswer is what a unit does about a bump.
 type bumpAnswer uint8
 
 const (
-	// stopAndPlan stops the unit where it stands and plans its route again from there.
 	stopAndPlan bumpAnswer = iota
-	// carryOn has it go on, as the keeping has set its order.
 	carryOn
-	// giveUp ends its order where it stands.
 	giveUp
 )
 
-// member is a unit as a command or a tick sees it.
 type member struct {
 	id     uid.UID64
-	cell   cell.ID // the cell it stands on
+	cell   cell.ID
 	from   cell.ID // where a new route sets off: its cell, or where its step ends
-	leg    Leg     // the step in flight
+	leg    Leg
 	domain cell.Domain
 	pos    world.Position
 	vel    geom.Vec // world units a second
 	facing geom.Vec // the way it faces, standing too
 	z      world.Z
 	lift   float64
-	brake  float64    // world units a second² it slows at
-	order  *MoveOrder // nil when it has none
-	// pressedBy is who came at m last tick — a step into m's cell refused — when pressed.
+	brake  float64 // world units a second²
+	order  *MoveOrder
+	// who came at m last tick, a step into m's cell refused
 	pressedBy uid.UID64
 	pressed   bool
 	owners    tag.Tags[owner.Family]
 }
 
-// centre is the middle of m's box.
 func (m member) centre() geom.Vec { return m.pos.Center() }
 
-// cellKeeping gives a unit a cell to itself per domain, as the board's Occupancy says: a unit
-// routes over the ground alone, not knowing where the others stand, and learns of them only when a
-// step is refused — the cell held, a Touch of whoever holds it. What it does then is the rules'
-// (Crowd); refused stallAfter, navigation routes round the cell itself, whatever they do.
 type cellKeeping struct {
 	finder *pathFinder
 	occ    cell.Occupancy
-	who    holders   // occ, when it tells who holds a cell; nil, nobody is asked off one
-	index  bodyIndex // the tick's units: whether whoever holds a cell stands or passes
+	who    holders // nil: nobody is asked off a cell
+	index  bodyIndex
 }
 
 var _ keeping = (*cellKeeping)(nil)
 
-// newCellKeeping holds cells in occ; finder plans the routes, blind to the others when its own
-// occupancy is open.
 func newCellKeeping(finder *pathFinder, occ cell.Occupancy) *cellKeeping {
 	k := &cellKeeping{finder: finder, occ: occ, index: bodyIndex{grid: finder.grid}}
 	k.who, _ = occ.(holders)
@@ -144,8 +103,6 @@ func (k *cellKeeping) begin(gather func([]body) []body) {
 	k.index.build(gather(k.index.bodies[:0]))
 }
 
-// orders gives each member its own free cell at or around cmd.Cell, nearest first, or with Append
-// queues the cell; one standing on the target turns towards the point clicked instead.
 func (k *cellKeeping) orders(members []member, cmd MoveTo, issue func(member, MoveOrder)) {
 	target := cmd.Cell
 	var moves []member
@@ -186,7 +143,6 @@ func (k *cellKeeping) orders(members []member, cmd MoveTo, issue func(member, Mo
 	}
 }
 
-// look has m finish the step it is on and turn.
 func (k *cellKeeping) look(m member, at geom.Vec) MoveOrder {
 	order := MoveOrder{Target: m.cell, Face: at}
 	if m.leg.Active {
@@ -197,7 +153,6 @@ func (k *cellKeeping) look(m member, at geom.Vec) MoveOrder {
 
 func (k *cellKeeping) ready(member, *MoveOrder) {}
 
-// route is the way to o's Target round the cells m found someone standing in.
 func (k *cellKeeping) route(m member, from cell.ID, o *MoveOrder) (Path, bool) {
 	if o.Avoids > 0 {
 		known := o.Avoid[:o.Avoids]
@@ -210,12 +165,10 @@ func (k *cellKeeping) route(m member, from cell.ID, o *MoveOrder) (Path, bool) {
 	return k.finder.findPath(m.id, m.domain, m.z, from, o.Target, o.Level)
 }
 
-// held reports whether c is held against m on a level.
 func (k *cellKeeping) held(m member) func(c cell.ID, deck bool) bool {
 	return func(c cell.ID, deck bool) bool { return !k.occ.CanEnter(c, deck, m.id, m.domain) }
 }
 
-// lost waits targetWaitTimeout for the target to free, then settles on the nearest free cell.
 func (k *cellKeeping) lost(m member, from cell.ID, o *MoveOrder, waited time.Duration) (cell.ID, Path, bool, bool) {
 	if waited < targetWaitTimeout {
 		return 0, Path{}, true, false
@@ -235,8 +188,6 @@ func (k *cellKeeping) steer(_ member, st steering.Helm, dir geom.Vec, speed floa
 	st.RequestSpeed(speed)
 }
 
-// watch sees a step under way, or the unit on its goal: no stall; reaching the cell it stalled
-// for forgets the stalls.
 func (k *cellKeeping) watch(m member, o *MoveOrder, _ cell.ID, _ geom.Vec, _ time.Duration) {
 	o.Stalled = 0
 	if m.cell == o.Toward {
@@ -244,9 +195,7 @@ func (k *cellKeeping) watch(m member, o *MoveOrder, _ cell.ID, _ geom.Vec, _ tim
 	}
 }
 
-// blocked notes m's step into c refused — someone holds it — and marks o Bumped and Held for
-// bump to answer once it has been refused stallAfter: the last word against rules that never move
-// it.
+// Held after stallAfter is the last word against rules that never move the unit
 func (k *cellKeeping) blocked(m member, o *MoveOrder, c cell.ID, deck bool,
 	d time.Duration) (uid.UID64, bool) {
 	if o.Toward != c {
@@ -263,9 +212,6 @@ func (k *cellKeeping) blocked(m member, o *MoveOrder, c cell.ID, deck bool,
 	return holder, known
 }
 
-// bump answers a step refused for too long — o Held — by learning the cell for the routes to go
-// round and planning afresh, or, when it is m's goal someone stands on, by settling on the nearest
-// free cell; after maxStalls it gives up. Struck bodily, m stops and plans again as ever.
 func (k *cellKeeping) bump(m member, o *MoveOrder) bumpAnswer {
 	if !o.Held {
 		return stopAndPlan
@@ -290,17 +236,13 @@ func (k *cellKeeping) bump(m member, o *MoveOrder) bumpAnswer {
 
 func (k *cellKeeping) within(member) float64 { return arrivalEpsilon }
 
-// mayStep lets m on within its own cell, and into another the occupancy lets it into.
 func (k *cellKeeping) mayStep(m member, ahead cell.ID, deck bool, _ geom.Vec) bool {
 	return ahead == m.cell || k.occ.CanEnter(ahead, deck, m.id, m.domain)
 }
 
-// other is whoever id was this tick.
 func (k *cellKeeping) other(id uid.UID64) (body, bool) { return k.index.of(id) }
 
-// aside is where m could step off the way of one coming from from along way: m's free neighbours
-// and those held, its domain's ground, not steeper than yieldClimb, never ahead of the one coming
-// nor into its cell — across its way first, then behind, a slantwise step last.
+// across the comer's way first, then behind, a slantwise step last; never ahead of it
 func (k *cellKeeping) aside(m member, from cell.ID, way geom.Vec) []cell.ID {
 	grid, terrain := k.finder.grid, k.finder.terrain
 	home := m.cell
@@ -339,7 +281,6 @@ func (k *cellKeeping) aside(m member, from cell.ID, way geom.Vec) []cell.ID {
 	return cells
 }
 
-// wayFrom is the way from asker's cell to m's, a unit vector.
 func (k *cellKeeping) wayFrom(m member, asker body) (cell.ID, geom.Vec) {
 	grid := k.finder.grid
 	from, _ := grid.CellAt(asker.at)
@@ -353,8 +294,6 @@ func (k *cellKeeping) wayFrom(m member, asker body) (cell.ID, geom.Vec) {
 
 func (k *cellKeeping) byContact() bool { return false }
 
-// stepAside has m step to a free neighbour off the way of, its domain's ground no steeper than
-// yieldClimb, facing as it did; with none it has no order.
 func (k *cellKeeping) stepAside(m member, of body) (MoveOrder, bool) {
 	from, way := k.wayFrom(m, of)
 	for _, c := range k.aside(m, from, way) {
@@ -371,9 +310,7 @@ func (k *cellKeeping) stepAside(m member, of body) (MoveOrder, bool) {
 	return MoveOrder{}, false
 }
 
-// detour notes the cell m is refused — unless it is m's goal — for the routes to go round, and
-// plans afresh: Cornered with no way round but through it, the route kept then. Once m steps on
-// there is nothing to go round, nor round other giving way: it is leaving the cell.
+// nothing to go round once m steps on, nor round other giving way: it is leaving the cell
 func (k *cellKeeping) detour(m member, o *MoveOrder, other body) bumpAnswer {
 	if o.Leg.Active || other.givingWay {
 		return carryOn
@@ -390,7 +327,6 @@ func (k *cellKeeping) detour(m member, o *MoveOrder, other body) bumpAnswer {
 	return carryOn
 }
 
-// pass leaves m's step to wait for the cell other leaves.
 func (k *cellKeeping) pass(member, *MoveOrder, body) {}
 
 func (k *cellKeeping) onGoal(self, other body) bool { return other.cell == self.goal }

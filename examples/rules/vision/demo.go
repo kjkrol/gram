@@ -100,53 +100,45 @@ func (s *arena) definePlayer() error {
 
 func (s *arena) defineEffects() {
 	s.world.Effects().Define(FleeingEf, effect.Spec{})
-	s.world.Effects().Define(LookedEf, effect.Spec{effect.Lasts(time.Second)})
+	s.world.Effects().Define(TurnedEf, effect.Spec{effect.Lasts(time.Second)})
 }
 
 func (s *arena) defineRoles() {
-	s.world.Roles().Define(PreyRole)
-	quarter := steering.Turn{Angle: math.Pi / 2}
-	s.world.Roles().Define(PredatorRole,
-		rule.Then[vision.Sighting](
-			"chase",
-			rule.Other(s.world.Roles().Named(PreyRole)),
-			rule.Order(steering.Toward{}),
-		),
-		// seeing none, it turns a quarter aside, either way, once every while it has looked // TODO: jesli cos wymaga wyjasnienia to znaczy, ze nasza forma zpisu jest do dupy
-		rule.Then[vision.Sighting](
-			"search",
-			rule.Other(s.world.Roles().Named(PreyRole)),
-			rule.If(
-				vision.Sighting.Nobody,
-				rule.Unless(s.world.Effects().Named(LookedEf), rule.Steps(
-					rule.Apply(s.world.Effects().Named(LookedEf)),
-					rule.OneOf(
-						rule.Chance(0.5, rule.Order(quarter)),
-						rule.Order(steering.Turn{Angle: -quarter.Angle}),
-					),
-				),
-				),
-			),
-		),
-		rule.Then[collision.Meeting](
-			"caught",
-			rule.Other(s.world.Roles().Named(PreyRole)),
-			rule.ForOther(rule.Order(world.Despawn{})),
-		))
-	s.world.Roles().Define(SkittishRole,
-		rule.Then[vision.Sighting](
-			"flee the hunter",
-			rule.Other(s.world.Roles().Named(PredatorRole)),
-			rule.During(s.world.Effects().Named(FleeingEf), rule.Order(steering.Away{})),
-		),
-		rule.Then[vision.Sighting](
-			"give way",
-			rule.All,
-			rule.During(
-				s.world.Effects().Named(FleeingEf),
-				rule.If(vision.Sighting.Closing, rule.Order(steering.Away{})),
-			),
-		))
+	roles, effects := s.world.Roles(), s.world.Effects()
+	roles.Define(PreyRole)
+	prey := roles.Named(PreyRole)
+	left, right := steering.Turn{Angle: math.Pi / 2}, steering.Turn{Angle: -math.Pi / 2}
+	roles.Define(PredatorRole,
+		rule.Branch[vision.Sighting]{
+			Name: "chase",
+			When: vision.Seeing(prey),
+			Do:   rule.Order(steering.Toward{}),
+		},
+		rule.Branch[vision.Sighting]{
+			Name: "search",
+			When: rule.All(vision.Seeing(prey), vision.Sighting.Nobody),
+			Do: rule.Once(effects.Named(TurnedEf),
+				rule.Either(rule.Order(left), rule.Order(right))),
+		},
+		rule.Branch[collision.Meeting]{
+			Name: "caught",
+			When: collision.Met(prey),
+			Do:   rule.ForOther(rule.Order(world.Despawn{})),
+		},
+	)
+	roles.Define(SkittishRole,
+		rule.Branch[vision.Sighting]{
+			Name: "flee the hunter",
+			When: rule.All(vision.Seeing(roles.Named(PredatorRole)),
+				rule.During(effects.Named(FleeingEf))),
+			Do: rule.Order(steering.Away{}),
+		},
+		rule.Branch[vision.Sighting]{
+			Name: "give way",
+			When: rule.All(rule.During(effects.Named(FleeingEf)), vision.Sighting.Closing),
+			Do:   rule.Order(steering.Away{}),
+		},
+	)
 }
 
 func (s *arena) defineCommands() {

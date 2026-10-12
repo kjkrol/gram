@@ -15,8 +15,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// isoCamera is a camera of a width x height world put in the isometric view, over a relief
-// raised by heights.
 func isoCamera(width, height uint32, screenW, screenH float32, heights func(geom.Vec) float64) camera.Camera {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: width, Height: height},
@@ -32,7 +30,6 @@ func isoCamera(width, height uint32, screenW, screenH float32, heights func(geom
 	return cam
 }
 
-// plateau is ground 12 high for x in [192, 320], 0 elsewhere.
 func plateau(p geom.Vec) float64 {
 	if p.X >= 192 && p.X <= 320 {
 		return 12
@@ -40,7 +37,6 @@ func plateau(p geom.Vec) float64 {
 	return 0
 }
 
-// hidden is a camera that keeps its Pick to itself.
 type hidden struct{ camera.Camera }
 
 func TestContext_WorldAsksThePicker(t *testing.T) {

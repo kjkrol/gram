@@ -71,7 +71,7 @@ func (m *mainScene) screen() *ui.Element {
 	)
 }
 
-// deck is a bridge's deck running east, planks laid across it.
+// authored running east
 func deck(dst *render.Canvas, size int) {
 	w := float32(size)
 	dst.Fill(deckColor)
@@ -80,7 +80,6 @@ func deck(dst *render.Canvas, size int) {
 	}
 }
 
-// railing is a railing seen from the side: a rail along its top on posts.
 func railing(dst *render.Canvas, size int) {
 	w := float32(size)
 	dst.FillRect(0, 0, w, w*0.2, railColor)

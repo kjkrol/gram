@@ -5,7 +5,7 @@ import "github.com/kjkrol/gram/control"
 // Grid shows the board's grid, or hides it: a look, not saved.
 type Grid struct{}
 
-// Holds shows the cells the occupancy holds, or hides them: a look, not saved (ShowHolds).
+// Holds shows the cells the occupancy holds, or hides them: a look, not saved.
 type Holds struct{}
 
 func (Grid) Command()  {}

@@ -178,7 +178,6 @@ func (s *arena) makePlugins(w *world.Plugin) {
 func (s *arena) definePlayers() error {
 	s.player = s.players.Local("player")
 	s.rival = s.players.Add("rival")
-	// first person looks round with the mouse only once asked
 	return s.player.Bind(append(s.players.Defaults(), cameras.MouseLookKey(control.KeyO))...)
 }
 
@@ -192,19 +191,16 @@ func (s *arena) defineEffects() {
 }
 
 func (s *arena) defineRules() {
-	s.world.Roles().Define(MortalRole,
-		rule.Then[unit.Standing](
-			"drown",
-			rule.All,
-			rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{})),
-		))
-	bloodMoon := s.world.Effects().Named(BloodMoonEf)
-	s.world.Roles().Define(LunarRole,
-		rule.Then[sky.Moonrise](
-			"a blood moon rises",
-			rule.All,
-			rule.If(sky.Moonrise.Full, rule.Apply(bloodMoon)),
-		))
+	s.world.Roles().Define(MortalRole, rule.Branch[unit.Standing]{
+		Name: "drown",
+		When: unit.Standing.Fallen,
+		Do:   rule.Order(world.Despawn{}),
+	})
+	s.world.Roles().Define(LunarRole, rule.Branch[sky.Moonrise]{
+		Name: "a blood moon rises",
+		When: sky.Moonrise.Full,
+		Do:   rule.Apply(s.world.Effects().Named(BloodMoonEf)),
+	})
 	s.atmosphere.Plays(s.world.Roles().Named(LunarRole))
 }
 

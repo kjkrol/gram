@@ -7,8 +7,6 @@ import (
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-2 }
 
-// A parallel projection's transform draws a point where its ray through the screen starts over it,
-// deeper the further along the rays.
 func TestTransform_AParallelProjectionDrawsAPointUnderItsRay(t *testing.T) {
 	f := RayField{Origin: [3]float32{10, 20, 100}, DX: [3]float32{0.5, 0.25, 0}, DY: [3]float32{-0.25, 0.5, 0.1}, Dir: [3]float32{0.2, -0.3, -1}}
 	tr, ok := TransformOf(f, 640, 480, 0, 500)
@@ -24,8 +22,6 @@ func TestTransform_AParallelProjectionDrawsAPointUnderItsRay(t *testing.T) {
 	}
 }
 
-// A perspective's transform draws a point where the ray through the screen reaches it, the
-// depth falling from 1 at near towards 0 far off; a point behind the eye is not drawn.
 func TestTransform_APerspectiveDrawsAPointOnItsRay(t *testing.T) {
 	f := RayField{Origin: [3]float32{5, 5, 50}, Dir: [3]float32{0.6, 0.8, -0.2}, DDX: [3]float32{0.002, -0.0015, 0}, DDY: [3]float32{0, 0, -0.0025}}
 	tr, ok := TransformOf(f, 800, 600, 2, 0)
@@ -45,8 +41,6 @@ func TestTransform_APerspectiveDrawsAPointOnItsRay(t *testing.T) {
 	}
 }
 
-// A world point taken through the transform and back through its Unproject comes back where it
-// stood, through a parallel projection and a perspective.
 func TestTransform_UnprojectTakesTheClipPointBack(t *testing.T) {
 	fields := map[string]RayField{
 		"parallel":    {Origin: [3]float32{10, 20, 500}, DX: [3]float32{0.5, 0, 0}, DY: [3]float32{0, 0.4, -0.2}, Dir: [3]float32{0.1, 0.5, -1}},

@@ -6,8 +6,7 @@ import (
 	"github.com/kjkrol/gram/rule"
 )
 
-// Hook hands rules to the world's own hosts, as the engine does with the roles' rules through
-// plugin.Installer.Hosts: the tests' way in.
+// Hook hands rules to the world's own hosts, as the engine does with the roles' rules.
 func (p *Plugin) Hook(rules ...rule.Rule) error {
 	return hosts.Deliver([]plugin.Host{p.module.movers, p.module.leavers, &p.module.moments.host}, rules...)
 }

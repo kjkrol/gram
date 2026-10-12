@@ -7,8 +7,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// hand is what the commands of one hand add up to in a tick: each way held within -1 and 1, the
-// ways of Toward summed, Sprint while any said so, a jump once however many said so.
 type hand struct {
 	ahead, turn int8
 	way         geom.Vec
@@ -16,20 +14,16 @@ type hand struct {
 	jump        bool
 }
 
-// drives reports whether the hand walks or turns its units, more than jumping.
 func (h hand) drives() bool { return h.ahead != 0 || h.turn != 0 || h.way != geom.Vec{} }
 
 func clampWay(v int8) int8 { return max(min(v, 1), -1) }
 
-// held is one player's hand through one camera this tick.
 type held struct {
 	player control.PlayerID
 	camera camera.Camera
 	hand   hand
 }
 
-// hands are the commands of the tick, summed by whose hand gave them: a player's through the
-// camera it was given through, an entity's its own.
 type hands struct {
 	aheads  control.Queue[Ahead]
 	backs   control.Queue[Back]
@@ -41,7 +35,6 @@ type hands struct {
 	entities map[uid.UID64]hand
 }
 
-// sum drains the queues into the tick's hands.
 func (h *hands) sum() {
 	h.players = h.players[:0]
 	if h.entities == nil {
@@ -69,7 +62,6 @@ func (h *hands) sum() {
 	})
 }
 
-// add changes the hand that gave a command: the entity's own, or the player's through cam.
 func (h *hands) add(player control.PlayerID, entity uid.UID64, byEntity bool, cam camera.Camera, change func(*hand)) {
 	if byEntity {
 		x := h.entities[entity]

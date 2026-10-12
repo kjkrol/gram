@@ -24,7 +24,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// installer is the plugin.Installer a Stage would hand over, minus the engine.
 type installer struct {
 	ecs     *goke.ECS
 	pending []func() []goke.System
@@ -68,20 +67,15 @@ glad:
       next: end
 `
 
-// liking is what a test's speaker makes of everybody it talked with: the game's model, one number.
 type liking struct{ N int8 }
 
-// sacks is how many sacks of flour a test's entity was given.
 type sacks struct{ N int8 }
 
-// who is a row of a test's entities: where it stands and whose it is.
 type who struct {
 	x  float64
 	by control.PlayerID
 }
 
-// rig is a world of three: a host nobody owns, a guest player 1 owns and a stranger player 2 owns,
-// each with a Script beginning at greet, a liking and sacks.
 type rig struct {
 	t                     *testing.T
 	w                     *world.Plugin
@@ -90,13 +84,11 @@ type rig struct {
 	host, guest, stranger uid.UID64
 	talking, talked       effect.Effect
 	blush                 effect.Effect
-	carried               *goke.Query // every entity's liking and sacks
+	carried               *goke.Query
 	liking                goke.Comp[liking]
 	sacks                 goke.Comp[sacks]
 }
 
-// define makes the world and the dialog plugin and defines what the rig's tests share, loading
-// file as the hosts' nodes; it hands back the world, the plugin and the error of the load.
 func define(file string) (*world.Plugin, *dialog.Plugin, error) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
@@ -184,7 +176,6 @@ func (r *rig) tick(n int) {
 	}
 }
 
-// begin has speaker begin to talk with listener, as a rule's Order on a moment naming it does.
 func (r *rig) begin(speaker, listener uid.UID64) {
 	b := dialog.Begin{}
 	b.Aim(listener)
@@ -192,20 +183,16 @@ func (r *rig) begin(speaker, listener uid.UID64) {
 	r.tick(2)
 }
 
-// choose has player by choose the answer at index in speaker's conversation, as the window's
-// button does.
 func (r *rig) choose(by control.PlayerID, speaker uid.UID64, index int) {
 	r.w.Carrier().Put(by, dialog.Choose{Index: index, Speaker: speaker})
 	r.tick(2)
 }
 
-// line is what the speaker says now; "" for nothing.
 func (r *rig) line(speaker uid.UID64) string {
 	s, _ := r.d.LineText().Text(speaker, true)
 	return s
 }
 
-// offered are the answers the speaker offers now.
 func (r *rig) offered(speaker uid.UID64) []string {
 	var out []string
 	for i := range dialog.MaxChoices {
@@ -216,7 +203,6 @@ func (r *rig) offered(speaker uid.UID64) []string {
 	return out
 }
 
-// held is what id carries of the game's: its liking and its sacks.
 func (r *rig) held(id uid.UID64) (liking, sacks) {
 	r.t.Helper()
 	if !r.carried.Seek(id) {

@@ -17,7 +17,6 @@ var (
 	north = geom.NewVec(0.0, 1.0)
 )
 
-// steerTicks spawns one entity heading start, carrying st and co, and reports its heading per tick.
 func steerTicks(t *testing.T, st steering.Steering, co steering.Course, start geom.Vec, n int) []geom.Vec {
 	t.Helper()
 
@@ -111,7 +110,6 @@ func TestSteering_NoRateSwingsAllTheWayAtOnce(t *testing.T) {
 	}
 }
 
-// The last step lands on the target exactly rather than overshooting it.
 func TestSteering_LastStepSettlesOnTheTarget(t *testing.T) {
 	dirs := steerTicks(t, steering.Steering{TurnRate: 1.0}, steering.Course{Want: east}, north, 2)
 
@@ -136,8 +134,6 @@ func TestSteering_LeavesHeadingAloneWithNoRequest(t *testing.T) {
 	}
 }
 
-// asking renews the same request every tick, before the world's step, the way anything watching a
-// lasting stimulus does.
 type asking struct {
 	towards geom.Vec
 	query   *goke.Query
@@ -204,9 +200,6 @@ func TestSteering_KeepsActingOnTheLastDecisionWhileReacting(t *testing.T) {
 	}
 }
 
-// speedTicks spawns one entity carrying st and co at vel, with a Pace of share when it is not 0,
-// runs n ticks at 60 TPS and reports the Steering's base speed and the entity's Velocity.Value
-// after each.
 func speedTicks(t *testing.T, st steering.Steering, co steering.Course, vel Velocity, share float64, n int) (speeds, values []float64) {
 	t.Helper()
 
@@ -258,7 +251,8 @@ func TestSteering_SetsOffAtV0ThenAccelerates(t *testing.T) {
 	st, co := steering.Steering{MaxSpeed: 100, Accel: 200, V0: 40}, steering.Course{WantSpeed: 100}
 	speeds, values := speedTicks(t, st, co, Velocity{Dir: east}, 0, 40)
 
-	step := 200 * (time.Second / 60).Seconds() // one tick of Accel, at the tick length the harness uses
+	// one tick of Accel at the harness tick length
+	step := 200 * (time.Second / 60).Seconds()
 	if speeds[0] != 40 {
 		t.Errorf("tick 1: Speed = %v, want V0 = 40 the instant it sets off", speeds[0])
 	}
@@ -347,7 +341,6 @@ func TestSteering_BrakesAtItsOwnRateWhenGivenOne(t *testing.T) {
 	}
 }
 
-// Halted, an entity stands whatever it is asked: no speed, its heading kept.
 func TestSteering_HaltedStandsWhateverItIsAsked(t *testing.T) {
 	speeds, values := speedTicks(t, steering.Steering{MaxSpeed: 100, Halted: true}, steering.Course{WantSpeed: 100, Speed: 100}, Velocity{Dir: east, Value: 100}, 0, 3)
 	for tick := range values {
@@ -360,7 +353,6 @@ func TestSteering_HaltedStandsWhateverItIsAsked(t *testing.T) {
 	}
 }
 
-// An entity carrying a Steering without a Course is given one, steered from its next step.
 func TestSteering_GivesACourseWhereThereIsNone(t *testing.T) {
 	wm := testWorld()
 	wm.populate(testKind(

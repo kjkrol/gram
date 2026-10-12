@@ -9,9 +9,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
-// The square grid walks the cells under a box by arithmetic; the oracle is the lattice of any grid
-// over the box and its images a lap away round each wrapping axis, edges touched and boxes off the
-// board included.
 func TestSquareGrid_CellsUnderIsWhatTheLatticeFinds(t *testing.T) {
 	rng := rand.New(rand.NewPCG(3, 5))
 	for _, wrap := range [][2]bool{{false, false}, {true, false}, {true, true}} {
@@ -37,7 +34,6 @@ func TestSquareGrid_CellsUnderIsWhatTheLatticeFinds(t *testing.T) {
 	}
 }
 
-// latticeUnder is every cell cellsUnder finds under box or any image of it a whole lap away.
 func latticeUnder(g *Square, box geom.AABB) []cell.ID {
 	laps := func(wraps bool) int {
 		if wraps {

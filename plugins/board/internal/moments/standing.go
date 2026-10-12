@@ -17,9 +17,7 @@ import (
 
 var _ goke.System = (*standingSystem)(nil)
 
-// standingSystem runs the rules of a unit.Standing over every entity carrying unit.At, after
-// movement and collisions have had their say, taking unit.Entered off as it goes: whoever moves a
-// unit into another cell puts it on after the board's pass.
+// takes unit.Entered off: whoever moves a unit into another cell puts it on after this pass
 type standingSystem struct {
 	r *Rules
 
@@ -37,7 +35,7 @@ type standingSystem struct {
 	movers []unit.Mover
 	zs     []world.Z
 	states []tag.Tags[unit.States]
-	about  func(i int) unit.Standing // standing, bound once
+	about  func(i int) unit.Standing // bound once
 }
 
 func newStandingSystem(r *Rules) *standingSystem {
@@ -87,8 +85,6 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-// share is the i-th unit's Pace: 1/CostFor(its domain) of the cell under its centre, and as the
-// Map's slope says — slower up, quicker down — unless the kind is Graded.
 func (s *standingSystem) share(i int) float64 {
 	b := &s.bases[i]
 	at := b.Pos.Center()
@@ -115,7 +111,6 @@ func (s *standingSystem) share(i int) float64 {
 	return share
 }
 
-// logFall writes a line, once for each, for the i-th unit fallen where its domain may not be.
 func (s *standingSystem) logFall(i int) {
 	st := s.standing(i)
 	if !st.Fallen() || s.r.told[st.ID] {
@@ -128,8 +123,6 @@ func (s *standingSystem) logFall(i int) {
 	s.r.Log.Printf("entity %d fell into the %s at cell %d", st.ID, st.Kind.Name, st.Cell)
 }
 
-// standing is where the i-th entity of the chunk being walked stands: the cell under its centre,
-// or the one it is At off the board.
 func (s *standingSystem) standing(i int) unit.Standing {
 	at := s.bases[i].Pos.Center()
 	c, ok := s.r.grid.CellAt(at)
@@ -143,8 +136,6 @@ func (s *standingSystem) standing(i int) unit.Standing {
 		Airborne: s.states != nil && s.states[i].Has(unit.Airborne)}
 }
 
-// feet is where the i-th entity's feet are and how high it steps, which tell a raised Floor's deck
-// it stands on from the ground under it; with no Z, no deck.
 func (s *standingSystem) feet(i int) (float64, float64) {
 	if s.zs == nil {
 		return math.Inf(-1), 0

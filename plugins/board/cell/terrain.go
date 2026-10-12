@@ -11,16 +11,14 @@ type Terrain interface {
 	Kind(c ID) Kind
 }
 
-// TerrainMap is a Terrain backed by plain maps: a board's seed until the ECS is set up, and its
-// whole terrain on a board no ECS runs. Change the terrain through the board.
+// TerrainMap is a Terrain backed by plain maps: a board's seed, and its whole terrain on a board
+// no ECS runs.
 type TerrainMap struct {
 	Cells   map[ID]Kind
 	Default Kind
-	// Ways is what runs across the cells over their kinds; Kind leaves them out — the board lays
-	// them over.
+	// Ways is what runs across the cells over their kinds; Kind leaves them out.
 	Ways map[ID]Way
-	// Roles are the roles the cells play and Labels what they are called — a name, a group — for
-	// good, the Layout's.
+	// Roles are the roles the cells play and Labels what they are called.
 	Roles  map[ID]tag.Tags[rule.Roles]
 	Labels map[ID]entity.Label
 
@@ -65,8 +63,7 @@ func (t *TerrainMap) SetWay(c ID, w Way) {
 	t.version++
 }
 
-// Cast has c play roles, none for 0, in place of those it played; the terrain's Version stays as
-// it was.
+// Cast has c play roles, none for 0, in place of those it played; Version stays as it was.
 func (t *TerrainMap) Cast(c ID, roles tag.Tags[rule.Roles]) {
 	if roles == 0 {
 		delete(t.Roles, c)
@@ -78,7 +75,7 @@ func (t *TerrainMap) Cast(c ID, roles tag.Tags[rule.Roles]) {
 	t.Roles[c] = roles
 }
 
-// Label calls c as l says; the terrain's Version stays as it was.
+// Label calls c as l says; Version stays as it was.
 func (t *TerrainMap) Label(c ID, l entity.Label) {
 	if t.Labels == nil {
 		t.Labels = make(map[ID]entity.Label)
@@ -93,6 +90,6 @@ func (t *TerrainMap) SetAll(kind Kind) {
 	t.version++
 }
 
-// Version counts the changes made through Set, SetAll and SetWay — a write that
-// changes nothing does not count; a load starts it over.
+// Version counts the changes made through Set, SetAll and SetWay; a write that changes nothing
+// does not count.
 func (t *TerrainMap) Version() uint64 { return t.version }

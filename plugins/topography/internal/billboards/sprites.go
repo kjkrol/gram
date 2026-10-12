@@ -14,41 +14,32 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// sight is the uniforms of the billboards and of what lies, sharing shaders/sight.wgsl.
 var sight = []render.Uniform{
 	{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1}, {Name: "Right", Size: 3}, {Name: "Up", Size: 3},
 	{Name: "Look", Size: 3}, {Name: "Perspective", Size: 1},
 }
 
-// boards draws the world's entities standing in relief (shaders/billboard.wgsl), an instance an
-// entity.
 var boards = render.NewMeshShaderWith("billboards",
 	render.Files(shaders, "shaders/sight.wgsl", "shaders/billboard.wgsl"), sight).Instanced(4)
 
-// lyings draws the world's entities lying in relief (shaders/lying.wgsl), an instance an entity.
 var lyings = render.NewMeshShaderWith("lying",
 	render.Files(shaders, "shaders/sight.wgsl", "shaders/lying.wgsl"), sight).Instanced(6)
 
-// sprites are the world's entities drawn on the GPU through a view in relief: billboards and what
-// lies flat tested against the depth the ground left, so the hills hide what stands behind them,
-// and the billboards' shadows laid on the ground before them — draped over the terrain's mesh, over
-// hex prisms read from the frame's depth. Sprite takes them a frame at a time, Draw draws them.
 type sprites struct {
 	sky     Sky
 	relief  *relief.Relief
 	ground  *terrain.Renderer // nil over hex prisms, where shades lays the shadows
 	shades  shades
-	on      bool // the frame's camera draws the billboards here
-	shading bool // and the shadows
+	on      bool
+	shading bool
 
 	batches []spriteBatch
 	lain    []spriteBatch
 	shadows []sky.Patch
 	opts    render.DrawMeshOptions
-	own     map[string][]float32 // the billboards' own uniforms, boxed once in the options
+	own     map[string][]float32
 }
 
-// spriteBatch is the instances of one atlas's sprites.
 type spriteBatch struct {
 	atlas render.AtlasSource
 	inst  []float32
@@ -60,8 +51,6 @@ func newSprites(sky Sky, r *relief.Relief, ground *terrain.Renderer) *sprites {
 	return s
 }
 
-// begin readies a frame through cam: the billboards are drawn here through a view in relief with
-// Rays, the shadows through any view with them.
 func (s *sprites) begin(cam camera.Camera) {
 	for i := range s.batches {
 		s.batches[i].inst = s.batches[i].inst[:0]
@@ -74,8 +63,6 @@ func (s *sprites) begin(cam camera.Camera) {
 	s.on, s.shading = rays && inRelief(cam), rays
 }
 
-// add takes the sprite id of atlas for an entity standing in box as z says, in light, swaying as
-// much as sway says at the frame's time t, and its shadow.
 func (s *sprites) add(cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway, t float32) {
 	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
 	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
@@ -97,8 +84,7 @@ func (s *sprites) add(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	s.shadow(box, z)
 }
 
-// lay takes the sprite id of atlas for an entity lying flat in box at z's Altitude, turned angle
-// degrees about its middle, in light: wherever the ground stands higher, on the ground.
+// angle in degrees; wherever the ground stands higher, the sprite lies on the ground
 func (s *sprites) lay(cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource,
 	id render.SpriteID, angle float32, light render.Light) {
 	hw, hh := float32(box.Size.X)/2, float32(box.Size.Y)/2
@@ -116,8 +102,7 @@ func (s *sprites) lay(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.sky.Air().Haze(cam, cx, cy, alt))
 }
 
-// level takes the sprite id of atlas laid level at alt over the corners c — top-left, top-right,
-// bottom-left, bottom-right — in light.
+// c is top-left, top-right, bottom-left, bottom-right
 func (s *sprites) level(cam camera.Camera, c [4]geom.Vec, alt float32, atlas render.AtlasSource,
 	id render.SpriteID, light render.Light) {
 	b := batchOf(&s.lain, atlas)
@@ -130,8 +115,7 @@ func (s *sprites) level(cam camera.Camera, c [4]geom.Vec, alt float32, atlas ren
 	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.sky.Air().Haze(cam, mx, my, alt))
 }
 
-// upright takes the sprite id of atlas standing high over alt along the edge from a to b, seen
-// from its right — the way out of what it edges — in light, lit by the sun as that side faces.
+// seen from the right of a to b, the way out of what it edges
 func (s *sprites) upright(cam camera.Camera, a, b geom.Vec, alt, high float32,
 	atlas render.AtlasSource, id render.SpriteID, light render.Light) {
 	if high <= 0 {
@@ -150,15 +134,12 @@ func (s *sprites) upright(cam camera.Camera, a, b geom.Vec, alt, high float32,
 		sun[0]*light[0], sun[1]*light[1], sun[2]*light[2], haze)
 }
 
-// shadow takes the shadow of an entity standing in box as z says, laid on the ground away from the
-// sun.
 func (s *sprites) shadow(box plane.AABB, z world.Z) {
 	if p, ok := s.sky.Sun().ShadowOf(box.AABB, z, s.groundAt); ok {
 		s.shadows = append(s.shadows, p)
 	}
 }
 
-// batchOf is the batch of atlas's sprites among batches, made at its first.
 func batchOf(batches *[]spriteBatch, atlas render.AtlasSource) *spriteBatch {
 	for i := range *batches {
 		if (*batches)[i].atlas == atlas {
@@ -169,13 +150,10 @@ func batchOf(batches *[]spriteBatch, atlas render.AtlasSource) *spriteBatch {
 	return &(*batches)[len(*batches)-1]
 }
 
-// groundAt is the relief's height at a point, for the shadows.
 func (s *sprites) groundAt(x, y float32) float32 {
 	return float32(s.relief.GroundAt(geom.NewVec(float64(x), float64(y))))
 }
 
-// draw lays the frame's shadows on the ground and draws what lies and its billboards into the
-// target through cam.
 func (s *sprites) draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if !s.shading || t.Screen == nil || t.Depth == nil {
 		return
@@ -215,7 +193,6 @@ func (s *sprites) draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	s.drawAll(t, boards, s.batches)
 }
 
-// drawAll draws the batches' instances through shader into the target.
 func (s *sprites) drawAll(t render.Target, shader *render.Shader, batches []spriteBatch) {
 	for _, b := range batches {
 		if len(b.inst) == 0 {
@@ -226,7 +203,7 @@ func (s *sprites) drawAll(t render.Target, shader *render.Shader, batches []spri
 	}
 }
 
-// set hands the billboards' shader the uniform name as v, kept between frames and boxed once.
+// kept between frames and boxed once
 func (s *sprites) set(name string, v ...float32) {
 	o, ok := s.own[name]
 	if !ok || len(o) != len(v) {

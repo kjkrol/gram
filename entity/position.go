@@ -5,8 +5,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 )
 
-// Position is an entity's world-space rectangle — shared by every plugin
-// that places or draws entities (physics, board, ...).
+// Position is an entity's world-space rectangle.
 type Position struct {
 	plane.AABB
 }

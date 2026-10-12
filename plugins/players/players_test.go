@@ -21,9 +21,8 @@ import (
 	"github.com/kjkrol/gram/ui"
 )
 
-// installCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type installCtx struct {
-	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
+	hosts   []plugin.Host
 	ecs     *goke.ECS
 	pending []func() []goke.System
 }
@@ -40,7 +39,6 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
 func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
 
-// order and note are two command types; general is the made-up plugin defining order.
 type order struct{ Cell int }
 
 func (order) Command() {}
@@ -54,21 +52,17 @@ type general struct{ orders control.Queue[order] }
 func (g *general) Queues() []control.CommandQueue     { return []control.CommandQueue{&g.orders} }
 func (g *general) DefaultBindings() []control.Binding { return nil }
 
-// rig is a players plugin over a 1000×1000 world with one local player acting through a picture
-// over the whole screen drawn through a camera of its own, and a general's order queue.
 type rig struct {
 	t      *testing.T
 	w      *world.Plugin
 	cams   *cameras.Plugin
-	cam    camera.Camera // the local player's
+	cam    camera.Camera
 	p      *players.Plugin
 	local  *players.Player
-	wire   ui.Input // the local player's picture's
+	wire   ui.Input
 	orders *control.Queue[order]
 }
 
-// look has the local player act through a picture drawn through cam over the whole screen, as a
-// scene showing it wires it.
 func (r *rig) look(cam camera.Camera) {
 	r.cam = cam
 	r.wire.Over(geom.AABB{}, render.NewFeed(cam, nil))
@@ -90,8 +84,6 @@ func newRig(t *testing.T) *rig {
 	return r
 }
 
-// start installs the cameras and the players into an ECS whose plan is their RunPlans, so camera
-// commands land.
 func (r *rig) start() *goke.ECS {
 	r.t.Helper()
 	ctx := &installCtx{ecs: goke.New()}
@@ -146,8 +138,6 @@ func TestBind_RefusesTwoBindingsOnOneTrigger(t *testing.T) {
 	}
 }
 
-// While a player holds a tool, the tool's binding on a trigger fires in place of the one of no
-// tool; put down, the one of no tool fires again. Two of one tool on one trigger are refused.
 func TestTool_ItsBindingsTakeTheirTriggersWhileHeld(t *testing.T) {
 	r := newRig(t)
 	click := control.ButtonPress{Button: control.MouseButtonLeft}
@@ -333,7 +323,6 @@ func TestWorldBox_StaysNarrowAcrossATorusSeam(t *testing.T) {
 	}
 }
 
-// cameraRig is a rig with the default camera bindings, started, so Pan and Zoom reach the camera.
 func cameraRig(t *testing.T) (*rig, *goke.ECS) {
 	t.Helper()
 	r := newRig(t)
@@ -387,7 +376,8 @@ func TestCamera_EdgeScrollIsTheSameOnScreenAtAnyZoom(t *testing.T) {
 		cam.ZoomIn(zoom, 500, 500)
 		before := cam.Bounds()
 
-		r.move(&control.InputEvents{MousePos: geom.NewVec(190, 100)}, ecs) // near the right edge of the 200-pixel window
+		// near the right edge of the 200-pixel window
+		r.move(&control.InputEvents{MousePos: geom.NewVec(190, 100)}, ecs)
 
 		moved := (cam.Bounds().TopLeft.X - before.TopLeft.X) * float64(zoom)
 		if moved != float64(cameras.DefaultScrollSpeed) {
@@ -435,7 +425,6 @@ func TestPlugin_Contract(t *testing.T) {
 	}
 }
 
-// riding is the rig's camera, riding in an entity while on, looking round with the mouse.
 type riding struct {
 	camera.Camera
 	on bool
@@ -453,8 +442,6 @@ func (r *riding) Fastening() camera.Fastening {
 	return camera.Fastening{}
 }
 
-// One key may do one thing while the camera is loose and another while it rides in an entity: only
-// the binding holding in the camera's How fires, and two holding in one How are refused.
 func TestBind_OneKeyDoesWhatTheCamerasHowSays(t *testing.T) {
 	r := newRig(t)
 	players.CaptureWith(r.p, func(bool) {})
@@ -483,9 +470,6 @@ func TestBind_OneKeyDoesWhatTheCamerasHowSays(t *testing.T) {
 	}
 }
 
-// While the camera rides, the cursor is captured and a mouse move reaches the player as
-// CursorMove wherever the cursor is, but for the pass it was caught in; free, the cursor is let go
-// and a move reaches only the player it is over.
 func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 	r := newRig(t)
 	var caught []bool
@@ -516,9 +500,6 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 	}
 }
 
-// Hosts keeps the hosts of the rules of the moments a plugin catches.
 func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
-// does with the roles played once a Stage's Init returns.
 func (c *installCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

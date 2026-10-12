@@ -5,20 +5,18 @@ import (
 	"testing"
 )
 
-// angle is the angle between the unit ways a and b, degrees.
+// degrees
 func angle(a, b [3]float32) float64 {
 	d := float64(a[0]*b[0] + a[1]*b[1] + a[2]*b[2])
 	return math.Acos(math.Max(-1, math.Min(1, d))) * 180 / math.Pi
 }
 
-// equatorial is the unit vector of right ascension ra (hours) and declination dec (degrees).
+// ra in hours, dec in degrees
 func equatorial(ra, dec float64) [3]float32 {
 	a, d := ra/12*math.Pi, dec*math.Pi/180
 	return [3]float32{float32(math.Cos(d) * math.Cos(a)), float32(math.Cos(d) * math.Sin(a)), float32(math.Sin(d))}
 }
 
-// The catalogue holds the real night sky, brightest first: Sirius, where it stands and as bright
-// as it is, Polaris beside the pole.
 func TestStars_AreTheBrightStarCatalogues(t *testing.T) {
 	stars := Stars()
 	if len(stars) < 5000 {
@@ -39,9 +37,6 @@ func TestStars_AreTheBrightStarCatalogues(t *testing.T) {
 	}
 }
 
-// The sky turns round the pole: Polaris stands as high over the north as the latitude is, away
-// from the noon sun, the night through; a star on the celestial equator stands on the meridian,
-// over the noon's side, when the sidereal time is its right ascension.
 func TestHeavensAt_TurnTheStarsRoundThePole(t *testing.T) {
 	c := Place{NoonWay: South, Latitude: 45}
 	polaris := equatorial(2.5302, 89.264)
@@ -63,15 +58,13 @@ func TestHeavensAt_TurnTheStarsRoundThePole(t *testing.T) {
 	}
 }
 
-// The moon goes its own way: full, it stands across the sky from the sun; a day later it has
-// fallen behind the stars by some 13°, eastwards.
 func TestHeavensAt_TheMoonDriftsAmongTheStars(t *testing.T) {
 	c := Place{NoonWay: South, Latitude: 45}
 	if h := c.HeavensAt(0.3, 0.5, 0.5, RealStars); angle(h.Sun, h.Moon) < 170 {
 		t.Errorf("the full moon stands %.1f° from the sun, want across the sky", angle(h.Sun, h.Moon))
 	}
 	a, b := c.HeavensAt(0.3, 0.9, 0.1, RealStars), c.HeavensAt(0.3+1/365.25, 0.9, 0.1+1/29.53, RealStars) // a day of the Earth's year on
-	// the moon's place among the stars: the moon's way turned back into the celestial frame
+	// the moon's way turned back into the celestial frame
 	among := func(h Heavens) [3]float32 {
 		m := h.Moon
 		return [3]float32{dot(h.Sphere[0], m), dot(h.Sphere[1], m), dot(h.Sphere[2], m)}

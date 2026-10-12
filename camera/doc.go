@@ -1,57 +1,35 @@
 // Package camera is the view onto a world: screen conversion, culling, the visible window and its
-// control. It is a root package, not a plugin; the world plugin builds one from its space and
-// every renderer draws through it.
+// control. It is a root package, not a plugin; every renderer draws through a camera, and a game
+// gets one from the cameras plugin, built from a [Config] through the maker it was given.
 //
 // # Camera
 //
-// A [Camera] converts between world and screen (ToScreen, FromScreen, ToScreenQuads, which splits
-// a rectangle into the [Quad]s its wrapped images project to), culls (Visible, Bounds) and is
-// controlled (MoveTo and Translate in world units, CenterOn a world point at a height in the middle
-// of the screen, Pan in screen pixels — the same at any zoom —, SetViewport as whoever shows it
-// gives it its size, keeping the middle and raising the zoom until the world covers the new
-// screen — ZoomIn, ZoomOut, with min and max zoom). It keeps its own window arithmetic: wrapping on
-// a wrapping axis of the world, held inside the world on any other. One keeping the whole world
-// in view ([Config].Whole, a minimap) fits all of it at every size instead, centred, and is not
-// panned or zoomed — a [Fitting] camera says so, and the world's size, which a picture of it keeps;
-// one zoom for both axes keeps the world's proportions whatever the screen's.
-// The cameras themselves live in internal/camera and in the view plugins; a game gets one from
-// the cameras plugin (plugins/cameras: New), built from a [Config] — the scale it starts at, the
-// whole world, the entity it follows from the start, zoom limits — through whichever maker it was
-// given — cameras.TopDown, topography.Plugin.Views. Its pixels are whoever shows it's: a
-// render.Feed sizes it every frame.
+// A [Camera] converts between world and screen, culls, and is moved, panned and zoomed within the
+// world: wrapping on a wrapping axis, held inside the world on any other. One keeping the whole
+// world in view ([Config].Whole, a minimap) fits it at every size instead and is not panned or
+// zoomed; a [Fitting] camera says so. Its pixels are whoever shows it's: a render.Feed sizes it
+// every frame.
 //
 // # Projection
 //
-// A [Projection] is the arithmetic a Camera draws through; this package has [TopDown] (screen x and
-// y are world x and y, height is not drawn), and a view plugin brings its own with its cameras —
-// plugins/topography keeps the isometric projection and camera private to itself. Every Camera
-// exposes Project (a world point at a height), Unproject and Depth (further back is smaller), and
-// ToScreen and FromScreen are the two at height 0; Viewport is the screen it draws to, in pixels.
-// Sorts says whether what is drawn through it must go back to front, which a render.Composer asks;
-// Wraps whether a world wrapping at its edges can be drawn through it; Toward the way towards the
-// eye, which a glint needs.
+// A [Projection] is the arithmetic a Camera draws through: [TopDown] here, a view plugin's own
+// with its cameras. Sorts says whether what is drawn through it must go back to front, Wraps
+// whether a wrapping world can be drawn through it, Toward the way towards the eye.
 //
 // # State
 //
 // [State] is the camera's window and zoom. Persisted hands saves the window, the zoom and the
-// fastening, which Restore takes back; Config is construction-time only.
+// fastening, which Restore takes back.
 //
-// # Fastening and vanishing points
+// # Fastening and what a camera says of itself
 //
-// A camera may say more of itself through small interfaces: a [Fastenable] one is fastened to an
-// entity — its [Fastening] says to which and [How]: Centred over it, Behind it or Inside it,
-// first person; [HowOf] is what the bindings hold in (control.Binding.In) — and a
-// [Vanisher] has vanishing points, where a direction is drawn: a perspective's, where the sky puts
-// the sun. An [Eyed] camera has an eye at a point, from which the air far off is hazed. A
-// [Picker] finds what is under a screen point itself, and its height, walking the line of sight
-// over the heights it draws — the ground, or a deck over it, a line passing under a deck going on
-// to the ground — which control.Context.World and Point ask before anything else. A
-// [Scaler] draws a world unit larger near the eye than far off, and nothing behind it;
-// [Rayer] is a camera that says which way a screen point looks, [Eyed] one with an eye at a point
-// of the world and [Vanisher] one with vanishing points — a perspective's all three; a sky is
-// drawn by them. [Rays] says every line of sight at once, as a [RayField] a shader traces the world
-// with per pixel — a perspective's from its eye, a parallel projection's all one way. [ScaleAt] is the scale at a point through any camera — a Scaler's own, else the Zoom — which is
-// what sizes what is drawn where it lies: detail, the grid, soft edges, billboards.
+// A [Fastenable] camera is fastened to an entity: its [Fastening] says to which and [How], and
+// [HowOf] is what the bindings hold in. The rest are small interfaces a camera may implement: a
+// [Picker] finds what is under a screen point and its height; a [Scaler] draws a world unit
+// larger near the eye than far off, and [ScaleAt] is the scale at a point through any camera; a
+// [Rayer] says which way a screen point looks, [Rays] every line of sight at once as a [RayField],
+// an [Eyed] camera where its eye stands and a [Vanisher] where a direction vanishes. A
+// [Transform] is a RayField as the GPU draws it.
 //
 // # FromScreenRect
 //

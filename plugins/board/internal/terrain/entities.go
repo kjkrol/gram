@@ -18,15 +18,12 @@ import (
 
 var _ goke.System = (*entitySystem)(nil)
 
-// entitySystem gives every cell an entity at Setup, out of the seed, or finds the ones a save
-// brought back, and hands them to the Cells. Every step it counts a change wherever an effect
-// changed a cell — began or ended an Alter of its Ground (its effect.Changed on).
 type entitySystem struct {
 	cells    *Cells
-	template *kind.Template // what the world's plugins give every cell; nil for nothing
-	extra    []comp.Spawner // its components, written as the cells are made
+	template *kind.Template
+	extra    []comp.Spawner
 
-	active      *goke.Query // cells an effect was ever on
+	active      *goke.Query
 	activeComp  goke.Comp[effect.Active]
 	activePlot  goke.Comp[cell.Plot]
 	activeMarks goke.OptComp[tag.Tags[effect.States]]
@@ -70,8 +67,7 @@ func (s *entitySystem) Init(si *goke.SysInit) {
 	s.cells.made(st)
 }
 
-// spawn makes an entity for every cell out of the seed: the cells called something apart, carrying
-// their Label besides — few, so whoever looks for a name walks few.
+// the cells called something are made apart: few, so whoever looks for a name walks few
 func (s *entitySystem) spawn(si *goke.SysInit, ids []uid.UID64) {
 	seed := s.cells.seed
 	var plain, labelled []int // ordinals
@@ -88,7 +84,6 @@ func (s *entitySystem) spawn(si *goke.SysInit, ids []uid.UID64) {
 			plain = append(plain, o)
 		}
 	}
-	// the effects' markers and the roles, for good
 	columns := []goke.Addable{
 		&s.spawnPlot,
 		&s.spawnGround,
@@ -108,7 +103,6 @@ func (s *entitySystem) spawn(si *goke.SysInit, ids []uid.UID64) {
 	}
 }
 
-// make spawns the cells at ordinals with factory; labelled, each with its Label.
 func (s *entitySystem) make(factory *goke.Factory, ordinals []int, cells []cell.ID, ids []uid.UID64, labelled bool) {
 	if len(ordinals) == 0 {
 		return
@@ -143,7 +137,6 @@ func (s *entitySystem) make(factory *goke.Factory, ordinals []int, cells []cell.
 	}
 }
 
-// own are the components the board gives every cell itself, which a template may not.
 var own = map[reflect.Type]bool{
 	reflect.TypeFor[cell.Plot]():               true,
 	reflect.TypeFor[cell.Ground]():             true,
@@ -154,8 +147,6 @@ var own = map[reflect.Type]bool{
 	reflect.TypeFor[entity.Label]():            true,
 }
 
-// templated is the template's Spec, refusing what the board gives a cell itself and a Load of
-// anything but the cell's cell.ID.
 func (s *entitySystem) templated() kind.Spec {
 	if s.template == nil {
 		return nil

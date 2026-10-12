@@ -7,9 +7,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// A kilometre a cell of 32 world units: the ground sinks under an eye's level as the Earth curves
-// and the air bends the line of sight back, and a man's eye sees level ground some 5 km off;
-// without a scale the world is flat.
 func TestScale_TheEarthUnderTheWorld(t *testing.T) {
 	s := world.Scale{Metres: 1000.0 / 32}
 	if u := s.Units(2); math.Abs(u-0.064) > 1e-9 {
@@ -28,7 +25,6 @@ func TestScale_TheEarthUnderTheWorld(t *testing.T) {
 	}
 }
 
-// A figure is as big as it is in life, or Figures times bigger; how fast it goes stays real.
 func TestScale_FiguresBiggerThanLife(t *testing.T) {
 	life := world.Scale{Metres: 10}
 	if f := life.Figure(2); f != 0.2 {

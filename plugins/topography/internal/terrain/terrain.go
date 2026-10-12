@@ -1,18 +1,9 @@
-// Package terrain draws a relief on the GPU as a mesh: every lattice corner a vertex standing at
-// its height, two triangles a cell, drawn through the scene's transform (camera.SceneTransform)
-// against a depth buffer, in place of the board's tiles — a render.Direct source at the Ground
-// tier.
-//
-// The shader (shaders/, a file per thing) is built on the composer's library
-// (render.NewMeshShaderWith): it reads the sun, the air and the clock the frame set, and draws the
-// water with the topography's materials. The Renderer keeps the lattice in one image of quadrants
-// — heights (16 bits a corner), the way the ground faces, the way to the shore — and the mesh's
-// triangles, made anew as the ground or the coast changes, and reads the ground's look from
-// whoever draws the board (Surface): the board painted flat, its water in layers (water.Layers),
-// the shores and the grid. What stands on the ground is tested against the depth the ground leaves;
-// DrawShadows lays the shadows of what stands on it, following its rise and fall. The shade — the
-// relief's shadows, and those of the world's blocks (world.Block: a bridge's deck, a pier) — is
-// baked into an image as the sun moves, all at once as the ground or a block changes.
+// Package terrain draws a relief on the GPU as a mesh, every lattice corner a vertex at its
+// height, in place of the board's tiles: a [Renderer] ([New]) is a render.Direct source at the
+// Ground tier over a [Ground] (the relief), looking as its [Surface] says ([Painted]: the board
+// painted flat, its water, the shores, the grid) under a [Sky]. What stands on the ground is
+// tested against the depth it leaves; [Renderer.DrawShadows] lays the shadows of what stands on
+// it. The relief's shadows and those of the world's blocks are baked as the sun moves.
 package terrain
 
 import (
@@ -36,9 +27,6 @@ import (
 //go:embed shaders/*.wgsl
 var shaders embed.FS
 
-// shader is the ground's: the composer's library and materials — the sun, the air, the
-// topography's water — with the lattice, the light, the surface, the grid and the mesh's stages
-// after them, and the uniforms they read.
 var shader = render.NewMeshShaderWith("terrain",
 	render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl", "shaders/surface.wgsl", "shaders/grid.wgsl", "shaders/mesh.wgsl"),
 	[]render.Uniform{
@@ -49,12 +37,9 @@ var shader = render.NewMeshShaderWith("terrain",
 		{Name: "Skirt", Size: 2}, {Name: "Perspective", Size: 1},
 	})
 
-// skirtRings is how many rings the skirt round the world is laid in: enough for the world's curve
-// to bend it under the horizon smoothly.
+// enough rings for the world's curve to bend the skirt under the horizon smoothly
 const skirtRings = 12
 
-// shadows lays the shadows of what stands on the ground (shaders/shadow.wgsl): the lattice's heights
-// and the ground's transform, a patch an instance.
 var shadows = render.NewMeshShaderWith("terrain shadows",
 	render.Files(shaders, "shaders/lattice.wgsl", "shaders/shadow.wgsl"),
 	[]render.Uniform{
@@ -62,13 +47,9 @@ var shadows = render.NewMeshShaderWith("terrain shadows",
 		{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
 	}).Instanced(2)
 
-// shadowPieces is how many vertices a patch's grid takes: shadow.wgsl's shadowGrid squared, six a
-// piece.
+// shadow.wgsl's shadowGrid squared, six vertices a piece
 const shadowPieces = 6 * 6 * 6
 
-// bakeShade is the shader baking how much of the sun reaches the ground into the baked image, for
-// the ground's shader to read between its pixels rather than work out at every one of the
-// screen's.
 var bakeShade = render.NewShaderWith("terrain shade",
 	render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl", "shaders/shade.wgsl"),
 	[]render.Uniform{
@@ -77,59 +58,48 @@ var bakeShade = render.NewShaderWith("terrain shade",
 		{Name: "Blocks", Size: 8 * maxBlocks},
 	})
 
-// maxBlocks is how many blocks the shade is baked with at most: what the uniforms hold beside the
-// library's.
+// what the uniforms hold beside the library's
 const maxBlocks = 96
 
-// shadePx is how many pixels a cell the baked image holds the shade at most, and maxBaked how wide
-// it may be.
+// pixels a cell the baked shade holds at most, and how wide the image may be
 const (
 	shadePx  = 8
 	maxBaked = 8192
 )
 
-// shadeTurn is how far the sun turns before the shade is baked anew: its ways' dot product under
-// it, a tenth of a degree; shadeStrips is how many strips it is baked anew in then, one a frame;
-// shadeLeap how far it leaps for all of it to be baked at once: a degree — a frozen light moved,
-// a game loaded.
+// dot products of the sun's ways: a tenth of a degree turned bakes the shade anew in
+// shadeStrips strips, one a frame; a degree leapt bakes all of it at once
 const (
 	shadeTurn   = 0.9999985
 	shadeStrips = 16
 	shadeLeap   = 0.99985
 )
 
-// Ground is the relief as the renderer reads it: its heights as a lattice over a square grid —
-// cols by rows corners a cell apart, row by row, false off a square grid — and a count of its
-// changes. relief.Relief is one.
+// Ground is the relief as the renderer reads it: its heights as a lattice over a square grid,
+// false off one, and a count of its changes.
 type Ground interface {
 	Lattice() (cols, rows int, cell float32, heights []float32, ok bool)
 	Version() uint64
 }
 
-// Surface is what the ground looks like beyond its heights, as whoever draws the board has it,
-// brought up to date as it is asked for.
+// Surface is what the ground looks like beyond its heights, brought up to date as it is asked
+// for.
 type Surface interface {
 	Surface() Painted
 }
 
-// Painted is the ground's look: the board painted flat (Albedo, Px pixels a cell from the
-// lattice's top-left; nil, plain grey) and its water (Water, WaterPx pixels a cell, in quadrants
-// of cols·WaterPx by rows·WaterPx: running water's flow and coverage top-left, the running and
-// the still water's shine and coverage top-right, the glint where a way turns into water
-// bottom-left — see water.Layers; nil, none); the way to the shore from every lattice corner
-// (Shores, row by row; Reach the farthest a shore is seen from; Coast counts their changes); and
-// the grid, drawn where a cell spans Grid screen pixels or more, 0 for none; and whether water may
-// lie on each cell, row by row (Wet; Wetness counts its changes, 0 for none known: water may lie
-// anywhere).
+// Painted is the ground's look: the board painted flat, its water in quadrants of water.Layers,
+// the way to the shore from every lattice corner, the grid and where water may lie. A nil Albedo
+// is plain grey, a nil Water none, a Grid of 0 none, a Wetness of 0 water anywhere.
 type Painted struct {
 	Albedo, Water *render.Image
-	Px, WaterPx   int
+	Px, WaterPx   int // pixels a cell
 	Shores        []water.Shore
-	Reach         float32
-	Coast         uint64
-	Grid          float32
+	Reach         float32 // the farthest a shore is seen from
+	Coast         uint64  // counts the shores' changes
+	Grid          float32 // screen pixels a cell spans from which the grid is drawn
 	Wet           []bool
-	Wetness       uint64
+	Wetness       uint64 // counts the changes of Wet
 }
 
 // Sky is the air over the ground, for how far one sees through it.
@@ -137,8 +107,8 @@ type Sky interface {
 	Air() air.Weather
 }
 
-// Config is how the ground is drawn: whether it casts its shadows (Shadows), and the world's
-// Scale, for how far one sees through the air.
+// Config is how the ground is drawn: whether it casts its shadows, and the world's Scale for
+// how far one sees through the air.
 type Config struct {
 	Shadows bool
 	Scale   world.Scale
@@ -151,22 +121,19 @@ type Renderer struct {
 	sky     Sky
 	cfg     Config
 
-	// lattice holds by lattice corner, in quadrants: heights, normals, by cell whether water may
-	// lie there, shores
+	// quadrants: heights, normals, wet cells, shores
 	lattice   *render.Image
 	heightsAt uint64 // one more than the ground's version the heights hold; 0 none
-	coastAt   uint64 // one more than the coast's version the shores hold; 0 none
-	wetAt     uint64 // one more than the wetness the cells' flags hold; 0 none
+	coastAt   uint64
+	wetAt     uint64
 	low, span float32
 	buf       []byte
-	mesh      *render.Indices // two triangles a cell, as the heights split them
+	mesh      *render.Indices
 	tris      []uint32
-	plain     *render.Image // the ground's colour without an albedo: grey
-	painted   Painted       // the surface as Draw last read it
+	plain     *render.Image
+	painted   Painted
 
-	// baked holds how much of the sun reaches the ground, for the heights of shadeAt and the sun's
-	// way shadeSun — the next of its strips baked anew the frame after strip — and right of it the
-	// tile of the clouds' noise (air.BakeTile), baked once; coarse bakes the shade half as fine a side
+	// the shade, and right of it the clouds' tile (air.BakeTile) baked once
 	baked     *render.Image
 	shadeAt   uint64
 	shadeSun  [3]float32
@@ -176,28 +143,24 @@ type Renderer struct {
 	bakeVerts []render.Vertex
 
 	opts     render.DrawMeshOptions
-	uniforms map[string][]float32 // the renderer's own, and boxed once for the options
+	uniforms map[string][]float32
 	boxed    map[string]any
 
-	casting render.DrawMeshOptions // the shadows'
+	casting render.DrawMeshOptions
 	patches []float32
 
-	// the blocks standing on the ground (world.Block), their shadows baked with its own: who finds
-	// them (nil before Init), as they were found, as the bake shader reads them — those lying end to
-	// end on one line joined — and a hash of them as last found, 0 none
-	findBlocks func(dst []block) []block
+	findBlocks func(dst []block) []block // nil before Init
 	blockQuery *goke.Query
 	base       goke.Comp[world.Base]
 	z          goke.Comp[world.Z]
 	lie        goke.OptComp[world.Lie]
 	found      []block
 	blocks     []float32
-	near       []float32 // those shading a strip
-	blocksAt   uint64
+	near       []float32
+	blocksAt   uint64 // a hash of the blocks as last found; 0 none
 }
 
-// block is a block's box as the shade is baked with it: a rectangle round (x, y) running (ux, uy),
-// along from its middle that way and wide across, from the height bottom up to top.
+// a rectangle round (x, y) running (ux, uy), along from its middle that way and wide across
 type block struct{ x, y, ux, uy, along, wide, bottom, top float32 }
 
 var _ render.Direct = (*Renderer)(nil)
@@ -221,11 +184,11 @@ func (r *Renderer) Init(si *goke.SysInit) {
 // Compose hands the frame nothing: the ground is drawn Direct.
 func (r *Renderer) Compose(*render.Frame, camera.Camera) {}
 
-// Tier is where the ground comes in the picture: render.Ground, after the sky.
+// Tier is render.Ground.
 func (r *Renderer) Tier() render.Tier { return render.Ground }
 
-// Draw draws the ground into the target's screen and depth through cam — a camera with Rays —
-// under the frame's uniforms u; nothing through another camera, or off a square grid.
+// Draw draws the ground into the target through cam under the frame's uniforms u. It draws
+// nothing through a camera without Rays, or off a square grid.
 func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if t.Screen == nil || t.Depth == nil || !r.prepare(cam, u) {
 		return
@@ -244,10 +207,8 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	t.Screen.DrawMesh(r.mesh, shader, &r.opts)
 }
 
-// DrawShadows lays the shadows patches on the ground drawn last through cam, under the frame's
-// uniforms u, tested against the target's depth — hidden where the ground stands before them — and
-// following the ground's rise and fall; nothing off a square grid or through a camera without
-// Rays.
+// DrawShadows lays the shadows patches on the ground drawn last through cam, following its rise
+// and fall. It draws nothing off a square grid or through a camera without Rays.
 func (r *Renderer) DrawShadows(t render.Target, cam camera.Camera, u render.Uniforms, patches []sky.Patch) {
 	if t.Screen == nil || t.Depth == nil || len(patches) == 0 || !r.prepare(cam, u) {
 		return
@@ -271,10 +232,6 @@ func (r *Renderer) DrawShadows(t render.Target, cam camera.Camera, u render.Unif
 	t.Screen.DrawMesh(nil, shadows, &r.casting)
 }
 
-// bake brings the baked image up to date: the shade, where the ground casts its shadows, all at
-// once as the ground changes or the frame's sun leaps, and as it turns by more than shadeTurn a
-// strip a frame round the image, so a sun going on costs a little every frame; the clouds' tile
-// once, as the image is made.
 func (r *Renderer) bake(u render.Uniforms) {
 	cols, rows, cell, _, _ := r.ground.Lattice()
 	ks := bakedScale(cols, rows, r.coarse)
@@ -306,11 +263,10 @@ func (r *Renderer) bake(u render.Uniforms) {
 	turned := way[0]*r.shadeSun[0] + way[1]*r.shadeSun[1] + way[2]*r.shadeSun[2]
 	moved := r.gather()
 	switch {
-	// the ground or a block changed, the sun leapt, or nothing is baked yet: all of it now
 	case r.shadeAt != r.heightsAt || turned < shadeLeap || moved:
 		r.shadeAt, r.shadeSun, r.strip = r.heightsAt, way, 0
 	case r.strip == 0 && turned > shadeTurn:
-		return // the sun has not turned since the last round
+		return
 	default:
 		if r.strip == 0 {
 			r.shadeSun = way
@@ -329,7 +285,7 @@ func (r *Renderer) bake(u render.Uniforms) {
 	r.baking.Uniforms["Shadows"] = []float32{1}
 	r.baking.Images = [4]*render.Image{r.lattice, nil, nil, nil}
 	per := (h + shadeStrips - 1) / shadeStrips
-	for y := y0; y < y1; y += per { // a strip at a time, each with the blocks shading it
+	for y := y0; y < y1; y += per {
 		from := [2]float32{0, float32(y) / float32(h) * size[1]}
 		part := [2]float32{size[0], float32(min(y+per, y1)-y) / float32(h) * size[1]}
 		near := r.shading(from[1], from[1]+part[1], way, cell)
@@ -339,13 +295,11 @@ func (r *Renderer) bake(u render.Uniforms) {
 	}
 }
 
-// shading is the blocks whose shadows may fall on the ground from the world's y0 down to y1 under
-// the sun the way sun, a cell's pixels to spare, as the bake shader reads them.
 func (r *Renderer) shading(y0, y1 float32, sun [3]float32, cell float32) []float32 {
 	r.near = r.near[:0]
 	for k := 0; k+8 <= len(r.blocks); k += 8 {
 		b := r.blocks[k : k+8]
-		far := (b[7] - r.low) / sun[2] // along the sun's line, from the lowest ground to its top
+		far := (b[7] - r.low) / sun[2]
 		spare := far*shadowSoft + cell
 		half := float32(math.Abs(float64(b[3])))*b[4] + float32(math.Abs(float64(b[2])))*b[5]
 		cast := -sun[1] * far
@@ -357,12 +311,9 @@ func (r *Renderer) shading(y0, y1 float32, sun [3]float32, cell float32) []float
 	return r.near
 }
 
-// shadowSoft is light.wgsl's: how wide a shadow's penumbra is per unit towards the sun.
+// light.wgsl's: how wide a shadow's penumbra is per unit towards the sun
 const shadowSoft = 0.08
 
-// gather finds the blocks standing on the ground and lays them out for the bake shader, those
-// lying end to end on one line joined, maxBlocks at most; true where they changed since they were
-// last found.
 func (r *Renderer) gather() bool {
 	if r.findBlocks == nil {
 		return false
@@ -383,8 +334,8 @@ func (r *Renderer) gather() bool {
 	return true
 }
 
-// onGround is the world's blocks, appended to dst: a deck over its Lie from its Altitude down its
-// Height, anything else over its box from its Altitude up.
+// a deck over its Lie from its Altitude down its Height, anything else over its box from its
+// Altitude up
 func (r *Renderer) onGround(dst []block) []block {
 	for r.blockQuery.All(); r.blockQuery.Next(); {
 		cursor := r.blockQuery.Cursor()
@@ -410,8 +361,6 @@ func (r *Renderer) onGround(dst []block) []block {
 	return dst
 }
 
-// lying is the block of an entity whose box's middle is m, headed dir, lying as lie says from the
-// height bottom up to top.
 func lying(m, dir geom.Vec, lie world.Lie, bottom, top float32) block {
 	c := lie.Corners(m, dir)
 	length := math.Hypot(c[1].X-c[0].X, c[1].Y-c[0].Y)
@@ -431,7 +380,7 @@ func lying(m, dir geom.Vec, lie world.Lie, bottom, top float32) block {
 	return b
 }
 
-// hashed is a hash of the blocks bs, one more than 0.
+// never 0
 func hashed(bs []block) uint64 {
 	h := uint64(14695981039346656037)
 	for _, b := range bs {
@@ -442,8 +391,7 @@ func hashed(bs []block) uint64 {
 	return max(h, 1)
 }
 
-// joined is the blocks bs with every two lying end to end on one line, as wide, from one height up
-// to another, made one: a bridge's deck one block, however many pieces it is laid in.
+// a bridge's deck is one block however many pieces it is laid in
 func joined(bs []block) []block {
 	for i := range bs {
 		if bs[i].ux < 0 || bs[i].ux == 0 && bs[i].uy < 0 {
@@ -465,8 +413,6 @@ func joined(bs []block) []block {
 	return bs
 }
 
-// join is the block a and b make lying end to end on one line, as wide, from one height up to
-// another; false where they do not.
 func join(a, b block) (block, bool) {
 	const near = 0.01
 	apart := func(x, y float32) bool { return math.Abs(float64(x-y)) > near }
@@ -488,15 +434,14 @@ func join(a, b block) (block, bool) {
 	return a, true
 }
 
-// Coarse has the shade baked half as fine a side from the next frame on — a quarter of the work
-// and a quarter of the pixels to read — or as fine as ever again.
+// Coarse has the shade baked half as fine a side from the next frame on, or as fine as ever
+// again.
 func (r *Renderer) Coarse(on bool) { r.coarse = on }
 
 // Coarsened reports whether the shade is baked coarse.
 func (r *Renderer) Coarsened() bool { return r.coarse }
 
-// bakeInto draws s over the part at of the baked image, its pixels spanning the world from from,
-// size world units, each handed its point of the world in its custom values.
+// each pixel handed its point of the world in its custom values
 func (r *Renderer) bakeInto(at image.Rectangle, from, size [2]float32, s *render.Shader, op *render.DrawTrianglesShaderOptions) {
 	for i, c := range [4][2]float32{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
 		r.bakeVerts[i] = render.Vertex{DstX: float32(at.Min.X) + c[0]*float32(at.Dx()), DstY: float32(at.Min.Y) + c[1]*float32(at.Dy()),
@@ -505,13 +450,8 @@ func (r *Renderer) bakeInto(at image.Rectangle, from, size [2]float32, s *render
 	r.baked.SubImage(at).DrawTrianglesShader(r.bakeVerts, quad, s, op)
 }
 
-// quad is a rectangle's two triangles over its four corners, top-left, top-right, bottom-left,
-// bottom-right.
 var quad = []uint16{0, 1, 2, 1, 2, 3}
 
-// bakedScale is how many pixels a cell the baked image of a lattice cols by rows corners holds the
-// shade at: shadePx, fewer where it would be wider than maxBaked beside the clouds' tile, half as
-// many again coarse.
 func bakedScale(cols, rows int, coarse bool) int {
 	shade := max(min(shadePx, (maxBaked-air.TileWidth)/max(cols-1, 1), maxBaked/max(rows-1, 1)), 2)
 	if coarse {
@@ -520,9 +460,6 @@ func bakedScale(cols, rows int, coarse bool) int {
 	return shade
 }
 
-// prepare readies a draw through cam under the frame's uniforms u: the lattice, the mesh and the
-// surface brought up to date, the frame's uniforms and the renderer's own over them; false where
-// there is nothing to draw.
 func (r *Renderer) prepare(cam camera.Camera, u render.Uniforms) bool {
 	rays, ok := cam.(camera.Rays)
 	if !ok {
@@ -543,12 +480,10 @@ func (r *Renderer) prepare(cam camera.Camera, u render.Uniforms) bool {
 	return true
 }
 
-// perspective is whether the rays f spread from an eye rather than run side by side.
 func perspective(f camera.RayField) bool {
 	return f.DDX != ([3]float32{}) || f.DDY != ([3]float32{})
 }
 
-// flag is b as the shaders read it: 1 for true.
 func flag(b bool) float32 {
 	if b {
 		return 1
@@ -556,8 +491,6 @@ func flag(b bool) float32 {
 	return 0
 }
 
-// refresh brings the lattice and the mesh up to date with the ground and the surface's shores,
-// and reads the surface; false where there is no lattice to draw, or one too large for the image.
 func (r *Renderer) refresh() bool {
 	cols, rows, cell, heights, ok := r.ground.Lattice()
 	if !ok || cols < 2 || rows < 2 || 2*cols > maxLattice || 2*rows > maxLattice {
@@ -593,8 +526,7 @@ func (r *Renderer) refresh() bool {
 	return true
 }
 
-// wetCells is by cell, at its top-left corner of a lattice-sized image, whether water may lie on
-// it — every one where all are — in red; appended to dst.
+// a cell's flag at its top-left corner, in red
 func wetCells(cols, rows int, wet []bool, all bool, dst []byte) []byte {
 	for y := range rows {
 		for x := range cols {
@@ -608,9 +540,8 @@ func wetCells(cols, rows int, wet []bool, all bool, dst []byte) []byte {
 	return dst
 }
 
-// skirt is the triangles of the skirt round a lattice cols by rows corners, appended to dst: from
-// the edge's corners out through skirtRings rings of as many vertices, counted past the lattice's
-// corners ring after ring, each round the edge as rim goes (mesh.wgsl's vs_main).
+// the rings' vertices are counted past the lattice's corners, ring after ring round the edge as
+// rim goes (mesh.wgsl's vs_main)
 func skirt(cols, rows int, dst []uint32) []uint32 {
 	n := 2*(cols-1) + 2*(rows-1)
 	at := func(ring, j int) uint32 {
@@ -630,8 +561,7 @@ func skirt(cols, rows int, dst []uint32) []uint32 {
 	return dst
 }
 
-// rim is the j-th lattice corner round the edge of a lattice cols by rows corners, clockwise from
-// the top-left: along the top, down the right, back along the bottom and up the left.
+// clockwise from the top-left
 func rim(cols, rows, j int) (x, y int) {
 	a, b := cols-1, rows-1
 	switch {
@@ -645,9 +575,7 @@ func rim(cols, rows, j int) (x, y int) {
 	return 0, b - (j - 2*a - b)
 }
 
-// triangles is the mesh of a lattice cols by rows corners, counted row by row: two triangles a
-// cell, split along the diagonal whose corners stand nearer as the heights encoded in enc have
-// them — as the shader's drawn splits it; appended to dst.
+// split along the diagonal whose corners stand nearer, as the shader's drawn splits it
 func triangles(cols, rows int, enc []byte, dst []uint32) []uint32 {
 	at := func(i uint32) int { return int(enc[4*i])<<8 | int(enc[4*i+1]) }
 	apart := func(a, b uint32) int {
@@ -671,17 +599,13 @@ func triangles(cols, rows int, enc []byte, dst []uint32) []uint32 {
 	return dst
 }
 
-// maxLattice is the widest the lattice's image may be: two quadrants of corners a side.
 const maxLattice = 4096
 
-// write writes the buffer into the lattice's quadrant w by h from (x, y).
 func (r *Renderer) write(x, y, w, h int) {
 	r.lattice.SubImage(image.Rect(x, y, x+w, y+h)).WritePixels(r.buf)
 }
 
-// shores is the way to the shore from every lattice corner as the lattice holds it: (dir+1)/2 in
-// red and green, the distance over reach in blue; open water at every corner without one; appended
-// to dst.
+// (dir+1)/2 in red and green, the distance over reach in blue; open water where none is given
 func shores(cols, rows int, from []water.Shore, reach float32, dst []byte) []byte {
 	unit := func(v float32) byte { return byte(min(max(v, 0), 1)*255 + 0.5) }
 	for i := range cols * rows {
@@ -698,9 +622,7 @@ func shores(cols, rows int, from []water.Shore, reach float32, dst []byte) []byt
 	return dst
 }
 
-// normals is the way the ground faces at every corner of the lattice — from its rise between the
-// corners either side, one-sided at the edge, as the tiles' light has it — as an image holds it:
-// (n+1)/2 in red, green and blue, appended to dst.
+// (n+1)/2 in red, green and blue; one-sided at the edge
 func normals(cols, rows int, cell float32, heights []float32, dst []byte) []byte {
 	at := func(x, y int) float32 { return heights[y*cols+x] }
 	rise := func(x, y, dx, dy int) float32 {
@@ -730,13 +652,11 @@ func normals(cols, rows int, cell float32, heights []float32, dst []byte) []byte
 	return dst
 }
 
-// decodeNormal is the way a corner faces as its bytes hold it.
 func decodeNormal(r, g, b byte) [3]float32 {
 	return [3]float32{float32(r)/255*2 - 1, float32(g)/255*2 - 1, float32(b)/255*2 - 1}
 }
 
-// encode is heights as the heightmap holds them — 16 bits a corner, red the high byte and green
-// the low, of the way from the lowest (low) to the highest — appended to dst.
+// 16 bits a corner, red the high byte and green the low, of the way from low to the highest
 func encode(heights []float32, dst []byte) (low, span float32, out []byte) {
 	low, high := float32(math.Inf(1)), float32(math.Inf(-1))
 	for _, h := range heights {
@@ -753,7 +673,6 @@ func encode(heights []float32, dst []byte) (low, span float32, out []byte) {
 	return low, span, dst
 }
 
-// decode is the height a corner encoded as (hi, lo) stands for, as the shader reads it.
 func decode(hi, lo byte, low, span float32) float32 {
 	return low + float32(uint32(hi)<<8|uint32(lo))/65535*span
 }
@@ -761,9 +680,6 @@ func decode(hi, lo byte, low, span float32) float32 {
 // Shadows says whether the ground casts shadows, from the next frame on.
 func (r *Renderer) Shadows(on bool) { r.cfg.Shadows = on }
 
-// setUniforms hands the shader the transform, the lattice, the surface, the grid and how far one
-// sees, over the frame's: the sun, the clouds, the clock, a world unit a screen pixel spans and
-// the rest come from the frame.
 func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	cols, rows, cell, _, _ := r.ground.Lattice()
 	r.set("ViewProj", t.M[:]...)
@@ -802,9 +718,8 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	r.set("Visibility", visibility)
 }
 
-// skirtReach is how many times farther from the world's middle than its edge the skirt round it
-// reaches: to the horizon seen from under the clouds, at least twenty times the world's width, at
-// most two hundred, the world cols by rows corners a cell apart under scale.
+// times farther from the world's middle than its edge: to the horizon seen from under the
+// clouds, twenty times the world's diagonal at least, two hundred at most
 func skirtReach(cols, rows int, cell float32, scale world.Scale) float32 {
 	diag := math.Hypot(float64(cols-1), float64(rows-1)) * float64(cell)
 	reach := 20 * diag
@@ -814,8 +729,7 @@ func skirtReach(cols, rows int, cell float32, scale world.Scale) float32 {
 	return float32(reach / (diag / 2))
 }
 
-// set hands the shader the uniform name as v, in a slice kept between frames and boxed once, over
-// whatever the frame's uniforms put there.
+// kept between frames and boxed once, over whatever the frame's uniforms put there
 func (r *Renderer) set(name string, v ...float32) {
 	u, ok := r.uniforms[name]
 	if !ok || len(u) != len(v) {

@@ -102,12 +102,11 @@ func (s *arena) definePlayer() error {
 }
 
 func (s *arena) defineRules() {
-	s.world.Roles().Define(MortalRole,
-		rule.Then[unit.Standing](
-			"fall in",
-			rule.All,
-			rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{})),
-		))
+	s.world.Roles().Define(MortalRole, rule.Branch[unit.Standing]{
+		Name: "fall in",
+		When: unit.Standing.Fallen,
+		Do:   rule.Order(world.Despawn{}),
+	})
 }
 
 func (s *arena) defineCells() {

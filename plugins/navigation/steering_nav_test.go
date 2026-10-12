@@ -17,8 +17,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// profiledWorld is one navigated entity with a given Steering profile on an open square grid,
-// stepped at 60 TPS as a game steps a world with a board and navigation.
 type profiledWorld struct {
 	grid    grid.Grid
 	terrain *board.Board
@@ -44,7 +42,6 @@ func newProfiledWorld(t *testing.T, w, h uint32, start cell.ID, mt MoveOrder, pr
 	return pw
 }
 
-// tick advances one tick and reports the entity's velocity, centre and whether it still has an order.
 func (pw *profiledWorld) tick() (vel world.Velocity, centre geom.Vec, ordered bool) {
 	pw.ecs.Tick(time.Second / 60)
 	pw.q.All()
@@ -314,7 +311,7 @@ func TestNavigation_QueuedGoalIsPassedByProjection(t *testing.T) {
 	}
 }
 
-// heading turns the unit to face dir at the given speed, as if already under way.
+// as if already under way
 func (pw *profiledWorld) heading(dir geom.Vec, speed float64) {
 	pw.q.All()
 	for pw.q.Next() {
@@ -427,8 +424,6 @@ func TestNavigation_ALegIsTurnedRoundWhenTheRouteGoesBack(t *testing.T) {
 	}
 }
 
-// A patrol walks to its goals in turn and round again, standing its pause on each, and its order
-// never ends.
 func TestNavigation_APatrolGoesRoundStandingItsPauseOnEachGoal(t *testing.T) {
 	const pause = time.Second
 	grid := grid.DefaultGrids{}.Square(8, 1, legCellSize)

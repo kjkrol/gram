@@ -24,17 +24,15 @@ var (
 // Field is a board's ground for the others: what holds sight back (Walk, Ready) and what collision
 // pushes colliders out of and never over (Solid, Overhang), read from the cells' terrain.
 type Field struct {
-	grid     grid.Grid
-	square   *grids.Square // the grid when it is square, walked exactly; nil otherwise
-	cells    *terrain.Cells
-	heights  bool                    // the world has heights: cover and solid cells span the cells' bands
-	altitude func(c cell.ID) float64 // a cell's ground level, the Map's
-	boxes    []geom.AABB             // scratch for the boxes of a cell
-	decks    []terrain.Deck          // scratch for the bands round a cell
-	seen     []cell.ID               // the bands whose walls a walk has visited
-	// veils holds by ordinal the cover of every cell (Ready), good while the cells' changes and
-	// version are as they were
-	veils        []veil
+	grid         grid.Grid
+	square       *grids.Square // nil for any other grid
+	cells        *terrain.Cells
+	heights      bool
+	altitude     func(c cell.ID) float64
+	boxes        []geom.AABB
+	decks        []terrain.Deck
+	seen         []cell.ID
+	veils        []veil // by ordinal
 	veilsChanges uint64
 	veilsVersion uint64
 }
@@ -48,10 +46,9 @@ func New(g grid.Grid, cells *terrain.Cells, altitude func(c cell.ID) float64) *F
 // SetHeights says whether the world has heights, so cover and solid cells span the cells' bands.
 func (f *Field) SetHeights(heights bool) { f.heights = heights }
 
-// Walk is the cover of the board along a ray — the Cover contract: every cell whose kind has
-// a Veil that dims an observer on blockers, in order, the stretch of the ray inside it, the band
-// from the cell's level to Height above it (±Inf in a flat world) and τ = 1 − Veil. A square grid
-// is walked exactly, cell by cell; any other grid in steps of a quarter cell.
+// Walk is the cover of the board along a ray, the Cover contract: every cell whose kind has a
+// Veil that dims an observer on blockers, in order, with the stretch of the ray inside it, its
+// band (±Inf in a flat world) and τ = 1 − Veil.
 func (f *Field) Walk(origin, dir geom.Vec, length float64, blockers world.Layers, visit func(near, far, bottom, top, tau float64) bool) {
 	if f.square != nil {
 		f.walkSquare(origin, dir, length, blockers, visit)
@@ -60,7 +57,6 @@ func (f *Field) Walk(origin, dir geom.Vec, length float64, blockers world.Layers
 	f.walkSteps(origin, dir, length, blockers, visit)
 }
 
-// covers is the cover c puts on the ray for blockers: its band and τ, or false for none.
 func (f *Field) covers(c cell.ID, blockers world.Layers) (bottom, top, tau float64, ok bool) {
 	i, ok := f.cells.Ordinal(c)
 	if !ok {
@@ -74,16 +70,14 @@ func (f *Field) covers(c cell.ID, blockers world.Layers) (bottom, top, tau float
 	return v.bottom, v.top, v.tau, true
 }
 
-// veil is the cover a cell puts on a ray: the band it covers and how see-through it is, for whom;
-// ok false for a cell that covers nothing.
 type veil struct {
 	bottom, top, tau float64
 	veils            world.Layers
 	ok               bool
 }
 
-// Ready reads every cell's cover at once, when any cell has changed since — the Readied contract:
-// walked from several goroutines at a time after it, the board reads nothing.
+// Ready reads every cell's cover at once when any cell has changed, the Readied contract; walked
+// from several goroutines after it, the board reads nothing.
 func (f *Field) Ready() {
 	n := f.grid.CellCount()
 	if len(f.veils) == n && f.veilsChanges == f.cells.Changes() && f.veilsVersion == f.cells.Version() {
@@ -136,8 +130,6 @@ func (f *Field) walkSquare(origin, dir geom.Vec, length float64, blockers world.
 	}
 }
 
-// ddaAxis is a ray's walk along one axis of a grid of cells size wide from cell c: the step, how
-// far along the ray the next cell boundary is, and how far apart the boundaries are.
 func ddaAxis(o, d float64, c int64, size float64) (step int64, next, delta float64) {
 	switch {
 	case d > 0:
@@ -178,12 +170,10 @@ func (f *Field) walkSteps(origin, dir geom.Vec, length float64, blockers world.L
 	}
 }
 
-// Solid is the solid ground of the board round box for an entity on layers spanning band — the
-// collision.Field contract: every cell whose kind is Solid, keeps one of those layers out and
-// stands in the band, and every raised deck over the whole cell, its slab over the entity's step,
-// as its boxes. On a square grid a side is open where the neighbour across it is not solid for the
-// entity, one under or over it among them, and the boxes lie in box's frame across a wrapping
-// seam; any other grid gives its cell boxes open all round.
+// Solid is the solid ground of the board round box for an entity on layers spanning band, the
+// collision.Field contract: every cell that stops it, and every raised deck's slab over its step,
+// as boxes. A side is open where the neighbour across it does not stop the entity; on a wrapping
+// square grid the boxes lie in box's frame.
 func (f *Field) Solid(layers world.Layers, band collision.Band, box geom.AABB, visit func(collide.FieldBox) bool) {
 	sq := f.square
 	if sq == nil {
@@ -220,10 +210,8 @@ func (f *Field) Solid(layers world.Layers, band collision.Band, box geom.AABB, v
 }
 
 // Walls are the railings and the slabs of the decks running as bands round box, for an entity on
-// layers spanning band — the collision.Field contract: a railing along each edge of a band, from
-// its deck up its Height, keeping out an entity on a layer it Keeps; a raised band's slab, Width
-// wide along it, over the entity's step. Their ends are free where the bridge ends or a head takes
-// over. On a square grid they lie in box's frame across a wrapping seam.
+// layers spanning band, the collision.Field contract. Their ends are free where the bridge ends or
+// a head takes over.
 func (f *Field) Walls(layers world.Layers, band collision.Band, box geom.AABB,
 	visit func(collide.FieldWall) bool) {
 	if !f.cells.Banded() {
@@ -253,8 +241,6 @@ func (f *Field) Walls(layers world.Layers, band collision.Band, box geom.AABB,
 	})
 }
 
-// wallsOf visits the walls of the bands on c and reaching into it, c's middle at m in the frame
-// asked about; false when the visit ends the walk.
 func (f *Field) wallsOf(c cell.ID, m geom.Vec, layers world.Layers, band collision.Band,
 	visit func(collide.FieldWall) bool) bool {
 	f.decks = f.cells.Bands(c, f.decks[:0])
@@ -308,7 +294,6 @@ func (f *Field) wallsOf(c cell.ID, m geom.Vec, layers world.Layers, band collisi
 	return true
 }
 
-// ends are a wall's ends, free as said.
 func ends(freeA, freeB bool) collide.Ends {
 	var e collide.Ends
 	if freeA {
@@ -320,11 +305,9 @@ func ends(freeA, freeB bool) collide.Ends {
 	return e
 }
 
-// Overhang is how much of box, as area, lies over ground that does not take an entity on layers
-// — cells whose kind allows none of them: water to a walker, a hole — but where a deck over it
-// takes one: the whole cell under a Floor without a Width, the band of one with — the
-// collision.Field contract: a push never makes it more. Off the board is none of it; the world's
-// edges keep it.
+// Overhang is how much of box, as area, lies over ground that does not take an entity on layers,
+// a deck taking one left out: the collision.Field contract, a push never makes it more. Off the
+// board is none of it.
 func (f *Field) Overhang(layers world.Layers, box geom.AABB) float64 {
 	sq := f.square
 	if sq == nil {
@@ -349,7 +332,6 @@ func (f *Field) Overhang(layers world.Layers, box geom.AABB) float64 {
 	return area
 }
 
-// overhangCells is Overhang over a grid other than square: the boxes of every cell under box.
 func (f *Field) overhangCells(layers world.Layers, box geom.AABB) float64 {
 	var area float64
 	f.grid.CellsUnder(box, func(c cell.ID) {
@@ -362,9 +344,6 @@ func (f *Field) overhangCells(layers world.Layers, box geom.AABB) float64 {
 	return area
 }
 
-// bare is how much of box over cb, a box of c's whose middle is at m, lies over ground that does
-// not take an entity on layers: none where c's ground or a Floor over the whole of it takes one,
-// else all of it but the bands carrying one.
 func (f *Field) bare(c cell.ID, m geom.Vec, layers world.Layers, box, cb geom.AABB) float64 {
 	r, ok := meet(box, cb)
 	k := f.cells.KindOf(c)
@@ -392,20 +371,17 @@ func (f *Field) bare(c cell.ID, m geom.Vec, layers world.Layers, box, cb geom.AA
 	return max(area, 0)
 }
 
-// admits reports whether ground allowing allows takes an entity on layers: one of them, or any
-// for one on every plane (no layers).
+// no layers: an entity on every plane
 func admits(allows cell.Domain, layers world.Layers) bool {
 	return allows&cell.Domain(layers) != 0 || layers == 0 && allows != 0
 }
 
-// meet is the box a and b share; false for none.
 func meet(a, b geom.AABB) (geom.AABB, bool) {
 	tl := geom.NewVec(max(a.TopLeft.X, b.TopLeft.X), max(a.TopLeft.Y, b.TopLeft.Y))
 	br := geom.NewVec(min(a.BottomRight.X, b.BottomRight.X), min(a.BottomRight.Y, b.BottomRight.Y))
 	return geom.NewAABB(tl, br), br.X > tl.X && br.Y > tl.Y
 }
 
-// overlap is the area a and b share.
 func overlap(a, b geom.AABB) float64 {
 	w := min(a.BottomRight.X, b.BottomRight.X) - max(a.TopLeft.X, b.TopLeft.X)
 	h := min(a.BottomRight.Y, b.BottomRight.Y) - max(a.TopLeft.Y, b.TopLeft.Y)
@@ -415,7 +391,6 @@ func overlap(a, b geom.AABB) float64 {
 	return w * h
 }
 
-// solidCells is Solid over a grid other than square: the boxes of every solid cell under box.
 func (f *Field) solidCells(layers world.Layers, band collision.Band, box geom.AABB, visit func(collide.FieldBox) bool) {
 	const all = collide.Left | collide.Right | collide.Top | collide.Bottom
 	done := false
@@ -433,9 +408,6 @@ func (f *Field) solidCells(layers world.Layers, band collision.Band, box geom.AA
 	})
 }
 
-// stops reports whether c stops an entity on layers spanning band: its kind is solid for the
-// layers, or a Wall over it keeps one of them off, and, where the world has heights, its band
-// meets the entity's; or a raised deck's slab stands in the band over the entity's step.
 func (f *Field) stops(c cell.ID, layers world.Layers, band collision.Band) bool {
 	k := f.cells.KindOf(c)
 	if solidFor(k, layers) && f.solidBand(c, k.Height).Meets(band) {
@@ -454,9 +426,8 @@ func (f *Field) stops(c cell.ID, layers world.Layers, band collision.Band) bool 
 	return collision.Band{Bottom: deck - fl.Thickness, Top: deck}.Meets(band.Above())
 }
 
-// solidBand is the heights a wall height high stands in on c: from below up to height over its
-// level, so nothing passes under a wall on a slope; Everywhere in a flat world, or for a wall of
-// no height, which stands at every height as it does on the flat.
+// from below up, so nothing passes under a wall on a slope; a wall of no height stands at every
+// height
 func (f *Field) solidBand(c cell.ID, height float64) collision.Band {
 	if !f.heights || height <= 0 {
 		return collision.Everywhere
@@ -464,7 +435,6 @@ func (f *Field) solidBand(c cell.ID, height float64) collision.Band {
 	return collision.Band{Bottom: math.Inf(-1), Top: f.altitude(c) + height}
 }
 
-// solidFor reports whether cells of k stop an entity on layers: Solid, keeping out a layer it is on.
 func solidFor(k *cell.Kind, layers world.Layers) bool {
 	return k != nil && k.Solid && world.Layers(^uint8(k.Allows)).Meets(layers)
 }

@@ -24,8 +24,8 @@ func Panel(e *Element) *Element {
 // Label is a line of text, or lines of it, one under another.
 func Label(text string) *Element { return newElement(&label{text: text}) }
 
-// Text is what an element reads its words off every frame: for the entity it is pinned to —
-// pinned — or for none. False leaves the element out: it takes no room and nothing hits it.
+// Text is what an element reads its words off every frame, for the entity it is pinned to.
+// False leaves the element out: it takes no room and nothing hits it.
 type Text interface {
 	Text(of uid.UID64, pinned bool) (string, bool)
 }
@@ -33,9 +33,8 @@ type Text interface {
 // LabelOf is a Label whose words t says, every frame: a pinned element's for its entity.
 func LabelOf(t Text) *Element { return newElement(&label{src: t}) }
 
-// Of is a Text read off the component T of the entity an element is pinned to, every frame: fn
-// says the words. An entity without T, or an element pinned to none, says nothing. T is a
-// component, its fields of a fixed length as every component's.
+// Of is a Text read off the component T of the entity an element is pinned to: fn says the
+// words. An entity without T, or an element pinned to none, says nothing.
 func Of[T any](fn func(v *T) (string, bool)) Text { return &readOff[T]{fn: fn} }
 
 type readOff[T any] struct {
@@ -53,15 +52,13 @@ func (r *readOff[T]) Text(of uid.UID64, pinned bool) (string, bool) {
 	return r.fn(r.comp.At(r.query.Cursor()))
 }
 
-// bound is a Text that reads the scene's ECS: the scene binds it as it begins (Of).
 type bound interface{ bind(si *goke.SysInit) }
 
 type label struct {
 	text string
-	src  Text // where the words come from; nil: text
+	src  Text
 }
 
-// words are what the label says for the entity e is drawn for, and whether it says anything.
 func (l *label) words(e *Element) (string, bool) {
 	if l.src == nil {
 		return l.text, true
@@ -99,7 +96,7 @@ func Image(src render.Surface) *Element { return newElement(&picture{src: src}) 
 
 type picture struct {
 	src   render.Surface
-	input Input // who takes the input over it; nil: ui keeps a click on it
+	input Input
 }
 
 func (p *picture) place(e *Element, box geom.AABB) {
@@ -107,7 +104,6 @@ func (p *picture) place(e *Element, box geom.AABB) {
 	p.src.Resize(int(math.Round(w)), int(math.Round(h)))
 }
 
-// direct is a surface that draws straight onto the screen it fills (render.Feed.DrawOn).
 type direct interface{ DrawOn(dst *render.Image) }
 
 func (p *picture) draw(e *Element, dst *render.Image) {
@@ -132,7 +128,6 @@ func (p *picture) draw(e *Element, dst *render.Image) {
 
 func (*picture) needs(*Element) (w, h float64) { return 0, 0 }
 
-// fills reports whether box covers the whole of dst.
 func fills(box geom.AABB, dst *render.Image) bool {
 	b := dst.Bounds()
 	return math.Round(box.TopLeft.X) <= float64(b.Min.X) && math.Round(box.TopLeft.Y) <= float64(b.Min.Y) &&
@@ -158,7 +153,6 @@ func window(title *Element, elements []*Element) *Element {
 	return w
 }
 
-// windowed is a panel with a title.
 type windowed struct{ title *Element }
 
 func (w *windowed) absent(*Element) bool { return w.title.absent() }
@@ -178,8 +172,8 @@ func (blank) place(*Element, geom.AABB)     {}
 func (blank) draw(*Element, *render.Image)  {}
 func (blank) needs(*Element) (w, h float64) { return 0, 0 }
 
-// Layer is an element drawn by r, a screen layer drawing itself in the screen's pixels — a
-// telemetry line, a background of its own; the scene initialises it once.
+// Layer is an element drawn by r, a screen renderer drawing in the screen's pixels: the
+// telemetry line.
 func Layer(r render.Renderer) *Element { return newElement(&layered{r: r}) }
 
 type layered struct{ r render.Renderer }
@@ -187,4 +181,4 @@ type layered struct{ r render.Renderer }
 func (*layered) place(*Element, geom.AABB)            {}
 func (l *layered) draw(_ *Element, dst *render.Image) { l.r.Draw(dst) }
 func (*layered) needs(*Element) (w, h float64)        { return 0, 0 }
-func (*layered) container()                           {} // hit by nothing: it draws, it takes no click
+func (*layered) container()                           {} // takes no click

@@ -8,27 +8,24 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/plan"
 )
 
-// wall is ground nobody walks.
 var wall = cell.Kind{Cost: 1, Solid: true}
 
-// walls builds walls on the cells given as x, y pairs.
+// xy are x, y pairs
 func (rw *roadWorld) walls(xy ...uint32) {
 	for i := 0; i+1 < len(xy); i += 2 {
 		rw.nav.board.Set(rw.at(xy[i], xy[i+1]), wall)
 	}
 }
 
-// watch ticks the road world for up to limit, calling each after every tick; it stops early when
-// each reports it is done.
 func (rw *roadWorld) watch(limit time.Duration, each func(tick int) (done bool)) bool {
 	for tick := 0; time.Duration(tick)*time.Second/60 < limit; tick++ {
 		rw.ecs.Tick(time.Second / 60)
@@ -39,8 +36,6 @@ func (rw *roadWorld) watch(limit time.Duration, each func(tick int) (done bool))
 	return false
 }
 
-// A stranger standing on the road is not asked and never moves; the traveller goes round it at
-// once, without waiting.
 func TestCrowd_AStrangerStandingIsGoneRoundAtOnce(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
 	rw = newRoadWorld(t, 10, []roadUnit{
@@ -70,8 +65,6 @@ func TestCrowd_AStrangerStandingIsGoneRoundAtOnce(t *testing.T) {
 	}
 }
 
-// An ally standing on the road makes way — square off the road — and stays there; the traveller
-// gets through.
 func TestCrowd_AnAllyStandingMakesWayAndStaysAside(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
 	rw = newRoadWorld(t, 10, []roadUnit{
@@ -96,8 +89,6 @@ func TestCrowd_AnAllyStandingMakesWayAndStaysAside(t *testing.T) {
 	}
 }
 
-// An idle ally standing on the traveller's goal makes way for good; beside a stranger standing
-// there the traveller stands at once.
 func TestCrowd_AGoalTakenIsFreedByAnAllyAndSettledBesideAStranger(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
 	rw = newRoadWorld(t, 10, []roadUnit{
@@ -129,8 +120,6 @@ func TestCrowd_AGoalTakenIsFreedByAnAllyAndSettledBesideAStranger(t *testing.T) 
 	}
 }
 
-// Two strangers head on in a corridor with one passing place: the first waits, the other goes
-// round by the passing place, and both get through — no endless rerouting into each other.
 func TestCrowd_TwoStrangersHeadOnInACorridorBothGetThrough(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
 	rw = newRoadWorld(t, 10, []roadUnit{
@@ -155,8 +144,6 @@ func TestCrowd_TwoStrangersHeadOnInACorridorBothGetThrough(t *testing.T) {
 	}
 }
 
-// Under BodySpacing a stranger standing in the way never makes way: the traveller goes round it;
-// an ally makes way and stays aside.
 func TestCrowd_BodiesGoRoundAStrangerAndAnAllyMakesWay(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
@@ -185,14 +172,13 @@ func TestCrowd_BodiesGoRoundAStrangerAndAnAllyMakesWay(t *testing.T) {
 		if o != nil {
 			t.Errorf("player %d's unit still has an order %+v, want it standing", c.owner, o)
 		}
-		// struck, a stranger is only nudged by the collision; an ally stands aside, off the way
+		// a stranger is only nudged by the collision; an ally stands aside, off the way
 		if off := math.Abs(at.Y - home.Y); c.yields != (off > 6) {
 			t.Errorf("player %d's unit stands %v off the way, at %v; want aside %v", c.owner, off, at, c.yields)
 		}
 	}
 }
 
-// Under BodySpacing two strangers head on pass each other and both arrive.
 func TestCrowd_BodiesOfTwoStrangersHeadOnPass(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	goal0, goal1 := geom.NewVec(9*fieldCell+16, 80), geom.NewVec(16, 80)
@@ -210,17 +196,13 @@ func TestCrowd_BodiesOfTwoStrangersHeadOnPass(t *testing.T) {
 	}
 }
 
-// A unit's plan orders it as a player would, for itself alone: a patrol along the road, each way
-// once it is told Arrived. The player's other unit, selected, is never sent.
 func TestPlan_APatrolOrdersTheUnitAloneAndGoesOnOnceArrived(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
 	east, west := rw.at(8, 1), rw.at(1, 1)
-	patrol := &writtenPlan{"navigation test patrol", func(a *plan.Actor) rule.Step {
-		return a.Steps(
-			a.Order(MoveTo{Cell: east}).Until[Arrived](),
-			a.Order(MoveTo{Cell: west}).Until[Arrived](),
-		)
-	}}
+	patrol := &writtenPlan{rule.Plan("navigation test patrol", rule.Steps(
+		rule.Order(MoveTo{Cell: east}).Until[Arrived](),
+		rule.Order(MoveTo{Cell: west}).Until[Arrived](),
+	))}
 	rw = newRoadWorld(t, 10, []roadUnit{
 		{start: rw.at(0, 1), owner: 1, selected: true, plan: patrol},
 		{start: rw.at(0, 0), owner: 1, selected: true},
@@ -242,7 +224,34 @@ func TestPlan_APatrolOrdersTheUnitAloneAndGoesOnOnceArrived(t *testing.T) {
 	}
 }
 
-// cliffs are the cells a step into is a cliff, steeper than yieldClimb.
+func TestPlan_AnAlarmTakesOverThePatrolAndGivesItBack(t *testing.T) {
+	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
+	east, west, gate := rw.at(8, 1), rw.at(1, 1), rw.at(4, 0)
+	alarm := rw.w.Effects().Named("alarm")
+	guard := &writtenPlan{rule.Plan("navigation test guard", rule.OneOf(
+		rule.Branch[any]{Name: "alarm", When: rule.During(alarm),
+			Do: rule.Order(MoveTo{Cell: gate}).Until[Arrived]()},
+		rule.Branch[any]{Name: "patrol", Do: rule.Steps(
+			rule.Order(MoveTo{Cell: east}).Until[Arrived](),
+			rule.Order(MoveTo{Cell: west}).Until[Arrived](),
+		)},
+	))}
+	rw = newRoadWorld(t, 10, []roadUnit{{start: rw.at(0, 1), owner: 1, plan: guard}})
+	alarm = rw.w.Effects().Named("alarm")
+	walker := rw.byRow[0]
+	rw.watch(10*time.Second, func(int) bool { c, _ := rw.state(walker); return c == rw.at(3, 1) })
+	rw.w.Carrier().Put(1, rule.Cast(alarm).On(entity.World))
+	if !rw.watch(10*time.Second, func(int) bool { c, _ := rw.state(walker); return c == gate }) {
+		c, _ := rw.state(walker)
+		t.Fatalf("under the alarm the guard stands at %v, want it at the gate %v", c, gate)
+	}
+	rw.w.Carrier().Put(1, rule.Lift(alarm).On(entity.World))
+	if !rw.watch(20*time.Second, func(int) bool { c, _ := rw.state(walker); return c == east }) {
+		c, _ := rw.state(walker)
+		t.Errorf("the alarm lifted, the guard stands at %v, want it back on patrol at %v", c, east)
+	}
+}
+
 type cliffs map[cell.ID]bool
 
 func (c cliffs) Climb(_, to cell.ID, _ cell.Domain) float64 {
@@ -253,9 +262,6 @@ func (c cliffs) Climb(_, to cell.ID, _ cell.Domain) float64 {
 }
 func (cliffs) Least(cell.Domain) float64 { return 1 }
 
-// One standing is never stepped aside into water or a hole, down a cliff or into a wall, under
-// either spacing: with such ground on every side off the way of the one coming, it has no order
-// and stays; with one side open, it steps there.
 func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, 32)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
@@ -307,8 +313,6 @@ func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 	}
 }
 
-// The rules of the crowd read a Touch: who makes way, who stops among its group, who goes past,
-// who goes round.
 func TestTouch_TheRulesOfTheCrowd(t *testing.T) {
 	moving := Touch{Moving: true, LastGoal: true}
 	for _, c := range []struct {
@@ -343,18 +347,22 @@ func TestTouch_TheRulesOfTheCrowd(t *testing.T) {
 	}
 }
 
-// with is t changed by fn.
 func with(t Touch, fn func(*Touch)) Touch {
 	fn(&t)
 	return t
 }
 
-// A game gives its own rules in place of the crowd's, narrowed by tags as any rule: here player 2's
-// units make way for anyone on the move, strangers too, and nobody else makes way at all.
 func TestCrowd_AGameGivesItsOwnRules(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
-	forAll := rule.Then[Touch]("player 2 makes way for all", rule.Self(owner.Of(2)), rule.If(func(t Touch) bool { return !t.Moving && t.OtherMoving }, rule.Order(StepAside{})))
+	forAll := rule.Branch[Touch]{
+		Name: "player 2 makes way for all",
+		When: rule.All(
+			rule.Self(owner.Of(2)),
+			func(t Touch) bool { return !t.Moving && t.OtherMoving },
+		),
+		Do: rule.Order(StepAside{}),
+	}
 	for _, c := range []struct {
 		standing control.PlayerID
 		yields   bool
@@ -379,8 +387,6 @@ func TestCrowd_AGameGivesItsOwnRules(t *testing.T) {
 	}
 }
 
-// With no rules at all nobody makes way and nobody is gone round on purpose: the one on the move
-// is left to navigation's last word — stalled, it plans afresh, and it ends its order.
 func TestCrowd_WithNoRulesTheOrderStillEnds(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
@@ -400,9 +406,6 @@ func TestCrowd_WithNoRulesTheOrderStillEnds(t *testing.T) {
 	t.Fatal("the one on the move still has its order after 30 s")
 }
 
-// One standing at the water's edge with no room to step aside — walls either side — is never
-// pushed over the water, with the rules of the crowd or with none: the collision holds it on its
-// ground as at a wall. With the rules the one coming for its place stands beside it.
 func TestCrowd_NobodyIsPushedOverTheWater(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	lay := func(b *board.Board, at func(x, y uint32) cell.ID) {

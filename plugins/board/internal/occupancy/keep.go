@@ -13,12 +13,9 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// KeepSystem keeps o true to the world. As it starts — after a Populate as after a Load — every
-// unit holds the cell it is At. Every step it lets go of the holds of whoever is no longer in the
-// world, so one despawned — fallen in, say — blocks no cell, and has every unit hold the cell it
-// stands on: one holding it nothing — spawned in the game, moved by none who keeps its cell —
-// lets go of the cell it was At and is At the cell it stands on, with unit.Entered; one under a
-// raised deck holds its cell on the level its feet are on, as it climbs onto the deck or falls off.
+// KeepSystem keeps o true to the world: every step it lets go of the holds of whoever left the
+// world and has every unit hold the cell it stands on, on the level its feet are on. As it starts
+// every unit holds the cell it is At.
 func KeepSystem(o cell.Occupancy, footing Footing) goke.System {
 	s := &keepSystem{occupancy: o, footing: footing}
 	s.gone, s.holding = s.isGone, s.isHolding
@@ -69,7 +66,6 @@ func (s *keepSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	s.lacking = s.lacking[:0]
 }
 
-// keep has every unit hold the cell it stands on, as it starts the cell it is At.
 func (s *keepSystem) keep(starting bool) {
 	for s.units.All(); s.units.Next(); {
 		cur := s.units.Cursor()
@@ -106,7 +102,6 @@ func (s *keepSystem) keep(starting bool) {
 	}
 }
 
-// holds reports whether id holds c, on either of its levels.
 func (s *keepSystem) holds(c cell.ID, id uid.UID64) bool {
 	s.asked, s.held = id, false
 	s.occupancy.Holders(c, s.holding)
@@ -119,8 +114,7 @@ func (s *keepSystem) isHolding(e uid.UID64, _ cell.Domain, _ bool) {
 	}
 }
 
-// enter has the unit at row i of states have unit.Entered on for this step; one whose chunk has no
-// family gets it once the chunks are done.
+// a unit whose chunk has no family gets it once the chunks are done
 func (s *keepSystem) enter(states []tag.Tags[unit.States], i int, id uid.UID64) {
 	if states != nil {
 		states[i] = states[i].With(unit.Entered)
@@ -129,5 +123,4 @@ func (s *keepSystem) enter(states []tag.Tags[unit.States], i int, id uid.UID64) 
 	}
 }
 
-// isGone reports whether id is no longer in the world.
 func (s *keepSystem) isGone(id uid.UID64) bool { return !s.units.Seek(id) }

@@ -7,9 +7,7 @@ import (
 )
 
 // Haze is how much of what lies at the world point (x, y, z) w's air hides from the eye of cam,
-// 0 to 1: 1 − e^(−d/v), d its distance from the eye (camera.Eyed) and v the Visibility; 0
-// through a camera without an eye or in air without end. What is drawn hazed turns to the Fog
-// (render.Frame.Fog), the sky under the clouds (Frame).
+// 0 to 1; 0 through a camera without an eye or in air without end.
 func (w Weather) Haze(cam camera.Camera, x, y, z float32) float32 {
 	v := w.Visibility
 	if v <= 0 || cam == nil {

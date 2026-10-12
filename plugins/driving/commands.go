@@ -7,9 +7,8 @@ import (
 )
 
 // Ahead walks the units the hand is on the way each faces, Sprint urging them on; given every
-// tick its key is held (control.KeyHeld). Camera is the one it was given through — a player's,
-// from the binding's context — and says which units the hand is on: the one it is fastened to,
-// else those the player has selected. Given by an entity for itself (rule.Order), its own hand.
+// tick its key is held. Camera, the one it was given through, says which units the hand is on:
+// the one it is fastened to, else those the player has selected.
 type Ahead struct {
 	Camera camera.Camera
 	Sprint bool

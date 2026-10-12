@@ -17,8 +17,6 @@ type layered struct {
 	layers world.Layers
 }
 
-// layersRun ticks two overlapping boxes on the given layers once and reports whether they met and
-// how far apart their left edges ended.
 func layersRun(t *testing.T, a, b world.Layers) (met bool, gap float64) {
 	t.Helper()
 	w := world.NewPlugin(world.Config{

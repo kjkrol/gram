@@ -10,32 +10,27 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Climate is the climate of a world: where in the world it lies, and its weather going from one
-// of the climate's weathers to the next in the simulation's time, saved with the game, the
-// world's weather — wind, clouds, rain, snow, the temperature — following it.
+// Climate is the climate of a world: where it lies, and its weather going from one state to the
+// next in the simulation's time.
 type Climate struct {
 	cfg      Config
 	world    *world.Plugin
 	calendar *calendar.Calendar
 	sys      *weatherSystem
-	asked    []string // the changes asked for since the last step: a state's name, "" for the next
+	asked    []string // a state's name, "" for the next
 	report   report
 	rules    plugin.StepRules[Weathering]
-	about    func() uid.UID64 // whose entity a Weathering is about
+	about    func() uid.UID64
 	running  Running
 }
 
-// Running is which of the weather's workings go on: Changes, one weather following another as the
-// climate throws them (off, the weather now stays, though Change and Set still change it); Wind,
-// the wind blowing and carrying the clouds (off, the air stands still); Clouds, the clouds
-// covering the sky (off, a clear sky); Falls, rain and snow falling (off, nothing falls). The air
-// (Climate.Air) and the rules hosted with it have the weather as they leave it; the
-// weather's own entity goes on underneath and is saved as it is. They are not saved.
+// Running is which of the weather's workings go on: one weather following another, the wind,
+// the clouds, rain and snow. Off, the weather's entity goes on underneath; none of it is saved.
 type Running struct {
 	Changes, Wind, Clouds, Falls bool
 }
 
-// AllRunning is Running with all of it going on, as a Climate begins.
+// AllRunning is Running with all of it going on, the default.
 func AllRunning() Running { return Running{Changes: true, Wind: true, Clouds: true, Falls: true} }
 
 // SetRunning has the weather's workings go on as r says, from the next step.
@@ -57,7 +52,7 @@ func New(w *world.Plugin, cal *calendar.Calendar, cfg Config) *Climate {
 // Config is the climate's, with its defaults filled in.
 func (c *Climate) Config() Config { return c.cfg }
 
-// Air is the weather as the last step of the simulation left it: a calm, clear day before the
+// Air is the weather as the last step of the simulation left it; a calm, clear day before the
 // first.
 func (c *Climate) Air() air.Weather {
 	if c.sys == nil {
@@ -69,16 +64,14 @@ func (c *Climate) Air() air.Weather {
 // Zone is where the climate lies.
 func (c *Climate) Zone() Zone { return c.cfg.Zone }
 
-// System is the weather's system, to run in every step of the simulation; it finds or makes the
-// weather's entity in its own Init. Call it once.
+// System is the weather's system, to run in every step of the simulation. Call it once.
 func (c *Climate) System() goke.System {
 	c.sys = newWeatherSystem(c.cfg, c.world, c.calendar, &c.asked, &c.rules, &c.running)
 	c.sys.about = c.about
 	return c.sys
 }
 
-// Change has the weather go on to the next state at the next step of the simulation, thrown as
-// when one runs out.
+// Change has the weather go on to the next state at the next step of the simulation.
 func (c *Climate) Change() { c.asked = append(c.asked, "") }
 
 // Set has the weather go into the state named name at the next step of the simulation; a name
@@ -89,15 +82,13 @@ func (c *Climate) Set(name string) {
 	}
 }
 
-// About says whose entity a Weathering is about — the atmosphere's own; the world's without it.
-// Call it before System.
+// About says whose entity a Weathering is about, the world's without it. Call it before System.
 func (c *Climate) About(self func() uid.UID64) { c.about = self }
 
-// LoadComps lists the weather's one component — see goke.CompProvider.
+// LoadComps lists the weather's component for the saves.
 func (c *Climate) LoadComps() []goke.CompToken { return []goke.CompToken{goke.LoadComp[Weather]()} }
 
-// Rules takes the rules of Weathering, fired every step with the weather: a moment of the world
-// as a whole, so its rules are of a role the atmosphere plays.
+// Rules takes the rules of Weathering.
 func (c *Climate) Rules() plugin.Host { return &c.rules }
 
 // Reporter is the weather's line for a render.TelemetryRenderer.

@@ -27,7 +27,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// installCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type installCtx struct {
 	ecs     *goke.ECS
 	pending []func() []goke.System
@@ -46,22 +45,19 @@ func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c
 func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
 func (c *installCtx) Hosts(...plugin.Host)                            {}
 
-// walker is one unit of a field: the cell it starts in, whose it is, whether it is selected.
 type walker struct {
 	start    cell.ID
 	owner    control.PlayerID
 	selected bool
 }
 
-// field is a world, a board of open land 10 cells by 3 of 32 and the driving over it — no
-// navigation — with two players each looking through a camera of its own.
 type field struct {
 	t       *testing.T
 	grid    grid.Grid
 	w       *world.Plugin
 	ecs     *goke.ECS
 	cams    [3]camera.Camera // by player, 1 and 2
-	ids     []uid.UID64      // the walkers', in the order given
+	ids     []uid.UID64
 	base    goke.Comp[world.Base]
 	driven  goke.OptComp[steering.Driven]
 	states  goke.OptComp[tag.Tags[driving.States]]
@@ -150,7 +146,6 @@ func newField(t *testing.T, walkers ...walker) *field {
 	return f
 }
 
-// give gives cmd as player by.
 func (f *field) give(by control.PlayerID, cmd control.Command) {
 	if !f.w.Carrier().Put(by, cmd) {
 		f.t.Fatalf("the world carries no %T", cmd)
@@ -163,8 +158,6 @@ func (f *field) tick(n int) {
 	}
 }
 
-// seen is what a test reads off a walker: its Driven, if it carries one, whether it is Driving,
-// its speed and where it stands.
 type seen struct {
 	driven  *steering.Driven
 	driving bool
@@ -195,8 +188,6 @@ func (f *field) read() map[uid.UID64]seen {
 	return out
 }
 
-// A hand walks the selected units of the player who gave it and no one else's, with no navigation
-// in the game; the unit driven carries a Driven and is Driving.
 func TestHand_WalksTheSelectedUnitsOfThePlayerAlone(t *testing.T) {
 	f := newField(t, walker{start: 12, owner: 1, selected: true}, walker{start: 16, owner: 2, selected: true})
 	mine, theirs := f.ids[0], f.ids[1]
@@ -217,7 +208,6 @@ func TestHand_WalksTheSelectedUnitsOfThePlayerAlone(t *testing.T) {
 	}
 }
 
-// Several commands in one tick add up: on and turning at once, each way held within one.
 func TestHand_TwoKeysInOneTickAddUp(t *testing.T) {
 	f := newField(t, walker{start: 12, owner: 1, selected: true})
 	f.give(1, driving.Ahead{Camera: f.cams[1]})
@@ -229,8 +219,6 @@ func TestHand_TwoKeysInOneTickAddUp(t *testing.T) {
 	}
 }
 
-// A tick without a hand brakes the unit; once it stands its Driven is taken off and it is not
-// Driving any more.
 func TestHand_ATickWithoutAHandBrakesAndThenLetsGo(t *testing.T) {
 	f := newField(t, walker{start: 12, owner: 1, selected: true})
 	id := f.ids[0]
@@ -251,7 +239,6 @@ func TestHand_ATickWithoutAHandBrakesAndThenLetsGo(t *testing.T) {
 	}
 }
 
-// Toward drives the unit the way of the screen: it turns to it and walks on.
 func TestHand_TowardDrivesTheUnitThatWay(t *testing.T) {
 	f := newField(t, walker{start: 2, owner: 1, selected: true})
 	id := f.ids[0]
@@ -269,8 +256,6 @@ func TestHand_TowardDrivesTheUnitThatWay(t *testing.T) {
 	}
 }
 
-// A player's hand is on the unit the camera it was given through is fastened to, selected or not,
-// and not on the units it has selected then.
 func TestHand_IsOnTheUnitTheCameraIsFastenedTo(t *testing.T) {
 	f := newField(t, walker{start: 12, owner: 1, selected: true}, walker{start: 16, owner: 1})
 	selected, fastened := f.ids[0], f.ids[1]
@@ -289,7 +274,6 @@ func TestHand_IsOnTheUnitTheCameraIsFastenedTo(t *testing.T) {
 	}
 }
 
-// An entity drives itself by the commands it gives itself, nobody's selection asked.
 func TestHand_AnEntitysOwnHandDrivesIt(t *testing.T) {
 	f := newField(t, walker{start: 12})
 	id := f.ids[0]

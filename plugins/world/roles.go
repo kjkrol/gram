@@ -7,21 +7,14 @@ import (
 	"github.com/kjkrol/gram/rule"
 )
 
-// Roles are the roles of a Stage, by name: Define says a role and the rules those playing it
-// obey, Named hands it to whoever gives it to a kind (rule.Plays), to a kind of cell or to one
-// cell of the Layout (cell.Kinds.Define, cell.Entry.Plays) or to a plugin (Self.Plays), or names
-// it in a rule (rule.Other, rule.Playing). Reached through Plugin.Roles; each Stage's world has its own, so one name may
-// mean one thing in one Stage and another in the next. A Stage names 64 roles at most.
+// Roles is a Stage's register of roles, by name. A Stage names 64 roles at most.
 type Roles struct {
 	w      *Plugin
 	byName map[string]*rule.Part
 }
 
-// Define says the role called name and the rules those playing it obey, none for a role that
-// only says who somebody is. Call it where the Stage defines its rules; a name defined twice
-// panics. The rules go to the hosts of their moments whether anybody plays the role in Init or
-// only a Layout's cells do: an unplayed role's rules simply never fire, but one no host takes
-// still fails Init.
+// Define registers the role called name and the rules those playing it obey. A name defined
+// twice panics; a rule no host takes fails Init whether anybody plays the role or not.
 func (r *Roles) Define(name string, rules ...rule.Rule) {
 	r.w.must(fmt.Sprintf("role %q defined", name), section.Rules)
 	if name == "" {

@@ -13,15 +13,7 @@ import (
 
 var _ goke.System = (*altitudeSystem)(nil)
 
-// altitudeSystem puts every mover carrying a Z on the surface under its centre (Relief.Surface:
-// a Floor's deck within a step of its feet, else the ground) plus its Lift, every step, after
-// movement and collisions; one carried at a world.Drift falls under gravity, which writes its
-// height itself. A flyer
-// flown by hand holds its height over sea level instead, climbing and diving by the rise of the
-// way it is steered, as far as it went along the ground, its Lift following. Each keeps its
-// Clearance over the ground and, the ground allowing, stays under its Ceiling over sea level.
-// Whatever stands on the board (cell.On) stands on the ground under its centre, one with a Floor on
-// its deck: the cell's level and the Floor's Height over it.
+// one carried at a world.Drift is gravity's, which writes its height itself
 type altitudeSystem struct {
 	relief *Relief
 
@@ -37,8 +29,8 @@ type altitudeSystem struct {
 	floor    goke.OptComp[cell.Floor]
 }
 
-// AltitudeSystem is the goke.System keeping the movers on r at their heights, to run in every step
-// of the simulation, after movement and collisions.
+// AltitudeSystem is the goke.System keeping the movers on r at their heights. Run it in every
+// step of the simulation, after movement and collisions.
 func (r *Relief) AltitudeSystem() goke.System { return &altitudeSystem{relief: r} }
 
 func (s *altitudeSystem) Init(si *goke.SysInit) {
@@ -62,7 +54,7 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 			if flown {
 				alt = zs[i].Altitude
 				if rise, run := drivens[i].Slope(); rise != 0 && courses != nil {
-					speed := courses[i].Speed // as far as it went along the ground this step, the world's cap included
+					speed := courses[i].Speed
 					along := math.Copysign(min(math.Abs(speed)*d.Seconds(), bases[i].Pos.MaxStep()), speed)
 					alt += along * rise / run
 				}
@@ -87,7 +79,7 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-// held is alt kept under m's Ceiling and at least its Clearance over ground, the ground winning.
+// the ground wins over the Ceiling
 func held(m *unit.Mover, alt, ground float64) float64 {
 	if m.Ceiling > 0 {
 		alt = min(alt, m.Ceiling)

@@ -1,4 +1,4 @@
-package plan_test
+package rule_test
 
 import (
 	"time"
@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// The toy commands, each done the ticks toys says after it is given.
 type (
 	walk struct{ Far int }
 	flee struct{ Fast bool }
@@ -24,11 +23,8 @@ func (flee) Command() {}
 
 func (walk) Command() {}
 
-// done is the fact toys tells an entity, for a tick, when what it did is done.
 type done struct{ What uint8 }
 
-// toys carries out the toy commands the entities give themselves: it notes what each does — a new
-// command in place of the one before — and tells it done after the ticks it takes.
 type toys struct {
 	carrier control.Carrier
 	walks   control.Queue[walk]
@@ -37,14 +33,13 @@ type toys struct {
 	rests   control.Queue[rest]
 
 	doing    map[uid.UID64]string
-	last     map[uid.UID64]string // the last command each gave, done or not
+	last     map[uid.UID64]string // done or not
 	left     map[uid.UID64]int
-	given    map[uid.UID64]int // how many commands each gave
+	given    map[uid.UID64]int
 	doneID   goke.CompID
-	finished []uid.UID64 // told done last tick: the fact comes off
+	finished []uid.UID64
 }
 
-// ticks is how long each toy command takes.
 var ticks = map[string]int{"walk": 3, "flee": 2, "jump": 2, "rest": 1}
 
 func newToys() *toys {
@@ -57,7 +52,6 @@ func newToys() *toys {
 
 func (x *toys) init(si *goke.SysInit) { x.doneID = si.RegComp[done]() }
 
-// system counts down what the entities do, telling those done, then takes the new commands.
 func (x *toys) system() goke.System {
 	return goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, _ time.Duration) {
 		for _, id := range x.finished {

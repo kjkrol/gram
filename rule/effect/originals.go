@@ -6,13 +6,11 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// savedValue is one altered component's original value, kept until the last Alter of it ends.
 type savedValue struct {
 	Type  string
 	Value any
 }
 
-// originals is every entity's saved originals — the plugin's own state, saved with the game.
 type originals struct {
 	byEntity map[uid.UID64][]savedValue
 }

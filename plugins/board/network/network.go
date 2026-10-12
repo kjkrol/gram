@@ -56,9 +56,9 @@ func (n *Network) Link(a, b cell.ID) bool {
 	return true
 }
 
-// Flow has from run down on to its neighbour to: linked to it, and to linked back where the
-// network runs through it — a river's last cell runs on to the sea it leaves by, which is no
-// part of it. False where they are no neighbours.
+// Flow has from run down on to its neighbour to, linked back where the network runs through to;
+// a river's last cell runs on to the sea, which is no part of it. It is false where they are no
+// neighbours.
 func (n *Network) Flow(from, to cell.ID) bool {
 	l, ok := grid.Link(n.grid, from, to)
 	if !ok {
@@ -107,8 +107,6 @@ func (n *Network) Along(c cell.ID) float64 {
 	return float64(r[0]) / float64(r[0]+r[1])
 }
 
-// run is how many cells lie above c, along the longest flow into it, and below it on to where it
-// leaves the network.
 func (n *Network) run(c cell.ID) [2]int {
 	if r, ok := n.runs[c]; ok {
 		return r
@@ -155,7 +153,7 @@ func (n *Network) Crossings(o *Network) []cell.ID {
 
 // Ways is the network laid on a board: a Way across every cell it runs through, of its node's
 // kind, as wide and faded, running on as Links says, its look turned as far down its flow as it
-// lies (Along) — a river taking on the sea's where it reaches it.
+// lies.
 func (n *Network) Ways() []cell.WayEntry {
 	cells := n.Cells()
 	out := make([]cell.WayEntry, 0, len(cells))

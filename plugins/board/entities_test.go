@@ -27,8 +27,6 @@ var (
 
 func itself(c cell.ID) cell.ID { return c }
 
-// strip is a 5 x 1 board of grass with ground in the middle and a thing called "it" standing on
-// it, carrying extra; open is the effect opening it, as spec says.
 type strip struct {
 	*boardtest.World
 	middle cell.ID
@@ -54,7 +52,6 @@ func newStrip(t *testing.T, ground cell.Kind, spec effect.Spec, extra ...comp.Co
 	return s
 }
 
-// cast puts open on the thing standing on the strip and ticks it through.
 func (s *strip) cast(t *testing.T) {
 	t.Helper()
 	if !s.World.World.Carrier().Put(control.Nobody, rule.Cast(s.open).On(entity.Named("it"))) {
@@ -64,8 +61,6 @@ func (s *strip) cast(t *testing.T) {
 	s.Tick()
 }
 
-// A Floor carries its domains over a pit: the cell admits a walker while it is shut; opened by
-// an effect, the pit takes over again.
 func TestFloor_CarriesItsDomainsOverThePitUntilOpened(t *testing.T) {
 	opens := effect.Spec{effect.Alter(func(f *cell.Floor) { f.Allows = 0 })}
 	s := newStrip(t, pit, opens, comp.Const(cell.Floor{Allows: cell.Land}))
@@ -89,8 +84,6 @@ func TestFloor_CarriesItsDomainsOverThePitUntilOpened(t *testing.T) {
 	}
 }
 
-// A Wall keeps its domains off the cell: the cell admits them no more and stands solid for them,
-// not for the others; opened, it is the grass it stands on.
 func TestWall_KeepsItsDomainsOffTheCell(t *testing.T) {
 	opens := effect.Spec{effect.Alter(func(w *cell.Wall) { w.Keeps = 0 })}
 	s := newStrip(t, grass, opens, comp.Const(cell.Wall{Keeps: cell.Land}))
@@ -113,9 +106,6 @@ func TestWall_KeepsItsDomainsOffTheCell(t *testing.T) {
 	}
 }
 
-// Around visits the entities standing on the cells round where a moment stands, not the units:
-// a walker beside a lever pulls it, and a unit beside the walker playing a lever is pulled by
-// nobody.
 func TestAround_VisitsTheEntitiesStandingOnTheCellsNotTheUnits(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 1, boardtest.CellSize)
 	doors, decoys := g.At(4, 0), g.At(3, 0)
@@ -133,8 +123,11 @@ func TestAround_VisitsTheEntitiesStandingOnTheCellsNotTheUnits(t *testing.T) {
 		open = w.Effects().Named("open")
 		w.Roles().Define("lever")
 		lever := w.Roles().Named("lever")
-		pull := rule.Around(1, rule.Playing(lever, rule.Trigger()))
-		w.Roles().Define("walker", rule.Then[unit.Standing]("pull", rule.All, pull))
+		pull := rule.Around(1, rule.Branch[unit.Standing]{
+			When: rule.Playing(lever),
+			Do:   rule.Trigger(),
+		})
+		w.Roles().Define("walker", rule.Branch[unit.Standing]{Name: "pull", Do: pull})
 		walker := w.Roles().Named("walker")
 
 		levers := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize}, itself)
@@ -166,7 +159,6 @@ func TestAround_VisitsTheEntitiesStandingOnTheCellsNotTheUnits(t *testing.T) {
 	}
 }
 
-// A flat world refuses a Floor or a Wall at a Height the first step it meets one.
 func TestBuilt_AFlatWorldRefusesAHeight(t *testing.T) {
 	defer func() {
 		if msg, _ := recover().(string); !strings.Contains(msg, "flat world") {
@@ -176,8 +168,6 @@ func TestBuilt_AFlatWorldRefusesAHeight(t *testing.T) {
 	newStrip(t, grass, effect.Spec{}, comp.Const(cell.Wall{Keeps: cell.Land, Height: 3}))
 }
 
-// A Floor's domains pay its Cost on it and are spared the slope where it is Graded: a ford waded
-// slowly over a river, a bridge as quick as a road.
 func TestFloor_CostsWhatItSaysAndSparesTheSlope(t *testing.T) {
 	river := cell.Kind{Name: cell.Named("river"), Cost: 1, Allows: cell.Water}
 	ford := newStrip(t, river, effect.Spec{},
@@ -197,8 +187,6 @@ func TestFloor_CostsWhatItSaysAndSparesTheSlope(t *testing.T) {
 	}
 }
 
-// A thing standing on the board heads the way the Velocity it is given says, in place of the still
-// one: the way a bridge runs.
 func TestEntities_AVelocityGivenTakesTheStillOnesPlace(t *testing.T) {
 	south := geom.NewVec(0, 1)
 	s := newStrip(t, grass, effect.Spec{}, comp.Const(world.Velocity{Dir: south}))
@@ -218,8 +206,6 @@ func TestEntities_AVelocityGivenTakesTheStillOnesPlace(t *testing.T) {
 	}
 }
 
-// A bridge runs across its cell as a way does: a step cutting the corner beside it crosses the
-// water under it (Bare); a trapdoor is the ground, cut across as any.
 func TestBare_LeavesABridgeOutAndATrapdoorIn(t *testing.T) {
 	river := cell.Kind{Name: cell.Named("river"), Cost: 1, Allows: cell.Water}
 	bridge := newStrip(t, river, effect.Spec{},

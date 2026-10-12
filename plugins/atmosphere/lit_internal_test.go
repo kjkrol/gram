@@ -17,17 +17,12 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// litSheet is an AtlasSource of one sprite with no image behind it.
 type litSheet struct{}
 
 func (litSheet) Atlas() *render.Image                            { return nil }
 func (litSheet) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 8, 8 }
 func (litSheet) White() (u, v float32)                           { return 9, 9 }
 
-// Under the atmosphere a flat board's tiles and the world's sprites take the sun's light on level
-// ground: at midnight, frozen, they are dark and blue; without the atmosphere they are drawn as
-// they are — the light a tile composed every frame takes and the even light a still is drawn in
-// alike.
 func TestAtmosphere_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 128, Height: 128},
@@ -60,7 +55,6 @@ func TestAtmosphere_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 	if l := even(); l != (render.Light{1, 1, 1}) {
 		t.Fatalf("without an atmosphere the tiles' even light is %v, want white", l)
 	}
-	// frozen at 00:29
 	a := NewPlugin(w, Config{Sky: sky.Config{Frozen: true, Hour: 29 * time.Minute}})
 	b.WithAtmosphere(a)
 	if sun := a.Heavens().Sun; sun[2] > 0 {

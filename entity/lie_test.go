@@ -7,8 +7,6 @@ import (
 	"github.com/kjkrol/gram/entity"
 )
 
-// A Lie lies Length along the way its entity is headed and Width across, on its middle: headed
-// south, a sprite authored facing east has its top-left in the north-east.
 func TestLie_CornersRunAlongTheHeading(t *testing.T) {
 	lie := entity.Lie{Length: 40, Width: 10}
 	m := geom.NewVec(100, 100)
@@ -33,8 +31,6 @@ func TestLie_CornersRunAlongTheHeading(t *testing.T) {
 	}
 }
 
-// A Lie Ahead of its box lies that far along the way its entity is headed: a bridge's head, half
-// a link long from the middle of its tile.
 func TestLie_AheadShiftsTheRectangleAlongTheHeading(t *testing.T) {
 	lie := entity.Lie{Length: 20, Width: 10, Ahead: 10}
 	got := lie.Corners(geom.NewVec(100, 100), geom.NewVec(0, 1))

@@ -17,19 +17,17 @@ import (
 )
 
 // Through is pl as whoever takes the input over a picture of the world on a scene's screen
-// (ui.Image(feed).Input): the picture pl acts through while the scene is active — the mouse over
-// it pl's, in the picture's pixels, pl's keys and commands going through its camera.
+// (ui.Image(feed).Input): the picture pl acts through while the scene is active.
 func (p *Plugin) Through(pl *Player) ui.Input { return &through{p: p, pl: pl} }
 
 type through struct {
 	p   *Plugin
 	pl  *Player
-	cam camera.Camera // the camera of the picture, as last told
+	cam camera.Camera
 }
 
-// Over wires pl to the picture lying over area, drawn through the camera of shown (a render.Feed):
-// what the active scene tells before each pass of input. A player acting through two pictures in
-// one pass panics: one scene gives it one view.
+// Over wires pl to the picture lying over area, drawn through the camera of shown. A player
+// acting through two pictures in one pass panics.
 func (t *through) Over(area geom.AABB, shown render.Surface) {
 	t.cam = nil
 	if f, ok := shown.(interface{ Camera() camera.Camera }); ok {
@@ -64,7 +62,6 @@ func (t *through) Shows(entity uid.UID64) bool {
 	return owners == nil || *owners == 0 || owners.Has(owner.Of(t.pl.ID))
 }
 
-// owning builds the query Shows reads: whose every entity in the world is.
 type owning struct{ p *Plugin }
 
 func (o owning) Init(si *goke.SysInit) {

@@ -1,6 +1,5 @@
-// Package kinds is the world's register of kinds and tags: what kind.Define and DefineTag
-// register, the atlas slots, the names a save keeps, and the remapping of a load to this build's
-// order. The world's Kinds hands a game its part of it.
+// Package kinds is the world's register of kinds and tags, the names a save keeps and the
+// remapping of a load to this build's order.
 package kinds
 
 import (
@@ -20,17 +19,17 @@ import (
 type Registry struct {
 	entries map[string]Kind
 	next    render.SpriteID
-	order   []string // live: kind.ID -> name, in Define order
-	saved   []string // what a save brought in; empty on a fresh run
+	order   []string // kind.ID -> name
+	saved   []string // what a save brought in
 
 	families    map[reflect.Type]*family
 	familyOrder []reflect.Type
-	savedTags   map[string][]string // per family type name, what a save brought in
+	savedTags   map[string][]string // by family type name, what a save brought in
 	heights     bool
 }
 
-// Kind is a kind as the world spawns it: its Position and Velocity picked out of the Spec, since
-// those two live in Base rather than in columns of their own.
+// Kind is a kind as the world spawns it. Position and Velocity are picked out of the Spec, since
+// they live in Base rather than in columns of their own.
 type Kind struct {
 	Name     string
 	TypeID   kind.ID
@@ -41,7 +40,6 @@ type Kind struct {
 	Comps    []comp.Comp
 }
 
-// family is one family of tags: its names by bit, its component for saves, its remap.
 type family struct {
 	names []string
 	load  goke.CompToken
@@ -90,7 +88,7 @@ func (k *Registry) Register(name string, row reflect.Type, spec kind.Spec) (kind
 	return r.TypeID, r.SpriteID
 }
 
-// Lookup is the kind registered as name — see kind.Registry.
+// Lookup is the kind registered as name.
 func (k *Registry) Lookup(name string) (kind.ID, render.SpriteID, reflect.Type, bool) {
 	r, ok := k.entries[name]
 	return r.TypeID, r.SpriteID, r.Row, ok
@@ -102,7 +100,7 @@ func (k *Registry) Kind(name string) (Kind, bool) {
 	return r, ok
 }
 
-// Each calls fn with every kind, in the order defined: their TypeIDs count up from 0.
+// Each calls fn with every kind, in the order defined.
 func (k *Registry) Each(fn func(Kind)) {
 	for _, name := range k.order {
 		fn(k.entries[name])
@@ -131,7 +129,6 @@ func DefineTag[F any](k *Registry, name string) tag.Tag[F] {
 	return tag.Tag[F](len(f.names) - 1)
 }
 
-// remapTags rewrites every loaded Tags[F] from the saved bit order to this build's.
 func remapTags[F any](si *goke.SysInit, lut []uint8) {
 	var tags goke.Comp[tag.Tags[F]]
 	query := si.NewQueryBuilder(&tags).Build()
@@ -150,7 +147,7 @@ func remapTags[F any](si *goke.SysInit, lut []uint8) {
 	}
 }
 
-// NewSprite reserves an atlas slot that belongs to no kind — an overlay's, say.
+// NewSprite reserves an atlas slot that belongs to no kind.
 func (k *Registry) NewSprite() render.SpriteID {
 	id := k.next
 	k.next++
@@ -178,10 +175,11 @@ func (k *Registry) LoadComps() []goke.CompToken {
 	return tokens
 }
 
-// Persisted returns the kind.ID to name mapping, and each tag family's bit to name mapping, for
-// a save to keep and a load to fill.
+// Persisted is the kinds' names by ID and each tag family's names by bit, for a save to keep
+// and a load to fill.
 func (k *Registry) Persisted() []any {
-	k.saved = slices.Clone(k.order) // a load decodes into it: never this build's own order
+	// a load decodes into it: never this build's own order
+	k.saved = slices.Clone(k.order)
 	k.savedTags = make(map[string][]string, len(k.families))
 	for t, f := range k.families {
 		k.savedTags[t.String()] = f.names

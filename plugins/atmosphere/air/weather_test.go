@@ -15,21 +15,17 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// the white texel of these tests' sheet
 type sheet struct{}
 
 func (sheet) Atlas() *render.Image                        { return nil }
 func (sheet) UV(render.SpriteID) (x0, y0, x1, y1 float32) { return 0, 0, 8, 8 }
 func (sheet) White() (u, v float32)                       { return 40, 40 }
 
-// source is a render.Source composing whatever its function says.
 type source func(f *render.Frame)
 
 func (source) Init(*goke.SysInit)                         {}
 func (s source) Compose(f *render.Frame, _ camera.Camera) { s(f) }
 
-// The clouds' noise is smooth, 0 to 1, and drifts with the wind: a point under a cloud is under the
-// same cloud once both have moved on together.
 func TestCloud_IsSmoothNoiseCarriedByTheDrift(t *testing.T) {
 	var lo, hi float32 = 1, 0
 	still, carried := air.Weather{}, air.Weather{Drift: [2]float32{300, -120}}
@@ -87,13 +83,10 @@ func TestSway_LeansWithTheWindTheHarderTheFurtherAndNotAtAllInTheCalm(t *testing
 	}
 }
 
-// eyed is a camera with an eye at the origin, 10 up.
 type eyed struct{ camera.Camera }
 
 func (eyed) Eye() (float32, float32, float32, bool) { return 0, 0, 10, true }
 
-// The air hides what lies far off as it thickens with distance, through a camera with an eye in
-// air that does not go on without end.
 func TestHaze_GrowsWithDistance(t *testing.T) {
 	clear := air.Weather{}
 	if h := clear.Haze(eyed{}, 100, 0, 10); h != 0 {
@@ -109,8 +102,6 @@ func TestHaze_GrowsWithDistance(t *testing.T) {
 	}
 }
 
-// A kilometre a cell of 32 world units: the clear air lets one see 40 km, a downpour far less;
-// without a scale the air is clear without end.
 func TestVisibility_SeesAsFarAsTheScaleAndTheWeatherSay(t *testing.T) {
 	s := world.Scale{Metres: 1000.0 / 32}
 	clear := air.Visibility(s, air.Weather{})
@@ -125,7 +116,6 @@ func TestVisibility_SeesAsFarAsTheScaleAndTheWeatherSay(t *testing.T) {
 	}
 }
 
-// The frame is handed the wind, the drift and the cover, and the fog is the sky under the clouds.
 func TestWeather_HandsTheFrameTheAirAndTheFog(t *testing.T) {
 	sun := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
 	w := air.Weather{Wind: [2]float32{3, 4}, Drift: [2]float32{10, 20}, Clouds: 0.6}
@@ -144,7 +134,6 @@ func TestWeather_HandsTheFrameTheAirAndTheFog(t *testing.T) {
 	}
 }
 
-// needGPU readies a device without a window; a machine without one skips.
 func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {

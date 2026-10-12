@@ -7,7 +7,6 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 )
 
-// midwinter and midsummer are a zone's coldest and warmest days' mean.
 func midwinter(p climate.Profile) float32 { return p.Mean - p.Year }
 func midsummer(p climate.Profile) float32 { return p.Mean + p.Year }
 

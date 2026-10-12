@@ -7,9 +7,6 @@ import (
 	"github.com/kjkrol/gram/camera"
 )
 
-// A still composed in world units is drawn where the camera it is drawn through shows the world:
-// scaled by the zoom from the world point at the screen's top-left, its colours in the light
-// handed to it, nothing drawn beyond it.
 func TestStill_IsDrawnWhereTheCameraShowsTheWorld(t *testing.T) {
 	needGPU(t)
 	atlas := NewAtlas()

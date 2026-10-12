@@ -21,8 +21,8 @@ func shader(name string) string {
 	return string(b)
 }
 
-// Vertex is one corner of a triangle drawn: where in the target (Dst), where in the first image
-// (Src), both in pixels, its colour and four numbers the fragment reads (Custom), interpolated.
+// Vertex is one corner of a triangle drawn: where in the target (Dst) and in the first image
+// (Src), both in pixels, its colour and four numbers the fragment reads (Custom).
 type Vertex struct {
 	DstX, DstY                     float32
 	SrcX, SrcY                     float32
@@ -57,13 +57,12 @@ const (
 	Copy
 )
 
-// Program is a WGSL fragment on the package's vertex stage (see the package's doc), compiled at
-// first draw.
+// Program is a WGSL fragment on the package's vertex stage, compiled at first draw.
 type Program struct {
 	label     string
 	source    string
-	mesh      bool // its own vertex stage, reading no vertex buffer
-	instance  int  // a mesh's: how many vec4s an instance hands its vertex stage, 0 none
+	mesh      bool
+	instance  int // vec4s an instance, 0 none
 	module    *wgpu.ShaderModule
 	pipelines map[pipelineKey]*wgpu.RenderPipeline
 	err       error
@@ -75,8 +74,6 @@ type pipelineKey struct {
 	depth  depthMode
 }
 
-// depthMode is how a draw meets the depth buffer: none, tested, tested and written, written alone
-// by fs_prime, met exactly.
 type depthMode uint8
 
 const (
@@ -87,8 +84,8 @@ const (
 	depthEqual
 )
 
-// NewProgram is the fragment source over the package's vertex stage, its uniforms the WGSL
-// struct fields given (none: an empty string).
+// NewProgram is the fragment source over the package's vertex stage, its uniforms the WGSL struct
+// fields given, none an empty string.
 func NewProgram(label, uniformFields, source string) *Program {
 	if strings.TrimSpace(uniformFields) == "" {
 		uniformFields = "unused: vec4<f32>,"
@@ -105,9 +102,8 @@ func NewProgram(label, uniformFields, source string) *Program {
 	return &Program{label: label, source: b.String(), pipelines: map[pipelineKey]*wgpu.RenderPipeline{}}
 }
 
-// NewMesh is a program with a vertex stage of its own — source defines vs_main, reading the vertex
-// it draws from its @builtin(vertex_index) and the images, and fs_main — over the package's
-// bindings, its uniforms the WGSL struct fields given; it draws with a depth buffer (Mesh).
+// NewMesh is a program with a vertex stage of its own, source defining vs_main and fs_main over
+// the package's bindings, its uniforms the WGSL struct fields given.
 func NewMesh(label, uniformFields, source string) *Program {
 	if strings.TrimSpace(uniformFields) == "" {
 		uniformFields = "unused: vec4<f32>,"
@@ -122,8 +118,8 @@ func NewMesh(label, uniformFields, source string) *Program {
 	return &Program{label: label, source: b.String(), mesh: true, pipelines: map[pipelineKey]*wgpu.RenderPipeline{}}
 }
 
-// Instanced has the mesh program p take vec4s vectors an instance (MeshDraw.Instances), at the
-// vertex stage's locations 0 up; it returns p.
+// Instanced has the mesh program p take vec4s vectors an instance, at the vertex stage's
+// locations 0 up.
 func (p *Program) Instanced(vec4s int) *Program {
 	p.instance = vec4s
 	return p
@@ -132,7 +128,7 @@ func (p *Program) Instanced(vec4s int) *Program {
 // Source is the program's whole WGSL.
 func (p *Program) Source() string { return p.source }
 
-// Compile compiles the program now rather than at its first draw: it needs a device.
+// Compile compiles the program now rather than at its first draw.
 func (p *Program) Compile() error {
 	d := must()
 	d.mu.Lock()
@@ -185,7 +181,7 @@ func (p *Program) pipeline(d *device, blend Blend, format gputypes.TextureFormat
 		}
 	}
 	var ds *wgpu.DepthStencilState
-	if depth != noDepth { // the depth reversed: nearer is greater
+	if depth != noDepth { // reversed: nearer is greater
 		ds = &wgpu.DepthStencilState{Format: DepthFormat, DepthWriteEnabled: depth == depthWrite || depth == depthPrime, DepthCompare: gputypes.CompareFunctionGreater}
 		if depth == depthEqual {
 			ds.DepthCompare = gputypes.CompareFunctionEqual
@@ -218,13 +214,12 @@ type Draw struct {
 	Target   Image
 	Program  *Program
 	Images   [4]Image
-	Uniforms []byte // the program's Uniforms, packed by WGSL's layout (Layout)
+	Uniforms []byte // packed by WGSL's layout (Layout)
 	Blend    Blend
 	// Place lays the vertices' Dst on the target scaled by its first two and moved by its last
-	// two, for triangles kept in other units; zero, as they are.
+	// two; zero, as they are.
 	Place [4]float32
-	// Tint multiplies the vertices' colours — theirs, not the data an overlay's hold — for
-	// triangles kept in another light; zero, white.
+	// Tint multiplies the vertices' colours; zero, white.
 	Tint [4]float32
 }
 
@@ -252,7 +247,7 @@ func (d *device) triangles(t *target, clip Rect, dw *Draw, verts []Vertex, indic
 		imgs[i] = im.Texture
 	}
 	pipeline := dw.Program.pipeline(d, dw.Blend, t.format, noDepth)
-	group1 := d.images(imgs) // realizes the images before the buffers are measured
+	group1 := d.images(imgs) // realises the images before the buffers are measured
 	d.ensure(len(verts), len(indices))
 
 	vOff := uint64(len(d.verts))
@@ -281,8 +276,6 @@ func (d *device) triangles(t *target, clip Rect, dw *Draw, verts []Vertex, indic
 	pass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: uint32(len(indices)), InstanceCount: 1})
 }
 
-// drawBlock gathers a draw's block — the target's size, the images' rectangles, the place and the
-// tint of its vertices — and its uniforms, and says where each lies in its buffer.
 func (d *device) drawBlock(t *target, images [4]Image, uniforms []byte, place, tint [4]float32) (dOff, uOff uint64) {
 	if len(uniforms) > uniformBlock {
 		panic(fmt.Sprintf("gpu: %d bytes of uniforms, more than %d", len(uniforms), uniformBlock))

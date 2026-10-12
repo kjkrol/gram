@@ -6,19 +6,15 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// Field is the ground of a world laid out on a grid, for an entity on the layers given spanning
-// band in height (Everywhere in a flat world). Solid calls visit with every solid box that box
-// may overlap and whose own band meets band, its cell and its sides facing ground not solid for
-// that entity, in the frame of the box asked about; false from visit ends the walk. Walls does the
-// same with the walls at any angle the ground stands — railings along a bridge — each pushing an
-// entity out square to it (collide.FieldWall). Overhang is how much of box, as area, lies over
-// ground that does not take the entity, heights aside. The board gives collision one
-// (Plugin.WithField).
+// Field is the solid ground of a world, as the board gives it (Plugin.WithField). Solid and
+// Walls visit every solid box and wall an entity on layers spanning band may overlap within box
+// (false from visit ends the walk); Overhang is how much of box, as area, lies over ground that
+// does not take the entity.
 type Field interface {
 	Solid(layers world.Layers, band Band, box geom.AABB, visit func(FieldBox) bool)
 	Walls(layers world.Layers, band Band, box geom.AABB, visit func(collide.FieldWall) bool)
 	Overhang(layers world.Layers, box geom.AABB) float64
 }
 
-// FieldBox is one solid box of a Field; see collide.FieldBox, which it is.
+// FieldBox is one solid box of a Field.
 type FieldBox = collide.FieldBox

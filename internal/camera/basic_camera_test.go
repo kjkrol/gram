@@ -200,8 +200,6 @@ func TestBasicCamera_ZoomOut_CappedByConfiguredMinZoom(t *testing.T) {
 	}
 }
 
-// A camera starts over the world's middle at its config's zoom, sized by whoever shows it, its
-// zoom held within the config's limits.
 func TestNewFromSpaceWithConfig_StartsOverTheMiddleAtItsZoom(t *testing.T) {
 	c := NewFromSpaceWithConfig(1000, 1000, 0, contract.Config{Zoom: 1.5, MinZoom: 0.5, MaxZoom: 2})
 	c.SetViewport(300, 150)
@@ -226,8 +224,6 @@ func TestNewFromSpaceWithConfig_StartsOverTheMiddleAtItsZoom(t *testing.T) {
 	}
 }
 
-// A camera keeping the whole world in view shows all of it at any size, centred, a world unit as
-// many pixels across as down; it is not panned or zoomed, and a load fits it again.
 func TestWholeCamera_KeepsTheWholeWorldCentred(t *testing.T) {
 	c := NewFromSpaceWithConfig(400, 200, 0, contract.Config{Whole: true})
 	for _, size := range [][2]float32{{200, 100}, {300, 100}, {100, 200}, {150, 150}} {

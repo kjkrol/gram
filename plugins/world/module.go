@@ -25,8 +25,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// module owns the world's topology, entities, and movement — the foundation
-// any Stage with moving, drawable entities builds on.
 type module struct {
 	config Config
 	space  *aabbworld.Space
@@ -35,7 +33,6 @@ type module struct {
 	seeds        []goke.System
 	telemetry    Telemetry
 
-	// despawned is this tick's removals.
 	despawned map[uid.UID64]struct{}
 	items     []aabbworld.Item
 
@@ -43,7 +40,7 @@ type module struct {
 
 	leavers *plugin.Rules[Leaving]
 	movers  *plugin.Rules[Moving]
-	drawing render.Rules // the renderer's
+	drawing render.Rules
 
 	steer            *steering.System
 	steeringRunnable goke.Runnable
@@ -51,31 +48,23 @@ type module struct {
 	moveRunnable     goke.Runnable
 	exitRunnable     goke.Runnable
 
-	// views are refreshed each tick — see Plugin.ViewFor.
 	views        []*view.View
 	viewRunnable goke.Runnable
 
-	// the tactical clock and the effects, the world's own: the clock's system goes first in the
-	// tick, the rules of its moments and then the effects last in every step of the simulation
 	clock           *clock.Clock
 	moments         moments
 	effects         *effect.Effects
 	clockRunnable   goke.Runnable
 	momentsRunnable goke.Runnable
 
-	// the plugins' own entities, the world's among them: made first of all
 	selves selves
 
-	// the commands about effects, for those named, grouped and the world itself
 	effectCmds         effectCommands
 	effectCmdsRunnable goke.Runnable
 
-	// the entities' plans, run first in every step of the simulation
 	plans         *steps.Plans
 	plansRunnable goke.Runnable
 
-	// commands takes the commands the entities give themselves to the plugins that handle them;
-	// spawns and despawns are the world's own
 	commands control.Carrier
 	pauses   control.Queue[Pause]
 	fasters  control.Queue[Faster]
@@ -88,7 +77,6 @@ type module struct {
 
 var _ goke.Module = (*module)(nil)
 
-// newModule builds the world's topology and spatial index from cfg, its clock and its effect.
 func newModule(cfg Config) *module {
 	clk := clock.New(cfg.Clock)
 	w := &module{config: cfg, space: buildSpace(cfg), despawned: make(map[uid.UID64]struct{}),
@@ -98,24 +86,19 @@ func newModule(cfg Config) *module {
 	return w
 }
 
-// tick is the Tick of a pass over d of the simulation: the world's carrier, the game time the
-// step ends at and the world's seed.
 func (w *module) tick(cb *goke.CmdBuf, d time.Duration) plugin.Tick {
 	return plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &w.commands, Effects: w.effects,
 		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity(), Roles: w.effectCmds.RolesOf}
 }
 
-// =================================================================
-// goke.Module contract
-// =================================================================
-
-// RegSystems registers world's movement systems — see [goke.Module].
 func (w *module) RegSystems(ecs *goke.ECS) {
 	if w.velocityRunnable != nil {
 		return
 	}
-	ecs.RegSys(w.selves.system())                            // before the clock's, which finds its State on the world's own
-	w.effectCmdsRunnable = ecs.RegSys(w.effectCmds.system()) // first: a step's commands land with its effects
+	// before the clock's, which finds its State on the world's own entity
+	ecs.RegSys(w.selves.system())
+	// first in a step, so its commands land with the step's effects
+	w.effectCmdsRunnable = ecs.RegSys(w.effectCmds.system())
 	w.spawnRunnable = ecs.RegSys(newSpawnSystem(w))
 	w.steeringRunnable = ecs.RegSys(w.steer)
 	velocity := newVelocitySystem(w.movers)
@@ -130,10 +113,6 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	w.effects.Module().RegSystems(ecs)
 }
 
-// RunPlan runs world's tick. At once: the clock's commands and the views of the cameras, which
-// move in the tactical pause too. In the simulation, every step: the entities' plans, the Spawns
-// given, steering, the Moving rules, movement, then the leavers, then the effect. The sync after
-// movement lands the Outside marks, so a leaver is dealt with the step it left.
 func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	w.pauses.Drain(func(control.Issued[Pause]) { w.clock.TogglePause() })
 	w.fasters.Drain(func(control.Issued[Faster]) { w.clock.Faster() })
@@ -144,7 +123,6 @@ func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	w.clock.Simulate(ctx, w.simulate)
 }
 
-// simulate is one step of the world's simulation.
 func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {
 	clear(w.despawned)
 	ctx.Run(w.plansRunnable, step)
@@ -153,6 +131,7 @@ func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {
 	ctx.Run(w.steeringRunnable, step)
 	ctx.Run(w.velocityRunnable, step)
 	ctx.Run(w.moveRunnable, step)
+	// lands the Outside marks, so a leaver is dealt with the step it left
 	ctx.Sync()
 	ctx.Run(w.exitRunnable, step)
 	ctx.Sync()
@@ -162,10 +141,8 @@ func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {
 	w.effects.Module().RunPlan(ctx, step)
 }
 
-// SetupSystems runs every queued Populate call, in call order.
 func (w *module) SetupSystems() []goke.System { return w.seeds }
 
-// LoadComps lists the component types world owns — see [goke.CompProvider].
 func (w *module) LoadComps() []goke.CompToken {
 	tokens := append([]goke.CompToken{
 		goke.LoadComp[Base](),
@@ -189,11 +166,6 @@ func (w *module) LoadComps() []goke.CompToken {
 	return append(tokens, w.plans.LoadComps()...)
 }
 
-// =================================================================
-// plugin.PostLoader contract
-// =================================================================
-
-// PostLoad recomputes the counts and hands the space every loaded entity.
 func (w *module) PostLoad() goke.System {
 	return goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		w.kinds.r.RemapTypes(si)
@@ -203,18 +175,12 @@ func (w *module) PostLoad() goke.System {
 	}}
 }
 
-// reindex hands the space every entity there is, and returns them.
 func (w *module) reindex(si *goke.SysInit) []aabbworld.Item {
 	var base goke.Comp[Base]
 	w.items = rebuild(w.space, si.NewQueryBuilder(&base).Build(), &base, w.items)
 	return w.items
 }
 
-// =================================================================
-// world-specific
-// =================================================================
-
-// despawn drops id from the ECS, once per tick.
 func (w *module) despawn(cb *goke.CmdBuf, id uid.UID64) {
 	if _, gone := w.despawned[id]; gone {
 		return
@@ -225,12 +191,9 @@ func (w *module) despawn(cb *goke.CmdBuf, id uid.UID64) {
 	w.telemetry.Count--
 }
 
-// populate queues a spawn of one entity of k per row, each row feeding k's Loads: at Setup, a
-// row of a size outside the bounds panics before any entity is made.
 func (w *module) populate(k ikinds.Kind, rows []any) { w.populateEntries(k, rows, nil) }
 
-// populateEntries is populate with each row's entry — what it is called, what it is told — none
-// for nil.
+// entries, each row's own, may be nil
 func (w *module) populateEntries(k ikinds.Kind, rows []any, entries []kind.Entry) {
 	count := len(rows)
 	writers := writersOf(k)
@@ -263,7 +226,6 @@ func (w *module) reserve(count int) {
 	w.spawnedCount += count
 }
 
-// buildSpace is the world's spatial index, its buckets sized to the entities it will hold.
 func buildSpace(cfg Config) *aabbworld.Space {
 	const minCapacity, maxCapacity = 2.0, 8.0
 

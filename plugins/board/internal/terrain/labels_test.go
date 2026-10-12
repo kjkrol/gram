@@ -17,7 +17,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// cellProbe reads every cell entity's roles, label and fuel once the cells are made.
 type cellProbe struct {
 	q     *goke.Query
 	plot  goke.Comp[cell.Plot]
@@ -26,7 +25,6 @@ type cellProbe struct {
 	fuel  goke.OptComp[fuel]
 }
 
-// fuel is a game's own component on every cell, given through the world's roster.
 type fuel struct{ Left int }
 
 func (p *cellProbe) SetupSystems() []goke.System {
@@ -35,17 +33,15 @@ func (p *cellProbe) SetupSystems() []goke.System {
 	}}}
 }
 
-// cellState is what a cell entity carries of roles and of what it is called.
 type cellState struct {
 	id       uid.UID64
 	hasRoles bool
 	roles    tag.Tags[rule.Roles]
 	labelled bool
 	label    entity.Label
-	fuel     *fuel // nil for none
+	fuel     *fuel
 }
 
-// read is every cell entity's state, by its cell.
 func (p *cellProbe) read(t *testing.T) map[cell.ID]cellState {
 	t.Helper()
 	out := map[cell.ID]cellState{}
@@ -72,8 +68,6 @@ func (p *cellProbe) read(t *testing.T) map[cell.ID]cellState {
 	return out
 }
 
-// installCells installs w and brd alone, with the probe's query, and sets the ECS up; prepare
-// runs before, to define roles and seed the Layout.
 func installCells(t *testing.T, g grid.Grid, prepare func(w *world.Plugin, brd *board.Plugin)) (*goke.ECS, *world.Plugin, *board.Plugin, *cellProbe) {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
@@ -105,9 +99,6 @@ func cellGrids() map[string]grid.Grid {
 	}
 }
 
-// The kinds' roles and the Layout's names and groups reach the cell entities: every cell carries its roles, none
-// for most; only the cells called something carry a Label; and the cells labelled apart are still
-// each its own cell's entity, of the kind the seed gave it.
 func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
 	for name, g := range cellGrids() {
 		t.Run(name, func(t *testing.T) {
@@ -171,7 +162,6 @@ func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
 	}
 }
 
-// panicsWith runs f and fails the test unless it panics with a message holding every one of want.
 func panicsWith(t *testing.T, f func(), want ...string) {
 	t.Helper()
 	defer func() {

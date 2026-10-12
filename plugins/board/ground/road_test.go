@@ -10,8 +10,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 )
 
-// A road lies on a level cell any way; on an even ramp only straight up or down it, no steeper
-// than RoadSlope; slantwise only on a level cell, never lower on one side than on the other.
 func TestRoadFits(t *testing.T) {
 	const run = 32
 	g := grid.DefaultGrids{}.Square(3, 3, run)

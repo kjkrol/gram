@@ -9,17 +9,16 @@ import (
 	contract "github.com/kjkrol/gram/camera"
 )
 
-// basicCamera is the top-down Camera — construct via NewFromSpace.
 type basicCamera struct {
 	world        geom.Vec
-	viewportSize geom.Vec // fixed size at zoom 1 (e.g. screen size)
+	viewportSize geom.Vec
 	edges        aabbworld.Edges
-	minZoomCfg   float32 // 0 = only the automatic world-fit floor applies
-	maxZoom      float32 // 0 = unrestricted
+	minZoomCfg   float32
+	maxZoom      float32
 	zoom         float32
-	whole        bool // the whole world in view at every size, centred: not panned, not zoomed
+	whole        bool
 
-	effective plane.AABB // the current visible window — always valid and clamped to the world
+	effective plane.AABB
 	fastening contract.Fastening
 }
 
@@ -27,7 +26,7 @@ var _ contract.Camera = (*basicCamera)(nil)
 var _ contract.Fastenable = (*basicCamera)(nil)
 var _ contract.Fitting = (*basicCamera)(nil)
 
-// Fasten fastens the camera to an entity, or to nothing; whoever keeps it there reads Fastening.
+// Fasten fastens the camera to an entity, or to nothing.
 func (c *basicCamera) Fasten(f contract.Fastening) { c.fastening = f }
 
 func (c *basicCamera) Fastening() contract.Fastening { return c.fastening }
@@ -44,7 +43,7 @@ func newBasicCamera(world geom.Vec, viewport contract.AABB, edges aabbworld.Edge
 	}
 }
 
-// NewFromSpace builds a camera.Camera over a width x height world, viewing all of it by default.
+// NewFromSpace is a top-down camera over a width x height world, viewing all of it by default.
 func NewFromSpace(width, height uint32, edges aabbworld.Edges, viewport ...contract.AABB) contract.Camera {
 	vp := contract.AABB{}
 	if len(viewport) > 0 {
@@ -56,8 +55,7 @@ func NewFromSpace(width, height uint32, edges aabbworld.Edges, viewport ...contr
 	return newBasicCamera(geom.NewVec(float64(width), float64(height)), vp, edges)
 }
 
-// NewFromSpaceWithConfig is a camera over a width x height world as cfg says it starts: shown at
-// the world's size until whoever shows it gives it its own (SetViewport), which keeps the middle;
+// NewFromSpaceWithConfig is a top-down camera over a width x height world as cfg says it starts,
 // at cfg's zoom round the world's middle.
 func NewFromSpaceWithConfig(width, height uint32, edges aabbworld.Edges, cfg contract.Config) contract.Camera {
 	c := NewFromSpace(width, height, edges).(*basicCamera)
@@ -68,7 +66,6 @@ func NewFromSpaceWithConfig(width, height uint32, edges aabbworld.Edges, cfg con
 	return limited(c, cfg)
 }
 
-// limited applies cfg's zoom limits to cam.
 func limited(cam contract.Camera, cfg contract.Config) contract.Camera {
 	if cfg.MinZoom > 0 {
 		cam.SetMinZoom(cfg.MinZoom)
@@ -139,13 +136,10 @@ func (c *basicCamera) SetViewport(w, h float32) {
 	c.place(cx-vw/2, cy-vh/2, vw, vh)
 }
 
-// Project is ToScreen: a top-down view draws no height.
 func (c *basicCamera) Project(x, y, _ float32) (float32, float32) { return c.ToScreen(x, y) }
 
-// Unproject is FromScreen at any height.
 func (c *basicCamera) Unproject(sx, sy, _ float32) (float32, float32) { return c.FromScreen(sx, sy) }
 
-// Depth is the world y: further up the screen is drawn first.
 func (c *basicCamera) Depth(_, y, _ float32) float32 { return y }
 
 func (c *basicCamera) ToScreen(x, y float32) (float32, float32) {
@@ -187,7 +181,6 @@ func (c *basicCamera) ToScreenQuads(x0, y0, x1, y1 float32, dst []contract.Quad)
 
 type rangePiece struct{ lo, hi, screenLo float32 }
 
-// offsetX is how far right of the window's left edge x lies, the short way round if X wraps.
 func (c *basicCamera) offsetX(x float32) float32 {
 	ref := float32(c.effective.TopLeft.X)
 	if !c.edges.WrapsX() {
@@ -196,7 +189,6 @@ func (c *basicCamera) offsetX(x float32) float32 {
 	return windowOffset(x, ref, float32(c.world.X), float32(c.effective.Size.X))
 }
 
-// offsetY is how far below the window's top edge y lies, the short way round if Y wraps.
 func (c *basicCamera) offsetY(y float32) float32 {
 	ref := float32(c.effective.TopLeft.Y)
 	if !c.edges.WrapsY() {
@@ -205,7 +197,6 @@ func (c *basicCamera) offsetY(y float32) float32 {
 	return windowOffset(y, ref, float32(c.world.Y), float32(c.effective.Size.Y))
 }
 
-// axisPieces fills buf with the one or two pieces [u0, u1] falls into along an axis.
 func axisPieces(u0, u1, size float32, wraps bool, buf *[2]rangePiece) []rangePiece {
 	if wraps && u1 > size {
 		buf[0], buf[1] = rangePiece{u0, size, u0}, rangePiece{size, u1, 0}
@@ -227,7 +218,7 @@ func (c *basicCamera) FromScreen(sx, sy float32) (float32, float32) {
 	return x, y
 }
 
-// Visible uses strict >/< — touching edges are not visible.
+// Visible is false for a box only touching the window's edge.
 func (c *basicCamera) Visible(box contract.AABB) bool {
 	tlX, tlY := float32(box.TopLeft.X), float32(box.TopLeft.Y)
 	brX, brY := float32(box.BottomRight.X), float32(box.BottomRight.Y)
@@ -246,7 +237,7 @@ func (c *basicCamera) Visible(box contract.AABB) bool {
 		brY > float32(c.effective.TopLeft.Y) && tlY < float32(far.BottomRight.Y)
 }
 
-// Bounds returns the visible extent, which on a torus may run past the world's own size.
+// Bounds is the visible window, which on a torus may run past the world's own size.
 func (c *basicCamera) Bounds() contract.AABB {
 	return contract.AABB{
 		TopLeft: c.effective.TopLeft,
@@ -257,29 +248,27 @@ func (c *basicCamera) Bounds() contract.AABB {
 	}
 }
 
-// CenterOn puts (x, y) in the middle of the window, clamped or wrapped like any move.
+// CenterOn puts (x, y) in the middle of the window.
 func (c *basicCamera) CenterOn(x, y, _ float64) {
 	w, h := c.effective.Size.X, c.effective.Size.Y
 	c.place(x-w/2, y-h/2, w, h)
 }
 
-// MoveTo repositions the visible window's top-left corner, keeping size.
+// MoveTo puts the visible window's top-left corner at (x, y), keeping its size.
 func (c *basicCamera) MoveTo(x, y float64) {
 	c.Translate(x-c.effective.TopLeft.X, y-c.effective.TopLeft.Y)
 }
 
-// Translate shifts the visible window by a signed delta, clamped or wrapped against the world.
+// Translate shifts the visible window by a delta in world units.
 func (c *basicCamera) Translate(dx, dy float64) {
 	c.place(c.effective.TopLeft.X+dx, c.effective.TopLeft.Y+dy, c.effective.Size.X, c.effective.Size.Y)
 }
 
-// Pan is Translate by a screen-space delta, so a drag follows the cursor at any zoom.
+// Pan shifts the visible window by a delta in screen pixels.
 func (c *basicCamera) Pan(dx, dy float32) {
 	c.Translate(float64(dx)/float64(c.zoom), float64(dy)/float64(c.zoom))
 }
 
-// place puts a w x h window at (x, y): wrapped on a wrapping axis, held inside the world otherwise;
-// a camera keeping the whole world in view stays where it is.
 func (c *basicCamera) place(x, y, w, h float64) {
 	if c.whole {
 		return
@@ -300,10 +289,11 @@ func fitAxis(lo, length, world float64, wraps bool) float64 {
 	return lo
 }
 
-// Zoom returns the current zoom factor (1 = default).
+// Zoom is the current zoom factor.
 func (c *basicCamera) Zoom() float32 { return c.zoom }
 
-// ZoomIn multiplies the zoom by factor, keeping world point (anchorX, anchorY) fixed on screen.
+// ZoomIn multiplies the zoom by factor, keeping the world point (anchorX, anchorY) fixed on
+// screen.
 func (c *basicCamera) ZoomIn(factor float32, anchorX, anchorY float32) {
 	if c.whole {
 		return
@@ -330,7 +320,6 @@ func (c *basicCamera) ZoomIn(factor float32, anchorX, anchorY float32) {
 	}
 }
 
-// setZoom resizes the visible window for zoom around its centre and fits it back into the world.
 func (c *basicCamera) setZoom(zoom float32) {
 	cx := c.effective.TopLeft.X + c.effective.Size.X/2
 	cy := c.effective.TopLeft.Y + c.effective.Size.Y/2
@@ -347,16 +336,14 @@ func (c *basicCamera) Fits() (float32, float32, bool) {
 	return float32(c.world.X), float32(c.world.Y), c.whole
 }
 
-// fit shows the whole world as large as the viewport takes it, centred, the world's proportions
-// kept: the background in bars along the longer side.
 func (c *basicCamera) fit() {
 	c.zoom = float32(min(c.viewportSize.X/c.world.X, c.viewportSize.Y/c.world.Y))
-	w := max(c.viewportSize.X/float64(c.zoom), c.world.X) // the world whole, rounding notwithstanding
+	// the world whole, rounding notwithstanding
+	w := max(c.viewportSize.X/float64(c.zoom), c.world.X)
 	h := max(c.viewportSize.Y/float64(c.zoom), c.world.Y)
 	c.effective = plane.NewAABB(geom.NewVec((c.world.X-w)/2, (c.world.Y-h)/2), w, h)
 }
 
-// minZoom is the larger of the automatic world-fit floor and any SetMinZoom override.
 func (c *basicCamera) minZoom() float32 {
 	byW := float32(c.viewportSize.X) / float32(c.world.X)
 	byH := float32(c.viewportSize.Y) / float32(c.world.Y)
@@ -370,10 +357,10 @@ func (c *basicCamera) minZoom() float32 {
 	return floor
 }
 
-// SetMinZoom raises ZoomOut's floor above the automatic world-fit one.
+// SetMinZoom raises ZoomOut's floor above the world-fit one.
 func (c *basicCamera) SetMinZoom(minZoom float32) { c.minZoomCfg = minZoom }
 
-// SetMaxZoom caps ZoomIn — 0 (the default) leaves zoom-in unrestricted.
+// SetMaxZoom caps ZoomIn; 0 leaves it unrestricted.
 func (c *basicCamera) SetMaxZoom(maxZoom float32) { c.maxZoom = maxZoom }
 
 // ZoomOut is ZoomIn(1/factor, anchorX, anchorY).
@@ -381,19 +368,17 @@ func (c *basicCamera) ZoomOut(factor float32, anchorX, anchorY float32) {
 	c.ZoomIn(1/factor, anchorX, anchorY)
 }
 
-// camera.State returns the camera's current Viewport/Zoom.
+// State is the camera's current window and zoom.
 func (c *basicCamera) State() contract.State {
 	return contract.State{Viewport: c.effective.AABB, Zoom: c.zoom}
 }
 
-// Persisted returns pointers to the live window, zoom and fastening for Persistence to save and
-// load.
+// Persisted is pointers to the live window, zoom and fastening, for saves and loads.
 func (c *basicCamera) Persisted() []any {
 	return []any{&c.effective.AABB, &c.zoom, &c.fastening}
 }
 
-// Restore rebuilds derived state after a Load has written through Persisted's pointers; a camera
-// keeping the whole world in view fits it again.
+// Restore rebuilds derived state after a load has written through Persisted's pointers.
 func (c *basicCamera) Restore() {
 	w := c.effective.BottomRight.X - c.effective.TopLeft.X
 	h := c.effective.BottomRight.Y - c.effective.TopLeft.Y
@@ -403,8 +388,8 @@ func (c *basicCamera) Restore() {
 	}
 }
 
-// Rays are the camera's lines of sight: straight down onto the ground from over the window's
-// top-left corner, a screen pixel 1/zoom world units — for drawing on the GPU (camera.TransformOf).
+// Rays are the camera's lines of sight: straight down onto the ground, a screen pixel 1/zoom
+// world units.
 func (c *basicCamera) Rays() (contract.RayField, bool) {
 	k := 1 / c.zoom
 	return contract.RayField{
@@ -413,6 +398,5 @@ func (c *basicCamera) Rays() (contract.RayField, bool) {
 	}, true
 }
 
-// basicEye is how high over the ground a top-down camera's rays start: over anything a flat world
-// holds.
+// over anything a flat world holds
 const basicEye = 1 << 16

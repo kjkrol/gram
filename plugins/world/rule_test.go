@@ -19,17 +19,13 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// roles is the tag family of the rule tests.
 type roles struct{}
 
-// spot is where a rule test's unit starts, which way it moves, and whether it is the bullet.
 type spot struct {
 	x, vx  float64
 	bullet bool
 }
 
-// triggerStage is a world with collision and units at spots; hook gives the rules its units obey
-// (obey), all playing one role.
 type triggerStage struct {
 	spots          []spot
 	hook           func(g *triggerStage) error
@@ -48,7 +44,6 @@ type triggerStage struct {
 
 func (g *triggerStage) Name() string { return "stage" }
 
-// obey has every unit obey rules.
 func (g *triggerStage) obey(rules ...rule.Rule) error {
 	g.rules = append(g.rules, rules...)
 	return nil
@@ -112,8 +107,6 @@ func (g *triggerStage) Stack() game.Scenes {
 	return g.stack
 }
 
-// each calls fn with every unit: where it is, whether it is the bullet, and whether it is under
-// e, its marker on.
 func (g *triggerStage) each(e effect.Effect, fn func(id uid.UID64, x float64, bullet bool, under bool)) {
 	for g.query.All(); g.query.Next(); {
 		cur := g.query.Cursor()
@@ -125,7 +118,6 @@ func (g *triggerStage) each(e effect.Effect, fn func(id uid.UID64, x float64, bu
 	}
 }
 
-// tallied is how many of the counting effects the units run, together.
 func (g *triggerStage) tallied() int {
 	n := 0
 	for g.query.All(); g.query.Next(); {
@@ -145,15 +137,17 @@ func runTriggers(t *testing.T, g *triggerStage, d time.Duration) {
 	step(t, e, d)
 }
 
-// Self narrows a rule on a moment that is not a pair to the entities carrying the tag: only the
-// bullet is marked.
 func TestRule_SelfNarrowsToTheTaggedEntities(t *testing.T) {
 	var marked effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 500, vx: 60}}}
 	g.hook = func(g *triggerStage) error {
 		g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
 		marked = g.world.Effects().Named("marked")
-		return g.obey(rule.Then[world.Moving]("mark the bullet", rule.Self(g.bullet), rule.Apply(marked)))
+		return g.obey(rule.Branch[world.Moving]{
+			Name: "mark the bullet",
+			When: rule.Self(g.bullet),
+			Do:   rule.Apply(marked),
+		})
 	}
 	runTriggers(t, g, 300*time.Millisecond)
 	g.each(marked, func(_ uid.UID64, _ float64, bullet bool, under bool) {
@@ -163,14 +157,17 @@ func TestRule_SelfNarrowsToTheTaggedEntities(t *testing.T) {
 	})
 }
 
-// Having narrows a rule to the entities carrying a component: only the hit one is marked.
 func TestRule_HavingNarrowsToTheEntitiesWithTheComponent(t *testing.T) {
 	var marked effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 500, vx: 60}}}
 	g.hook = func(g *triggerStage) error {
 		g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
 		marked = g.world.Effects().Named("marked")
-		return g.obey(rule.Then[world.Moving]("mark the colliders", rule.Having[collision.Collider](), rule.Apply(marked)))
+		return g.obey(rule.Branch[world.Moving]{
+			Name: "mark the colliders",
+			When: rule.Carrying[collision.Collider](),
+			Do:   rule.Apply(marked),
+		})
 	}
 	runTriggers(t, g, 300*time.Millisecond)
 	n := 0
@@ -184,15 +181,17 @@ func TestRule_HavingNarrowsToTheEntitiesWithTheComponent(t *testing.T) {
 	}
 }
 
-// A pair's rule turns ToOther on whom the entity met: the bullet striking the target marks
-// the target, not itself.
 func TestRule_ForOtherActsOnWhomTheEntityMet(t *testing.T) {
 	var marked effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 125}}}
 	g.hook = func(g *triggerStage) error {
 		g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
 		marked = g.world.Effects().Named("marked")
-		return g.obey(rule.Then[collision.Meeting]("mark the target", rule.Between(g.bullet, g.target), rule.ForOther(rule.Apply(marked))))
+		return g.obey(rule.Branch[collision.Meeting]{
+			Name: "mark the target",
+			When: rule.All(rule.Self(g.bullet), rule.Other(g.target)),
+			Do:   rule.ForOther(rule.Apply(marked)),
+		})
 	}
 	runTriggers(t, g, 700*time.Millisecond)
 	g.each(marked, func(_ uid.UID64, _ float64, bullet bool, under bool) {
@@ -202,8 +201,6 @@ func TestRule_ForOtherActsOnWhomTheEntityMet(t *testing.T) {
 	})
 }
 
-// An effect is a rule's memory: with Unless on a mark that lasts 400 ms, what it guards runs
-// about once in 400 ms.
 func TestRule_AnEffectIsItsMemory(t *testing.T) {
 	var mark, tallying effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 1}}}
@@ -212,7 +209,11 @@ func TestRule_AnEffectIsItsMemory(t *testing.T) {
 		mark = g.world.Effects().Named("mark")
 		g.world.Effects().Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
 		tallying = g.world.Effects().Named("tally")
-		return g.obey(rule.Then[world.Moving]("once a while", rule.All, rule.Unless(mark, rule.Steps(rule.Apply(mark), rule.Apply(tallying)))))
+		return g.obey(rule.Branch[world.Moving]{
+			Name: "once a while",
+			When: rule.Free(mark),
+			Do:   rule.Steps(rule.Apply(mark), rule.Apply(tallying)),
+		})
 	}
 	runTriggers(t, g, time.Second)
 	if count := g.tallied(); count < 2 || count > 4 {
@@ -220,12 +221,14 @@ func TestRule_AnEffectIsItsMemory(t *testing.T) {
 	}
 }
 
-// A rule issues commands as a tree does, through its host's Tick: the bullet on the move gives
-// itself a Despawn in the world's pass and is gone.
 func TestRule_OrdersCommands(t *testing.T) {
 	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 500, vx: 60}}}
 	g.hook = func(g *triggerStage) error {
-		return g.obey(rule.Then[world.Moving]("the bullet leaves", rule.Self(g.bullet), rule.Order(world.Despawn{})))
+		return g.obey(rule.Branch[world.Moving]{
+			Name: "the bullet leaves",
+			When: rule.Self(g.bullet),
+			Do:   rule.Order(world.Despawn{}),
+		})
 	}
 	runTriggers(t, g, 200*time.Millisecond)
 	n := 0
@@ -240,9 +243,6 @@ func TestRule_OrdersCommands(t *testing.T) {
 	}
 }
 
-// An effect's marker is a filter in any plugin: the bullet set burning by a world's rule sets the
-// target burning by a collision's, filtered by burning's marker alone; with nobody burning, nobody
-// catches fire.
 func TestRule_AnEffectsMarkerFiltersInAnotherPlugin(t *testing.T) {
 	for _, ignite := range []bool{true, false} {
 		var burning effect.Effect
@@ -251,11 +251,19 @@ func TestRule_AnEffectsMarkerFiltersInAnotherPlugin(t *testing.T) {
 			g.world.Effects().Define("burning", effect.Spec{effect.Lasts(time.Hour)})
 			burning = g.world.Effects().Named("burning")
 			if ignite {
-				if err := g.obey(rule.Then[world.Moving]("the bullet ignites", rule.Self(g.bullet), rule.Unless(burning, rule.Apply(burning)))); err != nil {
+				if err := g.obey(rule.Branch[world.Moving]{
+					Name: "the bullet ignites",
+					When: rule.All(rule.Self(g.bullet), rule.Free(burning)),
+					Do:   rule.Apply(burning),
+				}); err != nil {
 					return err
 				}
 			}
-			return g.obey(rule.Then[collision.Meeting]("fire spreads", rule.Between(burning.Mark(), tag.Any), rule.ForOther(rule.Apply(burning))))
+			return g.obey(rule.Branch[collision.Meeting]{
+				Name: "fire spreads",
+				When: rule.Self(burning.Mark()),
+				Do:   rule.ForOther(rule.Apply(burning)),
+			})
 		}
 		runTriggers(t, g, 700*time.Millisecond)
 		g.each(burning, func(_ uid.UID64, _ float64, bullet bool, under bool) {

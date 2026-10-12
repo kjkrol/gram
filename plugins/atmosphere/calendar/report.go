@@ -7,7 +7,7 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Reporter is the calendar's lines for a render.TelemetryRenderer: the time of day and the date.
+// Reporter is the calendar's lines for a render.TelemetryRenderer.
 func (c *Calendar) Reporter() render.Reporter { return reporter{c} }
 
 type reporter struct{ c *Calendar }
@@ -20,8 +20,7 @@ func (r reporter) Report(line func(label, value string)) {
 	line("Season", fmt.Sprintf("%s, %s, %s", m.Season(), m.Written(), m.MoonName()))
 }
 
-// HUD is a screen layer showing the calendar in the window's bottom-right corner: the hour, the
-// date and the moon. Add it to a scene's layers.
+// HUD is a screen layer showing the hour, the date and the moon in the bottom-right corner.
 func (c *Calendar) HUD() render.Layer { return &hud{c: c} }
 
 type hud struct{ c *Calendar }

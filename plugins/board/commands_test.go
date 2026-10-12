@@ -18,9 +18,6 @@ import (
 	"github.com/kjkrol/gram/rule/effect"
 )
 
-// meadow is a 6 x 6 board of grass with a lever and a post, cells, and a plate, an entity
-// standing on the board, each by its name, and two groups of doors; prepare defines what the test
-// needs and hands back its rules and commands.
 type meadow struct {
 	*boardtest.World
 	at                       func(x, y uint32) cell.ID
@@ -44,7 +41,7 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 		brd.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 		w.Effects().Define("open", effect.Spec{effect.Lasts(3 * time.Second / 60)})
 		m.open = w.Effects().Named("open")
-		w.Roles().Define("plate", rule.Then[collision.Meeting]("press", rule.All, rule.Trigger()))
+		w.Roles().Define("plate", rule.Branch[collision.Meeting]{Name: "press", Do: rule.Trigger()})
 		plate := w.Roles().Named("plate")
 		plates := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize}, itself)
 		plates.Define("plate", comp.Const(collision.Collider{}), rule.Plays(plate))
@@ -71,7 +68,6 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 	return m
 }
 
-// give gives cmd as nobody and ticks it through.
 func (m *meadow) give(t *testing.T, cmd control.Command) {
 	t.Helper()
 	if !m.World.World.Carrier().Put(control.Nobody, cmd) {
@@ -81,7 +77,6 @@ func (m *meadow) give(t *testing.T, cmd control.Command) {
 	m.Tick()
 }
 
-// under are the cells of cs under the effect open.
 func (m *meadow) under(cs ...cell.ID) int {
 	brd, n := m.Board.Board(), 0
 	for _, c := range cs {
@@ -92,8 +87,6 @@ func (m *meadow) under(cs ...cell.ID) int {
 	return n
 }
 
-// A command reaches the cells in the group it names and no others, for as long as the effect
-// lasts; Lift takes it off again.
 func TestCast_ReachesTheCellsOfItsGroupAlone(t *testing.T) {
 	m := newMeadow(t)
 	m.give(t, m.openWest)
@@ -115,7 +108,6 @@ func TestCast_ReachesTheCellsOfItsGroupAlone(t *testing.T) {
 	}
 }
 
-// For says how long a Cast lasts, in place of what the effect's Spec says.
 func TestCast_ForSaysHowLongItLasts(t *testing.T) {
 	m := newMeadow(t)
 	m.give(t, rule.Cast(m.open).On(entity.Named("lever")).For(time.Second))
@@ -133,8 +125,6 @@ func TestCast_ForSaysHowLongItLasts(t *testing.T) {
 	}
 }
 
-// A Toggle puts the effect on those it names where none is under it, takes it off them all where
-// any is, and two in one step leave them as they were.
 func TestToggle_SwitchesThoseItNames(t *testing.T) {
 	m := newMeadow(t)
 	m.give(t, m.flip)
@@ -152,8 +142,6 @@ func TestToggle_SwitchesThoseItNames(t *testing.T) {
 	}
 }
 
-// An entity Triggers the commands whose By names it and no others: a unit on the plate, a sensor
-// it meets, opens the east doors, the plate's, while it stands there; the lever's stay shut.
 func TestTrigger_GivesTheCommandsOfItsSource(t *testing.T) {
 	m := newMeadow(t, (&meadow{}).plateCell())
 	for range 4 {
@@ -164,12 +152,10 @@ func TestTrigger_GivesTheCommandsOfItsSource(t *testing.T) {
 	}
 }
 
-// plateCell is the plate's cell of a meadow, known before one is made.
 func (*meadow) plateCell() cell.ID {
 	return grid.DefaultGrids{}.Square(6, 6, boardtest.CellSize).At(5, 5)
 }
 
-// A name a command says that nobody bears, and a name two bear, stop the game at its first step.
 func TestCommands_RefuseANameNobodyBearsAndOneTwoBear(t *testing.T) {
 	for name, tc := range map[string]struct {
 		cells []cell.Entry

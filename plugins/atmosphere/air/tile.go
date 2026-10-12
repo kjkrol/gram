@@ -6,12 +6,9 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// tileShader bakes a tile of the clouds' noise (shaders/cloud_tile.wgsl).
 var tileShader = render.NewShaderWith("cloud tile", render.Files(shaders, "shaders/cloud_tile.wgsl"), nil)
 
-// The tile of the clouds' noise BakeTile bakes, TileWidth by TileHeight pixels: its first level
-// tileTexels across over CloudTile world units, tileLevels levels each half as wide, the first on
-// the left, the rest stacked down its right; shaders/cloud_noise.wgsl has the same.
+// TileWidth and TileHeight are the size in pixels of the tile BakeTile bakes.
 const (
 	tileTexels = 1024
 	tileLevels = 6
@@ -20,10 +17,7 @@ const (
 )
 
 // BakeTile bakes a tile of the clouds' noise into dst, TileWidth by TileHeight pixels from its
-// corner, every level of it: the shreds in red, the heaps in green, each pixel the noise averaged
-// over the world square it stands for. A shader looks the clouds up in it (cloudTileSpot,
-// cloudTileLevel) rather than work their noise out at every pixel, seeing them from afar as
-// evened out as a pixel sees them.
+// corner, for the shaders to look the clouds up in.
 func BakeTile(dst *render.Image) {
 	corner := dst.Bounds().Min
 	verts := make([]render.Vertex, 4)
@@ -45,5 +39,4 @@ func BakeTile(dst *render.Image) {
 	}
 }
 
-// tileQuad is a rectangle's two triangles over its four corners.
 var tileQuad = []uint16{0, 1, 2, 1, 2, 3}

@@ -38,7 +38,7 @@ const (
 	HeroSpeed   = 140
 	MaxEntCount = 8
 
-	// how hard the world pulls down the screen, and how high the hero leaps: three and a half cells
+	// in cells
 	pull = 900
 	leap = 3.5 * CellSize
 
@@ -144,15 +144,11 @@ func (s *arena) defineEffects() {
 }
 
 func (s *arena) defineRules() {
-	s.world.Roles().Define(HeroRole,
-		rule.Then[gravity.Landing](
-			"daze",
-			rule.All,
-			rule.If(
-				func(l gravity.Landing) bool { return l.Speed > hardLanding },
-				rule.Apply(s.world.Effects().Named(DazedEf)),
-			),
-		))
+	s.world.Roles().Define(HeroRole, rule.Branch[gravity.Landing]{
+		Name: "daze",
+		When: gravity.HarderThan(hardLanding),
+		Do:   rule.Apply(s.world.Effects().Named(DazedEf)),
+	})
 }
 
 func (s *arena) defineCommands() {

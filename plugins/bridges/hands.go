@@ -11,9 +11,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// hand is the bridge a player lays out: its first head once marked, the head the cursor points
-// the bridge on to, the bridge planned between them or why none may stand there, and whether the
-// player is asked to build it.
 type hand struct {
 	t      Type
 	from   cell.ID
@@ -23,19 +20,17 @@ type hand struct {
 	plan   site.Bridge
 	err    error
 	asked  bool
-	seen   uint64 // the tick it was last aimed in
+	seen   uint64
 }
 
-// pending is a bridge its player said to build, built at the next step of the simulation.
 type pending struct {
 	t    Type
 	plan site.Bridge
 }
 
-// forget is how many ticks a hand nobody aims is kept: the cursor off the picture a moment.
+// forget is the ticks a hand nobody aims is kept: the cursor off the picture a moment.
 const forget = 30
 
-// carryOut carries out the players' commands about the bridges in their hands, at once.
 func (p *Plugin) carryOut() {
 	p.tick++
 	p.aims.Drain(func(i control.Issued[Aim]) {
@@ -92,15 +87,11 @@ func (p *Plugin) handOf(id control.PlayerID) *hand {
 	return h
 }
 
-// plan plans the bridge from the hand's first head to the head it points to, its deck at the
-// first head's level.
 func (p *Plugin) plan(h *hand) {
 	g := p.ground(h.t)
 	h.plan, h.err = site.Plan(g, p.rules(), h.from, h.to, g.level(h.from))
 }
 
-// endAt is the cell a bridge from the cell from runs to with the cursor at the world point at:
-// along the grid's direction nearest the cursor, as many steps as the cursor lies along it.
 func (p *Plugin) endAt(from cell.ID, at geom.Vec) (cell.ID, bool) {
 	g := p.board.Board().Grid
 	m := g.CellCenter(from)
@@ -129,7 +120,6 @@ func (p *Plugin) endAt(from cell.ID, at geom.Vec) (cell.ID, bool) {
 	return c, c != from
 }
 
-// text is a window's or a label's words, said off the hands: say picks them.
 type text struct {
 	p   *Plugin
 	say func(h *hand) (string, bool)

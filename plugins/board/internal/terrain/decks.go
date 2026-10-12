@@ -27,13 +27,11 @@ type Railing struct {
 	FreeA, FreeB bool
 }
 
-// banded reports whether b is a deck running as a band: a Width and Links to run along.
 func banded(b *cell.Built) bool {
 	return b != nil && b.Floor.Allows != 0 && b.Floor.Width > 0 && b.Floor.Links != 0
 }
 
-// run is the way a band runs out of its cell, d, and whether it runs on through and out the
-// opposite way or begins in the cell's middle — a bridge's head; false for one that turns or forks.
+// through: the band runs on out the opposite way; else it begins in the cell's middle, a head
 func (t *Cells) run(f cell.Floor) (d int, through, ok bool) {
 	d = bits.TrailingZeros8(uint8(f.Links))
 	switch bits.OnesCount8(uint8(f.Links)) {
@@ -45,9 +43,7 @@ func (t *Cells) run(f cell.Floor) (d int, through, ok bool) {
 	return 0, false, false
 }
 
-// inBand reports whether q, seen from a cell's middle, lies on the band f runs as: on a piece from
-// the middle out to the edge or the corner a link leaves by, Width wide, cut square at its end, or
-// on the round of its middle.
+// q is seen from the cell's middle
 func (t *Cells) inBand(f cell.Floor, q geom.Vec) bool {
 	half := f.Width / 2
 	if q.X*q.X+q.Y*q.Y <= half*half {
@@ -68,9 +64,8 @@ func (t *Cells) inBand(f cell.Floor, q geom.Vec) bool {
 	return false
 }
 
-// BandArea is how much of r the band f runs as covers, the middle of its cell at m: its pieces out
-// to its links. The round of its middle is left out: it lies within the pieces of a band running
-// through, and on a head's tile, which takes whoever comes onto the bridge.
+// BandArea is how much of r the band f runs as covers, the middle of its cell at m. The round of
+// its middle is left out: a head's tile takes whoever comes onto the bridge.
 func (t *Cells) BandArea(f cell.Floor, m geom.Vec, r geom.AABB) float64 {
 	var area float64
 	for i := range t.grid.Directions() {
@@ -84,8 +79,6 @@ func (t *Cells) BandArea(f cell.Floor, m geom.Vec, r geom.AABB) float64 {
 	return area
 }
 
-// stripArea is how much of r lies on the rectangle from o along the unit u as far as long, half
-// wide on either side of it.
 func stripArea(r geom.AABB, o, u geom.Vec, long, half float64) float64 {
 	var in, out [8]geom.Vec
 	in[0] = geom.NewVec(r.TopLeft.X-o.X, r.TopLeft.Y-o.Y)
@@ -186,9 +179,9 @@ func (t *Cells) Bands(c cell.ID, dst []Deck) []Deck {
 	return dst
 }
 
-// Ends are where a band deck on c, its middle at off, starts and ends along its axis — a head's
-// in the cell's middle — and whether each end stands free, where no band running through carries
-// it on; false for a band that turns or forks.
+// Ends are where a band deck on c, its middle at off, starts and ends along its axis, and whether
+// each end stands free, no band running through carrying it on. It is false for a band that turns
+// or forks.
 func (t *Cells) Ends(c cell.ID, f cell.Floor, off geom.Vec) (a, b geom.Vec, freeA, freeB, ok bool) {
 	d, through, ok := t.run(f)
 	if !ok {
@@ -253,8 +246,7 @@ func (t *Cells) Railings(c cell.ID, dst []Railing) []Railing {
 	return dst
 }
 
-// railingsOf appends to dst the two railings along the edges of the band b runs as on c, c's
-// middle at off; a head carries none, so whoever comes onto it comes from any side.
+// a head carries no railing, so whoever comes onto it comes from any side
 func (t *Cells) railingsOf(c cell.ID, b *cell.Built, off geom.Vec, dst []Railing) []Railing {
 	if !banded(b) || b.Rail.Keeps == 0 {
 		return dst
@@ -279,8 +271,6 @@ func (t *Cells) railingsOf(c cell.ID, b *cell.Built, off geom.Vec, dst []Railing
 	return dst
 }
 
-// carried reports whether c's band runs on the way i into a neighbour whose band comes back and
-// runs on through: a head carries nothing on.
 func (t *Cells) carried(c cell.ID, i int) bool {
 	n, ok := t.grid.Toward(c, i)
 	if !ok {
@@ -324,14 +314,13 @@ func (t *Cells) Fenced(from, to cell.ID, d cell.Domain, deck bool) bool {
 	return false
 }
 
-// crosses reports whether the step p–q crosses the railing a–b: from one side of it to the other,
-// over it or an end of it — where two railings join, each ends on the step.
+// an end of the railing counts: where two railings join, each ends on the step
 func crosses(p, q, a, b geom.Vec) bool {
 	side := func(o, e, x geom.Vec) float64 { return (e.X-o.X)*(x.Y-o.Y) - (e.Y-o.Y)*(x.X-o.X) }
 	return side(p, q, a)*side(p, q, b) <= 0 && side(a, b, p)*side(a, b, q) < 0
 }
 
-// local is p seen from c's middle, wherever round a wrapping square grid p lies in c.
+// p may lie in c anywhere round a wrapping square grid
 func (t *Cells) local(c cell.ID, p geom.Vec) geom.Vec {
 	if sq, ok := t.grid.(*grids.Square); ok {
 		size := float64(sq.CellSize)
@@ -362,8 +351,6 @@ func (t *Cells) Reaches(c, n cell.ID) bool {
 	return false
 }
 
-// decked counts the bands of sites and marks the cells a neighbour's band reaches into — the flanks
-// of a band leaving through a corner.
 func (t *Cells) decked(sites []site) {
 	t.bands, t.narrowest, t.thinnest = 0, 0, 0
 	for _, s := range sites {

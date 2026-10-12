@@ -14,10 +14,10 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Plugin wires vision into a Stage over world.Plugin's space.
-// It publishes what entities can see; what to do about it is a rule's business.
+// Plugin wires vision into a Stage over the world's space. It publishes what entities can see;
+// what to do about it is a rule's business.
 type Plugin struct {
-	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+	*world.Self
 
 	worldPlugin *world.Plugin
 	module      *module
@@ -25,32 +25,27 @@ type Plugin struct {
 	style       ConeStyle
 	shadow      *Shadow
 	groundStep  float64
-	heights     func() ground.Heights // the ground sight follows; nil, flat
-	cover       func() ground.Cover   // what holds sight back; nil, nothing
-	hidden      bool                  // the views drawn are hidden, as they start — see Cones
-	workers     int                   // how many goroutines at most share a scan: 0 all the CPUs, 1 none
-	frequency   float64               // how often each observer is scanned a second; 0, every step
-	log         *log.Logger           // a line the first time one entity sees another, nil for none
+	heights     func() ground.Heights
+	cover       func() ground.Cover
+	hidden      bool
+	workers     int
+	frequency   float64
+	log         *log.Logger
 	cones       control.Queue[Cones]
 
 	sightings plugin.PairRules[Sighting]
-	drawing   render.Rules // which views are drawn; none, every one
+	drawing   render.Rules
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// NewPlugin builds the vision plugin over worldPlugin's shared spatial index; the views drawn
-// start hidden — see Cones.
+// NewPlugin builds the vision plugin over worldPlugin's space; the views drawn start hidden.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin, hidden: true}
 	p.Self = world.NewSelf(worldPlugin, p)
 	return p
 }
-
-// =================================================================
-// plugin.Plugin contract
-// =================================================================
 
 func (p *Plugin) Name() string { return "gram.vision" }
 
@@ -68,14 +63,13 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 
-// RunPlan carries out the commands, then hands the scan to the simulation; call it after world's
-// RunPlan.
+// RunPlan carries out the commands and runs the scan; call it after the world's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.cones.Drain(func(control.Issued[Cones]) { p.setHidden(!p.hidden) })
 	p.module.RunPlan(ctx, d)
 }
 
-// WithRenderer builds the cone renderer; atlas is unused, vision draws primitives.
+// WithRenderer builds the renderer of the views; the atlas is unused.
 func (p *Plugin) WithRenderer(render.AtlasSource) {
 	p.renderer = NewRenderer(p.worldPlugin.Space()).WithGround(p.groundOf).WithGroundStep(p.groundStep).WithCover(p.coverOf).WithScale(p.worldPlugin.Scale()).WithDrawing(&p.drawing)
 	if p.style != nil {
@@ -94,15 +88,14 @@ func (p *Plugin) Renderer() render.Layer {
 	return p.renderer
 }
 
-// EventHandler returns nil — a player's bindings (DefaultBindings) issue the Cones commands.
+// EventHandler is nil: the Cones command comes from a player's bindings.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable returns nil: vision keeps no state beside its components.
+// Serializable is nil: vision keeps no state beside its components.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// WithViews has the views drawn as rules say, every frame: render.Show picks the observers
-// whose views are drawn — the selected ones, say (render.Show(selected.In)); with none, every
-// one is. Drawing is the scene's: call it as the renderer is made (WithRenderer).
+// WithViews has only the views of the observers a render.Show rule picks drawn; with none, every
+// one is. Call it in the scene, as the renderer is made.
 func (p *Plugin) WithViews(rules ...render.Rule) *Plugin {
 	if err := p.drawing.Add(rules...); err != nil {
 		panic(fmt.Errorf("%w in %s", err, p.Name()))
@@ -110,14 +103,10 @@ func (p *Plugin) WithViews(rules ...render.Rule) *Plugin {
 	return p
 }
 
-// =================================================================
-// vision-specific
-// =================================================================
-
-// ShowCones shows every view drawn — the cones and the shadows — as the Cones command does.
+// ShowCones shows every view drawn, as the Cones command does.
 func (p *Plugin) ShowCones() { p.setHidden(false) }
 
-// HideCones hides every view drawn, as they start; the scan goes on.
+// HideCones hides every view drawn; the scan goes on.
 func (p *Plugin) HideCones() { p.setHidden(true) }
 
 // ConesShown reports whether the views drawn are shown.
@@ -136,14 +125,14 @@ func (p *Plugin) WithStyle(style ConeStyle) *Plugin {
 	return p
 }
 
-// WithShadow sets how the ground out of sight is shaded, in place of DefaultShadow; call before Use.
+// WithShadow sets how the ground out of sight is shaded, in place of DefaultShadow; call before
+// Use.
 func (p *Plugin) WithShadow(shadow Shadow) *Plugin {
 	p.shadow = &shadow
 	return p
 }
 
-// WithBoard has sight follow brd's ground and be held back by what stands on it — walls,
-// forests — as the board says (board.Plugin.Heights, Cover); call before Use.
+// WithBoard has sight follow brd's ground and be held back by its cover; call before Use.
 func (p *Plugin) WithBoard(brd *board.Plugin) *Plugin {
 	return p.WithHeights(brd.Heights).WithCover(brd.Cover)
 }
@@ -160,7 +149,6 @@ func (p *Plugin) WithCover(cover func() ground.Cover) *Plugin {
 	return p
 }
 
-// groundOf is the ground as it stands now, nil without one.
 func (p *Plugin) groundOf() ground.Heights {
 	if p.heights == nil {
 		return nil
@@ -168,7 +156,6 @@ func (p *Plugin) groundOf() ground.Heights {
 	return p.heights()
 }
 
-// coverOf is the cover as it stands now, nil without one.
 func (p *Plugin) coverOf() ground.Cover {
 	if p.cover == nil {
 		return nil
@@ -176,32 +163,28 @@ func (p *Plugin) coverOf() ground.Cover {
 	return p.cover()
 }
 
-// WithGroundStep sets how far apart a scan with heights samples the ground along a ray, in place of the
-// board's cell, where the ground has no ground.Profile — a topography's relief has, and is read
-// exactly; a longer step is a cheaper scan. Call before Use.
+// WithGroundStep sets how far apart a scan with heights samples a ground without a
+// ground.Profile along a ray, in place of the board's cell; call before Use.
 func (p *Plugin) WithGroundStep(step float64) *Plugin {
 	p.groundStep = step
 	return p
 }
 
-// WithLog has the vision write a line to l the first time one entity sees another; call before
-// Use.
+// WithLog has vision write a line to l the first time one entity sees another; call before Use.
 func (p *Plugin) WithLog(l *log.Logger) *Plugin {
 	p.log = l
 	return p
 }
 
-// WithFrequency has every observer scanned perSecond times a second of game time, the observers
-// spread evenly over the steps, in place of every step (0, as it starts); between its scans an
-// observer's rules of a Sighting go on with what it saw last. A lower frequency is a cheaper
-// scan. Call before Use.
+// WithFrequency has every observer scanned perSecond times a second of game time in place of
+// every step (0), its rules going on with what it saw last between scans; call before Use.
 func (p *Plugin) WithFrequency(perSecond float64) *Plugin {
 	p.frequency = max(perSecond, 0)
 	return p
 }
 
-// WithWorkers sets how many goroutines at most share a scan's observers: 0, as it starts, as many
-// as there are CPUs; 1 none. Call before Use.
+// WithWorkers sets how many goroutines at most share a scan: 0 (as it starts) as many as there
+// are CPUs, 1 none. Call before Use.
 func (p *Plugin) WithWorkers(n int) *Plugin {
 	p.workers = n
 	return p

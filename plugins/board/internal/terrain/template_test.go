@@ -9,8 +9,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// Every cell carries what the world's roster gives a cell: a Const the same everywhere, a Load
-// read off the cell's own cell.ID.
 func TestCells_EveryCellCarriesTheRostersCellDefaults(t *testing.T) {
 	for name, g := range cellGrids() {
 		t.Run(name, func(t *testing.T) {
@@ -30,8 +28,6 @@ func TestCells_EveryCellCarriesTheRostersCellDefaults(t *testing.T) {
 	}
 }
 
-// What the board gives every cell itself is no template's, and a cell's row is its cell.ID: the
-// cells panic as they are made, saying so.
 func TestCells_ATemplateRefusedPanicsSayingWhy(t *testing.T) {
 	g := cellGrids()["square"]
 	for name, c := range map[string]struct {

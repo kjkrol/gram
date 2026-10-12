@@ -18,8 +18,6 @@ func (reporter) Init(*goke.SysInit) {}
 
 func (r reporter) Report(line func(label, value string)) { line("Game time", r.c.written()) }
 
-// written is the clock as a player reads it: mm:ss, "(paused)" in the tactical pause, "(x2)" at
-// another tempo, "(x2, held back)" when the engine could not keep a higher one up.
 func (c *Clock) written() string {
 	t := c.state.Time.Round(time.Second)
 	s := fmt.Sprintf("%02d:%02d", int(t.Minutes()), int(t.Seconds())%60)
@@ -34,8 +32,7 @@ func (c *Clock) written() string {
 	return s
 }
 
-// HUD is a screen layer showing the clock in the window's bottom-left corner: the game time and,
-// when it is not real time, the pause or the tempo — a ui.Layer of a scene.
+// HUD is a screen layer showing the clock in the window's bottom-left corner.
 func (c *Clock) HUD() render.Renderer { return &hud{c: c} }
 
 type hud struct{ c *Clock }

@@ -9,10 +9,6 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/internal/vec"
 )
 
-// testViews is the topography's camera over a 640 x 640 world drawn to 400 x 300, isometric to
-// begin with, reaching the perspective view when reaches.
-// sized is c shown w x h pixels from the world's top-left corner, as a camera made for that
-// screen begins.
 func sized(c *viewCamera, w, h float32) *viewCamera {
 	c.SetViewport(w, h)
 	c.MoveTo(0, 0)
@@ -23,7 +19,6 @@ func testViews(reaches bool) *viewCamera {
 	return sized(newCamera(testProjection, 640, 640, 0, contract.Config{}, 0, reaches, nil, nil, 0), 400, 300)
 }
 
-// middle is the ground point under the middle of the screen.
 func middle(c *viewCamera) (x, y float32) { return c.Unproject(200, 150, 0) }
 
 func TestViewCamera_NextGoesRoundTheViewsKeepingTheMiddleAndTheScale(t *testing.T) {
@@ -138,8 +133,6 @@ func TestViewCamera_SetViewportAndZoomLimitsReachEveryView(t *testing.T) {
 	}
 }
 
-// Inside a unit whose eye says how wide it sees, the screen's width fills that field and the
-// height follows the screen's shape; out again, the camera's own field of view is back.
 func TestViewCamera_InsideAUnitTheScreenIsAsWideAsItsEyeSees(t *testing.T) {
 	c := testViews(true)
 	own := c.persp.focal()
@@ -160,9 +153,6 @@ func TestViewCamera_InsideAUnitTheScreenIsAsWideAsItsEyeSees(t *testing.T) {
 	}
 }
 
-// The rays of every view pass through the world points its screen points unproject to: in
-// perspective from the eye the way Ray says, from above and isometrically one way through the
-// point under the pixel at any height.
 func TestViewCamera_RaysRunThroughWhatTheScreenPointsSee(t *testing.T) {
 	c := sized(newCamera(testProjection, 640, 640, 0, contract.Config{}, 0, true, nil, nil, 0), 400, 300)
 	seen := map[string]bool{}

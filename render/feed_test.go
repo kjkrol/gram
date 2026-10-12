@@ -53,7 +53,6 @@ func TestFeed_APointOutsideIsNotVisible(t *testing.T) {
 	}
 }
 
-// picking is a camera that picks the ground itself.
 type picking struct{ camera.Camera }
 
 func (picking) Pick(sx, sy float32) (float32, float32, float32, bool) {
@@ -68,7 +67,6 @@ func TestFeed_ToWorldAsksAPickerFirst(t *testing.T) {
 	}
 }
 
-// recording is a picture that notes what it was drawn into and through.
 type recording struct {
 	w, h int
 	cam  camera.Camera

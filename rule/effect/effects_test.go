@@ -22,9 +22,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// installCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type installCtx struct {
-	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
+	hosts   []plugin.Host
 	ecs     *goke.ECS
 	pending []func() []goke.System
 }
@@ -41,13 +40,10 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
 func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
 
-// moods is the family of the test's tags.
 type moods struct{}
 
 const tick = time.Second / 10
 
-// rig is a world with the effects plugin and one entity carrying Steering, Appearance and a
-// moods family, plus a casting hook run at the start of each tick.
 type rig struct {
 	t       *testing.T
 	w       *world.Plugin
@@ -63,12 +59,10 @@ type rig struct {
 	states  goke.OptComp[tag.Tags[effect.States]]
 	course  goke.OptComp[steering.Course]
 	casting func(cb *goke.CmdBuf)
-	comps   []comp.Comp // more of the entity's kind: a plan
-	rules   []rule.Rule // what the world's hosts are handed once it is installed
+	comps   []comp.Comp
+	rules   []rule.Rule
 }
 
-// newRig builds the rig; define adds effects before Install and may read the rig's tags. Without
-// withFamily the entity carries neither moods nor the effects' markers.
 func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 	t.Helper()
 	r := &rig{t: t}
@@ -134,13 +128,10 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 
 func (r *rig) tick() { r.ecs.Tick(tick) }
 
-// cast queues a Cast for the next tick.
 func (r *rig) cast(fx effect.Effect) {
 	r.casting = func(cb *goke.CmdBuf) { r.fx.Cast(cb, r.id, fx) }
 }
 
-// state is the entity's speed, sprite, whether it is angry, and whether an effect is on it: the
-// marker of one, besides Changed.
 func (r *rig) state() (speed float64, sprite uint8, angry bool, active bool) {
 	for r.query.All(); r.query.Next(); {
 		cur := r.query.Cursor()
@@ -156,7 +147,6 @@ func (r *rig) state() (speed float64, sprite uint8, angry bool, active bool) {
 	return
 }
 
-// marked reports whether the entity has the effects' marker t on right now.
 func (r *rig) marked(t tag.Tag[effect.States]) bool {
 	on := false
 	for r.query.All(); r.query.Next(); {
@@ -178,7 +168,7 @@ func TestEffects_GrantAndAlterHoldForLastsThenRevert(t *testing.T) {
 		rage = r.fx.Named("rage")
 	})
 	r.cast(rage)
-	r.tick() // cast lands and the slot begins, the effects pass running after the cast
+	r.tick() // the effects' pass runs after the cast
 	r.tick()
 	if speed, sprite, angry, active := r.state(); speed != 20 || sprite != 7 || !angry || !active {
 		t.Fatalf("running: speed %v sprite %d angry %v active %v, want 20, 7, true, true", speed, sprite, angry, active)
@@ -197,9 +187,6 @@ func TestEffects_GrantAndAlterHoldForLastsThenRevert(t *testing.T) {
 	}
 }
 
-// Two effects cast in one pass on an entity under none yet, carrying no family of theirs, both
-// land: the Active on its way carries them both, the families attached carry both their tags,
-// and both begin a tick later.
 func TestEffects_TwoCastAtOnceOnAFreshEntityBothLand(t *testing.T) {
 	var haste, mark effect.Effect
 	r := newRig(t, false, func(r *rig) {
@@ -212,7 +199,7 @@ func TestEffects_TwoCastAtOnceOnAFreshEntityBothLand(t *testing.T) {
 		r.fx.Cast(cb, r.id, haste)
 		r.fx.Cast(cb, r.id, mark)
 	}
-	r.tick() // the Active lands with both; the markers' family is attached with both on
+	r.tick()
 	if !r.marked(haste.Mark()) || !r.marked(mark.Mark()) {
 		t.Errorf("haste %v mark %v after the first tick, want both markers on as their family is attached", r.marked(haste.Mark()), r.marked(mark.Mark()))
 	}
@@ -234,20 +221,20 @@ func TestEffects_ChangedMarksTheStepsThatRewroteAComponent(t *testing.T) {
 		mark = r.fx.Named("mark")
 	})
 	r.cast(haste)
-	r.tick() // lands and begins: the speed is rewritten
+	r.tick()
 	if !r.marked(effect.Changed) {
 		t.Error("the step that began an Alter left Changed off")
 	}
-	r.tick() // runs on, nothing rewritten
+	r.tick()
 	if r.marked(effect.Changed) {
 		t.Error("a step that rewrote nothing left Changed on")
 	}
 	r.cast(mark)
-	r.tick() // a Grant begins beside it: tags, no Alter
+	r.tick() // a Grant begins beside it
 	if r.marked(effect.Changed) {
 		t.Error("a Grant beginning turned Changed on")
 	}
-	r.tick() // haste's time is up: the speed goes back
+	r.tick() // haste's time is up
 	if speed, _, _, _ := r.state(); speed != 10 || !r.marked(effect.Changed) {
 		t.Errorf("haste ended: speed %v, Changed %v; want 10 and on", speed, r.marked(effect.Changed))
 	}
@@ -290,9 +277,9 @@ func TestEffects_StackedCastsKeepTheMarkerTillTheLast(t *testing.T) {
 		sting = r.fx.Named("sting")
 	})
 	r.cast(sting)
-	r.tick() // the first begins: two ticks left
+	r.tick()
 	r.cast(sting)
-	r.tick() // the second begins, the first has one left
+	r.tick()
 	r.tick() // the first is over
 	if !r.marked(sting.Mark()) {
 		t.Error("the marker went with the first of two stacked casts")
@@ -312,13 +299,13 @@ func TestEffects_ThenFollowsWhenTheTimeIsUpNotOnDispel(t *testing.T) {
 		burn = r.fx.Named("burn")
 	})
 	r.cast(burn)
-	r.tick() // begins
 	r.tick()
-	r.tick() // its time is up: ash is queued
+	r.tick()
+	r.tick() // its time is up
 	if r.fx.Has(r.id, burn) || !r.fx.Has(r.id, ash) {
 		t.Fatalf("burn over: burn %v, ash %v; want false, true", r.fx.Has(r.id, burn), r.fx.Has(r.id, ash))
 	}
-	r.tick() // ash begins
+	r.tick()
 	if !r.marked(ash.Mark()) {
 		t.Error("the effect that follows never began")
 	}
@@ -350,13 +337,13 @@ func TestEffects_ACastAfterDispelTakesTheSlotBack(t *testing.T) {
 	r.cast(burn)
 	r.tick()
 	r.fx.Dispel(r.id, burn)
-	r.cast(burn) // cast again in the same step, after the Dispel: the cause goes on
+	r.cast(burn) // in the same step, after the Dispel
 	r.tick()
 	if !r.fx.Has(r.id, burn) {
 		t.Fatal("a cast after Dispel did not take the slot back")
 	}
 	r.tick()
-	r.tick() // its time is up, not dispelled: ash follows
+	r.tick() // its time is up, not dispelled
 	if !r.fx.Has(r.id, ash) {
 		t.Error("the slot taken back still counted as dispelled")
 	}
@@ -402,10 +389,10 @@ func TestEffects_RecastRefreshesUnlessStacking(t *testing.T) {
 		stacks = r.fx.Named("stacks")
 	})
 	r.cast(short)
-	r.tick() // begins with two ticks left
-	r.tick() // one left
+	r.tick()
+	r.tick()
 	r.cast(short)
-	r.tick() // refreshed to two, one left — without the refresh it would have ended here
+	r.tick() // without the refresh it would have ended here
 	if _, _, angry, _ := r.state(); !angry {
 		t.Error("a refreshed effect ended on its first clock")
 	}
@@ -453,8 +440,8 @@ func TestEffects_GrantAttachesAMissingFamily(t *testing.T) {
 		rage = r.fx.Named("rage")
 	})
 	r.cast(rage)
-	r.tick() // Active attached, the family attached for next tick
-	r.tick() // begun
+	r.tick() // the family is attached for the next tick
+	r.tick()
 	if _, _, angry, _ := r.state(); !angry {
 		t.Fatal("the granted tag never arrived on an entity without the family")
 	}
@@ -483,7 +470,6 @@ func TestEffects_DefineRefusesOneEffectTooManyByName(t *testing.T) {
 	fx.Define("last straw", effect.Spec{})
 }
 
-// withCourse hands fn the entity's Course, as a plugin steering it would write it.
 func (r *rig) withCourse(fn func(c *steering.Course)) {
 	for r.query.All(); r.query.Next(); {
 		if cs := r.course.Slice(r.query.Cursor()); cs != nil {
@@ -492,8 +478,6 @@ func (r *rig) withCourse(fn func(c *steering.Course)) {
 	}
 }
 
-// An Alter turns the steering's knobs and puts them back when it ends, leaving the course asked
-// meanwhile as it is: the knobs and the state are components apart.
 func TestEffects_AnAlterOfTheKnobsLeavesTheCourseAlone(t *testing.T) {
 	var haste effect.Effect
 	r := newRig(t, true, func(r *rig) {
@@ -501,11 +485,11 @@ func TestEffects_AnAlterOfTheKnobsLeavesTheCourseAlone(t *testing.T) {
 		haste = r.fx.Named("haste")
 	})
 	r.cast(haste)
-	r.tick() // begins
+	r.tick()
 	north := geom.NewVec(0, 1)
 	r.withCourse(func(c *steering.Course) { c.Want, c.WantSpeed = north, 15 })
 	for range 3 {
-		r.tick() // ends: the knobs put back
+		r.tick()
 	}
 	if speed, _, _, _ := r.state(); speed != 10 {
 		t.Errorf("after the effect MaxSpeed is %v, want 10 put back", speed)
@@ -517,7 +501,6 @@ func TestEffects_AnAlterOfTheKnobsLeavesTheCourseAlone(t *testing.T) {
 	})
 }
 
-// An effect is found again by its name, and an unknown name panics.
 func TestEffects_Named_IsTheEffectDefined(t *testing.T) {
 	var burning effect.Effect
 	r := newRig(t, true, func(r *rig) {
@@ -536,8 +519,6 @@ func TestEffects_Named_IsTheEffectDefined(t *testing.T) {
 	r.fx.Named("frozen")
 }
 
-// A look is a slot of its own a sprite, the same asked again, listed with the effect's marker;
-// an effect's first look after the looks were taken panics.
 func TestEffect_Look_IssuesASlotASpriteUnderTheEffect(t *testing.T) {
 	var burning, wet effect.Effect
 	r := newRig(t, true, func(r *rig) {
@@ -574,8 +555,6 @@ func TestEffect_Look_IssuesASlotASpriteUnderTheEffect(t *testing.T) {
 	wet.Look(1)
 }
 
-// An effect that Shows turns Changed on as it begins and as it ends, though it alters nothing:
-// whoever draws by its marker draws anew.
 func TestEffects_AnEffectThatShowsChangesTheEntityAsItBeginsAndEnds(t *testing.T) {
 	var snow effect.Effect
 	r := newRig(t, true, func(r *rig) {
@@ -598,9 +577,6 @@ func TestEffects_AnEffectThatShowsChangesTheEntityAsItBeginsAndEnds(t *testing.T
 	}
 }
 
-// Hosts keeps the hosts of the rules of the moments a plugin catches.
 func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
-// does with the roles played once a Stage's Init returns.
 func (c *installCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

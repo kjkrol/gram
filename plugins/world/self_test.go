@@ -22,13 +22,10 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// dial is a knob of the made-up plugin of these tests.
 type dial struct{ Level int }
 
-// skyStage is a world with a plugin's own entity carrying a dial, a storm that turns the dial up,
-// ten plain states and one scout, lit while the sky is under the storm.
 type skyStage struct {
-	load bool // entered from the quicksave
+	load bool
 
 	world  *world.Plugin
 	sky    *world.Self
@@ -46,7 +43,6 @@ type skyStage struct {
 
 func (g *skyStage) Name() string { return "stage" }
 
-// skyPlugin is a plugin of a test that is only its name: what its Self is called by.
 type skyPlugin struct{}
 
 func (skyPlugin) Name() string                       { return "test.sky" }
@@ -72,7 +68,11 @@ func (g *skyStage) Init(ctx game.Initializer) error {
 		g.states = append(g.states, fx.Named(name))
 	}
 	g.world.Roles().Define("sky watcher",
-		rule.Then[world.Moving]("lit by the storm", rule.All, rule.While(g.sky, g.storm, rule.Keep(g.lit))))
+		rule.Branch[world.Moving]{
+			Name: "lit by the storm",
+			When: rule.While(g.sky, g.storm),
+			Do:   rule.Keep(g.lit),
+		})
 	watcher := g.world.Roles().Named("sky watcher")
 	kind.Define[struct{}](g.world.Kinds(), "scout", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
@@ -106,7 +106,6 @@ func (g *skyStage) Stack() game.Scenes {
 	return g.stack
 }
 
-// give gives cmds as nobody and ticks them through.
 func (g *skyStage) give(t *testing.T, cmds ...control.Command) {
 	t.Helper()
 	for _, cmd := range cmds {
@@ -118,7 +117,6 @@ func (g *skyStage) give(t *testing.T, cmds ...control.Command) {
 	g.ecs.Tick(time.Second / 60)
 }
 
-// dialsOf are the dials in the world, by entity.
 func (g *skyStage) dialsOf() map[uid.UID64]int {
 	out := map[uid.UID64]int{}
 	for g.dialed.All(); g.dialed.Next(); {
@@ -130,7 +128,6 @@ func (g *skyStage) dialsOf() map[uid.UID64]int {
 	return out
 }
 
-// theScout is the one unit.
 func (g *skyStage) theScout(t *testing.T) uid.UID64 {
 	t.Helper()
 	for g.units.All(); g.units.Next(); {
@@ -154,9 +151,6 @@ func runSky(t *testing.T, g *skyStage) *engine.Engine {
 	return eng
 }
 
-// A plugin's own entity carries its knob; a command for the plugin puts an effect on that entity,
-// whose Alter turns the knob and gives it back, the plugin told its entity Changed; and a rule's
-// While runs while the plugin is under the effect.
 func TestSelf_AnEffectOnThePluginTurnsItsKnob(t *testing.T) {
 	g := &skyStage{}
 	runSky(t, g)
@@ -190,8 +184,6 @@ func TestSelf_AnEffectOnThePluginTurnsItsKnob(t *testing.T) {
 	}
 }
 
-// The world is a plugin as any: its own entity is the clock's, entity.World and the plugin itself
-// name it alike.
 func TestSelf_TheWorldsOwnEntityIsTheClocks(t *testing.T) {
 	g := &skyStage{}
 	runSky(t, g)
@@ -208,7 +200,6 @@ func TestSelf_TheWorldsOwnEntityIsTheClocks(t *testing.T) {
 	}
 }
 
-// A plugin's entity holds every effect at once, where a unit holds eight.
 func TestSelf_HoldsMoreEffectsAtOnceThanAUnit(t *testing.T) {
 	g := &skyStage{}
 	runSky(t, g)
@@ -232,8 +223,6 @@ func TestSelf_HoldsMoreEffectsAtOnceThanAUnit(t *testing.T) {
 	}
 }
 
-// A loaded game brings the plugins' entities, found again by their names: none is made twice, and
-// the knob and the effect on it are as they were saved.
 func TestSelf_IsFoundAgainAfterALoad(t *testing.T) {
 	t.Chdir(t.TempDir())
 	saver := &skyStage{}

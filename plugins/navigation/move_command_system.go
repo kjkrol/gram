@@ -16,10 +16,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// moveCommandSystem carries out MoveTo commands: every Selected entity of the player who gave one
-// (owner.Obeys) — or the entity that gave it itself — whose domain the target takes gets its order
-// as the keeping says — a free cell each, or a spot round the point — or with Append the target
-// queued behind the order in flight. A LookAt has every such entity stop and turn.
 type moveCommandSystem struct {
 	keep     keeping
 	moves    *control.Queue[MoveTo]
@@ -27,7 +23,7 @@ type moveCommandSystem struct {
 	selected tag.Tag[selection.Family]
 	kind     func(cell.ID) cell.Kind
 
-	group   uint32 // the last group a MoveTo was given; found in the orders and LastOrders at the first
+	group   uint32
 	grouped bool
 
 	query   *goke.Query
@@ -41,7 +37,6 @@ type moveCommandSystem struct {
 	steer   goke.OptComp[steering.Steering]
 	orderID goke.CompID
 
-	// self finds an entity that gives itself an order, selected or not
 	self      *goke.Query
 	selfCell  goke.Comp[unit.At]
 	selfOrder goke.OptComp[MoveOrder]
@@ -52,7 +47,6 @@ type moveCommandSystem struct {
 	selfLast  goke.OptComp[LastOrder]
 }
 
-// issuer is who gave a command: a player, or an entity for itself.
 type issuer struct {
 	player control.PlayerID
 	entity uid.UID64
@@ -65,13 +59,10 @@ func issuedBy[C control.Command](i control.Issued[C]) issuer {
 
 var _ goke.System = (*moveCommandSystem)(nil)
 
-// newMoveCommandSystem builds a moveCommandSystem draining moves and looks into orders, a cell each
-// through pathFinder.
 func newMoveCommandSystem(pathFinder *pathFinder, moves *control.Queue[MoveTo], looks *control.Queue[LookAt], selected tag.Tag[selection.Family]) *moveCommandSystem {
 	return &moveCommandSystem{keep: newCellKeeping(pathFinder, pathFinder.occupancy), moves: moves, looks: looks, selected: selected, kind: pathFinder.terrain.Kind}
 }
 
-// withKeeping has the system give its orders as k says.
 func (s *moveCommandSystem) withKeeping(k keeping) *moveCommandSystem {
 	s.keep = k
 	return s
@@ -88,8 +79,6 @@ func (s *moveCommandSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	s.looks.Drain(func(i control.Issued[LookAt]) { s.look(cb, i.Command.At, issuedBy(i)) })
 }
 
-// members calls fn with whom a command by gave concerns: the entity that gave it itself, or every
-// Selected entity the player owns.
 func (s *moveCommandSystem) members(by issuer, fn func(member)) {
 	if !by.self {
 		s.selectedMembers(by.player, fn)
@@ -122,7 +111,6 @@ func (s *moveCommandSystem) members(by issuer, fn func(member)) {
 	fn(m)
 }
 
-// selectedMembers calls fn with every Selected entity player by owns as a member.
 func (s *moveCommandSystem) selectedMembers(by control.PlayerID, fn func(member)) {
 	s.query.All()
 	for s.query.Next() {
@@ -162,12 +150,10 @@ func (s *moveCommandSystem) selectedMembers(by control.PlayerID, fn func(member)
 	}
 }
 
-// look has the members by concerns stop and turn towards at.
 func (s *moveCommandSystem) look(cb *goke.CmdBuf, at geom.Vec, by issuer) {
 	s.members(by, func(m member) { cb.AddOne(m.id, s.orderID, s.keep.look(m, at)) })
 }
 
-// carryOut gives the members by concerns whose domain cmd.Cell takes their orders toward it.
 func (s *moveCommandSystem) carryOut(cb *goke.CmdBuf, cmd MoveTo, by issuer) {
 	at := s.kind(cmd.Cell)
 	var members []member
@@ -183,8 +169,7 @@ func (s *moveCommandSystem) carryOut(cb *goke.CmdBuf, cmd MoveTo, by issuer) {
 	})
 }
 
-// nextGroup is a group no order has, nor any unit came to the end of: one past the highest found in
-// the orders and the LastOrders at the first — a loaded game's too.
+// one past the highest group in the orders and LastOrders at the first: a loaded game's too
 func (s *moveCommandSystem) nextGroup() uint32 {
 	if !s.grouped {
 		for s.self.All(); s.self.Next(); {

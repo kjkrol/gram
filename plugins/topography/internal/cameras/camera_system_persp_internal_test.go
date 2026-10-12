@@ -12,8 +12,6 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
 )
 
-// ridged gives the rig's camera system and camera a relief over a 20 x 20 board of 32-unit cells
-// with a ridge 400 high along x0 to x1, or level ground with none.
 func (r *followRig) ridged(x0, x1 float64) *relief.Relief {
 	relief := relief.New(grid.DefaultGrids{}.Square(20, 20, 32))
 	relief.SetHeights(func(p geom.Vec) float64 {
@@ -174,8 +172,6 @@ func TestInside_TheRiddenUnitIsNotDrawn(t *testing.T) {
 	}
 }
 
-// The mouse looks round riding: across turns the view at once and has the walker turn to face
-// it, till it does; up and down raise and lower the head; the keys turning the walker take over.
 func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 	r := newFollowRig(t)
 	r.walk(300, 300, 1, 0)
@@ -235,8 +231,6 @@ func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 	}
 }
 
-// An eye riding in a walker never goes under the top of the cell it stands in as it is drawn: on
-// a cell whose kind stands 20 tall it looks from over that top.
 func TestInside_TheEyeRidesOverWhatStandsOnTheCell(t *testing.T) {
 	r := newFollowRig(t)
 	r.ridged(1000, 1001)
@@ -254,8 +248,6 @@ func TestInside_TheEyeRidesOverWhatStandsOnTheCell(t *testing.T) {
 	}
 }
 
-// ridden reports whether cam rides in the unit whose box is x0..x1, y0..y1, as the topography's
-// look asks it through the camera's contracts: first person, the eye over the box.
 func ridden(cam contract.Camera, x0, y0, x1, y1 float32) bool {
 	if !cam.(*viewCamera).insideUnit() {
 		return false

@@ -17,12 +17,6 @@ import (
 
 var _ goke.System = (*handSystem)(nil)
 
-// handSystem sums the tick's commands into hands and writes every unit's Driven from the hand on
-// it — a player's whose camera the command came through is fastened to it, a player's that
-// selected it with that camera fastened to nothing, or its own — marking it Driving; a Driving
-// unit with no hand on it this tick is written a zero hand, to brake. The fields of a Driven an
-// eye writes — Look, Flown, Climb — are left alone. A hand that jumps has the unit give itself a
-// gravity.Leap.
 type handSystem struct {
 	hands    *hands
 	selected tag.Tag[selection.Family]
@@ -60,7 +54,8 @@ func (s *handSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			}
 			switch {
 			case on:
-				in.Ahead, in.Turn, in.Sprint, in.Face = h.ahead, h.turn, h.sprint, h.way // driveSystem normalises Face
+				// driveSystem normalises Face
+				in.Ahead, in.Turn, in.Sprint, in.Face = h.ahead, h.turn, h.sprint, h.way
 				if drivens != nil {
 					drivens[i] = in
 				} else {
@@ -79,8 +74,6 @@ func (s *handSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	}
 }
 
-// on is the hand on unit id — a player's, through a camera fastened to it or, the camera fastened
-// to nothing, while the unit is selected, the unit obeying the player (owner.Obeys); else its own.
 func (s *handSystem) on(id uid.UID64, owned tag.Tags[owner.Family], selected bool) (hand, bool) {
 	for _, h := range s.hands.players {
 		if !owner.Obeys(owned, h.player) {

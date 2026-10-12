@@ -16,7 +16,7 @@ import (
 )
 
 // Spec is what a kind of bridge is: whom its deck carries (Allows, at Cost; 0 the ground's), how
-// wide and thick its deck is, its railings and, in a world with heights, how wide a pier is.
+// wide and thick its deck is, its railings and how wide a pier is.
 type Spec struct {
 	Allows    cell.Domain
 	Width     float64
@@ -26,15 +26,12 @@ type Spec struct {
 	Pier      float64
 }
 
-// Row is a bridge as a level's file writes it: from the head From to the head To, each a tile
-// its road comes onto, flat at its deck.
+// Row is a bridge as a level's file writes it: from the head From to the head To.
 type Row struct {
 	From cell.ID `yaml:"from"`
 	To   cell.ID `yaml:"to"`
 }
 
-// deckRow is a piece of a bridge's deck, a band over the cell At running out to Links, Height
-// over its level, headed Dir.
 type deckRow struct {
 	At     cell.ID
 	Links  cell.Links
@@ -42,23 +39,20 @@ type deckRow struct {
 	Dir    geom.Vec
 }
 
-// pierRow is a pier standing on the ground at At from Bottom up to the deck's underside, Top.
 type pierRow struct {
 	At          geom.Vec
 	Bottom, Top float64
 }
 
-// Types defines the kinds of bridges on the Stage's kinds — the plugin's own register
-// (Plugin.Types): Define a kind of bridge in the Kinds section, Named is the Type wherever it is
-// built on, its parts' looks given in a scene.
+// Types is the register of the kinds of bridges, defined on the Stage's kinds.
 type Types struct {
 	p     *Plugin
 	specs map[string]Spec
 	names []string
 }
 
-// Define registers the kind of bridge named name, as spec says: the name a level's file calls its
-// bridges by, and the kinds of its parts — its deck's pieces, a band a cell, and its piers.
+// Define registers the kind of bridge named name, as spec says, with the kinds of its parts,
+// "<name>.deck" and "<name>.pier".
 func (t *Types) Define(name string, spec Spec) {
 	if spec.Width <= 0 || spec.Allows == 0 {
 		panic(fmt.Sprintf("bridges: bridge %q: its deck needs a Width and a domain it carries",
@@ -138,7 +132,7 @@ func (t *Types) Named(name string) Type {
 	return ty
 }
 
-// Type is a kind of bridge: what it is and the kinds its parts are, for a scene's atlas.
+// Type is a kind of bridge defined.
 type Type struct {
 	name  string
 	spec  Spec
@@ -153,11 +147,11 @@ func (t Type) Name() string { return t.name }
 // Spec is what the kind of bridge is.
 func (t Type) Spec() Spec { return t.spec }
 
-// Deck is the slot its deck's pieces are drawn from: a sprite laid flat, its railings its Edges.
+// Deck is the atlas slot its deck's pieces are drawn from, a sprite laid flat.
 func (t Type) Deck() render.SpriteID { return t.deck.SpriteID() }
 
-// Pier is the slot its piers are drawn from, standing; a world without heights has none, and
-// asking for them there panics.
+// Pier is the atlas slot its piers are drawn from, standing; in a world without heights it
+// panics.
 func (t Type) Pier() render.SpriteID {
 	if !t.piers {
 		panic(fmt.Sprintf("bridges: bridge %q stands on no piers in a world without heights",

@@ -31,9 +31,8 @@ func (*button) draw(*Element, *render.Image) {}
 
 func (*button) needs(e *Element) (w, h float64) { return e.children[0].needs() }
 
-// Input is whoever takes the input over a picture of the world — a player — told by the active
-// scene, before each pass of input, where on the screen the picture lies and what it shows (a
-// render.Feed, whose camera ui never looks at).
+// Input is whoever takes the input over a picture of the world, told before each pass of input
+// where the picture lies on the screen and what it shows.
 type Input interface {
 	Over(area geom.AABB, shown render.Surface)
 }

@@ -11,45 +11,35 @@ import (
 
 var _ goke.System = (*effectSystem)(nil)
 
-// effectSystem begins, counts down and ends every slot of every Active, applying and undoing
-// what the effects grant and alter, casting a spent effect's Then; an entity whose components an
-// Alter changed has its Changed on for the step after. An entity whose last effect ended keeps its
-// Active, empty.
 type effectSystem struct {
 	defs      *[]def
 	originals *originals
 
-	// narrow walks the entities under an Active, wide those under a Wide: a plugin's own
 	narrow, wide walk
 	active       goke.Comp[Active]
 	wideActive   goke.Comp[Wide]
-	touched      map[reflect.Type]bool // the altered components of the entity in hand, reused
-	thens        []effectID            // the Thens of the entity in hand, reused
+	touched      map[reflect.Type]bool // scratch, reused
+	thens        []effectID            // scratch, reused
 
-	// lookup finds one entity's Active, lookupWide its Wide, for Cast and Dispel outside the walk.
 	lookup       *goke.Query
 	lookupActive goke.Comp[Active]
 	lookupWide   *goke.Query
 	lookupSlots  goke.Comp[Wide]
 	activeID     goke.CompID
 	built        bool
-	// fresh are the Actives on their way to entities under no effect yet, by entity, until the
-	// next pass: every cast on one before its Active lands joins the one being added.
+	// Actives on their way to entities, until the next pass: a second cast before the first lands
+	// joins it, the add assigned last carrying both.
 	fresh map[uid.UID64]Active
-	// attaching are the families on their way to entities lacking them this pass, by entity and
-	// family, with the tags every effect attaching one gave it: the add assigned last carries all.
+	// families on their way to entities this pass, likewise joined.
 	attaching map[attachment]uint64
 }
 
-// walk is one query of the system with the columns bound to it: the markers and whatever the
-// effects grant and alter.
 type walk struct {
 	query   *goke.Query
-	states  *tagColumn[States] // the markers: Changed and each effect's own
+	states  *tagColumn[States]
 	columns map[reflect.Type]column
 }
 
-// bind builds the walk over the entities carrying slots, with every column the effects name.
 func (w *walk) bind(si *goke.SysInit, defs []def, slots goke.Trackable) {
 	qb := si.NewQueryBuilder(slots)
 	w.states, w.columns = &tagColumn[States]{}, map[reflect.Type]column{}
@@ -72,7 +62,6 @@ func (w *walk) bind(si *goke.SysInit, defs []def, slots goke.Trackable) {
 	w.query = qb.Build()
 }
 
-// attachment is one family on its way to one entity.
 type attachment struct {
 	id     uid.UID64
 	family reflect.Type
@@ -111,7 +100,6 @@ func (s *effectSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-// advance steps one entity's slots and sets its Changed.
 func (s *effectSystem) advance(w *walk, cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.UID64, slots []effectSlot, d time.Duration) {
 	changed := false
 	if !empty(slots) {
@@ -120,8 +108,6 @@ func (s *effectSystem) advance(w *walk, cb *goke.CmdBuf, cursor *goke.Cursor, i 
 	s.mark(w, cb, cursor, i, id, changed)
 }
 
-// mark has the entity's Changed on when changed, off otherwise — its family given it where it has
-// none and Changed is to go on.
 func (s *effectSystem) mark(w *walk, cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.UID64, changed bool) {
 	if !w.states.present(cursor) {
 		if changed {
@@ -136,9 +122,6 @@ func (s *effectSystem) mark(w *walk, cb *goke.CmdBuf, cursor *goke.Cursor, i int
 	}
 }
 
-// step advances one entity: begins pending slots, counts running ones down, ends the spent, and
-// casts the Thens of those that ran out; true when an Alter changed its components or an effect
-// that Shows began or ended.
 func (s *effectSystem) step(w *walk, cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.UID64, slots []effectSlot, d time.Duration) bool {
 	touched := s.touched
 	clear(touched)
@@ -174,9 +157,6 @@ func (s *effectSystem) step(w *walk, cb *goke.CmdBuf, cursor *goke.Cursor, i int
 	return len(touched) > 0 || shown
 }
 
-// begin applies a slot's grants and marks its alters for recompute; false while a granted
-// family is not on the entity yet — the missing ones are attached with the grant's tags on, and
-// the slot waits a tick.
 func (s *effectSystem) begin(w *walk, cb *goke.CmdBuf, cursor *goke.Cursor, i int, id uid.UID64, slot *effectSlot, touched map[reflect.Type]bool) bool {
 	d := &(*s.defs)[slot.Kind]
 	ready := true
@@ -201,7 +181,6 @@ func (s *effectSystem) begin(w *walk, cb *goke.CmdBuf, cursor *goke.Cursor, i in
 	return true
 }
 
-// attach gives id the family with bits on, joined to whatever else attached it this pass.
 func (s *effectSystem) attach(w *walk, cb *goke.CmdBuf, id uid.UID64, family reflect.Type, bits uint64) {
 	key := attachment{id: id, family: family}
 	bits |= s.attaching[key]
@@ -209,7 +188,7 @@ func (s *effectSystem) attach(w *walk, cb *goke.CmdBuf, id uid.UID64, family ref
 	w.columns[family].(tagWriter).attach(cb, id, bits)
 }
 
-// attachedBefore reports whether one of grants is of family: attached once, as one component.
+// a family is attached once, as one component
 func attachedBefore(grants []grant, family reflect.Type) bool {
 	for _, g := range grants {
 		if g.family == family {
@@ -219,8 +198,6 @@ func attachedBefore(grants []grant, family reflect.Type) bool {
 	return false
 }
 
-// end frees slot k: bits nobody else grants are cleared, its alters marked for recompute, and its
-// Then noted when it ran out rather than was dispelled.
 func (s *effectSystem) end(w *walk, cursor *goke.Cursor, i int, id uid.UID64, slots []effectSlot, k int, touched map[reflect.Type]bool) {
 	d := &(*s.defs)[slots[k].Kind]
 	if d.follows && !slots[k].Dispelled {
@@ -250,8 +227,6 @@ func (s *effectSystem) end(w *walk, cursor *goke.Cursor, i int, id uid.UID64, sl
 	}
 }
 
-// recompute puts comp back to its original and applies every running Alter of it in slot order;
-// with none left the original is forgotten.
 func (s *effectSystem) recompute(w *walk, cursor *goke.Cursor, i int, id uid.UID64, slots []effectSlot, comp reflect.Type) {
 	col := w.columns[comp].(valueAccess)
 	if original, ok := s.originals.get(id, comp); ok {
@@ -276,9 +251,6 @@ func (s *effectSystem) recompute(w *walk, cursor *goke.Cursor, i int, id uid.UID
 	}
 }
 
-// cast puts effect on id for left, refreshing a slot it already holds unless it stacks — a slot
-// dispelled this step is taken back; an entity without Active gets one attached, its slots
-// pending: every cast before it lands joins it, the add assigned last carrying them all.
 func (s *effectSystem) cast(cb *goke.CmdBuf, id uid.UID64, effect effectID, left time.Duration) {
 	if slots := s.slotsOf(id); slots != nil {
 		s.queue(slots, effect, left)
@@ -290,8 +262,7 @@ func (s *effectSystem) cast(cb *goke.CmdBuf, id uid.UID64, effect effectID, left
 	cb.AddOne(id, s.activeID, a)
 }
 
-// queue puts effect on a for left: a slot it holds refreshed unless it stacks, else a free one
-// pending; with none free nothing happens.
+// with no slot free nothing happens
 func (s *effectSystem) queue(slots []effectSlot, effect effectID, left time.Duration) {
 	if k := slotOf(slots, effect); k >= 0 && !(*s.defs)[effect].stacking {
 		slots[k].Left, slots[k].Dispelled = left, false
@@ -302,7 +273,6 @@ func (s *effectSystem) queue(slots []effectSlot, effect effectID, left time.Dura
 	}
 }
 
-// dispel ends effect on id at the next tick, its Then not cast.
 func (s *effectSystem) dispel(id uid.UID64, effect effectID) {
 	slots := s.slotsOf(id)
 	for k := range slots {
@@ -315,12 +285,10 @@ func (s *effectSystem) dispel(id uid.UID64, effect effectID) {
 	}
 }
 
-// has reports whether id is under effect.
 func (s *effectSystem) has(id uid.UID64, effect effectID) bool {
 	return has(s.slotsOf(id), effect)
 }
 
-// slotsOf are the slots id carries, its Active's or its Wide's; nil for one under nothing yet.
 func (s *effectSystem) slotsOf(id uid.UID64) []effectSlot {
 	if s.lookup.Seek(id) {
 		return s.lookupActive.At(s.lookup.Cursor()).Slots[:]
@@ -331,14 +299,12 @@ func (s *effectSystem) slotsOf(id uid.UID64) []effectSlot {
 	return nil
 }
 
-// tagWriter is what a grant's column can do.
 type tagWriter interface {
 	or(cursor *goke.Cursor, i int, bits uint64)
 	clear(cursor *goke.Cursor, i int, bits uint64)
 	attach(cb *goke.CmdBuf, id uid.UID64, bits uint64)
 }
 
-// valueAccess is what an alter's column can do.
 type valueAccess interface {
 	read(cursor *goke.Cursor, i int) any
 	write(cursor *goke.Cursor, i int, v any)

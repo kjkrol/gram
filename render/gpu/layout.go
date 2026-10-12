@@ -14,8 +14,8 @@ type Uniform struct {
 	Size int
 }
 
-// Layout lays uniforms out as WGSL lays a struct of them out in a uniform buffer: their fields'
-// source, where each begins and how many bytes they take in all.
+// Layout lays uniforms out as WGSL lays a struct of them out in a uniform buffer: Fields is their
+// WGSL, Size how many bytes they take in all.
 type Layout struct {
 	Fields  string
 	offsets map[string]int

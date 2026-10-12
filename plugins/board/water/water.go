@@ -28,11 +28,9 @@ const (
 
 // Config is how a relief drains: how much gathered water makes a brook, a stream and a river; the
 // rain on a cell at a level (nil: 1 a cell); how deep their beds lie; every how many cells from its
-// mouth a ford crosses a river (0: none), and the steepest a ford may lie on, rise over run; how
-// wide a course is by the square root of the water gathered in it, up to a cell; how far, up or
-// down, each cell's level is nudged for the draining alone, so courses wander instead of running
-// straight down an even slope; how many cells a course runs on out to sea, by the square root of
-// the water gathered in it.
+// mouth a ford crosses a river (0: none) and the steepest it may lie on, rise over run; how wide a
+// course is by the square root of its water, up to a cell; how far each cell's level is nudged for
+// the draining alone; how many cells a course runs on out to sea by the square root of its water.
 type Config struct {
 	BrookAt, StreamAt, RiverAt          float64
 	Rain                                func(level float64) float64
@@ -53,14 +51,14 @@ type Network struct {
 	Gathered map[cell.ID]float64
 
 	grid    grid.Grid
-	perRoot float64           // WidthPerRoot
-	mouths  map[cell.ID]mouth // the cells of the sea a course runs out into
+	perRoot float64 // WidthPerRoot
+	mouths  map[cell.ID]mouth
 
 	cw, ch       float64
 	width        int64
 	height       int64
 	wrapX, wrapY bool
-	beds         map[[2]int64]float64 // a course's bed at each lattice corner it touches
+	beds         map[[2]int64]float64 // by lattice corner
 }
 
 // ErrNotSquare is Drain's answer for a grid other than square: it has no corners to carve.
@@ -96,7 +94,7 @@ func Drain(grid grid.Grid, heights func(geom.Vec) float64, sea func(cell.ID) boo
 		level[c] = sum/4 + cfg.Meander*(nudge(c)-0.5)*calm
 	})
 
-	// Flood from the sea up, the lowest first: each cell drains to the one that reached it.
+	// from the sea up, the lowest first
 	filled := map[cell.ID]float64{}
 	var q queue
 	grid.EachCell(func(c cell.ID) {
@@ -121,7 +119,7 @@ func Drain(grid grid.Grid, heights func(geom.Vec) float64, sea func(cell.ID) boo
 		}
 	}
 
-	// The rain gathers downstream, the highest first.
+	// the highest first
 	rain := cfg.Rain
 	if rain == nil {
 		rain = func(float64) float64 { return 1 }
@@ -160,12 +158,9 @@ func Drain(grid grid.Grid, heights func(geom.Vec) float64, sea func(cell.ID) boo
 	return n, nil
 }
 
-// calmNear is how many cells from the sea a course starts to wander: nearer, the Meander eases off
-// and it runs straight for the sea instead of along the shore into another.
+// cells from the sea within which the Meander eases off, so a course runs straight for it
 const calmNear = 4
 
-// stepsFromSea is how many steps between neighbours each cell lies from the sea, 0 the sea's own.
-// wrapsOf is the axes g wraps along, by its shape; a grid of another make wraps along none.
 func wrapsOf(g grid.Grid) (x, y bool) {
 	sh, ok := grid.ShapeOf(g)
 	return ok && sh.WrapX, ok && sh.WrapY
@@ -193,8 +188,6 @@ func stepsFromSea(grid grid.Grid, sea func(cell.ID) bool) map[cell.ID]int {
 	return steps
 }
 
-// ford lays a ford on every river cell FordEvery cells up from the mouth where the river runs no
-// steeper than FordSlope, across the whole river there.
 func (n *Network) ford(cfg Config, level map[cell.ID]float64, sea func(cell.ID) bool) {
 	if cfg.FordEvery <= 0 {
 		return
@@ -228,16 +221,11 @@ func (n *Network) ford(cfg Config, level map[cell.ID]float64, sea func(cell.ID) 
 	}
 }
 
-// mouth is a cell of the sea a course runs out into: the course's last cell ashore, how many cells
-// out it lies and how many the mouth runs.
 type mouth struct {
 	from       cell.ID
 	out, reach int
 }
 
-// plume runs every course reaching the sea on out into it, on the way of its last step, over sea
-// no other mouth has taken: Plume by the square root of its water cells, each wider and more
-// faded than the last.
 func (n *Network) plume(g grid.Grid, cfg Config, sea func(cell.ID) bool) {
 	if cfg.Plume <= 0 {
 		return
@@ -287,9 +275,8 @@ func (n *Network) Fade(c cell.ID) float64 {
 	return float64(m.out) / float64(m.reach+1)
 }
 
-// Net is the courses as a network.Network over the grid drained, to lay on a board: a node on
-// every wet cell of the board kind kinds names for its course, as wide as Width and faded as Fade
-// say, each flowing down to where its water goes — the last cell ashore on to the sea.
+// Net is the courses as a network.Network, to lay on a board: a node on every wet cell of the
+// board kind kinds names for its course, each flowing down to where its water goes.
 func (n *Network) Net(kinds map[Course]string) *network.Network {
 	net := network.New(n.grid)
 	for c, k := range n.Courses {
@@ -305,9 +292,7 @@ func (n *Network) Net(kinds map[Course]string) *network.Network {
 	return net
 }
 
-// Width is how wide c's course runs, cell wide at most: WidthPerRoot by the square root of the
-// water gathered in it, so a brook is a thread and a river fills its cell.
-// Out at sea a course widens as it runs out, by more than a half again each cell.
+// Width is how wide c's course runs, a cell wide at most; out at sea it widens as it runs out.
 func (n *Network) Width(c cell.ID, cell float64) float64 {
 	if n.Courses[c] == Dry {
 		return 0
@@ -338,7 +323,6 @@ func (n *Network) Carved(heights func(geom.Vec) float64) func(geom.Vec) float64 
 	}
 }
 
-// key is the lattice corner (x, y), folded where the grid wraps.
 func (n *Network) key(x, y int64) [2]int64 {
 	if n.wrapX {
 		x = (x%n.width + n.width) % n.width
@@ -349,7 +333,7 @@ func (n *Network) key(x, y int64) [2]int64 {
 	return [2]int64{x, y}
 }
 
-// nudge is a fixed number in [0, 1) for c.
+// a hash of c in [0, 1)
 func nudge(c cell.ID) float64 {
 	h := uint64(c)*0x9E3779B97F4A7C15 + 0x632BE59BD9B4E019
 	h ^= h >> 31
@@ -358,11 +342,10 @@ func nudge(c cell.ID) float64 {
 	return float64(h>>11) / (1 << 53)
 }
 
-// corners are a cell's corners from its top-left, in relief.Relief's order.
+// from the top-left, in relief.Relief's order
 var corners = [4][2]int64{{0, 0}, {1, 0}, {0, 1}, {1, 1}}
 
-// flooded is a cell on the flood's queue, at the level it was filled to, seq keeping ties in the
-// order they came.
+// seq keeps ties in the order they came
 type flooded struct {
 	id  cell.ID
 	at  float64

@@ -17,8 +17,6 @@ import (
 	"github.com/kjkrol/gram/rule/effect"
 )
 
-// placeWorld is world + effects + board over a 7x7 grid of grass, with one effect, scorched, a
-// unit standing in the middle when asked, and the rules hook writes hooked on the board.
 type placeWorld struct {
 	w        *world.Plugin
 	ecs      *goke.ECS
@@ -95,7 +93,6 @@ func (pw *placeWorld) tick(n int) {
 	}
 }
 
-// under is the set of cells whose entity is under e.
 func (pw *placeWorld) under(e effect.Effect) map[cell.ID]bool {
 	out := map[cell.ID]bool{}
 	pw.brd.Board().EachCell(func(c cell.ID) {
@@ -106,7 +103,6 @@ func (pw *placeWorld) under(e effect.Effect) map[cell.ID]bool {
 	return out
 }
 
-// within is every cell n neighbours or fewer from the seed cells, by a walk of the grid's own.
 func within(grid grid.Grid, seed []cell.ID, n int) map[cell.ID]bool {
 	out := map[cell.ID]bool{}
 	edge := seed
@@ -147,8 +143,6 @@ func placeGrids() map[string]grid.Grid {
 	}
 }
 
-// Here acts on the cells under the unit, Around on those and the rings of neighbours round them —
-// each cell once, on square and hex grids alike.
 func TestAround_ReachesTheRingsRoundTheCellsUnderTheUnit(t *testing.T) {
 	for name, grid := range placeGrids() {
 		for _, rings := range []int{0, 1, 2} {
@@ -157,7 +151,7 @@ func TestAround_ReachesTheRingsRoundTheCellsUnderTheUnit(t *testing.T) {
 				if rings == 0 {
 					scorch = rule.Here(rule.Apply(pw.scorched))
 				}
-				return []rule.Rule{rule.Then[unit.Standing]("scorch", rule.All, scorch)}
+				return []rule.Rule{rule.Branch[unit.Standing]{Name: "scorch", Do: scorch}}
 			})
 			pw.tick(3)
 			var seed []cell.ID
@@ -169,11 +163,13 @@ func TestAround_ReachesTheRingsRoundTheCellsUnderTheUnit(t *testing.T) {
 	}
 }
 
-// A rule of a cell.Now fires for every cell of the board.
 func TestCell_FiresForEveryCell(t *testing.T) {
 	for name, grid := range placeGrids() {
 		pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
-			return []rule.Rule{rule.Then[cell.Now]("scorch all", rule.All, rule.Apply(pw.scorched))}
+			return []rule.Rule{rule.Branch[cell.Now]{
+				Name: "scorch all",
+				Do:   rule.Apply(pw.scorched),
+			}}
 		})
 		pw.tick(3)
 		if got := len(pw.under(pw.scorched)); got != grid.CellCount() {
@@ -182,12 +178,14 @@ func TestCell_FiresForEveryCell(t *testing.T) {
 	}
 }
 
-// Fire spreads over the ground from cell to cell: a burning cell sets the ring round it burning,
-// so it never runs ahead of the rings round where it began, and in the end it takes every cell.
 func TestCell_FireSpreadsFromCellToCell(t *testing.T) {
 	for name, grid := range placeGrids() {
 		pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
-			return []rule.Rule{rule.Then[cell.Now]("fire spreads", rule.Self(pw.scorched.Mark()), rule.Around(1, rule.Apply(pw.scorched)))}
+			return []rule.Rule{rule.Branch[cell.Now]{
+				Name: "fire spreads",
+				When: rule.Self(pw.scorched.Mark()),
+				Do:   rule.Around(1, rule.Apply(pw.scorched)),
+			}}
 		})
 		start, _ := pw.brd.CellEntity(pw.middle)
 		pw.casting = func(cb *goke.CmdBuf) { pw.fx.Cast(cb, start, pw.scorched) }
@@ -211,14 +209,15 @@ func TestCell_FireSpreadsFromCellToCell(t *testing.T) {
 	}
 }
 
-// A cell plays the roles of the kind the Layout lays it as, and a rule a role obeys fires for
-// those cells alone.
 func TestPlaces_ARuleOfARoleFiresForTheCellsPlayingIt(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 7, boardtest.CellSize)
 	a := grid.At(1, 1)
 	b := grid.At(5, 2)
 	pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
-		pw.w.Roles().Define("marked", rule.Then[cell.Now]("scorch the marked", rule.All, rule.Apply(pw.scorched)))
+		pw.w.Roles().Define("marked", rule.Branch[cell.Now]{
+			Name: "scorch the marked",
+			Do:   rule.Apply(pw.scorched),
+		})
 		marked := pw.w.Roles().Named("marked")
 		pw.brd.CellKinds().Define("marked", cell.Kind{Cost: 1, Allows: cell.Land}, marked)
 		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Kind: "marked", Cell: a}, {Kind: "marked", Cell: b}}})
@@ -230,14 +229,15 @@ func TestPlaces_ARuleOfARoleFiresForTheCellsPlayingIt(t *testing.T) {
 	}
 }
 
-// A Layout entry's Plays has that one cell play the role, beyond its kind's: another cell of the
-// same kind plays nothing.
 func TestPlaces_ARuleOfARoleFiresForTheOneCellTheEntryHasPlayIt(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 7, boardtest.CellSize)
 	a := grid.At(1, 1)
 	b := grid.At(5, 2)
 	pw := newPlaceWorld(t, grid, false, func(pw *placeWorld) []rule.Rule {
-		pw.w.Roles().Define("lake", rule.Then[cell.Now]("scorch the lake", rule.All, rule.Apply(pw.scorched)))
+		pw.w.Roles().Define("lake", rule.Branch[cell.Now]{
+			Name: "scorch the lake",
+			Do:   rule.Apply(pw.scorched),
+		})
 		lake := pw.w.Roles().Named("lake")
 		pw.brd.CellKinds().Define("water", cell.Kind{Cost: 1, Allows: cell.Water})
 		water := pw.brd.CellKinds().Named("water")
@@ -250,8 +250,6 @@ func TestPlaces_ARuleOfARoleFiresForTheOneCellTheEntryHasPlayIt(t *testing.T) {
 	}
 }
 
-// A unit's rule reaches the place under it by the role the cell plays: a plate under it is
-// pressed, nothing elsewhere.
 func TestStanding_ReachesThePlaceUnderTheUnitByItsRole(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 7, boardtest.CellSize)
 	middle := grid.At(3, 3)
@@ -260,7 +258,13 @@ func TestStanding_ReachesThePlaceUnderTheUnitByItsRole(t *testing.T) {
 		plate := pw.w.Roles().Named("plate")
 		pw.brd.CellKinds().Define("plate", cell.Kind{Cost: 1, Allows: cell.Land}, plate)
 		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Kind: "plate", Cell: middle}}})
-		return []rule.Rule{rule.Then[unit.Standing]("press", rule.All, rule.Here(rule.Playing(plate, rule.Apply(pw.scorched))))}
+		return []rule.Rule{rule.Branch[unit.Standing]{
+			Name: "press",
+			Do: rule.Here(rule.Branch[any]{
+				When: rule.Playing(plate),
+				Do:   rule.Apply(pw.scorched),
+			}),
+		}}
 	})
 	pw.tick(3)
 	if got := pw.under(pw.scorched); len(got) != 1 || !got[middle] {

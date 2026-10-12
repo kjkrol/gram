@@ -15,8 +15,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
-// The heights ride on the topography's entities, a run of them each — what a save carries — and
-// the runs follow the ground as it is shaped.
 func TestHeights_LiveOnTheTopographysEntities(t *testing.T) {
 	qw := topotest.NewQuasiWorld(t, false, func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
 		units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
@@ -37,7 +35,6 @@ func TestHeights_LiveOnTheTopographysEntities(t *testing.T) {
 	}
 }
 
-// runsOf lists the runs of heights the topography's entities carry.
 func runsOf(qw *topotest.QuasiWorld) []irelief.Heights {
 	var comp goke.Comp[irelief.Heights]
 	var q *goke.Query

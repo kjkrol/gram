@@ -44,8 +44,8 @@ const (
 
 	fuseLength  = 2 * time.Second
 	woundLasts  = 5 * time.Second
-	blastRadius = 2.5 * CellSize // a burst wounds within it
-	blastKills  = CellSize       // and takes whoever stands within this
+	blastRadius = 2.5 * CellSize
+	blastKills  = CellSize
 )
 
 //go:embed map.yaml
@@ -142,45 +142,33 @@ func (s *arena) defineEffects() {
 		effect.Lasts(woundLasts),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed /= 2 }),
 	})
-	s.world.Effects().Define(BangEf, effect.Spec{effect.Lasts(time.Second / TPS)})
-	s.world.Effects().Define(FuseEf, effect.Spec{
-		effect.Lasts(fuseLength),
-		effect.Then(s.world.Effects().Named(BangEf)),
-	})
+	s.world.Effects().Define(FuseEf, effect.Spec{effect.Lasts(fuseLength)})
 }
 
 func (s *arena) defineRules() {
-	s.world.Roles().Define(MortalRole)
-	s.world.Roles().Define(RoundRole,
-		rule.Then[collision.Meeting](
-			"shot",
-			rule.Other(s.world.Roles().Named(MortalRole)),
-			rule.ForOther(
-				rule.OneOf(
-					rule.Under(s.world.Effects().Named(WoundedEf), rule.Order(world.Despawn{})),
-					rule.Apply(s.world.Effects().Named(WoundedEf)),
-				),
-			),
-		))
-	s.world.Roles().Define(GrenadeRole,
-		rule.Then[bullet.Landing]("fuse", rule.All, rule.Apply(s.world.Effects().Named(FuseEf))),
-		rule.Then[bullet.Blast](
-			"blast",
-			rule.Other(s.world.Roles().Named(MortalRole)),
-			rule.ForOther(rule.OneOf(
-				rule.If(
-					func(b bullet.Blast) bool { return b.Distance < blastKills },
-					rule.Order(world.Despawn{}),
-				),
-				rule.Apply(s.world.Effects().Named(WoundedEf)),
-			),
-			),
-		),
-		rule.Then[bullet.Resting](
-			"bang",
-			rule.Self(s.world.Effects().Named(BangEf).Mark()),
-			rule.Order(bullet.Burst{Radius: blastRadius}),
-		))
+	roles := s.world.Roles()
+	wounded := s.world.Effects().Named(WoundedEf)
+	roles.Define(MortalRole)
+	mortal := roles.Named(MortalRole)
+	roles.Define(RoundRole, rule.Branch[collision.Meeting]{
+		Name: "shot",
+		When: collision.Met(mortal),
+		Do: rule.ForOther(rule.OneOf(
+			rule.Branch[any]{When: rule.Under(wounded), Do: rule.Order(world.Despawn{})},
+			rule.Apply(wounded),
+		)),
+	})
+	roles.Define(GrenadeRole, rule.Branch[bullet.Blast]{
+		Name: "blast",
+		When: bullet.Reaching(mortal),
+		Do: rule.ForOther(rule.OneOf(
+			rule.Branch[bullet.Blast]{
+				When: bullet.Within(blastKills),
+				Do:   rule.Order(world.Despawn{}),
+			},
+			rule.Apply(wounded),
+		)),
+	})
 }
 
 func (s *arena) defineCells() {
@@ -211,14 +199,18 @@ func (s *arena) defineKinds() {
 		V0:       UnitSpeed / 2,
 		TurnRate: 0.15,
 	}
-	// The ammo: a round flies ten cells a second over ten cells, spent as it lands; a grenade is
-	// thrown in an arc and lies where it comes down.
 	s.bullet.Shots().Define(RoundKind,
 		bullet.Body{Size: 4, Speed: 10 * CellSize, Range: 10 * CellSize},
 		rule.Plays(s.world.Roles().Named(RoundRole)))
+	fuse := rule.Plan(FusePlan, rule.Steps(
+		rule.Until[bullet.Flight](bullet.Flight.Lying),
+		rule.Apply(s.world.Effects().Named(FuseEf)),
+		rule.Wait(fuseLength),
+		rule.Order(bullet.Burst{Radius: blastRadius}),
+	))
 	s.bullet.Shots().Define(GrenadeKind,
 		bullet.Body{Size: 8, Speed: 5 * CellSize, Range: 9 * CellSize, Gravity: 240, Lands: true},
-		rule.Plays(s.world.Roles().Named(GrenadeRole)))
+		rule.Plays(s.world.Roles().Named(GrenadeRole)), fuse)
 	mortal := rule.Plays(s.world.Roles().Named(MortalRole))
 	units.Define(SoldierKind, unit.Mover{Domain: cell.Land}, profile, mortal,
 		comp.Const(world.Velocity{Dir: geom.NewVec(1, 0)}), comp.Const(world.Eye{Height: 16}))

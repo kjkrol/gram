@@ -12,9 +12,7 @@ import (
 
 // MoveTo is the command to send every Selected entity to Cell, or with Append to add Cell behind
 // the orders they already have; given by an entity for itself, it sends that entity alone. At is
-// the world point clicked: under BodySpacing where the group stands round, under CellSpacing where
-// one standing on Cell turns instead of going anywhere. Level is which of the cell's levels it is
-// sent to where a raised deck gives it two: the deck, or the ground under it.
+// the world point clicked, where the group stands round or the way one standing on Cell turns.
 type MoveTo struct {
 	Cell   cell.ID
 	At     geom.Vec
@@ -22,9 +20,8 @@ type MoveTo struct {
 	Level  Level
 }
 
-// Level is which of a cell's two levels — a raised deck and the ground under it — a goal lies on:
-// EitherLevel, whichever a route reaches first; OnGround, under the deck; OnDeck, on it. A cell
-// of one level takes any.
+// Level is which of a cell's two levels, a raised deck or the ground under it, a goal lies on. A
+// cell of one level takes any.
 type Level uint8
 
 const (
@@ -33,7 +30,7 @@ const (
 	OnDeck
 )
 
-// pickReach is how far under what a click picked, world units, a deck still counts as picked.
+// world units under the point picked within which a deck still counts as picked
 const pickReach = 1e-2
 
 // LookAt is the command to every Selected entity — or to the entity that gives it itself — to
@@ -42,23 +39,16 @@ type LookAt struct {
 	At geom.Vec
 }
 
-// The commands a unit gives itself among others (Order in a rule or a plan), carried out for
-// that unit alone; those that name whom they are about are told it as they are given (plugin.Aimed).
+// The commands a unit gives itself among others, carried out for that unit alone.
 type (
-	// StepAside has a unit standing step off the way of Of, beside, where the ground takes it and
-	// nobody stands — never into water or a hole, off a cliff or onto a step (yieldClimb) — and stay
-	// there; with nowhere to, it stands. On the move it steps aside a while, then goes on to its
-	// own goals.
+	// StepAside has a unit standing step off the way of Of where the ground takes it and nobody
+	// stands, and stay there; on the move it steps aside a while, then goes on to its own goals.
 	StepAside struct{ Of uid.UID64 }
-	// Detour has a unit on the move go round Of: it steps round them a while and, when they stand,
-	// notes their cell for its routes to go round and plans afresh; Touch and Blocked say it is
-	// cornered with no way round.
+	// Detour has a unit on the move go round Of and plan afresh once they stand.
 	Detour struct{ Of uid.UID64 }
-	// Pass has a unit on the move go on past Of, who makes way for it: under BodySpacing it steps
-	// round them a while, its route kept; under CellSpacing its step waits for the cell.
+	// Pass has a unit on the move go on past Of, who makes way for it.
 	Pass struct{ Of uid.UID64 }
-	// Hold keeps a unit on the move where it stands till the way ahead clears, stallAfter at most;
-	// then Touch and Blocked say it waited out.
+	// Hold keeps a unit on the move where it stands till the way ahead clears, a while at most.
 	Hold struct{}
 	// Settle has a unit on the move stand beside its goal, Beside on it.
 	Settle struct{ Beside uid.UID64 }
@@ -85,8 +75,8 @@ func (p *Pass) Aim(who uid.UID64) { p.Of = who }
 // Aim tells the command who stands on the goal.
 func (s *Settle) Aim(who uid.UID64) { s.Beside = who }
 
-// Routes shows the routes of the selected units drawn, or hides them: their goals are drawn always.
-// A look at the world, like the camera's turn: at once, in the pause too, not saved.
+// Routes is the command showing the routes of the selected units drawn, or hiding them; their
+// goals are drawn always.
 type Routes struct{}
 
 func (MoveTo) Command()    {}
@@ -111,35 +101,28 @@ var (
 	_ control.Command = Routes{}
 )
 
-// clickSlop is how far, in pixels, the cursor may move between a button going down and coming up
-// for the release to be a click and not a drag.
+// pixels the cursor may move between the button going down and up for a click, not a drag
 const clickSlop = 4
 
-// dragged reports whether the cursor moved further than clickSlop since the button went down.
 func dragged(c control.Context) bool {
 	return math.Hypot(c.Cursor.X-c.Start.X, c.Cursor.Y-c.Start.Y) > clickSlop
 }
 
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// Queues are where MoveTo, LookAt and Routes land — for the players plugin — and the
-// commands a unit gives itself among others: StepAside, Detour, Pass, Hold, Settle and Stop.
+// Queues are the queues of every command the plugin carries out, for the players plugin.
 func (p *Plugin) Queues() []control.CommandQueue {
 	return append([]control.CommandQueue{&p.moves, &p.looks, &p.routes}, p.given.all()...)
 }
 
-// DefaultBindings is a right click — the button up where it went down, within clickSlop — into a
-// MoveTo of the cell under the cursor on the level picked — a deck clicked, or the ground under it
-// seen past it, a deck's over the ground's where the camera picks nothing — Shift to append; a
-// right drag
-// into a LookAt of the point under the cursor at every move, so the selected units turn to look
-// where the cursor goes, and nothing on its release; and Shift+P into Routes.
+// DefaultBindings is a right click into a MoveTo of the cell and level under the cursor, Shift
+// appending, a right drag into a LookAt at every move, and Shift+P into Routes.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	brd := p.boardPlugin.Board()
 	to := func(appendIt bool) func(c control.Context) (MoveTo, bool) {
 		return func(c control.Context) (MoveTo, bool) {
 			if dragged(c) {
-				return MoveTo{}, false // the drag turned the units; nothing moves
+				return MoveTo{}, false
 			}
 			at, z, picked := c.Point(c.Cursor)
 			if !picked {

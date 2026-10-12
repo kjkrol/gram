@@ -26,9 +26,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// installCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type installCtx struct {
-	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
+	hosts   []plugin.Host
 	ecs     *goke.ECS
 	pending []func() []goke.System
 	tracked []any
@@ -55,11 +54,8 @@ func (c *installCtx) systems() []goke.System {
 	return systems
 }
 
-// family is the tag family the tests mark their shots by.
 type family struct{}
 
-// piece is one unit of a test: where it stands, how big it is, the way it faces and how fast it
-// walks, whether a player may select it and has, whose it is, and with heights its Z and Eye.
 type piece struct {
 	x, y, size float64
 	facing     geom.Vec
@@ -71,7 +67,6 @@ type piece struct {
 	eye        *world.Eye
 }
 
-// scene is what a rig is built with: a closed world of 400 by 400 unless said otherwise.
 type scene struct {
 	width, height uint32
 	edges         aabbworld.Edges
@@ -80,10 +75,8 @@ type scene struct {
 	pieces        []piece
 }
 
-// rig is a world of units with collision and bullet, ticked by hand: bullet before the world,
-// as a Stage's Update runs them.
 type rig struct {
-	rules  []rule.Rule // for start to deliver
+	rules  []rule.Rule
 	t      *testing.T
 	pieces []piece
 	w      *world.Plugin
@@ -94,7 +87,7 @@ type rig struct {
 	fx     *effect.Effects
 	ecs    *goke.ECS
 	units  kind.Of[piece]
-	ids    []uid.UID64 // by piece, once started
+	ids    []uid.UID64
 
 	q      *goke.Query
 	base   goke.Comp[world.Base]
@@ -167,13 +160,11 @@ func newRig(t *testing.T, sc scene) *rig {
 	return r
 }
 
-// obey keeps rules for start to hand to the hosts of their moments.
 func (r *rig) obey(rules ...rule.Rule) error {
 	r.rules = append(r.rules, rules...)
 	return nil
 }
 
-// start installs the plugins and sets the world up; the ammo and the rules are defined before.
 func (r *rig) start() {
 	t := r.t
 	t.Helper()
@@ -224,7 +215,6 @@ func (r *rig) tick(n int) {
 	}
 }
 
-// found is one entity as the rig reads it.
 type found struct {
 	id       uid.UID64
 	base     world.Base
@@ -235,7 +225,6 @@ type found struct {
 	owned    tag.Tags[owner.Family]
 }
 
-// read walks every entity, keeping those keep lets through.
 func (r *rig) read(keep func(f found) bool) []found {
 	var out []found
 	for r.q.All(); r.q.Next(); {
@@ -269,10 +258,8 @@ func (r *rig) read(keep func(f found) bool) []found {
 	return out
 }
 
-// shots are the entities in flight or landed.
 func (r *rig) shots() []found { return r.read(func(f found) bool { return f.flight != nil }) }
 
-// unit is the k-th piece as it stands.
 func (r *rig) unit(k int) found {
 	got := r.read(func(f found) bool { return f.id == r.ids[k] })
 	if len(got) != 1 {
@@ -281,7 +268,6 @@ func (r *rig) unit(k int) found {
 	return got[0]
 }
 
-// theShot is the one shot there is.
 func (r *rig) theShot() found {
 	shots := r.shots()
 	if len(shots) != 1 {
@@ -292,7 +278,7 @@ func (r *rig) theShot() found {
 
 var east = geom.NewVec(1, 0)
 
-// round is the tests' plain shot: 4 across, 600 a second — ten a step, five times its own cap.
+// round flies ten a step, five times its own cap.
 func round(r *rig, lands bool, tags ...tag.Tag[family]) bullet.Ammo {
 	r.arms.Define("round", bullet.Body{Size: 4, Speed: 600, Range: 320, Lands: lands}, comp.Tagged(tags...))
 	return r.arms.Named("round")
@@ -300,7 +286,6 @@ func round(r *rig, lands bool, tags ...tag.Tag[family]) bullet.Ammo {
 
 const allSides = collide.Left | collide.Right | collide.Top | collide.Bottom
 
-// wallField is one solid wall, its band from below up to top, open all round.
 type wallField struct {
 	box  geom.AABB
 	top  float64
@@ -319,8 +304,6 @@ func (f *wallField) Walls(world.Layers, collision.Band, geom.AABB,
 	func(collide.FieldWall) bool) {
 }
 
-// A Shoot an entity gives itself fires a shot at its muzzle, just outside its own box, the way it
-// faces — slantwise too; walking on into the shot it never meets it: the shot ignores its shooter.
 func TestShoot_AnEntityFiresFromItsMuzzleTheWayItFaces(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -352,9 +335,6 @@ func TestShoot_AnEntityFiresFromItsMuzzleTheWayItFaces(t *testing.T) {
 	}
 }
 
-// A shot flying ten a step strikes a box of ten on its path: the Meeting is the game's rule's,
-// the Landing says whom it struck — its ForOther acts on that one — and the shot lies just short
-// of the box.
 func TestShoot_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
 	r := newRig(t, scene{pieces: []piece{
 		{x: 100, y: 100, size: 20, facing: east},
@@ -366,10 +346,18 @@ func TestShoot_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
 	hit := r.fx.Named("hit")
 	r.fx.Define("told", effect.Spec{effect.Lasts(time.Minute)})
 	told := r.fx.Named("told")
-	if err := r.obey(rule.Then[collision.Meeting]("hit", rule.Between(roundTag, tag.Any), rule.ForOther(rule.Apply(hit)))); err != nil {
+	if err := r.obey(rule.Branch[collision.Meeting]{
+		Name: "hit",
+		When: rule.Self(roundTag),
+		Do:   rule.ForOther(rule.Apply(hit)),
+	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.obey(rule.Then[bullet.Landing]("told", rule.Self(roundTag), rule.If(func(l bullet.Landing) bool { return l.Struck }, rule.ForOther(rule.Apply(told))))); err != nil {
+	if err := r.obey(rule.Branch[bullet.Landing]{
+		Name: "told",
+		When: rule.All(rule.Self(roundTag), func(l bullet.Landing) bool { return l.Struck }),
+		Do:   rule.ForOther(rule.Apply(told)),
+	}); err != nil {
 		t.Fatal(err)
 	}
 	r.start()
@@ -389,7 +377,6 @@ func TestShoot_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
 	}
 }
 
-// A shot that does not Land is gone a step after it lands, the step its landing's effects took.
 func TestLanding_ASpentShotIsGoneAStepAfterItLands(t *testing.T) {
 	r := newRig(t, scene{pieces: []piece{
 		{x: 100, y: 100, size: 20, facing: east},
@@ -399,7 +386,11 @@ func TestLanding_ASpentShotIsGoneAStepAfterItLands(t *testing.T) {
 	ammo := round(r, false, roundTag)
 	r.fx.Define("scored", effect.Spec{effect.Lasts(time.Minute)})
 	scored := r.fx.Named("scored")
-	if err := r.obey(rule.Then[bullet.Landing]("scored", rule.Self(roundTag), rule.Apply(scored))); err != nil { // on the shot itself: harmless, it lies a step
+	if err := r.obey(rule.Branch[bullet.Landing]{
+		Name: "scored",
+		When: rule.Self(roundTag),
+		Do:   rule.Apply(scored),
+	}); err != nil {
 		t.Fatal(err)
 	}
 	r.start()
@@ -424,12 +415,11 @@ func TestLanding_ASpentShotIsGoneAStepAfterItLands(t *testing.T) {
 	}
 }
 
-// A target within the last stretch of the shot's range is struck: the last step, shorter than
-// the others, is swept like any.
 func TestShoot_ATargetInTheLastStretchOfTheRangeIsStruck(t *testing.T) {
 	r := newRig(t, scene{pieces: []piece{
 		{x: 100, y: 100, size: 20, facing: east},
-		{x: 219, y: 105, size: 10}, // the muzzle is at 123, the range of 95 ends at 218: the shot's last step, a half one, reaches it
+		// the muzzle is at 123, the range of 95 ends at 218: the last step, a half one, reaches it
+		{x: 219, y: 105, size: 10},
 	}})
 	r.arms.Define("short", bullet.Body{Size: 4, Speed: 600, Range: 95, Lands: true})
 	ammo := r.arms.Named("short")
@@ -442,7 +432,6 @@ func TestShoot_ATargetInTheLastStretchOfTheRangeIsStruck(t *testing.T) {
 	}
 }
 
-// A shot with nothing on its path flies its Range, lands a step later and, Landing, lies there.
 func TestFlight_TheRangeFlownLandsAStepLater(t *testing.T) {
 	r := newRig(t, scene{pieces: []piece{{x: 100, y: 100, size: 20, facing: east}}})
 	r.arms.Define("short", bullet.Body{Size: 4, Speed: 600, Range: 100, Lands: true})
@@ -468,8 +457,6 @@ func TestFlight_TheRangeFlownLandsAStepLater(t *testing.T) {
 	}
 }
 
-// A landed shot rests: told to Burst, every entity within the radius is a Blast for the rules,
-// the one beyond it not, and the shot is gone.
 func TestLanding_ALandedShotRestsAndBurstsOnThoseWithinItsRadius(t *testing.T) {
 	r := newRig(t, scene{pieces: []piece{
 		{x: 100, y: 100, size: 20, facing: east},
@@ -483,8 +470,16 @@ func TestLanding_ALandedShotRestsAndBurstsOnThoseWithinItsRadius(t *testing.T) {
 	r.fx.Define("hurt", effect.Spec{effect.Lasts(time.Minute)})
 	hurt := r.fx.Named("hurt")
 	if err := r.obey(
-		rule.Then[bullet.Resting]("burst", rule.Self(grenadeTag), rule.Order(bullet.Burst{Radius: 40})),
-		rule.Then[bullet.Blast]("blast", rule.Between(grenadeTag, tag.Any), rule.ForOther(rule.Apply(hurt))),
+		rule.Branch[bullet.Resting]{
+			Name: "burst",
+			When: rule.Self(grenadeTag),
+			Do:   rule.Order(bullet.Burst{Radius: 40}),
+		},
+		rule.Branch[bullet.Blast]{
+			Name: "blast",
+			When: rule.Self(grenadeTag),
+			Do:   rule.ForOther(rule.Apply(hurt)),
+		},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -501,8 +496,43 @@ func TestLanding_ALandedShotRestsAndBurstsOnThoseWithinItsRadius(t *testing.T) {
 	}
 }
 
-// A thrown shot in a world with heights rises from the shooter's eye and comes down where it was
-// aimed, within a step; a low wall on its way is flown over, a high one struck.
+func TestPlan_AFuseWaitsOnTheShotLyingAndBursts(t *testing.T) {
+	r := newRig(t, scene{pieces: []piece{
+		{x: 100, y: 100, size: 20, facing: east},
+		{x: 216, y: 135, size: 10}, // 30 beside where the grenade comes down
+	}})
+	grenadeTag := r.w.Kinds().DefineTag[family]("grenade")
+	fuse := rule.Plan("fuse", rule.Steps(
+		rule.Until[bullet.Flight](bullet.Flight.Lying),
+		rule.Wait(time.Second),
+		rule.Order(bullet.Burst{Radius: 40}),
+	))
+	r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 96, Lands: true},
+		comp.Tagged(grenadeTag), fuse)
+	grenade := r.arms.Named("grenade")
+	r.fx.Define("hurt", effect.Spec{effect.Lasts(time.Minute)})
+	hurt := r.fx.Named("hurt")
+	if err := r.obey(rule.Branch[bullet.Blast]{
+		Name: "blast",
+		When: rule.Self(grenadeTag),
+		Do:   rule.ForOther(rule.Apply(hurt)),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	r.start()
+	r.w.Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: grenade})
+	r.tick(60) // the shot lands within the second, the fuse lit as it does
+	if r.unit(1).marks.Has(hurt.Mark()) || len(r.shots()) != 1 {
+		t.Fatalf("a second in, hurt %v with %d shots; want the grenade lying, its fuse burning",
+			r.unit(1).marks.Has(hurt.Mark()), len(r.shots()))
+	}
+	r.tick(62) // the fuse's second, and the burst's steps
+	if !r.unit(1).marks.Has(hurt.Mark()) || len(r.shots()) != 0 {
+		t.Errorf("two seconds in, hurt %v with %d shots; want the grenade burst and gone",
+			r.unit(1).marks.Has(hurt.Mark()), len(r.shots()))
+	}
+}
+
 func TestFlight_AThrownShotArcsAndComesDownWhereAimed(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -548,15 +578,16 @@ func TestFlight_AThrownShotArcsAndComesDownWhereAimed(t *testing.T) {
 	}
 }
 
-// A shot flying out by an open edge lands Left and is Outside, the world's leaving rules told;
-// at a closed edge it stops and lands there.
 func TestFlight_AnOpenEdgeIsLeftAClosedOneStopsTheShot(t *testing.T) {
 	t.Run("open", func(t *testing.T) {
 		r := newRig(t, scene{edges: aabbworld.OpenX, pieces: []piece{{x: 300, y: 100, size: 20, facing: east}}})
 		ammo := round(r, true)
 		r.fx.Define("gone", effect.Spec{effect.Lasts(time.Minute)})
 		gone := r.fx.Named("gone")
-		if err := r.obey(rule.Then[world.Leaving]("leaving", rule.All, rule.Apply(gone))); err != nil {
+		if err := r.obey(rule.Branch[world.Leaving]{
+			Name: "leaving",
+			Do:   rule.Apply(gone),
+		}); err != nil {
 			t.Fatal(err)
 		}
 		r.start()
@@ -580,8 +611,6 @@ func TestFlight_AnOpenEdgeIsLeftAClosedOneStopsTheShot(t *testing.T) {
 	})
 }
 
-// A player's Shoot fires from the units it has selected and owns alone — not another's, not
-// one it has not selected, not nobody's — each shot carrying its shooter's owners.
 func TestShoot_APlayerFiresFromItsSelectedUnitsAlone(t *testing.T) {
 	r := newRig(t, scene{pieces: []piece{
 		{x: 50, y: 50, size: 20, facing: east, selectable: true, selected: true, owner: 1},
@@ -601,8 +630,6 @@ func TestShoot_APlayerFiresFromItsSelectedUnitsAlone(t *testing.T) {
 	}
 }
 
-// A Shoot aimed at someone — the subject of the moment a rule orders it on — goes at that one,
-// whichever way the shooter faces.
 func TestShoot_AimedGoesAtTheSubject(t *testing.T) {
 	r := newRig(t, scene{pieces: []piece{
 		{x: 100, y: 100, size: 20, facing: east},
@@ -619,7 +646,6 @@ func TestShoot_AimedGoesAtTheSubject(t *testing.T) {
 	}
 }
 
-// A wrapping world is refused at Install.
 func TestInstall_AWrappingWorldIsRefused(t *testing.T) {
 	r := newRig(t, scene{edges: aabbworld.Torus})
 	if err := r.b.Install(&installCtx{ecs: goke.New()}); err == nil {
@@ -627,7 +653,6 @@ func TestInstall_AWrappingWorldIsRefused(t *testing.T) {
 	}
 }
 
-// eachOnce drops repeated tokens, as the engine does.
 func eachOnce(tokens []goke.CompToken) []goke.CompToken {
 	listed := map[string]bool{}
 	var once []goke.CompToken
@@ -640,7 +665,6 @@ func eachOnce(tokens []goke.CompToken) []goke.CompToken {
 	return once
 }
 
-// A shot in flight is saved with its Body and Flight and flies on after a load.
 func TestSaveLoad_AFlightGoesOnAfterALoad(t *testing.T) {
 	sc := scene{pieces: []piece{{x: 100, y: 100, size: 20, facing: east}}}
 	r := newRig(t, sc)
@@ -698,9 +722,6 @@ func TestSaveLoad_AFlightGoesOnAfterALoad(t *testing.T) {
 	}
 }
 
-// Hosts keeps the hosts of the rules of the moments a plugin catches.
 func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
-// does with the roles played once a Stage's Init returns.
 func (c *installCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

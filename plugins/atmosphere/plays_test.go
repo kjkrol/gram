@@ -15,7 +15,6 @@ import (
 	"github.com/kjkrol/gram/rule/effect"
 )
 
-// oneStage is a game of one Stage.
 type oneStage struct{ stage game.Stage }
 
 func (g oneStage) Props() game.Props { return game.Props{} }
@@ -23,9 +22,6 @@ func (g oneStage) Stages() (map[string]game.Stage, string) {
 	return map[string]game.Stage{g.stage.Name(): g.stage}, g.stage.Name()
 }
 
-// The atmosphere is an entity of its own: a rule of the weather fires while the atmosphere plays
-// its role, about that entity, so the effect it applies is a state of the atmosphere, not of the
-// world; a role it does not play is silent.
 func TestPlays_ARuleOfTheWeatherFiresForTheAtmospheresOwnEntity(t *testing.T) {
 	for _, plays := range []bool{true, false} {
 		var w *world.Plugin
@@ -42,7 +38,7 @@ func TestPlays_ARuleOfTheWeatherFiresForTheAtmospheresOwnEntity(t *testing.T) {
 			}).
 			Rules(func() {
 				w.Roles().Define("weatherwise",
-					rule.Then[climate.Weathering]("note the weather", rule.All, rule.Keep(noted)))
+					rule.Branch[climate.Weathering]{Name: "note the weather", Do: rule.Keep(noted)})
 				weatherwise := w.Roles().Named("weatherwise")
 				if plays {
 					a.Plays(weatherwise)

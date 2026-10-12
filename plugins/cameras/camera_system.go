@@ -13,17 +13,13 @@ import (
 
 var _ goke.System = (*cameraSystem)(nil)
 
-// cameraSystem carries out Pan, Zoom, Follow, LookAt and MouseLook on the cameras they name — a Pan lets
-// go of whatever the camera was fastened to, a Zoom keeps it — and every tick keeps each camera
-// fastened Centred over its entity, letting go of one that is gone. Cameras fastened Behind or
-// Inside are the view plugin's.
 type cameraSystem struct {
 	p *Plugin
 
 	query    *goke.Query
 	base     goke.Comp[world.Base]
 	z        goke.OptComp[world.Z]
-	labelled *goke.Query // every entity called something: whom a camera starts fastened to
+	labelled *goke.Query
 	label    goke.Comp[entity.Label]
 }
 
@@ -87,8 +83,6 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 	s.keep()
 }
 
-// start fastens Centred every camera waiting for the entity its config names, once it is in the
-// world.
 func (s *cameraSystem) start() {
 	if len(s.p.starts) == 0 {
 		return
@@ -104,7 +98,6 @@ func (s *cameraSystem) start() {
 	s.p.starts = waiting
 }
 
-// called is the entity whom names, when one is in the world.
 func (s *cameraSystem) called(whom entity.Whom) (uid.UID64, bool) {
 	for s.labelled.All(); s.labelled.Next(); {
 		cur := s.labelled.Cursor()
@@ -117,15 +110,12 @@ func (s *cameraSystem) called(whom entity.Whom) (uid.UID64, bool) {
 	return 0, false
 }
 
-// fasten fastens cam Centred over id, when id is in the world.
 func (s *cameraSystem) fasten(cam camera.Fastenable, id uid.UID64) {
 	if s.query.Seek(id) {
 		cam.Fasten(camera.Fastening{Entity: id, How: camera.Centred})
 	}
 }
 
-// keep centres every camera fastened Centred on its entity, at its altitude; a camera fastened
-// to an entity that is gone is let go.
 func (s *cameraSystem) keep() {
 	for _, c := range s.p.cameras {
 		cam, ok := c.(camera.Fastenable)
@@ -144,7 +134,6 @@ func (s *cameraSystem) keep() {
 	}
 }
 
-// centre centres cam on the entity under the query's cursor, at its altitude.
 func (s *cameraSystem) centre(cam camera.Camera) {
 	cur := s.query.Cursor()
 	box := s.base.At(cur).Pos.AABB

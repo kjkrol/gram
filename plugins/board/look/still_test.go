@@ -17,9 +17,6 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// A flat board under the simple map, seen from above, is composed once and drawn by the GPU as the
-// tiles composed every frame are — kinds, ways and all, zoomed in and moved — composed anew when a
-// cell changes, and drawn on across a wrapping world's seam.
 func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 	needGPU(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
@@ -72,7 +69,7 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 	c := grid.At(6, 6)
 	brd.Set(c, water)
 	check("after a cell changed")
-	// a wrapping world, over the seam: the world's first columns drawn on past its last
+	// over a wrapping world's seam
 	space.Edges = aabbworld.Torus
 	once = look.NewRenderer(brd, atlas, brd.Map(), space)
 	cam = icamera.NewFromSpace(space.Width, space.Height, aabbworld.Torus)
@@ -89,8 +86,6 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 	}
 }
 
-// Over a board composed once the GPU draws the grid as the tiles composed every frame show it: a
-// square grid's outlined tiles alike, a hex grid's edges within their smoothing.
 func TestRenderer_DrawsTheGridOverABoardComposedOnce(t *testing.T) {
 	needGPU(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
@@ -136,7 +131,6 @@ func TestRenderer_DrawsTheGridOverABoardComposedOnce(t *testing.T) {
 	}
 }
 
-// needGPU readies a device without a window; a machine without one skips.
 func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {

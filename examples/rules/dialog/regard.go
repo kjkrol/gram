@@ -2,17 +2,14 @@ package main
 
 import "github.com/kjkrol/uid"
 
-// Regard is what a host makes of those it talked with — this game's own model of what a
-// conversation changes: how much it likes each, from -100 to 100, eight at most; full, it forgets
-// the one it feels least about. A component: its fields of a fixed length.
+// Regard is what a host makes of those it talked with: how much it likes each, from -100 to
+// 100, eight at most. Full, it forgets the one it feels least about.
 type Regard struct {
 	Of    [8]uid.UID64
 	Likes [8]int8
-	Used  [8]bool // the slot remembers somebody: entity 0 is an entity
+	Used  [8]bool // entity 0 is an entity: no zero for nobody
 }
 
-// Where this game's words for a host's regard begin: Friend from friendFrom up, Enemy from
-// enemyFrom down.
 const (
 	friendFrom = 30
 	enemyFrom  = -30
@@ -49,7 +46,6 @@ func (r *Regard) Stance(who uid.UID64) string {
 	return "Neutral"
 }
 
-// slot is where the host remembers who; -1 for nowhere.
 func (r *Regard) slot(who uid.UID64) int {
 	for i := range r.Of {
 		if r.Used[i] && r.Of[i] == who {
@@ -59,8 +55,6 @@ func (r *Regard) slot(who uid.UID64) int {
 	return -1
 }
 
-// keep is the slot remembering who, taken now if it was not: a free one, else the one of the
-// mildest liking.
 func (r *Regard) keep(who uid.UID64) int {
 	if i := r.slot(who); i >= 0 {
 		return i

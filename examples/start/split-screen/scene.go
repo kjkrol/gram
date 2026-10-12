@@ -34,9 +34,9 @@ func (m *mainScene) screen() *ui.Element {
 	minimap := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Whole: true}), picture)
 	return ui.Layers(
 		ui.Columns(
-			ui.Share(1, ui.Image(red).Input(s.players.Through(s.redPlayer))),   // the left half
-			ui.Fixed(2, ui.Blank().Fill(dividerColor)),                         // the line between
-			ui.Share(1, ui.Image(blue).Input(s.players.Through(s.bluePlayer))), // the right half
+			ui.Share(1, ui.Image(red).Input(s.players.Through(s.redPlayer))),
+			ui.Fixed(2, ui.Blank().Fill(dividerColor)),
+			ui.Share(1, ui.Image(blue).Input(s.players.Through(s.bluePlayer))),
 		),
 		ui.BottomMiddle(ui.Image(minimap).Border(dividerColor, 2)).
 			Fraction(MinimapShare, 0).

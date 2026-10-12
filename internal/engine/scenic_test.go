@@ -13,7 +13,6 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// plainScene is a scene of a name and nothing else.
 type plainScene struct{ name string }
 
 func (s plainScene) Name() string                                                    { return s.name }
@@ -21,13 +20,10 @@ func (plainScene) Layers() []render.Layer                                       
 func (plainScene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
 func (plainScene) Focusable() bool                                                   { return true }
 
-// scenicPlugin is a plugin with a scene of its own.
 type scenicPlugin struct{ stubPlugin }
 
 func (scenicPlugin) Scenes() []game.Scene { return []game.Scene{plainScene{"plugin.list"}} }
 
-// A plugin's own scenes are in the stack of a Stage defined in sections, after the game's and
-// hidden until something shows them: the game adds nothing for them.
 func TestStage_HasTheScenesOfItsPlugins(t *testing.T) {
 	st := stage.New("meadow").
 		Plugins(func(made *plugin.Made) { made.Add(&scenicPlugin{stubPlugin{name: "test.scenic"}}) }).

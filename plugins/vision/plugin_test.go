@@ -37,7 +37,6 @@ func TestPlugin_Contract(t *testing.T) {
 	}
 }
 
-// A style set before Use has to survive into the renderer WithRenderer builds.
 func TestPlugin_WithStyleReachesTheRenderer(t *testing.T) {
 	used := false
 	style := vision.ConeStyleFn(func(*render.Frame, []vision.ConePoint) { used = true })

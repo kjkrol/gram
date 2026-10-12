@@ -15,7 +15,6 @@ var (
 	west = geom.NewVec(-1, 0)
 )
 
-// A leap rises as high as the Body says, in the air all the way, and lands once, softly.
 func TestFall_ALeapRisesToItsHeightAndLandsOnce(t *testing.T) {
 	r := newRig(t, scene{leap: 3, bodies: []body{{x: 15, y: 15}}, rules: []rule.Rule{landing()}})
 	r.tick()
@@ -40,8 +39,6 @@ func TestFall_ALeapRisesToItsHeightAndLandsOnce(t *testing.T) {
 	}
 }
 
-// One walking off a deck's side falls to the ground under it and lands hard; one walking along it
-// stays on it.
 func TestFall_OffADecksSideItFallsAndLands(t *testing.T) {
 	deck := &land{from: 10, to: 30, top: 10, thick: 1}
 	r := newRig(t, scene{land: deck, bodies: []body{
@@ -69,7 +66,6 @@ func TestFall_OffADecksSideItFallsAndLands(t *testing.T) {
 	}
 }
 
-// Walking down a slope keeps a body on the ground, never in the air.
 func TestFall_DownASlopeItNeverLeavesTheGround(t *testing.T) {
 	slope := &land{ground: func(p geom.Vec) float64 { return 20 - p.X/2 }}
 	r := newRig(t, scene{land: slope, bodies: []body{{x: 5, y: 15, alt: 17.5, facing: east}},
@@ -93,7 +89,6 @@ func TestFall_DownASlopeItNeverLeavesTheGround(t *testing.T) {
 	}
 }
 
-// A leap under a deck strikes its slab with the head and comes down.
 func TestFall_AHeadStrikesTheSlabOverIt(t *testing.T) {
 	low := &land{from: 10, to: 30, top: 5, thick: 1}
 	r := newRig(t, scene{land: low, leap: 3, bodies: []body{{x: 15, y: 15}}})
@@ -112,7 +107,6 @@ func TestFall_AHeadStrikesTheSlabOverIt(t *testing.T) {
 	}
 }
 
-// However fast or slow the world goes, one Leap is one leap to its height.
 func TestFall_OneLeapIsOneLeapAtAnyTempo(t *testing.T) {
 	for _, c := range []struct {
 		name  string
@@ -142,7 +136,6 @@ func TestFall_OneLeapIsOneLeapAtAnyTempo(t *testing.T) {
 	}
 }
 
-// Thrown away from another, a body flies off from it and stops where it lands.
 func TestFall_AwayThrowsItOffFromAnother(t *testing.T) {
 	r := newRig(t, scene{bodies: []body{{x: 15, y: 15}, {x: 25, y: 15}}})
 	r.tick()
@@ -164,7 +157,6 @@ func TestFall_AwayThrowsItOffFromAnother(t *testing.T) {
 	}
 }
 
-// A railing stops a walker; one leaping higher than it clears it, one leaping lower does not.
 func TestFall_ALeapClearsARailingOnlyHigherThanIt(t *testing.T) {
 	for _, c := range []struct {
 		leap  float64
@@ -187,11 +179,13 @@ func TestFall_ALeapClearsARailingOnlyHigherThanIt(t *testing.T) {
 	}
 }
 
-// Over the water in the air a walker has not fallen in.
 func TestFall_InTheAirOverWaterItHasNotFallenIn(t *testing.T) {
 	r := newRig(t, scene{leap: 8, water: true, bodies: []body{{x: 14, y: 15, facing: east}},
-		rules: []rule.Rule{rule.Then[unit.Standing]("drown", rule.All,
-			rule.If(unit.Standing.Fallen, rule.Order(landed{Hard: true})))}})
+		rules: []rule.Rule{rule.Branch[unit.Standing]{
+			Name: "drown",
+			When: unit.Standing.Fallen,
+			Do:   rule.Order(landed{Hard: true}),
+		}}})
 	r.walk(0, 5)
 	for r.of(0).at.X < 19 {
 		r.tick()

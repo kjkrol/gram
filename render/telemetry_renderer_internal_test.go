@@ -6,7 +6,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 )
 
-// lines is a Reporter of fixed lines.
 type lines [][2]string
 
 func (lines) Init(*goke.SysInit) {}

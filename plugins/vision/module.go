@@ -12,11 +12,10 @@ import (
 
 var _ goke.Module = (*module)(nil)
 
-// module registers ScanSystem as vision's single per-tick system.
 type module struct {
 	sys      *ScanSystem
 	runnable goke.Runnable
-	clock    *clock.Clock // the world's; nil, run at once
+	clock    *clock.Clock
 }
 
 func newModule(space *aabbworld.Space, host *plugin.PairRules[Sighting], heights *heights, coverOf func() ground.Cover, workers int) *module {
@@ -32,19 +31,12 @@ func newModule(space *aabbworld.Space, host *plugin.PairRules[Sighting], heights
 	return m
 }
 
-// heights is what the scan needs of a world with heights: where to find its Ground, and the step the
-// game asked for (0: the Ground's own).
 type heights struct {
 	groundOf func() ground.Heights
 	step     float64
-	bend     float64 // how far the ground d off sinks under an eye's level, per d² (world.Scale.Bend)
+	bend     float64 // per d², world.Scale.Bend
 }
 
-// =================================================================
-// goke.Module contract
-// =================================================================
-
-// RegSystems registers the scan as the per-tick system — see [goke.Module].
 func (m *module) RegSystems(ecs *goke.ECS) {
 	if m.runnable != nil {
 		return
@@ -52,7 +44,6 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	m.runnable = ecs.RegSys(m.sys)
 }
 
-// RunPlan hands the scan to the simulation: every step, every observer due looks.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
 		ctx.Run(m.runnable, step)
@@ -60,10 +51,8 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	})
 }
 
-// SetupSystems is empty — vision has no one-time seeding of its own.
 func (m *module) SetupSystems() []goke.System { return nil }
 
-// LoadComps lists the component types vision owns — see [goke.CompProvider].
 func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{
 		goke.LoadComp[Sight](),

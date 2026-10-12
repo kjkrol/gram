@@ -13,33 +13,27 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// states is the tag family the marker benchmarks flag with; marked the bit.
 type states struct{}
 
 const marked tag.Tag[states] = 0
 
-// marker is a structural marker with a value, as navigation's CellEntered was; bare one without,
-// as effects' Idle was.
 type (
 	marker struct{ Cell uint32 }
 	bare   struct{}
 )
 
-// markerWorld is n entities of a collider's row — Base, Appearance, Collider, Physics and the
-// family's Tags — and its query over all of them.
 type markerWorld struct {
 	ecs   *goke.ECS
 	all   *goke.Query
 	base  goke.Comp[world.Base]
 	tags  goke.Comp[tag.Tags[states]]
 	mark  goke.Comp[marker]
-	byTag *goke.Query // the entities carrying marker, by the archetype
+	byTag *goke.Query
 	held  goke.Comp[marker]
 	ids   []goke.CompID
 	pick  []bool // the entities marked, in the order walked
 }
 
-// picking has every-th entity of w marked.
 func (w *markerWorld) picking(n, every int) {
 	w.pick = make([]bool, n)
 	for k := range w.pick {
@@ -65,10 +59,8 @@ func newMarkerWorld(b *testing.B, n int) *markerWorld {
 	return w
 }
 
-// toggler is how a share of the entities gets the marker on one tick and loses it the next.
 type toggler func(w *markerWorld, cb *goke.CmdBuf, on bool, every int)
 
-// one adds and removes a bare marker entity by entity: Idle, Active, Outside, the facts.
 func one(w *markerWorld, cb *goke.CmdBuf, on bool, _ int) {
 	k := 0
 	for w.all.All(); w.all.Next(); {
@@ -85,8 +77,6 @@ func one(w *markerWorld, cb *goke.CmdBuf, on bool, _ int) {
 	}
 }
 
-// batch adds a marker with a value chunk by chunk through a ValueEditor and removes it through an
-// Editor: navigation's CellEntered as it was.
 func batch(add *goke.ValueEditor, remove *goke.Editor) toggler {
 	return func(w *markerWorld, cb *goke.CmdBuf, on bool, every int) {
 		if on {
@@ -116,7 +106,6 @@ func batch(add *goke.ValueEditor, remove *goke.Editor) toggler {
 	}
 }
 
-// flag sets and clears a bit of the family's Tags: a value write, no migration.
 func flag(w *markerWorld, _ *goke.CmdBuf, on bool, _ int) {
 	k := 0
 	for w.all.All(); w.all.Next(); {
@@ -134,10 +123,9 @@ func flag(w *markerWorld, _ *goke.CmdBuf, on bool, _ int) {
 	}
 }
 
-// Benchmark_Marker_Toggle is a share of 10000 colliders marked on one tick and unmarked the next
-// — the op is the two ticks — three ways: a bare marker entity by entity (effects' Idle and Active
-// as they were, the facts), a marker with a value chunk by chunk (navigation's CellEntered as it
-// was), a bit of a tag family (a marker, comp.Marks).
+// Benchmark_Marker_Toggle is a share of 10000 colliders marked on one tick and unmarked the next,
+// the op the two ticks: a bare component one by one, a component with a value chunk by chunk, a
+// bit of a tag family.
 func Benchmark_Marker_Toggle(b *testing.B) {
 	const n = 10000
 	for _, share := range []int{1, 10, 100} {
@@ -179,9 +167,7 @@ func Benchmark_Marker_Toggle(b *testing.B) {
 	}
 }
 
-// Benchmark_Marker_Find counts the marked among 10000 colliders, a share of them marked: by the
-// archetype — a query over the marker, which visits the marked alone — or by the bit, visiting
-// every entity of the family's Tags.
+// Benchmark_Marker_Find counts the marked among 10000 colliders by the archetype or by the bit.
 func Benchmark_Marker_Find(b *testing.B) {
 	const n = 10000
 	for _, share := range []int{1, 10, 100} {
@@ -230,8 +216,7 @@ func Benchmark_Marker_Find(b *testing.B) {
 	}
 }
 
-// Benchmark_Marker_Tick is the two ticks of Benchmark_Marker_Toggle with nothing toggled: its
-// system walking every entity, the syncs — what the toggles' figures stand on.
+// Benchmark_Marker_Tick is the two ticks of Benchmark_Marker_Toggle with nothing toggled.
 func Benchmark_Marker_Tick(b *testing.B) {
 	w := newMarkerWorld(b, 10000)
 	w.picking(10000, 1)

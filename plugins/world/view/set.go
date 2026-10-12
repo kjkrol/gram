@@ -6,16 +6,14 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// EntitySet is a set of the world's entities by index — a View's answer to "who is in these
-// bounds", a gesture's answer to "who was picked". It knows nothing of generations: fill it only
-// with ids of entities alive at the time, from the Space or a query, never from a game's stale copy.
-// The zero value is empty and ready.
+// EntitySet is a set of the world's entities by index, the zero value empty and ready. It knows
+// nothing of generations: fill it only with ids of entities alive at the time.
 type EntitySet struct{ words []uint64 }
 
 // Clear empties the set, keeping its memory.
 func (s *EntitySet) Clear() { clear(s.words) }
 
-// Add puts id in the set, growing it as far as the index needs.
+// Add puts id in the set.
 func (s *EntitySet) Add(id uid.UID64) {
 	i := id.Index()
 	w := int(i >> 6)

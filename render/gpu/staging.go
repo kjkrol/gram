@@ -6,20 +6,17 @@ import (
 	"github.com/gogpu/wgpu"
 )
 
-// staging is a buffer the CPU writes a submission's gathered bytes into while it is mapped, for the
-// GPU to copy where they are read. gogpu's Queue.WriteBuffer waits for the GPU to finish all it was
-// given, so the bytes go this way instead: mapped anew once the GPU is done with them, in the
-// background, a buffer is reused only when it is ready.
+// gogpu's Queue.WriteBuffer waits for the GPU to finish all it was given: the gathered bytes go
+// through a mapped staging buffer instead
 type staging struct {
 	buf     *wgpu.Buffer
 	size    uint64
-	pending *wgpu.MapPending // being mapped; nil once mapped
+	pending *wgpu.MapPending // nil once mapped
 }
 
-// maxStaging is how many staging buffers may be in flight before a submission waits for one.
+// staging buffers in flight before a submission waits for one
 const maxStaging = 4
 
-// ready reports whether the buffer is mapped, taking a mapping that has come through.
 func (s *staging) ready() bool {
 	if s.pending == nil {
 		return true
@@ -33,8 +30,6 @@ func (s *staging) ready() bool {
 	return err == nil
 }
 
-// stage is a mapped staging buffer of size bytes at least: a ready one, a new one while fewer than
-// maxStaging are in flight, else the first to come through.
 func (d *device) stage(size uint64) (*staging, error) {
 	for {
 		for i, s := range d.stages {
@@ -44,7 +39,7 @@ func (d *device) stage(size uint64) (*staging, error) {
 			if s.size >= size {
 				return s, nil
 			}
-			s.buf.Release() // too small: made anew below in its place
+			s.buf.Release()
 			d.stages = append(d.stages[:i], d.stages[i+1:]...)
 			break
 		}
@@ -65,8 +60,6 @@ func (d *device) stage(size uint64) (*staging, error) {
 	}
 }
 
-// upload copies the gathered bytes to the buffers the draws read, on the GPU ahead of the draws:
-// the commands to submit before them; nil with nothing gathered.
 func (d *device) upload() (*wgpu.CommandBuffer, *staging, error) {
 	parts := []struct {
 		dst  *wgpu.Buffer
@@ -112,14 +105,13 @@ func (d *device) upload() (*wgpu.CommandBuffer, *staging, error) {
 	return cmds, s, nil
 }
 
-// writeGathered writes the gathered bytes straight to the buffers the draws read, through the
-// queue — which waits for the GPU to finish all it was given: where no staging buffer is to be had.
 func (d *device) writeGathered() error {
 	for _, w := range []struct {
 		buf  *wgpu.Buffer
 		data []byte
 	}{{d.vbuf, d.verts}, {d.ibuf, d.indices}, {d.dbuf, d.draws}, {d.ubuf, d.uniforms}} {
-		if len(w.data) > 0 { // a copy: gogpu may read it after the submission, the gathered slices are reused
+		// a copy: gogpu may read it after the submission, the gathered slices are reused
+		if len(w.data) > 0 {
 			if err := d.queue.WriteBuffer(w.buf, 0, append([]byte(nil), w.data...)); err != nil {
 				return fmt.Errorf("gpu: writing a buffer: %w", err)
 			}
@@ -128,8 +120,6 @@ func (d *device) writeGathered() error {
 	return nil
 }
 
-// remap maps the staging buffer s again, once the GPU has done with the submission that copied from
-// it.
 func (s *staging) remap() error {
 	p, err := s.buf.MapAsync(wgpu.MapModeWrite, 0, s.size)
 	if err != nil {

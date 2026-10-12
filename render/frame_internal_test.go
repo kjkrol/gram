@@ -7,7 +7,6 @@ import (
 	icamera "github.com/kjkrol/gram/internal/camera"
 )
 
-// pieces is every piece of f in order: its tier, depth and first vertex's place.
 func pieces(f *Frame) [][3]float32 {
 	var out [][3]float32
 	f.Each(func(tier Tier, depth float32, v []Vertex) {
@@ -16,8 +15,6 @@ func pieces(f *Frame) [][3]float32 {
 	return out
 }
 
-// Two frames branched off one and appended back hold what one frame drawing it all would, in the
-// same order, at the same places, with the shader's uniforms of both.
 func TestFrame_AppendTakesBackWhatABranchGatheredInOrder(t *testing.T) {
 	cam := icamera.NewFromSpace(100, 100, 0)
 	quad := func(x float32) Corners { return Corners{{x, 0}, {x + 1, 0}, {x, 1}, {x + 1, 1}} }

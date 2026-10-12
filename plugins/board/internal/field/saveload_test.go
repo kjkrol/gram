@@ -16,7 +16,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// fieldStage is a wall column on a board, saved or loaded.
 type fieldStage struct {
 	load bool // entered from the quicksave
 	grid grid.Grid
@@ -73,7 +72,6 @@ func (g *fieldStage) Stack() game.Scenes {
 	return g.stack
 }
 
-// solidCells counts the cells the board holds solid for a walker anywhere on it.
 func (g *fieldStage) solidCells() int {
 	n := 0
 	all := geom.NewAABBAt(geom.NewVec(0, 0), 6*boardtest.CellSize, 16*boardtest.CellSize)

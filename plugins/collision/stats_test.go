@@ -19,12 +19,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// slider is a collider's row: its left edge and how fast it moves along x.
 type slider struct{ x, speed float64 }
 
-// colliding runs a world with collision, set up by with, for ticks over two boxes 10 wide at x 100
-// and 105: two sensors standing, or, elastic, two boxes closing head-on at 5 each. It gives the
-// boxes' entities, left first.
 func colliding(t *testing.T, elastic bool, ticks int, with func(*collision.Plugin)) (left, right uid.UID64) {
 	t.Helper()
 	w := world.NewPlugin(world.Config{

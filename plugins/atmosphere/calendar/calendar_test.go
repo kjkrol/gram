@@ -8,8 +8,6 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 )
 
-// A calendar reads the clock at a fixed scale: a fresh game begins at Start in the middle of
-// Season, a DayRealTime of game time later it is the next day, and the year comes round.
 func TestCalendar_ReadsTheClockAtAFixedScale(t *testing.T) {
 	cfg := calendar.Config{DayRealTime: time.Minute, Season: calendar.Autumn}
 	c := calendar.New(clock.New(clock.Config{}), cfg)
@@ -33,8 +31,6 @@ func TestCalendar_ReadsTheClockAtAFixedScale(t *testing.T) {
 	}
 }
 
-// Start is the hour on the clock's face a fresh game begins at: half past eleven at night, or
-// midnight as 24 hours.
 func TestCalendar_BeginsAtTheStartsHour(t *testing.T) {
 	halfPast := calendar.Config{DayRealTime: time.Minute, Start: 23*time.Hour + 30*time.Minute}
 	late := calendar.New(clock.New(clock.Config{}), halfPast)
@@ -51,7 +47,6 @@ func TestCalendar_BeginsAtTheStartsHour(t *testing.T) {
 	}
 }
 
-// Daily and Yearly give clock.Every the period and the offset of its first coming.
 func TestCalendar_DailyAndYearlyEntries(t *testing.T) {
 	c := calendar.New(clock.New(clock.Config{}), calendar.Config{DayRealTime: time.Minute})
 	if period, offset := c.Daily(22.0 / 24); period != time.Minute || offset != 35*time.Second {

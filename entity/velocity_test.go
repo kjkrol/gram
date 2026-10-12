@@ -7,7 +7,6 @@ import (
 	"github.com/kjkrol/gram/entity"
 )
 
-// SetDelta faces the way of the rate; an entity backing away goes on backing, facing against it.
 func TestVelocity_SetDeltaKeepsABackingEntityBacking(t *testing.T) {
 	on := entity.Velocity{Dir: geom.NewVec(1, 0), Value: 2}
 	on.SetDelta(geom.NewVec(0, 3))

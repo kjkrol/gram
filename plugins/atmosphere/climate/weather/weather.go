@@ -1,7 +1,6 @@
-// Package weather is the kinds of weather a climate goes through: each State its wind, its clouds,
-// what falls, how warm it is against the season, how long it lasts, which may follow it and in
-// which seasons it comes. Default is clear skies, fair ones of a few big heaps, clouds, rain and
-// storms; a game gives plugins/atmosphere/climate its own.
+// Package weather is the kinds of weather a climate goes through, each a [State]. [Default] is
+// clear skies, fair ones, clouds, rain and storms; a game gives plugins/atmosphere/climate its
+// own.
 package weather
 
 import (
@@ -10,15 +9,11 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 )
 
-// State is one kind of weather: the wind blowing between Wind[0] and Wind[1] world units a second,
-// the Clouds covering between Clouds[0] and Clouds[1] of the sky, how heaped they are, between
-// Billow[0] and Billow[1] (0 torn shreds, 1 big billowing heaps) — each thrown as the weather
-// comes — what Falls — rain, snow when it is cold enough — 0 to 1 each, how
-// much warmer or colder than the season and the hour it is (Warmth, degrees), how long it Lasts,
-// at least and at most, which may follow it and how likely (Next, by name; none, any other alike),
-// and how often it comes in each season, by calendar.Season (Often; 0 never — all zero, alike in every
-// season). How wet each season is is the climate's; Often is what is the weather's own, as
-// thunderstorms in summer.
+// State is one kind of weather, its ranges thrown as it comes: Wind in world units a second,
+// Clouds the share of the sky covered, Billow 0 torn shreds to 1 big heaps, Falls 0 to 1, Warmth
+// degrees against the season and the hour, Lasts at least and at most. Next weighs which may
+// follow (none: any other alike) and Often how often it comes in each calendar.Season (all zero:
+// alike in every season).
 type State struct {
 	Name   string
 	Wind   [2]float32
@@ -31,7 +26,7 @@ type State struct {
 	Often  [4]float32
 }
 
-// The names of the Default weathers: what climate.Config.Start and climate.Set say.
+// The names of the Default weathers.
 const (
 	Clear  = "clear"
 	Fair   = "fair"
@@ -40,8 +35,7 @@ const (
 	Storm  = "storm"
 )
 
-// Default goes from a clear sky to a fair one, a few big heaps of cloud far apart, to clouds, to
-// rain — snow when it is cold enough — and now and then to a storm, most often in summer, and back.
+// Default goes from a clear sky through fair and cloudy to rain, now and then a storm, and back.
 var Default = []State{
 	{Name: Clear, Wind: [2]float32{4, 14}, Warmth: 1, Lasts: [2]time.Duration{45 * time.Second, 100 * time.Second},
 		Next: map[string]float32{Fair: 1}},

@@ -10,28 +10,25 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
 )
 
-// Sky is the light of the day over a world: the sun of the calendar's hour, or of a frozen one,
-// set into the world once a tick, as it goes or in steps. The frozen light is a look at the world, like the
-// camera's turn: it changes at once, in the tactical pause too, and is not saved.
+// Sky is the light of the day over a world: the sun of the calendar's hour, or of a frozen one.
+// A frozen light is a look at the world, changing in the tactical pause too and not saved.
 type Sky struct {
 	cfg      Config
 	calendar *calendar.Calendar
-	sun      Sun               // the light of the hour, as Update last set it
-	heavens  celestial.Heavens // the bodies of the sky at that hour
+	sun      Sun
+	heavens  celestial.Heavens
 
 	frozen   bool
-	moonless bool // no moonlight at night (SetMoon)
-	moon     Moon // the moon's light and face: the knob on the atmosphere's entity
+	moonless bool
+	moon     Moon
 	rises    plugin.StepRules[Moonrise]
-	hour     float32         // the frozen light's time of day
-	step     int             // the step whose light the world has; -1 before the first
-	at       calendar.Moment // going on: the moment whose light the world has
+	hour     float32 // the frozen light's part of the day, 0 to 1
+	step     int     // -1 before the first
+	at       calendar.Moment
 }
 
-// New is the sky of the day and the season cal's, as cfg says, the sun going as it goes latitude
-// degrees from the equator — north or south alike — high and with long summer days near the
-// equator, low and with short winter days towards the pole, all day or none at all past the polar
-// circle. Its light is the calendar's hour's from the start.
+// New is the sky over cal as cfg says, the sun's path at latitude degrees from the equator,
+// north or south alike.
 func New(cal *calendar.Calendar, cfg Config, latitude float64) *Sky {
 	cfg = cfg.withDefaults()
 	cfg.latitude = latitude
@@ -44,13 +41,12 @@ func New(cal *calendar.Calendar, cfg Config, latitude float64) *Sky {
 	return s
 }
 
-// Sun is the light of the day as it stands: the hour's, or the frozen one's.
+// Sun is the light of the day as it stands.
 func (s *Sky) Sun() Sun { return s.sun }
 
 // Heavens is where the sun, the moon and the stars stand at the hour of the light.
 func (s *Sky) Heavens() celestial.Heavens { return s.heavens }
 
-// light sets the light and the heavens to the moment m's.
 func (s *Sky) light(m calendar.Moment) {
 	if s.moonless {
 		s.sun = s.cfg.SunAt(m.OfYear(), m.Time)
@@ -61,7 +57,6 @@ func (s *Sky) light(m calendar.Moment) {
 	s.heavens.MoonTint = s.moon.Face
 }
 
-// relight sets the light anew as it stands now: something it is made of changed.
 func (s *Sky) relight() {
 	m := s.calendar.Now()
 	if s.frozen {
@@ -71,8 +66,7 @@ func (s *Sky) relight() {
 	s.light(m)
 }
 
-// SetMoon has the moon light the night once the sun is down, or not: the night lit by the sky
-// alone. The light turns at once.
+// SetMoon has the moon light the night, or not.
 func (s *Sky) SetMoon(on bool) {
 	if s.moonless != on {
 		return
@@ -84,7 +78,7 @@ func (s *Sky) SetMoon(on bool) {
 // Moon reports whether the moon lights the night.
 func (s *Sky) Moon() bool { return !s.moonless }
 
-// Frozen reports whether the light stands at Hour rather than going with the calendar.
+// Frozen reports whether the light stands rather than going with the calendar.
 func (s *Sky) Frozen() bool { return s.frozen }
 
 // Hour is the frozen light's time of day, 0 to 1.
@@ -113,18 +107,16 @@ func (s *Sky) Shift(by float32) {
 	}
 }
 
-// HalfHour is half an hour as a part of the day: what the atmosphere's Later and Earlier Shift a
-// frozen light by.
+// HalfHour is half an hour as a part of the day, for Shift.
 const HalfHour = float32(1) / 48
 
-// Update sets the light to the hour's, by the calendar's or the
-// frozen one: as it goes, or whenever it moves onto another step.
+// Update sets the light to the hour's, as it goes or whenever it moves onto another step.
 func (s *Sky) Update() {
 	m := s.calendar.Now()
 	if s.frozen {
 		m.Time = s.hour
 	}
-	if s.cfg.Steps <= 0 { // going on: the moment's light, whenever the moment has moved
+	if s.cfg.Steps <= 0 {
 		if m != s.at {
 			s.at = m
 			s.light(m)
@@ -140,12 +132,9 @@ func (s *Sky) Update() {
 	}
 }
 
-// System is the sky as a goke.System, run once a tick in the interface part of an atmosphere's
-// plan.
+// System is the sky as a goke.System, run once a tick.
 func (s *Sky) System() goke.System { return &system{s: s} }
 
-// system runs the sky's Update, with the Moon the atmosphere's entity carries read first: turned
-// by an effect, the light turns at once.
 type system struct {
 	s     *Sky
 	moons *goke.Query
@@ -165,7 +154,6 @@ func (y *system) Update(*goke.CmdBuf, time.Duration) {
 	y.s.Update()
 }
 
-// dayPart is the part of the day the hour on the clock's face at is, 0 to 1.
 func dayPart(at time.Duration) float32 {
 	f := float64(at) / float64(24*time.Hour)
 	return float32(f - math.Floor(f))

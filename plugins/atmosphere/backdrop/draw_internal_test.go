@@ -13,7 +13,6 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// needGPU readies a device without a window; a machine without one skips.
 func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
@@ -21,9 +20,6 @@ func needGPU(t *testing.T) {
 	}
 }
 
-// Drawn on the GPU through a perspective the sky is deeper at the top of the screen than at the
-// bottom and the sun's disc shows where it stands; seen from above past the world's edge the
-// screen is filled in the sky's colour.
 func TestBackdrop_DrawsTheSkyOnTheGPU(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})

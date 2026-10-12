@@ -15,7 +15,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// wallField is a Field of one solid cell, a wall standing in the band given, open all round.
 type wallField struct {
 	box  geom.AABB
 	band collision.Band
@@ -34,8 +33,6 @@ func (f *wallField) Walls(world.Layers, collision.Band, geom.AABB,
 	func(collide.FieldWall) bool) {
 }
 
-// A wall of a height stops only what stands in its band: a walker on the ground is held at its
-// face, a flyer over its top goes on; a wall of no height stands at every height.
 func TestZ_TheGroundStopsOnlyWhatStandsInItsBand(t *testing.T) {
 	wall := func(top float64) *wallField {
 		return &wallField{box: geom.NewAABBAt(geom.NewVec(200, 0), 32, 1000), band: collision.Band{Bottom: math.Inf(-1), Top: top}}
@@ -89,7 +86,6 @@ func TestZ_TheGroundStopsOnlyWhatStandsInItsBand(t *testing.T) {
 	}
 }
 
-// In a flat world a Z is never asked: two boxes one over the other meet as any two do.
 func TestZ_AFlatWorldIgnoresIt(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
@@ -100,7 +96,7 @@ func TestZ_AFlatWorldIgnoresIt(t *testing.T) {
 	var base goke.Comp[world.Base]
 	var coll goke.Comp[collision.Collider]
 	var zs goke.Comp[world.Z]
-	// the kinds refuse a Z in a flat world, so the two are made by hand, one over the other
+	// the kinds refuse a Z in a flat world, so the two are made by hand
 	ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		f := si.NewFactory(&base, &coll, &zs)
 		f.Create(2)

@@ -7,9 +7,9 @@ import (
 )
 
 // Sweep tests the path of a box of half sides half, its centre going from from to to, against
-// box: where along the path, 0 to 1, the two first touch, the way out of box through the face the
-// path enters by — the way the mover came — and whether they touch at all. A path starting
-// inside box touches at 0, the way out the shortest; one only grazing an edge does not touch.
+// box: where along the path (0 to 1) the two first touch, the way out through the face the path
+// enters by, and whether they touch at all. A path starting inside box touches at 0, the way out
+// the shortest; one only grazing an edge does not touch.
 func Sweep(from, to, half geom.Vec, box geom.AABB) (along float64, normal geom.Vec, ok bool) {
 	lo := geom.NewVec(box.TopLeft.X-half.X, box.TopLeft.Y-half.Y)
 	hi := geom.NewVec(box.BottomRight.X+half.X, box.BottomRight.Y+half.Y)
@@ -36,9 +36,6 @@ func Sweep(from, to, half geom.Vec, box geom.AABB) (along float64, normal geom.V
 	return entry, geom.NewVec(0, faceY), true
 }
 
-// slab is one axis of the test: where along the path it enters and leaves the stretch lo to hi,
-// and the way out through the face it enters by; false when a path still along the axis lies
-// outside the stretch.
 func slab(at, d, lo, hi float64) (entry, exit, face float64, ok bool) {
 	if d == 0 {
 		if at <= lo || at >= hi {
@@ -53,7 +50,6 @@ func slab(at, d, lo, hi float64) (entry, exit, face float64, ok bool) {
 	return t2, t1, 1, true
 }
 
-// wayOut is the shortest way out of the stretch lo to hi for a point at p inside it.
 func wayOut(p, lo, hi geom.Vec) geom.Vec {
 	ways := [4]struct {
 		depth float64
@@ -73,9 +69,8 @@ func wayOut(p, lo, hi geom.Vec) geom.Vec {
 	return ways[best].dir
 }
 
-// SweepWall is Sweep against a wall thick either side of the segment from a to b: the way out the
-// face the path enters by, and from a path starting inside the wall, across it to the side its
-// centre is on.
+// SweepWall is Sweep against a wall thick either side of the segment from a to b. From a path
+// starting inside the wall the way out is across it, to the side its centre is on.
 func SweepWall(from, to, half, a, b geom.Vec, thick float64) (along float64, normal geom.Vec,
 	ok bool) {
 	vx, vy := b.X-a.X, b.Y-a.Y

@@ -22,10 +22,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// navUnit is one unit of a navWorld: where its box stands, the cell it starts in and holds, its
-// steering profile (nil: not steered), its order (nil: none), whether it carries navigation's
-// markers from the start, and its owner (none: the virtual player's, an ally of every ownerless
-// unit — one standing makes way for it).
+// an ownerless unit is the virtual player's, an ally of every other ownerless unit
 type navUnit struct {
 	box     plane.AABB
 	at      cell.ID
@@ -35,8 +32,6 @@ type navUnit struct {
 	owner   control.PlayerID
 }
 
-// navWorld is a world, a board and navigation over a cols x rows grid of open land, units a cell
-// apart (CellSpacing), stepped as a game steps them: the world, the board, navigation.
 type navWorld struct {
 	grid      grid.Grid
 	board     *board.Board
@@ -47,15 +42,13 @@ type navWorld struct {
 	step      func(goke.RunCtx, time.Duration)
 }
 
-// newNavWorld builds the world and puts units on it, each holding its cell; after are set up last,
-// to build what a test reads. Lay the ground through board before the first tick.
+// after are set up last, to build what a test reads
 func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, after ...goke.System) *navWorld {
 	t.Helper()
 	return newNavWorldWith(t, cols, rows, cellSize, units, nil, after...)
 }
 
-// newNavWorldWith is newNavWorld with the world and the board handed to prepare before they are
-// installed: to lay the ground and stand entities on it.
+// prepare is handed the world and the board before they are installed
 func newNavWorldWith(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 	prepare func(*world.Plugin, *board.Plugin), after ...goke.System) *navWorld {
 	t.Helper()

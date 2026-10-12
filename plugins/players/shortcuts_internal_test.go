@@ -36,9 +36,6 @@ func TestWritten_SpellsATriggerAsAHelpScreenDoes(t *testing.T) {
 	}
 }
 
-// The shortcuts list every binding of the local players under the plugin that owns its command,
-// the cameras' under Cameras, the game's own scene keys first, under Game, and the players' own
-// and the engine's last, under General.
 func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
 	cams := cameras.NewPlugin(w)
@@ -75,14 +72,10 @@ func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	}
 }
 
-// partNow is the part of a Stage being defined, as a test says.
 type partNow section.Part
 
 func (p *partNow) Section() section.Part { return section.Part(*p) }
 
-// A binding bound in the Stage's Controls section is the game's own, listed first under Game
-// whatever plugin carries its command out; one bound with the plugins' keys, in Players, stays
-// under its plugin.
 func TestShortcuts_ListTheGamesOwnBindingsUnderGame(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
@@ -115,15 +108,13 @@ func TestShortcuts_ListTheGamesOwnBindingsUnderGame(t *testing.T) {
 	}
 }
 
-// The shortcuts list only what holds in the mode the local players' cameras are in: riding in an
-// entity, the free camera's WASD and edge scroll are gone and the title says so.
 func TestShortcuts_ListWhatHoldsInTheCamerasMode(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
 	cams := cameras.NewPlugin(w)
 	p := NewPlugin(w, cams)
 	cam := &ridingCam{Camera: cams.New(cameras.TopDown(), camera.Config{})}
 	pl := p.Local("one")
-	p.Through(pl).Over(geom.AABB{}, render.NewFeed(cam, nil)) // it acts through a picture drawn through cam
+	p.Through(pl).Over(geom.AABB{}, render.NewFeed(cam, nil))
 	if err := pl.Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +153,6 @@ func (r *ridingCam) Fastening() camera.Fastening {
 	return camera.Fastening{}
 }
 
-// The scene's keys run on their key with the modifiers they ask for, and not otherwise.
 func TestSceneKeys_HandleRunsTheKeyPressedWithItsModifiers(t *testing.T) {
 	ran := ""
 	keys := SceneKeys{
@@ -186,7 +176,6 @@ func TestSceneKeys_HandleRunsTheKeyPressedWithItsModifiers(t *testing.T) {
 	}
 }
 
-// engineStub is a game.Runtime that notes what it is asked.
 type engineStub struct {
 	game.Runtime
 	quit, paused bool
@@ -200,7 +189,6 @@ func (e *engineStub) Paused() bool { return e.paused }
 func (e *engineStub) Pause()       { e.paused = true }
 func (e *engineStub) Resume()      { e.paused = false }
 
-// shown is a game.Composition that notes what is shown.
 type shown struct {
 	game.Composition
 	names []string
@@ -208,7 +196,6 @@ type shown struct {
 
 func (c *shown) Show(name string) { c.names = append(c.names, name) }
 
-// engine takes the engine's commands in a test: they are its, not the players'.
 type engine struct {
 	saves control.Queue[game.Save]
 	loads control.Queue[game.Load]
@@ -221,9 +208,6 @@ func (e *engine) Queues() []control.CommandQueue {
 
 func (*engine) DefaultBindings() []control.Binding { return nil }
 
-// Handle turns a scene's input into commands: K shows the list of shortcuts at once, which needs
-// the Runtime; F5, F9 and Shift+Esc — Esc alone not — give the engine's Save, Load and Quit; a key
-// of the game's own runs.
 func TestHandle_TurnsTheGamesKeysIntoCommands(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
 	eng := &engine{}

@@ -21,7 +21,6 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// spawn materialises n entities from f.
 func spawn(f *goke.Factory, n int) {
 	f.Create(n)
 	for f.Next() {
@@ -84,11 +83,8 @@ func TestRenderer_FanRebuildsTheAnglesFromTheIndex(t *testing.T) {
 	}
 }
 
-// viewers is a tag family for the tests.
 type viewers struct{}
 
-// Composed, only the views of the observers carrying an outline are drawn; with a Show rule
-// for the ones tagged, only theirs.
 func TestRenderer_ComposesTheOutlinedViewsTheShowRulesShow(t *testing.T) {
 	every := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
 	tagged := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
@@ -227,7 +223,6 @@ func TestRenderer_HiddenComposesNothing(t *testing.T) {
 	}
 }
 
-// recordFans collects a copy of every ring the renderer hands to the style.
 func recordFans(r *Renderer) *[][]ConePoint {
 	var fans [][]ConePoint
 	r.WithStyle(ConeStyleFn(func(_ *render.Frame, pts []ConePoint) {
@@ -236,7 +231,6 @@ func recordFans(r *Renderer) *[][]ConePoint {
 	return &fans
 }
 
-// composeWith composes r through its camera into a fresh frame.
 func composeWith(r *Renderer) *render.Frame {
 	var f render.Frame
 	f.Reset(r.camera)
@@ -244,7 +238,6 @@ func composeWith(r *Renderer) *render.Frame {
 	return &f
 }
 
-// drawAt draws one entity with a full cone at (x, y) and returns every fan that reached the style.
 func drawAt(t *testing.T, r *Renderer, x, y float64, radius float64) [][]ConePoint {
 	t.Helper()
 	fans := recordFans(r)
@@ -322,7 +315,6 @@ func TestRenderer_DrawsOneCopyPerWorldImage(t *testing.T) {
 	}
 }
 
-// A wrapped copy is the same shape as the original, moved by exactly one world.
 func TestRenderer_WrappedCopyIsTheOriginalShifted(t *testing.T) {
 	r := testRenderer(t, 1000, 1000, true, wholeWorld(1000, 1000))
 	fans := drawAt(t, r, 990, 500, 200)
@@ -341,13 +333,11 @@ func TestRenderer_WrappedCopyIsTheOriginalShifted(t *testing.T) {
 	}
 }
 
-// slope is a Ground rising to the east, sampled every 10.
 type slope struct{}
 
 func (slope) At(p geom.Vec) float64 { return p.X / 10 }
 func (slope) Step() float64         { return 10 }
 
-// isoRenderer is a renderer over a 1000x1000 world of slope, through an isometric camera.
 func isoRenderer(t *testing.T) *Renderer {
 	t.Helper()
 	r := NewRenderer(testSpace(t, 1000, 1000, false)).WithGround(func() ground.Heights { return slope{} })
@@ -364,7 +354,8 @@ func TestRenderer_DrapesTheRingOverTheGroundInItsSteps(t *testing.T) {
 	o.Depths[0], o.Depths[1], o.Depths[2] = 45, 50, 25
 	ring := r.draped(100, 100, 7, 0.2, &sight, &o)
 
-	// the apex, the near edge every 10 short of 45, the three reaches, the far edge every 10 short of 25
+	// the apex, the near edge every 10 short of 45, the three reaches, the far edge every 10
+	// short of 25
 	if len(ring) != 1+4+3+2 {
 		t.Fatalf("a ring of %d points, want 10", len(ring))
 	}
@@ -422,7 +413,6 @@ func TestRenderer_ShadowsFadeOnlyWhereTheyMeetGroundInSight(t *testing.T) {
 	}
 }
 
-// isoCamera is a camera of a width x height world put in the isometric view.
 func isoCamera(width, height uint32, screenW, screenH float32) camera.Camera {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: width, Height: height},
@@ -437,8 +427,7 @@ func isoCamera(width, height uint32, screenW, screenH float32) camera.Camera {
 	return cam
 }
 
-// behindUnder is a camera with nothing in front of its eye short of x 146: as a perspective riding
-// low has the ground under and behind it.
+// nothing in front of the eye short of x 146, as a perspective riding low has the ground behind it
 type behindUnder struct{ camera.Camera }
 
 func (behindUnder) ScaleAt(x, _, _ float32) float32 {
@@ -448,8 +437,6 @@ func (behindUnder) ScaleAt(x, _, _ float32) float32 {
 	return 2
 }
 
-// A piece of shadow not wholly in front of the eye is left out — it lies under or behind it,
-// where it would be thrown across the screen — and the rest is drawn.
 func TestRenderer_ShadowsLeaveOutWhatIsNotInFrontOfTheEye(t *testing.T) {
 	r := isoRenderer(t)
 	r.camera = behindUnder{r.camera}

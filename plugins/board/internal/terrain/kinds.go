@@ -16,11 +16,10 @@ type Kinds struct {
 	plays   map[cell.Name]tag.Tags[rule.Roles]
 	next    render.SpriteID
 	heights bool
-	// Guard, when set, is called with each kind's name as it is defined: the board's, which
-	// refuses one defined out of its section of a Stage.
+	// Guard, when set, is called with each kind's name as it is defined; it refuses one defined
+	// out of its section.
 	Guard func(name string)
-	// Played, when set, notes the roles a kind's cells play with the world, so the engine
-	// delivers their rules: the board sets it.
+	// Played, when set, notes the roles a kind's cells play, so their rules are delivered.
 	Played func(roles ...*rule.Part)
 }
 

@@ -2,9 +2,8 @@ package camera
 
 import "github.com/kjkrol/uid"
 
-// How is how a camera is fastened to an entity: Loose to none, moved by hand; Centred kept over
-// it, at its altitude; Behind it, turned the way it walks; Inside it, the eye its own — first
-// person. Hows are bits, so a binding may hold in several (control.Binding.In).
+// How is how a camera is fastened to an entity: Loose to none, Centred over it, Behind it turned
+// the way it walks, Inside it in first person. Hows are bits, so a binding may hold in several.
 type How uint8
 
 const (
@@ -23,8 +22,7 @@ type Fastening struct {
 	How    How
 }
 
-// Fastenable is a camera that can be fastened to an entity: whoever keeps it there reads its
-// Fastening every tick.
+// Fastenable is a camera that can be fastened to an entity.
 type Fastenable interface {
 	Fasten(Fastening)
 	Fastening() Fastening

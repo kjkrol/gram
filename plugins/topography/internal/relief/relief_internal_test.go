@@ -15,7 +15,6 @@ import (
 
 var hill = cell.Kind{Name: cell.Named("hill"), Cost: 1, Allows: cell.Land | cell.Air}
 
-// raiseHills puts the hill cells at 12 and the rest at 0, each corner at the mean of its cells.
 func raiseHills(r *Relief, grid grid.Grid, hills ...cell.ID) {
 	r.SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		for _, h := range hills {
@@ -38,7 +37,7 @@ func TestRelief_GroundAtReadsTheReliefAndFollowsIt(t *testing.T) {
 			c := grid.At(2, 1)
 			raiseHills(r, grid, c)
 
-			// A lone hill on a square grid is smoothed to its corners' mean, 3; a hex cell stays level.
+			// a lone hill on a square grid is smoothed to its corners' mean; a hex cell stays level
 			want := 12.0
 			if name == "square" {
 				want = 3
@@ -106,7 +105,6 @@ func TestRelief_GroundSlopesBetweenCellsOnASquareGrid(t *testing.T) {
 	}
 }
 
-// A wrapping board's lattice folds: the corners along the seam are one.
 func TestRelief_FoldsWhereTheBoardWraps(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	grid.(interface{ SetWrap(x, y bool) }).SetWrap(true, false)
@@ -122,7 +120,6 @@ func TestRelief_FoldsWhereTheBoardWraps(t *testing.T) {
 	}
 }
 
-// A run of heights goes through a save as it is, its size fixed.
 func TestHeights_ARunGoesThroughASave(t *testing.T) {
 	in := Heights{First: 1024, Count: 3}
 	in.Values[0], in.Values[2] = -4.5, 900
@@ -139,8 +136,6 @@ func TestHeights_ARunGoesThroughASave(t *testing.T) {
 	}
 }
 
-// relief.Heights over more corners than a run holds go over several, from one another's end, all of
-// them; the ground takes them back only when they are all there.
 func TestRelief_CutsItsHeightsIntoRunsAndTakesThemBack(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(40, 40, 32)
 	r := New(board.NewBoard(grid))
@@ -166,8 +161,6 @@ func TestRelief_CutsItsHeightsIntoRunsAndTakesThemBack(t *testing.T) {
 	}
 }
 
-// The ground under a point is the ground drawn: the cell's top split into two flat triangles along
-// the diagonal whose corners stand nearer in height, as render.Frame.Fold draws it.
 func TestRelief_TheGroundIsTheGroundDrawn(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(2, 2, 32)
 	r := New(board.NewBoard(grid))

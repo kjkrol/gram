@@ -20,23 +20,18 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// The terrain scene is an 80x80 board of 16-unit cells, a quarter of it rough: forest veiling sight
-// by 0.6 and rocks, solid and opaque, cell by cell in turn; 200 walkers bounce about, each looking
-// ahead with a 60° cone of 200.
 const (
 	terrainSide  = 80
 	terrainCell  = 16
 	terrainUnits = 200
 )
 
-// walker is the row every bouncing observer spawns from.
 type walker struct {
 	pos  world.Position
 	vel  world.Velocity
 	cell cell.ID
 }
 
-// roughCells is a quarter of the board's cells: one square block, or scattered at random.
 func roughCells(grid grid.Grid, scattered bool) []cell.ID {
 	var out []cell.ID
 	if !scattered {
@@ -56,7 +51,6 @@ func roughCells(grid grid.Grid, scattered bool) []cell.ID {
 	return out
 }
 
-// benchTerrain builds the scene over the rough ground laid out as asked and runs 60 ticks.
 func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []cell.ID) {
 	b.Helper()
 	const side = terrainSide * terrainCell
@@ -122,9 +116,8 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []cell
 	return ecs, terrain, cells
 }
 
-// Benchmark_Board_Terrain is one tick of world, collision, board and vision with the rough ground
-// read straight from the cells, laid out in one block or scattered; with felling, one forest
-// cell a tick is cut down and the next grows back, as a woodcutter and a spell might.
+// Benchmark_Board_Terrain is one tick of world, collision, board and vision over rough ground in
+// one block or scattered, felling a forest cell a tick where it says so.
 func Benchmark_Board_Terrain(b *testing.B) {
 	grass := cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land}
 	forest := cell.Kind{Name: cell.Named("forest"), Cost: 1, Allows: cell.Land, Veil: 0.6}

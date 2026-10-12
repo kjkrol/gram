@@ -11,7 +11,6 @@ import (
 // MarqueeColor is the outline of a selection box being dragged.
 var MarqueeColor = color.RGBA{R: 255, G: 140, B: 0, A: 255}
 
-// marquees are the selection boxes being dragged, one per camera they are dragged in.
 type marquees struct{ boxes map[camera.Camera]geom.AABB }
 
 func (m *marquees) show(cam camera.Camera, box geom.AABB) {
@@ -23,7 +22,6 @@ func (m *marquees) show(cam camera.Camera, box geom.AABB) {
 
 func (m *marquees) hide(cam camera.Camera) { delete(m.boxes, cam) }
 
-// compose outlines the box being dragged in cam's view, if there is one.
 func (m *marquees) compose(f *render.Frame, cam camera.Camera) {
 	b, ok := m.boxes[cam]
 	if !ok {

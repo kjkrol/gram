@@ -16,20 +16,17 @@ type Depth struct {
 	w, h  int
 	tex   *wgpu.Texture
 	view  *wgpu.TextureView
-	group *wgpu.BindGroup // its view to read (MeshDraw.ReadDepth)
-	// readable has the texture made to be read too, once a draw asks to: the GPU keeps a buffer
-	// that is only drawn against packed, faster
+	group *wgpu.BindGroup
+	// the GPU keeps a buffer that is only drawn against packed, faster
 	readable bool
 }
 
-// NewDepth is a depth buffer, made at its first draw the size of the texture drawn into, and anew
-// as that size changes.
+// NewDepth is a depth buffer, sized at each draw to the texture drawn into.
 func NewDepth() *Depth { return &Depth{} }
 
 // Size is the buffer's width and height: those of the texture it was last drawn with.
 func (dp *Depth) Size() (w, h int) { return dp.w, dp.h }
 
-// fit makes the buffer w by h pixels, anew where it was another size.
 func (dp *Depth) fit(w, h int) {
 	if dp.w == w && dp.h == h {
 		return
@@ -59,7 +56,6 @@ func (dp *Depth) gpuView(d *device) *wgpu.TextureView {
 	return view
 }
 
-// readGroup is the group binding the buffer to be read by a draw.
 func (dp *Depth) readGroup(d *device) *wgpu.BindGroup {
 	if dp.group != nil && dp.view != nil {
 		return dp.group
@@ -82,7 +78,6 @@ func (dp *Depth) Release() {
 	dp.free()
 }
 
-// free submits what is gathered, which may draw with the buffer, and frees it.
 func (dp *Depth) free() {
 	if dp.tex == nil {
 		return
@@ -137,11 +132,10 @@ func (x *Indices) Release() {
 	}
 }
 
-// MeshDraw is a draw of a mesh (NewMesh) into a rectangle of a texture, meeting the depth buffer
-// Depth: tested nearer than what is there — reversed, greater — and written where Write says;
-// ClearDepth clears it first, all of it. Primed, its depth is laid first alone by the program's
-// fs_prime, and its colour then only where the depth is met exactly. Without a Depth it is drawn
-// whole, untested.
+// MeshDraw is a draw of a mesh (NewMesh) into a rectangle of a texture, tested against the depth
+// buffer Depth and written to it where Write says; without a Depth it is drawn whole, untested.
+// Primed, its depth is laid first alone by the program's fs_prime, and its colour then only where
+// the depth is met exactly.
 type MeshDraw struct {
 	Target     Image
 	Depth      *Depth
@@ -155,12 +149,11 @@ type MeshDraw struct {
 	Vertices   uint32    // without Indices: how many vertices, in order, three a triangle
 	Instances  []float32 // an Instanced program's: its vec4s an instance, the mesh drawn once each
 	Blend      Blend
-	// ReadDepth is a depth buffer the program reads (bindings.wgsl's depthAt) — another than Depth,
-	// drawn into before
+	// ReadDepth is a depth buffer the program reads (depthAt), another than Depth.
 	ReadDepth *Depth
 }
 
-// ClearDepth clears the depth buffer dp, fitted to target's texture, to the far end.
+// ClearDepth clears the depth buffer dp, fitted to target's texture.
 func ClearDepth(target Image, dp *Depth) {
 	d := must()
 	d.mu.Lock()
@@ -205,7 +198,7 @@ func Mesh(dw *MeshDraw) {
 		imgs[i] = im.Texture
 	}
 	if dw.Depth != nil && (dw.Depth.w != t.w || dw.Depth.h != t.h) {
-		dw.Depth.fit(t.w, t.h) // submits what is gathered first, the old buffer's draws with it
+		dw.Depth.fit(t.w, t.h)
 	}
 	pipeline := dw.Program.pipeline(d, dw.Blend, t.format, mode)
 	group1 := d.images(imgs)
@@ -266,7 +259,6 @@ func Mesh(dw *MeshDraw) {
 	pass.SetViewport(gputypes.Viewport{Width: float32(t.w), Height: float32(t.h), MaxDepth: 1})
 }
 
-// draw draws count of the indices, or without them count vertices in order, instances times.
 func draw(pass *wgpu.RenderPassEncoder, indices *wgpu.Buffer, count, instances uint32) {
 	if indices == nil {
 		pass.Draw(gputypes.DrawArgs{VertexCount: count, InstanceCount: instances})

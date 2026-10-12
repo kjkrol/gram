@@ -10,10 +10,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// The commands a steered entity gives itself (Order in a rule or a plan), carried out by the
-// System as a Request on its Helm. An entity heeds one a step: the first Away it gave, else the
-// first Toward, else the first Turn. Away and Toward are told whom they are about as they are
-// given (plugin.Aimed).
+// The commands a steered entity gives itself. It heeds one a step: the first Away it gave, else
+// the first Toward, else the first Turn.
 type (
 	// Away heads the entity away from From.
 	Away struct{ From uid.UID64 }
@@ -44,19 +42,17 @@ func (a *Away) Aim(who uid.UID64) { a.From = who }
 // Aim tells the command whom to head at.
 func (t *Toward) Aim(who uid.UID64) { t.To = who }
 
-// queues are where the commands land, for the world to carry.
 type queues struct {
 	aways   control.Queue[Away]
 	towards control.Queue[Toward]
 	turns   control.Queue[Turn]
 }
 
-// Queues are Away's, Toward's and Turn's; the world carries them.
+// Queues are the queues of Away, Toward and Turn.
 func (s *System) Queues() []control.CommandQueue {
 	return []control.CommandQueue{&s.told.aways, &s.told.towards, &s.told.turns}
 }
 
-// obey carries out the commands given since the last step, one for each entity.
 func (s *System) obey() {
 	clear(s.obeyed)
 	s.told.aways.Drain(func(i control.Issued[Away]) {
@@ -79,8 +75,6 @@ func (s *System) obey() {
 	})
 }
 
-// head asks id, steerable and not yet told this step, for the heading way gives from its centre
-// and the way it goes; a zero one is no heading.
 func (s *System) head(id uid.UID64, way func(at, dir geom.Vec) geom.Vec) {
 	if s.obeyed[id] || !s.lookup.Seek(id) {
 		return
@@ -97,7 +91,6 @@ func (s *System) head(id uid.UID64, way func(at, dir geom.Vec) geom.Vec) {
 	}
 }
 
-// centre is where id's box stands, its middle; false for an entity gone.
 func (s *System) centre(id uid.UID64) (geom.Vec, bool) {
 	if !s.lookup.Seek(id) {
 		return geom.Vec{}, false

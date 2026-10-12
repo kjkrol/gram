@@ -92,8 +92,6 @@ func TestPlugin_Populate_UnknownKindChangesNothing(t *testing.T) {
 	}
 }
 
-// The board draws from the game's atlas, kept once the renderer is made; it has no look of its
-// own, and a renderer without an atlas panics.
 func TestPlugin_DrawsFromTheGamesAtlasAlone(t *testing.T) {
 	worldPlugin := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 100, Height: 100},

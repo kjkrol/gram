@@ -16,8 +16,6 @@ import (
 
 const epsilon = 1e-9
 
-// thing is one entity of a collision fixture — a 10x10 box at y=100 — and,
-// once the tick has run, what became of it.
 type thing struct {
 	x       float64
 	delta   geom.Vec
@@ -33,7 +31,6 @@ func elastic(mass float64) *collision.Physics {
 	return &collision.Physics{Mass: mass, Restitution: 1}
 }
 
-// detectTick spawns things, runs one collision tick over them and reads each back.
 func detectTick(t *testing.T, things ...*thing) {
 	t.Helper()
 	space := testSpace(t)
@@ -248,7 +245,6 @@ func TestCollisionSystem_HeavyAgainstLight_ConservesMomentumAndEnergy(t *testing
 	}
 }
 
-// A pair bounces by the softer of its two sides, all the way down to not at all.
 func TestCollisionSystem_Restitution_DampsTheBounce(t *testing.T) {
 	cases := map[string]struct {
 		restitutionA, restitutionB float64
@@ -339,7 +335,6 @@ func TestCollisionSystem_Contacts_DoNotSurviveTheNextTick(t *testing.T) {
 	}
 }
 
-// seedPhysical spawns a physical, collidable entity moving at delta.
 func seedPhysical(t *testing.T, si *goke.SysInit, space *aabbworld.Space, pos world.Position, delta geom.Vec) uid.UID64 {
 	t.Helper()
 	var baseComp goke.Comp[world.Base]
@@ -364,7 +359,6 @@ func countContacts(q *goke.Query, comp goke.Comp[collision.Collider]) int {
 	return n
 }
 
-// overlapDepth is how far two boxes penetrate on their shallower axis, zero or less when apart.
 func overlapDepth(l, r world.Position) float64 {
 	x := min(l.BottomRight.X, r.BottomRight.X) - max(l.TopLeft.X, r.TopLeft.X)
 	y := min(l.BottomRight.Y, r.BottomRight.Y) - max(l.TopLeft.Y, r.TopLeft.Y)

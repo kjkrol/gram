@@ -11,15 +11,13 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Flat is the world seen from above: a sprite over its box, in a piece per image where the box
-// crosses a wrap seam, what lies under what stands; it knows no wind, so nothing sways. Readied
-// for a frame (Begin) it gathers the sprites and draws them on the GPU (DrawSprites); else it lays
-// them on the frame.
+// Flat is the world seen from above: a sprite over its box, split where it crosses a wrap seam.
+// Readied for a frame it draws the sprites on the GPU, else it lays them on the frame.
 type Flat struct {
 	worldW, worldH float32
 	quads          []camera.Quad
 	lain, sprites  render.Sprites
-	direct         bool // readied for this frame
+	direct         bool
 }
 
 // NewFlat is the flat look over a world width x height.
@@ -51,8 +49,8 @@ func (l *Flat) Lie(f *render.Frame, cam camera.Camera, box plane.AABB, _ entity.
 	l.lay(f, cam, &l.lain, render.Objects-1, box, atlas, a, light)
 }
 
-// Lay lays the sprite over the rectangle lie says, under every sprite standing, and, lie being
-// Edged, the edge sprite along its long sides as strips a tenth of its Width wide.
+// Lay lays the sprite over the rectangle lie says and, lie being Edged, the edge sprite along its
+// long sides as strips a tenth of its Width wide.
 func (l *Flat) Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.Vec,
 	lie entity.Lie, _ entity.Z, atlas render.AtlasSource, a render.Appearance,
 	edge render.SpriteID, light render.Light) {
@@ -74,12 +72,10 @@ func (l *Flat) Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.
 	}
 }
 
-// around is the box w x h on its middle m.
 func around(m geom.Vec, w, h float64) plane.AABB {
 	return plane.NewAABB(geom.NewVec(m.X-w/2, m.Y-h/2), w, h)
 }
 
-// lay gathers the sprite into to for the GPU, or lays it on f at tier.
 func (l *Flat) lay(f *render.Frame, cam camera.Camera, to *render.Sprites, tier render.Tier,
 	box plane.AABB, atlas render.AtlasSource, a render.Appearance, light render.Light) {
 	if a.Angle != 0 {
@@ -102,8 +98,7 @@ func (l *Flat) lay(f *render.Frame, cam camera.Camera, to *render.Sprites, tier 
 	})
 }
 
-// turned draws the sprite whole, turned about the middle of its box — one piece per wrap image,
-// never split across a seam.
+// one piece per wrap image, never split across a seam
 func (l *Flat) turned(f *render.Frame, cam camera.Camera, to *render.Sprites, tier render.Tier,
 	box plane.AABB, atlas render.AtlasSource, a render.Appearance, light render.Light) {
 	rad := a.Angle * math.Pi / 180
@@ -139,7 +134,6 @@ func (l *Flat) Footprint(cam camera.Camera, box geom.AABB, _ float32, dst []rend
 	return dst
 }
 
-// uvSpan is the slice of the sprite one image shows along one axis.
 func uvSpan(imgSize, spriteSize, shift float32) (float32, float32) {
 	visible := imgSize / spriteSize
 	if shift == 0 {

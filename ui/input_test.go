@@ -10,12 +10,10 @@ import (
 	"github.com/kjkrol/gram/game"
 )
 
-// order is a command a test's button gives.
 type order struct{ what string }
 
 func (order) Command() {}
 
-// player notes the area it was shown over, what it was shown, and the clicks that reached it.
 type player struct {
 	area   geom.AABB
 	shown  render.Surface
@@ -32,7 +30,6 @@ func (p *player) handle(ev *control.InputEvents, _ game.Runtime, _ game.Composit
 	p.wheel += ev.ScrollDelta
 }
 
-// built lays the scene's screen as a frame would.
 func built(s *Scene) *Scene {
 	s.Layers()
 	s.root.lay(screen)
@@ -69,7 +66,6 @@ func TestInput_AButtonGivesItsCommandThroughIssue(t *testing.T) {
 	}
 }
 
-// issuing is a Runtime noting what a scene gives through it.
 type issuing struct {
 	game.Runtime
 	issued []control.Command
@@ -80,8 +76,6 @@ func (r *issuing) Issue(cmd control.Command) error {
 	return nil
 }
 
-// A scene with no Issue gives a button's command through the Runtime, as nobody: a menu's, with no
-// players.
 func TestInput_AButtonWithoutIssueGivesItsCommandThroughTheRuntime(t *testing.T) {
 	rt := &issuing{}
 	s := built(NewScene("menu", Center(Button("go", order{"go"})).Size(100, 40)))
@@ -123,8 +117,6 @@ func TestInput_AModalWindowHoldsTheClicksAndTheWheelOutsideIt(t *testing.T) {
 	}
 }
 
-// A modal window left out — its title saying nothing — holds nothing: the wheel and the clicks go
-// on to the picture under it.
 func TestInput_AModalWindowLeftOutHoldsNothing(t *testing.T) {
 	silent := Of(func(*int) (string, bool) { return "", false })
 	for name, window := range map[string]*Element{

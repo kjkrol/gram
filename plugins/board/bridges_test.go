@@ -29,16 +29,12 @@ import (
 
 var water = cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water}
 
-// deckRow is a cell with a Floor and a Rail on it.
 type deckRow struct {
 	At    cell.ID
 	Floor cell.Floor
 	Rail  cell.Rail
 }
 
-// decked is a board of water over g, w x h, in a world with heights or not, its bridges keeping
-// to bridges, the decks of rows standing on it — the one at the first row's cell called "first" —
-// and sag an effect raising a deck by 5; ticked once.
 type decked struct {
 	w   *world.Plugin
 	p   *board.Plugin
@@ -93,15 +89,12 @@ func newDecked(t *testing.T, g grid.Grid, w, h uint32, heights bool, bridges boa
 
 func (d *decked) tick() { d.ecs.Tick(time.Second / 60) }
 
-// over are the cells whose decks lie over p.
 func (d *decked) over(p geom.Vec) []cell.ID {
 	var out []cell.ID
 	d.p.Board().DecksOver(p, func(c cell.ID, _ cell.Floor) { out = append(out, c) })
 	return out
 }
 
-// band is a row of decks on cells running way, from and back, width wide, carrying walkers and
-// railed against them.
 func band(g grid.Grid, way [2]int, width float64, height float64, cells ...cell.ID) []deckRow {
 	ahead, _ := grid.Direction(g, way[0], way[1])
 	back, _ := grid.Direction(g, -way[0], -way[1])
@@ -115,8 +108,6 @@ func band(g grid.Grid, way [2]int, width float64, height float64, cells ...cell.
 	return rows
 }
 
-// bridgeRows is a bridge on cells in a row running way, carrying walkers and railed against them,
-// width wide: a head on the first and on the last at the ground's level, a deck height up between.
 func bridgeRows(g grid.Grid, way [2]int, width, height float64, cells ...cell.ID) []deckRow {
 	rows := band(g, way, width, height, cells...)
 	ahead, _ := grid.Direction(g, way[0], way[1])
@@ -130,9 +121,6 @@ func bridgeRows(g grid.Grid, way [2]int, width, height float64, cells ...cell.ID
 	return rows
 }
 
-// A band running slantwise lies over its cells and the corners it cuts through, Width wide, the
-// ground beside it the cells' own: whoever stands beside it stands in the water. It runs along
-// its links, and a step across it crosses its railings.
 func TestDecks_ABandSlantwiseCutsTheCorners(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 5, 10)
 	d := newDecked(t, g, 50, 50, false, board.Bridges{},
@@ -192,7 +180,6 @@ func TestDecks_ABandSlantwiseCutsTheCorners(t *testing.T) {
 	}
 }
 
-// lies are the Lie and the heading of every entity standing on the board.
 func (d *decked) lies() ([]world.Lie, []geom.Vec) {
 	var base goke.Comp[world.Base]
 	var lie goke.Comp[world.Lie]
@@ -212,8 +199,6 @@ func (d *decked) lies() ([]world.Lie, []geom.Vec) {
 	return lies, dirs
 }
 
-// A deck running as a band lies along it for whoever draws it: as long as its link, Width wide,
-// headed along it, edged by its railings.
 func TestDecks_ABandLiesAlongItself(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 5, 10)
 	d := newDecked(t, g, 50, 50, false, board.Bridges{},
@@ -234,8 +219,6 @@ func TestDecks_ABandLiesAlongItself(t *testing.T) {
 	}
 }
 
-// On a hex grid a band runs from edge to edge, 60° off the next way: over its cells alone, its
-// railings along both its edges.
 func TestDecks_ABandOnAHexRunsFromEdgeToEdge(t *testing.T) {
 	g := grid.DefaultGrids{}.Hex(5, 5, 10)
 	d := newDecked(t, g, 130, 90, false, board.Bridges{},
@@ -264,8 +247,6 @@ func TestDecks_ABandOnAHexRunsFromEdgeToEdge(t *testing.T) {
 	}
 }
 
-// On a hex grid the railings stand for collision along both edges of the band, half its Width off
-// its middle line, running the way the band does.
 func TestRailings_OnAHexRunAlongTheBand(t *testing.T) {
 	g := grid.DefaultGrids{}.Hex(5, 5, 10)
 	d := newDecked(t, g, 130, 90, false, board.Bridges{},
@@ -297,9 +278,6 @@ func TestRailings_OnAHexRunAlongTheBand(t *testing.T) {
 	}
 }
 
-// A bridge runs straight and level from a head to a head — a half band from the middle of a flat
-// tile at its deck — its deck over the ground between: one that does not panics as the board is
-// first gathered, saying why. A band carrying no road is no bridge.
 func TestBridges_BrokenPanicsSayingWhy(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 5, 10)
 	row := func() []deckRow {
@@ -352,8 +330,6 @@ func TestBridges_BrokenPanicsSayingWhy(t *testing.T) {
 	}
 }
 
-// A head is a half band: from the middle of its tile into the bridge, no railings, so the road
-// comes onto it from any side, lying half a link long ahead of its middle.
 func TestDecks_AHeadIsAHalfBand(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 5, 10)
 	d := newDecked(t, g, 60, 50, false, board.Bridges{},
@@ -402,7 +378,6 @@ type spanRow struct {
 	Way [2]int  `yaml:"way"`
 }
 
-// A bridge a level lays broken panics with the file and the line of its entity.
 func TestBridges_BrokenInALevelSaysItsLine(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 1, boardtest.CellSize)
 	level := fstest.MapFS{"level.yaml": {Data: []byte(`
@@ -441,8 +416,6 @@ board:
 	panicsWith(t, bw.Tick, "level.yaml:8: ", "turns")
 }
 
-// A bridge broken in the game — an effect raising one of its decks — is not built, said in the
-// log, and whoever stood on it stands in the water; once mended, it stands again.
 func TestBridges_BrokenInTheGameIsNotBuilt(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 5, 10)
 	rows := bridgeRows(g, [2]int{1, 0}, 4, 0, g.At(1, 2), g.At(2, 2), g.At(3, 2))
@@ -475,7 +448,6 @@ func TestBridges_BrokenInTheGameIsNotBuilt(t *testing.T) {
 	}
 }
 
-// A walker driving into a railing running slantwise slides along it and never through it.
 func TestRailings_AWalkerSlidesAlongASlantwiseOne(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 6, 48)
 	start := g.At(2, 2)
@@ -514,7 +486,6 @@ func middleOf(b geom.AABB) geom.Vec {
 	return geom.NewVec((b.TopLeft.X+b.BottomRight.X)/2, (b.TopLeft.Y+b.BottomRight.Y)/2)
 }
 
-// panicsWith runs f and fails the test unless it panics with a message holding every one of want.
 func panicsWith(t *testing.T, f func(), want ...string) {
 	t.Helper()
 	defer func() {

@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/gram/rule"
 )
 
-// room is a flat board shut in: a ceiling, a floor and a wall on the west.
 var room = []string{
 	"####",
 	"#...",
@@ -16,7 +15,6 @@ var room = []string{
 	"####",
 }
 
-// A body at rest on the floor stays on it, borne every step, never landing again.
 func TestPlane_ABodyAtRestStaysBorne(t *testing.T) {
 	r := newRig(t, scene{level: room, bodies: []body{{x: 25, y: 29}},
 		rules: []rule.Rule{landing()}})
@@ -36,7 +34,6 @@ func TestPlane_ABodyAtRestStaysBorne(t *testing.T) {
 	}
 }
 
-// Walking into a wall as it falls, a body slides down it in the air and lands on the floor.
 func TestPlane_AWallBearsNothing(t *testing.T) {
 	r := newRig(t, scene{level: room, bodies: []body{{x: 11.5, y: 13, facing: west}},
 		rules: []rule.Rule{landing()}})
@@ -58,7 +55,6 @@ func TestPlane_AWallBearsNothing(t *testing.T) {
 	}
 }
 
-// A leap across a flat world rises as high as the Body says, against the pull.
 func TestPlane_ALeapRisesAgainstThePull(t *testing.T) {
 	r := newRig(t, scene{level: room, leap: 3, bodies: []body{{x: 25, y: 29}},
 		rules: []rule.Rule{landing()}})
@@ -81,7 +77,6 @@ func TestPlane_ALeapRisesAgainstThePull(t *testing.T) {
 	}
 }
 
-// The pull turned up, every body falls up and lands on the ceiling, borne by it.
 func TestPlane_PulledUpItLandsOnTheCeiling(t *testing.T) {
 	r := newRig(t, scene{level: room, bodies: []body{{x: 25, y: 29}},
 		rules: []rule.Rule{landing()}})

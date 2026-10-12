@@ -7,8 +7,6 @@ import (
 	"github.com/kjkrol/gram/camera"
 )
 
-// In every view the camera's transform for the GPU draws a world point where the camera
-// projects it.
 func TestViewCamera_ItsTransformDrawsWhereItProjects(t *testing.T) {
 	cam := sized(newCamera(testProjection, 3200, 3200, 0, camera.Config{}, 0, true, nil, nil, 0), 400, 300)
 	cam.CenterOn(1600, 1600, 0)

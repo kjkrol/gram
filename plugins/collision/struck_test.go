@@ -13,7 +13,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// A Struck comes to the two that touched, the tick after, and never to one that struck nothing.
 func TestStruck_ComesOnlyToWhoStruckSomething(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
@@ -24,10 +23,13 @@ func TestStruck_ComesOnlyToWhoStruckSomething(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := collision.NewPlugin(w)
-	if err := c.Hook(rule.Then[collision.Struck]("struck", rule.All, rule.OneOf(
-		rule.If(func(s collision.Struck) bool { return len(s.Contacts) == 0 }, rule.Order(heard{Rule: "nothing struck"})),
+	if err := c.Hook(rule.Branch[collision.Struck]{Name: "struck", Do: rule.OneOf(
+		rule.Branch[collision.Struck]{
+			When: func(s collision.Struck) bool { return len(s.Contacts) == 0 },
+			Do:   rule.Order(heard{Rule: "nothing struck"}),
+		},
 		rule.Order(heard{Rule: "struck"}),
-	))); err != nil {
+	)}); err != nil {
 		t.Fatal(err)
 	}
 	kind.Define[float64](w.Kinds(), "town", kind.Spec{

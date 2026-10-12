@@ -12,20 +12,20 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
-// Units makes a game's unit kinds over the board: from where a row says the unit stands it
-// derives its Position and Cell, from the kind's Mover its Layers, and in a world with heights its Z
-// from the Shape.
+// Units makes a game's unit kinds over the board, deriving Position, At, Layers and Z from where
+// a row says the unit stands, its Mover and the Shape.
 type Units[P any] struct {
 	brd   *Plugin
 	shape Shape
 	at    func(row P) geom.Vec
 }
 
-// Shape is a unit's body: the side of its square box and, in a world with heights, how tall it stands.
+// Shape is a unit's body: the side of its square box and, in a world with heights, how tall it
+// stands.
 type Shape struct{ Size, Height float64 }
 
 // NewUnits binds a game's rows to the board: shape is the units' body, at reads a unit's centre
-// from its row — a game that thinks in cells hands over their CellCenter.
+// from its row. A Height in a flat world panics.
 func NewUnits[P any](brd *Plugin, shape Shape, at func(row P) geom.Vec) *Units[P] {
 	if !brd.worldPlugin.HasHeights() && shape.Height != 0 {
 		panic("board: units with a Height in a flat world; set world.Config.Heights")
@@ -33,10 +33,8 @@ func NewUnits[P any](brd *Plugin, shape Shape, at func(row P) geom.Vec) *Units[P
 	return &Units[P]{brd: brd, shape: shape, at: at}
 }
 
-// Define registers one kind of unit: its name, how it moves (the domains, and in a world with heights
-// the Lift it keeps above the ground), its steering profile and whatever else the game gives its
-// entities. It is kind.Define with the board's part filled in and the world's roster checked; a
-// unit standing off the board panics when spawned.
+// Define registers one kind of unit: how it moves, its steering profile and whatever else the
+// game gives its entities. A unit standing off the board panics when spawned.
 func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steering, extra ...comp.Comp) {
 	brd := u.brd.Board()
 	heights := u.brd.worldPlugin.HasHeights()
@@ -67,7 +65,7 @@ func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steer
 	kind.Define[P](u.brd.worldPlugin.Kinds(), name, spec)
 }
 
-// Named is the kind of unit defined as name: kind.Named over the world's kinds.
+// Named is the kind of unit defined as name.
 func (u *Units[P]) Named(name string) kind.Of[P] {
 	return kind.Named[P](u.brd.worldPlugin.Kinds(), name)
 }

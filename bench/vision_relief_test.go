@@ -20,12 +20,11 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
-// sampled is a ground with no profile: sight samples it every step.
+// a ground with no profile: sight samples it every step
 type sampled struct{ ground.Heights }
 
-// Benchmark_Vision_Relief is a tick of 37 observers on a 192x96 board of rolling hills in relief,
-// cells 333 m, each looking 30 cells ahead in a cone of 72°: the ground sampled every 50 m, every
-// cell, or read along its profile, scanned every step or 15 times a second.
+// Benchmark_Vision_Relief is a tick of 37 observers on a board of rolling hills in relief, the
+// ground sampled or read along its profile.
 func Benchmark_Vision_Relief(b *testing.B) {
 	for _, c := range []struct {
 		name  string

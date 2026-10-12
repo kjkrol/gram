@@ -48,7 +48,7 @@ func (m *mainScene) picture() render.Picture {
 	for ci, c := range palette[:entityColors] {
 		for si, shape := range shapes {
 			atlas.Add(bodyKindOf(ci, si), int(RectSize), shape(c)).
-				Under(hit, func(dst *render.Canvas, size int) { // struck: its own shape, flashed
+				Under(hit, func(dst *render.Canvas, size int) {
 					shapes[si](flash)(dst, size)
 				})
 		}
@@ -62,7 +62,7 @@ func (m *mainScene) picture() render.Picture {
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	entityCount := func() int { return s.world.Res.Telemetry.Count }
-	return ui.Layers( // from the bottom up: each covers those before it
+	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
 		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
 			Input(s.players.Through(s.player)),

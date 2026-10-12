@@ -12,11 +12,8 @@ import (
 
 var _ goke.System = (*System)(nil)
 
-// System carries out the Course asked of each entity between the plans and movement, as
-// its Steering lets it: heading by at most TurnRate a tick, and base speed rewritten each tick for
-// an entity with a motion profile; one Halted stands. The commands entities gave themselves —
-// Away, Toward, Turn — it asks of their Helms first. An entity without a Course gets one, steered
-// from its next step. The world runs it in every step of its simulation, before movement.
+// System carries out the Course asked of each entity as its Steering lets it, run by the world
+// in every step before movement. An entity without a Course gets one, steered from its next step.
 type System struct {
 	query    *goke.Query
 	steer    goke.Comp[Steering]
@@ -24,7 +21,6 @@ type System struct {
 	base     goke.Comp[entity.Base]
 	courseID goke.CompID
 
-	// told are the commands given, carried out first in a step, through lookup
 	told       queues
 	obeyed     map[uid.UID64]bool
 	lookup     *goke.Query
@@ -33,7 +29,7 @@ type System struct {
 	lookCourse goke.OptComp[Course]
 }
 
-// NewSystem is the steering system; the world registers it.
+// NewSystem is the steering system.
 func NewSystem() *System { return &System{obeyed: map[uid.UID64]bool{}} }
 
 func (s *System) Init(si *goke.SysInit) {
@@ -81,7 +77,7 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-// turnTowards rotates from towards to by at most rate radians; a zero rate or heading snaps to it.
+// a zero rate or heading snaps to the target
 func turnTowards(from, to geom.Vec, rate float64) geom.Vec {
 	if rate <= 0 || (from.X == 0 && from.Y == 0) {
 		return to

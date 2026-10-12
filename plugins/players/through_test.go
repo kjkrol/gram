@@ -7,8 +7,6 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// A picture of the world tells its player where it lies on the screen: the mouse there is that
-// player's, its commands through the picture's camera.
 func TestThrough_TellsThePlayerWhereItsPictureLies(t *testing.T) {
 	r := newRig(t)
 	half := geom.NewAABB(geom.NewVec(400, 0), geom.NewVec(800, 600))
@@ -18,7 +16,6 @@ func TestThrough_TellsThePlayerWhereItsPictureLies(t *testing.T) {
 	}
 }
 
-// A player acts through one picture at a time: two in one pass of input panic.
 func TestThrough_TwoPicturesOfOnePlayerInOnePassPanic(t *testing.T) {
 	r := newRig(t)
 	defer func() {

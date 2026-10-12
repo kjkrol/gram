@@ -9,12 +9,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
-// weathers is the weather the island goes through, weather.Default's written out to play with: a
-// clear sky, a fair one of a few big heaps, clouds, rain, storms. Each has its wind (world units a
-// second), cloud cover (0 to 1) and how heaped the clouds are (0 torn shreds, 1 big heaps) thrown
-// between the two numbers as it comes, what falls (0 to 1), how much warmer than the hour and the
-// season it is, how long it lasts, what may follow it and how likely, and in which seasons it
-// comes (none: alike in every season).
+// weather.Default written out to play with: wind in world units a second, clouds, billow and
+// what falls 0 to 1, each thrown between its two numbers
 var weathers = []weather.State{
 	{
 		Name:   weather.Clear,
@@ -70,7 +66,6 @@ var weathers = []weather.State{
 
 const highSnow = 480 // metres: the ground snow lies on first
 
-// snowable are the kinds snow may lie on, each with a snowy twin.
 var snowable = []string{EarthCell, SandCell, RockCell, ForestCell}
 
 func (s *arena) defineWinterCells() {

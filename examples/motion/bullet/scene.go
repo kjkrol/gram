@@ -37,8 +37,7 @@ func (m *mainScene) picture() render.Picture {
 	wounded := s.world.Effects().Named(WoundedEf)
 	fuse := s.world.Effects().Named(FuseEf)
 
-	// the soldier's look, authored facing east, within the circle inscribed in its box: the
-	// barrel shows where F will fire
+	// authored facing east: the barrel shows where F fires
 	soldier := func(body, barrel color.RGBA) render.SpriteDrawer {
 		return func(dst *render.Canvas, size int) {
 			render.Diamond(body)(dst, size)
@@ -47,12 +46,12 @@ func (m *mainScene) picture() render.Picture {
 	}
 	worldAtlas := s.world.NewAtlas()
 	worldAtlas.Add(soldierKind, EntitySize, soldier(soldierColor, barrelColor)).
-		Under(wounded, soldier(paleColor, barrelColor)). // the soldier gone pale, still aiming
-		Turning()                                        // turned the way it aims (Vel.Dir)
+		Under(wounded, soldier(paleColor, barrelColor)).
+		Turning()
 	worldAtlas.Add(wandererKind, EntitySize, render.Solid(wandererColor)).
 		Under(wounded, render.Solid(paleColor))
 	worldAtlas.Add(s.bullet.Shots().Named(RoundKind), 8, render.Arrow(0, 2, roundColor)).
-		Turning() // flown head first: the plugin keeps a shot's heading on its Vel.Dir
+		Turning() // the plugin keeps a shot's heading on its Vel.Dir
 	worldAtlas.Add(s.bullet.Shots().Named(GrenadeKind), 8, render.Dot(3, grenadeColor)).
 		Under(fuse, func(dst *render.Canvas, size int) {
 			render.Dot(3, grenadeColor)(dst, size)

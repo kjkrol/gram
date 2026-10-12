@@ -7,8 +7,6 @@ import (
 	"github.com/kjkrol/gram/clock"
 )
 
-// At holds in the one step reaching its time; Every in each step reaching another period after
-// its offset, however long the steps.
 func TestMoment_AtAndEveryHoldInTheStepsReachingThem(t *testing.T) {
 	fired := func(holds func(clock.Moment) bool, dt time.Duration) []time.Duration {
 		var at []time.Duration

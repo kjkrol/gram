@@ -12,11 +12,10 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// savedStage is a world and its cameras.
 type savedStage struct {
 	cams  *cameras.Plugin
 	cam   camera.Camera
-	load  bool // entered from the quicksave
+	load  bool
 	stack game.Scenes
 }
 
@@ -39,7 +38,6 @@ func (g *savedStage) Stack() game.Scenes {
 	return g.stack
 }
 
-// oneStage is a game of one Stage.
 type oneStage struct{ stage game.Stage }
 
 func (g oneStage) Props() game.Props { return game.Props{} }
@@ -47,7 +45,6 @@ func (g oneStage) Stages() (map[string]game.Stage, string) {
 	return map[string]game.Stage{g.stage.Name(): g.stage}, g.stage.Name()
 }
 
-// A game saved and loaded through the engine shows what its main camera showed.
 func TestPlugin_SaveLoad_CameraRoundTrip(t *testing.T) {
 	t.Chdir(t.TempDir())
 

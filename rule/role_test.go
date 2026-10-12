@@ -16,25 +16,21 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// The roles' tags, given explicitly and away from the first bits.
 var (
 	mortalTag = rule.Role("mortal").Tag()
 	hastyTag  = rule.Role("hasty").Tag()
 )
 
-// standing is a made-up host's moment of one entity.
 type standing struct{ who uid.UID64 }
 
 func (s standing) Who() uid.UID64 { return s.who }
 
-// meeting is a made-up host's moment of one entity meeting another, its Subject.
 type meeting struct{ who, whom uid.UID64 }
 
 func (m meeting) Who() uid.UID64             { return m.who }
 func (m meeting) Whom(each func(uid.UID64))  { each(m.whom) }
 func (m meeting) Subject() (uid.UID64, bool) { return m.whom, true }
 
-// heard is the command every rule here gives: which rule, aimed at the moment's subject if any.
 type heard struct {
 	Rule string
 	At   uid.UID64
@@ -44,22 +40,18 @@ func (heard) Command() {}
 
 func (c *heard) Aim(who uid.UID64) { c.At = who }
 
-// body is what every entity here carries; fuel is what some carry besides.
 type (
 	body struct{ N int }
 	fuel struct{ N int }
 )
 
-// being is an entity to spawn: the roles it plays through rule.Plays — none given and bare, no
-// tag.Tags[rule.Roles] at all — and whether it carries fuel.
 type being struct {
 	name  string
-	bare  bool
+	bare  bool // no tag.Tags[rule.Roles] at all
 	plays []*rule.Part
 	fuel  bool
 }
 
-// spawn makes b in si, a body and what b says.
 func spawnBeing(si *goke.SysInit, b being) uid.UID64 {
 	var bodies goke.Comp[body]
 	var fuels goke.Comp[fuel]
@@ -82,12 +74,10 @@ func spawnBeing(si *goke.SysInit, b being) uid.UID64 {
 	return id
 }
 
-// tellOf is a rule of P named name, for whom filter lets through: its entity gives a heard of name.
-func tellOf[P any](name string, filter rule.Filter) rule.Rule {
-	return rule.Then[P](name, filter, rule.Order(heard{Rule: name}))
+func tellOf[P any](name string, when any) rule.Rule {
+	return rule.Branch[P]{Name: name, When: when, Do: rule.Order(heard{Rule: name})}
 }
 
-// listen is a carrier of heard commands and the queue they land in.
 func listen(t *testing.T) (*control.Carrier, *control.Queue[heard]) {
 	t.Helper()
 	var carrier control.Carrier
@@ -98,13 +88,11 @@ func listen(t *testing.T) (*control.Carrier, *control.Queue[heard]) {
 	return &carrier, &q
 }
 
-// Obeys narrows each rule of one entity to the role's players, whatever its own filter: an entity
-// without tag.Tags[rule.Roles], one playing none, one playing another role are left out.
 func TestRole_Obeys_NarrowsEachRuleToItsPlayers(t *testing.T) {
 	hasty := rule.Role("hasty")
 	mortal := rule.Role("mortal").Obeys(
-		tellOf[standing]("fall in", rule.All),
-		tellOf[standing]("burn", rule.Having[fuel]()),
+		tellOf[standing]("fall in", nil),
+		tellOf[standing]("burn", rule.Carrying[fuel]()),
 		tellOf[standing]("rush", rule.Self(hastyTag)),
 	)
 	carrier, q := listen(t)
@@ -160,15 +148,12 @@ func TestRole_Obeys_NarrowsEachRuleToItsPlayers(t *testing.T) {
 	}
 }
 
-// Obeys narrows a rule of a Met moment to the pairs whose entity plays the role, keeping the
-// rule's own sides. Dispatched either way a rule of the same side on both runs once a pair, as the
-// plain rule does: of two players, once.
 func TestRole_Obeys_NarrowsAPairRuleToItsPlayers(t *testing.T) {
 	hasty := rule.Role("hasty")
 	mortal := rule.Role("mortal").Obeys(
-		tellOf[meeting]("flinch", rule.All),
-		tellOf[meeting]("parry", rule.Between(tag.Any, hastyTag)),
-		tellOf[meeting]("rush", rule.Between(hastyTag, tag.Any)),
+		tellOf[meeting]("flinch", nil),
+		tellOf[meeting]("parry", rule.Other(hastyTag)),
+		tellOf[meeting]("rush", rule.Self(hastyTag)),
 	)
 	beings := []being{
 		{name: "bare", bare: true},
@@ -240,11 +225,9 @@ func TestRole_Obeys_NarrowsAPairRuleToItsPlayers(t *testing.T) {
 	}
 }
 
-// A rule of the world as a whole walks no entities: obeyed by a role, its step host takes it and
-// runs it while the entity the moment is about plays the role — every role, for a rule of two.
 func TestRole_Obeys_ARuleOfAStepFiresWhileTheMomentsEntityPlaysTheRole(t *testing.T) {
 	early, late := rule.Role("step early"), rule.Role("step late")
-	toll := tellOf[standing]("toll", rule.All)
+	toll := tellOf[standing]("toll", nil)
 	carrier, q := listen(t)
 	h := &plugin.StepRules[standing]{}
 	both := late.Obeys(early.Obeys(toll).Rules()[0]).Rules()[0]
@@ -269,10 +252,8 @@ func TestRole_Obeys_ARuleOfAStepFiresWhileTheMomentsEntityPlaysTheRole(t *testin
 	}
 }
 
-// A role's Rules are its own, narrowed to it, in the order it obeyed them; a role of no rules has
-// none, and changing what Rules hands back changes nothing of the role.
 func TestRole_Rules_AreItsOwnNarrowedInOrder(t *testing.T) {
-	a, b := tellOf[standing]("a", rule.All), tellOf[standing]("b", rule.Having[fuel]())
+	a, b := tellOf[standing]("a", nil), tellOf[standing]("b", rule.Carrying[fuel]())
 	mortal := rule.Role("mortal").Obeys(a).Obeys(b)
 	got := mortal.Rules()
 	want := []string{`"a" of rule_test.standing, for the role mortal`, `"b" of rule_test.standing, for the role mortal`}
@@ -291,8 +272,6 @@ func TestRole_Rules_AreItsOwnNarrowedInOrder(t *testing.T) {
 	}
 }
 
-// Plays is one tag.Tags[rule.Roles] carrying every role's bit and no other, spawned as one
-// component; of no role it is the component empty.
 func TestPlays_IsOneComponentCarryingEveryRole(t *testing.T) {
 	mortal, hasty := rule.Role("mortal"), rule.Role("hasty")
 	plays := rule.Plays(mortal, hasty)
@@ -322,13 +301,15 @@ func TestPlays_IsOneComponentCarryingEveryRole(t *testing.T) {
 	}
 }
 
-// Playing runs its step while the entity plays the role, as the world's lookup tells: not for
-// one playing another, nor for one the lookup knows nothing of.
 func TestMoment_Playing_RunsForTheRolesPlayersAlone(t *testing.T) {
 	lever, trapdoor := rule.Role("playing lever"), rule.Role("playing trapdoor")
 	carrier, q := listen(t)
 	h := &plugin.StepRules[standing]{}
-	if err := h.Add(rule.Then[standing]("pull", rule.All, rule.Playing(lever, rule.Order(heard{Rule: "pull"})))); err != nil {
+	if err := h.Add(rule.Branch[standing]{
+		Name: "pull",
+		When: rule.Playing(lever),
+		Do:   rule.Order(heard{Rule: "pull"}),
+	}); err != nil {
 		t.Fatal(err)
 	}
 	roles := map[uid.UID64]uint64{1: 1 << lever.Tag(), 2: 1 << trapdoor.Tag()}

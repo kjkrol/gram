@@ -19,35 +19,27 @@ const (
 	Failure
 )
 
-// Step is a part of a rule or a plan, made by the methods of a Moment or an Actor — or by a
-// plugin's own functions, built on them.
+// Step is a part of a rule or a plan, made by package rule.
 type Step interface {
-	// lay adds the step and those under it to t, returning its index.
 	lay(t *tree) int
 }
 
-// exec is a step as a rule or a plan runs it.
 type exec interface {
-	// enter readies the step when it runs after a tick it did not run in.
-	enter(c *ctx, at int)
-	// tick runs it for one tick.
+	enter(c *ctx, at int) // when it runs after a tick it did not run in
 	tick(c *ctx, at int, kids []int) Status
-	// halt stops it while it runs: its branch lost to another.
-	halt(c *ctx, at int)
+	halt(c *ctx, at int) // stopped while running: its branch lost to another
 }
 
-// basic gives a step nothing to ready and nothing to stop.
 type basic struct{}
 
 func (basic) enter(*ctx, int) {}
 func (basic) halt(*ctx, int)  {}
 
-// composite is a node over others, laid out in order.
 type composite struct {
 	name string
 	kids []Step
 	make func() exec
-	sign string // what it is, for the tree's signature
+	sign string
 }
 
 func (n composite) lay(t *tree) int {
@@ -60,7 +52,6 @@ func (n composite) lay(t *tree) int {
 	return at
 }
 
-// leaf is a node over none.
 type leaf struct {
 	make func() exec
 	sign string
@@ -109,88 +100,6 @@ func (then) tick(c *ctx, at int, kids []int) Status {
 		}
 	}
 	return Success
-}
-
-// NewWhen is a When named name over node.
-func NewWhen[F any](name string, node Step) Step {
-	return composite{name: name, kids: []Step{node}, sign: "when[" + typeName[F]() + "]",
-		make: func() exec { return &when[F]{} }}
-}
-
-type when[F any] struct {
-	basic
-	fact *fact[F]
-}
-
-func (w *when[F]) bind(s *system) { w.fact = factOf[F](s) }
-
-func (w *when[F]) tick(c *ctx, _ int, kids []int) Status {
-	f := w.fact.of(c)
-	if f == nil {
-		return Failure
-	}
-	return c.under(*f, kids[0])
-}
-
-// NewOn is an On named name over node.
-func NewOn[F any](name string, node Step) Step {
-	return composite{name: name, kids: []Step{node}, sign: "on[" + typeName[F]() + "]",
-		make: func() exec { return &on[F]{} }}
-}
-
-type on[F any] struct {
-	basic
-	fact *fact[F]
-}
-
-func (o *on[F]) bind(s *system) { o.fact = factOf[F](s) }
-
-func (o *on[F]) tick(c *ctx, at int, kids []int) Status {
-	f := o.fact.of(c)
-	if !c.wasRunning(at) && f == nil {
-		return Failure
-	}
-	if f == nil {
-		return c.run(kids[0])
-	}
-	return c.under(*f, kids[0])
-}
-
-// NewIf is an If over node: in a plan F is a fact, in a rule the moment it fires on.
-func NewIf[F any](holds func(F) bool, node Step) Step {
-	return composite{kids: []Step{node}, sign: "if[" + typeName[F]() + "]" + funcName(holds),
-		make: func() exec { return &cond[F]{holds: holds} }}
-}
-
-type cond[F any] struct {
-	basic
-	holds func(F) bool
-	fact  *fact[F]
-}
-
-func (*cond[F]) instant() {}
-
-func (*cond[F]) refuses(payload any) string {
-	if _, ok := payload.(*F); ok {
-		return ""
-	}
-	return "is a condition on another moment"
-}
-
-func (i *cond[F]) bind(s *system) { i.fact = factOf[F](s) }
-
-func (i *cond[F]) tick(c *ctx, _ int, kids []int) Status {
-	if c.instant { // a rule's condition is on its moment
-		if v, ok := c.payload.(*F); ok && i.holds(*v) {
-			return c.run(kids[0])
-		}
-		return Failure
-	}
-	f := i.fact.of(c)
-	if f == nil || !i.holds(*f) {
-		return Failure
-	}
-	return c.under(*f, kids[0])
 }
 
 func NewWait(d time.Duration) Step {
@@ -274,10 +183,9 @@ type idle struct{ basic }
 
 func (idle) tick(*ctx, int, []int) Status { return Running }
 
-// typeName is T's name as a tree's signature writes it.
 func typeName[T any]() string { return reflect.TypeFor[T]().String() }
 
-// funcName is f's name, for a tree's signature: two conditions on one fact tell apart by it.
+// two conditions on one fact tell apart in the signature by it
 func funcName(f any) string {
 	if fn := runtime.FuncForPC(reflect.ValueOf(f).Pointer()); fn != nil {
 		return fn.Name()

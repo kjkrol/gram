@@ -5,7 +5,6 @@ import (
 	"github.com/kjkrol/gram/control"
 )
 
-// The commands as the topography gives them, for the tests to queue.
 type (
 	View struct{ Camera camera.Camera }
 	Ride struct{ Camera camera.Camera }
@@ -45,8 +44,7 @@ func (Ride) Command() {}
 
 func (Turn) Command() {}
 
-// queued is Orders over the tests' queues, as the topography's are over its own; a nil queue gives
-// nothing.
+// a nil queue gives nothing
 type queued struct {
 	views     *control.Queue[View]
 	turns     *control.Queue[Turn]

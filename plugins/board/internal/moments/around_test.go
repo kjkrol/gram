@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/internal/terrain"
 )
 
-// ringsRound tells each cell once, its seed first, ring by ring, on square and hex grids alike.
 func TestAround_TellsEachCellOnceRingByRing(t *testing.T) {
 	for name, g := range map[string]grid.Grid{
 		"square": grid.DefaultGrids{}.Square(9, 9, 10),

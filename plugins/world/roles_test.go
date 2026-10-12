@@ -8,15 +8,13 @@ import (
 	"github.com/kjkrol/gram/rule"
 )
 
-// A Stage's roles are its world's: two worlds define one name each with rules of their own and
-// neither sees the other's; Named hands back the role as it was defined, the same every time.
 func TestRoles_AreTheStagesOwn(t *testing.T) {
 	forest, arena := world.NewPlugin(testWorldConfig()), world.NewPlugin(testWorldConfig())
 	forest.Roles().Define("mortal",
-		rule.Then[world.Moving]("drown", rule.All, rule.Order(world.Despawn{})))
+		rule.Branch[world.Moving]{Name: "drown", Do: rule.Order(world.Despawn{})})
 	arena.Roles().Define("mortal",
-		rule.Then[world.Moving]("fall", rule.All, rule.Order(world.Despawn{})),
-		rule.Then[world.Leaving]("leave", rule.All, rule.Order(world.Despawn{})))
+		rule.Branch[world.Moving]{Name: "fall", Do: rule.Order(world.Despawn{})},
+		rule.Branch[world.Leaving]{Name: "leave", Do: rule.Order(world.Despawn{})})
 
 	a, b := forest.Roles().Named("mortal"), arena.Roles().Named("mortal")
 	if len(a.Rules()) != 1 || len(b.Rules()) != 2 {
@@ -30,7 +28,6 @@ func TestRoles_AreTheStagesOwn(t *testing.T) {
 	}
 }
 
-// A role's tag is its world's, handed out in the order the roles are defined there.
 func TestRoles_TagsAreHandedOutByTheWorld(t *testing.T) {
 	w := world.NewPlugin(testWorldConfig())
 	w.Roles().Define("first")
@@ -45,7 +42,6 @@ func TestRoles_TagsAreHandedOutByTheWorld(t *testing.T) {
 	}
 }
 
-// A name defined twice, a name nobody defined and a role of no name are refused by name.
 func TestRoles_RefuseWhatIsNotDefinedOnce(t *testing.T) {
 	w := world.NewPlugin(testWorldConfig())
 	w.Roles().Define("mortal")

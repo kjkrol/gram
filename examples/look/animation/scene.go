@@ -22,8 +22,8 @@ func (m *mainScene) picture() render.Picture {
 
 	worldAtlas := s.world.NewAtlas()
 	worldAtlas.Add(bugKind, EntitySize, bugFrame(0)).
-		Animated(gaitFrames, gaitPeriod, bugFrame). // the gait, frame after frame of game time
-		Turning()                                   // each frame turned the way the bug goes
+		Animated(gaitFrames, gaitPeriod, bugFrame).
+		Turning()
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 

@@ -8,8 +8,7 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// whiteSheet is a sheet of white alone, for what is painted in the vertices' colours: every
-// sprite of it is its white.
+// a sheet of white alone, for what is painted in the vertices' colours
 type whiteSheet struct{ img *render.Image }
 
 var white = &whiteSheet{}
@@ -24,28 +23,24 @@ func (w *whiteSheet) Atlas() *render.Image {
 func (*whiteSheet) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 3, 3 }
 func (*whiteSheet) White() (u, v float32)                           { return 1.5, 1.5 }
 
-// waterLayer is the part of s's water layer q lies on.
 func (s *groundSheet) waterLayer(q int) image.Rectangle {
 	w, h := s.water.Bounds().Dx()/2, s.water.Bounds().Dy()/2
 	x, y := (q%2)*w, (q/2)*h
 	return image.Rect(x, y, x+w, y+h)
 }
 
-// waterCell is the part of s's water layer q cell (x, y) is painted in.
 func (s *groundSheet) waterCell(q, x, y int) image.Rectangle {
 	o := s.waterLayer(q).Min
 	x0, y0 := o.X+x*s.wpx, o.Y+y*s.wpx
 	return image.Rect(x0, y0, x0+s.wpx, y0+s.wpx)
 }
 
-// resetWater starts s's water canvases over.
 func (l *Painter) resetWater(s *groundSheet) {
 	for q := range s.wcanvas {
 		s.wcanvas[q].Reset(nil)
 	}
 }
 
-// waterCorners is where the cell-local world corners w of cell i lie on s's water layer q.
 func (l *Painter) waterCorners(s *groundSheet, q, i int, w render.World) render.Corners {
 	cols := int(l.sq.Cols)
 	r := s.waterCell(q, i%cols, i/cols)
@@ -57,13 +52,11 @@ func (l *Painter) waterCorners(s *groundSheet, q, i int, w render.World) render.
 	return c
 }
 
-// flowOf is a flow as the water's layers hold it: over twice water.FlowSpan, a half for none.
+// as the water's layers hold a flow: over twice water.FlowSpan, a half for none
 func flowOf(v float32) float32 {
 	return min(max(v/(2*water.FlowSpan)+0.5, 0), 1)
 }
 
-// layWaterBase adds to s's water canvases cell i's own water, where its base shines: running
-// down its slope where the cells round it run (tile.Flow), still water else, over its whole cell.
 func (l *Painter) layWaterBase(s *groundSheet, i int) {
 	cols := int(l.sq.Cols)
 	c, ok := l.cellAt(int64(i%cols), int64(i/cols))
@@ -87,9 +80,6 @@ func (l *Painter) layWaterBase(s *groundSheet, i int) {
 	s.wcanvas[water.ShineLayer].Sprite(render.Ground, 0, white, 0, l.waterCorners(s, water.ShineLayer, i, box), render.Lit(render.Light{0, base.shine, 1}))
 }
 
-// layWater adds to s's water canvases what of cell i covers the water or runs over it: its blends
-// covering it, the pieces of its ways running with water or covering it, and the
-// glint where a way turns into water — each where it lies, faded as it fades, as the tiles lay it.
 func (l *Painter) layWater(s *groundSheet, i int, blends []BlendPiece, ways []WayPiece) {
 	dark := render.Even(0)
 	lay := func(q int, w render.World, shade render.Shade, faded bool, weight [4]float32, soft float32) {

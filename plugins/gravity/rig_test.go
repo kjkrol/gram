@@ -25,7 +25,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// installCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type installCtx struct {
 	hosts   []plugin.Host
 	ecs     *goke.ECS
@@ -55,29 +54,24 @@ func (c *installCtx) systems() []goke.System {
 	return systems
 }
 
-// landed is the command a test's Landing rule gives, Hard for a fall faster than hard.
 type landed struct{ Hard bool }
 
 func (landed) Command() {}
 
-// heard is where the landed commands land, for the world to carry.
 type heard struct{ control.Queue[landed] }
 
 func (h *heard) Queues() []control.CommandQueue     { return []control.CommandQueue{&h.Queue} }
 func (h *heard) DefaultBindings() []control.Binding { return nil }
 
-// given is every landed given since the last time.
 func (h *heard) given() []control.Issued[landed] {
 	var got []control.Issued[landed]
 	h.Drain(func(i control.Issued[landed]) { got = append(got, i) })
 	return got
 }
 
-// hard is how fast a fall the tests' Landing rule calls hard.
 const hard = 8.0
 
-// land is the ground of a test: its height at a point and a deck — over from ≤ x < to, top high
-// and thick — carrying walkers, read as the topography's relief reads its own.
+// a deck over from ≤ x < to, top high and thick, over the ground
 type land struct {
 	ground               func(p geom.Vec) float64
 	from, to, top, thick float64
@@ -100,25 +94,22 @@ func (l land) Surface(p geom.Vec, _ cell.Domain, feet, step float64) (floor, cei
 	return floor, ceiling
 }
 
-// body is a unit of a test: where it stands, at what altitude, the way it faces.
 type body struct {
 	x, y, alt float64
 	facing    geom.Vec
 }
 
-// scene is what a rig is built with: a world 40 by 40, a board of cells 10 wide; with heights
-// unless the board is drawn.
+// a world 40 by 40 of cells 10 wide, flat where level draws the board
 type scene struct {
-	level  []string // a flat world's board, a row a line: '#' solid, the rest open
-	land   *land    // nil: no surfaces, the ground at 0
-	leap   float64  // how high the bodies leap
-	fence  bool     // a railing 1 high along x 20 by the cell at 1, 1, struck by collision
-	water  bool     // the cells at 2, y water
+	level  []string // '#' solid, the rest open
+	land   *land
+	leap   float64
+	fence  bool
+	water  bool
 	bodies []body
 	rules  []rule.Rule
 }
 
-// rig is a world of bodies under gravity, ticked by hand: the world, collision, gravity, the board.
 type rig struct {
 	t     *testing.T
 	w     *world.Plugin
@@ -263,10 +254,8 @@ func (r *rig) start(sc scene) {
 
 func (r *rig) tick() { r.ecs.Tick(time.Second / tps) }
 
-// leap has the k-th body give itself a Leap.
 func (r *rig) leap(k int) { r.w.Carrier().PutFrom(r.ids[k], gravity.Leap{}) }
 
-// walk has the k-th body walk the way it faces at speed.
 func (r *rig) walk(k int, speed float64) {
 	r.t.Helper()
 	if !r.q.Seek(r.ids[k]) {
@@ -281,7 +270,6 @@ func (r *rig) walk(k int, speed float64) {
 	h.RequestSpeed(speed)
 }
 
-// state is the k-th body now: where its centre is, its Z, its drift and whether it is in the air.
 type state struct {
 	at       geom.Vec
 	z        world.Z
@@ -305,27 +293,24 @@ func (r *rig) of(k int) state {
 	return s
 }
 
-// setPull turns the gravity's pull, as an effect's Alter would.
 func (r *rig) setPull(p gravity.Pull) {
 	for r.pulls.All(); r.pulls.Next(); {
 		r.pull.Slice(r.pulls.Cursor())[0] = p
 	}
 }
 
-// awayFrom is an Away from the entity from.
 func awayFrom(from uid.UID64, speed, rise float64) gravity.Away {
 	a := gravity.Away{Speed: speed, Rise: rise}
 	a.Aim(from)
 	return a
 }
 
-// landing is the tests' Landing rule: a landed command for each, Hard past hard.
 func landing() rule.Rule {
-	return rule.Then[gravity.Landing]("landed", rule.All, rule.OneOf(
-		rule.If(
-			func(l gravity.Landing) bool { return l.Speed > hard },
-			rule.Order(landed{Hard: true}),
-		),
+	return rule.Branch[gravity.Landing]{Name: "landed", Do: rule.OneOf(
+		rule.Branch[gravity.Landing]{
+			When: func(l gravity.Landing) bool { return l.Speed > hard },
+			Do:   rule.Order(landed{Hard: true}),
+		},
 		rule.Order(landed{}),
-	))
+	)}
 }

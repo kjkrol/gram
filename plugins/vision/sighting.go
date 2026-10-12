@@ -1,6 +1,7 @@
 package vision
 
 import (
+	"github.com/kjkrol/gram/rule"
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -17,11 +18,10 @@ type Sighting struct {
 	Seen  []Seen
 }
 
-// Who is the observer: whose moment it is, for a rule.
+// Who is the observer.
 func (s Sighting) Who() uid.UID64 { return s.Self }
 
-// Subject is the nearest one seen, whom an Aimed command given on the moment is about; false
-// while none is in view.
+// Subject is the nearest one seen, whom an Aimed command is about; false while none is in view.
 func (s Sighting) Subject() (uid.UID64, bool) {
 	if len(s.Seen) == 0 {
 		return 0, false
@@ -36,14 +36,18 @@ func (s Sighting) Whom(each func(uid.UID64)) {
 	}
 }
 
-// Nobody reports that none the rule asks about is in view: a condition for a rule's If.
+// Nobody reports that none the rule asks about is in view: a condition for a rule's When.
 func (s Sighting) Nobody() bool { return len(s.Seen) == 0 }
 
-// onCourse is the cosine of the widest angle at which one still counts as heading at the other.
+// Seeing is the condition that the observer sees one playing role, the Sighting then of those
+// alone: a rule's When.
+func Seeing(role *rule.Part) rule.Cond { return rule.Other(role.Tag()) }
+
+// cos of the widest angle at which one still counts as heading at the other
 const onCourse = 0.5
 
-// Closing reports that the observer and the nearest one it sees are on a collision course — it
-// heads at the other, or the other at it: a condition for a rule's If, false with none in view.
+// Closing reports that the observer and the nearest one it sees are on a collision course: a
+// condition for a rule's When, false with none in view.
 func (s Sighting) Closing() bool {
 	if len(s.Seen) == 0 {
 		return false
@@ -58,7 +62,7 @@ func (s Sighting) Closing() bool {
 	return mine.X*towards.X+mine.Y*towards.Y > onCourse || theirs.X*towards.X+theirs.Y*towards.Y < -onCourse
 }
 
-// Seen is one entity in an observer's view: which, where and how it moves, how far off.
+// Seen is one entity in an observer's view and how far off it is.
 type Seen struct {
 	ID   uid.UID64
 	Base *world.Base

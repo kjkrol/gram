@@ -14,9 +14,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// commanded is a System over a steered entity at (10,10) going east and an unsteered one at
-// (20,10), stepped once after give puts commands in its queues; it reports the way the steered one
-// goes after.
 func commanded(t *testing.T, give func(s *System, steered, other uid.UID64)) geom.Vec {
 	t.Helper()
 	s := NewSystem()
@@ -52,7 +49,6 @@ func commanded(t *testing.T, give func(s *System, steered, other uid.UID64)) geo
 	return dir
 }
 
-// put gives cmd on id's behalf, as a rule's Order does.
 func put(s *System, id uid.UID64, cmd control.Command) {
 	for _, q := range s.Queues() {
 		if q.Accepts() == reflect.TypeOf(cmd) {
@@ -64,7 +60,6 @@ func put(s *System, id uid.UID64, cmd control.Command) {
 
 func near(a, b geom.Vec) bool { return math.Abs(a.X-b.X) < 1e-9 && math.Abs(a.Y-b.Y) < 1e-9 }
 
-// Away heads the entity from the other, Toward at it, Turn a quarter off the way it went.
 func TestCommands_HeadTheEntity(t *testing.T) {
 	for name, tc := range map[string]struct {
 		give func(steered, other uid.UID64) control.Command
@@ -81,20 +76,18 @@ func TestCommands_HeadTheEntity(t *testing.T) {
 	}
 }
 
-// One command a step counts: an Away over a Toward given after it, the first of two Aways.
 func TestCommands_OneAStep(t *testing.T) {
 	got := commanded(t, func(s *System, steered, other uid.UID64) {
 		put(s, steered, Toward{To: other})
 		put(s, steered, Away{From: other})
-		put(s, steered, Away{From: steered}) // from itself: no way at all, and too late
+		// from itself: no way at all, and too late
+		put(s, steered, Away{From: steered})
 	})
 	if !near(got, geom.NewVec(-1, 0)) {
 		t.Errorf("goes %v, want away from the other", got)
 	}
 }
 
-// A command given by a player, not by an entity for itself, or of an entity that cannot be
-// steered, is dropped.
 func TestCommands_OnlyAnEntitysOwnForItself(t *testing.T) {
 	got := commanded(t, func(s *System, steered, other uid.UID64) {
 		s.told.aways.Add(control.PlayerID(1), Away{From: other})

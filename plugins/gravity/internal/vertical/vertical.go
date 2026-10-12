@@ -5,18 +5,16 @@ package vertical
 import "math"
 
 // Body is one body as a step takes it: its feet, height and the reach of its step, the drift it
-// is carried at — X and Y across, Rise up — and whether it is in the air.
+// is carried at (X and Y across, Rise up) and whether it is in the air.
 type Body struct {
 	Feet, Height, Reach float64
 	X, Y, Rise          float64
 	Airborne            bool
 }
 
-// Step moves b one step of dt under a pull of g down, between floor — the surface under it —
-// and ceiling, the underside of a slab over its head. A body standing follows the floor within
-// its reach, the drift across braked as the ground holds it, and goes on into the air past it;
-// one in the air falls, its head stopped by the ceiling, and lands on the floor: landed says so,
-// at speed.
+// Step moves b one step of dt under a pull of g down, between floor, the surface under it, and
+// ceiling, the underside of a slab over its head. A standing body follows the floor within its
+// reach; one in the air falls and lands on the floor, landed saying so at speed.
 func Step(b *Body, g, floor, ceiling, dt float64) (speed float64, landed bool) {
 	if !b.Airborne {
 		if b.Feet-floor <= b.Reach {
@@ -41,8 +39,7 @@ func Step(b *Body, g, floor, ceiling, dt float64) (speed float64, landed bool) {
 	return speed, true
 }
 
-// Leap throws b up to rise height over where it stands under a pull of g; a body in the air
-// does not leap.
+// Leap throws b up to rise height under a pull of g; a body in the air does not leap.
 func Leap(b *Body, g, height float64) {
 	if b.Airborne || g <= 0 || height <= 0 {
 		return
@@ -62,7 +59,6 @@ func Throw(b *Body, g, x, y, height float64) {
 	}
 }
 
-// brake takes by off the length of x, y, down to none.
 func brake(x, y, by float64) (float64, float64) {
 	l := math.Hypot(x, y)
 	if l <= by {

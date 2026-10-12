@@ -13,11 +13,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// alone holds for a nudge by nobody.
 func alone(n nudge) bool { return n.nobody }
 
-// A rule written with Then and the package's steps runs as one written with On: the one nudged
-// by nobody braces, the other, If(Not(alone)), dodges.
 func TestThen_RunsThePackagesStepsOnItsMoment(t *testing.T) {
 	var carrier control.Carrier
 	var dodges control.Queue[dodge]
@@ -26,10 +23,10 @@ func TestThen_RunsThePackagesStepsOnItsMoment(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := &plugin.Rules[nudge]{}
-	if err := h.Add(rule.Then[nudge]("dodge or brace", rule.All, rule.OneOf(
-		rule.If(rule.Not(alone), rule.Order(dodge{})),
+	if err := h.Add(rule.Branch[nudge]{Name: "dodge or brace", Do: rule.OneOf(
+		rule.Branch[nudge]{When: rule.Not(alone), Do: rule.Order(dodge{})},
 		rule.Order(brace{}),
-	))); err != nil {
+	)}); err != nil {
 		t.Fatal(err)
 	}
 	var ids []uid.UID64
@@ -57,7 +54,6 @@ func TestThen_RunsThePackagesStepsOnItsMoment(t *testing.T) {
 	}
 }
 
-// A step the rule's moment cannot run is refused as the rule is made, by the rule's name.
 func TestThen_RefusesAStepItsMomentCannotRun(t *testing.T) {
 	for name, tc := range map[string]struct {
 		step rule.Step
@@ -65,7 +61,14 @@ func TestThen_RefusesAStepItsMomentCannotRun(t *testing.T) {
 	}{
 		"Around on a moment that is not Placed": {rule.Around(1, rule.Order(brace{})), "Placed"},
 		"Here on a moment that is not Placed":   {rule.Here(rule.Order(brace{})), "Placed"},
-		"If over another moment":                {rule.If(func(token) bool { return true }, rule.Order(brace{})), "another moment"},
+		"a condition on another moment": {rule.Branch[token]{
+			When: func(token) bool { return true },
+			Do:   rule.Order(brace{}),
+		}, "another moment"},
+		"a branch going on past the moment": {rule.Branch[nudge]{
+			Through: true,
+			Do:      rule.Order(brace{}),
+		}, "past its moment"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			defer func() {
@@ -74,7 +77,7 @@ func TestThen_RefusesAStepItsMomentCannotRun(t *testing.T) {
 					t.Errorf("panic %q; want one naming the rule \"lost\" and %q", msg, tc.want)
 				}
 			}()
-			rule.Then[nudge]("lost", rule.All, tc.step)
+			rule.Build(rule.Branch[nudge]{Name: "lost", Do: tc.step})
 		})
 	}
 }

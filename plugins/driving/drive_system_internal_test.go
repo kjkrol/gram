@@ -18,8 +18,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// cellKept keeps one unit a cell, as navigation's cell spacing does: a unit walks into a cell
-// nobody else holds; ordered says whether the walker is steered along an order.
 type cellKept struct {
 	occupancy cell.Occupancy
 	ordered   bool
@@ -32,8 +30,6 @@ func (k *cellKept) MayStep(id uid.UID64, _ world.Position, at, ahead cell.ID, de
 
 func (k *cellKept) Ordered(uid.UID64) bool { return k.ordered }
 
-// driveRig is driveSystem over a 10x1 row of 10-unit land cells with water at x 6, a 4x4 walker
-// in cell 2 facing east, and a stranger holding cell 3 when asked.
 type driveRig struct {
 	t         *testing.T
 	ecs       *goke.ECS
@@ -94,7 +90,6 @@ func newDriveRig(t *testing.T, mover ...unit.Mover) *driveRig {
 	return r
 }
 
-// with calls fn with the walker's components.
 func (r *driveRig) with(fn func(c *unit.At, b *world.Base, st steering.Helm, d *steering.Driven, entered bool)) {
 	r.q.All()
 	for r.q.Next() {
@@ -110,7 +105,6 @@ func (r *driveRig) drive(in steering.Driven) {
 	r.ecs.Tick(time.Second / 60)
 }
 
-// place puts the walker's centre at (x, 5).
 func (r *driveRig) place(x float64) {
 	r.with(func(_ *unit.At, b *world.Base, _ steering.Helm, _ *steering.Driven, _ bool) {
 		b.Pos.AABB = plane.NewAABB(geom.NewVec(x-2, 3), 4, 4)
@@ -181,7 +175,6 @@ func TestDrive_KeepsTheCellAndTheOccupancyWithTheWalker(t *testing.T) {
 	}
 }
 
-// A walker steered along an order of its own is left be with no hand on it; a hand drives it.
 func TestDrive_LeavesAnOrderedWalkerBeWithNoHand(t *testing.T) {
 	r := newDriveRig(t)
 	r.kept.ordered = true
@@ -195,8 +188,6 @@ func TestDrive_LeavesAnOrderedWalkerBeWithNoHand(t *testing.T) {
 	}
 }
 
-// Face turns the walker to face a way whatever Turn says; Look — where an eye riding in it
-// looks — before any Face.
 func TestDrive_FaceAndLookTurnItToFaceAWay(t *testing.T) {
 	r := newDriveRig(t)
 	r.drive(steering.Driven{Face: geom.NewVec(0, -3), Turn: 1})
@@ -213,8 +204,6 @@ func TestDrive_FaceAndLookTurnItToFaceAWay(t *testing.T) {
 	}
 }
 
-// S held while walking brakes the walker to a stop, never at once, then backs it away at its V0,
-// facing as it does — and stops it at the edge behind it.
 func TestDrive_BrakesThenBacksAwayFacingOn(t *testing.T) {
 	r := newDriveRig(t)
 	r.with(func(_ *unit.At, _ *world.Base, st steering.Helm, _ *steering.Driven, _ bool) {
@@ -226,7 +215,7 @@ func TestDrive_BrakesThenBacksAwayFacingOn(t *testing.T) {
 		t.Fatalf("S held walking at 20: asks %v, speed %v; want braking, not stopped at once", st.WantSpeed, st.Speed)
 	}
 	r.with(func(_ *unit.At, _ *world.Base, st steering.Helm, _ *steering.Driven, _ bool) {
-		st.Speed = 0 // braked to a stop
+		st.Speed = 0
 	})
 	r.drive(steering.Driven{Ahead: -1})
 	if st := r.steering(); st.WantSpeed != -5 || st.Want != geom.NewVec(1, 0) {
@@ -239,7 +228,6 @@ func TestDrive_BrakesThenBacksAwayFacingOn(t *testing.T) {
 	}
 }
 
-// lift is the walker's Lift, 0 without a Mover.
 func (r *driveRig) lift() float64 {
 	var lift float64
 	r.q.All()
@@ -251,7 +239,6 @@ func (r *driveRig) lift() float64 {
 	return lift
 }
 
-// W with Shift urges the walker to its Sprint; without one to its top speed alone.
 func TestDrive_SprintsWhereUrged(t *testing.T) {
 	r := newDriveRig(t)
 	r.with(func(_ *unit.At, _ *world.Base, st steering.Helm, _ *steering.Driven, _ bool) {
@@ -268,9 +255,6 @@ func TestDrive_SprintsWhereUrged(t *testing.T) {
 	}
 }
 
-// A flyer flown by hand and steered up goes the less along the ground, the more steeply, sprinting
-// or not; its height is the topography's to change, so the drive leaves its Lift be. Neither a
-// flyer steered from behind nor a walker slows for the look.
 func TestDrive_AFlyerFlownUpGoesTheLessAlongTheGround(t *testing.T) {
 	r := newDriveRig(t, unit.Mover{Domain: cell.Land | cell.Air, Lift: 10}) // over the rig's land
 	r.with(func(_ *unit.At, _ *world.Base, st steering.Helm, _ *steering.Driven, _ bool) {
@@ -300,7 +284,6 @@ func TestDrive_AFlyerFlownUpGoesTheLessAlongTheGround(t *testing.T) {
 	}
 }
 
-// entered reports whether the chunk's one unit has its Entered on.
 func entered(places []tag.Tags[unit.States]) bool {
 	return places != nil && places[0].Has(unit.Entered)
 }

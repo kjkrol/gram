@@ -31,7 +31,6 @@ func DefaultTheme() Theme {
 	}
 }
 
-// style is which of the theme's colours an element takes where it sets none of its own.
 type style uint8
 
 const (
@@ -43,7 +42,6 @@ const (
 
 var fallback = DefaultTheme()
 
-// look is the theme the element is drawn in: its scene's, else the default.
 func (e *Element) look() *Theme {
 	if e.theme != nil {
 		return e.theme
@@ -51,7 +49,6 @@ func (e *Element) look() *Theme {
 	return &fallback
 }
 
-// fillColor is the element's background: its own Fill, else its style's in the theme.
 func (e *Element) fillColor() color.RGBA {
 	if e.filled {
 		return e.fill
@@ -68,7 +65,6 @@ func (e *Element) fillColor() color.RGBA {
 	return color.RGBA{}
 }
 
-// borderColor is the element's border: its own Border, else the theme's for a styled element.
 func (e *Element) borderColor() color.RGBA {
 	if e.bordered || e.style == plain || e.style == titleStyle {
 		return e.border
@@ -83,7 +79,6 @@ func (s *Scene) Theme(t Theme) *Scene {
 	return s
 }
 
-// dress hands every element of the scene its theme.
 func (s *Scene) dress() {
 	if s.root == nil {
 		return

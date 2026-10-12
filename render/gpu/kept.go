@@ -9,7 +9,7 @@ import (
 )
 
 // Kept is triangles kept on the GPU: their vertices and indices written once, at their first draw,
-// and drawn frame after frame without going there again.
+// and drawn frame after frame.
 type Kept struct {
 	verts   []Vertex
 	indices []uint16
@@ -23,7 +23,6 @@ func NewKept(verts []Vertex, indices []uint16) *Kept {
 	return &Kept{verts: append([]Vertex(nil), verts...), indices: append([]uint16(nil), indices...), count: uint32(len(indices))}
 }
 
-// buffers are k's buffers on the GPU, written at the first call.
 func (k *Kept) buffers(d *device) (*wgpu.Buffer, *wgpu.Buffer) {
 	if k.vbuf != nil {
 		return k.vbuf, k.ibuf
@@ -47,7 +46,6 @@ func (k *Kept) buffers(d *device) (*wgpu.Buffer, *wgpu.Buffer) {
 	return k.vbuf, k.ibuf
 }
 
-// keep is a buffer on the GPU holding data, used as usage says.
 func (d *device) keep(label string, data []byte, usage gputypes.BufferUsage) *wgpu.Buffer {
 	buf, err := d.dev.CreateBuffer(&wgpu.BufferDescriptor{Label: label, Size: uint64(max(len(data), 4)), Usage: usage | wgpu.BufferUsageCopyDst})
 	if err != nil {

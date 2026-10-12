@@ -8,20 +8,17 @@ import (
 	"github.com/kjkrol/goke/v3"
 )
 
-// tree is a plan or a rule laid out for running: its steps by index, the root first.
 type tree struct {
 	name  string
 	nodes []laid
 	signs []string
 }
 
-// laid is one node of a laid-out tree: how it runs, and the nodes under it.
 type laid struct {
 	exec exec
 	kids []int
 }
 
-// add lays s out as the tree's next node, sign saying what it is.
 func (t *tree) add(s exec, sign string) int {
 	if len(t.nodes) == MaxSteps {
 		panic(fmt.Sprintf("rule: %q has more than %d steps", t.name, MaxSteps))
@@ -31,8 +28,6 @@ func (t *tree) add(s exec, sign string) int {
 	return len(t.nodes) - 1
 }
 
-// signature is what the tree is, node by node with the nodes under each: two trees under one name
-// must be alike.
 func (t *tree) signature() string {
 	var b strings.Builder
 	for i, n := range t.nodes {
@@ -41,23 +36,20 @@ func (t *tree) signature() string {
 	return b.String()
 }
 
-// layOut lays root out as a tree named name.
 func layOut(name string, root Step) *tree {
 	t := &tree{name: name}
 	root.lay(t)
 	return t
 }
 
-// definition is a tree as registered: its root, to lay out for each world, and its signature.
 type definition struct {
 	name string
 	root Step
 	sign string
-	load []goke.CompToken // the components of its asks, for the saves
+	load []goke.CompToken
 }
 
-// Define lays root out as the plan named name — what a save knows it by — and returns its id,
-// what a Mind carries. The plans are their world's: one name is one plan there, and a name
+// Define lays root out as the plan named name and returns its id, what a Mind carries. A name
 // defined twice, or after the plans' system is set up, panics.
 func (c *Plans) Define(name string, root Step) uint64 {
 	if name == "" {
@@ -86,8 +78,6 @@ func (c *Plans) Define(name string, root Step) uint64 {
 	return id
 }
 
-// named is body under name: a OneOf or a Steps of no name takes it, anything else is put in a
-// Steps of that name.
 func named(name string, body Step) Step {
 	if n, ok := body.(composite); ok && n.name == "" && (n.sign == "first" || n.sign == "then") {
 		n.name = name
@@ -96,7 +86,9 @@ func named(name string, body Step) Step {
 	return NewThen(name, body)
 }
 
-// hash is name hashed, as a Mind keeps it.
+// PlanID is the id of the plan named name: the name hashed.
+func PlanID(name string) uint64 { return hash(name) }
+
 func hash(name string) uint64 {
 	h := fnv.New64a()
 	h.Write([]byte(name))

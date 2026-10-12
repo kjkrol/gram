@@ -39,7 +39,6 @@ func TestUVSpan_PiecesTileTheTextureAcrossTheCorner(t *testing.T) {
 	}
 }
 
-// A sprite that never reaches an edge shows all of itself.
 func TestUVSpan_UnwrappedSpriteShowsWholeTexture(t *testing.T) {
 	u0, u1 := uvSpan(100, 100, 0)
 	if u0 != 0 || u1 != 1 {

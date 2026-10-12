@@ -9,11 +9,8 @@ import (
 	"github.com/kjkrol/gram/plugin"
 )
 
-// moment is a made-up host's description of one entity: its place in the chunk.
 type moment struct{ i int }
 
-// Rules over one component share its column in the host's query, the host's own among them:
-// two over hostBody and the host reading hostBody itself build one query and each sees every entity.
 func TestRules_TriggersOverOneComponentShareItsColumn(t *testing.T) {
 	h := &plugin.Rules[moment]{}
 	seen := [2]int{}
@@ -48,8 +45,6 @@ func TestRules_TriggersOverOneComponentShareItsColumn(t *testing.T) {
 	}
 }
 
-// RunWhere hands the moment to the entities keep lets through alone, rules over a component and
-// rules over every entity alike.
 func TestRules_RunWhereSkipsWhatKeepLeavesOut(t *testing.T) {
 	h := &plugin.Rules[moment]{}
 	var each, every []int
@@ -77,8 +72,6 @@ func TestRules_RunWhereSkipsWhatKeepLeavesOut(t *testing.T) {
 	}
 }
 
-// eachRule, everyRule and pairRule make rules of Go functions for these tests, as rule.Then's are
-// made for the rule-driven systems: over a component, over every entity, over pairs.
 func eachRule[T, P any](react func(plugin.Tick, *T, P)) any { return &eachOf[T, P]{react: react} }
 
 func everyRule[P any](react func(plugin.Tick, P)) any { return &everyOf[P]{react: react} }

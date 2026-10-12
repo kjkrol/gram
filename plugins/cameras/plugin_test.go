@@ -18,8 +18,6 @@ func newWorld() *world.Plugin {
 	})
 }
 
-// Every camera the plugin made is saved, in the order made, each with its window, zoom and
-// fastening, and restored by a load — those made before it and those made after alike.
 func TestCameras_AreSavedAndRestoredWithTheGame(t *testing.T) {
 	newCamera := func(p *cameras.Plugin, w, h float32) camera.Camera {
 		cam := p.New(cameras.TopDown(), camera.Config{})
@@ -60,7 +58,6 @@ func TestCameras_AreSavedAndRestoredWithTheGame(t *testing.T) {
 	}
 }
 
-// Each camera is its own: two of one plugin, made for two players, keep a maker and a config each.
 func TestNew_EveryCameraHasAConfigOfItsOwn(t *testing.T) {
 	p := cameras.NewPlugin(newWorld())
 	looking := func(width, height uint32, edges aabbworld.Edges, cfg camera.Config) camera.Camera {

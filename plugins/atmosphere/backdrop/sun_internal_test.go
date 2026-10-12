@@ -13,11 +13,8 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// eyed is a 100 x 100 screen through a perspective: an eye at (50, 150, 30) looking along -y and
-// a little up through a focal length of 100, off the world, so the sky shows.
 type eyed struct{ camera.Camera }
 
-// The eye's frame: forward, right and up.
 var (
 	eyedF = [3]float32{0, -0.9487, 0.3162}
 	eyedR = [3]float32{1, 0, 0}
@@ -42,7 +39,6 @@ func (eyed) Vanish(dx, dy, dz float32) (float32, float32, bool) {
 	return 50 + 100*dot3(d, eyedR)/ahead, 50 - 100*dot3(d, eyedU)/ahead, true
 }
 
-// sorting is a projection with depth, as a perspective has.
 type sorting struct{ camera.Projection }
 
 func (sorting) Sorts() bool { return true }
@@ -85,9 +81,6 @@ func TestBackdrop_TheSunStandsWhereItsWayVanishesThroughAPerspective(t *testing.
 	}
 }
 
-// A sun whose middle has sunk a little under the horizon still has its disc drawn, for the ground
-// to hide what of it has set; well under, none. At night the stars come out and the moon, full
-// and opposite the sun, has its face lit towards the eye.
 func TestBackdrop_TheSunSetsAndTheNightComesOut(t *testing.T) {
 	b := New(world.SpaceCfg{Width: 100, Height: 100}, world.Scale{}, nil, nil)
 	cam := eyed{}
@@ -105,8 +98,6 @@ func TestBackdrop_TheSunSetsAndTheNightComesOut(t *testing.T) {
 	}
 }
 
-// What WithShown switches off does not show: without the stars the night is starless, without the
-// moon it has no disc.
 func TestBackdrop_ShowsTheStarsAndTheMoonOnlyAsShownSays(t *testing.T) {
 	cam := eyed{}
 	field := camera.RayField{Dir: eyedF, DDX: eyedR, DDY: [3]float32{-eyedU[0], -eyedU[1], -eyedU[2]}}
@@ -122,13 +113,11 @@ func TestBackdrop_ShowsTheStarsAndTheMoonOnlyAsShownSays(t *testing.T) {
 	}
 }
 
-// norm3 is a the length of 1.
 func norm3(a [3]float32) [3]float32 {
 	n := float32(math.Sqrt(float64(dot3(a, a))))
 	return [3]float32{a[0] / n, a[1] / n, a[2] / n}
 }
 
-// zoomed is raying zoomed in twice: its focal length doubled, the middle of its screen kept.
 type zoomed struct{ raying }
 
 func (z zoomed) Rays() (camera.RayField, bool) {

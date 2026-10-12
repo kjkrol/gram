@@ -16,8 +16,7 @@ type Vertex = gpu.Vertex
 type Uniform = gpu.Uniform
 
 // Image is a picture on the GPU: a texture, or a rectangle of one (SubImage), in whose pixels what
-// is drawn into it is placed and to which it is clipped. A texture made before the window's GPU
-// is up keeps what is written into it until then.
+// is drawn into it is placed and to which it is clipped.
 type Image struct {
 	tex   *gpu.Texture
 	rect  image.Rectangle
@@ -89,7 +88,7 @@ const (
 
 // GeoM is an affine transform of the plane, the identity as it comes.
 type GeoM struct {
-	a1, b, c, d1, tx, ty float64 // a1 and d1 are the diagonal minus one, so the zero is the identity
+	a1, b, c, d1, tx, ty float64 // the diagonal minus one, so the zero is the identity
 }
 
 // Reset makes g the identity.
@@ -132,8 +131,8 @@ func (i *Image) DrawImage(src *Image, op *DrawImageOptions) {
 	gpu.DrawImage(i.gpu(), src.gpu(), o.GeoM.affine(), [4]float32{1, 1, 1, 1}, o.Filter == FilterLinear, gpu.SourceOver)
 }
 
-// DrawImageIn lays src over the image, its top-left corner at (x, y), only inside the convex polygon
-// pts, in the image's pixels: a picture cut round, or to any convex shape.
+// DrawImageIn lays src over the image, its top-left corner at (x, y), only inside the convex
+// polygon pts, in the image's pixels.
 func (i *Image) DrawImageIn(src *Image, x, y float32, pts [][2]float32) {
 	gpu.DrawImageIn(i.gpu(), src.gpu(), x, y, pts, gpu.SourceOver)
 }
@@ -160,19 +159,19 @@ func (i *Image) DrawTrianglesShader(verts []Vertex, indices []uint16, s *Shader,
 	gpu.Triangles(&gpu.Draw{Target: i.gpu(), Program: s.program(), Images: imgs, Uniforms: s.pack(u), Blend: gpu.SourceOver}, verts, indices)
 }
 
-// rgbaOf is c's red, green, blue and alpha, 0 to 1, the colour premultiplied by alpha.
+// premultiplied, 0 to 1
 func rgbaOf(c color.Color) (r, g, b, a float32) {
 	cr, cg, cb, ca := c.RGBA()
 	return float32(cr) / 0xffff, float32(cg) / 0xffff, float32(cb) / 0xffff, float32(ca) / 0xffff
 }
 
-// Shader is a WGSL fragment with its uniforms (see render/gpu), for DrawTrianglesShader.
+// Shader is a WGSL fragment with its uniforms, for DrawTrianglesShader.
 type Shader struct {
 	label  string
-	source func() string // its WGSL once the materials are all in
+	source func() string // read once the materials are all in
 	layout func() *gpu.Layout
-	mesh   bool // a vertex stage of its own (NewMeshShaderWith)
-	vec4s  int  // a mesh's vectors an instance (Instanced), 0 none
+	mesh   bool
+	vec4s  int
 	prog   *gpu.Program
 	lay    *gpu.Layout
 	buf    []byte
@@ -190,13 +189,12 @@ func (s *Shader) program() *gpu.Program {
 	return s.prog
 }
 
-// Compile compiles the shader now, rather than at its first draw: for a test.
+// Compile compiles the shader now, rather than at its first draw.
 func (s *Shader) Compile() error { return s.program().Compile() }
 
 // Source is the shader's whole WGSL.
 func (s *Shader) Source() string { return s.program().Source() }
 
-// pack is the uniforms u laid out as the shader's struct holds them, every other zero.
 func (s *Shader) pack(u map[string]any) []byte {
 	s.program()
 	if len(s.buf) != s.lay.Size {
@@ -213,5 +211,5 @@ func (s *Shader) pack(u map[string]any) []byte {
 	return s.buf
 }
 
-// Texture is the image's texture: for the engine, which presents it on the window.
+// Texture is the image's texture.
 func (i *Image) Texture() *gpu.Texture { return i.tex }

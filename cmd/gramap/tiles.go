@@ -11,13 +11,11 @@ import (
 	"path/filepath"
 )
 
-// tileURL is the Terrain Tiles on AWS (Mapzen's Tilezen terrarium): heights in metres, the sea's
-// depths below 0, as R·256 + G + B/256 − 32768.
+// the Terrain Tiles on AWS: heights in metres as R·256 + G + B/256 − 32768
 const tileURL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/%d/%d/%d.png"
 
 const tilePx int = 256
 
-// elevation is how high the Earth stands at a longitude and latitude, in metres.
 type elevation func(lon, lat float64) (float64, error)
 
 type terrarium struct {
@@ -31,7 +29,6 @@ func newTerrarium(zoom int, cache string) *terrarium {
 	return &terrarium{zoom: zoom, cache: cache, fetch: get, tiles: map[[2]int]image.Image{}}
 }
 
-// at is the height at lon, lat, bilinear between the pixels' middles.
 func (t *terrarium) at(lon, lat float64) (float64, error) {
 	n := float64(tilePx << t.zoom)
 	x := (lon + 180) / 360 * n
@@ -123,7 +120,7 @@ func get(url string) (io.ReadCloser, error) {
 	return resp.Body, nil
 }
 
-// zoomFor is the coarsest zoom whose pixels at lat are no wider than half a cell, 14 at most.
+// the coarsest zoom whose pixels at lat are no wider than half a cell
 func zoomFor(cell, lat float64) int {
 	equator := 2 * math.Pi * earthRadius / float64(tilePx) // metres a pixel at zoom 0
 	z := math.Ceil(math.Log2(equator * math.Cos(lat*math.Pi/180) / (cell / 2)))
@@ -132,8 +129,7 @@ func zoomFor(cell, lat float64) int {
 
 const earthRadius = 6371000.0
 
-// lonLatOf is where x metres east and y metres south of centre lie, in a projection keeping
-// distances near it.
+// x metres east and y metres south of centre, in a projection keeping distances near it
 func lonLatOf(centre [2]float64, x, y float64) (lon, lat float64) {
 	lat0 := centre[1] * math.Pi / 180
 	lon = centre[0] + x/(earthRadius*math.Cos(lat0))*180/math.Pi

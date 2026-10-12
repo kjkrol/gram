@@ -7,16 +7,12 @@ import (
 	contract "github.com/kjkrol/gram/camera"
 )
 
-// inBounds reports whether the world point (x, y) lies in b, give or take a hundredth.
 func inBounds(b contract.AABB, x, y float32) bool {
 	return float64(x) >= b.TopLeft.X-1e-2 && float64(x) <= b.BottomRight.X+1e-2 && float64(y) >= b.TopLeft.Y-1e-2 && float64(y) <= b.BottomRight.Y+1e-2
 }
 
-// onWorld reports whether (x, y) lies on the 640 x 640 world of the tests.
 func onWorld(x, y float32) bool { return x >= 0 && x <= 640 && y >= 0 && y <= 640 }
 
-// The isometric camera's Bounds hold every ground point the screen shows at any height of the
-// relief: high ground from beyond the screen's lower edge at sea level included.
 func TestIsoCamera_BoundsHoldTheGroundTheScreenShowsAtAnyHeight(t *testing.T) {
 	c := testCamera(t, 0).(*viewCamera).iso
 	c.ZoomIn(3, 160, 160)
@@ -47,8 +43,6 @@ func TestIsoCamera_BoundsHoldTheGroundTheScreenShowsAtAnyHeight(t *testing.T) {
 	}
 }
 
-// The perspective camera's Bounds hold every ground point the screen shows, from above and from
-// inside a unit, the head raised or bowed; looking over everything they stay a rectangle at the eye.
 func TestPerspCamera_BoundsHoldTheGroundTheScreenShowsAtAnyHeight(t *testing.T) {
 	check := func(name string, c *perspCamera) {
 		t.Helper()

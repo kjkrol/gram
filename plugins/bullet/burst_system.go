@@ -15,8 +15,6 @@ import (
 
 var _ goke.System = (*burstSystem)(nil)
 
-// burstSystem carries out the Bursts given: for the shot that gave itself one, every entity the
-// space finds within the radius of its centre is a Blast for the rules, and the shot is gone.
 type burstSystem struct {
 	w      *world.Plugin
 	space  *aabbworld.Space
@@ -34,7 +32,6 @@ func newBurstSystem(w *world.Plugin, bursts *control.Queue[Burst], blasts *plugi
 	return &burstSystem{w: w, space: w.Space(), bursts: bursts, blasts: blasts, tickOf: w.Tick}
 }
 
-// sought is the one query the system offers its hosted rules.
 const sought = 0
 
 func (s *burstSystem) Init(si *goke.SysInit) {
@@ -76,7 +73,6 @@ func (s *burstSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 	})
 }
 
-// among reports whether id was found already.
 func (s *burstSystem) among(id uid.UID64) bool {
 	for _, f := range s.found {
 		if f == id {

@@ -24,6 +24,28 @@ where it begins: `navigation.Path` changed shape.
 - `examples/navigation/spawn` (`make demo-navigation-spawn`): N spawns a walker under the
   cursor, and the cells held are shown.
 
+**One brick: `rule.Branch`, and plans a kind carries**
+- The notation of rules and plans is one struct: `rule.Branch[P]{Name, When, Do}` — when, what.
+  Given to a role it is a rule of the moment `P`; in a plan it waits for the fact `P` (`Through`,
+  it goes on once begun though the fact goes); of `any`, it asks only of state. `When` holds the
+  conditions as values — a predicate of `P`, `rule.All(…)`, `rule.Not`, `Under`, `Free`,
+  `During`, `While`, `Playing`, `Self`, `Other`, `Carrying` — in the moment's own words:
+  `vision.Seeing(role)`, `collision.Met(role)`, `bullet.Reaching(role)`, `bullet.Within(d)`,
+  `gravity.HarderThan(v)`, `navigation.Touching(role)`. New steps `rule.Once(e, step)` (a rule's
+  memory, named) and `rule.Either(a, b)`. `rule.Then`, `rule.If`, the step wrappers `Unless`,
+  `Under`, `During`, `While`, `Playing` and the filters `All`, `Self`, `Between`, `Other`, `Having`
+  as filters are gone; a host builds the Branch it is handed (`plugin.Hosted`).
+- A plan is a value a kind carries: `rule.Plan(name, root)` in its Spec, as `rule.Plays`; the
+  world defines it as the kind is registered. `world.Plans()`, `plan.Actor` and the package
+  `rule/plan` are gone; the steps that last (`Until`, `Wait`, `Timeout`, `Cooldown`, `Idle`,
+  `Invert`, `Ask`, `Agree`, `Refuse`, `Relay`, the facts `Asked` and `Replied`) are `rule`'s. A
+  plan's shape changed, so saves holding a `Mind` do not load.
+- The grenade's fuse is a plan the grenade carries — `Until` its `Flight` is `Lying`, `Wait`,
+  `Order` a `Burst` — in place of an effect chained by `Then` and a rule of `Resting`.
+- `examples/rules/guard` (`make demo-guard`): guards on a plan — patrol, step aside when blocked
+  long, rest where they arrive, run to the gate while the alarm (A) is on.
+- Fixed: a route of one cell drawn between two goals panicked the routes' renderer.
+
 **The examples grouped**
 - `examples/` is a directory a group of what the demos show — `start`, `look`, `rules`, `board`,
   `navigation`, `motion` — and a short name in it (`examples/navigation/spawn`); README lists

@@ -56,7 +56,6 @@ func (n *Network) Path(cells []cell.ID, node Node) {
 	}
 }
 
-// step is a cell on Route's frontier and what reaching it has cost.
 type step struct {
 	cell cell.ID
 	at   float64

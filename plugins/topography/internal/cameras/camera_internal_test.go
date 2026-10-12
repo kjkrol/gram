@@ -161,7 +161,6 @@ func TestCamera_SetViewportKeepsTheMiddleAndCoversTheScreenWithTheWorld(t *testi
 	}
 }
 
-// cornersOver reports whether the ground under every corner of the screen lies in the world.
 func cornersOver(cam contract.Camera, size float32) bool {
 	w, h := cam.Viewport()
 	for _, corner := range [4][2]float32{{0, 0}, {w, 0}, {0, h}, {w, h}} {
@@ -173,9 +172,6 @@ func cornersOver(cam contract.Camera, size float32) bool {
 	return true
 }
 
-// The screen never shows the ground beyond the world at sea level: a pan stops at the edge, and
-// zooming out stops where the screen just fits over the world — the top-down camera's floor, for
-// the ground the screen covers.
 func TestCamera_TheScreenStaysOverTheWorld(t *testing.T) {
 	cam := testCamera(t, 0)
 	for _, pan := range [][2]float32{{-1e4, 0}, {1e4, 0}, {0, -1e4}, {0, 1e4}, {1e4, 1e4}, {-1e4, 1e4}} {
@@ -248,14 +244,10 @@ func TestCamera_TiltKeepsTheMiddleStaysInRangeAndIsSaved(t *testing.T) {
 	}
 }
 
-// turned is how far the heading went from h to the camera's, the shorter way round.
 func turned(cam contract.Camera, h float32) float32 {
 	return float32(math.Remainder(float64(cam.(*viewCamera).Heading()-h), 2*math.Pi))
 }
 
-// Where the world's edge stops a pan in relief, the part stopped turns the view — going left the
-// eye clockwise, the world anticlockwise, going right the other way — or bows it going forward,
-// and going back does nothing; from above nothing turns.
 func TestCamera_APanTheEdgeStopsTurnsAndBowsTheView(t *testing.T) {
 	for _, c := range []struct {
 		name      string
@@ -294,7 +286,6 @@ func TestCamera_APanTheEdgeStopsTurnsAndBowsTheView(t *testing.T) {
 	}
 }
 
-// In perspective too: pushed left at the edge the view turns, forward it bows, the eye where it is.
 func TestCamera_InPerspectiveAPanTheEdgeStopsTurnsAndBows(t *testing.T) {
 	for _, c := range []struct {
 		name      string

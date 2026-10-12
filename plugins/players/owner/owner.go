@@ -34,7 +34,7 @@ func Obeys(owners tag.Tags[Family], by control.PlayerID) bool {
 }
 
 // Allies reports whether entities owned by a and by b are on one side: they share an owner, or
-// nobody owns either — both are the virtual player's.
+// nobody owns either.
 func Allies(a, b tag.Tags[Family]) bool {
 	return a == 0 && b == 0 || a&b != 0
 }

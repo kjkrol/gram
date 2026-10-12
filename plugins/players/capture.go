@@ -5,10 +5,7 @@ import (
 	"github.com/kjkrol/gram/control"
 )
 
-// capture catches the window's cursor while a local player's camera rides in an entity
-// (camera.Inside) looking round with the mouse (camera.MouseLooks) — the mouse looks round then,
-// without end — and lets it go otherwise; it
-// reports whether the cursor stayed as it was this pass, its move worth taking.
+// false the pass the cursor is caught or let go: it jumps then
 func (p *Plugin) capture() bool {
 	riding := false
 	for _, pl := range p.Locals() {

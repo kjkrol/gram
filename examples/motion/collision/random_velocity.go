@@ -7,8 +7,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// randomVelocity draws X and Y independently from [-rng, rng];
-// an X below deadZone is raised to minSpeed.
 type randomVelocity struct {
 	rng, deadZone, minSpeed int32
 }

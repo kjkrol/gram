@@ -13,26 +13,21 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// left is the command the tests' Leaving rule gives.
 type left struct{}
 
 func (left) Command() {}
 
-// lefts is where the left commands land, for the world to carry.
 type lefts struct{ control.Queue[left] }
 
 func (l *lefts) Queues() []control.CommandQueue     { return []control.CommandQueue{&l.Queue} }
 func (l *lefts) DefaultBindings() []control.Binding { return nil }
 
-// heard is who gave a left since the last time.
 func (l *lefts) heard() []uid.UID64 {
 	var who []uid.UID64
 	l.Drain(func(i control.Issued[left]) { who = append(who, i.Entity) })
 	return who
 }
 
-// exitWorld is a world with one 10x10 entity heading east, four ticks from wholly crossing the
-// edge: every entity, those Outside, and, with a Leaving rule hooked, whom it fired for.
 type exitWorld struct {
 	p            *Plugin
 	ecs          *goke.ECS
@@ -41,7 +36,6 @@ type exitWorld struct {
 	lefts        lefts
 }
 
-// leaving builds the exitWorld, with a Leaving rule giving a left when hooked.
 func leaving(t *testing.T, edges aabbworld.Edges, hooked bool) *exitWorld {
 	t.Helper()
 	ew := &exitWorld{p: NewPlugin(Config{
@@ -52,7 +46,10 @@ func leaving(t *testing.T, edges aabbworld.Edges, hooked bool) *exitWorld {
 		t.Fatal(err)
 	}
 	if hooked {
-		if err := ew.p.Hook(rule.Then[Leaving]("left", rule.All, rule.Order(left{}))); err != nil {
+		if err := ew.p.Hook(rule.Branch[Leaving]{
+			Name: "left",
+			Do:   rule.Order(left{}),
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -77,14 +74,12 @@ func leaving(t *testing.T, edges aabbworld.Edges, hooked bool) *exitWorld {
 	return ew
 }
 
-// ticks steps the world n times.
 func (ew *exitWorld) ticks(n int) {
 	for range n {
 		ew.ecs.Tick(time.Second / 60)
 	}
 }
 
-// everywhere is how many indexed pieces a query over the whole world finds.
 func everywhere(space *aabbworld.Space) int {
 	return space.Query(geom.NewAABBAt(geom.NewVec(0, 0), 1000, 1000), aabbworld.AnyCapability, func(uid.UID64) {})
 }
@@ -124,8 +119,6 @@ func TestExit_ALeavingRuleHearsOfTheLeaverEveryTickItIsOutAndKeepsItAlive(t *tes
 	}
 }
 
-// Put back inside the tick it is first heard of, the leaver loses its mark in the next pass —
-// heard once more there, never after.
 func TestExit_ALeaverPutBackInsideLosesItsMark(t *testing.T) {
 	ew := leaving(t, aabbworld.OpenX, true)
 

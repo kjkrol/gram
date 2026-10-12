@@ -1,18 +1,11 @@
-// Package billboards is how the world's entities look on a map in relief, drawn on the GPU: in the
-// views in relief they stand as billboards upright on their centres at their altitudes, as wide as
-// their boxes and as tall as their world.Z says (as the box is long without a height), hidden by
-// the ground's depth where it stands before them; from above they lie over their boxes as the
-// world's own flat look draws them. Either way they are lit by the [Sky]'s sun on level ground,
-// lean with its wind what sways, haze far off, and cast their shadows on the relief away from the
-// sun (sky.Sun.ShadowOf) — laid by the terrain's mesh over a square grid, over the frame's depth
-// over hex prisms. An eye riding in a unit does not see the unit it rides in. What the world's
-// atlas says lies (world.Slot.Lying: a bridge's deck, a ford) lies flat over its box at its
-// altitude in relief, on the ground wherever the ground stands higher; a deck lying over a
-// rectangle (world.Lie) stands on its beam, its sides down its Z's Height along its long sides, and
-// a sprite standing Upright (a pier) stands on the four sides of its box. Neither casts a patch:
-// a world.Block's shadow is the terrain's, baked with the ground's own.
+// Package billboards is how the world's entities look on a map in relief, drawn on the GPU: in
+// the views in relief they stand as billboards upright on their centres at their altitudes,
+// hidden by the ground where it stands before them; from above they lie over their boxes as the
+// world's own flat look draws them. Either way they are lit by the [Sky]'s sun, lean with its
+// wind what sways, haze far off and cast their shadows on the relief. What the world's atlas
+// says lies (a bridge's deck, a ford) lies flat at its altitude; a sprite standing Upright (a
+// pier) stands on the four sides of its box.
 //
 // A [Look] ([New]) is the world's Look (world.DirectLook, world.LyingLook): picking and the
-// selection's outline follow the billboards, since they ask it where an entity is drawn (Drawn,
-// Footprint).
+// selection's outline follow the billboards.
 package billboards

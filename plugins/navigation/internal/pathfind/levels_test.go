@@ -10,9 +10,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// valley is a 5x5 board of cells 10 wide: high ground 10 up west of x=10 and east of x=40, a valley
-// at 0 between them with a river down the middle column, and a deck 10 up over the valley's row 2,
-// its underside at 9, carrying walkers.
+// high ground 10 up west of x=10 and east of x=40, a valley at 0 between them with a river down
+// the middle column, a deck 10 up over the valley's row 2, its underside at 9
 type valley struct {
 	g       grid.Grid
 	terrain *cell.TerrainMap
@@ -69,8 +68,6 @@ func (v valley) find(t *testing.T, body Body, from, to cell.ID) []cell.ID {
 	return steps[:n]
 }
 
-// A route to a cell under a deck ends on the level asked for: on the deck, or on the valley's
-// floor under it, whichever the walker starts from.
 func TestFinder_EndsOnTheLevelAsked(t *testing.T) {
 	v := newValley()
 	f := New(v.g, v.terrain, nil, &cell.MultipleOccupancy{}).WithLevels(v)
@@ -93,8 +90,6 @@ func TestFinder_EndsOnTheLevelAsked(t *testing.T) {
 	}
 }
 
-// A walker crosses the river over the deck; another passes under the deck along the valley, where
-// it fits, and goes round where it does not.
 func TestFinder_RoutesOverADeckAndUnderIt(t *testing.T) {
 	v := newValley()
 	at := func(x, y uint32) cell.ID { return v.g.At(x, y) }
@@ -113,8 +108,6 @@ func TestFinder_RoutesOverADeckAndUnderIt(t *testing.T) {
 	}
 }
 
-// From the rim a walker comes in under the deck from beside it, never straight off the rim
-// through the deck's slab over the edge they share; nor goes out from under it that way.
 func TestFinder_UnderADeckOnlyWhereItFits(t *testing.T) {
 	v := newValley()
 	at := func(x, y uint32) cell.ID { return v.g.At(x, y) }
@@ -138,7 +131,6 @@ func TestFinder_UnderADeckOnlyWhereItFits(t *testing.T) {
 	}
 }
 
-// From the deck a route goes on along it to its end: never off its side, a fall.
 func TestFinder_NeverPlansAFallOffADeck(t *testing.T) {
 	v := newValley()
 	at := func(x, y uint32) cell.ID { return v.g.At(x, y) }
@@ -155,7 +147,7 @@ func TestFinder_NeverPlansAFallOffADeck(t *testing.T) {
 	}
 }
 
-// fenced is a terrain with a railing on the ground from a to b, keeping walkers off.
+// a railing on the ground from a to b
 type fenced struct {
 	*cell.TerrainMap
 	g    grid.Grid
@@ -171,7 +163,6 @@ func (f fenced) Fenced(from, to cell.ID, d cell.Domain, deck bool) bool {
 		side(p, q, f.a)*side(p, q, f.b) < 0 && side(f.a, f.b, p)*side(f.a, f.b, q) < 0
 }
 
-// A route never crosses a railing: into the fenced cell it comes round by a side left open.
 func TestFinder_GoesRoundARailing(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(3, 3, 10)
 	terrain := fenced{openTerrain(), g, geom.NewVec(9, 10), geom.NewVec(21, 10)}
@@ -186,8 +177,7 @@ func TestFinder_GoesRoundARailing(t *testing.T) {
 	}
 }
 
-// causeway is a 5x5 board of water with land at two corners, (0, 0) and (4, 4), and a deck 1 up
-// running slantwise between them over (1, 1) to (3, 3), carrying walkers.
+// water with land at (0, 0) and (4, 4), a deck 1 up running slantwise between them
 type causeway struct {
 	g       grid.Grid
 	terrain *cell.TerrainMap
@@ -231,7 +221,6 @@ func (w causeway) Fenced(cell.ID, cell.ID, cell.Domain, bool) bool { return fals
 
 func (w causeway) Kind(c cell.ID) cell.Kind { return w.terrain.Kind(c) }
 
-// A deck running slantwise is walked along, over the water at the corners it cuts.
 func TestFinder_WalksADeckSlantwise(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 5, 10)
 	terrain := cell.NewTerrainMap()

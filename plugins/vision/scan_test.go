@@ -19,9 +19,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// installCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type installCtx struct {
-	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
+	hosts   []plugin.Host
 	ecs     *goke.ECS
 	pending []func() []goke.System
 	tracked []any
@@ -41,28 +40,23 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
 func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
 
-// spawn describes one entity the fixture puts in the world: a 10×10 box unless size says
-// otherwise, cutting sight unless tau says how see-through it is, on every plane unless layers
-// says which.
 type spawn struct {
 	x, y    float64
 	size    float64
 	tau     float64
 	layers  world.Layers
-	z       *world.Z // heights, in a scene with heights
-	sight   *look    // nil for something that is merely seen
+	z       *world.Z
+	sight   *look
 	outline bool
-	heading geom.Vec // the way it moves; zero, none
-	bare    bool     // a sight without a Sighted, which vision gives it
+	heading geom.Vec
+	bare    bool
 }
 
-// look is a Sight with the Eye it sees from: how wide, and how high in a scene with heights.
 type look struct {
 	vision.Sight
 	world.Eye
 }
 
-// relief is what a scene with heights stands on: nil for flat ground at 0.
 type relief struct {
 	ground ground.Heights
 	step   float64
@@ -77,20 +71,16 @@ func at(d spawn) world.Position {
 	return world.Position{AABB: plane.NewAABB(geom.NewVec(d.x, d.y), size, size)}
 }
 
-// scene installs world+vision on a flat world, spawns everything, ticks once; returns observers and
-// what they saw.
 func scene(t *testing.T, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []vision.SightOutline) {
 	t.Helper()
 	return sceneIn(t, nil, spawns...)
 }
 
-// sceneIn is scene in a world with heights standing on r (nil: a flat world).
 func sceneIn(t *testing.T, r *relief, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []vision.SightOutline) {
 	t.Helper()
 	return sceneWith(t, r, 0, spawns...)
 }
 
-// sceneWith is sceneIn with the scan shared among workers goroutines at most (0: the CPUs, 1: none).
 func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID64, []vision.Sighted, []vision.SightOutline) {
 	t.Helper()
 
@@ -209,7 +199,6 @@ func TestScan_ReportsWhatIsInTheConeNearestFirst(t *testing.T) {
 	}
 }
 
-// A Sight Ahead looks the way its entity moves, its Facing only while it has no heading.
 func TestScan_ASightAheadLooksTheWayItMoves(t *testing.T) {
 	ahead := eastward(math.Pi/8, 600)
 	ahead.Ahead = true
@@ -229,7 +218,6 @@ func TestScan_ASightAheadLooksTheWayItMoves(t *testing.T) {
 	}
 }
 
-// An observer without a Sighted is given one at its first step and scanned from the next.
 func TestScan_GivesASightedWhereThereIsNone(t *testing.T) {
 	ids, seen, _ := scene(t,
 		spawn{x: 500, y: 500, sight: eastward(math.Pi/4, 600), bare: true},
@@ -307,7 +295,6 @@ func TestScan_FillsTheOutlineWhenAsked(t *testing.T) {
 	}
 }
 
-// A cone wider and longer than the buffer was sized for must still fit it.
 func TestScan_OutlineNeverOverrunsItsBuffer(t *testing.T) {
 	huge := eastward(math.Pi/2-0.01, 1900)
 	_, _, outlines := scene(t,
@@ -344,7 +331,6 @@ func TestScan_ClearsSightedWhenTheConeIsUnanswerable(t *testing.T) {
 	}
 }
 
-// scaleOf is r's scale, none without a relief.
 func scaleOf(r *relief) world.Scale {
 	if r == nil {
 		return world.Scale{}
@@ -352,9 +338,6 @@ func scaleOf(r *relief) world.Scale {
 	return r.scale
 }
 
-// Hosts keeps the hosts of the rules of the moments a plugin catches.
 func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
-// does with the roles played once a Stage's Init returns.
 func (c *installCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

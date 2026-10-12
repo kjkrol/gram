@@ -6,8 +6,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 )
 
-// SolidBackground fills the screen with a flat color — pair with
-// CachedRenderer for a board that rarely needs to redraw.
+// SolidBackground fills the screen with one colour.
 type SolidBackground struct{ Color color.RGBA }
 
 func (b SolidBackground) Init(*goke.SysInit) {}

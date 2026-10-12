@@ -11,7 +11,6 @@ import (
 
 var _ goke.System = (*giveSystem)(nil)
 
-// giveSystem carries out the Gives: the one owner of the entity that gave it.
 type giveSystem struct {
 	gives    *control.Queue[Give]
 	query    *goke.Query

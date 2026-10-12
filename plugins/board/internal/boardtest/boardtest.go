@@ -83,8 +83,7 @@ func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*boa
 }
 
 // NewWorldWith is NewWorld with the world and the board handed to prepare before they are
-// installed — to define roles and commands, seed a Layout and Populate it — and the rules it gives
-// handed to the hosts of their moments.
+// installed, the rules it gives handed to the hosts of their moments.
 func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(*world.Plugin, *board.Plugin) []rule.Rule, units []Mover) *World {
 	t.Helper()
 	bw := &World{t: t}
@@ -193,8 +192,7 @@ func (bw *World) Snapshot() []geom.AABB {
 	return units
 }
 
-// Solid lists the boxes the board holds solid for an entity on layers, board-wide: its field's,
-// the collision.Field the plugin hands over.
+// Solid lists the boxes the board holds solid for an entity on layers, board-wide.
 func (bw *World) Solid(layers world.Layers) []geom.AABB {
 	var out []geom.AABB
 	w, h := bw.World.Res.Config.Space.Width, bw.World.Res.Config.Space.Height
@@ -280,7 +278,7 @@ func SquareWorldWith(t *testing.T, hooked rule.Rule, units ...Mover) (*World, ce
 	return bw, cellAt(3, 7)
 }
 
-// Wall is a solid kind that also cuts sight, as a wall of stone does.
+// Wall is a solid kind that also cuts sight.
 var Wall = cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true, Veil: 1}
 
 // NewInstallCtx is an InstallCtx over a new ECS.
@@ -317,6 +315,6 @@ func (g OneStageGame) Stages() (map[string]game.Stage, string) {
 // Hosts keeps the hosts of the rules of the moments a plugin catches.
 func (c *InstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
-// does with the roles played once a Stage's Init returns.
+// Deliver hands rules to the hosts of their moments, as the engine does once a Stage's Init
+// returns.
 func (c *InstallCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

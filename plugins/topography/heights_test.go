@@ -18,7 +18,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
-// coverAcross walks the board's Cover along row 3, west to east, listing every stretch.
 func coverAcross(qw *topotest.QuasiWorld) [][5]float64 {
 	var out [][5]float64
 	qw.Board.Cover().Walk(geom.NewVec(1, 3*32+16), geom.NewVec(1, 0), 126, 0, func(near, far, bottom, top, tau float64) bool {
@@ -28,8 +27,6 @@ func coverAcross(qw *topotest.QuasiWorld) [][5]float64 {
 	return out
 }
 
-// The cover of a cell spans its ground and its kind's Height over it, and follows the ground
-// when it is lifted.
 func TestCover_SpansTheCellsBandAndFollowsItsGround(t *testing.T) {
 	qw := topotest.NewQuasiWorld(t, true, func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
 		units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})

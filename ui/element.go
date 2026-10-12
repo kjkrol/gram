@@ -15,51 +15,43 @@ type Element struct {
 	children []*Element
 	name     string
 	hidden   bool
-	holds    bool    // Modal: it holds the input while shown
-	w, h     float64 // the size asked for (Size); 0 where its content says
-	fw, fh   float64 // the share of its parent's box asked for (Fraction); 0 where Size or its content says
-	margin   float64 // kept free round the element, inside the box its parent gives it
-	padding  float64 // kept free round its children, inside its own box
+	holds    bool
+	w, h     float64
+	fw, fh   float64
+	margin   float64
+	padding  float64
 	fill     color.RGBA
 	border   color.RGBA
-	stroke   float64 // the border's width
-	filled   bool    // Fill was said: fill, not the style's
-	bordered bool    // Border was said: border, not the theme's
-	style    style   // the theme's colours it takes where it says none
-	theme    *Theme  // its scene's; nil: the default
+	stroke   float64
+	filled   bool
+	bordered bool
+	style    style
+	theme    *Theme
 	mask     Mask
-	pin      *pin      // Under, On, Where: shown once for each entity it names, by it
-	parent   geom.AABB // the box its parent last gave it
-	box      geom.AABB // where it was last laid
-	of       uid.UID64 // the entity it is drawn for now, when ofPinned: what a Text reads
+	pin      *pin
+	parent   geom.AABB
+	box      geom.AABB
+	of       uid.UID64
 	ofPinned bool
 }
 
-// content is what an element of one kind does: places its children in its box less the padding,
-// draws over its background, and says the size it needs for itself less the padding.
 type content interface {
 	place(e *Element, box geom.AABB)
 	draw(e *Element, dst *render.Image)
 	needs(e *Element) (w, h float64)
 }
 
-// container is a content that is only where its children are: hit by nothing of its own.
 type container interface{ container() }
 
-// leaving is a content that may be left out for the entity it is drawn for: a Text saying nothing.
 type leaving interface{ absent(e *Element) bool }
 
-// absent reports whether the element is left out for the entity it is drawn for now: it takes no
-// room, is not drawn and nothing hits it.
 func (e *Element) absent() bool {
 	l, ok := e.content.(leaving)
 	return ok && l.absent(e)
 }
 
-// gone reports whether the element is not there now: hidden, or left out.
 func (e *Element) gone() bool { return e.hidden || e.absent() }
 
-// drawnFor has the element and every element under it drawn for the entity id, pinned or not.
 func (e *Element) drawnFor(id uid.UID64, pinned bool) {
 	e.walk(func(c *Element) { c.of, c.ofPinned = id, pinned })
 }
@@ -86,10 +78,9 @@ func (e *Element) Size(w, h float64) *Element {
 	return e
 }
 
-// Fraction asks for w and h of the box its parent gives it — what an anchor places — so the
-// element keeps its share as the window changes; an axis asked for as 0 follows the proportions of
-// the picture it shows (a feed keeping the whole world in view), else its own size. A picture with
-// proportions asked for both keeps them within that share.
+// Fraction asks for w and h of the box its parent gives it, so the element keeps its share as
+// the window changes. An axis asked for as 0 follows the proportions of the picture it shows,
+// else its own size.
 func (e *Element) Fraction(w, h float64) *Element {
 	e.fw, e.fh = w, h
 	return e
@@ -132,7 +123,6 @@ func (e *Element) Modal() *Element {
 	return e
 }
 
-// modal reports whether the element is shown — neither hidden nor left out — and holds the input.
 func (e *Element) modal() bool { return e.holds && !e.gone() }
 
 // Box is where the element was last laid, in the screen's pixels.
@@ -152,7 +142,6 @@ func (e *Element) Hits(p geom.Vec) bool {
 	return e.hitsHere(p)
 }
 
-// hitsHere is Hits where the element was last laid.
 func (e *Element) hitsHere(p geom.Vec) bool {
 	if e.absent() {
 		return false
@@ -171,7 +160,6 @@ func (e *Element) hitsHere(p geom.Vec) bool {
 	return e.mask == nil || e.mask.contains(e.box, p)
 }
 
-// needs is the size the element takes where its parent leaves it the choice.
 func (e *Element) needs() (w, h float64) {
 	if e.absent() {
 		return 0, 0
@@ -189,14 +177,12 @@ func (e *Element) needs() (w, h float64) {
 	return w + 2*e.margin, h + 2*e.margin
 }
 
-// lay places the element in box and its children in turn.
 func (e *Element) lay(box geom.AABB) {
 	e.parent = box
 	e.box = shrink(box, e.margin)
 	e.content.place(e, shrink(e.box, e.padding))
 }
 
-// paint draws the element and its children, those shown, in order: each over what came before.
 func (e *Element) paint(dst *render.Image) {
 	if e.hidden {
 		return
@@ -214,7 +200,6 @@ func (e *Element) paint(dst *render.Image) {
 	})
 }
 
-// paintHere draws the element and its children where it was last laid.
 func (e *Element) paintHere(dst *render.Image) {
 	if e.absent() {
 		return
@@ -227,21 +212,18 @@ func (e *Element) paintHere(dst *render.Image) {
 	e.edge(dst)
 }
 
-// background paints the fill, in the mask's shape if there is one.
 func (e *Element) background(dst *render.Image) {
 	if fill := e.fillColor(); fill.A > 0 {
 		render.FillPolygon(dst, outline(e.box, e.mask), fill)
 	}
 }
 
-// edge draws the border over everything the element shows, in the mask's shape if there is one.
 func (e *Element) edge(dst *render.Image) {
 	if border := e.borderColor(); border.A > 0 && e.stroke > 0 {
 		render.StrokePolygon(dst, outline(e.box, e.mask), float32(e.stroke), border)
 	}
 }
 
-// walk calls fn on the element and every element under it, parents first.
 func (e *Element) walk(fn func(*Element)) {
 	fn(e)
 	for _, c := range e.children {

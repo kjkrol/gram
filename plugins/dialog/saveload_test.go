@@ -16,7 +16,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// talkerStage is a world of one entity that speaks and talks at greet.
 type talkerStage struct {
 	load bool // entered from the quicksave
 
@@ -72,7 +71,6 @@ func (s *talkerStage) Stack() game.Scenes {
 	return s.stack
 }
 
-// carried is what the stage's one entity carries.
 func (s *talkerStage) carried(t *testing.T) (dialog.Script, dialog.Talk) {
 	t.Helper()
 	s.query.All()
@@ -83,7 +81,6 @@ func (s *talkerStage) carried(t *testing.T) (dialog.Script, dialog.Talk) {
 	return s.script.Slice(cur)[0], s.talk.Slice(cur)[0]
 }
 
-// talkerProbe builds the stage's query as the stage is set up.
 type talkerProbe struct{ s *talkerStage }
 
 func (p talkerProbe) SetupSystems() []goke.System {
@@ -99,7 +96,6 @@ func (g talkerGame) Stages() (map[string]game.Stage, string) {
 	return map[string]game.Stage{g.stage.Name(): g.stage}, g.stage.Name()
 }
 
-// An entity's Script and Talk are what they were after the game is saved and loaded.
 func TestDialog_SurvivesASaveAndALoad(t *testing.T) {
 	t.Chdir(t.TempDir())
 	saver := &talkerStage{}

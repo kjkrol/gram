@@ -12,18 +12,13 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// initializer is the game.Initializer bound to one Stage's ecsHost.
 type initializer struct {
-	host  *ecsHost
-	world *world.Plugin
-	tps   *game.TPS
-	// handlers are the plugin.CommandHandlers used before the world — the engine's own first —
-	// for it to carry, or for the Stage's own carrier when it has no world
-	handlers []plugin.CommandHandler
-	// hosts take the rules of the moments the plugins used so far catch, in the order of Use
-	hosts []plugin.Host
-	// part is the section of the Stage's definition under way, for one built in sections
-	part section.Part
+	host     *ecsHost
+	world    *world.Plugin
+	tps      *game.TPS
+	handlers []plugin.CommandHandler // used before the world, or by a Stage without one
+	hosts    []plugin.Host
+	part     section.Part
 }
 
 var (
@@ -31,10 +26,8 @@ var (
 	_ section.Writer   = (*initializer)(nil)
 )
 
-// Section is the part of the Stage being defined; none for a Stage written by hand.
 func (c *initializer) Section() section.Part { return c.part }
 
-// Enter says which part of the Stage begins: package game/stage drives it.
 func (c *initializer) Enter(p section.Part) { c.part = p }
 
 func (c *initializer) UseModule(m goke.Module) { c.host.useModule(m) }
@@ -47,7 +40,6 @@ func (c *initializer) RegSys(factory func() goke.System) goke.Runnable {
 
 func (c *initializer) ECS() *goke.ECS { return c.host.ecs }
 
-// Use installs p, rejecting a duplicate Name and any Plugin the engine installs itself.
 func (c *initializer) Use(p plugin.Plugin) error {
 	if err := section.Check(c, fmt.Sprintf("plugin %q used", p.Name()), section.Plugins); err != nil {
 		return err
@@ -58,11 +50,8 @@ func (c *initializer) Use(p plugin.Plugin) error {
 	return c.use(p)
 }
 
-// useBuiltin installs an engine-managed Plugin.
 func (c *initializer) useBuiltin(p plugin.Plugin) error { return c.use(p) }
 
-// use checks p's Name is new, registers its Serializable, tracks it and runs its Install; the
-// world carries the commands of a plugin.CommandHandler its entities give themselves.
 func (c *initializer) use(p plugin.Plugin) error {
 	if c.host.names == nil {
 		c.host.names = make(map[string]bool)
@@ -85,8 +74,6 @@ func (c *initializer) use(p plugin.Plugin) error {
 	return p.Install(c)
 }
 
-// PluginScenes are the scenes of the plugins used so far that have their own (game.Scenic), in
-// the order of Use: for the Stage's stack.
 func (c *initializer) PluginScenes() []game.Scene {
 	var scenes []game.Scene
 	for _, v := range c.host.tracked {
@@ -97,11 +84,8 @@ func (c *initializer) PluginScenes() []game.Scene {
 	return scenes
 }
 
-// Hosts keeps the hosts of the rules of the moments a plugin catches, in the order of Use.
 func (c *initializer) Hosts(hosts ...plugin.Host) { c.hosts = append(c.hosts, hosts...) }
 
-// deliver hands the rules of every role somebody plays — a kind, a cell, a plugin — to the host
-// of their moment: what the engine does once Init returns.
 func (c *initializer) deliver() error {
 	if c.world == nil {
 		return nil
@@ -109,8 +93,6 @@ func (c *initializer) deliver() error {
 	return hosts.Deliver(c.hosts, c.world.Kinds().Played()...)
 }
 
-// Track registers s for Save and Load under its Go type name; tracked after a Load, s gets the
-// state the save holds for it at once.
 func (c *initializer) Track(s plugin.Serializable) error {
 	c.host.track(s)
 	return c.host.loadLate(s)
@@ -133,8 +115,6 @@ func (c *initializer) UseWorld(cfg world.Config) *world.Plugin {
 
 func (c *initializer) TPS() *game.TPS { return c.tps }
 
-// carrier is the Stage's carrier of commands: its world's, or one of its own for a Stage without a
-// world, taking the commands of the handlers it used.
 func (c *initializer) carrier() (*control.Carrier, error) {
 	if c.world != nil {
 		return c.world.Carrier(), nil

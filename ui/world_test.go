@@ -18,7 +18,6 @@ import (
 	"github.com/kjkrol/gram/rule/effect"
 )
 
-// installer is the plugin.Installer a Stage would hand over, minus the engine.
 type installer struct {
 	ecs     *goke.ECS
 	pending []func() []goke.System
@@ -37,8 +36,6 @@ func (c *installer) RegSys(factory func() goke.System) goke.Runnable { return c.
 func (c *installer) ECS() *goke.ECS                                  { return c.ecs }
 func (c *installer) Hosts(...plugin.Host)                            {}
 
-// An element Under an effect is shown for the entity the effect is on, at its top, and goes once
-// the effect is over.
 func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
@@ -96,10 +93,8 @@ func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 	}
 }
 
-// marked is a tag family of a test's own.
 type marked struct{}
 
-// An element Where a tag is carried is shown for the entities carrying it alone.
 func TestPin_WhereTaggedFollowsTheEntitiesCarryingTheTag(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
@@ -144,11 +139,8 @@ func TestPin_WhereTaggedFollowsTheEntitiesCarryingTheTag(t *testing.T) {
 	}
 }
 
-// score is a component of a test's own.
 type score struct{ N int8 }
 
-// A label Of a component reads it off each entity it is shown for, and says nothing of one
-// without it.
 func TestText_OfReadsTheComponentOfTheEntityPinned(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},

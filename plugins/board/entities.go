@@ -13,9 +13,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// Entities makes a game's kinds of entities standing on the board — a lever, a trapdoor, a gate,
-// a plate: each stands still on the cell its row names, in a box of the Shape's Size at the cell's
-// middle, carrying cell.On and, in a world with heights, a Z of the Shape's Height.
+// Entities makes a game's kinds of entities standing on the board, a lever, a trapdoor, a gate:
+// each stands still on the cell its row names, in a box of the Shape's Size at the cell's middle.
 type Entities[P any] struct {
 	brd   *Plugin
 	shape Shape
@@ -23,7 +22,7 @@ type Entities[P any] struct {
 }
 
 // NewEntities binds a game's rows of entities standing on the board to it: shape is their body,
-// at the cell a row stands one on.
+// at the cell a row stands one on. A Height in a flat world panics.
 func NewEntities[P any](brd *Plugin, shape Shape, at func(row P) cell.ID) *Entities[P] {
 	if !brd.worldPlugin.HasHeights() && shape.Height != 0 {
 		panic("board: entities with a Height in a flat world; set world.Config.Heights")
@@ -31,10 +30,8 @@ func NewEntities[P any](brd *Plugin, shape Shape, at func(row P) cell.ID) *Entit
 	return &Entities[P]{brd: brd, shape: shape, at: at}
 }
 
-// Define registers one kind of entity standing on the board, its entities carrying extra besides
-// (a cell.Floor, a cell.Wall, the roles they play, a plate's collision.Collider without Physics, a
-// world.Velocity in place of the still one, its Dir the way a bridge runs); one standing off the
-// board panics as it is spawned.
+// Define registers one kind of entity standing on the board, its entities carrying extra
+// besides; one standing off the board panics as it is spawned.
 func (e *Entities[P]) Define(name string, extra ...comp.Comp) {
 	brd := e.brd.Board()
 	size := e.shape.Size
@@ -70,7 +67,7 @@ func (e *Entities[P]) Define(name string, extra ...comp.Comp) {
 	e.brd.cellOf[name] = func(row any) cell.ID { return e.at(row.(P)) }
 }
 
-// Named is the kind of entity defined as name: kind.Named over the world's kinds.
+// Named is the kind of entity defined as name.
 func (e *Entities[P]) Named(name string) kind.Of[P] {
 	return kind.Named[P](e.brd.worldPlugin.Kinds(), name)
 }

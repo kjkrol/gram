@@ -15,7 +15,7 @@ import (
 
 // Plugin wires selection into a Game; it depends on world and defines the Select command.
 type Plugin struct {
-	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+	*world.Self
 
 	worldPlugin  *world.Plugin
 	selects      control.Queue[Select]
@@ -50,8 +50,8 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 // Tags returns selection's tags: for the plugins reading who is Selected.
 func (p *Plugin) Tags() Tags { return p.tags }
 
-// Chosen is the one Selected unit player by owns (owner.Obeys) — whom FollowKey fastens
-// the camera over; false with none, or several. Nothing before the plugin is installed.
+// Chosen is the one Selected unit player by owns; false with none, or several. Nothing before
+// the plugin is installed.
 func (p *Plugin) Chosen(by control.PlayerID) (uid.UID64, bool) {
 	if p.module == nil {
 		return 0, false
@@ -59,13 +59,8 @@ func (p *Plugin) Chosen(by control.PlayerID) (uid.UID64, bool) {
 	return p.module.sys.chosen(by)
 }
 
-// IsSelected reports whether an entity carrying marks is selected: a drawing rule's condition —
-// vision.Plugin.WithViews(render.Show(sel.IsSelected)).
+// IsSelected reports whether an entity carrying marks is selected: a drawing rule's condition.
 func (p *Plugin) IsSelected(marks tag.Tags[Family]) bool { return marks.Has(p.tags.Selected) }
-
-// =================================================================
-// plugin.Plugin contract
-// =================================================================
 
 func (p *Plugin) Name() string { return "gram.selection" }
 
@@ -83,7 +78,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
 // WithRenderer builds the renderer of the highlights and of the box being dragged; atlas is
-// unused, selection draws primitives.
+// unused.
 func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	p.renderer = NewRenderer(p.tags.Selected, p.worldPlugin.Look)
 	p.renderer.marquees = &p.marquees
@@ -96,8 +91,8 @@ func (p *Plugin) Renderer() render.Layer {
 	return p.renderer
 }
 
-// EventHandler returns nil — a player's bindings (DefaultBindings) issue the Select commands.
+// EventHandler is nil: a player's bindings issue the commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is a no-op — selection has nothing to persist.
+// Serializable is nil: selection has nothing to persist.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }

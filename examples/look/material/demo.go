@@ -34,14 +34,13 @@ const (
 	ScreenWidth  = GridWidth * CellSize
 	ScreenHeight = GridHeight * CellSize
 
-	// WardPx is the ward's box side: how far its glow reaches.
 	WardPx = 9 * CellSize
 )
 
 //go:embed ward.wgsl
 var wardFS embed.FS
 
-// wardMaterial joins the composer's one shader as the package is set up, before it compiles.
+// registered before the composer's shader compiles
 var wardMaterial = render.RegisterMaterials(render.Files(wardFS, "ward.wgsl"), nil, "Ward")[0]
 
 //go:embed map.yaml

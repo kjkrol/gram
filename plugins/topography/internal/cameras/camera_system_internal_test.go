@@ -17,9 +17,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// followRig is the camera system over two 10x10 walkers 5 up, the first at (300, 300), each
-// carrying a Driven as navigation gives a unit a hand is on, and an isometric camera reaching
-// the perspective.
 type followRig struct {
 	t       *testing.T
 	ecs     *goke.ECS
@@ -69,7 +66,6 @@ func newFollowRig(t *testing.T) *followRig {
 	return r
 }
 
-// each calls fn with every walker's base.
 func (r *followRig) each(fn func(id uid.UID64, b *world.Base)) {
 	r.q.All()
 	for r.q.Next() {
@@ -80,7 +76,6 @@ func (r *followRig) each(fn func(id uid.UID64, b *world.Base)) {
 	}
 }
 
-// walk puts the first walker at (x, y) heading along (dx, dy).
 func (r *followRig) walk(x, y, dx, dy float64) {
 	r.each(func(id uid.UID64, b *world.Base) {
 		if id == r.walkers[0] {
@@ -90,29 +85,24 @@ func (r *followRig) walk(x, y, dx, dy float64) {
 	})
 }
 
-// fasten fastens the rig's camera to id how, as the players' Follow and Ride do, and ticks.
 func (r *followRig) fasten(id uid.UID64, how contract.How) {
 	r.cam.Fasten(contract.Fastening{Entity: id, How: how})
 	r.ecs.Tick(time.Second / 60)
 }
 
-// behind fastens the rig's camera Behind the first walker; inside fastens it Inside.
 func (r *followRig) behind() { r.fasten(r.walkers[0], contract.Behind) }
 func (r *followRig) inside() { r.fasten(r.walkers[0], contract.Inside) }
 
-// letGo lets the rig's camera go of everything, as the players' Follow again does, and ticks.
 func (r *followRig) letGo() {
 	r.cam.Fasten(contract.Fastening{})
 	r.ecs.Tick(time.Second / 60)
 }
 
-// pressV gives a Ride and ticks.
 func (r *followRig) pressV() {
 	r.rides.Add(control.Nobody, Ride{Camera: r.cam})
 	r.ecs.Tick(time.Second / 60)
 }
 
-// hand writes the hand's part of id's Driven, as navigation does: on, turning, sprinting.
 func (r *followRig) hand(id uid.UID64, ahead, turn int8) {
 	r.dq.All()
 	for r.dq.Next() {
@@ -127,15 +117,12 @@ func (r *followRig) hand(id uid.UID64, ahead, turn int8) {
 	}
 }
 
-// centredOn reports whether the camera holds (x, y) over its shoulder: across the middle, as far
-// below it as its pitch puts it.
 func (r *followRig) centredOn(x, y float32) bool {
 	sx, sy := r.cam.Project(x, y, 5)
 	below := 300 * shoulder * float32(math.Cos(float64(r.cam.Pitch())))
 	return near(sx, 200) && near(sy, 150+below)
 }
 
-// upTheScreen reports whether a step along (dx, dy) from (x, y) goes straight up the screen.
 func (r *followRig) upTheScreen(x, y, dx, dy float32) bool {
 	ax, ay := r.cam.Project(x, y, 0)
 	bx, by := r.cam.Project(x+dx*10, y+dy*10, 0)
@@ -185,8 +172,6 @@ func TestBehind_HoldsWhateverElseIsDoneUntilLetGo(t *testing.T) {
 	}
 }
 
-// Ride goes round: Centred to Behind, Behind to Inside where the perspective is reached — else
-// over the walker again — Inside to Centred; a camera fastened to nothing stays so.
 func TestRide_GoesRoundBehindInsideAndOverAgain(t *testing.T) {
 	r := newFollowRig(t)
 	r.ridged(1000, 1001)
@@ -219,8 +204,6 @@ func TestRide_GoesRoundBehindInsideAndOverAgain(t *testing.T) {
 	}
 }
 
-// A camera saved riding inside a walker comes back inside it: a load writes its fastening and the
-// system takes it in again.
 func TestRide_ACameraSavedInsideComesBackInside(t *testing.T) {
 	r := newFollowRig(t)
 	r.ridged(1000, 1001)
@@ -251,7 +234,6 @@ func TestRide_ACameraSavedInsideComesBackInside(t *testing.T) {
 	}
 }
 
-// A camera fastened to a walker that is gone is let go of everything.
 func TestBehind_LetsGoOfAWalkerGone(t *testing.T) {
 	r := newFollowRig(t)
 	r.fasten(999, contract.Behind)
@@ -270,7 +252,6 @@ func TestTurn_TurnsACameraOfThisViewAndNoOther(t *testing.T) {
 	}
 }
 
-// drivenOf is how id is driven, and whether it carries a Driven at all.
 func (r *followRig) drivenOf(id uid.UID64) (steering.Driven, bool) {
 	r.dq.All()
 	for r.dq.Next() {

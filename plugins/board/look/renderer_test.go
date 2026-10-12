@@ -23,7 +23,6 @@ func (flatAtlas) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0,
 
 func (flatAtlas) White() (u, v float32) { return 0, 0 }
 
-// lookMap is a flat Map drawing by a Look alone: nothing over the tiles, level ground.
 type lookMap struct{ l look.Look }
 
 func (m lookMap) Look() look.Look                               { return m.l }
@@ -34,22 +33,18 @@ func (lookMap) Least(cell.Domain) float64                       { return 1 }
 func (lookMap) Heights() ground.Heights                         { return nil }
 func (lookMap) Slope(geom.Vec, geom.Vec, cell.Domain) float64   { return 1 }
 
-// mapOf is a Map drawing by look.
 func mapOf(l look.Look) look.Map { return lookMap{l} }
 
-// newRenderer is a renderer of b drawn by m, toggled as state says, in no world.
 func newRenderer(b look.Board, atlas render.AtlasSource, state look.RenderState, m look.Map) *look.Renderer {
 	r := look.NewRenderer(b, atlas, m, world.SpaceCfg{})
 	*r.State() = state
 	return r
 }
 
-// flatRenderer is a renderer of brd with the flat look.
 func flatRenderer(brd *board.Board, state look.RenderState) *look.Renderer {
 	return newRenderer(brd, flatAtlas{}, state, mapOf(look.FlatLook()))
 }
 
-// compose is what r hands a frame through cam, by tier.
 func compose(r *look.Renderer, cam camera.Camera) map[render.Tier]int {
 	var f render.Frame
 	f.Reset(cam)
@@ -59,7 +54,6 @@ func compose(r *look.Renderer, cam camera.Camera) map[render.Tier]int {
 	return out
 }
 
-// outlinedTiles counts the tiles r hands a frame through cam that carry an outline.
 func outlinedTiles(r *look.Renderer, cam camera.Camera) (tiles, outlined int) {
 	var f render.Frame
 	f.Reset(cam)
@@ -115,7 +109,6 @@ func TestRenderer_Compose_StrokesTheOutlinesOfHexCells(t *testing.T) {
 	}
 }
 
-// A Look is asked for every visible cell, and a tile tells it its kind and what sways on it.
 func TestRenderer_Compose_HandsTheLookEveryCell(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid)
@@ -137,7 +130,6 @@ func TestRenderer_Compose_HandsTheLookEveryCell(t *testing.T) {
 	}
 }
 
-// lookFn adapts a function to Look.
 type lookFn func(f *render.Frame, cam camera.Camera, t *look.Tile)
 
 func (fn lookFn) Cell(f *render.Frame, cam camera.Camera, t *look.Tile) { fn(f, cam, t) }
@@ -155,8 +147,6 @@ func TestTile_AFlatWorldIsDrawnAsItsSpritesAre(t *testing.T) {
 	}
 }
 
-// A flat board's tiles are drawn as they are: a sky over the board (plugins/atmosphere) is what
-// lights them.
 func TestRenderer_Compose_FlatTilesAreDrawnAsTheyAre(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(2, 2, 32)
 	brd := board.NewBoard(grid)
@@ -173,8 +163,6 @@ func TestRenderer_Compose_FlatTilesAreDrawnAsTheyAre(t *testing.T) {
 	}
 }
 
-// scaledCam is a camera drawing the board's two nearer rows at a pixel a world unit and the two
-// further at a tenth of it, as a perspective draws what is further off smaller; its Zoom is 1.
 type scaledCam struct{ camera.Camera }
 
 func (scaledCam) ScaleAt(_, y, _ float32) float32 {
@@ -184,8 +172,6 @@ func (scaledCam) ScaleAt(_, y, _ float32) float32 {
 	return 0.1
 }
 
-// The grid goes with each cell's own size on screen: through a camera whose scale changes over the
-// screen, the cells near the eye are outlined and those too small to read far off are not.
 func TestRenderer_Compose_OutlinesEachCellAsLargeAsItIsDrawn(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid)

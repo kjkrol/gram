@@ -11,7 +11,6 @@ import (
 
 type armour struct{ Plate int }
 
-// types lists the component types of a spec, in order.
 func types(spec kind.Spec) []string {
 	var out []string
 	for _, c := range spec {

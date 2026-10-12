@@ -1,20 +1,16 @@
-// Command gramap makes a gram map — a level file a board lays (board.Plugin.Lay) — of any stretch
-// of the Earth, at any scale, from a recipe:
+// Command gramap makes a gram map, a level file a board lays, of any stretch of the Earth at any
+// scale, from a recipe:
 //
 //	go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out examples/board/topography/map.yaml
 //	go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out examples/board/flat/map.yaml -flat
 //
-// The heights are the Terrain Tiles on AWS (Mapzen's Tilezen terrarium: SRTM, EU-DEM, GMTED2010,
-// ETOPO1 and others; https://github.com/tilezen/joerd/blob/master/docs/attribution.md), fetched
-// once into a cache. The recipe says where (the middle of the area, its cells and how many metres
-// a cell spans), what the ground is by its slope and height, how much drained water makes a brook,
-// a stream and a river, and the roads: chains of named places. The map is a square grid's: the
-// corners' heights in metres (none with -flat), the cells' kinds, the rivers carved into the
-// ground as paths from their sources, the roads routed place to place and laid where Transport
-// Tycoon would lay them (ground.RoadFits), the ground under them graded, and what carries a road
-// over water — a bridge, its ends level, or a ford — standing on the board, an entity; with
-// -flat, a bridge is one cell. A units: section in the file made before stays as it was. The map
-// is laid on a board before it is written: what a board refuses, gramap refuses.
+// The heights are the Terrain Tiles on AWS (Mapzen's Tilezen terrarium; see
+// https://github.com/tilezen/joerd/blob/master/docs/attribution.md), fetched once into a cache.
+// The recipe says where, what the ground is, what makes a river and the roads as chains of named
+// places; the map gets its relief (none with -flat), its kinds, its rivers, its roads laid as
+// Transport Tycoon lays them and its bridges and fords. A units: section in the file made before
+// stays as it was. The map is laid on a board before it is written: what a board refuses, gramap
+// refuses.
 package main
 
 import (

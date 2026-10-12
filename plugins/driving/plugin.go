@@ -32,17 +32,16 @@ type Keeping interface {
 	Ordered(id uid.UID64) bool
 }
 
-// Plugin drives units by hand: the commands Ahead, Back, Turn and Toward, summed a tick into each
-// hand, put on the units the hand is on and carried out — turning them, walking them on, braking
-// and backing them away, flying them — over the ground of the board it is given, if any.
+// Plugin drives units by hand: the commands Ahead, Back, Turn and Toward, summed a tick into
+// each hand and carried out on the units the hand is on.
 type Plugin struct {
-	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+	*world.Self
 
 	worldPlugin *world.Plugin
 	selected    tag.Tag[selection.Family]
 	hands       hands
-	board       *board.Plugin // the ground the units walk on; nil, none
-	keeping     Keeping       // who else is in the way; nil, nobody
+	board       *board.Plugin
+	keeping     Keeping
 	module      *module
 }
 
@@ -63,23 +62,18 @@ func NewPlugin(worldPlugin *world.Plugin, selectionPlugin *selection.Plugin) *Pl
 }
 
 // WithGround has the driven units walk the board: never onto ground their domain may not stand
-// on, their cell (unit.At) and their hold on the occupancy following them cell by cell. Call
-// before Use.
+// on, their cell and their hold on the occupancy following them. Call it before Use.
 func (p *Plugin) WithGround(b *board.Plugin) *Plugin {
 	p.board = b
 	return p
 }
 
-// WithKeeping has k say who else is in a driven unit's way and whom it steers itself — a plugin
-// that keeps units apart calls it as it is made (navigation.NewPlugin). Call before Use.
+// WithKeeping has k say who else is in a driven unit's way and whom it steers itself (navigation
+// calls it as it is made). Call it before Use.
 func (p *Plugin) WithKeeping(k Keeping) *Plugin {
 	p.keeping = k
 	return p
 }
-
-// =================================================================
-// plugin.Plugin contract
-// =================================================================
 
 func (p *Plugin) Name() string { return "gram.driving" }
 
@@ -108,14 +102,14 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // it after navigation's, whose orders a hand ends.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer is a no-op — the driving draws nothing.
+// WithRenderer is a no-op: the driving draws nothing.
 func (p *Plugin) WithRenderer(render.AtlasSource) {}
 
-// Renderer is nil — the driving draws nothing.
+// Renderer is nil: the driving draws nothing.
 func (p *Plugin) Renderer() render.Layer { return nil }
 
-// EventHandler is nil — a player's bindings (Keys) issue the commands.
+// EventHandler is nil: a player's bindings issue the commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil — the driving keeps nothing but the units' own components.
+// Serializable is nil: the driving keeps nothing but the units' own components.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }

@@ -12,14 +12,10 @@ import (
 //go:embed shaders/*.wgsl
 var shaders embed.FS
 
-// starShader draws the real stars (shaders/stars.wgsl): an instance a star, its place, spread and
-// brightness and its colour.
 var starShader = render.NewMeshShaderWith("stars", render.Files(shaders, "shaders/stars.wgsl"),
 	[]render.Uniform{{Name: "StarView", Size: 2}}).Instanced(2)
 
-// How the real stars shine: how wide a star of magnitude 2 or fainter spreads, in pixels, the
-// brighter spread wider at the same peak; how dim a star may be and still be drawn; how much they
-// twinkle low in the sky, and how fast.
+// starSpread in pixels for magnitude 2 or fainter, starFlicker radians a second
 const (
 	starSpread  = 0.7
 	starFaint   = 0.01
@@ -27,8 +23,7 @@ const (
 	starFlicker = 7.0
 )
 
-// StarField is the real stars (Stars) drawn on a sky: Place lays out those a camera sees, Draw
-// draws them, each a soft dot of light in its colour — for a sky drawn over them to hide as it
+// StarField is the real stars (Stars) drawn on a sky, for a sky drawn over them to hide as it
 // covers them. It twinkles by the wall clock, a look only.
 type StarField struct {
 	inst  []float32
@@ -38,8 +33,7 @@ type StarField struct {
 }
 
 // Place lays out the stars of heavens seen through cam, a viewport w by h pixels, as bright as
-// bright (0 none): only those over the horizon and on the screen, faint as they are, dimmer and
-// twinkling low in the sky. It is how many it laid out.
+// bright (0 none), and is how many it laid out.
 func (f *StarField) Place(cam camera.Camera, w, h float32, heavens Heavens, bright float32) int {
 	f.inst, f.view = f.inst[:0], [2]float32{w, h}
 	v, ok := cam.(camera.Vanisher)
@@ -84,12 +78,10 @@ func (f *StarField) Draw(screen *render.Image) {
 	screen.DrawMesh(nil, starShader, &f.opts)
 }
 
-// starLight is how bright a star of magnitude mag shows, 1 at magnitude 2: its light's
-// two-fifths power, so the faint ones still show on a screen, a sixth-magnitude star a quarter.
+// the light's two-fifths power, so the faint stars still show on a screen
 func starLight(mag float32) float32 { return float32(math.Pow(10, -0.16*float64(mag-2))) }
 
-// starColours is the colour of a star by its colour index B−V, from blue-white to red, every 0.4
-// from −0.4; starColour blends it, half towards white, as the eye sees them.
+// by B−V every 0.4 from −0.4
 var starColours = []render.Light{
 	{0.61, 0.69, 1}, {0.79, 0.85, 1}, {1, 0.97, 0.93}, {1, 0.89, 0.76}, {1, 0.82, 0.63}, {1, 0.72, 0.47}, {1, 0.64, 0.35},
 }
@@ -105,7 +97,6 @@ func starColour(bv float32) render.Light {
 	return c
 }
 
-// smoothstep eases from 0 at a to 1 at b.
 func smoothstep(a, b, x float32) float32 {
 	t := min(max((x-a)/(b-a), 0), 1)
 	return t * t * (3 - 2*t)

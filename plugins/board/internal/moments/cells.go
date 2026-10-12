@@ -10,7 +10,6 @@ import (
 
 var _ goke.System = (*cellSystem)(nil)
 
-// cellSystem runs the rules of a cell.Now over every cell, after the standing pass.
 type cellSystem struct {
 	r *Rules
 
@@ -21,7 +20,7 @@ type cellSystem struct {
 	ids     []uid.UID64
 	plots   []cell.Plot
 	grounds []cell.Ground
-	about   func(i int) cell.Now // now, bound once
+	about   func(i int) cell.Now // bound once
 }
 
 func newCellSystem(r *Rules) *cellSystem {
@@ -49,7 +48,6 @@ func (s *cellSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-// now is the i-th cell of the chunk being walked.
 func (s *cellSystem) now(i int) cell.Now {
 	return cell.Now{ID: s.ids[i], Cell: s.plots[i].Cell, Kind: s.grounds[i].Kind}
 }

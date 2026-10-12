@@ -7,7 +7,6 @@ import (
 	"github.com/kjkrol/gram/camera"
 )
 
-// The top-down camera's transform for the GPU draws a world point where the camera does.
 func TestBasicCamera_ItsTransformDrawsWhereItProjects(t *testing.T) {
 	c := NewFromSpace(1000, 800, 0, camera.AABB{})
 	c.SetViewport(400, 300)

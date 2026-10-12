@@ -17,27 +17,23 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// shaders is the prisms' shader.
-//
 //go:embed shaders/*.wgsl
 var shaders embed.FS
 
-// Sky is the sky over the prisms: its weather hazes the far off.
+// Sky is the sky over the prisms, whose weather hazes the far off.
 type Sky interface {
 	Air() air.Weather
 }
 
-// prisms draws a hex board's cells (shaders/hexes.wgsl), a prism an instance.
 var prisms = render.NewMeshShaderWith("hexes", render.Files(shaders, "shaders/hexes.wgsl"), []render.Uniform{
 	{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
 	{Name: "HexSize", Size: 1}, {Name: "TopPx", Size: 1}, {Name: "GridOn", Size: 1},
 }).Instanced(3)
 
-// prismVertices is how many vertices a prism takes: its top's six triangles and six faces of two.
+// a prism's top in six triangles and six faces of two
 const prismVertices = 18 + 36
 
-// maxTop is how many pixels a side the board from above is drawn in at most, and topPx how many a
-// world unit at most.
+// pixels: a side of the board from above at most, and a world unit at most
 const (
 	maxTop = 4096
 	topPx  = 2
@@ -45,33 +41,30 @@ const (
 
 var _ render.Direct = (*Ground)(nil)
 
-// Ground is the ground of a hex board in relief drawn on the GPU, a render.Direct at the Ground tier
-// in place of the tiles: the tiles from above — the painter's, in white, without the clouds — are
-// composed once (render.Still), anew when the board or the relief changes, and drawn every frame
-// into an image of the world, their water glinting on; every cell stands on it as a prism to its
-// top, with a face down to each lower neighbour, taking its colours from that image, lit by the
-// sun, shaded by the clouds and hazed as the terrain is, writing the frame's depth.
+// Ground is the ground of a hex board in relief drawn on the GPU, a render.Direct at the Ground
+// tier in place of the tiles: every cell a prism to its top, coloured from the tiles composed
+// once from above.
 type Ground struct {
 	world  *world.Plugin
 	board  *board.Plugin
-	m      board.Map // the relief's map: how high the cells stand, what lies over their tiles
+	m      board.Map
 	relief *relief.Relief
 	sky    Sky
 	grid   grid.Grid
 	size   float32 // from a cell's centre to its corner
 	still  *render.Still
-	tiles  *look.Renderer // composes the tiles from above for the still
-	at     [2]uint64      // the board's changes and the relief's version the still holds, 1 more
-	top    *render.Image  // the still drawn, px pixels a world unit
-	px     float32
+	tiles  *look.Renderer
+	at     [2]uint64
+	top    *render.Image
+	px     float32   // pixels a world unit
 	cells  []float32 // three vec4s a cell: centre and top, the six neighbours' tops
 	opts   render.DrawMeshOptions
 	own    map[string][]float32
-	uv     map[string]any // the frame's uniforms for the still, a pixel of the image its own
+	uv     map[string]any
 }
 
-// New is the ground of b's hex board in the relief r over w drawn on the GPU, the cells standing as
-// m says, under sky.
+// New is the ground of b's hex board in the relief r over w, the cells standing as m says,
+// under sky.
 func New(w *world.Plugin, b *board.Plugin, m board.Map, r *relief.Relief, sky Sky) *Ground {
 	brd := b.Board()
 	h := &Ground{world: w, board: b, m: m, relief: r, sky: sky, grid: brd.Grid, size: float32(brd.CellSpan()),
@@ -85,7 +78,7 @@ func (*Ground) Init(*goke.SysInit) {}
 // Compose hands the frame nothing: the ground is drawn Direct.
 func (*Ground) Compose(*render.Frame, camera.Camera) {}
 
-// Tier is where the ground comes: render.Ground.
+// Tier is render.Ground.
 func (*Ground) Tier() render.Tier { return render.Ground }
 
 // Draw draws the ground into the target through cam, under the frame's uniforms u.
@@ -131,8 +124,7 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	t.Screen.DrawMesh(nil, prisms, &h.opts)
 }
 
-// refresh composes the tiles and lays out the prisms anew where the board or the relief has
-// changed; false while the board has no atlas to draw from.
+// false while the board has no atlas to draw from
 func (h *Ground) refresh() bool {
 	atlas := h.board.Atlas()
 	if atlas == nil {
@@ -174,8 +166,7 @@ func (h *Ground) refresh() bool {
 	return true
 }
 
-// edges are the directions out across each edge of a hex in the order of its outline: edge k joins
-// corners k and k+1, as the shader reads the neighbours.
+// edge k joins corners k and k+1, as the shader reads the neighbours
 func (h *Ground) edges() [6]int {
 	var out [6]int
 	c := h.grid.At(0, 0)
@@ -190,7 +181,6 @@ func (h *Ground) edges() [6]int {
 	return out
 }
 
-// set hands the shader the uniform name as v, kept between frames and boxed once.
 func (h *Ground) set(name string, v ...float32) {
 	s, ok := h.own[name]
 	if !ok || len(s) != len(v) {
@@ -201,8 +191,6 @@ func (h *Ground) set(name string, v ...float32) {
 	h.opts.Uniforms[name] = s
 }
 
-// fromAbove is the relief's map with its tiles laid flat, from above, whatever the camera: what the
-// prisms compose once.
 type fromAbove struct{ board.Map }
 
 func (m fromAbove) Look() look.Look { return look.FlatLook() }

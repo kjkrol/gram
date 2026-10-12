@@ -8,9 +8,6 @@ import (
 	"github.com/kjkrol/gram/plugin"
 )
 
-// moments hands the rules of the clock its Moment once every step of the simulation, just before
-// the effects' pass: what happens when — every day at an hour, every winter — is a rule of a
-// clock.Moment holding clock.Every or clock.At.
 type moments struct {
 	clock *clock.Clock
 	host  plugin.StepRules[clock.Moment]

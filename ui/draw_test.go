@@ -9,7 +9,6 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// needGPU readies a device without a window; a machine without one skips.
 func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
@@ -17,7 +16,6 @@ func needGPU(t *testing.T) {
 	}
 }
 
-// still is a surface of one colour.
 type still struct{ img *render.Image }
 
 func (s *still) Resize(w, h int) {

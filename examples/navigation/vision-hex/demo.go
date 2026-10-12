@@ -138,7 +138,6 @@ type unitRow struct {
 
 func (s *arena) defineKinds() {
 	brd := s.board.Board()
-	// Every unit is 2 tall; the eye is a fact of the kind, the altitude the board's to write.
 	units := board.NewUnits[unitRow](
 		s.board,
 		board.Shape{Size: EntitySize, Height: 2},
@@ -161,8 +160,7 @@ func (s *arena) defineKinds() {
 	for _, name := range scouts {
 		units.Define(name, unit.Mover{Domain: cell.Land}, scout, order, sight, eye(1.5))
 	}
-	// The hawk flies 40 above the ground on the Air plane: walls and walkers pass under it, and its
-	// eye looks over the wall, the forest and the hill that stop a walker's.
+	// 40 up on the Air plane: it looks over what stops a walker's eye
 	flyer := steering.Steering{
 		MaxSpeed: UnitSpeed * 1.5,
 		Accel:    UnitSpeed * 2,

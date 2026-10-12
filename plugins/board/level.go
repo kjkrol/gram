@@ -24,30 +24,28 @@ import (
 )
 
 // Sides are the commands the entities of each side a level names give themselves as they are
-// made — whose they are (players.Give), whether they may be selected (selection.Allow) — by the
-// side's name.
+// made, by the side's name.
 type Sides map[string][]control.Command
 
 // Level is a board laid out of a file by Plugin.Lay, its entities waiting for Spawn.
 type Level struct {
 	l       *leveler
 	heights func(p geom.Vec) float64
-	waiting []waiting // the entities of the board and the units, in the file's order
+	waiting []waiting // in the file's order
 }
 
 type waiting struct {
 	node    *yaml.Node
-	kind    *yaml.Node // the value of its key kind
+	kind    *yaml.Node
 	row     reflect.Type
 	spawned bool
 }
 
-// Heights is the ground's heights the level's relief gives, in world units, for a topography's
-// Seed; nil for a level without one.
+// Heights is the ground's heights the level's relief gives, in world units; nil for a level
+// without one.
 func (l *Level) Heights() func(p geom.Vec) float64 { return l.heights }
 
-// Lay seeds the board in the Spawn section out of the level in the YAML file path of fsys, laid
-// out as the package's doc says (Level), and keeps its entities for Spawn.
+// Lay seeds the board out of the YAML level at path of fsys and keeps its entities for Spawn.
 func (p *Plugin) Lay(fsys fs.FS, path string) (*Level, error) {
 	if err := p.worldPlugin.InSection("a level laid", section.Spawn); err != nil {
 		return nil, fmt.Errorf("board: %w", err)
@@ -98,9 +96,8 @@ func (p *Plugin) Lay(fsys fs.FS, path string) (*Level, error) {
 	return level, nil
 }
 
-// Spawn seeds the world with the entities of level whose kinds have rows of R — what stands on the
-// board and the units — each row's fields tagged yaml the entry's keys, sides the commands of the
-// sides the entries name; an entity of the level no Spawn takes fails the board's Populate.
+// Spawn seeds the world with the entities of level whose kinds have rows of R, sides being the
+// commands of the sides the entries name; an entity no Spawn takes fails the board's Populate.
 func Spawn[R any](level *Level, sides Sides) error {
 	l := level.l
 	if err := l.p.worldPlugin.InSection("a level's entities spawned", section.Spawn); err != nil {
@@ -143,10 +140,9 @@ func Spawn[R any](level *Level, sides Sides) error {
 	return nil
 }
 
-// Each hands f, in the file's order, every row of R the level's entities have — what a plugin
-// builds itself out of a line of the map, a bridge from head to head — with the kind it names and
-// the file and line it is written at, and takes them as Spawn does; f's error ends the walk, said
-// at that line.
+// Each hands f, in the file's order, every row of R the level's entities have, with the kind it
+// names and the file and line it is written at, and takes them as Spawn does; f's error ends the
+// walk.
 func Each[R any](level *Level, f func(kind string, row R, at string) error) error {
 	l := level.l
 	if err := l.p.worldPlugin.InSection("a level's rows taken", section.Spawn); err != nil {
@@ -171,7 +167,6 @@ func Each[R any](level *Level, f func(kind string, row R, at string) error) erro
 	return nil
 }
 
-// unspawned fails for the first entity of the level no Spawn took.
 func (level *Level) unspawned() error {
 	for _, w := range level.waiting {
 		if !w.spawned {
@@ -213,7 +208,7 @@ type leveler struct {
 	p     *Plugin
 	path  string
 	shape grid.Shape
-	names map[string]int // the names given so far, by the line giving each
+	names map[string]int // by the line giving each
 }
 
 func (l *leveler) errorf(n *yaml.Node, format string, args ...any) error {
@@ -361,7 +356,7 @@ func (l *leveler) keys(n *yaml.Node, allowed ...string) (map[string]*yaml.Node, 
 func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) float64) error {
 	brd := l.p.Board()
 	roads, rivers := network.New(brd), network.New(brd)
-	laidBy := map[cell.ID]*yaml.Node{} // the path laying each cell of a road
+	laidBy := map[cell.ID]*yaml.Node{}
 	for _, name := range slices.Sorted(maps.Keys(w.Roads)) {
 		n := w.Roads[name]
 		width, paths, err := l.road(&n, name)
@@ -416,8 +411,7 @@ func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) floa
 	return nil
 }
 
-// graded refuses a cell of a graded road — a road, not a river — lying where Transport Tycoon
-// would not lay it (ground.RoadFits), or joining two level cells at different levels.
+// a graded road lies as Transport Tycoon lays it
 func (l *leveler) graded(roads *network.Network, laidBy map[cell.ID]*yaml.Node,
 	heights func(geom.Vec) float64) error {
 	brd := l.p.Board()
@@ -455,12 +449,10 @@ func (l *leveler) graded(roads *network.Network, laidBy map[cell.ID]*yaml.Node,
 	return nil
 }
 
-// roadPath is a road's path: its cells, the node writing it, and whether it leads onto its first
-// or its last cell — a bridge, a ford — without running over it.
 type roadPath struct {
 	cells []cell.ID
 	node  *yaml.Node
-	first bool
+	first bool // leads onto its first cell without running over it
 	last  bool
 }
 
@@ -513,12 +505,10 @@ func (l *leveler) road(n *yaml.Node, name string) (width float64, paths []roadPa
 	return width, paths, nil
 }
 
-// river is the cells n runs down and its nodes, all but the last cell's: where its water goes, the
-// sea or another river. A point turns it into the kind it names from there on and widens it
-// towards the width it gives, cell by cell; it begins with both.
+// the last cell is where the water goes, no part of the river
 func (l *leveler) river(n *yaml.Node) (cells []cell.ID, nodes []network.Node, err error) {
 	type mark struct {
-		at    int // the point's cell on the path
+		at    int
 		kind  string
 		width float64
 		wide  bool
@@ -548,7 +538,7 @@ func (l *leveler) river(n *yaml.Node) (cells []cell.ID, nodes []network.Node, er
 			}
 			m.wide = true
 		}
-		m.at = -1 // its cell, once the path has come to it
+		m.at = -1
 		marks = append(marks, m)
 		return keys["at"], nil
 	}
@@ -590,8 +580,7 @@ func (l *leveler) river(n *yaml.Node) (cells []cell.ID, nodes []network.Node, er
 	return cells, nodes, nil
 }
 
-// points are the cells from point to point of n, each point's cell's place among them besides;
-// point reads a point down to its [x, y].
+// point reads a point down to its [x, y]
 func (l *leveler) points(n *yaml.Node, point func(*yaml.Node) (*yaml.Node, error)) (
 	cells []cell.ID, at []int, err error,
 ) {
@@ -620,7 +609,7 @@ func (l *leveler) points(n *yaml.Node, point func(*yaml.Node) (*yaml.Node, error
 	return cells, at, nil
 }
 
-// route keeps to the straight line between the two cells among the grid's equally short ways.
+// among the grid's equally short ways, the one nearest the straight line
 func (l *leveler) route(from, to cell.ID) ([]cell.ID, bool) {
 	brd := l.p.Board()
 	a, b := brd.CellCenter(from), brd.CellCenter(to)
@@ -786,8 +775,7 @@ func ownKeys(n *yaml.Node) map[string]*yaml.Node {
 
 var entryKeys = []string{"kind", "side", "name", "group"}
 
-// tagged is the field of row tagged key: a row's keys are its tagged fields alone, so that the
-// file's keys are said where the row is.
+// a row's keys are its tagged fields alone, so the file's keys are said where the row is
 func tagged(row reflect.Type, key string) (reflect.StructField, bool) {
 	for _, f := range reflect.VisibleFields(row) {
 		if k, ok := tagOf(f); ok && k == key {
@@ -814,7 +802,7 @@ func fieldOf(row reflect.Type, key string) (reflect.StructField, bool) {
 	return reflect.StructField{}, false
 }
 
-// keyOf is a field's key as YAML calls it, so that a field and a struct inside it read alike.
+// a field's key as YAML calls it, so a field and a struct inside it read alike
 func keyOf(f reflect.StructField) (string, bool) {
 	if !f.IsExported() || f.Anonymous {
 		return "", false
@@ -831,7 +819,7 @@ func keyOf(f reflect.StructField) (string, bool) {
 
 var cellType = reflect.TypeFor[cell.ID]()
 
-// value decodes a cell.ID from a point [x, y] however deep it lies, the rest as YAML does.
+// a cell.ID is read from [x, y] however deep it lies, the rest as YAML reads it
 func (l *leveler) value(n *yaml.Node, v reflect.Value) error {
 	if !holdsCells(v.Type()) {
 		if err := n.Decode(v.Addr().Interface()); err != nil {

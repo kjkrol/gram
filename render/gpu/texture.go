@@ -13,11 +13,10 @@ type Texture struct {
 	w, h     int
 	tex      *wgpu.Texture
 	tgt      target
-	cpu      []byte // what was written before there was a device, RGBA
+	cpu      []byte // written before there was a device, RGBA
 	released bool
 }
 
-// target is where a pass draws: a texture's view, or the window's surface.
 type target struct {
 	view   *wgpu.TextureView
 	w, h   int
@@ -37,7 +36,6 @@ func NewTexture(w, h int) *Texture {
 // Size is the texture's width and height in pixels.
 func (t *Texture) Size() (w, h int) { return t.w, t.h }
 
-// realize puts the texture on the GPU, with what was written into it so far.
 func (t *Texture) realize(d *device) {
 	if t.released {
 		panic("gpu: a texture used after Release")
@@ -45,7 +43,7 @@ func (t *Texture) realize(d *device) {
 	if t.tex != nil {
 		return
 	}
-	if t.cpu == nil { // transparent from the start, as WebGPU has it and gogpu does not: memory used before shows otherwise
+	if t.cpu == nil { // transparent from the start, as WebGPU has it and gogpu does not
 		t.cpu = make([]byte, 4*t.w*t.h)
 	}
 	tex, err := d.dev.CreateTexture(&wgpu.TextureDescriptor{
@@ -107,7 +105,7 @@ func (t *Texture) WritePixels(x, y, w, h int, pix []byte) {
 	// gogpu's write at an origin but the corner spoils the texture left of it: the pixels go into
 	// a texture of their own, whole, and are drawn into place from there
 	part := NewTexture(w, h)
-	part.cpu = pix[:4*w*h] // written as it is put on the GPU
+	part.cpu = pix[:4*w*h]
 	part.realize(d)
 	one := func(dx, dy float32) Vertex {
 		return Vertex{DstX: float32(x) + dx, DstY: float32(y) + dy, SrcX: dx, SrcY: dy, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1}
@@ -120,8 +118,6 @@ func (t *Texture) WritePixels(x, y, w, h int, pix []byte) {
 	d.retire(func() { part.tgt.view.Release(); part.tex.Release() }) // the draw into place may still read it
 }
 
-// write hands the GPU a copy of pix with its rows 256 bytes apart, as the GPU copies them, and has
-// it carried out at once.
 func (d *device) write(t *Texture, x, y, w, h int, pix []byte) {
 	row := int(alignUp(uint64(4*w), 256))
 	padded := make([]byte, row*h)
@@ -137,8 +133,8 @@ func (d *device) write(t *Texture, x, y, w, h int, pix []byte) {
 	d.flushWrites()
 }
 
-// flushWrites submits nothing, which has gogpu carry out the writes it holds: two held at once
-// spoil each other in its staging.
+// a submission of nothing has gogpu carry out the writes it holds: two held at once spoil each
+// other in its staging
 func (d *device) flushWrites() {
 	enc, err := d.dev.CreateCommandEncoder(nil)
 	if err != nil {
@@ -194,7 +190,6 @@ func (t *Texture) ReadPixels(dst []byte) {
 	}
 }
 
-// ready reports whether a device is at hand or can be made at first need.
 func ready() bool { return cur != nil }
 
 // Release frees the texture; it may not be used after.

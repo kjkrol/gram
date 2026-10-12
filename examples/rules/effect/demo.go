@@ -147,20 +147,27 @@ func (s *arena) defineRoles() {
 
 	roles := s.world.Roles()
 	roles.Define(LakeRole)
-	roles.Define(WitchRole,
-		rule.Then[unit.Standing]("freeze", rule.All, rule.Around(1, rule.OneOf(
-			rule.Playing(roles.Named(LakeRole), rule.Apply(iced)),
+	roles.Define(WitchRole, rule.Branch[unit.Standing]{
+		Name: "freeze",
+		Do: rule.Around(1, rule.OneOf(
+			rule.Branch[any]{When: rule.Playing(roles.Named(LakeRole)), Do: rule.Apply(iced)},
 			rule.Apply(frost),
-		))),
-	)
+		)),
+	})
 	roles.Define(MortalRole,
-		rule.Then[unit.Standing]("fallen in", rule.All,
-			rule.If(unit.Standing.Fallen, rule.OneOf(
-				rule.If(unit.Over(iced), rule.Keep(frozen)),
+		rule.Branch[unit.Standing]{
+			Name: "fallen in",
+			When: unit.Standing.Fallen,
+			Do: rule.OneOf(
+				rule.Branch[unit.Standing]{When: unit.Over(iced), Do: rule.Keep(frozen)},
 				rule.Order(world.Despawn{}),
-			))),
-		rule.Then[unit.Standing]("on the ice", rule.All,
-			rule.If(rule.Not(unit.Standing.Fallen), rule.If(unit.Over(iced), rule.Keep(slip)))),
+			),
+		},
+		rule.Branch[unit.Standing]{
+			Name: "on the ice",
+			When: rule.All(rule.Not(unit.Standing.Fallen), unit.Over(iced)),
+			Do:   rule.Keep(slip),
+		},
 	)
 }
 

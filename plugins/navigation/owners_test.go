@@ -16,8 +16,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// A MoveTo sends the selected units of the player who gave it alone: another player's selected
-// units, and those nobody owns, keep their orders.
 func TestMoveTo_SendsThePlayersOwnSelectedUnitsAlone(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(10, 1, 10)
 	terrain := cell.NewTerrainMap()

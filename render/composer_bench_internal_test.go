@@ -5,10 +5,7 @@ import (
 	"testing"
 )
 
-// Benchmark_Composer_Render is the composer's own share of handing a frame to Ebitengine — the
-// vertices gathered per sheet and indexed, the draw itself stubbed — for frames the size of the
-// island's: a tile, an overlay on it and a line per cell in depth order on one sheet, a sprite of
-// another sheet every 50 cells.
+// The draw itself is stubbed: the composer's own share of a frame the size of the island's.
 func Benchmark_Composer_Render(b *testing.B) {
 	a, o := sheet{"atlas"}, sheet{"objects"}
 	for _, n := range []int{6000, 24000} {

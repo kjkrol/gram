@@ -11,8 +11,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// BenchmarkPathFinder_Terrain finds one route corner to corner over a 128x128 board with a quarter
-// of its cells walls, reading the terrain from a plain TerrainMap and from the board's cell entities.
+// one route corner to corner over a 128x128 board with a quarter of its cells walls
 func BenchmarkPathFinder_Terrain(b *testing.B) {
 	const side, size = 128, 16
 	grid := grid.DefaultGrids{}.Square(side, side, size)

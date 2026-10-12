@@ -31,7 +31,6 @@ type saveTestResourceB struct{ S string }
 func (s *saveTestState) Persisted() []any     { return []any{&s.N} }
 func (r *saveTestResourceB) Persisted() []any { return []any{&r.S} }
 
-// ecsAccessor captures ctx.ECS() during Install and queues an optional setup callback.
 type ecsAccessor struct {
 	ecs   *goke.ECS
 	setup func(*goke.SysInit)
@@ -54,7 +53,6 @@ func (a *ecsAccessor) Renderer() render.Layer             { return nil }
 func (a *ecsAccessor) EventHandler() control.EventHandler { return nil }
 func (a *ecsAccessor) Serializable() plugin.Serializable  { return nil }
 
-// saveLoadTestGame wires newTestWorldPlugin + ecsAccessor for the round-trip test below.
 type saveLoadTestGame struct {
 	acc     *ecsAccessor
 	setup   func(*goke.SysInit)
@@ -89,7 +87,6 @@ func (g *saveLoadTestGame) Stack() game.Scenes {
 	return g.stack
 }
 
-// oneStageGame is a minimal game.Game wrapping a single Stage.
 type oneStageGame struct {
 	stage game.Stage
 	props game.Props

@@ -12,13 +12,10 @@ import (
 
 func z(altitude, height float64) *world.Z { return &world.Z{Altitude: altitude, Height: height} }
 
-// eyed is an eastward look from eye above its bottom.
 func eyed(eye float64) *look {
 	return &look{Sight: vision.Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 300}, Eye: world.Eye{Height: eye, Angle: math.Pi / 4}}
 }
 
-// A wall 10 tall 100 ahead and a walker 240 ahead: a walker looking from 1.5 sees the wall alone,
-// a hawk 40 up sees over it.
 func TestHeights_AWalkerIsStoppedByTheWallAHawkLooksOver(t *testing.T) {
 	quasi := &relief{}
 	wallAndWalker := []spawn{
@@ -35,7 +32,6 @@ func TestHeights_AWalkerIsStoppedByTheWallAHawkLooksOver(t *testing.T) {
 	}
 }
 
-// plateau is ground 12 high for x in [50, 100), 0 elsewhere.
 type plateau struct{}
 
 func (plateau) At(p geom.Vec) float64 {
@@ -79,9 +75,6 @@ func TestHeights_AFlatWorldRefusesAnEyeAndAWorldWithHeightsRefusesBlockers(t *te
 	expect(t, "Sight.Blockers", func() { sceneIn(t, &relief{}, spawn{x: 0, y: 0, sight: blocked}) })
 }
 
-// A walker on the plateau, 20 short of its edge, looking east: in a world with heights the view
-// reaches its full radius. The lowland just past the edge is below the line from its eye, a
-// shadow; farther on the line has dropped below the lowland and it is seen again.
 func TestHeights_AViewReachesItsRadiusWithTheGroundOutOfSightAsShadows(t *testing.T) {
 	onPlateau := &relief{ground: plateau{}, step: 10}
 	_, _, outlines := sceneIn(t, onPlateau, spawn{x: 70, y: 0, z: z(12, 2), sight: eyed(1.5), outline: true})
@@ -104,7 +97,7 @@ func TestHeights_AViewReachesItsRadiusWithTheGroundOutOfSightAsShadows(t *testin
 func TestHeights_AFlatWorldDrawsNoShadows(t *testing.T) {
 	_, _, outlines := scene(t,
 		spawn{x: 0, y: 0, sight: eastward(math.Pi/8, 300), outline: true},
-		spawn{x: 100, y: 0, size: 60}, // a wall: the reach stops at it, as before
+		spawn{x: 100, y: 0, size: 60}, // a wall
 	)
 	o := outlines[0]
 	for i := range int(o.Count) {
@@ -117,9 +110,7 @@ func TestHeights_AFlatWorldDrawsNoShadows(t *testing.T) {
 	}
 }
 
-// On a world with a scale the ground sinks under an eye's level as far off as it lies: a walker
-// 240 off on level ground is out of sight past a walker's horizon — at 4 km a world unit, about 74
-// off for an eye 1.5 up — and in sight of a hawk 40 up, and of anyone on a flat world.
+// at 4 km a world unit the horizon of an eye 1.5 up is about 74 off
 func TestHeights_WhatLiesPastTheHorizonIsOutOfSight(t *testing.T) {
 	target := spawn{x: 240, y: 0, z: z(0, 2)}
 	walker := spawn{x: 0, y: 0, z: z(0, 2), sight: eyed(1.5)}
@@ -136,8 +127,7 @@ func TestHeights_WhatLiesPastTheHorizonIsOutOfSight(t *testing.T) {
 	}
 }
 
-// ridge is ground 0 but for a ridge 20 high and 4 wide along x 150, which a sample every 10 from
-// an eye at x 5 straight east passes over.
+// a ridge 4 wide, which a sample every 10 from an eye at x 5 passes over
 type ridge struct{}
 
 func (ridge) At(p geom.Vec) float64 {
@@ -148,7 +138,6 @@ func (ridge) At(p geom.Vec) float64 {
 }
 func (ridge) Step() float64 { return 10 }
 
-// profiled is the ridge with its profile: a ray eastward crosses its foot, its crest and its foot.
 type profiled struct{ ridge }
 
 func (r profiled) Along(origin, dir geom.Vec, length float64, visit func(d, alt float64) bool) {
@@ -163,8 +152,6 @@ func (r profiled) Along(origin, dir geom.Vec, length float64, visit func(d, alt 
 	visit(length, r.At(geom.NewVec(origin.X+dir.X*length, origin.Y+dir.Y*length)))
 }
 
-// A ground that knows its profile is read along every ray at the points it names, not every step:
-// the ridge a step passes over hides the walker behind it.
 func TestHeights_AGroundIsReadAlongItsProfile(t *testing.T) {
 	walker := spawn{x: 0, y: 0, z: z(0, 2), sight: eyed(1.5)}
 	behind := spawn{x: 240, y: 0, z: z(0, 2)}

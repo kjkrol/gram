@@ -7,10 +7,9 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Shine is how shiny the tile's top is — its kind's Shine, as far as its Detail — and how much of
-// the sun reaches each of its corners, none at night; false where the tile does not shine at all: a
-// kind without shine, a flat world, a tile too far off. A Look hands them to [Glint]
-// after the top's sprite.
+// Shine is how shiny the tile's top is and how much of the sun reaches each of its corners.
+// It is false where the tile does not shine at all: a kind without shine, a flat world, a tile
+// too far off.
 func (t *tile) Shine() (shine float32, lit [4]float32, ok bool) {
 	shine = t.baseTop().shine * t.Detail()
 	if shine <= 0 || !t.r.heights {
@@ -19,10 +18,8 @@ func (t *tile) Shine() (shine float32, lit [4]float32, ok bool) {
 	return shine, t.sunlit(), true
 }
 
-// Flow is how fast the water on the tile runs at each of its corners: down the slope of each cell
-// of running water meeting there, as fast as its kind's Flow by the square root of the slope,
-// the cells' runs averaged; banks that do not run count for nothing, so the current neither turns
-// into them nor breaks between two tiles. False where the tile's water is still, off a square grid.
+// Flow is how fast the water on the tile runs at each of its corners. It is false where the
+// tile's water is still, or off a square grid.
 func (t *tile) Flow() (water.Flow, bool) {
 	r := t.r
 	if !r.square || t.baseTop().flow <= 0 {
@@ -52,8 +49,7 @@ func (t *tile) Flow() (water.Flow, bool) {
 	return out, true
 }
 
-// runOf is how fast water runs over a cell whose corners stand at g, w by h, running at flow down a
-// slope of 1 in 1: down its slope, by the square root of it.
+// flow is the speed down a slope of 1 in 1
 func runOf(g [4]float32, flow, w, h float32) (vx, vy float32) {
 	gx := (g[1] - g[0] + g[3] - g[2]) / (2 * w)
 	gy := (g[2] - g[0] + g[3] - g[1]) / (2 * h)
@@ -65,22 +61,21 @@ func runOf(g [4]float32, flow, w, h float32) (vx, vy float32) {
 	return -gx / slope * speed, -gy / slope * speed
 }
 
-// Detail is how much of what is fine the tile is drawn with, 0 to 1, by how many pixels it spans:
-// all of it from nearCell up, none of it — no glint, no running water over it — from farCell
-// down, so a far view of the whole world draws no more than its tiles and what shows from afar.
+// Detail is how much of what is fine the tile is drawn with, 0 to 1, by how many pixels it
+// spans.
 func (t *tile) Detail() float32 {
 	return min(max((t.px()-farCell)/(nearCell-farCell), 0), 1)
 }
 
-// The pixels a cell spans from which a tile is drawn with no detail, all of it, and its shore.
+// pixels a cell spans
 const (
 	farCell   = 6
 	nearCell  = 12
 	shoreCell = 16
 )
 
-// DrawSurface lays over the tile's top just drawn, its box x0..x1, y0..y1, where it shines its
-// water, running or still.
+// DrawSurface lays the tile's water, running or still, over its top just drawn in the box
+// x0..x1, y0..y1.
 func (t *tile) DrawSurface(f *render.Frame, x0, y0, x1, y1 float32) {
 	box := render.Box(x0, y0, x1, y1)
 	shine, lit, ok := t.Shine()

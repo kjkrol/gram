@@ -10,8 +10,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 )
 
-// Corners is a cell's ground height at its corners: top-left, top-right, bottom-left, bottom-right.
-// A hex cell is level, its four heights one.
+// Corners is a cell's ground height at its corners: top-left, top-right, bottom-left,
+// bottom-right. A hex cell is level, its four heights one.
 type Corners [4]float32
 
 // Level is the mean of the corners.
@@ -22,39 +22,32 @@ func (c Corners) Level() float64 {
 // HeightsRun is how many of the ground's heights one of the topography's entities carries.
 const HeightsRun = 1024
 
-// Heights is a run of the ground's heights as the topography's entities carry them, saved with the
-// game: Count of them from the First on, in the order the relief keeps them — on a square grid one
-// per corner of the lattice, row by row, a column more than the grid has and a row more, save
-// along an axis that wraps; on any other grid one per cell, by ordinal. Its size is fixed, so the
-// ECS keeps it in its own memory.
+// Heights is a run of the ground's heights as the topography's entities carry them, saved with
+// the game: Count of them from the First on, in the order the relief keeps them. Its size is
+// fixed, so the ECS keeps it in its own memory.
 type Heights struct {
 	First, Count uint32
 	Values       [HeightsRun]float32
 }
 
-// Relief is the ground's height over a board's grid. On a square grid it is a lattice of corners
-// the neighbouring cells share where they meet, so the ground runs on between the cells and has no
-// vertical walls; on any other grid a cell is level. It is the world's Ground. Not safe for
-// concurrent use.
+// Relief is the ground's height over a board's grid: on a square grid a lattice of corners the
+// neighbouring cells share, on any other a level per cell. Not safe for concurrent use.
 type Relief struct {
-	grid   grid.Grid
-	board  *board.Board // the grid when it is a board's, whose Floors carry units over the ground
-	sq     grid.Shape
-	square bool
-	cols   int // corners along x on a square grid
-	rows   int // corners along y
-	values []float32
-	// version counts the changes; touched is told of every cell whose corners changed, nil none
-	version uint64
-	touched func(c cell.ID)
-	// low and high are the relief's lowest ground, sea level at most, and its highest, as of the
-	// version extentAt, one more than the version counted; 0 not read yet
+	grid      grid.Grid
+	board     *board.Board // nil where the grid is no board's
+	sq        grid.Shape
+	square    bool
+	cols      int // corners along x on a square grid
+	rows      int // corners along y
+	values    []float32
+	version   uint64
+	touched   func(c cell.ID)
 	low, high float32
-	extentAt  uint64
+	extentAt  uint64 // one more than the version low and high are of; 0 not read yet
 }
 
-// New is level ground at 0 over g; over a board, every change to a cell's corners is counted on
-// the board too (board.Board.Touch), so whatever was worked out of the cell is read anew.
+// New is level ground at 0 over g. Over a board, every change to a cell's corners is counted on
+// the board too (board.Board.Touch).
 func New(g grid.Grid) *Relief {
 	r := &Relief{grid: g}
 	if b, ok := g.(*board.Board); ok {
@@ -80,9 +73,8 @@ func New(g grid.Grid) *Relief {
 	return r
 }
 
-// Lattice is the ground's heights over a square grid as a lattice: cols by rows corners a cell
-// apart, row by row, the relief's own values to read and not to keep — for whoever draws them all
-// at once (topography/terrain); false off a square grid.
+// Lattice is the ground's heights over a square grid: cols by rows corners a cell apart, row by
+// row, the relief's own values to read and not to keep. It is false off a square grid.
 func (r *Relief) Lattice() (cols, rows int, cell float32, heights []float32, ok bool) {
 	if !r.square {
 		return 0, 0, 0, nil, false
@@ -96,8 +88,7 @@ func (r *Relief) Sloped() bool { return r.square }
 // Version counts the changes to the heights; it only grows.
 func (r *Relief) Version() uint64 { return r.version }
 
-// Extent is the relief's lowest ground, sea level at most, and its highest: the heights a camera
-// looks over; read anew only when the heights have changed.
+// Extent is the relief's lowest ground, sea level at most, and its highest.
 func (r *Relief) Extent() (low, high float64) {
 	if r.extentAt != r.version+1 {
 		lo, hi := float32(0), float32(0)
@@ -109,7 +100,7 @@ func (r *Relief) Extent() (low, high float64) {
 	return float64(r.low), float64(r.high)
 }
 
-// Highest is the top of the relief: the highest ground, for an eye to fly over.
+// Highest is the relief's highest ground.
 func (r *Relief) Highest() float64 {
 	_, high := r.Extent()
 	return high
@@ -118,7 +109,6 @@ func (r *Relief) Highest() float64 {
 // Runs is how many runs of HeightsRun the relief's heights take.
 func (r *Relief) Runs() int { return (len(r.values) + HeightsRun - 1) / HeightsRun }
 
-// fill writes into h the run of the relief's heights from h.First on.
 func (r *Relief) fill(h *Heights) {
 	first := min(int(h.First), len(r.values))
 	n := copy(h.Values[:], r.values[first:])
@@ -126,8 +116,7 @@ func (r *Relief) fill(h *Heights) {
 	clear(h.Values[n:])
 }
 
-// adopt takes the runs' heights as the ground — a loaded game's — when together they are exactly
-// as many as the grid has, each run where its First says.
+// only when together the runs cover the grid exactly
 func (r *Relief) adopt(runs []Heights) bool {
 	total := 0
 	for _, h := range runs {
@@ -146,10 +135,9 @@ func (r *Relief) adopt(runs []Heights) bool {
 	return true
 }
 
-// vertex is a corner of the lattice on a square grid, or a cell's ordinal on any other.
+// a corner of the lattice on a square grid, or a cell's ordinal in x on any other
 type vertex struct{ x, y int }
 
-// index is v's slot in the values.
 func (r *Relief) index(v vertex) int {
 	if !r.square {
 		return v.x
@@ -157,7 +145,6 @@ func (r *Relief) index(v vertex) int {
 	return v.y*r.cols + v.x
 }
 
-// corner is the vertex at lattice (x, y), folded where the grid wraps; false off the lattice.
 func (r *Relief) corner(x, y int64) (vertex, bool) {
 	fold := func(v, n int64, wraps bool) (int64, bool) {
 		if wraps {
@@ -170,7 +157,6 @@ func (r *Relief) corner(x, y int64) (vertex, bool) {
 	return vertex{int(fx), int(fy)}, okX && okY
 }
 
-// corners is the vertices at c's four corners on a square grid, or its one on any other.
 func (r *Relief) corners(c cell.ID) (vs [4]vertex, n int, ok bool) {
 	if !r.square {
 		i, ok := r.grid.Ordinal(c)
@@ -207,8 +193,8 @@ func (r *Relief) Corners(c cell.ID) Corners {
 	return out
 }
 
-// SetCorners puts c's corners at k's heights — the neighbours' corners meeting them go with them,
-// the ground has no vertical walls — or a hex cell level at k's first.
+// SetCorners puts c's corners at k's heights, the neighbours' corners meeting them going with
+// them, or a hex cell level at k's first.
 func (r *Relief) SetCorners(c cell.ID, k Corners) {
 	vs, n, ok := r.corners(c)
 	if !ok {
@@ -223,7 +209,6 @@ func (r *Relief) SetCorners(c cell.ID, k Corners) {
 	}
 }
 
-// setValue puts vertex v at h, telling of every cell meeting there; false when it stood there.
 func (r *Relief) setValue(v vertex, h float32) bool {
 	i := r.index(v)
 	if r.values[i] == h {
@@ -239,10 +224,9 @@ func (r *Relief) setValue(v vertex, h float32) bool {
 // Altitude is c's ground level, the mean of its corners.
 func (r *Relief) Altitude(c cell.ID) float64 { return r.Corners(c).Level() }
 
-// Surface is where whoever moves in d (none: Land) with its feet at feet stands at p: the highest
-// of the ground and the decks over p whose Floors carry d, no higher than feet+step — onto a deck
-// within a step from any side, under one out of reach — and the lowest underside of a deck over
-// its feet, +Inf for none; the ground alone where the relief lies under no board.
+// Surface is where whoever moves in d (none: Land) with its feet at feet stands at p: the
+// highest of the ground and the decks carrying d within step of its feet, and the lowest
+// underside of a deck over its feet, +Inf for none.
 func (r *Relief) Surface(p geom.Vec, d cell.Domain, feet, step float64) (floor, ceiling float64) {
 	floor, ceiling = r.GroundAt(p), math.Inf(1)
 	if r.board == nil {
@@ -263,7 +247,7 @@ func (r *Relief) Surface(p geom.Vec, d cell.Domain, feet, step float64) (floor, 
 	return floor, ceiling
 }
 
-// SetHeights raises the ground to heights: sampled at every corner on a square grid, at every
+// SetHeights sets the ground to heights, sampled at every corner on a square grid and at every
 // cell's centre on any other.
 func (r *Relief) SetHeights(heights func(p geom.Vec) float64) {
 	changed := false
@@ -286,10 +270,7 @@ func (r *Relief) SetHeights(heights func(p geom.Vec) float64) {
 	}
 }
 
-// GroundAt is the ground height under p, 0 off the board: on a square grid on the two flat
-// triangles the cell's top is drawn as — split along the diagonal whose corners stand nearer in
-// height, as render.Frame.Fold folds it — so whatever stands on the ground stands on the ground
-// drawn; the cell's level elsewhere.
+// GroundAt is the ground height under p as it is drawn, 0 off the board.
 func (r *Relief) GroundAt(p geom.Vec) float64 {
 	if !r.square {
 		c, ok := r.grid.CellAt(p)
@@ -317,12 +298,10 @@ func (r *Relief) GroundAt(p geom.Vec) float64 {
 	return drawnAt(float64(hs[0]), float64(hs[1]), float64(hs[2]), float64(hs[3]), fx-x0, fy-y0)
 }
 
-// drawnAt is the height at (u, v), 0 to 1 across and down, of a cell's top whose corners —
-// top-left, top-right, bottom-left, bottom-right — stand at h0 to h3, as it is drawn: two flat
-// triangles split along the diagonal whose corners stand nearer in height, as render.Frame.Fold
-// splits it; ties along 1–2, as a quad is drawn unfolded.
+// two flat triangles split along the diagonal whose corners stand nearer in height, as
+// render.Frame.Fold splits it; ties along 1–2, as a quad is drawn unfolded
 func drawnAt(h0, h1, h2, h3, u, v float64) float64 {
-	if math.Abs(h0-h3) < math.Abs(h1-h2) { // split along 0–3
+	if math.Abs(h0-h3) < math.Abs(h1-h2) {
 		if u >= v {
 			return h0 + u*(h1-h0) + v*(h3-h1)
 		}
@@ -334,7 +313,6 @@ func drawnAt(h0, h1, h2, h3, u, v float64) float64 {
 	return h3 + (1-u)*(h2-h3) + (1-v)*(h1-h3)
 }
 
-// foldAxis is a cell coordinate on an axis n cells long: wrapped where it wraps; false off it.
 func foldAxis(v, n int64, wraps bool) (int64, bool) {
 	if wraps {
 		return (v%n + n) % n, true
@@ -344,7 +322,7 @@ func foldAxis(v, n int64, wraps bool) (int64, bool) {
 
 var _ ground.Heights = (*Relief)(nil)
 
-// At is GroundAt — the ground.Heights contract.
+// At is GroundAt, the ground.Heights contract.
 func (r *Relief) At(p geom.Vec) float64 { return r.GroundAt(p) }
 
 // Step is how far apart sight samples the ground: the shorter side of a cell.
@@ -353,8 +331,7 @@ func (r *Relief) Step() float64 {
 	return min(w, h)
 }
 
-// Top is c's corners with its kind's height standing on them, and its level: the board.Map
-// contract, for kind's Height.
+// Top is c's corners with height standing on them, and its level.
 func (r *Relief) Top(c cell.ID, height float64) (corners [4]float32, level float32) {
 	k := r.Corners(c)
 	for i := range k {
@@ -363,11 +340,10 @@ func (r *Relief) Top(c cell.ID, height float64) (corners [4]float32, level float
 	return k, float32(r.Altitude(c))
 }
 
-// touching calls fn with every cell meeting at v and the index of v among its corners, -1 for a
-// hex cell, which is v itself.
+// k is the index of v among the cell's corners, -1 for a hex cell
 func (r *Relief) touching(v vertex, fn func(c cell.ID, k int)) {
 	if !r.square {
-		r.grid.EachCell(func(c cell.ID) { // rare: the shaping of a hex cell
+		r.grid.EachCell(func(c cell.ID) {
 			if i, ok := r.grid.Ordinal(c); ok && i == v.x {
 				fn(c, -1)
 			}

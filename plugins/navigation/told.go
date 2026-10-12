@@ -5,7 +5,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// givenQueues are where the commands a unit gives itself among others land.
 type givenQueues struct {
 	asides  control.Queue[StepAside]
 	detours control.Queue[Detour]
@@ -19,14 +18,12 @@ func (q *givenQueues) all() []control.CommandQueue {
 	return []control.CommandQueue{&q.asides, &q.detours, &q.passes, &q.holds, &q.settles, &q.stops}
 }
 
-// told is what a unit commanded itself this tick.
 type told struct {
 	aside, detour, pass, hold, settle, stop bool
 	asideOf, detourOf, passOf, settleBeside uid.UID64
 }
 
-// drain sorts the commands units gave themselves into by, by unit; a player's are none of these
-// and are dropped.
+// a player's are dropped
 func (q *givenQueues) drain(by map[uid.UID64]told) {
 	put := func(id uid.UID64, fn func(t *told)) {
 		t := by[id]

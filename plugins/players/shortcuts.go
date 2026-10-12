@@ -14,8 +14,8 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// SceneKey is a key of the game's own scene — save, quit, a debug toggle — that is no command to a
-// plugin: what it does, labelled for the shortcuts list. Shift asks for Shift held.
+// SceneKey is a key of the game's own, a debug toggle, that is no command to a plugin: what it
+// does, labelled for the shortcuts list. Shift asks for Shift held.
 type SceneKey struct {
 	Key   control.Key
 	Shift bool
@@ -44,39 +44,33 @@ func (ks SceneKeys) Handle(events *control.InputEvents, runtime game.Runtime, co
 // ShortcutsName is the name of the shortcuts scene in a game's stack.
 const ShortcutsName = "gram.shortcuts"
 
-// Shortcuts is the scene listing every key of the game: first the game's own — the bindings bound
-// in its Stage's Controls section and its SceneKeys — under "Game", then the plugins' keys,
-// grouped by the plugin whose command each issues, and last the players' and the engine's under
-// "General", with F11. Shown, it holds the game in the engine's pause, like a menu; Esc or K
-// closes it.
-// It is the players' own scene, in every Stage that uses them (Plugin.Scenes); K opens it (the
-// command ShowShortcuts, a default key), given the scene hands its input to Plugin.Handle.
+// Shortcuts is the scene listing every key of the game: the game's own under "Game", the
+// plugins' by plugin, the players' and the engine's under "General". Shown, it holds the game
+// in the engine's pause; Esc or K closes it.
 type Shortcuts struct {
 	p           *Plugin
 	keys        SceneKeys
 	layer       *shortcutsLayer
-	held        bool   // the game was paused already when the scene opened
-	description string // the game's (game.Props), as the scene last opened
+	held        bool
+	description string
 }
 
 var _ game.Scene = (*Shortcuts)(nil)
 
-// newShortcuts is the players' own scene listing the keys.
 func newShortcuts(p *Plugin) *Shortcuts {
 	s := &Shortcuts{p: p}
 	s.layer = &shortcutsLayer{s: s}
 	return s
 }
 
-// OwnKeys gives the game's own keys — a debug toggle, something no plugin's command does — run by
-// Handle and listed under "Game" with its bindings. Call it before the Stage is set up.
+// OwnKeys gives the game's own keys, run by Handle and listed under "Game". Call it before the
+// Stage is set up.
 func (p *Plugin) OwnKeys(keys SceneKeys) *Plugin {
 	p.shortcuts.keys = keys
 	return p
 }
 
-// Scenes is the players' one scene of their own, the list of shortcuts: the Stage has it in its
-// stack — see game.Scenic.
+// Scenes is the players' one scene of their own, the list of shortcuts (game.Scenic).
 func (p *Plugin) Scenes() []game.Scene { return []game.Scene{p.shortcuts} }
 
 // Open shows the scene on top, the game's description over the keys, and holds the game paused
@@ -112,15 +106,11 @@ func (s *Shortcuts) HandleEvents(events *control.InputEvents, runtime game.Runti
 
 func (*Shortcuts) Focusable() bool { return true }
 
-// group is one heading of the list and its lines.
 type group struct {
 	name  string
 	lines []string
 }
 
-// groups lists the bindings of the local players firing in their cameras' modes with what they
-// hold: the game's own and its SceneKeys under "Game", the plugins' by their handlers, in the
-// handlers' order, and the players' own and the engine's under "General".
 func (s *Shortcuts) groups() []group {
 	byHandler := map[plugin.CommandHandler][]string{}
 	seen := map[string]bool{}
@@ -163,8 +153,6 @@ func (s *Shortcuts) groups() []group {
 	return append(out, group{name: "General", lines: general})
 }
 
-// title is the list's heading, naming the first person while a local player's camera rides
-// in an entity.
 func (s *Shortcuts) title() string {
 	for _, pl := range s.p.Locals() {
 		if camera.HowOf(pl.pic.camera) == camera.Inside {
@@ -174,7 +162,6 @@ func (s *Shortcuts) title() string {
 	return "Shortcuts"
 }
 
-// handlerName is a handler's heading: its plugin name without the "gram." prefix, capitalised.
 func handlerName(h plugin.CommandHandler) string {
 	name := reflect.TypeOf(h).String()
 	if n, ok := h.(interface{ Name() string }); ok {
@@ -246,7 +233,6 @@ func buttonName(b control.MouseButton) string {
 	return fmt.Sprintf("button %d", b)
 }
 
-// keyName is a key as written on it, where ebiten's name is not.
 func keyName(k control.Key) string {
 	switch k {
 	case control.KeyBracketLeft:
@@ -271,12 +257,11 @@ func keyName(k control.Key) string {
 	return k.String()
 }
 
-// shortcutsLayer draws the list over a dimmed screen.
 type shortcutsLayer struct{ s *Shortcuts }
 
 func (*shortcutsLayer) Init(*goke.SysInit) {}
 
-// Column geometry of the list, in pixels.
+// pixels
 const (
 	shortcutsMargin = 24
 	shortcutsLine   = 14
@@ -299,7 +284,7 @@ func (l *shortcutsLayer) Draw(screen *render.Image) {
 	top := y
 	for _, g := range l.s.groups() {
 		if y+(len(g.lines)+2)*shortcutsLine > b.Dy()-shortcutsMargin && y > top+shortcutsLine {
-			x, y = x+shortcutsColumn, top // the next column
+			x, y = x+shortcutsColumn, top
 		}
 		render.DebugPrintAt(screen, g.name, x, y)
 		y += shortcutsLine
@@ -311,7 +296,6 @@ func (l *shortcutsLayer) Draw(screen *render.Image) {
 	}
 }
 
-// wrapped is text in lines of at most width characters, broken between words.
 func wrapped(text string, width int) []string {
 	var lines []string
 	line := ""

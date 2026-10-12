@@ -22,15 +22,12 @@ const (
 	legEntitySize = uint32(22)
 )
 
-// legUnit seeds one entity: its start cell and, if hasOrder, a MoveOrder toward target; owner, when
-// set, makes it another player's — a stranger, who makes no way for the others.
 type legUnit struct {
 	start, target cell.ID
 	hasOrder      bool
 	owner         control.PlayerID
 }
 
-// legWorld is a world with a board and navigation over an open grid, for Leg reservation tests.
 type legWorld struct {
 	grid      grid.Grid
 	terrain   *board.Board
@@ -63,7 +60,6 @@ func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
 	return lw
 }
 
-// legState is one entity's observable navigation state after a tick.
 type legState struct {
 	pos      world.Position
 	cell     cell.ID
@@ -93,7 +89,7 @@ func (lw *legWorld) tick() map[uid.UID64]legState {
 	return lw.read()
 }
 
-// walls makes cells impassable, taking effect from the next tick.
+// from the next tick
 func (lw *legWorld) walls(cells ...cell.ID) {
 	for _, c := range cells {
 		lw.terrain.Set(c, cell.Kind{Cost: 1, Solid: true})

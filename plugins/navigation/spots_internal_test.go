@@ -12,8 +12,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// placeRig is a 7 x 5 field of 32-unit cells, land everywhere unless a test says otherwise, kept
-// apart by boxes over a ground as heights says.
 type placeRig struct {
 	grid    grid.Grid
 	terrain *cell.TerrainMap
@@ -34,7 +32,6 @@ func newPlaceRig() *placeRig {
 	return r
 }
 
-// groundFunc is a ground.Heights read off a function.
 type groundFunc func(p geom.Vec) float64
 
 func (g groundFunc) At(p geom.Vec) float64 { return g(p) }
@@ -42,8 +39,7 @@ func (g groundFunc) Step() float64         { return 1 }
 
 func (r *placeRig) at(x, y uint32) cell.ID { c := r.grid.At(x, y); return c }
 
-// units is n land units side a side, the i-th standing in the cell (0, i % 5), 20 each nearer the
-// point than the one before.
+// the i-th stands in the cell (0, i % 5), 20 nearer the point than the one before
 func (r *placeRig) units(n int, side float64) []member {
 	var out []member
 	for i := range n {
@@ -54,7 +50,6 @@ func (r *placeRig) units(n int, side float64) []member {
 	return out
 }
 
-// checkApart fails when two of the spots' boxes of side side come nearer than touching.
 func checkApart(t *testing.T, got []placed, side float64) {
 	t.Helper()
 	for i := range got {
@@ -159,8 +154,6 @@ func TestPlace_NoSpotOverGroundTheUnitCannotTakeOrOnAStep(t *testing.T) {
 	checkApart(t, got, 8)
 }
 
-// Spots are planned over the ground and the group alone: one standing on the point, unknown, does
-// not move the spot; once struck, it does, while a flyer struck is no bar to a walker.
 func TestPlace_KnowsOnlyWhoeverItStruck(t *testing.T) {
 	r := newPlaceRig()
 	target := r.at(3, 2)

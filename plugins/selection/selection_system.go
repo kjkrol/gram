@@ -18,30 +18,25 @@ import (
 
 var _ goke.System = (*SelectionSystem)(nil)
 
-// pickReach is how far round a Select's Box, in world units, the entities drawn into its Screen
-// rectangle may stand: a unit high up is drawn above its ground.
+// world units: a unit high up is drawn above its ground
 const pickReach = 160
 
-// SelectionSystem carries out Select commands as the Selected tag on Selectable entities — a bit
-// flipped in place, seen the same tick — the player who gave one selecting and unselecting only
-// what it owns (owner.Obeys). A Select with a Screen rectangle hits the entities drawn into it,
-// where the world's Look draws them through the command's camera. After the Selects, a command for
-// the selected or the one pointed at (rule.Command) is carried out, and Hovered goes to the entity
-// each Hover points at, off every other.
+// SelectionSystem carries out the selection's commands: Select as the Selected tag on the
+// Selectable entities the player owns, a command for the selected or the pointed at, Hovered on
+// the entity each Hover points at.
 type SelectionSystem struct {
 	selects    *control.Queue[Select]
-	effectCmds *control.Queue[effectCommand] // when the plugin wires them
-	effects    *effect.Effects               // the world's, which a command casts and takes off
-	whom       []uid.UID64                   // a command's targets, scratch
-	hovers     *control.Queue[Hover]         // when the plugin wires them
-	hovered    bool                          // some entity is Hovered: unhovered at the next pass
+	effectCmds *control.Queue[effectCommand]
+	effects    *effect.Effects
+	whom       []uid.UID64
+	hovers     *control.Queue[Hover]
+	hovered    bool
 	allows     *control.Queue[Allow]
 	forbids    *control.Queue[Forbid]
 	marksID    goke.CompID
 	space      *aabbworld.Space
 	tags       Tags
 
-	// The boxes being dragged, when the plugin wires them: Marquee shows one, Select hides it.
 	marqueeQueue *control.Queue[Marquee]
 	marquees     *marquees
 
@@ -54,7 +49,7 @@ type SelectionSystem struct {
 	lookupBase goke.Comp[world.Base]
 	lookupZ    goke.OptComp[world.Z]
 
-	look func() world.Look // how the world draws what may be picked
+	look func() world.Look
 }
 
 // NewSelectionSystem builds a SelectionSystem draining selects over space, picking through each
@@ -111,8 +106,6 @@ func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	}
 }
 
-// permit makes the entity that asked selectable or not — a player's selected units, when a player
-// asked: Selectable on, with Selected when asked, or off with Selected. An entity without the family gets it.
 func (s *SelectionSystem) permit(cb *goke.CmdBuf, by control.PlayerID, id uid.UID64, byEntity, on, selected bool) {
 	set := func(m *tag.Tags[Family]) {
 		if on {
@@ -143,7 +136,6 @@ func (s *SelectionSystem) permit(cb *goke.CmdBuf, by control.PlayerID, id uid.UI
 	}
 }
 
-// carry does what c says to whom it is for: the player's selected units, or the one pointed at.
 func (s *SelectionSystem) carry(cb *goke.CmdBuf, by control.PlayerID, c effectCommand) {
 	e := c.cmd.Effect
 	if e == (effect.Effect{}) {
@@ -179,8 +171,6 @@ func (s *SelectionSystem) carry(cb *goke.CmdBuf, by control.PlayerID, c effectCo
 	}
 }
 
-// pointed is the entity drawn under the cursor c was given with; none for a command given without
-// a cursor.
 func (s *SelectionSystem) pointed(c effectCommand) (uid.UID64, bool) {
 	if !c.aimed || c.camera == nil {
 		return 0, false
@@ -188,7 +178,6 @@ func (s *SelectionSystem) pointed(c effectCommand) (uid.UID64, bool) {
 	return s.pick(c.at, c.screen, c.camera)
 }
 
-// hover takes Hovered off every entity and puts it on the one each Hover points at.
 func (s *SelectionSystem) hover() {
 	if s.hovered {
 		for s.query.All(); s.query.Next(); {
@@ -212,8 +201,6 @@ func (s *SelectionSystem) hover() {
 	})
 }
 
-// pick is the entity drawn into the screen rectangle of cam's view, the nearest to the world point
-// at; none where nothing is drawn there.
 func (s *SelectionSystem) pick(at geom.Vec, screen geom.AABB, cam camera.Camera) (uid.UID64, bool) {
 	var best uid.UID64
 	found, nearest := false, 0.0
@@ -230,8 +217,6 @@ func (s *SelectionSystem) pick(at geom.Vec, screen geom.AABB, cam camera.Camera)
 	return best, found
 }
 
-// eachSelected calls fn with every Selectable entity player by owns and has Selected — playing one
-// of only's roles, unless only is empty.
 func (s *SelectionSystem) eachSelected(by control.PlayerID, only tag.Tags[rule.Roles], fn func(uid.UID64)) {
 	s.query.All()
 	for s.query.Next() {
@@ -246,7 +231,6 @@ func (s *SelectionSystem) eachSelected(by control.PlayerID, only tag.Tags[rule.R
 	}
 }
 
-// drawnIn reports whether id is drawn into the screen rectangle, as the world's Look draws it.
 func (s *SelectionSystem) drawnIn(id uid.UID64, screen geom.AABB, cam camera.Camera) bool {
 	if !s.lookup.Seek(id) {
 		return false
@@ -267,7 +251,6 @@ func (s *SelectionSystem) drawnIn(id uid.UID64, screen geom.AABB, cam camera.Cam
 		float64(maxY) >= screen.TopLeft.Y && float64(minY) <= screen.BottomRight.Y
 }
 
-// grow is box widened by reach on every side.
 func grow(box geom.AABB, reach float64) geom.AABB {
 	return geom.AABB{
 		TopLeft:     geom.NewVec(box.TopLeft.X-reach, box.TopLeft.Y-reach),
@@ -275,8 +258,6 @@ func grow(box geom.AABB, reach float64) geom.AABB {
 	}
 }
 
-// applySelection tags every hit Selectable entity player by owns Selected and, unless additive,
-// untags the rest of its own.
 func (s *SelectionSystem) applySelection(hit map[uid.UID64]struct{}, additive bool, by control.PlayerID) {
 	s.query.All()
 	for s.query.Next() {
@@ -295,8 +276,6 @@ func (s *SelectionSystem) applySelection(hit map[uid.UID64]struct{}, additive bo
 	}
 }
 
-// ownersAt is the owners of the i-th entity of a chunk whose owners are owners; none without them.
-// chosen is the one Selected unit player by owns; false with none, or several.
 func (s *SelectionSystem) chosen(by control.PlayerID) (uid.UID64, bool) {
 	var one uid.UID64
 	n := 0

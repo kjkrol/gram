@@ -87,7 +87,6 @@ func TestHexGrid_WrapsAlongOneAxisOnly(t *testing.T) {
 	}
 }
 
-// The hex grid's directions in their order — the one place the numbering is spelled out.
 func TestHexGrid_DirectionsInOrder(t *testing.T) {
 	g := NewHex(4, 4, 10)
 	want := [6][2]int{{1, 0}, {1, -1}, {0, -1}, {-1, 0}, {-1, 1}, {0, 1}}

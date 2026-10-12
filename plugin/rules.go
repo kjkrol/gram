@@ -7,8 +7,8 @@ import (
 	"github.com/kjkrol/goke/v3"
 )
 
-// Columns are the optional columns of a rule-driven system's query, by component: the rules over
-// one component — and the system's own reading of it (Own) — share one.
+// Columns are the optional columns of a host's query, by component, shared by the rules over
+// one component and the system's own reading of it (Own).
 type Columns struct {
 	qb   *goke.QueryBuilder
 	cols map[reflect.Type]any
@@ -26,29 +26,25 @@ func (c *Columns) Of[T any]() *goke.OptComp[T] {
 	return col
 }
 
-// eachRule is a rule of a moment of one entity, as rule.Then builds it: what Rules runs over a
-// chunk.
 type eachRule[P any] interface {
 	BindColumns(cols *Columns)
 	RunEach(t Tick, cursor *goke.Cursor, keep func(i int) bool, about func(i int) P)
 }
 
-// onceRule is a rule over no component, as rule.Then builds one for All: what StepRules runs.
 type onceRule[P any] interface {
 	RunOnce(t Tick, about P)
 }
 
-// Rules are the rules of a moment P a rule-driven system runs in the pass over its entities it
-// makes anyway — a Moving, a unit.Standing: Bind them into its query in Init, Run them over each
-// chunk in Update. One walk runs them all.
+// Rules are the rules of a moment P a plugin runs in the pass over its entities it makes anyway:
+// Bind them into its query in Init, Run them over each chunk in Update.
 type Rules[P any] struct {
 	rules []eachRule[P]
 	own   []func(cols *Columns)
 	bound bool
 }
 
-// Own has the system read the component T itself through col, shared with the rules over T —
-// optional in its query, added by Bind; call it before Bind.
+// Own has the system read the component T itself through col, shared with the rules over T.
+// Call it before Bind.
 func Own[T, P any](r *Rules[P], col *goke.OptComp[T]) {
 	r.own = append(r.own, func(cols *Columns) {
 		cols.qb.Optional(col)
@@ -59,8 +55,9 @@ func Own[T, P any](r *Rules[P], col *goke.OptComp[T]) {
 // Empty reports whether no rule was added.
 func (r *Rules[P]) Empty() bool { return len(r.rules) == 0 }
 
-// Add takes a rule of P made by rule.Then; ErrUnhosted for another, ErrHostBuilt after Bind.
+// Add takes a rule of P; ErrUnhosted for another, ErrHostBuilt after Bind.
 func (r *Rules[P]) Add(rule any) error {
+	rule = hosted(rule)
 	each, ok := rule.(eachRule[P])
 	if !ok {
 		return fmt.Errorf("%w: %v", ErrUnhosted, rule)
@@ -72,7 +69,7 @@ func (r *Rules[P]) Add(rule any) error {
 	return nil
 }
 
-// Bind adds what the rules read to the system's query; call once, before it is built.
+// Bind adds what the rules read to the system's query. Call it once, before the query is built.
 func (r *Rules[P]) Bind(qb *goke.QueryBuilder) {
 	r.bound = true
 	cols := &Columns{qb: qb, cols: map[reflect.Type]any{}}
@@ -97,26 +94,23 @@ func (r *Rules[P]) RunWhere(t Tick, cursor *goke.Cursor, keep func(i int) bool, 
 }
 
 // StepRules are the rules of a moment P of the world as a whole, run once a step and walking no
-// entities — the clock's, the weather's. It takes rules over no component (rule.All): a role's
-// fire while the entity the moment is About plays the role (Tick.Roles) — the plugin whose entity
-// it is plays it.
+// entities. A role's fire while the entity the moment is About plays the role (Tick.Roles).
 type StepRules[P any] struct {
 	rules []stepRule[P]
 	bound bool
 }
 
-// stepRule is a rule StepRules runs, with the roles the moment's entity must play for it.
 type stepRule[P any] struct {
 	once  onceRule[P]
 	roles uint64
 }
 
-// playedRule is a rule over no component narrowed to roles, a bit each, as a role's Obeys makes it.
 type playedRule interface{ OnceRoles() uint64 }
 
-// Add takes a rule of P over no component made by rule.Then, a role's too; ErrUnhosted for
-// another, ErrHostBuilt after Bind.
+// Add takes a rule of P asking nothing of the entity; ErrUnhosted for another, ErrHostBuilt
+// after Bind.
 func (r *StepRules[P]) Add(rule any) error {
+	rule = hosted(rule)
 	once, ok := rule.(onceRule[P])
 	if !ok {
 		return fmt.Errorf("%w: %v (a rule of the world as a whole takes no filter)", ErrUnhosted, rule)
@@ -132,13 +126,13 @@ func (r *StepRules[P]) Add(rule any) error {
 	return nil
 }
 
-// Bind marks the system running the rules built: no rule is taken after; call it in its Init.
+// Bind marks the system running the rules built, so no rule is taken after. Call it in its Init.
 func (r *StepRules[P]) Bind() { r.bound = true }
 
 // Empty reports whether no rule was added.
 func (r *StepRules[P]) Empty() bool { return len(r.rules) == 0 }
 
-// Run runs every rule on about, a role's while the entity about is About plays the role.
+// Run runs every rule on about.
 func (r *StepRules[P]) Run(t Tick, about P) {
 	for _, s := range r.rules {
 		if s.roles != 0 && !plays(t, &about, s.roles) {
@@ -148,7 +142,6 @@ func (r *StepRules[P]) Run(t Tick, about P) {
 	}
 }
 
-// plays reports whether the entity the moment is About plays every one of roles.
 func plays(t Tick, moment any, roles uint64) bool {
 	a, ok := moment.(About)
 	return ok && t.Roles != nil && t.Roles(a.Who())&roles == roles

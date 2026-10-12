@@ -9,7 +9,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 )
 
-// Link names the way to each neighbour by one bit, and Toward finds the neighbour back by it.
 func TestLink_FindsTheWayToEachNeighbourAndTowardFindsItBack(t *testing.T) {
 	for _, g := range []grid.Grid{grid.DefaultGrids{}.Square(4, 4, 10), grid.DefaultGrids{}.Hex(4, 4, 10)} {
 		c := g.At(1, 1)
@@ -33,9 +32,6 @@ func TestLink_FindsTheWayToEachNeighbourAndTowardFindsItBack(t *testing.T) {
 	}
 }
 
-// A grid knows its directions: each one's opposite leads back, its step is the way between the
-// middles, its offset names it, its exit lies halfway, and a corner's flanks are the edges beside
-// it.
 func TestDirections_AreTheGrids(t *testing.T) {
 	for name, g := range map[string]grid.Grid{
 		"square": grid.DefaultGrids{}.Square(5, 5, 10),

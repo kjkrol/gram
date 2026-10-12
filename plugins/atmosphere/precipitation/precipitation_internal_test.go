@@ -37,9 +37,7 @@ func TestPrecipitation_FallsAsMuchAsTheWeatherSaysAndNotAtAllWhenDry(t *testing.
 	}
 }
 
-// flung is a camera through which the world's origin — far from where it looks — is drawn millions
-// of pixels off, as a perspective draws a point behind the eye; round the middle of the screen it
-// draws a world unit as a pixel.
+// draws the origin millions of pixels off, as a perspective draws a point behind the eye
 type flung struct{ camera.Camera }
 
 func (flung) Viewport() (float32, float32)                   { return 400, 300 }
@@ -51,8 +49,6 @@ func (flung) Project(x, y, _ float32) (float32, float32) {
 	return x - 500, y - 500
 }
 
-// Rain slants as the wind carries it where the middle of the screen looks, however the camera
-// draws points elsewhere, and never flatter than it falls: no streak runs across the screen.
 func TestPrecipitation_RainSlantsNoFurtherThanItFalls(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
@@ -67,7 +63,6 @@ func TestPrecipitation_RainSlantsNoFurtherThanItFalls(t *testing.T) {
 	}
 }
 
-// Drawn on the GPU the rain leaves streaks on a clear screen, and a dry sky nothing.
 func TestPrecipitation_DrawsTheRainOnTheGPU(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
@@ -97,7 +92,6 @@ func TestPrecipitation_DrawsTheRainOnTheGPU(t *testing.T) {
 	}
 }
 
-// needGPU readies a device without a window; a machine without one skips.
 func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {

@@ -11,8 +11,6 @@ import (
 
 var _ goke.System = (*velocitySystem)(nil)
 
-// velocitySystem scales every entity's speed, after Steering wrote the base speed and before
-// movement: by its steering.Pace, the ground's, then as the rules of a Moving say.
 type velocitySystem struct {
 	host  *plugin.Rules[Moving]
 	tick  plugin.TickSource
@@ -22,7 +20,7 @@ type velocitySystem struct {
 
 	ids   []uid.UID64
 	bases []Base
-	about func(i int) Moving // at, bound once so a tick allocates no method value
+	about func(i int) Moving // bound once, so a tick allocates no method value
 }
 
 func newVelocitySystem(host *plugin.Rules[Moving]) *velocitySystem {
@@ -58,15 +56,14 @@ func (s *velocitySystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-// at describes the i-th entity of the chunk being walked.
 func (s *velocitySystem) at(i int) Moving { return Moving{ID: s.ids[i], Base: &s.bases[i]} }
 
-// Moving is what a rule hosted by the world's velocity pass gets, every tick, for every entity:
-// scale Base.Vel.Value to slow or stop it, after Steering has written the base speed.
+// Moving is the moment of every entity in the velocity pass, every step: a rule of it scales
+// Base.Vel.Value to slow or stop the entity.
 type Moving struct {
 	ID   uid.UID64
 	Base *Base
 }
 
-// Who is the entity moving: whose moment it is, for a rule.
+// Who is the entity moving.
 func (m Moving) Who() uid.UID64 { return m.ID }

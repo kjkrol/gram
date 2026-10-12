@@ -13,33 +13,32 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// Node is one place of a conversation: who speaks, what is said, and the answers offered. A file
-// Load reads is a map of them by name.
+// Node is one place of a conversation: who speaks, what is said, and the answers offered, at
+// most MaxChoices.
 type Node struct {
 	Speaker string   `yaml:"speaker"`
-	Say     []string `yaml:"say"`     // lines, one under another
-	Choices []Choice `yaml:"choices"` // at most MaxChoices
+	Say     []string `yaml:"say"`
+	Choices []Choice `yaml:"choices"`
 }
 
-// Choice is one answer: its words, when it is offered, what it changes in the game, where it leads
-// and the commands it gives.
+// Choice is one answer: its words, when it is offered, what it changes, where it leads and the
+// commands it gives.
 type Choice struct {
 	Text string `yaml:"text"`
-	// If is when the answer is offered: a condition the game defined (Plugin.Conditions) or the
-	// name of an effect the speaker is under; "!" before it, when it does not hold. Empty: always.
+	// If is a condition the game defined or the name of an effect the speaker is under, "!"
+	// before it denying; empty, the answer is always offered.
 	If   string   `yaml:"if"`
-	Then []string `yaml:"then"` // changes the game defined (Plugin.Changes), made in order as it is chosen
-	Next string   `yaml:"next"` // the node it leads to, or End
-	Do   []string `yaml:"do"`   // commands of the Stage's register (world.Commands), given after the changes
+	Then []string `yaml:"then"`
+	Next string   `yaml:"next"`
+	Do   []string `yaml:"do"`
 }
 
 // End is the Next of an answer that ends the conversation.
 const End = "end"
 
-// MaxChoices is how many answers a node offers at most: the buttons of Window.
+// MaxChoices is how many answers a node offers at most.
 const MaxChoices = 6
 
-// node is a Node as the plugin runs it.
 type node struct {
 	name    string
 	speaker string
@@ -47,7 +46,6 @@ type node struct {
 	choices []choice
 }
 
-// choice is a Choice as the plugin runs it.
 type choice struct {
 	text string
 	when condition
@@ -56,7 +54,6 @@ type choice struct {
 	do   []rule.Command
 }
 
-// condition is a Choice's If: the game's, or an effect on the speaker, or none.
 type condition struct {
 	game     checker
 	effect   effect.Effect
@@ -64,25 +61,22 @@ type condition struct {
 	not      bool
 }
 
-// idOf is a node's name as a Talk and a Script keep it.
 func idOf(name string) uint64 {
 	h := fnv.New64a()
 	h.Write([]byte(name))
 	return h.Sum64()
 }
 
-// Define says the node called name, written in code: what Load does for every node of a file.
-// Call it in the plugin's section (Conversations), after the changes and conditions the node's
-// answers name; a name defined twice, an unknown one, or too many answers panics.
+// Define says the node called name in code. A name defined twice, an unknown change or
+// condition, or too many answers panics.
 func (p *Plugin) Define(name string, n Node) {
 	if err := p.define(name, n); err != nil {
 		panic(err)
 	}
 }
 
-// Load reads the nodes of the YAML file at path in fsys — a map of Nodes by name — and defines
-// them; several files may be loaded, a character's each. Call it in the plugin's section
-// (Conversations), after the changes and conditions the answers name.
+// Load reads the nodes of the YAML file at path in fsys, a map of Nodes by name, and defines
+// them.
 func (p *Plugin) Load(fsys fs.FS, path string) error {
 	data, err := fs.ReadFile(fsys, path)
 	if err != nil {
@@ -107,7 +101,6 @@ func (p *Plugin) Load(fsys fs.FS, path string) error {
 	return nil
 }
 
-// define compiles n and keeps it as name.
 func (p *Plugin) define(name string, n Node) error {
 	if err := p.w.InSection(fmt.Sprintf("dialog node %q defined", name), ConversationsPart); err != nil {
 		return fmt.Errorf("dialog: %w", err)
@@ -158,7 +151,6 @@ func (p *Plugin) define(name string, n Node) error {
 	return nil
 }
 
-// condition is an answer's If, read.
 func (p *Plugin) condition(text string) (condition, error) {
 	var c condition
 	text = strings.TrimSpace(text)
@@ -183,8 +175,6 @@ func (p *Plugin) condition(text string) (condition, error) {
 	return c, nil
 }
 
-// check panics for an answer leading to a node nobody defined: as the Stage is set up, every file
-// loaded.
 func (p *Plugin) check() {
 	for _, n := range p.sorted() {
 		for _, ch := range n.choices {
@@ -195,7 +185,6 @@ func (p *Plugin) check() {
 	}
 }
 
-// sorted is every node, by name.
 func (p *Plugin) sorted() []*node {
 	out := make([]*node, 0, len(p.nodes))
 	for _, n := range p.nodes {

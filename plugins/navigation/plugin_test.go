@@ -21,7 +21,6 @@ import (
 	"github.com/kjkrol/gram/rule"
 )
 
-// stubInstallCtx is a minimal plugin.Installer for tests that call Install directly.
 type stubInstallCtx struct {
 	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
@@ -102,9 +101,6 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	}
 }
 
-// A right drag turns the selected units to look where the cursor goes, a LookAt at every move
-// past the click slop, and moves nothing when the button comes up; a click that shook within the
-// slop is still a click.
 func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, 10)
 	worldPlugin := world.NewPlugin(world.Config{
@@ -156,8 +152,6 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 	}
 }
 
-// Shift+P issues Routes, which shows the routes drawn and hides them again; the goals are drawn
-// whatever it says.
 func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, 10)
 	worldPlugin := world.NewPlugin(world.Config{
@@ -192,9 +186,7 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 	}
 }
 
-// Hosts keeps the hosts of the rules of the moments a plugin catches.
 func (c *stubInstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
-// does with the roles played once a Stage's Init returns.
+// as the engine does with the roles played once a Stage's Init returns
 func (c *stubInstallCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

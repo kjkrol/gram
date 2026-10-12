@@ -139,8 +139,6 @@ func (s *arena) bindKeys() error {
 	))
 }
 
-// spawnUnderCursor is a walker of the player's for the cell under the cursor, if the cell takes a
-// walker and nobody holds it.
 func (s *arena) spawnUnderCursor(c control.Context) (world.Spawn, bool) {
 	brd := s.board.Board()
 	at, ok := brd.CellAt(c.World(c.Cursor))

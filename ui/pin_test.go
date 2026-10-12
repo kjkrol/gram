@@ -12,7 +12,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// shifted is a picture of the world moved: the world point (x, y) lies at (x-left, y-top) in it.
 type shifted struct {
 	left, top float32
 	w, h      int
@@ -25,10 +24,8 @@ func (v *shifted) ToPixels(x, y, _ float32) (px, py, depth float32, visible bool
 	return px, py, 0, px >= 0 && py >= 0 && px < float32(v.w) && py < float32(v.h)
 }
 
-// nobody names no entity: what pins an element in a test that hands it its spots itself.
 var nobody = entity.Named("nobody")
 
-// looking is the player over a picture: it notes the entities it was asked to look at.
 type looking struct {
 	player
 	looked []uid.UID64
@@ -36,7 +33,6 @@ type looking struct {
 
 func (l *looking) LookAt(id uid.UID64) { l.looked = append(l.looked, id) }
 
-// standing lays root over the screen and stands e for spots, as a frame would.
 func standing(root, e *Element, spots ...spot) {
 	root.lay(screen)
 	e.pin.stand(e, spots, views(root), screen)
@@ -144,16 +140,14 @@ func TestScene_ACommandForItOutsideAPinIsNotGiven(t *testing.T) {
 	}
 }
 
-// half is a player over its half of a split screen: it shows what is its own or nobody's.
 type half struct {
 	player
-	own map[uid.UID64]bool // its entities
-	not map[uid.UID64]bool // the other player's
+	own map[uid.UID64]bool
+	not map[uid.UID64]bool
 }
 
 func (h *half) Shows(id uid.UID64) bool { return h.own[id] || !h.not[id] }
 
-// halves are two halves over one world, both seeing x 0..600 of it, red's on the left.
 func halves(label *Element) (root *Element, red, blue *half) {
 	red = &half{own: map[uid.UID64]bool{1: true}, not: map[uid.UID64]bool{2: true}}
 	blue = &half{own: map[uid.UID64]bool{2: true}, not: map[uid.UID64]bool{1: true}}

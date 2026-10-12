@@ -20,10 +20,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// guardStage is three units in a row — a captain in the guards, a guard, a passer-by — and an
-// effect to cast on them by what they are called.
 type guardStage struct {
-	load bool // entered from the quicksave
+	load bool
 
 	world *world.Plugin
 	ecs   *goke.ECS
@@ -79,7 +77,6 @@ func (g *guardStage) Stack() game.Scenes {
 	return g.stack
 }
 
-// give gives cmd as nobody and ticks it through.
 func (g *guardStage) give(t *testing.T, cmd control.Command) {
 	t.Helper()
 	if !g.world.Carrier().Put(control.Nobody, cmd) {
@@ -90,7 +87,6 @@ func (g *guardStage) give(t *testing.T, cmd control.Command) {
 	}
 }
 
-// alerted are the x of the units under alert.
 func (g *guardStage) alerted() map[float64]bool {
 	on := map[float64]bool{}
 	for g.query.All(); g.query.Next(); {
@@ -104,8 +100,6 @@ func (g *guardStage) alerted() map[float64]bool {
 	return on
 }
 
-// A command reaches the unit that bears the name it says, the units in the group it says, or the
-// world itself, and nobody else.
 func TestCommand_ReachesThoseNamedGroupedAndTheWorld(t *testing.T) {
 	g := &guardStage{}
 	runGuards(t, g)
@@ -126,7 +120,6 @@ func TestCommand_ReachesThoseNamedGroupedAndTheWorld(t *testing.T) {
 	}
 }
 
-// A command for an entity's ID reaches that entity, named or not.
 func TestCommand_ReachesTheEntityOfAnID(t *testing.T) {
 	g := &guardStage{}
 	runGuards(t, g)
@@ -145,7 +138,6 @@ func TestCommand_ReachesTheEntityOfAnID(t *testing.T) {
 	}
 }
 
-// What the units are called is saved with them: a loaded game's captain is still the one found.
 func TestCommand_NamesSurviveASaveAndALoad(t *testing.T) {
 	t.Chdir(t.TempDir())
 	if err := runGuards(t, &guardStage{}).Save(""); err != nil {
@@ -159,8 +151,6 @@ func TestCommand_NamesSurviveASaveAndALoad(t *testing.T) {
 	}
 }
 
-// A Stage's commands are found by the names they were defined under; one that names nobody, a
-// name defined twice, a name unknown and no name at all are refused, by name.
 func TestCommands_AreDefinedOnceAndFoundByName(t *testing.T) {
 	w := world.NewPlugin(testWorldConfig())
 	w.Effects().Define("alert", effect.Spec{})
@@ -184,7 +174,6 @@ func TestCommands_AreDefinedOnceAndFoundByName(t *testing.T) {
 	}
 }
 
-// runGuards builds the stage through the engine: Init, the quicksave loaded or Spawn, Setup.
 func runGuards(t *testing.T, g *guardStage) *engine.Engine {
 	t.Helper()
 	eng := engine.NewEngine(oneStageGame{stage: g, props: game.Props{}})

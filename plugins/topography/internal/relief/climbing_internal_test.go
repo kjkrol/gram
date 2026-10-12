@@ -11,14 +11,11 @@ import (
 	public "github.com/kjkrol/gram/plugins/topography/relief"
 )
 
-// reliefOf is a level relief over a cols x rows square grid of cells size wide.
 func reliefOf(cols, rows, size uint32) (*Relief, grid.Grid) {
 	grid := grid.DefaultGrids{}.Square(cols, rows, size)
 	return New(board.NewBoard(grid)), grid
 }
 
-// On a ramp rising 1 in 2 eastward a step is priced by the slope of the cell it enters, the way
-// it goes: up, down, across and slantwise.
 func TestClimb_ReadsTheSlopeOffTheCorners(t *testing.T) {
 	r, grid := reliefOf(3, 3, 10)
 	r.SetHeights(func(p geom.Vec) float64 { return 0.5 * p.X })
@@ -43,7 +40,6 @@ func TestClimb_ReadsTheSlopeOffTheCorners(t *testing.T) {
 	}
 }
 
-// The corners are a lattice: raising one cell's raises its neighbours' where they meet it.
 func TestSetCorners_LeavesNoVerticalWall(t *testing.T) {
 	r, grid := reliefOf(3, 3, 10)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }

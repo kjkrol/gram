@@ -7,23 +7,19 @@ import (
 	"github.com/kjkrol/goke/v3"
 )
 
-// Appearance is the sprite an entity is drawn from, and how much it bends in the wind — a tree, a
-// reed, a flag: 0 not at all, 1 as far as the wind blows it. A renderer's Rules may layer over it,
-// an effect alter it.
+// Appearance is the sprite an entity is drawn from and how much it bends in the wind, 0 not at
+// all, 1 as far as the wind blows it.
 type Appearance struct {
 	SpriteID SpriteID
 	Sway     float32
-	// Angle turns the look about the middle of the entity's box, in degrees — 0 east, against
-	// the clock with the screen's y growing down: the convention render.Arrow draws by. The box
-	// itself (collision, picking, the footprint) stays axis-aligned, so Angle is for a square
-	// box whose drawn content fits the circle inscribed in it — Arrow(0, …) reaches exactly
-	// that circle; content past it swings outside the box as the sprite turns.
+	// Angle turns the look about the middle of the entity's box, in degrees, 0 east, against the
+	// clock with the screen's y growing down. The box stays axis-aligned: content past the circle
+	// inscribed in it swings outside the box as the sprite turns.
 	Angle float32
 }
 
 // Rule is how a renderer draws the entities it draws, settled for each of them every frame, in
-// the order given: what it is drawn with (Over, As, Swap, With) and whether it is drawn (Show).
-// A rule reads one component of the entity, T, and holds only for one carrying it.
+// the order given. A rule reads one component of the entity, T, and holds only for one carrying it.
 type Rule interface {
 	bind(qb *goke.QueryBuilder, cols columns)
 	run(cur *goke.Cursor, layers [][]Appearance, shown []bool)
@@ -41,8 +37,7 @@ func As[T any](with Appearance, when ...func(T) bool) Rule {
 }
 
 // Swap draws every entity carrying T, where each of when holds, as the twin of the sprite it
-// would be drawn with — a kind's own look under a state, keyed by its sprite, so a Swap after a
-// facing rule has a twin a way faced — and one with no twin as it is.
+// would be drawn with; one with no twin as it is.
 func Swap[T any](twins map[SpriteID]SpriteID, when ...func(T) bool) Rule {
 	return &dressing[T]{when: when, dress: func(l *[]Appearance, _ T) {
 		if id, ok := twins[(*l)[0].SpriteID]; ok {
@@ -57,11 +52,10 @@ func With[T any](fn func(Appearance, T) Appearance, when ...func(T) bool) Rule {
 	return &dressing[T]{when: when, dress: func(l *[]Appearance, t T) { (*l)[0] = fn((*l)[0], t) }}
 }
 
-// Show draws every entity carrying T where each of when holds; once a Show rule is given, a
+// Show draws every entity carrying T where each of when holds. Once a Show rule is given, a
 // renderer draws only those some Show rule holds for.
 func Show[T any](when ...func(T) bool) Rule { return &dressing[T]{when: when} }
 
-// dressing is a Rule over T: one that dresses the layers, or, without dress, a Show.
 type dressing[T any] struct {
 	col   func(*goke.Cursor) []T
 	when  []func(T) bool
@@ -96,11 +90,9 @@ func (d *dressing[T]) holds(t T) bool {
 	return true
 }
 
-// columns are the components the rules read, by type: rules over one component share its column,
-// the renderer's own among them.
+// rules over one component share its column, the renderer's own among them
 type columns map[reflect.Type]any
 
-// column is cols' column of T, added to qb as optional at its first.
 func column[T any](qb *goke.QueryBuilder, cols columns) func(*goke.Cursor) []T {
 	key := reflect.TypeFor[T]()
 	if c, ok := cols[key]; ok {
@@ -113,7 +105,7 @@ func column[T any](qb *goke.QueryBuilder, cols columns) func(*goke.Cursor) []T {
 	return slice
 }
 
-// Rules are the Rules a renderer runs over the chunks of entities it draws.
+// Rules are the rules a renderer runs over the chunks of entities it draws.
 type Rules struct {
 	rules []Rule
 	own   []func(cols columns)
@@ -121,7 +113,7 @@ type Rules struct {
 	bound bool
 }
 
-// Add takes rules, run after those taken before; an error once the renderer is built.
+// Add takes rules, run after those taken before. It is an error once the renderer is built.
 func (r *Rules) Add(rules ...Rule) error {
 	if r.bound {
 		return errors.New("render: rules added after the renderer was built")
@@ -133,12 +125,13 @@ func (r *Rules) Add(rules ...Rule) error {
 	return nil
 }
 
-// Own has the rules over T read the column col of the renderer's own query; call it before Bind.
+// Own has the rules over T read the column col of the renderer's own query. Call it before Bind.
 func Own[T any](r *Rules, col interface{ Slice(*goke.Cursor) []T }) {
 	r.own = append(r.own, func(cols columns) { cols[reflect.TypeFor[T]()] = col.Slice })
 }
 
-// Bind adds the components the rules read to the renderer's query; call once, before it is built.
+// Bind adds the components the rules read to the renderer's query. Call it once, before it is
+// built.
 func (r *Rules) Bind(qb *goke.QueryBuilder) {
 	r.bound = true
 	cols := columns{}

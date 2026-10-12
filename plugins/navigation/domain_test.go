@@ -15,7 +15,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// riverBoard is a 5x3 board with water across the middle row, except a ford at column 4.
+// water across the middle row, a ford at column 4
 func riverBoard() (grid.Grid, *cell.TerrainMap) {
 	grid := grid.DefaultGrids{}.Square(5, 3, 10)
 	terrain := cell.NewTerrainMap()
@@ -113,7 +113,7 @@ func TestFindPath_PricesTheRouteForTheUnitsDomain(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | frost})
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	// The middle row is snow: slow for anyone on foot, a highway for the frost-born.
+	// the middle row is snow: slow on foot, a highway for the frost-born
 	for x := range uint32(3) {
 		terrain.Set(at(x, 1), cell.Kind{Name: cell.Named("snow"), Cost: 5, Allows: cell.Land | frost}.Costing(frost, 0.2))
 	}

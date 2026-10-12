@@ -30,8 +30,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// dialogs are the hosts' conversations, a file each.
-//
 //go:embed dialogs
 var dialogs embed.FS
 
@@ -132,16 +130,17 @@ func (s *arena) defineRoles() {
 	roles.Define(TravellerRole)
 	traveller := roles.Named(TravellerRole)
 	roles.Define(HostRole,
-		rule.Then[vision.Sighting](
-			"talk",
-			rule.Other(traveller),
-			rule.If(
-				rule.Not(vision.Sighting.Nobody),
-				rule.Unless(talking, rule.Unless(talked, rule.Order(dialog.Begin{}))),
-			),
-		),
-		rule.Then[vision.Sighting]("part", rule.Other(traveller),
-			rule.If(vision.Sighting.Nobody, rule.Dispel(talking))),
+		rule.Branch[vision.Sighting]{
+			Name: "talk",
+			When: rule.All(vision.Seeing(traveller), rule.Not(vision.Sighting.Nobody),
+				rule.Free(talking, talked)),
+			Do: rule.Order(dialog.Begin{}),
+		},
+		rule.Branch[vision.Sighting]{
+			Name: "part",
+			When: rule.All(vision.Seeing(traveller), vision.Sighting.Nobody),
+			Do:   rule.Dispel(talking),
+		},
 	)
 }
 
@@ -199,9 +198,8 @@ func (s *arena) defineKinds() {
 	units.Define(HostKind, unit.Mover{Domain: cell.Land}, walks, rule.Plays(roles.Named(HostRole)),
 		comp.Const(vision.Sight{Facing: geom.NewVec(-1, 0), Radius: CellSize * 2.5}),
 		comp.Const(world.Eye{Angle: math.Pi / 3}), // looking west, the way the traveller comes
-		// where its conversations begin: each host's lines its own
 		comp.Load(func(u unitRow) dialog.Script { return s.dialog.Script(u.Talks) }),
-		comp.Const(Regard{}), // what it makes of whom it talked with: this game's model
+		comp.Const(Regard{}),
 	)
 }
 

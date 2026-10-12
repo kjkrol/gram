@@ -11,8 +11,6 @@ type forward struct{}
 
 func (forward) Command() {}
 
-// A binding holds however the camera is fastened unless In says which, and two bindings overlap
-// where they hold in one How both.
 func TestBinding_InHoldsInItsHowsOnly(t *testing.T) {
 	b := control.Build(control.KeyHeld{Key: control.KeyW}, "w", func(control.Context) (forward, bool) { return forward{}, true })
 	if !b.Holds(camera.Loose) || !b.Holds(camera.Inside) {
@@ -30,7 +28,6 @@ func TestBinding_InHoldsInItsHowsOnly(t *testing.T) {
 	}
 }
 
-// A camera is fastened how its Fastening says, Loose fastened to nothing or unable to be.
 func TestHowOf_ReadsTheCamerasFastening(t *testing.T) {
 	f := &fastenable{}
 	if camera.HowOf(f) != camera.Loose || camera.HowOf(f.Camera) != camera.Loose {

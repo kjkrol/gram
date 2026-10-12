@@ -11,30 +11,25 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// screenLayer is a screen layer that only counts its Init.
 type screenLayer struct{ inits *int }
 
 func (l screenLayer) Init(*goke.SysInit) { *l.inits++ }
 func (screenLayer) Draw(*render.Image)   {}
 
-// worldLayer is a world layer listed straight in a scene.
 type worldLayer struct{}
 
 func (*worldLayer) Init(*goke.SysInit)                     {}
 func (*worldLayer) DrawWorld(*render.Image, camera.Camera) {}
 
-// neither is a layer that draws nothing at all.
 type neither struct{}
 
 func (neither) Init(*goke.SysInit) {}
 
-// source is a render.Source listed straight in a scene.
 type source struct{}
 
 func (source) Init(*goke.SysInit)                   {}
 func (source) Compose(*render.Frame, camera.Camera) {}
 
-// scene is a Scene over layers.
 type scene struct {
 	name   string
 	layers []render.Layer
@@ -45,8 +40,6 @@ func (s *scene) Layers() []render.Layer                                         
 func (s *scene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
 func (s *scene) Focusable() bool                                                   { return true }
 
-// A scene's layers are drawn on the screen: one that is no Renderer is refused, a world layer
-// told to show itself through a ui.Image of a render.Feed.
 func TestCheckLayers_RefusesWhatCannotBeDrawn(t *testing.T) {
 	inits := 0
 	for name, c := range map[string]struct {

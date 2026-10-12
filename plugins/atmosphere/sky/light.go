@@ -5,8 +5,7 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// How bright the sun and the moon are high in the sky, the full moon's light bluer and far
-// brighter than the real one's, so the night shows.
+// the full moon far brighter than the real one, so the night shows
 const (
 	sunStrength  = 0.71
 	moonStrength = 0.5
@@ -14,9 +13,7 @@ const (
 
 var moonColor = render.Light{0.75, 0.82, 1}
 
-// daylight is the light of the day by how high the sun stands — the sine of its height, rising
-// through the table — the colour of the sky, of the sun's light, and how much of the sky's light
-// every surface gets; between two rows it is blended.
+// height is the sine of the sun's height; between two rows the light is blended
 var daylight = []struct {
 	height   float32
 	sky, sun render.Light
@@ -28,15 +25,13 @@ var daylight = []struct {
 	{0.35, render.Light{0.5, 0.72, 0.98}, render.Light{1, 0.97, 0.92}, 0.42},  // day
 }
 
-// SunColorAt is the colour of the sun's own light as high as height stands (the sine of its
-// height): white by day, orange low — for a sky to colour its disc and halo, whatever lights the
-// world.
+// SunColorAt is the colour of the sun's own light at height, the sine of its height: white by
+// day, orange low.
 func SunColorAt(height float32) render.Light {
 	_, sun, _ := daylightAt(height)
 	return sun
 }
 
-// daylightAt is the row of daylight for a sun at height, blended between its neighbours.
 func daylightAt(height float32) (sky, sun render.Light, ambient float32) {
 	rows := daylight
 	if height <= rows[0].height {
@@ -58,10 +53,7 @@ func daylightAt(height float32) (sky, sun render.Light, ambient float32) {
 	return last.sky, last.sun, last.ambient
 }
 
-// SunAt is the sun of the day c at ofYear, the part of the year gone, and time of day t, along its
-// path, below the horizon at night; its strength rises and falls with it, and the colours of the
-// sky and of its light go through the day: blue by day, orange at sunrise and sunset, deep blue at
-// night (daylight).
+// SunAt is the sun at ofYear, the part of the year gone, and time of day t, both 0 to 1.
 func (c Config) SunAt(ofYear, t float32) Sun {
 	c = c.withDefaults()
 	dir := c.place().SunPath(ofYear, t)
@@ -69,15 +61,14 @@ func (c Config) SunAt(ofYear, t float32) Sun {
 	return Sun{Dir: dir, Strength: sunStrength * smoothstep(0, 0.2, dir[2]), Ambient: ambient, Color: sun, Sky: sky}
 }
 
-// LightAt is what lights the world at ofYear and time of day t with the moon moon round from new:
-// the sun, and once it is well below the horizon the moon (celestial.Place.MoonAt), as bright as it
-// is full and stands high, in the light m says, under the night sky.
+// LightAt is what lights the world at ofYear and time of day t: the sun, or once it is well
+// below the horizon the moon m, moon round from new (0 to 1).
 func (c Config) LightAt(ofYear, t, moon float32, m Moon) Sun {
 	c = c.withDefaults()
 	light := c.SunAt(ofYear, t)
 	sunUp := light.Dir[2]
 	if sunUp > -0.1 {
-		return light // the sun, or its twilight
+		return light
 	}
 	dir := c.place().MoonAt(ofYear, t, moon)
 	light.Dir, light.Color = dir, m.Color
@@ -85,7 +76,6 @@ func (c Config) LightAt(ofYear, t, moon float32, m Moon) Sun {
 	return light
 }
 
-// smoothstep eases from 0 at a to 1 at b.
 func smoothstep(a, b, x float32) float32 {
 	t := min(max((x-a)/(b-a), 0), 1)
 	return t * t * (3 - 2*t)

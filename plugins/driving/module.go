@@ -11,18 +11,13 @@ import (
 
 var _ goke.Module = (*module)(nil)
 
-// module puts the hands on the units at once and drives them in the simulation.
 type module struct {
 	hand  *handSystem
 	drive *driveSystem
-	clock *clock.Clock // the world's; nil, run at once
+	clock *clock.Clock
 
 	handRunnable, driveRunnable goke.Runnable
 }
-
-// =================================================================
-// goke.Module contract
-// =================================================================
 
 func (m *module) RegSystems(ecs *goke.ECS) {
 	m.handRunnable = ecs.RegSys(m.hand)
@@ -40,10 +35,8 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	})
 }
 
-// SetupSystems is empty — the driving seeds nothing.
 func (m *module) SetupSystems() []goke.System { return nil }
 
-// LoadComps lists the component types the driving owns — see [goke.CompProvider].
 func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{goke.LoadComp[tag.Tags[States]](), goke.LoadComp[steering.Driven]()}
 }

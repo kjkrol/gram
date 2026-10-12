@@ -12,24 +12,21 @@ import (
 )
 
 // Atmosphere is what lights a flat board and what stands on it: the sun of the hour and the
-// weather's wind (plugins/atmosphere).
+// weather's wind.
 type Atmosphere interface {
 	Sun() sky.Sun
 	Air() air.Weather
 }
 
 // WithAtmosphere puts the board under a's sky: its tiles and the world's sprites take the sun's
-// light on level ground, so the day tints the map — night dark, dawn warm — and what sways leans
-// with the wind. The board's Map and the world's Look are wrapped, so call it after any other Map
-// or Look is set, before the renderers are made — in a scene. A board in relief
-// (plugins/topography) is lit by the topography instead (topography.Plugin.WithAtmosphere).
+// light and what sways leans with the wind. Call it after any other Map or Look is set, before
+// the renderers are made.
 func (p *Plugin) WithAtmosphere(a Atmosphere) *Plugin {
 	p.WithMap(&litMap{Map: p.Map(), sky: a})
 	p.worldPlugin.SetLook(litLook{Look: p.worldPlugin.Look(), sky: a})
 	return p
 }
 
-// litMap is a Map whose tiles are lit by the sky and lean in its wind.
 type litMap struct {
 	Map
 	sky Atmosphere
@@ -41,8 +38,6 @@ func (m *litMap) Dressing() look.Dressing {
 	return &litDressing{Dressing: m.Map.Dressing(), sky: m.sky}
 }
 
-// litCells lays the cells as the map's Look does, what sways leaning with the wind: seen from above
-// by its top, which moves as far as it stands high.
 type litCells struct {
 	look.Look
 	sky Atmosphere
@@ -60,8 +55,6 @@ func (l litCells) Cell(f *render.Frame, cam camera.Camera, t *look.Tile) {
 	l.Look.Cell(f, cam, t)
 }
 
-// litDressing is the map's Dressing with the tiles lit by the sun on level ground, the frame handed
-// the sky's uniforms; without a dressing under it, that alone.
 type litDressing struct {
 	look.Dressing
 	sky Atmosphere
@@ -80,8 +73,6 @@ func (d *litDressing) Light(*look.Tile) render.Shade {
 	return render.Lit(d.sky.Sun().Light(0, 0, 1))
 }
 
-// EvenLight is the sun's light on level ground, as every tile has it (Light), where the dressing
-// under it dresses every tile the same frame after frame; false where it does not.
 func (d *litDressing) EvenLight() (render.Light, bool) {
 	if d.Dressing != nil {
 		e, ok := d.Dressing.(look.EvenLit)
@@ -124,8 +115,6 @@ func (d *litDressing) Dress(f *render.Frame, cam camera.Camera, t *look.Tile, x0
 	}
 }
 
-// litLook draws the world's entities as the world's Look does, in the sun's light on level ground
-// and leaning with the wind as much as they sway.
 type litLook struct {
 	world.Look
 	sky Atmosphere
@@ -133,14 +122,12 @@ type litLook struct {
 
 var _ world.LyingLook = litLook{}
 
-// Begin readies the world's Look under it where it draws on the GPU.
 func (l litLook) Begin(cam camera.Camera) {
 	if d, ok := l.Look.(world.DirectLook); ok {
 		d.Begin(cam)
 	}
 }
 
-// DrawSprites has the world's Look under it draw where it draws on the GPU.
 func (l litLook) DrawSprites(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if d, ok := l.Look.(world.DirectLook); ok {
 		d.DrawSprites(t, cam, u)
@@ -150,7 +137,7 @@ func (l litLook) DrawSprites(t render.Target, cam camera.Camera, u render.Unifor
 func (l litLook) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, a render.Appearance, light render.Light) {
 	sun := l.sky.Sun().Light(0, 0, 1)
 	lit := render.Light{sun[0] * light[0], sun[1] * light[1], sun[2] * light[2]}
-	if a.Sway > 0 { // seen from above by its top, as high as it is wide, leaning with the wind
+	if a.Sway > 0 { // seen from above by its top, as high as it is wide
 		sizeX, sizeY := float32(box.Size.X), float32(box.Size.Y)
 		cx, cy := float32(box.TopLeft.X)+sizeX/2, float32(box.TopLeft.Y)+sizeY/2
 		lx, ly := l.sky.Air().Sway(f.Time(), cx, cy, a.Sway)
@@ -161,8 +148,6 @@ func (l litLook) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z wo
 	l.Look.Sprite(f, cam, box, z, atlas, a, lit)
 }
 
-// Lay lays the sprite and its edges as the world's Look under it does, in the sun's light on level
-// ground.
 func (l litLook) Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.Vec,
 	lie world.Lie, z world.Z, atlas render.AtlasSource, a render.Appearance,
 	edge render.SpriteID, light render.Light) {
@@ -175,7 +160,6 @@ func (l litLook) Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geo
 	l.Look.Sprite(f, cam, box, z, atlas, a, lit)
 }
 
-// Lie lays the sprite as the world's Look under it does, in the sun's light on level ground.
 func (l litLook) Lie(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z,
 	atlas render.AtlasSource, a render.Appearance, light render.Light) {
 	sun := l.sky.Sun().Light(0, 0, 1)

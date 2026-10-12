@@ -6,31 +6,27 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 )
 
-// Zone is where in the world a climate lies: how far from the equator (Latitude, degrees, north or
-// south alike), which sets the sun's path and, above all, the climate's warmth and seasons; and
-// the other Factors that shape it on top — a sea current, a dry summer — which a game adds to as
-// its world needs.
+// Zone is where in the world a climate lies: its Latitude in degrees from the equator, north or
+// south alike, and the Factors that shape it on top.
 type Zone struct {
 	Latitude float64
 	Factors  []Factor
 }
 
-// Factor is something besides the latitude that shapes a climate: it reshapes the Profile the
-// latitude gave, after the factors before it.
+// Factor is something besides the latitude that shapes a climate's Profile.
 type Factor interface {
 	Shape(p *Profile)
 }
 
-// Profile is a climate in the numbers its weather needs: the year's mean temperature, how far
-// above it midsummer and below it midwinter go (Year), how far the afternoon is warmer and the
-// small hours colder (Day), all degrees Celsius; and how wet each season is, by calendar.Season: how
-// much likelier than elsewhere a weather that brings rain or snow comes then (Wet).
+// Profile is a climate in numbers: the year's Mean temperature, how far above and below it the
+// Year and the Day swing, all degrees Celsius, and how much likelier a weather that brings rain or
+// snow comes in each calendar.Season (Wet).
 type Profile struct {
 	Mean, Year, Day float32
 	Wet             [4]float32
 }
 
-// Profile is the zone's climate: from its latitude, then shaped by each of its factors in turn.
+// Profile is the zone's climate in numbers.
 func (z Zone) Profile() Profile {
 	s := math.Sin(math.Abs(z.Latitude) * math.Pi / 180)
 	s2 := s * s
@@ -46,9 +42,6 @@ func (z Zone) Profile() Profile {
 	return p
 }
 
-// wetAt is how wet each season is at latitude: rain all year at the equator, a wet summer and a
-// dry winter in the tropics, wet springs and autumns in the subtropics, all year and wettest in
-// autumn in the temperate belt, less towards the cold, little in the polar desert.
 func wetAt(latitude float64) [4]float32 {
 	switch {
 	case latitude < 10:
@@ -65,8 +58,8 @@ func wetAt(latitude float64) [4]float32 {
 	return [4]float32{0.4, 0.5, 0.5, 0.4}
 }
 
-// SeaCurrent is a sea current along the coast, warming the climate by Warmth degrees — a cold one
-// by a negative Warmth — and softening its seasons a little.
+// SeaCurrent is a sea current along the coast, warming the climate by Warmth degrees (a cold
+// one by a negative Warmth) and softening its seasons.
 type SeaCurrent struct{ Warmth float32 }
 
 func (c SeaCurrent) Shape(p *Profile) {
@@ -74,8 +67,7 @@ func (c SeaCurrent) Shape(p *Profile) {
 	p.Year *= 0.85
 }
 
-// DrySummer is the Mediterranean's summer drought: summer all but dry, the wet of the year in
-// winter.
+// DrySummer is the Mediterranean's summer drought, the wet of the year in winter.
 type DrySummer struct{}
 
 func (DrySummer) Shape(p *Profile) {
@@ -91,8 +83,7 @@ var (
 	Tropical = Zone{Latitude: 20}
 	// Mediterranean is warm, its summer dry and its winter mild and wet.
 	Mediterranean = Zone{Latitude: 38, Factors: []Factor{DrySummer{}}}
-	// Temperate has four seasons, a warm summer and a winter below freezing: central Europe and
-	// southern Scandinavia before the warming.
+	// Temperate has four seasons, a warm summer and a winter below freezing.
 	Temperate = Zone{Latitude: 55}
 	// Cold has a long, hard winter and a short, cool summer.
 	Cold = Zone{Latitude: 66}

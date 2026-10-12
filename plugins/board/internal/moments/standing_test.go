@@ -12,7 +12,6 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -29,8 +28,6 @@ const tickLen = time.Second / 60
 
 var east = geom.NewVec(1, 0)
 
-// installWorldAndBoard installs w and brd alone, with one land unit at cell (1,1), and returns
-// the ECS ticking world then board.
 func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid grid.Grid, installed ...func(ctx *boardtest.InstallCtx)) *goke.ECS {
 	t.Helper()
 	ctx := boardtest.NewInstallCtx()
@@ -67,18 +64,15 @@ func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid
 	return ctx.ECS()
 }
 
-// heard is the command the tests' rules give: which rule.
 type heard struct{ Rule string }
 
 func (heard) Command() {}
 
-// heards is where the heard commands land, for the world to carry.
 type heards struct{ control.Queue[heard] }
 
 func (h *heards) Queues() []control.CommandQueue     { return []control.CommandQueue{&h.Queue} }
 func (h *heards) DefaultBindings() []control.Binding { return nil }
 
-// told is which heards each unit gave since the last time.
 func (h *heards) told() map[uid.UID64]map[string]bool {
 	told := map[uid.UID64]map[string]bool{}
 	h.Drain(func(i control.Issued[heard]) {
@@ -90,7 +84,6 @@ func (h *heards) told() map[uid.UID64]map[string]bool {
 	return told
 }
 
-// carried has w carry h, failing the test when it cannot.
 func carried(t *testing.T, w *world.Plugin, h *heards) *heards {
 	t.Helper()
 	if err := w.Carry(h); err != nil {
@@ -99,24 +92,27 @@ func carried(t *testing.T, w *world.Plugin, h *heards) *heards {
 	return h
 }
 
-// footing is a rule of a Standing telling, of every unit, "fell" or "stood", and "wrong cell"
-// when the cell it names is not the one under its centre.
 func footing(g grid.Grid) rule.Rule {
-	return rule.Then[unit.Standing]("footing", rule.All, rule.Steps(
-		rule.OneOf(rule.If(unit.Standing.Fallen, rule.Order(heard{Rule: "fell"})), rule.Order(heard{Rule: "stood"})),
-		rule.If(func(st unit.Standing) bool {
+	return rule.Branch[unit.Standing]{Name: "footing", Do: rule.Steps(
+		rule.OneOf(rule.Branch[unit.Standing]{
+			When: unit.Standing.Fallen,
+			Do:   rule.Order(heard{Rule: "fell"}),
+		}, rule.Order(heard{Rule: "stood"})),
+		rule.Branch[unit.Standing]{When: func(st unit.Standing) bool {
 			under, _ := g.CellAt(world.Position{AABB: toPlane(st.Box)}.Center())
 			return st.Cell != under
-		}, rule.Order(heard{Rule: "wrong cell"})),
-	))
+		}, Do: rule.Order(heard{Rule: "wrong cell"})},
+	)}
 }
 
-// onKind is a rule of a Standing telling "on" the name of the kind, of every unit on one so named.
 func onKind(name string) rule.Rule {
-	return rule.Then[unit.Standing]("on "+name, rule.All, rule.If(func(st unit.Standing) bool { return st.Kind.Name.String() == name }, rule.Order(heard{Rule: "on " + name})))
+	return rule.Branch[unit.Standing]{
+		Name: "on " + name,
+		When: func(st unit.Standing) bool { return st.Kind.Name.String() == name },
+		Do:   rule.Order(heard{Rule: "on " + name}),
+	}
 }
 
-// pitBoard is grass with a pit of kind pit down column 3.
 func pitBoard(grid grid.Grid, pit cell.Kind) func(*board.Board) {
 	return func(brd *board.Board) {
 		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
@@ -209,11 +205,15 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 		if err := ctx.Deliver(footing(grid)); err != nil {
 			t.Fatal(err)
 		}
-		met := rule.Then[collision.Meeting]("met", rule.Between(tag.Any, tag.Any), rule.Order(heard{}))
+		met := rule.Branch[collision.Meeting]{Name: "met", Do: rule.Order(heard{})}
 		if err := ctx.Deliver(met); !errors.Is(err, plugin.ErrUnhosted) {
 			t.Errorf("Between on board: %v, want ErrUnhosted", err)
 		}
-		struck := rule.Then[collision.Struck]("struck", rule.Having[unit.Mover](), rule.Order(heard{}))
+		struck := rule.Branch[collision.Struck]{
+			Name: "struck",
+			When: rule.Carrying[unit.Mover](),
+			Do:   rule.Order(heard{}),
+		}
 		if err := ctx.Deliver(struck); !errors.Is(err, plugin.ErrUnhosted) {
 			t.Errorf("Having of Struck on board: %v, want ErrUnhosted", err)
 		}
@@ -227,7 +227,6 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 	}
 }
 
-// only is what the one unit told, failing the test when not one did.
 func only(t *testing.T, told map[uid.UID64]map[string]bool) map[string]bool {
 	t.Helper()
 	if len(told) != 1 {
@@ -248,11 +247,11 @@ func TestStanding_BoxNamesEveryCellTheEntityTouches(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 16, boardtest.CellSize)
 	start := grid.At(1, 7)
 	right := grid.At(2, 7)
-	straddles := rule.Then[unit.Standing]("straddles", rule.All, rule.If(func(st unit.Standing) bool {
+	straddles := rule.Branch[unit.Standing]{Name: "straddles", When: func(st unit.Standing) bool {
 		var under []cell.ID
 		grid.CellsUnder(st.Box, func(c cell.ID) { under = append(under, c) })
 		return len(under) == 2 && slices.Contains(under, start) && slices.Contains(under, right)
-	}, rule.Order(heard{Rule: "straddles"})))
+	}, Do: rule.Order(heard{Rule: "straddles"})}
 	bw, _ := boardtest.SquareWorldWith(t, straddles, boardtest.Mover{Here: start, Offset: boardtest.CellSize / 2})
 	orders := carried(t, bw.World, &heards{})
 	bw.Tick()

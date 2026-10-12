@@ -30,8 +30,6 @@ func TestSun_LightsBySquareOnTheSurfaceFacesIt(t *testing.T) {
 	}
 }
 
-// The default sun gives the isometric view the look it always had: level ground at 0.92, the face
-// towards +x at 0.72, the one towards +y at 0.55.
 func TestDefaultSun_KeepsTheLookOfTheIsometricView(t *testing.T) {
 	sun := sky.DefaultSun
 	for _, c := range []struct {
@@ -65,14 +63,11 @@ func TestSun_ColoursItsLightAndTheSkysAndHandsTheFrameThem(t *testing.T) {
 	}
 }
 
-// source is a render.Source composing whatever its function says.
 type source func(f *render.Frame)
 
 func (source) Init(*goke.SysInit)                         {}
 func (s source) Compose(f *render.Frame, _ camera.Camera) { s(f) }
 
-// shadowsOf is the middle of the shadow of a 10x10 entity at (100, 100) standing as z says under
-// sun, over level ground: none with the sun down.
 func shadowsOf(z world.Z, sun sky.Sun) (middles []geom.Vec) {
 	if p, ok := sun.ShadowOf(geom.NewAABBAt(geom.NewVec(100, 100), 10, 10), z, nil); ok {
 		middles = append(middles, geom.NewVec(float64(p.X), float64(p.Y)))
@@ -106,7 +101,6 @@ func TestSun_ItsShaderCompiles(t *testing.T) {
 	}
 }
 
-// needGPU readies a device without a window; a machine without one skips.
 func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {

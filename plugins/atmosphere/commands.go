@@ -6,20 +6,18 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 )
 
-// Freeze stops the light of the day at the hour it stands, or lets a frozen light go with the
-// calendar again: only the light — the calendar and the weather go on — and not saved. P by
-// default.
+// Freeze stops the light of the day at the hour it stands, or lets a frozen light go again. Only
+// the light stops; the calendar and the weather go on.
 type Freeze struct{}
 
 // Later moves a frozen light half an hour on; it does nothing while the light goes with the
-// calendar. Shift+] by default.
+// calendar.
 type Later struct{}
 
-// Earlier moves a frozen light half an hour back. Shift+[ by default.
+// Earlier moves a frozen light half an hour back.
 type Earlier struct{}
 
-// ChangeWeather has the weather go on to its next state now, thrown as when one runs out.
-// Shift+W by default, with the camera free.
+// ChangeWeather has the weather go on to its next state now.
 type ChangeWeather struct{}
 
 // SetWeather has the weather go into the state called Name now (weather.Clear, weather.Storm, a
@@ -45,8 +43,8 @@ func (p *Plugin) Queues() []control.CommandQueue {
 	return []control.CommandQueue{&p.freezes, &p.laters, &p.earliers, &p.changes, &p.sets}
 }
 
-// DefaultBindings: P freezes the light, Shift+] and Shift+[ move a frozen light half an hour,
-// Shift+W changes the weather — with the camera free: riding in a unit, W with Shift sprints.
+// DefaultBindings are P (Freeze), Shift+] and Shift+[ (Later, Earlier) and, with the camera
+// free, Shift+W (ChangeWeather).
 func (p *Plugin) DefaultBindings() []control.Binding {
 	shift := control.Mods{Shift: true}
 	return []control.Binding{
@@ -57,8 +55,6 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 	}
 }
 
-// carryOut carries out the commands given since the last tick: the light's at once, the
-// weather's at the next step of the simulation.
 func (p *Plugin) carryOut() {
 	p.freezes.Drain(func(control.Issued[Freeze]) { p.sky.SetFrozen(!p.sky.Frozen()) })
 	p.laters.Drain(func(control.Issued[Later]) { p.sky.Shift(sky.HalfHour) })

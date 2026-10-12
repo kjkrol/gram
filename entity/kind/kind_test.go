@@ -14,7 +14,6 @@ type row struct{ hp int }
 
 type stat struct{ HP int }
 
-// shelf is the least a Registry can be: it remembers what it was given.
 type shelf struct {
 	name string
 	row  reflect.Type
@@ -64,8 +63,6 @@ func TestDefine_RefusesALoadThatReadsAnotherRowType(t *testing.T) {
 	t.Error("Define accepted a Load over int for a kind whose rows are row")
 }
 
-// Named hands back the kind defined under a name, and refuses a name nobody defined and a kind
-// asked for with rows of another type, each by name.
 func TestNamed_RefusesAnUnknownNameAndOtherRows(t *testing.T) {
 	reg := &shelf{}
 	kind.Define[row](reg, "unit", kind.Spec{comp.Const(struct{}{})})

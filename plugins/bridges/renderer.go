@@ -18,8 +18,6 @@ var (
 	standsLine  = color.RGBA{R: 60, G: 200, B: 80, A: 255}
 )
 
-// renderer draws the bridge in every player's hand as it would stand: its deck from head to head
-// at the height it would run at, yellow where it may not stand, green where it may.
 type renderer struct {
 	p       *Plugin
 	outline []geom.Vec
@@ -67,7 +65,6 @@ func (r *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	}
 }
 
-// cell outlines c at the height deck.
 func (r *renderer) cell(f *render.Frame, cam camera.Camera, c cell.ID, deck float32,
 	line color.RGBA) {
 	r.outline = r.p.board.Board().CellOutline(c, r.outline[:0])

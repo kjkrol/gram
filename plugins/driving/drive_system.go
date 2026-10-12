@@ -18,31 +18,21 @@ import (
 
 var _ goke.System = (*driveSystem)(nil)
 
-// driveSystem carries out steering.Driven: an entity steered by hand turns — by Turn, or towards
-// Look or Face — and walks the way it faces, sprinting where urged, or brakes to a stop and backs
-// away facing as it does, never towards a cell its domain may not stand on on its level or the
-// keeping keeps it out of — one under gravity (world.Drift) wherever it may step up to, into the
-// water or off an edge as it pleases; one that flies, flown by hand, goes along the ground only the
-// run of the way it is steered along, the topography climbing it by the rise. Without a hand it
-// brakes. Its cell and its hold on the occupancy follow it cell by cell. A Driving unit is let go
-// once no hand is on it and it stands, or something else steers it along a route of its own
-// (Keeping.Ordered).
 type driveSystem struct {
-	board     *board.Board // the ground; nil, none
+	board     *board.Board
 	surfaces  func() ground.Surfaces
-	occupancy cell.Occupancy // who holds which cell; nil with no board
-	keeping   Keeping        // who else is in the way; nil, nobody
+	occupancy cell.Occupancy
+	keeping   Keeping
 	*units
 
 	drivenID, placesID goke.CompID
-	lacking            []uid.UID64 // the units entering a cell whose chunk had no unit.States
+	lacking            []uid.UID64
 }
 
-// driveTurn is how far a hand turns an entity a tick: four degrees.
+// four degrees a tick
 const driveTurn = math.Pi / 45
 
-// driveMargin is how far past its own edge, in world units, a driven entity looks for the ground
-// ahead before it walks on.
+// world units past the entity's edge
 const driveMargin = 2.0
 
 func (s *driveSystem) Init(si *goke.SysInit) {
@@ -56,7 +46,7 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 		cur := s.query.Cursor()
 		bases, steers, courses, drivens := s.base.Slice(cur), s.steer.Slice(cur), s.course.Slice(cur), s.driven.Slice(cur)
 		if courses == nil || drivens == nil {
-			continue // nobody drives it
+			continue
 		}
 		ats, movers, states, places := s.at.Slice(cur), s.mover.Slice(cur), s.states.Slice(cur),
 			s.places.Slice(cur)
@@ -66,7 +56,7 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			domain := unit.DomainAt(movers, i)
 			ordered := s.keeping != nil && s.keeping.Ordered(id)
 			if states != nil && states[i].Has(Driving) && !in.Steers() && (ordered || st.Speed == 0) {
-				states[i] = states[i].Without(Driving) // let go: it stands, or goes on as ordered
+				states[i] = states[i].Without(Driving)
 				if in == (steering.Driven{}) {
 					cb.RemoveCompOne(id, s.drivenID)
 				}
@@ -84,7 +74,8 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			}
 
 			face := in.Face
-			if in.Look.X != 0 || in.Look.Y != 0 { // where an eye riding in it looks, before the hand's way
+			// where an eye riding in it looks, before the hand's way
+			if in.Look.X != 0 || in.Look.Y != 0 {
 				face = in.Look
 			}
 			facing := face.X != 0 || face.Y != 0
@@ -104,7 +95,8 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			if in.Turn != 0 || in.Ahead != 0 || facing {
 				st.Request(heading) // what it faces now, not a heading an order left behind
 			}
-			level := 1.0 // a flyer steered up or down goes the less along the ground, the more steeply
+			// a flyer steered up or down goes the less along the ground, the more steeply
+			level := 1.0
 			if domain&cell.Air != 0 {
 				_, level = in.Slope()
 			}
@@ -123,7 +115,7 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 				st.RequestSpeed(st.MaxSpeed * level)
 			case in.Ahead > 0:
 				st.RequestSpeed(0)
-				st.Speed = 0 // stopped on the spot, at the water's edge as when asked to
+				st.Speed = 0 // on the spot, at the water's edge
 			case in.Ahead < 0 && st.Speed > 0:
 				st.RequestSpeed(0) // braking before it backs away
 			case in.Ahead < 0 && s.open(w, geom.NewVec(-heading.X, -heading.Y)):
@@ -142,8 +134,6 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	s.lacking = s.lacking[:0]
 }
 
-// backing is how fast a driven entity backs away: at the speed it sets off at, a quarter of its
-// top speed without one.
 func backing(st *steering.Steering) float64 {
 	if st.V0 > 0 {
 		return st.V0
@@ -151,9 +141,6 @@ func backing(st *steering.Steering) float64 {
 	return st.MaxSpeed / 4
 }
 
-// follow moves the entity's cell, and its hold on the occupancy, to the cell it stands on as z
-// says (nil, on the ground) — a deck's over the ground's, held on its level (board.Board.LevelFor);
-// true when that is another cell. Without a board nothing moves.
 func (s *driveSystem) follow(id uid.UID64, at *unit.At, pos world.Position, z *world.Z,
 	domain cell.Domain) bool {
 	if s.board == nil {
@@ -173,8 +160,6 @@ func (s *driveSystem) follow(id uid.UID64, at *unit.At, pos world.Position, z *w
 	return true
 }
 
-// enter has the unit at row i of places have unit.Entered on for this step; one whose chunk has
-// no family gets it once the chunks are done.
 func (s *driveSystem) enter(places []tag.Tags[unit.States], i int, id uid.UID64) {
 	if places != nil {
 		places[i] = places[i].With(unit.Entered)
@@ -183,8 +168,6 @@ func (s *driveSystem) enter(places []tag.Tags[unit.States], i int, id uid.UID64)
 	}
 }
 
-// walker is a driven unit as open asks of it: where it stands and in which cell, its domain, its Z
-// (nil, none) and whether it falls under gravity.
 type walker struct {
 	id     uid.UID64
 	pos    world.Position
@@ -194,9 +177,6 @@ type walker struct {
 	falls  bool
 }
 
-// open reports whether the ground just ahead of the walker, the way heading points, takes it: a
-// cell its domain may stand on — on the level its feet are at — or, under gravity, any it may step
-// up to; and one the keeping lets it on into.
 func (s *driveSystem) open(w walker, heading geom.Vec) bool {
 	if s.board == nil {
 		return true

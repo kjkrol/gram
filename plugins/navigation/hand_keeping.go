@@ -10,11 +10,9 @@ import (
 
 var _ driving.Keeping = (*handKeeping)(nil)
 
-// handKeeping is what the driving asks of navigation: whether a unit driven by hand may walk on —
-// the spacing's say, as for a step of a route — and whether a unit is steered along an order.
 type handKeeping struct {
-	keep keeping           // set as navigation is installed
-	nav  *navigationSystem // set as navigation is installed
+	keep keeping           // set at Install
+	nav  *navigationSystem // set at Install
 }
 
 func (k *handKeeping) MayStep(id uid.UID64, pos world.Position, at, ahead cell.ID, deck bool,

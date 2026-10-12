@@ -17,10 +17,6 @@ import (
 
 var _ goke.System = (*planeSystem)(nil)
 
-// planeSystem is the gravity of a flat world, a step: the Leaps and Aways given are thrown, every
-// body is borne by what collision found it touching this step against the pull, its drift into
-// them taken, and pulled on; the Landing rules told of those landing. Its pull presses a body
-// borne into what bears it every step, so collision finds the touch again at the next.
 type planeSystem struct {
 	p        *Plugin
 	tickOf   plugin.TickSource
@@ -90,6 +86,7 @@ func (s *planeSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 			b := planeOf(&drifts[i], marks[i])
 			speed, landed := planar.Settle(&b, g, s.normals)
+			// the pull presses a borne body into what bears it, so collision finds the touch again
 			planar.Fall(&b, g, dt, bases[i].Pos.MaxStep()/dt)
 			planePut(&b, &drifts[i], &marks[i])
 			if !landed {
@@ -103,7 +100,6 @@ func (s *planeSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-// throw carries out the Leaps and Aways given, each by the entity for itself, against the pull g.
 func (s *planeSystem) throw(g geom.Vec) {
 	s.p.leaps.Drain(func(i control.Issued[Leap]) {
 		if !i.ByEntity || !s.bodies.Seek(i.Entity) {
@@ -130,12 +126,10 @@ func (s *planeSystem) throw(g geom.Vec) {
 	})
 }
 
-// planeOf is the body d and marks say, as a step takes it.
 func planeOf(d *world.Drift, marks tag.Tags[unit.States]) planar.Body {
 	return planar.Body{Drift: geom.NewVec(d.X, d.Y), Airborne: marks.Has(unit.Airborne)}
 }
 
-// planePut writes b back into d and marks.
 func planePut(b *planar.Body, d *world.Drift, marks *tag.Tags[unit.States]) {
 	*d = world.Drift{X: b.Drift.X, Y: b.Drift.Y}
 	if b.Airborne {

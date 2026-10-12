@@ -28,7 +28,6 @@ func testSpace(t *testing.T) *aabbworld.Space {
 	return space
 }
 
-// pushOnce jumps every entity's Position to a fixed cell the first time it is armed and run.
 type pushOnce struct {
 	grid  grid.Grid
 	to    cell.ID
@@ -129,8 +128,7 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 	}
 }
 
-// followOnce moves every entity to a fixed cell the first time it is armed and run, its At and
-// its hold with it, as the board follows a unit moved by another.
+// as the board follows a unit moved by another: its At and its hold move with it
 type followOnce struct {
 	grid      grid.Grid
 	occupancy cell.Occupancy
@@ -161,8 +159,6 @@ func (f *followOnce) Update(_ *goke.CmdBuf, _ time.Duration) {
 	}
 }
 
-// A unit waiting on its route, moved into another cell by another who moves its At and its hold
-// with it — the board, following it — plans its route again from where it stands.
 func TestNavigationSystem_Update_MovedOffItsRouteByAnotherRepaths(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 3, 10)
 	terrain := cell.NewTerrainMap()

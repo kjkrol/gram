@@ -14,7 +14,6 @@ var (
 )
 var bridge = cell.Kind{Name: cell.Named("bridge"), Cost: 1, Allows: cell.Land | cell.Air}.Costing(cell.Land, 0.5)
 
-// A step goes along a way where the way links the two cells either way round.
 func TestBoard_AlongFollowsTheLinksOfWays(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(3, 3, 10)
 	at := func(x, y uint32) cell.ID { c := g.At(x, y); return c }

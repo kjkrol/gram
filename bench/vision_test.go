@@ -15,12 +15,9 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// watcher is the row an observer spawns from.
 type watcher struct{ x, y float64 }
 
-// benchVision installs n observers on a 120-unit lattice of a 4000x4000 world, each with a 60°
-// cone of radius 200 facing right, and ticks only the vision plugin, scanning on workers
-// goroutines at most (0: every CPU, 1: one).
+// workers 0: every CPU
 func benchVision(b *testing.B, n int, outlines bool, workers int) *goke.ECS {
 	b.Helper()
 	ctx := newHeadless()
@@ -52,7 +49,7 @@ func benchVision(b *testing.B, n int, outlines bool, workers int) *goke.ECS {
 	}
 	w.Seed(entries...)
 	return ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
-		w.RunPlan(rc, d) // the world's clock runs the scan's step
+		w.RunPlan(rc, d)
 		v.RunPlan(rc, d)
 		rc.Sync()
 	})
@@ -65,8 +62,7 @@ func observers(n, workers int) string {
 	return fmt.Sprintf("observers=%d", n)
 }
 
-// Benchmark_Vision_Scan is one tick of the vision plugin: every observer's cone scanned against
-// the shared space and its Seen filled — on every CPU at once, and (serial) on one goroutine.
+// Benchmark_Vision_Scan is one tick of the vision plugin, on every CPU and (serial) on one.
 func Benchmark_Vision_Scan(b *testing.B) {
 	for _, workers := range []int{0, 1} {
 		for _, n := range []int{100, 500} {
@@ -81,8 +77,8 @@ func Benchmark_Vision_Scan(b *testing.B) {
 	}
 }
 
-// Benchmark_Vision_ScanWithOutlines is the same tick with every observer also carrying a
-// SightOutline, so each view's shape is computed for drawing.
+// Benchmark_Vision_ScanWithOutlines is Benchmark_Vision_Scan with every observer carrying a
+// SightOutline.
 func Benchmark_Vision_ScanWithOutlines(b *testing.B) {
 	for _, workers := range []int{0, 1} {
 		for _, n := range []int{100, 500} {

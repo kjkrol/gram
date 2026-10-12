@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/internal/topotest"
 )
 
-// H makes the terrain's shadows coarser and fine again; a game's code does the same.
 func TestPlugin_HMakesTheShadowsCoarse(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)

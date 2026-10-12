@@ -15,11 +15,9 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
-// flat prices no slope; steep has every slope take twice as long.
 func flat(geom.Vec, geom.Vec, cell.Domain) float64  { return 1 }
 func steep(geom.Vec, geom.Vec, cell.Domain) float64 { return 2 }
 
-// uphill climbs to the east: twice as long that way, half as long the other.
 func uphill(_ geom.Vec, dir geom.Vec, _ cell.Domain) float64 {
 	if dir.X > 0 {
 		return 2
@@ -27,7 +25,6 @@ func uphill(_ geom.Vec, dir geom.Vec, _ cell.Domain) float64 {
 	return 0.5
 }
 
-// Backing away, facing up the slope, an entity goes down it: the slope is taken the way it goes.
 func TestPace_TakesTheSlopeTheWayABackingEntityGoes(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(1, 1, 10)
 	cells := terrain.New(grid)
@@ -39,7 +36,6 @@ func TestPace_TakesTheSlopeTheWayABackingEntityGoes(t *testing.T) {
 	}
 }
 
-// The slope slows whoever moves over it, but not over a Graded kind.
 func TestPace_SparesAGradedKindTheSlope(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(2, 1, 10)
 	cells := terrain.New(grid)
@@ -60,21 +56,17 @@ func TestPace_SparesAGradedKindTheSlope(t *testing.T) {
 	}
 }
 
-// walker is one entity of a paces run: its box, how it moves and its domain; none, no Mover.
 type walker struct {
 	box    plane.AABB
 	vel    world.Velocity
 	domain cell.Domain
 }
 
-// paces runs the board's standing pass once over walkers, each At the cell under it with a Pace
-// of 1, and reports each one's Pace after, keyed by its box's left edge.
 func paces(t *testing.T, g grid.Grid, cells *terrain.Cells, slope func(p, dir geom.Vec, d cell.Domain) float64, walkers ...walker) map[float64]float64 {
 	t.Helper()
 	return walk(t, New(g, cells, nil, slope, nil), 1, walkers...)
 }
 
-// walk runs r's standing pass steps times over walkers, as paces does.
 func walk(t *testing.T, r *Rules, steps int, walkers ...walker) map[float64]float64 {
 	t.Helper()
 	g, sys := r.grid, r.StandingSystem()
@@ -147,7 +139,7 @@ func TestPace_ChargesTheEntitysOwnDomainAndSparesTheMoverless(t *testing.T) {
 	c := grid.At(0, 0)
 	cells.Set(c, cell.Kind{Name: cell.Named("snow"), Cost: 4, Allows: cell.Land | frost}.Costing(frost, 0.5))
 
-	// Three entities on the snow, told apart by a one-unit offset: on foot, frost-born, no Mover.
+	// told apart by a one-unit offset
 	box := cellBox(grid, c, 4)
 	shifted := func(dx float64) plane.AABB { b := box; b.TopLeft.X += dx; return b }
 	got := paces(t, grid, cells, flat,
@@ -161,7 +153,6 @@ func TestPace_ChargesTheEntitysOwnDomainAndSparesTheMoverless(t *testing.T) {
 	}
 }
 
-// cellBox is the size x size box centred on cell c.
 func cellBox(g grid.Grid, c cell.ID, size uint32) plane.AABB {
 	at := g.CellCenter(c)
 	half := float64(size) / 2

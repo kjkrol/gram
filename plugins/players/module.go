@@ -10,32 +10,24 @@ import (
 
 var _ goke.Module = (*module)(nil)
 
-// module runs the Gives and, once every plugin is installed, checks that each bound command has
-// an owner.
 type module struct {
 	p     *Plugin
 	gives goke.Runnable
 }
 
-// =================================================================
-// goke.Module contract
-// =================================================================
-
 func (m *module) RegSystems(ecs *goke.ECS) {
 	m.gives = ecs.RegSys(&giveSystem{gives: &m.p.gives})
 }
 
-// RunPlan hands over the units given, then issues the KeyHeld commands of the keys still down,
-// for the next tick; call it after the plugins that drain theirs. A command waits in its queue for its handler's pass:
-// nothing is dropped, whoever gave it — a player, or an entity after that pass.
+// RunPlan hands over the units given, then issues the KeyHeld commands of the keys still down
+// for the next tick; call it after the plugins that drain theirs.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.gives, d)
 	ctx.Sync()
 	eventHandler{m.p}.hold()
 }
 
-// SetupSystems checks the bindings once everything is installed: a command nobody listens to
-// is a configuration error, reported with its type and label.
+// SetupSystems refuses a binding whose command no handler takes.
 func (m *module) SetupSystems() []goke.System {
 	return []goke.System{owning{m.p}, goke.SystemFn{OnInit: func(*goke.SysInit) {
 		var missing []string
@@ -52,5 +44,5 @@ func (m *module) SetupSystems() []goke.System {
 	}}}
 }
 
-// LoadComps is empty — players own no components.
+// LoadComps is empty: players own no components.
 func (m *module) LoadComps() []goke.CompToken { return nil }

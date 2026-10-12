@@ -11,8 +11,8 @@ import (
 	"github.com/kjkrol/gram/plugins/bridges/site"
 )
 
-// valley is a square board 12 x 12 of cells 10 wide, the ground at height 30 but for a valley,
-// at 0, along the columns 4 to 6.
+// valley is a square board 12 x 12 of cells 10 wide, the ground at 30 but for a valley at 0
+// along the columns 4 to 6.
 type valley struct {
 	g       grid.Grid
 	wet     map[cell.ID]bool
@@ -58,8 +58,6 @@ func way(g grid.Grid, dx, dy int) int {
 	return i
 }
 
-// A bridge from a head on one rim of the valley to a head on the other spans the cells between,
-// a pier between every two.
 func TestPlan_ABridgeOverAValley(t *testing.T) {
 	v := newValley()
 	b, err := site.Plan(v, rules, v.g.At(3, 5), v.g.At(7, 5), 30)
@@ -75,7 +73,6 @@ func TestPlan_ABridgeOverAValley(t *testing.T) {
 	}
 }
 
-// Every rule broken is said, of the cell it is broken on.
 func TestPlan_RefusesWhatBreaksARule(t *testing.T) {
 	g := newValley().g
 	for name, tc := range map[string]struct {
@@ -157,7 +154,6 @@ func TestPlan_RefusesWhatBreaksARule(t *testing.T) {
 	}
 }
 
-// A bridge runs slantwise along a diagonal, its piers on the corners its spans share.
 func TestPlan_Slantwise(t *testing.T) {
 	v := newValley()
 	v.height = func(p geom.Vec) float64 {
@@ -175,7 +171,6 @@ func TestPlan_Slantwise(t *testing.T) {
 	}
 }
 
-// Without heights a bridge crosses cells its road may not take, and stands on no pier.
 func TestPlan_AFlatWorldCrossesWater(t *testing.T) {
 	v := newValley()
 	flat := site.Rules{Longest: 3}
@@ -189,7 +184,6 @@ func TestPlan_AFlatWorldCrossesWater(t *testing.T) {
 	}
 }
 
-// On a hex grid a bridge runs along one of the six ways.
 func TestPlan_Hex(t *testing.T) {
 	g := grid.DefaultGrids{}.Hex(12, 12, 10)
 	v := &hexes{g: g, wet: map[cell.ID]bool{}}

@@ -13,8 +13,6 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// splitRig is two local players with cameras of their own, the screen split into two columns of
-// 400 by 600, each player's orders tagged by the number its binding gives.
 func splitRig(t *testing.T) (*rig, *players.Player, *players.Player, *goke.ECS) {
 	t.Helper()
 	r := newRig(t)
@@ -32,13 +30,11 @@ func splitRig(t *testing.T) (*rig, *players.Player, *players.Player, *goke.ECS) 
 		t.Fatal(err)
 	}
 	ecs := r.start()
-	// the scene's pictures, side by side: each tells its player where it lies
 	r.wire.Over(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(400, 600)), render.NewFeed(r.cam, nil))
 	r.p.Through(right).Over(geom.NewAABB(geom.NewVec(400, 0), geom.NewVec(800, 600)), render.NewFeed(r.cams.New(cameras.TopDown(), camera.Config{}), nil))
 	return r, left, right, ecs
 }
 
-// cells is what the players ordered this pass, by who ordered it.
 func cells(r *rig) map[control.PlayerID][]int {
 	out := map[control.PlayerID][]int{}
 	for _, o := range r.drained() {

@@ -33,17 +33,13 @@ func (m *mainScene) picture() render.Picture {
 
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
-	return ui.Layers( // from the bottom up: each covers those before it
+	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
 		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
 			Input(s.players.Through(s.player)),
 	)
 }
 
-// looks declares every look in one place, on the world's atlas: the walker by the twin of the
-// way it goes (Facing) and a plain red square while angry — anger has no direction; the leader
-// turned smoothly with his crown on (Turning), red and crowned while angry; the ghost a ghost
-// whatever happens.
 func (s *arena) looks() *world.Atlas {
 	walkerKind := kind.Named[walker](s.world.Kinds(), WalkerKind)
 	ghostKind := kind.Named[walker](s.world.Kinds(), GhostKind)
@@ -56,17 +52,16 @@ func (s *arena) looks() *world.Atlas {
 		Under(angry, render.Solid(angryColor))
 	atlas.Add(leaderKind, Size, crowned(calmColor)).
 		Under(angry, crowned(angryColor)).
-		Turning() // the crown turns with him — and while he is angry too
+		Turning()
 	atlas.Add(ghostKind, Size, spook).
-		Turning() // a ghost drifts face first; anger leaves it unmoved: no look under it
+		Turning()
 	atlas.Close()
 	return atlas
 }
 
-// nosed is a square of body with a light nose eastwards — the way angle 0 points.
+// the nose east, the way angle 0 points
 func nosed(body color.RGBA) render.SpriteDrawer { return nosedAt(0, body) }
 
-// nosedAt is a square of body with its nose on the side angleDeg faces.
 func nosedAt(angleDeg float64, body color.RGBA) render.SpriteDrawer {
 	return func(dst *render.Canvas, size int) {
 		render.Solid(body)(dst, size)
@@ -74,8 +69,7 @@ func nosedAt(angleDeg float64, body color.RGBA) render.SpriteDrawer {
 	}
 }
 
-// crowned is a diamond of body under a gold band — drawn east first, within the circle inscribed
-// in the box, so it turns whole.
+// drawn east within the inscribed circle, so it turns whole
 func crowned(body color.RGBA) render.SpriteDrawer {
 	return func(dst *render.Canvas, size int) {
 		render.Diamond(body)(dst, size)
@@ -83,7 +77,6 @@ func crowned(body color.RGBA) render.SpriteDrawer {
 	}
 }
 
-// spook is the ghost: a pale circle with two eyes.
 func spook(dst *render.Canvas, size int) {
 	r := float32(size) / 2
 	dst.FillCircle(r, r, r-1, ghostColor)

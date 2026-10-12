@@ -10,14 +10,13 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-// Text is printed as Ebitengine's debug text was: glyphs six pixels apart, lines sixteen, white
-// over a black shadow a pixel down and right; the glyphs are x/image's basicfont 7x13.
+// Debug text is printed in basicfont 7x13, glyphs six pixels apart, lines sixteen, white over a
+// black shadow a pixel down and right.
 const (
 	GlyphWidth = 6
 	LineHeight = 16
 )
 
-// glyphs is the sheet of every glyph printed, 7 by 16 a cell, by rune; built at first print.
 var glyphs struct {
 	sheet *Image
 	cell  map[rune]int
@@ -25,8 +24,7 @@ var glyphs struct {
 
 const glyphCell = 7
 
-// handGlyphs are glyphs basicfont lacks — it has ASCII alone — drawn here by hand from a cell's
-// top-left, '#' a lit pixel; the rest of Latin-1 prints as its replacement box.
+// basicfont has ASCII alone: '#' a lit pixel from a cell's top-left
 var handGlyphs = map[rune][]string{
 	'°': {"", "", "", "  ##", " #  #", " #  #", "  ##"},
 }

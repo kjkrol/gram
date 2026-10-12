@@ -21,9 +21,6 @@ type pushedOut struct {
 	wall bool
 }
 
-// pushedOutWorld is a world open on x with a wall at its left edge and a box the wall overlaps from
-// past the edge, a Leaving rule giving a heard when hooked; it reports the ECS, the heards and
-// a query over every box.
 func pushedOutWorld(t *testing.T, hooked bool) (*goke.ECS, *heards, *goke.Query, *goke.Comp[world.Base]) {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
@@ -36,7 +33,7 @@ func pushedOutWorld(t *testing.T, hooked bool) (*goke.ECS, *heards, *goke.Query,
 	}
 	var rules []rule.Rule
 	if hooked {
-		rules = append(rules, rule.Then[world.Leaving]("left", rule.All, rule.Order(heard{})))
+		rules = append(rules, rule.Branch[world.Leaving]{Name: "left", Do: rule.Order(heard{})})
 	}
 	c := collision.NewPlugin(w)
 	kind.Define[pushedOut](w.Kinds(), "box", kind.Spec{
@@ -61,8 +58,6 @@ func pushedOutWorld(t *testing.T, hooked bool) (*goke.ECS, *heards, *goke.Query,
 	return ecs, orders, q, base
 }
 
-// The world hears of the box the wall pushed out every tick it is out, one and the same box, and
-// it stands where the push left it: wholly past the edge.
 func TestCollision_ABoxPushedThroughAnOpenEdgeIsReportedToTheWorld(t *testing.T) {
 	ecs, orders, q, base := pushedOutWorld(t, true)
 	for range 3 {
@@ -91,7 +86,6 @@ func TestCollision_ABoxPushedThroughAnOpenEdgeIsReportedToTheWorld(t *testing.T)
 	}
 }
 
-// With no Leaving rule hooked the world despawns the box the wall pushed out; the wall stays.
 func TestCollision_ABoxPushedThroughAnOpenEdgeIsDespawned(t *testing.T) {
 	ecs, _, q, base := pushedOutWorld(t, false)
 	for range 3 {

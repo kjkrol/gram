@@ -13,22 +13,21 @@ import (
 	"github.com/kjkrol/gram/ui"
 )
 
-// The names of the plugin's effects, the handles of every conversation (DefineEffects).
+// The names of the plugin's effects: TalkingEf is on the speaker while it talks, and taken off
+// the conversation is over; TalkedEf is on it for Config.Rest after one talked to the end.
 const (
-	TalkingEf = "dialog.talking" // on the speaker while it talks; taken off, the conversation is over
-	TalkedEf  = "dialog.talked"  // on the speaker for Config.Rest after a conversation talked to the end
+	TalkingEf = "dialog.talking"
+	TalkedEf  = "dialog.talked"
 )
 
 // Config is how long a speaker rests after a conversation.
 type Config struct {
-	Rest time.Duration // how long TalkedEf lasts; ten seconds when zero
+	Rest time.Duration // ten seconds when zero
 }
 
-// Plugin carries conversations: the nodes a Stage defines (Define, Load) and the conversations its
-// entities hold (Talk). What a conversation changes in the game is the game's: its own components,
-// changed and asked by name (Changes, Conditions).
+// Plugin carries conversations: the nodes a Stage defines and the Talks its entities hold.
 type Plugin struct {
-	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+	*world.Self
 
 	w          *world.Plugin
 	cfg        Config
@@ -44,7 +43,7 @@ type Plugin struct {
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// NewPlugin builds the dialog plugin over w; hand it to the players plugin for its commands.
+// NewPlugin builds the dialog plugin over w.
 func NewPlugin(w *world.Plugin, cfg Config) *Plugin {
 	if cfg.Rest == 0 {
 		cfg.Rest = 10 * time.Second
@@ -55,10 +54,6 @@ func NewPlugin(w *world.Plugin, cfg Config) *Plugin {
 	return p
 }
 
-// =================================================================
-// plugin.Plugin contract
-// =================================================================
-
 func (p *Plugin) Name() string { return "gram.dialog" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
@@ -67,8 +62,8 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 
-// RunPlan carries the conversations on in the simulation; call it after the plugins whose rules
-// begin them.
+// RunPlan carries the conversations on in the simulation. Call it after the plugins whose
+// rules begin them.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
 // WithRenderer is a no-op: a conversation is drawn by a scene's elements (Window).
@@ -83,11 +78,7 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 // Serializable is nil: the conversations are components, saved with their entities.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
-// =================================================================
-// dialog-specific
-// =================================================================
-
-// DefineEffects defines TalkingEf and TalkedEf in the Stage's world: call it where the Stage
+// DefineEffects defines TalkingEf and TalkedEf in the Stage's world. Call it where the Stage
 // defines its effects.
 func (p *Plugin) DefineEffects() {
 	effects := p.w.Effects()
@@ -96,15 +87,13 @@ func (p *Plugin) DefineEffects() {
 	p.talking, p.talked = effects.Named(TalkingEf), effects.Named(TalkedEf)
 }
 
-// Changes are what answers change in the game, by name: the game's own model of a conversation's
-// outcome, made by Alter and AlterListener over its components.
+// Changes are what answers change in the game, by name.
 func (p *Plugin) Changes() *Changes { return &p.changes }
 
-// Conditions are when answers are offered, by name: made by When over the game's components.
+// Conditions are when answers are offered, by name.
 func (p *Plugin) Conditions() *Conditions { return &p.conditions }
 
-// Script is where the conversations of a kind's entities begin: the node called node — a kind's
-// component, comp.Const(p.Script(node)) for all of them, or each one's own through comp.Load. An
+// Script is the component of a kind whose conversations begin at the node called node. An
 // unknown node panics.
 func (p *Plugin) Script(node string) Script {
 	id := idOf(node)
@@ -114,14 +103,13 @@ func (p *Plugin) Script(node string) Script {
 	return Script{Start: id}
 }
 
-// Window is the conversation of every entity that talks, pinned to it (Under TalkingEf): the
-// speaker as its title, what it says, and a button for each answer offered, giving Choose. A game
-// may lay its own out of SpeakerText, LineText and ChoiceText.
+// Window is the conversation of every entity that talks, pinned to it: the speaker as its
+// title, what it says, and a button for each answer offered, giving Choose.
 func (p *Plugin) Window() *ui.Element {
 	if p.talking == (effect.Effect{}) {
 		panic("dialog: Window before DefineEffects")
 	}
-	rows := []*ui.Element{ui.LabelOf(p.LineText()), ui.Blank().Size(0, 6)} // a gap before the answers
+	rows := []*ui.Element{ui.LabelOf(p.LineText()), ui.Blank().Size(0, 6)}
 	for i := range MaxChoices {
 		rows = append(rows, ui.ButtonOf(p.ChoiceText(i), Choose{Index: i}))
 	}

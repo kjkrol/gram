@@ -16,13 +16,11 @@ import (
 	"github.com/kjkrol/gram/plugins/board/water"
 )
 
-// attribution is what the heights come from, at the head of every map.
 const attribution = `# Made by cmd/gramap. Heights: Terrain Tiles on AWS (Mapzen's Tilezen
 # terrarium) — SRTM, EU-DEM, GMTED2010, ETOPO1 and others; see
 # https://github.com/tilezen/joerd/blob/master/docs/attribution.md
 `
 
-// text is the map as a level file a board lays, units its units: section as it was, if any.
 func (w *chart) text(recipePath, units string) []byte {
 	var b bytes.Buffer
 	b.WriteString(attribution)
@@ -93,8 +91,6 @@ func (w *chart) writeBoard(b *bytes.Buffer) {
 	}
 }
 
-// standing is a line of the map's entities: a bridge from its head at to its head to, else a
-// ford at, the way it is waded.
 type standing struct {
 	kind   string
 	at     cell.ID
@@ -103,8 +99,6 @@ type standing struct {
 	bridge bool
 }
 
-// standing is the bridges, a line each, and the fords — the cells of the roads' crossings, and
-// every ford of the rivers besides, across the river.
 func (w *chart) standing() []standing {
 	var out []standing
 	taken := map[cell.ID]bool{}
@@ -131,7 +125,6 @@ func (w *chart) standing() []standing {
 	return out
 }
 
-// deck is how wide a bridge's deck is: the recipe's, a cell's at most or where it says none.
 func (w *chart) deck() float64 {
 	if d := w.r.Roads.Deck; d > 0 && d < w.size {
 		return d
@@ -203,8 +196,6 @@ func (w *chart) writeWays(b *bytes.Buffer) {
 	}
 }
 
-// segment is a stretch of a road's path between crossings: its cells, and whether it leads onto
-// a crossing at its first cell or its last.
 type segment struct {
 	cells       []cell.ID
 	first, last bool
@@ -224,8 +215,7 @@ func segments(rd road) []segment {
 	return append(out, segment{cells: rd.cells[start:], first: start > 0})
 }
 
-// turns is where cells turn — the first, every cell the way on changes at, the last — and where
-// a river changes its kind: the points a level file routes along to come back to every cell.
+// the points a level file routes along to come back to every cell
 func (w *chart) turns(cells []cell.ID) []int {
 	out := []int{0}
 	way := func(i int) cell.Links { l, _ := grid.Link(w.grid, cells[i], cells[i+1]); return l }
@@ -243,8 +233,7 @@ func (w *chart) point(c cell.ID) string {
 	return fmt.Sprintf("[%d, %d]", x, y)
 }
 
-// riverPaths is the running water as paths from every source down to where it goes — the sea, or
-// a river taken before — the longest first, so the main stems run whole.
+// the longest first, so the main stems run whole
 func (w *chart) riverPaths() [][]cell.ID {
 	n := w.rivers
 	fed := map[cell.ID]bool{}
@@ -305,7 +294,7 @@ func writeList(b *bytes.Buffer, lead string, items []string) {
 	b.WriteString("\n")
 }
 
-// number is v in metres to the centimetre, as short as it goes.
+// to the centimetre
 func number(v float64) string {
 	v = math.Round(v*100) / 100
 	if v == 0 {
@@ -314,7 +303,6 @@ func number(v float64) string {
 	return strconv.FormatFloat(v, 'f', -1, 64)
 }
 
-// unitsOf is the units: section of a level file, kept from one making of a map to the next.
 func unitsOf(data []byte) string {
 	lines := strings.SplitAfter(string(data), "\n")
 	for i, l := range lines {
@@ -331,10 +319,8 @@ func unitsOf(data []byte) string {
 	return ""
 }
 
-// originLine heads a map whose area grew west and north for its sea, saying how far.
 const originLine = "# The recipe's area begins at "
 
-// originOf is how far the area of the map made before grew west and north; nothing for none.
 func originOf(data []byte) (x, y int) {
 	for l := range strings.Lines(string(data)) {
 		if rest, ok := strings.CutPrefix(l, originLine); ok {
@@ -345,11 +331,8 @@ func originOf(data []byte) (x, y int) {
 	return 0, 0
 }
 
-// cellRef is a cell written [x, y].
 var cellRef = regexp.MustCompile(`\[\s*(-?\d+)\s*,\s*(-?\d+)\s*\]`)
 
-// shiftUnits is units with every cell written in it dx, dy further on: the units of a map made
-// before, where the land lies now.
 func shiftUnits(units string, dx, dy int) string {
 	if dx == 0 && dy == 0 {
 		return units

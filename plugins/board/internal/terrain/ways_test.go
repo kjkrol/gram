@@ -14,7 +14,6 @@ var (
 )
 var bridge = cell.Kind{Name: cell.Named("bridge"), Cost: 1, Allows: cell.Land | cell.Air}.Costing(cell.Land, 0.5)
 
-// Bare is the ground under whatever runs across a cell.
 func TestBoard_BareIsTheGroundUnderTheWay(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(3, 3, 10)
 	c := g.At(1, 1)
@@ -26,7 +25,6 @@ func TestBoard_BareIsTheGroundUnderTheWay(t *testing.T) {
 	}
 }
 
-// Before the ECS and after, the board lays a way over its cell's ground and counts the change.
 func TestBoard_LaysAWayOverTheGround(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(3, 3, 10)
 	c := g.At(1, 1)

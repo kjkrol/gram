@@ -31,7 +31,6 @@ type composition struct {
 var _ Composition = (*composition)(nil)
 var _ plugin.Restorer = (*composition)(nil)
 
-// newComposition builds a Composition resolving names against stack — called only from NewStack.
 func newComposition(stack Scenes) Composition {
 	return &composition{stack: stack}
 }
@@ -74,17 +73,14 @@ func (c *composition) Active() string { return c.active }
 
 func (c *composition) Persisted() []any { return []any{&c.order} }
 
-// Restore recomputes Active after Persistence.Load overwrites Order directly — see plugin.Restorer.
 func (c *composition) Restore() { c.active = c.topFocusable() }
 
-// promote makes name Active if it can be — called after Show/BringToFront put it on top.
 func (c *composition) promote(name string) {
 	if sc, ok := c.stack.Get(name); ok && sc.Focusable() {
 		c.active = name
 	}
 }
 
-// topFocusable scans Order for the topmost Focusable name.
 func (c *composition) topFocusable() string {
 	for i := len(c.order) - 1; i >= 0; i-- {
 		if sc, ok := c.stack.Get(c.order[i]); ok && sc.Focusable() {

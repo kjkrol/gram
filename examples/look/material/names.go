@@ -1,9 +1,8 @@
 package main
 
-// The demo's dictionary: every name a constant, its suffix saying what it is.
 const (
 	WardKind = "ward"
-	WardName = "ward" // the one ward's own name: whom C's command is for
+	WardName = "ward"
 
 	GrassCell = "grass"
 
@@ -11,7 +10,6 @@ const (
 
 	CalmCmd = "calm the ward"
 
-	// the stage and its scenes
 	MaterialStage = "material-demo"
 	MainScene     = "main"
 )

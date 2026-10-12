@@ -13,65 +13,57 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Painter is the board's Dressing the topography lays: the light on the tiles and what lies on
-// them, worked out of the board and its relief, the Styles of its kinds and the sky's sun and
-// weather.
+// Painter is the board's Dressing in relief: the light on the tiles and what lies on them, and
+// the board painted flat for the ground drawn on the GPU.
 type Painter struct {
 	board   *board.Board
 	relief  *relief.Relief
 	sky     Sky
 	styles  map[cell.Name]Style
-	kinds   cell.Kinds // for the kinds Styles name
+	kinds   cell.Kinds
 	heights bool
 	square  bool
 	sq      grid.Shape
 
-	lighted sky.Sun       // the sun of the frame being drawn
-	weather air.Weather   // the weather of the frame being drawn
-	camera  camera.Camera // the one of the frame being drawn
+	lighted sky.Sun
+	weather air.Weather
+	camera  camera.Camera
 	cellW   float64
 	cellH   float64
-	cellPx  float32 // how many pixels a cell spans in the frame being drawn, at its zoom (tile.px: where)
-	varies  bool    // the camera draws a world unit larger in some places than others: a perspective
-	tile    tile    // the tile being dressed
+	cellPx  float32
+	varies  bool // a perspective draws a world unit larger near than far
+	tile    tile
 
-	ways   []WayPiece   // the pieces of the last tile's Way
-	blends []BlendPiece // the last tile's Blends
-	// tops holds by ordinal what has been read of each cell, good while the cell stays as it was;
-	// bakes what has been worked out of it and the cells round it, good while they all do.
-	tops  []cellTop
-	bakes []cellBake
-	// shores holds by corner of a square grid, row by row, the way to the shore from it, good
-	// while its stamp is shoreStamp: as long as the terrain does not change.
+	ways   []WayPiece
+	blends []BlendPiece
+	tops   []cellTop
+	bakes  []cellBake
+	// by corner of a square grid, good while the stamp is shoreStamp
 	shores     []cornerShore
 	shoreStamp uint32
 	shoreFor   uint64
-	// wet holds by cell whether water may lie on it, for the board's count of changes wetAt
-	wet   []bool
-	wetAt uint64
-	// albedo is the whole board painted flat for the ground drawn on the GPU; newest, unpainted,
-	// canvas and the scratch tile are what painting it works with
-	albedo    *groundSheet
-	newest    []uint64
-	unpainted []int
-	canvas    render.Frame
-	scratch   look.Tile
-	bakeTile  tile
-	// coast is the way to the shore from every corner for the ground traced on the GPU (Coast)
-	coast coast
+	wet        []bool
+	wetAt      uint64
+	albedo     *groundSheet
+	newest     []uint64
+	unpainted  []int
+	canvas     render.Frame
+	scratch    look.Tile
+	bakeTile   tile
+	coast      coast
 }
 
 var _ look.Dressing = (*Painter)(nil)
 
-// Sky is the sky over the board as the painter reads it, whenever it paints: the sun that lights
-// the tiles and the weather — what sways leans in its wind.
+// Sky is the sky over the board as the painter reads it: the sun that lights the tiles and the
+// weather.
 type Sky interface {
 	Sun() sky.Sun
 	Air() air.Weather
 }
 
-// New is the painter of b over ground under the sky, the kinds looking as styles has them; heights
-// says whether the ground stands in relief, lit and shaded by its slopes.
+// New is the painter of b over ground under the sky, the kinds looking as styles has them.
+// heights says whether the ground stands in relief.
 func New(b *board.Board, ground *relief.Relief, sky Sky, heights bool, styles map[cell.Name]Style) *Painter {
 	w, h := b.CellBounds()
 	sq, square := b.Shape()
@@ -85,18 +77,15 @@ func (l *Painter) WithKinds(kinds cell.Kinds) *Painter {
 	return l
 }
 
-// Style sets how the kind named name looks in relief beyond its sprite (Style).
+// Style sets how the kind named name looks in relief beyond its sprite.
 func (l *Painter) Style(name string, s Style) { l.styles[cell.Named(name)] = s }
 
 // StyleOf is how the kind named name looks, as Style set it.
 func (l *Painter) StyleOf(name string) Style { return l.styles[cell.Named(name)] }
 
-// version counts the changes to the terrain and the relief together: what the light and the
-// shores depend on.
 func (l *Painter) version() uint64 { return l.board.Version() + l.relief.Version() }
 
-// beside is the top of the cell dx, dy cells away from t, with its kind standing on it; sea level
-// 0 off the board.
+// sea level 0 off the board
 func (l *Painter) beside(t *look.Tile, dx, dy int) [4]float32 {
 	w, h := t.X1-t.X0, t.Y1-t.Y0
 	x, y := (t.X0+t.X1)/2+float32(dx)*w, (t.Y0+t.Y1)/2+float32(dy)*h
@@ -107,21 +96,17 @@ func (l *Painter) beside(t *look.Tile, dx, dy int) [4]float32 {
 	return l.topOf(c).z
 }
 
-// tile is a look.Tile as the landscape dresses it, and what it has worked out of it already.
 type tile struct {
 	*look.Tile
-	r    *Painter
-	id   cell.ID
-	memo tileMemo
-	// pixels is how many pixels a cell spans where the tile is drawn, read once: pixelsRead
+	r          *Painter
+	id         cell.ID
+	memo       tileMemo
 	pixels     float32
 	pixelsRead bool
 }
 
-// px is how many pixels a cell spans where the tile is drawn nearest the eye: at the corner of its
-// top the camera draws largest, as it draws a world unit there — the same over the whole screen
-// but through a perspective, where a tile near the eye is drawn with all its detail, even one
-// whose middle lies behind the eye, and one far off with none.
+// at the corner the camera draws largest: a tile near a perspective's eye keeps all its detail
+// even where its middle lies behind the eye
 func (t *tile) px() float32 {
 	if !t.pixelsRead {
 		t.pixels, t.pixelsRead = t.r.cellPx, true
@@ -137,8 +122,6 @@ func (t *tile) px() float32 {
 	return t.pixels
 }
 
-// inFront reports whether every one of the points (x, y) at heights z lies in front of the eye of
-// cam: always but through a perspective, whose eye has points beside and behind it.
 func (l *Painter) inFront(cam camera.Camera, w render.World, z [4]float32) bool {
 	if !l.varies {
 		return true
@@ -151,25 +134,22 @@ func (l *Painter) inFront(cam camera.Camera, w render.World, z [4]float32) bool 
 	return true
 }
 
-// cellTop is a cell as the landscape reads it: its corners with its kind standing on them, the
-// ground's corners under it, its level, its sprite, its kind's Style and the way across it.
 type cellTop struct {
-	z      [4]float32
+	z      [4]float32 // the ground's corners with the kind's Height on them
 	ground [4]float32
 	alt    float32
 	shine  float32
 	flow   float32
 	spread float32
-	raised bool // something stands a Height over the ground
+	raised bool
 	under  bool
 	sprite render.SpriteID
-	way    lane   // what runs across the cell
+	way    lane
 	ver    uint64 // one more than the cell's version when read; 0 not read yet
-	seen   uint64 // the board's count of changes when last found as it was
+	seen   uint64
 }
 
-// Begin readies the Painter for a frame through cam: the sun and the weather, handed to the frame
-// for its shader, how near the eye is, and what has gone stale since the last.
+// Begin readies the Painter for a frame through cam.
 func (l *Painter) Begin(f *render.Frame, cam camera.Camera) {
 	l.camera, l.tile = cam, tile{}
 	l.lighted, l.weather = l.sky.Sun(), l.sky.Air()
@@ -177,7 +157,6 @@ func (l *Painter) Begin(f *render.Frame, cam camera.Camera) {
 	l.weather.Frame(f, l.lighted)
 	l.tables()
 	l.cellPx = float32(min(l.cellW, l.cellH)) * cam.Zoom()
-	// a perspective draws a cell larger near than far
 	w, h := cam.Viewport()
 	x, y := cam.Unproject(w/2, 0, 0)
 	far := camera.ScaleAt(cam, x, y, 0)
@@ -186,7 +165,6 @@ func (l *Painter) Begin(f *render.Frame, cam camera.Camera) {
 	l.nextShores()
 }
 
-// tables sizes what is kept of every cell to the board.
 func (l *Painter) tables() {
 	if n := l.board.CellCount(); len(l.tops) != n {
 		l.tops, l.bakes = make([]cellTop, n), make([]cellBake, n)
@@ -204,17 +182,14 @@ func (l *Painter) FaceLight(t *look.Tile, dx, dy int) render.Light {
 	return l.tileOf(t).FaceLight(dx, dy)
 }
 
-// Covers reports whether Dress lays over t's top the grounds round it or a way — from far a piece
-// of the ground sheet — which would hide its outline.
+// Covers reports whether Dress lays over t's top anything that would hide its outline.
 func (l *Painter) Covers(t *look.Tile) bool {
 	b := l.bakeOf(l.tileOf(t))
 	return len(b.blends) > 0 || len(b.ways) > 0
 }
 
-// Dress lays over t's top, drawn over the box x0..x1, y0..y1 at depth, what lies on it: its water,
-// the grounds round it running in — from far with its way as one piece of the ground sheet — the
-// clouds' shadows and, where it Covers an Outlined top, its outline over them, and then the way
-// across it: laid in the order the frame draws them, so it needs no sorting.
+// Dress lays over t's top, drawn over the box x0..x1, y0..y1 at depth, what lies on it: its
+// water, the grounds round it running in, its outline where covered, and the way across it.
 func (l *Painter) Dress(f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1, depth float32) {
 	d, top := l.tileOf(t), f.Last()
 	d.DrawSurface(f, x0, y0, x1, y1)
@@ -225,7 +200,6 @@ func (l *Painter) Dress(f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0
 	d.DrawWay(f, cam, depth)
 }
 
-// tileOf is t as the Painter dresses it, what it worked out of it kept while it is the same cell.
 func (l *Painter) tileOf(t *look.Tile) *tile {
 	if l.tile.Tile != t || l.tile.id != t.ID {
 		l.tile = tile{Tile: t, r: l, id: t.ID}
@@ -233,14 +207,11 @@ func (l *Painter) tileOf(t *look.Tile) *tile {
 	return &l.tile
 }
 
-// topOf is c as the board and the relief have it, read anew only when the cell has changed
-// (Board.CellVersion): the ground's corners on a square grid, its level everywhere on another,
-// raised by its kind's Height.
 func (l *Painter) topOf(c cell.ID) *cellTop {
 	i, _ := l.ordinal(c)
 	t := &l.tops[i]
 	changes := l.board.Changes()
-	if t.ver != 0 && t.seen == changes { // nothing on the board has changed since
+	if t.ver != 0 && t.seen == changes {
 		return t
 	}
 	v := l.board.CellVersion(c) + 1
@@ -265,8 +236,6 @@ func (l *Painter) topOf(c cell.ID) *cellTop {
 	return t
 }
 
-// lane is what runs across a cell as the landscape draws it: a Way, and its kind's Style — how its
-// water shines and runs — and the kind it turns into, where it mixes, and how that one shines.
 type lane struct {
 	cell.Way
 	shine, flow float32
@@ -275,7 +244,6 @@ type lane struct {
 	mixShine    float32
 }
 
-// laneOf is w with its kind's Style.
 func (l *Painter) laneOf(w cell.Way) lane {
 	s := l.styles[w.Kind.Name]
 	ln := lane{Way: w, shine: s.Shine, flow: s.Flow}
@@ -287,16 +255,13 @@ func (l *Painter) laneOf(w cell.Way) lane {
 	return ln
 }
 
-// ordinal is c's slot in a table of one per cell.
 func (l *Painter) ordinal(c cell.ID) (int, bool) { return l.board.Ordinal(c) }
 
-// xy is c's column and row on a square grid.
 func (l *Painter) xy(c cell.ID) (x, y uint32) {
 	x, y, _ = l.board.Coords(c)
 	return x, y
 }
 
-// cellAt is the square grid's cell at column x, row y, folded where the grid wraps; false off it.
 func (l *Painter) cellAt(x, y int64) (cell.ID, bool) {
 	fx, okX := fold(x, int64(l.sq.Cols), l.sq.WrapX)
 	fy, okY := fold(y, int64(l.sq.Rows), l.sq.WrapY)
@@ -306,7 +271,6 @@ func (l *Painter) cellAt(x, y int64) (cell.ID, bool) {
 	return l.board.At(uint32(fx), uint32(fy)), true
 }
 
-// fold is v on an axis n long: wrapped round where it wraps; false off it where it does not.
 func fold(v, n int64, wrap bool) (int64, bool) {
 	if wrap {
 		return (v%n + n) % n, true

@@ -2,7 +2,6 @@ package engine
 
 import "time"
 
-// tracker is responsible for the fixed physics step (Fixed Time Step) and statistics.
 type tracker struct {
 	lastUpdate    time.Time
 	lastTPSUpdate time.Time
@@ -17,7 +16,6 @@ func newTracker() *tracker {
 	}
 }
 
-// calculateSteps calculates how many physics ticks should be performed in the current frame.
 func (t *tracker) calculateSteps(physicsStep time.Duration, maxSteps int) int {
 	now := time.Now()
 

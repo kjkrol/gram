@@ -46,7 +46,7 @@ const (
 //go:embed ember.wgsl
 var emberFS embed.FS
 
-// emberMaterial joins the composer's one shader as the package is set up, before it compiles.
+// registered before the composer's shader compiles
 var emberMaterial = render.RegisterMaterials(render.Files(emberFS, "ember.wgsl"), nil, "Ember")[0]
 
 //go:embed map.yaml

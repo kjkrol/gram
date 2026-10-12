@@ -16,8 +16,6 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// lookSource lays boxes through a look, readied for the GPU or not, drawn where render.Objects
-// comes.
 type lookSource struct {
 	look   *Flat
 	direct bool
@@ -39,8 +37,6 @@ func (s *lookSource) Draw(t render.Target, cam camera.Camera, u render.Uniforms)
 	s.look.DrawSprites(t, cam, u)
 }
 
-// Seen from above the flat look's sprites drawn on the GPU are the ones it lays on the frame, pixel
-// for pixel: zoomed in, in their light, their halves either side of a wrapping world's seam.
 func TestFlatLook_DrawsOnTheGPUAsOnTheFrame(t *testing.T) {
 	needGPU(t)
 	atlas := render.NewAtlas()
@@ -79,7 +75,6 @@ func TestFlatLook_DrawsOnTheGPUAsOnTheFrame(t *testing.T) {
 	}
 }
 
-// needGPU readies a device without a window; a machine without one skips.
 func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {

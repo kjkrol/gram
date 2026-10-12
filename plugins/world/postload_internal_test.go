@@ -6,7 +6,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 )
 
-// testWorld builds the module through NewPlugin, wired as a game's would be.
 func testWorld() *module {
 	return NewPlugin(Config{
 		Space:    SpaceCfg{Width: 1000, Height: 1000},

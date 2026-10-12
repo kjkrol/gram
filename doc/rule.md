@@ -12,75 +12,96 @@ rules connecting them (below, "A game: states as effects"). On 2026-10-02 entiti
 the roles they play; on 2026-10-05 what somebody asks for became one command written as a
 sentence, for entities found by name or group, and hooking went: nobody hands a rule to a plugin,
 the engine gives the rules of the roles played to the plugins catching their moments (below, "Who
-gets a rule", "Roles", "Commands").
+gets a rule", "Roles", "Commands"). On 2026-10-12 the notation became one brick: a `rule.Branch`
+— when, what — is a rule given to a role and a branch of a plan given to a kind (`rule.Plan`); the
+conditions are values in its `When`, in the moment's own words, and the plan's Actor and its
+package went.
 
-## Two constructors
+## One brick: a Branch
 
-A rule is its steps, made by the package's functions; a plan is written by a function handed the
-**Actor** it is for, whose methods make its steps. All are of one type, `rule.Step`. Go 1.27's
-methods with type parameters make `a.Order(cmd)`, `a.When[Blocked](…)` and `.Until[Arrived]()`
-possible.
+A rule is a sentence — **who, when, what** — and a `rule.Branch` is its when and what: `When` the
+conditions, `Do` the steps. Who is the role the branch is given to, so the rules of a role read
+as a paragraph under it. The type `P` a Branch is of is the moment it fires on, in a rule, or
+the fact it waits for, in a plan; `any` for a branch on nothing but its When.
 
 ```go
-// a rule: at a moment, for whom, what to do
-rule.Then[unit.Standing]("in the ice", rule.All, rule.OneOf(
-		rule.If(caughtInIce, rule.Keep(frozen)),
-		rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{})),
-	))
-
-// a plan: what a unit does over time
-s.world.Plans().Define(PatrolPlan, func(a *plan.Actor) rule.Step {
-	return a.Steps(
-		a.Order(navigation.MoveTo{Cell: east}).Until[navigation.Arrived](),
-		a.Wait(10 * time.Second),
-		a.Order(navigation.MoveTo{Cell: west}).Until[navigation.Arrived](),
-	)
+// rules: the players of mortal fall in; the predator chases what it sees, and turns to look
+// round when it sees nothing
+roles.Define(MortalRole, rule.Branch[unit.Standing]{
+	Name: "fall in",
+	When: unit.Standing.Fallen,
+	Do:   rule.Order(world.Despawn{}),
 })
+roles.Define(PredatorRole,
+	rule.Branch[vision.Sighting]{
+		Name: "chase",
+		When: vision.Seeing(prey),
+		Do:   rule.Order(steering.Toward{}),
+	},
+	rule.Branch[vision.Sighting]{
+		Name: "search",
+		When: vision.Sighting.Nobody,
+		Do:   rule.Once(turned, rule.Either(rule.Order(left), rule.Order(right))),
+	},
+)
+
+// a plan: what a guard does over time, a tree of branches choosing
+guard := rule.Plan(GuardPlan, rule.OneOf(
+	rule.Branch[any]{Name: "alarm", When: rule.During(alarm),
+		Do: rule.Order(navigation.MoveTo{Cell: gate}).Until[navigation.Arrived]()},
+	rule.Branch[navigation.Blocked]{Name: "blocked", When: navigation.Blocked.WaitedLong,
+		Do: rule.Order(navigation.StepAside{})},
+	rule.Branch[any]{Name: "patrol", Do: rule.Steps(
+		rule.Order(navigation.MoveTo{Cell: east}).Until[navigation.Arrived](),
+		rule.Order(navigation.MoveTo{Cell: west}).Until[navigation.Arrived](),
+	)},
+	rule.Idle(),
+))
+units.Define(GuardKind, land, profile, guard)
 ```
 
-- `rule.Then[P](name, filter, step)` is a `rule.Rule` for the plugin that catches `P`, obeyed by a
-  role (below, "Who gets a rule"): its steps are the package's own functions (`rule.If`, `OneOf`, `Steps`, `Apply`,
-  `Keep`, `Dispel`, `Chance`, `Unless`, `Under`, `During`, `Order`, `ForOther`, `Here`, `Around`,
-  `Playing`, `Trigger`), its conditions predicates of the moment — a method as a value
-  (`unit.Standing.Fallen`), a plugin's own (`unit.On(ice)`), `rule.Not(pred)`; an `If` inside an
-  `If` is both, `OneOf` either. A step the moment cannot run (an `Around` where `P` is not
-  Placed, an `If` over another moment) panics by the rule's name as the rule is made:
+- A Branch given to a role (`world.Roles.Define`) is a rule of `P` for the plugin that catches
+  `P`, obeyed by the role (below, "Who gets a rule"); its `Name` is for the errors about it. A
+  Branch inside another's `Do` asks more of the same `P`; one of `any` asks only of state. A step
+  the moment cannot run — a `Here` where `P` is not Placed, a Branch of another moment inside,
+  a step that lasts, a `Through` — panics by the rule's name as the rule is built, in `Init`.
+- `rule.Plan(name, root)` is a plan, a value a kind carries in its Spec as it carries
+  `rule.Plays`; the world defines it as the kind is registered, under the name a save knows it
+  by, and runs it in every step of its simulation. The root is what the plan is: a `OneOf` of
+  branches choosing, a `Steps` running its course, a Branch on a fact, a `Cooldown`; done, it
+  begins again the next tick. In a plan a Branch of `P` runs while the entity carries the fact
+  `P` as its When says; `Through`, it goes on once begun until its Do is done, though the fact
+  goes.
+- **Defining registers and hands nothing back.** Effects (`world.Effects`), roles
+  (`world.Roles`), commands (`world.Commands`) and kinds (`kind.Define`, `units.Define`) are each
+  defined under a name in the Stage's world, and `Named(name)` is the thing wherever it is built
+  on; a plan is carried, not looked up. A game keeps its names as constants (a `names.go`), each
+  with a suffix saying what it names — `BloodMoonEf`, `BleedCmd`, `MortalRole`, `GuardPlan`,
+  `ScoutKind`, `GrassCell` — so a name mistyped does not compile, and a Stage's struct holds its
+  plugins alone. Each Stage has registers of its own: nothing a game defines is the program's.
+- A function writing part of a rule or a plan returns a `rule.Step`. A plugin ships no
+  ready-made reactions: it gives moments and their conditions, the game writes the rule.
 
-  ```go
-  rule.Then[unit.Standing]("fallen in", rule.All,
-      rule.If(unit.Standing.Fallen, rule.OneOf(
-          rule.If(unit.On(ice), rule.Keep(frozen)),
-          rule.Order(world.Despawn{}),
-      )))
-  ```
-- `s.world.Plans().Define(name, func(a *plan.Actor) rule.Step)` says a plan, and
-  `s.world.Plans().Named(name)` is the component a kind gives its entities:
-  `units.Define(GuardKind, …, plans.Named(PatrolPlan))`. Its name is what a save knows it by.
-- **Defining registers and hands nothing back.** Effects (`world.Effects`), roles (`world.Roles`),
-  plans (`world.Plans`), commands (`world.Commands`) and kinds (`kind.Define`, `units.Define`) are
-  each defined under a name in the Stage's world, and `Named(name)` is the thing wherever it is
-  built on. A game keeps its names as constants (a `names.go`), each with a suffix saying what it
-  names — `BloodMoonEf`, `BleedCmd`, `MortalRole`, `PatrolPlan`, `ScoutKind`, `GrassCell` — so a
-  name mistyped does not compile, and a Stage's struct holds its plugins alone. Each Stage has registers of its own:
-  nothing a game defines is the program's.
-- A function writing part of a plan takes the Actor as its own (a rule's steps are plain functions):
-  `func whenBlocked(a *plan.Actor) rule.Step`. A plugin ships no ready-made
-  reactions: it gives moments and their conditions, the game writes the rule.
+## Conditions
 
-## Filters
+A Branch's `When` is one condition or several (`rule.All(…)`), each a sentence about the entity
+the branch is for, nil for always:
 
-The second argument of `rule.Then` says whom the rule fires for, read before its steps run:
+- a predicate of the moment or the fact — a method as a value (`unit.Standing.Fallen`,
+  `vision.Sighting.Nobody`, `navigation.Blocked.WaitedLong`), a plugin's own (`unit.On(ice)`,
+  `unit.Over(iced)`, `bullet.Within(d)`, `gravity.HarderThan(v)`, `clock.At(dusk)`),
+  `rule.Not(pred)`;
+- the entity's state: `rule.Under(e)`, `rule.Free(e...)` (under none of them), `rule.Playing(role)`;
+- the world's: `rule.During(e)` (the world's own entity, `Cast` on `entity.World`),
+  `rule.While(plugin, e)` (a plugin's);
+- the other of a pair, on a moment that is `plugin.Met`, in the moment's word:
+  `vision.Seeing(role)`, `collision.Met(role)`, `bullet.Reaching(role)`, `navigation.Touching(role)`
+  (each `rule.Other(tag)`); a tag of the entity's own, `rule.Self(tag)` — an effect's marker,
+  `rule.Self(frozen.Mark())`; a component carried, `rule.Carrying[T]()`.
 
-- `rule.All` — every entity the plugin shows it, every pair for a moment of two;
-- `rule.Self(tag)` — an entity carrying the tag, an effect's marker among them:
-  `rule.Self(frozen.Mark())`;
-- `rule.Between(a, b)` — a pair whose entity carries `a` and whose other carries `b` (`tag.Any`
-  for either side), for a moment that is `plugin.Met`: a collision's `Meeting`, a `Sighting`, a
-  navigation `Touch`;
-- `rule.Having[T]()` — an entity carrying the component `T`: `rule.Having[witch]()`.
-
-The plugin checks the filter on the tag bits of each entity, so a rule that does not concern one
-costs nothing for it. A role narrows a rule further, on top of its filter (below, "Roles").
+The last three the plugin reads off its own query, on the tag bits, so a rule that does not
+concern an entity costs nothing for it: they are asked at the top of a rule alone. A role
+narrows a rule further, on top of its When (below, "Roles").
 
 ## Who gets a rule
 
@@ -116,28 +137,34 @@ of the sky is an effect on the atmosphere, as a state of the whole game is one o
 ```go
 fx.Define(BloodMoonEf, effect.Spec{effect.Lasts(night), effect.Alter(func(m *sky.Moon) { … })})
 cmds.Define(BleedCmd, rule.Cast(fx.Named(BloodMoonEf)).On(s.atmosphere))      // the plugin is whom the command is for
-rule.While(s.atmosphere, fx.Named(BloodMoonEf), rule.Keep(fx.Named(FrenziedEf))) // … and a rule reads its state
+rule.Branch[world.Moving]{ // … and a rule reads its state
+	Name: "frenzy",
+	When: rule.While(s.atmosphere, fx.Named(BloodMoonEf)),
+	Do:   rule.Keep(fx.Named(FrenziedEf)),
+}
 ```
 
 ## The five words
 
 - **Rule** — a moment a plugin catches: a `unit.Standing` or a `cell.Now`, a `vision.Sighting`, a
   `collision.Meeting` (pairs) or `Struck`, a `world.Moving` or `Leaving`, a `clock.Moment`, a
-  `climate.Weathering`, a `navigation.Touch`. A rule's steps are instant — `OneOf`, `Steps`, `If`
-  on the moment, `Not`, `Apply`, `Keep`, `Dispel`, `Chance`, `Unless`, `Under`, `During`,
-  `Playing`, `Order`, `Trigger`, `ForOther`, `Here`, `Around` — so a step that lasts (`Wait`, `Until`, `Ask`)
-  is not to be had in a rule: a Moment has no such method, and one made by an Actor is refused as
-  the rule is made. A rule remembers nothing of its own, and runs no Go code of its own: there is no
-  step for it. What the steps cannot say is a moment, a step or a knob the plugin still lacks.
-- **Plan** — what a kind's entities do over time. It remembers its place (its mind, a component `world.Plans.Named` gives: the steps
-  running, each one's place and start on the world's clock), waits (`Wait`, `Until`), talks to
-  other entities (`Ask`), and is saved with the game. `OneOf` is a reactive choice, `Steps` a
-  sequence with memory; the Actor's `When[F]` and `On[F]` open a branch on a fact, `If` reads one.
+  `climate.Weathering`, a `navigation.Touch`. A rule's steps are instant — `OneOf`, `Steps`, a
+  Branch asking more, `Apply`, `Keep`, `Dispel`, `Chance`, `Either`, `Once`, `Order`, `Trigger`,
+  `ForOther`, `Here`, `Around` — so a step that lasts (`Wait`, `Until`, `Ask`) is not to be had in
+  a rule: it is refused as the rule is made. A rule remembers nothing of its own, and runs no Go
+  code of its own: there is no step for it. What the steps cannot say is a moment, a step or a
+  knob the plugin still lacks.
+- **Plan** — what a kind's entities do over time (`rule.Plan`). It remembers its place (its
+  mind, the component the plan is: the steps running, each one's place and start on the world's
+  clock), waits (`Wait`, `Until`), talks to other entities (`Ask`), and is saved with the game.
+  `OneOf` is a reactive choice, `Steps` a sequence with memory; a Branch of a fact runs while the
+  entity carries it as its When says, `Through` once begun until done.
 - **Effect** — `effect.Effect`, defined once from a `Spec` (`Lasts`, `Stacking`, `Then`, `Grant`,
   `Alter`; `Described` a sentence for a UI, `Description()`), with its own marker, on while it runs (`Mark()`). `Apply` casts it; `Keep` holds it as
   long as its branch runs, or as long as a rule keeps firing it; `Dispel` takes it off. **An
-  effect's presence is state**: `Unless(alarmed, …)` is "at most once a while", a memory for rules
-  that keep none, and its marker is what rules of other plugins filter by. The collision demo's hit is one
+  effect's presence is state**: `Once(turned, …)` is "at most once a while", a memory for rules
+  that keep none, and its marker is what rules of other plugins ask for (`rule.Self`). The
+  collision demo's hit is one
   (applied at every `collision.Struck`, drawn by `render.Over(overlay, hit.Mark().In)`).
 - **Command** — `Order(cmd)` gives the entity's command, the same one a player gives
   (`navigation.MoveTo`, `world.Despawn`), queued for the plugin that handles its type, and goes on
@@ -155,31 +182,33 @@ rule.While(s.atmosphere, fx.Named(BloodMoonEf), rule.Keep(fx.Named(FrenziedEf)))
 
 ## Idioms
 
-- **Order, then wait for what comes of it.** A plan's `Order` hands back a `Command`: its
+- **Order, then wait for what comes of it.** A plan's `Order` hands back an `Ordered`: its
   `Until[F]()` waits for a fact to come *afresh* — a fact left from before does not count — and
-  `Until(pred)` for one to come to hold it. `a.Until(pred)` alone waits without a command.
+  `Until(pred)` for one to come to hold it. `rule.Until(pred)` alone waits without a command.
 - **In a reactive branch, give the command once.** A branch of `OneOf` that orders and succeeds is
   run again at the next tick, and would order again: end it with `.Until(…)` or `.Stay()` so the
   branch stays while it holds, and put the reaction to the outcome *earlier* in the `OneOf`, so it
   takes over when the fact changes.
-- **A branch is a value.** `hold := a.Order(Hold{}).Until(Blocked.WaitedLong)` may stand in
+- **A branch is a value.** `hold := rule.Order(Hold{}).Until(Blocked.WaitedLong)` may stand in
   several places; each is laid out on its own.
 - **A command's outcome is a fact.** Fire and forget has no success or failure; navigation says
   what came of a `Detour` with `Cornered` and of a `Hold` with `WaitedOut`, in its `Touch` for
   rules and its `Blocked` for plans.
-- **A rule's memory is an effect.** `rule.Unless(e, rule.Steps(rule.Apply(e), …))` runs its steps at most
-  once for as long as `e` lasts.
+- **A rule's memory is an effect.** `rule.Once(e, step)` runs the step and not again for as long
+  as `e`, which it casts, lasts; `rule.Free(e)` in a When asks whether it has.
 - **The clock's moment is the clock's.** A `clock.Moment` is of the clock's own entity: an effect
-  a clock rule applies lands there — `rule.If(clock.At(dusk), rule.Apply(night))`, a phase that
-  `clock.Clock.In` reads. Run once a step, walking no entities, it takes no filter and obeys no role.
+  a clock rule applies lands there — `rule.Branch[clock.Moment]{When: clock.At(dusk), Do:
+  rule.Apply(night)}`, a phase that `clock.Clock.In` reads. Run once a step, walking no entities,
+  it asks nothing of the entity and fires while the clock's plugin, the world, plays its role.
 - **Where one stands.** On a moment that is `plugin.Placed` — a `unit.Standing`, a cell's
   `cell.Now` — `rule.Here(step)` runs the step on the cells under the entity (for a cell, on
   itself) and the entities standing on them, `rule.Around(rings, step)` on those and the rings of
   neighbours round them, each cell once, on square and hex boards alike: an effect applied to the
   ground, a lever pulled. The units there are no part of it.
-- **Now and then.** `rule.Chance(p, step)` runs the step with likelihood `p`, drawn afresh at every
-  step of the game from the world's seed (`world.Config.Seed`), the game time and the entity — no
-  state kept, so a load and a replay draw alike.
+- **Now and then.** `rule.Chance(p, step)` runs the step with likelihood `p`, `rule.Either(a, b)`
+  one or the other as likely, drawn afresh at every step of the game from the world's seed
+  (`world.Config.Seed`), the game time and the entity — no state kept, so a load and a replay
+  draw alike.
 - **One after another.** `effect.Then(next)` casts `next` when an effect's time is up — burning
   leaves smouldering — but not when it is dispelled: put out, nothing smoulders.
 
@@ -235,7 +264,11 @@ Rules and plans read the world's states with `During(e, step)`, as they read an 
 ```go
 fx.Define(AlarmEf, effect.Spec{effect.Lasts(30 * time.Second)})
 fx.Define(AlertEf, effect.Spec{effect.Alter(func(st *steering.Steering) { st.MaxSpeed *= 1.5 })})
-roles.Define(GuardRole, rule.Then[unit.Standing]("hurry", rule.All, rule.During(fx.Named(AlarmEf), rule.Keep(fx.Named(AlertEf)))))
+roles.Define(GuardRole, rule.Branch[unit.Standing]{
+	Name: "hurry",
+	When: rule.During(fx.Named(AlarmEf)),
+	Do:   rule.Keep(fx.Named(AlertEf)),
+})
 cmds.Define(SoundAlarmCmd, rule.Cast(fx.Named(AlarmEf)).On(entity.World))
 s.player.Bind(control.Give(control.KeyPress{Key: control.KeyN}, "Sound the alarm", cmds.Named(SoundAlarmCmd)))
 ```
@@ -262,7 +295,11 @@ fx, roles, cmds := s.world.Effects(), s.world.Roles(), s.world.Commands()
 fx.Define(HasteEf, effect.Spec{effect.Lasts(3 * time.Second),
 	effect.Alter(func(st *steering.Steering) { st.MaxSpeed *= 2 })})
 
-roles.Define(MortalRole, rule.Then[unit.Standing]("fall in", rule.All, rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{}))))
+roles.Define(MortalRole, rule.Branch[unit.Standing]{
+	Name: "fall in",
+	When: unit.Standing.Fallen,
+	Do:   rule.Order(world.Despawn{}),
+})
 roles.Define(HastyRole)
 
 cmds.Define(HastenCmd, rule.Cast(fx.Named(HasteEf)).On(s.selection.Selected(roles.Named(HastyRole))))
@@ -285,20 +322,21 @@ carried out in the first step, a unit nobody's until then.
 A scout or a porter fallen into water or a hole is gone; with both selected, J hastens the scouts
 alone.
 
-`Obeys` narrows a rule on top of its own filter: a rule of `rule.Self(hungry.Mark())` obeyed by
-mortal fires for a mortal entity while it is hungry, one of `rule.Having[T]()` for a mortal
+`Obeys` narrows a rule on top of its own When: a rule of `rule.Self(hungry.Mark())` obeyed by
+mortal fires for a mortal entity while it is hungry, one of `rule.Carrying[T]()` for a mortal
 carrying `T`. On a moment that is `plugin.Met` it fires for the pairs whose own entity plays the
-role. A collision `Meeting` rule with one tag on both sides, `rule.All` among them, still runs at
-most once a pair; a `Touch` belongs to each of the two units, a `Sighting` to each observer. An
-entity playing two roles that obey the same rule obeys it once for each. A rule of a moment of the
-world as a whole — a `clock.Moment`, a `climate.Weathering`, run once a step walking no entities —
-takes no filter and obeys no role: its host refuses it with `plugin.ErrUnhosted`. Say it with
-`During`, or in a rule over entities.
+role. A collision `Meeting` rule with no `Other`, or the same tag on both sides, still runs at
+most once a pair; a `Touch` belongs to each of the two units, a `Sighting` to each observer — and
+its `Seeing` narrows what the observer sees, not whether the rule fires. An entity playing two
+roles that obey the same rule obeys it once for each. A rule of a moment of the world as a whole
+— a `clock.Moment`, a `climate.Weathering`, run once a step walking no entities — asks nothing of
+the entity (`Self`, `Other`, `Carrying` are refused with `plugin.ErrUnhosted`) and fires while the
+plugin whose moment it is plays its role.
 
-`rule.Playing(role, step)` runs the step while the entity plays the role and fails while it does not.
-Inside `Here` or `Around` it asks the place the step turned to: the wire demo's handy scouts pull
-the lever beside them with `rule.Under(pull, rule.Around(1, rule.Playing(lever, rule.Trigger())))`,
-and nothing else there. A plan's Actor has it too.
+`rule.Playing(role)` holds while the entity plays the role. Inside `Here` or `Around` it asks the
+place the step turned to: the wire demo's handy scouts pull the lever beside them with
+`When: rule.Under(pull), Do: rule.Around(1, rule.Branch[any]{When: rule.Playing(lever), Do:
+rule.Trigger()})`, and nothing else there; a plan asks it the same way.
 
 A program names 64 roles at most, one name one tag, which every world saves by the name. Make them
 in `Init`: the world names them in its kinds as the Stage's ECS is set up. A kind names
@@ -310,9 +348,11 @@ in `Init`: the world names them in its kinds as the Stage's ECS is set up. A kin
 every plate: which doors a plate opens is the command naming it. A hundred levers are a hundred
 commands, a hundred names and the same rules — never a role or an effect each. A game defines no
 tags: tags are how the plugins keep their own states and groups — whose a unit is, whether it is
-selected — changed by their commands (`players.Give`, `selection.Allow`); `rule.Self` and
-`rule.Between` filter by an effect's marker, and `rule.Other(role)` lets through the pairs whose
-other plays a role — `predator.Obeys(rule.Then[vision.Sighting]("chase", rule.Other(prey), …))`.
+selected — changed by their commands (`players.Give`, `selection.Allow`); `rule.Self` asks for an
+effect's marker, and a moment's word for the other of a pair — `vision.Seeing(prey)`,
+`collision.Met(prey)` — lets through the pairs whose other plays a role:
+`roles.Define(PredatorRole, rule.Branch[vision.Sighting]{Name: "chase", When:
+vision.Seeing(prey), …})`.
 
 ## Knobs
 
@@ -326,8 +366,8 @@ stale state with it. A new knob goes into the component a plugin reads, never in
 
 ## No Go code in a rule
 
-A rule holds no Go code of its own but the conditions of `If`. What a plugin does of its own is
-its own work in a pass it makes anyway, never a rule of another plugin's moment (2026-10-02):
+A rule holds no Go code of its own but its predicates. What a plugin does of its own is its own
+work in a pass it makes anyway, never a rule of another plugin's moment (2026-10-02):
 
 - the ground's pace: the board's pass over the units writes each one's `steering.Pace` — the cost
   and the slope of the cell under it — and the world's velocity pass multiplies the speed by it,
@@ -342,8 +382,16 @@ the moment's subject — a `Sighting`'s nearest seen; an aimed command fails whi
 names nobody — and `steering.Turn{Angle}`. The vision demo's hunter and prey are written so:
 
 ```go
-rule.Then[vision.Sighting]("chase", rule.Other(prey), rule.Order(steering.Toward{}))
-rule.Then[vision.Sighting]("give way", rule.All, rule.If(vision.Sighting.Closing, rule.Order(steering.Away{})))
+rule.Branch[vision.Sighting]{
+	Name: "chase",
+	When: vision.Seeing(prey),
+	Do:   rule.Order(steering.Toward{}),
+}
+rule.Branch[vision.Sighting]{
+	Name: "give way",
+	When: vision.Sighting.Closing,
+	Do:   rule.Order(steering.Away{}),
+}
 ```
 
 A switch of a behaviour for the whole game is an effect on the world (`rule.Cast`, `Lift` or
@@ -356,8 +404,9 @@ frame. They read a component and decide nothing in the game.
 **A state of the ground.** A cell stays the kind it is; an effect on it turns the kind's knobs
 (`g.Kind.Allows`, `Cost`) and is drawn as a cover, `board.Plugin.Covering(e)` — a texture a state,
 laid along a line of its own. A rule asks for the state under a unit, not for a kind:
-`rule.If(unit.Over(iced), rule.Keep(slip))`. Which cells take which state is a role they play:
-`rule.Around(1, rule.OneOf(rule.Playing(lake, rule.Apply(iced)), rule.Apply(frost)))`.
+`When: unit.Over(iced), Do: rule.Keep(slip)`. Which cells take which state is a role they play:
+`rule.Around(1, rule.OneOf(rule.Branch[any]{When: rule.Playing(lake), Do: rule.Apply(iced)},
+rule.Apply(frost)))`.
 
 **The look of a state.** A state is an effect: what it does to the knobs, and its marker. How an
 entity looks under it is the kind's, settled at drawing: `frozen.Look(witch.SpriteID())` is the
@@ -379,8 +428,9 @@ freezes in its own look).
 Many rules may touch one effect, from several plugins. What happens is fixed:
 
 - A rule that `Keep`s an effect someone `Dispel`led has it back the step after: its cause goes on,
-  so the effect does. A dispeller that is to win casts a shield the keeper checks —
-  `rule.Steps(rule.Apply(doused), rule.Dispel(burning))` against `rule.Unless(doused, rule.Keep(burning))`.
+  so the effect does. A dispeller that is to win casts a shield the keeper keeps free of —
+  `rule.Steps(rule.Apply(doused), rule.Dispel(burning))` against `rule.Branch[any]{When:
+  rule.Free(doused), Do: rule.Keep(burning)}`.
 - A plan's `Keep` gives way when someone else takes its effect off: the branch fails and the plan
   goes on to what it does next.
 - A cast after a `Dispel` in the same step takes the slot back.
@@ -404,8 +454,8 @@ gives up an order that makes no headway, whatever the rules and the plans do.
    `Mind` only; name the commands and handle them in the plugin (a `CommandHandler`'s queue),
    carrying them out for the entity that gives them, the engine's own rules inside; tell what came
    of them as facts.
-3. Write the plan from short named branches and give it to the kinds. A plan holds at most
-   `MaxSteps` (128) steps.
+3. Write the plan from short named branches (`rule.Plan`) and give it to the kinds. A plan holds
+   at most 128 steps.
 4. Keep the defaults a plugin gives its own host unexported; a game adds its own as roles its
    kinds play.
 5. Test the scenario as ticks: who is where, which facts, which commands, until it ends.
@@ -417,28 +467,41 @@ never stepped into water, off a cliff or into a wall); the rules decide:
 
 ```go
 func makeWay() rule.Rule {
-	return rule.Then[Touch]("navigation.make way", rule.All, rule.If(Touch.PushedByAlly, rule.Order(StepAside{})))
+	return rule.Branch[Touch]{
+		Name: "navigation.make way",
+		When: Touch.PushedByAlly,
+		Do:   rule.Order(StepAside{}),
+	}
 }
 
 func joinTheGroup() rule.Rule {
-	return rule.Then[Touch]("navigation.join the group", rule.All, rule.If(Touch.ReachedTheGroup, rule.Order(Stop{})))
+	return rule.Branch[Touch]{
+		Name: "navigation.join the group",
+		When: Touch.ReachedTheGroup,
+		Do:   rule.Order(Stop{}),
+	}
 }
 
 func goRound() rule.Rule {
-	return rule.Then[Touch]("navigation.go round", rule.All, rule.OneOf(
-			rule.If(Touch.GoalTaken, rule.Order(Settle{})),
-			rule.If(Touch.WaitsFirst, rule.Order(Hold{})),
-			rule.If(Touch.NoWayRound, rule.Order(StepAside{})),
-			rule.If(Touch.ClearsTheWay, rule.Order(Pass{})),
-			rule.If(Touch.Blocks, rule.Order(Detour{})),
-		))
+	return rule.Branch[Touch]{
+		Name: "navigation.go round",
+		Do: rule.OneOf(
+			rule.Branch[Touch]{When: Touch.GoalTaken, Do: rule.Order(Settle{})},
+			rule.Branch[Touch]{When: Touch.WaitsFirst, Do: rule.Order(Hold{})},
+			rule.Branch[Touch]{When: Touch.NoWayRound, Do: rule.Order(StepAside{})},
+			rule.Branch[Touch]{When: Touch.ClearsTheWay, Do: rule.Order(Pass{})},
+			rule.Branch[Touch]{When: Touch.Blocks, Do: rule.Order(Detour{})},
+		),
+	}
 }
 ```
 
 `StepAside`, `Pass`, `Detour` and `Settle` are `Aimed`: each is told the moment's subject, the
 unit touched. A game adds its own rules as a role's, for the units playing it —
-`roles.Define(GuardRole, rule.Then[Touch]("hold the line", rule.All, …))` — or gives its own set in place
-of the crowd's with `WithCrowd`.
+`roles.Define(GuardRole, rule.Branch[Touch]{Name: "hold the line", …})` — or gives its own set in
+place of the crowd's with `WithCrowd`. What a unit does over time is its plan: the guard demo's
+guards patrol, step aside when blocked long, rest where they arrive and run to the gate while the
+alarm is on (above, "One brick").
 
 ## A game: states as effects
 
@@ -449,7 +512,7 @@ A game built on the plugins is written in three parts, and none of them is Go co
    One effect may lead to the next (`Then`).
 2. **Rules connect.** A rule turns a plugin's moment — a touch, a sighting, where one
    stands — into effects: `Apply`, `Keep`, `Dispel`, narrowed by a marker (`rule.Self`,
-   `rule.Between`) or obeyed by a role, guarded by another (`Unless`), now and then (`Chance`).
+   `rule.Other`) or obeyed by a role, guarded by another (`Free`), now and then (`Chance`).
 3. **Plugins give knobs.** What an effect changes is a component a plugin reads — `Steering`,
    `Sight`, a cell's `Ground`, `collision.Physics`, `Appearance` — turned by the effect's `Alter`
    and put back when it ends. A plugin's own effects stay private; a game reaches it through its
@@ -473,16 +536,36 @@ burning, smouldering, doused := fx.Named(BurningEf), fx.Named(SmoulderingEf), fx
 // whatever can burn plays one role: the units' kinds and the kinds of cell alike
 roles.Define(FlammableRole,
 	// fire spreads to whom a burning one touches, now and then, unless they are wet
-	rule.Then[collision.Meeting]("fire spreads", rule.Between(burning.Mark(), tag.Any),
-		rule.ForOther(rule.Unless(doused, rule.Chance(0.3, rule.Apply(burning))))),
+	rule.Branch[collision.Meeting]{
+		Name: "fire spreads",
+		When: rule.Self(burning.Mark()),
+		Do: rule.ForOther(rule.Branch[any]{
+			When: rule.Free(doused),
+			Do:   rule.Chance(0.3, rule.Apply(burning)),
+		}),
+	},
 	// water puts a burning one out — nothing smoulders then — and the wet do not catch fire for a
 	// while; one on dry ground sets it alight now and then
-	rule.Then[unit.Standing]("where it burns", rule.Self(burning.Mark()), rule.OneOf(
-			rule.If(inWater, rule.Steps(rule.Apply(doused), rule.Dispel(burning))),
+	rule.Branch[unit.Standing]{
+		Name: "where it burns",
+		When: rule.Self(burning.Mark()),
+		Do: rule.OneOf(
+			rule.Branch[unit.Standing]{
+				When: inWater,
+				Do:   rule.Steps(rule.Apply(doused), rule.Dispel(burning)),
+			},
 			rule.Here(rule.Chance(0.1, rule.Apply(burning))),
-		)),
+		),
+	},
 	// burning ground sets the cells round it alight now and then — not one burning or burnt out
-	rule.Then[cell.Now]("fire spreads over the ground", rule.Self(burning.Mark()), rule.Around(1, rule.Unless(burning, rule.Unless(smouldering, rule.Chance(0.05, rule.Apply(burning)))))),
+	rule.Branch[cell.Now]{
+		Name: "fire spreads over the ground",
+		When: rule.Self(burning.Mark()),
+		Do: rule.Around(1, rule.Branch[any]{
+			When: rule.Free(burning, smouldering),
+			Do:   rule.Chance(0.05, rule.Apply(burning)),
+		}),
+	},
 )
 kinds.Define("grass", cell.Kind{Cost: 2, Allows: cell.Land}, roles.Named(FlammableRole))
 kinds.Define("forest", cell.Kind{Cost: 3, Allows: cell.Land}, roles.Named(FlammableRole))
@@ -497,7 +580,7 @@ passed over. `Around` takes in the places stood on too — a cell itself — so 
 keeps off what burns already, or a cell would keep itself burning for ever.
 
 Another plugin, added later, adds its own rules for fire — vision's units flee from
-`rule.Between(tag.Any, burning.Mark())` — without touching these: the marker is the common word.
+`rule.Other(burning.Mark())` — without touching these: the marker is the common word.
 
 Where a rule cannot say what the game needs, a moment, a step or a knob is missing; it is added
 to the plugin, not written as code in a rule. Fire showed three, added on 2026-10-01: the steps
@@ -512,6 +595,6 @@ messages, fit to replay and to send over a network.
 
 Not yet there: which effects a player may apply (any, today, on whatever a command names
 — a game over a network will want a list); an effect taking a tag off while it runs (a
-`Revoke` beside `Grant`); filters joined (`rule.Self(x)` and `Having[T]` at once); `Here` and
-`Around` in plans; a step shared by the moments of several plugins; more than `MaxEffects` (8)
+`Revoke` beside `Grant`); `Here` and `Around` in plans; a step shared by the moments of several
+plugins; more than `MaxEffects` (8)
 effects on one entity and 63 defined; an entity in more than one group.

@@ -18,8 +18,6 @@ import (
 	"github.com/kjkrol/gram/rule"
 )
 
-// hookStage uses the plugins before, the world, the plugins after, and seeds one walker playing
-// roles: the engine hands their rules to the plugins' hosts once Init returns.
 type hookStage struct {
 	plays         []role // the roles the walker plays, defined in the Stage's world
 	before, after []plugin.Plugin
@@ -85,7 +83,6 @@ func (s *hookStage) Stack() game.Scenes {
 	return s.stack
 }
 
-// living is how many entities with a world.Base the Stage's ECS holds.
 func (s *hookStage) living() int {
 	n := 0
 	for s.query.All(); s.query.Next(); {
@@ -94,8 +91,6 @@ func (s *hookStage) living() int {
 	return n
 }
 
-// runHookStage enters s and ticks its ECS twice at the engine's step, the walker counted after
-// Init and after the ticks.
 func runHookStage(t *testing.T, s *hookStage) (before, after int) {
 	t.Helper()
 	eng := NewEngine(oneStageGame{stage: s})
@@ -109,12 +104,10 @@ func runHookStage(t *testing.T, s *hookStage) (before, after int) {
 	return before, s.living()
 }
 
-// despawning is a rule of world.Moving: every entity gives itself a world.Despawn.
 func despawning() rule.Rule {
-	return rule.Then[world.Moving]("leave", rule.All, rule.Order(world.Despawn{}))
+	return rule.Branch[world.Moving]{Name: "leave", Do: rule.Order(world.Despawn{})}
 }
 
-// hostPlugin is a plugin whose host of rules notes every rule it is asked to take and answers err.
 type hostPlugin struct {
 	stubPlugin
 	err   error
@@ -131,20 +124,15 @@ func (p *hostPlugin) Add(r any) error {
 	return p.err
 }
 
-// unhostedMoment is a moment no plugin catches.
 type unhostedMoment struct{}
 
-// role is a role for the Stage to define: its name and the rules its players obey.
 type role struct {
 	name  string
 	rules []rule.Rule
 }
 
-// leaver is a role whose players despawn.
 func leaver() role { return role{"leaver", []rule.Rule{despawning()}} }
 
-// A role a kind plays reaches the host of its rule's moment once Init returns: the rule runs
-// though the Stage handed nothing over.
 func TestEngine_DeliversTheRolesItsKindsPlay(t *testing.T) {
 	before, after := runHookStage(t, &hookStage{plays: []role{leaver()}})
 
@@ -153,7 +141,6 @@ func TestEngine_DeliversTheRolesItsKindsPlay(t *testing.T) {
 	}
 }
 
-// The role's rule is for its players alone: a walker playing another role, or none, stays.
 func TestEngine_ARolesRuleIsForItsPlayersAlone(t *testing.T) {
 	for name, plays := range map[string][]role{
 		"playing another": {{name: "hook immortal"}},
@@ -165,10 +152,11 @@ func TestEngine_ARolesRuleIsForItsPlayersAlone(t *testing.T) {
 	}
 }
 
-// A played role whose rule no plugin in use catches fails the Stage's Init, naming the rule and
-// its role.
 func TestEngine_RefusesAPlayedRoleNobodyHosts(t *testing.T) {
-	lost := role{"lost soul", []rule.Rule{rule.Then[unhostedMoment]("lost", rule.All, rule.Order(world.Despawn{}))}}
+	lost := role{"lost soul", []rule.Rule{rule.Branch[unhostedMoment]{
+		Name: "lost",
+		Do:   rule.Order(world.Despawn{}),
+	}}}
 	eng := NewEngine(oneStageGame{stage: &hookStage{before: []plugin.Plugin{&stubPlugin{name: "test.plain"}}, plays: []role{lost}}})
 	err := eng.Init()
 	if !errors.Is(err, plugin.ErrUnhosted) {
@@ -184,8 +172,7 @@ func TestEngine_RefusesAPlayedRoleNobodyHosts(t *testing.T) {
 	}
 }
 
-// The hosts are tried in the order their plugins were used, the next while one refuses the
-// moment; any other error stops the delivery and fails Init.
+// The next host is tried while one refuses the moment; any other error fails Init.
 func TestEngine_TriesTheHostsInUseOrder(t *testing.T) {
 	t.Run("a host refusing the moment is skipped", func(t *testing.T) {
 		refusing := &hostPlugin{stubPlugin: stubPlugin{name: "test.refusing"}, err: fmt.Errorf("%w: not mine", plugin.ErrUnhosted)}

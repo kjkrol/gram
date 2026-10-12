@@ -125,25 +125,23 @@ func (s *arena) defineEffects() {
 }
 
 func (s *arena) defineRoles() {
-	s.world.Roles().Define(PlateRole,
-		rule.Then[collision.Meeting]("press", rule.All, rule.Trigger()))
-	s.world.Roles().Define(LeverRole)
-	s.world.Roles().Define(HastyRole)
-	s.world.Roles().Define(HandyRole,
-		rule.Then[unit.Standing](
-			"pull the lever beside",
-			rule.All,
-			rule.Under(
-				s.world.Effects().Named(PullEf),
-				rule.Around(1, rule.Playing(s.world.Roles().Named(LeverRole), rule.Trigger())),
-			),
-		))
-	s.world.Roles().Define(MortalRole,
-		rule.Then[unit.Standing](
-			"fall in",
-			rule.All,
-			rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{})),
-		))
+	roles := s.world.Roles()
+	roles.Define(PlateRole, rule.Branch[collision.Meeting]{Name: "press", Do: rule.Trigger()})
+	roles.Define(LeverRole)
+	roles.Define(HastyRole)
+	roles.Define(HandyRole, rule.Branch[unit.Standing]{
+		Name: "pull the lever beside",
+		When: rule.Under(s.world.Effects().Named(PullEf)),
+		Do: rule.Around(1, rule.Branch[any]{
+			When: rule.Playing(roles.Named(LeverRole)),
+			Do:   rule.Trigger(),
+		}),
+	})
+	roles.Define(MortalRole, rule.Branch[unit.Standing]{
+		Name: "fall in",
+		When: unit.Standing.Fallen,
+		Do:   rule.Order(world.Despawn{}),
+	})
 }
 
 func (s *arena) defineCommands() {
@@ -216,7 +214,6 @@ func (s *arena) defineKinds() {
 		),
 	)
 	units.Define(PorterKind, land, laden, rule.Plays(s.world.Roles().Named(MortalRole)))
-	// a wanderer walks to the other end of its row and back, a second's rest at each end
 	units.Define(
 		WandererKind,
 		land,

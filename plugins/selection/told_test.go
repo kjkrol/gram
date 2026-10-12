@@ -22,8 +22,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// camp is four units of one kind that carries nothing of the selection or of the players: what
-// they are — whose, selectable — they are told as they are made.
 type camp struct {
 	t       *testing.T
 	w       *world.Plugin
@@ -54,7 +52,7 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	c.sel = selection.NewPlugin(c.w)
 	c.players = players.NewPlugin(c.w, c.sel)
 	c.one, c.two = c.players.Local("one"), c.players.Add("two")
-	c.players.Through(c.one).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(1000, 1000, 0, camera.Config{}), nil)) // the whole world on the screen
+	c.players.Through(c.one).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(1000, 1000, 0, camera.Config{}), nil))
 	c.w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
 	c.haste = c.w.Effects().Named("haste")
 	c.w.Seed(entries(c, unit)...)
@@ -91,7 +89,6 @@ func (c *camp) tick() {
 	}
 }
 
-// ids are the units by where they stand.
 func (c *camp) ids() map[float64]uid.UID64 {
 	out := map[float64]uid.UID64{}
 	for c.q.All(); c.q.Next(); {
@@ -103,8 +100,6 @@ func (c *camp) ids() map[float64]uid.UID64 {
 	return out
 }
 
-// reached are the units, by where they stand, that by reaches: it selects everything and casts
-// haste on what it has selected; the haste is lifted again after.
 func (c *camp) reached(by control.PlayerID) map[float64]bool {
 	c.t.Helper()
 	everywhere := geom.NewAABBAt(geom.NewVec(0, 0), 1000, 1000)
@@ -137,8 +132,6 @@ func only(got map[float64]bool, want ...float64) bool {
 	return true
 }
 
-// A unit is whose its entry tells it and selectable where told so: each player reaches its own,
-// nobody the ownerless one, and no one the unit never allowed.
 func TestTold_AUnitIsWhoseAndSelectableAsItsEntrySays(t *testing.T) {
 	c := newCamp(t, func(c *camp, unit kind.Of[float64]) []kind.Entry {
 		return []kind.Entry{
@@ -159,7 +152,6 @@ func TestTold_AUnitIsWhoseAndSelectableAsItsEntrySays(t *testing.T) {
 	}
 }
 
-// A unit gives itself away and forbids its own selection mid-game by the same commands.
 func TestGiveAndForbid_ChangeAUnitMidGame(t *testing.T) {
 	c := newCamp(t, func(c *camp, unit kind.Of[float64]) []kind.Entry {
 		return []kind.Entry{
@@ -179,7 +171,6 @@ func TestGiveAndForbid_ChangeAUnitMidGame(t *testing.T) {
 	}
 }
 
-// Allow with Selected has the unit selected from the start.
 func TestAllow_SelectedSelectsAtOnce(t *testing.T) {
 	c := newCamp(t, func(c *camp, unit kind.Of[float64]) []kind.Entry {
 		return []kind.Entry{
@@ -195,7 +186,6 @@ func TestAllow_SelectedSelectsAtOnce(t *testing.T) {
 	}
 }
 
-// An entry telling its entity a command no plugin in use carries out is refused as it is seeded.
 func TestTold_ACommandNobodyCarriesOutIsRefused(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},

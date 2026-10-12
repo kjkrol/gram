@@ -15,16 +15,14 @@ import (
 
 var _ goke.Module = (*module)(nil)
 
-// module runs, in the simulation, the cells — what effects changed, what is built over them — the
-// occupancy's upkeep and the rules of where units stand and of the cells.
 type module struct {
 	cells     goke.System
 	built     goke.System
 	standing  goke.System
 	keep      goke.System
 	cellRules goke.System
-	clock     *clock.Clock   // the world's; nil, run at once
-	template  *kind.Template // the world's roster's for cells, whose components the saves carry
+	clock     *clock.Clock // nil: run at once
+	template  *kind.Template
 
 	cellsRunnable     goke.Runnable
 	builtRunnable     goke.Runnable
@@ -32,10 +30,6 @@ type module struct {
 	keepRunnable      goke.Runnable
 	cellRulesRunnable goke.Runnable
 }
-
-// =================================================================
-// goke.Module contract
-// =================================================================
 
 func (m *module) RegSystems(ecs *goke.ECS) {
 	m.cellsRunnable = ecs.RegSys(m.cells) // first: it makes or finds the cells
@@ -45,7 +39,6 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	m.cellRulesRunnable = ecs.RegSys(m.cellRules)
 }
 
-// RunPlan hands the board's work to the simulation.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
 		ctx.Run(m.cellsRunnable, step)
@@ -57,14 +50,11 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	})
 }
 
-// SetupSystems is empty — the cells build themselves in their own Init, the occupancy's upkeep
-// seeds it in its own.
 func (m *module) SetupSystems() []goke.System { return nil }
 
-// LoadComps lists the component types board writes or reads, so a save loads without the vision
-// and effects plugins — see [goke.CompProvider].
+// the component types a save loads without the vision and effects plugins
 func (m *module) LoadComps() []goke.CompToken {
-	var templated []goke.CompToken // what the world's plugins give every cell
+	var templated []goke.CompToken
 	if m.template != nil {
 		for _, c := range m.template.Spec() {
 			templated = append(templated, c.LoadToken())

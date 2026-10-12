@@ -29,15 +29,13 @@ func unpackAxial(c cell.ID) (q, r int32) {
 	return int32(uint32(c >> 32)), int32(uint32(c))
 }
 
-// foldAxial folds q along a wrapping X and r along a wrapping Y; false outside a non-wrapping axis.
 func (g *Hex) foldAxial(q, r int32) (int32, int32, bool) {
 	fq, okQ := foldAxis(int64(q), int64(g.Width), g.WrapX)
 	fr, okR := foldAxis(int64(r), int64(g.Height), g.WrapY)
 	return int32(fq), int32(fr), okQ && okR
 }
 
-// hexDirs are the hex grid's directions in axial q, r: east, north-east, north-west, west,
-// south-west, south-east — round the hex against the clock, y running down the screen.
+// axial q, r: east, north-east, north-west, west, south-west, south-east; y runs down the screen
 var hexDirs = [6][2]int32{{1, 0}, {1, -1}, {0, -1}, {-1, 0}, {-1, 1}, {0, 1}}
 
 func (g *Hex) Directions() int { return len(hexDirs) }
@@ -117,7 +115,7 @@ func (g *Hex) CellOutline(c cell.ID, dst []geom.Vec) []geom.Vec {
 
 func (g *Hex) CellsUnder(box geom.AABB, fn func(c cell.ID)) { cellsUnder(g, box, fn) }
 
-// capStrips is how many boxes cover each pointed end of a hex; more is a closer fit.
+// boxes over each pointed end of a hex; more is a closer fit
 const capStrips = 3
 
 // CellBoxes covers the hex from outside: its middle band, then strips over each cap as wide as
@@ -208,7 +206,6 @@ func (g *Hex) Distance(a, b cell.ID) float64 {
 	return best
 }
 
-// axialRound snaps fractional cube coordinates to the nearest valid hex.
 func axialRound(qf, rf float64) (int32, int32) {
 	xf, zf := qf, rf
 	yf := -xf - zf

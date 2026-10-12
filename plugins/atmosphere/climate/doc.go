@@ -1,43 +1,28 @@
 // Package climate is the climate of a world: where in the world it lies, and the weather that
-// goes by there — the wind, the clouds, rain and snow, the temperature.
+// goes by there.
 //
-// # Zones
+// # Zone
 //
-// A [Zone] is where a climate lies: its Latitude, degrees from the equator, which above all sets
-// how warm it is and how its seasons go, and other [Factor]s that shape it on top — a [SeaCurrent]
-// warming or cooling it, a [DrySummer] — which a game adds to as its world needs. [Zone.Profile]
-// is the climate in numbers: the year's mean temperature, how far summer and winter go above and
-// below it, how far day and night, how wet each season is. [Equatorial], [Tropical],
-// [Mediterranean], [Temperate], [Cold] and [Polar] are the world's zones from the equator to the
-// pole; [Temperate] is central Europe and southern Scandinavia before the warming.
+// A [Zone] is where a climate lies: its latitude, and [Factor]s that shape it on top — a
+// [SeaCurrent], a [DrySummer], a game's own. [Zone.Profile] is the climate in numbers.
+// [Equatorial], [Tropical], [Mediterranean], [Temperate], [Cold] and [Polar] are the world's
+// zones from the equator to the pole.
 //
-// # Weather
+// # Climate
 //
-// [New] takes the world, the calendar and the [Config] — the Zone, the weathers the climate goes
-// through (package weather: its [weather.State]s, [weather.Default] when none), the one a fresh
-// game begins in, the seed of its dice and how long the air takes to settle into a new weather.
-// The weather now is a [Weather] on its own entity, made at Setup or found after a load, so it is
-// saved with the game, dice and all: the same seed gives the same weather. It goes by in the
-// simulation's time — [Climate.System] runs in every step, under the clock's tempo, standing in
-// the tactical pause — on the calendar's day and season. Every step it counts its weather down
-// and throws the next from its weights, how likely each comes in the season and, for one that
-// brings rain or snow, how wet the zone has the season; brings the wind, the clouds, what falls
-// and the temperature — the zone's for the time of year and the hour, and the weather's own
-// Warmth — towards the weather's, the wind's way wandering slowly; carries the clouds on the wind;
-// lets what falls come down as snow below 1°C and as rain above; and keeps the air as it stands
-// ([Climate.Air], an air.Weather), which the renderers draw: the clouds' shadows drifting over the
-// ground, the sea as rough as the wind, whatever sways swaying. A weather's wind, cloud cover and
-// heaps are thrown within its State's ranges as it comes. A fresh game begins in the Start
-// weather, or in one thrown as the zone and the season have them. [Climate.SetRunning] stops what
-// of it a game wants still ([Running]: the changes, the wind, the clouds, what falls), the air
-// left without it, the weather going on underneath.
+// [New] takes the world, the calendar and a [Config]: the zone, the weathers the climate goes
+// through ([weather.State]s), the one a fresh game begins in and the seed of its dice. The
+// weather now is a [Weather] on its own entity, saved with the game; [Climate.System] moves it on
+// in every step of the simulation, throwing the next weather as one runs out and blending the
+// wind, the clouds, what falls and the temperature towards it. [Climate.Air] is the air as the
+// last step left it, for whoever draws. [Climate.Change] goes on to the next weather,
+// [Climate.Set] into a named one; [Climate.SetRunning] stops what of it a game wants still
+// ([Running]).
 //
-// [Climate.Host] hosts a rule (rule.Then) told the weather and the season ([Weathering]) once a
-// step, about the world's own entity: an effect it applies is a state of the whole game. A moment
-// of the world as a whole (plugin.StepRules), its rule takes no filter and fires while the
-// atmosphere plays its role. [Climate.Change] goes on to the next weather at the next step,
-// [Climate.Set] into a named one: what the atmosphere's commands ChangeWeather (Shift+W) and
-// SetWeather ask.
-// [Climate.Reporter] adds the weather to the telemetry. The atmosphere plugin (plugins/atmosphere)
-// puts it all together.
+// # Weathering
+//
+// [Climate.Rules] hosts rules of a [Weathering], told the weather and the season once a step
+// about the atmosphere's own entity: they fire while the atmosphere plays their role.
+//
+// [Climate.Reporter] adds the weather to a scene's telemetry.
 package climate

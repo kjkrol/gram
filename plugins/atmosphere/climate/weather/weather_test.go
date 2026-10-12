@@ -18,7 +18,6 @@ func TestState_ComesAsLikelyAsItsSeasonSays(t *testing.T) {
 	}
 }
 
-// named is the default weather called name.
 func named(name string) weather.State {
 	for _, s := range weather.Default {
 		if s.Name == name {

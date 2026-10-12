@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// named says each pinned entity's name, and nothing for one it does not know.
 type named map[uid.UID64]string
 
 func (n named) Text(of uid.UID64, pinned bool) (string, bool) {
@@ -16,7 +15,6 @@ func (n named) Text(of uid.UID64, pinned bool) (string, bool) {
 	return s, ok && pinned
 }
 
-// silent says nothing.
 type silent struct{}
 
 func (silent) Text(uid.UID64, bool) (string, bool) { return "", false }
@@ -55,7 +53,6 @@ func TestText_AnElementLeftOutTakesNoRoomAndIsNotHit(t *testing.T) {
 	}
 }
 
-// answer is a command of a plugin's own for the entity the element giving it is pinned to.
 type answer struct{ to uid.UID64 }
 
 func (answer) Command() {}

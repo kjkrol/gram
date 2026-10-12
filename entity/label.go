@@ -9,15 +9,13 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Label is what an entity is called: its own name, borne by it alone, and the group it is in,
-// with any number of others — each hashed, zero for none. A cell gets one from its cell.Entry, a
-// unit from its kind.Entry; commands find their entities by it (Named, Group).
+// Label is what an entity is called: its own name, borne by it alone, and the group it is in
+// with others, each hashed, zero for none.
 type Label struct{ Name, Group uint64 }
 
 // LabelOf is the Label of an entity named name in the group group, either empty for none.
 func LabelOf(name, group string) Label { return Label{Name: hashed(name), Group: hashed(group)} }
 
-// hashed is a name as a Label keeps it; none for the empty name.
 func hashed(name string) uint64 {
 	if name == "" {
 		return 0
@@ -57,8 +55,7 @@ func Group(names ...string) Whom {
 	return w
 }
 
-// ID are the entities of these identifiers: what the game's code knows of an entity — a ui
-// element pinned to it — where it has no name.
+// ID are the entities of these identifiers, for one that has no name.
 func ID(ids ...uid.UID64) Whom {
 	w := Whom{}
 	for _, id := range ids {

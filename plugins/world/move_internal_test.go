@@ -24,12 +24,10 @@ func testSpace(t *testing.T) *aabbworld.Space {
 	return space
 }
 
-// testHandles bundles the component handles a test needs to read back after ticking.
 type testHandles struct {
 	base *goke.Comp[Base]
 }
 
-// newTestWorld seeds one side x side entity moving at vel under the world's move system.
 func newTestWorld(t *testing.T, vel Velocity, side float64) (*goke.ECS, *goke.Query, testHandles) {
 	t.Helper()
 	ecs, q, h, _ := newTestWorldIn(t, testSpace(t), vel, side)

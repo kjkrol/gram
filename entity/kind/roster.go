@@ -9,8 +9,7 @@ import (
 )
 
 // Roster is what a world's plugins ask of the entities a game makes, gathered as the plugins are
-// made: a unit's kind built through Unit hears at once what it left out; every cell a board makes
-// carries Cell's defaults.
+// made: of a unit's kind, and of every cell a board makes.
 type Roster struct{ Unit, Cell Template }
 
 // NewRoster is an empty roster; a world makes one and its plugins fill it.

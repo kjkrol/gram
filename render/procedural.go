@@ -5,14 +5,14 @@ import (
 	"math"
 )
 
-// Solid returns a SpriteDrawer filling the whole sprite with c.
+// Solid is a SpriteDrawer filling the whole sprite with c.
 func Solid(c color.RGBA) SpriteDrawer {
 	return func(dst *Canvas, size int) {
 		dst.FillRect(0, 0, float32(size), float32(size), c)
 	}
 }
 
-// Border returns a SpriteDrawer outlining the sprite with c, transparent inside.
+// Border is a SpriteDrawer outlining the sprite with c, transparent inside.
 func Border(c color.RGBA) SpriteDrawer {
 	return func(dst *Canvas, size int) {
 		for y := 0; y < size; y++ {
@@ -25,7 +25,7 @@ func Border(c color.RGBA) SpriteDrawer {
 	}
 }
 
-// Diamond returns a SpriteDrawer filling a diamond shape with c, transparent outside.
+// Diamond is a SpriteDrawer filling a diamond with c, transparent outside.
 func Diamond(c color.RGBA) SpriteDrawer {
 	return func(dst *Canvas, size int) {
 		cx, cy := size/2, size/2
@@ -39,7 +39,7 @@ func Diamond(c color.RGBA) SpriteDrawer {
 	}
 }
 
-// Cross returns a SpriteDrawer filling a cross shape with c, transparent outside.
+// Cross is a SpriteDrawer filling a cross with c, transparent outside.
 func Cross(c color.RGBA) SpriteDrawer {
 	return func(dst *Canvas, size int) {
 		for y := 0; y < size; y++ {
@@ -54,8 +54,8 @@ func Cross(c color.RGBA) SpriteDrawer {
 	}
 }
 
-// Hexagon returns a SpriteDrawer filling a pointy-top hexagon with c, transparent at the corners;
-// drawn over a cell of width √3·r and height 2·r it is regular.
+// Hexagon is a SpriteDrawer filling a pointy-top hexagon with c, transparent at the corners.
+// Drawn over a cell of width √3·r and height 2·r it is regular.
 func Hexagon(c color.RGBA) SpriteDrawer {
 	return func(dst *Canvas, size int) {
 		half := float64(size) / 2

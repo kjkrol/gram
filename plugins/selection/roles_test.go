@@ -25,7 +25,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// soldier is a roles test's unit: its kind (which roles it plays), whose it is, whether it is selected.
 type soldier struct {
 	name     string
 	kind     string
@@ -34,8 +33,6 @@ type soldier struct {
 	selected bool
 }
 
-// squad is a stage of world, selection and players whose kinds play roles — scouts hasty, guards
-// mortal, veterans both, peasants none — run through the plugins' Install, Setup and RunPlan.
 type squad struct {
 	t             *testing.T
 	w             *world.Plugin
@@ -43,7 +40,7 @@ type squad struct {
 	players       *players.Plugin
 	me, rival     *players.Player
 	haste, rally  effect.Effect
-	names         map[effect.Effect]string // the effects' names, for messages
+	names         map[effect.Effect]string
 	mortal, hasty *rule.Part
 	kinds         map[string]kind.Of[soldier]
 	ecs           *goke.ECS
@@ -61,7 +58,7 @@ func newSquad(t *testing.T) *squad {
 	sel := selection.NewPlugin(w)
 	s := &squad{t: t, w: w, sel: sel, players: players.NewPlugin(w, sel), kinds: map[string]kind.Of[soldier]{}}
 	s.me, s.rival = s.players.Local("me"), s.players.Add("rival")
-	s.players.Through(s.me).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(1000, 1000, 0, camera.Config{}), nil)) // the whole world on the screen
+	s.players.Through(s.me).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(1000, 1000, 0, camera.Config{}), nil))
 	w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
 	s.haste = w.Effects().Named("haste")
 	w.Effects().Define("rally", effect.Spec{effect.Lasts(time.Hour)})
@@ -99,7 +96,6 @@ func newSquad(t *testing.T) *squad {
 	return s
 }
 
-// start binds bindings for me, seeds soldiers and installs the plugins — call once.
 func (s *squad) start(soldiers []soldier, bindings ...control.Binding) {
 	s.t.Helper()
 	if err := s.me.Bind(bindings...); err != nil {
@@ -134,7 +130,6 @@ func (s *squad) start(soldiers []soldier, bindings ...control.Binding) {
 	})
 }
 
-// issue gives cmd as me and ticks it through.
 func (s *squad) issue(cmd control.Command) {
 	s.t.Helper()
 	if err := s.players.Issue(s.me, cmd); err != nil {
@@ -143,7 +138,6 @@ func (s *squad) issue(cmd control.Command) {
 	s.tick()
 }
 
-// press presses key at the keyboard and ticks what it issued through.
 func (s *squad) press(key control.Key) {
 	events := &control.InputEvents{}
 	events.AddKeyEvent(key, control.ActionPress)
@@ -157,7 +151,6 @@ func (s *squad) tick() {
 	}
 }
 
-// under is the names of the soldiers e is on.
 func (s *squad) under(e effect.Effect) map[string]bool {
 	byX := map[float64]uid.UID64{}
 	for s.q.All(); s.q.Next(); {
@@ -179,7 +172,6 @@ func (s *squad) under(e effect.Effect) map[string]bool {
 	return on
 }
 
-// expect fails for every soldier e is on and not listed in want, or listed and not under it.
 func (s *squad) expect(e effect.Effect, want ...string) {
 	s.t.Helper()
 	got := s.under(e)
@@ -194,8 +186,6 @@ func (s *squad) expect(e effect.Effect, want ...string) {
 	}
 }
 
-// soldiers of me and of the rival: every kind selected, a scout and a veteran not, and the rival's
-// scout and veteran selected.
 func roster(me, rival control.PlayerID) []soldier {
 	return []soldier{
 		{name: "my scout", kind: "scout", x: 100, by: me, selected: true},
@@ -209,8 +199,6 @@ func roster(me, rival control.PlayerID) []soldier {
 	}
 }
 
-// A command for the selected, no role named, casts on every selected unit of mine whatever it
-// plays — none too.
 func TestSelected_WithoutARoleIsEverySelectedUnitOfMine(t *testing.T) {
 	s := newSquad(t)
 	s.start(roster(s.me.ID, s.rival.ID))
@@ -218,8 +206,6 @@ func TestSelected_WithoutARoleIsEverySelectedUnitOfMine(t *testing.T) {
 	s.expect(s.haste, "my scout", "my guard", "my veteran", "my peasant")
 }
 
-// A command for the selected playing a role casts on my selected units playing it alone: not on
-// those playing another role or none, not on my unselected ones, not on the rival's.
 func TestSelected_OfARoleIsMySelectedUnitsPlayingIt(t *testing.T) {
 	for _, c := range []struct {
 		name  string
@@ -238,7 +224,6 @@ func TestSelected_OfARoleIsMySelectedUnitsPlayingIt(t *testing.T) {
 	}
 }
 
-// A command bound to a key is given at the key: on my selected units playing its role alone.
 func TestSelected_AKeyGivesTheCommand(t *testing.T) {
 	s := newSquad(t)
 	s.start(roster(s.me.ID, s.rival.ID),
@@ -251,8 +236,6 @@ func TestSelected_AKeyGivesTheCommand(t *testing.T) {
 	s.expect(s.rally, "my guard", "my veteran")
 }
 
-// Lift takes the effect off the selected; Toggle takes it off where any of them is under it and
-// puts it on them all otherwise.
 func TestSelected_LiftAndToggle(t *testing.T) {
 	s := newSquad(t)
 	s.start(roster(s.me.ID, s.rival.ID))
@@ -266,9 +249,6 @@ func TestSelected_LiftAndToggle(t *testing.T) {
 	s.expect(s.haste, "my scout", "my peasant")
 }
 
-// A command for the one pointed at reaches the entity drawn under the cursor its key was pressed
-// with, whoever's it is and selected or not; pointing at nobody, or given without a cursor, it
-// reaches no one.
 func TestPointed_IsTheEntityUnderTheCursor(t *testing.T) {
 	s := newSquad(t)
 	s.start(roster(s.me.ID, s.rival.ID))
@@ -290,7 +270,6 @@ func TestPointed_IsTheEntityUnderTheCursor(t *testing.T) {
 	s.expect(s.haste, "the rival's scout", "my idle scout")
 }
 
-// named defines cmd in the world's register and hands it back as a key takes it.
 func (s *squad) named(name string, cmd rule.Command) rule.Command {
 	s.w.Commands().Define(name, cmd)
 	return s.w.Commands().Named(name)

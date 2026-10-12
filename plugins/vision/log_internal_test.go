@@ -9,7 +9,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// The log has a line the first time one entity sees another, and no more for the pair.
 func TestLog_WritesALineTheFirstTimeOneSeesAnother(t *testing.T) {
 	var out bytes.Buffer
 	s := &ScanSystem{log: log.New(&out, "", 0)}

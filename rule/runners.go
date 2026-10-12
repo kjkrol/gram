@@ -5,10 +5,6 @@ import (
 	"github.com/kjkrol/gram/plugin"
 )
 
-// The rules On builds, as the rule-driven systems of package plugin run them: every over every
-// entity (plugin.Rules) or once a step (plugin.StepRules), eachWith over those carrying a
-// component, pair over pairs (plugin.PairRules).
-
 type every[P any] struct {
 	label string
 	react func(plugin.Tick, P)
@@ -30,15 +26,12 @@ func (e *every[P]) RunEach(t plugin.Tick, cursor *goke.Cursor, keep func(i int) 
 
 func (e *every[P]) RunOnce(t plugin.Tick, about P) { e.react(t, about) }
 
-// state is a component a rule reads, its type erased: made by stateOf, bound to one system's
-// query.
 type state interface {
 	bind(cols *plugin.Columns)
 	present(cursor *goke.Cursor) bool
 	at(cursor *goke.Cursor, i int) any
 }
 
-// stateOf is the component T as a rule's state; the rule is handed a *T.
 func stateOf[T any]() state { return &stateCol[T]{} }
 
 type stateCol[T any] struct{ comp *goke.OptComp[T] }
@@ -47,12 +40,10 @@ func (s *stateCol[T]) bind(cols *plugin.Columns)         { s.comp = cols.Of[T]()
 func (s *stateCol[T]) present(cursor *goke.Cursor) bool  { return s.comp.Present(cursor) }
 func (s *stateCol[T]) at(cursor *goke.Cursor, i int) any { return &s.comp.Slice(cursor)[i] }
 
-// cond is a component an entity must carry for a rule over one entity to fire for it, and what
-// must hold of it (nil: carrying it is enough).
 type cond struct {
 	mk    func() state
 	s     state
-	holds func(state any) bool
+	holds func(state any) bool // nil: carrying it is enough
 }
 
 type eachWith[P any] struct {
@@ -61,7 +52,6 @@ type eachWith[P any] struct {
 	react func(plugin.Tick, P)
 }
 
-// newEachWith is the rule over the entities meeting every cond, each with a state of its own.
 func newEachWith[P any](label string, react func(plugin.Tick, P), conds ...cond) *eachWith[P] {
 	for i := range conds {
 		conds[i].s = conds[i].mk()
@@ -92,7 +82,6 @@ func (e *eachWith[P]) RunEach(t plugin.Tick, cursor *goke.Cursor, keep func(i in
 	}
 }
 
-// holds reports whether the i-th entity of the chunk meets every cond.
 func (e *eachWith[P]) holds(cursor *goke.Cursor, i int) bool {
 	for _, c := range e.conds {
 		if c.holds != nil && !c.holds(c.s.at(cursor, i)) {
@@ -102,9 +91,6 @@ func (e *eachWith[P]) holds(cursor *goke.Cursor, i int) bool {
 	return true
 }
 
-// played is a rule over every entity narrowed to roles alone: over entities it reads their tags
-// as any narrowed rule does, and once a step (plugin.StepRules) it fires while the moment's entity
-// plays the roles.
 type played[P any] struct {
 	*eachWith[P]
 	roles uint64
@@ -112,13 +98,12 @@ type played[P any] struct {
 
 func (p *played[P]) RunOnce(t plugin.Tick, about P) { p.react(t, about) }
 
-// OnceRoles are the roles the moment's entity must play, a bit each.
 func (p *played[P]) OnceRoles() uint64 { return p.roles }
 
 type pair[P any] struct {
 	label       string
 	self, other plugin.Side
-	within      []plugin.Side // more tags the pair's entity carries (a role's Obeys)
+	within      []plugin.Side
 	react       func(plugin.Tick, P)
 }
 

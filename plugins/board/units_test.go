@@ -19,7 +19,6 @@ import (
 
 type recruit struct{ start cell.ID }
 
-// unitsWorld is world + collision + board with one kind made by Units, populated and set up.
 func unitsWorld(t *testing.T, define func(units *board.Units[recruit]) kind.Of[recruit]) (*goke.ECS, *world.Plugin, grid.Grid) {
 	t.Helper()
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)

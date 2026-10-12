@@ -37,7 +37,6 @@ const (
 	EntitySize   = 24
 	UnitSpeed    = CellSize * 2
 
-	// gaitPeriod is how long one frame of the gait is shown, in game time.
 	gaitPeriod = 160 * time.Millisecond
 )
 

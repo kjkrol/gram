@@ -15,12 +15,8 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/plan"
 )
 
-// carrierStage is a world with collision and the players, and a leaver whose tree gives itself a
-// Despawn after a wait; with boxes, two boxes striking each other that give themselves one from a
-// rule of collision's — a pass after the world's, which drains Despawn.
 type carrierStage struct {
 	boxes     bool
 	world     *world.Plugin
@@ -41,18 +37,21 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: 3, MinSize: 10, MaxSize: 10},
 	})
 	s.collision = collision.NewPlugin(s.world)
-	s.world.Roles().Define("fragile", rule.Then[collision.Struck]("gone when struck", rule.All, rule.Order(world.Despawn{})))
+	s.world.Roles().Define("fragile", rule.Branch[collision.Struck]{
+		Name: "gone when struck",
+		Do:   rule.Order(world.Despawn{}),
+	})
 	fragile := s.world.Roles().Named("fragile")
 	at := func(x float64) world.Position {
 		return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
 	}
-	s.world.Plans().Define("leaver", func(a *plan.Actor) rule.Step {
-		return a.Steps(a.Wait(100*time.Millisecond), a.Order(world.Despawn{}))
-	})
 	kind.Define[float64](s.world.Kinds(), "leaver", kind.Spec{
 		comp.Load(at),
 		comp.Const(world.Velocity{}),
-		s.world.Plans().Named("leaver"),
+		rule.Plan("leaver", rule.Steps(
+			rule.Wait(100*time.Millisecond),
+			rule.Order(world.Despawn{}),
+		)),
 	})
 	s.leaver = kind.Named[float64](s.world.Kinds(), "leaver")
 	kind.Define[float64](s.world.Kinds(), "box", kind.Spec{
@@ -94,7 +93,6 @@ func (s *carrierStage) Stack() game.Scenes {
 	return s.stack
 }
 
-// count is how many units are in the world.
 func (s *carrierStage) count() int {
 	n := 0
 	for s.units.All(); s.units.Next(); {
@@ -116,7 +114,6 @@ func (g carrierGame) Stages() (map[string]game.Stage, string) {
 	return map[string]game.Stage{g.stage.Name(): g.stage}, g.stage.Name()
 }
 
-// run runs s in the engine for frames frames, calling each after every one.
 func run(t *testing.T, s *carrierStage, frames int, each func()) {
 	t.Helper()
 	eng := engine.NewEngine(carrierGame{s})
@@ -132,9 +129,6 @@ func run(t *testing.T, s *carrierStage, frames int, each func()) {
 	}
 }
 
-// Nothing is dropped: the boxes' Despawn, given after the world's pass that drains it, waits for
-// the next frame's — the players' pass once cleared every queue at the end of a frame, and struck
-// units never went.
 func TestCarrier_ACommandGivenAfterItsHandlersPassWaitsForTheNext(t *testing.T) {
 	s := &carrierStage{boxes: true}
 	run(t, s, 30, func() {})
@@ -143,8 +137,6 @@ func TestCarrier_ACommandGivenAfterItsHandlersPassWaitsForTheNext(t *testing.T) 
 	}
 }
 
-// A tree's commands go within the frame they are given in — the trees run in the world's pass,
-// before the handlers' — so no queue holds one between frames, and a save loses none.
 func TestCarrier_ATreesCommandsGoWithinTheirFrame(t *testing.T) {
 	s := &carrierStage{}
 	run(t, s, 30, func() {

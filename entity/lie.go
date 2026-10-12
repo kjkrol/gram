@@ -3,9 +3,8 @@ package entity
 import "github.com/kjkrol/aabbworld/geom"
 
 // Lie is how an entity lying flat lies: a rectangle Length along its heading (Velocity.Dir) and
-// Width across, its middle Ahead of its box's along the heading, level at its altitude; Edged,
-// edges stand along its long sides Edge high — a bridge's deck and its railings. Zero, it lies
-// over its box.
+// Width across, its middle Ahead of its box's, with edges Edge high along its long sides while
+// Edged. Zero, it lies over its box.
 type Lie struct {
 	Length, Width float64
 	Ahead         float64

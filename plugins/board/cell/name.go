@@ -20,7 +20,6 @@ func Named(s string) Name {
 	return n
 }
 
-// nameOf is Named that reports a name too long instead of panicking.
 func nameOf(s string) (Name, bool) {
 	var n Name
 	if len(s) > MaxNameLen {

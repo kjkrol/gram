@@ -15,8 +15,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// commandWorld is a 10x1 board with a Selected unit in flight and a Selected idle unit, driven
-// by the command system alone.
 type commandWorld struct {
 	grid  grid.Grid
 	moves *control.Queue[MoveTo]
@@ -70,7 +68,6 @@ func newCommandWorld(t *testing.T) *commandWorld {
 
 func (cw *commandWorld) cellAt(x uint32) cell.ID { c := cw.grid.At(x, 0); return c }
 
-// issue runs one command through a tick.
 func (cw *commandWorld) issue(cell cell.ID, appendIt bool) {
 	cw.moves.Add(control.Nobody, MoveTo{Cell: cell, Append: appendIt})
 	cw.ecs.Tick(time.Second)

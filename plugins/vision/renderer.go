@@ -18,9 +18,8 @@ import (
 type ConePoint struct{ X, Y, Depth, Scale float32 }
 
 // ConeStyle composes one entity's view from its outline: a closed ring starting at the observer,
-// out along one edge of the cone, round its boundary and back along the other edge, draped over
-// the ground; the edges come in steps of the ground, so each piece of the ring has a depth of its
-// own.
+// out along one edge of the cone, round its boundary and back along the other edge. Each point
+// has the depth of the ground under it.
 type ConeStyle interface {
 	Compose(f *render.Frame, outline []ConePoint)
 }
@@ -34,9 +33,7 @@ var _ ConeStyle = ConeStyleFn(nil)
 
 var coneColor = color.RGBA{R: 255, G: 220, B: 90, A: 160}
 
-// DefaultConeStyle strokes the ring on the Overlays tier and leaves the inside clear; each stroke
-// takes the depth of its nearer end, so it is drawn over the ground it lies on and what stands in
-// front of that ground hides it.
+// DefaultConeStyle strokes the ring on the Overlays tier and leaves the inside clear.
 func DefaultConeStyle() ConeStyle {
 	return ConeStyleFn(func(f *render.Frame, outline []ConePoint) {
 		for i, p := range outline {
@@ -58,14 +55,12 @@ var DefaultShadow = Shadow{Color: color.RGBA{R: 10, G: 10, B: 20, A: 110}, Fade:
 
 var _ render.Direct = (*Renderer)(nil)
 
-// Renderer draws the views. In a world with heights, through a camera with Rays and in the default
-// style, it is a render.Direct drawing on the GPU, on ViewTier, the view of every observer — Sight
-// and world.Eye — over the ground: its sight baked each frame over the ground and its cover, the
-// ground out of sight veiled in a Shadow, the cone stroked; SightOutline is not needed. Otherwise
-// it is the render.Source, on the Overlays tier, of the view of every entity carrying SightOutline:
-// its outline in a ConeStyle and, in a world with heights, the ground out of sight in a Shadow.
+// Renderer draws the views: through a camera with Rays and in the default style every observer's
+// on the GPU on ViewTier, the ground out of sight veiled in a Shadow; otherwise, as a
+// render.Source on the Overlays tier, the outline of every entity carrying SightOutline in a
+// ConeStyle.
 type Renderer struct {
-	camera camera.Camera // the one of the frame being composed
+	camera camera.Camera
 	frame  *render.Frame
 	space  *aabbworld.Space
 	style  ConeStyle
@@ -73,43 +68,35 @@ type Renderer struct {
 
 	worldW, worldH float32
 	wraps          bool
-	hidden         bool // composes nothing — see Hide
+	hidden         bool
 
-	// groundOf finds the world's Ground when composing starts; a view is draped over it in pieces
-	// of step.
 	groundOf func() ground.Heights
 	ground   ground.Heights
 	step     float32
 	grounded bool
 
-	// the observers, their outlines where they carry one, and which views are drawn
-	query   *goke.Query
-	base    goke.Comp[world.Base]
-	sight   goke.Comp[Sight]
-	eye     goke.Comp[world.Eye]
-	out     goke.OptComp[SightOutline]
-	z       goke.OptComp[world.Z]
-	drawing *render.Rules // nil: every view drawn
-	shown   []bool        // the chunk's, as the rules say
-	// groundStep is how far apart the views are draped over the ground, world units; 0, the
-	// ground's own step
-	groundStep float32
+	query      *goke.Query
+	base       goke.Comp[world.Base]
+	sight      goke.Comp[Sight]
+	eye        goke.Comp[world.Eye]
+	out        goke.OptComp[SightOutline]
+	z          goke.OptComp[world.Z]
+	drawing    *render.Rules
+	shown      []bool
+	groundStep float32 // world units; 0 the ground's own
 
-	pts []ConePoint // rebuilt per entity, kept to stay off the heap
+	pts []ConePoint // kept to stay off the heap
 
-	// the views drawn on the GPU (views) and what they read: the cover, how far the ground sinks
-	// per d², whether a ConeStyle of one's own asks for the views composed instead
 	gpu     *views
-	onGPU   bool // this frame's
+	onGPU   bool
 	coverOf func() ground.Cover
 	cover   ground.Cover
 	bend    float64
 	custom  bool
-	wrap    [2]bool // which axes of the world wrap
+	wrap    [2]bool
 }
 
-// NewRenderer builds a Renderer with DefaultConeStyle and DefaultShadow, wrapping cones at the
-// edges of space.
+// NewRenderer builds a Renderer with DefaultConeStyle and DefaultShadow over space.
 func NewRenderer(space *aabbworld.Space) *Renderer {
 	w, h, edges := space.Bounds()
 	return &Renderer{
@@ -118,7 +105,7 @@ func NewRenderer(space *aabbworld.Space) *Renderer {
 	}
 }
 
-// WithCover has the views drawn on the GPU dimmed by the cover coverOf gives when composing starts.
+// WithCover has the views drawn on the GPU dimmed by the cover coverOf gives.
 func (r *Renderer) WithCover(coverOf func() ground.Cover) *Renderer {
 	r.coverOf = coverOf
 	return r
@@ -130,13 +117,13 @@ func (r *Renderer) WithScale(scale world.Scale) *Renderer {
 	return r
 }
 
-// WithGround has the views follow the ground heights groundOf gives when composing starts.
+// WithGround has the views follow the ground groundOf gives.
 func (r *Renderer) WithGround(groundOf func() ground.Heights) *Renderer {
 	r.groundOf = groundOf
 	return r
 }
 
-// Style reports how cones are currently drawn.
+// Style is how cones are drawn.
 func (r *Renderer) Style() ConeStyle { return r.style }
 
 // Hide has the Renderer compose nothing until shown again.
@@ -145,8 +132,8 @@ func (r *Renderer) Hide(hidden bool) { r.hidden = hidden }
 // Hidden reports whether the views are hidden.
 func (r *Renderer) Hidden() bool { return r.hidden }
 
-// WithStyle replaces how each cone is drawn: composed, from the SightOutline of each entity, in
-// every world.
+// WithStyle replaces how each cone is drawn; the views are then composed from each entity's
+// SightOutline in every world.
 func (r *Renderer) WithStyle(style ConeStyle) *Renderer {
 	r.style, r.custom = style, true
 	return r
@@ -159,14 +146,14 @@ func (r *Renderer) WithShadow(shadow Shadow) *Renderer {
 }
 
 // WithGroundStep drapes the views over the ground every step world units, in place of the
-// ground's own step: the scan's, so the shadows are drawn as finely as they are found.
+// ground's own step.
 func (r *Renderer) WithGroundStep(step float64) *Renderer {
 	r.groundStep = float32(step)
 	return r
 }
 
-// WithDrawing has the views drawn as rules say: only those of the observers a render.Show rule
-// holds for, where it holds any.
+// WithDrawing has only the views of the observers a render.Show rule picks drawn; with none,
+// every one is.
 func (r *Renderer) WithDrawing(rules *render.Rules) *Renderer {
 	r.drawing = rules
 	return r
@@ -185,18 +172,16 @@ func (r *Renderer) Init(si *goke.SysInit) {
 	r.query = qb.Build()
 }
 
-// Tier is where the views drawn on the GPU come: ViewTier.
+// Tier is ViewTier.
 func (r *Renderer) Tier() render.Tier { return ViewTier }
 
-// levelStep is how far apart, in world units, the views of a world without heights read its cover
-// unless the scan's step says otherwise.
+// world units, where a world without heights reads its cover
 const levelStep = 8
 
-// ViewTier puts the views drawn on the GPU over the ground and under what stands on it, read from
-// the depth the ground alone left.
+// ViewTier is where the views drawn on the GPU come: over the ground, under what stands on it.
 const ViewTier = render.Ground + 50
 
-// Draw draws the views the frame's Compose noted on the GPU; nothing where it composed them.
+// Draw draws the views Compose noted on the GPU; nothing where it composed them.
 func (r *Renderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
 	if r.hidden || !r.onGPU {
 		return
@@ -204,8 +189,6 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
 	r.gpu.draw(t, cam, r.ground, r.cover, r.worldW, r.worldH, r.step, r.wrap, r.bend, r.shadow)
 }
 
-// settle has the rules say which views of the chunk under cursor are drawn: every one without
-// any.
 func (r *Renderer) settle(cursor *goke.Cursor) {
 	r.shown = r.shown[:0]
 	for range cursor.IDs {
@@ -216,8 +199,7 @@ func (r *Renderer) settle(cursor *goke.Cursor) {
 	}
 }
 
-// Compose hands f every view in sight of cam — or notes them for Draw to draw on the GPU; nothing
-// while hidden.
+// Compose hands f every view in sight of cam, or notes them for Draw; nothing while hidden.
 func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	r.onGPU = false
 	if r.hidden {
@@ -259,8 +241,7 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 			if zs != nil {
 				z = zs[i]
 			}
-			// over level ground an observer's outline holds what the GPU cannot see: the entities
-			// cutting its view, as the scan found them
+			// over level ground only the outline holds the entities cutting the view
 			outlined := outlines != nil && outlines[i].Count >= 2
 			if r.onGPU && (r.ground != nil || !outlined) {
 				ox, oy := centreOf(&bases[i].Pos)
@@ -279,9 +260,6 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	}
 }
 
-// cone composes one entity's view, half radians either side of its facing, once per image of the
-// world it reaches into; on a world that does not wrap it is draped over the ground from the
-// observer's altitude, shadows included.
 func (r *Renderer) cone(pos *world.Position, alt float32, half float64, s *Sight, o *SightOutline) {
 	ox, oy := centreOf(pos)
 
@@ -300,7 +278,6 @@ func (r *Renderer) cone(pos *world.Position, alt float32, half float64, s *Sight
 	})
 }
 
-// coneBox is the square a cone covers, clamped to the size of the world.
 func (r *Renderer) coneBox(ox, oy, radius float64) geom.AABB {
 	w, h := float64(r.worldW), float64(r.worldH)
 	return geom.NewAABBAt(
@@ -309,8 +286,6 @@ func (r *Renderer) coneBox(ox, oy, radius float64) geom.AABB {
 	)
 }
 
-// draped is the view's ring point by point: the apex at the observer's altitude, the rest on the
-// ground (flat at 0 without a Ground), each edge of the cone in steps of the ground.
 func (r *Renderer) draped(ox, oy, alt float32, half float64, s *Sight, o *SightOutline) []ConePoint {
 	facing := math.Atan2(s.Facing.Y, s.Facing.X)
 	step := 2 * half / float64(o.Count-1)
@@ -336,9 +311,6 @@ func (r *Renderer) draped(ox, oy, alt float32, half float64, s *Sight, o *SightO
 	return r.pts
 }
 
-// shade composes the shadows of the view: for every angle, each band as a strip spanning halfway
-// to the angles either side, cut in steps of the ground and draped over it, fading in at its near
-// and far ends and at a side where the next angle has no shadow there.
 func (r *Renderer) shade(ox, oy float32, half float64, s *Sight, o *SightOutline) {
 	n := int(o.Count)
 	if n < 2 {
@@ -362,9 +334,8 @@ func (r *Renderer) shade(ox, oy float32, half float64, s *Sight, o *SightOutline
 				p0, p1 := r.onGround(ox, oy, lo, d0), r.onGround(ox, oy, hi, d0)
 				p2, p3 := r.onGround(ox, oy, lo, d1), r.onGround(ox, oy, hi, d1)
 				if p0.Scale == 0 || p1.Scale == 0 || p2.Scale == 0 || p3.Scale == 0 {
-					continue // under the eye, or behind it: nothing of it is seen
+					continue // under the eye or behind it
 				}
-				// soft over the pixels the fade spans where the piece is drawn
 				fade := r.shadow.Fade * (p0.Scale + p1.Scale + p2.Scale + p3.Scale) / 4
 				var edges render.Fade
 				if d0 == b.From {
@@ -386,7 +357,6 @@ func (r *Renderer) shade(ox, oy float32, half float64, s *Sight, o *SightOutline
 	}
 }
 
-// shadowed reports whether angle i of o holds a shadow anywhere along the stretch d0 to d1.
 func shadowed(o *SightOutline, i int, d0, d1 float32) bool {
 	if i < 0 || i >= int(o.Count) {
 		return false
@@ -399,8 +369,6 @@ func shadowed(o *SightOutline, i int, d0, d1 float32) bool {
 	return false
 }
 
-// onGround is the point dist away from (ox, oy) at angle a, on the ground there: on screen, with
-// its depth.
 func (r *Renderer) onGround(ox, oy float32, a float64, dist float32) ConePoint {
 	x, y := ox+dist*float32(math.Cos(a)), oy+dist*float32(math.Sin(a))
 	z := float32(0)
@@ -411,8 +379,6 @@ func (r *Renderer) onGround(ox, oy float32, a float64, dist float32) ConePoint {
 	return ConePoint{X: sx, Y: sy, Depth: r.camera.Depth(x, y, z), Scale: camera.ScaleAt(r.camera, x, y, z)}
 }
 
-// fan rebuilds the ring round an already-projected anchor from the stored reaches, for the images
-// of a cone on a wrapping world, seen from above.
 func (r *Renderer) fan(sx, sy float32, half float64, s *Sight, o *SightOutline) []ConePoint {
 	facing := math.Atan2(s.Facing.Y, s.Facing.X)
 	step := 2 * half / float64(o.Count-1)

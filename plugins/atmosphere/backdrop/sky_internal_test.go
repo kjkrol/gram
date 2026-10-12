@@ -11,7 +11,6 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// raying is eyed telling which way each screen point looks, from an eye height up.
 type raying struct {
 	eyed
 	height float32
@@ -28,8 +27,6 @@ func (raying) Ray(sx, sy float32) (float32, float32, float32, bool) {
 	return d[0] / n, d[1] / n, d[2] / n, true
 }
 
-// Rays is every line of sight of raying at once, as Ray has them: from the eye, the way of the
-// screen point affine in it.
 func (r raying) Rays() (camera.RayField, bool) {
 	f := camera.RayField{Origin: [3]float32{50, 150, r.height}}
 	for k := range 3 {
@@ -44,9 +41,6 @@ var _ camera.Rayer = raying{}
 var _ camera.Rays = raying{}
 var _ camera.Eyed = raying{}
 
-// Through a camera that says which way each screen point looks the sky runs from the horizon's
-// colour up to a deeper one overhead, along the camera's lines of sight, and under a cloud layer
-// the clouds are drawn on it; from above the layer, none.
 func TestBackdrop_DrawsTheSkyFromTheHorizonUpAndTheCloudsOnIt(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	sun := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}

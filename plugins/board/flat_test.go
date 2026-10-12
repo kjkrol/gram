@@ -74,7 +74,6 @@ func TestFlatWorld_RefusesWhatStandsAtAHeight(t *testing.T) {
 	})
 }
 
-// The simple map is flat and prices nothing beyond the kinds: a step and the speed are the kind's.
 func TestSimpleMap_IsFlatAndPricesNothingBeyondTheKinds(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 20}})
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)

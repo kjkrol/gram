@@ -17,10 +17,6 @@ import (
 
 var _ goke.System = (*fallSystem)(nil)
 
-// fallSystem is the gravity of a world with heights, a step: the Leaps and Aways given are thrown,
-// every body is carried along Z between the surface under its feet — read with its feet as they
-// were before the step, so a fall fast as it may be lands on a deck it came over — and the slab
-// over its head, and the Landing rules told of those landing.
 type fallSystem struct {
 	p        *Plugin
 	tickOf   plugin.TickSource
@@ -39,7 +35,6 @@ type fallSystem struct {
 
 	whence
 
-	// the chunk being walked, for the rules: who of it lands this step, how fast
 	walking struct {
 		ids    []uid.UID64
 		speeds []float64
@@ -90,13 +85,14 @@ func (s *fallSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		for i := range cur.IDs {
 			z := &zs[i]
 			floor, ceiling := 0.0, math.Inf(1)
+			// read with its feet before the step, so a fast fall lands on a deck it came over
 			if surfaces != nil {
 				floor, ceiling = surfaces.Surface(bases[i].Pos.Center(), unit.DomainAt(movers, i),
 					z.Altitude, z.Reach())
 			}
 			if drifts[i] == (world.Drift{}) && !marks[i].Has(unit.Airborne) &&
 				z.Altitude-floor <= z.Reach() {
-				z.Altitude = floor // standing, as most do: nothing else changes
+				z.Altitude = floor
 				s.walking.speeds = append(s.walking.speeds, -1)
 				continue
 			}
@@ -114,8 +110,6 @@ func (s *fallSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-// throw carries out the Leaps and Aways given, each by the entity for itself: a pull of g throws
-// it up.
 func (s *fallSystem) throw(g float64) {
 	s.p.leaps.Drain(func(i control.Issued[Leap]) {
 		if !i.ByEntity || !s.bodies.Seek(i.Entity) {
@@ -150,13 +144,11 @@ func (s *fallSystem) throw(g float64) {
 	})
 }
 
-// bodyOf is the body z, d and marks say, as a step takes it.
 func bodyOf(z *world.Z, d *world.Drift, marks tag.Tags[unit.States]) vertical.Body {
 	return vertical.Body{Feet: z.Altitude, Height: z.Height, Reach: z.Reach(),
 		X: d.X, Y: d.Y, Rise: d.Z, Airborne: marks.Has(unit.Airborne)}
 }
 
-// put writes b back into z, d and marks.
 func put(b *vertical.Body, z *world.Z, d *world.Drift, marks *tag.Tags[unit.States]) {
 	z.Altitude = b.Feet
 	*d = world.Drift{X: b.X, Y: b.Y, Z: b.Rise}

@@ -39,7 +39,7 @@ func RaiseHills(r topography.Relief, grid grid.Grid, hills ...cell.ID) {
 
 // InstallCtx is a plugin.Installer over a bare ECS.
 type InstallCtx struct {
-	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
+	hosts   []plugin.Host
 	ecs     *goke.ECS
 	pending []func() []goke.System
 }
@@ -59,8 +59,7 @@ func (c *InstallCtx) ECS() *goke.ECS                                  { return c
 // Recruit is a QuasiWorld unit's row: the cell it starts in.
 type Recruit struct{ Start cell.ID }
 
-// QuasiWorld is a world with heights with a board over a 4x4 square grid in relief, a hill at (2,1), and
-// the units define makes; collide adds the collision plugin.
+// QuasiWorld is a world with heights over a 4x4 board in relief with a hill at (2,1).
 type QuasiWorld struct {
 	ECS   *goke.ECS
 	World *world.Plugin
@@ -78,8 +77,8 @@ func NewQuasiWorld(t *testing.T, collide bool, define func(units *board.Units[Re
 	return NewQuasiWorldWith(t, collide, withWorld)
 }
 
-// NewQuasiWorldWith is NewQuasiWorld with the world handed to define, its board's own kinds to
-// define besides — entities standing on the board.
+// NewQuasiWorldWith is NewQuasiWorld with the world handed to define, for its board's own
+// kinds besides.
 func NewQuasiWorldWith(
 	t *testing.T,
 	collide bool,
@@ -200,9 +199,9 @@ func IsometricIsland() (*world.Plugin, *board.Plugin, grid.Grid, *topography.Plu
 	return w, b, grid, p
 }
 
-// Hosts keeps the hosts of the rules of the moments a plugin catches.
+// Hosts keeps the hosts a plugin installs its rules' moments on.
 func (c *InstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
-// does with the roles played once a Stage's Init returns.
+// Deliver hands rules to the hosts of their moments, as the engine does once a Stage's Init
+// returns.
 func (c *InstallCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

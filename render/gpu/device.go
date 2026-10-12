@@ -16,48 +16,44 @@ import (
 const Format = gputypes.TextureFormatRGBA8Unorm
 
 const (
-	vertexSize = 12 * 4 // Vertex: dst, src, colour, custom
-	drawSize   = 7 * 16 // the Draw uniform: the target's size, four images' rectangles, the vertices' place and tint
-	// uniformBlock is the most a program's uniforms may take, the size every block is bound at.
+	vertexSize = 12 * 4 // dst, src, colour, custom
+	// the target's size, four images' rectangles, the vertices' place and tint
+	drawSize = 7 * 16
+	// the most a program's uniforms may take, the size every block is bound at
 	uniformBlock = 4096
 )
 
-// device is the GPU and what is being gathered for its next submission.
 type device struct {
 	mu       sync.Mutex
 	dev      *wgpu.Device
 	queue    *wgpu.Queue
-	instance *wgpu.Instance // held by a headless device only
-	align    uint64         // how uniform blocks are aligned in their buffer
+	instance *wgpu.Instance // a headless device's only
+	align    uint64
 
 	enc        *wgpu.CommandEncoder
 	pass       *wgpu.RenderPassEncoder
 	passTarget *target
 	passDepth  *Depth
 
-	// what the encoded draws read, written to the buffers as the submission goes
 	verts, indices, draws, uniforms []byte
 	vbuf, ibuf, dbuf, ubuf          *wgpu.Buffer
 	group0                          *wgpu.BindGroup
 
 	layout0, layout1 *wgpu.BindGroupLayout
-	layout2          *wgpu.BindGroupLayout // a depth buffer to read, a group of its own (Depth.group)
-	noDepth          *Depth                // read where a draw reads none
+	layout2          *wgpu.BindGroupLayout
+	noDepth          *Depth // read where a draw reads none
 	layout           *wgpu.PipelineLayout
 	nearest, linear  *wgpu.Sampler
 	blank            *Texture
 	groups           map[[4]*Texture]*wgpu.BindGroup
 
-	// what Present draws the window's frame with, apart from what is gathered for submissions, and
-	// what they hold, written again only as it changes
 	present      [4]*wgpu.Buffer // vertices, indices, the draw, the uniforms
 	presentGroup *wgpu.BindGroup
 	presented    [4][]byte
 
-	stages []*staging // the gathered bytes' way to the GPU, mapped
+	stages []*staging
 
-	// retired is what was let go while a submission may still read it, freed once the GPU is done
-	// with everything given it (retire, bury): gogpu frees a resource at once
+	// let go while a submission may still read it: gogpu frees a resource at once
 	retired []func()
 }
 
@@ -77,7 +73,7 @@ func Use(dev *wgpu.Device) error {
 }
 
 // Headless gives the package a device of its own, with no window: the best GPU there is, or the
-// software rasteriser when software — gogpu's draws this package's programs wrong still.
+// software rasteriser when software, which draws this package's programs wrong still.
 func Headless(software bool) error {
 	if cur != nil {
 		return nil
@@ -121,15 +117,12 @@ func Device() *wgpu.Device {
 
 var errNoDevice = errors.New("gpu: drawn before the window's GPU is up: draw from a frame, not from a stage's Init")
 
-// windowed is set by the engine before its window opens: the device is to be the window's, so a
-// draw before it is an error, not a reason to make one without a window.
+// a draw before the window's device is an error, not a reason to make one without a window
 var windowed bool
 
-// Windowed is the engine's: the device will be its window's (Use); none is made without it.
+// Windowed says the device will be the engine's window's: none is made without it.
 func Windowed() { windowed = true }
 
-// must is the device drawn on: without a window, one made at first need (Headless), as a test or
-// a tool draws.
 func must() *device {
 	if cur == nil && !windowed {
 		if err := Headless(false); err != nil {
@@ -143,7 +136,8 @@ func must() *device {
 }
 
 func (d *device) setup() error {
-	d.align = uint64(max(d.dev.Limits().MinUniformBufferOffsetAlignment, 256)) // gogpu validates 256 whatever the device says
+	// gogpu validates 256 whatever the device says
+	d.align = uint64(max(d.dev.Limits().MinUniformBufferOffsetAlignment, 256))
 	vf := wgpu.ShaderStageVertex | wgpu.ShaderStageFragment
 	var err error
 	if d.layout0, err = d.dev.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{Label: "gpu draw", Entries: []gputypes.BindGroupLayoutEntry{
@@ -198,7 +192,6 @@ func (d *device) submit() {
 	}
 }
 
-// trySubmit is submit reporting what failed rather than panicking, and what was gathered dropped.
 func (d *device) trySubmit() error {
 	if d.enc == nil {
 		return nil
@@ -218,8 +211,7 @@ func (d *device) trySubmit() error {
 	if err != nil {
 		return fmt.Errorf("gpu: finishing the commands: %w", err)
 	}
-	// gogpu binds the window's swapchain to the next submission: this one is drawn off the window
-	// and is kept off it; the window's frame goes with gogpu's own at the frame's end (Present)
+	// gogpu binds the window's swapchain to the next submission: this one is kept off the window
 	d.queue.SetSwapchainSuppressed(true)
 	defer d.queue.SetSwapchainSuppressed(false)
 	all := []*wgpu.CommandBuffer{cmds}
@@ -256,8 +248,6 @@ func (d *device) endPass() {
 	}
 }
 
-// begin has the pass being encoded draw into t, with the depth buffer dp or none, beginning one
-// where it does not — clearing the depth when asked, which always begins one.
 func (d *device) begin(t *target, dp *Depth, clearDepth bool) *wgpu.RenderPassEncoder {
 	if d.pass != nil && d.passTarget.view == t.view && d.passDepth == dp && !clearDepth {
 		return d.pass
@@ -282,8 +272,6 @@ func (d *device) begin(t *target, dp *Depth, clearDepth bool) *wgpu.RenderPassEn
 	return pass
 }
 
-// ensure makes room in the buffers for one more draw of nv vertices and ni indices, submitting
-// what is gathered and growing a buffer where it would not fit.
 func (d *device) ensure(nv, ni int) {
 	needV := uint64(len(d.verts) + nv*vertexSize)
 	needI := uint64(len(d.indices) + (ni*2+3)&^3)
@@ -328,7 +316,6 @@ func (d *device) ensure(nv, ni int) {
 	}
 }
 
-// images is the bind group of the four images a draw reads, made once for each four.
 func (d *device) images(imgs [4]*Texture) *wgpu.BindGroup {
 	for i := range imgs {
 		if imgs[i] == nil {
@@ -357,7 +344,6 @@ func (d *device) images(imgs [4]*Texture) *wgpu.BindGroup {
 	return g
 }
 
-// forget drops every bind group holding t, freed once the GPU is done with them.
 func (d *device) forget(t *Texture) {
 	for k, g := range d.groups {
 		if k[0] == t || k[1] == t || k[2] == t || k[3] == t {
@@ -367,12 +353,8 @@ func (d *device) forget(t *Texture) {
 	}
 }
 
-// retire has free run once the GPU is done with everything given it so far: after the next
-// submission, waited for (bury). A submission may still read what is let go, and gogpu frees it at
-// once.
 func (d *device) retire(free func()) { d.retired = append(d.retired, free) }
 
-// bury frees what was retired, the GPU waited for first; nothing to wait for with nothing retired.
 func (d *device) bury() {
 	if len(d.retired) == 0 {
 		return
@@ -384,8 +366,6 @@ func (d *device) bury() {
 	d.retired = d.retired[:0]
 }
 
-// retire has free run once the GPU is done with what it was given, on the device at hand; at once
-// without one.
 func retire(free func()) {
 	if cur == nil {
 		free()

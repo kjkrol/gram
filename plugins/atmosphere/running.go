@@ -3,23 +3,19 @@ package atmosphere
 import "github.com/kjkrol/gram/plugins/atmosphere/climate"
 
 // Running is which of the atmosphere's workings go on, each to switch off to see the rest without
-// it, at the start (Config.Running) or as the game goes (Plugin.SetRunning); none of it is saved.
+// it. None of it is saved.
 type Running struct {
-	// Day: the day goes on, the sun and the moon crossing the sky with the calendar; off, the
-	// light stands at the hour it has, as P freezes it.
+	// Day: the sun and the moon cross the sky with the calendar; off, the light stands.
 	Day bool
-	// Weather: one weather follows another as the climate throws them; off, the weather now
-	// stays, though Shift+W still changes it.
+	// Weather: one weather follows another; off, the weather now stays.
 	Weather bool
-	// Wind: the wind blows, carrying the clouds, swaying what sways, slanting the rain; off, the
-	// air stands still.
+	// Wind: the wind blows; off, the air stands still.
 	Wind bool
-	// Clouds: the clouds cover the sky and shade the ground; off, the sky is clear.
+	// Clouds: the clouds cover the sky and shade the ground.
 	Clouds bool
-	// Falls: rain and snow fall; off, nothing falls.
+	// Falls: rain and snow fall.
 	Falls bool
-	// Weathering: the weather works on the board, snow lying, water freezing; off, the ground
-	// stays as it is.
+	// Weathering: the weather works on the board.
 	Weathering bool
 	// Stars: the stars come out at night.
 	Stars bool
@@ -27,8 +23,7 @@ type Running struct {
 	Moon bool
 }
 
-// AllRunning is Running with all of it going on: what an atmosphere has when its Config says
-// nothing.
+// AllRunning is Running with all of it going on, the default.
 func AllRunning() Running {
 	return Running{Day: true, Weather: true, Wind: true, Clouds: true, Falls: true, Weathering: true, Stars: true, Moon: true}
 }
@@ -44,8 +39,7 @@ func (p *Plugin) SetRunning(r Running) {
 	}
 }
 
-// Running is which of the atmosphere's workings go on now: the Day's as the light stands, frozen
-// or not.
+// Running is which of the atmosphere's workings go on now.
 func (p *Plugin) Running() Running {
 	r := p.running
 	r.Day = !p.sky.Frozen()

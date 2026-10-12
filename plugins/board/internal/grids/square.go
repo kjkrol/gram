@@ -50,14 +50,13 @@ func (g *Square) Toward(c cell.ID, i int) (cell.ID, bool) {
 	return g.Fold(int64(x)+squareDirs[i][0], int64(y)+squareDirs[i][1])
 }
 
-// squareDirs are the square grid's directions, north, south, west, east, then the corners:
-// north-west, north-east, south-west, south-east — y runs down the screen.
+// north, south, west, east, then north-west, north-east, south-west, south-east; y runs down the
+// screen
 var squareDirs = [8][2]int64{
 	{0, -1}, {0, 1}, {-1, 0}, {1, 0},
 	{-1, -1}, {1, -1}, {-1, 1}, {1, 1},
 }
 
-// squareBack is each direction's opposite, squareFlanks each corner's two edges.
 var (
 	squareBack   = [8]int{1, 0, 3, 2, 7, 6, 5, 4}
 	squareFlanks = [8][2]int{4: {0, 2}, 5: {0, 3}, 6: {1, 2}, 7: {1, 3}}
@@ -147,8 +146,6 @@ func (g *Square) CellsUnder(box geom.AABB, fn func(c cell.ID)) {
 	}
 }
 
-// spanOf is the cells lo..hi along one axis that the stretch from a to b touches: clamped to the
-// board where the axis does not wrap, one lap at most where it does.
 func spanOf(a, b, size float64, n uint32, wraps bool) (lo, hi int64, ok bool) {
 	const eps = 1e-9
 	lo, hi = int64(math.Floor((a-eps)/size)), int64(math.Floor((b+eps)/size))
@@ -202,7 +199,6 @@ func (g *Square) At(col, row uint32) cell.ID {
 	return g.idAt(uint32(x), uint32(y))
 }
 
-// dxdy returns the wrap-aware column/row gap between a and b.
 func (g *Square) dxdy(a, b cell.ID) (dx, dy float64) {
 	ax, ay := g.cellXY(a)
 	bx, by := g.cellXY(b)
@@ -245,7 +241,6 @@ func (g *Square) DiagonalNeighbors(a, b cell.ID) (c1, c2 cell.ID, ok bool) {
 	return c1, c2, true
 }
 
-// axisDelta is the single-step direction (-1/0/+1) from a to b along an axis of length size.
 func axisDelta(a, b, size uint32, wraps bool) int64 {
 	if a == b {
 		return 0
@@ -269,7 +264,7 @@ func absDiffU32(a, b uint32) uint32 {
 	return b - a
 }
 
-// wrapDistance1D is the shorter way from a to b on an axis of length size; size 0 never wraps.
+// size 0 never wraps
 func wrapDistance1D(a, b, size uint32) uint32 {
 	d := absDiffU32(a, b)
 	if size == 0 {
@@ -281,7 +276,6 @@ func wrapDistance1D(a, b, size uint32) uint32 {
 	return d
 }
 
-// wrapModI64 folds v into [0,m) using true (non-negative) modulo.
 func wrapModI64(v, m int64) int64 {
 	v %= m
 	if v < 0 {

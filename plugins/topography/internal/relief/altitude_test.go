@@ -56,8 +56,6 @@ func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 	}
 }
 
-// A Floor carries whoever moves in its domains and reaches it at its Height over the cell's level
-// and leaves the others at the ground; the bridge itself stands on its deck.
 func TestAltitude_AFloorCarriesItsDomainsAtItsHeight(t *testing.T) {
 	var walker, hawk, bridge kind.Of[topotest.Recruit]
 	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {
@@ -94,9 +92,6 @@ func TestAltitude_AFloorCarriesItsDomainsAtItsHeight(t *testing.T) {
 	}
 }
 
-// A raised deck is stood on by whoever reaches it with a step, from any side — a bridge from its
-// end, where the road comes up to it — and whoever stands under it stays under it; a walker
-// stepping off its edge stands on the ground again.
 func TestAltitude_ADeckIsSteppedOntoWithinAStep(t *testing.T) {
 	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {
 		walks := steering.Steering{MaxSpeed: 10}
@@ -140,7 +135,6 @@ func TestAltitude_ADeckIsSteppedOntoWithinAStep(t *testing.T) {
 	}
 }
 
-// A walker under a deck over water has fallen in; one on the deck has not.
 func TestStanding_UnderADeckOverWaterHasFallenIn(t *testing.T) {
 	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {
 		river := qw.Grid.At(1, 2)
@@ -170,9 +164,6 @@ func TestStanding_UnderADeckOverWaterHasFallenIn(t *testing.T) {
 	}
 }
 
-// A flyer flown by hand holds its height over sea level as the ground rises and falls under it,
-// climbs along the way it is steered as far as it went, keeps its Clearance over the ground and
-// stays under its Ceiling; let go, it keeps its height over the ground again.
 func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 	qw := topotest.NewQuasiWorld(t, false, func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
 		units.Define("hawk", unit.Mover{Domain: cell.Air, Lift: 40}, steering.Steering{MaxSpeed: 10}, comp.Const(steering.Driven{}))
@@ -237,8 +228,6 @@ func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 	}
 }
 
-// A flyer climbs no higher than its Ceiling over sea level: over high ground its lift is held down
-// so it does not, down to the ground where the ground stands higher still.
 func TestAltitude_AFlyerKeepsUnderItsCeiling(t *testing.T) {
 	var hawk, low kind.Of[topotest.Recruit]
 	qw := topotest.NewQuasiWorld(t, false, func(units *board.Units[topotest.Recruit], grid grid.Grid) []kind.Entry {
@@ -271,7 +260,6 @@ func TestAltitude_AFlyerKeepsUnderItsCeiling(t *testing.T) {
 	}
 }
 
-// flown hands fn the one entity steered by hand, between two ticks.
 func flown(qw *topotest.QuasiWorld, fn func(b *world.Base, z *world.Z, m *unit.Mover, d *steering.Driven, st *steering.Course)) {
 	var base goke.Comp[world.Base]
 	var z goke.Comp[world.Z]
@@ -288,7 +276,6 @@ func flown(qw *topotest.QuasiWorld, fn func(b *world.Base, z *world.Z, m *unit.M
 	}
 }
 
-// standAt puts every mover in d at alt.
 func standAt(qw *topotest.QuasiWorld, d cell.Domain, alt float64) {
 	var z goke.Comp[world.Z]
 	var mover goke.Comp[unit.Mover]
@@ -306,14 +293,11 @@ func standAt(qw *topotest.QuasiWorld, d cell.Domain, alt float64) {
 	}
 }
 
-// slantRow is a deck on a cell, its top at Top over sea level.
 type slantRow struct {
 	At  cell.ID
 	Top float64
 }
 
-// A deck running slantwise carries a walker over the corner it cuts, in the cell beside it too;
-// off the band the walker stands on the ground, and under it the deck is its ceiling.
 func TestSurface_ASlantwiseDeckCarriesOverTheCornerItCuts(t *testing.T) {
 	const top, width, thick = 20.0, 8.0, 1.0
 	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {

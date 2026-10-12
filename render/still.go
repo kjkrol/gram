@@ -6,17 +6,14 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// Still is a picture composed once in world units and drawn frame after frame through a camera
-// looking straight down: what stays as it is between frames — a flat board's tiles — composed anew
-// only when it changes, kept on the GPU run by run as a Composer would draw its frame, and placed
-// and lit there every frame under the uniforms of the frame it is drawn in.
+// Still is a picture composed once in world units, kept on the GPU, and drawn frame after frame
+// as a camera looking straight down shows it, placed and lit.
 type Still struct {
 	c    Composer
 	view worldView
 	runs []stillRun
 }
 
-// stillRun is one call of a still: the triangles sampling one sheet, kept on the GPU.
 type stillRun struct {
 	sheet *Image
 	kept  *gpu.Kept
@@ -32,7 +29,7 @@ func NewStill() *Still {
 }
 
 // Compose composes the still anew: compose hands the frame what lies on the world w by h units
-// large, through a camera drawing a world unit a pixel, (0, 0) at the top-left.
+// large, through a camera drawing a world unit a pixel.
 func (s *Still) Compose(w, h float32, compose func(f *Frame, cam camera.Camera)) {
 	s.view = worldView{w: w, h: h}
 	s.c.frame.Reset(&s.view)
@@ -42,7 +39,7 @@ func (s *Still) Compose(w, h float32, compose func(f *Frame, cam camera.Camera))
 		r.kept.Release()
 	}
 	s.runs = s.runs[:0]
-	s.c.paint(nil, Target{}) // into runs
+	s.c.paint(nil, Target{})
 }
 
 // Len is how many pieces the still holds.
@@ -63,8 +60,6 @@ func (s *Still) Draw(screen *Image, u Uniforms, zoom, x, y float32, light Light)
 	}
 }
 
-// worldView is the camera a Still is composed through: a world unit a pixel, straight down, the
-// whole world w by h in view; it neither moves nor zooms.
 type worldView struct{ w, h float32 }
 
 var _ camera.Camera = (*worldView)(nil)

@@ -8,8 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 )
 
-// bears is how squarely against the pull a surface must face to bear a body: n·ĝ under −bears,
-// a slope of up to some 45°; a wall bears nothing.
+// a surface bears a body where n·ĝ is under −bears: a slope of up to some 45°, never a wall
 const bears = 0.7
 
 // Body is one body as a step takes it: the drift it is carried at and whether it is in the air.
@@ -18,9 +17,9 @@ type Body struct {
 	Airborne bool
 }
 
-// Settle has the surfaces the body touches — each by the way it leaves it, a normal of collision's
-// — take the drift that runs into them; one facing against the pull g bears it unless it is
-// leaving it, and if it came down out of the air it lands, at the speed it ran into it.
+// Settle has the surfaces the body touches (their normals, collision's) take the drift that runs
+// into them, one facing against the pull g bearing it. A body coming down out of the air lands,
+// at the speed it ran into the surface.
 func Settle(b *Body, g geom.Vec, normals []geom.Vec) (speed float64, landed bool) {
 	down := unit(g)
 	borne := false
@@ -86,7 +85,6 @@ func Throw(b *Body, g, across geom.Vec, height float64) {
 
 func dot(a, b geom.Vec) float64 { return a.X*b.X + a.Y*b.Y }
 
-// unit is v of length 1; zero stays zero.
 func unit(v geom.Vec) geom.Vec {
 	l := math.Hypot(v.X, v.Y)
 	if l == 0 {

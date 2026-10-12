@@ -17,9 +17,6 @@ import (
 
 var _ goke.System = (*shootSystem)(nil)
 
-// shootSystem carries out the Shoots given: from the entity that gave one for itself, or from
-// every Selected entity the player who gave it owns, it spawns a shot of the Ammo at the muzzle,
-// aimed where the command says, else the way the shooter faces.
 type shootSystem struct {
 	w        *world.Plugin
 	shoots   *control.Queue[Shoot]
@@ -33,10 +30,9 @@ type shootSystem struct {
 	z      goke.OptComp[world.Z]
 	eye    goke.OptComp[world.Eye]
 
-	shooters []shooter // the shooters of one command, gathered before any is fired
+	shooters []shooter
 }
 
-// shooter is one entity a Shoot fires from, as the shootSystem read it.
 type shooter struct {
 	id     uid.UID64
 	pos    world.Position
@@ -73,7 +69,6 @@ func (s *shootSystem) Update(*goke.CmdBuf, time.Duration) {
 	})
 }
 
-// at is the entity under the cursor, sought, as a shooter.
 func (s *shootSystem) at(id uid.UID64, cur *goke.Cursor) shooter {
 	b := s.base.At(cur)
 	sh := shooter{id: id, pos: b.Pos, facing: b.Vel.Dir, z: s.z.At(cur), eye: s.eye.At(cur)}
@@ -83,7 +78,6 @@ func (s *shootSystem) at(id uid.UID64, cur *goke.Cursor) shooter {
 	return sh
 }
 
-// selectedOf gathers every Selected entity by owns as a shooter.
 func (s *shootSystem) selectedOf(by control.PlayerID) {
 	for s.query.All(); s.query.Next(); {
 		cur := s.query.Cursor()
@@ -112,10 +106,6 @@ func (s *shootSystem) selectedOf(by control.PlayerID) {
 	}
 }
 
-// fire spawns a shot of cmd's Ammo from sh: at the muzzle, just outside sh's box the way it goes
-// — towards cmd.At when Targeted, towards the entity it was aimed at while that one is there, else
-// the way sh faces; nowhere when no way is known. A thrown shot (Gravity) gets the climb that
-// brings it down where it goes to, at its Range.
 func (s *shootSystem) fire(cmd Shoot, sh shooter) {
 	centre := sh.pos.Center()
 	at, targeted := cmd.At, cmd.Targeted
@@ -153,7 +143,6 @@ func (s *shootSystem) fire(cmd Shoot, sh shooter) {
 	s.w.Spawn(cmd.Ammo.Entry(shot))
 }
 
-// groundAt is the height of the ground at p: 0 without one.
 func groundAt(groundOf func() ground.Heights, p geom.Vec) float64 {
 	if groundOf == nil {
 		return 0

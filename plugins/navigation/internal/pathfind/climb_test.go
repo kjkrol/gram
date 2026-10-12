@@ -11,8 +11,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// hill is level ground with a few cells raised, priced by the topography's DefaultClimbing over
-// steps of 10: what a Map's Climb and Least say.
+// priced by the topography's DefaultClimbing over steps of 10
 type hill map[cell.ID]float64
 
 func (h hill) Least(d cell.Domain) float64 {
@@ -30,7 +29,6 @@ func (h hill) Climb(from, to cell.ID, d cell.Domain) float64 {
 	return c.Factor((h[to] - h[from]) / 10)
 }
 
-// A walker goes round a hill across its way, a flyer straight over it.
 func TestFindPath_GoesRoundAHillUnlessItFlies(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 5, 10)
 	terrain := cell.NewTerrainMap()
@@ -57,8 +55,6 @@ func TestFindPath_GoesRoundAHillUnlessItFlies(t *testing.T) {
 	}
 }
 
-// Where the ground off a road costs 2.5 times the road, a walker goes round by the road rather
-// than straight across; where it costs as much, straight across.
 func TestFindPath_TakesTheRoadRoundWhereTheGroundCostsMore(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 5, 10)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
@@ -99,8 +95,6 @@ func TestFindPath_TakesTheRoadRoundWhereTheGroundCostsMore(t *testing.T) {
 	}
 }
 
-// roadOver lays a road as a way over the grass from cell to cell, linked both ways like a game's
-// layout.
 func roadOver(brd *board.Board, road cell.Kind, cells ...cell.ID) {
 	for i := range cells {
 		if w := brd.Way(cells[i]); !w.Runs() {
@@ -120,8 +114,6 @@ func roadOver(brd *board.Board, road cell.Kind, cells ...cell.ID) {
 	}
 }
 
-// A road round a bend is followed round it: a diagonal step between two of its cells across the
-// bend cuts the corner over the grass beside the road and costs the grass, not the road.
 func TestFindPath_FollowsARoadRoundItsBendRatherThanCuttingTheCorner(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 5, 10)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
@@ -153,8 +145,6 @@ func TestFindPath_FollowsARoadRoundItsBendRatherThanCuttingTheCorner(t *testing.
 	}
 }
 
-// A road laid slantwise is taken along its links at its own cost; the same cells unlinked are cut
-// across at the grass's.
 func TestFindPath_TakesADiagonalRoadAlongItsLinks(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, 10)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
@@ -187,8 +177,6 @@ func TestFindPath_TakesADiagonalRoadAlongItsLinks(t *testing.T) {
 	}
 }
 
-// A Graded road over the ridge costs its own price alone, so the walker takes it straight over;
-// the same road ungraded is priced by the slope and the walker goes round.
 func TestFindPath_AGradedRoadIsNotPricedByTheSlope(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 5, 10)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }

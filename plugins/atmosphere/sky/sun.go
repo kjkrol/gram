@@ -12,17 +12,13 @@ import (
 //go:embed shaders/*.wgsl
 var shaders embed.FS
 
-// The sun's uniforms in the composer's shader (shaders/sun.wgsl), registered as the package is set
-// up: a material may read them, and Sun.Frame sets them.
 var _ = render.RegisterMaterials(render.Files(shaders, "shaders/sun.wgsl"), []render.Uniform{
 	{Name: "Sun", Size: 3}, {Name: "SunStrength", Size: 1}, {Name: "SunColor", Size: 3}, {Name: "SkyColor", Size: 3}, {Name: "Ambience", Size: 3},
 })
 
-// Sun is the light over the world: Dir points from the ground towards the sun (x and y along the
-// world, z up), Strength is how much it lights a surface facing it square on, Ambient how much of
-// the sky's light every surface gets anyway. Color is the colour of the sun's light and Sky the
-// colour of the sky — the light it gives, what water reflects, what shows beyond the world; zero
-// is white.
+// Sun is the light over the world. Dir points from the ground towards the sun (z up), Strength
+// is how much it lights a surface facing it square on, Ambient how much of the sky's light every
+// surface gets anyway; a zero Color or Sky is white.
 type Sun struct {
 	Dir      [3]float32
 	Strength float32
@@ -32,20 +28,16 @@ type Sun struct {
 }
 
 // DefaultSun stands high over the world's south-east, towards the viewer of the isometric view,
-// so the faces it shows are lit and the slopes turned away from it darken; its light and sky are
-// white. It is the sun of a relief under no sky of its own.
+// in white light.
 var DefaultSun = Sun{Dir: [3]float32{0.522, 0.282, 0.805}, Strength: 0.708, Ambient: 0.35}
 
-// Light is the light the sun casts on a surface whose normal is (nx, ny, nz): Ambient of the sky's,
-// and Strength of its own by how square on the surface faces it; none of it from behind.
+// Light is the light the sun casts on a surface whose normal is (nx, ny, nz).
 func (s Sun) Light(nx, ny, nz float32) render.Light { return s.Shaded(nx, ny, nz, 1) }
 
-// Shaded is Light where only lit of the sun, 0 to 1, reaches the surface: the rest is in shadow
-// and gets the sky's light alone.
+// Shaded is Light where only lit of the sun, 0 to 1, reaches the surface.
 func (s Sun) Shaded(nx, ny, nz, lit float32) render.Light { return s.Lamp().Shaded(nx, ny, nz, lit) }
 
-// Lamp is the sun made ready to light many surfaces: its way as a unit vector, its light and the
-// sky's already scaled.
+// Lamp is the sun made ready to light many surfaces.
 func (s Sun) Lamp() Lamp {
 	var l Lamp
 	if d := float32(math.Sqrt(float64(s.Dir[0]*s.Dir[0] + s.Dir[1]*s.Dir[1] + s.Dir[2]*s.Dir[2]))); d > 0 {
@@ -58,7 +50,7 @@ func (s Sun) Lamp() Lamp {
 	return l
 }
 
-// Lamp is a Sun ready to light surfaces: Shaded as the Sun's, without working the sun out again.
+// Lamp is a Sun ready to light many surfaces.
 type Lamp struct {
 	dir      [3]float32
 	sun, sky render.Light
@@ -76,8 +68,7 @@ func (l Lamp) Shaded(nx, ny, nz, lit float32) render.Light {
 // SkyLight is the colour of the sky, white for the zero one.
 func (s Sun) SkyLight() render.Light { return white(s.Sky) }
 
-// Frame hands f the sun as its shader reads it (shaders/sun.wgsl): the way towards it, its strength, the
-// colours of its light and of the sky, and the light every surface gets from the sky.
+// Frame hands f the sun's uniforms (shaders/sun.wgsl).
 func (s Sun) Frame(f *render.Frame) {
 	sky := white(s.Sky)
 	sun := white(s.Color)
@@ -88,7 +79,6 @@ func (s Sun) Frame(f *render.Frame) {
 	f.Uniform("Ambience", s.Ambient*sky[0], s.Ambient*sky[1], s.Ambient*sky[2])
 }
 
-// white is l, or white for the zero light.
 func white(l render.Light) render.Light {
 	if l == (render.Light{}) {
 		return render.Light{1, 1, 1}
@@ -96,26 +86,21 @@ func white(l render.Light) render.Light {
 	return l
 }
 
-// maxShadowReach caps how far a unit of height casts its shadow: a sun on the horizon would cast it
-// for ever.
+// a sun on the horizon would cast a shadow for ever
 const maxShadowReach = 6
 
-// shadowVeil is how dark a shadow lays on the ground at its middle under a sun of shadowFull: a
-// weaker light — the moon, the sun low at dawn — casts it paler.
 const (
 	shadowVeil = 110
 	shadowFull = 0.6
 )
 
-// Patch is where a shadow lies on the ground, world units: its middle (X, Y), the way away from
-// the sun (UX, UY), how far it reaches from the middle along that way (Along) and across it
-// (Wide), how far in from each side it fades out (Fade) and how dark it is inside (Veil, 0 to 1).
+// Patch is where a shadow lies on the ground, in world units: its middle (X, Y), the way away
+// from the sun (UX, UY), its reach along that way (Along) and across it (Wide), how far in from
+// each side it fades (Fade) and how dark it is (Veil, 0 to 1).
 type Patch struct{ X, Y, UX, UY, Along, Wide, Fade, Veil float32 }
 
 // ShadowOf is the shadow of an entity standing in box as z says, on the ground groundAt gives
-// (nil: level at 0), away from the sun: a soft patch as wide as the box, stretched by its height
-// and pushed off by how far above the ground it stands, solid in its middle and soft for the
-// outer half of each side; false with the sun down or too faint.
+// (nil: level at 0). It is false with the sun down or too faint.
 func (s Sun) ShadowOf(box geom.AABB, z world.Z, groundAt func(x, y float32) float32) (Patch, bool) {
 	sx, sy, sz := s.Dir[0], s.Dir[1], s.Dir[2]
 	veil := float32(uint8(shadowVeil*min(s.Strength/shadowFull, 1))) / 255
@@ -128,7 +113,6 @@ func (s Sun) ShadowOf(box geom.AABB, z world.Z, groundAt func(x, y float32) floa
 		ground = groundAt(cx, cy)
 	}
 	half := float32(max(box.BottomRight.X-box.TopLeft.X, box.BottomRight.Y-box.TopLeft.Y)) / 2
-	// away from the sun, and how far a unit of height casts its shadow that way
 	ux, uy := float32(1), float32(0)
 	across := float32(math.Hypot(float64(sx), float64(sy)))
 	if across > 0 {

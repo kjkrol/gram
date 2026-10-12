@@ -13,29 +13,25 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// effectCommands carries out the commands about effects (rule.Command) for those the world can find —
-// the entities named or grouped (entity.Label), the world itself — and gives the ones an entity
-// sets off (rule.Triggered) for it. It tells a rule's Playing the roles an entity plays, too.
 type effectCommands struct {
 	queue    control.Queue[rule.Command]
 	triggers control.Queue[rule.Triggered]
-	sourced  []rule.Command // those a Trigger sets off: their Source names somebody
-	known    []rule.Command // every command the game handed over, checked once the game stands
+	sourced  []rule.Command
+	known    []rule.Command
 	checked  bool
 	effects  *effect.Effects
-	world    func() uid.UID64 // the world's own entity
-	commands *control.Carrier // for a triggered command another plugin carries out
-	flips    []flip           // a step's commands, net, before they are carried out
-	found    []uid.UID64      // carry's scratch
+	world    func() uid.UID64
+	commands *control.Carrier
+	flips    []flip
+	found    []uid.UID64
 
-	labelled *goke.Query // every entity with a Label
+	labelled *goke.Query
 	label    goke.Comp[entity.Label]
-	plays    *goke.Query // every entity playing roles, sought by RolesOf
+	plays    *goke.Query
 	playsC   goke.Comp[tag.Tags[rule.Roles]]
 }
 
-// flip is where a step's commands leave one effect on one entity: on or off, cast afresh or not,
-// and for how long.
+// a step's commands of one effect on one entity, netted before they are carried out
 type flip struct {
 	id            uid.UID64
 	e             effect.Effect
@@ -43,8 +39,6 @@ type flip struct {
 	lasts         time.Duration
 }
 
-// take keeps the commands a game handed over: those with a Source for Trigger, all of them to
-// check the names they say once the game stands.
 func (c *effectCommands) take(cmds ...rule.Command) error {
 	for _, cmd := range cmds {
 		if cmd.Whom == nil {
@@ -58,7 +52,7 @@ func (c *effectCommands) take(cmds ...rule.Command) error {
 	return nil
 }
 
-// RolesOf is the roles id plays, a bit each: what a rule's Playing asks.
+// RolesOf is the roles id plays, a bit each.
 func (c *effectCommands) RolesOf(id uid.UID64) uint64 {
 	if c.plays == nil || !c.plays.Seek(id) {
 		return 0
@@ -66,7 +60,6 @@ func (c *effectCommands) RolesOf(id uid.UID64) uint64 {
 	return uint64(*c.playsC.At(c.plays.Cursor()))
 }
 
-// system carries out the step's commands: first those the entities set off, then those given.
 func (c *effectCommands) system() goke.System {
 	return goke.SystemFn{
 		OnInit: func(si *goke.SysInit) {
@@ -110,7 +103,6 @@ func (c *effectCommands) system() goke.System {
 	}
 }
 
-// carry notes what cmd does to each entity it is for; a Toggle looks at them all first.
 func (c *effectCommands) carry(cmd rule.Command) {
 	whom, ok := cmd.Whom.(entity.Whom)
 	if !ok || cmd.Effect == (effect.Effect{}) {
@@ -144,7 +136,6 @@ func (c *effectCommands) carry(cmd rule.Command) {
 	}
 }
 
-// flipOf is the step's note of e on id, begun as the entity stands.
 func (c *effectCommands) flipOf(id uid.UID64, e effect.Effect) *flip {
 	for i := range c.flips {
 		if c.flips[i].id == id && c.flips[i].e == e {
@@ -156,7 +147,6 @@ func (c *effectCommands) flipOf(id uid.UID64, e effect.Effect) *flip {
 	return &c.flips[len(c.flips)-1]
 }
 
-// each calls fn with every labelled entity.
 func (c *effectCommands) each(fn func(id uid.UID64, l entity.Label)) {
 	for c.labelled.All(); c.labelled.Next(); {
 		cur := c.labelled.Cursor()
@@ -166,8 +156,6 @@ func (c *effectCommands) each(fn func(id uid.UID64, l entity.Label)) {
 	}
 }
 
-// check panics for a name two entities bear and for a name or a group a command the game handed
-// over says that nobody bears: a slip of the pen, found as the game's first step begins.
 func (c *effectCommands) check() {
 	names := map[uint64]int{}
 	var labels []entity.Label

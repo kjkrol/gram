@@ -9,9 +9,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
-// Bridges is what a bridge — cells whose Graded decks run as bands joined along their links —
-// keeps to, and what the board reads the ground with to tell: its deck Clearance over the ground
-// under each cell between its heads at least.
+// Bridges is what a bridge keeps to and what the board reads the ground with to tell: its deck
+// Clearance over the ground under every cell between its heads at least.
 type Bridges struct {
 	Clearance float64
 	Level     func(c cell.ID) float64  // a cell's ground level; nil, 0
@@ -23,10 +22,6 @@ type Bridges struct {
 // SetBridges has the bridges keep to b.
 func (t *Cells) SetBridges(b Bridges) { t.bridges = b }
 
-// keepBridges takes the decks and the railings off every bridge among sites that breaks a rule:
-// straight, level, from the middle of a flat tile at its deck to another, its deck over the ground
-// under it; bands not Graded are no bridge. The first time — the board as it was laid — a broken
-// one panics, saying where; after it, it is logged.
 func (t *Cells) keepBridges(sites []site, first bool) {
 	if !slices.ContainsFunc(sites, func(s site) bool { return banded(&s.built) }) {
 		return
@@ -73,8 +68,6 @@ func (t *Cells) keepBridges(sites []site, first bool) {
 	}
 }
 
-// span is the bridge c is a cell of: every cell a band links to, or whose band links back, from
-// c on, c first.
 func (t *Cells) span(c cell.ID, sites []site, at map[cell.ID]int, seen map[cell.ID]bool) []cell.ID {
 	out := []cell.ID{c}
 	seen[c] = true
@@ -94,9 +87,6 @@ func (t *Cells) span(c cell.ID, sites []site, at map[cell.ID]int, seen map[cell.
 	return out
 }
 
-// broken is the rule span breaks, said; "" for none: a bridge runs straight and level from a head
-// to a head — a band from the middle of a flat tile at its deck into the bridge — its deck
-// Clearance over the ground under the middle of every cell between.
 func (t *Cells) broken(span []cell.ID, sites []site, at map[cell.ID]int) string {
 	floor := func(c cell.ID) cell.Floor { return sites[at[c]].built.Floor }
 	eps := 1e-3 * float64(t.grid.CellSpan())
@@ -142,7 +132,6 @@ func (t *Cells) broken(span []cell.ID, sites []site, at map[cell.ID]int) string 
 	return ""
 }
 
-// offFlat is how far the ground anywhere on c — its middle and its corners — lies off top.
 func (t *Cells) offFlat(c cell.ID, top float64) float64 {
 	m := t.grid.CellCenter(c)
 	off := math.Abs(t.ground(m) - top)

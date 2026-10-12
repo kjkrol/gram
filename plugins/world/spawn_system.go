@@ -17,17 +17,13 @@ import (
 
 var _ goke.System = (*spawnSystem)(nil)
 
-// spawnSystem carries out the Spawns given since the last step: one Factory a kind, built once
-// the kinds are all defined, the rows checked before any entity is made.
 type spawnSystem struct {
-	w     *module
-	kinds []*spawner // by kind.ID
-	// groups are this step's accepted rows by kind, in the order the kinds first came
+	w        *module
+	kinds    []*spawner // by kind.ID
 	groups   []spawnGroup
 	accepted int
 }
 
-// spawner is what spawns one kind: its factory and the writers of its columns.
 type spawner struct {
 	kind    ikinds.Kind
 	factory *goke.Factory
@@ -76,7 +72,6 @@ func (s *spawnSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
 	}
 }
 
-// take checks one entry and puts its row with its kind's; an error says why it is refused.
 func (s *spawnSystem) take(e kind.Entry) error {
 	k, ok := s.w.kinds.r.Kind(e.Kind())
 	if !ok {
@@ -114,8 +109,6 @@ func (s *spawnSystem) take(e kind.Entry) error {
 	return nil
 }
 
-// writersOf are the writers of a kind's columns: its Appearance first, then each of its
-// components (a comp.Without writes nothing).
 func writersOf(k ikinds.Kind) []comp.Spawner {
 	writers := []comp.Spawner{comp.Const(render.Appearance{SpriteID: k.SpriteID}).Spawner()}
 	for _, c := range k.Comps {
@@ -126,9 +119,7 @@ func writersOf(k ikinds.Kind) []comp.Spawner {
 	return writers
 }
 
-// spawnRows makes one entity of k a row through factory — its Base from the row, its Label and
-// the commands its entry tells it, placed in the
-// space, the writers' columns from the row — the rows checked beforehand.
+// the rows are checked beforehand
 func (w *module) spawnRows(factory *goke.Factory, base *goke.Comp[Base], label *goke.Comp[entity.Label], writers []comp.Spawner, k ikinds.Kind, rows []any, entries []kind.Entry) {
 	factory.Create(len(rows))
 	index := 0
@@ -153,7 +144,6 @@ func (w *module) spawnRows(factory *goke.Factory, base *goke.Comp[Base], label *
 	}
 }
 
-// sizeOf is an error for a size outside the bounds the world declared.
 func (w *module) sizeOf(pos Position) error {
 	min, max := float64(w.config.Entities.MinSize), float64(w.config.Entities.MaxSize)
 	if pos.Size.X < min || pos.Size.X > max || pos.Size.Y < min || pos.Size.Y > max {
@@ -162,7 +152,6 @@ func (w *module) sizeOf(pos Position) error {
 	return nil
 }
 
-// handled is an error for a command e tells its entity that no plugin in use carries out.
 func (w *module) handled(e kind.Entry) error {
 	for _, cmd := range e.Commands() {
 		if t := reflect.TypeOf(control.Unwrap(cmd)); !w.commands.Takes(t) {

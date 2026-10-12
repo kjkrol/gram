@@ -12,7 +12,6 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// bumped is level ground 16 cells a side with one corner, (4, 10), raised 40.
 type bumped struct{}
 
 func (bumped) Lattice() (cols, rows int, cell float32, heights []float32, ok bool) {
@@ -22,7 +21,6 @@ func (bumped) Lattice() (cols, rows int, cell float32, heights []float32, ok boo
 }
 func (bumped) Version() uint64 { return 0 }
 
-// grey is the board painted one grey.
 type grey struct{ img *render.Image }
 
 func (g *grey) Surface() Painted {
@@ -37,15 +35,13 @@ type noAir struct{}
 
 func (noAir) Air() air.Weather { return air.Weather{} }
 
-// downward looks straight down at the ground from 200 up, a screen pixel 8 world units.
+// straight down from 200 up, a screen pixel 8 world units
 type downward struct{ camera.Camera }
 
 func (downward) Rays() (camera.RayField, bool) {
 	return camera.RayField{Origin: [3]float32{0, 0, 200}, DX: [3]float32{8, 0, 0}, DY: [3]float32{0, 8, 0}, Dir: [3]float32{0, 0, -1}}, true
 }
 
-// Drawn from above under a high sun, level ground is lit alike everywhere and the raised corner
-// shows where it stands, its slopes lit otherwise: the lattice's quadrants each read as written.
 func TestTerrain_DrawsTheLevelEvenlyAndABumpWhereItStands(t *testing.T) {
 	needGPU(t)
 	r := New(bumped{}, &grey{}, noAir{}, Config{})
@@ -68,8 +64,6 @@ func TestTerrain_DrawsTheLevelEvenlyAndABumpWhereItStands(t *testing.T) {
 	}
 }
 
-// The ground's mesh shader compiles on the composer's library, the water among the materials it
-// calls.
 func TestTerrainShader_Compiles(t *testing.T) {
 	needGPU(t)
 	if err := Shader().Compile(); err != nil {
@@ -77,7 +71,6 @@ func TestTerrainShader_Compiles(t *testing.T) {
 	}
 }
 
-// needGPU readies a device without a window; a machine without one skips.
 func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {

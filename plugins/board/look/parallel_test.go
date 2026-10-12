@@ -14,9 +14,6 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// stripes is a Parallel Dressing for tests: it lights every tile by its cell and lays a stripe
-// over it, counting the tiles warmed and the workers asked for; a worker keeps a scratch of its
-// own and the tiles it dressed.
 type stripes struct {
 	warmed  atomic.Int32
 	readied int
@@ -45,7 +42,6 @@ func (s *stripes) Worker(k int) look.Dressing {
 	return &stripes{}
 }
 
-// stripedMap is a flat Map dressed by stripes, drawn by look.
 type stripedMap struct {
 	lookMap
 	d *stripes
@@ -53,7 +49,6 @@ type stripedMap struct {
 
 func (m stripedMap) Dressing() look.Dressing { return m.d }
 
-// piecesOf composes r through cam and gives every piece of the frame in order.
 func piecesOf(r *look.Renderer, cam camera.Camera) (out [][]render.Vertex, n int) {
 	var f render.Frame
 	f.Reset(cam)
@@ -64,8 +59,6 @@ func piecesOf(r *look.Renderer, cam camera.Camera) (out [][]render.Vertex, n int
 	return out, f.Len()
 }
 
-// Under a Parallel Dressing and a ParallelLook the tiles are warmed first, then dressed on several
-// goroutines at once, and the picture is the one a single goroutine draws, piece for piece.
 func TestRenderer_Compose_WorkersDrawWhatOneGoroutineDoes(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(16, 16, 32)
 	brd := board.NewBoard(grid)
@@ -96,7 +89,6 @@ func TestRenderer_Compose_WorkersDrawWhatOneGoroutineDoes(t *testing.T) {
 	}
 }
 
-// A Look that is no ParallelLook keeps the tiles on the frame's goroutine, warmed by nobody.
 func TestRenderer_Compose_APlainLookKeepsOneGoroutine(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(16, 16, 32)
 	brd := board.NewBoard(grid)
@@ -113,7 +105,6 @@ func TestRenderer_Compose_APlainLookKeepsOneGoroutine(t *testing.T) {
 	}
 }
 
-// Under the Nothing look the renderer readies the dressing for the frame and lays no tile.
 func TestRenderer_Compose_NothingLaysNoTile(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid)

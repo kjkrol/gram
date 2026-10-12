@@ -22,9 +22,8 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Config is the atmosphere: the Calendar's days and year, the Sky's sun and light, the Climate's
-// zone and weathers, and which of its workings go on from the start (Running; all of them when
-// nil). Zero fields take each package's defaults; the sun goes at the climate's zone's latitude.
+// Config is the atmosphere: its calendar, sky, climate and which of its workings go on from the
+// start (all of them when Running is nil). Zero fields take each package's defaults.
 type Config struct {
 	Calendar calendar.Config
 	Sky      sky.Config
@@ -32,11 +31,10 @@ type Config struct {
 	Running  *Running
 }
 
-// Plugin is the atmosphere over a world: the calendar of the world's clock, the light of the day
-// over it, its climate and weather, what falls, and — laid on a board — what the weather does to
-// the ground.
+// Plugin is the atmosphere over a world: the calendar, the light of the day, the climate and its
+// weather, what falls, and what the weather does to a board.
 type Plugin struct {
-	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+	*world.Self
 
 	cfg         Config
 	worldPlugin *world.Plugin
@@ -74,19 +72,17 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	return p
 }
 
-// Sun is the light of the day as it stands: what lights the world and casts its shadows.
+// Sun is the light of the day as it stands.
 func (p *Plugin) Sun() sky.Sun { return p.sky.Sun() }
 
 // Heavens is where the sun, the moon and the stars stand at the hour of the light.
 func (p *Plugin) Heavens() celestial.Heavens { return p.sky.Heavens() }
 
-// Air is the weather as the last step of the simulation left it: the wind, the clouds, what
-// falls, how far one sees.
+// Air is the weather as the last step of the simulation left it.
 func (p *Plugin) Air() air.Weather { return p.climate.Air() }
 
-// WithWeathering has the weather work on brd as cfg says: snow, ice, what sways; call it as the
-// plugin is made (it defines three effects of its own). The kinds cfg names are looked up as the
-// weather first touches the board; one the board's dictionary lacks panics then.
+// WithWeathering has the weather work on brd as cfg says: snow, ice, what sways. Call it as the
+// plugin is made; a kind cfg names that the board lacks panics as the weather first touches it.
 func (p *Plugin) WithWeathering(brd *board.Plugin, cfg weathering.Config) *Plugin {
 	w, err := weathering.New(brd, p.Air, p.worldPlugin.Effects(), p.calendar, cfg)
 	if err != nil {
@@ -97,7 +93,7 @@ func (p *Plugin) WithWeathering(brd *board.Plugin, cfg weathering.Config) *Plugi
 	return p
 }
 
-// Calendar is the atmosphere's: the day, the season and the moon of the world's clock.
+// Calendar is the day, the season and the moon of the world's clock.
 func (p *Plugin) Calendar() *calendar.Calendar { return p.calendar }
 
 // Sky is the light of the day, to freeze and move by hand.
@@ -109,14 +105,9 @@ func (p *Plugin) Climate() *climate.Climate { return p.climate }
 // Weathering is what the weather does to the board, nil without WithWeathering.
 func (p *Plugin) Weathering() *weathering.Weathering { return p.weathering }
 
-// =================================================================
-// plugin.Plugin contract
-// =================================================================
-
 func (p *Plugin) Name() string { return "gram.atmosphere" }
 
-// Install wires the sky's and the weather's systems, and lays the weathering on the world's
-// schedule.
+// Install wires the sky's, the weather's and the weathering's systems.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{p: p, sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Clock()}
 	ctx.UseModule(p.module)
@@ -125,8 +116,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 
-// RunPlan runs the atmosphere's tick: the light at once, the weather in every step of the
-// simulation. Call it after the world's, before the world is drawn.
+// RunPlan runs the atmosphere's tick. Call it after the world's.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.carryOut()
 	p.module.RunPlan(ctx, d)
@@ -135,8 +125,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 // WithRenderer is a no-op: the sky and what falls are drawn in plain colours.
 func (p *Plugin) WithRenderer(render.AtlasSource) {}
 
-// Renderer is the sky behind the world, a render.Source for a scene's Composer: the viewport in
-// the sky's colour under everything, wherever the ground does not cover it.
+// Renderer is the sky behind the world, a render.Source for a scene's Composer.
 func (p *Plugin) Renderer() render.Layer {
 	shown := func() (stars, moon bool) {
 		r := p.Running()
@@ -145,46 +134,38 @@ func (p *Plugin) Renderer() render.Layer {
 	return backdrop.New(p.worldPlugin.Res.Config.Space, p.worldPlugin.Scale(), p.Sun, p.Air).WithHeavens(p.Heavens).WithShown(shown)
 }
 
-// Precipitation is what falls — rain, snow — a render.Source for a scene's Composer, on render.Air.
+// Precipitation is what falls, a render.Source for a scene's Composer on render.Air.
 func (p *Plugin) Precipitation() render.Layer { return precipitation.New(p.Sun, p.Air) }
 
-// Clouds is the clouds' shadows over a flat world, a render.Source for a scene's Composer: laid
-// over the ground under every pixel on the GPU, over what stands on it, under the overlays. A
+// Clouds is the clouds' shadows over a flat world, a render.Source for a scene's Composer. A
 // world with heights has its terrain shadow itself.
 func (p *Plugin) Clouds() render.Layer { return overcast.New(p.Sun, p.Air) }
 
-// Reporter is the atmosphere's lines for a render.TelemetryRenderer: the time of day and the date,
-// the light, the weather.
+// Reporter is the atmosphere's lines for a render.TelemetryRenderer.
 func (p *Plugin) Reporter() render.Reporter {
 	return reporters{p.calendar.Reporter(), p.sky.Reporter(), p.climate.Reporter()}
 }
 
-// HUD is the calendar's screen layer: the hour, the date and the moon in the bottom-right corner.
+// HUD is the calendar's screen layer: the hour, the date and the moon.
 func (p *Plugin) HUD() render.Layer { return p.calendar.HUD() }
 
 // EventHandler is nil: the atmosphere takes commands, not input.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil: the weather is its own entity, saved with the ECS; the calendar is the
-// clock's; the light's freeze is a look, not saved.
+// Serializable is nil: the weather is its own entity, saved with the ECS.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
-
-// =================================================================
-// module
-// =================================================================
 
 var _ goke.Module = (*module)(nil)
 
-// module runs the sky once a tick and the weather in every step of the simulation.
 type module struct {
 	sky, climate  goke.System
 	comps         []goke.CompToken
 	clock         *clock.Clock
 	skyRun        goke.Runnable
-	rises         goke.System // the sky's: the rules of a Moonrise
+	rises         goke.System
 	risesRun      goke.Runnable
 	climateRun    goke.Runnable
-	p             *Plugin // its weathering, given any time before the Stage is set up
+	p             *Plugin
 	weatheringRun goke.Runnable
 }
 
@@ -210,17 +191,10 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	})
 }
 
-// SetupSystems is empty: the weather finds or makes its entity in its own Init.
 func (m *module) SetupSystems() []goke.System { return nil }
 
-// LoadComps lists the weather's component — see goke.CompProvider.
 func (m *module) LoadComps() []goke.CompToken { return m.comps }
 
-// =================================================================
-// reporters
-// =================================================================
-
-// reporters is several reporters as one.
 type reporters []render.Reporter
 
 func (rs reporters) Init(si *goke.SysInit) {

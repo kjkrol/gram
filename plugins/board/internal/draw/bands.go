@@ -13,7 +13,7 @@ import (
 	"github.com/kjkrol/gram/rule/effect"
 )
 
-// bandTier puts the ways' bands over the tiles and under the grid's lines.
+// over the tiles, under the grid's lines
 const bandTier = render.Ground + 5
 
 // Ways is what Bands read of a board: where each cell's neighbours lie and what runs across it.
@@ -29,11 +29,9 @@ type Ways interface {
 	Shape() (grid.Shape, bool)
 }
 
-// Bands is the simple map's Dressing: it lays what lies on the cells under an effect (Cover), then
-// the ways over the tiles as bands cut out of their kinds' sprites, from the
-// cell's middle out to the edge towards each neighbour the way runs on to, as wide as the way,
-// faded as far as it has faded. The tiles are drawn as they are; a sky over the board
-// (plugins/atmosphere) lights them.
+// Bands is the simple map's Dressing: what lies on the cells under an effect (Cover), then the
+// ways over the tiles as bands cut out of their kinds' sprites, as wide as the way, faded as far
+// as it has faded.
 type Bands struct {
 	board  Ways
 	pts    [][2]float32
@@ -64,8 +62,6 @@ func (d *Bands) Dress(f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, 
 	}
 }
 
-// bands lays w's bands over t: a hub at the cell's middle and a band out to each neighbour's edge,
-// each the part of the way's kind's sprite it covers when the sprite is laid over the tile.
 func (d *Bands) bands(f *render.Frame, cam camera.Camera, t *look.Tile, w cell.Way, depth float32) {
 	keep := 1 - min(max(w.Fade, 0), 1)
 	var box [4]float32

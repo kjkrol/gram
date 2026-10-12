@@ -11,19 +11,14 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Rule is what is done at a moment a plugin catches in its own pass over its entities — a unit
-// standing on the board, one seeing another, two striking — built with Then and obeyed by a role
-// (Role, Part.Obeys). The moment's type says which plugin hosts it;
-// another refuses it. String is its name and its moment.
+// Rule is what a role's players do at a moment a plugin catches: a Branch of that moment, or a
+// role whose rules come with it. The moment's type says which plugin hosts it.
 type Rule interface {
 	fmt.Stringer
 	rule()
 	narrowed(n narrowing) Rule
 }
 
-// within is r for the entities carrying t alone — on a moment that is Met, for the pairs whose
-// entity carries t — whatever r's own filter: what a Role's Obeys makes of a rule; desc says how,
-// in its String. Narrowed by tag.Any, r is r.
 func within[F any](t tag.Tag[F], r Rule, desc string) Rule {
 	if reflect.TypeFor[F]() == reflect.TypeFor[tag.Anything]() {
 		return r
@@ -35,76 +30,34 @@ func within[F any](t tag.Tag[F], r Rule, desc string) Rule {
 	return r.narrowed(n)
 }
 
-// Filter is whom a rule fires for: All, Self, Between or Having.
-type Filter struct {
-	self, other plugin.Side
-	paired      bool  // Self or Between
-	others      bool  // Between
-	mine        *side // Self, for a moment that is not Met
-	need        *having
-}
-
-// All lets every entity the plugin shows the rule through — every pair, for a moment that is Met.
-var All Filter
-
-// Self lets through an entity carrying t.
-func Self[F any](t tag.Tag[F]) Filter {
-	return Filter{self: plugin.SideOf(t), paired: true, mine: carrierOf(t)}
-}
-
-// Between lets through a pair whose entity carries a and whose other carries b — tag.Any for
-// either — for a moment that is Met.
-func Between[FA, FB any](a tag.Tag[FA], b tag.Tag[FB]) Filter {
-	return Filter{self: plugin.SideOf(a), other: plugin.SideOf(b), paired: true, others: true}
-}
-
-// Other lets through a pair whose other plays role, whoever its entity is — whom a predator
-// sees, when the role is prey — for a moment that is Met; obeyed by a role, the pairs of its
-// players with the other role's.
-func Other(role *Part) Filter { return Between(tag.Any, role.tag) }
-
-// Having lets through an entity carrying the component T.
-func Having[T any]() Filter {
-	return Filter{need: &having{state: func() state { return stateOf[T]() }}}
-}
-
-// side is a Self filter; on a moment that is not Met it reads the entity's tags as the rule's
-// state.
 type side struct {
 	tags    func() state
 	carries func(state any) bool
 }
 
-// carrierOf is the side of the entities carrying t.
 func carrierOf[F any](t tag.Tag[F]) *side {
 	return &side{tags: func() state { return stateOf[tag.Tags[F]]() },
 		carries: func(state any) bool { return state.(*tag.Tags[F]).Has(t) }}
 }
 
-// cond is a test of the side, as a rule over one entity reads it: the entity's tags carrying a tag.
 func (s *side) cond() cond { return cond{mk: s.tags, holds: s.carries} }
 
-// narrowing is a tag a rule's entity must carry besides its filter (a role's Obeys): read off its
-// tags by a rule over one entity, matched as one more side by a rule over pairs.
 type narrowing struct {
 	side    plugin.Side
 	carrier *side
-	desc    string // what the narrowed rule's String adds
-	role    uint64 // the tag's bit, for a role's
+	desc    string
+	role    uint64
 }
 
-// label is the narrowed rule's String: of a rule labelled l.
 func (n narrowing) label(l string) string { return l + ", " + n.desc }
 
-// having is a Having filter.
 type having struct{ state func() state }
 
-// fired is a rule's body, run on each moment its plugin hands it.
 type fired[P any] struct {
 	run     *steps.Instant
 	current P
-	about   bool // P is About an entity
-	subject bool // P names a Subject, whom an Aimed command is about
+	about   bool
+	subject bool
 }
 
 func (f *fired[P]) fire(t plugin.Tick, _ any, about P) {
@@ -121,9 +74,7 @@ func (f *fired[P]) fire(t plugin.Tick, _ any, about P) {
 	f.run.Fire(p, t.CmdBuf, id, f.about, subject, aimed)
 }
 
-// build is the rule named name over root, for whom filter lets through, as its plugin's
-// rule-driven system takes it.
-func build[P any](name string, filter Filter, root Step) Rule {
+func construct[P any](name string, filter sides, root steps.Step) Rule {
 	label := fmt.Sprintf("%q of %v", name, reflect.TypeFor[P]())
 	f := &fired[P]{}
 	f.run = steps.NewInstant(name, root, &f.current)
@@ -133,10 +84,13 @@ func build[P any](name string, filter Filter, root Step) Rule {
 	react := func(t plugin.Tick, about P) { f.fire(t, nil, about) }
 	switch {
 	case filter.need != nil:
+		if filter.paired {
+			panic(fmt.Sprintf("rule: %q: Carrying beside Self or Other", name))
+		}
 		return newEachWith(label, react, cond{mk: filter.need.state})
 	case filter.paired && !met:
 		if filter.mine == nil || filter.others {
-			panic(fmt.Sprintf("rule: %q: Between needs a moment with others (Met)", name))
+			panic(fmt.Sprintf("rule: %q: Other needs a moment with others (Met)", name))
 		}
 		return newEachWith(label, react, filter.mine.cond())
 	case filter.paired || met:
@@ -144,7 +98,6 @@ func build[P any](name string, filter Filter, root Step) Rule {
 	}
 	return &every[P]{label: label, react: react}
 }
-
 func (e *every[P]) narrowed(n narrowing) Rule {
 	each := newEachWith(n.label(e.label), e.react, n.carrier.cond())
 	if n.role == 0 {

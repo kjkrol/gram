@@ -1,10 +1,10 @@
 //go:build ignore
 
 // stars_gen writes stars.bin from the Yale Bright Star Catalogue, 5th revised edition (Hoffleit &
-// Warren 1991, CDS catalogue V/50), read from stdin as its catalog file: every star of V ≤ 6.0,
-// brightest first, eight bytes each, little-endian — the right ascension (J2000) over 24 hours in
-// a uint16, the declination over ±90° in an int16, V and B−V in hundredths of a magnitude in two
-// int16s. Run: curl -s https://cdsarc.cds.unistra.fr/ftp/V/50/catalog.gz | gunzip | go run stars_gen.go
+// Warren 1991, CDS catalogue V/50), read from stdin: every star of V ≤ 6.0, brightest first, eight
+// little-endian bytes each (RA over 24h in a uint16, declination over ±90° in an int16, V and B−V
+// in hundredths in two int16s).
+// Run: curl -s https://cdsarc.cds.unistra.fr/ftp/V/50/catalog.gz | gunzip | go run stars_gen.go
 package main
 
 import (

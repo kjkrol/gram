@@ -15,7 +15,7 @@ type Cover struct {
 	Sprite render.SpriteID
 }
 
-// coverSoft is how far either side of its line a cover fades in, as a share of the weight.
+// a share of the weight
 const coverSoft = 0.2
 
 // Cover has sprite laid over the cells under the effect marked mark.
@@ -23,8 +23,6 @@ func (d *Bands) Cover(mark tag.Tag[effect.States], sprite render.SpriteID) {
 	d.covers = append(d.covers, Cover{Mark: mark, Sprite: sprite})
 }
 
-// covered lays every cover over t along the line the cells under its effect draw, not along the
-// cells' edges: on a square grid; on any other over the whole of a cell under it.
 func (d *Bands) covered(f *render.Frame, cam camera.Camera, t *look.Tile, depth float32) {
 	if len(d.covers) == 0 {
 		return
@@ -67,16 +65,14 @@ func (d *Bands) covered(f *render.Frame, cam camera.Camera, t *look.Tile, depth 
 	}
 }
 
-// square reports whether the board's grid is the square one, where covers blend.
 func (d *Bands) square() bool {
 	s, ok := d.board.Shape()
 	return ok && !s.Hex
 }
 
 // Weigh is the share of the cells round a tile that are in, at each of its points across and
-// down: 0 its left or top edge, 1 its middle, 2 its right or bottom edge — the tile's own at its
-// middle. The share at a corner or a side is the same from every cell meeting there, so a line
-// runs on from tile to tile.
+// down: 0 its left or top edge, 1 its middle, 2 its right or bottom edge. The share at a corner
+// or a side is the same from every cell meeting there, so a line runs on from tile to tile.
 func Weigh(in [3][3]bool) [3][3]float32 {
 	span := [3][2]int{{0, 1}, {1, 1}, {1, 2}}
 	var weight [3][3]float32

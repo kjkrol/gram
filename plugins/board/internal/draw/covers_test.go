@@ -21,8 +21,6 @@ import (
 	"github.com/kjkrol/gram/rule/effect"
 )
 
-// A cell alone under an effect weighs a quarter at its corners, a half at its sides, one at its
-// middle; a cell among others under it weighs one everywhere, and one beside them what they share.
 func TestWeigh_IsTheShareOfTheCellsMeetingAtEachPoint(t *testing.T) {
 	alone := draw.Weigh([3][3]bool{{}, {false, true, false}, {}})
 	if want := [3][3]float32{{0.25, 0.5, 0.25}, {0.5, 1, 0.5}, {0.25, 0.5, 0.25}}; alone != want {
@@ -38,7 +36,6 @@ func TestWeigh_IsTheShareOfTheCellsMeetingAtEachPoint(t *testing.T) {
 	}
 }
 
-// A quarter is drawn only where the cover shows somewhere on it.
 func TestQuarters_LeaveOutWhereTheCoverShowsNowhere(t *testing.T) {
 	if q := draw.Quarters([3][3]float32{}, 0.2); len(q) != 0 {
 		t.Errorf("a tile nobody weighs has %d quarters, want none", len(q))
@@ -53,7 +50,6 @@ func TestQuarters_LeaveOutWhereTheCoverShowsNowhere(t *testing.T) {
 	}
 }
 
-// under is a board some of whose cells lie under an effect.
 type under struct {
 	*board.Board
 	mark  tag.Tag[effect.States]
@@ -67,7 +63,6 @@ func (u under) States(c cell.ID) tag.Tags[effect.States] {
 	return 0
 }
 
-// covered is a flat map dressed by d.
 type covered struct{ d *draw.Bands }
 
 func (m covered) Look() look.Look                               { return look.FlatLook() }
@@ -75,10 +70,6 @@ func (covered) Heights() ground.Heights                         { return nil }
 func (m covered) Dressing() look.Dressing                       { return m.d }
 func (covered) Top(cell.ID) (corners [4]float32, level float32) { return corners, 0 }
 
-// A cover lies over the cells under its effect along a line of its own: the middle of a covered
-// cell is the cover's colour, the middle of a bare one its kind's, and at the outer corner of a
-// block of covered cells the kind shows through — the line cuts the corner, it does not follow the
-// cells' edges.
 func TestCover_LiesAlongALineOfItsOwn(t *testing.T) {
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
 		t.Skipf("no GPU: %v", err)

@@ -17,7 +17,7 @@ type TelemetryRenderer struct {
 	text        []byte
 }
 
-// NewTelemetryRenderer shows the frame rate, the tick rates and the entity count.
+// NewTelemetryRenderer shows the frame and tick rates and the entity count.
 func NewTelemetryRenderer(measuredTPS *int, entityCount func() int) *TelemetryRenderer {
 	return &TelemetryRenderer{measuredTPS: measuredTPS, entityCount: entityCount}
 }
@@ -46,7 +46,6 @@ func (s *TelemetryRenderer) Draw(screen *Image) {
 	DebugPrint(screen, string(s.text))
 }
 
-// reported appends to text a line "label: value" for every line of the reporters.
 func (s *TelemetryRenderer) reported(text []byte) []byte {
 	for _, r := range s.reporters {
 		r.Report(func(label, value string) {

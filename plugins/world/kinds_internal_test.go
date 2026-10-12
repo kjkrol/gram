@@ -21,7 +21,6 @@ func spawnerTestPos() Position {
 	return Position{AABB: plane.NewAABB(geom.NewVec(0, 0), 10, 10)}
 }
 
-// statSpec is a kind whose rows are an int: the HP its one component spawns with.
 func statSpec() kind.Spec {
 	return kind.Spec{
 		comp.Const(spawnerTestPos()),

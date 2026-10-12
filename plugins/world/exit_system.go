@@ -11,25 +11,21 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Outside marks an entity wholly past an open edge; whoever moved it there puts it on, the
-// exitSystem takes it off once the entity is back inside.
+// Outside marks an entity wholly past an open edge, taken off once it is back inside.
 type Outside struct{}
 
-// Leaving is what a rule hosted by world gets, every tick, for an entity carrying Outside; with no
-// such rule the world despawns the leaver. Whether it stays a moment is open (doc/roadmap.md).
+// Leaving is the moment of an entity carrying Outside, every tick it does. With no rule of it the
+// world despawns the leaver.
 type Leaving struct {
 	ID   uid.UID64
 	Base *Base
 }
 
-// Who is the entity leaving: whose moment it is, for a rule.
+// Who is the entity leaving.
 func (l Leaving) Who() uid.UID64 { return l.ID }
 
 var _ goke.System = (*exitSystem)(nil)
 
-// exitSystem despawns the entities that gave themselves a Despawn, and walks those carrying
-// Outside: the hosted rules hear of them, or they are despawned when there are none; one that
-// is back inside loses the mark.
 type exitSystem struct {
 	w    *module
 	host *plugin.Rules[Leaving]
@@ -38,7 +34,7 @@ type exitSystem struct {
 	base    goke.Comp[Base]
 	outside goke.CompID
 
-	// alive finds whoever gave itself a Despawn: one gone already is not despawned again
+	// one gone already is not despawned again
 	alive     *goke.Query
 	aliveBase goke.Comp[Base]
 
@@ -83,10 +79,8 @@ func (s *exitSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-// at describes the i-th entity of the chunk being walked.
 func (s *exitSystem) at(i int) Leaving { return Leaving{ID: s.ids[i], Base: &s.bases[i]} }
 
-// inside reports whether box is not wholly past an open edge of space.
 func inside(space *aabbworld.Space, box geom.AABB) bool {
 	width, height, edges := space.Bounds()
 	outX := edges&aabbworld.OpenX != 0 && (box.BottomRight.X <= 0 || box.TopLeft.X >= float64(width))

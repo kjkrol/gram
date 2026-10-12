@@ -23,7 +23,6 @@ func spawnerTestPos() entity.Position {
 	return entity.Position{AABB: plane.NewAABB(geom.NewVec(0, 0), 10, 10)}
 }
 
-// statSpec is a kind whose rows are an int: the HP its one component spawns with.
 func statSpec() kind.Spec {
 	return kind.Spec{
 		comp.Const(spawnerTestPos()),
@@ -32,7 +31,6 @@ func statSpec() kind.Spec {
 	}
 }
 
-// panicsWith runs f and reports what it panicked with, failing the test if it did not.
 func panicsWith(t *testing.T, f func()) (msg string) {
 	t.Helper()
 	defer func() {
@@ -104,7 +102,6 @@ func TestKinds_LoadComps_ListsWhatItsKindsCarryEachOnce(t *testing.T) {
 	}
 }
 
-// Two families of tags of the test's own.
 type (
 	spawnerFamily struct{}
 	otherFamily   struct{}

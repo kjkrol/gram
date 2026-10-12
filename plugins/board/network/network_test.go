@@ -20,7 +20,6 @@ const (
 	east  = cell.Links(1 << 3)
 )
 
-// A road links its cells both ways, only neighbours, and does not flow.
 func TestNetwork_ARoadLinksItsCellsBothWays(t *testing.T) {
 	road := network.New(g)
 	for x := range uint32(3) {
@@ -45,9 +44,6 @@ func TestNetwork_ARoadLinksItsCellsBothWays(t *testing.T) {
 	}
 }
 
-// Water flows down from cell to cell, its last cell on to where it leaves the network: it links
-// there, and nothing links back. Along it the way down grows from 0 at the head of the longest
-// flow in to 1 at the last cell.
 func TestNetwork_WaterFlowsDownAndLiesAlongIt(t *testing.T) {
 	river := network.New(g)
 	for y := range uint32(4) {
@@ -77,8 +73,6 @@ func TestNetwork_WaterFlowsDownAndLiesAlongIt(t *testing.T) {
 	}
 }
 
-// Laid on a board, a network is a Way across every cell it runs through, of its node's kind, as
-// wide, running on as it links, its look turned as far down its flow as it lies.
 func TestNetwork_WaysLayItAcrossItsCells(t *testing.T) {
 	river := network.New(g)
 	river.Set(at(0, 0), network.Node{Kind: "brook", Width: 2})
@@ -100,7 +94,6 @@ func TestNetwork_WaysLayItAcrossItsCells(t *testing.T) {
 	}
 }
 
-// Two networks cross where both run through a cell: a road over a river.
 func TestNetwork_CrossingsAreTheCellsBothRunThrough(t *testing.T) {
 	river, road := network.New(g), network.New(g)
 	for y := range uint32(5) {
@@ -114,8 +107,6 @@ func TestNetwork_CrossingsAreTheCellsBothRunThrough(t *testing.T) {
 	}
 }
 
-// A route is the cheapest way from cell to cell, round what may not be crossed; none where
-// nothing gets there.
 func TestRoute_TakesTheCheapestWayRoundWhatMayNotBeCrossed(t *testing.T) {
 	wall := map[cell.ID]bool{at(2, 0): true, at(2, 1): true, at(2, 2): true, at(2, 3): true}
 	cost := func(a, b cell.ID) float64 {

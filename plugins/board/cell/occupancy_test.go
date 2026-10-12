@@ -52,7 +52,6 @@ func TestMultipleOccupancy_LetsTokensStack(t *testing.T) {
 	}
 }
 
-// Holder tells who holds a cell in a domain, whom a step into it would meet.
 func TestOccupancy_HolderTellsWhoHoldsACell(t *testing.T) {
 	for name, occ := range map[string]interface {
 		cell.Occupancy
@@ -75,8 +74,6 @@ func TestOccupancy_HolderTellsWhoHoldsACell(t *testing.T) {
 	}
 }
 
-// Release lets go of every hold of the entities gone, the others' kept: a cell a gone entity held
-// takes another again.
 func TestOccupancy_ReleaseLetsGoOfTheGone(t *testing.T) {
 	for name, occ := range map[string]cell.Occupancy{"single": &cell.SingleOccupancy{}, "multiple": &cell.MultipleOccupancy{}} {
 		gone, stays := uid.UID64(1), uid.UID64(2)
@@ -100,8 +97,6 @@ func TestOccupancy_ReleaseLetsGoOfTheGone(t *testing.T) {
 	}
 }
 
-// A cell has two levels under a raised deck: a walker on the deck and one on the ground under it
-// hold it each on its own, and each level takes one walker alone.
 func TestSingleOccupancy_IsOnePerDomainOnEachLevel(t *testing.T) {
 	o := &cell.SingleOccupancy{}
 	const here, above, below, third = cell.ID(7), 1, 2, 3
@@ -122,7 +117,6 @@ func TestSingleOccupancy_IsOnePerDomainOnEachLevel(t *testing.T) {
 	}
 }
 
-// Holders hands over every hold of a cell, each with its domains and level.
 func TestOccupancy_HoldersHandsEveryHoldOfACell(t *testing.T) {
 	type hold struct {
 		entity uid.UID64

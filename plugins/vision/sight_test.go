@@ -7,7 +7,6 @@ import (
 	"github.com/kjkrol/gram/plugins/vision"
 )
 
-// Looking is the heading with Ahead and one to go by, Facing otherwise.
 func TestSight_LookingFollowsTheHeadingOnlyAhead(t *testing.T) {
 	east, north := geom.NewVec(1, 0), geom.NewVec(0, 1)
 	for _, c := range []struct {

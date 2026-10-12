@@ -12,8 +12,7 @@ import (
 // Spec is the definition of one kind: the components every entity of it carries — see package comp.
 type Spec []comp.Comp
 
-// ID identifies an entity's kind at runtime, carried on every entity a world spawns —
-// the one trace of its kind that outlives spawning. Define assigns one per kind, in call order.
+// ID identifies an entity's kind, carried on every entity a world spawns.
 type ID uint8
 
 // MaxKinds is how many kinds one Registry can hold, bounded by ID.
@@ -70,8 +69,8 @@ func (k Of[P]) Name() string { return k.name }
 // SpriteID is the atlas slot this kind's entities are drawn from.
 func (k Of[P]) SpriteID() render.SpriteID { return k.sprite }
 
-// EntryOf is one entity of the kind defined as name, described by row: for whoever knows the
-// row's type only as the program runs (board.Plugin.Lay); the world refuses a row of another type.
+// EntryOf is one entity of the kind defined as name, described by row, for whoever knows the
+// row's type only as the program runs. The world refuses a row of another type.
 func EntryOf(name string, row any) Entry { return Entry{kind: name, row: row} }
 
 // Entry is one entity to spawn: its kind and its row — built by Of.Entry or EntryOf.
@@ -89,8 +88,7 @@ func (e Entry) Named(name string) Entry { e.name = name; return e }
 // it by.
 func (e Entry) InGroup(group string) Entry { e.group = group; return e }
 
-// Told is the entry of an entity given cmds as it is made — the commands it gives itself then:
-// whose it is (players.Give), whether it may be selected (selection.Allow).
+// Told is the entry of an entity given cmds as it is made: the commands it gives itself then.
 func (e Entry) Told(cmds ...control.Command) Entry {
 	e.told = append(append([]control.Command(nil), e.told...), cmds...)
 	return e
@@ -99,7 +97,7 @@ func (e Entry) Told(cmds ...control.Command) Entry {
 // Commands are the commands the entity gives itself as it is made.
 func (e Entry) Commands() []control.Command { return e.told }
 
-// Name is the name the entity bears, empty for none; Group the group it is in.
+// Name is the name the entity bears, empty for none.
 func (e Entry) Name() string { return e.name }
 
 // Group is the group the entity is in, empty for none.

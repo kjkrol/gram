@@ -10,7 +10,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// despawnWorld spawns n entities and returns their ids with a live Position query.
 func despawnWorld(t *testing.T, wm *module, n int) ([]uid.UID64, *goke.ECS, *goke.Query, *goke.Comp[Base]) {
 	t.Helper()
 	wm.populate(testKind(spawnerTestPos(), Velocity{}), make([]any, n))
@@ -30,7 +29,6 @@ func despawnWorld(t *testing.T, wm *module, n int) ([]uid.UID64, *goke.ECS, *gok
 	return ids, ecs, q, base
 }
 
-// run ticks ecs once with act followed by the world's own plan.
 func run(ecs *goke.ECS, wm *module, act func(*goke.CmdBuf)) {
 	handle := ecs.RegSys(goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, _ time.Duration) { act(cb) }})
 	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
@@ -53,7 +51,6 @@ func living(q *goke.Query) map[uid.UID64]bool {
 	return found
 }
 
-// indexed reports which of the space's entities a probe over the whole world still finds.
 func indexed(space *aabbworld.Space) map[uid.UID64]bool {
 	at := spawnerTestPos()
 	box := geom.NewAABB(

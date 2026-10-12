@@ -10,16 +10,15 @@ import (
 
 type recipe struct {
 	Area   area      `yaml:"area"`
-	Zoom   int       `yaml:"zoom"` // the tiles'; 0 finds one fine enough for the cells
+	Zoom   int       `yaml:"zoom"` // 0: one fine enough for the cells
 	Kinds  kinds     `yaml:"kinds"`
 	Ground groundCfg `yaml:"ground"`
 	Rivers riversCfg `yaml:"rivers"`
 	Roads  roadsCfg  `yaml:"roads"`
-	Flat   flatCfg   `yaml:"flat"` // what a map with -flat takes in place of the rest's
+	Flat   flatCfg   `yaml:"flat"`
 }
 
-// flatCfg is what a flat map takes in its own place: its cell in world units, its roads' and its
-// bridges' decks' widths, the most cells a bridge spans; 0, as the rest has it.
+// what a map with -flat takes in place of the rest's; 0, as the rest has it
 type flatCfg struct {
 	Units   uint32  `yaml:"units"`
 	Road    float64 `yaml:"road"`
@@ -27,8 +26,6 @@ type flatCfg struct {
 	Longest int     `yaml:"longest"`
 }
 
-// asFlat is the recipe as a flat map takes it: the flat block's values in place of the rest's, the
-// rivers as wide against a cell as ever.
 func (r recipe) asFlat() recipe {
 	f := r.Flat
 	if f.Units > 0 {
@@ -52,7 +49,7 @@ type area struct {
 	Cells  [2]int     `yaml:"cells"`  // columns, rows
 	Cell   float64    `yaml:"cell"`   // metres
 	Units  uint32     `yaml:"units"`  // world units a cell
-	Sea    int        `yaml:"sea"`    // cells of sea between the land and every edge, at least
+	Sea    int        `yaml:"sea"`    // cells of sea between the land and every edge
 }
 
 type kinds struct {
@@ -100,22 +97,20 @@ type riversCfg struct {
 	} `yaml:"ford"`
 }
 
-// roadsCfg prices a step of a road: one cell along, or the diagonal's, times what climbing, rock
-// and laying it anew add.
 type roadsCfg struct {
 	Width     float64               `yaml:"width"`     // world units
-	Deck      float64               `yaml:"deck"`      // world units: a bridge's deck, in relief
-	Thickness float64               `yaml:"thickness"` // metres: a bridge's deck, its beam
+	Deck      float64               `yaml:"deck"`      // world units
+	Thickness float64               `yaml:"thickness"` // metres
 	Climb     float64               `yaml:"climb"`     // per rise over run
 	Turn      float64               `yaml:"turn"`
 	Grade     float64               `yaml:"grade"` // per metre of earth moved over a cell's metres
 	Rock      float64               `yaml:"rock"`  // times
 	Reuse     float64               `yaml:"reuse"` // times, on a road laid already
 	Bridge    float64               `yaml:"bridge"`
-	Longest   int                   `yaml:"longest"` // cells: the most a bridge spans
-	High      float64               `yaml:"high"`    // metres: the highest a bridge's deck stands
-	Deep      float64               `yaml:"deep"`    // metres: the most a road cuts or fills
-	Figure    float64               `yaml:"figure"`  // metres: the tallest figure, as drawn
+	Longest   int                   `yaml:"longest"` // cells
+	High      float64               `yaml:"high"`    // metres
+	Deep      float64               `yaml:"deep"`    // metres
+	Figure    float64               `yaml:"figure"`  // metres, the tallest figure as drawn
 	Bank      float64               `yaml:"bank"`
 	Places    map[string][2]float64 `yaml:"places"` // longitude, latitude
 	Routes    [][]string            `yaml:"routes"` // each a chain of places

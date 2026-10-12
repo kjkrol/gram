@@ -7,8 +7,6 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/internal/vec"
 )
 
-// testPerspective looks from 200 off at a pitch of 30°, the 2:1 view's heading, through a 400 px
-// focal length over 32-unit cells, at the point (320, 320, 0).
 func testPerspective(heading float32) perspective {
 	target := [3]float32{320, 320, 0}
 	s, c := math.Sincos(float64(heading) + math.Pi/4)
@@ -36,7 +34,6 @@ func TestPerspective_TheTargetLandsInTheMiddleAndXRunsDownRight(t *testing.T) {
 	}
 }
 
-// width is how wide a cell at (x, y) is drawn across the screen.
 func width(p perspective, x, y float32) float32 {
 	ax, _ := p.Project(x-16, y+16, 0)
 	bx, _ := p.Project(x+16, y-16, 0)
@@ -123,10 +120,7 @@ func TestPerspective_VanishIsWhereEverythingFarAlongADirectionIsDrawn(t *testing
 
 func norm32(v [3]float32) [3]float32 { return vec.Scale(v, 1/vec.Norm(v)) }
 
-// With the ground's curve a point is drawn as if sunk under the eye's level by bend·d², d how far
-// off it lies along the ground; the curved ground under a screen point is found back exactly; and
-// level ground, seen from an eye h up, lies least far under the eye's level at the horizon,
-// √(h/bend) off, sinking away beyond it.
+// Level ground seen from an eye h up lies least far under its level at the horizon, √(h/bend) off.
 func TestPerspective_TheGroundCurvesAwayUnderTheHorizon(t *testing.T) {
 	flat := testPerspective(0)
 	curved := flat
@@ -146,7 +140,8 @@ func TestPerspective_TheGroundCurvesAwayUnderTheHorizon(t *testing.T) {
 	}
 	h := curved.eye[2]
 	horizon := float32(math.Sqrt(float64(h / curved.bend)))
-	under := func(d float32) float32 { return (h + curved.bend*d*d) / d } // how far under level, per d
+	// how far under level, per d
+	under := func(d float32) float32 { return (h + curved.bend*d*d) / d }
 	if under(horizon) >= under(horizon*0.8) || under(horizon) >= under(horizon*1.25) {
 		t.Errorf("level ground lies %v under the eye's level at the horizon %v off, %v nearer and %v further: want least at the horizon", under(horizon), horizon, under(horizon*0.8), under(horizon*1.25))
 	}

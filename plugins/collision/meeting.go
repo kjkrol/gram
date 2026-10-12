@@ -2,6 +2,7 @@ package collision
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -13,8 +14,11 @@ type Meeting struct {
 	Normal      geom.Vec
 }
 
-// Who is the entity that met the other: whose moment it is, for a rule.
+// Who is the entity that met the other.
 func (m Meeting) Who() uid.UID64 { return m.Self }
 
 // Whom tells each the other one.
 func (m Meeting) Whom(each func(uid.UID64)) { each(m.Other) }
+
+// Met is the condition that the other one plays role: a rule's When on a Meeting.
+func Met(role *rule.Part) rule.Cond { return rule.Other(role.Tag()) }

@@ -9,27 +9,19 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// groundSheet is the board's cells painted once, px pixels a cell, row by row as on the board from
-// (0, top) of img: the tiles' sheet — the board's atlas with, below it, what lies over the tiles,
-// the grounds running in and the ways, which from far a tile draws as one piece over its top
-// drawn from the same sheet — or, based, the board's albedo: every cell's base under all that,
-// for the ground drawn on the GPU (topography/terrain), with the board's water beside it.
 type groundSheet struct {
 	img   *render.Image
-	atlas render.AtlasSource // the board's, at the top-left of the tiles' sheet
-	top   int                // where the cells begin, below the atlas
-	px    int                // how many pixels a cell spans
-	based bool               // every cell's base is painted under what lies over it
-	// water is a based sheet's water, wpx pixels a cell in the layers water.Layers
-	// names, each a quadrant; wcanvas gathers a layer's pieces; nil where the water would not fit
+	atlas render.AtlasSource
+	top   int
+	px    int
+	based bool
+	// nil where the water would not fit
 	water   *render.Image
 	wpx     int
 	wcanvas [water.Layers]render.Frame
-	// by ordinal: the bake a cell was painted from, its and its neighbours' newest; whether
-	// anything lies painted over it
 	painted []uint64
 	dressed []bool
-	seen    uint64 // one more than the board's count of changes when last brought up to date
+	seen    uint64
 }
 
 var _ render.AtlasSource = (*groundSheet)(nil)
@@ -38,33 +30,25 @@ func (s *groundSheet) Atlas() *render.Image                           { return s
 func (s *groundSheet) UV(id render.SpriteID) (x0, y0, x1, y1 float32) { return s.atlas.UV(id) }
 func (s *groundSheet) White() (u, v float32)                          { return s.atlas.White() }
 
-// cell is the part of the sheet cell x, y is painted in.
 func (s *groundSheet) cell(x, y uint32) image.Rectangle {
 	x0, y0 := int(x)*s.px, s.top+int(y)*s.px
 	return image.Rect(x0, y0, x0+s.px, y0+s.px)
 }
 
-// The most pixels a cell spans on the ground sheet, the fewest worth painting, and how wide and tall
-// a sheet may grow.
 const (
 	bakePx    = 16
 	minBakePx = 4
 	maxSheet  = 4096
 )
 
-// bakeCell is how many pixels a cell spans on screen under which a tile is dressed from the ground
-// sheet: no finer than the sheet paints it.
 const bakeCell = bakePx
 
-// Sheet is the atlas itself: the tiles are dressed only when composed once, from above, for the
-// ground drawn on the GPU.
+// Sheet is the atlas itself: the tiles are dressed only to be composed once, from above.
 func (l *Painter) Sheet(atlas render.AtlasSource) render.AtlasSource { return atlas }
 
-// Surface is the whole board painted flat out of atlas, px pixels a cell — every cell's base with
-// the grounds running in, the ways and the crossings over it — and its water, wpx pixels a cell
-// (water.Layers), brought up to date with the board, for the ground drawn on the GPU;
-// nil off a square grid, where a cell would span too few pixels or the atlas has no sheet; no
-// water where it would not fit.
+// Surface is the whole board painted flat out of atlas, px pixels a cell, and its water, wpx
+// pixels a cell, brought up to date with the board. It is nil off a square grid, where a cell
+// would span too few pixels or the atlas has no sheet; the water is nil where it would not fit.
 func (l *Painter) Surface(atlas render.AtlasSource) (albedo, water *render.Image, px, wpx int) {
 	if !l.square {
 		return nil, nil, 0, 0
@@ -80,10 +64,8 @@ func (l *Painter) Surface(atlas render.AtlasSource) (albedo, water *render.Image
 	return l.albedo.img, l.albedo.water, l.albedo.px, l.albedo.wpx
 }
 
-// Wet is, by cell of a square grid, row by row, whether water may lie on it — its own base shines,
-// or its or a neighbour's ways or crossings run with water or glint where they turn into it — and
-// the board's count of changes it holds for, 1 more: for the ground drawn on the GPU to leave the
-// water out of the dry. Call it after Surface.
+// Wet is, by cell of a square grid, row by row, whether water may lie on it, and the board's
+// count of changes it holds for, 1 more. Call it after Surface.
 func (l *Painter) Wet() ([]bool, uint64) {
 	at := l.board.Changes() + 1
 	if !l.square || l.wetAt == at && len(l.wet) == l.board.CellCount() {
@@ -107,7 +89,6 @@ func (l *Painter) Wet() ([]bool, uint64) {
 	return l.wet, l.wetAt
 }
 
-// wets reports whether any of ways runs with water or glints where it turns into it.
 func wets(ways []WayPiece) bool {
 	for _, p := range ways {
 		if p.Shine > 0 || p.MixShine > 0 {
@@ -117,8 +98,6 @@ func wets(ways []WayPiece) bool {
 	return false
 }
 
-// newSheet is a ground sheet for the board over atlas — the tiles', or based, the board's albedo —
-// or nil where a cell would span too few pixels or the atlas has no sheet.
 func (l *Painter) newSheet(atlas render.AtlasSource, based bool) *groundSheet {
 	if atlas.Atlas() == nil {
 		return nil
@@ -144,8 +123,6 @@ func (l *Painter) newSheet(atlas render.AtlasSource, based bool) *groundSheet {
 	return s
 }
 
-// paint paints anew on s the cells whose grounds or ways, or their neighbours', have changed
-// since: each alone while they are few, else the whole board at once.
 func (l *Painter) paint(s *groundSheet) {
 	if s.seen == l.board.Changes()+1 {
 		return
@@ -177,7 +154,6 @@ func (l *Painter) paint(s *groundSheet) {
 	}
 }
 
-// around8 calls fn with the ordinal of the cell i and each of its neighbours on the board.
 func (l *Painter) around8(i int, fn func(j int)) {
 	cols := int64(l.sq.Cols)
 	c, ok := l.cellAt(int64(i)%cols, int64(i)/cols)
@@ -193,7 +169,6 @@ func (l *Painter) around8(i int, fn func(j int)) {
 	}
 }
 
-// cellTile is the tile of cell c as the board's renderer would hand it, for working out its bake.
 func (l *Painter) cellTile(c cell.ID) *tile {
 	center := l.board.CellCenter(c)
 	l.scratch = look.Tile{ID: c,
@@ -203,8 +178,6 @@ func (l *Painter) cellTile(c cell.ID) *tile {
 	return &l.bakeTile
 }
 
-// paintAll paints the whole board anew on s: every cell's base where s is based, every cell's
-// grounds, then every way over them.
 func (l *Painter) paintAll(s *groundSheet) {
 	cells := s.img.SubImage(image.Rect(0, s.top, int(l.sq.Cols)*s.px, s.top+int(l.sq.Rows)*s.px))
 	cells.Clear()
@@ -240,8 +213,6 @@ func (l *Painter) paintAll(s *groundSheet) {
 	}
 }
 
-// paintCell paints cell i anew on s: its base where s is based, its grounds and the ways of it and
-// its neighbours reaching over it.
 func (l *Painter) paintCell(s *groundSheet, i int) {
 	cols := int(l.sq.Cols)
 	part := s.img.SubImage(s.cell(uint32(i%cols), uint32(i/cols)))
@@ -273,8 +244,6 @@ func (l *Painter) paintCell(s *groundSheet, i int) {
 	}
 }
 
-// layBase adds to the canvas cell i's base — the sprite its top is drawn in first, the sea under a
-// coast — over its whole cell on s, in even light.
 func (l *Painter) layBase(s *groundSheet, i int) {
 	cols := int(l.sq.Cols)
 	c, ok := l.cellAt(int64(i%cols), int64(i/cols))
@@ -286,8 +255,7 @@ func (l *Painter) layBase(s *groundSheet, i int) {
 	l.canvas.Sprite(render.Ground, 0, s.atlas, l.base(c).sprite, render.Corners{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}}, render.Even(1))
 }
 
-// lay adds to the canvas cell i's blends and ways, where they lie on s, in even light, drawn from
-// the board's atlas: a sheet cannot draw on itself.
+// drawn from the board's atlas: a sheet cannot draw on itself
 func (l *Painter) lay(s *groundSheet, i int, blends []BlendPiece, ways []WayPiece) {
 	cols := int(l.sq.Cols)
 	x0, y0 := float32((i%cols)*s.px), float32(s.top+(i/cols)*s.px)
@@ -307,7 +275,6 @@ func (l *Painter) lay(s *groundSheet, i int, blends []BlendPiece, ways []WayPiec
 	}
 }
 
-// markWays marks dressed on s every cell cell i's ways reach over.
 func (l *Painter) markWays(s *groundSheet, i int) {
 	if len(l.bakes[i].ways) == 0 {
 		return
@@ -319,10 +286,8 @@ func (l *Painter) markWays(s *groundSheet, i int) {
 	})
 }
 
-// waysOver reports whether a piece of cell i's ways lies over cell j, i itself or a neighbour.
 func (l *Painter) waysOver(i, j int) bool {
 	cols := int(l.sq.Cols)
-	// j's box as i's pieces are placed, from i's top-left; a step round a wrap folded back
 	dx, dy := j%cols-i%cols, j/cols-i/cols
 	dx, dy = unwrap(dx, cols), unwrap(dy, int(l.sq.Rows))
 	w, h := float32(l.cellW), float32(l.cellH)
@@ -339,7 +304,6 @@ func (l *Painter) waysOver(i, j int) bool {
 	return false
 }
 
-// unwrap is d, a step between neighbours on an axis n long, as -1, 0 or 1 where it wraps round.
 func unwrap(d, n int) int {
 	switch {
 	case d > 1:

@@ -1,12 +1,11 @@
 package tag
 
 // Tags is one family of tags on an entity: a component holding up to 64 bits, one per tag of
-// the family F — an empty type a plugin or a game names the family by. An entity carries the
-// family when it has any of its tags, so a query over Tags[F] narrows to those entities, and
-// giving or taking a tag inside the family is a value write, seen the same tick.
+// the family F, an empty type the family is named by. Giving or taking a tag inside the family is
+// a value write, seen the same tick.
 type Tags[F any] uint64
 
-// Tag is one bit of a family: what world.Kinds.DefineTag hands out and Between matches on.
+// Tag is one bit of a family: what world.Kinds.DefineTag hands out.
 type Tag[F any] uint8
 
 // MaxTagsPerFamily is how many tags one family holds, bounded by Tags.
@@ -38,5 +37,5 @@ func (s Tags[F]) Without(tags ...Tag[F]) Tags[F] {
 // Anything is the family of Any, the tag every entity carries.
 type Anything struct{}
 
-// Any stands for "whatever it is" on one side of Between, or both.
+// Any stands for "whatever it is" on a side of a pair rule.
 var Any Tag[Anything]

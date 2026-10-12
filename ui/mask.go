@@ -8,7 +8,7 @@ import (
 
 // Mask is a shape an element is cut to inside its box: drawn and hit only within it.
 type Mask interface {
-	// points are the shape's corners in box, round its edge, a convex polygon.
+	// the corners of a convex polygon
 	points(box geom.AABB) [][2]float32
 	contains(box geom.AABB, p geom.Vec) bool
 }
@@ -65,7 +65,6 @@ func (pg polygon) points(box geom.AABB) [][2]float32 {
 	return pts
 }
 
-// contains holds where p lies on one side of every edge, whichever way round the corners go.
 func (pg polygon) contains(box geom.AABB, p geom.Vec) bool {
 	at := pg.at(box)
 	if len(at) < 3 {
@@ -87,7 +86,6 @@ func (pg polygon) contains(box geom.AABB, p geom.Vec) bool {
 	return true
 }
 
-// outline is the box's shape: the mask's, else its four corners.
 func outline(box geom.AABB, m Mask) [][2]float32 {
 	if m != nil {
 		return m.points(box)

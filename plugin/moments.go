@@ -6,34 +6,38 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// About is a moment of one entity: whose it is. A rule-driven system's moment — a unit.Standing,
-// a vision.Sighting, a collision.Struck, a clock.Moment (the clock's own entity) — is one; on a
-// moment of no entity a rule's steps acting on one fail.
+// About is a moment of one entity, whom a rule's steps act for.
 type About interface{ Who() uid.UID64 }
 
-// Met is a moment of one entity with others — whom it saw, whom it struck: PairRules matches it
-// in pairs, and a rule's ForOther turns a step on the others.
+// Met is a moment of one entity with others, which PairRules matches in pairs.
 type Met interface {
 	About
 	Whom(each func(uid.UID64))
 }
 
-// Placed is a moment of an entity standing somewhere, on places that are entities of their own —
-// a board's cells — whose system tells, in the Tick, which places lie round it (Tick.Around): a
-// rule's Here and Around turn a step on them. The moment is data alone.
+// Placed is a moment of an entity standing on places that are entities of their own, which
+// Tick.Around tells and a rule's Here and Around turn a step on.
 type Placed interface {
 	About
 	Placed()
 }
 
-// Subject is a moment or a fact about another entity — whom it was struck by, who asked, whom it
-// touched: an Aimed command given on it is about that entity; false for nobody just now, and an
-// Aimed command given then fails.
+// Subject is a moment or a fact about another entity, whom an Aimed command given on it is
+// about; false for nobody just now, when such a command fails.
 type Subject interface{ Subject() (uid.UID64, bool) }
 
-// Aimed is a command told whom it is about — the subject of the moment or the fact it is given
-// on — as it is issued: whose way to step off, whose goal to swap with.
+// Aimed is a command told the Subject of the moment or the fact it is given on as it is issued.
 type Aimed interface{ Aim(who uid.UID64) }
+
+// Hosted is a rule that builds itself for its host, as a rule.Branch does.
+type Hosted interface{ Hosted() any }
+
+func hosted(r any) any {
+	if h, ok := r.(Hosted); ok {
+		return h.Hosted()
+	}
+	return r
+}
 
 // ErrUnhosted is what a Host reports for a rule of a moment it does not catch.
 var ErrUnhosted = errors.New("plugin: rule cannot be hosted here")

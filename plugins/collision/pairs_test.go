@@ -33,8 +33,6 @@ func posAt(x, y, w, h float64) world.Position {
 	return world.Position{AABB: plane.NewAABB(geom.NewVec(x, y), w, h)}
 }
 
-// placed is one box of a pairs test: where it stands, how it moves, and whether it carries a
-// Collider.
 type placed struct {
 	x, y     float64
 	vel      world.Velocity
@@ -43,7 +41,6 @@ type placed struct {
 
 type pair struct{ A, B uid.UID64 }
 
-// contactsOf lists every pair the last tick confirmed a contact between, once.
 func contactsOf(q *goke.Query, comp *goke.Comp[collision.Collider]) []pair {
 	var found []pair
 	for q.All(); q.Next(); {
@@ -59,8 +56,6 @@ func contactsOf(q *goke.Query, comp *goke.Comp[collision.Collider]) []pair {
 	return found
 }
 
-// broadTick puts boxes in a world with collision, steps it ticks seconds, and lists who touched
-// on the last step; the boxes' entities come back in the order given.
 func broadTick(t *testing.T, ticks int, boxes ...placed) ([]pair, []uid.UID64) {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
@@ -111,7 +106,6 @@ func broadTick(t *testing.T, ticks int, boxes ...placed) ([]pair, []uid.UID64) {
 	return contactsOf(q, &coll), ids
 }
 
-// paired reports whether found names a and b as a pair, either way round.
 func paired(found []pair, a, b uid.UID64) bool {
 	for _, c := range found {
 		if (c.A == a && c.B == b) || (c.A == b && c.B == a) {

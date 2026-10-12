@@ -7,8 +7,7 @@ import (
 	"github.com/kjkrol/gram/plugins/vision"
 )
 
-// A forest 60 deep at τ = 0.5 costs 60 of reach on top of its depth, so the target 235 ahead
-// costs 295: out of a 290 reach, in a 300 one. The forest itself is seen either way.
+// a forest 60 deep at τ = 0.5 costs 60 of reach besides its depth: the target 235 ahead costs 295
 func forestAhead(observer *look) []spawn {
 	return []spawn{
 		{x: 0, y: 0, sight: observer, outline: true},

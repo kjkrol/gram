@@ -9,8 +9,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 )
 
-// storage is a name-keyed registry of installed plugins' Serializable state,
-// so a save survives plugins being added, removed or reordered.
+// keyed by name, so a save survives plugins added, removed or reordered
 type storage struct {
 	mu    sync.Mutex
 	items map[string]plugin.Serializable
@@ -20,7 +19,6 @@ func newStorage() *storage {
 	return &storage{items: make(map[string]plugin.Serializable)}
 }
 
-// register adds v under name (a Plugin's Name()) — install-time only.
 func (s *storage) register(name string, v plugin.Serializable) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -28,7 +26,6 @@ func (s *storage) register(name string, v plugin.Serializable) {
 	s.items[name] = v
 }
 
-// verifyPersisted panics if v.Persisted() contains anything gob can't encode.
 func verifyPersisted(name string, v plugin.Serializable) {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
@@ -39,7 +36,6 @@ func verifyPersisted(name string, v plugin.Serializable) {
 	}
 }
 
-// persisted returns each registered item's Persisted() targets, keyed by registration name.
 func (s *storage) persisted() map[string][]any {
 	s.mu.Lock()
 	defer s.mu.Unlock()

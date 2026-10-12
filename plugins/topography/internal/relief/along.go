@@ -10,9 +10,7 @@ import (
 var _ ground.Profile = (*Relief)(nil)
 
 // Along calls visit with every point of the ray from origin along the unit dir, up to length,
-// where the ground's slope changes — where the ray crosses a cell's edge and the diagonal the cell
-// is folded along, as drawnAt folds it — and with length itself: the ground.Profile contract. Off a
-// square grid, where every cell is level, it is the ground every Step.
+// where the ground's slope changes, and with length itself: the ground.Profile contract.
 func (r *Relief) Along(origin, dir geom.Vec, length float64, visit func(d, alt float64) bool) {
 	size := r.sq.Cell
 	if !r.square || size == 0 {
@@ -27,12 +25,12 @@ func (r *Relief) Along(origin, dir geom.Vec, length float64, visit func(d, alt f
 	}
 	fx, fy := origin.X/size, origin.Y/size
 	cx, cy := math.Floor(fx), math.Floor(fy)
-	bx, by := dir.X/size, dir.Y/size // how far into a cell a unit along the ray goes
+	bx, by := dir.X/size, dir.Y/size // cells a unit along the ray
 	stepX, nextX, deltaX := lattice(fx, bx)
 	stepY, nextY, deltaY := lattice(fy, by)
 	h := r.cellCorners(int64(cx), int64(cy))
 	for t := 0.0; ; {
-		ax, ay := fx-cx, fy-cy // where the ray starts, in the cell's own terms
+		ax, ay := fx-cx, fy-cy
 		exit := min(nextX, nextY)
 		end := min(exit, length)
 		if fold, alt, ok := folded(h, ax, ay, bx, by); ok && fold > t && fold < end {
@@ -77,8 +75,6 @@ func (r *Relief) Along(origin, dir geom.Vec, length float64, visit func(d, alt f
 	}
 }
 
-// entered is the ground where the ray enters the cell of corners h across x (else across y),
-// stepping stepX, stepY, at u, v of the cell it left.
 func entered(h [4]float64, acrossX bool, stepX, stepY, u, v float64) float64 {
 	switch {
 	case acrossX && stepX > 0:
@@ -91,9 +87,7 @@ func entered(h [4]float64, acrossX bool, stepX, stepY, u, v float64) float64 {
 	return h[2] + u*(h[3]-h[2])
 }
 
-// lattice is the ray's walk across the lines of one axis, f the start in cells and b how far a
-// unit along the ray goes in cells: which way it steps, how far along it meets the next line and
-// how far apart the lines lie; never, along a line.
+// f the start in cells, b cells a unit along the ray; never along a line
 func lattice(f, b float64) (step, next, delta float64) {
 	switch {
 	case b > 0:
@@ -104,11 +98,9 @@ func lattice(f, b float64) (step, next, delta float64) {
 	return 0, math.Inf(1), math.Inf(1)
 }
 
-// folded is where the ray, starting at ax, ay in a cell's own terms and going bx, by a unit along,
-// crosses the diagonal the cell of corners h is folded along, and the ground there; false when it
-// runs along it.
+// false where the ray runs along the diagonal
 func folded(h [4]float64, ax, ay, bx, by float64) (t, alt float64, ok bool) {
-	if math.Abs(h[0]-h[3]) < math.Abs(h[1]-h[2]) { // along 0–3: u = v
+	if math.Abs(h[0]-h[3]) < math.Abs(h[1]-h[2]) { // folded along 0–3: u = v
 		if bx == by {
 			return 0, 0, false
 		}
@@ -116,7 +108,7 @@ func folded(h [4]float64, ax, ay, bx, by float64) (t, alt float64, ok bool) {
 		u := min(max(ax+bx*t, 0), 1)
 		return t, h[0] + u*(h[3]-h[0]), true
 	}
-	if bx+by == 0 { // along 1–2: u + v = 1
+	if bx+by == 0 { // folded along 1–2: u + v = 1
 		return 0, 0, false
 	}
 	t = (1 - ax - ay) / (bx + by)
@@ -124,8 +116,7 @@ func folded(h [4]float64, ax, ay, bx, by float64) (t, alt float64, ok bool) {
 	return t, h[1] + v*(h[2]-h[1]), true
 }
 
-// cellCorners is the ground at the corners of the cell at x, y — top-left, top-right, bottom-left,
-// bottom-right — folded where the grid wraps; 0 off it, as GroundAt has it.
+// top-left, top-right, bottom-left, bottom-right; 0 off the grid, as GroundAt has it
 func (r *Relief) cellCorners(x, y int64) (h [4]float64) {
 	cx, okX := foldAxis(x, int64(r.sq.Cols), r.sq.WrapX)
 	cy, okY := foldAxis(y, int64(r.sq.Rows), r.sq.WrapY)
@@ -139,7 +130,6 @@ func (r *Relief) cellCorners(x, y int64) (h [4]float64) {
 	return h
 }
 
-// cornerAt is the height of the lattice's corner at x, y, folded as corner folds it.
 func (r *Relief) cornerAt(x, y int64) float64 {
 	fx, _ := foldAxis(x, int64(r.cols), r.sq.WrapX)
 	fy, _ := foldAxis(y, int64(r.rows), r.sq.WrapY)

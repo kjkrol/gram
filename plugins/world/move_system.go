@@ -11,9 +11,6 @@ import (
 
 var _ goke.System = (*moveSystem)(nil)
 
-// moveSystem integrates each entity's already speed-scaled Velocity, and the Drift it is carried
-// at, into Position under the space's edge rules, marks whoever left by an open edge Outside, then
-// rebuilds the space.
 type moveSystem struct {
 	space     *aabbworld.Space
 	moveQuery *goke.Query
@@ -24,7 +21,6 @@ type moveSystem struct {
 	items     []aabbworld.Item
 }
 
-// newMoveSystem builds world's movement system; no entity moves past its Position.MaxStep a tick.
 func newMoveSystem(space *aabbworld.Space) *moveSystem {
 	return &moveSystem{space: space}
 }
@@ -59,7 +55,6 @@ func (s *moveSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	s.items = rebuild(s.space, s.moveQuery, &s.base, s.items)
 }
 
-// rebuild hands space every Base the query finds, reusing items.
 func rebuild(space *aabbworld.Space, q *goke.Query, base *goke.Comp[Base], items []aabbworld.Item) []aabbworld.Item {
 	items = items[:0]
 	q.All()
@@ -73,7 +68,6 @@ func rebuild(space *aabbworld.Space, q *goke.Query, base *goke.Comp[Base], items
 	return items
 }
 
-// clampStep scales step down to magnitude max if it exceeds it.
 func clampStep(step geom.Vec, max float64) geom.Vec {
 	mag := math.Hypot(step.X, step.Y)
 	if mag <= max || mag == 0 {

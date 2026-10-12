@@ -35,8 +35,7 @@ func (v *Velocity) SetDelta(d geom.Vec) {
 	v.Value = mag
 }
 
-// Slow keeps Dir and takes of a per-axis rate only what runs along it, never past a stop: a
-// steered entity struck keeps the heading its steering holds and loses speed alone.
+// Slow keeps Dir and takes of a per-axis rate only what runs along it, never past a stop.
 func (v *Velocity) Slow(d geom.Vec) {
 	along := d.X*v.Dir.X + d.Y*v.Dir.Y
 	if v.Value < 0 {

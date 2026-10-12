@@ -11,8 +11,6 @@ import (
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
 
-// sized is a top-down camera over a side x side world shown w x h pixels, its window at the
-// world's top-left corner.
 func sized(side uint32, w, h float32) contract.Camera {
 	cam := camera.NewFromSpaceWithConfig(side, side, 0, contract.Config{})
 	cam.SetViewport(w, h)

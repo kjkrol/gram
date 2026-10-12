@@ -12,7 +12,6 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// shifted is a 100x100 screen over the world from x = dx on, drawn from above without wrapping.
 type shifted struct {
 	camera.Camera
 	dx float32

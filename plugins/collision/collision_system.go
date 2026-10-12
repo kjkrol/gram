@@ -22,21 +22,16 @@ var _ collide.Handler = (*handler)(nil)
 var _ collide.FieldHandler = (*handler)(nil)
 var _ collide.WallField = (*solidField)(nil)
 
-// solverIterations caps the passes one tick spends separating chained overlaps.
 const solverIterations = 16
 
-// sweptPen is how deep a swept entity is said to lie in what it struck: enough for the normal,
-// never a push.
+// how deep a swept entity is said to lie in what it struck: enough for the normal, never a push
 const sweptPen = 1e-3
 
-// collisionSystem runs one tick of collisions: what each entity struck last tick, who really
-// overlaps now, the bounce, the push apart, and the contacts left behind for rules.
 type collisionSystem struct {
 	space  *aabbworld.Space
 	engine collide.Engine
-	tickOf plugin.TickSource // the world's, for the rules
+	tickOf plugin.TickSource
 
-	// walk is the pass over every Collider: its rules and its capabilities.
 	walk      *goke.Query
 	base      goke.Comp[world.Base]
 	collider  goke.Comp[Collider]
@@ -50,13 +45,11 @@ type collisionSystem struct {
 	struckAt func(i int) Struck
 	hitAt    func(i int) bool
 
-	// all is every entity of the world, for rebuilding the space and retiring lost Colliders.
 	all      *goke.Query
 	allBase  goke.Comp[world.Base]
 	allSweep goke.OptComp[Sweep]
 	items    []aabbworld.Item
 
-	// lookup resolves a side of a contact from its id.
 	lookup         *goke.Query
 	lookupBase     goke.Comp[world.Base]
 	lookupCollider goke.Comp[Collider]
@@ -67,29 +60,23 @@ type collisionSystem struct {
 	lookupDriven   goke.OptComp[steering.Driven]
 	lookupHot      bool
 
-	// pair is the contact being settled; pending is every contact this tick confirmed, in
-	// order, pruned for the swept to their nearest; contacts the pairs left for the rules.
 	pair     pairSides
 	pending  []pendingContact
 	nearests []nearest
 	contacts []pairSides
 	between  *plugin.PairRules[Meeting]
-	outside  goke.CompID // world.Outside, for whoever the solver pushes out by an open edge
+	outside  goke.CompID
 
-	// fieldOf resolves the solid ground when the engine is built; ground is the side it shows a
-	// contact, immovable and still.
 	fieldOf func() Field
-	heights bool          // the world has heights: a pair meets where its Bands do, the ground too
-	stats   *ContactStats // counted into, nil for none
-	log     *log.Logger   // a line per contact, nil for none
+	heights bool
+	stats   *ContactStats
+	log     *log.Logger
 	field   solidField
 	ground  struct {
 		base    world.Base
 		physics Physics
 	}
 
-	// sweeping says an entity is swept this tick, so the space is rebuilt with its stretch and
-	// without it again; wraps refuses every Sweep.
 	sweeping bool
 	wraps    bool
 
@@ -97,7 +84,6 @@ type collisionSystem struct {
 	stale bool
 }
 
-// handler is the collisionSystem as the engine talks to it.
 type handler collisionSystem
 
 func (h *handler) Touch(a, b uid.UID64, pen geom.Vec) (geom.Vec, bool) {
@@ -117,15 +103,10 @@ func (h *handler) ContactField(id uid.UID64, cell uint64, pen geom.Vec) {
 	(*collisionSystem)(h).contactGround(id, cell, pen)
 }
 
-// solidField is the Field as the engine asks for it: for an entity, on its Layers and, in a world
-// with heights, in its Band; for a swept one along its step, each solid cell the segment meets
-// alone, at the nearest of its boxes, with where along the step (along) and the way out (normal)
-// for the contact.
 type solidField struct {
 	field Field
 	d     *collisionSystem
 
-	// the swept entity's step and box, and the visit asked, while hit walks the solid boxes
 	swept          bool
 	from, to, half geom.Vec
 	along          float64
@@ -133,14 +114,12 @@ type solidField struct {
 	inner          func(collide.FieldBox) bool
 	hit            func(collide.FieldBox) bool // the method value, bound once
 
-	// the cell in hand: its nearest box met so far, told once the walk leaves the cell
 	held       bool
-	stopped    bool // the visit ended the walk
+	stopped    bool
 	best       collide.FieldBox
 	bestAlong  float64
 	bestNormal geom.Vec
 
-	// the same for the walls: the visit asked, the method value bound once, the nearest held
 	innerWall func(collide.FieldWall) bool
 	hitWall   func(collide.FieldWall) bool
 	bestWall  collide.FieldWall
@@ -168,8 +147,6 @@ func (f *solidField) Solid(id uid.UID64, box geom.AABB, visit func(collide.Field
 	f.inner = nil
 }
 
-// Walls hands the engine the Field's walls for an entity as Solid hands it the boxes: for a swept
-// one each cell's nearest wall its step meets.
 func (f *solidField) Walls(id uid.UID64, box geom.AABB, visit func(collide.FieldWall) bool) {
 	if !f.d.seek(id) {
 		return
@@ -192,7 +169,6 @@ func (f *solidField) Walls(id uid.UID64, box geom.AABB, visit func(collide.Field
 	f.innerWall = nil
 }
 
-// segmentWall is segment for a wall.
 func (f *solidField) segmentWall(w collide.FieldWall) bool {
 	along, normal, ok := response.SweepWall(f.from, f.to, f.half, w.A, w.B, w.Half)
 	if !ok {
@@ -207,7 +183,6 @@ func (f *solidField) segmentWall(w collide.FieldWall) bool {
 	return true
 }
 
-// tellWall is tell for a wall.
 func (f *solidField) tellWall() bool {
 	f.held = false
 	f.along, f.normal = f.bestAlong, f.bestNormal
@@ -218,9 +193,8 @@ func (f *solidField) tellWall() bool {
 	return true
 }
 
-// segment is one solid box as a swept entity's step meets it: skipped where the segment misses
-// it, else held as its cell's nearest so far — a Field hands a cell's boxes one after another —
-// and the cell told of as the walk moves on to another.
+// a Field hands a cell's boxes one after another: the cell is told of at its nearest as the walk
+// moves on
 func (f *solidField) segment(fb collide.FieldBox) bool {
 	along, normal, ok := response.Sweep(f.from, f.to, f.half, fb.Box)
 	if !ok {
@@ -235,8 +209,6 @@ func (f *solidField) segment(fb collide.FieldBox) bool {
 	return true
 }
 
-// tell visits the cell held at its nearest box, where along the step and the way out noted for
-// the contact, and lets it go; false when the visit ends the walk.
 func (f *solidField) tell() bool {
 	f.held = false
 	f.along, f.normal = f.bestAlong, f.bestNormal
@@ -247,7 +219,6 @@ func (f *solidField) tell() bool {
 	return true
 }
 
-// bandAt is the band the entity under the lookup's cursor spans: Everywhere in a flat world.
 func (d *collisionSystem) bandAt(cur *goke.Cursor) Band {
 	if !d.heights {
 		return Everywhere
@@ -255,13 +226,11 @@ func (d *collisionSystem) bandAt(cur *goke.Cursor) Band {
 	return BandOf(d.lookupZ.At(cur))
 }
 
-// halfOf is half the sides of a box.
 func halfOf(pos world.Position) geom.Vec { return geom.NewVec(pos.Size.X/2, pos.Size.Y/2) }
 
-// sought is the one query the system offers its hosted rules.
+// the one query the system offers its hosted rules
 const sought = 0
 
-// newCollisionSystem builds the collision system over space, its rules hosted by between and each.
 func newCollisionSystem(space *aabbworld.Space, between *plugin.PairRules[Meeting], each *plugin.Rules[Struck], fieldOf func() Field) *collisionSystem {
 	d := &collisionSystem{space: space, between: between, each: each, fieldOf: fieldOf}
 	d.struckAt, d.hitAt = d.struck, d.hit
@@ -272,7 +241,6 @@ func newCollisionSystem(space *aabbworld.Space, between *plugin.PairRules[Meetin
 	return d
 }
 
-// Init builds the engine too, once the board has given collision its solid ground.
 func (d *collisionSystem) Init(si *goke.SysInit) {
 	cfg := collide.Config{Reach: world.StepReach, Iterations: solverIterations}
 	if d.fieldOf != nil {
@@ -310,7 +278,7 @@ func (d *collisionSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 	d.engine.Tick()
 	for _, l := range d.engine.Left() {
 		if d.seek(l.ID) {
-			d.lookupBase.At(d.lookup.Cursor()).Pos.AABB = l.Box // where the push left it, past the edge
+			d.lookupBase.At(d.lookup.Cursor()).Pos.AABB = l.Box
 		}
 		cb.AddOne(l.ID, d.outside, world.Outside{})
 	}
@@ -336,8 +304,6 @@ func (d *collisionSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 	}
 }
 
-// mark runs the rules over every Collider and settles its capabilities — a swept one is a sensor
-// whatever its Physics — and notes whether any is swept; true if a capability changed.
 func (d *collisionSystem) mark() bool {
 	changed := false
 	d.walk.All()
@@ -371,8 +337,6 @@ func (d *collisionSystem) mark() bool {
 	return changed
 }
 
-// rebuild hands the space every entity again, capabilities as they stand now — a swept one as
-// the stretch of its step when stretch says, its own box otherwise.
 func (d *collisionSystem) rebuild(stretch bool) {
 	d.items = d.items[:0]
 	d.all.All()
@@ -390,7 +354,6 @@ func (d *collisionSystem) rebuild(stretch bool) {
 	d.space.Rebuild(d.items)
 }
 
-// stretched is the box covering pos and the same box centred at from: a swept entity's step.
 func stretched(from geom.Vec, pos world.Position) plane.AABB {
 	half := halfOf(pos)
 	lo := geom.NewVec(min(from.X-half.X, pos.TopLeft.X), min(from.Y-half.Y, pos.TopLeft.Y))
@@ -398,32 +361,25 @@ func stretched(from geom.Vec, pos world.Position) plane.AABB {
 	return plane.NewAABB(lo, hi.X-lo.X, hi.Y-lo.Y)
 }
 
-// struck is what the hosted rules are told about the i-th entity of the chunk being walked.
 func (d *collisionSystem) struck(i int) Struck {
 	return Struck{ID: d.walking.ids[i], Contacts: d.walking.colliders[i].Contacts()}
 }
 
-// hit reports whether the i-th entity of the chunk being walked struck anything.
 func (d *collisionSystem) hit(i int) bool { return d.walking.colliders[i].StruckCount > 0 }
 
-// pairSides is who the two boxes of a contact belong to, what they carry, and how it went.
 type pairSides struct {
 	A, B         contactSide
 	tagsA, tagsB plugin.Marks
 
 	impact float64
 	normal geom.Vec
-	// along is where along a swept side's step the contact lies, 1 for none swept
-	along float64
-	// holdA and holdB say a side stays where it is: the push would put it over ground that does
-	// not take it
+	along  float64 // where along a swept side's step, 1 for none swept
+	// a held side stays where it is: the push would put it over ground that does not take it
 	holdA, holdB bool
 }
 
-// detectOnly reports a pair in which either side takes no part in the physical world.
 func (p *pairSides) detectOnly() bool { return p.A.Physics == nil || p.B.Physics == nil }
 
-// swept is the side of the pair that is swept, if one is.
 func (p *pairSides) swept() (uid.UID64, bool) {
 	switch {
 	case p.A.Sweep != nil:
@@ -434,8 +390,6 @@ func (p *pairSides) swept() (uid.UID64, bool) {
 	return 0, false
 }
 
-// pendingContact is one contact confirmed this tick, kept until the swept are pruned to their
-// nearest: a pair, or an entity's with the ground (Terrain, Cell, the entity A).
 type pendingContact struct {
 	sides   pairSides
 	terrain bool
@@ -444,7 +398,6 @@ type pendingContact struct {
 	dropped bool
 }
 
-// nearest is the nearest contact of one swept entity so far, as the pruning walks the pending.
 type nearest struct {
 	id    uid.UID64
 	at    int
@@ -455,15 +408,13 @@ type contactSide struct {
 	Entity   uid.UID64
 	Base     *world.Base
 	Collider *Collider
-	// Physics is nil for a side that is only ever detected, a swept one among them.
-	Physics *Physics
-	Layers  world.Layers
-	Band    Band   // the heights it spans; Everywhere in a flat world
-	Sweep   *Sweep // its step, for a swept side; nil otherwise
-	Steered bool
+	Physics  *Physics // nil for a side only ever detected, a swept one among them
+	Layers   world.Layers
+	Band     Band
+	Sweep    *Sweep
+	Steered  bool
 }
 
-// side is s as the impulse takes it.
 func (s contactSide) side() response.Side {
 	return response.Side{
 		InvMass: s.Physics.inverseMass(),
@@ -473,15 +424,10 @@ func (s contactSide) side() response.Side {
 	}
 }
 
-// body is s as the footing takes it.
 func (s contactSide) body() response.Body {
 	return response.Body{Layers: s.Layers, Box: s.Base.Pos.AABB.AABB, Immovable: s.Physics.immovable()}
 }
 
-// resolve looks both sides of an overlapping pair up; a lost Collider vetoes, and so do two sides
-// on no common plane, two whose Bands do not meet in a world with heights, two swept ones, and a
-// swept one against what it is told to pass through. A swept side is refined to its step: the
-// pair holds only where the segment meets the other's box.
 func (d *collisionSystem) resolve(a, b uid.UID64, pen geom.Vec) (geom.Vec, bool) {
 	sideA, tagsA, ok := d.side(a)
 	if !ok {
@@ -519,8 +465,6 @@ func (d *collisionSystem) resolve(a, b uid.UID64, pen geom.Vec) (geom.Vec, bool)
 	return geom.NewVec(normal.X*sweptPen, normal.Y*sweptPen), true
 }
 
-// footing keeps the pair's sides on their ground (response.Footing): a side held bounces as the
-// ground does, and moved keeps it where it is.
 func (d *collisionSystem) footing(pen geom.Vec) geom.Vec {
 	p := &d.pair
 	if d.field.field == nil || p.detectOnly() {
@@ -530,8 +474,6 @@ func (d *collisionSystem) footing(pen geom.Vec) geom.Vec {
 	return pen
 }
 
-// side looks one entity up, refusing one that no longer carries a Collider; a swept one is only
-// ever detected, its Physics put by.
 func (d *collisionSystem) side(id uid.UID64) (contactSide, plugin.Marks, bool) {
 	if !d.seek(id) {
 		if d.all.Seek(id) {
@@ -560,7 +502,6 @@ func (d *collisionSystem) seek(id uid.UID64) bool {
 	return ok
 }
 
-// contact settles the pair resolve just confirmed: the bounce, and the contact kept for both sides.
 func (d *collisionSystem) contact(pen geom.Vec) {
 	sides := d.pair
 
@@ -568,7 +509,7 @@ func (d *collisionSystem) contact(pen geom.Vec) {
 	var impact float64
 	if aligned && !sides.detectOnly() {
 		a, b := sides.A, sides.B
-		if sides.holdA { // held, it bounces as the ground does
+		if sides.holdA {
 			a.Physics = &d.ground.physics
 		}
 		if sides.holdB {
@@ -580,8 +521,6 @@ func (d *collisionSystem) contact(pen geom.Vec) {
 	d.pending = append(d.pending, pendingContact{sides: sides, sensed: sides.detectOnly()})
 }
 
-// contactGround settles a contact of id with the solid ground: a bounce off something of
-// infinite mass, and a contact kept for id alone — for a swept one where along its step it lies.
 func (d *collisionSystem) contactGround(id uid.UID64, cell uint64, pen geom.Vec) {
 	self, _, ok := d.side(id)
 	if !ok {
@@ -591,8 +530,8 @@ func (d *collisionSystem) contactGround(id uid.UID64, cell uint64, pen geom.Vec)
 	normal, aligned := response.Normal(pen)
 	var impact float64
 	if aligned && self.Physics != nil {
-		// a wall turns no unit a hand steers, nor the eye riding in it; one under orders
-		// glances aside along the wall, as navigation needs to come round its end
+		// a wall turns no unit a hand steers; one under orders glances along it, as navigation
+		// needs to come round its end
 		driven := d.lookupDriven.At(d.lookup.Cursor())
 		self.Steered = driven != nil && driven.Steers()
 		impact = bounce(self, ground, normal)
@@ -604,7 +543,6 @@ func (d *collisionSystem) contactGround(id uid.UID64, cell uint64, pen geom.Vec)
 	d.pending = append(d.pending, pendingContact{sides: sides, terrain: true, cell: cell, sensed: self.Physics == nil})
 }
 
-// nearest prunes the pending contacts of every swept entity to the one nearest along its step.
 func (d *collisionSystem) nearest() {
 	d.nearests = d.nearests[:0]
 	for i := range d.pending {
@@ -633,8 +571,6 @@ func (d *collisionSystem) nearest() {
 	}
 }
 
-// record writes the contacts kept to the Colliders of their sides, in the order confirmed, and
-// lists the pairs for the rules.
 func (d *collisionSystem) record() {
 	d.contacts = d.contacts[:0]
 	for i := range d.pending {
@@ -653,9 +589,8 @@ func (d *collisionSystem) record() {
 	}
 }
 
-// moved writes a box the engine pushed back to its entity — unless the tick's pushes, the later
-// passes' too, which the handler is not asked about, would leave it further over ground that does
-// not take it: it stays, and the space, which has it pushed, is built again after the tick.
+// the engine's later passes ask no handler: a box they left further over ground that does not
+// take it stays, and the space is built again after the tick
 func (d *collisionSystem) moved(id uid.UID64, box plane.AABB) {
 	if !d.seek(id) {
 		return
@@ -669,7 +604,6 @@ func (d *collisionSystem) moved(id uid.UID64, box plane.AABB) {
 	base.Pos.AABB = box
 }
 
-// bounce trades the contact's impulse between two physical sides and returns it.
 func bounce(a, b contactSide, normal geom.Vec) float64 {
 	return response.Exchange(a.side(), b.side(), normal)
 }

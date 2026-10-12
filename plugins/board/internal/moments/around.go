@@ -6,18 +6,12 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// rings is the scratch for the cells round where someone stands: each cell marked with the pass
-// that met it, and the edge of the last ring.
 type rings struct {
 	met        []uint32
 	pass       uint32
 	edge, next []cell.ID
 }
 
-// around tells each the entity of every cell within rings of where a moment of the board stands —
-// the cells under a Standing's box, a cell.Now's own cell — those first, and of every entity
-// standing on them (cell.On), units not: the board's plugin.Tick.Around, for a rule's Here and
-// Around.
 func (r *Rules) around(moment any, rings int, each func(uid.UID64)) {
 	var seed func(add func(cell.ID))
 	switch m := moment.(type) {
@@ -36,8 +30,7 @@ func (r *Rules) around(moment any, rings int, each func(uid.UID64)) {
 	})
 }
 
-// ringsRound calls each with every cell within n rings of the cells seed adds, those first, each
-// cell once. It is not reentrant: each must not ask for cells around again.
+// not reentrant: each must not ask for cells around again
 func (r *Rules) ringsRound(seed func(add func(cell.ID)), n int, each func(cell.ID)) {
 	g := &r.rings
 	if count := r.grid.CellCount(); len(g.met) != count {

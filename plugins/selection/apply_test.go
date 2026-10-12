@@ -21,9 +21,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// installCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type installCtx struct {
-	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
+	hosts   []plugin.Host
 	ecs     *goke.ECS
 	pending []func() []goke.System
 }
@@ -40,15 +39,12 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
 func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
 
-// unit is a unit of a test of the selected: whose it is and whether it is selected.
 type unit struct {
 	x        float64
 	by       control.PlayerID
 	selected bool
 }
 
-// A command for the selected puts its effect on the units the player who gives it owns and has
-// selected alone: not its unselected ones, not another player's selected ones.
 func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
@@ -121,9 +117,6 @@ func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 	}
 }
 
-// Hosts keeps the hosts of the rules of the moments a plugin catches.
 func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
-// does with the roles played once a Stage's Init returns.
 func (c *installCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

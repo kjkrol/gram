@@ -9,8 +9,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 )
 
-// Shaping that leaves a road lying where Transport Tycoon would not lay it is taken back whole;
-// away from the roads it stands.
 func TestRelief_KeepRoadsTakesBackWhatBreaksARoad(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 3, 32)
 	brd := board.NewBoard(g)

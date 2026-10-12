@@ -8,14 +8,14 @@ import (
 	"github.com/kjkrol/gram/entity/tag"
 )
 
-// Side is one side of a pair rule — a tag of a family, or anybody — as PairRules reads it.
+// Side is one side of a pair rule: a tag of a family, or anybody.
 type Side struct {
 	family reflect.Type // nil: anybody
 	bit    uint8
 	probe  func() familyProbe
 }
 
-// SideOf is t as a side of a pair rule; tag.Any takes whatever is there.
+// SideOf is t as a side of a pair rule; tag.Any is anybody.
 func SideOf[F any](t tag.Tag[F]) Side {
 	if reflect.TypeFor[F]() == reflect.TypeFor[tag.Anything]() {
 		return Side{}
@@ -23,29 +23,22 @@ func SideOf[F any](t tag.Tag[F]) Side {
 	return Side{family: reflect.TypeFor[F](), bit: uint8(t), probe: func() familyProbe { return &probe[F]{} }}
 }
 
-// pairRule is a rule of a moment of two, as rule.Then builds it: what PairRules dispatches.
 type pairRule[P any] interface {
 	PairSides() (self, other Side)
 	RunPair(t Tick, pair P)
 }
 
-// withinRule is a pair rule whose entity must carry more tags than its side's: a role's
-// (rule.Part.Obeys).
 type withinRule interface{ PairWithin() []Side }
 
-// paired is a pair rule as PairRules holds it: its sides and their families' places, -1 for
-// anybody.
 type paired[P any] struct {
 	rule   pairRule[P]
 	a, b   Side
-	fa, fb int
+	fa, fb int // the families' places, -1 for anybody
 	same   bool
-	within []Side // more tags the first side carries
-	fw     []int  // their families' places
+	within []Side
+	fw     []int
 }
 
-// first reports whether an entity carrying m is the rule's first side: its tag and every one it
-// must carry besides.
 func (p *paired[P]) first(m Marks) bool {
 	if !fits(m, p.fa, p.a) {
 		return false
@@ -58,20 +51,20 @@ func (p *paired[P]) first(m Marks) bool {
 	return true
 }
 
-// PairRules are the rules of a moment P of two entities — a collision.Meeting, a
-// vision.Sighting — a rule-driven system runs in its pass: it reads every tag family the rules
-// name, eight at most, off the entities it walks or seeks (InChunk, At) and dispatches each pair
-// to the rules whose sides it carries.
+// PairRules are the rules of a moment P of two entities a plugin runs in its pass: it reads the
+// tag families the rules name, eight at most, off the entities (InChunk, At) and dispatches each
+// pair to the rules whose sides it carries.
 type PairRules[P any] struct {
 	families []familyProbe
-	kinds    []reflect.Type // the families' types, in the same order
+	kinds    []reflect.Type
 	rules    []paired[P]
 	bound    bool
-	matched  []int // DispatchGrouped's scratch
+	matched  []int // scratch
 }
 
-// Add takes a pair rule of P made by rule.Then; ErrUnhosted for another, ErrHostBuilt after Bind.
+// Add takes a pair rule of P; ErrUnhosted for another, ErrHostBuilt after Bind.
 func (r *PairRules[P]) Add(rule any) error {
+	rule = hosted(rule)
 	p, ok := rule.(pairRule[P])
 	if !ok {
 		return fmt.Errorf("%w: %v", ErrUnhosted, rule)
@@ -95,7 +88,6 @@ func (r *PairRules[P]) Add(rule any) error {
 // Empty reports whether no rule was added.
 func (r *PairRules[P]) Empty() bool { return len(r.rules) == 0 }
 
-// familyOf is the place of s's family among the system's, added on first sight; -1 for anybody.
 func (r *PairRules[P]) familyOf(s Side) int {
 	if s.family == nil {
 		return -1
@@ -113,8 +105,8 @@ func (r *PairRules[P]) familyOf(s Side) int {
 	return len(r.families) - 1
 }
 
-// Bind adds every family the rules name to each of the system's queries; call once, before they
-// are built.
+// Bind adds every family the rules name to each of the system's queries. Call it once, before
+// they are built.
 func (r *PairRules[P]) Bind(queries ...*goke.QueryBuilder) {
 	r.bound = true
 	for _, f := range r.families {
@@ -140,7 +132,6 @@ func (r *PairRules[P]) At(query int, cursor *goke.Cursor) Marks {
 	return Marks{words: words}
 }
 
-// fits reports whether an entity carrying m is side s, its family at f.
 func fits(m Marks, f int, s Side) bool {
 	return f < 0 || m.words[f]&(1<<s.bit) != 0
 }
@@ -154,7 +145,7 @@ func (r *PairRules[P]) Dispatch(t Tick, self, other Marks, pair P) {
 	}
 }
 
-// DispatchGrouped is Dispatch for one entity against many others, run even when none match:
+// DispatchGrouped is Dispatch for one entity against many others, run even when none match;
 // build makes the moment of the others matched, by their places in others.
 func (r *PairRules[P]) DispatchGrouped(t Tick, self Marks, others []Marks, build func(matched []int) P) {
 	for _, p := range r.rules {
@@ -186,8 +177,6 @@ func (r *PairRules[P]) DispatchEitherWay(t Tick, a, b Marks, forward, backward P
 	}
 }
 
-// familyProbe reads one family's Tags on each of a system's queries: by chunk where one is being
-// walked, by entity where one was sought.
 type familyProbe interface {
 	bind(queries []*goke.QueryBuilder)
 	inChunk(query int, cursor *goke.Cursor, i int) uint64
@@ -195,7 +184,7 @@ type familyProbe interface {
 }
 
 type probe[F any] struct {
-	comps []goke.OptComp[tag.Tags[F]] // one per query; never grown once bound
+	comps []goke.OptComp[tag.Tags[F]] // one a query; never grown once bound
 }
 
 func (p *probe[F]) bind(queries []*goke.QueryBuilder) {

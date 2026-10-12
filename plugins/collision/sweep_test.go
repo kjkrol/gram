@@ -18,19 +18,14 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// flight is what a swept test entity does every tick: fly step along dir, through its shooter
-// when told to.
 type flight struct {
 	Dir     geom.Vec
 	Step    float64
 	Through bool
 }
 
-// shooter marks the one entity a shot flies through.
 type shooter struct{}
 
-// piece is one entity of a sweep test: where it starts, how big it is, whether it is swept and
-// how, whether it has Physics (a mass; +Inf for a wall) and whether it is the shooter.
 type piece struct {
 	x, y, size float64
 	fly        *flight
@@ -38,8 +33,6 @@ type piece struct {
 	shooter    bool
 }
 
-// flyer is the test's own mover: before the world moves, it writes every swept entity's From and
-// flies it its step, as a bullet plugin would.
 type flyer struct {
 	q     *goke.Query
 	base  goke.Comp[world.Base]
@@ -78,15 +71,12 @@ func (f *flyer) Update(*goke.CmdBuf, time.Duration) {
 	}
 }
 
-// outcome is what became of one piece after the ticks.
 type outcome struct {
 	id       uid.UID64
 	base     world.Base
 	contacts []collision.Contact
 }
 
-// sweptRun spawns the bodies, in the order given, in a world of the edges given with the field
-// given (nil for none), ticks it, and tells what became of each piece, in that order.
 func sweptRun(t *testing.T, edges aabbworld.Edges, field collision.Field, ticks int, bodies ...piece) ([]outcome, *collision.ContactStats) {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
@@ -166,9 +156,6 @@ func sweptRun(t *testing.T, edges aabbworld.Edges, field collision.Field, ticks 
 
 var east = geom.NewVec(1, 0)
 
-// A shot of 4 flying 60 in a tick, thirty times its own step, strikes a box of 10 on its path:
-// both sides record the contact, only detected, where along the step the two first touched; the
-// box is not pushed, the shot's own box is where it ended, and the space holds it there alone.
 func TestSweep_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
 	out, stats := sweptRun(t, 0, nil, 1,
 		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}},
@@ -196,8 +183,6 @@ func TestSweep_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
 	}
 }
 
-// The space keeps a swept entity's stretch only while collision looks: after the tick a query on
-// its path finds nothing, one on its box finds it.
 func TestSweep_TheSpaceHoldsOnlyTheRealBoxAfterTheTick(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
@@ -244,7 +229,6 @@ func TestSweep_TheSpaceHoldsOnlyTheRealBoxAfterTheTick(t *testing.T) {
 	}
 }
 
-// Of two boxes on the path only the nearer is struck, and it alone is told.
 func TestSweep_OnlyTheNearestContactStays(t *testing.T) {
 	out, stats := sweptRun(t, 0, nil, 1,
 		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}},
@@ -263,7 +247,6 @@ func TestSweep_OnlyTheNearestContactStays(t *testing.T) {
 	}
 }
 
-// A slanting path misses a box that lies within the stretch of its step but off the segment.
 func TestSweep_ASlantingPathMissesWhatLiesBesideIt(t *testing.T) {
 	out, _ := sweptRun(t, 0, nil, 1,
 		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: geom.NewVec(1, 1), Step: 60}},
@@ -274,8 +257,6 @@ func TestSweep_ASlantingPathMissesWhatLiesBesideIt(t *testing.T) {
 	}
 }
 
-// Two swept entities pass through each other: a shot fired after another on one line, faster,
-// whose segment crosses where the first ended, never strikes it.
 func TestSweep_TwoSweptPassThroughEachOther(t *testing.T) {
 	out, _ := sweptRun(t, 0, nil, 1,
 		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}},
@@ -286,7 +267,6 @@ func TestSweep_TwoSweptPassThroughEachOther(t *testing.T) {
 	}
 }
 
-// A shot passes through what it is told to ignore, its shooter, and strikes what lies beyond.
 func TestSweep_IgnoresWhatItIsToldTo(t *testing.T) {
 	out, _ := sweptRun(t, 0, nil, 1,
 		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60, Through: true}},
@@ -302,8 +282,6 @@ func TestSweep_IgnoresWhatItIsToldTo(t *testing.T) {
 	}
 }
 
-// boxesField is a Field of solid boxes, each of the cell given, open all round, standing at every
-// height.
 type boxesField struct {
 	boxes []collision.FieldBox
 	walls []collide.FieldWall
@@ -331,9 +309,6 @@ func (f *boxesField) Walls(_ world.Layers, _ collision.Band, box geom.AABB,
 
 const allSides = collide.Left | collide.Right | collide.Top | collide.Bottom
 
-// A wall nearer on the path than a box wins: the shot's one contact is the ground's, where along
-// the step it struck and the way back out, and the box is not told; a walker standing in the wall
-// the same tick has its contact at the end of its step, as any unswept one.
 func TestSweep_TheGroundNearerThanTheBoxWins(t *testing.T) {
 	wall := &boxesField{boxes: []collision.FieldBox{{Box: geom.NewAABBAt(geom.NewVec(120, 0), 32, 1000), Cell: 7, Open: allSides}}}
 	out, stats := sweptRun(t, 0, wall, 1,
@@ -360,12 +335,11 @@ func TestSweep_TheGroundNearerThanTheBoxWins(t *testing.T) {
 	}
 }
 
-// A cell of several boxes, a hex's, is struck where the segment crosses one of them, though the
-// first of them, inside the stretch of the step, lies off the slanting segment.
 func TestSweep_ACellOfSeveralBoxesIsStruckWhereTheSegmentCrossesIt(t *testing.T) {
 	cell := &boxesField{boxes: []collision.FieldBox{
-		{Box: geom.NewAABBAt(geom.NewVec(130, 500), 18, 10), Cell: 7, Open: allSides}, // in the stretch, off the segment
-		{Box: geom.NewAABBAt(geom.NewVec(120, 520), 10, 10), Cell: 7, Open: allSides}, // on it
+		// the first in the stretch but off the segment, the second on it
+		{Box: geom.NewAABBAt(geom.NewVec(130, 500), 18, 10), Cell: 7, Open: allSides},
+		{Box: geom.NewAABBAt(geom.NewVec(120, 520), 10, 10), Cell: 7, Open: allSides},
 	}}
 	slant := geom.NewVec(math.Sqrt2/2, math.Sqrt2/2)
 	out, _ := sweptRun(t, 0, cell, 1,
@@ -380,13 +354,11 @@ func TestSweep_ACellOfSeveralBoxesIsStruckWhereTheSegmentCrossesIt(t *testing.T)
 	}
 }
 
-// A cell of several boxes is told of at the nearest of them along the step, not the first the
-// Field hands over: a hex entered through a cap is struck at the cap, and so beats a box that
-// stands behind the cap but before the hex's middle.
 func TestSweep_ACellOfSeveralBoxesIsStruckAtItsNearest(t *testing.T) {
 	cell := &boxesField{boxes: []collision.FieldBox{
-		{Box: geom.NewAABBAt(geom.NewVec(130, 490), 20, 30), Cell: 7, Open: allSides}, // the middle, handed first
-		{Box: geom.NewAABBAt(geom.NewVec(120, 490), 10, 30), Cell: 7, Open: allSides}, // the cap, nearer
+		// the middle handed first, the cap nearer
+		{Box: geom.NewAABBAt(geom.NewVec(130, 490), 20, 30), Cell: 7, Open: allSides},
+		{Box: geom.NewAABBAt(geom.NewVec(120, 490), 10, 30), Cell: 7, Open: allSides},
 	}}
 	out, stats := sweptRun(t, 0, cell, 1,
 		piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}},
@@ -409,8 +381,6 @@ func TestSweep_ACellOfSeveralBoxesIsStruckAtItsNearest(t *testing.T) {
 	}
 }
 
-// A swept entity of infinite mass is a sensor all the same: nothing it meets is pushed or bounced,
-// and the ground still tells it.
 func TestSweep_AnImmovableSweptEntityIsASensor(t *testing.T) {
 	wall := &boxesField{boxes: []collision.FieldBox{{Box: geom.NewAABBAt(geom.NewVec(150, 0), 32, 1000), Cell: 7, Open: allSides}}}
 	out, _ := sweptRun(t, 0, wall, 1,
@@ -432,7 +402,6 @@ func TestSweep_AnImmovableSweptEntityIsASensor(t *testing.T) {
 	}
 }
 
-// A wrapping world refuses a swept entity.
 func TestSweep_AWrappingWorldRefusesIt(t *testing.T) {
 	defer func() {
 		if recover() == nil {
@@ -442,8 +411,6 @@ func TestSweep_AWrappingWorldRefusesIt(t *testing.T) {
 	sweptRun(t, aabbworld.Torus, nil, 1, piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}})
 }
 
-// A shot strikes a slanted wall of the ground where its path first meets it, the way out square
-// to the wall.
 func TestSweep_AShotStrikesASlantedWall(t *testing.T) {
 	wall := &boxesField{walls: []collide.FieldWall{
 		{A: geom.NewVec(100, 450), B: geom.NewVec(200, 550), Half: 1, Cell: 9},

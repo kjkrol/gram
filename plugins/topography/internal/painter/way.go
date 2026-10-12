@@ -11,11 +11,8 @@ import (
 )
 
 // WayPiece is one piece of what runs across a tile: a band from the cell's middle out towards a
-// neighbour, or the square that joins the bands where the way turns. World is where its corners lie
-// — top-left, top-right, bottom-left, bottom-right — Z the ground under them; it is drawn with its
-// way's sprite in Light and, where the way shines, as water running at Flow in Lit of the sun. A
-// piece Across the corner at Corner, the end of a band running on slantwise, reaches into the two
-// cells either side of it too.
+// neighbour, or the square joining the bands where the way turns. World's corners are top-left,
+// top-right, bottom-left, bottom-right; Z is the ground under them.
 type WayPiece struct {
 	World  render.World
 	Z      [4]float32
@@ -24,35 +21,22 @@ type WayPiece struct {
 	Shine  float32
 	Lit    [4]float32
 	Flow   water.Flow
-	Across bool
+	Across bool // the piece reaches into the two cells either side of Corner
 	Corner [2]float32
-	// Weight is how much of the way shows at each corner, 1 all of it: a way fading out, or lying
-	// under water, is drawn blended (render.Frame.SpriteBlend) down to nothing, over Soft (a half
+	// Weight is how much of the way shows at each corner, 1 all of it, blended over Soft (a half
 	// where 0).
 	Weight [4]float32
 	Faded  bool
 	Soft   float32
-	// Mix is how far the way's look has turned at each corner into MixSprite, its Style's MixWith,
-	// where Mixes: glazed over it (render.Frame.Glaze), its water running the less and glinting as
-	// that kind's does, as shiny as MixShine, the more.
+	// Mix is how far the way's look has turned at each corner into MixSprite, where Mixes.
 	Mix       [4]float32
 	MixSprite render.SpriteID
 	Mixes     bool
 	MixShine  float32
 }
 
-// Way is the tile's cell.Way cut into the pieces it is drawn in, its water shining as far as its
-// wayDetail. Each way out ends halfway to the
-// neighbour it runs on to, as wide there as the mean of the two ways; the two out to the widest
-// neighbours are one band curving from the one end to the other round the cell's middle, and any
-// other joins it curving in to its middle, so a winding stream bends smoothly from cell to cell:
-// where two cells meet, both curves run straight along the line between their middles. A way out
-// to one neighbour alone runs straight to the middle and ends square across itself. A band
-// running on slantwise leaves the cell for the two either side the last stretch before the corner,
-// as long as it is half wide: those pieces are Across it. A way fading out shows the less the more
-// it has faded, the ends of a band as much as the mean of the two ways there, and where it runs
-// level its water runs on the way it fades: a river running out into the sea. Good until the next
-// call; nothing where no way runs.
+// Way is the tile's cell.Way cut into the pieces it is drawn in. Good until the next call; nil
+// where no way runs.
 func (t *tile) Way() []WayPiece {
 	r := t.r
 	r.ways = r.ways[:0]
@@ -64,9 +48,9 @@ func (t *tile) Way() []WayPiece {
 	detail := t.wayDetail()
 	pieces := b.ways
 	if t.px() < nearCell {
-		pieces = b.farWays // a curve in fewer, longer pieces: a cell spans a few pixels
+		pieces = b.farWays
 	}
-	sea := t.Detail() // what a way turns into glints as far as the ground's water
+	sea := t.Detail()
 	for _, p := range pieces {
 		p.Shine *= detail
 		p.MixShine *= sea
@@ -81,8 +65,6 @@ func (t *tile) Way() []WayPiece {
 	return r.ways
 }
 
-// wayDetail is how much a way's water shines, 0 to 1: on a square grid none where the tile is
-// dressed from the ground sheet, fading in above it; elsewhere as far as the tile's Detail.
 func (t *tile) wayDetail() float32 {
 	if !t.r.square {
 		return t.Detail()
@@ -90,8 +72,6 @@ func (t *tile) wayDetail() float32 {
 	return min(max((t.px()-bakeCell)/(bakeCell/2), 0), 1)
 }
 
-// wayAnew works out the tile's cell.Way into out, in no light; its curves in fewer pieces unless
-// fine.
 func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 	r := t.r
 	top := r.topOf(t.ID)
@@ -141,15 +121,12 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 		if other, ok := r.partner(nb); ok {
 			o.half, o.wide, o.fade, o.mix = (w.Width+other.Width)/4, other.Width, (w.Fade+other.Fade)/2, (w.Mix+other.Mix)/2
 		} else if r.topOf(nb).under {
-			// out into water: the way the water leaves, so wider than any way in and always the
-			// stem, running on to the water's middle under it
+			// out into water: wider than any way in, so always the stem
 			o.fade, o.wide = w.Fade, 2*w.Width
 			o.into = &wayOut{x: cx + 2*ex, y: cy + 2*ey, half: h, fade: w.Fade, mix: 1}
 		}
 		outs[n], n = o, n+1
 	}
-	// band lays the curve from a round (mx, my) to b, half wide at its ends as they say and h at
-	// its middle, in steps pieces, the water running down it from the higher end
 	band := func(a, b wayOut, mx, my float32, steps int) {
 		at := func(u float32) (x, y, tx, ty, half, shows, mix float32) {
 			v := 1 - u
@@ -187,7 +164,6 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 			p.Flow = water.Flow{{tx0 * speed, ty0 * speed}, {tx1 * speed, ty1 * speed}, {tx0 * speed, ty0 * speed}, {tx1 * speed, ty1 * speed}}
 			p.Weight, p.Faded = [4]float32{s0, s1, s0, s1}, s0 < 1 || s1 < 1
 			p.Mix = [4]float32{m0, m1, m0, m1}
-			// the stretch by a corner a band runs slantwise through reaches into the cells either side
 			near := func(e wayOut) bool {
 				return e.slant && min(math.Hypot(float64(x0-e.x), float64(y0-e.y)), math.Hypot(float64(x1-e.x), float64(y1-e.y))) < float64(e.half)
 			}
@@ -208,7 +184,6 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 		p.Mix = [4]float32{w.Mix, w.Mix, w.Mix, w.Mix}
 		out = append(out, p)
 	case 1:
-		// straight out to the one neighbour, from square across itself behind the middle
 		o := outs[0]
 		ax, ay := o.x-cx, o.y-cy
 		l := float32(math.Hypot(float64(ax), float64(ay)))
@@ -221,7 +196,7 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 		band(back, mid, (back.x+mid.x)/2, (back.y+mid.y)/2, 1)
 		band(mid, o, (mid.x+o.x)/2, (mid.y+o.y)/2, steps(4))
 	default:
-		// the stem: the ways out to the two widest neighbours; any other joins it halfway
+		// the stem is the ways out to the two widest neighbours; any other joins it halfway
 		a, b := 0, 1
 		if outs[b].wide > outs[a].wide {
 			a, b = b, a
@@ -235,7 +210,6 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 			}
 		}
 		band(outs[a], outs[b], cx, cy, steps(6))
-		// the middle of the stem's curve, where the others join it
 		jx := 0.25*outs[a].x + 0.5*cx + 0.25*outs[b].x
 		jy := 0.25*outs[a].y + 0.5*cy + 0.25*outs[b].y
 		for i := range n {
@@ -245,7 +219,7 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 			band(outs[i], wayOut{x: jx, y: jy, half: min(outs[i].half, h), fade: w.Fade, mix: w.Mix}, cx, cy, steps(4))
 		}
 	}
-	// a way running out into water runs on under it, over the water's cell: at its depth
+	// a way running out into water runs on under it, at the water cell's depth
 	for _, o := range outs[:n] {
 		if o.into == nil {
 			continue
@@ -256,7 +230,7 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 			out[k].Across, out[k].Corner = true, [2]float32{o.x, o.y}
 		}
 	}
-	// the water lies over a way, as over the grounds round it: it shows only where the land does
+	// the water lies over a way as over the grounds round it: it shows only where the land does
 	soft := top.spread
 	if soft <= 0 {
 		soft = 0.25
@@ -281,15 +255,12 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 	return out
 }
 
-// partner is what runs across nb that a way running on to it meets; false where nothing runs there.
 func (l *Painter) partner(nb cell.ID) (cell.Way, bool) {
 	top := l.topOf(nb)
 	return top.way.Way, top.way.Runs()
 }
 
-// landAt is how much of the ground at the world point x, y is land, as the grounds round a coast
-// are laid over the water: the share of the cells meeting there that do not lie under, blended
-// across the tile as its blends are; 1 inland, 1 off a square grid.
+// 1 inland and off a square grid
 func (l *Painter) landAt(x, y float32) float32 {
 	if !l.square {
 		return 1
@@ -309,36 +280,29 @@ func (l *Painter) landAt(x, y float32) float32 {
 	return mix4([4]float32{w[j][i], w[j][i+1], w[j+1][i], w[j+1][i+1]}, u, v)
 }
 
-// wayOut is one way out of a way's cell: where it ends, halfway to its neighbour, how half wide it
-// is there, how faded and how far its look has turned, how wide the neighbour's way is, whether it
-// runs slantwise through a corner, and where it runs on to under water.
 type wayOut struct {
 	x, y, half, fade, mix, wide float32
 	slant                       bool
 	into                        *wayOut // where it runs on to under water
 }
 
-// stillFall is the fall, rise over run, under which water lies level: there a way's water runs on
-// the way it fades, as if it fell so much.
+// rise over run under which water lies level
 const stillFall = 0.01
 
-// wayTier puts what runs across the cells over every tile: from above a way reaching into a
-// neighbour's cell is never covered by its tile.
+// over every tile: a way reaching into a neighbour's cell is never covered by its tile
 const wayTier = render.Ground + 5
 
-// DrawWay draws what runs across the tile over it, at depth: each piece in its light, the clouds'
-// shadows over it and, where it shines, its water running. A piece reaching across a corner takes
-// the depth of the nearest of the four cells meeting there, so none of them covers it.
+// DrawWay draws what runs across the tile over it, at depth. A piece reaching across a corner
+// takes the depth of the nearest of the four cells meeting there, so none of them covers it.
 func (t *tile) DrawWay(f *render.Frame, cam camera.Camera, depth float32) {
 	t.drawLane(f, cam, depth, wayTier, t.Way())
 }
 
-// drawLane draws pieces of what runs across the tile on tier, at depth.
 func (t *tile) drawLane(f *render.Frame, cam camera.Camera, depth float32, tier render.Tier, pieces []WayPiece) {
 	w, h := (t.X1-t.X0)/2, (t.Y1-t.Y0)/2
 	for _, p := range pieces {
 		if !t.r.inFront(cam, p.World, p.Z) {
-			continue // beside or behind the eye, where it would be thrown across the screen
+			continue // beside or behind the eye, it would be thrown across the screen
 		}
 		var corners render.Corners
 		for k, at := range p.World {
@@ -353,7 +317,6 @@ func (t *tile) drawLane(f *render.Frame, cam camera.Camera, depth float32, tier 
 		}
 		p.draw(f, tier, d, t.Atlas, corners, p.Light)
 		lit := p.Lit
-		// the water runs the less, and glints as what it turns into the more, the further it has turned
 		var runs, glints [4]float32
 		for k, m := range p.Mix {
 			if !p.Mixes {
@@ -370,8 +333,6 @@ func (t *tile) drawLane(f *render.Frame, cam camera.Camera, depth float32, tier 
 	}
 }
 
-// draw draws the piece over corners in shade, blended where it fades or lies under water, what it
-// turns into glazed over it, and gives its sprite.
 func (p *WayPiece) draw(f *render.Frame, tier render.Tier, depth float32, atlas render.AtlasSource, corners render.Corners, shade render.Shade) render.Mark {
 	mixes := p.Mixes && max(p.Mix[0], p.Mix[1], p.Mix[2], p.Mix[3]) > 0
 	if p.Faded {
@@ -394,7 +355,6 @@ func (p *WayPiece) draw(f *render.Frame, tier render.Tier, depth float32, atlas 
 	return drawn
 }
 
-// mixLight is the light at (u, v) across a tile lit s at its corners.
 func mixLight(s render.Shade, u, v float32) render.Light {
 	var out render.Light
 	for c := range out {
@@ -403,29 +363,25 @@ func mixLight(s render.Shade, u, v float32) render.Light {
 	return out
 }
 
-// mix4 is the value at (u, v) across a tile with corners at c.
 func mix4(c [4]float32, u, v float32) float32 {
 	top := c[0] + (c[1]-c[0])*u
 	bottom := c[2] + (c[3]-c[2])*u
 	return top + (bottom-top)*v
 }
 
-// cellBake is what a cell's tile draws over itself, worked out once while the cells round it stay
-// as they are: its blends and its way, near and far, placed as if the tile's top-left corner were
-// at 0, 0, in no light yet.
+// placed as if the tile's top-left corner were at 0, 0, in no light yet
 type cellBake struct {
 	ver     uint64 // one more than the newest version round the cell when baked; 0 never
-	seen    uint64 // the board's count of changes when last found as it was
+	seen    uint64
 	blends  []BlendPiece
 	ways    []WayPiece
 	farWays []WayPiece
 }
 
-// bakeOf is t's bake, worked out anew when a cell round it has changed since.
 func (l *Painter) bakeOf(t *tile) *cellBake {
 	i, _ := l.ordinal(t.ID)
 	b := &l.bakes[i]
-	if b.ver != 0 && b.seen == l.board.Changes() { // nothing on the board has changed since
+	if b.ver != 0 && b.seen == l.board.Changes() {
 		return b
 	}
 	b.seen = l.board.Changes()
@@ -454,7 +410,6 @@ func (l *Painter) bakeOf(t *tile) *cellBake {
 	return b
 }
 
-// shift is w moved by dx, dy.
 func shift(w render.World, dx, dy float32) render.World {
 	for k := range w {
 		w[k][0], w[k][1] = w[k][0]+dx, w[k][1]+dy

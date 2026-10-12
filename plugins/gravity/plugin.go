@@ -13,28 +13,24 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// earth is the pull at the Earth's surface, in metres a second squared.
+// metres a second squared
 const earth = 9.81
 
 // Config is how a world's gravity begins.
 type Config struct {
-	// Pull is the pull the world begins under; zero, the Earth's as its figures feel it
-	// (world.Scale.Figure): down, −Z, in a world with heights, down the screen, +Y, in a flat one.
+	// Pull is the pull the world begins under; zero, the Earth's as its figures feel it: −Z in a
+	// world with heights, +Y (down the screen) in a flat one.
 	Pull Pull
 }
 
-// Plugin is gravity over the entities of a world that carry a Body: every step of the
-// simulation it carries each by its drift, stands it on what bears it, lets it fall where nothing
-// does — unit.Airborne on while it flies — and lands it, a Landing for the rules it hosts. A Leap
-// throws a body up, an Away off. A world with heights pulls along −Z, a body standing on the
-// ground or a deck within its step (ground.Surfaces); a flat one across, a body standing on
-// whatever collision found it touching against the pull. Depends on world and, for the bodies'
-// markers, board.
+// Plugin is gravity over the entities of a world that carry a Body: every step it carries each
+// by its drift, stands it on what bears it, lets it fall and lands it, a Landing for the rules
+// it hosts.
 type Plugin struct {
-	*world.Self // its own entity: the Pull, the roles it plays, the effects it is under
+	*world.Self
 
 	worldPlugin *world.Plugin
-	surfaces    func() ground.Surfaces // nil: the ground lies at 0
+	surfaces    func() ground.Surfaces
 	module      *module
 
 	landings plugin.Rules[Landing]
@@ -64,9 +60,8 @@ func NewPlugin(w *world.Plugin, cfg Config) *Plugin {
 	return p
 }
 
-// WithSurfaces gives the plugin what bears a body in a world with heights, read as needed — the
-// board's (board.Plugin.Surfaces, nil before Setup); without it the ground lies at 0. A flat world
-// panics. Call before Use.
+// WithSurfaces gives the plugin what bears a body in a world with heights (the board's
+// Surfaces); without it the ground lies at 0. A flat world panics; call before Use.
 func (p *Plugin) WithSurfaces(surfaces func() ground.Surfaces) *Plugin {
 	if !p.worldPlugin.HasHeights() {
 		panic("gravity: a flat world has no surfaces — a body stands on what collision found")
@@ -74,10 +69,6 @@ func (p *Plugin) WithSurfaces(surfaces func() ground.Surfaces) *Plugin {
 	p.surfaces = surfaces
 	return p
 }
-
-// =================================================================
-// plugin.Plugin contract
-// =================================================================
 
 func (p *Plugin) Name() string { return "gram.gravity" }
 
@@ -88,17 +79,17 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 
-// RunPlan hands the fall to the simulation; call it right after collision's.
+// RunPlan runs the fall in the simulation; call it right after collision's.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer is a no-op — gravity draws nothing.
+// WithRenderer does nothing: gravity draws nothing.
 func (p *Plugin) WithRenderer(render.AtlasSource) {}
 
-// Renderer is a no-op — gravity has no render.Renderer of its own.
+// Renderer is nil: gravity draws nothing.
 func (p *Plugin) Renderer() render.Layer { return nil }
 
-// EventHandler is a no-op — gravity has no control.EventHandler of its own.
+// EventHandler is nil: gravity reads no input.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is a no-op — the pull and the drifts are on the entities.
+// Serializable is nil: the pull and the drifts are on the entities.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }

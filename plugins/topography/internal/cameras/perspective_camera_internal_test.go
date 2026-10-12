@@ -8,9 +8,6 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/internal/vec"
 )
 
-// testPersp is a perspective camera over a 640 x 640 world drawn to 400 x 300, at the 2:1 view's
-// pitch and heading, looking at (320, 320) on the ground from the ceiling, over ground and its
-// highest point.
 func testPersp(ground func(x, y float32) float32, highest func() float32) *perspCamera {
 	var extent func() (float32, float32)
 	if highest != nil {
@@ -169,8 +166,6 @@ func TestPerspCamera_ZoomComesInToTheCeilingThenNarrowsAndOutTheOtherWayRound(t 
 	}
 }
 
-// At the ceiling zooming in narrows the view about the middle of the screen; the head turns so
-// the ground under the cursor stays where it is drawn, the view swinging towards it.
 func TestPerspCamera_ZoomAtTheCeilingKeepsTheAnchorByTurningTheHead(t *testing.T) {
 	c := testPersp(nil, nil)
 	heading, pitch := c.heading, c.pitch
@@ -188,9 +183,6 @@ func TestPerspCamera_ZoomAtTheCeilingKeepsTheAnchorByTurningTheHead(t *testing.T
 	}
 }
 
-// The ground point in the middle of the screen stays over the world however the eye is moved, and
-// zooming out lifts the eye no higher than where the middle of the screen shows the world's
-// diagonal across at the flattest pitch.
 func TestPerspCamera_TheMiddleStaysOverTheWorldAndTheEyeNoHigherThanShowsItAcross(t *testing.T) {
 	c := testPersp(nil, nil)
 	over := func(what string) {
@@ -319,7 +311,8 @@ func TestPerspCamera_InsideAUnitTheEyeIsTheUnitsLookingWhereItIsTurned(t *testin
 	if e := c.eye(); e != [3]float32{300, 300, 20} || !near(c.Pitch(), 0) {
 		t.Fatalf("inside, the eye stands at %v looking down at %v, want (300, 300, 20) along the ground", e, c.Pitch())
 	}
-	ax, ay := float32(300-100*math.Sqrt2/2), float32(300-100*math.Sqrt2/2) // 100 ahead, up the screen at heading 0
+	// 100 ahead, up the screen at heading 0
+	ax, ay := float32(300-100*math.Sqrt2/2), float32(300-100*math.Sqrt2/2)
 	if sx, sy := c.Project(ax, ay, 20); !near(sx, 200) || !near(sy, 150) {
 		t.Errorf("the point ahead at the eye's height is drawn at (%v, %v), want the middle", sx, sy)
 	}
@@ -367,8 +360,6 @@ func TestPerspCamera_InsideAUnitTheEyeIsTheUnitsLookingWhereItIsTurned(t *testin
 	}
 }
 
-// Ray is the way a screen point looks: the middle of the screen the way the eye looks, the top of
-// it higher, all of length 1.
 func TestPerspCamera_RayIsTheWayAScreenPointLooks(t *testing.T) {
 	c := testPersp(nil, nil)
 	dx, dy, dz, ok := c.Ray(200, 150)

@@ -17,26 +17,22 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// The collision scenes are the collision demo's: a 1024x1024 torus filled to a share of its
-// area with square boxes of one side, every box bouncing off every other.
+// the collision demo's scene
 const (
 	sceneWidth  = 1024
 	sceneHeight = 1024
 	sceneTPS    = 120
 )
 
-// countFor is how many boxes of side rect cover percent of the scene.
 func countFor(rect uint32, percent float64) int {
 	return int(math.Floor(percent / 100.0 * float64(sceneWidth*sceneHeight) / float64(rect*rect)))
 }
 
-// body is the row every bouncing box spawns from.
 type body struct {
 	pos world.Position
 	vel world.Velocity
 }
 
-// randomVelocity draws each component from [-200, 200], keeping |dx| at least 10.
 func randomVelocity(rng *rand.Rand) world.Velocity {
 	dx := rng.Int32N(401) - 200
 	dy := rng.Int32N(401) - 200
@@ -50,8 +46,6 @@ func randomVelocity(rng *rand.Rand) world.Velocity {
 	return vel
 }
 
-// benchCollision installs a world and a collision plugin counting every contact, spawns the
-// scene on a grid with seeded random velocities, and runs 120 ticks so the boxes have spread.
 func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int, *collision.ContactStats) {
 	b.Helper()
 	count := countFor(rect, percent)
@@ -92,8 +86,7 @@ func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int,
 	return ecs, count, stats
 }
 
-// Benchmark_Collision_Tick is one tick of world plus collision at the demo's scales: movement,
-// the space rebuilt, every overlapping pair found, tested, bounced and pushed apart.
+// Benchmark_Collision_Tick is one tick of world plus collision at the demo's scales.
 func Benchmark_Collision_Tick(b *testing.B) {
 	for _, sc := range []struct {
 		name    string
@@ -122,17 +115,13 @@ func Benchmark_Collision_Tick(b *testing.B) {
 	}
 }
 
-// flight is what a swept shot of the bench does every tick: fly Step along Dir, turning back at
-// the world's edge.
 type flight struct {
 	Dir  geom.Vec
 	Step float64
 }
 
-// flyer moves every swept shot before the world's pass, as a bullet plugin would — it writes the
-// Sweep's From and flies the shot its step, turning at the edges — and turns every box back at
-// the edges too: the world is closed, as the sweeps need, and a box stopping whole at its edge
-// would pile up there, the scene no longer the Tick scene's.
+// flyer turns the boxes back at the edges too: the world is closed, as the sweeps need, and a
+// box stopping whole at its edge would pile up there.
 type flyer struct {
 	q     *goke.Query
 	base  goke.Comp[world.Base]
@@ -179,15 +168,11 @@ func (f *flyer) Update(*goke.CmdBuf, time.Duration) {
 	}
 }
 
-// shot is the row a swept shot spawns from.
 type shot struct {
 	pos world.Position
 	dir geom.Vec
 }
 
-// benchSwept is benchCollision's scene of 10-px boxes at 20%, in a closed world, with shots of 4
-// flying 60 a tick across it, swept: every tick every shot is paired with all on its path and
-// refined to its segment.
 func benchSwept(b *testing.B, shots int) (*goke.ECS, *collision.ContactStats) {
 	b.Helper()
 	const rect, percent = 10, 20.0
@@ -248,7 +233,7 @@ func benchSwept(b *testing.B, shots int) (*goke.ECS, *collision.ContactStats) {
 }
 
 // Benchmark_Collision_Swept is Benchmark_Collision_Tick's 10-px scene with swept shots crossing
-// it: the space rebuilt with their stretches and without, every pair on a path refined.
+// it.
 func Benchmark_Collision_Swept(b *testing.B) {
 	for _, shots := range []int{0, 1, 16, 64} {
 		b.Run(fmt.Sprintf("shots=%d", shots), func(b *testing.B) {

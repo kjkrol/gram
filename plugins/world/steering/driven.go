@@ -6,15 +6,10 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 )
 
-// Driven is an entity steered by hand: Ahead 1 to walk on the way it faces — Sprint urging it to
-// its Steering's Sprint — -1 to brake to a stop and then back away facing as it does, 0 to let it
-// go on as ordered or stand; Turn -1, 1 or 0 to turn anticlockwise, clockwise or not; Face, when
-// not zero, a way to turn to face instead, whatever Turn says — the hand's way; Look, when not
-// zero, the way an eye riding in it looks, which it turns to face before any Face. Flown, an entity that flies is flown by hand, as from inside it: it holds its height over sea
-// level whatever the ground under it does, climbing and diving only along the way it is steered,
-// which rises by Climb, -1 to 1, the sine of the rider's look up or down. Whoever steers it — a
-// camera fastened to it, say — writes it every tick; the plugins that move entities carry it out,
-// over the ground and, for the height, where the ground is known.
+// Driven is an entity steered by hand, written every tick by whoever steers it. Ahead is 1 to
+// walk on, -1 to brake and back away, 0 neither; Turn -1 anticlockwise, 1 clockwise; Face a way
+// to turn to instead, Look the way an eye riding in it looks, turned to before Face; Flown, it
+// holds its height, rising by Climb (-1 to 1, the sine of the look up or down) along its way.
 type Driven struct {
 	Ahead, Turn int8
 	Sprint      bool
@@ -24,11 +19,11 @@ type Driven struct {
 	Climb       float64
 }
 
-// steepest is the sine of the steepest an entity flown by hand climbs or dives: 80°.
+// sin 80°, the steepest climb or dive
 const steepest = 0.985
 
-// Slope is how the way a flown entity is steered along parts its speed: rise the share going up
-// (down under zero), run the share along the ground; level, all along the ground, unless Flown.
+// Slope is how the way a flown entity is steered parts its speed: rise the share going up, run
+// the share along the ground; not Flown, all along the ground.
 func (d Driven) Slope() (rise, run float64) {
 	if !d.Flown {
 		return 0, 1
@@ -37,8 +32,7 @@ func (d Driven) Slope() (rise, run float64) {
 	return rise, math.Sqrt(1 - rise*rise)
 }
 
-// Steers reports whether anything steers the entity this step — a hand going, turning or facing a
-// way, or an eye riding in it looking somewhere: an order it had gives way to it.
+// Steers reports whether anything steers the entity this step.
 func (d Driven) Steers() bool {
 	none := geom.Vec{}
 	return d.Ahead != 0 || d.Turn != 0 || d.Face != none || d.Look != none

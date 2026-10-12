@@ -2,18 +2,15 @@ package cell
 
 import "github.com/kjkrol/uid"
 
-// Now is a cell at a step, as the rules the board hosts get it: the cell's entity, which cell it
-// is, and its kind now, effects on its ground included. The board runs its rules for every cell
-// every step while there is one; a role the cells play obeys them (rule.Part.Obeys), and
-// effects' markers filter them (rule.Self(burning.Mark())).
+// Now is a cell at a step, as the rules the board hosts get it.
 type Now struct {
 	ID   uid.UID64 // the cell's entity
-	Cell ID        // which cell
-	Kind Kind      // its kind now, effects on its ground included
+	Cell ID
+	Kind Kind // effects on its ground included
 }
 
-// Who is the cell's entity: whose moment it is, for a rule.
+// Who is the cell's entity.
 func (n Now) Who() uid.UID64 { return n.ID }
 
-// Placed: a rule's Here acts on this cell, its Around on the rings round it too.
+// Placed marks the moment as a place: Here acts on this cell, Around on the rings round it.
 func (Now) Placed() {}

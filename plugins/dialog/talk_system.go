@@ -16,10 +16,6 @@ import (
 
 var _ goke.System = (*talkSystem)(nil)
 
-// talkSystem carries the conversations on: it ends those whose TalkingEf was taken off, whose
-// listener is gone or whose node is no more, then carries out the step's Begin, Choose and Feel —
-// the game's changes made on the game's components. An entity without Talk gets it as it first
-// needs it.
 type talkSystem struct {
 	p *Plugin
 
@@ -32,9 +28,9 @@ type talkSystem struct {
 	owners  goke.OptComp[tag.Tags[owner.Family]]
 	talkID  goke.CompID
 
-	cb        *goke.CmdBuf        // the pass's, while it runs
-	freshTalk map[uid.UID64]*Talk // Talks on their way to entities without one, this pass
-	offered   []*choice           // offers' scratch
+	cb        *goke.CmdBuf
+	freshTalk map[uid.UID64]*Talk // on their way to entities without one, this pass
+	offered   []*choice
 }
 
 func newTalkSystem(p *Plugin) *talkSystem {
@@ -62,8 +58,6 @@ func (s *talkSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	s.cb = nil
 }
 
-// watch ends every conversation whose TalkingEf was taken off — no TalkedEf then — whose listener
-// is gone, or whose node a loaded game no longer has.
 func (s *talkSystem) watch() {
 	effects := s.p.w.Effects()
 	for s.talks.All(); s.talks.Next(); {
@@ -85,7 +79,6 @@ func (s *talkSystem) watch() {
 	}
 }
 
-// begin carries out a Begin: the entity that gave it begins to talk with whom it is about.
 func (s *talkSystem) begin(i control.Issued[Begin]) {
 	b := i.Command
 	speaker, listener := i.Entity, b.with
@@ -114,7 +107,6 @@ func (s *talkSystem) begin(i control.Issued[Begin]) {
 	s.p.w.Effects().CastFor(s.cb, speaker, s.p.talking, effect.Forever)
 }
 
-// busy reports whether id talks now, as a speaker or a listener.
 func (s *talkSystem) busy(id uid.UID64) bool {
 	if t, ok := s.freshTalk[id]; ok && t.talking() {
 		return true
@@ -135,8 +127,6 @@ func (s *talkSystem) busy(id uid.UID64) bool {
 	return false
 }
 
-// choose carries out a Choose: the answer offered at the Index, chosen by a player the listener
-// obeys — the game's changes it makes, the commands it gives, where it leads.
 func (s *talkSystem) choose(i control.Issued[Choose]) {
 	c := i.Command
 	t := s.found(c.Speaker)
@@ -167,8 +157,6 @@ func (s *talkSystem) choose(i control.Issued[Choose]) {
 	t.Node = idOf(ch.next)
 }
 
-// feel carries out a Feel: the game's change, the entity that gave it the speaker and whom it is
-// about the listener.
 func (s *talkSystem) feel(i control.Issued[Feel]) {
 	f := i.Command
 	if !i.ByEntity || !f.aimed {
@@ -183,7 +171,6 @@ func (s *talkSystem) feel(i control.Issued[Feel]) {
 	change.apply(i.Entity, f.with)
 }
 
-// end ends speaker's conversation t: TalkingEf off and, talked to the end, TalkedEf on.
 func (s *talkSystem) end(speaker uid.UID64, t *Talk, toTheEnd bool) {
 	effects := s.p.w.Effects()
 	effects.Dispel(speaker, s.p.talking)
@@ -193,7 +180,6 @@ func (s *talkSystem) end(speaker uid.UID64, t *Talk, toTheEnd bool) {
 	*t = Talk{}
 }
 
-// obeys reports whether the entity id obeys the player by: its owner, or nobody's and by nobody.
 func (s *talkSystem) obeys(id uid.UID64, by control.PlayerID) bool {
 	if !s.bodies.Seek(id) {
 		return false
@@ -205,7 +191,6 @@ func (s *talkSystem) obeys(id uid.UID64, by control.PlayerID) bool {
 	return owner.Obeys(owners, by)
 }
 
-// offer is the answer of n at index among those offered to listener now; nil for none.
 func (s *talkSystem) offer(n *node, speaker, listener uid.UID64, index int) *choice {
 	s.offered = s.offers(s.offered[:0], n, speaker, listener)
 	if index < 0 || index >= len(s.offered) {
@@ -214,7 +199,6 @@ func (s *talkSystem) offer(n *node, speaker, listener uid.UID64, index int) *cho
 	return s.offered[index]
 }
 
-// offers appends to dst the answers of n whose conditions hold now.
 func (s *talkSystem) offers(dst []*choice, n *node, speaker, listener uid.UID64) []*choice {
 	for k := range n.choices {
 		if ch := &n.choices[k]; s.holds(ch.when, speaker, listener) {
@@ -224,8 +208,6 @@ func (s *talkSystem) offers(dst []*choice, n *node, speaker, listener uid.UID64)
 	return dst
 }
 
-// holds reports whether c holds between speaker and listener: the game's condition, an effect on
-// the speaker, or none.
 func (s *talkSystem) holds(c condition, speaker, listener uid.UID64) bool {
 	yes := true
 	switch {
@@ -237,7 +219,6 @@ func (s *talkSystem) holds(c condition, speaker, listener uid.UID64) bool {
 	return yes != c.not
 }
 
-// found is id's Talk, on its way to it or on it; nil for none.
 func (s *talkSystem) found(id uid.UID64) *Talk {
 	if t, ok := s.freshTalk[id]; ok {
 		return t
@@ -248,7 +229,6 @@ func (s *talkSystem) found(id uid.UID64) *Talk {
 	return nil
 }
 
-// talkOf is id's Talk, given it this pass where it has none.
 func (s *talkSystem) talkOf(id uid.UID64) *Talk {
 	if t := s.found(id); t != nil {
 		return t
@@ -258,7 +238,6 @@ func (s *talkSystem) talkOf(id uid.UID64) *Talk {
 	return t
 }
 
-// read is id's Talk as it stands: what the window reads every frame.
 func (s *talkSystem) read(id uid.UID64) (Talk, bool) {
 	if t := s.found(id); t != nil {
 		return *t, true

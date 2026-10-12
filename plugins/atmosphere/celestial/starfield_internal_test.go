@@ -7,8 +7,6 @@ import (
 	"github.com/kjkrol/gram/camera"
 )
 
-// pinhole looks along its unit way ahead, right and up square to it, focal pixels to the screen's
-// middle at (50, 50): where a way vanishes on the screen.
 type pinhole struct {
 	camera.Camera
 	ahead, right, up [3]float32
@@ -23,7 +21,6 @@ func (p pinhole) Vanish(dx, dy, dz float32) (float32, float32, bool) {
 	return 50 + 100*dot(d, p.right)/a, 50 - 100*dot(d, p.up)/a, true
 }
 
-// looking is a pinhole looking along way, level to the right.
 func looking(way [3]float32) pinhole {
 	right := unit([3]float32{way[1], -way[0], 0})
 	up := [3]float32{right[1]*way[2] - right[2]*way[1], right[2]*way[0] - right[0]*way[2], right[0]*way[1] - right[1]*way[0]}
@@ -35,9 +32,6 @@ func unit(a [3]float32) [3]float32 {
 	return [3]float32{a[0] / n, a[1] / n, a[2] / n}
 }
 
-// The star field lays out only the stars over the horizon and ahead of the eye, on the screen:
-// looking at the pole, Polaris stands where the pole vanishes; looking down into the ground, none;
-// dim, fewer.
 func TestStarField_LaysOutTheStarsInSight(t *testing.T) {
 	h := Place{NoonWay: South, Latitude: 45}.HeavensAt(0.3, 0.95, 0.4, RealStars)
 	var f StarField
@@ -67,7 +61,6 @@ func TestStarField_LaysOutTheStarsInSight(t *testing.T) {
 	}
 }
 
-// A star's colour goes from blue-white to orange by its colour index, the brighter showing more.
 func TestStarField_ColoursAndBrightness(t *testing.T) {
 	blue, red := starColour(-0.3), starColour(1.8)
 	if blue[2] <= blue[0] || red[0] <= red[2] {

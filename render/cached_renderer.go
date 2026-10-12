@@ -4,16 +4,15 @@ import (
 	"github.com/kjkrol/goke/v3"
 )
 
-// CachedRenderer draws inner once into an offscreen image and reuses it every
-// frame — call Invalidate to force a redraw on the next Draw. The image follows the screen's size:
-// a resized window gets a fresh one, drawn anew.
+// CachedRenderer draws inner once into an offscreen image and reuses it every frame until
+// Invalidate or the screen changes size.
 type CachedRenderer struct {
 	inner Renderer
 	image *Image
 	dirty bool
 }
 
-// NewCachedRenderer wraps inner, caching its output at w×h until invalidated or the screen changes size.
+// NewCachedRenderer wraps inner, caching its output at w by h.
 func NewCachedRenderer(inner Renderer, w, h int) *CachedRenderer {
 	return &CachedRenderer{inner: inner, image: NewImage(w, h), dirty: true}
 }

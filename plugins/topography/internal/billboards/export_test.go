@@ -6,8 +6,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// Stood is what the look l took for the GPU since it was readied: for every billboard its centre,
-// its altitude, how tall and how wide it stands, and how far its top leans.
+// Stood is every billboard the look l took since it was readied: its centre, its altitude, how
+// tall and how wide it stands, and how far its top leans.
 func Stood(l world.Look) [][6]float32 {
 	var out [][6]float32
 	for _, b := range l.(Look).gpu.batches {
@@ -19,8 +19,7 @@ func Stood(l world.Look) [][6]float32 {
 	return out
 }
 
-// Lain is the corners — x, y and height — of every sprite the look l took lying since it was
-// readied, each corner after the last.
+// Lain is the corners (x, y, height) of every sprite the look l took lying since it was readied.
 func Lain(l world.Look) [][3]float32 {
 	var out [][3]float32
 	for _, b := range l.(Look).gpu.lain {

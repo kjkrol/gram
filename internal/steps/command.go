@@ -11,8 +11,7 @@ func NewOrder[C control.Command](cmd C) Step {
 	return leaf{sign: "order[" + typeName[C]() + "]", make: func() exec { return order[C]{cmd: cmd} }}
 }
 
-// Aimed is a command told whom it is about — the subject of the fact it stands under — as it is
-// issued: whose way to step off, whose goal to swap with.
+// Aimed is a command told the subject of the fact or moment it stands under as it is issued.
 type Aimed interface{ Aim(who uid.UID64) }
 
 type order[C control.Command] struct {
@@ -30,7 +29,7 @@ func (i order[C]) tick(c *ctx, _ int, _ []int) Status {
 	if a, ok := any(&v).(Aimed); ok && c.about {
 		a.Aim(c.subject)
 	} else if ok && c.names {
-		return Failure // aimed at nobody
+		return Failure
 	}
 	commands := c.pass.Commands
 	if c.sys != nil {

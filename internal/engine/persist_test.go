@@ -11,7 +11,6 @@ import (
 type stateA struct{ N int }
 type stateB struct{ S string }
 
-// TestSaveLoad_RoundTrip exercises save/Load against a bare *goke.ECS, no Game involved.
 func TestSaveLoad_RoundTrip(t *testing.T) {
 	basePath := t.TempDir() + "/save"
 

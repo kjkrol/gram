@@ -25,23 +25,21 @@ type RenderState struct {
 // ToggleShowGridLines flips whether grid lines are drawn.
 func (r *RenderState) ToggleShowGridLines() { r.ShowGridLines = !r.ShowGridLines }
 
-// Map is what a board is drawn by: how its cells lie on the screen (Look), what lies over them
-// beyond their sprites (Dressing), how high they stand (Top) and whether the ground has heights at
-// all (Heights). A board's Map is one, pricing a step besides (board.Map).
+// Map is what a board is drawn by: how its cells lie on the screen, what lies over them beyond
+// their sprites and how high they stand.
 type Map interface {
 	// Look is how the cells lie on the screen through a camera.
 	Look() Look
-	// Heights is the height of the ground at any point, for sight and navigation; nil on a flat map.
+	// Heights is the height of the ground at any point; nil on a flat map.
 	Heights() ground.Heights
 	// Dressing lays over the tiles what lies on them beyond their sprites; nil for nothing.
 	Dressing() Dressing
-	// Top is the height of c's corners as drawn — top-left, top-right, bottom-left, bottom-right —
-	// and of its ground: zero on a flat map.
+	// Top is the height of c's corners as drawn (top-left, top-right, bottom-left, bottom-right)
+	// and of its ground; zero on a flat map.
 	Top(c cell.ID) (corners [4]float32, level float32)
 }
 
-// Board is what a Renderer reads of a board: its grid and shape, and its cells' kinds and changes.
-// A board.Board is one.
+// Board is what a Renderer reads of a board; a board.Board is one.
 type Board interface {
 	grid.Grid
 	// Shape is the grid's shape when it is one of grid.DefaultGrids.
@@ -55,51 +53,38 @@ type Board interface {
 }
 
 // Renderer is the render.Source of a Board's cells: each visible cell laid on the screen by the
-// Map's Look, and the grid when it is on. Under a Parallel Dressing the tiles are dressed on
-// several goroutines at once (Workers).
+// Map's Look, and the grid when it is on.
 type Renderer struct {
 	board   Board
-	mapping Map           // what the board is drawn by: its Look and its Dressing
-	camera  camera.Camera // the one of the frame being drawn
+	mapping Map
+	camera  camera.Camera
 	atlas   render.AtlasSource
 	cellW   float64
 	cellH   float64
 	square  bool
 	state   RenderState
-	shaded  map[cell.Name]render.MaterialID // the kinds worked out per pixel instead of drawn
+	shaded  map[cell.Name]render.MaterialID
 	outline []geom.Vec
-	quads   []camera.Quad // reused for the shaded kinds' quads
+	quads   []camera.Quad
 	tile    Tile
-	// cells are the frame's visible cells in the order they are drawn, and workers the goroutines
-	// sharing them, at most count: 0 as many as there are CPUs, 1 none
 	cells   []cell.ID
 	workers []*tileWorker
-	count   int
-	// seen marks by ordinal the cells a frame has visited on a grid walked by sampling; stamp is the frame's mark.
-	seen  []uint32
-	stamp uint32
-	// tops holds by ordinal what has been read of each cell, good while the cell stays as it was.
-	tops []cellTop
-	// scaleVaries is whether the frame's camera draws a world unit larger in some places than
-	// others — a perspective — so each cell is measured where it lies
+	count   int // 0 as many as there are CPUs, 1 none
+	seen    []uint32
+	stamp   uint32
+	tops    []cellTop
+	// scaleVaries: a perspective draws a world unit larger in some places than others
 	scaleVaries bool
 
-	// space is the world the board lies in, for the still: how large, whether it wraps; zero for
-	// none, its tiles composed every frame
-	space world.SpaceCfg
-	// still is the tiles of a flat map under an EvenLit dressing composed once in white (white
-	// while composing), again when the board changes (stillAt); drawn this frame (stillOn) in
-	// stillLight
+	space      world.SpaceCfg // zero for none: the tiles composed every frame
 	still      *render.Still
 	stillAt    uint64
 	stillOn    bool
 	stillLight render.Light
 	white      bool
-	grid       gridLines // the still's
+	grid       gridLines
 }
 
-// cellTop is a cell as one Compose reads it once: its kind's sway and height, its sprite, and its
-// corners and level as the Map draws them.
 type cellTop struct {
 	sway   float32
 	height float32
@@ -115,12 +100,8 @@ const MinGridCell = 6
 
 var _ render.Direct = (*Renderer)(nil)
 
-// gridTier puts the lines of a grid other than square over every tile and under whatever stands on
-// them.
 const gridTier = render.Ground + 10
 
-// tileWorker is one goroutine's share of a frame's tiles: the frame it draws them into, its tile
-// and outline scratch, and the Dressing and Look it draws by.
 type tileWorker struct {
 	frame   render.Frame
 	tile    Tile
@@ -132,8 +113,8 @@ type tileWorker struct {
 // tilesPerWorker is the fewest tiles worth a goroutine of their own.
 const tilesPerWorker = 64
 
-// NewRenderer is a renderer of b's cells drawn from atlas by m, over the world space — zero for none,
-// its tiles composed every frame: what board.Plugin.WithRenderer builds.
+// NewRenderer is a renderer of b's cells drawn from atlas by m, over the world space; a zero
+// space composes the tiles every frame.
 func NewRenderer(b Board, atlas render.AtlasSource, m Map, space world.SpaceCfg) *Renderer {
 	w, h := b.CellBounds()
 	shape, ok := b.Shape()
@@ -142,27 +123,20 @@ func NewRenderer(b Board, atlas render.AtlasSource, m Map, space world.SpaceCfg)
 	return r
 }
 
-// State is the renderer's live toggles: whether the grid is drawn.
+// State is the renderer's live toggles.
 func (l *Renderer) State() *RenderState { return &l.state }
 
 func (l *Renderer) Init(*goke.SysInit) {}
 
-// Shade is the per-pixel looks the board's Atlas declared, by the kind's name; their tiles are
-// laid as live material quads every frame, never baked into the still, and skipped by the tiles'
-// pass. A shaded kind takes no part in blending (give it no Spread).
+// Shade is the per-pixel looks the board's Atlas declared, by the kind's name. A shaded kind
+// takes no part in blending.
 func (l *Renderer) Shade(shaded map[cell.Name]render.MaterialID) { l.shaded = shaded }
 
-// Workers sets how many goroutines at most share a frame's tiles under a Parallel Dressing: 0 as
-// many as there are CPUs, 1 none.
+// Workers sets how many goroutines at most share a frame's tiles under a Parallel Dressing: 0
+// as many as there are CPUs, 1 none.
 func (l *Renderer) Workers(n int) { l.count = max(n, 0) }
 
-// Compose hands the Map's Look every cell under cam, and the grid when it is on: on a square
-// grid the Look outlines each tile along its own edges, on any other the cells' outlines are
-// drawn as lines. Under a Parallel Dressing and a ParallelLook, with tiles enough, every tile is
-// warmed first, then the tiles are shared out among goroutines, each drawing its run into a frame
-// of its own, appended to f in order: the picture is the one goroutine would draw. A flat map under
-// an EvenLit dressing seen from above is composed once instead (render.Still), again when the board
-// changes, and drawn by Draw, the grid over it on the GPU.
+// Compose hands the Map's Look every cell under cam, and the grid when it is on.
 func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	l.camera = cam
 	d := l.dressing()
@@ -172,7 +146,7 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		d.Begin(f, cam)
 	}
 	if look == Nothing {
-		return // the ground is drawn some other way: the dressing is readied for the frame, no more
+		return // the dressing is readied for the frame, no more
 	}
 	if l.stillLight, l.stillOn = l.evenLight(m, d, cam); l.stillOn {
 		l.composeStill(look, d)
@@ -184,12 +158,10 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	l.materials(f)
 }
 
-// materialTier is where the shaded kinds' quads come: over the still and the tiles, under the
-// grid's lines and whatever stands on the ground.
+// over the still and the tiles, under the grid's lines
 const materialTier = render.Ground + 5
 
-// materials lays a live quad for every visible cell of a shaded kind — the material's inputs the
-// cell's own: World its box, Custom its middle and half its width, Red 1.
+// the material's inputs: World the cell's box, Custom its middle and half its width, Red 1
 func (l *Renderer) materials(f *render.Frame) {
 	if len(l.shaded) == 0 {
 		return
@@ -217,11 +189,11 @@ func (l *Renderer) materials(f *render.Frame) {
 	})
 }
 
-// Tier is where the still comes: render.Ground, under all else.
+// Tier is where the still comes.
 func (l *Renderer) Tier() render.Tier { return render.Ground }
 
-// Draw draws the still this frame composed through cam, as many times as a wrapping world shows
-// it, and the grid over it when it is on; nothing where the tiles were composed into the frame.
+// Draw draws the still through cam and the grid over it; nothing where the tiles were composed
+// into the frame.
 func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if !l.stillOn || t.Screen == nil {
 		return
@@ -247,9 +219,6 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	}
 }
 
-// evenLight is the light the still is drawn in this frame, and whether it is: a board in a world
-// a plugin runs, a flat map, a camera looking straight down, the dressing none or lighting every
-// tile alike.
 func (l *Renderer) evenLight(m Map, d Dressing, cam camera.Camera) (render.Light, bool) {
 	if l.space.Width == 0 || l.space.Height == 0 || m.Heights() != nil {
 		return render.Light{}, false
@@ -266,7 +235,6 @@ func (l *Renderer) evenLight(m Map, d Dressing, cam camera.Camera) (render.Light
 	return render.Light{}, false
 }
 
-// composeStill composes the still anew where the board has changed since it was last.
 func (l *Renderer) composeStill(look Look, d Dressing) {
 	if l.still == nil {
 		l.still = render.NewStill()
@@ -283,7 +251,6 @@ func (l *Renderer) composeStill(look Look, d Dressing) {
 	l.stillAt = l.board.Changes() + 1
 }
 
-// compose hands look every cell under the renderer's camera, dressed by d.
 func (l *Renderer) compose(f *render.Frame, look Look, d Dressing) {
 	cam := l.camera
 	sheet := l.atlas
@@ -340,7 +307,6 @@ func (l *Renderer) compose(f *render.Frame, look Look, d Dressing) {
 	}
 }
 
-// place makes t cell c: its id and its box, whose centre it gives.
 func (l *Renderer) place(t *Tile, c cell.ID) geom.Vec {
 	center := l.board.CellCenter(c)
 	t.ID = c
@@ -349,11 +315,9 @@ func (l *Renderer) place(t *Tile, c cell.ID) geom.Vec {
 	return center
 }
 
-// cell hands look cell c as tile t, and draws its grid lines where the grid is on and the tile is
-// not outlined by the look, with outline as scratch; it gives the scratch back.
 func (l *Renderer) cell(f *render.Frame, look Look, t *Tile, c cell.ID, outline []geom.Vec) []geom.Vec {
 	if _, ok := l.shaded[l.board.Kind(c).Name]; ok {
-		return outline // worked out per pixel instead (materials), never drawn as a tile
+		return outline // a material, never drawn as a tile
 	}
 	center := l.place(t, c)
 	grid := l.gridShown(c, center)
@@ -365,8 +329,6 @@ func (l *Renderer) cell(f *render.Frame, look Look, t *Tile, c cell.ID, outline 
 	return outline
 }
 
-// gridShown reports whether the grid is on and cell c, its centre at center, is large enough on
-// screen to read it: where it is drawn, as the camera draws a world unit there.
 func (l *Renderer) gridShown(c cell.ID, center geom.Vec) bool {
 	if !l.state.ShowGridLines || l.white { // a still's grid is drawn over it on the GPU
 		return false
@@ -378,9 +340,7 @@ func (l *Renderer) gridShown(c cell.ID, center geom.Vec) bool {
 	return float32(min(l.cellW, l.cellH))*scale >= MinGridCell
 }
 
-// outlineLines draws c's outline on the ground at its level, leaving out an edge that straddles a
-// wrap seam — the cells either side draw its images — each edge at the depth of its nearer end;
-// outline is its scratch, given back.
+// an edge straddling a wrap seam is left out: the cells either side draw its images
 func (l *Renderer) outlineLines(f *render.Frame, c cell.ID, outline []geom.Vec) []geom.Vec {
 	alt := l.topOf(c).alt
 	outline = l.board.CellOutline(c, outline[:0])
@@ -398,18 +358,16 @@ func (l *Renderer) outlineLines(f *render.Frame, c cell.ID, outline []geom.Vec) 
 	return outline
 }
 
-// nextTops starts a Compose: the cells read before stay read as long as they do not change.
 func (l *Renderer) nextTops() {
 	if n := l.board.CellCount(); len(l.tops) != n {
 		l.tops = make([]cellTop, n)
 	}
 }
 
-// topOf is c as the board has it, read anew only when the cell has changed (Board.CellVersion).
 func (l *Renderer) topOf(c cell.ID) *cellTop {
 	i, _ := l.board.Ordinal(c)
 	t := &l.tops[i]
-	if t.ver != 0 && t.seen == l.board.Changes() { // nothing on the board has changed since
+	if t.ver != 0 && t.seen == l.board.Changes() {
 		return t
 	}
 	v := l.board.CellVersion(c) + 1
@@ -423,9 +381,6 @@ func (l *Renderer) topOf(c cell.ID) *cellTop {
 	return t
 }
 
-// onScreen reports whether any of cell c — from the ground, or sea level below it, up to what stands
-// on it — is drawn within the viewport, with room for a top leaning in the wind: in a view with
-// depth the world rectangle under the screen holds cells beside it too.
 func (l *Renderer) onScreen(c cell.ID) bool {
 	top := l.topOf(c)
 	center := l.board.CellCenter(c)
@@ -448,18 +403,14 @@ func (l *Renderer) onScreen(c cell.ID) bool {
 	return maxX > -offScreen && minX < w+offScreen && maxY > -offScreen && minY < h+offScreen
 }
 
-// offScreen is how many pixels past the viewport's edge a cell still counts as drawn: what leans
-// or stands over it may reach in.
+// pixels past the viewport's edge a cell still counts as drawn: what stands on it may reach in
 const offScreen = 48
 
-// eachVisible calls fn once for every cell under the camera's bounds: on a square grid straight
-// from the rows and columns, on any other by sampling every half cell.
 func (l *Renderer) eachVisible(fn func(c cell.ID)) {
 	bounds := l.camera.Bounds()
 	if l.square {
 		if l.camera.Projection().Sorts() {
-			// a view with depth: the bounds are the rectangle round the screen's diamond, twice
-			// the cells on it
+			// the bounds are the rectangle round the screen's diamond, twice the cells on it
 			l.board.CellsUnder(bounds, func(c cell.ID) {
 				if l.onScreen(c) {
 					fn(c)
@@ -497,7 +448,6 @@ func (l *Renderer) eachVisible(fn func(c cell.ID)) {
 	}
 }
 
-// dressing is the Dressing the board's tiles are dressed by, nil for none.
 func (l *Renderer) dressing() Dressing { return l.mapping.Dressing() }
 
 func abs32(v float32) float32 {

@@ -16,9 +16,6 @@ import (
 	"github.com/kjkrol/gram/plugins/bridges/site"
 )
 
-// roads are the roads of a map: routed place to place over the cheapest ground, carried over
-// water and down valleys by crossings — bridges, fords — and, in relief, laid on ground graded as
-// Transport Tycoon lays a road (ground.RoadFits).
 type roads struct {
 	w       *chart
 	cfg     roadsCfg
@@ -30,50 +27,40 @@ type roads struct {
 	wetK    []bool    // the corners of running water: its beds, never graded
 	ground  []float64 // the corners' heights before grading
 	planned map[int]float64
-	under   map[int]float64 // under a bridge, its heads' corners aside: the most a road rises to
+	under   map[int]float64 // the most a road rises to under a bridge, its heads' corners aside
 	skipped [][2]string
 }
 
-// road is one route's cells, place to place, which of them it crosses on a bridge or a ford, and
-// the height it comes into each at, in metres.
 type road struct {
 	cells []cell.ID
 	over  []bool
-	at    []float64
+	at    []float64 // metres
 }
 
-// span is a crossing: the cells a road crosses by, all one way, where the road meets it on either
-// side — a ford's edges, a bridge's heads: the flat tiles it begins and ends in the middle of.
 type span struct {
 	cells  []cell.ID
-	way    int     // the link it runs along
-	ford   bool    // waded, else bridged
+	way    int
+	ford   bool
 	edges  [][]int // the corners the road meets a ford at
 	heads  []head
-	deck   float64 // metres: where a bridge runs, its heads flat at it
+	deck   float64 // metres
 	merged bool
 }
 
-// head is a bridge's head: the cell, the way from it into the bridge.
 type head struct {
 	at  cell.ID
-	way int
+	way int // from it into the bridge
 }
 
-// none is the way a road comes into the cell it begins on, and leaves the one it ends on, by.
+// none is the way into the cell a road begins on, and out of the one it ends on
 const none = -1
 
-// planSlack is how far off the height a road laid before planned a corner at another may meet it,
-// in metres.
+// metres
 const planSlack = 0.5
 
-// heightBand is how near two heights a road comes to a cell at are one to the search for it, in
-// metres.
+// metres: heights this near are one to the search
 const heightBand = 20.0
 
-// mark is what the routes laid so far made of a cell: a road through it, the ways it runs and
-// the height it comes at; a bridge over it, its way and its deck; a bridge's head on it, the way
-// into its bridge.
 type mark struct {
 	paved   bool
 	ways    cell.Links
@@ -85,12 +72,10 @@ type mark struct {
 	headWay int
 }
 
-// clearance is how high a bridge's deck stands over the ground and the beds under it, in metres:
-// its thickness and a metre to spare.
+// metres: the deck's thickness and a metre to spare
 func (r *roads) clearance() float64 { return r.cfg.Thickness + 1 }
 
-// underpass is how far over a road a bridge's deck crossing it stands, in metres: the figures the
-// map is made for, 2 m where it says none, and the deck's clearance over them.
+// metres: the figures the map is made for, 2 m where it says none, and the clearance over them
 func (r *roads) underpass() float64 { return max(r.cfg.Figure, 2) + r.clearance() }
 
 func newRoads(w *chart) *roads {
@@ -159,7 +144,6 @@ func (r *roads) lay() error {
 	return r.grade()
 }
 
-// roadable reports whether a road may run through c: land with land all round it, off the coast.
 func (r *roads) roadable(c cell.ID) bool {
 	for _, k := range r.w.cornersOf(c) {
 		x, y := k%(r.w.cols+1), k/(r.w.cols+1)
@@ -170,8 +154,6 @@ func (r *roads) roadable(c cell.ID) bool {
 	return true
 }
 
-// crossing reports whether a road may only cross c, never run on it: running water, and in relief
-// the cells sharing a corner with its bed too.
 func (r *roads) crossing(c cell.ID) bool {
 	if r.w.wet(c) {
 		return true
@@ -187,8 +169,6 @@ func (r *roads) crossing(c cell.ID) bool {
 	return false
 }
 
-// nearest is the cell nearest to a place a road may begin on: dry, level enough to grade, off
-// rock and steep ground where it can.
 func (r *roads) nearest(at [2]float64) (cell.ID, bool) {
 	a := r.w.r.Area
 	x, y := metresOf(a.Centre, at[0], at[1])
@@ -221,26 +201,20 @@ func (r *roads) nearest(at [2]float64) (cell.ID, bool) {
 	return best, found
 }
 
-// find is the cheapest road from one cell to another. A road keeps its height through a bend,
-// along a diagonal — the cell level under it — and over a bridge, and climbs only straight along
-// a side, RoadSlope at most a cell: each way is priced by what grading the ground under the road it
-// holds would move, the height it reaches a cell at the best way's. A bridge is a leap from a head
-// to a head over the cells between, where package site says one may stand — the rules a game
-// builds its bridges by — both heads graded flat at its deck.
 func (r *roads) find(from, to cell.ID, h0 float64, laid map[cell.ID]mark,
 	barred map[cell.ID]bool, banned map[[2]cell.ID]bool) (road, bool) {
 	type state struct {
 		c    cell.ID
-		way  int8  // the link it came by; none at the start
-		band int16 // the height it comes at, in bands
-		head bool  // landed on from a bridge: the cell is its head, flat
+		way  int8
+		band int16 // the height it comes at, in heightBands
+		head bool  // landed on from a bridge
 	}
 	band := func(h float64) int16 { return int16(math.Round(h / heightBand)) }
 	start := state{from, none, band(h0), false}
 	dist := map[state]float64{start: 0}
 	height := map[state]float64{start: h0}
 	prev := map[state]state{}
-	spans := map[state]int{} // the cells a bridge leapt over to come to a head
+	spans := map[state]int{}
 	type leapKey struct {
 		c      cell.ID
 		way, n int
@@ -250,7 +224,7 @@ func (r *roads) find(from, to cell.ID, h0 float64, laid map[cell.ID]mark,
 		c  float64
 		ok bool
 	}
-	leaps := map[leapKey]leapCost{} // a bridge priced once whichever way the road came
+	leaps := map[leapKey]leapCost{}
 	var q queue
 	at := map[int]state{}
 	pushed := 0
@@ -350,7 +324,6 @@ func (r *roads) find(from, to cell.ID, h0 float64, laid map[cell.ID]mark,
 	return road{}, false
 }
 
-// leap is the cell steps cells from c the way way.
 func (r *roads) leap(c cell.ID, way, steps int) (cell.ID, bool) {
 	for range steps {
 		n, ok := r.w.grid.Toward(c, way)
@@ -362,7 +335,6 @@ func (r *roads) leap(c cell.ID, way, steps int) (cell.ID, bool) {
 	return c, true
 }
 
-// longest is the most cells a bridge spans.
 func (r *roads) longest() int {
 	if r.cfg.Longest > 0 {
 		return r.cfg.Longest
@@ -370,8 +342,7 @@ func (r *roads) longest() int {
 	return 3
 }
 
-// rules are where a map's bridge may stand, in world units: the rules a game builds its bridges
-// by (site.Rules), the recipe's.
+// world units
 func (r *roads) rules() site.Rules {
 	per := r.w.perUnit
 	return site.Rules{
@@ -384,10 +355,6 @@ func (r *roads) rules() site.Rules {
 	}
 }
 
-// once is find's road from one cell to another passing every cell once, but where it crosses
-// itself on a bridge over itself running across, and giving no corner two heights: each cell it
-// came back to otherwise, or held a corner of its own at another height, is barred and the road
-// found anew.
 func (r *roads) once(from, to cell.ID, h0 float64, laid map[cell.ID]mark) (road, bool) {
 	barred, banned := map[cell.ID]bool{}, map[[2]cell.ID]bool{}
 	for range 32 {
@@ -425,7 +392,6 @@ func (r *roads) once(from, to cell.ID, h0 float64, laid map[cell.ID]mark) (road,
 	return road{}, false
 }
 
-// leaps are rd's bridges, the places on it of their heads.
 func leaps(rd road) [][2]int {
 	var out [][2]int
 	for i := 1; i < len(rd.cells); i++ {
@@ -440,8 +406,6 @@ func leaps(rd road) [][2]int {
 	return out
 }
 
-// underRoad reports whether the road rd aims somewhere under its bridge from head b[0] to head
-// b[1] — at a corner of a span its heads do not share — less than its clearance under the deck.
 func (r *roads) underRoad(rd road, b [2]int, aimed map[int]float64) bool {
 	ends := r.w.cornersOf(rd.cells[b[0]])
 	far := r.w.cornersOf(rd.cells[b[1]])
@@ -459,8 +423,6 @@ func (r *roads) underRoad(rd road, b [2]int, aimed map[int]float64) bool {
 	return false
 }
 
-// overpass reports whether rd's two visits to one cell, at, are a bridge over itself: one over it,
-// one under it running straight across the bridge, the deck underpass over it or higher.
 func (r *roads) overpass(rd road, at []int) bool {
 	if len(at) != 2 || rd.over[at[0]] == rd.over[at[1]] {
 		return false
@@ -479,10 +441,8 @@ func (r *roads) overpass(rd road, at []int) bool {
 		rd.at[over] >= max(rd.at[under], rd.at[under+1])+r.underpass()
 }
 
-// across reports whether the ways a and b run square to each other.
 func (r *roads) across(a, b int) bool { return 4*r.turns(a, b) == r.w.grid.Directions() }
 
-// turns is how many of the grid's directions apart the ways a and b lie, the shorter way round.
 func (r *roads) turns(a, b int) int {
 	g := r.w.grid
 	sa, sb := g.Step(a), g.Step(b)
@@ -490,9 +450,6 @@ func (r *roads) turns(a, b int) int {
 	return int(math.Round(angle / (2 * math.Pi / float64(g.Directions()))))
 }
 
-// paveable reports whether a road may run on from a to b the way way at height h: onto dry
-// ground off the coast, under a bridge only square across it and underpass under its deck,
-// cutting no corner over ground it may not take.
 func (r *roads) paveable(a, b cell.ID, way int, h float64, laid map[cell.ID]mark) bool {
 	if !r.roadable(b) || r.crossing(b) {
 		return false
@@ -513,8 +470,6 @@ func (r *roads) paveable(a, b cell.ID, way int, h float64, laid map[cell.ID]mark
 	return true
 }
 
-// travel is what a step of road from a to b costs, the way out after the way in, leaving a at
-// height next come into it at h.
 func (r *roads) travel(a, b cell.ID, in, out int, h, next float64, laid map[cell.ID]mark) float64 {
 	w := r.w
 	along := w.grid.NeighborCost(a, b)
@@ -532,16 +487,11 @@ func (r *roads) travel(a, b cell.ID, in, out int, h, next float64, laid map[cell
 	return cost
 }
 
-// headable reports whether c may be the head of a bridge running out of it the way way: no bridge
-// over it, no other bridge's head on it.
 func (r *roads) headable(c cell.ID, way int, laid map[cell.ID]mark) bool {
 	m := laid[c]
 	return !m.bridged && (!m.head || m.headWay == way)
 }
 
-// flatten is what grading c flat at h costs, come into it the way in (none: from nowhere), whose
-// rim is paid already: +Inf where a corner would move further than Deep, or off the height a road
-// laid before planned it at.
 func (r *roads) flatten(c cell.ID, in int, h float64) float64 {
 	if r.w.flat {
 		return 0
@@ -553,9 +503,6 @@ func (r *roads) flatten(c cell.ID, in int, h float64) float64 {
 	return r.price(c, in, target)
 }
 
-// bridge is what a bridge from the head a to the head b, n cells the way way, its deck at h,
-// costs: none where package site refuses it there; a bridge laid before, from a to b, at the price
-// of its reuse.
 func (r *roads) bridge(a, b cell.ID, way, n int, h float64, laid map[cell.ID]mark) (float64,
 	bool) {
 	along := r.w.grid.NeighborCost(a, r.must(r.leap(a, way, 1)))
@@ -573,9 +520,7 @@ func (r *roads) bridge(a, b cell.ID, way, n int, h float64, laid map[cell.ID]mar
 	return cost, true
 }
 
-// crosses reports whether a bridge from a, n cells the way way, its deck at h, crosses something
-// at all — water, or ground underpass under its deck; on a flat map a cell no road may take — as
-// package site asks first of all, at little cost.
+// crosses asks cheaply what site.Plan asks first of all, so most leaps are refused before it.
 func (r *roads) crosses(a cell.ID, way, n int, h float64) bool {
 	ends := r.w.cornersOf(a)
 	far := r.w.cornersOf(r.must(r.leap(a, way, n+1)))
@@ -605,8 +550,7 @@ func (r *roads) must(c cell.ID, ok bool) cell.ID {
 	return c
 }
 
-// chartGround is the map being made as package site plans a bridge over it, in world units: the
-// heights the roads laid so far planned, the bridges and roads they laid.
+// world units, as site asks
 type chartGround struct {
 	r    *roads
 	laid map[cell.ID]mark
@@ -644,11 +588,6 @@ func (g chartGround) Road(c cell.ID) cell.Links {
 	return 0
 }
 
-// earthwork is what grading the ground under a road through c costs, come in the way in (none: it
-// begins there) at height h and going out the way out (none: it ends there) — its corners moved to
-// where such a road lies, weighed by Grade; those on the way in counted already — and the height
-// the road leaves c at: +Inf where a corner would move further than Deep, or off the height a road
-// laid before gave it.
 func (r *roads) earthwork(c cell.ID, in, out int, h float64) (float64, float64) {
 	if r.w.flat {
 		return 0, h
@@ -657,9 +596,7 @@ func (r *roads) earthwork(c cell.ID, in, out int, h float64) (float64, float64) 
 	return r.price(c, in, target), next
 }
 
-// price is what moving c's corners to target costs, come into c the way in (none: from nowhere),
-// whose rim is paid already: +Inf where a corner would move further than Deep, or off the height a
-// road laid before planned it at.
+// the corners on the way in are paid already
 func (r *roads) price(c cell.ID, in int, target map[int]float64) float64 {
 	var paid []int
 	if in != none {
@@ -688,9 +625,7 @@ func (r *roads) price(c cell.ID, in int, target map[int]float64) float64 {
 	return r.cfg.Grade * earth / r.w.r.Area.Cell
 }
 
-// shape is where a road through c, come in the way in at height h and going out the way out,
-// would have c's corners — every one it holds, by its height — and the height it leaves c at: a
-// ramp straight along a side, else the whole cell level, a diagonal too.
+// a ramp straight along a side, else the whole cell level, a diagonal too
 func (r *roads) shape(c cell.ID, in, out int, h float64) (map[int]float64, float64) {
 	ks := r.w.cornersOf(c)
 	target := map[int]float64{}
@@ -723,8 +658,6 @@ func (r *roads) height(k int) float64 {
 	return r.w.corners[k]
 }
 
-// plan notes rd's cells as laid and the heights it gives their corners, a corner planned before
-// kept as it was.
 func (r *roads) plan(rd road, laid map[cell.ID]mark) {
 	for i, c := range rd.cells {
 		in, out := r.ways(rd, i)
@@ -779,8 +712,6 @@ func (r *roads) plan(rd road, laid map[cell.ID]mark) {
 	}
 }
 
-// aims hands each paved cell of rd, with its place on rd, to aim: where the road has its corners,
-// by their heights.
 func (r *roads) aims(rd road, aim func(i int, c cell.ID, target map[int]float64)) {
 	if r.w.flat {
 		return
@@ -811,8 +742,6 @@ func (r *roads) ways(rd road, i int) (in, out int) {
 	return in, out
 }
 
-// crossings lays rd's paved cells on the network, linked as a level file links them, and its
-// crossings as spans, those sharing a cell merged.
 func (r *roads) crossings(rd road) {
 	node := network.Node{Kind: r.w.r.Kinds.Road, Width: r.cfg.Width}
 	for i, c := range rd.cells {
@@ -847,8 +776,6 @@ func (r *roads) wayOf(a, b cell.ID) int {
 	return way
 }
 
-// add takes s among the spans, merged into those it shares a cell with: a ford where it wades
-// across fords alone.
 func (r *roads) add(s *span) {
 	for _, c := range s.cells {
 		if o, ok := r.spanOf[c]; ok && o != s && !o.merged {
@@ -903,11 +830,8 @@ func shared(w *chart, a, b cell.ID) []int {
 	return out
 }
 
-// grade shapes the corners under the roads until every road cell lies as Transport Tycoon lays
-// it: the corners a cell's road holds level are one height, the sides of a ramp no further apart
-// than RoadSlope lets them, a bridge's heads flat at its deck, over the beds under it, the ground
-// under it no higher than its deck; nothing else moves. Each height is the one its road came to it
-// at, where roads meet the mean of theirs.
+// grade joins the corners each cell's road holds level into classes and lets only ramps apart;
+// nothing off a road moves.
 func (r *roads) grade() error {
 	w := r.w
 	r.ground = slices.Clone(w.corners)
@@ -936,7 +860,7 @@ func (r *roads) grade() error {
 			}
 		}
 	}
-	floor := map[int]float64{} // the least a class may stand at: a bridge's deck over its beds
+	floor := map[int]float64{} // the least a class may stand at
 	for _, s := range r.live() {
 		if s.ford {
 			for _, e := range s.edges {
@@ -971,7 +895,7 @@ func (r *roads) grade() error {
 			}
 		}
 		if !wet && !math.IsInf(bottom, 1) {
-			low = max(low, bottom+r.underpass()) // what passes under it, under it
+			low = max(low, bottom+r.underpass())
 		}
 		root := u.find(ends[0])
 		floor[root] = max(floor[root], low)

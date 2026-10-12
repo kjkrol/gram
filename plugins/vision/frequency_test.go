@@ -15,7 +15,6 @@ import (
 	"github.com/kjkrol/gram/rule"
 )
 
-// looked is the command the tests' Sighting rule gives, once an observer a step.
 type looked struct{}
 
 func (looked) Command() {}
@@ -25,8 +24,7 @@ type lookeds struct{ control.Queue[looked] }
 func (l *lookeds) Queues() []control.CommandQueue     { return []control.CommandQueue{&l.Queue} }
 func (l *lookeds) DefaultBindings() []control.Binding { return nil }
 
-// Scanned 15 times a second at 60 steps a second, a quarter of the observers look each step and
-// every one within four; the rules of a Sighting go on every step for every one.
+// scanned 15 times a second at 60 steps a second, a quarter of the observers look each step
 func TestFrequency_ObserversTakeTurnsAndTheRulesGoOnEveryStep(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 2000, Height: 2000},
@@ -44,7 +42,7 @@ func TestFrequency_ObserversTakeTurnsAndTheRulesGoOnEveryStep(t *testing.T) {
 	if err := v.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	look := rule.Then[vision.Sighting]("look", rule.All, rule.Order(looked{}))
+	look := rule.Branch[vision.Sighting]{Name: "look", Do: rule.Order(looked{})}
 	if err := ctx.Deliver(look); err != nil {
 		t.Fatal(err)
 	}

@@ -18,12 +18,10 @@ import (
 	"github.com/kjkrol/gram/rule"
 )
 
-// roleStage defines roles, and tags of moods after them, in whatever order it is given and spawns
-// one entity playing and carrying the named ones, so two runs can disagree about which bit is which.
 type roleStage struct {
 	roles, moods   []string
 	plays, carries []string
-	load           bool // entered from the quicksave
+	load           bool
 
 	world *world.Plugin
 	unit  kind.Of[struct{}]
@@ -94,7 +92,6 @@ func (g *roleStage) Stack() game.Scenes {
 	return g.stack
 }
 
-// runRoleStage builds the stage through the engine: Init, the quicksave loaded or Spawn, Setup.
 func runRoleStage(t *testing.T, g *roleStage) *engine.Engine {
 	t.Helper()
 	eng := engine.NewEngine(oneStageGame{stage: g, props: game.Props{}})
@@ -109,7 +106,6 @@ func runRoleStage(t *testing.T, g *roleStage) *engine.Engine {
 	return eng
 }
 
-// onlyRoles reads the roles and moods of the single entity the stage holds.
 func onlyRoles(t *testing.T, g *roleStage) (tag.Tags[rule.Roles], tag.Tags[moods]) {
 	t.Helper()
 	var plays tag.Tags[rule.Roles]
@@ -129,7 +125,6 @@ func onlyRoles(t *testing.T, g *roleStage) (tag.Tags[rule.Roles], tag.Tags[moods
 	return plays, marks
 }
 
-// panicMessage runs f and returns what it panicked with, failing the test if it did not.
 func panicMessage(t *testing.T, f func()) (msg string) {
 	t.Helper()
 	defer func() {

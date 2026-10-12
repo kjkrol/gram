@@ -18,8 +18,6 @@ import (
 	"github.com/kjkrol/gram/rule/effect"
 )
 
-// night is a world under an atmosphere of cal, with whatever define and rules add, set up and
-// ready to tick.
 type night struct {
 	w   *world.Plugin
 	a   *atmosphere.Plugin
@@ -50,8 +48,6 @@ func newNight(t *testing.T, cal calendar.Config, define func(n *night), rules fu
 
 const tick = time.Second / 60
 
-// The moon is a knob of the atmosphere: an effect on the atmosphere turns the light of the night
-// to the colour it says, and its end gives the moon's own back.
 func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 	red := render.Light{1, 0.2, 0.2}
 	var blood effect.Effect
@@ -83,8 +79,6 @@ func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 	}
 }
 
-// The moon's rising is a moment of the atmosphere: its rules fire once a rise while the
-// atmosphere plays their role, and Full picks the rises of a full moon — some, not all.
 func TestMoonrise_FiresOnceARiseAndFullPicksTheFullOnes(t *testing.T) {
 	var risen, full effect.Effect
 	day := 2 * time.Second // 120 ticks; the moon of a GameYear goes round in four days
@@ -95,8 +89,12 @@ func TestMoonrise_FiresOnceARiseAndFullPicksTheFullOnes(t *testing.T) {
 		full = n.w.Effects().Named("full risen")
 	}, func(n *night) {
 		n.w.Roles().Define("moon watcher",
-			rule.Then[sky.Moonrise]("a rise", rule.All, rule.Apply(risen)),
-			rule.Then[sky.Moonrise]("a full rise", rule.All, rule.If(sky.Moonrise.Full, rule.Apply(full))))
+			rule.Branch[sky.Moonrise]{Name: "a rise", Do: rule.Apply(risen)},
+			rule.Branch[sky.Moonrise]{
+				Name: "a full rise",
+				When: sky.Moonrise.Full,
+				Do:   rule.Apply(full),
+			})
 		n.a.Plays(n.w.Roles().Named("moon watcher"))
 	})
 	rises, fulls := 0, 0

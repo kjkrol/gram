@@ -24,17 +24,15 @@ type pendingSeed struct {
 	alt        float64
 	id         *uid.UID64
 	plain      bool
-	owner      control.PlayerID // who owns it; nobody for Nobody
+	owner      control.PlayerID
 }
 
-// harness seeds entities, drives the system through a player's bindings and a tick, and reads
-// Selected back; seed only queues, start performs the single Setup.
 type harness struct {
 	t         *testing.T
 	space     *aabbworld.Space
 	players   *players.Plugin
 	local     *players.Player
-	cam       camera.Camera // the local player's, through which it acts over the whole screen
+	cam       camera.Camera
 	sel       *Plugin
 	world     *world.Plugin
 	sys       *SelectionSystem
@@ -62,14 +60,11 @@ func newHarness(t *testing.T) *harness {
 	})
 }
 
-// newHarnessIn is newHarness over a world of the given configuration — an isometric one, say.
 func newHarnessIn(t *testing.T, cfg world.Config) *harness {
 	t.Helper()
 	return newHarnessViewed(t, cfg, camera.Config{}, nil)
 }
 
-// newHarnessViewed is newHarnessIn with view applied to the world, the local player looking through
-// a camera configured by cam.
 func newHarnessViewed(t *testing.T, cfg world.Config, cam camera.Config, view func(*world.Plugin)) *harness {
 	t.Helper()
 	space, err := aabbworld.NewSpace(aabbworld.Config{
@@ -89,7 +84,7 @@ func newHarnessViewed(t *testing.T, cfg world.Config, cam camera.Config, view fu
 	pl := players.NewPlugin(w, cams, sel)
 	local := pl.Local("tester")
 	camera := cams.New(cameras.TopDown(), cam)
-	pl.Through(local).Over(geom.AABB{}, render.NewFeed(camera, nil)) // as a scene showing it wires it
+	pl.Through(local).Over(geom.AABB{}, render.NewFeed(camera, nil))
 	if err := local.Bind(sel.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
@@ -101,27 +96,22 @@ func newHarnessViewed(t *testing.T, cfg world.Config, cam camera.Config, view fu
 	return &harness{t: t, world: w, space: space, players: pl, local: local, cam: camera, sel: sel, sys: sys, handler: pl.EventHandler(), ecs: goke.New(), tags: tags}
 }
 
-// seed queues a Selectable size x size entity at (x,y), the local player's; the returned id is
-// filled in by start.
 func (h *harness) seed(x, y, size float64) *uid.UID64 {
 	return h.seedOwned(x, y, size, h.local.ID)
 }
 
-// seedOwned is seed of an entity by owns; control.Nobody for one nobody owns.
 func (h *harness) seedOwned(x, y, size float64, by control.PlayerID) *uid.UID64 {
 	id := new(uid.UID64)
 	h.pending = append(h.pending, pendingSeed{x: x, y: y, size: size, id: id, owner: by})
 	return id
 }
 
-// seedPlain queues an entity nobody may select — terrain, say.
 func (h *harness) seedPlain(x, y, size float64) *uid.UID64 {
 	id := h.seed(x, y, size)
 	h.pending[len(h.pending)-1].plain = true
 	return id
 }
 
-// start builds the query and spawns every queued seed — call once, after all seed() calls.
 func (h *harness) start() {
 	h.t.Helper()
 	h.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
@@ -194,7 +184,6 @@ func (h *harness) press(key control.Key) {
 	h.ecs.Tick(time.Second)
 }
 
-// moveTo puts id's box with its top-left at (x, y).
 func (h *harness) moveTo(id uid.UID64, x, y float64) {
 	for h.moveQ.All(); h.moveQ.Next(); {
 		cur := h.moveQ.Cursor()
@@ -235,7 +224,6 @@ func (h *harness) isSelected(id uid.UID64) bool {
 	return false
 }
 
-// seedHigh queues a Selectable entity standing alt above the ground.
 func (h *harness) seedHigh(x, y, size, alt float64) *uid.UID64 {
 	id := h.seed(x, y, size)
 	h.pending[len(h.pending)-1].alt = alt
@@ -403,8 +391,6 @@ func TestSelection_PassesByWhatIsNotSelectable(t *testing.T) {
 	}
 }
 
-// standing is a Look drawing an entity upright over its box, lifted by its altitude, as a view with
-// heights does.
 type standing struct{}
 
 func (standing) Sprite(*render.Frame, camera.Camera, plane.AABB, world.Z, render.AtlasSource, render.Appearance, render.Light) {
@@ -434,18 +420,16 @@ func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
 	cam.SetViewport(800, 600)
 	cam.MoveTo(300, 300)
 
-	// The hawk is drawn 40 up over its box; a click there selects it.
+	// the hawk is drawn 40 up over its box
 	sx, sy := cam.ToScreen(505, 505)
 	h.click(int(sx), int(sy)-40, false)
 	if !h.isSelected(*hawk) || h.isSelected(*walker) {
 		t.Errorf("clicking the hawk where it is drawn: hawk %v, walker %v; want the hawk alone", h.isSelected(*hawk), h.isSelected(*walker))
 	}
-	// A click on the ground under the hawk hits nothing.
 	h.click(int(sx), int(sy), false)
 	if h.isSelected(*hawk) {
 		t.Error("clicking the ground under the hawk selected it")
 	}
-	// The walker on the ground is where its box is.
 	wx, wy := cam.ToScreen(565, 565)
 	h.click(int(wx), int(wy), false)
 	if !h.isSelected(*walker) {
@@ -453,8 +437,6 @@ func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
 	}
 }
 
-// hoverAt has the local player point at the screen point (x, y), as its cursor over the world does
-// every tick, and runs a tick.
 func (h *harness) hoverAt(x, y float64) {
 	at := geom.NewVec(x, y)
 	if err := h.players.Issue(h.local, Hover{At: at, Screen: control.ScreenRect(at, at), Camera: h.cam}); err != nil {

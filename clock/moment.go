@@ -6,9 +6,9 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Moment is one step of the simulation on the clock's time, from Last to Now: what a rule of
-// the clock fires on, once every step, so a loaded game goes on from where it was. It is the
-// moment of the clock's own entity, Clock: an effect a rule applies lands there — a phase.
+// Moment is one step of the simulation on the clock's time, from Last to Now: what a rule of the
+// clock fires on, once every step. It is the moment of the clock's own entity, Clock, where an
+// effect a rule applies lands.
 type Moment struct {
 	Last, Now time.Duration
 	Clock     uid.UID64

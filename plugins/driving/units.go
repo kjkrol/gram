@@ -10,8 +10,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
-// units is the one query both systems of the driving walk — every entity steered by a profile,
-// with whatever of the rest it carries — built by whichever is set up first.
 type units struct {
 	query  *goke.Query
 	base   goke.Comp[world.Base]

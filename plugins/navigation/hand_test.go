@@ -15,9 +15,6 @@ func (rw *roadWorld) tick(n int) {
 	}
 }
 
-// A unit under an order gives it up at the first hand on it — the cell its step was heading into
-// let go, the one it stands on still held — and the driving walks it on; with no hand the order
-// goes on.
 func TestHand_EndsTheOrderOfTheUnitItIsOn(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0}})
 	rw = newRoadWorld(t, 10, []roadUnit{{start: rw.at(2, 1), target: rw.at(8, 1), ordered: true, selected: true, owner: 1}})

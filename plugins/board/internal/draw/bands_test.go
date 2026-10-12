@@ -16,9 +16,6 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// A way is drawn in the part of its kind's sprite it covers, the sprite laid over the tile as a
-// cell of that kind shows it: a road down the middle of tiles whose sprite is red along its left
-// quarter is blue all across, and the grass beside it stays grass.
 func TestBands_AWayIsThePartOfItsKindsSpriteUnderIt(t *testing.T) {
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
 		t.Skipf("no GPU: %v", err)

@@ -23,7 +23,6 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// fixedSky is a topography.Atmosphere of a fixed sun and weather.
 type fixedSky struct {
 	sun sky.Sun
 	air air.Weather
@@ -32,8 +31,8 @@ type fixedSky struct {
 func (s fixedSky) Sun() sky.Sun     { return s.sun }
 func (s fixedSky) Air() air.Weather { return s.air }
 
-// Benchmark_Board_GroundAt reads the ground at 64 points a quarter cell apart along a diagonal of
-// a 256x256 square board of hills 4 cells a side, as sight samples it along one ray.
+// Benchmark_Board_GroundAt reads the ground at 64 points along a diagonal of a 256x256 board of
+// hills, as sight samples it along one ray.
 func Benchmark_Board_GroundAt(b *testing.B) {
 	const side, size = 256, 16
 	ctx := newHeadless()
@@ -73,9 +72,8 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	_ = sum
 }
 
-// Benchmark_Board_Shadows composes the whole of a 96x64 board of hills 4 cells a side, 20 high,
-// from above: warm, with the shadows as they were, and after the sun has moved, every shadow
-// worked out anew — what a frame pays when the terrain or the sun changes.
+// Benchmark_Board_Shadows composes a 96x64 board of hills from above, its shadows warm and anew
+// after the sun has moved.
 func Benchmark_Board_Shadows(b *testing.B) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
@@ -86,7 +84,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	})
 	grid := grid.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size}) // the terrain's shadows are the topography's
+	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
 	}
@@ -118,7 +116,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 		b.Run(sc.name, func(b *testing.B) {
 			for b.Loop() {
 				if sc.moved {
-					low.sun.Dir[0] = -low.sun.Dir[0] // the sun moves: every shadow is stale
+					low.sun.Dir[0] = -low.sun.Dir[0]
 					topo.WithAtmosphere(low)
 				}
 				f.Reset(cam)
@@ -128,10 +126,8 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	}
 }
 
-// Benchmark_Board_Shores composes the whole of a 96x64 board of sea round islands 4 cells a side,
-// every 8 cells, from above: warm, with the shores as they were, after a cell has changed, every
-// shore worked out anew — what a frame pays when the terrain changes — and warm under clouds, the
-// weather laid over every tile.
+// Benchmark_Board_Shores composes a 96x64 board of islands in a sea from above, its shores warm,
+// anew after a cell has changed, and warm under clouds.
 func Benchmark_Board_Shores(b *testing.B) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
@@ -180,7 +176,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 			topo.WithAtmosphere(fixedSky{sun: sky.DefaultSun, air: air.Weather{Clouds: sc.clouds}})
 			for b.Loop() {
 				if sc.changed {
-					shallows.Cost = 3 - shallows.Cost // the terrain changes: every shore is stale
+					shallows.Cost = 3 - shallows.Cost
 					brd.Set(far, shallows)
 				}
 				f.Reset(cam)
@@ -190,11 +186,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 	}
 }
 
-// island seeds a 96x64 board of cells 32 wide with an island in a sea lying Under it: earth, sand
-// by the coast and rock on the heights, blending, with the streams and rivers water.Drain works
-// out of its heights laid across it as ways, running out to sea; seen from above, isometric or in
-// perspective (view "above", "iso" or "persp"); near, a cell 32 pixels across, or far, the whole
-// island on a screen of 576 by 384.
+// view is "above", "iso" or "persp"; far shows the whole island on a screen of 576 by 384
 func island(b *testing.B, view string, far bool, workers int) (*headless, *board.Board, render.Source) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
@@ -207,7 +199,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	grid := grid.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
 	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size, HeightUnit: 1, Perspective: view == "persp"})
-	var screenW, screenH float32 // the whole world, unless far
+	var screenW, screenH float32
 	if far {
 		screenW, screenH = 576, 384
 	}
@@ -235,7 +227,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	if err := ctx.Use(topo); err != nil {
 		b.Fatal(err)
 	}
-	inside := func(x, y float64) float64 { // 1 in the middle, 0 at the coast, below it at sea
+	inside := func(x, y float64) float64 { // 1 in the middle, 0 at the coast
 		dx, dy := (x-w/2)/34, (y-h/2)/22
 		return 1 - math.Hypot(dx, dy)*(1+0.1*math.Sin(5*math.Atan2(dy, dx)))
 	}
@@ -286,7 +278,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	atlas.Close()
 	p.WithWorkers(workers).WithRenderer(atlas)
 	ecs := ctx.start(b, func(ctx goke.RunCtx, d time.Duration) { topo.RunPlan(ctx, d) })
-	if view == "persp" { // Tab once, from the isometric view
+	if view == "persp" {
 		for _, q := range topo.Queues() {
 			if q.Accepts() == reflect.TypeFor[topography.View]() {
 				q.Put(control.Nobody, topography.View{Camera: ctx.cam})
@@ -295,15 +287,13 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 		ecs.Tick(step)
 	}
 	if far {
-		ctx.cam.ZoomOut(100, w*size/2, h*size/2) // as far as the world fits
+		ctx.cam.ZoomOut(100, w*size/2, h*size/2)
 	}
 	return ctx, p.Board(), p.Renderer().(render.Source)
 }
 
-// Benchmark_Board_Island composes the whole of the island, from above and isometric, near and
-// far, and the isometric and the perspective island through a 1080p screen, as a player sees it:
-// warm, and after a cell ashore has changed — what a frame pays for the ground blending, the coast
-// and the running water; the tiles dressed on every CPU at once, and (serial) on one goroutine.
+// Benchmark_Board_Island composes the island through every view, near, far and on a 1080p
+// screen, warm and after a cell ashore has changed, on every CPU and (serial) on one.
 func Benchmark_Board_Island(b *testing.B) {
 	for _, v := range []struct {
 		view        string

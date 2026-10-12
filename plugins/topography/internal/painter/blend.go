@@ -7,10 +7,9 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// BlendPiece is a quarter of a tile over which a neighbour's ground runs in: World is where its
-// corners lie — top-left, top-right, bottom-left, bottom-right — Z the ground under them; the
-// neighbour's sprite is drawn in the tile's Light where Weight, blended between the corners, is
-// over a half, fading in over Soft either side of it.
+// BlendPiece is a quarter of a tile over which a neighbour's ground runs in, its Sprite drawn
+// where Weight, blended between the corners, is over a half, fading in over Soft either side.
+// World's corners are top-left, top-right, bottom-left, bottom-right; Z is the ground under them.
 type BlendPiece struct {
 	World  render.World
 	Z      [4]float32
@@ -20,20 +19,8 @@ type BlendPiece struct {
 	Soft   float32
 }
 
-// Blends are the grounds round the tile laid over it along the lines their cells draw, not the
-// cells' edges. A kind is weighed at the tile's corners, the middles of its sides and its middle by
-// the share of the cells meeting there that are of it — a quarter at a corner, a half at a side,
-// the tile's own at the middle — and drawn over each quarter of the tile where that weight is over
-// a half, fading in over its Spread either side. The weights at a corner or a side are the same
-// from every cell meeting there, so a line runs on from tile to tile: a staircase of cells becomes
-// a slant, a cell alone a rounded diamond.
-//
-// A tile next to a kind Under it — the sea — is drawn as that kind (Base) and its own laid over it
-// weighed by the share of cells not under; a tile of such a kind has the land round it laid over it
-// the same way, in the sprite of the kind most of that land is. Over that, each other kind that
-// spreads round the tile is laid weighed by its own share, blending over the mean of its Spread and
-// the land's. Nothing blends where the tile's kind keeps its cells square (no Spread, not Under),
-// where a kind stands a Height over its ground, nor off a square grid. Good until the next call.
+// Blends are the grounds round the tile laid over it along the lines their cells draw. Good
+// until the next call; nil off a square grid.
 func (t *tile) Blends() []BlendPiece {
 	r := t.r
 	r.blends = r.blends[:0]
@@ -55,7 +42,6 @@ func (t *tile) Blends() []BlendPiece {
 	return r.blends
 }
 
-// blendsAnew works out the tile's Blends into out, in no light.
 func (t *tile) blendsAnew(out []BlendPiece) []BlendPiece {
 	r := t.r
 	if !r.square {
@@ -67,7 +53,6 @@ func (t *tile) blendsAnew(out []BlendPiece) []BlendPiece {
 	}
 	near := r.around(t.ID)
 	land := func(n *cellTop) bool { return !n.under && n.spread > 0 && !n.raised }
-	// the kind laid over the base: the tile's own, or on a tile under, the land round it most is
 	top := mine
 	if mine.under {
 		top = nil
@@ -92,7 +77,7 @@ func (t *tile) blendsAnew(out []BlendPiece) []BlendPiece {
 			}
 		}
 		if top == nil {
-			return out // open water
+			return out
 		}
 	}
 	w, h := t.X1-t.X0, t.Y1-t.Y0
@@ -102,7 +87,7 @@ func (t *tile) blendsAnew(out []BlendPiece) []BlendPiece {
 			for qi := range 2 {
 				q := [4]float32{weight[qj][qi], weight[qj][qi+1], weight[qj+1][qi], weight[qj+1][qi+1]}
 				if max(q[0], q[1], q[2], q[3]) <= 0.5-soft {
-					continue // shows nowhere
+					continue
 				}
 				x0, y0 := t.X0+float32(qi)*w/2, t.Y0+float32(qj)*h/2
 				p := BlendPiece{World: render.World{{x0, y0}, {x0 + w/2, y0}, {x0, y0 + h/2}, {x0 + w/2, y0 + h/2}},
@@ -131,8 +116,6 @@ func (t *tile) blendsAnew(out []BlendPiece) []BlendPiece {
 	return out
 }
 
-// base is what c's top is drawn in first: a kind Under it round it where c's own kind spreads, else
-// its own.
 func (l *Painter) base(c cell.ID) *cellTop {
 	mine := l.topOf(c)
 	if !l.square || mine.under || mine.raised || mine.spread <= 0 {
@@ -146,7 +129,7 @@ func (l *Painter) base(c cell.ID) *cellTop {
 	return mine
 }
 
-// around is the cells round c, c's own standing in for any off the board.
+// c's own stands in for any cell off the board
 func (l *Painter) around(c cell.ID) [3][3]*cellTop {
 	mine := l.topOf(c)
 	var near [3][3]*cellTop
@@ -164,8 +147,7 @@ func (l *Painter) around(c cell.ID) [3][3]*cellTop {
 	return near
 }
 
-// weigh is the share of the cells round a tile that are of, at each of its points across and down:
-// 0 its left or top edge, 1 its middle, 2 its right or bottom edge — the tile's own at its middle.
+// index 0 is the tile's left or top edge, 1 its middle, 2 its right or bottom edge
 func weigh(near *[3][3]*cellTop, of func(n *cellTop) bool) [3][3]float32 {
 	span := [3][2]int{{0, 1}, {1, 1}, {1, 2}}
 	var weight [3][3]float32
@@ -199,7 +181,7 @@ func contains(ids []render.SpriteID, id render.SpriteID) bool {
 func (t *tile) DrawBlends(f *render.Frame, cam camera.Camera, depth float32) {
 	for _, p := range t.Blends() {
 		if !t.r.inFront(cam, p.World, p.Z) {
-			continue // beside or behind the eye, where it would be thrown across the screen
+			continue // beside or behind the eye, it would be thrown across the screen
 		}
 		var c render.Corners
 		for k, at := range p.World {

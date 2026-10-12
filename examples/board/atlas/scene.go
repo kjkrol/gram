@@ -20,7 +20,7 @@ type mainScene struct {
 //go:embed shimmer.wgsl
 var shimmerFS embed.FS
 
-// shimmerMaterial joins the composer's one shader as the package is set up, before it compiles.
+// registered before the composer's shader compiles
 var shimmerMaterial = render.RegisterMaterials(
 	render.Files(shimmerFS, "shimmer.wgsl"), nil, "Shimmer")[0]
 
@@ -45,10 +45,8 @@ func (m *mainScene) picture() render.Picture {
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
-	// the game's own atlas: a drawn sprite for every kind, at the kinds' SpriteIDs
 	atlas := s.board.NewAtlas(CellSize)
 	atlas.Add(GrassCell, striped(grassColor, grassLitColor))
-	// the water's look is a material: ripples run per pixel, across cells
 	atlas.Add(WaterCell, shimmerMaterial)
 	atlas.Add(RoadCell, cobbled(roadColor, roadDimColor))
 	atlas.Add(WoodCell, treed(woodColor, woodDimColor))
@@ -70,7 +68,7 @@ func (m *mainScene) picture() render.Picture {
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
 	count := func() int { return s.world.Res.Telemetry.Count }
-	return ui.Layers( // from the bottom up: each covers those before it
+	return ui.Layers(
 		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
 			Input(s.players.Through(s.player)),
 		ui.Layer(render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.world.Clock().Reporter())),
@@ -78,9 +76,6 @@ func (m *mainScene) screen() *ui.Element {
 	)
 }
 
-// =========================== Sprites ===========================
-
-// striped is grass: a ground colour with lighter blades across it.
 func striped(ground, blade color.RGBA) render.SpriteDrawer {
 	return func(dst *render.Canvas, size int) {
 		dst.Fill(ground)
@@ -90,7 +85,6 @@ func striped(ground, blade color.RGBA) render.SpriteDrawer {
 	}
 }
 
-// cobbled is a road: stones set in mortar.
 func cobbled(mortar, stone color.RGBA) render.SpriteDrawer {
 	return func(dst *render.Canvas, size int) {
 		dst.Fill(mortar)
@@ -107,7 +101,6 @@ func cobbled(mortar, stone color.RGBA) render.SpriteDrawer {
 	}
 }
 
-// treed is a wood: tree tops on the undergrowth.
 func treed(under, top color.RGBA) render.SpriteDrawer {
 	return func(dst *render.Canvas, size int) {
 		dst.Fill(under)

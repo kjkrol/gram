@@ -1,7 +1,6 @@
 package plugin
 
-// Serializable is implemented by a Resources value (or tracked Plugin)
-// contributing pointers for Persistence.Save/Load to gob-encode/decode.
+// Serializable is a tracked value giving Persistence the pointers it gob-encodes and decodes.
 type Serializable interface {
 	Persisted() []any
 }

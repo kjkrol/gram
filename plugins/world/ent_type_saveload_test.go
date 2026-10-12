@@ -16,12 +16,10 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// typeStage defines its kinds in whatever order it is given, so two runs can
-// disagree about which TypeID means what.
 type typeStage struct {
 	order []string
 	spawn string
-	load  bool // entered from the quicksave
+	load  bool
 
 	world *world.Plugin
 	kinds map[string]kind.Of[struct{}]
@@ -29,8 +27,6 @@ type typeStage struct {
 	stack game.Scenes
 }
 
-// typeProbe builds its query during the engine's one Setup call, so the test
-// can read components back once Init (and any PostLoad) has finished.
 type typeProbe struct {
 	base  goke.Comp[world.Base]
 	query *goke.Query
@@ -77,7 +73,6 @@ func (g *typeStage) Stack() game.Scenes {
 	return g.stack
 }
 
-// onlyType reads the Type of the single entity the stage holds.
 func onlyType(t *testing.T, g *typeStage) kind.ID {
 	t.Helper()
 	var got kind.ID

@@ -8,10 +8,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Standing is where an entity on the board stands this tick: the cell under its centre, that
-// cell's kind and the effects on it, its box (Grid.CellsUnder lists
-// every cell it touches) and the domains it moves in (its Mover's; Land without one). The board
-// hosts rules of it (a role's).
+// Standing is where an entity on the board stands this tick: the cell under its centre, its kind
+// and the effects on it, the entity's box and the domains it moves in (Land without a Mover).
 type Standing struct {
 	ID       uid.UID64
 	Cell     cell.ID
@@ -33,10 +31,10 @@ func (Standing) Placed() {}
 // foot; never while it is in the air.
 func (s Standing) Fallen() bool { return !s.Airborne && !s.Kind.Admits(s.Domain) }
 
-// On is the condition of a unit standing on a cell of the kind k, for a rule's If.
+// On is the condition of a unit standing on a cell of the kind k, for a rule's When.
 func On(k cell.Kind) func(Standing) bool { return func(s Standing) bool { return s.Kind == k } }
 
-// Over is the condition of a unit standing on a cell under the effect e, for a rule's If: the
+// Over is the condition of a unit standing on a cell under the effect e, for a rule's When: the
 // ground's state, whatever its kind.
 func Over(e effect.Effect) func(Standing) bool {
 	mark := e.Mark()

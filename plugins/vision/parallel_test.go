@@ -8,9 +8,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// Observers enough to be scanned on several goroutines at once see what they see one by one: the
-// same entities at the same distances, the same outlines — on flat ground and on a hill, with
-// see-through things and heights among what they see.
 func TestScan_ObserversScannedTogetherSeeWhatTheyDoOneByOne(t *testing.T) {
 	for name, r := range map[string]*relief{"flat": nil, "hill": {ground: plateau{}, step: 10}} {
 		var spawns []spawn
@@ -51,7 +48,6 @@ func TestScan_ObserversScannedTogetherSeeWhatTheyDoOneByOne(t *testing.T) {
 	}
 }
 
-// sighted is what a Sighted holds, as far as it counts.
 func sighted(s vision.Sighted) any {
 	return struct {
 		ids   any

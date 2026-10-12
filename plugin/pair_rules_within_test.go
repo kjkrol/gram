@@ -10,10 +10,8 @@ import (
 	"github.com/kjkrol/gram/plugin"
 )
 
-// leader is a third tag of roles, for a within of the sides' own family.
 const leader = hunted + 1
 
-// squads is a second family of tags; alpha and bravo are two of its bits.
 type squads struct{}
 
 const (
@@ -21,7 +19,6 @@ const (
 	bravo
 )
 
-// More families, past roles and squads, for the limit of eight.
 type (
 	fam3 struct{}
 	fam4 struct{}
@@ -32,7 +29,6 @@ type (
 	fam9 struct{}
 )
 
-// carrying is what one made-up entity carries of roles and squads.
 type carrying struct {
 	roles  tag.Tags[roles]
 	squads tag.Tags[squads]
@@ -45,7 +41,6 @@ func (c carrying) in(s ...tag.Tag[squads]) carrying {
 	return c
 }
 
-// pairWithin is pairRule whose first side must carry within too, as rule.Within narrows a rule.
 func pairWithin[FA, FB, P any](a tag.Tag[FA], b tag.Tag[FB], within []plugin.Side, react func(plugin.Tick, P)) any {
 	return &pairWithinOf[P]{pairOf: pairOf[P]{a: plugin.SideOf(a), b: plugin.SideOf(b), react: react}, within: within}
 }
@@ -57,8 +52,6 @@ type pairWithinOf[P any] struct {
 
 func (p *pairWithinOf[P]) PairWithin() []plugin.Side { return p.within }
 
-// hostWithin adds rules to a host of P, makes an entity for each of whom and reads what each
-// carries by walking the host's query, as a host does.
 func hostWithin[P any](t *testing.T, rules []any, whom ...carrying) (*plugin.PairRules[P], []plugin.Marks) {
 	t.Helper()
 	h := &plugin.PairRules[P]{}
@@ -101,14 +94,10 @@ func hostWithin[P any](t *testing.T, rules []any, whom ...carrying) (*plugin.Pai
 	return h, marks
 }
 
-// recordingWithin is a rule of hunter and hunted whose hunter carries within too, noting the
-// moments it is handed.
 func recordingWithin(into *[]int, within ...plugin.Side) any {
 	return pairWithin(hunter, hunted, within, func(_ plugin.Tick, n int) { *into = append(*into, n) })
 }
 
-// The first side carries the within tag besides its own; the other side carrying it stands in
-// for nobody.
 func TestPairRules_Within_Dispatch_NeedsTheTagOnTheFirstSide(t *testing.T) {
 	var got []int
 	h, m := hostWithin[int](t, []any{recordingWithin(&got, plugin.SideOf(alpha))},
@@ -124,7 +113,6 @@ func TestPairRules_Within_Dispatch_NeedsTheTagOnTheFirstSide(t *testing.T) {
 	}
 }
 
-// Every within tag must be carried, of the sides' own family and of another alike.
 func TestPairRules_Within_Dispatch_NeedsEveryTag(t *testing.T) {
 	var got []int
 	h, m := hostWithin[int](t, []any{recordingWithin(&got, plugin.SideOf(alpha), plugin.SideOf(leader))},
@@ -139,7 +127,6 @@ func TestPairRules_Within_Dispatch_NeedsEveryTag(t *testing.T) {
 	}
 }
 
-// A rule without a within beside one with it is not narrowed by it.
 func TestPairRules_Within_LeavesOtherRulesAlone(t *testing.T) {
 	var narrowed, plain []int
 	h, m := hostWithin[int](t, []any{
@@ -155,7 +142,6 @@ func TestPairRules_Within_LeavesOtherRulesAlone(t *testing.T) {
 	}
 }
 
-// A family named by a within and by another rule's sides is read once, at one place.
 func TestPairRules_Within_SharesItsFamilyWithTheSides(t *testing.T) {
 	var narrowed, squad []int
 	h, m := hostWithin[int](t, []any{
@@ -171,8 +157,6 @@ func TestPairRules_Within_SharesItsFamilyWithTheSides(t *testing.T) {
 	}
 }
 
-// A self without the within tag is no group at all, not even an empty one; the others need not
-// carry it.
 func TestPairRules_Within_DispatchGrouped_NeedsTheTagOnSelf(t *testing.T) {
 	var got [][]int
 	rule := pairWithin(hunter, hunted, []plugin.Side{plugin.SideOf(alpha)}, func(_ plugin.Tick, g group) {
@@ -194,7 +178,6 @@ func TestPairRules_Within_DispatchGrouped_NeedsTheTagOnSelf(t *testing.T) {
 	}
 }
 
-// A pair with no direction runs the way round whose first entity carries the within tag.
 func TestPairRules_Within_DispatchEitherWay_FindsTheCarrier(t *testing.T) {
 	var got []int
 	h, m := hostWithin[int](t, []any{recordingWithin(&got, plugin.SideOf(alpha))},
@@ -210,8 +193,6 @@ func TestPairRules_Within_DispatchEitherWay_FindsTheCarrier(t *testing.T) {
 	}
 }
 
-// The same tag on both sides runs once a pair, with a within as without: the carrier as Self when
-// one carries it, forward when both do — a within never adds runs.
 func TestPairRules_Within_DispatchEitherWay_SameSidesRunOnce(t *testing.T) {
 	var got []int
 	rule := pairWithin(hunter, hunter, []plugin.Side{plugin.SideOf(alpha)}, func(_ plugin.Tick, n int) { got = append(got, n) })
@@ -226,7 +207,6 @@ func TestPairRules_Within_DispatchEitherWay_SameSidesRunOnce(t *testing.T) {
 	}
 }
 
-// A within of tag.Any is anybody: it narrows nothing.
 func TestPairRules_Within_AnyMatchesEveryone(t *testing.T) {
 	var got, alongside []int
 	h, m := hostWithin[int](t, []any{
@@ -243,7 +223,6 @@ func TestPairRules_Within_AnyMatchesEveryone(t *testing.T) {
 	}
 }
 
-// A within's families count towards the eight a host reads, each once and tag.Any not at all.
 func TestPairRules_Within_FamiliesCountTowardsTheLimit(t *testing.T) {
 	var h plugin.PairRules[int]
 	eight := []plugin.Side{
@@ -265,7 +244,6 @@ func TestPairRules_Within_FamiliesCountTowardsTheLimit(t *testing.T) {
 	}
 }
 
-// A single rule whose within names a ninth family is refused the same way.
 func TestPairRules_Within_OneRuleOverTheLimitPanics(t *testing.T) {
 	var h plugin.PairRules[int]
 	nine := []plugin.Side{
@@ -279,7 +257,6 @@ func TestPairRules_Within_OneRuleOverTheLimitPanics(t *testing.T) {
 	}
 }
 
-// panicOf is what f panics with, nil if it returns.
 func panicOf(f func()) (msg any) {
 	defer func() { msg = recover() }()
 	f()

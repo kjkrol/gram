@@ -13,7 +13,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// nudge is a made-up host's moment: an entity nudged by another, its Subject, or by nobody.
 type nudge struct {
 	self, by uid.UID64
 	nobody   bool
@@ -22,15 +21,12 @@ type nudge struct {
 func (n nudge) Who() uid.UID64             { return n.self }
 func (n nudge) Subject() (uid.UID64, bool) { return n.by, !n.nobody }
 
-// dodge is a command about whom to dodge, told as it is given.
 type dodge struct{ Of uid.UID64 }
 
 func (dodge) Command() {}
 
 func (d *dodge) Aim(who uid.UID64) { d.Of = who }
 
-// A rule aims a command at its moment's Subject: each one nudged gives itself a dodge of the one
-// who nudged it.
 func TestRule_AimsItsCommandAtTheMomentsSubject(t *testing.T) {
 	var carrier control.Carrier
 	var dodges control.Queue[dodge]
@@ -38,7 +34,7 @@ func TestRule_AimsItsCommandAtTheMomentsSubject(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := &plugin.Rules[nudge]{}
-	if err := h.Add(rule.Then[nudge]("dodge", rule.All, rule.Order(dodge{}))); err != nil {
+	if err := h.Add(rule.Branch[nudge]{Name: "dodge", Do: rule.Order(dodge{})}); err != nil {
 		t.Fatal(err)
 	}
 	var ids []uid.UID64
@@ -71,13 +67,10 @@ func TestRule_AimsItsCommandAtTheMomentsSubject(t *testing.T) {
 	}
 }
 
-// brace is a command about nobody.
 type brace struct{}
 
 func (brace) Command() {}
 
-// An Aimed command fails while the moment names nobody: the one nudged by nobody braces instead
-// of dodging; the other dodges.
 func TestRule_FailsACommandAimedAtNobody(t *testing.T) {
 	var carrier control.Carrier
 	var dodges control.Queue[dodge]
@@ -86,7 +79,10 @@ func TestRule_FailsACommandAimedAtNobody(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := &plugin.Rules[nudge]{}
-	if err := h.Add(rule.Then[nudge]("dodge or brace", rule.All, rule.OneOf(rule.Order(dodge{}), rule.Order(brace{})))); err != nil {
+	if err := h.Add(rule.Branch[nudge]{
+		Name: "dodge or brace",
+		Do:   rule.OneOf(rule.Order(dodge{}), rule.Order(brace{})),
+	}); err != nil {
 		t.Fatal(err)
 	}
 	var ids []uid.UID64
@@ -114,11 +110,8 @@ func TestRule_FailsACommandAimedAtNobody(t *testing.T) {
 	}
 }
 
-// token is the made-up host's component its entities carry.
 type token struct{ N int }
 
-// Chance draws afresh at every step of the game, from the seed, the step's time and the entity:
-// near its likelihood over many steps, the same for the same seed, else not.
 func TestRule_ChanceIsTheSameForTheSameSeedAndTime(t *testing.T) {
 	const steps, p = 2000, 0.3
 	draws := func(seed uint64) []int {
@@ -128,7 +121,10 @@ func TestRule_ChanceIsTheSameForTheSameSeedAndTime(t *testing.T) {
 			t.Fatal(err)
 		}
 		h := &plugin.Rules[nudge]{}
-		if err := h.Add(rule.Then[nudge]("dodge now and then", rule.All, rule.Chance(p, rule.Order(dodge{})))); err != nil {
+		if err := h.Add(rule.Branch[nudge]{
+			Name: "dodge now and then",
+			Do:   rule.Chance(p, rule.Order(dodge{})),
+		}); err != nil {
 			t.Fatal(err)
 		}
 		var got []int // 2×step + 0 or 1, the one who dodged
@@ -171,13 +167,11 @@ func TestRule_ChanceIsTheSameForTheSameSeedAndTime(t *testing.T) {
 	}
 }
 
-// Here and Around need a moment that is Placed: written for another, the rule is refused as it is
-// made.
 func TestRule_HereNeedsAPlacedMoment(t *testing.T) {
 	defer func() {
 		if msg, _ := recover().(string); !strings.Contains(msg, "Placed") {
 			t.Errorf("panic %q, want one saying the moment must be Placed", msg)
 		}
 	}()
-	rule.Then[nudge]("here", rule.All, rule.Here(rule.Order(dodge{})))
+	rule.Build(rule.Branch[nudge]{Name: "here", Do: rule.Here(rule.Order(dodge{}))})
 }

@@ -60,10 +60,9 @@ func fillQuad(dst *Image, q [4][2]float32, c color.Color) {
 	gpu.Colored(dst.gpu(), verts[:], []uint16{0, 1, 2, 1, 2, 3}, gpu.SourceOver)
 }
 
-// rates are the frames and ticks a second the engine last measured.
 var rates struct{ fps, tps float64 }
 
-// SetRates is the engine's: the frames and the ticks it ran in the last second.
+// SetRates notes the frames and the ticks the engine ran in the last second.
 func SetRates(fps, tps float64) { rates.fps, rates.tps = fps, tps }
 
 // ActualFPS is how many frames the engine drew in the last second.

@@ -18,12 +18,11 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// counting is a look that counts the sprites it is handed, and keeps them with their angles.
 type counting struct {
 	Look
 	sprites []render.SpriteID
 	angles  []float32
-	frame   *render.Frame // the frame drawThrough composed into
+	frame   *render.Frame
 }
 
 func (c *counting) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource, a render.Appearance, light render.Light) {
@@ -32,8 +31,6 @@ func (c *counting) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z 
 	c.Look.Sprite(f, cam, box, z, atlas, a, light)
 }
 
-// lyingCounting is a counting look that lays sprites flat too, keeping those it laid, and those
-// it laid along a Lie with how and their edges.
 type lyingCounting struct {
 	*counting
 	lain  []render.SpriteID
@@ -57,28 +54,22 @@ func (c *lyingCounting) Lay(_ *render.Frame, _ camera.Camera, _ plane.AABB, dir 
 	c.along = append(c.along, laid{a.SpriteID, edge, dir, lie})
 }
 
-// flatAtlas is an AtlasSource with no sheet: enough for gathering quads without drawing.
 type flatAtlas struct{}
 
 func (flatAtlas) Atlas() *render.Image                            { return nil }
 func (flatAtlas) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 1, 1 }
 func (flatAtlas) White() (u, v float32)                           { return 0, 0 }
 
-// drawThrough spawns one 10x10 entity of sprite 1 per position, heading dir, lets pick say which
-// of them the View holds (nil: the zero View, which sees everything), draws once through rules and
-// returns the look that recorded what was drawn.
 func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *counting {
 	return drawShaded(t, nil, pick, rules, dir, at...)
 }
 
-// drawShaded is drawThrough with the per-pixel looks the world's Atlas would declare.
 func drawShaded(t *testing.T, shaded map[render.SpriteID]render.MaterialID, pick func(ids []uid.UID64, v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *counting {
 	look := &counting{Look: ilook.NewFlat(1000, 1000)}
 	drawAs(t, look, func(r *renderer) { r.shade(shaded) }, pick, rules, dir, at...)
 	return look
 }
 
-// drawAs is drawThrough with look, the renderer readied first.
 func drawAs(t *testing.T, look Look, ready func(*renderer), pick func(ids []uid.UID64,
 	v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *render.Frame {
 	t.Helper()
@@ -138,8 +129,6 @@ func TestRenderer_Compose_DrawsOnlyWhatTheViewContains(t *testing.T) {
 	}
 }
 
-// The rules read what the renderer reads itself — the Base, the Appearance — and settle what is
-// drawn: Facing turns the sprite, Over lays one on top, Show leaves out the rest.
 func TestRenderer_Compose_DrawsAsTheRulesSay(t *testing.T) {
 	const east, crown render.SpriteID = 5, 9
 	rules := []render.Rule{
@@ -158,8 +147,6 @@ func TestRenderer_Compose_DrawsAsTheRulesSay(t *testing.T) {
 	}
 }
 
-// WithRenderer takes the effects' looks for its drawing rules: a look issues a slot past the
-// kinds', a second renderer adds nothing twice, and an effect's first look after it is refused.
 func TestWithRenderer_TakesTheEffectsLooks(t *testing.T) {
 	p := testPlugin()
 	p.Effects().Define("frozen", effect.Spec{})
@@ -180,8 +167,6 @@ func TestWithRenderer_TakesTheEffectsLooks(t *testing.T) {
 	wet.Look(0)
 }
 
-// A sprite marked Turning on the world's atlas is drawn turned the way its entity moves, in
-// the engine's one convention: 0 east, against the clock with the screen's y growing down.
 func TestRenderer_Compose_ATurnedSpriteFollowsItsWay(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -201,8 +186,6 @@ func TestRenderer_Compose_ATurnedSpriteFollowsItsWay(t *testing.T) {
 	}
 }
 
-// An entity whose sprite the Atlas shaded is laid as one material quad instead of a sprite: its
-// box in Custom — middle, half a side, the way it heads — and how fast it moves in Red.
 func TestRenderer_Compose_AShadedSpriteIsOneMaterialQuad(t *testing.T) {
 	look := drawShaded(t, map[render.SpriteID]render.MaterialID{1: 7}, nil, nil, geom.NewVec(0, -1), quarters[0])
 	if len(look.sprites) != 0 {
@@ -228,8 +211,6 @@ func TestRenderer_Compose_AShadedSpriteIsOneMaterialQuad(t *testing.T) {
 	}
 }
 
-// An animated sprite shows the frame of the tactical clock: each frame a period, round and round
-// — the pause a freeze-frame.
 func TestRenderer_Compose_AnAnimatedSpriteShowsItsFrameOfTheClock(t *testing.T) {
 	const period = 180 * time.Millisecond
 	frames := []render.SpriteID{10, 11, 12}
@@ -247,8 +228,6 @@ func TestRenderer_Compose_AnAnimatedSpriteShowsItsFrameOfTheClock(t *testing.T) 
 	}
 }
 
-// A sprite the Atlas declared Lying goes to a LyingLook's Lie, its look under an effect too; to a
-// Look without one, Sprite as any other.
 func TestRenderer_Compose_ALyingSpriteLiesWhereTheLookLaysIt(t *testing.T) {
 	const deck, wet render.SpriteID = 1, 4
 	a := &Atlas{
@@ -276,7 +255,6 @@ func TestRenderer_Compose_ALyingSpriteLiesWhereTheLookLaysIt(t *testing.T) {
 	}
 }
 
-// uprightCounting is a counting look that stands sprites true too, keeping those it stood so.
 type uprightCounting struct {
 	*counting
 	stood []render.SpriteID
@@ -287,8 +265,6 @@ func (c *uprightCounting) Upright(_ *render.Frame, _ camera.Camera, _ plane.AABB
 	c.stood = append(c.stood, a.SpriteID)
 }
 
-// A sprite the Atlas stands Upright goes to an UprightLook's Upright; a look standing nothing true
-// draws it as a sprite.
 func TestRenderer_Compose_AnUprightSpriteStandsTrue(t *testing.T) {
 	standing := map[render.SpriteID]bool{1: true}
 	stands := &uprightCounting{counting: &counting{Look: ilook.NewFlat(1000, 1000)}}
@@ -305,8 +281,6 @@ func TestRenderer_Compose_AnUprightSpriteStandsTrue(t *testing.T) {
 	}
 }
 
-// An entity lying along its Lie goes to a LyingLook's Lay, headed as it is, with the sprite
-// standing along its edges where the Atlas gave one; without, edged no more.
 func TestRenderer_Compose_AnEntityWithALieIsLaidAlongIt(t *testing.T) {
 	const deck, plank, rail render.SpriteID = 1, 2, 9
 	lain := map[render.SpriteID]bool{deck: true, plank: true}

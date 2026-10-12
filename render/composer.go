@@ -10,10 +10,9 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// Composer is a Picture drawing its Sources as one picture per viewport: every source hands
-// its items to a Frame, the Composer orders them — by depth below the Marks when the camera's
-// projection sorts — and draws each run of items sampling one sheet in one call; a Direct source
-// draws its part itself where its tier comes.
+// Composer is a Picture drawing its Sources as one picture: every source hands its pieces to a
+// Frame, the Composer orders them by tier, and by depth below the Marks when the camera's
+// projection sorts, and draws each run sampling one sheet in one call.
 type Composer struct {
 	sources []Source
 	directs []Direct // by tier
@@ -22,22 +21,18 @@ type Composer struct {
 
 	verts   []Vertex
 	indices []uint16
-	// the shader's uniforms, kept and written over so a frame allocates none: the composer's own —
-	// the way towards the eye, the clock, the world units a pixel spans — and every one a source
-	// set (Frame.Uniform), zeroed in a frame that did not; boxed, by name, for a Direct source
+	// kept and written over so a frame allocates none; boxed for a Direct source
 	uniforms map[string][]float32
 	boxed    map[string]any
-	packed   []byte // the uniforms laid out for this frame's draws
-	depth    *Depth // the frame's meshes', handed to the Direct sources
+	packed   []byte
+	depth    *Depth
 	start    time.Time
-	// draw issues one call; tests count them instead.
-	draw func(screen *Image, verts []Vertex, indices []uint16, sheet *Image)
+	draw     func(screen *Image, verts []Vertex, indices []uint16, sheet *Image)
 }
 
 var _ Picture = (*Composer)(nil)
 
-// NewComposer takes the layers to compose, which must all be Sources; a nil layer — a plugin with
-// no renderer — is left out.
+// NewComposer takes the layers to compose, which must all be Sources; a nil layer is left out.
 func NewComposer(layers ...Layer) *Composer {
 	c := &Composer{start: time.Now(), uniforms: map[string][]float32{}, boxed: map[string]any{}, depth: NewDepth()}
 	c.uniform("Toward", 3)
@@ -67,8 +62,7 @@ func (c *Composer) Init(si *goke.SysInit) {
 	}
 }
 
-// DrawWorld composes the frame through cam and draws it; a nil screen only composes and settles
-// the shader's uniforms (Uniforms), for a test.
+// DrawWorld composes the frame through cam and draws it; a nil screen only composes.
 func (c *Composer) DrawWorld(screen *Image, cam camera.Camera) {
 	c.compose(cam)
 	if screen == nil {
@@ -78,10 +72,10 @@ func (c *Composer) DrawWorld(screen *Image, cam camera.Camera) {
 	c.render(screen)
 }
 
-// Composed is how many pieces the last frame held — for measuring without a screen.
+// Composed is how many pieces the last frame held.
 func (c *Composer) Composed() int { return c.frame.Len() }
 
-// Uniforms is what the last frame handed the shader, by name — for a test of a material's source.
+// Uniforms is what the last frame handed the shader, by name.
 func (c *Composer) Uniforms() map[string][]float32 { return c.uniforms }
 
 func (c *Composer) compose(cam camera.Camera) {
@@ -93,13 +87,12 @@ func (c *Composer) compose(cam camera.Camera) {
 	c.sort()
 }
 
-// Clocked is a Source that keeps a game time — the world's, going by its tactical clock — for the
-// frame's animations to go by instead of the composer's own clock; false while it has none.
+// Clocked is a Source that keeps a game time for the frame's animations to go by instead of the
+// composer's own clock; false while it has none.
 type Clocked interface {
 	Clock() (time.Duration, bool)
 }
 
-// clock is the time the frame's animations go by: the first Clocked source's, else the composer's.
 func (c *Composer) clock() time.Duration {
 	for _, s := range c.sources {
 		if k, ok := s.(Clocked); ok {
@@ -111,8 +104,6 @@ func (c *Composer) clock() time.Duration {
 	return time.Since(c.start)
 }
 
-// sort orders the frame: through a projection that sorts the items below Marks back to front by
-// depth, ties by tier, then the rest by tier; otherwise by tier alone; always the order given last.
 func (c *Composer) sort() {
 	f := &c.frame
 	for i := range f.items {
@@ -144,7 +135,6 @@ func (c *Composer) sort() {
 	}
 }
 
-// uniform is the slice the uniform name is handed to the shader in, made once, n long.
 func (c *Composer) uniform(name string, n int) []float32 {
 	u, ok := c.uniforms[name]
 	if !ok || len(u) != n {
@@ -155,8 +145,6 @@ func (c *Composer) uniform(name string, n int) []float32 {
 	return u
 }
 
-// setUniforms hands the shader the composer's own uniforms and the frame's, every other it has
-// ever been handed zeroed.
 func (c *Composer) setUniforms() {
 	f := &c.frame
 	for _, u := range c.uniforms {
@@ -165,7 +153,7 @@ func (c *Composer) setUniforms() {
 	toward := f.cam.Projection().Toward()
 	copy(c.uniform("Toward", 3), toward[:])
 	c.uniform("Clock", 1)[0] = f.time
-	pixel := float32(1) // world units a pixel spans: what is finer than a few of them is not drawn
+	pixel := float32(1) // world units a pixel spans
 	if z := f.cam.Zoom(); z > 0 {
 		pixel = 1 / z
 	}
@@ -175,8 +163,6 @@ func (c *Composer) setUniforms() {
 	}
 }
 
-// render draws the ordered items under the frame's uniforms, the Direct sources where their tiers
-// come.
 func (c *Composer) render(screen *Image) {
 	c.setUniforms()
 	c.packed = append(c.packed[:0], composer.pack(c.boxed)...)
@@ -186,9 +172,6 @@ func (c *Composer) render(screen *Image) {
 	c.paint(screen, Target{Screen: screen, Depth: c.depth})
 }
 
-// paint draws the ordered items, one call per run sharing a sheet; a plain colour joins the run it
-// falls in and samples that sheet's white texel. A Direct source draws before the first item of
-// its tier or over, after all before it.
 func (c *Composer) paint(screen *Image, target Target) {
 	f := &c.frame
 	var sheet AtlasSource
@@ -239,7 +222,6 @@ func (c *Composer) paint(screen *Image, target Target) {
 	}
 }
 
-// fan adds a fan item, whole, to the call being gathered.
 func (c *Composer) fan(screen *Image, sheet AtlasSource, it *item) {
 	if len(c.verts)+int(it.count) > chunkVertices {
 		c.flush(screen, sheet)
@@ -251,7 +233,6 @@ func (c *Composer) fan(screen *Image, sheet AtlasSource, it *item) {
 	}
 }
 
-// append copies verts into the call being gathered; a plain colour samples sheet's white texel.
 func (c *Composer) append(verts []Vertex, plain bool, sheet AtlasSource) {
 	c.verts = append(c.verts, verts...)
 	if !plain {
@@ -274,10 +255,9 @@ func (c *Composer) drawTriangles(screen *Image, verts []Vertex, indices []uint16
 	gpu.Triangles(&gpu.Draw{Target: screen.gpu(), Program: composer.program(), Images: [4]gpu.Image{sheet.gpu()}, Uniforms: c.packed, Blend: gpu.SourceOver}, verts, indices)
 }
 
-// chunkVertices is how many vertices one call may index: a multiple of four under 65536.
+// a multiple of four under 65536, what 16-bit indices reach
 const chunkVertices = 65532
 
-// whiteSheet is a sheet of nothing but white, for colours drawn before any sprite.
 type whiteSheet struct{ img *Image }
 
 func (w *whiteSheet) Atlas() *Image {
@@ -288,14 +268,11 @@ func (w *whiteSheet) Atlas() *Image {
 	return w.img
 }
 
-// white9 is nine white pixels.
 var white9 = []byte{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255}
 
 func (w *whiteSheet) UV(SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 3, 3 }
 func (w *whiteSheet) White() (u, v float32)                    { return 1.5, 1.5 }
 
-// appendQuad adds the two triangles of the quad whose vertices begin at base, meeting along the
-// diagonal its shape says.
 func appendQuad(indices []uint16, base uint16, s shape) []uint16 {
 	if s == folded {
 		return append(indices, base, base+1, base+3, base, base+2, base+3)

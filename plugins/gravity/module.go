@@ -10,15 +10,10 @@ import (
 
 var _ goke.Module = (*module)(nil)
 
-// module gives the bodies their drift once a tick and runs the fall every step of the simulation.
 type module struct {
 	p          *Plugin
 	give, fall goke.Runnable
 }
-
-// =================================================================
-// goke.Module contract
-// =================================================================
 
 func (m *module) RegSystems(ecs *goke.ECS) {
 	m.give = ecs.RegSys(&giveSystem{})
@@ -29,8 +24,6 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	}
 }
 
-// RunPlan gives the bodies new to it their drift at once, and carries, stands and lands them every
-// step of the simulation.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.give, d)
 	ctx.Sync()
@@ -40,10 +33,8 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	})
 }
 
-// SetupSystems is empty — the plugin seeds nothing.
 func (m *module) SetupSystems() []goke.System { return nil }
 
-// LoadComps lists the component types the plugin owns — see [goke.CompProvider].
 func (m *module) LoadComps() []goke.CompToken {
 	return []goke.CompToken{goke.LoadComp[Body](), goke.LoadComp[world.Drift]()}
 }

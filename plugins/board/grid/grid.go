@@ -10,10 +10,9 @@ import (
 type Grid interface {
 	Neighbors(c cell.ID) []cell.ID
 	// Toward is c's neighbour in the grid's i-th direction, across a seam where the grid wraps;
-	// false off the grid or past its directions. A Way's Links name the directions by bit (Link).
+	// false off the grid or past its directions.
 	Toward(c cell.ID, i int) (cell.ID, bool)
-	// Directions is how many directions a cell has neighbours in: Toward's i, and a Way's Links
-	// bit i, run below it.
+	// Directions is how many directions a cell has neighbours in, Toward's i below it.
 	Directions() int
 	// Opposite is the direction back from the neighbour in direction i.
 	Opposite(i int) int
@@ -28,7 +27,7 @@ type Grid interface {
 	CellCenter(c cell.ID) geom.Vec
 	CellAt(pos geom.Vec) (cell.ID, bool)
 	// At is the cell at grid coordinates (col,row or axial q,r), wrapped where the grid
-	// wraps; one off a closed axis panics by its coordinates — a game asks for cells it laid.
+	// wraps; one off a closed axis panics by its coordinates.
 	At(a, b uint32) cell.ID
 	// NeighborCost is the geometric step cost from a to its neighbor b.
 	NeighborCost(a, b cell.ID) float64
@@ -36,9 +35,9 @@ type Grid interface {
 	DiagonalNeighbors(a, b cell.ID) (c1, c2 cell.ID, ok bool)
 	// Distance must never overestimate the true cost — it's the pathfinding heuristic.
 	Distance(a, b cell.ID) float64
-	// CellSpan is the world-space side length of one cell — the renderer's cell-quad size.
+	// CellSpan is the world-space side length of one cell.
 	CellSpan() float32
-	// CellBounds is the width and height of the rectangle round one cell — the drawn quad.
+	// CellBounds is the width and height of the rectangle round one cell.
 	CellBounds() (w, h float64)
 	// CellOutline appends to dst the corners of c, in order round the cell.
 	CellOutline(c cell.ID, dst []geom.Vec) []geom.Vec

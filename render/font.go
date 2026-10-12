@@ -16,26 +16,24 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// Font is a typeface at a size, its glyphs drawn on demand into a sheet of its own: text in any
-// script the face has — Polish letters with Go's own fonts.
+// Font is a typeface at a size, its glyphs drawn on demand into a sheet of its own.
 type Font struct {
 	face    font.Face
 	ascent  float32
 	height  float32
 	glyphs  map[rune]glyph
 	sheet   *Image
-	pix     *image.RGBA // the sheet as drawn on the CPU, white with the coverage as alpha
-	x, y    int         // where the next glyph goes in the sheet
-	row     int         // the tallest glyph of the row being filled
-	written bool        // pix is on the GPU as it stands
+	pix     *image.RGBA // white with the coverage as alpha
+	x, y    int
+	row     int
+	written bool
 }
 
-// glyph is one rune's place in the sheet and how it lies against the pen.
 type glyph struct {
-	src     image.Rectangle // in the sheet
-	dx, dy  float32         // its top-left from the pen on the baseline
+	src     image.Rectangle
+	dx, dy  float32 // its top-left from the pen on the baseline
 	advance float32
-	ok      bool // the face has it
+	ok      bool
 }
 
 const sheetSide = 1024
@@ -96,7 +94,6 @@ func (f *Font) width(line string) float32 {
 	return w
 }
 
-// glyph is r's glyph, drawn into the sheet at its first use.
 func (f *Font) glyph(r rune) glyph {
 	if g, ok := f.glyphs[r]; ok {
 		return g

@@ -12,23 +12,17 @@ import (
 	"github.com/kjkrol/gram/rule/effect"
 )
 
-// tick is a step of the moments' test.
 const tick = time.Second / 10
 
-// heard is the command the tests' rules give: which rule.
 type heard struct{ Rule string }
 
 func (heard) Command() {}
 
-// heards is where the heard commands land, for the world to carry.
 type heards struct{ control.Queue[heard] }
 
 func (h *heards) Queues() []control.CommandQueue     { return []control.CommandQueue{&h.Queue} }
 func (h *heards) DefaultBindings() []control.Binding { return nil }
 
-// Rules of the clock's Moment, of a role the world plays, fire once at their time and every period after
-// their offset, on the clock's time — at any tempo and never in the pause — and an effect one
-// applies lands on the clock's entity, switching a phase on until it ends.
 func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 	for _, tempo := range []float32{1, 4, 0.5} {
 		w := world.NewPlugin(world.Config{
@@ -43,14 +37,24 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 		if err := w.Carry(&orders); err != nil {
 			t.Fatal(err)
 		}
-		// the world plays the role whose rules these are; a role it does not play stays silent
 		w.Roles().Define("clockwork",
-			rule.Then[clock.Moment]("once", rule.All, rule.If(clock.At(5*tick), rule.Order(heard{Rule: "once"}))),
-			rule.Then[clock.Moment]("daily", rule.All, rule.If(clock.Every(4*tick, 2*tick), rule.Order(heard{Rule: "daily"}))),
-			rule.Then[clock.Moment]("dusk", rule.All, rule.If(clock.At(3*tick), rule.Apply(dusk))),
+			rule.Branch[clock.Moment]{
+				Name: "once",
+				When: clock.At(5 * tick),
+				Do:   rule.Order(heard{Rule: "once"}),
+			},
+			rule.Branch[clock.Moment]{
+				Name: "daily",
+				When: clock.Every(4*tick, 2*tick),
+				Do:   rule.Order(heard{Rule: "daily"}),
+			},
+			rule.Branch[clock.Moment]{Name: "dusk", When: clock.At(3 * tick), Do: rule.Apply(dusk)},
 		)
 		w.Plays(w.Roles().Named("clockwork"))
-		w.Roles().Define("unplayed", rule.Then[clock.Moment]("never", rule.All, rule.Order(heard{Rule: "never"})))
+		w.Roles().Define("unplayed", rule.Branch[clock.Moment]{
+			Name: "never",
+			Do:   rule.Order(heard{Rule: "never"}),
+		})
 		unplayed := w.Roles().Named("unplayed")
 		fired := map[string][]time.Duration{}
 		var inNight []bool

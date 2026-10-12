@@ -12,7 +12,7 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// level draws the level ground over the world, 256 a side, black, its depth written.
+// the level ground over the world, 256 a side, black, its depth written
 var level = render.NewMeshShaderWith("test level", []byte(`
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
@@ -23,8 +23,6 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
 fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(0.0, 0.0, 0.0, 1.0); }
 `), []render.Uniform{{Name: "ViewProj", Size: 16}})
 
-// Laid on the GPU over the level ground drawn from above, a stretch of route is drawn along it in
-// its colour, as wide as asked, and nowhere off it.
 func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
 	needGPU(t)
 	cam := icamera.NewFromSpace(256, 256, 0)
@@ -55,7 +53,6 @@ func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
 	}
 }
 
-// needGPU readies a device without a window; a machine without one skips.
 func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {

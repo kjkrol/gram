@@ -10,8 +10,6 @@ import (
 	"github.com/kjkrol/gram/plugins/vision"
 )
 
-// A Cones command issued to the plugin's queue hides the views drawn on the next RunPlan, and the
-// next one shows them again; the renderer follows.
 func TestCones_ToggleTheViewsDrawn(t *testing.T) {
 	w := testWorldPlugin()
 	v := vision.NewPlugin(w)
@@ -60,7 +58,6 @@ func TestCones_ToggleTheViewsDrawn(t *testing.T) {
 	}
 }
 
-// ShowCones before WithRenderer reaches the renderer built later.
 func TestCones_ShowConesReachesARendererBuiltLater(t *testing.T) {
 	v := vision.NewPlugin(testWorldPlugin())
 	v.ShowCones()

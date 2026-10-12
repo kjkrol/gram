@@ -58,7 +58,6 @@ func split(across bool, parts []Part) *Element {
 	return newElement(&splitting{across: across, parts: parts}, children...)
 }
 
-// splitting lays its parts side by side (across) or one under another.
 type splitting struct {
 	across bool
 	parts  []Part
@@ -119,8 +118,6 @@ func (s *splitting) needs(e *Element) (w, h float64) {
 	return w, h
 }
 
-// anchoring places its one element at a point of the box — a corner, the middle of a side, the
-// middle — at the size it asks for (Size on the anchor, else the element's own).
 type anchoring struct{ x, y float64 } // 0 left/top, 0.5 middle, 1 right/bottom
 
 func anchor(x, y float64, e *Element) *Element { return newElement(anchoring{x, y}, e) }
@@ -142,9 +139,6 @@ func (a anchoring) place(e *Element, box geom.AABB) {
 	c.lay(geom.NewAABBAt(at, cw, ch))
 }
 
-// share is the size of c where e asks for a Fraction of a w by h box: an axis asked for as 0
-// following the proportions of the picture c shows, else c's own size; a picture with proportions
-// asked for both keeps them within.
 func (e *Element) share(w, h float64, c *Element) (float64, float64) {
 	sw, sh := e.fw*w, e.fh*h
 	if pw, ph, ok := c.proportions(); ok && pw > 0 && ph > 0 {
@@ -168,8 +162,6 @@ func (e *Element) share(w, h float64, c *Element) (float64, float64) {
 	return sw, sh
 }
 
-// proportions are the width and height of what the element's picture shows, where it says them
-// (render.Feed.Proportions).
 func (e *Element) proportions() (w, h float64, ok bool) {
 	p, is := e.content.(*picture)
 	if !is {
@@ -185,12 +177,12 @@ func (e *Element) proportions() (w, h float64, ok bool) {
 
 func (anchoring) draw(*Element, *render.Image) {}
 
-// absent: an anchor round an element left out or hidden is left out with it.
 func (anchoring) absent(e *Element) bool { return e.children[0].gone() }
 
 func (anchoring) needs(e *Element) (w, h float64) { return e.children[0].needs() }
 
-// The anchors: each places its element at its point of the box, kept Margin pixels from the edges.
+// TopLeft and the anchors below place their element at their point of the box, kept Margin
+// pixels from the edges.
 func TopLeft(e *Element) *Element      { return anchor(0, 0, e) }
 func TopMiddle(e *Element) *Element    { return anchor(0.5, 0, e) }
 func TopRight(e *Element) *Element     { return anchor(1, 0, e) }

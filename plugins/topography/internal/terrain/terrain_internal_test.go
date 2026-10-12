@@ -12,7 +12,6 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Heights encoded in 16 bits come back within a sixty-thousandth of their span.
 func TestEncode_HoldsTheHeightsWithinTheSpan(t *testing.T) {
 	heights := []float32{-12.5, 0, 3.25, 180, 99.99}
 	low, span, buf := encode(heights, nil)
@@ -32,7 +31,7 @@ func TestEncode_HoldsTheHeightsWithinTheSpan(t *testing.T) {
 	}
 }
 
-// hill is a ground 16 cells across with a ridge 30 high along x = 8 cells.
+// a ridge 30 high along x = 8 cells
 type hill struct{ version uint64 }
 
 func (hill) Lattice() (cols, rows int, cell float32, heights []float32, ok bool) {
@@ -49,8 +48,6 @@ func (hill) Lattice() (cols, rows int, cell float32, heights []float32, ok bool)
 
 func (h hill) Version() uint64 { return h.version }
 
-// flat is a surface of 16 by 16 cells painted grey, a pixel each, with its coast; its version is
-// bumped by hand.
 type flat struct {
 	img    *render.Image
 	shores []water.Shore
@@ -66,16 +63,12 @@ func (f *flat) Surface() Painted {
 	return Painted{Albedo: f.img, Px: 1, Shores: f.shores, Reach: 96, Coast: f.coast, Grid: f.grid}
 }
 
-// none is a surface of nothing: plain grey, no water, open water everywhere.
 type none struct{}
 
 func (none) Surface() Painted { return Painted{} }
 
-// Every cell is split in two along the diagonal whose corners stand nearer, as the shader's drawn
-// splits it, and the triangles cover the lattice's cells once each.
 func TestTriangles_SplitEachCellAlongItsNearerDiagonal(t *testing.T) {
-	// a 3 by 2 lattice: the left cell's top-left and bottom-right corners stand level, the right
-	// cell's top-right and bottom-left stand nearer than its others
+	// the left cell's 0–3 corners stand level, the right cell's 1–2 nearer than its others
 	heights := []float32{0, 0, 10, 5, 0, 20}
 	_, _, enc := encode(heights, nil)
 	got := triangles(3, 2, enc, nil)
@@ -103,8 +96,6 @@ func TestTriangles_SplitEachCellAlongItsNearerDiagonal(t *testing.T) {
 	}
 }
 
-// Every corner's normal faces up on the level, leans away from the ridge on its sides, and is
-// worked out one-sided at the lattice's edge; every pixel of it is opaque.
 func TestNormals_LeanAwayFromTheRidge(t *testing.T) {
 	cols, rows, cell, heights, _ := hill{}.Lattice()
 	buf := normals(cols, rows, cell, heights, nil)
@@ -133,8 +124,7 @@ type stillSky struct{}
 
 func (stillSky) Air() air.Weather { return air.Weather{} }
 
-// eye is a camera looking from a point of the world: a perspective for the rays, the top-down
-// camera for everything else.
+// a perspective for the rays, the top-down camera for everything else
 type eye struct {
 	camera.Camera
 	at [3]float32
@@ -151,8 +141,6 @@ func (e eye) Project(x, y, z float32) (float32, float32) {
 	return 200 + 400*dy/dx, 150 - 400*dz/dx
 }
 
-// The lattice's quadrants are written once a version of the ground, the shores once a version of
-// the coast; without an albedo the ground is drawn plain.
 func TestRenderer_RefreshesTheLatticeWhenTheGroundOrTheCoastChanges(t *testing.T) {
 	needGPU(t)
 	g := &hill{}
@@ -177,8 +165,6 @@ func TestRenderer_RefreshesTheLatticeWhenTheGroundOrTheCoastChanges(t *testing.T
 	}
 }
 
-// The skirt runs out from every corner of the lattice's edge, each once, through its rings of as
-// many vertices counted past the lattice's corners; its triangles use no other.
 func TestSkirt_RingsTheLatticeFromItsEdge(t *testing.T) {
 	cols, rows := 4, 3
 	n := 2*(cols-1) + 2*(rows-1)
@@ -208,8 +194,6 @@ func TestSkirt_RingsTheLatticeFromItsEdge(t *testing.T) {
 	}
 }
 
-// The cells' wet flags lie at each cell's top-left corner, the last row and column of corners dry;
-// all of them wet where the surface knows none.
 func TestWetCells_FlagTheCellsWaterMayLieOn(t *testing.T) {
 	buf := wetCells(3, 3, []bool{true, false, false, true}, false, nil)
 	for i, want := range []byte{255, 0, 0, 0, 255, 0, 0, 0, 0} {
@@ -225,8 +209,6 @@ func TestWetCells_FlagTheCellsWaterMayLieOn(t *testing.T) {
 	}
 }
 
-// The way to the shore is held within a 255th: its way, how far it is, and open water where a
-// corner has none — which decodes to no way at all.
 func TestShores_HoldTheWayAndHowFar(t *testing.T) {
 	reach := float32(96)
 	from := []water.Shore{{X: 0.6, Y: -0.8, Dist: 30, Near: 1 - 30/reach}, {}, {X: -1, Y: 0, Dist: 0, Near: 1}}
@@ -251,8 +233,6 @@ func TestShores_HoldTheWayAndHowFar(t *testing.T) {
 	}
 }
 
-// A draw's uniforms are the frame's with the renderer's own over them, the grid from the
-// surface; the frame's own are left as they were.
 func TestRenderer_PreparesTheFramesUniformsWithItsOwnOver(t *testing.T) {
 	needGPU(t)
 	f := &flat{grid: 6}

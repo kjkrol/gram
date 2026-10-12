@@ -12,8 +12,6 @@ import (
 	"github.com/kjkrol/gram/plugin"
 )
 
-// commands are the engine's own queues — the game package's commands — in every Stage's carrier,
-// carried out between the input and the ticks.
 type commands struct {
 	saves  control.Queue[game.Save]
 	loads  control.Queue[game.Load]
@@ -29,7 +27,6 @@ func (c *commands) Queues() []control.CommandQueue {
 
 func (*commands) DefaultBindings() []control.Binding { return nil }
 
-// carry carries out the engine's commands given since the last frame.
 func (e *Engine) carry() {
 	e.commands.saves.Drain(func(i control.Issued[game.Save]) {
 		if err := e.Save(i.Command.Slot); err != nil {
@@ -64,8 +61,8 @@ func (e *Engine) Save(slot string) error {
 	return nil
 }
 
-// Load enters stage — the active one for "", the starting one before Init — from its save slot at
-// the start of the next Update, or in Init; a save not there is an error, and nothing changes.
+// Load enters stage ("" the active one, or the starting one before Init) from its save slot. A
+// save not there is an error, and nothing changes.
 func (e *Engine) Load(stage, slot string) error {
 	stages, initial := e.game.Stages()
 	switch {
@@ -97,5 +94,4 @@ func (e *Engine) Issue(cmd control.Command) error {
 	return nil
 }
 
-// savePath is where the saves of the Stage called name lie.
 func (e *Engine) savePath(name string) string { return filepath.Join(e.props.Saves, name) }

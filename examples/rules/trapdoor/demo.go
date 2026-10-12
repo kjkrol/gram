@@ -120,12 +120,11 @@ func (s *arena) defineEffects() {
 }
 
 func (s *arena) defineRules() {
-	s.world.Roles().Define(MortalRole,
-		rule.Then[unit.Standing](
-			"fall in",
-			rule.All,
-			rule.If(unit.Standing.Fallen, rule.Order(world.Despawn{})),
-		))
+	s.world.Roles().Define(MortalRole, rule.Branch[unit.Standing]{
+		Name: "fall in",
+		When: unit.Standing.Fallen,
+		Do:   rule.Order(world.Despawn{}),
+	})
 }
 
 var levers = []struct {
@@ -176,7 +175,6 @@ func (s *arena) defineKinds() {
 	}
 	land := unit.Mover{Domain: cell.Land}
 	units.Define(ScoutKind, land, profile, rule.Plays(s.world.Roles().Named(MortalRole)))
-	// a wanderer walks to the other end of its row and back, a second's rest at each end
 	units.Define(
 		WandererKind,
 		land,

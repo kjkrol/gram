@@ -6,9 +6,18 @@ What is left to do. Take an item out when it lands.
 
 ## Next, in this order (the demos' TODOs)
 
-1. **The notation of rules** — `rule.Then[world.Moving]("rage spreads", rule.All,
-   rule.During(rage, rule.Keep(angry)))` reads badly, and a rule needing a comment to be read is
-   a notation to change: variants to compare before deciding.
+1. **Patrols as plans** — `navigation.Patrol` and `MoveOrder.Round` (`goOn`, `Pause`, `Stood` in
+   `navigation_system.go`) are a machine of states built into an order; six demos (animation,
+   bullet, ember, trapdoor, wire, pressure-plate, the guard demo's wanderers) give their
+   wanderers a round by `comp.Load`. A patrol is a plan: `Steps(Order(MoveTo{A}).Until[Arrived](),
+   Wait(pause), Order(MoveTo{B}).Until[Arrived](), Wait(pause))`, begun again when done. `Round`
+   out of navigation; what a step aside on patrol carries over, said in the plan.
+2. **`PullEf` in the wire demo** — a quarter-second effect used as a command's impulse ("pull the
+   lever beside"), not a state: a command of the entity's with `Around`, or kept and named as a
+   state.
+3. **Facts for plans beyond navigation** — `bullet.Flight` as the fuse's fact shows any
+   component is one; say in each plugin's doc which of its components are meant for plans
+   (`Blocked`, `Arrived`, `Flight`) and which are not.
 
 ## Engine
 - **A minimap plugin** — a `ui` element: a feed from a camera keeping the whole world in view

@@ -16,18 +16,15 @@ func (s *Scene) Keys(bindings ...control.Binding) *Scene {
 	return s
 }
 
-// Issue is how the scene gives a command that is not its own — a button's, a key's: the players'
-// Issue for the player at the keyboard, as a rule. Without one the scene gives it as nobody
-// through the Runtime (game.Runtime.Issue): a menu's buttons, the engine's commands.
+// Issue is how the scene gives a command that is not its own, a button's or a key's: the
+// players' Issue, as a rule. Without one the scene gives it as nobody through the Runtime.
 func (s *Scene) Issue(fn func(cmd control.Command) error) *Scene {
 	s.issue = fn
 	return s
 }
 
-// HandleEvents routes this tick's input. A click goes to the topmost element it hits: a button
-// gives its command, a picture with an Input lets it through, any other element keeps it; a shown
-// modal window keeps every click and the wheel outside it. The scene's keys are run; what is left
-// goes to Input.
+// HandleEvents routes this tick's input: a click to the topmost element it hits, the scene's
+// keys to their commands, what is left to Input.
 func (s *Scene) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
 	s.runtime = runtime
 	s.passed = *events
@@ -50,8 +47,6 @@ func (s *Scene) HandleEvents(events *control.InputEvents, runtime game.Runtime, 
 	}
 }
 
-// wire tells every picture's Input shown where the picture lies, as last laid, and what it shows:
-// those of the active scene alone, before its input.
 func (s *Scene) wire() {
 	if s.root == nil {
 		return
@@ -71,7 +66,6 @@ func (s *Scene) wire() {
 	visit(s.root)
 }
 
-// click acts on c and reports whether it goes on to Input.
 func (s *Scene) click(modal *Element, c control.ClickEvent) bool {
 	within := s.root
 	if modal != nil {
@@ -101,8 +95,6 @@ func (s *Scene) click(modal *Element, c control.ClickEvent) bool {
 	}
 }
 
-// through reports whether the cursor at p is over the world: no element but a picture with an
-// Input under it, no modal window held elsewhere.
 func (s *Scene) through(modal *Element, p geom.Vec) bool {
 	if modal != nil {
 		return false
@@ -118,7 +110,6 @@ func (s *Scene) through(modal *Element, p geom.Vec) bool {
 	return ok && pic.input != nil
 }
 
-// press gives the command of every key of the scene pressed this tick.
 func (s *Scene) press(events *control.InputEvents) {
 	mods := control.Mods{Shift: events.Modifiers.Shift, Ctrl: events.Modifiers.Ctrl, Alt: events.Modifiers.Alt}
 	for _, k := range events.KeyEvents {
@@ -136,7 +127,6 @@ func (s *Scene) press(events *control.InputEvents) {
 	}
 }
 
-// giveAbout gives cmd for the entity the button is pinned to, where it is for It.
 func (s *Scene) giveAbout(cmd control.Command, id uid.UID64, pinned bool) {
 	cmd, ok := about(cmd, id, pinned)
 	if !ok {
@@ -146,7 +136,6 @@ func (s *Scene) giveAbout(cmd control.Command, id uid.UID64, pinned bool) {
 	s.give(cmd)
 }
 
-// give carries out cmd if it is the scene's own, else issues it: through Issue, else the Runtime.
 func (s *Scene) give(cmd control.Command) {
 	if s.carry(cmd) {
 		return
@@ -164,7 +153,6 @@ func (s *Scene) give(cmd control.Command) {
 	}
 }
 
-// modal is the topmost modal window shown, if any.
 func (s *Scene) modal() *Element {
 	var top *Element
 	var visit func(e *Element)
@@ -183,17 +171,13 @@ func (s *Scene) modal() *Element {
 	return top
 }
 
-// target is what a point of the screen hits: the last element drawn there, none of its own a
-// container's; the button it lies in, if any; and, for a pinned element's Show button, the move of
-// the camera it gives.
 type target struct {
 	hit, button *Element
 	look        func()
-	about       uid.UID64 // the entity the element hit is pinned to
+	about       uid.UID64
 	pinned      bool
 }
 
-// topmost is what p hits under e, in the button in, if any.
 func topmost(e *Element, p geom.Vec, in *Element) target {
 	if e.hidden {
 		return target{}
@@ -215,7 +199,6 @@ func topmost(e *Element, p geom.Vec, in *Element) target {
 	return t
 }
 
-// topmostHere is topmost where e was last laid.
 func topmostHere(e *Element, p geom.Vec, in *Element) target {
 	if e.absent() {
 		return target{}

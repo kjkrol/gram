@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-// helm is a Helm over st and co.
 func helm(st Steering, co Course) Helm { return Helm{Steering: &st, Course: &co} }
 
 func TestSteering_WithoutV0SetsOffAndAccelerates(t *testing.T) {
@@ -17,9 +16,6 @@ func TestSteering_WithoutV0SetsOffAndAccelerates(t *testing.T) {
 	}
 }
 
-// Asked to back away while moving on, it brakes to a stop at Braking first, then sets off
-// backwards at V0 and speeds up to what was asked; asked on again, it brakes to a stop before
-// setting off forwards.
 func TestSteering_BacksAwayOnlyOnceStopped(t *testing.T) {
 	s := helm(Steering{MaxSpeed: 100, Accel: 40, Brake: 80, V0: 10}, Course{Speed: 60})
 	s.RequestBack(30)
@@ -61,8 +57,6 @@ func TestSteering_BacksAwayOnlyOnceStopped(t *testing.T) {
 	}
 }
 
-// Urged on, it goes up to Sprint times its top speed, Sprint times as quickly past the top; a
-// profile without a Sprint goes no faster than its top; a plain request stays under it.
 func TestSteering_SprintsToItsSprintOnlyWhenUrged(t *testing.T) {
 	s := helm(Steering{MaxSpeed: 10, Sprint: 4, Accel: 20}, Course{Speed: 10})
 	s.RequestSprint()
@@ -85,8 +79,6 @@ func TestSteering_SprintsToItsSprintOnlyWhenUrged(t *testing.T) {
 	}
 }
 
-// Flown, the way steered along parts the speed between the rise and the run, 80° at the steepest;
-// not flown, all of it goes along the ground.
 func TestDriven_SlopePartsTheSpeedOnlyWhenFlown(t *testing.T) {
 	if rise, run := (Driven{Flown: true, Climb: 0.6}).Slope(); math.Abs(rise-0.6) > 1e-12 || math.Abs(run-0.8) > 1e-12 {
 		t.Errorf("flown at a rise of 0.6: %v up, %v along; want 0.6 and 0.8", rise, run)

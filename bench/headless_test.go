@@ -1,6 +1,5 @@
-// Package bench_test measures gram's per-tick costs through the same public API a game uses,
-// on a Stage built without a window: plugins are installed through a headless game.Initializer
-// and ticked directly on their ECS.
+// Package bench_test measures gram's per-tick costs through the public API a game uses, on a
+// headless game.Initializer ticked directly on its ECS.
 package bench_test
 
 import (
@@ -18,13 +17,11 @@ import (
 	"github.com/kjkrol/gram/rule"
 )
 
-// headless is the least of a game.Initializer that installs plugins with no window: it queues
-// what Install asks for and hands it all to one ecs.Setup, as the engine does after Stage.Init.
 type headless struct {
-	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
+	hosts   []plugin.Host
 	ecs     *goke.ECS
 	world   *world.Plugin
-	cam     camera.Camera // the camera a benchmark looks through, when it keeps one here
+	cam     camera.Camera
 	tracked []any
 	pending []func() []goke.System
 	tps     game.TPS
@@ -70,8 +67,7 @@ func (c *headless) UseWorld(cfg world.Config) *world.Plugin {
 	return c.world
 }
 
-// camera is the main camera of the world's cameras, made by make and shown w x h pixels from the
-// world's top-left corner: the whole world for none.
+// w, h 0: the whole world
 func (c *headless) camera(make cameras.Maker, w, h float32) camera.Camera {
 	if w == 0 {
 		space := c.world.Res.Config.Space
@@ -83,8 +79,6 @@ func (c *headless) camera(make cameras.Maker, w, h float32) camera.Camera {
 	return cam
 }
 
-// start runs the fresh-spawn half of entering a Stage after Init and Spawn: Populate on every
-// tracked Populator, then one ecs.Setup, with plan as the tick.
 func (c *headless) start(tb testing.TB, plan func(goke.RunCtx, time.Duration)) *goke.ECS {
 	tb.Helper()
 	for _, v := range c.tracked {
@@ -97,7 +91,7 @@ func (c *headless) start(tb testing.TB, plan func(goke.RunCtx, time.Duration)) *
 	c.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		plan(rc, d)
 		if c.world != nil {
-			c.world.Clock().Replay(rc, d) // as the engine does after the game's Update: run what the plan simulates
+			c.world.Clock().Replay(rc, d) // as the engine does after the game's Update
 		}
 	})
 	var systems []goke.System
@@ -108,14 +102,10 @@ func (c *headless) start(tb testing.TB, plan func(goke.RunCtx, time.Duration)) *
 	return c.ecs
 }
 
-// step is one tick at 60 TPS.
 const step = time.Second / 60
 
 func entities(n int) string { return fmt.Sprintf("entities=%d", n) }
 
-// Hosts keeps the hosts of the rules of the moments a plugin catches.
 func (c *headless) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-// Deliver hands rules — a role's, each of its own — to the hosts of their moments, as the engine
-// does with the roles played once a Stage's Init returns.
 func (c *headless) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }

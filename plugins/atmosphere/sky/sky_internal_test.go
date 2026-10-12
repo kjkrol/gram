@@ -12,11 +12,9 @@ import (
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
 
-// defaults is a zero Config at the Latitude the sky has without a climate.
 var defaults = Config{latitude: Latitude}
 
-// firstDay is the sun of a zero Config's first day — the middle of spring, the year's second — at
-// time t, as the sky sets it.
+// the year's second day, the middle of spring
 func firstDay(t float32) Sun { return defaults.SunAt((1+t)/8, t) }
 
 func TestSunAt_RisesInTheEastStandsOverTheSouthAndSetsInTheWest(t *testing.T) {
@@ -39,12 +37,12 @@ func TestSunAt_RisesInTheEastStandsOverTheSouthAndSetsInTheWest(t *testing.T) {
 }
 
 func TestSunAt_StandsOverNoonWayAtNoonAndTurnsItsWholePathWithIt(t *testing.T) {
-	northWest := defaults // the north-west by default
+	northWest := defaults
 	s := northWest.SunAt(0, 0.5)
 	if !near(s.Dir[0], s.Dir[1]) || s.Dir[0] >= 0 || !near(s.Dir[2], float32(math.Sin(math.Pi/3))) {
 		t.Errorf("at noon the sun is %+v, want it over the north-west 60° up", s)
 	}
-	// a quarter turn round from noon at 6: south-west, as the east is from the south
+	// at 6 a quarter turn round from noon: south-west, as the east is from the south
 	if s := northWest.SunAt(0, 0.25); !near(s.Dir[0], -s.Dir[1]) || s.Dir[1] <= 0 || !near(s.Dir[2], 0) {
 		t.Errorf("at 6 the sun is %+v, want it on the horizon in the south-west", s)
 	}
@@ -53,7 +51,6 @@ func TestSunAt_StandsOverNoonWayAtNoonAndTurnsItsWholePathWithIt(t *testing.T) {
 	}
 }
 
-// rig is a sky on a clock the test moves on.
 type rig struct {
 	clk *clock.Clock
 	sky *Sky
@@ -65,7 +62,6 @@ func skyOf(t *testing.T, cfg Config, cal calendar.Config) *rig {
 	return &rig{clk: clk, sky: New(calendar.New(clk, cal), cfg, Latitude)}
 }
 
-// tick has the clock move on by d, then the sky set the sun.
 func (r *rig) tick(d time.Duration) {
 	r.clk.Replay(nil, d)
 	r.sky.Update()
@@ -88,7 +84,6 @@ func TestSky_TheSunFollowsTheCalendarInSteps(t *testing.T) {
 	}
 }
 
-// Without steps the sun goes on with the calendar tick by tick.
 func TestSky_TheSunGoesOnWithTheCalendar(t *testing.T) {
 	r := skyOf(t, Config{}, calendar.Config{DayRealTime: 24 * time.Second, Start: 12 * time.Hour})
 	r.tick(0)
@@ -99,8 +94,6 @@ func TestSky_TheSunGoesOnWithTheCalendar(t *testing.T) {
 	}
 }
 
-// Frozen, the light stands at its hour while the calendar goes on; Later and Earlier move it by
-// half an hour and the sun follows at once; let go, it is the hour's again.
 func TestSky_FrozenLightStandsWhileTheCalendarGoesOn(t *testing.T) {
 	cfg := calendar.Config{DayRealTime: 24 * time.Second, Start: 12 * time.Hour}
 	r := skyOf(t, Config{Steps: 24}, cfg)
@@ -216,8 +209,6 @@ func TestLightAt_TheMoonLightsTheNightAsFullAsItIs(t *testing.T) {
 	}
 }
 
-// The heavens have the sun where its light comes from by day, the moon where its light comes from
-// at night, full when opposite the sun, and the pole as high over the north as the latitude.
 func TestHeavensAt_StandTheSunTheMoonAndThePole(t *testing.T) {
 	c := Config{NoonWay: celestial.South, latitude: 50}
 	if h, l := c.place().HeavensAt(0.2, 0.5, 0.5, celestial.RealStars), c.LightAt(0.2, 0.5, 0.5, DefaultMoon()); h.Sun != l.Dir {

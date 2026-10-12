@@ -11,7 +11,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/water"
 )
 
-// chart is a map being made: its cells, the heights of their corners in metres, what lies on them.
 type chart struct {
 	r          recipe
 	flat       bool
@@ -21,7 +20,7 @@ type chart struct {
 	size       float64 // world units a cell
 	perUnit    float64 // metres a world unit
 	land       []bool
-	corners    []float64 // (cols+1) x (rows+1), row by row
+	corners    []float64 // metres, (cols+1) x (rows+1), row by row
 	soils      []string
 	rivers     *water.Network
 	roads      *roads
@@ -75,14 +74,11 @@ func build(r recipe, height elevation, flat bool) (*chart, error) {
 	return w, nil
 }
 
-// lonLat is where the point x, y cells into the map lies on the Earth: the recipe's area projected
-// round its centre, however far it grew.
 func (w *chart) lonLat(x, y float64) (lon, lat float64) {
 	return lonLatOf(w.r.Area.Centre, w.east(x), w.south(y))
 }
 
-// east and south are how many metres east and south of the recipe's centre x and y cells into the
-// map lie.
+// metres east of the recipe's centre, x in cells
 func (w *chart) east(x float64) float64 {
 	return (x - float64(w.origin[0]) - float64(w.r.Area.Cells[0])/2) * w.r.Area.Cell
 }
@@ -91,9 +87,6 @@ func (w *chart) south(y float64) float64 {
 	return (y - float64(w.origin[1]) - float64(w.r.Area.Cells[1])/2) * w.r.Area.Cell
 }
 
-// grow is how far the area grows west and north, and its cells grown, so that Area.Sea cells of
-// sea lie between its land and every edge, the land read anew over the grown area until it holds;
-// the recipe's area as it is with no Sea.
 func grow(r recipe, height elevation) (origin, cells [2]int, err error) {
 	cells = r.Area.Cells
 	sea := r.Area.Sea
@@ -129,8 +122,7 @@ func grow(r recipe, height elevation) (origin, cells [2]int, err error) {
 		sea)
 }
 
-// ashore reports whether the corner (x, y) has land all round it: the coast's corners stay at the
-// sea's level, so the shore slopes down into water that lies level.
+// the coast's corners stay at the sea's level, so the shore slopes down into water lying level
 func (w *chart) ashore(x, y int) bool {
 	for _, d := range [4][2]int{{-1, -1}, {0, -1}, {-1, 0}, {0, 0}} {
 		cx, cy := x+d[0], y+d[1]
@@ -153,14 +145,13 @@ func (w *chart) isLand(c cell.ID) bool {
 	return w.land[y*w.cols+x]
 }
 
-// cornersOf is c's corners: top-left, top-right, bottom-left, bottom-right.
+// top-left, top-right, bottom-left, bottom-right
 func (w *chart) cornersOf(c cell.ID) [4]int {
 	x, y := w.xy(c)
 	k := y*(w.cols+1) + x
 	return [4]int{k, k + 1, k + w.cols + 1, k + w.cols + 2}
 }
 
-// rim is the corners of the lattice direction i leaves c by: two for an edge, one for a corner.
 func (w *chart) rim(c cell.ID, i int) []int {
 	var buf [4]geom.Vec
 	outline := w.grid.CellOutline(c, buf[:0])
@@ -171,12 +162,11 @@ func (w *chart) rim(c cell.ID, i int) []int {
 	return []int{w.corner(outline[a]), w.corner(outline[b])}
 }
 
-// corner is the lattice's corner at p.
 func (w *chart) corner(p geom.Vec) int {
 	return int(math.Round(p.Y/w.size))*(w.cols+1) + int(math.Round(p.X/w.size))
 }
 
-// outline is c's corners' heights in world units, round it as the grid draws its outline.
+// world units, in CellOutline's order
 func (w *chart) outline(c cell.ID) []float64 {
 	var heights []float64
 	for _, p := range w.grid.CellOutline(c, nil) {
@@ -236,9 +226,6 @@ func (w *chart) drain() error {
 
 func (w *chart) wet(c cell.ID) bool { return w.rivers.Courses[c] != water.Dry }
 
-// soil lays rock where the ground is steep or high, sand along the low coast, forest at the
-// heights the recipe gives, earth elsewhere; the sand and the forest on the share of their
-// candidates a noise picks.
 func (w *chart) soil() {
 	g := w.r.Ground
 	inland := w.fromSea()
@@ -317,7 +304,7 @@ func cmpFloat(a, b float64) int {
 	return 0
 }
 
-// fbm is smooth noise in [0, 1): three octaves of value noise.
+// three octaves of value noise, in [0, 1)
 func fbm(x, y float64) float64 {
 	return (valueNoise(x, y) + 0.5*valueNoise(2*x, 2*y) + 0.25*valueNoise(4*x, 4*y)) / 1.75
 }

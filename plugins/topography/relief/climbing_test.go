@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// A climb costs the more the steeper it is; a descent is quickest at Ease and costs the more the
-// steeper it is past it; no slope is quicker than Least.
 func TestClimbing_CostsTheMoreTheSteeperEitherWay(t *testing.T) {
 	c := DefaultClimbing
 	for _, s := range []struct{ slope, want float64 }{

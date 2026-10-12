@@ -14,13 +14,10 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// thing is the row the spawn tests' kind spawns from: where it stands and how big it is.
 type thing struct {
 	x, y, size float64
 }
 
-// spawnWorld is a world of the edges given holding at most n entities, with one kind, thing,
-// defined, set up and ready to tick; the counts are read off the module.
 func spawnWorld(t *testing.T, edges aabbworld.Edges, n int) (*Plugin, kind.Of[thing], *goke.ECS, *goke.Query, *goke.Comp[Base]) {
 	t.Helper()
 	p := NewPlugin(Config{
@@ -42,7 +39,6 @@ func spawnWorld(t *testing.T, edges aabbworld.Edges, n int) (*Plugin, kind.Of[th
 	return p, things, ecs, q, base
 }
 
-// A Spawn given is an entity in the world at the next step: in the ECS, in the space and counted.
 func TestSpawn_MakesAnEntityOfTheKindAtTheNextStep(t *testing.T) {
 	p, things, ecs, q, _ := spawnWorld(t, 0, 4)
 	wm := p.module
@@ -64,9 +60,6 @@ func TestSpawn_MakesAnEntityOfTheKindAtTheNextStep(t *testing.T) {
 	}
 }
 
-// A Spawn is refused, with nothing made, for a row of another type, a size out of bounds, a box
-// wholly past an open edge, and once the world is full; the kind's entries past the room are
-// refused, those before it made.
 func TestSpawn_RefusesWhatTheWorldDoesNotTake(t *testing.T) {
 	p, things, ecs, q, _ := spawnWorld(t, aabbworld.OpenX, 3)
 	wm := p.module
@@ -92,8 +85,6 @@ func TestSpawn_RefusesWhatTheWorldDoesNotTake(t *testing.T) {
 	}
 }
 
-// A despawn makes room at once: a spawn waiting in the same step takes it, and the next finds
-// the world full again.
 func TestSpawn_FillsTheRoomADespawnLeaves(t *testing.T) {
 	p, things, ecs, q, _ := spawnWorld(t, 0, 1)
 	wm := p.module
@@ -119,7 +110,6 @@ func TestSpawn_FillsTheRoomADespawnLeaves(t *testing.T) {
 	}
 }
 
-// A component added to a spawned entity in the same step lands with the step's sync.
 func TestSpawn_AnEntitySpawnedThisStepTakesAComponentAtOnce(t *testing.T) {
 	p, things, ecs, q, _ := spawnWorld(t, 0, 2)
 	wm := p.module
@@ -146,7 +136,6 @@ func TestSpawn_AnEntitySpawnedThisStepTakesAComponentAtOnce(t *testing.T) {
 	}
 }
 
-// After a load the room is counted from what was loaded, so a full world stays full.
 func TestSpawn_TheRoomIsCountedAfterALoad(t *testing.T) {
 	p, things, ecs, _, _ := spawnWorld(t, 0, 2)
 	wm := p.module
@@ -187,7 +176,6 @@ func TestSpawn_TheRoomIsCountedAfterALoad(t *testing.T) {
 	}
 }
 
-// At Setup a row of a size outside the bounds still panics, before any entity is made.
 func TestSpawn_PopulateStillRefusesASizeOutOfBounds(t *testing.T) {
 	defer func() {
 		if recover() == nil {

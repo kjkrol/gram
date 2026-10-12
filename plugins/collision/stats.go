@@ -8,14 +8,14 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// ContactStats is the running total of contacts the collision counts, given with WithStats. It
-// only grows; Reporter works a rate out of it.
+// ContactStats is the running total of contacts collision counts, given with WithStats. It only
+// grows; Reporter works a rate out of it.
 type ContactStats struct {
 	Counter int
 }
 
-// Reporter is the stats' lines for a render.TelemetryRenderer: contacts a second, averaged over
-// the last few, and contacts a tick at the tick rate tps points to.
+// Reporter is the stats' lines for a render.TelemetryRenderer: contacts a second and, at the
+// tick rate tps points to, contacts a tick.
 func (s *ContactStats) Reporter(tps *int) render.Reporter { return &reporter{stats: s, tps: tps} }
 
 type reporter struct {
@@ -36,12 +36,10 @@ func (r *reporter) Report(line func(label, value string)) {
 	line("Collisions/Tick", fmt.Sprintf("%0.2f", perTick))
 }
 
-// smoothedWindows is how many closed one-second windows a rate is averaged over:
-// enough that a few events a second read as a rate rather than as flicker.
+// closed one-second windows a rate is averaged over: a few events a second read as a rate, not
+// flicker
 const smoothedWindows = 5
 
-// perSecond turns a running total, looked at as often as anyone likes, into how
-// fast it has been growing over the last few seconds.
 type perSecond struct {
 	last  int
 	since time.Time
@@ -52,7 +50,6 @@ type perSecond struct {
 	started bool
 }
 
-// observe takes the total as of now and returns its growth a second, averaged over closed windows.
 func (p *perSecond) observe(total int, now time.Time) float64 {
 	switch {
 	case !p.started:

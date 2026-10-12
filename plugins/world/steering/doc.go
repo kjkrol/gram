@@ -1,18 +1,20 @@
-// Package steering turns what an entity wants into motion, gradually. A [Steering] is how it may
-// be steered — how fast it turns and answers, and a motion profile: the top speed, how fast it
-// speeds up and brakes, the speed it sets off at; Halted holds it where it is. It is a knob the
-// steering only reads, which an effect may Alter. What the entity is asked and how far it has come
-// is its [Course], beside it — the world gives one to every unit, the [System] to an entity that
-// has none. Whoever steers holds both as a [Helm]: [Helm.Request] asks for a heading (after
-// Reflex ticks), [Helm.RequestSpeed] for a speed, [Helm.RequestBack] to back away and
-// [Helm.RequestSprint] for Sprint times the top speed, a hand urging it on. The System, run by the
-// world in every step of its simulation before movement, turns the entity's heading towards the
-// one wanted by at most TurnRate a tick and writes its base speed from the profile. Navigation
-// steers units through it.
+// Package steering turns what an entity wants into motion, gradually.
 //
-// [Driven] marks an entity steered by hand — walk on, sprint or stop, turn, or turn to face a way,
-// and, flown from inside, how steeply to climb where it flies ([Driven.Slope]) — written every tick
-// by whoever steers it (a camera riding in it) and carried out by the plugin that moves entities
-// over the ground (plugins/navigation) and the one that knows the ground's height
-// (plugins/topography).
+// # Steering, Course and Helm
+//
+// A [Steering] is how an entity may be steered: how fast it turns and answers, and its motion
+// profile. It is a knob an effect may Alter. Its [Course] is what it is asked and how far it has
+// come; whoever steers holds both as a [Helm] and asks for a heading or a speed through it. The
+// [System], run by the world before movement, turns the heading by at most TurnRate a tick and
+// writes the base speed from the profile.
+//
+// # Commands
+//
+// [Away], [Toward] and [Turn] are the commands an entity gives itself in a rule; the System
+// carries them out, one a step.
+//
+// # Driven and Pace
+//
+// [Driven] is an entity steered by hand, written every tick by whoever steers it and carried out
+// by the driving plugin. [Pace] is how fast the ground lets an entity go, written by the board.
 package steering

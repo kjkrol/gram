@@ -21,7 +21,6 @@ const (
 
 // Engine drives a game.Game through its window's loop (gogpu), one active Stage and its ECS at a
 // time.
-// Stage names are always resolved against game.Stages().
 type Engine struct {
 	game    game.Game
 	current *stageRuntime
@@ -34,21 +33,18 @@ type Engine struct {
 	tps         *game.TPS
 	controller  *DefaultController
 	adapter     *DesktopAdapter
-	app         *gogpu.App    // the window, once Run opened it
-	window      *render.Image // what a frame is drawn into, then presented on the window
+	app         *gogpu.App // the window, once Run opened it
+	window      *render.Image
 	frames      int
 	counted     time.Time
 	spent       spent
 
-	// pendingSwitch names the Stage to enter at the top of the next Update, pendingLoad the save
-	// slot it is entered from; nil, afresh.
 	pendingSwitch     string
-	pendingLoad       *string
+	pendingLoad       *string // nil: entered afresh
 	commands          commands
 	transitionOverlay render.SolidBackground
 
-	quit bool
-	// width and height are the window's, once a resizable one has been laid out.
+	quit          bool
 	width, height int
 }
 
@@ -107,10 +103,10 @@ func (e *Engine) TogglePause() {
 // Quit ends the loop after this tick.
 func (e *Engine) Quit() { e.quit = true }
 
-// ToggleFullscreen switches the window to fullscreen and back.
 // Props are the game's, read once as the engine was made.
 func (e *Engine) Props() game.Props { return e.props }
 
+// ToggleFullscreen switches the window to fullscreen and back.
 func (e *Engine) ToggleFullscreen() {
 	if e.app != nil {
 		e.app.ToggleFullscreen()
@@ -127,8 +123,7 @@ func (e *Engine) SwitchStage(name string) error {
 	return nil
 }
 
-// Init enters the initial Stage — or the one Load asked for, from its save — and makes the
-// engine's step the only clock, loop not yet started.
+// Init enters the initial Stage, or the one Load asked for from its save.
 func (e *Engine) Init() error {
 	stages, initial := e.game.Stages()
 	if e.pendingSwitch != "" {
@@ -161,7 +156,7 @@ func (e *Engine) Run() {
 	}
 	cfg := gogpu.DefaultConfig().WithTitle(e.props.Title).WithSize(e.props.ScreenWidth, e.props.ScreenHeight).
 		WithResizable(e.props.Resizable).WithContinuousRender(true).WithVSync(os.Getenv("GRAM_VSYNC") != "off")
-	if os.Getenv("GRAM_FULLSCREEN") != "" { // for measuring: the game starts fullscreen
+	if os.Getenv("GRAM_FULLSCREEN") != "" {
 		cfg = cfg.WithFullscreen()
 	}
 	e.app = gogpu.NewApp(cfg)
@@ -174,7 +169,6 @@ func (e *Engine) Run() {
 	}
 }
 
-// frame runs a tick of the game and draws its picture on the window.
 func (e *Engine) frame(dc *gogpu.Context) {
 	p := e.app.DeviceProvider()
 	view := dc.SurfaceView()
@@ -225,19 +219,12 @@ func (e *Engine) frame(dc *gogpu.Context) {
 	}
 }
 
-// logRates has the engine log its frame rate and where a frame's time goes, every second
-// (GRAM_FPS_LOG set).
 var logRates = os.Getenv("GRAM_FPS_LOG") != ""
 
-// spent is the time a second's frames took, by step.
 type spent struct{ update, draw, present time.Duration }
 
-// =================================================================
-// the loop's steps: Update a tick, Draw a picture, Layout the screen
-// =================================================================
-
-// Update runs a tick: the input captured, a switch of stage made, the world stepped as many times
-// as the time gone says; Termination once the game has quit.
+// Update runs a tick: the input, a switch of stage, the world stepped as many times as the time
+// gone says. It returns Termination once the game has quit.
 func (e *Engine) Update() error {
 	if e.quit {
 		return Termination
@@ -290,15 +277,13 @@ func (e *Engine) Update() error {
 	return nil
 }
 
-// takeLoad is the save slot the Stage about to be entered is loaded from, nil for afresh; asked
-// once.
 func (e *Engine) takeLoad() *string {
 	slot := e.pendingLoad
 	e.pendingLoad = nil
 	return slot
 }
 
-// maxStepsAFrame is how many ticks one frame catches up on at most; past it the engine is behind.
+// a frame further behind drops the rest: the game slows instead of spiralling
 const maxStepsAFrame = 5
 
 // Draw draws the active stage's scenes, bottom to top, onto screen.
@@ -315,8 +300,7 @@ func (e *Engine) Draw(screen *render.Image) {
 	}
 }
 
-// Layout is the fixed screen of the Props, or with Resizable the window itself; the scenes lay
-// their screens over it, the pictures of the world sized as they are shown.
+// Layout is the screen's size: the Props' fixed one, or with Resizable the window's.
 func (e *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
 	if !e.props.Resizable || outsideWidth <= 0 || outsideHeight <= 0 {
 		return e.props.ScreenWidth, e.props.ScreenHeight
@@ -325,9 +309,6 @@ func (e *Engine) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return e.width, e.height
 }
 
-// =================================================================
-
-// dispatchEvents hands input to the active Scene's HandleEvents and to nothing else.
 func (e *Engine) dispatchEvents(events *control.InputEvents) {
 	stack := e.current.stage.Stack()
 	comp := stack.Composition()

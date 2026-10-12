@@ -15,7 +15,6 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// ridge is level ground with a ridge 30 high across x from 100 to 120.
 type ridge struct{}
 
 func (ridge) At(p geom.Vec) float64 {
@@ -27,7 +26,6 @@ func (ridge) At(p geom.Vec) float64 {
 func (ridge) Step() float64   { return 4 }
 func (ridge) Version() uint64 { return 7 }
 
-// level draws the level ground over the world, 256 a side, white, its depth written.
 var level = render.NewMeshShaderWith("test level", []byte(`
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
@@ -38,9 +36,6 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
 fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }
 `), []render.Uniform{{Name: "ViewProj", Size: 16}})
 
-// Laid on the GPU over the level ground drawn from above, a walker's view eastward over the ridge
-// leaves the ground before the ridge clear, veils the ground behind it, strokes the cone's edge
-// and leaves what lies outside the cone alone.
 func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
 	needGPU(t)
 	cam := icamera.NewFromSpace(256, 256, 0)
@@ -81,7 +76,6 @@ func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
 	}
 }
 
-// wall is a flat world's cover: a wall without end across x from 100 to 120.
 type wall struct{}
 
 func (wall) Walk(origin, dir geom.Vec, length float64, _ world.Layers, visit func(near, far, bottom, top, tau float64) bool) {
@@ -91,9 +85,6 @@ func (wall) Walk(origin, dir geom.Vec, length float64, _ world.Layers, visit fun
 }
 func (wall) Version() uint64 { return 3 }
 
-// Over a flat world, nothing drawn but the ground's colour and no depth, the views find the level
-// ground along the camera's lines of sight: a wall without end hides what lies behind it, and on a
-// wrapping world a view reaching over the seam is laid on past it.
 func TestViews_OverAFlatWorldOnTheGPU(t *testing.T) {
 	needGPU(t)
 	cam := icamera.NewFromSpace(256, 256, aabbworld.Torus)
@@ -125,7 +116,6 @@ func TestViews_OverAFlatWorldOnTheGPU(t *testing.T) {
 	}
 }
 
-// needGPU readies a device without a window; a machine without one skips.
 func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {

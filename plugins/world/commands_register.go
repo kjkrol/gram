@@ -7,18 +7,14 @@ import (
 	"github.com/kjkrol/gram/rule"
 )
 
-// Commands are the commands about effects of a Stage, by name: Define says one — put an effect
-// on, take it off or switch it, for whom, set off by whom — and Named is the command, for a key
-// (control.Give), a script or a rule's Order. Reached through Plugin.Commands; each Stage's world
-// has its own. One with a By is given whenever the entity it names Triggers, and every name the
-// commands say is checked as the game starts: one nobody bears, or one two bear, stops it there.
+// Commands is a Stage's register of commands about effects, by name. As the first step begins a
+// name a command says that nobody bears, or one two bear, panics.
 type Commands struct {
 	w      *Plugin
 	byName map[string]rule.Command
 }
 
-// Define says the command called name. Call it where the Stage defines its commands; a name
-// defined twice, or a command that names nobody (On), panics.
+// Define registers cmd as name. A name defined twice, or a command that names nobody, panics.
 func (c *Commands) Define(name string, cmd rule.Command) {
 	c.w.must(fmt.Sprintf("command %q defined", name), section.Commands)
 	if name == "" {
@@ -46,8 +42,7 @@ func (c *Commands) Named(name string) rule.Command {
 	return cmd
 }
 
-// Lookup is Named for a plugin reading names a game wrote — a dialog's answers: false for an
-// unknown one.
+// Lookup is the command defined as name, false for an unknown one.
 func (c *Commands) Lookup(name string) (rule.Command, bool) {
 	cmd, ok := c.byName[name]
 	return cmd, ok

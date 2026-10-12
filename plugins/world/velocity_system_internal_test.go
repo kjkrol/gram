@@ -13,13 +13,10 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// moved is the command the tests' Moving rule gives.
 type moved struct{}
 
 func (moved) Command() {}
 
-// velocityTick runs the velocity pass once, the Moving rules hooked, over an entity going at 100
-// with a Pace of share and one with no Pace; it reports both speeds after, and who gave a moved.
 func velocityTick(t *testing.T, share float64, rules ...rule.Rule) (paced, unpaced float64, gave []uid.UID64) {
 	t.Helper()
 	var commands control.Carrier
@@ -74,7 +71,6 @@ func velocityTick(t *testing.T, share float64, rules ...rule.Rule) (paced, unpac
 	return paced, unpaced, gave
 }
 
-// The pass scales an entity's speed by its Pace and leaves one without a Pace alone.
 func TestVelocitySystem_ScalesByThePace(t *testing.T) {
 	paced, unpaced, _ := velocityTick(t, 0.25)
 	if paced != 25 || unpaced != 100 {
@@ -82,9 +78,8 @@ func TestVelocitySystem_ScalesByThePace(t *testing.T) {
 	}
 }
 
-// The rules of a Moving run in the pass, once for every entity.
 func TestVelocitySystem_RunsTheMovingRules(t *testing.T) {
-	_, _, gave := velocityTick(t, 0.5, rule.Then[Moving]("moving", rule.All, rule.Order(moved{})))
+	_, _, gave := velocityTick(t, 0.5, rule.Branch[Moving]{Name: "moving", Do: rule.Order(moved{})})
 	if len(gave) != 2 || gave[0] == gave[1] {
 		t.Errorf("moved given by %v, want once by each of the two", gave)
 	}

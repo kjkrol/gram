@@ -1,10 +1,7 @@
-// Package section names the parts a Stage is defined in, in their order — the plugins, the
-// players, the effects, the rules, the commands, the kinds of cells and of units, the controls, a
-// fresh game's world, then the scenes — and lets a plugin refuse what is defined in the wrong one.
-// A plugin may name parts of its own between them ([Define]) and give a game a [Section] of one
-// to write into its Stage: the dialogs' conversations, after the commands and before the kinds. A
-// Stage built with package game/stage goes through them; one written by hand is in none, and
-// nothing is refused.
+// Package section names the parts a Stage is defined in, in their order, and lets a plugin
+// refuse what is defined in the wrong one. A plugin may name parts of its own between them
+// ([Define]) and give a game a [Section] of one to write into its Stage; a Stage written by hand
+// is in none, and nothing is refused.
 package section
 
 import "fmt"
@@ -13,22 +10,21 @@ import "fmt"
 type Part uint8
 
 const (
-	Anytime  Part = iota // none: a Stage written by hand, a test
-	Plugins              // the plugins are made and used: anything may be defined, as they define their own
-	Players              // the players and the plugins' keys, their defaults and those a game sets
-	Effects              // the states
-	Rules                // the roles, the rules, the plans
-	Commands             // what can be asked for
-	Kinds                // the kinds of cells, with the roles their cells play, and of units
-	Controls             // the game's own keys, listed apart from the plugins' (players.Shortcuts)
-	Spawn                // a fresh game's world: its board, its units
-	Scenes               // the scenes, once the world is there
-	Done                 // the Stage is defined
+	Anytime Part = iota // a Stage written by hand
+	Plugins             // anything may be defined: the plugins define their own
+	Players             // the players and the plugins' keys
+	Effects
+	Rules // the roles and the plans too
+	Commands
+	Kinds    // of cells and of units
+	Controls // the game's own keys
+	Spawn
+	Scenes
+	Done
 )
 
 var names = []string{"no section", "Plugins", "Players", "Effects", "Rules", "Commands", "Kinds", "Controls", "Spawn", "Scenes", "the defined Stage"}
 
-// bounds are the parts each plugin's part lies between, by part.
 var bounds = map[Part][2]Part{}
 
 func (p Part) String() string {
@@ -38,8 +34,8 @@ func (p Part) String() string {
 	return fmt.Sprintf("part %d", p)
 }
 
-// Define is a part of a Stage's definition a plugin names, between the parts after and before: what
-// its Sections run in, and what it refuses things outside of. Call it once, for a package variable.
+// Define is a part of a Stage's definition a plugin names, between the parts after and before.
+// Call it once, for a package variable.
 func Define(name string, after, before Part) Part {
 	if len(names) > 255 {
 		panic(fmt.Sprintf("section: %q is one part too many", name))
@@ -59,8 +55,7 @@ func (p Part) Between() (after, before Part, ok bool) {
 	return b[0], b[1], ok
 }
 
-// Section is a plugin's part of a Stage's definition, made by Of: the Stage runs it where the game
-// writes it (game/stage, With), handing it the plugin it is of.
+// Section is a plugin's part of a Stage's definition, run where the game writes it.
 type Section struct {
 	Part Part
 	run  func(used []any) error
@@ -79,21 +74,20 @@ func Of[P any](part Part, f func(p P) error) Section {
 	}}
 }
 
-// Run runs s with the plugins the Stage uses: what game/stage does where the game wrote it.
+// Run runs s with the plugins the Stage uses.
 func (s Section) Run(used []any) error { return s.run(used) }
 
-// Reader tells which part of the Stage is being defined: the engine's Initializer is one.
+// Reader tells which part of the Stage is being defined.
 type Reader interface{ Section() Part }
 
-// Writer is a Reader told which part begins: what a Stage built in sections drives.
+// Writer is a Reader told which part begins.
 type Writer interface {
 	Reader
 	Enter(p Part)
 }
 
 // Check is an error for what, which belongs in one of want, when src says another part of the
-// Stage is being defined; nil for a src that tells no parts, for no section and for Plugins,
-// where the plugins define what is their own.
+// Stage is being defined; nil for a src that tells no parts, for Anytime and for Plugins.
 func Check(src any, what string, want ...Part) error {
 	r, ok := src.(Reader)
 	if !ok {

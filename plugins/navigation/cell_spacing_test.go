@@ -11,8 +11,6 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Under CellSpacing a route is planned over the ground alone: it runs straight through the cell
-// someone stands on.
 func TestCellSpacing_RoutesAreBlindToOthers(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
 	units := []roadUnit{
@@ -30,8 +28,6 @@ func TestCellSpacing_RoutesAreBlindToOthers(t *testing.T) {
 	}
 }
 
-// One standing on the road, come at by one on the move, steps off the road square to it and stays
-// there; the one on the move gets through.
 func TestCellSpacing_OneStandingInTheWayStepsAsideAndStays(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
 	units := []roadUnit{
@@ -61,8 +57,6 @@ func TestCellSpacing_OneStandingInTheWayStepsAsideAndStays(t *testing.T) {
 	}
 }
 
-// With walls beside the road nobody can give way and there is no way round: the one on the move
-// waits, stalls a few times and gives its order up where it stands; the standing one never moves.
 func TestCellSpacing_NoRoomToGiveWayAndNoWayRoundTheMoverGivesUp(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
 	units := []roadUnit{
@@ -91,8 +85,6 @@ func TestCellSpacing_NoRoomToGiveWayAndNoWayRoundTheMoverGivesUp(t *testing.T) {
 	t.Fatal("the mover never gave up within 12 s")
 }
 
-// Nobody makes way for one giving way itself; one standing steps aside square off the way of the
-// one coming, or slantwise beside it with those cells held — never ahead of it — and stays there.
 func TestCellSpacing_OneStandingStepsAsideOffTheWay(t *testing.T) {
 	if (Touch{OtherMoving: true, OtherGivingWay: true, Ally: true}).PushedByAlly() {
 		t.Error("made way for one giving way")
@@ -116,7 +108,6 @@ func TestCellSpacing_OneStandingStepsAsideOffTheWay(t *testing.T) {
 	}
 }
 
-// posAt is a 22-unit box on c.
 func posAt(grid grid.Grid, c cell.ID) world.Position {
 	return world.Position{AABB: cellBox(grid, c, 22)}
 }

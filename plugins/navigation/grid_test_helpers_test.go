@@ -12,7 +12,6 @@ func cellAtXY(g grid.Grid, x, y uint32) cell.ID {
 	return c
 }
 
-// cellBox is the size x size box centred on cell c.
 func cellBox(g grid.Grid, c cell.ID, size uint32) plane.AABB {
 	at := g.CellCenter(c)
 	half := float64(size) / 2

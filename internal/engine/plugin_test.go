@@ -41,7 +41,6 @@ func (p *stubPlugin) Renderer() render.Layer             { return nil }
 func (p *stubPlugin) EventHandler() control.EventHandler { return nil }
 func (p *stubPlugin) Serializable() plugin.Serializable  { return p.serializable }
 
-// stubStage is a minimal game.Stage for testing Engine/Initializer.
 type stubStage struct {
 	name   string
 	initFn func(ctx game.Initializer) error
@@ -70,8 +69,6 @@ func (s *stubStage) Stack() game.Scenes {
 	return s.stack
 }
 
-// oneStageGame is a minimal game.Game wrapping a single Stage — enough for
-// tests that only care about Engine/Initializer behavior within one Stage.
 type oneStageGame struct {
 	stage game.Stage
 	props game.Props
@@ -168,7 +165,6 @@ type testPersisted struct{ N int }
 
 func (p *testPersisted) Persisted() []any { return []any{&p.N} }
 
-// stubBuiltinPlugin implements Builtin, so Use must reject it.
 type stubBuiltinPlugin struct{ stubPlugin }
 
 func (*stubBuiltinPlugin) Builtin() {}

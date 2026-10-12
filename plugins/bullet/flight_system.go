@@ -14,21 +14,16 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// landBack is how far short of the first touch a shot is laid, so its box overlaps nothing.
+// landBack lays a shot short of the first touch, so its box overlaps nothing.
 const landBack = 0.01
 
-// edgeEps is how far off its wanted place a box stopped at a closed edge is told by.
 const edgeEps = 1e-6
 
-// rangeEps is how short of its Range a flight counts as flown: a step's rounding, nothing seen.
+// rangeEps absorbs a step's rounding short of the Range.
 const rangeEps = 1e-3
 
 var _ goke.System = (*flightSystem)(nil)
 
-// flightSystem flies every shot a step: one whose last step collision found a contact on, or
-// whose last step ended its flight, lands — the Landing rules told, with the step's effects on it
-// still landing — and the rest fly on, the Sweep's From written for collision. A landed shot that
-// Lands is a Resting every step; one that does not is gone at the next.
 type flightSystem struct {
 	w        *world.Plugin
 	space    *aabbworld.Space
@@ -37,7 +32,7 @@ type flightSystem struct {
 	groundOf func() ground.Heights
 	tickOf   plugin.TickSource
 
-	flights *goke.Query // every shot; its Collider and Sweep while it flies, its Z with heights
+	flights *goke.Query
 	base    goke.Comp[world.Base]
 	flight  goke.Comp[Flight]
 	body    goke.Comp[Body]
@@ -45,14 +40,13 @@ type flightSystem struct {
 	sweep   goke.OptComp[collision.Sweep]
 	z       goke.OptComp[world.Z]
 
-	resting *goke.Query // every shot again, for the Resting rules: a host a query
+	resting *goke.Query // a host a query
 	rbase   goke.Comp[world.Base]
 	rflight goke.Comp[Flight]
 	rbody   goke.Comp[Body]
 
 	sweepID, collID, outsideID goke.CompID
 
-	// the chunk being walked, for the rules: which of its shots land this step
 	walking struct {
 		ids     []uid.UID64
 		flights []Flight
@@ -99,7 +93,7 @@ func (s *flightSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 			f := &flights[i]
 			if f.Landed && !bodies[i].Lands {
 				s.walking.ends = append(s.walking.ends, false)
-				s.w.Despawn(cb, id) // spent: it lay a step for the effects its landing cast
+				s.w.Despawn(cb, id) // it lay a step for the effects its landing cast
 				continue
 			}
 			var sw *collision.Sweep
@@ -134,8 +128,6 @@ func (s *flightSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 	}
 }
 
-// struck ends f on the nearest contact collision found on its last step, if any: the shot laid
-// just short of the first touch, Struck with the entity or Wall with the cell.
 func (s *flightSystem) struck(f *Flight, base *world.Base, sw *collision.Sweep, contacts []collision.Contact) bool {
 	k := -1
 	for i := range contacts {
@@ -161,11 +153,9 @@ func (s *flightSystem) struck(f *Flight, base *world.Base, sw *collision.Sweep, 
 	return true
 }
 
-// fly flies f its step: as far as its speed and the range left allow, a thrown one falling under
-// its gravity, and notes where the step ends its flight — the ground, its Range, an edge.
 func (s *flightSystem) fly(f *Flight, body Body, base *world.Base, sw *collision.Sweep, z *world.Z, dt float64) {
 	run := min(body.Speed*dt, f.Range-f.Flown)
-	base.Vel.Dir = f.Dir // the heading, for a Turning look; Value stays 0 — the flight moves it
+	base.Vel.Dir = f.Dir // for a Turning look; Value stays 0, the flight moves it
 	if sw != nil {
 		sw.From = f.At
 	}
@@ -196,30 +186,25 @@ func (s *flightSystem) fly(f *Flight, body Body, base *world.Base, sw *collision
 	}
 }
 
-// place puts f's box with its centre at p under the world's edge rules and reads the centre back;
-// false once the box has left by an open edge.
+// place is false once the box has left by an open edge.
 func (s *flightSystem) place(f *Flight, base *world.Base, p geom.Vec) bool {
 	in := s.space.MoveTo(&base.Pos.AABB, geom.NewVec(p.X-base.Pos.Size.X/2, p.Y-base.Pos.Size.Y/2))
 	f.At = base.Pos.Center()
 	return in
 }
 
-// landing is the Landing of the i-th shot of the chunk being walked.
 func (s *flightSystem) landing(i int) Landing {
 	f := &s.walking.flights[i]
 	return Landing{ID: s.walking.ids[i], At: f.At, Struck: f.Ending == Struck, Other: f.Other, Wall: f.Ending == Wall,
 		Cell: f.Cell, Grounded: f.Ending == Grounded || f.Ending == Spent, Left: f.Ending == Left}
 }
 
-// lands reports whether the i-th shot of the chunk being walked lands this step.
 func (s *flightSystem) lands(i int) bool { return s.walking.ends[i] }
 
-// rest is the Resting of the i-th shot of the chunk being walked.
 func (s *flightSystem) rest(i int) Resting {
 	return Resting{ID: s.walking.ids[i], At: s.walking.flights[i].At}
 }
 
-// rests reports whether the i-th shot of the chunk being walked lies landed, to stay.
 func (s *flightSystem) rests(i int) bool {
 	return s.walking.flights[i].Landed && s.walking.bodies[i].Lands
 }

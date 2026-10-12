@@ -16,21 +16,12 @@ import (
 
 var _ goke.System = (*cameraSystem)(nil)
 
-// cameraSystem carries out the view's commands on the cameras of this view, and every tick keeps
-// each camera fastened Behind or Inside its entity (camera.Fastening, which the players' Follow
-// and Ride set): behind it — centred on it at its altitude and turning, eased, until the way it
-// walks runs up the screen, in perspective looking down more steeply where the ground between
-// them would hide it — or inside it, the eye going with it and looking the way it faces. A
-// fastening changed or let go, or the entity gone, ends it; a camera fastened Centred is the
-// players' to keep.
 type cameraSystem struct {
-	orders Orders
-	relief *relief.Relief // the ground between a fastened eye and its entity; nil, level
-	// topAt is the top of the cell under a point as it is drawn — the ground and its kind's
-	// Height — which an eye riding in an entity never goes under; nil, the ground
-	topAt       func(geom.Vec) float64
-	perspective bool           // Ride reaches Inside
-	cams        *[]*viewCamera // every camera of this view, as the Maker made them
+	orders      Orders
+	relief      *relief.Relief         // nil, level
+	topAt       func(geom.Vec) float64 // nil, the ground
+	perspective bool                   // Ride reaches Inside
+	cams        *[]*viewCamera
 
 	query  *goke.Query
 	base   goke.Comp[world.Base]
@@ -41,31 +32,27 @@ type cameraSystem struct {
 	following []following
 }
 
-// following is one camera fastened to one entity — behind it, or inside it — as the system keeps
-// it; behind it in perspective, how steeply the player wants to look down (wantPitch, read after
-// tilts tilts) and how steeply the eye looks (appliedPitch).
 type following struct {
 	cam    *viewCamera
 	target uid.UID64
 	inside bool
-	// inside: the way the eye looks, the entity turning to face it, while aiming — till it does
+	// inside, while aiming: the way the eye looks, the entity turning to face it
 	aim    geom.Vec
 	aiming bool
 
+	// behind, in perspective: how steeply the player wants to look down, and how steeply the
+	// eye does
 	wantPitch, appliedPitch float32
 	tilts                   uint32
 }
 
-// shoulder is how far below the middle of the screen, as a part of its height, a fastened camera
-// holds its entity looking along the ground; less the steeper it looks down, none straight down.
+// a part of the screen's height a fastened camera holds its entity below the middle
 const shoulder = 0.25
 
-// followEase is how long a fastened camera takes to turn most of the way behind its entity: about
-// two thirds of any turn in that time.
+// about two thirds of any turn in this time
 const followEase = 250 * time.Millisecond
 
-// clearStep is by how much a fastened eye in perspective looks down more steeply at a time, until
-// the ground no longer hides its entity.
+// how much steeper a fastened eye looks at a time until the ground no longer hides its entity
 const clearStep = 5 * math.Pi / 180
 
 func (s *cameraSystem) Init(si *goke.SysInit) {
@@ -83,7 +70,8 @@ func (s *cameraSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 		}
 	})
 	s.orders.Turns(func(c camera.Camera, angle float32) {
-		if cam, ok := c.(*viewCamera); ok && !cam.insideUnit() { // an eye inside turns with its unit
+		// an eye inside turns with its unit
+		if cam, ok := c.(*viewCamera); ok && !cam.insideUnit() {
 			cam.Turn(angle)
 		}
 	})
@@ -118,7 +106,7 @@ func (s *cameraSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 	})
 	s.reconcile()
 	kept := s.following[:0]
-	var gone []*viewCamera // their entities gone: nothing to stop, the cameras on their own again
+	var gone []*viewCamera
 	for _, f := range s.following {
 		if s.keep(&f, d) {
 			kept = append(kept, f)
@@ -133,9 +121,6 @@ func (s *cameraSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-// ride takes cam closer round the entity it is fastened to: Centred behind it, Behind inside it
-// where the game reaches the perspective — else over it again — and Inside over it again; a
-// camera fastened to nothing stays as it is.
 func (s *cameraSystem) ride(cam *viewCamera) {
 	f := cam.Fastening()
 	switch f.How {
@@ -154,10 +139,6 @@ func (s *cameraSystem) ride(cam *viewCamera) {
 	cam.Fasten(f)
 }
 
-// reconcile brings what the system keeps in line with what the cameras say they are fastened to:
-// a camera fastened Behind or Inside without an entry gets one, an entry whose camera is fastened
-// otherwise — to nothing, Centred, another entity, the other way — is let go, and fastened anew
-// where the camera still says Behind or Inside.
 func (s *cameraSystem) reconcile() {
 	if s.cams == nil {
 		return
@@ -174,7 +155,6 @@ func (s *cameraSystem) reconcile() {
 	}
 }
 
-// fastened is what cam is fastened to as the system keeps it, nil for nothing.
 func (s *cameraSystem) fastened(cam *viewCamera) *following {
 	for i := range s.following {
 		if s.following[i].cam == cam {
@@ -184,9 +164,6 @@ func (s *cameraSystem) fastened(cam *viewCamera) *following {
 	return nil
 }
 
-// fasten fastens cam to id, behind it or inside it: to an entity that is gone it is let go of
-// everything; an eye that cannot go inside stays over the entity, the camera fastened Centred
-// again.
 func (s *cameraSystem) fasten(cam *viewCamera, id uid.UID64, inside bool) {
 	if !s.query.Seek(id) {
 		cam.Fasten(camera.Fastening{})
@@ -200,8 +177,6 @@ func (s *cameraSystem) fasten(cam *viewCamera, id uid.UID64, inside bool) {
 	s.keep(&s.following[len(s.following)-1], 0)
 }
 
-// letGo ends the system's keeping of cam and reports whether it kept it: its entity's Driven
-// loses what the eye wrote — its Look, Flown, Climb — and an eye inside it comes out.
 func (s *cameraSystem) letGo(cam *viewCamera) bool {
 	for i, f := range s.following {
 		if f.cam == cam {
@@ -216,8 +191,6 @@ func (s *cameraSystem) letGo(cam *viewCamera) bool {
 	return false
 }
 
-// comeOut lets cam go of everything when its eye is inside an entity: what puts the eye
-// elsewhere does first.
 func (s *cameraSystem) comeOut(cam *viewCamera) {
 	if f := s.fastened(cam); f != nil && f.inside {
 		s.letGo(cam)
@@ -225,8 +198,7 @@ func (s *cameraSystem) comeOut(cam *viewCamera) {
 	}
 }
 
-// write sets the eye's part of how id is driven — the way it looks, whether it is flown from
-// inside and how steeply — when it carries a Driven; the hand's part is whoever drives it.
+// the eye's part of a Driven alone; the hand's part is whoever drives it
 func (s *cameraSystem) write(id uid.UID64, look geom.Vec, flown bool, climb float64) {
 	if !s.query.Seek(id) {
 		return
@@ -236,8 +208,6 @@ func (s *cameraSystem) write(id uid.UID64, look geom.Vec, flown bool, climb floa
 	}
 }
 
-// look has the eye riding in f's entity look round by a move of the mouse, dx and dy pixels: the head raised or lowered at once,
-// the way it looks turned at once, the entity turning to face it from the next tick.
 func (s *cameraSystem) look(f *following, dx, dy float32) {
 	if dy != 0 {
 		f.cam.Tilt(dy * LookStep)
@@ -254,16 +224,12 @@ func (s *cameraSystem) look(f *following, dx, dy float32) {
 	f.cam.Turn(behind(float32(f.aim.X), float32(f.aim.Y)) - f.cam.Heading())
 }
 
-// facing is the way along the ground an eye at heading looks: the way behind puts up the screen.
+// the inverse of behind
 func facing(heading float32) geom.Vec {
 	s, c := math.Sincos(float64(heading) + math.Pi/4)
 	return geom.NewVec(-s, -c)
 }
 
-// keep holds f's camera with its entity over d: behind it, turned towards the way it walks and
-// centred on it at its altitude; inside it, the eye at its centre as high as it stands, the
-// entity steered by the eye's Pans and the view turned with it while it turns. False when the
-// entity is gone.
 func (s *cameraSystem) keep(f *following, d time.Duration) bool {
 	s.query.All()
 	for s.query.Next() {
@@ -290,20 +256,22 @@ func (s *cameraSystem) keep(f *following, d time.Duration) bool {
 				driven = &drivens[i]
 			}
 			if f.inside && f.aiming {
-				if driven != nil && driven.Turn != 0 { // the keys turn it: the look goes with it again
+				// the keys turn it: the look goes with it again
+				if driven != nil && driven.Turn != 0 {
 					f.aiming = false
 				} else if faces && math.Abs(math.Atan2(dir.X*f.aim.Y-dir.Y*f.aim.X, dir.X*f.aim.X+dir.Y*f.aim.Y)) < 1e-3 {
 					f.aiming = false // it faces the way the eye looks: pinned to it again
 				}
 			}
-			if driven != nil && f.inside { // flown from inside: the way it is steered rises as the rider looks up
+			// flown from inside: the way it is steered rises as the rider looks up
+			if driven != nil && f.inside {
 				driven.Look = geom.Vec{}
 				if f.aiming {
 					driven.Look = f.aim
 				}
 				driven.Flown, driven.Climb = true, -math.Sin(float64(f.cam.Pitch()))
 			}
-			if f.inside { // the eye in the entity, looking the way it faces or turns to face
+			if f.inside {
 				look, looks := dir, faces
 				if f.aiming {
 					look, looks = f.aim, true
@@ -313,7 +281,7 @@ func (s *cameraSystem) keep(f *following, d time.Duration) bool {
 						f.cam.Turn(by)
 					}
 				}
-				f.cam.CenterOn(cx, cy, s.riding(cx, cy, level, f.cam.persp.cell)) // where its eye is
+				f.cam.CenterOn(cx, cy, s.riding(cx, cy, level, f.cam.persp.cell))
 				return true
 			}
 			if faces {
@@ -322,11 +290,10 @@ func (s *cameraSystem) keep(f *following, d time.Duration) bool {
 				}
 			}
 			f.cam.CenterOn(cx, cy, alt)
-			if f.cam.inPersp { // the eye in sight of the entity, before it looks over its shoulder
+			if f.cam.inPersp { // before it looks over its shoulder
 				s.clear(f, [3]float32{float32(cx), float32(cy), float32(alt)}, d)
 			}
-			// over its shoulder: the lower the eye, the lower the entity on the screen, the more of
-			// what lies ahead above it
+			// over its shoulder: the lower the eye, the lower the entity on the screen
 			_, h := f.cam.Viewport()
 			f.cam.shift(0, -h*shoulder*float32(math.Cos(float64(f.cam.Pitch()))))
 			return true
@@ -335,9 +302,7 @@ func (s *cameraSystem) keep(f *following, d time.Duration) bool {
 	return false
 }
 
-// clear has a fastened camera in perspective, looking at its entity at t, look down steeply
-// enough for the ground not to hide it: the eye — as high as it flies — comes in over the
-// entity at once and goes back out, eased, as the way clears; the player's Tilt sets how far.
+// looks down steeply enough to see the entity at once, eases back out as the way clears
 func (s *cameraSystem) clear(f *following, t [3]float32, d time.Duration) {
 	p := f.cam.persp
 	if f.appliedPitch == 0 || p.tilts != f.tilts {
@@ -357,8 +322,6 @@ func (s *cameraSystem) clear(f *following, t [3]float32, d time.Duration) {
 	f.appliedPitch = p.pitch
 }
 
-// clearPitch is the least pitch, from want up in clearStep steps to straight down, at which the
-// eye of p, as high as it flies, sees t over the ground between them.
 func (s *cameraSystem) clearPitch(p *perspCamera, t [3]float32, want float32) float32 {
 	sn, cs := math.Sincos(float64(p.heading) + math.Pi/4)
 	for pitch := want; pitch < maxPitch; pitch += clearStep {
@@ -371,8 +334,6 @@ func (s *cameraSystem) clearPitch(p *perspCamera, t [3]float32, want float32) fl
 	return maxPitch
 }
 
-// lineClear reports whether the line from t to e runs over the ground, a quarter cell above it,
-// sampled every half cell from a cell off t.
 func (s *cameraSystem) lineClear(t, e [3]float32, cell float32) bool {
 	d := vec.Sub(e, t)
 	h := float32(math.Hypot(float64(d[0]), float64(d[1])))
@@ -386,9 +347,6 @@ func (s *cameraSystem) lineClear(t, e [3]float32, cell float32) bool {
 	return true
 }
 
-// enter puts cam's eye inside entity id — at its centre, as high as it stands, looking the way
-// it faces, up the screen where it never moved — and reports whether it could: false for an
-// entity gone, or a view that cannot go inside.
 func (s *cameraSystem) enter(cam *viewCamera, id uid.UID64) bool {
 	eye, across, dir, ok := s.eyeOf(id)
 	if !ok {
@@ -402,9 +360,7 @@ func (s *cameraSystem) enter(cam *viewCamera, id uid.UID64) bool {
 	return cam.enterInside(eye, heading, across)
 }
 
-// eyeOf is where id looks from — its centre, as high as its world.Eye stands over its Z, its top
-// without one — how wide it sees across (radians; 0 without an Eye: the camera's own field) and
-// the way it faces, of length 1 or none; false when id is gone.
+// across is radians, 0 without an Eye; dir is of length 1 or none
 func (s *cameraSystem) eyeOf(id uid.UID64) (eye [3]float32, across float32, dir geom.Vec, ok bool) {
 	s.query.All()
 	for s.query.Next() {
@@ -433,9 +389,7 @@ func (s *cameraSystem) eyeOf(id uid.UID64) (eye [3]float32, across float32, dir 
 	return eye, across, dir, false
 }
 
-// riding is how high an eye riding in an entity at (x, y) stands: on the entity's top, but never
-// under the top of the cell there as it is drawn — raised by its kind's Height — nor within a hair
-// of it.
+// never under the top of the cell as it is drawn, nor within a hair of it
 func (s *cameraSystem) riding(x, y, top float64, cell float32) float64 {
 	if s.topAt == nil {
 		return top
@@ -443,18 +397,16 @@ func (s *cameraSystem) riding(x, y, top float64, cell float32) float64 {
 	return max(top, s.topAt(geom.NewVec(x, y))+float64(cell)/256)
 }
 
-// behind is the heading from which the way (dx, dy) runs up the screen: the eye behind it.
+// the heading from which the way (dx, dy) runs up the screen
 func behind(dx, dy float32) float32 {
 	return float32(math.Atan2(float64(-dx), float64(-dy))) - math.Pi/4
 }
 
-// ease is how much of the turn by, the shorter way round, a fastened camera makes over d; all of
-// it for d zero, the first centring.
+// the shorter way round; all of it for d zero, the first centring
 func ease(by float32, d time.Duration) float32 {
 	return float32(math.Remainder(float64(by), 2*math.Pi)) * eased(d)
 }
 
-// eased is the part of any way a fastened camera goes over d: all of it for d zero.
 func eased(d time.Duration) float32 {
 	if d <= 0 {
 		return 1

@@ -20,25 +20,20 @@ import (
 	"github.com/kjkrol/gram/ui"
 )
 
-// Tool is a bridge in a player's hand (control.Take): while it holds it, a click lays a bridge's
-// head where the bridge begins, the cursor shows it running on — yellow where it may not stand,
-// green where it may — and a click on green asks "Build the bridge?" (Plugin.Window).
+// Tool is a bridge in a player's hand, for control.Take.
 const Tool control.Tool = "bridge"
 
-// Config is where bridges may stand (site.Rules; Heights is the world's, Longest 3 where it says
-// none) and the kind of bridge a player's Tool builds, Builds — the first defined for none.
+// Config is where bridges may stand (Longest 3 where Rules say none) and the kind of bridge a
+// player's Tool builds, the first defined for none.
 type Config struct {
 	Rules  site.Rules
 	Builds string
 }
 
-// Plugin builds bridges by one set of rules (site): a level's (Spawn) and a player's (Tool). A
-// bridge is its parts, entities standing on the board — a piece of deck on every cell from head
-// to head, a band (cell.Floor, cell.Rail), and in a world with heights its piers — built where
-// Rules let it stand, its heads levelled at the deck first (WithShaper). Depends on world and
-// board.
+// Plugin builds bridges by one set of rules, a level's and a player's, as entities standing on
+// the board.
 type Plugin struct {
-	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
+	*world.Self
 
 	worldPlugin *world.Plugin
 	board       *board.Plugin
@@ -65,8 +60,7 @@ var (
 	_ plugin.Populator      = (*Plugin)(nil)
 )
 
-// NewPlugin builds the bridges plugin over w and brd, its bridges standing where cfg's Rules let
-// them.
+// NewPlugin builds the bridges plugin over w and brd.
 func NewPlugin(w *world.Plugin, brd *board.Plugin, cfg Config) *Plugin {
 	cfg.Rules.Heights = w.HasHeights()
 	if cfg.Rules.Longest <= 0 {
@@ -78,22 +72,19 @@ func NewPlugin(w *world.Plugin, brd *board.Plugin, cfg Config) *Plugin {
 	return p
 }
 
-// WithShaper gives the plugin the ground a player's bridge levels its heads on — a topography's
-// relief; without it a bridge stands only where its heads lie flat at its deck already. Call
-// before Use.
+// WithShaper gives the plugin the ground a player's bridge levels its heads on; without it a
+// bridge stands only where its heads lie flat at its deck already.
 func (p *Plugin) WithShaper(s ground.Shaper) *Plugin {
 	p.shaper = s
 	return p
 }
 
-// Types is the plugin's register of the kinds of bridges: Define one in a Stage's Kinds section,
-// Named is the Type wherever it is built on, its parts' looks given in a scene.
+// Types is the plugin's register of the kinds of bridges.
 func (p *Plugin) Types() *Types { return p.types }
 
-// Spawn builds every bridge a level's file has — a line `{kind: <a kind of bridge>, from: [x, y],
-// to: [x, y]}` — in the Spawn section, its deck at its first head's level; once the board is laid
-// (Populate) each must be one the Rules let stand with its heads flat at its deck already, else
-// the game fails with its line.
+// Spawn builds every bridge a level's file has, a line `{kind: <a kind of bridge>, from: [x, y],
+// to: [x, y]}`, its deck at its first head's level. One the Rules refuse fails Populate with its
+// line.
 func (p *Plugin) Spawn(level *board.Level) error {
 	g := newGround(p.board.Board(), level.Heights(), 0)
 	gr := g.Grid()
@@ -113,8 +104,8 @@ func (p *Plugin) Spawn(level *board.Level) error {
 	})
 }
 
-// Populate holds the bridges a level's file laid to the Rules, now the board is laid: one that
-// may not stand fails with its line.
+// Populate holds the bridges a level's file laid to the Rules; one that may not stand fails with
+// its line.
 func (p *Plugin) Populate() error {
 	laid := p.laid
 	p.laid = nil
@@ -134,7 +125,6 @@ func (p *Plugin) Populate() error {
 	return nil
 }
 
-// laid is a bridge a level's file laid, held to the rules once the board is laid.
 type laid struct {
 	t       Type
 	plan    site.Bridge
@@ -142,8 +132,6 @@ type laid struct {
 	heights func(geom.Vec) float64
 }
 
-// parts are the entities a bridge is built of, over g as it lies under it: a piece of deck on
-// each cell from head to head, a pier between every two spans.
 func (p *Plugin) parts(t Type, b site.Bridge, g *boardGround) []kind.Entry {
 	gr := g.Grid()
 	step := gr.Step(b.Way)
@@ -173,8 +161,6 @@ func (p *Plugin) parts(t Type, b site.Bridge, g *boardGround) []kind.Entry {
 	return out
 }
 
-// rules are where a player's bridge may stand: the Config's, its heads flat already where no
-// ground is shaped to level them.
 func (p *Plugin) rules() site.Rules {
 	r := p.cfg.Rules
 	if p.shaper == nil {
@@ -183,7 +169,6 @@ func (p *Plugin) rules() site.Rules {
 	return r
 }
 
-// building is the kind of bridge a player's Tool builds.
 func (p *Plugin) building() Type {
 	if p.cfg.Builds != "" {
 		return p.types.Named(p.cfg.Builds)
@@ -194,7 +179,6 @@ func (p *Plugin) building() Type {
 	return p.types.Named(p.types.names[0])
 }
 
-// ground is the board and its heights now, a bridge of t planned over them.
 func (p *Plugin) ground(t Type) *boardGround {
 	var at func(geom.Vec) float64
 	if p.worldPlugin.HasHeights() {
@@ -205,8 +189,6 @@ func (p *Plugin) ground(t Type) *boardGround {
 	return newGround(p.board.Board(), at, t.spec.Allows)
 }
 
-// build levels a bridge's heads at its deck and has the world spawn its parts, said in the log
-// where it may stand no more.
 func (p *Plugin) build(b pending) {
 	g := p.ground(b.t)
 	plan, err := site.Plan(g, p.rules(), b.plan.From, b.plan.To, b.plan.Deck)
@@ -227,9 +209,8 @@ func (p *Plugin) build(b pending) {
 	p.worldPlugin.Spawn(p.parts(b.t, plan, g)...)
 }
 
-// Window is the window asking a player whether to build the bridge it marked out: Build and
-// Cancel, shown while it asks — for a scene's screen, the scene issuing its buttons as the player
-// (ui.Scene.Issue).
+// Window is the window asking a player whether to build the bridge it marked out, shown while it
+// asks.
 func (p *Plugin) Window() *ui.Element {
 	return ui.WindowOf(text{p: p, say: askText},
 		ui.LabelOf(text{p: p, say: spansText}),
@@ -240,13 +221,8 @@ func (p *Plugin) Window() *ui.Element {
 	).Modal()
 }
 
-// Reason is a label saying why the bridge in a player's hand may not stand where it points, while
-// it may not.
+// Reason is a label saying why the bridge in a player's hand may not stand where it points.
 func (p *Plugin) Reason() *ui.Element { return ui.LabelOf(text{p: p, say: reasonText}) }
-
-// =================================================================
-// plugin.Plugin contract
-// =================================================================
 
 func (p *Plugin) Name() string { return "gram.bridges" }
 
@@ -257,14 +233,13 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 }
 
 // RunPlan carries out the players' commands at once and builds the bridges confirmed in the
-// simulation: in the tactical pause a bridge waits for the time to run.
+// simulation.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
 // WithRenderer builds the renderer of the bridges in the players' hands.
 func (p *Plugin) WithRenderer(render.AtlasSource) { p.renderer = &renderer{p: p} }
 
-// Renderer is the bridges in the players' hands, drawn as they would stand; nil before
-// WithRenderer.
+// Renderer draws the bridges in the players' hands; nil before WithRenderer.
 func (p *Plugin) Renderer() render.Layer {
 	if p.renderer == nil {
 		return nil
@@ -274,7 +249,7 @@ func (p *Plugin) Renderer() render.Layer {
 
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil — a bridge is its parts, saved as entities; what a hand holds is not saved.
+// Serializable is nil: a bridge is its parts, saved as entities.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 func (p *Plugin) String() string { return fmt.Sprintf("bridges %v", p.types.names) }

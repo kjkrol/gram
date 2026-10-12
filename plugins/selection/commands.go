@@ -16,9 +16,8 @@ import (
 type Select struct {
 	IDs []uid.UID64
 	Box geom.AABB
-	// Screen is the rectangle the player picked in, in the pixels of the view Camera draws; set with
-	// Camera, it decides which of the entities in Box are hit by where they are drawn — a unit
-	// standing high or flying is where it is seen.
+	// Screen is the rectangle the player picked in, in the pixels of the view Camera draws; with
+	// Camera, it decides which of the entities in Box are hit by where they are drawn.
 	Screen   geom.AABB
 	Camera   camera.Camera
 	Additive bool
@@ -31,32 +30,26 @@ type Marquee struct {
 	Camera camera.Camera
 }
 
-// Hover is the command noting the entity drawn under the cursor as Hovered — the one it points
-// at, the nearest of those drawn there: given every tick the cursor lies over the player's picture
-// (control.CursorOver), at the world point At and the screen point Screen of the view Camera draws.
-// A tick without one, nobody is Hovered.
+// Hover is the command noting the entity drawn under the cursor as Hovered, given every tick the
+// cursor lies over the player's picture. A tick without one, nobody is Hovered.
 type Hover struct {
 	At     geom.Vec
 	Screen geom.AABB
 	Camera camera.Camera
 }
 
-// Allow is the command by which an entity may be selected from now on — Selected, selected at
-// once too: one gives it itself as it is made (kind.Entry.Told); a player's goes to the units it
-// has selected.
+// Allow is the command by which an entity may be selected from now on, with Selected selected at
+// once too. An entity gives it itself (kind.Entry.Told); a player's goes to its selected units.
 type Allow struct{ Selected bool }
 
-// Forbid is the command by which an entity may be selected no longer, and is unselected: a unit
-// under construction, one carried off.
+// Forbid is the command by which an entity may be selected no longer, and is unselected.
 type Forbid struct{}
 
-// effectCommand is a rule.Command for the selected units, or for the one pointed at, as the selection
-// carries it out: what Selected and Pointed route a command to.
 type effectCommand struct {
 	cmd     rule.Command
-	only    tag.Tags[rule.Roles] // the selected playing one of these; empty: every one
+	only    tag.Tags[rule.Roles]
 	pointed bool
-	aimed   bool // In told where the cursor was
+	aimed   bool
 	at      geom.Vec
 	screen  geom.AABB
 	camera  camera.Camera
@@ -78,14 +71,13 @@ var (
 	_ control.Command = effectCommand{}
 )
 
-// In is the command as given with the cursor where c has it: whom Pointed means.
+// In is the command as given with the cursor where ctx has it.
 func (c effectCommand) In(ctx control.Context) control.Command {
 	c.aimed, c.at, c.camera = true, ctx.World(ctx.Cursor), ctx.Camera
 	c.screen = control.ScreenRect(ctx.Cursor, ctx.Cursor)
 	return c
 }
 
-// target is whom a command is for, as the selection knows them.
 type target struct {
 	only    tag.Tags[rule.Roles]
 	pointed bool
@@ -104,7 +96,7 @@ func (t target) String() string {
 	return "the selected"
 }
 
-// Selected is whom a command is for — rule.Cast(haste).On(sel.Selected(hasty)): the units the
+// Selected is whom a command is for (rule.Cast(haste).On(sel.Selected(hasty))): the units the
 // player who gives it has selected, those playing one of roles alone when any is named.
 func (p *Plugin) Selected(roles ...*rule.Part) rule.Target {
 	var only tag.Tags[rule.Roles]
@@ -114,15 +106,13 @@ func (p *Plugin) Selected(roles ...*rule.Part) rule.Target {
 	return target{only: only}
 }
 
-// Pointed is whom a command is for — rule.Lift(frozen).On(sel.Pointed()): the entity under the
-// cursor as the command's key is pressed, the nearest of those drawn there; nobody for a command
-// given some other way.
+// Pointed is whom a command is for (rule.Lift(frozen).On(sel.Pointed())): the entity under the
+// cursor as the command's key is pressed. A command given without a cursor reaches nobody.
 func (p *Plugin) Pointed() rule.Target { return target{pointed: true} }
 
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// Queues are where Select, Allow, Forbid and the commands for the selected and the pointed at
-// land — for the players plugin.
+// Queues are where the selection's commands land.
 func (p *Plugin) Queues() []control.CommandQueue {
 	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.effectCmds, &p.allows, &p.forbids, &p.hovers}
 }
@@ -150,7 +140,7 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 }
 
 // FollowKey is key fastening the camera the player looks through over the one unit it has chosen
-// (Chosen) — kept in the middle of the screen as it goes — or letting it go: a cameras.Follow.
+// (Chosen), or letting it go: a cameras.Follow.
 func (p *Plugin) FollowKey(key control.Key) control.Binding {
 	return control.Build(control.KeyPress{Key: key}, "Follow the selected unit, or stop", func(c control.Context) (cameras.Follow, bool) {
 		id, ok := p.Chosen(c.Player)

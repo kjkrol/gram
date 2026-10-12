@@ -4,12 +4,9 @@ import (
 	"math"
 )
 
-// outlineMaterial draws a tile's outline over all laid on it (shaders/outline.wgsl).
 var outlineMaterial = RegisterMaterials(Files(shaderFiles, "shaders/outline.wgsl"), nil, "Outline")[0]
 
-// OutlineOn outlines the sprite m along its own edges, over all drawn on it since: a Tile's
-// outline that what lies on the tile does not cover. m is a Sprite, or a SpriteRect's pieces
-// outlined along the whole rectangle's edges.
+// OutlineOn outlines the sprite m along its own edges, over all drawn on it since.
 func (f *Frame) OutlineOn(m Mark) {
 	var dst Corners
 	switch {
@@ -35,7 +32,6 @@ func (f *Frame) OutlineOn(m Mark) {
 	f.OverlayOn(m, &o)
 }
 
-// edge is the line through a and b, its normal worked out once for the corners measured from it.
 type edge struct {
 	a        [2]float32
 	nx, ny   float32 // of length 1
@@ -51,7 +47,6 @@ func newEdge(a, b [2]float32) edge {
 	return edge{a: a, nx: ey / n, ny: -ex / n, straight: true}
 }
 
-// outline is as the package's outline: minus 1 minus p's distance to the edge's line, in pixels.
 func (e edge) outline(p [2]float32) float32 {
 	if !e.straight {
 		return 0

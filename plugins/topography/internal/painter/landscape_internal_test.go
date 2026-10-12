@@ -30,10 +30,8 @@ func (flatAtlas) Atlas() *render.Image                            { return nil }
 func (flatAtlas) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 1, 1 }
 func (flatAtlas) White() (u, v float32)                           { return 0, 0 }
 
-// lookFn is a Look handed each tile as the landscape dresses it.
 type lookFn func(f *render.Frame, cam camera.Camera, t *tile)
 
-// dressedLook hands a lookFn the board's tiles as d dresses them.
 type dressedLook struct {
 	d  *Painter
 	fn lookFn
@@ -43,12 +41,10 @@ func (l dressedLook) Cell(f *render.Frame, cam camera.Camera, t *look.Tile) {
 	l.fn(f, cam, l.d.tileOf(t))
 }
 
-// dressed is a renderer of brd's cells dressed by d, handing fn each tile.
 func dressed(brd *board.Board, d *Painter, fn lookFn) *look.Renderer {
 	return look.NewRenderer(brd, flatAtlas{}, testMap{look: dressedLook{d, fn}, d: d}, world.SpaceCfg{})
 }
 
-// testSky is an Atmosphere of a fixed sun and weather.
 type testSky struct {
 	sun sky.Sun
 	air air.Weather
@@ -57,16 +53,13 @@ type testSky struct {
 func (s testSky) Sun() sky.Sun     { return s.sun }
 func (s testSky) Air() air.Weather { return s.air }
 
-// skyOf is a still, clear sky under sun s.
 func skyOf(s sky.Sun) testSky { return testSky{sun: s} }
 
-// movingSky is a still, clear sky under whatever sun the pointer holds now.
 type movingSky struct{ sun *sky.Sun }
 
 func (s *movingSky) Sun() sky.Sun   { return *s.sun }
 func (*movingSky) Air() air.Weather { return air.Weather{} }
 
-// testMap is a board.Map of a Painter and a Look, level where the Painter has no heights.
 type testMap struct {
 	look look.Look
 	d    *Painter
@@ -83,11 +76,9 @@ func (testMap) Climb(cell.ID, cell.ID, cell.Domain) float64   { return 1 }
 func (testMap) Least(cell.Domain) float64                     { return 1 }
 func (testMap) Slope(geom.Vec, geom.Vec, cell.Domain) float64 { return 1 }
 
-// reliefs are the reliefs of the tests' boards, one each, so a board's heights and its Painter
-// meet on the same relief.
+// one a board, so a board's heights and its Painter meet on the same relief
 var reliefs = map[*board.Board]*relief.Relief{}
 
-// reliefFor is brd's relief, made on first use.
 func reliefFor(brd *board.Board) *relief.Relief {
 	r, ok := reliefs[brd]
 	if !ok {
@@ -97,22 +88,17 @@ func reliefFor(brd *board.Board) *relief.Relief {
 	return r
 }
 
-// compose composes r through cam.
 func compose(r *look.Renderer, cam camera.Camera) {
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
 }
 
-// styled is k, styled in st as s.
 func styled(st map[cell.Name]Style, k cell.Kind, s Style) cell.Kind {
 	st[k.Name] = s
 	return k
 }
 
-// A stream down the middle of a valley runs down it at every corner, as fast as its Flow by the
-// square root of the slope; the banks falling into it turn it neither way, and still water does
-// not run.
 func TestTile_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(3, 3, 10)
@@ -143,13 +129,11 @@ func TestTile_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
 	}
 }
 
-// wayPieces draws brd from above, near enough for every detail, and returns each tile's way pieces.
 func wayPieces(t *testing.T, brd *board.Board, st map[cell.Name]Style, w, h uint32) map[cell.ID][]WayPiece {
 	t.Helper()
 	return wayPiecesAt(t, brd, st, w, h, 2)
 }
 
-// wayPiecesAt is wayPieces through a camera at zoom.
 func wayPiecesAt(t *testing.T, brd *board.Board, st map[cell.Name]Style, w, h uint32, zoom float32) map[cell.ID][]WayPiece {
 	t.Helper()
 	got := map[cell.ID][]WayPiece{}
@@ -166,7 +150,7 @@ func wayPiecesAt(t *testing.T, brd *board.Board, st map[cell.Name]Style, w, h ui
 	return got
 }
 
-// mid is the middle of a piece's k-th end: 0 where it starts, 1 where it ends.
+// k is 0 where the piece starts, 1 where it ends
 func mid(p WayPiece, k int) [2]float32 {
 	return [2]float32{(p.World[k][0] + p.World[k+2][0]) / 2, (p.World[k][1] + p.World[k+2][1]) / 2}
 }
@@ -175,8 +159,6 @@ func near2(a, b [2]float32) bool {
 	return math.Abs(float64(a[0]-b[0])) < 1e-4 && math.Abs(float64(a[1]-b[1])) < 1e-4
 }
 
-// A stream straight across a cell is one band from side to side, as wide at each side as the mean
-// of it and its neighbour there, the water running down it.
 func TestTile_AWayStraightAcrossIsOneBandFromSideToSide(t *testing.T) {
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(3, 3, 10)
@@ -200,7 +182,6 @@ func TestTile_AWayStraightAcrossIsOneBandFromSideToSide(t *testing.T) {
 	if !near2(last.World[1], [2]float32{20, 17}) || !near2(last.World[3], [2]float32{20, 13}) {
 		t.Errorf("the band ends %v–%v, want 4 wide on the east side", last.World[1], last.World[3])
 	}
-	// from far, where a cell spans 10 pixels, the band is two pieces between the same ends
 	far := wayPiecesAt(t, brd, st, 30, 30, 1)[at(1, 1)]
 	if len(far) != 2 || far[0].World[0] != first.World[0] || !near2(far[1].World[3], last.World[3]) {
 		t.Errorf("from far %d pieces; want the band in 2 from %v to %v", len(far), first.World[0], last.World[3])
@@ -221,8 +202,6 @@ func TestTile_AWayStraightAcrossIsOneBandFromSideToSide(t *testing.T) {
 	}
 }
 
-// A way turning in a cell curves round its middle from side to side, running along the line
-// between the middles of the cells at each side.
 func TestTile_AWayTurningCurvesRoundTheMiddle(t *testing.T) {
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(3, 3, 10)
@@ -241,7 +220,6 @@ func TestTile_AWayTurningCurvesRoundTheMiddle(t *testing.T) {
 	if m := mid(pieces[2], 1); !near2(m, [2]float32{13.75, 16.25}) {
 		t.Errorf("halfway the curve is at %v, want (13.75, 16.25): round the middle", m)
 	}
-	// at each side the band stands square across the line between the cells' middles
 	for _, across := range [][2][2]float32{{pieces[0].World[0], pieces[0].World[2]}, {pieces[5].World[1], pieces[5].World[3]}} {
 		if dx, dy := across[0][0]-across[1][0], across[0][1]-across[1][1]; math.Abs(float64(dx)) > 1e-4 && math.Abs(float64(dy)) > 1e-4 {
 			t.Errorf("at the side the band lies across from %v to %v, at a slant", across[0], across[1])
@@ -249,9 +227,6 @@ func TestTile_AWayTurningCurvesRoundTheMiddle(t *testing.T) {
 	}
 }
 
-// A way fading out shows the less the further it has faded, the ends of a band as much as the
-// mean of the two ways there, down to nothing where it ends; on level ground its water runs on the
-// way it fades.
 func TestTile_AWayFadingOutShowsLessAndRunsOnTheWayItFades(t *testing.T) {
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(4, 1, 10)
@@ -284,9 +259,6 @@ func TestTile_AWayFadingOutShowsLessAndRunsOnTheWayItFades(t *testing.T) {
 	}
 }
 
-// A way running on slantwise to its one neighbour runs straight to the corner the two share, the
-// stretch reaching into the cells either side of it across the corner, and ends square across
-// itself half as far behind the middle as it is wide.
 func TestTile_AWayRunsSlantwiseToTheCornerAndEndsSquareAcrossItself(t *testing.T) {
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(3, 3, 10)
@@ -315,10 +287,6 @@ func TestTile_AWayRunsSlantwiseToTheCornerAndEndsSquareAcrossItself(t *testing.T
 	}
 }
 
-// A neighbour of another kind that spreads runs into the tile over the quarters it touches, weighed
-// by the share of the cells at each point that are of it; a cell alone is weighed so that only a
-// diamond of it shows; nothing blends with a kind that keeps its cells square, nor with one standing
-// over its ground.
 func TestTile_BlendsWeighTheNeighboursGroundsAtTheTilesPoints(t *testing.T) {
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(3, 3, 10)
@@ -350,8 +318,6 @@ func TestTile_BlendsWeighTheNeighboursGroundsAtTheTilesPoints(t *testing.T) {
 			t.Errorf("quarter %v weighs %v, sprite %v, soft %v; want %v of the sand, 0.3 soft", p.World, p.Weight, p.Sprite, p.Soft, w)
 		}
 	}
-	// the sand cell alone: the earth round it weighs three quarters at its corners, a half at its
-	// sides, none at its middle — a diamond of sand shows
 	var corner [4]float32
 	for _, p := range got[at(2, 1)] {
 		if p.World[0] == [2]float32{20, 10} {
@@ -368,8 +334,6 @@ func TestTile_BlendsWeighTheNeighboursGroundsAtTheTilesPoints(t *testing.T) {
 	}
 }
 
-// By a coast the land tile is drawn as the sea under it and its own kind laid over it by the share
-// of land round it; the sea tile has that land laid over it the same way, so the coast runs round.
 func TestTile_ByTheSeaTheLandIsLaidOverTheSeaUnderIt(t *testing.T) {
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(3, 3, 10)
@@ -411,7 +375,6 @@ func TestTile_ByTheSeaTheLandIsLaidOverTheSeaUnderIt(t *testing.T) {
 	}
 }
 
-// A tile's bake is worked out anew when a cell round it changes, and kept when one further off does.
 func TestRenderer_KeepsATilesBakeUntilACellRoundItChanges(t *testing.T) {
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(6, 3, 10)
@@ -448,8 +411,6 @@ func TestRenderer_KeepsATilesBakeUntilACellRoundItChanges(t *testing.T) {
 	}
 }
 
-// Near, water glints with all its shine and rolls in on a shore; far off, it does not glint at all;
-// between, it glints the less the further off it is.
 func TestTile_FarOffTheWaterGlintsLessAndThenNot(t *testing.T) {
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
@@ -491,7 +452,6 @@ func TestTile_FarOffTheWaterGlintsLessAndThenNot(t *testing.T) {
 	}
 }
 
-// The composer's shader compiles with the materials the board and the world bring.
 func TestWater_TheShaderCompilesWithTheBoardsMaterials(t *testing.T) {
 	needGPU(t)
 	if err := render.Compile(); err != nil {
@@ -502,8 +462,6 @@ func TestWater_TheShaderCompilesWithTheBoardsMaterials(t *testing.T) {
 	}
 }
 
-// Over a still sea the surface is the sea's glint, over running water the running water's, each
-// overlay marked with its material and the sun reaching it.
 func TestTile_DrawSurfaceLaysTheWatersMaterial(t *testing.T) {
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(3, 3, 32)
@@ -543,8 +501,6 @@ func TestTile_DrawSurfaceLaysTheWatersMaterial(t *testing.T) {
 	}
 }
 
-// A shiny kind's cell shines as much as its kind's Shine says, all the sun on it — the GPU casts the
-// shadows — and nothing else shines; in a flat world nothing does.
 func TestTile_AShinyCellShines(t *testing.T) {
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
@@ -617,7 +573,7 @@ func abs32(v float32) float32 {
 	return v
 }
 
-// sheetAtlas is an atlas on a sheet of its own, 8 pixels a sprite.
+// 8 pixels a sprite
 type sheetAtlas struct{ img *render.Image }
 
 func (a sheetAtlas) Atlas() *render.Image { return a.img }
@@ -626,7 +582,6 @@ func (sheetAtlas) UV(id render.SpriteID) (sx0, sy0, sx1, sy1 float32) {
 }
 func (sheetAtlas) White() (u, v float32) { return 1, 1 }
 
-// kindsOf is a cell.Kinds of the kinds given.
 type kindsOf []cell.Kind
 
 func (k kindsOf) Define(string, cell.Kind, ...*rule.Part) {}
@@ -645,8 +600,6 @@ func (k kindsOf) Get(name string) (cell.Kind, bool) {
 	return cell.Kind{}, false
 }
 
-// A way turning into another kind's look carries that kind's sprite and how far it has turned at
-// each corner, the mean of its cell's Mix and its neighbour's where a band meets it.
 func TestTile_AWayTurnsIntoTheKindItMixesWith(t *testing.T) {
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(3, 3, 10)
@@ -682,8 +635,6 @@ func TestTile_AWayTurnsIntoTheKindItMixesWith(t *testing.T) {
 	}
 }
 
-// A way running out into water runs on to the water's middle under it: its pieces show only where
-// the land does, as the grounds round the coast are laid over the water, none at the water's middle.
 func TestTile_AWayRunsOnUnderTheWaterItRunsInto(t *testing.T) {
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(3, 3, 10)
@@ -719,9 +670,6 @@ func TestTile_AWayRunsOnUnderTheWaterItRunsInto(t *testing.T) {
 	}
 }
 
-// The board's albedo is every cell's base painted over its whole cell — the sea under the coast's
-// land — with the grounds running in and the ways over it, painted anew for the cells that change
-// and left alone while nothing does.
 func TestPainter_TheAlbedoPaintsEveryCellsBaseUnderItsGroundsAndWays(t *testing.T) {
 	needGPU(t)
 	st := map[cell.Name]Style{}
@@ -769,8 +717,6 @@ func TestPainter_TheAlbedoPaintsEveryCellsBaseUnderItsGroundsAndWays(t *testing.
 	}
 }
 
-// Beside the albedo the water is painted in its layers: the sea's shine over the sea and under the
-// coast, the coast's grounds covering it, a river's flow down its slope and its shine where it runs.
 func TestPainter_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
 	needGPU(t)
 	st := map[cell.Name]Style{}
@@ -815,8 +761,6 @@ func TestPainter_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
 	}
 }
 
-// Water may lie on the sea, on the cells a river runs across and on every cell beside either; the
-// rest is dry, and a cell turned to water wets it and the cells round it.
 func TestPainter_TheWetCellsAreTheWaterAndTheCellsBesideIt(t *testing.T) {
 	needGPU(t)
 	st := map[cell.Name]Style{}
@@ -853,8 +797,6 @@ func TestPainter_TheWetCellsAreTheWaterAndTheCellsBesideIt(t *testing.T) {
 	}
 }
 
-// The coast is the way to the shore from every corner, as shoreAt works it out; the ground raised
-// leaves it be, a cell turned to water moves it.
 func TestPainter_TheCoastFollowsTheShineNotTheRelief(t *testing.T) {
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(10, 8, 32)
@@ -892,7 +834,6 @@ func TestPainter_TheCoastFollowsTheShineNotTheRelief(t *testing.T) {
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
 
-// needGPU readies a device without a window; a machine without one skips.
 func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {

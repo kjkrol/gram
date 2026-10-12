@@ -8,7 +8,8 @@ import (
 	public "github.com/kjkrol/gram/plugins/topography/relief"
 )
 
-// over the way between their middles.
+// Climb is what a step from one cell to the next costs whoever moves in d by how steep it is,
+// as climbing says.
 func (r *Relief) Climb(from, to cell.ID, d cell.Domain, climbing public.Climbing) float64 {
 	if !climbing.Feels(d) {
 		return 1
@@ -33,8 +34,7 @@ func (r *Relief) Climb(from, to cell.ID, d cell.Domain, climbing public.Climbing
 	return climbing.Factor((r.Altitude(to) - r.Altitude(from)) / run)
 }
 
-// stepAxis is the step from a to its neighbour b along an axis size long, -1, 0 or 1, across the
-// seam where the grid wraps.
+// -1, 0 or 1, across the seam where the grid wraps
 func stepAxis(a, b, size uint32) float64 {
 	switch {
 	case b == a:
@@ -46,9 +46,7 @@ func stepAxis(a, b, size uint32) float64 {
 	}
 }
 
-// SlopeAt is the ground's slope at p going dir (of length 1): on a square grid the rise of the
-// cell's ground under p that way, between its corners; on a hex grid the rise across a cell's step
-// round p, over that step.
+// SlopeAt is the ground's slope at p going dir (of length 1), rise over run.
 func (r *Relief) SlopeAt(p, dir geom.Vec) float64 {
 	if r.square {
 		c, ok := r.grid.CellAt(p)

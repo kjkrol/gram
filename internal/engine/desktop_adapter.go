@@ -16,18 +16,17 @@ type InputAdapter interface {
 }
 
 // DesktopAdapter captures the input of the engine's window (gogpu); without a window it captures
-// nothing. The window hands out its events a pass of its loop at a time and forgets them at the
-// next pass, drawn or not: Collect keeps them, every pass, for the tick's Capture.
+// nothing.
 type DesktopAdapter struct {
 	app      *gogpu.App
-	captured bool // the cursor is caught: its moves come as deltas, its place stays put
+	captured bool // the cursor caught: its moves come as deltas, its place stays put
 
 	mu      sync.Mutex
 	pending []gpucontext.InputEvent
 }
 
-// Collect keeps the events of the window's pass for the next Capture; the engine calls it every
-// pass of the window's loop.
+// Collect keeps the events of the window's pass for the next Capture, which the window would
+// forget at its next pass.
 func (a *DesktopAdapter) Collect() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -89,7 +88,6 @@ func (a *DesktopAdapter) Capture(e *control.InputEvents) {
 	e.WindowFillsScreen = a.app.IsFullscreen() || a.app.IsMaximized()
 }
 
-// capture catches the window's cursor, or lets it go.
 func (a *DesktopAdapter) capture(on bool) {
 	if a.app == nil || a.captured == on {
 		return
@@ -118,7 +116,6 @@ func buttonOf(b gpucontext.Button) (control.MouseButton, bool) {
 	return 0, false
 }
 
-// keyOf is control's key for the window's; KeyUnknown for one control has not.
 func keyOf(k gpucontext.Key) control.Key {
 	switch {
 	case k >= gpucontext.KeyA && k <= gpucontext.KeyZ:

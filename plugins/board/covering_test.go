@@ -13,9 +13,6 @@ import (
 	"github.com/kjkrol/gram/rule/effect"
 )
 
-// A cover is a slot of the board's atlas an effect, past the kinds'; the effect, altering
-// nothing, changes the cell it comes on — the board is drawn anew — the cell's States carry its
-// marker, and a rule reads it of the cell under a unit (unit.Over).
 func TestCovering_AnEffectOnACellShowsOnTheBoardAndToTheRules(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(4, 4, boardtest.CellSize)
 	here := g.At(1, 1)
@@ -27,8 +24,15 @@ func TestCovering_AnEffectOnACellShowsOnTheBoardAndToTheRules(t *testing.T) {
 		iced = w.Effects().Named("iced")
 		slot[0], slot[1] = int(brd.Covering(iced)), int(brd.Covering(iced))
 		return []rule.Rule{
-			rule.Then[unit.Standing]("freeze", rule.All, rule.Here(rule.Unless(iced, rule.Apply(iced)))),
-			rule.Then[unit.Standing]("leave the ice", rule.All, rule.If(unit.Over(iced), rule.Order(world.Despawn{}))),
+			rule.Branch[unit.Standing]{
+				Name: "freeze",
+				Do:   rule.Here(rule.Branch[any]{When: rule.Free(iced), Do: rule.Apply(iced)}),
+			},
+			rule.Branch[unit.Standing]{
+				Name: "leave the ice",
+				When: unit.Over(iced),
+				Do:   rule.Order(world.Despawn{}),
+			},
 		}
 	}, []boardtest.Mover{{Here: here}})
 	if slot[0] != slot[1] {

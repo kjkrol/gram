@@ -14,12 +14,10 @@ import (
 	"github.com/kjkrol/gram/rule/effect"
 )
 
-// Config is what the weather does to the board: Snowy names, for each kind snow may lie on, the
-// kind it is under snow — both kinds the game's, already in the board's dictionary, the snowy one
-// the same ground to cross and stand on with another look; Ice the kind Water freezes into
-// ("water" when Water is empty); Sway the kinds that sway in the wind, by Swaying (0.6 when zero);
-// High where snow lies first and longest — high ground, nil for nowhere in particular; Seed the
-// dice the weathering throws (1 when zero).
+// Config is what the weather does to the board, in the game's own kinds: Snowy names, for each
+// kind snow may lie on, the kind it is under snow; Ice the kind Water ("water" when empty)
+// freezes into; Sway the kinds that sway in the wind, by Swaying (0.6 when zero); High where snow
+// lies first and longest (nil: nowhere in particular); Seed the dice (1 when zero).
 type Config struct {
 	Snowy   map[string]string
 	Ice     string
@@ -43,10 +41,8 @@ func (c Config) withDefaults() Config {
 	return c
 }
 
-// How the weathering goes, a second at a time: the share of the board's cells snow settles on at a
-// full fall, and melts off each degree above freezing; the share of the water that freezes each
-// degree below iceBelow, and thaws each degree above freezing; the winds above which what sways
-// sways and below which it stops.
+// shares of the board's cells a second; iceBelow in degrees Celsius, the winds in world units a
+// second
 const (
 	snowSettles = 0.02
 	snowMelts   = 0.004
@@ -55,19 +51,13 @@ const (
 	iceThaws    = 0.003
 	swayAbove   = 15
 	swayBelow   = 10
-	// snow first lies round the loosest few spots of the drifts' pattern (driftSeeds of it), and
-	// next to snow already lying; a winter begun has it on driftWinter
 	driftSeeds  = 0.12
 	driftWinter = 0.7
-	driftSize   = 5 // cells across one of the drifts' patches
+	driftSize   = 5 // cells
 )
 
-// Weathering is the weather on the board: three effects on the board's cells — snow turns a
-// cell's kind into its snowy one, ice turns water into ice, sway has a kind bend in the wind —
-// cast as the world's weather says and taken off again, once a second of game time from the
-// schedule. Snow settles on cells here and there while it snows in the frost and melts off them
-// once it is warm; water freezes from the shore out in a hard frost and thaws; what sways sways
-// while the wind blows. A winter begun has its snow and its shores' ice at once.
+// Weathering is the weather on the board: snow, ice and sway as effects on the board's cells,
+// cast as the world's weather says and taken off again.
 type Weathering struct {
 	cfg      Config
 	board    *board.Plugin
@@ -80,23 +70,22 @@ type Weathering struct {
 	frozen          cell.Kind
 	water           cell.Name
 	swaying         map[cell.Name]bool
-	cells           []cell.ID // every cell of the board, to pick from
+	cells           []cell.ID
 	dice            uint64
-	laid            bool // the first second has laid what a winter begun lies under
-	still           bool // the weather works nothing on the board (SetRunning)
+	laid            bool
+	still           bool
 }
 
-// SetRunning has the weather work on the board, or not: off, the ground stays as it is, the snow
-// and the ice as they lie, what sways as it stands. It is not saved.
+// SetRunning has the weather work on the board, or not; off, the ground stays as it is. It is
+// not saved.
 func (w *Weathering) SetRunning(on bool) { w.still = !on }
 
 // Running reports whether the weather works on the board.
 func (w *Weathering) Running() bool { return !w.still }
 
-// New is the weathering of cfg on brd under the weather weather gives, in cal's seasons, its
-// effects fx's. It defines the effects at once; the kinds cfg names are resolved as the weather
-// first touches the board, so they may be defined after it (a Stage's Kinds section comes after
-// its Effects) — an unknown name panics then.
+// New is the weathering of cfg on brd under the weather weather gives, its effects defined in
+// fx at once. The kinds cfg names are looked up as the weather first touches the board; an
+// unknown name panics then.
 func New(brd *board.Plugin, weather func() air.Weather, fx *effect.Effects, cal *calendar.Calendar, cfg Config) (*Weathering, error) {
 	cfg = cfg.withDefaults()
 	ww := &Weathering{cfg: cfg, board: brd, air: weather, effects: fx, calendar: cal, dice: cfg.Seed,
@@ -107,7 +96,7 @@ func New(brd *board.Plugin, weather func() air.Weather, fx *effect.Effects, cal 
 	fx.Define("snow", effect.Spec{effect.Alter(func(g *cell.Ground) {
 		ww.ready()
 		if under, ok := ww.snowy[g.Kind.Name]; ok {
-			under.Sway = g.Kind.Sway // what sways goes on swaying under snow
+			under.Sway = g.Kind.Sway
 			g.Kind = under
 		}
 	})})
@@ -124,8 +113,6 @@ func New(brd *board.Plugin, weather func() air.Weather, fx *effect.Effects, cal 
 	return ww, nil
 }
 
-// ready resolves the winter's kinds from the names the Config says, once, the first time the
-// weather touches the board; one not in the board's dictionary panics by name.
 func (w *Weathering) ready() {
 	if w.snowy != nil {
 		return
@@ -149,12 +136,11 @@ func (w *Weathering) ready() {
 	w.snowy = snowy
 }
 
-// Effects are the weathering's: snow, ice and sway, for a game asking whether a cell lies under
-// one (effect.Effects.Has).
+// Effects are the weathering's three effects.
 func (w *Weathering) Effects() (snow, ice, sway effect.Effect) { return w.snow, w.ice, w.sway }
 
-// System is the weathering's system, run in every step of the simulation on clk, the world's
-// clock: once every second of game time it works the weather on the board.
+// System is the weathering's system, run in every step of the simulation on clk, working once a
+// second of game time.
 func (w *Weathering) System(clk *clock.Clock) goke.System {
 	second := clock.Every(time.Second, 0)
 	var last time.Duration
@@ -171,7 +157,6 @@ func (w *Weathering) System(clk *clock.Clock) goke.System {
 	}}
 }
 
-// second is a second of the weather on the board.
 func (w *Weathering) second(cb *goke.CmdBuf) {
 	if w.still {
 		return
@@ -200,7 +185,7 @@ func (w *Weathering) second(cb *goke.CmdBuf) {
 	w.blow(cb, float32(math.Hypot(float64(air.Wind[0]), float64(air.Wind[1]))))
 }
 
-// roll throws the dice: a number from 0 up to 1 (xorshift).
+// xorshift; 0 up to 1
 func (w *Weathering) roll() float32 {
 	x := w.dice
 	x ^= x << 13
@@ -210,7 +195,6 @@ func (w *Weathering) roll() float32 {
 	return float32(x>>40) / float32(1<<24)
 }
 
-// pick is a cell of the board thrown at random, on any grid.
 func (w *Weathering) pick() cell.ID {
 	if w.cells == nil {
 		brd := w.board.Board()
@@ -220,7 +204,6 @@ func (w *Weathering) pick() cell.ID {
 	return w.cells[min(int(w.roll()*float32(len(w.cells))), len(w.cells)-1)]
 }
 
-// scatter casts fx on about share of the board's cells picked at random, those may takes.
 func (w *Weathering) scatter(cb *goke.CmdBuf, share float32, fx effect.Effect, may func(c cell.ID) bool) {
 	for range int(share*float32(w.board.Board().CellCount()) + w.roll()) {
 		c := w.pick()
@@ -230,7 +213,6 @@ func (w *Weathering) scatter(cb *goke.CmdBuf, share float32, fx effect.Effect, m
 	}
 }
 
-// clear takes fx off about share of the board's cells picked at random, those may lets go.
 func (w *Weathering) clear(share float32, fx effect.Effect, may func(c cell.ID) bool) {
 	for range int(share*float32(w.board.Board().CellCount()) + w.roll()) {
 		c := w.pick()
@@ -240,8 +222,6 @@ func (w *Weathering) clear(share float32, fx effect.Effect, may func(c cell.ID) 
 	}
 }
 
-// winter lays what a winter begun lies under: snow in drifts over most of the board, ice along
-// its shores.
 func (w *Weathering) winter(cb *goke.CmdBuf) {
 	w.board.Board().EachCell(func(c cell.ID) {
 		id, ok := w.board.CellEntity(c)
@@ -257,15 +237,13 @@ func (w *Weathering) winter(cb *goke.CmdBuf) {
 	})
 }
 
-// takesSnow reports whether snow may lie on c at all: a kind that has a snowy one.
 func (w *Weathering) takesSnow(c cell.ID) bool {
 	w.ready()
 	_, ok := w.snowy[w.board.Board().Kind(c).Name]
 	return ok
 }
 
-// snowLies reports whether falling snow settles on c now: ground that takes it, high, or next to
-// snow lying already, or one of the drifts' seeds — so snow lies in patches that grow.
+// high ground, the drifts' seeds or next to snow lying: patches that grow
 func (w *Weathering) snowLies(c cell.ID) bool {
 	if !w.takesSnow(c) {
 		return false
@@ -273,9 +251,7 @@ func (w *Weathering) snowLies(c cell.ID) bool {
 	return w.cfg.High != nil && w.cfg.High(c) || w.drift(c) < driftSeeds || w.nextTo(c)
 }
 
-// snowEdge reports whether the snow on c melts now: the lonelier it lies — the fewer of its
-// neighbours under snow — and the later it lay in the drifts' pattern, the likelier, so the
-// patches shrink whole and what lay first lies longest.
+// the lonelier the snow and the later it lay, the likelier it melts: patches shrink whole
 func (w *Weathering) snowEdge(c cell.ID) bool {
 	neighbours := w.board.Board().Neighbors(c)
 	under := 0
@@ -288,7 +264,6 @@ func (w *Weathering) snowEdge(c cell.ID) bool {
 	return w.roll() < lonely+w.drift(c)*0.5
 }
 
-// nextTo reports whether a neighbour of c lies under snow.
 func (w *Weathering) nextTo(c cell.ID) bool {
 	for _, n := range w.board.Board().Neighbors(c) {
 		if id, ok := w.board.CellEntity(n); ok && w.effects.Has(id, w.snow) {
@@ -298,8 +273,7 @@ func (w *Weathering) nextTo(c cell.ID) bool {
 	return false
 }
 
-// drift is the drifts' pattern at c, 0 to 1, smooth over driftSize cells: where it is low, snow
-// lies first and longest.
+// 0 to 1; where it is low, snow lies first and longest
 func (w *Weathering) drift(c cell.ID) float32 {
 	x, y, _ := w.board.Board().Coords(c)
 	fx, fy := float64(x)/driftSize, float64(y)/driftSize
@@ -313,15 +287,13 @@ func (w *Weathering) drift(c cell.ID) float32 {
 
 func smooth(t float64) float64 { return t * t * (3 - 2*t) }
 
-// cellHash is a number 0 to 1 fixed for the whole point (x, y).
 func cellHash(x, y int) float64 {
 	h := uint32(x)*374761393 + uint32(y)*668265263
 	h = (h ^ h>>13) * 1274126177
 	return float64(h^h>>16) / float64(math.MaxUint32)
 }
 
-// freezes reports whether c is water that may freeze now: next to land or to ice already, so the
-// ice grows from the shore out.
+// water next to land or ice: the ice grows from the shore out
 func (w *Weathering) freezes(c cell.ID) bool {
 	brd := w.board.Board()
 	if brd.Kind(c).Name != w.water {
@@ -335,8 +307,6 @@ func (w *Weathering) freezes(c cell.ID) bool {
 	return false
 }
 
-// blow has what sways sway once the wind blows harder than swayAbove and stop once it falls below
-// swayBelow.
 func (w *Weathering) blow(cb *goke.CmdBuf, wind float32) {
 	if len(w.swaying) == 0 || wind > swayBelow && wind < swayAbove {
 		return

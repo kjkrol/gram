@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/gram/plugins/players/owner"
 )
 
-// A player's tag is its id less one; nobody and past the family's size own nothing.
 func TestOf_IsTheIdLessOneAndRefusesNobody(t *testing.T) {
 	if owner.Of(1) != 0 || owner.Of(64) != 63 {
 		t.Errorf("Of(1), Of(64) = %v, %v; want 0, 63", owner.Of(1), owner.Of(64))
@@ -25,8 +24,6 @@ func TestOf_IsTheIdLessOneAndRefusesNobody(t *testing.T) {
 	}
 }
 
-// An owned entity obeys its owners alone, one shared among players each of them, an ownerless one
-// nobody alone.
 func TestObeys_OwnersAloneAndNobodyTheOwnerless(t *testing.T) {
 	mine := tag.Tags[owner.Family](0).With(owner.Of(1))
 	shared := mine.With(owner.Of(2))
@@ -45,7 +42,6 @@ func TestObeys_OwnersAloneAndNobodyTheOwnerless(t *testing.T) {
 	}
 }
 
-// Two entities are allies when they share an owner, or when nobody owns either.
 func TestAllies_ShareAnOwnerOrAreBothNobodys(t *testing.T) {
 	one := tag.Tags[owner.Family](0).With(owner.Of(1))
 	two := tag.Tags[owner.Family](0).With(owner.Of(2))

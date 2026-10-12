@@ -8,27 +8,26 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Plugin extends a Game: Install wires an ECS module, setup, renderers and resources as one unit.
+// Plugin is the one extension point: what a Stage uses, named for the saves.
 type Plugin interface {
-	// Name uniquely identifies this plugin — Use rejects a duplicate.
+	// Name is unique among a Stage's plugins; Use refuses a duplicate.
 	Name() string
 
-	// Install queues this plugin's ECS wiring.
+	// Install queues the plugin's ECS wiring.
 	Install(ctx Installer) error
 
-	// RunPlan runs this plugin's per-tick work; call it from Stage.Update in the order you need.
+	// RunPlan is the plugin's work of a tick, called from Stage.Update in the order the game needs.
 	RunPlan(ctx goke.RunCtx, d time.Duration)
 
-	// WithRenderer has this plugin's renderer draw sprites from atlas; call before Use.
+	// WithRenderer has the plugin's renderer draw sprites from atlas. Call it before Use.
 	WithRenderer(atlas render.AtlasSource)
 
-	// Renderer returns this plugin's own layer — a render.Renderer, or a render.Source a scene hands
-	// to its render.Composer — or nil if it has none.
+	// Renderer is the plugin's own layer, or nil for none.
 	Renderer() render.Layer
 
-	// EventHandler returns this plugin's own control.EventHandler, or nil if it has none.
+	// EventHandler is the plugin's own, or nil for none.
 	EventHandler() control.EventHandler
 
-	// Serializable returns this plugin's persistable state, or nil if it has none.
+	// Serializable is the plugin's saved state, or nil for none.
 	Serializable() Serializable
 }
