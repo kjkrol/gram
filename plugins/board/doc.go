@@ -160,8 +160,10 @@
 //
 // # Commands
 //
-// [Grid] shows the board's grid, or hides it — a look, not saved — on B by default: hand the
-// board to players.NewPlugin for the key.
+// [Grid] shows the board's grid, or hides it — a look, not saved — on B by default; [Holds] the
+// cells the occupancy holds, each outlined in its holder's colour, on the ground or a little
+// further in on a deck, on Shift+O ([Plugin.ShowHolds], drawn by [Plugin.HoldsRenderer] put in
+// the scene's composer). Hand the board to players.NewPlugin for the keys.
 //
 // # Ways
 //
@@ -209,9 +211,12 @@
 // cell.MultipleOccupancy any number — tokens on a square, which carry no Physics, since bodies
 // cannot overlap. A hold is a booking: the cell a unit stands on and the one it steps into. The
 // board lets go of the holds of whoever left the world, every step (cell.Occupancy.Release), so
-// one fallen in blocks no cell, and holds the cell a unit stands on under a raised deck on the
-// level its feet are on, as it climbs onto the deck or falls off it. A Solid cell stops
-// only whoever its kind keeps out, so a wall admitting Air lets a flyer over.
+// one fallen in blocks no cell, and has every unit hold the cell it stands on: a unit holding it
+// nothing — spawned in the game, pushed or thrown while nobody leads it — lets go of the cell it
+// was unit.At and is At the cell it stands on, with unit.Entered; one in the middle of a step holds
+// both its cells and is left to whoever leads it. Under a raised deck a unit holds its cell on the
+// level its feet are on, as it climbs onto the deck or falls off it. A Solid cell stops only
+// whoever its kind keeps out, so a wall admitting Air lets a flyer over.
 //
 // # Drawing
 //

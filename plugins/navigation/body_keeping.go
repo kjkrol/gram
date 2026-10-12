@@ -35,6 +35,7 @@ type openOccupancy struct{}
 func (openOccupancy) CanEnter(cell.ID, bool, uid.UID64, cell.Domain) bool { return true }
 func (openOccupancy) Enter(cell.ID, bool, uid.UID64, cell.Domain)         {}
 func (openOccupancy) Leave(cell.ID, uid.UID64)                            {}
+func (openOccupancy) Holders(cell.ID, func(uid.UID64, cell.Domain, bool)) {}
 func (openOccupancy) Release(func(uid.UID64) bool)                        {}
 
 // bodyKeeping keeps units apart by their boxes. A unit routes over the ground alone, not knowing

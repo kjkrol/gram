@@ -7,7 +7,36 @@ and the climate's entities are gone, the clock's is new. Nor do saves made on th
 the topography was split into packages: its heights are `relief.Heights` now. Nor before the core
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved. Nor those made before decks ran as bands: `cell.Floor`,
-`cell.Rail` and `cell.Built` changed shape.
+`cell.Rail` and `cell.Built` changed shape. Nor those made before a route knew its levels and
+where it begins: `navigation.Path` changed shape.
+
+**Every unit holds the cell it stands on**
+- The board has every unit hold the cell it stands on, every step: one spawned in the game
+  (`world.Spawn`) holds its cell from its first step, and one pushed, thrown or moved by a game's
+  own system while nobody leads it lets go of the cell it was `unit.At`, is `At` the one it stands
+  on and has `unit.Entered` on. A unit in the middle of a step holds both its cells and is left to
+  navigation, which plans a route again once its unit stands off it between steps
+  (`navigation.Path.From`).
+- `cell.Occupancy.Holders(c, visit)` hands over every hold of a cell: a game's own Occupancy
+  implements it.
+- `board.Holds` (Shift+O; `Plugin.ShowHolds`, `Plugin.HoldsRenderer` for a scene's composer)
+  outlines every cell held in its holder's colour, a deck's further in.
+- `examples/navigation/spawn` (`make demo-navigation-spawn`): N spawns a walker under the
+  cursor, and the cells held are shown.
+
+**The examples grouped**
+- `examples/` is a directory a group of what the demos show — `start`, `look`, `rules`, `board`,
+  `navigation`, `motion` — and a short name in it (`examples/navigation/spawn`); README lists
+  them a table a group, simplest first, the animation, material and ember demos among them now.
+  The make targets keep their names.
+
+**The game's own keys listed apart**
+- The list of keys (K) begins with the game's own under "Game": what it binds in its Stage's
+  Controls section and its `players.SceneKeys`; the plugins' keys follow by plugin, the players'
+  and the engine's last, under "General" (they were under "Game").
+- A plugin's keys a game sets up (`driving.Tank`, `Compass`, `JumpKey`, `cameras.MouseLookKey`,
+  `selection.FollowKey`) are bound in the Players section with the defaults: the demos moved them
+  there.
 
 **Bridges built by one set of rules, by a player too**
 - `plugins/bridges`: a bridge is planned by `bridges/site.Plan` over a `site.Ground` — straight
@@ -198,7 +227,7 @@ argument's full path, which moved. Nor those made before decks ran as bands: `ce
 - `cmd/gramap`: a recipe's `roads.figure` (metres, the tallest figure as the game draws it) sets
   how high a bridge stands over a road under it.
 - `bullet.Blast` has a `Subject`, the shot bursting: an aimed command under `ForOther` is about it.
-- `examples/platformer-demo` (`make demo-platformer`): a hero in a side view under gravity, A and
+- `examples/motion/platformer` (`make demo-platformer`): a hero in a side view under gravity, A and
   D walk, W jumps, G turns gravity over, a hard landing dazes.
 
 **Madeira, roads as Transport Tycoon lays them, bridges and fords on the board**
@@ -325,7 +354,7 @@ argument's full path, which moved. Nor those made before decks ran as bands: `ce
   commands outside Commands, a kind of unit outside Kinds, keys bound outside Players and
   Controls, drawing rules outside Looks, the board seeded outside Layout, units outside Units.
   Plugins takes anything; a Stage with an `Init` of its own is checked for nothing.
-- Every demo and `examples/minimal` is defined so. `effect-demo` lost its roads.
+- Every demo and `examples/start/minimal` is defined so. `effect-demo` lost its roads.
   `atmosphere.Plugin.WithWeathering` may come after the plugin is used.
 - One way to write a rule: `rule.On` and `rule.Moment` with its methods are gone, replaced by
   `rule.Then[P](name, filter, step)` and the package's steps.
@@ -344,7 +373,7 @@ argument's full path, which moved. Nor those made before decks ran as bands: `ce
 - Gone, each replaced by the above: wires (`world.Plugin.Wire`, `rule.Wire`, `Wired`, `Signal`,
   the steps `OnWire` and `WhileWire`, `cell.Entry.Wired`), `world.Apply` and `world.Dispel`,
   `selection.Apply`, `rule.Part.Can` and `selection.Plugin.Abilities`. Saves holding wires do not
-  load. `examples/wire-demo`, `trapdoor-demo` and `pressure-plate-demo` are written with commands
+  load. `examples/rules/wire`, `trapdoor-demo` and `pressure-plate-demo` are written with commands
   for named cells and groups; `effect-demo` freezes whoever the cursor points at with F.
 
 **A game without tags**
@@ -376,7 +405,7 @@ argument's full path, which moved. Nor those made before decks ran as bands: `ce
   edges; on the simple map, a square grid (whole cells on any other). `Board.States(c)` and
   `unit.Standing.States` are the effects on a cell, `unit.Over(e)` the condition of standing on
   one under `e`; `effect.Effect.Shows` has an effect that alters nothing change its entity as it
-  begins and ends. `examples/effect-demo` keeps grass, road and water what they are: snow and ice
+  begins and ends. `examples/rules/effect` keeps grass, road and water what they are: snow and ice
   are effects turning their knobs, drawn as covers.
 - `render.Frame.SpriteBlendPart` blends a part of a sprite over a part of a tile.
 - A kind of cell is what it is, never how it looks: `cell.Kind.Color`, `cell.Kinds.Draw` and the
@@ -391,17 +420,17 @@ argument's full path, which moved. Nor those made before decks ran as bands: `ce
 - `effect.Effect.Look(sprite)` is the atlas slot drawn under the effect in place of a sprite,
   issued as it is first asked for — in the scene's `Layers`, where the atlas is drawn — and
   swapped in by `world.Plugin.WithRenderer` itself, after the rules of `Draw`.
-  `effect.Effects.Named(name)` finds a defined effect again at building. `examples/effect-demo`
+  `effect.Effects.Named(name)` finds a defined effect again at building. `examples/rules/effect`
   is laid out a section a thing: plugins, player, cells, effects, roles, kinds, scenes.
 - `render.Swap(twins, when...)` draws an entity as the twin of the sprite it would be drawn with,
   from a table a sprite a kind: a kind's own look under a state, swapped in under the effect's
   marker (`e.Mark().In`), a twin a way faced after `Facing`, a kind with no twin left as it is;
   two states compose in the order the rules are given. `render.With` takes conditions too.
-  `examples/effect-demo` freezes each kind in its own look this way, the `frozen` effect left to
+  `examples/rules/effect` freezes each kind in its own look this way, the `frozen` effect left to
   the knobs it turns; `Alter(Appearance)` remains one look for every kind.
 
 **Demos**
-- `examples/bullet-demo`: a soldier on WSAD (`navigation.DriveBindings`) shoots rounds with Space
+- `examples/motion/bullet`: a soldier on WSAD (`navigation.DriveBindings`) shoots rounds with Space
   the way it faces and throws grenades with G at the cursor, over a low wall and into a high one;
   a wound, a fuse and its bang are effects, the shots' doings rules of `collision.Meeting`,
   `bullet.Landing`, `Resting` and `Blast`.
@@ -558,7 +587,7 @@ argument's full path, which moved. Nor those made before decks ran as bands: `ce
   and go through effects and the plugins' facts), `Bodies`, `NewBodies` and `Kinds.Reserve`,
   `comp.Template.WithEffect`, `Clock.Now`.
 - The world's drawing rules (`Overlay`, `As`, `With`, `Facing`) are `render`'s now (`render.Over`,
-  `As`, `With`, `Show`; `world.Facing`) — see above; `examples/appearance-demo` shows them
+  `As`, `With`, `Show`; `world.Facing`) — see above; `examples/look/appearance` shows them
   changing what is drawn while the Appearance stays as it is.
 - No longer public: `VelocitySystem` and `MoveSystem`, the `Renderer` type (`Plugin.Renderer()` stays),
   `Plugin.NewView` and `DropView` (`ViewFor` stays), `view.View.Refresh`, `clock.DefaultTempos`,

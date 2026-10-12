@@ -44,9 +44,11 @@ func (ks SceneKeys) Handle(events *control.InputEvents, runtime game.Runtime, co
 // ShortcutsName is the name of the shortcuts scene in a game's stack.
 const ShortcutsName = "gram.shortcuts"
 
-// Shortcuts is the scene listing every key of the game: the local players' bindings, grouped by
-// the plugin whose command each issues, and the game's own SceneKeys under "Game" with the
-// engine's F11. Shown, it holds the game in the engine's pause, like a menu; Esc or K closes it.
+// Shortcuts is the scene listing every key of the game: first the game's own — the bindings bound
+// in its Stage's Controls section and its SceneKeys — under "Game", then the plugins' keys,
+// grouped by the plugin whose command each issues, and last the players' and the engine's under
+// "General", with F11. Shown, it holds the game in the engine's pause, like a menu; Esc or K
+// closes it.
 // It is the players' own scene, in every Stage that uses them (Plugin.Scenes); K opens it (the
 // command ShowShortcuts, a default key), given the scene hands its input to Plugin.Handle.
 type Shortcuts struct {
@@ -67,7 +69,7 @@ func newShortcuts(p *Plugin) *Shortcuts {
 }
 
 // OwnKeys gives the game's own keys — a debug toggle, something no plugin's command does — run by
-// Handle and listed under "Game" with the players'. Call it before the Stage is set up.
+// Handle and listed under "Game" with its bindings. Call it before the Stage is set up.
 func (p *Plugin) OwnKeys(keys SceneKeys) *Plugin {
 	p.shortcuts.keys = keys
 	return p
@@ -117,14 +119,15 @@ type group struct {
 }
 
 // groups lists the bindings of the local players firing in their cameras' modes with what they
-// hold by their handlers, in the handlers' order, then the game's keys.
+// hold: the game's own and its SceneKeys under "Game", the plugins' by their handlers, in the
+// handlers' order, and the players' own and the engine's under "General".
 func (s *Shortcuts) groups() []group {
 	byHandler := map[plugin.CommandHandler][]string{}
 	seen := map[string]bool{}
-	var game []string
+	var own, general []string
 	for _, pl := range s.p.Locals() {
 		how := camera.HowOf(pl.pic.camera)
-		for _, b := range pl.Bindings() {
+		for i, b := range pl.Bindings() {
 			if !pl.fires(b, how) {
 				continue
 			}
@@ -133,26 +136,31 @@ func (s *Shortcuts) groups() []group {
 				continue
 			}
 			seen[line] = true
-			h := s.p.handlerOf(b.Type())
-			if h == plugin.CommandHandler(s.p) || h == nil {
-				game = append(game, line) // the players' own and the engine's: the game's
-				continue
+			switch h := s.p.handlerOf(b.Type()); {
+			case pl.own[i]:
+				own = append(own, line)
+			case h == plugin.CommandHandler(s.p) || h == nil:
+				general = append(general, line)
+			default:
+				byHandler[h] = append(byHandler[h], line)
 			}
-			byHandler[h] = append(byHandler[h], line)
 		}
 	}
+	for _, k := range s.keys {
+		trigger := control.KeyPress{Key: k.Key, Mods: control.Mods{Shift: k.Shift}}
+		own = append(own, fmt.Sprintf("%-22s %s", Written(trigger), k.Label))
+	}
 	var out []group
+	if len(own) > 0 {
+		out = append(out, group{name: "Game", lines: own})
+	}
 	for _, h := range s.p.handlers {
 		if lines := byHandler[h]; len(lines) > 0 {
 			out = append(out, group{name: handlerName(h), lines: lines})
 		}
 	}
-	g := group{name: "Game", lines: game}
-	for _, k := range s.keys {
-		g.lines = append(g.lines, fmt.Sprintf("%-22s %s", Written(control.KeyPress{Key: k.Key, Mods: control.Mods{Shift: k.Shift}}), k.Label))
-	}
-	g.lines = append(g.lines, fmt.Sprintf("%-22s %s", "F11", "Full screen (the engine's)"))
-	return append(out, g)
+	general = append(general, fmt.Sprintf("%-22s %s", "F11", "Full screen (the engine's)"))
+	return append(out, group{name: "General", lines: general})
 }
 
 // title is the list's heading, naming the first person while a local player's camera rides

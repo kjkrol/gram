@@ -18,11 +18,13 @@ type Player struct {
 	Name string
 
 	world    *world.Plugin
-	pic      picture  // the picture it acts through, as last wired
-	wiredBy  *through // the wire that told it of pic, and in which pass of input
+	sections section.Reader // the Stage's, telling which part is being defined; nil for none
+	pic      picture        // the picture it acts through, as last wired
+	wiredBy  *through       // the wire that told it of pic, and in which pass of input
 	wiredIn  uint64
 	local    bool
 	bindings []control.Binding
+	own      []bool       // whether each of bindings is the game's own: bound in its Controls
 	in       input        // what the event handler has seen of its keys and buttons
 	tool     control.Tool // what it holds in hand (control.Take), none for nothing
 }
@@ -59,12 +61,13 @@ type picture struct {
 func (p *Player) Area() geom.AABB { return p.pic.area }
 
 // Bind adds bindings to the player; two on one Trigger holding in one camera mode with one tool
-// are an error,
-// never a silent last-one-wins.
+// are an error, never a silent last-one-wins. Those bound in the Stage's Controls section are the
+// game's own, listed apart under "Game" (Shortcuts).
 func (p *Player) Bind(bindings ...control.Binding) error {
 	if err := p.world.InSection("keys bound for "+p.Name, section.Players, section.Controls); err != nil {
 		return err
 	}
+	own := p.sections != nil && p.sections.Section() == section.Controls
 	for _, b := range bindings {
 		if b.Type() == nil {
 			return fmt.Errorf("players: %q is not a Binding made with control.Build or Give", b.Label)
@@ -75,6 +78,7 @@ func (p *Player) Bind(bindings ...control.Binding) error {
 			}
 		}
 		p.bindings = append(p.bindings, b)
+		p.own = append(p.own, own)
 	}
 	return nil
 }

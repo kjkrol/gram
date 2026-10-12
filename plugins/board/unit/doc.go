@@ -5,5 +5,6 @@
 // (plugins/board) keeps them: board.NewUnits gives At and Mover to a game's units, and the board
 // runs the rules of a Standing every step, for every entity carrying At. [Entered] — a marker of
 // the board's [States] every unit carries — is on for the step a unit came into another cell: put
-// on by whoever moved it there, taken off by the board as its next pass begins.
+// on by whoever moved it there — the board itself for one nobody leads — taken off by the board as
+// its next pass begins.
 package unit

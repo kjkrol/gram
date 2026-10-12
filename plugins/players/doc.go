@@ -94,11 +94,12 @@
 // game.Load (the quicksave), Shift+Esc game.Quit — the same in every game. Keys
 // that are no command to a plugin — a debug toggle — are the game's own: [SceneKeys] lists them
 // with labels and what they do, given to [Plugin.OwnKeys], and Handle runs them. [Shortcuts] is
-// the players' own scene listing every key of the game — the local players' bindings, grouped by
-// the plugin whose command each issues, and under "Game" the game's own keys, the engine's and the
-// list's
-// — over the dimmed screen, the game held in the engine's pause while it is up; every Stage that
-// uses the players has it in its stack ([Plugin.Scenes], game.Scenic), and Esc or K closes it.
+// the players' own scene listing every key of the game: first the game's own under "Game" —
+// what it binds in its Stage's Controls section ([Player.Bind]) and its SceneKeys — then the
+// plugins' keys, the defaults and those a game sets in Players, grouped by the plugin whose
+// command each issues, and last the players' and the engine's under "General" — over the dimmed
+// screen, the game held in the engine's pause while it is up; every Stage that uses the players
+// has it in its stack ([Plugin.Scenes], game.Scenic), and Esc or K closes it.
 // [Written] is a rule as such a list writes it.
 //
 // # Following and driving

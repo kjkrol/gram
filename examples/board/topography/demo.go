@@ -178,7 +178,8 @@ func (s *arena) makePlugins(w *world.Plugin) {
 func (s *arena) definePlayers() error {
 	s.player = s.players.Local("player")
 	s.rival = s.players.Add("rival")
-	return s.player.Bind(s.players.Defaults()...)
+	// first person looks round with the mouse only once asked
+	return s.player.Bind(append(s.players.Defaults(), cameras.MouseLookKey(control.KeyO))...)
 }
 
 func (s *arena) defineEffects() {
@@ -314,16 +315,11 @@ func (s *arena) defineKinds() {
 }
 
 func (s *arena) bindKeys() error {
-	return s.player.Bind(
-		control.Give(
-			control.KeyPress{Key: control.KeyM},
-			"Blood moon, on or off",
-			s.world.Commands().Named(BleedCmd),
-		),
-		cameras.MouseLookKey(
-			control.KeyO,
-		), // first person looks round with the mouse only once asked
-	)
+	return s.player.Bind(control.Give(
+		control.KeyPress{Key: control.KeyM},
+		"Blood moon, on or off",
+		s.world.Commands().Named(BleedCmd),
+	))
 }
 
 func (s *arena) spawn() error {

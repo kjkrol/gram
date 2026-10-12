@@ -7,8 +7,8 @@ import "github.com/kjkrol/gram/entity/tag"
 type States struct{}
 
 // Entered is on for the step a unit's At changed — At says which cell it entered: put on by
-// whoever moves it into another cell (navigation, driving), taken off by the board as the next
-// step's units' pass begins.
+// whoever moves it into another cell (navigation, driving, the board for one nobody leads), taken
+// off by the board as the next step's units' pass begins.
 const Entered tag.Tag[States] = 0
 
 // EnteredName is the name Entered is defined under, as the saves know it.

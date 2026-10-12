@@ -243,7 +243,7 @@ s.player.Bind(control.Give(control.KeyPress{Key: control.KeyN}, "Sound the alarm
 The guards hurry while the alarm sounds and slow down once it is over: `Keep` holds `alert` only
 while the rule fires it.
 
-The wire demo (`examples/wire-demo/demo.go`) is a whole program of it: a lever, a plate and a
+The wire demo (`examples/rules/wire/demo.go`) is a whole program of it: a lever, a plate and a
 switch, each a command for a group of trapdoors or a gate, entities standing on the board; the
 trapdoor and pressure plate demos are the same in less.
 
@@ -371,7 +371,7 @@ faced after `Facing` — and leaves a kind with no twin as it is; `render.Over(c
 lays one look over every kind; `Show` hides. Two states compose in the order the rules are given.
 This is what Unreal's Gameplay Ability System calls a cue: the effect grants a tag, each class
 reacts to it cosmetically; the effect never touches the look. An `Alter(Appearance)` remains a
-knob for one look for every kind (`examples/effect-demo` froze everyone pale before; now each kind
+knob for one look for every kind (`examples/rules/effect` froze everyone pale before; now each kind
 freezes in its own look).
 
 ## Dispel and order

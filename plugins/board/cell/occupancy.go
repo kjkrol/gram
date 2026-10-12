@@ -16,8 +16,10 @@ type Occupancy interface {
 	// Enter has entity hold c on a level in domain, in place of the hold of c it had.
 	Enter(c ID, deck bool, entity uid.UID64, domain Domain)
 	Leave(c ID, entity uid.UID64)
+	// Holders hands visit every hold of c: who, in which domains, and whether on the deck.
+	Holders(c ID, visit func(entity uid.UID64, domain Domain, deck bool))
 	// Release lets go of every hold of an entity gone says is no more: the board calls it every
-	// step, so one despawned — fallen in, say — blocks no
+	// step, so one despawned — fallen in, say — blocks no cell.
 	Release(gone func(uid.UID64) bool)
 }
 
@@ -61,6 +63,10 @@ func (o *SingleOccupancy) Holder(c ID, deck bool, domain Domain) (uid.UID64, boo
 	return holderOf(o.holders[c], deck, domain)
 }
 
+func (o *SingleOccupancy) Holders(c ID, visit func(uid.UID64, Domain, bool)) {
+	holdersOf(o.holders[c], visit)
+}
+
 func (o *SingleOccupancy) Release(gone func(uid.UID64) bool) { release(o.holders, gone) }
 
 // MultipleOccupancy lets any number of entities share a cell — tokens on a board square. Such
@@ -86,6 +92,10 @@ func (o *MultipleOccupancy) Leave(c ID, entity uid.UID64) {
 // Holder is the first entity holding c on a level in a domain domain shares, if any.
 func (o *MultipleOccupancy) Holder(c ID, deck bool, domain Domain) (uid.UID64, bool) {
 	return holderOf(o.holders[c], deck, domain)
+}
+
+func (o *MultipleOccupancy) Holders(c ID, visit func(uid.UID64, Domain, bool)) {
+	holdersOf(o.holders[c], visit)
 }
 
 func (o *MultipleOccupancy) Release(gone func(uid.UID64) bool) { release(o.holders, gone) }
@@ -114,6 +124,13 @@ func enter(holders map[ID][]holder, c ID, h holder) map[ID][]holder {
 	}
 	holders[c] = append(holders[c], h)
 	return holders
+}
+
+// holdersOf hands visit every one of holders.
+func holdersOf(holders []holder, visit func(uid.UID64, Domain, bool)) {
+	for _, h := range holders {
+		visit(h.entity, h.domain, h.deck)
+	}
 }
 
 // holderOf is the first of holders on a level in a domain domain shares.

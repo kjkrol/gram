@@ -9,9 +9,18 @@ const MaxPathLength = 64
 // NavigationSystem — Length 0 means "not computed yet".
 type Path struct {
 	Steps  [MaxPathLength]cell.ID
-	Decks  uint64 // which Steps lie on a raised deck, by bit
+	Decks  uint64  // which Steps lie on a raised deck, by bit
+	From   cell.ID // the cell the route begins in
 	Length uint16
 	Index  uint16
+}
+
+// at is the cell the route has come to: the step last reached, or the one it begins in.
+func (p *Path) at() cell.ID {
+	if p.Index == 0 {
+		return p.From
+	}
+	return p.Steps[p.Index-1]
 }
 
 // deck reports whether step k lies on a raised deck.

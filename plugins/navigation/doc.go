@@ -5,17 +5,19 @@
 //
 // # MoveOrder and Path
 //
-// A [MoveOrder] on an entity commands it toward a Target cell and then through up to
-// [MaxWaypoints] queued [Goal]s ([MoveOrder.Enqueue]), passing each without stopping; the order is
-// removed when the last is reached — unless it has a [Round], a patrol ([Patrol]): then, reached
-// or given up, it goes on to the round's next goal, standing its pause on each one reached, for
-// ever. A kind gives a wanderer or a guard its own round (comp.Load). Where in a cell the entity stops is its Spot, zero the cell's
-// centre, and At the point the order was given for. Its [Path] is the cached route, consumed step
-// by step, at most [MaxPathLength] cells at a time with a longer route fetched in chunks; its
-// [Leg] is the single step in flight. Stepping into another cell it has unit.Entered on for that
-// step (the board's marker: the At says which cell it entered). A navigated entity carries a steering.Steering profile: navigation only asks it for
-// a heading at the lookahead point and for its own top speed, braking from the profile before the
-// goal. The [Plugin], built over a board and a world, runs before the world's RunPlan.
+// A [MoveOrder] on an entity commands it toward a Target cell and then through up to [MaxWaypoints]
+// queued [Goal]s ([MoveOrder.Enqueue]), passing each without stopping; the order is removed when
+// the last is reached — unless it has a [Round], a patrol ([Patrol]): then, reached or given up, it
+// goes on to the round's next goal, standing its pause on each one reached, for ever. A kind gives
+// a wanderer or a guard its own round (comp.Load). Where in a cell the entity stops is its Spot,
+// zero the cell's centre, and At the point the order was given for. Its [Path] is the cached route,
+// consumed step by step, at most [MaxPathLength] cells at a time with a longer route fetched in
+// chunks, planned again once the entity stands off it between steps — moved by another, the board
+// following it; its [Leg] is the single step in flight. Stepping into another cell it has
+// unit.Entered on for that step (the board's marker: the At says which cell it entered). A
+// navigated entity carries a steering.Steering profile: navigation only asks it for a heading at
+// the lookahead point and for its own top speed, braking from the profile before the goal. The
+// [Plugin], built over a board and a world, runs before the world's RunPlan.
 //
 // Navigation requires of every unit a steering.Steering, the profile it is steered by, through the
 // world's kind.Roster; a MoveOrder is put on by the MoveTo command, or by the game at spawn.

@@ -20,16 +20,16 @@ var _ goke.Module = (*module)(nil)
 type module struct {
 	cells     goke.System
 	built     goke.System
-	release   goke.System
 	standing  goke.System
+	keep      goke.System
 	cellRules goke.System
 	clock     *clock.Clock   // the world's; nil, run at once
 	template  *kind.Template // the world's roster's for cells, whose components the saves carry
 
 	cellsRunnable     goke.Runnable
 	builtRunnable     goke.Runnable
-	releaseRunnable   goke.Runnable
 	standingRunnable  goke.Runnable
+	keepRunnable      goke.Runnable
 	cellRulesRunnable goke.Runnable
 }
 
@@ -40,8 +40,8 @@ type module struct {
 func (m *module) RegSystems(ecs *goke.ECS) {
 	m.cellsRunnable = ecs.RegSys(m.cells) // first: it makes or finds the cells
 	m.builtRunnable = ecs.RegSys(m.built)
-	m.releaseRunnable = ecs.RegSys(m.release)
 	m.standingRunnable = ecs.RegSys(m.standing)
+	m.keepRunnable = ecs.RegSys(m.keep) // after standing, which takes unit.Entered off
 	m.cellRulesRunnable = ecs.RegSys(m.cellRules)
 }
 
@@ -50,8 +50,8 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
 		ctx.Run(m.cellsRunnable, step)
 		ctx.Run(m.builtRunnable, step)
-		ctx.Run(m.releaseRunnable, step)
 		ctx.Run(m.standingRunnable, step)
+		ctx.Run(m.keepRunnable, step)
 		ctx.Run(m.cellRulesRunnable, step)
 		ctx.Sync()
 	})

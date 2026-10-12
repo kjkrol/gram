@@ -80,7 +80,7 @@
 // sharing an atlas, piece for piece what Frame.SpriteRectUV would lay.
 //
 // What is worked out per pixel beyond that — water, the clouds' shadows, an entity's whole look
-// ([Look]: a world atlas Add takes a MaterialID in a SpriteDrawer's place; examples/material-demo) — is a material a plugin
+// ([Look]: a world atlas Add takes a MaterialID in a SpriteDrawer's place; examples/look/material) — is a material a plugin
 // or a game
 // brings in WGSL of its own and registers ([RegisterMaterials]); the composer's one shader is its
 // own part and every material registered, put together and compiled once ([Compile],

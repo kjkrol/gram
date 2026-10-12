@@ -60,6 +60,9 @@ type Plugin struct {
 	rules       *moments.Rules
 	workers     int                 // how many goroutines at most share a frame's tiles: 0 all the CPUs, 1 none
 	grids       control.Queue[Grid] // the Grid commands given, until the next tick
+	holds       control.Queue[Holds]
+	holdsView   *occupancy.View // WithRenderer's
+	holdsShown  bool
 	bridges     Bridges
 	// the cell an entity of each kind NewEntities defines stands on, read off its row, and the
 	// file and line of a level the entity on a cell was laid by
@@ -133,7 +136,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		cells:     p.Board().cells.System(&p.worldPlugin.Roster().Cell),
 		built:     p.Board().cells.BuiltSystem(p.worldPlugin.HasHeights(), p.worldPlugin.Space),
 		template:  &p.worldPlugin.Roster().Cell,
-		release:   occupancy.ReleaseSystem(p.occupancy, p.Board().onDeck),
+		keep:      occupancy.KeepSystem(p.occupancy, p.Board().footing),
 		standing:  p.rules.StandingSystem(),
 		cellRules: p.rules.CellSystem(),
 		clock:     p.worldPlugin.Clock(),
@@ -151,6 +154,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 			p.Res.Render.ToggleShowGridLines()
 		}
 	})
+	p.holds.Drain(func(control.Issued[Holds]) { p.ShowHolds(!p.holdsShown) })
 	p.module.RunPlan(ctx, d)
 }
 
@@ -168,6 +172,37 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	p.Res.Render = p.renderer.State()
 	p.Res.Render.ShowGridLines = true
 	p.renderer.Workers(p.workers)
+	p.holdsView = occupancy.NewView(p.Board().Grid, p.occupancy, p.holdAt)
+	p.holdsView.Show(p.holdsShown)
+}
+
+// ShowHolds shows the cells the occupancy holds — each an outline in its holder's colour, on the
+// ground or on the deck — or hides them, as they start: a look, not saved; Holds (Shift+O).
+func (p *Plugin) ShowHolds(shown bool) {
+	p.holdsShown = shown
+	if p.holdsView != nil {
+		p.holdsView.Show(shown)
+	}
+}
+
+// HoldsRenderer draws the cells the occupancy holds while ShowHolds says, for a scene's composer;
+// nil before WithRenderer.
+func (p *Plugin) HoldsRenderer() render.Layer {
+	if p.holdsView == nil {
+		return nil
+	}
+	return p.holdsView
+}
+
+// holdAt is how high the point at of c lies on the ground, or on the raised deck over c.
+func (p *Plugin) holdAt(c cell.ID, at geom.Vec, deck bool) float64 {
+	if deck {
+		return p.Board().altitude(c) + p.Board().Built(c).Floor.Height
+	}
+	if h := p.Heights(); h != nil {
+		return h.At(at)
+	}
+	return 0
 }
 
 // WithLog has the board write a line to l, once for each, for a unit fallen where its domain may

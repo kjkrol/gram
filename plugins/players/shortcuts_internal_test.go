@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -36,7 +37,8 @@ func TestWritten_SpellsATriggerAsAHelpScreenDoes(t *testing.T) {
 }
 
 // The shortcuts list every binding of the local players under the plugin that owns its command,
-// the cameras' under Cameras, and the players' own and the scene's keys under Game.
+// the cameras' under Cameras, the game's own scene keys first, under Game, and the players' own
+// and the engine's last, under General.
 func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
 	cams := cameras.NewPlugin(w)
@@ -50,8 +52,9 @@ func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	for _, g := range groups {
 		names[g.name] = g.lines
 	}
-	if len(groups) != 3 || groups[0].name != "World" || groups[1].name != "Cameras" || groups[2].name != "Game" {
-		t.Fatalf("groups %v, want World, Cameras and Game in that order", names)
+	if len(groups) != 4 || groups[0].name != "Game" || groups[1].name != "World" ||
+		groups[2].name != "Cameras" || groups[3].name != "General" {
+		t.Fatalf("groups %v, want Game, World, Cameras and General in that order", names)
 	}
 	if lines := strings.Join(names["Cameras"], "\n"); !strings.Contains(lines, "W (held)") || !strings.Contains(lines, "Scroll up") || !strings.Contains(lines, "wheel") {
 		t.Errorf("the camera's lines %q, want WASD and the wheel among them", lines)
@@ -59,8 +62,56 @@ func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	if lines := strings.Join(names["World"], "\n"); !strings.Contains(lines, "Space") || !strings.Contains(lines, "Pause the game") {
 		t.Errorf("the world's lines %q, want the clock's Space", lines)
 	}
-	if lines := strings.Join(names["Game"], "\n"); !strings.Contains(lines, "Shift+Esc") || !strings.Contains(lines, "Quit") || !strings.Contains(lines, "K ") || !strings.Contains(lines, "Build a road") || !strings.Contains(lines, "F11") {
-		t.Errorf("the game's lines %q, want the players' K and Shift+Esc, the game's own R and the engine's F11", lines)
+	if lines := strings.Join(names["Game"], "\n"); lines != "R                      Build a road" {
+		t.Errorf("the game's lines %q, want its own R alone", lines)
+	}
+	lines := strings.Join(names["General"], "\n")
+	for _, want := range []string{"Shift+Esc", "Quit", "K ", "F11"} {
+		if !strings.Contains(lines, want) {
+			t.Errorf("the general lines %q, want the players' K, Shift+Esc and the engine's F11",
+				lines)
+			break
+		}
+	}
+}
+
+// partNow is the part of a Stage being defined, as a test says.
+type partNow section.Part
+
+func (p *partNow) Section() section.Part { return section.Part(*p) }
+
+// A binding bound in the Stage's Controls section is the game's own, listed first under Game
+// whatever plugin carries its command out; one bound with the plugins' keys, in Players, stays
+// under its plugin.
+func TestShortcuts_ListTheGamesOwnBindingsUnderGame(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 100, Height: 100},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	p := NewPlugin(w, cameras.NewPlugin(w))
+	now := partNow(section.Players)
+	p.sections = &now
+	one := p.Local("one")
+	if err := one.Bind(w.DefaultBindings()...); err != nil {
+		t.Fatal(err)
+	}
+	now = partNow(section.Controls)
+	spawn := control.Build(control.KeyPress{Key: control.KeyN}, "Spawn a walker",
+		func(control.Context) (world.Spawn, bool) { return world.Spawn{}, false })
+	if err := one.Bind(spawn); err != nil {
+		t.Fatal(err)
+	}
+	groups := p.shortcuts.groups()
+	if len(groups) < 2 || groups[0].name != "Game" || groups[1].name != "World" {
+		t.Fatalf("groups %+v, want the game's first, under Game, then World", groups)
+	}
+	if own := strings.Join(groups[0].lines, "\n"); !strings.Contains(own, "Spawn a walker") ||
+		strings.Contains(own, "Pause the game") {
+		t.Errorf("the game's lines %q, want its N alone", own)
+	}
+	if world := strings.Join(groups[1].lines, "\n"); strings.Contains(world, "Spawn a walker") ||
+		!strings.Contains(world, "Pause the game") {
+		t.Errorf("the world's lines %q, want its defaults without the game's N", world)
 	}
 }
 

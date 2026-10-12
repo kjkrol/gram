@@ -84,14 +84,12 @@ func (b *Board) LevelFor(p geom.Vec, feet, reach float64) (c cell.ID, deck, ok b
 	return b.cells.LevelFor(p, feet, reach, b.altitude)
 }
 
-// onDeck reports whether whoever stands at p, its feet at feet, stepping reach high, stands in c
-// on the raised deck over it, and whether c has one at all.
-func (b *Board) onDeck(c cell.ID, p geom.Vec, feet, reach float64) (deck, raised bool) {
-	if b.Built(c).Floor.Height <= 0 {
-		return false, false
+// footing is LevelFor and whether the cell has a raised deck at all (occupancy.Footing).
+func (b *Board) footing(p geom.Vec, feet, reach float64) (c cell.ID, deck, raised, ok bool) {
+	if c, deck, ok = b.LevelFor(p, feet, reach); !ok {
+		return c, false, false, false
 	}
-	at, deck, ok := b.LevelFor(p, feet, reach)
-	return ok && at == c && deck, true
+	return c, deck, b.Built(c).Floor.Height > 0, true
 }
 
 // DecksOver calls visit with every Floor over p and the cell it is built on: the whole cell's, or

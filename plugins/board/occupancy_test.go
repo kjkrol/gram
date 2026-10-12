@@ -6,7 +6,9 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -14,22 +16,36 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/uid"
 )
 
-// The board holds the cell a unit stands on under a raised deck on the level its feet are on: on
-// the deck while it stands there, on the ground once it has fallen off it into the same cell.
-func TestOccupancy_HoldsAUnitsCellOnTheLevelOfItsFeet(t *testing.T) {
-	g := grid.DefaultGrids{}.Square(5, 3, 10)
-	w := world.NewPlugin(world.Config{
+// keptBoard is a board of 5 by 3 cells, the middle row's three inner cells under a raised deck
+// running west to east, and the walkers standing on it, each seeded on the cell at its x and y.
+type keptBoard struct {
+	g         grid.Grid
+	w         *world.Plugin
+	occupancy *cell.SingleOccupancy
+	walker    kind.Of[cell.ID]
+	ecs       *goke.ECS
+	units     *goke.Query
+	base      goke.Comp[world.Base]
+	z         goke.Comp[world.Z]
+	at        goke.Comp[unit.At]
+	states    goke.Comp[tag.Tags[unit.States]]
+}
+
+func newKeptBoard(t *testing.T, seeded ...[2]uint32) *keptBoard {
+	t.Helper()
+	k := &keptBoard{g: grid.DefaultGrids{}.Square(5, 3, 10), occupancy: &cell.SingleOccupancy{}}
+	k.w = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 50, Height: 30},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 1, MaxSize: 10},
 		Heights:  true,
 	})
-	occupancy := &cell.SingleOccupancy{}
-	p := board.NewPlugin(g, occupancy, w)
+	p := board.NewPlugin(k.g, k.occupancy, k.w)
 	p.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	west, _ := grid.Direction(g, -1, 0)
-	east, _ := grid.Direction(g, 1, 0)
+	west, _ := grid.Direction(k.g, -1, 0)
+	east, _ := grid.Direction(k.g, 1, 0)
 	decks := board.NewEntities(p, board.Shape{Size: 10}, func(c cell.ID) cell.ID { return c })
 	decks.Define("deck", comp.Const(cell.Floor{
 		Allows:    cell.Land,
@@ -39,51 +55,147 @@ func TestOccupancy_HoldsAUnitsCellOnTheLevelOfItsFeet(t *testing.T) {
 		Width:     6,
 	}))
 	units := board.NewUnits(p, board.Shape{Size: 2, Height: 2},
-		func(c cell.ID) geom.Vec { return g.CellCenter(c) })
+		func(c cell.ID) geom.Vec { return k.g.CellCenter(c) })
 	units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
+	k.walker = units.Named("walker")
 	for x := range uint32(3) {
-		w.Seed(decks.Named("deck").Entry(g.At(x+1, 1)))
+		k.w.Seed(decks.Named("deck").Entry(k.g.At(x+1, 1)))
 	}
-	mid := g.At(2, 1)
-	w.Seed(units.Named("walker").Entry(mid))
+	for _, at := range seeded {
+		k.w.Seed(k.walker.Entry(k.g.At(at[0], at[1])))
+	}
 	ctx := boardtest.NewInstallCtx()
-	if err := w.Install(ctx); err != nil {
+	if err := k.w.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := p.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := w.Populate(); err != nil {
+	if err := k.w.Populate(); err != nil {
 		t.Fatal(err)
 	}
-	var z goke.Comp[world.Z]
-	var walker *goke.Query
-	ctx.ECS().Setup(append(ctx.Systems(), goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		walker = si.NewQueryBuilder(&z).Build()
+	k.ecs = ctx.ECS()
+	k.ecs.Setup(append(ctx.Systems(), goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		k.units = si.NewQueryBuilder(&k.base, &k.z, &k.at, &k.states).Build()
 	}})...)
-	ctx.ECS().SetPlan(func(rc goke.RunCtx, d time.Duration) {
-		w.RunPlan(rc, d)
+	k.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+		k.w.RunPlan(rc, d)
 		p.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		k.w.Clock().Replay(rc, d)
 	})
-	standAt := func(alt float64) {
-		for walker.All(); walker.Next(); {
-			for i := range z.Slice(walker.Cursor()) {
-				z.Slice(walker.Cursor())[i].Altitude = alt
-			}
+	return k
+}
+
+func (k *keptBoard) tick() { k.ecs.Tick(time.Second / 60) }
+
+// each calls f with every walker's id, box, heights, cell and markers.
+func (k *keptBoard) each(f func(uid.UID64, *world.Base, *world.Z, *unit.At,
+	*tag.Tags[unit.States])) {
+	for k.units.All(); k.units.Next(); {
+		cur := k.units.Cursor()
+		bases, zs, ats, states := k.base.Slice(cur), k.z.Slice(cur), k.at.Slice(cur),
+			k.states.Slice(cur)
+		for i, id := range cur.IDs {
+			f(id, &bases[i], &zs[i], &ats[i], &states[i])
 		}
-		ctx.ECS().Tick(time.Second / 60)
+	}
+}
+
+// holders are the entities holding c.
+func (k *keptBoard) holders(c cell.ID) []uid.UID64 {
+	var ids []uid.UID64
+	k.occupancy.Holders(c, func(e uid.UID64, _ cell.Domain, _ bool) { ids = append(ids, e) })
+	return ids
+}
+
+// The board holds the cell a unit stands on under a raised deck on the level its feet are on: on
+// the deck while it stands there, on the ground once it has fallen off it into the same cell.
+func TestOccupancy_HoldsAUnitsCellOnTheLevelOfItsFeet(t *testing.T) {
+	k := newKeptBoard(t, [2]uint32{2, 1})
+	mid := k.g.At(2, 1)
+	standAt := func(alt float64) {
+		k.each(func(_ uid.UID64, _ *world.Base, z *world.Z, _ *unit.At, _ *tag.Tags[unit.States]) {
+			z.Altitude = alt
+		})
+		k.tick()
 	}
 	const other = 99
 	standAt(10)
-	if occupancy.CanEnter(mid, true, other, cell.Land) ||
-		!occupancy.CanEnter(mid, false, other, cell.Land) {
+	if k.occupancy.CanEnter(mid, true, other, cell.Land) ||
+		!k.occupancy.CanEnter(mid, false, other, cell.Land) {
 		t.Error("a unit standing on the deck holds its cell's ground, not the deck")
 	}
 	standAt(0)
-	if !occupancy.CanEnter(mid, true, other, cell.Land) ||
-		occupancy.CanEnter(mid, false, other, cell.Land) {
+	if !k.occupancy.CanEnter(mid, true, other, cell.Land) ||
+		k.occupancy.CanEnter(mid, false, other, cell.Land) {
 		t.Error("a unit fallen off the deck into its cell still holds the deck, not the ground")
+	}
+}
+
+// A unit spawned in the game holds the cell it stands on from its first step.
+func TestOccupancy_HoldsTheCellOfAUnitSpawnedInTheGame(t *testing.T) {
+	k := newKeptBoard(t)
+	k.tick()
+	c := k.g.At(2, 0)
+	k.w.Spawn(k.walker.Entry(c))
+	k.tick()
+	if got := k.holders(c); len(got) != 1 {
+		t.Fatalf("the cell a unit was spawned on is held by %v, want the unit alone", got)
+	}
+	k.each(func(id uid.UID64, _ *world.Base, _ *world.Z, at *unit.At, _ *tag.Tags[unit.States]) {
+		if at.Cell != c || k.holders(c)[0] != id {
+			t.Errorf("unit %d is At %v, the cell held by %v", id, at.Cell, k.holders(c))
+		}
+	})
+}
+
+// A unit moved into another cell by none who keeps its cell — pushed, thrown, a game's own system
+// — is At the cell it stands on, holds it, has let go of the one it left and has entered.
+func TestOccupancy_FollowsAUnitMovedByNoneWhoKeepsItsCell(t *testing.T) {
+	k := newKeptBoard(t, [2]uint32{1, 0})
+	from := k.g.At(1, 0)
+	to := k.g.At(2, 0)
+	k.tick()
+	k.each(func(_ uid.UID64, b *world.Base, _ *world.Z, _ *unit.At, _ *tag.Tags[unit.States]) {
+		b.Pos.AABB = boardtest.CellBox(k.g, to, 2)
+	})
+	k.tick()
+	k.each(func(id uid.UID64, _ *world.Base, _ *world.Z, at *unit.At, s *tag.Tags[unit.States]) {
+		if at.Cell != to {
+			t.Errorf("the unit moved is At %v, want the cell it stands on, %v", at.Cell, to)
+		}
+		if !s.Has(unit.Entered) {
+			t.Error("the unit moved into another cell has not entered it")
+		}
+		if got := k.holders(to); len(got) != 1 || got[0] != id {
+			t.Errorf("the cell it stands on is held by %v, want it", got)
+		}
+	})
+	if got := k.holders(from); len(got) != 0 {
+		t.Errorf("the cell it left is still held by %v", got)
+	}
+}
+
+// A unit standing in a cell it holds besides its own — the one a step of it goes to — is left
+// where it is At: whoever leads it there moves it.
+func TestOccupancy_LeavesAUnitInACellItHolds(t *testing.T) {
+	k := newKeptBoard(t, [2]uint32{1, 0})
+	from := k.g.At(1, 0)
+	to := k.g.At(2, 0)
+	k.tick()
+	k.each(func(id uid.UID64, b *world.Base, _ *world.Z, _ *unit.At, _ *tag.Tags[unit.States]) {
+		k.occupancy.Enter(to, false, id, cell.Land)
+		b.Pos.AABB = boardtest.CellBox(k.g, to, 2)
+	})
+	k.tick()
+	k.each(func(_ uid.UID64, _ *world.Base, _ *world.Z, at *unit.At, _ *tag.Tags[unit.States]) {
+		if at.Cell != from {
+			t.Errorf("a unit in the middle of its step is At %v, want %v", at.Cell, from)
+		}
+	})
+	if len(k.holders(from)) != 1 || len(k.holders(to)) != 1 {
+		t.Errorf("the cells of its step are held by %v and %v, want it in both",
+			k.holders(from), k.holders(to))
 	}
 }

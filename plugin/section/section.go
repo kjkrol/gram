@@ -15,12 +15,12 @@ type Part uint8
 const (
 	Anytime  Part = iota // none: a Stage written by hand, a test
 	Plugins              // the plugins are made and used: anything may be defined, as they define their own
-	Players              // the players and the plugins' default keys
+	Players              // the players and the plugins' keys, their defaults and those a game sets
 	Effects              // the states
 	Rules                // the roles, the rules, the plans
 	Commands             // what can be asked for
 	Kinds                // the kinds of cells, with the roles their cells play, and of units
-	Controls             // the game's own keys
+	Controls             // the game's own keys, listed apart from the plugins' (players.Shortcuts)
 	Spawn                // a fresh game's world: its board, its units
 	Scenes               // the scenes, once the world is there
 	Done                 // the Stage is defined

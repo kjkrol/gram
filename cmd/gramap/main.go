@@ -1,8 +1,8 @@
 // Command gramap makes a gram map — a level file a board lays (board.Plugin.Lay) — of any stretch
 // of the Earth, at any scale, from a recipe:
 //
-//	go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out examples/board-topography/map.yaml
-//	go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out examples/board/map.yaml -flat
+//	go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out examples/board/topography/map.yaml
+//	go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out examples/board/flat/map.yaml -flat
 //
 // The heights are the Terrain Tiles on AWS (Mapzen's Tilezen terrarium: SRTM, EU-DEM, GMTED2010,
 // ETOPO1 and others; https://github.com/tilezen/joerd/blob/master/docs/attribution.md), fetched

@@ -115,10 +115,21 @@ func (s *arena) makePlugins(w *world.Plugin) {
 
 func (s *arena) definePlayers() error {
 	s.player = s.players.Local("player")
-	return s.player.Bind(slices.Concat(
+	keys := slices.Concat(
 		s.players.DefaultBindings(),
 		s.world.DefaultBindings(),
 		cameras.Keys{Wheel: true}.Bindings(),
+	)
+	walk := []driving.Compass{
+		{Left: control.KeyA, Right: control.KeyD},
+		{Left: control.KeyArrowLeft, Right: control.KeyArrowRight},
+	}
+	for _, w := range walk {
+		keys = append(keys, w.Bindings()...)
+	}
+	return s.player.Bind(append(keys,
+		driving.JumpKey(control.KeyW),
+		driving.JumpKey(control.KeyArrowUp),
 	)...)
 }
 
@@ -178,23 +189,11 @@ func (s *arena) defineKinds() {
 }
 
 func (s *arena) bindKeys() error {
-	walk := []driving.Compass{
-		{Left: control.KeyA, Right: control.KeyD},
-		{Left: control.KeyArrowLeft, Right: control.KeyArrowRight},
-	}
-	var keys []control.Binding
-	for _, w := range walk {
-		keys = append(keys, w.Bindings()...)
-	}
-	return s.player.Bind(append(keys,
-		driving.JumpKey(control.KeyW),
-		driving.JumpKey(control.KeyArrowUp),
-		control.Give(
-			control.KeyPress{Key: control.KeyG},
-			"Turn gravity over",
-			s.world.Commands().Named(FlipCmd),
-		),
-	)...)
+	return s.player.Bind(control.Give(
+		control.KeyPress{Key: control.KeyG},
+		"Turn gravity over",
+		s.world.Commands().Named(FlipCmd),
+	))
 }
 
 func (s *arena) spawn() error {

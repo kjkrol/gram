@@ -451,6 +451,9 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			if changed && p.Index < p.Length && !s.admitsAll(p.Steps[p.Index:p.Length], domain) {
 				p.Length = 0 // the ground changed under the route: plan again
 			}
+			if !leg.Active && p.Index < p.Length && actual != p.at() {
+				p.Length = 0 // moved off its route by another — the board following it: plan again
+			}
 
 			o.Cooldown = max(o.Cooldown-d, 0)
 			if o.Bumped {

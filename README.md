@@ -94,7 +94,7 @@ The smallest game that does something: one Stage with a torus of bouncing boxes,
 plugin counting their contacts, and one Scene showing them: a `ui` screen of the world's picture
 through a camera from above — the player's view — a backdrop under it and a telemetry line over
 it. This is
-[`examples/minimal`](examples/minimal/main.go); run it with `make demo-minimal`.
+[`examples/start/minimal`](examples/start/minimal/main.go); run it with `make demo-minimal`.
 
 ```go
 // Command minimal is the smallest gram game that does something: one Stage with a world of
@@ -264,7 +264,7 @@ func (m *mainScene) picture() render.Picture {
 
 ## Demos
 
-[`examples/collision-demo`](examples/collision-demo) is the same idea at scale: thousands of
+[`examples/motion/collision`](examples/motion/collision) is the same idea at scale: thousands of
 colliding boxes at a fixed 120 TPS, saved on F5 and loaded on F9 — the engine's commands, as in
 every game.
 
@@ -287,28 +287,61 @@ every game.
 
 <a id="demos"></a>
 
+The demos are grouped by what they show, each group from the simplest to the richest.
+
+### Start: the frame of a game
+
 | Demo | Shows | Run |
 |:---|:---|:---|
-| [`minimal`](examples/minimal) | One Stage, one Scene, a world with collisions: the README example | `make demo-minimal` |
-| [`collision-demo`](examples/collision-demo) | Thousands of bouncing boxes of many kinds, hit overlays, telemetry, save and load | `make demo-collision` |
-| [`appearance-demo`](examples/appearance-demo) | Walkers bouncing off one another, drawn by the world's ready-made drawing rules: facing the way each goes, red while angry, a ghost as a ghost whatever it feels, the leader with a crown on; R makes everyone angry for a while — what is drawn follows, the Appearance is never touched | `make demo-appearance` |
-| [`scenes-demo`](examples/scenes-demo) | A menu Stage switching into a gameplay Stage whose `ui` screen has the world, a line of keys and a modal panel over the ticking world, open or closed as the game was saved | `make demo-scenes` |
-| [`navigation-demo`](examples/navigation-demo) | A board with terrain, units selected by click and marquee, right-click move orders along re-routing paths, holes the planner avoids and H opens under the units | `make demo-navigation` |
-| [`navigation-hex-demo`](examples/navigation-hex-demo) | The same on a hex board: hex cells and route arrows at 60°, a wall of solid hex cells | `make demo-navigation-hex` |
-| [`navigation-vision-demo`](examples/navigation-vision-demo) | Navigated units with sight cones that stop at walls and fade in forests, and a hawk that flies over both and sees through the forest | `make demo-navigation-vision` |
-| [`navigation-vision-hex-demo`](examples/navigation-vision-hex-demo) | The same sight cones and hawk on a hex board | `make demo-navigation-vision-hex` |
-| [`board`](examples/board) | Madeira on the simple map, out of `cmd/gramap`: a flat world of 192 x 96 cells drawn in the island's colours, the brooks, streams, rivers and roads as bands, a bridge a cell long and the fords standing on the board; units walk from town to town over the roads with sight cones, a day goes by over the flat map — tiles and units tinted by the hour, clouds' shadows over the screen, rain and snow, snow lying and shores freezing in winter | `make demo-board` |
-| [`board-topography`](examples/board-topography) | Madeira in relief, out of `cmd/gramap` and its true heights, a cell 333 m: peaks of 1800 m and the plateau of Paul da Serra lit by the sun, cliffs and ravines, rivers whose water runs and falls, roads laid as Transport Tycoon lays them, bridges on piers over the rivers and down the valleys — Shift+B takes one in hand to build your own — slower up the slopes and routed round them, the ground shaped under the cursor (never under a road); seen isometrically, from above or in perspective, Tab goes round; units are figures 50 times bigger than life (`world.Scale.Figures`), the hawk 300 m up looking over what a walker's cone stops at; a day and the weather going by, snow and ice in winter | `make demo-board-topography` |
-| [`board-atlas`](examples/board-atlas) | A small flat board drawn from the game's own atlas: striped grass, rippled water, a cobbled road, tree tops — sprites the game draws for its kinds — and a road laid as a way; units walk corner to corner | `make demo-board-atlas` |
-| [`effect-demo`](examples/effect-demo) | An ice witch under orders turns the ground round her into snow and the lake into ice, fast on her own snow; it thaws behind her, a walker follows her trail while it lasts and slips on it, a boat with weak brakes sails onto the ice it saw coming and is frozen still until it melts, each kind in its own frozen look, and F freezes whoever the cursor points at — the states effects, snow and ice covers on cells that stay what they are | `make demo-effect` |
-| [`dialog-demo`](examples/dialog-demo) | Conversations read from YAML: the traveller walked up to the miller or the smith is greeted in a window above the host, each with lines of its own; the answers lead on and change the game's own model — the host's `Regard` of the traveller — so pointed at with the traveller selected, a host says Friend, Neutral or Enemy under it (`ui.Of`), and greets the traveller again accordingly | `make demo-dialog` |
-| [`bullet-demo`](examples/bullet-demo) | A soldier on WSAD shoots: F fires a round the way it faces, over the low wall and into the high one, wounding the wanderer it strikes and taking a wounded one; G throws a grenade at the cursor in an arc over the high wall, which lies with a spark on it and bursts, wounding everyone within two cells and a half — the shots are the bullet plugin's, what they do is rules and effects | `make demo-bullet` |
-| [`platformer-demo`](examples/platformer-demo) | A hero in a side view under gravity, a flat world: A and D walk, W jumps from rock to ledge, G turns gravity over and everything falls onto the ceiling, a hard landing dazes the hero a second — the pull a knob, its turn an effect, the daze a rule of `Landing` | `make demo-platformer` |
-| [`trapdoor-demo`](examples/trapdoor-demo) | Two levers and two strips of trapdoors across a meadow: wanderers walk to and fro over both, 1 and 2 pull a lever and its trapdoors open under whoever stands on them, the player's scouts too; J hastens the selected scouts to get clear — a lever a command for the group of trapdoors that is its strip, each an entity whose Floor carries walkers over a pit, the haste one for the selected | `make demo-trapdoor` |
-| [`pressure-plate-demo`](examples/pressure-plate-demo) | The same meadow with two pressure plates in place of the levers: walk a scout onto a plate and, while someone stands on it and a second after, its trapdoors are open under whoever is on them — a plate a sensor with a name standing on the board, which met sets off the command that names it | `make demo-pressure-plate` |
-| [`wire-demo`](examples/wire-demo) | The same meadow under three commands, each a sentence saying what it does, whom it is for and who sets it off: 1 opens the west trapdoors for two seconds, and so does a selected scout pulling the lever beside it (U); a scout standing on the plate in the yard opens the east ones; G flips the gate until G again — the trapdoors and the gate groups of entities standing on the board — a Floor over a pit, a Wall —, the lever and the plate entities with names, playing roles that only trigger; everyone plays mortal and falls into an open trapdoor, and J hastens the selected scouts, which play hasty, never the porters | `make demo-wire` |
-| [`split-screen-demo`](examples/split-screen-demo) | Two players at one keyboard: red drives its block with WSAD, blue with the arrows — each block its player's by the owner tag — each through a camera of its own in its half of the screen, and a minimap at the bottom shows the whole arena through a camera nobody drives — one `ui` screen: two feeds in `Columns`, a line between, the minimap anchored over them | `make demo-split-screen` |
-| [`vision-demo`](examples/vision-demo) | Entities keeping out of each other's way by sight, and a hunter living off the ones that fail | `make demo-vision` |
+| [`start/minimal`](examples/start/minimal) | One Stage, one Scene, a world with collisions: the README example | `make demo-minimal` |
+| [`start/scenes`](examples/start/scenes) | A menu Stage switching into a gameplay Stage whose `ui` screen has the world, a line of keys and a modal panel over the ticking world, open or closed as the game was saved | `make demo-scenes` |
+| [`start/split-screen`](examples/start/split-screen) | Two players at one keyboard: red drives its block with WSAD, blue with the arrows — each block its player's by the owner tag — each through a camera of its own in its half of the screen, and a minimap at the bottom shows the whole arena through a camera nobody drives — one `ui` screen: two feeds in `Columns`, a line between, the minimap anchored over them | `make demo-split-screen` |
+
+### Look: how entities are drawn
+
+| Demo | Shows | Run |
+|:---|:---|:---|
+| [`look/appearance`](examples/look/appearance) | Walkers bouncing off one another, drawn by the world's ready-made drawing rules: facing the way each goes, red while angry, a ghost as a ghost whatever it feels, the leader with a crown on; R makes everyone angry for a while — what is drawn follows, the Appearance is never touched | `make demo-appearance` |
+| [`look/animation`](examples/look/animation) | A sprite drawn frame after frame (`Slot.Animated`, in game time: Space freezes the gait), each frame turned the way the bug goes | `make demo-animation` |
+| [`look/material`](examples/look/material) | An entity drawn by a material worked out per pixel in place of a sprite (`render.Look`); C calms it into a plain sprite for a while | `make demo-material` |
+| [`look/ember`](examples/look/ember) | Procedural animation out of the entity's state: embers breathe standing and stream a tail driven (WSAD), F douses them into soot for a while | `make demo-ember` |
+
+### Rules: states, rules and commands
+
+| Demo | Shows | Run |
+|:---|:---|:---|
+| [`rules/effect`](examples/rules/effect) | An ice witch under orders turns the ground round her into snow and the lake into ice, fast on her own snow; it thaws behind her, a walker follows her trail while it lasts and slips on it, a boat with weak brakes sails onto the ice it saw coming and is frozen still until it melts, each kind in its own frozen look, and F freezes whoever the cursor points at — the states effects, snow and ice covers on cells that stay what they are | `make demo-effect` |
+| [`rules/trapdoor`](examples/rules/trapdoor) | Two levers and two strips of trapdoors across a meadow: wanderers walk to and fro over both, 1 and 2 pull a lever and its trapdoors open under whoever stands on them, the player's scouts too; J hastens the selected scouts to get clear — a lever a command for the group of trapdoors that is its strip, each an entity whose Floor carries walkers over a pit, the haste one for the selected | `make demo-trapdoor` |
+| [`rules/pressure-plate`](examples/rules/pressure-plate) | The same meadow with two pressure plates in place of the levers: walk a scout onto a plate and, while someone stands on it and a second after, its trapdoors are open under whoever is on them — a plate a sensor with a name standing on the board, which met sets off the command that names it | `make demo-pressure-plate` |
+| [`rules/wire`](examples/rules/wire) | The same meadow under three commands, each a sentence saying what it does, whom it is for and who sets it off: 1 opens the west trapdoors for two seconds, and so does a selected scout pulling the lever beside it (U); a scout standing on the plate in the yard opens the east ones; G flips the gate until G again — the trapdoors and the gate groups of entities standing on the board — a Floor over a pit, a Wall —, the lever and the plate entities with names, playing roles that only trigger; everyone plays mortal and falls into an open trapdoor, and J hastens the selected scouts, which play hasty, never the porters | `make demo-wire` |
+| [`rules/dialog`](examples/rules/dialog) | Conversations read from YAML: the traveller walked up to the miller or the smith is greeted in a window above the host, each with lines of its own; the answers lead on and change the game's own model — the host's `Regard` of the traveller — so pointed at with the traveller selected, a host says Friend, Neutral or Enemy under it (`ui.Of`), and greets the traveller again accordingly | `make demo-dialog` |
+| [`rules/vision`](examples/rules/vision) | Entities keeping out of each other's way by sight, and a hunter living off the ones that fail | `make demo-vision` |
+
+### Board: boards and maps
+
+| Demo | Shows | Run |
+|:---|:---|:---|
+| [`board/atlas`](examples/board/atlas) | A small flat board drawn from the game's own atlas: striped grass, rippled water, a cobbled road, tree tops — sprites the game draws for its kinds — and a road laid as a way; units walk corner to corner | `make demo-board-atlas` |
+| [`board/flat`](examples/board/flat) | Madeira on the simple map, out of `cmd/gramap`: a flat world of 192 x 96 cells drawn in the island's colours, the brooks, streams, rivers and roads as bands, a bridge a cell long and the fords standing on the board; units walk from town to town over the roads with sight cones, a day goes by over the flat map — tiles and units tinted by the hour, clouds' shadows over the screen, rain and snow, snow lying and shores freezing in winter | `make demo-board` |
+| [`board/topography`](examples/board/topography) | Madeira in relief, out of `cmd/gramap` and its true heights, a cell 333 m: peaks of 1800 m and the plateau of Paul da Serra lit by the sun, cliffs and ravines, rivers whose water runs and falls, roads laid as Transport Tycoon lays them, bridges on piers over the rivers and down the valleys — Shift+B takes one in hand to build your own — slower up the slopes and routed round them, the ground shaped under the cursor (never under a road); seen isometrically, from above or in perspective, Tab goes round; units are figures 50 times bigger than life (`world.Scale.Figures`), the hawk 300 m up looking over what a walker's cone stops at; a day and the weather going by, snow and ice in winter | `make demo-board-topography` |
+
+### Navigation: units sent across a board
+
+| Demo | Shows | Run |
+|:---|:---|:---|
+| [`navigation/square`](examples/navigation/square) | A board with terrain, units selected by click and marquee, right-click move orders along re-routing paths, holes the planner avoids and H opens under the units | `make demo-navigation` |
+| [`navigation/hex`](examples/navigation/hex) | The same on a hex board: hex cells and route arrows at 60°, a wall of solid hex cells | `make demo-navigation-hex` |
+| [`navigation/spawn`](examples/navigation/spawn) | Walkers spawned under the cursor (N) hold their cells at once, the cells held outlined in their holders' colours (Shift+O) | `make demo-navigation-spawn` |
+| [`navigation/vision`](examples/navigation/vision) | Navigated units with sight cones that stop at walls and fade in forests, and a hawk that flies over both and sees through the forest | `make demo-navigation-vision` |
+| [`navigation/vision-hex`](examples/navigation/vision-hex) | The same sight cones and hawk on a hex board | `make demo-navigation-vision-hex` |
+
+### Motion: collisions, shots and gravity
+
+| Demo | Shows | Run |
+|:---|:---|:---|
+| [`motion/collision`](examples/motion/collision) | Thousands of bouncing boxes of many kinds, hit overlays, telemetry, save and load | `make demo-collision` |
+| [`motion/bullet`](examples/motion/bullet) | A soldier on WSAD shoots: F fires a round the way it faces, over the low wall and into the high one, wounding the wanderer it strikes and taking a wounded one; G throws a grenade at the cursor in an arc over the high wall, which lies with a spark on it and bursts, wounding everyone within two cells and a half — the shots are the bullet plugin's, what they do is rules and effects | `make demo-bullet` |
+| [`motion/platformer`](examples/motion/platformer) | A hero in a side view under gravity, a flat world: A and D walk, W jumps from rock to ledge, G turns gravity over and everything falls onto the ceiling, a hard landing dazes the hero a second — the pull a knob, its turn an effect, the daze a rule of `Landing` | `make demo-platformer` |
 
 Every demo opens a window, so `go test` cannot exercise it; what a demo shows is tested in the
 library's package that does it.
@@ -491,7 +524,7 @@ units:
 the plate, met, sets off the command that names it; J hastens the selected scouts. A hundred
 levers are a hundred commands and these rules, and an AI gives them as a key does
 (`players.Issue`). A rule of the world as a whole, a `clock.Moment`'s, takes no filter and obeys
-no role. [`examples/wire-demo`](examples/wire-demo) is the whole program; the story is in
+no role. [`examples/rules/wire`](examples/rules/wire) is the whole program; the story is in
 [`doc/rule.md`](doc/rule.md).
 
 ## Kinds, spawning and saves
@@ -520,8 +553,8 @@ survive a save without being registered anywhere else.
 continent — out of a recipe (`cmd/gramap/madeira.yaml` is Madeira's):
 
 ```bash
-go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out examples/board-topography/map.yaml
-go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out examples/board/map.yaml -flat
+go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out examples/board/topography/map.yaml
+go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out examples/board/flat/map.yaml -flat
 ```
 
 The recipe says where (the middle of the area, longitude and latitude), how many cells and how

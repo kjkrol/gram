@@ -121,3 +121,31 @@ func TestSingleOccupancy_IsOnePerDomainOnEachLevel(t *testing.T) {
 		t.Error("the deck is still held after its walker came down under it")
 	}
 }
+
+// Holders hands over every hold of a cell, each with its domains and level.
+func TestOccupancy_HoldersHandsEveryHoldOfACell(t *testing.T) {
+	type hold struct {
+		entity uid.UID64
+		domain cell.Domain
+		deck   bool
+	}
+	for name, occ := range map[string]cell.Occupancy{
+		"single":   &cell.SingleOccupancy{},
+		"multiple": &cell.MultipleOccupancy{},
+	} {
+		occ.Enter(3, false, 1, cell.Land)
+		occ.Enter(3, true, 2, cell.Land)
+		occ.Enter(4, false, 3, cell.Air)
+		var got []hold
+		occ.Holders(3, func(e uid.UID64, d cell.Domain, deck bool) {
+			got = append(got, hold{e, d, deck})
+		})
+		want := []hold{{1, cell.Land, false}, {2, cell.Land, true}}
+		if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+			t.Errorf("%s: the holds of cell 3 are %v, want %v", name, got, want)
+		}
+		occ.Holders(5, func(uid.UID64, cell.Domain, bool) {
+			t.Errorf("%s: cell 5 has a hold", name)
+		})
+	}
+}

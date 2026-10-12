@@ -31,7 +31,7 @@ func newPathFinder(grid grid.Grid, terrain cell.Terrain, slopes pathfind.Slopes,
 func (p *pathFinder) findPath(
 	entity uid.UID64, domain cell.Domain, z world.Z, from, to cell.ID, end Level,
 ) (Path, bool) {
-	var path Path
+	path := Path{From: from}
 	n, ok := p.Find(entity, domain, bodyOf(z), from, to, pathfind.Level(end), path.Steps[:])
 	path.Length, path.Decks = uint16(n), p.Decks()
 	return path, ok
@@ -42,7 +42,7 @@ func (p *pathFinder) findPathAround(
 	entity uid.UID64, domain cell.Domain, z world.Z, from, to cell.ID, end Level,
 	blocked func(cell.ID) bool,
 ) (Path, bool) {
-	var path Path
+	path := Path{From: from}
 	n, ok := p.FindAround(entity, domain, bodyOf(z), from, to, pathfind.Level(end), blocked,
 		path.Steps[:])
 	path.Length, path.Decks = uint16(n), p.Decks()
@@ -55,7 +55,7 @@ func (p *pathFinder) nearestFree(
 	entity uid.UID64, domain cell.Domain, z world.Z, from, target cell.ID, end Level,
 	taken func(c cell.ID, deck bool) bool,
 ) (cell.ID, Path, bool) {
-	var path Path
+	path := Path{From: from}
 	dest, n, ok := p.NearestFree(entity, domain, bodyOf(z), from, target, pathfind.Level(end),
 		taken, path.Steps[:])
 	path.Length, path.Decks = uint16(n), p.Decks()

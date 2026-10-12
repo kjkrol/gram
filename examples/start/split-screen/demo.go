@@ -78,7 +78,6 @@ func main() {
 		Plugins(a.makePlugins).
 		Players(a.definePlayers).
 		Kinds(a.defineCells, a.defineKinds).
-		Controls(a.bindKeys).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
 		Update(a.update)
@@ -98,9 +97,33 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
 }
 
-func (s *arena) definePlayers() {
+func (s *arena) definePlayers() error {
 	s.redPlayer = s.players.Local("red")
 	s.bluePlayer = s.players.Local("blue")
+	red := driving.Compass{
+		Up:    control.KeyW,
+		Down:  control.KeyS,
+		Left:  control.KeyA,
+		Right: control.KeyD,
+		In:    camera.Outside,
+	}
+	redKeys := append(red.Bindings(), s.selection.FollowKey(control.KeyC))
+	if err := s.redPlayer.Bind(redKeys...); err != nil {
+		return err
+	}
+	// the keyboard is one: the game's keys and the world's (Space pauses) are bound once
+	gameKeys := append(players.GameBindings(), s.world.DefaultBindings()...)
+	if err := s.redPlayer.Bind(gameKeys...); err != nil {
+		return err
+	}
+	blue := driving.Compass{
+		Up:    control.KeyArrowUp,
+		Down:  control.KeyArrowDown,
+		Left:  control.KeyArrowLeft,
+		Right: control.KeyArrowRight,
+		In:    camera.Outside,
+	}
+	return s.bluePlayer.Bind(append(blue.Bindings(), s.selection.FollowKey(control.KeyEnter))...)
 }
 
 func (s *arena) defineCells() {
@@ -129,33 +152,6 @@ func (s *arena) defineKinds() {
 	// each block is its player's: it takes that player's hand alone
 	units.Define(RedKind, unit.Mover{Domain: cell.Land}, profile)
 	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile)
-}
-
-func (s *arena) bindKeys() error {
-	red := driving.Compass{
-		Up:    control.KeyW,
-		Down:  control.KeyS,
-		Left:  control.KeyA,
-		Right: control.KeyD,
-		In:    camera.Outside,
-	}
-	redKeys := append(red.Bindings(), s.selection.FollowKey(control.KeyC))
-	if err := s.redPlayer.Bind(redKeys...); err != nil {
-		return err
-	}
-	// the keyboard is one: the game's keys and the world's (Space pauses) are bound once
-	gameKeys := append(players.GameBindings(), s.world.DefaultBindings()...)
-	if err := s.redPlayer.Bind(gameKeys...); err != nil {
-		return err
-	}
-	blue := driving.Compass{
-		Up:    control.KeyArrowUp,
-		Down:  control.KeyArrowDown,
-		Left:  control.KeyArrowLeft,
-		Right: control.KeyArrowRight,
-		In:    camera.Outside,
-	}
-	return s.bluePlayer.Bind(append(blue.Bindings(), s.selection.FollowKey(control.KeyEnter))...)
 }
 
 func (s *arena) spawn() error {

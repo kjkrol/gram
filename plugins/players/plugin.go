@@ -28,6 +28,7 @@ type Plugin struct {
 	*world.Self // its own entity: its knobs, the roles it plays, the effects it is under
 
 	worldPlugin *world.Plugin
+	sections    section.Reader // the Stage's, from Install; nil for a Stage written by hand
 	handlers    []plugin.CommandHandler
 	players     []*Player
 	listings    control.Queue[ShowShortcuts]
@@ -85,7 +86,12 @@ func (p *Plugin) Add(name string) *Player {
 	if err := p.worldPlugin.InSection(fmt.Sprintf("player %q added", name), section.Players); err != nil {
 		panic("players: " + err.Error())
 	}
-	pl := &Player{ID: control.PlayerID(len(p.players) + 1), Name: name, world: p.worldPlugin}
+	pl := &Player{
+		ID:       control.PlayerID(len(p.players) + 1),
+		Name:     name,
+		world:    p.worldPlugin,
+		sections: p.sections,
+	}
 	p.players = append(p.players, pl)
 	return pl
 }
@@ -183,6 +189,7 @@ func (p *Plugin) tools() {
 func (p *Plugin) Name() string { return "gram.players" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
+	p.sections, _ = ctx.(section.Reader)
 	p.module = &module{p: p}
 	ctx.UseModule(p.module)
 	return nil

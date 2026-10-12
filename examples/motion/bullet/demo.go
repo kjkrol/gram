@@ -117,6 +117,13 @@ func (s *arena) definePlayers() error {
 	s.player = s.players.Local("player")
 	s.wild = s.players.Add("wild")
 	view := cameras.Keys{Wheel: true, Drag: true, Edge: true}
+	drive := driving.Tank{
+		Ahead: control.KeyW,
+		Back:  control.KeyS,
+		Left:  control.KeyA,
+		Right: control.KeyD,
+		In:    camera.Outside,
+	}
 	return s.player.Bind(slices.Concat(
 		s.players.DefaultBindings(),
 		s.world.DefaultBindings(),
@@ -126,6 +133,7 @@ func (s *arena) definePlayers() error {
 		s.nav.DefaultBindings(),
 		s.driving.DefaultBindings(),
 		s.bullet.DefaultBindings(),
+		drive.Bindings(),
 	)...)
 }
 
@@ -226,15 +234,7 @@ func (s *arena) defineKinds() {
 }
 
 func (s *arena) bindKeys() error {
-	drive := driving.Tank{
-		Ahead: control.KeyW,
-		Back:  control.KeyS,
-		Left:  control.KeyA,
-		Right: control.KeyD,
-		In:    camera.Outside,
-	}
-	return s.player.Bind(append(
-		drive.Bindings(),
+	return s.player.Bind(
 		control.Give(
 			control.KeyPress{Key: control.KeyF},
 			"Fire a round the way the soldier faces",
@@ -248,7 +248,7 @@ func (s *arena) bindKeys() error {
 					Targeted: true,
 				}, true
 			}),
-	)...)
+	)
 }
 
 func (s *arena) spawn() error {

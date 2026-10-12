@@ -30,9 +30,10 @@ in `internal/engine`; root `gram` just re-exports `Engine`/`Props`/
 ```bash
 go build ./... && go vet ./... && gofmt -l . && go test ./...   # standard verification sequence
 go test ./plugins/world/... -run TestName -v                     # a single test
-make demo-collision                                                # go mod tidy && run examples/collision-demo
-make demo-navigation                                               # go mod tidy && run examples/navigation-demo (players: bindings for select, move, camera)
+make demo-collision                                                # go mod tidy && run examples/motion/collision
+make demo-navigation                                               # go mod tidy && run examples/navigation/square (players: bindings for select, move, camera)
 make demo-navigation-hex                                           # the same on a hex board
+make demo-navigation-spawn                                         # walkers spawned under the cursor (N) hold their cells at once; Shift+O shows the cells held
 make demo-navigation-vision                                        # board + navigation + vision: walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-vision-hex                                    # the same on a hex board
 make demo-effect                                                   # an ice witch: frost and frozen as effects
@@ -45,10 +46,10 @@ make demo-wire                                                     # three comma
 make demo-material                                                 # an entity drawn by a material instead of a sprite (render.Look); C calms it into a plain sprite for a while
 make demo-animation                                                # a sprite drawn frame after frame (Slot.Animated, game time: Space freezes the gait), each frame turned the bug's way
 make demo-dialog                                                   # conversations from YAML: the miller and the smith, lines of their own, a window above the host, what it makes of you under it when pointed at
-make demo-ember                                                    # procedural animation out of the entity's state: embers breathe standing, stream a tail driven (WSAD); D douses into soot
+make demo-ember                                                    # procedural animation out of the entity's state: embers breathe standing, stream a tail driven (WSAD); F douses into soot
 make demo-platformer                                               # a hero in a side view under gravity (plugins/gravity, a flat world): A/D walk, W jumps, G turns gravity over, a hard landing dazes
-make demo-scenes                                                  # go mod tidy && run examples/scenes-demo
-make demo-vision                                                  # go mod tidy && run examples/vision-demo
+make demo-scenes                                                  # go mod tidy && run examples/start/scenes
+make demo-vision                                                  # go mod tidy && run examples/rules/vision
 make demo-minimal                                                 # the README example
 make bench                                                        # every benchmark once, with allocations
 make bench-save                                                   # 5 repeats into bench_results/ (ignored by git)
@@ -62,7 +63,7 @@ rate and where a frame's time goes every second with `GRAM_FPS_LOG=1`, starts fu
 demo's frame (temporary `zz_*_test.go` files) include about 10 ms of waiting for the GPU's
 readback at 2560x1440, so compare them with each other, not with a frame rate.
 
-The `examples/*` programs are real GUI apps (open a gogpu window)
+The `examples/<group>/<name>` programs are real GUI apps (open a gogpu window)
 — `go test` alone can't exercise them. To sanity-check one still runs after
 a change in a headless environment: build to a temp path, run under
 `timeout <n>s`, treat exit 124 (still running, not crashed) as healthy.
@@ -166,7 +167,8 @@ anew — there is no central refresher), `Self.Plays(roles...)` (Rules section).
 `rule.While(plugin, e, step)` is `During` for a plugin's entity (`steps.NewWhile`). One thing of a
 kind a plugin: two moons would need more entities, not built. `Part.Tag`/`Rules`, `rule.Roles` and
 `rule.NewPart` are for plugins. **What a plugin gives is in its root package** (the user's rule, 2026-10-05):
-`commands.go` holds its commands, `Queues()` and `DefaultBindings()` — `board.Grid` (B), `cameras.Pan`,
+`commands.go` holds its commands, `Queues()` and `DefaultBindings()` — `board.Grid` (B), `Holds`
+(Shift+O), `cameras.Pan`,
 `Zoom`, `Follow`, `driving.Ahead`/`Back`/`Turn`/`Toward`, `players.Give`, `ShowShortcuts` (K),
 `atmosphere.Freeze`/`Later`/`Earlier`/
 `ChangeWeather`/`SetWeather`, `world.Spawn`, `Despawn`, `Pause` (Space)/`Faster`/`Slower`. They are
@@ -809,8 +811,8 @@ trapdoor and pressure plate demos the same).
   2026-10-11); in relief such a deck stands on its beam, its sprite down its long sides as deep as
   its `Z.Height` (a bridge's `Floor.Thickness`). `WithRenderer` applies them itself, after the
   effects' swaps:
-  swaps, facing, turning (shown by `examples/appearance-demo` and the frozen
-  kinds of `examples/effect-demo`). The world handles `steering.Away{From}`, `Toward{To}` (aimed at the
+  swaps, facing, turning (shown by `examples/look/appearance` and the frozen
+  kinds of `examples/rules/effect`). The world handles `steering.Away{From}`, `Toward{To}` (aimed at the
   moment's subject, `plugin.Aimed`) and `Turn{Angle}`, which an entity gives itself in a rule —
   the steering system asks its `Helm`, one a step — and the commands about effects
   (`rule.Command`, `rule.Triggered`; `plugins/world/effect_commands.go`). The world also defines the
@@ -1070,12 +1072,18 @@ trapdoor and pressure plate demos the same).
   `tag.Tags[rule.Roles]` on its entity, `TerrainMap.Roles`) and is called by its `cell.Entry.Name`
   and `Group` (an `entity.Label`, `TerrainMap.Labels`; such cells are made apart, so whoever looks
   for a name walks few), both for good. The unit's own cell component is `unit.At{Cell}` (was
-  `board.Cell{ID}`). A system of its own (`internal/occupancy`) has the `cell.Occupancy` let go of
-  whoever left the world, every step (`Occupancy.Release`): a despawned unit kept its holds before,
-  blocking cells. A hold is of a cell on one of its levels (`CanEnter(c, deck, …)`, `Enter`,
-  `Holder`; 2026-10-12): a walker on a bridge's deck and one on the ground under it share a cell;
-  the same system holds every unit's cell under a raised deck on the level its feet are on, each
-  step (`Board.onDeck`), as it climbs on or falls off. What the board does to its terrain over
+  `board.Cell{ID}`). A system of its own (`internal/occupancy`, `KeepSystem`, run after the units'
+  pass) has the `cell.Occupancy` let go of whoever left the world, every step (`Occupancy.Release`):
+  a despawned unit kept its holds before, blocking cells. A hold is of a cell on one of its levels
+  (`CanEnter(c, deck, …)`, `Enter`, `Holders` every hold of a cell; 2026-10-12): a walker on a
+  bridge's deck and one on the ground under it share a cell. The same system has every unit hold
+  the cell it stands on (`Board.footing`, `LevelFor`), each step: one holding it nothing — spawned
+  in the game, pushed, thrown while nobody leads it — lets go of the cell it was `At`, is `At` the
+  one it stands on and has `unit.Entered` on; one in the middle of a step holds both its cells and
+  is left to navigation; under a raised deck it holds its cell on the level its feet are on, as it
+  climbs on or falls off. `board.Holds` (Shift+O, `Plugin.ShowHolds`, `Plugin.HoldsRenderer` for
+  the scene's composer; `internal/occupancy.View`) outlines every cell held in its holder's colour,
+  a deck's further in (examples/navigation/spawn). What the board does to its terrain over
   time is effects on the cells' entities (a `Spec`'s `Alter` of `cell.Ground`, `cell.Way`). A
   state of the ground is an adjective, the kind the noun: an effect turns the kind's knobs in
   place (`g.Kind.Allows`, `Cost`, `Costing`) and the cell stays the kind it is — a snowed road a
@@ -1237,11 +1245,13 @@ trapdoor and pressure plate demos the same).
   cells a unit stops, re-plans and holds that route for `bumpInterval`. Both are navigation's own
   work: its pass reads the `collision.Collider` contacts of every unit under orders (`bump()`,
   `bumps` set at Install by the spacing: `anyBump` under cells (a contact `Sensed` — a shot, a sensor — bumps nobody), `groundBump` the terrain alone
-  under bodies), no rule of collision's moments. The board seeds the occupancy from `At` + `Mover`
-  at Setup, navigation the cells of the steps in progress, each on its level: a `Path`'s steps on
+  under bodies), no rule of collision's moments. The board has every unit hold the cell it stands
+  on (from `At` + `Mover` at Setup, then every step), navigation the cells of the steps in
+  progress, each on its level: a `Path`'s steps on
   a deck by bit (`Path.Decks`, the finder's `Decks()` of the route it found last), a `Leg`'s
   ends (`FromDeck`, `ToDeck`), its corners on the ground; the driving's hand asks `MayStep` of a
-  level too. `BodySpacing`: the
+  level too. A unit standing off its route between steps — the board following it — plans again
+  (`Path.From`, `Path.at`). `BodySpacing`: the
   occupancy is `openOccupancy` (legs are bookkeeping), a unit routes over the ground alone and
   learns of the others by touching them; a group gets its spots from `bodyKeeping.place` (lattice
   round `MoveTo.At`, a box's width apart, far rows first) and goes cell centre to cell centre
@@ -1495,7 +1505,13 @@ trapdoor and pressure plate demos the same).
   needs the Runtime — is carried out there, and the game's own `SceneKeys` (`Plugin.OwnKeys`: a
   debug toggle) are run; the other default keys, `GameBindings` (K, F5 `game.Save`, F9 `game.Load`,
   Shift+Esc `game.Quit`; `WithSaves`, `players.Save` and `players.Quit` went on 2026-10-10), give
-  the engine's commands, listed under "Game"; `players.RunPlan` runs last and empties the queues.
+  the engine's commands, listed under "General"; `players.RunPlan` runs last and empties the queues.
+  **The game's own keys are listed apart** (the user's word, 2026-10-12): K lists first, under
+  "Game" (never the game's title, the user's word), what it binds in its Stage's Controls section
+  (`Player.Bind` notes the section) and its `SceneKeys`, then the plugins' keys by plugin, then
+  "General". A plugin's keys a
+  game sets up — `driving.Tank`, `Compass`, `JumpKey`, `cameras.MouseLookKey`,
+  `selection.FollowKey` — are the plugin's, bound in the Players section with the defaults.
   Depends on `world`.
 - **`cameras`** — the cameras a game looks through: `cameras.NewPlugin(world)` makes no camera;
   **each is made where a scene shows it** (2026-10-08, the user's word: the kind of camera and its
@@ -1601,7 +1617,7 @@ trapdoor and pressure plate demos the same).
   an aimed command (`steering.Away{}`, `steering.Toward{}`) given on it is about that one and
   fails with none in view. Its conditions for a rule's `If` are
   `Sighting.Nobody` (none in view) and `Sighting.Closing` (the observer and the nearest seen on a
-  collision course); chasing, fleeing and searching are the game's rules (`examples/vision-demo`). `WithLog(log.Default())` writes a line the
+  collision course); chasing, fleeing and searching are the game's rules (`examples/rules/vision`). `WithLog(log.Default())` writes a line the
   first time one sees another — the scan's own work. The views drawn are every observer's, unless
   `render.Show` rules pick some (`vision.Plugin.WithViews(render.Show(selected.In))`, given in the
   scene as the renderer is made). A
@@ -1670,7 +1686,7 @@ trapdoor and pressure plate demos the same).
   arena holds plugins alone (the user's word, 2026-10-06; `Alter(world.Appearance)` for an
   effect's look went the same day — a look is drawing, `Under`, never the Spec's).
   A weapon — ammo, reloading, who carries it — is the game's rules and effects
-  (`examples/bullet-demo`: wounds, a fuse `Then` bang, a Resting rule under bang ordering the
+  (`examples/motion/bullet`: wounds, a fuse `Then` bang, a Resting rule under bang ordering the
   Burst). Depends on `world`, `collision`, `selection`, `players/owner`, `board/ground`.
 
 Each package has a `doc.go` describing the gameplay capability it adds.
@@ -1734,7 +1750,7 @@ sibling `Plugin`: constructor injection at `Stage.Init` time, as a plain
 struct field — never through `Runtime`.
 
 **A Stage is defined a section at a time** (`game/stage`, since 2026-10-05; every demo and
-`examples/minimal`): `stage.New(name).World(cfg).Plugins(a.makePlugins).Players(f).Effects(f)
+`examples/start/minimal`): `stage.New(name).World(cfg).Plugins(a.makePlugins).Players(f).Effects(f)
 .Rules(f).Commands(f).Kinds(f...).Controls(f).Spawn(f...).Scenes(f).Shows(names...).Update(f)`
 hands back a
 `game.Stage` (the order since 2026-10-08, the user's word: the scenes last, once the world is
@@ -1784,7 +1800,8 @@ engine's `initializer` is the `Writer`), and what is defined in another is refus
 and `UseWorld` (Plugins: the Stage's `World`/`Plugins` link), `players.Add`/`Local` (Players), `Effects.Define` (Effects, through
 `Effects.Guard`), `world.Roles().Define`, `world.Plans().Define`, `world.Plays` (Rules),
 `world.Commands().Define` (Commands), `cell.Kinds.Define` and `kind.Define` (Kinds), `Player.Bind`
-(Players or Controls), `board.Seed`, `board.Lay`, `topography.Seed` and `world.Seed` (Spawn), a dialog's
+(Players — the plugins' keys — or Controls — the game's own, listed apart under K), `board.Seed`,
+`board.Lay`, `topography.Seed` and `world.Seed` (Spawn), a dialog's
 `Load`, `Define`, `Changes`/`Conditions().Define` (its `ConversationsPart`) — by
 an error where the call returns one, a panic elsewhere, each through
 `world.Plugin.InSection(what, want...)`. `World`/`Plugins` take anything (plugins define their
@@ -1857,7 +1874,7 @@ defined in the register as any) for the entity it is shown for — `entity.ID(id
 identifiers the world finds at once: one window serves every host; a plugin's own command that is
 a `ui.About` (`dialog.Choose`) gets the entity the same way. `Element.Where(ui.Tagged(t))` pins an
 element to the entities carrying a tag of any family (the one hovered). A conversation is the
-dialog plugin's (`examples/dialog-demo`): the miller and the smith, lines of their own in
+dialog plugin's (`examples/rules/dialog`): the miller and the smith, lines of their own in
 `dialogs/*.yaml`, a host's rule of a `vision.Sighting` gives `dialog.Begin{}` while it is neither
 talking nor just done, another takes `TalkingEf` off once nobody is in sight; `Window()` above the
 host. What the answers change is the demo's own `Regard` (`regard.go`: how much a host likes each it
@@ -1870,7 +1887,7 @@ handed back, kept nowhere) and the screen — the feed through a camera made bes
 player's view, a backdrop `Blank`, the telemetry and the clock's HUD as `ui.Layer`s. The scenes-demo's menu and the players' list of shortcuts stay
 scenes of screen layers: their keys switch the Stage and quit through `game.Runtime`.
 
-See `examples/scenes-demo` for a full walkthrough: a menu `Stage` with no
+See `examples/start/scenes` for a full walkthrough: a menu `Stage` with no
 world, a ui scene of the engine's commands — "New game" entering (lazily building the ECS) the
 gameplay `Stage`, "Continue" entering it from its save, "Quit" — M in the game back to the menu,
 and a togglable modal panel over the still-ticking world.
@@ -1923,7 +1940,7 @@ that bypass it.
 `doc/roadmap.md` lists what is left to do, and only that: take an item out when it lands.
 Every package has a `doc.go` with `# Type` sections describing what it brings; the root `doc.go`
 carries the concepts, the tick lifecycle and the layered package graph. README leads with what the
-library is; its code example is `examples/minimal`, so change that program first and keep the
+library is; its code example is `examples/start/minimal`, so change that program first and keep the
 README in step. All benchmarks live in `bench/` (package `bench_test`), built on a headless
 `game.Initializer` there; `BENCHMARKS.md` records the results and the method (this machine drifts
 ~10% between runs — compare a baseline copy and the working tree alternately). `CHANGELOG.md` gets
@@ -1969,6 +1986,14 @@ statement. The examples hold to it; the library's older code does not yet.
 **Examples are not tested** (the user's word, 2026-10-10: there is no sense in testing an
 example): what a demo shows is tested in the library's package that does it; no new `_test.go`
 goes into `examples/`.
+
+**Examples are grouped by what they show** (the user's word, 2026-10-12), a directory a group and
+a short name in it, no `-demo`: `start` (minimal, scenes, split-screen), `look` (appearance,
+animation, material, ember), `rules` (effect, trapdoor, pressure-plate, wire, dialog, vision),
+`board` (atlas, flat, topography), `navigation` (square, hex, spawn, vision, vision-hex), `motion`
+(collision, bullet, platformer). README lists them a table a group, each from the simplest to the
+richest; the make targets keep their names (`make demo-navigation-spawn`). A new demo goes into
+the group of what it mainly shows.
 
 Commit messages use the conventional prefixes (`feat`, `fix`, `docs`, `refactor`, `perf`, `test`,
 `chore`) and carry no `Co-Authored-By` trailer.
