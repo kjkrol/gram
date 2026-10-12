@@ -108,3 +108,26 @@ func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 		t.Errorf("a billboard's top leans %v unswaying, %v swaying; want upright and leaning", still, swaying)
 	}
 }
+
+// A deck lies level over its rectangle at its Altitude, its beam down its Height along its long
+// sides and its railings up their Edge: a top, two sides and two railings.
+func TestBillboards_LayADeckOnItsBeam(t *testing.T) {
+	w, _, cam := isometricIsland()
+	cam.CenterOn(64, 64, 0)
+	look := w.Look()
+	var f render.Frame
+	f.Reset(cam)
+	look.(world.DirectLook).Begin(cam)
+	box := plane.NewAABB(geom.NewVec(40, 40), 16, 16)
+	lie := world.Lie{Length: 30, Width: 12, Edged: true, Edge: 2}
+	look.(world.LyingLook).Lay(&f, cam, box, geom.NewVec(1, 0), lie,
+		world.Z{Altitude: 20, Height: 3}, sheet{}, render.Appearance{}, 0, render.Light{1, 1, 1})
+	at := map[float32]int{}
+	for _, k := range billboards.Lain(look) {
+		at[k[2]]++
+	}
+	if at[20] != 12 || at[17] != 4 || at[22] != 4 || len(at) != 3 {
+		t.Errorf("corners by height %v, want 12 at the deck (20), 4 at the beam's foot (17) "+
+			"and 4 at the railings' top (22)", at)
+	}
+}

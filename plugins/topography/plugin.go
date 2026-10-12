@@ -127,13 +127,19 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	p.shaper = &shaper{relief: p.relief, cfg: shaping}
 	p.painter = ipainter.New(brd, p.relief, liveSky{p}, true, map[cell.Name]painter.Style{}).WithKinds(boardPlugin.CellKinds())
 	boardPlugin.WithMap(p)
-	ground := func(x, y float32) float32 { return float32(p.topAt(geom.NewVec(float64(x), float64(y)))) }
+	ground := func(x, y float32) float32 {
+		return float32(p.seenAt(geom.NewVec(float64(x), float64(y))))
+	}
 	extent := func() (float32, float32) {
 		low, high := p.relief.Extent()
 		return float32(low), float32(high)
 	}
 	views := icameras.Config{Cell: cfg.Cell, TileW: cfg.TileW, TileH: cfg.TileH, HeightUnit: cfg.HeightUnit, Headroom: cfg.Headroom,
-		MinPitch: cfg.MinPitch, Perspective: cfg.Perspective, FieldOfView: cfg.FieldOfView}
+		MinPitch: cfg.MinPitch, Perspective: cfg.Perspective, FieldOfView: cfg.FieldOfView,
+		EdgeTurn: TurnStep / cameras.DefaultScrollSpeed,
+		EdgeTilt: TiltStep / cameras.DefaultScrollSpeed,
+		Fine:     p.fineAt,
+		Solid:    p.solidAt}
 	p.cameras = icameras.NewControl(p.relief, p.topAt, cfg.Perspective)
 	bend := float32(worldPlugin.Scale().Bend())
 	p.views = func(start icameras.Config) cameras.Maker {
@@ -214,6 +220,44 @@ func (p *Plugin) topAt(at geom.Vec) float64 {
 	return top
 }
 
+// fineAt is how finely a camera picks near (x, y): half the narrowest deck where one lies over the
+// cell there, and the thinnest deck's slab, else as ever.
+func (p *Plugin) fineAt(x, y float32) (float32, float32) {
+	brd := p.boardPlugin.Board()
+	if !brd.NearDeck(geom.NewVec(float64(x), float64(y))) {
+		return 0, 0
+	}
+	return float32(brd.NarrowestDeck() / 2), float32(brd.ThinnestDeck())
+}
+
+// solidAt is what a camera's pick finds solid at (x, y) and the height z, and its top: under the
+// cell's top as it is drawn, or inside a deck's slab over it — a line of sight passing under a
+// deck goes on to the ground.
+func (p *Plugin) solidAt(x, y, z float32) (float32, bool) {
+	at := geom.NewVec(float64(x), float64(y))
+	if top := float32(p.topAt(at)); z < top {
+		return top, true
+	}
+	top, in := float32(0), false
+	p.boardPlugin.Board().DecksOver(at, func(c cell.ID, f cell.Floor) {
+		deck := float32(p.relief.Altitude(c) + f.Height)
+		if f.Height > 0 && z < deck && z >= deck-max(float32(f.Thickness), 1e-3) {
+			top, in = max(top, deck), true
+		}
+	})
+	return top, in
+}
+
+// seenAt is the top of what a camera sees at a point: the cell's top as it is drawn, or a deck over
+// it.
+func (p *Plugin) seenAt(at geom.Vec) float64 {
+	top := p.topAt(at)
+	p.boardPlugin.Board().DecksOver(at, func(c cell.ID, f cell.Floor) {
+		top = max(top, p.relief.Altitude(c)+f.Height)
+	})
+	return top
+}
+
 // Relief is the ground's heights as a game reads and sets them: the height at any point and how far
 // apart it is sampled (ground.Heights), a cell's level, and all of them at once from a function
 // (ground.MeanOfCells builds one from a height per cell). Raise, Lower and Level shape it.
@@ -225,6 +269,15 @@ type Relief interface {
 
 // Relief is the ground's heights, to read and set from a game's code.
 func (p *Plugin) Relief() Relief { return p.relief }
+
+// Flatten lays the cell c flat at h, the ground round it following within the Shaping's MaxStep,
+// and reports whether it did: never so a road would lie where Transport Tycoon would not lay it —
+// then nothing moves. It is the relief as a ground.Shaper: what a bridge's heads are levelled by.
+func (p *Plugin) Flatten(c cell.ID, h float64) bool {
+	return p.relief.KeepRoads(func() { p.relief.Level(c, h, p.cfg.Shaping.MaxStep) })
+}
+
+var _ ground.Shaper = (*Plugin)(nil)
 
 // Style sets how the kind named name looks in relief beyond its sprite; a kind without one is
 // plain ground.

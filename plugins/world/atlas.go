@@ -22,6 +22,8 @@ type Atlas struct {
 	shaded   map[render.SpriteID]render.MaterialID // the sprites worked out per pixel instead of drawn
 	animated map[render.SpriteID]animation         // the sprites drawn frame after frame
 	lying    map[render.SpriteID]bool
+	upright  map[render.SpriteID]bool
+	edges    map[render.SpriteID]render.SpriteID // the sprite standing along a lying one's edges
 }
 
 // animation is one sprite's frames and how long each is shown.
@@ -44,6 +46,8 @@ func (p *Plugin) NewAtlas() *Atlas {
 		shaded:   map[render.SpriteID]render.MaterialID{},
 		animated: map[render.SpriteID]animation{},
 		lying:    map[render.SpriteID]bool{},
+		upright:  map[render.SpriteID]bool{},
+		edges:    map[render.SpriteID]render.SpriteID{},
 	}
 }
 
@@ -108,6 +112,25 @@ func (s Slot) Lying() Slot {
 	return s
 }
 
+// Upright has the sprite stand true where a view in relief stands its entities up (UprightLook):
+// on the four sides of its entity's box from its Altitude up its Height and over its top, never a
+// billboard turned to the eye — a pier, a column. From above it is drawn as any other. Its looks
+// under effects, its frames and its twins stand so too.
+func (s Slot) Upright() Slot {
+	s.a.upright[s.id] = true
+	return s
+}
+
+// Edges adds the sprite standing along the long sides of what lies as an entity's Lie says when it
+// is Edged — a bridge's railings: authored seen from the side, its length along x and its height
+// along y, filling its square. Its looks under effects, its frames and its twins have the same.
+func (s Slot) Edges(draw render.SpriteDrawer) Slot {
+	edge := s.a.p.Kinds().NewSprite()
+	s.a.atlas.Add(edge, s.size, draw)
+	s.a.edges[s.id] = edge
+	return s
+}
+
 // Animated adds the sprite's frames — n twins, each shown period of game time in turn, drawn by
 // draw for its frame: a walker's legs, a banner in the wind. Frames go by the tactical clock, so
 // the pause is a freeze-frame and the tempo hurries the gait; a look under an effect is one still
@@ -163,9 +186,15 @@ func (a *Atlas) White() (u, v float32) { return a.atlas.White() }
 
 // lain is every sprite drawn lying: those Lying marked, with their looks under effects, their
 // frames and their twins.
-func (a *Atlas) lain() map[render.SpriteID]bool {
+func (a *Atlas) lain() map[render.SpriteID]bool { return a.withTwins(a.lying) }
+
+// stood is every sprite drawn standing true: those Upright marked, with their twins.
+func (a *Atlas) stood() map[render.SpriteID]bool { return a.withTwins(a.upright) }
+
+// withTwins is every sprite marked, with its looks under effects, its frames and its twins.
+func (a *Atlas) withTwins(marked map[render.SpriteID]bool) map[render.SpriteID]bool {
 	out := map[render.SpriteID]bool{}
-	for id := range a.lying {
+	for id := range marked {
 		out[id] = true
 		for _, twin := range a.unders[id] {
 			out[twin] = true
@@ -175,6 +204,25 @@ func (a *Atlas) lain() map[render.SpriteID]bool {
 		}
 		for _, twin := range a.faced[id] {
 			out[twin] = true
+		}
+	}
+	return out
+}
+
+// edged is the sprite standing along the edges of every sprite drawn lying that has one: those
+// Edges gave it, with their looks under effects, their frames and their twins.
+func (a *Atlas) edged() map[render.SpriteID]render.SpriteID {
+	out := map[render.SpriteID]render.SpriteID{}
+	for id, edge := range a.edges {
+		out[id] = edge
+		for _, twin := range a.unders[id] {
+			out[twin] = edge
+		}
+		for _, frame := range a.animated[id].frames {
+			out[frame] = edge
+		}
+		for _, twin := range a.faced[id] {
+			out[twin] = edge
 		}
 	}
 	return out

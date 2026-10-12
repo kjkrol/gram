@@ -36,6 +36,8 @@ type Plugin struct {
 	ownedBase   goke.Comp[world.Base]
 	ownedBy     goke.OptComp[tag.Tags[owner.Family]]
 	gives       control.Queue[Give]
+	takes       control.Queue[control.Take]
+	drops       control.Queue[control.Drop]
 	pass        uint64 // the passes of input handled: a player's picture is wired anew for each
 	module      *module
 	// captured is whether the cursor is caught, as setCapture last set it; setCapture catches or
@@ -158,6 +160,20 @@ func (p *Plugin) Handle(events *control.InputEvents, runtime game.Runtime, compo
 	p.listings.Drain(func(control.Issued[ShowShortcuts]) { p.shortcuts.Open(runtime, composition) })
 	p.shortcuts.keys.Handle(events, runtime, composition)
 	p.pass++
+}
+
+// tools hands every player the tool it took and empties the hands that put theirs down.
+func (p *Plugin) tools() {
+	p.takes.Drain(func(i control.Issued[control.Take]) {
+		if pl := p.ByID(i.Player); pl != nil {
+			pl.tool = i.Command.Tool
+		}
+	})
+	p.drops.Drain(func(i control.Issued[control.Drop]) {
+		if pl := p.ByID(i.Player); pl != nil {
+			pl.tool = ""
+		}
+	})
 }
 
 // =================================================================

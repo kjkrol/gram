@@ -116,6 +116,40 @@ func (s *sprites) lay(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.sky.Air().Haze(cam, cx, cy, alt))
 }
 
+// level takes the sprite id of atlas laid level at alt over the corners c — top-left, top-right,
+// bottom-left, bottom-right — in light.
+func (s *sprites) level(cam camera.Camera, c [4]geom.Vec, alt float32, atlas render.AtlasSource,
+	id render.SpriteID, light render.Light) {
+	b := batchOf(&s.lain, atlas)
+	for _, p := range c {
+		b.inst = append(b.inst, float32(p.X), float32(p.Y), alt, 0)
+	}
+	mx, my := float32(c[0].X+c[3].X)/2, float32(c[0].Y+c[3].Y)/2
+	u0, v0, u1, v1 := atlas.UV(id)
+	l := lit(s.sky.Sun(), light)
+	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.sky.Air().Haze(cam, mx, my, alt))
+}
+
+// upright takes the sprite id of atlas standing high over alt along the edge from a to b, seen
+// from its right — the way out of what it edges — in light, lit by the sun as that side faces.
+func (s *sprites) upright(cam camera.Camera, a, b geom.Vec, alt, high float32,
+	atlas render.AtlasSource, id render.SpriteID, light render.Light) {
+	if high <= 0 {
+		return
+	}
+	bt := batchOf(&s.lain, atlas)
+	ax, ay, bx, by := float32(a.X), float32(a.Y), float32(b.X), float32(b.Y)
+	top := alt + high
+	bt.inst = append(bt.inst, ax, ay, top, 0, bx, by, top, 0, ax, ay, alt, 0, bx, by, alt, 0)
+	dx, dy := bx-ax, by-ay
+	n := float32(math.Hypot(float64(dx), float64(dy)))
+	sun := s.sky.Sun().Light(-dy/n, dx/n, 0)
+	u0, v0, u1, v1 := atlas.UV(id)
+	haze := s.sky.Air().Haze(cam, (ax+bx)/2, (ay+by)/2, alt)
+	bt.inst = append(bt.inst, u0, v0, u1, v1,
+		sun[0]*light[0], sun[1]*light[1], sun[2]*light[2], haze)
+}
+
 // shadow takes the shadow of an entity standing in box as z says, laid on the ground away from the
 // sun.
 func (s *sprites) shadow(box plane.AABB, z world.Z) {

@@ -60,7 +60,19 @@ type Plugin struct {
 	rules       *moments.Rules
 	workers     int                 // how many goroutines at most share a frame's tiles: 0 all the CPUs, 1 none
 	grids       control.Queue[Grid] // the Grid commands given, until the next tick
+	bridges     Bridges
+	// the cell an entity of each kind NewEntities defines stands on, read off its row, and the
+	// file and line of a level the entity on a cell was laid by
+	cellOf map[string]func(row any) cell.ID
+	where  map[cell.ID]string
 }
+
+// Bridges is what a bridge — the cells whose Graded Floors run as bands joined along their links —
+// keeps to besides running straight and level from a head to a head (a band from the middle of a
+// flat tile at the deck into the bridge, its Links the way in alone): its deck Clearance over the
+// ground under the middle of every cell between at least. A level laying one that breaks them
+// fails with its file and line as the game begins; one built later is not built, said in the log.
+type Bridges struct{ Clearance float64 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
@@ -105,6 +117,7 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 			unit.AirborneName))
 	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[unit.States]())
+	p.keepBridges()
 	return p
 }
 
@@ -162,6 +175,37 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 func (p *Plugin) WithLog(l *log.Logger) *Plugin {
 	p.rules.Log = l
 	return p
+}
+
+// WithBridges has the board's bridges keep to b; zero, as it starts, has the deck no lower than
+// the ground.
+func (p *Plugin) WithBridges(b Bridges) *Plugin {
+	p.bridges = b
+	p.keepBridges()
+	return p
+}
+
+// keepBridges hands the terrain the rules its bridges keep to and how it reads the ground.
+func (p *Plugin) keepBridges() {
+	brd := p.Board()
+	brd.cells.SetBridges(terrain.Bridges{
+		Clearance: p.bridges.Clearance,
+		Level:     brd.altitude,
+		Ground: func(at geom.Vec) float64 {
+			if h := p.Heights(); h != nil {
+				return h.At(at)
+			}
+			return 0
+		},
+		Where: func(c cell.ID) string { return p.where[c] },
+		Log: func(format string, args ...any) {
+			if p.rules.Log != nil {
+				p.rules.Log.Printf(format, args...)
+				return
+			}
+			log.Printf(format, args...)
+		},
+	})
 }
 
 // WithWorkers sets how many goroutines at most share a frame's tiles when the Map's Dressing

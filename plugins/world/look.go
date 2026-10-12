@@ -36,10 +36,26 @@ type DirectLook interface {
 
 // LyingLook is a Look that lays some sprites flat on the ground, under what stands — a view in
 // relief stands the rest up: the renderer hands it the sprites the Atlas declared Lying
-// (Slot.Lying) through Lie, at the entity's Altitude, the rest through Sprite.
+// (Slot.Lying) through Lie, at the entity's Altitude, the rest through Sprite; those of an entity
+// with a Lie through Lay.
 type LyingLook interface {
 	Look
 	Lie(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource,
+		a render.Appearance, light render.Light)
+	// Lay lays the sprite level at z's Altitude over the rectangle lie says, on the middle of box
+	// and headed dir (Lie.Corners), and, lie being Edged, the sprite edge along both its long
+	// sides: thin strips from above, standing lie.Edge high where a view stands things up.
+	Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.Vec, lie Lie, z Z,
+		atlas render.AtlasSource, a render.Appearance, edge render.SpriteID, light render.Light)
+}
+
+// UprightLook is a Look that stands some sprites true where a view in relief stands the rest up as
+// billboards turned to the eye: the renderer hands it the sprites the Atlas declared Upright
+// (Slot.Upright) through Upright — on the four sides of the box from z's Altitude up its Height,
+// and over its top.
+type UprightLook interface {
+	Look
+	Upright(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource,
 		a render.Appearance, light render.Light)
 }
 

@@ -46,6 +46,8 @@ type keeping interface {
 	blocked(m member, o *MoveOrder, c cell.ID, d time.Duration) (holder uid.UID64, known bool)
 	// within is how near its goal m counts as there.
 	within(m member) float64
+	// on reports whether m, standing in c, stands on its level level: any where c has one.
+	on(m member, c cell.ID, level Level) bool
 	// mayStep reports whether m, driven by hand, may walk on into ahead along heading.
 	mayStep(m member, ahead cell.ID, heading geom.Vec) bool
 	// byContact reports whether units touch by their boxes striking — Collider's contacts — or,
@@ -146,11 +148,12 @@ func (k *cellKeeping) orders(members []member, cmd MoveTo, issue func(member, Mo
 	var moves []member
 	for _, m := range members {
 		if cmd.Append && m.order != nil {
-			m.order.Enqueue(Goal{Cell: target, At: cmd.At})
+			m.order.Enqueue(Goal{Cell: target, At: cmd.At, Level: cmd.Level})
 			continue
 		}
 		standing := m.order == nil || !m.order.Leg.Active
-		if !cmd.Append && standing && m.cell == target && cmd.At != (geom.Vec{}) {
+		if !cmd.Append && standing && m.cell == target && cmd.At != (geom.Vec{}) &&
+			k.finder.on(m, target, cmd.Level) {
 			issue(m, MoveOrder{Target: target, Face: cmd.At})
 			continue
 		}
@@ -166,17 +169,17 @@ func (k *cellKeeping) orders(members []member, cmd MoveTo, issue func(member, Mo
 		var path Path
 		ok := false
 		if n == 0 {
-			path, ok = pf.findPath(m.id, m.domain, m.z, m.from, target)
+			path, ok = pf.findPath(m.id, m.domain, m.z, m.from, target, cmd.Level)
 		}
 		if !ok {
-			dest, path, ok = pf.nearestFree(m.id, m.domain, m.z, m.from, target,
+			dest, path, ok = pf.nearestFree(m.id, m.domain, m.z, m.from, target, cmd.Level,
 				func(c cell.ID) bool { return taken[c] })
 		}
 		if !ok {
 			continue
 		}
 		taken[dest] = true
-		issue(m, MoveOrder{Target: dest, Path: path, Leg: m.leg})
+		issue(m, MoveOrder{Target: dest, Level: cmd.Level, Path: path, Leg: m.leg})
 	}
 }
 
@@ -196,11 +199,12 @@ func (k *cellKeeping) route(m member, from cell.ID, o *MoveOrder) (Path, bool) {
 	if o.Avoids > 0 {
 		known := o.Avoid[:o.Avoids]
 		blocked := func(c cell.ID) bool { return c != o.Target && slices.Contains(known, c) }
-		if p, ok := k.finder.findPathAround(m.id, m.domain, m.z, from, o.Target, blocked); ok {
+		if p, ok := k.finder.findPathAround(m.id, m.domain, m.z, from, o.Target, o.Level,
+			blocked); ok {
 			return p, true
 		}
 	}
-	return k.finder.findPath(m.id, m.domain, m.z, from, o.Target)
+	return k.finder.findPath(m.id, m.domain, m.z, from, o.Target, o.Level)
 }
 
 // held reports whether c is held against m.
@@ -213,8 +217,12 @@ func (k *cellKeeping) lost(m member, from cell.ID, o *MoveOrder, waited time.Dur
 	if waited < targetWaitTimeout {
 		return 0, Path{}, true, false
 	}
-	dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.z, from, o.Target, k.held(m))
+	dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.z, from, o.Target, o.Level, k.held(m))
 	return dest, path, false, ok
+}
+
+func (k *cellKeeping) on(m member, c cell.ID, level Level) bool {
+	return k.finder.on(m, c, level)
 }
 
 func (k *cellKeeping) steer(_ member, st steering.Helm, dir geom.Vec, speed float64) {
@@ -263,7 +271,8 @@ func (k *cellKeeping) bump(m member, o *MoveOrder) bumpAnswer {
 		return giveUp
 	}
 	if o.Toward == o.Target {
-		dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.z, m.from, o.Target, k.held(m))
+		dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.z, m.from, o.Target, o.Level,
+			k.held(m))
 		if !ok {
 			return giveUp
 		}
@@ -383,7 +392,8 @@ func (k *cellKeeping) pass(member, *MoveOrder, body) {}
 func (k *cellKeeping) onGoal(self, other body) bool { return other.cell == self.goal }
 
 func (k *cellKeeping) settle(m member, o *MoveOrder, _ body) bool {
-	dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.z, m.from, o.Target, k.held(m))
+	dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.z, m.from, o.Target, o.Level,
+		k.held(m))
 	if !ok {
 		return false
 	}

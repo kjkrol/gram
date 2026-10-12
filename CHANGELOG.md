@@ -6,7 +6,101 @@ Saves written by v0.2.0 do not load: `Base` and the marker components changed sh
 and the climate's entities are gone, the clock's is new. Nor do saves made on this branch before
 the topography was split into packages: its heights are `relief.Heights` now. Nor before the core
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
-argument's full path, which moved.
+argument's full path, which moved. Nor those made before decks ran as bands: `cell.Floor`,
+`cell.Rail` and `cell.Built` changed shape.
+
+**Bridges built by one set of rules, by a player too**
+- `plugins/bridges`: a bridge is planned by `bridges/site.Plan` over a `site.Ground` — straight
+  along one of the grid's directions, three cells at most (`site.Rules.Longest`), over water or a
+  valley a figure deep (`Under`: the game's figures, not metres), its deck `Clearance` over the
+  ground, never beside another bridge's span nor over a road but one crossing it square, its heads
+  levelled at the deck (`Reshape`) without breaking a road beside them; a pier between every two
+  spans. A game defines its kinds of bridges (`Plugin.Types().Define(name, Spec)`); a bridge is its
+  parts, entities on the board: a band a cell and its piers. A level's file writes a bridge as one
+  line, `{kind: bridge, from: [x, y], to: [x, y]}` (`Plugin.Spawn`, held to the rules at Populate,
+  an error with the line), and `cmd/gramap` plans its bridges with `site` too: leaps from a road's
+  cell to a head, the absurd spans and the bridges over slight dips gone.
+- A player builds one with a tool in hand: `control.Tool`, `Take`, `Drop` and `Binding.With` —
+  while a player holds a tool, its bindings take their triggers from those of no tool (the
+  players carry it out, `Player.Tool`). Shift+B takes the bridge; a left click marks its first
+  head, the cursor lays it out yellow where it may not stand (`Plugin.Reason` says why), green
+  where it may; a click on green asks "Build the bridge?" (`Plugin.Window`), and Build levels its
+  heads on a `ground.Shaper` (the topography's relief: `topography.Plugin.Flatten`) and spawns it at
+  the next step.
+- A diagonal road lies on a level cell alone (`ground.RoadFits`): never lower on one side than on
+  the other.
+- `camera.Picker.Pick` gives the height of what it picked, a deck a thin slab a line of sight
+  under it passes (`topography`'s `solidAt`); `control.Context.Point`; `Board.LevelFor`,
+  `ThinnestDeck`; `navigation.MoveTo.Level` (`EitherLevel`, `OnGround`, `OnDeck`), kept by the
+  order and its goals: a right click on a bridge sends units onto it, one on the ground seen under
+  it under it, and the goal's outline stands at its height. A route under a deck reads the ground
+  at every eighth of a step under every deck over it (`pathfind.Levels.Over`), so a unit sent from
+  a bridge down under it goes off the bridge and comes in from beside, never back from the head
+  along the deck; one standing on its goal's cell on the other level plans on, and the goal's cell
+  crossed on the deck on the way is passed, not stopped on.
+- A bridge's deck and its piers are blocks (`world.Block`): the terrain bakes their shadows with
+  its own as the sun goes — the sun's line from the ground passing through a block, a penumbra as
+  the relief's — soft, and costing nothing between the sun's moves; a deck's pieces lying end to
+  end on one line are one block. A deck stands on its beam in relief, its Height
+  (`cell.Floor.Thickness`) down its long sides; the island's are 10 m thick (gramap's recipe
+  `roads.thickness`, the clearance and the underpass worked out from it). `world.Slot.Upright`
+  stands a sprite true in relief — on the four sides of its box from its Altitude up its Height
+  and over its top (`world.UprightLook`), never a billboard taller than it stands: the demos'
+  piers.
+- A uniform may be an array of vec4s (`gpu.Uniform.Size` over 16, a multiple of 4).
+- A wall, a railing, never turns a unit a hand steers (`steering.Driven`): riding in it, walking
+  into a bridge's railing no longer swings the view along the bridge.
+- `board.Each[R](level, f)`: a plugin builds its own out of a level's lines.
+- `ui`: a modal element left out — a window whose title says nothing — holds no input, nor does
+  an anchor round an element left out or hidden: the bridge's window, there always, ate the wheel.
+
+**Bridges begin and end in the middle of a tile**
+- A bridge runs from a head to a head: a band from the middle of a flat tile at its deck into the
+  bridge alone (`cell.Floor.Links` one way), no railings on it, so the road comes onto it from
+  any side; no bridge ends in a point four cells share. Only Graded bands are bridges.
+  `board.Bridges` lost `Reach`: a head flat at the deck takes the place of the ends on the ground.
+  `entity.Lie.Ahead` lays a head half a link long from its middle.
+- `Board.CellFor(p, feet, reach)`: the cell whoever stands at a point is on, a deck's over the
+  ground's — navigation's and the driving's cell of a unit, the target of a right click — and a
+  step along a deck through a corner passes over the cells beside it (`Leg.Decked`): a unit by a
+  slantwise bridge's corner went on and off it for ever. Where a unit may stand is read point by
+  point (`KindFor`, the decks' surfaces); a camera picks the deck over the ground, finer near a
+  narrow one (`Board.NearDeck`, `NarrowestDeck`).
+- A pan the world's edge stops in relief turns the view (left: the eye clockwise; right: the
+  other way) or bows it towards looking down (forward); back, nothing.
+- `cmd/gramap`: a bridge's heads graded flat at its deck, no road's corner planned over a deck;
+  `area.sea` grows the area from the Earth until that many cells of sea lie round the land, the
+  kept `units:` shifted with it; a `flat:` block (cell, road, deck) for `-flat`. Both Madeira
+  maps are 204 x 106 cells; the flat demo's cells are 50, its figures 20, roads 44, decks 48.
+
+**Bridges as bands: slantwise, on a hex, railed and drawn along themselves**
+- Every grid gives its directions through `grid.Grid` — `Directions`, `Opposite`, `Offset`,
+  `Step`, `Corner`, `Flanks` — with `grid.Way`, `Straight`, `Direction`, `Nearest`, `Exit`, `Rim`
+  and `cell.Links.Has` on them; the copies of the square's table in the painter, the simple map's
+  bands and covers, the planner, the field and `cmd/gramap` are gone. `ground.RoadFits(g, c,
+  corners, links, run)` takes the corners in `CellOutline`'s order.
+- `cell.Floor` gains `Links` and `Width`: a band that wide from the cell's middle out to the
+  neighbours it names, the ground beside it the cell's own, through a corner reaching over the two
+  cells flanking it. `cell.Rail{Keeps, Height}` lost `Sides`: a railing stands along both edges of
+  a band carrying anyone. `Board.DecksOver`, `KindFor(c, p, feet, reach)` (a point now),
+  `Reaches`, `Fenced`; `Along` counts a band's links; `Board.Railed` is gone.
+- Collision's field holds slanted walls besides boxes (`collision.Field.Walls`,
+  `collide.FieldWall`, aabbworld v1.12.0): railings and a band's raised slab, their ends free where
+  the bridge ends; a shot strikes one where its step first touches it (`response.SweepWall`).
+- The planner steps across no railing (the step's segment crossing it, a raised one on the deck's
+  level alone) and slantwise along a deck over the corner it cuts; a leg along one holds no corner.
+- A bridge is straight, level, its ends within `Reach` of the ground and its deck `Clearance` over
+  it (`board.Plugin.WithBridges(board.Bridges{Reach, Clearance})`): broken as a map lays it, it
+  panics with the file and the line of its entity; broken in the game, it is not built, said in the
+  log.
+- `world.Lie{Length, Width, Edged, Edge}` (`entity.Lie`): the board heads a band's entity along it
+  and has it lie its length, Width wide, edged by its railings; the world lays a Lying sprite level
+  over that rectangle (`LyingLook.Lay`) and `Slot.Edges(draw)` stands a sprite along its long
+  sides — strips from above, quads lit by the sun in relief. The demos draw one deck sprite.
+- `cmd/gramap` bridges slantwise in relief, cuts the ground under a bridge down to its deck, writes
+  each bridge's `width` (the recipe's `roads.deck`, a cell's with `-flat`) and lays the map with its
+  bridges' rules before writing it; both Madeira maps made anew. navigation-hex-demo crosses a
+  river on a bridge at 60°.
 
 **By name**
 - Defining registers and hands nothing back; the handle is `Named(name)`, wherever a thing is
@@ -52,6 +146,19 @@ argument's full path, which moved.
   `collision.Meeting` (`rule.Then[collision.Meeting]("press", rule.All, rule.Trigger())`).
 - `relief.MeanOfCells` is the board's: `ground.MeanOfCells`. `kind.EntryOf(name, row)` and
   `world.Roles.Lookup` are new.
+
+**Sight over a relief, exactly and as often as asked**
+- board-topography fell to 8–29 FPS: 37 cones of 10 km sampled the relief every 50 m every step,
+  a tick of 14–95 ms the engine caught up on. Now `ground.Profile` (`Along(origin, dir, length,
+  visit)`) is Heights that knows its ground along a ray: the topography's relief hands a ray the
+  points where it crosses a cell's edge or the diagonal its top is folded along, read off the
+  corners, and vision reads the ground there (aabbworld v1.11.0, `Cone.Profile`) — exact, a few
+  points a cell; a ground without one is sampled every `WithGroundStep` as before, the board's cell
+  by default.
+- `vision.Plugin.WithFrequency(perSecond)`: every observer scanned so many times a second of game
+  time, the observers taking turns; the rules of a `Sighting` go on every step on what each saw
+  last. board-topography scans 15 times a second: a tick of 2–3 ms, the frame bound by the GPU
+  at 2560x1440. With heights a scan is shared among goroutines from two observers a worker.
 
 **Gravity, steps, decks, railings, leaps; the planner on two levels**
 - `plugins/gravity`: bodies fall, stand on what bears them and leap — a character's controller,

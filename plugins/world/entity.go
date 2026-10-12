@@ -3,8 +3,8 @@ package world
 import "github.com/kjkrol/gram/entity"
 
 // What an entity carries, as package entity has it — re-exported, so the world's own name for
-// each stays: Base, Position, Velocity, Z, Layers and Eye are the same types wherever they are
-// named.
+// each stays: Base, Position, Velocity, Z, Layers, Eye, Drift, Lie and Block are the same types
+// wherever they are named.
 type (
 	Base     = entity.Base
 	Position = entity.Position
@@ -13,6 +13,8 @@ type (
 	Layers   = entity.Layers
 	Eye      = entity.Eye
 	Drift    = entity.Drift
+	Lie      = entity.Lie
+	Block    = entity.Block
 )
 
 // StepReach is entity.StepReach: how far an entity may travel in one tick, as a share of its own

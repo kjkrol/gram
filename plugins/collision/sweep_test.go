@@ -306,6 +306,7 @@ func TestSweep_IgnoresWhatItIsToldTo(t *testing.T) {
 // height.
 type boxesField struct {
 	boxes []collision.FieldBox
+	walls []collide.FieldWall
 }
 
 func (f *boxesField) Solid(_ world.Layers, _ collision.Band, box geom.AABB, visit func(collision.FieldBox) bool) {
@@ -317,6 +318,16 @@ func (f *boxesField) Solid(_ world.Layers, _ collision.Band, box geom.AABB, visi
 }
 
 func (f *boxesField) Overhang(world.Layers, geom.AABB) float64 { return 0 }
+func (f *boxesField) Walls(_ world.Layers, _ collision.Band, box geom.AABB,
+	visit func(collide.FieldWall) bool) {
+	for _, w := range f.walls {
+		lo := geom.NewVec(min(w.A.X, w.B.X)-w.Half, min(w.A.Y, w.B.Y)-w.Half)
+		hi := geom.NewVec(max(w.A.X, w.B.X)+w.Half, max(w.A.Y, w.B.Y)+w.Half)
+		if box.Intersects(geom.NewAABB(lo, hi)) && !visit(w) {
+			return
+		}
+	}
+}
 
 const allSides = collide.Left | collide.Right | collide.Top | collide.Bottom
 
@@ -429,4 +440,23 @@ func TestSweep_AWrappingWorldRefusesIt(t *testing.T) {
 		}
 	}()
 	sweptRun(t, aabbworld.Torus, nil, 1, piece{x: 100, y: 500, size: 4, fly: &flight{Dir: east, Step: 60}})
+}
+
+// A shot strikes a slanted wall of the ground where its path first meets it, the way out square
+// to the wall.
+func TestSweep_AShotStrikesASlantedWall(t *testing.T) {
+	wall := &boxesField{walls: []collide.FieldWall{
+		{A: geom.NewVec(100, 450), B: geom.NewVec(200, 550), Half: 1, Cell: 9},
+	}}
+	out, _ := sweptRun(t, 0, wall, 1,
+		piece{x: 100, y: 498, size: 4, fly: &flight{Dir: east, Step: 80}})
+	if len(out[0].contacts) != 1 {
+		t.Fatalf("the shot has %d contacts, want the wall's", len(out[0].contacts))
+	}
+	hit := out[0].contacts[0]
+	r := math.Sqrt2 / 2
+	if !hit.Terrain || hit.Cell != 9 || math.Abs(hit.Normal.X+r) > 1e-9 ||
+		math.Abs(hit.Normal.Y-r) > 1e-9 || hit.Along <= 0 || hit.Along >= 1 {
+		t.Errorf("the shot's contact is %+v, want the wall's, on the way, square to it", hit)
+	}
 }

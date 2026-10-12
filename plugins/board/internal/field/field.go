@@ -1,8 +1,8 @@
 package field
 
 import (
-	"fmt"
 	"math"
+	"slices"
 
 	"github.com/kjkrol/aabbworld/collide"
 	"github.com/kjkrol/aabbworld/geom"
@@ -30,6 +30,8 @@ type Field struct {
 	heights  bool                    // the world has heights: cover and solid cells span the cells' bands
 	altitude func(c cell.ID) float64 // a cell's ground level, the Map's
 	boxes    []geom.AABB             // scratch for the boxes of a cell
+	decks    []terrain.Deck          // scratch for the bands round a cell
+	seen     []cell.ID               // the bands whose walls a walk has visited
 	// veils holds by ordinal the cover of every cell (Ready), good while the cells' changes and
 	// version are as they were
 	veils        []veil
@@ -178,10 +180,10 @@ func (f *Field) walkSteps(origin, dir geom.Vec, length float64, blockers world.L
 
 // Solid is the solid ground of the board round box for an entity on layers spanning band — the
 // collision.Field contract: every cell whose kind is Solid, keeps one of those layers out and
-// stands in the band, and every raised deck's slab over the entity's step, as its boxes; a
-// railing along the sides of its cell. On a square grid a side is open where the neighbour across
-// it is not solid for the entity, one under or over it among them, and the boxes lie in box's
-// frame across a wrapping seam; any other grid gives its cell boxes open all round.
+// stands in the band, and every raised deck over the whole cell, its slab over the entity's step,
+// as its boxes. On a square grid a side is open where the neighbour across it is not solid for the
+// entity, one under or over it among them, and the boxes lie in box's frame across a wrapping
+// seam; any other grid gives its cell boxes open all round.
 func (f *Field) Solid(layers world.Layers, band collision.Band, box geom.AABB, visit func(collide.FieldBox) bool) {
 	sq := f.square
 	if sq == nil {
@@ -215,83 +217,107 @@ func (f *Field) Solid(layers world.Layers, band collision.Band, box geom.AABB, v
 			}
 		}
 	}
-	if f.cells.Railed() {
-		f.rails(layers, band, x0, y0, x1, y1, size, visit)
-	}
 }
 
-// rails visits the boxes of the railings in the cells x0..x1, y0..y1 that keep an entity on layers
-// spanning band off: a strip an eighth of a cell wide inside each side a railing stands on, its
-// ends closed where the railing runs on along the next cell.
-func (f *Field) rails(layers world.Layers, band collision.Band, x0, y0, x1, y1 int64, size float64,
-	visit func(collide.FieldBox) bool) {
-	const n, s, w, e = 1, 2, 4, 8
-	thin := size / 8
-	for y := y0; y < y1; y++ {
-		for x := x0; x < x1; x++ {
-			c, ok := f.square.Fold(x, y)
-			if !ok {
-				continue
-			}
-			r := f.railOf(c, layers, band)
-			if r == 0 {
-				continue
-			}
-			on := func(dx, dy int64, side cell.Links) bool {
-				nc, ok := f.square.Fold(x+dx, y+dy)
-				return ok && f.railOf(nc, layers, band)&side != 0
-			}
-			left, top := float64(x)*size, float64(y)*size
-			for _, rb := range [4]struct {
-				side       cell.Links
-				x, y, w, h float64
-				open       collide.Sides
-				ends       [2]collide.Sides
-				dx, dy     [2]int64
-			}{
-				{n, left, top, size, thin, collide.Top | collide.Bottom,
-					[2]collide.Sides{collide.Left, collide.Right}, [2]int64{-1, 1}, [2]int64{0, 0}},
-				{s, left, top + size - thin, size, thin, collide.Top | collide.Bottom,
-					[2]collide.Sides{collide.Left, collide.Right}, [2]int64{-1, 1}, [2]int64{0, 0}},
-				{w, left, top, thin, size, collide.Left | collide.Right,
-					[2]collide.Sides{collide.Top, collide.Bottom}, [2]int64{0, 0}, [2]int64{-1, 1}},
-				{e, left + size - thin, top, thin, size, collide.Left | collide.Right,
-					[2]collide.Sides{collide.Top, collide.Bottom}, [2]int64{0, 0}, [2]int64{-1, 1}},
-			} {
-				if r&rb.side == 0 {
-					continue
-				}
-				open := rb.open
-				for k := range 2 {
-					if !on(rb.dx[k], rb.dy[k], rb.side) {
-						open |= rb.ends[k]
-					}
-				}
-				box := geom.NewAABBAt(geom.NewVec(rb.x, rb.y), rb.w, rb.h)
-				if !visit(collide.FieldBox{Box: box, Cell: uint64(c), Open: open}) {
+// Walls are the railings and the slabs of the decks running as bands round box, for an entity on
+// layers spanning band — the collision.Field contract: a railing along each edge of a band, from
+// its deck up its Height, keeping out an entity on a layer it Keeps; a raised band's slab, Width
+// wide along it, over the entity's step. Their ends are free where the bridge ends or a head takes
+// over. On a square grid they lie in box's frame across a wrapping seam.
+func (f *Field) Walls(layers world.Layers, band collision.Band, box geom.AABB,
+	visit func(collide.FieldWall) bool) {
+	if !f.cells.Banded() {
+		return
+	}
+	f.seen = f.seen[:0]
+	if sq := f.square; sq != nil {
+		size := float64(sq.CellSize)
+		x0 := int64(math.Floor(box.TopLeft.X / size))
+		y0 := int64(math.Floor(box.TopLeft.Y / size))
+		x1 := int64(math.Ceil(box.BottomRight.X / size))
+		y1 := int64(math.Ceil(box.BottomRight.Y / size))
+		for y := y0; y < y1; y++ {
+			for x := x0; x < x1; x++ {
+				c, ok := sq.Fold(x, y)
+				m := geom.NewVec((float64(x)+0.5)*size, (float64(y)+0.5)*size)
+				if ok && !f.wallsOf(c, m, layers, band, visit) {
 					return
 				}
 			}
 		}
+		return
 	}
+	done := false
+	f.grid.CellsUnder(box, func(c cell.ID) {
+		done = done || !f.wallsOf(c, f.grid.CellCenter(c), layers, band, visit)
+	})
 }
 
-// railOf is the sides of c a railing keeps an entity on layers spanning band from crossing: those
-// it stands on, up to its Height over c's deck or level; none where it keeps none of the layers or
-// stands under or over the band.
-func (f *Field) railOf(c cell.ID, layers world.Layers, band collision.Band) cell.Links {
-	b := f.cells.Built(c)
-	r := b.Rail
-	if r.Sides == 0 || !world.Layers(r.Keeps).Meets(layers) {
-		return 0
-	}
-	if f.heights && r.Height > 0 {
-		base := f.altitude(c) + b.Floor.Height
-		if !(collision.Band{Bottom: base, Top: base + r.Height}).Meets(band) {
-			return 0
+// wallsOf visits the walls of the bands on c and reaching into it, c's middle at m in the frame
+// asked about; false when the visit ends the walk.
+func (f *Field) wallsOf(c cell.ID, m geom.Vec, layers world.Layers, band collision.Band,
+	visit func(collide.FieldWall) bool) bool {
+	f.decks = f.cells.Bands(c, f.decks[:0])
+	for _, d := range f.decks {
+		if slices.Contains(f.seen, d.Cell) {
+			continue
+		}
+		f.seen = append(f.seen, d.Cell)
+		fl, top := d.Built.Floor, f.altitude(d.Cell)+d.Built.Floor.Height
+		a, b, freeA, freeB, ok := f.cells.Ends(d.Cell, fl, geom.NewVec(m.X+d.Off.X, m.Y+d.Off.Y))
+		if !ok {
+			continue
+		}
+		open := ends(freeA, freeB)
+		if f.heights && fl.Height > 0 && fl.Thickness > 0 &&
+			(collision.Band{Bottom: top - fl.Thickness, Top: top}).Meets(band.Above()) {
+			slab := collide.FieldWall{
+				A:    a,
+				B:    b,
+				Half: fl.Width / 2,
+				Cell: uint64(d.Cell),
+				Open: open,
+			}
+			if !visit(slab) {
+				return false
+			}
+		}
+		r := d.Built.Rail
+		railing := collision.Band{Bottom: top, Top: top + r.Height}
+		if r.Keeps == 0 || !world.Layers(r.Keeps).Meets(layers) ||
+			f.heights && r.Height > 0 && !railing.Meets(band) {
+			continue
+		}
+		half := float64(f.grid.CellSpan()) / 32
+		nx, ny := b.Y-a.Y, a.X-b.X
+		l := math.Hypot(nx, ny)
+		nx, ny = nx/l*fl.Width/2, ny/l*fl.Width/2
+		for _, side := range [2]float64{-1, 1} {
+			w := collide.FieldWall{
+				A:    geom.NewVec(a.X+side*nx, a.Y+side*ny),
+				B:    geom.NewVec(b.X+side*nx, b.Y+side*ny),
+				Half: half,
+				Cell: uint64(d.Cell),
+				Open: open,
+			}
+			if !visit(w) {
+				return false
+			}
 		}
 	}
-	return r.Sides
+	return true
+}
+
+// ends are a wall's ends, free as said.
+func ends(freeA, freeB bool) collide.Ends {
+	var e collide.Ends
+	if freeA {
+		e |= collide.EndA
+	}
+	if freeB {
+		e |= collide.EndB
+	}
+	return e
 }
 
 // Overhang is how much of box, as area, lies over ground that does not take an entity on layers
@@ -361,10 +387,6 @@ func (f *Field) solidCells(layers world.Layers, band collision.Band, box geom.AA
 	const all = collide.Left | collide.Right | collide.Top | collide.Bottom
 	done := false
 	f.grid.CellsUnder(box, func(c cell.ID) {
-		if f.cells.Built(c).Rail.Sides != 0 {
-			panic(fmt.Sprintf(
-				"board: a railing on cell %d: railings stand on a square grid alone", c))
-		}
 		if done || !f.stops(c, layers, band) {
 			return
 		}
@@ -392,7 +414,7 @@ func (f *Field) stops(c cell.ID, layers world.Layers, band collision.Band) bool 
 		return true
 	}
 	fl := b.Floor
-	if !f.heights || fl.Thickness <= 0 || fl.Height <= 0 {
+	if !f.heights || fl.Thickness <= 0 || fl.Height <= 0 || fl.Width > 0 {
 		return false
 	}
 	deck := f.altitude(c) + fl.Height

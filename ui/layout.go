@@ -185,6 +185,9 @@ func (e *Element) proportions() (w, h float64, ok bool) {
 
 func (anchoring) draw(*Element, *render.Image) {}
 
+// absent: an anchor round an element left out or hidden is left out with it.
+func (anchoring) absent(e *Element) bool { return e.children[0].gone() }
+
 func (anchoring) needs(e *Element) (w, h float64) { return e.children[0].needs() }
 
 // The anchors: each places its element at its point of the box, kept Margin pixels from the edges.

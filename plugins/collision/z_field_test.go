@@ -30,6 +30,10 @@ func (f *wallField) Solid(_ world.Layers, band collision.Band, box geom.AABB, vi
 
 func (f *wallField) Overhang(world.Layers, geom.AABB) float64 { return 0 }
 
+func (f *wallField) Walls(world.Layers, collision.Band, geom.AABB,
+	func(collide.FieldWall) bool) {
+}
+
 // A wall of a height stops only what stands in its band: a walker on the ground is held at its
 // face, a flyer over its top goes on; a wall of no height stands at every height.
 func TestZ_TheGroundStopsOnlyWhatStandsInItsBand(t *testing.T) {

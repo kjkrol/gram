@@ -55,10 +55,19 @@ func (e *Entities[P]) Define(name string, extra ...comp.Comp) {
 	}) {
 		own = append(own, comp.Const(world.Velocity{}))
 	}
+	if !slices.ContainsFunc(extra, func(c comp.Comp) bool {
+		return comp.TypeOf(c) == reflect.TypeFor[world.Lie]()
+	}) {
+		own = append(own, comp.Const(world.Lie{}))
+	}
 	if e.brd.worldPlugin.HasHeights() {
 		own = append(own, comp.Const(world.Z{Height: e.shape.Height}))
 	}
 	kind.Define[P](e.brd.worldPlugin.Kinds(), name, append(own, extra...))
+	if e.brd.cellOf == nil {
+		e.brd.cellOf = map[string]func(any) cell.ID{}
+	}
+	e.brd.cellOf[name] = func(row any) cell.ID { return e.at(row.(P)) }
 }
 
 // Named is the kind of entity defined as name: kind.Named over the world's kinds.

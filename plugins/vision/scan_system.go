@@ -33,6 +33,13 @@ type ScanSystem struct {
 	scanners []*scanner
 	count    int
 
+	// every is how often each observer is scanned a second, 0 every step; steps counts the steps,
+	// a step scanning the observers whose index falls on it
+	every float64
+	steps uint64
+	due   func(id uid.UID64) bool // isDue, bound once
+	round uint64                  // the steps between two scans of one observer, this step
+
 	// In a world with heights the cone has heights: groundOf resolves the world's Ground at first
 	// use, grounded once it has.
 	heights  bool
@@ -79,11 +86,12 @@ type scanner struct {
 	tau func(uid.UID64) float64
 
 	// In a world with heights the cone has heights: elev answers an entity's band, groundAt the
-	// ground, step how far apart the ground is sampled.
-	heights  bool
-	elev     func(uid.UID64) (float64, float64)
-	groundAt func(geom.Vec) float64
-	step     float64
+	// ground, step how far apart the ground is sampled where profiling has no ground.Profile.
+	heights   bool
+	elev      func(uid.UID64) (float64, float64)
+	groundAt  func(geom.Vec) float64
+	step      float64
+	profiling profiling
 	// On a world with a Scale the ground and what stands on it sink under the observer's level
 	// bend·d², d how far off: sunk is the ground so, for the observer at ox, oy.
 	bend   float64
@@ -102,8 +110,12 @@ type scanner struct {
 	lookupHot  bool
 }
 
-// observersPerWorker is the fewest observers worth a goroutine of their own.
-const observersPerWorker = 8
+// observersPerWorker is the fewest observers worth a goroutine of their own; with heights, whose
+// every ray reads the ground, fewer are.
+const (
+	observersPerWorker = 8
+	elevatedPerWorker  = 2
+)
 
 // The two queries the scan offers its hosted rules, by index.
 const (
@@ -119,6 +131,7 @@ func newScanSystem(space *aabbworld.Space, host *plugin.PairRules[Sighting]) *Sc
 	s := &ScanSystem{host: host}
 	s.scanner.bind(space)
 	s.sightingOf = s.sighting
+	s.due = s.isDue
 	return s
 }
 
@@ -133,6 +146,14 @@ func (c *scanner) bind(space *aabbworld.Space) {
 // 1 none. Call it before Init.
 func (s *ScanSystem) Workers(n int) { s.count = max(n, 0) }
 
+// Every has each observer scanned perSecond times a second, 0 every step. Call it before Init.
+func (s *ScanSystem) Every(perSecond float64) { s.every = max(perSecond, 0) }
+
+// isDue reports whether the observer id is scanned this step.
+func (s *ScanSystem) isDue(id uid.UID64) bool {
+	return s.round <= 1 || uint64(id.Index())%s.round == s.steps%s.round
+}
+
 func (s *ScanSystem) Init(si *goke.SysInit) {
 	walk := si.NewQueryBuilder(&s.sight, &s.eye, &s.base).Optional(&s.sighted, &s.outline, &s.z)
 	seek := si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupTau, &s.lookupLay, &s.lookupZ)
@@ -142,6 +163,7 @@ func (s *ScanSystem) Init(si *goke.SysInit) {
 	s.scanners = append(s.scanners[:0], &s.scanner)
 	for range parallel.Workers(1<<30, 1, s.count) - 1 {
 		w := &scanner{heights: s.heights, step: s.step, bend: s.bend}
+		w.profiling.bend = s.bend
 		w.bind(s.space)
 		w.covering.bend = s.covering.bend
 		w.lookup = si.NewQueryBuilder(&w.lookupBase).Optional(&w.lookupTau, &w.lookupLay, &w.lookupZ).Build()
@@ -192,6 +214,7 @@ func (s *ScanSystem) ground() {
 		return
 	}
 	g := s.groundOf()
+	profile, _ := g.(ground.Profile)
 	for _, c := range s.scanners {
 		if g != nil {
 			c.groundAt = g.At
@@ -199,6 +222,7 @@ func (s *ScanSystem) ground() {
 				c.step = g.Step()
 			}
 		}
+		c.profiling.profile = profile
 		if c.bend > 0 {
 			c.sunk = c.sunkGround
 		}
@@ -229,6 +253,11 @@ func (s *scanner) sunkGround(p geom.Vec) float64 {
 }
 
 func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
+	s.round = 1
+	if s.every > 0 && d > 0 {
+		s.round = uint64(max(math.Round(1/(s.every*d.Seconds())), 1))
+	}
+	defer func() { s.steps++ }()
 	t := s.tick.Of(cb, d)
 	hosting := !s.host.Empty()
 	s.lookupHot = false
@@ -242,7 +271,7 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	// every chunk's observers, counted: shared out among the scanners when they are many — a chunk
 	// of observers with outlines holds a few, so the runs cut across chunks
 	s.jobs = s.jobs[:0]
-	n := 0
+	n, due := 0, 0
 	s.query.All()
 	for s.query.Next() {
 		j := s.job(s.query.Cursor())
@@ -254,15 +283,26 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		}
 		j.first = n
 		n += len(j.ids)
+		for _, id := range j.ids {
+			if s.due(id) {
+				due++
+			}
+		}
 		s.jobs = append(s.jobs, j)
 	}
-	k := parallel.Workers(n, observersPerWorker, len(s.scanners))
+	least := observersPerWorker
+	if s.heights {
+		least = elevatedPerWorker
+	}
+	k := parallel.Workers(due, least, len(s.scanners))
 	if k > 1 {
 		s.settle(s.jobs[0].bases[0].Pos.AABB.AABB)
 		parallel.Run(k, n, func(w, from, to int) {
 			for _, j := range s.jobs {
 				for i := max(from, j.first); i < min(to, j.first+len(j.ids)); i++ {
-					j.scan(s.scanners[w], i-j.first)
+					if s.due(j.ids[i-j.first]) {
+						j.scan(s.scanners[w], i-j.first)
+					}
 				}
 			}
 		})
@@ -276,7 +316,7 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			continue
 		}
 		for i, id := range cursor.IDs {
-			if k <= 1 {
+			if k <= 1 && s.due(id) {
 				j.scan(&s.scanner, i)
 			}
 			if s.log != nil {
@@ -408,8 +448,35 @@ func (s *scanner) cone(sight *Sight, eye world.Eye, z world.Z) aabbworld.Cone {
 	if s.sunk != nil {
 		c.Ground = s.sunk
 	}
+	if s.profiling.profile != nil {
+		c.Profile = &s.profiling
+	}
 	return c
 }
+
+// profiling is the world's ground.Profile as the cone asks for it: sunk under the observer's level
+// as far off as each point lies, by bend — visit is the walk's own, sunk the step handed to the
+// profile in its place.
+type profiling struct {
+	profile ground.Profile
+	bend    float64
+	visit   func(d, alt float64) bool
+	sunk    func(d, alt float64) bool
+}
+
+func (p *profiling) Along(origin, dir geom.Vec, length float64, visit func(d, alt float64) bool) {
+	if p.bend <= 0 {
+		p.profile.Along(origin, dir, length, visit)
+		return
+	}
+	if p.sunk == nil {
+		p.sunk = p.sink
+	}
+	p.visit = visit
+	p.profile.Along(origin, dir, length, p.sunk)
+}
+
+func (p *profiling) sink(d, alt float64) bool { return p.visit(d, alt-p.bend*d*d) }
 
 // covering is the world's Cover as the cone asks for it: walked for one observer's Blockers.
 type covering struct {

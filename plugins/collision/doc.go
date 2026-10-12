@@ -20,7 +20,9 @@
 // Given a [Field] (the board's Solid cells, board.Plugin.WithCollision or [Plugin.WithField]) the engine also
 // pushes every movable collider out of the solid ground on its world.Layers and, with heights, in its [Band], through the side of
 // a cell facing open ground. A contact with the ground bounces off it as off an infinite mass and
-// is recorded as a [Contact] with Terrain set and the Cell; a sensor is told and never pushed.
+// is recorded as a [Contact] with Terrain set and the Cell; a sensor is told and never pushed. A
+// unit a hand steers (steering.Driven) is never turned by the ground: it keeps the way the hand
+// walks it, and whoever rides in it its view, and only slows — a railing walked into stops it.
 // pair rules meet entities only.
 //
 // A push apart never puts a collider further over ground that does not take it — water to a
@@ -42,8 +44,11 @@
 // at an edge do not meet (a crate on a platform). A band carries the entity's step (world.Z.Reach):
 // a deck's slab (cell.Floor.Thickness under its top) strikes only what of the band lies over the
 // step ([Band.Above]), so a walker steps onto a deck within its reach, passes under one it fits
-// under and strikes the slab of one it does not; railings (cell.Rail) stand from the deck, or the
-// cell's level, up their Height, and a leap over their top clears them. Layers and heights hold
+// under and strikes the slab of one it does not; railings (cell.Rail) stand from the deck up their
+// Height, and a leap over their top clears them. A field may hold walls besides its boxes
+// ([Field.Walls], collide.FieldWall): a slanted rectangle pushing out along its normal, past a
+// free end along it — a railing along a bridge running slantwise, a band's slab; a shot strikes
+// one where its step first touches it. Layers and heights hold
 // together, both must agree. In a flat world every band is Everywhere and nothing changes. What
 // follows from it: two short units on stepped or sloped ground, their bands apart, pass each other
 // — a game that wants them to meet declares their true height; in a topography world only entities

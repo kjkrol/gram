@@ -5,12 +5,13 @@ package main
 const (
 	// kinds of cells
 	GrassCell = "grass"
-	WallCell  = "wall"
+	WaterCell = "water"
 	RoadCell  = "road"
 
-	// kinds of units
-	RedKind  = "red"
-	BlueKind = "blue"
+	// kinds of units and of what stands on the board
+	RedKind    = "red"
+	BlueKind   = "blue"
+	BridgeKind = "bridge"
 
 	// sides
 	PlayerSide = "player"

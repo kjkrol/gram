@@ -132,8 +132,8 @@ func (e *Element) Modal() *Element {
 	return e
 }
 
-// modal reports whether the element is shown and holds the input.
-func (e *Element) modal() bool { return e.holds && !e.hidden }
+// modal reports whether the element is shown — neither hidden nor left out — and holds the input.
+func (e *Element) modal() bool { return e.holds && !e.gone() }
 
 // Box is where the element was last laid, in the screen's pixels.
 func (e *Element) Box() geom.AABB { return e.box }

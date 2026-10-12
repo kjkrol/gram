@@ -123,9 +123,15 @@ func Spawn[R any](level *Level, sides Sides) error {
 		if w.row != row {
 			continue
 		}
-		e, err := l.entry(w, sides)
+		e, r, err := l.entry(w, sides)
 		if err != nil {
 			return err
+		}
+		if at := l.p.cellOf[w.kind.Value]; at != nil {
+			if l.p.where == nil {
+				l.p.where = map[cell.ID]string{}
+			}
+			l.p.where[at(r)] = fmt.Sprintf("%s:%d", l.path, w.node.Line)
 		}
 		entries = append(entries, e)
 		taken = append(taken, w)
@@ -134,6 +140,34 @@ func Spawn[R any](level *Level, sides Sides) error {
 		w.spawned = true
 	}
 	l.p.worldPlugin.Seed(entries...)
+	return nil
+}
+
+// Each hands f, in the file's order, every row of R the level's entities have — what a plugin
+// builds itself out of a line of the map, a bridge from head to head — with the kind it names and
+// the file and line it is written at, and takes them as Spawn does; f's error ends the walk, said
+// at that line.
+func Each[R any](level *Level, f func(kind string, row R, at string) error) error {
+	l := level.l
+	if err := l.p.worldPlugin.InSection("a level's rows taken", section.Spawn); err != nil {
+		return fmt.Errorf("board: %w", err)
+	}
+	row := reflect.TypeFor[R]()
+	for i := range level.waiting {
+		w := &level.waiting[i]
+		if w.row != row {
+			continue
+		}
+		_, r, err := l.entry(w, nil)
+		if err != nil {
+			return err
+		}
+		at := fmt.Sprintf("%s:%d", l.path, w.node.Line)
+		if err := f(w.kind.Value, r.(R), at); err != nil {
+			return fmt.Errorf("%s: %w", at, err)
+		}
+		w.spawned = true
+	}
 	return nil
 }
 
@@ -396,9 +430,9 @@ func (l *leveler) graded(roads *network.Network, laidBy map[cell.ID]*yaml.Node,
 		x, y, _ := brd.Coords(c)
 		links := roads.Links(c)
 		if l.shape.Hex {
-			for i := range 8 {
+			for i := range brd.Directions() {
 				nb, ok := brd.Toward(c, i)
-				if !ok || links&(1<<i) == 0 {
+				if !ok || !links.Has(i) {
 					continue
 				}
 				if !ground.RoadJoins(heights(brd.CellCenter(c)), heights(brd.CellCenter(nb))) {
@@ -408,14 +442,14 @@ func (l *leveler) graded(roads *network.Network, laidBy map[cell.ID]*yaml.Node,
 			}
 			continue
 		}
-		var corners [4]float64
-		for k, d := range [4][2]float64{{0, 0}, {1, 0}, {0, 1}, {1, 1}} {
-			p := geom.NewVec((float64(x)+d[0])*run, (float64(y)+d[1])*run)
+		var corners [6]float64
+		outline := brd.CellOutline(c, nil)
+		for k, p := range outline {
 			corners[k] = heights(p)
 		}
-		if !ground.RoadFits(corners, links, run) {
-			return l.errorf(laidBy[c], "the %s at [%d, %d] lies on ground no road may: level, an "+
-				"even ramp it runs straight up, or a level diagonal it runs along", node.Kind, x, y)
+		if !ground.RoadFits(brd, c, corners[:len(outline)], links, run) {
+			return l.errorf(laidBy[c], "the %s at [%d, %d] lies on ground no road may: level, or "+
+				"an even ramp it runs straight up", node.Kind, x, y)
 		}
 	}
 	return nil
@@ -704,7 +738,7 @@ func (l *leveler) waiting(n *yaml.Node) (waiting, error) {
 	return waiting{node: n, kind: kn, row: row}, nil
 }
 
-func (l *leveler) entry(w *waiting, sides Sides) (kind.Entry, error) {
+func (l *leveler) entry(w *waiting, sides Sides) (kind.Entry, any, error) {
 	row := reflect.New(w.row).Elem()
 	n := w.node
 	for i := 0; i+1 < len(n.Content); i += 2 {
@@ -714,13 +748,15 @@ func (l *leveler) entry(w *waiting, sides Sides) (kind.Entry, error) {
 		}
 		f, ok := tagged(w.row, k.Value)
 		if !ok {
-			return kind.Entry{}, l.errorf(k, "%s has no field tagged %q", w.row.Name(), k.Value)
+			return kind.Entry{}, nil, l.errorf(k, "%s has no field tagged %q", w.row.Name(),
+				k.Value)
 		}
 		if err := l.value(v, row.FieldByIndex(f.Index)); err != nil {
-			return kind.Entry{}, err
+			return kind.Entry{}, nil, err
 		}
 	}
-	e := kind.EntryOf(w.kind.Value, row.Interface())
+	r := row.Interface()
+	e := kind.EntryOf(w.kind.Value, r)
 	own := ownKeys(n)
 	if v := own["name"]; v != nil {
 		e = e.Named(v.Value)
@@ -731,11 +767,11 @@ func (l *leveler) entry(w *waiting, sides Sides) (kind.Entry, error) {
 	if v := own["side"]; v != nil {
 		cmds, ok := sides[v.Value]
 		if !ok {
-			return e, l.errorf(v, "the game gives no side %q", v.Value)
+			return e, r, l.errorf(v, "the game gives no side %q", v.Value)
 		}
 		e = e.Told(cmds...)
 	}
-	return e, nil
+	return e, r, nil
 }
 
 func ownKeys(n *yaml.Node) map[string]*yaml.Node {

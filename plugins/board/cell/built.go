@@ -7,13 +7,17 @@ type On struct{ Cell ID }
 // over its level, whatever its ground takes, at Cost (0: the ground's) and spared the slope if
 // Graded: a trapdoor over a pit, a ford waded slowly, a bridge over a river. Raised, it is a deck
 // Thickness thick: whoever stands under it stays under it, whoever reaches it with a step stands
-// on it.
+// on it. With a Width it is a band that wide from the cell's middle out to each neighbour its Links
+// name, as a Way runs — a bridge's deck, the ground beside it the cell's own; one Link alone is a
+// bridge's head, from the middle of its tile into the bridge; without a Width, the whole cell.
 type Floor struct {
 	Allows    Domain
 	Height    float64
 	Thickness float64
 	Cost      float64
 	Graded    bool
+	Links     Links
+	Width     float64
 }
 
 // Wall is a knob of an entity standing on a cell keeping the domains Keeps off it up to Height
@@ -23,12 +27,12 @@ type Wall struct {
 	Height float64
 }
 
-// Rail is a knob of an entity standing on a cell keeping the domains Keeps from crossing the sides
-// of the cell Sides names, up to Height over its deck or, with none, its level: a bridge's
-// railings, a fence. Whoever leaps over its top crosses; it stands on a square grid alone.
+// Rail is a knob of an entity standing on a cell keeping the domains Keeps from crossing the edges
+// of the cell's deck running as a band through it, up to Height over the deck, 0 at every height:
+// a bridge's railings, a fence on a deck at the ground's level. Whoever leaps over its top
+// crosses; with no band carrying anyone through it stands nowhere — a bridge's head has none.
 type Rail struct {
 	Keeps  Domain
-	Sides  Links
 	Height float64
 }
 

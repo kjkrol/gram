@@ -21,9 +21,10 @@ var (
 	_ control.Command = ShowShortcuts{}
 )
 
-// Queues are where the players' own commands land.
+// Queues are where the players' own commands land, and the tools taken and put down
+// (control.Take, control.Drop).
 func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.gives, &p.listings}
+	return []control.CommandQueue{&p.gives, &p.listings, &p.takes, &p.drops}
 }
 
 // DefaultBindings are GameBindings.

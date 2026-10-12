@@ -305,3 +305,63 @@ func standAt(qw *topotest.QuasiWorld, d cell.Domain, alt float64) {
 		}
 	}
 }
+
+// slantRow is a deck on a cell, its top at Top over sea level.
+type slantRow struct {
+	At  cell.ID
+	Top float64
+}
+
+// A deck running slantwise carries a walker over the corner it cuts, in the cell beside it too;
+// off the band the walker stands on the ground, and under it the deck is its ceiling.
+func TestSurface_ASlantwiseDeckCarriesOverTheCornerItCuts(t *testing.T) {
+	const top, width, thick = 20.0, 8.0, 1.0
+	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {
+		nw, _ := grid.Direction(qw.Grid, -1, -1)
+		se, _ := grid.Direction(qw.Grid, 1, 1)
+		decks := board.NewEntities(qw.Board, board.Shape{Size: 20, Height: 1},
+			func(r slantRow) cell.ID { return r.At })
+		decks.Define("deck", comp.Load(func(r slantRow) cell.Floor {
+			return cell.Floor{
+				Allows:    cell.Land,
+				Height:    r.Top - qw.Topo.Relief().Altitude(r.At),
+				Thickness: thick,
+				Links:     1<<nw | 1<<se,
+				Width:     width,
+			}
+		}))
+		var out []kind.Entry
+		for _, c := range []cell.ID{qw.Grid.At(1, 2), qw.Grid.At(2, 3)} {
+			out = append(out, decks.Named("deck").Entry(slantRow{At: c, Top: top}))
+		}
+		return out
+	}
+	qw := topotest.NewQuasiWorldWith(t, false, define)
+	qw.ECS.Tick(time.Second / 60)
+	surfaces := qw.Board.Surfaces()
+	ground := qw.Topo.Relief()
+	for _, c := range []struct {
+		name string
+		at   geom.Vec
+		deck bool
+	}{
+		{"the corner it cuts", geom.NewVec(64, 96), true},
+		{"by the corner, in the cell beside", geom.NewVec(64.5, 95), true},
+		{"the middle of the cell beside", geom.NewVec(80, 80), false},
+		{"beside it in its cell", geom.NewVec(56, 72), false},
+	} {
+		floor, _ := surfaces.Surface(c.at, cell.Land, top, 1)
+		want := ground.At(c.at)
+		if c.deck {
+			want = top
+		}
+		if math.Abs(floor-want) > 1e-9 {
+			t.Errorf("%s: a walker on the deck's level stands at %v, want %v", c.name, floor, want)
+		}
+	}
+	_, ceiling := surfaces.Surface(geom.NewVec(64.5, 95), cell.Land, 0, 1)
+	if ceiling != top-thick {
+		t.Errorf("under it by the corner: a ceiling at %v, want the deck's underside %v",
+			ceiling, top-thick)
+	}
+}

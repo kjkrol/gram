@@ -2,6 +2,7 @@ package players_test
 
 import (
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -142,6 +143,50 @@ func TestBind_RefusesTwoBindingsOnOneTrigger(t *testing.T) {
 	}
 	if err := r.local.Bind(control.Binding{Label: "bare"}); err == nil {
 		t.Error("a Binding not built with Command was accepted")
+	}
+}
+
+// While a player holds a tool, the tool's binding on a trigger fires in place of the one of no
+// tool; put down, the one of no tool fires again. Two of one tool on one trigger are refused.
+func TestTool_ItsBindingsTakeTheirTriggersWhileHeld(t *testing.T) {
+	r := newRig(t)
+	click := control.ButtonPress{Button: control.MouseButtonLeft}
+	r.bind(
+		control.Build(click, "select", orderOf(1)),
+		control.Build(click, "a bridge's end", orderOf(2)).With("bridge"),
+		control.Build(control.KeyPress{Key: control.KeyA}, "anything", orderOf(3)),
+	)
+	if err := r.local.Bind(control.Build(click, "again", orderOf(4)).With("bridge")); err == nil {
+		t.Error("two bindings of one tool on one trigger were accepted")
+	}
+	pass := func() []int {
+		ev := &control.InputEvents{}
+		ev.AddClickEvent(5, 5, control.MouseButtonLeft, control.ActionPress)
+		ev.AddClickEvent(5, 5, control.MouseButtonLeft, control.ActionRelease)
+		ev.AddKeyEvent(control.KeyA, control.ActionPress)
+		ev.AddKeyEvent(control.KeyA, control.ActionRelease)
+		r.handle(ev)
+		var cells []int
+		for _, i := range r.drained() {
+			cells = append(cells, i.Command.Cell)
+		}
+		slices.Sort(cells)
+		return cells
+	}
+	if got := pass(); !slices.Equal(got, []int{1, 3}) {
+		t.Errorf("holding nothing a click and A issued orders %v, want 1 and 3", got)
+	}
+	if err := r.p.Issue(r.local, control.Take{Tool: "bridge"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := pass(); !slices.Equal(got, []int{2, 3}) {
+		t.Errorf("holding the bridge a click and A issued orders %v, want 2 and 3", got)
+	}
+	if err := r.p.Issue(r.local, control.Drop{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := pass(); !slices.Equal(got, []int{1, 3}) {
+		t.Errorf("put down, a click and A issued orders %v, want 1 and 3 again", got)
 	}
 }
 

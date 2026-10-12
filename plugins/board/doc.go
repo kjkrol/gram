@@ -79,12 +79,29 @@
 // two levels — the deck and what lies under ([Board.KindAt], [Board.KindFor]: the level of whoever
 // has its feet where they are): a unit steps onto the deck within its step from any side, passes
 // under it where it fits under its slab (Thickness), falls off its edge under gravity; a flat world
-// refuses a Height. A cell.Rail stands railings along the cell's sides (a square grid only), which
-// collision keeps a walker in by and the planner never steps across. A ford is a Floor at the
+// refuses a Height. A Floor with a Width and Links is a band that wide from the cell's middle out
+// to the neighbours its Links name — a bridge's deck, the ground beside it the cell's own, through
+// a corner reaching over the two cells flanking it ([Board.DecksOver], [Board.KindFor] at a point,
+// [Board.Reaches]); a cell.Rail stands railings along both its edges, which collision keeps a
+// walker in by and the planner never steps across ([Board.Fenced]). A ford is a Floor at the
 // ground's level at a Cost of its own; a bridge's Floor is Graded, and [Board.Bare] leaves it out
 // as it leaves a way: a step cutting the corner beside a bridge crosses the water under it.
 // [Board.Built] reads what is built. NewEntities gives each a still world.Velocity, or the one a
-// kind gives: its Dir the way a bridge runs, which its look Faces.
+// kind gives — its Dir the way a ford runs, which its look Faces — and a world.Lie: a band's
+// entity is headed along it and lies its length, Width wide, edged by its railings.
+//
+// # Bridges
+//
+// A bridge — the cells whose Graded bands join along their links — runs straight and level from a
+// head to a head: a band from the middle of a flat tile at its deck into the bridge alone, no
+// railings on it, so the road comes onto it from any side; its deck Bridges.Clearance over the
+// ground under the middle of every cell between ([Plugin.WithBridges]). One that is not panics as
+// a fresh board is first gathered, with the file and the line of its entity in a level; one broken
+// later — an effect, a spawn — is not built, its decks and railings gone, said in the log: what a
+// built bridge must be. Where one may be built, and building it, is plugins/bridges'. Whoever
+// stands on a deck stands on its cell ([Board.CellFor], [Board.LevelFor] saying whether on the
+// deck), a band reaching over the cell beside the corner it cuts too. A plugin building its own
+// out of a level's lines takes them with [Each]; a ground.Shaper lays a cell flat at a height.
 //
 // # Level
 //
@@ -136,9 +153,9 @@
 // A road never runs over a river: it leads onto the bridge or the ford standing there, a point
 // {onto: [x, y]} at either end of its path, linked towards that cell without lying on it. With a
 // relief, every cell of a Graded road lies as Transport Tycoon lays it (ground.RoadFits): level,
-// an even ramp of ground.RoadSlope at most it runs straight up, or a level diagonal it runs along
-// with a third corner beside it — a bend, a fork, an end level; on a hex grid only between cells
-// of one level (ground.RoadJoins). A level breaking it is refused with the path's line.
+// or an even ramp of ground.RoadSlope at most it runs straight up — a diagonal, a bend, a fork, an
+// end level; on a hex grid only between cells of one level (ground.RoadJoins). A level breaking it
+// is refused with the path's line.
 // cmd/gramap makes such levels of the Earth.
 //
 // # Commands

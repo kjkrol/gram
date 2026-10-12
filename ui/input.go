@@ -169,7 +169,7 @@ func (s *Scene) modal() *Element {
 	var top *Element
 	var visit func(e *Element)
 	visit = func(e *Element) {
-		if e.hidden {
+		if e.gone() {
 			return
 		}
 		if e.modal() {

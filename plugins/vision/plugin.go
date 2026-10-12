@@ -29,6 +29,7 @@ type Plugin struct {
 	cover       func() ground.Cover   // what holds sight back; nil, nothing
 	hidden      bool                  // the views drawn are hidden, as they start — see Cones
 	workers     int                   // how many goroutines at most share a scan: 0 all the CPUs, 1 none
+	frequency   float64               // how often each observer is scanned a second; 0, every step
 	log         *log.Logger           // a line the first time one entity sees another, nil for none
 	cones       control.Queue[Cones]
 
@@ -59,6 +60,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		h = &heights{groundOf: p.groundOf, step: p.groundStep, bend: p.worldPlugin.Scale().Bend()}
 	}
 	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.coverOf, p.workers)
+	p.module.sys.Every(p.frequency)
 	p.module.clock = p.worldPlugin.Clock()
 	p.module.sys.tick, p.module.sys.log = p.worldPlugin.Tick, p.log
 	ctx.UseModule(p.module)
@@ -175,7 +177,8 @@ func (p *Plugin) coverOf() ground.Cover {
 }
 
 // WithGroundStep sets how far apart a scan with heights samples the ground along a ray, in place of the
-// board's cell; a longer step is a cheaper scan. Call before Use.
+// board's cell, where the ground has no ground.Profile — a topography's relief has, and is read
+// exactly; a longer step is a cheaper scan. Call before Use.
 func (p *Plugin) WithGroundStep(step float64) *Plugin {
 	p.groundStep = step
 	return p
@@ -185,6 +188,15 @@ func (p *Plugin) WithGroundStep(step float64) *Plugin {
 // Use.
 func (p *Plugin) WithLog(l *log.Logger) *Plugin {
 	p.log = l
+	return p
+}
+
+// WithFrequency has every observer scanned perSecond times a second of game time, the observers
+// spread evenly over the steps, in place of every step (0, as it starts); between its scans an
+// observer's rules of a Sighting go on with what it saw last. A lower frequency is a cheaper
+// scan. Call before Use.
+func (p *Plugin) WithFrequency(perSecond float64) *Plugin {
+	p.frequency = max(perSecond, 0)
 	return p
 }
 

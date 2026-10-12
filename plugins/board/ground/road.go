@@ -4,50 +4,42 @@ import (
 	"math"
 
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 )
 
 // RoadSlope is the steepest a road climbs: an even ramp rises at most this much, in radians.
 var RoadSlope = 10 * math.Pi / 180
 
-// The ways out of a square cell, as cell.Links names them.
-const (
-	north cell.Links = 1 << iota
-	south
-	west
-	east
-	northWest
-	northEast
-	southWest
-	southEast
-)
-
-// RoadFits reports whether a road running out of a square cell as links say may lie on corners —
-// top-left, top-right, bottom-left, bottom-right — run the cell's side, as Transport Tycoon lays
-// it: on a level cell any way; on an even ramp, two corners at one height and the two across at
-// another no more than RoadSlope higher, only straight up or down it; slantwise only along a
-// diagonal whose ends stand level with a third corner. A bend, a fork or an end lies level.
-func RoadFits(corners [4]float64, links cell.Links, run float64) bool {
+// RoadFits reports whether a road running out of cell c of g as links say may lie on corners — the
+// heights at c's CellOutline, in its order — run the cell's side, as Transport Tycoon lays it: on a
+// level cell any way; on an even ramp, the corners of the edge it leaves by at one height and those
+// of the edge across at another no more than RoadSlope higher, only straight up or down it. A
+// road through a corner, a bend, a fork or an end lies level: a diagonal on a slope would lie
+// lower on one side than on the other.
+func RoadFits(g grid.Grid, c cell.ID, corners []float64, links cell.Links, run float64) bool {
 	if links == 0 {
 		return true
 	}
 	eps := 1e-4 * run
 	same := func(a, b float64) bool { return math.Abs(a-b) <= eps }
-	tl, tr, bl, br := corners[0], corners[1], corners[2], corners[3]
-	if same(tl, tr) && same(tl, bl) && same(tl, br) {
+	level := true
+	for _, h := range corners[1:] {
+		level = level && same(h, corners[0])
+	}
+	if level {
 		return true
 	}
-	climbs := func(a, b float64) bool { return math.Abs(a-b) <= run*math.Tan(RoadSlope)+eps }
-	switch links {
-	case north | south:
-		return same(tl, tr) && same(bl, br) && climbs(tl, bl)
-	case west | east:
-		return same(tl, bl) && same(tr, br) && climbs(tl, tr)
-	case northWest | southEast:
-		return same(tl, br) && (same(tr, tl) || same(bl, tl))
-	case northEast | southWest:
-		return same(tr, bl) && (same(tl, tr) || same(br, tr))
+	i, ok := grid.Straight(g, links)
+	if !ok {
+		return false
 	}
-	return false
+	if g.Corner(i) {
+		return false
+	}
+	a, b := grid.Rim(g, c, i)
+	o, p := grid.Rim(g, c, g.Opposite(i))
+	climbs := math.Abs(corners[a]-corners[o]) <= run*math.Tan(RoadSlope)+eps
+	return same(corners[a], corners[b]) && same(corners[o], corners[p]) && climbs
 }
 
 // RoadJoins reports whether a road joins two cells of a grid of level cells — a hex grid — standing

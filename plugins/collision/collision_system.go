@@ -13,12 +13,14 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision/internal/response"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
 var _ goke.System = (*collisionSystem)(nil)
 var _ collide.Handler = (*handler)(nil)
 var _ collide.FieldHandler = (*handler)(nil)
+var _ collide.WallField = (*solidField)(nil)
 
 // solverIterations caps the passes one tick spends separating chained overlaps.
 const solverIterations = 16
@@ -62,6 +64,7 @@ type collisionSystem struct {
 	lookupLayers   goke.OptComp[world.Layers]
 	lookupZ        goke.OptComp[world.Z]
 	lookupSweep    goke.OptComp[Sweep]
+	lookupDriven   goke.OptComp[steering.Driven]
 	lookupHot      bool
 
 	// pair is the contact being settled; pending is every contact this tick confirmed, in
@@ -136,6 +139,11 @@ type solidField struct {
 	best       collide.FieldBox
 	bestAlong  float64
 	bestNormal geom.Vec
+
+	// the same for the walls: the visit asked, the method value bound once, the nearest held
+	innerWall func(collide.FieldWall) bool
+	hitWall   func(collide.FieldWall) bool
+	bestWall  collide.FieldWall
 }
 
 func (f *solidField) Solid(id uid.UID64, box geom.AABB, visit func(collide.FieldBox) bool) {
@@ -158,6 +166,56 @@ func (f *solidField) Solid(id uid.UID64, box geom.AABB, visit func(collide.Field
 		f.tell()
 	}
 	f.inner = nil
+}
+
+// Walls hands the engine the Field's walls for an entity as Solid hands it the boxes: for a swept
+// one each cell's nearest wall its step meets.
+func (f *solidField) Walls(id uid.UID64, box geom.AABB, visit func(collide.FieldWall) bool) {
+	if !f.d.seek(id) {
+		return
+	}
+	cur := f.d.lookup.Cursor()
+	layers, band := world.LayersOf(f.d.lookupLayers.At(cur)), f.d.bandAt(cur)
+	f.swept, f.along = false, 1
+	sw := f.d.lookupSweep.At(cur)
+	if sw == nil {
+		f.field.Walls(layers, band, box, visit)
+		return
+	}
+	pos := f.d.lookupBase.At(cur).Pos
+	f.swept, f.from, f.to, f.half, f.innerWall = true, sw.From, pos.Center(), halfOf(pos), visit
+	f.held, f.stopped = false, false
+	f.field.Walls(layers, band, box, f.hitWall)
+	if f.held && !f.stopped {
+		f.tellWall()
+	}
+	f.innerWall = nil
+}
+
+// segmentWall is segment for a wall.
+func (f *solidField) segmentWall(w collide.FieldWall) bool {
+	along, normal, ok := response.SweepWall(f.from, f.to, f.half, w.A, w.B, w.Half)
+	if !ok {
+		return true
+	}
+	if f.held && w.Cell != f.bestWall.Cell && !f.tellWall() {
+		return false
+	}
+	if !f.held || along < f.bestAlong {
+		f.held, f.bestWall, f.bestAlong, f.bestNormal = true, w, along, normal
+	}
+	return true
+}
+
+// tellWall is tell for a wall.
+func (f *solidField) tellWall() bool {
+	f.held = false
+	f.along, f.normal = f.bestAlong, f.bestNormal
+	if !f.innerWall(f.bestWall) {
+		f.stopped = true
+		return false
+	}
+	return true
 }
 
 // segment is one solid box as a swept entity's step meets it: skipped where the segment misses
@@ -210,6 +268,7 @@ func newCollisionSystem(space *aabbworld.Space, between *plugin.PairRules[Meetin
 	d.ground.physics = Physics{Mass: math.Inf(1)}
 	d.field.d = d
 	d.field.hit = d.field.segment
+	d.field.hitWall = d.field.segmentWall
 	return d
 }
 
@@ -233,7 +292,8 @@ func (d *collisionSystem) Init(si *goke.SysInit) {
 
 	d.all = si.NewQueryBuilder(&d.allBase).Optional(&d.allSweep).Build()
 
-	seek := si.NewQueryBuilder(&d.lookupBase, &d.lookupCollider).Optional(&d.lookupPhysics, &d.lookupLayers, &d.lookupZ, &d.lookupSweep)
+	seek := si.NewQueryBuilder(&d.lookupBase, &d.lookupCollider).
+		Optional(&d.lookupPhysics, &d.lookupLayers, &d.lookupZ, &d.lookupSweep, &d.lookupDriven)
 	d.between.Bind(seek)
 	d.lookup = seek.Build()
 }
@@ -400,11 +460,17 @@ type contactSide struct {
 	Layers  world.Layers
 	Band    Band   // the heights it spans; Everywhere in a flat world
 	Sweep   *Sweep // its step, for a swept side; nil otherwise
+	Steered bool
 }
 
 // side is s as the impulse takes it.
 func (s contactSide) side() response.Side {
-	return response.Side{InvMass: s.Physics.inverseMass(), Bounce: s.Physics.bounce(), Vel: &s.Base.Vel}
+	return response.Side{
+		InvMass: s.Physics.inverseMass(),
+		Bounce:  s.Physics.bounce(),
+		Vel:     &s.Base.Vel,
+		Steered: s.Steered,
+	}
 }
 
 // body is s as the footing takes it.
@@ -525,6 +591,10 @@ func (d *collisionSystem) contactGround(id uid.UID64, cell uint64, pen geom.Vec)
 	normal, aligned := response.Normal(pen)
 	var impact float64
 	if aligned && self.Physics != nil {
+		// a wall turns no unit a hand steers, nor the eye riding in it; one under orders
+		// glances aside along the wall, as navigation needs to come round its end
+		driven := d.lookupDriven.At(d.lookup.Cursor())
+		self.Steered = driven != nil && driven.Steers()
 		impact = bounce(self, ground, normal)
 	}
 	sides := pairSides{A: self, impact: impact, normal: normal, along: 1}

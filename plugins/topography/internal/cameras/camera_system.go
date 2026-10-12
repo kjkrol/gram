@@ -328,7 +328,7 @@ func (s *cameraSystem) keep(f *following, d time.Duration) bool {
 			// over its shoulder: the lower the eye, the lower the entity on the screen, the more of
 			// what lies ahead above it
 			_, h := f.cam.Viewport()
-			f.cam.Pan(0, -h*shoulder*float32(math.Cos(float64(f.cam.Pitch()))))
+			f.cam.shift(0, -h*shoulder*float32(math.Cos(float64(f.cam.Pitch()))))
 			return true
 		}
 	}

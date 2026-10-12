@@ -5,10 +5,12 @@ import (
 	"cmp"
 	"fmt"
 	"math"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/water"
@@ -29,6 +31,9 @@ func (w *chart) text(recipePath, units string) []byte {
 		b.WriteString(", flat")
 	}
 	b.WriteString(".\n")
+	if w.origin != [2]int{} {
+		fmt.Fprintf(&b, "%s[%d, %d].\n", originLine, w.origin[0], w.origin[1])
+	}
 	w.writeBoard(&b)
 	if !w.flat {
 		w.writeRelief(&b)
@@ -78,35 +83,39 @@ func (w *chart) writeBoard(b *bytes.Buffer) {
 	b.WriteString("  entities:\n")
 	for _, s := range stands {
 		x, y := w.xy(s.at)
-		fmt.Fprintf(b, "    - {kind: %s, at: [%d, %d]", s.kind, x, y)
-		if s.height > 0 {
-			fmt.Fprintf(b, ", height: %s", number(s.height))
+		if s.bridge {
+			tx, ty := w.xy(s.to)
+			fmt.Fprintf(b, "    - {kind: %s, from: [%d, %d], to: [%d, %d]}\n", s.kind, x, y, tx, ty)
+			continue
 		}
-		fmt.Fprintf(b, ", way: [%d, %d]}\n", steps[s.way][0], steps[s.way][1])
+		dx, dy := w.grid.Offset(s.way)
+		fmt.Fprintf(b, "    - {kind: %s, at: [%d, %d], way: [%d, %d]}\n", s.kind, x, y, dx, dy)
 	}
 }
 
+// standing is a line of the map's entities: a bridge from its head at to its head to, else a
+// ford at, the way it is waded.
 type standing struct {
 	kind   string
 	at     cell.ID
-	height float64 // metres over the cell's level
+	to     cell.ID
 	way    int
+	bridge bool
 }
 
-// standing is the bridges and fords, the cells of the roads' crossings and every ford of the
-// rivers besides, across the river.
+// standing is the bridges, a line each, and the fords — the cells of the roads' crossings, and
+// every ford of the rivers besides, across the river.
 func (w *chart) standing() []standing {
 	var out []standing
 	taken := map[cell.ID]bool{}
 	for _, s := range w.roads.live() {
+		if !s.ford {
+			out = append(out, standing{kind: w.r.Kinds.Bridge, at: s.heads[0].at,
+				to: s.heads[len(s.heads)-1].at, bridge: true})
+			continue
+		}
 		for _, c := range s.cells {
-			st := standing{kind: w.r.Kinds.Bridge, at: c, way: s.way}
-			if s.ford {
-				st.kind = w.r.Kinds.Ford
-			} else if !w.flat {
-				st.height = max(s.deck-w.level(c), 0)
-			}
-			out = append(out, st)
+			out = append(out, standing{kind: w.r.Kinds.Ford, at: c, way: s.way})
 			taken[c] = true
 		}
 	}
@@ -114,14 +123,21 @@ func (w *chart) standing() []standing {
 		if course != water.Ford || taken[c] {
 			continue
 		}
-		way := squareTo[w.roads.wayOf(c, w.rivers.Down[c])]
+		down := w.grid.Step(w.roads.wayOf(c, w.rivers.Down[c]))
+		way := grid.Nearest(w.grid, geom.NewVec(-down.Y, down.X))
 		out = append(out, standing{kind: w.r.Kinds.Ford, at: c, way: way})
 	}
 	slices.SortFunc(out, func(a, b standing) int { return cmp.Compare(a.at, b.at) })
 	return out
 }
 
-var squareTo = [8]int{3, 3, 0, 0, 5, 4, 4, 5}
+// deck is how wide a bridge's deck is: the recipe's, a cell's at most or where it says none.
+func (w *chart) deck() float64 {
+	if d := w.r.Roads.Deck; d > 0 && d < w.size {
+		return d
+	}
+	return w.size
+}
 
 func (w *chart) writeRelief(b *bytes.Buffer) {
 	b.WriteString("relief: # metres\n  corners: |\n")
@@ -313,4 +329,35 @@ func unitsOf(data []byte) string {
 		return strings.Join(lines[i:end], "")
 	}
 	return ""
+}
+
+// originLine heads a map whose area grew west and north for its sea, saying how far.
+const originLine = "# The recipe's area begins at "
+
+// originOf is how far the area of the map made before grew west and north; nothing for none.
+func originOf(data []byte) (x, y int) {
+	for l := range strings.Lines(string(data)) {
+		if rest, ok := strings.CutPrefix(l, originLine); ok {
+			fmt.Sscanf(rest, "[%d, %d].", &x, &y)
+			return x, y
+		}
+	}
+	return 0, 0
+}
+
+// cellRef is a cell written [x, y].
+var cellRef = regexp.MustCompile(`\[\s*(-?\d+)\s*,\s*(-?\d+)\s*\]`)
+
+// shiftUnits is units with every cell written in it dx, dy further on: the units of a map made
+// before, where the land lies now.
+func shiftUnits(units string, dx, dy int) string {
+	if dx == 0 && dy == 0 {
+		return units
+	}
+	return cellRef.ReplaceAllStringFunc(units, func(ref string) string {
+		m := cellRef.FindStringSubmatch(ref)
+		x, _ := strconv.Atoi(m[1])
+		y, _ := strconv.Atoi(m[2])
+		return fmt.Sprintf("[%d, %d]", x+dx, y+dy)
+	})
 }

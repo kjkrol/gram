@@ -247,3 +247,79 @@ func TestCamera_TiltKeepsTheMiddleStaysInRangeAndIsSaved(t *testing.T) {
 		t.Errorf("restored pitch %v, want %v", other.Pitch(), pitch)
 	}
 }
+
+// turned is how far the heading went from h to the camera's, the shorter way round.
+func turned(cam contract.Camera, h float32) float32 {
+	return float32(math.Remainder(float64(cam.(*viewCamera).Heading()-h), 2*math.Pi))
+}
+
+// Where the world's edge stops a pan in relief, the part stopped turns the view — going left the
+// eye clockwise, the world anticlockwise, going right the other way — or bows it going forward,
+// and going back does nothing; from above nothing turns.
+func TestCamera_APanTheEdgeStopsTurnsAndBowsTheView(t *testing.T) {
+	for _, c := range []struct {
+		name      string
+		to, push  [2]float32
+		turn, bow float32
+	}{
+		{"left", [2]float32{-1e4, 0}, [2]float32{-8, 0}, -0.08, 0},
+		{"right", [2]float32{1e4, 0}, [2]float32{8, 0}, 0.08, 0},
+		{"forward", [2]float32{0, -1e4}, [2]float32{0, -8}, 0, 0.04},
+		{"back", [2]float32{0, 1e4}, [2]float32{0, 8}, 0, 0},
+	} {
+		cam := testCamera(t, 0).(*viewCamera)
+		cam.Pan(c.to[0], c.to[1])
+		cam.edgeTurn, cam.edgeTilt = 0.01, 0.005
+		h, p := cam.Heading(), cam.Pitch()
+		cam.Pan(c.push[0], c.push[1])
+		if got := turned(cam, h); !near(got, c.turn) {
+			t.Errorf("pushed %s at the edge: turned %v, want %v", c.name, got, c.turn)
+		}
+		if got := cam.Pitch() - p; !near(got, c.bow) {
+			t.Errorf("pushed %s at the edge: bowed %v, want %v", c.name, got, c.bow)
+		}
+	}
+	cam := testCamera(t, 0).(*viewCamera)
+	cam.Pan(-1e4, 0)
+	cam.edgeTurn = 0.01
+	cam.Pan(8, 0)
+	if got := turned(cam, cam.Heading()); got != 0 {
+		t.Errorf("pushed away from the edge it turned %v", got)
+	}
+	cam.iso.SetIsometric(false)
+	h := cam.Heading()
+	cam.Pan(-1e4, 0)
+	if got := turned(cam, h); got != 0 {
+		t.Errorf("from above pushed at the edge it turned %v", got)
+	}
+}
+
+// In perspective too: pushed left at the edge the view turns, forward it bows, the eye where it is.
+func TestCamera_InPerspectiveAPanTheEdgeStopsTurnsAndBows(t *testing.T) {
+	for _, c := range []struct {
+		name      string
+		push      [2]float32
+		turn, bow bool
+	}{
+		{"left", [2]float32{-8, 0}, true, false},
+		{"forward", [2]float32{0, -8}, false, true},
+	} {
+		cam := testCamera(t, 0).(*viewCamera)
+		cam.next()
+		if !cam.inPersp {
+			t.Fatal("the camera did not go into perspective")
+		}
+		for range 400 {
+			cam.Pan(c.push[0]*8, c.push[1]*8)
+		}
+		cam.edgeTurn, cam.edgeTilt = 0.01, 0.005
+		h, p := cam.Heading(), cam.Pitch()
+		cam.Pan(c.push[0], c.push[1])
+		if got := turned(cam, h); (got != 0) != c.turn {
+			t.Errorf("pushed %s at the edge: turned %v, want a turn %v", c.name, got, c.turn)
+		}
+		if got := cam.Pitch() - p; (got > 0) != c.bow {
+			t.Errorf("pushed %s at the edge: bowed %v, want a bow %v", c.name, got, c.bow)
+		}
+	}
+}

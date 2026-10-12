@@ -5,7 +5,6 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
@@ -155,14 +154,13 @@ func (h *Ground) refresh() bool {
 	h.still.Compose(ww, wh, h.tiles.Compose)
 	h.cells = h.cells[:0]
 	low, _ := h.relief.Extent()
-	inradius := float64(h.size) * math.Sqrt(3) / 2
+	across := h.edges()
 	h.grid.EachCell(func(c cell.ID) {
 		centre := h.grid.CellCenter(c)
 		top, _ := h.m.Top(c)
 		h.cells = append(h.cells, float32(centre.X), float32(centre.Y), top[0], 0)
-		for s := range 6 {
-			a := -math.Pi/3 + float64(s)*math.Pi/3
-			n, ok := h.grid.CellAt(geom.NewVec(centre.X+2*inradius*math.Cos(a), centre.Y+2*inradius*math.Sin(a)))
+		for _, i := range across {
+			n, ok := h.grid.Toward(c, i)
 			lowest := float32(min(low, 0))
 			if ok {
 				nt, _ := h.m.Top(n)
@@ -174,6 +172,22 @@ func (h *Ground) refresh() bool {
 	})
 	h.at = at
 	return true
+}
+
+// edges are the directions out across each edge of a hex in the order of its outline: edge k joins
+// corners k and k+1, as the shader reads the neighbours.
+func (h *Ground) edges() [6]int {
+	var out [6]int
+	c := h.grid.At(0, 0)
+	for i := range h.grid.Directions() {
+		a, b := grid.Rim(h.grid, c, i)
+		if b == (a+1)%6 {
+			out[a] = i
+		} else {
+			out[b] = i
+		}
+	}
+	return out
 }
 
 // set hands the shader the uniform name as v, kept between frames and boxed once.

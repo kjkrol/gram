@@ -107,11 +107,26 @@ func (c Context) World(s geom.Vec) geom.Vec {
 	}
 	sx, sy := float32(s.X), float32(s.Y)
 	if p, ok := c.Camera.(camera.Picker); ok {
-		x, y, _ := p.Pick(sx, sy)
+		x, y, _, _ := p.Pick(sx, sy)
 		return geom.NewVec(float64(x), float64(y))
 	}
 	x, y := c.Camera.FromScreen(sx, sy)
 	return geom.NewVec(float64(x), float64(y))
+}
+
+// Point is what screen position s sees and its height, picked: a camera.Picker's own Pick — the
+// ground, or a deck over it that a line of sight passing under it goes on past; picked is false
+// where the camera picks nothing — no Picker, or the sky — and at is World then.
+func (c Context) Point(s geom.Vec) (at geom.Vec, z float64, picked bool) {
+	if c.Camera != nil {
+		if p, ok := c.Camera.(camera.Picker); ok {
+			x, y, h, ok := p.Pick(float32(s.X), float32(s.Y))
+			if ok {
+				return geom.NewVec(float64(x), float64(y)), float64(h), true
+			}
+		}
+	}
+	return c.World(s), 0, false
 }
 
 // WorldBox is the world rectangle between screen points a and b, at least one unit a side and no
@@ -169,8 +184,8 @@ func ScreenRect(a, b geom.Vec) geom.AABB {
 }
 
 // Binding is one thing a player can do: a Trigger, the command it issues and a label saying what
-// it does, for a help screen; In has it hold in some of the camera's fastenings only. Make one with
-// Build or Give.
+// it does, for a help screen; In has it hold in some of the camera's fastenings only, With only
+// while the player holds a tool. Make one with Build or Give.
 type Binding struct {
 	Trigger Trigger
 	Label   string
@@ -178,6 +193,7 @@ type Binding struct {
 	command reflect.Type
 	build   func(Context) (Command, bool)
 	hows    camera.How // zero: every How
+	tool    Tool       // none: whatever the player holds, unless the tool's own take the trigger
 }
 
 // In is b holding only while the player's camera is fastened one of hows (camera.HowOf): one key
@@ -194,10 +210,21 @@ func (b Binding) In(hows ...camera.How) Binding {
 // Holds reports whether b holds while the camera is fastened how.
 func (b Binding) Holds(how camera.How) bool { return b.hows == 0 || b.hows&how != 0 }
 
-// Overlaps reports whether b and o hold in some How both: two such bindings on one Trigger would
-// both fire.
+// With is b holding only while the player holds tool, its trigger taken from the bindings with
+// no tool: a left click lays a bridge's end while the player holds the bridge, and selects while
+// it holds nothing.
+func (b Binding) With(tool Tool) Binding {
+	b.tool = tool
+	return b
+}
+
+// Tool is the tool b holds with; none for a binding holding whatever the player holds.
+func (b Binding) Tool() Tool { return b.tool }
+
+// Overlaps reports whether b and o hold in some How both with one tool: two such bindings on one
+// Trigger would both fire.
 func (b Binding) Overlaps(o Binding) bool {
-	return b.hows == 0 || o.hows == 0 || b.hows&o.hows != 0
+	return b.tool == o.tool && (b.hows == 0 || o.hows == 0 || b.hows&o.hows != 0)
 }
 
 // Build is a Binding issuing a C built from the Context when trigger fires; build may decline.

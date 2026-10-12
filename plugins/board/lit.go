@@ -131,6 +131,8 @@ type litLook struct {
 	sky Atmosphere
 }
 
+var _ world.LyingLook = litLook{}
+
 // Begin readies the world's Look under it where it draws on the GPU.
 func (l litLook) Begin(cam camera.Camera) {
 	if d, ok := l.Look.(world.DirectLook); ok {
@@ -156,6 +158,20 @@ func (l litLook) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z wo
 		box = plane.NewAABB(geom.NewVec(box.TopLeft.X+float64(lx*rise), box.TopLeft.Y+float64(ly*rise)), box.Size.X, box.Size.Y)
 	}
 	a.Sway = 0 // leant here: the Look under takes the sprite as it stands
+	l.Look.Sprite(f, cam, box, z, atlas, a, lit)
+}
+
+// Lay lays the sprite and its edges as the world's Look under it does, in the sun's light on level
+// ground.
+func (l litLook) Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.Vec,
+	lie world.Lie, z world.Z, atlas render.AtlasSource, a render.Appearance,
+	edge render.SpriteID, light render.Light) {
+	sun := l.sky.Sun().Light(0, 0, 1)
+	lit := render.Light{sun[0] * light[0], sun[1] * light[1], sun[2] * light[2]}
+	if lies, ok := l.Look.(world.LyingLook); ok {
+		lies.Lay(f, cam, box, dir, lie, z, atlas, a, edge, lit)
+		return
+	}
 	l.Look.Sprite(f, cam, box, z, atlas, a, lit)
 }
 

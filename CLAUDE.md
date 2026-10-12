@@ -364,9 +364,27 @@ round them keeping the ground point in the middle and a cell as wide
 (zoom × Cell/TileW); the view is saved with the camera. From above and isometrically the whole
 screen stays over the world at sea level (`isoCamera.place` fits the ground under the four
 corners into the world along x and y, `minZoom` is where the screen's footprint — `spanX`,
-`spanY` at zoom 1 — just fits the world, the top-down camera's rule), so a pan stops at the edge,
+`spanY` at zoom 1 — just fits the world, the top-down camera's rule), so a pan stops at the edge —
+in relief the part of it the edge stops turns the view, stopped going left the eye clockwise (the
+world anticlockwise, as Q), right the other way, and bows it stopped going forward, going back
+nothing (the user's word, 2026-10-11; `viewCamera.Pan`, `shift`, `Config.EdgeTurn`/`EdgeTilt`:
+TurnStep and TiltStep a DefaultScrollSpeed's pixels; the Behind keeper's shoulder pan turns nothing) —
 zooming out stops where the screen fits the map and the corners of a diamond map are out of reach;
-`ZoomIn` keeps the ground under the cursor at its drawn height (`ground`). The perspective keeps
+`ZoomIn` keeps the ground under the cursor at its drawn height (`ground`). A pick
+(`camera.Picker.Pick`: x, y and the height picked) finds a deck a thin slab a line of sight under
+it passes (`topography.Plugin.solidAt`, `Config.Solid`; centring reads `seenAt`, the riding eye's
+`topAt` the ground alone), stepping finer near one narrower than its step or thinner than a step
+falls (`Config.Fine`, `Board.NearDeck`, `NarrowestDeck`, `ThinnestDeck`). A bridge's deck and
+its piers are `world.Block`s, their shadows baked by the terrain with its own as the sun moves
+(`terrain.Renderer.gather`: the blocks found every frame, a deck's pieces end to end on one line
+joined, `maxBlocks` 96 in a uniform array, each strip baked with those whose shadows may fall on it,
+`shading`; `shade.wgsl`'s `blocked`: the sun's line from the ground through a block, its penumbra
+as the relief's; a change baked whole at once — nothing measurable a frame) — the user's word,
+2026-10-11, after shadows cast exactly per pixel came out sharp, far off, threefold and costly; a
+deck stands on its beam (`billboards.Look.Lay`: its sides down its Z's Height, the Floor's
+Thickness, 10 m on the island); a unit's shadow stays the soft `sky.Patch`; over hex prisms no
+block casts one yet. The first frame reading the depth makes it readable, empty that once: a
+headless probe draws twice. The perspective keeps
 the ground point in the middle of the screen over the world (`perspCamera.confine` after Pan,
 Translate, CenterOn, ZoomIn; not LookFrom/LookAt, not riding) and flies no higher than shows the
 world's diagonal across the middle of the screen at the flattest pitch (`maxAlt`, one height
@@ -732,7 +750,7 @@ trapdoor and pressure plate demos the same).
   only in a solid cell whose band — from below up to its kind's `Height` over its level — meets the
   entity's, a deck's slab (`cell.Floor.Thickness` under its top) the part of its band over its step
   (`Band.Above`: a deck within the step is stepped onto, one it fits under passed under), a
-  railing (`cell.Rail`) its band from the deck or the cell's level up; whatever says no
+  railing (`cell.Rail`, a slanted wall along a band's edge) its band from the deck up; whatever says no
   height (no `Z`, `Height` 0, a solid kind without `Height`) spans `Everywhere` and meets all, as
   `Layers` 0 does; a flat world asks none of it. The dimension is the game's choice in `world.Config`; no plugin
   guesses the mode from the data, and each refuses the other mode's facts where it first meets
@@ -779,7 +797,18 @@ trapdoor and pressure plate demos the same).
   Under-looks, frames and twins too): a `world.LyingLook` lays it at the entity's `Altitude` — the
   billboards' look a flat quad over the box on the ground wherever it stands higher, under what
   stands (`shaders/lying.wgsl`, `sight.wgsl` shared), the flat look under the rest — where a
-  view in relief stands the rest up. `WithRenderer` applies them itself, after the effects' swaps:
+  view in relief stands the rest up; `.Upright()` a sprite standing true in relief — the four
+  sides of its box from its Altitude up its Height and its top (`world.UprightLook`), never a
+  billboard drawn taller than it stands: a bridge's pier; an entity carrying a `world.Lie{Length,
+  Width, Edged, Edge}`
+  (`entity.Lie`, `Lie.Corners`) is laid level at its `Altitude` over that rectangle headed its
+  `Vel.Dir` (`LyingLook.Lay`), a sprite authored facing east stretched over it, and `.Edges(draw)`
+  is the sprite standing along its long sides while it is `Edged` — strips a tenth of its Width
+  from above, quads `Edge` high lit by the sun as they face in relief (the board writes the Lie
+  and the heading of a bridge's band: the demos' one deck sprite `.Lying().Edges(railing)`, since
+  2026-10-11); in relief such a deck stands on its beam, its sprite down its long sides as deep as
+  its `Z.Height` (a bridge's `Floor.Thickness`). `WithRenderer` applies them itself, after the
+  effects' swaps:
   swaps, facing, turning (shown by `examples/appearance-demo` and the frozen
   kinds of `examples/effect-demo`). The world handles `steering.Away{From}`, `Toward{To}` (aimed at the
   moment's subject, `plugin.Aimed`) and `Turn{Angle}`, which an entity gives itself in a rule —
@@ -801,9 +830,9 @@ trapdoor and pressure plate demos the same).
   sees the boxes as they were after the last rebuild.
 - **`board`** — optional grid + terrain over `world`; its grids wrap per axis,
   following the world's `Edges`. The root keeps the `Plugin`, the `Board` (`Plugin.Board()`; the
-  terrain's façade, its grid's `At(x, y)` among it: `Kind`, `Bare`, `Set`, `SetAll`, `Way`,
-  `SetWay`, `Along`, `CellVersion`, `Changes`, `Version`, `Touch`,
-  `Shape`, `Built`), the `Layout`, the `Map` contract, `NewUnits` and `NewEntities`, and `Lay` —
+  terrain's façade, its grid's `At(x, y)` among it: `Kind`, `KindAt`, `KindFor`, `Bare`, `Set`,
+  `SetAll`, `Way`, `SetWay`, `Along`, `DecksOver`, `Reaches`, `Fenced`, `CellVersion`, `Changes`,
+  `Version`, `Touch`, `Shape`, `Built`), the `Layout`, the `Map` contract, `NewUnits` and `NewEntities`, and `Lay` —
   a level out of a file (`level.go`); the ground the others meet is its
   field's (`Plugin.Cover`, `WithCollision`). Public
   subpackages: **`board/cell`** — `cell.ID`, `cell.Kind` and the board's `cell.Kinds`
@@ -812,11 +841,16 @@ trapdoor and pressure plate demos the same).
   (`cell.Entry`, `cell.WayEntry`), `cell.Terrain`, `cell.TerrainMap` (terrain in plain maps, the
   board's seed, a `Terrain` of its own in tests), `cell.Occupancy` (`SingleOccupancy`,
   `MultipleOccupancy`); **`board/unit`** — `unit.At`, `unit.Mover`, `unit.DomainAt`, the moment
-  `unit.Standing`; **`board/grid`** — `grid.Grid` (with `Toward`), `grid.DefaultGrids`,
-  `grid.Link`, `grid.Shape`/`ShapeOf`; **`board/look`** — `look.Look`, `Dressing`, `EvenLit`,
+  `unit.Standing`; **`board/grid`** — `grid.Grid` (with `Toward`; every grid knows its own
+  directions — `Directions`, `Opposite`, `Offset`, `Step`, `Corner`, `Flanks` — and nobody else
+  writes a table, a bit, an opposite or a vector of them: the user's word, 2026-10-11; bit i of a
+  `cell.Links` is direction i, `Links.Has`), `grid.DefaultGrids`, `grid.Link`, `Way`, `Straight`,
+  `Direction`, `Nearest`, `Exit`, `Rim` (the outline's corners a direction leaves through),
+  `grid.Shape`/`ShapeOf`; **`board/look`** — `look.Look`, `Dressing`, `EvenLit`,
   `Parallel`, `ParallelLook`, `Tile`, `FlatLook`, `Nothing`, `Map` (the drawing part of
   `board.Map`), `Renderer`/`NewRenderer` (reading the board as a `look.Board`), `RenderState`,
-  `MinGridCell`; **`board/ground`** — `ground.Heights`, `Cover`, `Readied`, `MeanOfCells`. The machinery is in
+  `MinGridCell`; **`board/ground`** — `ground.Heights`, `Profile` (the ground along a ray
+  exactly), `Cover`, `Readied`, `Surfaces`, `MeanOfCells`. The machinery is in
   **`board/internal`**, importable only inside the board: `internal/terrain` (the cells' state —
   seed or entities, `Cells`, the entity system, the counts of changes, the kinds' dictionary),
   `internal/moments` (`Rules`: the hosts of `unit.Standing` and `cell.Now`, their passes, `Around`;
@@ -915,24 +949,54 @@ trapdoor and pressure plate demos the same).
   board.Shape{Size, Height}, at func(Row) cell.ID)`, `Define(name, extra...)` — no units' roster: a
   box of `Size` at the cell's middle, `world.Velocity{}`, `cell.On{Cell}` and with heights a
   `world.Z{Height}`; the game gives the rest (a plate's `collision.Collider{}` without `Physics`, a
-  sensor; the roles it plays). Its knobs `cell.Floor{Allows, Height, Thickness, Cost, Graded}`
-  (carries the domains over whatever the ground takes: a trapdoor over a pit — a pit kind admitting
-  nobody — a ford waded at its `Cost`, a bridge `Graded` at its deck's `Height`; with `Height` the
+  sensor; the roles it plays). Its knobs `cell.Floor{Allows, Height, Thickness, Cost, Graded, Links,
+  Width}` (carries the domains over whatever the ground takes: a trapdoor over a pit — a pit kind
+  admitting nobody — a ford waded at its `Cost`, a bridge `Graded` at its deck's `Height`; with a
+  `Width` a **band** that wide from the cell's middle out to each neighbour its `Links` name, as a
+  way runs — a bridge's deck, the ground beside it the cell's own, through a corner reaching into
+  the two cells flanking it; without, the whole cell; with `Height` the
   cell has two levels, the deck and what lies under (`Board.KindAt(c, deck)`, `KindFor`), and
   where a unit is is its heights' — physics, not an axis (the user's word, 2026-10-11: `Along`
   went): it steps onto a deck within its step from any side, passes under one it fits under,
   strikes the slab, `Thickness` thick, of one it does not, falls off its edge under gravity;
   `Board.Bare` leaves a Graded Floor out as it leaves a way; a `world.Velocity` among a kind's
-  extra takes the still one's place, its `Dir` the way the bridge runs, which its look `Facing`s),
-  `cell.Rail{Keeps, Sides, Height}` (railings along the cell's sides, `cell.Links` bits N 1, S 2,
-  W 4, E 8, a square grid only: thin boxes in collision's field from the deck or the cell's level
-  up `Height`, closed at an end where the next cell's railing runs on — a barrier for what drives,
-  a leap over its top clears it; the planner never steps across one; a flat world refuses a
-  `Height`; `Board.Railed()`) and `cell.Wall{Keeps, Height}` (keeps them off: a gate) are
-  gathered every step
+  extra takes the still one's place, its `Dir` the way the ford runs, which its look `Facing`s;
+  a band's entity is headed along it and given its `world.Lie` by the board, every
+  `NewEntities` kind carrying one), `cell.Rail{Keeps, Height}` (a railing along both edges of the
+  cell's band, from the deck up `Height`, 0 at every height; none where no band carries anyone —
+  an opened bridge loses its railings, a fence is a band at the ground's level with a Rail
+  (2026-10-11, the user's word): slanted walls in collision's field (`collide.FieldWall`,
+  aabbworld v1.12.0, `field.Walls`), a band's raised slab one too, Width wide, their ends free where
+  the bridge ends — a barrier for what drives, a leap over its top clears it; the planner never
+  steps across one (`Board.Fenced`: the step from middle to middle crossing it, a raised one
+  counting on the deck's level alone); a flat world refuses a `Height`) and `cell.Wall{Keeps,
+  Height}` (keeps them off: a gate) are gathered every step
   by the board's `builtSystem` (`internal/terrain/built.go`, after the cells' system) on the cell's
   entity as `cell.Built` (every cell carries one, saved; written in place where it changed, the
-  cell touched), domains joined, the highest Height and Thickness, the railings' sides joined;
+  cell touched), domains joined, the highest Height and Thickness, the bands' Links joined and
+  the widest Width (a whole floor wins), a Width below 0, a band with no Links or wider than its
+  cell lets it run (an edge, or the link's length through a corner) panicking. **A bridge** —
+  the cells whose `Graded` bands join along their links (an ungraded band, a fence, is none) —
+  runs straight and level from a **head** to a head (the user's word, 2026-10-11: a bridge begins
+  and ends in the middle of a flat tile — no end in a point four cells share): a head's band runs
+  from the middle of its tile into the bridge alone (`Links` that one way), its tile flat at the
+  deck, no railings on it, so the road comes onto it from any side; its deck `Clearance` over the
+  ground under the middle of every cell between at least (`board.Plugin.WithBridges(
+  board.Bridges{Clearance})`, zero by default; a bridge is an entity a cell, many kinds of them,
+  held to hard rules): one breaking
+  them panics as a fresh board is first gathered, with the file and line of its entity in a map
+  (`Lay` notes each `NewEntities` kind's cell), one broken later — an effect, a spawn — is not
+  built, its decks and railings gone, said in the log; held to them again only when what is built
+  or the terrain changed. Over a point `Board.DecksOver(p, visit)` gives every deck, a
+  neighbour's band reaching over too, and `Board.KindFor(c, p, feet, reach)` the kind there: off a
+  band the cell's ground, so a walker beside one has fallen in; `Board.CellFor(p, feet, reach)`
+  the cell whoever stands there is on, a deck's over the ground's (navigation's and the driving's
+  cell of a unit, a right click's target), `Board.LevelFor` the same and whether on a raised deck
+  (a click's level); `Board.Reaches(c, n)` says a Floor runs from c towards
+  n, `Along` counts a band's links; a head lies half a link long `Ahead` of its middle
+  (`world.Lie.Ahead`); where a bridge may be built, and building it, is `plugins/bridges`'
+  (`board.Each[R](level, f)` hands a plugin its own lines of a level, `ground.Shaper` lays a cell
+  flat);
   `Built.Over` adds the Floor's domains and
   takes the Wall's off (`Solid` where it keeps any) in `Board.Kind` and `Board.Bare`, so the
   planner, the driving, `Standing.Fallen` and collision's field (`takes` the Floor, `stops` at a
@@ -958,8 +1022,9 @@ trapdoor and pressure plate demos the same).
   never runs over a river: a point `{onto: [x, y]}` at either end of its path leads it onto the
   bridge or the ford standing there, linked towards that cell without lying on it. With a relief
   every cell of a `Graded` road lies as Transport Tycoon lays it (the user's word, 2026-10-10):
-  `ground.RoadFits` — level, an even ramp of `ground.RoadSlope` (10°) at most it runs straight up,
-  or a level diagonal it runs along with a third corner beside it; a bend, a fork, an end level;
+  `ground.RoadFits` — level, or an even ramp of `ground.RoadSlope` (10°) at most it runs straight
+  up; a diagonal (never lower on one side than on the other: the user's word, 2026-10-11), a bend,
+  a fork, an end level;
   on a hex grid `ground.RoadJoins`, one level — refused with the path's line, and the
   topography's shaping (`relief.KeepRoads`) takes back whole what would break a road.
   How a river softens into the sea is the renderer's (the painter's `into`, `Mix` by `Along`),
@@ -969,24 +1034,37 @@ trapdoor and pressure plate demos the same).
   `kind.EntryOf` builds the entry; a `cell.ID` written `[x, y]` however deep it lies, a nested
   struct read as YAML reads it), a row tagging an entry's own key refused. Every error says the
   file and the line. Kinds stay in Go; every demo lays its map in one `spawn`. Madeira's maps — both
-  demos (board, board-topography), 192 x 96 cells of 333 m, a map of their own each — are made by
+  demos (board, board-topography), 204 x 106 cells of 333 m, ten cells of sea round the land at
+  least (`area.sea`: the area grows from the Earth where the land comes nearer, the projection
+  kept on the recipe's centre, a map so grown headed `# The recipe's area begins at [W, N].` and
+  the kept `units:` shifted with it), a map of their own each, the flat one at cells of 50, roads
+  44 and decks 48 (the recipe's `flat:` block) — are made by
   **`cmd/gramap`** (the user's word, 2026-10-10: a tool making maps of anywhere at any scale)
   out of a recipe (`cmd/gramap/madeira.yaml`): heights from the Terrain Tiles on AWS (terrarium
   PNGs, cached under the user's cache; SRTM, EU-DEM, GMTED2010, ETOPO1 — the README credits them),
   a corner on land only where all four cells round it are, the ground (rock by slope or height,
   sand on the low coast, forest between heights, earth), rivers by `water.Drain` + `Carved`
   written as paths, roads routed with the road's height in the search (bends and diagonals keep
-  it, straight sides climb 10° at most; bands of 20 m; what grading would move priced by `grade`,
+  it — a diagonal on a level cell alone — straight sides climb 10° at most; bands of 20 m; what
+  grading would move priced by `grade`,
   a leg past `deep` m of cut or fill left out and named — the user's word, 2026-10-11: no tunnels,
   fewer roads), each leg's planned corner heights honoured by the next (`planned`, joined at one
-  height or kept apart), a road crossing itself refused but under its own bridge, bridges
-  straight along a side over water or down a valley (`span` cells, `high` m), both ends at one
-  deck — over a road running square across too, `underpass` its recipe's `figure` (the tallest
+  height or kept apart), a road crossing itself refused but under its own bridge, bridges a leap
+  from a road's cell to a head, planned by `plugins/bridges/site` as a game plans a player's (the
+  user's word, 2026-10-11: one mechanism; `chartGround`, `rules`: `longest` cells, `high` m, the
+  dip a figure — `underpass` — deep unless over water, no span beside another bridge's; a leap
+  priced once a search, `leaps`, behind the cheap `crosses`), both heads flat at one deck — a
+  road cell before and after, graded flat whole, no bridge's head twice — the ground under them
+  cut down to it and no road's corner planned over it (`under`), its
+  width the recipe's `deck` — over a road running square across too, `underpass` its recipe's
+  `figure` (the tallest
   figure as the map's game draws it, metres: Madeira's 90, 1.8 m at 50 times life) and 3 m to
   spare over it, 5 m without one — fords where a river
-  is shallow, with `-flat` a bridge one cell of water; the grading (`grade`) joins the corners each
-  cell's road holds level into classes (union-find) and only lets ramps apart; the map is laid on a
-  board (`check`) before it is written and the old file's `units:` kept.
+  is shallow, with `-flat` a bridge one cell of water along a side; the grading (`grade`) joins the
+  corners each cell's road holds level into classes (union-find) and only lets ramps apart; the map
+  is laid on a board in relief and run a step (`check`: its bridges built by the bridges plugin
+  as the demos build them, a line each, `{kind: bridge, from, to}`) before it is written and the
+  old file's `units:` kept.
   The cells' tags of places (`cell.Tags`, `Standing.Places`)
   were removed on 2026-10-05: a place is a role its cell plays or what it is called. A cell plays the roles of its kind (`cell.Kinds.Define`) and its entry's own (`cell.Entry.Plays`; a
   `tag.Tags[rule.Roles]` on its entity, `TerrainMap.Roles`) and is called by its `cell.Entry.Name`
@@ -1061,7 +1139,10 @@ trapdoor and pressure plate demos the same).
   leave worse, rebuilding the space. That arithmetic is `collision/internal/response`, on numbers
   alone: `Footing`, `Worse` (over a `Ground`, which a `Field` is), the impulse `Exchange` between
   two `Side`s (inverse mass, bounce, velocity) and `Normal`; the system hands it its sides.
-  Ground turning under a unit is no push: it stays, fallen in.
+  Ground turning under a unit is no push: it stays, fallen in. The ground never turns a unit a
+  hand steers (`steering.Driven.Steers`; `response.Side.Steered`, `Velocity.Slow`: its speed
+  alone; 2026-10-11, the first person on a bridge swung along it walking into the railing); one
+  under orders glances along the wall, which navigation needs to come round its end.
   A bounce's velocity is the entity's own afterwards; a steered unit's speed is its steering's.
   Reactions are rules hosted inside the `collisionSystem`'s own pass: of a `Meeting` per
   confirmed contact between two tags (`rule.Between(a, b)`, `rule.All` for every pair), of a
@@ -1092,7 +1173,13 @@ trapdoor and pressure plate demos the same).
   lies under it — on two solvers, one over cells alone where no cell has two; a step onto a deck
   is taken where the ground at the shared edge lies within the step of the deck, off one only onto
   a surface within the step (never a planned fall), under one only for a unit that fits under its
-  slab, the goal reached on either level; a step across a railing (`cell.Rail`) is refused;
+  slab wherever it walks under it (`underway`: the ground read every eighth of a step under the
+  lowest deck over it, `Levels.Over`, the board's `DecksOver`; 2026-10-12, a unit sent from the
+  bridge under itself walked to the head and back along the deck), the goal reached on either
+  level — a unit on its goal's cell on the other level plans on (`keeping.on`), and the goal's
+  cell met mid-route is a waypoint (`Path.through`); a step across a railing (`Board.Fenced`) is refused, a
+  step slantwise on or off a deck taken only along it (`Board.Reaches`), over the corner it cuts,
+  which the leg holds none of (`reserveLeg`);
   `price` is what a step costs: the destination's `CostFor` over the step's
   length, times `Map.Climb` unless the kind is `Graded`; a slantwise step not `Along` a way is
   priced by the destination's `Bare` ground (the corner is cut beside the road) and refused where
@@ -1157,9 +1244,13 @@ trapdoor and pressure plate demos the same).
   (`handKeeping`: `MayStep` the spacing's `mayStep`, `Ordered` whether a unit has a `MoveOrder`);
   a unit whose `steering.Driven.Steers()` gives its order up in navigation's pass (the leg's cells
   let go, its own cell held); navigation's RunPlan comes before the driving's.
-  A `MoveTo{Cell, At, Append}` command orders every `Selected` entity the player owns — or, given
-  by an entity for itself (`Order`), that entity alone (`LookAt` too); a
-  `plugin.CommandHandler`, its `DefaultBindings()` make a right click one, Shift appends.
+  A `MoveTo{Cell, At, Append, Level}` command orders every `Selected` entity the player owns — or,
+  given by an entity for itself (`Order`), that entity alone (`LookAt` too); a
+  `plugin.CommandHandler`, its `DefaultBindings()` make a right click one, Shift appends. Its
+  `Level` (`EitherLevel`, `OnGround`, `OnDeck`; the order's and its goals' too) is what the camera
+  picked (`control.Context.Point`, `Board.LevelFor`): a bridge's deck, or the ground seen under it
+  (the user's word, 2026-10-11); a route ends on it (`pathfind.Level`), a group's spots lie on it
+  (`grounded`, `aloft`), the goal's outline stands at its height.
   `WithRenderer` builds the renderer of routes (its GPU lines are `internal/routes`): for every selected unit its goals (`goals`: not a
   `GivingWay` order's Target, a step aside being no goal) as the entity's outline where it will
   stand (`world.Look.Footprint` on the ground, `Marks` tier, always) and, on `Routes{}` (Shift+P,
@@ -1343,7 +1434,11 @@ trapdoor and pressure plate demos the same).
   names no tag and serves several players; told at spawn, a unit is nobody's and unselectable
   through its first step. A side of its own (the wild, a rival) is `players.Add` owning
   its units; board-topography's blue walkers are such a rival's.
-- **`players`** — whoever acts in the game, over `plugin.CommandHandler`s:
+- **`players`** — whoever acts in the game, over `plugin.CommandHandler`s (a player holds a tool in
+  hand, `control.Tool`: `control.Take`/`Drop`, carried out by players as each pass of input
+  begins, `Player.Tool`; while it does, a binding `With` that tool takes its trigger from those of
+  no tool — the user's word, 2026-10-11, TTD's tools: the bridge's left click in place of the
+  selection's — and K lists what fires):
   `players.NewPlugin(world, s.cameras, s.selection, s.nav, s.driving, ...)` has the world carry each one's `Queues()`
   (the `control.Queue[C]` it drains in its own pass; the world's `control.Carrier` is a stage's
   one carrier, for players and entities alike) and gathers its `DefaultBindings()`; nothing clears
@@ -1476,12 +1571,22 @@ trapdoor and pressure plate demos the same).
   sight has heights instead: the cone's eye is where the unit's `world.Eye` stands (`Eye.Level`:
   `Height` over `Z.Altitude`, its top for none) and as wide as `Eye.Angle` — the one Eye the
   first-person camera rides at, so the cone is what the rider sees; a Sight without an Eye is not
-  scanned — every entity spans its `Z`, the ground is the board's heights sampled every
-  `WithGroundStep` (default: a sixteenth of the radius; the renderer drapes the shadows in the
-  same step), and a hawk 40 up looks over the wall, the forest and the hill a walker's cone stops
-  at; `Blockers` are refused there, `Eye.Height` in a flat world. It
+  scanned — every entity spans its `Z`, the ground is the board's heights read along every ray
+  where it is a `ground.Profile` (the topography's relief, `Relief.Along`: the points where the
+  ray crosses a cell's edge or the diagonal its top is folded along, read off the corners — the
+  ground straight between them, so aabbworld's `Cone.Profile` decides what it hides exactly, the
+  ground where a ray meets a box hiding the box too; since 2026-10-11, after board-topography fell
+  to 8 FPS sampling every 50 m) and else sampled every `WithGroundStep` (default: the board's
+  cell; the renderer drapes the shadows in that step), and a hawk 40 up looks over the wall, the
+  forest and the hill a walker's cone stops at; `Blockers` are refused there, `Eye.Height` in a
+  flat world. How far and how wide a cone reaches is the entity's own — `Sight.Radius`,
+  `Eye.Angle` — given per kind (the user's word, 2026-10-11: they stay where they are). Every
+  observer is scanned every step, or `WithFrequency(perSecond)` times a second of game time, the
+  observers taking turns (`id.Index() % n` the step: an even share a step); with heights a scan is
+  shared among goroutines from 2 observers a worker (`elevatedPerWorker`), flat from 8. It
   hosts rules of a `Sighting` inside the scan's own pass: once
-  a tick per observer carrying `a` (`rule.Between(a, b)`), with everything in view carrying `b`
+  a step per observer carrying `a` (`rule.Between(a, b)`), scanned that step or not, on what it saw
+  at its last scan, with everything in view carrying `b`
   — a directed pair, grouped by observer, empty included. Its `Subject` is the nearest seen, so
   an aimed command (`steering.Away{}`, `steering.Toward{}`) given on it is about that one and
   fails with none in view. Its conditions for a rule's `If` are
@@ -1495,6 +1600,32 @@ trapdoor and pressure plate demos the same).
   (`Plugin.ShowCones`, `HideCones`, `ConesShown`; `Hide(bool)` went on 2026-10-10; the renderer
   composes nothing while hidden, the scan goes on); a look, not saved. Hand the plugin to
   `players.NewPlugin` for the key. Depends on `world`.
+- **`bridges`** — bridges built by one set of rules whoever builds them (since 2026-10-11, the
+  user's word: a mechanism a player builds by and the map maker uses): `bridges.NewPlugin(world,
+  board, Config{Rules site.Rules, Builds})`, `WithShaper(ground.Shaper)` (the topography:
+  `topography.Plugin.Flatten`, a cell levelled through `KeepRoads`). `bridges/site.Plan(Ground,
+  Rules, from, to, deck)` is where one may stand, pure: straight along one of the grid's
+  directions (`Line`, the way by geometry), `Longest` cells (3, the user's word), its heads Takes
+  and on no bridge, every span's ground `Clearance` under the deck but the corners a head shares,
+  no higher than `High`, never over another bridge nor beside another's span (heads may touch),
+  something crossed — water, or ground `Under` the deck (the figures' height, never metres: the
+  user's word), in a flat world water or what the road may not take — a road under it only square
+  across and `Under` it, the heads levelled within `Reshape` breaking no road (`ground.RoadFits`
+  with the corners moved), a pier between every two spans (`Piers`); a `Refusal` says why,
+  formatted when read. Kinds: `Plugin.Types().Define(name, Spec{Allows, Width, Thickness, Cost,
+  Rail, Pier})` — the name a level's lines call a bridge by (a world kind of `bridges.Row{From,
+  To}`, never spawned), `<name>.deck` (`board.NewEntities`: a Graded band, a head one link, a span
+  both ways, Height over the cell's level) and `<name>.pier` (a still collider from the ground to
+  the slab's underside, drawn standing); `Type.Deck()`/`Pier()` the atlas's slots. A level's
+  bridges: `Plugin.Spawn(level)` in Spawn (`board.Each`), laid as the file says, held to the rules
+  at its `Populate` once the board is laid (an error with the line). A player's: `Tool`, Shift+B
+  (`control.Take`), with it the cursor `Aim`s, a left click (`Drag`) `Mark`s the first head, then
+  the other where it may stand, asking; right click and Esc `control.Drop`; the hand per player in
+  the plugin, forgotten `forget` ticks unaimed; the renderer lays it out at the deck's height,
+  yellow refused, green standing; `Window()` asks "Build the bridge?" (`ui.WindowOf` of a text
+  saying nothing while none asks, `Modal`), `Reason()` says why not; `Build` levels the heads and
+  `world.Spawn`s the parts at the next step of the simulation (the pause waits), `Cancel` keeps the
+  first head. The board's own check (`keepBridges`) stays what a built bridge must be.
 - **`bullet`** — shots as entities of the world: the plugin's own register (`Plugin.Shots()`;
   `NewShots(w)` alone in a test) — `Shots.Define(name, Body{Size, Speed,
   Range, Gravity, Lands}, extra...)` registers an ammo, `Named` the `Ammo`, a kind whose entities carry a `Collider` without

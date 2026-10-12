@@ -97,7 +97,7 @@ func (s *standingSystem) share(i int) float64 {
 		return 1
 	}
 	feet, reach := s.feet(i)
-	kind, d := s.r.cells.KindFor(c, feet, reach, s.r.level), unit.DomainAt(s.movers, i)
+	kind, d := s.r.cells.KindFor(c, at, feet, reach, s.r.level), unit.DomainAt(s.movers, i)
 	share := 1.0
 	if cost := kind.CostFor(d); cost > 0 {
 		share /= cost
@@ -131,13 +131,14 @@ func (s *standingSystem) logFall(i int) {
 // standing is where the i-th entity of the chunk being walked stands: the cell under its centre,
 // or the one it is At off the board.
 func (s *standingSystem) standing(i int) unit.Standing {
-	c, ok := s.r.grid.CellAt(s.bases[i].Pos.Center())
+	at := s.bases[i].Pos.Center()
+	c, ok := s.r.grid.CellAt(at)
 	if !ok {
 		c = s.ats[i].Cell
 	}
 	cells := s.r.cells
 	feet, reach := s.feet(i)
-	return unit.Standing{ID: s.ids[i], Cell: c, Kind: cells.KindFor(c, feet, reach, s.r.level),
+	return unit.Standing{ID: s.ids[i], Cell: c, Kind: cells.KindFor(c, at, feet, reach, s.r.level),
 		States: cells.States(c), Box: s.bases[i].Pos.AABB.AABB, Domain: unit.DomainAt(s.movers, i),
 		Airborne: s.states != nil && s.states[i].Has(unit.Airborne)}
 }

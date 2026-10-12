@@ -35,6 +35,11 @@ type isoCamera struct {
 	extent func() (low, high float32)
 	// ground is the top of the ground as it is drawn, for Pick; nil, level at 0
 	ground func(x, y float32) float32
+	// fine is how finely Pick steps near a point, finer than a cell where a deck is narrower or
+	// thinner; nil or 0, as ever
+	fine func(x, y float32) (step, thin float32)
+	// solid is what Pick finds solid, a deck's slab too; nil, under ground alone
+	solid func(x, y, z float32) (float32, bool)
 }
 
 var _ contract.Camera = (*isoCamera)(nil)
@@ -157,17 +162,27 @@ func (c *isoCamera) Unproject(sx, sy, z float32) (float32, float32) {
 	return c.proj.Unproject((sx-float32(c.pan.X))/c.zoom, (sy-float32(c.pan.Y))/c.zoom, z)
 }
 
-// Pick is the first ground the screen point sees, down its line from over the highest top.
-func (c *isoCamera) Pick(sx, sy float32) (float32, float32, bool) {
+// Pick is the first ground, or deck, the screen point sees, down its line from over the highest
+// top.
+func (c *isoCamera) Pick(sx, sy float32) (float32, float32, float32, bool) {
 	if c.ground == nil {
 		x, y := c.Unproject(sx, sy, 0)
-		return x, y, true
+		return x, y, 0, true
 	}
 	low, high := c.layer()
 	x0, y0 := c.Unproject(sx, sy, high)
 	x1, y1 := c.Unproject(sx, sy, high-1)
 	s := sight{o: [3]float32{x0, y0, high}, d: [3]float32{x1 - x0, y1 - y0, -1}}
-	return s.pick(c.ground, high-low+1, c.proj.Cell/2, high)
+	return s.pick(solidOf(c.solid, c.ground), c.fine, high-low+1, c.proj.Cell/2, high)
+}
+
+// solidOf is solid, else under ground.
+func solidOf(solid func(x, y, z float32) (float32, bool),
+	ground func(x, y float32) float32) func(x, y, z float32) (float32, bool) {
+	if solid != nil {
+		return solid
+	}
+	return grounded(ground)
 }
 
 func (c *isoCamera) Depth(x, y, z float32) float32 { return c.proj.Depth(x, y, z) }
@@ -252,8 +267,13 @@ func (c *isoCamera) Translate(dx, dy float64) {
 }
 
 // Pan shifts the window by a screen delta: the same pixels at any zoom.
-func (c *isoCamera) Pan(dx, dy float32) {
-	c.place(geom.NewVec(c.pan.X-float64(dx), c.pan.Y-float64(dy)))
+func (c *isoCamera) Pan(dx, dy float32) { c.shift(dx, dy) }
+
+// shift is Pan, and the part of the delta the world's edge stopped, in screen pixels.
+func (c *isoCamera) shift(dx, dy float32) (bx, by float32) {
+	want := geom.NewVec(c.pan.X-float64(dx), c.pan.Y-float64(dy))
+	c.place(want)
+	return float32(c.pan.X - want.X), float32(c.pan.Y - want.Y)
 }
 
 // place sets the pan and holds the whole screen over the world at sea level: the ground under

@@ -19,6 +19,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/bridges"
+	"github.com/kjkrol/gram/plugins/bridges/site"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
@@ -34,16 +36,16 @@ import (
 
 const (
 	TPS          = 60
-	GridWidth    = 192
-	GridHeight   = 96
-	CellSize     = 32
+	GridWidth    = 204
+	GridHeight   = 106
+	CellSize     = 50
 	WorldWidth   = GridWidth * CellSize
 	WorldHeight  = GridHeight * CellSize
 	ScreenWidth  = 1024
 	ScreenHeight = 768
-	EntitySize   = 22
+	EntitySize   = 20
 	UnitSpeed    = CellSize * 3
-	MaxEntCount  = 64
+	MaxEntCount  = 128
 )
 
 //go:embed map.yaml
@@ -52,6 +54,7 @@ var mapFile embed.FS
 type arena struct {
 	world      *world.Plugin
 	board      *board.Plugin
+	bridges    *bridges.Plugin
 	nav        *navigation.Plugin
 	driving    *driving.Plugin
 	collision  *collision.Plugin
@@ -97,6 +100,9 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
 		WithCollision(s.collision).
 		WithLog(log.Default())
+	s.bridges = bridges.NewPlugin(s.world, s.board, bridges.Config{
+		Rules: site.Rules{Longest: 3},
+	})
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
@@ -111,7 +117,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	).WithWeathering(s.board, s.defineClimate())
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving,
-		s.atmosphere, s.vision)
+		s.atmosphere, s.vision, s.bridges)
 }
 
 func (s *arena) definePlayer() error {
@@ -149,17 +155,9 @@ type unitRow struct {
 	Target cell.ID `yaml:"target"`
 }
 
-type crossingRow struct {
+type fordRow struct {
 	At  cell.ID `yaml:"at"`
 	Way [2]int  `yaml:"way"`
-}
-
-// railed are the sides of a crossing's cell along its way, where its railings stand.
-func (r crossingRow) railed() cell.Links {
-	if r.Way[1] == 0 {
-		return 1 | 2 // running east and west: north and south
-	}
-	return 4 | 8
 }
 
 func (s *arena) defineKinds() {
@@ -184,23 +182,24 @@ func (s *arena) defineKinds() {
 		},
 		order,
 		comp.Const(
-			vision.Sight{Facing: geom.NewVec(1, 0), Radius: 220, Ahead: true},
+			vision.Sight{Facing: geom.NewVec(1, 0), Radius: 7 * CellSize, Ahead: true},
 		),
 		comp.Const(world.Eye{Angle: 2 * math.Pi / 5}),
 		comp.Const(vision.SightOutline{}),
 		rule.Plays(s.world.Roles().Named(MortalRole)),
 	)
-	crossings := board.NewEntities(s.board, board.Shape{Size: CellSize},
-		func(r crossingRow) cell.ID { return r.At })
-	way := comp.Load(func(r crossingRow) world.Velocity {
-		return world.Velocity{Dir: geom.NewVec(float64(r.Way[0]), float64(r.Way[1]))}
+	s.bridges.Types().Define(BridgeKind, bridges.Spec{
+		Allows: cell.Land,
+		Width:  48,
+		Cost:   1,
+		Rail:   cell.Rail{Keeps: cell.Land},
 	})
-	crossings.Define(BridgeKind, way,
-		comp.Const(cell.Floor{Allows: cell.Land, Cost: 1, Graded: true}),
-		comp.Load(func(r crossingRow) cell.Rail {
-			return cell.Rail{Keeps: cell.Land, Sides: r.railed()}
-		}))
-	crossings.Define(FordKind, way,
+	fords := board.NewEntities(s.board, board.Shape{Size: CellSize},
+		func(r fordRow) cell.ID { return r.At })
+	fords.Define(FordKind,
+		comp.Load(func(r fordRow) world.Velocity {
+			return world.Velocity{Dir: geom.NewVec(float64(r.Way[0]), float64(r.Way[1]))}
+		}),
 		comp.Const(cell.Floor{Allows: cell.Land, Cost: 6.25}))
 }
 
@@ -209,7 +208,10 @@ func (s *arena) spawn() error {
 	if err != nil {
 		return err
 	}
-	if err := board.Spawn[crossingRow](level, nil); err != nil {
+	if err := board.Spawn[fordRow](level, nil); err != nil {
+		return err
+	}
+	if err := s.bridges.Spawn(level); err != nil {
 		return err
 	}
 	return board.Spawn[unitRow](level, board.Sides{
@@ -219,10 +221,13 @@ func (s *arena) spawn() error {
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).
+		Input(s.players.Handle).
+		Issue(s.players.IssueAs(s.player))}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
+	s.bridges.RunPlan(ctx, d)
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)

@@ -7,7 +7,7 @@ require (
 	github.com/gogpu/gpucontext v0.31.3
 	github.com/gogpu/gputypes v0.8.0
 	github.com/gogpu/wgpu v0.34.5
-	github.com/kjkrol/aabbworld v1.10.0
+	github.com/kjkrol/aabbworld v1.12.0
 	github.com/kjkrol/astar v1.1.1
 	github.com/kjkrol/goke/v3 v3.3.0
 	github.com/kjkrol/uid v0.3.0

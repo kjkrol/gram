@@ -255,7 +255,7 @@ func TestSpawn_AnEntrysRowIsItsTaggedKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e, err := level.l.entry(&level.waiting[0], Sides{"red": {mark{}}})
+	e, _, err := level.l.entry(&level.waiting[0], Sides{"red": {mark{}}})
 	if err != nil {
 		t.Fatal(err)
 	}

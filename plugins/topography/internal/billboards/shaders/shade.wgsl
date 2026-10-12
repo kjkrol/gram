@@ -12,7 +12,12 @@ struct Shade {
 }
 
 @vertex
-fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>, @location(1) size: vec4<f32>, @location(2) rect: vec4<f32>) -> Shade {
+fn vs_main(
+    @builtin(vertex_index) vid: u32,
+    @location(0) at: vec4<f32>,
+    @location(1) size: vec4<f32>,
+    @location(2) rect: vec4<f32>,
+) -> Shade {
     var across = array<f32, 6>(0.0, 1.0, 0.0, 1.0, 1.0, 0.0);
     var down = array<f32, 6>(0.0, 0.0, 1.0, 0.0, 1.0, 1.0);
     let px = mix(rect.xy, rect.zw, vec2<f32>(across[vid], down[vid]));

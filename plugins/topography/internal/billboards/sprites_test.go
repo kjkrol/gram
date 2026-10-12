@@ -74,13 +74,13 @@ func newHill(t *testing.T) aHill {
 	cam.MoveTo(0, 0)
 	cam.CenterOn(128, 128, 0)
 	picker := cam.(interface {
-		Pick(sx, sy float32) (float32, float32, bool)
+		Pick(sx, sy float32) (float32, float32, float32, bool)
 	})
 	// down the middle of the screen, a point seeing the hill's slope with the level ground far behind
 	var seen [][2]geom.Vec // the hill's slope and the level ground behind it, under one screen point
 	vw, vh := cam.Viewport()
 	for sy := float32(0); sy < vh; sy++ {
-		hx, hy, ok := picker.Pick(vw/2, sy)
+		hx, hy, _, ok := picker.Pick(vw/2, sy)
 		if !ok || p.Relief().At(geom.NewVec(float64(hx), float64(hy))) < 20 {
 			continue
 		}

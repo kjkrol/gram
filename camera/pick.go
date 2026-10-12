@@ -1,8 +1,9 @@
 package camera
 
-// Picker is a camera that finds the ground under a screen point itself — one drawing heights it
-// knows. Pick is the first point of the ground the screen point (sx, sy) sees; where it sees none,
-// the sky say, a point far along its line and false.
+// Picker is a camera that finds what is under a screen point itself — one drawing heights it
+// knows. Pick is the first point the screen point (sx, sy) sees, and its height: the ground, or a
+// deck over it, which a line of sight passing under it goes on past; where it sees none, the sky
+// say, a point far along its line and false.
 type Picker interface {
-	Pick(sx, sy float32) (x, y float32, ok bool)
+	Pick(sx, sy float32) (x, y, z float32, ok bool)
 }

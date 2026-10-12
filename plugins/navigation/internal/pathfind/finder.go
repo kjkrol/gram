@@ -17,16 +17,28 @@ type Finder struct {
 	terrain   cell.Terrain
 	occupancy cell.Occupancy
 	slopes    Slopes
-	ways      ways     // the terrain, when it knows its ways; nil, none run
-	rails     railings // the terrain, when it knows what stands on it; nil, no railings
-	levels    Levels   // the board's raised floors; nil, every cell one level
+	ways      ways   // the terrain, when it knows its ways; nil, none run
+	built     built  // the terrain, when it knows what stands on it; nil, nothing
+	levels    Levels // the board's raised floors; nil, every cell one level
 	solver    *astar.Solver[cell.ID]
 	leveled   *astar.Solver[node] // with levels: a cell on its deck apart from under it
 	least     float64             // the cheapest step for the domain planned, per unit of Distance
 	blocked   func(cell.ID) bool  // cells the route being planned goes round; nil, none
-	goal      cell.ID             // the cell the route being planned ends on, at either level
+	goal      cell.ID             // the cell the route being planned ends on
+	end       Level               // the level of it the route ends on
+	ended     uint8               // the level the last route found ended on
 	body      Body                // whoever the route being planned is for
 }
+
+// Level is which level of its goal cell a route ends on: Either, or the Ground under a raised
+// floor, or its Deck — either where the goal has one level.
+type Level uint8
+
+const (
+	Either Level = iota
+	Ground
+	Deck
+)
 
 // Slopes prices a step's climb: the board's Map; nil is level ground.
 type Slopes interface {
@@ -41,11 +53,12 @@ type ways interface {
 	Bare(c cell.ID) cell.Kind
 }
 
-// railings is a terrain that knows what stands on its cells — the board: whether a railing stands
-// anywhere, and what is built over a cell.
-type railings interface {
-	Railed() bool
-	Built(c cell.ID) cell.Built
+// built is a terrain that knows what stands on its cells — the board: whether a Floor runs from a
+// cell out towards its neighbour, and whether a railing stands across a step on the decks' level
+// or on the ground's.
+type built interface {
+	Reaches(c, n cell.ID) bool
+	Fenced(from, to cell.ID, d cell.Domain, deck bool) bool
 }
 
 // Levels are a board's raised floors, which give a cell two levels: its deck and the ground under
@@ -56,6 +69,9 @@ type Levels interface {
 	Deck(c cell.ID) (top, under float64, carries cell.Domain, ok bool)
 	// Ground is the ground's height at p.
 	Ground(p geom.Vec) float64
+	// Over is the underside of the lowest raised deck over p — a cell's whole, or a band p lies
+	// on; false where none is.
+	Over(p geom.Vec) (under float64, ok bool)
 	// KindAt is c's kind on its deck or under it.
 	KindAt(c cell.ID, deck bool) cell.Kind
 }
@@ -82,7 +98,7 @@ const (
 func New(grid grid.Grid, terrain cell.Terrain, slopes Slopes, occupancy cell.Occupancy) *Finder {
 	p := &Finder{grid: grid, terrain: terrain, occupancy: occupancy, slopes: slopes, least: 1}
 	p.ways, _ = terrain.(ways)
-	p.rails, _ = terrain.(railings)
+	p.built, _ = terrain.(built)
 	p.solver = astar.New[cell.ID](func(a, b cell.ID) float64 { return p.least * grid.Distance(a, b) })
 	return p
 }
@@ -124,10 +140,11 @@ func (p *Finder) Climb(from, to cell.ID, d cell.Domain) float64 {
 	return p.slopes.Climb(from, to, d)
 }
 
-// Find computes a route from 'from' toward 'to' for entity moving in domain, its body as body
-// says, into dst, as many of its steps as dst holds, and how many it wrote — false if unreachable.
+// Find computes a route from 'from' toward 'to' — ending on its level end — for entity moving in
+// domain, its body as body says, into dst, as many of its steps as dst holds, and how many it
+// wrote — false if unreachable.
 func (p *Finder) Find(
-	entity uid.UID64, domain cell.Domain, body Body, from, to cell.ID, dst []cell.ID,
+	entity uid.UID64, domain cell.Domain, body Body, from, to cell.ID, end Level, dst []cell.ID,
 ) (int, bool) {
 	// A gentle descent is cheaper than the flat, so the heuristic counts every step at its quickest;
 	// a kind costs at least 1 (full speed), or the estimate would overshoot.
@@ -142,12 +159,16 @@ func (p *Finder) Find(
 		}
 		return copy(dst, full[1:]), true
 	}
-	p.goal, p.body = to, body
+	p.goal, p.body, p.end = to, body, end
+	if len(p.levelsOf(to, domain)) == 1 {
+		p.end = Either
+	}
 	start := node{from, p.levelOf(from, domain, body)}
 	full := p.leveled.Solve(start, node{to, goal}, p.leveledFor(entity, domain))
 	if len(full) < 3 {
 		return 0, false
 	}
+	p.ended = full[len(full)-2].level
 	n := 0
 	for _, s := range full[1 : len(full)-1] {
 		if n == len(dst) {
@@ -159,29 +180,37 @@ func (p *Finder) Find(
 	return n, true
 }
 
+// On reports whether body, standing in c, stands on c's level end — its deck, the ground under
+// it, or either; every level where c has one.
+func (p *Finder) On(domain cell.Domain, body Body, c cell.ID, end Level) bool {
+	if end == Either || len(p.levelsOf(c, domain)) == 1 {
+		return true
+	}
+	return (p.levelOf(c, domain, body) == deck) == (end == Deck)
+}
+
 // FindAround is Find going round every cell blocked reports.
 func (p *Finder) FindAround(
-	entity uid.UID64, domain cell.Domain, body Body, from, to cell.ID, blocked func(cell.ID) bool,
-	dst []cell.ID,
+	entity uid.UID64, domain cell.Domain, body Body, from, to cell.ID, end Level,
+	blocked func(cell.ID) bool, dst []cell.ID,
 ) (int, bool) {
 	p.blocked = blocked
 	defer func() { p.blocked = nil }()
-	return p.Find(entity, domain, body, from, to, dst)
+	return p.Find(entity, domain, body, from, to, end, dst)
 }
 
 // Steps reports whether body, standing in from on the level its feet say, may step on to its
 // neighbour to in domain: on a level whose kind admits domain, no further down than a step off a
 // deck's edge, onto a deck no higher than a step, under one only where it fits.
 func (p *Finder) Steps(domain cell.Domain, body Body, from, to cell.ID) bool {
-	if p.railed(from, to, domain) {
-		return false
-	}
 	if p.levels == nil {
-		return p.terrain.Kind(to).Admits(domain)
+		return !p.fenced(from, to, domain, false) && p.terrain.Kind(to).Admits(domain)
 	}
 	at := node{from, p.levelOf(from, domain, body)}
+	_, _, diagonal := p.grid.DiagonalNeighbors(from, to)
 	for _, level := range p.levelsOf(to, domain) {
-		if p.passes(at, to, level, body) && p.kindAt(to, level).Admits(domain) {
+		if p.crosses(at, to, level, domain, diagonal) && p.passes(at, to, level, body) &&
+			p.kindAt(to, level).Admits(domain) {
 			return true
 		}
 	}
@@ -194,14 +223,14 @@ func (p *Finder) transitionsFor(entity uid.UID64, domain cell.Domain) astar.Tran
 	return func(from, prev cell.ID, buf []astar.Transition[cell.ID]) []astar.Transition[cell.ID] {
 		buf = buf[:0]
 		for _, n := range p.grid.Neighbors(from) {
-			if n == prev || p.railed(from, n, domain) {
+			if n == prev || p.fenced(from, n, domain, false) {
 				continue
 			}
 			kind := p.terrain.Kind(n)
 			if !kind.Admits(domain) || !p.occupancy.CanEnter(n, entity, domain) || p.blocked != nil && p.blocked(n) {
 				continue
 			}
-			if c1, c2, ok := p.grid.DiagonalNeighbors(from, n); ok {
+			if c1, c2, ok := p.grid.DiagonalNeighbors(from, n); ok && !p.decked(from, n) {
 				if !p.enterable(c1, entity, domain) || !p.enterable(c2, entity, domain) || p.blocked != nil && (p.blocked(c1) || p.blocked(c2)) {
 					continue
 				}
@@ -224,24 +253,21 @@ func (p *Finder) leveledFor(entity uid.UID64, domain cell.Domain) astar.Transiti
 		if from.level == goal {
 			return buf
 		}
-		if from.c == p.goal {
+		if from.c == p.goal && (p.end == Either || p.end == Deck == (from.level == deck)) {
 			buf = append(buf, astar.Transition[node]{To: node{p.goal, goal}})
 		}
 		for _, n := range p.grid.Neighbors(from.c) {
 			if n == prev.c || !p.occupancy.CanEnter(n, entity, domain) ||
-				p.blocked != nil && p.blocked(n) || p.railed(from.c, n, domain) {
+				p.blocked != nil && p.blocked(n) {
 				continue
 			}
 			c1, c2, diagonal := p.grid.DiagonalNeighbors(from.c, n)
-			if diagonal && (!p.enterable(c1, entity, domain) || !p.enterable(c2, entity, domain) ||
-				p.blocked != nil && (p.blocked(c1) || p.blocked(c2))) {
-				continue
-			}
+			cut := diagonal && (!p.enterable(c1, entity, domain) ||
+				!p.enterable(c2, entity, domain) ||
+				p.blocked != nil && (p.blocked(c1) || p.blocked(c2)))
 			for _, level := range p.levelsOf(n, domain) {
-				if diagonal && (from.level == deck || level == deck) {
-					continue // a deck runs straight
-				}
-				if !p.passes(from, n, level, p.body) {
+				if !p.crosses(from, n, level, domain, diagonal) ||
+					cut && !p.along(from, n, level) || !p.passes(from, n, level, p.body) {
 					continue
 				}
 				kind := p.kindAt(n, level)
@@ -259,36 +285,40 @@ func (p *Finder) leveledFor(entity uid.UID64, domain cell.Domain) astar.Transiti
 	}
 }
 
-// railed reports whether a railing keeping domain off stands across the step from from to its
-// neighbour n: on from's side towards n or n's side towards from, or, slantwise, either side of the
-// corner the step cuts.
-func (p *Finder) railed(from, n cell.ID, domain cell.Domain) bool {
-	if p.rails == nil || !p.rails.Railed() {
+// crosses reports whether the step from from on to n's level goes across no railing keeping
+// domain off, on the decks' level or on the ground's as its ends lie, and, slantwise, on or off a
+// deck only along it: a deck reaches through a corner only along its link.
+func (p *Finder) crosses(from node, n cell.ID, level uint8, domain cell.Domain,
+	diagonal bool) bool {
+	if diagonal && (from.level == deck || level == deck) && !p.along(from, n, level) {
 		return false
 	}
-	way, ok := grid.Link(p.grid, from, n)
-	if !ok {
+	if p.fenced(from.c, n, domain, from.level == deck) {
 		return false
 	}
-	out := crossing[bitOf(way)]
-	a, b := p.rails.Built(from).Rail, p.rails.Built(n).Rail
-	return a.Keeps&domain != 0 && a.Sides&out[0] != 0 || b.Keeps&domain != 0 && b.Sides&out[1] != 0
+	return level == from.level || !p.fenced(from.c, n, domain, level == deck)
 }
 
-// crossing is, for each way out of a square cell, the sides of the cell a step that way crosses
-// and the sides of the neighbour it crosses into.
-var crossing = [8][2]cell.Links{
-	{1, 2}, {2, 1}, {4, 8}, {8, 4},
-	{1 | 4, 2 | 8}, {1 | 8, 2 | 4}, {2 | 4, 1 | 8}, {2 | 8, 1 | 4},
-}
-
-func bitOf(l cell.Links) int {
-	for i := range 8 {
-		if l == 1<<i {
-			return i
-		}
+// along reports whether the step from from on to n's level runs along a deck at one end at least,
+// out of from's towards n and into n's from from: such a step passes over the corner it cuts.
+func (p *Finder) along(from node, n cell.ID, level uint8) bool {
+	if p.built == nil || from.level != deck && level != deck {
+		return false
 	}
-	return 0
+	return (from.level != deck || p.built.Reaches(from.c, n)) &&
+		(level != deck || p.built.Reaches(n, from.c))
+}
+
+// decked reports whether a Floor runs between from and its neighbour n, out of either towards the
+// other: a step along it passes over the corner it cuts.
+func (p *Finder) decked(from, n cell.ID) bool {
+	return p.built != nil && (p.built.Reaches(from, n) || p.built.Reaches(n, from))
+}
+
+// fenced reports whether a railing keeping domain off stands across the step from from to its
+// neighbour n, on the decks' level or on the ground's.
+func (p *Finder) fenced(from, n cell.ID, domain cell.Domain, deck bool) bool {
+	return p.built != nil && p.built.Fenced(from, n, domain, deck)
 }
 
 // levelsOf is c's levels for whoever moves in domain: the ground, and a raised floor's deck that
@@ -327,25 +357,58 @@ func (p *Finder) passes(from node, n cell.ID, level uint8, body Body) bool {
 	if p.levels == nil {
 		return true
 	}
-	at := 0.0 // how high body stands at the edge it crosses
+	if !p.underway(from, n, level, body) {
+		return false
+	}
+	edge := p.levels.Ground(p.edge(from.c, n))
+	at := edge // how high body stands at the edge it crosses
 	if from.level == deck {
 		at, _, _, _ = p.levels.Deck(from.c)
-	} else {
-		at = p.levels.Ground(p.edge(from.c, n))
 	}
 	if level == deck {
 		top, _, _, _ := p.levels.Deck(n)
 		return math.Abs(top-at) <= body.Step+reachSlack
 	}
-	if from.level == deck {
-		if edge := p.levels.Ground(p.edge(from.c, n)); math.Abs(edge-at) > body.Step+reachSlack {
-			return false // off the deck's edge: a fall
+	return from.level != deck || math.Abs(edge-at) <= body.Step+reachSlack // or off the edge: a fall
+}
+
+// underway reports whether body walking the ground of the step from from on to n's level fits
+// under every raised deck over its way, read every underSteps of the step from middle to middle —
+// the part it walks on the ground: before the edge it steps onto a deck at, past the edge it steps
+// off one at.
+func (p *Finder) underway(from node, n cell.ID, level uint8, body Body) bool {
+	if !p.decksBy(from.c, n) {
+		return true
+	}
+	a, b := p.grid.CellCenter(from.c), p.grid.CellCenter(n)
+	for k := 1; k <= underSteps; k++ {
+		t := float64(k) / underSteps
+		if from.level == deck && t <= 0.5 || level == deck && t >= 0.5 {
+			continue
+		}
+		q := geom.NewVec(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t)
+		if under, ok := p.levels.Over(q); ok && under-p.levels.Ground(q) < body.Height {
+			return false
 		}
 	}
-	if _, under, _, ok := p.levels.Deck(n); ok {
-		return under-p.levels.Ground(p.grid.CellCenter(n)) >= body.Height
-	}
 	return true
+}
+
+// underSteps is how many times along a step the ground under the decks over it is read.
+const underSteps = 8
+
+// decksBy reports whether a raised deck stands on from, on its neighbour n or, the step slantwise,
+// on a cell whose corner it cuts: whether a deck may run over the step at all.
+func (p *Finder) decksBy(from, n cell.ID) bool {
+	raised := func(c cell.ID) bool {
+		_, _, _, ok := p.levels.Deck(c)
+		return ok
+	}
+	if raised(from) || raised(n) {
+		return true
+	}
+	c1, c2, diagonal := p.grid.DiagonalNeighbors(from, n)
+	return diagonal && (raised(c1) || raised(c2))
 }
 
 // reachSlack is how far over a step a deck may stand and still be stepped onto: the rounding of
@@ -382,7 +445,7 @@ const maxVisitedCells = 64
 // NearestFree returns the free cell nearest target that entity can reach — not one taken says —
 // and the route to it, written into dst as Find writes it.
 func (p *Finder) NearestFree(
-	entity uid.UID64, domain cell.Domain, body Body, from, target cell.ID,
+	entity uid.UID64, domain cell.Domain, body Body, from, target cell.ID, end Level,
 	taken func(cell.ID) bool, dst []cell.ID,
 ) (cell.ID, int, bool) {
 	n := 0
@@ -397,7 +460,11 @@ func (p *Finder) NearestFree(
 			return true
 		}
 		var ok bool
-		n, ok = p.Find(entity, domain, body, from, c, dst)
+		level := Either
+		if c == target {
+			level = end
+		}
+		n, ok = p.Find(entity, domain, body, from, c, level, dst)
 		return ok
 	}
 	dest, ok := breadthFirst(target, p.grid.Neighbors, passable, reachableFree, maxVisitedCells)

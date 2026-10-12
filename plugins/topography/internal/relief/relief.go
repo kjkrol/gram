@@ -240,9 +240,9 @@ func (r *Relief) setValue(v vertex, h float32) bool {
 func (r *Relief) Altitude(c cell.ID) float64 { return r.Corners(c).Level() }
 
 // Surface is where whoever moves in d (none: Land) with its feet at feet stands at p: the highest
-// of the ground and a deck over the cell whose Floor carries d, no higher than feet+step — onto a
-// deck within a step from any side, under one out of reach — and the underside of a deck over its
-// feet, +Inf for none; the ground alone where the relief lies under no board.
+// of the ground and the decks over p whose Floors carry d, no higher than feet+step — onto a deck
+// within a step from any side, under one out of reach — and the lowest underside of a deck over
+// its feet, +Inf for none; the ground alone where the relief lies under no board.
 func (r *Relief) Surface(p geom.Vec, d cell.Domain, feet, step float64) (floor, ceiling float64) {
 	floor, ceiling = r.GroundAt(p), math.Inf(1)
 	if r.board == nil {
@@ -251,21 +251,15 @@ func (r *Relief) Surface(p geom.Vec, d cell.Domain, feet, step float64) (floor, 
 	if d == 0 {
 		d = cell.Land
 	}
-	c, ok := r.grid.CellAt(p)
-	if !ok {
-		return floor, ceiling
-	}
-	f := r.board.Built(c).Floor
-	if f.Allows == 0 {
-		return floor, ceiling
-	}
-	deck := r.Altitude(c) + f.Height
-	if f.Allows&d != 0 && deck <= feet+step {
-		floor = max(floor, deck)
-	}
-	if under := deck - f.Thickness; f.Thickness > 0 && under > feet {
-		ceiling = under
-	}
+	r.board.DecksOver(p, func(c cell.ID, f cell.Floor) {
+		deck := r.Altitude(c) + f.Height
+		if f.Allows&d != 0 && deck <= feet+step {
+			floor = max(floor, deck)
+		}
+		if under := deck - f.Thickness; f.Thickness > 0 && under > feet {
+			ceiling = min(ceiling, under)
+		}
+	})
 	return floor, ceiling
 }
 

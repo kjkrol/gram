@@ -43,8 +43,9 @@
 // first person; [HowOf] is what the bindings hold in (control.Binding.In) — and a
 // [Vanisher] has vanishing points, where a direction is drawn: a perspective's, where the sky puts
 // the sun. An [Eyed] camera has an eye at a point, from which the air far off is hazed. A
-// [Picker] finds the ground under a screen point itself, walking the line of sight over the
-// heights it draws, which control.Context.World asks before anything else. A
+// [Picker] finds what is under a screen point itself, and its height, walking the line of sight
+// over the heights it draws — the ground, or a deck over it, a line passing under a deck going on
+// to the ground — which control.Context.World and Point ask before anything else. A
 // [Scaler] draws a world unit larger near the eye than far off, and nothing behind it;
 // [Rayer] is a camera that says which way a screen point looks, [Eyed] one with an eye at a point
 // of the world and [Vanisher] one with vanishing points — a perspective's all three; a sky is

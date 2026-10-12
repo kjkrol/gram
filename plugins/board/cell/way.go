@@ -15,10 +15,12 @@ type Way struct {
 	Mix   float32
 }
 
-// Links is which ways a Way runs on out of its cell: bit i the grid's i-th direction — on a square
-// grid north, south, west, east, north-west, north-east, south-west, south-east; on a hex grid its
-// six in turn. Link finds the bit for a neighbour, Toward the neighbour for a bit.
+// Links is which ways a Way runs on out of its cell: bit i the grid's i-th direction (grid.Grid,
+// which numbers them). grid.Link finds the bit for a neighbour, Toward the neighbour for a bit.
 type Links uint8
+
+// Has reports whether the way runs out in direction i.
+func (l Links) Has(i int) bool { return l&(1<<i) != 0 }
 
 // Runs reports whether anything runs across the cell.
 func (w Way) Runs() bool { return w.Width > 0 }

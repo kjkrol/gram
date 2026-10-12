@@ -11,13 +11,30 @@ import (
 )
 
 // MoveTo is the command to send every Selected entity to Cell, or with Append to add Cell behind
-// the orders they already have; given by an entity for itself, it sends that entity alone. At is the world point clicked: under BodySpacing where the group
-// stands round, under CellSpacing where one standing on Cell turns instead of going anywhere.
+// the orders they already have; given by an entity for itself, it sends that entity alone. At is
+// the world point clicked: under BodySpacing where the group stands round, under CellSpacing where
+// one standing on Cell turns instead of going anywhere. Level is which of the cell's levels it is
+// sent to where a raised deck gives it two: the deck, or the ground under it.
 type MoveTo struct {
 	Cell   cell.ID
 	At     geom.Vec
 	Append bool
+	Level  Level
 }
+
+// Level is which of a cell's two levels — a raised deck and the ground under it — a goal lies on:
+// EitherLevel, whichever a route reaches first; OnGround, under the deck; OnDeck, on it. A cell
+// of one level takes any.
+type Level uint8
+
+const (
+	EitherLevel Level = iota
+	OnGround
+	OnDeck
+)
+
+// pickReach is how far under what a click picked, world units, a deck still counts as picked.
+const pickReach = 1e-2
 
 // LookAt is the command to every Selected entity — or to the entity that gives it itself — to
 // finish the step it is on, stop and turn towards At.
@@ -112,19 +129,29 @@ func (p *Plugin) Queues() []control.CommandQueue {
 }
 
 // DefaultBindings is a right click — the button up where it went down, within clickSlop — into a
-// MoveTo of the cell under the cursor, Shift to append; a right drag into a LookAt of the point
-// under the cursor at every move, so the selected units turn to look where the cursor goes, and
-// nothing on its release; and Shift+P into Routes.
+// MoveTo of the cell under the cursor on the level picked — a deck clicked, or the ground under it
+// seen past it, a deck's over the ground's where the camera picks nothing — Shift to append; a
+// right drag
+// into a LookAt of the point under the cursor at every move, so the selected units turn to look
+// where the cursor goes, and nothing on its release; and Shift+P into Routes.
 func (p *Plugin) DefaultBindings() []control.Binding {
-	grid := p.boardPlugin.Board().Grid
+	brd := p.boardPlugin.Board()
 	to := func(appendIt bool) func(c control.Context) (MoveTo, bool) {
 		return func(c control.Context) (MoveTo, bool) {
 			if dragged(c) {
 				return MoveTo{}, false // the drag turned the units; nothing moves
 			}
-			at := c.World(c.Cursor)
-			cell, ok := grid.CellAt(at)
-			return MoveTo{Cell: cell, At: at, Append: appendIt}, ok
+			at, z, picked := c.Point(c.Cursor)
+			if !picked {
+				cell, ok := brd.CellFor(at, math.Inf(1), 0)
+				return MoveTo{Cell: cell, At: at, Append: appendIt}, ok
+			}
+			cell, deck, ok := brd.LevelFor(at, z, pickReach)
+			level := OnGround
+			if deck {
+				level = OnDeck
+			}
+			return MoveTo{Cell: cell, At: at, Append: appendIt, Level: level}, ok
 		}
 	}
 	turn := func(c control.Context) (LookAt, bool) { return LookAt{At: c.World(c.Cursor)}, dragged(c) }

@@ -313,7 +313,3 @@ func fold(v, n int64, wrap bool) (int64, bool) {
 	}
 	return v, v >= 0 && v < n
 }
-
-// squareDirs are a square grid's directions in cell.Links's order: north, south, west, east,
-// north-west, north-east, south-west, south-east.
-var squareDirs = [8][2]float32{{0, -1}, {0, 1}, {-1, 0}, {1, 0}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1}}

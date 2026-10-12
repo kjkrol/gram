@@ -76,7 +76,7 @@ func TestPlace_TheGroupFillsTheTargetRoundThePointThenTheCheapestNeighbour(t *te
 	r.terrain.Set(r.at(2, 2), cell.Kind{Cost: 1, Allows: cell.Land}) // the cheap way west
 	at := r.grid.CellCenter(target)
 	units := r.units(12, 6) // 12 apart with the gap: 3 x 3 in a 32 cell round its middle
-	got, _ := r.keep.place(units, at, target)
+	got, _ := r.keep.place(units, at, target, EitherLevel)
 	inTarget, west := 0, 0
 	for i, p := range got {
 		if !p.ok {
@@ -109,7 +109,7 @@ func TestPlace_UnitsNearlyACellLargeSpreadOverTheNeighboursAndTwoShareACellAtIts
 	target := r.at(3, 2)
 	centre := r.grid.CellCenter(target)
 	cells := map[cell.ID]bool{}
-	big, _ := r.keep.place(r.units(3, 28), centre, target)
+	big, _ := r.keep.place(r.units(3, 28), centre, target, EitherLevel)
 	for _, p := range big {
 		if !p.ok {
 			t.Fatal("a large unit found no spot")
@@ -121,7 +121,7 @@ func TestPlace_UnitsNearlyACellLargeSpreadOverTheNeighboursAndTwoShareACellAtIts
 	}
 	checkApart(t, big, 28)
 
-	two, _ := r.keep.place(r.units(2, 12), geom.NewVec(centre.X-11, centre.Y), target)
+	two, _ := r.keep.place(r.units(2, 12), geom.NewVec(centre.X-11, centre.Y), target, EitherLevel)
 	for _, p := range two {
 		if p.cell != target {
 			t.Fatalf("spots %v, want both on the target: a 12 box each side of the cell, over its edges", two)
@@ -138,7 +138,7 @@ func TestPlace_NoSpotOverGroundTheUnitCannotTakeOrOnAStep(t *testing.T) {
 	centre := r.grid.CellCenter(target)
 	r.heights = func(geom.Vec) float64 { return 0 }
 	corner := geom.NewVec(centre.X+14, centre.Y-14) // the north-east corner, by the water and the rock
-	got, _ := r.keep.place(r.units(6, 8), corner, target)
+	got, _ := r.keep.place(r.units(6, 8), corner, target, EitherLevel)
 	for _, p := range got {
 		if !p.ok {
 			t.Fatal("a unit found no spot")
@@ -168,12 +168,13 @@ func TestPlace_KnowsOnlyWhoeverItStruck(t *testing.T) {
 	h := geom.NewVec(5, 5)
 	standing := body{id: 100, at: centre, half: h, domain: cell.Land}
 	r.keep.begin(func(b []body) []body { return append(b, standing) })
-	spots, _ := r.keep.place(r.units(1, 10), centre, target)
+	spots, _ := r.keep.place(r.units(1, 10), centre, target, EitherLevel)
 	if spots[0].spot != centre {
 		t.Errorf("the unit stands at %v, want the point %v: nobody told it of the one standing there", spots[0].spot, centre)
 	}
 	flyer := body{id: 101, at: geom.NewVec(centre.X-20, centre.Y), half: h, domain: cell.Air}
-	spots, _ = r.keep.placeClearOf(r.units(1, 10), centre, target, []body{standing, flyer})
+	spots, _ = r.keep.placeClearOf(r.units(1, 10), centre, target, EitherLevel,
+		[]body{standing, flyer})
 	got := spots[0]
 	if !got.ok || got.spot == centre {
 		t.Fatalf("placed again clear of the one struck the unit stands at %v %v, want off the point", got.spot, got.ok)

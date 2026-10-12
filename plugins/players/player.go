@@ -23,7 +23,28 @@ type Player struct {
 	wiredIn  uint64
 	local    bool
 	bindings []control.Binding
-	in       input // what the event handler has seen of its keys and buttons
+	in       input        // what the event handler has seen of its keys and buttons
+	tool     control.Tool // what it holds in hand (control.Take), none for nothing
+}
+
+// Tool is what the player holds in hand: none for nothing.
+func (p *Player) Tool() control.Tool { return p.tool }
+
+// fires reports whether b fires for the player on its trigger with the camera fastened how: a
+// binding of the tool it holds, or one of no tool none of those takes the trigger from.
+func (p *Player) fires(b control.Binding, how camera.How) bool {
+	if !b.Holds(how) || b.Tool() != "" && b.Tool() != p.tool {
+		return false
+	}
+	if b.Tool() != "" || p.tool == "" {
+		return true
+	}
+	for _, o := range p.bindings {
+		if o.Tool() == p.tool && o.Trigger == b.Trigger && o.Holds(how) {
+			return false
+		}
+	}
+	return true
 }
 
 // picture is a picture of the world a player acts through: where it lies on the screen — zero is
@@ -37,7 +58,8 @@ type picture struct {
 // before.
 func (p *Player) Area() geom.AABB { return p.pic.area }
 
-// Bind adds bindings to the player; two on one Trigger holding in one camera mode are an error,
+// Bind adds bindings to the player; two on one Trigger holding in one camera mode with one tool
+// are an error,
 // never a silent last-one-wins.
 func (p *Player) Bind(bindings ...control.Binding) error {
 	if err := p.world.InSection("keys bound for "+p.Name, section.Players, section.Controls); err != nil {

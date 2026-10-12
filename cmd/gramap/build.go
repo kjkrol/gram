@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"slices"
 
@@ -14,6 +15,7 @@ import (
 type chart struct {
 	r          recipe
 	flat       bool
+	origin     [2]int // how far the area grew west and north for its sea
 	cols, rows int
 	grid       grid.Grid
 	size       float64 // world units a cell
@@ -26,9 +28,13 @@ type chart struct {
 }
 
 func build(r recipe, height elevation, flat bool) (*chart, error) {
-	cols, rows := r.Area.Cells[0], r.Area.Cells[1]
+	origin, cells, err := grow(r, height)
+	if err != nil {
+		return nil, err
+	}
+	cols, rows := cells[0], cells[1]
 	w := &chart{
-		r: r, flat: flat, cols: cols, rows: rows,
+		r: r, flat: flat, origin: origin, cols: cols, rows: rows,
 		grid:    grid.DefaultGrids{}.Square(uint32(cols), uint32(rows), r.Area.Units),
 		size:    float64(r.Area.Units),
 		perUnit: r.Area.Cell / float64(r.Area.Units),
@@ -36,11 +42,7 @@ func build(r recipe, height elevation, flat bool) (*chart, error) {
 		corners: make([]float64, (cols+1)*(rows+1)),
 		soils:   make([]string, cols*rows),
 	}
-	at := func(x, y float64) (float64, error) {
-		lon, lat := lonLatOf(r.Area.Centre, (x-float64(cols)/2)*r.Area.Cell,
-			(y-float64(rows)/2)*r.Area.Cell)
-		return height(lon, lat)
-	}
+	at := func(x, y float64) (float64, error) { return height(w.lonLat(x, y)) }
 	for y := range rows {
 		for x := range cols {
 			h, err := at(float64(x)+0.5, float64(y)+0.5)
@@ -73,6 +75,60 @@ func build(r recipe, height elevation, flat bool) (*chart, error) {
 	return w, nil
 }
 
+// lonLat is where the point x, y cells into the map lies on the Earth: the recipe's area projected
+// round its centre, however far it grew.
+func (w *chart) lonLat(x, y float64) (lon, lat float64) {
+	return lonLatOf(w.r.Area.Centre, w.east(x), w.south(y))
+}
+
+// east and south are how many metres east and south of the recipe's centre x and y cells into the
+// map lie.
+func (w *chart) east(x float64) float64 {
+	return (x - float64(w.origin[0]) - float64(w.r.Area.Cells[0])/2) * w.r.Area.Cell
+}
+
+func (w *chart) south(y float64) float64 {
+	return (y - float64(w.origin[1]) - float64(w.r.Area.Cells[1])/2) * w.r.Area.Cell
+}
+
+// grow is how far the area grows west and north, and its cells grown, so that Area.Sea cells of
+// sea lie between its land and every edge, the land read anew over the grown area until it holds;
+// the recipe's area as it is with no Sea.
+func grow(r recipe, height elevation) (origin, cells [2]int, err error) {
+	cells = r.Area.Cells
+	sea := r.Area.Sea
+	if sea <= 0 {
+		return origin, cells, nil
+	}
+	for range 8 {
+		w := &chart{r: r, origin: origin, cols: cells[0], rows: cells[1]}
+		x0, y0, x1, y1 := cells[0], cells[1], -1, -1
+		for y := range cells[1] {
+			for x := range cells[0] {
+				h, err := height(w.lonLat(float64(x)+0.5, float64(y)+0.5))
+				if err != nil {
+					return origin, cells, err
+				}
+				if h > 0 {
+					x0, y0, x1, y1 = min(x0, x), min(y0, y), max(x1, x), max(y1, y)
+				}
+			}
+		}
+		if x1 < 0 {
+			return origin, cells, nil
+		}
+		west, north := max(sea-x0, 0), max(sea-y0, 0)
+		east, south := max(sea-(cells[0]-1-x1), 0), max(sea-(cells[1]-1-y1), 0)
+		if west+north+east+south == 0 {
+			return origin, cells, nil
+		}
+		origin[0], origin[1] = origin[0]+west, origin[1]+north
+		cells[0], cells[1] = cells[0]+west+east, cells[1]+north+south
+	}
+	return origin, cells, fmt.Errorf("the land runs on past the area: no %d cells of sea round it",
+		sea)
+}
+
 // ashore reports whether the corner (x, y) has land all round it: the coast's corners stay at the
 // sea's level, so the shore slopes down into water that lies level.
 func (w *chart) ashore(x, y int) bool {
@@ -102,6 +158,31 @@ func (w *chart) cornersOf(c cell.ID) [4]int {
 	x, y := w.xy(c)
 	k := y*(w.cols+1) + x
 	return [4]int{k, k + 1, k + w.cols + 1, k + w.cols + 2}
+}
+
+// rim is the corners of the lattice direction i leaves c by: two for an edge, one for a corner.
+func (w *chart) rim(c cell.ID, i int) []int {
+	var buf [4]geom.Vec
+	outline := w.grid.CellOutline(c, buf[:0])
+	a, b := grid.Rim(w.grid, c, i)
+	if a == b {
+		return []int{w.corner(outline[a])}
+	}
+	return []int{w.corner(outline[a]), w.corner(outline[b])}
+}
+
+// corner is the lattice's corner at p.
+func (w *chart) corner(p geom.Vec) int {
+	return int(math.Round(p.Y/w.size))*(w.cols+1) + int(math.Round(p.X/w.size))
+}
+
+// outline is c's corners' heights in world units, round it as the grid draws its outline.
+func (w *chart) outline(c cell.ID) []float64 {
+	var heights []float64
+	for _, p := range w.grid.CellOutline(c, nil) {
+		heights = append(heights, w.heights(p))
+	}
+	return heights
 }
 
 func (w *chart) level(c cell.ID) float64 {
@@ -182,7 +263,7 @@ func (w *chart) soil() {
 			}
 			steep /= w.r.Area.Cell
 			w.soils[y*w.cols+x] = w.r.Kinds.Earth
-			fx, fy := float64(x)+0.5, float64(y)+0.5
+			fx, fy := float64(x-w.origin[0])+0.5, float64(y-w.origin[1])+0.5
 			switch {
 			case steep >= g.Rock.Slope || top >= g.Rock.Above:
 				w.soils[y*w.cols+x] = w.r.Kinds.Rock

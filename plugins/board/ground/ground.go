@@ -22,6 +22,15 @@ type Cover interface {
 	Walk(origin, dir geom.Vec, length float64, blockers world.Layers, visit func(near, far, bottom, top, tau float64) bool)
 }
 
+// Profile is Heights that knows its ground along a ray exactly: Along follows the ray from origin
+// along the unit dir for length and calls visit, nearest first, with every point of it where the
+// ground's slope changes and with length itself — how far along (d) and the height there; visit
+// returning false ends the walk. Between those points the ground is straight, so sight reads a
+// few points a cell in place of a sample every Step. A topography's relief is one.
+type Profile interface {
+	Along(origin, dir geom.Vec, length float64, visit func(d, alt float64) bool)
+}
+
 // Readied is a Cover that reads the board as it is walked and can read it all at once instead —
 // for whoever walks it from several goroutines at a time, on their goroutine before they do. The
 // Board is one.
@@ -34,4 +43,12 @@ type Readied interface {
 // its feet (ceiling, +Inf for none).
 type Surfaces interface {
 	Surface(p geom.Vec, d cell.Domain, feet, step float64) (floor, ceiling float64)
+}
+
+// Shaper is ground that can be shaped: Flatten lays the cell c flat at h — its corners on a square
+// grid, its level on any other — the ground round it following, and reports whether it did; it
+// does nothing where a road would lie where Transport Tycoon would not lay it (RoadFits).
+// A topography's relief is one.
+type Shaper interface {
+	Flatten(c cell.ID, h float64) bool
 }

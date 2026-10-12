@@ -48,8 +48,15 @@ What is left to do. Take an item out when it lands.
   through `ground.Surfaces` and the world's `gravity.Pull`.
 - **Leaps, climbing and swimming planned** — the planner never plans a leap (a railing, a gap),
   a climb or a swim; a unit under gravity does them only by hand.
-- **Railings drawn, railings on a hex** — `cell.Rail` is collision's and the planner's alone,
-  nothing draws it; a hex grid refuses one.
+- **A deck's Overhang** — collision's `Overhang` counts a cell with a band over it as ground that
+  takes a walker whole, beside the band too; a walker pushed off a bridge's side may come to rest
+  over the water.
+- **Bridges that turn** — a bridge runs straight; a knee (two links not opposite) is refused by
+  the board's rules and not made by `cmd/gramap`.
+- **Roads with a tool** — a player lays a road as a bridge (`control.Tool`, a road's rules beside
+  `bridges/site`'s), and takes a bridge down.
+- **Blocks' shadows over hex prisms** — the terrain over a hex grid bakes no shade, so a
+  bridge's deck and its piers cast no shadow there.
 - **Knobs on the world** — a plugin's global knobs as components on the world's own entity (the
   moon's colour and strength, for a blood moon: an effect altering `sky.Moon`, cast by a rule of
   `clock.Moment` on a full moon — a predicate of the calendar's phase), and a vocabulary in every

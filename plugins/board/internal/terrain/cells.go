@@ -1,6 +1,9 @@
 package terrain
 
 import (
+	"math"
+
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
@@ -16,17 +19,26 @@ import (
 // Cells is a board's cells' terrain: its seed until the ECS is set up, then the cells' entities,
 // with the counts of changes to them. Not safe for concurrent use.
 type Cells struct {
-	grid     grid.Grid
-	square   uint64 // a square grid's cell count, its ids counting row by row; 0 for any other
-	seed     *cell.TerrainMap
-	store    *store // the cells' entities; nil before Setup
-	version  uint64
-	stamps   []uint64 // by ordinal: the count of changes when each cell last changed
-	changes  uint64   // how many cells have changed, one at a time
-	everyone uint64   // the count when every cell last changed at once
-	built    int      // how many cells something is built over, so that a board of none seeks none
-	railed   int      // how many of them carry a railing
-	standing *builtSystem
+	grid      grid.Grid
+	square    uint64 // a square grid's cell count, its ids counting row by row; 0 for any other
+	seed      *cell.TerrainMap
+	store     *store // the cells' entities; nil before Setup
+	version   uint64
+	stamps    []uint64 // by ordinal: the count of changes when each cell last changed
+	changes   uint64   // how many cells have changed, one at a time
+	everyone  uint64   // the count when every cell last changed at once
+	built     int      // how many cells something is built over, so that a board of none seeks none
+	railed    int      // how many of them carry a railing
+	bands     int      // how many carry a deck running as a band
+	narrowest float64  // how wide the narrowest band is
+	thinnest  float64  // how thick the thinnest raised band's slab is
+	reached   []bool   // by ordinal: a neighbour's band reaches into the cell
+	bridges   Bridges
+	fresh     bool       // the cells were made afresh, not found after a load
+	decks     []Deck     // scratch for the decks over a point
+	rails     []Railing  // scratch for the railings round a step
+	outline   []geom.Vec // scratch for a cell's outline
+	standing  *builtSystem
 }
 
 // New is the terrain of g's cells, every one of the zero kind until it is set.
@@ -96,10 +108,12 @@ func (t *Cells) KindAt(c cell.ID, deck bool) cell.Kind {
 	return level(t.store.wayOf(i).Over(t.store.groundOf(i).Kind), b, deck)
 }
 
-// KindFor is c's kind on the level whoever stands with its feet at feet is on: a raised Floor's
-// deck when its feet are within reach of it, level being c's ground level; otherwise as KindAt
-// under it.
-func (t *Cells) KindFor(c cell.ID, feet, reach float64, ground func(cell.ID) float64) cell.Kind {
+// KindFor is c's kind at p for whoever stands with its feet at feet and steps reach high: on a
+// Floor over p — c's own over the whole cell, or a band p lies on, c's or a neighbour's — a raised
+// one once its feet are within reach of its deck, ground giving a cell's level; otherwise the
+// ground under the decks.
+func (t *Cells) KindFor(c cell.ID, p geom.Vec, feet, reach float64,
+	ground func(cell.ID) float64) cell.Kind {
 	if t.store == nil {
 		return t.seed.Ways[c].Over(t.seed.Kind(c))
 	}
@@ -115,10 +129,55 @@ func (t *Cells) KindFor(c cell.ID, feet, reach float64, ground func(cell.ID) flo
 	switch {
 	case b == nil:
 		return k
-	case b.Floor.Height <= 0 || ground == nil:
+	case b.Floor.Allows == 0 && (t.bands == 0 || !t.reached[i]):
 		return b.Over(k)
 	}
-	return level(k, *b, feet >= ground(c)+b.Floor.Height-reach)
+	t.decks = t.DecksOver(c, p, t.decks[:0])
+	for _, d := range t.decks {
+		f := d.Built.Floor
+		raised := f.Height > 0 && ground != nil
+		if raised && feet < ground(d.Cell)+f.Height-reach {
+			continue
+		}
+		on := cell.Built{Floor: f, Wall: b.Wall}
+		if raised {
+			return level(k, on, true)
+		}
+		return on.Over(k)
+	}
+	return level(k, *b, false)
+}
+
+// CellFor is the cell whoever stands at p with its feet at feet and steps reach high is on: the
+// cell of the highest Floor over p it stands on — a raised one within its reach, a neighbour's band
+// reaching over p too — else the cell under p; ground gives a cell's level.
+func (t *Cells) CellFor(p geom.Vec, feet, reach float64,
+	ground func(cell.ID) float64) (cell.ID, bool) {
+	c, _, ok := t.LevelFor(p, feet, reach, ground)
+	return c, ok
+}
+
+// LevelFor is CellFor and whether whoever stands there stands on a raised deck.
+func (t *Cells) LevelFor(p geom.Vec, feet, reach float64,
+	ground func(cell.ID) float64) (cell.ID, bool, bool) {
+	c, ok := t.grid.CellAt(p)
+	if !ok || t.built == 0 || t.store == nil {
+		return c, false, ok
+	}
+	t.decks = t.DecksOver(c, p, t.decks[:0])
+	best, top, raised := c, math.Inf(-1), false
+	for _, d := range t.decks {
+		f := d.Built.Floor
+		h := f.Height
+		if ground != nil {
+			h += ground(d.Cell)
+		}
+		if f.Height > 0 && ground != nil && feet < h-reach || h <= top {
+			continue
+		}
+		best, top, raised = d.Cell, h, f.Height > 0
+	}
+	return best, raised, true
 }
 
 // level is the kind k under b on the deck of b's Floor or under it.
@@ -142,9 +201,6 @@ func (t *Cells) Standing(c cell.ID, each func(uid.UID64)) {
 		t.standing.standing(c, each)
 	}
 }
-
-// Railed reports whether a railing stands on any cell.
-func (t *Cells) Railed() bool { return t.railed > 0 }
 
 // Built is what the entities standing on c build over it; none off the board or before the cells
 // are made.

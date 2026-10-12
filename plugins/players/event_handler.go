@@ -16,6 +16,7 @@ type eventHandler struct{ p *Plugin }
 var _ control.EventHandler = eventHandler{}
 
 func (t eventHandler) HandleEvents(ev *control.InputEvents) {
+	t.p.tools()
 	mods := control.Mods{Shift: ev.Modifiers.Shift, Ctrl: ev.Modifiers.Ctrl, Alt: ev.Modifiers.Alt}
 	// the cursor is captured while a camera rides in an entity: the pass it is caught or let go
 	// the cursor jumps, so no move is taken from it
@@ -94,12 +95,12 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 	}
 }
 
-// fire issues the command of every binding of pl on trigger that holds however pl's camera is fastened
-// and builds one.
+// fire issues the command of every binding of pl on trigger that fires however pl's camera is
+// fastened and with what pl holds, and builds one.
 func (t eventHandler) fire(pl *Player, trigger control.Trigger, ctx control.Context) {
 	how := camera.HowOf(pl.pic.camera)
 	for _, b := range pl.bindings {
-		if b.Trigger != trigger || !b.Holds(how) {
+		if b.Trigger != trigger || !pl.fires(b, how) {
 			continue
 		}
 		if cmd, ok := b.Build(ctx); ok {

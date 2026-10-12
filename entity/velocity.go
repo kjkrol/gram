@@ -34,3 +34,14 @@ func (v *Velocity) SetDelta(d geom.Vec) {
 	v.Dir = geom.NewVec(d.X/mag, d.Y/mag)
 	v.Value = mag
 }
+
+// Slow keeps Dir and takes of a per-axis rate only what runs along it, never past a stop: a
+// steered entity struck keeps the heading its steering holds and loses speed alone.
+func (v *Velocity) Slow(d geom.Vec) {
+	along := d.X*v.Dir.X + d.Y*v.Dir.Y
+	if v.Value < 0 {
+		v.Value = min(along, 0)
+		return
+	}
+	v.Value = max(along, 0)
+}

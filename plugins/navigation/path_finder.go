@@ -26,23 +26,25 @@ func newPathFinder(grid grid.Grid, terrain cell.Terrain, slopes pathfind.Slopes,
 	return &pathFinder{Finder: pathfind.New(grid, terrain, slopes, occupancy), grid: grid, terrain: terrain, occupancy: occupancy}
 }
 
-// findPath is the route from from toward to for entity moving in domain, its first MaxPathLength
-// steps; false if unreachable.
+// findPath is the route from from toward to — ending on its level end — for entity moving in
+// domain, its first MaxPathLength steps; false if unreachable.
 func (p *pathFinder) findPath(
-	entity uid.UID64, domain cell.Domain, z world.Z, from, to cell.ID,
+	entity uid.UID64, domain cell.Domain, z world.Z, from, to cell.ID, end Level,
 ) (Path, bool) {
 	var path Path
-	n, ok := p.Find(entity, domain, bodyOf(z), from, to, path.Steps[:])
+	n, ok := p.Find(entity, domain, bodyOf(z), from, to, pathfind.Level(end), path.Steps[:])
 	path.Length = uint16(n)
 	return path, ok
 }
 
 // findPathAround is findPath going round every cell blocked reports.
 func (p *pathFinder) findPathAround(
-	entity uid.UID64, domain cell.Domain, z world.Z, from, to cell.ID, blocked func(cell.ID) bool,
+	entity uid.UID64, domain cell.Domain, z world.Z, from, to cell.ID, end Level,
+	blocked func(cell.ID) bool,
 ) (Path, bool) {
 	var path Path
-	n, ok := p.FindAround(entity, domain, bodyOf(z), from, to, blocked, path.Steps[:])
+	n, ok := p.FindAround(entity, domain, bodyOf(z), from, to, pathfind.Level(end), blocked,
+		path.Steps[:])
 	path.Length = uint16(n)
 	return path, ok
 }
@@ -50,12 +52,19 @@ func (p *pathFinder) findPathAround(
 // nearestFree is the free cell nearest target entity can reach — not one taken says — and the
 // route to it.
 func (p *pathFinder) nearestFree(
-	entity uid.UID64, domain cell.Domain, z world.Z, from, target cell.ID, taken func(cell.ID) bool,
+	entity uid.UID64, domain cell.Domain, z world.Z, from, target cell.ID, end Level,
+	taken func(cell.ID) bool,
 ) (cell.ID, Path, bool) {
 	var path Path
-	dest, n, ok := p.NearestFree(entity, domain, bodyOf(z), from, target, taken, path.Steps[:])
+	dest, n, ok := p.NearestFree(entity, domain, bodyOf(z), from, target, pathfind.Level(end),
+		taken, path.Steps[:])
 	path.Length = uint16(n)
 	return dest, path, ok
+}
+
+// on reports whether m, standing in c, stands on its level level: any where c has one.
+func (p *pathFinder) on(m member, c cell.ID, level Level) bool {
+	return p.On(m.domain, bodyOf(m.z), c, pathfind.Level(level))
 }
 
 // climb is the slope's price of the step from one cell to its neighbour (Finder.Climb).
@@ -101,6 +110,20 @@ func (l boardLevels) Ground(p geom.Vec) float64 {
 		return h.At(p)
 	}
 	return 0
+}
+
+func (l boardLevels) Over(p geom.Vec) (under float64, ok bool) {
+	brd := l.brd.Board()
+	brd.DecksOver(p, func(c cell.ID, f cell.Floor) {
+		if f.Height <= 0 {
+			return
+		}
+		_, level := brd.Map().Top(c)
+		if u := float64(level) + f.Height - f.Thickness; !ok || u < under {
+			under, ok = u, true
+		}
+	})
+	return under, ok
 }
 
 func (l boardLevels) KindAt(c cell.ID, deck bool) cell.Kind {

@@ -4,6 +4,7 @@ area:
   cells: [192, 96]
   cell: 333 # metres
   units: 32
+  sea: 10 # cells of sea round the land at least: the area grows where it has fewer
 ground:
   rock: {slope: 0.7, above: 1600}
   sand: {within: 1, below: 20, share: 0.3}
@@ -19,6 +20,8 @@ rivers:
   ford: {every: 8, slope: 0.1}
 roads:
   width: 7
+  deck: 12
+  thickness: 10 # metres: a bridge's deck, its beam
   climb: 6
   turn: 1
   grade: 3000
@@ -26,7 +29,7 @@ roads:
   reuse: 0.3
   bridge: 4
   bank: 4
-  span: 8
+  longest: 3 # cells a bridge spans, at most
   high: 200
   deep: 200
   figure: 90 # metres: a man of 1.8 m as the demos draw him, 50 times bigger than life
@@ -55,3 +58,8 @@ roads:
     - [Faial, Machico, Santa Cruz, Caniço, Funchal]
     - [Ribeira Brava, Encumeada, São Vicente]
     - [Funchal, Poiso, Faial]
+flat: # the simple map's own: cells of 50, roads two figures of 20 wide, a deck with its railings
+  units: 50
+  road: 44
+  deck: 48
+  longest: 1

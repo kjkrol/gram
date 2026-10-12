@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/world/view"
 
 	"github.com/kjkrol/goke/v3"
@@ -24,6 +25,7 @@ type renderer struct {
 	base        goke.Comp[Base]
 	appearance  goke.Comp[render.Appearance]
 	z           goke.OptComp[Z]
+	lies        goke.OptComp[Lie]
 	rules       *render.Rules
 	layers      [][]render.Appearance // one per entity of the chunk being drawn
 	shown       []bool                // the chunk's, as the rules say
@@ -31,6 +33,8 @@ type renderer struct {
 	look        func() Look
 	shaded      map[render.SpriteID]render.MaterialID // the sprites worked out per pixel (the Atlas's)
 	lying       map[render.SpriteID]bool              // the sprites laid flat (the Atlas's)
+	standing    map[render.SpriteID]bool              // the sprites standing true (the Atlas's)
+	edges       map[render.SpriteID]render.SpriteID   // what stands along their edges (the Atlas's)
 	views       func(camera.Camera) *view.View
 	view        *view.View // the one being drawn
 	// clock is the game time the frame's animations go by; nil, the composer's own
@@ -47,11 +51,15 @@ func newRenderer(atlas render.AtlasSource, views func(camera.Camera) *view.View,
 // shade is the per-pixel looks the world's Atlas declared, by sprite; nil for none.
 func (s *renderer) shade(shaded map[render.SpriteID]render.MaterialID) { s.shaded = shaded }
 
-// lie is the sprites the world's Atlas declared lying; nil for none.
-func (s *renderer) lie(lying map[render.SpriteID]bool) { s.lying = lying }
+// lie is the sprites the world's Atlas declared lying, and the sprites standing along their edges;
+// nil for none.
+func (s *renderer) lie(lying map[render.SpriteID]bool, edges map[render.SpriteID]render.SpriteID,
+	standing map[render.SpriteID]bool) {
+	s.lying, s.edges, s.standing = lying, edges, standing
+}
 
 func (s *renderer) Init(si *goke.SysInit) {
-	qb := si.NewQueryBuilder(&s.base, &s.appearance).Optional(&s.z)
+	qb := si.NewQueryBuilder(&s.base, &s.appearance).Optional(&s.z).Optional(&s.lies)
 	render.Own(s.rules, &s.base)
 	render.Own(s.rules, &s.appearance)
 	render.Own(s.rules, &s.z)
@@ -78,10 +86,12 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		d.Begin(cam)
 	}
 	lies, _ := look.(LyingLook)
+	uprights, _ := look.(UprightLook)
 	s.view = s.views(cam)
-	s.each(func(i int, z *Z) {
+	s.each(func(i int, z *Z, lie *Lie) {
 		box := s.bases[i].Pos.AABB
-		if !cam.Visible(box.AABB) {
+		dir := s.bases[i].Vel.Dir
+		if !cam.Visible(spread(box.AABB, dir, lie)) {
 			return
 		}
 		var stands Z
@@ -93,8 +103,19 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 				s.material(f, cam, &s.bases[i], m)
 				continue
 			}
+			if lies != nil && s.lying[l.SpriteID] && lie != nil && lie.Length > 0 {
+				lain := *lie
+				edge, ok := s.edges[l.SpriteID]
+				lain.Edged = lain.Edged && ok
+				lies.Lay(f, cam, box, dir, lain, stands, s.atlas, l, edge, render.Light{1, 1, 1})
+				continue
+			}
 			if lies != nil && s.lying[l.SpriteID] {
 				lies.Lie(f, cam, box, stands, s.atlas, l, render.Light{1, 1, 1})
+				continue
+			}
+			if uprights != nil && s.standing[l.SpriteID] {
+				uprights.Upright(f, cam, box, stands, s.atlas, l, render.Light{1, 1, 1})
 				continue
 			}
 			look.Sprite(f, cam, box, stands, s.atlas, l, render.Light{1, 1, 1})
@@ -112,16 +133,30 @@ func (s *renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	}
 }
 
+// spread is box grown over the rectangle an entity lying as lie says lies over, headed dir; box
+// itself for none.
+func spread(box geom.AABB, dir geom.Vec, lie *Lie) geom.AABB {
+	if lie == nil || lie.Length <= 0 {
+		return box
+	}
+	m := geom.NewVec((box.TopLeft.X+box.BottomRight.X)/2, (box.TopLeft.Y+box.BottomRight.Y)/2)
+	for _, c := range lie.Corners(m, dir) {
+		box.TopLeft = geom.NewVec(min(box.TopLeft.X, c.X), min(box.TopLeft.Y, c.Y))
+		box.BottomRight = geom.NewVec(max(box.BottomRight.X, c.X), max(box.BottomRight.Y, c.Y))
+	}
+	return box
+}
+
 // each walks the drawn entities of the View, their rules run, calling visit once per entity shown
-// with its index in the chunk and its Z, nil without one.
-func (s *renderer) each(visit func(i int, z *Z)) {
+// with its index in the chunk, its Z and its Lie, nil without one.
+func (s *renderer) each(visit func(i int, z *Z, lie *Lie)) {
 	s.renderQuery.All()
 	for s.renderQuery.Next() {
 		cursor := s.renderQuery.Cursor()
 		ids := cursor.IDs
 		s.bases = s.base.Slice(cursor)
 		appearances := s.appearance.Slice(cursor)
-		zs := s.z.Slice(cursor)
+		zs, lies := s.z.Slice(cursor), s.lies.Slice(cursor)
 
 		for len(s.layers) < len(ids) {
 			s.layers = append(s.layers, nil)
@@ -139,7 +174,11 @@ func (s *renderer) each(visit func(i int, z *Z)) {
 			if zs != nil {
 				z = &zs[i]
 			}
-			visit(i, z)
+			var lie *Lie
+			if lies != nil {
+				lie = &lies[i]
+			}
+			visit(i, z, lie)
 		}
 	}
 }

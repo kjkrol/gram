@@ -18,10 +18,6 @@ type Cover struct {
 // coverSoft is how far either side of its line a cover fades in, as a share of the weight.
 const coverSoft = 0.2
 
-// around are the grid's directions (Grid.Toward) by where the neighbour lies, down then across,
-// -1 the cell itself.
-var around = [3][3]int{{4, 0, 5}, {2, -1, 3}, {6, 1, 7}}
-
 // Cover has sprite laid over the cells under the effect marked mark.
 func (d *Bands) Cover(mark tag.Tag[effect.States], sprite render.SpriteID) {
 	d.covers = append(d.covers, Cover{Mark: mark, Sprite: sprite})
@@ -35,14 +31,16 @@ func (d *Bands) covered(f *render.Frame, cam camera.Camera, t *look.Tile, depth 
 	}
 	var near [3][3]tag.Tags[effect.States]
 	mine := d.board.States(t.ID)
-	square := d.square()
 	for j := range 3 {
 		for i := range 3 {
 			near[j][i] = mine
-			if dir := around[j][i]; dir >= 0 && square {
-				if n, ok := d.board.Toward(t.ID, dir); ok {
-					near[j][i] = d.board.States(n)
-				}
+		}
+	}
+	if d.square() {
+		for dir := range d.board.Directions() {
+			if n, ok := d.board.Toward(t.ID, dir); ok {
+				da, db := d.board.Offset(dir)
+				near[db+1][da+1] = d.board.States(n)
 			}
 		}
 	}

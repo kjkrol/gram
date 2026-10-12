@@ -34,9 +34,10 @@ var cellColors = map[string]color.RGBA{
 }
 
 var (
-	deckColor  = color.RGBA{R: 115, G: 85, B: 55, A: 255}
-	railColor  = color.RGBA{R: 70, G: 50, B: 35, A: 255}
-	stoneColor = color.RGBA{R: 150, G: 145, B: 135, A: 255}
+	deckColor   = color.RGBA{R: 115, G: 85, B: 55, A: 255}
+	railColor   = color.RGBA{R: 70, G: 50, B: 35, A: 255}
+	stoneColor  = color.RGBA{R: 150, G: 145, B: 135, A: 255}
+	reasonColor = color.RGBA{R: 20, G: 20, B: 20, A: 180}
 )
 
 var (
@@ -53,12 +54,12 @@ func (m *mainScene) picture() render.Picture {
 	s := m.arena
 	s.board.WithAtmosphere(s.atmosphere)
 	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
-	bridgeKind := kind.Named[crossingRow](s.world.Kinds(), BridgeKind)
-	fordKind := kind.Named[crossingRow](s.world.Kinds(), FordKind)
+	bridge := s.bridges.Types().Named(BridgeKind)
+	fordKind := kind.Named[fordRow](s.world.Kinds(), FordKind)
 
 	worldAtlas := s.world.NewAtlas()
 	worldAtlas.Add(unitKind, EntitySize, render.Solid(unitColor))
-	worldAtlas.Add(bridgeKind, CellSize, deck(0)).Facing(8, deck).Lying()
+	worldAtlas.Add(bridge.Deck(), CellSize, deck).Lying().Edges(railing)
 	worldAtlas.Add(fordKind, CellSize, stones(0)).Facing(8, stones).Lying()
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
@@ -79,6 +80,7 @@ func (m *mainScene) picture() render.Picture {
 	s.vision.WithViews(render.Show(s.selection.IsSelected))
 	s.vision.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
+	s.bridges.WithRenderer(nil)
 
 	return render.NewComposer(
 		s.atmosphere.Renderer(),
@@ -88,6 +90,7 @@ func (m *mainScene) picture() render.Picture {
 		s.vision.Renderer(),
 		s.selection.Renderer(),
 		s.nav.Renderer(),
+		s.bridges.Renderer(),
 		s.atmosphere.Precipitation(),
 	)
 }
@@ -103,20 +106,26 @@ func (m *mainScene) screen() *ui.Element {
 				With(s.world.Clock().Reporter(), s.atmosphere.Reporter()),
 		),
 		ui.Layer(s.world.Clock().HUD()),
+		ui.BottomMiddle(s.bridges.Reason().Padding(6).Fill(reasonColor)).Margin(40),
+		ui.Center(s.bridges.Window()),
 	)
 }
 
-// deck is a bridge's deck running the way angle says, degrees against the clock from the east,
-// from edge to edge of the cell — corner to corner slantwise — its rails along it.
-func deck(angle float64) render.SpriteDrawer {
-	return func(dst *render.Canvas, size int) {
-		x0, y0, x1, y1 := across(angle, size)
-		w := float32(size)
-		dst.StrokeLine(x0, y0, x1, y1, w*0.5, deckColor)
-		sin, cos := math.Sincos(angle * math.Pi / 180)
-		ox, oy := float32(sin)*w*0.25, float32(cos)*w*0.25
-		dst.StrokeLine(x0+ox, y0+oy, x1+ox, y1+oy, w*0.06, railColor)
-		dst.StrokeLine(x0-ox, y0-oy, x1-ox, y1-oy, w*0.06, railColor)
+// deck is a bridge's deck running east, planks laid across it.
+func deck(dst *render.Canvas, size int) {
+	w := float32(size)
+	dst.Fill(deckColor)
+	for i := range 8 {
+		dst.FillRect(w*float32(i)/8, 0, w*0.02, w, railColor)
+	}
+}
+
+// railing is a railing seen from the side: a rail along its top on posts.
+func railing(dst *render.Canvas, size int) {
+	w := float32(size)
+	dst.FillRect(0, 0, w, w*0.2, railColor)
+	for i := range 4 {
+		dst.FillRect(w*(float32(i)+0.4)/4, 0, w*0.06, w, railColor)
 	}
 }
 

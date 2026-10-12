@@ -50,9 +50,37 @@ func (g *Square) Toward(c cell.ID, i int) (cell.ID, bool) {
 	return g.Fold(int64(x)+squareDirs[i][0], int64(y)+squareDirs[i][1])
 }
 
+// squareDirs are the square grid's directions, north, south, west, east, then the corners:
+// north-west, north-east, south-west, south-east — y runs down the screen.
 var squareDirs = [8][2]int64{
-	{0, -1}, {0, 1}, {-1, 0}, {1, 0}, // orthogonal
-	{-1, -1}, {1, -1}, {-1, 1}, {1, 1}, // diagonal
+	{0, -1}, {0, 1}, {-1, 0}, {1, 0},
+	{-1, -1}, {1, -1}, {-1, 1}, {1, 1},
+}
+
+// squareBack is each direction's opposite, squareFlanks each corner's two edges.
+var (
+	squareBack   = [8]int{1, 0, 3, 2, 7, 6, 5, 4}
+	squareFlanks = [8][2]int{4: {0, 2}, 5: {0, 3}, 6: {1, 2}, 7: {1, 3}}
+)
+
+func (g *Square) Directions() int { return len(squareDirs) }
+
+func (g *Square) Opposite(i int) int { return squareBack[i] }
+
+func (g *Square) Offset(i int) (int, int) { return int(squareDirs[i][0]), int(squareDirs[i][1]) }
+
+func (g *Square) Step(i int) geom.Vec {
+	s := float64(g.CellSize)
+	return geom.NewVec(float64(squareDirs[i][0])*s, float64(squareDirs[i][1])*s)
+}
+
+func (g *Square) Corner(i int) bool { return i >= 4 }
+
+func (g *Square) Flanks(i int) (int, int, bool) {
+	if i < 4 {
+		return 0, 0, false
+	}
+	return squareFlanks[i][0], squareFlanks[i][1], true
 }
 
 func (g *Square) Neighbors(c cell.ID) []cell.ID {

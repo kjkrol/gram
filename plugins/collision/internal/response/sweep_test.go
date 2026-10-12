@@ -52,3 +52,38 @@ func TestSweep_WhereThePathFirstTouchesTheBox(t *testing.T) {
 		})
 	}
 }
+
+// A wall along an axis is struck where the box of its rectangle is, through the same face; a
+// slanted one through its long face, the way out square to it.
+func TestSweepWall_WhereThePathFirstTouchesTheWall(t *testing.T) {
+	box := geom.NewAABBAt(geom.NewVec(100, 100), 10, 10)
+	half := geom.NewVec(2, 2)
+	a, b := geom.NewVec(100, 105), geom.NewVec(110, 105)
+	for _, path := range [][2]geom.Vec{
+		{geom.NewVec(50, 105), geom.NewVec(150, 105)},
+		{geom.NewVec(150, 105), geom.NewVec(50, 105)},
+		{geom.NewVec(105, 50), geom.NewVec(105, 150)},
+		{geom.NewVec(90, 95), geom.NewVec(120, 125)},
+		{geom.NewVec(50, 120), geom.NewVec(150, 120)},
+		{geom.NewVec(50, 105), geom.NewVec(90, 105)},
+		{geom.NewVec(97, 50), geom.NewVec(97, 150)},
+	} {
+		wantAlong, wantNormal, wantOK := response.Sweep(path[0], path[1], half, box)
+		along, normal, ok := response.SweepWall(path[0], path[1], half, a, b, 5)
+		if ok != wantOK || math.Abs(along-wantAlong) > 1e-9 || normal != wantNormal {
+			t.Errorf("%v: %v %v %v, want %v %v %v as against the box", path, along, normal, ok,
+				wantAlong, wantNormal, wantOK)
+		}
+	}
+	along, normal, ok := response.SweepWall(geom.NewVec(0, 100), geom.NewVec(200, 100), half,
+		geom.NewVec(50, 50), geom.NewVec(150, 150), 1)
+	r := math.Sqrt2 / 2
+	if !ok || math.Abs(normal.X+r) > 1e-9 || math.Abs(normal.Y-r) > 1e-9 {
+		t.Errorf("east into a slanted wall: %v %v %v, want the way out back square to it", along,
+			normal, ok)
+	}
+	// the box's corner meets the wall's face 2·2·r + 1 off its line, the line at x 100
+	if want := (100 - (4*r+1)/r) / 200; math.Abs(along-want) > 1e-9 {
+		t.Errorf("east into a slanted wall it touches at %v, want %v", along, want)
+	}
+}

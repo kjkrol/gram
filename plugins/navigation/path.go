@@ -12,3 +12,9 @@ type Path struct {
 	Length uint16
 	Index  uint16
 }
+
+// through reports whether the route goes on past c, the step it is on: c met before the route's
+// end, as a route to the ground under a deck may cross the deck over its goal first.
+func (p *Path) through(c cell.ID) bool {
+	return p.Index+1 < p.Length && p.Steps[p.Index] == c
+}

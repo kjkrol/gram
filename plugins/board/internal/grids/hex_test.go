@@ -86,3 +86,17 @@ func TestHexGrid_WrapsAlongOneAxisOnly(t *testing.T) {
 		t.Error("a cell left of the first column does not fold onto the grid, want it wrapped")
 	}
 }
+
+// The hex grid's directions in their order — the one place the numbering is spelled out.
+func TestHexGrid_DirectionsInOrder(t *testing.T) {
+	g := NewHex(4, 4, 10)
+	want := [6][2]int{{1, 0}, {1, -1}, {0, -1}, {-1, 0}, {-1, 1}, {0, 1}}
+	if g.Directions() != len(want) {
+		t.Fatalf("%d directions, want %d", g.Directions(), len(want))
+	}
+	for i, w := range want {
+		if a, b := g.Offset(i); a != w[0] || b != w[1] {
+			t.Errorf("direction %d is (%d, %d), want (%d, %d)", i, a, b, w[0], w[1])
+		}
+	}
+}

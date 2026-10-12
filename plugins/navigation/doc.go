@@ -91,9 +91,15 @@
 // its own price. In a world with heights a cell under a raised deck (cell.Floor) has two levels,
 // and a route goes by the unit's Z: onto the deck where the ground at the edge it crosses lies
 // within the unit's step of it, along it, and off it only onto a surface within the step — never a
-// fall; under it only for a unit that fits under its slab. A step across a railing (cell.Rail) is
-// never planned. The routes are found by the plugin's own path finder (internal/pathfind); the
-// routes on the GPU are drawn by its own lines (internal/routes): neither is the game's to use.
+// fall; under it only for a unit that fits under its slab wherever it walks under it, the ground
+// read at every eighth of the step under every deck over it — a band, a neighbour's reaching over
+// a corner — so no route runs under a bridge from its head, where the ground rises to the deck.
+// A unit on its goal's cell on the other level plans on, and the goal's cell met on the way — its
+// deck, on the way down under it — is passed like any. A step across a railing (cell.Rail) is
+// never planned, one on a raised deck counting on the deck's level alone; a step slantwise on or
+// off a deck is taken only along it, over the corner it cuts. The routes are found by the plugin's
+// own path finder (internal/pathfind); the routes on the GPU are drawn by its own lines
+// (internal/routes): neither is the game's to use.
 //
 // # Commands
 //
@@ -103,7 +109,11 @@
 // button up where it went down, within a few pixels — Shift + right click an appending one, and a
 // right drag a [LookAt] at every move of the cursor: every Selected entity stops and turns to
 // look where the cursor goes, through [MoveOrder].Face, the point an entity turns towards on
-// arrival, and the drag's release moves nothing. Under CellSpacing a right click on the cell a Selected entity stands on turns
+// arrival, and the drag's release moves nothing. A cell under a bridge's deck has two levels: a
+// click the camera picks on the deck sends the units onto it, one on the ground seen past it under
+// it ([MoveTo].Level, [Level], kept by the order and its goals); a route ends on that level, the
+// group's spots lie on it, and the goal's outline is drawn at its height. Under CellSpacing a right
+// click on the cell a Selected entity stands on turns
 // it towards the point clicked (MoveTo.At) and a LookAt lets it finish its step; under BodySpacing
 // MoveTo.At is where the group stands round, a click in the entity's own cell moves it there, and a
 // LookAt stops it where its braking ends.

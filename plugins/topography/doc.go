@@ -7,8 +7,11 @@
 // heights and its costs — the world's Ground and Look. Its cameras are [Plugin.Views], a maker for
 // the cameras plugin, each camera beginning as its [Start] says — cameras.Plugin.New(
 // topography.Views(topography.Isometrically), cfg) for a player looking isometrically, FromAbove
-// for one looking down — and every camera of a world in relief is one of them. The world must
-// have heights (world.Config.Heights) and may not wrap.
+// for one looking down — and every camera of a world in relief is one of them. Where the world's
+// edge stops a pan, the part stopped turns the view in relief — left, the eye clockwise; right,
+// the other way — or bows it towards looking down, forward; a pick sees the decks over the ground,
+// each a slab a line of sight under it passes on to the ground, and says the height it picked.
+// The world must have heights (world.Config.Heights) and may not wrap.
 //
 // # Packages
 //
@@ -36,7 +39,8 @@
 // height per cell, its level file another: board.Level.Heights).
 // Every step the topography puts every unit at the surface under it plus its Mover's Lift, so a
 // unit never declares where it stands in height and a hawk declares only how high it flies: the
-// ground, or a cell.Floor's deck carrying its domain — the Floor's Height over the cell's level —
+// ground, or a cell.Floor's deck carrying its domain — the Floor's Height over the cell's level, a
+// band's where the unit stands on it, a neighbour's reaching over the corner it cuts too —
 // once its feet are within its step of it (world.Z.Reach), from whichever side it comes; a unit
 // under a deck stays under it ([Relief]'s Surface, the board's ground.Surfaces, which also says
 // where the slab over its head begins). A unit carrying a world.Drift is gravity's to stand and
@@ -47,7 +51,9 @@
 // ([Plugin.Climb], [Plugin.Least]) and on the move ([Plugin.Slope], through the board's Moving
 // rule), off a road and on one, unless its kind is Graded (cell.Kind.Graded): a road cut
 // into the slope costs its own price alone. The relief is the board's Heights ([Plugin.Heights]),
-// which sight and navigation read through the board.
+// which sight and navigation read through the board — and a ground.Profile: along a ray, the
+// points where it crosses a cell's edge or the diagonal its top is folded along, read off the
+// corners, between which the ground is straight, so sight reads it there, exactly.
 //
 // # Styles
 //
@@ -59,14 +65,15 @@
 // The relief stands under an [Atmosphere] — plugins/atmosphere's Plugin ([Plugin.WithAtmosphere]),
 // or, given none, sky.DefaultSun in still, clear air: its sun lights and shades it, its weather
 // leans what sways, lays the clouds' shadows and hazes the far off. The ground is lit on the GPU,
-// every pixel by the sun on the slope under it; the relief and what stands on it cast shadows,
-// baked on the GPU as the sun moves — a strip a frame while it goes on, all at once when it leaps
-// ([Plugin.WithShadows] turns them off; [CoarseShadows], H, or [Plugin.WithCoarseShadows] bakes
-// them half as fine a side, softer, for about half the GPU's work). The world's entities are lit
-// by the sun on level ground, lean with the wind and cast their shadows on the relief away from the
-// sun, from above as in relief; what the world's atlas lays (world.Slot.Lying: a bridge's deck, a
-// ford) lies flat at its altitude, on the ground wherever the ground stands higher, under what
-// stands.
+// every pixel by the sun on the slope under it; the relief and the world's blocks standing on it
+// (world.Block: a bridge's deck, a pier) cast shadows, baked on the GPU as the sun moves — a strip
+// a frame while it goes on, all at once when it leaps or a block changes ([Plugin.WithShadows]
+// turns them off; [CoarseShadows], H, or [Plugin.WithCoarseShadows] bakes them half as fine a side,
+// softer, for about half the GPU's work). The world's entities are lit by the sun on level ground,
+// lean with the wind and cast their shadows on the relief away from the sun, from above as in
+// relief; what the world's atlas lays (world.Slot.Lying: a bridge's deck, a ford) lies flat at its
+// altitude, on the ground wherever the ground stands higher, under what stands, a deck over a
+// rectangle on its beam, as deep as its Z's Height.
 //
 // # The ground on the GPU
 //
@@ -82,7 +89,8 @@
 // person, where the game reaches the perspective; the relief's ([Raise] and [Lower], = and - under the
 // cursor, [Level], a left drag with L held — at once, in the tactical pause too; a shaping that
 // would leave a road lying where Transport Tycoon would not lay it, ground.RoadFits, is taken
-// back whole); and
+// back whole; [Plugin.Flatten] lays a cell flat at a height the same way, the plugin a
+// ground.Shaper — what a bridge's heads are levelled on); and
 // [CoarseShadows] (H), which switches the shadows' detail. Call [Plugin.RunPlan] after the world
 // has moved and before the players' RunPlan.
 package topography

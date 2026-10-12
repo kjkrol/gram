@@ -37,7 +37,7 @@ func TestIsoCamera_PickFindsTheGroundOnASlopeTooSteepToSettle(t *testing.T) {
 		z := ramp(q[0], q[1])
 		c.CenterOn(float64(q[0]), float64(q[1]), float64(z))
 		sx, sy := c.Project(q[0], q[1], z)
-		x, y, ok := c.Pick(sx, sy)
+		x, y, _, ok := c.Pick(sx, sy)
 		if !ok || math.Abs(float64(x-q[0])) > 1e-2 || math.Abs(float64(y-q[1])) > 1e-2 {
 			t.Errorf("point %v at height %v is drawn at (%v, %v) and picked back as (%v, %v) %v", q, z, sx, sy, x, y, ok)
 		}
@@ -60,7 +60,7 @@ func TestIsoCamera_PickStopsAtTheRidgeInFront(t *testing.T) {
 	c := testIso(ridge, 300)
 	c.CenterOn(280, 280, 0)
 	sx, sy := c.Project(280, 280, 0) // the valley behind the ridge, as seen from where x and y grow
-	x, y, ok := c.Pick(sx, sy)
+	x, y, _, ok := c.Pick(sx, sy)
 	if !ok || ridge(x, y) != 300 {
 		t.Errorf("the screen point of the hidden valley picked (%v, %v) %v at height %v, want the ridge in front", x, y, ok, ridge(x, y))
 	}
@@ -73,7 +73,7 @@ func TestPerspCamera_PickFindsTheGroundOnASteepSlopeOverTheCurve(t *testing.T) {
 	for _, q := range rampPoints {
 		z := ramp(q[0], q[1])
 		sx, sy := c.Project(q[0], q[1], z)
-		x, y, ok := c.Pick(sx, sy)
+		x, y, _, ok := c.Pick(sx, sy)
 		if !ok || math.Abs(float64(x-q[0])) > 1e-2 || math.Abs(float64(y-q[1])) > 1e-2 {
 			t.Errorf("point %v at height %v is drawn at (%v, %v) and picked back as (%v, %v) %v", q, z, sx, sy, x, y, ok)
 		}
@@ -92,7 +92,7 @@ func TestPerspCamera_InsideAUnitPickReachesUpASlopeAndMissesTheSky(t *testing.T)
 	c := testPersp(slope, func() float32 { return 200 })
 	c.enterInside([3]float32{330, 330, 5}, 0, 0) // looking along the ground towards the slope ahead
 	c.Tilt(-0.3)
-	x, y, ok := c.Pick(200, 150)
+	x, y, _, ok := c.Pick(200, 150)
 	if !ok || slope(x, y) <= 5 {
 		t.Fatalf("looking up the slope the middle picked (%v, %v) %v at height %v, want the slope above the eye", x, y, ok, slope(x, y))
 	}
@@ -100,7 +100,7 @@ func TestPerspCamera_InsideAUnitPickReachesUpASlopeAndMissesTheSky(t *testing.T)
 		t.Errorf("the picked point is drawn at (%v, %v), want the middle", sx, sy)
 	}
 	c.Turn(math.Pi) // the slope behind: level ground ahead, and the eye looking over it at the sky
-	if x, y, ok := c.Pick(200, 20); ok {
+	if x, y, _, ok := c.Pick(200, 20); ok {
 		t.Errorf("a screen point in the sky picked (%v, %v)", x, y)
 	}
 }

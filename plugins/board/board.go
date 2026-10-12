@@ -1,6 +1,7 @@
 package board
 
 import (
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -20,10 +21,11 @@ type Board struct {
 	grid.Grid
 
 	cells   *terrain.Cells
-	field   *field.Field  // the ground the others meet: cover, solid ground
-	square  *grids.Square // the grid when it is square, for the fast paths; nil otherwise
-	heights bool          // the world has heights: cover spans the cells' bands
-	mapping Map           // what the board is drawn and priced by; nil before the plugin set one
+	field   *field.Field   // the ground the others meet: cover, solid ground
+	square  *grids.Square  // the grid when it is square, for the fast paths; nil otherwise
+	heights bool           // the world has heights: cover spans the cells' bands
+	mapping Map            // what the board is drawn and priced by; nil before the plugin set one
+	decks   []terrain.Deck // scratch for the decks over a point
 }
 
 var _ cell.Terrain = (*Board)(nil)
@@ -61,14 +63,63 @@ func (b *Board) Kind(c cell.ID) cell.Kind { return b.cells.Kind(c) }
 // the Floor carries; under it, the ground and its Way — and Kind on a cell of one level.
 func (b *Board) KindAt(c cell.ID, deck bool) cell.Kind { return b.cells.KindAt(c, deck) }
 
-// KindFor is c's kind on the level of whoever has its feet at feet and steps reach high: on a
-// raised Floor's deck once its feet are within reach of it, under it otherwise.
-func (b *Board) KindFor(c cell.ID, feet, reach float64) cell.Kind {
-	return b.cells.KindFor(c, feet, reach, b.altitude)
+// KindFor is c's kind at p, a point in c, on the level of whoever has its feet at feet and steps
+// reach high: on a Floor over p — the whole cell's, or a band p lies on, reaching over from a
+// neighbour too — a raised one once its feet are within reach of its deck; under the decks
+// otherwise.
+func (b *Board) KindFor(c cell.ID, p geom.Vec, feet, reach float64) cell.Kind {
+	return b.cells.KindFor(c, p, feet, reach, b.altitude)
 }
 
-// Railed reports whether a railing stands on any cell (cell.Rail).
-func (b *Board) Railed() bool { return b.cells.Railed() }
+// CellFor is the cell whoever stands at p with its feet at feet and steps reach high is on: the
+// cell of the highest Floor over p it stands on — a raised one within its reach, a neighbour's band
+// reaching over p too — else the cell under p; false off the board. Feet at +Inf stand on any deck.
+func (b *Board) CellFor(p geom.Vec, feet, reach float64) (cell.ID, bool) {
+	return b.cells.CellFor(p, feet, reach, b.altitude)
+}
+
+// LevelFor is CellFor and whether whoever stands there stands on a raised deck: a point picked on
+// a bridge — its feet at the deck — or on the ground under it.
+func (b *Board) LevelFor(p geom.Vec, feet, reach float64) (c cell.ID, deck, ok bool) {
+	return b.cells.LevelFor(p, feet, reach, b.altitude)
+}
+
+// DecksOver calls visit with every Floor over p and the cell it is built on: the whole cell's, or
+// a band p lies on, the cell's own or a neighbour's reaching over it.
+func (b *Board) DecksOver(p geom.Vec, visit func(c cell.ID, f cell.Floor)) {
+	c, ok := b.CellAt(p)
+	if !ok {
+		return
+	}
+	b.decks = b.cells.DecksOver(c, p, b.decks[:0])
+	for _, d := range b.decks {
+		visit(d.Cell, d.Built.Floor)
+	}
+}
+
+// NearDeck reports whether a Floor lies over any of the cell under p: its own, or a neighbour's
+// band reaching into it.
+func (b *Board) NearDeck(p geom.Vec) bool {
+	c, ok := b.CellAt(p)
+	return ok && b.cells.NearDeck(c)
+}
+
+// NarrowestDeck is how wide the narrowest Floor running as a band is; 0 for none.
+func (b *Board) NarrowestDeck() float64 { return b.cells.Narrowest() }
+
+// ThinnestDeck is how thick the thinnest raised band's slab is; 0 for none.
+func (b *Board) ThinnestDeck() float64 { return b.cells.Thinnest() }
+
+// Reaches reports whether c's Floor runs out towards its neighbour n: a band along its link to n,
+// a whole floor across any side, and through a corner only along a link.
+func (b *Board) Reaches(c, n cell.ID) bool { return b.cells.Reaches(c, n) }
+
+// Fenced reports whether a railing keeping d off stands across the step from from to its neighbour
+// to (cell.Rail): one on a raised deck when the step is on the decks' level, deck, else one on the
+// ground's.
+func (b *Board) Fenced(from, to cell.ID, d cell.Domain, deck bool) bool {
+	return b.cells.Fenced(from, to, d, deck)
+}
 
 // Built is what the entities standing on c build over it — their Floors and Walls — as of the
 // board's last step; none off the board.
@@ -94,16 +145,20 @@ func (b *Board) Way(c cell.ID) cell.Way { return b.cells.Way(c) }
 // SetWay lays w across c, the zero Way taking what ran there away; it takes effect immediately.
 func (b *Board) SetWay(c cell.ID, w cell.Way) { b.cells.SetWay(c, w) }
 
-// Along reports whether a way runs from from to its neighbour to, so a step between them goes
-// along it rather than over the ground beside it: the way across from links towards to, or to's
-// back towards from.
+// Along reports whether a way or a Floor's band runs from from to its neighbour to, so a step
+// between them goes along it rather than over the ground beside it: the one across from links
+// towards to, or to's back towards from.
 func (b *Board) Along(from, to cell.ID) bool {
 	out, ok := grid.Link(b.Grid, from, to)
 	if !ok {
 		return false
 	}
 	back, _ := grid.Link(b.Grid, to, from)
-	return b.Way(from).Links&out != 0 || b.Way(to).Links&back != 0
+	if b.Way(from).Links&out != 0 || b.Way(to).Links&back != 0 {
+		return true
+	}
+	f, t := b.Built(from).Floor, b.Built(to).Floor
+	return f.Allows != 0 && f.Links&out != 0 || t.Allows != 0 && t.Links&back != 0
 }
 
 // CellVersion counts the changes to c — its kind, its way, its heights, through the board or by an

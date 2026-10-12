@@ -38,6 +38,10 @@ type perspCamera struct {
 	across     float32                    // inside a unit, the field of view across the screen, radians; 0, fov
 	bend       float32                    // how far the ground d off sinks under the eye's level, per d²
 
+	// fine is how finely Pick steps and solid what it finds solid, as isoCamera's
+	fine  func(x, y float32) (step, thin float32)
+	solid func(x, y, z float32) (float32, bool)
+
 	at         [3]float32 // the ground point in the middle of the screen; far along the way looked, at the sky
 	sky        bool       // the middle of the screen looks at the sky: at is no ground point
 	proj       perspective
@@ -187,7 +191,7 @@ func (c *perspCamera) look() {
 // middle is the ground point the middle of the screen looks at, read on the relief; far along the
 // way looked, and true, when it looks at the sky.
 func (c *perspCamera) middle() ([3]float32, bool) {
-	x, y, hit := c.Pick(float32(c.viewportSize.X/2), float32(c.viewportSize.Y/2))
+	x, y, _, hit := c.Pick(float32(c.viewportSize.X/2), float32(c.viewportSize.Y/2))
 	if !hit {
 		return vec.Add(c.proj.eye, vec.Scale(c.proj.forward, c.far())), true
 	}
@@ -199,19 +203,21 @@ func (c *perspCamera) middle() ([3]float32, bool) {
 }
 
 // confine keeps the ground point in the middle of the screen over the world, moving the eye along
-// the ground by however far that point lies outside; not inside a unit, which goes where it goes,
-// nor when the middle looks at the sky.
-func (c *perspCamera) confine() {
+// the ground by however far that point lies outside, and says how far; not inside a unit, which
+// goes where it goes, nor when the middle looks at the sky.
+func (c *perspCamera) confine() (dx, dy float32) {
 	if c.inside || c.sky {
-		return
+		return 0, 0
 	}
 	x := min(max(c.at[0], 0), float32(c.world.X))
 	y := min(max(c.at[1], 0), float32(c.world.Y))
 	if x == c.at[0] && y == c.at[1] {
-		return
+		return 0, 0
 	}
-	c.origin = geom.NewVec(c.origin.X+float64(x-c.at[0]), c.origin.Y+float64(y-c.at[1]))
+	dx, dy = x-c.at[0], y-c.at[1]
+	c.origin = geom.NewVec(c.origin.X+float64(dx), c.origin.Y+float64(dy))
 	c.look()
+	return dx, dy
 }
 
 // aim turns the head — the heading, and the pitch no flatter than the floor — until the point a
@@ -252,15 +258,16 @@ func (c *perspCamera) advance(a [3]float32, sy float32) {
 	c.origin = geom.NewVec(c.origin.X-on*s, c.origin.Y-on*k)
 }
 
-// Pick is the first ground the screen point sees, along its line from the eye, the ground's curve
-// and all: up a slope higher than the eye too.
-func (c *perspCamera) Pick(sx, sy float32) (float32, float32, bool) {
+// Pick is the first ground, or deck, the screen point sees, along its line from the eye, the
+// ground's curve and all: up a slope higher than the eye too.
+func (c *perspCamera) Pick(sx, sy float32) (float32, float32, float32, bool) {
 	if c.ground == nil {
-		return c.cast(sx, sy, 0)
+		x, y, ok := c.cast(sx, sy, 0)
+		return x, y, 0, ok
 	}
 	_, high := c.layer()
 	s := sight{o: c.proj.eye, d: c.proj.ray(sx-float32(c.viewportSize.X/2), sy-float32(c.viewportSize.Y/2)), bend: c.bend}
-	return s.pick(c.ground, c.far(), c.cell/2, high)
+	return s.pick(solidOf(c.solid, c.ground), c.fine, c.far(), c.cell/2, high)
 }
 
 // anglesOf is the heading and the pitch of an eye at eye looking at target; heading stays as
@@ -544,19 +551,33 @@ func (c *perspCamera) Translate(dx, dy float64) {
 // Pan moves the eye along the ground as far as the ground point in the middle of the screen would
 // move a screen delta, the same pixels at any height, as far as that point is on the ground and
 // stays over the world. Inside a unit it does nothing: the eye goes where the unit goes.
-func (c *perspCamera) Pan(dx, dy float32) {
+func (c *perspCamera) Pan(dx, dy float32) { c.shift(dx, dy) }
+
+// shift is Pan, and the part of the delta the world's edge stopped, in screen pixels as the view
+// stood: none where the middle stood outside the world already, put back rather than stopped.
+func (c *perspCamera) shift(dx, dy float32) (bx, by float32) {
 	if c.inside {
-		return
+		return 0, 0
 	}
 	mx, my := float32(c.viewportSize.X/2), float32(c.viewportSize.Y/2)
 	x0, y0, hit0 := c.cast(mx, my, c.at[2])
 	x1, y1, hit1 := c.cast(mx+dx, my+dy, c.at[2])
 	if !hit0 || !hit1 {
-		return
+		return 0, 0
 	}
+	inside := !c.sky && c.at[0] >= 0 && c.at[1] >= 0 && c.at[0] <= float32(c.world.X) &&
+		c.at[1] <= float32(c.world.Y)
+	before := c.proj
 	c.origin = geom.NewVec(c.origin.X+float64(x1-x0), c.origin.Y+float64(y1-y0))
 	c.look()
-	c.confine()
+	at := c.at
+	cx, cy := c.confine()
+	if !inside || cx == 0 && cy == 0 {
+		return 0, 0
+	}
+	wx, wy := before.Project(at[0], at[1], at[2])
+	gx, gy := before.Project(at[0]+cx, at[1]+cy, at[2])
+	return wx - gx, wy - gy
 }
 
 // Zoom is how many screen units a world unit spans at the ground point in the middle of the

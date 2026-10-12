@@ -126,16 +126,18 @@ func (t *tile) wayAnew(out []WayPiece, fine bool) []WayPiece {
 	h := w.Width / 2
 	var outs [8]wayOut
 	n := 0
-	for i := range 8 {
-		if w.Links&(1<<i) == 0 {
+	for i := range r.board.Directions() {
+		if !w.Links.Has(i) {
 			continue
 		}
 		nb, ok := r.board.Toward(t.ID, i)
 		if !ok {
 			continue
 		}
-		ex, ey := t.toward(nb, i)
-		o := wayOut{x: cx + ex, y: cy + ey, half: h, fade: w.Fade / 2, mix: w.Mix, slant: r.square && i >= 4}
+		s := r.board.Step(i)
+		ex, ey := float32(s.X)/2, float32(s.Y)/2
+		o := wayOut{x: cx + ex, y: cy + ey, half: h, fade: w.Fade / 2, mix: w.Mix,
+			slant: r.board.Corner(i)}
 		if other, ok := r.partner(nb); ok {
 			o.half, o.wide, o.fade, o.mix = (w.Width+other.Width)/4, other.Width, (w.Fade+other.Fade)/2, (w.Mix+other.Mix)/2
 		} else if r.topOf(nb).under {
@@ -320,16 +322,6 @@ type wayOut struct {
 // the way it fades, as if it fell so much.
 const stillFall = 0.01
 
-// toward is the way from the middle of the tile to halfway to its neighbour n, the grid's i-th
-// direction.
-func (t *tile) toward(n cell.ID, i int) (float32, float32) {
-	if t.r.square {
-		return float32(squareDirs[i][0]) * (t.X1 - t.X0) / 2, float32(squareDirs[i][1]) * (t.Y1 - t.Y0) / 2
-	}
-	a, b := t.r.board.CellCenter(t.ID), t.r.board.CellCenter(n)
-	return float32(b.X-a.X) / 2, float32(b.Y-a.Y) / 2
-}
-
 // wayTier puts what runs across the cells over every tile: from above a way reaching into a
 // neighbour's cell is never covered by its tile.
 const wayTier = render.Ground + 5
@@ -438,7 +430,7 @@ func (l *Painter) bakeOf(t *tile) *cellBake {
 	}
 	b.seen = l.board.Changes()
 	v := l.board.CellVersion(t.ID)
-	for d := range 8 {
+	for d := range l.board.Directions() {
 		if n, ok := l.board.Toward(t.ID, d); ok {
 			v = max(v, l.board.CellVersion(n))
 		}

@@ -123,6 +123,27 @@ func TestInput_AModalWindowHoldsTheClicksAndTheWheelOutsideIt(t *testing.T) {
 	}
 }
 
+// A modal window left out — its title saying nothing — holds nothing: the wheel and the clicks go
+// on to the picture under it.
+func TestInput_AModalWindowLeftOutHoldsNothing(t *testing.T) {
+	silent := Of(func(*int) (string, bool) { return "", false })
+	for name, window := range map[string]*Element{
+		"the anchor modal": Center(WindowOf(silent, Button("yes", order{"yes"}))).Size(300, 200).
+			Modal(),
+		"the window modal": Center(WindowOf(silent, Button("yes", order{"yes"})).Modal()),
+	} {
+		red := &player{}
+		s := built(NewScene("main", Layers(Image(&sized{}).Input(red), window)).Input(red.handle))
+		ev := click(geom.NewVec(150, 150))
+		ev.ScrollDelta = 1
+		s.HandleEvents(ev, nil, nil)
+		if len(red.clicks) == 0 || red.wheel == 0 {
+			t.Errorf("%s, left out: clicks %v, wheel %v; want both through", name, red.clicks,
+				red.wheel)
+		}
+	}
+}
+
 func TestInput_TheScenesKeysGiveTheirCommands(t *testing.T) {
 	panel := Label("panel").Named("panel").Hidden()
 	s := built(NewScene("main", Layers(panel)).

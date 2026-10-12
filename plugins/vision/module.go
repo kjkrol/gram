@@ -27,6 +27,7 @@ func newModule(space *aabbworld.Space, host *plugin.PairRules[Sighting], heights
 		m.sys.heights, m.sys.groundOf, m.sys.step = true, heights.groundOf, heights.step
 		m.sys.scanner.heights, m.sys.scanner.step = true, heights.step
 		m.sys.bend, m.sys.scanner.bend, m.sys.covering.bend = heights.bend, heights.bend, heights.bend
+		m.sys.scanner.profiling.bend = heights.bend
 	}
 	return m
 }
@@ -51,7 +52,7 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	m.runnable = ecs.RegSys(m.sys)
 }
 
-// RunPlan hands the scan to the simulation: every step, every observer looks.
+// RunPlan hands the scan to the simulation: every step, every observer due looks.
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
 		ctx.Run(m.runnable, step)

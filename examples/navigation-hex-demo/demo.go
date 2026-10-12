@@ -17,6 +17,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/bridges"
+	"github.com/kjkrol/gram/plugins/bridges/site"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
@@ -33,7 +35,8 @@ const (
 	GridWidth   = 20
 	GridHeight  = 12
 	HexSize     = 24 // circumradius
-	EntitySize  = 22
+	EntitySize  = 14
+	DeckWidth   = 23
 	UnitSpeed   = HexSize * 3
 	MaxEntCount = 16
 )
@@ -51,6 +54,7 @@ var mapFile embed.FS
 type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
+	bridges   *bridges.Plugin
 	nav       *navigation.Plugin
 	driving   *driving.Plugin
 	collision *collision.Plugin
@@ -73,7 +77,7 @@ func main() {
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
 				MinSize:  EntitySize,
-				MaxSize:  EntitySize,
+				MaxSize:  2 * HexSize,
 			},
 		}).
 		Plugins(a.makePlugins).
@@ -90,12 +94,16 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	grid := grid.DefaultGrids{}.Hex(GridWidth, GridHeight, HexSize)
 	s.collision = collision.NewPlugin(s.world)
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
+	s.bridges = bridges.NewPlugin(s.world, s.board, bridges.Config{
+		Rules: site.Rules{Longest: 3},
+	})
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
 		WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving,
+		s.bridges)
 }
 
 func (s *arena) definePlayer() error {
@@ -106,7 +114,7 @@ func (s *arena) definePlayer() error {
 func (s *arena) defineCells() {
 	kinds := s.board.CellKinds()
 	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
-	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
+	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water})
 	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
 
@@ -136,11 +144,20 @@ func (s *arena) defineKinds() {
 	}
 	units.Define(RedKind, unit.Mover{Domain: cell.Land}, profile, own...)
 	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile, own...)
+	s.bridges.Types().Define(BridgeKind, bridges.Spec{
+		Allows: cell.Land,
+		Width:  DeckWidth,
+		Cost:   1,
+		Rail:   cell.Rail{Keeps: cell.Land},
+	})
 }
 
 func (s *arena) spawn() error {
 	level, err := s.board.Lay(mapFile, "map.yaml")
 	if err != nil {
+		return err
+	}
+	if err := s.bridges.Spawn(level); err != nil {
 		return err
 	}
 	return board.Spawn[unitRow](level, board.Sides{
@@ -153,22 +170,25 @@ func (s *arena) defineScenes() []game.Scene {
 	main.keys = players.SceneKeys{
 		{
 			Key:   control.KeyR,
-			Label: "Build a road through the wall",
+			Label: "Lay a causeway across the river",
 			Do: func(game.Runtime, game.Composition) {
 				brd, road := s.board.Board(), s.board.CellKinds().Named(RoadCell).Kind()
 				for q := uint32(3); q < GridWidth-3; q++ {
-					brd.Set(brd.At(q, 6), road)
+					brd.Set(brd.At(q, 2), road)
 				}
-				log.Print("built a road through the wall — " +
+				log.Print("laid a causeway across the river — " +
 					"in-flight units re-path onto it as soon as they deviate")
 			},
 		},
 	}
 	s.players.OwnKeys(main.keys)
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).
+		Input(s.players.Handle).
+		Issue(s.players.IssueAs(s.player))}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
+	s.bridges.RunPlan(ctx, d)
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)

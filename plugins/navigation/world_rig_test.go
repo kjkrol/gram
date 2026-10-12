@@ -51,14 +51,25 @@ type navWorld struct {
 // to build what a test reads. Lay the ground through board before the first tick.
 func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, after ...goke.System) *navWorld {
 	t.Helper()
+	return newNavWorldWith(t, cols, rows, cellSize, units, nil, after...)
+}
+
+// newNavWorldWith is newNavWorld with the world and the board handed to prepare before they are
+// installed: to lay the ground and stand entities on it.
+func newNavWorldWith(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
+	prepare func(*world.Plugin, *board.Plugin), after ...goke.System) *navWorld {
+	t.Helper()
 	nw := &navWorld{grid: grid.DefaultGrids{}.Square(cols, rows, cellSize), occupancy: &cell.SingleOccupancy{}}
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: cols * cellSize, Height: rows * cellSize},
-		Entities: world.EntitiesCfg{MaxCount: max(len(units), 1), MinSize: 1, MaxSize: cellSize},
+		Entities: world.EntitiesCfg{MaxCount: len(units) + 8, MinSize: 1, MaxSize: cellSize},
 	})
 	brd := board.NewPlugin(nw.grid, nw.occupancy, w)
 	nw.board = brd.Board()
 	nw.board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	if prepare != nil {
+		prepare(w, brd)
+	}
 	sel := selection.NewPlugin(w)
 	nw.nav = NewPlugin(brd, w, sel, driving.NewPlugin(w, sel)).WithSpacing(CellSpacing)
 	if err := w.Carry(nw.nav); err != nil { // as the engine does with Use

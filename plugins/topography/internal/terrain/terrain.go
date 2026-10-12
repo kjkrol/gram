@@ -10,14 +10,18 @@
 // triangles, made anew as the ground or the coast changes, and reads the ground's look from
 // whoever draws the board (Surface): the board painted flat, its water in layers (water.Layers),
 // the shores and the grid. What stands on the ground is tested against the depth the ground leaves;
-// DrawShadows lays the shadows of what stands on it, following its rise and fall.
+// DrawShadows lays the shadows of what stands on it, following its rise and fall. The shade — the
+// relief's shadows, and those of the world's blocks (world.Block: a bridge's deck, a pier) — is
+// baked into an image as the sun moves, all at once as the ground or a block changes.
 package terrain
 
 import (
 	"image"
 	"image/color"
 	"math"
+	"slices"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
@@ -67,7 +71,15 @@ const shadowPieces = 6 * 6 * 6
 // screen's.
 var bakeShade = render.NewShaderWith("terrain shade",
 	render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl", "shaders/shade.wgsl"),
-	[]render.Uniform{{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1}, {Name: "Shadows", Size: 1}})
+	[]render.Uniform{
+		{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1},
+		{Name: "Span", Size: 1}, {Name: "Shadows", Size: 1}, {Name: "BlockCount", Size: 1},
+		{Name: "Blocks", Size: 8 * maxBlocks},
+	})
+
+// maxBlocks is how many blocks the shade is baked with at most: what the uniforms hold beside the
+// library's.
+const maxBlocks = 96
 
 // shadePx is how many pixels a cell the baked image holds the shade at most, and maxBaked how wide
 // it may be.
@@ -169,7 +181,24 @@ type Renderer struct {
 
 	casting render.DrawMeshOptions // the shadows'
 	patches []float32
+
+	// the blocks standing on the ground (world.Block), their shadows baked with its own: who finds
+	// them (nil before Init), as they were found, as the bake shader reads them — those lying end to
+	// end on one line joined — and a hash of them as last found, 0 none
+	findBlocks func(dst []block) []block
+	blockQuery *goke.Query
+	base       goke.Comp[world.Base]
+	z          goke.Comp[world.Z]
+	lie        goke.OptComp[world.Lie]
+	found      []block
+	blocks     []float32
+	near       []float32 // those shading a strip
+	blocksAt   uint64
 }
+
+// block is a block's box as the shade is baked with it: a rectangle round (x, y) running (ux, uy),
+// along from its middle that way and wide across, from the height bottom up to top.
+type block struct{ x, y, ux, uy, along, wide, bottom, top float32 }
 
 var _ render.Direct = (*Renderer)(nil)
 
@@ -183,7 +212,11 @@ func New(ground Ground, surface Surface, sky Sky, cfg Config) *Renderer {
 // Shader is the ground's shader, for a test to compile.
 func Shader() *render.Shader { return shader }
 
-func (r *Renderer) Init(*goke.SysInit) {}
+func (r *Renderer) Init(si *goke.SysInit) {
+	r.blockQuery = si.NewQueryBuilder(&r.base, &r.z).Optional(&r.lie).
+		Include(goke.Include[world.Block]()).Build()
+	r.findBlocks = r.onGround
+}
 
 // Compose hands the frame nothing: the ground is drawn Direct.
 func (r *Renderer) Compose(*render.Frame, camera.Camera) {}
@@ -271,8 +304,10 @@ func (r *Renderer) bake(u render.Uniforms) {
 	way := [3]float32{sun[0] / n, sun[1] / n, sun[2] / n}
 	y0, y1 := 0, h
 	turned := way[0]*r.shadeSun[0] + way[1]*r.shadeSun[1] + way[2]*r.shadeSun[2]
+	moved := r.gather()
 	switch {
-	case r.shadeAt != r.heightsAt || turned < shadeLeap: // the ground changed, the sun leapt, or nothing is baked yet: all of it now
+	// the ground or a block changed, the sun leapt, or nothing is baked yet: all of it now
+	case r.shadeAt != r.heightsAt || turned < shadeLeap || moved:
 		r.shadeAt, r.shadeSun, r.strip = r.heightsAt, way, 0
 	case r.strip == 0 && turned > shadeTurn:
 		return // the sun has not turned since the last round
@@ -293,9 +328,164 @@ func (r *Renderer) bake(u render.Uniforms) {
 	}
 	r.baking.Uniforms["Shadows"] = []float32{1}
 	r.baking.Images = [4]*render.Image{r.lattice, nil, nil, nil}
-	from := [2]float32{0, float32(y0) / float32(h) * size[1]}
-	part := [2]float32{size[0], float32(y1-y0) / float32(h) * size[1]}
-	r.bakeInto(image.Rect(0, y0, ws, y1), from, part, bakeShade, &r.baking)
+	per := (h + shadeStrips - 1) / shadeStrips
+	for y := y0; y < y1; y += per { // a strip at a time, each with the blocks shading it
+		from := [2]float32{0, float32(y) / float32(h) * size[1]}
+		part := [2]float32{size[0], float32(min(y+per, y1)-y) / float32(h) * size[1]}
+		near := r.shading(from[1], from[1]+part[1], way, cell)
+		r.baking.Uniforms["BlockCount"] = []float32{float32(len(near) / 8)}
+		r.baking.Uniforms["Blocks"] = near
+		r.bakeInto(image.Rect(0, y, ws, min(y+per, y1)), from, part, bakeShade, &r.baking)
+	}
+}
+
+// shading is the blocks whose shadows may fall on the ground from the world's y0 down to y1 under
+// the sun the way sun, a cell's pixels to spare, as the bake shader reads them.
+func (r *Renderer) shading(y0, y1 float32, sun [3]float32, cell float32) []float32 {
+	r.near = r.near[:0]
+	for k := 0; k+8 <= len(r.blocks); k += 8 {
+		b := r.blocks[k : k+8]
+		far := (b[7] - r.low) / sun[2] // along the sun's line, from the lowest ground to its top
+		spare := far*shadowSoft + cell
+		half := float32(math.Abs(float64(b[3])))*b[4] + float32(math.Abs(float64(b[2])))*b[5]
+		cast := -sun[1] * far
+		top, bottom := b[1]-half+min(cast, 0)-spare, b[1]+half+max(cast, 0)+spare
+		if bottom >= y0 && top <= y1 {
+			r.near = append(r.near, b...)
+		}
+	}
+	return r.near
+}
+
+// shadowSoft is light.wgsl's: how wide a shadow's penumbra is per unit towards the sun.
+const shadowSoft = 0.08
+
+// gather finds the blocks standing on the ground and lays them out for the bake shader, those
+// lying end to end on one line joined, maxBlocks at most; true where they changed since they were
+// last found.
+func (r *Renderer) gather() bool {
+	if r.findBlocks == nil {
+		return false
+	}
+	r.found = r.findBlocks(r.found[:0])
+	at := hashed(r.found)
+	if at == r.blocksAt {
+		return false
+	}
+	r.blocksAt = at
+	r.blocks = r.blocks[:0]
+	for i, b := range joined(slices.Clone(r.found)) {
+		if i == maxBlocks {
+			break
+		}
+		r.blocks = append(r.blocks, b.x, b.y, b.ux, b.uy, b.along, b.wide, b.bottom, b.top)
+	}
+	return true
+}
+
+// onGround is the world's blocks, appended to dst: a deck over its Lie from its Altitude down its
+// Height, anything else over its box from its Altitude up.
+func (r *Renderer) onGround(dst []block) []block {
+	for r.blockQuery.All(); r.blockQuery.Next(); {
+		cursor := r.blockQuery.Cursor()
+		bases, zs, lies := r.base.Slice(cursor), r.z.Slice(cursor), r.lie.Slice(cursor)
+		for i := range zs {
+			box, alt := bases[i].Pos.AABB, float32(zs[i].Altitude)
+			if lies != nil && lies[i].Length > 0 {
+				dst = append(dst, lying(bases[i].Pos.Center(), bases[i].Vel.Dir, lies[i],
+					alt-float32(zs[i].Height), alt))
+				continue
+			}
+			dst = append(dst, block{
+				x:      float32(box.TopLeft.X + box.Size.X/2),
+				y:      float32(box.TopLeft.Y + box.Size.Y/2),
+				ux:     1,
+				along:  float32(box.Size.X / 2),
+				wide:   float32(box.Size.Y / 2),
+				bottom: alt,
+				top:    alt + float32(zs[i].Height),
+			})
+		}
+	}
+	return dst
+}
+
+// lying is the block of an entity whose box's middle is m, headed dir, lying as lie says from the
+// height bottom up to top.
+func lying(m, dir geom.Vec, lie world.Lie, bottom, top float32) block {
+	c := lie.Corners(m, dir)
+	length := math.Hypot(c[1].X-c[0].X, c[1].Y-c[0].Y)
+	width := math.Hypot(c[2].X-c[0].X, c[2].Y-c[0].Y)
+	b := block{
+		x:      float32((c[0].X + c[3].X) / 2),
+		y:      float32((c[0].Y + c[3].Y) / 2),
+		ux:     1,
+		along:  float32(length / 2),
+		wide:   float32(width / 2),
+		bottom: bottom,
+		top:    top,
+	}
+	if length > 0 {
+		b.ux, b.uy = float32((c[1].X-c[0].X)/length), float32((c[1].Y-c[0].Y)/length)
+	}
+	return b
+}
+
+// hashed is a hash of the blocks bs, one more than 0.
+func hashed(bs []block) uint64 {
+	h := uint64(14695981039346656037)
+	for _, b := range bs {
+		for _, v := range [8]float32{b.x, b.y, b.ux, b.uy, b.along, b.wide, b.bottom, b.top} {
+			h = (h ^ uint64(math.Float32bits(v))) * 1099511628211
+		}
+	}
+	return max(h, 1)
+}
+
+// joined is the blocks bs with every two lying end to end on one line, as wide, from one height up
+// to another, made one: a bridge's deck one block, however many pieces it is laid in.
+func joined(bs []block) []block {
+	for i := range bs {
+		if bs[i].ux < 0 || bs[i].ux == 0 && bs[i].uy < 0 {
+			bs[i].ux, bs[i].uy = -bs[i].ux, -bs[i].uy
+		}
+	}
+	for again := true; again; {
+		again = false
+		for i := 0; i < len(bs); i++ {
+			for j := i + 1; j < len(bs); j++ {
+				if b, ok := join(bs[i], bs[j]); ok {
+					bs[i], again = b, true
+					bs = slices.Delete(bs, j, j+1)
+					j--
+				}
+			}
+		}
+	}
+	return bs
+}
+
+// join is the block a and b make lying end to end on one line, as wide, from one height up to
+// another; false where they do not.
+func join(a, b block) (block, bool) {
+	const near = 0.01
+	apart := func(x, y float32) bool { return math.Abs(float64(x-y)) > near }
+	if apart(a.ux, b.ux) || apart(a.uy, b.uy) || apart(a.wide, b.wide) ||
+		apart(a.bottom, b.bottom) || apart(a.top, b.top) {
+		return a, false
+	}
+	dx, dy := b.x-a.x, b.y-a.y
+	if apart(dx*a.uy-dy*a.ux, 0) {
+		return a, false
+	}
+	s := dx*a.ux + dy*a.uy
+	if s-b.along > a.along+near || s+b.along < -a.along-near {
+		return a, false
+	}
+	lo, hi := min(-a.along, s-b.along), max(a.along, s+b.along)
+	mid := (lo + hi) / 2
+	a.x, a.y, a.along = a.x+a.ux*mid, a.y+a.uy*mid, (hi-lo)/2
+	return a, true
 }
 
 // Coarse has the shade baked half as fine a side from the next frame on — a quarter of the work

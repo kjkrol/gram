@@ -51,6 +51,34 @@ func (l *Flat) Lie(f *render.Frame, cam camera.Camera, box plane.AABB, _ entity.
 	l.lay(f, cam, &l.lain, render.Objects-1, box, atlas, a, light)
 }
 
+// Lay lays the sprite over the rectangle lie says, under every sprite standing, and, lie being
+// Edged, the edge sprite along its long sides as strips a tenth of its Width wide.
+func (l *Flat) Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.Vec,
+	lie entity.Lie, _ entity.Z, atlas render.AtlasSource, a render.Appearance,
+	edge render.SpriteID, light render.Light) {
+	if dir == (geom.Vec{}) {
+		dir = geom.NewVec(1, 0)
+	}
+	a.Angle = float32(math.Atan2(-dir.Y, dir.X) * 180 / math.Pi)
+	m := geom.NewVec(box.TopLeft.X+box.Size.X/2+dir.X*lie.Ahead,
+		box.TopLeft.Y+box.Size.Y/2+dir.Y*lie.Ahead)
+	l.turned(f, cam, &l.lain, render.Objects-1, around(m, lie.Length, lie.Width), atlas, a, light)
+	if !lie.Edged {
+		return
+	}
+	a.SpriteID = edge
+	for _, side := range [2]float64{-1, 1} {
+		at := geom.NewVec(m.X-dir.Y*side*lie.Width/2, m.Y+dir.X*side*lie.Width/2)
+		l.turned(f, cam, &l.lain, render.Objects-1, around(at, lie.Length, lie.Width/10), atlas,
+			a, light)
+	}
+}
+
+// around is the box w x h on its middle m.
+func around(m geom.Vec, w, h float64) plane.AABB {
+	return plane.NewAABB(geom.NewVec(m.X-w/2, m.Y-h/2), w, h)
+}
+
 // lay gathers the sprite into to for the GPU, or lays it on f at tier.
 func (l *Flat) lay(f *render.Frame, cam camera.Camera, to *render.Sprites, tier render.Tier,
 	box plane.AABB, atlas render.AtlasSource, a render.Appearance, light render.Light) {

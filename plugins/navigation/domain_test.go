@@ -32,7 +32,7 @@ func TestFindPath_KeepsEachDomainToItsOwnGround(t *testing.T) {
 	pf := newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{})
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 
-	path, ok := pf.findPath(uid.UID64(1), cell.Land, world.Z{}, at(0, 0), at(0, 2))
+	path, ok := pf.findPath(uid.UID64(1), cell.Land, world.Z{}, at(0, 0), at(0, 2), EitherLevel)
 	if !ok {
 		t.Fatal("a land unit found no way round the river")
 	}
@@ -45,16 +45,17 @@ func TestFindPath_KeepsEachDomainToItsOwnGround(t *testing.T) {
 		t.Errorf("route of %d steps, want the detour through the ford", path.Length)
 	}
 
-	boat, ok := pf.findPath(uid.UID64(2), cell.Water, world.Z{}, at(0, 1), at(3, 1))
+	boat, ok := pf.findPath(uid.UID64(2), cell.Water, world.Z{}, at(0, 1), at(3, 1), EitherLevel)
 	if !ok || boat.Length != 3 {
 		t.Fatalf("a boat along the river: ok=%v, %d steps, want 3 straight", ok, boat.Length)
 	}
-	if _, ok := pf.findPath(uid.UID64(2), cell.Water, world.Z{}, at(0, 1), at(0, 0)); ok {
+	_, ok = pf.findPath(uid.UID64(2), cell.Water, world.Z{}, at(0, 1), at(0, 0), EitherLevel)
+	if ok {
 		t.Error("a boat found a route onto grass")
 	}
 
 	amphibious := cell.Land | cell.Water
-	direct, ok := pf.findPath(uid.UID64(3), amphibious, world.Z{}, at(0, 0), at(0, 2))
+	direct, ok := pf.findPath(uid.UID64(3), amphibious, world.Z{}, at(0, 0), at(0, 2), EitherLevel)
 	if !ok || direct.Length != 2 {
 		t.Errorf("an amphibious unit: ok=%v, %d steps, want 2 straight across", ok, direct.Length)
 	}
@@ -118,13 +119,14 @@ func TestFindPath_PricesTheRouteForTheUnitsDomain(t *testing.T) {
 	}
 	pf := newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{})
 
-	walker, _ := pf.findPath(uid.UID64(1), cell.Land, world.Z{}, at(0, 0), at(2, 0))
+	walker, _ := pf.findPath(uid.UID64(1), cell.Land, world.Z{}, at(0, 0), at(2, 0), EitherLevel)
 	for _, step := range walker.Steps[:walker.Length] {
 		if terrain.Kind(step).Name.String() == "snow" {
 			t.Fatalf("a walker's route dips into the snow at %v", step)
 		}
 	}
-	witch, _ := pf.findPath(uid.UID64(2), cell.Land|frost, world.Z{}, at(0, 0), at(2, 0))
+	witch, _ := pf.findPath(uid.UID64(2), cell.Land|frost, world.Z{}, at(0, 0), at(2, 0),
+		EitherLevel)
 	onSnow := 0
 	for _, step := range witch.Steps[:witch.Length] {
 		if terrain.Kind(step).Name.String() == "snow" {

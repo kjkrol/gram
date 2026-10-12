@@ -18,11 +18,12 @@ func Normal(pen geom.Vec) (geom.Vec, bool) {
 
 // Side is one side of a contact as the impulse sees it: how much of an impulse it takes (InvMass;
 // 0, nothing moves it), how much of its approach it gives back (Bounce, 0 to 1) and its velocity,
-// changed in place.
+// changed in place — only its speed where it is Steered, its heading being its steering's.
 type Side struct {
 	InvMass float64
 	Bounce  float64
 	Vel     *world.Velocity
+	Steered bool
 }
 
 // Exchange trades the impulse of two sides along n — none unless they are closing, the lower
@@ -34,12 +35,20 @@ func Exchange(a, b Side, n geom.Vec) float64 {
 		return 0
 	}
 	if a.InvMass != 0 {
-		a.Vel.SetDelta(geom.NewVec(deltaA.X+impact*a.InvMass*n.X, deltaA.Y+impact*a.InvMass*n.Y))
+		a.set(geom.NewVec(deltaA.X+impact*a.InvMass*n.X, deltaA.Y+impact*a.InvMass*n.Y))
 	}
 	if b.InvMass != 0 {
-		b.Vel.SetDelta(geom.NewVec(deltaB.X-impact*b.InvMass*n.X, deltaB.Y-impact*b.InvMass*n.Y))
+		b.set(geom.NewVec(deltaB.X-impact*b.InvMass*n.X, deltaB.Y-impact*b.InvMass*n.Y))
 	}
 	return impact
+}
+
+func (s Side) set(d geom.Vec) {
+	if s.Steered {
+		s.Vel.Slow(d)
+		return
+	}
+	s.Vel.SetDelta(d)
 }
 
 // impulse is what two sides moving by deltaA and deltaB exchange along n, zero unless closing.

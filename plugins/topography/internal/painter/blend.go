@@ -138,9 +138,8 @@ func (l *Painter) base(c cell.ID) *cellTop {
 	if !l.square || mine.under || mine.raised || mine.spread <= 0 {
 		return mine
 	}
-	x, y := l.xy(c)
-	for _, d := range [8][2]int64{{0, -1}, {0, 1}, {-1, 0}, {1, 0}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
-		if n, ok := l.cellAt(int64(x)+d[0], int64(y)+d[1]); ok && l.topOf(n).under {
+	for d := range l.board.Directions() {
+		if n, ok := l.board.Toward(c, d); ok && l.topOf(n).under {
 			return l.topOf(n)
 		}
 	}
@@ -149,15 +148,17 @@ func (l *Painter) base(c cell.ID) *cellTop {
 
 // around is the cells round c, c's own standing in for any off the board.
 func (l *Painter) around(c cell.ID) [3][3]*cellTop {
-	x, y := l.xy(c)
 	mine := l.topOf(c)
 	var near [3][3]*cellTop
-	for dy := int64(-1); dy <= 1; dy++ {
-		for dx := int64(-1); dx <= 1; dx++ {
-			near[dy+1][dx+1] = mine
-			if n, ok := l.cellAt(int64(x)+dx, int64(y)+dy); ok {
-				near[dy+1][dx+1] = l.topOf(n)
-			}
+	for j := range 3 {
+		for i := range 3 {
+			near[j][i] = mine
+		}
+	}
+	for d := range l.board.Directions() {
+		if n, ok := l.board.Toward(c, d); ok {
+			da, db := l.board.Offset(d)
+			near[db+1][da+1] = l.topOf(n)
 		}
 	}
 	return near

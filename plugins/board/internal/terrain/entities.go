@@ -59,6 +59,7 @@ func (s *entitySystem) Init(si *goke.SysInit) {
 			}
 		}
 	}
+	s.cells.fresh = found == 0
 	switch found {
 	case 0:
 		s.spawn(si, st.ids)

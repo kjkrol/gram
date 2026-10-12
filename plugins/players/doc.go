@@ -49,7 +49,10 @@
 // draws. A binding may hold in some fastenings of the camera only (control.Binding.In, camera.HowOf): the
 // camera's own WASD, middle drag and edge scroll hold while the camera is Outside, and a camera riding
 // in an entity (camera.Inside) leaves those keys to the plugin that steers the entity; only
-// the bindings holding in the camera's How fire, and the shortcuts list only those. While a local
+// the bindings holding in the camera's How fire, and the shortcuts list only those. A player holds
+// a tool in hand (control.Tool: taken with control.Take, put down with control.Drop, which the
+// plugin carries out): while it does, the bindings With that tool fire on their triggers in place
+// of those with no tool, and the shortcuts list them in their place ([Player.Tool]). While a local
 // player's camera rides looking round with the mouse (camera.MouseLooks), the window's cursor is
 // captured and control.CursorMove reaches that player
 // wherever the cursor is — looking round with the mouse; the pass it is caught or let go no move

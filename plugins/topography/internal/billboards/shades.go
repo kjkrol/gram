@@ -52,7 +52,8 @@ func (s *shades) draw(t render.Target, cam camera.Camera, r *relief.Relief, patc
 		if !ok {
 			continue
 		}
-		s.instances = append(s.instances, p.X, p.Y, p.UX, p.UY, p.Along, p.Wide, p.Fade, p.Veil, rect[0], rect[1], rect[2], rect[3])
+		s.instances = append(s.instances, p.X, p.Y, p.UX, p.UY, p.Along, p.Wide, p.Fade, p.Veil,
+			rect[0], rect[1], rect[2], rect[3])
 	}
 	if len(s.instances) == 0 {
 		return

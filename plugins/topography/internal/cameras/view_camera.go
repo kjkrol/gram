@@ -26,6 +26,9 @@ type viewCamera struct {
 	// fastening is what the camera is fastened to and how, as the camera system keeps it
 	fastening contract.Fastening
 	mouseLook bool // the eye inside a unit looks round with the mouse
+	// edgeTurn and edgeTilt are how far a pixel of a pan the world's edge stopped turns and bows
+	// the view, radians
+	edgeTurn, edgeTilt float32
 }
 
 var _ contract.Camera = (*viewCamera)(nil)
@@ -68,7 +71,7 @@ func (c *viewCamera) Ray(sx, sy float32) (float32, float32, float32, bool) {
 }
 
 // Pick is the first ground the screen point sees, in the view the camera is in.
-func (c *viewCamera) Pick(sx, sy float32) (float32, float32, bool) {
+func (c *viewCamera) Pick(sx, sy float32) (float32, float32, float32, bool) {
 	if c.inPersp {
 		return c.persp.Pick(sx, sy)
 	}
@@ -329,8 +332,43 @@ func (c *viewCamera) Bounds() contract.AABB          { return c.cur.Bounds() }
 func (c *viewCamera) MoveTo(x, y float64)            { c.cur.MoveTo(x, y) }
 func (c *viewCamera) CenterOn(x, y, z float64)       { c.cur.CenterOn(x, y, z) }
 func (c *viewCamera) Translate(dx, dy float64)       { c.cur.Translate(dx, dy) }
-func (c *viewCamera) Pan(dx, dy float32)             { c.cur.Pan(dx, dy) }
-func (c *viewCamera) Zoom() float32                  { return c.cur.Zoom() }
+
+// Pan shifts the view by a screen delta; where the world's edge stops it, the part stopped turns
+// it in relief — stopped going left, the eye goes round clockwise, the world anticlockwise on the
+// screen, as Q turns it; right the other way — or bows it, stopped going forward, towards looking
+// straight down; stopped going back, nothing.
+func (c *viewCamera) Pan(dx, dy float32) {
+	bx, by := c.shift(dx, dy)
+	if !c.relief() || c.insideUnit() {
+		return
+	}
+	if bx = pushed(dx, bx); bx != 0 {
+		c.Turn(c.edgeTurn * bx)
+	}
+	if by = pushed(dy, by); by < 0 {
+		c.Tilt(-c.edgeTilt * by)
+	}
+}
+
+// shift is Pan, and the part of the delta the world's edge stopped, in screen pixels.
+func (c *viewCamera) shift(dx, dy float32) (bx, by float32) {
+	if c.inPersp {
+		return c.persp.shift(dx, dy)
+	}
+	return c.iso.shift(dx, dy)
+}
+
+// pushed is the part b of a delta d the edge stopped that went the way d asked, no more than d.
+func pushed(d, b float32) float32 {
+	if d == 0 || b*d <= 0 {
+		return 0
+	}
+	if d < 0 {
+		return max(b, d)
+	}
+	return min(b, d)
+}
+func (c *viewCamera) Zoom() float32 { return c.cur.Zoom() }
 func (c *viewCamera) ZoomIn(factor, anchorX, anchorY float32) {
 	c.cur.ZoomIn(factor, anchorX, anchorY)
 }

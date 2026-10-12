@@ -23,6 +23,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/bridges"
+	"github.com/kjkrol/gram/plugins/bridges/site"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
@@ -41,8 +43,8 @@ import (
 
 const (
 	TPS          = 60
-	GridWidth    = 192
-	GridHeight   = 96
+	GridWidth    = 204
+	GridHeight   = 106
 	CellSize     = 32
 	WorldWidth   = GridWidth * CellSize
 	WorldHeight  = GridHeight * CellSize
@@ -50,7 +52,7 @@ const (
 	ScreenHeight = 768
 	spritePx     = 22
 	Sprint       = 4
-	MaxEntCount  = 160
+	MaxEntCount  = 320
 )
 
 //go:embed map.yaml
@@ -62,10 +64,16 @@ var scale = world.Scale{Metres: 333.0 / CellSize, Figures: 50}
 // unitSpeed is a demo's pace, three quarters of a cell a second: a man walks 1.4 m/s.
 var unitSpeed = scale.Units(250)
 
+// figure is how tall a walker stands as drawn: what passes under a bridge.
+var figure = scale.Figure(1.8)
+
+var deckThickness = scale.Figure(0.2)
+
 type arena struct {
 	world      *world.Plugin
 	board      *board.Plugin
 	topography *topography.Plugin
+	bridges    *bridges.Plugin
 	nav        *navigation.Plugin
 	driving    *driving.Plugin
 	collision  *collision.Plugin
@@ -125,12 +133,19 @@ func (s *arena) makePlugins(w *world.Plugin) {
 			Step:    scale.Units(40),
 			MaxStep: scale.Units(160),
 		}})
+	s.bridges = bridges.NewPlugin(s.world, s.board, bridges.Config{Rules: site.Rules{
+		Longest:   3,
+		Under:     figure + deckThickness + scale.Units(1),
+		Clearance: deckThickness + scale.Units(1),
+		Reshape:   scale.Units(200),
+		High:      scale.Units(200),
+	}}).WithShaper(s.topography)
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
 		WithCollision(s.collision).
 		WithSpacing(navigation.BodySpacing)
-	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithGroundStep(CellSize)
+	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithFrequency(15)
 	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{
 		Calendar: calendar.Config{
 			Start:  18 * time.Hour,
@@ -157,7 +172,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.atmosphere.WithWeathering(s.board, s.defineClimate())
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving,
-		s.atmosphere, s.topography, s.vision)
+		s.atmosphere, s.topography, s.vision, s.bridges)
 }
 
 func (s *arena) definePlayers() error {
@@ -223,25 +238,16 @@ type unitRow struct {
 	Target cell.ID `yaml:"target"`
 }
 
-type crossingRow struct {
-	At     cell.ID `yaml:"at"`
-	Height float64 `yaml:"height"` // metres over the cell's level
-	Way    [2]int  `yaml:"way"`
-}
-
-// railed are the sides of a crossing's cell along its way, where its railings stand.
-func (r crossingRow) railed() cell.Links {
-	if r.Way[1] == 0 {
-		return 1 | 2 // running east and west: north and south
-	}
-	return 4 | 8
+type fordRow struct {
+	At  cell.ID `yaml:"at"`
+	Way [2]int  `yaml:"way"`
 }
 
 func (s *arena) defineKinds() {
 	brd := s.board.Board()
 	units := board.NewUnits[unitRow](
 		s.board,
-		board.Shape{Size: scale.Figure(0.6), Height: scale.Figure(1.8)},
+		board.Shape{Size: scale.Figure(0.6), Height: figure},
 		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
 	order := comp.Load(
@@ -290,25 +296,20 @@ func (s *arena) defineKinds() {
 		order,
 		sight, eye,
 	)
-	crossings := board.NewEntities(s.board, board.Shape{Size: CellSize, Height: scale.Units(2)},
-		func(r crossingRow) cell.ID { return r.At })
-	way := comp.Load(func(r crossingRow) world.Velocity {
-		return world.Velocity{Dir: geom.NewVec(float64(r.Way[0]), float64(r.Way[1]))}
+	s.bridges.Types().Define(BridgeKind, bridges.Spec{
+		Allows:    cell.Land,
+		Width:     12,
+		Thickness: deckThickness,
+		Cost:      1,
+		Rail:      cell.Rail{Keeps: cell.Land, Height: scale.Figure(1)},
+		Pier:      3,
 	})
-	crossings.Define(BridgeKind, way,
-		comp.Load(func(r crossingRow) cell.Floor {
-			return cell.Floor{
-				Allows:    cell.Land,
-				Height:    scale.Units(r.Height),
-				Thickness: scale.Units(2),
-				Cost:      1,
-				Graded:    true,
-			}
+	fords := board.NewEntities(s.board, board.Shape{Size: CellSize, Height: scale.Units(2)},
+		func(r fordRow) cell.ID { return r.At })
+	fords.Define(FordKind,
+		comp.Load(func(r fordRow) world.Velocity {
+			return world.Velocity{Dir: geom.NewVec(float64(r.Way[0]), float64(r.Way[1]))}
 		}),
-		comp.Load(func(r crossingRow) cell.Rail {
-			return cell.Rail{Keeps: cell.Land, Sides: r.railed(), Height: scale.Figure(1)}
-		}))
-	crossings.Define(FordKind, way,
 		comp.Const(cell.Floor{Allows: cell.Land, Cost: 6.25}))
 }
 
@@ -331,7 +332,10 @@ func (s *arena) spawn() error {
 		return err
 	}
 	s.topography.Seed(level.Heights())
-	if err := board.Spawn[crossingRow](level, nil); err != nil {
+	if err := board.Spawn[fordRow](level, nil); err != nil {
+		return err
+	}
+	if err := s.bridges.Spawn(level); err != nil {
 		return err
 	}
 	return board.Spawn[unitRow](level, board.Sides{
@@ -343,10 +347,13 @@ func (s *arena) spawn() error {
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	main := &mainScene{arena: s, tps: ctx.TPS()}
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).
+		Input(s.players.Handle).
+		Issue(s.players.IssueAs(s.player))}
 }
 
 func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
+	s.bridges.RunPlan(ctx, d)
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)

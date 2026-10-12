@@ -22,14 +22,22 @@ import (
 type walkerRow struct{ At cell.ID }
 
 // Benchmark_Board_Altitude puts walkers standing still over a 64x64 board of hills 4 cells a side,
-// a deck over every eighth row, at their heights every step: the ground or the deck under each.
-func Benchmark_Board_Altitude(b *testing.B) { standing(b, false) }
+// a deck over the fourth row, at their heights every step: the ground or the deck under each.
+func Benchmark_Board_Altitude(b *testing.B) { standing(b, false, false) }
 
 // Benchmark_Gravity_Standing is Benchmark_Board_Altitude with the walkers under gravity: each
 // stood on what bears it every step.
-func Benchmark_Gravity_Standing(b *testing.B) { standing(b, true) }
+func Benchmark_Gravity_Standing(b *testing.B) { standing(b, true, false) }
 
-func standing(b *testing.B, bodies bool) {
+// Benchmark_Board_AltitudeBands is Benchmark_Board_Altitude with the deck a bridge: a band half a
+// cell wide running east–west, level, railed.
+func Benchmark_Board_AltitudeBands(b *testing.B) { standing(b, false, true) }
+
+// Benchmark_Gravity_StandingBands is Benchmark_Gravity_Standing over the bridge of
+// Benchmark_Board_AltitudeBands.
+func Benchmark_Gravity_StandingBands(b *testing.B) { standing(b, true, true) }
+
+func standing(b *testing.B, bodies, bands bool) {
 	const side, size = 64, 16
 	for _, n := range []int{100, 1000} {
 		b.Run(entities(n), func(b *testing.B) {
@@ -70,7 +78,20 @@ func standing(b *testing.B, bodies bool) {
 			units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 1},
 				extra...)
 			decks := board.NewEntities(p, board.Shape{Size: size}, at)
-			decks.Define("deck", comp.Const(cell.Floor{Allows: cell.Land, Height: 20}))
+			deck := comp.Const(cell.Floor{Allows: cell.Land, Height: 20})
+			if bands {
+				west, _ := grid.Direction(g, -1, 0)
+				east, _ := grid.Direction(g, 1, 0)
+				deck = comp.Load(func(r walkerRow) cell.Floor {
+					return cell.Floor{
+						Allows: cell.Land,
+						Height: 32 - topo.Relief().Altitude(r.At),
+						Links:  1<<west | 1<<east,
+						Width:  size / 2,
+					}
+				})
+			}
+			decks.Define("deck", deck, comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
 			var entries []kind.Entry
 			for i := range n {
 				entries = append(entries, units.Named("walker").Entry(walkerRow{

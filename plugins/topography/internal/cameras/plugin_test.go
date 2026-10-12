@@ -55,7 +55,7 @@ func TestPlugin_ThePickLandsOnTheTopOfAKindStandingOnItsCell(t *testing.T) {
 		centre := grid.CellCenter(wall)
 		cam.CenterOn(centre.X, centre.Y, 30)
 		sx, sy := cam.Project(float32(centre.X), float32(centre.Y), 30)
-		x, y, ok := picker.Pick(sx, sy)
+		x, y, _, ok := picker.Pick(sx, sy)
 		if c, in := grid.CellAt(geom.NewVec(float64(x), float64(y))); !ok || !in || c != wall {
 			t.Errorf("perspective %v: the top of the wall picked (%v, %v) %v, cell %v, want the wall's cell %v", perspective, x, y, ok, c, wall)
 		}

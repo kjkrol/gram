@@ -57,6 +57,9 @@ func run(recipePath, out, cache string, flat bool) error {
 	if zoom == 0 {
 		zoom = zoomFor(r.Area.Cell, r.Area.Centre[1])
 	}
+	if flat {
+		r = r.asFlat()
+	}
 	c, err := build(r, newTerrarium(zoom, cache).at, flat)
 	if err != nil {
 		return err
@@ -66,7 +69,8 @@ func run(recipePath, out, cache string, flat bool) error {
 		return err
 	}
 	if old, err := os.ReadFile(out); err == nil {
-		data = c.text(recipePath, unitsOf(old))
+		x, y := originOf(old)
+		data = c.text(recipePath, shiftUnits(unitsOf(old), c.origin[0]-x, c.origin[1]-y))
 	}
 	if err := os.WriteFile(out, data, 0o644); err != nil {
 		return err
@@ -75,6 +79,8 @@ func run(recipePath, out, cache string, flat bool) error {
 		fmt.Fprintf(os.Stderr, "gramap: no road from %s to %s: the ground would be cut or filled "+
 			"deeper than %v m (roads.deep)\n", leg[0], leg[1], r.Roads.Deep)
 	}
+	fmt.Printf("%d x %d cells, the recipe's area from [%d, %d]\n", c.cols, c.rows, c.origin[0],
+		c.origin[1])
 	names := make([]string, 0, len(c.roads.places))
 	for name := range c.roads.places {
 		names = append(names, name)

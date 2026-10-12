@@ -112,7 +112,7 @@ type scene struct {
 	level  []string // a flat world's board, a row a line: '#' solid, the rest open
 	land   *land    // nil: no surfaces, the ground at 0
 	leap   float64  // how high the bodies leap
-	fence  bool     // a railing 1 high along the east side of the cell at 1, 1, struck by collision
+	fence  bool     // a railing 1 high along x 20 by the cell at 1, 1, struck by collision
 	water  bool     // the cells at 2, y water
 	bodies []body
 	rules  []rule.Rule
@@ -176,7 +176,11 @@ func newRig(t *testing.T, sc scene) *rig {
 		r.brd.WithCollision(r.c)
 		fences := board.NewEntities(r.brd, board.Shape{Size: 10},
 			func(c cell.ID) cell.ID { return c })
-		fences.Define("fence", comp.Const(cell.Rail{Keeps: cell.Land, Sides: 8, Height: 1}))
+		north, _ := grid.Direction(g, 0, -1)
+		south, _ := grid.Direction(g, 0, 1)
+		fences.Define("fence",
+			comp.Const(cell.Floor{Allows: cell.Land, Links: 1<<north | 1<<south, Width: 10}),
+			comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
 		w.Seed(fences.Named("fence").Entry(g.At(1, 1)))
 	}
 	pull := gravity.Pull{Z: -10}

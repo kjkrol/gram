@@ -180,13 +180,15 @@ func (l *Painter) paint(s *groundSheet) {
 // around8 calls fn with the ordinal of the cell i and each of its neighbours on the board.
 func (l *Painter) around8(i int, fn func(j int)) {
 	cols := int64(l.sq.Cols)
-	x, y := int64(i)%cols, int64(i)/cols
-	for dy := int64(-1); dy <= 1; dy++ {
-		for dx := int64(-1); dx <= 1; dx++ {
-			if c, ok := l.cellAt(x+dx, y+dy); ok {
-				j, _ := l.ordinal(c)
-				fn(j)
-			}
+	c, ok := l.cellAt(int64(i)%cols, int64(i)/cols)
+	if !ok {
+		return
+	}
+	fn(i)
+	for d := range l.board.Directions() {
+		if n, ok := l.board.Toward(c, d); ok {
+			j, _ := l.ordinal(n)
+			fn(j)
 		}
 	}
 }

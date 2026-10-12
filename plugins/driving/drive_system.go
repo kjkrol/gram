@@ -75,7 +75,11 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			if ordered && !in.Steers() {
 				continue // nobody at the wheel: the order goes on
 			}
-			if ats != nil && s.follow(id, &ats[i], base.Pos, domain) {
+			var z *world.Z
+			if zs != nil {
+				z = &zs[i]
+			}
+			if ats != nil && s.follow(id, &ats[i], base.Pos, z, domain) {
 				s.enter(places, i, id)
 			}
 
@@ -147,13 +151,19 @@ func backing(st *steering.Steering) float64 {
 	return st.MaxSpeed / 4
 }
 
-// follow moves the entity's cell, and its hold on the occupancy, to the cell under its centre;
-// true when that is another cell. Without a board nothing moves.
-func (s *driveSystem) follow(id uid.UID64, at *unit.At, pos world.Position, domain cell.Domain) bool {
+// follow moves the entity's cell, and its hold on the occupancy, to the cell it stands on as z
+// says (nil, on the ground) — a deck's over the ground's (board.Board.CellFor); true when that is
+// another cell. Without a board nothing moves.
+func (s *driveSystem) follow(id uid.UID64, at *unit.At, pos world.Position, z *world.Z,
+	domain cell.Domain) bool {
 	if s.board == nil {
 		return false
 	}
-	actual, ok := s.board.CellAt(pos.Center())
+	feet, reach := math.Inf(-1), 0.0
+	if z != nil {
+		feet, reach = z.Altitude, z.Reach()
+	}
+	actual, ok := s.board.CellFor(pos.Center(), feet, reach)
 	if !ok || actual == at.Cell {
 		return false
 	}
@@ -206,7 +216,7 @@ func (s *driveSystem) open(w walker, heading geom.Vec) bool {
 			}
 		}
 	case w.falls:
-	case w.z != nil && !s.board.KindFor(ahead, w.z.Altitude, w.z.Reach()).Admits(w.domain):
+	case w.z != nil && !s.board.KindFor(ahead, point, w.z.Altitude, w.z.Reach()).Admits(w.domain):
 		return false
 	case w.z == nil && !s.board.Kind(ahead).Admits(w.domain):
 		return false

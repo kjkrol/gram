@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -31,9 +32,10 @@ rivers:
   ford: {every: 3, slope: 0.2}
 roads:
   deep: 200
+  grade: 3 # cheap enough for a bridge's flat heads to beat the way round the valley
   bridge: 0.5
   high: 200
-  span: 6
+  longest: 3
   places:
     west: [9.94, 39.982]
     east: [10.06, 39.982]
@@ -46,14 +48,19 @@ roads:
 	height := func(lon, lat float64) (float64, error) {
 		x, y := metresOf(r.Area.Centre, lon, lat)
 		d := math.Hypot(x/9000, y/4000)
+		if d >= 1 {
+			return -20, nil // the open sea, however far off
+		}
 		h := (400-50*y/1000)*(1-d*d) - 250*math.Exp(-x*x/(2*900*900))
 		return max(h, -20), nil
 	}
 	return r, height
 }
 
-// The roads of a map in relief lie where Transport Tycoon would lay them, its bridges each run at
-// one deck from end to end, and a board lays the map.
+// The roads of a map in relief lie where Transport Tycoon would lay them — slantwise only on a
+// level cell — its bridges each run at one deck from a flat head to a flat head, three cells at
+// most, over water or ground a figure lower, never beside another's span, and a board lays the
+// map as the bridges plugin builds them.
 func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 	r, height := isle(t)
 	c, err := build(r, height, false)
@@ -64,11 +71,8 @@ func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 		t.Fatalf("no road laid; skipped %v", c.roads.skipped)
 	}
 	for _, cl := range c.roads.net.Cells() {
-		var units [4]float64
-		for i, k := range c.cornersOf(cl) {
-			units[i] = c.corners[k] / c.perUnit
-		}
-		if !ground.RoadFits(units, c.roads.net.Links(cl), c.size) {
+		units := c.outline(cl)
+		if !ground.RoadFits(c.grid, cl, units, c.roads.net.Links(cl), c.size) {
 			x, y := c.xy(cl)
 			t.Errorf("the road at [%d, %d] lies on ground no road may: %v", x, y, units)
 		}
@@ -79,12 +83,40 @@ func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 			continue
 		}
 		bridges++
-		for _, e := range s.edges {
-			for _, k := range e {
+		if len(s.heads) != 2 {
+			t.Errorf("a bridge with %d heads, want 2", len(s.heads))
+		}
+		for _, h := range s.heads {
+			for _, k := range c.cornersOf(h.at) {
 				if c.corners[k] != s.deck {
-					t.Errorf("a bridge's end stands at %v, its deck at %v", c.corners[k], s.deck)
+					t.Errorf("a bridge's head stands at %v, its deck at %v", c.corners[k], s.deck)
 				}
 			}
+		}
+		if len(s.cells) > 3 {
+			t.Errorf("a bridge spans %d cells, 3 at most", len(s.cells))
+		}
+		low, wet := math.Inf(1), false
+		for _, cl := range s.cells {
+			wet = wet || c.wet(cl)
+			for _, k := range c.cornersOf(cl) {
+				low = min(low, c.corners[k])
+				if c.corners[k] > s.deck {
+					t.Errorf("the ground under a bridge stands at %v, over its deck at %v",
+						c.corners[k], s.deck)
+				}
+			}
+			for i := range c.grid.Directions() {
+				n, ok := c.grid.Toward(cl, i)
+				if o := c.roads.spanOf[n]; ok && o != nil && o != s && !o.ford &&
+					!slices.Contains(s.cells, n) && slices.Contains(o.cells, n) {
+					t.Errorf("a bridge's span runs beside another's")
+				}
+			}
+		}
+		if !wet && s.deck-low < c.roads.underpass() {
+			t.Errorf("a bridge over dry ground %v under its deck, want %v", s.deck-low,
+				c.roads.underpass())
 		}
 	}
 	if bridges == 0 {
@@ -115,6 +147,9 @@ func TestBuild_AFlatBridgeIsACellLong(t *testing.T) {
 	data := c.text("isle.yaml", "")
 	if bytes.Contains(data, []byte("relief:")) {
 		t.Error("a flat map has a relief")
+	}
+	if bridges := bytes.Count(data, []byte("from: [")); bridges == 0 {
+		t.Error("a flat map's bridges are not written from head to head")
 	}
 	if err := c.check(data); err != nil {
 		t.Error(err)
@@ -173,5 +208,67 @@ func TestTerrarium_ReadsTheTilesHeights(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(tr.cache, "0", "0", "0.png")); err != nil {
 		t.Errorf("the tile is not kept: %v", err)
+	}
+}
+
+// With sea asked for round the land, the area grows from the Earth where the land comes nearer the
+// edge, the land where it was on the ground.
+func TestBuild_TheAreaGrowsForSeaRoundTheLand(t *testing.T) {
+	r, height := isle(t)
+	plain, err := build(r, height, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Area.Sea = 12
+	c, err := build(r, height, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.origin == [2]int{} || c.cols <= plain.cols || c.rows <= plain.rows {
+		t.Fatalf("grown from %d x %d to %d x %d, from %v", plain.cols, plain.rows, c.cols, c.rows,
+			c.origin)
+	}
+	x0, y0, x1, y1 := c.cols, c.rows, -1, -1
+	for y := range c.rows {
+		for x := range c.cols {
+			if c.land[y*c.cols+x] {
+				x0, y0, x1, y1 = min(x0, x), min(y0, y), max(x1, x), max(y1, y)
+			}
+		}
+	}
+	if x0 < 12 || y0 < 12 || c.cols-1-x1 < 12 || c.rows-1-y1 < 12 {
+		t.Errorf("land from [%d, %d] to [%d, %d] on %d x %d, want 12 cells of sea round it",
+			x0, y0, x1, y1, c.cols, c.rows)
+	}
+	for y := range plain.rows {
+		for x := range plain.cols {
+			if plain.land[y*plain.cols+x] != c.land[(y+c.origin[1])*c.cols+x+c.origin[0]] {
+				t.Fatalf("the land at [%d, %d] moved as the area grew", x, y)
+			}
+		}
+	}
+	if x, y := originOf(c.text("isle.yaml", "")); x != c.origin[0] || y != c.origin[1] {
+		t.Errorf("the map says its area begins at [%d, %d], want %v", x, y, c.origin)
+	}
+}
+
+// The units of a map made before move with the land: every cell written in them.
+func TestShiftUnits_MovesEveryCell(t *testing.T) {
+	units := "units:\n  - {kind: walker, start: [1, 2], target: [10, 20]} # to [3, 4]\n"
+	want := "units:\n  - {kind: walker, start: [4, 7], target: [13, 25]} # to [6, 9]\n"
+	if got := shiftUnits(units, 3, 5); got != want {
+		t.Errorf("shifted: %q, want %q", got, want)
+	}
+}
+
+// A flat map takes its own cell, roads and decks, its rivers as wide against a cell as ever.
+func TestRecipe_AFlatMapTakesItsOwnValues(t *testing.T) {
+	r, _ := isle(t)
+	r.Flat = flatCfg{Units: 64, Road: 30, Deck: 34}
+	f := r.asFlat()
+	if f.Area.Units != 64 || f.Roads.Width != 30 || f.Roads.Deck != 34 ||
+		f.Rivers.Width != 2*r.Rivers.Width {
+		t.Errorf("flat: units %d, road %v, deck %v, rivers %v; want 64, 30, 34 and twice %v",
+			f.Area.Units, f.Roads.Width, f.Roads.Deck, f.Rivers.Width, r.Rivers.Width)
 	}
 }

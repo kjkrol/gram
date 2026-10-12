@@ -110,6 +110,25 @@ that: what stays on one goroutine is walking the ECS's chunks and, with triggers
 Before 2026-09-29 the harness did not replay the world's clock, so these benchmarks had measured
 an empty tick since the clock came; the numbers before that agree with today's serial ones.
 
+### Over a relief — `Benchmark_Vision_Relief`
+
+37 observers on a 192×96 board of rolling hills in relief, cells 333 m, each looking 30 cells
+ahead in a cone of 72° from 9 units up: the ground sampled every 50 m, every cell, or read along
+the relief's profile (`ground.Profile`: the edges and folds of the cells a ray crosses, exact),
+scanned every step or 15 times a second (`vision.Plugin.WithFrequency`). Measured on 2026-10-11.
+
+| Ground | A tick |
+|:--|---:|
+| every 50 m | 7.28 ms |
+| every cell | 1.65 ms |
+| profile | 1.97 ms |
+| profile, 15 a second | 0.81 ms |
+
+The profile reads two or three points a cell where a cell's step reads one, and is exact where a
+step of a cell misses a crest between its samples. In board-topography at 2560×1440 a tick went
+from 14–95 ms (every 50 m, the engine catching up on several ticks a frame) to 2–3 ms with the
+profile at 15 a second, the frame bound by the GPU.
+
 ## Ground — `Benchmark_Board_GroundAt`
 
 The ground under 64 points a quarter cell apart along a diagonal of a 256×256 square board of
@@ -141,6 +160,20 @@ before decks were stepped onto by height.
 Only a walker on a deck pays for the deck. Gravity's own pass costs what the altitude system's
 did — one surface read a body — and a body standing still skips the rest; what is left is noise
 and the board's own passes, which run alike in both.
+
+`Benchmark_Board_AltitudeBands` and `Benchmark_Gravity_StandingBands` make the deck a bridge: a
+band half a cell wide running east–west, level, railed. Measured on 2026-10-11, the median of
+three runs taken alternately with the plain ones (the machine warm, every figure above today's):
+
+| Walkers | altitude | over a bridge | under gravity | over a bridge |
+|--:|---:|---:|---:|---:|
+| 100 | 52.1 µs | 51.1 µs | 54.0 µs | 54.9 µs |
+| 1000 | 414 µs | 393 µs | 404 µs | 410 µs |
+
+A band costs nothing a step: the decks over a point are read only in a cell a band lies over or
+reaches into, and the bridges are held to their rules only when what is built or the terrain
+changes, so a step allocates as before. The collision, world and standing ticks of a board without
+bands measured alongside the commit before them, alternately, are the same within the noise.
 
 ## Terrain — `Benchmark_Board_Terrain`
 

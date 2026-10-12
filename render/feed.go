@@ -83,7 +83,8 @@ func (f *Feed) DrawOn(dst *Image) {
 // there where it can (camera.Picker), else the point at sea level; false where it sees no ground.
 func (f *Feed) ToWorld(px, py float32) (x, y float32, ok bool) {
 	if p, is := f.cam.(camera.Picker); is {
-		return p.Pick(px, py)
+		x, y, _, ok = p.Pick(px, py)
+		return x, y, ok
 	}
 	x, y = f.cam.FromScreen(px, py)
 	return x, y, true

@@ -315,6 +315,10 @@ func (f *wallField) Solid(_ world.Layers, band collision.Band, box geom.AABB, vi
 
 func (f *wallField) Overhang(world.Layers, geom.AABB) float64 { return 0 }
 
+func (f *wallField) Walls(world.Layers, collision.Band, geom.AABB,
+	func(collide.FieldWall) bool) {
+}
+
 // A Shoot an entity gives itself fires a shot at its muzzle, just outside its own box, the way it
 // faces — slantwise too; walking on into the shot it never meets it: the shot ignores its shooter.
 func TestShoot_AnEntityFiresFromItsMuzzleTheWayItFaces(t *testing.T) {

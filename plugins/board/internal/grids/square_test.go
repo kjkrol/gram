@@ -151,3 +151,17 @@ func TestSquareGrid_WrapsAlongOneAxisOnly(t *testing.T) {
 	}()
 	g.At(0, 5)
 }
+
+// The square grid's directions in their order — the one place the numbering is spelled out.
+func TestSquareGrid_DirectionsInOrder(t *testing.T) {
+	g := NewSquare(4, 4, 10)
+	want := [8][2]int{{0, -1}, {0, 1}, {-1, 0}, {1, 0}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1}}
+	if g.Directions() != len(want) {
+		t.Fatalf("%d directions, want %d", g.Directions(), len(want))
+	}
+	for i, w := range want {
+		if a, b := g.Offset(i); a != w[0] || b != w[1] {
+			t.Errorf("direction %d is (%d, %d), want (%d, %d)", i, a, b, w[0], w[1])
+		}
+	}
+}

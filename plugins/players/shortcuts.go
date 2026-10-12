@@ -116,8 +116,8 @@ type group struct {
 	lines []string
 }
 
-// groups lists the bindings of the local players holding in their cameras' modes by their
-// handlers, in the handlers' order, then the game's keys.
+// groups lists the bindings of the local players firing in their cameras' modes with what they
+// hold by their handlers, in the handlers' order, then the game's keys.
 func (s *Shortcuts) groups() []group {
 	byHandler := map[plugin.CommandHandler][]string{}
 	seen := map[string]bool{}
@@ -125,7 +125,7 @@ func (s *Shortcuts) groups() []group {
 	for _, pl := range s.p.Locals() {
 		how := camera.HowOf(pl.pic.camera)
 		for _, b := range pl.Bindings() {
-			if !b.Holds(how) {
+			if !pl.fires(b, how) {
 				continue
 			}
 			line := fmt.Sprintf("%-22s %s", Written(b.Trigger), b.Label)

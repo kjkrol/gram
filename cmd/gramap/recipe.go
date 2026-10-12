@@ -15,6 +15,36 @@ type recipe struct {
 	Ground groundCfg `yaml:"ground"`
 	Rivers riversCfg `yaml:"rivers"`
 	Roads  roadsCfg  `yaml:"roads"`
+	Flat   flatCfg   `yaml:"flat"` // what a map with -flat takes in place of the rest's
+}
+
+// flatCfg is what a flat map takes in its own place: its cell in world units, its roads' and its
+// bridges' decks' widths, the most cells a bridge spans; 0, as the rest has it.
+type flatCfg struct {
+	Units   uint32  `yaml:"units"`
+	Road    float64 `yaml:"road"`
+	Deck    float64 `yaml:"deck"`
+	Longest int     `yaml:"longest"`
+}
+
+// asFlat is the recipe as a flat map takes it: the flat block's values in place of the rest's, the
+// rivers as wide against a cell as ever.
+func (r recipe) asFlat() recipe {
+	f := r.Flat
+	if f.Units > 0 {
+		r.Rivers.Width *= float64(f.Units) / float64(r.Area.Units)
+		r.Area.Units = f.Units
+	}
+	if f.Road > 0 {
+		r.Roads.Width = f.Road
+	}
+	if f.Deck > 0 {
+		r.Roads.Deck = f.Deck
+	}
+	if f.Longest > 0 {
+		r.Roads.Longest = f.Longest
+	}
+	return r
 }
 
 type area struct {
@@ -22,6 +52,7 @@ type area struct {
 	Cells  [2]int     `yaml:"cells"`  // columns, rows
 	Cell   float64    `yaml:"cell"`   // metres
 	Units  uint32     `yaml:"units"`  // world units a cell
+	Sea    int        `yaml:"sea"`    // cells of sea between the land and every edge, at least
 }
 
 type kinds struct {
@@ -72,20 +103,22 @@ type riversCfg struct {
 // roadsCfg prices a step of a road: one cell along, or the diagonal's, times what climbing, rock
 // and laying it anew add.
 type roadsCfg struct {
-	Width  float64               `yaml:"width"` // world units
-	Climb  float64               `yaml:"climb"` // per rise over run
-	Turn   float64               `yaml:"turn"`
-	Grade  float64               `yaml:"grade"` // per metre of earth moved over a cell's metres
-	Rock   float64               `yaml:"rock"`  // times
-	Reuse  float64               `yaml:"reuse"` // times, on a road laid already
-	Bridge float64               `yaml:"bridge"`
-	Span   int                   `yaml:"span"`   // cells: the longest bridge, in relief
-	High   float64               `yaml:"high"`   // metres: the highest a bridge's deck stands
-	Deep   float64               `yaml:"deep"`   // metres: the most a road cuts or fills
-	Figure float64               `yaml:"figure"` // metres: the tallest figure, as drawn
-	Bank   float64               `yaml:"bank"`
-	Places map[string][2]float64 `yaml:"places"` // longitude, latitude
-	Routes [][]string            `yaml:"routes"` // each a chain of places
+	Width     float64               `yaml:"width"`     // world units
+	Deck      float64               `yaml:"deck"`      // world units: a bridge's deck, in relief
+	Thickness float64               `yaml:"thickness"` // metres: a bridge's deck, its beam
+	Climb     float64               `yaml:"climb"`     // per rise over run
+	Turn      float64               `yaml:"turn"`
+	Grade     float64               `yaml:"grade"` // per metre of earth moved over a cell's metres
+	Rock      float64               `yaml:"rock"`  // times
+	Reuse     float64               `yaml:"reuse"` // times, on a road laid already
+	Bridge    float64               `yaml:"bridge"`
+	Longest   int                   `yaml:"longest"` // cells: the most a bridge spans
+	High      float64               `yaml:"high"`    // metres: the highest a bridge's deck stands
+	Deep      float64               `yaml:"deep"`    // metres: the most a road cuts or fills
+	Figure    float64               `yaml:"figure"`  // metres: the tallest figure, as drawn
+	Bank      float64               `yaml:"bank"`
+	Places    map[string][2]float64 `yaml:"places"` // longitude, latitude
+	Routes    [][]string            `yaml:"routes"` // each a chain of places
 }
 
 func readRecipe(path string) (recipe, error) {
@@ -130,13 +163,15 @@ func defaultRecipe() recipe {
 	r.Rivers.Depth = [3]float64{2, 4, 8}
 	r.Rivers.Width = 1.4
 	r.Roads.Width = 7
+	r.Roads.Deck = 12
+	r.Roads.Thickness = 2
 	r.Roads.Climb = 6
 	r.Roads.Turn = 1
 	r.Roads.Grade = 30
 	r.Roads.Rock = 4
 	r.Roads.Reuse = 0.3
 	r.Roads.Bridge = 4
-	r.Roads.Span = 6
+	r.Roads.Longest = 3
 	r.Roads.High = 60
 	r.Roads.Deep = 60
 	r.Roads.Bank = 4

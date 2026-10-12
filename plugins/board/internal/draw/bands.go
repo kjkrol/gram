@@ -19,6 +19,9 @@ const bandTier = render.Ground + 5
 // Ways is what Bands read of a board: where each cell's neighbours lie and what runs across it.
 type Ways interface {
 	Toward(c cell.ID, i int) (cell.ID, bool)
+	Directions() int
+	Offset(i int) (da, db int)
+	Step(i int) geom.Vec
 	CellCenter(c cell.ID) geom.Vec
 	Way(c cell.ID) cell.Way
 	// States are the markers of the effects on a cell, Shape the grid's: what the covers read.
@@ -70,20 +73,15 @@ func (d *Bands) bands(f *render.Frame, cam camera.Camera, t *look.Tile, w cell.W
 	box[2], box[3] = cam.Project(t.X1, t.Y1, 0)
 	cx, cy := (t.X0+t.X1)/2, (t.Y0+t.Y1)/2
 	half := w.Width / 2
-	reach := max(t.X1-t.X0, t.Y1-t.Y0) * 1.5
-	for i := range 8 {
-		if w.Links&(1<<i) == 0 {
+	for i := range d.board.Directions() {
+		if !w.Links.Has(i) {
 			continue
 		}
-		n, ok := d.board.Toward(t.ID, i)
-		if !ok {
+		if _, ok := d.board.Toward(t.ID, i); !ok {
 			continue
 		}
-		nc := d.board.CellCenter(n)
-		dx, dy := float32(nc.X)-cx, float32(nc.Y)-cy
-		if abs32(dx) > reach || abs32(dy) > reach {
-			continue // across a wrapping seam: the neighbour draws its own half
-		}
+		s := d.board.Step(i)
+		dx, dy := float32(s.X), float32(s.Y)
 		l := float32(math.Hypot(float64(dx), float64(dy)))
 		if l == 0 {
 			continue
@@ -105,11 +103,4 @@ func (d *Bands) bands(f *render.Frame, cam camera.Camera, t *look.Tile, w cell.W
 		d.pts = append(d.pts, [2]float32{sx, sy})
 	}
 	f.SpriteFan(bandTier, depth, t.Atlas, w.Kind.SpriteID, d.pts, box, keep)
-}
-
-func abs32(v float32) float32 {
-	if v < 0 {
-		return -v
-	}
-	return v
 }

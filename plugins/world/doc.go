@@ -44,7 +44,8 @@
 // camera riding in it (plugins/topography) read the one Eye. These, with [Z] and [Layers], are
 // the types of package entity under the world's own names (type aliases: one type, so a
 // component is the same wherever it is named and saves do not care); the world's sub-packages
-// read them from entity, everyone else from here; [Drift] too.
+// read them from entity, everyone else from here; [Drift], [Lie] and [Block] too — the last a solid
+// still entity whose shadow a relief bakes with its own (a bridge's deck, a pier).
 //
 // # Steering
 //
@@ -195,7 +196,12 @@
 // Turning for a sprite turned the way its entity is headed (Appearance.Angle from Vel.Dir, 0 east
 // against the clock, render.Arrow's convention), Facing for its directional twins, Lying for a
 // sprite laid flat under what stands (a bridge's deck, a ford: a [LyingLook] lays it at the
-// entity's Altitude where a view in relief stands the rest up). [Plugin.WithRenderer] builds the
+// entity's Altitude where a view in relief stands the rest up) — level over the rectangle its
+// [Lie] says, headed its Vel.Dir, where it carries one — and Edges for the sprite standing along
+// the long sides of what lies so while its Lie is Edged (a bridge's railings); Upright for a
+// sprite standing true where a view in relief stands the rest up as billboards (an
+// [UprightLook]: the sides of its box from its Altitude up its Height, and its top — a pier).
+// [Plugin.WithRenderer] builds the
 // entity renderer over the atlas and applies what it declared itself — the effects' swaps, the
 // facing, the turning, every frame — leaving the
 // Appearance as it is. The renderer, a render.Source for a scene's render.Composer, hands it the

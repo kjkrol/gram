@@ -101,7 +101,7 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 		var f render.Frame
 		f.Reset(cam)
 		r.Compose(&f, cam)
-		r.goal(geom.NewVec(10, 10), c, tc.spot)
+		r.goal(geom.NewVec(10, 10), c, tc.spot, 0)
 		var starts [][2]float32
 		f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
 			if tier != render.Marks {
@@ -144,7 +144,7 @@ func TestPathRenderer_OutlinesNoStepAside(t *testing.T) {
 		var f render.Frame
 		f.Reset(cam)
 		r.Compose(&f, cam)
-		r.goals(geom.NewVec(10, 10), &o)
+		r.goals(geom.NewVec(10, 10), cell.Land, &o)
 		n := 0
 		f.Each(func(render.Tier, float32, []render.Vertex) { n++ })
 		if n != tc.lines {
