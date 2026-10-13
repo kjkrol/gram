@@ -7,7 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -18,7 +19,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
-	"github.com/kjkrol/gram/rule/effect"
 )
 
 func TestWeigh_IsTheShareOfTheCellsMeetingAtEachPoint(t *testing.T) {

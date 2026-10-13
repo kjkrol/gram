@@ -1,11 +1,11 @@
 package draw
 
 import (
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule/effect"
 )
 
 // Cover is what lies on the cells under an effect: the sprite laid over each while the effect's

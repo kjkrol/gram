@@ -1,10 +1,11 @@
 package navigation
 
 import (
+	"github.com/kjkrol/ceremony/fact"
 	"time"
 
+	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/gram/plugins/board/cell"
-	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -21,6 +22,11 @@ type Blocked struct {
 	Cornered  bool          // a Detour found no way round
 	Lasts     time.Duration // how long it stays with nobody touched
 }
+
+// Fact: told to the unit, carried until it goes (fact.Fact).
+func (Blocked) Fact() {}
+
+var _ fact.Fact = Blocked{}
 
 // Subject is whom the unit is blocked by.
 func (b Blocked) Subject() (uid.UID64, bool) { return b.By, true }
@@ -64,6 +70,11 @@ const blockedLasts = 400 * time.Millisecond
 // Arrived is the fact told a unit with a plan once its order is over, until the next: it stands
 // on Cell, its goal or as near as it could come.
 type Arrived struct{ Cell cell.ID }
+
+// Fact: told to the unit, carried until it goes (fact.Fact).
+func (Arrived) Fact() {}
+
+var _ fact.Fact = Arrived{}
 
 // LastOrder is the group of the last MoveTo a unit came to the end of, zero for none; every unit
 // carries it, and an order to give way leaves it as it was.

@@ -8,21 +8,23 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule/act"
 	"github.com/kjkrol/gram/ui"
 )
 
 type installCtx struct {
-	hosts   []plugin.Host
+	hosts   []host.Host
 	ecs     *goke.ECS
 	pending []func() []goke.System
 }
@@ -47,9 +49,9 @@ type note struct{ Text string }
 
 func (note) Command() {}
 
-type general struct{ orders control.Queue[order] }
+type general struct{ orders command.Queue[order] }
 
-func (g *general) Queues() []control.CommandQueue     { return []control.CommandQueue{&g.orders} }
+func (g *general) Queues() []command.CommandQueue     { return []command.CommandQueue{&g.orders} }
 func (g *general) DefaultBindings() []control.Binding { return nil }
 
 type rig struct {
@@ -60,7 +62,7 @@ type rig struct {
 	p      *players.Plugin
 	local  *players.Player
 	wire   ui.Input
-	orders *control.Queue[order]
+	orders *command.Queue[order]
 }
 
 func (r *rig) look(cam camera.Camera) {
@@ -113,9 +115,9 @@ func (r *rig) bind(b ...control.Binding) {
 
 func (r *rig) handle(ev *control.InputEvents) { r.p.EventHandler().HandleEvents(ev) }
 
-func (r *rig) drained() []control.Issued[order] {
-	var got []control.Issued[order]
-	r.orders.Drain(func(i control.Issued[order]) { got = append(got, i) })
+func (r *rig) drained() []command.Issued[order] {
+	var got []command.Issued[order]
+	r.orders.Drain(func(i command.Issued[order]) { got = append(got, i) })
 	return got
 }
 
@@ -188,7 +190,7 @@ func TestIssue_RefusesACommandNobodyListensFor(t *testing.T) {
 	if err := r.p.Issue(nil, order{7}); err != nil {
 		t.Fatalf("Issue(order) = %v", err)
 	}
-	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != 7 || got[0].Player != control.Nobody {
+	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != 7 || got[0].Issuer != command.Nobody {
 		t.Errorf("drained %v, want order 7 from Nobody", got)
 	}
 	if !r.orders.Empty() {
@@ -212,7 +214,7 @@ func TestNewPlugin_RefusesTwoHandlersOfOneType(t *testing.T) {
 func TestAdd_MakesAPlayerWithoutAKeyboard(t *testing.T) {
 	r := newRig(t)
 	bot := r.p.Add("bot")
-	if bot.ID == control.Nobody || bot.ID == r.local.ID || r.p.ByID(bot.ID) != bot || r.p.ByID(control.Nobody) != nil {
+	if bot.ID == command.Nobody || bot.ID == r.local.ID || r.p.ByID(bot.ID) != bot || r.p.ByID(command.Nobody) != nil {
 		t.Errorf("bot has id %d beside local %d; ByID must find it and nobody else", bot.ID, r.local.ID)
 	}
 	if locals := r.p.Locals(); len(locals) != 1 || locals[0] != r.local {
@@ -221,7 +223,7 @@ func TestAdd_MakesAPlayerWithoutAKeyboard(t *testing.T) {
 	if err := r.p.Issue(bot, order{3}); err != nil {
 		t.Fatal(err)
 	}
-	if got := r.drained(); len(got) != 1 || got[0].Player != bot.ID {
+	if got := r.drained(); len(got) != 1 || got[0].Issuer != bot.ID {
 		t.Errorf("drained %v, want the bot's order", got)
 	}
 }
@@ -270,7 +272,7 @@ func TestKeysAndButtons_FireWithExactlyTheirModifiers(t *testing.T) {
 	ev.AddClickEvent(40, 5, control.MouseButtonRight, control.ActionPress)
 	r.handle(ev)
 	got := r.drained()
-	if len(got) != 2 || got[0].Command.Cell != 1 || got[1].Command.Cell != 40 || got[0].Player != r.local.ID {
+	if len(got) != 2 || got[0].Command.Cell != 1 || got[1].Command.Cell != 40 || got[0].Issuer != r.local.ID {
 		t.Errorf("plain A and a right click at 40 issued %v, want orders 1 and 40 from the local player", got)
 	}
 
@@ -454,7 +456,7 @@ func TestBind_OneKeyDoesWhatTheCamerasHowSays(t *testing.T) {
 	if err := r.local.Bind(control.Build(control.KeyPress{Key: control.KeyA}, "both", orderOf(3))); err == nil {
 		t.Error("a binding on A in every How beside ones in each was accepted")
 	}
-	press := func() []control.Issued[order] {
+	press := func() []command.Issued[order] {
 		ev := &control.InputEvents{}
 		ev.AddKeyEvent(control.KeyA, control.ActionPress)
 		ev.AddKeyEvent(control.KeyA, control.ActionRelease)
@@ -479,7 +481,7 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 	r.bind(control.Build(control.CursorMove{}, "look", func(c control.Context) (order, bool) {
 		return order{int(c.Delta.X)}, true
 	}).In(camera.Inside))
-	move := func(x, y int) []control.Issued[order] {
+	move := func(x, y int) []command.Issued[order] {
 		ev := &control.InputEvents{MousePos: geom.NewVec(float64(x), float64(y)), CursorDelta: geom.NewVec(7, 0)}
 		r.handle(ev)
 		return r.drained()
@@ -500,6 +502,6 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 	}
 }
 
-func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+func (c *installCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
 
-func (c *installCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

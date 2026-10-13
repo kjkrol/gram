@@ -6,11 +6,12 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/internal/hosts"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -19,7 +20,6 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule/act"
 )
 
 // Hill is the kind of a QuasiWorld's hill.
@@ -39,7 +39,7 @@ func RaiseHills(r topography.Relief, grid grid.Grid, hills ...cell.ID) {
 
 // InstallCtx is a plugin.Installer over a bare ECS.
 type InstallCtx struct {
-	hosts   []plugin.Host
+	hosts   []host.Host
 	ecs     *goke.ECS
 	pending []func() []goke.System
 }
@@ -200,8 +200,8 @@ func IsometricIsland() (*world.Plugin, *board.Plugin, grid.Grid, *topography.Plu
 }
 
 // Hosts keeps the hosts a plugin installs its rules' moments on.
-func (c *InstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+func (c *InstallCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
 
 // Deliver hands rules to the hosts of their moments, as the engine does once a Stage's Init
 // returns.
-func (c *InstallCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *InstallCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

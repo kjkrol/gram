@@ -4,8 +4,10 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/uid"
@@ -17,7 +19,7 @@ import (
 // To names the goal in place of Cell: the one entity bearing the name, a cell or a unit.
 type MoveTo struct {
 	Cell   cell.ID
-	To     entity.Whom
+	To     ceremony.Whom
 	At     geom.Vec
 	Append bool
 	Level  Level
@@ -60,10 +62,10 @@ type (
 )
 
 var (
-	_ plugin.Aimed = (*StepAside)(nil)
-	_ plugin.Aimed = (*Detour)(nil)
-	_ plugin.Aimed = (*Pass)(nil)
-	_ plugin.Aimed = (*Settle)(nil)
+	_ host.Aimed = (*StepAside)(nil)
+	_ host.Aimed = (*Detour)(nil)
+	_ host.Aimed = (*Pass)(nil)
+	_ host.Aimed = (*Settle)(nil)
 )
 
 // Aim tells the command whose way it is.
@@ -93,16 +95,16 @@ func (Stop) Command()      {}
 func (Routes) Command()    {}
 
 var (
-	_ control.Command = MoveTo{}
-	_ control.Command = LookAt{}
-	_ control.Command = StepAside{}
-	_ control.Command = Detour{}
-	_ control.Command = Pass{}
-	_ control.Command = Hold{}
-	_ control.Command = Settle{}
-	_ control.Command = Stop{}
-	_ control.Command = Routes{}
-	_ control.Command = Onward{}
+	_ command.Command = MoveTo{}
+	_ command.Command = LookAt{}
+	_ command.Command = StepAside{}
+	_ command.Command = Detour{}
+	_ command.Command = Pass{}
+	_ command.Command = Hold{}
+	_ command.Command = Settle{}
+	_ command.Command = Stop{}
+	_ command.Command = Routes{}
+	_ command.Command = Onward{}
 )
 
 // pixels the cursor may move between the button going down and up for a click, not a drag
@@ -115,8 +117,8 @@ func dragged(c control.Context) bool {
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // Queues are the queues of every command the plugin carries out, for the players plugin.
-func (p *Plugin) Queues() []control.CommandQueue {
-	queues := []control.CommandQueue{&p.moves, &p.looks, &p.routes, &p.onwards}
+func (p *Plugin) Queues() []command.CommandQueue {
+	queues := []command.CommandQueue{&p.moves, &p.looks, &p.routes, &p.onwards}
 	return append(queues, p.given.all()...)
 }
 

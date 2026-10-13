@@ -3,16 +3,16 @@ package players
 import (
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/players/owner"
 )
 
 var _ goke.System = (*giveSystem)(nil)
 
 type giveSystem struct {
-	gives    *control.Queue[Give]
+	gives    *command.Queue[Give]
 	query    *goke.Query
 	owners   goke.Comp[tag.Tags[owner.Family]]
 	ownersID goke.CompID
@@ -24,12 +24,12 @@ func (s *giveSystem) Init(si *goke.SysInit) {
 }
 
 func (s *giveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
-	s.gives.Drain(func(i control.Issued[Give]) {
+	s.gives.Drain(func(i command.Issued[Give]) {
 		if !i.ByEntity || int(i.Command.To) > owner.Players {
 			return
 		}
 		var owners tag.Tags[owner.Family]
-		if i.Command.To != control.Nobody {
+		if i.Command.To != command.Nobody {
 			owners = owners.With(owner.Of(i.Command.To))
 		}
 		if s.query.Seek(i.Entity) {

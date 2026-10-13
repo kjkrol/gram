@@ -4,18 +4,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 )
 
 type placeWorld struct {

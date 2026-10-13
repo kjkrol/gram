@@ -6,10 +6,11 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
@@ -30,14 +31,14 @@ type Plugin struct {
 	sections    section.Reader
 	handlers    []plugin.CommandHandler
 	players     []*Player
-	listings    control.Queue[ShowShortcuts]
+	listings    command.Queue[ShowShortcuts]
 	shortcuts   *Shortcuts
 	owned       *goke.Query
 	ownedBase   goke.Comp[world.Base]
 	ownedBy     goke.OptComp[tag.Tags[owner.Family]]
-	gives       control.Queue[Give]
-	takes       control.Queue[control.Take]
-	drops       control.Queue[control.Drop]
+	gives       command.Queue[Give]
+	takes       command.Queue[control.Take]
+	drops       command.Queue[control.Drop]
 	pass        uint64
 	module      *module
 	captured    bool
@@ -50,7 +51,7 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 // NewPlugin builds the players plugin over worldPlugin, having the world carry the commands of
 // handlers beside its own and the players'. Two handlers of one command type panic.
 func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Plugin {
-	for id := control.PlayerID(1); int(id) <= owner.Players; id++ {
+	for id := command.Issuer(1); int(id) <= owner.Players; id++ {
 		if tag := worldPlugin.Kinds().DefineTag[owner.Family](owner.Name(id)); tag != owner.Of(id) {
 			panic(fmt.Sprintf("players: the owners' family has tags of its own before %q", owner.Name(id)))
 		}
@@ -82,7 +83,7 @@ func (p *Plugin) Add(name string) *Player {
 		panic("players: " + err.Error())
 	}
 	pl := &Player{
-		ID:       control.PlayerID(len(p.players) + 1),
+		ID:       command.Issuer(len(p.players) + 1),
 		Name:     name,
 		world:    p.worldPlugin,
 		sections: p.sections,
@@ -106,8 +107,8 @@ func (p *Plugin) Locals() []*Player {
 }
 
 // ByID is the player with id, or nil — for Nobody too.
-func (p *Plugin) ByID(id control.PlayerID) *Player {
-	if id == control.Nobody || int(id) > len(p.players) {
+func (p *Plugin) ByID(id command.Issuer) *Player {
+	if id == command.Nobody || int(id) > len(p.players) {
 		return nil
 	}
 	return p.players[id-1]
@@ -124,8 +125,8 @@ func (p *Plugin) Defaults() []control.Binding {
 
 // Issue gives cmd as player (nil for Nobody); ErrUnknownCommand when no handler defines its
 // type.
-func (p *Plugin) Issue(player *Player, cmd control.Command) error {
-	id := control.Nobody
+func (p *Plugin) Issue(player *Player, cmd command.Command) error {
+	id := command.Nobody
 	if player != nil {
 		id = player.ID
 	}
@@ -150,19 +151,19 @@ func (p *Plugin) handlerOf(t reflect.Type) plugin.CommandHandler {
 // ShowShortcuts is carried out at once and the game's own keys (OwnKeys) are run.
 func (p *Plugin) Handle(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
 	p.EventHandler().HandleEvents(events)
-	p.listings.Drain(func(control.Issued[ShowShortcuts]) { p.shortcuts.Open(runtime, composition) })
+	p.listings.Drain(func(command.Issued[ShowShortcuts]) { p.shortcuts.Open(runtime, composition) })
 	p.shortcuts.keys.Handle(events, runtime, composition)
 	p.pass++
 }
 
 func (p *Plugin) tools() {
-	p.takes.Drain(func(i control.Issued[control.Take]) {
-		if pl := p.ByID(i.Player); pl != nil {
+	p.takes.Drain(func(i command.Issued[control.Take]) {
+		if pl := p.ByID(i.Issuer); pl != nil {
 			pl.tool = i.Command.Tool
 		}
 	})
-	p.drops.Drain(func(i control.Issued[control.Drop]) {
-		if pl := p.ByID(i.Player); pl != nil {
+	p.drops.Drain(func(i command.Issued[control.Drop]) {
+		if pl := p.ByID(i.Issuer); pl != nil {
 			pl.tool = ""
 		}
 	})

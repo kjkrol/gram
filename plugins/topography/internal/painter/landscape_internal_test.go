@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
@@ -21,7 +22,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
-	"github.com/kjkrol/gram/rule"
 )
 
 type flatAtlas struct{}
@@ -584,7 +584,7 @@ func (sheetAtlas) White() (u, v float32) { return 1, 1 }
 
 type kindsOf []cell.Kind
 
-func (k kindsOf) Define(string, cell.Kind, ...*rule.Part) {}
+func (k kindsOf) Define(string, cell.Kind, ...*ceremony.Part) {}
 func (k kindsOf) Named(name string) cell.Of {
 	c, _ := k.Get(name)
 	return cell.OfKind(c)

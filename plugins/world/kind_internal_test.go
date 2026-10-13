@@ -1,7 +1,7 @@
 package world
 
 import (
-	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/ceremony/comp"
 	ikinds "github.com/kjkrol/gram/plugins/world/internal/kinds"
 )
 

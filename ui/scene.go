@@ -4,14 +4,16 @@ import (
 	"slices"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -21,7 +23,7 @@ type Scene struct {
 	root    *Element
 	input   func(*control.InputEvents, game.Runtime, game.Composition)
 	keys    []control.Binding
-	issue   func(cmd control.Command) error
+	issue   func(cmd command.Command) error
 	runtime game.Runtime
 	passed  control.InputEvents
 	shown   []string
@@ -178,7 +180,7 @@ type drawing struct {
 	states goke.Comp[tag.Tags[effect.States]]
 	base   goke.OptComp[entity.Base]
 	z      goke.OptComp[entity.Z]
-	label  goke.OptComp[entity.Label]
+	label  goke.OptComp[ceremony.Label]
 	spots  map[*Element][]spot
 }
 
@@ -249,19 +251,19 @@ func (d *drawing) find() {
 	}
 	for _, e := range d.pins {
 		if e.pin.where != nil {
-			e.pin.where.each(func(id uid.UID64, base *entity.Base, z *entity.Z, label *entity.Label) {
+			e.pin.where.each(func(id uid.UID64, base *entity.Base, z *entity.Z, label *ceremony.Label) {
 				d.note(e, id, base, z, label)
 			})
 		}
 	}
 }
 
-func (d *drawing) note(e *Element, id uid.UID64, base *entity.Base, z *entity.Z, label *entity.Label) {
+func (d *drawing) note(e *Element, id uid.UID64, base *entity.Base, z *entity.Z, label *ceremony.Label) {
 	s := spot{id: id}
 	if base != nil {
 		s.placed = true
 		s.x, s.y, s.z = e.pin.point(*base, z)
-	} else if label == nil || *label == (entity.Label{}) {
+	} else if label == nil || *label == (ceremony.Label{}) {
 		return // a cell: no place and no name
 	}
 	d.spots[e] = append(d.spots[e], s)

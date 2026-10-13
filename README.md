@@ -43,8 +43,9 @@ a board with terrain, pathfinding and mouse selection, and a game adds its own t
 - **A Stage owns its ECS.** Each Stage gets a fresh world the moment it is entered, so a menu
   Stage sits idle with no gameplay entities until the player starts.
 - **Behaviour is rules.** What a game does about what a plugin finds is a rule, a sentence of
-  who, when and what, run inside that plugin's own pass. A rule is a role's, a role is played,
-  and the engine hands it to the plugin catching its moment; one no plugin catches is an error.
+  who, when and what, run inside that plugin's own pass — written in
+  [ceremony](https://github.com/kjkrol/ceremony), the library gram builds on. A rule is a role's, a role is played, and
+  the engine hands it to the plugin catching its moment; one no plugin catches is an error.
 - **Kinds say what an entity is.** A kind is the list of components its entities carry, each
   constant or read from the entity's own row; it also tells save files what to expect.
 - **Saves survive change.** Persisted resources are matched by name, never by position.
@@ -67,8 +68,8 @@ cgo. Without a GPU the tests that draw skip themselves.
 | Capability | Package | What you get |
 |:---|:---|:---|
 | **Stages and Scenes** | `game`, `game/stage` | Named Stages with their own ECS, defined a section at a time; Scenes as `ui` screens showing the world through cameras; a live Composition of what is shown and which Scene takes input |
-| **Plugins and rules** | `plugin` | The one extension contract; the hosts (`Rules`, `PairRules`, `StepRules`) that run rules inside a plugin's own pass |
-| **Behaviour** | `rule`, `rule/cond`, `rule/act`, `rule/plan` | One vocabulary: `act.Branch[P]{Name, When, Then}` a rule of a moment, `plan.Loop[P]{Name, When, Then, Until, Timeout, Cooldown}` a loop of a plan, every clause of either saying whom it is about (`cond.Self.If(x)`, `act.Other.Do(cmd)`); roles a kind, a cell or a plugin plays; effects that hold for a while; messages between plans; commands written as sentences, for entities found by name or group |
+| **Plugins** | `plugin` | The one extension contract; `Installer.Hosts`, where a plugin hands the engine the hosts that run the rules of its moments inside its own pass |
+| **Behaviour** | [`ceremony`](https://github.com/kjkrol/ceremony) | The library gram builds on, with goke as its store: `act.Branch[P]{Name, When, Then}` a rule of a moment, `plan.Loop[P]{Name, When, Then, Until, Timeout, Cooldown}` a loop of a plan, every clause of either saying whom it is about (`cond.Self.If(x)`, `act.Other.Do(cmd)`); roles a kind, a cell or a plugin plays; effects that hold for a while and turn the plugins' knobs; messages between plans; commands written as sentences, for entities found by name or group |
 | **World** | `plugins/world` | Every entity's `Base`; movement under stop, wrap or open edges; the spatial index; kinds and spawning before the game and during it; heights or planes |
 | **Steering** | `plugins/world/steering` | A `Steering` profile turned into heading and speed each step; `Driven` for a unit steered by hand |
 | **Collisions** | `plugins/collision` | `Collider` to take part, `Physics` to bounce and be pushed apart, the solid ground of a board, `Meeting` and `Struck` for rules |
@@ -102,11 +103,11 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/cameras"
@@ -377,8 +378,8 @@ reaches a Stage and every Scene alike.
 ## Plugins, rules and plans
 
 A plugin's `Install` only queues ECS wiring, flushed in one `ecs.Setup` after the Stage's
-`Init`. What a game does about what a plugin finds is a *rule*, run in the pass of the plugin
-that catches its moment:
+`Init`. What a game does about what a plugin finds is a *rule* of [ceremony](https://github.com/kjkrol/ceremony), the
+library of behaviour gram builds on, run in the pass of the plugin that catches its moment:
 
 ```go
 roles := s.world.Roles()
@@ -388,7 +389,7 @@ roles.Define(PredatorRole, act.Branch[collision.Meeting]{
 	When: cond.Other.If(roles.Named(PreyRole)),
 	Then: act.Other.Do(world.Despawn{}),
 })
-kind.Define[body](kinds, HunterKind, kind.Spec{…, rule.Plays(roles.Named(PredatorRole))})
+kind.Define[body](kinds, HunterKind, kind.Spec{…, ceremony.Plays(roles.Named(PredatorRole))})
 ```
 
 reads as a sentence, who, when, what: a predator, meeting one playing prey, has it give itself a
@@ -409,10 +410,13 @@ that hold for a while and give *commands* for their entity (`plan.Self.Do(naviga
 the same a player gives. An effect turns the *knobs* a plugin gives, components it only reads, like
 `steering.Steering` or a cell's `cell.Ground`. A rule holds no Go code but its words; how
 entities are drawn is the one place rules are Go (`render.Rule`), declared on the world's atlas
-in a scene. A plugin ships no ready-made reactions: it gives moments and their words, and the
-game says what follows. The story is in [`doc/rule.md`](doc/rule.md).
+in a scene, where a kind's look under an effect is declared too (`Slot.Under(effect, look)`).
+A plugin ships no ready-made reactions: it gives moments and their words, and the game says
+what follows. The language is ceremony's [doc/ceremony.md](https://github.com/kjkrol/ceremony/blob/main/doc/ceremony.md);
+how a game uses it over gram's plugins is [`doc/rule.md`](doc/rule.md).
 
-What a player *wants* is a command too, a `control.Command`: the plugin that defines its type
+What a player *wants* is a command too, a `command.Command` (ceremony's): the plugin that
+defines its type
 (`navigation.MoveTo`, `selection.Select`) is a `plugin.CommandHandler` that drains its queue in
 its own pass; the `players` plugin carries what a player's bindings, an AI or a network issue,
 the world what the entities give themselves.
@@ -424,11 +428,12 @@ A *role* is a behaviour an entity plays, mortal, hasty, a plate, not a group:
 registers and hands nothing back**: effects, roles, commands and kinds are defined under a name
 in the Stage's world and taken back with `Named(name)` wherever they are built on; a game keeps
 its names as constants, each with a suffix saying what it names (`Ef`, `Cmd`, `Role`, `Plan`,
-`Kind`, `Cell`). A kind plays roles through `rule.Plays(roles...)`, a cell through its kind or
-alone, a plugin through its own `Plays`: a plugin is an entity of the world too (`world.Self`),
-so a state of the sky is an effect on the atmosphere, `rule.Put(bloodMoon).On(s.atmosphere)`,
-read back by `cond.On(s.atmosphere).If(bloodMoon)`. A command about an effect is a sentence:
-put it on (`rule.Put`), take it off (`Take`) or switch it (`Toggle`), for the entities bearing a
+`Kind`, `Cell`). A kind plays roles through `ceremony.Plays(roles...)`, a cell through its kind
+or alone, a plugin through its own `Plays`: a plugin is an entity of the world too
+(`world.Self`), so a state of the sky is an effect on the atmosphere,
+`ceremony.Put(bloodMoon).On(s.atmosphere)`, read back by `cond.On(s.atmosphere).If(bloodMoon)`.
+A command about an effect is a sentence: put it on (`ceremony.Put`), take it off (`Take`) or
+switch it (`Toggle`), for the entities bearing a
 name, those in a group, the world itself, the player's selected units or the one pointed at
 (`On`), set off by the entity named (`By`):
 
@@ -465,20 +470,22 @@ roles.Define(HastyRole)
 roles.Define(PlateRole, act.Branch[collision.Meeting]{
 	Name: "press",
 	When: cond.Self.If(cond.Always),
-	Then: act.Self.Do(rule.Trigger{}),
+	Then: act.Self.Do(ceremony.Trigger{}),
 })
 
 // Commands
-cmds.Define(OpenWestCmd, rule.Put(fx.Named(OpenEf)).On(entity.Group("west trapdoors")))
-cmds.Define(OpenEastCmd, rule.Put(fx.Named(OpenEf)).On(entity.Group("east trapdoors")).
-	By(entity.Named("plate")))
-cmds.Define(HastenCmd, rule.Put(fx.Named(HasteEf)).
+cmds.Define(OpenWestCmd, ceremony.Put(fx.Named(OpenEf)).On(ceremony.Group("west trapdoors")))
+cmds.Define(OpenEastCmd, ceremony.Put(fx.Named(OpenEf)).On(ceremony.Group("east trapdoors")).
+	By(ceremony.Named("plate")))
+cmds.Define(HastenCmd, ceremony.Put(fx.Named(HasteEf)).
 	On(s.selection.Selected(roles.Named(HastyRole))))
 
 // Kinds
-units.Define(ScoutKind, land, profile, rule.Plays(roles.Named(MortalRole), roles.Named(HastyRole)))
+units.Define(ScoutKind, land, profile,
+	ceremony.Plays(roles.Named(MortalRole), roles.Named(HastyRole)))
 standing.Define(TrapdoorKind, comp.Const(cell.Floor{Allows: cell.Land}))
-standing.Define(PlateKind, comp.Const(collision.Collider{}), rule.Plays(roles.Named(PlateRole)))
+standing.Define(PlateKind, comp.Const(collision.Collider{}),
+	ceremony.Plays(roles.Named(PlateRole)))
 
 // Controls
 s.player.Bind(
@@ -554,15 +561,12 @@ has a `doc.go` describing what it brings. What is left to do is in
 | Package | Responsibility |
 |:---|:---|
 | [`camera`](camera/doc.go) | The contract of a view onto a world: screen conversion, culling, move and zoom, projections, fastening over an entity |
-| [`control`](control/doc.go) | The input vocabulary, commands and bindings: `Command`, `Queue`, `Issued`, `Carrier`, `Binding`, the triggers |
+| [`control`](control/doc.go) | The input vocabulary: `Binding`, the triggers, `Context`, `Keys`, a player's `Tool`; the commands a binding builds are `ceremony/command`'s |
 | [`render`](render/doc.go) | Drawing: `Renderer`, the `Composer` over `Source`s and its `Frame`, `Direct` sources, `Feed`, `Still`, `Atlas`, `Font`, the drawing rules a renderer runs every frame |
-| [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer`, `CommandHandler`, `Serializable`, `PostLoader`, `Populator`; the hosts of rules (`Rules`, `PairRules`, `StepRules`), the `Tick`, what a moment is (`About`, `Met`, `Placed`, `Aimed`) |
-| [`entity`](entity/doc.go) | What every entity carries: `Base`, `Position`, `Velocity`, `Z`, `Layers`, `Eye`, `Label`; `entity/kind` what an entity is (`Spec`, `Define`, `Of`); `entity/tag` the tag families |
+| [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer` (with `Hosts`, the hosts of a plugin's moments), `CommandHandler`, `Serializable`, `PostLoader`, `Populator`, `Made`; `plugin/section` the parts of a Stage |
+| [`entity`](entity/doc.go) | What every entity carries: `Base`, `Position`, `Velocity`, `Z`, `Layers`, `Eye`, `Lie`; `entity/kind` what an entity is (`Spec`, `Define`, `Of`, the roster) |
 | [`clock`](clock/doc.go) | The tactical clock: game time as the sum of the simulation's steps, the pause (Space), the tempo (] and [), the `Moment` of a step with `At` and `Every` |
-| [`rule`](rule/doc.go) | How entities behave ([the story](doc/rule.md)): roles (`Part`, `Plays`), commands about effects written as sentences (`Put`, `Take`, `Toggle`; `Trigger`), messages between plans (`From`); `rule/effect` the effects themselves |
-| [`rule/cond`](rule/cond/doc.go) | The When of a branch and the Until of a loop: a subject, `Self`, `Other`, `Around(n)` or `On(plugin)`, `.If` a state (an effect, a role, a `Word` of the moment, `Chance`, `Always`, `Not`; in an Until a fact come afresh), joined with `And` and `Or` |
-| [`rule/act`](rule/act/doc.go) | What a rule does: `Branch[P]{Name, When, Then}`, a rule of a moment given to a role; the steps `Self`, `Other` and `Around(n)` do — `Put`, `Take`, `Hold` an effect, `Do` a command — and `Steps` and `OneOf` over them, all of which a plan takes too |
-| [`rule/plan`](rule/plan/doc.go) | What an entity does over time, `New(name, root)` carried by its kind: `Loop[P]{Name, When, Then, Until, Timeout, Cooldown}` on a fact `P` or `any`, `plan.Self.Wait` and `Idle` lasting, `Steps` and `OneOf` over loops and a rule's steps |
+| [`ceremony`](https://github.com/kjkrol/ceremony) | The library gram builds on, outside the module: how entities behave — `cond` the conditions, `act` the steps and the branch of a rule, `plan` the loops of a plan, `effect` the states and knobs, `fact` the facts and messages, roles, commands about effects and labels in its root, `host` the hosts a plugin runs rules with, `command` the queues and the carrier, `tag` and `comp`; the language in its `doc/ceremony.md`, how a game uses it over gram's plugins in [`doc/rule.md`](doc/rule.md) |
 | [`plugins/world`](plugins/world/doc.go) | The foundation: the space, movement under the edge rules, kinds and tags, `Seed`/`Populate`, `Spawn`, `Despawn`, the commands about effects, the carrier of commands, the entities' looks on the atlas; it runs the core's systems; `steering` and `view` beside it |
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence`; `game/stage` a Stage defined a section at a time |
 | [`ui`](ui/doc.go) | A scene's screen as a tree of elements: `Layers`, `Columns`/`Rows`, anchors, `Panel`, `Label`, `Image` of a feed, `Window`, `Button` giving commands, elements pinned to entities `Under` an effect or `On` a name, a `Theme` |
@@ -580,19 +584,20 @@ has a `doc.go` describing what it brings. What is left to do is in
 | [`plugins/dialog`](plugins/dialog/doc.go) | Conversations as data: `Node`s from YAML, a unit's `Script`, the game's `Changes` and `Conditions`, `Window` |
 | [`plugins/cameras`](plugins/cameras/doc.go) | The cameras a game looks through: `New`, `Pan`, `Zoom`, `Follow`, `LookAt`, `Keys` |
 | [`plugins/players`](plugins/players/doc.go) | Players over the command handlers: bindings into commands, `Through` and `IssueAs` for a ui scene, the list of keys; `players/owner` whose a unit is |
-| [`internal/steps`](internal/steps/doc.go) | The engine running the steps of rules and plans; `rule` is its face |
 | [`internal/engine`](internal/engine/doc.go) | The `Engine`: the window's loop, one active Stage, saves and loads |
 | [`gram`](doc.go) | `Run`; the package you import. The root `doc.go` carries the concepts and the full package graph |
 
 ```
-camera ──► render ──► plugin ──► rule ──► plugins/world ──► game ──► internal/engine ──► gram
-control ───┘                              │  ▲
-                                          ▼  │
+camera ───► render ──► plugin ──► plugins/world ──► game ──► internal/engine ──► gram
+control ────┘  ▲                  │  ▲
+ceremony ──────┘                  ▼  │
       plugins/{cameras, collision, selection, vision} ──► plugins/board ──► plugins/driving ──► plugins/navigation
                                                             └──► plugins/{bullet, gravity, bridges, topography, atmosphere} ──► plugins/players
 ```
 
-Outside the module: [goke](https://github.com/kjkrol/goke) is the ECS every Stage runs on,
+Outside the module: [ceremony](https://github.com/kjkrol/ceremony) is the behaviour — rules, plans, effects, roles,
+commands, facts — which gram's plugins perceive for and carry out, with goke as its store;
+[goke](https://github.com/kjkrol/goke) is the ECS every Stage runs on,
 [aabbworld](https://github.com/kjkrol/aabbworld) the space, collisions and line of sight under the
 world, [gogpu](https://github.com/gogpu/gogpu) the window, the loop and the GPU (WebGPU),
 [astar](https://github.com/kjkrol/astar) the pathfinding.
@@ -629,6 +634,9 @@ are `aabbworld`'s; gram is where they meet an ECS and a screen.
 - **API reference** on [pkg.go.dev](https://pkg.go.dev/github.com/kjkrol/gram).
 - **Concepts and package graph** in the root [`doc.go`](doc.go); each package's own `doc.go`
   explains what it brings (see [Architecture](#architecture)).
+- **The language of behaviour** in ceremony's [README](https://github.com/kjkrol/ceremony) and
+  [doc/ceremony.md](https://github.com/kjkrol/ceremony/blob/main/doc/ceremony.md); [`doc/rule.md`](doc/rule.md) is how a
+  game uses it over gram's plugins.
 - **Benchmarks** in [BENCHMARKS.md](BENCHMARKS.md); **changes** in [CHANGELOG.md](CHANGELOG.md).
 
 # Credits

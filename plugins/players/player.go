@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin/section"
@@ -13,7 +14,7 @@ import (
 // Player is whoever acts in the game: the picture of the world it acts through and, at this
 // keyboard, the bindings that turn its input into commands.
 type Player struct {
-	ID   control.PlayerID
+	ID   command.Issuer
 	Name string
 
 	world    *world.Plugin

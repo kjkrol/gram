@@ -3,9 +3,9 @@ package driving
 import (
 	"time"
 
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 

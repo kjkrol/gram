@@ -36,7 +36,7 @@ func (m *mainScene) picture() render.Picture {
 	effects := s.world.Effects()
 	frozen := effects.Named(FrozenEf)
 
-	worldAtlas := render.NewAtlas()
+	worldAtlas := s.world.NewAtlas()
 	worldAtlas.Add(witchKind, EntitySize, render.Diamond(witchColor)).
 		Under(frozen, render.Diamond(witchFrozenColor))
 	worldAtlas.Add(walkerKind, EntitySize, render.Solid(walkerColor)).

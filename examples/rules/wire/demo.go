@@ -7,11 +7,15 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/board"
@@ -26,11 +30,6 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
-	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -132,7 +131,7 @@ func (s *arena) defineRoles() {
 	roles.Define(PlateRole, act.Branch[collision.Meeting]{
 		Name: "press",
 		When: cond.Self.If(cond.Always),
-		Then: act.Self.Do(rule.Trigger{}),
+		Then: act.Self.Do(ceremony.Trigger{}),
 	})
 	roles.Define(LeverRole)
 	roles.Define(HastyRole)
@@ -140,7 +139,7 @@ func (s *arena) defineRoles() {
 		Name: "pull the lever beside",
 		When: cond.Self.If(s.world.Effects().Named(PullEf)).
 			And(cond.Around(1).If(roles.Named(LeverRole))),
-		Then: act.Around(1).Do(rule.Trigger{}),
+		Then: act.Around(1).Do(ceremony.Trigger{}),
 	})
 	roles.Define(MortalRole, act.Branch[unit.Standing]{
 		Name: "fall in",
@@ -153,22 +152,22 @@ func (s *arena) defineCommands() {
 	fx, roles, cmds := s.world.Effects(), s.world.Roles(), s.world.Commands()
 	cmds.Define(
 		OpenWestCmd,
-		rule.Put(fx.Named(OpenEf)).
-			On(entity.Group("west trapdoors")).
-			By(entity.Named("west lever")),
+		ceremony.Put(fx.Named(OpenEf)).
+			On(ceremony.Group("west trapdoors")).
+			By(ceremony.Named("west lever")),
 	)
 	cmds.Define(
 		OpenEastCmd,
-		rule.Put(fx.Named(OpenEf)).On(entity.Group("east trapdoors")).By(entity.Named("plate")),
+		ceremony.Put(fx.Named(OpenEf)).On(ceremony.Group("east trapdoors")).By(ceremony.Named("plate")),
 	)
-	cmds.Define(FlipTheGateCmd, rule.Toggle(fx.Named(AjarEf)).On(entity.Group("gate")))
+	cmds.Define(FlipTheGateCmd, ceremony.Toggle(fx.Named(AjarEf)).On(ceremony.Group("gate")))
 	cmds.Define(
 		HastenCmd,
-		rule.Put(fx.Named(HasteEf)).On(s.selection.Selected(roles.Named(HastyRole))),
+		ceremony.Put(fx.Named(HasteEf)).On(s.selection.Selected(roles.Named(HastyRole))),
 	)
 	cmds.Define(
 		ReachCmd,
-		rule.Put(fx.Named(PullEf)).On(s.selection.Selected(roles.Named(HandyRole))),
+		ceremony.Put(fx.Named(PullEf)).On(s.selection.Selected(roles.Named(HandyRole))),
 	)
 }
 
@@ -212,13 +211,13 @@ func (s *arena) defineKinds() {
 		ScoutKind,
 		land,
 		profile,
-		rule.Plays(
+		ceremony.Plays(
 			s.world.Roles().Named(HastyRole),
 			s.world.Roles().Named(HandyRole),
 			s.world.Roles().Named(MortalRole),
 		),
 	)
-	units.Define(PorterKind, land, laden, rule.Plays(s.world.Roles().Named(MortalRole)))
+	units.Define(PorterKind, land, laden, ceremony.Plays(s.world.Roles().Named(MortalRole)))
 	patrol := plan.New(PatrolPlan, plan.Steps(
 		plan.Loop[any]{
 			Name:  "leg",
@@ -231,7 +230,7 @@ func (s *arena) defineKinds() {
 	round := comp.Load(func(u unitRow) navigation.Round {
 		return navigation.NewRound(u.To, u.Start)
 	})
-	units.Define(WandererKind, land, profile, rule.Plays(s.world.Roles().Named(MortalRole)),
+	units.Define(WandererKind, land, profile, ceremony.Plays(s.world.Roles().Named(MortalRole)),
 		round, patrol)
 	at := func(r standingRow) cell.ID { return r.At }
 	cellWide := board.NewEntities(s.board, board.Shape{Size: CellSize}, at)
@@ -240,8 +239,8 @@ func (s *arena) defineKinds() {
 	small := board.NewEntities(s.board, board.Shape{Size: EntitySize}, at)
 	small.Define(PlateKind,
 		comp.Const(collision.Collider{}),
-		rule.Plays(s.world.Roles().Named(PlateRole)))
-	small.Define(LeverKind, rule.Plays(s.world.Roles().Named(LeverRole)))
+		ceremony.Plays(s.world.Roles().Named(PlateRole)))
+	small.Define(LeverKind, ceremony.Plays(s.world.Roles().Named(LeverRole)))
 }
 
 func (s *arena) bindKeys() error {

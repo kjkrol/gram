@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -171,7 +171,7 @@ func runTurnaround(t *testing.T, collide bool, after int) (replans int, err stri
 	if _, mt := tw.blueState(); mt == nil {
 		return 0, "done" // already arrived below red: nothing to turn around from
 	}
-	tw.nav.moves.Add(control.Nobody, MoveTo{Cell: a})
+	tw.nav.moves.Add(command.Nobody, MoveTo{Cell: a})
 	var last []cell.ID
 	for tick := range 60 * 10 {
 		tw.ecs.Tick(time.Second / 60)

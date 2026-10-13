@@ -7,18 +7,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule/act"
 )
 
 type headless struct {
-	hosts   []plugin.Host
+	hosts   []host.Host
 	ecs     *goke.ECS
 	world   *world.Plugin
 	cam     camera.Camera
@@ -106,6 +107,6 @@ const step = time.Second / 60
 
 func entities(n int) string { return fmt.Sprintf("entities=%d", n) }
 
-func (c *headless) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+func (c *headless) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
 
-func (c *headless) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *headless) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

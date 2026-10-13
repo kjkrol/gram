@@ -3,10 +3,10 @@ package cameras
 import (
 	"time"
 
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -20,7 +20,7 @@ type cameraSystem struct {
 	base     goke.Comp[world.Base]
 	z        goke.OptComp[world.Z]
 	labelled *goke.Query
-	label    goke.Comp[entity.Label]
+	label    goke.Comp[ceremony.Label]
 }
 
 func (s *cameraSystem) Init(si *goke.SysInit) {
@@ -29,7 +29,7 @@ func (s *cameraSystem) Init(si *goke.SysInit) {
 }
 
 func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
-	s.p.pans.Drain(func(i control.Issued[Pan]) {
+	s.p.pans.Drain(func(i command.Issued[Pan]) {
 		cam := i.Command.Camera
 		if cam == nil {
 			return
@@ -39,7 +39,7 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 		}
 		cam.Pan(i.Command.Dx, i.Command.Dy)
 	})
-	s.p.zooms.Drain(func(i control.Issued[Zoom]) {
+	s.p.zooms.Drain(func(i command.Issued[Zoom]) {
 		cam := i.Command.Camera
 		if cam == nil {
 			return
@@ -51,7 +51,7 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 			cam.ZoomOut(1/i.Command.Factor, x, y)
 		}
 	})
-	s.p.follows.Drain(func(i control.Issued[Follow]) {
+	s.p.follows.Drain(func(i command.Issued[Follow]) {
 		cam, ok := i.Command.Camera.(camera.Fastenable)
 		if !ok {
 			return
@@ -66,7 +66,7 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 		}
 		s.fasten(cam, i.Command.Entity)
 	})
-	s.p.lookAts.Drain(func(i control.Issued[LookAt]) {
+	s.p.lookAts.Drain(func(i command.Issued[LookAt]) {
 		if cam := i.Command.Camera; cam != nil && s.query.Seek(i.Command.Entity) {
 			if f, ok := cam.(camera.Fastenable); ok && f.Fastening().How != 0 {
 				f.Fasten(camera.Fastening{})
@@ -74,7 +74,7 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 			s.centre(cam)
 		}
 	})
-	s.p.looks.Drain(func(i control.Issued[MouseLook]) {
+	s.p.looks.Drain(func(i command.Issued[MouseLook]) {
 		if m, ok := i.Command.Camera.(camera.MouseLooker); ok {
 			m.SetMouseLook(!m.MouseLook())
 		}
@@ -98,7 +98,7 @@ func (s *cameraSystem) start() {
 	s.p.starts = waiting
 }
 
-func (s *cameraSystem) called(whom entity.Whom) (uid.UID64, bool) {
+func (s *cameraSystem) called(whom ceremony.Whom) (uid.UID64, bool) {
 	for s.labelled.All(); s.labelled.Next(); {
 		cur := s.labelled.Cursor()
 		for i, l := range s.label.Slice(cur) {

@@ -1,6 +1,7 @@
 package selection_test
 
 import (
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/render"
@@ -9,16 +10,15 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -100,12 +100,12 @@ func (c *camp) ids() map[float64]uid.UID64 {
 	return out
 }
 
-func (c *camp) reached(by control.PlayerID) map[float64]bool {
+func (c *camp) reached(by command.Issuer) map[float64]bool {
 	c.t.Helper()
 	everywhere := geom.NewAABBAt(geom.NewVec(0, 0), 1000, 1000)
 	c.w.Carrier().Put(by, selection.Select{Box: everywhere})
 	c.tick()
-	c.w.Carrier().Put(by, rule.Put(c.haste).On(c.sel.Selected()))
+	c.w.Carrier().Put(by, ceremony.Put(c.haste).On(c.sel.Selected()))
 	c.tick()
 	out := map[float64]bool{}
 	for x, id := range c.ids() {
@@ -113,7 +113,7 @@ func (c *camp) reached(by control.PlayerID) map[float64]bool {
 			out[x] = true
 		}
 	}
-	c.w.Carrier().Put(by, rule.Take(c.haste).On(c.sel.Selected()))
+	c.w.Carrier().Put(by, ceremony.Take(c.haste).On(c.sel.Selected()))
 	c.tick()
 	c.w.Carrier().Put(by, selection.Select{IDs: []uid.UID64{}})
 	c.tick()
@@ -147,7 +147,7 @@ func TestTold_AUnitIsWhoseAndSelectableAsItsEntrySays(t *testing.T) {
 	if got := c.reached(c.two.ID); !only(got, 200) {
 		t.Errorf("player two reaches %v, want the unit at 200 alone", got)
 	}
-	if got := c.reached(control.Nobody); !only(got, 300) {
+	if got := c.reached(command.Nobody); !only(got, 300) {
 		t.Errorf("nobody reaches %v, want the ownerless unit at 300 alone", got)
 	}
 }
@@ -178,7 +178,7 @@ func TestAllow_SelectedSelectsAtOnce(t *testing.T) {
 			unit.Entry(200).Told(players.Give{To: c.one.ID}, selection.Allow{}),
 		}
 	})
-	c.w.Carrier().Put(c.one.ID, rule.Put(c.haste).On(c.sel.Selected()))
+	c.w.Carrier().Put(c.one.ID, ceremony.Put(c.haste).On(c.sel.Selected()))
 	c.tick()
 	ids := c.ids()
 	if !c.haste.On(ids[100]) || c.haste.On(ids[200]) {

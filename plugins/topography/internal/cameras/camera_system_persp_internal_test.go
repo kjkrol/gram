@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	contract "github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
 )
@@ -109,7 +109,7 @@ func TestInside_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 		t.Errorf("the walker gone east and turned south, the eye is at %v looking from %v, want (405, 305, 7) from %v", r.cam.persp.eye(), r.cam.Heading(), wrapAngle(behind(0, 1)))
 	}
 	// Q and E do nothing: the eye stays on the way the walker faces
-	r.turns.Add(control.Nobody, Turn{Camera: r.cam, Angle: 0.5})
+	r.turns.Add(command.Nobody, Turn{Camera: r.cam, Angle: 0.5})
 	r.ecs.Tick(time.Second / 60)
 	if !near(r.cam.Heading(), wrapAngle(behind(0, 1))) {
 		t.Errorf("Turn inside took the heading to %v, want %v still", r.cam.Heading(), wrapAngle(behind(0, 1)))
@@ -140,7 +140,7 @@ func TestInside_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 	r.cam.next()
 	pose := r.cam.persp.pose()
 	r.inside()
-	r.views.Add(control.Nobody, View{Camera: r.cam})
+	r.views.Add(command.Nobody, View{Camera: r.cam})
 	r.ecs.Tick(time.Second / 60)
 	if r.cam.insideUnit() || !r.cam.inPersp || r.sys.fastened(r.cam) != nil || contract.HowOf(r.cam) != contract.Centred {
 		t.Fatalf("Tab while riding: first person %v, in perspective %v, fastened %+v; want back in the free perspective, over the walker", r.cam.insideUnit(), r.cam.inPersp, r.cam.Fastening())
@@ -177,7 +177,7 @@ func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 	r.walk(300, 300, 1, 0)
 	r.inside()
 	east := r.cam.Heading()
-	r.looks.Add(control.Nobody, Look{Camera: r.cam, Dx: 200, Dy: -100})
+	r.looks.Add(command.Nobody, Look{Camera: r.cam, Dx: 200, Dy: -100})
 	r.ecs.Tick(time.Second / 60)
 	a := float64(200 * LookStep)
 	want := geom.NewVec(math.Cos(a), math.Sin(a)) // east turned clockwise, to the right
@@ -215,7 +215,7 @@ func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 		t.Errorf("the walker turned south by itself, the view looks from %v, want %v: pinned to it", h, wrapAngle(behind(0, 1)))
 	}
 	// A or D take over from the mouse
-	r.looks.Add(control.Nobody, Look{Camera: r.cam, Dx: 300})
+	r.looks.Add(command.Nobody, Look{Camera: r.cam, Dx: 300})
 	r.hand(r.walkers[0], 0, -1)
 	r.ecs.Tick(time.Second / 60)
 	if d, _ := r.drivenOf(r.walkers[0]); d.Look != (geom.Vec{}) || d.Turn != -1 {
@@ -224,7 +224,7 @@ func TestLook_TurnsTheViewAtOnceAndTheWalkerToFaceIt(t *testing.T) {
 	// out, the mouse does nothing
 	r.pressV()
 	h, p := r.cam.Heading(), r.cam.Pitch()
-	r.looks.Add(control.Nobody, Look{Camera: r.cam, Dx: 300, Dy: 50})
+	r.looks.Add(command.Nobody, Look{Camera: r.cam, Dx: 300, Dy: 50})
 	r.ecs.Tick(time.Second / 60)
 	if r.cam.Heading() != h || r.cam.Pitch() != p {
 		t.Error("a Look for a camera riding in nothing moved it")

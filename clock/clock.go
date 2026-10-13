@@ -4,8 +4,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/uid"
 )
 

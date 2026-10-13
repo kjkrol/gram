@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/gravity"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -20,7 +20,7 @@ var _ goke.System = (*handSystem)(nil)
 type handSystem struct {
 	hands    *hands
 	selected tag.Tag[selection.Family]
-	carrier  *control.Carrier
+	carrier  *command.Carrier
 	*units
 
 	drivenID goke.CompID

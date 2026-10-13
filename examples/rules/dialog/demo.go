@@ -6,9 +6,12 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/board"
@@ -25,9 +28,6 @@ import (
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/ui"
 	"github.com/kjkrol/uid"
 )
@@ -196,9 +196,9 @@ func (s *arena) defineKinds() {
 		TravellerKind,
 		unit.Mover{Domain: cell.Land},
 		walks,
-		rule.Plays(roles.Named(TravellerRole)),
+		ceremony.Plays(roles.Named(TravellerRole)),
 	)
-	units.Define(HostKind, unit.Mover{Domain: cell.Land}, walks, rule.Plays(roles.Named(HostRole)),
+	units.Define(HostKind, unit.Mover{Domain: cell.Land}, walks, ceremony.Plays(roles.Named(HostRole)),
 		comp.Const(vision.Sight{Facing: geom.NewVec(-1, 0), Radius: CellSize * 2.5}),
 		comp.Const(world.Eye{Angle: math.Pi / 3}), // looking west, the way the traveller comes
 		comp.Load(func(u unitRow) dialog.Script { return s.dialog.Script(u.Talks) }),

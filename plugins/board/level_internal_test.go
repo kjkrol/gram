@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/world"
@@ -373,7 +373,7 @@ func TestSpawn_ARowMayNotTagAnEntrysKey(t *testing.T) {
 	}
 }
 
-var _ control.Command = mark{}
+var _ command.Command = mark{}
 
 func TestSpawn_AnEntityNobodySpawnsFailsPopulate(t *testing.T) {
 	p := newLevelBoard(t, grid.DefaultGrids{}.Square(4, 2, 10), false, 0)

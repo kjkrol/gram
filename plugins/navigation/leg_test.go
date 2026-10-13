@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -25,7 +25,7 @@ const (
 type legUnit struct {
 	start, target cell.ID
 	hasOrder      bool
-	owner         control.PlayerID
+	owner         command.Issuer
 }
 
 type legWorld struct {
@@ -229,8 +229,8 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
-	moves := &control.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
+	moves := &command.Queue[MoveTo]{}
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
 
 	from := grid.At(0, 0)
 	to := grid.At(1, 0)
@@ -263,7 +263,7 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 		ctx.Sync()
 	})
 
-	moves.Add(control.Nobody, MoveTo{Cell: newTarget})
+	moves.Add(command.Nobody, MoveTo{Cell: newTarget})
 	ecs.Tick(time.Second)
 
 	_, mt := readCellAndMoveOrder(t, q, &at, &order)

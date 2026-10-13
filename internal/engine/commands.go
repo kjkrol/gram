@@ -7,43 +7,44 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 )
 
 type commands struct {
-	saves  control.Queue[game.Save]
-	loads  control.Queue[game.Load]
-	enters control.Queue[game.Enter]
-	quits  control.Queue[game.Quit]
+	saves  command.Queue[game.Save]
+	loads  command.Queue[game.Load]
+	enters command.Queue[game.Enter]
+	quits  command.Queue[game.Quit]
 }
 
 var _ plugin.CommandHandler = (*commands)(nil)
 
-func (c *commands) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&c.saves, &c.loads, &c.enters, &c.quits}
+func (c *commands) Queues() []command.CommandQueue {
+	return []command.CommandQueue{&c.saves, &c.loads, &c.enters, &c.quits}
 }
 
 func (*commands) DefaultBindings() []control.Binding { return nil }
 
 func (e *Engine) carry() {
-	e.commands.saves.Drain(func(i control.Issued[game.Save]) {
+	e.commands.saves.Drain(func(i command.Issued[game.Save]) {
 		if err := e.Save(i.Command.Slot); err != nil {
 			log.Printf("gram: save: %v", err)
 		}
 	})
-	e.commands.loads.Drain(func(i control.Issued[game.Load]) {
+	e.commands.loads.Drain(func(i command.Issued[game.Load]) {
 		if err := e.Load(i.Command.Stage, i.Command.Slot); err != nil {
 			log.Printf("gram: load: %v", err)
 		}
 	})
-	e.commands.enters.Drain(func(i control.Issued[game.Enter]) {
+	e.commands.enters.Drain(func(i command.Issued[game.Enter]) {
 		if err := e.SwitchStage(i.Command.Stage); err != nil {
 			log.Printf("gram: enter: %v", err)
 		}
 	})
-	e.commands.quits.Drain(func(control.Issued[game.Quit]) { e.Quit() })
+	e.commands.quits.Drain(func(command.Issued[game.Quit]) { e.Quit() })
 }
 
 // Save saves the active Stage in the save slot, "" the quicksave, where Props.Saves says.
@@ -87,8 +88,8 @@ func (e *Engine) Load(stage, slot string) error {
 }
 
 // Issue gives cmd as nobody to whoever carries it out in the active Stage.
-func (e *Engine) Issue(cmd control.Command) error {
-	if !e.current.carrier.Put(control.Nobody, cmd) {
+func (e *Engine) Issue(cmd command.Command) error {
+	if !e.current.carrier.Put(command.Nobody, cmd) {
 		return fmt.Errorf("gram: nobody carries out %T in stage %q", cmd, e.current.stage.Name())
 	}
 	return nil

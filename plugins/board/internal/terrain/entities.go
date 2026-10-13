@@ -2,17 +2,17 @@ package terrain
 
 import (
 	"fmt"
-	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/ceremony"
 	"reflect"
 	"time"
 
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -33,7 +33,7 @@ type entitySystem struct {
 	spawnBuilt  goke.Comp[cell.Built]
 	spawnMarks  goke.Comp[tag.Tags[effect.States]]
 	spawnRoles  goke.Comp[tag.Tags[cond.Roles]]
-	spawnLabel  goke.Comp[entity.Label]
+	spawnLabel  goke.Comp[ceremony.Label]
 }
 
 func (s *entitySystem) Init(si *goke.SysInit) {
@@ -78,7 +78,7 @@ func (s *entitySystem) spawn(si *goke.SysInit, ids []uid.UID64) {
 		}
 	})
 	for o, c := range cells {
-		if seed.Labels[c] != (entity.Label{}) {
+		if seed.Labels[c] != (ceremony.Label{}) {
 			labelled = append(labelled, o)
 		} else {
 			plain = append(plain, o)
@@ -114,7 +114,7 @@ func (s *entitySystem) make(factory *goke.Factory, ordinals []int, cells []cell.
 		cur := &factory.Cursor
 		plots, grounds, ways := s.spawnPlot.Slice(cur), s.spawnGround.Slice(cur), s.spawnWay.Slice(cur)
 		roles := s.spawnRoles.Slice(cur)
-		var labels []entity.Label
+		var labels []ceremony.Label
 		if labelled {
 			labels = s.spawnLabel.Slice(cur)
 		}
@@ -144,7 +144,7 @@ var own = map[reflect.Type]bool{
 	reflect.TypeFor[cell.Built]():              true,
 	reflect.TypeFor[tag.Tags[effect.States]](): true,
 	reflect.TypeFor[tag.Tags[cond.Roles]]():    true,
-	reflect.TypeFor[entity.Label]():            true,
+	reflect.TypeFor[ceremony.Label]():          true,
 }
 
 func (s *entitySystem) templated() kind.Spec {

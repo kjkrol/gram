@@ -3,10 +3,11 @@ package selection
 import (
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -18,12 +19,12 @@ type Plugin struct {
 	*world.Self
 
 	worldPlugin  *world.Plugin
-	selects      control.Queue[Select]
-	marqueeQueue control.Queue[Marquee]
-	effectCmds   control.Queue[effectCommand]
-	hovers       control.Queue[Hover]
-	allows       control.Queue[Allow]
-	forbids      control.Queue[Forbid]
+	selects      command.Queue[Select]
+	marqueeQueue command.Queue[Marquee]
+	effectCmds   command.Queue[effectCommand]
+	hovers       command.Queue[Hover]
+	allows       command.Queue[Allow]
+	forbids      command.Queue[Forbid]
 	marquees     marquees
 	module       *module
 	renderer     *Renderer
@@ -52,7 +53,7 @@ func (p *Plugin) Tags() Tags { return p.tags }
 
 // Chosen is the one Selected unit player by owns; false with none, or several. Nothing before
 // the plugin is installed.
-func (p *Plugin) Chosen(by control.PlayerID) (uid.UID64, bool) {
+func (p *Plugin) Chosen(by command.Issuer) (uid.UID64, bool) {
 	if p.module == nil {
 		return 0, false
 	}

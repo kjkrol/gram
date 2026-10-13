@@ -8,8 +8,8 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/uid"
 )
@@ -49,7 +49,7 @@ func commanded(t *testing.T, give func(s *System, steered, other uid.UID64)) geo
 	return dir
 }
 
-func put(s *System, id uid.UID64, cmd control.Command) {
+func put(s *System, id uid.UID64, cmd command.Command) {
 	for _, q := range s.Queues() {
 		if q.Accepts() == reflect.TypeOf(cmd) {
 			q.PutFrom(id, cmd)
@@ -62,12 +62,12 @@ func near(a, b geom.Vec) bool { return math.Abs(a.X-b.X) < 1e-9 && math.Abs(a.Y-
 
 func TestCommands_HeadTheEntity(t *testing.T) {
 	for name, tc := range map[string]struct {
-		give func(steered, other uid.UID64) control.Command
+		give func(steered, other uid.UID64) command.Command
 		want geom.Vec
 	}{
-		"away":   {func(_, o uid.UID64) control.Command { return Away{From: o} }, geom.NewVec(-1, 0)},
-		"toward": {func(_, o uid.UID64) control.Command { return Toward{To: o} }, geom.NewVec(1, 0)},
-		"turn":   {func(uid.UID64, uid.UID64) control.Command { return Turn{Angle: math.Pi / 2} }, geom.NewVec(0, 1)},
+		"away":   {func(_, o uid.UID64) command.Command { return Away{From: o} }, geom.NewVec(-1, 0)},
+		"toward": {func(_, o uid.UID64) command.Command { return Toward{To: o} }, geom.NewVec(1, 0)},
+		"turn":   {func(uid.UID64, uid.UID64) command.Command { return Turn{Angle: math.Pi / 2} }, geom.NewVec(0, 1)},
 	} {
 		got := commanded(t, func(s *System, steered, other uid.UID64) { put(s, steered, tc.give(steered, other)) })
 		if !near(got, tc.want) {
@@ -90,7 +90,7 @@ func TestCommands_OneAStep(t *testing.T) {
 
 func TestCommands_OnlyAnEntitysOwnForItself(t *testing.T) {
 	got := commanded(t, func(s *System, steered, other uid.UID64) {
-		s.told.aways.Add(control.PlayerID(1), Away{From: other})
+		s.told.aways.Add(command.Issuer(1), Away{From: other})
 		put(s, other, Toward{To: steered})
 	})
 	if !near(got, geom.NewVec(1, 0)) {

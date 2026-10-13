@@ -2,17 +2,18 @@ package bullet
 
 import (
 	"fmt"
+	"github.com/kjkrol/ceremony/fact"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -45,6 +46,11 @@ type Flight struct {
 	Cell                uint64
 	Landed              bool
 }
+
+// Fact: told to the unit, carried until it goes (fact.Fact).
+func (Flight) Fact() {}
+
+var _ fact.Fact = Flight{}
 
 // Lying is the word of a shot that has landed and lies where it came down.
 func Lying() cond.Word[Flight] {

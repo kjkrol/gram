@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -24,8 +26,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -35,7 +35,7 @@ type roadUnit struct {
 	domain        cell.Domain // zero: Land
 	wide          bool        // the hawk's profile: faster, turning slower
 	selected      bool
-	owner         control.PlayerID
+	owner         command.Issuer
 	plan          *writtenPlan
 	round         []cell.ID // its Round, for Onward
 	group         uint32
@@ -139,7 +139,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		if selected {
 			s = append(s, comp.Tagged(sel.Tags().Selectable, sel.Tags().Selected))
 		}
-		if u.owner != control.Nobody {
+		if u.owner != command.Nobody {
 			s = append(s, comp.Tagged(owner.Of(u.owner)))
 		}
 		if u.round != nil {
@@ -364,7 +364,7 @@ func TestLook_AClickOnTheUnitsOwnCellTurnsItThere(t *testing.T) {
 	centre := rw.grid.CellCenter(rw.at(2, 1))
 	north := geom.NewVec(centre.X+3, centre.Y-12) // inside its own cell
 
-	rw.nav.moves.Add(control.Nobody, MoveTo{Cell: rw.at(2, 1), At: north})
+	rw.nav.moves.Add(command.Nobody, MoveTo{Cell: rw.at(2, 1), At: north})
 	dir := rw.heading(unit, 2*time.Second)
 	if cell, o := rw.state(unit); o != nil || cell != rw.at(2, 1) {
 		t.Fatalf("after the click the unit is on %v with order %v, want it still on its cell with none", cell, o)
@@ -385,7 +385,7 @@ func TestLook_LookAtStopsAWalkingUnitAtTheEndOfItsStepAndTurnsIt(t *testing.T) {
 	rw.heading(unit, 500*time.Millisecond)
 	here, _ := rw.state(unit)
 	south := geom.NewVec(rw.grid.CellCenter(here).X, 3000)
-	rw.nav.looks.Add(control.Nobody, LookAt{At: south})
+	rw.nav.looks.Add(command.Nobody, LookAt{At: south})
 	dir := rw.heading(unit, 3*time.Second)
 
 	cell, o := rw.state(unit)

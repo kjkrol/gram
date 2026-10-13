@@ -5,8 +5,8 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/terrain"
@@ -19,9 +19,9 @@ import (
 type Rules struct {
 	grid     grid.Grid
 	cells    *terrain.Cells
-	tick     plugin.TickSource
-	standing plugin.Rules[unit.Standing]
-	now      plugin.Rules[cell.Now]
+	tick     host.TickSource
+	standing host.Rules[unit.Standing]
+	now      host.Rules[cell.Now]
 	rings    rings
 	slope    func(p, dir geom.Vec, d cell.Domain) float64
 	level    func(c cell.ID) float64
@@ -34,13 +34,13 @@ type Rules struct {
 // New is the rules of the board over g with its cells, run in the Ticks tick makes. slope is the
 // board's Map's, what a unit's Pace goes by besides the cell's cost, and level a cell's ground
 // level.
-func New(g grid.Grid, cells *terrain.Cells, tick plugin.TickSource,
+func New(g grid.Grid, cells *terrain.Cells, tick host.TickSource,
 	slope func(p, dir geom.Vec, d cell.Domain) float64, level func(c cell.ID) float64) *Rules {
 	return &Rules{grid: g, cells: cells, tick: tick, slope: slope, level: level}
 }
 
 // Hosts take the rules of a unit.Standing and of a cell.Now.
-func (r *Rules) Hosts() []plugin.Host { return []plugin.Host{&r.standing, &r.now} }
+func (r *Rules) Hosts() []host.Host { return []host.Host{&r.standing, &r.now} }
 
 // StandingSystem walks every unit on the board every step: its Pace, a fall logged, the rules of
 // a unit.Standing.

@@ -21,13 +21,13 @@
 //
 // # Selected and Pointed
 //
-// A command about an effect (rule.Put, Take, Toggle) says whom it is for with On, and the
+// A command about an effect (ceremony.Put, Take, Toggle) says whom it is for with On, and the
 // selection carries out two: [Plugin.Selected], the units the player who gives it has selected,
 // those playing one of the roles named when any is, and [Plugin.Pointed], the entity drawn under
 // the cursor as the command's key is pressed.
 //
-//	hasten := rule.Put(haste).On(s.selection.Selected(hasty))
-//	freeze := rule.Put(frozen).On(s.selection.Pointed()).For(3 * time.Second)
+//	hasten := ceremony.Put(haste).On(s.selection.Selected(hasty))
+//	freeze := ceremony.Put(frozen).On(s.selection.Pointed()).For(3 * time.Second)
 //
 // # Renderer
 //

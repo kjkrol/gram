@@ -4,30 +4,29 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
 type effectCommands struct {
-	queue    control.Queue[rule.Command]
-	triggers control.Queue[rule.Trigger]
-	sourced  []rule.Command
-	known    []rule.Command
+	queue    command.Queue[ceremony.Command]
+	triggers command.Queue[ceremony.Trigger]
+	sourced  []ceremony.Command
+	known    []ceremony.Command
 	checked  bool
 	effects  *effect.Effects
 	world    func() uid.UID64
-	commands *control.Carrier
+	commands *command.Carrier
 	flips    []flip
 	found    []uid.UID64
 
 	labelled *goke.Query
-	label    goke.Comp[entity.Label]
+	label    goke.Comp[ceremony.Label]
 	plays    *goke.Query
 	playsC   goke.Comp[tag.Tags[cond.Roles]]
 }
@@ -40,7 +39,7 @@ type flip struct {
 	lasts         time.Duration
 }
 
-func (c *effectCommands) take(cmds ...rule.Command) error {
+func (c *effectCommands) take(cmds ...ceremony.Command) error {
 	for _, cmd := range cmds {
 		if cmd.Whom == nil {
 			return fmt.Errorf("world: %v names nobody: say whom with On", cmd)
@@ -72,7 +71,7 @@ func (c *effectCommands) system() goke.System {
 				c.checked = true
 				c.check()
 			}
-			c.triggers.Drain(func(i control.Issued[rule.Trigger]) {
+			c.triggers.Drain(func(i command.Issued[ceremony.Trigger]) {
 				if !i.ByEntity || !c.labelled.Seek(i.Entity) {
 					return
 				}
@@ -81,14 +80,14 @@ func (c *effectCommands) system() goke.System {
 					if !cmd.Source.Holds(who) {
 						continue
 					}
-					if _, mine := cmd.Whom.(entity.Whom); mine {
+					if _, mine := cmd.Whom.(ceremony.Whom); mine {
 						c.carry(cmd)
 					} else {
 						c.commands.PutFrom(i.Entity, cmd)
 					}
 				}
 			})
-			c.queue.Drain(func(i control.Issued[rule.Command]) { c.carry(i.Command) })
+			c.queue.Drain(func(i command.Issued[ceremony.Command]) { c.carry(i.Command) })
 			for _, f := range c.flips {
 				switch {
 				case f.on && (f.cast || !f.was) && f.lasts > 0:
@@ -104,8 +103,8 @@ func (c *effectCommands) system() goke.System {
 	}
 }
 
-func (c *effectCommands) carry(cmd rule.Command) {
-	whom, ok := cmd.Whom.(entity.Whom)
+func (c *effectCommands) carry(cmd ceremony.Command) {
+	whom, ok := cmd.Whom.(ceremony.Whom)
 	if !ok || cmd.Effect == (effect.Effect{}) {
 		return
 	}
@@ -115,14 +114,14 @@ func (c *effectCommands) carry(cmd rule.Command) {
 	}
 	c.found = append(c.found, whom.IDs()...)
 	if !whom.IsWorld() && len(whom.IDs()) == 0 {
-		c.each(func(id uid.UID64, l entity.Label) {
+		c.each(func(id uid.UID64, l ceremony.Label) {
 			if whom.Holds(l) {
 				c.found = append(c.found, id)
 			}
 		})
 	}
-	on := cmd.Verb == rule.Puts
-	if cmd.Verb == rule.Toggles {
+	on := cmd.Verb == ceremony.Puts
+	if cmd.Verb == ceremony.Toggles {
 		on = true
 		for _, id := range c.found {
 			if c.flipOf(id, cmd.Effect).on {
@@ -148,7 +147,7 @@ func (c *effectCommands) flipOf(id uid.UID64, e effect.Effect) *flip {
 	return &c.flips[len(c.flips)-1]
 }
 
-func (c *effectCommands) each(fn func(id uid.UID64, l entity.Label)) {
+func (c *effectCommands) each(fn func(id uid.UID64, l ceremony.Label)) {
 	for c.labelled.All(); c.labelled.Next(); {
 		cur := c.labelled.Cursor()
 		for i, l := range c.label.Slice(cur) {
@@ -159,15 +158,15 @@ func (c *effectCommands) each(fn func(id uid.UID64, l entity.Label)) {
 
 func (c *effectCommands) check() {
 	names := map[uint64]int{}
-	var labels []entity.Label
-	c.each(func(_ uid.UID64, l entity.Label) {
+	var labels []ceremony.Label
+	c.each(func(_ uid.UID64, l ceremony.Label) {
 		labels = append(labels, l)
 		if l.Name != 0 {
 			names[l.Name]++
 		}
 	})
-	said := func(w entity.Whom, cmd rule.Command) {
-		w.Each(func(what string, borne func(entity.Label) bool) {
+	said := func(w ceremony.Whom, cmd ceremony.Command) {
+		w.Each(func(what string, borne func(ceremony.Label) bool) {
 			n := 0
 			for _, l := range labels {
 				if borne(l) {
@@ -180,7 +179,7 @@ func (c *effectCommands) check() {
 		})
 	}
 	for _, cmd := range c.known {
-		if whom, ok := cmd.Whom.(entity.Whom); ok {
+		if whom, ok := cmd.Whom.(ceremony.Whom); ok {
 			said(whom, cmd)
 		}
 		said(cmd.Source, cmd)

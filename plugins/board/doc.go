@@ -22,7 +22,7 @@
 //
 // Every step the board runs the rules of its moments, which the roles obey: a unit.Standing for
 // every entity on the board (the cell under it, its kind on the unit's level, whether it has
-// Fallen where its domain may not be) and a cell.Now for every cell. Both are plugin.Placed: a
+// Fallen where its domain may not be) and a cell.Now for every cell. Both are host.Placed: a
 // rule's Here acts on the cells under the entity and the entities standing on them, Around on
 // the rings round them too. The same pass writes every unit's steering.Pace from the ground
 // under it.

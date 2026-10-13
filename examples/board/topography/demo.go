@@ -7,10 +7,14 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/atmosphere"
@@ -36,10 +40,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -207,7 +207,7 @@ func (s *arena) defineRules() {
 }
 
 func (s *arena) defineCommands() {
-	bleed := rule.Toggle(s.world.Effects().Named(BloodMoonEf)).On(s.atmosphere)
+	bleed := ceremony.Toggle(s.world.Effects().Named(BloodMoonEf)).On(s.atmosphere)
 	s.world.Commands().Define(BleedCmd, bleed)
 }
 
@@ -266,7 +266,7 @@ func (s *arena) defineKinds() {
 		V0:       unitSpeed / 2,
 		TurnRate: 0.15,
 	}
-	mortal := rule.Plays(s.world.Roles().Named(MortalRole))
+	mortal := ceremony.Plays(s.world.Roles().Named(MortalRole))
 	units.Define(UnitKind, unit.Mover{Domain: cell.Land}, walker,
 		order,
 		sight, eye, mortal,

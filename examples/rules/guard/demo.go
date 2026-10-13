@@ -6,11 +6,14 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/board"
@@ -25,10 +28,6 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
-	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -117,7 +116,7 @@ func (s *arena) defineEffects() {
 
 func (s *arena) defineCommands() {
 	s.world.Commands().Define(AlarmCmd,
-		rule.Toggle(s.world.Effects().Named(AlarmEf)).On(entity.World))
+		ceremony.Toggle(s.world.Effects().Named(AlarmEf)).On(ceremony.World))
 }
 
 func (s *arena) defineCells() {
@@ -150,7 +149,7 @@ func (s *arena) defineKinds() {
 		plan.Loop[any]{
 			Name:    "to the gate",
 			When:    cond.On(s.world).If(alarm),
-			Then:    plan.Self.Do(navigation.MoveTo{To: entity.Named(GateName)}),
+			Then:    plan.Self.Do(navigation.MoveTo{To: ceremony.Named(GateName)}),
 			Until:   cond.Self.If(navigation.Arrived{}),
 			Timeout: 20 * time.Second,
 		},

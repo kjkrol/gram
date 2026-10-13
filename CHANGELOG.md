@@ -8,7 +8,45 @@ the topography was split into packages: its heights are `relief.Heights` now. No
 left the world: goke names `tag.Tags[clock.Phase]` and `tag.Tags[effect.States]` by their
 argument's full path, which moved. Nor those made before decks ran as bands: `cell.Floor`,
 `cell.Rail` and `cell.Built` changed shape. Nor those made before a route knew its levels and
-where it begins: `navigation.Path` changed shape.
+where it begins: `navigation.Path` changed shape. Nor those made before the behaviours went to
+`ceremony`: the component types' paths changed (`ceremony/tag.Tags[…]`, `effect.Active`,
+`plan.Mind`, `ceremony.Label`).
+
+**Behaviours moved out to [`ceremony`](https://github.com/kjkrol/ceremony) v0.1.0**
+- How entities behave — rules, plans, effects, roles, commands, facts — is the library
+  `github.com/kjkrol/ceremony`, which gram builds on with goke as the store; its language is
+  documented there (`doc/ceremony.md`), and nothing of the game is in it. What moved:
+  `entity/tag` → `ceremony/tag`; `entity/kind/comp` → `ceremony/comp`; `rule/effect` →
+  `ceremony/effect` (without `Look`, `Sprites`, `Looks`); `rule/cond` → `ceremony/cond`;
+  `rule/act` → `ceremony/act`; `rule/plan` → `ceremony/plan` (with the store's part for now:
+  `plan.Mind`, `plan.Plans`, `plan.NewPlans`, `plan.PlanID`, `plan.MaxSteps`); `rule` (`Part`,
+  `NewPart`, `Plays`, `Played`, the commands `Put`/`Take`/`Toggle`, `Trigger`) and
+  `entity/label.go` (`Label`, `LabelOf`, `Whom`, `Named`, `Group`, `World`, `ID`) → the root
+  `ceremony`; `rule/message.go` → `ceremony/fact` (`fact.Fact`, `fact.From`, `fact.Subject`,
+  `fact.Message`, `MaxChain`, `AskLife`); `internal/steps` → `ceremony/internal/steps`;
+  `plugin`'s `Rules`, `PairRules`, `StepRules`, `Columns`, `Own`, `Side`, `SideOf`, `Marks`,
+  `Tick`, `TickSource`, `About`, `Met`, `Placed`, `Aimed`, `Hosted`, `ErrUnhosted`,
+  `ErrHostBuilt`, `Host` → `ceremony/host`; `internal/hosts.Deliver` → `ceremony.Deliver`;
+  `control/command.go` (`Command`, `Queue`, `CommandQueue`, `Carrier`, `Issued`, `Routed`,
+  `Unwrap`) → `ceremony/command`. `plugin.Installer.Hosts` takes `host.Host`s,
+  `plugin.CommandHandler.Queues` hands back `command.CommandQueue`s.
+- What stays in gram: `entity` (`Base`, `Position`…), `entity/kind` (`Spec`, `Define`, the
+  roster), `control` (input alone: `Binding`, the triggers, `Context`, `Keys`, `Tool`), `plugin`
+  (the extension contract), `clock`, the world's registers of effects, roles, plans and
+  commands with `effect_commands.go`, and every plugin's moments, facts, words and knobs.
+- A sprite's look under an effect is the world atlas's: `world.Atlas.Add(kind, size,
+  look).Under(effect, look)` issues the twin slot and `WithRenderer` swaps it in; `effect.Look`,
+  `Effects.Sprites`, `Effects.Looks`, `render.Dresser` and `render.Slot.Under` are gone, and
+  every demo declares its looks on `s.world.NewAtlas()`.
+- The player's id is `command.Issuer` (`control.PlayerID` is gone, `command.Nobody` in place of
+  `control.Nobody`), and `Issued.Player` is `Issued.Issuer`: who gives a command from outside
+  the entities, nothing of a player in ceremony.
+- Facts are marked `fact.Fact` by a method `Fact()` and confirmed beside the type
+  (`navigation.Blocked`, `Arrived`, `bullet.Flight`), knobs `effect.Knob` by `Knob()`
+  (`steering.Steering`, `cell.Ground`, `Floor`, `Wall`, `collision.Physics`, `gravity.Pull`,
+  `sky.Moon`, `vision.Sight`, `render.Appearance`; `effect.Alter[T Knob]`), as commands are
+  `command.Command` by `Command()` and moments `host.About` by `Who()`.
+- Saves written before do not load: the component types' paths changed.
 
 **Conditions in `rule/cond`, rules in `rule/act`, plans in `rule/plan`: every clause says whom**
 - `rule` is five packages: `rule/cond` the conditions, `rule/act` a rule's steps and branch,

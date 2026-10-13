@@ -14,8 +14,9 @@ What is left to do. Take an item out when it lands.
    (`Blocked`, `Arrived`, `Flight`) and which are not.
 
 ## Engine
-- **A library of processes** — `internal/steps` with `cond`, `act` and `plan` over an interface
-  for where a fact and a state come from; nothing of the game in it.
+- **`ceremony`'s store interface** (a fact, a state, the roles, the time, a command's handler)
+  and the `ceremony/goke` binding: the world's registers of effects, roles and plans,
+  `effect_commands.go` and `Kinds.Register` move there.
 - **A dictionary of idioms** — `Once` (a thing done at most once a while, an effect the memory),
   `Either` (a coin), the patrol (`Onward`, `Until[Arrived]`, `Wait`), the asker's "no answer"
   (`Until` under a `Timeout` in a `OneOf`): named shapes written out of the bricks, in

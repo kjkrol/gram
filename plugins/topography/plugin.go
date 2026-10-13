@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
@@ -79,7 +80,7 @@ type Plugin struct {
 	cameras   *icameras.Control
 	views     func(icameras.Config) cameras.Maker
 	camQueues cameraQueues
-	coarse    control.Queue[CoarseShadows]
+	coarse    command.Queue[CoarseShadows]
 	module    *module
 }
 
@@ -355,7 +356,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // and puts every unit at its altitude in the simulation. Call it after the world has moved and
 // before the players' RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.coarse.Drain(func(control.Issued[CoarseShadows]) { p.WithCoarseShadows(!p.ShadowsCoarse()) })
+	p.coarse.Drain(func(command.Issued[CoarseShadows]) { p.WithCoarseShadows(!p.ShadowsCoarse()) })
 	p.module.RunPlan(ctx, d)
 }
 

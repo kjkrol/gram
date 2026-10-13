@@ -6,18 +6,18 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/plan"
 )
 
 type carrierStage struct {
@@ -62,7 +62,7 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 		comp.Load(at),
 		comp.Const(world.Velocity{}),
 		comp.Const(collision.Collider{}),
-		rule.Plays(fragile),
+		ceremony.Plays(fragile),
 	})
 	s.box = kind.Named[float64](s.world.Kinds(), "box")
 	s.players = players.NewPlugin(s.world)

@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
 )
 
 func TestRoles_AreTheStagesOwn(t *testing.T) {

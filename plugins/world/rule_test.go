@@ -6,18 +6,18 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -34,7 +34,7 @@ type triggerStage struct {
 	rules          []act.Rule
 	world          *world.Plugin
 	coll           *collision.Plugin
-	bullet, target *rule.Part
+	bullet, target *ceremony.Part
 	unit           kind.Of[spot]
 	base           goke.Comp[world.Base]
 	states         goke.OptComp[tag.Tags[effect.States]]
@@ -75,9 +75,9 @@ func (g *triggerStage) Init(ctx game.Initializer) error {
 		comp.Load(func(s spot) tag.Tags[cond.Roles] {
 			trigger := g.world.Roles().Named("trigger unit")
 			if s.bullet {
-				return rule.Plays(trigger, g.bullet).Resolve(nil)
+				return ceremony.Plays(trigger, g.bullet).Resolve(nil)
 			}
-			return rule.Plays(trigger, g.target).Resolve(nil)
+			return ceremony.Plays(trigger, g.target).Resolve(nil)
 		}),
 	})
 	g.unit = kind.Named[spot](g.world.Kinds(), "unit")

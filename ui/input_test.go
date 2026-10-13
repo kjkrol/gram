@@ -3,6 +3,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/render"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -58,8 +59,8 @@ func TestInput_AClickOnTheWorldReachesThePlayerAndOneOnAPanelDoesNot(t *testing.
 }
 
 func TestInput_AButtonGivesItsCommandThroughIssue(t *testing.T) {
-	var issued []control.Command
-	s := built(NewScene("main", Center(Button("go", order{"go"})).Size(100, 40)).Issue(func(cmd control.Command) error { issued = append(issued, cmd); return nil }))
+	var issued []command.Command
+	s := built(NewScene("main", Center(Button("go", order{"go"})).Size(100, 40)).Issue(func(cmd command.Command) error { issued = append(issued, cmd); return nil }))
 	s.HandleEvents(click(geom.NewVec(600, 300)), nil, nil)
 	if len(issued) != 1 || issued[0] != (order{"go"}) {
 		t.Fatalf("issued %v, want the button's order", issued)
@@ -68,10 +69,10 @@ func TestInput_AButtonGivesItsCommandThroughIssue(t *testing.T) {
 
 type issuing struct {
 	game.Runtime
-	issued []control.Command
+	issued []command.Command
 }
 
-func (r *issuing) Issue(cmd control.Command) error {
+func (r *issuing) Issue(cmd command.Command) error {
 	r.issued = append(r.issued, cmd)
 	return nil
 }
@@ -96,12 +97,12 @@ func TestInput_AButtonOfTheScenesOwnShowsAndHidesByName(t *testing.T) {
 
 func TestInput_AModalWindowHoldsTheClicksAndTheWheelOutsideIt(t *testing.T) {
 	red := &player{}
-	var issued []control.Command
+	var issued []command.Command
 	s := built(NewScene("main", Layers(
 		Image(&sized{}).Input(red),
 		TopLeft(Button("under", order{"under"})).Size(100, 40),
 		Center(Window("decide", Button("yes", order{"yes"}))).Size(300, 200).Named("decision").Modal(),
-	)).Input(red.handle).Issue(func(cmd control.Command) error { issued = append(issued, cmd); return nil }))
+	)).Input(red.handle).Issue(func(cmd command.Command) error { issued = append(issued, cmd); return nil }))
 
 	outside := click(geom.NewVec(20, 20))
 	outside.ScrollDelta = 1

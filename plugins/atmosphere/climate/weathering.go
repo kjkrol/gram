@@ -1,6 +1,7 @@
 package climate
 
 import (
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/uid"
@@ -16,3 +17,7 @@ type Weathering struct {
 
 // Who is the atmosphere's own entity.
 func (w Weathering) Who() uid.UID64 { return w.Self }
+
+var (
+	_ host.About = Weathering{}
+)

@@ -1,6 +1,9 @@
 package cell
 
-import "github.com/kjkrol/uid"
+import (
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/uid"
+)
 
 // Now is a cell at a step, as the rules the board hosts get it.
 type Now struct {
@@ -14,3 +17,8 @@ func (n Now) Who() uid.UID64 { return n.ID }
 
 // Placed marks the moment as a place: Here acts on this cell, Around on the rings round it.
 func (Now) Placed() {}
+
+var (
+	_ host.About  = Now{}
+	_ host.Placed = Now{}
+)

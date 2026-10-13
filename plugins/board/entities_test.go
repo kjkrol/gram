@@ -5,10 +5,13 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -16,10 +19,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 )
 
 var (
@@ -56,7 +55,7 @@ func newStrip(t *testing.T, ground cell.Kind, spec effect.Spec, extra ...comp.Co
 
 func (s *strip) cast(t *testing.T) {
 	t.Helper()
-	if !s.World.World.Carrier().Put(control.Nobody, rule.Put(s.open).On(entity.Named("it"))) {
+	if !s.World.World.Carrier().Put(command.Nobody, ceremony.Put(s.open).On(ceremony.Named("it"))) {
 		t.Fatal("the world carries no command about an effect")
 	}
 	s.Tick()
@@ -128,24 +127,24 @@ func TestAround_VisitsTheEntitiesStandingOnTheCellsNotTheUnits(t *testing.T) {
 		w.Roles().Define("walker", act.Branch[unit.Standing]{
 			Name: "pull",
 			When: cond.Around(1).If(lever),
-			Then: act.Around(1).Do(rule.Trigger{}),
+			Then: act.Around(1).Do(ceremony.Trigger{}),
 		})
 		walker := w.Roles().Named("walker")
 
 		levers := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize}, itself)
-		levers.Define("lever", rule.Plays(lever))
+		levers.Define("lever", ceremony.Plays(lever))
 		w.Seed(levers.Named("lever").Entry(g.At(2, 0)).Named("lever"))
 		units := board.NewUnits(brd, board.Shape{Size: boardtest.UnitSize}, g.CellCenter)
 		walks := unit.Mover{Domain: cell.Land}
-		units.Define("walker", walks, steering.Steering{}, rule.Plays(walker))
-		units.Define("decoy", walks, steering.Steering{}, rule.Plays(lever))
+		units.Define("walker", walks, steering.Steering{}, ceremony.Plays(walker))
+		units.Define("decoy", walks, steering.Steering{}, ceremony.Plays(lever))
 		w.Seed(units.Named("walker").Entry(g.At(1, 0)))
 		w.Seed(units.Named("decoy").Entry(g.At(0, 0)).Named("decoy"))
 
 		w.Commands().Define("open the doors",
-			rule.Put(open).On(entity.Group("doors")).By(entity.Named("lever")))
+			ceremony.Put(open).On(ceremony.Group("doors")).By(ceremony.Named("lever")))
 		w.Commands().Define("open the decoys",
-			rule.Put(open).On(entity.Group("decoys")).By(entity.Named("decoy")))
+			ceremony.Put(open).On(ceremony.Group("decoys")).By(ceremony.Named("decoy")))
 		return walker.Rules()
 	}
 	bw := boardtest.NewWorldWith(t, g, 5*boardtest.CellSize, boardtest.CellSize, prepare, nil)

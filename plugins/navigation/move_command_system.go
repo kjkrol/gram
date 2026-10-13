@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/players/owner"
@@ -19,9 +19,9 @@ import (
 
 type moveCommandSystem struct {
 	keep     keeping
-	moves    *control.Queue[MoveTo]
-	looks    *control.Queue[LookAt]
-	onwards  *control.Queue[Onward]
+	moves    *command.Queue[MoveTo]
+	looks    *command.Queue[LookAt]
+	onwards  *command.Queue[Onward]
 	selected tag.Tag[selection.Family]
 	kind     func(cell.ID) cell.Kind
 
@@ -50,24 +50,24 @@ type moveCommandSystem struct {
 	selfRound goke.OptComp[Round]
 
 	named *goke.Query
-	label goke.Comp[entity.Label]
+	label goke.Comp[ceremony.Label]
 	plot  goke.OptComp[cell.Plot]
 	at    goke.OptComp[unit.At]
 }
 
 type issuer struct {
-	player control.PlayerID
+	player command.Issuer
 	entity uid.UID64
 	self   bool
 }
 
-func issuedBy[C control.Command](i control.Issued[C]) issuer {
-	return issuer{player: i.Player, entity: i.Entity, self: i.ByEntity}
+func issuedBy[C command.Command](i command.Issued[C]) issuer {
+	return issuer{player: i.Issuer, entity: i.Entity, self: i.ByEntity}
 }
 
 var _ goke.System = (*moveCommandSystem)(nil)
 
-func newMoveCommandSystem(pathFinder *pathFinder, moves *control.Queue[MoveTo], looks *control.Queue[LookAt], selected tag.Tag[selection.Family]) *moveCommandSystem {
+func newMoveCommandSystem(pathFinder *pathFinder, moves *command.Queue[MoveTo], looks *command.Queue[LookAt], selected tag.Tag[selection.Family]) *moveCommandSystem {
 	return &moveCommandSystem{keep: newCellKeeping(pathFinder, pathFinder.occupancy), moves: moves, looks: looks, selected: selected, kind: pathFinder.terrain.Kind}
 }
 
@@ -86,10 +86,10 @@ func (s *moveCommandSystem) Init(si *goke.SysInit) {
 }
 
 func (s *moveCommandSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
-	s.moves.Drain(func(i control.Issued[MoveTo]) { s.carryOut(cb, i.Command, issuedBy(i)) })
-	s.looks.Drain(func(i control.Issued[LookAt]) { s.look(cb, i.Command.At, issuedBy(i)) })
+	s.moves.Drain(func(i command.Issued[MoveTo]) { s.carryOut(cb, i.Command, issuedBy(i)) })
+	s.looks.Drain(func(i command.Issued[LookAt]) { s.look(cb, i.Command.At, issuedBy(i)) })
 	if s.onwards != nil {
-		s.onwards.Drain(func(i control.Issued[Onward]) {
+		s.onwards.Drain(func(i command.Issued[Onward]) {
 			if i.ByEntity {
 				s.onward(cb, i.Entity)
 			}
@@ -111,7 +111,7 @@ func (s *moveCommandSystem) onward(cb *goke.CmdBuf, id uid.UID64) {
 }
 
 // the cell of the one entity bearing a name To gives: a cell's own, or the one a unit is at
-func (s *moveCommandSystem) find(to entity.Whom) (cell.ID, bool) {
+func (s *moveCommandSystem) find(to ceremony.Whom) (cell.ID, bool) {
 	var found cell.ID
 	n := 0
 	for s.named.All(); s.named.Next(); {
@@ -167,7 +167,7 @@ func (s *moveCommandSystem) members(by issuer, fn func(member)) {
 	fn(m)
 }
 
-func (s *moveCommandSystem) selectedMembers(by control.PlayerID, fn func(member)) {
+func (s *moveCommandSystem) selectedMembers(by command.Issuer, fn func(member)) {
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
@@ -216,7 +216,7 @@ func (s *moveCommandSystem) carryOut(cb *goke.CmdBuf, cmd MoveTo, by issuer) {
 		if !ok {
 			return
 		}
-		cmd.Cell, cmd.To = c, entity.Whom{}
+		cmd.Cell, cmd.To = c, ceremony.Whom{}
 	}
 	at := s.kind(cmd.Cell)
 	var members []member

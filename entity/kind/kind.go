@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -78,24 +78,24 @@ type Entry struct {
 	kind        string
 	row         any
 	name, group string
-	told        []control.Command
+	told        []command.Command
 }
 
-// Named is the entry of an entity bearing name, its alone: what entity.Named finds it by.
+// Named is the entry of an entity bearing name, its alone: what ceremony.Named finds it by.
 func (e Entry) Named(name string) Entry { e.name = name; return e }
 
-// InGroup is the entry of an entity in group, with any number of others: what entity.Group finds
+// InGroup is the entry of an entity in group, with any number of others: what ceremony.Group finds
 // it by.
 func (e Entry) InGroup(group string) Entry { e.group = group; return e }
 
 // Told is the entry of an entity given cmds as it is made: the commands it gives itself then.
-func (e Entry) Told(cmds ...control.Command) Entry {
-	e.told = append(append([]control.Command(nil), e.told...), cmds...)
+func (e Entry) Told(cmds ...command.Command) Entry {
+	e.told = append(append([]command.Command(nil), e.told...), cmds...)
 	return e
 }
 
 // Commands are the commands the entity gives itself as it is made.
-func (e Entry) Commands() []control.Command { return e.told }
+func (e Entry) Commands() []command.Command { return e.told }
 
 // Name is the name the entity bears, empty for none.
 func (e Entry) Name() string { return e.name }

@@ -5,21 +5,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
 var (
-	bullet = rule.NewPart("bullet", 0)
-	target = rule.NewPart("target", 1)
+	bullet = ceremony.NewPart("bullet", 0)
+	target = ceremony.NewPart("target", 1)
 )
 
 type tagged struct {
@@ -40,14 +41,14 @@ type heard struct {
 
 func (heard) Command() {}
 
-type heards struct{ control.Queue[heard] }
+type heards struct{ command.Queue[heard] }
 
-func (h *heards) Queues() []control.CommandQueue     { return []control.CommandQueue{&h.Queue} }
+func (h *heards) Queues() []command.CommandQueue     { return []command.CommandQueue{&h.Queue} }
 func (h *heards) DefaultBindings() []control.Binding { return nil }
 
-func (h *heards) given() []control.Issued[heard] {
-	var got []control.Issued[heard]
-	h.Drain(func(i control.Issued[heard]) { got = append(got, i) })
+func (h *heards) given() []command.Issued[heard] {
+	var got []command.Issued[heard]
+	h.Drain(func(i command.Issued[heard]) { got = append(got, i) })
 	return got
 }
 
@@ -67,7 +68,7 @@ func meet(t *testing.T, rules []act.Rule, boxes ...*tagged) []met {
 
 func meetWith(t *testing.T, register func(engine registrar), boxes ...*tagged) []met {
 	t.Helper()
-	var commands control.Carrier
+	var commands command.Carrier
 	var orders heards
 	if err := commands.Carry(&orders); err != nil {
 		t.Fatal(err)
@@ -120,7 +121,7 @@ func meetWith(t *testing.T, register func(engine registrar), boxes ...*tagged) [
 }
 
 // b nil: anybody
-func heardOf(name string, a, b *rule.Part) act.Rule {
+func heardOf(name string, a, b *ceremony.Part) act.Rule {
 	when := cond.Self.If(a)
 	if b != nil {
 		when = when.And(cond.Other.If(b))
@@ -221,7 +222,7 @@ func TestHook_RefusesWhatItCannotHost(t *testing.T) {
 		"a pair made for another host":   fromElsewhere(true),
 		"an entity made for another one": fromElsewhere(false),
 	} {
-		if err := engine.Hook(b); !errors.Is(err, plugin.ErrUnhosted) {
+		if err := engine.Hook(b); !errors.Is(err, host.ErrUnhosted) {
 			t.Errorf("%s: Hook = %v, want ErrUnhosted", name, err)
 		}
 	}
@@ -233,7 +234,7 @@ func TestHook_RefusesOneThatComesTooLate(t *testing.T) {
 	ecs.Setup()
 	engine.RegSystems(ecs)
 
-	if err := engine.Hook(bulletsAgainstTargets()...); !errors.Is(err, plugin.ErrHostBuilt) {
+	if err := engine.Hook(bulletsAgainstTargets()...); !errors.Is(err, host.ErrHostBuilt) {
 		t.Errorf("Hook after the systems were built = %v, want ErrHostBuilt", err)
 	}
 }
@@ -245,7 +246,7 @@ func TestHook_StopsAtTheFirstItCannotHost(t *testing.T) {
 		refused = engine.Hook(heardOf("before", bullet, target), fromElsewhere(true), heardOf("after", bullet, target))
 	}, &tagged{x: 100, bullet: true}, &tagged{x: 105, target: true})
 
-	if !errors.Is(refused, plugin.ErrUnhosted) {
+	if !errors.Is(refused, host.ErrUnhosted) {
 		t.Errorf("Hook = %v, want ErrUnhosted", refused)
 	}
 	if len(got) != 1 || got[0].rule != "before" {

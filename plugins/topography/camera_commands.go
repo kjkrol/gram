@@ -3,6 +3,7 @@ package topography
 import (
 	"math"
 
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	icameras "github.com/kjkrol/gram/plugins/topography/internal/cameras"
@@ -65,13 +66,13 @@ func (Turn) Command()     {}
 func (Tilt) Command()     {}
 
 var (
-	_ control.Command = View{}
-	_ control.Command = LookFrom{}
-	_ control.Command = LookAt{}
-	_ control.Command = Look{}
-	_ control.Command = Ride{}
-	_ control.Command = Turn{}
-	_ control.Command = Tilt{}
+	_ command.Command = View{}
+	_ command.Command = LookFrom{}
+	_ command.Command = LookAt{}
+	_ command.Command = Look{}
+	_ command.Command = Ride{}
+	_ command.Command = Turn{}
+	_ command.Command = Tilt{}
 )
 
 // TurnStep is how far Q and E turn the view a tick they are held, in radians; TiltStep how far
@@ -82,47 +83,47 @@ const (
 )
 
 type cameraQueues struct {
-	turns     control.Queue[Turn]
-	tilts     control.Queue[Tilt]
-	rides     control.Queue[Ride]
-	views     control.Queue[View]
-	lookFroms control.Queue[LookFrom]
-	lookAts   control.Queue[LookAt]
-	looks     control.Queue[Look]
+	turns     command.Queue[Turn]
+	tilts     command.Queue[Tilt]
+	rides     command.Queue[Ride]
+	views     command.Queue[View]
+	lookFroms command.Queue[LookFrom]
+	lookAts   command.Queue[LookAt]
+	looks     command.Queue[Look]
 }
 
 var _ icameras.Orders = (*cameraQueues)(nil)
 
-func (q *cameraQueues) queues() []control.CommandQueue {
-	return []control.CommandQueue{&q.turns, &q.tilts, &q.rides, &q.views, &q.lookFroms, &q.lookAts, &q.looks}
+func (q *cameraQueues) queues() []command.CommandQueue {
+	return []command.CommandQueue{&q.turns, &q.tilts, &q.rides, &q.views, &q.lookFroms, &q.lookAts, &q.looks}
 }
 
 func (q *cameraQueues) Views(fn func(cam camera.Camera)) {
-	q.views.Drain(func(i control.Issued[View]) { fn(i.Command.Camera) })
+	q.views.Drain(func(i command.Issued[View]) { fn(i.Command.Camera) })
 }
 
 func (q *cameraQueues) Turns(fn func(cam camera.Camera, angle float32)) {
-	q.turns.Drain(func(i control.Issued[Turn]) { fn(i.Command.Camera, i.Command.Angle) })
+	q.turns.Drain(func(i command.Issued[Turn]) { fn(i.Command.Camera, i.Command.Angle) })
 }
 
 func (q *cameraQueues) Tilts(fn func(cam camera.Camera, angle float32)) {
-	q.tilts.Drain(func(i control.Issued[Tilt]) { fn(i.Command.Camera, i.Command.Angle) })
+	q.tilts.Drain(func(i command.Issued[Tilt]) { fn(i.Command.Camera, i.Command.Angle) })
 }
 
 func (q *cameraQueues) LookFroms(fn func(cam camera.Camera, x, y, z float32)) {
-	q.lookFroms.Drain(func(i control.Issued[LookFrom]) { fn(i.Command.Camera, i.Command.X, i.Command.Y, i.Command.Z) })
+	q.lookFroms.Drain(func(i command.Issued[LookFrom]) { fn(i.Command.Camera, i.Command.X, i.Command.Y, i.Command.Z) })
 }
 
 func (q *cameraQueues) LookAts(fn func(cam camera.Camera, x, y, z float32)) {
-	q.lookAts.Drain(func(i control.Issued[LookAt]) { fn(i.Command.Camera, i.Command.X, i.Command.Y, i.Command.Z) })
+	q.lookAts.Drain(func(i command.Issued[LookAt]) { fn(i.Command.Camera, i.Command.X, i.Command.Y, i.Command.Z) })
 }
 
 func (q *cameraQueues) Rides(fn func(cam camera.Camera)) {
-	q.rides.Drain(func(i control.Issued[Ride]) { fn(i.Command.Camera) })
+	q.rides.Drain(func(i command.Issued[Ride]) { fn(i.Command.Camera) })
 }
 
 func (q *cameraQueues) Looks(fn func(cam camera.Camera, dx, dy float32)) {
-	q.looks.Drain(func(i control.Issued[Look]) { fn(i.Command.Camera, i.Command.Dx, i.Command.Dy) })
+	q.looks.Drain(func(i command.Issued[Look]) { fn(i.Command.Camera, i.Command.Dx, i.Command.Dy) })
 }
 
 func cameraBindings(perspective bool) []control.Binding {

@@ -8,11 +8,14 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -20,8 +23,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -69,14 +70,14 @@ type heard struct{ Rule string }
 
 func (heard) Command() {}
 
-type heards struct{ control.Queue[heard] }
+type heards struct{ command.Queue[heard] }
 
-func (h *heards) Queues() []control.CommandQueue     { return []control.CommandQueue{&h.Queue} }
+func (h *heards) Queues() []command.CommandQueue     { return []command.CommandQueue{&h.Queue} }
 func (h *heards) DefaultBindings() []control.Binding { return nil }
 
 func (h *heards) told() map[uid.UID64]map[string]bool {
 	told := map[uid.UID64]map[string]bool{}
-	h.Drain(func(i control.Issued[heard]) {
+	h.Drain(func(i command.Issued[heard]) {
 		if told[i.Entity] == nil {
 			told[i.Entity] = map[string]bool{}
 		}
@@ -218,7 +219,7 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 			t.Fatal(err)
 		}
 		met := act.Branch[collision.Meeting]{Name: "met", When: cond.Self.If(cond.Always), Then: act.Self.Do(heard{})}
-		if err := ctx.Deliver(met); !errors.Is(err, plugin.ErrUnhosted) {
+		if err := ctx.Deliver(met); !errors.Is(err, host.ErrUnhosted) {
 			t.Errorf("Between on board: %v, want ErrUnhosted", err)
 		}
 		struck := act.Branch[collision.Struck]{
@@ -226,7 +227,7 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 			When: cond.Self.If(cond.Always),
 			Then: act.Self.Do(heard{}),
 		}
-		if err := ctx.Deliver(struck); !errors.Is(err, plugin.ErrUnhosted) {
+		if err := ctx.Deliver(struck); !errors.Is(err, host.ErrUnhosted) {
 			t.Errorf("Struck on board: %v, want ErrUnhosted", err)
 		}
 	})
@@ -234,7 +235,7 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 	if told := only(t, orders.told()); !told["fell"] {
 		t.Errorf("a land unit spawned over a hole told %v, want fell", told)
 	}
-	if err := hosts.Deliver(footing(grid)); !errors.Is(err, plugin.ErrHostBuilt) {
+	if err := hosts.Deliver(footing(grid)); !errors.Is(err, host.ErrHostBuilt) {
 		t.Errorf("registering after Setup: %v, want ErrHostBuilt", err)
 	}
 }

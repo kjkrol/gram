@@ -6,24 +6,23 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/internal/hosts"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
 type installCtx struct {
-	hosts   []plugin.Host
+	hosts   []host.Host
 	ecs     *goke.ECS
 	pending []func() []goke.System
 }
@@ -42,7 +41,7 @@ func (c *installCtx) ECS() *goke.ECS                                  { return c
 
 type unit struct {
 	x        float64
-	by       control.PlayerID
+	by       command.Issuer
 	selected bool
 }
 
@@ -99,7 +98,7 @@ func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 		w.Clock().Replay(rc, d)
 		rc.Sync()
 	})
-	w.Carrier().Put(1, rule.Put(haste).On(sel.Selected()))
+	w.Carrier().Put(1, ceremony.Put(haste).On(sel.Selected()))
 	for range 2 {
 		ctx.ecs.Tick(time.Second / 10)
 	}
@@ -118,6 +117,6 @@ func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 	}
 }
 
-func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+func (c *installCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
 
-func (c *installCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

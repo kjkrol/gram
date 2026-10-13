@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -37,7 +38,7 @@ func (c *installer) Setup(providers ...goke.SetupProvider) {
 }
 func (c *installer) RegSys(f func() goke.System) goke.Runnable { return c.ecs.RegSys(f()) }
 func (c *installer) ECS() *goke.ECS                            { return c.ecs }
-func (c *installer) Hosts(...plugin.Host)                      {}
+func (c *installer) Hosts(...host.Host)                        {}
 
 // dale is a board 10 x 6 of cells 10 wide, the ground 20 up but for a valley at 0 from x 30 to
 // 60.
@@ -140,7 +141,7 @@ func (d *dale) start(heights func(geom.Vec) float64) {
 	d.ecs = ctx.ecs
 }
 
-func (d *dale) give(cmd control.Command) {
+func (d *dale) give(cmd command.Command) {
 	d.t.Helper()
 	if !d.w.Carrier().Put(1, cmd) {
 		d.t.Fatalf("nobody takes %T", cmd)

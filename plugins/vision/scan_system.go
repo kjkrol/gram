@@ -7,9 +7,9 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/parallel"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
@@ -22,7 +22,7 @@ var _ goke.System = (*ScanSystem)(nil)
 type ScanSystem struct {
 	scanner
 
-	tick plugin.TickSource
+	tick host.TickSource
 
 	log  *log.Logger
 	told map[[2]uid.UID64]bool
@@ -53,13 +53,13 @@ type ScanSystem struct {
 	outline   goke.OptComp[SightOutline]
 	z         goke.OptComp[world.Z]
 
-	host *plugin.PairRules[Sighting]
+	host *host.PairRules[Sighting]
 
 	jobs []job
 
 	observer   Sighting
 	seen       []Seen
-	seenTags   []plugin.Marks
+	seenTags   []host.Marks
 	matched    []Seen
 	sightingOf func(matched []int) Sighting
 }
@@ -104,10 +104,10 @@ const (
 )
 
 func NewScanSystem(space *aabbworld.Space) *ScanSystem {
-	return newScanSystem(space, &plugin.PairRules[Sighting]{})
+	return newScanSystem(space, &host.PairRules[Sighting]{})
 }
 
-func newScanSystem(space *aabbworld.Space, host *plugin.PairRules[Sighting]) *ScanSystem {
+func newScanSystem(space *aabbworld.Space, host *host.PairRules[Sighting]) *ScanSystem {
 	s := &ScanSystem{host: host}
 	s.scanner.bind(space)
 	s.sightingOf = s.sighting

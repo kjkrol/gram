@@ -2,6 +2,7 @@ package driving
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 )
@@ -40,16 +41,16 @@ func (Toward) Command() {}
 func (Jump) Command()   {}
 
 var (
-	_ control.Command = Ahead{}
-	_ control.Command = Back{}
-	_ control.Command = Turn{}
-	_ control.Command = Toward{}
-	_ control.Command = Jump{}
+	_ command.Command = Ahead{}
+	_ command.Command = Back{}
+	_ command.Command = Turn{}
+	_ command.Command = Toward{}
+	_ command.Command = Jump{}
 )
 
 // Queues are where the hand's commands land.
-func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{
+func (p *Plugin) Queues() []command.CommandQueue {
+	return []command.CommandQueue{
 		&p.hands.aheads,
 		&p.hands.backs,
 		&p.hands.turns,

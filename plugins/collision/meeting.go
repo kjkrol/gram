@@ -2,6 +2,7 @@ package collision
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/uid"
 )
 
@@ -18,3 +19,7 @@ func (m Meeting) Who() uid.UID64 { return m.Self }
 
 // Whom tells each the other one.
 func (m Meeting) Whom(each func(uid.UID64)) { each(m.Other) }
+
+var (
+	_ host.Met = Meeting{}
+)

@@ -9,9 +9,9 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
 	contract "github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
@@ -21,11 +21,11 @@ type followRig struct {
 	t       *testing.T
 	ecs     *goke.ECS
 	sys     *cameraSystem
-	turns   control.Queue[Turn]
-	tilts   control.Queue[Tilt]
-	rides   control.Queue[Ride]
-	views   control.Queue[View]
-	looks   control.Queue[Look]
+	turns   command.Queue[Turn]
+	tilts   command.Queue[Tilt]
+	rides   command.Queue[Ride]
+	views   command.Queue[View]
+	looks   command.Queue[Look]
 	cam     *viewCamera
 	cams    []*viewCamera
 	walkers [2]uid.UID64
@@ -99,7 +99,7 @@ func (r *followRig) letGo() {
 }
 
 func (r *followRig) pressV() {
-	r.rides.Add(control.Nobody, Ride{Camera: r.cam})
+	r.rides.Add(command.Nobody, Ride{Camera: r.cam})
 	r.ecs.Tick(time.Second / 60)
 }
 
@@ -155,7 +155,7 @@ func TestBehind_HoldsWhateverElseIsDoneUntilLetGo(t *testing.T) {
 	r.behind()
 	r.cam.Pan(30, 0)
 	r.cam.ZoomIn(1.5, 305, 305)
-	r.turns.Add(control.Nobody, Turn{Camera: r.cam, Angle: 0.2})
+	r.turns.Add(command.Nobody, Turn{Camera: r.cam, Angle: 0.2})
 	r.ecs.Tick(time.Second / 60)
 	if len(r.sys.following) != 1 || !r.centredOn(305, 305) {
 		t.Fatalf("after panning, zooming and turning: kept %d, centred %v; want it held on the walker",
@@ -244,8 +244,8 @@ func TestBehind_LetsGoOfAWalkerGone(t *testing.T) {
 
 func TestTurn_TurnsACameraOfThisViewAndNoOther(t *testing.T) {
 	r := newFollowRig(t)
-	r.turns.Add(control.Nobody, Turn{Camera: r.cam, Angle: 0.5})
-	r.turns.Add(control.Nobody, Turn{Camera: nil, Angle: 0.5})
+	r.turns.Add(command.Nobody, Turn{Camera: r.cam, Angle: 0.5})
+	r.turns.Add(command.Nobody, Turn{Camera: nil, Angle: 0.5})
 	r.ecs.Tick(time.Second / 60)
 	if !near(r.cam.Heading(), 0.5) {
 		t.Errorf("heading %v after Turn by 0.5, want 0.5", r.cam.Heading())

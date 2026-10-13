@@ -7,10 +7,11 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
@@ -24,7 +25,7 @@ type pendingSeed struct {
 	alt        float64
 	id         *uid.UID64
 	plain      bool
-	owner      control.PlayerID
+	owner      command.Issuer
 }
 
 type harness struct {
@@ -100,7 +101,7 @@ func (h *harness) seed(x, y, size float64) *uid.UID64 {
 	return h.seedOwned(x, y, size, h.local.ID)
 }
 
-func (h *harness) seedOwned(x, y, size float64, by control.PlayerID) *uid.UID64 {
+func (h *harness) seedOwned(x, y, size float64, by command.Issuer) *uid.UID64 {
 	id := new(uid.UID64)
 	h.pending = append(h.pending, pendingSeed{x: x, y: y, size: size, id: id, owner: by})
 	return id
@@ -140,7 +141,7 @@ func (h *harness) start() {
 					if !plain {
 						h.tag.Slice(&f.Cursor)[j] = tag.Tags[Family](0).With(h.tags.Selectable)
 						h.z.Slice(&f.Cursor)[j] = world.Z{Altitude: spec.alt}
-						if spec.owner != control.Nobody {
+						if spec.owner != command.Nobody {
 							h.owners.Slice(&f.Cursor)[j] = tag.Tags[owner.Family](0).With(owner.Of(spec.owner))
 						}
 					}
@@ -448,7 +449,7 @@ func (h *harness) hoverAt(x, y float64) {
 func TestSystem_HoverMarksTheEntityUnderTheCursorAlone(t *testing.T) {
 	h := newHarness(t)
 	a := h.seed(50, 50, 10)
-	b := h.seedOwned(300, 300, 10, control.Nobody)
+	b := h.seedOwned(300, 300, 10, command.Nobody)
 	h.start()
 
 	h.hoverAt(55, 55)

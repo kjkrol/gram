@@ -8,10 +8,11 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
@@ -36,11 +37,11 @@ type Plugin struct {
 	saved       [][]byte
 	loaded      bool
 	starts      []start
-	pans        control.Queue[Pan]
-	zooms       control.Queue[Zoom]
-	follows     control.Queue[Follow]
-	lookAts     control.Queue[LookAt]
-	looks       control.Queue[MouseLook]
+	pans        command.Queue[Pan]
+	zooms       command.Queue[Zoom]
+	follows     command.Queue[Follow]
+	lookAts     command.Queue[LookAt]
+	looks       command.Queue[MouseLook]
 	module      *module
 }
 
@@ -72,14 +73,14 @@ func (p *Plugin) New(make Maker, cfg camera.Config) camera.Camera {
 		if !ok {
 			panic(fmt.Sprintf("cameras: a %T cannot be fastened, so cannot follow %q", cam, cfg.Follow))
 		}
-		p.starts = append(p.starts, start{cam: f, whom: entity.Named(cfg.Follow)})
+		p.starts = append(p.starts, start{cam: f, whom: ceremony.Named(cfg.Follow)})
 	}
 	return cam
 }
 
 type start struct {
 	cam  camera.Fastenable
-	whom entity.Whom
+	whom ceremony.Whom
 }
 
 // Cameras are every camera made, in order.

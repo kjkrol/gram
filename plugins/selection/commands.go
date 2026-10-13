@@ -2,13 +2,14 @@ package selection
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -47,7 +48,7 @@ type Allow struct{ Selected bool }
 type Forbid struct{}
 
 type effectCommand struct {
-	cmd     rule.Command
+	cmd     ceremony.Command
 	only    tag.Tags[cond.Roles]
 	pointed bool
 	aimed   bool
@@ -64,16 +65,16 @@ func (Forbid) Command()        {}
 func (effectCommand) Command() {}
 
 var (
-	_ control.Command = Select{}
-	_ control.Command = Marquee{}
-	_ control.Command = Hover{}
-	_ control.Command = Allow{}
-	_ control.Command = Forbid{}
-	_ control.Command = effectCommand{}
+	_ command.Command = Select{}
+	_ command.Command = Marquee{}
+	_ command.Command = Hover{}
+	_ command.Command = Allow{}
+	_ command.Command = Forbid{}
+	_ command.Command = effectCommand{}
 )
 
 // In is the command as given with the cursor where ctx has it.
-func (c effectCommand) In(ctx control.Context) control.Command {
+func (c effectCommand) In(ctx control.Context) command.Command {
 	c.aimed, c.at, c.camera = true, ctx.World(ctx.Cursor), ctx.Camera
 	c.screen = control.ScreenRect(ctx.Cursor, ctx.Cursor)
 	return c
@@ -86,7 +87,7 @@ type target struct {
 
 func (target) Target() {}
 
-func (t target) Route(c rule.Command) control.Command {
+func (t target) Route(c ceremony.Command) command.Command {
 	return effectCommand{cmd: c, only: t.only, pointed: t.pointed}
 }
 
@@ -97,9 +98,9 @@ func (t target) String() string {
 	return "the selected"
 }
 
-// Selected is whom a command is for (rule.Put(haste).On(sel.Selected(hasty))): the units the
+// Selected is whom a command is for (ceremony.Put(haste).On(sel.Selected(hasty))): the units the
 // player who gives it has selected, those playing one of roles alone when any is named.
-func (p *Plugin) Selected(roles ...*rule.Part) rule.Target {
+func (p *Plugin) Selected(roles ...*ceremony.Part) ceremony.Target {
 	var only tag.Tags[cond.Roles]
 	for _, r := range roles {
 		only = only.With(r.Tag())
@@ -107,15 +108,15 @@ func (p *Plugin) Selected(roles ...*rule.Part) rule.Target {
 	return target{only: only}
 }
 
-// Pointed is whom a command is for (rule.Take(frozen).On(sel.Pointed())): the entity under the
+// Pointed is whom a command is for (ceremony.Take(frozen).On(sel.Pointed())): the entity under the
 // cursor as the command's key is pressed. A command given without a cursor reaches nobody.
-func (p *Plugin) Pointed() rule.Target { return target{pointed: true} }
+func (p *Plugin) Pointed() ceremony.Target { return target{pointed: true} }
 
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // Queues are where the selection's commands land.
-func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.selects, &p.marqueeQueue, &p.effectCmds, &p.allows, &p.forbids, &p.hovers}
+func (p *Plugin) Queues() []command.CommandQueue {
+	return []command.CommandQueue{&p.selects, &p.marqueeQueue, &p.effectCmds, &p.allows, &p.forbids, &p.hovers}
 }
 
 // DefaultBindings is a left drag (a click is a drag of no length) into a Select of the box it

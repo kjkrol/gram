@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -19,7 +19,7 @@ var _ goke.System = (*shootSystem)(nil)
 
 type shootSystem struct {
 	w        *world.Plugin
-	shoots   *control.Queue[Shoot]
+	shoots   *command.Queue[Shoot]
 	selected tag.Tag[selection.Family]
 	groundOf func() ground.Heights
 
@@ -42,7 +42,7 @@ type shooter struct {
 	owners tag.Tags[owner.Family]
 }
 
-func newShootSystem(w *world.Plugin, shoots *control.Queue[Shoot], selected tag.Tag[selection.Family], groundOf func() ground.Heights) *shootSystem {
+func newShootSystem(w *world.Plugin, shoots *command.Queue[Shoot], selected tag.Tag[selection.Family], groundOf func() ground.Heights) *shootSystem {
 	return &shootSystem{w: w, shoots: shoots, selected: selected, groundOf: groundOf}
 }
 
@@ -54,14 +54,14 @@ func (s *shootSystem) Update(*goke.CmdBuf, time.Duration) {
 	if s.shoots.Empty() {
 		return
 	}
-	s.shoots.Drain(func(i control.Issued[Shoot]) {
+	s.shoots.Drain(func(i command.Issued[Shoot]) {
 		s.shooters = s.shooters[:0]
 		if i.ByEntity {
 			if s.query.Seek(i.Entity) {
 				s.shooters = append(s.shooters, s.at(i.Entity, s.query.Cursor()))
 			}
 		} else {
-			s.selectedOf(i.Player)
+			s.selectedOf(i.Issuer)
 		}
 		for _, sh := range s.shooters {
 			s.fire(i.Command, sh)
@@ -78,7 +78,7 @@ func (s *shootSystem) at(id uid.UID64, cur *goke.Cursor) shooter {
 	return sh
 }
 
-func (s *shootSystem) selectedOf(by control.PlayerID) {
+func (s *shootSystem) selectedOf(by command.Issuer) {
 	for s.query.All(); s.query.Next(); {
 		cur := s.query.Cursor()
 		bases, marks, owners := s.base.Slice(cur), s.marks.Slice(cur), s.owners.Slice(cur)

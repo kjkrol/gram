@@ -4,12 +4,13 @@ import (
 	"log"
 	"time"
 
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/players/owner"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/gram/ui"
 	"github.com/kjkrol/uid"
 )
@@ -79,7 +80,7 @@ func (s *talkSystem) watch() {
 	}
 }
 
-func (s *talkSystem) begin(i control.Issued[Begin]) {
+func (s *talkSystem) begin(i command.Issued[Begin]) {
 	b := i.Command
 	speaker, listener := i.Entity, b.with
 	if !i.ByEntity || !b.aimed || speaker == listener {
@@ -128,10 +129,10 @@ func (s *talkSystem) busy(id uid.UID64) bool {
 	return false
 }
 
-func (s *talkSystem) choose(i control.Issued[Choose]) {
+func (s *talkSystem) choose(i command.Issued[Choose]) {
 	c := i.Command
 	t := s.found(c.Speaker)
-	if t == nil || !t.talking() || !s.obeys(t.With, i.Player) {
+	if t == nil || !t.talking() || !s.obeys(t.With, i.Issuer) {
 		return
 	}
 	n := s.p.nodes[t.Node]
@@ -147,9 +148,9 @@ func (s *talkSystem) choose(i control.Issued[Choose]) {
 	}
 	for _, cmd := range ch.do {
 		if cmd.Whom == ui.It {
-			cmd.Whom = entity.ID(c.Speaker)
+			cmd.Whom = ceremony.ID(c.Speaker)
 		}
-		s.p.w.Carrier().Put(i.Player, cmd)
+		s.p.w.Carrier().Put(i.Issuer, cmd)
 	}
 	if ch.next == "" {
 		s.end(c.Speaker, t, true)
@@ -158,7 +159,7 @@ func (s *talkSystem) choose(i control.Issued[Choose]) {
 	t.Node = idOf(ch.next)
 }
 
-func (s *talkSystem) feel(i control.Issued[Feel]) {
+func (s *talkSystem) feel(i command.Issued[Feel]) {
 	f := i.Command
 	if !i.ByEntity || !f.aimed {
 		log.Printf("dialog: a Feel is an entity's own, about another " +
@@ -182,7 +183,7 @@ func (s *talkSystem) end(speaker uid.UID64, t *Talk, toTheEnd bool) {
 	*t = Talk{}
 }
 
-func (s *talkSystem) obeys(id uid.UID64, by control.PlayerID) bool {
+func (s *talkSystem) obeys(id uid.UID64, by command.Issuer) bool {
 	if !s.bodies.Seek(id) {
 		return false
 	}

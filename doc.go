@@ -32,19 +32,24 @@
 // flushed in one ecs.Setup after Init returns. A plugin needing another takes it as a
 // constructor argument: there is no registry and no lookup by name.
 //
-// What a game does about what a plugin finds is a rule, act.Branch[P]{Name, When, Then}: run
-// inside the pass of the plugin that catches its moment P — a collision.Meeting for a pair of
-// entities, a unit.Standing for an entity on the board — when its When holds, clauses of
-// package rule/cond each saying whom they are about (cond.Self.If, cond.Other.If,
-// cond.Around(n).If, cond.On(plugin).If), its Then doing steps said of somebody the same way
-// (act.Self.Do, act.Other.Put, act.Around(n).Put): putting on and taking off effects, giving
-// commands. A rule is a role's (world.Roles), a role is played by a kind, a cell or a plugin,
-// and once Init returns the engine hands the rules of every role played to the plugin that
-// catches their moment; one none catches is an error. What an entity does over time is a plan,
-// plan.New, of loops of the same words, plan.Loop[P]{Name, When, Then, Until, Timeout,
-// Cooldown}, carried by its kind. What somebody asks for is a command: a player's key, a rule's
-// act.Self.Do, and about an effect a sentence —
-// rule.Put(open).On(entity.Group("trapdoors")).By(entity.Named("lever")).
+// What a game does about what a plugin finds is a rule of the library ceremony
+// (github.com/kjkrol/ceremony), which gram builds on with goke as the store:
+// act.Branch[P]{Name, When, Then}, run inside the pass of the plugin that catches its moment P —
+// a collision.Meeting for a pair of entities, a unit.Standing for an entity on the board — when
+// its When holds, clauses of ceremony/cond each saying whom they are about (cond.Self.If,
+// cond.Other.If, cond.Around(n).If, cond.On(plugin).If), its Then doing steps said of somebody
+// the same way (act.Self.Do, act.Other.Put, act.Around(n).Put): putting on and taking off
+// effects, giving commands. A rule is a role's (world.Roles), a role is played by a kind, a cell
+// or a plugin, and once Init returns the engine hands the rules of every role played to the
+// plugin that catches their moment (ceremony.Deliver, to the hosts of plugin.Installer.Hosts);
+// one none catches is an error. What an entity does over time is a plan, plan.New, of loops of
+// the same words, plan.Loop[P]{Name, When, Then, Until, Timeout, Cooldown}, carried by its kind.
+// What somebody asks for is a command (ceremony/command): a player's key, a rule's act.Self.Do,
+// and about an effect a sentence —
+// ceremony.Put(open).On(ceremony.Group("trapdoors")).By(ceremony.Named("lever")). The language
+// is ceremony's own documentation; gram's plugins give the moments, facts, words and knobs it is
+// written over, each marked beside its type, and the world keeps a Stage's registers of effects,
+// roles and commands by name (doc/rule.md).
 //
 // # Kinds and spawning
 //
@@ -73,38 +78,34 @@
 // The packages form a strict acyclic graph; each imports only layers below it:
 //
 //	0  camera               a camera over a world: conversion, culling, move, zoom
-//	1  render               drawing: Composer, Frame, Atlas, Feed     → camera
-//	   control              input events, commands and bindings       → camera
-//	   entity/tag           tag families; a leaf
-//	2  entity/kind          what an entity is: Spec, Define, Of       → render, tag
-//	   clock                the tactical clock: time, pause, tempo    → control, render, tag
-//	   rule/effect          states on entities for a while            → tag
+//	   ceremony             how entities behave (github.com/kjkrol/ceremony): tag, comp,
+//	                        effect, fact, cond, act, plan, host, command and its root
+//	1  render               drawing: Composer, Frame, Atlas, Feed     → camera, ceremony/effect
+//	   control              input events and bindings                 → camera, ceremony/command
+//	2  entity/kind          what an entity is: Spec, Define, Of       → render, ceremony/comp
+//	   clock                the tactical clock: time, pause, tempo    → control, render, ceremony
 //	3  entity               what every entity carries: Base, Z        → kind
-//	   internal/steps       the engine running rules' and plans' steps→ control, effect
-//	   plugin               the extension contract, the hosts of rules→ control, render, effect
-//	   plugins/players/owner whose a unit is; a leaf                  → control, tag
-//	4  rule/cond            the When of a branch: clauses of whom     → effect, steps, tag
-//	5  rule/act             the Then and the Branch; the runners      → cond, plugin, steps
-//	6  rule/plan            the loops of a plan: Until, Timeout       → act, cond
-//	7  rule                 roles, commands, messages                 → act, plan, cond, entity
-//	   plugins/world        the foundation: space, movement, kinds    → plugin, clock, rule
-//	8  game                 Game, Stage, Scene, Composition, Runtime  → plugin, rule, world
+//	   plugin               the extension contract                    → control, render, ceremony
+//	   plugins/players/owner whose a unit is; a leaf                  → ceremony/command, tag
+//	4  plugins/world        the foundation: space, movement, kinds    → plugin, clock, ceremony
+//	5  game                 Game, Stage, Scene, Composition, Runtime  → plugin, world, ceremony
 //	   ui                   a scene's screen of elements              → game, render, control
 //	   plugins/cameras, collision, selection, vision                  → world, …
-//	9  plugins/board        a grid with terrain over the world        → world, collision, …
+//	6  plugins/board        a grid with terrain over the world        → world, collision, …
 //	   plugins/dialog       conversations as data                     → world, ui, …
-//	10 plugins/driving      units driven by hand                      → world, selection, board
-//	11 plugins/navigation   MoveOrder paths across a board            → board, selection, driving
+//	7  plugins/driving      units driven by hand                      → world, selection, board
+//	8  plugins/navigation   MoveOrder paths across a board            → board, selection, driving
 //	   plugins/bullet       shots fired, flown, landing and bursting  → world, collision, board
 //	   plugins/gravity      bodies falling, standing and leaping      → world, board, collision
 //	   plugins/bridges      bridges built by one set of rules         → world, board, …
 //	   plugins/topography   a map in relief drawn on the GPU          → world, board, atmosphere
 //	   plugins/atmosphere   calendar, climate, weather, sky           → world, board, …
 //	   plugins/players      players over the command handlers         → world, cameras, ui, …
-//	12 internal/engine      the Engine: the loop, one Stage, saves    → game, plugin, rule, world
-//	13 gram                 Run; the package you import               → game, internal/engine
+//	9  internal/engine      the Engine: the loop, one Stage, saves    → game, world, ceremony
+//	10 gram                 Run; the package you import               → game, internal/engine
 //
-// Outside the module: goke/v3 is the ECS every Stage runs on, aabbworld the space, collisions
-// and line of sight under the world, gogpu the window, the loop and the GPU, astar the
-// pathfinding, and uid the entity identifiers.
+// Outside the module: ceremony is the behaviour — rules, plans, effects, roles, commands, facts
+// — the layer under plugin and control, with goke/v3 as its store; goke/v3 is the ECS every
+// Stage runs on, aabbworld the space, collisions and line of sight under the world, gogpu the
+// window, the loop and the GPU, astar the pathfinding, and uid the entity identifiers.
 package gram

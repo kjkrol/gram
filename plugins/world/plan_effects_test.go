@@ -1,22 +1,21 @@
 package world_test
 
 import (
-	"github.com/kjkrol/gram/internal/steps"
+	"github.com/kjkrol/ceremony/plan"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
-	"github.com/kjkrol/gram/rule/plan"
 )
 
 type effectStage struct {
@@ -25,7 +24,7 @@ type effectStage struct {
 	unit  kind.Of[struct{}]
 	marks goke.OptComp[tag.Tags[effect.States]]
 	tally goke.Comp[tally]
-	mind  goke.Comp[steps.Mind]
+	mind  goke.Comp[plan.Mind]
 	query *goke.Query
 	stack game.Scenes
 }
@@ -151,3 +150,5 @@ func TestPlan_OnceKeepsItsMemoryInAnEffect(t *testing.T) {
 		t.Errorf("in a second the tally stacked %d times, want about once in 400 ms: 2 to 4", n)
 	}
 }
+
+func (tally) Knob() {}

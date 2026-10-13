@@ -3,10 +3,11 @@ package engine
 import (
 	"fmt"
 
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/world"
@@ -17,7 +18,7 @@ type initializer struct {
 	world    *world.Plugin
 	tps      *game.TPS
 	handlers []plugin.CommandHandler // used before the world, or by a Stage without one
-	hosts    []plugin.Host
+	hosts    []host.Host
 	part     section.Part
 }
 
@@ -84,13 +85,13 @@ func (c *initializer) PluginScenes() []game.Scene {
 	return scenes
 }
 
-func (c *initializer) Hosts(hosts ...plugin.Host) { c.hosts = append(c.hosts, hosts...) }
+func (c *initializer) Hosts(hosts ...host.Host) { c.hosts = append(c.hosts, hosts...) }
 
 func (c *initializer) deliver() error {
 	if c.world == nil {
 		return nil
 	}
-	return hosts.Deliver(c.hosts, c.world.Kinds().Played()...)
+	return ceremony.Deliver(c.hosts, c.world.Kinds().Played()...)
 }
 
 func (c *initializer) Track(s plugin.Serializable) error {
@@ -115,11 +116,11 @@ func (c *initializer) UseWorld(cfg world.Config) *world.Plugin {
 
 func (c *initializer) TPS() *game.TPS { return c.tps }
 
-func (c *initializer) carrier() (*control.Carrier, error) {
+func (c *initializer) carrier() (*command.Carrier, error) {
 	if c.world != nil {
 		return c.world.Carrier(), nil
 	}
-	own := &control.Carrier{}
+	own := &command.Carrier{}
 	for _, h := range c.handlers {
 		if err := own.Carry(h.Queues()...); err != nil {
 			return nil, err

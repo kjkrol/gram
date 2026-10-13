@@ -16,7 +16,7 @@
 // as it is made (kind.Entry.Told) or later, sets its one owner, a tag of the owners' family
 // (plugins/players/owner) every unit carries. The plugins that take commands read the tag through
 // owner.Obeys: a player selects, orders and drives its own units alone; a unit nobody owns is
-// control.Nobody's. A side of its own, the wild or a rival, is a player without a keyboard
+// command.Nobody's. A side of its own, the wild or a rival, is a player without a keyboard
 // ([Plugin.Add]) owning its units.
 //
 // # Pictures of the world

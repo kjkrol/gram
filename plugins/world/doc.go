@@ -49,14 +49,14 @@
 // [Self] is the one entity a plugin has in the world, called by the plugin's name, carrying its
 // knobs, the roles it plays and the effects it is under. A plugin makes it with [NewSelf] as it
 // is made and embeds it, so it is whom a command may be for and learns from [Self.Changed] that
-// its knobs were turned. The world's own is the clock's entity, which entity.World names.
+// its knobs were turned. The world's own is the clock's entity, which ceremony.World names.
 //
 // # Spawn and Despawn
 //
 // The command [Spawn] adds an entity of a kind to the running world at the next step of the
 // simulation ([Plugin.Spawn] gives it as the game's own); one refused is logged, never a panic.
 // An entity gives itself [Despawn] to go. The world carries out the commands about effects
-// (rule.Put, Take, Toggle) for the entities named or grouped by their entity.Label and for the
+// (ceremony.Put, Take, Toggle) for the entities named or grouped by their ceremony.Label and for the
 // world itself, netting a step's commands of one effect on one entity.
 //
 // # Clock and the tick

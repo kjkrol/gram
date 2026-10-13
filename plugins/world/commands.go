@@ -1,6 +1,7 @@
 package world
 
 import (
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 )
@@ -30,17 +31,17 @@ func (Faster) Command()  {}
 func (Slower) Command()  {}
 
 var (
-	_ control.Command = Despawn{}
-	_ control.Command = Spawn{}
-	_ control.Command = Pause{}
-	_ control.Command = Faster{}
-	_ control.Command = Slower{}
+	_ command.Command = Despawn{}
+	_ command.Command = Spawn{}
+	_ command.Command = Pause{}
+	_ command.Command = Faster{}
+	_ command.Command = Slower{}
 )
 
 // Queues are the queues of every command the world carries out.
-func (p *Plugin) Queues() []control.CommandQueue {
+func (p *Plugin) Queues() []command.CommandQueue {
 	m := p.module
-	q := []control.CommandQueue{&m.pauses, &m.fasters, &m.slowers, &m.spawns, &m.despawns, &m.effectCmds.queue, &m.effectCmds.triggers}
+	q := []command.CommandQueue{&m.pauses, &m.fasters, &m.slowers, &m.spawns, &m.despawns, &m.effectCmds.queue, &m.effectCmds.triggers}
 	return append(q, m.steer.Queues()...)
 }
 

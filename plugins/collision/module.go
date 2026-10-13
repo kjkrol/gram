@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
-	"github.com/kjkrol/gram/plugin"
 )
 
 var _ goke.Module = (*module)(nil)
@@ -16,8 +16,8 @@ type module struct {
 	space *aabbworld.Space
 	ecs   *goke.ECS
 
-	pairs    *plugin.PairRules[Meeting]
-	entities *plugin.Rules[Struck]
+	pairs    *host.PairRules[Meeting]
+	entities *host.Rules[Struck]
 
 	system  goke.Runnable
 	fieldOf func() Field
@@ -25,11 +25,11 @@ type module struct {
 	stats   *ContactStats
 	log     *log.Logger
 	clock   *clock.Clock
-	tick    plugin.TickSource
+	tick    host.TickSource
 	built   bool
 }
 
-func newModule(space *aabbworld.Space, ecs *goke.ECS, pairs *plugin.PairRules[Meeting], entities *plugin.Rules[Struck]) *module {
+func newModule(space *aabbworld.Space, ecs *goke.ECS, pairs *host.PairRules[Meeting], entities *host.Rules[Struck]) *module {
 	return &module{space: space, ecs: ecs, pairs: pairs, entities: entities}
 }
 

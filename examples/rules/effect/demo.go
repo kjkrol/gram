@@ -7,10 +7,14 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/board"
@@ -25,10 +29,6 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -183,7 +183,7 @@ func (s *arena) defineRoles() {
 
 func (s *arena) defineCommands() {
 	s.world.Commands().Define(FreezeCmd,
-		rule.Put(s.world.Effects().Named(FrozenEf)).On(s.selection.Pointed()).For(3*time.Second))
+		ceremony.Put(s.world.Effects().Named(FrozenEf)).On(s.selection.Pointed()).For(3*time.Second))
 }
 
 func (s *arena) defineCells() {
@@ -222,20 +222,20 @@ func (s *arena) defineKinds() {
 		unit.Mover{Domain: cell.Land | cell.Water | Frost},
 		profile(UnitSpeed*4),
 		order,
-		rule.Plays(roles.Named(WitchRole), roles.Named(MortalRole)),
+		ceremony.Plays(roles.Named(WitchRole), roles.Named(MortalRole)),
 	)
 	units.Define(
 		WalkerKind,
 		unit.Mover{Domain: cell.Land},
 		profile(UnitSpeed*4),
-		rule.Plays(roles.Named(MortalRole)),
+		ceremony.Plays(roles.Named(MortalRole)),
 	)
 	units.Define(
 		BoatKind,
 		unit.Mover{Domain: cell.Water},
 		profile(UnitSpeed/4),
 		order,
-		rule.Plays(roles.Named(MortalRole)),
+		ceremony.Plays(roles.Named(MortalRole)),
 	)
 }
 

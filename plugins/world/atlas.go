@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -20,6 +22,7 @@ type Atlas struct {
 	lying    map[render.SpriteID]bool
 	upright  map[render.SpriteID]bool
 	edges    map[render.SpriteID]render.SpriteID
+	twins    map[tag.Tag[effect.States]]map[render.SpriteID]render.SpriteID // under an effect
 }
 
 type animation struct {
@@ -42,7 +45,28 @@ func (p *Plugin) NewAtlas() *Atlas {
 		lying:    map[render.SpriteID]bool{},
 		upright:  map[render.SpriteID]bool{},
 		edges:    map[render.SpriteID]render.SpriteID{},
+		twins:    map[tag.Tag[effect.States]]map[render.SpriteID]render.SpriteID{},
 	}
+}
+
+// twin is the slot drawn under e in place of the sprite of, issued the first time it is asked
+// for. It panics for a first look after the world's renderer was made.
+func (a *Atlas) twin(e effect.Effect, of render.SpriteID) render.SpriteID {
+	twins := a.twins[e.Mark()]
+	if id, ok := twins[of]; ok {
+		return id
+	}
+	if a.p.looked {
+		panic(fmt.Sprintf("world: the first look under effect %d comes after the renderer was made",
+			e.Mark()))
+	}
+	if twins == nil {
+		twins = map[render.SpriteID]render.SpriteID{}
+		a.twins[e.Mark()] = twins
+	}
+	id := a.p.kinds.NewSprite()
+	twins[of] = id
+	return id
 }
 
 // Add takes look on as of's own and hands back a Slot to chain the rest of its look on. A
@@ -68,10 +92,10 @@ type Slot struct {
 	size int
 }
 
-// Under adds the sprite's look under d, the same size, drawn in its place while the effect's
-// marker is on.
-func (s Slot) Under[L render.Look](d render.Dresser, look L) Slot {
-	twin := d.Look(s.id)
+// Under adds the sprite's look under the effect e, the same size, drawn in its place while the
+// effect's marker is on.
+func (s Slot) Under[L render.Look](e effect.Effect, look L) Slot {
+	twin := s.a.twin(e, s.id)
 	switch l := any(look).(type) {
 	case render.MaterialID:
 		s.a.shaded[twin] = l

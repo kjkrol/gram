@@ -5,7 +5,7 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/bridges/site"
 	"github.com/kjkrol/uid"
@@ -33,8 +33,8 @@ const forget = 30
 
 func (p *Plugin) carryOut() {
 	p.tick++
-	p.aims.Drain(func(i control.Issued[Aim]) {
-		h := p.handOf(i.Player)
+	p.aims.Drain(func(i command.Issued[Aim]) {
+		h := p.handOf(i.Issuer)
 		h.seen = p.tick
 		if !h.marked || h.asked {
 			return
@@ -46,8 +46,8 @@ func (p *Plugin) carryOut() {
 			p.plan(h)
 		}
 	})
-	p.marks.Drain(func(i control.Issued[Mark]) {
-		h := p.handOf(i.Player)
+	p.marks.Drain(func(i command.Issued[Mark]) {
+		h := p.handOf(i.Issuer)
 		h.seen = p.tick
 		c, ok := p.board.Board().CellAt(i.Command.At)
 		switch {
@@ -60,14 +60,14 @@ func (p *Plugin) carryOut() {
 			h.asked = true
 		}
 	})
-	p.builds.Drain(func(i control.Issued[Build]) {
-		if h := p.hands[i.Player]; h != nil && h.asked {
+	p.builds.Drain(func(i command.Issued[Build]) {
+		if h := p.hands[i.Issuer]; h != nil && h.asked {
 			p.pending = append(p.pending, pending{t: h.t, plan: h.plan})
 			h.marked, h.aimed, h.asked, h.err = false, false, false, nil
 		}
 	})
-	p.cancels.Drain(func(i control.Issued[Cancel]) {
-		if h := p.hands[i.Player]; h != nil {
+	p.cancels.Drain(func(i command.Issued[Cancel]) {
+		if h := p.hands[i.Issuer]; h != nil {
 			h.asked = false
 		}
 	})
@@ -78,7 +78,7 @@ func (p *Plugin) carryOut() {
 	}
 }
 
-func (p *Plugin) handOf(id control.PlayerID) *hand {
+func (p *Plugin) handOf(id command.Issuer) *hand {
 	h := p.hands[id]
 	if h == nil {
 		h = &hand{t: p.building()}

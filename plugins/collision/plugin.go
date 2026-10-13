@@ -4,9 +4,10 @@ import (
 	"log"
 	"time"
 
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -19,8 +20,8 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	module      *module
 
-	pairs    plugin.PairRules[Meeting]
-	entities plugin.Rules[Struck]
+	pairs    host.PairRules[Meeting]
+	entities host.Rules[Struck]
 	field    Field
 	stats    *ContactStats
 	log      *log.Logger

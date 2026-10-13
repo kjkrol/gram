@@ -4,8 +4,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/internal/engine"
@@ -14,10 +18,6 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 )
 
 type night struct {
@@ -62,20 +62,20 @@ func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 	if pale != sky.DefaultMoon().Color {
 		t.Fatalf("the night is lit %v, want the moon's own %v", pale, sky.DefaultMoon().Color)
 	}
-	give := func(cmd control.Command) {
+	give := func(cmd command.Command) {
 		t.Helper()
-		if !n.w.Carrier().Put(control.Nobody, cmd) {
+		if !n.w.Carrier().Put(command.Nobody, cmd) {
 			t.Fatalf("the world carries no %T", cmd)
 		}
 		for range 3 {
 			n.ecs.Tick(tick)
 		}
 	}
-	give(rule.Put(blood).On(n.a))
+	give(ceremony.Put(blood).On(n.a))
 	if got := n.a.Sun().Color; got != red {
 		t.Errorf("under the blood moon the night is lit %v, want %v", got, red)
 	}
-	give(rule.Take(blood).On(n.a))
+	give(ceremony.Take(blood).On(n.a))
 	if got := n.a.Sun().Color; got != pale {
 		t.Errorf("the blood moon lifted, the night is lit %v, want the %v it was", got, pale)
 	}

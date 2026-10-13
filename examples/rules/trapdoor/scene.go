@@ -29,7 +29,7 @@ func (m *mainScene) picture() render.Picture {
 	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
 	trapdoorKind := kind.Named[standingRow](s.world.Kinds(), TrapdoorKind)
 
-	worldAtlas := render.NewAtlas()
+	worldAtlas := s.world.NewAtlas()
 	worldAtlas.Add(trapdoorKind, CellSize, render.Solid(boardsColor)).
 		Under(s.world.Effects().Named(OpenEf), render.Solid(pitColor))
 	worldAtlas.Add(scoutKind, EntitySize, render.Solid(scoutColor)).

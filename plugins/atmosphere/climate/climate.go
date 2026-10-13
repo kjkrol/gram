@@ -1,8 +1,8 @@
 package climate
 
 import (
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/world"
@@ -19,7 +19,7 @@ type Climate struct {
 	sys      *weatherSystem
 	asked    []string // a state's name, "" for the next
 	report   report
-	rules    plugin.StepRules[Weathering]
+	rules    host.StepRules[Weathering]
 	about    func() uid.UID64
 	running  Running
 }
@@ -89,7 +89,7 @@ func (c *Climate) About(self func() uid.UID64) { c.about = self }
 func (c *Climate) LoadComps() []goke.CompToken { return []goke.CompToken{goke.LoadComp[Weather]()} }
 
 // Rules takes the rules of Weathering.
-func (c *Climate) Rules() plugin.Host { return &c.rules }
+func (c *Climate) Rules() host.Host { return &c.rules }
 
 // Reporter is the weather's line for a render.TelemetryRenderer.
 func (c *Climate) Reporter() render.Reporter { return &c.report }

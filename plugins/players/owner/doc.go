@@ -3,6 +3,6 @@
 // read it without the players plugin.
 //
 // [Obeys] is the one rule they keep: an entity takes commands from its owners alone, and one
-// nobody owns from the virtual player control.Nobody alone. [Allies] tells whether two entities
+// nobody owns from the virtual player command.Nobody alone. [Allies] tells whether two entities
 // are on one side.
 package owner

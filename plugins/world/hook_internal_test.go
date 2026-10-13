@@ -4,9 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/host"
 )
 
 func TestHook_RefusesARuleOfAnotherMoment(t *testing.T) {
@@ -16,7 +16,7 @@ func TestHook_RefusesARuleOfAnotherMoment(t *testing.T) {
 		When: cond.Self.If(cond.Always),
 		Then: act.Steps(),
 	}
-	if err := p.Hook(other); !errors.Is(err, plugin.ErrUnhosted) {
+	if err := p.Hook(other); !errors.Is(err, host.ErrUnhosted) {
 		t.Errorf("Hook = %v, want ErrUnhosted", err)
 	}
 }

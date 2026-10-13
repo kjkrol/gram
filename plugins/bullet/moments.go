@@ -2,7 +2,9 @@ package bullet
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/rule/cond"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/fact"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/uid"
 )
 
@@ -54,3 +56,11 @@ func (b Blast) Subject() (uid.UID64, bool) { return b.Self, true }
 func Within(d float64) cond.Word[Blast] {
 	return cond.NewWord("within", func(b Blast) bool { return b.Distance < d }).OfOther()
 }
+
+var (
+	_ host.About   = Resting{}
+	_ host.Met     = Blast{}
+	_ fact.Subject = Blast{}
+	_ host.About   = Landing{}
+	_ fact.Subject = Landing{}
+)

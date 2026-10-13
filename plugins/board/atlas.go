@@ -1,9 +1,9 @@
 package board
 
 import (
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule/effect"
 )
 
 // Atlas is the board's sprite sheet under construction: Add each kind's look by its name, chain

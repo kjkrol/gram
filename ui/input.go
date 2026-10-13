@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/uid"
@@ -18,7 +19,7 @@ func (s *Scene) Keys(bindings ...control.Binding) *Scene {
 
 // Issue is how the scene gives a command that is not its own, a button's or a key's: the
 // players' Issue, as a rule. Without one the scene gives it as nobody through the Runtime.
-func (s *Scene) Issue(fn func(cmd control.Command) error) *Scene {
+func (s *Scene) Issue(fn func(cmd command.Command) error) *Scene {
 	s.issue = fn
 	return s
 }
@@ -127,7 +128,7 @@ func (s *Scene) press(events *control.InputEvents) {
 	}
 }
 
-func (s *Scene) giveAbout(cmd control.Command, id uid.UID64, pinned bool) {
+func (s *Scene) giveAbout(cmd command.Command, id uid.UID64, pinned bool) {
 	cmd, ok := about(cmd, id, pinned)
 	if !ok {
 		log.Printf("ui: scene %q: a command for ui.It (or an About) given outside an element pinned to an entity", s.name)
@@ -136,7 +137,7 @@ func (s *Scene) giveAbout(cmd control.Command, id uid.UID64, pinned bool) {
 	s.give(cmd)
 }
 
-func (s *Scene) give(cmd control.Command) {
+func (s *Scene) give(cmd command.Command) {
 	if s.carry(cmd) {
 		return
 	}

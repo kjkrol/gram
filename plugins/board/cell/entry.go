@@ -1,9 +1,9 @@
 package cell
 
 import (
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/cond"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/tag"
 )
 
 // Entry sets Cell to the kind named Kind (none: the Layout's Default) and gives it the Name it
@@ -23,7 +23,7 @@ func (e Entry) Named(name string) Entry { e.Name = name; return e }
 func (e Entry) InGroup(group string) Entry { e.Group = group; return e }
 
 // Plays is the entry playing roles beyond its kind's.
-func (e Entry) Plays(roles ...*rule.Part) Entry {
+func (e Entry) Plays(roles ...*ceremony.Part) Entry {
 	for _, r := range roles {
 		e.Roles = e.Roles.With(r.Tag())
 	}

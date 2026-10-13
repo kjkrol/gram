@@ -1,6 +1,7 @@
 package cameras_test
 
 import (
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/gram/ui"
 	"math"
 	"testing"
@@ -8,11 +9,11 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
@@ -38,7 +39,7 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 }
 func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
 func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
-func (c *installCtx) Hosts(...plugin.Host)                            {}
+func (c *installCtx) Hosts(...host.Host)                              {}
 
 type camp struct {
 	t        *testing.T

@@ -4,8 +4,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
 )
@@ -21,7 +21,7 @@ type Sky struct {
 	frozen   bool
 	moonless bool
 	moon     Moon
-	rises    plugin.StepRules[Moonrise]
+	rises    host.StepRules[Moonrise]
 	hour     float32 // the frozen light's part of the day, 0 to 1
 	step     int     // -1 before the first
 	at       calendar.Moment

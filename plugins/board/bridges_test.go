@@ -13,19 +13,18 @@ import (
 
 	"github.com/kjkrol/aabbworld/collide"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/effect"
 )
 
 var water = cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water}
@@ -430,7 +429,7 @@ func TestBridges_BrokenInTheGameIsNotBuilt(t *testing.T) {
 		t.Fatalf("before: decks of %v over the bridge's middle, want one", got)
 	}
 	carrier := d.w.Carrier()
-	if !carrier.Put(control.Nobody, rule.Put(d.sag).On(entity.Named("first"))) {
+	if !carrier.Put(command.Nobody, ceremony.Put(d.sag).On(ceremony.Named("first"))) {
 		t.Fatal("the world carries no command about an effect")
 	}
 	d.tick()
@@ -441,7 +440,7 @@ func TestBridges_BrokenInTheGameIsNotBuilt(t *testing.T) {
 	if !strings.Contains(out.String(), "a bridge is level") {
 		t.Errorf("the log: %q, want the bridge refused for being uneven", out.String())
 	}
-	carrier.Put(control.Nobody, rule.Take(d.sag).On(entity.Named("first")))
+	carrier.Put(command.Nobody, ceremony.Take(d.sag).On(ceremony.Named("first")))
 	d.tick()
 	d.tick()
 	if got := d.over(middle); len(got) != 1 {

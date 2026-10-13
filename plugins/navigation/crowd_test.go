@@ -7,16 +7,15 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/plan"
 )
 
 var wall = cell.Kind{Cost: 1, Solid: true}
@@ -150,7 +149,7 @@ func TestCrowd_BodiesGoRoundAStrangerAndAnAllyMakesWay(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
 	for _, c := range []struct {
-		owner  control.PlayerID
+		owner  command.Issuer
 		yields bool
 	}{{2, false}, {1, true}} {
 		fw := newFieldWorld(t, 10, 5, BodySpacing, nil, []fieldUnit{
@@ -252,12 +251,12 @@ func TestPlan_AnAlarmTakesOverThePatrolAndGivesItBack(t *testing.T) {
 	alarm = rw.w.Effects().Named("alarm")
 	walker := rw.byRow[0]
 	rw.watch(10*time.Second, func(int) bool { c, _ := rw.state(walker); return c == rw.at(3, 1) })
-	rw.w.Carrier().Put(1, rule.Put(alarm).On(entity.World))
+	rw.w.Carrier().Put(1, ceremony.Put(alarm).On(ceremony.World))
 	if !rw.watch(10*time.Second, func(int) bool { c, _ := rw.state(walker); return c == gate }) {
 		c, _ := rw.state(walker)
 		t.Fatalf("under the alarm the guard stands at %v, want it at the gate %v", c, gate)
 	}
-	rw.w.Carrier().Put(1, rule.Take(alarm).On(entity.World))
+	rw.w.Carrier().Put(1, ceremony.Take(alarm).On(ceremony.World))
 	if !rw.watch(20*time.Second, func(int) bool { c, _ := rw.state(walker); return c == east }) {
 		c, _ := rw.state(walker)
 		t.Errorf("the alarm lifted, the guard stands at %v, want it back on patrol at %v", c, east)
@@ -299,7 +298,7 @@ func TestPlan_ARestOnArrivingIsOnceAndThePatrolGoesOn(t *testing.T) {
 	}
 }
 
-func yielderIf(role *rule.Part, yields bool) *rule.Part {
+func yielderIf(role *ceremony.Part, yields bool) *ceremony.Part {
 	if yields {
 		return role
 	}
@@ -409,7 +408,7 @@ func with(t Touch, fn func(*Touch)) Touch {
 func TestCrowd_AGameGivesItsOwnRules(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
-	yielder := rule.NewPart("yielder", 0)
+	yielder := ceremony.NewPart("yielder", 0)
 	forAll := act.Branch[Touch]{
 		Name: "a yielder makes way for all",
 		When: cond.Self.If(yielder).
@@ -417,7 +416,7 @@ func TestCrowd_AGameGivesItsOwnRules(t *testing.T) {
 		Then: act.Self.Do(StepAside{}),
 	}
 	for _, c := range []struct {
-		standing control.PlayerID
+		standing command.Issuer
 		yields   bool
 	}{{2, true}, {3, false}, {1, false}} {
 		fw := newFieldWorldWith(t, 10, 5, BodySpacing, nil, []fieldUnit{

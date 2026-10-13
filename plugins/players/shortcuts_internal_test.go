@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
@@ -197,13 +198,13 @@ type shown struct {
 func (c *shown) Show(name string) { c.names = append(c.names, name) }
 
 type engine struct {
-	saves control.Queue[game.Save]
-	loads control.Queue[game.Load]
-	quits control.Queue[game.Quit]
+	saves command.Queue[game.Save]
+	loads command.Queue[game.Load]
+	quits command.Queue[game.Quit]
 }
 
-func (e *engine) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&e.saves, &e.loads, &e.quits}
+func (e *engine) Queues() []command.CommandQueue {
+	return []command.CommandQueue{&e.saves, &e.loads, &e.quits}
 }
 
 func (*engine) DefaultBindings() []control.Binding { return nil }

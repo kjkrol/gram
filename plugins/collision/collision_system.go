@@ -9,8 +9,8 @@ import (
 	"github.com/kjkrol/aabbworld/collide"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision/internal/response"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -30,14 +30,14 @@ const sweptPen = 1e-3
 type collisionSystem struct {
 	space  *aabbworld.Space
 	engine collide.Engine
-	tickOf plugin.TickSource
+	tickOf host.TickSource
 
 	walk      *goke.Query
 	base      goke.Comp[world.Base]
 	collider  goke.Comp[Collider]
 	physics   goke.OptComp[Physics]
 	walkSweep goke.OptComp[Sweep]
-	each      *plugin.Rules[Struck]
+	each      *host.Rules[Struck]
 	walking   struct {
 		ids       []uid.UID64
 		colliders []Collider
@@ -64,7 +64,7 @@ type collisionSystem struct {
 	pending  []pendingContact
 	nearests []nearest
 	contacts []pairSides
-	between  *plugin.PairRules[Meeting]
+	between  *host.PairRules[Meeting]
 	outside  goke.CompID
 
 	fieldOf func() Field
@@ -80,7 +80,7 @@ type collisionSystem struct {
 	sweeping bool
 	wraps    bool
 
-	tick  plugin.Tick
+	tick  host.Tick
 	stale bool
 }
 
@@ -231,7 +231,7 @@ func halfOf(pos world.Position) geom.Vec { return geom.NewVec(pos.Size.X/2, pos.
 // the one query the system offers its hosted rules
 const sought = 0
 
-func newCollisionSystem(space *aabbworld.Space, between *plugin.PairRules[Meeting], each *plugin.Rules[Struck], fieldOf func() Field) *collisionSystem {
+func newCollisionSystem(space *aabbworld.Space, between *host.PairRules[Meeting], each *host.Rules[Struck], fieldOf func() Field) *collisionSystem {
 	d := &collisionSystem{space: space, between: between, each: each, fieldOf: fieldOf}
 	d.struckAt, d.hitAt = d.struck, d.hit
 	d.ground.physics = Physics{Mass: math.Inf(1)}
@@ -254,7 +254,7 @@ func (d *collisionSystem) Init(si *goke.SysInit) {
 	d.wraps = edges.WrapsX() || edges.WrapsY()
 	d.outside = si.RegComp[world.Outside]()
 	qb := si.NewQueryBuilder(&d.base, &d.collider).Optional(&d.physics)
-	plugin.Own(d.each, &d.walkSweep)
+	host.Own(d.each, &d.walkSweep)
 	d.each.Bind(qb)
 	d.walk = qb.Build()
 
@@ -369,7 +369,7 @@ func (d *collisionSystem) hit(i int) bool { return d.walking.colliders[i].Struck
 
 type pairSides struct {
 	A, B         contactSide
-	tagsA, tagsB plugin.Marks
+	tagsA, tagsB host.Marks
 
 	impact float64
 	normal geom.Vec
@@ -474,12 +474,12 @@ func (d *collisionSystem) footing(pen geom.Vec) geom.Vec {
 	return pen
 }
 
-func (d *collisionSystem) side(id uid.UID64) (contactSide, plugin.Marks, bool) {
+func (d *collisionSystem) side(id uid.UID64) (contactSide, host.Marks, bool) {
 	if !d.seek(id) {
 		if d.all.Seek(id) {
 			d.allBase.At(d.all.Cursor()).Caps, d.stale = aabbworld.Plain, true
 		}
-		return contactSide{}, plugin.Marks{}, false
+		return contactSide{}, host.Marks{}, false
 	}
 	cur := d.lookup.Cursor()
 	s := contactSide{

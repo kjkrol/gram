@@ -10,11 +10,14 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
-	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugin"
@@ -25,10 +28,6 @@ import (
 	"github.com/kjkrol/gram/plugins/dialog"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -200,7 +199,7 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 	commands := func(s *sectioned, _ game.Initializer) error {
 		s.world.Effects().Define("lit", effect.Spec{})
 		s.world.Commands().Define("light",
-			rule.Put(s.world.Effects().Named("lit")).On(entity.World))
+			ceremony.Put(s.world.Effects().Named("lit")).On(ceremony.World))
 		return nil
 	}
 	for name, tc := range map[string]struct {

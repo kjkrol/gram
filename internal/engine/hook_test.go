@@ -9,15 +9,16 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
 )
 
 type hookStage struct {
@@ -51,12 +52,12 @@ func (s *hookStage) Init(ctx game.Initializer) error {
 		comp.Const(world.Velocity{}),
 	}
 	if s.plays != nil {
-		var parts []*rule.Part
+		var parts []*ceremony.Part
 		for _, r := range s.plays {
 			s.world.Roles().Define(r.name, r.rules...)
 			parts = append(parts, s.world.Roles().Named(r.name))
 		}
-		spec = append(spec, rule.Plays(parts...))
+		spec = append(spec, ceremony.Plays(parts...))
 	}
 	kind.Define[struct{}](s.world.Kinds(), "walker", spec)
 	s.walker = kind.Named[struct{}](s.world.Kinds(), "walker")
@@ -162,8 +163,8 @@ func TestEngine_RefusesAPlayedRoleNobodyHosts(t *testing.T) {
 	}}}
 	eng := NewEngine(oneStageGame{stage: &hookStage{before: []plugin.Plugin{&stubPlugin{name: "test.plain"}}, plays: []role{lost}}})
 	err := eng.Init()
-	if !errors.Is(err, plugin.ErrUnhosted) {
-		t.Fatalf("Init = %v, want plugin.ErrUnhosted", err)
+	if !errors.Is(err, host.ErrUnhosted) {
+		t.Fatalf("Init = %v, want host.ErrUnhosted", err)
 	}
 	for _, want := range []string{`"lost" of engine.unhostedMoment`, "for the role lost soul"} {
 		if !strings.Contains(err.Error(), want) {
@@ -178,7 +179,7 @@ func TestEngine_RefusesAPlayedRoleNobodyHosts(t *testing.T) {
 // The next host is tried while one refuses the moment; any other error fails Init.
 func TestEngine_TriesTheHostsInUseOrder(t *testing.T) {
 	t.Run("a host refusing the moment is skipped", func(t *testing.T) {
-		refusing := &hostPlugin{stubPlugin: stubPlugin{name: "test.refusing"}, err: fmt.Errorf("%w: not mine", plugin.ErrUnhosted)}
+		refusing := &hostPlugin{stubPlugin: stubPlugin{name: "test.refusing"}, err: fmt.Errorf("%w: not mine", host.ErrUnhosted)}
 		s := &hookStage{before: []plugin.Plugin{&stubPlugin{name: "test.plain"}, refusing}, plays: []role{leaver()}}
 		before, after := runHookStage(t, s)
 		if len(refusing.asked) != 1 {

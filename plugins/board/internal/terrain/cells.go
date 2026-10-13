@@ -4,15 +4,15 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/grids"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -325,7 +325,7 @@ func (t *Cells) Cast(c cell.ID, roles tag.Tags[cond.Roles]) {
 }
 
 // Label calls c as l says for good; only the seed takes it, before the cells are made.
-func (t *Cells) Label(c cell.ID, l entity.Label) {
+func (t *Cells) Label(c cell.ID, l ceremony.Label) {
 	if t.store != nil {
 		panic("board: a cell's name and group are given in the Layout, before the cells are made")
 	}

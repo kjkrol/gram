@@ -7,10 +7,11 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -18,14 +19,14 @@ type left struct{}
 
 func (left) Command() {}
 
-type lefts struct{ control.Queue[left] }
+type lefts struct{ command.Queue[left] }
 
-func (l *lefts) Queues() []control.CommandQueue     { return []control.CommandQueue{&l.Queue} }
+func (l *lefts) Queues() []command.CommandQueue     { return []command.CommandQueue{&l.Queue} }
 func (l *lefts) DefaultBindings() []control.Binding { return nil }
 
 func (l *lefts) heard() []uid.UID64 {
 	var who []uid.UID64
-	l.Drain(func(i control.Issued[left]) { who = append(who, i.Entity) })
+	l.Drain(func(i command.Issued[left]) { who = append(who, i.Entity) })
 	return who
 }
 

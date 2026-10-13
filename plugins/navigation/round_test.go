@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -20,9 +20,9 @@ func TestOnward_SendsTheUnitRoundItsOwnRound(t *testing.T) {
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	start, east, west := grid.At(0, 0), grid.At(8, 0), grid.At(1, 0)
 
-	onwards := &control.Queue[Onward]{}
+	onwards := &command.Queue[Onward]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &cell.SingleOccupancy{}),
-		&control.Queue[MoveTo]{}, &control.Queue[LookAt]{}, selTags.Selected)
+		&command.Queue[MoveTo]{}, &command.Queue[LookAt]{}, selTags.Selected)
 	cmds.onwards = onwards
 
 	var at goke.Comp[unit.At]
@@ -99,13 +99,13 @@ func TestMoveTo_ByNameGoesToTheNamedCellOrUnit(t *testing.T) {
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	start, post, mate := grid.At(0, 0), grid.At(7, 0), grid.At(4, 0)
 
-	moves := &control.Queue[MoveTo]{}
+	moves := &command.Queue[MoveTo]{}
 	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{}),
-		moves, &control.Queue[LookAt]{}, selTags.Selected)
+		moves, &command.Queue[LookAt]{}, selTags.Selected)
 
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var label goke.Comp[entity.Label]
+	var label goke.Comp[ceremony.Label]
 	var plot goke.Comp[cell.Plot]
 	var order goke.OptComp[MoveOrder]
 	var orders *goke.Query
@@ -121,14 +121,14 @@ func TestMoveTo_ByNameGoesToTheNamedCellOrUnit(t *testing.T) {
 		named := si.NewFactory(&label, &plot)
 		named.Create(1)
 		named.Next()
-		label.Slice(&named.Cursor)[0] = entity.LabelOf("post", "")
+		label.Slice(&named.Cursor)[0] = ceremony.LabelOf("post", "")
 		plot.Slice(&named.Cursor)[0] = cell.Plot{Cell: post}
 		friend := si.NewFactory(&at, &pos, &label)
 		friend.Create(1)
 		friend.Next()
 		at.Slice(&friend.Cursor)[0] = unit.At{Cell: mate}
 		pos.Slice(&friend.Cursor)[0].Pos = world.Position{AABB: cellBox(grid, mate, 8)}
-		label.Slice(&friend.Cursor)[0] = entity.LabelOf("mate", "")
+		label.Slice(&friend.Cursor)[0] = ceremony.LabelOf("mate", "")
 		orders = si.NewQueryBuilder(&at).Optional(&order).Build()
 		cmds.Init(si)
 	}})
@@ -157,7 +157,7 @@ func TestMoveTo_ByNameGoesToTheNamedCellOrUnit(t *testing.T) {
 				*o = MoveOrder{Target: start}
 			}
 		}
-		moves.AddFrom(walker, MoveTo{To: entity.Named(c.name)})
+		moves.AddFrom(walker, MoveTo{To: ceremony.Named(c.name)})
 		ecs.Tick(time.Millisecond)
 		got, has := target()
 		sent := has && got != start

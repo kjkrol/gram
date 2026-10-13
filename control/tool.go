@@ -1,5 +1,7 @@
 package control
 
+import "github.com/kjkrol/ceremony/command"
+
 // Tool is what a player holds in hand, by name. While it holds one, the bindings With it take
 // their triggers from the bindings with none.
 type Tool string
@@ -14,6 +16,6 @@ func (Take) Command() {}
 func (Drop) Command() {}
 
 var (
-	_ Command = Take{}
-	_ Command = Drop{}
+	_ command.Command = Take{}
+	_ command.Command = Drop{}
 )

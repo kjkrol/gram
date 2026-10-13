@@ -1,6 +1,8 @@
 package unit
 
-import "github.com/kjkrol/gram/entity/tag"
+import (
+	"github.com/kjkrol/ceremony/tag"
+)
 
 // States is the family of a unit's markers on the board: states switched by a bit, never by a
 // component put on or taken off. The board gives it to every unit the world's roster makes.

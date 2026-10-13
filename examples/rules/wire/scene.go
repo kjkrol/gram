@@ -39,7 +39,7 @@ func (m *mainScene) picture() render.Picture {
 	}
 	fx := s.world.Effects()
 
-	worldAtlas := render.NewAtlas()
+	worldAtlas := s.world.NewAtlas()
 	worldAtlas.Add(standing(TrapdoorKind), CellSize, render.Solid(boardsColor)).
 		Under(fx.Named(OpenEf), render.Solid(pitColor))
 	worldAtlas.Add(standing(GateKind), CellSize, render.Solid(gateColor)).

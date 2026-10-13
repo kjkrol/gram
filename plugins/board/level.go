@@ -13,7 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -25,7 +25,7 @@ import (
 
 // Sides are the commands the entities of each side a level names give themselves as they are
 // made, by the side's name.
-type Sides map[string][]control.Command
+type Sides map[string][]command.Command
 
 // Level is a board laid out of a file by Plugin.Lay, its entities waiting for Spawn.
 type Level struct {

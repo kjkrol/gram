@@ -3,16 +3,15 @@ package world
 import (
 	"fmt"
 
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -27,7 +26,7 @@ type Self struct {
 	id    uid.UID64
 }
 
-var _ rule.Router = (*Self)(nil)
+var _ ceremony.Router = (*Self)(nil)
 
 // NewSelf is the entity of the plugin p in w, carrying knobs, and notes p as made over w. Call
 // it in the plugin's constructor; a second entity of one name panics.
@@ -52,7 +51,7 @@ func newSelf(w *Plugin, name string, knobs ...comp.Comp) *Self {
 func (s *Self) Entity() uid.UID64 { return s.id }
 
 // Plays has the plugin play roles. Call it where the Stage defines its rules.
-func (s *Self) Plays(roles ...*rule.Part) {
+func (s *Self) Plays(roles ...*ceremony.Part) {
 	s.w.must(fmt.Sprintf("the plugin %q given roles", s.name), section.Rules)
 	s.w.kinds.Play(roles...)
 	for _, r := range roles {
@@ -68,8 +67,8 @@ func (s *Self) Changed() bool { return s.w.module.selves.changed(s.id) }
 func (*Self) Target() {}
 
 // Route is c for the plugin's entity, which the world carries out.
-func (s *Self) Route(c rule.Command) control.Command {
-	c.Whom = entity.Named(s.name)
+func (s *Self) Route(c ceremony.Command) command.Command {
+	c.Whom = ceremony.Named(s.name)
 	return c
 }
 
@@ -96,12 +95,12 @@ func (s *selves) tokens() []goke.CompToken {
 func (s *selves) system() goke.System {
 	return goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		s.states = si.NewQueryBuilder(&s.marks).Build()
-		var label goke.Comp[entity.Label]
+		var label goke.Comp[ceremony.Label]
 		var roles goke.OptComp[tag.Tags[cond.Roles]]
 		named := si.NewQueryBuilder(&label).Optional(&roles).Build()
 		byName := make(map[uint64]*Self, len(s.list))
 		for _, self := range s.list {
-			byName[entity.LabelOf(self.name, "").Name] = self
+			byName[ceremony.LabelOf(self.name, "").Name] = self
 		}
 		for named.All(); named.Next(); {
 			cur := named.Cursor()
@@ -119,7 +118,7 @@ func (s *selves) system() goke.System {
 			}
 		}
 		for _, self := range s.list {
-			if _, missing := byName[entity.LabelOf(self.name, "").Name]; missing {
+			if _, missing := byName[ceremony.LabelOf(self.name, "").Name]; missing {
 				self.id = self.make(si)
 			}
 		}
@@ -128,7 +127,7 @@ func (s *selves) system() goke.System {
 
 func (s *Self) make(si *goke.SysInit) uid.UID64 {
 	comps := append([]comp.Comp{
-		comp.Const(entity.LabelOf(s.name, "")),
+		comp.Const(ceremony.LabelOf(s.name, "")),
 		comp.Const(effect.Wide{}),
 		comp.Marks[effect.States](),
 		comp.Const(s.roles),

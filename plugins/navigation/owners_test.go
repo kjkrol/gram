@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -24,8 +24,8 @@ func TestMoveTo_SendsThePlayersOwnSelectedUnitsAlone(t *testing.T) {
 	oldTarget := grid.At(3, 0)
 	newTarget := grid.At(8, 0)
 
-	moves := &control.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{}), moves, &control.Queue[LookAt]{}, selTags.Selected)
+	moves := &command.Queue[MoveTo]{}
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{}), moves, &command.Queue[LookAt]{}, selTags.Selected)
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
 	var order goke.Comp[MoveOrder]
@@ -39,12 +39,12 @@ func TestMoveTo_SendsThePlayersOwnSelectedUnitsAlone(t *testing.T) {
 		f.Create(3)
 		f.Next()
 		ids = append(ids, f.Cursor.IDs...)
-		for i, by := range []control.PlayerID{1, 2, control.Nobody} {
+		for i, by := range []command.Issuer{1, 2, command.Nobody} {
 			at.Slice(&f.Cursor)[i] = unit.At{Cell: start}
 			pos.Slice(&f.Cursor)[i].Pos = world.Position{AABB: cellBox(grid, start, 8)}
 			order.Slice(&f.Cursor)[i] = MoveOrder{Target: oldTarget, Path: Path{Length: 1}}
 			marks.Slice(&f.Cursor)[i] = selectedMarks
-			if by != control.Nobody {
+			if by != command.Nobody {
 				owners.Slice(&f.Cursor)[i] = tag.Tags[owner.Family](0).With(owner.Of(by))
 			}
 		}

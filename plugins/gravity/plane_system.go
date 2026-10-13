@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/gravity/internal/planar"
@@ -19,8 +19,8 @@ var _ goke.System = (*planeSystem)(nil)
 
 type planeSystem struct {
 	p        *Plugin
-	tickOf   plugin.TickSource
-	landings *plugin.Rules[Landing]
+	tickOf   host.TickSource
+	landings *host.Rules[Landing]
 
 	pulls *goke.Query
 	pull  goke.Comp[Pull]
@@ -65,7 +65,7 @@ func (s *planeSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	g := geom.NewVec(pull.X, pull.Y)
 	s.throw(g)
 	hosted := !s.landings.Empty()
-	var t plugin.Tick
+	var t host.Tick
 	if hosted {
 		t = s.tickOf.Of(cb, d)
 	}
@@ -101,7 +101,7 @@ func (s *planeSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 }
 
 func (s *planeSystem) throw(g geom.Vec) {
-	s.p.leaps.Drain(func(i control.Issued[Leap]) {
+	s.p.leaps.Drain(func(i command.Issued[Leap]) {
 		if !i.ByEntity || !s.bodies.Seek(i.Entity) {
 			return
 		}
@@ -110,7 +110,7 @@ func (s *planeSystem) throw(g geom.Vec) {
 		planar.Leap(&b, g, s.body.At(cur).Leap)
 		planePut(&b, s.drift.At(cur), s.marks.At(cur))
 	})
-	s.p.aways.Drain(func(i control.Issued[Away]) {
+	s.p.aways.Drain(func(i command.Issued[Away]) {
 		if !i.ByEntity {
 			return
 		}

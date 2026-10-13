@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
@@ -17,7 +20,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule/act"
 )
 
 // Plugin moves entities along a MoveOrder's path across a board, re-pathing when terrain changes,
@@ -32,14 +34,14 @@ type Plugin struct {
 	board  *board.Board
 	module *module
 
-	moves   control.Queue[MoveTo]
-	looks   control.Queue[LookAt]
-	routes  control.Queue[Routes]
-	onwards control.Queue[Onward]
+	moves   command.Queue[MoveTo]
+	looks   command.Queue[LookAt]
+	routes  command.Queue[Routes]
+	onwards command.Queue[Onward]
 	given   givenQueues
 	finder  *pathFinder
 
-	touches  plugin.PairRules[Touch]
+	touches  host.PairRules[Touch]
 	crowd    []act.Rule
 	crowdSet bool
 
@@ -119,7 +121,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan takes the orders at once and steers the units in the simulation; call it after the
 // board's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.routes.Drain(func(control.Issued[Routes]) { p.ShowRoutes(!p.routesShown) })
+	p.routes.Drain(func(command.Issued[Routes]) { p.ShowRoutes(!p.routesShown) })
 	p.module.RunPlan(ctx, d)
 }
 

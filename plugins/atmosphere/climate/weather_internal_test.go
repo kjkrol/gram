@@ -6,15 +6,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -32,9 +33,9 @@ type winterNow struct{}
 
 func (winterNow) Command() {}
 
-type heards struct{ control.Queue[winterNow] }
+type heards struct{ command.Queue[winterNow] }
 
-func (h *heards) Queues() []control.CommandQueue     { return []control.CommandQueue{&h.Queue} }
+func (h *heards) Queues() []command.CommandQueue     { return []command.CommandQueue{&h.Queue} }
 func (h *heards) DefaultBindings() []control.Binding { return nil }
 
 func weatherOf(t *testing.T, cfg Config, season calendar.Season) *rig {
@@ -181,7 +182,7 @@ func TestWeather_TellsItsRulesEveryStep(t *testing.T) {
 	r.tick(time.Millisecond)
 	r.tick(time.Millisecond)
 	var told []uid.UID64
-	r.winter.Drain(func(i control.Issued[winterNow]) { told = append(told, i.Entity) })
+	r.winter.Drain(func(i command.Issued[winterNow]) { told = append(told, i.Entity) })
 	if len(told) != 2 || told[0] != r.w.Clock().Entity() {
 		t.Errorf("the rule told %v, want the world's entity twice, of its weather in the winter", told)
 	}
@@ -288,7 +289,7 @@ func TestClimate_TakesARolesRule(t *testing.T) {
 	}
 	for name, r := range map[string]act.Rule{
 		"every":  every,
-		"a role": rule.NewPart("climate sheltered", 0).Obeys(every).Rules()[0],
+		"a role": ceremony.NewPart("climate sheltered", 0).Obeys(every).Rules()[0],
 	} {
 		if err := c.Rules().Add(r); err != nil {
 			t.Errorf("%s: Add = %v; want it taken", name, err)

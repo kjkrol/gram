@@ -2,6 +2,7 @@ package render
 
 import (
 	"errors"
+	"github.com/kjkrol/ceremony/effect"
 	"reflect"
 
 	"github.com/kjkrol/goke/v3"
@@ -17,6 +18,11 @@ type Appearance struct {
 	// inscribed in it swings outside the box as the sprite turns.
 	Angle float32
 }
+
+// Knob: an effect may turn it (effect.Knob).
+func (Appearance) Knob() {}
+
+var _ effect.Knob = Appearance{}
 
 // Rule is how a renderer draws the entities it draws, settled for each of them every frame, in
 // the order given. A rule reads one component of the entity, T, and holds only for one carrying it.

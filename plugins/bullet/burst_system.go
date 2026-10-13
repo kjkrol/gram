@@ -6,9 +6,9 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -18,9 +18,9 @@ var _ goke.System = (*burstSystem)(nil)
 type burstSystem struct {
 	w      *world.Plugin
 	space  *aabbworld.Space
-	bursts *control.Queue[Burst]
-	blasts *plugin.PairRules[Blast]
-	tickOf plugin.TickSource
+	bursts *command.Queue[Burst]
+	blasts *host.PairRules[Blast]
+	tickOf host.TickSource
 
 	seek *goke.Query
 	base goke.Comp[world.Base]
@@ -28,7 +28,7 @@ type burstSystem struct {
 	found []uid.UID64
 }
 
-func newBurstSystem(w *world.Plugin, bursts *control.Queue[Burst], blasts *plugin.PairRules[Blast]) *burstSystem {
+func newBurstSystem(w *world.Plugin, bursts *command.Queue[Burst], blasts *host.PairRules[Blast]) *burstSystem {
 	return &burstSystem{w: w, space: w.Space(), bursts: bursts, blasts: blasts, tickOf: w.Tick}
 }
 
@@ -45,7 +45,7 @@ func (s *burstSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 		return
 	}
 	t := s.tickOf.Of(cb, dt)
-	s.bursts.Drain(func(i control.Issued[Burst]) {
+	s.bursts.Drain(func(i command.Issued[Burst]) {
 		if !i.ByEntity || !s.seek.Seek(i.Entity) {
 			return
 		}

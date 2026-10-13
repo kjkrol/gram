@@ -8,20 +8,20 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/plan"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/internal/steps"
-	"github.com/kjkrol/gram/plugin"
 	ikinds "github.com/kjkrol/gram/plugins/world/internal/kinds"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -38,8 +38,8 @@ type module struct {
 
 	kinds *Kinds
 
-	leavers *plugin.Rules[Leaving]
-	movers  *plugin.Rules[Moving]
+	leavers *host.Rules[Leaving]
+	movers  *host.Rules[Moving]
 	drawing render.Rules
 
 	steer            *steering.System
@@ -62,15 +62,15 @@ type module struct {
 	effectCmds         effectCommands
 	effectCmdsRunnable goke.Runnable
 
-	plans         *steps.Plans
+	plans         *plan.Plans
 	plansRunnable goke.Runnable
 
-	commands control.Carrier
-	pauses   control.Queue[Pause]
-	fasters  control.Queue[Faster]
-	slowers  control.Queue[Slower]
-	spawns   control.Queue[Spawn]
-	despawns control.Queue[Despawn]
+	commands command.Carrier
+	pauses   command.Queue[Pause]
+	fasters  command.Queue[Faster]
+	slowers  command.Queue[Slower]
+	spawns   command.Queue[Spawn]
+	despawns command.Queue[Despawn]
 
 	spawnRunnable goke.Runnable
 }
@@ -80,14 +80,14 @@ var _ goke.Module = (*module)(nil)
 func newModule(cfg Config) *module {
 	clk := clock.New(cfg.Clock)
 	w := &module{config: cfg, space: buildSpace(cfg), despawned: make(map[uid.UID64]struct{}),
-		leavers: &plugin.Rules[Leaving]{}, movers: &plugin.Rules[Moving]{},
+		leavers: &host.Rules[Leaving]{}, movers: &host.Rules[Moving]{},
 		clock: clk, steer: steering.NewSystem()}
 	w.moments = moments{clock: clk, tick: w.tick}
 	return w
 }
 
-func (w *module) tick(cb *goke.CmdBuf, d time.Duration) plugin.Tick {
-	return plugin.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &w.commands, Effects: w.effects,
+func (w *module) tick(cb *goke.CmdBuf, d time.Duration) host.Tick {
+	return host.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &w.commands, Effects: w.effects,
 		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity(), Roles: w.effectCmds.RolesOf}
 }
 
@@ -114,9 +114,9 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 }
 
 func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	w.pauses.Drain(func(control.Issued[Pause]) { w.clock.TogglePause() })
-	w.fasters.Drain(func(control.Issued[Faster]) { w.clock.Faster() })
-	w.slowers.Drain(func(control.Issued[Slower]) { w.clock.Slower() })
+	w.pauses.Drain(func(command.Issued[Pause]) { w.clock.TogglePause() })
+	w.fasters.Drain(func(command.Issued[Faster]) { w.clock.Faster() })
+	w.slowers.Drain(func(command.Issued[Slower]) { w.clock.Slower() })
 	ctx.Run(w.clockRunnable, d)
 	ctx.Run(w.viewRunnable, d)
 	ctx.Sync()
@@ -159,7 +159,7 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[Block](),
 		goke.LoadComp[steering.Driven](),
 		goke.LoadComp[tag.Tags[clock.Phase]](),
-		goke.LoadComp[entity.Label](),
+		goke.LoadComp[ceremony.Label](),
 		goke.LoadComp[tag.Tags[cond.Roles]](),
 	}, w.effects.Module().LoadComps()...)
 	tokens = append(tokens, w.selves.tokens()...)
@@ -208,7 +208,7 @@ func (w *module) populateEntries(k ikinds.Kind, rows []any, entries []kind.Entry
 		w.telemetry.Count += count
 
 		var baseComp goke.Comp[Base]
-		var labelComp goke.Comp[entity.Label]
+		var labelComp goke.Comp[ceremony.Label]
 		comps := []goke.Addable{&baseComp, &labelComp}
 		for _, wr := range writers {
 			comps = append(comps, wr.Columns()...)

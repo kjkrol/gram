@@ -5,15 +5,15 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -26,19 +26,19 @@ const pickReach = 160
 // Selectable entities the player owns, a command for the selected or the pointed at, Hovered on
 // the entity each Hover points at.
 type SelectionSystem struct {
-	selects    *control.Queue[Select]
-	effectCmds *control.Queue[effectCommand]
+	selects    *command.Queue[Select]
+	effectCmds *command.Queue[effectCommand]
 	effects    *effect.Effects
 	whom       []uid.UID64
-	hovers     *control.Queue[Hover]
+	hovers     *command.Queue[Hover]
 	hovered    bool
-	allows     *control.Queue[Allow]
-	forbids    *control.Queue[Forbid]
+	allows     *command.Queue[Allow]
+	forbids    *command.Queue[Forbid]
 	marksID    goke.CompID
 	space      *aabbworld.Space
 	tags       Tags
 
-	marqueeQueue *control.Queue[Marquee]
+	marqueeQueue *command.Queue[Marquee]
 	marquees     *marquees
 
 	query  *goke.Query
@@ -55,7 +55,7 @@ type SelectionSystem struct {
 
 // NewSelectionSystem builds a SelectionSystem draining selects over space, picking through each
 // command's camera what look draws there.
-func NewSelectionSystem(selects *control.Queue[Select], space *aabbworld.Space, tags Tags, look func() world.Look) *SelectionSystem {
+func NewSelectionSystem(selects *command.Queue[Select], space *aabbworld.Space, tags Tags, look func() world.Look) *SelectionSystem {
 	return &SelectionSystem{selects: selects, space: space, tags: tags, look: look}
 }
 
@@ -67,13 +67,13 @@ func (s *SelectionSystem) Init(si *goke.SysInit) {
 
 func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	if s.marqueeQueue != nil {
-		s.marqueeQueue.Drain(func(i control.Issued[Marquee]) {
+		s.marqueeQueue.Drain(func(i command.Issued[Marquee]) {
 			if i.Command.Camera != nil {
 				s.marquees.show(i.Command.Camera, i.Command.Screen)
 			}
 		})
 	}
-	s.selects.Drain(func(i control.Issued[Select]) {
+	s.selects.Drain(func(i command.Issued[Select]) {
 		cmd := i.Command
 		if s.marquees != nil && cmd.Camera != nil {
 			s.marquees.hide(cmd.Camera)
@@ -93,21 +93,21 @@ func (s *SelectionSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 				}
 			})
 		}
-		s.applySelection(hit, cmd.Additive, i.Player)
+		s.applySelection(hit, cmd.Additive, i.Issuer)
 	})
 	if s.effectCmds != nil {
-		s.effectCmds.Drain(func(i control.Issued[effectCommand]) { s.carry(cb, i.Player, i.Command) })
+		s.effectCmds.Drain(func(i command.Issued[effectCommand]) { s.carry(cb, i.Issuer, i.Command) })
 	}
 	if s.hovers != nil {
 		s.hover()
 	}
 	if s.allows != nil {
-		s.allows.Drain(func(i control.Issued[Allow]) { s.permit(cb, i.Player, i.Entity, i.ByEntity, true, i.Command.Selected) })
-		s.forbids.Drain(func(i control.Issued[Forbid]) { s.permit(cb, i.Player, i.Entity, i.ByEntity, false, false) })
+		s.allows.Drain(func(i command.Issued[Allow]) { s.permit(cb, i.Issuer, i.Entity, i.ByEntity, true, i.Command.Selected) })
+		s.forbids.Drain(func(i command.Issued[Forbid]) { s.permit(cb, i.Issuer, i.Entity, i.ByEntity, false, false) })
 	}
 }
 
-func (s *SelectionSystem) permit(cb *goke.CmdBuf, by control.PlayerID, id uid.UID64, byEntity, on, selected bool) {
+func (s *SelectionSystem) permit(cb *goke.CmdBuf, by command.Issuer, id uid.UID64, byEntity, on, selected bool) {
 	set := func(m *tag.Tags[Family]) {
 		if on {
 			*m = m.With(s.tags.Selectable)
@@ -137,7 +137,7 @@ func (s *SelectionSystem) permit(cb *goke.CmdBuf, by control.PlayerID, id uid.UI
 	}
 }
 
-func (s *SelectionSystem) carry(cb *goke.CmdBuf, by control.PlayerID, c effectCommand) {
+func (s *SelectionSystem) carry(cb *goke.CmdBuf, by command.Issuer, c effectCommand) {
 	e := c.cmd.Effect
 	if e == (effect.Effect{}) {
 		return
@@ -150,8 +150,8 @@ func (s *SelectionSystem) carry(cb *goke.CmdBuf, by control.PlayerID, c effectCo
 	} else {
 		s.eachSelected(by, c.only, func(id uid.UID64) { s.whom = append(s.whom, id) })
 	}
-	on := c.cmd.Verb == rule.Puts
-	if c.cmd.Verb == rule.Toggles {
+	on := c.cmd.Verb == ceremony.Puts
+	if c.cmd.Verb == ceremony.Toggles {
 		on = true
 		for _, id := range s.whom {
 			if s.effects.Has(id, e) {
@@ -189,7 +189,7 @@ func (s *SelectionSystem) hover() {
 		}
 		s.hovered = false
 	}
-	s.hovers.Drain(func(i control.Issued[Hover]) {
+	s.hovers.Drain(func(i command.Issued[Hover]) {
 		h := i.Command
 		if h.Camera == nil {
 			return
@@ -218,7 +218,7 @@ func (s *SelectionSystem) pick(at geom.Vec, screen geom.AABB, cam camera.Camera)
 	return best, found
 }
 
-func (s *SelectionSystem) eachSelected(by control.PlayerID, only tag.Tags[cond.Roles], fn func(uid.UID64)) {
+func (s *SelectionSystem) eachSelected(by command.Issuer, only tag.Tags[cond.Roles], fn func(uid.UID64)) {
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
@@ -259,7 +259,7 @@ func grow(box geom.AABB, reach float64) geom.AABB {
 	}
 }
 
-func (s *SelectionSystem) applySelection(hit map[uid.UID64]struct{}, additive bool, by control.PlayerID) {
+func (s *SelectionSystem) applySelection(hit map[uid.UID64]struct{}, additive bool, by command.Issuer) {
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
@@ -277,7 +277,7 @@ func (s *SelectionSystem) applySelection(hit map[uid.UID64]struct{}, additive bo
 	}
 }
 
-func (s *SelectionSystem) chosen(by control.PlayerID) (uid.UID64, bool) {
+func (s *SelectionSystem) chosen(by command.Issuer) (uid.UID64, bool) {
 	var one uid.UID64
 	n := 0
 	for s.query.All(); s.query.Next(); {

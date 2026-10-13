@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 )
@@ -32,7 +32,7 @@ func twoStages(t *testing.T) (*Engine, *int) {
 	return eng, &spawns
 }
 
-func give(t *testing.T, eng *Engine, cmd control.Command) {
+func give(t *testing.T, eng *Engine, cmd command.Command) {
 	t.Helper()
 	if err := eng.Issue(cmd); err != nil {
 		t.Fatalf("Issue %T: %v", cmd, err)

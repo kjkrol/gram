@@ -4,10 +4,10 @@ import (
 	"math"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/gravity/internal/vertical"
@@ -19,8 +19,8 @@ var _ goke.System = (*fallSystem)(nil)
 
 type fallSystem struct {
 	p        *Plugin
-	tickOf   plugin.TickSource
-	landings *plugin.Rules[Landing]
+	tickOf   host.TickSource
+	landings *host.Rules[Landing]
 
 	pulls *goke.Query
 	pull  goke.Comp[Pull]
@@ -68,7 +68,7 @@ func (s *fallSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		surfaces = s.p.surfaces()
 	}
 	hosted := !s.landings.Empty()
-	var t plugin.Tick
+	var t host.Tick
 	if hosted {
 		t = s.tickOf.Of(cb, d)
 	}
@@ -111,7 +111,7 @@ func (s *fallSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 }
 
 func (s *fallSystem) throw(g float64) {
-	s.p.leaps.Drain(func(i control.Issued[Leap]) {
+	s.p.leaps.Drain(func(i command.Issued[Leap]) {
 		if !i.ByEntity || !s.bodies.Seek(i.Entity) {
 			return
 		}
@@ -124,7 +124,7 @@ func (s *fallSystem) throw(g float64) {
 		vertical.Leap(&b, g, s.body.At(cur).Leap)
 		put(&b, z, s.drift.At(cur), s.marks.At(cur))
 	})
-	s.p.aways.Drain(func(i control.Issued[Away]) {
+	s.p.aways.Drain(func(i command.Issued[Away]) {
 		if !i.ByEntity {
 			return
 		}

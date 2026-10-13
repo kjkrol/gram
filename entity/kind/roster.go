@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/ceremony/comp"
 )
 
 // Roster is what a world's plugins ask of the entities a game makes, gathered as the plugins are

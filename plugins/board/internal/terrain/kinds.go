@@ -3,11 +3,11 @@ package terrain
 import (
 	"fmt"
 
-	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/cond"
 )
 
 // Kinds is the board's cell.Kinds: the kinds a game defined, by name, each given a sprite and
@@ -21,7 +21,7 @@ type Kinds struct {
 	// out of its section.
 	Guard func(name string)
 	// Played, when set, notes the roles a kind's cells play, so their rules are delivered.
-	Played func(roles ...*rule.Part)
+	Played func(roles ...*ceremony.Part)
 }
 
 // NewKinds is an empty dictionary; one of a flat world refuses a kind with a Height.
@@ -33,7 +33,7 @@ func NewKinds(heights bool) *Kinds {
 	}
 }
 
-func (d *Kinds) Define(name string, k cell.Kind, plays ...*rule.Part) {
+func (d *Kinds) Define(name string, k cell.Kind, plays ...*ceremony.Part) {
 	if d.Guard != nil {
 		d.Guard(name)
 	}

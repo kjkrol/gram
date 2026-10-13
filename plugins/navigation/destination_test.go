@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -35,8 +35,8 @@ func openTerrain() *cell.TerrainMap {
 func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(10, 10, legCellSize)
 	occupancy := &cell.SingleOccupancy{}
-	moves := &control.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, openTerrain(), nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
+	moves := &command.Queue[MoveTo]{}
+	cmds := newMoveCommandSystem(newPathFinder(grid, openTerrain(), nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	target := at(5, 5)
 	starts := []cell.ID{at(5, 0), at(5, 4), at(5, 2)}
@@ -71,7 +71,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 		ctx.Sync()
 	})
 
-	moves.Add(control.Nobody, MoveTo{Cell: target})
+	moves.Add(command.Nobody, MoveTo{Cell: target})
 	ecs.Tick(time.Second)
 
 	seen := make(map[cell.ID]bool)

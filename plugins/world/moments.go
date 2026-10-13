@@ -3,15 +3,15 @@ package world
 import (
 	"time"
 
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
-	"github.com/kjkrol/gram/plugin"
 )
 
 type moments struct {
 	clock *clock.Clock
-	host  plugin.StepRules[clock.Moment]
-	tick  plugin.TickSource
+	host  host.StepRules[clock.Moment]
+	tick  host.TickSource
 	last  time.Duration
 	begun bool
 }

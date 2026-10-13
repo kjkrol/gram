@@ -4,9 +4,9 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/ground"
 )
 
@@ -18,7 +18,7 @@ type module struct {
 	clock    *clock.Clock
 }
 
-func newModule(space *aabbworld.Space, host *plugin.PairRules[Sighting], heights *heights, coverOf func() ground.Cover, workers int) *module {
+func newModule(space *aabbworld.Space, host *host.PairRules[Sighting], heights *heights, coverOf func() ground.Cover, workers int) *module {
 	m := &module{sys: newScanSystem(space, host)}
 	m.sys.coverOf = coverOf
 	m.sys.Workers(workers)

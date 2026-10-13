@@ -2,16 +2,16 @@ package world
 
 import (
 	"fmt"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/render"
 	"log"
 	"reflect"
 	"time"
 
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	ikinds "github.com/kjkrol/gram/plugins/world/internal/kinds"
 )
 
@@ -28,7 +28,7 @@ type spawner struct {
 	kind    ikinds.Kind
 	factory *goke.Factory
 	base    goke.Comp[Base]
-	label   goke.Comp[entity.Label]
+	label   goke.Comp[ceremony.Label]
 	writers []comp.Spawner
 }
 
@@ -60,7 +60,7 @@ func (s *spawnSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
 		s.groups[i].rows, s.groups[i].entries = s.groups[i].rows[:0], s.groups[i].entries[:0]
 	}
 	s.groups, s.accepted = s.groups[:0], 0
-	s.w.spawns.Drain(func(i control.Issued[Spawn]) {
+	s.w.spawns.Drain(func(i command.Issued[Spawn]) {
 		if err := s.take(i.Command.Entry); err != nil {
 			log.Printf("[world] spawn refused: %v", err)
 		}
@@ -120,7 +120,7 @@ func writersOf(k ikinds.Kind) []comp.Spawner {
 }
 
 // the rows are checked beforehand
-func (w *module) spawnRows(factory *goke.Factory, base *goke.Comp[Base], label *goke.Comp[entity.Label], writers []comp.Spawner, k ikinds.Kind, rows []any, entries []kind.Entry) {
+func (w *module) spawnRows(factory *goke.Factory, base *goke.Comp[Base], label *goke.Comp[ceremony.Label], writers []comp.Spawner, k ikinds.Kind, rows []any, entries []kind.Entry) {
 	factory.Create(len(rows))
 	index := 0
 	for factory.Next() {
@@ -129,7 +129,7 @@ func (w *module) spawnRows(factory *goke.Factory, base *goke.Comp[Base], label *
 			row := rows[index]
 			if entries != nil {
 				e := entries[index]
-				named[i] = entity.LabelOf(e.Name(), e.Group())
+				named[i] = ceremony.LabelOf(e.Name(), e.Group())
 				for _, cmd := range e.Commands() {
 					w.commands.PutFrom(id, cmd)
 				}
@@ -154,7 +154,7 @@ func (w *module) sizeOf(pos Position) error {
 
 func (w *module) handled(e kind.Entry) error {
 	for _, cmd := range e.Commands() {
-		if t := reflect.TypeOf(control.Unwrap(cmd)); !w.commands.Takes(t) {
+		if t := reflect.TypeOf(command.Unwrap(cmd)); !w.commands.Takes(t) {
 			return fmt.Errorf("the entry tells its entity a %v, which no plugin in use carries out", t)
 		}
 	}

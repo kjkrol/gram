@@ -6,8 +6,8 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
@@ -27,10 +27,10 @@ var _ goke.System = (*flightSystem)(nil)
 type flightSystem struct {
 	w        *world.Plugin
 	space    *aabbworld.Space
-	landings *plugin.Rules[Landing]
-	restings *plugin.Rules[Resting]
+	landings *host.Rules[Landing]
+	restings *host.Rules[Resting]
 	groundOf func() ground.Heights
-	tickOf   plugin.TickSource
+	tickOf   host.TickSource
 
 	flights *goke.Query
 	base    goke.Comp[world.Base]
@@ -59,7 +59,7 @@ type flightSystem struct {
 	restsAt   func(i int) bool
 }
 
-func newFlightSystem(w *world.Plugin, landings *plugin.Rules[Landing], restings *plugin.Rules[Resting], groundOf func() ground.Heights) *flightSystem {
+func newFlightSystem(w *world.Plugin, landings *host.Rules[Landing], restings *host.Rules[Resting], groundOf func() ground.Heights) *flightSystem {
 	s := &flightSystem{w: w, space: w.Space(), landings: landings, restings: restings, groundOf: groundOf, tickOf: w.Tick}
 	s.landingAt, s.landsAt, s.restingAt, s.restsAt = s.landing, s.lands, s.rest, s.rests
 	return s

@@ -2,15 +2,16 @@ package bridges
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/plugin"
 	"log"
 	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/ground"
@@ -43,15 +44,15 @@ type Plugin struct {
 	module      *module
 	renderer    *renderer
 
-	hands   map[control.PlayerID]*hand
+	hands   map[command.Issuer]*hand
 	pending []pending
 	laid    []laid
 	tick    uint64
 
-	aims    control.Queue[Aim]
-	marks   control.Queue[Mark]
-	builds  control.Queue[Build]
-	cancels control.Queue[Cancel]
+	aims    command.Queue[Aim]
+	marks   command.Queue[Mark]
+	builds  command.Queue[Build]
+	cancels command.Queue[Cancel]
 }
 
 var (
@@ -66,7 +67,7 @@ func NewPlugin(w *world.Plugin, brd *board.Plugin, cfg Config) *Plugin {
 	if cfg.Rules.Longest <= 0 {
 		cfg.Rules.Longest = 3
 	}
-	p := &Plugin{worldPlugin: w, board: brd, cfg: cfg, hands: map[control.PlayerID]*hand{}}
+	p := &Plugin{worldPlugin: w, board: brd, cfg: cfg, hands: map[command.Issuer]*hand{}}
 	p.types = &Types{p: p}
 	p.Self = world.NewSelf(w, p)
 	return p

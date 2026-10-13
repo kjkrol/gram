@@ -3,8 +3,8 @@ package owner_test
 import (
 	"testing"
 
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/gram/plugins/players/owner"
 )
 
@@ -12,7 +12,7 @@ func TestOf_IsTheIdLessOneAndRefusesNobody(t *testing.T) {
 	if owner.Of(1) != 0 || owner.Of(64) != 63 {
 		t.Errorf("Of(1), Of(64) = %v, %v; want 0, 63", owner.Of(1), owner.Of(64))
 	}
-	for _, id := range []control.PlayerID{control.Nobody, 65} {
+	for _, id := range []command.Issuer{command.Nobody, 65} {
 		func() {
 			defer func() {
 				if recover() == nil {
@@ -29,12 +29,12 @@ func TestObeys_OwnersAloneAndNobodyTheOwnerless(t *testing.T) {
 	shared := mine.With(owner.Of(2))
 	for _, c := range []struct {
 		owners tag.Tags[owner.Family]
-		by     control.PlayerID
+		by     command.Issuer
 		want   bool
 	}{
-		{mine, 1, true}, {mine, 2, false}, {mine, control.Nobody, false}, {mine, 200, false},
+		{mine, 1, true}, {mine, 2, false}, {mine, command.Nobody, false}, {mine, 200, false},
 		{shared, 1, true}, {shared, 2, true}, {shared, 3, false},
-		{0, control.Nobody, true}, {0, 1, false},
+		{0, command.Nobody, true}, {0, 1, false},
 	} {
 		if got := owner.Obeys(c.owners, c.by); got != c.want {
 			t.Errorf("owners %b obey player %d: %v, want %v", c.owners, c.by, got, c.want)

@@ -1,13 +1,14 @@
 package players
 
 import (
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 )
 
-// Give is the command by which an entity becomes To's, its alone; Nobody's for control.Nobody.
+// Give is the command by which an entity becomes To's, its alone; Nobody's for command.Nobody.
 // An entity gives it itself, as it is made (kind.Entry.Told) or later.
-type Give struct{ To control.PlayerID }
+type Give struct{ To command.Issuer }
 
 // ShowShortcuts opens the list of every key of the game (the Shortcuts scene), or closes it.
 type ShowShortcuts struct{}
@@ -16,14 +17,14 @@ func (Give) Command()          {}
 func (ShowShortcuts) Command() {}
 
 var (
-	_ control.Command = Give{}
-	_ control.Command = ShowShortcuts{}
+	_ command.Command = Give{}
+	_ command.Command = ShowShortcuts{}
 )
 
 // Queues are where the players' own commands land, and the tools taken and put down
 // (control.Take, control.Drop).
-func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.gives, &p.listings, &p.takes, &p.drops}
+func (p *Plugin) Queues() []command.CommandQueue {
+	return []command.CommandQueue{&p.gives, &p.listings, &p.takes, &p.drops}
 }
 
 // DefaultBindings are GameBindings.

@@ -2,6 +2,8 @@ package bullet
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/uid"
@@ -19,7 +21,7 @@ type Shoot struct {
 	aimed  bool
 }
 
-var _ plugin.Aimed = (*Shoot)(nil)
+var _ host.Aimed = (*Shoot)(nil)
 
 // Aim tells the command whom to shoot at.
 func (s *Shoot) Aim(who uid.UID64) { s.target, s.aimed = who, true }
@@ -32,15 +34,15 @@ func (Shoot) Command() {}
 func (Burst) Command() {}
 
 var (
-	_ control.Command = Shoot{}
-	_ control.Command = Burst{}
+	_ command.Command = Shoot{}
+	_ command.Command = Burst{}
 )
 
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // Queues are the plugin's command queues, Shoot and Burst.
-func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.shoots, &p.bursts}
+func (p *Plugin) Queues() []command.CommandQueue {
+	return []command.CommandQueue{&p.shoots, &p.bursts}
 }
 
 // DefaultBindings are none: a Shoot names its Ammo, which is the game's to bind.

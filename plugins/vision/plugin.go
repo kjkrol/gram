@@ -5,6 +5,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
@@ -31,9 +33,9 @@ type Plugin struct {
 	workers     int
 	frequency   float64
 	log         *log.Logger
-	cones       control.Queue[Cones]
+	cones       command.Queue[Cones]
 
-	sightings plugin.PairRules[Sighting]
+	sightings host.PairRules[Sighting]
 	drawing   render.Rules
 }
 
@@ -65,7 +67,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 // RunPlan carries out the commands and runs the scan; call it after the world's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.cones.Drain(func(control.Issued[Cones]) { p.setHidden(!p.hidden) })
+	p.cones.Drain(func(command.Issued[Cones]) { p.setHidden(!p.hidden) })
 	p.module.RunPlan(ctx, d)
 }
 

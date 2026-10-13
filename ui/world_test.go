@@ -6,16 +6,15 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/effect"
 )
 
 type installer struct {
@@ -34,7 +33,7 @@ func (c *installer) Setup(providers ...goke.SetupProvider) {
 }
 func (c *installer) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
 func (c *installer) ECS() *goke.ECS                                  { return c.ecs }
-func (c *installer) Hosts(...plugin.Host)                            {}
+func (c *installer) Hosts(...host.Host)                              {}
 
 func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 	w := world.NewPlugin(world.Config{
@@ -79,7 +78,7 @@ func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 	}
 
 	tick(1)
-	w.Carrier().Put(control.Nobody, rule.Put(frozen).On(entity.Named("bob")))
+	w.Carrier().Put(command.Nobody, ceremony.Put(frozen).On(ceremony.Named("bob")))
 	tick(2)
 	d.find()
 	spots := d.spots[label]

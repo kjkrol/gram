@@ -3,10 +3,10 @@ package cell_test
 import (
 	"testing"
 
-	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
-	"github.com/kjkrol/gram/rule/cond"
 )
 
 func TestTerrainMap_CastAndLabelKeepRolesAndWhatACellIsCalled(t *testing.T) {
@@ -16,16 +16,16 @@ func TestTerrainMap_CastAndLabelKeepRolesAndWhatACellIsCalled(t *testing.T) {
 
 	m.Cast(3, tag.Tags[cond.Roles](0).With(trapdoor))
 	m.Cast(3, tag.Tags[cond.Roles](0).With(trapdoor, plate))
-	m.Label(3, entity.LabelOf("east lever", ""))
-	m.Label(3, entity.LabelOf("west lever", "levers"))
+	m.Label(3, ceremony.LabelOf("east lever", ""))
+	m.Label(3, ceremony.LabelOf("west lever", "levers"))
 
 	if got, want := m.Roles[3], tag.Tags[cond.Roles](0).With(trapdoor, plate); got != want {
 		t.Errorf("cell 3 plays %b, want %b, what it was cast last", got, want)
 	}
-	if got, want := m.Labels[3], entity.LabelOf("west lever", "levers"); got != want {
+	if got, want := m.Labels[3], ceremony.LabelOf("west lever", "levers"); got != want {
 		t.Errorf("cell 3 is called %v, want %v, what it was called last", got, want)
 	}
-	if m.Roles[4] != 0 || m.Labels[4] != (entity.Label{}) {
+	if m.Roles[4] != 0 || m.Labels[4] != (ceremony.Label{}) {
 		t.Errorf("cell 4 plays %b and is called %v, want nothing of either", m.Roles[4], m.Labels[4])
 	}
 	if m.Version() != v {

@@ -6,10 +6,14 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/board"
@@ -24,10 +28,6 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -154,7 +154,7 @@ func (s *arena) defineRules() {
 }
 
 func (s *arena) defineCommands() {
-	flip := rule.Toggle(s.world.Effects().Named(FlippedEf)).On(s.gravity)
+	flip := ceremony.Toggle(s.world.Effects().Named(FlippedEf)).On(s.gravity)
 	s.world.Commands().Define(FlipCmd, flip)
 }
 
@@ -179,7 +179,7 @@ func (s *arena) defineKinds() {
 	units.Define(HeroKind,
 		unit.Mover{Domain: cell.Land},
 		steering.Steering{MaxSpeed: HeroSpeed, Accel: HeroSpeed * 8, Brake: HeroSpeed * 8},
-		rule.Plays(s.world.Roles().Named(HeroRole)),
+		ceremony.Plays(s.world.Roles().Named(HeroRole)),
 		comp.Const(gravity.Body{Leap: leap}),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Mass: 1}),

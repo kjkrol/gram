@@ -8,18 +8,18 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/dialog"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/gram/ui"
 	"github.com/kjkrol/uid"
 )
@@ -40,7 +40,7 @@ func (c *installer) Setup(providers ...goke.SetupProvider) {
 }
 func (c *installer) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
 func (c *installer) ECS() *goke.ECS                                  { return c.ecs }
-func (c *installer) Hosts(...plugin.Host)                            {}
+func (c *installer) Hosts(...host.Host)                              {}
 
 const hosts = `
 greet:
@@ -73,7 +73,7 @@ type sacks struct{ N int8 }
 
 type who struct {
 	x  float64
-	by control.PlayerID
+	by command.Issuer
 }
 
 type rig struct {
@@ -97,7 +97,7 @@ func define(file string) (*world.Plugin, *dialog.Plugin, error) {
 	d := dialog.NewPlugin(w, dialog.Config{})
 	d.DefineEffects()
 	w.Effects().Define("blush", effect.Spec{effect.Lasts(time.Minute)})
-	w.Commands().Define("blush", rule.Put(w.Effects().Named("blush")).On(ui.It))
+	w.Commands().Define("blush", ceremony.Put(w.Effects().Named("blush")).On(ui.It))
 	d.Changes().Define("warm", dialog.Alter(func(l *liking, _ uid.UID64) { l.N += 40 }))
 	d.Changes().Define("offend", dialog.Alter(func(l *liking, _ uid.UID64) { l.N -= 80 }))
 	d.Changes().Define("flour", dialog.AlterListener(func(s *sacks, _ uid.UID64) { s.N++ }))
@@ -117,7 +117,7 @@ func newRig(t *testing.T) *rig {
 		}),
 		comp.Const(world.Velocity{}),
 		comp.Load(func(r who) tag.Tags[owner.Family] {
-			if r.by == control.Nobody {
+			if r.by == command.Nobody {
 				return 0
 			}
 			return tag.Tags[owner.Family](0).With(owner.Of(r.by))
@@ -183,7 +183,7 @@ func (r *rig) begin(speaker, listener uid.UID64) {
 	r.tick(2)
 }
 
-func (r *rig) choose(by control.PlayerID, speaker uid.UID64, index int) {
+func (r *rig) choose(by command.Issuer, speaker uid.UID64, index int) {
 	r.w.Carrier().Put(by, dialog.Choose{Index: index, Speaker: speaker})
 	r.tick(2)
 }
@@ -256,7 +256,7 @@ func TestConversation_OnlyAPlayerTheListenerObeysAnswers(t *testing.T) {
 func TestConversation_TakingTalkingOffEndsItWithoutTalked(t *testing.T) {
 	r := newRig(t)
 	r.begin(r.host, r.guest)
-	r.w.Carrier().Put(control.Nobody, rule.Take(r.talking).On(entity.ID(r.host)))
+	r.w.Carrier().Put(command.Nobody, ceremony.Take(r.talking).On(ceremony.ID(r.host)))
 	r.tick(2)
 	if r.line(r.host) != "" || r.talked.On(r.host) {
 		t.Errorf("with talking taken off: says %q, talked %v; want it over, not talked", r.line(r.host), r.talked.On(r.host))

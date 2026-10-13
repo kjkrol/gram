@@ -2,6 +2,7 @@ package vision
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -36,6 +37,11 @@ type Sight struct {
 	// Ahead has the sight look the way the entity moves, Facing only while it has no heading.
 	Ahead bool
 }
+
+// Knob: an effect may turn it (effect.Knob).
+func (Sight) Knob() {}
+
+var _ effect.Knob = Sight{}
 
 // Looking is where the sight looks for an entity heading dir: dir when Ahead and there is one,
 // Facing otherwise.

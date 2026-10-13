@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/effect"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -51,7 +51,7 @@ type choice struct {
 	when condition
 	then []Change
 	next string // "" for End
-	do   []rule.Command
+	do   []ceremony.Command
 }
 
 type condition struct {
@@ -134,7 +134,7 @@ func (p *Plugin) define(name string, n Node) error {
 			}
 			then = append(then, found)
 		}
-		var do []rule.Command
+		var do []ceremony.Command
 		for _, cmd := range ch.Do {
 			found, ok := p.w.Commands().Lookup(cmd)
 			if !ok {

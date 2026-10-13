@@ -3,7 +3,7 @@ package terrain_test
 import (
 	"testing"
 
-	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"

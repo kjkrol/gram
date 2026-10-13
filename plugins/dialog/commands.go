@@ -1,8 +1,9 @@
 package dialog
 
 import (
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/ui"
 	"github.com/kjkrol/uid"
 )
@@ -26,7 +27,7 @@ type Choose struct {
 }
 
 // About is the answer for the conversation of the entity of.
-func (c Choose) About(of uid.UID64) control.Command {
+func (c Choose) About(of uid.UID64) command.Command {
 	c.Speaker = of
 	return c
 }
@@ -44,29 +45,29 @@ func (Choose) Command() {}
 func (Feel) Command()   {}
 
 var (
-	_ control.Command = Begin{}
-	_ control.Command = Choose{}
-	_ control.Command = Feel{}
+	_ command.Command = Begin{}
+	_ command.Command = Choose{}
+	_ command.Command = Feel{}
 )
 
 // Aim tells the command whom the change is towards.
 func (f *Feel) Aim(who uid.UID64) { f.with, f.aimed = who, true }
 
 var (
-	_ plugin.Aimed = (*Begin)(nil)
-	_ plugin.Aimed = (*Feel)(nil)
-	_ ui.About     = Choose{}
+	_ host.Aimed = (*Begin)(nil)
+	_ host.Aimed = (*Feel)(nil)
+	_ ui.About   = Choose{}
 )
 
 type queues struct {
-	begins  control.Queue[Begin]
-	chooses control.Queue[Choose]
-	feels   control.Queue[Feel]
+	begins  command.Queue[Begin]
+	chooses command.Queue[Choose]
+	feels   command.Queue[Feel]
 }
 
 // Queues are the plugin's command queues: Begin, Choose and Feel.
-func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.told.begins, &p.told.chooses, &p.told.feels}
+func (p *Plugin) Queues() []command.CommandQueue {
+	return []command.CommandQueue{&p.told.begins, &p.told.chooses, &p.told.feels}
 }
 
 // DefaultBindings is none: a conversation is begun by rules and answered by the window's buttons.

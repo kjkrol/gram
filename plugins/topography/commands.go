@@ -2,6 +2,7 @@ package topography
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
 )
 
@@ -12,11 +13,11 @@ type CoarseShadows struct{}
 func (CoarseShadows) Command() {}
 
 var (
-	_ control.Command = CoarseShadows{}
+	_ command.Command = CoarseShadows{}
 )
 
 // Queues are where the view's, the shaping's and the shadows' commands land.
-func (p *Plugin) Queues() []control.CommandQueue {
+func (p *Plugin) Queues() []command.CommandQueue {
 	return append(append(p.camQueues.queues(), p.shaper.queues()...), &p.coarse)
 }
 

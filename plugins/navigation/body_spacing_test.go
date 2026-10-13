@@ -8,10 +8,11 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -22,7 +23,6 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -32,8 +32,8 @@ type fieldUnit struct {
 	selected bool
 	driven   steering.Driven // non-zero: steered by hand
 	order    *MoveOrder
-	owner    control.PlayerID
-	plays    *rule.Part
+	owner    command.Issuer
+	plays    *ceremony.Part
 }
 
 func (fw *fieldWorld) standAt(p geom.Vec) *MoveOrder {
@@ -126,11 +126,11 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 		if u.order != nil {
 			s = append(s, comp.Load(func(u fieldUnit) MoveOrder { return *u.order }))
 		}
-		if u.owner != control.Nobody {
+		if u.owner != command.Nobody {
 			s = append(s, comp.Tagged(owner.Of(u.owner)))
 		}
 		if u.plays != nil {
-			s = append(s, rule.Plays(u.plays))
+			s = append(s, ceremony.Plays(u.plays))
 		}
 		kind.Define[fieldUnit](w.Kinds(), fmt.Sprintf("u%d", i), s)
 		k := kind.Named[fieldUnit](w.Kinds(), fmt.Sprintf("u%d", i))
@@ -284,7 +284,7 @@ func TestBodySpacing_AGroupStandsRoundThePointClicked(t *testing.T) {
 	target := fw.at(6, 2)
 	c := fw.grid.CellCenter(target)
 	point := geom.NewVec(c.X+7, c.Y-5)
-	fw.nav.moves.Add(control.Nobody, MoveTo{Cell: target, At: point})
+	fw.nav.moves.Add(command.Nobody, MoveTo{Cell: target, At: point})
 	settled, contacts := fw.run(15 * time.Second)
 	if !settled {
 		t.Fatal("the group has not settled")
@@ -354,7 +354,7 @@ func sendCrowd(t *testing.T, n int, layout string, side float64) (settled bool, 
 	fw := newFieldWorld(t, 12, 8, BodySpacing, nil, units)
 	c := fw.grid.CellCenter(fw.at(6, 4))
 	point := geom.NewVec(c.X+5, c.Y-3)
-	fw.nav.moves.Add(control.Nobody, MoveTo{Cell: fw.at(6, 4), At: point})
+	fw.nav.moves.Add(command.Nobody, MoveTo{Cell: fw.at(6, 4), At: point})
 	settled, _, longest = fw.runLongest(30 * time.Second)
 	for range 30 {
 		fw.ecs.Tick(time.Second / 60)
@@ -458,7 +458,7 @@ func TestBodySpacing_ClicksInItsOwnCellShiftAndLookAt(t *testing.T) {
 	home := probe.grid.CellCenter(probe.at(1, 1))
 	fw := newFieldWorld(t, 10, 3, BodySpacing, nil, []fieldUnit{{at: home, side: 4, selected: true}})
 	inside := geom.NewVec(home.X+9, home.Y-8)
-	fw.nav.moves.Add(control.Nobody, MoveTo{Cell: fw.at(1, 1), At: inside})
+	fw.nav.moves.Add(command.Nobody, MoveTo{Cell: fw.at(1, 1), At: inside})
 	if settled, _ := fw.run(5 * time.Second); !settled {
 		t.Fatal("the unit has not settled in its own cell")
 	}
@@ -467,9 +467,9 @@ func TestBodySpacing_ClicksInItsOwnCellShiftAndLookAt(t *testing.T) {
 	}
 
 	first, last := geom.NewVec(5*fieldCell+7, 1*fieldCell+20), geom.NewVec(8*fieldCell+10, 2*fieldCell+9)
-	fw.nav.moves.Add(control.Nobody, MoveTo{Cell: fw.at(5, 1), At: first})
+	fw.nav.moves.Add(command.Nobody, MoveTo{Cell: fw.at(5, 1), At: first})
 	fw.ecs.Tick(time.Second / 60)
-	fw.nav.moves.Add(control.Nobody, MoveTo{Cell: fw.at(8, 2), At: last, Append: true})
+	fw.nav.moves.Add(command.Nobody, MoveTo{Cell: fw.at(8, 2), At: last, Append: true})
 	fw.ecs.Tick(time.Second / 60)
 	if _, o := fw.centre(0); o == nil || o.Queued != 1 || o.Waypoints[0].Spot != last {
 		t.Fatalf("after Shift the order is %+v, want the last point queued as a spot", o)
@@ -481,13 +481,13 @@ func TestBodySpacing_ClicksInItsOwnCellShiftAndLookAt(t *testing.T) {
 		t.Errorf("the unit stands at %v, want the last point %v", at, last)
 	}
 
-	fw.nav.moves.Add(control.Nobody, MoveTo{Cell: fw.at(0, 0), At: fw.grid.CellCenter(fw.at(0, 0))})
+	fw.nav.moves.Add(command.Nobody, MoveTo{Cell: fw.at(0, 0), At: fw.grid.CellCenter(fw.at(0, 0))})
 	for range 60 {
 		fw.ecs.Tick(time.Second / 60)
 	}
 	told, _ := fw.centre(0)
 	south := geom.NewVec(told.X, told.Y+1000)
-	fw.nav.looks.Add(control.Nobody, LookAt{At: south})
+	fw.nav.looks.Add(command.Nobody, LookAt{At: south})
 	if settled, _ := fw.run(5 * time.Second); !settled {
 		t.Fatal("the unit told to look has not stopped")
 	}

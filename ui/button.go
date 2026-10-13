@@ -2,26 +2,26 @@ package ui
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/render"
 )
 
 // Button is a label that gives its commands when clicked, in order: the scene's own (Show, Hide,
 // Toggle), or any other the way a key gives it (Scene.Issue).
-func Button(label string, cmds ...control.Command) *Element { return newButton(Label(label), cmds) }
+func Button(label string, cmds ...command.Command) *Element { return newButton(Label(label), cmds) }
 
 // ButtonOf is a Button whose label t says, every frame; with no label it is left out.
-func ButtonOf(t Text, cmds ...control.Command) *Element {
+func ButtonOf(t Text, cmds ...command.Command) *Element {
 	return newButton(LabelOf(t), cmds)
 }
 
-func newButton(label *Element, cmds []control.Command) *Element {
+func newButton(label *Element, cmds []command.Command) *Element {
 	b := newElement(&button{cmds: cmds}, label).Padding(6)
 	b.style, b.stroke = buttonStyle, 1
 	return b
 }
 
-type button struct{ cmds []control.Command }
+type button struct{ cmds []command.Command }
 
 func (*button) absent(e *Element) bool { return e.children[0].absent() }
 

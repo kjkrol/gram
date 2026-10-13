@@ -9,28 +9,28 @@ import (
 	"github.com/kjkrol/aabbworld/collide"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/plan"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/bullet"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
-	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/uid"
 )
 
 type installCtx struct {
-	hosts   []plugin.Host
+	hosts   []host.Host
 	ecs     *goke.ECS
 	pending []func() []goke.System
 	tracked []any
@@ -65,7 +65,7 @@ type piece struct {
 	speed      float64
 	selectable bool
 	selected   bool
-	owner      control.PlayerID
+	owner      command.Issuer
 	z          world.Z
 	eye        *world.Eye
 }
@@ -138,7 +138,7 @@ func newRig(t *testing.T, sc scene) *rig {
 		}),
 		comp.Load(func(p piece) tag.Tags[owner.Family] {
 			var o tag.Tags[owner.Family]
-			if p.owner != control.Nobody {
+			if p.owner != command.Nobody {
 				o = o.With(owner.Of(p.owner))
 			}
 			return o
@@ -282,9 +282,9 @@ func (r *rig) theShot() found {
 var east = geom.NewVec(1, 0)
 
 // round flies ten a step, five times its own cap.
-func round(r *rig, lands bool, roles ...*rule.Part) bullet.Ammo {
+func round(r *rig, lands bool, roles ...*ceremony.Part) bullet.Ammo {
 	r.arms.Define("round", bullet.Body{Size: 4, Speed: 600, Range: 320, Lands: lands},
-		rule.Plays(roles...))
+		ceremony.Plays(roles...))
 	return r.arms.Named("round")
 }
 
@@ -474,7 +474,7 @@ func TestLanding_ALandedShotRestsAndBurstsOnThoseWithinItsRadius(t *testing.T) {
 	r.w.Roles().Define("grenade")
 	grenadeRole := r.w.Roles().Named("grenade")
 	r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 96, Lands: true},
-		rule.Plays(grenadeRole))
+		ceremony.Plays(grenadeRole))
 	grenade := r.arms.Named("grenade")
 	r.fx.Define("hurt", effect.Spec{effect.Lasts(time.Minute)})
 	hurt := r.fx.Named("hurt")
@@ -521,7 +521,7 @@ func TestPlan_AFuseWaitsOnTheShotLyingAndBursts(t *testing.T) {
 		plan.Loop[any]{Name: "burst", When: cond.Self.If(cond.Always), Then: plan.Self.Do(bullet.Burst{Radius: 40})},
 	))
 	r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 96, Lands: true},
-		rule.Plays(grenadeRole), fuse)
+		ceremony.Plays(grenadeRole), fuse)
 	grenade := r.arms.Named("grenade")
 	r.fx.Define("hurt", effect.Spec{effect.Lasts(time.Minute)})
 	hurt := r.fx.Named("hurt")
@@ -736,6 +736,6 @@ func TestSaveLoad_AFlightGoesOnAfterALoad(t *testing.T) {
 	}
 }
 
-func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+func (c *installCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
 
-func (c *installCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

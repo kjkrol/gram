@@ -5,11 +5,12 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -36,7 +37,7 @@ const (
 
 type pin struct {
 	under     *effect.Effect
-	on        entity.Whom
+	on        ceremony.Whom
 	where     Pin
 	placing   placing
 	dx, dy    float64
@@ -72,7 +73,7 @@ func (e *Element) Under(ef effect.Effect) *Element {
 }
 
 // On shows the element for every entity whom names, pinned to it as Under does.
-func (e *Element) On(whom entity.Whom) *Element {
+func (e *Element) On(whom ceremony.Whom) *Element {
 	e.pinned().on = whom
 	return e
 }
@@ -86,7 +87,7 @@ func (e *Element) Where(p Pin) *Element {
 // Pin is the entities an element is shown for: Tagged.
 type Pin interface {
 	bind(si *goke.SysInit)
-	each(fn func(id uid.UID64, base *entity.Base, z *entity.Z, label *entity.Label))
+	each(fn func(id uid.UID64, base *entity.Base, z *entity.Z, label *ceremony.Label))
 }
 
 // Tagged is the entities carrying t, a tag of any family.
@@ -98,14 +99,14 @@ type tagged[F any] struct {
 	tags  goke.Comp[tag.Tags[F]]
 	base  goke.OptComp[entity.Base]
 	z     goke.OptComp[entity.Z]
-	label goke.OptComp[entity.Label]
+	label goke.OptComp[ceremony.Label]
 }
 
 func (g *tagged[F]) bind(si *goke.SysInit) {
 	g.query = si.NewQueryBuilder(&g.tags).Optional(&g.base).Optional(&g.z).Optional(&g.label).Build()
 }
 
-func (g *tagged[F]) each(fn func(id uid.UID64, base *entity.Base, z *entity.Z, label *entity.Label)) {
+func (g *tagged[F]) each(fn func(id uid.UID64, base *entity.Base, z *entity.Z, label *ceremony.Label)) {
 	for g.query.All(); g.query.Next(); {
 		cur := g.query.Cursor()
 		tags, bases, zs, labels := g.tags.Slice(cur), g.base.Slice(cur), g.z.Slice(cur), g.label.Slice(cur)

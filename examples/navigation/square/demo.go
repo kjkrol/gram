@@ -6,10 +6,13 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/board"
@@ -24,9 +27,6 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -143,7 +143,7 @@ func (s *arena) defineKinds() {
 		comp.Load(
 			func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.Target} },
 		),
-		rule.Plays(s.world.Roles().Named(MortalRole)),
+		ceremony.Plays(s.world.Roles().Named(MortalRole)),
 	}
 	units.Define(RedKind, unit.Mover{Domain: cell.Land}, profile, own...)
 	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile, own...)

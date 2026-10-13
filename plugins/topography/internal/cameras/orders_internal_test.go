@@ -1,8 +1,8 @@
 package cameras
 
 import (
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
 )
 
 type (
@@ -46,47 +46,47 @@ func (Turn) Command() {}
 
 // a nil queue gives nothing
 type queued struct {
-	views     *control.Queue[View]
-	turns     *control.Queue[Turn]
-	tilts     *control.Queue[Tilt]
-	lookFroms *control.Queue[LookFrom]
-	lookAts   *control.Queue[LookAt]
-	rides     *control.Queue[Ride]
-	looks     *control.Queue[Look]
+	views     *command.Queue[View]
+	turns     *command.Queue[Turn]
+	tilts     *command.Queue[Tilt]
+	lookFroms *command.Queue[LookFrom]
+	lookAts   *command.Queue[LookAt]
+	rides     *command.Queue[Ride]
+	looks     *command.Queue[Look]
 }
 
 var _ Orders = queued{}
 
-func drain[C control.Command](q *control.Queue[C], fn func(control.Issued[C])) {
+func drain[C command.Command](q *command.Queue[C], fn func(command.Issued[C])) {
 	if q != nil {
 		q.Drain(fn)
 	}
 }
 
 func (q queued) Views(fn func(camera.Camera)) {
-	drain(q.views, func(i control.Issued[View]) { fn(i.Command.Camera) })
+	drain(q.views, func(i command.Issued[View]) { fn(i.Command.Camera) })
 }
 
 func (q queued) Turns(fn func(camera.Camera, float32)) {
-	drain(q.turns, func(i control.Issued[Turn]) { fn(i.Command.Camera, i.Command.Angle) })
+	drain(q.turns, func(i command.Issued[Turn]) { fn(i.Command.Camera, i.Command.Angle) })
 }
 
 func (q queued) Tilts(fn func(camera.Camera, float32)) {
-	drain(q.tilts, func(i control.Issued[Tilt]) { fn(i.Command.Camera, i.Command.Angle) })
+	drain(q.tilts, func(i command.Issued[Tilt]) { fn(i.Command.Camera, i.Command.Angle) })
 }
 
 func (q queued) LookFroms(fn func(camera.Camera, float32, float32, float32)) {
-	drain(q.lookFroms, func(i control.Issued[LookFrom]) { fn(i.Command.Camera, i.Command.X, i.Command.Y, i.Command.Z) })
+	drain(q.lookFroms, func(i command.Issued[LookFrom]) { fn(i.Command.Camera, i.Command.X, i.Command.Y, i.Command.Z) })
 }
 
 func (q queued) LookAts(fn func(camera.Camera, float32, float32, float32)) {
-	drain(q.lookAts, func(i control.Issued[LookAt]) { fn(i.Command.Camera, i.Command.X, i.Command.Y, i.Command.Z) })
+	drain(q.lookAts, func(i command.Issued[LookAt]) { fn(i.Command.Camera, i.Command.X, i.Command.Y, i.Command.Z) })
 }
 
 func (q queued) Rides(fn func(camera.Camera)) {
-	drain(q.rides, func(i control.Issued[Ride]) { fn(i.Command.Camera) })
+	drain(q.rides, func(i command.Issued[Ride]) { fn(i.Command.Camera) })
 }
 
 func (q queued) Looks(fn func(camera.Camera, float32, float32)) {
-	drain(q.looks, func(i control.Issued[Look]) { fn(i.Command.Camera, i.Command.Dx, i.Command.Dy) })
+	drain(q.looks, func(i command.Issued[Look]) { fn(i.Command.Camera, i.Command.Dx, i.Command.Dy) })
 }

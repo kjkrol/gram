@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 )
 
 type armour struct{ Plate int }

@@ -3,16 +3,16 @@ package world
 import (
 	"fmt"
 
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/gram/plugin/section"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
 )
 
 // Roles is a Stage's register of roles, by name. A Stage names 64 roles at most.
 type Roles struct {
 	w      *Plugin
-	byName map[string]*rule.Part
+	byName map[string]*ceremony.Part
 }
 
 // Define registers the role called name and the rules those playing it obey. A name defined
@@ -26,21 +26,21 @@ func (r *Roles) Define(name string, rules ...act.Rule) {
 		panic(fmt.Sprintf("world: the role %q is defined already", name))
 	}
 	if r.byName == nil {
-		r.byName = map[string]*rule.Part{}
+		r.byName = map[string]*ceremony.Part{}
 	}
-	part := rule.NewPart(name, r.w.kinds.DefineTag[cond.Roles](name)).Obeys(rules...)
+	part := ceremony.NewPart(name, r.w.kinds.DefineTag[cond.Roles](name)).Obeys(rules...)
 	r.byName[name] = part
 	r.w.kinds.Play(part)
 }
 
 // Lookup is the role defined as name; false for none.
-func (r *Roles) Lookup(name string) (*rule.Part, bool) {
+func (r *Roles) Lookup(name string) (*ceremony.Part, bool) {
 	part, ok := r.byName[name]
 	return part, ok
 }
 
 // Named is the role defined as name; an unknown name panics.
-func (r *Roles) Named(name string) *rule.Part {
+func (r *Roles) Named(name string) *ceremony.Part {
 	part, ok := r.byName[name]
 	if !ok {
 		panic(fmt.Sprintf("world: no role is defined as %q", name))

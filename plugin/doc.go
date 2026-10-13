@@ -33,7 +33,7 @@
 // # Commands
 //
 // What a player wants goes the other way, as a command of package control. A [CommandHandler]
-// defines command types and carries them out: it keeps a control.Queue of each, lists them in
+// defines command types and carries them out: it keeps a command.Queue of each, lists them in
 // Queues, drains them in its own pass, and suggests the control.Bindings that issue them. A
 // command type has one handler.
 //

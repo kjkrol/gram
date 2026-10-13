@@ -5,9 +5,9 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/uid"
 )
 
@@ -28,7 +28,7 @@ var _ goke.System = (*exitSystem)(nil)
 
 type exitSystem struct {
 	w    *module
-	host *plugin.Rules[Leaving]
+	host *host.Rules[Leaving]
 
 	query   *goke.Query
 	base    goke.Comp[Base]
@@ -42,7 +42,7 @@ type exitSystem struct {
 	bases []Base
 }
 
-func newExitSystem(w *module, host *plugin.Rules[Leaving]) *exitSystem {
+func newExitSystem(w *module, host *host.Rules[Leaving]) *exitSystem {
 	return &exitSystem{w: w, host: host}
 }
 
@@ -55,7 +55,7 @@ func (s *exitSystem) Init(si *goke.SysInit) {
 }
 
 func (s *exitSystem) Update(cb *goke.CmdBuf, d time.Duration) {
-	s.w.despawns.Drain(func(i control.Issued[Despawn]) {
+	s.w.despawns.Drain(func(i command.Issued[Despawn]) {
 		if i.ByEntity && s.alive.Seek(i.Entity) {
 			s.w.despawn(cb, i.Entity)
 		}
@@ -87,3 +87,7 @@ func inside(space *aabbworld.Space, box geom.AABB) bool {
 	outY := edges&aabbworld.OpenY != 0 && (box.BottomRight.Y <= 0 || box.TopLeft.Y >= float64(height))
 	return !outX && !outY
 }
+
+var (
+	_ host.About = Leaving{}
+)

@@ -5,7 +5,8 @@ import (
 	"testing/fstest"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -13,7 +14,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule/act"
 )
 
 type standingRow struct {

@@ -4,11 +4,13 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/internal/hosts"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -18,11 +20,10 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule/act"
 )
 
 type stubInstallCtx struct {
-	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
+	hosts   []host.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	pending []func() []goke.System
 }
@@ -63,14 +64,14 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	events.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionPress)
 	pl.EventHandler().HandleEvents(events)
 	var got []MoveTo
-	navPlugin.moves.Drain(func(i control.Issued[MoveTo]) { got = append(got, i.Command) })
+	navPlugin.moves.Drain(func(i command.Issued[MoveTo]) { got = append(got, i.Command) })
 	if len(got) != 0 {
 		t.Errorf("the right button going down issued %v, want nothing until it comes up", got)
 	}
 	events = &control.InputEvents{}
 	events.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionRelease)
 	pl.EventHandler().HandleEvents(events)
-	navPlugin.moves.Drain(func(i control.Issued[MoveTo]) { got = append(got, i.Command) })
+	navPlugin.moves.Drain(func(i command.Issued[MoveTo]) { got = append(got, i.Command) })
 	if len(got) != 1 || got[0].Cell != want || got[0].At != geom.NewVec(25, 25) || got[0].Append {
 		t.Errorf("a right click issued %v, want one MoveTo to %v at the point clicked", got, want)
 	}
@@ -81,7 +82,7 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	events.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionRelease)
 	pl.EventHandler().HandleEvents(events)
 	got = got[:0]
-	navPlugin.moves.Drain(func(i control.Issued[MoveTo]) { got = append(got, i.Command) })
+	navPlugin.moves.Drain(func(i command.Issued[MoveTo]) { got = append(got, i.Command) })
 	if len(got) != 1 || !got[0].Append {
 		t.Errorf("a Shift right click issued %v, want one MoveTo that appends", got)
 	}
@@ -93,9 +94,9 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	events.AddClickEvent(25, 25, control.MouseButtonRight, control.ActionRelease)
 	pl.EventHandler().HandleEvents(events)
 	var looks []LookAt
-	navPlugin.looks.Drain(func(i control.Issued[LookAt]) { looks = append(looks, i.Command) })
+	navPlugin.looks.Drain(func(i command.Issued[LookAt]) { looks = append(looks, i.Command) })
 	got = got[:0]
-	navPlugin.moves.Drain(func(i control.Issued[MoveTo]) { got = append(got, i.Command) })
+	navPlugin.moves.Drain(func(i command.Issued[MoveTo]) { got = append(got, i.Command) })
 	if len(looks) != 0 || len(got) != 1 {
 		t.Errorf("a right click with Q held: %d LookAt and %d MoveTo, want none and one", len(looks), len(got))
 	}
@@ -119,8 +120,8 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 	}
 	handle := func(ev *control.InputEvents) (looks []LookAt, moves []MoveTo) {
 		pl.EventHandler().HandleEvents(ev)
-		navPlugin.looks.Drain(func(i control.Issued[LookAt]) { looks = append(looks, i.Command) })
-		navPlugin.moves.Drain(func(i control.Issued[MoveTo]) { moves = append(moves, i.Command) })
+		navPlugin.looks.Drain(func(i command.Issued[LookAt]) { looks = append(looks, i.Command) })
+		navPlugin.moves.Drain(func(i command.Issued[MoveTo]) { moves = append(moves, i.Command) })
 		return looks, moves
 	}
 	press := &control.InputEvents{MousePos: geom.NewVec(25, 25)}
@@ -172,7 +173,7 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 	events.AddKeyEvent(control.KeyP, control.ActionPress)
 	pl.EventHandler().HandleEvents(events)
 	n := 0
-	navPlugin.routes.Drain(func(control.Issued[Routes]) { n++ })
+	navPlugin.routes.Drain(func(command.Issued[Routes]) { n++ })
 	if n != 1 {
 		t.Errorf("Shift+P issued %d Routes, want one", n)
 	}
@@ -186,7 +187,7 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 	}
 }
 
-func (c *stubInstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+func (c *stubInstallCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
 
 // as the engine does with the roles played once a Stage's Init returns
-func (c *stubInstallCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *stubInstallCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

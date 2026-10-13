@@ -30,7 +30,7 @@ func (m *mainScene) picture() render.Picture {
 	trapdoorKind := kind.Named[standingRow](s.world.Kinds(), TrapdoorKind)
 	plateKind := kind.Named[standingRow](s.world.Kinds(), PlateKind)
 
-	worldAtlas := render.NewAtlas()
+	worldAtlas := s.world.NewAtlas()
 	worldAtlas.Add(trapdoorKind, CellSize, render.Solid(boardsColor)).
 		Under(s.world.Effects().Named(OpenEf), render.Solid(pitColor))
 	worldAtlas.Add(plateKind, EntitySize, render.Solid(plateColor))

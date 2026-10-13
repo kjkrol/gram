@@ -7,16 +7,15 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -48,8 +47,8 @@ func (g *guardStage) Init(ctx game.Initializer) error {
 		comp.Const(world.Velocity{}),
 	})
 	g.unit = kind.Named[float64](g.world.Kinds(), "unit")
-	g.world.Commands().Define("alert the captain", rule.Put(g.alert).On(entity.Named("captain")))
-	g.world.Commands().Define("alert the guards", rule.Put(g.alert).On(entity.Group("guards")))
+	g.world.Commands().Define("alert the captain", ceremony.Put(g.alert).On(ceremony.Named("captain")))
+	g.world.Commands().Define("alert the guards", ceremony.Put(g.alert).On(ceremony.Group("guards")))
 	return nil
 }
 
@@ -77,9 +76,9 @@ func (g *guardStage) Stack() game.Scenes {
 	return g.stack
 }
 
-func (g *guardStage) give(t *testing.T, cmd control.Command) {
+func (g *guardStage) give(t *testing.T, cmd command.Command) {
 	t.Helper()
-	if !g.world.Carrier().Put(control.Nobody, cmd) {
+	if !g.world.Carrier().Put(command.Nobody, cmd) {
 		t.Fatalf("the world carries no %T", cmd)
 	}
 	for range 2 {
@@ -104,17 +103,17 @@ func TestCommand_ReachesThoseNamedGroupedAndTheWorld(t *testing.T) {
 	g := &guardStage{}
 	runGuards(t, g)
 
-	g.give(t, rule.Put(g.alert).On(entity.Named("captain")))
+	g.give(t, ceremony.Put(g.alert).On(ceremony.Named("captain")))
 	if on := g.alerted(); len(on) != 1 || !on[100] {
 		t.Fatalf("alert the captain: units at %v alerted, want the one at 100 alone", on)
 	}
-	g.give(t, rule.Take(g.alert).On(entity.Named("captain")))
-	g.give(t, rule.Put(g.alert).On(entity.Group("guards")))
+	g.give(t, ceremony.Take(g.alert).On(ceremony.Named("captain")))
+	g.give(t, ceremony.Put(g.alert).On(ceremony.Group("guards")))
 	if on := g.alerted(); len(on) != 2 || !on[100] || !on[200] {
 		t.Fatalf("alert the guards: units at %v alerted, want those at 100 and 200", on)
 	}
-	g.give(t, rule.Take(g.alert).On(entity.Group("guards")))
-	g.give(t, rule.Put(g.alert).On(entity.World))
+	g.give(t, ceremony.Take(g.alert).On(ceremony.Group("guards")))
+	g.give(t, ceremony.Put(g.alert).On(ceremony.World))
 	if on := g.alerted(); len(on) != 0 || !g.alert.On(g.world.Clock().Entity()) {
 		t.Errorf("alert the world: units at %v alerted, the world %v; want the world alone", on, g.alert.On(g.world.Clock().Entity()))
 	}
@@ -132,7 +131,7 @@ func TestCommand_ReachesTheEntityOfAnID(t *testing.T) {
 			}
 		}
 	}
-	g.give(t, rule.Put(g.alert).On(entity.ID(passerBy)))
+	g.give(t, ceremony.Put(g.alert).On(ceremony.ID(passerBy)))
 	if on := g.alerted(); len(on) != 1 || !on[300] {
 		t.Fatalf("alert the passer-by by its ID: units at %v alerted, want the one at 300 alone", on)
 	}
@@ -145,7 +144,7 @@ func TestCommand_NamesSurviveASaveAndALoad(t *testing.T) {
 	}
 	g := &guardStage{load: true}
 	runGuards(t, g)
-	g.give(t, rule.Put(g.alert).On(entity.Group("guards")))
+	g.give(t, ceremony.Put(g.alert).On(ceremony.Group("guards")))
 	if on := g.alerted(); len(on) != 2 || !on[100] || !on[200] {
 		t.Errorf("after a load, alert the guards: units at %v alerted, want those at 100 and 200", on)
 	}
@@ -155,21 +154,21 @@ func TestCommands_AreDefinedOnceAndFoundByName(t *testing.T) {
 	w := world.NewPlugin(testWorldConfig())
 	w.Effects().Define("alert", effect.Spec{})
 	alert := w.Effects().Named("alert")
-	w.Commands().Define("alarm", rule.Put(alert).On(entity.World).For(time.Minute))
-	if got := w.Commands().Named("alarm"); got.Effect != alert || got.Lasts != time.Minute || !got.Whom.(entity.Whom).IsWorld() {
+	w.Commands().Define("alarm", ceremony.Put(alert).On(ceremony.World).For(time.Minute))
+	if got := w.Commands().Named("alarm"); got.Effect != alert || got.Lasts != time.Minute || !got.Whom.(ceremony.Whom).IsWorld() {
 		t.Errorf("the command found is %+v, want the one defined", got)
 	}
 	for name, c := range map[string]struct {
 		do   func()
 		want string
 	}{
-		"for nobody": {func() { w.Commands().Define("idle", rule.Put(alert)) }, "names nobody"},
+		"for nobody": {func() { w.Commands().Define("idle", ceremony.Put(alert)) }, "names nobody"},
 		"defined twice": {
-			func() { w.Commands().Define("alarm", rule.Take(alert).On(entity.World)) },
+			func() { w.Commands().Define("alarm", ceremony.Take(alert).On(ceremony.World)) },
 			`"alarm" is defined already`},
 		"unknown": {func() { w.Commands().Named("retreat") }, `no command is defined as "retreat"`},
 		"no name": {
-			func() { w.Commands().Define("", rule.Put(alert).On(entity.World)) },
+			func() { w.Commands().Define("", ceremony.Put(alert).On(ceremony.World)) },
 			"needs a name"},
 	} {
 		if msg := panicMessage(t, c.do); !strings.Contains(msg, c.want) {

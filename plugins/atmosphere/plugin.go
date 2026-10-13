@@ -3,10 +3,11 @@ package atmosphere
 import (
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
@@ -39,11 +40,11 @@ type Plugin struct {
 	cfg         Config
 	worldPlugin *world.Plugin
 
-	freezes    control.Queue[Freeze]
-	laters     control.Queue[Later]
-	earliers   control.Queue[Earlier]
-	changes    control.Queue[ChangeWeather]
-	sets       control.Queue[SetWeather]
+	freezes    command.Queue[Freeze]
+	laters     command.Queue[Later]
+	earliers   command.Queue[Earlier]
+	changes    command.Queue[ChangeWeather]
+	sets       command.Queue[SetWeather]
 	calendar   *calendar.Calendar
 	sky        *sky.Sky
 	climate    *climate.Climate

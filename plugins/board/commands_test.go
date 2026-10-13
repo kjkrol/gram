@@ -5,19 +5,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 )
 
 type meadow struct {
@@ -26,7 +25,7 @@ type meadow struct {
 	lever, post, plate       cell.ID
 	west, east               []cell.ID
 	open                     effect.Effect
-	openWest, openEast, flip rule.Command
+	openWest, openEast, flip ceremony.Command
 }
 
 func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
@@ -46,11 +45,11 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 		w.Roles().Define("plate", act.Branch[collision.Meeting]{
 			Name: "press",
 			When: cond.Self.If(cond.Always),
-			Then: act.Self.Do(rule.Trigger{}),
+			Then: act.Self.Do(ceremony.Trigger{}),
 		})
 		plate := w.Roles().Named("plate")
 		plates := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize}, itself)
-		plates.Define("plate", comp.Const(collision.Collider{}), rule.Plays(plate))
+		plates.Define("plate", comp.Const(collision.Collider{}), ceremony.Plays(plate))
 		w.Seed(plates.Named("plate").Entry(m.plate).Named("plate"))
 		cells := []cell.Entry{{Cell: m.lever, Name: "lever"}, {Cell: m.post, Name: "post"}}
 		for _, c := range m.west {
@@ -63,10 +62,10 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 		if err := brd.Populate(); err != nil {
 			t.Fatal(err)
 		}
-		m.openWest = rule.Put(m.open).On(entity.Group("west doors")).By(entity.Named("lever"))
-		m.openEast = rule.Put(m.open).On(entity.Group("east doors")).By(entity.Named("plate"))
-		m.flip = rule.Toggle(m.open).On(entity.Named("lever", "post")).For(time.Hour)
-		for name, cmd := range map[string]rule.Command{"open west": m.openWest, "open east": m.openEast, "flip": m.flip} {
+		m.openWest = ceremony.Put(m.open).On(ceremony.Group("west doors")).By(ceremony.Named("lever"))
+		m.openEast = ceremony.Put(m.open).On(ceremony.Group("east doors")).By(ceremony.Named("plate"))
+		m.flip = ceremony.Toggle(m.open).On(ceremony.Named("lever", "post")).For(time.Hour)
+		for name, cmd := range map[string]ceremony.Command{"open west": m.openWest, "open east": m.openEast, "flip": m.flip} {
 			w.Commands().Define(name, cmd)
 		}
 		return plate.Rules()
@@ -74,9 +73,9 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 	return m
 }
 
-func (m *meadow) give(t *testing.T, cmd control.Command) {
+func (m *meadow) give(t *testing.T, cmd command.Command) {
 	t.Helper()
-	if !m.World.World.Carrier().Put(control.Nobody, cmd) {
+	if !m.World.World.Carrier().Put(command.Nobody, cmd) {
 		t.Fatalf("the world carries no %T", cmd)
 	}
 	m.Tick()
@@ -108,7 +107,7 @@ func TestCast_ReachesTheCellsOfItsGroupAlone(t *testing.T) {
 		t.Errorf("%d west doors still open once the effect ran out, want none", w)
 	}
 	m.give(t, m.openEast)
-	m.give(t, rule.Take(m.open).On(entity.Group("east doors")))
+	m.give(t, ceremony.Take(m.open).On(ceremony.Group("east doors")))
 	if e := m.under(m.east...); e != 0 {
 		t.Errorf("%d east doors open after a Lift, want none", e)
 	}
@@ -116,7 +115,7 @@ func TestCast_ReachesTheCellsOfItsGroupAlone(t *testing.T) {
 
 func TestCast_ForSaysHowLongItLasts(t *testing.T) {
 	m := newMeadow(t)
-	m.give(t, rule.Put(m.open).On(entity.Named("lever")).For(time.Second))
+	m.give(t, ceremony.Put(m.open).On(ceremony.Named("lever")).For(time.Second))
 	for range 8 { // well past the three steps the Spec gives it
 		m.Tick()
 	}
@@ -141,7 +140,7 @@ func TestToggle_SwitchesThoseItNames(t *testing.T) {
 	if n := m.under(m.lever, m.post); n != 0 {
 		t.Fatalf("flipped off: %d of the two named under it, want none", n)
 	}
-	m.World.World.Carrier().Put(control.Nobody, m.flip)
+	m.World.World.Carrier().Put(command.Nobody, m.flip)
 	m.give(t, m.flip)
 	if n := m.under(m.lever, m.post); n != 0 {
 		t.Errorf("flipped twice in a step: %d under it, want them as they were, off", n)
@@ -165,20 +164,20 @@ func (*meadow) plateCell() cell.ID {
 func TestCommands_RefuseANameNobodyBearsAndOneTwoBear(t *testing.T) {
 	for name, tc := range map[string]struct {
 		cells []cell.Entry
-		cmd   func(e effect.Effect) rule.Command
+		cmd   func(e effect.Effect) ceremony.Command
 		want  string
 	}{
 		"nobody is called so": {
 			cells: []cell.Entry{{Cell: 0, Name: "lever"}},
-			cmd: func(e effect.Effect) rule.Command {
-				return rule.Put(e).On(entity.Named("levr"))
+			cmd: func(e effect.Effect) ceremony.Command {
+				return ceremony.Put(e).On(ceremony.Named("levr"))
 			},
 			want: `"levr"`,
 		},
 		"two bear one name": {
 			cells: []cell.Entry{{Cell: 0, Name: "lever"}, {Cell: 1, Name: "lever"}},
-			cmd: func(e effect.Effect) rule.Command {
-				return rule.Put(e).On(entity.Named("lever"))
+			cmd: func(e effect.Effect) ceremony.Command {
+				return ceremony.Put(e).On(ceremony.Named("lever"))
 			},
 			want: "one name",
 		},

@@ -8,13 +8,13 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -154,17 +154,21 @@ func TestWithRenderer_TakesTheEffectsLooks(t *testing.T) {
 	p.Effects().Define("wet", effect.Spec{})
 	wet := p.Effects().Named("wet")
 	free := p.Kinds().NewSprite()
-	if got := frozen.Look(0); got != free+1 {
+	a := p.NewAtlas()
+	if got := a.twin(frozen, 0); got != free+1 {
 		t.Errorf("frozen's look = %d, want the world's next slot %d", got, free+1)
 	}
-	p.WithRenderer(flatAtlas{})
-	p.WithRenderer(flatAtlas{})
+	if again := a.twin(frozen, 0); again != free+1 {
+		t.Errorf("frozen's look asked again = %d, want the same %d", again, free+1)
+	}
+	p.WithRenderer(a)
+	p.WithRenderer(a)
 	defer func() {
 		if recover() == nil {
 			t.Error("the first look of wet after WithRenderer did not panic")
 		}
 	}()
-	wet.Look(0)
+	a.twin(wet, 0)
 }
 
 func TestRenderer_Compose_ATurnedSpriteFollowsItsWay(t *testing.T) {

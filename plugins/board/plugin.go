@@ -6,12 +6,14 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -26,7 +28,6 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -58,8 +59,8 @@ type Plugin struct {
 	module      *module
 	rules       *moments.Rules
 	workers     int // 0 all the CPUs, 1 none
-	grids       control.Queue[Grid]
-	holds       control.Queue[Holds]
+	grids       command.Queue[Grid]
+	holds       command.Queue[Holds]
 	holdsView   *occupancy.View
 	holdsShown  bool
 	bridges     Bridges
@@ -136,12 +137,12 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 // RunPlan runs the board's step; call it after collision's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.grids.Drain(func(control.Issued[Grid]) {
+	p.grids.Drain(func(command.Issued[Grid]) {
 		if p.Res.Render != nil {
 			p.Res.Render.ToggleShowGridLines()
 		}
 	})
-	p.holds.Drain(func(control.Issued[Holds]) { p.ShowHolds(!p.holdsShown) })
+	p.holds.Drain(func(command.Issued[Holds]) { p.ShowHolds(!p.holdsShown) })
 	p.module.RunPlan(ctx, d)
 }
 
@@ -366,7 +367,7 @@ func (p *Plugin) Populate() error {
 			brd.Set(e.Cell, cells[i])
 		}
 		if e.Name != "" || e.Group != "" {
-			brd.cells.Label(e.Cell, entity.LabelOf(e.Name, e.Group))
+			brd.cells.Label(e.Cell, ceremony.LabelOf(e.Name, e.Group))
 		}
 	}
 	p.cast()

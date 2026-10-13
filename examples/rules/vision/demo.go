@@ -7,12 +7,15 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/cameras"
@@ -21,10 +24,6 @@ import (
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -156,7 +155,7 @@ func (s *arena) defineRoles() {
 }
 
 func (s *arena) defineCommands() {
-	flee := rule.Toggle(s.world.Effects().Named(FleeingEf)).On(entity.World)
+	flee := ceremony.Toggle(s.world.Effects().Named(FleeingEf)).On(ceremony.World)
 	s.world.Commands().Define(FleeCmd, flee)
 }
 
@@ -164,12 +163,12 @@ func (s *arena) defineKinds() {
 	kinds := s.world.Kinds()
 	kind.Define[body](kinds, PreyKind, append(sees(),
 		comp.Const(steering.Steering{Reflex: 3, TurnRate: 0.12}),
-		rule.Plays(s.world.Roles().Named(SkittishRole), s.world.Roles().Named(PreyRole)),
+		ceremony.Plays(s.world.Roles().Named(SkittishRole), s.world.Roles().Named(PreyRole)),
 		comp.Const(collision.Physics{Restitution: 1}),
 	))
 	kind.Define[body](kinds, HunterKind, append(sees(),
 		comp.Const(steering.Steering{Reflex: 1, TurnRate: 0.30}),
-		rule.Plays(s.world.Roles().Named(PredatorRole)),
+		ceremony.Plays(s.world.Roles().Named(PredatorRole)),
 	))
 }
 

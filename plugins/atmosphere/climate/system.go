@@ -4,8 +4,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
@@ -25,13 +25,13 @@ type weatherSystem struct {
 	query   *goke.Query
 	now     goke.Comp[Weather]
 	spawn   goke.Comp[Weather]
-	host    *plugin.StepRules[Weathering]
+	host    *host.StepRules[Weathering]
 	about   func() uid.UID64 // nil for the world's
 	profile Profile
 	current air.Weather
 }
 
-func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, asked *[]string, rules *plugin.StepRules[Weathering], running *Running) *weatherSystem {
+func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, asked *[]string, rules *host.StepRules[Weathering], running *Running) *weatherSystem {
 	return &weatherSystem{cfg: cfg, world: w, calendar: cal, asked: asked, running: running, host: rules, profile: cfg.Zone.Profile()}
 }
 

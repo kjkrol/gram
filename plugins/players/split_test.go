@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
@@ -35,10 +36,10 @@ func splitRig(t *testing.T) (*rig, *players.Player, *players.Player, *goke.ECS) 
 	return r, left, right, ecs
 }
 
-func cells(r *rig) map[control.PlayerID][]int {
-	out := map[control.PlayerID][]int{}
+func cells(r *rig) map[command.Issuer][]int {
+	out := map[command.Issuer][]int{}
 	for _, o := range r.drained() {
-		out[o.Player] = append(out[o.Player], o.Command.Cell)
+		out[o.Issuer] = append(out[o.Issuer], o.Command.Cell)
 	}
 	return out
 }

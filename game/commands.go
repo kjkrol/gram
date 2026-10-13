@@ -1,6 +1,8 @@
 package game
 
-import "github.com/kjkrol/gram/control"
+import (
+	"github.com/kjkrol/ceremony/command"
+)
 
 // Save is the command to save the active Stage in the save Slot, "" the quicksave.
 type Save struct{ Slot string }
@@ -21,8 +23,8 @@ func (Enter) Command() {}
 func (Quit) Command()  {}
 
 var (
-	_ control.Command = Save{}
-	_ control.Command = Load{}
-	_ control.Command = Enter{}
-	_ control.Command = Quit{}
+	_ command.Command = Save{}
+	_ command.Command = Load{}
+	_ command.Command = Enter{}
+	_ command.Command = Quit{}
 )

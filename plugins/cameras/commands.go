@@ -2,6 +2,7 @@ package cameras
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/uid"
@@ -48,16 +49,16 @@ func (LookAt) Command()    {}
 func (MouseLook) Command() {}
 
 var (
-	_ control.Command = Pan{}
-	_ control.Command = Zoom{}
-	_ control.Command = Follow{}
-	_ control.Command = LookAt{}
-	_ control.Command = MouseLook{}
+	_ command.Command = Pan{}
+	_ command.Command = Zoom{}
+	_ command.Command = Follow{}
+	_ command.Command = LookAt{}
+	_ command.Command = MouseLook{}
 )
 
 // Queues are where Pan, Zoom, Follow, LookAt and MouseLook land.
-func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.lookAts, &p.looks}
+func (p *Plugin) Queues() []command.CommandQueue {
+	return []command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.lookAts, &p.looks}
 }
 
 // MouseLookKey is key switching looking round with the mouse, in first person, for the camera the

@@ -1,6 +1,9 @@
 package collision
 
-import "math"
+import (
+	"github.com/kjkrol/ceremony/effect"
+	"math"
+)
 
 // Physics makes an entity take part in the physical side of a contact: pushed apart, bouncing.
 // The zero value weighs DefaultMass and does not bounce.
@@ -10,6 +13,11 @@ type Physics struct {
 	// Restitution is the share of approach speed given back, 0 to 1; a pair uses the lower one.
 	Restitution float64
 }
+
+// Knob: an effect may turn it (effect.Knob).
+func (Physics) Knob() {}
+
+var _ effect.Knob = Physics{}
 
 // DefaultMass is what an entity whose Physics names no Mass weighs.
 const DefaultMass = 1.0

@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
@@ -281,7 +281,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	if view == "persp" {
 		for _, q := range topo.Queues() {
 			if q.Accepts() == reflect.TypeFor[topography.View]() {
-				q.Put(control.Nobody, topography.View{Camera: ctx.cam})
+				q.Put(command.Nobody, topography.View{Camera: ctx.cam})
 			}
 		}
 		ecs.Tick(step)

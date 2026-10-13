@@ -1,6 +1,8 @@
 package gravity
 
 import (
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/uid"
@@ -11,7 +13,7 @@ import (
 type Leap struct{}
 
 // Away is the command an entity gives itself to be thrown off at Speed across, rising Rise high
-// first. It is plugin.Aimed: thrown away from the subject of the moment it is given on, else
+// first. It is host.Aimed: thrown away from the subject of the moment it is given on, else
 // back from the way it faces.
 type Away struct {
 	Speed float64
@@ -21,7 +23,7 @@ type Away struct {
 	aimed bool
 }
 
-var _ plugin.Aimed = (*Away)(nil)
+var _ host.Aimed = (*Away)(nil)
 
 // Aim tells the command whom to be thrown away from.
 func (a *Away) Aim(who uid.UID64) { a.from, a.aimed = who, true }
@@ -30,15 +32,15 @@ func (Leap) Command() {}
 func (Away) Command() {}
 
 var (
-	_ control.Command = Leap{}
-	_ control.Command = Away{}
+	_ command.Command = Leap{}
+	_ command.Command = Away{}
 )
 
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // Queues are where Leap and Away land.
-func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.leaps, &p.aways}
+func (p *Plugin) Queues() []command.CommandQueue {
+	return []command.CommandQueue{&p.leaps, &p.aways}
 }
 
 // DefaultBindings are none: a key leaps through driving.Jump.

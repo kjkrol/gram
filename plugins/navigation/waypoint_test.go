@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -17,7 +17,7 @@ import (
 
 type commandWorld struct {
 	grid  grid.Grid
-	moves *control.Queue[MoveTo]
+	moves *command.Queue[MoveTo]
 	ecs   *goke.ECS
 	order goke.OptComp[MoveOrder]
 	q     *goke.Query
@@ -28,10 +28,10 @@ type commandWorld struct {
 
 func newCommandWorld(t *testing.T) *commandWorld {
 	t.Helper()
-	cw := &commandWorld{grid: grid.DefaultGrids{}.Square(10, 1, 10), moves: &control.Queue[MoveTo]{}}
+	cw := &commandWorld{grid: grid.DefaultGrids{}.Square(10, 1, 10), moves: &command.Queue[MoveTo]{}}
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	cmds := newMoveCommandSystem(newPathFinder(cw.grid, terrain, nil, &cell.SingleOccupancy{}), cw.moves, &control.Queue[LookAt]{}, selTags.Selected)
+	cmds := newMoveCommandSystem(newPathFinder(cw.grid, terrain, nil, &cell.SingleOccupancy{}), cw.moves, &command.Queue[LookAt]{}, selTags.Selected)
 	cw.oldTarget = cw.cellAt(3)
 
 	cw.ecs = goke.New()
@@ -69,7 +69,7 @@ func newCommandWorld(t *testing.T) *commandWorld {
 func (cw *commandWorld) cellAt(x uint32) cell.ID { c := cw.grid.At(x, 0); return c }
 
 func (cw *commandWorld) issue(cell cell.ID, appendIt bool) {
-	cw.moves.Add(control.Nobody, MoveTo{Cell: cell, Append: appendIt})
+	cw.moves.Add(command.Nobody, MoveTo{Cell: cell, Append: appendIt})
 	cw.ecs.Tick(time.Second)
 }
 

@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
@@ -33,9 +35,9 @@ type Plugin struct {
 	surfaces    func() ground.Surfaces
 	module      *module
 
-	landings plugin.Rules[Landing]
-	leaps    control.Queue[Leap]
-	aways    control.Queue[Away]
+	landings host.Rules[Landing]
+	leaps    command.Queue[Leap]
+	aways    command.Queue[Away]
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)

@@ -3,8 +3,8 @@ package world
 import (
 	"time"
 
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
@@ -12,8 +12,8 @@ import (
 var _ goke.System = (*velocitySystem)(nil)
 
 type velocitySystem struct {
-	host  *plugin.Rules[Moving]
-	tick  plugin.TickSource
+	host  *host.Rules[Moving]
+	tick  host.TickSource
 	query *goke.Query
 	base  goke.Comp[Base]
 	pace  goke.OptComp[steering.Pace]
@@ -23,7 +23,7 @@ type velocitySystem struct {
 	about func(i int) Moving // bound once, so a tick allocates no method value
 }
 
-func newVelocitySystem(host *plugin.Rules[Moving]) *velocitySystem {
+func newVelocitySystem(host *host.Rules[Moving]) *velocitySystem {
 	s := &velocitySystem{host: host}
 	s.about = s.at
 	return s
@@ -37,7 +37,7 @@ func (s *velocitySystem) Init(si *goke.SysInit) {
 
 func (s *velocitySystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	hosted := !s.host.Empty()
-	var tick plugin.Tick
+	var tick host.Tick
 	if hosted {
 		tick = s.tick.Of(cb, d)
 	}
@@ -67,3 +67,7 @@ type Moving struct {
 
 // Who is the entity moving.
 func (m Moving) Who() uid.UID64 { return m.ID }
+
+var (
+	_ host.About = Moving{}
+)

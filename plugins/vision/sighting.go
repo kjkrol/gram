@@ -1,7 +1,9 @@
 package vision
 
 import (
-	"github.com/kjkrol/gram/rule/cond"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/fact"
+	"github.com/kjkrol/ceremony/host"
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -69,3 +71,8 @@ type Seen struct {
 	Base *world.Base
 	Dist float32
 }
+
+var (
+	_ host.Met     = Sighting{}
+	_ fact.Subject = Sighting{}
+)

@@ -1,6 +1,7 @@
 package atmosphere
 
 import (
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -31,16 +32,16 @@ func (ChangeWeather) Command() {}
 func (SetWeather) Command()    {}
 
 var (
-	_ control.Command = Freeze{}
-	_ control.Command = Later{}
-	_ control.Command = Earlier{}
-	_ control.Command = ChangeWeather{}
-	_ control.Command = SetWeather{}
+	_ command.Command = Freeze{}
+	_ command.Command = Later{}
+	_ command.Command = Earlier{}
+	_ command.Command = ChangeWeather{}
+	_ command.Command = SetWeather{}
 )
 
 // Queues are where the atmosphere's commands land.
-func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.freezes, &p.laters, &p.earliers, &p.changes, &p.sets}
+func (p *Plugin) Queues() []command.CommandQueue {
+	return []command.CommandQueue{&p.freezes, &p.laters, &p.earliers, &p.changes, &p.sets}
 }
 
 // DefaultBindings are P (Freeze), Shift+] and Shift+[ (Later, Earlier) and, with the camera
@@ -56,9 +57,9 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 }
 
 func (p *Plugin) carryOut() {
-	p.freezes.Drain(func(control.Issued[Freeze]) { p.sky.SetFrozen(!p.sky.Frozen()) })
-	p.laters.Drain(func(control.Issued[Later]) { p.sky.Shift(sky.HalfHour) })
-	p.earliers.Drain(func(control.Issued[Earlier]) { p.sky.Shift(-sky.HalfHour) })
-	p.changes.Drain(func(control.Issued[ChangeWeather]) { p.climate.Change() })
-	p.sets.Drain(func(i control.Issued[SetWeather]) { p.climate.Set(i.Command.Name) })
+	p.freezes.Drain(func(command.Issued[Freeze]) { p.sky.SetFrozen(!p.sky.Frozen()) })
+	p.laters.Drain(func(command.Issued[Later]) { p.sky.Shift(sky.HalfHour) })
+	p.earliers.Drain(func(command.Issued[Earlier]) { p.sky.Shift(-sky.HalfHour) })
+	p.changes.Drain(func(command.Issued[ChangeWeather]) { p.climate.Change() })
+	p.sets.Drain(func(i command.Issued[SetWeather]) { p.climate.Set(i.Command.Name) })
 }

@@ -3,11 +3,11 @@ package dialog
 import (
 	"time"
 
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/players/owner"
-	"github.com/kjkrol/gram/rule/effect"
 )
 
 var _ goke.Module = (*module)(nil)

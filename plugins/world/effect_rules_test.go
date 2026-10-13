@@ -1,16 +1,15 @@
-package effect_test
+package world_test
 
 import (
 	"testing"
 
-	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/kind/comp"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
-	"github.com/kjkrol/gram/rule/plan"
 )
 
 func hookGlow(r *rig, glow, shield effect.Effect, douse *bool) {
@@ -33,18 +32,18 @@ func TestRule_TakeTakesOffWhatAnotherRuleHoldsTillItsNextStep(t *testing.T) {
 		glow = r.fx.Named("glow")
 		hookGlow(r, glow, effect.Effect{}, &douse)
 	})
-	r.tick()
-	r.tick()
+	r.fxTick()
+	r.fxTick()
 	if !r.marked(glow.Mark()) {
 		t.Fatal("the kept effect never began")
 	}
 	douse = true
-	r.tick()
+	r.fxTick()
 	douse = false
 	if r.marked(glow.Mark()) {
 		t.Error("the dispelled effect is still on")
 	}
-	r.tick()
+	r.fxTick()
 	if !r.marked(glow.Mark()) {
 		t.Error("the keeper did not have its effect back the step after")
 	}
@@ -56,23 +55,23 @@ func TestRule_AShieldLetsTheDispellerWin(t *testing.T) {
 	r := newRig(t, true, func(r *rig) {
 		r.fx.Define("glow", effect.Spec{})
 		glow = r.fx.Named("glow")
-		r.fx.Define("shield", effect.Spec{effect.Lasts(3 * tick)})
+		r.fx.Define("shield", effect.Spec{effect.Lasts(3 * fxTick)})
 		shield = r.fx.Named("shield")
 		hookGlow(r, glow, shield, &douse)
 	})
-	r.tick()
-	r.tick()
+	r.fxTick()
+	r.fxTick()
 	douse = true
-	r.tick()
+	r.fxTick()
 	douse = false
 	for i := range 2 {
 		if r.marked(glow.Mark()) {
 			t.Fatalf("%d steps after the douse the glow is back under the shield", i)
 		}
-		r.tick()
+		r.fxTick()
 	}
 	for range 3 {
-		r.tick()
+		r.fxTick()
 	}
 	if !r.marked(glow.Mark()) {
 		t.Error("the shield over, the keeper did not have its effect back")
@@ -85,18 +84,18 @@ func TestPlan_TakeTakesAnEffectOff(t *testing.T) {
 		r.fx.Define("glow", effect.Spec{})
 		glow = r.fx.Named("glow")
 		r.comps = append(r.comps, asPlan(r.w, "douse in a while", plan.Steps(
-			plan.Self.Wait(3*tick),
+			plan.Self.Wait(3*fxTick),
 			plan.Self.Take(glow),
 			plan.Self.Idle(),
 		)))
 	})
 	r.cast(glow)
-	r.tick()
+	r.fxTick()
 	if !r.marked(glow.Mark()) {
 		t.Fatal("the cast effect never began")
 	}
 	for range 4 {
-		r.tick()
+		r.fxTick()
 	}
 	if r.fx.Has(r.id, glow) {
 		t.Error("the plan's Dispel left the effect on")
@@ -124,14 +123,14 @@ func TestPlan_HoldGivesWayWhenSomeoneElseTakes(t *testing.T) {
 		)))
 	})
 	for range 3 {
-		r.tick()
+		r.fxTick()
 	}
 	if !r.fx.Has(r.id, glow) || r.fx.Has(r.id, gaveWay) {
 		t.Fatalf("kept: glow %v, gave way %v; want true, false", r.fx.Has(r.id, glow), r.fx.Has(r.id, gaveWay))
 	}
 	r.fx.Dispel(r.id, glow)
 	for range 3 {
-		r.tick()
+		r.fxTick()
 	}
 	if r.fx.Has(r.id, glow) || !r.fx.Has(r.id, gaveWay) {
 		t.Errorf("doused: glow %v, gave way %v; want false, true", r.fx.Has(r.id, glow), r.fx.Has(r.id, gaveWay))
@@ -142,7 +141,7 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 	for _, planned := range []bool{false, true} {
 		var lever, open effect.Effect
 		r := newRig(t, true, func(r *rig) {
-			r.fx.Define("lever", effect.Spec{effect.Lasts(2 * tick)})
+			r.fx.Define("lever", effect.Spec{effect.Lasts(2 * fxTick)})
 			lever = r.fx.Named("lever")
 			r.fx.Define("open", effect.Spec{})
 			open = r.fx.Named("open")
@@ -166,19 +165,19 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 		if err := r.w.Carry(r.w); err != nil {
 			t.Fatal(err)
 		}
-		r.tick()
-		r.tick()
+		r.fxTick()
+		r.fxTick()
 		if r.fx.Has(r.id, open) {
 			t.Fatalf("planned %v: open before the lever was pulled", planned)
 		}
-		r.w.Carrier().Put(1, rule.Put(lever).On(entity.World))
-		r.tick()
-		r.tick()
+		r.w.Carrier().Put(1, ceremony.Put(lever).On(ceremony.World))
+		r.fxTick()
+		r.fxTick()
 		if !r.fx.Has(r.id, open) || !r.fx.Has(r.w.Clock().Entity(), lever) {
 			t.Fatalf("planned %v: lever on the world %v, open %v; want both", planned, r.fx.Has(r.w.Clock().Entity(), lever), r.fx.Has(r.id, open))
 		}
 		for range 6 {
-			r.tick()
+			r.fxTick()
 		}
 		if r.fx.Has(r.id, open) {
 			t.Errorf("planned %v: still open after the lever went back", planned)

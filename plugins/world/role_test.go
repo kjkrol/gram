@@ -8,15 +8,15 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/cond"
 )
 
 type roleStage struct {
@@ -26,7 +26,7 @@ type roleStage struct {
 
 	world *world.Plugin
 	unit  kind.Of[struct{}]
-	role  map[string]*rule.Part
+	role  map[string]*ceremony.Part
 	mood  map[string]tag.Tag[moods]
 	probe *roleProbe
 	stack game.Scenes
@@ -50,7 +50,7 @@ func (g *roleStage) Init(ctx game.Initializer) error {
 	g.world = ctx.UseWorld(testWorldConfig())
 	g.probe = &roleProbe{}
 	ctx.Setup(g.probe)
-	g.role = map[string]*rule.Part{}
+	g.role = map[string]*ceremony.Part{}
 	for _, name := range g.roles {
 		g.world.Roles().Define(name)
 		g.role[name] = g.world.Roles().Named(name)
@@ -59,7 +59,7 @@ func (g *roleStage) Init(ctx game.Initializer) error {
 	for _, name := range g.moods {
 		g.mood[name] = g.world.Kinds().DefineTag[moods](name)
 	}
-	var plays []*rule.Part
+	var plays []*ceremony.Part
 	for _, name := range g.plays {
 		plays = append(plays, g.role[name])
 	}
@@ -70,7 +70,7 @@ func (g *roleStage) Init(ctx game.Initializer) error {
 	kind.Define[struct{}](g.world.Kinds(), "unit", kind.Spec{
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
-		rule.Plays(plays...),
+		ceremony.Plays(plays...),
 		comp.Tagged(carries...),
 	})
 	g.unit = kind.Named[struct{}](g.world.Kinds(), "unit")
@@ -159,8 +159,8 @@ func TestRoles_PlaysTwiceInOneKindPanics(t *testing.T) {
 		kind.Define[struct{}](w.Kinds(), "scout", kind.Spec{
 			comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 			comp.Const(world.Velocity{}),
-			rule.Plays(mortal),
-			rule.Plays(hasty),
+			ceremony.Plays(mortal),
+			ceremony.Plays(hasty),
 		})
 	})
 	want := reflect.TypeFor[tag.Tags[cond.Roles]]().String() + " twice"

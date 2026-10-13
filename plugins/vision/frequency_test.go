@@ -6,23 +6,24 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
 )
 
 type looked struct{}
 
 func (looked) Command() {}
 
-type lookeds struct{ control.Queue[looked] }
+type lookeds struct{ command.Queue[looked] }
 
-func (l *lookeds) Queues() []control.CommandQueue     { return []control.CommandQueue{&l.Queue} }
+func (l *lookeds) Queues() []command.CommandQueue     { return []command.CommandQueue{&l.Queue} }
 func (l *lookeds) DefaultBindings() []control.Binding { return nil }
 
 // scanned 15 times a second at 60 steps a second, a quarter of the observers look each step
@@ -102,8 +103,8 @@ func TestFrequency_ObserversTakeTurnsAndTheRulesGoOnEveryStep(t *testing.T) {
 	}
 }
 
-func drain(l *lookeds) []control.Issued[looked] {
-	var out []control.Issued[looked]
-	l.Drain(func(i control.Issued[looked]) { out = append(out, i) })
+func drain(l *lookeds) []command.Issued[looked] {
+	var out []command.Issued[looked]
+	l.Drain(func(i command.Issued[looked]) { out = append(out, i) })
 	return out
 }

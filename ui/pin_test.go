@@ -4,11 +4,10 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -24,7 +23,7 @@ func (v *shifted) ToPixels(x, y, _ float32) (px, py, depth float32, visible bool
 	return px, py, 0, px >= 0 && py >= 0 && px < float32(v.w) && py < float32(v.h)
 }
 
-var nobody = entity.Named("nobody")
+var nobody = ceremony.Named("nobody")
 
 type looking struct {
 	player
@@ -111,13 +110,13 @@ func TestPin_AnEntityWithNoPlaceHasItsElementWhereItsParentLaysIt(t *testing.T) 
 }
 
 func TestPin_AButtonGivesCommandsForItAboutTheEntityItIsShownFor(t *testing.T) {
-	var issued []control.Command
+	var issued []command.Command
 	greeting := effect.Effect{}
-	lift := rule.Take(greeting).On(It)
+	lift := ceremony.Take(greeting).On(It)
 	answer := Button("hello", lift).Named("answer")
 	window := Window("host", answer).On(nobody)
 	s := built(NewScene("main", Layers(Image(&shifted{}), window)).
-		Issue(func(cmd control.Command) error { issued = append(issued, cmd); return nil }))
+		Issue(func(cmd command.Command) error { issued = append(issued, cmd); return nil }))
 	window.pin.stand(window, []spot{{id: 7, placed: true, x: 300, y: 300}}, views(s.root), screen)
 	window.pin.each(window, window.parent, func(*instance) {})
 	b := answer.Box()
@@ -125,17 +124,17 @@ func TestPin_AButtonGivesCommandsForItAboutTheEntityItIsShownFor(t *testing.T) {
 	if len(issued) != 1 {
 		t.Fatalf("issued %v, want the button's command", issued)
 	}
-	got := issued[0].(rule.Command).Whom.(entity.Whom).IDs()
+	got := issued[0].(ceremony.Command).Whom.(ceremony.Whom).IDs()
 	if len(got) != 1 || got[0] != 7 {
 		t.Fatalf("the command is for %v, want entity 7", got)
 	}
 }
 
 func TestScene_ACommandForItOutsideAPinIsNotGiven(t *testing.T) {
-	var issued []control.Command
-	button := Center(Button("lost", rule.Take(effect.Effect{}).On(It))).Size(100, 40)
+	var issued []command.Command
+	button := Center(Button("lost", ceremony.Take(effect.Effect{}).On(It))).Size(100, 40)
 	s := built(NewScene("main", button).
-		Issue(func(cmd control.Command) error { issued = append(issued, cmd); return nil }))
+		Issue(func(cmd command.Command) error { issued = append(issued, cmd); return nil }))
 	s.HandleEvents(click(geom.NewVec(600, 300)), nil, nil)
 	if len(issued) != 0 {
 		t.Fatalf("issued %v, want nothing: no entity is pinned", issued)

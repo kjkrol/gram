@@ -1,8 +1,8 @@
 package cell
 
 import (
+	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
 )
 
 // Kind is a named terrain kind: whom it admits and what it does to movement and sight. A wall is
@@ -78,7 +78,7 @@ func (o Of) Entry(c ID) Entry { return Entry{Kind: o.k.Name.String(), Cell: c} }
 type Kinds interface {
 	// Define registers k under name and has every cell laid as it play plays. A name defined
 	// twice panics.
-	Define(name string, k Kind, plays ...*rule.Part)
+	Define(name string, k Kind, plays ...*ceremony.Part)
 	// Named is the kind defined as name; an unknown name panics.
 	Named(name string) Of
 	// Get resolves name to the Kind registered under it.

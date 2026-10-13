@@ -3,8 +3,8 @@ package render_test
 import (
 	"testing"
 
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/render"
 )
 

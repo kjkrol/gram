@@ -7,10 +7,10 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/uid"
 )
 
@@ -42,7 +42,7 @@ func spawnWorld(t *testing.T, edges aabbworld.Edges, n int) (*Plugin, kind.Of[th
 func TestSpawn_MakesAnEntityOfTheKindAtTheNextStep(t *testing.T) {
 	p, things, ecs, q, _ := spawnWorld(t, 0, 4)
 	wm := p.module
-	if !wm.commands.Put(control.Nobody, Spawn{Entry: things.Entry(thing{x: 100, y: 100, size: 10})}) {
+	if !wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 100, y: 100, size: 10})}) {
 		t.Fatal("the world carries no Spawn")
 	}
 	p.Spawn(things.Entry(thing{x: 300, y: 300, size: 10}))
@@ -68,14 +68,14 @@ func TestSpawn_RefusesWhatTheWorldDoesNotTake(t *testing.T) {
 		comp.Const(Velocity{}),
 	})
 	others := kind.Named[int](p.Kinds(), "other")
-	wm.commands.Put(control.Nobody, Spawn{Entry: others.Entry(7)})                                // defined after the set-up: no factory
-	wm.commands.Put(control.Nobody, Spawn{Entry: things.Entry(thing{x: 100, y: 100, size: 50})})  // too big
-	wm.commands.Put(control.Nobody, Spawn{Entry: things.Entry(thing{x: 1200, y: 100, size: 10})}) // past the open edge
-	wm.commands.Put(control.Nobody, Spawn{Entry: things.Entry(thing{x: 100, y: 100, size: 10})})  // the first taken
-	wm.commands.Put(control.Nobody, Spawn{Entry: things.Entry(thing{x: 200, y: 100, size: 10})})  // the second
-	wm.commands.Put(control.Nobody, Spawn{Entry: things.Entry(thing{x: 300, y: 100, size: 10})})  // the third
-	wm.commands.Put(control.Nobody, Spawn{Entry: things.Entry(thing{x: 400, y: 100, size: 10})})  // one too many
-	wm.commands.Put(control.Nobody, Spawn{Entry: things.Entry(thing{x: 990, y: 100, size: 10})})  // full too
+	wm.commands.Put(command.Nobody, Spawn{Entry: others.Entry(7)})                                // defined after the set-up: no factory
+	wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 100, y: 100, size: 50})})  // too big
+	wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 1200, y: 100, size: 10})}) // past the open edge
+	wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 100, y: 100, size: 10})})  // the first taken
+	wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 200, y: 100, size: 10})})  // the second
+	wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 300, y: 100, size: 10})})  // the third
+	wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 400, y: 100, size: 10})})  // one too many
+	wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 990, y: 100, size: 10})})  // full too
 	run(ecs, wm, func(*goke.CmdBuf) {})
 	if n := len(living(q)); n != 3 {
 		t.Errorf("%d entities after the step, want the three the world has room for", n)

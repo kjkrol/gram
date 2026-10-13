@@ -1,6 +1,9 @@
 package board
 
-import "github.com/kjkrol/gram/control"
+import (
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/gram/control"
+)
 
 // Grid shows the board's grid, or hides it: a look, not saved.
 type Grid struct{}
@@ -12,13 +15,13 @@ func (Grid) Command()  {}
 func (Holds) Command() {}
 
 var (
-	_ control.Command = Grid{}
-	_ control.Command = Holds{}
+	_ command.Command = Grid{}
+	_ command.Command = Holds{}
 )
 
 // Queues are where Grid and Holds land.
-func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.grids, &p.holds}
+func (p *Plugin) Queues() []command.CommandQueue {
+	return []command.CommandQueue{&p.grids, &p.holds}
 }
 
 // DefaultBindings show and hide the grid on B and the cells held on Shift+O.

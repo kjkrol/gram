@@ -2,10 +2,11 @@ package unit
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/entity/tag"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -44,3 +45,8 @@ func StandingOn(e effect.Effect) cond.Word[Standing] {
 	mark := e.Mark()
 	return cond.NewWord("standing on", func(s Standing) bool { return s.States.Has(mark) })
 }
+
+var (
+	_ host.About  = Standing{}
+	_ host.Placed = Standing{}
+)

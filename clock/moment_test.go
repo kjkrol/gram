@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/gram/clock"
-	"github.com/kjkrol/gram/rule/cond"
 )
 
 func TestMoment_AtAndEveryHoldInTheStepsReachingThem(t *testing.T) {

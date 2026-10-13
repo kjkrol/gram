@@ -6,17 +6,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/internal/hosts"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule/act"
 )
 
 // InstallCtx is the plugin.Installer a Stage would hand over, minus the engine.
 type InstallCtx struct {
-	hosts   []plugin.Host
+	hosts   []host.Host
 	ecs     *goke.ECS
 	pending []func() []goke.System
 	tracked []any
@@ -87,7 +87,7 @@ func Step(w *world.Plugin, c *collision.Plugin) func(goke.RunCtx, time.Duration)
 }
 
 // Hosts keeps the hosts a plugin tells of.
-func (c *InstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+func (c *InstallCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
 
 // Deliver hands rules to the hosts of their moments, as the engine does.
-func (c *InstallCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *InstallCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

@@ -1,6 +1,7 @@
 package vision
 
 import (
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
 )
 
@@ -11,11 +12,11 @@ type Cones struct{}
 func (Cones) Command() {}
 
 var (
-	_ control.Command = Cones{}
+	_ command.Command = Cones{}
 )
 
 // Queues are where Cones lands.
-func (p *Plugin) Queues() []control.CommandQueue { return []control.CommandQueue{&p.cones} }
+func (p *Plugin) Queues() []command.CommandQueue { return []command.CommandQueue{&p.cones} }
 
 // DefaultBindings show and hide the cones of sight on Shift+C.
 func (p *Plugin) DefaultBindings() []control.Binding {

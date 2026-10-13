@@ -7,12 +7,13 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -43,11 +44,11 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 }
 func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
 func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
-func (c *installCtx) Hosts(...plugin.Host)                            {}
+func (c *installCtx) Hosts(...host.Host)                              {}
 
 type walker struct {
 	start    cell.ID
-	owner    control.PlayerID
+	owner    command.Issuer
 	selected bool
 }
 
@@ -104,7 +105,7 @@ func newField(t *testing.T, walkers ...walker) *field {
 			tags = append(tags, sel.Tags().Selected)
 		}
 		spec = append(spec, comp.Tagged(tags...))
-		if wk.owner != control.Nobody {
+		if wk.owner != command.Nobody {
 			spec = append(spec, comp.Tagged(owner.Of(wk.owner)))
 		}
 		name := string(rune('a' + i))
@@ -146,7 +147,7 @@ func newField(t *testing.T, walkers ...walker) *field {
 	return f
 }
 
-func (f *field) give(by control.PlayerID, cmd control.Command) {
+func (f *field) give(by command.Issuer, cmd command.Command) {
 	if !f.w.Carrier().Put(by, cmd) {
 		f.t.Fatalf("the world carries no %T", cmd)
 	}

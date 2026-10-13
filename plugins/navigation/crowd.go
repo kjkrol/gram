@@ -1,8 +1,8 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/cond"
 )
 
 // StarCraft II's rules

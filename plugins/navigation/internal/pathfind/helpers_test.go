@@ -1,12 +1,12 @@
 package pathfind
 
 import (
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/internal/hosts"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	"github.com/kjkrol/gram/rule/act"
 	"github.com/kjkrol/uid"
 )
 
@@ -65,7 +65,7 @@ func openTerrain() *cell.TerrainMap {
 }
 
 type stubInstallCtx struct {
-	hosts   []plugin.Host // of the rules of the moments the plugins installed catch
+	hosts   []host.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	pending []func() []goke.System
 }
@@ -84,7 +84,7 @@ func (c *stubInstallCtx) RegSys(factory func() goke.System) goke.Runnable {
 }
 func (c *stubInstallCtx) ECS() *goke.ECS { return c.ecs }
 
-func (c *stubInstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
+func (c *stubInstallCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
 
 // as the engine does with the roles played once a Stage's Init returns
-func (c *stubInstallCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *stubInstallCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

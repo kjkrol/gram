@@ -1,16 +1,16 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/internal/steps"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/plan"
 	"math"
 	"slices"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -197,7 +197,7 @@ type navigationSystem struct {
 	lastOrderID goke.CompID
 	lastLacking []LastOrder
 	lastIDs     []uid.UID64
-	mind        goke.OptComp[steps.Mind]
+	mind        goke.OptComp[plan.Mind]
 	blocked     goke.OptComp[Blocked]
 	arrived     goke.OptComp[Arrived]
 	blockedID   goke.CompID
@@ -209,11 +209,11 @@ type navigationSystem struct {
 	told     map[uid.UID64]told
 	touched  []touching
 	felt     map[[2]uid.UID64]bool // the pairs touching this tick, each once; refused, one way
-	touches  *plugin.PairRules[Touch]
+	touches  *host.PairRules[Touch]
 	bumps    bumps
 	marks    *goke.Query
 	markCell goke.Comp[unit.At]
-	tick     plugin.TickSource
+	tick     host.TickSource
 
 	orderID goke.CompID
 
@@ -777,7 +777,7 @@ func (s *navigationSystem) touch(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-func (s *navigationSystem) fire(tick plugin.Tick, hosted bool, self, other body, way geom.Vec, cell cell.ID, head bool) {
+func (s *navigationSystem) fire(tick host.Tick, hosted bool, self, other body, way geom.Vec, cell cell.ID, head bool) {
 	t := Touch{Self: self.id, Other: other.id, Way: way, Moving: self.moving, OtherMoving: other.moving,
 		GivingWay: self.givingWay, OtherGivingWay: other.givingWay, LastGoal: self.lastGoal,
 		Ally: owner.Allies(self.owners, other.owners), Groupmate: self.group != 0 && self.group == other.group,
@@ -799,9 +799,9 @@ func (s *navigationSystem) fire(tick plugin.Tick, hosted bool, self, other body,
 	}
 }
 
-func (s *navigationSystem) marksOf(id uid.UID64) plugin.Marks {
+func (s *navigationSystem) marksOf(id uid.UID64) host.Marks {
 	if !s.marks.Seek(id) {
-		return plugin.Marks{}
+		return host.Marks{}
 	}
 	return s.touches.At(0, s.marks.Cursor())
 }

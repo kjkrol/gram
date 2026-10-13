@@ -5,15 +5,15 @@ import (
 	"reflect"
 	"slices"
 
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/plan"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/plugin"
 	ikinds "github.com/kjkrol/gram/plugins/world/internal/kinds"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
 )
 
 // Kinds is the world's register of entity kinds and tags, handed to kind.Define. Saves keep
@@ -21,7 +21,7 @@ import (
 type Kinds struct {
 	r      *ikinds.Registry
 	played []act.Rule
-	plans  *steps.Plans
+	plans  *plan.Plans
 	guard  func(name string)
 }
 
@@ -41,7 +41,7 @@ func (k *Kinds) Register(name string, row reflect.Type, spec kind.Spec) (kind.ID
 	}
 	for _, c := range spec {
 		switch c := c.(type) {
-		case rule.Played:
+		case ceremony.Played:
 			k.Play(c.Parts()...)
 		case act.Planned:
 			if k.plans == nil {
@@ -60,7 +60,7 @@ func (k *Kinds) Lookup(name string) (kind.ID, render.SpriteID, reflect.Type, boo
 }
 
 // Play notes roles played by what is no kind of the world's, a cell's kind or a plugin.
-func (k *Kinds) Play(roles ...*rule.Part) {
+func (k *Kinds) Play(roles ...*ceremony.Part) {
 	for _, part := range roles {
 		if !slices.Contains(k.played, act.Rule(part)) {
 			k.played = append(k.played, part)

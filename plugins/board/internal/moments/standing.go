@@ -6,9 +6,9 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -41,10 +41,10 @@ type standingSystem struct {
 func newStandingSystem(r *Rules) *standingSystem {
 	s := &standingSystem{r: r}
 	s.about = s.standing
-	plugin.Own(&r.standing, &s.mover)
-	plugin.Own(&r.standing, &s.pace)
-	plugin.Own(&r.standing, &s.marks)
-	plugin.Own(&r.standing, &s.z)
+	host.Own(&r.standing, &s.mover)
+	host.Own(&r.standing, &s.pace)
+	host.Own(&r.standing, &s.marks)
+	host.Own(&r.standing, &s.z)
 	return s
 }
 
@@ -56,7 +56,7 @@ func (s *standingSystem) Init(si *goke.SysInit) {
 
 func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	hosted := !s.r.standing.Empty()
-	var tick plugin.Tick
+	var tick host.Tick
 	if hosted {
 		tick = s.r.tick.Of(cb, d)
 		tick.Around = s.r.around

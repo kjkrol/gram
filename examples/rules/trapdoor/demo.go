@@ -7,11 +7,15 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/board"
@@ -26,11 +30,6 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
-	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -140,12 +139,12 @@ func (s *arena) defineCommands() {
 	for _, l := range levers {
 		cmds.Define(
 			pullCmd(l.name),
-			rule.Put(s.world.Effects().Named(OpenEf)).
-				On(entity.Group("trapdoors "+l.name)).
+			ceremony.Put(s.world.Effects().Named(OpenEf)).
+				On(ceremony.Group("trapdoors "+l.name)).
 				For(3*time.Second),
 		)
 	}
-	cmds.Define(HastenCmd, rule.Put(s.world.Effects().Named(HasteEf)).On(s.selection.Selected()))
+	cmds.Define(HastenCmd, ceremony.Put(s.world.Effects().Named(HasteEf)).On(s.selection.Selected()))
 }
 
 func (s *arena) defineCells() {
@@ -177,7 +176,7 @@ func (s *arena) defineKinds() {
 		TurnRate: 0.15,
 	}
 	land := unit.Mover{Domain: cell.Land}
-	units.Define(ScoutKind, land, profile, rule.Plays(s.world.Roles().Named(MortalRole)))
+	units.Define(ScoutKind, land, profile, ceremony.Plays(s.world.Roles().Named(MortalRole)))
 	patrol := plan.New(PatrolPlan, plan.Steps(
 		plan.Loop[any]{
 			Name:  "leg",
@@ -190,7 +189,7 @@ func (s *arena) defineKinds() {
 	round := comp.Load(func(u unitRow) navigation.Round {
 		return navigation.NewRound(u.To, u.Start)
 	})
-	units.Define(WandererKind, land, profile, rule.Plays(s.world.Roles().Named(MortalRole)),
+	units.Define(WandererKind, land, profile, ceremony.Plays(s.world.Roles().Named(MortalRole)),
 		round, patrol)
 	standing := board.NewEntities(
 		s.board,

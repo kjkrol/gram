@@ -5,12 +5,12 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -20,20 +20,20 @@ func (moved) Command() {}
 
 func velocityTick(t *testing.T, share float64, rules ...act.Rule) (paced, unpaced float64, gave []uid.UID64) {
 	t.Helper()
-	var commands control.Carrier
-	var given control.Queue[moved]
+	var commands command.Carrier
+	var given command.Queue[moved]
 	if err := commands.Carry(&given); err != nil {
 		t.Fatal(err)
 	}
-	host := &plugin.Rules[Moving]{}
+	h := &host.Rules[Moving]{}
 	for _, r := range rules {
-		if err := host.Add(r); err != nil {
+		if err := h.Add(r); err != nil {
 			t.Fatal(err)
 		}
 	}
-	sys := newVelocitySystem(host)
-	sys.tick = func(cb *goke.CmdBuf, dt time.Duration) plugin.Tick {
-		return plugin.Tick{CmdBuf: cb, Dt: dt, Commands: &commands}
+	sys := newVelocitySystem(h)
+	sys.tick = func(cb *goke.CmdBuf, dt time.Duration) host.Tick {
+		return host.Tick{CmdBuf: cb, Dt: dt, Commands: &commands}
 	}
 
 	ecs := goke.New()
@@ -68,7 +68,7 @@ func velocityTick(t *testing.T, share float64, rules ...act.Rule) (paced, unpace
 			}
 		}
 	}
-	given.Drain(func(i control.Issued[moved]) { gave = append(gave, i.Entity) })
+	given.Drain(func(i command.Issued[moved]) { gave = append(gave, i.Entity) })
 	return paced, unpaced, gave
 }
 

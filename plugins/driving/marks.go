@@ -1,6 +1,8 @@
 package driving
 
-import "github.com/kjkrol/gram/entity/tag"
+import (
+	"github.com/kjkrol/ceremony/tag"
+)
 
 // States is the family of a unit's driving markers. The plugin gives it to every unit the world's
 // roster makes; a unit without it gets it the first time it is needed.

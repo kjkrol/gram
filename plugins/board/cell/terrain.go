@@ -1,9 +1,9 @@
 package cell
 
 import (
-	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/rule/cond"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/tag"
 )
 
 // Terrain reports one cell's terrain kind, independent of the grid's topology.
@@ -20,7 +20,7 @@ type TerrainMap struct {
 	Ways map[ID]Way
 	// Roles are the roles the cells play and Labels what they are called.
 	Roles  map[ID]tag.Tags[cond.Roles]
-	Labels map[ID]entity.Label
+	Labels map[ID]ceremony.Label
 
 	version uint64
 }
@@ -76,9 +76,9 @@ func (t *TerrainMap) Cast(c ID, roles tag.Tags[cond.Roles]) {
 }
 
 // Label calls c as l says; Version stays as it was.
-func (t *TerrainMap) Label(c ID, l entity.Label) {
+func (t *TerrainMap) Label(c ID, l ceremony.Label) {
 	if t.Labels == nil {
-		t.Labels = make(map[ID]entity.Label)
+		t.Labels = make(map[ID]ceremony.Label)
 	}
 	t.Labels[c] = l
 }

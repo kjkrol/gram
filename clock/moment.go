@@ -1,9 +1,10 @@
 package clock
 
 import (
+	"github.com/kjkrol/ceremony/host"
 	"time"
 
-	"github.com/kjkrol/gram/rule/cond"
+	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -41,3 +42,7 @@ func Every(period, offset time.Duration) cond.Word[Moment] {
 		return (m.Now-offset)/period > before
 	})
 }
+
+var (
+	_ host.About = Moment{}
+)

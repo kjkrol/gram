@@ -4,24 +4,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/render"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
@@ -29,7 +30,7 @@ type soldier struct {
 	name     string
 	kind     string
 	x        float64
-	by       control.PlayerID
+	by       command.Issuer
 	selected bool
 }
 
@@ -41,7 +42,7 @@ type squad struct {
 	me, rival     *players.Player
 	haste, rally  effect.Effect
 	names         map[effect.Effect]string
-	mortal, hasty *rule.Part
+	mortal, hasty *ceremony.Part
 	kinds         map[string]kind.Of[soldier]
 	ecs           *goke.ECS
 	base          goke.Comp[world.Base]
@@ -68,7 +69,7 @@ func newSquad(t *testing.T) *squad {
 	w.Roles().Define("hasty")
 	s.mortal, s.hasty = w.Roles().Named("mortal"), w.Roles().Named("hasty")
 	tags := sel.Tags()
-	define := func(name string, roles ...*rule.Part) {
+	define := func(name string, roles ...*ceremony.Part) {
 		spec := kind.Spec{
 			comp.Load(func(so soldier) world.Position {
 				return world.Position{AABB: plane.NewAABB(geom.NewVec(so.x, 100), 10, 10)}
@@ -84,7 +85,7 @@ func newSquad(t *testing.T) *squad {
 			comp.Load(func(so soldier) tag.Tags[owner.Family] { return tag.Tags[owner.Family](0).With(owner.Of(so.by)) }),
 		}
 		if len(roles) > 0 {
-			spec = append(spec, rule.Plays(roles...))
+			spec = append(spec, ceremony.Plays(roles...))
 		}
 		kind.Define[soldier](w.Kinds(), name, spec)
 		s.kinds[name] = kind.Named[soldier](w.Kinds(), name)
@@ -130,7 +131,7 @@ func (s *squad) start(soldiers []soldier, bindings ...control.Binding) {
 	})
 }
 
-func (s *squad) issue(cmd control.Command) {
+func (s *squad) issue(cmd command.Command) {
 	s.t.Helper()
 	if err := s.players.Issue(s.me, cmd); err != nil {
 		s.t.Fatal(err)
@@ -186,7 +187,7 @@ func (s *squad) expect(e effect.Effect, want ...string) {
 	}
 }
 
-func roster(me, rival control.PlayerID) []soldier {
+func roster(me, rival command.Issuer) []soldier {
 	return []soldier{
 		{name: "my scout", kind: "scout", x: 100, by: me, selected: true},
 		{name: "my guard", kind: "guard", x: 150, by: me, selected: true},
@@ -202,23 +203,23 @@ func roster(me, rival control.PlayerID) []soldier {
 func TestSelected_WithoutARoleIsEverySelectedUnitOfMine(t *testing.T) {
 	s := newSquad(t)
 	s.start(roster(s.me.ID, s.rival.ID))
-	s.issue(rule.Put(s.haste).On(s.sel.Selected()))
+	s.issue(ceremony.Put(s.haste).On(s.sel.Selected()))
 	s.expect(s.haste, "my scout", "my guard", "my veteran", "my peasant")
 }
 
 func TestSelected_OfARoleIsMySelectedUnitsPlayingIt(t *testing.T) {
 	for _, c := range []struct {
 		name  string
-		role  func(s *squad) *rule.Part
+		role  func(s *squad) *ceremony.Part
 		under []string
 	}{
-		{"hasty", func(s *squad) *rule.Part { return s.hasty }, []string{"my scout", "my veteran"}},
-		{"mortal", func(s *squad) *rule.Part { return s.mortal }, []string{"my guard", "my veteran"}},
+		{"hasty", func(s *squad) *ceremony.Part { return s.hasty }, []string{"my scout", "my veteran"}},
+		{"mortal", func(s *squad) *ceremony.Part { return s.mortal }, []string{"my guard", "my veteran"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			s := newSquad(t)
 			s.start(roster(s.me.ID, s.rival.ID))
-			s.issue(rule.Put(s.haste).On(s.sel.Selected(c.role(s))))
+			s.issue(ceremony.Put(s.haste).On(s.sel.Selected(c.role(s))))
 			s.expect(s.haste, c.under...)
 		})
 	}
@@ -228,9 +229,9 @@ func TestSelected_AKeyGivesTheCommand(t *testing.T) {
 	s := newSquad(t)
 	s.start(roster(s.me.ID, s.rival.ID),
 		control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected scouts",
-			s.named("hasten", rule.Put(s.haste).On(s.sel.Selected(s.hasty)))),
+			s.named("hasten", ceremony.Put(s.haste).On(s.sel.Selected(s.hasty)))),
 		control.Give(control.KeyPress{Key: control.KeyK}, "Rally the selected mortals",
-			s.named("rally", rule.Put(s.rally).On(s.sel.Selected(s.mortal)))))
+			s.named("rally", ceremony.Put(s.rally).On(s.sel.Selected(s.mortal)))))
 	s.press(control.KeyJ)
 	s.expect(s.haste, "my scout", "my veteran")
 	s.expect(s.rally)
@@ -241,13 +242,13 @@ func TestSelected_AKeyGivesTheCommand(t *testing.T) {
 func TestSelected_LiftAndToggle(t *testing.T) {
 	s := newSquad(t)
 	s.start(roster(s.me.ID, s.rival.ID))
-	s.issue(rule.Put(s.haste).On(s.sel.Selected(s.hasty)))
+	s.issue(ceremony.Put(s.haste).On(s.sel.Selected(s.hasty)))
 	s.expect(s.haste, "my scout", "my veteran")
-	s.issue(rule.Toggle(s.haste).On(s.sel.Selected())) // some are under it: off them all
+	s.issue(ceremony.Toggle(s.haste).On(s.sel.Selected())) // some are under it: off them all
 	s.expect(s.haste)
-	s.issue(rule.Toggle(s.haste).On(s.sel.Selected())) // none is: on them all
+	s.issue(ceremony.Toggle(s.haste).On(s.sel.Selected())) // none is: on them all
 	s.expect(s.haste, "my scout", "my guard", "my veteran", "my peasant")
-	s.issue(rule.Take(s.haste).On(s.sel.Selected(s.mortal)))
+	s.issue(ceremony.Take(s.haste).On(s.sel.Selected(s.mortal)))
 	s.expect(s.haste, "my scout", "my peasant")
 }
 
@@ -255,7 +256,7 @@ func TestPointed_IsTheEntityUnderTheCursor(t *testing.T) {
 	s := newSquad(t)
 	s.start(roster(s.me.ID, s.rival.ID))
 	cure := control.Give(control.KeyPress{Key: control.KeyC}, "Hasten the one pointed at",
-		s.named("cure", rule.Put(s.haste).On(s.sel.Pointed())))
+		s.named("cure", ceremony.Put(s.haste).On(s.sel.Pointed())))
 	point := func(x, y float64) {
 		cmd, ok := cure.Build(control.Context{Player: s.me.ID, Camera: cameras.TopDown()(1000, 1000, 0, camera.Config{}), Cursor: geom.NewVec(x, y)})
 		if !ok {
@@ -265,7 +266,7 @@ func TestPointed_IsTheEntityUnderTheCursor(t *testing.T) {
 	}
 	point(600, 600) // empty ground
 	s.expect(s.haste)
-	s.issue(rule.Put(s.haste).On(s.sel.Pointed())) // no cursor
+	s.issue(ceremony.Put(s.haste).On(s.sel.Pointed())) // no cursor
 	s.expect(s.haste)
 	point(405, 105) // the rival's scout, at 400
 	s.expect(s.haste, "the rival's scout")
@@ -273,7 +274,7 @@ func TestPointed_IsTheEntityUnderTheCursor(t *testing.T) {
 	s.expect(s.haste, "the rival's scout", "my idle scout")
 }
 
-func (s *squad) named(name string, cmd rule.Command) rule.Command {
+func (s *squad) named(name string, cmd ceremony.Command) ceremony.Command {
 	s.w.Commands().Define(name, cmd)
 	return s.w.Commands().Named(name)
 }

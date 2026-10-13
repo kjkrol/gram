@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
 )
 
@@ -85,7 +86,7 @@ func (CursorOver) trigger()   {}
 // Context is what a binding builds its command from: the player, its camera and this tick's input
 // in screen pixels; World and WorldBox go through the camera.
 type Context struct {
-	Player      PlayerID
+	Player      command.Issuer
 	Camera      camera.Camera
 	Cursor      geom.Vec // where the cursor is, or where a button went down or up
 	Start       geom.Vec // where a Drag began
@@ -185,7 +186,7 @@ type Binding struct {
 	Label   string
 
 	command reflect.Type
-	build   func(Context) (Command, bool)
+	build   func(Context) (command.Command, bool)
 	hows    camera.How // zero: every How
 	tool    Tool       // none: holds whatever the player holds
 }
@@ -220,8 +221,8 @@ func (b Binding) Overlaps(o Binding) bool {
 }
 
 // Build is a Binding issuing a C built from the Context when trigger fires; build may decline.
-func Build[C Command](trigger Trigger, label string, build func(c Context) (C, bool)) Binding {
-	return Binding{Trigger: trigger, Label: label, command: reflect.TypeFor[C](), build: func(c Context) (Command, bool) {
+func Build[C command.Command](trigger Trigger, label string, build func(c Context) (C, bool)) Binding {
+	return Binding{Trigger: trigger, Label: label, command: reflect.TypeFor[C](), build: func(c Context) (command.Command, bool) {
 		cmd, ok := build(c)
 		return cmd, ok
 	}}
@@ -229,16 +230,18 @@ func Build[C Command](trigger Trigger, label string, build func(c Context) (C, b
 
 // Contextual is a command that reads where it was given: In is the command for the Context its
 // trigger fired in — the one pointed at with the cursor.
-type Contextual interface{ In(c Context) Command }
+type Contextual interface {
+	In(c Context) command.Command
+}
 
 // Give is a Binding issuing cmd whenever trigger fires, a Contextual one for the Context. A
-// command kept in a register (a rule.Command) must come from it: one made on the spot panics.
-func Give(trigger Trigger, label string, cmd Command) Binding {
+// command kept in a register (a ceremony.command.Command) must come from it: one made on the spot panics.
+func Give(trigger Trigger, label string, cmd command.Command) Binding {
 	if d, ok := cmd.(interface{ Defined() bool }); ok && !d.Defined() {
 		panic(fmt.Sprintf("control: the key for %q is given a command no register holds: define it by name first (world.Commands) and give what Named hands back", label))
 	}
-	cmd = Unwrap(cmd)
-	return Binding{Trigger: trigger, Label: label, command: reflect.TypeOf(cmd), build: func(c Context) (Command, bool) {
+	cmd = command.Unwrap(cmd)
+	return Binding{Trigger: trigger, Label: label, command: reflect.TypeOf(cmd), build: func(c Context) (command.Command, bool) {
 		if in, ok := cmd.(Contextual); ok {
 			return in.In(c), true
 		}
@@ -250,7 +253,7 @@ func Give(trigger Trigger, label string, cmd Command) Binding {
 func (b Binding) Type() reflect.Type { return b.command }
 
 // Build is the command for c, if the binding has one to give.
-func (b Binding) Build(c Context) (Command, bool) {
+func (b Binding) Build(c Context) (command.Command, bool) {
 	if b.build == nil {
 		return nil, false
 	}

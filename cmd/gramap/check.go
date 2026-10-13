@@ -5,8 +5,9 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -136,7 +137,7 @@ func (c *installer) RegSys(factory func() goke.System) goke.Runnable {
 
 func (c *installer) ECS() *goke.ECS { return c.ecs }
 
-func (c *installer) Hosts(...plugin.Host) {}
+func (c *installer) Hosts(...host.Host) {}
 
 func (c *installer) systems() []goke.System {
 	var out []goke.System

@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -25,9 +25,9 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	oldTarget := grid.At(3, 0)
 	newTarget := grid.At(8, 0)
 
-	moves := &control.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
-	selects := &control.Queue[selection.Select]{}
+	moves := &command.Queue[MoveTo]{}
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	selects := &command.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
 	var cell goke.Comp[unit.At]
@@ -70,10 +70,10 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 		ctx.Sync()
 	})
 
-	selects.Add(control.Nobody, selection.Select{IDs: []uid.UID64{selectedID}})
+	selects.Add(command.Nobody, selection.Select{IDs: []uid.UID64{selectedID}})
 	ecs.Tick(time.Second)
 
-	moves.Add(control.Nobody, MoveTo{Cell: newTarget})
+	moves.Add(command.Nobody, MoveTo{Cell: newTarget})
 	ecs.Tick(time.Second)
 
 	got := map[uid.UID64]MoveOrder{}
@@ -112,9 +112,9 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 	start := grid.At(0, 0)
 	newTarget := grid.At(8, 0)
 
-	moves := &control.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
-	selects := &control.Queue[selection.Select]{}
+	moves := &command.Queue[MoveTo]{}
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	selects := &command.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
 	var cell goke.Comp[unit.At]
@@ -150,7 +150,7 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 		ctx.Sync()
 	})
 
-	selects.Add(control.Nobody, selection.Select{IDs: []uid.UID64{idleID}})
+	selects.Add(command.Nobody, selection.Select{IDs: []uid.UID64{idleID}})
 	ecs.Tick(time.Second)
 
 	readQuery.All()
@@ -161,7 +161,7 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 		}
 	}
 
-	moves.Add(control.Nobody, MoveTo{Cell: newTarget})
+	moves.Add(command.Nobody, MoveTo{Cell: newTarget})
 	ecs.Tick(time.Second)
 
 	var gotMoveTo MoveOrder
@@ -204,9 +204,9 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 	wall := grid.At(8, 0)
 	terrain.Set(wall, cell.Kind{Cost: 1, Solid: true})
 
-	moves := &control.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &control.Queue[LookAt]{}, selTags.Selected)
-	selects := &control.Queue[selection.Select]{}
+	moves := &command.Queue[MoveTo]{}
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	selects := &command.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
 	var cell goke.Comp[unit.At]
@@ -244,10 +244,10 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 		ctx.Sync()
 	})
 
-	selects.Add(control.Nobody, selection.Select{IDs: []uid.UID64{movingID}})
+	selects.Add(command.Nobody, selection.Select{IDs: []uid.UID64{movingID}})
 	ecs.Tick(time.Second)
 
-	moves.Add(control.Nobody, MoveTo{Cell: wall})
+	moves.Add(command.Nobody, MoveTo{Cell: wall})
 	ecs.Tick(time.Second)
 
 	readQuery.All()

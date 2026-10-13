@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -69,8 +69,8 @@ func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing
 	lake := grid.At(8, 0)
 	terrain.Set(lake, cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water})
 
-	moves := &control.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &cell.SingleOccupancy{}), moves, &control.Queue[LookAt]{}, selTags.Selected)
+	moves := &command.Queue[MoveTo]{}
+	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &cell.SingleOccupancy{}), moves, &command.Queue[LookAt]{}, selTags.Selected)
 
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
@@ -97,7 +97,7 @@ func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing
 		ctx.Sync()
 	})
 
-	moves.Add(control.Nobody, MoveTo{Cell: lake})
+	moves.Add(command.Nobody, MoveTo{Cell: lake})
 	ecs.Tick(time.Second)
 
 	for readQuery.All(); readQuery.Next(); {

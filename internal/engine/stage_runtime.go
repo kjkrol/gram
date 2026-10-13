@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
@@ -16,7 +16,7 @@ type stageRuntime struct {
 	host        *ecsHost
 	stage       game.Stage
 	world       *world.Plugin
-	carrier     *control.Carrier
+	carrier     *command.Carrier
 	sceneLayers map[string][]render.Layer
 }
 

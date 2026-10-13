@@ -2,6 +2,7 @@ package bridges
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
 )
 
@@ -24,15 +25,15 @@ func (Build) Command()  {}
 func (Cancel) Command() {}
 
 var (
-	_ control.Command = Aim{}
-	_ control.Command = Mark{}
-	_ control.Command = Build{}
-	_ control.Command = Cancel{}
+	_ command.Command = Aim{}
+	_ command.Command = Mark{}
+	_ command.Command = Build{}
+	_ command.Command = Cancel{}
 )
 
 // Queues are the plugin's command queues: Aim, Mark, Build and Cancel.
-func (p *Plugin) Queues() []control.CommandQueue {
-	return []control.CommandQueue{&p.aims, &p.marks, &p.builds, &p.cancels}
+func (p *Plugin) Queues() []command.CommandQueue {
+	return []command.CommandQueue{&p.aims, &p.marks, &p.builds, &p.cancels}
 }
 
 // DefaultBindings are Shift+B taking the bridge in hand and, while it is held, the cursor aiming

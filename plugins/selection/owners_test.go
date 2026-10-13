@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/ceremony/command"
 )
 
 var everywhere = geom.AABB{TopLeft: geom.NewVec(0, 0), BottomRight: geom.NewVec(1000, 1000)}
@@ -14,7 +14,7 @@ func TestSelect_APlayerSelectsItsOwnUnitsAlone(t *testing.T) {
 	h := newHarness(t)
 	mine := h.seed(100, 100, 10)
 	theirs := h.seedOwned(200, 200, 10, 2)
-	nobodys := h.seedOwned(300, 300, 10, control.Nobody)
+	nobodys := h.seedOwned(300, 300, 10, command.Nobody)
 	h.start()
 	h.drag(0, 0, 999, 999, false)
 	if !h.isSelected(*mine) || h.isSelected(*theirs) || h.isSelected(*nobodys) {
@@ -42,9 +42,9 @@ func TestSelect_AnotherPlayersSelectionStays(t *testing.T) {
 func TestSelect_NobodySelectsTheOwnerlessAlone(t *testing.T) {
 	h := newHarness(t)
 	mine := h.seed(100, 100, 10)
-	nobodys := h.seedOwned(300, 300, 10, control.Nobody)
+	nobodys := h.seedOwned(300, 300, 10, command.Nobody)
 	h.start()
-	h.sel.selects.Put(control.Nobody, Select{Box: everywhere})
+	h.sel.selects.Put(command.Nobody, Select{Box: everywhere})
 	h.ecs.Tick(time.Second)
 	if !h.isSelected(*nobodys) || h.isSelected(*mine) {
 		t.Errorf("nobody's %v, mine %v selected; want nobody's alone", h.isSelected(*nobodys), h.isSelected(*mine))

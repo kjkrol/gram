@@ -1,20 +1,19 @@
 package world_test
 
 import (
-	"github.com/kjkrol/gram/internal/steps"
+	"github.com/kjkrol/ceremony/plan"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/plan"
 )
 
 type treeStage struct {
@@ -27,7 +26,7 @@ type treeStage struct {
 }
 
 type treeProbe struct {
-	mind  goke.Comp[steps.Mind]
+	mind  goke.Comp[plan.Mind]
 	query *goke.Query
 }
 

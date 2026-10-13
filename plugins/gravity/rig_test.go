@@ -6,11 +6,15 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind/comp"
-	"github.com/kjkrol/gram/entity/tag"
-	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -21,13 +25,11 @@ import (
 	"github.com/kjkrol/gram/plugins/gravity"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
 type installCtx struct {
-	hosts   []plugin.Host
+	hosts   []host.Host
 	ecs     *goke.ECS
 	pending []func() []goke.System
 }
@@ -45,8 +47,8 @@ func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable {
 	return c.ecs.RegSys(factory())
 }
 func (c *installCtx) ECS() *goke.ECS                  { return c.ecs }
-func (c *installCtx) Hosts(h ...plugin.Host)          { c.hosts = append(c.hosts, h...) }
-func (c *installCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *installCtx) Hosts(h ...host.Host)            { c.hosts = append(c.hosts, h...) }
+func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }
 func (c *installCtx) systems() []goke.System {
 	var systems []goke.System
 	for _, produce := range c.pending {
@@ -59,14 +61,14 @@ type landed struct{ Hard bool }
 
 func (landed) Command() {}
 
-type heard struct{ control.Queue[landed] }
+type heard struct{ command.Queue[landed] }
 
-func (h *heard) Queues() []control.CommandQueue     { return []control.CommandQueue{&h.Queue} }
+func (h *heard) Queues() []command.CommandQueue     { return []command.CommandQueue{&h.Queue} }
 func (h *heard) DefaultBindings() []control.Binding { return nil }
 
-func (h *heard) given() []control.Issued[landed] {
-	var got []control.Issued[landed]
-	h.Drain(func(i control.Issued[landed]) { got = append(got, i) })
+func (h *heard) given() []command.Issued[landed] {
+	var got []command.Issued[landed]
+	h.Drain(func(i command.Issued[landed]) { got = append(got, i) })
 	return got
 }
 

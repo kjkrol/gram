@@ -1,7 +1,8 @@
 package gravity
 
 import (
-	"github.com/kjkrol/gram/rule/cond"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/uid"
 )
 
@@ -19,3 +20,7 @@ func (l Landing) Who() uid.UID64 { return l.ID }
 func HarderThan(speed float64) cond.Word[Landing] {
 	return cond.NewWord("harder than", func(l Landing) bool { return l.Speed > speed })
 }
+
+var (
+	_ host.About = Landing{}
+)

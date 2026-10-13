@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	irelief "github.com/kjkrol/gram/plugins/topography/internal/relief"
 )
 
@@ -24,9 +24,9 @@ func (Lower) Command() {}
 func (Level) Command() {}
 
 var (
-	_ control.Command = Raise{}
-	_ control.Command = Lower{}
-	_ control.Command = Level{}
+	_ command.Command = Raise{}
+	_ command.Command = Lower{}
+	_ command.Command = Level{}
 )
 
 // Shaping is how Raise, Lower and Level move the ground: Step per Raise or Lower, and at most
@@ -37,13 +37,13 @@ type Shaping struct{ Step, MaxStep float64 }
 type shaper struct {
 	relief *irelief.Relief
 	cfg    Shaping
-	raise  control.Queue[Raise]
-	lower  control.Queue[Lower]
-	level  control.Queue[Level]
+	raise  command.Queue[Raise]
+	lower  command.Queue[Lower]
+	level  command.Queue[Level]
 }
 
-func (s *shaper) queues() []control.CommandQueue {
-	return []control.CommandQueue{&s.raise, &s.lower, &s.level}
+func (s *shaper) queues() []command.CommandQueue {
+	return []command.CommandQueue{&s.raise, &s.lower, &s.level}
 }
 
 func (s *shaper) system() goke.System { return shapingSystem{s} }
@@ -56,13 +56,13 @@ func (shapingSystem) Init(*goke.SysInit) {}
 
 func (y shapingSystem) Update(*goke.CmdBuf, time.Duration) {
 	s, r := y.s, y.s.relief
-	s.raise.Drain(func(i control.Issued[Raise]) {
+	s.raise.Drain(func(i command.Issued[Raise]) {
 		r.KeepRoads(func() { r.Lift(i.Command.At, s.cfg.Step, s.cfg.MaxStep) })
 	})
-	s.lower.Drain(func(i control.Issued[Lower]) {
+	s.lower.Drain(func(i command.Issued[Lower]) {
 		r.KeepRoads(func() { r.Lift(i.Command.At, -s.cfg.Step, s.cfg.MaxStep) })
 	})
-	s.level.Drain(func(i control.Issued[Level]) {
+	s.level.Drain(func(i command.Issued[Level]) {
 		r.KeepRoads(func() { r.Flatten(i.Command.From, i.Command.To, s.cfg.MaxStep) })
 	})
 }

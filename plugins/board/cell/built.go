@@ -1,5 +1,7 @@
 package cell
 
+import "github.com/kjkrol/ceremony/effect"
+
 // On is the cell an entity standing on the board stands on for good (board.NewEntities).
 type On struct{ Cell ID }
 
@@ -16,12 +18,22 @@ type Floor struct {
 	Width     float64
 }
 
+// Knob: an effect may turn it (effect.Knob).
+func (Floor) Knob() {}
+
+var _ effect.Knob = Floor{}
+
 // Wall is a knob of an entity standing on a cell keeping the domains Keeps off it up to Height
 // over its level, 0 at every height: a gate.
 type Wall struct {
 	Keeps  Domain
 	Height float64
 }
+
+// Knob: an effect may turn it (effect.Knob).
+func (Wall) Knob() {}
+
+var _ effect.Knob = Wall{}
 
 // Rail is a knob of an entity standing on a cell keeping the domains Keeps from crossing the edges
 // of the cell's band, up to Height over the deck, 0 at every height: a bridge's railings, a fence.

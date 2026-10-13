@@ -78,15 +78,6 @@ type Slot struct {
 	size int
 }
 
-// Dresser issues the atlas slot drawn in place of a sprite while a state holds.
-type Dresser interface{ Look(of SpriteID) SpriteID }
-
-// Under adds the sprite's look under d, the same size, drawn in its place while d's state holds.
-func (s Slot) Under(d Dresser, draw SpriteDrawer) Slot {
-	s.a.Add(d.Look(s.id), s.size, draw)
-	return s
-}
-
 // Close lays the sprites added out on one sheet and bakes them.
 func (a *Atlas) Close() {
 	if a.closed {

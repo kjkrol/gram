@@ -30,7 +30,7 @@
 // # Now
 //
 // [Now] is the cell at a step as a rule gets it, run for every cell playing a role that obeys
-// one; it is plugin.Placed, so Here acts on the cell and Around on the rings round it.
+// one; it is host.Placed, so Here acts on the cell and Around on the rings round it.
 //
 // # Occupancy
 //

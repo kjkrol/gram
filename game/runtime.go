@@ -1,6 +1,8 @@
 package game
 
-import "github.com/kjkrol/gram/control"
+import (
+	"github.com/kjkrol/ceremony/command"
+)
 
 // TPS is the built-in measured-ticks-per-second counter.
 type TPS struct{ Ticks int }
@@ -22,7 +24,7 @@ type Runtime interface {
 	// spawned. A save not there is an error, and nothing changes.
 	Load(stage, slot string) error
 	// Issue gives cmd as nobody to whoever carries it out in the active Stage, the way a key does.
-	Issue(cmd control.Command) error
+	Issue(cmd command.Command) error
 
 	Persistence() Persistence
 	TPS() *TPS

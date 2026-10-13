@@ -1,6 +1,9 @@
 package collision
 
-import "github.com/kjkrol/uid"
+import (
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/uid"
+)
 
 // Struck is an entity that struck something the tick before, and what it struck. An entity that
 // struck nothing is not told.
@@ -11,3 +14,7 @@ type Struck struct {
 
 // Who is the entity that struck.
 func (s Struck) Who() uid.UID64 { return s.ID }
+
+var (
+	_ host.About = Struck{}
+)

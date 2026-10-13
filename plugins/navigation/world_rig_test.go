@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -29,7 +29,7 @@ type navUnit struct {
 	profile *steering.Steering
 	order   *MoveOrder
 	marks   bool
-	owner   control.PlayerID
+	owner   command.Issuer
 }
 
 type navWorld struct {
@@ -94,7 +94,7 @@ func newNavWorldWith(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 		if u.marks {
 			s = append(s, comp.Marks[unit.States]())
 		}
-		if u.owner != control.Nobody {
+		if u.owner != command.Nobody {
 			s = append(s, comp.Tagged(owner.Of(u.owner)))
 		}
 		kind.Define[navUnit](w.Kinds(), fmt.Sprintf("u%d", i), s)

@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/gram/plugins/gravity"
-	"github.com/kjkrol/gram/rule/act"
 )
 
 var room = []string{

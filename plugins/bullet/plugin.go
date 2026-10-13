@@ -4,9 +4,11 @@ import (
 	"errors"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -24,12 +26,12 @@ type Plugin struct {
 	ground      func() ground.Heights // nil: the ground lies at 0
 	module      *module
 
-	landings plugin.Rules[Landing]
-	restings plugin.Rules[Resting]
-	blasts   plugin.PairRules[Blast]
+	landings host.Rules[Landing]
+	restings host.Rules[Resting]
+	blasts   host.PairRules[Blast]
 
-	shoots control.Queue[Shoot]
-	bursts control.Queue[Burst]
+	shoots command.Queue[Shoot]
+	bursts command.Queue[Burst]
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)

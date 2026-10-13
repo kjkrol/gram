@@ -1,13 +1,14 @@
 package sky
 
 import (
+	"github.com/kjkrol/ceremony/effect"
 	"time"
 
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -18,6 +19,11 @@ type Moon struct {
 	Strength float32
 	Face     render.Light
 }
+
+// Knob: an effect may turn it (effect.Knob).
+func (Moon) Knob() {}
+
+var _ effect.Knob = Moon{}
 
 // DefaultMoon is a pale blue light and the face as it was photographed.
 func DefaultMoon() Moon {
@@ -41,11 +47,11 @@ func FullMoon() cond.Word[Moonrise] {
 }
 
 // Rules takes the rules of a Moonrise.
-func (s *Sky) Rules() plugin.Host { return &s.rises }
+func (s *Sky) Rules() host.Host { return &s.rises }
 
 // RiseSystem tells the rules of a Moonrise as the moon comes up, about the entity about gives.
 // The first step tells nothing, so a loaded game hears of no rise it was saved after.
-func (s *Sky) RiseSystem(tick plugin.TickSource, about func() uid.UID64) goke.System {
+func (s *Sky) RiseSystem(tick host.TickSource, about func() uid.UID64) goke.System {
 	var last float32
 	begun := false
 	return goke.SystemFn{
@@ -60,3 +66,7 @@ func (s *Sky) RiseSystem(tick plugin.TickSource, about func() uid.UID64) goke.Sy
 		},
 	}
 }
+
+var (
+	_ host.About = Moonrise{}
+)

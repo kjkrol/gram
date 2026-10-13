@@ -47,7 +47,7 @@
 // A Stage hands its rules to nobody: a rule is a role's (world.Roles), a role is played by a kind,
 // a cell or a plugin, and once Init returns the engine gives the rules of every role played to the
 // plugin in use that catches their moment. A rule no plugin in use catches fails Init with an error
-// wrapping plugin.ErrUnhosted, naming the rule.
+// wrapping host.ErrUnhosted, naming the rule.
 //
 // # Runtime
 //

@@ -5,16 +5,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/entity"
-	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
-	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -22,7 +21,7 @@ type cellProbe struct {
 	q     *goke.Query
 	plot  goke.Comp[cell.Plot]
 	roles goke.OptComp[tag.Tags[cond.Roles]]
-	label goke.OptComp[entity.Label]
+	label goke.OptComp[ceremony.Label]
 	fuel  goke.OptComp[fuel]
 }
 
@@ -39,7 +38,7 @@ type cellState struct {
 	hasRoles bool
 	roles    tag.Tags[cond.Roles]
 	labelled bool
-	label    entity.Label
+	label    ceremony.Label
 	fuel     *fuel
 }
 
@@ -103,7 +102,7 @@ func cellGrids() map[string]grid.Grid {
 func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
 	for name, g := range cellGrids() {
 		t.Run(name, func(t *testing.T) {
-			var trapdoor, plate *rule.Part
+			var trapdoor, plate *ceremony.Part
 			cells := make([]cell.ID, 0, 5)
 			g.EachCell(func(c cell.ID) {
 				if len(cells) < 5 {
@@ -130,11 +129,11 @@ func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
 				}})
 			})
 			want := map[cell.ID]cellState{
-				a: {hasRoles: true, roles: tag.Tags[cond.Roles](0).With(trapdoor.Tag()), labelled: true, label: entity.LabelOf("", "west")},
-				b: {hasRoles: true, roles: tag.Tags[cond.Roles](0).With(plate.Tag()), labelled: true, label: entity.LabelOf("plate", "west")},
-				c: {hasRoles: true, roles: tag.Tags[cond.Roles](0).With(trapdoor.Tag(), plate.Tag()), labelled: true, label: entity.LabelOf("", "east")},
+				a: {hasRoles: true, roles: tag.Tags[cond.Roles](0).With(trapdoor.Tag()), labelled: true, label: ceremony.LabelOf("", "west")},
+				b: {hasRoles: true, roles: tag.Tags[cond.Roles](0).With(plate.Tag()), labelled: true, label: ceremony.LabelOf("plate", "west")},
+				c: {hasRoles: true, roles: tag.Tags[cond.Roles](0).With(trapdoor.Tag(), plate.Tag()), labelled: true, label: ceremony.LabelOf("", "east")},
 				d: {hasRoles: true, roles: tag.Tags[cond.Roles](0).With(trapdoor.Tag())},
-				e: {hasRoles: true, labelled: true, label: entity.LabelOf("lever", "")},
+				e: {hasRoles: true, labelled: true, label: ceremony.LabelOf("lever", "")},
 			}
 			got := probe.read(t)
 			if len(got) != g.CellCount() {

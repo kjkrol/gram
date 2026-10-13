@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/uid"
 )
 
@@ -40,10 +40,10 @@ func TestText_APinnedLabelSaysWhatItsEntityIs(t *testing.T) {
 }
 
 func TestText_AnElementLeftOutTakesNoRoomAndIsNotHit(t *testing.T) {
-	var issued []control.Command
+	var issued []command.Command
 	next := Button("next", order{"next"})
 	s := built(NewScene("main", TopLeft(Rows(Fit(ButtonOf(silent{}, order{"lost"})), Fit(next)))).
-		Issue(func(cmd control.Command) error { issued = append(issued, cmd); return nil }))
+		Issue(func(cmd command.Command) error { issued = append(issued, cmd); return nil }))
 	if top := next.Box().TopLeft.Y; top != 0 {
 		t.Fatalf("the button after one left out stands at %v, want at the top", top)
 	}
@@ -57,14 +57,14 @@ type answer struct{ to uid.UID64 }
 
 func (answer) Command() {}
 
-func (a answer) About(of uid.UID64) control.Command { a.to = of; return a }
+func (a answer) About(of uid.UID64) command.Command { a.to = of; return a }
 
 func TestPin_AButtonGivesAnAboutCommandForTheEntityItIsShownFor(t *testing.T) {
-	var issued []control.Command
+	var issued []command.Command
 	hi := Button("hi", answer{}).Named("hi")
 	window := Window("host", hi).On(nobody)
 	s := built(NewScene("main", Layers(Image(&shifted{}), window)).
-		Issue(func(cmd control.Command) error { issued = append(issued, cmd); return nil }))
+		Issue(func(cmd command.Command) error { issued = append(issued, cmd); return nil }))
 	window.pin.stand(window, []spot{{id: 7, placed: true, x: 300, y: 300}}, views(s.root), screen)
 	window.pin.each(window, window.parent, func(*instance) {})
 	s.HandleEvents(click(hi.Box().TopLeft.Add(geom.NewVec(2, 2))), nil, nil)
@@ -74,8 +74,8 @@ func TestPin_AButtonGivesAnAboutCommandForTheEntityItIsShownFor(t *testing.T) {
 }
 
 func TestScene_AnAboutCommandOutsideAPinIsNotGiven(t *testing.T) {
-	var issued []control.Command
-	s := built(NewScene("main", Center(Button("lost", answer{})).Size(100, 40)).Issue(func(cmd control.Command) error { issued = append(issued, cmd); return nil }))
+	var issued []command.Command
+	s := built(NewScene("main", Center(Button("lost", answer{})).Size(100, 40)).Issue(func(cmd command.Command) error { issued = append(issued, cmd); return nil }))
 	s.HandleEvents(click(geom.NewVec(600, 300)), nil, nil)
 	if len(issued) != 0 {
 		t.Fatalf("issued %v, want nothing: no entity is pinned", issued)

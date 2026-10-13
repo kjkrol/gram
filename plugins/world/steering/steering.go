@@ -1,6 +1,7 @@
 package steering
 
 import (
+	"github.com/kjkrol/ceremony/effect"
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -19,6 +20,11 @@ type Steering struct {
 	V0       float64 // the speed on setting off from standing
 	Halted   bool    // no speed, the heading kept, whatever is asked
 }
+
+// Knob: an effect may turn it (effect.Knob).
+func (Steering) Knob() {}
+
+var _ effect.Knob = Steering{}
 
 // Course is the steering's state of an entity: the heading and speed asked and how far it has
 // come to them.

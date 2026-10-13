@@ -2,7 +2,9 @@ package navigation
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/rule/cond"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/fact"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/uid"
 )
 
@@ -109,3 +111,8 @@ func (t Touch) noWayRound() bool { return t.Moving && t.Cornered }
 func WaitedLong() cond.Word[Touch] { return cond.NewWord("waitedLong", Touch.waitedLong) }
 
 func (t Touch) waitedLong() bool { return t.WaitedOut }
+
+var (
+	_ host.Met     = Touch{}
+	_ fact.Subject = Touch{}
+)

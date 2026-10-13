@@ -4,13 +4,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule/act"
-	"github.com/kjkrol/gram/rule/cond"
-	"github.com/kjkrol/gram/rule/effect"
 )
 
 const tick = time.Second / 10
@@ -19,9 +20,9 @@ type heard struct{ Rule string }
 
 func (heard) Command() {}
 
-type heards struct{ control.Queue[heard] }
+type heards struct{ command.Queue[heard] }
 
-func (h *heards) Queues() []control.CommandQueue     { return []control.CommandQueue{&h.Queue} }
+func (h *heards) Queues() []command.CommandQueue     { return []command.CommandQueue{&h.Queue} }
 func (h *heards) DefaultBindings() []control.Binding { return nil }
 
 func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
@@ -82,11 +83,11 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 			w.Clock().Simulate(rc, func(_ goke.RunCtx, step time.Duration) {
 				inNight = append(inNight, w.Clock().In(night))
 				now := w.Clock().Time() + step // the step's end, the Moment's Now
-				orders.Drain(func(i control.Issued[heard]) { fired[i.Command.Rule] = append(fired[i.Command.Rule], now) })
+				orders.Drain(func(i command.Issued[heard]) { fired[i.Command.Rule] = append(fired[i.Command.Rule], now) })
 			})
 			w.Clock().Replay(rc, d)
 		})
-		for _, cmd := range map[float32][]control.Command{4: {world.Faster{}, world.Faster{}}, 0.5: {world.Slower{}}}[tempo] {
+		for _, cmd := range map[float32][]command.Command{4: {world.Faster{}, world.Faster{}}, 0.5: {world.Slower{}}}[tempo] {
 			if !w.Carrier().Put(1, cmd) {
 				t.Fatalf("the world carries no %T", cmd)
 			}
