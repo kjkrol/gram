@@ -12,6 +12,22 @@ where it begins: `navigation.Path` changed shape. Nor those made before the beha
 `ceremony`: the component types' paths changed (`ceremony/tag.Tags[…]`, `effect.Active`,
 `plan.Mind`, `ceremony.Label`). Nor those made before ceremony's store went behind its contract:
 `effect.Active` and `Wide` are the binding's `goke.Active` and `Wide`, `plan.Mind` is `store.Mind`.
+Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
+
+**First person as a shooter plays** (2026-10-13)
+- Riding inside a unit the mouse looks round at once: the opt-in `camera.Config.MouseLook`,
+  `cameras.MouseLook`, `cameras.MouseLookKey` and `camera.MouseLooker` are gone, and the cursor is
+  captured while a camera rides `Inside`.
+- A and D strafe (`driving.Shooter`, the default keys inside; `driving.Strafe{Way}`,
+  `steering.Driven.Side`, `Helm.RequestSide`): `entity.Velocity.Side` is the speed across the
+  heading, to the right over zero, which `Delta` adds, so the unit moves sideways facing on;
+  `Tank` still turns on A and D for the arrows behind a unit and the demos that drive from outside.
+- Space jumps inside a unit (`driving.JumpKey(Space).In(camera.Inside)` among the driving's
+  defaults), sprinting with Shift too: `control.KeyDown` is a key going down whatever else is
+  held, which `JumpKey` binds; the world's pause is Shift+P (P alone freezes the sun), navigation's `Routes`
+  Shift+R.
+- board-topography runs the gravity plugin: its walkers stand on the board's surfaces, leap on
+  Space and fall off a deck's edge.
 
 **Ceremony's store behind a contract: the binding `ceremony/goke`** (ceremony v0.2.0, goke v3.4.0)
 - The world runs ceremony through its binding over goke, imported as `cgoke`:

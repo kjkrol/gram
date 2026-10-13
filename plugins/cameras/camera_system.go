@@ -74,11 +74,6 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 			s.centre(cam)
 		}
 	})
-	s.p.looks.Drain(func(i command.Issued[MouseLook]) {
-		if m, ok := i.Command.Camera.(camera.MouseLooker); ok {
-			m.SetMouseLook(!m.MouseLook())
-		}
-	})
 	s.start()
 	s.keep()
 }

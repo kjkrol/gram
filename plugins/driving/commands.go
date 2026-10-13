@@ -24,6 +24,13 @@ type Turn struct {
 	Way    int8
 }
 
+// Strafe walks the units the hand is on across the way each faces, facing on: Way 1 to the
+// right, -1 to the left.
+type Strafe struct {
+	Camera camera.Camera
+	Way    int8
+}
+
 // Toward walks the units the hand is on the way Way says, as the screen lies: they turn to it and
 // go. Several in one tick add up — up and right walk them up and right.
 type Toward struct {
@@ -37,6 +44,7 @@ type Jump struct{ Camera camera.Camera }
 func (Ahead) Command()  {}
 func (Back) Command()   {}
 func (Turn) Command()   {}
+func (Strafe) Command() {}
 func (Toward) Command() {}
 func (Jump) Command()   {}
 
@@ -44,6 +52,7 @@ var (
 	_ command.Command = Ahead{}
 	_ command.Command = Back{}
 	_ command.Command = Turn{}
+	_ command.Command = Strafe{}
 	_ command.Command = Toward{}
 	_ command.Command = Jump{}
 )
@@ -54,16 +63,18 @@ func (p *Plugin) Queues() []command.CommandQueue {
 		&p.hands.aheads,
 		&p.hands.backs,
 		&p.hands.turns,
+		&p.hands.strafes,
 		&p.hands.towards,
 		&p.hands.jumps,
 	}
 }
 
-// DefaultBindings are DefaultKeys: the keys driving the unit the camera is fastened to.
+// DefaultBindings are DefaultKeys, the keys driving the unit the camera is fastened to, and
+// Space to jump riding inside it.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	var out []control.Binding
 	for _, k := range DefaultKeys() {
 		out = append(out, k.Bindings()...)
 	}
-	return out
+	return append(out, JumpKey(control.KeySpace).In(camera.Inside))
 }

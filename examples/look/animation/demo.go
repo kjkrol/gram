@@ -65,7 +65,7 @@ type arena struct {
 func main() {
 	props := game.Props{
 		Title:       "gram animation demo",
-		Description: "A sprite drawn frame after frame; Space freezes the gait.",
+		Description: "A sprite drawn frame after frame; Shift+P freezes the gait.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}

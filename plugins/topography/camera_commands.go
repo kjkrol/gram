@@ -153,8 +153,8 @@ func cameraBindings(perspective bool) []control.Binding {
 		control.Build(control.KeyHeld{Key: control.KeyF}, "Bow the head: look down more steeply", tilt(TiltStep)).In(camera.Outside),
 		control.Build(control.KeyPress{Key: control.KeyV}, closer, ride).In(camera.Centred, camera.Behind),
 		control.Build(control.KeyPress{Key: control.KeyV}, "Leave the unit: over it again", ride).In(camera.Inside),
-		control.Build(control.CursorMove{}, "Look round, where the camera looks by mouse: across turns, up and down the head", func(c control.Context) (Look, bool) {
-			return Look{Camera: c.Camera, Dx: float32(c.Delta.X), Dy: float32(c.Delta.Y)}, camera.MouseLooks(c.Camera)
+		control.Build(control.CursorMove{}, "Look round with the mouse: across turns, up and down the head", func(c control.Context) (Look, bool) {
+			return Look{Camera: c.Camera, Dx: float32(c.Delta.X), Dy: float32(c.Delta.Y)}, true
 		}).In(camera.Inside),
 	}
 }

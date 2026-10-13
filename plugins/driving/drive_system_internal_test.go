@@ -132,6 +132,34 @@ func TestDrive_WalksOnTheWayItFacesAndTurnsByHand(t *testing.T) {
 	}
 }
 
+func TestDrive_StrafesAcrossTheWayItFacesAndStopsAtTheWaterBeside(t *testing.T) {
+	r := newDriveRig(t)
+	r.place(45)
+	r.drive(steering.Driven{Side: 1})
+	var dir geom.Vec
+	r.with(func(_ *unit.At, b *world.Base, _ steering.Helm, _ *steering.Driven, _ bool) { dir = b.Vel.Dir })
+	if st := r.steering(); st.Side != 20 || st.WantSpeed != 0 || dir != geom.NewVec(1, 0) {
+		t.Errorf("Right held: strafes at %v, asks %v ahead, faces %v; want 20 across, standing, east", st.Side, st.WantSpeed, dir)
+	}
+	r.with(func(_ *unit.At, _ *world.Base, s steering.Helm, _ *steering.Driven, _ bool) { s.Sprint = 2 })
+	r.drive(steering.Driven{Side: -1, Sprint: true})
+	if st := r.steering(); st.Side != -40 {
+		t.Errorf("Left with Shift: strafes at %v, want -40, the sprint", st.Side)
+	}
+	r.drive(steering.Driven{})
+	if st := r.steering(); st.Side != 0 {
+		t.Errorf("no key held strafes at %v, want 0", st.Side)
+	}
+	r.with(func(_ *unit.At, b *world.Base, _ steering.Helm, _ *steering.Driven, _ bool) {
+		b.Vel.Dir = geom.NewVec(0, -1)
+	})
+	r.place(57) // facing north, the water 3 to its right
+	r.drive(steering.Driven{Side: 1})
+	if st := r.steering(); st.Side != 0 {
+		t.Errorf("Right into the water strafes at %v, want 0", st.Side)
+	}
+}
+
 func TestDrive_StopsAtTheWaterAndAtACellTakenAndBrakesWithNoHand(t *testing.T) {
 	r := newDriveRig(t)
 	r.place(57) // in cell 5, 3 short of the water

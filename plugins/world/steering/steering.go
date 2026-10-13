@@ -34,6 +34,7 @@ type Course struct {
 	Delay     uint8
 	Speed     float64 // under zero, backing away
 	WantSpeed float64 // under zero, backing away
+	Side      float64 // across the heading, to the right over zero: a strafe, at once
 }
 
 // Helm is an entity's Steering and Course together, as whoever steers it holds them.
@@ -86,6 +87,16 @@ func (h Helm) RequestBack(v float64) {
 		return
 	}
 	h.WantSpeed = -min(max(v, 0), h.MaxSpeed)
+}
+
+// RequestSide asks the entity to strafe at v across its heading, to its right over zero, held
+// within the top speed (Sprint times it); nothing without a profile.
+func (h Helm) RequestSide(v float64) {
+	if h.MaxSpeed <= 0 {
+		return
+	}
+	top := h.MaxSpeed * max(h.Sprint, 1)
+	h.Side = min(max(v, -top), top)
 }
 
 // Braking is the rate the entity slows at: Brake, or Accel without one.

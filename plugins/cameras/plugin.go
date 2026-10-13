@@ -41,7 +41,6 @@ type Plugin struct {
 	zooms       command.Queue[Zoom]
 	follows     command.Queue[Follow]
 	lookAts     command.Queue[LookAt]
-	looks       command.Queue[MouseLook]
 	module      *module
 }
 

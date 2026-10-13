@@ -16,6 +16,23 @@ func TestSteering_WithoutV0SetsOffAndAccelerates(t *testing.T) {
 	}
 }
 
+func TestSteering_RequestSideHoldsWithinTheSprint(t *testing.T) {
+	s := helm(Steering{MaxSpeed: 10, Sprint: 2}, Course{})
+	s.RequestSide(-30)
+	if s.Side != -20 {
+		t.Errorf("RequestSide(-30) at a top of 10 sprinting 2 asked for %v, want -20", s.Side)
+	}
+	s.RequestSide(5)
+	if s.Side != 5 {
+		t.Errorf("RequestSide(5) asked for %v, want 5", s.Side)
+	}
+	none := helm(Steering{}, Course{})
+	none.RequestSide(5)
+	if none.Side != 0 {
+		t.Errorf("RequestSide without a profile asked for %v, want nothing", none.Side)
+	}
+}
+
 func TestSteering_BacksAwayOnlyOnceStopped(t *testing.T) {
 	s := helm(Steering{MaxSpeed: 100, Accel: 40, Brake: 80, V0: 10}, Course{Speed: 60})
 	s.RequestBack(30)

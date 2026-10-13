@@ -88,9 +88,6 @@ type Config struct {
 	MinZoom float32
 	// MaxZoom caps ZoomIn; 0 leaves it unrestricted.
 	MaxZoom float32
-	// MouseLook has the eye riding Inside an entity look round with the mouse, the cursor captured.
-	// A camera without first person ignores it.
-	MouseLook bool
 }
 
 // Fitting is a camera that may keep the whole world in view (Config.Whole). Fits says whether it

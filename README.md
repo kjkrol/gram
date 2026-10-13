@@ -291,7 +291,7 @@ demo opens a window; what it shows is tested in the library's package that does 
 | Demo | Shows | Run |
 |:---|:---|:---|
 | [`look/appearance`](examples/look/appearance) | Walkers drawn facing the way they go, red while angry (R), the leader turned with a crown on, a ghost a ghost whatever it feels | `make demo-appearance` |
-| [`look/animation`](examples/look/animation) | A sprite drawn frame after frame in game time (Space freezes the gait), each frame turned the way the bug goes | `make demo-animation` |
+| [`look/animation`](examples/look/animation) | A sprite drawn frame after frame in game time (Shift+P freezes the gait), each frame turned the way the bug goes | `make demo-animation` |
 | [`look/material`](examples/look/material) | An entity drawn by a material worked out per pixel in place of a sprite; C calms it into a plain sprite for a while | `make demo-material` |
 | [`look/ember`](examples/look/ember) | Procedural animation out of the entity's state: embers breathe standing and stream a tail driven (WSAD); F douses them | `make demo-ember` |
 
@@ -565,7 +565,7 @@ has a `doc.go` describing what it brings. What is left to do is in
 | [`render`](render/doc.go) | Drawing: `Renderer`, the `Composer` over `Source`s and its `Frame`, `Direct` sources, `Feed`, `Still`, `Atlas`, `Font`, the drawing rules a renderer runs every frame |
 | [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer` (with `Hosts`, the hosts of a plugin's moments), `CommandHandler`, `Serializable`, `PostLoader`, `Populator`, `Made`; `plugin/section` the parts of a Stage |
 | [`entity`](entity/doc.go) | What every entity carries: `Base`, `Position`, `Velocity`, `Z`, `Layers`, `Eye`, `Lie`; `entity/kind` what an entity is (`Spec`, `Define`, `Of`, the roster) |
-| [`clock`](clock/doc.go) | The tactical clock: game time as the sum of the simulation's steps, the pause (Space), the tempo (] and [), the `Moment` of a step with `At` and `Every` |
+| [`clock`](clock/doc.go) | The tactical clock: game time as the sum of the simulation's steps, the pause (Shift+P), the tempo (] and [), the `Moment` of a step with `At` and `Every` |
 | [`ceremony`](https://github.com/kjkrol/ceremony) | The library gram builds on, outside the module: how entities behave — `cond` the conditions, `act` the steps and the branch of a rule, `plan` the loops of a plan, `effect` the states and knobs, `fact` the facts and messages, roles, commands about effects and labels in its root, `host` the hosts a plugin runs rules with, `command` the queues and the carrier, `tag` and `comp`; the language in its `doc/ceremony.md`, how a game uses it over gram's plugins in [`doc/rule.md`](doc/rule.md) |
 | [`plugins/world`](plugins/world/doc.go) | The foundation: the space, movement under the edge rules, kinds and tags, `Seed`/`Populate`, `Spawn`, `Despawn`, the commands about effects, the carrier of commands, the entities' looks on the atlas; it runs the core's systems; `steering` and `view` beside it |
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence`; `game/stage` a Stage defined a section at a time |

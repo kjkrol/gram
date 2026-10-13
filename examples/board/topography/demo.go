@@ -32,6 +32,7 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/gravity"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -79,6 +80,7 @@ type arena struct {
 	nav        *navigation.Plugin
 	driving    *driving.Plugin
 	collision  *collision.Plugin
+	gravity    *gravity.Plugin
 	selection  *selection.Plugin
 	players    *players.Plugin
 	cameras    *cameras.Plugin
@@ -90,8 +92,9 @@ type arena struct {
 
 func main() {
 	props := game.Props{
-		Title:       "gram board topography",
-		Description: "Madeira in relief.",
+		Title: "gram board topography",
+		Description: "Madeira in relief. Select a unit, C follows it, V rides it: inside, the " +
+			"mouse looks round, W and S walk, A and D strafe, Shift sprints, Space jumps.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -127,6 +130,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
 		WithCollision(s.collision).
 		WithLog(log.Default())
+	s.gravity = gravity.NewPlugin(s.world, gravity.Config{}).WithSurfaces(s.board.Surfaces)
 	s.topography = topography.NewPlugin(s.world, s.board, topography.Config{
 		Cell:        CellSize,
 		HeightUnit:  1,
@@ -180,7 +184,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 func (s *arena) definePlayers() error {
 	s.player = s.players.Local("player")
 	s.rival = s.players.Add("rival")
-	return s.player.Bind(append(s.players.Defaults(), cameras.MouseLookKey(control.KeyO))...)
+	return s.player.Bind(s.players.Defaults()...)
 }
 
 func (s *arena) defineEffects() {
@@ -267,16 +271,17 @@ func (s *arena) defineKinds() {
 		TurnRate: 0.15,
 	}
 	mortal := ceremony.Plays(s.world.Roles().Named(MortalRole))
+	body := comp.Const(gravity.Body{Leap: scale.Figure(1)})
 	units.Define(UnitKind, unit.Mover{Domain: cell.Land}, walker,
 		order,
-		sight, eye, mortal,
+		sight, eye, mortal, body,
 	)
 	units.Define(PlateauKind, unit.Mover{Domain: cell.Land}, walker,
-		sight, eye, mortal,
+		sight, eye, mortal, body,
 	)
 	units.Define(RivalKind, unit.Mover{Domain: cell.Land}, walker,
 		order,
-		sight, eye, mortal,
+		sight, eye, mortal, body,
 	)
 	units.Define(HawkKind,
 		unit.Mover{
@@ -350,6 +355,7 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.bridges.RunPlan(ctx, d)
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
+	s.gravity.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
 	s.nav.RunPlan(ctx, d)
 	s.driving.RunPlan(ctx, d)

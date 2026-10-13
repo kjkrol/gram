@@ -13,10 +13,9 @@
 //
 // [Pan] moves a camera by screen pixels and lets go of whatever it was fastened to; [Zoom] scales
 // it about a world point; [Follow] fastens it Centred over an entity, kept in the middle of the
-// screen as it goes, or lets it go; [LookAt] moves it once onto an entity, fastened to nothing;
-// [MouseLook] switches whether a camera riding inside an entity looks round with the mouse
-// ([MouseLookKey] binds it). Each names its camera, taken from the context by its binding, so the
-// plugin never knows the players. A camera fastened Behind or Inside an entity is the view
+// screen as it goes, or lets it go; [LookAt] moves it once onto an entity, fastened to nothing.
+// Each names its camera, taken from the context by its binding, so the plugin never knows the
+// players. A camera riding Inside an entity looks round with the mouse, the cursor captured. A camera fastened Behind or Inside an entity is the view
 // plugin's to keep.
 //
 // # Keys

@@ -29,6 +29,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 			switch k.Action {
 			case control.ActionPress:
 				t.fire(pl, control.KeyPress{Key: k.Key, Mods: pl.in.withHeld(mods)}, ctx)
+				t.fire(pl, control.KeyDown{Key: k.Key}, ctx)
 				pl.in.keyDown(pl.bindings, k.Key)
 				pl.in.steer(pl.bindings, k.Key, true)
 			case control.ActionRelease:

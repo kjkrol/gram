@@ -7,6 +7,22 @@ import (
 	"github.com/kjkrol/gram/entity"
 )
 
+func TestVelocity_SideRunsAcrossTheHeadingToTheRight(t *testing.T) {
+	v := entity.Velocity{Dir: geom.NewVec(1, 0), Value: 2, Side: 3}
+	if d := v.Delta(); d != geom.NewVec(2, 3) {
+		t.Errorf("east at 2, strafing right at 3: the rate is %v, want (2, 3), south being right", d)
+	}
+	v.SetDelta(geom.NewVec(0, 5))
+	if v.Side != 0 || v.Dir != geom.NewVec(0, 1) {
+		t.Errorf("a rate set: Side %v, Dir %v; want the strafe gone, facing south", v.Side, v.Dir)
+	}
+	v = entity.Velocity{Dir: geom.NewVec(1, 0), Value: 2, Side: 3}
+	v.Slow(geom.NewVec(1, 1))
+	if v.Side != 0 || v.Value != 1 {
+		t.Errorf("slowed: Side %v, Value %v; want the strafe gone and 1 along", v.Side, v.Value)
+	}
+}
+
 func TestVelocity_SetDeltaKeepsABackingEntityBacking(t *testing.T) {
 	on := entity.Velocity{Dir: geom.NewVec(1, 0), Value: 2}
 	on.SetDelta(geom.NewVec(0, 3))

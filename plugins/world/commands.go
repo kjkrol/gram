@@ -45,10 +45,10 @@ func (p *Plugin) Queues() []command.CommandQueue {
 	return append(q, m.steer.Queues()...)
 }
 
-// DefaultBindings are the clock's keys: Space pauses, ] goes faster, [ slower.
+// DefaultBindings are the clock's keys: Shift+P pauses, ] goes faster, [ slower.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	return []control.Binding{
-		control.Build(control.KeyPress{Key: control.KeySpace}, "Pause the game", func(control.Context) (Pause, bool) { return Pause{}, true }),
+		control.Build(control.KeyPress{Key: control.KeyP, Mods: control.Mods{Shift: true}}, "Pause the game", func(control.Context) (Pause, bool) { return Pause{}, true }),
 		control.Build(control.KeyPress{Key: control.KeyBracketRight}, "Speed the game up", func(control.Context) (Faster, bool) { return Faster{}, true }),
 		control.Build(control.KeyPress{Key: control.KeyBracketLeft}, "Slow the game down", func(control.Context) (Slower, bool) { return Slower{}, true }),
 	}

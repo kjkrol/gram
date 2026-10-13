@@ -56,7 +56,7 @@
 // A [MoveTo] sends every Selected entity of the player who gave it, those it owns alone, to a cell
 // on a [Level], or with Append queues the cell behind their orders; a [LookAt] stops them and turns
 // them towards a point. [Plugin.DefaultBindings] make a right click a MoveTo, Shift appending, a
-// right drag a LookAt at every move, and Shift+P [Routes]. Driving a unit by hand is the driving
+// right drag a LookAt at every move, and Shift+R [Routes]. Driving a unit by hand is the driving
 // plugin's, which [NewPlugin] takes: a unit a hand is on gives its order up.
 //
 // # Renderer

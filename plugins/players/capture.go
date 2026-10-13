@@ -9,7 +9,7 @@ import (
 func (p *Plugin) capture() bool {
 	riding := false
 	for _, pl := range p.Locals() {
-		riding = riding || camera.HowOf(pl.pic.camera) == camera.Inside && camera.MouseLooks(pl.pic.camera)
+		riding = riding || camera.HowOf(pl.pic.camera) == camera.Inside
 	}
 	if riding == p.captured {
 		return true

@@ -220,6 +220,16 @@ func TestHand_TwoKeysInOneTickAddUp(t *testing.T) {
 	}
 }
 
+func TestHand_StrafeKeysAddUpAndNeverPastOne(t *testing.T) {
+	f := newField(t, walker{start: 12, owner: 1, selected: true})
+	f.give(1, driving.Strafe{Camera: f.cams[1], Way: 1})
+	f.give(1, driving.Strafe{Camera: f.cams[1], Way: 1})
+	f.tick(1)
+	if s := f.read()[f.ids[0]]; s.driven == nil || *s.driven != (steering.Driven{Side: 1}) {
+		t.Errorf("the unit carries %+v, want Side 1", s.driven)
+	}
+}
+
 func TestHand_ATickWithoutAHandBrakesAndThenLetsGo(t *testing.T) {
 	f := newField(t, walker{start: 12, owner: 1, selected: true})
 	id := f.ids[0]

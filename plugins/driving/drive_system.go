@@ -107,6 +107,17 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			if zs != nil {
 				w.z = &zs[i]
 			}
+			right := geom.NewVec(-heading.Y, heading.X)
+			switch {
+			case in.Side != 0 && s.open(w, geom.NewVec(right.X*float64(in.Side), right.Y*float64(in.Side))):
+				side := st.MaxSpeed * level
+				if in.Sprint {
+					side *= max(st.Sprint, 1)
+				}
+				st.RequestSide(float64(in.Side) * side)
+			default:
+				st.RequestSide(0) // at the water's edge beside it too
+			}
 			switch {
 			case in.Ahead > 0 && s.open(w, heading) && in.Sprint:
 				st.RequestSprint()

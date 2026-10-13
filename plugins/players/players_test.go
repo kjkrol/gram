@@ -285,6 +285,28 @@ func TestKeysAndButtons_FireWithExactlyTheirModifiers(t *testing.T) {
 	}
 }
 
+func TestKeyDown_FiresWhateverIsHeld(t *testing.T) {
+	r := newRig(t)
+	r.bind(
+		control.Build(control.KeyDown{Key: control.KeySpace}, "jump", orderOf(1)),
+		control.Build(control.KeyPress{Key: control.KeyA}, "a", orderOf(2)),
+	)
+	ev := &control.InputEvents{}
+	ev.Modifiers.Shift = true
+	ev.AddKeyEvent(control.KeySpace, control.ActionPress)
+	ev.AddKeyEvent(control.KeyA, control.ActionPress)
+	r.handle(ev)
+	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != 1 {
+		t.Errorf("Space and A with Shift held issued %v, want the jump alone", got)
+	}
+	ev = &control.InputEvents{}
+	ev.AddKeyEvent(control.KeySpace, control.ActionPress)
+	r.handle(ev)
+	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != 1 {
+		t.Errorf("Space alone issued %v, want the jump", got)
+	}
+}
+
 func TestDrag_FiresOnReleaseAndButtonHeldKnowsWhereItBegan(t *testing.T) {
 	r := newRig(t)
 	r.bind(control.Build(control.Drag{Button: control.MouseButtonLeft}, "box", func(c control.Context) (order, bool) {
@@ -431,9 +453,6 @@ type riding struct {
 	camera.Camera
 	on bool
 }
-
-func (r *riding) MouseLook() bool   { return true }
-func (r *riding) SetMouseLook(bool) {}
 
 func (r *riding) Fasten(camera.Fastening) {}
 

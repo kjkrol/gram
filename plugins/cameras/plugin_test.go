@@ -5,7 +5,6 @@ import (
 	"encoding/gob"
 	"testing"
 
-	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
@@ -60,15 +59,9 @@ func TestCameras_AreSavedAndRestoredWithTheGame(t *testing.T) {
 
 func TestNew_EveryCameraHasAConfigOfItsOwn(t *testing.T) {
 	p := cameras.NewPlugin(newWorld())
-	looking := func(width, height uint32, edges aabbworld.Edges, cfg camera.Config) camera.Camera {
-		return &looker{Camera: cameras.TopDown()(width, height, edges, cfg), on: cfg.MouseLook}
-	}
 	red := p.New(cameras.TopDown(), camera.Config{Zoom: 2})
-	blue := p.New(looking, camera.Config{MouseLook: true})
+	blue := p.New(cameras.TopDown(), camera.Config{})
 	if red.Zoom() != 2 || blue.Zoom() != 1 {
 		t.Errorf("red's camera at zoom %v, blue's at %v; want each its own: 2 and 1", red.Zoom(), blue.Zoom())
-	}
-	if camera.MouseLooks(red) || !camera.MouseLooks(blue) {
-		t.Errorf("looking round with the mouse: red %v, blue %v; want blue's alone", camera.MouseLooks(red), camera.MouseLooks(blue))
 	}
 }

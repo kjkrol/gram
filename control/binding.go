@@ -38,6 +38,9 @@ type KeyPress struct {
 	Mods Mods
 }
 
+// KeyDown fires when Key goes down, whatever else is held: a jump while sprinting with Shift.
+type KeyDown struct{ Key Key }
+
 // KeyHeld fires once a tick while Key is down, whatever else is held, its command landing in the
 // tick after. A key tapped between two ticks never fires.
 type KeyHeld struct{ Key Key }
@@ -74,6 +77,7 @@ type CursorOver struct{}
 type CursorMove struct{}
 
 func (KeyPress) trigger()     {}
+func (KeyDown) trigger()      {}
 func (KeyHeld) trigger()      {}
 func (ButtonPress) trigger()  {}
 func (Drag) trigger()         {}

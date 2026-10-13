@@ -14,7 +14,7 @@
 // that defines a command's type keeps a [Queue] of it and drains it in its own pass, each
 // [command.Issued] with the [command.Issuer] that gave it, or the entity that gave it itself; a [command.Carrier] sorts
 // commands into the queues of their types. Traits a command may have besides are asked for
-// where they matter: [command.Routed], [Contextual]. A [Binding] is a [Trigger] ([KeyPress], [KeyHeld],
+// where they matter: [command.Routed], [Contextual]. A [Binding] is a [Trigger] ([KeyPress], [KeyDown], [KeyHeld],
 // [ButtonPress], [Drag], [Wheel], [ButtonHeld], [CursorAtEdge], [CursorMove], [CursorOver]) with
 // exactly its [Mods], the command [Build] makes from a [Context] or [Give] names, and a label for
 // the list of keys. A Context carries the player, its camera, the cursor and the point picked in

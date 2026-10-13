@@ -56,8 +56,8 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 		for i := range cursor.IDs {
 			h := Helm{Steering: &steers[i], Course: &courses[i]}
 			if h.Halted {
-				h.Speed = 0
-				bases[i].Vel.Value = 0
+				h.Speed, h.Side = 0, 0
+				bases[i].Vel.Value, bases[i].Vel.Side = 0, 0
 				continue
 			}
 			if h.Want.X != 0 || h.Want.Y != 0 {
@@ -71,7 +71,7 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 			if h.MaxSpeed > 0 {
 				h.advance(dt)
-				bases[i].Vel.Value = h.Speed
+				bases[i].Vel.Value, bases[i].Vel.Side = h.Speed, h.Side
 			}
 		}
 	}

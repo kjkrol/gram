@@ -170,12 +170,12 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 	}
 	events := &control.InputEvents{}
 	events.Modifiers.Shift = true
-	events.AddKeyEvent(control.KeyP, control.ActionPress)
+	events.AddKeyEvent(control.KeyR, control.ActionPress)
 	pl.EventHandler().HandleEvents(events)
 	n := 0
 	navPlugin.routes.Drain(func(command.Issued[Routes]) { n++ })
 	if n != 1 {
-		t.Errorf("Shift+P issued %d Routes, want one", n)
+		t.Errorf("Shift+R issued %d Routes, want one", n)
 	}
 	navPlugin.WithRenderer(nil)
 	if navPlugin.RoutesShown() || navPlugin.pathRenderer.RoutesShown() {

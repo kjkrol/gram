@@ -57,8 +57,8 @@ func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	if lines := strings.Join(names["Cameras"], "\n"); !strings.Contains(lines, "W (held)") || !strings.Contains(lines, "Scroll up") || !strings.Contains(lines, "wheel") {
 		t.Errorf("the camera's lines %q, want WASD and the wheel among them", lines)
 	}
-	if lines := strings.Join(names["World"], "\n"); !strings.Contains(lines, "Space") || !strings.Contains(lines, "Pause the game") {
-		t.Errorf("the world's lines %q, want the clock's Space", lines)
+	if lines := strings.Join(names["World"], "\n"); !strings.Contains(lines, "Shift+P") || !strings.Contains(lines, "Pause the game") {
+		t.Errorf("the world's lines %q, want the clock's Shift+P", lines)
 	}
 	if lines := strings.Join(names["Game"], "\n"); lines != "R                      Build a road" {
 		t.Errorf("the game's lines %q, want its own R alone", lines)

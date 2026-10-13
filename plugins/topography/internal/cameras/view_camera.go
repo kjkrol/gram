@@ -19,14 +19,12 @@ type viewCamera struct {
 	wasPersp  bool
 	was       perspPose
 	fastening contract.Fastening
-	mouseLook bool
 	// radians a pixel of a pan the world's edge stopped
 	edgeTurn, edgeTilt float32
 }
 
 var _ contract.Camera = (*viewCamera)(nil)
 var _ contract.Fastenable = (*viewCamera)(nil)
-var _ contract.MouseLooker = (*viewCamera)(nil)
 var _ contract.Vanisher = (*viewCamera)(nil)
 var _ contract.Scaler = (*viewCamera)(nil)
 var _ contract.Eyed = (*viewCamera)(nil)
@@ -93,10 +91,6 @@ func (c *viewCamera) Fasten(f contract.Fastening) { c.fastening = f }
 
 func (c *viewCamera) Fastening() contract.Fastening { return c.fastening }
 
-func (c *viewCamera) MouseLook() bool { return c.mouseLook }
-
-func (c *viewCamera) SetMouseLook(on bool) { c.mouseLook = on }
-
 // fov is radians; the camera starts a pixel wide until whoever shows it gives it its size
 func newCamera(proj projection, width, height uint32, edges aabbworld.Edges, cfg contract.Config, fov float32, reaches bool, ground func(x, y float32) float32, extent func() (low, high float32), bend float32) *viewCamera {
 	if cfg.Whole {
@@ -113,7 +107,7 @@ func newCamera(proj projection, width, height uint32, edges aabbworld.Edges, cfg
 	persp := newPerspCamera(iso.proj, fov, world, vp, ground, extent)
 	persp.bend = bend
 	persp.look()
-	c := &viewCamera{iso: iso, persp: persp, reaches: reaches, mouseLook: cfg.MouseLook}
+	c := &viewCamera{iso: iso, persp: persp, reaches: reaches}
 	c.cur = c.iso
 	if cfg.MinZoom > 0 {
 		c.SetMinZoom(cfg.MinZoom)

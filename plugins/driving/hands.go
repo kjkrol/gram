@@ -8,13 +8,15 @@ import (
 )
 
 type hand struct {
-	ahead, turn int8
-	way         geom.Vec
-	sprint      bool
-	jump        bool
+	ahead, turn, side int8
+	way               geom.Vec
+	sprint            bool
+	jump              bool
 }
 
-func (h hand) drives() bool { return h.ahead != 0 || h.turn != 0 || h.way != geom.Vec{} }
+func (h hand) drives() bool {
+	return h.ahead != 0 || h.turn != 0 || h.side != 0 || h.way != geom.Vec{}
+}
 
 func clampWay(v int8) int8 { return max(min(v, 1), -1) }
 
@@ -28,6 +30,7 @@ type hands struct {
 	aheads  command.Queue[Ahead]
 	backs   command.Queue[Back]
 	turns   command.Queue[Turn]
+	strafes command.Queue[Strafe]
 	towards command.Queue[Toward]
 	jumps   command.Queue[Jump]
 
@@ -51,6 +54,9 @@ func (h *hands) sum() {
 	})
 	h.turns.Drain(func(i command.Issued[Turn]) {
 		h.add(i.Issuer, i.Entity, i.ByEntity, i.Command.Camera, func(x *hand) { x.turn = clampWay(x.turn + i.Command.Way) })
+	})
+	h.strafes.Drain(func(i command.Issued[Strafe]) {
+		h.add(i.Issuer, i.Entity, i.ByEntity, i.Command.Camera, func(x *hand) { x.side = clampWay(x.side + i.Command.Way) })
 	})
 	h.towards.Drain(func(i command.Issued[Toward]) {
 		h.add(i.Issuer, i.Entity, i.ByEntity, i.Command.Camera, func(x *hand) {

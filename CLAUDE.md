@@ -52,7 +52,7 @@ go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # 
 make demo-board-atlas                                              # a small flat board drawn from the game's own atlas — the water a material, shimmering per pixel
 make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, entities standing on the board with names and groups, units playing roles
 make demo-material                                                 # an entity drawn by a material instead of a sprite (render.Look); C calms it into a plain sprite for a while
-make demo-animation                                                # a sprite drawn frame after frame (Slot.Animated, game time: Space freezes the gait), each frame turned the bug's way
+make demo-animation                                                # a sprite drawn frame after frame (Slot.Animated, game time: Shift+P freezes the gait), each frame turned the bug's way
 make demo-dialog                                                   # conversations from YAML: the miller and the smith, lines of their own, a window above the host, what it makes of you under it when pointed at
 make demo-ember                                                    # procedural animation out of the entity's state: embers breathe standing, stream a tail driven (WSAD); F douses into soot
 make demo-platformer                                               # a hero in a side view under gravity (plugins/gravity, a flat world): A/D walk, W jumps, G turns gravity over, a hard landing dazes
@@ -214,7 +214,7 @@ kind a plugin: two moons would need more entities, not built. `Part.Tag`/`Rules`
 (B), `Holds` (Shift+O), `cameras.Pan`,
 `Zoom`, `Follow`, `driving.Ahead`/`Back`/`Turn`/`Toward`, `players.Give`, `ShowShortcuts` (K),
 `atmosphere.Freeze`/`Later`/`Earlier`/
-`ChangeWeather`/`SetWeather`, `world.Spawn`, `Despawn`, `Pause` (Space)/`Faster`/`Slower`. They are
+`ChangeWeather`/`SetWeather`, `world.Spawn`, `Despawn`, `Pause` (Shift+P)/`Faster`/`Slower`. They are
 **real types of the root package, never aliases** (aliases were tried and dropped the same day: two
 names for one thing, a poor godoc; the API has no type aliases — `world.Appearance` went on
 2026-10-06 the same way, the user's word: an alias gets no godoc; the one standing exception is
@@ -223,7 +223,8 @@ for goke and the saves; `command.Issuer` is the player's id, ceremony's own type
 numbers, not an alias): the plugin keeps the queues and carries the commands out by
 its parts' methods (`sky.SetFrozen`/`Shift`, `climate.Change`/`Set`, `clock.TogglePause`/`Faster`/
 `Slower` — `clock`, `sky` and `climate` have no command types). **The default keys are the same in
-every game and no demo repeats one**: Space is the world's tactical pause (the engine's pause,
+every game and no demo repeats one**: Shift+P is the world's tactical pause (since 2026-10-13,
+the user's word: P alone freezes the sun, Space jumps in first person; the engine's pause,
 `Runtime.TogglePause`, is not used by the demos), Shift+Esc quits, K lists the keys, F5 saves and
 F9 loads (the engine's commands, see "Game / persistence");
 `players.GameBindings()` is K and Shift+Esc for a game that binds its own camera keys
@@ -468,11 +469,10 @@ at the altitude; `Pan` lets go, `Zoom` keeps), the topography's camera system `B
 with an ease of `followEase` until its `Vel.Dir` runs up the screen, held through other
 selections, orders, pans and turns — and `Inside` — first person, the eye where the unit's
 `world.Eye` stands (`Eye.Level`; its top without one), the screen as wide across as `Eye.Angle`
-(`perspCamera.across`; the camera's own field without one), the mouse `Look` — opt-in (the user's
-word, 2026-10-07: only in first person, only once asked): `camera.Config.MouseLook` at the start,
-`cameras.MouseLook{Camera}` switching it (`cameras.MouseLookKey(key)`, board-topography's O), a
-`camera.MouseLooker` the topography's view camera is; off, the binding builds nothing and the cursor
-is not captured — (`control.CursorMove`, cursor captured by players; across turns the view and the unit via
+(`perspCamera.across`; the camera's own field without one), the mouse `Look` — always, riding
+inside (since 2026-10-13, the user's word: as a shooter plays; the opt-in `camera.Config.MouseLook`,
+`cameras.MouseLook`, `MouseLookKey` and `camera.MouseLooker` of 2026-10-07 went) —
+(`control.CursorMove`, the cursor captured by players while a camera rides `Inside`; across turns the view and the unit via
 `steering.Driven.Look` — the eye's way, before the hand's `Face` — up/down the head; riding writes `Driven.Flown` and `Driven.Climb` =
 −sin(pitch): the drive system asks a flyer for the run (`Driven.Slope`) along the ground, and the
 altitude system, the one writer of heights, holds a flown flyer's `Z.Altitude` over sea level,
@@ -483,9 +483,11 @@ every camera the control's `Maker` made (`Control.Maker` notes them): an entry f
 fastened `Behind`/`Inside`, let go when the fastening changes or the entity is gone (then
 `Fasten(Fastening{})`); it writes only the eye's part of a `Driven` — `Look` while aiming, `Flown`,
 `Climb` — and clears it on letting go. Bindings `.In(camera.Inside)` fire riding: the driving's
-W/S/A/D (`driving.Tank`; W with Shift `Ahead.Sprint`, read from the `KeyHeld` context's
+W/S/A/D (`driving.Shooter`: W and S walk, A and D strafe — `Strafe{Way}`, `steering.Driven.Side`,
+`Helm.RequestSide` into `Velocity.Side`, the speed across the heading the move pass adds to
+`Delta`, facing on; W with Shift `Ahead.Sprint`, read from the `KeyHeld` context's
 `Mods.Shift`: `steering.Helm.RequestSprint` to `Sprint`·MaxSpeed, the world's step cap still
-holding), the mouse `Look`, V and Tab; `.In(camera.Outside)` the free camera's: Q/E, R/F, Tab, the
+holding), Space `Jump`, the mouse `Look`, V and Tab; `.In(camera.Outside)` the free camera's: Q/E, R/F, Tab, the
 cameras' WASD pan, the climate's Shift+W; the arrows `.In(camera.Behind)` drive the followed unit.
 How a unit is driven by hand is the driving plugin's and `Raise`/`Lower`/`Level` (=, -, L-drag) the
 relief's. Commands carry `control.Context.Camera`, so
@@ -1349,7 +1351,7 @@ trapdoor and pressure plate demos the same).
   (`grounded`, `aloft`), the goal's outline stands at its height.
   `WithRenderer` builds the renderer of routes (its GPU lines are `internal/routes`): for every selected unit its goals (`goals`: not a
   `GivingWay` order's Target, a step aside being no goal) as the entity's outline where it will
-  stand (`world.Look.Footprint` on the ground, `Marks` tier, always) and, on `Routes{}` (Shift+P,
+  stand (`world.Look.Footprint` on the ground, `Marks` tier, always) and, on `Routes{}` (Shift+R,
   `ShowRoutes`), its routes as thin lines over the ground in pieces of the ground's step at the
   ground's depth (`Overlays`), straight through any camera (sprites were interpolated affinely in
   perspective and wobbled); `RouteStyle` via `WithRouteStyle`. Depends on `board`, `world`,
@@ -1390,7 +1392,7 @@ trapdoor and pressure plate demos the same).
   Imports nothing of the world.
 - **`clock`** (core) — the tactical clock, made and run by the world (`world.Plugin.Clock()`):
   game time is the sum of the simulation's steps, `clock.State{Time, Tempo, Paused}` on the
-  clock's own entity, saved. Space is the tactical pause, ] and [ the tempo (`Config.Tempos`, ½ 1
+  clock's own entity, saved. Shift+P is the tactical pause, ] and [ the tempo (`Config.Tempos`, ½ 1
   2 4; sub-steps of one length, or one longer step with `Config.BiggerStep`); the players carry
   the world's commands always. A plugin's `RunPlan` is the interface part of its tick, once a
   tick; what simulates it hands to `clock.Simulate(c, ctx, d, block)` (at once with a nil clock),
@@ -1509,7 +1511,8 @@ trapdoor and pressure plate demos the same).
   `Issue(player, cmd)` is how any command comes in (`ErrUnknownCommand` for a type no command handler
   defines). The commands' contract — `Queue`, `Issued` (`Issuer`, `Nobody`), `Carrier` — is
   `ceremony/command`'s; the input's — `Binding` (`Trigger`s
-  `KeyPress`, `ButtonPress`, `Drag`, `Wheel`, `ButtonHeld`, `CursorAtEdge`, `CursorOver` (once a tick
+  `KeyPress`, `KeyDown` (whatever is held: a jump while sprinting), `KeyHeld`, `ButtonPress`,
+  `Drag`, `Wheel`, `ButtonHeld`, `CursorAtEdge`, `CursorOver` (once a tick
   while the cursor lies over the player's picture, issued with `KeyHeld`'s) with exact `Mods`,
   `Build[C]` built from a `Context` with `World`/`WorldBox` through the camera — a
   `camera.Picker`'s own pick of the ground under the cursor, else `FromScreen`) — lives in
@@ -1549,8 +1552,8 @@ trapdoor and pressure plate demos the same).
   "Game" (never the game's title, the user's word), what it binds in its Stage's Controls section
   (`Player.Bind` notes the section) and its `SceneKeys`, then the plugins' keys by plugin, then
   "General". A plugin's keys a
-  game sets up — `driving.Tank`, `Compass`, `JumpKey`, `cameras.MouseLookKey`,
-  `selection.FollowKey` — are the plugin's, bound in the Players section with the defaults.
+  game sets up — `driving.Tank`, `Shooter`, `Compass`, `JumpKey`, `selection.FollowKey` — are
+  the plugin's, bound in the Players section with the defaults.
   Depends on `world`.
 - **`cameras`** — the cameras a game looks through: `cameras.NewPlugin(world)` makes no camera;
   **each is made where a scene shows it** (2026-10-08, the user's word: the kind of camera and its
@@ -1562,8 +1565,8 @@ trapdoor and pressure plate demos the same).
   every frame) — and says how it starts: `Zoom` (the scale), `Whole` (the whole world in view at
   every size, centred, the background in bars, not panned or zoomed — a minimap; a
   `camera.Fitting`; a camera in relief refuses it), `Follow` (the name of the entity it starts
-  fastened `Centred` over, found by its `ceremony.Label` once in the world), `MinZoom`, `MaxZoom`,
-  `MouseLook`. A top-down camera starts shown at the world's size, a camera in relief as if a pixel
+  fastened `Centred` over, found by its `ceremony.Label` once in the world), `MinZoom`, `MaxZoom`.
+  A top-down camera starts shown at the world's size, a camera in relief as if a pixel
   wide, both over the world's middle. Every camera is saved — its window, zoom and fastening
   (one riding `Inside` comes back inside: the topography's camera system fastens it again) — each
   on its own in the order made, so one made after a Load (a scene's) takes the state of the camera
@@ -1590,12 +1593,17 @@ trapdoor and pressure plate demos the same).
   only what is higher than its step (the user's word, 2026-10-11: physics, not blocking; into the
   water and off an edge as it pleases, the rules deciding) — its `unit.At` and occupancy hold
   following it with `unit.Entered`; with no hand it brakes and is let go once it stands or
-  `Keeping.Ordered`. `Jump{Camera}` has every unit the hand is on give itself a `gravity.Leap`
-  (`driving.JumpKey(key)`; no default key — Space is the pause); a hand that only jumps drives
-  nothing. Keys are sets: `driving.Tank{Ahead, Back, Left,
-  Right, In}` and `driving.Compass{Up, Down, Left, Right, In}` (`Bindings()`), `DefaultKeys()` WSAD
-  `In(camera.Inside)` and the arrows `In(camera.Behind)`; split-screen binds a `Compass` per player,
-  ember and bullet a `Tank` `In(camera.Outside)`, the platformer a `Compass` of Left and Right.
+  `Keeping.Ordered`. `Strafe{Camera, Way}` walks them across the way they face, facing on
+  (`Driven.Side`, `Velocity.Side`; refused into ground the domain may not take beside, as `Ahead`
+  is ahead). `Jump{Camera}` has every unit the hand is on give itself a `gravity.Leap`
+  (`driving.JumpKey(key)`; Space `In(camera.Inside)` among the `DefaultBindings`; without the
+  gravity plugin the Leap goes nowhere); a hand that only jumps drives
+  nothing. Keys are sets: `driving.Tank{Ahead, Back, Left, Right, In}` (Left and Right turn),
+  `driving.Shooter{…}` (Left and Right strafe, the mouse turns) and `driving.Compass{Up, Down,
+  Left, Right, In}` (`Bindings()`), `DefaultKeys()` a `Shooter` of WSAD `In(camera.Inside)` and a
+  `Tank` of the arrows `In(camera.Behind)`; split-screen binds a `Compass` per player, ember and
+  bullet a `Tank` `In(camera.Outside)`, the platformer a `Compass` of Left and Right.
+  board-topography runs the gravity plugin, so its walkers stand on `Surfaces` and leap (2026-10-13).
   Depends on `world`, `selection`, `board`, `players/owner`, `gravity` (the command's type).
 - **`gravity`** — bodies falling, standing, leaping (since 2026-10-11, the user's word: a
   character controller as in Zelda BotW, not rigid bodies; one plugin, two modes):

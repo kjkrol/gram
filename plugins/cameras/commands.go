@@ -38,35 +38,21 @@ type LookAt struct {
 	Entity uid.UID64
 }
 
-// MouseLook switches whether Camera, riding in an entity, looks round with the mouse
-// (camera.MouseLooker).
-type MouseLook struct{ Camera camera.Camera }
-
-func (Pan) Command()       {}
-func (Zoom) Command()      {}
-func (Follow) Command()    {}
-func (LookAt) Command()    {}
-func (MouseLook) Command() {}
+func (Pan) Command()    {}
+func (Zoom) Command()   {}
+func (Follow) Command() {}
+func (LookAt) Command() {}
 
 var (
 	_ command.Command = Pan{}
 	_ command.Command = Zoom{}
 	_ command.Command = Follow{}
 	_ command.Command = LookAt{}
-	_ command.Command = MouseLook{}
 )
 
-// Queues are where Pan, Zoom, Follow, LookAt and MouseLook land.
+// Queues are where Pan, Zoom, Follow and LookAt land.
 func (p *Plugin) Queues() []command.CommandQueue {
-	return []command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.lookAts, &p.looks}
-}
-
-// MouseLookKey is key switching looking round with the mouse, in first person, for the camera the
-// player looks through.
-func MouseLookKey(key control.Key) control.Binding {
-	return control.Build(control.KeyPress{Key: key}, "Look round with the mouse in first person, or not", func(c control.Context) (MouseLook, bool) {
-		return MouseLook{Camera: c.Camera}, true
-	})
+	return []command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.lookAts}
 }
 
 // DefaultBindings are DefaultKeys.

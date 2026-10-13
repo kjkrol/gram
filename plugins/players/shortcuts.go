@@ -183,6 +183,8 @@ func Written(t control.Trigger) string {
 	switch t := t.(type) {
 	case control.KeyPress:
 		return withMods(t.Mods, keyName(t.Key))
+	case control.KeyDown:
+		return keyName(t.Key)
 	case control.KeyHeld:
 		return keyName(t.Key) + " (held)"
 	case control.ButtonPress:

@@ -55,7 +55,7 @@ func (s *handSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			switch {
 			case on:
 				// driveSystem normalises Face
-				in.Ahead, in.Turn, in.Sprint, in.Face = h.ahead, h.turn, h.sprint, h.way
+				in.Ahead, in.Turn, in.Side, in.Sprint, in.Face = h.ahead, h.turn, h.side, h.sprint, h.way
 				if drivens != nil {
 					drivens[i] = in
 				} else {
@@ -67,7 +67,7 @@ func (s *handSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 					cb.AddOne(id, s.statesID, tag.Tags[States](0).With(Driving))
 				}
 			case drivens != nil && states != nil && states[i].Has(Driving):
-				in.Ahead, in.Turn, in.Sprint, in.Face = 0, 0, false, geom.Vec{}
+				in.Ahead, in.Turn, in.Side, in.Sprint, in.Face = 0, 0, 0, false, geom.Vec{}
 				drivens[i] = in
 			}
 		}
