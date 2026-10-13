@@ -38,3 +38,22 @@ func TestVelocity_SetDeltaKeepsABackingEntityBacking(t *testing.T) {
 		t.Errorf("backing velocity's rate is %v, want (-3, 0)", d)
 	}
 }
+
+func TestVelocity_WhatAWallLeavesOfTheSpeedIsAStopFacingOn(t *testing.T) {
+	v := entity.Velocity{Dir: geom.NewVec(1, 0), Value: 24}
+	v.SetDelta(geom.NewVec(0, 1e-5))
+	if v.Dir != geom.NewVec(1, 0) || v.Value != 0 {
+		t.Errorf("set to a residual across: faces %v at %v; want still east, stopped",
+			v.Dir, v.Value)
+	}
+	v = entity.Velocity{Dir: geom.NewVec(1, 0), Value: 24}
+	v.Slow(geom.NewVec(1e-5, 0))
+	if v.Value != 0 {
+		t.Errorf("slowed to a residual along: at %v, want stopped", v.Value)
+	}
+	v = entity.Velocity{Dir: geom.NewVec(1, 0), Value: 24}
+	v.SetDelta(geom.NewVec(0, 0.1))
+	if v.Dir != geom.NewVec(0, 1) || v.Value != 0.1 {
+		t.Errorf("set to a tenth across: faces %v at %v; want south at 0.1", v.Dir, v.Value)
+	}
+}

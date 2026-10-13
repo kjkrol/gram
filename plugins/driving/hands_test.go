@@ -20,6 +20,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -50,6 +51,7 @@ type walker struct {
 	start    cell.ID
 	owner    command.Issuer
 	selected bool
+	collides bool
 }
 
 type field struct {
@@ -68,12 +70,19 @@ type field struct {
 
 func newField(t *testing.T, walkers ...walker) *field {
 	t.Helper()
+	return newFencedField(t, nil, walkers...)
+}
+
+// a fence runs north to south through the middle of each cell of fences
+func newFencedField(t *testing.T, fences []cell.ID, walkers ...walker) *field {
+	t.Helper()
 	f := &field{t: t, grid: grid.DefaultGrids{}.Square(10, 3, 32)}
 	f.w = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 320, Height: 96},
-		Entities: world.EntitiesCfg{MaxCount: len(walkers), MinSize: 22, MaxSize: 22},
+		Entities: world.EntitiesCfg{MaxCount: len(walkers) + len(fences), MinSize: 10, MaxSize: 22},
 	})
-	brd := board.NewPlugin(f.grid, &cell.SingleOccupancy{}, f.w)
+	col := collision.NewPlugin(f.w)
+	brd := board.NewPlugin(f.grid, &cell.SingleOccupancy{}, f.w).WithCollision(col)
 	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(f.w)
 	drv := driving.NewPlugin(f.w, sel).WithGround(brd)
@@ -84,9 +93,20 @@ func newField(t *testing.T, walkers ...walker) *field {
 		f.cams[p] = cameras.TopDown()(320, 96, 0, camera.Config{})
 	}
 	ctx := &installCtx{ecs: goke.New()}
-	for _, p := range []plugin.Plugin{f.w, brd, sel, drv} {
+	for _, p := range []plugin.Plugin{f.w, col, brd, sel, drv} {
 		if err := p.Install(ctx); err != nil {
 			t.Fatal(err)
+		}
+	}
+	if len(fences) > 0 {
+		north, _ := grid.Direction(f.grid, 0, -1)
+		south, _ := grid.Direction(f.grid, 0, 1)
+		kinds := board.NewEntities(brd, board.Shape{Size: 10}, func(c cell.ID) cell.ID { return c })
+		kinds.Define("fence",
+			comp.Const(cell.Floor{Allows: cell.Land, Links: 1<<north | 1<<south, Width: 10}),
+			comp.Const(cell.Rail{Keeps: cell.Land}))
+		for _, c := range fences {
+			f.w.Seed(kinds.Named("fence").Entry(c))
 		}
 	}
 	kinds := make([]kind.ID, len(walkers))
@@ -107,6 +127,10 @@ func newField(t *testing.T, walkers ...walker) *field {
 		spec = append(spec, comp.Tagged(tags...))
 		if wk.owner != command.Nobody {
 			spec = append(spec, comp.Tagged(owner.Of(wk.owner)))
+		}
+		if wk.collides {
+			spec = append(spec,
+				comp.Const(collision.Collider{}), comp.Const(collision.Physics{Mass: 1}))
 		}
 		name := string(rune('a' + i))
 		kind.Define[walker](f.w.Kinds(), name, spec)
@@ -139,6 +163,7 @@ func newField(t *testing.T, walkers ...walker) *field {
 	f.ecs.Setup(systems...)
 	f.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		f.w.RunPlan(rc, d)
+		col.RunPlan(rc, d)
 		brd.RunPlan(rc, d)
 		drv.RunPlan(rc, d)
 		rc.Sync()
@@ -163,6 +188,7 @@ type seen struct {
 	driven  *steering.Driven
 	driving bool
 	speed   float64
+	side    float64
 	at      geom.Vec
 }
 
@@ -181,7 +207,7 @@ func (f *field) read() map[uid.UID64]seen {
 				s.driving = marks[i].Has(driving.Driving)
 			}
 			if courses != nil {
-				s.speed = courses[i].Speed
+				s.speed, s.side = courses[i].Speed, courses[i].Side
 			}
 			out[id] = s
 		}
@@ -227,6 +253,45 @@ func TestHand_StrafeKeysAddUpAndNeverPastOne(t *testing.T) {
 	f.tick(1)
 	if s := f.read()[f.ids[0]]; s.driven == nil || *s.driven != (steering.Driven{Side: 1}) {
 		t.Errorf("the unit carries %+v, want Side 1", s.driven)
+	}
+}
+
+func TestHand_AStrafeStopsWithTheKey(t *testing.T) {
+	f := newField(t, walker{start: 12, owner: 1, selected: true})
+	id := f.ids[0]
+	f.give(1, driving.Strafe{Camera: f.cams[1], Way: 1})
+	f.tick(1)
+	if s := f.read()[id]; s.side == 0 {
+		t.Fatalf("D held: the unit strafes at %v, want its top speed", s.side)
+	}
+	f.tick(2)
+	if s := f.read()[id]; s.side != 0 || s.driving {
+		t.Errorf("D let go, standing: strafes at %v, driving %v; want 0 and let go",
+			s.side, s.driving)
+	}
+}
+
+func TestHand_LetGoAtAFenceItStandsWhereTheFenceHeldIt(t *testing.T) {
+	fence := grid.DefaultGrids{}.Square(10, 3, 32).At(3, 1)
+	f := newFencedField(t, []cell.ID{fence},
+		walker{start: 12, owner: 1, selected: true, collides: true})
+	id := f.ids[0]
+	// a hair off square to the fence: what the wall leaves of the speed must not turn it
+	f.give(1, driving.Toward{Camera: f.cams[1], Way: geom.NewVec(1, 1e-6)})
+	f.tick(1)
+	for range 30 { // east into the fence, held against it
+		f.give(1, driving.Ahead{Camera: f.cams[1]})
+		f.tick(1)
+	}
+	held := f.read()[id]
+	if held.at.X < 94 || held.at.X > 97 { // the fence's west wall at 107, the unit 22 wide
+		t.Fatalf("driven east into the fence the unit stands at %v, want held at its wall", held.at)
+	}
+	f.tick(30)
+	s := f.read()[id]
+	if math.Hypot(s.at.X-held.at.X, s.at.Y-held.at.Y) > 1e-3 || s.driving || s.speed != 0 {
+		t.Errorf("let go at the fence: at %v, Driving %v, speed %v; want standing at %v, let go",
+			s.at, s.driving, s.speed, held.at)
 	}
 }
 

@@ -17,7 +17,13 @@ import (
 
 func TestBounce_AWallTurnsNoUnitAHandSteers(t *testing.T) {
 	heading := geom.NewVec(math.Cos(2*math.Pi/180), math.Sin(2*math.Pi/180))
-	for name, driven := range map[string]bool{"by hand": true, "by nobody": false} {
+	hands := map[string]*steering.Driven{
+		"by hand":                {Ahead: 1},
+		"by a hand off the keys": {},
+		"by nobody":              nil,
+	}
+	for name, hand := range hands {
+		driven := hand != nil
 		t.Run(name, func(t *testing.T) {
 			w := world.NewPlugin(world.Config{
 				Space:    world.SpaceCfg{Width: 1000, Height: 1000},
@@ -35,7 +41,7 @@ func TestBounce_AWallTurnsNoUnitAHandSteers(t *testing.T) {
 				comp.Const(collision.Physics{}),
 			}
 			if driven {
-				spec = append(spec, comp.Const(steering.Driven{Ahead: 1}))
+				spec = append(spec, comp.Const(*hand))
 			}
 			kind.Define[raised](w.Kinds(), "walker", spec)
 			w.Seed(kind.Named[raised](w.Kinds(), "walker").Entry(raised{x: 180}))

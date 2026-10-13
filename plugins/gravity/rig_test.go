@@ -108,6 +108,7 @@ type scene struct {
 	land   *land
 	leap   float64
 	fence  bool
+	deck   bool // a raised band with railings in cell (1, 1), the board's own surfaces
 	water  bool
 	bodies []body
 	rules  []act.Rule
@@ -165,6 +166,9 @@ func newRig(t *testing.T, sc scene) *rig {
 		for y := range uint32(4) {
 			r.brd.Board().Set(g.At(2, y), cell.Kind{Cost: 1, Allows: cell.Water})
 		}
+		if sc.deck { // the deck runs over water too
+			r.brd.Board().Set(g.At(1, 1), cell.Kind{Cost: 1, Allows: cell.Water})
+		}
 	}
 	if sc.fence {
 		r.brd.WithCollision(r.c)
@@ -177,6 +181,18 @@ func newRig(t *testing.T, sc scene) *rig {
 			comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
 		w.Seed(fences.Named("fence").Entry(g.At(1, 1)))
 	}
+	if sc.deck {
+		r.brd.WithCollision(r.c)
+		decks := board.NewEntities(r.brd, board.Shape{Size: 10, Height: 1},
+			func(c cell.ID) cell.ID { return c })
+		north, _ := grid.Direction(g, 0, -1)
+		south, _ := grid.Direction(g, 0, 1)
+		decks.Define("deck",
+			comp.Const(cell.Floor{Allows: cell.Land, Links: 1<<north | 1<<south, Width: 10,
+				Height: 10, Thickness: 1}),
+			comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
+		w.Seed(decks.Named("deck").Entry(g.At(1, 1)))
+	}
 	pull := gravity.Pull{Z: -10}
 	if sc.level != nil {
 		pull = gravity.Pull{Y: 10}
@@ -184,6 +200,10 @@ func newRig(t *testing.T, sc scene) *rig {
 	r.g = gravity.NewPlugin(w, gravity.Config{Pull: pull})
 	if sc.land != nil {
 		l := *sc.land
+		r.g.WithSurfaces(func() ground.Surfaces { return l })
+	}
+	if sc.deck { // the board's own surfaces are the topography's: a stub of the deck here
+		l := land{from: 10, to: 20, top: 10, thick: 1}
 		r.g.WithSurfaces(func() ground.Surfaces { return l })
 	}
 	if err := w.Carry(r.g); err != nil {

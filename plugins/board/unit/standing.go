@@ -19,7 +19,10 @@ type Standing struct {
 	States   tag.Tags[effect.States] // the effects on the cell now: frozen over, snowed under
 	Box      geom.AABB
 	Domain   cell.Domain
-	Airborne bool // in the air over the cell, not on it
+	Airborne bool    // in the air over the cell, not on it
+	Feet     float64 // where its feet stand; -Inf in a world without heights
+	Level    float64 // the cell's ground, under its decks; 0 in a world without heights
+	Reach    float64 // how high it steps
 }
 
 // Who is the entity standing: whose moment it is, for a rule.
@@ -28,11 +31,14 @@ func (s Standing) Who() uid.UID64 { return s.ID }
 // Placed: a rule's Around turns to the rings of cells round those under the entity's box.
 func (Standing) Placed() {}
 
-// Fallen is the word of a unit standing where its domain may not be: in a hole, in water on
-// foot; never while it is in the air.
+// Fallen is the word of a unit that has fallen in where its domain may not be: a hole, water
+// on foot — with its feet down at the cell's ground, never in the air over it nor on a deck
+// over it.
 func Fallen() cond.Word[Standing] { return cond.NewWord("fallen", Standing.fallen) }
 
-func (s Standing) fallen() bool { return !s.Airborne && !s.Kind.Admits(s.Domain) }
+func (s Standing) fallen() bool {
+	return !s.Airborne && !s.Kind.Admits(s.Domain) && s.Feet <= s.Level+s.Reach
+}
 
 // OnKind is the word of a unit standing on a cell of the kind k.
 func OnKind(k cell.Kind) cond.Word[Standing] {

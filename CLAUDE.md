@@ -993,9 +993,11 @@ trapdoor and pressure plate demos the same).
   Every tick, after
   collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the centre, its kind on
   the unit's level — `Board.KindFor(c, feet, reach)`: the deck's within its step of it, else what
-  lies under — the box, the `Mover`'s domain, `Airborne`) to the rules of it; its word
-  `unit.Fallen()` is a land unit in water or in a hole, never one in the air (`unit.Airborne`,
-  the units' marker gravity puts on), `unit.StandingOn(e)` the cell under it under an effect,
+  lies under — the box, the `Mover`'s domain, `Airborne`, `Feet`, `Level`, `Reach`) to the rules
+  of it; its word `unit.Fallen()` is a land unit fallen into water or a hole, its feet down at
+  the cell's ground (2026-10-13, the user's word: drowning is falling in, not hanging over the
+  water), never one in the air (`unit.Airborne`, the units' marker gravity puts on) nor on a deck
+  over it, `unit.StandingOn(e)` the cell under it under an effect,
   `unit.OnKind(k)` of a kind, and the reaction is the game's (the demos:
   `act.Branch[unit.Standing]{Name: "fall in", When: cond.Self.If(unit.Fallen()), Then:
   act.Self.Do(world.Despawn{})}`,
@@ -1222,10 +1224,15 @@ trapdoor and pressure plate demos the same).
   `collision/internal/response`, on numbers alone: `Footing`, `Worse` (over a `Ground`, which a
   `Field` is), the impulse `Exchange` between two `Side`s (inverse mass, bounce, velocity) and
   `Normal`; the system hands it its sides.
-  Ground turning under a unit is no push: it stays, fallen in. The ground never turns a unit a
-  hand steers (`steering.Driven.Steers`; `response.Side.Steered`, `Velocity.Slow`: its speed
-  alone; 2026-10-11, the first person on a bridge swung along it walking into the railing); one
-  under orders glances along the wall, which navigation needs to come round its end.
+  Ground turning under a unit is no push: it stays, fallen in. A wall, the ground's or an
+  entity's (a pier), never turns a unit a hand drives — one carrying a `steering.Driven`, the
+  keys held or not (`contactSide.Steered`; `response.Side.Steered`, `Velocity.Slow`: its speed
+  alone; 2026-10-11, the first person on a bridge swung along it walking into the railing;
+  2026-10-13, a failed leap at a wall with the keys let go turned the unit 90° along it); one
+  under orders glances along the wall, which navigation needs to come round its end. What a wall
+  leaves of the speed below a ten-thousandth is a stop, facing on (`Velocity.stopped`, in `Slow`
+  and `SetDelta`; 2026-10-13: a unit let go at a railing took the residual for a heading and
+  slid along the bridge).
   A bounce's velocity is the entity's own afterwards; a steered unit's speed is its steering's.
   Reactions are rules hosted inside the `collisionSystem`'s own pass: of a `Meeting` per
   confirmed contact between two roles (`cond.Other.If(role)` and `cond.Self.If(a)` at the top; none
@@ -1593,7 +1600,8 @@ trapdoor and pressure plate demos the same).
   only what is higher than its step (the user's word, 2026-10-11: physics, not blocking; into the
   water and off an edge as it pleases, the rules deciding) — its `unit.At` and occupancy hold
   following it with `unit.Entered`; with no hand it brakes and is let go once it stands or
-  `Keeping.Ordered`. `Strafe{Camera, Way}` walks them across the way they face, facing on
+  `Keeping.Ordered` — held still by a wall it stands at once, the course's speed being no
+  momentum, and let go it asks for no speed. `Strafe{Camera, Way}` walks them across the way they face, facing on
   (`Driven.Side`, `Velocity.Side`; refused into ground the domain may not take beside, as `Ahead`
   is ahead). `Jump{Camera}` has every unit the hand is on give itself a `gravity.Leap`
   (`driving.JumpKey(key)`; Space `In(camera.Inside)` among the `DefaultBindings`; without the
@@ -1603,7 +1611,9 @@ trapdoor and pressure plate demos the same).
   Left, Right, In}` (`Bindings()`), `DefaultKeys()` a `Shooter` of WSAD `In(camera.Inside)` and a
   `Tank` of the arrows `In(camera.Behind)`; split-screen binds a `Compass` per player, ember and
   bullet a `Tank` `In(camera.Outside)`, the platformer a `Compass` of Left and Right.
-  board-topography runs the gravity plugin, so its walkers stand on `Surfaces` and leap (2026-10-13).
+  board-topography runs the gravity plugin, so its walkers stand on `Surfaces` and leap 1.5 m
+  (2026-10-13; the railings are 1 m: a leap no higher than a railing never clears it, the
+  feet passing its top for one tick).
   Depends on `world`, `selection`, `board`, `players/owner`, `gravity` (the command's type).
 - **`gravity`** — bodies falling, standing, leaping (since 2026-10-11, the user's word: a
   character controller as in Zelda BotW, not rigid bodies; one plugin, two modes):

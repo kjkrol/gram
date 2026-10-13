@@ -16,7 +16,8 @@
 // system also pushes every movable collider out of the solid ground on its world.Layers and, with
 // heights, in its [Band]. A contact with the ground bounces off it as off an infinite mass and is
 // recorded as a [Contact] with Terrain set and the Cell; a sensor is told and never pushed. A
-// unit a hand steers (steering.Driven) is never turned by the ground, only slowed.
+// unit a hand drives (steering.Driven, the keys held or not) is never turned by a wall, only
+// slowed.
 //
 // A push apart never puts a collider further over ground that does not take it (water to a
 // walker, a hole; Field.Overhang): that side holds where it is and bounces as off the ground, the

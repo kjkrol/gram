@@ -134,9 +134,14 @@ func (s *standingSystem) standing(i int) unit.Standing {
 	}
 	cells := s.r.cells
 	feet, reach := s.feet(i)
+	level := 0.0
+	if s.r.level != nil {
+		level = s.r.level(c)
+	}
 	return unit.Standing{ID: s.ids[i], Cell: c, Kind: cells.KindFor(c, at, feet, reach, s.r.level),
 		States: cells.States(c), Box: s.bases[i].Pos.AABB.AABB, Domain: unit.DomainAt(s.movers, i),
-		Airborne: s.states != nil && s.states[i].Has(unit.Airborne)}
+		Airborne: s.states != nil && s.states[i].Has(unit.Airborne), Feet: feet, Level: level,
+		Reach: reach}
 }
 
 func (s *standingSystem) feet(i int) (float64, float64) {

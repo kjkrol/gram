@@ -180,6 +180,68 @@ func TestFall_ALeapClearsARailingOnlyHigherThanIt(t *testing.T) {
 	}
 }
 
+func TestFall_ALeapOnADeckLandsBackWhereItStood(t *testing.T) {
+	r := newRig(t, scene{leap: 1, deck: true,
+		bodies: []body{{x: 18, y: 15, alt: 10, facing: east}}})
+	for range 10 {
+		r.tick()
+	}
+	before := r.of(0)
+	if before.at != geom.NewVec(18, 15) || before.z.Altitude != 10 || before.airborne {
+		t.Fatalf("standing on the deck at the railing: %+v", before)
+	}
+	r.leap(0)
+	rose := false
+	for range 2 * tps {
+		r.tick()
+		s := r.of(0)
+		rose = rose || s.z.Altitude > 10.5
+		if s.at != before.at {
+			t.Fatalf("in the air or landed at %v, altitude %.2f, airborne %v; want over %v still",
+				s.at, s.z.Altitude, s.airborne, before.at)
+		}
+	}
+	if s := r.of(0); !rose || s.airborne || s.z.Altitude != 10 {
+		t.Errorf("after the leap: rose %v, %+v; want it back on the deck", rose, s)
+	}
+}
+
+func TestFall_OnADeckOverWaterItHasNotFallenInUntilItLeapsOffIntoIt(t *testing.T) {
+	r := newRig(t, scene{leap: 2, deck: true, water: true,
+		bodies: []body{{x: 15, y: 15, alt: 10, facing: east}},
+		rules: []act.Rule{act.Branch[unit.Standing]{
+			Name: "drown",
+			When: cond.Self.If(unit.Fallen()),
+			Then: act.Self.Do(landed{Hard: true}),
+		}}})
+	for range 10 {
+		r.tick()
+	}
+	if got := r.heard.given(); len(got) != 0 || r.of(0).z.Altitude != 10 {
+		t.Fatalf("standing on the deck over water: told %v, at %+v; want nothing, on the deck",
+			got, r.of(0))
+	}
+	r.walk(0, 5)
+	for r.of(0).at.X < 18 {
+		r.tick()
+	}
+	r.leap(0)
+	r.tick()
+	for ; r.of(0).airborne; r.tick() {
+		if got := r.heard.given(); len(got) != 0 {
+			t.Fatalf("at %v in the air over the water it has fallen in", r.of(0).at)
+		}
+	}
+	if s := r.of(0); s.at.X < 20 || s.z.Altitude != 0 {
+		t.Fatalf("landed at %+v, want in the water past the railing", s)
+	}
+	r.walk(0, 0)
+	r.tick()
+	if got := r.heard.given(); len(got) == 0 {
+		t.Error("landed in the water, it has not fallen in")
+	}
+}
+
 func TestFall_InTheAirOverWaterItHasNotFallenIn(t *testing.T) {
 	r := newRig(t, scene{leap: 8, water: true, bodies: []body{{x: 14, y: 15, facing: east}},
 		rules: []act.Rule{act.Branch[unit.Standing]{

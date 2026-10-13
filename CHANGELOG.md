@@ -28,6 +28,18 @@ Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
   Shift+R.
 - board-topography runs the gravity plugin: its walkers stand on the board's surfaces, leap on
   Space and fall off a deck's edge.
+- Fixed: a jump at a bridge's railing in first person ended with the unit turned along the
+  bridge and sliding. A wall holding a unit left a residual of its speed (`Velocity.Slow`,
+  `SetDelta`), which `SetDelta` took for a heading once the hand was off and the course's
+  speed ran along it: what a wall leaves of the speed below a ten-thousandth is a stop, facing
+  on; the driving lets go of a unit held still at once (`Course.Speed` is no momentum then) and
+  asks for no speed, side speed either, whenever the hand is off. A wall — the ground's or an
+  entity's, a pier — turns no unit carrying a `steering.Driven`, the keys held or not: a failed
+  leap at it pushes the unit back facing as it stood (it was turned 90° along the wall with the
+  keys let go in the air). board-topography's walkers
+  leap 1.5 m: a leap as high as the railing (1 m) never cleared it. `unit.Standing` carries
+  `Feet`, `Level` and `Reach`, and `unit.Fallen` holds only with the feet down at the cell's
+  ground: a body over water in the air or on a deck has not fallen in, one landing in it has.
 
 **Ceremony's store behind a contract: the binding `ceremony/goke`** (ceremony v0.2.0, goke v3.4.0)
 - The world runs ceremony through its binding over goke, imported as `cgoke`:

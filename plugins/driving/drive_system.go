@@ -55,14 +55,21 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			in, st, base := drivens[i], steering.Helm{Steering: &steers[i], Course: &courses[i]}, &bases[i]
 			domain := unit.DomainAt(movers, i)
 			ordered := s.keeping != nil && s.keeping.Ordered(id)
+			// held still by a wall (collision's Slow), the course's speed is no momentum
+			if !in.Steers() && base.Vel.Value == 0 && base.Vel.Side == 0 {
+				st.Speed = 0
+			}
 			if states != nil && states[i].Has(Driving) && !in.Steers() && (ordered || st.Speed == 0) {
 				states[i] = states[i].Without(Driving)
+				st.RequestSide(0)
+				st.RequestSpeed(0)
 				if in == (steering.Driven{}) {
 					cb.RemoveCompOne(id, s.drivenID)
 				}
 				continue
 			}
 			if ordered && !in.Steers() {
+				st.RequestSide(0)
 				continue // nobody at the wheel: the order goes on
 			}
 			var z *world.Z

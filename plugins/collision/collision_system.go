@@ -491,6 +491,9 @@ func (d *collisionSystem) side(id uid.UID64) (contactSide, host.Marks, bool) {
 		Entity: id, Base: d.lookupBase.At(cur),
 		Collider: d.lookupCollider.At(cur), Physics: d.lookupPhysics.At(cur),
 		Layers: world.LayersOf(d.lookupLayers.At(cur)), Band: d.bandAt(cur),
+		// a hand's unit keeps its heading, the keys held or not; one under orders glances
+		// along a wall, as navigation needs to come round its end
+		Steered: d.lookupDriven.At(cur) != nil,
 	}
 	if s.Sweep = d.lookupSweep.At(cur); s.Sweep != nil {
 		s.Physics = nil
@@ -535,10 +538,6 @@ func (d *collisionSystem) contactGround(id uid.UID64, cell uint64, pen geom.Vec)
 	normal, aligned := response.Normal(pen)
 	var impact float64
 	if aligned && self.Physics != nil {
-		// a wall turns no unit a hand steers; one under orders glances along it, as navigation
-		// needs to come round its end
-		driven := d.lookupDriven.At(d.lookup.Cursor())
-		self.Steered = driven != nil && driven.Steers()
 		impact = bounce(self, ground, normal)
 	}
 	sides := pairSides{A: self, impact: impact, normal: normal, along: 1}

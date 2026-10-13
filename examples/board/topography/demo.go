@@ -271,7 +271,7 @@ func (s *arena) defineKinds() {
 		TurnRate: 0.15,
 	}
 	mortal := ceremony.Plays(s.world.Roles().Named(MortalRole))
-	body := comp.Const(gravity.Body{Leap: scale.Figure(1)})
+	body := comp.Const(gravity.Body{Leap: scale.Figure(1.5)})
 	units.Define(UnitKind, unit.Mover{Domain: cell.Land}, walker,
 		order,
 		sight, eye, mortal, body,

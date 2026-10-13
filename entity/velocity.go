@@ -23,15 +23,16 @@ func (v Velocity) Delta() geom.Vec {
 	return geom.NewVec(v.Dir.X*v.Value-v.Dir.Y*v.Side, v.Dir.Y*v.Value+v.Dir.X*v.Side)
 }
 
-// SetDelta sets Dir and Value from a per-axis rate; an entity backing away (Value under zero)
-// goes on backing, facing against the rate.
+// SetDelta sets Dir and Value from a per-axis rate, the strafe gone; an entity backing away
+// (Value under zero) goes on backing, facing against the rate. A rate that is nothing against
+// the speed held (what a wall leaves of it) is a stop, facing on.
 func (v *Velocity) SetDelta(d geom.Vec) {
-	v.Side = 0
 	mag := math.Hypot(d.X, d.Y)
-	if mag < 1e-9 {
-		v.Value = 0
+	if v.stopped(mag) {
+		v.Value, v.Side = 0, 0
 		return
 	}
+	v.Side = 0
 	if v.Value < 0 {
 		v.Dir = geom.NewVec(-d.X/mag, -d.Y/mag)
 		v.Value = -mag
@@ -43,11 +44,20 @@ func (v *Velocity) SetDelta(d geom.Vec) {
 
 // Slow keeps Dir and takes of a per-axis rate only what runs along it, never past a stop.
 func (v *Velocity) Slow(d geom.Vec) {
-	v.Side = 0
 	along := d.X*v.Dir.X + d.Y*v.Dir.Y
+	if v.stopped(math.Abs(along)) {
+		v.Value, v.Side = 0, 0
+		return
+	}
+	v.Side = 0
 	if v.Value < 0 {
 		v.Value = min(along, 0)
 		return
 	}
 	v.Value = max(along, 0)
+}
+
+// a ten-thousandth of the speed held is numerical dust, never a heading
+func (v Velocity) stopped(mag float64) bool {
+	return mag < 1e-9 || mag < 1e-4*math.Hypot(v.Value, v.Side)
 }
