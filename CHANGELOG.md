@@ -10,7 +10,25 @@ argument's full path, which moved. Nor those made before decks ran as bands: `ce
 `cell.Rail` and `cell.Built` changed shape. Nor those made before a route knew its levels and
 where it begins: `navigation.Path` changed shape. Nor those made before the behaviours went to
 `ceremony`: the component types' paths changed (`ceremony/tag.Tags[…]`, `effect.Active`,
-`plan.Mind`, `ceremony.Label`).
+`plan.Mind`, `ceremony.Label`). Nor those made before ceremony's store went behind its contract:
+`effect.Active` and `Wide` are the binding's `goke.Active` and `Wide`, `plan.Mind` is `store.Mind`.
+
+**Ceremony's store behind a contract: the binding `ceremony/goke`** (ceremony v0.2.0, goke v3.4.0)
+- The world runs ceremony through its binding over goke, imported as `cgoke`:
+  `world.Plugin.Effects()` is a `*cgoke.Effects` (the register embedded, the runtime beside it:
+  `Cast`, `CastFor`, `Dispel`, `Has` without a command buffer; `Effect.On` is gone), the plans
+  run by `cgoke.NewPlans`, a kind's components spawned by `cgoke.Spawner` and named to a save
+  by `cgoke.LoadComp` (`comp.Spawner`, `LoadToken`, `TypeOf` and `RowOf` are gone: a `comp.Comp`
+  is `Type`, `Row` and `Fill`).
+- A plugin's pass binds its hosts to the columns of its query — `cols := cgoke.NewColumns(qb);
+  host.Bind(cols)`, `cols.Own(&s.col)` for a column it reads itself — and runs them
+  over each block with `cols.Row(cursor)` (`Run(t, row, n, about)`, `RunWhere`,
+  `PairRules.Read(q, row, i)` in place of `InChunk` and `At`); `host.Tick` carries no command
+  buffer and `world.Plugin.Tick` takes the step alone.
+- `kind.Spec` takes a `plan.Planned` (`plan.New`); `navigation` reads `store.Mind`.
+- `bench/behaviour_test.go`: `Benchmark_Plans_Tick`, `Benchmark_Rules_Moving` and
+  `Benchmark_Effects_Tick` measure the behaviour a tick, so a change in ceremony or its binding
+  is held to the numbers.
 
 **Behaviours moved out to [`ceremony`](https://github.com/kjkrol/ceremony) v0.1.0**
 - How entities behave — rules, plans, effects, roles, commands, facts — is the library

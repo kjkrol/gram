@@ -1,8 +1,9 @@
 package navigation
 
 import (
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
-	"github.com/kjkrol/ceremony/plan"
+	"github.com/kjkrol/ceremony/store"
 	"math"
 	"slices"
 	"time"
@@ -197,7 +198,7 @@ type navigationSystem struct {
 	lastOrderID goke.CompID
 	lastLacking []LastOrder
 	lastIDs     []uid.UID64
-	mind        goke.OptComp[plan.Mind]
+	mind        goke.OptComp[store.Mind]
 	blocked     goke.OptComp[Blocked]
 	arrived     goke.OptComp[Arrived]
 	blockedID   goke.CompID
@@ -205,15 +206,16 @@ type navigationSystem struct {
 	blocking    map[uid.UID64]Blocked
 	arrivals    []arrival
 
-	given    *givenQueues
-	told     map[uid.UID64]told
-	touched  []touching
-	felt     map[[2]uid.UID64]bool // the pairs touching this tick, each once; refused, one way
-	touches  *host.PairRules[Touch]
-	bumps    bumps
-	marks    *goke.Query
-	markCell goke.Comp[unit.At]
-	tick     host.TickSource
+	given     *givenQueues
+	told      map[uid.UID64]told
+	touched   []touching
+	felt      map[[2]uid.UID64]bool // the pairs touching this tick, each once; refused, one way
+	touches   *host.PairRules[Touch]
+	marksCols *cgoke.Columns
+	bumps     bumps
+	marks     *goke.Query
+	markCell  goke.Comp[unit.At]
+	tick      host.TickSource
 
 	orderID goke.CompID
 
@@ -264,7 +266,8 @@ func (s *navigationSystem) Init(si *goke.SysInit) {
 	s.seedLegs()
 	if s.touches != nil {
 		marks := si.NewQueryBuilder(&s.markCell)
-		s.touches.Bind(marks)
+		s.marksCols = cgoke.NewColumns(marks)
+		s.touches.Bind(s.marksCols)
 		s.marks = marks.Build()
 	}
 }
@@ -754,7 +757,7 @@ func (s *navigationSystem) feel() {
 
 func (s *navigationSystem) touch(cb *goke.CmdBuf, d time.Duration) {
 	hosted := s.touches != nil && !s.touches.Empty()
-	tick := s.tick.Of(cb, d)
+	tick := s.tick.Of(d)
 	clear(s.felt)
 	for _, t := range s.touched {
 		if t.refused {
@@ -803,7 +806,7 @@ func (s *navigationSystem) marksOf(id uid.UID64) host.Marks {
 	if !s.marks.Seek(id) {
 		return host.Marks{}
 	}
-	return s.touches.At(0, s.marks.Cursor())
+	return s.touches.Read(0, s.marksCols.Row(s.marks.Cursor()), int(s.marks.Cursor().Slot))
 }
 
 // way is the way a leaves b

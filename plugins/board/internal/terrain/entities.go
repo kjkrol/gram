@@ -3,10 +3,10 @@ package terrain
 import (
 	"fmt"
 	"github.com/kjkrol/ceremony"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"reflect"
 	"time"
 
-	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/tag"
@@ -21,10 +21,10 @@ var _ goke.System = (*entitySystem)(nil)
 type entitySystem struct {
 	cells    *Cells
 	template *kind.Template
-	extra    []comp.Spawner
+	extra    *cgoke.Spawner
 
 	active      *goke.Query
-	activeComp  goke.Comp[effect.Active]
+	activeComp  goke.Comp[cgoke.Active]
 	activePlot  goke.Comp[cell.Plot]
 	activeMarks goke.OptComp[tag.Tags[effect.States]]
 	spawnPlot   goke.Comp[cell.Plot]
@@ -92,11 +92,8 @@ func (s *entitySystem) spawn(si *goke.SysInit, ids []uid.UID64) {
 		&s.spawnMarks,
 		&s.spawnRoles,
 	}
-	for _, c := range s.templated() {
-		sp := c.Spawner()
-		s.extra = append(s.extra, sp)
-		columns = append(columns, sp.Columns()...)
-	}
+	s.extra = cgoke.NewSpawner(s.templated()...)
+	columns = append(columns, s.extra.Columns()...)
 	s.make(si.NewFactory(columns...), plain, cells, ids, false)
 	if len(labelled) > 0 {
 		s.make(si.NewFactory(append(columns, &s.spawnLabel)...), labelled, cells, ids, true)
@@ -128,9 +125,7 @@ func (s *entitySystem) make(factory *goke.Factory, ordinals []int, cells []cell.
 			if labelled {
 				labels[i] = seed.Labels[c]
 			}
-			for _, sp := range s.extra {
-				sp.Write(cur, i, c, id)
-			}
+			s.extra.Write(cur, i, c)
 			ids[o] = id
 			k++
 		}
@@ -153,11 +148,11 @@ func (s *entitySystem) templated() kind.Spec {
 	}
 	spec := s.template.Spec()
 	for _, c := range spec {
-		if own[comp.TypeOf(c)] {
-			panic(fmt.Sprintf("board: the cells' template gives %v, which the board gives every cell itself", comp.TypeOf(c)))
+		if own[c.Type()] {
+			panic(fmt.Sprintf("board: the cells' template gives %v, which the board gives every cell itself", c.Type()))
 		}
-		if row := comp.RowOf(c); row != nil && row != reflect.TypeFor[cell.ID]() {
-			panic(fmt.Sprintf("board: the cells' template loads %v from a %v; a cell's row is its cell.ID", comp.TypeOf(c), row))
+		if row := c.Row(); row != nil && row != reflect.TypeFor[cell.ID]() {
+			panic(fmt.Sprintf("board: the cells' template loads %v from a %v; a cell's row is its cell.ID", c.Type(), row))
 		}
 	}
 	return spec

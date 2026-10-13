@@ -1,6 +1,7 @@
 package moments
 
 import (
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
@@ -11,7 +12,8 @@ import (
 var _ goke.System = (*cellSystem)(nil)
 
 type cellSystem struct {
-	r *Rules
+	cols *cgoke.Columns
+	r    *Rules
 
 	query  *goke.Query
 	plot   goke.Comp[cell.Plot]
@@ -31,7 +33,8 @@ func newCellSystem(r *Rules) *cellSystem {
 
 func (s *cellSystem) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.plot, &s.ground)
-	s.r.now.Bind(qb)
+	s.cols = cgoke.NewColumns(qb)
+	s.r.now.Bind(s.cols)
 	s.query = qb.Build()
 }
 
@@ -39,12 +42,12 @@ func (s *cellSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	if s.r.now.Empty() {
 		return
 	}
-	tick := s.r.tick.Of(cb, d)
+	tick := s.r.tick.Of(d)
 	tick.Around = s.r.around
 	for s.query.All(); s.query.Next(); {
 		cursor := s.query.Cursor()
 		s.ids, s.plots, s.grounds = cursor.IDs, s.plot.Slice(cursor), s.ground.Slice(cursor)
-		s.r.now.Run(tick, cursor, s.about)
+		s.r.now.Run(tick, s.cols.Row(cursor), len(cursor.IDs), s.about)
 	}
 }
 

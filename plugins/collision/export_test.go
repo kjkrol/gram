@@ -24,8 +24,8 @@ func (m *module) Hook(rules ...act.Rule) error {
 
 // Carry has the commands the rules give go to commands; call before RegSystems.
 func (m *module) Carry(commands *command.Carrier) {
-	m.tick = func(cb *goke.CmdBuf, dt time.Duration) host.Tick {
-		return host.Tick{CmdBuf: cb, Now: time.Now(), Dt: dt, Commands: commands}
+	m.tick = func(dt time.Duration) host.Tick {
+		return host.Tick{Now: time.Now(), Dt: dt, Commands: commands}
 	}
 }
 

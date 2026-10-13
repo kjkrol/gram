@@ -106,7 +106,7 @@ func (s *talkSystem) begin(i command.Issued[Begin]) {
 		return
 	}
 	*s.talkOf(speaker) = Talk{Node: start, With: listener}
-	s.p.w.Effects().CastFor(s.cb, speaker, s.p.talking, effect.Forever)
+	s.p.w.Effects().CastFor(speaker, s.p.talking, effect.Forever)
 }
 
 func (s *talkSystem) busy(id uid.UID64) bool {
@@ -178,7 +178,7 @@ func (s *talkSystem) end(speaker uid.UID64, t *Talk, toTheEnd bool) {
 	effects := s.p.w.Effects()
 	effects.Dispel(speaker, s.p.talking)
 	if toTheEnd {
-		effects.Cast(s.cb, speaker, s.p.talked)
+		effects.Cast(speaker, s.p.talked)
 	}
 	*t = Talk{}
 }

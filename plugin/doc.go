@@ -23,9 +23,11 @@
 // engine its hosts (a [Host] is a [Rules], a [PairRules] or a [StepRules]), and once the Stage's
 // Init returns the engine hands the rules of every role somebody plays to the first host that
 // does not refuse them with [ErrUnhosted]; [ErrHostBuilt] is a rule handed over after ecs.Setup.
-// Rules run over the entities the plugin walks (Bind, Run, RunWhere; [Own] shares a column it
-// reads itself), PairRules over pairs (Bind, [Marks] read with InChunk or At, then Dispatch,
-// DispatchEitherWay or DispatchGrouped), StepRules once a step, walking no entities. Each hands
+// Rules run over the entities the plugin walks (Bind to the columns of its query, made by
+// ceremony/goke's NewColumns, which Own shares a column the plugin reads itself with; Run and
+// RunWhere over each block, cols.Row(cursor)), PairRules over pairs (Bind, [Marks] read with
+// Read, then Dispatch, DispatchEitherWay or DispatchGrouped), StepRules once a step, walking no
+// entities. Each hands
 // its rules a [Tick], made by the world's [TickSource]. A moment is [About] one entity, [Met]
 // others too, a [Subject] names another, an [Aimed] command is told whom it is about, a [Placed]
 // moment stands on places of their own.

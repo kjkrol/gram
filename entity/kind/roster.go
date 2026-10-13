@@ -42,11 +42,11 @@ func (r *Template) Default(c comp.Comp) { r.defaults = append(r.defaults, c) }
 func (r *Template) Spec(own ...comp.Comp) Spec {
 	given := map[reflect.Type]bool{}
 	for _, c := range own {
-		given[comp.TypeOf(c)] = true
+		given[c.Type()] = true
 	}
 	spec := make(Spec, 0, len(r.defaults)+len(own))
 	for _, c := range r.defaults {
-		if !given[comp.TypeOf(c)] {
+		if !given[c.Type()] {
 			spec = append(spec, c)
 		}
 	}

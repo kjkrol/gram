@@ -37,7 +37,7 @@ type Of[P any] struct {
 func Define[P any](reg Registry, name string, spec Spec) {
 	row := reflect.TypeFor[P]()
 	for _, c := range spec {
-		if read := comp.RowOf(c); read != nil && read != row {
+		if read := c.Row(); read != nil && read != row {
 			panic(fmt.Sprintf("kind: %q: a Load reads %v, but its rows are %v", name, read, row))
 		}
 	}

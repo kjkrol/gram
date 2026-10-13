@@ -1,6 +1,7 @@
 package world
 
 import (
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
@@ -29,6 +30,7 @@ var _ goke.System = (*exitSystem)(nil)
 type exitSystem struct {
 	w    *module
 	host *host.Rules[Leaving]
+	cols *cgoke.Columns
 
 	query   *goke.Query
 	base    goke.Comp[Base]
@@ -49,7 +51,8 @@ func newExitSystem(w *module, host *host.Rules[Leaving]) *exitSystem {
 func (s *exitSystem) Init(si *goke.SysInit) {
 	s.outside = si.RegComp[Outside]()
 	qb := si.NewQueryBuilder(&s.base).Include(goke.Include[Outside]())
-	s.host.Bind(qb)
+	s.cols = cgoke.NewColumns(qb)
+	s.host.Bind(s.cols)
 	s.query = qb.Build()
 	s.alive = si.NewQueryBuilder(&s.aliveBase).Build()
 }
@@ -60,13 +63,13 @@ func (s *exitSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			s.w.despawn(cb, i.Entity)
 		}
 	})
-	tick := s.w.tick(cb, d)
+	tick := s.w.tick(d)
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
 		s.ids, s.bases = cursor.IDs, s.base.Slice(cursor)
 		if !s.host.Empty() {
-			s.host.Run(tick, cursor, s.at)
+			s.host.Run(tick, s.cols.Row(cursor), len(cursor.IDs), s.at)
 		}
 		for i, id := range s.ids {
 			switch {

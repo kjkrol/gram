@@ -1,6 +1,7 @@
 package selection
 
 import (
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
@@ -28,7 +29,7 @@ const pickReach = 160
 type SelectionSystem struct {
 	selects    *command.Queue[Select]
 	effectCmds *command.Queue[effectCommand]
-	effects    *effect.Effects
+	effects    *cgoke.Effects
 	whom       []uid.UID64
 	hovers     *command.Queue[Hover]
 	hovered    bool
@@ -165,9 +166,9 @@ func (s *SelectionSystem) carry(cb *goke.CmdBuf, by command.Issuer, c effectComm
 		case !on:
 			s.effects.Dispel(id, e)
 		case c.cmd.Lasts > 0:
-			s.effects.CastFor(cb, id, e, c.cmd.Lasts)
+			s.effects.CastFor(id, e, c.cmd.Lasts)
 		default:
-			s.effects.Cast(cb, id, e)
+			s.effects.Cast(id, e)
 		}
 	}
 }

@@ -103,7 +103,7 @@ func TestMoonrise_FiresOnceARiseAndFullPicksTheFullOnes(t *testing.T) {
 	wasRisen, wasFull := false, false
 	for range 8 * 120 { // eight days: the moon twice round
 		n.ecs.Tick(tick)
-		r, f := risen.On(n.a.Entity()), full.On(n.a.Entity())
+		r, f := n.w.Effects().Has(n.a.Entity(), risen), n.w.Effects().Has(n.a.Entity(), full)
 		if r && !wasRisen {
 			rises++
 		}

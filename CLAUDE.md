@@ -18,9 +18,10 @@ the game's arena over the Stage's world and used by the Stage in the order made
 How entities behave — rules, plans, effects, roles, commands, facts — is the library
 [ceremony](https://github.com/kjkrol/ceremony) (`github.com/kjkrol/ceremony`, carved out of gram
 on 2026-10-13; locally `/home/karol/CODE/ceremony`, joined to gram by `/home/karol/CODE/go.work`),
-which gram builds on with goke as the store: gram's plugins perceive (moments, facts, words,
-knobs) and carry commands out, the world keeps the registers, and the grammar is documented
-there (`ceremony/CLAUDE.md`, `ceremony/doc/ceremony.md`), never repeated here.
+which gram builds on through its binding over goke, `ceremony/goke` (imported as `cgoke` in
+every file that imports the ECS too): gram's plugins perceive (moments, facts, words, knobs) and
+carry commands out, the world keeps the registers and runs the binding's systems, and the grammar
+is documented there (`ceremony/CLAUDE.md`, `ceremony/doc/ceremony.md`), never repeated here.
 
 Since this is a library third parties `go get` and browse on pkg.go.dev,
 the extension contract — `game.Game`/`Stage`/`Scene`/`Stack`/`Composition`/
@@ -100,8 +101,9 @@ with `host.Rules[P]`/`host.PairRules[P]`/`host.StepRules[P]` inside a pass it ma
 walk, many rules, never a system per behaviour — handed a `host.Tick`. **What gram keeps** is the
 store's side and the perceiving: the world's registers (`world.Effects()`, `Roles()`,
 `Commands()`; `plugins/world/{effects,roles,commands_register}.go`), the plans defined as a kind
-is registered (`Kinds.Register` takes the `act.Planned` in a Spec into the world's `plan.Plans`,
-`plan.NewPlans`), the commands about effects carried out (`plugins/world/effect_commands.go`),
+is registered (`Kinds.Register` takes the `plan.Planned` in a Spec into the world's `plan.Plans`,
+`plan.NewPlans`, run by `cgoke.NewPlans`), the commands about effects carried out
+(`plugins/world/effect_commands.go`),
 the roles' tags defined by name (`Kinds.DefineTag[cond.Roles]`, `Kinds.Play`/`Played`) and the
 delivery of the rules to the hosts (`ceremony.Deliver` in the engine's `Init`), and every
 plugin's moments, facts, words and knobs, each marked and asserted beside its type: a moment by
@@ -112,9 +114,21 @@ places), a fact by `Fact()` (`var _ fact.Fact = Arrived{}`: `navigation.Blocked`
 `render.Appearance`), a command by `Command()` (`var _ command.Command = MoveTo{}`), a word by
 `cond.NewWord(name, func(P) bool)` (`unit.Fallen()`, `vision.SeesNobody()`, `clock.At(t)`…).
 Nothing that smells of the game goes into ceremony (the user's word, 2026-10-13: "obrzęd",
-prescribed steps with roles — so `command.Issuer`, never a player): the first stage moved the
-code with goke as ceremony's dependency; the store interface and a `ceremony/goke` binding, which
-the registers, `effect_commands.go` and `Kinds.Register` move into, are the next (roadmap). A
+prescribed steps with roles — so `command.Issuer`, never a player). **The store is behind a
+contract** (since 2026-10-13, the user's word: ceremony is a language, and a bridge reads and
+writes the data — through goke's own systems, queries and command buffers, no intermediate
+layer, no extra pointer on the hot path, no lockpick into a chunk): the engine reads a
+`store.Row` a block at a time (an array a column, handed out of goke's own accessors by
+`cgoke.Columns`, indexed as `Slice(cur)[i]` is) and stages what it writes in goke's command
+buffer (`store.Facts.Stage` over `CmdBuf.Reserve`, the first half of `AddOne`), so nothing
+costs more than the typed code it replaced — `bench/behaviour_test.go` measures plans, rules
+and effects a tick, baseline and working tree alternately. A pass binds its hosts with
+`cols := cgoke.NewColumns(qb); host.Bind(cols)` (`cols.Own(&s.col)` shares a column the
+pass reads itself) and runs them over each block with `cols.Row(cursor)`; `host.Tick` carries no
+command buffer (`world.Plugin.Tick(d)`), its `Effects` is the `effect.Runtime` the world's
+`*cgoke.Effects` is (the register embedded: `world.Plugin.Effects()` defines, names, casts and
+asks, `Cast(id, e)` without a buffer — the binding's systems write through their own,
+`ECS.CmdBuf(runnable)`). A
 rule holds no Go code of its own
 but its words: what it does is steps, commands and effects (2026-10-02). What a plugin does
 of its own — terrain pace, logging, counting contacts, the weather on the board — is its own work
@@ -126,8 +140,8 @@ draw)`, a look `Under` an effect, `Turning`, `Facing` — the renderer applying 
 "role zaczepiamy do encji", and a look is the atlas's; vision's views are its option,
 `vision.Plugin.WithViews(render.Show(...))`, given in the scene). The tag families join the
 host's queries as optional
-components, so a rule costs no query, and rules over one component share its column (`host.Own`
-shares the host's own). The moment's type —
+components, so a rule costs no query, and rules over one component share its column
+(`Columns.Own` shares the host's own). The moment's type —
 `collision.Meeting`, `collision.Struck`, `vision.Sighting`, `unit.Standing`, `cell.Now`,
 `world.Moving`, `clock.Moment` — is what says whose it is: a
 host refuses one made for another (`host.ErrUnhosted`), so hooking in the wrong place is an
@@ -153,8 +167,8 @@ written again in a game's dictionary** — the weathers are `weather.Clear`, `Fa
 Stage's struct holding plugins alone. The registers are the world's, so each
 Stage has its own and nothing is the program's: `world.Effects()` (`Define(name, spec)`, `Named`),
 `world.Roles()` (`plugins/world/roles.go`: `Define(name, rules...)`, `Named` a `*ceremony.Part`; the
-tag from `Kinds.DefineTag[cond.Roles]`, 64 a Stage), the plans (`plan.New(name, root)`, an
-`act.Planned` a kind carries in its Spec, defined in the world's `plan.Plans` by
+tag from `Kinds.DefineTag[cond.Roles]`, 64 a Stage), the plans (`plan.New(name, root)`, a
+`plan.Planned` a kind carries in its Spec, registered on the world's `plan.Plans` by
 `Kinds.Register` as the kind is — `world.Plans()` went on 2026-10-12), `world.Commands()`
 (`commands_register.go`: `Define(name, cmd)`, `Named`), the kinds (`kind.Define[P]` returns
 nothing, `kind.Named[P](reg, name)` checks the row type against the definition through
@@ -186,7 +200,7 @@ over the world (`world.Plugin.Made()`, a `plugin.Made`: the Stage uses the plugi
 made) and calls its entity by `p.Name()`; embedded as `*world.Self` (all of them: the world's own is the clock's entity, made with the
 clock's `State` as its knob so the clock's system finds it), is one entity called by the plugin's
 name (`ceremony.Label`), carrying its knobs (`comp.Comp`s, listed for the saves by the world), the
-effects' markers, `tag.Tags[cond.Roles]` and an `effect.Wide` — a slot for every definable effect,
+effects' markers, `tag.Tags[cond.Roles]` and a `cgoke.Wide` — a slot for every definable effect,
 where a unit's or a cell's `Active` holds 8; the effect system walks both (`walk`, `slotsOf`).
 The world's first system (`selves.system`) finds them by name in a loaded game, writing the roles
 declared now, and makes the rest. `Self` is a `ceremony.Router`: `ceremony.Put(e).On(s.atmosphere)`
@@ -205,8 +219,7 @@ kind a plugin: two moons would need more entities, not built. `Part.Tag`/`Rules`
 names for one thing, a poor godoc; the API has no type aliases — `world.Appearance` went on
 2026-10-06 the same way, the user's word: an alias gets no godoc; the one standing exception is
 the entity re-exports, `world.Base = entity.Base` and kin, where the component must be one type
-for goke and the saves — and, on ceremony's side, `plan.Mind`/`plan.Plans` over its engine's,
-the same need; `command.Issuer` is the player's id, ceremony's own type, which `players`
+for goke and the saves; `command.Issuer` is the player's id, ceremony's own type, which `players`
 numbers, not an alias): the plugin keeps the queues and carries the commands out by
 its parts' methods (`sky.SetFrozen`/`Shift`, `climate.Change`/`Set`, `clock.TogglePause`/`Faster`/
 `Slower` — `clock`, `sky` and `climate` have no command types). **The default keys are the same in
@@ -276,7 +289,7 @@ effect's own `Effect.Mark()` "effect.<name>", `unit.Entered`). Putting a compone
 entity in memory (~200 ns, `Benchmark_Marker_*`) against 1–2 ns for a bit: a state that changes
 often or lasts a step is a marker; one that lasts, on few entities, walked alone (`MoveOrder`,
 `Mind`, the facts, `world.Outside`) keeps its own component. Data that comes and goes keeps its
-component, empty when off (`effect.Active`). A game's arena makes its plugins as its own struct
+component, empty when off (`cgoke.Active`). A game's arena makes its plugins as its own struct
 fields in `makePlugins(w *world.Plugin)` — anew each time the Stage is entered, over the world
 `stage.World(cfg)` made, each plugin telling the world of itself as it is made (`world.NewSelf`)
 — and the Stage uses them in the order made (since 2026-10-09, the user's word: the order a game
@@ -672,8 +685,9 @@ What every plugin and every game share is gram's core, at the module's top besid
 `cond`, `act`, `plan`, `host`, `command` and its root), `entity` (with `entity/kind`, which
 imports `ceremony/comp` and `ceremony/tag`) and `clock` (its words of `ceremony/cond`). None
 of them imports a plugin; the world, the builtin plugin, makes and runs their systems (the
-clock's, the plans', the effects') and registers their components for the saves (`effect.Active`,
-`plan.Mind`, `tag.Tags[cond.Roles]`, `ceremony.Label`), as it registers `steering`'s. They were
+clock's, the plans', the effects', through `ceremony/goke`) and registers their components for
+the saves (`cgoke.Active`, `store.Mind`, `tag.Tags[cond.Roles]`, `ceremony.Label`), as it
+registers `steering`'s. They were
 the world's sub-packages until 2026-10-01, when `plugin` itself importing `plugins/world/entity/tag`
 showed they were not, and gram's until 2026-10-13, when the behaviour went to ceremony.
 
@@ -864,7 +878,7 @@ trapdoor and pressure plate demos the same).
   the steering system asks its `Helm`, one a step — and the commands about effects
   (`ceremony.Command`, `ceremony.Trigger`; `plugins/world/effect_commands.go`). The world also
   defines the roles' tags in its kinds (as each role is defined) and loads `ceremony.Label`. Every
-  `host.Tick` a host hands its rules comes from `world.Plugin.Tick(cb, d)` (a `host.TickSource`):
+  `host.Tick` a host hands its rules comes from `world.Plugin.Tick(d)` (a `host.TickSource`):
   the carrier, `Time` (game time at the step's end), `Seed` (`world.Config.Seed`), which `Chance`
   draws from, and `Roles`, the roles an entity plays (for a role in a clause). The space keeps no
   state of its own between ticks: the move pass (`moveSystem`, private: tests use the world plugin)
@@ -1390,11 +1404,13 @@ trapdoor and pressure plate demos the same).
 - **`ceremony`** (core, `github.com/kjkrol/ceremony`) — how entities behave, the library gram
   builds on; its grammar is `ceremony/doc/ceremony.md`, its layout `ceremony/CLAUDE.md`, and
   nothing of the game is in it (the user's word, 2026-10-13). What gram does with it, and where:
-  the world makes and runs its systems — the effects' module (`effect.New`, installed by the
-  world; `world.Plugin.Effects()` the register, `Define(name, Spec{Lasts, Stacking, Then, Grant,
-  Alter})`, `Named`, guarded to the Effects section) and the plans (`plan.NewPlans(now, seed,
-  effects, carrier)`, run first in every simulation step; `Kinds.Register` defines a kind's
-  `act.Planned` there as the kind is) — and registers their components for the saves;
+  the world makes and runs its systems through the binding — the effects
+  (`cgoke.NewEffects(effect.New(…))`, its `Module` installed by the world;
+  `world.Plugin.Effects()` the register and the runtime, `Define(name, Spec{Lasts, Stacking,
+  Then, Grant, Alter})`, `Named`, guarded to the Effects section, `Cast`, `Has`) and the plans
+  (`plan.NewPlans(now, seed, effects, carrier)` run by `cgoke.NewPlans`, first in every
+  simulation step; `Kinds.Register` registers a kind's `plan.Planned` there as the kind is) — and
+  registers their components for the saves;
   `world.Roles()` defines a `*ceremony.Part` over a tag of `cond.Roles` from `Kinds.DefineTag`,
   noted with `Kinds.Play` for the delivery (`ceremony.Deliver` in the engine's `Init`, to the
   hosts of `Installer.Hosts`; a rule none takes wraps `host.ErrUnhosted`); `world.Commands()`
@@ -1412,8 +1428,8 @@ trapdoor and pressure plate demos the same).
   after a load; it casts effects or grants a `clock.Phase`; a `clock.Moment` is the clock's own
   entity's, so an effect a clock rule puts on lands there. `board.Plugin.CellEntity(c)` is a
   cell's own entity, carrying its `Ground` and `Plot`, so an `Alter[cell.Ground]` is a temporary
-  change of terrain. A plan's shape changed, its saves do not load (`plan.Mind` holds slots by
-  node index, `plan.MaxSteps` 128); goke registers 512 component types at most — every fact is
+  change of terrain. A plan's shape changed, its saves do not load (`store.Mind` holds slots by
+  node index, `store.MaxSteps` 128); goke registers 512 component types at most — every fact is
   one.
 - **`selection`** — a `Select` command (ids, or a world box, additive or not) → the `Selected`
   tag on `world` entities that carry `Selectable`, both bits of `selection.Family` from

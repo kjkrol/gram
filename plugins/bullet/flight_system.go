@@ -1,6 +1,7 @@
 package bullet
 
 import (
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"math"
 	"time"
 
@@ -25,12 +26,13 @@ const rangeEps = 1e-3
 var _ goke.System = (*flightSystem)(nil)
 
 type flightSystem struct {
-	w        *world.Plugin
-	space    *aabbworld.Space
-	landings *host.Rules[Landing]
-	restings *host.Rules[Resting]
-	groundOf func() ground.Heights
-	tickOf   host.TickSource
+	w                  *world.Plugin
+	space              *aabbworld.Space
+	landings           *host.Rules[Landing]
+	restings           *host.Rules[Resting]
+	landCols, restCols *cgoke.Columns
+	groundOf           func() ground.Heights
+	tickOf             host.TickSource
 
 	flights *goke.Query
 	base    goke.Comp[world.Base]
@@ -68,20 +70,22 @@ func newFlightSystem(w *world.Plugin, landings *host.Rules[Landing], restings *h
 func (s *flightSystem) Init(si *goke.SysInit) {
 	s.sweepID, s.collID, s.outsideID = si.RegComp[collision.Sweep](), si.RegComp[collision.Collider](), si.RegComp[world.Outside]()
 	qb := si.NewQueryBuilder(&s.base, &s.flight, &s.body).Optional(&s.coll).Optional(&s.sweep).Optional(&s.z)
-	s.landings.Bind(qb)
+	s.landCols = cgoke.NewColumns(qb)
+	s.landings.Bind(s.landCols)
 	s.flights = qb.Build()
 	rb := si.NewQueryBuilder(&s.rbase, &s.rflight, &s.rbody)
-	s.restings.Bind(rb)
+	s.restCols = cgoke.NewColumns(rb)
+	s.restings.Bind(s.restCols)
 	s.resting = rb.Build()
 }
 
 func (s *flightSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
-	t := s.tickOf.Of(cb, dt)
+	t := s.tickOf.Of(dt)
 	if !s.restings.Empty() {
 		for s.resting.All(); s.resting.Next(); {
 			cur := s.resting.Cursor()
 			s.walking.ids, s.walking.flights, s.walking.bodies = cur.IDs, s.rflight.Slice(cur), s.rbody.Slice(cur)
-			s.restings.RunWhere(t, cur, s.restsAt, s.restingAt)
+			s.restings.RunWhere(t, s.restCols.Row(cur), len(cur.IDs), s.restsAt, s.restingAt)
 		}
 	}
 	for s.flights.All(); s.flights.Next(); {
@@ -119,7 +123,7 @@ func (s *flightSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 				s.fly(f, bodies[i], &bases[i], sw, z, dt.Seconds())
 			}
 		}
-		s.landings.RunWhere(t, cur, s.landsAt, s.landingAt)
+		s.landings.RunWhere(t, s.landCols.Row(cur), len(cur.IDs), s.landsAt, s.landingAt)
 		for i, id := range cur.IDs {
 			if s.walking.ends[i] && flights[i].Ending == Left {
 				cb.AddOne(id, s.outsideID, world.Outside{})

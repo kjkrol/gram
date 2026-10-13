@@ -91,7 +91,7 @@ func (g *guardStage) alerted() map[float64]bool {
 	for g.query.All(); g.query.Next(); {
 		cur := g.query.Cursor()
 		for i, id := range cur.IDs {
-			if g.alert.On(uid.UID64(id)) {
+			if g.world.Effects().Has(uid.UID64(id), g.alert) {
 				on[g.base.Slice(cur)[i].Pos.TopLeft.X] = true
 			}
 		}
@@ -114,8 +114,8 @@ func TestCommand_ReachesThoseNamedGroupedAndTheWorld(t *testing.T) {
 	}
 	g.give(t, ceremony.Take(g.alert).On(ceremony.Group("guards")))
 	g.give(t, ceremony.Put(g.alert).On(ceremony.World))
-	if on := g.alerted(); len(on) != 0 || !g.alert.On(g.world.Clock().Entity()) {
-		t.Errorf("alert the world: units at %v alerted, the world %v; want the world alone", on, g.alert.On(g.world.Clock().Entity()))
+	if on := g.alerted(); len(on) != 0 || !g.world.Effects().Has(g.world.Clock().Entity(), g.alert) {
+		t.Errorf("alert the world: units at %v alerted, the world %v; want the world alone", on, g.world.Effects().Has(g.world.Clock().Entity(), g.alert))
 	}
 }
 

@@ -2,12 +2,12 @@ package world_test
 
 import (
 	"github.com/kjkrol/ceremony/plan"
+	"github.com/kjkrol/ceremony/store"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
-	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
@@ -26,7 +26,7 @@ type treeStage struct {
 }
 
 type treeProbe struct {
-	mind  goke.Comp[plan.Mind]
+	mind  goke.Comp[store.Mind]
 	query *goke.Query
 }
 
@@ -153,7 +153,7 @@ func TestPlan_OrdersTheWorldsCommands(t *testing.T) {
 	}
 }
 
-type written struct{ plan act.Planned }
+type written struct{ plan plan.Planned }
 
 func write(name string, root plan.Part) *written {
 	return &written{plan.New(name, root)}

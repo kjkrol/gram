@@ -109,7 +109,7 @@ func (c *camp) reached(by command.Issuer) map[float64]bool {
 	c.tick()
 	out := map[float64]bool{}
 	for x, id := range c.ids() {
-		if c.haste.On(id) {
+		if c.w.Effects().Has(id, c.haste) {
 			out[x] = true
 		}
 	}
@@ -181,8 +181,8 @@ func TestAllow_SelectedSelectsAtOnce(t *testing.T) {
 	c.w.Carrier().Put(c.one.ID, ceremony.Put(c.haste).On(c.sel.Selected()))
 	c.tick()
 	ids := c.ids()
-	if !c.haste.On(ids[100]) || c.haste.On(ids[200]) {
-		t.Errorf("hasted: the unit at 100 %v, at 200 %v; want the one selected from the start alone", c.haste.On(ids[100]), c.haste.On(ids[200]))
+	if !c.w.Effects().Has(ids[100], c.haste) || c.w.Effects().Has(ids[200], c.haste) {
+		t.Errorf("hasted: the unit at 100 %v, at 200 %v; want the one selected from the start alone", c.w.Effects().Has(ids[100], c.haste), c.w.Effects().Has(ids[200], c.haste))
 	}
 }
 

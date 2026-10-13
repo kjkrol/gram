@@ -166,7 +166,7 @@ func (s *squad) under(e effect.Effect) map[string]bool {
 		if !ok {
 			s.t.Fatalf("soldier %s was not spawned", so.name)
 		}
-		if e.On(id) {
+		if s.w.Effects().Has(id, e) {
 			on[so.name] = true
 		}
 	}

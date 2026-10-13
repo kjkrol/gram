@@ -2,6 +2,7 @@ package world_test
 
 import (
 	"fmt"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"strings"
 	"testing"
 	"time"
@@ -49,7 +50,7 @@ const fxTick = time.Second / 10
 type rig struct {
 	t       *testing.T
 	w       *world.Plugin
-	fx      *effect.Effects
+	fx      *cgoke.Effects
 	ecs     *goke.ECS
 	id      uid.UID64
 	angry   tag.Tag[fxMoods]
@@ -131,7 +132,7 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 func (r *rig) fxTick() { r.ecs.Tick(fxTick) }
 
 func (r *rig) cast(fx effect.Effect) {
-	r.casting = func(cb *goke.CmdBuf) { r.fx.Cast(cb, r.id, fx) }
+	r.casting = func(cb *goke.CmdBuf) { r.fx.Cast(r.id, fx) }
 }
 
 func (r *rig) state() (speed float64, sprite uint8, angry bool, active bool) {
@@ -198,8 +199,8 @@ func TestEffects_TwoCastAtOnceOnAFreshEntityBothLand(t *testing.T) {
 		mark = r.fx.Named("mark")
 	})
 	r.casting = func(cb *goke.CmdBuf) {
-		r.fx.Cast(cb, r.id, haste)
-		r.fx.Cast(cb, r.id, mark)
+		r.fx.Cast(r.id, haste)
+		r.fx.Cast(r.id, mark)
 	}
 	r.fxTick()
 	if !r.marked(haste.Mark()) || !r.marked(mark.Mark()) {
@@ -255,8 +256,8 @@ func TestEffects_TwoEffectsGrantingOneTagKeepItTillTheLast(t *testing.T) {
 		fury = r.fx.Named("fury")
 	})
 	r.casting = func(cb *goke.CmdBuf) {
-		r.fx.Cast(cb, r.id, rage)
-		r.fx.Cast(cb, r.id, fury)
+		r.fx.Cast(r.id, rage)
+		r.fx.Cast(r.id, fury)
 	}
 	r.fxTick()
 	r.fxTick()
@@ -360,7 +361,7 @@ func TestEffects_TwoAltersOfOneComponentComposeAndEndApart(t *testing.T) {
 		slow = r.fx.Named("slow")
 	})
 	r.casting = func(cb *goke.CmdBuf) {
-		r.fx.Cast(cb, r.id, haste)
+		r.fx.Cast(r.id, haste)
 	}
 	r.fxTick()
 	r.cast(slow)

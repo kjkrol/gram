@@ -79,7 +79,8 @@
 //
 //	0  camera               a camera over a world: conversion, culling, move, zoom
 //	   ceremony             how entities behave (github.com/kjkrol/ceremony): tag, comp,
-//	                        effect, fact, cond, act, plan, host, command and its root
+//	                        effect, fact, cond, act, plan, host, command, store, its root
+//	                        and goke, its binding over the ECS
 //	1  render               drawing: Composer, Frame, Atlas, Feed     → camera, ceremony/effect
 //	   control              input events and bindings                 → camera, ceremony/command
 //	2  entity/kind          what an entity is: Spec, Define, Of       → render, ceremony/comp
@@ -105,7 +106,8 @@
 //	10 gram                 Run; the package you import               → game, internal/engine
 //
 // Outside the module: ceremony is the behaviour — rules, plans, effects, roles, commands, facts
-// — the layer under plugin and control, with goke/v3 as its store; goke/v3 is the ECS every
+// — the layer under plugin and control, its store goke/v3 through its binding ceremony/goke
+// (the only package of it importing goke, imported in gram as cgoke); goke/v3 is the ECS every
 // Stage runs on, aabbworld the space, collisions and line of sight under the world, gogpu the
 // window, the loop and the GPU, astar the pathfinding, and uid the entity identifiers.
 package gram

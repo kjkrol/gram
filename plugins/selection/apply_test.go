@@ -111,7 +111,7 @@ func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 	}
 	for _, u := range units {
 		want := u.by == 1 && u.selected
-		if got := haste.On(byX[u.x]); got != want {
+		if got := w.Effects().Has(byX[u.x], haste); got != want {
 			t.Errorf("player %d's unit, selected %v: under haste %v, want %v", u.by, u.selected, got, want)
 		}
 	}

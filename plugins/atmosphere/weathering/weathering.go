@@ -2,6 +2,7 @@ package weathering
 
 import (
 	"fmt"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"math"
 	"time"
 
@@ -62,7 +63,7 @@ type Weathering struct {
 	cfg      Config
 	board    *board.Plugin
 	air      func() air.Weather
-	effects  *effect.Effects
+	effects  *cgoke.Effects
 	calendar *calendar.Calendar
 
 	snow, ice, sway effect.Effect
@@ -86,7 +87,7 @@ func (w *Weathering) Running() bool { return !w.still }
 // New is the weathering of cfg on brd under the weather weather gives, its effects defined in
 // fx at once. The kinds cfg names are looked up as the weather first touches the board; an
 // unknown name panics then.
-func New(brd *board.Plugin, weather func() air.Weather, fx *effect.Effects, cal *calendar.Calendar, cfg Config) (*Weathering, error) {
+func New(brd *board.Plugin, weather func() air.Weather, fx *cgoke.Effects, cal *calendar.Calendar, cfg Config) (*Weathering, error) {
 	cfg = cfg.withDefaults()
 	ww := &Weathering{cfg: cfg, board: brd, air: weather, effects: fx, calendar: cal, dice: cfg.Seed,
 		water: cell.Named(cfg.Water), swaying: map[cell.Name]bool{}}
@@ -208,7 +209,7 @@ func (w *Weathering) scatter(cb *goke.CmdBuf, share float32, fx effect.Effect, m
 	for range int(share*float32(w.board.Board().CellCount()) + w.roll()) {
 		c := w.pick()
 		if id, ok := w.board.CellEntity(c); ok && may(c) {
-			w.effects.Cast(cb, id, fx)
+			w.effects.Cast(id, fx)
 		}
 	}
 }
@@ -216,7 +217,7 @@ func (w *Weathering) scatter(cb *goke.CmdBuf, share float32, fx effect.Effect, m
 func (w *Weathering) clear(share float32, fx effect.Effect, may func(c cell.ID) bool) {
 	for range int(share*float32(w.board.Board().CellCount()) + w.roll()) {
 		c := w.pick()
-		if id, ok := w.board.CellEntity(c); ok && fx.On(id) && may(c) {
+		if id, ok := w.board.CellEntity(c); ok && w.effects.Has(id, fx) && may(c) {
 			w.effects.Dispel(id, fx)
 		}
 	}
@@ -229,10 +230,10 @@ func (w *Weathering) winter(cb *goke.CmdBuf) {
 			return
 		}
 		if w.takesSnow(c) && w.drift(c) < driftWinter {
-			w.effects.Cast(cb, id, w.snow)
+			w.effects.Cast(id, w.snow)
 		}
 		if w.cfg.Ice != "" && w.freezes(c) {
-			w.effects.Cast(cb, id, w.ice)
+			w.effects.Cast(id, w.ice)
 		}
 	})
 }
@@ -322,7 +323,7 @@ func (w *Weathering) blow(cb *goke.CmdBuf, wind float32) {
 		}
 		switch swaying := w.effects.Has(id, w.sway); {
 		case wind > swayAbove && !swaying:
-			w.effects.Cast(cb, id, w.sway)
+			w.effects.Cast(id, w.sway)
 		case wind < swayBelow && swaying:
 			w.effects.Dispel(id, w.sway)
 		}

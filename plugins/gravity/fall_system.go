@@ -1,6 +1,7 @@
 package gravity
 
 import (
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"math"
 	"time"
 
@@ -21,6 +22,7 @@ type fallSystem struct {
 	p        *Plugin
 	tickOf   host.TickSource
 	landings *host.Rules[Landing]
+	cols     *cgoke.Columns
 
 	pulls *goke.Query
 	pull  goke.Comp[Pull]
@@ -55,7 +57,8 @@ func newFallSystem(p *Plugin) *fallSystem {
 func (s *fallSystem) Init(si *goke.SysInit) {
 	s.pulls = si.NewQueryBuilder(&s.pull).Build()
 	qb := si.NewQueryBuilder(&s.base, &s.body, &s.drift, &s.marks).Optional(&s.z).Optional(&s.mover)
-	s.landings.Bind(qb)
+	s.cols = cgoke.NewColumns(qb)
+	s.landings.Bind(s.cols)
 	s.bodies = qb.Build()
 	s.whence.init(si)
 }
@@ -70,7 +73,7 @@ func (s *fallSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	hosted := !s.landings.Empty()
 	var t host.Tick
 	if hosted {
-		t = s.tickOf.Of(cb, d)
+		t = s.tickOf.Of(d)
 	}
 	dt := d.Seconds()
 	for s.bodies.All(); s.bodies.Next(); {
@@ -105,7 +108,7 @@ func (s *fallSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			s.walking.speeds = append(s.walking.speeds, speed)
 		}
 		if hosted {
-			s.landings.RunWhere(t, cur, s.landsAt, s.landingAt)
+			s.landings.RunWhere(t, s.cols.Row(cur), len(cur.IDs), s.landsAt, s.landingAt)
 		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/command"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/gram/render"
 	"log"
 	"reflect"
@@ -29,7 +30,7 @@ type spawner struct {
 	factory *goke.Factory
 	base    goke.Comp[Base]
 	label   goke.Comp[ceremony.Label]
-	writers []comp.Spawner
+	spawner *cgoke.Spawner
 }
 
 type spawnGroup struct {
@@ -42,11 +43,8 @@ func newSpawnSystem(w *module) *spawnSystem { return &spawnSystem{w: w} }
 
 func (s *spawnSystem) Init(si *goke.SysInit) {
 	s.w.kinds.r.Each(func(k ikinds.Kind) {
-		sp := &spawner{kind: k, writers: writersOf(k)}
-		comps := []goke.Addable{&sp.base, &sp.label}
-		for _, wr := range sp.writers {
-			comps = append(comps, wr.Columns()...)
-		}
+		sp := &spawner{kind: k, spawner: spawnerOf(k)}
+		comps := append([]goke.Addable{&sp.base, &sp.label}, sp.spawner.Columns()...)
 		sp.factory = si.NewFactory(comps...)
 		s.kinds = append(s.kinds, sp)
 	})
@@ -66,7 +64,7 @@ func (s *spawnSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
 		}
 	})
 	for _, g := range s.groups {
-		s.w.spawnRows(g.by.factory, &g.by.base, &g.by.label, g.by.writers, g.by.kind, g.rows, g.entries)
+		s.w.spawnRows(g.by.factory, &g.by.base, &g.by.label, g.by.spawner, g.by.kind, g.rows, g.entries)
 		s.w.spawnedCount += len(g.rows)
 		s.w.telemetry.Count += len(g.rows)
 	}
@@ -109,18 +107,18 @@ func (s *spawnSystem) take(e kind.Entry) error {
 	return nil
 }
 
-func writersOf(k ikinds.Kind) []comp.Spawner {
-	writers := []comp.Spawner{comp.Const(render.Appearance{SpriteID: k.SpriteID}).Spawner()}
+func spawnerOf(k ikinds.Kind) *cgoke.Spawner {
+	comps := []comp.Comp{comp.Const(render.Appearance{SpriteID: k.SpriteID})}
 	for _, c := range k.Comps {
-		if wr := c.Spawner(); wr != nil {
-			writers = append(writers, wr)
+		if _, left := comp.Omitted(c); !left {
+			comps = append(comps, c)
 		}
 	}
-	return writers
+	return cgoke.NewSpawner(comps...)
 }
 
 // the rows are checked beforehand
-func (w *module) spawnRows(factory *goke.Factory, base *goke.Comp[Base], label *goke.Comp[ceremony.Label], writers []comp.Spawner, k ikinds.Kind, rows []any, entries []kind.Entry) {
+func (w *module) spawnRows(factory *goke.Factory, base *goke.Comp[Base], label *goke.Comp[ceremony.Label], sp *cgoke.Spawner, k ikinds.Kind, rows []any, entries []kind.Entry) {
 	factory.Create(len(rows))
 	index := 0
 	for factory.Next() {
@@ -136,9 +134,7 @@ func (w *module) spawnRows(factory *goke.Factory, base *goke.Comp[Base], label *
 			}
 			bases[i] = Base{Pos: k.Position.Resolve(row), Vel: k.Velocity.Resolve(row), TypeID: k.TypeID}
 			w.space.Place(&bases[i].Pos.AABB)
-			for _, wr := range writers {
-				wr.Write(&factory.Cursor, i, row, id)
-			}
+			sp.Write(&factory.Cursor, i, row)
 			index++
 		}
 	}

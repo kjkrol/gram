@@ -1,6 +1,7 @@
 package collision
 
 import (
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"log"
 	"math"
 	"time"
@@ -38,6 +39,7 @@ type collisionSystem struct {
 	physics   goke.OptComp[Physics]
 	walkSweep goke.OptComp[Sweep]
 	each      *host.Rules[Struck]
+	cols      *cgoke.Columns
 	walking   struct {
 		ids       []uid.UID64
 		colliders []Collider
@@ -65,6 +67,7 @@ type collisionSystem struct {
 	nearests []nearest
 	contacts []pairSides
 	between  *host.PairRules[Meeting]
+	seekCols *cgoke.Columns
 	outside  goke.CompID
 
 	fieldOf func() Field
@@ -254,20 +257,22 @@ func (d *collisionSystem) Init(si *goke.SysInit) {
 	d.wraps = edges.WrapsX() || edges.WrapsY()
 	d.outside = si.RegComp[world.Outside]()
 	qb := si.NewQueryBuilder(&d.base, &d.collider).Optional(&d.physics)
-	host.Own(d.each, &d.walkSweep)
-	d.each.Bind(qb)
+	d.cols = cgoke.NewColumns(qb)
+	d.cols.Own(&d.walkSweep)
+	d.each.Bind(d.cols)
 	d.walk = qb.Build()
 
 	d.all = si.NewQueryBuilder(&d.allBase).Optional(&d.allSweep).Build()
 
 	seek := si.NewQueryBuilder(&d.lookupBase, &d.lookupCollider).
 		Optional(&d.lookupPhysics, &d.lookupLayers, &d.lookupZ, &d.lookupSweep, &d.lookupDriven)
-	d.between.Bind(seek)
+	d.seekCols = cgoke.NewColumns(seek)
+	d.between.Bind(d.seekCols)
 	d.lookup = seek.Build()
 }
 
 func (d *collisionSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
-	d.tick = d.tickOf.Of(cb, dt)
+	d.tick = d.tickOf.Of(dt)
 	d.sweeping = false
 	if d.mark() || d.sweeping {
 		d.rebuild(d.sweeping)
@@ -313,7 +318,7 @@ func (d *collisionSystem) mark() bool {
 		sweeps := d.walkSweep.Slice(cursor)
 
 		d.walking.ids, d.walking.colliders = cursor.IDs, colliders
-		d.each.RunWhere(d.tick, cursor, d.hitAt, d.struckAt)
+		d.each.RunWhere(d.tick, d.cols.Row(cursor), len(cursor.IDs), d.hitAt, d.struckAt)
 		for i := range cursor.IDs {
 			colliders[i].clearContacts()
 			caps := aabbworld.CanCollide
@@ -490,7 +495,7 @@ func (d *collisionSystem) side(id uid.UID64) (contactSide, host.Marks, bool) {
 	if s.Sweep = d.lookupSweep.At(cur); s.Sweep != nil {
 		s.Physics = nil
 	}
-	return s, d.between.At(sought, cur), true
+	return s, d.between.Read(sought, d.seekCols.Row(cur), int(cur.Slot)), true
 }
 
 func (d *collisionSystem) seek(id uid.UID64) bool {

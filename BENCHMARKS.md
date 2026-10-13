@@ -311,6 +311,34 @@ quads — the tiles, their outlines, the glints and the ways.
 * **Zero allocations once warm.** Every benchmark reports 0 allocs/op after the first ticks have
   grown the buffers.
 
+## Behaviour — `Benchmark_Plans_Tick`, `Benchmark_Rules_Moving`, `Benchmark_Effects_Tick`
+
+One tick of the world with its units behaving, through ceremony and its goke binding. The units
+stand still on a lattice; a sixteenth of them are told a pulse (a fact) every tick and carry it
+eight, so plans begin and end as facts come and go. `Benchmark_Plans_Tick`: every unit on a plan
+of two loops, one idling until a pulse comes afresh, one begun by the pulse when a word of it
+holds, putting an effect on and waiting a step. `Benchmark_Rules_Moving`: every unit playing a
+role of two rules of `world.Moving`, one holding an effect while a word of the moment holds, one
+putting another on by chance while under it. `Benchmark_Effects_Tick`: every unit under an
+effect lasting three steps with a `Grant` and an `Alter`, cast again by a plan as it ends.
+
+Medians of 3 runs on 2026-10-13, the tree after ceremony's store went behind its contract
+(`ceremony/goke`), run alternately with the tree before:
+
+| Scene | Tick before | Tick after | Allocs before / after |
+|:---|---:|---:|---:|
+| Plans, 1,000 units | 276 µs | 205 µs | 471 / 479 |
+| Plans, 5,000 units | 1.53 ms | 1.29 ms | 1680 / 1795 |
+| Rules, 1,000 units | 331 µs | 327 µs | 4 / 3 |
+| Rules, 5,000 units | 1.82 ms | 1.67 ms | 4 / 3 |
+| Effects, 1,000 units | 498 µs | 478 µs | 503 / 502 |
+| Effects, 5,000 units | 2.96 ms | 2.62 ms | 2514 / 2513 |
+
+The allocations are the pulse driver's: adding and removing a component moves the entity between
+archetypes (see Markers). A rule's tick allocates nothing of its own; the engine's reads go through
+the arrays goke's cursor hands out per chunk, and a fact written is staged once in goke's command
+buffer (`CmdBuf.Reserve`).
+
 ## Markers — `Benchmark_Marker_*`
 
 What it costs to mark an entity for a while — put a state on it, take it off — three ways, on

@@ -157,7 +157,7 @@ func TestKinds_Define_TakesOneOfEachComponentType(t *testing.T) {
 	}
 	var got []reflect.Type
 	for _, c := range r.Comps {
-		got = append(got, comp.TypeOf(c))
+		got = append(got, c.Type())
 	}
 	want := []reflect.Type{
 		reflect.TypeFor[spawnerStat](),

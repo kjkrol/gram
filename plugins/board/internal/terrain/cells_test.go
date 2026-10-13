@@ -1,6 +1,7 @@
 package terrain_test
 
 import (
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 type cellWorld struct {
 	ecs     *goke.ECS
 	brd     *board.Plugin
-	fx      *effect.Effects
+	fx      *cgoke.Effects
 	frost   effect.Effect
 	target  cell.ID
 	grass   cell.Kind
@@ -83,7 +84,7 @@ func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
 
 func (cw *cellWorld) castFrost() uid.UID64 {
 	id, _ := cw.brd.CellEntity(cw.target)
-	cw.casting = func(cb *goke.CmdBuf) { cw.fx.Cast(cb, id, cw.frost) }
+	cw.casting = func(cb *goke.CmdBuf) { cw.fx.Cast(id, cw.frost) }
 	return id
 }
 

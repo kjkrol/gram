@@ -4,6 +4,7 @@ package kinds
 
 import (
 	"fmt"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"reflect"
 	"slices"
 
@@ -63,7 +64,7 @@ func (k *Registry) Register(name string, row reflect.Type, spec kind.Spec) (kind
 	var positions, velocities int
 	seen := make(map[reflect.Type]bool, len(spec))
 	for _, c := range spec {
-		if t := comp.TypeOf(c); seen[t] {
+		if t := c.Type(); seen[t] {
 			panic(fmt.Sprintf("world: kind %q carries %v twice; give each component once", name, t))
 		} else {
 			seen[t] = true
@@ -160,7 +161,7 @@ func (k *Registry) LoadComps() []goke.CompToken {
 	listed := map[string]bool{}
 	for _, name := range k.order {
 		for _, c := range k.entries[name].Comps {
-			if token := c.LoadToken(); !listed[token.Name] {
+			if token := cgoke.LoadComp(c); !listed[token.Name] {
 				listed[token.Name] = true
 				tokens = append(tokens, token)
 			}

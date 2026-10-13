@@ -215,8 +215,8 @@ func (r *rig) held(id uid.UID64) (liking, sacks) {
 func TestConversation_BeginsIsAnsweredAndChangesTheGame(t *testing.T) {
 	r := newRig(t)
 	r.begin(r.host, r.guest)
-	if got := r.line(r.host); got != "Hello, traveller!" || !r.talking.On(r.host) {
-		t.Fatalf("the host says %q, talking %v; want the greeting", got, r.talking.On(r.host))
+	if got := r.line(r.host); got != "Hello, traveller!" || !r.w.Effects().Has(r.host, r.talking) {
+		t.Fatalf("the host says %q, talking %v; want the greeting", got, r.w.Effects().Has(r.host, r.talking))
 	}
 	if got := strings.Join(r.offered(r.host), "|"); got != "Hello to you too!|Out of my way." {
 		t.Fatalf("offered %q, want the answers that need no friend", got)
@@ -229,13 +229,13 @@ func TestConversation_BeginsIsAnsweredAndChangesTheGame(t *testing.T) {
 		t.Fatalf("the host's liking is %d, want 40: warm changed the speaker", l.N)
 	}
 	r.choose(1, r.host, 0) // Bye
-	if r.line(r.host) != "" || r.talking.On(r.host) || !r.talked.On(r.host) {
-		t.Fatalf("after Bye: says %q, talking %v, talked %v; want it over and talked", r.line(r.host), r.talking.On(r.host), r.talked.On(r.host))
+	if r.line(r.host) != "" || r.w.Effects().Has(r.host, r.talking) || !r.w.Effects().Has(r.host, r.talked) {
+		t.Fatalf("after Bye: says %q, talking %v, talked %v; want it over and talked", r.line(r.host), r.w.Effects().Has(r.host, r.talking), r.w.Effects().Has(r.host, r.talked))
 	}
 	if _, s := r.held(r.guest); s.N != 1 {
 		t.Errorf("the guest holds %d sacks, want 1: flour changed the listener", s.N)
 	}
-	if !r.blush.On(r.host) {
+	if !r.w.Effects().Has(r.host, r.blush) {
 		t.Error("Bye's command for ui.It did not reach the host")
 	}
 	r.begin(r.host, r.guest)
@@ -258,8 +258,8 @@ func TestConversation_TakingTalkingOffEndsItWithoutTalked(t *testing.T) {
 	r.begin(r.host, r.guest)
 	r.w.Carrier().Put(command.Nobody, ceremony.Take(r.talking).On(ceremony.ID(r.host)))
 	r.tick(2)
-	if r.line(r.host) != "" || r.talked.On(r.host) {
-		t.Errorf("with talking taken off: says %q, talked %v; want it over, not talked", r.line(r.host), r.talked.On(r.host))
+	if r.line(r.host) != "" || r.w.Effects().Has(r.host, r.talked) {
+		t.Errorf("with talking taken off: says %q, talked %v; want it over, not talked", r.line(r.host), r.w.Effects().Has(r.host, r.talked))
 	}
 }
 
@@ -267,7 +267,7 @@ func TestConversation_OneTalksWithOneAtATime(t *testing.T) {
 	r := newRig(t)
 	r.begin(r.host, r.guest)
 	r.begin(r.stranger, r.guest)
-	if r.talking.On(r.stranger) || r.line(r.stranger) != "" {
+	if r.w.Effects().Has(r.stranger, r.talking) || r.line(r.stranger) != "" {
 		t.Error("the stranger began to talk with a guest talking with the host")
 	}
 	r.begin(r.host, r.stranger)

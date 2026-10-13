@@ -32,8 +32,8 @@ func velocityTick(t *testing.T, share float64, rules ...act.Rule) (paced, unpace
 		}
 	}
 	sys := newVelocitySystem(h)
-	sys.tick = func(cb *goke.CmdBuf, dt time.Duration) host.Tick {
-		return host.Tick{CmdBuf: cb, Dt: dt, Commands: &commands}
+	sys.tick = func(dt time.Duration) host.Tick {
+		return host.Tick{Dt: dt, Commands: &commands}
 	}
 
 	ecs := goke.New()

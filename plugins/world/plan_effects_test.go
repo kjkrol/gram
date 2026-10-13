@@ -1,7 +1,9 @@
 package world_test
 
 import (
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/plan"
+	"github.com/kjkrol/ceremony/store"
 	"testing"
 	"time"
 
@@ -19,12 +21,12 @@ import (
 )
 
 type effectStage struct {
-	plan  func(fx *effect.Effects) *written
+	plan  func(fx *cgoke.Effects) *written
 	world *world.Plugin
 	unit  kind.Of[struct{}]
 	marks goke.OptComp[tag.Tags[effect.States]]
 	tally goke.Comp[tally]
-	mind  goke.Comp[plan.Mind]
+	mind  goke.Comp[store.Mind]
 	query *goke.Query
 	stack game.Scenes
 }
@@ -103,7 +105,7 @@ func step(t *testing.T, e *engine.Engine, d time.Duration) {
 
 func TestPlan_KeepHoldsAnEffectAsLongAsItsBranchRuns(t *testing.T) {
 	var held effect.Effect
-	g := &effectStage{plan: func(fx *effect.Effects) *written {
+	g := &effectStage{plan: func(fx *cgoke.Effects) *written {
 		fx.Define("held", effect.Spec{})
 		held = fx.Named("held")
 		return write("hold a while", plan.OneOf(
@@ -130,7 +132,7 @@ func TestPlan_KeepHoldsAnEffectAsLongAsItsBranchRuns(t *testing.T) {
 
 func TestPlan_OnceKeepsItsMemoryInAnEffect(t *testing.T) {
 	var marked, tallying effect.Effect
-	g := &effectStage{plan: func(fx *effect.Effects) *written {
+	g := &effectStage{plan: func(fx *cgoke.Effects) *written {
 		fx.Define("marked", effect.Spec{effect.Lasts(400 * time.Millisecond)})
 		marked = fx.Named("marked")
 		fx.Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})

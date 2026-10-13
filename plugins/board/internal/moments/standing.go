@@ -1,6 +1,7 @@
 package moments
 
 import (
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"math"
 	"time"
 
@@ -36,21 +37,23 @@ type standingSystem struct {
 	zs     []world.Z
 	states []tag.Tags[unit.States]
 	about  func(i int) unit.Standing // bound once
+	cols   *cgoke.Columns
 }
 
 func newStandingSystem(r *Rules) *standingSystem {
 	s := &standingSystem{r: r}
 	s.about = s.standing
-	host.Own(&r.standing, &s.mover)
-	host.Own(&r.standing, &s.pace)
-	host.Own(&r.standing, &s.marks)
-	host.Own(&r.standing, &s.z)
 	return s
 }
 
 func (s *standingSystem) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base, &s.at)
-	s.r.standing.Bind(qb)
+	s.cols = cgoke.NewColumns(qb)
+	s.cols.Own(&s.mover)
+	s.cols.Own(&s.pace)
+	s.cols.Own(&s.marks)
+	s.cols.Own(&s.z)
+	s.r.standing.Bind(s.cols)
 	s.query = qb.Build()
 }
 
@@ -58,7 +61,7 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	hosted := !s.r.standing.Empty()
 	var tick host.Tick
 	if hosted {
-		tick = s.r.tick.Of(cb, d)
+		tick = s.r.tick.Of(d)
 		tick.Around = s.r.around
 	}
 	for s.query.All(); s.query.Next(); {
@@ -80,7 +83,7 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 		}
 		if hosted {
-			s.r.standing.Run(tick, cursor, s.about)
+			s.r.standing.Run(tick, s.cols.Row(cursor), len(cursor.IDs), s.about)
 		}
 	}
 }

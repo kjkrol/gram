@@ -43,12 +43,12 @@ func (k *Kinds) Register(name string, row reflect.Type, spec kind.Spec) (kind.ID
 		switch c := c.(type) {
 		case ceremony.Played:
 			k.Play(c.Parts()...)
-		case act.Planned:
+		case plan.Planned:
 			if k.plans == nil {
 				panic(fmt.Sprintf("world: the kind %q carries the plan %q, its world runs none",
 					name, c.Name()))
 			}
-			c.Define(k.plans)
+			k.plans.Register(c)
 		}
 	}
 	return k.r.Register(name, row, spec)

@@ -2,6 +2,7 @@ package world
 
 import (
 	"fmt"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"log"
 	"math"
 	"math/bits"
@@ -11,7 +12,6 @@ import (
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/cond"
-	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/ceremony/tag"
@@ -53,7 +53,7 @@ type module struct {
 
 	clock           *clock.Clock
 	moments         moments
-	effects         *effect.Effects
+	effects         *cgoke.Effects
 	clockRunnable   goke.Runnable
 	momentsRunnable goke.Runnable
 
@@ -63,6 +63,7 @@ type module struct {
 	effectCmdsRunnable goke.Runnable
 
 	plans         *plan.Plans
+	plansSys      *cgoke.Plans
 	plansRunnable goke.Runnable
 
 	commands command.Carrier
@@ -86,8 +87,8 @@ func newModule(cfg Config) *module {
 	return w
 }
 
-func (w *module) tick(cb *goke.CmdBuf, d time.Duration) host.Tick {
-	return host.Tick{CmdBuf: cb, Now: time.Now(), Dt: d, Commands: &w.commands, Effects: w.effects,
+func (w *module) tick(d time.Duration) host.Tick {
+	return host.Tick{Now: time.Now(), Dt: d, Commands: &w.commands, Effects: w.effects,
 		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity(), Roles: w.effectCmds.RolesOf}
 }
 
@@ -108,7 +109,7 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	w.exitRunnable = ecs.RegSys(newExitSystem(w, w.leavers))
 	w.viewRunnable = ecs.RegSys(view.NewSystem(w.space, &w.views, w.config.Space.Width, w.config.Space.Height))
 	w.clockRunnable = ecs.RegSys(w.clock.System())
-	w.plansRunnable = ecs.RegSys(w.plans.System())
+	w.plansRunnable = ecs.RegSys(w.plansSys)
 	w.momentsRunnable = ecs.RegSys(w.moments.system())
 	w.effects.Module().RegSystems(ecs)
 }
@@ -163,7 +164,7 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[tag.Tags[cond.Roles]](),
 	}, w.effects.Module().LoadComps()...)
 	tokens = append(tokens, w.selves.tokens()...)
-	return append(tokens, w.plans.LoadComps()...)
+	return append(tokens, w.plansSys.LoadComps()...)
 }
 
 func (w *module) PostLoad() goke.System {
@@ -196,7 +197,7 @@ func (w *module) populate(k ikinds.Kind, rows []any) { w.populateEntries(k, rows
 // entries, each row's own, may be nil
 func (w *module) populateEntries(k ikinds.Kind, rows []any, entries []kind.Entry) {
 	count := len(rows)
-	writers := writersOf(k)
+	sp := spawnerOf(k)
 
 	w.seeds = append(w.seeds, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		for i, row := range rows {
@@ -209,11 +210,8 @@ func (w *module) populateEntries(k ikinds.Kind, rows []any, entries []kind.Entry
 
 		var baseComp goke.Comp[Base]
 		var labelComp goke.Comp[ceremony.Label]
-		comps := []goke.Addable{&baseComp, &labelComp}
-		for _, wr := range writers {
-			comps = append(comps, wr.Columns()...)
-		}
-		w.spawnRows(si.NewFactory(comps...), &baseComp, &labelComp, writers, k, rows, entries)
+		comps := append([]goke.Addable{&baseComp, &labelComp}, sp.Columns()...)
+		w.spawnRows(si.NewFactory(comps...), &baseComp, &labelComp, sp, k, rows, entries)
 		w.reindex(si)
 	}})
 }

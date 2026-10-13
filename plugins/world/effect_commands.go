@@ -2,6 +2,7 @@ package world
 
 import (
 	"fmt"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"time"
 
 	"github.com/kjkrol/ceremony"
@@ -19,7 +20,7 @@ type effectCommands struct {
 	sourced  []ceremony.Command
 	known    []ceremony.Command
 	checked  bool
-	effects  *effect.Effects
+	effects  *cgoke.Effects
 	world    func() uid.UID64
 	commands *command.Carrier
 	flips    []flip
@@ -91,9 +92,9 @@ func (c *effectCommands) system() goke.System {
 			for _, f := range c.flips {
 				switch {
 				case f.on && (f.cast || !f.was) && f.lasts > 0:
-					c.effects.CastFor(cb, f.id, f.e, f.lasts)
+					c.effects.CastFor(f.id, f.e, f.lasts)
 				case f.on && (f.cast || !f.was):
-					c.effects.Cast(cb, f.id, f.e)
+					c.effects.Cast(f.id, f.e)
 				case !f.on && f.was:
 					c.effects.Dispel(f.id, f.e)
 				}

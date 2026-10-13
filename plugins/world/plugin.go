@@ -2,6 +2,7 @@ package world
 
 import (
 	"fmt"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"reflect"
 	"time"
 
@@ -68,11 +69,14 @@ func NewPlugin(cfg Config) *Plugin {
 		look: ilook.NewFlat(float32(cfg.Space.Width), float32(cfg.Space.Height))}
 	kind.Require[Position](&p.roster.Unit, "world", "where it stands")
 	p.roster.Unit.Default(comp.Const(Velocity{}))
-	m.effects = effect.New(func(name string) tag.Tag[effect.States] { return kinds.DefineTag[effect.States](name) })
+	m.effects = cgoke.NewEffects(effect.New(func(name string) tag.Tag[effect.States] {
+		return kinds.DefineTag[effect.States](name)
+	}))
 	m.effects.Guard(func(name string) { p.must(fmt.Sprintf("effect %q defined", name), section.Effects) })
 	kinds.guard = func(name string) { p.must(fmt.Sprintf("kind %q defined", name), section.Kinds) }
 	m.effectCmds.effects, m.effectCmds.world, m.effectCmds.commands = m.effects, m.clock.Entity, &m.commands
 	m.plans = plan.NewPlans(m.clock.Time, cfg.Seed, m.effects, &m.commands)
+	m.plansSys = cgoke.NewPlans(m.plans)
 	m.plans.Roles(m.effectCmds.RolesOf)
 	kinds.plans = m.plans
 	p.roster.Unit.Default(comp.Marks[effect.States]())
@@ -112,10 +116,10 @@ func (p *Plugin) Roster() *kind.Roster { return p.roster }
 func (p *Plugin) Clock() *clock.Clock { return p.module.clock }
 
 // Effects is this Stage's register of effects, which last in the clock's time.
-func (p *Plugin) Effects() *effect.Effects { return p.module.effects }
+func (p *Plugin) Effects() *cgoke.Effects { return p.module.effects }
 
 // Tick is the Tick a plugin hands the rules it hosts for a pass over d of the simulation.
-func (p *Plugin) Tick(cb *goke.CmdBuf, d time.Duration) host.Tick { return p.module.tick(cb, d) }
+func (p *Plugin) Tick(d time.Duration) host.Tick { return p.module.tick(d) }
 
 // HasHeights reports whether this world has heights.
 func (p *Plugin) HasHeights() bool { return p.Res.Config.Heights }

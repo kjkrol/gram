@@ -1,6 +1,7 @@
 package world
 
 import (
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"time"
 
 	"github.com/kjkrol/ceremony/host"
@@ -13,6 +14,7 @@ var _ goke.System = (*velocitySystem)(nil)
 
 type velocitySystem struct {
 	host  *host.Rules[Moving]
+	cols  *cgoke.Columns
 	tick  host.TickSource
 	query *goke.Query
 	base  goke.Comp[Base]
@@ -31,7 +33,8 @@ func newVelocitySystem(host *host.Rules[Moving]) *velocitySystem {
 
 func (s *velocitySystem) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base).Optional(&s.pace)
-	s.host.Bind(qb)
+	s.cols = cgoke.NewColumns(qb)
+	s.host.Bind(s.cols)
 	s.query = qb.Build()
 }
 
@@ -39,7 +42,7 @@ func (s *velocitySystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	hosted := !s.host.Empty()
 	var tick host.Tick
 	if hosted {
-		tick = s.tick.Of(cb, d)
+		tick = s.tick.Of(d)
 	}
 	s.query.All()
 	for s.query.Next() {
@@ -51,7 +54,7 @@ func (s *velocitySystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 		}
 		if hosted {
-			s.host.Run(tick, cursor, s.about)
+			s.host.Run(tick, s.cols.Row(cursor), len(cursor.IDs), s.about)
 		}
 	}
 }

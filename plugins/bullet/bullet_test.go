@@ -1,6 +1,7 @@
 package bullet_test
 
 import (
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"math"
 	"testing"
 	"time"
@@ -87,7 +88,7 @@ type rig struct {
 	sel    *selection.Plugin
 	b      *bullet.Plugin
 	arms   *bullet.Shots
-	fx     *effect.Effects
+	fx     *cgoke.Effects
 	ecs    *goke.ECS
 	units  kind.Of[piece]
 	ids    []uid.UID64

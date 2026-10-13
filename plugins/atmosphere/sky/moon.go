@@ -60,7 +60,7 @@ func (s *Sky) RiseSystem(tick host.TickSource, about func() uid.UID64) goke.Syst
 			m := s.calendar.Now()
 			up := s.cfg.place().MoonAt(m.OfYear(), m.Time, m.Moon())[2]
 			if begun && last <= 0 && up > 0 && !s.rises.Empty() {
-				s.rises.Run(tick.Of(cb, d), Moonrise{Phase: m.Moon(), Self: about()})
+				s.rises.Run(tick.Of(d), Moonrise{Phase: m.Moon(), Self: about()})
 			}
 			last, begun = up, true
 		},

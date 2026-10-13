@@ -9,8 +9,8 @@ require (
 	github.com/gogpu/wgpu v0.34.5
 	github.com/kjkrol/aabbworld v1.12.0
 	github.com/kjkrol/astar v1.1.1
-	github.com/kjkrol/ceremony v0.1.0
-	github.com/kjkrol/goke/v3 v3.3.0
+	github.com/kjkrol/ceremony v0.2.0
+	github.com/kjkrol/goke/v3 v3.4.0
 	github.com/kjkrol/uid v0.3.0
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/image v0.46.0

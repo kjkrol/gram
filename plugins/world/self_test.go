@@ -173,15 +173,15 @@ func TestSelf_AnEffectOnThePluginTurnsItsKnob(t *testing.T) {
 	if g.sky.Changed() {
 		t.Error("the plugin's entity is still Changed a step on")
 	}
-	if got := g.dialsOf()[sky]; got != 5 || !g.storm.On(sky) || g.storm.On(g.world.Entity()) {
-		t.Errorf("under the storm the dial is %d, the plugin under it %v, the world %v; want 5, true, false", got, g.storm.On(sky), g.storm.On(g.world.Entity()))
+	if got := g.dialsOf()[sky]; got != 5 || !g.world.Effects().Has(sky, g.storm) || g.world.Effects().Has(g.world.Entity(), g.storm) {
+		t.Errorf("under the storm the dial is %d, the plugin under it %v, the world %v; want 5, true, false", got, g.world.Effects().Has(sky, g.storm), g.world.Effects().Has(g.world.Entity(), g.storm))
 	}
-	if !g.lit.On(scout) {
+	if !g.world.Effects().Has(scout, g.lit) {
 		t.Error("the scout is not lit While the sky is under the storm")
 	}
 
 	g.give(t, ceremony.Take(g.storm).On(g.sky))
-	if got := g.dialsOf()[sky]; got != 1 || g.storm.On(sky) {
+	if got := g.dialsOf()[sky]; got != 1 || g.world.Effects().Has(sky, g.storm) {
 		t.Errorf("the storm lifted, the dial is %d, want the 1 it was", got)
 	}
 }
@@ -193,11 +193,11 @@ func TestSelf_TheWorldsOwnEntityIsTheClocks(t *testing.T) {
 		t.Fatalf("the world's entity is %d, the clock's %d; want one", g.world.Entity(), g.world.Clock().Entity())
 	}
 	g.give(t, ceremony.Put(g.storm).On(g.world))
-	if !g.storm.On(g.world.Clock().Entity()) {
+	if !g.world.Effects().Has(g.world.Clock().Entity(), g.storm) {
 		t.Error("a command for the world plugin did not reach the clock's entity")
 	}
 	g.give(t, ceremony.Take(g.storm).On(ceremony.World))
-	if g.storm.On(g.world.Entity()) {
+	if g.world.Effects().Has(g.world.Entity(), g.storm) {
 		t.Error("a command for ceremony.World did not reach the world's own entity")
 	}
 }
@@ -213,10 +213,10 @@ func TestSelf_HoldsMoreEffectsAtOnceThanAUnit(t *testing.T) {
 	onSky, onScout := 0, 0
 	scout := g.theScout(t)
 	for _, e := range g.states {
-		if e.On(g.sky.Entity()) {
+		if g.world.Effects().Has(g.sky.Entity(), e) {
 			onSky++
 		}
-		if e.On(scout) {
+		if g.world.Effects().Has(scout, e) {
 			onScout++
 		}
 	}

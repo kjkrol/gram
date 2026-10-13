@@ -23,7 +23,7 @@ func (m *moments) system() goke.System {
 			m.last, m.begun = m.clock.Time(), true
 		}
 		if !m.host.Empty() {
-			m.host.Run(m.tick.Of(cb, d), clock.Moment{Last: m.last, Now: now, Clock: m.clock.Entity()})
+			m.host.Run(m.tick.Of(d), clock.Moment{Last: m.last, Now: now, Clock: m.clock.Entity()})
 		}
 		m.last = now
 	}}

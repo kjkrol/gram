@@ -95,7 +95,7 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		now := w.air(s.world.Scale(), *s.running)
 		s.current = now
 		if !s.host.Empty() {
-			t := s.world.Tick(cb, d)
+			t := s.world.Tick(d)
 			about := t.World
 			if s.about != nil {
 				about = s.about()

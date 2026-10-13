@@ -57,7 +57,7 @@ other; a game writes its own the same way over a plugin's moment or over a fact.
 ## Facts, knobs and commands: what is marked
 
 What a game and a plugin write are of three kinds, each marked by a method never called and
-confirmed beside the type; what is not marked is the engine's (`effect.Active`, the roles' tags,
+confirmed beside the type; what is not marked is the engine's (the binding's `Active`, the roles' tags,
 a plan's mind, a label) or a value in flight (a moment, a word).
 
 | thing | what it is | mark | gram's own |

@@ -1,6 +1,7 @@
 package bullet
 
 import (
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"math"
 	"time"
 
@@ -20,6 +21,7 @@ type burstSystem struct {
 	space  *aabbworld.Space
 	bursts *command.Queue[Burst]
 	blasts *host.PairRules[Blast]
+	cols   *cgoke.Columns
 	tickOf host.TickSource
 
 	seek *goke.Query
@@ -36,7 +38,8 @@ const sought = 0
 
 func (s *burstSystem) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base)
-	s.blasts.Bind(qb)
+	s.cols = cgoke.NewColumns(qb)
+	s.blasts.Bind(s.cols)
 	s.seek = qb.Build()
 }
 
@@ -44,13 +47,13 @@ func (s *burstSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 	if s.bursts.Empty() {
 		return
 	}
-	t := s.tickOf.Of(cb, dt)
+	t := s.tickOf.Of(dt)
 	s.bursts.Drain(func(i command.Issued[Burst]) {
 		if !i.ByEntity || !s.seek.Seek(i.Entity) {
 			return
 		}
 		cur := s.seek.Cursor()
-		self, centre, r := s.blasts.At(sought, cur), s.base.At(cur).Pos.Center(), i.Command.Radius
+		self, centre, r := s.blasts.Read(sought, s.cols.Row(cur), int(cur.Slot)), s.base.At(cur).Pos.Center(), i.Command.Radius
 		s.found = s.found[:0]
 		s.space.Query(geom.NewAABB(geom.NewVec(centre.X-r, centre.Y-r), geom.NewVec(centre.X+r, centre.Y+r)), aabbworld.AnyCapability, func(id uid.UID64) {
 			if id != i.Entity && !s.among(id) {
@@ -67,7 +70,7 @@ func (s *burstSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 			if d > r {
 				continue
 			}
-			s.blasts.Dispatch(t, self, s.blasts.At(sought, other), Blast{Self: i.Entity, Other: id, Distance: d})
+			s.blasts.Dispatch(t, self, s.blasts.Read(sought, s.cols.Row(other), int(other.Slot)), Blast{Self: i.Entity, Other: id, Distance: d})
 		}
 		s.w.Despawn(cb, i.Entity)
 	})

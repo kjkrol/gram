@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
@@ -424,4 +424,4 @@ func TestBump_ASensedContactBumpsNobody(t *testing.T) {
 	}
 }
 
-type writtenPlan struct{ planned act.Planned }
+type writtenPlan struct{ planned plan.Planned }

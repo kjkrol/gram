@@ -1,6 +1,7 @@
 package vision
 
 import (
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"log"
 	"math"
 	"time"
@@ -54,6 +55,8 @@ type ScanSystem struct {
 	z         goke.OptComp[world.Z]
 
 	host *host.PairRules[Sighting]
+
+	walkCols, seekCols *cgoke.Columns
 
 	jobs []job
 
@@ -135,7 +138,8 @@ func (s *ScanSystem) isDue(id uid.UID64) bool {
 func (s *ScanSystem) Init(si *goke.SysInit) {
 	walk := si.NewQueryBuilder(&s.sight, &s.eye, &s.base).Optional(&s.sighted, &s.outline, &s.z)
 	seek := si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupTau, &s.lookupLay, &s.lookupZ)
-	s.host.Bind(walk, seek)
+	s.walkCols, s.seekCols = cgoke.NewColumns(walk), cgoke.NewColumns(seek)
+	s.host.Bind(s.walkCols, s.seekCols)
 	s.query, s.lookup = walk.Build(), seek.Build()
 	s.sightedID = si.RegComp[Sighted]()
 	s.scanners = append(s.scanners[:0], &s.scanner)
@@ -229,7 +233,7 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		s.round = uint64(max(math.Round(1/(s.every*d.Seconds())), 1))
 	}
 	defer func() { s.steps++ }()
-	t := s.tick.Of(cb, d)
+	t := s.tick.Of(d)
 	hosting := !s.host.Empty()
 	s.lookupHot = false
 	if s.heights && !s.grounded {
@@ -296,7 +300,7 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				sight := &j.sights[i]
 				s.observer = Sighting{Self: id, Base: &j.bases[i], Sight: sight}
 				s.gather(&j.seens[i])
-				s.host.DispatchGrouped(t, s.host.InChunk(walked, cursor, i), s.seenTags, s.sightingOf)
+				s.host.DispatchGrouped(t, s.host.Read(walked, s.walkCols.Row(cursor), i), s.seenTags, s.sightingOf)
 			}
 		}
 	}
@@ -372,7 +376,7 @@ func (s *ScanSystem) gather(found *Sighted) {
 			continue
 		}
 		cursor := s.lookup.Cursor()
-		tags := s.host.At(sought, cursor)
+		tags := s.host.Read(sought, s.seekCols.Row(cursor), int(cursor.Slot))
 		s.seen = append(s.seen, Seen{ID: id, Base: s.lookupBase.At(cursor), Dist: found.Dists[k]})
 		s.seenTags = append(s.seenTags, tags)
 	}

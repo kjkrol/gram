@@ -1,6 +1,7 @@
 package board
 
 import (
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"time"
 
 	"github.com/kjkrol/ceremony/cond"
@@ -57,7 +58,7 @@ func (m *module) LoadComps() []goke.CompToken {
 	var templated []goke.CompToken
 	if m.template != nil {
 		for _, c := range m.template.Spec() {
-			templated = append(templated, c.LoadToken())
+			templated = append(templated, cgoke.LoadComp(c))
 		}
 	}
 	return append(templated,
@@ -72,7 +73,7 @@ func (m *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[cell.Floor](),
 		goke.LoadComp[cell.Wall](),
 		goke.LoadComp[cell.Rail](),
-		goke.LoadComp[effect.Active](),
+		goke.LoadComp[cgoke.Active](),
 		goke.LoadComp[tag.Tags[effect.States]](),
 		goke.LoadComp[tag.Tags[cond.Roles]](),
 	)

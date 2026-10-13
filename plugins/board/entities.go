@@ -48,12 +48,12 @@ func (e *Entities[P]) Define(name string, extra ...comp.Comp) {
 		comp.Load(func(row P) cell.On { return cell.On{Cell: e.at(row)} }),
 	}
 	if !slices.ContainsFunc(extra, func(c comp.Comp) bool {
-		return comp.TypeOf(c) == reflect.TypeFor[world.Velocity]()
+		return c.Type() == reflect.TypeFor[world.Velocity]()
 	}) {
 		own = append(own, comp.Const(world.Velocity{}))
 	}
 	if !slices.ContainsFunc(extra, func(c comp.Comp) bool {
-		return comp.TypeOf(c) == reflect.TypeFor[world.Lie]()
+		return c.Type() == reflect.TypeFor[world.Lie]()
 	}) {
 		own = append(own, comp.Const(world.Lie{}))
 	}

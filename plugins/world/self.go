@@ -2,6 +2,7 @@ package world
 
 import (
 	"fmt"
+	cgoke "github.com/kjkrol/ceremony/goke"
 
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/command"
@@ -86,7 +87,7 @@ func (s *selves) tokens() []goke.CompToken {
 	var tokens []goke.CompToken
 	for _, self := range s.list {
 		for _, k := range self.knobs {
-			tokens = append(tokens, k.LoadToken())
+			tokens = append(tokens, cgoke.LoadComp(k))
 		}
 	}
 	return tokens
@@ -128,24 +129,17 @@ func (s *selves) system() goke.System {
 func (s *Self) make(si *goke.SysInit) uid.UID64 {
 	comps := append([]comp.Comp{
 		comp.Const(ceremony.LabelOf(s.name, "")),
-		comp.Const(effect.Wide{}),
+		comp.Const(cgoke.Wide{}),
 		comp.Marks[effect.States](),
 		comp.Const(s.roles),
 	}, s.knobs...)
-	spawners := make([]comp.Spawner, len(comps))
-	var columns []goke.Addable
-	for i, c := range comps {
-		spawners[i] = c.Spawner()
-		columns = append(columns, spawners[i].Columns()...)
-	}
-	f := si.NewFactory(columns...)
+	sp := cgoke.NewSpawner(comps...)
+	f := si.NewFactory(sp.Columns()...)
 	f.Create(1)
 	var id uid.UID64
 	for f.Next() {
 		id = f.Cursor.IDs[0]
-		for _, sp := range spawners {
-			sp.Write(&f.Cursor, 0, nil, id)
-		}
+		sp.Write(&f.Cursor, 0, nil)
 	}
 	return id
 }
