@@ -13,7 +13,8 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/plan"
 )
 
 type treeStage struct {
@@ -44,10 +45,10 @@ func (g *treeStage) Init(ctx game.Initializer) error {
 	ctx.Setup(g.probe)
 	sentry := g.plan
 	if sentry == nil {
-		sentry = write("sentry", rule.Steps(
-			rule.Wait(10*time.Millisecond),
-			rule.Wait(time.Hour),
-			rule.Apply(world.Despawn{}),
+		sentry = write("sentry", plan.Steps(
+			plan.Self.Wait(10*time.Millisecond),
+			plan.Self.Wait(time.Hour),
+			plan.Self.Do(world.Despawn{}),
 		))
 	}
 	kind.Define[struct{}](g.world.Kinds(), "sentry", kind.Spec{
@@ -129,9 +130,9 @@ func TestPlan_RunsInTheWorldAndIsSaved(t *testing.T) {
 }
 
 func TestPlan_OrdersTheWorldsCommands(t *testing.T) {
-	stage := &treeStage{plan: write("leaver", rule.Steps(
-		rule.Wait(50*time.Millisecond),
-		rule.Apply(world.Despawn{}),
+	stage := &treeStage{plan: write("leaver", plan.Steps(
+		plan.Self.Wait(50*time.Millisecond),
+		plan.Self.Do(world.Despawn{}),
 	))}
 	eng := engine.NewEngine(oneStageGame{stage: stage, props: game.Props{}})
 	if stage.load {
@@ -153,8 +154,10 @@ func TestPlan_OrdersTheWorldsCommands(t *testing.T) {
 	}
 }
 
-type written struct{ plan rule.Planned }
+type written struct{ plan act.Planned }
 
-func write(name string, root rule.Step) *written { return &written{rule.Plan(name, root)} }
+func write(name string, root plan.Part) *written {
+	return &written{plan.New(name, root)}
+}
 
 func (p *written) on(*world.Plugin) comp.Comp { return p.plan }

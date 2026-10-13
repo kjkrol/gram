@@ -1,4 +1,4 @@
-package rule
+package act
 
 import (
 	"fmt"
@@ -7,12 +7,12 @@ import (
 	"github.com/kjkrol/gram/internal/steps"
 )
 
-// Plan is what an entity does over time: root run in every step of the simulation, given to a
-// kind in its Spec; a Branch at its top says its Name and its On. A name defined twice in one
-// world panics.
-func Plan(name string, root Step) Planned {
+// NewPlan is the plan named name: root run in every step of the simulation, given to a kind in
+// its Spec; a loop at its top says its Name. A name defined twice in one world panics. For
+// package plan.
+func NewPlan(name string, root Lasting) Planned {
 	if name == "" {
-		panic("rule: a plan needs a name")
+		panic("act: a plan needs a name")
 	}
 	return Planned{
 		Template: comp.Const(steps.Mind{Plan: steps.PlanID(name)}),
@@ -20,7 +20,7 @@ func Plan(name string, root Step) Planned {
 	}
 }
 
-// Planned is what Plan makes: the plan's mind as a kind's component.
+// Planned is what a plan makes: the plan's mind as a kind's component.
 type Planned struct {
 	comp.Template[steps.Mind]
 	p *planned
@@ -41,7 +41,7 @@ func (p Planned) Define(plans *steps.Plans) {
 		return
 	}
 	if id := plans.Define(p.p.name, p.p.root); id != steps.PlanID(p.p.name) {
-		panic(fmt.Sprintf("rule: the plan %q got another id than its name's", p.p.name))
+		panic(fmt.Sprintf("act: the plan %q got another id than its name's", p.p.name))
 	}
 	p.p.defined[plans] = true
 }

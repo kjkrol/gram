@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 )
 
 type roleStage struct {
@@ -32,7 +33,7 @@ type roleStage struct {
 }
 
 type roleProbe struct {
-	plays goke.Comp[tag.Tags[rule.Roles]]
+	plays goke.Comp[tag.Tags[cond.Roles]]
 	marks goke.Comp[tag.Tags[moods]]
 	query *goke.Query
 }
@@ -106,9 +107,9 @@ func runRoleStage(t *testing.T, g *roleStage) *engine.Engine {
 	return eng
 }
 
-func onlyRoles(t *testing.T, g *roleStage) (tag.Tags[rule.Roles], tag.Tags[moods]) {
+func onlyRoles(t *testing.T, g *roleStage) (tag.Tags[cond.Roles], tag.Tags[moods]) {
 	t.Helper()
-	var plays tag.Tags[rule.Roles]
+	var plays tag.Tags[cond.Roles]
 	var marks tag.Tags[moods]
 	seen := 0
 	g.probe.query.All()
@@ -162,7 +163,7 @@ func TestRoles_PlaysTwiceInOneKindPanics(t *testing.T) {
 			rule.Plays(hasty),
 		})
 	})
-	want := reflect.TypeFor[tag.Tags[rule.Roles]]().String() + " twice"
+	want := reflect.TypeFor[tag.Tags[cond.Roles]]().String() + " twice"
 	if !strings.Contains(msg, `"scout"`) || !strings.Contains(msg, want) {
 		t.Errorf("panic %q does not name the kind and %q", msg, want)
 	}
@@ -184,7 +185,7 @@ func TestRoles_SurviveASaveTheWorldNamesThemIn(t *testing.T) {
 
 	plays, marks := onlyRoles(t, loader)
 	mortal, hasty := loader.role["mortal"].Tag(), loader.role["hasty"].Tag()
-	if plays != tag.Tags[rule.Roles](0).With(mortal, hasty) {
+	if plays != tag.Tags[cond.Roles](0).With(mortal, hasty) {
 		t.Errorf("after a load, plays %b, want mortal (bit %d) and hasty (bit %d) alone", plays, mortal, hasty)
 	}
 	if marks != tag.Tags[moods](0).With(loader.mood["calm"]) {

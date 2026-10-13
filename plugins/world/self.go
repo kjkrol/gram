@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -22,7 +23,7 @@ type Self struct {
 	name  string
 	w     *Plugin
 	knobs []comp.Comp
-	roles tag.Tags[rule.Roles]
+	roles tag.Tags[cond.Roles]
 	id    uid.UID64
 }
 
@@ -96,7 +97,7 @@ func (s *selves) system() goke.System {
 	return goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		s.states = si.NewQueryBuilder(&s.marks).Build()
 		var label goke.Comp[entity.Label]
-		var roles goke.OptComp[tag.Tags[rule.Roles]]
+		var roles goke.OptComp[tag.Tags[cond.Roles]]
 		named := si.NewQueryBuilder(&label).Optional(&roles).Build()
 		byName := make(map[uint64]*Self, len(s.list))
 		for _, self := range s.list {

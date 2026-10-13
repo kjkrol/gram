@@ -1,4 +1,4 @@
-package rule_test
+package act_test
 
 import (
 	"slices"
@@ -8,8 +8,10 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -34,9 +36,10 @@ func (brace) Command() {}
 type token struct{ N int }
 
 // nudged runs the rule once for each of two entities, each nudged by the other, the first by
-// nobody when alone, and hands back whom each command was issued for.
-func nudged(t *testing.T, r rule.Rule, alone bool, tick plugin.Tick) (ids []uid.UID64,
-	dodged []control.Issued[dodge], braced []uid.UID64) {
+// nobody when alone, and hands back whom each command was issued for; out, given, gets the ids
+// before the rule runs.
+func nudged(t *testing.T, r act.Rule, alone bool, tick plugin.Tick, out ...*[]uid.UID64) (
+	ids []uid.UID64, dodged []control.Issued[dodge], braced []uid.UID64) {
 	t.Helper()
 	var carrier control.Carrier
 	var dodges control.Queue[dodge]
@@ -49,32 +52,54 @@ func nudged(t *testing.T, r rule.Rule, alone bool, tick plugin.Tick) (ids []uid.
 		t.Fatal(err)
 	}
 	tick.Commands = &carrier
-	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		var tokens goke.Comp[token]
-		f := si.NewFactory(&tokens)
-		f.Create(2)
-		f.Next()
-		ids = append(ids, f.Cursor.IDs...)
-		qb := si.NewQueryBuilder(&tokens)
-		h.Bind(qb)
-		q := qb.Build()
-		for q.All(); q.Next(); {
-			cur := q.Cursor()
-			h.Run(tick, cur, func(i int) nudge {
-				return nudge{self: cur.IDs[i], by: cur.IDs[1-i], nobody: alone && i == 0}
-			})
+	var all []uid.UID64
+	ids = runRule(t, h, tick, func(id uid.UID64) nudge {
+		i := slices.Index(all, id)
+		return nudge{self: id, by: all[1-i], nobody: alone && i == 0}
+	}, func(made []uid.UID64) {
+		all = made
+		for _, o := range out {
+			*o = made
 		}
-	}})
+	})
 	dodges.Drain(func(i control.Issued[dodge]) { dodged = append(dodged, i) })
 	braces.Drain(func(i control.Issued[brace]) { braced = append(braced, i.Entity) })
 	return ids, dodged, braced
 }
 
+// runRule runs the host's rules once over two entities, the first playing the role a and the
+// second b, about each as about says; made, given, is told the ids first.
+func runRule[P any](t *testing.T, h *plugin.Rules[P], tick plugin.Tick, about func(uid.UID64) P,
+	made ...func([]uid.UID64)) (ids []uid.UID64) {
+	t.Helper()
+	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		var tokens goke.Comp[token]
+		var roles goke.Comp[tag.Tags[cond.Roles]]
+		f := si.NewFactory(&tokens, &roles)
+		f.Create(2)
+		f.Next()
+		ids = append(ids, f.Cursor.IDs...)
+		played := roles.Slice(&f.Cursor)
+		played[0], played[1] = played[0].With(Role("a").Tag()), played[1].With(Role("b").Tag())
+		for _, m := range made {
+			m(ids)
+		}
+		qb := si.NewQueryBuilder(&tokens)
+		h.Bind(qb)
+		q := qb.Build()
+		for q.All(); q.Next(); {
+			cur := q.Cursor()
+			h.Run(tick, cur, func(i int) P { return about(cur.IDs[i]) })
+		}
+	}})
+	return ids
+}
+
 func TestRule_AimsItsCommandAtTheMomentsSubject(t *testing.T) {
-	ids, got, _ := nudged(t, rule.Branch[nudge]{
+	ids, got, _ := nudged(t, act.Branch[nudge]{
 		Name: "dodge",
-		On:   rule.Self,
-		Do:   rule.Apply(dodge{}),
+		When: cond.Self.If(cond.Always),
+		Then: act.Self.Do(dodge{}),
 	}, false, plugin.Tick{Dt: time.Millisecond})
 	if len(got) != 2 {
 		t.Fatalf("dodges given: %+v; want two", got)
@@ -87,10 +112,10 @@ func TestRule_AimsItsCommandAtTheMomentsSubject(t *testing.T) {
 }
 
 func TestRule_FailsACommandAimedAtNobody(t *testing.T) {
-	ids, dodged, braced := nudged(t, rule.Branch[nudge]{
+	ids, dodged, braced := nudged(t, act.Branch[nudge]{
 		Name: "dodge or brace",
-		On:   rule.Self,
-		Do:   rule.OneOf(rule.Apply(dodge{}), rule.Apply(brace{})),
+		When: cond.Self.If(cond.Always),
+		Then: act.OneOf(act.Self.Do(dodge{}), act.Self.Do(brace{})),
 	}, true, plugin.Tick{Dt: time.Millisecond})
 	var who []uid.UID64
 	for _, d := range dodged {
@@ -102,10 +127,10 @@ func TestRule_FailsACommandAimedAtNobody(t *testing.T) {
 }
 
 func TestRule_OnOtherActsForTheMomentsSubject(t *testing.T) {
-	ids, _, braced := nudged(t, rule.Branch[nudge]{
+	ids, _, braced := nudged(t, act.Branch[nudge]{
 		Name: "brace the other",
-		On:   rule.Other,
-		Do:   rule.Apply(brace{}),
+		When: cond.Self.If(cond.Always),
+		Then: act.Other.Do(brace{}),
 	}, true, plugin.Tick{Dt: time.Millisecond})
 	if !slices.Equal(braced, ids[:1]) {
 		t.Errorf("braced %v; want %v alone: the one nudged by nobody acts for nobody",
@@ -114,12 +139,12 @@ func TestRule_OnOtherActsForTheMomentsSubject(t *testing.T) {
 }
 
 func TestRule_OnInsideADoSwitchesWhomTheStepsActFor(t *testing.T) {
-	ids, dodged, braced := nudged(t, rule.Branch[nudge]{
+	ids, dodged, braced := nudged(t, act.Branch[nudge]{
 		Name: "dodge, the other braces",
-		On:   rule.Self,
-		Do: rule.Steps(
-			rule.Apply(dodge{}),
-			rule.Branch[any]{On: rule.Other, Do: rule.Apply(brace{})},
+		When: cond.Self.If(cond.Always),
+		Then: act.Steps(
+			act.Self.Do(dodge{}),
+			act.Branch[any]{When: cond.Self.If(cond.Always), Then: act.Other.Do(brace{})},
 		),
 	}, false, plugin.Tick{Dt: time.Millisecond})
 	var who []uid.UID64
@@ -142,11 +167,10 @@ func TestRule_ChanceIsTheSameForTheSameSeedAndTime(t *testing.T) {
 			t.Fatal(err)
 		}
 		h := &plugin.Rules[nudge]{}
-		if err := h.Add(rule.Branch[nudge]{
+		if err := h.Add(act.Branch[nudge]{
 			Name: "dodge now and then",
-			When: rule.Chance(p),
-			On:   rule.Self,
-			Do:   rule.Apply(dodge{}),
+			When: cond.Self.If(cond.Chance(p)),
+			Then: act.Self.Do(dodge{}),
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -196,5 +220,9 @@ func TestRule_HereNeedsAPlacedMoment(t *testing.T) {
 			t.Errorf("panic %q, want one saying the moment must be Placed", msg)
 		}
 	}()
-	rule.Build(rule.Branch[nudge]{Name: "here", On: rule.Here, Do: rule.Apply(dodge{})})
+	act.Build(act.Branch[nudge]{
+		Name: "here",
+		When: cond.Self.If(cond.Always),
+		Then: act.Around(0).Do(dodge{}),
+	})
 }

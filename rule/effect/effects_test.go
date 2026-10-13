@@ -17,7 +17,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -60,7 +60,7 @@ type rig struct {
 	course  goke.OptComp[steering.Course]
 	casting func(cb *goke.CmdBuf)
 	comps   []comp.Comp
-	rules   []rule.Rule
+	rules   []act.Rule
 }
 
 func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
@@ -579,4 +579,4 @@ func TestEffects_AnEffectThatShowsChangesTheEntityAsItBeginsAndEnds(t *testing.T
 
 func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-func (c *installCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *installCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }

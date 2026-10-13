@@ -11,7 +11,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -32,7 +32,7 @@ type entitySystem struct {
 	spawnWay    goke.Comp[cell.Way]
 	spawnBuilt  goke.Comp[cell.Built]
 	spawnMarks  goke.Comp[tag.Tags[effect.States]]
-	spawnRoles  goke.Comp[tag.Tags[rule.Roles]]
+	spawnRoles  goke.Comp[tag.Tags[cond.Roles]]
 	spawnLabel  goke.Comp[entity.Label]
 }
 
@@ -143,7 +143,7 @@ var own = map[reflect.Type]bool{
 	reflect.TypeFor[cell.Way]():                true,
 	reflect.TypeFor[cell.Built]():              true,
 	reflect.TypeFor[tag.Tags[effect.States]](): true,
-	reflect.TypeFor[tag.Tags[rule.Roles]]():    true,
+	reflect.TypeFor[tag.Tags[cond.Roles]]():    true,
 	reflect.TypeFor[entity.Label]():            true,
 }
 

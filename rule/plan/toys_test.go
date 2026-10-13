@@ -1,4 +1,4 @@
-package rule_test
+package plan_test
 
 import (
 	"time"

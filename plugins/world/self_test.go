@@ -18,6 +18,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -68,11 +70,10 @@ func (g *skyStage) Init(ctx game.Initializer) error {
 		g.states = append(g.states, fx.Named(name))
 	}
 	g.world.Roles().Define("sky watcher",
-		rule.Branch[world.Moving]{
+		act.Branch[world.Moving]{
 			Name: "lit by the storm",
-			On:   rule.Self,
-			When: rule.Under(g.storm).On(g.sky),
-			Do:   rule.Hold(g.lit),
+			When: cond.On(g.sky).If(g.storm),
+			Then: act.Self.Hold(g.lit),
 		})
 	watcher := g.world.Roles().Named("sky watcher")
 	kind.Define[struct{}](g.world.Kinds(), "scout", kind.Spec{

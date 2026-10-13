@@ -24,6 +24,7 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 	"github.com/kjkrol/gram/rule/effect"
 )
 
@@ -390,7 +391,7 @@ board:
     - {kind: bridge, at: [1, 0], way: [1, 0]}
     - {kind: bridge, at: [2, 0], way: [1, 1]}
 `)}}
-	prepare := func(w *world.Plugin, brd *board.Plugin) []rule.Rule {
+	prepare := func(w *world.Plugin, brd *board.Plugin) []act.Rule {
 		brd.CellKinds().Define("water", water)
 		spans := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize},
 			func(r spanRow) cell.ID { return r.At })
@@ -451,7 +452,7 @@ func TestBridges_BrokenInTheGameIsNotBuilt(t *testing.T) {
 func TestRailings_AWalkerSlidesAlongASlantwiseOne(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 6, 48)
 	start := g.At(2, 2)
-	prepare := func(w *world.Plugin, brd *board.Plugin) []rule.Rule {
+	prepare := func(w *world.Plugin, brd *board.Plugin) []act.Rule {
 		brd.Board().SetAll(grass)
 		decks := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize},
 			func(r deckRow) cell.ID { return r.At })

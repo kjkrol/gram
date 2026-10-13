@@ -8,7 +8,8 @@ import (
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 )
 
@@ -38,30 +39,27 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 			t.Fatal(err)
 		}
 		w.Roles().Define("clockwork",
-			rule.Branch[clock.Moment]{
+			act.Branch[clock.Moment]{
 				Name: "once",
-				On:   rule.Self,
-				When: clock.At(5 * tick),
-				Do:   rule.Apply(heard{Rule: "once"}),
+				When: cond.Self.If(clock.At(5 * tick)),
+				Then: act.Self.Do(heard{Rule: "once"}),
 			},
-			rule.Branch[clock.Moment]{
+			act.Branch[clock.Moment]{
 				Name: "daily",
-				On:   rule.Self,
-				When: clock.Every(4*tick, 2*tick),
-				Do:   rule.Apply(heard{Rule: "daily"}),
+				When: cond.Self.If(clock.Every(4*tick, 2*tick)),
+				Then: act.Self.Do(heard{Rule: "daily"}),
 			},
-			rule.Branch[clock.Moment]{
+			act.Branch[clock.Moment]{
 				Name: "dusk",
-				On:   rule.Self,
-				When: clock.At(3 * tick),
-				Do:   rule.Put(dusk),
+				When: cond.Self.If(clock.At(3 * tick)),
+				Then: act.Self.Put(dusk),
 			},
 		)
 		w.Plays(w.Roles().Named("clockwork"))
-		w.Roles().Define("unplayed", rule.Branch[clock.Moment]{
+		w.Roles().Define("unplayed", act.Branch[clock.Moment]{
 			Name: "never",
-			On:   rule.Self,
-			Do:   rule.Apply(heard{Rule: "never"}),
+			When: cond.Self.If(cond.Always),
+			Then: act.Self.Do(heard{Rule: "never"}),
 		})
 		unplayed := w.Roles().Named("unplayed")
 		fired := map[string][]time.Duration{}

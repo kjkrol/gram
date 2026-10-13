@@ -6,7 +6,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 	"github.com/kjkrol/uid"
 )
 
@@ -87,4 +87,4 @@ func (c *stubInstallCtx) ECS() *goke.ECS { return c.ecs }
 func (c *stubInstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
 // as the engine does with the roles played once a Stage's Init returns
-func (c *stubInstallCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *stubInstallCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }

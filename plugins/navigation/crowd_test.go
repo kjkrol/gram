@@ -14,6 +14,9 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
+	"github.com/kjkrol/gram/rule/plan"
 )
 
 var wall = cell.Kind{Cost: 1, Solid: true}
@@ -198,10 +201,11 @@ func TestCrowd_BodiesOfTwoStrangersHeadOnPass(t *testing.T) {
 func TestPlan_APatrolOrdersTheUnitAloneAndGoesOnOnceArrived(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
 	east, west := rw.at(8, 1), rw.at(1, 1)
-	patrol := &writtenPlan{rule.Plan("navigation test patrol", rule.Branch[any]{
-		Name: "leg",
-		On:   rule.Self,
-		Do:   rule.Steps(rule.Apply(Onward{}), rule.Until[Arrived]()),
+	patrol := &writtenPlan{plan.New("navigation test patrol", plan.Loop[any]{
+		Name:  "leg",
+		When:  cond.Self.If(cond.Always),
+		Then:  plan.Self.Do(Onward{}),
+		Until: cond.Self.If(Arrived{}),
 	})}
 	rw = newRoadWorld(t, 10, []roadUnit{
 		{start: rw.at(0, 1), owner: 1, selected: true, plan: patrol, round: []cell.ID{east, west}},
@@ -228,17 +232,18 @@ func TestPlan_AnAlarmTakesOverThePatrolAndGivesItBack(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
 	east, west, gate := rw.at(8, 1), rw.at(1, 1), rw.at(4, 0)
 	alarm := rw.w.Effects().Named("alarm")
-	guard := &writtenPlan{rule.Plan("navigation test guard", rule.OneOf(
-		rule.Branch[any]{
-			Name: "alarm",
-			When: rule.Under(alarm).On(entity.World),
-			On:   rule.Self,
-			Do:   rule.Steps(rule.Apply(MoveTo{Cell: gate}), rule.Until[Arrived]()),
+	guard := &writtenPlan{plan.New("navigation test guard", plan.OneOf(
+		plan.Loop[any]{
+			Name:  "alarm",
+			When:  cond.On(rw.w).If(alarm),
+			Then:  plan.Self.Do(MoveTo{Cell: gate}),
+			Until: cond.Self.If(Arrived{}),
 		},
-		rule.Branch[any]{
-			Name: "patrol",
-			On:   rule.Self,
-			Do:   rule.Steps(rule.Apply(Onward{}), rule.Until[Arrived]()),
+		plan.Loop[any]{
+			Name:  "patrol",
+			When:  cond.Self.If(cond.Always),
+			Then:  plan.Self.Do(Onward{}),
+			Until: cond.Self.If(Arrived{}),
 		},
 	))}
 	rw = newRoadWorld(t, 10, []roadUnit{
@@ -262,16 +267,17 @@ func TestPlan_AnAlarmTakesOverThePatrolAndGivesItBack(t *testing.T) {
 func TestPlan_ARestOnArrivingIsOnceAndThePatrolGoesOn(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
 	east, west := rw.at(8, 1), rw.at(1, 1)
-	guard := &writtenPlan{rule.Plan("navigation test resting guard", rule.OneOf(
-		rule.Branch[Arrived]{
+	guard := &writtenPlan{plan.New("navigation test resting guard", plan.OneOf(
+		plan.Loop[Arrived]{
 			Name: "rest",
-			On:   rule.Self,
-			Do:   rule.Wait(500 * time.Millisecond),
+			When: cond.Self.If(cond.Always),
+			Then: plan.Self.Wait(500 * time.Millisecond),
 		},
-		rule.Branch[any]{
-			Name: "patrol",
-			On:   rule.Self,
-			Do:   rule.Steps(rule.Apply(Onward{}), rule.Until[Arrived]()),
+		plan.Loop[any]{
+			Name:  "patrol",
+			When:  cond.Self.If(cond.Always),
+			Then:  plan.Self.Do(Onward{}),
+			Until: cond.Self.If(Arrived{}),
 		},
 	))}
 	rw = newRoadWorld(t, 10, []roadUnit{
@@ -381,16 +387,16 @@ func TestTouch_TheRulesOfTheCrowd(t *testing.T) {
 		{"on the move at a stranger on its goal", with(moving, func(t *Touch) { t.OnMyGoal = true }), false, false, false, true, true},
 		{"on the move at one on the move", with(moving, func(t *Touch) { t.OtherMoving, t.Ally = true, true }), false, false, false, true, false},
 	} {
-		got := [5]bool{c.touch.PushedByAlly(), c.touch.ReachedTheGroup(), c.touch.ClearsTheWay(), c.touch.Blocks(), c.touch.GoalTaken()}
+		got := [5]bool{c.touch.pushedByAlly(), c.touch.reachedTheGroup(), c.touch.clearsTheWay(), c.touch.blocks(), c.touch.goalTaken()}
 		if want := [5]bool{c.pushed, c.reached, c.clears, c.blocks, c.goalTaken}; got != want {
 			t.Errorf("%s: pushed, reached, clears, blocks, goal taken %v, want %v", c.name, got, want)
 		}
 	}
 	head := Touch{Self: 1, Other: 2, Moving: true, OtherMoving: true, HeadOn: true}
-	if !head.WaitsFirst() || (Touch{Self: 2, Other: 1, Moving: true, OtherMoving: true, HeadOn: true}).WaitsFirst() {
+	if !head.waitsFirst() || (Touch{Self: 2, Other: 1, Moving: true, OtherMoving: true, HeadOn: true}).waitsFirst() {
 		t.Error("of two head on the lower id does not wait first, or the other does too")
 	}
-	if head.WaitedOut = true; head.WaitsFirst() {
+	if head.WaitedOut = true; head.waitsFirst() {
 		t.Error("the first waits on after its Hold ran out")
 	}
 }
@@ -404,14 +410,11 @@ func TestCrowd_AGameGivesItsOwnRules(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
 	from, goal, home := geom.NewVec(16, 80), geom.NewVec(9*fieldCell+16, 80), geom.NewVec(5*fieldCell, 80)
 	yielder := rule.NewPart("yielder", 0)
-	forAll := rule.Branch[Touch]{
+	forAll := act.Branch[Touch]{
 		Name: "a yielder makes way for all",
-		On:   rule.Self,
-		When: rule.All(
-			rule.Playing(yielder),
-			func(t Touch) bool { return !t.Moving && t.OtherMoving },
-		),
-		Do: rule.Apply(StepAside{}),
+		When: cond.Self.If(yielder).
+			And(cond.Self.If(cond.NewWord("pushed", func(t Touch) bool { return !t.Moving && t.OtherMoving }))),
+		Then: act.Self.Do(StepAside{}),
 	}
 	for _, c := range []struct {
 		standing control.PlayerID

@@ -3,6 +3,7 @@ package cell
 import (
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 )
 
 // Entry sets Cell to the kind named Kind (none: the Layout's Default) and gives it the Name it
@@ -12,7 +13,7 @@ type Entry struct {
 	Cell  ID
 	Name  string
 	Group string
-	Roles tag.Tags[rule.Roles]
+	Roles tag.Tags[cond.Roles]
 }
 
 // Named is the entry with the name this one cell bears.

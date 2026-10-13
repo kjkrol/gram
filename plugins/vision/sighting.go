@@ -1,7 +1,7 @@
 package vision
 
 import (
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -36,19 +36,19 @@ func (s Sighting) Whom(each func(uid.UID64)) {
 	}
 }
 
-// Nobody reports that none the rule asks about is in view: a condition for a rule's When.
-func (s Sighting) Nobody() bool { return len(s.Seen) == 0 }
+// SeesNobody is the word of an observer with nobody in view.
+func SeesNobody() cond.Word[Sighting] { return cond.NewWord("sees nobody", Sighting.nobody) }
 
-// Seeing is the condition that the observer sees one playing role, the Sighting then of those
-// alone: a rule's When.
-func Seeing(role *rule.Part) rule.Cond { return rule.Paired(role) }
+func (s Sighting) nobody() bool { return len(s.Seen) == 0 }
+
+// Closing is the word of the nearest one seen being on a collision course with the observer,
+// of the other.
+func Closing() cond.Word[Sighting] { return cond.NewWord("closing", Sighting.closing).OfOther() }
 
 // cos of the widest angle at which one still counts as heading at the other
 const onCourse = 0.5
 
-// Closing reports that the observer and the nearest one it sees are on a collision course: a
-// condition for a rule's When, false with none in view.
-func (s Sighting) Closing() bool {
+func (s Sighting) closing() bool {
 	if len(s.Seen) == 0 {
 		return false
 	}
@@ -59,7 +59,8 @@ func (s Sighting) Closing() bool {
 	}
 	towards = geom.NewVec(towards.X/d, towards.Y/d)
 	mine, theirs := s.Base.Vel.Dir, s.Seen[0].Base.Vel.Dir
-	return mine.X*towards.X+mine.Y*towards.Y > onCourse || theirs.X*towards.X+theirs.Y*towards.Y < -onCourse
+	return mine.X*towards.X+mine.Y*towards.Y > onCourse ||
+		theirs.X*towards.X+theirs.Y*towards.Y < -onCourse
 }
 
 // Seen is one entity in an observer's view and how far off it is.

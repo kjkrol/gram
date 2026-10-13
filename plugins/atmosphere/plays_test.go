@@ -11,7 +11,8 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 )
 
@@ -38,10 +39,10 @@ func TestPlays_ARuleOfTheWeatherFiresForTheAtmospheresOwnEntity(t *testing.T) {
 			}).
 			Rules(func() {
 				w.Roles().Define("weatherwise",
-					rule.Branch[climate.Weathering]{
+					act.Branch[climate.Weathering]{
 						Name: "note the weather",
-						On:   rule.Self,
-						Do:   rule.Hold(noted),
+						When: cond.Self.If(cond.Always),
+						Then: act.Self.Hold(noted),
 					})
 				weatherwise := w.Roles().Named("weatherwise")
 				if plays {

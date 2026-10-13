@@ -5,16 +5,17 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 )
 
 func TestRoles_AreTheStagesOwn(t *testing.T) {
 	forest, arena := world.NewPlugin(testWorldConfig()), world.NewPlugin(testWorldConfig())
 	forest.Roles().Define("mortal",
-		rule.Branch[world.Moving]{Name: "drown", On: rule.Self, Do: rule.Apply(world.Despawn{})})
+		act.Branch[world.Moving]{Name: "drown", When: cond.Self.If(cond.Always), Then: act.Self.Do(world.Despawn{})})
 	arena.Roles().Define("mortal",
-		rule.Branch[world.Moving]{Name: "fall", On: rule.Self, Do: rule.Apply(world.Despawn{})},
-		rule.Branch[world.Leaving]{Name: "leave", On: rule.Self, Do: rule.Apply(world.Despawn{})})
+		act.Branch[world.Moving]{Name: "fall", When: cond.Self.If(cond.Always), Then: act.Self.Do(world.Despawn{})},
+		act.Branch[world.Leaving]{Name: "leave", When: cond.Self.If(cond.Always), Then: act.Self.Do(world.Despawn{})})
 
 	a, b := forest.Roles().Named("mortal"), arena.Roles().Named("mortal")
 	if len(a.Rules()) != 1 || len(b.Rules()) != 2 {

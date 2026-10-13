@@ -12,7 +12,8 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -31,12 +32,12 @@ func pushedOutWorld(t *testing.T, hooked bool) (*goke.ECS, *heards, *goke.Query,
 	if err := w.Carry(orders); err != nil {
 		t.Fatal(err)
 	}
-	var rules []rule.Rule
+	var rules []act.Rule
 	if hooked {
-		rules = append(rules, rule.Branch[world.Leaving]{
+		rules = append(rules, act.Branch[world.Leaving]{
 			Name: "left",
-			On:   rule.Self,
-			Do:   rule.Apply(heard{}),
+			When: cond.Self.If(cond.Always),
+			Then: act.Self.Do(heard{}),
 		})
 	}
 	c := collision.NewPlugin(w)

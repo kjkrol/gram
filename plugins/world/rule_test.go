@@ -15,6 +15,8 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -29,7 +31,7 @@ type spot struct {
 type triggerStage struct {
 	spots          []spot
 	hook           func(g *triggerStage) error
-	rules          []rule.Rule
+	rules          []act.Rule
 	world          *world.Plugin
 	coll           *collision.Plugin
 	bullet, target *rule.Part
@@ -37,14 +39,14 @@ type triggerStage struct {
 	base           goke.Comp[world.Base]
 	states         goke.OptComp[tag.Tags[effect.States]]
 	tallies        goke.OptComp[tally]
-	marks          goke.OptComp[tag.Tags[rule.Roles]]
+	marks          goke.OptComp[tag.Tags[cond.Roles]]
 	query          *goke.Query
 	stack          game.Scenes
 }
 
 func (g *triggerStage) Name() string { return "stage" }
 
-func (g *triggerStage) obey(rules ...rule.Rule) error {
+func (g *triggerStage) obey(rules ...act.Rule) error {
 	g.rules = append(g.rules, rules...)
 	return nil
 }
@@ -70,7 +72,7 @@ func (g *triggerStage) Init(ctx game.Initializer) error {
 		comp.Load(func(s spot) world.Velocity { return world.Velocity{Dir: geom.NewVec(1, 0), Value: s.vx} }),
 		comp.Const(collision.Collider{}),
 		comp.Const(tally{}),
-		comp.Load(func(s spot) tag.Tags[rule.Roles] {
+		comp.Load(func(s spot) tag.Tags[cond.Roles] {
 			trigger := g.world.Roles().Named("trigger unit")
 			if s.bullet {
 				return rule.Plays(trigger, g.bullet).Resolve(nil)
@@ -145,11 +147,10 @@ func TestRule_PlayingNarrowsToTheRolesPlayers(t *testing.T) {
 	g.hook = func(g *triggerStage) error {
 		g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
 		marked = g.world.Effects().Named("marked")
-		return g.obey(rule.Branch[world.Moving]{
+		return g.obey(act.Branch[world.Moving]{
 			Name: "mark the bullet",
-			On:   rule.Self,
-			When: rule.Playing(g.bullet),
-			Do:   rule.Put(marked),
+			When: cond.Self.If(g.bullet),
+			Then: act.Self.Put(marked),
 		})
 	}
 	runTriggers(t, g, 300*time.Millisecond)
@@ -166,11 +167,11 @@ func TestRule_OnOtherActsOnWhomTheEntityMet(t *testing.T) {
 	g.hook = func(g *triggerStage) error {
 		g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
 		marked = g.world.Effects().Named("marked")
-		return g.obey(rule.Branch[collision.Meeting]{
+		return g.obey(act.Branch[collision.Meeting]{
 			Name: "mark the target",
-			On:   rule.Other,
-			When: rule.All(rule.Playing(g.bullet), rule.Paired(g.target)),
-			Do:   rule.Put(marked),
+			When: cond.Self.If(g.bullet).
+				And(cond.Other.If(g.target)),
+			Then: act.Other.Put(marked),
 		})
 	}
 	runTriggers(t, g, 700*time.Millisecond)
@@ -189,11 +190,10 @@ func TestRule_AnEffectIsItsMemory(t *testing.T) {
 		mark = g.world.Effects().Named("mark")
 		g.world.Effects().Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
 		tallying = g.world.Effects().Named("tally")
-		return g.obey(rule.Branch[world.Moving]{
+		return g.obey(act.Branch[world.Moving]{
 			Name: "once a while",
-			On:   rule.Self,
-			When: rule.Not(rule.Under(mark)),
-			Do:   rule.Steps(rule.Put(mark), rule.Put(tallying)),
+			When: cond.Self.If(cond.Not(mark)),
+			Then: act.Steps(act.Self.Put(mark), act.Self.Put(tallying)),
 		})
 	}
 	runTriggers(t, g, time.Second)
@@ -205,11 +205,10 @@ func TestRule_AnEffectIsItsMemory(t *testing.T) {
 func TestRule_OrdersCommands(t *testing.T) {
 	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 500, vx: 60}}}
 	g.hook = func(g *triggerStage) error {
-		return g.obey(rule.Branch[world.Moving]{
+		return g.obey(act.Branch[world.Moving]{
 			Name: "the bullet leaves",
-			On:   rule.Self,
-			When: rule.Playing(g.bullet),
-			Do:   rule.Apply(world.Despawn{}),
+			When: cond.Self.If(g.bullet),
+			Then: act.Self.Do(world.Despawn{}),
 		})
 	}
 	runTriggers(t, g, 200*time.Millisecond)
@@ -233,20 +232,19 @@ func TestRule_AnEffectsMarkerFiltersInAnotherPlugin(t *testing.T) {
 			g.world.Effects().Define("burning", effect.Spec{effect.Lasts(time.Hour)})
 			burning = g.world.Effects().Named("burning")
 			if ignite {
-				if err := g.obey(rule.Branch[world.Moving]{
+				if err := g.obey(act.Branch[world.Moving]{
 					Name: "the bullet ignites",
-					On:   rule.Self,
-					When: rule.All(rule.Playing(g.bullet), rule.Not(rule.Under(burning))),
-					Do:   rule.Put(burning),
+					When: cond.Self.If(g.bullet).
+						And(cond.Self.If(cond.Not(burning))),
+					Then: act.Self.Put(burning),
 				}); err != nil {
 					return err
 				}
 			}
-			return g.obey(rule.Branch[collision.Meeting]{
+			return g.obey(act.Branch[collision.Meeting]{
 				Name: "fire spreads",
-				On:   rule.Other,
-				When: rule.Under(burning),
-				Do:   rule.Put(burning),
+				When: cond.Self.If(burning),
+				Then: act.Other.Put(burning),
 			})
 		}
 		runTriggers(t, g, 700*time.Millisecond)

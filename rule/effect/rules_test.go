@@ -7,19 +7,22 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/rule/plan"
 )
 
 func hookGlow(r *rig, glow, shield effect.Effect, douse *bool) {
-	var keep, put rule.Step = rule.Hold(glow), rule.Take(glow)
+	var keep, put act.Step = act.Self.Hold(glow), act.Self.Take(glow)
 	if shield != (effect.Effect{}) {
-		keep = rule.Branch[any]{When: rule.Not(rule.Under(shield)), Do: rule.Hold(glow)}
-		put = rule.Steps(rule.Put(shield), rule.Take(glow))
+		keep = act.Branch[any]{When: cond.Self.If(cond.Not(shield)), Then: act.Self.Hold(glow)}
+		put = act.Steps(act.Self.Put(shield), act.Self.Take(glow))
 	}
-	dousing := func(world.Moving) bool { return *douse }
+	dousing := cond.NewWord("dousing", func(world.Moving) bool { return *douse })
 	r.rules = append(r.rules,
-		rule.Branch[world.Moving]{Name: "glow", On: rule.Self, Do: keep},
-		rule.Branch[world.Moving]{Name: "douse", On: rule.Self, When: dousing, Do: put})
+		act.Branch[world.Moving]{Name: "glow", When: cond.Self.If(cond.Always), Then: keep},
+		act.Branch[world.Moving]{Name: "douse", When: cond.Self.If(dousing), Then: put})
 }
 
 func TestRule_TakeTakesOffWhatAnotherRuleHoldsTillItsNextStep(t *testing.T) {
@@ -81,10 +84,10 @@ func TestPlan_TakeTakesAnEffectOff(t *testing.T) {
 	r := newRig(t, true, func(r *rig) {
 		r.fx.Define("glow", effect.Spec{})
 		glow = r.fx.Named("glow")
-		r.comps = append(r.comps, asPlan(r.w, "douse in a while", rule.Steps(
-			rule.Wait(3*tick),
-			rule.Take(glow),
-			rule.Idle(),
+		r.comps = append(r.comps, asPlan(r.w, "douse in a while", plan.Steps(
+			plan.Self.Wait(3*tick),
+			plan.Self.Take(glow),
+			plan.Self.Idle(),
 		)))
 	})
 	r.cast(glow)
@@ -107,17 +110,16 @@ func TestPlan_HoldGivesWayWhenSomeoneElseTakes(t *testing.T) {
 		glow = r.fx.Named("glow")
 		r.fx.Define("gave way", effect.Spec{})
 		gaveWay = r.fx.Named("gave way")
-		r.comps = append(r.comps, asPlan(r.w, "glow till doused", rule.OneOf(
-			rule.Branch[any]{
+		r.comps = append(r.comps, asPlan(r.w, "glow till doused", plan.OneOf(
+			plan.Loop[any]{
 				Name: "glow",
-				When: rule.Not(rule.Under(gaveWay)),
-				On:   rule.Self,
-				Do:   rule.Hold(glow),
+				When: cond.Self.If(cond.Not(gaveWay)),
+				Then: plan.Self.Hold(glow),
 			},
-			rule.Branch[any]{
+			plan.Loop[any]{
 				Name: "gave way",
-				On:   rule.Self,
-				Do:   rule.Steps(rule.Put(gaveWay), rule.Idle()),
+				When: cond.Self.If(cond.Always),
+				Then: plan.Steps(plan.Self.Put(gaveWay), plan.Self.Idle()),
 			},
 		)))
 	})
@@ -145,22 +147,20 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 			r.fx.Define("open", effect.Spec{})
 			open = r.fx.Named("open")
 			if planned {
-				r.comps = append(r.comps, asPlan(r.w, "open while pulled", rule.OneOf(
-					rule.Branch[any]{
+				r.comps = append(r.comps, asPlan(r.w, "open while pulled", plan.OneOf(
+					plan.Loop[any]{
 						Name: "open",
-						When: rule.Under(lever).On(entity.World),
-						On:   rule.Self,
-						Do:   rule.Hold(open),
+						When: cond.On(r.w).If(lever),
+						Then: plan.Self.Hold(open),
 					},
-					rule.Branch[any]{Name: "idle", On: rule.Self, Do: rule.Idle()},
+					plan.Loop[any]{Name: "idle", When: cond.Self.If(cond.Always), Then: plan.Self.Idle()},
 				)))
 				return
 			}
-			r.rules = append(r.rules, rule.Branch[world.Moving]{
+			r.rules = append(r.rules, act.Branch[world.Moving]{
 				Name: "open while pulled",
-				On:   rule.Self,
-				When: rule.Under(lever).On(entity.World),
-				Do:   rule.Hold(open),
+				When: cond.On(r.w).If(lever),
+				Then: act.Self.Hold(open),
 			})
 		})
 		if err := r.w.Carry(r.w); err != nil {
@@ -186,4 +186,6 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 	}
 }
 
-func asPlan(_ *world.Plugin, name string, root rule.Step) comp.Comp { return rule.Plan(name, root) }
+func asPlan(_ *world.Plugin, name string, root plan.Part) comp.Comp {
+	return plan.New(name, root)
+}

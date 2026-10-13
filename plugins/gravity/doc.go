@@ -19,7 +19,7 @@
 //
 // # Commands and Landing
 //
-// [Leap] and [Away] are an entity's own (rule.Apply, driving.Jump): a leap throws a standing body
+// [Leap] and [Away] are an entity's own (act.Self.Do, driving.Jump): a leap throws a standing body
 // up to its Body's height, an Away throws it off across and up, away from the subject of the
 // moment it is given on. A [Landing] is told the rules the plugin hosts once as a body lands,
 // with how fast it fell ([HarderThan]). Run the plugin's RunPlan right after collision's.

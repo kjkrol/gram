@@ -9,7 +9,8 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -46,10 +47,10 @@ func leaving(t *testing.T, edges aabbworld.Edges, hooked bool) *exitWorld {
 		t.Fatal(err)
 	}
 	if hooked {
-		if err := ew.p.Hook(rule.Branch[Leaving]{
+		if err := ew.p.Hook(act.Branch[Leaving]{
 			Name: "left",
-			On:   rule.Self,
-			Do:   rule.Apply(left{}),
+			When: cond.Self.If(cond.Always),
+			Then: act.Self.Do(left{}),
 		}); err != nil {
 			t.Fatal(err)
 		}

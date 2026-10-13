@@ -31,6 +31,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -126,11 +128,10 @@ func (s *arena) definePlayer() error {
 }
 
 func (s *arena) defineRules() {
-	s.world.Roles().Define(MortalRole, rule.Branch[unit.Standing]{
+	s.world.Roles().Define(MortalRole, act.Branch[unit.Standing]{
 		Name: "drown",
-		On:   rule.Self,
-		When: unit.Standing.Fallen,
-		Do:   rule.Apply(world.Despawn{}),
+		When: cond.Self.If(unit.Fallen()),
+		Then: act.Self.Do(world.Despawn{}),
 	})
 }
 

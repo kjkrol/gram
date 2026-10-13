@@ -26,6 +26,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/ui"
 	"github.com/kjkrol/uid"
 )
@@ -130,18 +132,17 @@ func (s *arena) defineRoles() {
 	roles.Define(TravellerRole)
 	traveller := roles.Named(TravellerRole)
 	roles.Define(HostRole,
-		rule.Branch[vision.Sighting]{
+		act.Branch[vision.Sighting]{
 			Name: "talk",
-			On:   rule.Self,
-			When: rule.All(vision.Seeing(traveller), rule.Not(vision.Sighting.Nobody),
-				rule.All(rule.Not(rule.Under(talking)), rule.Not(rule.Under(talked)))),
-			Do: rule.Apply(dialog.Begin{}),
+			When: cond.Other.If(traveller).
+				And(cond.Self.If(cond.Not(talking))).
+				And(cond.Self.If(cond.Not(talked))),
+			Then: act.Self.Do(dialog.Begin{}),
 		},
-		rule.Branch[vision.Sighting]{
+		act.Branch[vision.Sighting]{
 			Name: "part",
-			On:   rule.Self,
-			When: rule.All(vision.Seeing(traveller), vision.Sighting.Nobody),
-			Do:   rule.Take(talking),
+			When: cond.Self.If(vision.SeesNobody()),
+			Then: act.Self.Take(talking),
 		},
 	)
 }

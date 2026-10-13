@@ -6,20 +6,20 @@ import (
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 )
 
 func TestTerrainMap_CastAndLabelKeepRolesAndWhatACellIsCalled(t *testing.T) {
-	const trapdoor, plate tag.Tag[rule.Roles] = 0, 5
+	const trapdoor, plate tag.Tag[cond.Roles] = 0, 5
 	m := cell.NewTerrainMap()
 	v := m.Version()
 
-	m.Cast(3, tag.Tags[rule.Roles](0).With(trapdoor))
-	m.Cast(3, tag.Tags[rule.Roles](0).With(trapdoor, plate))
+	m.Cast(3, tag.Tags[cond.Roles](0).With(trapdoor))
+	m.Cast(3, tag.Tags[cond.Roles](0).With(trapdoor, plate))
 	m.Label(3, entity.LabelOf("east lever", ""))
 	m.Label(3, entity.LabelOf("west lever", "levers"))
 
-	if got, want := m.Roles[3], tag.Tags[rule.Roles](0).With(trapdoor, plate); got != want {
+	if got, want := m.Roles[3], tag.Tags[cond.Roles](0).With(trapdoor, plate); got != want {
 		t.Errorf("cell 3 plays %b, want %b, what it was cast last", got, want)
 	}
 	if got, want := m.Labels[3], entity.LabelOf("west lever", "levers"); got != want {

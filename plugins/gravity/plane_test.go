@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/gravity"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 )
 
 var room = []string{
@@ -17,7 +17,7 @@ var room = []string{
 
 func TestPlane_ABodyAtRestStaysBorne(t *testing.T) {
 	r := newRig(t, scene{level: room, bodies: []body{{x: 25, y: 29}},
-		rules: []rule.Rule{landing()}})
+		rules: []act.Rule{landing()}})
 	for range 5 {
 		r.tick()
 	}
@@ -36,7 +36,7 @@ func TestPlane_ABodyAtRestStaysBorne(t *testing.T) {
 
 func TestPlane_AWallBearsNothing(t *testing.T) {
 	r := newRig(t, scene{level: room, bodies: []body{{x: 11.5, y: 13, facing: west}},
-		rules: []rule.Rule{landing()}})
+		rules: []act.Rule{landing()}})
 	r.walk(0, 5)
 	for range 10 {
 		r.tick()
@@ -57,7 +57,7 @@ func TestPlane_AWallBearsNothing(t *testing.T) {
 
 func TestPlane_ALeapRisesAgainstThePull(t *testing.T) {
 	r := newRig(t, scene{level: room, leap: 3, bodies: []body{{x: 25, y: 29}},
-		rules: []rule.Rule{landing()}})
+		rules: []act.Rule{landing()}})
 	for range 5 {
 		r.tick()
 	}
@@ -79,7 +79,7 @@ func TestPlane_ALeapRisesAgainstThePull(t *testing.T) {
 
 func TestPlane_PulledUpItLandsOnTheCeiling(t *testing.T) {
 	r := newRig(t, scene{level: room, bodies: []body{{x: 25, y: 29}},
-		rules: []rule.Rule{landing()}})
+		rules: []act.Rule{landing()}})
 	for range 5 {
 		r.tick()
 	}

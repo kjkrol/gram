@@ -21,7 +21,8 @@ import (
 	"github.com/kjkrol/gram/plugins/gravity"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -43,9 +44,9 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable {
 	return c.ecs.RegSys(factory())
 }
-func (c *installCtx) ECS() *goke.ECS                   { return c.ecs }
-func (c *installCtx) Hosts(h ...plugin.Host)           { c.hosts = append(c.hosts, h...) }
-func (c *installCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *installCtx) ECS() *goke.ECS                  { return c.ecs }
+func (c *installCtx) Hosts(h ...plugin.Host)          { c.hosts = append(c.hosts, h...) }
+func (c *installCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }
 func (c *installCtx) systems() []goke.System {
 	var systems []goke.System
 	for _, produce := range c.pending {
@@ -107,7 +108,7 @@ type scene struct {
 	fence  bool
 	water  bool
 	bodies []body
-	rules  []rule.Rule
+	rules  []act.Rule
 }
 
 type rig struct {
@@ -305,12 +306,16 @@ func awayFrom(from uid.UID64, speed, rise float64) gravity.Away {
 	return a
 }
 
-func landing() rule.Rule {
-	return rule.Branch[gravity.Landing]{Name: "landed", On: rule.Self, Do: rule.OneOf(
-		rule.Branch[gravity.Landing]{
-			When: func(l gravity.Landing) bool { return l.Speed > hard },
-			Do:   rule.Apply(landed{Hard: true}),
-		},
-		rule.Apply(landed{}),
-	)}
+func landing() act.Rule {
+	return act.Branch[gravity.Landing]{
+		Name: "landed",
+		When: cond.Self.If(cond.Always),
+		Then: act.OneOf(
+			act.Branch[gravity.Landing]{
+				When: cond.Self.If(cond.NewWord("hard", func(l gravity.Landing) bool { return l.Speed > hard })),
+				Then: act.Self.Do(landed{Hard: true}),
+			},
+			act.Self.Do(landed{}),
+		),
+	}
 }

@@ -27,7 +27,10 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -150,25 +153,23 @@ func (s *arena) defineRules() {
 	wounded := s.world.Effects().Named(WoundedEf)
 	roles.Define(MortalRole)
 	mortal := roles.Named(MortalRole)
-	roles.Define(RoundRole, rule.Branch[collision.Meeting]{
+	roles.Define(RoundRole, act.Branch[collision.Meeting]{
 		Name: "shot",
-		On:   rule.Other,
-		When: collision.Met(mortal),
-		Do: rule.OneOf(
-			rule.Branch[any]{When: rule.Under(wounded), Do: rule.Apply(world.Despawn{})},
-			rule.Put(wounded),
+		When: cond.Other.If(mortal),
+		Then: act.OneOf(
+			act.Branch[any]{When: cond.Other.If(wounded), Then: act.Other.Do(world.Despawn{})},
+			act.Other.Put(wounded),
 		),
 	})
-	roles.Define(GrenadeRole, rule.Branch[bullet.Blast]{
+	roles.Define(GrenadeRole, act.Branch[bullet.Blast]{
 		Name: "blast",
-		On:   rule.Other,
-		When: bullet.Reaching(mortal),
-		Do: rule.OneOf(
-			rule.Branch[bullet.Blast]{
-				When: bullet.Within(blastKills),
-				Do:   rule.Apply(world.Despawn{}),
+		When: cond.Other.If(mortal),
+		Then: act.OneOf(
+			act.Branch[bullet.Blast]{
+				When: cond.Other.If(bullet.Within(blastKills)),
+				Then: act.Other.Do(world.Despawn{}),
 			},
-			rule.Put(wounded),
+			act.Other.Put(wounded),
 		),
 	})
 }
@@ -204,17 +205,19 @@ func (s *arena) defineKinds() {
 	s.bullet.Shots().Define(RoundKind,
 		bullet.Body{Size: 4, Speed: 10 * CellSize, Range: 10 * CellSize},
 		rule.Plays(s.world.Roles().Named(RoundRole)))
-	fuse := rule.Plan(FusePlan, rule.Steps(
-		rule.Branch[bullet.Flight]{
+	fuse := plan.New(FusePlan, plan.Steps(
+		plan.Loop[bullet.Flight]{
 			Name: "lit",
-			When: bullet.Flight.Lying,
-			On:   rule.Self,
-			Do:   rule.Steps(rule.Put(s.world.Effects().Named(FuseEf)), rule.Wait(fuseLength)),
+			When: cond.Self.If(bullet.Lying()),
+			Then: plan.Steps(
+				plan.Self.Put(s.world.Effects().Named(FuseEf)),
+				plan.Self.Wait(fuseLength),
+			),
 		},
-		rule.Branch[any]{
+		plan.Loop[any]{
 			Name: "burst",
-			On:   rule.Self,
-			Do:   rule.Apply(bullet.Burst{Radius: blastRadius}),
+			When: cond.Self.If(cond.Always),
+			Then: plan.Self.Do(bullet.Burst{Radius: blastRadius}),
 		},
 	))
 	s.bullet.Shots().Define(GrenadeKind,
@@ -223,15 +226,15 @@ func (s *arena) defineKinds() {
 	mortal := rule.Plays(s.world.Roles().Named(MortalRole))
 	units.Define(SoldierKind, unit.Mover{Domain: cell.Land}, profile, mortal,
 		comp.Const(world.Velocity{Dir: geom.NewVec(1, 0)}), comp.Const(world.Eye{Height: 16}))
-	patrol := rule.Plan(PatrolPlan, rule.Branch[any]{
-		Name: "leg",
-		On:   rule.Self,
-		Do: rule.Steps(
-			rule.Apply(navigation.Onward{}),
-			rule.Until[navigation.Arrived](),
-			rule.Wait(time.Second),
-		),
-	})
+	patrol := plan.New(PatrolPlan, plan.Steps(
+		plan.Loop[any]{
+			Name:  "leg",
+			When:  cond.Self.If(cond.Always),
+			Then:  plan.Self.Do(navigation.Onward{}),
+			Until: cond.Self.If(navigation.Arrived{}),
+		},
+		plan.Loop[any]{Name: "rest", When: cond.Self.If(cond.Always), Then: plan.Self.Wait(time.Second)},
+	))
 	round := comp.Load(func(u unitRow) navigation.Round {
 		return navigation.NewRound(u.To, u.Start)
 	})

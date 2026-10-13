@@ -16,6 +16,8 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 )
 
 type hookStage struct {
@@ -104,8 +106,8 @@ func runHookStage(t *testing.T, s *hookStage) (before, after int) {
 	return before, s.living()
 }
 
-func despawning() rule.Rule {
-	return rule.Branch[world.Moving]{Name: "leave", On: rule.Self, Do: rule.Apply(world.Despawn{})}
+func despawning() act.Rule {
+	return act.Branch[world.Moving]{Name: "leave", When: cond.Self.If(cond.Always), Then: act.Self.Do(world.Despawn{})}
 }
 
 type hostPlugin struct {
@@ -128,10 +130,10 @@ type unhostedMoment struct{}
 
 type role struct {
 	name  string
-	rules []rule.Rule
+	rules []act.Rule
 }
 
-func leaver() role { return role{"leaver", []rule.Rule{despawning()}} }
+func leaver() role { return role{"leaver", []act.Rule{despawning()}} }
 
 func TestEngine_DeliversTheRolesItsKindsPlay(t *testing.T) {
 	before, after := runHookStage(t, &hookStage{plays: []role{leaver()}})
@@ -153,10 +155,10 @@ func TestEngine_ARolesRuleIsForItsPlayersAlone(t *testing.T) {
 }
 
 func TestEngine_RefusesAPlayedRoleNobodyHosts(t *testing.T) {
-	lost := role{"lost soul", []rule.Rule{rule.Branch[unhostedMoment]{
+	lost := role{"lost soul", []act.Rule{act.Branch[unhostedMoment]{
 		Name: "lost",
-		On:   rule.Self,
-		Do:   rule.Apply(world.Despawn{}),
+		When: cond.Self.If(cond.Always),
+		Then: act.Self.Do(world.Despawn{}),
 	}}}
 	eng := NewEngine(oneStageGame{stage: &hookStage{before: []plugin.Plugin{&stubPlugin{name: "test.plain"}}, plays: []role{lost}}})
 	err := eng.Init()

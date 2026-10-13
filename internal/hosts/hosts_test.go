@@ -12,6 +12,8 @@ import (
 	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -46,11 +48,14 @@ type noted struct{}
 
 func (noted) Command() {}
 
-func noteOf[P any](name string, when any) rule.Rule {
-	return rule.Branch[P]{Name: name, On: rule.Self, When: when, Do: rule.Apply(noted{})}
+func noteOf[P any](name string, when cond.Cond) act.Rule {
+	if when == nil {
+		when = cond.Self.If(cond.Always)
+	}
+	return act.Branch[P]{Name: name, When: when, Then: act.Self.Do(noted{})}
 }
 
-func narrowed(r rule.Rule) rule.Rule { return rule.NewPart("hookon scout", 0).Obeys(r).Rules()[0] }
+func narrowed(r act.Rule) act.Rule { return rule.NewPart("hookon scout", 0).Obeys(r).Rules()[0] }
 
 type host struct {
 	name  string
@@ -68,7 +73,7 @@ func (h *host) Add(r any) error {
 	return nil
 }
 
-func names(rules ...rule.Rule) []string {
+func names(rules ...act.Rule) []string {
 	out := make([]string, len(rules))
 	for i, r := range rules {
 		out[i] = fmt.Sprint(r)
@@ -92,8 +97,8 @@ func TestDeliver_HandsEachRuleToTheHostOfItsMoment(t *testing.T) {
 	among := []plugin.Host{glances, dawns, pokes}
 
 	wake := noteOf[dawn]("wake", nil)
-	spot := noteOf[poke]("spot", rule.Playing(hunterPart))
-	stare := noteOf[glance]("stare", rule.All(rule.Playing(hunterPart), rule.Paired(huntedPart)))
+	spot := noteOf[poke]("spot", cond.Self.If(hunterPart))
+	stare := noteOf[glance]("stare", cond.Self.If(hunterPart).And(cond.Other.If(huntedPart)))
 	drown := noteOf[poke]("drown", nil)
 	scouting := narrowed(drown)
 	scoutStare := narrowed(stare)
@@ -135,7 +140,7 @@ func TestDeliver_TheFirstHostToTakeTheRuleHasIt(t *testing.T) {
 func TestDeliver_StopsAtAnotherError(t *testing.T) {
 	b := &broken{}
 	pokes := &host{name: "pokes", adds: &plugin.Rules[poke]{}}
-	drown, spot := noteOf[poke]("drown", nil), noteOf[poke]("spot", rule.Playing(hunterPart))
+	drown, spot := noteOf[poke]("drown", nil), noteOf[poke]("spot", cond.Self.If(hunterPart))
 
 	err := hosts.Deliver([]plugin.Host{b, pokes}, drown, spot)
 	if !errors.Is(err, errBroken) || errors.Is(err, plugin.ErrUnhosted) {
@@ -167,12 +172,12 @@ func TestDeliver_StopsAtAHostAlreadyBuilt(t *testing.T) {
 func TestDeliver_RefusesARuleNoHostTakes(t *testing.T) {
 	pokes := &host{name: "pokes", adds: &plugin.Rules[poke]{}}
 	dawns := &host{name: "dawns", adds: &plugin.StepRules[dawn]{}}
-	stare := noteOf[glance]("stare", rule.All(rule.Playing(hunterPart), rule.Paired(huntedPart)))
+	stare := noteOf[glance]("stare", cond.Self.If(hunterPart).And(cond.Other.If(huntedPart)))
 
 	for _, c := range []struct {
 		name  string
 		among []plugin.Host
-		r     rule.Rule
+		r     act.Rule
 	}{
 		{"a moment nobody hosts", []plugin.Host{pokes, dawns}, stare},
 		{"no hosts", nil, stare},

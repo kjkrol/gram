@@ -4,7 +4,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/hosts"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 )
 
 type installCtx struct {
@@ -27,4 +27,4 @@ func (c *installCtx) ECS() *goke.ECS                                  { return c
 
 func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-func (c *installCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *installCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }

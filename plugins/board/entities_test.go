@@ -17,6 +17,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 )
 
@@ -37,7 +39,7 @@ func newStrip(t *testing.T, ground cell.Kind, spec effect.Spec, extra ...comp.Co
 	t.Helper()
 	g := grid.DefaultGrids{}.Square(5, 1, boardtest.CellSize)
 	s := &strip{middle: g.At(2, 0)}
-	prepare := func(w *world.Plugin, brd *board.Plugin) []rule.Rule {
+	prepare := func(w *world.Plugin, brd *board.Plugin) []act.Rule {
 		brd.Board().SetAll(grass)
 		brd.Board().Set(s.middle, ground)
 		w.Effects().Define("open", spec)
@@ -110,7 +112,7 @@ func TestAround_VisitsTheEntitiesStandingOnTheCellsNotTheUnits(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 1, boardtest.CellSize)
 	doors, decoys := g.At(4, 0), g.At(3, 0)
 	var open effect.Effect
-	prepare := func(w *world.Plugin, brd *board.Plugin) []rule.Rule {
+	prepare := func(w *world.Plugin, brd *board.Plugin) []act.Rule {
 		brd.Board().SetAll(grass)
 		brd.Seed(board.Layout{Cells: []cell.Entry{
 			{Cell: doors, Group: "doors"},
@@ -123,14 +125,10 @@ func TestAround_VisitsTheEntitiesStandingOnTheCellsNotTheUnits(t *testing.T) {
 		open = w.Effects().Named("open")
 		w.Roles().Define("lever")
 		lever := w.Roles().Named("lever")
-		pull := rule.Branch[unit.Standing]{
-			When: rule.Playing(lever),
-			Do:   rule.Apply(rule.Triggered{}),
-		}
-		w.Roles().Define("walker", rule.Branch[unit.Standing]{
+		w.Roles().Define("walker", act.Branch[unit.Standing]{
 			Name: "pull",
-			On:   rule.Around(1),
-			Do:   pull,
+			When: cond.Around(1).If(lever),
+			Then: act.Around(1).Do(rule.Trigger{}),
 		})
 		walker := w.Roles().Named("walker")
 

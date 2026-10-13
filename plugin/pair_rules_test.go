@@ -146,13 +146,11 @@ func TestPairRules_DispatchGrouped_HandsOverTheOthersThatFit(t *testing.T) {
 	h.DispatchGrouped(plugin.Tick{}, hunterMarks, nil, build)
 	h.DispatchGrouped(plugin.Tick{}, huntedMarks, []plugin.Marks{huntedMarks}, build)
 
-	if len(got) != 2 {
-		t.Fatalf("the rule ran %d times, want twice — once with prey in view, once with none", len(got))
+	if len(got) != 1 {
+		t.Fatalf("the rule ran %d times, want once, with prey in view: the rule names the other",
+			len(got))
 	}
 	if len(got[0].others) != 2 || got[0].others[0] != 0 || got[0].others[1] != 2 {
 		t.Errorf("first group = %v, want others 0 and 2 — the one in between carries no tag", got[0].others)
-	}
-	if len(got[1].others) != 0 {
-		t.Errorf("second group = %v, want it empty", got[1].others)
 	}
 }

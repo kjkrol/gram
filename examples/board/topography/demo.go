@@ -37,6 +37,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/gram/ui"
 )
@@ -191,17 +193,15 @@ func (s *arena) defineEffects() {
 }
 
 func (s *arena) defineRules() {
-	s.world.Roles().Define(MortalRole, rule.Branch[unit.Standing]{
+	s.world.Roles().Define(MortalRole, act.Branch[unit.Standing]{
 		Name: "drown",
-		On:   rule.Self,
-		When: unit.Standing.Fallen,
-		Do:   rule.Apply(world.Despawn{}),
+		When: cond.Self.If(unit.Fallen()),
+		Then: act.Self.Do(world.Despawn{}),
 	})
-	s.world.Roles().Define(LunarRole, rule.Branch[sky.Moonrise]{
+	s.world.Roles().Define(LunarRole, act.Branch[sky.Moonrise]{
 		Name: "a blood moon rises",
-		On:   rule.Self,
-		When: sky.Moonrise.Full,
-		Do:   rule.Put(s.world.Effects().Named(BloodMoonEf)),
+		When: cond.Self.If(sky.FullMoon()),
+		Then: act.Self.Put(s.world.Effects().Named(BloodMoonEf)),
 	})
 	s.atmosphere.Plays(s.world.Roles().Named(LunarRole))
 }

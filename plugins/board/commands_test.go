@@ -15,6 +15,8 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 )
 
@@ -37,14 +39,14 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 	for _, c := range standing {
 		units = append(units, boardtest.Mover{Here: c})
 	}
-	m.World = boardtest.NewWorldWith(t, g, 6*boardtest.CellSize, 6*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []rule.Rule {
+	m.World = boardtest.NewWorldWith(t, g, 6*boardtest.CellSize, 6*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []act.Rule {
 		brd.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 		w.Effects().Define("open", effect.Spec{effect.Lasts(3 * time.Second / 60)})
 		m.open = w.Effects().Named("open")
-		w.Roles().Define("plate", rule.Branch[collision.Meeting]{
+		w.Roles().Define("plate", act.Branch[collision.Meeting]{
 			Name: "press",
-			On:   rule.Self,
-			Do:   rule.Apply(rule.Triggered{}),
+			When: cond.Self.If(cond.Always),
+			Then: act.Self.Do(rule.Trigger{}),
 		})
 		plate := w.Roles().Named("plate")
 		plates := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize}, itself)
@@ -186,7 +188,7 @@ func TestCommands_RefuseANameNobodyBearsAndOneTwoBear(t *testing.T) {
 			for i := range tc.cells {
 				tc.cells[i].Cell = g.At(uint32(i), 0)
 			}
-			bw := boardtest.NewWorldWith(t, g, 3*boardtest.CellSize, 3*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []rule.Rule {
+			bw := boardtest.NewWorldWith(t, g, 3*boardtest.CellSize, 3*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []act.Rule {
 				brd.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 				brd.Seed(board.Layout{Cells: tc.cells})
 				if err := brd.Populate(); err != nil {

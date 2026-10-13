@@ -20,7 +20,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -160,7 +160,7 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[steering.Driven](),
 		goke.LoadComp[tag.Tags[clock.Phase]](),
 		goke.LoadComp[entity.Label](),
-		goke.LoadComp[tag.Tags[rule.Roles]](),
+		goke.LoadComp[tag.Tags[cond.Roles]](),
 	}, w.effects.Module().LoadComps()...)
 	tokens = append(tokens, w.selves.tokens()...)
 	return append(tokens, w.plans.LoadComps()...)

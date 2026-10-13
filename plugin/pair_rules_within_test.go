@@ -170,11 +170,12 @@ func TestPairRules_Within_DispatchGrouped_NeedsTheTagOnSelf(t *testing.T) {
 	h.DispatchGrouped(plugin.Tick{}, m[0], nil, build)
 	h.DispatchGrouped(plugin.Tick{}, m[3], []plugin.Marks{m[2]}, build)
 
-	if len(got) != 2 {
-		t.Fatalf("the rule ran %d times (%v), want twice: the hunter in alpha with prey and without", len(got), got)
+	if len(got) != 1 {
+		t.Fatalf("the rule ran %d times (%v), want once: the hunter in alpha with prey in view",
+			len(got), got)
 	}
-	if !slices.Equal(got[0], []int{0, 1}) || len(got[1]) != 0 {
-		t.Errorf("groups = %v, want [[0 1] []]: both hunted, in alpha or not, then none", got)
+	if !slices.Equal(got[0], []int{0, 1}) {
+		t.Errorf("groups = %v, want [[0 1]]: both hunted, in alpha or not", got)
 	}
 }
 

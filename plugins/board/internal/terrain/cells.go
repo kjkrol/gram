@@ -11,7 +11,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/grids"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -317,7 +317,7 @@ func (t *Cells) States(c cell.ID) tag.Tags[effect.States] {
 }
 
 // Cast has c play roles for good; only the seed takes them, before the cells are made.
-func (t *Cells) Cast(c cell.ID, roles tag.Tags[rule.Roles]) {
+func (t *Cells) Cast(c cell.ID, roles tag.Tags[cond.Roles]) {
 	if t.store != nil {
 		panic("board: a cell's roles are given in the Layout, before the cells are made")
 	}

@@ -94,34 +94,3 @@ func (i *order[C]) send(c *ctx, v *C, from *From) Status {
 	}
 	return Success
 }
-
-func NewUntil[F any](holds ...func(F) bool) Step {
-	sign := "until[" + typeName[F]() + "]"
-	var h func(F) bool
-	if len(holds) > 0 {
-		h, sign = holds[0], sign+funcName(holds[0])
-	}
-	return leaf{sign: sign, make: func() exec { return &until[F]{holds: h} }}
-}
-
-type until[F any] struct {
-	holds func(F) bool
-	fact  *fact[F]
-}
-
-func (u *until[F]) bind(s *system) { u.fact = factOf[F](s) }
-
-func (u *until[F]) enter(c *ctx, at int) { c.mind.Slot[at] = 0 }
-func (u *until[F]) halt(*ctx, int)       {}
-
-func (u *until[F]) tick(c *ctx, at int, _ []int) Status {
-	f := u.fact.of(c)
-	if f == nil || (u.holds != nil && !u.holds(*f)) {
-		c.mind.Slot[at] = 1 // not given: what comes from now on counts
-		return Running
-	}
-	if c.mind.Slot[at] == 1 {
-		return Success
-	}
-	return Running
-}

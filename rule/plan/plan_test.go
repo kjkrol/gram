@@ -1,4 +1,4 @@
-package rule_test
+package plan_test
 
 import (
 	"strings"
@@ -8,7 +8,9 @@ import (
 	"github.com/kjkrol/gram/internal/steps"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
+	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/uid"
 )
 
@@ -30,9 +32,11 @@ type rig struct {
 	toys  *toys
 }
 
-type written struct{ plan rule.Planned }
+type written struct{ plan act.Planned }
 
-func write(name string, root rule.Step) written { return written{rule.Plan(name, root)} }
+func write(name string, root plan.Part) written {
+	return written{plan.New(name, root)}
+}
 
 func (w written) mind(c *steps.Plans) steps.Mind {
 	w.plan.Define(c)
@@ -42,7 +46,7 @@ func (w written) mind(c *steps.Plans) steps.Mind {
 func newRig(t *testing.T, given written) *rig {
 	t.Helper()
 	r := &rig{t: t, ecs: goke.New(), ids: map[string]goke.CompID{}, toys: newToys()}
-	c := steps.NewPlans(func() time.Duration { return r.now }, nil, 0, nil, &r.toys.carrier)
+	c := steps.NewPlans(func() time.Duration { return r.now }, 0, nil, &r.toys.carrier)
 	follows := given.mind(c)
 	var mind goke.Comp[steps.Mind]
 	r.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
@@ -96,14 +100,24 @@ func (r *rig) want(when, doing string, given int) {
 	}
 }
 
-func idle() rule.Step { return rule.Branch[any]{Name: "idle", On: rule.Self, Do: rule.Idle()} }
+func idle() plan.Part {
+	return plan.Loop[any]{Name: "idle", When: cond.Self.If(cond.Always), Then: plan.Self.Idle()}
+}
 
 func TestSteps_GivesItsCommandsOneAfterAnother(t *testing.T) {
-	r := newRig(t, write("walk then jump", rule.Steps(
-		rule.Apply(walk{Far: 3}),
-		rule.Until[done](),
-		rule.Apply(jump{}),
-		rule.Until[done](),
+	r := newRig(t, write("walk then jump", plan.Steps(
+		plan.Loop[any]{
+			Name:  "walk",
+			When:  cond.Self.If(cond.Always),
+			Then:  plan.Self.Do(walk{Far: 3}),
+			Until: cond.Self.If(done{}),
+		},
+		plan.Loop[any]{
+			Name:  "jump",
+			When:  cond.Self.If(cond.Always),
+			Then:  plan.Self.Do(jump{}),
+			Until: cond.Self.If(done{}),
+		},
 	)))
 	r.tick(1)
 	r.want("the first tick", "walk", 1)
@@ -118,12 +132,16 @@ func TestSteps_GivesItsCommandsOneAfterAnother(t *testing.T) {
 }
 
 func TestOneOf_AnEarlierBranchTakesOverAsItsFactComes(t *testing.T) {
-	r := newRig(t, write("flee from alarms", rule.OneOf(
-		rule.Branch[alarm]{Name: "alarmed", On: rule.Self, Do: rule.Apply(flee{})},
-		rule.Branch[any]{
+	r := newRig(t, write("flee from alarms", plan.OneOf(
+		plan.Loop[alarm]{
+			Name: "alarmed",
+			When: cond.Self.If(cond.Always),
+			Then: plan.Self.Do(flee{}),
+		},
+		plan.Loop[any]{
 			Name: "walk",
-			On:   rule.Self,
-			Do:   rule.Steps(rule.Apply(walk{}), rule.Idle()),
+			When: cond.Self.If(cond.Always),
+			Then: plan.Steps(plan.Self.Do(walk{}), plan.Self.Idle()),
 		},
 	)))
 	r.tick(1)
@@ -143,11 +161,12 @@ func TestOneOf_AnEarlierBranchTakesOverAsItsFactComes(t *testing.T) {
 }
 
 func TestBranch_OfAFactRunsOnceAsItComesAndToTheEnd(t *testing.T) {
-	r := newRig(t, write("jump when poked", rule.OneOf(
-		rule.Branch[prod]{
-			Name: "poked",
-			On:   rule.Self,
-			Do:   rule.Steps(rule.Apply(jump{}), rule.Until[done]()),
+	r := newRig(t, write("jump when poked", plan.OneOf(
+		plan.Loop[prod]{
+			Name:  "poked",
+			When:  cond.Self.If(cond.Always),
+			Then:  plan.Self.Do(jump{}),
+			Until: cond.Self.If(done{}),
 		},
 		idle(),
 	)))
@@ -170,12 +189,12 @@ func TestBranch_OfAFactRunsOnceAsItComesAndToTheEnd(t *testing.T) {
 }
 
 func TestBranch_OfAFactComesAgainAsItsConditionComesToHold(t *testing.T) {
-	r := newRig(t, write("walk when calm", rule.OneOf(
-		rule.Branch[mood]{
-			Name: "calm",
-			When: mood.calm,
-			On:   rule.Self,
-			Do:   rule.Steps(rule.Apply(walk{}), rule.Until[done]()),
+	r := newRig(t, write("walk when calm", plan.OneOf(
+		plan.Loop[mood]{
+			Name:  "calm",
+			When:  cond.Self.If(cond.NewWord("calm", mood.calm)),
+			Then:  plan.Self.Do(walk{}),
+			Until: cond.Self.If(done{}),
 		},
 		idle(),
 	)))
@@ -193,16 +212,18 @@ func TestBranch_OfAFactComesAgainAsItsConditionComesToHold(t *testing.T) {
 }
 
 func TestBranch_InterruptedOnAFactStillCarriedDoesNotBeginAgain(t *testing.T) {
-	r := newRig(t, write("flee from alarms, jump when poked", rule.OneOf(
-		rule.Branch[alarm]{
-			Name: "alarmed",
-			On:   rule.Self,
-			Do:   rule.Steps(rule.Apply(flee{}), rule.Until[done]()),
+	r := newRig(t, write("flee from alarms, jump when poked", plan.OneOf(
+		plan.Loop[alarm]{
+			Name:  "alarmed",
+			When:  cond.Self.If(cond.Always),
+			Then:  plan.Self.Do(flee{}),
+			Until: cond.Self.If(done{}),
 		},
-		rule.Branch[prod]{
-			Name: "poked",
-			On:   rule.Self,
-			Do:   rule.Steps(rule.Apply(jump{}), rule.Until[done]()),
+		plan.Loop[prod]{
+			Name:  "poked",
+			When:  cond.Self.If(cond.Always),
+			Then:  plan.Self.Do(jump{}),
+			Until: cond.Self.If(done{}),
 		},
 		idle(),
 	)))
@@ -222,8 +243,12 @@ func TestBranch_InterruptedOnAFactStillCarriedDoesNotBeginAgain(t *testing.T) {
 }
 
 func TestBranch_OfAFactCarriedAlreadyBeginsOnce(t *testing.T) {
-	r := newRig(t, write("jump when poked", rule.OneOf(
-		rule.Branch[prod]{Name: "poked", On: rule.Self, Do: rule.Apply(jump{})},
+	r := newRig(t, write("jump when poked", plan.OneOf(
+		plan.Loop[prod]{
+			Name: "poked",
+			When: cond.Self.If(cond.Always),
+			Then: plan.Self.Do(jump{}),
+		},
 		idle(),
 	)))
 	give(r, "prod", prod{})
@@ -233,11 +258,19 @@ func TestBranch_OfAFactCarriedAlreadyBeginsOnce(t *testing.T) {
 }
 
 func TestUntil_WaitsForTheFactToCome(t *testing.T) {
-	r := newRig(t, write("walk, then jump", rule.Steps(
-		rule.Apply(walk{}),
-		rule.Until[done](),
-		rule.Apply(jump{}),
-		rule.Until[done](),
+	r := newRig(t, write("walk, then jump", plan.Steps(
+		plan.Loop[any]{
+			Name:  "walk",
+			When:  cond.Self.If(cond.Always),
+			Then:  plan.Self.Do(walk{}),
+			Until: cond.Self.If(done{}),
+		},
+		plan.Loop[any]{
+			Name:  "jump",
+			When:  cond.Self.If(cond.Always),
+			Then:  plan.Self.Do(jump{}),
+			Until: cond.Self.If(done{}),
+		},
 	)))
 	give(r, "done", done{})
 	r.tick(2)
@@ -246,7 +279,15 @@ func TestUntil_WaitsForTheFactToCome(t *testing.T) {
 	r.tick(3)
 	r.want("the walk done", "jump", 2)
 
-	r = newRig(t, write("jump once calm", rule.Steps(rule.Until(mood.calm), rule.Apply(jump{}))))
+	r = newRig(t, write("jump once calm", plan.Steps(
+		plan.Loop[any]{
+			Name:  "till calm",
+			When:  cond.Self.If(cond.Always),
+			Then:  plan.Self.Idle(),
+			Until: cond.Self.If(cond.NewWord("calm", mood.calm)),
+		},
+		plan.Self.Do(jump{}),
+	)))
 	give(r, "mood", mood{Calm: false})
 	r.tick(2)
 	r.want("upset", "", 0)
@@ -256,24 +297,27 @@ func TestUntil_WaitsForTheFactToCome(t *testing.T) {
 }
 
 func TestWaitTimeoutAndEvery_GoByTheClock(t *testing.T) {
-	r := newRig(t, write("pause, then walk",
-		rule.Steps(rule.Wait(250*time.Millisecond), rule.Apply(walk{}))))
+	r := newRig(t, write("pause, then walk", plan.Steps(
+		plan.Self.Wait(250*time.Millisecond),
+		plan.Self.Do(walk{}),
+	)))
 	r.tick(3)
 	r.want("waiting", "", 0)
 	r.tick(1)
 	r.want("the wait over", "walk", 1)
 
-	r = newRig(t, write("walk at most 150 ms", rule.OneOf(
-		rule.Branch[any]{
-			Name: "walk",
-			On:   rule.Self,
-			Do:   rule.Steps(rule.Apply(walk{}), rule.Until[done]()),
-		}.
-			Timeout(150*time.Millisecond),
-		rule.Branch[any]{
+	r = newRig(t, write("walk at most 150 ms", plan.OneOf(
+		plan.Loop[any]{
+			Name:    "walk",
+			When:    cond.Self.If(cond.Always),
+			Then:    plan.Self.Do(walk{}),
+			Until:   cond.Self.If(done{}),
+			Timeout: 150 * time.Millisecond,
+		},
+		plan.Loop[any]{
 			Name: "rest",
-			On:   rule.Self,
-			Do:   rule.Steps(rule.Apply(rest{}), rule.Idle()),
+			When: cond.Self.If(cond.Always),
+			Then: plan.Steps(plan.Self.Do(rest{}), plan.Self.Idle()),
 		},
 	)))
 	r.tick(2)
@@ -281,12 +325,17 @@ func TestWaitTimeoutAndEvery_GoByTheClock(t *testing.T) {
 	r.tick(1)
 	r.want("out of time: the next branch", "rest", 2)
 
-	r = newRig(t, write("jump, then a second off", rule.OneOf(
-		rule.Branch[any]{Name: "jump", On: rule.Self, Do: rule.Apply(jump{})}.Every(time.Second),
-		rule.Branch[any]{
+	r = newRig(t, write("jump, then a second off", plan.OneOf(
+		plan.Loop[any]{
+			Name:     "jump",
+			When:     cond.Self.If(cond.Always),
+			Then:     plan.Self.Do(jump{}),
+			Cooldown: time.Second,
+		},
+		plan.Loop[any]{
 			Name: "walk",
-			On:   rule.Self,
-			Do:   rule.Steps(rule.Apply(walk{}), rule.Idle()),
+			When: cond.Self.If(cond.Always),
+			Then: plan.Steps(plan.Self.Do(walk{}), plan.Self.Idle()),
 		},
 	)))
 	r.tick(1)
@@ -299,25 +348,36 @@ func TestWaitTimeoutAndEvery_GoByTheClock(t *testing.T) {
 	r.want("not again yet, again", "walk", 4)
 }
 
-func TestPlan_ATopBranchNeedsANameAndAnOn(t *testing.T) {
+func TestPlan_ABranchNeedsANameAWhenAndAThen(t *testing.T) {
 	for name, c := range map[string]struct {
-		root rule.Step
+		root plan.Part
 		want string
 	}{
-		"no On": {rule.Branch[any]{Name: "walk", Do: rule.Apply(walk{})}, "needs an On"},
-		"no Name": {rule.Branch[any]{
-			On: rule.Self,
-			Do: rule.Apply(walk{}),
+		"no When": {plan.Loop[any]{Name: "walk", Then: plan.Self.Do(walk{})}, "needs a When"},
+		"no Then": {plan.Loop[any]{Name: "walk", When: cond.Self.If(cond.Always)},
+			"needs a Then"},
+		"no Name": {plan.Loop[any]{
+			When: cond.Self.If(cond.Always),
+			Then: plan.Self.Do(walk{}),
 		}, "needs a Name"},
-		"no On in a OneOf": {rule.OneOf(rule.Branch[any]{
+		"no When in a OneOf": {plan.OneOf(plan.Loop[any]{
 			Name: "walk",
-			Do:   rule.Apply(walk{}),
-		}), "needs an On"},
-		"no On under a Timeout": {
-			rule.Branch[any]{
-				Name: "walk",
-				Do:   rule.Apply(walk{}),
-			}.Timeout(time.Second), "needs an On"},
+			Then: plan.Self.Do(walk{}),
+		}), "needs a When"},
+		"no Then with a Timeout": {plan.Loop[any]{
+			Name:    "walk",
+			When:    cond.Self.If(cond.Always),
+			Timeout: time.Second,
+		}, "needs a Then"},
+		"no When inside": {plan.Loop[any]{
+			Name: "walk",
+			When: cond.Self.If(cond.Always),
+			Then: plan.OneOf(plan.Loop[any]{Then: plan.Self.Do(walk{})}),
+		}, `"walk" needs a When`},
+		"a branch without a Name at the top": {act.Branch[any]{
+			When: cond.Self.If(cond.Always),
+			Then: act.Self.Do(walk{}),
+		}, "needs a Name"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			defer func() {
@@ -325,20 +385,20 @@ func TestPlan_ATopBranchNeedsANameAndAnOn(t *testing.T) {
 					t.Errorf("panic %q; want one saying %q", msg, c.want)
 				}
 			}()
-			rule.Plan("checked", c.root)
+			plan.New("checked", c.root)
 		})
 	}
-	rule.Plan("inside", rule.Branch[any]{
+	plan.New("inside", plan.Loop[any]{
 		Name: "walk",
-		On:   rule.Self,
-		Do:   rule.Branch[any]{Do: rule.Apply(walk{})},
+		When: cond.Self.If(cond.Always),
+		Then: plan.Loop[any]{When: cond.Self.If(cond.Always), Then: plan.Self.Do(walk{})},
 	})
 }
 
 func TestPlan_OneNameIsOnePlanAWorld(t *testing.T) {
-	walking := write("the same", rule.OneOf(rule.Apply(walk{})))
-	jumping := write("the same", rule.OneOf(rule.Apply(jump{})))
-	mine, theirs := steps.NewPlans(nil, nil, 0, nil, nil), steps.NewPlans(nil, nil, 0, nil, nil)
+	walking := write("the same", plan.OneOf(plan.Self.Do(walk{})))
+	jumping := write("the same", plan.OneOf(plan.Self.Do(jump{})))
+	mine, theirs := steps.NewPlans(nil, 0, nil, nil), steps.NewPlans(nil, 0, nil, nil)
 	if a, b := walking.mind(mine), jumping.mind(theirs); a != b {
 		t.Errorf("two worlds know the plan of one name as %v and %v, want the name hashed alike", a, b)
 	}
@@ -356,7 +416,7 @@ type fly struct{ High bool }
 func (fly) Command() {}
 
 func TestApply_ACommandNobodyHandlesPanics(t *testing.T) {
-	r := newRig(t, write("fly", rule.OneOf(rule.Apply(fly{}))))
+	r := newRig(t, write("fly", plan.OneOf(plan.Self.Do(fly{}))))
 	defer func() {
 		if recover() == nil {
 			t.Error("a command nobody handles was issued, want a panic")
@@ -366,17 +426,16 @@ func TestApply_ACommandNobodyHandlesPanics(t *testing.T) {
 }
 
 func TestChance_HoldsAboutAsOftenAsItsLikelihood(t *testing.T) {
-	plan := write("jump or walk", rule.OneOf(
-		rule.Branch[any]{
+	either := write("jump or walk", plan.OneOf(
+		plan.Loop[any]{
 			Name: "jump",
-			When: rule.Chance(0.5),
-			On:   rule.Self,
-			Do:   rule.Apply(jump{}),
+			When: cond.Self.If(cond.Chance(0.5)),
+			Then: plan.Self.Do(jump{}),
 		},
-		rule.Branch[any]{Name: "walk", On: rule.Self, Do: rule.Apply(walk{})},
+		plan.Loop[any]{Name: "walk", When: cond.Self.If(cond.Always), Then: plan.Self.Do(walk{})},
 	))
 	jumps := func() (jumps, walks int) {
-		r := newRig(t, plan)
+		r := newRig(t, either)
 		for range 1000 {
 			r.tick(1)
 			switch r.toys.last[r.id] {
@@ -396,12 +455,11 @@ func TestChance_HoldsAboutAsOftenAsItsLikelihood(t *testing.T) {
 		t.Errorf("a second run jumped %d times, the first %d", again, j)
 	}
 
-	quarter := write("jump now and then", rule.OneOf(
-		rule.Branch[any]{
+	quarter := write("jump now and then", plan.OneOf(
+		plan.Loop[any]{
 			Name: "jump",
-			When: rule.Chance(0.25),
-			On:   rule.Self,
-			Do:   rule.Apply(jump{}),
+			When: cond.Self.If(cond.Chance(0.25)),
+			Then: plan.Self.Do(jump{}),
 		},
 		idle(),
 	))

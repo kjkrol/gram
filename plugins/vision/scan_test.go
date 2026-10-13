@@ -15,7 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 	"github.com/kjkrol/uid"
 )
 
@@ -340,4 +340,4 @@ func scaleOf(r *relief) world.Scale {
 
 func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-func (c *installCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *installCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }

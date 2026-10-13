@@ -15,6 +15,9 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
+	"github.com/kjkrol/gram/rule/plan"
 )
 
 type carrierStage struct {
@@ -37,10 +40,10 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: 3, MinSize: 10, MaxSize: 10},
 	})
 	s.collision = collision.NewPlugin(s.world)
-	s.world.Roles().Define("fragile", rule.Branch[collision.Struck]{
+	s.world.Roles().Define("fragile", act.Branch[collision.Struck]{
 		Name: "gone when struck",
-		On:   rule.Self,
-		Do:   rule.Apply(world.Despawn{}),
+		When: cond.Self.If(cond.Always),
+		Then: act.Self.Do(world.Despawn{}),
 	})
 	fragile := s.world.Roles().Named("fragile")
 	at := func(x float64) world.Position {
@@ -49,9 +52,9 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 	kind.Define[float64](s.world.Kinds(), "leaver", kind.Spec{
 		comp.Load(at),
 		comp.Const(world.Velocity{}),
-		rule.Plan("leaver", rule.Steps(
-			rule.Wait(100*time.Millisecond),
-			rule.Apply(world.Despawn{}),
+		plan.New("leaver", plan.Steps(
+			plan.Self.Wait(100*time.Millisecond),
+			plan.Self.Do(world.Despawn{}),
 		)),
 	})
 	s.leaver = kind.Named[float64](s.world.Kinds(), "leaver")

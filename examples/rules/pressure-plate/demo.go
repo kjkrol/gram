@@ -26,7 +26,10 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -115,16 +118,15 @@ func (s *arena) defineEffects() {
 
 func (s *arena) defineRules() {
 	s.world.Roles().Define(PlateRole,
-		rule.Branch[collision.Meeting]{
+		act.Branch[collision.Meeting]{
 			Name: "press",
-			On:   rule.Self,
-			Do:   rule.Apply(rule.Triggered{}),
+			When: cond.Self.If(cond.Always),
+			Then: act.Self.Do(rule.Trigger{}),
 		})
-	s.world.Roles().Define(MortalRole, rule.Branch[unit.Standing]{
+	s.world.Roles().Define(MortalRole, act.Branch[unit.Standing]{
 		Name: "fall in",
-		On:   rule.Self,
-		When: unit.Standing.Fallen,
-		Do:   rule.Apply(world.Despawn{}),
+		When: cond.Self.If(unit.Fallen()),
+		Then: act.Self.Do(world.Despawn{}),
 	})
 }
 
@@ -168,15 +170,15 @@ func (s *arena) defineKinds() {
 	}
 	land := unit.Mover{Domain: cell.Land}
 	units.Define(ScoutKind, land, profile, rule.Plays(s.world.Roles().Named(MortalRole)))
-	patrol := rule.Plan(PatrolPlan, rule.Branch[any]{
-		Name: "leg",
-		On:   rule.Self,
-		Do: rule.Steps(
-			rule.Apply(navigation.Onward{}),
-			rule.Until[navigation.Arrived](),
-			rule.Wait(time.Second),
-		),
-	})
+	patrol := plan.New(PatrolPlan, plan.Steps(
+		plan.Loop[any]{
+			Name:  "leg",
+			When:  cond.Self.If(cond.Always),
+			Then:  plan.Self.Do(navigation.Onward{}),
+			Until: cond.Self.If(navigation.Arrived{}),
+		},
+		plan.Loop[any]{Name: "rest", When: cond.Self.If(cond.Always), Then: plan.Self.Wait(time.Second)},
+	))
 	round := comp.Load(func(u unitRow) navigation.Round {
 		return navigation.NewRound(u.To, u.Start)
 	})

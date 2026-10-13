@@ -2,7 +2,7 @@ package bullet
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -50,9 +50,7 @@ func (b Blast) Whom(each func(uid.UID64)) { each(b.Other) }
 // Subject is the shot bursting, whom an Aimed command given on the moment is about.
 func (b Blast) Subject() (uid.UID64, bool) { return b.Self, true }
 
-// Reaching is the condition that the one reached plays role, for a rule's When on a Blast.
-func Reaching(role *rule.Part) rule.Cond { return rule.Paired(role) }
-
-// Within is the condition that the one reached is within d of the shot, for a rule's When on a
-// Blast.
-func Within(d float64) func(Blast) bool { return func(b Blast) bool { return b.Distance < d } }
+// Within is the word of the one reached being within d of the shot, of the other.
+func Within(d float64) cond.Word[Blast] {
+	return cond.NewWord("within", func(b Blast) bool { return b.Distance < d }).OfOther()
+}

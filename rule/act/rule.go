@@ -1,4 +1,4 @@
-package rule
+package act
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -15,19 +16,31 @@ import (
 // role whose rules come with it. The moment's type says which plugin hosts it.
 type Rule interface {
 	fmt.Stringer
-	rule()
-	narrowed(n narrowing) Rule
+	// Hosted is the rule as its host runs it (plugin.Hosted).
+	Hosted() any
+	// ForRole is the rule narrowed to the players of role.
+	ForRole(role cond.Role) Rule
 }
+
+type narrowed interface{ narrowed(n narrowing) Rule }
 
 func within[F any](t tag.Tag[F], r Rule, desc string) Rule {
 	if reflect.TypeFor[F]() == reflect.TypeFor[tag.Anything]() {
 		return r
 	}
 	n := narrowing{side: plugin.SideOf(t), carrier: carrierOf(t), desc: desc}
-	if role, ok := any(t).(tag.Tag[Roles]); ok {
+	if role, ok := any(t).(tag.Tag[cond.Roles]); ok {
 		n.role = 1 << role
 	}
-	return r.narrowed(n)
+	return Build(r).(narrowed).narrowed(n)
+}
+
+func forRole(r Rule, role cond.Role) Rule {
+	desc := ""
+	if s, ok := role.(fmt.Stringer); ok {
+		desc = "for " + s.String()
+	}
+	return within(role.Tag(), r, desc)
 }
 
 type side struct {
@@ -40,7 +53,7 @@ func carrierOf[F any](t tag.Tag[F]) *side {
 		carries: func(state any) bool { return state.(*tag.Tags[F]).Has(t) }}
 }
 
-func (s *side) cond() cond { return cond{mk: s.tags, holds: s.carries} }
+func (s *side) column() column { return column{mk: s.tags, holds: s.carries} }
 
 type narrowing struct {
 	side    plugin.Side
@@ -56,6 +69,11 @@ func (n narrowing) label(l string) string {
 	return l + ", " + n.desc
 }
 
+type sides struct {
+	self  plugin.Side // the first role of Self at the top of a pair rule
+	other plugin.Side
+}
+
 type fired[P any] struct {
 	run     *steps.Instant
 	current P
@@ -63,7 +81,7 @@ type fired[P any] struct {
 	subject bool
 }
 
-func (f *fired[P]) fire(t plugin.Tick, _ any, about P) {
+func (f *fired[P]) fire(t plugin.Tick, about P) {
 	f.current = about
 	var id, subject uid.UID64
 	var aimed bool
@@ -73,7 +91,8 @@ func (f *fired[P]) fire(t plugin.Tick, _ any, about P) {
 	if f.subject {
 		subject, aimed = any(&f.current).(plugin.Subject).Subject()
 	}
-	p := steps.Pass{Commands: t.Commands, Effects: t.Effects, Dt: t.Dt, Time: t.Time, Seed: t.Seed, World: t.World, Around: t.Around, Roles: t.Roles}
+	p := steps.Pass{Commands: t.Commands, Effects: t.Effects, Dt: t.Dt, Time: t.Time,
+		Seed: t.Seed, Around: t.Around, Roles: t.Roles}
 	f.run.Fire(p, t.CmdBuf, id, f.about, subject, aimed)
 }
 
@@ -83,18 +102,15 @@ func construct[P any](name string, filter sides, root steps.Step) Rule {
 	f.run = steps.NewInstant(name, root, &f.current)
 	_, f.about = any(&f.current).(plugin.About)
 	_, f.subject = any(&f.current).(plugin.Subject)
-	_, met := any(*new(P)).(plugin.Met)
-	react := func(t plugin.Tick, about P) { f.fire(t, nil, about) }
-	switch {
-	case filter.paired && !met:
-		panic(fmt.Sprintf("rule: %q: the other's role needs a moment with others (Met)", name))
-	case met:
+	react := func(t plugin.Tick, about P) { f.fire(t, about) }
+	if _, met := any(*new(P)).(plugin.Met); met {
 		return &pair[P]{label: label, self: filter.self, other: filter.other, react: react}
 	}
 	return &every[P]{label: label, react: react}
 }
+
 func (e *every[P]) narrowed(n narrowing) Rule {
-	each := newEachWith(n.label(e.label), e.react, n.carrier.cond())
+	each := newEachWith(n.label(e.label), e.react, n.carrier.column())
 	if n.role == 0 {
 		return each
 	}
@@ -110,11 +126,17 @@ func (p *played[P]) narrowed(n narrowing) Rule {
 }
 
 func (e *eachWith[P]) narrowed(n narrowing) Rule {
-	conds := make([]cond, 0, len(e.conds)+1)
+	conds := make([]column, 0, len(e.conds)+1)
 	for _, c := range e.conds {
-		conds = append(conds, cond{mk: c.mk, holds: c.holds})
+		conds = append(conds, column{mk: c.mk, holds: c.holds})
 	}
-	return newEachWith(n.label(e.label), e.react, append(conds, n.carrier.cond())...)
+	return newEachWith(n.label(e.label), e.react, append(conds, n.carrier.column())...)
+}
+
+func (p *pair[P]) sided(other plugin.Side) Rule {
+	q := *p
+	q.other = other
+	return &q
 }
 
 func (p *pair[P]) narrowed(n narrowing) Rule {

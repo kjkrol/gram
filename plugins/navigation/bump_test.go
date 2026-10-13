@@ -24,7 +24,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -424,4 +424,4 @@ func TestBump_ASensedContactBumpsNobody(t *testing.T) {
 	}
 }
 
-type writtenPlan struct{ planned rule.Planned }
+type writtenPlan struct{ planned act.Planned }

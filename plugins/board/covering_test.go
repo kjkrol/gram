@@ -9,7 +9,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 )
 
@@ -18,22 +19,24 @@ func TestCovering_AnEffectOnACellShowsOnTheBoardAndToTheRules(t *testing.T) {
 	here := g.At(1, 1)
 	var iced effect.Effect
 	var slot [2]int
-	bw := boardtest.NewWorldWith(t, g, 4*boardtest.CellSize, 4*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []rule.Rule {
+	bw := boardtest.NewWorldWith(t, g, 4*boardtest.CellSize, 4*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []act.Rule {
 		brd.Board().SetAll(cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Land})
 		w.Effects().Define("iced", effect.Spec{})
 		iced = w.Effects().Named("iced")
 		slot[0], slot[1] = int(brd.Covering(iced)), int(brd.Covering(iced))
-		return []rule.Rule{
-			rule.Branch[unit.Standing]{
+		return []act.Rule{
+			act.Branch[unit.Standing]{
 				Name: "freeze",
-				On:   rule.Here,
-				Do:   rule.Branch[any]{When: rule.Not(rule.Under(iced)), Do: rule.Put(iced)},
+				When: cond.Self.If(cond.Always),
+				Then: act.Branch[any]{
+					When: cond.Around(0).If(cond.Not(iced)),
+					Then: act.Around(0).Put(iced),
+				},
 			},
-			rule.Branch[unit.Standing]{
+			act.Branch[unit.Standing]{
 				Name: "leave the ice",
-				On:   rule.Self,
-				When: unit.Over(iced),
-				Do:   rule.Apply(world.Despawn{}),
+				When: cond.Self.If(unit.StandingOn(iced)),
+				Then: act.Self.Do(world.Despawn{}),
 			},
 		}
 	}, []boardtest.Mover{{Here: here}})

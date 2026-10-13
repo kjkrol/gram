@@ -22,7 +22,7 @@ import (
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 )
 
 // InstallCtx is the plugin.Installer a Stage would hand over, minus the engine.
@@ -74,9 +74,9 @@ type World struct {
 
 // NewWorld is a World over g, width x height, its terrain laid by terrain, units spawned as their
 // rows say and rules handed to the hosts of their moments.
-func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*board.Board), units []Mover, rules ...rule.Rule) *World {
+func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*board.Board), units []Mover, rules ...act.Rule) *World {
 	t.Helper()
-	return NewWorldWith(t, g, width, height, func(_ *world.Plugin, brd *board.Plugin) []rule.Rule {
+	return NewWorldWith(t, g, width, height, func(_ *world.Plugin, brd *board.Plugin) []act.Rule {
 		terrain(brd.Board())
 		return rules
 	}, units)
@@ -84,7 +84,7 @@ func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*boa
 
 // NewWorldWith is NewWorld with the world and the board handed to prepare before they are
 // installed, the rules it gives handed to the hosts of their moments.
-func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(*world.Plugin, *board.Plugin) []rule.Rule, units []Mover) *World {
+func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(*world.Plugin, *board.Plugin) []act.Rule, units []Mover) *World {
 	t.Helper()
 	bw := &World{t: t}
 	bw.World = world.NewPlugin(world.Config{
@@ -256,7 +256,7 @@ func SquareWorld(t *testing.T, units ...Mover) (*World, cell.ID) {
 }
 
 // SquareWorldWith is SquareWorld with a rule of the board's moments.
-func SquareWorldWith(t *testing.T, hooked rule.Rule, units ...Mover) (*World, cell.ID) {
+func SquareWorldWith(t *testing.T, hooked act.Rule, units ...Mover) (*World, cell.ID) {
 	t.Helper()
 	grid := grid.DefaultGrids{}.Square(6, 16, CellSize)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
@@ -265,7 +265,7 @@ func SquareWorldWith(t *testing.T, hooked rule.Rule, units ...Mover) (*World, ce
 			units[i].Here = cellAt(1, 7)
 		}
 	}
-	var rules []rule.Rule
+	var rules []act.Rule
 	if hooked != nil {
 		rules = append(rules, hooked)
 	}
@@ -317,4 +317,4 @@ func (c *InstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
 // Deliver hands rules to the hosts of their moments, as the engine does once a Stage's Init
 // returns.
-func (c *InstallCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *InstallCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }

@@ -26,6 +26,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/gram/ui"
 )
@@ -147,29 +149,34 @@ func (s *arena) defineRoles() {
 
 	roles := s.world.Roles()
 	roles.Define(LakeRole)
-	roles.Define(WitchRole, rule.Branch[unit.Standing]{
+	roles.Define(WitchRole, act.Branch[unit.Standing]{
 		Name: "freeze",
-		On:   rule.Around(1),
-		Do: rule.OneOf(
-			rule.Branch[any]{When: rule.Playing(roles.Named(LakeRole)), Do: rule.Put(iced)},
-			rule.Put(frost),
+		When: cond.Self.If(cond.Always),
+		Then: act.OneOf(
+			act.Branch[any]{
+				When: cond.Around(1).If(roles.Named(LakeRole)),
+				Then: act.Around(1).Put(iced),
+			},
+			act.Around(1).Put(frost),
 		),
 	})
 	roles.Define(MortalRole,
-		rule.Branch[unit.Standing]{
+		act.Branch[unit.Standing]{
 			Name: "fallen in",
-			On:   rule.Self,
-			When: unit.Standing.Fallen,
-			Do: rule.OneOf(
-				rule.Branch[unit.Standing]{When: unit.Over(iced), Do: rule.Hold(frozen)},
-				rule.Apply(world.Despawn{}),
+			When: cond.Self.If(unit.Fallen()),
+			Then: act.OneOf(
+				act.Branch[unit.Standing]{
+					When: cond.Self.If(unit.StandingOn(iced)),
+					Then: act.Self.Hold(frozen),
+				},
+				act.Self.Do(world.Despawn{}),
 			),
 		},
-		rule.Branch[unit.Standing]{
+		act.Branch[unit.Standing]{
 			Name: "on the ice",
-			On:   rule.Self,
-			When: rule.All(rule.Not(unit.Standing.Fallen), unit.Over(iced)),
-			Do:   rule.Hold(slip),
+			When: cond.Self.If(cond.Not(unit.Fallen())).
+				And(cond.Self.If(unit.StandingOn(iced))),
+			Then: act.Self.Hold(slip),
 		},
 	)
 }

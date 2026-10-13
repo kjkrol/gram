@@ -9,7 +9,8 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -17,7 +18,7 @@ type moved struct{}
 
 func (moved) Command() {}
 
-func velocityTick(t *testing.T, share float64, rules ...rule.Rule) (paced, unpaced float64, gave []uid.UID64) {
+func velocityTick(t *testing.T, share float64, rules ...act.Rule) (paced, unpaced float64, gave []uid.UID64) {
 	t.Helper()
 	var commands control.Carrier
 	var given control.Queue[moved]
@@ -79,10 +80,10 @@ func TestVelocitySystem_ScalesByThePace(t *testing.T) {
 }
 
 func TestVelocitySystem_RunsTheMovingRules(t *testing.T) {
-	_, _, gave := velocityTick(t, 0.5, rule.Branch[Moving]{
+	_, _, gave := velocityTick(t, 0.5, act.Branch[Moving]{
 		Name: "moving",
-		On:   rule.Self,
-		Do:   rule.Apply(moved{}),
+		When: cond.Self.If(cond.Always),
+		Then: act.Self.Do(moved{}),
 	})
 	if len(gave) != 2 || gave[0] == gave[1] {
 		t.Errorf("moved given by %v, want once by each of the two", gave)

@@ -1,8 +1,9 @@
-package rule
+package act
 
 import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/rule/cond"
 )
 
 type every[P any] struct {
@@ -10,7 +11,9 @@ type every[P any] struct {
 	react func(plugin.Tick, P)
 }
 
-func (*every[P]) rule() {}
+func (e *every[P]) Hosted() any { return e }
+
+func (e *every[P]) ForRole(role cond.Role) Rule { return forRole(e, role) }
 
 func (e *every[P]) String() string { return e.label }
 
@@ -40,7 +43,7 @@ func (s *stateCol[T]) bind(cols *plugin.Columns)         { s.comp = cols.Of[T]()
 func (s *stateCol[T]) present(cursor *goke.Cursor) bool  { return s.comp.Present(cursor) }
 func (s *stateCol[T]) at(cursor *goke.Cursor, i int) any { return &s.comp.Slice(cursor)[i] }
 
-type cond struct {
+type column struct {
 	mk    func() state
 	s     state
 	holds func(state any) bool // nil: carrying it is enough
@@ -48,18 +51,20 @@ type cond struct {
 
 type eachWith[P any] struct {
 	label string
-	conds []cond
+	conds []column
 	react func(plugin.Tick, P)
 }
 
-func newEachWith[P any](label string, react func(plugin.Tick, P), conds ...cond) *eachWith[P] {
+func newEachWith[P any](label string, react func(plugin.Tick, P), conds ...column) *eachWith[P] {
 	for i := range conds {
 		conds[i].s = conds[i].mk()
 	}
 	return &eachWith[P]{label: label, conds: conds, react: react}
 }
 
-func (*eachWith[P]) rule() {}
+func (e *eachWith[P]) Hosted() any { return e }
+
+func (e *eachWith[P]) ForRole(role cond.Role) Rule { return forRole(e, role) }
 
 func (e *eachWith[P]) String() string { return e.label }
 
@@ -96,6 +101,10 @@ type played[P any] struct {
 	roles uint64
 }
 
+func (p *played[P]) Hosted() any { return p }
+
+func (p *played[P]) ForRole(role cond.Role) Rule { return forRole(p, role) }
+
 func (p *played[P]) RunOnce(t plugin.Tick, about P) { p.react(t, about) }
 
 func (p *played[P]) OnceRoles() uint64 { return p.roles }
@@ -107,7 +116,9 @@ type pair[P any] struct {
 	react       func(plugin.Tick, P)
 }
 
-func (*pair[P]) rule() {}
+func (p *pair[P]) Hosted() any { return p }
+
+func (p *pair[P]) ForRole(role cond.Role) Rule { return forRole(p, role) }
 
 func (p *pair[P]) String() string { return p.label }
 

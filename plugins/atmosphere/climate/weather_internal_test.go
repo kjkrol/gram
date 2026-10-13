@@ -13,6 +13,8 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -43,13 +45,12 @@ func weatherOf(t *testing.T, cfg Config, season calendar.Season) *rig {
 	if err := r.w.Carry(&r.winter); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.c.Rules().Add(rule.Branch[Weathering]{
+	if err := r.c.Rules().Add(act.Branch[Weathering]{
 		Name: "winter",
-		On:   rule.Self,
-		When: func(w Weathering) bool {
+		When: cond.Self.If(cond.NewWord("winter", func(w Weathering) bool {
 			return w.Season == calendar.Winter && w.Weather == r.c.Air()
-		},
-		Do: rule.Apply(winterNow{}),
+		})),
+		Then: act.Self.Do(winterNow{}),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -280,12 +281,12 @@ func TestClimate_TakesARolesRule(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cfg := calendar.Config{DayRealTime: time.Minute}
 	c := New(w, calendar.New(clock.New(clock.Config{}), cfg), Config{})
-	every := rule.Branch[Weathering]{
+	every := act.Branch[Weathering]{
 		Name: "any weather",
-		On:   rule.Self,
-		Do:   rule.Apply(winterNow{}),
+		When: cond.Self.If(cond.Always),
+		Then: act.Self.Do(winterNow{}),
 	}
-	for name, r := range map[string]rule.Rule{
+	for name, r := range map[string]act.Rule{
 		"every":  every,
 		"a role": rule.NewPart("climate sheltered", 0).Obeys(every).Rules()[0],
 	} {

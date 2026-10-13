@@ -9,7 +9,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 )
 
 // New builds the collision module over space without a world plugin.
@@ -18,7 +18,7 @@ func New(space *aabbworld.Space, ecs *goke.ECS) *module {
 }
 
 // Hook hosts rules of Meeting or of Struck on the module.
-func (m *module) Hook(rules ...rule.Rule) error {
+func (m *module) Hook(rules ...act.Rule) error {
 	return hostAll(m.pairs, m.entities, rules)
 }
 
@@ -35,11 +35,11 @@ func NewCollisionSystem(space *aabbworld.Space) *collisionSystem {
 }
 
 // Hook hands rules to the plugin's own hosts, as the engine does through plugin.Installer.Hosts.
-func (p *Plugin) Hook(rules ...rule.Rule) error {
+func (p *Plugin) Hook(rules ...act.Rule) error {
 	return hostAll(&p.pairs, &p.entities, rules)
 }
 
-func hostAll(pairs *plugin.PairRules[Meeting], entities *plugin.Rules[Struck], rules []rule.Rule) error {
+func hostAll(pairs *plugin.PairRules[Meeting], entities *plugin.Rules[Struck], rules []act.Rule) error {
 	for _, b := range rules {
 		err := pairs.Add(b)
 		if errors.Is(err, plugin.ErrUnhosted) {

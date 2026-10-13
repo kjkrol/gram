@@ -1,14 +1,15 @@
 // Package effect puts states on entities for a while: each effect with its own marker, tags
 // granted, components altered and restored. An effect is defined once, from a [Spec] of traits,
-// and cast from anywhere — a rule's Apply, Keep and Dispel, a command, another plugin. The world
-// makes and runs the effects (world.Plugin.Effects) in its simulation, so they count down in game
-// time.
+// and cast from anywhere — a rule's act.Self.Put, Hold and Take, a command, another plugin.
+// The world makes and runs the effects (world.Plugin.Effects) in its simulation, so they count
+// down in game time.
 //
 // # Spec, the marker, Grant and Alter
 //
 // [Effects.Define] registers an effect from a Spec under a name and [Effects.Named] is the
 // effect wherever it is built on. Every effect has its own marker of [States], "effect.<name>",
-// on while it runs ([Effect.Mark], for rule.Under in any plugin). [Lasts] is how long a cast
+// on while it runs ([Effect.Mark]; a cond clause of the effect, cond.Self.If(e), asks it in any
+// plugin). [Lasts] is how long a cast
 // holds (without it, until Dispel); [Stacking] lets casts pile up instead of refreshing; [Then]
 // casts another effect when this one's time is up, not when it is dispelled; [Grant] gives tags
 // of a game's family while the effect runs; [Alter] changes a component and restores the

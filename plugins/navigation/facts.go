@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -24,20 +25,33 @@ type Blocked struct {
 // Subject is whom the unit is blocked by.
 func (b Blocked) Subject() (uid.UID64, bool) { return b.By, true }
 
-// WaitedLong reports that a Hold ran out with the way still closed.
-func (b Blocked) WaitedLong() bool { return b.WaitedOut }
+// Stuck is the word of a unit blocked whose Hold ran out with the way still closed.
+func Stuck() cond.Word[Blocked] {
+	return cond.NewWord("stuck", func(b Blocked) bool { return b.WaitedOut })
+}
 
-// NoWayRound reports that a Detour found no way round.
-func (b Blocked) NoWayRound() bool { return b.Cornered }
+// Cornered is the word of a unit blocked whose Detour found no way round.
+func Cornered() cond.Word[Blocked] {
+	return cond.NewWord("cornered", func(b Blocked) bool { return b.Cornered })
+}
 
-// IdleAllyOnMyGoal reports an ally with nothing to do standing on the unit's goal.
-func (b Blocked) IdleAllyOnMyGoal() bool { return !b.Stranger && !b.Moving && b.OnMyGoal }
+// IdleAllyOnMyGoal is the word of a unit blocked by an ally with nothing to do standing on its
+// goal.
+func IdleAllyOnMyGoal() cond.Word[Blocked] {
+	return cond.NewWord("idle ally on my goal",
+		func(b Blocked) bool { return !b.Stranger && !b.Moving && b.OnMyGoal })
+}
 
-// IdleAlly reports an ally with nothing to do standing in the way.
-func (b Blocked) IdleAlly() bool { return !b.Stranger && !b.Moving }
+// IdleAlly is the word of a unit blocked by an ally with nothing to do.
+func IdleAlly() cond.Word[Blocked] {
+	return cond.NewWord("idle ally", func(b Blocked) bool { return !b.Stranger && !b.Moving })
+}
 
-// StrangerOnMyGoal reports a stranger standing on the unit's goal.
-func (b Blocked) StrangerOnMyGoal() bool { return b.Stranger && !b.Moving && b.OnMyGoal }
+// StrangerOnGoal is the word of a unit blocked by a stranger standing on its goal.
+func StrangerOnGoal() cond.Word[Blocked] {
+	return cond.NewWord("stranger on goal",
+		func(b Blocked) bool { return b.Stranger && !b.Moving && b.OnMyGoal })
+}
 
 func blockedOf(t Touch, cell cell.ID) Blocked {
 	return Blocked{By: t.Other, Cell: cell, Stranger: !t.Ally, Groupmate: t.Groupmate, Moving: t.OtherMoving,

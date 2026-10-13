@@ -17,7 +17,7 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 )
 
 // Plugin moves entities along a MoveOrder's path across a board, re-pathing when terrain changes,
@@ -40,7 +40,7 @@ type Plugin struct {
 	finder  *pathFinder
 
 	touches  plugin.PairRules[Touch]
-	crowd    []rule.Rule
+	crowd    []act.Rule
 	crowdSet bool
 
 	routeStyle   RouteStyle
@@ -166,7 +166,7 @@ func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 // WithCrowd sets the rules of Touch the units get on among others by, in place of the plugin's
 // own; none leaves them to navigation's last word alone. Call before Use.
-func (p *Plugin) WithCrowd(rules ...rule.Rule) *Plugin {
+func (p *Plugin) WithCrowd(rules ...act.Rule) *Plugin {
 	p.crowd, p.crowdSet = rules, true
 	return p
 }

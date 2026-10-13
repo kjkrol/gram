@@ -4,6 +4,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -23,20 +24,23 @@ type Standing struct {
 // Who is the entity standing: whose moment it is, for a rule.
 func (s Standing) Who() uid.UID64 { return s.ID }
 
-// Placed: a rule's Here acts on the cells under the entity's box, its Around on the rings round
-// them too.
+// Placed: a rule's Around turns to the rings of cells round those under the entity's box.
 func (Standing) Placed() {}
 
-// Fallen reports whether the entity stands where its domain may not be: in a hole, in water on
+// Fallen is the word of a unit standing where its domain may not be: in a hole, in water on
 // foot; never while it is in the air.
-func (s Standing) Fallen() bool { return !s.Airborne && !s.Kind.Admits(s.Domain) }
+func Fallen() cond.Word[Standing] { return cond.NewWord("fallen", Standing.fallen) }
 
-// On is the condition of a unit standing on a cell of the kind k, for a rule's When.
-func On(k cell.Kind) func(Standing) bool { return func(s Standing) bool { return s.Kind == k } }
+func (s Standing) fallen() bool { return !s.Airborne && !s.Kind.Admits(s.Domain) }
 
-// Over is the condition of a unit standing on a cell under the effect e, for a rule's When: the
-// ground's state, whatever its kind.
-func Over(e effect.Effect) func(Standing) bool {
+// OnKind is the word of a unit standing on a cell of the kind k.
+func OnKind(k cell.Kind) cond.Word[Standing] {
+	return cond.NewWord("on a kind", func(s Standing) bool { return s.Kind == k })
+}
+
+// StandingOn is the word of a unit standing on a cell under the effect e: the ground's state,
+// whatever its kind.
+func StandingOn(e effect.Effect) cond.Word[Standing] {
 	mark := e.Mark()
-	return func(s Standing) bool { return s.States.Has(mark) }
+	return cond.NewWord("standing on", func(s Standing) bool { return s.States.Has(mark) })
 }

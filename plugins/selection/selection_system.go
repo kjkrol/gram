@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -43,7 +44,7 @@ type SelectionSystem struct {
 	query  *goke.Query
 	marks  goke.Comp[tag.Tags[Family]]
 	owners goke.OptComp[tag.Tags[owner.Family]]
-	roles  goke.OptComp[tag.Tags[rule.Roles]]
+	roles  goke.OptComp[tag.Tags[cond.Roles]]
 
 	lookup     *goke.Query
 	lookupBase goke.Comp[world.Base]
@@ -217,7 +218,7 @@ func (s *SelectionSystem) pick(at geom.Vec, screen geom.AABB, cam camera.Camera)
 	return best, found
 }
 
-func (s *SelectionSystem) eachSelected(by control.PlayerID, only tag.Tags[rule.Roles], fn func(uid.UID64)) {
+func (s *SelectionSystem) eachSelected(by control.PlayerID, only tag.Tags[cond.Roles], fn func(uid.UID64)) {
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()

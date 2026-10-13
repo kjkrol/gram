@@ -1,4 +1,4 @@
-package rule_test
+package act_test
 
 import (
 	"fmt"
@@ -13,12 +13,14 @@ import (
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
 var (
-	mortalTag = rule.Role("mortal").Tag()
-	hastyTag  = rule.Role("hasty").Tag()
+	mortalTag = Role("mortal").Tag()
+	hastyTag  = Role("hasty").Tag()
 )
 
 type standing struct{ who uid.UID64 }
@@ -44,7 +46,7 @@ type body struct{ N int }
 
 type being struct {
 	name  string
-	bare  bool // no tag.Tags[rule.Roles] at all
+	bare  bool // no tag.Tags[cond.Roles] at all
 	plays []*rule.Part
 }
 
@@ -74,8 +76,11 @@ func spawnBeing(si *goke.SysInit, b being) uid.UID64 {
 	return id
 }
 
-func tellOf[P any](name string, when any) rule.Rule {
-	return rule.Branch[P]{Name: name, When: when, On: rule.Self, Do: rule.Apply(heard{Rule: name})}
+func tellOf[P any](name string, when cond.Cond) act.Rule {
+	if when == nil {
+		when = cond.Self.If(cond.Always)
+	}
+	return act.Branch[P]{Name: name, When: when, Then: act.Self.Do(heard{Rule: name})}
 }
 
 func listen(t *testing.T) (*control.Carrier, *control.Queue[heard]) {
@@ -89,10 +94,10 @@ func listen(t *testing.T) (*control.Carrier, *control.Queue[heard]) {
 }
 
 func TestRole_Obeys_NarrowsEachRuleToItsPlayers(t *testing.T) {
-	hasty := rule.Role("hasty")
-	mortal := rule.Role("mortal").Obeys(
+	hasty := Role("hasty")
+	mortal := Role("mortal").Obeys(
 		tellOf[standing]("fall in", nil),
-		tellOf[standing]("rush", rule.Playing(hasty)),
+		tellOf[standing]("rush", cond.Self.If(hasty)),
 	)
 	carrier, q := listen(t)
 	h := &plugin.Rules[standing]{}
@@ -146,11 +151,11 @@ func TestRole_Obeys_NarrowsEachRuleToItsPlayers(t *testing.T) {
 }
 
 func TestRole_Obeys_NarrowsAPairRuleToItsPlayers(t *testing.T) {
-	hasty := rule.Role("hasty")
-	mortal := rule.Role("mortal").Obeys(
+	hasty := Role("hasty")
+	mortal := Role("mortal").Obeys(
 		tellOf[meeting]("flinch", nil),
-		tellOf[meeting]("parry", rule.Paired(hasty)),
-		tellOf[meeting]("rush", rule.Playing(hasty)),
+		tellOf[meeting]("parry", cond.Other.If(hasty)),
+		tellOf[meeting]("rush", cond.Self.If(hasty)),
 	)
 	beings := []being{
 		{name: "bare", bare: true},
@@ -225,12 +230,12 @@ func TestRole_Obeys_NarrowsAPairRuleToItsPlayers(t *testing.T) {
 }
 
 func TestRole_Obeys_ARuleOfAStepFiresWhileTheMomentsEntityPlaysTheRole(t *testing.T) {
-	early, late := rule.Role("step early"), rule.Role("step late")
+	early, late := Role("step early"), Role("step late")
 	toll := tellOf[standing]("toll", nil)
 	carrier, q := listen(t)
 	h := &plugin.StepRules[standing]{}
 	both := late.Obeys(early.Obeys(toll).Rules()[0]).Rules()[0]
-	for _, r := range []rule.Rule{early.Rules()[0], both} {
+	for _, r := range []act.Rule{early.Rules()[0], both} {
 		if err := h.Add(r); err != nil {
 			t.Fatalf("Add of %v = %v, want it taken", r, err)
 		}
@@ -252,10 +257,10 @@ func TestRole_Obeys_ARuleOfAStepFiresWhileTheMomentsEntityPlaysTheRole(t *testin
 }
 
 func TestRole_Rules_AreItsOwnNarrowedInOrder(t *testing.T) {
-	a, b := tellOf[standing]("a", nil), tellOf[standing]("b", rule.Playing(rule.Role("hasty")))
-	mortal := rule.Role("mortal").Obeys(a).Obeys(b)
+	a, b := tellOf[standing]("a", nil), tellOf[standing]("b", cond.Self.If(Role("hasty")))
+	mortal := Role("mortal").Obeys(a).Obeys(b)
 	got := mortal.Rules()
-	want := []string{`"a" of rule_test.standing, for the role mortal`, `"b" of rule_test.standing, for the role mortal`}
+	want := []string{`"a" of act_test.standing, for the role mortal`, `"b" of act_test.standing, for the role mortal`}
 	if len(got) != 2 || got[0].String() != want[0] || got[1].String() != want[1] {
 		t.Fatalf("mortal.Rules() = %v; want %v", got, want)
 	}
@@ -266,18 +271,18 @@ func TestRole_Rules_AreItsOwnNarrowedInOrder(t *testing.T) {
 	if mortal.Rules()[0].String() != want[0] {
 		t.Error("changing what Rules handed back changed the role")
 	}
-	if len(rule.Role("idle").Rules()) != 0 {
+	if len(Role("idle").Rules()) != 0 {
 		t.Error("a role of no rules has some")
 	}
 }
 
 func TestPlays_IsOneComponentCarryingEveryRole(t *testing.T) {
-	mortal, hasty := rule.Role("mortal"), rule.Role("hasty")
+	mortal, hasty := Role("mortal"), Role("hasty")
 	plays := rule.Plays(mortal, hasty)
-	if got, want := comp.TypeOf(plays), reflect.TypeFor[tag.Tags[rule.Roles]](); got != want {
+	if got, want := comp.TypeOf(plays), reflect.TypeFor[tag.Tags[cond.Roles]](); got != want {
 		t.Fatalf("Plays is a %v; want a %v", got, want)
 	}
-	want := tag.Tags[rule.Roles](0).With(mortalTag, hastyTag)
+	want := tag.Tags[cond.Roles](0).With(mortalTag, hastyTag)
 	if got := plays.Resolve(nil); got != want {
 		t.Errorf("Plays(mortal, hasty) = %b; want %b", got, want)
 	}
@@ -285,13 +290,13 @@ func TestPlays_IsOneComponentCarryingEveryRole(t *testing.T) {
 		t.Errorf("Plays() = %b; want none", got)
 	}
 
-	var spawned tag.Tags[rule.Roles]
+	var spawned tag.Tags[cond.Roles]
 	goke.New().Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		id := spawnBeing(si, being{plays: []*rule.Part{mortal, hasty}})
-		var tags goke.Comp[tag.Tags[rule.Roles]]
+		var tags goke.Comp[tag.Tags[cond.Roles]]
 		seek := si.NewQueryBuilder(&tags).Build()
 		if !seek.Seek(id) {
-			t.Fatal("the entity spawned with Plays carries no tag.Tags[rule.Roles]")
+			t.Fatal("the entity spawned with Plays carries no tag.Tags[cond.Roles]")
 		}
 		spawned = *tags.At(seek.Cursor())
 	}})
@@ -301,14 +306,13 @@ func TestPlays_IsOneComponentCarryingEveryRole(t *testing.T) {
 }
 
 func TestMoment_Playing_RunsForTheRolesPlayersAlone(t *testing.T) {
-	lever, trapdoor := rule.Role("playing lever"), rule.Role("playing trapdoor")
+	lever, trapdoor := Role("playing lever"), Role("playing trapdoor")
 	carrier, q := listen(t)
 	h := &plugin.StepRules[standing]{}
-	if err := h.Add(rule.Branch[standing]{
+	if err := h.Add(act.Branch[standing]{
 		Name: "pull",
-		When: rule.Playing(lever),
-		On:   rule.Self,
-		Do:   rule.Apply(heard{Rule: "pull"}),
+		When: cond.Self.If(lever),
+		Then: act.Self.Do(heard{Rule: "pull"}),
 	}); err != nil {
 		t.Fatal(err)
 	}

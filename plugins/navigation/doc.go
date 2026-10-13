@@ -5,8 +5,8 @@
 //
 // A [MoveOrder] on an entity sends it to a Target cell and then through up to [MaxWaypoints]
 // queued [Goal]s ([MoveOrder.Enqueue]); the order is removed when the last is reached. A patrol
-// is a plan: the unit carries a [Round] of cells and gives itself [Onward] for the next, waiting
-// for [Arrived] between. Its [Path] is the cached route, consumed
+// is a plan of two loops (plan.Steps): the unit carries a [Round] of cells and gives itself
+// [Onward] for the next until [Arrived] comes, then waits. Its [Path] is the cached route, consumed
 // step by step, planned again when the entity stands off it; its [Leg] is the single step in
 // flight. A navigated entity carries a steering.Steering profile, which navigation asks for a
 // heading and a top speed; a MoveOrder is put on by the MoveTo command, or by the game at spawn.
@@ -32,11 +32,14 @@
 // touching, handed to each of the two every tick they do, with whether each is on the move or
 // giving way, allies or of one order, on the other's goal, head on, with room to step aside. A
 // rule's commands are carried out for the unit alone: [StepAside], [Detour], [Pass], [Hold],
-// [Settle], [Stop]. The plugin's own rules are StarCraft II's; a game gives its own with
-// [Plugin.WithCrowd], or adds rules obeyed by the roles its units play ([Touching] is the
-// condition on the other's role). Whatever the rules, navigation keeps the last word: a unit making
-// no headway plans afresh and, after a few stalls, stands where it is. A unit with a plan is told
-// the facts [Blocked] and [Arrived].
+// [Settle], [Stop]. A Touch's words are of the unit — [PushedByAlly], [ReachedTheGroup],
+// [InTheWay], [ClearsTheWay], [Blocks], [GoalTaken], [StrangerOnMyGoal], [WaitsFirst],
+// [NoWayRound], [WaitedLong] — and the other's role is cond.Other.If(role). The plugin's own rules
+// are StarCraft II's; a game gives its own with [Plugin.WithCrowd], or adds rules obeyed by the
+// roles its units play. Whatever the rules, navigation keeps the last word: a unit making no
+// headway plans afresh and, after a few stalls, stands where it is. A unit with a plan is told
+// the facts [Blocked] (its words [Stuck], [Cornered], [StrangerOnGoal], [IdleAlly],
+// [IdleAllyOnMyGoal]) and [Arrived].
 //
 // # The price of a step
 //

@@ -20,7 +20,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -92,25 +93,35 @@ func carried(t *testing.T, w *world.Plugin, h *heards) *heards {
 	return h
 }
 
-func footing(g grid.Grid) rule.Rule {
-	return rule.Branch[unit.Standing]{Name: "footing", On: rule.Self, Do: rule.Steps(
-		rule.OneOf(rule.Branch[unit.Standing]{
-			When: unit.Standing.Fallen,
-			Do:   rule.Apply(heard{Rule: "fell"}),
-		}, rule.Apply(heard{Rule: "stood"})),
-		rule.Branch[unit.Standing]{When: func(st unit.Standing) bool {
-			under, _ := g.CellAt(world.Position{AABB: toPlane(st.Box)}.Center())
-			return st.Cell != under
-		}, Do: rule.Apply(heard{Rule: "wrong cell"})},
-	)}
+func footing(g grid.Grid) act.Rule {
+	return act.Branch[unit.Standing]{
+		Name: "footing",
+		When: cond.Self.If(cond.Always),
+		Then: act.Steps(
+			act.OneOf(
+				act.Branch[unit.Standing]{
+					When: cond.Self.If(unit.Fallen()),
+					Then: act.Self.Do(heard{Rule: "fell"}),
+				},
+				act.Self.Do(heard{Rule: "stood"}),
+			),
+			act.Branch[unit.Standing]{
+				When: cond.Self.If(cond.NewWord("wrong cell", func(st unit.Standing) bool {
+					under, _ := g.CellAt(world.Position{AABB: toPlane(st.Box)}.Center())
+					return st.Cell != under
+				})),
+				Then: act.Self.Do(heard{Rule: "wrong cell"}),
+			},
+		),
+	}
 }
 
-func onKind(name string) rule.Rule {
-	return rule.Branch[unit.Standing]{
+func onKind(name string) act.Rule {
+	return act.Branch[unit.Standing]{
 		Name: "on " + name,
-		On:   rule.Self,
-		When: func(st unit.Standing) bool { return st.Kind.Name.String() == name },
-		Do:   rule.Apply(heard{Rule: "on " + name}),
+		When: cond.Self.If(cond.NewWord("on "+name,
+			func(st unit.Standing) bool { return st.Kind.Name.String() == name })),
+		Then: act.Self.Do(heard{Rule: "on " + name}),
 	}
 }
 
@@ -206,14 +217,14 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 		if err := ctx.Deliver(footing(grid)); err != nil {
 			t.Fatal(err)
 		}
-		met := rule.Branch[collision.Meeting]{Name: "met", On: rule.Self, Do: rule.Apply(heard{})}
+		met := act.Branch[collision.Meeting]{Name: "met", When: cond.Self.If(cond.Always), Then: act.Self.Do(heard{})}
 		if err := ctx.Deliver(met); !errors.Is(err, plugin.ErrUnhosted) {
 			t.Errorf("Between on board: %v, want ErrUnhosted", err)
 		}
-		struck := rule.Branch[collision.Struck]{
+		struck := act.Branch[collision.Struck]{
 			Name: "struck",
-			On:   rule.Self,
-			Do:   rule.Apply(heard{}),
+			When: cond.Self.If(cond.Always),
+			Then: act.Self.Do(heard{}),
 		}
 		if err := ctx.Deliver(struck); !errors.Is(err, plugin.ErrUnhosted) {
 			t.Errorf("Struck on board: %v, want ErrUnhosted", err)
@@ -253,11 +264,10 @@ func TestStanding_BoxNamesEveryCellTheEntityTouches(t *testing.T) {
 		grid.CellsUnder(st.Box, func(c cell.ID) { under = append(under, c) })
 		return len(under) == 2 && slices.Contains(under, start) && slices.Contains(under, right)
 	}
-	straddles := rule.Branch[unit.Standing]{
+	straddles := act.Branch[unit.Standing]{
 		Name: "straddles",
-		On:   rule.Self,
-		When: straddling,
-		Do:   rule.Apply(heard{Rule: "straddles"}),
+		When: cond.Self.If(cond.NewWord("straddling", straddling)),
+		Then: act.Self.Do(heard{Rule: "straddles"}),
 	}
 	bw, _ := boardtest.SquareWorldWith(t, straddles, boardtest.Mover{Here: start, Offset: boardtest.CellSize / 2})
 	orders := carried(t, bw.World, &heards{})

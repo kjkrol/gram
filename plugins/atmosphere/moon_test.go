@@ -15,6 +15,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 )
 
@@ -89,12 +91,11 @@ func TestMoonrise_FiresOnceARiseAndFullPicksTheFullOnes(t *testing.T) {
 		full = n.w.Effects().Named("full risen")
 	}, func(n *night) {
 		n.w.Roles().Define("moon watcher",
-			rule.Branch[sky.Moonrise]{Name: "a rise", On: rule.Self, Do: rule.Put(risen)},
-			rule.Branch[sky.Moonrise]{
+			act.Branch[sky.Moonrise]{Name: "a rise", When: cond.Self.If(cond.Always), Then: act.Self.Put(risen)},
+			act.Branch[sky.Moonrise]{
 				Name: "a full rise",
-				On:   rule.Self,
-				When: sky.Moonrise.Full,
-				Do:   rule.Put(full),
+				When: cond.Self.If(sky.FullMoon()),
+				Then: act.Self.Put(full),
 			})
 		n.a.Plays(n.w.Roles().Named("moon watcher"))
 	})

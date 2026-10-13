@@ -9,13 +9,14 @@ import (
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
 
 type effectCommands struct {
 	queue    control.Queue[rule.Command]
-	triggers control.Queue[rule.Triggered]
+	triggers control.Queue[rule.Trigger]
 	sourced  []rule.Command
 	known    []rule.Command
 	checked  bool
@@ -28,7 +29,7 @@ type effectCommands struct {
 	labelled *goke.Query
 	label    goke.Comp[entity.Label]
 	plays    *goke.Query
-	playsC   goke.Comp[tag.Tags[rule.Roles]]
+	playsC   goke.Comp[tag.Tags[cond.Roles]]
 }
 
 // a step's commands of one effect on one entity, netted before they are carried out
@@ -71,7 +72,7 @@ func (c *effectCommands) system() goke.System {
 				c.checked = true
 				c.check()
 			}
-			c.triggers.Drain(func(i control.Issued[rule.Triggered]) {
+			c.triggers.Drain(func(i control.Issued[rule.Trigger]) {
 				if !i.ByEntity || !c.labelled.Seek(i.Entity) {
 					return
 				}

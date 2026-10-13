@@ -14,13 +14,14 @@ import (
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
 type cellProbe struct {
 	q     *goke.Query
 	plot  goke.Comp[cell.Plot]
-	roles goke.OptComp[tag.Tags[rule.Roles]]
+	roles goke.OptComp[tag.Tags[cond.Roles]]
 	label goke.OptComp[entity.Label]
 	fuel  goke.OptComp[fuel]
 }
@@ -36,7 +37,7 @@ func (p *cellProbe) SetupSystems() []goke.System {
 type cellState struct {
 	id       uid.UID64
 	hasRoles bool
-	roles    tag.Tags[rule.Roles]
+	roles    tag.Tags[cond.Roles]
 	labelled bool
 	label    entity.Label
 	fuel     *fuel
@@ -129,10 +130,10 @@ func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
 				}})
 			})
 			want := map[cell.ID]cellState{
-				a: {hasRoles: true, roles: tag.Tags[rule.Roles](0).With(trapdoor.Tag()), labelled: true, label: entity.LabelOf("", "west")},
-				b: {hasRoles: true, roles: tag.Tags[rule.Roles](0).With(plate.Tag()), labelled: true, label: entity.LabelOf("plate", "west")},
-				c: {hasRoles: true, roles: tag.Tags[rule.Roles](0).With(trapdoor.Tag(), plate.Tag()), labelled: true, label: entity.LabelOf("", "east")},
-				d: {hasRoles: true, roles: tag.Tags[rule.Roles](0).With(trapdoor.Tag())},
+				a: {hasRoles: true, roles: tag.Tags[cond.Roles](0).With(trapdoor.Tag()), labelled: true, label: entity.LabelOf("", "west")},
+				b: {hasRoles: true, roles: tag.Tags[cond.Roles](0).With(plate.Tag()), labelled: true, label: entity.LabelOf("plate", "west")},
+				c: {hasRoles: true, roles: tag.Tags[cond.Roles](0).With(trapdoor.Tag(), plate.Tag()), labelled: true, label: entity.LabelOf("", "east")},
+				d: {hasRoles: true, roles: tag.Tags[cond.Roles](0).With(trapdoor.Tag())},
 				e: {hasRoles: true, labelled: true, label: entity.LabelOf("lever", "")},
 			}
 			got := probe.read(t)

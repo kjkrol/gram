@@ -7,7 +7,8 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 )
 
 var (
@@ -16,7 +17,7 @@ var (
 )
 
 func TestFall_ALeapRisesToItsHeightAndLandsOnce(t *testing.T) {
-	r := newRig(t, scene{leap: 3, bodies: []body{{x: 15, y: 15}}, rules: []rule.Rule{landing()}})
+	r := newRig(t, scene{leap: 3, bodies: []body{{x: 15, y: 15}}, rules: []act.Rule{landing()}})
 	r.tick()
 	r.leap(0)
 	top := 0.0
@@ -44,7 +45,7 @@ func TestFall_OffADecksSideItFallsAndLands(t *testing.T) {
 	r := newRig(t, scene{land: deck, bodies: []body{
 		{x: 28, y: 15, alt: 10, facing: east},
 		{x: 12, y: 25, alt: 10, facing: east},
-	}, rules: []rule.Rule{landing()}})
+	}, rules: []act.Rule{landing()}})
 	r.walk(0, 5)
 	r.walk(1, 5)
 	fell := false
@@ -69,7 +70,7 @@ func TestFall_OffADecksSideItFallsAndLands(t *testing.T) {
 func TestFall_DownASlopeItNeverLeavesTheGround(t *testing.T) {
 	slope := &land{ground: func(p geom.Vec) float64 { return 20 - p.X/2 }}
 	r := newRig(t, scene{land: slope, bodies: []body{{x: 5, y: 15, alt: 17.5, facing: east}},
-		rules: []rule.Rule{landing()}})
+		rules: []act.Rule{landing()}})
 	r.walk(0, 5)
 	for range 5 * tps {
 		r.tick()
@@ -117,7 +118,7 @@ func TestFall_OneLeapIsOneLeapAtAnyTempo(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			r := newRig(t, scene{leap: 3, bodies: []body{{x: 15, y: 15}},
-				rules: []rule.Rule{landing()}})
+				rules: []act.Rule{landing()}})
 			c.shift(r)
 			r.tick()
 			r.leap(0)
@@ -181,11 +182,10 @@ func TestFall_ALeapClearsARailingOnlyHigherThanIt(t *testing.T) {
 
 func TestFall_InTheAirOverWaterItHasNotFallenIn(t *testing.T) {
 	r := newRig(t, scene{leap: 8, water: true, bodies: []body{{x: 14, y: 15, facing: east}},
-		rules: []rule.Rule{rule.Branch[unit.Standing]{
+		rules: []act.Rule{act.Branch[unit.Standing]{
 			Name: "drown",
-			On:   rule.Self,
-			When: unit.Standing.Fallen,
-			Do:   rule.Apply(landed{Hard: true}),
+			When: cond.Self.If(unit.Fallen()),
+			Then: act.Self.Do(landed{Hard: true}),
 		}}})
 	r.walk(0, 5)
 	for r.of(0).at.X < 19 {

@@ -14,7 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 )
 
 type headless struct {
@@ -108,4 +108,4 @@ func entities(n int) string { return fmt.Sprintf("entities=%d", n) }
 
 func (c *headless) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-func (c *headless) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *headless) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }

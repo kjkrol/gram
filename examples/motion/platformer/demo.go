@@ -25,6 +25,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/gram/ui"
 )
@@ -144,11 +146,10 @@ func (s *arena) defineEffects() {
 }
 
 func (s *arena) defineRules() {
-	s.world.Roles().Define(HeroRole, rule.Branch[gravity.Landing]{
+	s.world.Roles().Define(HeroRole, act.Branch[gravity.Landing]{
 		Name: "daze",
-		On:   rule.Self,
-		When: gravity.HarderThan(hardLanding),
-		Do:   rule.Put(s.world.Effects().Named(DazedEf)),
+		When: cond.Self.If(gravity.HarderThan(hardLanding)),
+		Then: act.Self.Put(s.world.Effects().Named(DazedEf)),
 	})
 }
 

@@ -9,7 +9,7 @@ import (
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/unit"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 )
 
@@ -74,6 +74,6 @@ func (m *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[cell.Rail](),
 		goke.LoadComp[effect.Active](),
 		goke.LoadComp[tag.Tags[effect.States]](),
-		goke.LoadComp[tag.Tags[rule.Roles]](),
+		goke.LoadComp[tag.Tags[cond.Roles]](),
 	)
 }

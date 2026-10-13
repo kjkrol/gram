@@ -33,10 +33,10 @@ func TestSighting_ClosingAndNobody(t *testing.T) {
 		if !c.none {
 			s.Seen = []vision.Seen{{Base: moving(c.at, 0, c.theirs)}}
 		}
-		if got := s.Closing(); got != c.want {
+		if got := vision.Closing().Holds(s); got != c.want {
 			t.Errorf("%s: Closing = %v, want %v", name, got, c.want)
 		}
-		if got := s.Nobody(); got != c.none {
+		if got := vision.SeesNobody().Holds(s); got != c.none {
 			t.Errorf("%s: Nobody = %v, want %v", name, got, c.none)
 		}
 	}

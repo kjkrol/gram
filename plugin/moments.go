@@ -16,7 +16,7 @@ type Met interface {
 }
 
 // Placed is a moment of an entity standing on places that are entities of their own, which
-// Tick.Around tells and a rule's Here and Around turn a step on.
+// Tick.Around tells and act.Around turns a step on.
 type Placed interface {
 	About
 	Placed()
@@ -29,7 +29,7 @@ type Subject interface{ Subject() (uid.UID64, bool) }
 // Aimed is a command told the Subject of the moment or the fact it is given on as it is issued.
 type Aimed interface{ Aim(who uid.UID64) }
 
-// Hosted is a rule that builds itself for its host, as a rule.Branch does.
+// Hosted is a rule that builds itself for its host, as an act.Branch does.
 type Hosted interface{ Hosted() any }
 
 func hosted(r any) any {

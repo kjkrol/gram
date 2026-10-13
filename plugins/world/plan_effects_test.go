@@ -14,8 +14,9 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/rule/plan"
 )
 
 type effectStage struct {
@@ -106,11 +107,15 @@ func TestPlan_KeepHoldsAnEffectAsLongAsItsBranchRuns(t *testing.T) {
 	g := &effectStage{plan: func(fx *effect.Effects) *written {
 		fx.Define("held", effect.Spec{})
 		held = fx.Named("held")
-		return write("hold a while", rule.OneOf(
-			rule.Branch[any]{Name: "hold", On: rule.Self, Do: rule.Hold(held)}.
-				Timeout(300*time.Millisecond).
-				Every(time.Hour),
-			rule.Branch[any]{Name: "rest", On: rule.Self, Do: rule.Idle()},
+		return write("hold a while", plan.OneOf(
+			plan.Loop[any]{
+				Name:     "hold",
+				When:     cond.Self.If(cond.Always),
+				Then:     plan.Self.Hold(held),
+				Timeout:  300 * time.Millisecond,
+				Cooldown: time.Hour,
+			},
+			plan.Loop[any]{Name: "rest", When: cond.Self.If(cond.Always), Then: plan.Self.Idle()},
 		))
 	}}
 	e := run(t, g)
@@ -131,16 +136,14 @@ func TestPlan_OnceKeepsItsMemoryInAnEffect(t *testing.T) {
 		marked = fx.Named("marked")
 		fx.Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
 		tallying = fx.Named("tally")
-		return write("tally once a while",
-			rule.OneOf(
-				rule.Branch[any]{
-					Name: "tally",
-					When: rule.Not(rule.Under(marked)),
-					On:   rule.Self,
-					Do:   rule.Steps(rule.Put(marked), rule.Put(tallying)),
-				},
-				rule.Branch[any]{Name: "idle", On: rule.Self, Do: rule.Idle()},
-			))
+		return write("tally once a while", plan.OneOf(
+			plan.Loop[any]{
+				Name: "tally",
+				When: cond.Self.If(cond.Not(marked)),
+				Then: plan.Steps(plan.Self.Put(marked), plan.Self.Put(tallying)),
+			},
+			plan.Loop[any]{Name: "idle", When: cond.Self.If(cond.Always), Then: plan.Self.Idle()},
+		))
 	}}
 	e := run(t, g)
 	step(t, e, time.Second)

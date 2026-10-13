@@ -1,4 +1,4 @@
-package rule_test
+package plan_test
 
 import (
 	"testing"
@@ -7,6 +7,8 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/steps"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
+	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/uid"
 )
 
@@ -39,55 +41,64 @@ func (r room) free() bool                 { return r.Free }
 func (r room) byAlly() bool               { return !r.Free && r.Beside }
 
 // asker asks whom it needs past, walks on let through and flees turned away or unanswered
-var asker = write("asker", rule.OneOf(
-	rule.Branch[need]{
+var asker = write("asker", plan.OneOf(
+	plan.Loop[need]{
 		Name: "ask to pass",
-		On:   rule.Other,
-		Do: rule.Steps(
-			rule.Apply(pass{}),
-			rule.OneOf(
-				rule.Branch[any]{Do: rule.Until[reply]()}.Timeout(500*time.Millisecond),
-				rule.Branch[any]{On: rule.Self, Do: rule.Apply(flee{})},
+		When: cond.Self.If(cond.Always),
+		Then: plan.Steps(
+			plan.Other.Do(pass{}),
+			plan.OneOf(
+				plan.Loop[any]{
+					When:    cond.Self.If(cond.Always),
+					Then:    plan.Self.Idle(),
+					Until:   cond.Self.If(reply{}),
+					Timeout: 500 * time.Millisecond,
+				},
+				plan.Self.Do(flee{}),
 			),
 		),
 	},
-	rule.Branch[reply]{
+	plan.Loop[reply]{
 		Name: "let through",
-		When: reply.yes,
-		On:   rule.Self,
-		Do:   rule.Apply(walk{}),
+		When: cond.Self.If(cond.NewWord("yes", reply.yes)),
+		Then: plan.Self.Do(walk{}),
 	},
-	rule.Branch[reply]{
+	plan.Loop[reply]{
 		Name: "turned away",
-		When: rule.Not(reply.yes),
-		On:   rule.Self,
-		Do:   rule.Apply(flee{}),
+		When: cond.Self.If(cond.Not(cond.NewWord("yes", reply.yes))),
+		Then: plan.Self.Do(flee{}),
 	},
 	idle(),
 ))
 
 // giver lets pass where it has room, jumping aside; asks its ally on where it has one and
 // passes the answer back; refuses otherwise
-var giver = write("giver", rule.OneOf(
-	rule.Branch[pass]{
+var giver = write("giver", plan.OneOf(
+	plan.Loop[pass]{
 		Name: "asked to let pass",
-		On:   rule.Other,
-		Do: rule.OneOf(
-			rule.Branch[room]{
-				When: room.free,
-				Do: rule.Steps(
-					rule.Apply(reply{Yes: true}),
-					rule.Branch[any]{On: rule.Self, Do: rule.Apply(jump{High: true})},
+		When: cond.Self.If(cond.Always),
+		Then: plan.OneOf(
+			plan.Loop[room]{
+				When: cond.Self.If(cond.NewWord("free", room.free)),
+				Then: plan.Steps(
+					plan.Other.Do(reply{Yes: true}),
+					plan.Self.Do(jump{High: true}),
 				),
 			},
-			rule.Branch[room]{When: room.byAlly, On: rule.Other, Do: rule.Apply(pass{})},
-			rule.Apply(reply{}),
+			plan.Loop[room]{
+				When: cond.Self.If(cond.NewWord("by an ally", room.byAlly)),
+				Then: plan.Other.Do(pass{}),
+			},
+			plan.Other.Do(reply{}),
 		),
 	},
-	rule.Branch[reply]{
+	plan.Loop[reply]{
 		Name: "pass the answer on",
-		On:   rule.Self,
-		Do:   rule.Branch[pass]{On: rule.Other, Do: rule.Apply(reply{Yes: true})},
+		When: cond.Self.If(cond.Always),
+		Then: plan.Loop[pass]{
+			When: cond.Self.If(cond.Always),
+			Then: plan.Other.Do(reply{Yes: true}),
+		},
 	},
 	idle(),
 ))
@@ -112,7 +123,7 @@ func newTalk(t *testing.T, plans ...any) *talk {
 	t.Helper()
 	k := &talk{t: t, ecs: goke.New(), toys: newToys()}
 	var minds []steps.Mind
-	c := steps.NewPlans(func() time.Duration { return k.now }, nil, 0, nil, &k.toys.carrier)
+	c := steps.NewPlans(func() time.Duration { return k.now }, 0, nil, &k.toys.carrier)
 	defined := map[string]steps.Mind{}
 	for _, p := range plans {
 		if p == nil {

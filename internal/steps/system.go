@@ -17,10 +17,11 @@ type Plans struct {
 	system *system
 }
 
-// NewPlans is the plans on the clock now, over the world's own entity world, drawing Chance
-// from seed, casting fx and giving their commands to commands.
-func NewPlans(now func() time.Duration, world func() uid.UID64, seed uint64, fx *effect.Effects, commands *control.Carrier) *Plans {
-	return &Plans{system: &system{now: now, world: world, seed: seed, effects: fx, commands: commands}}
+// NewPlans is the plans on the clock now, drawing Chance from seed, casting fx and giving
+// their commands to commands.
+func NewPlans(now func() time.Duration, seed uint64, fx *effect.Effects,
+	commands *control.Carrier) *Plans {
+	return &Plans{system: &system{now: now, seed: seed, effects: fx, commands: commands}}
 }
 
 // Roles has the plans find the roles an entity plays with lookup.
@@ -46,7 +47,6 @@ func (c *Plans) LoadComps() []goke.CompToken {
 
 type system struct {
 	now      func() time.Duration
-	world    func() uid.UID64
 	seed     uint64
 	effects  *effect.Effects
 	commands *control.Carrier
@@ -129,7 +129,9 @@ type ctx struct {
 	i          int
 	id         uid.UID64 // whom the steps act on now
 	me         uid.UID64 // the entity the rule or the plan is about
-	entity     bool      // false for a rule of a clock.Moment: nobody to act for
+	other      uid.UID64 // the other a step acting on others turned to
+	hasOther   bool
+	entity     bool // false for a rule of a clock.Moment: nobody to act for
 	mind       *Mind
 	tree       *tree
 	prev, next StepSet

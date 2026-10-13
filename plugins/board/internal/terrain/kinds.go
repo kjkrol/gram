@@ -7,13 +7,14 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 )
 
 // Kinds is the board's cell.Kinds: the kinds a game defined, by name, each given a sprite and
 // the roles its cells play.
 type Kinds struct {
 	entries map[cell.Name]cell.Kind
-	plays   map[cell.Name]tag.Tags[rule.Roles]
+	plays   map[cell.Name]tag.Tags[cond.Roles]
 	next    render.SpriteID
 	heights bool
 	// Guard, when set, is called with each kind's name as it is defined; it refuses one defined
@@ -27,7 +28,7 @@ type Kinds struct {
 func NewKinds(heights bool) *Kinds {
 	return &Kinds{
 		entries: make(map[cell.Name]cell.Kind),
-		plays:   make(map[cell.Name]tag.Tags[rule.Roles]),
+		plays:   make(map[cell.Name]tag.Tags[cond.Roles]),
 		heights: heights,
 	}
 }
@@ -47,7 +48,7 @@ func (d *Kinds) Define(name string, k cell.Kind, plays ...*rule.Part) {
 	d.next++
 	d.entries[k.Name] = k
 	if len(plays) > 0 {
-		var roles tag.Tags[rule.Roles]
+		var roles tag.Tags[cond.Roles]
 		for _, r := range plays {
 			roles = roles.With(r.Tag())
 		}
@@ -68,7 +69,7 @@ func (d *Kinds) Named(name string) cell.Of {
 }
 
 // Plays are the roles the cells of the kind named name play; zero for none, "" for no kind.
-func (d *Kinds) Plays(name string) tag.Tags[rule.Roles] {
+func (d *Kinds) Plays(name string) tag.Tags[cond.Roles] {
 	if len(name) > cell.MaxNameLen {
 		return 0
 	}

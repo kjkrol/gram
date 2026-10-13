@@ -9,7 +9,8 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -23,13 +24,18 @@ func TestStruck_ComesOnlyToWhoStruckSomething(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := collision.NewPlugin(w)
-	if err := c.Hook(rule.Branch[collision.Struck]{Name: "struck", On: rule.Self, Do: rule.OneOf(
-		rule.Branch[collision.Struck]{
-			When: func(s collision.Struck) bool { return len(s.Contacts) == 0 },
-			Do:   rule.Apply(heard{Rule: "nothing struck"}),
-		},
-		rule.Apply(heard{Rule: "struck"}),
-	)}); err != nil {
+	if err := c.Hook(act.Branch[collision.Struck]{
+		Name: "struck",
+		When: cond.Self.If(cond.Always),
+		Then: act.OneOf(
+			act.Branch[collision.Struck]{
+				When: cond.Self.If(cond.NewWord("nothing struck",
+					func(s collision.Struck) bool { return len(s.Contacts) == 0 })),
+				Then: act.Self.Do(heard{Rule: "nothing struck"}),
+			},
+			act.Self.Do(heard{Rule: "struck"}),
+		),
+	}); err != nil {
 		t.Fatal(err)
 	}
 	kind.Define[float64](w.Kinds(), "town", kind.Spec{

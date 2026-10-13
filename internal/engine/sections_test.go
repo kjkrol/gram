@@ -26,6 +26,8 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/uid"
 )
@@ -182,10 +184,10 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 	type part func(s *sectioned, ctx game.Initializer) error
 	useAPlugin := func(s *sectioned, ctx game.Initializer) error { return ctx.Use(&stubPlugin{name: "late"}) }
 	plays := func(s *sectioned, _ game.Initializer) error {
-		s.world.Roles().Define("sectioned", rule.Branch[clock.Moment]{
+		s.world.Roles().Define("sectioned", act.Branch[clock.Moment]{
 			Name: "leave",
-			On:   rule.Self,
-			Do:   rule.Apply(world.Despawn{}),
+			When: cond.Self.If(cond.Always),
+			Then: act.Self.Do(world.Despawn{}),
 		})
 		s.world.Plays(s.world.Roles().Named("sectioned"))
 		return nil

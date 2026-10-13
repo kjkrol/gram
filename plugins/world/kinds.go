@@ -13,13 +13,14 @@ import (
 	ikinds "github.com/kjkrol/gram/plugins/world/internal/kinds"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 )
 
 // Kinds is the world's register of entity kinds and tags, handed to kind.Define. Saves keep
 // their names, so a build that defines them in another order still loads.
 type Kinds struct {
 	r      *ikinds.Registry
-	played []rule.Rule
+	played []act.Rule
 	plans  *steps.Plans
 	guard  func(name string)
 }
@@ -42,7 +43,7 @@ func (k *Kinds) Register(name string, row reflect.Type, spec kind.Spec) (kind.ID
 		switch c := c.(type) {
 		case rule.Played:
 			k.Play(c.Parts()...)
-		case rule.Planned:
+		case act.Planned:
 			if k.plans == nil {
 				panic(fmt.Sprintf("world: the kind %q carries the plan %q, its world runs none",
 					name, c.Name()))
@@ -61,14 +62,14 @@ func (k *Kinds) Lookup(name string) (kind.ID, render.SpriteID, reflect.Type, boo
 // Play notes roles played by what is no kind of the world's, a cell's kind or a plugin.
 func (k *Kinds) Play(roles ...*rule.Part) {
 	for _, part := range roles {
-		if !slices.Contains(k.played, rule.Rule(part)) {
+		if !slices.Contains(k.played, act.Rule(part)) {
 			k.played = append(k.played, part)
 		}
 	}
 }
 
 // Played are the roles played so far, each once.
-func (k *Kinds) Played() []rule.Rule { return slices.Clone(k.played) }
+func (k *Kinds) Played() []act.Rule { return slices.Clone(k.played) }
 
 // DefineTag registers name in family F and returns its tag, assigned by call order within the
 // family.

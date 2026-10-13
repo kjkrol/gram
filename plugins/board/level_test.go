@@ -13,7 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 )
 
 type standingRow struct {
@@ -37,7 +37,7 @@ board:
 units:
   - {kind: walker, name: ann, start: [0, 0]}
 `)}}
-	prepare := func(w *world.Plugin, brd *board.Plugin) []rule.Rule {
+	prepare := func(w *world.Plugin, brd *board.Plugin) []act.Rule {
 		brd.CellKinds().Define("grass", grass)
 		brd.CellKinds().Define("pit", pit)
 		shape := board.Shape{Size: boardtest.UnitSize}

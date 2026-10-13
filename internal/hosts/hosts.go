@@ -7,12 +7,13 @@ import (
 
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 )
 
 // Deliver hands each rule, a role's each of its own, to the first of among that takes it, the
 // next tried while one refuses with plugin.ErrUnhosted. A rule none takes is plugin.ErrUnhosted
 // naming the rule; any other error stops at once.
-func Deliver(among []plugin.Host, rules ...rule.Rule) error {
+func Deliver(among []plugin.Host, rules ...act.Rule) error {
 	for _, r := range rules {
 		if role, ok := r.(*rule.Part); ok {
 			if err := Deliver(among, role.Rules()...); err != nil {
@@ -27,7 +28,7 @@ func Deliver(among []plugin.Host, rules ...rule.Rule) error {
 	return nil
 }
 
-func deliver(among []plugin.Host, r rule.Rule) error {
+func deliver(among []plugin.Host, r act.Rule) error {
 	for _, h := range among {
 		err := h.Add(r)
 		if err == nil || !errors.Is(err, plugin.ErrUnhosted) {

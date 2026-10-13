@@ -151,8 +151,9 @@ func (r *PairRules[P]) Dispatch(t Tick, self, other Marks, pair P) {
 	}
 }
 
-// DispatchGrouped is Dispatch for one entity against many others, run even when none match;
-// build makes the moment of the others matched, by their places in others.
+// DispatchGrouped is Dispatch for one entity against many others, run with none matched too
+// unless the rule names the other's side; build makes the moment of the others matched, by
+// their places in others.
 func (r *PairRules[P]) DispatchGrouped(t Tick, self Marks, others []Marks, build func(matched []int) P) {
 	for _, p := range r.rules {
 		if !p.first(self) {
@@ -163,6 +164,9 @@ func (r *PairRules[P]) DispatchGrouped(t Tick, self Marks, others []Marks, build
 			if fits(others[i], p.fb, p.b) {
 				r.matched = append(r.matched, i)
 			}
+		}
+		if len(r.matched) == 0 && p.fb >= 0 {
+			continue
 		}
 		p.rule.RunPair(t, build(r.matched))
 	}

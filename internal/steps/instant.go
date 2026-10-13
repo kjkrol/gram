@@ -17,7 +17,6 @@ type Pass struct {
 	Dt       time.Duration
 	Time     time.Duration // game time at the step's end
 	Seed     uint64
-	World    uid.UID64 // the world's own entity
 	Around   func(moment any, rings int, each func(uid.UID64))
 	Roles    func(id uid.UID64) uint64 // a bit a role
 }
@@ -152,29 +151,28 @@ func (forOther) tick(c *ctx, _ int, kids []int) Status {
 	if !c.entity {
 		return Failure
 	}
-	self, st := c.id, Failure
-	if !c.instant {
+	self, other, had, st := c.id, c.other, c.hasOther, Failure
+	on := func(id uid.UID64) {
+		c.id, c.other, c.hasOther = id, id, true
+		if c.run(kids[0]) == Success {
+			st = Success
+		}
+	}
+	switch {
+	case !c.instant:
 		if c.about {
-			c.id = c.subject
-			st = c.run(kids[0])
-			c.id = self
+			on(c.subject)
 		}
-		return st
-	}
-	switch m := c.payload.(type) {
-	case met:
-		m.Whom(func(other uid.UID64) {
-			c.id = other
-			if c.run(kids[0]) == Success {
-				st = Success
+	default:
+		switch m := c.payload.(type) {
+		case met:
+			m.Whom(on)
+		case subject:
+			if id, ok := m.Subject(); ok {
+				on(id)
 			}
-		})
-	case subject:
-		if other, ok := m.Subject(); ok {
-			c.id = other
-			st = c.run(kids[0])
 		}
 	}
-	c.id = self
+	c.id, c.other, c.hasOther = self, other, had
 	return st
 }

@@ -26,7 +26,9 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -144,36 +146,31 @@ func (s *arena) defineKinds() {
 		TurnRate: 0.15,
 	}
 	alarm := s.world.Effects().Named(AlarmEf)
-	guard := rule.Plan(GuardPlan, rule.OneOf(
-		rule.Branch[any]{
-			Name: "to the gate",
-			When: rule.Under(alarm).On(entity.World),
-			On:   rule.Self,
-			Do: rule.Steps(
-				rule.Apply(navigation.MoveTo{To: entity.Named(GateName)}),
-				rule.Until[navigation.Arrived](),
-			),
-		}.Timeout(20*time.Second),
-		rule.Branch[navigation.Blocked]{
+	guard := plan.New(GuardPlan, plan.OneOf(
+		plan.Loop[any]{
+			Name:    "to the gate",
+			When:    cond.On(s.world).If(alarm),
+			Then:    plan.Self.Do(navigation.MoveTo{To: entity.Named(GateName)}),
+			Until:   cond.Self.If(navigation.Arrived{}),
+			Timeout: 20 * time.Second,
+		},
+		plan.Loop[navigation.Blocked]{
 			Name: "blocked",
-			When: navigation.Blocked.WaitedLong,
-			On:   rule.Self,
-			Do:   rule.Apply(navigation.StepAside{}),
+			When: cond.Self.If(navigation.Stuck()),
+			Then: plan.Self.Do(navigation.StepAside{}),
 		},
-		rule.Branch[navigation.Arrived]{
+		plan.Loop[navigation.Arrived]{
 			Name: "rest",
-			On:   rule.Self,
-			Do:   rule.Wait(2 * time.Second),
+			When: cond.Self.If(cond.Always),
+			Then: plan.Self.Wait(2 * time.Second),
 		},
-		rule.Branch[any]{
-			Name: "patrol",
-			On:   rule.Self,
-			Do: rule.Steps(
-				rule.Apply(navigation.Onward{}),
-				rule.Until[navigation.Arrived](),
-			),
+		plan.Loop[any]{
+			Name:  "patrol",
+			When:  cond.Self.If(cond.Always),
+			Then:  plan.Self.Do(navigation.Onward{}),
+			Until: cond.Self.If(navigation.Arrived{}),
 		},
-		rule.Branch[any]{Name: "idle", On: rule.Self, Do: rule.Idle()},
+		plan.Loop[any]{Name: "idle", When: cond.Self.If(cond.Always), Then: plan.Self.Idle()},
 	))
 	guards := board.NewUnits[guardRow](s.board, board.Shape{Size: EntitySize},
 		func(g guardRow) geom.Vec { return brd.CellCenter(g.Start) })
@@ -182,15 +179,15 @@ func (s *arena) defineKinds() {
 			return navigation.NewRound(g.Round[:]...)
 		}))
 
-	patrol := rule.Plan(PatrolPlan, rule.Branch[any]{
-		Name: "leg",
-		On:   rule.Self,
-		Do: rule.Steps(
-			rule.Apply(navigation.Onward{}),
-			rule.Until[navigation.Arrived](),
-			rule.Wait(3*time.Second),
-		),
-	})
+	patrol := plan.New(PatrolPlan, plan.Steps(
+		plan.Loop[any]{
+			Name:  "leg",
+			When:  cond.Self.If(cond.Always),
+			Then:  plan.Self.Do(navigation.Onward{}),
+			Until: cond.Self.If(navigation.Arrived{}),
+		},
+		plan.Loop[any]{Name: "rest", When: cond.Self.If(cond.Always), Then: plan.Self.Wait(3 * time.Second)},
+	))
 	wanderers := board.NewUnits[wandererRow](s.board, board.Shape{Size: EntitySize},
 		func(w wandererRow) geom.Vec { return brd.CellCenter(w.Start) })
 	wanderers.Define(WandererKind, unit.Mover{Domain: cell.Land}, profile, patrol,

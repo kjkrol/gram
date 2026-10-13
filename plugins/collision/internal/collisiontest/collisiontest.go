@@ -11,7 +11,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 )
 
 // InstallCtx is the plugin.Installer a Stage would hand over, minus the engine.
@@ -59,7 +59,7 @@ func Start(t testing.TB, w *world.Plugin, c *collision.Plugin, after ...goke.Sys
 }
 
 // StartObeying is Start with rules handed to the hosts of their moments.
-func StartObeying(t testing.TB, w *world.Plugin, c *collision.Plugin, rules []rule.Rule, after ...goke.System) *goke.ECS {
+func StartObeying(t testing.TB, w *world.Plugin, c *collision.Plugin, rules []act.Rule, after ...goke.System) *goke.ECS {
 	t.Helper()
 	ctx := NewInstallCtx(goke.New())
 	if err := w.Install(ctx); err != nil {
@@ -90,4 +90,4 @@ func Step(w *world.Plugin, c *collision.Plugin) func(goke.RunCtx, time.Duration)
 func (c *InstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
 // Deliver hands rules to the hosts of their moments, as the engine does.
-func (c *InstallCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *InstallCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }

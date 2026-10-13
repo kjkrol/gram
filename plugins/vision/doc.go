@@ -28,11 +28,11 @@
 //
 // # Sighting
 //
-// A rule of a [Sighting] (rule.Branch[vision.Sighting]{When: vision.Seeing(role), …}) runs once a
-// step per observer playing the rule's role, on everything in view playing the role of Seeing as
+// A rule of a [Sighting] (act.Branch[vision.Sighting]{When: cond.Other.If(role), …}) runs once a
+// step per observer playing the rule's role, on everything in view playing the role of Other as
 // [Seen] values nearest first, even when nothing is. Its Subject is the nearest seen, so an Aimed
-// command is about it and fails with none in view; Sighting.Nobody and Sighting.Closing are its
-// conditions.
+// command is about it and fails with none in view. Its words: [SeesNobody] of the observer,
+// [Closing] of the other — the nearest seen on a collision course with the observer.
 //
 // # SightOutline and Renderer
 //

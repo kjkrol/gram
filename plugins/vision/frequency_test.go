@@ -12,7 +12,8 @@ import (
 	"github.com/kjkrol/gram/entity/kind/comp"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 )
 
 type looked struct{}
@@ -42,7 +43,7 @@ func TestFrequency_ObserversTakeTurnsAndTheRulesGoOnEveryStep(t *testing.T) {
 	if err := v.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	look := rule.Branch[vision.Sighting]{Name: "look", On: rule.Self, Do: rule.Apply(looked{})}
+	look := act.Branch[vision.Sighting]{Name: "look", When: cond.Self.If(cond.Always), Then: act.Self.Do(looked{})}
 	if err := ctx.Deliver(look); err != nil {
 		t.Fatal(err)
 	}

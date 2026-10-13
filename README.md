@@ -68,7 +68,7 @@ cgo. Without a GPU the tests that draw skip themselves.
 |:---|:---|:---|
 | **Stages and Scenes** | `game`, `game/stage` | Named Stages with their own ECS, defined a section at a time; Scenes as `ui` screens showing the world through cameras; a live Composition of what is shown and which Scene takes input |
 | **Plugins and rules** | `plugin` | The one extension contract; the hosts (`Rules`, `PairRules`, `StepRules`) that run rules inside a plugin's own pass |
-| **Behaviour** | `rule` | One vocabulary: `Branch[P]{Name, When, On, Do}` as a rule of a moment or a branch of a plan; roles a kind, a cell or a plugin plays; effects that hold for a while; messages between plans; commands written as sentences, for entities found by name or group |
+| **Behaviour** | `rule`, `rule/cond`, `rule/act`, `rule/plan` | One vocabulary: `act.Branch[P]{Name, When, Then}` a rule of a moment, `plan.Loop[P]{Name, When, Then, Until, Timeout, Cooldown}` a loop of a plan, every clause of either saying whom it is about (`cond.Self.If(x)`, `act.Other.Do(cmd)`); roles a kind, a cell or a plugin plays; effects that hold for a while; messages between plans; commands written as sentences, for entities found by name or group |
 | **World** | `plugins/world` | Every entity's `Base`; movement under stop, wrap or open edges; the spatial index; kinds and spawning before the game and during it; heights or planes |
 | **Steering** | `plugins/world/steering` | A `Steering` profile turned into heading and speed each step; `Driven` for a unit steered by hand |
 | **Collisions** | `plugins/collision` | `Collider` to take part, `Physics` to bounce and be pushed apart, the solid ground of a board, `Meeting` and `Struck` for rules |
@@ -304,7 +304,7 @@ demo opens a window; what it shows is tested in the library's package that does 
 | [`rules/wire`](examples/rules/wire) | Three commands, each a sentence saying what it does, whom it is for and who sets it off: a lever pulled by a key or by a scout beside it (U), a plate stood on, a gate flipped (G) | `make demo-wire` |
 | [`rules/dialog`](examples/rules/dialog) | Conversations read from YAML: the traveller greeted by the miller and the smith in a window, the answers changing the host's `Regard`, shown under it as Friend, Neutral or Enemy | `make demo-dialog` |
 | [`rules/vision`](examples/rules/vision) | Entities keeping out of each other's way by sight, and a hunter living off the ones that fail | `make demo-vision` |
-| [`rules/guard`](examples/rules/guard) | Guards on a plan (`rule.Plan`): patrol the yard, step aside for whoever blocks them long enough, rest where they arrive, run to the gate while the alarm (A) is on | `make demo-guard` |
+| [`rules/guard`](examples/rules/guard) | Guards on a plan (`plan.New`): patrol the yard, step aside for whoever blocks them long enough, rest where they arrive, run to the gate while the alarm (A) is on | `make demo-guard` |
 
 ### Board: boards and maps
 
@@ -383,32 +383,34 @@ that catches its moment:
 ```go
 roles := s.world.Roles()
 roles.Define(PreyRole)
-roles.Define(PredatorRole, rule.Branch[collision.Meeting]{
+roles.Define(PredatorRole, act.Branch[collision.Meeting]{
 	Name: "caught",
-	When: collision.Met(roles.Named(PreyRole)),
-	On:   rule.Other,
-	Do:   rule.Apply(world.Despawn{}),
+	When: cond.Other.If(roles.Named(PreyRole)),
+	Then: act.Other.Do(world.Despawn{}),
 })
 kind.Define[body](kinds, HunterKind, kind.Spec{…, rule.Plays(roles.Named(PredatorRole))})
 ```
 
-reads as a sentence, who, when, on whom, what: a predator, meeting one playing prey, has it give
-itself a `Despawn`. Conditions are values in `When`: a predicate of the moment
-(`unit.Standing.Fallen`), the entity's state (`rule.Under`), the world's
-(`rule.Under(e).On(entity.World)`), a role played (`rule.Playing`), the other of a pair in the
-moment's own word (`vision.Seeing`, `collision.Met`), several at once (`rule.All`). `On` says whom
-the steps act on: the entity, the other of the pair, the places round.
+reads as a sentence, who, when, what: a predator, meeting one playing prey, has it give itself a
+`Despawn`. Every clause says whom it is about: `cond.Self` the entity, `cond.Other` the other of
+the pair or the moment's subject, `cond.Around(n)` the places round, `cond.On(s.world)` the
+world's own entity; and in what state, `.If(x)`: under an effect, playing a role, as a word of
+the moment says (`unit.Fallen()`, `vision.SeesNobody()`), `cond.Chance(p)`, `cond.Always`, or
+`cond.Not` of one; clauses join with `And` and `Or`. The steps say the same, `act.Self.Put(e)`,
+`act.Other.Do(cmd)`, `act.Around(1).Put(e)`, in order (`act.Steps`) or the first that does
+(`act.OneOf`).
 Nobody hands the rule to collision: once `Init` returns, the engine gives the rules
 of every role somebody plays to the plugin that catches their moment, and a rule none catches is
-an error. What an entity does over time is a *plan* of the same branches, `rule.Plan(name,
-root)`, carried by its kind: a tree choosing what to do, waiting for the *facts* a plugin tells
-it (`.Until[navigation.Arrived]()`). Rules and plans cast *effects* that hold for a while and
-give *commands* for their entity (`rule.Apply(navigation.MoveTo{…})`), the same a player gives.
-An effect turns the *knobs* a plugin gives, components it only reads, like `steering.Steering`
-or a cell's `cell.Ground`. A rule holds no Go code but its conditions; how entities are drawn is
-the one place rules are Go (`render.Rule`), declared on the world's atlas in a scene. A plugin
-ships no ready-made reactions: it gives moments and their words, and the game says what
-follows. The story is in [`doc/rule.md`](doc/rule.md).
+an error. What an entity does over time is a *plan* of loops, `plan.New(name, root)`, carried
+by its kind: a `plan.Loop` is a branch with an end — `Until` the *fact* a plugin tells it
+(`cond.Self.If(navigation.Arrived{})`), `Timeout`, `Cooldown` — choosing what to do
+(`plan.OneOf`) or doing one thing after another (`plan.Steps`). Rules and plans cast *effects*
+that hold for a while and give *commands* for their entity (`plan.Self.Do(navigation.MoveTo{…})`),
+the same a player gives. An effect turns the *knobs* a plugin gives, components it only reads, like
+`steering.Steering` or a cell's `cell.Ground`. A rule holds no Go code but its words; how
+entities are drawn is the one place rules are Go (`render.Rule`), declared on the world's atlas
+in a scene. A plugin ships no ready-made reactions: it gives moments and their words, and the
+game says what follows. The story is in [`doc/rule.md`](doc/rule.md).
 
 What a player *wants* is a command too, a `control.Command`: the plugin that defines its type
 (`navigation.MoveTo`, `selection.Select`) is a `plugin.CommandHandler` that drains its queue in
@@ -425,7 +427,7 @@ its names as constants, each with a suffix saying what it names (`Ef`, `Cmd`, `R
 `Kind`, `Cell`). A kind plays roles through `rule.Plays(roles...)`, a cell through its kind or
 alone, a plugin through its own `Plays`: a plugin is an entity of the world too (`world.Self`),
 so a state of the sky is an effect on the atmosphere, `rule.Put(bloodMoon).On(s.atmosphere)`,
-read back by `rule.Under(bloodMoon).On(s.atmosphere)`. A command about an effect is a sentence:
+read back by `cond.On(s.atmosphere).If(bloodMoon)`. A command about an effect is a sentence:
 put it on (`rule.Put`), take it off (`Take`) or switch it (`Toggle`), for the entities bearing a
 name, those in a group, the world itself, the player's selected units or the one pointed at
 (`On`), set off by the entity named (`By`):
@@ -454,17 +456,16 @@ fx.Define(HasteEf, effect.Spec{effect.Lasts(3 * time.Second),
 	effect.Alter(func(st *steering.Steering) { st.MaxSpeed *= 2 })})
 
 // Rules
-roles.Define(MortalRole, rule.Branch[unit.Standing]{
+roles.Define(MortalRole, act.Branch[unit.Standing]{
 	Name: "fall in",
-	When: unit.Standing.Fallen,
-	On:   rule.Self,
-	Do:   rule.Apply(world.Despawn{}),
+	When: cond.Self.If(unit.Fallen()),
+	Then: act.Self.Do(world.Despawn{}),
 })
 roles.Define(HastyRole)
-roles.Define(PlateRole, rule.Branch[collision.Meeting]{
+roles.Define(PlateRole, act.Branch[collision.Meeting]{
 	Name: "press",
-	On:   rule.Self,
-	Do:   rule.Apply(rule.Triggered{}),
+	When: cond.Self.If(cond.Always),
+	Then: act.Self.Do(rule.Trigger{}),
 })
 
 // Commands
@@ -558,7 +559,10 @@ has a `doc.go` describing what it brings. What is left to do is in
 | [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer`, `CommandHandler`, `Serializable`, `PostLoader`, `Populator`; the hosts of rules (`Rules`, `PairRules`, `StepRules`), the `Tick`, what a moment is (`About`, `Met`, `Placed`, `Aimed`) |
 | [`entity`](entity/doc.go) | What every entity carries: `Base`, `Position`, `Velocity`, `Z`, `Layers`, `Eye`, `Label`; `entity/kind` what an entity is (`Spec`, `Define`, `Of`); `entity/tag` the tag families |
 | [`clock`](clock/doc.go) | The tactical clock: game time as the sum of the simulation's steps, the pause (Space), the tempo (] and [), the `Moment` of a step with `At` and `Every` |
-| [`rule`](rule/doc.go) | How entities behave ([the story](doc/rule.md)): `Branch[P]{Name, When, On, Do}` as a rule of a moment given to a role, or a branch of a plan a kind carries (`Plan`); the conditions, the steps (`Put`, `Take`, `Hold`, `Apply`) and those that last; messages between plans (`From`); roles (`Part`, `Plays`) and commands about effects (`Put`, `Take`, `Toggle`); `rule/effect` the effects themselves |
+| [`rule`](rule/doc.go) | How entities behave ([the story](doc/rule.md)): roles (`Part`, `Plays`), commands about effects written as sentences (`Put`, `Take`, `Toggle`; `Trigger`), messages between plans (`From`); `rule/effect` the effects themselves |
+| [`rule/cond`](rule/cond/doc.go) | The When of a branch and the Until of a loop: a subject, `Self`, `Other`, `Around(n)` or `On(plugin)`, `.If` a state (an effect, a role, a `Word` of the moment, `Chance`, `Always`, `Not`; in an Until a fact come afresh), joined with `And` and `Or` |
+| [`rule/act`](rule/act/doc.go) | What a rule does: `Branch[P]{Name, When, Then}`, a rule of a moment given to a role; the steps `Self`, `Other` and `Around(n)` do — `Put`, `Take`, `Hold` an effect, `Do` a command — and `Steps` and `OneOf` over them, all of which a plan takes too |
+| [`rule/plan`](rule/plan/doc.go) | What an entity does over time, `New(name, root)` carried by its kind: `Loop[P]{Name, When, Then, Until, Timeout, Cooldown}` on a fact `P` or `any`, `plan.Self.Wait` and `Idle` lasting, `Steps` and `OneOf` over loops and a rule's steps |
 | [`plugins/world`](plugins/world/doc.go) | The foundation: the space, movement under the edge rules, kinds and tags, `Seed`/`Populate`, `Spawn`, `Despawn`, the commands about effects, the carrier of commands, the entities' looks on the atlas; it runs the core's systems; `steering` and `view` beside it |
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence`; `game/stage` a Stage defined a section at a time |
 | [`ui`](ui/doc.go) | A scene's screen as a tree of elements: `Layers`, `Columns`/`Rows`, anchors, `Panel`, `Label`, `Image` of a feed, `Window`, `Button` giving commands, elements pinned to entities `Under` an effect or `On` a name, a `Theme` |

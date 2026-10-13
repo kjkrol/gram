@@ -20,6 +20,8 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/gram/ui"
 )
@@ -97,11 +99,10 @@ func (s *arena) defineEffects() {
 }
 
 func (s *arena) defineRules() {
-	s.world.Roles().Define(MoodyRole, rule.Branch[world.Moving]{
+	s.world.Roles().Define(MoodyRole, act.Branch[world.Moving]{
 		Name: "rage spreads",
-		On:   rule.Self,
-		When: rule.Under(s.world.Effects().Named(RageEf)).On(entity.World),
-		Do:   rule.Hold(s.world.Effects().Named(AngryEf)),
+		When: cond.On(s.world).If(s.world.Effects().Named(RageEf)),
+		Then: act.Self.Hold(s.world.Effects().Named(AngryEf)),
 	})
 }
 

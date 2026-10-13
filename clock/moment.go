@@ -3,6 +3,7 @@ package clock
 import (
 	"time"
 
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -17,19 +18,19 @@ type Moment struct {
 // Who is the clock's entity: whose moment it is, for a rule.
 func (m Moment) Who() uid.UID64 { return m.Clock }
 
-// At holds in the step the clock's time reaches at.
-func At(at time.Duration) func(Moment) bool {
-	return func(m Moment) bool { return m.Last < at && at <= m.Now }
+// At is the word of the step the clock's time reaches at in.
+func At(at time.Duration) cond.Word[Moment] {
+	return cond.NewWord("at", func(m Moment) bool { return m.Last < at && at <= m.Now })
 }
 
-// Every holds in each step the clock's time reaches another period in, the first at offset: a
-// calendar's every day at an hour is Every(calendar.Daily(hour)), every winter
+// Every is the word of each step the clock's time reaches another period in, the first at
+// offset: a calendar's every day at an hour is Every(calendar.Daily(hour)), every winter
 // Every(calendar.Seasonal(Winter)).
-func Every(period, offset time.Duration) func(Moment) bool {
+func Every(period, offset time.Duration) cond.Word[Moment] {
 	if period <= 0 {
 		panic("clock: Every needs a period above zero")
 	}
-	return func(m Moment) bool {
+	return cond.NewWord("every", func(m Moment) bool {
 		if m.Now < offset {
 			return false
 		}
@@ -38,5 +39,5 @@ func Every(period, offset time.Duration) func(Moment) bool {
 			before = -1
 		}
 		return (m.Now-offset)/period > before
-	}
+	})
 }

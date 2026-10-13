@@ -17,6 +17,8 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/gram/ui"
 )
@@ -101,10 +103,10 @@ func (s *arena) defineEffects() {
 }
 
 func (s *arena) defineRules() {
-	s.world.Roles().Define(BodyRole, rule.Branch[collision.Struck]{
+	s.world.Roles().Define(BodyRole, act.Branch[collision.Struck]{
 		Name: "hit",
-		On:   rule.Self,
-		Do:   rule.Put(s.world.Effects().Named(HitEf)),
+		When: cond.Self.If(cond.Always),
+		Then: act.Self.Put(s.world.Effects().Named(HitEf)),
 	})
 }
 

@@ -113,7 +113,7 @@ func (s *standingSystem) share(i int) float64 {
 
 func (s *standingSystem) logFall(i int) {
 	st := s.standing(i)
-	if !st.Fallen() || s.r.told[st.ID] {
+	if !unit.Fallen().Holds(st) || s.r.told[st.ID] {
 		return
 	}
 	if s.r.told == nil {

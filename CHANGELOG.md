@@ -10,6 +10,60 @@ argument's full path, which moved. Nor those made before decks ran as bands: `ce
 `cell.Rail` and `cell.Built` changed shape. Nor those made before a route knew its levels and
 where it begins: `navigation.Path` changed shape.
 
+**Conditions in `rule/cond`, rules in `rule/act`, plans in `rule/plan`: every clause says whom**
+- `rule` is five packages: `rule/cond` the conditions, `rule/act` a rule's steps and branch,
+  `rule/plan` a plan's loops, `rule/effect` the states, and `rule` what ties them to a game —
+  the roles (`Part`, `Obeys`, `Plays`), the commands about effects (`Put`/`Take`/`Toggle` with
+  `On`/`By`/`For`) and the messages (`From`, `MaxChain`, `AskLife`). The roles' tag family is
+  `cond.Roles`, `cond.Role` what a `*rule.Part` is; `act.Rule` is the interface a host takes,
+  `act.Build` a branch built by hand. A rule's steps and groups stand in a plan; a plan's
+  cannot stand in a rule, and the compiler says so (`act.Step` is a `plan.Part`).
+- A subject is a value with methods (Go 1.27's generic methods): the clauses are
+  `cond.Self.If(x)`, `cond.Other.If(x)` (the other of the pair or the moment's subject; nothing
+  holds and nothing is done while there is none), `cond.Around(n).If(x)` (each place within `n`
+  rings) and `cond.On(plugin).If(x)` (a plugin's own entity); `x` an effect, a role, a word of
+  the moment, `cond.Chance(p)` (drawn for whom it is asked), `cond.Always` or `cond.Not` of one
+  of them. Clauses join with `.And` and `.Or`; `cond.Not` of a whole condition turns it round.
+  A role of Self or Other at the top of a rule narrows whom the host walks; anywhere else it is
+  a guard.
+- A moment's words are the plugin's, with a side: `cond.Word[P]` made by `cond.NewWord(name,
+  func(P) bool)`, `.OfOther()` of the other, `.Holds(v)` for engine code — `unit.Fallen()`,
+  `unit.StandingOn(e)`, `unit.OnKind(k)`, `vision.SeesNobody()`, `vision.Closing()` (of the
+  other), `bullet.Within(d)` (of the other), `bullet.Lying()`, `sky.FullMoon()`, `clock.At(t)`,
+  `clock.Every(p, o)`, `gravity.HarderThan(v)`, navigation's Touch words as functions
+  (`PushedByAlly()`, `Blocks()`, `WaitedLong()`…) and Blocked's `Stuck()`, `Cornered()`,
+  `StrangerOnGoal()`, `IdleAlly()`, `IdleAllyOnMyGoal()`; a word of the wrong side is refused as
+  the branch is built.
+- A rule is `act.Branch[P]{Name, When, Then}`, every field required (`Name` at the top), a nil
+  one panicking by the branch's name. The steps are the subjects' methods: `act.Self.Do(cmd)`
+  (was `Apply`), `act.Self.Put(e)`, `Take(e)`, `Hold(e)`, `act.Other.Put(e)`,
+  `act.Around(n).Do(cmd)`; `act.Steps` and `act.OneOf` order them with branches inside. A rule
+  turning to places runs once a place: the smallest part of it holding every place clause, one
+  ring a rule.
+- A plan is `plan.New(name, root)` of `plan.Loop[P]{Name, When, Then, Until, Timeout,
+  Cooldown}` on the fact `P` or `any`, in `plan.Steps` and `plan.OneOf`; `plan.Self` has a
+  rule's steps and `Wait(d)` and `Idle()`, `plan.Other` and `plan.Around` are a rule's. A loop
+  ends as its head says: `Until` is success once it holds, checked every tick from the loop's
+  start before the steps — a fact's value in it, `cond.Self.If(navigation.Arrived{})`, is the
+  fact come afresh since the loop began (at most 8 in one `Until`), a word of a fact holds
+  while carried and holding, and the `Then` runs once from the start, the loop waiting after;
+  `Timeout` fails it after `d`; `Cooldown` keeps it from beginning again within `d` of its
+  last run (was `.Every`). A fact in a `When` or in `Not`, an `Until` of `Other`, `Around` in a
+  plan are refused as the plan is built. A patrol is `plan.Steps` of two loops:
+  `plan.Self.Do(navigation.Onward{})` with `Until: cond.Self.If(navigation.Arrived{})`, then
+  `plan.Self.Wait(pause)`.
+- `rule.Trigger{}` (was `rule.Triggered{}`), given with `act.Self.Do`, is how an entity sets
+  off every command whose `By` names it.
+- Gone: `rule.Branch`, `Rule`, `Step`, `Cond`, `All`, `Under`, `UnderCond`, `Playing`,
+  `Paired`, `Chance`, `Apply`, `Hold`, `OneOf`, `Steps`, `Until`, `Wait`, `Idle`, `Self`,
+  `Other`, `Here`, `Around`, `On`, `Plan`, `Build`, `Roles`, the frames `.Timeout(d)` and
+  `.Every(d)`; `vision.Seeing`, `collision.Met`, `bullet.Reaching`, `navigation.Touching`;
+  `unit.Over`, `unit.On`, `Standing.Fallen`, `Sighting.Nobody`/`Closing`, the Touch's and
+  Blocked's exported methods, `Moonrise.Full`, `Flight.Lying`. `Here` is gone altogether: the
+  cell under a unit is a word of `Standing`, `Around(0)` the cells under the box where a step
+  needs them. A `rule.Command` without an `On` is no step.
+- Saves holding a `Mind` written before do not load: the plans' shapes changed.
+
 **The grammar of rules and plans; patrols as plans**
 - A `rule.Branch` says when, on whom and what: `Branch[P]{Name, When, On, Do}`. `On` is required
   at the top of a rule and of a plan — `rule.Self`, `rule.Other` (the other of the pair, the

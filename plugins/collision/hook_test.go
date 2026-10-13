@@ -12,6 +12,8 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -27,7 +29,7 @@ type tagged struct {
 }
 
 type registrar interface {
-	Hook(rules ...rule.Rule) error
+	Hook(rules ...act.Rule) error
 }
 
 // Other: given by the one met
@@ -54,7 +56,7 @@ type met struct {
 	self, other uid.UID64
 }
 
-func meet(t *testing.T, rules []rule.Rule, boxes ...*tagged) []met {
+func meet(t *testing.T, rules []act.Rule, boxes ...*tagged) []met {
 	t.Helper()
 	return meetWith(t, func(engine registrar) {
 		if err := engine.Hook(rules...); err != nil {
@@ -79,7 +81,7 @@ func meetWith(t *testing.T, register func(engine registrar), boxes ...*tagged) [
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		var base goke.Comp[world.Base]
 		var coll goke.Comp[collision.Collider]
-		var tags goke.Comp[tag.Tags[rule.Roles]]
+		var tags goke.Comp[tag.Tags[cond.Roles]]
 		for _, box := range boxes {
 			comps := []goke.Addable{&base, &coll}
 			if box.bullet || box.target {
@@ -92,7 +94,7 @@ func meetWith(t *testing.T, register func(engine registrar), boxes ...*tagged) [
 			placed := posAt(box.x, 100, 10, 10)
 			base.Slice(&f.Cursor)[0].Pos = placed
 			if box.bullet || box.target {
-				var marks tag.Tags[rule.Roles]
+				var marks tag.Tags[cond.Roles]
 				if box.bullet {
 					marks = marks.With(bullet.Tag())
 				}
@@ -118,23 +120,22 @@ func meetWith(t *testing.T, register func(engine registrar), boxes ...*tagged) [
 }
 
 // b nil: anybody
-func heardOf(name string, a, b *rule.Part) rule.Rule {
-	var when any = rule.Playing(a)
+func heardOf(name string, a, b *rule.Part) act.Rule {
+	when := cond.Self.If(a)
 	if b != nil {
-		when = rule.All(rule.Playing(a), rule.Paired(b))
+		when = when.And(cond.Other.If(b))
 	}
-	return rule.Branch[collision.Meeting]{
+	return act.Branch[collision.Meeting]{
 		Name: name,
-		On:   rule.Self,
 		When: when,
-		Do: rule.Steps(
-			rule.Apply(heard{Rule: name}),
-			rule.Branch[any]{On: rule.Other, Do: rule.Apply(heard{Rule: name, Other: true})},
+		Then: act.Steps(
+			act.Self.Do(heard{Rule: name}),
+			act.Branch[any]{When: cond.Self.If(cond.Always), Then: act.Other.Do(heard{Rule: name, Other: true})},
 		),
 	}
 }
 
-func bulletsAgainstTargets() []rule.Rule { return []rule.Rule{heardOf("bullets", bullet, target)} }
+func bulletsAgainstTargets() []act.Rule { return []act.Rule{heardOf("bullets", bullet, target)} }
 
 func TestBetween_HandsOverThePairWithSelfOnTheFirstTag(t *testing.T) {
 	for name, order := range map[string][2]bool{"bullet spawned first": {true, false}, "target spawned first": {false, true}} {
@@ -170,7 +171,7 @@ func TestBetween_IgnoresPairsThatDoNotCarryBothTags(t *testing.T) {
 }
 
 func TestBetween_SameTagOnBothSides_RunsOncePerContact(t *testing.T) {
-	got := meet(t, []rule.Rule{heardOf("bullets", bullet, bullet)}, &tagged{x: 100, bullet: true}, &tagged{x: 105, bullet: true})
+	got := meet(t, []act.Rule{heardOf("bullets", bullet, bullet)}, &tagged{x: 100, bullet: true}, &tagged{x: 105, bullet: true})
 
 	if len(got) != 1 {
 		t.Errorf("the rule fired %d times, want once for one contact", len(got))
@@ -180,7 +181,7 @@ func TestBetween_SameTagOnBothSides_RunsOncePerContact(t *testing.T) {
 func TestBetween_Anything_MatchesWhateverIsThere(t *testing.T) {
 	shot, wall := &tagged{x: 100, bullet: true}, &tagged{x: 105}
 
-	got := meet(t, []rule.Rule{heardOf("anything", bullet, nil)}, shot, wall)
+	got := meet(t, []act.Rule{heardOf("anything", bullet, nil)}, shot, wall)
 
 	if len(got) != 1 || got[0].self != shot.id || got[0].other != wall.id {
 		t.Errorf("fired %+v, want for the bullet %v about the untagged %v once", got, shot.id, wall.id)
@@ -188,7 +189,7 @@ func TestBetween_Anything_MatchesWhateverIsThere(t *testing.T) {
 }
 
 func TestBetween_RulesSharingATag_BothRun(t *testing.T) {
-	got := meet(t, []rule.Rule{heardOf("first", bullet, target), heardOf("second", bullet, nil)},
+	got := meet(t, []act.Rule{heardOf("first", bullet, target), heardOf("second", bullet, nil)},
 		&tagged{x: 100, bullet: true}, &tagged{x: 105, target: true})
 
 	if len(got) != 2 || got[0].rule != "first" || got[1].rule != "second" {
@@ -201,23 +202,22 @@ type elsewhere struct{}
 func (elsewhere) Who() uid.UID64       { return 0 }
 func (elsewhere) Whom(func(uid.UID64)) {}
 
-func fromElsewhere(paired bool) rule.Rule {
-	var when any
+func fromElsewhere(paired bool) act.Rule {
+	when := cond.Self.If(cond.Always)
 	if paired {
-		when = rule.All(rule.Playing(bullet), rule.Paired(target))
+		when = cond.Self.If(bullet).And(cond.Other.If(target))
 	}
-	return rule.Branch[elsewhere]{
+	return act.Branch[elsewhere]{
 		Name: "elsewhere",
-		On:   rule.Self,
 		When: when,
-		Do:   rule.Apply(heard{}),
+		Then: act.Self.Do(heard{}),
 	}
 }
 
 func TestHook_RefusesWhatItCannotHost(t *testing.T) {
 	engine := collision.New(testSpace(t), goke.New())
 
-	for name, b := range map[string]rule.Rule{
+	for name, b := range map[string]act.Rule{
 		"a pair made for another host":   fromElsewhere(true),
 		"an entity made for another one": fromElsewhere(false),
 	} {

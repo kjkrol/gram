@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -47,7 +48,7 @@ type Forbid struct{}
 
 type effectCommand struct {
 	cmd     rule.Command
-	only    tag.Tags[rule.Roles]
+	only    tag.Tags[cond.Roles]
 	pointed bool
 	aimed   bool
 	at      geom.Vec
@@ -79,7 +80,7 @@ func (c effectCommand) In(ctx control.Context) control.Command {
 }
 
 type target struct {
-	only    tag.Tags[rule.Roles]
+	only    tag.Tags[cond.Roles]
 	pointed bool
 }
 
@@ -99,7 +100,7 @@ func (t target) String() string {
 // Selected is whom a command is for (rule.Put(haste).On(sel.Selected(hasty))): the units the
 // player who gives it has selected, those playing one of roles alone when any is named.
 func (p *Plugin) Selected(roles ...*rule.Part) rule.Target {
-	var only tag.Tags[rule.Roles]
+	var only tag.Tags[cond.Roles]
 	for _, r := range roles {
 		only = only.With(r.Tag())
 	}

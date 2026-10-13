@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -33,8 +34,11 @@ type Moonrise struct {
 // Who is the atmosphere's own entity.
 func (m Moonrise) Who() uid.UID64 { return m.Self }
 
-// Full reports that the moon rising is full or nearly, a condition for a rule's When.
-func (m Moonrise) Full() bool { return celestial.Phase(m.Phase) >= 0.75 }
+// FullMoon is the word of the moon rising full or nearly.
+func FullMoon() cond.Word[Moonrise] {
+	return cond.NewWord("full moon",
+		func(m Moonrise) bool { return celestial.Phase(m.Phase) >= 0.75 })
+}
 
 // Rules takes the rules of a Moonrise.
 func (s *Sky) Rules() plugin.Host { return &s.rises }

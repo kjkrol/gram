@@ -86,7 +86,7 @@ func TestCellSpacing_NoRoomToGiveWayAndNoWayRoundTheMoverGivesUp(t *testing.T) {
 }
 
 func TestCellSpacing_OneStandingStepsAsideOffTheWay(t *testing.T) {
-	if (Touch{OtherMoving: true, OtherGivingWay: true, Ally: true}).PushedByAlly() {
+	if (Touch{OtherMoving: true, OtherGivingWay: true, Ally: true}).pushedByAlly() {
 		t.Error("made way for one giving way")
 	}
 	grid := grid.DefaultGrids{}.Square(3, 3, 32)

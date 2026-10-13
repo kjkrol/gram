@@ -22,7 +22,10 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
+	"github.com/kjkrol/gram/rule/plan"
 	"github.com/kjkrol/uid"
 )
 
@@ -76,7 +79,7 @@ type scene struct {
 }
 
 type rig struct {
-	rules  []rule.Rule
+	rules  []act.Rule
 	t      *testing.T
 	pieces []piece
 	w      *world.Plugin
@@ -160,7 +163,7 @@ func newRig(t *testing.T, sc scene) *rig {
 	return r
 }
 
-func (r *rig) obey(rules ...rule.Rule) error {
+func (r *rig) obey(rules ...act.Rule) error {
 	r.rules = append(r.rules, rules...)
 	return nil
 }
@@ -348,19 +351,18 @@ func TestShoot_AFastShotStrikesWhatLiesOnItsPath(t *testing.T) {
 	hit := r.fx.Named("hit")
 	r.fx.Define("told", effect.Spec{effect.Lasts(time.Minute)})
 	told := r.fx.Named("told")
-	if err := r.obey(rule.Branch[collision.Meeting]{
+	if err := r.obey(act.Branch[collision.Meeting]{
 		Name: "hit",
-		On:   rule.Other,
-		When: rule.Playing(roundRole),
-		Do:   rule.Put(hit),
+		When: cond.Self.If(roundRole),
+		Then: act.Other.Put(hit),
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.obey(rule.Branch[bullet.Landing]{
+	if err := r.obey(act.Branch[bullet.Landing]{
 		Name: "told",
-		On:   rule.Other,
-		When: rule.All(rule.Playing(roundRole), func(l bullet.Landing) bool { return l.Struck }),
-		Do:   rule.Put(told),
+		When: cond.Self.If(roundRole).
+			And(cond.Self.If(cond.NewWord("struck", func(l bullet.Landing) bool { return l.Struck }))),
+		Then: act.Other.Put(told),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -391,11 +393,10 @@ func TestLanding_ASpentShotIsGoneAStepAfterItLands(t *testing.T) {
 	ammo := round(r, false, roundRole)
 	r.fx.Define("scored", effect.Spec{effect.Lasts(time.Minute)})
 	scored := r.fx.Named("scored")
-	if err := r.obey(rule.Branch[bullet.Landing]{
+	if err := r.obey(act.Branch[bullet.Landing]{
 		Name: "scored",
-		On:   rule.Self,
-		When: rule.Playing(roundRole),
-		Do:   rule.Put(scored),
+		When: cond.Self.If(roundRole),
+		Then: act.Self.Put(scored),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -478,17 +479,15 @@ func TestLanding_ALandedShotRestsAndBurstsOnThoseWithinItsRadius(t *testing.T) {
 	r.fx.Define("hurt", effect.Spec{effect.Lasts(time.Minute)})
 	hurt := r.fx.Named("hurt")
 	if err := r.obey(
-		rule.Branch[bullet.Resting]{
+		act.Branch[bullet.Resting]{
 			Name: "burst",
-			On:   rule.Self,
-			When: rule.Playing(grenadeRole),
-			Do:   rule.Apply(bullet.Burst{Radius: 40}),
+			When: cond.Self.If(grenadeRole),
+			Then: act.Self.Do(bullet.Burst{Radius: 40}),
 		},
-		rule.Branch[bullet.Blast]{
+		act.Branch[bullet.Blast]{
 			Name: "blast",
-			On:   rule.Other,
-			When: rule.Playing(grenadeRole),
-			Do:   rule.Put(hurt),
+			When: cond.Self.If(grenadeRole),
+			Then: act.Other.Put(hurt),
 		},
 	); err != nil {
 		t.Fatal(err)
@@ -513,25 +512,23 @@ func TestPlan_AFuseWaitsOnTheShotLyingAndBursts(t *testing.T) {
 	}})
 	r.w.Roles().Define("grenade")
 	grenadeRole := r.w.Roles().Named("grenade")
-	fuse := rule.Plan("fuse", rule.Steps(
-		rule.Branch[bullet.Flight]{
+	fuse := plan.New("fuse", plan.Steps(
+		plan.Loop[bullet.Flight]{
 			Name: "lit",
-			When: bullet.Flight.Lying,
-			On:   rule.Self,
-			Do:   rule.Wait(time.Second),
+			When: cond.Self.If(bullet.Lying()),
+			Then: plan.Self.Wait(time.Second),
 		},
-		rule.Branch[any]{Name: "burst", On: rule.Self, Do: rule.Apply(bullet.Burst{Radius: 40})},
+		plan.Loop[any]{Name: "burst", When: cond.Self.If(cond.Always), Then: plan.Self.Do(bullet.Burst{Radius: 40})},
 	))
 	r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 96, Lands: true},
 		rule.Plays(grenadeRole), fuse)
 	grenade := r.arms.Named("grenade")
 	r.fx.Define("hurt", effect.Spec{effect.Lasts(time.Minute)})
 	hurt := r.fx.Named("hurt")
-	if err := r.obey(rule.Branch[bullet.Blast]{
+	if err := r.obey(act.Branch[bullet.Blast]{
 		Name: "blast",
-		On:   rule.Other,
-		When: rule.Playing(grenadeRole),
-		Do:   rule.Put(hurt),
+		When: cond.Self.If(grenadeRole),
+		Then: act.Other.Put(hurt),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -600,10 +597,10 @@ func TestFlight_AnOpenEdgeIsLeftAClosedOneStopsTheShot(t *testing.T) {
 		ammo := round(r, true)
 		r.fx.Define("gone", effect.Spec{effect.Lasts(time.Minute)})
 		gone := r.fx.Named("gone")
-		if err := r.obey(rule.Branch[world.Leaving]{
+		if err := r.obey(act.Branch[world.Leaving]{
 			Name: "leaving",
-			On:   rule.Self,
-			Do:   rule.Put(gone),
+			When: cond.Self.If(cond.Always),
+			Then: act.Self.Put(gone),
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -741,4 +738,4 @@ func TestSaveLoad_AFlightGoesOnAfterALoad(t *testing.T) {
 
 func (c *installCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
-func (c *installCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *installCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }

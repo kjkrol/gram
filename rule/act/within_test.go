@@ -1,4 +1,4 @@
-package rule_test
+package act_test
 
 import (
 	"errors"
@@ -10,7 +10,8 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/tag"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -150,7 +151,7 @@ func spawn(si *goke.SysInit, kits []kit) []uid.UID64 {
 	return ids
 }
 
-func firedFor(t *testing.T, r rule.Rule, kits ...kit) []int {
+func firedFor(t *testing.T, r act.Rule, kits ...kit) []int {
 	t.Helper()
 	k := newTold(t)
 	h := &plugin.Rules[poke]{}
@@ -192,7 +193,7 @@ func marksOf[P any](t *testing.T, h *plugin.PairRules[P], kits ...kit) ([]plugin
 	return marks, ids
 }
 
-func firedPairs(t *testing.T, r rule.Rule, kits ...kit) []firing {
+func firedPairs(t *testing.T, r act.Rule, kits ...kit) []firing {
 	t.Helper()
 	k := newTold(t)
 	h := &plugin.PairRules[glance]{}
@@ -222,17 +223,17 @@ func everyPair(n int, selves, others []int) []firing {
 	return all
 }
 
-func noteOf[P any](name string, when any) rule.Rule {
-	return rule.Branch[P]{Name: name, When: when, On: rule.Self, Do: rule.Apply(noted{})}
+func noteOf[P any](name string) act.Rule {
+	return act.Branch[P]{Name: name, When: cond.Self.If(cond.Always), Then: act.Self.Do(noted{})}
 }
 
-func aimOf[P any](name string, when any) rule.Rule {
-	return rule.Branch[P]{Name: name, When: when, On: rule.Self, Do: rule.Apply(toward{})}
+func aimOf[P any](name string) act.Rule {
+	return act.Branch[P]{Name: name, When: cond.Self.If(cond.Always), Then: act.Self.Do(toward{})}
 }
 
 // a rule of P for the carriers of self whose other carries other
-func between[P any](name string, self tag.Tag[roles], other tag.Tag[roles]) rule.Rule {
-	return rule.Within(self, aimOf[P](name, rule.PairedWith(other)))
+func between[P any](name string, self tag.Tag[roles], other tag.Tag[roles]) act.Rule {
+	return act.Within(self, act.WithOther(other, aimOf[P](name)))
 }
 
 func TestWithin_AllFiresForTheCarriersAlone(t *testing.T) {
@@ -244,8 +245,8 @@ func TestWithin_AllFiresForTheCarriersAlone(t *testing.T) {
 		{ranks: ranked(veteran)},   // 4: another family alone
 		{roles: as()},              // 5: the family, no bit
 	}
-	plain := noteOf[poke]("note", nil)
-	narrowed := rule.Within(hunter, plain)
+	plain := noteOf[poke]("note")
+	narrowed := act.Within(hunter, plain)
 
 	if got, want := firedFor(t, narrowed, kits...), []int{1, 3}; !slices.Equal(got, want) {
 		t.Errorf("narrowed to hunters, the rule fired for %v; want %v", got, want)
@@ -265,12 +266,12 @@ func TestWithin_TwiceNeedsBothTags(t *testing.T) {
 		{roles: as(hunter, scout), ranks: ranked(veteran)}, // 5
 		{roles: as(hunter, scout)},                         // 6
 	}
-	hunters := rule.Within(hunter, noteOf[poke]("note", nil))
+	hunters := act.Within(hunter, noteOf[poke]("note"))
 
-	if got, want := firedFor(t, rule.Within(veteran, hunters), kits...), []int{2, 5}; !slices.Equal(got, want) {
+	if got, want := firedFor(t, act.Within(veteran, hunters), kits...), []int{2, 5}; !slices.Equal(got, want) {
 		t.Errorf("within hunters and veterans the rule fired for %v; want %v", got, want)
 	}
-	if got, want := firedFor(t, rule.Within(scout, hunters), kits...), []int{5, 6}; !slices.Equal(got, want) {
+	if got, want := firedFor(t, act.Within(scout, hunters), kits...), []int{5, 6}; !slices.Equal(got, want) {
 		t.Errorf("within hunters and scouts the rule fired for %v; want %v", got, want)
 	}
 	if got, want := firedFor(t, hunters, kits...), []int{0, 2, 4, 5, 6}; !slices.Equal(got, want) {
@@ -280,40 +281,40 @@ func TestWithin_TwiceNeedsBothTags(t *testing.T) {
 }
 
 func TestWithin_AnyIsTheRuleItself(t *testing.T) {
-	for _, r := range []rule.Rule{
-		noteOf[poke]("all", nil),
-		rule.Within(hunter, noteOf[poke]("narrowed", nil)),
+	for _, r := range []act.Rule{
+		noteOf[poke]("all"),
+		act.Within(hunter, noteOf[poke]("narrowed")),
 		between[glance]("between", hunter, hunted),
-		aimOf[glance]("pairs", nil),
+		aimOf[glance]("pairs"),
 	} {
-		if got := rule.Within(tag.Any, r); fmt.Sprint(got) != fmt.Sprint(r) {
-			t.Errorf("Within(tag.Any, %v) = %v, a rule of its own; want the rule itself", r, got)
+		if got := act.Within(tag.Any, r); fmt.Sprint(got) != fmt.Sprint(r) {
+			t.Errorf("act.Within(tag.Any, %v) = %v, a rule of its own; want the rule itself", r, got)
 		}
 	}
 
 	kits := []kit{{}, {roles: as(hunter)}, {roles: as(hunted)}, {ranks: ranked(veteran)}}
-	all := noteOf[poke]("all", nil)
-	if got, want := firedFor(t, rule.Within(tag.Any, all), kits...), firedFor(t, all, kits...); !slices.Equal(got, want) {
+	all := noteOf[poke]("all")
+	if got, want := firedFor(t, act.Within(tag.Any, all), kits...), firedFor(t, all, kits...); !slices.Equal(got, want) {
 		t.Errorf("within anybody the rule fired for %v; the rule itself for %v", got, want)
 	}
 	between := between[glance]("between", hunter, hunted)
-	if got, want := firedPairs(t, rule.Within(tag.Any, between), kits...), firedPairs(t, between, kits...); !slices.Equal(got, want) {
+	if got, want := firedPairs(t, act.Within(tag.Any, between), kits...), firedPairs(t, between, kits...); !slices.Equal(got, want) {
 		t.Errorf("within anybody the pair rule fired for %v; the rule itself for %v", got, want)
 	}
 }
 
 func TestWithin_StepRulesRefuseANarrowedRule(t *testing.T) {
-	wake := noteOf[dawn]("wake", nil)
+	wake := noteOf[dawn]("wake")
 	var h plugin.StepRules[dawn]
 
-	if err := h.Add(rule.Within(hunter, wake)); !errors.Is(err, plugin.ErrUnhosted) {
-		t.Errorf("Add(Within(hunter, wake)) = %v, want plugin.ErrUnhosted", err)
+	if err := h.Add(act.Within(hunter, wake)); !errors.Is(err, plugin.ErrUnhosted) {
+		t.Errorf("Add(act.Within(hunter, wake)) = %v, want plugin.ErrUnhosted", err)
 	}
 	if !h.Empty() {
 		t.Error("the narrowed rule was taken")
 	}
-	if err := h.Add(rule.Within(tag.Any, wake)); err != nil {
-		t.Fatalf("Add(Within(tag.Any, wake)) = %v; want it taken, the rule itself", err)
+	if err := h.Add(act.Within(tag.Any, wake)); err != nil {
+		t.Fatalf("Add(act.Within(tag.Any, wake)) = %v; want it taken, the rule itself", err)
 	}
 	k := newTold(t)
 	h.Run(k.tick(), dawn{world: 7})
@@ -336,21 +337,21 @@ func TestWithin_PairRulesDispatchForAFirstSideCarryingTheTag(t *testing.T) {
 	between := between[glance]("glance", hunter, hunted)
 	for _, c := range []struct {
 		name string
-		r    rule.Rule
+		r    act.Rule
 		want []firing
 	}{
 		{"between hunter and hunted", between, everyPair(n, []int{0, 1, 4, 6}, []int{2, 3})},
-		{"within scouts", rule.Within(scout, between), everyPair(n, []int{1, 6}, []int{2, 3})},
-		{"within veterans, another family", rule.Within(veteran, between), everyPair(n, []int{4, 6}, []int{2, 3})},
-		{"within scouts and veterans", rule.Within(veteran, rule.Within(scout, between)),
+		{"within scouts", act.Within(scout, between), everyPair(n, []int{1, 6}, []int{2, 3})},
+		{"within veterans, another family", act.Within(veteran, between), everyPair(n, []int{4, 6}, []int{2, 3})},
+		{"within scouts and veterans", act.Within(veteran, act.Within(scout, between)),
 			everyPair(n, []int{6}, []int{2, 3})},
-		{"every pair within scouts", rule.Within(scout, aimOf[glance]("all", nil)),
+		{"every pair within scouts", act.Within(scout, aimOf[glance]("all")),
 			everyPair(n, []int{1, 3, 6}, nil)},
 		{"hunters within scouts",
-			rule.Within(scout, rule.Within(hunter, aimOf[glance]("self", nil))),
+			act.Within(scout, act.Within(hunter, aimOf[glance]("self"))),
 			everyPair(n, []int{1, 6}, nil)},
 		{"between anybody and hunted within veterans",
-			rule.Within(veteran, aimOf[glance]("any", rule.PairedWith(hunted))),
+			act.Within(veteran, act.WithOther(hunted, aimOf[glance]("any"))),
 			everyPair(n, []int{4, 6}, []int{2, 3})},
 		{"between hunter and hunted, after Within", between, everyPair(n, []int{0, 1, 4, 6}, []int{2, 3})},
 	} {
@@ -369,14 +370,14 @@ func TestWithin_PairRulesDispatchGroupedForAFirstSideCarryingTheTag(t *testing.T
 		{roles: as(hunted)},        // 2
 		{roles: as(hunted, scout)}, // 3
 	}
-	plain := rule.Within(hunter, noteOf[look]("look", rule.PairedWith(hunted)))
+	plain := act.Within(hunter, act.WithOther(hunted, noteOf[look]("look")))
 	for _, c := range []struct {
 		name string
-		r    rule.Rule
-		want []int // twice each: with others in view and with none
+		r    act.Rule
+		want []int // once each, with others in view; not with none: the rule names the other
 	}{
-		{"between hunter and hunted", plain, []int{0, 0, 1, 1}},
-		{"within scouts", rule.Within(scout, plain), []int{1, 1}},
+		{"between hunter and hunted", plain, []int{0, 1}},
+		{"within scouts", act.Within(scout, plain), []int{1}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			k := newTold(t)
@@ -402,11 +403,7 @@ func TestWithin_PairRulesDispatchGroupedForAFirstSideCarryingTheTag(t *testing.T
 				t.Fatalf("the moment was built %d times; want %d", len(matched), len(c.want))
 			}
 			for i, m := range matched {
-				want := []int{0, 2}
-				if i%2 == 1 {
-					want = nil
-				}
-				if !slices.Equal(m, want) {
+				if want := []int{0, 2}; !slices.Equal(m, want) {
 					t.Errorf("run %d matched %v; want %v", i, m, want)
 				}
 			}
@@ -422,7 +419,7 @@ func TestWithin_PairRulesDispatchEitherWayHandTheCarrierAsTheFirst(t *testing.T)
 	}
 	k := newTold(t)
 	h := &plugin.PairRules[glance]{}
-	if err := h.Add(rule.Within(scout, between[glance]("glance", hunter, hunted))); err != nil {
+	if err := h.Add(act.Within(scout, between[glance]("glance", hunter, hunted))); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
 	marks, ids := marksOf(t, h, kits...)
@@ -456,7 +453,7 @@ func TestWithin_PairRulesDispatchEitherWayOfOneTagOnBothSides(t *testing.T) {
 	meet := between[glance]("meet", hunter, hunter)
 	for _, c := range []struct {
 		name  string
-		r     rule.Rule
+		r     act.Rule
 		cases []struct {
 			a, b int
 			want []firing
@@ -470,7 +467,7 @@ func TestWithin_PairRulesDispatchEitherWayOfOneTagOnBothSides(t *testing.T) {
 			{1, 2, []firing{{1, 2}}},
 			{0, 1, []firing{{0, 1}}},
 		}},
-		{"within scouts", rule.Within(scout, meet), []struct {
+		{"within scouts", act.Within(scout, meet), []struct {
 			a, b int
 			want []firing
 		}{
@@ -499,19 +496,19 @@ func TestWithin_PairRulesDispatchEitherWayOfOneTagOnBothSides(t *testing.T) {
 
 func TestRule_StringNamesItAndItsMoment(t *testing.T) {
 	for _, c := range []struct {
-		r    rule.Rule
+		r    act.Rule
 		want string
 	}{
-		{noteOf[poke]("drown", nil), `"drown" of rule_test.poke`},
-		{aimOf[glance]("glance", rule.PairedWith(hunted)), `"glance" of rule_test.glance`},
-		{noteOf[dawn]("wake", nil), `"wake" of rule_test.dawn`},
-		{rule.Within(scout, noteOf[poke]("drown", nil)), `"drown" of rule_test.poke, within`},
-		{between[glance]("glance", hunter, hunted), `"glance" of rule_test.glance, within`},
-		{rule.Within(scout, between[glance]("glance", hunter, hunted)),
-			`"glance" of rule_test.glance, within, within`},
-		{rule.Role("string mortal").Obeys(noteOf[poke]("drown", nil)).Rules()[0],
-			`"drown" of rule_test.poke, for the role string mortal`},
-		{rule.Role("string mortal"), `the role string mortal`},
+		{noteOf[poke]("drown"), `"drown" of act_test.poke`},
+		{act.WithOther(hunted, aimOf[glance]("glance")), `"glance" of act_test.glance`},
+		{noteOf[dawn]("wake"), `"wake" of act_test.dawn`},
+		{act.Within(scout, noteOf[poke]("drown")), `"drown" of act_test.poke, within`},
+		{between[glance]("glance", hunter, hunted), `"glance" of act_test.glance, within`},
+		{act.Within(scout, between[glance]("glance", hunter, hunted)),
+			`"glance" of act_test.glance, within, within`},
+		{Role("string mortal").Obeys(noteOf[poke]("drown")).Rules()[0],
+			`"drown" of act_test.poke, for the role string mortal`},
+		{Role("string mortal"), `the role string mortal`},
 	} {
 		if got := c.r.String(); got != c.want {
 			t.Errorf("String() = %s; want %s", got, c.want)
@@ -523,10 +520,10 @@ func TestWithin_RunWhereKeepsToWhatKeepLetsThrough(t *testing.T) {
 	kits := []kit{{roles: as(hunter)}, {roles: as(hunter)}, {roles: as(hunted)}}
 	for _, c := range []struct {
 		name string
-		r    rule.Rule
+		r    act.Rule
 	}{
-		{"within", rule.Within(hunter, noteOf[poke]("drown", nil))},
-		{"within twice", rule.Within(hunter, rule.Within(hunter, noteOf[poke]("drown", nil)))},
+		{"within", act.Within(hunter, noteOf[poke]("drown"))},
+		{"within twice", act.Within(hunter, act.Within(hunter, noteOf[poke]("drown")))},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			k := newTold(t)

@@ -22,6 +22,8 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/gram/rule/effect"
 	"github.com/kjkrol/gram/ui"
 )
@@ -109,50 +111,46 @@ func (s *arena) defineRoles() {
 	prey := roles.Named(PreyRole)
 	left, right := steering.Turn{Angle: math.Pi / 2}, steering.Turn{Angle: -math.Pi / 2}
 	roles.Define(PredatorRole,
-		rule.Branch[vision.Sighting]{
+		act.Branch[vision.Sighting]{
 			Name: "chase",
-			On:   rule.Self,
-			When: vision.Seeing(prey),
-			Do:   rule.Apply(steering.Toward{}),
+			When: cond.Other.If(prey),
+			Then: act.Self.Do(steering.Toward{}),
 		},
-		rule.Branch[vision.Sighting]{
+		act.Branch[vision.Sighting]{
 			Name: "search",
-			On:   rule.Self,
-			When: rule.All(vision.Seeing(prey), vision.Sighting.Nobody),
-			Do: rule.Branch[any]{
-				When: rule.Not(rule.Under(effects.Named(TurnedEf))),
-				Do: rule.Steps(
-					rule.Put(effects.Named(TurnedEf)),
-					rule.OneOf(
-						rule.Branch[any]{When: rule.Chance(0.5), Do: rule.Apply(left)},
-						rule.Apply(right),
+			When: cond.Self.If(vision.SeesNobody()),
+			Then: act.Branch[any]{
+				When: cond.Self.If(cond.Not(effects.Named(TurnedEf))),
+				Then: act.Steps(
+					act.Self.Put(effects.Named(TurnedEf)),
+					act.OneOf(
+						act.Branch[any]{
+							When: cond.Self.If(cond.Chance(0.5)),
+							Then: act.Self.Do(left),
+						},
+						act.Self.Do(right),
 					),
 				),
 			},
 		},
-		rule.Branch[collision.Meeting]{
+		act.Branch[collision.Meeting]{
 			Name: "caught",
-			On:   rule.Other,
-			When: collision.Met(prey),
-			Do:   rule.Apply(world.Despawn{}),
+			When: cond.Other.If(prey),
+			Then: act.Other.Do(world.Despawn{}),
 		},
 	)
 	roles.Define(SkittishRole,
-		rule.Branch[vision.Sighting]{
+		act.Branch[vision.Sighting]{
 			Name: "flee the hunter",
-			On:   rule.Self,
-			When: rule.All(vision.Seeing(roles.Named(PredatorRole)),
-				rule.Under(effects.Named(FleeingEf)).On(entity.World)),
-			Do: rule.Apply(steering.Away{}),
+			When: cond.Other.If(roles.Named(PredatorRole)).
+				And(cond.On(s.world).If(effects.Named(FleeingEf))),
+			Then: act.Self.Do(steering.Away{}),
 		},
-		rule.Branch[vision.Sighting]{
+		act.Branch[vision.Sighting]{
 			Name: "give way",
-			On:   rule.Self,
-			When: rule.All(
-				rule.Under(effects.Named(FleeingEf)).On(entity.World),
-				vision.Sighting.Closing,
-			),
-			Do: rule.Apply(steering.Away{}),
+			When: cond.On(s.world).If(effects.Named(FleeingEf)).
+				And(cond.Other.If(vision.Closing())),
+			Then: act.Self.Do(steering.Away{}),
 		},
 	)
 }

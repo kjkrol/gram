@@ -41,7 +41,7 @@
 // What a game defines is its Stage's, by name: [Roles] ([Plugin.Roles]) and [Commands]
 // ([Plugin.Commands]), beside the effects ([Plugin.Effects]) and the kinds. Define registers and
 // hands nothing back; Named is the thing; a name defined twice or asked for unknown panics. A
-// role is a tag of the family rule.Roles, saved by name. The world plays roles itself
+// role is a tag of the family cond.Roles, saved by name. The world plays roles itself
 // ([Plugin.Plays]): the rules of a clock.Moment they obey fire every step.
 //
 // # A plugin's own entity

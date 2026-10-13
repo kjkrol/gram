@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/rule/cond"
 	"github.com/kjkrol/uid"
 )
 
@@ -45,8 +46,10 @@ type Flight struct {
 	Landed              bool
 }
 
-// Lying reports that the shot has landed and lies where it came down.
-func (f Flight) Lying() bool { return f.Landed }
+// Lying is the word of a shot that has landed and lies where it came down.
+func Lying() cond.Word[Flight] {
+	return cond.NewWord("lying", func(f Flight) bool { return f.Landed })
+}
 
 // End is how a flight ends: not yet (Flying), its Range flown (Spent), a thrown shot come down
 // (Grounded), stopped at a closed edge (Edge), flown out by an open one (Left), on an entity

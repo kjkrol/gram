@@ -19,7 +19,7 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 )
 
 // Hill is the kind of a QuasiWorld's hill.
@@ -204,4 +204,4 @@ func (c *InstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
 // Deliver hands rules to the hosts of their moments, as the engine does once a Stage's Init
 // returns.
-func (c *InstallCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *InstallCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }

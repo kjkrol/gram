@@ -150,7 +150,7 @@ func (w *Weathering) System(clk *clock.Clock) goke.System {
 		if !begun {
 			last, begun = clk.Time(), true
 		}
-		if second(clock.Moment{Last: last, Now: now}) {
+		if second.Holds(clock.Moment{Last: last, Now: now}) {
 			w.second(cb)
 		}
 		last = now

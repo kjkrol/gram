@@ -15,7 +15,7 @@
 // # Shoot
 //
 // [Shoot] is the command: by a player, from every Selected unit it owns; by an entity, through
-// Order in a rule or a plan, from itself. The shot goes towards At when Targeted, towards the
+// act.Self.Do in a rule or a plan, from itself. The shot goes towards At when Targeted, towards the
 // moment's Subject when aimed, else the way the shooter faces. A thrown shot comes down where
 // it goes to, on the ground [Plugin.WithGround] gives.
 //
@@ -24,7 +24,8 @@
 // [Landing] is told once as a flight ends: whom it Struck (its Subject), which Wall, whether it
 // came down or Left. [Resting] is told every step for a landed shot that Lands; [Burst] is the
 // command such a shot gives itself, and [Blast] what every entity within the Burst's Radius is
-// to the pair rules. The Meeting of a shot and what it struck is collision's.
+// to the pair rules, [Within] its word of the other. A [Flight] is a plan's fact, [Lying] its
+// word of a shot come to rest: a fuse. The Meeting of a shot and what it struck is collision's.
 //
 // # Dressing a shot
 //

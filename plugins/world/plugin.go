@@ -71,7 +71,7 @@ func NewPlugin(cfg Config) *Plugin {
 	m.effects.Guard(func(name string) { p.must(fmt.Sprintf("effect %q defined", name), section.Effects) })
 	kinds.guard = func(name string) { p.must(fmt.Sprintf("kind %q defined", name), section.Kinds) }
 	m.effectCmds.effects, m.effectCmds.world, m.effectCmds.commands = m.effects, m.clock.Entity, &m.commands
-	m.plans = steps.NewPlans(m.clock.Time, m.clock.Entity, cfg.Seed, m.effects, &m.commands)
+	m.plans = steps.NewPlans(m.clock.Time, cfg.Seed, m.effects, &m.commands)
 	m.plans.Roles(m.effectCmds.RolesOf)
 	kinds.plans = m.plans
 	p.roster.Unit.Default(comp.Marks[effect.States]())

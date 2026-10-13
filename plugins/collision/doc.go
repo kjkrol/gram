@@ -1,6 +1,6 @@
 // Package collision detects overlaps between world entities each tick and records what each
 // struck on its Collider. An entity takes part while it carries Collider; one also carrying
-// Physics is pushed apart and bounces. Reactions are rules (rule.Branch) of a Meeting, a pair,
+// Physics is pushed apart and bounces. Reactions are rules (act.Branch) of a Meeting, a pair,
 // or of a Struck, obeyed by the roles its entities play (world.Roles).
 //
 // # Plugin and its system
@@ -56,7 +56,7 @@
 //
 // # Meeting and Struck
 //
-// A rule of a [Meeting] (When: [Met](role)) is handed one per confirmed contact between two
+// A rule of a [Meeting] (When: cond.Other.If(role)) is handed one per confirmed contact between two
 // entities, seen from Self; a rule of a [Struck] one per entity that struck something the tick
 // before. [Plugin.WithStats] counts the contacts into a [ContactStats], [Plugin.WithLog] writes a
 // line for each.

@@ -22,7 +22,7 @@
 // # Moonrise
 //
 // [Moonrise] is the moment the moon comes over the horizon, told to the rules of the roles the
-// atmosphere plays ([Sky.Rules], [Sky.RiseSystem]); [Moonrise.Full] picks a full moon.
+// atmosphere plays ([Sky.Rules], [Sky.RiseSystem]); its word [FullMoon] picks a full moon.
 //
 // [Sky.Reporter] adds the light to a scene's render.TelemetryRenderer.
 package sky

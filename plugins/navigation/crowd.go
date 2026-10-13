@@ -1,43 +1,42 @@
 package navigation
 
 import (
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 )
 
 // StarCraft II's rules
-func crowd() []rule.Rule {
-	return []rule.Rule{makeWay(), joinTheGroup(), goRound()}
+func crowd() []act.Rule {
+	return []act.Rule{makeWay(), joinTheGroup(), goRound()}
 }
 
-func makeWay() rule.Rule {
-	return rule.Branch[Touch]{
+func makeWay() act.Rule {
+	return act.Branch[Touch]{
 		Name: "navigation.make way",
-		When: Touch.PushedByAlly,
-		On:   rule.Self,
-		Do:   rule.Apply(StepAside{}),
+		When: cond.Self.If(PushedByAlly()),
+		Then: act.Self.Do(StepAside{}),
 	}
 }
 
 // the group gathers round the point, nobody fights for its exact spot
-func joinTheGroup() rule.Rule {
-	return rule.Branch[Touch]{
+func joinTheGroup() act.Rule {
+	return act.Branch[Touch]{
 		Name: "navigation.join the group",
-		When: Touch.ReachedTheGroup,
-		On:   rule.Self,
-		Do:   rule.Apply(Stop{}),
+		When: cond.Self.If(ReachedTheGroup()),
+		Then: act.Self.Do(Stop{}),
 	}
 }
 
-func goRound() rule.Rule {
-	return rule.Branch[Touch]{
+func goRound() act.Rule {
+	return act.Branch[Touch]{
 		Name: "navigation.go round",
-		On:   rule.Self,
-		Do: rule.OneOf(
-			rule.Branch[Touch]{When: Touch.GoalTaken, Do: rule.Apply(Settle{})},
-			rule.Branch[Touch]{When: Touch.WaitsFirst, Do: rule.Apply(Hold{})},
-			rule.Branch[Touch]{When: Touch.NoWayRound, Do: rule.Apply(StepAside{})},
-			rule.Branch[Touch]{When: Touch.ClearsTheWay, Do: rule.Apply(Pass{})},
-			rule.Branch[Touch]{When: Touch.Blocks, Do: rule.Apply(Detour{})},
+		When: cond.Self.If(cond.Always),
+		Then: act.OneOf(
+			act.Branch[Touch]{When: cond.Self.If(GoalTaken()), Then: act.Self.Do(Settle{})},
+			act.Branch[Touch]{When: cond.Self.If(WaitsFirst()), Then: act.Self.Do(Hold{})},
+			act.Branch[Touch]{When: cond.Self.If(NoWayRound()), Then: act.Self.Do(StepAside{})},
+			act.Branch[Touch]{When: cond.Self.If(ClearsTheWay()), Then: act.Self.Do(Pass{})},
+			act.Branch[Touch]{When: cond.Self.If(Blocks()), Then: act.Self.Do(Detour{})},
 		),
 	}
 }

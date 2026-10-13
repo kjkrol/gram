@@ -5,6 +5,8 @@ import (
 
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
+	"github.com/kjkrol/gram/rule/cond"
 )
 
 // Roles is a Stage's register of roles, by name. A Stage names 64 roles at most.
@@ -15,7 +17,7 @@ type Roles struct {
 
 // Define registers the role called name and the rules those playing it obey. A name defined
 // twice panics; a rule no host takes fails Init whether anybody plays the role or not.
-func (r *Roles) Define(name string, rules ...rule.Rule) {
+func (r *Roles) Define(name string, rules ...act.Rule) {
 	r.w.must(fmt.Sprintf("role %q defined", name), section.Rules)
 	if name == "" {
 		panic("world: a role needs a name")
@@ -26,7 +28,7 @@ func (r *Roles) Define(name string, rules ...rule.Rule) {
 	if r.byName == nil {
 		r.byName = map[string]*rule.Part{}
 	}
-	part := rule.NewPart(name, r.w.kinds.DefineTag[rule.Roles](name)).Obeys(rules...)
+	part := rule.NewPart(name, r.w.kinds.DefineTag[cond.Roles](name)).Obeys(rules...)
 	r.byName[name] = part
 	r.w.kinds.Play(part)
 }

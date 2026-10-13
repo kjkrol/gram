@@ -2,7 +2,6 @@ package collision
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/rule"
 	"github.com/kjkrol/uid"
 )
 
@@ -19,6 +18,3 @@ func (m Meeting) Who() uid.UID64 { return m.Self }
 
 // Whom tells each the other one.
 func (m Meeting) Whom(each func(uid.UID64)) { each(m.Other) }
-
-// Met is the condition that the other one plays role: a rule's When on a Meeting.
-func Met(role *rule.Part) rule.Cond { return rule.Paired(role) }

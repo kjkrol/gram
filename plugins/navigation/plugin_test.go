@@ -18,7 +18,7 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/rule"
+	"github.com/kjkrol/gram/rule/act"
 )
 
 type stubInstallCtx struct {
@@ -189,4 +189,4 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 func (c *stubInstallCtx) Hosts(h ...plugin.Host) { c.hosts = append(c.hosts, h...) }
 
 // as the engine does with the roles played once a Stage's Init returns
-func (c *stubInstallCtx) Deliver(rules ...rule.Rule) error { return hosts.Deliver(c.hosts, rules...) }
+func (c *stubInstallCtx) Deliver(rules ...act.Rule) error { return hosts.Deliver(c.hosts, rules...) }
