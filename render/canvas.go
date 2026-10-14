@@ -17,13 +17,14 @@ func newCanvas(w, h int) *Canvas { return &Canvas{image.NewRGBA(image.Rect(0, 0,
 
 // Fill puts c in place of every pixel.
 func (c *Canvas) Fill(col color.Color) {
-	draw.Draw(c.RGBA, c.Bounds(), image.NewUniform(col), image.Point{}, draw.Src)
+	draw.Draw(c.RGBA, c.Bounds(), image.NewUniform(straight(col)), image.Point{}, draw.Src)
 }
 
 // FillRect lays c over the rectangle x, y, w by h, its edges on whole pixels.
 func (c *Canvas) FillRect(x, y, w, h float32, col color.Color) {
 	r := image.Rect(int(math.Round(float64(x))), int(math.Round(float64(y))), int(math.Round(float64(x+w))), int(math.Round(float64(y+h))))
-	draw.Draw(c.RGBA, r.Intersect(c.Bounds()), image.NewUniform(col), image.Point{}, draw.Over)
+	fill := image.NewUniform(straight(col))
+	draw.Draw(c.RGBA, r.Intersect(c.Bounds()), fill, image.Point{}, draw.Over)
 }
 
 // FillCircle lays c over the disc round (cx, cy), radius r, smoothed at its edge.
@@ -36,7 +37,7 @@ func (c *Canvas) FillCircle(cx, cy, r float32, col color.Color) {
 	z.CubeTo(cx-r, cy-k*r, cx-k*r, cy-r, cx, cy-r)
 	z.CubeTo(cx+k*r, cy-r, cx+r, cy-k*r, cx+r, cy)
 	z.ClosePath()
-	z.Draw(c.RGBA, c.Bounds(), image.NewUniform(col), image.Point{})
+	z.Draw(c.RGBA, c.Bounds(), image.NewUniform(straight(col)), image.Point{})
 }
 
 // StrokeLine lays c over the line from (x0, y0) to (x1, y1), width wide, smoothed at its edges.
@@ -53,7 +54,7 @@ func (c *Canvas) StrokeLine(x0, y0, x1, y1, width float32, col color.Color) {
 	z.LineTo(x1-nx, y1-ny)
 	z.LineTo(x0-nx, y0-ny)
 	z.ClosePath()
-	z.Draw(c.RGBA, c.Bounds(), image.NewUniform(col), image.Point{})
+	z.Draw(c.RGBA, c.Bounds(), image.NewUniform(straight(col)), image.Point{})
 }
 
 func (c *Canvas) rasterizer() *vector.Rasterizer {
@@ -61,4 +62,12 @@ func (c *Canvas) rasterizer() *vector.Rasterizer {
 	z := vector.NewRasterizer(b.Dx(), b.Dy())
 	z.DrawOp = draw.Over
 	return z
+}
+
+// a color.RGBA as gram takes it, straight alpha, which image/draw would take as premultiplied
+func straight(col color.Color) color.Color {
+	if s, ok := col.(color.RGBA); ok {
+		return color.NRGBA(s)
+	}
+	return col
 }

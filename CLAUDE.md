@@ -115,7 +115,8 @@ Decisions the user has made; they are not up for revisiting in passing.
   `command.Command`, never `any`.
 - **The default keys are the same in every game and no demo repeats one**: Shift+P the tactical
   pause, Shift+Esc quits, K lists the keys, ~ the telemetry panel, F5 saves, F9 loads, F11 full
-  screen, ] and [ the tempo, Shift+X the boxes (collision's), Shift+O the holds, Shift+B the
+  screen, ] and [ the tempo, Shift+X the boxes (collision's), Shift+H the scroll zones
+  (cameras'), Shift+O the holds, Shift+B the
   bridge tool, Shift+R the routes, Shift+C the cones, Shift+W the weather, P freezes the light,
   Space jumps in first person, = and - zoom, Shift+= and Shift+- shape the relief. A plugin's keys a
   game sets up (`driving.Compass`, `selection.FollowKey`, the cameras' zoom keys) are bound in the

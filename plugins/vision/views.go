@@ -24,7 +24,7 @@ var viewing = render.NewMeshShaderWith("vision views", render.Files(shaders, "sh
 	{Name: "ViewSize", Size: 2}, {Name: "ViewAt", Size: 2}, {Name: "PixelSpan", Size: 2}, {Name: "FlatGround", Size: 1},
 	{Name: "GroundStep", Size: 1}, {Name: "GroundCount", Size: 2}, {Name: "GroundWrap", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
 	{Name: "Spokes", Size: 1}, {Name: "Rings", Size: 1}, {Name: "ShadowColor", Size: 4},
-}).Instanced(4)
+}).Instanced(5)
 
 const (
 	// texels across and out an observer's sight is baked in
@@ -56,10 +56,12 @@ type views struct {
 	bakeOwn, drawOwn map[string][]float32
 }
 
-// Facing and Half in radians; Color the cone's edge, a unit colour
+// Facing and Half in radians; Color the cone's edge, a unit colour; Tilt and VHalf the vertical
+// field, radians up, VHalf 0 every height
 type observer struct {
 	X, Y, Eye, Reach, Facing, Half float32
 	Color                          [4]float32
+	Tilt, VHalf                    float32
 }
 
 type coverTexel struct{ tau, bottom, top float64 }
@@ -131,7 +133,7 @@ func (v *views) draw(t render.Target, cam camera.Camera, ground ground.Heights, 
 				continue
 			}
 			v.instances = append(v.instances, o.X, o.Y, o.Eye, o.Reach, o.Facing, o.Half, float32(k), 0, r[0], r[1], r[2], r[3],
-				o.Color[0], o.Color[1], o.Color[2], o.Color[3])
+				o.Color[0], o.Color[1], o.Color[2], o.Color[3], o.Tilt, o.VHalf, 0, 0)
 		}
 	}
 	if len(v.instances) == 0 {
@@ -356,7 +358,8 @@ func pow2(n int) int {
 }
 
 func unitColor(c color.RGBA) [4]float32 {
-	return [4]float32{float32(c.R) / 255, float32(c.G) / 255, float32(c.B) / 255, float32(c.A) / 255}
+	a := float32(c.A) / 255
+	return [4]float32{float32(c.R) / 255 * a, float32(c.G) / 255 * a, float32(c.B) / 255 * a, a}
 }
 
 func flag(b bool) float32 {

@@ -48,5 +48,6 @@ func (m *mainScene) picture() render.Picture {
 
 	a.board.ShowGrid(false)
 
-	return render.NewComposer(a.board.Renderer(), a.world.Renderer(), a.collision.Renderer())
+	return render.NewComposer(a.board.Renderer(), a.world.Renderer(), a.collision.Renderer(),
+		a.cameras.Renderer())
 }

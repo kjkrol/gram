@@ -23,6 +23,8 @@ type Config struct {
 	FieldOfView        float32
 	// radians a pixel of a pan the world's edge stopped; zero, neither
 	EdgeTurn, EdgeTilt float32
+	// radians a pixel of a scroll from a corner of the window; zero, a corner scrolls
+	CornerTurn float32
 	// world units; nil, half a cell everywhere
 	Fine func(x, y float32) (step, thin float32)
 	// nil, under the ground alone
@@ -38,7 +40,7 @@ func Maker(cfg Config, ground func(x, y float32) float32, extent func() (low, hi
 	return func(width, height uint32, edges aabbworld.Edges, c camera.Config) camera.Camera {
 		cam := newCamera(proj, width, height, edges, c, cfg.FieldOfView*math.Pi/180,
 			cfg.Perspective, ground, extent, bend)
-		cam.edgeTurn, cam.edgeTilt = cfg.EdgeTurn, cfg.EdgeTilt
+		cam.edgeTurn, cam.edgeTilt, cam.cornerTurn = cfg.EdgeTurn, cfg.EdgeTilt, cfg.CornerTurn
 		cam.iso.fine, cam.persp.fine = cfg.Fine, cfg.Fine
 		cam.iso.solid, cam.persp.solid = cfg.Solid, cfg.Solid
 		return cam

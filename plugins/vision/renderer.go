@@ -288,6 +288,7 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 					Reach:  float32(sights[i].Radius),
 					Facing: float32(math.Atan2(f.Y, f.X)), Half: float32(eyes[i].Angle / 2),
 					Color: unitColor(cone.Color),
+					Tilt:  float32(eyes[i].Tilt), VHalf: float32(eyes[i].Vertical / 2),
 				})
 				continue
 			}
@@ -296,19 +297,23 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 			}
 			look := sights[i]
 			look.Facing = look.Looking(bases[i].Vel.Dir)
-			r.cone(style, &bases[i].Pos, float32(z.Altitude), eyes[i].Angle/2, &look, &outlines[i])
+			r.cone(style, &bases[i].Pos, z, eyes[i], &look, &outlines[i])
 		}
 	}
 }
 
 func (r *Renderer) cone(
-	style ConeStyle, pos *world.Position, alt float32, half float64, s *Sight, o *SightOutline,
+	style ConeStyle, pos *world.Position, z world.Z, eye world.Eye, s *Sight, o *SightOutline,
 ) {
 	ox, oy := centreOf(pos)
+	half := eye.Angle / 2
 
 	if !r.wraps {
-		style.Compose(r.frame, r.draped(float32(ox), float32(oy), alt, half, s, o))
-		r.shade(float32(ox), float32(oy), half, s, o)
+		x, y, alt := float32(ox), float32(oy), float32(z.Altitude)
+		if ring := r.draped(x, y, alt, half, s, o, eye.Level(z)-z.Altitude, eye); len(ring) > 0 {
+			style.Compose(r.frame, ring)
+		}
+		r.shade(x, y, half, s, o)
 		return
 	}
 	sx, sy := r.camera.ToScreen(float32(ox), float32(oy))
@@ -329,22 +334,49 @@ func (r *Renderer) coneBox(ox, oy, radius float64) geom.AABB {
 	)
 }
 
-func (r *Renderer) draped(ox, oy, alt float32, half float64, s *Sight, o *SightOutline) []ConePoint {
+// the ring of ground the view covers: from the observer, or from where its vertical field first
+// meets the ground, out to its depths or where the field leaves the ground (the eye above level
+// ground); nothing while the whole field lies above the horizon
+func (r *Renderer) draped(
+	ox, oy, alt float32, half float64, s *Sight, o *SightOutline, above float64, eye world.Eye,
+) []ConePoint {
 	facing := math.Atan2(s.Facing.Y, s.Facing.X)
 	step := 2 * half / float64(o.Count-1)
 	n := int(o.Count)
+	near, far := float32(0), float32(math.Inf(1))
+	if eye.Vertical > 0 && above > 0 {
+		lo, hi := eye.Tilt-eye.Vertical/2, eye.Tilt+eye.Vertical/2
+		if lo >= 0 {
+			return r.pts[:0]
+		}
+		near = float32(above / math.Tan(-lo))
+		if hi < 0 {
+			far = float32(above / math.Tan(-hi))
+		}
+	}
+	depth := func(i int) float32 { return min(o.Depths[i], far) }
+	first, last := facing-half, facing-half+float64(n-1)*step
+	r.pts = r.pts[:0]
+	if near > 0 {
+		for i := range n {
+			r.pts = append(r.pts, r.onGround(ox, oy, first+float64(i)*step, near))
+		}
+		for i := n - 1; i >= 0; i-- {
+			r.pts = append(r.pts, r.onGround(ox, oy, first+float64(i)*step, max(depth(i), near)))
+		}
+		return r.pts
+	}
 
 	ax, ay := r.camera.Project(ox, oy, alt)
-	r.pts = append(r.pts[:0], ConePoint{X: ax, Y: ay, Depth: r.camera.Depth(ox, oy, alt)})
-	first, last := facing-half, facing-half+float64(n-1)*step
-	for d := r.step; r.step > 0 && d < o.Depths[0]; d += r.step {
+	r.pts = append(r.pts, ConePoint{X: ax, Y: ay, Depth: r.camera.Depth(ox, oy, alt)})
+	for d := r.step; r.step > 0 && d < depth(0); d += r.step {
 		r.pts = append(r.pts, r.onGround(ox, oy, first, d))
 	}
 	for i := range n {
-		r.pts = append(r.pts, r.onGround(ox, oy, first+float64(i)*step, o.Depths[i]))
+		r.pts = append(r.pts, r.onGround(ox, oy, first+float64(i)*step, depth(i)))
 	}
 	back := len(r.pts)
-	for d := r.step; r.step > 0 && d < o.Depths[n-1]; d += r.step {
+	for d := r.step; r.step > 0 && d < depth(n-1); d += r.step {
 		r.pts = append(r.pts, r.onGround(ox, oy, last, d))
 	}
 	// the way back down the far edge runs towards the observer

@@ -69,10 +69,11 @@ func (g *Lines) Add(
 	if rect[0] >= rect[2] || rect[1] >= rect[3] {
 		return
 	}
+	alpha := float32(line.A) / 255
 	g.stretches = append(g.stretches,
 		float32(a.X), float32(a.Y), float32(b.X), float32(b.Y),
 		rect[0], rect[1], rect[2], rect[3],
-		float32(line.R)/255, float32(line.G)/255, float32(line.B)/255, float32(line.A)/255,
+		float32(line.R)/255*alpha, float32(line.G)/255*alpha, float32(line.B)/255*alpha, alpha,
 		width, 0, 0, 0)
 }
 

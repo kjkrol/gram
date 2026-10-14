@@ -13,10 +13,11 @@ struct View {
     @location(0) @interpolate(flat) at: vec4<f32>,
     @location(1) @interpolate(flat) look: vec4<f32>,
     @location(2) @interpolate(flat) color: vec4<f32>,
+    @location(3) @interpolate(flat) field: vec4<f32>, // the vertical field: its tilt, half of it
 }
 
 @vertex
-fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>, @location(1) look: vec4<f32>, @location(2) rect: vec4<f32>, @location(3) color: vec4<f32>) -> View {
+fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>, @location(1) look: vec4<f32>, @location(2) rect: vec4<f32>, @location(3) color: vec4<f32>, @location(4) field: vec4<f32>) -> View {
     var across = array<f32, 6>(0.0, 1.0, 0.0, 1.0, 1.0, 0.0);
     var down = array<f32, 6>(0.0, 0.0, 1.0, 0.0, 1.0, 1.0);
     let px = mix(rect.xy, rect.zw, vec2<f32>(across[vid], down[vid]));
@@ -25,6 +26,7 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>, @locatio
     v.at = at;
     v.look = look;
     v.color = color;
+    v.field = field;
     return v;
 }
 
@@ -59,17 +61,29 @@ fn fs_main(@builtin(position) frag: vec4<f32>, v: View) -> @location(0) vec4<f32
     var turn = atan2(rel.y, rel.x) - v.look.x; // from the facing, -π to π
     turn -= 6.2831853 * floor((turn + 3.1415927) / 6.2831853);
     let pixel = select(U.PixelSpan.x, U.PixelSpan.y * distance(U.Eye, p), U.Perspective > 0.5); // world units a pixel spans
-    // the stroke along the cone's edges and its reach
+    // where the ground lies up or down from the eye against its vertical field: past its edge by
+    // off radians; read for every pixel, so the derivatives below are taken everywhere
+    let elev = atan2(p.z - v.at.z, dist);
+    let off = abs(elev - v.field.x) - v.field.y;
+    let fieldEdge = abs(off) / max(fwidth(off), 1e-6); // pixels from the field's edge
+    let inField = v.field.y <= 0.0 || off <= 0.0;
+    // the stroke along the cone's edges and its reach within the field, and along the field's
+    // edges within the cone and its reach: one far edge, the nearer
     var edge = 1e9;
-    if abs(turn) <= half {
-        edge = abs(v.at.w - dist);
+    if inField {
+        if abs(turn) <= half {
+            edge = abs(v.at.w - dist);
+        }
+        if dist <= v.at.w {
+            edge = min(edge, abs(dist * sin(abs(turn) - half)) + select(0.0, 1e9, abs(turn) - half > 1.5707963));
+        }
     }
-    if dist <= v.at.w {
-        edge = min(edge, abs(dist * sin(abs(turn) - half)) + select(0.0, 1e9, abs(turn) - half > 1.5707963));
+    var stroke = 1.0 - smoothstep(0.5, 1.5, edge / max(pixel, 1e-4));
+    if v.field.y > 0.0 && abs(turn) <= half && dist <= v.at.w {
+        stroke = max(stroke, 1.0 - smoothstep(0.5, 1.5, fieldEdge));
     }
-    let stroke = 1.0 - smoothstep(0.5, 1.5, edge / max(pixel, 1e-4));
     var c = vec4<f32>(0.0);
-    if abs(turn) <= half && dist <= v.at.w {
+    if abs(turn) <= half && dist <= v.at.w && inField {
         let t = vec2<f32>((turn + half) / (2.0 * half) * U.Spokes, v.look.z * U.Rings + clamp(dist / v.at.w * U.Rings, 0.5, U.Rings - 0.5));
         c = U.ShadowColor * (1.0 - imageSrc2Linear(imageSrc2Origin() + t).r);
     }

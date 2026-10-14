@@ -2,6 +2,7 @@ package control
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -153,27 +154,80 @@ const (
 	// EdgeDeadZone is the strip at the very edge that is no edge, unless the window fills the
 	// screen: a cursor parked there by the monitor's edge should not run away.
 	EdgeDeadZone = 10
+	// CornerReach is the side of the square at each corner, in pixels, within which the cursor
+	// rests in the corner; CornerSide caps it for a small picture.
+	CornerReach = 120
 )
 
-// Edges are the window edges a cursor rests near.
-type Edges struct{ Left, Right, Top, Bottom bool }
+// CornerSide is the side of a corner's square in a picture w by h pixels: CornerReach, or a
+// quarter of the shorter side where that is less.
+func CornerSide(w, h float64) float64 { return math.Min(CornerReach, math.Min(w, h)/4) }
 
-// Any reports whether the cursor rests near any edge.
-func (e Edges) Any() bool { return e.Left || e.Right || e.Top || e.Bottom }
+// Corner is which corner of the window a cursor rests in, NoCorner for none.
+type Corner uint8
 
-// Edges is which window edges the cursor rests near, outside the dead zone.
+const (
+	NoCorner Corner = iota
+	TopLeft
+	TopRight
+	BottomLeft
+	BottomRight
+)
+
+// Signs are the way the corner lies from the middle, -1 or 1 each way; 0 for none.
+func (c Corner) Signs() (x, y float32) {
+	switch c {
+	case TopLeft:
+		return -1, -1
+	case TopRight:
+		return 1, -1
+	case BottomLeft:
+		return -1, 1
+	case BottomRight:
+		return 1, 1
+	}
+	return 0, 0
+}
+
+// Edges are the window edges a cursor rests near, and the corner it rests in.
+type Edges struct {
+	Left, Right, Top, Bottom bool
+	Corner                   Corner
+}
+
+// Any reports whether the cursor rests near any edge or in a corner.
+func (e Edges) Any() bool { return e.Left || e.Right || e.Top || e.Bottom || e.Corner != NoCorner }
+
+// Edges is which window edges the cursor rests near, outside the dead zone, and in which corner's
+// square of CornerReach a side.
 func (c Context) Edges() Edges {
 	dead := float64(EdgeDeadZone)
 	if c.FillsScreen {
 		dead = 0
 	}
 	x, y := c.Cursor.X, c.Cursor.Y
-	return Edges{
+	e := Edges{
 		Left:   x >= dead && x < EdgeMargin,
 		Right:  x <= c.Screen.X-dead && x > c.Screen.X-EdgeMargin,
 		Top:    y >= dead && y < EdgeMargin,
 		Bottom: y <= c.Screen.Y-dead && y > c.Screen.Y-EdgeMargin,
 	}
+	side := CornerSide(c.Screen.X, c.Screen.Y)
+	nearLeft := x >= dead && x < side
+	nearRight := x <= c.Screen.X-dead && x > c.Screen.X-side
+	nearTop := y >= dead && y < side
+	nearBottom := y <= c.Screen.Y-dead && y > c.Screen.Y-side
+	switch {
+	case nearLeft && nearTop:
+		e.Corner = TopLeft
+	case nearRight && nearTop:
+		e.Corner = TopRight
+	case nearLeft && nearBottom:
+		e.Corner = BottomLeft
+	case nearRight && nearBottom:
+		e.Corner = BottomRight
+	}
+	return e
 }
 
 // ScreenRect is the screen rectangle between a and b, at least a pixel a side.

@@ -15,7 +15,10 @@
 // [command.Issued] with the [command.Issuer] that gave it, or the entity that gave it itself; a [command.Carrier] sorts
 // commands into the queues of their types. Traits a command may have besides are asked for
 // where they matter: [command.Routed], [Contextual]. A [Binding] is a [Trigger] ([KeyPress], [KeyDown], [KeyHeld],
-// [ButtonPress], [Drag], [Wheel], [ButtonHeld], [CursorAtEdge], [CursorMove], [CursorOver]) with
+// [ButtonPress], [Drag], [Wheel], [ButtonHeld], [CursorAtEdge] — the cursor within [EdgeMargin]
+// of the picture's edge, or in a corner's square of [CornerReach] a side, [CornerSide] for a
+// small picture ([Edges], [Corner]) —
+// [CursorMove], [CursorOver]) with
 // exactly its [Mods], the command [Build] makes from a [Context] or [Give] names, and a label for
 // the list of keys. A Context carries the player, its camera, the cursor and the point picked in
 // the world through the camera.

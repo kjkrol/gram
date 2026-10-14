@@ -20,7 +20,7 @@ var (
 
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
-	return render.NewComposer(a.board.Renderer(), a.world.Renderer())
+	return render.NewComposer(a.board.Renderer(), a.world.Renderer(), a.cameras.Renderer())
 }
 
 func (m *mainScene) screen() *ui.Element {

@@ -68,10 +68,12 @@ func (m *mainScene) picture() render.Picture {
 	a.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
 	a.topography.WithAtmosphere(a.atmosphere)
 	a.vision.WithViews(render.Show(a.selection.IsSelected))
+	a.cameras.ShowZones(true)
 
 	return render.NewComposer(
 		a.atmosphere.Renderer(), a.board.Renderer(), a.topography.Renderer(),
-		a.world.Renderer(), a.collision.Renderer(), a.vision.Renderer(), a.selection.Renderer(),
+		a.world.Renderer(), a.collision.Renderer(), a.cameras.Renderer(), a.vision.Renderer(),
+		a.selection.Renderer(),
 		a.nav.Renderer(), a.bridges.Renderer(), a.atmosphere.Precipitation())
 }
 

@@ -58,6 +58,31 @@ Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
   colour and width a stretch). `board.Plugin.ShowGrid`/`GridShown` are the grid's option, which
   `WithRenderer` keeps (it set the grid on itself before). Square's walkers are outlined and
   routed in their colours, the vision demo's hawk edges its view in its own.
+- An eye sees up and down within its `Vertical` field, turned by its `Tilt` (`entity.Eye`,
+  `Eye.Within`): the scan keeps what lies in the field by elevation, the view drawn is the ring
+  of ground the field meets (the CPU's from the eye's height over level ground, the GPU's per
+  pixel), and riding a unit `Inside` the camera's pitch tilts the unit's eye, given back on
+  letting go — a sentinel on a wall looking down sees the foot of the wall, looking up what is
+  over it. `Eye.Vertical` is refused in a flat world. Madeira's walkers look 50° up and down.
+- In relief a pan drawn back lays the view down again as far as the far edge bowed it when
+  pushed on, down to the pitch it started from, and no further.
+- The cursor in a corner of the picture turns the relief's view a quarter as fast as Q and E
+  (`topography.CornerStep`), the left corners anticlockwise, the right clockwise; at a side it
+  scrolls as before; a corner is a square of `control.CornerReach` 120 px a side
+  (`control.Edges.Corner`, `Corner.Signs`; `Edges.Any` there), where any other camera scrolls
+  slantwise
+  (`cameras.Pan.Edge`, `Corner`; `camera.Scroller.Scroll(dx, dy, corner)`). `cameras.Zones`
+  (Shift+H, `ShowZones`, `ZonesShown`) lays the scroll strips and corner squares over every
+  picture in translucent yellow, rounded, the strips a gap short of the corners, drawn by
+  `cameras.Plugin.Renderer()`, which every demo's composer takes;
+  hidden but in board/topography, which shows them from the start.
+- A `color.RGBA` given to gram is straight alpha, as every colour in it is written, and is
+  premultiplied on its way to the GPU (`render.Frame`'s pieces, `Image.Fill`, the shapes and
+  text, the sprite `Canvas`, the board's grid lines, the routes' and the views' shaders). Go
+  defines `color.RGBA` as premultiplied, which gram followed: a translucent yellow at alpha 10
+  then added nearly full yellow light and came out as bright as an opaque one. Translucent
+  colours — the cones, the bridge in hand, the panels, the ghost, the zones — are as faint now
+  as their alpha says.
 - The entities' boxes (Shift+X) are collision's: `collision.Boxes`, `Plugin.ShowBoxes`,
   `BoxesShown`, drawn by `collision.Plugin.Renderer()`, which every demo with collision has in
   its composer and whose plugin it hands to players, so the key works everywhere (`world.Boxes`

@@ -44,6 +44,9 @@ type following struct {
 	// eye does
 	wantPitch, appliedPitch float32
 	tilts                   uint32
+	// inside: the unit's own Eye.Tilt, given back on letting go
+	tilt0  float64
+	tilted bool
 }
 
 // a part of the screen's height a fastened camera holds its entity below the middle
@@ -181,6 +184,7 @@ func (s *cameraSystem) letGo(cam *viewCamera) bool {
 	for i, f := range s.following {
 		if f.cam == cam {
 			s.write(f.target, geom.Vec{}, false, 0)
+			s.untilt(&s.following[i])
 			s.following = append(s.following[:i], s.following[i+1:]...)
 			if f.inside {
 				cam.leaveInside()
@@ -206,6 +210,17 @@ func (s *cameraSystem) write(id uid.UID64, look geom.Vec, flown bool, climb floa
 	if d := s.driven.At(s.query.Cursor()); d != nil {
 		d.Look, d.Flown, d.Climb = look, flown, climb
 	}
+}
+
+// the eye looks up or down as it did before the rider took it
+func (s *cameraSystem) untilt(f *following) {
+	if !f.tilted || !s.query.Seek(f.target) {
+		return
+	}
+	if e := s.eye.At(s.query.Cursor()); e != nil {
+		e.Tilt = f.tilt0
+	}
+	f.tilted = false
 }
 
 func (s *cameraSystem) look(f *following, dx, dy float32) {
@@ -272,6 +287,13 @@ func (s *cameraSystem) keep(f *following, d time.Duration) bool {
 				driven.Flown, driven.Climb = true, -math.Sin(float64(f.cam.Pitch()))
 			}
 			if f.inside {
+				// the rider's head is the unit's eye: it looks up and down as the rider does
+				if eyes := s.eye.Slice(cur); eyes != nil {
+					if !f.tilted {
+						f.tilt0, f.tilted = eyes[i].Tilt, true
+					}
+					eyes[i].Tilt = -float64(f.cam.Pitch())
+				}
 				look, looks := dir, faces
 				if f.aiming {
 					look, looks = f.aim, true

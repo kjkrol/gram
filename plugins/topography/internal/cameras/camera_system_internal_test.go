@@ -34,6 +34,7 @@ type followRig struct {
 	q      *goke.Query
 	driven goke.OptComp[steering.Driven]
 	dq     *goke.Query
+	eye    goke.OptComp[world.Eye]
 }
 
 func newFollowRig(t *testing.T) *followRig {
@@ -45,11 +46,12 @@ func newFollowRig(t *testing.T) *followRig {
 	var base goke.Comp[world.Base]
 	var z goke.Comp[world.Z]
 	var driven goke.Comp[steering.Driven]
+	var eye goke.Comp[world.Eye]
 	r.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		r.q = si.NewQueryBuilder(&r.base).Build()
 		var b goke.Comp[world.Base]
-		r.dq = si.NewQueryBuilder(&b).Optional(&r.driven).Build()
-		f := si.NewFactory(&base, &z, &driven)
+		r.dq = si.NewQueryBuilder(&b).Optional(&r.driven).Optional(&r.eye).Build()
+		f := si.NewFactory(&base, &z, &driven, &eye)
 		f.Create(2)
 		n := 0
 		for f.Next() {
@@ -57,6 +59,7 @@ func newFollowRig(t *testing.T) *followRig {
 				r.walkers[n] = id
 				base.Slice(&f.Cursor)[i].Pos = world.Position{AABB: plane.NewAABB(geom.NewVec(300+float64(n)*100, 300), 10, 10)}
 				z.Slice(&f.Cursor)[i] = world.Z{Altitude: 5, Height: 2}
+				eye.Slice(&f.Cursor)[i] = world.Eye{Height: 2} // the top, as without one
 				n++
 			}
 		}
@@ -250,6 +253,19 @@ func TestTurn_TurnsACameraOfThisViewAndNoOther(t *testing.T) {
 	if !near(r.cam.Heading(), 0.5) {
 		t.Errorf("heading %v after Turn by 0.5, want 0.5", r.cam.Heading())
 	}
+}
+
+func (r *followRig) eyeOf(id uid.UID64) world.Eye {
+	r.dq.All()
+	for r.dq.Next() {
+		cur := r.dq.Cursor()
+		for i, got := range cur.IDs {
+			if got == id {
+				return r.eye.Slice(cur)[i]
+			}
+		}
+	}
+	return world.Eye{}
 }
 
 func (r *followRig) drivenOf(id uid.UID64) (steering.Driven, bool) {

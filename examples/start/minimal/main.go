@@ -157,5 +157,5 @@ func (m *mainScene) screen() *ui.Element {
 
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
-	return render.NewComposer(a.world.Renderer(), a.collision.Renderer())
+	return render.NewComposer(a.world.Renderer(), a.collision.Renderer(), a.cameras.Renderer())
 }

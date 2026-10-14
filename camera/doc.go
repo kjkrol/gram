@@ -28,7 +28,8 @@
 // [Picker] finds what is under a screen point and its height; a [Scaler] draws a world unit
 // larger near the eye than far off, and [ScaleAt] is the scale at a point through any camera; a
 // [Rayer] says which way a screen point looks, [Rays] every line of sight at once as a [RayField],
-// an [Eyed] camera where its eye stands and a [Vanisher] where a direction vanishes. A
+// an [Eyed] camera where its eye stands and a [Vanisher] where a direction vanishes; a
+// [Scroller] takes the cursor at the window's edge its own way (a corner turning it). A
 // [Transform] is a RayField as the GPU draws it.
 //
 // # FromScreenRect

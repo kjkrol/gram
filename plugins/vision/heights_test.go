@@ -70,6 +70,9 @@ func TestHeights_AFlatWorldRefusesAnEyeAndAWorldWithHeightsRefusesBlockers(t *te
 		t.Errorf("no panic, want one mentioning %q", want)
 	}
 	expect(t, "Eye.Height", func() { scene(t, spawn{x: 0, y: 0, sight: eyed(1.5)}) })
+	narrow := eastward(math.Pi/8, 300)
+	narrow.Eye.Vertical = 1
+	expect(t, "Eye.Vertical", func() { scene(t, spawn{x: 0, y: 0, sight: narrow}) })
 	blocked := eastward(math.Pi/8, 300)
 	blocked.Blockers = 1
 	expect(t, "Sight.Blockers", func() { sceneIn(t, &relief{}, spawn{x: 0, y: 0, sight: blocked}) })
@@ -163,5 +166,30 @@ func TestHeights_AGroundIsReadAlongItsProfile(t *testing.T) {
 	if seen[0].Count != 0 {
 		t.Errorf("read along its profile the walker saw %d past the ridge, want none",
 			seen[0].Count)
+	}
+}
+
+func TestHeights_TheVerticalFieldLimitsWhatIsSeenUpAndDown(t *testing.T) {
+	level := spawn{x: 100, y: 0, z: z(0, 2)}
+	high := spawn{x: 200, y: 0, z: z(150, 2)} // 37° up from the eye
+	narrow := func(tilt float64) *look {
+		l := eyed(1.5)
+		l.Eye.Vertical, l.Eye.Tilt = math.Pi/3, tilt
+		return l
+	}
+	eye := func(tilt float64) spawn { return spawn{x: 0, y: 0, z: z(0, 2), sight: narrow(tilt)} }
+	_, seen, _ := sceneIn(t, &relief{}, eye(0), level, high)
+	if seen[0].Count != 1 || seen[0].Dists[0] > 150 {
+		t.Errorf("looking level, the eye saw %d at %v, want the walker at its level alone",
+			seen[0].Count, seen[0].Dists[:seen[0].Count])
+	}
+	_, seen, _ = sceneIn(t, &relief{}, eye(math.Pi/3), level, high)
+	if seen[0].Count != 1 || seen[0].Dists[0] < 150 {
+		t.Errorf("looking up 60°, the eye saw %d at %v, want the one 150 up alone",
+			seen[0].Count, seen[0].Dists[:seen[0].Count])
+	}
+	_, seen, _ = sceneIn(t, &relief{}, spawn{x: 0, y: 0, z: z(0, 2), sight: eyed(1.5)}, level, high)
+	if seen[0].Count != 2 {
+		t.Errorf("without a Vertical the eye saw %d, want both", seen[0].Count)
 	}
 }

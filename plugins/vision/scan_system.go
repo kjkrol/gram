@@ -354,7 +354,7 @@ func (c *scanner) scan(id uid.UID64, s *Sight, seen *Sighted, base *world.Base, 
 	c.ox, c.oy = (box.TopLeft.X+box.BottomRight.X)/2, (box.TopLeft.Y+box.BottomRight.Y)/2
 	c.covering.ox, c.covering.oy = c.ox, c.oy
 	if c.space.Scan(id, c.cone(sight, eye, z), &c.view) {
-		record(seen, &c.view)
+		record(seen, &c.view, c.vertical(eye, z))
 		if outline != nil {
 			c.trace(outline, sight, eye.Angle/2)
 		}
@@ -400,6 +400,9 @@ func (s *scanner) cone(sight *Sight, eye world.Eye, z world.Z) aabbworld.Cone {
 	if !s.heights {
 		if eye.Height != 0 {
 			panic("vision: Eye.Height in a flat world; set world.Config.Heights")
+		}
+		if eye.Vertical != 0 {
+			panic("vision: Eye.Vertical in a flat world; set world.Config.Heights")
 		}
 		return c
 	}
@@ -464,10 +467,23 @@ func (c *covering) sink(near, far, bottom, top, tau float64) bool {
 	return c.visit(near, far, bottom-d, top-d, tau)
 }
 
-func record(dst *Sighted, view *aabbworld.View) {
+// the vertical field of an eye: whether what is seen at a distance lies up or down within it;
+// nil for an eye seeing every height
+func (c *scanner) vertical(eye world.Eye, z world.Z) func(uid.UID64, float64) bool {
+	if eye.Vertical <= 0 {
+		return nil
+	}
+	level := eye.Level(z)
+	return func(id uid.UID64, dist float64) bool {
+		bottom, top := c.elev(id)
+		return eye.Within(math.Atan2(bottom-level, dist), math.Atan2(top-level, dist))
+	}
+}
+
+func record(dst *Sighted, view *aabbworld.View, within func(uid.UID64, float64) bool) {
 	dst.Count = 0
 	view.Entities(func(id uid.UID64, dist float64) {
-		if dst.Count == MaxSeen {
+		if dst.Count == MaxSeen || (within != nil && !within(id, dist)) {
 			return
 		}
 		dst.IDs[dst.Count] = id

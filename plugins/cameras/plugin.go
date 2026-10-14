@@ -41,6 +41,8 @@ type Plugin struct {
 	zooms       command.Queue[Zoom]
 	follows     command.Queue[Follow]
 	lookAts     command.Queue[LookAt]
+	zones       command.Queue[Zones]
+	zonesView   *zonesView
 	module      *module
 }
 
@@ -52,6 +54,7 @@ var _ plugin.Restorer = (*Plugin)(nil)
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin}
 	p.Self = world.NewSelf(worldPlugin, p)
+	p.zonesView = &zonesView{}
 	return p
 }
 
@@ -95,10 +98,14 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 // RunPlan carries out Pan, Zoom and Follow and keeps every camera fastened Centred over its
 // entity; call it after the world's.
-func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
+func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
+	p.switchZones()
+	p.module.RunPlan(ctx, d)
+}
 
-// Renderer is nil: cameras draw nothing.
-func (p *Plugin) Renderer() render.Layer { return nil }
+// Renderer lays the scroll zones over every picture while Zones shows them (Shift+H), for a
+// scene's composer.
+func (p *Plugin) Renderer() render.Layer { return p.zonesView }
 
 // EventHandler is nil: a player's bindings issue the commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

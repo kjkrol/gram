@@ -122,3 +122,34 @@ func needGPU(t *testing.T) {
 		t.Skipf("no GPU: %v", err)
 	}
 }
+
+func TestViews_AnEyeLookingUpVeilsNoGround(t *testing.T) {
+	needGPU(t)
+	cam := icamera.NewFromSpace(256, 256, 0)
+	v := newViews()
+	screen, depth := render.NewImage(256, 256), render.NewDepth()
+	screen.Fill(color.Black)
+	screen.ClearDepth(depth)
+	f, _ := cam.(camera.Rays).Rays()
+	tr, _ := camera.SceneTransform(f, 256, 256)
+	screen.DrawMesh(nil, level, &render.DrawMeshOptions{
+		Depth: depth, WriteDepth: true, Vertices: 6, Uniforms: map[string]any{"ViewProj": tr.M[:]},
+	})
+	v.look(cam, observer{
+		X: 40, Y: 128, Eye: 2, Reach: 200, Half: math.Pi / 6, Color: unitColor(DefaultCone.Color),
+		Tilt: math.Pi / 3, VHalf: math.Pi / 8,
+	})
+	target := render.Target{Screen: screen, Depth: depth}
+	v.draw(target, cam, ridge{}, nil, 256, 256, 4, [2]bool{}, 0, DefaultShadow)
+	pix := make([]byte, 4*256*256)
+	screen.ReadPixels(pix)
+	at := func(x, y int) int {
+		i := 4 * (y*256 + x)
+		return int(pix[i]) + int(pix[i+1]) + int(pix[i+2])
+	}
+	for _, x := range []int{80, 200} {
+		if c := at(x, 128); c < 3*250 {
+			t.Errorf("looking up, the ground at (%d, 128) is %d bright, want it left alone", x, c)
+		}
+	}
+}

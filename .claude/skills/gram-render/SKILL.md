@@ -101,6 +101,14 @@ per instance on the GPU. `board.ShowGrid(bool)` is the grid option.
   `Under` a tag and the selection's outline; then vision and navigation; the composer gathered
   from the plugins made (`world.Made()`) is a separate talk (a minimap omits layers).
 
+**A `color.RGBA` given to gram is straight alpha** (2026-10-14, after a zone at `A: 10` came out
+as bright as an opaque one): `render.Frame`'s pieces, `Image.Fill`, the shapes, text and the
+sprite `Canvas` premultiply it for the GPU (`premultiplied`, `rgbaOf`, `straight` →
+`color.NRGBA` for `image/draw`), as do the routes', views' and grid's own shaders. Go defines
+`color.RGBA` as premultiplied — a value above its alpha then adds light — so a colour handed
+to the GPU without the conversion glows; any new path from a colour to floats must multiply
+R, G, B by A.
+
 How things lie on the screen is a plugin's `Look`, swappable: `world.Look` (an entity's sprite,
 where it is picked, its footprint) and `look.Look` (a cell as a `look.Tile`), both flat from above
 by default; the topography sets both for relief. The renderers keep their data and ask the Look

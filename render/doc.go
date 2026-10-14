@@ -44,6 +44,10 @@
 // drawn with [Image.DrawMesh] against a [Depth]. [Frame.Branch] and [Frame.Append] let a source
 // gather pieces on several goroutines.
 //
+// A color.RGBA given to render — a piece, a fill, text, a sprite drawn on a [Canvas] — is
+// straight alpha, as colours are written: {R: 255, G: 220, B: 60, A: 40} is a faint yellow. Go
+// defines color.RGBA as premultiplied; render premultiplies it for the GPU itself.
+//
 // # Materials
 //
 // What is worked out per pixel is a material, WGSL a plugin or a game registers

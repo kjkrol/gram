@@ -69,7 +69,8 @@ A demo groups its plugins in an **arena**, the collector every section builds on
 `bindKeys`, `spawn`, `defineScenes`, `update`). The scene is apart in `scene.go`: a
 `mainScene{arena: a, …}` builds it — its colours, `picture()` (the plugins' look options —
 `vision.WithViews`, `board.ShowGrid(false)`, `WithAtmosphere`, the painter's styles — and the
-composer of the plugins' `Renderer()`s; no atlas: `world.Renderer()` and `board.Renderer()`
+composer of the plugins' `Renderer()`s, `a.cameras.Renderer()` among them for the scroll
+zones; no atlas: `world.Renderer()` and `board.Renderer()`
 dress themselves from the figures and tiles when first asked, the board's sprites the cell's
 size across) and `screen()` (the ui tree) — and `defineScenes` only makes it. See
 `examples/start/scenes` for a menu Stage with no world, a ui scene of the engine's commands and a

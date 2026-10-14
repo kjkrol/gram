@@ -13,6 +13,8 @@ import (
 type Pan struct {
 	Camera camera.Camera
 	Dx, Dy float32
+	Edge   bool // by the cursor at the window's edge: a camera.Scroller scrolls its own way
+	Corner bool // in a corner of it
 }
 
 // Zoom scales Camera about the world point At: a Factor above 1 zooms in, below 1 out.
@@ -50,10 +52,15 @@ var (
 	_ command.Command = LookAt{}
 )
 
-// Queues are where Pan, Zoom, Follow and LookAt land.
+// Queues are where Pan, Zoom, Follow, LookAt and Zones land.
 func (p *Plugin) Queues() []command.CommandQueue {
-	return []command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.lookAts}
+	return []command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.lookAts, &p.zones}
 }
 
-// DefaultBindings are DefaultKeys.
-func (p *Plugin) DefaultBindings() []control.Binding { return DefaultKeys().Bindings() }
+// DefaultBindings are DefaultKeys and Shift+H showing or hiding the scroll zones.
+func (p *Plugin) DefaultBindings() []control.Binding {
+	return append(DefaultKeys().Bindings(),
+		control.Build(control.KeyPress{Key: control.KeyH, Mods: control.Mods{Shift: true}},
+			"Show the scroll zones at the picture's edges, or hide them",
+			func(control.Context) (Zones, bool) { return Zones{}, true }))
+}

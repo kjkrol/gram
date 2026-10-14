@@ -76,10 +76,12 @@ var (
 )
 
 // TurnStep is how far Q and E turn the view a tick they are held, in radians; TiltStep how far
-// R and F tilt it.
+// R and F tilt it; CornerStep how far the cursor in a corner of the window turns it a frame, a
+// quarter as fast.
 const (
-	TurnStep = math.Pi / 90
-	TiltStep = math.Pi / 180
+	TurnStep   = math.Pi / 90
+	TiltStep   = math.Pi / 180
+	CornerStep = TurnStep / 4
 )
 
 type cameraQueues struct {

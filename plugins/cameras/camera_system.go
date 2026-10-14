@@ -37,6 +37,10 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 		if f, ok := cam.(camera.Fastenable); ok && f.Fastening().How != 0 {
 			f.Fasten(camera.Fastening{})
 		}
+		if s, ok := cam.(camera.Scroller); ok && i.Command.Edge {
+			s.Scroll(i.Command.Dx, i.Command.Dy, i.Command.Corner)
+			return
+		}
 		cam.Pan(i.Command.Dx, i.Command.Dy)
 	})
 	s.p.zooms.Drain(func(i command.Issued[Zoom]) {

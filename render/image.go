@@ -159,8 +159,12 @@ func (i *Image) DrawTrianglesShader(verts []Vertex, indices []uint16, s *Shader,
 	gpu.Triangles(&gpu.Draw{Target: i.gpu(), Program: s.program(), Images: imgs, Uniforms: s.pack(u), Blend: gpu.SourceOver}, verts, indices)
 }
 
-// premultiplied, 0 to 1
+// a colour as gram takes it, straight alpha, premultiplied for the GPU, 0 to 1
 func rgbaOf(c color.Color) (r, g, b, a float32) {
+	if s, ok := c.(color.RGBA); ok {
+		a = float32(s.A) / 0xff
+		return float32(s.R) / 0xff * a, float32(s.G) / 0xff * a, float32(s.B) / 0xff * a, a
+	}
 	cr, cg, cb, ca := c.RGBA()
 	return float32(cr) / 0xffff, float32(cg) / 0xffff, float32(cb) / 0xffff, float32(ca) / 0xffff
 }

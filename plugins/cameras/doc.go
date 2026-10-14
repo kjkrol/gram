@@ -21,12 +21,15 @@
 // # Keys
 //
 // [Keys] are a player's keys to its camera: four keys held scrolling it, the wheel zooming about
-// the cursor, the middle drag panning, the cursor at an edge scrolling. [DefaultKeys] are W, S,
+// the cursor, the middle drag panning, the cursor at an edge scrolling and in a corner scrolling
+// slantwise (a camera.Scroller its own way: the relief's turns there). [DefaultKeys] are W, S,
 // A, D with all three, and [Plugin.DefaultBindings] are those; a game wanting other keys, or
 // several players at one keyboard, binds its own Keys.
 //
 // # Vocabulary
 //
-// Commands: [Pan], [Zoom], [LookAt] (a player's through its camera); [Follow] (a player's, or an
+// Commands: [Pan], [Zoom], [LookAt] (a player's through its camera); [Zones] (a player's, a
+// look: the scroll zones over every picture, Shift+H, drawn by [Plugin.Renderer]); [Follow] (a
+// player's, or an
 // entity's own fastening the camera over itself).
 package cameras

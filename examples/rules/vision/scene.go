@@ -23,7 +23,8 @@ func (m *mainScene) picture() render.Picture {
 	a := m.arena
 	a.vision.ShowCones()
 
-	return render.NewComposer(a.vision.Renderer(), a.world.Renderer(), a.collision.Renderer())
+	return render.NewComposer(a.vision.Renderer(), a.world.Renderer(), a.collision.Renderer(),
+		a.cameras.Renderer())
 }
 
 func (m *mainScene) screen() *ui.Element {

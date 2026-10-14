@@ -255,3 +255,19 @@ func ridden(cam contract.Camera, x0, y0, x1, y1 float32) bool {
 	x, y, _, ok := cam.(contract.Eyed).Eye()
 	return ok && x >= x0 && x <= x1 && y >= y0 && y <= y1
 }
+
+func TestInside_TheRidersHeadTiltsTheUnitsEyeAndGivesItBack(t *testing.T) {
+	r := newFollowRig(t)
+	r.ridged(1000, 1001)
+	r.walk(300, 300, 1, 0)
+	r.inside()
+	r.cam.Tilt(-0.5) // up: the pitch is negative towards the sky
+	r.ecs.Tick(time.Second / 60)
+	if e := r.eyeOf(r.walkers[0]); !near(float32(e.Tilt), 0.5) {
+		t.Errorf("looking up 0.5 inside, the unit's eye tilts %v, want 0.5", e.Tilt)
+	}
+	r.pressV()
+	if e := r.eyeOf(r.walkers[0]); e.Tilt != 0 {
+		t.Errorf("out of the unit its eye still tilts %v, want its own 0 back", e.Tilt)
+	}
+}

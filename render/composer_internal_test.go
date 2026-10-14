@@ -232,8 +232,10 @@ func TestFrame_ALineIsAQuadOfItsWidthFadingAtItsSides(t *testing.T) {
 	if v[0].Custom0 != 1 || v[0].Custom1 != 4 || v[2].Custom0 != 4 || v[2].Custom1 != 1 || v[0].Custom2 != 0 {
 		t.Errorf("fades %v %v / %v %v, want 1 plus 0 and 3 to either side, no fade along", v[0].Custom0, v[0].Custom1, v[2].Custom0, v[2].Custom1)
 	}
-	if math.Abs(float64(v[0].ColorR)-20.0/255) > 1e-6 || math.Abs(float64(v[0].ColorA)-120.0/255) > 1e-6 {
-		t.Errorf("colour %v alpha %v, want the premultiplied red 20/255 at alpha 120/255", v[0].ColorR, v[0].ColorA)
+	// straight alpha in, premultiplied for the GPU
+	red, alpha := float64(v[0].ColorR), float64(v[0].ColorA)
+	if math.Abs(red-20.0/255*120/255) > 1e-6 || math.Abs(alpha-120.0/255) > 1e-6 {
+		t.Errorf("colour %v alpha %v, want red 20/255 premultiplied by alpha 120/255", red, alpha)
 	}
 	f.Line(Marks, 0, 5, 5, 5, 5, 1, white)
 	if f.Len() != 1 {

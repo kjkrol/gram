@@ -314,3 +314,42 @@ func TestCamera_InPerspectiveAPanTheEdgeStopsTurnsAndBows(t *testing.T) {
 		}
 	}
 }
+
+func TestCamera_DrawnBackTheViewLiesDownAsFarAsTheEdgeBowedIt(t *testing.T) {
+	cam := testCamera(t, 0).(*viewCamera)
+	cam.Pan(0, -1e4)
+	cam.edgeTurn, cam.edgeTilt = 0.01, 0.005
+	p := cam.Pitch()
+	cam.Pan(0, -8)
+	if got := cam.Pitch() - p; !near(got, 0.04) {
+		t.Fatalf("pushed forward at the edge: bowed %v, want 0.04", got)
+	}
+	cam.Pan(0, 4)
+	if got := cam.Pitch() - p; !near(got, 0.02) {
+		t.Errorf("drawn back 4: still bowed %v, want 0.02, half of it laid down", got)
+	}
+	cam.Pan(0, 40)
+	if got := cam.Pitch() - p; !near(got, 0) {
+		t.Errorf("drawn back further: still bowed %v, want the pitch it started from, no lower", got)
+	}
+}
+
+func TestCamera_ScrolledInACornerTheViewTurnsAndAtASideItPans(t *testing.T) {
+	cam := testCamera(t, 0).(*viewCamera)
+	cam.cornerTurn = 0.0025
+	h := cam.Heading()
+	cam.Scroll(-8, -8, true)
+	if got := turned(cam, h); !near(got, -0.02) {
+		t.Errorf("scrolled in the top-left corner: turned %v, want -0.02, as Q at a quarter", got)
+	}
+	cam.Scroll(8, 8, true)
+	if got := turned(cam, h); !near(got, 0) {
+		t.Errorf("scrolled in the bottom-right corner after: turned %v, want back to 0, as E", got)
+	}
+	at := cam.State().Viewport
+	cam.Scroll(0, 8, false)
+	if s := cam.State().Viewport; s == at || !near(turned(cam, h), 0) {
+		t.Errorf("scrolled at the bottom side: moved %v, turned %v; want a pan, no turn", s != at,
+			turned(cam, h))
+	}
+}

@@ -23,8 +23,10 @@
 // ground and a cover of one's own) sight follows geometry: the eye is at the observer's
 // world.Eye, every entity spans its world.Z, and the ground is read along every ray, exactly off
 // a ground.Profile or sampled every [Plugin.WithGroundStep]. With a world.Scale the ground sinks
-// under the observer's level as far off as it lies. Blockers are refused there, Eye.Height in a
-// flat world.
+// under the observer's level as far off as it lies. An Eye with a Vertical field sees up and
+// down within it alone, turned up or down by its Tilt (a rider's head): a sentinel on a wall
+// looking down sees the wall's foot, not the distance; the view drawn is the ground the field
+// meets. Blockers are refused there, Eye.Height and Eye.Vertical in a flat world.
 //
 // # Sighting
 //

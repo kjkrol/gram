@@ -209,7 +209,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   pitch 10°–90°) and, given `Config.Perspective`, the perspective; `View{Camera}` (Tab) goes
   round them keeping the ground point in the middle. From above and isometrically the screen stays
   over the world at sea level, a pan stops at the edge (in relief the part stopped turns or bows
-  the view), zooming out stops where the screen fits the map, `ZoomIn` keeps the ground under the
+  the view; drawn back the view lies down again as far as the edge bowed it, `viewCamera.bowed`;
+  the cursor in a corner of the window turns the view a quarter as fast as Q and E, left corners
+  as Q, right as E, `viewCamera.Scroll(dx, dy, corner)`, `Config.CornerTurn`; the user's word
+  2026-10-14), zooming out stops where the screen fits the map, `ZoomIn` keeps the ground under the
   cursor; the perspective keeps the ground point in the middle, flies no higher than shows the
   world's diagonal (`maxAlt`). A pick (`camera.Picker.Pick`) finds a deck a line of sight passes
   under (`Config.Solid`, `Fine`). The cameras' `camera.Rays` give `camera.SceneTransform` for every
@@ -218,7 +221,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   plugin keeps `Centred`, the topography's camera system `Behind` (centred, turned until the
   unit's `Vel.Dir` runs up the screen) and `Inside` (first person: the eye where the unit's
   `world.Eye` stands, the screen as wide as `Eye.Angle`, the mouse always looks — `Driven.Look`,
-  the cursor captured by players — and a flyer rides: `Driven.Flown`, `Climb`); `Ride{Camera}`
+  the cursor captured by players; up and down it writes `Eye.Tilt` (−pitch), the unit's own
+  given back on letting go — and a flyer rides: `Driven.Flown`, `Climb`); `Ride{Camera}`
   (V) goes `Centred` → `Behind` → `Inside` → `Centred` over the entity the camera is fastened
   to (`cameras.Follow`, C through `selection.FollowKey`). Bindings `.In(camera.Inside)` fire
   riding (the driving's `Shooter` WSAD, Space `Jump`, the mouse, V, Tab), `.In(camera.Outside)`
@@ -353,9 +357,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `board`, `world`, `selection`, `driving`.
 - **`entity`** (core) — what every entity carries: `Base`, `Position` (`StepReach`, `MaxStep`,
   `MaxSpeed`), `Velocity` (`Dir`, `Value`, `Side`), `Z`, `Layers`, `Drift{X, Y, Z}` (the velocity
-  it is carried at beyond its walk, written by gravity alone), `Eye{Height, Angle}` (where one
-  that looks looks from and how wide; `Eye.Level(z)`; read by vision's cone and the first-person
-  camera alike), `Lie`, `Block`. A leaf; the world re-exports them as type aliases.
+  it is carried at beyond its walk, written by gravity alone), `Eye{Height, Angle, Vertical,
+  Tilt}` (where one that looks looks from and how wide; `Vertical` the field up and down, 0
+  every height; `Tilt` how far the eye is turned up, radians, written by the riding camera;
+  `Eye.Level(z)`, `Eye.Within(lo, hi)`; read by vision's cone and the first-person camera
+  alike), `Lie`, `Block`. A leaf; the world re-exports them as type aliases.
 - **`world/steering`** — `steering.Steering{TurnRate, Reflex, MaxSpeed, Sprint, Accel, Brake,
   V0, Halted}` the knobs, `steering.Course{Want, Pending, Delay, Speed, WantSpeed}` the state
   (given to every unit by the roster and by the system where missing), `steering.Helm{*Steering,
@@ -456,7 +462,19 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Follow{Camera, Entity, On}` (fastens `Centred`; its system keeps every `Centred` camera over its
   entity), `LookAt{Camera, Entity}` (once, fastened to nothing). `cameras.Keys{Up, Down, Left,
   Right, ZoomIn, ZoomOut, ScrollSpeed, Wheel, Drag, Edge}` are a player's keys, `DefaultKeys()`
-  W/S/A/D, = and - (`ZoomStep` about the cursor), the wheel, the middle drag, the edge; a demo
+  W/S/A/D, = and - (`ZoomStep` about the cursor), the wheel, the middle drag, the edge (a
+  `Pan{Edge: true}`, in a corner of the picture — `control.Edges.Corner`, a square of
+  `control.CornerReach` 120 px a side, a quarter of the shorter side at most
+  (`control.CornerSide`: a 200-px test viewport would be all corner), `Edges.Any` true there —
+  slantwise with `Corner: true`;
+  a `camera.Scroller`
+  takes it as `Scroll(dx, dy, corner)`, the relief's camera turning in a corner at
+  `topography.CornerStep`, a quarter of Q, and any other camera pans). `Zones` (Shift+H,
+  `ShowZones`, `ZonesShown`, `Plugin.Renderer()` for the composer, hidden by default, shown at
+  the start of board/topography) lays the strips and the corner squares over every picture in
+  translucent yellow, rounded (`render.Frame.Fan`), the strips a gap short of the corners and
+  fainter (the user's sketch, 2026-10-14). `CursorAtEdge` fires once an `Engine.Update`, before
+  the ticks, not once a tick; a demo
   whose WSAD drive binds `cameras.Keys{Wheel, ZoomIn, ZoomOut}` alone. The engine sizes no camera.
   Depends on `world`.
 - **`driving`** — units driven by hand, with or without navigation: `driving.NewPlugin(world,
@@ -500,7 +518,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   sight has heights instead: the cone's eye is the unit's `world.Eye` (a Sight without an Eye is
   not scanned), every entity spans its `Z`, the ground is read along every ray — exactly where it
   is a `ground.Profile` (the relief's `Along`), else sampled every `WithGroundStep`; `Blockers`
-  refused there, `Eye.Height` in a flat world. Every observer is scanned every step, or
+  refused there, `Eye.Height` and `Eye.Vertical` in a flat world; an `Eye.Vertical` keeps what
+  the scan found to the field `Tilt ± Vertical/2` by elevation (`scanner.vertical`, after
+  aabbworld's cone, which knows no vertical angle), the views drawn the ring of ground the field
+  meets (near and far on the CPU from the eye's height, per pixel on the GPU by `atan2`, the
+  instance's fifth vec4). Every observer is scanned every step, or
   `WithFrequency(perSecond)` with the observers taking turns, shared among goroutines
   (`WithWorkers`). It hosts rules of a `Sighting` inside the scan's pass, once a step per observer
   on what it saw at its last scan (`cond.Other.If(b)` everything in view; its `Subject` the nearest

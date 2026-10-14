@@ -353,7 +353,7 @@ func TestRenderer_DrapesTheRingOverTheGroundInItsSteps(t *testing.T) {
 	sight := Sight{Facing: geom.NewVec(1, 0), Radius: 50}
 	o := SightOutline{Count: 3}
 	o.Depths[0], o.Depths[1], o.Depths[2] = 45, 50, 25
-	ring := r.draped(100, 100, 7, 0.2, &sight, &o)
+	ring := r.draped(100, 100, 7, 0.2, &sight, &o, 0, world.Eye{})
 
 	// the apex, the near edge every 10 short of 45, the three reaches, the far edge every 10
 	// short of 25
@@ -493,12 +493,40 @@ func TestRenderer_DrawsEachKindsConeInItsOwnColour(t *testing.T) {
 		switch {
 		case v[0].ColorB == 1:
 			blue++
-		case v[0].ColorR == 1:
+		case v[0].ColorR > 0.5 && v[0].ColorB < 0.5: // the default's yellow, premultiplied
 			pale++
 		}
 	})
 	if blue == 0 || pale == 0 || blue != pale {
 		t.Errorf("%d blue and %d pale sides, want as many of each: one cone in its kind's Cone, "+
 			"the other in DefaultCone", blue, pale)
+	}
+}
+
+func TestRenderer_DrapesTheRingTheVerticalFieldCoversOnTheGround(t *testing.T) {
+	r := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
+	sight := Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 400}
+	out := SightOutline{Count: 3}
+	out.Depths[0], out.Depths[1], out.Depths[2] = 400, 400, 400
+	// looking down 45° with a field of 30°: the ground from 60° to 30° below, 10 above it
+	eye := world.Eye{Angle: math.Pi / 4, Vertical: math.Pi / 6, Tilt: -math.Pi / 4}
+	pts := r.draped(500, 500, 0, math.Pi/8, &sight, &out, 10, eye)
+	if len(pts) != 6 {
+		t.Fatalf("%d points, want a ring of the three angles' near and far ends", len(pts))
+	}
+	zoom := float64(r.camera.Zoom())
+	dist := func(p ConePoint) float64 {
+		return math.Hypot(float64(p.X)-500*zoom, float64(p.Y)-500*zoom) / zoom
+	}
+	near, far := 10/math.Tan(math.Pi/3), 10/math.Tan(math.Pi/6)
+	if d := dist(pts[1]); math.Abs(d-near) > 0.1 {
+		t.Errorf("the ring begins %v out, want %v where the field meets the ground", d, near)
+	}
+	if d := dist(pts[4]); math.Abs(d-far) > 0.1 {
+		t.Errorf("the ring ends %v out, want %v where the field leaves the ground", d, far)
+	}
+	eye.Tilt = math.Pi / 4
+	if pts := r.draped(500, 500, 0, math.Pi/8, &sight, &out, 10, eye); len(pts) != 0 {
+		t.Errorf("looking up the ring has %d points, want none: the field is all sky", len(pts))
 	}
 }

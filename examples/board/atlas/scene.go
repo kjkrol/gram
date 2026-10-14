@@ -33,7 +33,7 @@ func (m *mainScene) picture() render.Picture {
 
 	return render.NewComposer(
 		a.board.Renderer(),
-		a.world.Renderer(), a.collision.Renderer(),
+		a.world.Renderer(), a.collision.Renderer(), a.cameras.Renderer(),
 		a.selection.Renderer(),
 		a.nav.Renderer(),
 	)

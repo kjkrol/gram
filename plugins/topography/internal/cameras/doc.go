@@ -13,14 +13,18 @@
 // keeps the ground point in the middle of the screen, the heading, the pitch and the scale
 // there, and the view is saved with the camera. From above and isometrically the whole screen
 // stays over the world at sea level: a pan stops at the edge, turning or bowing the view in
-// relief by the part stopped, and zooming out stops where the screen just fits the world. The
+// relief by the part stopped (drawn back it lies down again as far as it bowed), the cursor in a
+// corner of the window turns the view as Q and E do at a quarter of their pace, and zooming out
+// stops where the screen just
+// fits the world. The
 // perspective is an eye flying over the world, never lower than two cells over its highest
 // ground, keeping the ground point in the middle of the screen over the world; LookFrom and
 // LookAt put the eye anywhere. On a world with a scale the ground far off sinks under the eye's
 // level and hazes.
 //
 // Riding in a unit (fastened camera.Inside) the eye is the unit's world.Eye, going with it and
-// looking the way it faces; Look turns the view and the unit, Pan and Turn do nothing.
+// looking the way it faces; Look turns the view and the unit, up and down it tilts the unit's
+// Eye.Tilt (given back on letting go), Pan and Turn do nothing.
 //
 // Every camera is a camera.Picker: the ground under a screen point is found along the line of
 // sight, over the top of the ground as it is drawn and the decks over it. Bounds and Visible

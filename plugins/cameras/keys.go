@@ -80,6 +80,10 @@ func (k Keys) Bindings() []control.Binding {
 		out = append(out, control.Build(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {
 			var dx, dy float32
 			side := c.Edges()
+			if side.Corner != control.NoCorner {
+				sx, sy := side.Corner.Signs()
+				return Pan{Camera: c.Camera, Dx: sx * speed, Dy: sy * speed, Edge: true, Corner: true}, true
+			}
 			switch {
 			case side.Left:
 				dx = -speed
@@ -92,7 +96,7 @@ func (k Keys) Bindings() []control.Binding {
 			case side.Bottom:
 				dy = speed
 			}
-			return Pan{Camera: c.Camera, Dx: dx, Dy: dy}, dx != 0 || dy != 0
+			return Pan{Camera: c.Camera, Dx: dx, Dy: dy, Edge: true}, dx != 0 || dy != 0
 		}).In(camera.Outside))
 	}
 	return out

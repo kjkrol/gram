@@ -142,8 +142,10 @@ func vertex(x, y, sx, sy float32, c [4]float32) Vertex {
 	return Vertex{DstX: x, DstY: y, SrcX: sx, SrcY: sy, ColorR: c[0], ColorG: c[1], ColorB: c[2], ColorA: c[3]}
 }
 
+// a colour as gram takes it, straight alpha, premultiplied for the GPU
 func premultiplied(c color.RGBA) [4]float32 {
-	return [4]float32{float32(c.R) / 0xff, float32(c.G) / 0xff, float32(c.B) / 0xff, float32(c.A) / 0xff}
+	a := float32(c.A) / 0xff
+	return [4]float32{float32(c.R) / 0xff * a, float32(c.G) / 0xff * a, float32(c.B) / 0xff * a, a}
 }
 
 // Light is a colour of light, red, green and blue, a colour drawn in it is scaled by; 1 each is

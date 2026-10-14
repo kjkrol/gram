@@ -21,6 +21,8 @@ type viewCamera struct {
 	fastening contract.Fastening
 	// radians a pixel of a pan the world's edge stopped
 	edgeTurn, edgeTilt float32
+	cornerTurn         float32
+	bowed              float32 // how far the far edge has bowed the view, lying down drawn back
 }
 
 var _ contract.Camera = (*viewCamera)(nil)
@@ -31,6 +33,7 @@ var _ contract.Eyed = (*viewCamera)(nil)
 var _ contract.Picker = (*viewCamera)(nil)
 var _ contract.Rayer = (*viewCamera)(nil)
 var _ contract.Rays = (*viewCamera)(nil)
+var _ contract.Scroller = (*viewCamera)(nil)
 
 // From above or isometrically all one way, from Headroom over the highest ground.
 func (c *viewCamera) Rays() (contract.RayField, bool) {
@@ -287,9 +290,26 @@ func (c *viewCamera) Pan(dx, dy float32) {
 	if bx = pushed(dx, bx); bx != 0 {
 		c.Turn(c.edgeTurn * bx)
 	}
+	// pushed on at the far edge the view bows; drawn back it lies down again as far as it bowed
+	if dy > 0 && c.bowed > 0 {
+		back := min(c.bowed, c.edgeTilt*dy)
+		c.Tilt(-back)
+		c.bowed -= back
+	}
 	if by = pushed(dy, by); by < 0 {
 		c.Tilt(-c.edgeTilt * by)
+		c.bowed -= c.edgeTilt * by
 	}
+}
+
+// Scroll is the cursor at the window's edge: at a side it pans, in a corner it turns the view as
+// Q and E do, the left corners anticlockwise, the right ones clockwise.
+func (c *viewCamera) Scroll(dx, dy float32, corner bool) {
+	if corner && c.cornerTurn != 0 && c.relief() && !c.insideUnit() {
+		c.Turn(c.cornerTurn * dx)
+		return
+	}
+	c.Pan(dx, dy)
 }
 
 // bx, by: the part of the delta the world's edge stopped, screen pixels

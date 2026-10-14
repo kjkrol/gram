@@ -72,7 +72,7 @@ func looking() []comp.Comp {
 			Radius: scale.Units(10000),
 			Ahead:  true,
 		}),
-		comp.Const(world.Eye{Angle: 72 * math.Pi / 180}),
+		comp.Const(world.Eye{Angle: 72 * math.Pi / 180, Vertical: 50 * math.Pi / 180}),
 	}
 }
 

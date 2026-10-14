@@ -124,10 +124,11 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	}
 	views := icameras.Config{Cell: cfg.Cell, TileW: cfg.TileW, TileH: cfg.TileH, HeightUnit: cfg.HeightUnit, Headroom: cfg.Headroom,
 		MinPitch: cfg.MinPitch, Perspective: cfg.Perspective, FieldOfView: cfg.FieldOfView,
-		EdgeTurn: TurnStep / cameras.DefaultScrollSpeed,
-		EdgeTilt: TiltStep / cameras.DefaultScrollSpeed,
-		Fine:     p.fineAt,
-		Solid:    p.solidAt}
+		EdgeTurn:   TurnStep / cameras.DefaultScrollSpeed,
+		EdgeTilt:   TiltStep / cameras.DefaultScrollSpeed,
+		CornerTurn: CornerStep / cameras.DefaultScrollSpeed,
+		Fine:       p.fineAt,
+		Solid:      p.solidAt}
 	p.cameras = icameras.NewControl(p.relief, p.topAt, cfg.Perspective)
 	bend := float32(worldPlugin.Scale().Bend())
 	p.views = func(start icameras.Config) cameras.Maker {
