@@ -5,12 +5,14 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/navigation"
+	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -18,7 +20,7 @@ import (
 )
 
 const (
-	scoutPx    = 22
+	scoutPx    = 16
 	scoutSpeed = HexSize * 3
 )
 
@@ -38,11 +40,15 @@ func (s scout) Define(b *board.Plugin) {
 		V0:       scoutSpeed / 2,
 		TurnRate: 0.15,
 	}
-	units(b).Define(s.kind, unit.Mover{Domain: cell.Land}, profile, ordered(), sight(), eye(1.5))
+	units(b).Define(s.kind, unit.Mover{Domain: cell.Land}, profile, ordered(), sight(), eye(1.5),
+		ceremony.Plays(b.World().Roles().Named(MortalRole)))
 }
 
+// each side outlined and routed in its own colour
 func (s scout) Look(a *world.Atlas, w *world.Plugin) {
-	a.Add(kind.Named[unitRow](w.Kinds(), s.kind), scoutPx, render.Hexagon(s.color))
+	a.Add(kind.Named[unitRow](w.Kinds(), s.kind), scoutPx, render.Hexagon(s.color)).
+		Styled(selection.Highlight{Line: s.color, Width: 2}).
+		Styled(navigation.RouteStyle{Line: s.color, Goal: s.color, Width: 1.5})
 }
 
 func units(b *board.Plugin) *board.Units[unitRow] {

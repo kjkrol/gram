@@ -6,13 +6,19 @@ import (
 	"math"
 	"time"
 
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/bridges"
+	"github.com/kjkrol/gram/plugins/bridges/site"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
@@ -47,6 +53,7 @@ type arena struct {
 	world      *world.Plugin
 	board      *board.Plugin
 	topography *topography.Plugin
+	bridges    *bridges.Plugin
 	nav        *navigation.Plugin
 	driving    *driving.Plugin
 	collision  *collision.Plugin
@@ -59,8 +66,10 @@ type arena struct {
 
 func main() {
 	props := game.Props{
-		Title:       "gram navigation vision hex demo",
-		Description: "Sight across a hex board: walls cut, forests dim, a hawk flies over.",
+		Title: "gram navigation vision hex demo",
+		Description: "Units selected and sent by a right click across a hex board, through " +
+			"the wall's gap and over the bridge; sight: walls cut, forests dim, a hawk flies " +
+			"over. R lays a causeway across the river and the units on the way re-plan onto it.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -71,13 +80,14 @@ func main() {
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
 				MinSize:  scoutPx,
-				MaxSize:  scoutPx,
+				MaxSize:  HexSize, // a bridge's deck spans a cell
 			},
 			Heights: true,
 		}).
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).
 		Players(a.definePlayer).
+		Rules(a.defineRules).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
 		Update(a.update)
@@ -90,6 +100,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.collision = collision.NewPlugin(a.world)
 	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).WithCollision(a.collision)
 	a.topography = topography.NewPlugin(a.world, a.board, topography.Config{Cell: HexSize})
+	a.bridges = bridges.NewPlugin(a.world, a.board, bridges.Config{Rules: site.Rules{Longest: 3}})
 	a.selection = selection.NewPlugin(a.world)
 	a.driving = driving.NewPlugin(a.world, a.selection).WithGround(a.board)
 	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
@@ -105,12 +116,21 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		a.driving,
 		a.topography,
 		a.vision,
+		a.bridges,
 	)
 }
 
 func (a *arena) definePlayer() error {
 	a.player = a.players.Local("player")
 	return a.player.Bind(a.players.Defaults()...)
+}
+
+func (a *arena) defineRules() {
+	a.world.Roles().Define(MortalRole, act.Branch[unit.Standing]{
+		Name: "fall in",
+		When: cond.Self.If(unit.Fallen()),
+		Then: act.Self.Do(world.Despawn{}),
+	})
 }
 
 type unitRow struct {
@@ -126,6 +146,7 @@ func (a *arena) defineFigures() {
 		scout{kind: YellowKind, color: yellowColor},
 		hawk{},
 	)
+	a.bridges.Figures(bridge{})
 }
 
 func (a *arena) spawn() error {
@@ -134,6 +155,9 @@ func (a *arena) spawn() error {
 		return err
 	}
 	a.topography.Seed(level.Heights())
+	if err := a.bridges.Spawn(level); err != nil {
+		return err
+	}
 	return board.Spawn[unitRow](level, board.Sides{
 		PlayerSide:  {players.Give{To: a.player.ID}, selection.Allow{Selected: true}},
 		ReserveSide: {players.Give{To: a.player.ID}, selection.Allow{}},
@@ -141,11 +165,21 @@ func (a *arena) spawn() error {
 }
 
 func (a *arena) defineScenes() []game.Scene {
+	a.players.OwnKeys(players.SceneKeys{{
+		Key:   control.KeyR,
+		Label: "Lay a causeway across the river",
+		Do: func(game.Runtime, game.Composition) {
+			brd, road := a.board.Board(), a.board.CellKinds().Named(RoadCell).Kind()
+			brd.Set(brd.At(12, 9), road)
+			log.Print("laid a causeway across the river: units on the way re-plan onto it")
+		},
+	}})
 	main := &mainScene{arena: a}
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(a.players.Handle)}
 }
 
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
+	a.bridges.RunPlan(ctx, d)
 	a.world.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
 	a.board.RunPlan(ctx, d)

@@ -5,13 +5,17 @@ import (
 	"log"
 	"time"
 
+	"github.com/kjkrol/ceremony/act"
+	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
@@ -53,8 +57,10 @@ type arena struct {
 
 func main() {
 	props := game.Props{
-		Title:       "gram navigation vision demo",
-		Description: "Sight across a board: walls cut, forests dim, a hawk flies over.",
+		Title: "gram navigation vision demo",
+		Description: "Units selected and sent by a right click along routes that go round the " +
+			"wall, sight across the board: walls cut, forests dim, a hawk flies over. R opens " +
+			"a road through the wall and the units on the way re-plan onto it.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -72,6 +78,7 @@ func main() {
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).
 		Players(a.definePlayer).
+		Rules(a.defineRules).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
 		Update(a.update)
@@ -107,6 +114,14 @@ func (a *arena) definePlayer() error {
 	return a.player.Bind(a.players.Defaults()...)
 }
 
+func (a *arena) defineRules() {
+	a.world.Roles().Define(MortalRole, act.Branch[unit.Standing]{
+		Name: "fall in",
+		When: cond.Self.If(unit.Fallen()),
+		Then: act.Self.Do(world.Despawn{}),
+	})
+}
+
 type unitRow struct {
 	Start  cell.ID `yaml:"start"`
 	Target cell.ID `yaml:"target"`
@@ -135,6 +150,15 @@ func (a *arena) spawn() error {
 }
 
 func (a *arena) defineScenes() []game.Scene {
+	a.players.OwnKeys(players.SceneKeys{{
+		Key:   control.KeyR,
+		Label: "Open a road through the wall",
+		Do: func(game.Runtime, game.Composition) {
+			brd, road := a.board.Board(), a.board.CellKinds().Named(RoadCell).Kind()
+			brd.Set(brd.At(12, 8), road)
+			log.Print("opened a road through the wall: units on the way re-plan onto it")
+		},
+	}})
 	main := &mainScene{arena: a}
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(a.players.Handle)}
 }

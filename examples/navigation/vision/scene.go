@@ -23,6 +23,7 @@ var (
 	forestColor = color.RGBA{R: 25, G: 60, B: 30, A: 255}
 	roadColor   = color.RGBA{R: 150, G: 130, B: 80, A: 255}
 	hillColor   = color.RGBA{R: 110, G: 100, B: 70, A: 255}
+	holeColor   = color.RGBA{R: 10, G: 10, B: 30, A: 255}
 )
 
 func (m *mainScene) picture() render.Picture {

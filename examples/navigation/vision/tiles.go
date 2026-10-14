@@ -19,7 +19,11 @@ var _ board.Tile = ground{}
 var open = cell.Land | cell.Air
 
 var grounds = []ground{
-	{name: GrassCell, kind: cell.Kind{Cost: 2, Allows: open}.Costing(cell.Air, 1), color: grassColor},
+	{
+		name:  GrassCell,
+		kind:  cell.Kind{Cost: 2, Allows: open}.Costing(cell.Air, 1),
+		color: grassColor,
+	},
 	{
 		name:  WallCell,
 		kind:  cell.Kind{Cost: 1, Solid: true, Allows: cell.Air, Veil: 1, Height: 10},
@@ -32,6 +36,8 @@ var grounds = []ground{
 	},
 	{name: RoadCell, kind: cell.Kind{Cost: 1, Allows: open}, color: roadColor},
 	{name: HillCell, kind: cell.Kind{Cost: 2, Allows: open}.Costing(cell.Air, 1), color: hillColor},
+	// not solid, and only the air takes whoever is over it: a walker falls in
+	{name: HoleCell, kind: cell.Kind{Cost: 1, Allows: cell.Air}, color: holeColor},
 }
 
 func (g ground) Define(b *board.Plugin) { b.CellKinds().Define(g.name, g.kind) }

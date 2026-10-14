@@ -43,30 +43,31 @@ and its pitfalls).
 ```bash
 go build ./... && go vet ./... && gofmt -l . && go test ./...   # standard verification sequence
 go test ./plugins/world/... -run TestName -v                     # a single test
-make demo-collision                                                # examples/motion/collision
-make demo-navigation                                               # examples/navigation/square (select, move, camera)
-make demo-navigation-hex                                           # the same on a hex board
-make demo-navigation-spawn                                         # walkers spawned under the cursor (N) hold their cells; Shift+O shows the cells held
-make demo-guard                                                    # guards on a plan: patrol, step aside, rest, run to the gate while the alarm (A) is on
-make demo-navigation-vision                                        # board + navigation + vision: walls cut sight, forests dim it, a hawk flies over
-make demo-navigation-vision-hex                                    # the same on a hex board
-make demo-effect                                                   # an ice witch: frost and frozen as effects; J hastens the selected
-make demo-bullet                                                   # a soldier on WSAD shoots rounds (Space) and throws grenades (Shift held, the longer the further)
-make demo-board                                                    # Madeira on the simple map: a flat board, bands for the ways, bridges and fords
-make demo-board-topography                                         # Madeira in relief: light, water, roads, bridges, isometric or from above (Tab), the weather
+make demo-start-minimal                                         # the README example
+make demo-start-scenes                                          # a menu Stage and a game Stage
+make demo-start-split-screen                                    # two players at one keyboard, each a block and a camera of its own; a minimap
+make demo-look-animation                                        # a gallery of animations from sheets: walking, braking, bored, pulling, a lever swinging
+make demo-look-material                                         # an entity drawn by a material instead of a sprite; C calms it into a sprite
+make demo-look-ember                                            # procedural animation out of the entity's state; F douses into soot
+make demo-rules-effect                                          # an ice witch: frost and frozen as effects; J hastens the selected
+make demo-rules-mechanisms                                      # a lever, a plate and a switch driving trapdoors and a gate; one hero on WSAD, the lever pulled by touch (Space)
+make demo-rules-dialog                                          # conversations from YAML: the miller and the smith
+make demo-rules-vision                                          # sight, avoidance and a hunter
+make demo-rules-guard                                           # guards on a plan: patrol, step aside, rest, run to the gate while the alarm (A) is on
+make demo-board-atlas                                           # a small flat board from the game's own atlas, the water a material
+make demo-board-flat                                            # Madeira on the simple map: a flat board, bands for the ways, bridges and fords
+make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, isometric or from above (Tab), the weather
 go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS
-make demo-board-atlas                                              # a small flat board from the game's own atlas, the water a material
-make demo-mechanisms                                               # a lever, a plate and a switch driving trapdoors and a gate; one hero on WSAD, the lever pulled by touch (Space)
-make demo-material                                                 # an entity drawn by a material instead of a sprite; C calms it into a sprite
-make demo-animation                                                # a gallery of animations from sheets: walking, braking, bored, pulling, a lever swinging
-make demo-dialog                                                   # conversations from YAML: the miller and the smith
-make demo-ember                                                    # procedural animation out of the entity's state; F douses into soot
-make demo-platformer                                               # a hero in a side view under gravity: A/D walk, W jumps, G turns gravity over
-make demo-scenes                                                  # examples/start/scenes: a menu Stage and a game Stage
-make demo-vision                                                  # examples/rules/vision
-make demo-minimal                                                 # the README example
-make bench                                                        # every benchmark once, with allocations
-make bench-save                                                   # 5 repeats into bench_results/ (ignored by git)
+make demo-navigation-square                                     # units selected and sent by a right click along re-routing paths
+make demo-navigation-hex                                        # the same on a hex board
+make demo-navigation-spawn                                      # walkers spawned under the cursor (N) hold their cells; Shift+O shows the cells held
+make demo-navigation-vision                                     # units sent round holes and a wall R opens; walls cut sight, forests dim it, a hawk flies over
+make demo-navigation-vision-hex                                 # the same on a hex board, over a river by a bridge
+make demo-motion-collision                                      # thousands of bouncing boxes of many kinds, a flash on every hit
+make demo-motion-bullet                                         # a soldier on WSAD shoots rounds (Space) and throws grenades (Shift held, the longer the further)
+make demo-motion-platformer                                     # a hero in a side view under gravity: A/D walk, W jumps, G turns gravity over
+make bench                                                      # every benchmark once, with allocations
+make bench-save                                                 # 5 repeats into bench_results/ (ignored by git)
 ```
 
 Only `render/gpu` and `internal/engine` import gogpu (and wgpu, gputypes); plugins see `render`

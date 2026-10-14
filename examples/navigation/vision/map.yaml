@@ -6,21 +6,24 @@ board:
     "T": forest
     "^": hill
     "=": road
-  # a hill in the first unit's way: its cone climbs the slope and stops, the hawk's passes over
+    "o": hole
+  # a hill in the first unit's way: its cone climbs the slope and stops, the hawk's passes over;
+  # a hole on the first and the second unit's straight lines, so the planner goes round; the wall
+  # is shut until R opens a road through it
   cells: |
     ........................
     ..====================..
     ..=.........#........=..
     ..=....^^^..#........=..
-    ..=....^^^..#........=..
+    ..=...o^^^..#........=..
     ..=....^^^..#........=..
     ..=...TTTT..#........=..
     ..=...TTTT..#........=..
-    ..=...TTTT...........=..
+    ..=...TTTT..#........=..
     ..=.........#........=..
     ..=.........#....TTTT=..
     ..=.........#....TTTT=..
-    ..=.........#....TTTT=..
+    ..=.........#...oTTTT=..
     ..=.........#........=..
     ............#...........
     ............#...........

@@ -6,20 +6,24 @@ board:
     "T": forest
     "^": hill
     "=": road
-  # a hill in the first unit's way: its cone climbs the slope and stops, the hawk's passes over
+    "~": water
+  # a hill in the first unit's way: its cone climbs the slope and stops, the hawk's passes over;
+  # a river beyond the wall's gap, a bridge over it, until R lays a causeway further down
   cells: |
-    . . = = = = = = = = = = = = = = = = . .
-     . . = . . . . . . . # . . . . . . = . .
-      . . = . . . . . ^ ^ # . . . . . . = . .
-       . . = . . . . . ^ ^ # . . . . . . = . .
-        . . = . . T T T ^ ^ # . . . . . . = . .
-         . . = . . T T T . . # . . . . . . = . .
-          . . = . . T T T . . . . . . . . . = . .
-           . . = . . . . . . . # . . . . . . = . .
-            . . = . . . . . . . # . . T T T . = . .
-             . . = . . . . . . . # . . T T T . = . .
-              . . = . . . . . . . # . . T T T . = . .
-               . . = . . . . . . . # . . . . . . = . .
+    . . = = = = = = = = = = ~ = = = = = . .
+     . . = . . . . . . . # . ~ . . . . = . .
+      . . = . . . . . ^ ^ # . ~ . . . . = . .
+       . . = . . . . . ^ ^ # . ~ . . . . = . .
+        . . = . . T T T ^ ^ # . ~ . . . . = . .
+         . . = . . T T T . . # . ~ . . . . = . .
+          . . = . . T T T . . . . ~ . . . . = . .
+           . . = . . . . . . . # . ~ . . . . = . .
+            . . = . . . . . . . # . ~ T T T . = . .
+             . . = . . . . . . . # . ~ T T T . = . .
+              . . = . . . . . . . # . ~ T T T . = . .
+               . . = . . . . . . . # . ~ . . . . = . .
+  entities:
+    - {kind: bridge, from: [11, 6], to: [13, 6]}
 relief:
   cells: |
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0

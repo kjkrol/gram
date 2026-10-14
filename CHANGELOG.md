@@ -95,6 +95,15 @@ Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
   swinging by itself on a plan; `rules/effect` gains haste (J, the selected twice as fast for two
   seconds); `look/appearance`, `rules/trapdoor` and `rules/pressure-plate` are gone, what they
   showed being in the others.
+- navigation's vision demos send their units by a right click too, each side outlined and routed
+  in its own colour, and a unit falling into a hole or the river is gone, a mortal role's rule:
+  the square one has a hole on two units' lines and R opening a road through the shut wall, the
+  hex one a river with a bridge and R laying a causeway, its scouts 16 px to fit between the
+  bridge's railings.
+- The make targets are named after the demos' directories, `demo-<group>-<name>`:
+  `make demo-rules-effect`, `make demo-start-minimal`, `make demo-board-flat` (was
+  `demo-board`), `make demo-navigation-square` (was `demo-navigation`); each runs
+  `examples/<group>/<name>` after `go mod tidy`, and `split-screen` has one now.
 - The entities' boxes (Shift+X) are collision's: `collision.Boxes`, `Plugin.ShowBoxes`,
   `BoxesShown`, drawn by `collision.Plugin.Renderer()`, which every demo with collision has in
   its composer and whose plugin it hands to players, so the key works everywhere (`world.Boxes`

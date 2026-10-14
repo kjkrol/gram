@@ -19,7 +19,11 @@ var _ board.Tile = ground{}
 var open = cell.Land | cell.Air
 
 var grounds = []ground{
-	{name: GrassCell, kind: cell.Kind{Cost: 2, Allows: open}.Costing(cell.Air, 1), color: grassColor},
+	{
+		name:  GrassCell,
+		kind:  cell.Kind{Cost: 2, Allows: open}.Costing(cell.Air, 1),
+		color: grassColor,
+	},
 	{
 		name:  WallCell,
 		kind:  cell.Kind{Cost: 1, Solid: true, Allows: cell.Air, Veil: 1, Height: 10},
@@ -31,6 +35,11 @@ var grounds = []ground{
 		color: forestColor,
 	},
 	{name: RoadCell, kind: cell.Kind{Cost: 1, Allows: open}, color: roadColor},
+	{
+		name:  WaterCell,
+		kind:  cell.Kind{Cost: 1, Allows: cell.Water | cell.Air}.Costing(cell.Air, 1),
+		color: waterColor,
+	},
 	{name: HillCell, kind: cell.Kind{Cost: 2, Allows: open}.Costing(cell.Air, 1), color: hillColor},
 }
 

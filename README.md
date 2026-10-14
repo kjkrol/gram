@@ -92,7 +92,7 @@ cgo. Without a GPU the tests that draw skip themselves.
 The smallest game that does something: one Stage with a torus of bouncing boxes, a collision
 plugin counting their contacts, and one Scene showing them through a camera from above, the
 telemetry panel over it (~ hides it). This is
-[`examples/start/minimal`](examples/start/minimal/main.go); run it with `make demo-minimal`.
+[`examples/start/minimal`](examples/start/minimal/main.go); run it with `make demo-start-minimal`.
 
 ```go
 package main
@@ -271,53 +271,53 @@ demo opens a window; what it shows is tested in the library's package that does 
 
 | Demo | Shows | Run |
 |:---|:---|:---|
-| [`start/minimal`](examples/start/minimal) | One Stage, one Scene, a world with collisions: the README example | `make demo-minimal` |
-| [`start/scenes`](examples/start/scenes) | A menu Stage switching into a gameplay Stage; a modal panel over the ticking world, open or closed as the game was saved | `make demo-scenes` |
-| [`start/split-screen`](examples/start/split-screen) | Two players at one keyboard, each driving its own block through a camera of its own in its half of the screen; a minimap over them | `make demo-split-screen` |
+| [`start/minimal`](examples/start/minimal) | One Stage, one Scene, a world with collisions: the README example | `make demo-start-minimal` |
+| [`start/scenes`](examples/start/scenes) | A menu Stage switching into a gameplay Stage; a modal panel over the ticking world, open or closed as the game was saved | `make demo-start-scenes` |
+| [`start/split-screen`](examples/start/split-screen) | Two players at one keyboard, each driving its own block through a camera of its own in its half of the screen; a minimap over them | `make demo-start-split-screen` |
 
 ### Look: how entities are drawn
 
 | Demo | Shows | Run |
 |:---|:---|:---|
-| [`look/animation`](examples/look/animation) | A gallery of animations drawn frame after frame from sheets in game time (Shift+P freezes them), each figure labelled: a walker on a patrol stepping the way it goes in eight directions and braking, an idler bored by stages (blinking, stamping, looking about), a puller's hands on a lever, a lever swinging down and up | `make demo-animation` |
-| [`look/material`](examples/look/material) | An entity drawn by a material worked out per pixel in place of a sprite; C calms it into a plain sprite for a while | `make demo-material` |
-| [`look/ember`](examples/look/ember) | Procedural animation out of the entity's state: embers breathe standing and stream a tail driven (WSAD); F douses them | `make demo-ember` |
+| [`look/animation`](examples/look/animation) | A gallery of animations drawn frame after frame from sheets in game time (Shift+P freezes them), each figure labelled: a walker on a patrol stepping the way it goes in eight directions and braking, an idler bored by stages (blinking, stamping, looking about), a puller's hands on a lever, a lever swinging down and up | `make demo-look-animation` |
+| [`look/material`](examples/look/material) | An entity drawn by a material worked out per pixel in place of a sprite; C calms it into a plain sprite for a while | `make demo-look-material` |
+| [`look/ember`](examples/look/ember) | Procedural animation out of the entity's state: embers breathe standing and stream a tail driven (WSAD); F douses them | `make demo-look-ember` |
 
 ### Rules: states, rules and commands
 
 | Demo | Shows | Run |
 |:---|:---|:---|
-| [`rules/effect`](examples/rules/effect) | An ice witch turns the ground round her into snow and the lake into ice; it thaws behind her, a walker slips on it, a boat is frozen in, each kind in its own frozen look; F freezes whoever the cursor points at, J hastens the selected for two seconds | `make demo-effect` |
-| [`rules/mechanisms`](examples/rules/mechanisms) | Three commands, each a sentence saying what it does, whom it is for and who sets it off: a hero walked on WSAD; a lever he walks up to, pulled and pushed back at hand (Space), its colour its position; a plate stood on, a gate flipped (G); zoom by the wheel, = and - | `make demo-mechanisms` |
-| [`rules/dialog`](examples/rules/dialog) | Conversations read from YAML: the traveller greeted by the miller and the smith in a window, the answers changing the host's `Regard`, shown under it as Friend, Neutral or Enemy | `make demo-dialog` |
-| [`rules/vision`](examples/rules/vision) | Entities keeping out of each other's way by sight, and a hunter living off the ones that fail | `make demo-vision` |
-| [`rules/guard`](examples/rules/guard) | Guards on a plan (`plan.New`): patrol the yard, step aside for whoever blocks them long enough, rest where they arrive, run to the gate while the alarm (A) is on | `make demo-guard` |
+| [`rules/effect`](examples/rules/effect) | An ice witch turns the ground round her into snow and the lake into ice; it thaws behind her, a walker slips on it, a boat is frozen in, each kind in its own frozen look; F freezes whoever the cursor points at, J hastens the selected for two seconds | `make demo-rules-effect` |
+| [`rules/mechanisms`](examples/rules/mechanisms) | Three commands, each a sentence saying what it does, whom it is for and who sets it off: a hero walked on WSAD; a lever he walks up to, pulled and pushed back at hand (Space), its colour its position; a plate stood on, a gate flipped (G); zoom by the wheel, = and - | `make demo-rules-mechanisms` |
+| [`rules/dialog`](examples/rules/dialog) | Conversations read from YAML: the traveller greeted by the miller and the smith in a window, the answers changing the host's `Regard`, shown under it as Friend, Neutral or Enemy | `make demo-rules-dialog` |
+| [`rules/vision`](examples/rules/vision) | Entities keeping out of each other's way by sight, and a hunter living off the ones that fail | `make demo-rules-vision` |
+| [`rules/guard`](examples/rules/guard) | Guards on a plan (`plan.New`): patrol the yard, step aside for whoever blocks them long enough, rest where they arrive, run to the gate while the alarm (A) is on | `make demo-rules-guard` |
 
 ### Board: boards and maps
 
 | Demo | Shows | Run |
 |:---|:---|:---|
 | [`board/atlas`](examples/board/atlas) | A small flat board drawn from the game's own atlas, the water a material shimmering per pixel, a road laid as a way | `make demo-board-atlas` |
-| [`board/flat`](examples/board/flat) | Madeira on the simple map out of `cmd/gramap`: the island in its colours, rivers and roads as bands, bridges and fords standing on it, a day and the weather going by | `make demo-board` |
+| [`board/flat`](examples/board/flat) | Madeira on the simple map out of `cmd/gramap`: the island in its colours, rivers and roads as bands, bridges and fords standing on it, a day and the weather going by | `make demo-board-flat` |
 | [`board/topography`](examples/board/topography) | Madeira in relief, its true heights, a cell 333 m: lit by the sun, water running, roads laid as Transport Tycoon lays them, bridges on piers (Shift+B builds one), the ground shaped under the cursor; from above, isometrically or in perspective (Tab) | `make demo-board-topography` |
 
 ### Navigation: units sent across a board
 
 | Demo | Shows | Run |
 |:---|:---|:---|
-| [`navigation/square`](examples/navigation/square) | Units selected by click and marquee, right-click move orders along re-routing paths, holes the planner avoids and H opens | `make demo-navigation` |
+| [`navigation/square`](examples/navigation/square) | Units selected by click and marquee, right-click move orders along re-routing paths, holes the planner avoids and H opens | `make demo-navigation-square` |
 | [`navigation/hex`](examples/navigation/hex) | The same on a hex board | `make demo-navigation-hex` |
 | [`navigation/spawn`](examples/navigation/spawn) | Walkers spawned under the cursor (N) hold their cells at once; Shift+O outlines the cells held | `make demo-navigation-spawn` |
-| [`navigation/vision`](examples/navigation/vision) | Sight cones that stop at walls and fade in forests, and a hawk that flies over both | `make demo-navigation-vision` |
-| [`navigation/vision-hex`](examples/navigation/vision-hex) | The same on a hex board | `make demo-navigation-vision-hex` |
+| [`navigation/vision`](examples/navigation/vision) | Units sent by a right click round holes and a wall that R opens, sight cones that stop at walls and fade in forests, and a hawk that flies over both | `make demo-navigation-vision` |
+| [`navigation/vision-hex`](examples/navigation/vision-hex) | The same on a hex board, over a river by a bridge, R laying a causeway | `make demo-navigation-vision-hex` |
 
 ### Motion: collisions, shots and gravity
 
 | Demo | Shows | Run |
 |:---|:---|:---|
-| [`motion/collision`](examples/motion/collision) | Thousands of bouncing boxes of many kinds, hit overlays, telemetry, save and load | `make demo-collision` |
-| [`motion/bullet`](examples/motion/bullet) | A soldier on WSAD, the camera following him: Space fires a round the way he faces, Shift held and let go throws a grenade the further the longer held, in an arc that lies with a spark and bursts; the shots are the plugin's, the wounds and the fuse rules, effects and a plan | `make demo-bullet` |
-| [`motion/platformer`](examples/motion/platformer) | A hero in a side view under gravity: A and D walk, W jumps, G turns gravity over, a hard landing dazes | `make demo-platformer` |
+| [`motion/collision`](examples/motion/collision) | Thousands of bouncing boxes of many kinds, hit overlays, telemetry, save and load | `make demo-motion-collision` |
+| [`motion/bullet`](examples/motion/bullet) | A soldier on WSAD, the camera following him: Space fires a round the way he faces, Shift held and let go throws a grenade the further the longer held, in an arc that lies with a spark and bursts; the shots are the plugin's, the wounds and the fuse rules, effects and a plan | `make demo-motion-bullet` |
+| [`motion/platformer`](examples/motion/platformer) | A hero in a side view under gravity: A and D walk, W jumps, G turns gravity over, a hard landing dazes | `make demo-motion-platformer` |
 
 <a id="model"></a>
 # Model

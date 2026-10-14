@@ -6,119 +6,66 @@ DIRTY       := $(shell git diff --quiet || echo "-dirty")
 RESULT_FILE := bench_results/bench_$(COMMIT_DATE)_$(COMMIT_HASH)$(DIRTY).txt
 BENCH_COUNT ?= 5
 
-.PHONY: all demo-minimal demo-collision demo-animation demo-ember demo-navigation demo-navigation-hex demo-navigation-spawn demo-guard demo-navigation-vision demo-navigation-vision-hex demo-board demo-board-topography demo-board-atlas demo-effect demo-bullet demo-mechanisms demo-split-screen demo-scenes demo-vision demo-dialog demo-platformer deps tidy test bench bench-save clean
+.PHONY: all demo-start-minimal demo-start-scenes demo-start-split-screen demo-look-animation demo-look-ember demo-look-material demo-rules-dialog demo-rules-effect demo-rules-guard demo-rules-mechanisms demo-rules-vision demo-board-atlas demo-board-flat demo-board-topography demo-navigation-hex demo-navigation-spawn demo-navigation-square demo-navigation-vision demo-navigation-vision-hex demo-motion-bullet demo-motion-collision demo-motion-platformer deps tidy test bench bench-save clean
 
-all: demo-collision
+all: demo-motion-collision
 
-## demo: Alias for run — fetches dependencies and launches the collision-demo example
-demo-minimal: run-minimal
+## demo-<group>-<name>: fetches dependencies and runs examples/<group>/<name>
 
-demo-collision: run-collision
-
-demo-navigation: run-navigation
-
-demo-navigation-hex: run-navigation-hex
-
-demo-navigation-spawn: run-navigation-spawn
-
-demo-guard: run-guard
-
-demo-navigation-vision: run-navigation-vision
-
-demo-navigation-vision-hex: run-navigation-vision-hex
-
-demo-board: run-board
-
-demo-board-topography: run-board-topography
-
-demo-board-atlas: run-board-atlas
-
-demo-effect: run-effect
-
-demo-bullet: run-bullet
-
-demo-mechanisms: run-mechanisms
-
-demo-split-screen: run-split-screen
-
-demo-scenes: run-scenes
-
-demo-vision: run-vision
-
-demo-dialog: run-dialog
-
-demo-material: run-material
-
-demo-animation: run-animation
-
-demo-ember: run-ember
-demo-platformer: run-platformer
-
-## run: Fetches dependencies and launches the collision-demo example
-run-minimal: deps
+# start
+demo-start-minimal: deps
 	$(GO) run ./examples/start/minimal
-
-run-collision: deps
-	$(GO) run ./examples/motion/collision
-
-run-navigation: deps
-	$(GO) run ./examples/navigation/square
-
-run-navigation-hex: deps
-	$(GO) run ./examples/navigation/hex
-
-run-navigation-spawn: deps
-	$(GO) run ./examples/navigation/spawn
-
-run-guard: deps
-	$(GO) run ./examples/rules/guard
-
-run-navigation-vision: deps
-	$(GO) run ./examples/navigation/vision
-
-run-navigation-vision-hex: deps
-	$(GO) run ./examples/navigation/vision-hex
-
-run-board: deps
-	$(GO) run ./examples/board/flat
-
-run-board-topography: deps
-	$(GO) run ./examples/board/topography
-
-run-board-atlas: deps
-	$(GO) run ./examples/board/atlas
-
-run-effect: deps
-	$(GO) run ./examples/rules/effect
-
-run-bullet: deps
-	$(GO) run ./examples/motion/bullet
-
-run-mechanisms: deps
-	$(GO) run ./examples/rules/mechanisms
-
-run-split-screen: deps
+demo-start-scenes: deps
+	$(GO) run ./examples/start/scenes
+demo-start-split-screen: deps
 	$(GO) run ./examples/start/split-screen
 
-run-scenes: deps
-	$(GO) run ./examples/start/scenes
-
-run-vision: deps
-	$(GO) run ./examples/rules/vision
-
-run-dialog: deps
-	$(GO) run ./examples/rules/dialog
-
-run-material: deps
+# look
+demo-look-animation: deps
+	$(GO) run ./examples/look/animation
+demo-look-ember: deps
+	$(GO) run ./examples/look/ember
+demo-look-material: deps
 	$(GO) run ./examples/look/material
 
-run-animation: deps
-	$(GO) run ./examples/look/animation
+# rules
+demo-rules-dialog: deps
+	$(GO) run ./examples/rules/dialog
+demo-rules-effect: deps
+	$(GO) run ./examples/rules/effect
+demo-rules-guard: deps
+	$(GO) run ./examples/rules/guard
+demo-rules-mechanisms: deps
+	$(GO) run ./examples/rules/mechanisms
+demo-rules-vision: deps
+	$(GO) run ./examples/rules/vision
 
-run-ember: deps
-	$(GO) run ./examples/look/ember
+# board
+demo-board-atlas: deps
+	$(GO) run ./examples/board/atlas
+demo-board-flat: deps
+	$(GO) run ./examples/board/flat
+demo-board-topography: deps
+	$(GO) run ./examples/board/topography
 
-run-platformer: deps
+# navigation
+demo-navigation-hex: deps
+	$(GO) run ./examples/navigation/hex
+demo-navigation-spawn: deps
+	$(GO) run ./examples/navigation/spawn
+demo-navigation-square: deps
+	$(GO) run ./examples/navigation/square
+demo-navigation-vision: deps
+	$(GO) run ./examples/navigation/vision
+demo-navigation-vision-hex: deps
+	$(GO) run ./examples/navigation/vision-hex
+
+# motion
+demo-motion-bullet: deps
+	$(GO) run ./examples/motion/bullet
+demo-motion-collision: deps
+	$(GO) run ./examples/motion/collision
+demo-motion-platformer: deps
 	$(GO) run ./examples/motion/platformer
 
 deps:

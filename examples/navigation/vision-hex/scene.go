@@ -23,6 +23,9 @@ var (
 	forestColor = color.RGBA{R: 25, G: 60, B: 30, A: 255}
 	roadColor   = color.RGBA{R: 150, G: 130, B: 80, A: 255}
 	hillColor   = color.RGBA{R: 110, G: 100, B: 70, A: 255}
+	waterColor  = color.RGBA{R: 40, G: 90, B: 170, A: 255}
+	deckColor   = color.RGBA{R: 115, G: 85, B: 55, A: 255}
+	railColor   = color.RGBA{R: 70, G: 50, B: 35, A: 255}
 )
 
 func (m *mainScene) picture() render.Picture {
@@ -37,6 +40,7 @@ func (m *mainScene) picture() render.Picture {
 		a.vision.Renderer(),
 		a.selection.Renderer(),
 		a.nav.Renderer(),
+		a.bridges.Renderer(),
 	)
 }
 
