@@ -16,12 +16,26 @@ type ground struct {
 
 var _ board.Tile = ground{}
 
+var open = cell.Land | cell.Air
+
 var grounds = []ground{
-	{name: GrassCell, kind: cell.Kind{Cost: 2, Allows: cell.Land}, color: grassColor},
-	{name: WallCell, kind: cell.Kind{Cost: 1, Solid: true}, color: wallColor},
-	{name: RoadCell, kind: cell.Kind{Cost: 1, Allows: cell.Land}, color: roadColor},
-	// admits nobody and is not solid: whoever stands on it falls
-	{name: HoleCell, kind: cell.Kind{Cost: 1}, color: holeColor},
+	{
+		name:  GrassCell,
+		kind:  cell.Kind{Cost: 2, Allows: open}.Costing(cell.Air, 1),
+		color: grassColor,
+	},
+	{
+		name:  WallCell,
+		kind:  cell.Kind{Cost: 1, Solid: true, Allows: cell.Air, Veil: 1, Height: 10},
+		color: wallColor,
+	},
+	{
+		name:  ForestCell,
+		kind:  cell.Kind{Cost: 3, Allows: open, Veil: 0.6, Height: 8}.Costing(cell.Air, 1),
+		color: forestColor,
+	},
+	{name: RoadCell, kind: cell.Kind{Cost: 1, Allows: open}, color: roadColor},
+	{name: HillCell, kind: cell.Kind{Cost: 2, Allows: open}.Costing(cell.Air, 1), color: hillColor},
 }
 
 func (g ground) Define(b *board.Plugin) { b.CellKinds().Define(g.name, g.kind) }

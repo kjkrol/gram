@@ -8,7 +8,6 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/board"
@@ -17,11 +16,12 @@ import (
 	"github.com/kjkrol/gram/plugins/bridges"
 	"github.com/kjkrol/gram/plugins/bridges/site"
 	"github.com/kjkrol/gram/plugins/cameras"
-	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
+	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/ui"
 )
@@ -30,8 +30,8 @@ const (
 	TPS         = 60
 	GridWidth   = 20
 	GridHeight  = 12
-	HexSize     = 24 // circumradius
-	MaxEntCount = 16
+	HexSize     = 24
+	MaxEntCount = 32
 )
 
 var (
@@ -45,21 +45,25 @@ var (
 var mapFile embed.FS
 
 type arena struct {
-	world     *world.Plugin
-	board     *board.Plugin
-	bridges   *bridges.Plugin
-	nav       *navigation.Plugin
-	driving   *driving.Plugin
-	collision *collision.Plugin
-	selection *selection.Plugin
-	players   *players.Plugin
-	cameras   *cameras.Plugin
-	player    *players.Player
+	world      *world.Plugin
+	board      *board.Plugin
+	topography *topography.Plugin
+	bridges    *bridges.Plugin
+	nav        *navigation.Plugin
+	driving    *driving.Plugin
+	selection  *selection.Plugin
+	players    *players.Plugin
+	cameras    *cameras.Plugin
+	player     *players.Player
+	vision     *vision.Plugin
 }
 
 func main() {
 	props := game.Props{
-		Title:       "gram navigation hex demo",
+		Title: "gram navigation hex demo",
+		Description: "Units selected and sent by a right click across a hex board, through " +
+			"the wall's gap and over the bridge; the wagon, too wide for the bridge, goes round " +
+			"by the ford. Sight: walls cut, forests dim, a hawk flies over.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -69,9 +73,10 @@ func main() {
 			Space: world.SpaceCfg{Width: uint32(ScreenWidth), Height: uint32(ScreenHeight)},
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
-				MinSize:  walkerPx,
-				MaxSize:  2 * HexSize,
+				MinSize:  scoutPx,
+				MaxSize:  HexSize, // a bridge's deck spans a cell
 			},
+			Heights: true,
 		}).
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).
@@ -85,19 +90,25 @@ func main() {
 func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
 	grid := grid.DefaultGrids{}.Hex(GridWidth, GridHeight, HexSize)
-	a.collision = collision.NewPlugin(a.world)
-	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).WithCollision(a.collision)
-	a.bridges = bridges.NewPlugin(a.world, a.board, bridges.Config{
-		Rules: site.Rules{Longest: 3},
-	})
+	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world)
+	a.topography = topography.NewPlugin(a.world, a.board, topography.Config{Cell: HexSize})
+	a.bridges = bridges.NewPlugin(a.world, a.board, bridges.Config{Rules: site.Rules{Longest: 3}})
 	a.selection = selection.NewPlugin(a.world)
 	a.driving = driving.NewPlugin(a.world, a.selection).WithGround(a.board)
-	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
-		WithCollision(a.collision)
+	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving)
+	a.vision = vision.NewPlugin(a.world).WithBoard(a.board).WithLog(log.Default())
 	a.cameras = cameras.NewPlugin(a.world)
-	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection,
-		a.nav, a.driving,
-		a.bridges)
+	a.players = players.NewPlugin(
+		a.world,
+		a.cameras,
+		a.board,
+		a.selection,
+		a.nav,
+		a.driving,
+		a.topography,
+		a.vision,
+		a.bridges,
+	)
 }
 
 func (a *arena) definePlayer() error {
@@ -105,9 +116,20 @@ func (a *arena) definePlayer() error {
 	return a.player.Bind(a.players.Defaults()...)
 }
 
+type unitRow struct {
+	Start  cell.ID `yaml:"start"`
+	Target cell.ID `yaml:"target"`
+}
+
 func (a *arena) defineFigures() {
 	a.board.Tiles(tiles()...)
-	a.board.Figures(walker{kind: RedKind, color: redColor}, walker{kind: BlueKind, color: blueColor})
+	a.board.Figures(
+		scout{kind: RedKind, color: redColor},
+		scout{kind: BlueKind, color: blueColor},
+		scout{kind: YellowKind, color: yellowColor},
+		hawk{},
+		wagon{},
+	)
 	a.bridges.Figures(bridge{})
 }
 
@@ -116,44 +138,30 @@ func (a *arena) spawn() error {
 	if err != nil {
 		return err
 	}
+	a.topography.Seed(level.Heights())
 	if err := a.bridges.Spawn(level); err != nil {
 		return err
 	}
 	return board.Spawn[unitRow](level, board.Sides{
-		PlayerSide: {players.Give{To: a.player.ID}, selection.Allow{Selected: true}},
+		PlayerSide:  {players.Give{To: a.player.ID}, selection.Allow{Selected: true}},
+		ReserveSide: {players.Give{To: a.player.ID}, selection.Allow{}},
 	})
 }
 
 func (a *arena) defineScenes() []game.Scene {
 	main := &mainScene{arena: a}
-	main.keys = players.SceneKeys{
-		{
-			Key:   control.KeyR,
-			Label: "Lay a causeway across the river",
-			Do: func(game.Runtime, game.Composition) {
-				brd, road := a.board.Board(), a.board.CellKinds().Named(RoadCell).Kind()
-				for q := uint32(3); q < GridWidth-3; q++ {
-					brd.Set(brd.At(q, 2), road)
-				}
-				log.Print("laid a causeway across the river — " +
-					"in-flight units re-path onto it as soon as they deviate")
-			},
-		},
-	}
-	a.players.OwnKeys(main.keys)
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).
-		Input(a.players.Handle).
-		Issue(a.players.IssueAs(a.player))}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(a.players.Handle)}
 }
 
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.bridges.RunPlan(ctx, d)
 	a.world.RunPlan(ctx, d)
-	a.collision.RunPlan(ctx, d)
 	a.board.RunPlan(ctx, d)
 	a.nav.RunPlan(ctx, d)
 	a.driving.RunPlan(ctx, d)
+	a.vision.RunPlan(ctx, d)
 	a.selection.RunPlan(ctx, d)
+	a.topography.RunPlan(ctx, d)
 	a.cameras.RunPlan(ctx, d)
 	a.players.RunPlan(ctx, d)
 	ctx.Sync()

@@ -110,6 +110,13 @@ func (b *Board) ThinnestDeck() float64 { return b.cells.Thinnest() }
 // along a link.
 func (b *Board) Reaches(c, n cell.ID) bool { return b.cells.Reaches(c, n) }
 
+// Lane is how wide a body may be across the step from from to its neighbour to in d where a
+// deck's band runs along it, on the decks' level when deck, else the ground's; +Inf where no band
+// narrows the step. The railings keeping d off are taken off the band's width.
+func (b *Board) Lane(from, to cell.ID, d cell.Domain, deck bool) float64 {
+	return b.cells.Lane(from, to, d, deck)
+}
+
 // Fenced reports whether a railing keeping d off stands across the step from from to its
 // neighbour to, on the decks' level when deck, else on the ground's.
 func (b *Board) Fenced(from, to cell.ID, d cell.Domain, deck bool) bool {

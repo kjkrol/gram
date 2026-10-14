@@ -56,7 +56,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
 - **`board`** — optional grid and terrain over `world`; its grids wrap per axis, following the
   world's `Edges`. The root keeps the `Plugin`, the `Board` (`Plugin.Board()`: `At(x, y)`,
   `Kind`, `KindAt`, `KindFor`, `Bare`, `Set`, `SetAll`, `Way`, `SetWay`, `Along`, `DecksOver`,
-  `Reaches`, `Fenced`, `CellFor`, `LevelFor`, `CellVersion`, `Changes`, `Version`, `Touch`,
+  `Reaches`, `Fenced`, `Lane`, `CellFor`, `LevelFor`, `CellVersion`, `Changes`, `Version`, `Touch`,
   `Shape`, `Built`, `States`), the `Layout`, the `Map` contract, `NewUnits`, `NewEntities`, `Lay`
   (`level.go`), `Spawn[R]`, `Each[R]`, `Sides`, `Shape`. Public subpackages: **`board/cell`**
   (`cell.ID`, `cell.Kind`, `cell.Kinds` through `board.Plugin.CellKinds()`, `cell.Domain` —
@@ -139,7 +139,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `board.NewUnits[Row](brd, board.Shape{Size, Width, Height}, at)` defines a game's units:
   `units.Define(name, unit.Mover{…}, steering, extra...)` derives `Position` and `At` from the one
   point `at` reads off a row, `Layers` from the domain, with heights a `Z{Height}`, runs the
-  world's roster and `kind.Define`; `units.Named(name)` is the `kind.Of[Row]`. A unit's `Mover`
+  world's roster and `kind.Define`; `units.Named(name)` is the `kind.Of[Row]`; a Shape bigger
+  than the grid's `CellSpan` (a square's side, a hex's edge) panics: the planner's clearance
+  rests on it. A unit's `Mover`
   says which domains it moves in and, with heights, `Lift`, `Clearance`, `Ceiling`.
   `Figures(f...)` and `Tiles(t...)` note figures standing on the board (`board.Figure`:
   `Define(b)`, `Look(a, w)`) and kinds of cell (`board.Tile`: `Define(b)`, `Look(a, b)`, covers
@@ -314,9 +316,23 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `collision.ContactStats` with its `Reporter`; `WithLog`). `Boxes` (Shift+X) outlines every
   entity's box in red: `Plugin.Renderer()` draws them, so a scene's composer takes it and the
   game hands the plugin to players. Depends on `world`.
-- **`navigation`** — pathfinding and movement toward a `MoveOrder` across a `board`. The route
-  finder is `internal/pathfind` (`Finder`: `Find`, `FindAround`, `NearestFree`), given the unit's
-  `pathfind.Body{Feet, Step, Height}`: with heights its nodes are a cell and a level (a deck's or
+- **`navigation`** — pathfinding and movement toward a `MoveOrder` across a `board`. **A route
+  once planned is followed**: navigation plans again only when it breaks — the ground under its
+  remaining steps turns against the unit (`admitsAll` on a terrain version change), a step is
+  refused (`reserveLeg`), the unit is pushed off it (`actual != p.at()`), it strikes someone
+  (`Bumped`, `stopAndPlan`) — or runs out (the next chunk). A better way opening (a road laid, a
+  wall opened) changes no route; the unit takes it only on an impulse: a new order, a plan's step
+  or a rule's command (rules/guard: the alarm's `MoveTo{To: GateName}`, `StepAside` when
+  `Stuck()`, `Onward` on the round). An unreachable goal waits `targetWaitTimeout` (500 ms), then
+  the order's Target becomes the nearest free reachable cell. The route finder is
+  `internal/pathfind` (`Finder`: `Find`, `FindAround`, `NearestFree`), given the unit's
+  `pathfind.Body{Feet, Step, Height, Size}` (`member.body()`, its box from `Position.Size`; the
+  route preview passes it too). **Clearance**: a unit is no bigger than a cell's side
+  (`board.NewUnits` panics past it), so every step takes it but one along a deck's band: `fits`
+  asks the board's `Lane` (the band less its railings keeping the domain, on the step's level; a
+  band on the ground counts on the ground's) and refuses a body whose box across the step
+  (`Size.X·|s.Y| + Size.Y·|s.X|` over the step's length) is wider — in both searches and in
+  `Steps`; a zero Size fits anything. With heights its nodes are a cell and a level (a deck's or
   what lies under it; a step onto a deck where the ground at the shared edge lies within the step,
   off one only onto a surface within the step, under one only for a unit that fits, `underway`;
   the goal reached on either level, the goal's cell met mid-route a waypoint; a step across a
@@ -325,7 +341,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   step not `Along` a way priced by the destination's `Bare` ground, so roads are followed round
   their bends). A navigated unit carries a `steering.Steering`: navigation asks it for a heading
   at a lookahead point and its top speed, braking before the goal; a waypoint is passed by
-  projection, the goal by radius; a `MoveOrder` queues up to `MaxWaypoints` goals. **A patrol is a
+  projection, the goal by radius; the lookahead is the turning radius (`|Speed|·dt/TurnRate`,
+  ~5–8 px in the demos), so a turn's corner is cut by about that — at a bridge's head, onto the
+  band past its railings' ends, which collision then pushes back (a unit wider than the lane
+  slid along a railing's end over the water and stood there, frozen in); a `MoveOrder` queues up to `MaxWaypoints` goals. **A patrol is a
   plan**: the unit carries its `navigation.Round` of cells (`NewRound`), `navigation.Onward{}`
   sends it to the next, and the kind's plan is `plan.Steps` of `plan.Self.Do(Onward{})` with
   `Until: cond.Self.If(Arrived{})` and `plan.Self.Wait(pause)`. `MoveTo{Cell, To, At, Append,

@@ -27,6 +27,9 @@ type Railing struct {
 	FreeA, FreeB bool
 }
 
+// RailHalf is half how thick a railing along a band is on a grid of cells span wide.
+func RailHalf(span float32) float64 { return float64(span) / 32 }
+
 func banded(b *cell.Built) bool {
 	return b != nil && b.Floor.Allows != 0 && b.Floor.Width > 0 && b.Floor.Links != 0
 }
@@ -331,6 +334,30 @@ func (t *Cells) local(c cell.ID, p geom.Vec) geom.Vec {
 	}
 	m := t.grid.CellCenter(c)
 	return geom.NewVec(p.X-m.X, p.Y-m.Y)
+}
+
+// Lane is how wide a body may be across the step from from to its neighbour to in d where a band
+// runs along it: the narrower of the two less its railings keeping d off, +Inf where no band
+// narrows the step. A raised band counts on the decks' level, deck, one lying on the ground on
+// the ground's.
+func (t *Cells) Lane(from, to cell.ID, d cell.Domain, deck bool) float64 {
+	lane := math.Inf(1)
+	if t.bands == 0 || t.store == nil {
+		return lane
+	}
+	for _, step := range [2][2]cell.ID{{from, to}, {to, from}} {
+		b := t.Built(step[0])
+		if !banded(&b) || b.Floor.Allows&d == 0 || (b.Floor.Height > 0) != deck ||
+			!t.Reaches(step[0], step[1]) {
+			continue
+		}
+		w := b.Floor.Width
+		if b.Rail.Keeps&d != 0 {
+			w -= 2 * RailHalf(t.grid.CellSpan())
+		}
+		lane = min(lane, w)
+	}
+	return lane
 }
 
 // Reaches reports whether c's deck runs out towards its neighbour n: a band along its link to n, a

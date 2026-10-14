@@ -1,8 +1,7 @@
 package main
 
-// A throwaway probe: copy to examples/<group>/<name>/zz_probe.go, fill the script and the
-// report, hook into demo.go (field, newProbe after players, defer RunPlan in update), delete
-// before committing.
+// A throwaway probe: fill the script and the report, keep it in the scratchpad and run it with
+// probe.sh, which hooks it into a copy of the demo; the demo's own files are never touched.
 
 import (
 	"fmt"
@@ -76,7 +75,7 @@ func (p *probe) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ev := &control.InputEvents{}
 	if f := p.script[p.tick]; f != nil {
 		f(ev)
-		log.Printf("probe: t%d script", p.tick)
+		log.Printf("P:t%d %.2fs script", p.tick, p.a.world.Clock().Time().Seconds())
 	}
 	p.a.players.EventHandler().HandleEvents(ev)
 
@@ -113,7 +112,7 @@ func (p *probe) RunPlan(ctx goke.RunCtx, d time.Duration) {
 		}
 	}
 	if line != p.last { // a line only when something changed
-		log.Printf("probe: t%d %s", p.tick, line)
+		log.Printf("P:t%d %.2fs %s", p.tick, p.a.world.Clock().Time().Seconds(), line)
 		p.last = line
 	}
 }

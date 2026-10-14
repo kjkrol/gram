@@ -19,6 +19,7 @@ type Finder struct {
 	slopes    Slopes
 	ways      ways   // nil: no ways run
 	built     built  // nil: nothing stands
+	lanes     lanes  // nil: no band narrows a step
 	levels    Levels // nil: every cell one level
 	solver    *astar.Solver[cell.ID]
 	leveled   *astar.Solver[node]
@@ -56,6 +57,11 @@ type built interface {
 	Fenced(from, to cell.ID, d cell.Domain, deck bool) bool
 }
 
+// lanes says how wide a body may be across a step along a deck's band, +Inf where none narrows it
+type lanes interface {
+	Lane(from, to cell.ID, d cell.Domain, deck bool) float64
+}
+
 // Levels are a board's raised floors, which give a cell two levels: its deck and the ground under
 // it.
 type Levels interface {
@@ -70,9 +76,12 @@ type Levels interface {
 	KindAt(c cell.ID, deck bool) cell.Kind
 }
 
-// Body is whoever a route is planned for, in height: where its feet are, how high it steps up and
-// how tall it is.
-type Body struct{ Feet, Step, Height float64 }
+// Body is whoever a route is planned for: where its feet are, how high it steps up, how tall it is
+// and its box on the ground, across and down. A zero Size fits any lane.
+type Body struct {
+	Feet, Step, Height float64
+	Size               geom.Vec
+}
 
 type node struct {
 	c     cell.ID
@@ -90,6 +99,7 @@ func New(grid grid.Grid, terrain cell.Terrain, slopes Slopes, occupancy cell.Occ
 	p := &Finder{grid: grid, terrain: terrain, occupancy: occupancy, slopes: slopes, least: 1}
 	p.ways, _ = terrain.(ways)
 	p.built, _ = terrain.(built)
+	p.lanes, _ = terrain.(lanes)
 	p.solver = astar.New[cell.ID](func(a, b cell.ID) float64 { return p.least * grid.Distance(a, b) })
 	return p
 }
@@ -137,7 +147,7 @@ func (p *Finder) Find(
 	if p.slopes != nil {
 		p.least = p.slopes.Least(domain)
 	}
-	p.decks = 0
+	p.decks, p.body = 0, body
 	if p.levels == nil {
 		full := p.solver.Solve(from, to, p.transitionsFor(entity, domain))
 		if len(full) < 2 {
@@ -145,7 +155,7 @@ func (p *Finder) Find(
 		}
 		return copy(dst, full[1:]), true
 	}
-	p.goal, p.body, p.end = to, body, end
+	p.goal, p.end = to, end
 	if len(p.levelsOf(to, domain)) == 1 {
 		p.end = Either
 	}
@@ -194,13 +204,14 @@ func (p *Finder) FindAround(
 // whether onto to's raised deck.
 func (p *Finder) Steps(domain cell.Domain, body Body, from, to cell.ID) (onto, ok bool) {
 	if p.levels == nil {
-		return false, !p.fenced(from, to, domain, false) && p.terrain.Kind(to).Admits(domain)
+		return false, !p.fenced(from, to, domain, false) && p.fits(from, to, false, domain, body) &&
+			p.terrain.Kind(to).Admits(domain)
 	}
 	at := node{from, p.levelOf(from, domain, body)}
 	_, _, diagonal := p.grid.DiagonalNeighbors(from, to)
 	for _, level := range p.levelsOf(to, domain) {
 		if p.crosses(at, to, level, domain, diagonal) && p.passes(at, to, level, body) &&
-			p.kindAt(to, level).Admits(domain) {
+			p.fits(from, to, level == deck, domain, body) && p.kindAt(to, level).Admits(domain) {
 			return level == deck, true
 		}
 	}
@@ -222,7 +233,8 @@ func (p *Finder) transitionsFor(entity uid.UID64, domain cell.Domain) astar.Tran
 	return func(from, prev cell.ID, buf []astar.Transition[cell.ID]) []astar.Transition[cell.ID] {
 		buf = buf[:0]
 		for _, n := range p.grid.Neighbors(from) {
-			if n == prev || p.fenced(from, n, domain, false) {
+			if n == prev || p.fenced(from, n, domain, false) ||
+				!p.fits(from, n, false, domain, p.body) {
 				continue
 			}
 			kind := p.terrain.Kind(n)
@@ -265,7 +277,8 @@ func (p *Finder) leveledFor(entity uid.UID64, domain cell.Domain) astar.Transiti
 			for _, level := range p.levelsOf(n, domain) {
 				if !p.occupancy.CanEnter(n, level == deck, entity, domain) ||
 					!p.crosses(from, n, level, domain, diagonal) ||
-					cut && !p.along(from, n, level) || !p.passes(from, n, level, p.body) {
+					cut && !p.along(from, n, level) || !p.passes(from, n, level, p.body) ||
+					!p.fits(from.c, n, level == deck, domain, p.body) {
 					continue
 				}
 				kind := p.kindAt(n, level)
@@ -281,6 +294,25 @@ func (p *Finder) leveledFor(entity uid.UID64, domain cell.Domain) astar.Transiti
 		}
 		return buf
 	}
+}
+
+// a unit is no bigger than a cell's side, so only a deck's band narrower than the body across the
+// step, on the decks' level when deck, keeps it from stepping
+func (p *Finder) fits(from, n cell.ID, deck bool, domain cell.Domain, body Body) bool {
+	if p.lanes == nil || body.Size == (geom.Vec{}) {
+		return true
+	}
+	lane := p.lanes.Lane(from, n, domain, deck)
+	if math.IsInf(lane, 1) {
+		return true
+	}
+	way, ok := grid.Way(p.grid, from, n)
+	if !ok {
+		return true
+	}
+	s := p.grid.Step(way)
+	across := (body.Size.X*math.Abs(s.Y) + body.Size.Y*math.Abs(s.X)) / math.Hypot(s.X, s.Y)
+	return across <= lane
 }
 
 // a deck reaches through a corner only along its link

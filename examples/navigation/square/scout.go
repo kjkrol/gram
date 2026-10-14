@@ -5,7 +5,6 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/board"
@@ -20,8 +19,8 @@ import (
 )
 
 const (
-	scoutPx    = 16
-	scoutSpeed = HexSize * 3
+	scoutPx    = 22
+	scoutSpeed = CellSize * 2
 )
 
 // scout is a walker looking ahead, sent to its target from the map; one kind a colour.
@@ -40,13 +39,12 @@ func (s scout) Define(b *board.Plugin) {
 		V0:       scoutSpeed / 2,
 		TurnRate: 0.15,
 	}
-	units(b).Define(s.kind, unit.Mover{Domain: cell.Land}, profile, ordered(), sight(), eye(1.5),
-		ceremony.Plays(b.World().Roles().Named(MortalRole)))
+	units(b).Define(s.kind, unit.Mover{Domain: cell.Land}, profile, ordered(), sight(), eye(1.5))
 }
 
 // each side outlined and routed in its own colour
 func (s scout) Look(a *world.Atlas, w *world.Plugin) {
-	a.Add(kind.Named[unitRow](w.Kinds(), s.kind), scoutPx, render.Hexagon(s.color)).
+	a.Add(kind.Named[unitRow](w.Kinds(), s.kind), scoutPx, render.Solid(s.color)).
 		Styled(selection.Highlight{Line: s.color, Width: 2}).
 		Styled(navigation.RouteStyle{Line: s.color, Goal: s.color, Width: 1.5})
 }

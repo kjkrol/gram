@@ -274,7 +274,7 @@ func (f *Field) wallsOf(c cell.ID, m geom.Vec, layers world.Layers, band collisi
 			f.heights && r.Height > 0 && !railing.Meets(band) {
 			continue
 		}
-		half := float64(f.grid.CellSpan()) / 32
+		half := terrain.RailHalf(f.grid.CellSpan())
 		nx, ny := b.Y-a.Y, a.X-b.X
 		l := math.Hypot(nx, ny)
 		nx, ny = nx/l*fl.Width/2, ny/l*fl.Width/2

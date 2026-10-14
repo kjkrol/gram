@@ -24,38 +24,38 @@ func newPathFinder(grid grid.Grid, terrain cell.Terrain, slopes pathfind.Slopes,
 }
 
 func (p *pathFinder) findPath(
-	entity uid.UID64, domain cell.Domain, z world.Z, from, to cell.ID, end Level,
+	entity uid.UID64, domain cell.Domain, body pathfind.Body, from, to cell.ID, end Level,
 ) (Path, bool) {
 	path := Path{From: from}
-	n, ok := p.Find(entity, domain, bodyOf(z), from, to, pathfind.Level(end), path.Steps[:])
+	n, ok := p.Find(entity, domain, body, from, to, pathfind.Level(end), path.Steps[:])
 	path.Length, path.Decks = uint16(n), p.Decks()
 	return path, ok
 }
 
 func (p *pathFinder) findPathAround(
-	entity uid.UID64, domain cell.Domain, z world.Z, from, to cell.ID, end Level,
+	entity uid.UID64, domain cell.Domain, body pathfind.Body, from, to cell.ID, end Level,
 	blocked func(cell.ID) bool,
 ) (Path, bool) {
 	path := Path{From: from}
-	n, ok := p.FindAround(entity, domain, bodyOf(z), from, to, pathfind.Level(end), blocked,
+	n, ok := p.FindAround(entity, domain, body, from, to, pathfind.Level(end), blocked,
 		path.Steps[:])
 	path.Length, path.Decks = uint16(n), p.Decks()
 	return path, ok
 }
 
 func (p *pathFinder) nearestFree(
-	entity uid.UID64, domain cell.Domain, z world.Z, from, target cell.ID, end Level,
+	entity uid.UID64, domain cell.Domain, body pathfind.Body, from, target cell.ID, end Level,
 	taken func(c cell.ID, deck bool) bool,
 ) (cell.ID, Path, bool) {
 	path := Path{From: from}
-	dest, n, ok := p.NearestFree(entity, domain, bodyOf(z), from, target, pathfind.Level(end),
+	dest, n, ok := p.NearestFree(entity, domain, body, from, target, pathfind.Level(end),
 		taken, path.Steps[:])
 	path.Length, path.Decks = uint16(n), p.Decks()
 	return dest, path, ok
 }
 
 func (p *pathFinder) on(m member, c cell.ID, level Level) bool {
-	return p.On(m.domain, bodyOf(m.z), c, pathfind.Level(level))
+	return p.On(m.domain, m.body(), c, pathfind.Level(level))
 }
 
 func (p *pathFinder) climb(from, to cell.ID, d cell.Domain) float64 { return p.Climb(from, to, d) }
@@ -76,16 +76,19 @@ func (p *pathFinder) stepsOnto(m member, c cell.ID) (deck, ok bool) {
 	if !slices.Contains(p.grid.Neighbors(m.cell), c) {
 		return false, true
 	}
-	return p.Steps(m.domain, bodyOf(m.z), m.cell, c)
+	return p.Steps(m.domain, m.body(), m.cell, c)
 }
 
 func (p *pathFinder) onDeck(m member, c cell.ID) bool {
-	return p.Level(m.domain, bodyOf(m.z), c) == pathfind.Deck
+	return p.Level(m.domain, m.body(), c) == pathfind.Deck
 }
 
-func bodyOf(z world.Z) pathfind.Body {
-	return pathfind.Body{Feet: z.Altitude, Step: z.Reach(), Height: z.Height}
+// size is the box on the ground, zero fitting any lane
+func bodyOf(z world.Z, size geom.Vec) pathfind.Body {
+	return pathfind.Body{Feet: z.Altitude, Step: z.Reach(), Height: z.Height, Size: size}
 }
+
+func (m member) body() pathfind.Body { return bodyOf(m.z, m.pos.Size) }
 
 type boardLevels struct{ brd *board.Plugin }
 

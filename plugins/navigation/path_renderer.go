@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
 	"github.com/kjkrol/gram/plugins/navigation/internal/routes"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -185,7 +186,8 @@ func (r *pathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 			center := bases[i].Pos.Center()
 			r.drawPath(center, bases[i].Vel.Dir, pathCells(cells[i], *o), r.point(o.Target, o.Spot))
 			from := r.point(o.Target, o.Spot)
-			for k, route := range r.queued(cursor.IDs[i], unit.DomainAt(movers, i), o) {
+			body := bodyOf(world.Z{}, bases[i].Pos.Size)
+			for k, route := range r.queued(cursor.IDs[i], unit.DomainAt(movers, i), body, o) {
 				to := r.point(o.Waypoints[k].Cell, o.Waypoints[k].Spot)
 				r.drawRoute(route, from, to)
 				from = to
@@ -320,7 +322,8 @@ type preview struct {
 }
 
 // planned once per change of the goals; a goal no route reaches is drawn on its own
-func (r *pathRenderer) queued(id uid.UID64, domain cell.Domain, mt *MoveOrder) [][]cell.ID {
+func (r *pathRenderer) queued(id uid.UID64, domain cell.Domain, body pathfind.Body,
+	mt *MoveOrder) [][]cell.ID {
 	if mt.Queued == 0 {
 		delete(r.previews, id)
 		return nil
@@ -339,7 +342,7 @@ func (r *pathRenderer) queued(id uid.UID64, domain cell.Domain, mt *MoveOrder) [
 		from, to := goals[k], goals[k+1]
 		route := []cell.ID{from}
 		if r.finder != nil {
-			if path, ok := r.finder.findPath(id, domain, world.Z{}, from, to, levels[k+1]); ok {
+			if path, ok := r.finder.findPath(id, domain, body, from, to, levels[k+1]); ok {
 				for _, step := range path.Steps[:path.Length] {
 					route = append(route, step)
 				}

@@ -34,10 +34,16 @@ func (s Shape) Box(c geom.Vec) plane.AABB {
 }
 
 // NewUnits binds a game's rows to the board: shape is the units' body, at reads a unit's centre
-// from its row. A Height in a flat world panics.
+// from its row. A unit is no bigger than a cell's side, so it takes any step a deck does not
+// narrow; a bigger shape panics, as does a Height in a flat world.
 func NewUnits[P any](brd *Plugin, shape Shape, at func(row P) geom.Vec) *Units[P] {
 	if !brd.worldPlugin.HasHeights() && shape.Height != 0 {
 		panic("board: units with a Height in a flat world; set world.Config.Heights")
+	}
+	if box, side := shape.Box(geom.Vec{}), float64(brd.Board().CellSpan()); max(box.Size.X,
+		box.Size.Y) > side {
+		panic(fmt.Sprintf("board: units %v across and %v down, bigger than a cell's side, %v",
+			box.Size.X, box.Size.Y, side))
 	}
 	return &Units[P]{brd: brd, shape: shape, at: at}
 }

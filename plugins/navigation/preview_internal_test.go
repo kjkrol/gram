@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
 	"github.com/kjkrol/uid"
 )
 
@@ -18,7 +19,7 @@ func TestPathRenderer_PreviewsTheRouteToEachQueuedGoal(t *testing.T) {
 	mt := MoveOrder{Target: at(2)}
 	mt.Enqueue(Goal{Cell: at(5)})
 	mt.Enqueue(Goal{Cell: at(7)})
-	routes := r.queued(uid.UID64(1), cell.Land, &mt)
+	routes := r.queued(uid.UID64(1), cell.Land, pathfind.Body{}, &mt)
 
 	if len(routes) != 2 {
 		t.Fatalf("got %d routes, want one per queued goal (2)", len(routes))
@@ -35,16 +36,16 @@ func TestPathRenderer_PreviewsTheRouteToEachQueuedGoal(t *testing.T) {
 		}
 	}
 
-	again := r.queued(uid.UID64(1), cell.Land, &mt)
+	again := r.queued(uid.UID64(1), cell.Land, pathfind.Body{}, &mt)
 	if &again[0][0] != &routes[0][0] {
 		t.Error("unchanged goals were planned again instead of reusing the kept routes")
 	}
 	mt.Enqueue(Goal{Cell: at(9)})
-	if fresh := r.queued(uid.UID64(1), cell.Land, &mt); len(fresh) != 3 {
+	if fresh := r.queued(uid.UID64(1), cell.Land, pathfind.Body{}, &mt); len(fresh) != 3 {
 		t.Errorf("after another goal got %d routes, want 3", len(fresh))
 	}
 	mt = MoveOrder{Target: at(2)}
-	if left := r.queued(uid.UID64(1), cell.Land, &mt); left != nil {
+	if left := r.queued(uid.UID64(1), cell.Land, pathfind.Body{}, &mt); left != nil {
 		t.Errorf("an order with nothing queued previews %v, want nothing", left)
 	}
 }

@@ -1,17 +1,19 @@
 package main
 
 const (
-	GrassCell = "grass"
-	WallCell  = "wall"
-	RoadCell  = "road"
-	HoleCell  = "hole"
+	GrassCell  = "grass"
+	WallCell   = "wall"
+	ForestCell = "forest"
+	RoadCell   = "road"
+	HillCell   = "hill"
 
-	MortalRole = "mortal"
+	RedKind    = "red"
+	BlueKind   = "blue"
+	YellowKind = "yellow"
+	HawkKind   = "hawk"
 
-	RedKind  = "red"
-	BlueKind = "blue"
-
-	PlayerSide = "player"
+	PlayerSide  = "player"
+	ReserveSide = "reserve"
 
 	BoardNavigationStage = "board-navigation-demo"
 	MainScene            = "main"

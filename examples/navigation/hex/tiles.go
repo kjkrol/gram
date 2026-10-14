@@ -16,10 +16,36 @@ type ground struct {
 
 var _ board.Tile = ground{}
 
+var open = cell.Land | cell.Air
+
 var grounds = []ground{
-	{name: GrassCell, kind: cell.Kind{Cost: 2, Allows: cell.Land}, color: grassColor},
-	{name: WaterCell, kind: cell.Kind{Cost: 1, Allows: cell.Water}, color: waterColor},
-	{name: RoadCell, kind: cell.Kind{Cost: 1, Allows: cell.Land}, color: roadColor},
+	{
+		name:  GrassCell,
+		kind:  cell.Kind{Cost: 2, Allows: open}.Costing(cell.Air, 1),
+		color: grassColor,
+	},
+	{
+		name:  WallCell,
+		kind:  cell.Kind{Cost: 1, Solid: true, Allows: cell.Air, Veil: 1, Height: 10},
+		color: wallColor,
+	},
+	{
+		name:  ForestCell,
+		kind:  cell.Kind{Cost: 3, Allows: open, Veil: 0.6, Height: 8}.Costing(cell.Air, 1),
+		color: forestColor,
+	},
+	{name: RoadCell, kind: cell.Kind{Cost: 1, Allows: open}, color: roadColor},
+	{
+		name:  WaterCell,
+		kind:  cell.Kind{Cost: 1, Allows: cell.Water | cell.Air}.Costing(cell.Air, 1),
+		color: waterColor,
+	},
+	{name: HillCell, kind: cell.Kind{Cost: 2, Allows: open}.Costing(cell.Air, 1), color: hillColor},
+	{
+		name:  FordCell,
+		kind:  cell.Kind{Cost: 3, Allows: open | cell.Water}.Costing(cell.Air, 1),
+		color: fordColor,
+	},
 }
 
 func (g ground) Define(b *board.Plugin) { b.CellKinds().Define(g.name, g.kind) }

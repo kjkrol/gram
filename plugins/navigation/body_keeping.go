@@ -108,7 +108,7 @@ func (k *bodyKeeping) orders(members []member, cmd MoveTo, issue func(member, Mo
 		}
 		path, ok := Path{}, m.from == p.cell && k.finder.on(m, p.cell, p.level)
 		if !ok {
-			path, ok = k.finder.findPath(m.id, m.domain, m.z, m.from, p.cell, p.level)
+			path, ok = k.finder.findPath(m.id, m.domain, m.body(), m.from, p.cell, p.level)
 		}
 		if ok {
 			issue(m, MoveOrder{Target: p.cell, Level: p.level, Spot: p.spot, At: at, Path: path,
@@ -122,7 +122,7 @@ func (k *bodyKeeping) on(m member, c cell.ID, level Level) bool {
 }
 
 func (k *bodyKeeping) reaches(m member, c cell.ID) bool {
-	_, ok := k.finder.findPath(m.id, m.domain, m.z, m.from, c, EitherLevel)
+	_, ok := k.finder.findPath(m.id, m.domain, m.body(), m.from, c, EitherLevel)
 	return ok
 }
 
@@ -170,12 +170,12 @@ func (k *bodyKeeping) route(m member, from cell.ID, o *MoveOrder) (Path, bool) {
 	if o.Avoids > 0 {
 		known := o.Avoid[:o.Avoids]
 		blocked := func(c cell.ID) bool { return c != o.Target && slices.Contains(known, c) }
-		if p, ok := k.finder.findPathAround(m.id, m.domain, m.z, from, o.Target, o.Level,
+		if p, ok := k.finder.findPathAround(m.id, m.domain, m.body(), from, o.Target, o.Level,
 			blocked); ok {
 			return p, true
 		}
 	}
-	return k.finder.findPath(m.id, m.domain, m.z, from, o.Target, o.Level)
+	return k.finder.findPath(m.id, m.domain, m.body(), from, o.Target, o.Level)
 }
 
 func (k *bodyKeeping) lost(m member, from cell.ID, o *MoveOrder, waited time.Duration) (cell.ID, Path, bool, bool) {
@@ -187,7 +187,7 @@ func (k *bodyKeeping) lost(m member, from cell.ID, o *MoveOrder, waited time.Dur
 			o.Level = EitherLevel
 			return c, Path{}, false, true
 		}
-		if p, ok := k.finder.findPath(m.id, m.domain, m.z, from, c, EitherLevel); ok {
+		if p, ok := k.finder.findPath(m.id, m.domain, m.body(), from, c, EitherLevel); ok {
 			o.Spot, o.Level = geom.Vec{}, EitherLevel
 			return c, p, false, true
 		}

@@ -129,10 +129,10 @@ func (k *cellKeeping) orders(members []member, cmd MoveTo, issue func(member, Mo
 		var path Path
 		ok := false
 		if n == 0 {
-			path, ok = pf.findPath(m.id, m.domain, m.z, m.from, target, cmd.Level)
+			path, ok = pf.findPath(m.id, m.domain, m.body(), m.from, target, cmd.Level)
 		}
 		if !ok {
-			dest, path, ok = pf.nearestFree(m.id, m.domain, m.z, m.from, target, cmd.Level,
+			dest, path, ok = pf.nearestFree(m.id, m.domain, m.body(), m.from, target, cmd.Level,
 				func(c cell.ID, _ bool) bool { return taken[c] })
 		}
 		if !ok {
@@ -157,12 +157,12 @@ func (k *cellKeeping) route(m member, from cell.ID, o *MoveOrder) (Path, bool) {
 	if o.Avoids > 0 {
 		known := o.Avoid[:o.Avoids]
 		blocked := func(c cell.ID) bool { return c != o.Target && slices.Contains(known, c) }
-		if p, ok := k.finder.findPathAround(m.id, m.domain, m.z, from, o.Target, o.Level,
+		if p, ok := k.finder.findPathAround(m.id, m.domain, m.body(), from, o.Target, o.Level,
 			blocked); ok {
 			return p, true
 		}
 	}
-	return k.finder.findPath(m.id, m.domain, m.z, from, o.Target, o.Level)
+	return k.finder.findPath(m.id, m.domain, m.body(), from, o.Target, o.Level)
 }
 
 func (k *cellKeeping) held(m member) func(c cell.ID, deck bool) bool {
@@ -173,7 +173,8 @@ func (k *cellKeeping) lost(m member, from cell.ID, o *MoveOrder, waited time.Dur
 	if waited < targetWaitTimeout {
 		return 0, Path{}, true, false
 	}
-	dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.z, from, o.Target, o.Level, k.held(m))
+	dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.body(), from, o.Target, o.Level,
+		k.held(m))
 	return dest, path, false, ok
 }
 
@@ -221,7 +222,7 @@ func (k *cellKeeping) bump(m member, o *MoveOrder) bumpAnswer {
 		return giveUp
 	}
 	if o.Toward == o.Target {
-		dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.z, m.from, o.Target, o.Level,
+		dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.body(), m.from, o.Target, o.Level,
 			k.held(m))
 		if !ok {
 			return giveUp
@@ -332,7 +333,7 @@ func (k *cellKeeping) pass(member, *MoveOrder, body) {}
 func (k *cellKeeping) onGoal(self, other body) bool { return other.cell == self.goal }
 
 func (k *cellKeeping) settle(m member, o *MoveOrder, _ body) bool {
-	dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.z, m.from, o.Target, o.Level,
+	dest, path, ok := k.finder.nearestFree(m.id, m.domain, m.body(), m.from, o.Target, o.Level,
 		k.held(m))
 	if !ok {
 		return false

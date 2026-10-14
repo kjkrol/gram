@@ -37,7 +37,8 @@
 // are the cells with them. A Floor with a Height is a deck, and the cell has two levels
 // ([Board.KindAt], [Board.KindFor], [Board.CellFor], [Board.LevelFor]); one with a Width and
 // Links is a band ([Board.DecksOver], [Board.Reaches]), its railings never stepped across
-// ([Board.Fenced]).
+// ([Board.Fenced]); a step along it takes a body no wider than its [Board.Lane]. A unit is no
+// bigger than a cell's side ([NewUnits] panics past it), so any other step takes it.
 //
 // # Bridges
 //
