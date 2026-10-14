@@ -30,10 +30,15 @@
 // # Now
 //
 // [Now] is the cell at a step as a rule gets it, run for every cell playing a role that obeys
-// one; it is host.Placed, so Here acts on the cell and Around on the rings round it.
+// one; it is host.Placed, so Around(0) acts on the cell and Around(n) on the rings round it.
 //
 // # Occupancy
 //
 // An [Occupancy] tracks who holds each cell, on which level and in which domains:
 // [SingleOccupancy] lets one entity per domain in on each level, [MultipleOccupancy] any number.
+//
+// # Vocabulary
+//
+// Moments, for a role's rules: [Now] (every cell a step; host.Placed). Knobs, for an effect's
+// Alter: [Ground], [Floor], [Wall], [Rail].
 package cell

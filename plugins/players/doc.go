@@ -57,6 +57,13 @@
 // game; every Stage that uses the players has it in its stack ([Plugin.Scenes]), and Esc or K
 // closes it. Keys that are no command to a plugin are the game's own: [SceneKeys], given to
 // [Plugin.OwnKeys], run by Handle and listed under "Game" with what the Stage binds in its
-// Controls section. [GameBindings] are K, F5 game.Save, F9 game.Load and Shift+Esc game.Quit, the
-// same in every game. [Written] is a trigger as the list writes it.
+// Controls section. [GameBindings] are K, ~ (the telemetry panel, telemetry.Panel,
+// carried here: it needs the scene's Composition), F5 game.Save, F9 game.Load and Shift+Esc
+// game.Quit, the same in every game. [Written] is a trigger as the list writes it.
+//
+// # Vocabulary
+//
+// Commands: [Give] (an entity's own: whose it is), [ShowShortcuts] (a player's, K); the
+// telemetry panel's telemetry.Panel (~) is carried here too. The owners' family is
+// players/owner's.
 package players

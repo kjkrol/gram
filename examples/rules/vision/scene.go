@@ -5,7 +5,6 @@ import (
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
@@ -13,7 +12,6 @@ import (
 
 type mainScene struct {
 	arena *arena
-	tps   *game.TPS
 }
 
 var (
@@ -40,13 +38,9 @@ func (m *mainScene) picture() render.Picture {
 
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
-	count := func() int { return s.world.Res.Telemetry.Count }
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
 		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
 			Input(s.players.Through(s.player)),
-		ui.Layer(
-			render.NewTelemetryRenderer(&m.tps.Ticks, count).With(s.hits.Reporter(&m.tps.Ticks)),
-		),
 	)
 }

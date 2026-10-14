@@ -114,8 +114,8 @@ Decisions the user has made; they are not up for revisiting in passing.
   (`var _ command.Command = MoveTo{}` beside the type). Whatever takes commands takes a
   `command.Command`, never `any`.
 - **The default keys are the same in every game and no demo repeats one**: Shift+P the tactical
-  pause, Shift+Esc quits, K lists the keys, F5 saves, F9 loads, F11 full screen, ] and [ the
-  tempo, Shift+X the boxes, Shift+O the holds, Shift+R the routes, Shift+C the cones, Shift+W the
+  pause, Shift+Esc quits, K lists the keys, ~ the telemetry panel, F5 saves, F9
+  loads, F11 full screen, ] and [ the tempo, Shift+X the boxes, Shift+O the holds, Shift+R the routes, Shift+C the cones, Shift+W the
   weather, P freezes the light, Space jumps in first person, = and - zoom, Shift+= and Shift+-
   shape the relief. A plugin's keys a game sets up (`driving.Compass`, `selection.FollowKey`,
   the cameras' zoom keys) are bound in the Players section with the defaults; the game's own go to
@@ -165,7 +165,9 @@ registers, the clock), `board` (grid and terrain, cells as entities, what stands
 bridges, maps as files; `cmd/gramap` makes maps of the Earth), `topography` (a map in relief
 and its cameras), `atmosphere` (the time of day, the climate, the weather), `collision`,
 `navigation`, `selection`, `dialog`, `players` (with `players/owner`), `cameras`, `driving`,
-`gravity`, `vision`, `bridges`, `bullet`. Each package has a `doc.go` describing what it brings.
+`gravity`, `vision`, `bridges`, `bullet`, `telemetry` (the panel in the corner, a scene of its
+own in every Stage with a world). Each package has a `doc.go` describing what it brings, ending
+with its `# Vocabulary`.
 
 ## Testing conventions
 

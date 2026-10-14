@@ -142,7 +142,7 @@ func (p *Plugin) Precipitation() render.Layer { return precipitation.New(p.Sun, 
 // world with heights has its terrain shadow itself.
 func (p *Plugin) Clouds() render.Layer { return overcast.New(p.Sun, p.Air) }
 
-// Reporter is the atmosphere's lines for a render.TelemetryRenderer.
+// Reporter is the atmosphere's lines for the telemetry panel.
 func (p *Plugin) Reporter() render.Reporter {
 	return reporters{p.calendar.Reporter(), p.sky.Reporter(), p.climate.Reporter()}
 }

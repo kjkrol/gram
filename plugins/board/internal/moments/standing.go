@@ -63,6 +63,7 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	if hosted {
 		tick = s.r.tick.Of(d)
 		tick.Around = s.r.around
+		tick.Ahead = s.r.ahead
 	}
 	for s.query.All(); s.query.Next(); {
 		cursor := s.query.Cursor()
@@ -139,7 +140,8 @@ func (s *standingSystem) standing(i int) unit.Standing {
 		level = s.r.level(c)
 	}
 	return unit.Standing{ID: s.ids[i], Cell: c, Kind: cells.KindFor(c, at, feet, reach, s.r.level),
-		States: cells.States(c), Box: s.bases[i].Pos.AABB.AABB, Domain: unit.DomainAt(s.movers, i),
+		States: cells.States(c), Box: s.bases[i].Pos.AABB.AABB, Heading: s.bases[i].Vel.Dir,
+		Domain:   unit.DomainAt(s.movers, i),
 		Airborne: s.states != nil && s.states[i].Has(unit.Airborne), Feet: feet, Level: level,
 		Reach: reach}
 }

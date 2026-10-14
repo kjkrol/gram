@@ -42,6 +42,11 @@ type Rail struct {
 	Height float64
 }
 
+// Knob: an effect may turn it (effect.Knob).
+func (Rail) Knob() {}
+
+var _ effect.Knob = Rail{}
+
 // Built is what the entities standing on a cell build over it, gathered on the cell's entity.
 type Built struct {
 	Floor Floor

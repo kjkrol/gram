@@ -15,12 +15,12 @@ import (
 )
 
 // SceneKey is a key of the game's own, a debug toggle, that is no command to a plugin: what it
-// does, labelled for the shortcuts list. Shift asks for Shift held.
+// does, labelled for the shortcuts list. Shift and Ctrl ask for those held, exactly.
 type SceneKey struct {
-	Key   control.Key
-	Shift bool
-	Label string
-	Do    func(runtime game.Runtime, composition game.Composition)
+	Key         control.Key
+	Shift, Ctrl bool
+	Label       string
+	Do          func(runtime game.Runtime, composition game.Composition)
 }
 
 // SceneKeys are a scene's keys: Handle runs the ones this tick's presses hit, and the shortcuts
@@ -34,7 +34,8 @@ func (ks SceneKeys) Handle(events *control.InputEvents, runtime game.Runtime, co
 			continue
 		}
 		for _, sk := range ks {
-			if sk.Key == k.Key && sk.Shift == events.Modifiers.Shift && sk.Do != nil {
+			if sk.Key == k.Key && sk.Shift == events.Modifiers.Shift &&
+				sk.Ctrl == events.Modifiers.Ctrl && sk.Do != nil {
 				sk.Do(runtime, composition)
 			}
 		}
@@ -254,6 +255,8 @@ func keyName(k control.Key) string {
 		return "="
 	case control.KeyMinus:
 		return "-"
+	case control.KeyBackquote:
+		return "~"
 	case control.KeyEscape:
 		return "Esc"
 	case control.KeyArrowUp:

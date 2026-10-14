@@ -25,6 +25,8 @@ type Element struct {
 	stroke   float64
 	filled   bool
 	bordered bool
+	steady   bool
+	kept     struct{ w, h float64 }
 	style    style
 	theme    *Theme
 	mask     Mask
@@ -110,6 +112,13 @@ func (e *Element) Border(c color.RGBA, width float64) *Element {
 	return e
 }
 
+// Steady keeps the element from shrinking: it needs the widest and the tallest it has needed so
+// far, so a box round words that change does not flicker.
+func (e *Element) Steady() *Element {
+	e.steady = true
+	return e
+}
+
 // Masked cuts the element to m: its background, its picture and what hits it.
 func (e *Element) Masked(m Mask) *Element {
 	e.mask = m
@@ -173,6 +182,10 @@ func (e *Element) needs() (w, h float64) {
 		if h == 0 {
 			h = ch + 2*e.padding
 		}
+	}
+	if e.steady {
+		e.kept.w, e.kept.h = max(e.kept.w, w), max(e.kept.h, h)
+		w, h = e.kept.w, e.kept.h
 	}
 	return w + 2*e.margin, h + 2*e.margin
 }

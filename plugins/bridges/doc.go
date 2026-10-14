@@ -26,4 +26,8 @@
 // it may not stand ([Plugin.Reason] says why), green where it may. [Plugin.Window] asks "Build
 // the bridge?": [Build] has it built at the next step of the simulation, its heads levelled on
 // the ground [Plugin.WithShaper] gives, [Cancel] builds nothing.
+//
+// # Vocabulary
+//
+// Commands, a player's with the bridge tool in hand: [Aim], [Mark], [Build], [Cancel].
 package bridges

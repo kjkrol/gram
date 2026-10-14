@@ -7,8 +7,8 @@
 // A Scene's layers are [Layer]s. A [Renderer] draws on the screen once a frame, in screen pixels;
 // a [Picture] is what is in the world before a camera, drawn through the camera it is handed, so
 // one picture serves a player's view, the halves of a split screen and a minimap alike.
-// [SolidBackground], [CachedRenderer] and [TelemetryRenderer] (with the lines of any [Reporter]
-// it is built With) are ready-made renderers.
+// [SolidBackground] and [CachedRenderer] are ready-made renderers; a [Reporter] adds lines to
+// the telemetry panel (plugins/telemetry).
 //
 // # Feed and Surface
 //

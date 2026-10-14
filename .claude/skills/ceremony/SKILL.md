@@ -54,6 +54,32 @@ gram's.
   (`Left(e)`), `Plans`, `Columns`, `Spawner`. The effect system casts through its own `CmdBuf`
   (`ECS.CmdBuf`) and stages facts with `Reserve`.
 
+## How a subject kind runs (Around, and adding one like it)
+
+- ceremony knows no geometry: `Around(n)` is a subject kind (`cond/cond.go` `who{kind, rings}`,
+  `act/subject.go`), lowered to `steps.OfTarget` with `Lowering.Rings`/`Places` (`cond.go`
+  `whose`), and the host's callback does the walking: `host.Tick.Around(moment any, rings,
+  each)` copied into `steps.Pass` by `act/rule.go` `fire`; the callback gets a **pointer** to
+  the moment (`&f.current`), so it switches on `*P`.
+- The exec `steps.around` (`internal/steps/instant.go`) wraps the **smallest part of the rule
+  holding every place clause** (`act/step.go` `build.place`: each leaf, group and Branch asks;
+  `placed{rings, count, mixed}`), runs it once a place with `c.id` the place, succeeds when any
+  place does; `refuses(payload)` at build (`NewInstant`) when the moment is not `Placed`.
+- "One ring of places a rule": `cond.go` `whose` fails on two rings, `act/branch.go` `build`
+  on `placed.mixed`; a plan refuses places (`act/lasting.go` `loop.node`, `branch.go` `topNode`).
+- A role under a place is `GuardPlaying(bit, OfTarget)` read through `Tick.Roles` (the host's;
+  gram: `world.effectCmds.RolesOf`); a word under a place is refused (words are of Self/Other).
+- Adding a kind beside it (as `Ahead(n)`): `host/moments.go` (a marker interface), `host/tick.go`
+  (a callback), `steps.Pass` + the exec + `refuses`, `cond.go` (`whoKind`, constructor,
+  `String`, `whose`), `act/subject.go` (kind, constructor, `places`), `act/step.go`
+  (`placed`, `build`, the wrap), `act/branch.go`/`lasting.go` (the plan refusal), `act/rule.go`
+  (the Pass copy), then `doc/ceremony.md` grammar lines, README, `CLAUDE.md`, `cond/doc.go`,
+  `act/doc.go`. Tests: `act/clause_test.go` (`spot` fixture with a hand-written `Tick.Around`),
+  `act/steps_test.go`, `cond/cond_test.go`, `plan/loop_test.go`.
+
+What each gram plugin perceives and carries out is the `# Vocabulary` section at the end of its
+`doc.go` (moments with words and subjects, facts for plans, knobs, commands).
+
 ## Pitfalls met
 
 - A state meant to end a rule's firing must be taken off in the rule's own `Then` (or the rule

@@ -29,4 +29,9 @@
 // by physics alone. A plugin that keeps units apart hands the driving its [Keeping]
 // ([Plugin.WithKeeping], as navigation does): whether a unit may walk on into the cell ahead, and
 // whether something else steers it, which the driving leaves be with no hand on it.
+//
+// # Vocabulary
+//
+// Commands, a player's through its camera or an entity's own: [Ahead], [Back], [Turn], [Strafe],
+// [Toward], [Jump]. It writes the knob steering.Driven and the marker [Driving].
 package driving

@@ -42,4 +42,9 @@
 // [Plugin.Window] is one ui element for every speaker, pinned Under TalkingEf: its title the
 // speaker, what is said, a button for each answer offered. [Plugin.SpeakerText],
 // [Plugin.LineText] and [Plugin.ChoiceText] lay out a window of a game's own.
+//
+// # Vocabulary
+//
+// Commands: [Begin], [Feel] (an entity's own, aimed at the moment's subject, host.Aimed); [Choose]
+// (a player's, from the window's button, ui.About). Effects: [TalkingEf], [TalkedEf].
 package dialog

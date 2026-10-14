@@ -18,6 +18,7 @@ type Standing struct {
 	Kind     cell.Kind
 	States   tag.Tags[effect.States] // the effects on the cell now: frozen over, snowed under
 	Box      geom.AABB
+	Heading  geom.Vec // the way the unit faces (Vel.Dir), standing or not; zero facing nowhere
 	Domain   cell.Domain
 	Airborne bool    // in the air over the cell, not on it
 	Feet     float64 // where its feet stand; -Inf in a world without heights
@@ -30,6 +31,9 @@ func (s Standing) Who() uid.UID64 { return s.ID }
 
 // Placed: a rule's Around turns to the rings of cells round those under the entity's box.
 func (Standing) Placed() {}
+
+// Headed: a rule's Ahead turns to the cells in front of the unit, the way it faces.
+func (Standing) Headed() {}
 
 // Fallen is the word of a unit that has fallen in where its domain may not be: a hole, water
 // on foot — with its feet down at the cell's ground, never in the air over it nor on a deck
@@ -55,4 +59,5 @@ func StandingOn(e effect.Effect) cond.Word[Standing] {
 var (
 	_ host.About  = Standing{}
 	_ host.Placed = Standing{}
+	_ host.Headed = Standing{}
 )

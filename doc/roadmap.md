@@ -5,10 +5,6 @@
 What is left to do. Take an item out when it lands.
 
 ## Engine
-- **A vocabulary in every plugin's doc** — its moments, its commands, its knobs, its facts, in
-  one place a plugin (the knobs on a plugin's own entity among them: `sky.Moon`, `gravity.Pull`),
-  saying which of its components are meant for plans (`Blocked`, `Arrived`, `Flight`) and which
-  are not.
 - **A dictionary of idioms** — `Once` (a thing done at most once a while, an effect the memory),
   `Either` (a coin), the patrol (`Onward`, `Until[Arrived]`, `Wait`), the asker's "no answer"
   (`Until` under a `Timeout` in a `OneOf`): named shapes written out of the bricks, in

@@ -44,7 +44,7 @@ func (t Touch) Subject() (uid.UID64, bool) { return t.Other, true }
 // PushedByAlly is the word of a touch where Self stands and an ally on the move, not of its own
 // group nor giving
 // way, comes at it.
-func PushedByAlly() cond.Word[Touch] { return cond.NewWord("pushedByAlly", Touch.pushedByAlly) }
+func PushedByAlly() cond.Word[Touch] { return cond.NewWord("pushed by ally", Touch.pushedByAlly) }
 
 func (t Touch) pushedByAlly() bool {
 	return !t.Moving && t.OtherMoving && !t.OtherGivingWay && t.Ally && !t.Groupmate
@@ -54,7 +54,7 @@ func (t Touch) pushedByAlly() bool {
 // touches one of
 // that order standing.
 func ReachedTheGroup() cond.Word[Touch] {
-	return cond.NewWord("reachedTheGroup", Touch.reachedTheGroup)
+	return cond.NewWord("reached the group", Touch.reachedTheGroup)
 }
 
 func (t Touch) reachedTheGroup() bool {
@@ -64,13 +64,13 @@ func (t Touch) reachedTheGroup() bool {
 // InTheWay is the word of a touch where Self is on the move and Other is in its way, not one of its
 // order that
 // has arrived.
-func InTheWay() cond.Word[Touch] { return cond.NewWord("inTheWay", Touch.inTheWay) }
+func InTheWay() cond.Word[Touch] { return cond.NewWord("in the way", Touch.inTheWay) }
 
 func (t Touch) inTheWay() bool { return t.Moving && !t.reachedTheGroup() }
 
 // ClearsTheWay is the word of a touch where an idle ally in Self's way with room to make way for
 // it.
-func ClearsTheWay() cond.Word[Touch] { return cond.NewWord("clearsTheWay", Touch.clearsTheWay) }
+func ClearsTheWay() cond.Word[Touch] { return cond.NewWord("clears the way", Touch.clearsTheWay) }
 
 func (t Touch) clearsTheWay() bool {
 	return t.inTheWay() && !t.OtherMoving && t.Ally && !t.Groupmate && t.Room
@@ -82,7 +82,7 @@ func Blocks() cond.Word[Touch] { return cond.NewWord("blocks", Touch.blocks) }
 func (t Touch) blocks() bool { return t.inTheWay() && !t.clearsTheWay() }
 
 // GoalTaken is the word of a touch where one standing on Self's goal who does not make way for it.
-func GoalTaken() cond.Word[Touch] { return cond.NewWord("goalTaken", Touch.goalTaken) }
+func GoalTaken() cond.Word[Touch] { return cond.NewWord("goal taken", Touch.goalTaken) }
 
 func (t Touch) goalTaken() bool {
 	return t.Moving && t.OnMyGoal && !t.OtherMoving && !t.clearsTheWay() && !t.reachedTheGroup()
@@ -90,7 +90,7 @@ func (t Touch) goalTaken() bool {
 
 // StrangerOnMyGoal is the word of a touch where a stranger standing on Self's goal.
 func StrangerOnMyGoal() cond.Word[Touch] {
-	return cond.NewWord("strangerOnMyGoal", Touch.strangerOnMyGoal)
+	return cond.NewWord("stranger on my goal", Touch.strangerOnMyGoal)
 }
 
 func (t Touch) strangerOnMyGoal() bool { return !t.Ally && !t.OtherMoving && t.OnMyGoal }
@@ -98,17 +98,17 @@ func (t Touch) strangerOnMyGoal() bool { return !t.Ally && !t.OtherMoving && t.O
 // WaitsFirst is the word of a touch where Self is the one of two coming at each other that waits,
 // the lower id,
 // till its Hold runs out.
-func WaitsFirst() cond.Word[Touch] { return cond.NewWord("waitsFirst", Touch.waitsFirst) }
+func WaitsFirst() cond.Word[Touch] { return cond.NewWord("waits first", Touch.waitsFirst) }
 
 func (t Touch) waitsFirst() bool { return t.HeadOn && t.Self < t.Other && !t.WaitedOut }
 
 // NoWayRound is the word of a touch where Self's Detour found no way round the one in its way.
-func NoWayRound() cond.Word[Touch] { return cond.NewWord("noWayRound", Touch.noWayRound) }
+func NoWayRound() cond.Word[Touch] { return cond.NewWord("no way round", Touch.noWayRound) }
 
 func (t Touch) noWayRound() bool { return t.Moving && t.Cornered }
 
 // WaitedLong is the word of a touch where Self's Hold ran out with the way still closed.
-func WaitedLong() cond.Word[Touch] { return cond.NewWord("waitedLong", Touch.waitedLong) }
+func WaitedLong() cond.Word[Touch] { return cond.NewWord("waited long", Touch.waitedLong) }
 
 func (t Touch) waitedLong() bool { return t.WaitedOut }
 

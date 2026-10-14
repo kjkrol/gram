@@ -25,4 +25,8 @@
 // about the atmosphere's own entity: they fire while the atmosphere plays their role.
 //
 // [Climate.Reporter] adds the weather to a scene's telemetry.
+//
+// # Vocabulary
+//
+// Moments, for a role's rules: [Weathering] (the atmosphere's own entity, once a step).
 package climate

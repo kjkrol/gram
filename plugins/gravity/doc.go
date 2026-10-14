@@ -23,4 +23,10 @@
 // up to its Body's height, an Away throws it off across and up, away from the subject of the
 // moment it is given on. A [Landing] is told the rules the plugin hosts once as a body lands,
 // with how fast it fell ([HarderThan]). Run the plugin's RunPlan right after collision's.
+//
+// # Vocabulary
+//
+// Moments, for a role's rules: [Landing] (once as a body lands; its word [HarderThan]). Knobs, for
+// an effect's Alter: [Pull] (on the plugin's own entity). Commands, an entity's own: [Leap], [Away]
+// (aimed at the moment's subject, host.Aimed).
 package gravity

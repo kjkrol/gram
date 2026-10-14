@@ -219,3 +219,19 @@ func TestBare_LeavesABridgeOutAndATrapdoorIn(t *testing.T) {
 		t.Error("a shut trapdoor is no ground to cut across")
 	}
 }
+
+func TestRail_AnEffectTakesTheRailingsDown(t *testing.T) {
+	// a band west to east with railings along it
+	opens := effect.Spec{effect.Alter(func(r *cell.Rail) { r.Keeps = 0 })}
+	s := newStrip(t, grass, opens,
+		comp.Const(cell.Floor{Allows: cell.Land, Links: 1<<2 | 1<<3, Width: 4}),
+		comp.Const(cell.Rail{Keeps: cell.Land}))
+	brd := s.Board.Board()
+	if b := brd.Built(s.middle); b.Rail.Keeps != cell.Land {
+		t.Fatalf("built: %+v, want a Rail keeping Land", b)
+	}
+	s.cast(t)
+	if b := brd.Built(s.middle); b.Rail.Keeps != 0 {
+		t.Errorf("built under the effect: %+v, want the railings gone", b)
+	}
+}

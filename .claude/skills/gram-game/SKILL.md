@@ -93,21 +93,55 @@ entity; a Text saying nothing leaves the element out), `Button(label, cmds...)` 
 `ui.Show`/`Hide`/`Toggle{Name}`, or any command through `Issue`; no callbacks into the game),
 `Blank`, `Layer(renderer)`; any element takes `Fill`, `Border`, `Padding`, `Named`, `Hidden`,
 `Modal`, `Masked(ui.Circle | ui.Polygon(...))`, `Fraction(w, h)` (an axis 0 following the
-proportions of the world a feed shows whole). `ui.Theme{Font, Bold, Large, Text, Shadow, Panel,
-Border, Title, Button}` is how elements look where they say nothing of their own. A feed filling the
-screen is drawn straight onto it. Input: a click goes to the topmost element hit — a button gives
-its commands, an `Image(feed).Input(players.Through(pl))` lets it through to the bindings, any other
-element keeps it. **Elements from the game are pinned to entities**, written as `Under` on the
-atlas: `ui.Label("frozen").Under(effects.Named(FrozenEf))` is shown once for every entity the effect
-is on, `.On(ceremony.Named/Group(...))` for those called so, `Where(ui.Tagged(t))` for those
-carrying a tag; `Above`/`Below`/`Beside`/`Offset` say how it stands by its entity in every picture
-that has it in sight (`ui.Owner`: a player's picture shows its own entities and nobody's);
+proportions of the world a feed shows whole), `Steady` (never shrinks: a box round words that
+change). `ui.Theme{Font, Bold, Large, Text, Shadow, Panel, Border, Title, Button}` is how elements
+look where they say nothing of their own. A feed filling the screen is drawn straight onto it.
+Input: a click goes to the topmost element hit — a button gives its commands, an
+`Image(feed).Input(players.Through(pl))` lets it through to the bindings, any other element keeps
+it. **Elements from the game are pinned to entities**, written as `Under` on the atlas:
+`ui.Label("frozen").Under(effects.Named(FrozenEf))` is shown once for every entity the effect is on,
+`.On(ceremony.Named/Group(...))` for those called so, `Where(ui.Tagged(t))` for those carrying a
+tag; `Above`/`Below`/`Beside`/`Offset` say how it stands by its entity in every picture that has it
+in sight (`ui.Owner`: a player's picture shows its own entities and nobody's);
 `OffScreen(ui.PointAtIt | ui.ShowIt | ui.GoToIt)` what it does out of sight (`ui.Looker`:
 `cameras.LookAt`). A pinned element's button gives every `ceremony.Command` for `ui.It` for the
 entity it is shown for (`ceremony.ID(id)`); a plugin's own command that is a `ui.About`
 (`dialog.Choose`) gets the entity the same way. Every demo shows its world through a ui scene: the
 feed through a camera made beside it, a backdrop `Blank`, the telemetry and the clock's HUD as
 `ui.Layer`s.
+
+## A plugin's own scene, input and keys (facts found in the code)
+
+- A plugin's scene (`game.Scenic`, `Scenes()`) is gathered by `PluginScenes()` into the stack
+  of a Stage built with `stage.New`, **hidden**; `.Shows(names...)` shows it from the start; the
+  Composition's order is saved, so a loaded game shows what was shown. The model is
+  `players.Shortcuts`: a `game.Scene` wrapping a `ui.Scene`, because `ui.Scene.Focusable()` is
+  always true and a focusable scene on top takes all input. Only the active scene's
+  `HandleEvents` (`players.Handle`) gets the `Composition` (`Show`/`Hide`/`Active`), so a key
+  that shows another scene is carried there (K: `p.listings.Drain` in `Handle`), and works while
+  the engine is paused (input runs before the pause check) but not while another scene is
+  active. A plugin's queue drained in `RunPlan` (board's B, vision's Shift+C) does nothing
+  under the engine's pause.
+- K lists "General" = bindings whose handler is players or nil (`shortcuts.go` `groups`);
+  `handlerOf` searches only the handlers given to `players.NewPlugin`: a CommandHandler merely
+  `Use`d is still carried (`initializer.go`), but listed under "General" and left out of
+  `Defaults()`. `control.Mods` has `Ctrl` and `Alt` (unused so far; `withMods` writes
+  "Ctrl+"); `SceneKey` compares Shift alone.
+- Every scene's `Layers()`, hidden ones included, is built and `Init`ed once on entering the
+  Stage (`stage_runtime.go`); `ui.Scene.Replace` does not re-init layers. A `ui.LabelOf(Text)`
+  reads its words several times a frame (`needs`, `absent`, `draw`): cache per frame.
+  `ui.Layer(renderer)` ignores its box and draws on the whole screen; `render.DebugPrint` starts
+  at the corner, which is why the old telemetry sat top-left.
+- Telemetry numbers: `render.ActualFPS/ActualTPS` (set by the engine once a second with one
+  rate for both), `render.Spent()` (where a frame's time went, set beside them),
+  `game.TPS.Ticks` (`ctx.TPS()`, stale under pause), `world.Res.Telemetry.Count` (spawned
+  entities), `view.View.In.Len()` per camera when culled. `render.Reporter` needs
+  `Init(*goke.SysInit)` (climate's builds a query), given through a layer's `Init`: the
+  telemetry panel's scene returns such a layer. A demo's screen has no telemetry layer: the
+  panel is the plugin's scene, shown with `.Shows(MainScene, telemetry.SceneName)`; reporters
+  are added in `makePlugins` or the Scenes section (`s.telemetry.With(...)`).
+- The one place to attach a plugin to every Stage with a world is the `World(cfg).Plugins(f)`
+  link (`game/stage/sections.go`): it runs `f(w)` and uses `w.Made().All()`.
 
 ## Game / persistence
 

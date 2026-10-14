@@ -38,4 +38,9 @@
 // composer. The plugin is a plugin.CommandHandler for the views', the shaping's and the shadows'
 // commands ([Plugin.Queues], [Plugin.DefaultBindings]); call [Plugin.RunPlan] after the world
 // has moved and before the players' RunPlan.
+//
+// # Vocabulary
+//
+// Commands, a player's through its camera: [View], [LookFrom], [LookAt], [Look], [Ride], [Turn],
+// [Tilt] (the views); [Raise], [Lower], [Level] (the shaping); [CoarseShadows] (a look).
 package topography

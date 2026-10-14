@@ -30,6 +30,7 @@ import (
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
+	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
@@ -62,6 +63,7 @@ type arena struct {
 	collision  *collision.Plugin
 	selection  *selection.Plugin
 	players    *players.Plugin
+	telemetry  *telemetry.Plugin
 	cameras    *cameras.Plugin
 	player     *players.Player
 	vision     *vision.Plugin
@@ -91,6 +93,7 @@ func main() {
 		Kinds(a.defineCells, a.defineKinds).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
+		Shows(MainScene, telemetry.SceneName).
 		Update(a.update)
 	gram.Run(game.New(props, mainStage))
 }
@@ -118,6 +121,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 		},
 	).WithWeathering(s.board, s.defineClimate())
 	s.cameras = cameras.NewPlugin(s.world)
+	s.telemetry = telemetry.NewPlugin(s.world).With(s.atmosphere.Reporter())
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving,
 		s.atmosphere, s.vision, s.bridges)
 }
@@ -221,7 +225,7 @@ func (s *arena) spawn() error {
 }
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	main := &mainScene{arena: s, tps: ctx.TPS()}
+	main := &mainScene{arena: s}
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).
 		Input(s.players.Handle).
 		Issue(s.players.IssueAs(s.player))}

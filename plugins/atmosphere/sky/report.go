@@ -7,7 +7,7 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Reporter is the sky's line for a render.TelemetryRenderer.
+// Reporter is the sky's line for the telemetry panel.
 func (s *Sky) Reporter() render.Reporter { return reporter{s} }
 
 type reporter struct{ s *Sky }

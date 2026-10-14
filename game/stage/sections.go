@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
+	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -49,6 +50,9 @@ type AfterWorld struct{ AfterPlugins }
 func (s AfterWorld) Plugins(plugins func(w *world.Plugin)) AfterPlugins {
 	s.d.add(section.Plugins, func(ctx game.Initializer) error {
 		plugins(s.d.world)
+		if telemetry.Of(s.d.world) == nil {
+			telemetry.NewPlugin(s.d.world)
+		}
 		return s.d.use(ctx, s.d.world.Made().All())
 	})
 	return s.AfterPlugins

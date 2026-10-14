@@ -82,6 +82,7 @@ cgo. Without a GPU the tests that draw skip themselves.
 | **Topography** | `plugins/topography` | A map in relief on the GPU: heights shaped and priced, the sun's light and shadows, water glinting and running, from above, isometrically or in perspective |
 | **Atmosphere** | `plugins/atmosphere` | The calendar, the sky of the hour with the real stars, the climate and the weather, what falls and what it does to the board |
 | **Selection, players, cameras** | `plugins/selection`, `plugins/players`, `plugins/cameras` | Click and marquee into `Selected`; players over the command handlers, their bindings and a list of keys (K); cameras made where a scene shows them, fastened over a unit, behind it or inside it |
+| **Telemetry** | `plugins/telemetry` | The panel in the corner saying how the game runs — the frame rate, the ticks, where a frame's time goes, the entities, the game time, the plugins' and the game's own lines — in every Stage with a world, shown and hidden with ~ |
 | **Persistence** | `game.Persistence` | Save, load and list the active Stage's ECS and every tracked value by name |
 | **Rendering** | `render`, `camera` | Everything drawn on the GPU (WebGPU, WGSL): sources composed by tier with a shared depth buffer, `Direct` sources with shaders of their own, a picture kept on the GPU (`Still`), an atlas baked at `Close` |
 
@@ -89,8 +90,8 @@ cgo. Without a GPU the tests that draw skip themselves.
 # Example
 
 The smallest game that does something: one Stage with a torus of bouncing boxes, a collision
-plugin counting their contacts, and one Scene showing them through a camera from above, with a
-telemetry line over it. This is
+plugin counting their contacts, and one Scene showing them through a camera from above, the
+telemetry panel over it (~ hides it). This is
 [`examples/start/minimal`](examples/start/minimal/main.go); run it with `make demo-minimal`.
 
 ```go
@@ -113,6 +114,7 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
+	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
@@ -140,6 +142,7 @@ type arena struct {
 	collision *collision.Plugin
 	cameras   *cameras.Plugin
 	players   *players.Plugin
+	telemetry *telemetry.Plugin
 	player    *players.Player
 	stats     collision.ContactStats
 }
@@ -166,6 +169,7 @@ func main() {
 		Kinds(a.defineKinds).
 		Spawn(a.spawnUnits).
 		Scenes(a.defineScenes).
+		Shows(ViewScene, telemetry.SceneName).
 		Update(a.update)
 	gram.Run(game.New(props, mainStage))
 }
@@ -174,6 +178,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
 	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
 	a.cameras = cameras.NewPlugin(a.world)
+	a.telemetry = telemetry.NewPlugin(a.world)
 	a.players = players.NewPlugin(a.world, a.cameras)
 }
 
@@ -205,7 +210,8 @@ func (a *arena) spawnUnits() {
 }
 
 func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	m := &mainScene{arena: a, tps: ctx.TPS()}
+	m := &mainScene{arena: a}
+	a.telemetry.With(a.stats.Reporter(&ctx.TPS().Ticks))
 	return []game.Scene{ui.NewScene(ViewScene, m.screen()).Input(a.players.Handle)}
 }
 
@@ -219,7 +225,6 @@ func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 
 type mainScene struct {
 	arena *arena
-	tps   *game.TPS
 }
 
 var (
@@ -229,14 +234,10 @@ var (
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	count := func() int { return a.world.Res.Telemetry.Count }
 	view := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
 		ui.Image(view).Input(a.players.Through(a.player)),
-		ui.Layer(
-			render.NewTelemetryRenderer(&m.tps.Ticks, count).With(a.stats.Reporter(&m.tps.Ticks)),
-		),
 	)
 }
 
@@ -584,6 +585,7 @@ has a `doc.go` describing what it brings. What is left to do is in
 | [`plugins/dialog`](plugins/dialog/doc.go) | Conversations as data: `Node`s from YAML, a unit's `Script`, the game's `Changes` and `Conditions`, `Window` |
 | [`plugins/cameras`](plugins/cameras/doc.go) | The cameras a game looks through: `New`, `Pan`, `Zoom`, `Follow`, `LookAt`, `Keys` |
 | [`plugins/players`](plugins/players/doc.go) | Players over the command handlers: bindings into commands, `Through` and `IssueAs` for a ui scene, the list of keys; `players/owner` whose a unit is |
+| [`plugins/telemetry`](plugins/telemetry/doc.go) | The telemetry panel: standard lines, the plugins' reporters and the game's own lines, a scene of its own in every Stage with a world, ~ |
 | [`internal/engine`](internal/engine/doc.go) | The `Engine`: the window's loop, one active Stage, saves and loads |
 | [`gram`](doc.go) | `Run`; the package you import. The root `doc.go` carries the concepts and the full package graph |
 

@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/players"
+	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/ui"
 )
@@ -50,6 +51,7 @@ type arena struct {
 	world          *world.Plugin
 	collision      *collision.Plugin
 	players        *players.Plugin
+	telemetry      *telemetry.Plugin
 	cameras        *cameras.Plugin
 	player         *players.Player
 	collisionStats collision.ContactStats
@@ -82,6 +84,7 @@ func main() {
 		Kinds(a.defineKinds).
 		Spawn(a.spawnUnits).
 		Scenes(a.defineScenes).
+		Shows(MainScene, telemetry.SceneName).
 		Update(a.update)
 	gram.Run(game.New(props, mainStage))
 }
@@ -90,6 +93,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.world = w
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.collisionStats)
 	s.cameras = cameras.NewPlugin(s.world)
+	s.telemetry = telemetry.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras)
 }
 
@@ -140,7 +144,8 @@ func (s *arena) spawnUnits() {
 }
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	m := &mainScene{arena: s, tps: ctx.TPS()}
+	m := &mainScene{arena: s}
+	s.telemetry.With(s.collisionStats.Reporter(&ctx.TPS().Ticks))
 	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
 }
 

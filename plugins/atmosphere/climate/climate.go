@@ -91,5 +91,5 @@ func (c *Climate) LoadComps() []goke.CompToken { return []goke.CompToken{goke.Lo
 // Rules takes the rules of Weathering.
 func (c *Climate) Rules() host.Host { return &c.rules }
 
-// Reporter is the weather's line for a render.TelemetryRenderer.
+// Reporter is the weather's line for the telemetry panel.
 func (c *Climate) Reporter() render.Reporter { return &c.report }

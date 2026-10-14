@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -296,5 +297,49 @@ func TestShortcuts_TheListingLaysTheDescriptionOverTheTitleAndTheColumnsApart(t 
 	}
 	if a.TopLeft.Y < title.BottomRight.Y || b.TopLeft.Y < title.BottomRight.Y {
 		t.Errorf("a column %v or %v begins above the title's bottom %v", a, b, title.BottomRight.Y)
+	}
+}
+
+type composed struct {
+	game.Composition
+	names []string
+}
+
+func (c *composed) Show(name string) { c.names = append(c.names, name) }
+func (c *composed) Hide(name string) {
+	c.names = slices.DeleteFunc(c.names, func(n string) bool { return n == name })
+}
+func (c *composed) Order() []string { return c.names }
+
+func TestHandle_TheTildeTogglesTheTelemetryPanelUnderGeneral(t *testing.T) {
+	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
+	tp := telemetry.NewPlugin(w)
+	p := NewPlugin(w, cameras.NewPlugin(w))
+	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
+		t.Fatal(err)
+	}
+	var general []string
+	for _, g := range p.shortcuts.groups() {
+		if g.name == "General" {
+			general = g.lines
+		}
+	}
+	if lines := strings.Join(general, "\n"); !strings.Contains(lines, "~") ||
+		!strings.Contains(lines, "telemetry panel") {
+		t.Errorf("the general lines %q, want ~ for the telemetry panel", lines)
+	}
+	rt, comp := &engineStub{}, &composed{}
+	press := func() {
+		events := &control.InputEvents{}
+		events.AddKeyEvent(control.KeyBackquote, control.ActionPress)
+		p.Handle(events, rt, comp)
+	}
+	press()
+	if !tp.Shown(comp) {
+		t.Fatalf("~ showed %v, want the telemetry panel", comp.names)
+	}
+	press()
+	if tp.Shown(comp) {
+		t.Errorf("~ again left %v shown, want the panel hidden", comp.names)
 	}
 }

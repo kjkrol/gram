@@ -25,4 +25,9 @@
 // the clock's [Moment] fires once every step of the simulation; its words [At] and [Every]
 // (cond.Self.If(clock.Every(period, offset))) hold in the step reaching a time. [Clock.Reporter] is
 // a telemetry line, [Clock.HUD] a screen layer showing the game time.
+//
+// # Vocabulary
+//
+// Moments, for a role's rules: [Moment] (the clock's own entity, once a step; its words [At],
+// [Every]). Commands: none of its own; the world's Pause, Faster and Slower drive it.
 package clock

@@ -63,4 +63,9 @@
 // entities, seen from Self; a rule of a [Struck] one per entity that struck something the tick
 // before. [Plugin.WithStats] counts the contacts into a [ContactStats], [Plugin.WithLog] writes a
 // line for each.
+//
+// # Vocabulary
+//
+// Moments, for a role's rules: [Meeting] (a pair, host.Met; its word [Facing]), [Struck] (one that
+// struck something the tick before). Knobs, for an effect's Alter: [Physics]. Commands: none.
 package collision

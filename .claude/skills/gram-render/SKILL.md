@@ -52,7 +52,7 @@ views of sight, the routes, the clouds' shadows. A `render.Still` is a frame com
 world units and kept on the GPU (`gpu.Kept`), drawn every frame scaled, moved and lit
 (`gpu.Draw.Place`/`Tint`): the board's flat map. `render.Frame.Time` is the clock's `Shown`
 (`render.Clocked`), so animations move every frame. A plugin adds telemetry lines through a
-`render.Reporter` (`render.NewTelemetryRenderer(...).With(p.Reporter())`).
+`render.Reporter` (`telemetry.NewPlugin(w).With(p.Reporter())`, the telemetry panel).
 
 How things lie on the screen is a plugin's `Look`, swappable: `world.Look` (an entity's sprite,
 where it is picked, its footprint) and `look.Look` (a cell as a `look.Tile`), both flat from above

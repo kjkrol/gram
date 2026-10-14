@@ -2,6 +2,7 @@ package moments
 
 import (
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/uid"
 )
@@ -28,6 +29,25 @@ func (r *Rules) around(moment any, rings int, each func(uid.UID64)) {
 		}
 		r.cells.Standing(c, each)
 	})
+}
+
+// the cells one to n steps ahead of the unit, the grid's direction nearest its heading, stopping
+// at a closed edge; a cell faces nowhere, so a cell.Now has none
+func (r *Rules) ahead(moment any, n int, each func(uid.UID64)) {
+	m, ok := moment.(*unit.Standing)
+	if !ok || (m.Heading.X == 0 && m.Heading.Y == 0) {
+		return
+	}
+	way, c := grid.Nearest(r.grid, m.Heading), m.Cell
+	for range n {
+		if c, ok = r.grid.Toward(c, way); !ok {
+			return
+		}
+		if id, ok := r.cells.Entity(c); ok {
+			each(id)
+		}
+		r.cells.Standing(c, each)
+	}
 }
 
 // not reentrant: each must not ask for cells around again

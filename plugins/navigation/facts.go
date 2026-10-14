@@ -26,7 +26,10 @@ type Blocked struct {
 // Fact: told to the unit, carried until it goes (fact.Fact).
 func (Blocked) Fact() {}
 
-var _ fact.Fact = Blocked{}
+var (
+	_ fact.Fact    = Blocked{}
+	_ fact.Subject = Blocked{}
+)
 
 // Subject is whom the unit is blocked by.
 func (b Blocked) Subject() (uid.UID64, bool) { return b.By, true }

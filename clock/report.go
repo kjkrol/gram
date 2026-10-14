@@ -8,7 +8,7 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Reporter is the clock's line for a render.TelemetryRenderer: the game time as minutes and
+// Reporter is the clock's line for the telemetry panel: the game time as minutes and
 // seconds, and whether it stands or goes at another tempo.
 func (c *Clock) Reporter() render.Reporter { return reporter{c} }
 

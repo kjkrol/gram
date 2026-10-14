@@ -24,4 +24,9 @@
 // the cursor, the middle drag panning, the cursor at an edge scrolling. [DefaultKeys] are W, S,
 // A, D with all three, and [Plugin.DefaultBindings] are those; a game wanting other keys, or
 // several players at one keyboard, binds its own Keys.
+//
+// # Vocabulary
+//
+// Commands: [Pan], [Zoom], [LookAt] (a player's through its camera); [Follow] (a player's, or an
+// entity's own fastening the camera over itself).
 package cameras

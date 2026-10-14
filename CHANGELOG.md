@@ -15,6 +15,27 @@ where it begins: `navigation.Path` changed shape. Nor those made before the beha
 Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
 
 **One hero on WSAD, a lever and a plate that always answer, the figure in the look demos** (2026-10-14)
+- `cond.Ahead(n)`/`act.Ahead(n)` (ceremony v0.2.1): the places on the cells one to n steps in
+  front of a unit, the way it faces, beside `Around(n)`; `unit.Standing` carries its `Heading`
+  and is `host.Headed`, the board filling `Tick.Ahead` (the grid's direction nearest the
+  heading, stopping at the edge; a cell faces nowhere, so a `cell.Now` refuses it).
+- `plugins/telemetry`: the panel in the top-left corner saying how the game runs — FPS, TPS,
+  where a frame's time goes (`render.Spent`, set by the engine), the entities, the game time,
+  the plugins' `render.Reporter`s (`With`) and the game's own lines (`Line`; `Clear` drops
+  them all) — a scene of its own (`telemetry.SceneName`) in every Stage with a world, made by
+  the Stage where the game made none (`telemetry.Of`), hidden until ~ (among the
+  players' `GameBindings`, listed under "General"; `telemetry.Panel`, carried by the players)
+  or `.Shows(MainScene, telemetry.SceneName)`; the panel never takes the input. Drawn with
+  `ui` in the theme's font. `render.TelemetryRenderer` and `NewTelemetryRenderer` are gone;
+  the six demos that had them show the panel from the start; the panel has no border, is
+  see-through, never shrinks (`ui.Element.Steady`: an element keeping the widest and tallest it
+  has needed, for words that change) and lays a value of several lines under its label.
+  `players.SceneKey` has `Ctrl`.
+- Every plugin's `doc.go` ends with a `# Vocabulary` section: its moments (with their words
+  and subjects), the facts for plans, the knobs and the commands, saying who may give each;
+  `doc/behaviour.md`'s tables say the same of all of them. `cell.Rail` and `bullet.Body` are
+  marked knobs (they were called so); `navigation.Blocked` asserts its subject; navigation's
+  `Touch` words are named as every other word is ("pushed by ally").
 - gram needs goke v3.4.1: `Query.Seek` after an `All` or `Pick` iteration on the same query read
   another archetype's column, so a `Trigger`'s entity was read with a wrong `Label` and the
   plate's command fired only when the stale offsets happened to fit — the trapdoors it opened

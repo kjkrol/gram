@@ -17,22 +17,26 @@ A plugin **perceives**: a moment its pass catches, handed to the rules hosted th
 of its own to ask of it. A rule of a moment goes to the plugin that catches it; the game names no
 plugin.
 
-| moment | caught by | of | words |
-|---|---|---|---|
-| `unit.Standing` | the board, every unit a step | one; `host.Placed` | `unit.Fallen()`, `unit.StandingOn(e)`, `unit.OnKind(k)` |
-| `cell.Now` | the board, every cell a step | one; `host.Placed` | — |
-| `collision.Meeting` | collision, a confirmed contact, a pair resting against each other too | a pair; `host.Met` | `collision.Facing(within)` (turned to the other within the angle) |
-| `collision.Struck` | collision, one that struck something | one | — |
-| `vision.Sighting` | vision, every observer a step | a pair, grouped by observer | `vision.SeesNobody()`, `vision.Closing()` (of the other) |
-| `navigation.Touch` | navigation, two units touching | a pair | `PushedByAlly()`, `Blocks()`, `WaitedLong()`, … |
-| `world.Moving` | the world, every entity before it moves | one | `world.Still()` (neither walking nor strafing) |
-| `world.Leaving` | the world, every tick past an open edge | one | — |
-| `clock.Moment` | the world, once a step | the clock's own entity | `clock.At(t)`, `clock.Every(period, offset)` |
-| `climate.Weathering` | the atmosphere, once a step | the atmosphere's own entity | — |
-| `sky.Moonrise` | the sky, as the moon comes over the horizon | the atmosphere's own entity | `sky.FullMoon()` |
-| `bullet.Landing`, `Resting` | bullet, a shot landing, lying | one | `bullet.Within(d)` (of the other), `bullet.Lying()` |
-| `bullet.Blast` | bullet, a burst reaching an entity | a pair | — |
-| `gravity.Landing` | gravity, once as a body lands | one | `gravity.HarderThan(v)` |
+| moment | caught by | of | subject | words |
+|---|---|---|---|---|
+| `unit.Standing` | the board, every unit a step | one; `host.Placed`, `host.Headed` | — | `unit.Fallen()`, `unit.StandingOn(e)`, `unit.OnKind(k)` |
+| `cell.Now` | the board, every cell a step | one; `host.Placed` | — | — |
+| `collision.Meeting` | collision, a confirmed contact, a pair resting against each other too | a pair; `host.Met` | — | `collision.Facing(within)` (turned to the other within the angle) |
+| `collision.Struck` | collision, one that struck something | one | — | — |
+| `vision.Sighting` | vision, every observer a step | a pair grouped by observer; `host.Met` | the nearest seen | `vision.SeesNobody()`, `vision.Closing()` (of the other) |
+| `navigation.Touch` | navigation, two units touching | a pair; `host.Met` | the other | `PushedByAlly()`, `ReachedTheGroup()`, `InTheWay()`, `ClearsTheWay()`, `Blocks()`, `GoalTaken()`, `StrangerOnMyGoal()`, `WaitsFirst()`, `NoWayRound()`, `WaitedLong()` |
+| `world.Moving` | the world, every entity before it moves | one | — | `world.Still()` (neither walking nor strafing) |
+| `world.Leaving` | the world, every tick past an open edge | one | — | — |
+| `clock.Moment` | the world, once a step | the clock's own entity | — | `clock.At(t)`, `clock.Every(period, offset)` |
+| `climate.Weathering` | the atmosphere, once a step | the atmosphere's own entity | — | — |
+| `sky.Moonrise` | the sky, as the moon comes over the horizon | the atmosphere's own entity | — | `sky.FullMoon()` |
+| `bullet.Landing` | bullet, a shot landing | one | what it struck, if anything | — |
+| `bullet.Resting` | bullet, a landed shot every step | one | — | — |
+| `bullet.Blast` | bullet, a burst reaching an entity | a pair; `host.Met` | the shot | `bullet.Within(d)` (of the other) |
+| `gravity.Landing` | gravity, once as a body lands | one | — | `gravity.HarderThan(v)` |
+
+Every plugin's `doc.go` ends with a `# Vocabulary` section listing its moments, words, facts,
+knobs and commands; it is the authoritative list.
 
 A moment is one by its `Who()` (`host.About`), a pair by `Whom` (`host.Met`), one standing on
 places by `Placed()` (`host.Placed`), confirmed beside its type (`var _ host.About = Standing{}`).
@@ -44,9 +48,13 @@ other; a game writes its own the same way over a plugin's moment or over a fact.
   cells under the entity (for a cell, of itself): the cell and the entities standing on it, each
   once, on square and hex boards alike; `0` the cells under it alone. An effect put on the ground
   round a witch, a lake's cells iced. The cell under a unit is a word of its `Standing`:
-  `unit.StandingOn(e)`, `unit.OnKind(k)`. The units there are no part of it. A thing used by
-  touch — a lever — is a `collision.Meeting` under `collision.Facing(angle)`, which holds without
-  a board.
+  `unit.StandingOn(e)`, `unit.OnKind(k)`. The units there are no part of it. A `unit.Standing`
+  is `host.Headed` too, carrying the way the unit faces (`Heading`, its `Vel.Dir`):
+  `cond.Ahead(n).If(x)` and `act.Ahead(n).Put(e)` turn to the places on the cells one to `n`
+  steps in front of it, the grid's direction nearest its heading, stopping at the edge — a
+  lever in front of a scout, a wall three cells on; one kind of places a rule, and a cell faces
+  nowhere (a `cell.Now` refuses `Ahead`). A thing used by touch — a lever — is a
+  `collision.Meeting` under `collision.Facing(angle)`, which holds without a board.
 - **The clock's moment is the clock's.** A `clock.Moment` is of the clock's own entity: an effect
   a clock rule puts on lands there — `act.Branch[clock.Moment]{Name: "dusk", When:
   cond.Self.If(clock.At(dusk)), Then: act.Self.Put(night)}`, a phase that `clock.Clock.In` reads
@@ -54,9 +62,10 @@ other; a game writes its own the same way over a plugin's moment or over a fact.
   step, walking no entities, it fires while the clock's plugin, the world, plays its role; a
   `climate.Weathering` the same while the atmosphere plays it.
 - **A moment's subject.** A command that is `host.Aimed` — `steering.Away{}`, `steering.Toward{}`,
-  `gravity.Away{}`, `navigation.StepAside{}` — is told the subject of the rule's moment: a
-  `Sighting`'s nearest seen, the one touched, the shot that burst. It fails while the moment names
-  nobody.
+  `gravity.Away{}`, `bullet.Shoot{}`, `dialog.Begin{}`, `dialog.Feel{}`, navigation's
+  `StepAside{}`, `Detour{}`, `Pass{}` and `Settle{}` — is told the subject of the rule's moment:
+  a `Sighting`'s nearest seen, the one touched, the shot that burst, what a shot struck. It fails
+  while the moment names nobody.
 
 ## Facts, knobs and commands: what is marked
 
@@ -66,9 +75,9 @@ roles' tags, a plan's mind, a label) or a value in flight (a moment, a word).
 
 | thing | what it is | mark | gram's own |
 |---|---|---|---|
-| fact | a component told to an entity with a plan, carried until it goes; a message is one by embedding `fact.From` | `Fact()`, `var _ fact.Fact = Arrived{}` | `navigation.Blocked`, `navigation.Arrived`, `bullet.Flight` |
-| knob | a component a plugin only reads, which an effect's `Alter` turns and puts back | `Knob()`, `var _ effect.Knob = Steering{}` | `steering.Steering`, `cell.Ground`, `cell.Floor`, `cell.Wall`, `collision.Physics`, `gravity.Pull`, `sky.Moon`, `vision.Sight`, `render.Appearance` |
-| command | a request carried by its type to the plugin that handles it | `Command()`, `var _ command.Command = MoveTo{}` | `navigation.MoveTo`, `world.Despawn`, `bullet.Shoot`, `players.Give`, every plugin's `commands.go` |
+| fact | a component told to an entity with a plan, carried until it goes; a message is one by embedding `fact.From`; its words are of it (`bullet.Lying()` of a `Flight`) | `Fact()`, `var _ fact.Fact = Arrived{}` | `navigation.Blocked` (its subject whom by), `navigation.Arrived`, `bullet.Flight` |
+| knob | a component a plugin only reads, which an effect's `Alter` turns and puts back | `Knob()`, `var _ effect.Knob = Steering{}` | `steering.Steering`, `cell.Ground`, `cell.Floor`, `cell.Wall`, `cell.Rail`, `collision.Physics`, `bullet.Body`, `gravity.Pull`, `sky.Moon`, `vision.Sight`, `render.Appearance` |
+| command | a request carried by its type to the plugin that handles it; the handler says who may give it — an entity's own (`world.Despawn`, `steering.Away`, `gravity.Leap`, `players.Give`), a player's (the looks, the cameras', the tools') or both (`world.Spawn`, `navigation.MoveTo`, `bullet.Shoot`, the driving's) | `Command()`, `var _ command.Command = MoveTo{}` | every plugin's `commands.go` (the topography's views in `camera_commands.go`, its shaping in `shaping.go`) |
 
 - **Facts** are how a plan learns what came of its commands: navigation tells `Blocked` (from a
   unit's touches while on the move, held a while after the last) and `Arrived` (its order over,

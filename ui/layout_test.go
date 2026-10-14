@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/kjkrol/uid"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -212,5 +213,25 @@ func TestSplit_AFixedPartCountsItsPixelsInWhatTheSplitNeeds(t *testing.T) {
 	w, h := table.needs()
 	if w != 10+kw+20+lw || h != lh {
 		t.Fatalf("the table needs %vx%v, want %vx%v", w, h, 10+kw+20+lw, lh)
+	}
+}
+
+type changing struct{ words string }
+
+func (c *changing) Text(uid.UID64, bool) (string, bool) { return c.words, true }
+
+func TestSteady_AnElementNeverShrinksBelowWhatItNeededBefore(t *testing.T) {
+	src := &changing{words: "a long line of words"}
+	label := LabelOf(src).Steady()
+	s := NewScene("main", Layers(label))
+	s.Layers()
+	w, h := label.needs()
+	src.words = "short"
+	if w2, h2 := label.needs(); w2 != w || h2 != h {
+		t.Errorf("shorter words need %vx%v, want the %vx%v kept", w2, h2, w, h)
+	}
+	src.words = "a longer line of words\nand another under it"
+	if w3, h3 := label.needs(); w3 <= w || h3 <= h {
+		t.Errorf("longer words need %vx%v, want more than %vx%v", w3, h3, w, h)
 	}
 }

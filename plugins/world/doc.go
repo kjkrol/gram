@@ -2,7 +2,8 @@
 // Velocity each, a shared spatial index other plugins query, and motion integrated each step,
 // never further than Position.MaxStep. What an entity carries is set by its kind (entity/kind).
 //
-// The world runs gram's core: entity, entity/kind, entity/tag, clock and rule with rule/effect.
+// The world runs gram's core: entity and entity/kind, clock, and ceremony through its goke
+// binding (the effects, the plans, the commands about effects, the roles' tags).
 // Its sub-packages are steering (heading and speed reached gradually) and view (what one camera
 // sees); its machinery is in plugins/world/internal.
 //
@@ -84,4 +85,12 @@
 // # Telemetry
 //
 // [Telemetry] counts the population; [Resources] publishes it with the Config.
+//
+// # Vocabulary
+//
+// Moments, for a role's rules: [Moving] (every entity before it moves; its word [Still]),
+// [Leaving] (every tick an entity is past an open edge). Knobs, for an effect's Alter:
+// render.Appearance, the look's. Commands: [Spawn] (a player's or an entity's own); [Despawn] (an
+// entity's own); [Pause], [Faster], [Slower], [Boxes] (a player's). The clock's moment and the
+// commands about effects (ceremony.Put, Take, Toggle, Trigger) are carried here too.
 package world

@@ -5,6 +5,10 @@ description: Reference of gram's built-in plugins, one entry each with its curre
 
 # gram-plugins
 
+Every plugin's `doc.go` ends with `# Vocabulary`: its moments (with their words and subjects),
+facts for plans, knobs and commands (who may give each). That section is the authoritative list;
+`go doc ./plugins/<name> | tail` shows it. The entries below are the prose round it.
+
 - **`world`** — the foundation a Stage makes from `world.Config` (`stage.World(cfg)`;
   `ctx.UseWorld(cfg)` underneath, once): the space's size and edges (`SpaceCfg.Edges`:
   `aabbworld.Torus`, `WrapX`/`WrapY`, `OpenX`/`OpenY`, closed by default — a box stops whole at a
@@ -101,7 +105,9 @@ description: Reference of gram's built-in plugins, one entry each with its curre
   unit's `steering.Pace{Share}`. Then, while there is a rule of it, every cell as a `cell.Now`.
   Both moments are `host.Placed`: `cond.Around(n).If(x)`/`act.Around(n).Do(cmd)` turn to the
   cells within `n` rings of the box (0: the cells under it) and the entities standing on them
-  (`cell.On`), each cell once.
+  (`cell.On`), each cell once; a `Standing` is `host.Headed` too (`Heading`, its `Vel.Dir`):
+  `Ahead(n)` turns to the cells one to `n` steps in front of the unit (`grid.Nearest` +
+  `Toward`, stopping at the edge), one kind of places a rule.
   **What stands on the board is an entity**: `board.NewEntities[Row](brd, board.Shape{Size,
   Width, Height}, at)`, `Define(name, extra...)` — a box at the cell's middle, `world.Velocity{}`
   (one among the extra takes its place, its `Dir` the way a ford runs), `cell.On{Cell}`, with
@@ -507,6 +513,15 @@ description: Reference of gram's built-in plugins, one entry each with its curre
   Shift+B, the cursor `Aim`s, a left click `Mark`s each head, right click and Esc drop; `Window()`
   asks "Build the bridge?", `Reason()` says why not; `Build` levels the heads and spawns the parts
   at the next step.
+- **`telemetry`** — the panel in the top-left corner: `telemetry.NewPlugin(w)` with the
+  standard lines (FPS, TPS, `Frame` from `render.Spent`, `Entities`, the clock's `Game time`),
+  `With(reporters...)` (`render.Reporter`), `Line(label, value)`, `Clear()` — all before the
+  scenes are made (later panics); a `game.Scenic` scene `telemetry.SceneName` that is never
+  focusable; `Show`/`Hide`/`Toggle`/`Shown` on a `game.Composition`. The Stage's
+  `World(cfg).Plugins(f)` link makes one where `telemetry.Of(w)` finds none, so every Stage
+  with a world has it, hidden; `.Shows(MainScene, telemetry.SceneName)` shows it from the start.
+  Its command `Panel` is carried by players (`GameBindings`, ~, "General"), which
+  toggles it through the Composition in `Handle`. Depends on `world`, `ui`.
 - **`bullet`** — shots as entities: `Plugin.Shots()` — `Shots.Define(name, Body{Size, Speed,
   Range, Gravity, Lands}, extra...)`, `Named` the `Ammo`, a kind whose entities carry a sensor
   `Collider`, a `collision.Sweep` ignoring the shooter, the `Body` (a knob), the `Flight` (`At`,

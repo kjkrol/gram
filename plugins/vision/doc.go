@@ -46,4 +46,10 @@
 // The views start hidden: Shift+C ([Cones]) shows and hides them, [Plugin.ShowCones],
 // [Plugin.HideCones] and [Plugin.ConesShown] do the same from code. A look, not saved; the scan
 // goes on either way.
+//
+// # Vocabulary
+//
+// Moments, for a role's rules: [Sighting] (a pair grouped by observer, host.Met, its subject the
+// nearest seen; its words [SeesNobody], [Closing] of the other). Knobs, for an effect's Alter:
+// [Sight]. Commands: [Cones] (a player's, a look).
 package vision

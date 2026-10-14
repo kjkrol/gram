@@ -24,5 +24,10 @@
 // [Moonrise] is the moment the moon comes over the horizon, told to the rules of the roles the
 // atmosphere plays ([Sky.Rules], [Sky.RiseSystem]); its word [FullMoon] picks a full moon.
 //
-// [Sky.Reporter] adds the light to a scene's render.TelemetryRenderer.
+// [Sky.Reporter] adds the light to the telemetry panel.
+//
+// # Vocabulary
+//
+// Moments, for a role's rules: [Moonrise] (the atmosphere's own entity, as the moon rises; its
+// word [FullMoon]). Knobs, for an effect's Alter: [Moon].
 package sky

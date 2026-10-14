@@ -1,9 +1,12 @@
 package moments_test
 
 import (
-	cgoke "github.com/kjkrol/ceremony/goke"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/kjkrol/aabbworld/geom"
+	cgoke "github.com/kjkrol/ceremony/goke"
 
 	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/comp"
@@ -26,6 +29,7 @@ type placeWorld struct {
 	fx       *cgoke.Effects
 	scorched effect.Effect
 	middle   cell.ID
+	heading  geom.Vec // the unit's, set by the hook; zero facing nowhere
 	casting  func(cb *goke.CmdBuf)
 }
 
@@ -49,7 +53,7 @@ func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *pl
 	if withUnit {
 		kind.Define[struct{}](w.Kinds(), "unit", kind.Spec{
 			comp.Const(world.Position{AABB: boardtest.CellBox(grid, pw.middle, 8)}),
-			comp.Const(world.Velocity{}),
+			comp.Const(world.Velocity{Dir: pw.heading}),
 			comp.Const(unit.At{Cell: pw.middle}),
 			comp.Const(unit.Mover{Domain: cell.Land}),
 		})
@@ -163,6 +167,73 @@ func TestAround_ReachesTheRingsRoundTheCellsUnderTheUnit(t *testing.T) {
 			}
 		}
 	}
+}
+
+// the cells from c on in the grid's direction way, n at most, none past the edge
+func ahead(g grid.Grid, c cell.ID, way, n int) map[cell.ID]bool {
+	out := map[cell.ID]bool{}
+	for range n {
+		var ok bool
+		if c, ok = g.Toward(c, way); !ok {
+			break
+		}
+		out[c] = true
+	}
+	return out
+}
+
+func TestAhead_ReachesTheCellsInFrontOfTheUnitUpToTheEdge(t *testing.T) {
+	for name, grid := range placeGrids() {
+		for _, steps := range []int{1, 2, 5} {
+			way := grid.Directions() - 1
+			pw := newPlaceWorld(t, grid, true, func(pw *placeWorld) []act.Rule {
+				pw.heading = grid.Step(way)
+				faces := cond.NewWord("faces the way", func(s unit.Standing) bool {
+					return s.Heading == grid.Step(way)
+				})
+				return []act.Rule{act.Branch[unit.Standing]{
+					Name: "scorch ahead",
+					When: cond.Self.If(faces),
+					Then: act.Ahead(steps).Put(pw.scorched),
+				}}
+			})
+			pw.tick(3)
+			want := ahead(grid, pw.middle, way, steps)
+			if got := pw.under(pw.scorched); !sameCells(got, want) {
+				t.Errorf("%s, %d steps: scorched %v, want %v", name, steps, got, want)
+			}
+		}
+	}
+}
+
+func TestAhead_FacingNowhereReachesNothing(t *testing.T) {
+	grid := placeGrids()["square"]
+	pw := newPlaceWorld(t, grid, true, func(pw *placeWorld) []act.Rule {
+		return []act.Rule{act.Branch[unit.Standing]{
+			Name: "scorch ahead",
+			When: cond.Self.If(cond.Always),
+			Then: act.Ahead(1).Put(pw.scorched),
+		}}
+	})
+	pw.tick(3)
+	if got := pw.under(pw.scorched); len(got) != 0 {
+		t.Errorf("scorched %v, want nothing: the unit faces nowhere", got)
+	}
+}
+
+func TestAhead_IsRefusedOnACell(t *testing.T) {
+	defer func() {
+		if msg, _ := recover().(string); !strings.Contains(msg, "Headed") {
+			t.Errorf("panic %q; want one saying Headed: a cell faces nowhere", msg)
+		}
+	}()
+	newPlaceWorld(t, placeGrids()["square"], false, func(pw *placeWorld) []act.Rule {
+		return []act.Rule{act.Branch[cell.Now]{
+			Name: "scorch ahead",
+			When: cond.Self.If(cond.Always),
+			Then: act.Ahead(1).Put(pw.scorched),
+		}}
+	})
 }
 
 func TestCell_FiresForEveryCell(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Reporter is the calendar's lines for a render.TelemetryRenderer.
+// Reporter is the calendar's lines for the telemetry panel.
 func (c *Calendar) Reporter() render.Reporter { return reporter{c} }
 
 type reporter struct{ c *Calendar }

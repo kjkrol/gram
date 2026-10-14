@@ -36,4 +36,13 @@
 //
 // A wrapping world is refused. Shots do not penetrate: the nearest contact ends the flight. A
 // landed shot touches nothing.
+//
+// # Vocabulary
+//
+// Moments, for a role's rules: [Landing] (a shot landing, its subject what it struck), [Resting] (a
+// landed shot, every step), [Blast] (a pair, host.Met, its subject the shot; its word [Within] of
+// the other). Facts, for plans: [Flight] (every shot's, its word [Lying]). Knobs, for an effect's
+// Alter: [Body] (its Speed and Gravity felt every step, its Range at the shot). Commands: [Shoot]
+// (a player's or an entity's own, aimed at the moment's subject, host.Aimed); [Burst] (an entity's
+// own).
 package bullet

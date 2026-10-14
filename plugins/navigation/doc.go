@@ -66,4 +66,18 @@
 // [Routes] shows them ([Plugin.ShowRoutes], [Plugin.RoutesShown]); [RouteStyle]
 // ([Plugin.WithRouteStyle], [DefaultRouteStyle]) is the lines' colour and width and the goals'
 // colour.
+//
+// # Vocabulary
+//
+// Moments, for a role's rules: [Touch] (a pair, host.Met, its subject the other; its words
+// [PushedByAlly], [ReachedTheGroup], [InTheWay], [ClearsTheWay], [Blocks], [GoalTaken],
+// [StrangerOnMyGoal], [WaitsFirst], [NoWayRound], [WaitedLong]).
+//
+// Facts, for plans (told to a unit with a mind alone): [Blocked] (its subject whom it is blocked
+// by; its words [Stuck], [Cornered], [StrangerOnGoal], [IdleAlly], [IdleAllyOnMyGoal]), [Arrived].
+// [Round] and [Onward] are a patrol's: the plan's own command.
+//
+// Commands: [MoveTo], [LookAt] (a player's or an entity's own); [StepAside], [Detour], [Pass],
+// [Settle] (an entity's own, aimed at the Touch's subject, host.Aimed), [Hold], [Stop], [Onward]
+// (an entity's own); [Routes] (a player's, a look).
 package navigation

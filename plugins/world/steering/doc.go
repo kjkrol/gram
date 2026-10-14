@@ -17,4 +17,9 @@
 //
 // [Driven] is an entity steered by hand, written every tick by whoever steers it and carried out
 // by the driving plugin. [Pace] is how fast the ground lets an entity go, written by the board.
+//
+// # Vocabulary
+//
+// Knobs, for an effect's Alter: [Steering]. Commands, an entity's own: [Away] and [Toward] (aimed
+// at the moment's subject, host.Aimed), [Turn].
 package steering

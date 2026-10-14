@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/players/owner"
+	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -32,6 +33,7 @@ type Plugin struct {
 	handlers    []plugin.CommandHandler
 	players     []*Player
 	listings    command.Queue[ShowShortcuts]
+	panels      command.Queue[telemetry.Panel]
 	shortcuts   *Shortcuts
 	owned       *goke.Query
 	ownedBase   goke.Comp[world.Base]
@@ -152,6 +154,11 @@ func (p *Plugin) handlerOf(t reflect.Type) plugin.CommandHandler {
 func (p *Plugin) Handle(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
 	p.EventHandler().HandleEvents(events)
 	p.listings.Drain(func(command.Issued[ShowShortcuts]) { p.shortcuts.Open(runtime, composition) })
+	p.panels.Drain(func(command.Issued[telemetry.Panel]) {
+		if tp := telemetry.Of(p.worldPlugin); tp != nil {
+			tp.Toggle(composition)
+		}
+	})
 	p.shortcuts.keys.Handle(events, runtime, composition)
 	p.pass++
 }

@@ -14,7 +14,7 @@ type ContactStats struct {
 	Counter int
 }
 
-// Reporter is the stats' lines for a render.TelemetryRenderer: contacts a second and, at the
+// Reporter is the stats' lines for the telemetry panel: contacts a second and, at the
 // tick rate tps points to, contacts a tick.
 func (s *ContactStats) Reporter(tps *int) render.Reporter { return &reporter{stats: s, tps: tps} }
 

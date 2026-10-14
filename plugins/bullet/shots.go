@@ -2,6 +2,7 @@ package bullet
 
 import (
 	"fmt"
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/fact"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -24,6 +25,11 @@ type Body struct {
 	Size, Speed, Range, Gravity float64
 	Lands                       bool
 }
+
+// Knob: an effect may turn it (effect.Knob).
+func (Body) Knob() {}
+
+var _ effect.Knob = Body{}
 
 // Shot is the row a kind of shot spawns from; the plugin builds it as it fires.
 type Shot struct {

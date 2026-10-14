@@ -20,6 +20,7 @@ import (
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
+	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/ui"
@@ -76,6 +77,7 @@ func main() {
 		Kinds(a.defineCells, a.defineKinds).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
+		Shows(MainScene, telemetry.SceneName).
 		Update(a.update)
 	gram.Run(game.New(props, mainStage))
 }
@@ -146,7 +148,7 @@ func (s *arena) spawn() error {
 }
 
 func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	main := &mainScene{arena: s, tps: ctx.TPS()}
+	main := &mainScene{arena: s}
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
 }
 

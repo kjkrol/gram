@@ -740,3 +740,21 @@ func TestSaveLoad_AFlightGoesOnAfterALoad(t *testing.T) {
 func (c *installCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
 
 func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }
+
+func TestBody_AnEffectHoldsAShotInTheAir(t *testing.T) {
+	r := newRig(t, scene{pieces: []piece{{x: 100, y: 100, size: 20, facing: east}}})
+	r.arms.Define("short", bullet.Body{Size: 4, Speed: 600, Range: 100, Lands: true})
+	ammo := r.arms.Named("short")
+	r.fx.Define("held", effect.Spec{effect.Alter(func(b *bullet.Body) { b.Speed = 0 })})
+	held := r.fx.Named("held")
+	r.start()
+	r.w.Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: ammo})
+	r.tick(1) // spawned
+	r.fx.Cast(r.theShot().id, held)
+	r.tick(2)
+	flown := r.theShot().flight.Flown
+	r.tick(5)
+	if f := r.theShot().flight; f.Landed || f.Flown != flown || flown >= 100 {
+		t.Errorf("the flight is %+v, want it held in the air at %v flown", *f, flown)
+	}
+}

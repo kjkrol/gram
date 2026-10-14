@@ -70,15 +70,15 @@ The tag families join the host's queries as optional components, so a rule costs
 
 **Roles** say who obeys: a role is a behaviour (mortal, hasty, a trapdoor), not a group.
 `Part.Obeys(rules...)` narrows each rule to the role's players on top of its own filter (a pair
-rule: the pairs whose own entity plays it; a same-sided `collision.Meeting` rule still once a
-pair, `DispatchEitherWay`; a `Touch` each unit's own, a `Sighting` each observer's; an entity
-playing two roles that obey one rule obeys it once per role). A kind plays roles through
+rule: the pairs whose own entity plays it; a same-sided `collision.Meeting` rule still once a pair,
+`DispatchEitherWay`; a `Touch` each unit's own, a `Sighting` each observer's; an entity playing two
+roles that obey one rule obeys it once per role). A kind plays roles through
 `ceremony.Plays(roles...)` in its Spec (one component; a kind carrying a component type twice
 panics), a cell through its kind (`cell.Kinds.Define(name, kind, roles...)`) or its Layout entry
 (`cell.Entry.Plays`), a plugin through `world.Self.Plays`. A rule of a moment of the world as a
 whole (`clock.Moment`, `climate.Weathering`; `host.StepRules`, once a step, no entities walked)
-fires while the entity the moment is about plays its role. A role under `cond.Around(n)` holds
-for the place turned to.
+fires while the entity the moment is about plays its role. A role under `cond.Around(n)` or
+`cond.Ahead(n)` holds for the place turned to.
 
 **A plugin is an entity** (`plugins/world/self.go`): `p.Self = world.NewSelf(w, p, knobs...)` in
 `NewPlugin`, which notes `p` as made over the world (`world.Plugin.Made()`, the order the Stage
@@ -118,10 +118,35 @@ lists every component type its kinds carry for `Persistence.Load` (`Kinds.LoadCo
 plugin's typed `Seed`, and the engine calls `Populate()` on every tracked `plugin.Populator` for a
 Stage entered afresh.
 
+## Where the marks sit (the convention found in the code)
+
+- Every plugin's `doc.go` ends with a `# Vocabulary` section — moments (host kind, subject,
+  words), facts for plans, knobs, commands (an entity's own / a player's / both, `host.Aimed`) —
+  in that order, each a sentence, every name a doc link. A new moment, word, fact, knob or
+  command is added there as it is defined; a plugin without any has no section.
+
+- A moment's assertions (`_ host.About`, `_ host.Met`, `_ host.Placed`, `_ fact.Subject`) in a
+  grouped `var (…)` at the bottom of the moment's own file (`collision/meeting.go`,
+  `navigation/touch.go`, `board/unit/standing.go`); bullet and gravity keep a `moments.go`.
+- A fact's and a knob's one-liner beside the type (`var _ fact.Fact = Blocked{}`,
+  `var _ effect.Knob = Sight{}`); commands and their `host.Aimed` in `commands.go`'s block
+  (topography: `camera_commands.go`, `shaping.go`).
+- A word's name is spaced lowercase (`"sees nobody"`, `"full moon"`); it shows in errors.
+- Who may give a command is the handler's check of `Issued.ByEntity`: an entity's own
+  (`Despawn`, steering's, navigation's crowd commands, `Leap`, `Begin`), a player's (looks,
+  cameras, tools) or both (`Spawn`, `MoveTo`, `Shoot`, the driving's).
+- The board's places machinery: `board/internal/moments/around.go` (`Rules.around`, the cells
+  under the box, `ringsRound` by `grid.Neighbors` — not reentrant; each place the cell's entity
+  then `terrain.Cells.Standing`, which gives entities carrying `cell.On`, never units) filled
+  into `Tick.Around` in `moments/standing.go` and `cells.go`; the unit's heading is in
+  `s.bases[i].Vel.Dir` as the moment is built. The cell ahead of a driven unit is a world point
+  past the box in `driving/drive_system.go` `open()`; `grid.Nearest(g, v)` + `Grid.Toward(c, i)`
+  are the grid's way to it.
+
 ## Package layout
 
 `render` (root) — `Renderer`/`AtlasSource`/`Atlas`/`Composer`/`Frame`/`Source`/`Tier`/
-`CachedRenderer`/`SolidBackground`/`TelemetryRenderer`/`Feed`/`Still`/`Direct`/`Font`, drawing
+`CachedRenderer`/`SolidBackground`/`Feed`/`Still`/`Direct`/`Font`, drawing
 with no knowledge of Stages, Scenes or plugins. `plugin` (root) — the extension contract
 (`Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`/`CommandHandler`/`Made`,
 `plugin/section`); imports `render`, `control`, `ceremony/host`, `ceremony/command`. `game`

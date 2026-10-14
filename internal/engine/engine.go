@@ -210,8 +210,9 @@ func (e *Engine) frame(dc *gogpu.Context) {
 	if since := time.Since(e.counted); since >= time.Second {
 		rate := float64(e.frames) / since.Seconds()
 		render.SetRates(rate, rate)
+		n := time.Duration(e.frames)
+		render.SetSpent(e.spent.update/n, e.spent.draw/n, e.spent.present/n)
 		if logRates {
-			n := time.Duration(e.frames)
 			log.Printf("gram: %.1f FPS at %dx%d: a frame's tick %v, drawing %v, presenting %v", rate, fw, fh,
 				(e.spent.update / n).Round(10*time.Microsecond), (e.spent.draw / n).Round(10*time.Microsecond), (e.spent.present / n).Round(10*time.Microsecond))
 		}

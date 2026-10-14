@@ -34,4 +34,10 @@
 // [Plugin.WithRenderer] builds the [Renderer], a render.Source outlining every Selected entity on
 // the render.Marks tier in a [HighlightStyle] ([DefaultHighlightStyle] a thin red outline), and
 // the box of a selection being dragged ([Marquee]), one per camera.
+//
+// # Vocabulary
+//
+// Commands: [Select], [Marquee], [Hover] (a player's); [Allow], [Forbid] (a player's or an
+// entity's own: whether it may be selected). The commands about effects for [Plugin.Selected] and
+// [Plugin.Pointed] are routed here.
 package selection

@@ -4,6 +4,7 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugins/telemetry"
 )
 
 // Give is the command by which an entity becomes To's, its alone; Nobody's for command.Nobody.
@@ -21,23 +22,26 @@ var (
 	_ command.Command = ShowShortcuts{}
 )
 
-// Queues are where the players' own commands land, and the tools taken and put down
+// Queues are where the players' own commands land, the telemetry panel's (it needs the
+// scene's Composition, which the players' Handle has), and the tools taken and put down
 // (control.Take, control.Drop).
 func (p *Plugin) Queues() []command.CommandQueue {
-	return []command.CommandQueue{&p.gives, &p.listings, &p.takes, &p.drops}
+	return []command.CommandQueue{&p.gives, &p.listings, &p.panels, &p.takes, &p.drops}
 }
 
 // DefaultBindings are GameBindings.
 func (p *Plugin) DefaultBindings() []control.Binding { return GameBindings() }
 
-// GameBindings are the keys every game has: K for the list of shortcuts, F5 to save, F9 to load,
-// Shift+Esc to quit. A game that binds its own keys in place of the Defaults binds these beside
-// them.
+// GameBindings are the keys every game has: K for the list of shortcuts, ~ for the
+// telemetry panel, F5 to save, F9 to load, Shift+Esc to quit. A game that binds its own keys in
+// place of the Defaults binds these beside them.
 func GameBindings() []control.Binding {
 	shift := control.Mods{Shift: true}
 	return []control.Binding{
 		control.Give(control.KeyPress{Key: control.KeyK}, "Shortcuts; Esc closes them",
 			ShowShortcuts{}),
+		control.Give(control.KeyPress{Key: control.KeyBackquote},
+			"Show or hide the telemetry panel", telemetry.Panel{}),
 		control.Give(control.KeyPress{Key: control.KeyF5}, "Save the game", game.Save{}),
 		control.Give(control.KeyPress{Key: control.KeyF9}, "Load the game saved", game.Load{}),
 		control.Give(control.KeyPress{Key: control.KeyEscape, Mods: shift}, "Quit", game.Quit{}),

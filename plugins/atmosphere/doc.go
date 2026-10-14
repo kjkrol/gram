@@ -26,6 +26,13 @@
 // [Plugin.Renderer] is the sky behind the world (plugins/atmosphere/backdrop),
 // [Plugin.Precipitation] the rain and the snow, [Plugin.Clouds] a flat world's cloud shadows
 // (plugins/atmosphere/overcast), all render.Sources for a scene's Composer; [Plugin.Reporter]
-// adds the time, the light and the weather to a render.TelemetryRenderer, [Plugin.HUD] the
+// adds the time, the light and the weather to the telemetry panel, [Plugin.HUD] the
 // calendar to a scene's layers.
+//
+// # Vocabulary
+//
+// Moments, for a role's rules, hosted by its parts: sky.Moonrise and climate.Weathering (the
+// atmosphere's own entity, once a step). Knobs, for an effect's Alter: sky.Moon (on the
+// atmosphere's own entity). Commands, a player's: [Freeze], [Later], [Earlier], [ChangeWeather],
+// [SetWeather].
 package atmosphere
