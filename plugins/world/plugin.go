@@ -190,9 +190,9 @@ func (p *Plugin) Carry(handlers ...plugin.CommandHandler) error {
 // Carrier is the Stage's one carrier of commands, taking each to its handler's queue.
 func (p *Plugin) Carrier() *command.Carrier { return &p.module.commands }
 
-// WithRenderer builds the world's entity renderer over atlas, applying the looks the atlas and
-// the effects declared.
-func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
+// SetAtlas takes atlas as the world's looks and builds the entity renderer over it, applying
+// what a *Atlas declared; its Close calls it. A foreign render.AtlasSource is given by hand.
+func (p *Plugin) SetAtlas(atlas render.AtlasSource) {
 	if !p.looked {
 		p.looked = true
 		if wa, ok := atlas.(*Atlas); ok {
@@ -214,13 +214,15 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 }
 
 // Styles are the styles the figures declared on the world's atlas (Slot.Styled), for the
-// plugins drawing about a kind; none before WithRenderer.
+// plugins drawing about a kind; none before the atlas is closed.
 func (p *Plugin) Styles() *render.Styles { return p.styles }
 
-// Renderer is the world's entity renderer, nil unless WithRenderer was called.
+// Renderer is the world's entity renderer, drawing the figures' looks: asked for the first time,
+// it declares them on the world's atlas and bakes it (a game declaring looks by hand closes its
+// own NewAtlas before).
 func (p *Plugin) Renderer() render.Layer {
 	if p.renderer == nil {
-		return nil
+		p.NewAtlas().Looks().Close()
 	}
 	return p.renderer
 }

@@ -109,9 +109,10 @@
 // # Drawing
 //
 // The board's own Map is the simple map: a flat world seen from above, every kind in its sprite,
-// the ways as bands. [Plugin.WithMap] puts another in. How a kind looks is the game's atlas's
-// ([Plugin.NewAtlas]), which [Plugin.WithRenderer] draws from; a state of the ground is an effect
-// on its cells, shown as a cover ([Plugin.Covering], [Slot.Under]).
+// the ways as bands. [Plugin.WithMap] puts another in. How a kind looks is its tile's, gathered
+// on the board's [Atlas] as [Plugin.Renderer] is first asked for, every sprite the cell's size
+// across (a game declaring looks by hand starts its own, [Plugin.NewAtlas]); a state of the
+// ground is an effect on its cells, shown as a cover ([Plugin.Covering], [Slot.Under]).
 //
 // # Tiles and figures
 //

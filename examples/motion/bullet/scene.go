@@ -30,16 +30,6 @@ var (
 
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
-	worldAtlas := a.world.NewAtlas()
-	worldAtlas.Looks()
-	worldAtlas.Close()
-	a.world.WithRenderer(worldAtlas)
-
-	boardAtlas := a.board.NewAtlas(CellSize)
-	boardAtlas.Looks()
-	boardAtlas.Close()
-	a.board.WithRenderer(boardAtlas)
-
 	return render.NewComposer(
 		a.board.Renderer(),
 		a.world.Renderer(), a.collision.Renderer(),

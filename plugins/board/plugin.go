@@ -3,6 +3,7 @@ package board
 import (
 	"fmt"
 	"log"
+	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -31,7 +32,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Resources is board's published state; Render is nil unless WithRenderer was called.
+// Resources is board's published state; Render is nil until the atlas is closed.
 type Resources struct {
 	Logic struct {
 		Board *Board
@@ -145,11 +146,11 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// WithRenderer builds the board renderer drawing from atlas, the game's look of every kind
-// (NewAtlas); nil panics.
-func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
+// SetAtlas takes atlas as the board's looks and builds the board renderer over it; a *Atlas's
+// Close calls it, a foreign render.AtlasSource is given by hand. nil panics.
+func (p *Plugin) SetAtlas(atlas render.AtlasSource) {
 	if atlas == nil {
-		panic("board: WithRenderer needs the game's atlas of the cell kinds (board.Plugin.NewAtlas)")
+		panic("board: SetAtlas needs the game's atlas of the cell kinds (board.Plugin.NewAtlas)")
 	}
 	p.atlas = atlas
 	p.renderer = look.NewRenderer(p.Board(), atlas, mapRef{p}, p.worldPlugin.Res.Config.Space)
@@ -185,7 +186,7 @@ func (p *Plugin) ShowHolds(shown bool) {
 }
 
 // HoldsRenderer draws the cells the occupancy holds while ShowHolds says, for a scene's composer;
-// nil before WithRenderer.
+// nil before the atlas is closed.
 func (p *Plugin) HoldsRenderer() render.Layer {
 	if p.holdsView == nil {
 		return nil
@@ -249,13 +250,16 @@ func (p *Plugin) WithWorkers(n int) *Plugin {
 	return p
 }
 
-// Atlas is the sprite sheet the board's renderer draws the cells from; nil before WithRenderer.
+// Atlas is the sprite sheet the board's renderer draws the cells from; nil before it is closed.
 func (p *Plugin) Atlas() render.AtlasSource { return p.atlas }
 
-// Renderer is the board's renderer; nil unless WithRenderer was called.
+// Renderer is the board's renderer, drawing the tiles' looks: asked for the first time, it
+// declares them on the board's atlas, every sprite the cell's size across, and bakes it (a game
+// declaring looks by hand closes its own NewAtlas before).
 func (p *Plugin) Renderer() render.Layer {
 	if p.renderer == nil {
-		return nil
+		w, h := p.Board().Grid.CellBounds()
+		p.NewAtlas(int(math.Ceil(max(w, h)))).Looks().Close()
 	}
 	return p.renderer
 }
@@ -290,7 +294,7 @@ func (p *Plugin) CellEntity(c cell.ID) (uid.UID64, bool) { return p.Board().Cell
 func (p *Plugin) Occupancy() cell.Occupancy { return p.occupancy }
 
 // Covering is the slot of the board's atlas laid over the cells under the effect e, issued the
-// first time it is asked for. Add what it shows to the atlas before WithRenderer; Slot.Under
+// first time it is asked for. Add what it shows to the atlas before it is closed; Slot.Under
 // does both.
 func (p *Plugin) Covering(e effect.Effect) render.SpriteID {
 	if id, ok := p.covers[e.Mark()]; ok {

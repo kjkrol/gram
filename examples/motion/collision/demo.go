@@ -78,10 +78,10 @@ func main() {
 			},
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayer).
 		Effects(a.defineEffects).
 		Rules(a.defineRules).
-		Kinds(a.defineKinds).
 		Spawn(a.spawnUnits).
 		Scenes(a.defineScenes).
 		Shows(MainScene, telemetry.SceneName).
@@ -114,19 +114,35 @@ func (a *arena) defineRules() {
 	})
 }
 
-func (a *arena) defineKinds() {
-	kinds := a.world.Kinds()
+// ball is a body of one colour and one shape, flashing while hit
+type ball struct{ color, shape int }
+
+var _ world.Figure = ball{}
+
+func (b ball) Define(w *world.Plugin) {
+	kind.Define[body](w.Kinds(), bodyKind(b.color, b.shape), kind.Spec{
+		comp.Load(func(b body) world.Position { return b.pos }),
+		comp.Load(func(b body) world.Velocity { return b.vel }),
+		comp.Const(collision.Collider{}),
+		comp.Const(collision.Physics{Restitution: 1}),
+		ceremony.Plays(w.Roles().Named(BodyRole)),
+	})
+}
+
+func (b ball) Look(a *world.Atlas, w *world.Plugin) {
+	draw := shapes[b.shape]
+	a.Add(kind.Named[body](w.Kinds(), bodyKind(b.color, b.shape)), RectSize, draw(palette[b.color])).
+		Under(w.Effects().Named(HitEf), draw(palette[entityColors]))
+}
+
+func (a *arena) defineFigures() {
+	var balls []world.Figure
 	for ci := range entityColors {
 		for si := range entityShapes {
-			kind.Define[body](kinds, bodyKind(ci, si), kind.Spec{
-				comp.Load(func(b body) world.Position { return b.pos }),
-				comp.Load(func(b body) world.Velocity { return b.vel }),
-				comp.Const(collision.Collider{}),
-				comp.Const(collision.Physics{Restitution: 1}),
-				ceremony.Plays(a.world.Roles().Named(BodyRole)),
-			})
+			balls = append(balls, ball{color: ci, shape: si})
 		}
 	}
+	a.world.Figures(balls...)
 }
 
 func (a *arena) spawnUnits() {

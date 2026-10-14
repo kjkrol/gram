@@ -39,7 +39,7 @@ func (*simpleMap) Climb(cell.ID, cell.ID, cell.Domain) float64     { return 1 }
 func (*simpleMap) Least(cell.Domain) float64                       { return 1 }
 func (*simpleMap) Slope(geom.Vec, geom.Vec, cell.Domain) float64   { return 1 }
 
-// mapRef reads the plugin's Map as it is when asked, so WithMap after WithRenderer still counts.
+// mapRef reads the plugin's Map as it is when asked, so WithMap after the atlas closed still counts.
 type mapRef struct{ p *Plugin }
 
 func (m mapRef) Look() look.Look                                   { return m.p.mapping.Look() }

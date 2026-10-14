@@ -10,8 +10,8 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Atlas is the world's sprite sheet under construction, where every kind's look is declared.
-// Close it and hand it to WithRenderer, which applies what was declared itself.
+// Atlas is the world's sprite sheet under construction, where every kind's look is declared;
+// Close bakes it and the world takes it as its looks.
 type Atlas struct {
 	p        *Plugin
 	atlas    *render.Atlas
@@ -53,7 +53,7 @@ func (p phase) progress(left time.Duration, under bool) float32 {
 
 var _ render.AtlasSource = (*Atlas)(nil)
 
-// NewAtlas starts the world's atlas.
+// NewAtlas starts the world's atlas, for looks declared by hand; Dress is the figures' way.
 func (p *Plugin) NewAtlas() *Atlas {
 	return &Atlas{
 		p:        p,
@@ -316,7 +316,12 @@ func (s Slot) Facing(n int, draw func(angleDeg float64) render.SpriteDrawer) Slo
 }
 
 // Close lays the sheet out and bakes it; call once, after the last Add.
-func (a *Atlas) Close() { a.atlas.Close() }
+// Close lays the sheet out, bakes it and hands it to the world (Plugin.SetAtlas); call once,
+// after the last look.
+func (a *Atlas) Close() {
+	a.atlas.Close()
+	a.p.SetAtlas(a)
+}
 
 // Atlas is the baked sheet.
 func (a *Atlas) Atlas() *render.Image { return a.atlas.Atlas() }

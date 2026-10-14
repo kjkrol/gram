@@ -43,9 +43,11 @@ func (p *Plugin) FiguresIn(part section.Part) {
 	}
 }
 
-// Looks declares every figure's look on the atlas, in the order the figures were noted.
-func (a *Atlas) Looks() {
+// Looks declares every figure's look on the atlas, in the order the figures were noted, and
+// hands the atlas back to Close.
+func (a *Atlas) Looks() *Atlas {
 	for _, f := range a.p.figures {
 		f.Look(a, a.p)
 	}
+	return a
 }

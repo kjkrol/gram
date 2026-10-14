@@ -31,19 +31,23 @@ Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
   look in a scene; `Kinds` is for what is no figure. `board.Plugin.World` is the world the
   board lies over. The wire demo is written so (`hero.go` with its boredom, `lever.go`,
   `plate.go`, `trapdoor.go`, `gate.go`, `tiles.go`; the arena keeps the mortal role, the
-  commands and the map), as is every demo whose kinds are more than coloured balls (collision,
-  minimal and scenes keep theirs in `demo.go`): kinds alike are one table of values (the
+  commands and the map), as is every demo (collision's balls, minimal's box and scenes' mover
+  are figures in their `demo.go`): kinds alike are one table of values (the
   island's `ground` tiles, its `walker{kind, color, ordered}`); a plugin with a register of
   kinds gives its own figure — `bridges.Figure` and `bullet.Figure` (`Define(p)`, `Look(a *world.
   Atlas, p)`, `Stateful`, `Ruled`), `bridges.Plugin.Figures`/`bullet.Plugin.Figures` noting
   them among the world's, `World()` on both — so the bridge and the ammo are figures too
   (topography's, flat's and hex's `bridge.go`, bullet's `round.go` and `grenade.go`) and
-  `Kinds` holds coloured balls alone; a figure's numbers —
+  no demo has a `Kinds` link left; a figure's numbers —
   its size, speed, timings — stand beside it, lowercase; the demos' arenas are received as
   `a`, not `s`.
-- `WithRenderer` leaves the `plugin.Plugin` contract: `world` and `board` keep theirs (the
-  atlases are the looks), every other plugin makes its renderer as it is made (`Renderer()` never
-  nil; the demos' 41 `WithRenderer(nil)` lines are gone). What a plugin draws about a kind is
+- `WithRenderer` is gone and a scene names no atlas: `world.Plugin.Renderer` and
+  `board.Plugin.Renderer` dress themselves from the figures' and tiles' looks the first time
+  they are asked (the board's sprites the cell's bounds across); `world.Atlas.Close` and
+  `board.Atlas.Close` bake the sheet and hand it to their plugin (`SetAtlas`, for a foreign
+  `render.AtlasSource` by hand), `Looks()` returns the atlas; every other plugin makes its
+  renderer as it is made (`Renderer()` never nil; the demos' 41 `WithRenderer(nil)` lines are
+  gone). What a plugin draws about a kind is
   styled by the figure, as the bridge is: `render.Style` (a marker, asserted beside the type),
   `render.Styles` and `render.StyleOf`, `world.Slot.Styled(s)` on the kind's slot,
   `world.Plugin.Styles()` after `WithRenderer` — `selection.Highlight{Line, Width}`

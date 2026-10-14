@@ -198,7 +198,7 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	tiles := render.NewAtlas()
 	tiles.Add(render.SpriteID(1), 8, render.Solid(color.RGBA{R: 90, G: 150, B: 90, A: 255}))
 	tiles.Close()
-	b.WithRenderer(tiles)
+	b.SetAtlas(tiles)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
 	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{})
 	cam.SetViewport(320, 240)

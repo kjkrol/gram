@@ -5,7 +5,6 @@ import (
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
@@ -25,7 +24,6 @@ var (
 
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
-	a.world.WithRenderer(a.looks())
 	return render.NewComposer(a.world.Renderer(), a.collision.Renderer())
 }
 
@@ -36,11 +34,4 @@ func (m *mainScene) screen() *ui.Element {
 		ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
 			Input(a.players.Through(a.player)),
 	)
-}
-
-func (a *arena) looks() *world.Atlas {
-	atlas := a.world.NewAtlas()
-	atlas.Looks()
-	atlas.Close()
-	return atlas
 }

@@ -151,7 +151,7 @@ func TestRenderer_Compose_DrawsAsTheRulesSay(t *testing.T) {
 	}
 }
 
-func TestWithRenderer_TakesTheEffectsLooks(t *testing.T) {
+func TestSetAtlas_TakesTheEffectsLooks(t *testing.T) {
 	p := testPlugin()
 	p.Effects().Define("frozen", effect.Spec{})
 	frozen := p.Effects().Named("frozen")
@@ -165,11 +165,11 @@ func TestWithRenderer_TakesTheEffectsLooks(t *testing.T) {
 	if again := a.twin(frozen, 0); again != free+1 {
 		t.Errorf("frozen's look asked again = %d, want the same %d", again, free+1)
 	}
-	p.WithRenderer(a)
-	p.WithRenderer(a)
+	p.SetAtlas(a)
+	p.SetAtlas(a)
 	defer func() {
 		if recover() == nil {
-			t.Error("the first look of wet after WithRenderer did not panic")
+			t.Error("the first look of wet after SetAtlas did not panic")
 		}
 	}()
 	a.twin(wet, 0)

@@ -9,9 +9,11 @@ description: How a gram plugin is built and how to write one — the plugin cont
 
 `plugin.Plugin` — `Name`, `Install(ctx plugin.Installer) error`, `RunPlan`, `Renderer`,
 `EventHandler`, `Serializable` — is the one extension point. A plugin makes its renderer itself,
-in `NewPlugin`, and `Renderer()` hands it to the scene's composer; `WithRenderer(atlas)` is
-`world`'s and `board`'s own (their atlases are the looks), no longer the contract's
-(2026-10-14). What a plugin draws about a kind — an outline, a cone, a route — is styled by the
+in `NewPlugin`, and `Renderer()` hands it to the scene's composer; `world` and `board` dress
+theirs from the figures' looks the first time `Renderer()` is asked (an atlas made, `Looks`,
+`Close`, which hands it to `SetAtlas`; a test gives a foreign `render.AtlasSource` to
+`SetAtlas` by hand); `WithRenderer` is gone (2026-10-14). What a plugin draws about a kind — an
+outline, a cone, a route — is styled by the
 figure: a `render.Style` type of the plugin's (`Style()` marker, asserted), declared on the
 kind's slot with `Slot.Styled`, read per entity with `render.StyleOf[S](world.Plugin.Styles(),
 appearance.SpriteID)`, the plugin's default where none; `render.Appearance` optional in the

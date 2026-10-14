@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
@@ -28,32 +27,16 @@ var (
 	backgroundColor = color.RGBA{R: 50, G: 50, B: 50, A: 255}
 )
 
+// a ball's shapes; the last colour of the palette is the flash of a hit
+var shapes = [entityShapes]func(color.RGBA) render.SpriteDrawer{
+	render.Solid,
+	render.Border,
+	render.Diamond,
+	render.Cross,
+}
+
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
-
-	atlas := a.world.NewAtlas()
-	hit := a.world.Effects().Named(HitEf)
-	flash := palette[entityColors]
-	shapes := [entityShapes]func(color.RGBA) render.SpriteDrawer{
-		render.Solid,
-		render.Border,
-		render.Diamond,
-		render.Cross,
-	}
-	bodyKindOf := func(c, sh int) kind.Of[body] {
-		return kind.Named[body](a.world.Kinds(), bodyKind(c, sh))
-	}
-	for ci, c := range palette[:entityColors] {
-		for si, shape := range shapes {
-			atlas.Add(bodyKindOf(ci, si), int(RectSize), shape(c)).
-				Under(hit, func(dst *render.Canvas, size int) {
-					shapes[si](flash)(dst, size)
-				})
-		}
-	}
-	atlas.Close()
-	a.world.WithRenderer(atlas)
-
 	return render.NewComposer(a.world.Renderer(), a.collision.Renderer())
 }
 

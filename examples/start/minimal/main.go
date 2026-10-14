@@ -29,9 +29,27 @@ const (
 	boxCount                  = 300
 )
 
-type box struct {
+type boxRow struct {
 	pos world.Position
 	vel world.Velocity
+}
+
+// box is the one kind: a bouncing square
+type box struct{}
+
+var _ world.Figure = box{}
+
+func (box) Define(w *world.Plugin) {
+	kind.Define[boxRow](w.Kinds(), BoxKind, kind.Spec{
+		comp.Load(func(b boxRow) world.Position { return b.pos }),
+		comp.Load(func(b boxRow) world.Velocity { return b.vel }),
+		comp.Const(collision.Collider{}),
+		comp.Const(collision.Physics{Restitution: 1}),
+	})
+}
+
+func (box) Look(a *world.Atlas, w *world.Plugin) {
+	a.Add(kind.Named[boxRow](w.Kinds(), BoxKind), boxSize, render.Solid(boxColor))
 }
 
 const (
@@ -68,8 +86,8 @@ func main() {
 			Entities: world.EntitiesCfg{MaxCount: boxCount, MinSize: boxSize, MaxSize: boxSize},
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayer).
-		Kinds(a.defineKinds).
 		Spawn(a.spawnUnits).
 		Scenes(a.defineScenes).
 		Shows(ViewScene, telemetry.SceneName).
@@ -90,24 +108,17 @@ func (a *arena) definePlayer() error {
 	return a.player.Bind(a.players.Defaults()...)
 }
 
-func (a *arena) defineKinds() {
-	kind.Define[box](a.world.Kinds(), BoxKind, kind.Spec{
-		comp.Load(func(b box) world.Position { return b.pos }),
-		comp.Load(func(b box) world.Velocity { return b.vel }),
-		comp.Const(collision.Collider{}),
-		comp.Const(collision.Physics{Restitution: 1}),
-	})
-}
+func (a *arena) defineFigures() { a.world.Figures(box{}) }
 
 func (a *arena) spawnUnits() {
-	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)
+	boxKind := kind.Named[boxRow](a.world.Kinds(), BoxKind)
 	rng := rand.New(rand.NewPCG(1, 2))
 	placement := world.NewGridPlacement(screenWidth, screenHeight, boxSize)
 	entries := make([]kind.Entry, boxCount)
 	for i := range entries {
 		var vel world.Velocity
 		vel.SetDelta(geom.NewVec(rng.Float64()*200-100, rng.Float64()*200-100))
-		entries[i] = boxKind.Entry(box{pos: placement.Place(i, boxCount), vel: vel})
+		entries[i] = boxKind.Entry(boxRow{pos: placement.Place(i, boxCount), vel: vel})
 	}
 	a.world.Seed(entries...)
 }
@@ -146,10 +157,5 @@ func (m *mainScene) screen() *ui.Element {
 
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
-	boxKind := kind.Named[box](a.world.Kinds(), BoxKind)
-	atlas := render.NewAtlas()
-	atlas.Add(boxKind, boxSize, render.Solid(boxColor))
-	atlas.Close()
-	a.world.WithRenderer(atlas)
 	return render.NewComposer(a.world.Renderer(), a.collision.Renderer())
 }

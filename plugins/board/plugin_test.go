@@ -107,12 +107,14 @@ func TestPlugin_DrawsFromTheGamesAtlasAlone(t *testing.T) {
 				t.Error("a renderer without an atlas: want a panic")
 			}
 		}()
-		p.WithRenderer(nil)
+		p.SetAtlas(nil)
 	}()
 	atlas := p.NewAtlas(10)
 	atlas.Close()
-	p.WithRenderer(atlas)
 	if p.Atlas() != atlas {
-		t.Error("the renderer does not keep the game's atlas")
+		t.Error("the atlas closed is not the board's")
+	}
+	if p.Renderer() == nil {
+		t.Error("the atlas closed made no renderer")
 	}
 }

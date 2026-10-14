@@ -1,6 +1,6 @@
 // Package selection turns Select commands into a Selected tag on Selectable world entities. Its
 // default bindings make a left drag one (Shift adds) and C has the camera follow the one selected
-// unit; WithRenderer outlines what is selected.
+// unit; the renderer outlines what is selected, each kind in its Highlight.
 //
 // # Selectable, Selected and Hovered
 //
@@ -31,9 +31,9 @@
 //
 // # Renderer
 //
-// [Plugin.WithRenderer] builds the [Renderer], a render.Source outlining every Selected entity on
-// the render.Marks tier in a [HighlightStyle] ([DefaultHighlightStyle] a thin red outline), and
-// the box of a selection being dragged ([Marquee]), one per camera.
+// [Plugin.Renderer] is the [Renderer], a render.Source outlining every Selected entity on the
+// render.Marks tier in its kind's [Highlight] ([DefaultHighlight] a thin red outline), and the
+// box of a selection being dragged ([Marquee]), one per camera.
 //
 // # Vocabulary
 //

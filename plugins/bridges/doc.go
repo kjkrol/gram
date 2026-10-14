@@ -22,7 +22,7 @@
 //
 // [Plugin.DefaultBindings] have Shift+B take a bridge in hand ([Tool]); while the player holds
 // it, the cursor lays the bridge out ([Aim]), a left click marks a head ([Mark]) and a right
-// click or Esc puts the bridge down. [Plugin.WithRenderer] draws the bridge in hand, yellow where
+// click or Esc puts the bridge down. [Plugin.Renderer] draws the bridge in hand, yellow where
 // it may not stand ([Plugin.Reason] says why), green where it may. [Plugin.Window] asks "Build
 // the bridge?": [Build] has it built at the next step of the simulation, its heads levelled on
 // the ground [Plugin.WithShaper] gives, [Cancel] builds nothing.

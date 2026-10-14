@@ -49,15 +49,7 @@ var (
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
 	a.board.WithAtmosphere(a.atmosphere)
-	worldAtlas := a.world.NewAtlas()
-	worldAtlas.Looks()
-	worldAtlas.Close()
-	a.world.WithRenderer(worldAtlas)
 
-	boardAtlas := a.board.NewAtlas(CellSize)
-	boardAtlas.Looks()
-	boardAtlas.Close()
-	a.board.WithRenderer(boardAtlas)
 	a.board.ShowGrid(false)
 
 	a.vision.WithViews(render.Show(a.selection.IsSelected))

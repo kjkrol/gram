@@ -47,8 +47,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Turn{Angle}` (the steering system asks the `Helm`, one a step), the commands about effects,
   `Pause` (Shift+P), `Faster` (]) and `Slower` ([). `Figures(f...)` notes kinds of entity in
   one piece (`world.Figure`: `Define(w)`, `Look(a, w)`; `Stateful`, `Ruled`), `FiguresIn(part)`
-  runs their parts as the Stage reaches Effects, Rules and Kinds, the atlas's `Looks()` draws
-  them.
+  runs their parts as the Stage reaches Effects, Rules and Kinds; `Renderer()` gathers their
+  looks on the atlas when first asked.
   Every `host.Tick` comes from
   `world.Plugin.Tick(d)`: the carrier (`world.Plugin.Carrier()`, the stage's one
   `command.Carrier` for players and entities alike; the engine carries every
@@ -144,7 +144,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Figures(f...)` and `Tiles(t...)` note figures standing on the board (`board.Figure`:
   `Define(b)`, `Look(a, w)`) and kinds of cell (`board.Tile`: `Define(b)`, `Look(a, b)`, covers
   included), `Stateful`/`Ruled` with their own effects and rules, among the world's figures, so
-  the Stage leads them through its sections; the atlases' `Looks()` draw them;
+  the Stage leads them through its sections; the renderers gather their looks when first asked;
   `Plugin.World()` is the world under the board. The occupancy
   (`internal/occupancy`, `KeepSystem` after the units' pass) lets go of whoever left the world
   and has every unit hold the cell it stands on, each on its level (a walker on a deck and one
@@ -181,7 +181,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `board.Atmosphere{Sun, Air}`: the board composed once and tinted on the GPU, sprites lit, what
   sways leaning), called in a scene before the renderers; without one it is drawn as it is. The
   board's own Map is the simple map — flat, every kind in its sprite from the game's atlas
-  (`WithRenderer` takes `board.Plugin.NewAtlas`, panics on nil), the ways as bands cut out of
+  (gathered by `Renderer()` from the tiles, the sprites the cell's bounds across), the ways as bands cut out of
   their kinds' sprites, a step at its kind's cost; `plugins/topography` is the other. Depends on
   `world` and `collision`.
 - **`topography`** — a map in relief: `topography.NewPlugin(world, board, Config{Cell, TileW,

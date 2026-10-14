@@ -11,8 +11,10 @@ A `render.Atlas` sizes nothing up front: `Add(of, size, draw)` records a sprite 
 slot (`render.Sprited`: `kind.Of`, `cell.Of`, a bullet `Ammo`, a bare `SpriteID`) at a texture size
 of its own (the drawn size is the entity's box), `Close()` lays the sheet out and bakes it. The
 world's atlas (`world.Plugin.NewAtlas`, `plugins/world/atlas.go`, a facade; the board's
-`board.Plugin.NewAtlas(size)` is written the same way) is declared in one place, a scene's Layers,
-and `WithRenderer` applies its rules itself: `Add(kind, size, look)` — a `render.Look` is a
+`board.Plugin.NewAtlas(size)` is written the same way) is filled by the figures' `Look`s when
+`Renderer()` is first asked (`NewAtlas().Looks().Close()` inside; `Close()` hands it to the
+plugin, `SetAtlas`, which applies its rules itself): `Add(kind, size, look)` — a `render.Look`
+is a
 SpriteDrawer drawn once, or a `MaterialID` worked out per pixel every frame (one `Frame.Material`
 quad in the box; `Custom` = {middle, half a side, heading in radians}, `Red` = speed in own lengths
 a second up to 1, `World` the box), or `render.Phases`/`Loops` — `.Under(effect, look)` the look
@@ -63,11 +65,17 @@ world units and kept on the GPU (`gpu.Kept`), drawn every frame scaled, moved an
 
 ## The plugins' renderers and styles per kind (done 2026-10-14; the findings below led to it)
 
-`WithRenderer` is `world`'s and `board`'s alone; every other plugin makes its renderer in
-`NewPlugin`. A figure's `Look` styles what the plugins draw about its kind with `Slot.Styled(s)`
+`WithRenderer` is gone and a scene names no atlas: `world.Renderer()` and `board.Renderer()`
+dress themselves from the figures and tiles the first time they are asked (`NewAtlas().Looks().
+Close()` inside, the board's sprites the cell's bounds across; `Close` hands the atlas to
+`SetAtlas`, which a test may call with a foreign `render.AtlasSource`); every other plugin
+makes its renderer in `NewPlugin`. A game declaring looks by hand closes its own `NewAtlas`
+before asking. The user's word (2026-10-14): an atlas made and closed at once in a scene is
+ceremony; a size given by another channel than the constructor is noise.
+A figure's `Look` styles what the plugins draw about its kind with `Slot.Styled(s)`
 — `selection.Highlight{Line, Width}`, `vision.Cone{Color}`, `navigation.RouteStyle{Line, Goal,
-Width}` — kept in `render.Styles` on the world's atlas (`world.Plugin.Styles()` after
-`WithRenderer`), read with `render.StyleOf[S](styles, sprite)`; the renderers carry the colour
+Width}` — kept in `render.Styles` on the world's atlas (`world.Plugin.Styles()` once it is
+closed), read with `render.StyleOf[S](styles, sprite)`; the renderers carry the colour
 per instance on the GPU. `board.ShowGrid(bool)` is the grid option.
 
 - Only scenes call `plugin.Plugin.WithRenderer(atlas)`; the engine never does. Three kinds of

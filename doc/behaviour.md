@@ -266,7 +266,8 @@ act.Around(1).Put(iced)}, act.Around(1).Put(frost))`.
 entity looks under it is the kind's, settled at drawing, on the world's atlas in the scene's
 `Layers`: `worldAtlas.Add(witch, size, witchLook).Under(frozen, frozenWitchLook)` is the slot the
 witch is drawn from while frozen — a twin of its sprite the atlas issues, swapped in by the
-world's renderer by itself (`world.Plugin.WithRenderer`, a `render.Swap` under the effect's
+world's renderer by itself (`world.Plugin.SetAtlas` as the atlas closes, a `render.Swap` under
+the effect's
 marker); a scene finds its effects by name, `world.Effects().Named("frozen")`, at building alone.
 A game may give the same for a state that is no effect: `render.Swap(twins, mark.In)` draws each
 kind as its own sprite under a marker and leaves a kind with no twin as it is;

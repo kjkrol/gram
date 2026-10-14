@@ -47,9 +47,7 @@ func TestHolds_ShowsAndHidesTheCellsHeld(t *testing.T) {
 	if err := bw.World.Carry(bw.Board); err != nil {
 		t.Fatal(err)
 	}
-	atlas := bw.Board.NewAtlas(boardtest.CellSize)
-	atlas.Close()
-	bw.Board.WithRenderer(atlas)
+	bw.Board.NewAtlas(boardtest.CellSize).Close()
 	view, ok := bw.Board.HoldsRenderer().(render.Source)
 	if !ok {
 		t.Fatal("the cells held are drawn by no render.Source")
@@ -76,20 +74,18 @@ func TestHolds_ShowsAndHidesTheCellsHeld(t *testing.T) {
 	}
 }
 
-func TestShowGrid_HoldsThroughWithRenderer(t *testing.T) {
+func TestShowGrid_HoldsThroughTheAtlasClosing(t *testing.T) {
 	bw, _ := boardtest.SquareWorld(t)
 	if !bw.Board.GridShown() {
 		t.Error("the grid starts hidden, want shown")
 	}
 	bw.Board.ShowGrid(false)
-	atlas := bw.Board.NewAtlas(boardtest.CellSize)
-	atlas.Close()
-	bw.Board.WithRenderer(atlas)
+	bw.Board.NewAtlas(boardtest.CellSize).Close()
 	if bw.Board.GridShown() || bw.Board.Res.Render.ShowGridLines {
-		t.Error("the grid hidden before WithRenderer is drawn after it")
+		t.Error("the grid hidden before the atlas closed is drawn after it")
 	}
 	bw.Board.ShowGrid(true)
 	if !bw.Board.Res.Render.ShowGridLines {
-		t.Error("ShowGrid(true) after WithRenderer draws no grid")
+		t.Error("ShowGrid(true) after the atlas closed draws no grid")
 	}
 }

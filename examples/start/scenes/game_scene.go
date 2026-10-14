@@ -4,9 +4,7 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/cameras"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
@@ -20,11 +18,6 @@ var (
 
 func (m *gameplayScene) picture() render.Picture {
 	g := m.arena
-	moverKind := kind.Named[world.Position](g.world.Kinds(), MoverKind)
-	atlas := render.NewAtlas()
-	atlas.Add(moverKind, EntitySize, render.Solid(moverColor))
-	atlas.Close()
-	g.world.WithRenderer(atlas)
 	return render.NewComposer(g.world.Renderer())
 }
 

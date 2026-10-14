@@ -21,15 +21,7 @@ var (
 
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
-	worldAtlas := a.world.NewAtlas()
-	worldAtlas.Looks()
-	worldAtlas.Close()
-	a.world.WithRenderer(worldAtlas)
 
-	boardAtlas := a.board.NewAtlas(CellSize)
-	boardAtlas.Looks()
-	boardAtlas.Close()
-	a.board.WithRenderer(boardAtlas)
 	a.board.ShowHolds(true)
 
 	return render.NewComposer(

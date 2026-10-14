@@ -67,10 +67,11 @@ A demo groups its plugins in an **arena**, the collector every section builds on
 `gram.Run(game.New(props, mainStage))`); the sections are its methods (`makePlugins`,
 `definePlayer`, `defineEffects`, `defineRules`, `defineCommands`, `defineCells`, `defineKinds`,
 `bindKeys`, `spawn`, `defineScenes`, `update`). The scene is apart in `scene.go`: a
-`mainScene{arena: a, …}` builds it — its colours, `picture()` (the atlases with `Looks()`,
-`world.WithRenderer`/`board.WithRenderer`, the plugins' look options — `vision.WithViews`,
-`board.ShowGrid(false)` — and the composer of the plugins' `Renderer()`s; no other
-`WithRenderer`) and `screen()` (the ui tree) — and `defineScenes` only makes it. See
+`mainScene{arena: a, …}` builds it — its colours, `picture()` (the plugins' look options —
+`vision.WithViews`, `board.ShowGrid(false)`, `WithAtmosphere`, the painter's styles — and the
+composer of the plugins' `Renderer()`s; no atlas: `world.Renderer()` and `board.Renderer()`
+dress themselves from the figures and tiles when first asked, the board's sprites the cell's
+size across) and `screen()` (the ui tree) — and `defineScenes` only makes it. See
 `examples/start/scenes` for a menu Stage with no world, a ui scene of the engine's commands and a
 togglable modal panel over the still-ticking world.
 
@@ -124,10 +125,10 @@ assertion at run time, so without the `var _` a misspelt `Effects` is silently s
 chain's `Figures(a.defineFigures)` link, right after `Plugins`, notes them —
 `a.board.Tiles(grass{}, pit{})`, `a.board.Figures(newLever(), newHero(), plate{})` — and the
 Stage runs their parts in Effects, Rules and Kinds after the game's own functions, in the order
-noted (the lever before the hero whose rules name `LeverRole`); `picture()` is only
-`worldAtlas.Looks()` / `boardAtlas.Looks()` between `NewAtlas` and `Close`. The arena's
-`Effects`/`Rules` keep what several kinds share; `Kinds` is for what is no figure, often
-absent. A figure takes nothing in its constructor but its sheet: what a part needs (the board,
+noted (the lever before the hero whose rules name `LeverRole`); the looks are gathered by
+`world.Renderer()`/`board.Renderer()` themselves, so `picture()` names no atlas. The arena's
+`Effects`/`Rules` keep what several kinds share; `Kinds` is gone from every demo. A figure
+takes nothing in its constructor but its sheet: what a part needs (the board,
 the world's registers through `b.World()`) comes in the call; the arena keeps the rows several
 figures read (`unitRow`), the commands and the spawn; a row one figure reads goes with it
 (`fordRow`). Kinds alike are one type of values noted several times (topography's `ground`
@@ -136,14 +137,15 @@ own gives its own `Figure` and `Figures`, the plugin coming in both calls (`brid
 `Define(p)`, `Look(a *world.Atlas, p)`, the bridge's Spec on `p.Types()`, its deck's and pier's
 looks from `p.Types().Named(name)`; `bullet.Figure` the same over `p.Shots()`; `p.World()` the
 registers), noted with `a.bridges.Figures(bridge{})`, `a.bullet.Figures(round{}, grenade{})`
-after the board's — so `Kinds(...)` is for coloured balls alone. The rule: `Look` takes the
+after the board's. The rule: `Look` takes the
 atlas it draws on and the plugin whose register the kind is in. A figure whose kind is
 built on another plugin's method takes that plugin in its constructor (dialog's
 `host{talks: a.dialog}` for `Script`), nothing else. A figure's numbers — its size in pixels,
 its speed, its timings, its sheet's columns — are constants beside it, lowercase; `demo.go`
 keeps the game's (TPS, the grid, the screen, the entity count, a plugin's setting like the
-driving's tap). Coloured balls that are nothing but a kind (collision, minimal, scenes) stay
-in `demo.go`. A `Put` in a plan lands at the step's end, a `Hold` in a plan runs for its
+driving's tap). Coloured balls that are nothing but a kind (collision's `ball{color, shape}`,
+minimal's `box{}`, scenes' `mover{}`) are a figure in `demo.go`. A `Put` in a plan lands at
+the step's end, a `Hold` in a plan runs for its
 loop's life: see the `ceremony` skill.
 
 **A pattern introduced is applied to every demo in the same pass** (the user's word,

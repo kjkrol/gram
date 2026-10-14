@@ -47,11 +47,13 @@ func (p *Plugin) Tiles(tiles ...Tile) {
 	p.tiles = append(p.tiles, tiles...)
 }
 
-// Looks declares every tile's look on the atlas, in the order the tiles were noted.
-func (a *Atlas) Looks() {
+// Looks declares every tile's look on the atlas, in the order the tiles were noted, and hands
+// the atlas back to Close.
+func (a *Atlas) Looks() *Atlas {
 	for _, t := range a.p.tiles {
 		t.Look(a, a.p)
 	}
+	return a
 }
 
 // a board's figure as the world's: defined over the board, looked as any

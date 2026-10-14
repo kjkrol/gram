@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/kjkrol/gram/render"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
@@ -45,8 +46,8 @@ func NewGameplayStage() game.Stage {
 			},
 		}).
 		Plugins(g.makePlugins).
+		Figures(g.defineFigures).
 		Players(g.definePlayer).
-		Kinds(g.defineKinds).
 		Spawn(g.spawnUnits).
 		Scenes(g.defineScenes).
 		Update(g.update)
@@ -63,14 +64,25 @@ func (g *gameplayArena) definePlayer() error {
 	return g.player.Bind(g.players.Defaults()...)
 }
 
-func (g *gameplayArena) defineKinds() {
+// mover drifts across the world, every one the same way
+type mover struct{}
+
+var _ world.Figure = mover{}
+
+func (mover) Define(w *world.Plugin) {
 	velocity := world.Velocity{}
 	velocity.SetDelta(geom.NewVec(30, 20))
-	kind.Define[world.Position](g.world.Kinds(), MoverKind, kind.Spec{
+	kind.Define[world.Position](w.Kinds(), MoverKind, kind.Spec{
 		comp.Load(func(p world.Position) world.Position { return p }),
 		comp.Const(velocity),
 	})
 }
+
+func (mover) Look(a *world.Atlas, w *world.Plugin) {
+	a.Add(kind.Named[world.Position](w.Kinds(), MoverKind), EntitySize, render.Solid(moverColor))
+}
+
+func (g *gameplayArena) defineFigures() { g.world.Figures(mover{}) }
 
 func (g *gameplayArena) spawnUnits() {
 	moverKind := kind.Named[world.Position](g.world.Kinds(), MoverKind)

@@ -182,7 +182,6 @@ func TestAtlas_StyledIsReadOffTheWorldsStylesOnceTheRendererIsMade(t *testing.T)
 		t.Error("the world has styles before its renderer is made")
 	}
 	a.Close()
-	p.WithRenderer(a)
 	if got, ok := render.StyleOf[outlined](p.Styles(), id); !ok || got.width != 3 {
 		t.Errorf("the style of sprite %d is %v, %v; want width 3", id, got, ok)
 	}

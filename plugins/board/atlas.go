@@ -7,7 +7,7 @@ import (
 )
 
 // Atlas is the board's sprite sheet under construction: Add each kind's look by its name, chain
-// Under for its covers, then Close it and hand it to WithRenderer.
+// Under for its covers, then Close it: the board takes it as its looks.
 type Atlas struct {
 	p      *Plugin
 	atlas  *render.Atlas
@@ -17,8 +17,8 @@ type Atlas struct {
 
 var _ render.AtlasSource = (*Atlas)(nil)
 
-// NewAtlas starts the board's atlas, every sprite drawn size x size; the drawn size is the
-// cell's box, this is resolution.
+// NewAtlas starts the board's atlas for looks declared by hand, every sprite drawn size x size
+// (the drawn size is the cell's box, this is resolution); Dress is the tiles' way.
 func (p *Plugin) NewAtlas(size int) *Atlas {
 	return &Atlas{p: p, atlas: render.NewAtlas(), size: size, shaded: map[cell.Name]render.MaterialID{}}
 }
@@ -47,8 +47,12 @@ func (s Slot) Under(e effect.Effect, draw render.SpriteDrawer) Slot {
 	return s
 }
 
-// Close lays the sheet out and bakes it; call once, after the last Add.
-func (a *Atlas) Close() { a.atlas.Close() }
+// Close lays the sheet out, bakes it and hands it to the board (Plugin.SetAtlas); call once,
+// after the last look.
+func (a *Atlas) Close() {
+	a.atlas.Close()
+	a.p.SetAtlas(a)
+}
 
 // Atlas is the baked sheet.
 func (a *Atlas) Atlas() *render.Image { return a.atlas.Atlas() }

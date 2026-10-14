@@ -21,10 +21,6 @@ var (
 
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
-	atlas := a.world.NewAtlas()
-	atlas.Looks()
-	atlas.Close()
-	a.world.WithRenderer(atlas)
 	a.vision.ShowCones()
 
 	return render.NewComposer(a.vision.Renderer(), a.world.Renderer(), a.collision.Renderer())

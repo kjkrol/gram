@@ -102,7 +102,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	atlas := render.NewAtlas()
 	atlas.Add(render.SpriteID(0), 8, render.Solid(color.RGBA{A: 255}))
 	atlas.Close()
-	p.WithRenderer(atlas)
+	p.SetAtlas(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 	src := p.Renderer().(render.Source)
 	cam := ctx.camera(topo.Views(topography.FromAbove), 0, 0)
@@ -159,7 +159,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 	atlas := render.NewAtlas()
 	atlas.Add(render.SpriteID(0), 8, render.Solid(color.RGBA{A: 255}))
 	atlas.Close()
-	p.WithRenderer(atlas)
+	p.SetAtlas(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 	src := p.Renderer().(render.Source)
 	cam := ctx.camera(topo.Views(topography.FromAbove), 0, 0)
@@ -276,7 +276,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 		atlas.Add(k.SpriteID, 8, render.Solid(color.RGBA{R: 100, G: 150, B: 80, A: 255}))
 	}
 	atlas.Close()
-	p.WithWorkers(workers).WithRenderer(atlas)
+	p.WithWorkers(workers).SetAtlas(atlas)
 	ecs := ctx.start(b, func(ctx goke.RunCtx, d time.Duration) { topo.RunPlan(ctx, d) })
 	if view == "persp" {
 		for _, q := range topo.Queues() {

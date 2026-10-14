@@ -70,11 +70,13 @@
 //
 // # Drawing and Look
 //
-// How entities are drawn is declared on the world's [Atlas] ([Plugin.NewAtlas]) in a scene: a
-// kind's look, its look Under an effect, Turning, Facing, Animated, Lying, Upright, Edges, and
-// Styled: how another plugin draws about the kind (an outline, a cone, a route), a render.Style
-// of that plugin's, read off [Plugin.Styles]. [Plugin.WithRenderer] builds the entity renderer
-// over it and applies what was declared. Each
+// How entities are drawn is declared on the world's [Atlas] by the figures' Looks, gathered as
+// [Plugin.Renderer] is first asked for: a kind's look, its look Under an effect, Turning,
+// Facing, Animated, Lying, Upright, Edges, and Styled: how another plugin draws about the kind
+// (an outline, a cone, a route), a render.Style of that plugin's, read off [Plugin.Styles].
+// Closing the atlas hands it to the world ([Plugin.SetAtlas]), which builds the entity renderer
+// over it and applies what was declared; a game declaring looks by hand starts its own
+// ([Plugin.NewAtlas]). Each
 // entity is laid on the screen by the world's [Look] ([Plugin.Look], [Plugin.SetLook]), flat
 // from above unless a view plugin sets its own; a [DirectLook] draws the sprites itself on the
 // GPU, a [LyingLook] lays some flat, an [UprightLook] stands some true.

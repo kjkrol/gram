@@ -32,7 +32,7 @@ func TestAtmosphere_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	b.WithRenderer(litSheet{})
+	b.SetAtlas(litSheet{})
 	even := func() render.Light {
 		l, ok := b.Map().Dressing().(look.EvenLit).EvenLight()
 		if !ok {
