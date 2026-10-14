@@ -413,7 +413,7 @@ entities are drawn is the one place rules are Go (`render.Rule`), declared on th
 in a scene, where a kind's look under an effect is declared too (`Slot.Under(effect, look)`).
 A plugin ships no ready-made reactions: it gives moments and their words, and the game says
 what follows. The language is ceremony's [doc/ceremony.md](https://github.com/kjkrol/ceremony/blob/main/doc/ceremony.md);
-how a game uses it over gram's plugins is [`doc/rule.md`](doc/rule.md).
+how a game uses it over gram's plugins is [`doc/behaviour.md`](doc/behaviour.md).
 
 What a player *wants* is a command too, a `command.Command` (ceremony's): the plugin that
 defines its type
@@ -566,7 +566,7 @@ has a `doc.go` describing what it brings. What is left to do is in
 | [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer` (with `Hosts`, the hosts of a plugin's moments), `CommandHandler`, `Serializable`, `PostLoader`, `Populator`, `Made`; `plugin/section` the parts of a Stage |
 | [`entity`](entity/doc.go) | What every entity carries: `Base`, `Position`, `Velocity`, `Z`, `Layers`, `Eye`, `Lie`; `entity/kind` what an entity is (`Spec`, `Define`, `Of`, the roster) |
 | [`clock`](clock/doc.go) | The tactical clock: game time as the sum of the simulation's steps, the pause (Shift+P), the tempo (] and [), the `Moment` of a step with `At` and `Every` |
-| [`ceremony`](https://github.com/kjkrol/ceremony) | The library gram builds on, outside the module: how entities behave — `cond` the conditions, `act` the steps and the branch of a rule, `plan` the loops of a plan, `effect` the states and knobs, `fact` the facts and messages, roles, commands about effects and labels in its root, `host` the hosts a plugin runs rules with, `command` the queues and the carrier, `tag` and `comp`; the language in its `doc/ceremony.md`, how a game uses it over gram's plugins in [`doc/rule.md`](doc/rule.md) |
+| [`ceremony`](https://github.com/kjkrol/ceremony) | The library gram builds on, outside the module: how entities behave — `cond` the conditions, `act` the steps and the branch of a rule, `plan` the loops of a plan, `effect` the states and knobs, `fact` the facts and messages, roles, commands about effects and labels in its root, `host` the hosts a plugin runs rules with, `command` the queues and the carrier, `tag` and `comp`; the language in its `doc/ceremony.md`, how a game uses it over gram's plugins in [`doc/behaviour.md`](doc/behaviour.md) |
 | [`plugins/world`](plugins/world/doc.go) | The foundation: the space, movement under the edge rules, kinds and tags, `Seed`/`Populate`, `Spawn`, `Despawn`, the commands about effects, the carrier of commands, the entities' looks on the atlas; it runs the core's systems; `steering` and `view` beside it |
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence`; `game/stage` a Stage defined a section at a time |
 | [`ui`](ui/doc.go) | A scene's screen as a tree of elements: `Layers`, `Columns`/`Rows`, anchors, `Panel`, `Label`, `Image` of a feed, `Window`, `Button` giving commands, elements pinned to entities `Under` an effect or `On` a name, a `Theme` |
@@ -635,7 +635,7 @@ are `aabbworld`'s; gram is where they meet an ECS and a screen.
 - **Concepts and package graph** in the root [`doc.go`](doc.go); each package's own `doc.go`
   explains what it brings (see [Architecture](#architecture)).
 - **The language of behaviour** in ceremony's [README](https://github.com/kjkrol/ceremony) and
-  [doc/ceremony.md](https://github.com/kjkrol/ceremony/blob/main/doc/ceremony.md); [`doc/rule.md`](doc/rule.md) is how a
+  [doc/ceremony.md](https://github.com/kjkrol/ceremony/blob/main/doc/ceremony.md); [`doc/behaviour.md`](doc/behaviour.md) is how a
   game uses it over gram's plugins.
 - **Benchmarks** in [BENCHMARKS.md](BENCHMARKS.md); **changes** in [CHANGELOG.md](CHANGELOG.md).
 

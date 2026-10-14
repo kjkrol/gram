@@ -1,13 +1,15 @@
-# How a game uses ceremony
+# Behaviour: how a game uses ceremony over gram's plugins
 
 How entities behave — rules, plans, effects, roles, commands, facts — is the library
 [ceremony](https://github.com/kjkrol/ceremony), which gram builds on with goke as the store. The
 language is ceremony's own: its [README](https://github.com/kjkrol/ceremony) and
 [doc/ceremony.md](https://github.com/kjkrol/ceremony/blob/main/doc/ceremony.md) say what a
-branch, a loop, a condition, a step, an effect, a role, a command and a message are, and in what
-order effects land. This page is the game's side: what gram's plugins give to write rules over —
-the moments, the words, the facts, the knobs — where a game defines things, how a player gives a
-command, and how a game and a plugin are written in these words.
+branch, a loop, a condition, a step, an effect, a role, a command and a message are, how an
+effect runs, what a command about an effect says (`Put`, `Take`, `Toggle`, `On`, `For`, `By`,
+`Trigger`), what a knob is and why a rule holds no Go code. None of that is repeated here. This
+page is the game's side: what gram's plugins give to write rules over — the moments, the words,
+the facts, the knobs — where a game defines things, how a player gives a command, and how a game
+and a plugin are written in these words.
 
 ## The plugins' moments and words
 
@@ -19,11 +21,11 @@ plugin.
 |---|---|---|---|
 | `unit.Standing` | the board, every unit a step | one; `host.Placed` | `unit.Fallen()`, `unit.StandingOn(e)`, `unit.OnKind(k)` |
 | `cell.Now` | the board, every cell a step | one; `host.Placed` | — |
-| `collision.Meeting` | collision, a confirmed contact | a pair; `host.Met` | — |
+| `collision.Meeting` | collision, a confirmed contact, a pair resting against each other too | a pair; `host.Met` | `collision.Facing(within)` (turned to the other within the angle) |
 | `collision.Struck` | collision, one that struck something | one | — |
 | `vision.Sighting` | vision, every observer a step | a pair, grouped by observer | `vision.SeesNobody()`, `vision.Closing()` (of the other) |
 | `navigation.Touch` | navigation, two units touching | a pair | `PushedByAlly()`, `Blocks()`, `WaitedLong()`, … |
-| `world.Moving` | the world, every entity before it moves | one | — |
+| `world.Moving` | the world, every entity before it moves | one | `world.Still()` (neither walking nor strafing) |
 | `world.Leaving` | the world, every tick past an open edge | one | — |
 | `clock.Moment` | the world, once a step | the clock's own entity | `clock.At(t)`, `clock.Every(period, offset)` |
 | `climate.Weathering` | the atmosphere, once a step | the atmosphere's own entity | — |
@@ -41,8 +43,10 @@ other; a game writes its own the same way over a plugin's moment or over a fact.
   `cond.Around(n).If(x)` and `act.Around(n).Put(e)` turn to each place within `n` rings of the
   cells under the entity (for a cell, of itself): the cell and the entities standing on it, each
   once, on square and hex boards alike; `0` the cells under it alone. An effect put on the ground
-  round a witch, a lever pulled beside a scout. The cell under a unit is a word of its
-  `Standing`: `unit.StandingOn(e)`, `unit.OnKind(k)`. The units there are no part of it.
+  round a witch, a lake's cells iced. The cell under a unit is a word of its `Standing`:
+  `unit.StandingOn(e)`, `unit.OnKind(k)`. The units there are no part of it. A thing used by
+  touch — a lever — is a `collision.Meeting` under `collision.Facing(angle)`, which holds without
+  a board.
 - **The clock's moment is the clock's.** A `clock.Moment` is of the clock's own entity: an effect
   a clock rule puts on lands there — `act.Branch[clock.Moment]{Name: "dusk", When:
   cond.Self.If(clock.At(dusk)), Then: act.Self.Put(night)}`, a phase that `clock.Clock.In` reads
@@ -57,8 +61,8 @@ other; a game writes its own the same way over a plugin's moment or over a fact.
 ## Facts, knobs and commands: what is marked
 
 What a game and a plugin write are of three kinds, each marked by a method never called and
-confirmed beside the type; what is not marked is the engine's (the binding's `Active`, the roles' tags,
-a plan's mind, a label) or a value in flight (a moment, a word).
+confirmed beside the type; what is not marked is the engine's (the binding's `Active`, the
+roles' tags, a plan's mind, a label) or a value in flight (a moment, a word).
 
 | thing | what it is | mark | gram's own |
 |---|---|---|---|
@@ -71,11 +75,9 @@ a plan's mind, a label) or a value in flight (a moment, a word).
   until the next) to units with a mind alone, so entities without a plan pay nothing; `Blocked`'s
   words are `navigation.Stuck()`, `Cornered()`, `StrangerOnGoal()`, `IdleAlly()`,
   `IdleAllyOnMyGoal()`.
-- **Knobs** are what an effect changes. What a plugin's system writes lives beside the knob in a
-  component of its own — `steering.Course` beside `Steering`, `vision.Sighted` beside `Sight`,
-  a cell's heights apart from its `Ground` — given where it is missing: an `Alter` ending puts
-  back the original, and would put back stale state with it. A new knob goes into the component
-  a plugin reads, never into its state. A plugin's own effects stay private.
+- **Knobs** in gram: what a plugin's system writes lives beside the knob in a component of its
+  own — `steering.Course` beside `Steering`, `vision.Sighted` beside `Sight`, a cell's heights
+  apart from its `Ground` — given where it is missing. A plugin's own effects stay private.
 - **Commands** are carried out by the plugin that defines the type, in its own pass, for the
   entity alone (`command.Issued.ByEntity`), the engine's own rules inside (a unit is never
   stepped into water, off a cliff or into a wall); `world.Spawn{Entry}` is the one that makes
@@ -140,9 +142,8 @@ s.world.Plays(roles.Named(NightlyRole))
 Once the Stage's `Init` returns, the engine gives every rule of every role somebody plays to the
 plugin in use that catches its moment, trying the plugins in the order they were used
 (`plugin.Installer.Hosts` is how a plugin says what it catches; `ceremony.Deliver` underneath). A
-rule no plugin in use catches fails `Init` with an error wrapping `host.ErrUnhosted`, naming the
-rule by its `String` — its name, its moment and its role: `"fall in" of unit.Standing, for the
-role mortal`. A Stage names 64 roles at most, one name one tag, saved by name.
+rule no plugin in use catches fails `Init`, naming the rule. A Stage names 64 roles at most, one
+name one tag, saved by name.
 
 **A plugin is an entity too** (`world.Self`): one of its own, called by the plugin's name,
 carrying its knobs, its roles and the effects it is under — as many at once as a game defines. So
@@ -172,14 +173,12 @@ s.world.Seed(s.scout.Entry(row).Told(mine...), s.porter.Entry(row).Told(mine...)
 ## Commands from keys and ui
 
 Whatever somebody asks for — a player's key, a ui button, a script, an AI, a branch's `Do` — is
-a command, given the same way whoever gives it. A command about an effect is a sentence
-(`ceremony.Put`, `Take`, `Toggle` with `On`, `For`, `By`), and in a game its targets are the
-entities called by name or group (`ceremony.Named`, `ceremony.Group`; an entity is called by what
-makes it: a cell by its `cell.Entry{Name, Group}`, a unit by its `kind.Entry` or the map file's
-`name` and `group`), the world itself (`ceremony.World`), or the selection's own:
-`Selected(roles...)`,
-the units the player who gives the command has selected (those playing a role named, when any
-is), and `Pointed()`, the entity drawn under the cursor as the key is pressed.
+a command, given the same way whoever gives it. In a game the targets of a command about an
+effect are the entities called by name or group (an entity is called by what makes it: a cell by
+its `cell.Entry{Name, Group}`, a unit by its `kind.Entry` or the map file's `name` and `group`),
+the world itself (`ceremony.World`), or the selection's own: `Selected(roles...)`, the units the
+player who gives the command has selected (those playing a role named, when any is), and
+`Pointed()`, the entity drawn under the cursor as the key is pressed.
 
 ```go
 openWest := ceremony.Put(open).On(ceremony.Group("west trapdoors")).By(ceremony.Named("west lever"))
@@ -214,10 +213,10 @@ for that entity (`ceremony.Take(greeting).On(ui.It)`); a plugin's own command th
 command for a group of trapdoors or a gate, entities standing on the board; the trapdoor and
 pressure plate demos are the same in less.
 
-## No Go code in a rule
+## What a plugin does of its own
 
-A rule holds no Go code of its own but its words. What a plugin does of its own is its own work
-in a pass it makes anyway, never a rule of another plugin's moment:
+A rule holds no Go code (ceremony's "No Go code in a rule"); what a plugin does of its own is its
+own work in a pass it makes anyway, never a rule of another plugin's moment:
 
 - the ground's pace: the board's pass over the units writes each one's `steering.Pace` — the cost
   and the slope of the cell under it — and the world's velocity pass multiplies the speed by it,
@@ -242,10 +241,6 @@ act.Branch[vision.Sighting]{
 	Then: act.Self.Do(steering.Away{}),
 }
 ```
-
-A switch of a behaviour for the whole game is an effect on the world (`ceremony.Put`, `Take` or
-`Toggle` on `ceremony.World`), the rule reading it with `cond.On(s.world).If(e)` (the vision
-demo's fleeing).
 
 How an entity is drawn is the one place rules are Go: `render.Over`, `As`, `Swap`, `With` and
 `Show`, given on the world's atlas in a scene's Layers (and `vision.Plugin.WithViews`, which views
@@ -417,15 +412,3 @@ Where a rule cannot say what the game needs, a moment, a word, a step or a knob 
 added to the plugin, not written as code in a rule. Fire needed three: acting on the places round
 (`Around`), a board moment of a cell (`cell.Now`), and the clock's moment as its own entity's, so
 that a clock rule puts a phase on.
-
-## Later
-
-The same words serve formations and escorts ("follow me"), handing over a load, combat ("cover
-me", "fall back"), and an AI player's orders to its units; messages and commands are deterministic,
-fit to replay and to send over a network.
-
-Not yet there: which effects a player may apply (any, today, on whatever a command names
-— a game over a network will want a list); an effect taking a tag off while it runs (a
-`Revoke` beside `Grant`); `Around` in plans; a step shared by the moments of several
-plugins; more than `MaxEffects` (8) effects on one entity and 63 defined; an entity in more than
-one group; a dictionary of idioms (`Once`, `Either`, the patrol) written out of the bricks.

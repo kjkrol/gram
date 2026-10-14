@@ -4,21 +4,23 @@
 
 What is left to do. Take an item out when it lands.
 
-## Next, in this order (the demos' TODOs)
-
-1. **Facts for plans beyond navigation** — `bullet.Flight` as the fuse's fact shows any
-   component is one; say in each plugin's doc which of its components are meant for plans
-   (`Blocked`, `Arrived`, `Flight`) and which are not.
-
 ## Engine
+- **A vocabulary in every plugin's doc** — its moments, its commands, its knobs, its facts, in
+  one place a plugin (the knobs on a plugin's own entity among them: `sky.Moon`, `gravity.Pull`),
+  saying which of its components are meant for plans (`Blocked`, `Arrived`, `Flight`) and which
+  are not.
 - **A dictionary of idioms** — `Once` (a thing done at most once a while, an effect the memory),
   `Either` (a coin), the patrol (`Onward`, `Until[Arrived]`, `Wait`), the asker's "no answer"
   (`Until` under a `Timeout` in a `OneOf`): named shapes written out of the bricks, in
-  `doc/rule.md` or as functions a game copies, never steps of the engine.
-- **Messages passed on** — a reply to a message passed on goes to the one who passed it on, not
-  to the first asker; passing the answer back is the game's branch (`rule/message_test.go`'s
-  giver). A loop (A asks B, B asks A) ends by `MaxChain` and by a branch of a fact firing once per
-  coming; whether `Hops` should count across types is open.
+  `doc/behaviour.md` or as functions a game copies, never steps of the engine.
+- **Effects, what is left** — an effect taking a tag off while it runs (a `Revoke` beside
+  `Grant`); `Around` in plans; a step shared by the moments of several plugins; more than 8
+  effects on one entity and 63 defined; an entity in more than one group; which effects a player
+  may apply (any, today, on whatever a command names — a game over a network will want a list).
+- **Messages passed on** — a reply to a message passed on goes to the one who passed it on, not to
+  the first asker; passing the answer back is the game's branch (ceremony's `plan/message_test.go`,
+  the giver). A loop (A asks B, B asks A) ends by `MaxChain` and by a branch of a fact firing once
+  per coming; whether `Hops` should count across types is open.
 - **A minimap plugin** — a `ui` element: a feed from a camera keeping the whole world in view
   (`camera.Config.Whole`), the game's picture under dots of its own by kind, picked by drawing
   rules (what my units see: `vision.Seen`), the players' views outlined on it, a key to show and
@@ -28,23 +30,18 @@ What is left to do. Take an item out when it lands.
   player acts through one picture a scene, its wire (`players.Plugin.Through`) both.
 - **ui, what is left** — `Dialog`, `Toast`, `MenuBar`/`Menu`/`ContextMenu`, `Tabs`, `Scroll`,
   `List`; `Canvas` (a tech tree), `Tooltip`, drag and drop, focus moved by keys and pads; the
-  scenes-demo's menu and the players' list of shortcuts as ui (their keys need `game.Runtime`:
-  switching the Stage, quitting); the UI drawn into one `render.Frame` in place of a draw an
-  element, once a profile asks for it.
+  UI drawn into one `render.Frame` in place of a draw an element, once a profile asks for it.
 - **Canals and building on shaped ground** — a cell lowered to the sea turns to water; a preview of
   a shaping drag (lost with the players' marquee); the costs of shaping.
-- **`RouteStyle`** — how a route is drawn becomes a style, as `vision.ConeStyle` is: `CellArrows`,
-  today's arrow per cell, by default; `SmoothRoute` opt-in, the line the unit will follow — arcs
-  of radius `Speed / TurnRate` through the lookahead points, the queued waypoints marked. Drawn for
-  selected units only, computed when the route or the waypoints change and kept beside the `Path`,
-  sharing the lookahead's code with navigation so what is drawn and what is driven cannot drift.
+- **A smooth route** — an opt-in `RouteStyle` drawing the line the unit will follow: arcs of
+  radius `Speed / TurnRate` through the lookahead points, the queued waypoints marked; computed
+  when the route or the waypoints change and kept beside the `Path`, sharing the lookahead's code
+  with navigation so what is drawn and what is driven cannot drift.
 - **Covers** — a state of the ground drawn over its cells (`board.Plugin.Covering`) is the simple
   map's on a square grid: in relief (the topography's painter and its sheets), on a hex grid
   along a line of its own, a ragged edge (noise on the threshold), a cover narrowed to the cells
   that can take it (a lake's shore), one that moves (a storm, a whirlpool). What stands on the
   ground and moves — fire, smoke — is sprites over it, not a cover.
-- **A demo of ways** — roads as `cell.Way` and a bridge standing on the board over the ground, a
-  unit taking the road round the mud, in the dress of the effect demo.
 - **Shots and decks** — a shot's ground (`bullet.Plugin.WithGround`) is the heights alone: it flies
   through a deck and falls by its own `Gravity`, which gravity turned over does not touch; both
   through `ground.Surfaces` and the world's `gravity.Pull`.
@@ -56,8 +53,6 @@ What is left to do. Take an item out when it lands.
   `bridges/site`'s), and takes a bridge down.
 - **Blocks' shadows over hex prisms** — the terrain over a hex grid bakes no shade, so a
   bridge's deck and its piers cast no shadow there.
-- **A vocabulary in every plugin's doc** — its moments, its commands, its knobs, its facts, in
-  one place a plugin (the knobs on a plugin's own entity are there: `sky.Moon`, `gravity.Pull`).
 - **Gamepads** — a trigger vocabulary for pads, so split screen is not only a keyboard's.
 - **Networking** — `plugins/netview` over players; the server is one engine, a remote client a
   player whose translator decodes frames:
@@ -80,8 +75,8 @@ What is left to do. Take an item out when it lands.
 - **A wall on a steep slope** — collision stops an entity in a solid cell whose band, from below up
   to its kind's `Height` over the cell's level, meets the entity's; on a slope steeper than that
   `Height` over half a cell a unit coming downhill may be partly inside the cell before its band
-  meets, and the push out, through the shallowest open side, may put it on the far side. No demo
-  has a solid cell on a slope; a wall's band from the lowest corner, or a sealed side, when one does.
+  meets, and the push out, through the shallowest open side, may put it on the far side. No demo has
+  a solid cell on a slope; a wall's band from the lowest corner, or a sealed side, when one does.
 - **A sweep across the seam** — a swept entity (`collision.Sweep`) in a wrapping world: its
   stretch in the space as the fragments the seam cuts it into, the segment refined per image.
   Collision refuses one today, with a panic at the first it meets.
@@ -99,7 +94,6 @@ What is left to do. Take an item out when it lands.
 - **Two mouths side by side** — two rivers reaching the sea next to each other look like a "U" at
   the water: the drainage joins them by the shore.
 - **Forests come back** — with a plugin for plants; the `forest` kind stays for it.
-
 - **More knobs of the sky** — the sun and the weather as knobs on the atmosphere's entity, as
   the moon is (`sky.Moon`), so an eclipse or a spell of fog is an effect.
 
@@ -117,5 +111,5 @@ What is left to do. Take an item out when it lands.
 - **`BENCHMARKS.md`** — the old island's numbers predate the roads, the folded quads and the outline
   fix: measure again on an idle machine, alternately against a baseline.
 - **A thumbnail in a save** — the frame at the moment of saving, for a load screen.
-- **The next tag, v0.3.0** — once this state has been reviewed; note that saves written before
-  tag families, the cell entities and what stands on the board (`cell.Built`) do not load.
+- **The next tag** — after goke v3.4.1 and ceremony v0.2.1 are tagged and `go.mod` bumped; note
+  that saves written before the cell entities and what stands on the board do not load.

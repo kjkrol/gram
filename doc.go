@@ -49,7 +49,7 @@
 // ceremony.Put(open).On(ceremony.Group("trapdoors")).By(ceremony.Named("lever")). The language
 // is ceremony's own documentation; gram's plugins give the moments, facts, words and knobs it is
 // written over, each marked beside its type, and the world keeps a Stage's registers of effects,
-// roles and commands by name (doc/rule.md).
+// roles and commands by name (doc/behaviour.md).
 //
 // # Kinds and spawning
 //

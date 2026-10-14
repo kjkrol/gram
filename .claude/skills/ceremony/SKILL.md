@@ -5,9 +5,11 @@ description: ceremony, the language of behaviour gram builds on (github.com/kjkr
 
 # ceremony
 
-Grammar and layout: `/home/karol/CODE/ceremony/doc/ceremony.md` (the reference, read it for
-the clauses) and `CLAUDE.md` there. Nothing of a game goes in: an "obrzęd" is prescribed steps
-with roles, so `command.Issuer`, never a player; a sprite, a cell, a unit are gram's.
+Grammar and layout: `/home/karol/CODE/ceremony/doc/ceremony.md` (the reference, read it for the
+clauses) and `CLAUDE.md` there; gram's side (its plugins' moments, words, facts, knobs and commands,
+where a game defines things) is gram's `doc/behaviour.md`. Nothing of a game goes in: an "obrzęd" is
+prescribed steps with roles, so `command.Issuer`, never a player; a sprite, a cell, a unit are
+gram's.
 
 ## What is what
 

@@ -159,22 +159,10 @@ component on it. Each `plugin.go`/`module.go` groups contract methods first.
 
 ## Behaviour goes through rules
 
-A plugin **perceives** — moments for rules (`unit.Standing`, `collision.Meeting`,
-`navigation.Touch`), facts for plans — and **carries out** commands (`navigation.StepAside`,
-`world.Despawn`), keeping the engine's own rules inside the handler (a unit is never stepped
-into water, off a cliff or into a wall). **Effects** hold state and a rule's memory. A plugin
-gives its host its own defaults unexported (navigation's crowd); a game adds its own as roles its
-kinds play or replaces them where the plugin offers it (`navigation.Plugin.WithCrowd`). Export
-only what a game needs.
-
-A game is written the same way: its **states are effects** (burning, frozen, alarmed, bored),
-each with its own marker; its **rules connect** the plugins' moments to those effects
-(`act.Self.Put`, `Take`, `Hold`, `Do`; `cond.Chance`, `cond.Around(n).If`); the plugins give
-**knobs** — components an effect's `Alter` turns. **A knob is a component its plugin only
-reads**; what a system writes lives beside it (`steering.Course` beside `Steering`,
-`vision.Sighted` beside `Sight`, `Ground` apart from the heights), given where missing. A
-**player acts** by giving a command: `ceremony.Put(e).On(sel.Selected(role))`, `.On(sel.Pointed())`,
-`.On(ceremony.World)` (read by `cond.On(s.world).If(e)`), `.On(ceremony.Group(name))`.
+The game's side of ceremony — the plugins' moments and words, what is marked a fact, a knob or a
+command, where a game defines things, commands from keys and ui, what a plugin does of its own,
+writing a new behaviour in a plugin, states as effects — is the public page `doc/behaviour.md`;
+read it rather than restating it. Two things to keep in mind beside it:
 
 **A thing used by touch** (the wire demo's lever): a post (`Collider`, `Physics{Mass: +Inf}`)
 the hero (`Physics{Mass: 1}`) walks up to and rests against; the hero's rules of a
