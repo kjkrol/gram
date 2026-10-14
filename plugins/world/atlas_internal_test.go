@@ -165,3 +165,31 @@ func TestAtlas_UnderTwoEffectsTheLookDeclaredLaterIsDrawn(t *testing.T) {
 		t.Errorf("under nothing, sprite %d drawn, want the hero's own", got)
 	}
 }
+
+type outlined struct{ width int }
+
+func (outlined) Style() {}
+
+func TestAtlas_StyledIsReadOffTheWorldsStylesOnceTheRendererIsMade(t *testing.T) {
+	p := NewPlugin(Config{
+		Space:    SpaceCfg{Width: 100, Height: 100},
+		Entities: EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	a := p.NewAtlas()
+	id := p.Kinds().NewSprite()
+	slot := a.Add(id, 4, render.Solid(color.RGBA{})).Styled(outlined{width: 3})
+	if p.Styles() != nil {
+		t.Error("the world has styles before its renderer is made")
+	}
+	a.Close()
+	p.WithRenderer(a)
+	if got, ok := render.StyleOf[outlined](p.Styles(), id); !ok || got.width != 3 {
+		t.Errorf("the style of sprite %d is %v, %v; want width 3", id, got, ok)
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("a style declared after the renderer was made was taken")
+		}
+	}()
+	slot.Styled(outlined{width: 5})
+}

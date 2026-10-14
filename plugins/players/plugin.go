@@ -209,9 +209,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // Update.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer is a no-op: players draw nothing.
-func (p *Plugin) WithRenderer(render.AtlasSource) {}
-
 // Renderer is nil: players draw nothing.
 func (p *Plugin) Renderer() render.Layer { return nil }
 

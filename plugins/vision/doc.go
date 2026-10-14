@@ -51,5 +51,8 @@
 //
 // Moments, for a role's rules: [Sighting] (a pair grouped by observer, host.Met, its subject the
 // nearest seen; its words [SeesNobody], [Closing] of the other). Knobs, for an effect's Alter:
-// [Sight]. Commands: [Cones] (a player's, a look).
+// [Sight]. Commands: [Cones] (a player's, a look). Styles, for a figure's Look on the world's
+// atlas (Slot.Styled): [Cone], the colour a kind's view is edged in, [DefaultCone] without;
+// [Plugin.WithStyle] replaces every kind's with a composer of its own, [Plugin.WithShadow] the
+// veil over the ground out of sight.
 package vision

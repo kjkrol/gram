@@ -49,6 +49,11 @@ type RouteStyle struct {
 	Width      float32
 }
 
+// Style: a figure declares it on the world's atlas (render.Style).
+func (RouteStyle) Style() {}
+
+var _ render.Style = RouteStyle{}
+
 // DefaultRouteStyle is a thin orange line and an orange-yellow outline.
 var DefaultRouteStyle = RouteStyle{Line: color.RGBA{R: 255, G: 140, B: 0, A: 220}, Goal: color.RGBA{R: 255, G: 200, B: 40, A: 255}, Width: 1.5}
 
@@ -56,11 +61,13 @@ var DefaultRouteStyle = RouteStyle{Line: color.RGBA{R: 255, G: 140, B: 0, A: 220
 const goalWidth = 2
 
 type pathRenderer struct {
-	grid   grid.Grid
-	style  RouteStyle
-	frame  *render.Frame // the one being composed
-	camera camera.Camera // the one of the frame being composed
-	space  *aabbworld.Space
+	grid    grid.Grid
+	style   RouteStyle // the kinds' default
+	current RouteStyle // the unit's being drawn
+	styles  func() *render.Styles
+	frame   *render.Frame // the one being composed
+	camera  camera.Camera // the one of the frame being composed
+	space   *aabbworld.Space
 	// nil: level at 0
 	heights func() ground.Heights
 	ground  ground.Heights
@@ -80,6 +87,7 @@ type pathRenderer struct {
 	cell  goke.Comp[unit.At]
 	order goke.Comp[MoveOrder]
 	marks goke.Comp[tag.Tags[selection.Family]]
+	app   goke.OptComp[render.Appearance]
 	mover goke.OptComp[unit.Mover]
 
 	footprint []render.Corners
@@ -94,15 +102,20 @@ func newPathRenderer(grid grid.Grid, style RouteStyle, selected tag.Tag[selectio
 	if style == (RouteStyle{}) {
 		style = DefaultRouteStyle
 	}
-	return &pathRenderer{grid: grid, style: style, selected: selected, gpu: routes.New()}
+	return &pathRenderer{grid: grid, style: style, current: style, selected: selected, gpu: routes.New()}
 }
 
 func (r *pathRenderer) Tier() render.Tier { return routes.Tier }
 
 func (r *pathRenderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
 	if r.onGPU {
-		r.gpu.Draw(t, cam, r.style.Line, r.style.Width)
+		r.gpu.Draw(t, cam)
 	}
+}
+
+func (r *pathRenderer) WithStyles(styles func() *render.Styles) *pathRenderer {
+	r.styles = styles
+	return r
 }
 
 func (r *pathRenderer) WithHeights(heights func() ground.Heights) *pathRenderer {
@@ -123,6 +136,7 @@ func (r *pathRenderer) BindSpace(space *aabbworld.Space) { r.space = space }
 
 func (r *pathRenderer) Init(si *goke.SysInit) {
 	r.query = si.NewQueryBuilder(&r.base, &r.cell, &r.order, &r.marks).
+		Optional(&r.app).
 		Optional(&r.mover).
 		Build()
 }
@@ -140,6 +154,10 @@ func (r *pathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 	if r.space == nil {
 		return
 	}
+	var styles *render.Styles
+	if r.styles != nil {
+		styles = r.styles()
+	}
 	r.query.All()
 	for r.query.Next() {
 		cursor := r.query.Cursor()
@@ -147,10 +165,17 @@ func (r *pathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 		cells := r.cell.Slice(cursor)
 		orders := r.order.Slice(cursor)
 		marks := r.marks.Slice(cursor)
+		apps := r.app.Slice(cursor)
 		movers := r.mover.Slice(cursor)
 		for i := range cursor.IDs {
 			if !marks[i].Has(r.selected) {
 				continue
+			}
+			r.current = r.style
+			if apps != nil {
+				if st, ok := render.StyleOf[RouteStyle](styles, apps[i].SpriteID); ok {
+					r.current = st
+				}
 			}
 			o := &orders[i]
 			r.goals(bases[i].Pos.Size, unit.DomainAt(movers, i), o)
@@ -232,11 +257,11 @@ func (r *pathRenderer) line(a, b geom.Vec) {
 		dy := shortestAxisDelta(a.Y, b.Y, r.space.Height, r.space.Edges.WrapsY())
 		x0, y0 := r.camera.ToScreen(float32(a.X), float32(a.Y))
 		x1, y1 := r.camera.ToScreen(float32(a.X+dx), float32(a.Y+dy))
-		r.frame.Line(render.Overlays, 0, x0, y0, x1, y1, r.style.Width, r.style.Line)
+		r.frame.Line(render.Overlays, 0, x0, y0, x1, y1, r.current.Width, r.current.Line)
 		return
 	}
 	if r.onGPU {
-		r.gpu.Add(r.camera, a, b, r.groundAt, r.step, r.style.Width)
+		r.gpu.Add(r.camera, a, b, r.groundAt, r.step, r.current.Width, r.current.Line)
 		return
 	}
 	length := math.Hypot(b.X-a.X, b.Y-a.Y)
@@ -250,7 +275,7 @@ func (r *pathRenderer) line(a, b geom.Vec) {
 		p := geom.NewVec(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t)
 		x1, y1 := r.on(p)
 		mid := geom.NewVec(a.X+(b.X-a.X)*(t-0.5/float64(pieces)), a.Y+(b.Y-a.Y)*(t-0.5/float64(pieces)))
-		r.frame.Line(render.Overlays, r.camera.Depth(float32(mid.X), float32(mid.Y), r.groundAt(mid)), x0, y0, x1, y1, r.style.Width, r.style.Line)
+		r.frame.Line(render.Overlays, r.camera.Depth(float32(mid.X), float32(mid.Y), r.groundAt(mid)), x0, y0, x1, y1, r.current.Width, r.current.Line)
 		x0, y0 = x1, y1
 	}
 }
@@ -283,7 +308,7 @@ func (r *pathRenderer) goal(size geom.Vec, c cell.ID, spot geom.Vec, alt float32
 		pts := [4][2]float32{q[0], q[1], q[3], q[2]}
 		for i, p := range pts {
 			n := pts[(i+1)%len(pts)]
-			r.frame.Line(render.Marks, 0, p[0], p[1], n[0], n[1], goalWidth, r.style.Goal)
+			r.frame.Line(render.Marks, 0, p[0], p[1], n[0], n[1], goalWidth, r.current.Goal)
 		}
 	}
 }

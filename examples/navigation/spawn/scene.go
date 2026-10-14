@@ -32,9 +32,6 @@ func (m *mainScene) picture() render.Picture {
 	a.board.WithRenderer(boardAtlas)
 	a.board.ShowHolds(true)
 
-	a.nav.WithRenderer(nil)
-	a.selection.WithRenderer(nil)
-
 	return render.NewComposer(
 		a.board.Renderer(),
 		a.board.HoldsRenderer(),

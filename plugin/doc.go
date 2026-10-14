@@ -5,8 +5,8 @@
 // # Plugin
 //
 // A [Plugin] has a Name (saves match its state by it), an Install that queues its ECS wiring, a
-// RunPlan the Stage calls once a tick, and optional faces: WithRenderer and Renderer for what it
-// draws, EventHandler for the input it reads, Serializable for the state it saves. A [Builtin]
+// RunPlan the Stage calls once a tick, and optional faces: Renderer for what it draws,
+// EventHandler for the input it reads, Serializable for the state it saves. A [Builtin]
 // plugin is one the engine installs itself. A plugin tells the Stage of itself as it is made
 // ([Made]); the Stage uses the plugins in the order made.
 //

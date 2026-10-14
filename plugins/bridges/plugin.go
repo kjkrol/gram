@@ -69,6 +69,7 @@ func NewPlugin(w *world.Plugin, brd *board.Plugin, cfg Config) *Plugin {
 	}
 	p := &Plugin{worldPlugin: w, board: brd, cfg: cfg, hands: map[command.Issuer]*hand{}}
 	p.types = &Types{p: p}
+	p.renderer = &renderer{p: p}
 	p.Self = world.NewSelf(w, p)
 	return p
 }
@@ -237,16 +238,8 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // simulation.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer builds the renderer of the bridges in the players' hands.
-func (p *Plugin) WithRenderer(render.AtlasSource) { p.renderer = &renderer{p: p} }
-
-// Renderer draws the bridges in the players' hands; nil before WithRenderer.
-func (p *Plugin) Renderer() render.Layer {
-	if p.renderer == nil {
-		return nil
-	}
-	return p.renderer
-}
+// Renderer draws the bridges in the players' hands.
+func (p *Plugin) Renderer() render.Layer { return p.renderer }
 
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 

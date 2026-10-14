@@ -346,7 +346,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`Path.Decks`, a `Leg`'s `FromDeck`/`ToDeck`); a unit standing off its route plans again. The
   driving plugin gets its `driving.Keeping` from navigation (`handKeeping`); a unit whose
   `steering.Driven.Steers()` gives its order up in navigation's pass; navigation's RunPlan comes
-  before the driving's. `WithRenderer` builds the renderer of routes (`internal/routes`): every
+  before the driving's. The renderer of routes (`internal/routes`, made in `NewPlugin`): every
   selected unit's goals as its outline (`Marks`) and, on `Routes{}` (Shift+R), its routes as thin
   lines at the ground's depth; `WithRouteStyle`. Facts told a unit with a tree: `Blocked`,
   `Arrived`; `MoveOrder.HitUnit` (entity ids start at 0: never use 0 as "nobody"). Depends on

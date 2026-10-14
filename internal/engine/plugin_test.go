@@ -36,7 +36,6 @@ func (p *stubPlugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 func (p *stubPlugin) RunPlan(goke.RunCtx, time.Duration) {}
-func (p *stubPlugin) WithRenderer(render.AtlasSource)    {}
 func (p *stubPlugin) Renderer() render.Layer             { return nil }
 func (p *stubPlugin) EventHandler() control.EventHandler { return nil }
 func (p *stubPlugin) Serializable() plugin.Serializable  { return p.serializable }

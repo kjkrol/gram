@@ -67,8 +67,10 @@ A demo groups its plugins in an **arena**, the collector every section builds on
 `gram.Run(game.New(props, mainStage))`); the sections are its methods (`makePlugins`,
 `definePlayer`, `defineEffects`, `defineRules`, `defineCommands`, `defineCells`, `defineKinds`,
 `bindKeys`, `spawn`, `defineScenes`, `update`). The scene is apart in `scene.go`: a
-`mainScene{arena: a, …}` builds it — its colours, `picture()` (atlases, `WithRenderer`, the
-composer) and `screen()` (the ui tree) — and `defineScenes` only makes it. See
+`mainScene{arena: a, …}` builds it — its colours, `picture()` (the atlases with `Looks()`,
+`world.WithRenderer`/`board.WithRenderer`, the plugins' look options — `vision.WithViews`,
+`board.ShowGrid(false)` — and the composer of the plugins' `Renderer()`s; no other
+`WithRenderer`) and `screen()` (the ui tree) — and `defineScenes` only makes it. See
 `examples/start/scenes` for a menu Stage with no world, a ui scene of the engine's commands and a
 togglable modal panel over the still-ticking world.
 

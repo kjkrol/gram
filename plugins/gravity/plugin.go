@@ -84,9 +84,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan runs the fall in the simulation; call it right after collision's.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer does nothing: gravity draws nothing.
-func (p *Plugin) WithRenderer(render.AtlasSource) {}
-
 // Renderer is nil: gravity draws nothing.
 func (p *Plugin) Renderer() render.Layer { return nil }
 

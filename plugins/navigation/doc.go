@@ -80,4 +80,7 @@
 // Commands: [MoveTo], [LookAt] (a player's or an entity's own); [StepAside], [Detour], [Pass],
 // [Settle] (an entity's own, aimed at the Touch's subject, host.Aimed), [Hold], [Stop], [Onward]
 // (an entity's own); [Routes] (a player's, a look).
+//
+// Styles, for a figure's Look on the world's atlas (Slot.Styled): [RouteStyle], how a kind's
+// routes and goals are drawn, [DefaultRouteStyle] or [Plugin.WithRouteStyle]'s without.
 package navigation

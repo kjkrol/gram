@@ -1,6 +1,13 @@
 package navigation
 
 import (
+	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/tag"
+	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/selection"
+	"image/color"
 	"math"
 	"testing"
 
@@ -155,4 +162,60 @@ func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
 	return cameras.NewPlugin(w).New(p.Views(topography.Isometrically), cfg)
+}
+
+func TestPathRenderer_OutlinesEachKindsGoalInItsRouteStyle(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(4, 4, 32)
+	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 128, Height: 128, BucketSize: 32})
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := tag.Tag[selection.Family](1)
+	var styles render.Styles
+	azure := color.RGBA{B: 255, A: 255}
+	styles.Set(7, RouteStyle{Line: azure, Goal: azure, Width: 1})
+	r := newPathRenderer(g, RouteStyle{}, selected).
+		WithStyles(func() *render.Styles { return &styles })
+	r.BindSpace(space)
+	var base goke.Comp[world.Base]
+	var at goke.Comp[unit.At]
+	var order goke.Comp[MoveOrder]
+	var marks goke.Comp[tag.Tags[selection.Family]]
+	var app goke.Comp[render.Appearance]
+	ecs := goke.New()
+	ecs.Setup(
+		goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			f := si.NewFactory(&base, &at, &order, &marks, &app)
+			f.Create(2)
+			for f.Next() {
+				for i := range f.Cursor.IDs {
+					c := g.At(uint32(i), 1)
+					box := plane.NewAABB(g.CellCenter(c), 10, 10)
+					base.Slice(&f.Cursor)[i].Pos = world.Position{AABB: box}
+					at.Slice(&f.Cursor)[i] = unit.At{Cell: c}
+					order.Slice(&f.Cursor)[i] = MoveOrder{Target: g.At(uint32(i), 3)}
+					marks.Slice(&f.Cursor)[i] = tag.Tags[selection.Family](0).With(selected)
+					app.Slice(&f.Cursor)[i] = render.Appearance{SpriteID: render.SpriteID(6 + i)}
+				}
+			}
+		}},
+		goke.SystemFn{OnInit: r.Init},
+	)
+	cam := isoCamera(128, 128, camera.Config{})
+	var f render.Frame
+	f.Reset(cam)
+	r.Compose(&f, cam)
+	blue, orange := 0, 0
+	f.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
+		switch {
+		case v[0].ColorB == 1:
+			blue++
+		case v[0].ColorR == 1:
+			orange++
+		}
+	})
+	if blue != 4 || orange != 4 {
+		t.Errorf("%d blue and %d orange sides, want 4 each: the styled kind's goal in its "+
+			"RouteStyle, the other's in the default", blue, orange)
+	}
 }

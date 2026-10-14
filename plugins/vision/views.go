@@ -23,8 +23,8 @@ var viewing = render.NewMeshShaderWith("vision views", render.Files(shaders, "sh
 	{Name: "Unproject", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1}, {Name: "Perspective", Size: 1},
 	{Name: "ViewSize", Size: 2}, {Name: "ViewAt", Size: 2}, {Name: "PixelSpan", Size: 2}, {Name: "FlatGround", Size: 1},
 	{Name: "GroundStep", Size: 1}, {Name: "GroundCount", Size: 2}, {Name: "GroundWrap", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
-	{Name: "Spokes", Size: 1}, {Name: "Rings", Size: 1}, {Name: "ShadowColor", Size: 4}, {Name: "ConeColor", Size: 4},
-}).Instanced(3)
+	{Name: "Spokes", Size: 1}, {Name: "Rings", Size: 1}, {Name: "ShadowColor", Size: 4},
+}).Instanced(4)
 
 const (
 	// texels across and out an observer's sight is baked in
@@ -56,8 +56,11 @@ type views struct {
 	bakeOwn, drawOwn map[string][]float32
 }
 
-// Facing and Half in radians
-type observer struct{ X, Y, Eye, Reach, Facing, Half float32 }
+// Facing and Half in radians; Color the cone's edge, a unit colour
+type observer struct {
+	X, Y, Eye, Reach, Facing, Half float32
+	Color                          [4]float32
+}
 
 type coverTexel struct{ tau, bottom, top float64 }
 
@@ -127,7 +130,8 @@ func (v *views) draw(t render.Target, cam camera.Camera, ground ground.Heights, 
 			if r[0] >= r[2] || r[1] >= r[3] {
 				continue
 			}
-			v.instances = append(v.instances, o.X, o.Y, o.Eye, o.Reach, o.Facing, o.Half, float32(k), 0, r[0], r[1], r[2], r[3])
+			v.instances = append(v.instances, o.X, o.Y, o.Eye, o.Reach, o.Facing, o.Half, float32(k), 0, r[0], r[1], r[2], r[3],
+				o.Color[0], o.Color[1], o.Color[2], o.Color[3])
 		}
 	}
 	if len(v.instances) == 0 {
@@ -148,9 +152,8 @@ func (v *views) draw(t render.Target, cam camera.Camera, ground ground.Heights, 
 	}
 	set(u, own, "FlatGround", flat)
 	v.groundUniforms(u, own)
-	sc, cc := unitColor(shadow.Color), unitColor(coneColor)
+	sc := unitColor(shadow.Color)
 	set(u, own, "ShadowColor", sc[:]...)
-	set(u, own, "ConeColor", cc[:]...)
 	v.drawing.ReadDepth, v.drawing.Images, v.drawing.Instances = t.Depth, [4]*render.Image{v.ground, v.bands, v.sight, nil}, v.instances
 	t.Screen.DrawMesh(nil, viewing, &v.drawing)
 }

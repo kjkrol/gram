@@ -123,9 +123,6 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// WithRenderer is a no-op: the sky and what falls are drawn in plain colours.
-func (p *Plugin) WithRenderer(render.AtlasSource) {}
-
 // Renderer is the sky behind the world, a render.Source for a scene's Composer.
 func (p *Plugin) Renderer() render.Layer {
 	shown := func() (stars, moon bool) {

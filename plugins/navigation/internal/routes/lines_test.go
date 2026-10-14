@@ -33,8 +33,11 @@ func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
 	screen.DrawMesh(nil, level, &render.DrawMeshOptions{Depth: depth, WriteDepth: true, Vertices: 6, Uniforms: map[string]any{"ViewProj": tr.M[:]}})
 	g := New()
 	flat := func(geom.Vec) float32 { return 0 }
-	g.Add(cam, geom.NewVec(40, 100), geom.NewVec(200, 100), flat, 32, 3)
-	g.Draw(render.Target{Screen: screen, Depth: depth}, cam, color.RGBA{R: 255, A: 255}, 3)
+	g.Add(cam, geom.NewVec(40, 100), geom.NewVec(200, 100), flat, 32, 3, color.RGBA{R: 255, A: 255})
+	if len(g.stretches) != 16 {
+		t.Fatalf("a stretch is %d floats, want 16: ends, rect, colour, width", len(g.stretches))
+	}
+	g.Draw(render.Target{Screen: screen, Depth: depth}, cam)
 	pix := make([]byte, 4*256*256)
 	screen.ReadPixels(pix)
 	red := func(x, y int) byte { return pix[4*(y*256+x)] }

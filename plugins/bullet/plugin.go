@@ -71,9 +71,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // world's RunPlan, so a step's flights are tested by collision in the same step.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer is a no-op: the world draws the shots from their kinds.
-func (p *Plugin) WithRenderer(render.AtlasSource) {}
-
 // Renderer is nil: bullet draws nothing of its own.
 func (p *Plugin) Renderer() render.Layer { return nil }
 

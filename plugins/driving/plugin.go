@@ -110,9 +110,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // it after navigation's, whose orders a hand ends.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer is a no-op: the driving draws nothing.
-func (p *Plugin) WithRenderer(render.AtlasSource) {}
-
 // Renderer is nil: the driving draws nothing.
 func (p *Plugin) Renderer() render.Layer { return nil }
 

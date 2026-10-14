@@ -54,7 +54,7 @@ func (m *mainScene) picture() render.Picture {
 	boardAtlas.Looks()
 	boardAtlas.Close()
 	a.board.WithRenderer(boardAtlas)
-	a.board.Res.Render.ShowGridLines = false
+	a.board.ShowGrid(false)
 
 	return render.NewComposer(a.board.Renderer(), a.world.Renderer(), a.collision.Renderer())
 }

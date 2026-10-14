@@ -38,7 +38,6 @@ func newProbe(a *arena) *probe {
 }
 
 func (p *probe) Name() string                       { return "probe" }
-func (p *probe) WithRenderer(render.AtlasSource)    {}
 func (p *probe) Renderer() render.Layer             { return nil }
 func (p *probe) EventHandler() control.EventHandler { return nil }
 func (p *probe) Serializable() plugin.Serializable  { return nil }

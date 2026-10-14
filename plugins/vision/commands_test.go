@@ -14,7 +14,6 @@ import (
 func TestCones_ToggleTheViewsDrawn(t *testing.T) {
 	w := testWorldPlugin()
 	v := vision.NewPlugin(w)
-	v.WithRenderer(nil)
 	r := v.Renderer().(*vision.Renderer)
 
 	ctx := &installCtx{ecs: goke.New()}
@@ -62,7 +61,6 @@ func TestCones_ToggleTheViewsDrawn(t *testing.T) {
 func TestCones_ShowConesReachesARendererBuiltLater(t *testing.T) {
 	v := vision.NewPlugin(testWorldPlugin())
 	v.ShowCones()
-	v.WithRenderer(nil)
 	if v.Renderer().(*vision.Renderer).Hidden() {
 		t.Error("a renderer built after ShowCones is hidden")
 	}

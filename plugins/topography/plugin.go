@@ -360,9 +360,6 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// WithRenderer is a no-op: the ground is painted from the board's atlas.
-func (p *Plugin) WithRenderer(render.AtlasSource) {}
-
 // Renderer is the ground's renderer, a render.Direct at the Ground tier for the scene's composer.
 func (p *Plugin) Renderer() render.Layer {
 	if p.ground != nil {

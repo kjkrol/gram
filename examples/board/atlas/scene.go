@@ -37,10 +37,7 @@ func (m *mainScene) picture() render.Picture {
 	atlas.Looks()
 	atlas.Close()
 	a.board.WithRenderer(atlas)
-	a.board.Res.Render.ShowGridLines = false
-
-	a.nav.WithRenderer(nil)
-	a.selection.WithRenderer(nil)
+	a.board.ShowGrid(false)
 
 	return render.NewComposer(
 		a.board.Renderer(),

@@ -27,13 +27,8 @@ func TestPlugin_Contract(t *testing.T) {
 	if p.Serializable() != nil {
 		t.Error("Serializable is not nil — vision's state lives in components")
 	}
-	if p.Renderer() != nil {
-		t.Error("Renderer is not nil before WithRenderer")
-	}
-
-	p.WithRenderer(nil)
 	if p.Renderer() == nil {
-		t.Error("Renderer is nil after WithRenderer")
+		t.Error("Renderer is nil: vision makes it as it is made")
 	}
 }
 
@@ -42,7 +37,6 @@ func TestPlugin_WithStyleReachesTheRenderer(t *testing.T) {
 	style := vision.ConeStyleFn(func(*render.Frame, []vision.ConePoint) { used = true })
 
 	p := vision.NewPlugin(testWorldPlugin()).WithStyle(style)
-	p.WithRenderer(nil)
 
 	r, ok := p.Renderer().(*vision.Renderer)
 	if !ok {

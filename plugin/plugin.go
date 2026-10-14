@@ -19,9 +19,6 @@ type Plugin interface {
 	// RunPlan is the plugin's work of a tick, called from Stage.Update in the order the game needs.
 	RunPlan(ctx goke.RunCtx, d time.Duration)
 
-	// WithRenderer has the plugin's renderer draw sprites from atlas. Call it before Use.
-	WithRenderer(atlas render.AtlasSource)
-
 	// Renderer is the plugin's own layer, or nil for none.
 	Renderer() render.Layer
 

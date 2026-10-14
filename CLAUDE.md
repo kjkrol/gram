@@ -129,7 +129,9 @@ Decisions the user has made; they are not up for revisiting in passing.
 - **How things look is the scene's**: `picture()` in a demo's `scene.go` sets what is drawing
   (atlases, `WithAtmosphere`, styles, views) and nothing else does; `makePlugins` configures what
   a plugin does. A sprite in a Stage's struct is a leak. A look is drawing (`Under`), never an
-  effect's Spec.
+  effect's Spec. What a plugin draws about a kind — its outline, cone, route — is styled in the
+  figure's `Look` with `Styled` (`selection.Highlight`, `vision.Cone`, `navigation.RouteStyle`);
+  `WithRenderer` is `world`'s and `board`'s alone, every other renderer is its plugin's own.
 - **A kind of entity is a figure, a kind of cell a tile**, each in a file of its own
   (`hero.go`, `lever.go`, `tiles.go`) with everything that is its alone: its effects
   (`Effects`), its roles and rules (`Rules`), what it is (`Define`), how it looks (`Look`),

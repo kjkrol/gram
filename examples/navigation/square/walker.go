@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/kjkrol/gram/plugins/selection"
 	"image/color"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -51,6 +52,9 @@ func (wk walker) Define(b *board.Plugin) {
 		ceremony.Plays(b.World().Roles().Named(MortalRole)))
 }
 
+// each side outlined and routed in its own colour
 func (wk walker) Look(a *world.Atlas, w *world.Plugin) {
-	a.Add(kind.Named[unitRow](w.Kinds(), wk.kind), walkerPx, render.Solid(wk.color))
+	a.Add(kind.Named[unitRow](w.Kinds(), wk.kind), walkerPx, render.Solid(wk.color)).
+		Styled(selection.Highlight{Line: wk.color, Width: 2}).
+		Styled(navigation.RouteStyle{Line: wk.color, Goal: wk.color, Width: 1.5})
 }

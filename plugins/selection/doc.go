@@ -40,4 +40,7 @@
 // Commands: [Select], [Marquee], [Hover] (a player's); [Allow], [Forbid] (a player's or an
 // entity's own: whether it may be selected). The commands about effects for [Plugin.Selected] and
 // [Plugin.Pointed] are routed here.
+//
+// Styles, for a figure's Look on the world's atlas (Slot.Styled): [Highlight], how a kind's
+// selected entities are outlined, [DefaultHighlight] without. [Plugin.Renderer] draws them.
 package selection

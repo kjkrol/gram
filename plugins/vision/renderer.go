@@ -31,16 +31,28 @@ func (fn ConeStyleFn) Compose(f *render.Frame, outline []ConePoint) { fn(f, outl
 
 var _ ConeStyle = ConeStyleFn(nil)
 
-var coneColor = color.RGBA{R: 255, G: 220, B: 90, A: 160}
+// Cone is how the view of a kind of observer is drawn: its edge stroked in Color, a pixel wide,
+// the inside clear. A figure declares it on the world's atlas (Slot.Styled); a kind without one
+// is drawn in DefaultCone.
+type Cone struct{ Color color.RGBA }
 
-// DefaultConeStyle strokes the ring on the Overlays tier and leaves the inside clear.
-func DefaultConeStyle() ConeStyle {
-	return ConeStyleFn(func(f *render.Frame, outline []ConePoint) {
-		for i, p := range outline {
-			q := outline[(i+1)%len(outline)]
-			f.Line(render.Overlays, max(p.Depth, q.Depth), p.X, p.Y, q.X, q.Y, 1, coneColor)
-		}
-	})
+// Style: a figure declares it on the world's atlas (render.Style).
+func (Cone) Style() {}
+
+var (
+	_ render.Style = Cone{}
+	_ ConeStyle    = Cone{}
+)
+
+// DefaultCone is a pale yellow edge.
+var DefaultCone = Cone{Color: color.RGBA{R: 255, G: 220, B: 90, A: 160}}
+
+// Compose strokes the ring on the Overlays tier.
+func (c Cone) Compose(f *render.Frame, outline []ConePoint) {
+	for i, p := range outline {
+		q := outline[(i+1)%len(outline)]
+		f.Line(render.Overlays, max(p.Depth, q.Depth), p.X, p.Y, q.X, q.Y, 1, c.Color)
+	}
 }
 
 // Shadow is how the ground out of sight is shaded: a veil of Color over it, fading in over Fade
@@ -64,6 +76,7 @@ type Renderer struct {
 	frame  *render.Frame
 	space  *aabbworld.Space
 	style  ConeStyle
+	styles func() *render.Styles
 	shadow Shadow
 
 	worldW, worldH float32
@@ -79,6 +92,7 @@ type Renderer struct {
 	base       goke.Comp[world.Base]
 	sight      goke.Comp[Sight]
 	eye        goke.Comp[world.Eye]
+	app        goke.OptComp[render.Appearance]
 	out        goke.OptComp[SightOutline]
 	z          goke.OptComp[world.Z]
 	drawing    *render.Rules
@@ -96,11 +110,11 @@ type Renderer struct {
 	wrap    [2]bool
 }
 
-// NewRenderer builds a Renderer with DefaultConeStyle and DefaultShadow over space.
+// NewRenderer builds a Renderer drawing every kind in DefaultCone and DefaultShadow over space.
 func NewRenderer(space *aabbworld.Space) *Renderer {
 	w, h, edges := space.Bounds()
 	return &Renderer{
-		space: space, style: DefaultConeStyle(), shadow: DefaultShadow,
+		space: space, style: DefaultCone, shadow: DefaultShadow,
 		worldW: float32(w), worldH: float32(h), wraps: edges&aabbworld.Torus != 0, wrap: [2]bool{edges.WrapsX(), edges.WrapsY()}, gpu: newViews(),
 	}
 }
@@ -139,6 +153,13 @@ func (r *Renderer) WithStyle(style ConeStyle) *Renderer {
 	return r
 }
 
+// WithStyles has each kind drawn as the Cone the styles hold for it, the renderer's own
+// without; styles may give nil.
+func (r *Renderer) WithStyles(styles func() *render.Styles) *Renderer {
+	r.styles = styles
+	return r
+}
+
 // WithShadow replaces how the ground out of sight is shaded.
 func (r *Renderer) WithShadow(shadow Shadow) *Renderer {
 	r.shadow = shadow
@@ -160,11 +181,13 @@ func (r *Renderer) WithDrawing(rules *render.Rules) *Renderer {
 }
 
 func (r *Renderer) Init(si *goke.SysInit) {
-	qb := si.NewQueryBuilder(&r.base, &r.sight, &r.eye).Optional(&r.out).Optional(&r.z)
+	qb := si.NewQueryBuilder(&r.base, &r.sight, &r.eye).
+		Optional(&r.app).Optional(&r.out).Optional(&r.z)
 	if r.drawing != nil {
 		render.Own(r.drawing, &r.base)
 		render.Own(r.drawing, &r.sight)
 		render.Own(r.drawing, &r.eye)
+		render.Own(r.drawing, &r.app)
 		render.Own(r.drawing, &r.out)
 		render.Own(r.drawing, &r.z)
 		r.drawing.Bind(qb)
@@ -224,12 +247,17 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	}
 	_, rays := cam.(camera.Rays)
 	r.onGPU = rays && !r.custom
+	var styles *render.Styles
+	if r.styles != nil {
+		styles = r.styles()
+	}
 	r.query.All()
 	for r.query.Next() {
 		cursor := r.query.Cursor()
 		bases := r.base.Slice(cursor)
 		sights := r.sight.Slice(cursor)
 		eyes := r.eye.Slice(cursor)
+		apps := r.app.Slice(cursor)
 		outlines := r.out.Slice(cursor)
 		zs := r.z.Slice(cursor)
 		r.settle(cursor)
@@ -241,13 +269,26 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 			if zs != nil {
 				z = zs[i]
 			}
+			style, cone := r.style, DefaultCone
+			if r.custom {
+				cone = Cone{}
+			}
+			if apps != nil {
+				if c, ok := render.StyleOf[Cone](styles, apps[i].SpriteID); ok {
+					style, cone = c, c
+				}
+			}
 			// over level ground only the outline holds the entities cutting the view
 			outlined := outlines != nil && outlines[i].Count >= 2
 			if r.onGPU && (r.ground != nil || !outlined) {
 				ox, oy := centreOf(&bases[i].Pos)
 				f := sights[i].Looking(bases[i].Vel.Dir)
-				r.gpu.look(cam, observer{X: float32(ox), Y: float32(oy), Eye: float32(eyes[i].Level(z)), Reach: float32(sights[i].Radius),
-					Facing: float32(math.Atan2(f.Y, f.X)), Half: float32(eyes[i].Angle / 2)})
+				r.gpu.look(cam, observer{
+					X: float32(ox), Y: float32(oy), Eye: float32(eyes[i].Level(z)),
+					Reach:  float32(sights[i].Radius),
+					Facing: float32(math.Atan2(f.Y, f.X)), Half: float32(eyes[i].Angle / 2),
+					Color: unitColor(cone.Color),
+				})
 				continue
 			}
 			if !outlined || !r.camera.Visible(bases[i].Pos.AABB.AABB) {
@@ -255,16 +296,18 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 			}
 			look := sights[i]
 			look.Facing = look.Looking(bases[i].Vel.Dir)
-			r.cone(&bases[i].Pos, float32(z.Altitude), eyes[i].Angle/2, &look, &outlines[i])
+			r.cone(style, &bases[i].Pos, float32(z.Altitude), eyes[i].Angle/2, &look, &outlines[i])
 		}
 	}
 }
 
-func (r *Renderer) cone(pos *world.Position, alt float32, half float64, s *Sight, o *SightOutline) {
+func (r *Renderer) cone(
+	style ConeStyle, pos *world.Position, alt float32, half float64, s *Sight, o *SightOutline,
+) {
 	ox, oy := centreOf(pos)
 
 	if !r.wraps {
-		r.style.Compose(r.frame, r.draped(float32(ox), float32(oy), alt, half, s, o))
+		style.Compose(r.frame, r.draped(float32(ox), float32(oy), alt, half, s, o))
 		r.shade(float32(ox), float32(oy), half, s, o)
 		return
 	}
@@ -273,7 +316,7 @@ func (r *Renderer) cone(pos *world.Position, alt float32, half float64, s *Sight
 	zoom := r.camera.Zoom()
 	box := r.space.WrapAABB(r.coneBox(ox, oy, s.Radius))
 	render.VisitWrapImages(box, r.worldW, r.worldH, func(_ geom.AABB, dx, dy float32) bool {
-		r.style.Compose(r.frame, r.fan(sx+dx*zoom, sy+dy*zoom, half, s, o))
+		style.Compose(r.frame, r.fan(sx+dx*zoom, sy+dy*zoom, half, s, o))
 		return true
 	})
 }

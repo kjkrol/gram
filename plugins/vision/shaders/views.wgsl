@@ -6,16 +6,17 @@
 // the target) — the views come after the ground, before what stands on it — or, over level ground
 // (U.FlatGround), where its line of sight meets the ground at 0 — and, inside the cone,
 // veils it in U.ShadowColor as far as the observer does not see it; the cone's edge is stroked in
-// U.ConeColor, a pixel wide.
+// the instance's colour, a pixel wide.
 
 struct View {
     @builtin(position) clip: vec4<f32>,
     @location(0) @interpolate(flat) at: vec4<f32>,
     @location(1) @interpolate(flat) look: vec4<f32>,
+    @location(2) @interpolate(flat) color: vec4<f32>,
 }
 
 @vertex
-fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>, @location(1) look: vec4<f32>, @location(2) rect: vec4<f32>) -> View {
+fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>, @location(1) look: vec4<f32>, @location(2) rect: vec4<f32>, @location(3) color: vec4<f32>) -> View {
     var across = array<f32, 6>(0.0, 1.0, 0.0, 1.0, 1.0, 0.0);
     var down = array<f32, 6>(0.0, 0.0, 1.0, 0.0, 1.0, 1.0);
     let px = mix(rect.xy, rect.zw, vec2<f32>(across[vid], down[vid]));
@@ -23,6 +24,7 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>, @locatio
     v.clip = vec4<f32>(px.x / U.ViewSize.x * 2.0 - 1.0, 1.0 - px.y / U.ViewSize.y * 2.0, 0.0, 1.0);
     v.at = at;
     v.look = look;
+    v.color = color;
     return v;
 }
 
@@ -71,8 +73,8 @@ fn fs_main(@builtin(position) frag: vec4<f32>, v: View) -> @location(0) vec4<f32
         let t = vec2<f32>((turn + half) / (2.0 * half) * U.Spokes, v.look.z * U.Rings + clamp(dist / v.at.w * U.Rings, 0.5, U.Rings - 0.5));
         c = U.ShadowColor * (1.0 - imageSrc2Linear(imageSrc2Origin() + t).r);
     }
-    let a = U.ConeColor.a * stroke;
-    c = vec4<f32>(U.ConeColor.rgb * stroke + c.rgb * (1.0 - a), a + c.a * (1.0 - a));
+    let a = v.color.a * stroke;
+    c = vec4<f32>(v.color.rgb * stroke + c.rgb * (1.0 - a), a + c.a * (1.0 - a));
     if c.a < 0.002 {
         discard;
     }

@@ -16,8 +16,7 @@ var shaders embed.FS
 // a stretch an instance
 var lining = render.NewMeshShaderWith("navigation routes", render.Files(shaders, "shaders/route.wgsl"), []render.Uniform{
 	{Name: "Unproject", Size: 16}, {Name: "ViewSize", Size: 2}, {Name: "ViewAt", Size: 2},
-	{Name: "LineColor", Size: 4}, {Name: "LineWidth", Size: 1},
-}).Instanced(2)
+}).Instanced(4)
 
 // Tier is where the routes come: over the ground, under what stands on it.
 const Tier = render.Ground + 60
@@ -25,7 +24,8 @@ const Tier = render.Ground + 60
 // Lines are stretches of route gathered as the frame is composed and drawn on the GPU over the
 // ground the frame drew.
 type Lines struct {
-	stretches []float32 // two vec4s a stretch: its ends, and its rectangle of the viewport
+	// four vec4s a stretch: its ends, its rectangle of the viewport, its colour, its width
+	stretches []float32
 	opts      render.DrawMeshOptions
 	own       map[string][]float32
 }
@@ -38,8 +38,11 @@ func New() *Lines {
 }
 
 // Add gathers the stretch from a to b over the ground groundAt gives, sampled every step; width
-// is the line's, in pixels.
-func (g *Lines) Add(cam camera.Camera, a, b geom.Vec, groundAt func(geom.Vec) float32, step float64, width float32) {
+// is the line's, in pixels, line its colour.
+func (g *Lines) Add(
+	cam camera.Camera, a, b geom.Vec, groundAt func(geom.Vec) float32, step float64,
+	width float32, line color.RGBA,
+) {
 	w, h := cam.Viewport()
 	x0, y0, x1, y1 := float32(math.Inf(1)), float32(math.Inf(1)), float32(math.Inf(-1)), float32(math.Inf(-1))
 	pieces := 1
@@ -66,12 +69,16 @@ func (g *Lines) Add(cam camera.Camera, a, b geom.Vec, groundAt func(geom.Vec) fl
 	if rect[0] >= rect[2] || rect[1] >= rect[3] {
 		return
 	}
-	g.stretches = append(g.stretches, float32(a.X), float32(a.Y), float32(b.X), float32(b.Y), rect[0], rect[1], rect[2], rect[3])
+	g.stretches = append(g.stretches,
+		float32(a.X), float32(a.Y), float32(b.X), float32(b.Y),
+		rect[0], rect[1], rect[2], rect[3],
+		float32(line.R)/255, float32(line.G)/255, float32(line.B)/255, float32(line.A)/255,
+		width, 0, 0, 0)
 }
 
-// Draw lays the gathered stretches over the ground into the target, width pixels wide, and
-// starts gathering anew.
-func (g *Lines) Draw(t render.Target, cam camera.Camera, line color.RGBA, width float32) {
+// Draw lays the gathered stretches over the ground into the target, each in its colour and
+// width, and starts gathering anew.
+func (g *Lines) Draw(t render.Target, cam camera.Camera) {
 	defer func() { g.stretches = g.stretches[:0] }()
 	if t.Screen == nil || t.Depth == nil || len(g.stretches) == 0 {
 		return
@@ -94,12 +101,9 @@ func (g *Lines) Draw(t render.Target, cam camera.Camera, line color.RGBA, width 
 		return
 	}
 	at := t.Screen.Bounds().Min
-	c := [4]float32{float32(line.R) / 255, float32(line.G) / 255, float32(line.B) / 255, float32(line.A) / 255}
 	g.set("Unproject", unproject[:]...)
 	g.set("ViewSize", vw, vh)
 	g.set("ViewAt", float32(at.X), float32(at.Y))
-	g.set("LineColor", c[:]...)
-	g.set("LineWidth", width)
 	g.opts.ReadDepth, g.opts.Instances = t.Depth, g.stretches
 	t.Screen.DrawMesh(nil, lining, &g.opts)
 }

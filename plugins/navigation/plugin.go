@@ -45,8 +45,6 @@ type Plugin struct {
 	crowd    []act.Rule
 	crowdSet bool
 
-	routeStyle   RouteStyle
-	routesShown  bool
 	pathRenderer *pathRenderer
 	collision    *collision.Plugin
 	spacing      Spacing
@@ -63,6 +61,9 @@ func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPl
 	p := &Plugin{boardPlugin: boardPlugin, worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
 	p.Self = world.NewSelf(worldPlugin, p)
 	drivingPlugin.WithKeeping(&p.handKeeping)
+	p.pathRenderer = newPathRenderer(boardPlugin.Board(), DefaultRouteStyle, p.selected).
+		WithHeights(boardPlugin.Heights).WithLook(worldPlugin.Look).WithStyles(worldPlugin.Styles)
+	p.pathRenderer.BindSpace(worldPlugin.Space())
 	return p
 }
 
@@ -86,9 +87,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		keep = newCellKeeping(finder, p.boardPlugin.Occupancy())
 	}
 	p.finder = finder
-	if p.pathRenderer != nil {
-		p.pathRenderer.finder = finder
-	}
+	p.pathRenderer.finder = finder
 	rules := p.crowd
 	if !p.crowdSet {
 		rules = crowd()
@@ -121,7 +120,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan takes the orders at once and steers the units in the simulation; call it after the
 // board's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.routes.Drain(func(command.Issued[Routes]) { p.ShowRoutes(!p.routesShown) })
+	p.routes.Drain(func(command.Issued[Routes]) { p.ShowRoutes(!p.RoutesShown()) })
 	p.module.RunPlan(ctx, d)
 }
 
@@ -144,21 +143,8 @@ func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
 	return p
 }
 
-// WithRenderer builds the renderer of the selected units' goals and routes; the atlas is unused.
-func (p *Plugin) WithRenderer(render.AtlasSource) {
-	p.pathRenderer = newPathRenderer(p.board, p.routeStyle, p.selected).WithHeights(p.boardPlugin.Heights).WithLook(p.worldPlugin.Look)
-	p.pathRenderer.BindSpace(p.worldPlugin.Space())
-	p.pathRenderer.finder = p.finder
-	p.pathRenderer.ShowRoutes(p.routesShown)
-}
-
-// Renderer is the renderer of routes, or nil unless WithRenderer was called.
-func (p *Plugin) Renderer() render.Layer {
-	if p.pathRenderer == nil {
-		return nil
-	}
-	return p.pathRenderer
-}
+// Renderer draws the selected units' goals and routes, each kind in its RouteStyle.
+func (p *Plugin) Renderer() render.Layer { return p.pathRenderer }
 
 // EventHandler returns nil.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
@@ -173,20 +159,15 @@ func (p *Plugin) WithCrowd(rules ...act.Rule) *Plugin {
 	return p
 }
 
-// WithRouteStyle sets how routes and goals are drawn, in place of DefaultRouteStyle. Call before
-// Use.
+// WithRouteStyle sets how the routes and goals of the kinds without a RouteStyle of their own
+// are drawn, in place of DefaultRouteStyle.
 func (p *Plugin) WithRouteStyle(style RouteStyle) *Plugin {
-	p.routeStyle = style
+	p.pathRenderer.style, p.pathRenderer.current = style, style
 	return p
 }
 
 // ShowRoutes has the selected units' routes drawn, or their goals alone.
-func (p *Plugin) ShowRoutes(shown bool) {
-	p.routesShown = shown
-	if p.pathRenderer != nil {
-		p.pathRenderer.ShowRoutes(shown)
-	}
-}
+func (p *Plugin) ShowRoutes(shown bool) { p.pathRenderer.ShowRoutes(shown) }
 
 // RoutesShown reports whether the routes are drawn.
-func (p *Plugin) RoutesShown() bool { return p.routesShown }
+func (p *Plugin) RoutesShown() bool { return p.pathRenderer.RoutesShown() }

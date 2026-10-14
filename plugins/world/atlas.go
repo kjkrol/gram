@@ -27,7 +27,8 @@ type Atlas struct {
 	edges    map[render.SpriteID]render.SpriteID
 	twins    map[tag.Tag[effect.States]]map[render.SpriteID]render.SpriteID // under an effect
 	// the effects in the order first looked under: the last wins
-	marks []tag.Tag[effect.States]
+	marks  []tag.Tag[effect.States]
+	styles render.Styles
 }
 
 type animation struct {
@@ -119,6 +120,16 @@ type Slot struct {
 type frameDrawer interface {
 	~func(frame int) render.SpriteDrawer |
 		~func(angleDeg float64, frame int) render.SpriteDrawer
+}
+
+// Styled declares how a plugin draws about the kind: its outline, its cone, its route
+// (selection.Highlight, vision.Cone, navigation.RouteStyle), read off the world's Styles.
+func (s Slot) Styled(st render.Style) Slot {
+	if s.a.p.looked {
+		panic("world: a style declared after the renderer was made")
+	}
+	s.a.styles.Set(s.id, st)
+	return s
 }
 
 // Under adds the sprite's look under the effect e, the same size, drawn in its place while the

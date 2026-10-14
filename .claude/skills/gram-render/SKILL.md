@@ -61,7 +61,14 @@ world units and kept on the GPU (`gpu.Kept`), drawn every frame scaled, moved an
 (`render.Clocked`), so animations move every frame. A plugin adds telemetry lines through a
 `render.Reporter` (`telemetry.NewPlugin(w).With(p.Reporter())`, the telemetry panel).
 
-## The plugins' renderers and `WithRenderer` (facts found in the code, 2026-10-14)
+## The plugins' renderers and styles per kind (done 2026-10-14; the findings below led to it)
+
+`WithRenderer` is `world`'s and `board`'s alone; every other plugin makes its renderer in
+`NewPlugin`. A figure's `Look` styles what the plugins draw about its kind with `Slot.Styled(s)`
+— `selection.Highlight{Line, Width}`, `vision.Cone{Color}`, `navigation.RouteStyle{Line, Goal,
+Width}` — kept in `render.Styles` on the world's atlas (`world.Plugin.Styles()` after
+`WithRenderer`), read with `render.StyleOf[S](styles, sprite)`; the renderers carry the colour
+per instance on the GPU. `board.ShowGrid(bool)` is the grid option.
 
 - Only scenes call `plugin.Plugin.WithRenderer(atlas)`; the engine never does. Three kinds of
   implementor: **needs the atlas** — `world` (applies the atlas's swaps and rules, panics on a
@@ -78,7 +85,7 @@ world units and kept on the GPU (`gpu.Kept`), drawn every frame scaled, moved an
   (`HighlightStyle`, no way for a game to set it today) plus the marquee, a player's gesture;
   bridges the bridge in hand, a future entity drawn from its deck's slot; collision the boxes.
 - The composer's order matters only on ties within a tier (tier, then depth, then arrival).
-- Decided direction (not done): these customisations become figure-style hooks declared in a
+- Decided direction (done, as above): these customisations become figure-style hooks declared in a
   figure's `Look` on the world's atlas — looks `Under` a tag as under an effect, per-kind
   attributes other plugins read (`Sight(style)`, `Route(style)`) — the plugin keeping the
   algorithm, the figure the style, defaults where a figure says nothing; `WithRenderer` leaves

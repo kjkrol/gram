@@ -177,7 +177,6 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 	if n != 1 {
 		t.Errorf("Shift+R issued %d Routes, want one", n)
 	}
-	navPlugin.WithRenderer(nil)
 	if navPlugin.RoutesShown() || navPlugin.pathRenderer.RoutesShown() {
 		t.Error("the routes start shown, want hidden until asked for")
 	}

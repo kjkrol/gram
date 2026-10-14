@@ -75,3 +75,21 @@ func TestHolds_ShowsAndHidesTheCellsHeld(t *testing.T) {
 		}
 	}
 }
+
+func TestShowGrid_HoldsThroughWithRenderer(t *testing.T) {
+	bw, _ := boardtest.SquareWorld(t)
+	if !bw.Board.GridShown() {
+		t.Error("the grid starts hidden, want shown")
+	}
+	bw.Board.ShowGrid(false)
+	atlas := bw.Board.NewAtlas(boardtest.CellSize)
+	atlas.Close()
+	bw.Board.WithRenderer(atlas)
+	if bw.Board.GridShown() || bw.Board.Res.Render.ShowGridLines {
+		t.Error("the grid hidden before WithRenderer is drawn after it")
+	}
+	bw.Board.ShowGrid(true)
+	if !bw.Board.Res.Render.ShowGridLines {
+		t.Error("ShowGrid(true) after WithRenderer draws no grid")
+	}
+}

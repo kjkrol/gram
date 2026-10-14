@@ -37,11 +37,6 @@ func (m *mainScene) picture() render.Picture {
 	boardAtlas.Close()
 	a.board.WithRenderer(boardAtlas)
 
-	a.nav.WithRenderer(nil)
-
-	a.selection.WithRenderer(nil)
-	a.bridges.WithRenderer(nil)
-
 	return render.NewComposer(
 		a.board.Renderer(),
 		a.world.Renderer(), a.collision.Renderer(),

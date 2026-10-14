@@ -41,6 +41,19 @@ Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
   `Kinds` holds coloured balls alone; a figure's numbers —
   its size, speed, timings — stand beside it, lowercase; the demos' arenas are received as
   `a`, not `s`.
+- `WithRenderer` leaves the `plugin.Plugin` contract: `world` and `board` keep theirs (the
+  atlases are the looks), every other plugin makes its renderer as it is made (`Renderer()` never
+  nil; the demos' 41 `WithRenderer(nil)` lines are gone). What a plugin draws about a kind is
+  styled by the figure, as the bridge is: `render.Style` (a marker, asserted beside the type),
+  `render.Styles` and `render.StyleOf`, `world.Slot.Styled(s)` on the kind's slot,
+  `world.Plugin.Styles()` after `WithRenderer` — `selection.Highlight{Line, Width}`
+  (`DefaultHighlight`; `HighlightStyle`, `HighlightStyleFn` and `DefaultHighlightStyle` went),
+  `vision.Cone{Color}` (`DefaultCone`; `DefaultConeStyle` went; the cone's colour is an instance
+  attribute of the views' shader, `WithStyle` still a composer for every kind), `navigation.
+  RouteStyle` (`DefaultRouteStyle` or `WithRouteStyle`'s the kinds' default; `routes.Lines` carry
+  colour and width a stretch). `board.Plugin.ShowGrid`/`GridShown` are the grid's option, which
+  `WithRenderer` keeps (it set the grid on itself before). Square's walkers are outlined and
+  routed in their colours, the vision demo's hawk edges its view in its own.
 - The entities' boxes (Shift+X) are collision's: `collision.Boxes`, `Plugin.ShowBoxes`,
   `BoxesShown`, drawn by `collision.Plugin.Renderer()`, which every demo with collision has in
   its composer and whose plugin it hands to players, so the key works everywhere (`world.Boxes`

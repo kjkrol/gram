@@ -66,9 +66,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // rules begin them.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer is a no-op: a conversation is drawn by a scene's elements (Window).
-func (p *Plugin) WithRenderer(render.AtlasSource) {}
-
 // Renderer is nil: a conversation is drawn by a scene's elements (Window).
 func (p *Plugin) Renderer() render.Layer { return nil }
 

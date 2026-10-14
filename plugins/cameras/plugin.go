@@ -97,9 +97,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // entity; call it after the world's.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer is a no-op: cameras draw nothing.
-func (p *Plugin) WithRenderer(render.AtlasSource) {}
-
 // Renderer is nil: cameras draw nothing.
 func (p *Plugin) Renderer() render.Layer { return nil }
 

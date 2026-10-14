@@ -76,13 +76,7 @@ func (m *mainScene) picture() render.Picture {
 	boardAtlas.Looks()
 	boardAtlas.Close()
 	a.board.WithRenderer(boardAtlas)
-	a.board.Res.Render.ShowGridLines = true
-	a.nav.WithRenderer(nil)
-	// TODO: to jest rule a tu a.board.Res.Render.ShowGridLines = true jest flaga
 	a.vision.WithViews(render.Show(a.selection.IsSelected))
-	a.vision.WithRenderer(nil)
-	a.selection.WithRenderer(nil)
-	a.bridges.WithRenderer(nil)
 
 	return render.NewComposer(
 		a.atmosphere.Renderer(), a.board.Renderer(), a.topography.Renderer(),

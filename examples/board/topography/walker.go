@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/kjkrol/gram/plugins/selection"
 	"image/color"
 	"math"
 
@@ -59,7 +60,8 @@ func (wk walker) Define(b *board.Plugin) {
 }
 
 func (wk walker) Look(a *world.Atlas, w *world.Plugin) {
-	a.Add(kind.Named[unitRow](w.Kinds(), wk.kind), walkerPx, render.Solid(wk.color))
+	a.Add(kind.Named[unitRow](w.Kinds(), wk.kind), walkerPx, render.Solid(wk.color)).
+		Styled(selection.Highlight{Line: wk.color, Width: 2})
 }
 
 // the eyes of a unit: a sight the way it goes, as wide as a man's

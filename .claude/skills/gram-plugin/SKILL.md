@@ -7,8 +7,16 @@ description: How a gram plugin is built and how to write one — the plugin cont
 
 ## Plugin system
 
-`plugin.Plugin` — `Name`, `Install(ctx plugin.Installer) error`, `RunPlan`, `WithRenderer`,
-`Renderer`, `EventHandler`, `Serializable` — is the one extension point. `ctx.Use(p)` registers
+`plugin.Plugin` — `Name`, `Install(ctx plugin.Installer) error`, `RunPlan`, `Renderer`,
+`EventHandler`, `Serializable` — is the one extension point. A plugin makes its renderer itself,
+in `NewPlugin`, and `Renderer()` hands it to the scene's composer; `WithRenderer(atlas)` is
+`world`'s and `board`'s own (their atlases are the looks), no longer the contract's
+(2026-10-14). What a plugin draws about a kind — an outline, a cone, a route — is styled by the
+figure: a `render.Style` type of the plugin's (`Style()` marker, asserted), declared on the
+kind's slot with `Slot.Styled`, read per entity with `render.StyleOf[S](world.Plugin.Styles(),
+appearance.SpriteID)`, the plugin's default where none; `render.Appearance` optional in the
+query (a bare test entity has none). A colour per entity on a GPU path is an instance
+attribute, never a uniform (vision's views, navigation's routes). `ctx.Use(p)` registers
 `p.Serializable()` (if any) and calls `p.Install`, which only queues ECS wiring
 (`ctx.UseModule`/`ctx.Setup`), flushed once by `ecs.Setup()` after `Stage.Init` returns — which
 lets `Persistence.Load` decide fresh-spawn vs. restore before the ECS commits. `ctx.Track(s)`

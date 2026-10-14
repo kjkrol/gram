@@ -50,6 +50,7 @@ type Plugin struct {
 	views    map[camera.Camera]*view.View
 	look     Look
 	looked   bool
+	styles   *render.Styles
 	sections any
 }
 
@@ -208,8 +209,13 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	if wa, ok := atlas.(*Atlas); ok {
 		p.renderer.shade(wa.shaded, wa.phased)
 		p.renderer.lie(wa.lain(), wa.edged(), wa.stood())
+		p.styles = &wa.styles
 	}
 }
+
+// Styles are the styles the figures declared on the world's atlas (Slot.Styled), for the
+// plugins drawing about a kind; none before WithRenderer.
+func (p *Plugin) Styles() *render.Styles { return p.styles }
 
 // Renderer is the world's entity renderer, nil unless WithRenderer was called.
 func (p *Plugin) Renderer() render.Layer {

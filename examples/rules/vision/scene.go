@@ -26,7 +26,6 @@ func (m *mainScene) picture() render.Picture {
 	atlas.Close()
 	a.world.WithRenderer(atlas)
 	a.vision.ShowCones()
-	a.vision.WithRenderer(atlas)
 
 	return render.NewComposer(a.vision.Renderer(), a.world.Renderer(), a.collision.Renderer())
 }

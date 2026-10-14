@@ -1,6 +1,7 @@
 package vision
 
 import (
+	"image/color"
 	"math"
 	"testing"
 
@@ -453,5 +454,51 @@ func TestRenderer_ShadowsLeaveOutWhatIsNotInFrontOfTheEye(t *testing.T) {
 	f.Each(func(render.Tier, float32, []render.Vertex) { n++ })
 	if n != 3 {
 		t.Errorf("%d shadow pieces, want the three farther ones: the nearer reach back short of x 146", n)
+	}
+}
+
+func TestRenderer_DrawsEachKindsConeInItsOwnColour(t *testing.T) {
+	r := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
+	var styles render.Styles
+	styles.Set(7, Cone{Color: color.RGBA{B: 255, A: 255}})
+	r.WithStyles(func() *render.Styles { return &styles })
+	var base goke.Comp[world.Base]
+	var sight goke.Comp[Sight]
+	var eye goke.Comp[world.Eye]
+	var outline goke.Comp[SightOutline]
+	var app goke.Comp[render.Appearance]
+	good := SightOutline{Count: 3}
+	good.Depths[0], good.Depths[1], good.Depths[2] = 50, 60, 70
+	ecs := goke.New()
+	ecs.Setup(
+		goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			f := si.NewFactory(&base, &sight, &eye, &outline, &app)
+			f.Create(2)
+			for f.Next() {
+				for i := range f.Cursor.IDs {
+					at := geom.NewVec(100+300*float64(i), 100)
+					base.Slice(&f.Cursor)[i].Pos = world.Position{AABB: plane.NewAABB(at, 10, 10)}
+					sight.Slice(&f.Cursor)[i] = Sight{Facing: geom.NewVec(1.0, 0.0), Radius: 100}
+					eye.Slice(&f.Cursor)[i] = world.Eye{Angle: 1}
+					outline.Slice(&f.Cursor)[i] = good
+					app.Slice(&f.Cursor)[i] = render.Appearance{SpriteID: render.SpriteID(6 + i)}
+				}
+			}
+		}},
+		goke.SystemFn{OnInit: r.Init},
+	)
+	f := composeWith(r)
+	blue, pale := 0, 0
+	f.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
+		switch {
+		case v[0].ColorB == 1:
+			blue++
+		case v[0].ColorR == 1:
+			pale++
+		}
+	})
+	if blue == 0 || pale == 0 || blue != pale {
+		t.Errorf("%d blue and %d pale sides, want as many of each: one cone in its kind's Cone, "+
+			"the other in DefaultCone", blue, pale)
 	}
 }

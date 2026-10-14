@@ -58,13 +58,9 @@ func (m *mainScene) picture() render.Picture {
 	boardAtlas.Looks()
 	boardAtlas.Close()
 	a.board.WithRenderer(boardAtlas)
-	a.board.Res.Render.ShowGridLines = false
+	a.board.ShowGrid(false)
 
-	a.nav.WithRenderer(nil)
 	a.vision.WithViews(render.Show(a.selection.IsSelected))
-	a.vision.WithRenderer(nil)
-	a.selection.WithRenderer(nil)
-	a.bridges.WithRenderer(nil)
 
 	return render.NewComposer(
 		a.atmosphere.Renderer(),

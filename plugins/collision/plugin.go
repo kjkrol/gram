@@ -81,9 +81,6 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// WithRenderer does nothing: collision draws from no atlas.
-func (p *Plugin) WithRenderer(render.AtlasSource) {}
-
 // Renderer outlines every entity's box while Boxes shows them (Shift+X), for a scene's composer.
 func (p *Plugin) Renderer() render.Layer { return p.boxesView }
 

@@ -63,6 +63,7 @@ type Plugin struct {
 	holds       command.Queue[Holds]
 	holdsView   *occupancy.View
 	holdsShown  bool
+	gridShown   bool
 	bridges     Bridges
 	cellOf      map[string]func(row any) cell.ID
 	tiles       []Tile
@@ -85,6 +86,7 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 		occupancy:   occupancy,
 		worldPlugin: worldPlugin,
 		kinds:       terrain.NewKinds(worldPlugin.HasHeights()),
+		gridShown:   true,
 	}
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.kinds.Guard = func(name string) {
@@ -138,11 +140,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 // RunPlan runs the board's step; call it after collision's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.grids.Drain(func(command.Issued[Grid]) {
-		if p.Res.Render != nil {
-			p.Res.Render.ToggleShowGridLines()
-		}
-	})
+	p.grids.Drain(func(command.Issued[Grid]) { p.ShowGrid(!p.gridShown) })
 	p.holds.Drain(func(command.Issued[Holds]) { p.ShowHolds(!p.holdsShown) })
 	p.module.RunPlan(ctx, d)
 }
@@ -159,11 +157,23 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 		p.renderer.Shade(ba.shaded)
 	}
 	p.Res.Render = p.renderer.State()
-	p.Res.Render.ShowGridLines = true
+	p.Res.Render.ShowGridLines = p.gridShown
 	p.renderer.Workers(p.workers)
 	p.holdsView = occupancy.NewView(p.Board().Grid, p.occupancy, p.holdAt)
 	p.holdsView.Show(p.holdsShown)
 }
+
+// ShowGrid draws the grid over the board, or not, as the Grid command (B) switches it: a look,
+// not saved; shown from the start.
+func (p *Plugin) ShowGrid(shown bool) {
+	p.gridShown = shown
+	if p.Res.Render != nil {
+		p.Res.Render.ShowGridLines = shown
+	}
+}
+
+// GridShown reports whether the grid is drawn.
+func (p *Plugin) GridShown() bool { return p.gridShown }
 
 // ShowHolds shows the cells the occupancy holds, each an outline in its holder's colour, or
 // hides them: a look, not saved.

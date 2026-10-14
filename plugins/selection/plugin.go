@@ -45,6 +45,8 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	worldPlugin.Roster().Unit.Default(comp.Marks[Family]()) // every unit may be told Allow
 	p := &Plugin{worldPlugin: worldPlugin, tags: tags}
 	p.Self = world.NewSelf(worldPlugin, p)
+	p.renderer = NewRenderer(tags.Selected, worldPlugin.Look, worldPlugin.Styles)
+	p.renderer.marquees = &p.marquees
 	return p
 }
 
@@ -78,19 +80,8 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
 
-// WithRenderer builds the renderer of the highlights and of the box being dragged; atlas is
-// unused.
-func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
-	p.renderer = NewRenderer(p.tags.Selected, p.worldPlugin.Look)
-	p.renderer.marquees = &p.marquees
-}
-
-func (p *Plugin) Renderer() render.Layer {
-	if p.renderer == nil {
-		return nil
-	}
-	return p.renderer
-}
+// Renderer draws the highlights, each kind in its Highlight, and the box being dragged.
+func (p *Plugin) Renderer() render.Layer { return p.renderer }
 
 // EventHandler is nil: a player's bindings issue the commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

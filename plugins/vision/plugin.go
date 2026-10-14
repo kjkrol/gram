@@ -24,8 +24,6 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	module      *module
 	renderer    *Renderer
-	style       ConeStyle
-	shadow      *Shadow
 	groundStep  float64
 	heights     func() ground.Heights
 	cover       func() ground.Cover
@@ -46,6 +44,9 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin, hidden: true}
 	p.Self = world.NewSelf(worldPlugin, p)
+	p.renderer = NewRenderer(worldPlugin.Space()).WithGround(p.groundOf).WithCover(p.coverOf).
+		WithScale(worldPlugin.Scale()).WithDrawing(&p.drawing).WithStyles(worldPlugin.Styles)
+	p.renderer.Hide(true)
 	return p
 }
 
@@ -71,24 +72,8 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// WithRenderer builds the renderer of the views; the atlas is unused.
-func (p *Plugin) WithRenderer(render.AtlasSource) {
-	p.renderer = NewRenderer(p.worldPlugin.Space()).WithGround(p.groundOf).WithGroundStep(p.groundStep).WithCover(p.coverOf).WithScale(p.worldPlugin.Scale()).WithDrawing(&p.drawing)
-	if p.style != nil {
-		p.renderer.WithStyle(p.style)
-	}
-	if p.shadow != nil {
-		p.renderer.WithShadow(*p.shadow)
-	}
-	p.renderer.Hide(p.hidden)
-}
-
-func (p *Plugin) Renderer() render.Layer {
-	if p.renderer == nil {
-		return nil
-	}
-	return p.renderer
-}
+// Renderer draws the views, each kind in its Cone.
+func (p *Plugin) Renderer() render.Layer { return p.renderer }
 
 // EventHandler is nil: the Cones command comes from a player's bindings.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
@@ -116,21 +101,19 @@ func (p *Plugin) ConesShown() bool { return !p.hidden }
 
 func (p *Plugin) setHidden(hidden bool) {
 	p.hidden = hidden
-	if p.renderer != nil {
-		p.renderer.Hide(hidden)
-	}
+	p.renderer.Hide(hidden)
 }
 
-// WithStyle sets how cones are drawn, in place of DefaultConeStyle; call before Use.
+// WithStyle sets how every cone is drawn in place of the kinds' Cones: a composer of its own,
+// on the CPU.
 func (p *Plugin) WithStyle(style ConeStyle) *Plugin {
-	p.style = style
+	p.renderer.WithStyle(style)
 	return p
 }
 
-// WithShadow sets how the ground out of sight is shaded, in place of DefaultShadow; call before
-// Use.
+// WithShadow sets how the ground out of sight is shaded, in place of DefaultShadow.
 func (p *Plugin) WithShadow(shadow Shadow) *Plugin {
-	p.shadow = &shadow
+	p.renderer.WithShadow(shadow)
 	return p
 }
 
@@ -169,6 +152,7 @@ func (p *Plugin) coverOf() ground.Cover {
 // ground.Profile along a ray, in place of the board's cell; call before Use.
 func (p *Plugin) WithGroundStep(step float64) *Plugin {
 	p.groundStep = step
+	p.renderer.WithGroundStep(step)
 	return p
 }
 

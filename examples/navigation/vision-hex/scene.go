@@ -37,11 +37,7 @@ func (m *mainScene) picture() render.Picture {
 	boardAtlas.Close()
 	a.board.WithRenderer(boardAtlas)
 
-	a.nav.WithRenderer(nil)
-
 	a.vision.WithViews(render.Show(a.selection.IsSelected))
-	a.vision.WithRenderer(nil)
-	a.selection.WithRenderer(nil)
 
 	return render.NewComposer(
 		a.topography.Renderer(),
