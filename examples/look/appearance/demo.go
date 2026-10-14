@@ -48,8 +48,9 @@ type arena struct {
 
 func main() {
 	props := game.Props{
-		Title:       "gram appearance demo",
-		Description: "R: everyone angry for a while.",
+		Title: "gram appearance demo",
+		Description: "Walkers drawn the way they go, stamping while angry; R: everyone angry " +
+			"for a while.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -63,7 +64,7 @@ func main() {
 			},
 			Entities: world.EntitiesCfg{
 				MaxCount: Walkers + Ghosts + Leaders,
-				MinSize:  Size,
+				MinSize:  Size / 2,
 				MaxSize:  Size,
 			},
 		}).
@@ -110,17 +111,17 @@ func (s *arena) defineCommands() {
 }
 
 type walker struct {
-	at  geom.Vec
-	vel world.Velocity
+	at   geom.Vec
+	w, h float64
+	vel  world.Velocity
 }
 
 func (s *arena) defineKinds() {
 	kinds := s.world.Kinds()
 	spec := kind.Spec{
 		comp.Load(func(w walker) world.Position {
-			return world.Position{
-				AABB: plane.NewAABB(geom.NewVec(w.at.X-Size/2, w.at.Y-Size/2), Size, Size),
-			}
+			top := geom.NewVec(w.at.X-w.w/2, w.at.Y-w.h/2)
+			return world.Position{AABB: plane.NewAABB(top, w.w, w.h)}
 		}),
 		comp.Load(func(w walker) world.Velocity { return w.vel }),
 		comp.Const(collision.Collider{}),
@@ -154,7 +155,8 @@ func (s *arena) spawnUnits() {
 	entries := make([]kind.Entry, total)
 	for i := range entries {
 		w := walker{
-			at:  placement.Place(i, total).Center(),
+			at: placement.Place(i, total).Center(),
+			w:  Size, h: Size,
 			vel: world.Velocity{Dir: ways[rand.IntN(4)], Value: 40 + 40*rand.Float64()},
 		}
 		switch {
@@ -163,6 +165,7 @@ func (s *arena) spawnUnits() {
 		case i < Leaders+Ghosts:
 			entries[i] = ghostKind.Entry(w)
 		default:
+			w.w, w.h = Size/2, Size // the figure's box, twice as tall as wide
 			entries[i] = walkerKind.Entry(w)
 		}
 	}

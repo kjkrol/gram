@@ -46,3 +46,32 @@ func TestTheme_ALabelMeasuresInTheThemesFont(t *testing.T) {
 }
 
 func goRegular() []byte { return goregular.TTF }
+
+func TestTheme_AHeadingMeasuresInTheThemesBoldFont(t *testing.T) {
+	big, err := render.NewFont(goRegular(), 40)
+	if err != nil {
+		t.Fatal(err)
+	}
+	heading, label := Heading("General"), Label("General")
+	s := NewScene("main", Layers(heading, label))
+	th := DefaultTheme()
+	th.Bold = big
+	s.Theme(th)
+	s.Layers()
+	hw, hh := heading.needs()
+	lw, _ := label.needs()
+	if hw <= lw || hh < 40 {
+		t.Fatalf("the heading needs %vx%v against the label's %v, want the bold font's", hw, hh, lw)
+	}
+}
+
+func TestTheme_ATitleMeasuresInTheThemesLargeFont(t *testing.T) {
+	title, heading := Title("Shortcuts"), Heading("Shortcuts")
+	s := NewScene("main", Layers(title, heading))
+	s.Layers()
+	tw, th := title.needs()
+	hw, hh := heading.needs()
+	if tw <= hw || th <= hh {
+		t.Fatalf("the title needs %vx%v against the heading's %vx%v, want larger", tw, th, hw, hh)
+	}
+}

@@ -42,14 +42,16 @@ type Plugin struct {
 	named  Commands
 	made   plugin.Made
 	*Self
-	renderer *renderer
-	kinds    *Kinds
-	roster   *kind.Roster
-	seeded   []kind.Entry
-	views    map[camera.Camera]*view.View
-	look     Look
-	looked   bool
-	sections any
+	renderer  *renderer
+	boxes     command.Queue[Boxes]
+	boxesView *boxesView
+	kinds     *Kinds
+	roster    *kind.Roster
+	seeded    []kind.Entry
+	views     map[camera.Camera]*view.View
+	look      Look
+	looked    bool
+	sections  any
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -67,6 +69,7 @@ func NewPlugin(cfg Config) *Plugin {
 	m.kinds = kinds
 	p := &Plugin{Res: Resources{Config: cfg, Telemetry: &m.telemetry}, module: m, kinds: kinds, roster: kind.NewRoster(),
 		look: ilook.NewFlat(float32(cfg.Space.Width), float32(cfg.Space.Height))}
+	p.boxesView = &boxesView{p: p}
 	kind.Require[Position](&p.roster.Unit, "world", "where it stands")
 	p.roster.Unit.Default(comp.Const(Velocity{}))
 	m.effects = cgoke.NewEffects(effect.New(func(name string) tag.Tag[effect.States] {
@@ -172,6 +175,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan runs the world's tick. Call it from Stage.Update before whatever reads the world's
 // space, after only what moves entities itself.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
+	p.boxes.Drain(func(command.Issued[Boxes]) { p.ShowBoxes(!p.BoxesShown()) })
 	p.module.RunPlan(ctx, d)
 }
 
@@ -194,8 +198,9 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	if !p.looked {
 		p.looked = true
 		if wa, ok := atlas.(*Atlas); ok {
-			for mark, twins := range wa.twins {
-				if err := p.module.drawing.Add(render.Swap(twins, mark.In)); err != nil {
+			// two effects on one entity: the look declared later wins
+			for _, mark := range wa.marks {
+				if err := p.module.drawing.Add(render.Swap(wa.twins[mark], mark.In)); err != nil {
 					panic(err)
 				}
 			}
@@ -207,7 +212,7 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	p.renderer = newRenderer(atlas, p.ViewFor, &p.module.drawing, p.Look)
 	p.renderer.clock = p.module.clock.Shown
 	if wa, ok := atlas.(*Atlas); ok {
-		p.renderer.shade(wa.shaded)
+		p.renderer.shade(wa.shaded, wa.phased)
 		p.renderer.lie(wa.lain(), wa.edged(), wa.stood())
 	}
 }

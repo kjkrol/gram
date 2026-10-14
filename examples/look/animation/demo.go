@@ -36,10 +36,9 @@ const (
 	CellSize     = 32
 	ScreenWidth  = GridWidth * CellSize
 	ScreenHeight = GridHeight * CellSize
-	EntitySize   = 24
 	UnitSpeed    = CellSize * 2
 
-	gaitPeriod = 160 * time.Millisecond
+	gaitPeriod = 120 * time.Millisecond
 )
 
 type unitRow struct {
@@ -64,8 +63,9 @@ type arena struct {
 
 func main() {
 	props := game.Props{
-		Title:       "gram animation demo",
-		Description: "A sprite drawn frame after frame; Shift+P freezes the gait.",
+		Title: "gram animation demo",
+		Description: "A figure drawn frame after frame, stepping the way it goes, standing at " +
+			"rest; Shift+P freezes the gait.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -73,7 +73,7 @@ func main() {
 	mainStage := stage.New(AnimationStage).
 		World(world.Config{
 			Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
-			Entities: world.EntitiesCfg{MaxCount: 8, MinSize: EntitySize, MaxSize: EntitySize},
+			Entities: world.EntitiesCfg{MaxCount: 8, MinSize: heroWidth, MaxSize: heroHeight},
 		}).
 		Plugins(a.makePlugins).
 		Players(a.definePlayer).
@@ -112,7 +112,7 @@ func (s *arena) defineKinds() {
 	brd := s.board.Board()
 	units := board.NewUnits[unitRow](
 		s.board,
-		board.Shape{Size: EntitySize},
+		board.Shape{Size: heroHeight, Width: heroWidth},
 		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
 	profile := steering.Steering{
@@ -134,7 +134,7 @@ func (s *arena) defineKinds() {
 	round := comp.Load(func(u unitRow) navigation.Round {
 		return navigation.NewRound(u.Round[:]...)
 	})
-	units.Define(BugKind, unit.Mover{Domain: cell.Land}, profile, round, patrol)
+	units.Define(HeroKind, unit.Mover{Domain: cell.Land}, profile, round, patrol)
 }
 
 func (s *arena) spawn() error {

@@ -306,16 +306,17 @@ func TestCollisionSystem_Contacts_PublishedToBothSides(t *testing.T) {
 	}
 }
 
-func TestCollisionSystem_Contacts_DoNotSurviveTheNextTick(t *testing.T) {
+func TestCollisionSystem_Contacts_RestOnceParted_AndGoOnceApart(t *testing.T) {
 	space := testSpace(t)
 	ecs := goke.New()
+	var base goke.Comp[world.Base]
 	var struck goke.Comp[collision.Collider]
 	var q *goke.Query
 
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		seedPhysical(t, si, space, posAt(100, 100, 10, 10), geom.NewVec(5, 0))
 		seedPhysical(t, si, space, posAt(105, 100, 10, 10), geom.NewVec(-5, 0))
-		q = si.NewQueryBuilder(&struck).Build()
+		q = si.NewQueryBuilder(&base, &struck).Build()
 	}})
 
 	detect := ecs.RegSys(collision.NewCollisionSystem(space))
@@ -330,8 +331,32 @@ func TestCollisionSystem_Contacts_DoNotSurviveTheNextTick(t *testing.T) {
 	}
 
 	ecs.Tick(time.Millisecond)
+	resting := 0
+	for q.All(); q.Next(); {
+		for _, c := range struck.Slice(q.Cursor()) {
+			for _, ct := range c.Contacts() {
+				if ct.Resting {
+					resting++
+				}
+			}
+		}
+	}
+	if got := countContacts(q, struck); got != 2 || resting != 2 {
+		t.Errorf("%d contacts, %d resting, a tick after the push apart; want 2 at rest, touching",
+			got, resting)
+	}
+
+	for q.All(); q.Next(); {
+		for i := range base.Slice(q.Cursor()) {
+			b := &base.Slice(q.Cursor())[i]
+			if b.Pos.TopLeft.X < 102 {
+				b.Pos = posAt(50, 100, 10, 10)
+			}
+		}
+	}
+	ecs.Tick(time.Millisecond)
 	if got := countContacts(q, struck); got != 0 {
-		t.Errorf("%d contacts left after a tick with no contact, want 0", got)
+		t.Errorf("%d contacts left once apart, want 0", got)
 	}
 }
 

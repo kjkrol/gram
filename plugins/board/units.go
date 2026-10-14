@@ -20,9 +20,18 @@ type Units[P any] struct {
 	at    func(row P) geom.Vec
 }
 
-// Shape is a unit's body: the side of its square box and, in a world with heights, how tall it
-// stands.
-type Shape struct{ Size, Height float64 }
+// Shape is a unit's body: the side of its box, Width across it where the box is no square (0:
+// Size, square), and, in a world with heights, how tall it stands.
+type Shape struct{ Size, Width, Height float64 }
+
+// Box is the shape's box centred on c: Width across, Size down the screen.
+func (s Shape) Box(c geom.Vec) plane.AABB {
+	w := s.Width
+	if w == 0 {
+		w = s.Size
+	}
+	return plane.NewAABB(geom.NewVec(c.X-w/2, c.Y-s.Size/2), w, s.Size)
+}
 
 // NewUnits binds a game's rows to the board: shape is the units' body, at reads a unit's centre
 // from its row. A Height in a flat world panics.
@@ -41,11 +50,9 @@ func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steer
 	if !heights && mover.Lift != 0 {
 		panic(fmt.Sprintf("board: %q has a Lift in a flat world; set world.Config.Heights", name))
 	}
-	half := u.shape.Size / 2
 	own := []comp.Comp{
 		comp.Load(func(row P) world.Position {
-			c := u.at(row)
-			return world.Position{AABB: plane.NewAABB(geom.NewVec(c.X-half, c.Y-half), u.shape.Size, u.shape.Size)}
+			return world.Position{AABB: u.shape.Box(u.at(row))}
 		}),
 		comp.Load(func(row P) unit.At {
 			c, ok := brd.CellAt(u.at(row))

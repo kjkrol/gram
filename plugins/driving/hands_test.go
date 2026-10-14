@@ -190,6 +190,7 @@ type seen struct {
 	speed   float64
 	side    float64
 	at      geom.Vec
+	dir     geom.Vec
 }
 
 func (f *field) read() map[uid.UID64]seen {
@@ -198,7 +199,7 @@ func (f *field) read() map[uid.UID64]seen {
 		cur := f.walkers.Cursor()
 		drivens, marks, courses := f.driven.Slice(cur), f.states.Slice(cur), f.course.Slice(cur)
 		for i, id := range cur.IDs {
-			s := seen{at: f.base.Slice(cur)[i].Pos.Center()}
+			s := seen{at: f.base.Slice(cur)[i].Pos.Center(), dir: f.base.Slice(cur)[i].Vel.Dir}
 			if drivens != nil {
 				d := drivens[i]
 				s.driven = &d
@@ -292,6 +293,42 @@ func TestHand_LetGoAtAFenceItStandsWhereTheFenceHeldIt(t *testing.T) {
 	if math.Hypot(s.at.X-held.at.X, s.at.Y-held.at.Y) > 1e-3 || s.driving || s.speed != 0 {
 		t.Errorf("let go at the fence: at %v, Driving %v, speed %v; want standing at %v, let go",
 			s.at, s.driving, s.speed, held.at)
+	}
+}
+
+func TestHand_TurnedAboutItBrakesTurnsAndWalksOn(t *testing.T) {
+	f := newField(t, walker{start: 12, owner: 1, selected: true})
+	id := f.ids[0]
+	for range 10 {
+		f.give(1, driving.Toward{Camera: f.cams[1], Way: geom.NewVec(1, 0)})
+		f.tick(1)
+	}
+	if s := f.read()[id]; s.speed == 0 {
+		t.Fatal("driven east for ten ticks the unit stands still")
+	}
+	stopped, faced := false, false
+	for range 40 {
+		f.give(1, driving.Toward{Camera: f.cams[1], Way: geom.NewVec(-1, 0)})
+		f.tick(1)
+		s := f.read()[id]
+		if s.speed == 0 && !faced {
+			stopped = true
+		}
+		if s.dir.X < -0.99 {
+			faced = true
+		}
+	}
+	s := f.read()[id]
+	if !stopped || !faced || s.speed == 0 || s.dir.X > -0.99 {
+		t.Errorf("turned about: stopped first %v, faced west %v, now at %v facing %v; want a "+
+			"brake, the turn, then walking west", stopped, faced, s.speed, s.dir)
+	}
+	// a turn within square carries on at speed
+	before := f.read()[id].speed
+	f.give(1, driving.Toward{Camera: f.cams[1], Way: geom.NewVec(-1, -1)})
+	f.tick(1)
+	if s := f.read()[id]; s.speed < before {
+		t.Errorf("turned 45 degrees the unit slowed from %v to %v, want no brake", before, s.speed)
 	}
 }
 

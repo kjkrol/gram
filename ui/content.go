@@ -24,6 +24,20 @@ func Panel(e *Element) *Element {
 // Label is a line of text, or lines of it, one under another.
 func Label(text string) *Element { return newElement(&label{text: text}) }
 
+// Heading is a Label in the theme's bold font: a section's title.
+func Heading(text string) *Element { return newElement(&label{text: text, weight: heading}) }
+
+// Title is a Label in the theme's large font: a screen's title.
+func Title(text string) *Element { return newElement(&label{text: text, weight: title}) }
+
+type weight int
+
+const (
+	regular weight = iota
+	heading
+	title
+)
+
 // Text is what an element reads its words off every frame, for the entity it is pinned to.
 // False leaves the element out: it takes no room and nothing hits it.
 type Text interface {
@@ -55,8 +69,19 @@ func (r *readOff[T]) Text(of uid.UID64, pinned bool) (string, bool) {
 type bound interface{ bind(si *goke.SysInit) }
 
 type label struct {
-	text string
-	src  Text
+	text   string
+	src    Text
+	weight weight
+}
+
+func (l *label) font(th *Theme) *render.Font {
+	switch {
+	case l.weight == title && th.Large != nil:
+		return th.Large
+	case l.weight >= heading && th.Bold != nil:
+		return th.Bold
+	}
+	return th.Font
 }
 
 func (l *label) words(e *Element) (string, bool) {
@@ -79,14 +104,14 @@ func (l *label) draw(e *Element, dst *render.Image) {
 	th := e.look()
 	x, y := float32(math.Round(box.TopLeft.X)), float32(math.Round(box.TopLeft.Y))
 	if th.Shadow.A > 0 {
-		render.DrawText(dst, th.Font, text, x+1, y+1, th.Shadow)
+		render.DrawText(dst, l.font(th), text, x+1, y+1, th.Shadow)
 	}
-	render.DrawText(dst, th.Font, text, x, y, th.Text)
+	render.DrawText(dst, l.font(th), text, x, y, th.Text)
 }
 
 func (l *label) needs(e *Element) (w, h float64) {
 	text, _ := l.words(e)
-	tw, th := e.look().Font.Measure(text)
+	tw, th := l.font(e.look()).Measure(text)
 	return math.Ceil(float64(tw)), math.Ceil(float64(th))
 }
 

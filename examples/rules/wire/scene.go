@@ -1,7 +1,9 @@
 package main
 
 import (
+	_ "embed"
 	"image/color"
+	"time"
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
@@ -15,29 +17,35 @@ type mainScene struct {
 }
 
 var (
-	scoutColor    = color.RGBA{R: 90, G: 140, B: 230, A: 255}
-	hasteColor    = color.RGBA{R: 170, G: 220, B: 255, A: 255}
-	porterColor   = color.RGBA{R: 150, G: 110, B: 200, A: 255}
-	wandererColor = color.RGBA{R: 220, G: 150, B: 60, A: 255}
-	grassColor    = color.RGBA{R: 60, G: 95, B: 60, A: 255}
-	boardsColor   = color.RGBA{R: 120, G: 90, B: 55, A: 255}
-	pitColor      = color.RGBA{R: 15, G: 12, B: 20, A: 255}
-	plateColor    = color.RGBA{R: 160, G: 160, B: 170, A: 255}
-	leverColor    = color.RGBA{R: 200, G: 170, B: 60, A: 255}
-	fenceColor    = color.RGBA{R: 85, G: 60, B: 40, A: 255}
-	gateColor     = color.RGBA{R: 70, G: 75, B: 90, A: 255}
-	gatewayColor  = color.RGBA{R: 150, G: 130, B: 95, A: 255}
+	grassColor   = color.RGBA{R: 60, G: 95, B: 60, A: 255}
+	boardsColor  = color.RGBA{R: 120, G: 90, B: 55, A: 255}
+	pitColor     = color.RGBA{R: 15, G: 12, B: 20, A: 255}
+	plateColor   = color.RGBA{R: 160, G: 160, B: 170, A: 255}
+	fenceColor   = color.RGBA{R: 85, G: 60, B: 40, A: 255}
+	gateColor    = color.RGBA{R: 70, G: 75, B: 90, A: 255}
+	gatewayColor = color.RGBA{R: 150, G: 130, B: 95, A: 255}
+)
+
+// four frames of 12 pixels in a row, the arm from the left (up) to the right (pulled down), the
+// lever filling its frame; the first and the last from "Lever and Button" (OpenGameArt, CC0), the
+// two between drawn after them
+//
+//go:embed lever.png
+var leverSheet []byte
+
+const (
+	leverFrames = 4
+	leverPixels = 12
 )
 
 func (m *mainScene) picture() render.Picture {
 	s := m.arena
-	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
-	porterKind := kind.Named[unitRow](s.world.Kinds(), PorterKind)
-	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
+	heroKind := kind.Named[unitRow](s.world.Kinds(), HeroKind)
 	standing := func(name string) kind.Of[standingRow] {
 		return kind.Named[standingRow](s.world.Kinds(), name)
 	}
 	fx := s.world.Effects()
+	lever := render.DecodeSheet("lever.png", leverSheet, leverPixels, leverPixels)
 
 	worldAtlas := s.world.NewAtlas()
 	worldAtlas.Add(standing(TrapdoorKind), CellSize, render.Solid(boardsColor)).
@@ -45,11 +53,19 @@ func (m *mainScene) picture() render.Picture {
 	worldAtlas.Add(standing(GateKind), CellSize, render.Solid(gateColor)).
 		Under(fx.Named(AjarEf), render.Solid(gatewayColor))
 	worldAtlas.Add(standing(PlateKind), EntitySize, render.Solid(plateColor))
-	worldAtlas.Add(standing(LeverKind), EntitySize, render.Solid(leverColor))
-	worldAtlas.Add(scoutKind, EntitySize, render.Solid(scoutColor)).
-		Under(fx.Named(HasteEf), render.Solid(hasteColor))
-	worldAtlas.Add(porterKind, EntitySize, render.Solid(porterColor))
-	worldAtlas.Add(wandererKind, EntitySize, render.Diamond(wandererColor))
+	worldAtlas.Add(standing(LeverKind), LeverSize, lever.At(0, 0)).
+		Under(fx.Named(LeverPulledEf), lever.At(leverFrames-1, 0)).
+		Under(fx.Named(LeverPullingEf), render.Phased(leverFrames,
+			func(i int) render.SpriteDrawer { return lever.At(i, 0) })).
+		Under(fx.Named(LeverPushingEf), render.Phased(leverFrames,
+			func(i int) render.SpriteDrawer { return lever.At(leverFrames-1-i, 0) }))
+	worldAtlas.Add(heroKind, heroHeight, heroStanding(0)).
+		Facing(heroWays, heroStanding).
+		Animated(heroWalkFrames, 120*time.Millisecond, heroPose(heroWalk)).WhileMoving().
+		Under(fx.Named(BoredEf),
+			render.LoopedFacing(heroIdleFrames, 350*time.Millisecond, heroPose(heroIdle))).
+		Under(fx.Named(PullingEf),
+			render.PhasedFacing(heroPullFrames, heroPose(heroPull)))
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 
@@ -60,19 +76,22 @@ func (m *mainScene) picture() render.Picture {
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
-	s.nav.WithRenderer(nil)
 	s.selection.WithRenderer(nil)
 
 	return render.NewComposer(
 		s.board.Renderer(),
 		s.world.Renderer(),
 		s.selection.Renderer(),
-		s.nav.Renderer(),
+		s.world.BoxesRenderer(),
 	)
 }
 
 func (m *mainScene) screen() *ui.Element {
 	s := m.arena
-	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-		Input(s.players.Through(s.player))
+	feed := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Follow: HeroName}),
+		m.picture())
+	return ui.Layers(
+		ui.Image(feed).Input(s.players.Through(s.player)),
+		ui.Label("Space: pull the lever").Under(s.world.Effects().Named(InReachEf)),
+	)
 }

@@ -1,6 +1,7 @@
 package players
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -258,5 +259,42 @@ func TestWrapped_BreaksBetweenWordsWithinTheWidth(t *testing.T) {
 	want := []string{"Walk up to a", "host and", "answer it."}
 	if !slices.Equal(got, want) {
 		t.Errorf("wrapped %q, want %q", got, want)
+	}
+}
+
+func TestShortcuts_TheListingLaysTheDescriptionOverTheTitleAndTheColumnsApart(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 100, Height: 100},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	cams := cameras.NewPlugin(w)
+	p := NewPlugin(w, cams)
+	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
+		t.Fatal(err)
+	}
+	var keys SceneKeys
+	for i := range 30 { // enough of the game's own keys to need a second column
+		keys = append(keys, SceneKey{Key: control.KeyA, Label: fmt.Sprintf("Do thing %d", i)})
+	}
+	s := p.OwnKeys(keys).shortcuts
+	s.description = "A game of many keys, described in a line that wraps."
+	screen := geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(800, 400))
+	s.screen.Replace(s.listing(game.Props{ScreenWidth: 800, ScreenHeight: 400}))
+	s.screen.Lay(screen)
+	about := s.screen.Element("shortcuts.about").Box()
+	title := s.screen.Element("shortcuts.title").Box()
+	if about.BottomRight.Y > title.TopLeft.Y {
+		t.Errorf("the description %v lies below the title %v", about, title)
+	}
+	first, second := s.screen.Element("shortcuts.column.0"), s.screen.Element("shortcuts.column.1")
+	if first == nil || second == nil {
+		t.Fatal("thirty keys over a screen 400 tall need two columns")
+	}
+	a, b := first.Box(), second.Box()
+	if a.BottomRight.X > b.TopLeft.X {
+		t.Errorf("the columns overlap: %v and %v", a, b)
+	}
+	if a.TopLeft.Y < title.BottomRight.Y || b.TopLeft.Y < title.BottomRight.Y {
+		t.Errorf("a column %v or %v begins above the title's bottom %v", a, b, title.BottomRight.Y)
 	}
 }

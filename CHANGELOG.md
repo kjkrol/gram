@@ -14,6 +14,72 @@ where it begins: `navigation.Path` changed shape. Nor those made before the beha
 `effect.Active` and `Wide` are the binding's `goke.Active` and `Wide`, `plan.Mind` is `store.Mind`.
 Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
 
+**One hero on WSAD, a lever and a plate that always answer, the figure in the look demos** (2026-10-14)
+- gram needs goke v3.4.1: `Query.Seek` after an `All` or `Pick` iteration on the same query read
+  another archetype's column, so a `Trigger`'s entity was read with a wrong `Label` and the
+  plate's command fired only when the stale offsets happened to fit — the trapdoors it opened
+  shut two seconds later with the hero still standing on it.
+- `cameras.Keys` has `ZoomIn` and `ZoomOut` keys, = and - among `DefaultKeys`; the topography's
+  `Raise` and `Lower` moved to Shift+= and Shift+-.
+- `world.Boxes` (Shift+X) outlines every entity's box in red through `world.Plugin.
+  BoxesRenderer()`, a layer for a scene's composer: a look for finding out why things touch or
+  miss. The wire demo shows it; its plugins' keys are bound in the Players section, so K lists
+  them by plugin, the game's own (Space, G) under Game.
+- The list of shortcuts (K) is a `ui` screen: the game's description first, a gap, the title,
+  then the groups of keys in columns as wide as their lines, filled down the screen's height —
+  the columns no longer overlap. `ui.Scene.Replace(screen)` puts a tree built afresh in a
+  scene's place, for such listings. The groups' names are `ui.Heading`s, in the theme's new
+  `Bold` font (`render.DefaultBoldFont`, Go Bold), the title a `ui.Title` in its `Large`
+  (`render.DefaultLargeFont`, Go Bold at 20), and the keys and their labels are two
+  columns laid by `ui`, aligned, not padded with spaces. A `ui.Fixed` part counts its pixels in
+  what its split needs: a `Fit` column of a table with fixed gaps measured too narrow and ran
+  into the next.
+- A hand-driven unit asked to go more than 45° off its way brakes first, turns, then walks
+  (`driving`): a hero reversing no longer walks a circle.
+- `render.Sheet`, `NewSheet`, `DecodeSheet`, `Sheet.At`: frames cut out of an image in cells.
+- The wire demo's action key is Space; a press is `ReachingEf` (a second), answered when the
+  lever stands still, `PullingEf` the hands on it for the swing: pulls and pushes alternated
+  quickly are all answered. `character.png` went.
+- The animation and appearance demos draw the figure of `hero.png` (a `hero.go` beside each):
+  stepping in eight directions while moving, standing at rest, stamping while angry.
+- Under two effects at once an entity is drawn by the look of the effect looked under later
+  (the world's atlas swaps in declaration order; it was a map's order). The wire hero's pull
+  takes his boredom off, and he turns at once (`TurnRate` 0): a key pressed standing moves him
+  the new way, not a step the old way first.
+- Boxes need not be square: `board.Shape{Size, Width, Height}` — `Width` across the screen
+  where the box is no square — builds a unit's or an entity's box (`Shape.Box`), and a
+  `render.Sheet` cuts frames `w` by `h` (`NewSheet(img, w, h)`, `DecodeSheet(name, png, w, h)`;
+  drawn into a square sprite a frame is stretched, and a box of its shape draws it true). The
+  hero's frames are 16 by 32, his box the same, pixel for pixel, so he stops at the lever's post
+  itself; the lever's frames are cut to the 12 pixels drawn, its box what is drawn.
+
+**A lever used by touch, an effect as the axis of time of an animation** (2026-10-13)
+- `collision.Meeting` carries `Heading` (the way Self faces) and `Toward` (from its middle to
+  Other's); `collision.Facing(within)` is the word of Self turned to Other within the angle, so
+  a thing used by touch — a lever — needs no board: touching it and facing it.
+- `render.Phased(n, draw)` (`render.Phases`) is a look of n frames spread along an effect's
+  course, once; the world's atlas takes it `Under` an effect that `Lasts` (reading what remains
+  of it on the entity through ceremony's `Active.Left`), and a material under an effect reads how
+  far it has run as its fraction. `render.FromImage(img)` draws an image into a sprite pixel for
+  pixel: frames cut out of a sheet.
+- A pair of colliders parted stays met while it touches: a `Contact` at rest (`Resting`) on
+  both sides, no impulse, no `Struck`, a `Meeting` every tick, until the two come apart — a hero
+  resting against a post uses it by touch.
+- The world's atlas draws a figure in eight directions: `Facing` first, then `Animated` with a
+  drawer of the angle and the frame (frames per way), `WhileMoving` (the frames go only while the
+  entity moves), and looks under effects drawn every way (`render.PhasedFacing`,
+  `render.LoopedFacing`; `render.Looped` is a look of frames round and round by the clock while
+  the effect is on). `world.Still()` is the word of a `Moving` entity neither walking nor
+  strafing.
+- The wire demo is one hero walked on WSAD (`driving.Compass`, the camera `Follow`ing him), a
+  figure drawn from a sheet (`hero.png`, after `character.png`, without the sword): standing,
+  stepping, bored after three seconds (`StillEf` `Then` `BoredEf`, rules of `world.Moving`),
+  pulling. The lever is a post of infinite mass he walks up to, pulled and pushed back at hand
+  (U), drawn from a sheet of four frames (`lever.png`, after OpenGameArt's "Lever and Button",
+  CC0) along its transitions; pulled it opens its trapdoors, pushed back it shuts them
+  (`Toggle`); a prompt over the hero while a lever is at hand. The plate's trapdoors open
+  `.For(2 * time.Second)`. The scouts, porters, wanderers, haste and the keys 1 and J went.
+
 **First person as a shooter plays** (2026-10-13)
 - Riding inside a unit the mouse looks round at once: the opt-in `camera.Config.MouseLook`,
   `cameras.MouseLook`, `cameras.MouseLookKey` and `camera.MouseLooker` are gone, and the cursor is

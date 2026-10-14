@@ -29,10 +29,11 @@ func Files(fs embed.FS, names ...string) []byte {
 // out with.
 type MaterialID uint8
 
-// Look is the two ways a look is painted: drawn once into the sheet (a SpriteDrawer), or worked
-// out per pixel every frame (a MaterialID).
+// Look is the ways a look is painted: drawn once into the sheet (a SpriteDrawer), worked out
+// per pixel every frame (a MaterialID), frames along an effect's course (Phases) or frames
+// round and round by the clock (Loops).
 type Look interface {
-	~func(dst *Canvas, size int) | MaterialID
+	~func(dst *Canvas, size int) | MaterialID | Phases | Loops
 }
 
 var libraryUniforms = []Uniform{{Name: "Toward", Size: 3}, {Name: "Clock", Size: 1}, {Name: "Pixel", Size: 1}, {Name: "Fog", Size: 3}}

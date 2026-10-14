@@ -6,12 +6,12 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/ui"
 )
 
 // SceneKey is a key of the game's own, a debug toggle, that is no command to a plugin: what it
@@ -50,7 +50,7 @@ const ShortcutsName = "gram.shortcuts"
 type Shortcuts struct {
 	p           *Plugin
 	keys        SceneKeys
-	layer       *shortcutsLayer
+	screen      *ui.Scene
 	held        bool
 	description string
 }
@@ -58,9 +58,7 @@ type Shortcuts struct {
 var _ game.Scene = (*Shortcuts)(nil)
 
 func newShortcuts(p *Plugin) *Shortcuts {
-	s := &Shortcuts{p: p}
-	s.layer = &shortcutsLayer{s: s}
-	return s
+	return &Shortcuts{p: p, screen: ui.NewScene(ShortcutsName, nil)}
 }
 
 // OwnKeys gives the game's own keys, run by Handle and listed under "Game". Call it before the
@@ -79,6 +77,7 @@ func (s *Shortcuts) Open(runtime game.Runtime, composition game.Composition) {
 	s.description = runtime.Props().Description
 	s.held = runtime.Paused()
 	runtime.Pause()
+	s.screen.Replace(s.listing(runtime.Props()))
 	composition.Show(ShortcutsName)
 }
 
@@ -92,7 +91,7 @@ func (s *Shortcuts) Close(runtime game.Runtime, composition game.Composition) {
 
 func (*Shortcuts) Name() string { return ShortcutsName }
 
-func (s *Shortcuts) Layers() []render.Layer { return []render.Layer{s.layer} }
+func (s *Shortcuts) Layers() []render.Layer { return s.screen.Layers() }
 
 // HandleEvents closes the scene on Esc or K.
 func (s *Shortcuts) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
@@ -106,51 +105,61 @@ func (s *Shortcuts) HandleEvents(events *control.InputEvents, runtime game.Runti
 
 func (*Shortcuts) Focusable() bool { return true }
 
+// a group's lines, a key and its label each, and the two written apart for a table
 type group struct {
-	name  string
-	lines []string
+	name         string
+	lines        []string
+	keys, labels []string
+}
+
+func (g *group) add(key, label string) {
+	g.lines = append(g.lines, fmt.Sprintf("%-22s %s", key, label))
+	g.keys, g.labels = append(g.keys, key), append(g.labels, label)
 }
 
 func (s *Shortcuts) groups() []group {
-	byHandler := map[plugin.CommandHandler][]string{}
+	byHandler := map[plugin.CommandHandler]*group{}
 	seen := map[string]bool{}
-	var own, general []string
+	own, general := &group{name: "Game"}, &group{name: "General"}
 	for _, pl := range s.p.Locals() {
 		how := camera.HowOf(pl.pic.camera)
 		for i, b := range pl.Bindings() {
 			if !pl.fires(b, how) {
 				continue
 			}
-			line := fmt.Sprintf("%-22s %s", Written(b.Trigger), b.Label)
-			if seen[line] {
+			key := Written(b.Trigger)
+			if seen[key+" "+b.Label] {
 				continue
 			}
-			seen[line] = true
+			seen[key+" "+b.Label] = true
 			switch h := s.p.handlerOf(b.Type()); {
 			case pl.own[i]:
-				own = append(own, line)
+				own.add(key, b.Label)
 			case h == plugin.CommandHandler(s.p) || h == nil:
-				general = append(general, line)
+				general.add(key, b.Label)
 			default:
-				byHandler[h] = append(byHandler[h], line)
+				if byHandler[h] == nil {
+					byHandler[h] = &group{name: handlerName(h)}
+				}
+				byHandler[h].add(key, b.Label)
 			}
 		}
 	}
 	for _, k := range s.keys {
 		trigger := control.KeyPress{Key: k.Key, Mods: control.Mods{Shift: k.Shift}}
-		own = append(own, fmt.Sprintf("%-22s %s", Written(trigger), k.Label))
+		own.add(Written(trigger), k.Label)
 	}
 	var out []group
-	if len(own) > 0 {
-		out = append(out, group{name: "Game", lines: own})
+	if len(own.lines) > 0 {
+		out = append(out, *own)
 	}
 	for _, h := range s.p.handlers {
-		if lines := byHandler[h]; len(lines) > 0 {
-			out = append(out, group{name: handlerName(h), lines: lines})
+		if g := byHandler[h]; g != nil {
+			out = append(out, *g)
 		}
 	}
-	general = append(general, fmt.Sprintf("%-22s %s", "F11", "Full screen (the engine's)"))
-	return append(out, group{name: "General", lines: general})
+	general.add("F11", "Full screen (the engine's)")
+	return append(out, *general)
 }
 
 func (s *Shortcuts) title() string {
@@ -259,44 +268,66 @@ func keyName(k control.Key) string {
 	return k.String()
 }
 
-type shortcutsLayer struct{ s *Shortcuts }
-
-func (*shortcutsLayer) Init(*goke.SysInit) {}
-
 // pixels
 const (
 	shortcutsMargin = 24
-	shortcutsLine   = 14
-	shortcutsColumn = 340
+	shortcutsGap    = 16
 )
 
-func (l *shortcutsLayer) Draw(screen *render.Image) {
-	b := screen.Bounds()
-	render.FillRect(screen, 0, 0, float32(b.Dx()), float32(b.Dy()), color.RGBA{A: 170})
-	x, y := shortcutsMargin, shortcutsMargin
-	render.DebugPrintAt(screen, l.s.title(), x, y)
-	y += 2 * shortcutsLine
-	if d := l.s.description; d != "" {
-		for _, line := range wrapped(d, (b.Dx()-2*shortcutsMargin)/render.GlyphWidth) {
-			render.DebugPrintAt(screen, line, x, y)
-			y += shortcutsLine
-		}
-		y += shortcutsLine
+var shortcutsDim = color.RGBA{A: 170}
+
+// listing is the screen: the game's description, a gap, the title, and the groups of keys in
+// columns as wide as their lines, each column as tall as the screen allows.
+func (s *Shortcuts) listing(props game.Props) *ui.Element {
+	font := ui.DefaultTheme().Font
+	glyph, line := font.Measure("abcdefghij")
+	glyphWidth, lineHeight := float64(glyph)/10, float64(line)
+	width := float64(props.ScreenWidth) - 2*shortcutsMargin
+	height := float64(props.ScreenHeight) - 2*shortcutsMargin
+
+	var rows []ui.Part
+	if d := s.description; d != "" {
+		lines := wrapped(d, int(width/glyphWidth))
+		rows = append(rows, ui.Fit(ui.Label(strings.Join(lines, "\n")).Named("shortcuts.about")),
+			ui.Fixed(shortcutsGap, ui.Blank()))
+		height -= float64(len(lines))*lineHeight + shortcutsGap
 	}
-	top := y
-	for _, g := range l.s.groups() {
-		if y+(len(g.lines)+2)*shortcutsLine > b.Dy()-shortcutsMargin && y > top+shortcutsLine {
-			x, y = x+shortcutsColumn, top
+	rows = append(rows, ui.Fit(ui.Title(s.title()).Named("shortcuts.title")),
+		ui.Fixed(shortcutsGap, ui.Blank()))
+	_, titleHeight := ui.DefaultTheme().Large.Measure(s.title())
+	height -= float64(titleHeight) + shortcutsGap
+
+	var columns []ui.Part
+	var column []ui.Part
+	used := 0.0
+	for _, g := range s.groups() {
+		tall := float64(len(g.lines)+1) * lineHeight
+		if used > 0 && used+tall > height {
+			columns = append(columns, ui.Fit(ui.Rows(column...).Named(columnName(len(columns)))),
+				ui.Fixed(shortcutsGap*2, ui.Blank()))
+			column, used = nil, 0
 		}
-		render.DebugPrintAt(screen, g.name, x, y)
-		y += shortcutsLine
-		for _, line := range g.lines {
-			render.DebugPrintAt(screen, "  "+line, x, y)
-			y += shortcutsLine
-		}
-		y += shortcutsLine
+		table := ui.Columns(
+			ui.Fixed(shortcutsGap/2, ui.Blank()),
+			ui.Fit(ui.Label(strings.Join(g.keys, "\n"))),
+			ui.Fixed(shortcutsGap*2, ui.Blank()),
+			ui.Fit(ui.Label(strings.Join(g.labels, "\n"))),
+		)
+		column = append(column, ui.Fit(ui.Heading(g.name)), ui.Fit(table),
+			ui.Fixed(shortcutsGap, ui.Blank()))
+		used += tall + shortcutsGap
 	}
+	if len(column) > 0 {
+		columns = append(columns, ui.Fit(ui.Rows(column...).Named(columnName(len(columns)))))
+	}
+	rows = append(rows, ui.Share(1, ui.Columns(columns...)))
+	return ui.Layers(
+		ui.Blank().Fill(shortcutsDim),
+		ui.Rows(rows...).Padding(shortcutsMargin),
+	)
 }
+
+func columnName(i int) string { return fmt.Sprintf("shortcuts.column.%d", i/2) }
 
 func wrapped(text string, width int) []string {
 	var lines []string

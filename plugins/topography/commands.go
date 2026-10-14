@@ -21,13 +21,18 @@ func (p *Plugin) Queues() []command.CommandQueue {
 	return append(append(p.camQueues.queues(), p.shaper.queues()...), &p.coarse)
 }
 
-// DefaultBindings are the views' keys, = and - raising and lowering the ground under the cursor,
-// a left drag with L held levelling it, and H switching the shadows' detail.
+// DefaultBindings are the views' keys, Shift+= and Shift+- raising and lowering the ground under
+// the cursor (= and - alone zoom the camera), a left drag with L held levelling it, and H
+// switching the shadows' detail.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	at := func(c control.Context) geom.Vec { return c.World(c.Cursor) }
 	return append(cameraBindings(p.cfg.Perspective),
-		control.Build(control.KeyPress{Key: control.KeyEqual}, "Raise the ground", func(c control.Context) (Raise, bool) { return Raise{At: at(c)}, true }),
-		control.Build(control.KeyPress{Key: control.KeyMinus}, "Lower the ground", func(c control.Context) (Lower, bool) { return Lower{At: at(c)}, true }),
+		control.Build(control.KeyPress{Key: control.KeyEqual, Mods: control.Mods{Shift: true}},
+			"Raise the ground",
+			func(c control.Context) (Raise, bool) { return Raise{At: at(c)}, true }),
+		control.Build(control.KeyPress{Key: control.KeyMinus, Mods: control.Mods{Shift: true}},
+			"Lower the ground",
+			func(c control.Context) (Lower, bool) { return Lower{At: at(c)}, true }),
 		control.Build(control.Drag{Button: control.MouseButtonLeft, Mods: control.Mods{}.Holding(control.KeyL)}, "Level the ground",
 			func(c control.Context) (Level, bool) {
 				return Level{From: c.World(c.Start), To: c.World(c.Cursor)}, true

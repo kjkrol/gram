@@ -1,0 +1,108 @@
+package world
+
+import (
+	"image/color"
+	"testing"
+	"time"
+
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/gram/render"
+)
+
+// a sprite faced four ways (20..23), its frames per way while moving (30.., 40..)
+func facedAtlas(moving bool) *Atlas {
+	a := &Atlas{
+		faced:    map[render.SpriteID][]render.SpriteID{1: {20, 21, 22, 23}},
+		animated: map[render.SpriteID]animation{},
+		moving:   map[render.SpriteID]bool{},
+	}
+	for k, way := range a.faced[1] {
+		base := render.SpriteID(30 + 10*k)
+		a.animated[way] = animation{frames: []render.SpriteID{way, base + 1, base + 2}, period: time.Second}
+		a.moving[way] = moving
+	}
+	return a
+}
+
+func TestAtlas_FramesFollowTheWayTheSpriteFaces(t *testing.T) {
+	a := facedAtlas(false)
+	for dir, want := range map[geom.Vec]render.SpriteID{
+		geom.NewVec(1, 0):  31, // east, the second frame at one period
+		geom.NewVec(0, -1): 41, // north
+		geom.NewVec(-1, 0): 51,
+		geom.NewVec(0, 1):  61,
+	} {
+		look := drawThrough(t, nil, a.rules(func() time.Duration { return time.Second }), dir, quarters[0])
+		if len(look.sprites) != 1 || look.sprites[0] != want {
+			t.Errorf("facing %v drew %v, want %v", dir, look.sprites, want)
+		}
+	}
+}
+
+func TestAtlas_WhileMovingStandsAsItFacesAndStepsOnTheMove(t *testing.T) {
+	a := facedAtlas(true)
+	rules := a.rules(func() time.Duration { return time.Second })
+	if look := drawThrough(t, nil, rules, geom.NewVec(0, 1), quarters[0]); len(look.sprites) != 1 || look.sprites[0] != 23 {
+		t.Errorf("standing, facing south: drew %v, want the facing sprite 23", look.sprites)
+	}
+	drawSpeed = 5
+	defer func() { drawSpeed = 0 }()
+	if look := drawThrough(t, nil, rules, geom.NewVec(0, 1), quarters[0]); len(look.sprites) != 1 || look.sprites[0] != 61 {
+		t.Errorf("walking south: drew %v, want the frame 61", look.sprites)
+	}
+}
+
+func TestAtlas_ALookUnderAnEffectFacesEveryWayAndRunsItsFrames(t *testing.T) {
+	w := NewPlugin(Config{
+		Space:    SpaceCfg{Width: 100, Height: 100},
+		Entities: EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	w.Effects().Define("pulling", effect.Spec{effect.Lasts(time.Second)})
+	w.Effects().Define("bored", effect.Spec{})
+	pulling, bored := w.Effects().Named("pulling"), w.Effects().Named("bored")
+	hero := w.Kinds().NewSprite()
+	blank := func(float64, int) render.SpriteDrawer { return render.Solid(color.RGBA{}) }
+	a := w.NewAtlas()
+	a.Add(hero, 8, render.Solid(color.RGBA{})).
+		Facing(8, func(float64) render.SpriteDrawer { return render.Solid(color.RGBA{}) }).
+		Animated(4, 100*time.Millisecond, blank).WhileMoving().
+		Under(bored, render.LoopedFacing(2, 200*time.Millisecond, blank)).
+		Under(pulling, render.PhasedFacing(3, blank))
+	if n := len(a.faced[hero]); n != 8 {
+		t.Fatalf("the hero faces %d ways, want 8", n)
+	}
+	for _, way := range a.faced[hero] {
+		if an := a.animated[way]; len(an.frames) != 4 || an.frames[0] == way || !a.moving[way] {
+			t.Errorf("way %d: frames %v, moving %v; want 4 of their own, while moving",
+				way, an.frames, a.moving[way])
+		}
+	}
+	for _, e := range []effect.Effect{bored, pulling} {
+		twin := a.twins[e.Mark()][hero]
+		ways := a.faced[twin]
+		if len(ways) != 8 {
+			t.Fatalf("under effect %d the twin faces %d ways, want 8", e.Mark(), len(ways))
+		}
+		for _, way := range ways {
+			if e == bored {
+				if an := a.animated[way]; len(an.frames) != 2 || an.frames[0] != way {
+					t.Errorf("bored, way %d: frames %v, want 2 looped from the way", way, an.frames)
+				}
+				continue
+			}
+			if ph := a.phased[way]; len(ph.frames) != 3 || ph.frames[0] != way || ph.lasts != time.Second {
+				t.Errorf("pulling, way %d: %+v, want 3 frames along a second", way, ph)
+			}
+		}
+	}
+	if len(a.marks) != 2 || a.marks[0] != bored.Mark() || a.marks[1] != pulling.Mark() {
+		t.Errorf("the effects looked under come %v, want bored then pulling: the later wins", a.marks)
+	}
+	kin := 0
+	a.kin(hero, func(render.SpriteID) { kin++ })
+	// the hero, 8 ways, 8 x 4 frames, 2 twins, 8 ways x 2 and 8 ways x 3 under them
+	if want := 1 + 8 + 8*4 + 2 + 8*2 + 8*3; kin != want {
+		t.Errorf("the hero's kin counts %d sprites, want %d", kin, want)
+	}
+}

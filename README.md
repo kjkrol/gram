@@ -290,8 +290,8 @@ demo opens a window; what it shows is tested in the library's package that does 
 
 | Demo | Shows | Run |
 |:---|:---|:---|
-| [`look/appearance`](examples/look/appearance) | Walkers drawn facing the way they go, red while angry (R), the leader turned with a crown on, a ghost a ghost whatever it feels | `make demo-appearance` |
-| [`look/animation`](examples/look/animation) | A sprite drawn frame after frame in game time (Shift+P freezes the gait), each frame turned the way the bug goes | `make demo-animation` |
+| [`look/appearance`](examples/look/appearance) | Walkers drawn from a sheet facing the way they go, stepping on the move, stamping while angry (R), the leader turned with a crown on, a ghost a ghost whatever it feels | `make demo-appearance` |
+| [`look/animation`](examples/look/animation) | A figure drawn frame after frame in game time (Shift+P freezes the gait), stepping the way it goes in eight directions, standing at rest | `make demo-animation` |
 | [`look/material`](examples/look/material) | An entity drawn by a material worked out per pixel in place of a sprite; C calms it into a plain sprite for a while | `make demo-material` |
 | [`look/ember`](examples/look/ember) | Procedural animation out of the entity's state: embers breathe standing and stream a tail driven (WSAD); F douses them | `make demo-ember` |
 
@@ -302,7 +302,7 @@ demo opens a window; what it shows is tested in the library's package that does 
 | [`rules/effect`](examples/rules/effect) | An ice witch turns the ground round her into snow and the lake into ice; it thaws behind her, a walker slips on it, a boat is frozen in, each kind in its own frozen look; F freezes whoever the cursor points at | `make demo-effect` |
 | [`rules/trapdoor`](examples/rules/trapdoor) | Two levers (1, 2) and two strips of trapdoors over a pit: a lever a command for its group of trapdoors, which open under whoever stands on them; J hastens the selected scouts | `make demo-trapdoor` |
 | [`rules/pressure-plate`](examples/rules/pressure-plate) | The same meadow with pressure plates: a plate met sets off the command that names it | `make demo-pressure-plate` |
-| [`rules/wire`](examples/rules/wire) | Three commands, each a sentence saying what it does, whom it is for and who sets it off: a lever pulled by a key or by a scout beside it (U), a plate stood on, a gate flipped (G) | `make demo-wire` |
+| [`rules/wire`](examples/rules/wire) | Three commands, each a sentence saying what it does, whom it is for and who sets it off: a hero walked on WSAD, a figure in eight directions standing, stepping, bored and pulling; a lever he walks up to, pulled and pushed back at hand (Space), its arm swinging frame by frame along the effect's course; a plate stood on, a gate flipped (G); zoom by the wheel, = and - | `make demo-wire` |
 | [`rules/dialog`](examples/rules/dialog) | Conversations read from YAML: the traveller greeted by the miller and the smith in a window, the answers changing the host's `Regard`, shown under it as Friend, Neutral or Enemy | `make demo-dialog` |
 | [`rules/vision`](examples/rules/vision) | Entities keeping out of each other's way by sight, and a hunter living off the ones that fail | `make demo-vision` |
 | [`rules/guard`](examples/rules/guard) | Guards on a plan (`plan.New`): patrol the yard, step aside for whoever blocks them long enough, rest where they arrive, run to the gate while the alarm (A) is on | `make demo-guard` |
@@ -645,6 +645,9 @@ are `aabbworld`'s; gram is where they meet an ECS and a screen.
   Warren 1991), from the CDS, catalogue V/50 (`plugins/atmosphere/celestial/stars_gen.go`).
 - The moon's face: NASA's Scientific Visualization Studio, CGI Moon Kit (Lunar Reconnaissance
   Orbiter LROC data) (`plugins/atmosphere/celestial/moon.png`).
+- The wire demo's lever: "Lever and Button" on OpenGameArt (CC0), its two positions, with two
+  frames between drawn after them (`examples/rules/wire/lever.png`). The figure of the wire,
+  animation and appearance demos (`hero.png` beside each) is drawn in-house.
 - The heights of Madeira's maps and of every map `cmd/gramap` makes: the Terrain Tiles on AWS,
   Mapzen's Tilezen terrarium — SRTM, EU-DEM (Copernicus), GMTED2010, ETOPO1 and others; see their
   [attribution](https://github.com/tilezen/joerd/blob/master/docs/attribution.md).

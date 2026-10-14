@@ -18,12 +18,12 @@ var grassColor = color.RGBA{R: 60, G: 95, B: 60, A: 255}
 
 func (m *mainScene) picture() render.Picture {
 	s := m.arena
-	bugKind := kind.Named[unitRow](s.world.Kinds(), BugKind)
+	heroKind := kind.Named[unitRow](s.world.Kinds(), HeroKind)
 
 	worldAtlas := s.world.NewAtlas()
-	worldAtlas.Add(bugKind, EntitySize, bugFrame(0)).
-		Animated(gaitFrames, gaitPeriod, bugFrame).
-		Turning()
+	worldAtlas.Add(heroKind, heroHeight, heroStanding(0)).
+		Facing(heroWays, heroStanding).
+		Animated(heroWalkFrames, gaitPeriod, heroPose(heroWalk)).WhileMoving()
 	worldAtlas.Close()
 	s.world.WithRenderer(worldAtlas)
 

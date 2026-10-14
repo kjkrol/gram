@@ -1,7 +1,7 @@
 package main
 
 const (
-	BugKind = "bug"
+	HeroKind = "hero"
 
 	GrassCell = "grass"
 

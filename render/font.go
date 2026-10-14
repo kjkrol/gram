@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"golang.org/x/image/font"
+	"golang.org/x/image/font/gofont/gobold"
 	"golang.org/x/image/font/gofont/goregular"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
@@ -68,6 +69,28 @@ var defaultFont = sync.OnceValue(func() *Font {
 
 // DefaultFont is Go Regular at 14 pixels, which has the Latin letters of every European language.
 func DefaultFont() *Font { return defaultFont() }
+
+var defaultBoldFont = sync.OnceValue(func() *Font {
+	f, err := NewFont(gobold.TTF, 14)
+	if err != nil {
+		panic(err)
+	}
+	return f
+})
+
+// DefaultBoldFont is Go Bold at 14 pixels, DefaultFont's weight for a heading.
+func DefaultBoldFont() *Font { return defaultBoldFont() }
+
+var defaultLargeFont = sync.OnceValue(func() *Font {
+	f, err := NewFont(gobold.TTF, 20)
+	if err != nil {
+		panic(err)
+	}
+	return f
+})
+
+// DefaultLargeFont is Go Bold at 20 pixels, for a screen's title.
+func DefaultLargeFont() *Font { return defaultLargeFont() }
 
 // LineHeight is how far one line of text lies under the one before it.
 func (f *Font) LineHeight() float32 { return f.height }

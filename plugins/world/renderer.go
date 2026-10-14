@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/gram/plugins/world/view"
 
 	"github.com/kjkrol/goke/v3"
@@ -20,12 +21,14 @@ type renderer struct {
 	appearance  goke.Comp[render.Appearance]
 	z           goke.OptComp[Z]
 	lies        goke.OptComp[Lie]
+	active      goke.OptComp[cgoke.Active]
 	rules       *render.Rules
 	layers      [][]render.Appearance
 	shown       []bool
 	atlas       render.AtlasSource
 	look        func() Look
 	shaded      map[render.SpriteID]render.MaterialID
+	phased      map[render.SpriteID]phase // a material's effect, for how far it has run
 	lying       map[render.SpriteID]bool
 	standing    map[render.SpriteID]bool
 	edges       map[render.SpriteID]render.SpriteID
@@ -34,15 +37,19 @@ type renderer struct {
 	// nil, the composer's own
 	clock func() time.Duration
 
-	bases []Base
-	quads []camera.Quad
+	bases   []Base
+	actives []cgoke.Active
+	quads   []camera.Quad
 }
 
 func newRenderer(atlas render.AtlasSource, views func(camera.Camera) *view.View, rules *render.Rules, look func() Look) *renderer {
 	return &renderer{atlas: atlas, views: views, rules: rules, look: look}
 }
 
-func (s *renderer) shade(shaded map[render.SpriteID]render.MaterialID) { s.shaded = shaded }
+func (s *renderer) shade(shaded map[render.SpriteID]render.MaterialID,
+	phased map[render.SpriteID]phase) {
+	s.shaded, s.phased = shaded, phased
+}
 
 func (s *renderer) lie(lying map[render.SpriteID]bool, edges map[render.SpriteID]render.SpriteID,
 	standing map[render.SpriteID]bool) {
@@ -50,10 +57,12 @@ func (s *renderer) lie(lying map[render.SpriteID]bool, edges map[render.SpriteID
 }
 
 func (s *renderer) Init(si *goke.SysInit) {
-	qb := si.NewQueryBuilder(&s.base, &s.appearance).Optional(&s.z).Optional(&s.lies)
+	qb := si.NewQueryBuilder(&s.base, &s.appearance).Optional(&s.z).Optional(&s.lies).
+		Optional(&s.active)
 	render.Own(s.rules, &s.base)
 	render.Own(s.rules, &s.appearance)
 	render.Own(s.rules, &s.z)
+	render.Own(s.rules, &s.active)
 	s.rules.Bind(qb)
 	s.renderQuery = qb.Build()
 }
@@ -88,7 +97,7 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		}
 		for _, l := range s.layers[i] {
 			if m, ok := s.shaded[l.SpriteID]; ok {
-				s.material(f, cam, &s.bases[i], m)
+				s.material(f, cam, &s.bases[i], m, s.progress(l.SpriteID, i))
 				continue
 			}
 			if lies != nil && s.lying[l.SpriteID] && lie != nil && lie.Length > 0 {
@@ -139,6 +148,7 @@ func (s *renderer) each(visit func(i int, z *Z, lie *Lie)) {
 		cursor := s.renderQuery.Cursor()
 		ids := cursor.IDs
 		s.bases = s.base.Slice(cursor)
+		s.actives = s.active.Slice(cursor)
 		appearances := s.appearance.Slice(cursor)
 		zs, lies := s.z.Slice(cursor), s.lies.Slice(cursor)
 
@@ -167,9 +177,21 @@ func (s *renderer) each(visit func(i int, z *Z, lie *Lie)) {
 	}
 }
 
+// how far the effect a material is under has run on the entity i of the chunk, 0 for none
+func (s *renderer) progress(id render.SpriteID, i int) float32 {
+	ph, ok := s.phased[id]
+	if !ok || s.actives == nil {
+		return 0
+	}
+	left, on := s.actives[i].Left(ph.effect)
+	return ph.progress(left, on)
+}
+
 // the material's inputs: Custom the box's middle, half its side and its heading in radians,
-// Red how fast it moves in its own lengths a second up to 1
-func (s *renderer) material(f *render.Frame, cam camera.Camera, b *Base, m render.MaterialID) {
+// Red how fast it moves in its own lengths a second up to 1, the fraction how far the effect it
+// is under has run
+func (s *renderer) material(f *render.Frame, cam camera.Camera, b *Base, m render.MaterialID,
+	progress float32) {
 	box := b.Pos.AABB
 	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
 	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
@@ -186,6 +208,7 @@ func (s *renderer) material(f *render.Frame, cam camera.Camera, b *Base, m rende
 		Material: m,
 		World:    render.Box(x0, y0, x1, y1),
 		Red:      [4]float32{speed, speed, speed, speed},
+		Fraction: [4]float32{progress, progress, progress, progress},
 		Custom:   [4][4]float32{custom, custom, custom, custom},
 	}
 	s.quads = cam.ToScreenQuads(x0, y0, x1, y1, s.quads[:0])

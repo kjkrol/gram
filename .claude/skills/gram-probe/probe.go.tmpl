@@ -1,0 +1,120 @@
+package main
+
+// A throwaway probe: copy to examples/<group>/<name>/zz_probe.go, fill the script and the
+// report, hook into demo.go (field, newProbe after players, defer RunPlan in update), delete
+// before committing.
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"time"
+
+	cgoke "github.com/kjkrol/ceremony/goke"
+	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
+)
+
+type probe struct {
+	*world.Self
+	a      *arena
+	tick   int
+	q      *goke.Query
+	base   goke.Comp[world.Base]
+	active goke.OptComp[cgoke.Active]
+	coll   goke.OptComp[collision.Collider]
+	script map[int]func(ev *control.InputEvents)
+	last   string
+}
+
+func newProbe(a *arena) *probe {
+	p := &probe{a: a}
+	p.Self = world.NewSelf(a.world, p)
+	return p
+}
+
+func (p *probe) Name() string                       { return "probe" }
+func (p *probe) WithRenderer(render.AtlasSource)    {}
+func (p *probe) Renderer() render.Layer             { return nil }
+func (p *probe) EventHandler() control.EventHandler { return nil }
+func (p *probe) Serializable() plugin.Serializable  { return nil }
+
+func (p *probe) Install(ctx plugin.Installer) error {
+	ctx.RegSys(func() goke.System {
+		return goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			p.q = si.NewQueryBuilder(&p.base).Optional(&p.active, &p.coll).Build()
+		}}
+	})
+	press := func(k control.Key) func(*control.InputEvents) {
+		return func(ev *control.InputEvents) { ev.AddKeyEvent(k, control.ActionPress) }
+	}
+	release := func(k control.Key) func(*control.InputEvents) {
+		return func(ev *control.InputEvents) { ev.AddKeyEvent(k, control.ActionRelease) }
+	}
+	tap := func(k control.Key) func(*control.InputEvents) {
+		return func(ev *control.InputEvents) {
+			ev.AddKeyEvent(k, control.ActionPress)
+			ev.AddKeyEvent(k, control.ActionRelease)
+		}
+	}
+	// the script: tick -> what the player does
+	p.script = map[int]func(*control.InputEvents){
+		5:   press(control.KeyA),
+		40:  release(control.KeyA),
+		45:  tap(control.KeySpace),
+		400: func(*control.InputEvents) { os.Exit(0) },
+	}
+	return nil
+}
+
+func (p *probe) RunPlan(ctx goke.RunCtx, d time.Duration) {
+	ctx.Sync()
+	p.tick++
+	ev := &control.InputEvents{}
+	if f := p.script[p.tick]; f != nil {
+		f(ev)
+		log.Printf("probe: t%d script", p.tick)
+	}
+	p.a.players.EventHandler().HandleEvents(ev)
+
+	heroID, _, _, _ := p.a.world.Kinds().Lookup(HeroKind) // the kind watched
+	fx := p.a.world.Effects()
+	under := func(ac *cgoke.Active, name string) bool {
+		if ac == nil {
+			return false
+		}
+		_, ok := ac.Left(fx.Named(name))
+		return ok
+	}
+	line := ""
+	for p.q.All(); p.q.Next(); {
+		cur := p.q.Cursor()
+		for i := range cur.IDs {
+			b := &p.base.Slice(cur)[i]
+			if b.TypeID != heroID {
+				continue
+			}
+			var ac *cgoke.Active
+			if acs := p.active.Slice(cur); acs != nil {
+				ac = &acs[i]
+			}
+			contacts := ""
+			if cs := p.coll.Slice(cur); cs != nil {
+				for _, ct := range cs[i].Contacts() {
+					contacts += fmt.Sprintf("%d ", ct.Other)
+				}
+			}
+			c := b.Pos.Center()
+			line += fmt.Sprintf("hero %.1f,%.1f dir %.2f,%.2f v %.1f bored %v touch[%s] | ",
+				c.X, c.Y, b.Vel.Dir.X, b.Vel.Dir.Y, b.Vel.Value, under(ac, BoredEf), contacts)
+		}
+	}
+	if line != p.last { // a line only when something changed
+		log.Printf("probe: t%d %s", p.tick, line)
+		p.last = line
+	}
+}

@@ -68,15 +68,7 @@ board:
     - {kind: trapdoor, group: east trapdoors, at: [16, 11]}
     - {kind: gate, group: gate, at: [11, 13]}
     - {kind: gate, group: gate, at: [12, 13]}
-    - {kind: plate, name: plate, at: [20, 14]}
-    - {kind: lever, name: west lever, at: [1, 14]}
+    - {kind: lever, name: west lever, at: [10, 14]}
+    - {kind: plate, name: plate, at: [12, 14]}
 units:
-  - {kind: scout, side: player, start: [3, 14]}
-  - {kind: scout, side: player, start: [5, 14]}
-  - {kind: scout, side: player, start: [7, 14]}
-  - {kind: porter, side: player, start: [4, 15]}
-  - {kind: porter, side: player, start: [6, 15]}
-  - {kind: wanderer, start: [2, 2], to: [21, 2]}
-  - {kind: wanderer, start: [2, 5], to: [21, 5]}
-  - {kind: wanderer, start: [2, 8], to: [21, 8]}
-  - {kind: wanderer, start: [2, 11], to: [21, 11]}
+  - {kind: hero, side: player, name: hero, start: [11, 14]}

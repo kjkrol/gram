@@ -4,6 +4,8 @@ import (
 	"embed"
 	"errors"
 	"log"
+	"math"
+	"slices"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -12,7 +14,6 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/effect"
-	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
@@ -25,7 +26,6 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
-	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -41,8 +41,13 @@ const (
 	ScreenWidth  = GridWidth * CellSize
 	ScreenHeight = GridHeight * CellSize
 	EntitySize   = 20
-	UnitSpeed    = CellSize * 2
-	MaxEntCount  = 64
+	LeverSize    = 16 // the lever as it was drawn, its box what is drawn
+
+	leverSwing  = 400 * time.Millisecond
+	reachFor    = time.Second // a press waits for a swinging lever this long
+	boredAfter  = 3 * time.Second
+	UnitSpeed   = CellSize * 2
+	MaxEntCount = 64
 )
 
 //go:embed map.yaml
@@ -51,7 +56,6 @@ var mapFile embed.FS
 type arena struct {
 	world     *world.Plugin
 	board     *board.Plugin
-	nav       *navigation.Plugin
 	driving   *driving.Plugin
 	collision *collision.Plugin
 	selection *selection.Plugin
@@ -62,8 +66,11 @@ type arena struct {
 
 func main() {
 	props := game.Props{
-		Title:       "gram wire demo",
-		Description: "Wires: a lever, a plate and a switch.",
+		Title: "gram wire demo",
+		Description: "Wires: a lever, a plate and a switch. Walk the hero with WSAD. At the " +
+			"lever, turned to it, Space pulls it: its trapdoors open; Space again pushes it " +
+			"back and they shut. The plate stood on opens the other trapdoors for a while, " +
+			"G flips the gate.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -73,7 +80,7 @@ func main() {
 			Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
-				MinSize:  EntitySize,
+				MinSize:  LeverSize,
 				MaxSize:  CellSize,
 			},
 		}).
@@ -99,76 +106,128 @@ func (s *arena) makePlugins(w *world.Plugin) {
 		WithLog(log.Default())
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
-		WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
+	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.driving)
 }
 
 func (s *arena) definePlayer() error {
 	s.player = s.players.Local("player")
-	return s.player.Bind(s.players.Defaults()...)
+	walk := driving.Compass{
+		Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD,
+	}
+	view := cameras.Keys{Wheel: true, ZoomIn: control.KeyEqual, ZoomOut: control.KeyMinus}
+	return s.player.Bind(slices.Concat(
+		s.players.DefaultBindings(),
+		s.world.DefaultBindings(),
+		s.board.DefaultBindings(),
+		view.Bindings(),
+		walk.Bindings(),
+	)...)
 }
 
 func (s *arena) defineEffects() {
 	fx := s.world.Effects()
-	fx.Define(OpenEf, effect.Spec{
-		effect.Lasts(2 * time.Second),
-		effect.Alter(func(f *cell.Floor) { f.Allows = 0 }),
-	})
+	fx.Define(OpenEf, effect.Spec{effect.Alter(func(f *cell.Floor) { f.Allows = 0 })})
 	fx.Define(AjarEf, effect.Spec{effect.Alter(func(w *cell.Wall) { w.Keeps = 0 })})
-	fx.Define(HasteEf, effect.Spec{
-		effect.Lasts(3 * time.Second),
-		effect.Alter(
-			func(st *steering.Steering) { st.MaxSpeed, st.Accel = st.MaxSpeed*2, st.Accel*2 },
-		),
+	fx.Define(ReachingEf, effect.Spec{effect.Lasts(reachFor)})
+	fx.Define(PullingEf, effect.Spec{effect.Lasts(leverSwing)})
+	fx.Define(InReachEf, effect.Spec{})
+	fx.Define(BoredEf, effect.Spec{})
+	fx.Define(StillEf, effect.Spec{effect.Lasts(boredAfter), effect.Then(fx.Named(BoredEf))})
+	fx.Define(LeverPulledEf, effect.Spec{})
+	fx.Define(LeverPullingEf, effect.Spec{
+		effect.Lasts(leverSwing),
+		effect.Then(fx.Named(LeverPulledEf)),
 	})
-	fx.Define(PullEf, effect.Spec{effect.Lasts(time.Second / 4)})
+	fx.Define(LeverPushingEf, effect.Spec{effect.Lasts(leverSwing)})
 }
 
 func (s *arena) defineRoles() {
-	roles := s.world.Roles()
+	roles, fx := s.world.Roles(), s.world.Effects()
 	roles.Define(PlateRole, act.Branch[collision.Meeting]{
 		Name: "press",
 		When: cond.Self.If(cond.Always),
 		Then: act.Self.Do(ceremony.Trigger{}),
 	})
 	roles.Define(LeverRole)
-	roles.Define(HastyRole)
-	roles.Define(HandyRole, act.Branch[unit.Standing]{
-		Name: "pull the lever beside",
-		When: cond.Self.If(s.world.Effects().Named(PullEf)).
-			And(cond.Around(1).If(roles.Named(LeverRole))),
-		Then: act.Around(1).Do(ceremony.Trigger{}),
-	})
+	atHand := cond.Other.If(roles.Named(LeverRole)).And(cond.Self.If(collision.Facing(math.Pi / 4)))
+	// a lever swinging is not pulled again: the hands stay on it as long as the swing
+	leverStill := cond.Other.If(cond.Not(fx.Named(LeverPullingEf))).
+		And(cond.Other.If(cond.Not(fx.Named(LeverPushingEf))))
+	roles.Define(HandyRole,
+		act.Branch[collision.Meeting]{
+			Name: "a lever at hand",
+			When: atHand,
+			Then: act.Self.Hold(fx.Named(InReachEf)),
+		},
+		act.Branch[collision.Meeting]{
+			Name: "pull the lever at hand",
+			When: cond.Self.If(fx.Named(ReachingEf)).And(atHand).And(leverStill).
+				And(cond.Other.If(cond.Not(fx.Named(LeverPulledEf)))),
+			Then: act.Steps(
+				act.Self.Take(fx.Named(ReachingEf)),
+				act.Self.Take(fx.Named(StillEf)),
+				act.Self.Take(fx.Named(BoredEf)),
+				act.Self.Put(fx.Named(PullingEf)),
+				act.Other.Put(fx.Named(LeverPullingEf)),
+				act.Other.Do(ceremony.Trigger{}),
+			),
+		},
+		act.Branch[collision.Meeting]{
+			Name: "push the lever at hand",
+			When: cond.Self.If(fx.Named(ReachingEf)).And(atHand).And(leverStill).
+				And(cond.Other.If(fx.Named(LeverPulledEf))),
+			Then: act.Steps(
+				act.Self.Take(fx.Named(ReachingEf)),
+				act.Self.Take(fx.Named(StillEf)),
+				act.Self.Take(fx.Named(BoredEf)),
+				act.Self.Put(fx.Named(PullingEf)),
+				act.Other.Take(fx.Named(LeverPulledEf)),
+				act.Other.Put(fx.Named(LeverPushingEf)),
+				act.Other.Do(ceremony.Trigger{}),
+			),
+		},
+	)
 	roles.Define(MortalRole, act.Branch[unit.Standing]{
 		Name: "fall in",
 		When: cond.Self.If(unit.Fallen()),
 		Then: act.Self.Do(world.Despawn{}),
 	})
+	roles.Define(HeroRole,
+		act.Branch[world.Moving]{
+			Name: "stands still",
+			When: cond.Self.If(world.Still()).
+				And(cond.Self.If(cond.Not(fx.Named(StillEf)))).
+				And(cond.Self.If(cond.Not(fx.Named(BoredEf)))).
+				And(cond.Self.If(cond.Not(fx.Named(PullingEf)))),
+			Then: act.Self.Put(fx.Named(StillEf)),
+		},
+		act.Branch[world.Moving]{
+			Name: "moves on",
+			When: cond.Self.If(cond.Not(world.Still())),
+			Then: act.Steps(act.Self.Take(fx.Named(StillEf)), act.Self.Take(fx.Named(BoredEf))),
+		},
+	)
 }
 
 func (s *arena) defineCommands() {
-	fx, roles, cmds := s.world.Effects(), s.world.Roles(), s.world.Commands()
+	fx, cmds := s.world.Effects(), s.world.Commands()
+	// the lever pulled opens them, pushed back shuts them: one Toggle serves both
 	cmds.Define(
-		OpenWestCmd,
-		ceremony.Put(fx.Named(OpenEf)).
+		SwitchWestCmd,
+		ceremony.Toggle(fx.Named(OpenEf)).
 			On(ceremony.Group("west trapdoors")).
 			By(ceremony.Named("west lever")),
 	)
 	cmds.Define(
 		OpenEastCmd,
-		ceremony.Put(fx.Named(OpenEf)).On(ceremony.Group("east trapdoors")).By(ceremony.Named("plate")),
+		ceremony.Put(fx.Named(OpenEf)).
+			On(ceremony.Group("east trapdoors")).
+			By(ceremony.Named("plate")).
+			For(2*time.Second),
 	)
 	cmds.Define(FlipTheGateCmd, ceremony.Toggle(fx.Named(AjarEf)).On(ceremony.Group("gate")))
-	cmds.Define(
-		HastenCmd,
-		ceremony.Put(fx.Named(HasteEf)).On(s.selection.Selected(roles.Named(HastyRole))),
-	)
-	cmds.Define(
-		ReachCmd,
-		ceremony.Put(fx.Named(PullEf)).On(s.selection.Selected(roles.Named(HandyRole))),
-	)
+	cmds.Define(PullCmd, ceremony.Put(fx.Named(ReachingEf)).On(ceremony.Named(HeroName)))
 }
 
 func (s *arena) defineCells() {
@@ -180,7 +239,6 @@ func (s *arena) defineCells() {
 
 type unitRow struct {
 	Start cell.ID `yaml:"start"`
-	To    cell.ID `yaml:"to"`
 }
 
 type standingRow struct {
@@ -189,81 +247,48 @@ type standingRow struct {
 
 func (s *arena) defineKinds() {
 	brd := s.board.Board()
+	roles := s.world.Roles()
 	units := board.NewUnits[unitRow](
 		s.board,
-		board.Shape{Size: EntitySize},
+		board.Shape{Size: heroHeight, Width: heroWidth}, // the box is the figure, pixel for pixel
 		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
 	profile := steering.Steering{
 		MaxSpeed: UnitSpeed,
 		Accel:    UnitSpeed * 2,
 		V0:       UnitSpeed / 2,
-		TurnRate: 0.15,
+		TurnRate: 0, // eight ways drawn: the hero turns at once
 	}
-	laden := steering.Steering{
-		MaxSpeed: UnitSpeed * 3 / 4,
-		Accel:    UnitSpeed,
-		V0:       UnitSpeed / 4,
-		TurnRate: 0.1,
-	}
-	land := unit.Mover{Domain: cell.Land}
-	units.Define(
-		ScoutKind,
-		land,
-		profile,
-		ceremony.Plays(
-			s.world.Roles().Named(HastyRole),
-			s.world.Roles().Named(HandyRole),
-			s.world.Roles().Named(MortalRole),
-		),
-	)
-	units.Define(PorterKind, land, laden, ceremony.Plays(s.world.Roles().Named(MortalRole)))
-	patrol := plan.New(PatrolPlan, plan.Steps(
-		plan.Loop[any]{
-			Name:  "leg",
-			When:  cond.Self.If(cond.Always),
-			Then:  plan.Self.Do(navigation.Onward{}),
-			Until: cond.Self.If(navigation.Arrived{}),
-		},
-		plan.Loop[any]{Name: "rest", When: cond.Self.If(cond.Always), Then: plan.Self.Wait(time.Second)},
-	))
-	round := comp.Load(func(u unitRow) navigation.Round {
-		return navigation.NewRound(u.To, u.Start)
-	})
-	units.Define(WandererKind, land, profile, ceremony.Plays(s.world.Roles().Named(MortalRole)),
-		round, patrol)
+	units.Define(HeroKind, unit.Mover{Domain: cell.Land}, profile,
+		comp.Const(collision.Collider{}),
+		comp.Const(collision.Physics{Mass: 1}),
+		ceremony.Plays(roles.Named(HandyRole), roles.Named(MortalRole), roles.Named(HeroRole)))
 	at := func(r standingRow) cell.ID { return r.At }
 	cellWide := board.NewEntities(s.board, board.Shape{Size: CellSize}, at)
 	cellWide.Define(TrapdoorKind, comp.Const(cell.Floor{Allows: cell.Land}))
 	cellWide.Define(GateKind, comp.Const(cell.Wall{Keeps: cell.Land}))
 	small := board.NewEntities(s.board, board.Shape{Size: EntitySize}, at)
 	small.Define(PlateKind,
+		comp.Const(collision.Collider{}), // a sensor: stood on, never pushed
+		ceremony.Plays(roles.Named(PlateRole)))
+	posts := board.NewEntities(s.board, board.Shape{Size: LeverSize}, at)
+	posts.Define(LeverKind,
 		comp.Const(collision.Collider{}),
-		ceremony.Plays(s.world.Roles().Named(PlateRole)))
-	small.Define(LeverKind, ceremony.Plays(s.world.Roles().Named(LeverRole)))
+		comp.Const(collision.Physics{Mass: math.Inf(1)}), // a post: the hero walks up to it
+		ceremony.Plays(roles.Named(LeverRole)))
 }
 
 func (s *arena) bindKeys() error {
 	return s.player.Bind(
 		control.Give(
-			control.KeyPress{Key: control.Key1},
-			"Pull the west lever: its trapdoors open for a while",
-			s.world.Commands().Named(OpenWestCmd),
+			control.KeyPress{Key: control.KeySpace},
+			"Pull, or push back, the lever at hand",
+			s.world.Commands().Named(PullCmd),
 		),
 		control.Give(
 			control.KeyPress{Key: control.KeyG},
 			"Flip the gate's switch: open, or shut",
 			s.world.Commands().Named(FlipTheGateCmd),
-		),
-		control.Give(
-			control.KeyPress{Key: control.KeyJ},
-			"Hasten the selected scouts",
-			s.world.Commands().Named(HastenCmd),
-		),
-		control.Give(
-			control.KeyPress{Key: control.KeyU},
-			"Pull the lever beside the selected scouts",
-			s.world.Commands().Named(ReachCmd),
 		),
 	)
 }
@@ -273,9 +298,7 @@ func (s *arena) spawn() error {
 	if err != nil {
 		return err
 	}
-	sides := board.Sides{
-		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{}},
-	}
+	sides := board.Sides{PlayerSide: {players.Give{To: s.player.ID}}}
 	return errors.Join(
 		board.Spawn[standingRow](level, nil),
 		board.Spawn[unitRow](level, sides),
@@ -291,7 +314,6 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.board.RunPlan(ctx, d)
-	s.nav.RunPlan(ctx, d)
 	s.driving.RunPlan(ctx, d)
 	s.selection.RunPlan(ctx, d)
 	s.cameras.RunPlan(ctx, d)

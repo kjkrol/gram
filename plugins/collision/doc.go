@@ -16,6 +16,8 @@
 // system also pushes every movable collider out of the solid ground on its world.Layers and, with
 // heights, in its [Band]. A contact with the ground bounces off it as off an infinite mass and is
 // recorded as a [Contact] with Terrain set and the Cell; a sensor is told and never pushed. A
+// pair parted that still touches stays met, a [Contact] at rest (Resting) on both sides with no
+// impulse and no strike, until the two come apart. A
 // unit a hand drives (steering.Driven, the keys held or not) is never turned by a wall, only
 // slowed.
 //

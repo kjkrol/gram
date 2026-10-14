@@ -50,9 +50,9 @@ make demo-board                                                    # Madeira on 
 make demo-board-topography                                         # Madeira in relief, its true heights: light, water, roads as Transport Tycoon lays them, bridges over the valleys, isometric or from above (Tab), the weather
 go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS
 make demo-board-atlas                                              # a small flat board drawn from the game's own atlas — the water a material, shimmering per pixel
-make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, entities standing on the board with names and groups, units playing roles
+make demo-wire                                                     # three commands on a meadow: a lever, a plate and a switch driving trapdoors and a gate, entities standing on the board with names and groups; one hero walked on WSAD, a figure in eight directions from a sheet, standing, stepping, bored, pulling; the lever a post he walks up to, pulled and pushed back at hand (Space), its arm drawn from a sheet along the effect's course; zoom by the wheel, = and -
 make demo-material                                                 # an entity drawn by a material instead of a sprite (render.Look); C calms it into a plain sprite for a while
-make demo-animation                                                # a sprite drawn frame after frame (Slot.Animated, game time: Shift+P freezes the gait), each frame turned the bug's way
+make demo-animation                                                # a figure drawn frame after frame from a sheet (Facing, Animated with the angle, WhileMoving; game time: Shift+P freezes the gait), stepping the way it goes, standing at rest
 make demo-dialog                                                   # conversations from YAML: the miller and the smith, lines of their own, a window above the host, what it makes of you under it when pointed at
 make demo-ember                                                    # procedural animation out of the entity's state: embers breathe standing, stream a tail driven (WSAD); F douses into soot
 make demo-platformer                                               # a hero in a side view under gravity (plugins/gravity, a flat world): A/D walk, W jumps, G turns gravity over, a hard landing dazes
@@ -76,7 +76,9 @@ The `examples/<group>/<name>` programs are real GUI apps (open a gogpu window)
 a change in a headless environment: build to a temp path, run under
 `timeout <n>s`, treat exit 124 (still running, not crashed) as healthy.
 This doesn't substitute for looking at the demo when a visual change needs
-actual confirmation.
+actual confirmation. To see what a demo does tick by tick without a window, the skill
+`gram-probe` (`.claude/skills/gram-probe`) has the probe plugin and the steps; the skill `goke`
+(`.claude/skills/goke`, `scripts/api.sh`) has the ECS's model, query rules and release flow.
 
 CI (`.github/workflows/go.yml`) runs
 `xvfb-run -a go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...`
@@ -214,7 +216,10 @@ kind a plugin: two moons would need more entities, not built. `Part.Tag`/`Rules`
 (B), `Holds` (Shift+O), `cameras.Pan`,
 `Zoom`, `Follow`, `driving.Ahead`/`Back`/`Turn`/`Toward`, `players.Give`, `ShowShortcuts` (K),
 `atmosphere.Freeze`/`Later`/`Earlier`/
-`ChangeWeather`/`SetWeather`, `world.Spawn`, `Despawn`, `Pause` (Shift+P)/`Faster`/`Slower`. They are
+`ChangeWeather`/`SetWeather`, `world.Spawn`, `Despawn`, `Pause` (Shift+P)/`Faster`/`Slower`,
+`world.Boxes` (Shift+X: every entity's box outlined in red by `world.Plugin.BoxesRenderer()`, a
+layer a scene puts in its composer; `ShowBoxes`, `BoxesShown`; a look, not saved — 2026-10-14,
+the user's word: a demo of one hero needs no selection, but a way to see the boxes). They are
 **real types of the root package, never aliases** (aliases were tried and dropped the same day: two
 names for one thing, a poor godoc; the API has no type aliases — `world.Appearance` went on
 2026-10-06 the same way, the user's word: an alias gets no godoc; the one standing exception is
@@ -231,7 +236,10 @@ F9 loads (the engine's commands, see "Game / persistence");
 (split-screen). A plugin with scenes of its own is a `game.Scenic` (`Scenes()`): the engine's
 initializer gathers them (`PluginScenes`) and a Stage defined in sections has them in its stack,
 hidden — the players' list of shortcuts (`players.Shortcuts`, made in `NewPlugin`) is one, so K
-works in every game without the game adding a scene. A game's own keys that are no command
+works in every game without the game adding a scene; it is a `ui.Scene` whose tree `Open`
+builds afresh (`ui.Scene.Replace`): the description, a gap, the title, the groups in columns
+as wide as their lines, as many as the height takes (2026-10-14, the user's word: columns of a
+fixed width overlapped). A game's own keys that are no command
 (a debug toggle) go to `players.Plugin.OwnKeys(SceneKeys)`.
 **A command is a `command.Command`** (`ceremony/command`; since 2026-10-10, the user's word: one
 standard way of making commands, confirmed by an assertion): a type is one by its method
@@ -489,7 +497,7 @@ W/S/A/D (`driving.Shooter`: W and S walk, A and D strafe — `Strafe{Way}`, `ste
 `Mods.Shift`: `steering.Helm.RequestSprint` to `Sprint`·MaxSpeed, the world's step cap still
 holding), Space `Jump`, the mouse `Look`, V and Tab; `.In(camera.Outside)` the free camera's: Q/E, R/F, Tab, the
 cameras' WASD pan, the climate's Shift+W; the arrows `.In(camera.Behind)` drive the followed unit.
-How a unit is driven by hand is the driving plugin's and `Raise`/`Lower`/`Level` (=, -, L-drag) the
+How a unit is driven by hand is the driving plugin's and `Raise`/`Lower`/`Level` (Shift+=, Shift+-, L-drag; = and - alone zoom) the
 relief's. Commands carry `control.Context.Camera`, so
 the plugin never knows players nor selection (`WithSelection`, `theSelected` and the topography's
 `Follow`, `Drive`, `LookOut` went on 2026-10-07); cameras are no entities.
@@ -774,7 +782,36 @@ own selected units playing a role, `.On(sel.Pointed())` on whoever the cursor po
 `cond.On(s.world).If(e)`,
 `.On(ceremony.Group(name))` for the cells or entities called so (the wire demo: a lever, a plate and
 a switch each a command for a group of trapdoors or a gate, entities standing on the board; the
-trapdoor and pressure plate demos the same).
+trapdoor and pressure plate demos the same). **A thing used by touch** (the wire demo's lever,
+since 2026-10-13, the user's word: touching it and being turned to it holds without a board, two
+small entities on one big cell): the lever a post (`Collider`, `Physics{Mass: +Inf}`) the hero
+(`Physics{Mass: 1}`) walks up to and rests against (a resting contact, see collision), the hero's
+rules of a `collision.Meeting` under `cond.Self.If(collision.Facing(angle))` — one holding
+`InReachEf` on him while a lever is at hand (a ui prompt pinned `Under` it), one under the
+player's `ReachingEf` (see below)
+that puts the lever's transition on it and gives it `Trigger`; the lever's lower position its own
+effect held for good (`LeverPulledEf`, put by the transition's `Then`), and the trapdoors'
+command a `Toggle`, so one Trigger opens them pulled and shuts them pushed back; the plate's
+`Put` holds `.For(2 * time.Second)` in place of the Spec. **Boredom is a state too**: a rule of
+`world.Moving` under `world.Still()` (the word of an entity neither walking nor strafing) puts
+`StillEf`, which `Then` casts `BoredEf` after three seconds, and a step takes both off; the
+hero's idle frames are the look under `BoredEf`, looped. One hero, named in the map, the camera
+`Follow`ing him from the start, so the hand (`driving.Compass`, WSAD) drives him without a
+selection (2026-10-14); its plugins' keys (the compass, the camera's wheel, = and -, the clock's)
+are bound in the Players section, so K lists them under their plugins, and the Controls section
+binds the game's own alone, Space and G. The action key is Space: a press puts `ReachingEf` (the intent, a
+second) on the hero, and the pull and push rules answer it while the lever swings neither way,
+taking it off and putting `PullingEf` on, the hands on the lever for the swing (the Phased look):
+a press during a swing waits for its end, a second press meanwhile only renews the wait
+(2026-10-14, the user's word: pulls and pushes alternated quickly lost presses while `PullingEf`
+was the intent and the hands at once); the pull takes `StillEf` and `BoredEf` off too, and
+`WithRenderer` adds the effects' swaps in the order their looks were declared, so under two
+effects the later look wins — a map's order let the boredom's stamping cover the pull; the hero's
+`TurnRate` is 0, eight ways drawn, so a key pressed standing moves him the new way at once. **The plate stood on kept its trapdoors open only two
+seconds** though its `Trigger` came every tick: goke's `Query.Seek` kept a chunk's offsets after
+an `All` iteration on the same query, so `effect_commands` read a wrong `Label` for the
+triggering entity and the command's `By` matched by chance alone — fixed in goke v3.4.1 (`All`
+and `Pick` forget the archetype `Seek` cached), which gram needs.
 
 ### Built-in plugins (`plugins/`)
 
@@ -853,12 +890,34 @@ trapdoor and pressure plate demos the same).
   side, the heading in radians}, `Red` = how fast it moves in its own lengths a second up to 1 —
   the fundament of procedural animation: breathe at 0, flare as it runs; `World` the box, so `p`
   is in the world) —
-  `.Under(effect, draw)` its look while the effect's marker is on, `.Turning()` the sprite turned
+  `.Under(effect, look)` its look while the effect's marker is on — a drawer, a material, or
+  `render.Phased(n, draw)` (a `render.Phases`): n frames spread along the effect's course, the
+  first as it begins, the last as it runs out, once, never for an effect without `Lasts` (a panic
+  at the definition; the atlas reads what remains of the effect on the entity through
+  `cgoke.Active.Left`, a rule over `Active` the world's atlas adds); a material under an effect
+  reads how far it has run as its `fraction` (2026-10-13, the user's word: an effect is the axis
+  of time of an animation, and its course is the slot's, not the game's clock); `render.FromImage(img)`
+  draws an image pixel for pixel into a sprite, a frame cut out of a sheet with `SubImage` —
+  `.Turning()` the sprite turned
   the way its entity is headed (`Appearance.Angle` from `Vel.Dir`, the heading steering holds even
   standing — degrees, 0 east, against the clock with the screen's y down, `render.Arrow`'s
   convention; a square box whose content fits the inscribed circle; a turned sprite's Under-looks
-  turn with it), `.Facing(n, draw)` its directional twins (slots from the world's kinds; a look
-  under an effect keeps its own way), `.Lying()` a sprite laid flat (a bridge's deck, a ford; its
+  turn with it), `.Facing(n, draw)` its directional twins (slots from the world's kinds): declared first, it
+  gives every later look a way — `.Animated(n, period, draw)` takes a drawer of the frame alone
+  or of the angle and the frame (`frameDrawer`, a generic method), frames per way after `Facing`,
+  `.WhileMoving()` has them go only while the entity moves (standing it is drawn as it faces),
+  and a look under an effect drawn with the angle (`render.PhasedFacing`, `render.LoopedFacing`;
+  `render.Looped(n, period, draw)`, a `render.Loops`: frames round and round by the clock while
+  the effect is on) is drawn every way, the effect's twin faced in its turn; a look without the
+  angle keeps its own way (2026-10-14, the user's word: a figure in a 3/4 view stands, steps,
+  pulls and is bored in eight directions; `Facing` and `Animated` did not share a slot before);
+  `Atlas.kin` walks everything drawn in a sprite's place for lying, edges and turning. The frames
+  come off a `render.Sheet` (`NewSheet(img, w, h)`, `DecodeSheet(name, png, w, h)`, `At(col,
+  row)`: a frame cut pixel for pixel through `FromImage` into the square sprite, stretched where
+  the frame is no square, and drawn true in a box of the frame's shape — the hero's 16 by 32,
+  `Shape{Size: 32, Width: 16}`); a demo keeps its sheet and its columns
+  in its own `hero.go` beside its `hero.png` (the user's word, 2026-10-14: an example is read
+  whole, nothing of it hidden in a shared package) — `.Lying()` a sprite laid flat (a bridge's deck, a ford; its
   Under-looks, frames and twins too): a `world.LyingLook` lays it at the entity's `Altitude` — the
   billboards' look a flat quad over the box on the ground wherever it stands higher, under what
   stands (`shaders/lying.wgsl`, `sight.wgsl` shared), the flat look under the rest — where a
@@ -960,7 +1019,9 @@ trapdoor and pressure plate demos the same).
   prisms (`render.Still`) — anew where cells changed; a unit's
   `Mover` says which domains it moves in (none: `Land`) and, in a world with heights, how high it
   flies (`Lift`), the least it keeps over the ground (`Clearance`) and how high over sea level it
-  may climb (`Ceiling`, 0 none). `board.NewUnits[Row](brd, board.Shape{Size, Height}, at)` is how a game defines
+  may climb (`Ceiling`, 0 none). `board.NewUnits[Row](brd, board.Shape{Size, Width, Height}, at)`
+  (`Width` across the screen where the box is no square, 0 for `Size`; `Shape.Box(centre)`; a
+  figure in a 3/4 view is twice as tall as wide, 2026-10-14) is how a game defines
   its units: `units.Define(name, unit.Mover{…}, steering, extra...)` derives `Position` and
   `At` (its cell) from the one point `at` reads off a row, `Layers` from the domain, in a world with heights a
   `world.Z{Height}` from the shape, runs the world's roster and `kind.Define`; `units.Named(name)` is the
@@ -1016,7 +1077,8 @@ trapdoor and pressure plate demos the same).
   the lake's cells `act.Around(1).Put(iced)` under `cond.Around(1).If(lake)`, fire spreads
   cell to cell
   from a
-  `cell.Now`, the wire demo's scout pulls the lever beside it.
+  `cell.Now` (the wire demo's scout pulled the lever beside it so until 2026-10-13; it pulls
+  the one it touches now, a `collision.Meeting`).
   **What stands on the board is an entity, not terrain** (2026-10-10, the user's word: a lever, a
   trapdoor, a gate, a plate "po prostu stoją sobie na terenie"): `board.NewEntities[Row](brd,
   board.Shape{Size, Height}, at func(Row) cell.ID)`, `Define(name, extra...)` — no units' roster: a
@@ -1206,7 +1268,13 @@ trapdoor and pressure plate demos the same).
   that lost its `Collider` since the last rebuild vetoes the pair, is marked
   `Plain`, and the space is rebuilt after the tick (so it partners nobody again).
   Overlapping boxes touch: the box is the shape (a `ShapeTest` hook for finer shapes was
-  removed on 2026-10-01, no game used it). An entity
+  removed on 2026-10-01, no game used it). **A pair parted stays met while it touches**
+  (2026-10-14, the user's word: the hero walks up to a lever of infinite mass and uses it by
+  touch): the pairs of the tick before (`restingPair`, gathered as the contacts are cleared) that
+  the engine did not push this tick but whose boxes lie within `restGap` of each other, their
+  layers and bands meeting, neither swept, get a `Contact` with `Resting` on both sides, no
+  impulse, and a `Meeting` (`collisionSystem.rest`); a resting contact is no strike (`hit`
+  leaves it out of `Struck`) and no count for the stats. An entity
   carrying `Physics` (`Mass`, `Restitution` 0–1) is pushed out of overlaps and
   bounces — the bounce is the engine's own, an infinite `Mass` is a wall; one without
   `Physics` is only ever detected (a town, a trigger). Separation is always an even
@@ -1236,7 +1304,9 @@ trapdoor and pressure plate demos the same).
   A bounce's velocity is the entity's own afterwards; a steered unit's speed is its steering's.
   Reactions are rules hosted inside the `collisionSystem`'s own pass: of a `Meeting` per
   confirmed contact between two roles (`cond.Other.If(role)` and `cond.Self.If(a)` at the top; none
-  for every pair), of a
+  for every pair; `Meeting{Self, Other, Impact, Normal, Heading, Toward}` — the way Self faces
+  and the way from its middle to Other's, so `collision.Facing(within)` is the word of Self turned
+  to Other within the angle: a lever used by touch, 2026-10-13), of a
   `Struck` per entity that struck something the tick before, with what it struck (one that struck
   nothing is not told: the walk over the colliders runs `host.Rules.RunWhere`; the contacts lie in
   `Collider` for good, so no component comes or goes).
@@ -1329,7 +1399,7 @@ trapdoor and pressure plate demos the same).
   and give up the same way, and the solid ground struck is stepped round. Struck bodily under
   cells a unit stops, re-plans and holds that route for `bumpInterval`. Both are navigation's own
   work: its pass reads the `collision.Collider` contacts of every unit under orders (`bump()`,
-  `bumps` set at Install by the spacing: `anyBump` under cells (a contact `Sensed` — a shot, a sensor — bumps nobody), `groundBump` the terrain alone
+  `bumps` set at Install by the spacing: `anyBump` under cells (a contact `Sensed` — a shot, a sensor — or `Resting` — a unit leant against — bumps nobody; a `Touch` is a strike, never a rest), `groundBump` the terrain alone
   under bodies), no rule of collision's moments. The board has every unit hold the cell it stands
   on (from `At` + `Mover` at Setup, then every step), navigation the cells of the steps in
   progress, each on its level: a `Path`'s steps on
@@ -1583,9 +1653,11 @@ trapdoor and pressure plate demos the same).
   lets go; from an entity (`kind.Entry.Told`) over that entity — and its system keeps every
   `Centred` camera over its entity, letting go of one gone; `LookAt{Camera, Entity}` moves it
   once onto an entity, fastened to nothing (a ui element showing a place far off). `cameras.Keys{Up, Down, Left, Right,
-  ScrollSpeed, Wheel, Drag, Edge}` are a player's keys to its camera, `DefaultKeys()` W/S/A/D, the
-  wheel, the middle drag and the edge (`control.Context.Edges`); a demo whose WSAD drive binds
-  `cameras.Keys{Wheel, Drag, Edge}` alone. Depends on `world`. The engine has no
+  ZoomIn, ZoomOut, ScrollSpeed, Wheel, Drag, Edge}` are a player's keys to its camera,
+  `DefaultKeys()` W/S/A/D, = and - (`ZoomIn`/`ZoomOut`, a `ZoomStep` about the cursor; the
+  topography's shaping moved to Shift+= and Shift+-, 2026-10-14), the wheel, the middle drag
+  and the edge (`control.Context.Edges`); a demo whose WSAD drive binds `cameras.Keys{Wheel,
+  ZoomIn, ZoomOut}` or `{Wheel, Drag, Edge}` alone. Depends on `world`. The engine has no
   `Runtime.Camera` and sizes no camera: a `render.Feed` gives its camera the size it is shown at.
 - **`driving`** — units driven by hand, with or without navigation:
   `driving.NewPlugin(world, selection).WithGround(board)`. Its commands `Ahead{Camera, Sprint}`,
@@ -1599,7 +1671,9 @@ trapdoor and pressure plate demos the same).
   (`Board.KindFor`) nor where the `Keeping` says no — one under gravity (a `world.Drift`) refused
   only what is higher than its step (the user's word, 2026-10-11: physics, not blocking; into the
   water and off an edge as it pleases, the rules deciding) — its `unit.At` and occupancy hold
-  following it with `unit.Entered`; with no hand it brakes and is let go once it stands or
+  following it with `unit.Entered`; asked to go more than 45° off its way while walking
+  (`turnBrake`, the cosine) it brakes first and turns, then walks (2026-10-14, the user's word: a
+  hero reversing walked a circle); with no hand it brakes and is let go once it stands or
   `Keeping.Ordered` — held still by a wall it stands at once, the course's speed being no
   momentum, and let go it asks for no speed. `Strafe{Camera, Way}` walks them across the way they face, facing on
   (`Driven.Side`, `Velocity.Side`; refused into ground the domain may not take beside, as `Ahead`
@@ -1896,6 +1970,8 @@ is left: two `Share(1, …)` are halves), `ui.Fixed(px, el)`, `ui.Fit(el)`; an a
 element — `ui.BottomMiddle(el).Size(w, h).Margin(px)`, nine of them — never `el.At(anchor)`.
 Elements: `Panel`, `Label` (in the theme's font: `render.Font`, Go Regular through x/image's
 opentype, glyphs drawn on demand into a sheet, Polish letters and all; `render.DrawText`),
+`Heading` (a label in the theme's `Bold`, Go Bold by default: a section's title), `Title`
+(in its `Large`, Go Bold at 20: a screen's),
 `Image`, `Window`, `LabelOf`/`ButtonOf`/`WindowOf` (their words read off a `ui.Text` every frame,
 `Text(of, pinned)`, for the entity a pinned element is shown for — `ui.Of[T]` reads a component of
 it; a Text saying nothing leaves the element out — no room, no hit), `Button(label,

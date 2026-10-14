@@ -9,8 +9,9 @@
 // up into a hand. A player's hand, through the camera its commands name, is on the unit that
 // camera is fastened to, else on the units the player has selected and owns; an entity's command
 // for itself (act.Self.Do) is its own hand. The hand is written into the unit's steering.Driven
-// and the unit marked [Driving]; a tick with no hand on it brakes it, and it is let go once it
-// stands.
+// and the unit marked [Driving]; asked to go more than 45 degrees off its way, a walking unit
+// brakes first and turns, then walks; a tick with no hand on it brakes it, and it is let go
+// once it stands.
 //
 // # Keys
 //

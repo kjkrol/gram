@@ -1,6 +1,7 @@
 package world
 
 import (
+	"github.com/kjkrol/ceremony/cond"
 	cgoke "github.com/kjkrol/ceremony/goke"
 	"time"
 
@@ -70,6 +71,13 @@ type Moving struct {
 
 // Who is the entity moving.
 func (m Moving) Who() uid.UID64 { return m.ID }
+
+// Still is the word of an entity that neither walks nor strafes this step.
+func Still() cond.Word[Moving] {
+	return cond.NewWord("still", func(m Moving) bool {
+		return m.Base.Vel.Value == 0 && m.Base.Vel.Side == 0
+	})
+}
 
 var (
 	_ host.About = Moving{}

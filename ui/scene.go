@@ -73,6 +73,15 @@ func (s *Scene) Layers() []render.Layer {
 
 func (s *Scene) Focusable() bool { return true }
 
+// Replace puts screen in place of the scene's tree, for one built afresh each time it is shown
+// (a listing): dressed in the theme at once, drawn from the next frame. What Layers binds once —
+// pictures, layers, pinned elements, texts read off components — must not be in it.
+func (s *Scene) Replace(screen *Element) {
+	s.root = screen
+	s.dress()
+	s.note()
+}
+
 // Lay lays the scene's elements over screen, as every frame does before drawing.
 func (s *Scene) Lay(screen geom.AABB) {
 	if s.root == nil {

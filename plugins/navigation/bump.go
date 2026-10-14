@@ -56,10 +56,10 @@ func struck(o *MoveOrder, contacts []collision.Contact) {
 	o.Bumped, o.Struck, o.Hit, o.HitUnit = true, geom.NewVec(n.X/l, n.Y/l), 0, false
 }
 
-// a sensor, a shot, blocks nobody
+// a sensor, a shot, blocks nobody; nor does what a unit merely rests against
 func struckSomething(contacts []collision.Contact) bool {
 	for _, c := range contacts {
-		if !c.Sensed {
+		if !c.Sensed && !c.Resting {
 			return true
 		}
 	}

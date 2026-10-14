@@ -204,3 +204,13 @@ func TestImage_FillingTheScreenDrawsStraightOntoIt(t *testing.T) {
 		t.Fatalf("drawn straight: the whole screen's %v, the half's %v; want the whole alone", whole.onto, half.onto)
 	}
 }
+
+func TestSplit_AFixedPartCountsItsPixelsInWhatTheSplitNeeds(t *testing.T) {
+	table := Columns(Fixed(10, Blank()), Fit(Label("key")), Fixed(20, Blank()), Fit(Label("label")))
+	kw, _ := Label("key").needs()
+	lw, lh := Label("label").needs()
+	w, h := table.needs()
+	if w != 10+kw+20+lw || h != lh {
+		t.Fatalf("the table needs %vx%v, want %vx%v", w, h, 10+kw+20+lw, lh)
+	}
+}

@@ -66,7 +66,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules [
 
 func drawShaded(t *testing.T, shaded map[render.SpriteID]render.MaterialID, pick func(ids []uid.UID64, v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *counting {
 	look := &counting{Look: ilook.NewFlat(1000, 1000)}
-	drawAs(t, look, func(r *renderer) { r.shade(shaded) }, pick, rules, dir, at...)
+	drawAs(t, look, func(r *renderer) { r.shade(shaded, nil) }, pick, rules, dir, at...)
 	return look
 }
 
@@ -93,7 +93,8 @@ func drawAs(t *testing.T, look Look, ready func(*renderer), pick func(ids []uid.
 		for f.Next() {
 			bases, looks := base.Slice(&f.Cursor), appearance.Slice(&f.Cursor)
 			for j, id := range f.Cursor.IDs {
-				bases[j] = Base{Pos: Position{AABB: plane.NewAABB(at[i], 10, 10)}, Vel: Velocity{Dir: dir}}
+				bases[j] = Base{Pos: Position{AABB: plane.NewAABB(at[i], 10, 10)},
+					Vel: Velocity{Dir: dir, Value: drawSpeed}}
 				looks[j] = render.Appearance{SpriteID: 1}
 				ids = append(ids, id)
 				i++
@@ -113,6 +114,9 @@ func drawAs(t *testing.T, look Look, ready func(*renderer), pick func(ids []uid.
 	}
 	return &f
 }
+
+// the speed the entities drawAs makes walk at, 0 standing
+var drawSpeed float64
 
 var quarters = []geom.Vec{geom.NewVec(100, 100), geom.NewVec(700, 100), geom.NewVec(100, 700), geom.NewVec(700, 700)}
 

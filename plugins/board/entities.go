@@ -5,8 +5,6 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -34,16 +32,13 @@ func NewEntities[P any](brd *Plugin, shape Shape, at func(row P) cell.ID) *Entit
 // besides; one standing off the board panics as it is spawned.
 func (e *Entities[P]) Define(name string, extra ...comp.Comp) {
 	brd := e.brd.Board()
-	size := e.shape.Size
 	own := []comp.Comp{
 		comp.Load(func(row P) world.Position {
 			c := e.at(row)
 			if _, ok := brd.Ordinal(c); !ok {
 				panic(fmt.Sprintf("board: a %q stands off the board, on cell %d", name, c))
 			}
-			m := brd.CellCenter(c)
-			top := geom.NewVec(m.X-size/2, m.Y-size/2)
-			return world.Position{AABB: plane.NewAABB(top, size, size)}
+			return world.Position{AABB: e.shape.Box(brd.CellCenter(c))}
 		}),
 		comp.Load(func(row P) cell.On { return cell.On{Cell: e.at(row)} }),
 	}

@@ -10,6 +10,8 @@ import (
 // of their text, and the colours of panels, windows' titles and buttons.
 type Theme struct {
 	Font   *render.Font
+	Bold   *render.Font // a Heading's; nil, the Font
+	Large  *render.Font // a Title's; nil, the Bold
 	Text   color.RGBA
 	Shadow color.RGBA // a pixel under and right of the text; zero for none
 	Panel  color.RGBA // a panel's and a window's background
@@ -22,6 +24,8 @@ type Theme struct {
 func DefaultTheme() Theme {
 	return Theme{
 		Font:   render.DefaultFont(),
+		Bold:   render.DefaultBoldFont(),
+		Large:  render.DefaultLargeFont(),
 		Text:   color.RGBA{R: 240, G: 240, B: 240, A: 255},
 		Shadow: color.RGBA{A: 200},
 		Panel:  color.RGBA{R: 20, G: 22, B: 28, A: 220},

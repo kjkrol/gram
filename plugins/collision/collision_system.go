@@ -64,6 +64,7 @@ type collisionSystem struct {
 
 	pair     pairSides
 	pending  []pendingContact
+	resting  []restingPair // the pairs of the tick before, to keep while they touch
 	nearests []nearest
 	contacts []pairSides
 	between  *host.PairRules[Meeting]
@@ -294,18 +295,23 @@ func (d *collisionSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 		d.rebuild(false)
 	}
 	d.record()
+	if d.stats != nil {
+		d.stats.Counter += len(d.contacts)
+	}
+	d.rest()
 
 	for i := range d.contacts {
 		s := &d.contacts[i]
+		toward := between(s.A.Base, s.B.Base)
 		d.between.DispatchEitherWay(d.tick, s.tagsA, s.tagsB,
-			Meeting{Self: s.A.Entity, Other: s.B.Entity, Impact: s.impact, Normal: s.normal},
-			Meeting{Self: s.B.Entity, Other: s.A.Entity, Impact: s.impact, Normal: geom.NewVec(-s.normal.X, -s.normal.Y)})
+			Meeting{Self: s.A.Entity, Other: s.B.Entity, Impact: s.impact, Normal: s.normal,
+				Heading: s.A.Base.Vel.Dir, Toward: toward},
+			Meeting{Self: s.B.Entity, Other: s.A.Entity, Impact: s.impact,
+				Normal:  geom.NewVec(-s.normal.X, -s.normal.Y),
+				Heading: s.B.Base.Vel.Dir, Toward: geom.NewVec(-toward.X, -toward.Y)})
 		if d.log != nil {
 			d.log.Printf("collision: %v <-> %v (impact %.2f)", s.A.Entity, s.B.Entity, s.impact)
 		}
-	}
-	if d.stats != nil {
-		d.stats.Counter += len(d.contacts)
 	}
 }
 
@@ -319,7 +325,12 @@ func (d *collisionSystem) mark() bool {
 
 		d.walking.ids, d.walking.colliders = cursor.IDs, colliders
 		d.each.RunWhere(d.tick, d.cols.Row(cursor), len(cursor.IDs), d.hitAt, d.struckAt)
-		for i := range cursor.IDs {
+		for i, id := range cursor.IDs {
+			for _, c := range colliders[i].Contacts() {
+				if !c.Terrain && !c.Sensed && id < c.Other { // each pair once
+					d.resting = append(d.resting, restingPair{a: id, b: c.Other})
+				}
+			}
 			colliders[i].clearContacts()
 			caps := aabbworld.CanCollide
 			switch {
@@ -370,7 +381,62 @@ func (d *collisionSystem) struck(i int) Struck {
 	return Struck{ID: d.walking.ids[i], Contacts: d.walking.colliders[i].Contacts()}
 }
 
-func (d *collisionSystem) hit(i int) bool { return d.walking.colliders[i].StruckCount > 0 }
+func (d *collisionSystem) hit(i int) bool {
+	for _, c := range d.walking.colliders[i].Contacts() {
+		if !c.Resting {
+			return true
+		}
+	}
+	return false
+}
+
+type restingPair struct{ a, b uid.UID64 }
+
+// what rests a hair apart still touches
+const restGap = 1e-3
+
+// touching reports whether the boxes meet or lie within restGap of each other.
+func touching(a, b geom.AABB) bool {
+	gapX := max(a.TopLeft.X-b.BottomRight.X, b.TopLeft.X-a.BottomRight.X)
+	gapY := max(a.TopLeft.Y-b.BottomRight.Y, b.TopLeft.Y-a.BottomRight.Y)
+	return max(gapX, gapY) <= restGap
+}
+
+// rest keeps the pairs of the tick before that still touch though nothing pushed them this
+// tick: a contact at rest on both sides and a Meeting, with no impulse.
+func (d *collisionSystem) rest() {
+	for _, p := range d.resting {
+		if d.met(p) {
+			continue
+		}
+		a, tagsA, okA := d.side(p.a)
+		b, tagsB, okB := d.side(p.b)
+		if !okA || !okB || a.Sweep != nil || b.Sweep != nil || !a.Layers.Meets(b.Layers) ||
+			!touching(a.Base.Pos.AABB.AABB, b.Base.Pos.AABB.AABB) {
+			continue
+		}
+		if d.heights && !a.Band.Meets(b.Band) {
+			continue
+		}
+		normal := between(b.Base, a.Base)
+		a.Collider.add(Contact{Other: b.Entity, Normal: normal, Along: 1, Resting: true})
+		b.Collider.add(Contact{Other: a.Entity, Normal: geom.NewVec(-normal.X, -normal.Y),
+			Along: 1, Resting: true})
+		d.contacts = append(d.contacts, pairSides{A: a, B: b, tagsA: tagsA, tagsB: tagsB,
+			normal: normal, along: 1})
+	}
+	d.resting = d.resting[:0]
+}
+
+func (d *collisionSystem) met(p restingPair) bool {
+	for i := range d.contacts {
+		c := &d.contacts[i]
+		if c.A.Entity == p.a && c.B.Entity == p.b || c.A.Entity == p.b && c.B.Entity == p.a {
+			return true
+		}
+	}
+	return false
+}
 
 type pairSides struct {
 	A, B         contactSide
@@ -610,4 +676,15 @@ func (d *collisionSystem) moved(id uid.UID64, box plane.AABB) {
 
 func bounce(a, b contactSide, normal geom.Vec) float64 {
 	return response.Exchange(a.side(), b.side(), normal)
+}
+
+// the unit vector from a's middle to b's; zero for one middle
+func between(a, b *world.Base) geom.Vec {
+	ca, cb := a.Pos.Center(), b.Pos.Center()
+	dx, dy := cb.X-ca.X, cb.Y-ca.Y
+	l := math.Hypot(dx, dy)
+	if l == 0 {
+		return geom.Vec{}
+	}
+	return geom.NewVec(dx/l, dy/l)
 }

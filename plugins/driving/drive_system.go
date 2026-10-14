@@ -125,7 +125,12 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			default:
 				st.RequestSide(0) // at the water's edge beside it too
 			}
+			// asked to go far off its way, it brakes and turns first
+			turning := facing && st.Speed > 0 &&
+				heading.X*base.Vel.Dir.X+heading.Y*base.Vel.Dir.Y < turnBrake
 			switch {
+			case in.Ahead > 0 && turning:
+				st.RequestSpeed(0)
 			case in.Ahead > 0 && s.open(w, heading) && in.Sprint:
 				st.RequestSprint()
 				st.WantSpeed *= level
@@ -151,6 +156,9 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	}
 	s.lacking = s.lacking[:0]
 }
+
+// the cosine of the least turn a walking unit brakes for: 45 degrees off its way
+const turnBrake = 0.7
 
 func backing(st *steering.Steering) float64 {
 	if st.V0 > 0 {

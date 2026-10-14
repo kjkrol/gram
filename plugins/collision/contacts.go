@@ -12,7 +12,7 @@ const MaxContacts = 8
 // Contact is one confirmed contact: who it was against (the solid ground with Terrain set and
 // its Cell), the impulse exchanged and the way this entity leaves the other. Along is where
 // along a swept entity's step it lies, 0 to 1 (1 with none swept); Sensed that it was only
-// detected.
+// detected; Resting that the two, parted before, still touch: no push, no strike.
 type Contact struct {
 	Other   uid.UID64
 	Impact  float64
@@ -21,4 +21,5 @@ type Contact struct {
 	Cell    uint64
 	Along   float64
 	Sensed  bool
+	Resting bool
 }

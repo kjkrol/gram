@@ -742,7 +742,8 @@ func (s *navigationSystem) feel() {
 		}
 		for i, id := range cursor.IDs {
 			for _, c := range colls[i].Contacts() {
-				if c.Terrain || c.Other == 0 {
+				// a unit learns by striking, not by leaning on a neighbour
+				if c.Terrain || c.Other == 0 || c.Resting {
 					continue
 				}
 				pair := [2]uid.UID64{min(id, c.Other), max(id, c.Other)}

@@ -13,18 +13,23 @@ const (
 )
 
 // Keys are a player's keys to its camera: Up, Down, Left and Right held scroll it on the screen
-// (KeyUnknown leaves one unbound), Wheel zooms about the cursor, Drag pans with the middle button,
-// Edge scrolls with the cursor at a window edge. Scrolling holds while the camera is outside any
-// entity (camera.Outside).
+// (KeyUnknown leaves one unbound), ZoomIn and ZoomOut pressed zoom about the cursor a ZoomStep,
+// Wheel zooms about the cursor, Drag pans with the middle button, Edge scrolls with the cursor
+// at a window edge. Scrolling holds while the camera is outside any entity (camera.Outside).
 type Keys struct {
 	Up, Down, Left, Right control.Key
+	ZoomIn, ZoomOut       control.Key
 	ScrollSpeed           float32 // screen pixels a tick; zero is DefaultScrollSpeed
 	Wheel, Drag, Edge     bool
 }
 
-// DefaultKeys are W, S, A and D, the wheel, the middle drag and the edge.
+// DefaultKeys are W, S, A and D, = and - to zoom, the wheel, the middle drag and the edge.
 func DefaultKeys() Keys {
-	return Keys{Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD, Wheel: true, Drag: true, Edge: true}
+	return Keys{
+		Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD,
+		ZoomIn: control.KeyEqual, ZoomOut: control.KeyMinus,
+		Wheel: true, Drag: true, Edge: true,
+	}
 }
 
 // Bindings are the keys bound to Pan and Zoom of the camera the player looks through.
@@ -48,6 +53,16 @@ func (k Keys) Bindings() []control.Binding {
 	held(k.Down, "Scroll down", 0, 1)
 	held(k.Left, "Scroll left", -1, 0)
 	held(k.Right, "Scroll right", 1, 0)
+	zoom := func(key control.Key, label string, factor float32) {
+		if key != control.KeyUnknown {
+			out = append(out, control.Build(control.KeyPress{Key: key}, label,
+				func(c control.Context) (Zoom, bool) {
+					return Zoom{Camera: c.Camera, Factor: factor, At: c.World(c.Cursor)}, true
+				}))
+		}
+	}
+	zoom(k.ZoomIn, "Zoom in", ZoomStep)
+	zoom(k.ZoomOut, "Zoom out", 1/ZoomStep)
 	if k.Wheel {
 		out = append(out, control.Build(control.Wheel{}, "Zoom", func(c control.Context) (Zoom, bool) {
 			if c.Wheel > 0 {

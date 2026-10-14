@@ -329,6 +329,29 @@ func TestEffects_ThenFollowsWhenTheTimeIsUpNotOnDispel(t *testing.T) {
 	}
 }
 
+func TestEffects_ThenBeginsInThePassItsForerunnerRunsOut(t *testing.T) {
+	var burn, ash effect.Effect
+	r := newRig(t, true, func(r *rig) {
+		r.fx.Define("ash", effect.Spec{effect.Lasts(3 * fxTick)})
+		ash = r.fx.Named("ash")
+		r.fx.Define("burn", effect.Spec{effect.Lasts(2 * fxTick), effect.Then(ash)})
+		burn = r.fx.Named("burn")
+	})
+	r.cast(burn)
+	r.fxTick()            // burn begins
+	for tick := range 4 { // two of burn, then two of ash's three
+		r.fxTick()
+		b, a := r.marked(burn.Mark()), r.marked(ash.Mark())
+		if !b && !a {
+			t.Fatalf("tick %d: under neither burn nor ash; want no step without either", tick)
+		}
+	}
+	r.fxTick() // ash's third
+	if r.fx.Has(r.id, ash) {
+		t.Error("ash outlived its three ticks")
+	}
+}
+
 func TestEffects_ACastAfterDispelTakesTheSlotBack(t *testing.T) {
 	var burn, ash effect.Effect
 	r := newRig(t, true, func(r *rig) {
@@ -345,8 +368,7 @@ func TestEffects_ACastAfterDispelTakesTheSlotBack(t *testing.T) {
 	if !r.fx.Has(r.id, burn) {
 		t.Fatal("a cast after Dispel did not take the slot back")
 	}
-	r.fxTick()
-	r.fxTick() // its time is up, not dispelled
+	r.fxTick() // its time is up, not dispelled: ash begins in that pass
 	if !r.fx.Has(r.id, ash) {
 		t.Error("the slot taken back still counted as dispelled")
 	}

@@ -107,8 +107,15 @@ func (s *splitting) place(e *Element, box geom.AABB) {
 func (*splitting) draw(*Element, *render.Image) {}
 
 func (s *splitting) needs(e *Element) (w, h float64) {
-	for _, c := range e.children {
+	for i, c := range e.children {
 		cw, ch := c.needs()
+		if p := s.parts[i]; p.fixed > 0 {
+			if s.across {
+				cw = p.fixed
+			} else {
+				ch = p.fixed
+			}
+		}
 		if s.across {
 			w, h = w+cw, max(h, ch)
 		} else {

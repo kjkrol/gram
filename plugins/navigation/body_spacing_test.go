@@ -219,8 +219,11 @@ func (fw *fieldWorld) runLongest(limit time.Duration) (settled bool, contacts, l
 		fw.each(func(id uid.UID64, _ *world.Base, _ cell.ID, o *MoveOrder, c *collision.Collider) {
 			busy = busy || o != nil
 			if c != nil {
-				contacts += len(c.Contacts())
 				for _, k := range c.Contacts() {
+					if k.Resting { // leaning on a neighbour is no strike
+						continue
+					}
+					contacts++
 					if !k.Terrain {
 						now[[2]uid.UID64{min(id, k.Other), max(id, k.Other)}] = true
 					}

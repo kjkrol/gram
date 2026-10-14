@@ -6,10 +6,7 @@ What is left to do. Take an item out when it lands.
 
 ## Next, in this order (the demos' TODOs)
 
-1. **`PullEf` in the wire demo** — a quarter-second effect used as a command's impulse ("pull the
-   lever beside"), not a state: a command of the entity's with `Around`, or kept and named as a
-   state.
-2. **Facts for plans beyond navigation** — `bullet.Flight` as the fuse's fact shows any
+1. **Facts for plans beyond navigation** — `bullet.Flight` as the fuse's fact shows any
    component is one; say in each plugin's doc which of its components are meant for plans
    (`Blocked`, `Arrived`, `Flight`) and which are not.
 
@@ -41,10 +38,6 @@ What is left to do. Take an item out when it lands.
   of radius `Speed / TurnRate` through the lookahead points, the queued waypoints marked. Drawn for
   selected units only, computed when the route or the waypoints change and kept beside the `Path`,
   sharing the lookahead's code with navigation so what is drawn and what is driven cannot drift.
-- **Weather and seasons as effects over the whole board** — planned as effects on an entity
-  standing for the board. `plugins/atmosphere` does weather and seasons another way (the weather
-  on its own entity, snow and ice as the weathering's effects on cells, the seasons the
-  calendar's over the clock): decide whether that settles it.
 - **Covers** — a state of the ground drawn over its cells (`board.Plugin.Covering`) is the simple
   map's on a square grid: in relief (the topography's painter and its sheets), on a hex grid
   along a line of its own, a ragged edge (noise on the threshold), a cover narrowed to the cells
@@ -63,10 +56,8 @@ What is left to do. Take an item out when it lands.
   `bridges/site`'s), and takes a bridge down.
 - **Blocks' shadows over hex prisms** — the terrain over a hex grid bakes no shade, so a
   bridge's deck and its piers cast no shadow there.
-- **Knobs on the world** — a plugin's global knobs as components on the world's own entity (the
-  moon's colour and strength, for a blood moon: an effect altering `sky.Moon`, cast by a rule of
-  `clock.Moment` on a full moon — a predicate of the calendar's phase), and a vocabulary in every
-  plugin's doc: its moments, its commands, its knobs.
+- **A vocabulary in every plugin's doc** — its moments, its commands, its knobs, its facts, in
+  one place a plugin (the knobs on a plugin's own entity are there: `sky.Moon`, `gravity.Pull`).
 - **Gamepads** — a trigger vocabulary for pads, so split screen is not only a keyboard's.
 - **Networking** — `plugins/netview` over players; the server is one engine, a remote client a
   player whose translator decodes frames:
