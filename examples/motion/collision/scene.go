@@ -29,10 +29,10 @@ var (
 )
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
+	a := m.arena
 
-	atlas := s.world.NewAtlas()
-	hit := s.world.Effects().Named(HitEf)
+	atlas := a.world.NewAtlas()
+	hit := a.world.Effects().Named(HitEf)
 	flash := palette[entityColors]
 	shapes := [entityShapes]func(color.RGBA) render.SpriteDrawer{
 		render.Solid,
@@ -41,7 +41,7 @@ func (m *mainScene) picture() render.Picture {
 		render.Cross,
 	}
 	bodyKindOf := func(c, sh int) kind.Of[body] {
-		return kind.Named[body](s.world.Kinds(), bodyKind(c, sh))
+		return kind.Named[body](a.world.Kinds(), bodyKind(c, sh))
 	}
 	for ci, c := range palette[:entityColors] {
 		for si, shape := range shapes {
@@ -52,16 +52,16 @@ func (m *mainScene) picture() render.Picture {
 		}
 	}
 	atlas.Close()
-	s.world.WithRenderer(atlas)
+	a.world.WithRenderer(atlas)
 
-	return render.NewComposer(s.world.Renderer(), s.collision.Renderer())
+	return render.NewComposer(a.world.Renderer(), a.collision.Renderer())
 }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
+	a := m.arena
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
-		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-			Input(s.players.Through(s.player)),
+		ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+			Input(a.players.Through(a.player)),
 	)
 }

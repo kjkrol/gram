@@ -104,37 +104,37 @@ func main() {
 	gram.Run(game.New(props, mainStage))
 }
 
-func (s *arena) makePlugins(w *world.Plugin) {
-	s.world = w
+func (a *arena) makePlugins(w *world.Plugin) {
+	a.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.collision = collision.NewPlugin(s.world)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
-		WithCollision(s.collision).
+	a.collision = collision.NewPlugin(a.world)
+	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).
+		WithCollision(a.collision).
 		WithLog(log.Default())
-	s.selection = selection.NewPlugin(s.world)
-	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board).WithTap(tapFor)
-	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.collision, s.cameras, s.board, s.driving)
+	a.selection = selection.NewPlugin(a.world)
+	a.driving = driving.NewPlugin(a.world, a.selection).WithGround(a.board).WithTap(tapFor)
+	a.cameras = cameras.NewPlugin(a.world)
+	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.driving)
 }
 
-func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player")
+func (a *arena) definePlayer() error {
+	a.player = a.players.Local("player")
 	walk := driving.Compass{
 		Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD,
 	}
 	view := cameras.Keys{Wheel: true, ZoomIn: control.KeyEqual, ZoomOut: control.KeyMinus}
-	return s.player.Bind(slices.Concat(
-		s.players.DefaultBindings(),
-		s.world.DefaultBindings(),
-		s.collision.DefaultBindings(),
-		s.board.DefaultBindings(),
+	return a.player.Bind(slices.Concat(
+		a.players.DefaultBindings(),
+		a.world.DefaultBindings(),
+		a.collision.DefaultBindings(),
+		a.board.DefaultBindings(),
 		view.Bindings(),
 		walk.Bindings(),
 	)...)
 }
 
-func (s *arena) defineEffects() {
-	fx := s.world.Effects()
+func (a *arena) defineEffects() {
+	fx := a.world.Effects()
 	fx.Define(OpenEf, effect.Spec{effect.Alter(func(f *cell.Floor) { f.Allows = 0 })})
 	fx.Define(AjarEf, effect.Spec{effect.Alter(func(w *cell.Wall) { w.Keeps = 0 })})
 	fx.Define(ReachingEf, effect.Spec{effect.Lasts(reachFor)})
@@ -156,8 +156,8 @@ func (s *arena) defineEffects() {
 	fx.Define(LeverPushingEf, effect.Spec{effect.Lasts(leverSwing)})
 }
 
-func (s *arena) defineRoles() {
-	roles, fx := s.world.Roles(), s.world.Effects()
+func (a *arena) defineRoles() {
+	roles, fx := a.world.Roles(), a.world.Effects()
 	roles.Define(PlateRole, act.Branch[collision.Meeting]{
 		Name: "press",
 		When: cond.Self.If(cond.Always),
@@ -226,8 +226,8 @@ func (s *arena) defineRoles() {
 	)
 }
 
-func (s *arena) defineCommands() {
-	fx, cmds := s.world.Effects(), s.world.Commands()
+func (a *arena) defineCommands() {
+	fx, cmds := a.world.Effects(), a.world.Commands()
 	// the lever pulled opens them, pushed back shuts them: one Toggle serves both
 	cmds.Define(
 		SwitchWestCmd,
@@ -246,8 +246,8 @@ func (s *arena) defineCommands() {
 	cmds.Define(PullCmd, ceremony.Put(fx.Named(ReachingEf)).On(ceremony.Named(HeroName)))
 }
 
-func (s *arena) defineCells() {
-	kinds := s.board.CellKinds()
+func (a *arena) defineCells() {
+	kinds := a.board.CellKinds()
 	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
 	kinds.Define(PitCell, cell.Kind{Cost: 1})
 	kinds.Define(FenceCell, cell.Kind{Cost: 1, Solid: true})
@@ -261,11 +261,11 @@ type standingRow struct {
 	At cell.ID `yaml:"at"`
 }
 
-func (s *arena) defineKinds() {
-	brd := s.board.Board()
-	roles := s.world.Roles()
+func (a *arena) defineKinds() {
+	brd := a.board.Board()
+	roles := a.world.Roles()
 	units := board.NewUnits[unitRow](
-		s.board,
+		a.board,
 		board.Shape{Size: heroHeight, Width: heroWidth}, // the box is the figure, pixel for pixel
 		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
@@ -280,62 +280,62 @@ func (s *arena) defineKinds() {
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Mass: 1}),
 		ceremony.Plays(roles.Named(HandyRole), roles.Named(MortalRole), roles.Named(HeroRole)),
-		s.boredom())
+		a.boredom())
 	at := func(r standingRow) cell.ID { return r.At }
-	cellWide := board.NewEntities(s.board, board.Shape{Size: CellSize}, at)
+	cellWide := board.NewEntities(a.board, board.Shape{Size: CellSize}, at)
 	cellWide.Define(TrapdoorKind, comp.Const(cell.Floor{Allows: cell.Land}))
 	cellWide.Define(GateKind, comp.Const(cell.Wall{Keeps: cell.Land}))
-	small := board.NewEntities(s.board, board.Shape{Size: EntitySize}, at)
+	small := board.NewEntities(a.board, board.Shape{Size: EntitySize}, at)
 	small.Define(PlateKind,
 		comp.Const(collision.Collider{}), // a sensor: stood on, never pushed
 		ceremony.Plays(roles.Named(PlateRole)))
-	posts := board.NewEntities(s.board, board.Shape{Size: LeverSize}, at)
+	posts := board.NewEntities(a.board, board.Shape{Size: LeverSize}, at)
 	posts.Define(LeverKind,
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Mass: math.Inf(1)}), // a post: the hero walks up to it
 		ceremony.Plays(roles.Named(LeverRole)))
 }
 
-func (s *arena) bindKeys() error {
-	return s.player.Bind(
+func (a *arena) bindKeys() error {
+	return a.player.Bind(
 		control.Give(
 			control.KeyPress{Key: control.KeySpace},
 			"Pull, or push back, the lever at hand",
-			s.world.Commands().Named(PullCmd),
+			a.world.Commands().Named(PullCmd),
 		),
 		control.Give(
 			control.KeyPress{Key: control.KeyG},
 			"Flip the gate's switch: open, or shut",
-			s.world.Commands().Named(FlipTheGateCmd),
+			a.world.Commands().Named(FlipTheGateCmd),
 		),
 	)
 }
 
-func (s *arena) spawn() error {
-	level, err := s.board.Lay(mapFile, "map.yaml")
+func (a *arena) spawn() error {
+	level, err := a.board.Lay(mapFile, "map.yaml")
 	if err != nil {
 		return err
 	}
-	sides := board.Sides{PlayerSide: {players.Give{To: s.player.ID}}}
+	sides := board.Sides{PlayerSide: {players.Give{To: a.player.ID}}}
 	return errors.Join(
 		board.Spawn[standingRow](level, nil),
 		board.Spawn[unitRow](level, sides),
 	)
 }
 
-func (s *arena) defineScenes() []game.Scene {
-	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
+func (a *arena) defineScenes() []game.Scene {
+	main := &mainScene{arena: a}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(a.players.Handle)}
 }
 
-func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
-	s.world.RunPlan(ctx, d)
-	s.collision.RunPlan(ctx, d)
-	s.board.RunPlan(ctx, d)
-	s.driving.RunPlan(ctx, d)
-	s.selection.RunPlan(ctx, d)
-	s.cameras.RunPlan(ctx, d)
-	s.players.RunPlan(ctx, d)
+func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
+	a.world.RunPlan(ctx, d)
+	a.collision.RunPlan(ctx, d)
+	a.board.RunPlan(ctx, d)
+	a.driving.RunPlan(ctx, d)
+	a.selection.RunPlan(ctx, d)
+	a.cameras.RunPlan(ctx, d)
+	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
 
@@ -355,8 +355,8 @@ func wakeUp(fx *cgoke.Effects) act.Step {
 // the hero's boredom: still for a while he is bored, and bored he goes round the stages — blinks,
 // stamps a foot now and then, turns to look about twice, each 4 seconds or, on a coin, 10 —
 // until he moves
-func (s *arena) boredom() plan.Planned {
-	fx := s.world.Effects()
+func (a *arena) boredom() plan.Planned {
+	fx := a.world.Effects()
 	still, bored, long := fx.Named(StillEf), fx.Named(BoredEf), fx.Named(LookingLongEf)
 	always, coin := cond.Self.If(cond.Always), cond.Self.If(cond.Chance(0.5))
 	stage := func(e effect.Effect, parts ...plan.Part) plan.Part {

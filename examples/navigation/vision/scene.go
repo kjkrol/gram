@@ -29,11 +29,11 @@ var (
 )
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
+	a := m.arena
 	scoutKind := func(i int) kind.Of[unitRow] {
-		return kind.Named[unitRow](s.world.Kinds(), scouts[i])
+		return kind.Named[unitRow](a.world.Kinds(), scouts[i])
 	}
-	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
+	hawkKind := kind.Named[unitRow](a.world.Kinds(), HawkKind)
 
 	worldAtlas := render.NewAtlas()
 	for i := range scouts {
@@ -41,36 +41,36 @@ func (m *mainScene) picture() render.Picture {
 	}
 	worldAtlas.Add(hawkKind, EntitySize, render.Diamond(hawkColor))
 	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
+	a.world.WithRenderer(worldAtlas)
 
-	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas := a.board.NewAtlas(CellSize)
 	boardAtlas.Add(GrassCell, render.Solid(grassColor))
 	boardAtlas.Add(WallCell, render.Solid(wallColor))
 	boardAtlas.Add(ForestCell, render.Solid(forestColor))
 	boardAtlas.Add(RoadCell, render.Solid(roadColor))
 	boardAtlas.Add(HillCell, render.Solid(hillColor))
 	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
+	a.board.WithRenderer(boardAtlas)
 
-	s.nav.WithRenderer(nil)
+	a.nav.WithRenderer(nil)
 
-	s.vision.WithViews(render.Show(s.selection.IsSelected))
-	s.vision.WithRenderer(nil)
-	s.selection.WithRenderer(nil)
+	a.vision.WithViews(render.Show(a.selection.IsSelected))
+	a.vision.WithRenderer(nil)
+	a.selection.WithRenderer(nil)
 
 	return render.NewComposer(
-		s.topography.Renderer(),
-		s.board.Renderer(),
-		s.world.Renderer(), s.collision.Renderer(),
-		s.vision.Renderer(),
-		s.selection.Renderer(),
-		s.nav.Renderer(),
+		a.topography.Renderer(),
+		a.board.Renderer(),
+		a.world.Renderer(), a.collision.Renderer(),
+		a.vision.Renderer(),
+		a.selection.Renderer(),
+		a.nav.Renderer(),
 	)
 }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
+	a := m.arena
 	return ui.Image(render.NewFeed(
-		s.cameras.New(s.topography.Views(topography.FromAbove), camera.Config{}),
-		m.picture())).Input(s.players.Through(s.player))
+		a.cameras.New(a.topography.Views(topography.FromAbove), camera.Config{}),
+		m.picture())).Input(a.players.Through(a.player))
 }

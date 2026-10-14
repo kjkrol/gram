@@ -21,22 +21,22 @@ var (
 type mainScene struct{ arena *arena }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
+	a := m.arena
 	picture := m.picture()
 	red := render.NewFeed(
-		s.cameras.New(cameras.TopDown(), camera.Config{Follow: RedBlock}),
+		a.cameras.New(cameras.TopDown(), camera.Config{Follow: RedBlock}),
 		picture,
 	)
 	blue := render.NewFeed(
-		s.cameras.New(cameras.TopDown(), camera.Config{Follow: BlueBlock}),
+		a.cameras.New(cameras.TopDown(), camera.Config{Follow: BlueBlock}),
 		picture,
 	)
-	minimap := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Whole: true}), picture)
+	minimap := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{Whole: true}), picture)
 	return ui.Layers(
 		ui.Columns(
-			ui.Share(1, ui.Image(red).Input(s.players.Through(s.redPlayer))),
+			ui.Share(1, ui.Image(red).Input(a.players.Through(a.redPlayer))),
 			ui.Fixed(2, ui.Blank().Fill(dividerColor)),
-			ui.Share(1, ui.Image(blue).Input(s.players.Through(s.bluePlayer))),
+			ui.Share(1, ui.Image(blue).Input(a.players.Through(a.bluePlayer))),
 		),
 		ui.BottomMiddle(ui.Image(minimap).Border(dividerColor, 2)).
 			Fraction(MinimapShare, 0).
@@ -45,21 +45,21 @@ func (m *mainScene) screen() *ui.Element {
 }
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
-	redKind := kind.Named[block](s.world.Kinds(), RedKind)
-	blueKind := kind.Named[block](s.world.Kinds(), BlueKind)
+	a := m.arena
+	redKind := kind.Named[block](a.world.Kinds(), RedKind)
+	blueKind := kind.Named[block](a.world.Kinds(), BlueKind)
 	worldAtlas := render.NewAtlas()
 	worldAtlas.Add(redKind, BlockSize, render.Solid(redColor))
 	worldAtlas.Add(blueKind, BlockSize, render.Solid(blueColor))
 	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
+	a.world.WithRenderer(worldAtlas)
 
-	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas := a.board.NewAtlas(CellSize)
 	boardAtlas.Add(FloorCell, render.Solid(floorColor))
 	boardAtlas.Add(WallCell, render.Solid(wallColor))
 	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
-	s.board.Res.Render.ShowGridLines = false
+	a.board.WithRenderer(boardAtlas)
+	a.board.Res.Render.ShowGridLines = false
 
-	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.collision.Renderer())
+	return render.NewComposer(a.board.Renderer(), a.world.Renderer(), a.collision.Renderer())
 }

@@ -78,41 +78,41 @@ func main() {
 	gram.Run(game.New(props, mainStage))
 }
 
-func (s *arena) makePlugins(w *world.Plugin) {
-	s.world = w
+func (a *arena) makePlugins(w *world.Plugin) {
+	a.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world)
-	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras, s.board)
+	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world)
+	a.cameras = cameras.NewPlugin(a.world)
+	a.players = players.NewPlugin(a.world, a.cameras, a.board)
 }
 
-func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player")
-	return s.player.Bind(s.players.Defaults()...)
+func (a *arena) definePlayer() error {
+	a.player = a.players.Local("player")
+	return a.player.Bind(a.players.Defaults()...)
 }
 
-func (s *arena) defineEffects() {
-	s.world.Effects().Define(CalmEf, effect.Spec{
+func (a *arena) defineEffects() {
+	a.world.Effects().Define(CalmEf, effect.Spec{
 		effect.Described("Calmed: the ward's glow put out for a while."),
 		effect.Lasts(2 * time.Second),
 	})
 }
 
-func (s *arena) defineCommands() {
-	s.world.Commands().Define(CalmCmd,
-		ceremony.Put(s.world.Effects().Named(CalmEf)).On(ceremony.Named(WardName)))
+func (a *arena) defineCommands() {
+	a.world.Commands().Define(CalmCmd,
+		ceremony.Put(a.world.Effects().Named(CalmEf)).On(ceremony.Named(WardName)))
 }
 
-func (s *arena) defineCells() {
-	s.board.CellKinds().Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
+func (a *arena) defineCells() {
+	a.board.CellKinds().Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
 
 type wardRow struct {
 	At geom.Vec `yaml:"at"`
 }
 
-func (s *arena) defineKinds() {
-	kind.Define[wardRow](s.world.Kinds(), WardKind, kind.Spec{
+func (a *arena) defineKinds() {
+	kind.Define[wardRow](a.world.Kinds(), WardKind, kind.Spec{
 		comp.Load(func(w wardRow) world.Position {
 			return world.Position{
 				AABB: plane.NewAABB(geom.NewVec(w.At.X-WardPx/2, w.At.Y-WardPx/2), WardPx, WardPx),
@@ -122,30 +122,30 @@ func (s *arena) defineKinds() {
 	})
 }
 
-func (s *arena) bindKeys() error {
-	return s.player.Bind(
+func (a *arena) bindKeys() error {
+	return a.player.Bind(
 		control.Give(control.KeyPress{Key: control.KeyC}, "Calm the ward for a while",
-			s.world.Commands().Named(CalmCmd)),
+			a.world.Commands().Named(CalmCmd)),
 	)
 }
 
-func (s *arena) spawn() error {
-	level, err := s.board.Lay(mapFile, "map.yaml")
+func (a *arena) spawn() error {
+	level, err := a.board.Lay(mapFile, "map.yaml")
 	if err != nil {
 		return err
 	}
 	return board.Spawn[wardRow](level, nil)
 }
 
-func (s *arena) defineScenes() []game.Scene {
-	m := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
+func (a *arena) defineScenes() []game.Scene {
+	m := &mainScene{arena: a}
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(a.players.Handle)}
 }
 
-func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
-	s.world.RunPlan(ctx, d)
-	s.board.RunPlan(ctx, d)
-	s.cameras.RunPlan(ctx, d)
-	s.players.RunPlan(ctx, d)
+func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
+	a.world.RunPlan(ctx, d)
+	a.board.RunPlan(ctx, d)
+	a.cameras.RunPlan(ctx, d)
+	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

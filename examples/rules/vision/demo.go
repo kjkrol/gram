@@ -89,27 +89,27 @@ func main() {
 	gram.Run(game.New(props, mainStage))
 }
 
-func (s *arena) makePlugins(w *world.Plugin) {
-	s.world = w
-	s.vision = vision.NewPlugin(s.world)
-	s.collision = collision.NewPlugin(s.world).WithStats(&s.hits)
-	s.cameras = cameras.NewPlugin(s.world)
-	s.telemetry = telemetry.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.collision, s.cameras, s.vision)
+func (a *arena) makePlugins(w *world.Plugin) {
+	a.world = w
+	a.vision = vision.NewPlugin(a.world)
+	a.collision = collision.NewPlugin(a.world).WithStats(&a.hits)
+	a.cameras = cameras.NewPlugin(a.world)
+	a.telemetry = telemetry.NewPlugin(a.world)
+	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.vision)
 }
 
-func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player")
-	return s.player.Bind(s.players.Defaults()...)
+func (a *arena) definePlayer() error {
+	a.player = a.players.Local("player")
+	return a.player.Bind(a.players.Defaults()...)
 }
 
-func (s *arena) defineEffects() {
-	s.world.Effects().Define(FleeingEf, effect.Spec{})
-	s.world.Effects().Define(TurnedEf, effect.Spec{effect.Lasts(time.Second)})
+func (a *arena) defineEffects() {
+	a.world.Effects().Define(FleeingEf, effect.Spec{})
+	a.world.Effects().Define(TurnedEf, effect.Spec{effect.Lasts(time.Second)})
 }
 
-func (s *arena) defineRoles() {
-	roles, effects := s.world.Roles(), s.world.Effects()
+func (a *arena) defineRoles() {
+	roles, effects := a.world.Roles(), a.world.Effects()
 	roles.Define(PreyRole)
 	prey := roles.Named(PreyRole)
 	left, right := steering.Turn{Angle: math.Pi / 2}, steering.Turn{Angle: -math.Pi / 2}
@@ -146,64 +146,64 @@ func (s *arena) defineRoles() {
 		act.Branch[vision.Sighting]{
 			Name: "flee the hunter",
 			When: cond.Other.If(roles.Named(PredatorRole)).
-				And(cond.On(s.world).If(effects.Named(FleeingEf))),
+				And(cond.On(a.world).If(effects.Named(FleeingEf))),
 			Then: act.Self.Do(steering.Away{}),
 		},
 		act.Branch[vision.Sighting]{
 			Name: "give way",
-			When: cond.On(s.world).If(effects.Named(FleeingEf)).
+			When: cond.On(a.world).If(effects.Named(FleeingEf)).
 				And(cond.Other.If(vision.Closing())),
 			Then: act.Self.Do(steering.Away{}),
 		},
 	)
 }
 
-func (s *arena) defineCommands() {
-	flee := ceremony.Toggle(s.world.Effects().Named(FleeingEf)).On(ceremony.World)
-	s.world.Commands().Define(FleeCmd, flee)
+func (a *arena) defineCommands() {
+	flee := ceremony.Toggle(a.world.Effects().Named(FleeingEf)).On(ceremony.World)
+	a.world.Commands().Define(FleeCmd, flee)
 }
 
-func (s *arena) defineKinds() {
-	kinds := s.world.Kinds()
+func (a *arena) defineKinds() {
+	kinds := a.world.Kinds()
 	kind.Define[body](kinds, PreyKind, append(sees(),
 		comp.Const(steering.Steering{Reflex: 3, TurnRate: 0.12}),
-		ceremony.Plays(s.world.Roles().Named(SkittishRole), s.world.Roles().Named(PreyRole)),
+		ceremony.Plays(a.world.Roles().Named(SkittishRole), a.world.Roles().Named(PreyRole)),
 		comp.Const(collision.Physics{Restitution: 1}),
 	))
 	kind.Define[body](kinds, HunterKind, append(sees(),
 		comp.Const(steering.Steering{Reflex: 1, TurnRate: 0.30}),
-		ceremony.Plays(s.world.Roles().Named(PredatorRole)),
+		ceremony.Plays(a.world.Roles().Named(PredatorRole)),
 	))
 }
 
-func (s *arena) bindKeys() error {
-	return s.player.Bind(
+func (a *arena) bindKeys() error {
+	return a.player.Bind(
 		control.Give(control.KeyPress{Key: control.KeyA}, "The prey flee, or stop fleeing",
-			s.world.Commands().Named(FleeCmd)),
+			a.world.Commands().Named(FleeCmd)),
 	)
 }
 
-func (s *arena) spawnUnits() {
+func (a *arena) spawnUnits() {
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, RectSize)
 
 	const total = PreyCount + 1
 	roam := func(i int, speed float64) body {
-		a := rand.Float64() * 2 * math.Pi
+		angle := rand.Float64() * 2 * math.Pi
 		return body{
 			pos: placement.Place(i, total),
-			vel: world.Velocity{Dir: geom.NewVec(math.Cos(a), math.Sin(a)), Value: speed},
+			vel: world.Velocity{Dir: geom.NewVec(math.Cos(angle), math.Sin(angle)), Value: speed},
 		}
 	}
 
-	preyKind := kind.Named[body](s.world.Kinds(), PreyKind)
-	hunterKind := kind.Named[body](s.world.Kinds(), HunterKind)
+	preyKind := kind.Named[body](a.world.Kinds(), PreyKind)
+	hunterKind := kind.Named[body](a.world.Kinds(), HunterKind)
 	entries := make([]kind.Entry, 0, total)
 	for i := range PreyCount {
 		entries = append(entries, preyKind.Entry(roam(i, 90)))
 	}
 	entries = append(entries, hunterKind.Entry(roam(PreyCount, 81)))
-	s.world.Seed(entries...)
-	s.world.Carrier().Put(s.player.ID, s.world.Commands().Named(FleeCmd))
+	a.world.Seed(entries...)
+	a.world.Carrier().Put(a.player.ID, a.world.Commands().Named(FleeCmd))
 }
 
 func sees() kind.Spec {
@@ -219,17 +219,17 @@ func sees() kind.Spec {
 	}
 }
 
-func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	m := &mainScene{arena: s}
-	s.telemetry.With(s.hits.Reporter(&ctx.TPS().Ticks))
-	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
+func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
+	m := &mainScene{arena: a}
+	a.telemetry.With(a.hits.Reporter(&ctx.TPS().Ticks))
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(a.players.Handle)}
 }
 
-func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
-	s.vision.RunPlan(ctx, d)
-	s.world.RunPlan(ctx, d)
-	s.collision.RunPlan(ctx, d)
-	s.cameras.RunPlan(ctx, d)
-	s.players.RunPlan(ctx, d)
+func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
+	a.vision.RunPlan(ctx, d)
+	a.world.RunPlan(ctx, d)
+	a.collision.RunPlan(ctx, d)
+	a.cameras.RunPlan(ctx, d)
+	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

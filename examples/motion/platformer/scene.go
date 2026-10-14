@@ -24,31 +24,31 @@ var (
 )
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
+	a := m.arena
 	hero := func(body color.RGBA) render.SpriteDrawer {
 		return func(dst *render.Canvas, size int) {
 			render.Solid(body)(dst, size)
 			render.Dot(1, eyeColor)(dst, size)
 		}
 	}
-	worldAtlas := s.world.NewAtlas()
-	worldAtlas.Add(kind.Named[heroRow](s.world.Kinds(), HeroKind), HeroSize, hero(heroColor)).
-		Under(s.world.Effects().Named(DazedEf), hero(dazedColor))
+	worldAtlas := a.world.NewAtlas()
+	worldAtlas.Add(kind.Named[heroRow](a.world.Kinds(), HeroKind), HeroSize, hero(heroColor)).
+		Under(a.world.Effects().Named(DazedEf), hero(dazedColor))
 	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
+	a.world.WithRenderer(worldAtlas)
 
-	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas := a.board.NewAtlas(CellSize)
 	boardAtlas.Add(SkyCell, render.Solid(skyColor))
 	boardAtlas.Add(RockCell, render.Solid(rockColor))
 	boardAtlas.Add(LedgeCell, render.Solid(ledgeColor))
 	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
+	a.board.WithRenderer(boardAtlas)
 
-	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.collision.Renderer())
+	return render.NewComposer(a.board.Renderer(), a.world.Renderer(), a.collision.Renderer())
 }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
-	view := s.cameras.New(cameras.TopDown(), camera.Config{Zoom: 2, Follow: HeroName})
-	return ui.Image(render.NewFeed(view, m.picture())).Input(s.players.Through(s.player))
+	a := m.arena
+	view := a.cameras.New(cameras.TopDown(), camera.Config{Zoom: 2, Follow: HeroName})
+	return ui.Image(render.NewFeed(view, m.picture())).Input(a.players.Through(a.player))
 }

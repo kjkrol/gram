@@ -17,34 +17,34 @@ type mainScene struct {
 var grassColor = color.RGBA{R: 60, G: 95, B: 60, A: 255}
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
-	heroKind := kind.Named[unitRow](s.world.Kinds(), HeroKind)
+	a := m.arena
+	heroKind := kind.Named[unitRow](a.world.Kinds(), HeroKind)
 
-	worldAtlas := s.world.NewAtlas()
+	worldAtlas := a.world.NewAtlas()
 	worldAtlas.Add(heroKind, heroHeight, heroStanding(0)).
 		Facing(heroWays, heroStanding).
 		Animated(heroWalkFrames, gaitPeriod, heroPose(heroWalk)).WhileMoving()
 	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
+	a.world.WithRenderer(worldAtlas)
 
-	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas := a.board.NewAtlas(CellSize)
 	boardAtlas.Add(GrassCell, render.Solid(grassColor))
 	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
+	a.board.WithRenderer(boardAtlas)
 
-	s.nav.WithRenderer(nil)
-	s.selection.WithRenderer(nil)
+	a.nav.WithRenderer(nil)
+	a.selection.WithRenderer(nil)
 
 	return render.NewComposer(
-		s.board.Renderer(),
-		s.world.Renderer(), s.collision.Renderer(),
-		s.selection.Renderer(),
-		s.nav.Renderer(),
+		a.board.Renderer(),
+		a.world.Renderer(), a.collision.Renderer(),
+		a.selection.Renderer(),
+		a.nav.Renderer(),
 	)
 }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
-	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-		Input(s.players.Through(s.player))
+	a := m.arena
+	return ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+		Input(a.players.Through(a.player))
 }

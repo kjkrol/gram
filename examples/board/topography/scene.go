@@ -55,8 +55,8 @@ var (
 )
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
-	s.topography.
+	a := m.arena
+	a.topography.
 		Style(WaterCell, painter.Style{Under: true, Shine: 0.9}).
 		Style(EarthCell, painter.Style{Spread: 0.3}).
 		Style(SandCell, painter.Style{Spread: 0.35}).
@@ -65,18 +65,18 @@ func (m *mainScene) picture() render.Picture {
 		Style(StreamCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
 		Style(RiverCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell})
 	for _, name := range snowable {
-		s.topography.Style(snowyCell(name), s.topography.StyleOf(name))
+		a.topography.Style(snowyCell(name), a.topography.StyleOf(name))
 	}
-	s.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
-	s.topography.WithAtmosphere(s.atmosphere)
-	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
-	plateauKind := kind.Named[unitRow](s.world.Kinds(), PlateauKind)
-	rivalKind := kind.Named[unitRow](s.world.Kinds(), RivalKind)
-	hawkKind := kind.Named[unitRow](s.world.Kinds(), HawkKind)
-	bridge := s.bridges.Types().Named(BridgeKind)
-	fordKind := kind.Named[fordRow](s.world.Kinds(), FordKind)
+	a.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
+	a.topography.WithAtmosphere(a.atmosphere)
+	unitKind := kind.Named[unitRow](a.world.Kinds(), UnitKind)
+	plateauKind := kind.Named[unitRow](a.world.Kinds(), PlateauKind)
+	rivalKind := kind.Named[unitRow](a.world.Kinds(), RivalKind)
+	hawkKind := kind.Named[unitRow](a.world.Kinds(), HawkKind)
+	bridge := a.bridges.Types().Named(BridgeKind)
+	fordKind := kind.Named[fordRow](a.world.Kinds(), FordKind)
 
-	worldAtlas := s.world.NewAtlas()
+	worldAtlas := a.world.NewAtlas()
 	worldAtlas.Add(unitKind, spritePx, render.Solid(playerColor))
 	worldAtlas.Add(plateauKind, spritePx, render.Solid(playerColor))
 	worldAtlas.Add(rivalKind, spritePx, render.Solid(rivalColor))
@@ -85,9 +85,9 @@ func (m *mainScene) picture() render.Picture {
 	worldAtlas.Add(bridge.Pier(), CellSize, render.Solid(pierColor)).Upright()
 	worldAtlas.Add(fordKind, CellSize, stones(0)).Facing(8, stones).Lying()
 	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
+	a.world.WithRenderer(worldAtlas)
 
-	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas := a.board.NewAtlas(CellSize)
 	for name, c := range cellColors {
 		boardAtlas.Add(name, render.Solid(c))
 	}
@@ -96,29 +96,29 @@ func (m *mainScene) picture() render.Picture {
 	}
 	boardAtlas.Add(IceCell, render.Solid(iceColor))
 	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
-	s.board.Res.Render.ShowGridLines = true
-	s.nav.WithRenderer(nil)
-	s.vision.WithViews(render.Show(s.selection.IsSelected)) // TODO: to jest rule a tu s.board.Res.Render.ShowGridLines = true jest flaga
-	s.vision.WithRenderer(nil)
-	s.selection.WithRenderer(nil)
-	s.bridges.WithRenderer(nil)
+	a.board.WithRenderer(boardAtlas)
+	a.board.Res.Render.ShowGridLines = true
+	a.nav.WithRenderer(nil)
+	a.vision.WithViews(render.Show(a.selection.IsSelected)) // TODO: to jest rule a tu s.board.Res.Render.ShowGridLines = true jest flaga
+	a.vision.WithRenderer(nil)
+	a.selection.WithRenderer(nil)
+	a.bridges.WithRenderer(nil)
 
 	return render.NewComposer(
-		s.atmosphere.Renderer(), s.board.Renderer(), s.topography.Renderer(),
-		s.world.Renderer(), s.collision.Renderer(), s.vision.Renderer(), s.selection.Renderer(),
-		s.nav.Renderer(), s.bridges.Renderer(), s.atmosphere.Precipitation())
+		a.atmosphere.Renderer(), a.board.Renderer(), a.topography.Renderer(),
+		a.world.Renderer(), a.collision.Renderer(), a.vision.Renderer(), a.selection.Renderer(),
+		a.nav.Renderer(), a.bridges.Renderer(), a.atmosphere.Precipitation())
 }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
+	a := m.arena
 	return ui.Layers(
 		ui.Image(render.NewFeed(
-			s.cameras.New(s.topography.Views(topography.Isometrically), camera.Config{}),
-			m.picture())).Input(s.players.Through(s.player)),
-		ui.Layer(s.world.Clock().HUD()),
-		ui.BottomMiddle(s.bridges.Reason().Padding(6).Fill(reasonColor)).Margin(40),
-		ui.Center(s.bridges.Window()),
+			a.cameras.New(a.topography.Views(topography.Isometrically), camera.Config{}),
+			m.picture())).Input(a.players.Through(a.player)),
+		ui.Layer(a.world.Clock().HUD()),
+		ui.BottomMiddle(a.bridges.Reason().Padding(6).Fill(reasonColor)).Margin(40),
+		ui.Center(a.bridges.Window()),
 	)
 }
 

@@ -49,20 +49,20 @@ var (
 )
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
-	s.board.WithAtmosphere(s.atmosphere)
-	unitKind := kind.Named[unitRow](s.world.Kinds(), UnitKind)
-	bridge := s.bridges.Types().Named(BridgeKind)
-	fordKind := kind.Named[fordRow](s.world.Kinds(), FordKind)
+	a := m.arena
+	a.board.WithAtmosphere(a.atmosphere)
+	unitKind := kind.Named[unitRow](a.world.Kinds(), UnitKind)
+	bridge := a.bridges.Types().Named(BridgeKind)
+	fordKind := kind.Named[fordRow](a.world.Kinds(), FordKind)
 
-	worldAtlas := s.world.NewAtlas()
+	worldAtlas := a.world.NewAtlas()
 	worldAtlas.Add(unitKind, EntitySize, render.Solid(unitColor))
 	worldAtlas.Add(bridge.Deck(), CellSize, deck).Lying().Edges(railing)
 	worldAtlas.Add(fordKind, CellSize, stones(0)).Facing(8, stones).Lying()
 	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
+	a.world.WithRenderer(worldAtlas)
 
-	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas := a.board.NewAtlas(CellSize)
 	for name, c := range cellColors {
 		boardAtlas.Add(name, render.Solid(c))
 	}
@@ -71,36 +71,36 @@ func (m *mainScene) picture() render.Picture {
 	}
 	boardAtlas.Add(IceCell, render.Solid(iceColor))
 	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
-	s.board.Res.Render.ShowGridLines = false
+	a.board.WithRenderer(boardAtlas)
+	a.board.Res.Render.ShowGridLines = false
 
-	s.nav.WithRenderer(nil)
-	s.vision.WithViews(render.Show(s.selection.IsSelected))
-	s.vision.WithRenderer(nil)
-	s.selection.WithRenderer(nil)
-	s.bridges.WithRenderer(nil)
+	a.nav.WithRenderer(nil)
+	a.vision.WithViews(render.Show(a.selection.IsSelected))
+	a.vision.WithRenderer(nil)
+	a.selection.WithRenderer(nil)
+	a.bridges.WithRenderer(nil)
 
 	return render.NewComposer(
-		s.atmosphere.Renderer(),
-		s.board.Renderer(),
-		s.world.Renderer(), s.collision.Renderer(),
-		s.atmosphere.Clouds(),
-		s.vision.Renderer(),
-		s.selection.Renderer(),
-		s.nav.Renderer(),
-		s.bridges.Renderer(),
-		s.atmosphere.Precipitation(),
+		a.atmosphere.Renderer(),
+		a.board.Renderer(),
+		a.world.Renderer(), a.collision.Renderer(),
+		a.atmosphere.Clouds(),
+		a.vision.Renderer(),
+		a.selection.Renderer(),
+		a.nav.Renderer(),
+		a.bridges.Renderer(),
+		a.atmosphere.Precipitation(),
 	)
 }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
+	a := m.arena
 	return ui.Layers(
-		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-			Input(s.players.Through(s.player)),
-		ui.Layer(s.world.Clock().HUD()),
-		ui.BottomMiddle(s.bridges.Reason().Padding(6).Fill(reasonColor)).Margin(40),
-		ui.Center(s.bridges.Window()),
+		ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+			Input(a.players.Through(a.player)),
+		ui.Layer(a.world.Clock().HUD()),
+		ui.BottomMiddle(a.bridges.Reason().Padding(6).Fill(reasonColor)).Margin(40),
+		ui.Center(a.bridges.Window()),
 	)
 }
 

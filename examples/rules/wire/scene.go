@@ -39,15 +39,15 @@ const (
 )
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
-	heroKind := kind.Named[unitRow](s.world.Kinds(), HeroKind)
+	a := m.arena
+	heroKind := kind.Named[unitRow](a.world.Kinds(), HeroKind)
 	standing := func(name string) kind.Of[standingRow] {
-		return kind.Named[standingRow](s.world.Kinds(), name)
+		return kind.Named[standingRow](a.world.Kinds(), name)
 	}
-	fx := s.world.Effects()
+	fx := a.world.Effects()
 	lever := render.DecodeSheet("lever.png", leverSheet, leverPixels, leverPixels)
 
-	worldAtlas := s.world.NewAtlas()
+	worldAtlas := a.world.NewAtlas()
 	worldAtlas.Add(standing(TrapdoorKind), CellSize, render.Solid(boardsColor)).
 		Under(fx.Named(OpenEf), render.Solid(pitColor))
 	worldAtlas.Add(standing(GateKind), CellSize, render.Solid(gateColor)).
@@ -71,30 +71,30 @@ func (m *mainScene) picture() render.Picture {
 		Under(fx.Named(PullingEf),
 			render.PhasedFacing(heroPullFrames, heroPose(heroPull)))
 	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
+	a.world.WithRenderer(worldAtlas)
 
-	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas := a.board.NewAtlas(CellSize)
 	boardAtlas.Add(GrassCell, render.Solid(grassColor))
 	boardAtlas.Add(PitCell, render.Solid(pitColor))
 	boardAtlas.Add(FenceCell, render.Solid(fenceColor))
 	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
+	a.board.WithRenderer(boardAtlas)
 
-	s.selection.WithRenderer(nil)
+	a.selection.WithRenderer(nil)
 
 	return render.NewComposer(
-		s.board.Renderer(),
-		s.world.Renderer(), s.collision.Renderer(),
-		s.selection.Renderer(),
+		a.board.Renderer(),
+		a.world.Renderer(), a.collision.Renderer(),
+		a.selection.Renderer(),
 	)
 }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
-	feed := render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{Follow: HeroName}),
+	a := m.arena
+	feed := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{Follow: HeroName}),
 		m.picture())
 	return ui.Layers(
-		ui.Image(feed).Input(s.players.Through(s.player)),
-		ui.Label("Space: pull the lever").Under(s.world.Effects().Named(InReachEf)),
+		ui.Image(feed).Input(a.players.Through(a.player)),
+		ui.Label("Space: pull the lever").Under(a.world.Effects().Named(InReachEf)),
 	)
 }

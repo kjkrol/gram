@@ -26,38 +26,38 @@ var (
 )
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
-	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
-	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)
+	a := m.arena
+	redKind := kind.Named[unitRow](a.world.Kinds(), RedKind)
+	blueKind := kind.Named[unitRow](a.world.Kinds(), BlueKind)
 
 	worldAtlas := render.NewAtlas()
 	worldAtlas.Add(redKind, EntitySize, render.Solid(redColor))
 	worldAtlas.Add(blueKind, EntitySize, render.Solid(blueColor))
 	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
+	a.world.WithRenderer(worldAtlas)
 
-	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas := a.board.NewAtlas(CellSize)
 	boardAtlas.Add(GrassCell, render.Solid(grassColor))
 	boardAtlas.Add(WallCell, render.Solid(wallColor))
 	boardAtlas.Add(RoadCell, render.Solid(roadColor))
 	boardAtlas.Add(HoleCell, render.Solid(holeColor))
 	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
+	a.board.WithRenderer(boardAtlas)
 
-	s.nav.WithRenderer(nil)
+	a.nav.WithRenderer(nil)
 
-	s.selection.WithRenderer(nil)
+	a.selection.WithRenderer(nil)
 
 	return render.NewComposer(
-		s.board.Renderer(),
-		s.world.Renderer(), s.collision.Renderer(),
-		s.selection.Renderer(),
-		s.nav.Renderer(),
+		a.board.Renderer(),
+		a.world.Renderer(), a.collision.Renderer(),
+		a.selection.Renderer(),
+		a.nav.Renderer(),
 	)
 }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
-	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-		Input(s.players.Through(s.player))
+	a := m.arena
+	return ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+		Input(a.players.Through(a.player))
 }

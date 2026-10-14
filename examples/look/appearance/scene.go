@@ -27,27 +27,27 @@ var (
 )
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
-	s.world.WithRenderer(s.looks())
-	return render.NewComposer(s.world.Renderer(), s.collision.Renderer())
+	a := m.arena
+	a.world.WithRenderer(a.looks())
+	return render.NewComposer(a.world.Renderer(), a.collision.Renderer())
 }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
+	a := m.arena
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
-		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-			Input(s.players.Through(s.player)),
+		ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+			Input(a.players.Through(a.player)),
 	)
 }
 
-func (s *arena) looks() *world.Atlas {
-	walkerKind := kind.Named[walker](s.world.Kinds(), WalkerKind)
-	ghostKind := kind.Named[walker](s.world.Kinds(), GhostKind)
-	leaderKind := kind.Named[walker](s.world.Kinds(), LeaderKind)
-	angry := s.world.Effects().Named(AngryEf)
+func (a *arena) looks() *world.Atlas {
+	walkerKind := kind.Named[walker](a.world.Kinds(), WalkerKind)
+	ghostKind := kind.Named[walker](a.world.Kinds(), GhostKind)
+	leaderKind := kind.Named[walker](a.world.Kinds(), LeaderKind)
+	angry := a.world.Effects().Named(AngryEf)
 
-	atlas := s.world.NewAtlas()
+	atlas := a.world.NewAtlas()
 	// a walker is the figure, stepping the way it goes; angry, it stamps
 	atlas.Add(walkerKind, heroHeight, heroStanding(0)).
 		Facing(heroWays, heroStanding).

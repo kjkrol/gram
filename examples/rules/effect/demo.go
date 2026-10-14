@@ -91,28 +91,28 @@ func main() {
 	gram.Run(game.New(props, mainStage))
 }
 
-func (s *arena) makePlugins(w *world.Plugin) {
-	s.world = w
-	s.collision = collision.NewPlugin(s.world)
+func (a *arena) makePlugins(w *world.Plugin) {
+	a.world = w
+	a.collision = collision.NewPlugin(a.world)
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
-		WithCollision(s.collision).
+	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).
+		WithCollision(a.collision).
 		WithLog(log.Default())
-	s.selection = selection.NewPlugin(s.world)
-	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
-		WithCollision(s.collision)
-	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.collision, s.cameras, s.board, s.selection, s.nav, s.driving)
+	a.selection = selection.NewPlugin(a.world)
+	a.driving = driving.NewPlugin(a.world, a.selection).WithGround(a.board)
+	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
+		WithCollision(a.collision)
+	a.cameras = cameras.NewPlugin(a.world)
+	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection, a.nav, a.driving)
 }
 
-func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player")
-	return s.player.Bind(s.players.Defaults()...)
+func (a *arena) definePlayer() error {
+	a.player = a.players.Local("player")
+	return a.player.Bind(a.players.Defaults()...)
 }
 
-func (s *arena) defineEffects() {
-	effects := s.world.Effects()
+func (a *arena) defineEffects() {
+	effects := a.world.Effects()
 	effects.Define(FrostEf, effect.Spec{
 		effect.Described("Land under snow: slower, and the witch's own ground."),
 		effect.Lasts(5 * time.Second),
@@ -142,12 +142,12 @@ func (s *arena) defineEffects() {
 	})
 }
 
-func (s *arena) defineRoles() {
-	effects := s.world.Effects()
+func (a *arena) defineRoles() {
+	effects := a.world.Effects()
 	frost, iced := effects.Named(FrostEf), effects.Named(IcedEf)
 	frozen, slip := effects.Named(FrozenEf), effects.Named(SlipEf)
 
-	roles := s.world.Roles()
+	roles := a.world.Roles()
 	roles.Define(LakeRole)
 	roles.Define(WitchRole, act.Branch[unit.Standing]{
 		Name: "freeze",
@@ -181,13 +181,13 @@ func (s *arena) defineRoles() {
 	)
 }
 
-func (s *arena) defineCommands() {
-	s.world.Commands().Define(FreezeCmd,
-		ceremony.Put(s.world.Effects().Named(FrozenEf)).On(s.selection.Pointed()).For(3*time.Second))
+func (a *arena) defineCommands() {
+	a.world.Commands().Define(FreezeCmd,
+		ceremony.Put(a.world.Effects().Named(FrozenEf)).On(a.selection.Pointed()).For(3*time.Second))
 }
 
-func (s *arena) defineCells() {
-	kinds := s.board.CellKinds()
+func (a *arena) defineCells() {
+	kinds := a.board.CellKinds()
 	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
 	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water})
 }
@@ -197,10 +197,10 @@ type unitRow struct {
 	Target cell.ID `yaml:"target"`
 }
 
-func (s *arena) defineKinds() {
-	brd := s.board.Board()
+func (a *arena) defineKinds() {
+	brd := a.board.Board()
 	units := board.NewUnits[unitRow](
-		s.board,
+		a.board,
 		board.Shape{Size: EntitySize},
 		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
@@ -216,7 +216,7 @@ func (s *arena) defineKinds() {
 	order := comp.Load(
 		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.Target} },
 	)
-	roles := s.world.Roles()
+	roles := a.world.Roles()
 	units.Define(
 		WitchKind,
 		unit.Mover{Domain: cell.Land | cell.Water | Frost},
@@ -239,36 +239,36 @@ func (s *arena) defineKinds() {
 	)
 }
 
-func (s *arena) bindKeys() error {
-	return s.player.Bind(
+func (a *arena) bindKeys() error {
+	return a.player.Bind(
 		control.Give(control.KeyPress{Key: control.KeyF}, "Freeze the one pointed at",
-			s.world.Commands().Named(FreezeCmd)),
+			a.world.Commands().Named(FreezeCmd)),
 	)
 }
 
-func (s *arena) spawn() error {
-	level, err := s.board.Lay(mapFile, "map.yaml")
+func (a *arena) spawn() error {
+	level, err := a.board.Lay(mapFile, "map.yaml")
 	if err != nil {
 		return err
 	}
 	return board.Spawn[unitRow](level, board.Sides{
-		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{}},
+		PlayerSide: {players.Give{To: a.player.ID}, selection.Allow{}},
 	})
 }
 
-func (s *arena) defineScenes() []game.Scene {
-	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
+func (a *arena) defineScenes() []game.Scene {
+	main := &mainScene{arena: a}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(a.players.Handle)}
 }
 
-func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
-	s.world.RunPlan(ctx, d)
-	s.collision.RunPlan(ctx, d)
-	s.board.RunPlan(ctx, d)
-	s.nav.RunPlan(ctx, d)
-	s.driving.RunPlan(ctx, d)
-	s.selection.RunPlan(ctx, d)
-	s.cameras.RunPlan(ctx, d)
-	s.players.RunPlan(ctx, d)
+func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
+	a.world.RunPlan(ctx, d)
+	a.collision.RunPlan(ctx, d)
+	a.board.RunPlan(ctx, d)
+	a.nav.RunPlan(ctx, d)
+	a.driving.RunPlan(ctx, d)
+	a.selection.RunPlan(ctx, d)
+	a.cameras.RunPlan(ctx, d)
+	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

@@ -7,8 +7,8 @@ import (
 
 var snowable = []string{EarthCell, SandCell, RockCell, ForestCell}
 
-func (s *arena) defineWinterCells() {
-	kinds := s.board.CellKinds()
+func (a *arena) defineWinterCells() {
+	kinds := a.board.CellKinds()
 	for _, name := range snowable {
 		k, _ := kinds.Get(name)
 		kinds.Define(snowyCell(name), k)
@@ -16,7 +16,7 @@ func (s *arena) defineWinterCells() {
 	kinds.Define(IceCell, cell.Kind{Cost: 5, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1))
 }
 
-func (s *arena) defineClimate() weathering.Config {
+func (a *arena) defineClimate() weathering.Config {
 	snowy := map[string]string{}
 	for _, name := range snowable {
 		snowy[name] = snowyCell(name)

@@ -30,12 +30,12 @@ var (
 )
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
-	soldierKind := kind.Named[unitRow](s.world.Kinds(), SoldierKind)
-	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
+	a := m.arena
+	soldierKind := kind.Named[unitRow](a.world.Kinds(), SoldierKind)
+	wandererKind := kind.Named[unitRow](a.world.Kinds(), WandererKind)
 
-	wounded := s.world.Effects().Named(WoundedEf)
-	fuse := s.world.Effects().Named(FuseEf)
+	wounded := a.world.Effects().Named(WoundedEf)
+	fuse := a.world.Effects().Named(FuseEf)
 
 	// authored facing east: the barrel shows where F fires
 	soldier := func(body, barrel color.RGBA) render.SpriteDrawer {
@@ -44,44 +44,44 @@ func (m *mainScene) picture() render.Picture {
 			render.Arrow(0, 3, barrel)(dst, size)
 		}
 	}
-	worldAtlas := s.world.NewAtlas()
+	worldAtlas := a.world.NewAtlas()
 	worldAtlas.Add(soldierKind, EntitySize, soldier(soldierColor, barrelColor)).
 		Under(wounded, soldier(paleColor, barrelColor)).
 		Turning()
 	worldAtlas.Add(wandererKind, EntitySize, render.Solid(wandererColor)).
 		Under(wounded, render.Solid(paleColor))
-	worldAtlas.Add(s.bullet.Shots().Named(RoundKind), 8, render.Arrow(0, 2, roundColor)).
+	worldAtlas.Add(a.bullet.Shots().Named(RoundKind), 8, render.Arrow(0, 2, roundColor)).
 		Turning() // the plugin keeps a shot's heading on its Vel.Dir
-	worldAtlas.Add(s.bullet.Shots().Named(GrenadeKind), 8, render.Dot(3, grenadeColor)).
+	worldAtlas.Add(a.bullet.Shots().Named(GrenadeKind), 8, render.Dot(3, grenadeColor)).
 		Under(fuse, func(dst *render.Canvas, size int) {
 			render.Dot(3, grenadeColor)(dst, size)
 			render.Diamond(sparkColor)(dst, size)
 		})
 	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
+	a.world.WithRenderer(worldAtlas)
 
-	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas := a.board.NewAtlas(CellSize)
 	boardAtlas.Add(GrassCell, render.Solid(grassColor))
 	boardAtlas.Add(RoadCell, render.Solid(roadColor))
 	boardAtlas.Add(WaterCell, render.Solid(waterColor))
 	boardAtlas.Add(WallCell, render.Solid(wallColor))
 	boardAtlas.Add(LowWallCell, render.Solid(lowWallColor))
 	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
+	a.board.WithRenderer(boardAtlas)
 
-	s.nav.WithRenderer(nil)
-	s.selection.WithRenderer(nil)
+	a.nav.WithRenderer(nil)
+	a.selection.WithRenderer(nil)
 
 	return render.NewComposer(
-		s.board.Renderer(),
-		s.world.Renderer(), s.collision.Renderer(),
-		s.selection.Renderer(),
-		s.nav.Renderer(),
+		a.board.Renderer(),
+		a.world.Renderer(), a.collision.Renderer(),
+		a.selection.Renderer(),
+		a.nav.Renderer(),
 	)
 }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
-	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-		Input(s.players.Through(s.player))
+	a := m.arena
+	return ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+		Input(a.players.Through(a.player))
 }

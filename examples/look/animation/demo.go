@@ -84,34 +84,34 @@ func main() {
 	gram.Run(game.New(props, mainStage))
 }
 
-func (s *arena) makePlugins(w *world.Plugin) {
-	s.world = w
-	s.collision = collision.NewPlugin(s.world)
+func (a *arena) makePlugins(w *world.Plugin) {
+	a.world = w
+	a.collision = collision.NewPlugin(a.world)
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
-		WithCollision(s.collision).
+	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).
+		WithCollision(a.collision).
 		WithLog(log.Default())
-	s.selection = selection.NewPlugin(s.world)
-	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
-		WithCollision(s.collision)
-	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.collision, s.cameras, s.board, s.selection, s.nav, s.driving)
+	a.selection = selection.NewPlugin(a.world)
+	a.driving = driving.NewPlugin(a.world, a.selection).WithGround(a.board)
+	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
+		WithCollision(a.collision)
+	a.cameras = cameras.NewPlugin(a.world)
+	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection, a.nav, a.driving)
 }
 
-func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player")
-	return s.player.Bind(s.players.Defaults()...)
+func (a *arena) definePlayer() error {
+	a.player = a.players.Local("player")
+	return a.player.Bind(a.players.Defaults()...)
 }
 
-func (s *arena) defineCells() {
-	s.board.CellKinds().Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
+func (a *arena) defineCells() {
+	a.board.CellKinds().Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
 
-func (s *arena) defineKinds() {
-	brd := s.board.Board()
+func (a *arena) defineKinds() {
+	brd := a.board.Board()
 	units := board.NewUnits[unitRow](
-		s.board,
+		a.board,
 		board.Shape{Size: heroHeight, Width: heroWidth},
 		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
@@ -137,29 +137,29 @@ func (s *arena) defineKinds() {
 	units.Define(HeroKind, unit.Mover{Domain: cell.Land}, profile, round, patrol)
 }
 
-func (s *arena) spawn() error {
-	level, err := s.board.Lay(mapFile, "map.yaml")
+func (a *arena) spawn() error {
+	level, err := a.board.Lay(mapFile, "map.yaml")
 	if err != nil {
 		return err
 	}
 	return board.Spawn[unitRow](level, board.Sides{
-		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{}},
+		PlayerSide: {players.Give{To: a.player.ID}, selection.Allow{}},
 	})
 }
 
-func (s *arena) defineScenes() []game.Scene {
-	m := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
+func (a *arena) defineScenes() []game.Scene {
+	m := &mainScene{arena: a}
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(a.players.Handle)}
 }
 
-func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
-	s.world.RunPlan(ctx, d)
-	s.collision.RunPlan(ctx, d)
-	s.board.RunPlan(ctx, d)
-	s.nav.RunPlan(ctx, d)
-	s.driving.RunPlan(ctx, d)
-	s.selection.RunPlan(ctx, d)
-	s.cameras.RunPlan(ctx, d)
-	s.players.RunPlan(ctx, d)
+func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
+	a.world.RunPlan(ctx, d)
+	a.collision.RunPlan(ctx, d)
+	a.board.RunPlan(ctx, d)
+	a.nav.RunPlan(ctx, d)
+	a.driving.RunPlan(ctx, d)
+	a.selection.RunPlan(ctx, d)
+	a.cameras.RunPlan(ctx, d)
+	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

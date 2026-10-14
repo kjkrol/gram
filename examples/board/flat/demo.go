@@ -98,49 +98,49 @@ func main() {
 	gram.Run(game.New(props, mainStage))
 }
 
-func (s *arena) makePlugins(w *world.Plugin) {
-	s.world = w
-	s.collision = collision.NewPlugin(s.world)
+func (a *arena) makePlugins(w *world.Plugin) {
+	a.world = w
+	a.collision = collision.NewPlugin(a.world)
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
-		WithCollision(s.collision).
+	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).
+		WithCollision(a.collision).
 		WithLog(log.Default())
-	s.bridges = bridges.NewPlugin(s.world, s.board, bridges.Config{
+	a.bridges = bridges.NewPlugin(a.world, a.board, bridges.Config{
 		Rules: site.Rules{Longest: 3},
 	})
-	s.selection = selection.NewPlugin(s.world)
-	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
-		WithCollision(s.collision)
-	s.vision = vision.NewPlugin(s.world).WithBoard(s.board)
-	s.atmosphere = atmosphere.NewPlugin(
-		s.world,
+	a.selection = selection.NewPlugin(a.world)
+	a.driving = driving.NewPlugin(a.world, a.selection).WithGround(a.board)
+	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
+		WithCollision(a.collision)
+	a.vision = vision.NewPlugin(a.world).WithBoard(a.board)
+	a.atmosphere = atmosphere.NewPlugin(
+		a.world,
 		atmosphere.Config{
 			Calendar: calendar.Config{Start: 8 * time.Hour, Season: calendar.Summer},
 			Climate:  climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())},
 		},
-	).WithWeathering(s.board, s.defineClimate())
-	s.cameras = cameras.NewPlugin(s.world)
-	s.telemetry = telemetry.NewPlugin(s.world).With(s.atmosphere.Reporter())
-	s.players = players.NewPlugin(s.world, s.collision, s.cameras, s.board, s.selection, s.nav, s.driving,
-		s.atmosphere, s.vision, s.bridges)
+	).WithWeathering(a.board, a.defineClimate())
+	a.cameras = cameras.NewPlugin(a.world)
+	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter())
+	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection, a.nav, a.driving,
+		a.atmosphere, a.vision, a.bridges)
 }
 
-func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player")
-	return s.player.Bind(s.players.Defaults()...)
+func (a *arena) definePlayer() error {
+	a.player = a.players.Local("player")
+	return a.player.Bind(a.players.Defaults()...)
 }
 
-func (s *arena) defineRules() {
-	s.world.Roles().Define(MortalRole, act.Branch[unit.Standing]{
+func (a *arena) defineRules() {
+	a.world.Roles().Define(MortalRole, act.Branch[unit.Standing]{
 		Name: "drown",
 		When: cond.Self.If(unit.Fallen()),
 		Then: act.Self.Do(world.Despawn{}),
 	})
 }
 
-func (s *arena) defineCells() {
-	kinds := s.board.CellKinds()
+func (a *arena) defineCells() {
+	kinds := a.board.CellKinds()
 	ground := cell.Land | cell.Air
 	wet := cell.Water | cell.Air
 	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: wet})
@@ -152,7 +152,7 @@ func (s *arena) defineCells() {
 	kinds.Define(RiverCell, cell.Kind{Cost: 1, Allows: wet})
 	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: ground, Graded: true})
 	kinds.Define(ForestCell, cell.Kind{Cost: 7.5, Allows: ground, Veil: 0.6}.Costing(cell.Air, 1))
-	s.defineWinterCells()
+	a.defineWinterCells()
 }
 
 type unitRow struct {
@@ -165,10 +165,10 @@ type fordRow struct {
 	Way [2]int  `yaml:"way"`
 }
 
-func (s *arena) defineKinds() {
-	brd := s.board.Board()
+func (a *arena) defineKinds() {
+	brd := a.board.Board()
 	units := board.NewUnits[unitRow](
-		s.board,
+		a.board,
 		board.Shape{Size: EntitySize},
 		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
@@ -191,15 +191,15 @@ func (s *arena) defineKinds() {
 		),
 		comp.Const(world.Eye{Angle: 2 * math.Pi / 5}),
 		comp.Const(vision.SightOutline{}),
-		ceremony.Plays(s.world.Roles().Named(MortalRole)),
+		ceremony.Plays(a.world.Roles().Named(MortalRole)),
 	)
-	s.bridges.Types().Define(BridgeKind, bridges.Spec{
+	a.bridges.Types().Define(BridgeKind, bridges.Spec{
 		Allows: cell.Land,
 		Width:  48,
 		Cost:   1,
 		Rail:   cell.Rail{Keeps: cell.Land},
 	})
-	fords := board.NewEntities(s.board, board.Shape{Size: CellSize},
+	fords := board.NewEntities(a.board, board.Shape{Size: CellSize},
 		func(r fordRow) cell.ID { return r.At })
 	fords.Define(FordKind,
 		comp.Load(func(r fordRow) world.Velocity {
@@ -208,40 +208,40 @@ func (s *arena) defineKinds() {
 		comp.Const(cell.Floor{Allows: cell.Land, Cost: 6.25}))
 }
 
-func (s *arena) spawn() error {
-	level, err := s.board.Lay(mapFile, "map.yaml")
+func (a *arena) spawn() error {
+	level, err := a.board.Lay(mapFile, "map.yaml")
 	if err != nil {
 		return err
 	}
 	if err := board.Spawn[fordRow](level, nil); err != nil {
 		return err
 	}
-	if err := s.bridges.Spawn(level); err != nil {
+	if err := a.bridges.Spawn(level); err != nil {
 		return err
 	}
 	return board.Spawn[unitRow](level, board.Sides{
-		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{Selected: true}},
+		PlayerSide: {players.Give{To: a.player.ID}, selection.Allow{Selected: true}},
 	})
 }
 
-func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	main := &mainScene{arena: s}
+func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
+	main := &mainScene{arena: a}
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).
-		Input(s.players.Handle).
-		Issue(s.players.IssueAs(s.player))}
+		Input(a.players.Handle).
+		Issue(a.players.IssueAs(a.player))}
 }
 
-func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
-	s.bridges.RunPlan(ctx, d)
-	s.world.RunPlan(ctx, d)
-	s.collision.RunPlan(ctx, d)
-	s.board.RunPlan(ctx, d)
-	s.nav.RunPlan(ctx, d)
-	s.driving.RunPlan(ctx, d)
-	s.vision.RunPlan(ctx, d)
-	s.atmosphere.RunPlan(ctx, d)
-	s.selection.RunPlan(ctx, d)
-	s.cameras.RunPlan(ctx, d)
-	s.players.RunPlan(ctx, d)
+func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
+	a.bridges.RunPlan(ctx, d)
+	a.world.RunPlan(ctx, d)
+	a.collision.RunPlan(ctx, d)
+	a.board.RunPlan(ctx, d)
+	a.nav.RunPlan(ctx, d)
+	a.driving.RunPlan(ctx, d)
+	a.vision.RunPlan(ctx, d)
+	a.atmosphere.RunPlan(ctx, d)
+	a.selection.RunPlan(ctx, d)
+	a.cameras.RunPlan(ctx, d)
+	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

@@ -28,15 +28,15 @@ var (
 )
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
+	a := m.arena
 
-	witchKind := kind.Named[unitRow](s.world.Kinds(), WitchKind)
-	walkerKind := kind.Named[unitRow](s.world.Kinds(), WalkerKind)
-	boatKind := kind.Named[unitRow](s.world.Kinds(), BoatKind)
-	effects := s.world.Effects()
+	witchKind := kind.Named[unitRow](a.world.Kinds(), WitchKind)
+	walkerKind := kind.Named[unitRow](a.world.Kinds(), WalkerKind)
+	boatKind := kind.Named[unitRow](a.world.Kinds(), BoatKind)
+	effects := a.world.Effects()
 	frozen := effects.Named(FrozenEf)
 
-	worldAtlas := s.world.NewAtlas()
+	worldAtlas := a.world.NewAtlas()
 	worldAtlas.Add(witchKind, EntitySize, render.Diamond(witchColor)).
 		Under(frozen, render.Diamond(witchFrozenColor))
 	worldAtlas.Add(walkerKind, EntitySize, render.Solid(walkerColor)).
@@ -47,29 +47,29 @@ func (m *mainScene) picture() render.Picture {
 			render.Border(boatRimColor)(dst, size)
 		})
 	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
+	a.world.WithRenderer(worldAtlas)
 
-	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas := a.board.NewAtlas(CellSize)
 	boardAtlas.Add(GrassCell, render.Solid(grassColor)).
 		Under(effects.Named(FrostEf), render.Solid(snowColor))
 	boardAtlas.Add(WaterCell, render.Solid(waterColor)).
 		Under(effects.Named(IcedEf), render.Solid(iceColor))
 	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
+	a.board.WithRenderer(boardAtlas)
 
-	s.nav.WithRenderer(nil)
-	s.selection.WithRenderer(nil)
+	a.nav.WithRenderer(nil)
+	a.selection.WithRenderer(nil)
 
 	return render.NewComposer(
-		s.board.Renderer(),
-		s.world.Renderer(), s.collision.Renderer(),
-		s.selection.Renderer(),
-		s.nav.Renderer(),
+		a.board.Renderer(),
+		a.world.Renderer(), a.collision.Renderer(),
+		a.selection.Renderer(),
+		a.nav.Renderer(),
 	)
 }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
-	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-		Input(s.players.Through(s.player))
+	a := m.arena
+	return ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+		Input(a.players.Through(a.player))
 }

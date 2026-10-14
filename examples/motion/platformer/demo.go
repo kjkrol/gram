@@ -97,29 +97,29 @@ func main() {
 	gram.Run(game.New(props, mainStage))
 }
 
-func (s *arena) makePlugins(w *world.Plugin) {
-	s.world = w
+func (a *arena) makePlugins(w *world.Plugin) {
+	a.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.collision = collision.NewPlugin(s.world)
-	s.gravity = gravity.NewPlugin(s.world, gravity.Config{Pull: gravity.Pull{Y: pull}})
-	s.board = board.NewPlugin(grid, &cell.MultipleOccupancy{}, s.world).WithCollision(s.collision)
-	s.selection = selection.NewPlugin(s.world)
-	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(
-		s.world,
-		s.collision, s.cameras,
-		s.selection,
-		s.driving,
-		s.gravity,
+	a.collision = collision.NewPlugin(a.world)
+	a.gravity = gravity.NewPlugin(a.world, gravity.Config{Pull: gravity.Pull{Y: pull}})
+	a.board = board.NewPlugin(grid, &cell.MultipleOccupancy{}, a.world).WithCollision(a.collision)
+	a.selection = selection.NewPlugin(a.world)
+	a.driving = driving.NewPlugin(a.world, a.selection).WithGround(a.board)
+	a.cameras = cameras.NewPlugin(a.world)
+	a.players = players.NewPlugin(
+		a.world,
+		a.collision, a.cameras,
+		a.selection,
+		a.driving,
+		a.gravity,
 	)
 }
 
-func (s *arena) definePlayers() error {
-	s.player = s.players.Local("player")
+func (a *arena) definePlayers() error {
+	a.player = a.players.Local("player")
 	keys := slices.Concat(
-		s.players.DefaultBindings(),
-		s.world.DefaultBindings(),
+		a.players.DefaultBindings(),
+		a.world.DefaultBindings(),
 		cameras.Keys{Wheel: true}.Bindings(),
 	)
 	walk := []driving.Compass{
@@ -129,37 +129,37 @@ func (s *arena) definePlayers() error {
 	for _, w := range walk {
 		keys = append(keys, w.Bindings()...)
 	}
-	return s.player.Bind(append(keys,
+	return a.player.Bind(append(keys,
 		driving.JumpKey(control.KeyW),
 		driving.JumpKey(control.KeyArrowUp),
 	)...)
 }
 
-func (s *arena) defineEffects() {
-	s.world.Effects().Define(FlippedEf, effect.Spec{
+func (a *arena) defineEffects() {
+	a.world.Effects().Define(FlippedEf, effect.Spec{
 		effect.Alter(func(p *gravity.Pull) { p.Y = -p.Y }),
 	})
-	s.world.Effects().Define(DazedEf, effect.Spec{
+	a.world.Effects().Define(DazedEf, effect.Spec{
 		effect.Lasts(dazeLasts),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed /= 4 }),
 	})
 }
 
-func (s *arena) defineRules() {
-	s.world.Roles().Define(HeroRole, act.Branch[gravity.Landing]{
+func (a *arena) defineRules() {
+	a.world.Roles().Define(HeroRole, act.Branch[gravity.Landing]{
 		Name: "daze",
 		When: cond.Self.If(gravity.HarderThan(hardLanding)),
-		Then: act.Self.Put(s.world.Effects().Named(DazedEf)),
+		Then: act.Self.Put(a.world.Effects().Named(DazedEf)),
 	})
 }
 
-func (s *arena) defineCommands() {
-	flip := ceremony.Toggle(s.world.Effects().Named(FlippedEf)).On(s.gravity)
-	s.world.Commands().Define(FlipCmd, flip)
+func (a *arena) defineCommands() {
+	flip := ceremony.Toggle(a.world.Effects().Named(FlippedEf)).On(a.gravity)
+	a.world.Commands().Define(FlipCmd, flip)
 }
 
-func (s *arena) defineCells() {
-	kinds := s.board.CellKinds()
+func (a *arena) defineCells() {
+	kinds := a.board.CellKinds()
 	kinds.Define(SkyCell, cell.Kind{Cost: 1, Allows: cell.Land})
 	kinds.Define(RockCell, cell.Kind{Solid: true})
 	kinds.Define(LedgeCell, cell.Kind{Solid: true})
@@ -169,54 +169,54 @@ type heroRow struct {
 	Start cell.ID `yaml:"start"`
 }
 
-func (s *arena) defineKinds() {
-	brd := s.board.Board()
+func (a *arena) defineKinds() {
+	brd := a.board.Board()
 	units := board.NewUnits[heroRow](
-		s.board,
+		a.board,
 		board.Shape{Size: HeroSize},
 		func(u heroRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
 	units.Define(HeroKind,
 		unit.Mover{Domain: cell.Land},
 		steering.Steering{MaxSpeed: HeroSpeed, Accel: HeroSpeed * 8, Brake: HeroSpeed * 8},
-		ceremony.Plays(s.world.Roles().Named(HeroRole)),
+		ceremony.Plays(a.world.Roles().Named(HeroRole)),
 		comp.Const(gravity.Body{Leap: leap}),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Mass: 1}),
 	)
 }
 
-func (s *arena) bindKeys() error {
-	return s.player.Bind(control.Give(
+func (a *arena) bindKeys() error {
+	return a.player.Bind(control.Give(
 		control.KeyPress{Key: control.KeyG},
 		"Turn gravity over",
-		s.world.Commands().Named(FlipCmd),
+		a.world.Commands().Named(FlipCmd),
 	))
 }
 
-func (s *arena) spawn() error {
-	level, err := s.board.Lay(mapFile, "map.yaml")
+func (a *arena) spawn() error {
+	level, err := a.board.Lay(mapFile, "map.yaml")
 	if err != nil {
 		return err
 	}
 	return board.Spawn[heroRow](level, board.Sides{
-		PlayerSide: {players.Give{To: s.player.ID}},
+		PlayerSide: {players.Give{To: a.player.ID}},
 	})
 }
 
-func (s *arena) defineScenes() []game.Scene {
-	main := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(s.players.Handle)}
+func (a *arena) defineScenes() []game.Scene {
+	main := &mainScene{arena: a}
+	return []game.Scene{ui.NewScene(MainScene, main.screen()).Input(a.players.Handle)}
 }
 
-func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
-	s.world.RunPlan(ctx, d)
-	s.collision.RunPlan(ctx, d)
-	s.gravity.RunPlan(ctx, d)
-	s.board.RunPlan(ctx, d)
-	s.driving.RunPlan(ctx, d)
-	s.selection.RunPlan(ctx, d)
-	s.cameras.RunPlan(ctx, d)
-	s.players.RunPlan(ctx, d)
+func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
+	a.world.RunPlan(ctx, d)
+	a.collision.RunPlan(ctx, d)
+	a.gravity.RunPlan(ctx, d)
+	a.board.RunPlan(ctx, d)
+	a.driving.RunPlan(ctx, d)
+	a.selection.RunPlan(ctx, d)
+	a.cameras.RunPlan(ctx, d)
+	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

@@ -24,39 +24,39 @@ var (
 )
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
-	scoutKind := kind.Named[unitRow](s.world.Kinds(), ScoutKind)
-	wandererKind := kind.Named[unitRow](s.world.Kinds(), WandererKind)
-	trapdoorKind := kind.Named[standingRow](s.world.Kinds(), TrapdoorKind)
+	a := m.arena
+	scoutKind := kind.Named[unitRow](a.world.Kinds(), ScoutKind)
+	wandererKind := kind.Named[unitRow](a.world.Kinds(), WandererKind)
+	trapdoorKind := kind.Named[standingRow](a.world.Kinds(), TrapdoorKind)
 
-	worldAtlas := s.world.NewAtlas()
+	worldAtlas := a.world.NewAtlas()
 	worldAtlas.Add(trapdoorKind, CellSize, render.Solid(boardsColor)).
-		Under(s.world.Effects().Named(OpenEf), render.Solid(pitColor))
+		Under(a.world.Effects().Named(OpenEf), render.Solid(pitColor))
 	worldAtlas.Add(scoutKind, EntitySize, render.Solid(scoutColor)).
-		Under(s.world.Effects().Named(HasteEf), render.Solid(hasteColor))
+		Under(a.world.Effects().Named(HasteEf), render.Solid(hasteColor))
 	worldAtlas.Add(wandererKind, EntitySize, render.Diamond(wandererColor))
 	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
+	a.world.WithRenderer(worldAtlas)
 
-	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas := a.board.NewAtlas(CellSize)
 	boardAtlas.Add(GrassCell, render.Solid(grassColor))
 	boardAtlas.Add(PitCell, render.Solid(pitColor))
 	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
+	a.board.WithRenderer(boardAtlas)
 
-	s.nav.WithRenderer(nil)
-	s.selection.WithRenderer(nil)
+	a.nav.WithRenderer(nil)
+	a.selection.WithRenderer(nil)
 
 	return render.NewComposer(
-		s.board.Renderer(),
-		s.world.Renderer(), s.collision.Renderer(),
-		s.selection.Renderer(),
-		s.nav.Renderer(),
+		a.board.Renderer(),
+		a.world.Renderer(), a.collision.Renderer(),
+		a.selection.Renderer(),
+		a.nav.Renderer(),
 	)
 }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
-	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-		Input(s.players.Through(s.player))
+	a := m.arena
+	return ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+		Input(a.players.Through(a.player))
 }

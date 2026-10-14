@@ -94,41 +94,41 @@ func main() {
 	gram.Run(game.New(props, mainStage))
 }
 
-func (s *arena) makePlugins(w *world.Plugin) {
-	s.world = w
-	s.collision = collision.NewPlugin(s.world)
+func (a *arena) makePlugins(w *world.Plugin) {
+	a.world = w
+	a.collision = collision.NewPlugin(a.world)
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).WithCollision(s.collision)
-	s.selection = selection.NewPlugin(s.world)
-	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
-		WithCollision(s.collision)
-	s.vision = vision.NewPlugin(s.world)
-	s.dialog = dialog.NewPlugin(s.world, dialog.Config{})
-	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(
-		s.world,
-		s.collision, s.cameras,
-		s.board,
-		s.selection,
-		s.nav,
-		s.driving,
-		s.vision,
-		s.dialog,
+	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).WithCollision(a.collision)
+	a.selection = selection.NewPlugin(a.world)
+	a.driving = driving.NewPlugin(a.world, a.selection).WithGround(a.board)
+	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
+		WithCollision(a.collision)
+	a.vision = vision.NewPlugin(a.world)
+	a.dialog = dialog.NewPlugin(a.world, dialog.Config{})
+	a.cameras = cameras.NewPlugin(a.world)
+	a.players = players.NewPlugin(
+		a.world,
+		a.collision, a.cameras,
+		a.board,
+		a.selection,
+		a.nav,
+		a.driving,
+		a.vision,
+		a.dialog,
 	)
 }
 
-func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player")
-	return s.player.Bind(s.players.Defaults()...)
+func (a *arena) definePlayer() error {
+	a.player = a.players.Local("player")
+	return a.player.Bind(a.players.Defaults()...)
 }
 
-func (s *arena) defineEffects() { s.dialog.DefineEffects() }
+func (a *arena) defineEffects() { a.dialog.DefineEffects() }
 
-func (s *arena) defineRoles() {
-	effects := s.world.Effects()
+func (a *arena) defineRoles() {
+	effects := a.world.Effects()
 	talking, talked := effects.Named(dialog.TalkingEf), effects.Named(dialog.TalkedEf)
-	roles := s.world.Roles()
+	roles := a.world.Roles()
 	roles.Define(TravellerRole)
 	traveller := roles.Named(TravellerRole)
 	roles.Define(HostRole,
@@ -147,7 +147,7 @@ func (s *arena) defineRoles() {
 	)
 }
 
-func (s *arena) defineConversations(d *dialog.Plugin) error {
+func (a *arena) defineConversations(d *dialog.Plugin) error {
 	like := func(by int8) dialog.Change {
 		return dialog.Alter(func(r *Regard, listener uid.UID64) { r.Like(listener, by) })
 	}
@@ -168,8 +168,8 @@ func (s *arena) defineConversations(d *dialog.Plugin) error {
 	return nil
 }
 
-func (s *arena) defineCells() {
-	s.board.CellKinds().Define(MeadowCell, cell.Kind{Cost: 1, Allows: cell.Land})
+func (a *arena) defineCells() {
+	a.board.CellKinds().Define(MeadowCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
 
 type unitRow struct {
@@ -177,10 +177,10 @@ type unitRow struct {
 	Talks string  `yaml:"talks"`
 }
 
-func (s *arena) defineKinds() {
-	brd := s.board.Board()
+func (a *arena) defineKinds() {
+	brd := a.board.Board()
 	units := board.NewUnits[unitRow](
-		s.board,
+		a.board,
 		board.Shape{Size: UnitSize},
 		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
@@ -190,7 +190,7 @@ func (s *arena) defineKinds() {
 		Brake:    UnitSpeed * 6,
 		TurnRate: 0.3,
 	}
-	roles := s.world.Roles()
+	roles := a.world.Roles()
 
 	units.Define(
 		TravellerKind,
@@ -201,38 +201,38 @@ func (s *arena) defineKinds() {
 	units.Define(HostKind, unit.Mover{Domain: cell.Land}, walks, ceremony.Plays(roles.Named(HostRole)),
 		comp.Const(vision.Sight{Facing: geom.NewVec(-1, 0), Radius: CellSize * 2.5}),
 		comp.Const(world.Eye{Angle: math.Pi / 3}), // looking west, the way the traveller comes
-		comp.Load(func(u unitRow) dialog.Script { return s.dialog.Script(u.Talks) }),
+		comp.Load(func(u unitRow) dialog.Script { return a.dialog.Script(u.Talks) }),
 		comp.Const(Regard{}),
 	)
 }
 
-func (s *arena) spawn() error {
-	level, err := s.board.Lay(mapFile, "map.yaml")
+func (a *arena) spawn() error {
+	level, err := a.board.Lay(mapFile, "map.yaml")
 	if err != nil {
 		return err
 	}
 	return board.Spawn[unitRow](level, board.Sides{
-		PlayerSide: {players.Give{To: s.player.ID}, selection.Allow{Selected: true}},
+		PlayerSide: {players.Give{To: a.player.ID}, selection.Allow{Selected: true}},
 	})
 }
 
-func (s *arena) defineScenes() []game.Scene {
-	m := &mainScene{arena: s}
+func (a *arena) defineScenes() []game.Scene {
+	m := &mainScene{arena: a}
 	return []game.Scene{ui.NewScene(MainScene, m.screen()).
-		Input(s.players.Handle).
-		Issue(s.players.IssueAs(s.player))}
+		Input(a.players.Handle).
+		Issue(a.players.IssueAs(a.player))}
 }
 
-func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
-	s.world.RunPlan(ctx, d)
-	s.collision.RunPlan(ctx, d)
-	s.board.RunPlan(ctx, d)
-	s.nav.RunPlan(ctx, d)
-	s.driving.RunPlan(ctx, d)
-	s.vision.RunPlan(ctx, d)
-	s.dialog.RunPlan(ctx, d)
-	s.selection.RunPlan(ctx, d)
-	s.cameras.RunPlan(ctx, d)
-	s.players.RunPlan(ctx, d)
+func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
+	a.world.RunPlan(ctx, d)
+	a.collision.RunPlan(ctx, d)
+	a.board.RunPlan(ctx, d)
+	a.nav.RunPlan(ctx, d)
+	a.driving.RunPlan(ctx, d)
+	a.vision.RunPlan(ctx, d)
+	a.dialog.RunPlan(ctx, d)
+	a.selection.RunPlan(ctx, d)
+	a.cameras.RunPlan(ctx, d)
+	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

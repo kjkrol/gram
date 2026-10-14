@@ -126,15 +126,15 @@ func main() {
 	gram.Run(game.New(props, mainStage))
 }
 
-func (s *arena) makePlugins(w *world.Plugin) {
-	s.world = w
+func (a *arena) makePlugins(w *world.Plugin) {
+	a.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	s.collision = collision.NewPlugin(s.world)
-	s.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, s.world).
-		WithCollision(s.collision).
+	a.collision = collision.NewPlugin(a.world)
+	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).
+		WithCollision(a.collision).
 		WithLog(log.Default())
-	s.gravity = gravity.NewPlugin(s.world, gravity.Config{}).WithSurfaces(s.board.Surfaces)
-	s.topography = topography.NewPlugin(s.world, s.board, topography.Config{
+	a.gravity = gravity.NewPlugin(a.world, gravity.Config{}).WithSurfaces(a.board.Surfaces)
+	a.topography = topography.NewPlugin(a.world, a.board, topography.Config{
 		Cell:        CellSize,
 		HeightUnit:  1,
 		Perspective: true,
@@ -142,20 +142,20 @@ func (s *arena) makePlugins(w *world.Plugin) {
 			Step:    scale.Units(40),
 			MaxStep: scale.Units(160),
 		}})
-	s.bridges = bridges.NewPlugin(s.world, s.board, bridges.Config{Rules: site.Rules{
+	a.bridges = bridges.NewPlugin(a.world, a.board, bridges.Config{Rules: site.Rules{
 		Longest:   3,
 		Under:     figure + deckThickness + scale.Units(1),
 		Clearance: deckThickness + scale.Units(1),
 		Reshape:   scale.Units(200),
 		High:      scale.Units(200),
-	}}).WithShaper(s.topography)
-	s.selection = selection.NewPlugin(s.world)
-	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
-	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
-		WithCollision(s.collision).
+	}}).WithShaper(a.topography)
+	a.selection = selection.NewPlugin(a.world)
+	a.driving = driving.NewPlugin(a.world, a.selection).WithGround(a.board)
+	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
+		WithCollision(a.collision).
 		WithSpacing(navigation.BodySpacing)
-	s.vision = vision.NewPlugin(s.world).WithBoard(s.board).WithFrequency(15)
-	s.atmosphere = atmosphere.NewPlugin(s.world, atmosphere.Config{
+	a.vision = vision.NewPlugin(a.world).WithBoard(a.board).WithFrequency(15)
+	a.atmosphere = atmosphere.NewPlugin(a.world, atmosphere.Config{
 		Calendar: calendar.Config{
 			Start:  18 * time.Hour,
 			Season: calendar.Summer,
@@ -178,49 +178,49 @@ func (s *arena) makePlugins(w *world.Plugin) {
 			Moon:       true,
 		},
 	})
-	s.atmosphere.WithWeathering(s.board, s.defineClimate())
-	s.cameras = cameras.NewPlugin(s.world)
-	s.telemetry = telemetry.NewPlugin(s.world).With(s.atmosphere.Reporter())
-	s.players = players.NewPlugin(s.world, s.collision, s.cameras, s.board, s.selection, s.nav, s.driving,
-		s.atmosphere, s.topography, s.vision, s.bridges)
+	a.atmosphere.WithWeathering(a.board, a.defineClimate())
+	a.cameras = cameras.NewPlugin(a.world)
+	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter())
+	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection, a.nav, a.driving,
+		a.atmosphere, a.topography, a.vision, a.bridges)
 }
 
-func (s *arena) definePlayers() error {
-	s.player = s.players.Local("player")
-	s.rival = s.players.Add("rival")
-	return s.player.Bind(s.players.Defaults()...)
+func (a *arena) definePlayers() error {
+	a.player = a.players.Local("player")
+	a.rival = a.players.Add("rival")
+	return a.player.Bind(a.players.Defaults()...)
 }
 
-func (s *arena) defineEffects() {
-	night := s.atmosphere.Calendar().Config().DayRealTime / 2
-	s.world.Effects().Define(BloodMoonEf, effect.Spec{effect.Lasts(night),
+func (a *arena) defineEffects() {
+	night := a.atmosphere.Calendar().Config().DayRealTime / 2
+	a.world.Effects().Define(BloodMoonEf, effect.Spec{effect.Lasts(night),
 		effect.Alter(func(m *sky.Moon) {
 			m.Color, m.Face = render.Light{1, 0.25, 0.2}, render.Light{1, 0.3, 0.25}
 			m.Strength *= 2
 		})})
 }
 
-func (s *arena) defineRules() {
-	s.world.Roles().Define(MortalRole, act.Branch[unit.Standing]{
+func (a *arena) defineRules() {
+	a.world.Roles().Define(MortalRole, act.Branch[unit.Standing]{
 		Name: "drown",
 		When: cond.Self.If(unit.Fallen()),
 		Then: act.Self.Do(world.Despawn{}),
 	})
-	s.world.Roles().Define(LunarRole, act.Branch[sky.Moonrise]{
+	a.world.Roles().Define(LunarRole, act.Branch[sky.Moonrise]{
 		Name: "a blood moon rises",
 		When: cond.Self.If(sky.FullMoon()),
-		Then: act.Self.Put(s.world.Effects().Named(BloodMoonEf)),
+		Then: act.Self.Put(a.world.Effects().Named(BloodMoonEf)),
 	})
-	s.atmosphere.Plays(s.world.Roles().Named(LunarRole))
+	a.atmosphere.Plays(a.world.Roles().Named(LunarRole))
 }
 
-func (s *arena) defineCommands() {
-	bleed := ceremony.Toggle(s.world.Effects().Named(BloodMoonEf)).On(s.atmosphere)
-	s.world.Commands().Define(BleedCmd, bleed)
+func (a *arena) defineCommands() {
+	bleed := ceremony.Toggle(a.world.Effects().Named(BloodMoonEf)).On(a.atmosphere)
+	a.world.Commands().Define(BleedCmd, bleed)
 }
 
-func (s *arena) defineCells() {
-	kinds := s.board.CellKinds()
+func (a *arena) defineCells() {
+	kinds := a.board.CellKinds()
 	ground := cell.Land | cell.Air
 	wet := cell.Water | cell.Air
 	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: wet})
@@ -237,7 +237,7 @@ func (s *arena) defineCells() {
 		Veil:   0.6,
 		Height: scale.Units(20),
 	}.Costing(cell.Air, 1))
-	s.defineWinterCells()
+	a.defineWinterCells()
 }
 
 type unitRow struct {
@@ -250,10 +250,10 @@ type fordRow struct {
 	Way [2]int  `yaml:"way"`
 }
 
-func (s *arena) defineKinds() {
-	brd := s.board.Board()
+func (a *arena) defineKinds() {
+	brd := a.board.Board()
 	units := board.NewUnits[unitRow](
-		s.board,
+		a.board,
 		board.Shape{Size: scale.Figure(0.6), Height: figure},
 		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
 	)
@@ -274,7 +274,7 @@ func (s *arena) defineKinds() {
 		V0:       unitSpeed / 2,
 		TurnRate: 0.15,
 	}
-	mortal := ceremony.Plays(s.world.Roles().Named(MortalRole))
+	mortal := ceremony.Plays(a.world.Roles().Named(MortalRole))
 	body := comp.Const(gravity.Body{Leap: scale.Figure(1.5)})
 	units.Define(UnitKind, unit.Mover{Domain: cell.Land}, walker,
 		order,
@@ -304,7 +304,7 @@ func (s *arena) defineKinds() {
 		order,
 		sight, eye,
 	)
-	s.bridges.Types().Define(BridgeKind, bridges.Spec{
+	a.bridges.Types().Define(BridgeKind, bridges.Spec{
 		Allows:    cell.Land,
 		Width:     12,
 		Thickness: deckThickness,
@@ -312,7 +312,7 @@ func (s *arena) defineKinds() {
 		Rail:      cell.Rail{Keeps: cell.Land, Height: scale.Figure(1)},
 		Pier:      3,
 	})
-	fords := board.NewEntities(s.board, board.Shape{Size: CellSize, Height: scale.Units(2)},
+	fords := board.NewEntities(a.board, board.Shape{Size: CellSize, Height: scale.Units(2)},
 		func(r fordRow) cell.ID { return r.At })
 	fords.Define(FordKind,
 		comp.Load(func(r fordRow) world.Velocity {
@@ -321,53 +321,53 @@ func (s *arena) defineKinds() {
 		comp.Const(cell.Floor{Allows: cell.Land, Cost: 6.25}))
 }
 
-func (s *arena) bindKeys() error {
-	return s.player.Bind(control.Give(
+func (a *arena) bindKeys() error {
+	return a.player.Bind(control.Give(
 		control.KeyPress{Key: control.KeyM},
 		"Blood moon, on or off",
-		s.world.Commands().Named(BleedCmd),
+		a.world.Commands().Named(BleedCmd),
 	))
 }
 
-func (s *arena) spawn() error {
-	level, err := s.board.Lay(mapFile, "map.yaml")
+func (a *arena) spawn() error {
+	level, err := a.board.Lay(mapFile, "map.yaml")
 	if err != nil {
 		return err
 	}
-	s.topography.Seed(level.Heights())
+	a.topography.Seed(level.Heights())
 	if err := board.Spawn[fordRow](level, nil); err != nil {
 		return err
 	}
-	if err := s.bridges.Spawn(level); err != nil {
+	if err := a.bridges.Spawn(level); err != nil {
 		return err
 	}
 	return board.Spawn[unitRow](level, board.Sides{
-		PlayerSide:  {players.Give{To: s.player.ID}, selection.Allow{Selected: true}},
-		RivalSide:   {players.Give{To: s.rival.ID}, selection.Allow{}},
-		ReserveSide: {players.Give{To: s.player.ID}, selection.Allow{}},
+		PlayerSide:  {players.Give{To: a.player.ID}, selection.Allow{Selected: true}},
+		RivalSide:   {players.Give{To: a.rival.ID}, selection.Allow{}},
+		ReserveSide: {players.Give{To: a.player.ID}, selection.Allow{}},
 	})
 }
 
-func (s *arena) defineScenes(ctx game.Initializer) []game.Scene {
-	main := &mainScene{arena: s}
+func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
+	main := &mainScene{arena: a}
 	return []game.Scene{ui.NewScene(MainScene, main.screen()).
-		Input(s.players.Handle).
-		Issue(s.players.IssueAs(s.player))}
+		Input(a.players.Handle).
+		Issue(a.players.IssueAs(a.player))}
 }
 
-func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
-	s.bridges.RunPlan(ctx, d)
-	s.world.RunPlan(ctx, d)
-	s.collision.RunPlan(ctx, d)
-	s.gravity.RunPlan(ctx, d)
-	s.board.RunPlan(ctx, d)
-	s.nav.RunPlan(ctx, d)
-	s.driving.RunPlan(ctx, d)
-	s.vision.RunPlan(ctx, d)
-	s.atmosphere.RunPlan(ctx, d)
-	s.selection.RunPlan(ctx, d)
-	s.topography.RunPlan(ctx, d)
-	s.cameras.RunPlan(ctx, d)
-	s.players.RunPlan(ctx, d)
+func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
+	a.bridges.RunPlan(ctx, d)
+	a.world.RunPlan(ctx, d)
+	a.collision.RunPlan(ctx, d)
+	a.gravity.RunPlan(ctx, d)
+	a.board.RunPlan(ctx, d)
+	a.nav.RunPlan(ctx, d)
+	a.driving.RunPlan(ctx, d)
+	a.vision.RunPlan(ctx, d)
+	a.atmosphere.RunPlan(ctx, d)
+	a.selection.RunPlan(ctx, d)
+	a.topography.RunPlan(ctx, d)
+	a.cameras.RunPlan(ctx, d)
+	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

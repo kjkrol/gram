@@ -20,26 +20,26 @@ var (
 )
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
-	wardKind := kind.Named[wardRow](s.world.Kinds(), WardKind)
-	calm := s.world.Effects().Named(CalmEf)
+	a := m.arena
+	wardKind := kind.Named[wardRow](a.world.Kinds(), WardKind)
+	calm := a.world.Effects().Named(CalmEf)
 
-	worldAtlas := s.world.NewAtlas()
+	worldAtlas := a.world.NewAtlas()
 	worldAtlas.Add(wardKind, WardPx, wardMaterial).
 		Under(calm, render.Dot(8, ashColor))
 	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
+	a.world.WithRenderer(worldAtlas)
 
-	boardAtlas := s.board.NewAtlas(CellSize)
+	boardAtlas := a.board.NewAtlas(CellSize)
 	boardAtlas.Add(GrassCell, render.Solid(grassColor))
 	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
+	a.board.WithRenderer(boardAtlas)
 
-	return render.NewComposer(s.board.Renderer(), s.world.Renderer())
+	return render.NewComposer(a.board.Renderer(), a.world.Renderer())
 }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
-	return ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-		Input(s.players.Through(s.player))
+	a := m.arena
+	return ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+		Input(a.players.Through(a.player))
 }

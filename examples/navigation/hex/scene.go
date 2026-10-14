@@ -27,47 +27,47 @@ var (
 )
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
-	redKind := kind.Named[unitRow](s.world.Kinds(), RedKind)
-	blueKind := kind.Named[unitRow](s.world.Kinds(), BlueKind)
+	a := m.arena
+	redKind := kind.Named[unitRow](a.world.Kinds(), RedKind)
+	blueKind := kind.Named[unitRow](a.world.Kinds(), BlueKind)
 
-	bridge := s.bridges.Types().Named(BridgeKind)
+	bridge := a.bridges.Types().Named(BridgeKind)
 
-	worldAtlas := s.world.NewAtlas()
+	worldAtlas := a.world.NewAtlas()
 	worldAtlas.Add(redKind, EntitySize, render.Diamond(redColor))
 	worldAtlas.Add(blueKind, EntitySize, render.Diamond(blueColor))
 	worldAtlas.Add(bridge.Deck(), 2*HexSize, deck).Lying().Edges(railing)
 	worldAtlas.Close()
-	s.world.WithRenderer(worldAtlas)
+	a.world.WithRenderer(worldAtlas)
 
-	boardAtlas := s.board.NewAtlas(2 * HexSize)
+	boardAtlas := a.board.NewAtlas(2 * HexSize)
 	boardAtlas.Add(GrassCell, render.Hexagon(grassColor))
 	boardAtlas.Add(WaterCell, render.Hexagon(waterColor))
 	boardAtlas.Add(RoadCell, render.Hexagon(roadColor))
 	boardAtlas.Close()
-	s.board.WithRenderer(boardAtlas)
+	a.board.WithRenderer(boardAtlas)
 
-	s.nav.WithRenderer(nil)
+	a.nav.WithRenderer(nil)
 
-	s.selection.WithRenderer(nil)
-	s.bridges.WithRenderer(nil)
+	a.selection.WithRenderer(nil)
+	a.bridges.WithRenderer(nil)
 
 	return render.NewComposer(
-		s.board.Renderer(),
-		s.world.Renderer(), s.collision.Renderer(),
-		s.selection.Renderer(),
-		s.nav.Renderer(),
-		s.bridges.Renderer(),
+		a.board.Renderer(),
+		a.world.Renderer(), a.collision.Renderer(),
+		a.selection.Renderer(),
+		a.nav.Renderer(),
+		a.bridges.Renderer(),
 	)
 }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
+	a := m.arena
 	return ui.Layers(
-		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-			Input(s.players.Through(s.player)),
-		ui.BottomMiddle(s.bridges.Reason().Padding(6)).Margin(40),
-		ui.Center(s.bridges.Window()),
+		ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+			Input(a.players.Through(a.player)),
+		ui.BottomMiddle(a.bridges.Reason().Padding(6)).Margin(40),
+		ui.Center(a.bridges.Window()),
 	)
 }
 

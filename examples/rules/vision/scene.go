@@ -21,26 +21,26 @@ var (
 )
 
 func (m *mainScene) picture() render.Picture {
-	s := m.arena
-	preyKind := kind.Named[body](s.world.Kinds(), PreyKind)
-	hunterKind := kind.Named[body](s.world.Kinds(), HunterKind)
+	a := m.arena
+	preyKind := kind.Named[body](a.world.Kinds(), PreyKind)
+	hunterKind := kind.Named[body](a.world.Kinds(), HunterKind)
 
 	atlas := render.NewAtlas()
 	atlas.Add(preyKind, RectSize, render.Solid(preyColor))
 	atlas.Add(hunterKind, RectSize, render.Solid(hunterColor))
 	atlas.Close()
-	s.world.WithRenderer(atlas)
-	s.vision.ShowCones()
-	s.vision.WithRenderer(atlas)
+	a.world.WithRenderer(atlas)
+	a.vision.ShowCones()
+	a.vision.WithRenderer(atlas)
 
-	return render.NewComposer(s.vision.Renderer(), s.world.Renderer(), s.collision.Renderer())
+	return render.NewComposer(a.vision.Renderer(), a.world.Renderer(), a.collision.Renderer())
 }
 
 func (m *mainScene) screen() *ui.Element {
-	s := m.arena
+	a := m.arena
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
-		ui.Image(render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-			Input(s.players.Through(s.player)),
+		ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
+			Input(a.players.Through(a.player)),
 	)
 }

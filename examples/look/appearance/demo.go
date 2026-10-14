@@ -81,33 +81,33 @@ func main() {
 	gram.Run(game.New(props, mainStage))
 }
 
-func (s *arena) makePlugins(w *world.Plugin) {
-	s.world = w
-	s.collision = collision.NewPlugin(s.world)
-	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.collision, s.cameras)
+func (a *arena) makePlugins(w *world.Plugin) {
+	a.world = w
+	a.collision = collision.NewPlugin(a.world)
+	a.cameras = cameras.NewPlugin(a.world)
+	a.players = players.NewPlugin(a.world, a.collision, a.cameras)
 }
 
-func (s *arena) definePlayer() error {
-	s.player = s.players.Local("player")
-	return s.player.Bind(s.players.Defaults()...)
+func (a *arena) definePlayer() error {
+	a.player = a.players.Local("player")
+	return a.player.Bind(a.players.Defaults()...)
 }
 
-func (s *arena) defineEffects() {
-	s.world.Effects().Define(RageEf, effect.Spec{effect.Lasts(rageFor)})
-	s.world.Effects().Define(AngryEf, effect.Spec{})
+func (a *arena) defineEffects() {
+	a.world.Effects().Define(RageEf, effect.Spec{effect.Lasts(rageFor)})
+	a.world.Effects().Define(AngryEf, effect.Spec{})
 }
 
-func (s *arena) defineRules() {
-	s.world.Roles().Define(MoodyRole, act.Branch[world.Moving]{
+func (a *arena) defineRules() {
+	a.world.Roles().Define(MoodyRole, act.Branch[world.Moving]{
 		Name: "rage spreads",
-		When: cond.On(s.world).If(s.world.Effects().Named(RageEf)),
-		Then: act.Self.Hold(s.world.Effects().Named(AngryEf)),
+		When: cond.On(a.world).If(a.world.Effects().Named(RageEf)),
+		Then: act.Self.Hold(a.world.Effects().Named(AngryEf)),
 	})
 }
 
-func (s *arena) defineCommands() {
-	s.world.Commands().Define(RageCmd, ceremony.Put(s.world.Effects().Named(RageEf)).On(ceremony.World))
+func (a *arena) defineCommands() {
+	a.world.Commands().Define(RageCmd, ceremony.Put(a.world.Effects().Named(RageEf)).On(ceremony.World))
 }
 
 type walker struct {
@@ -116,8 +116,8 @@ type walker struct {
 	vel  world.Velocity
 }
 
-func (s *arena) defineKinds() {
-	kinds := s.world.Kinds()
+func (a *arena) defineKinds() {
+	kinds := a.world.Kinds()
 	spec := kind.Spec{
 		comp.Load(func(w walker) world.Position {
 			top := geom.NewVec(w.at.X-w.w/2, w.at.Y-w.h/2)
@@ -126,21 +126,21 @@ func (s *arena) defineKinds() {
 		comp.Load(func(w walker) world.Velocity { return w.vel }),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Restitution: 1}),
-		ceremony.Plays(s.world.Roles().Named(MoodyRole)),
+		ceremony.Plays(a.world.Roles().Named(MoodyRole)),
 	}
 	kind.Define[walker](kinds, WalkerKind, spec)
 	kind.Define[walker](kinds, GhostKind, spec)
 	kind.Define[walker](kinds, LeaderKind, spec)
 }
 
-func (s *arena) bindKeys() error {
-	return s.player.Bind(
+func (a *arena) bindKeys() error {
+	return a.player.Bind(
 		control.Give(control.KeyPress{Key: control.KeyR}, "Make everyone angry for a while",
-			s.world.Commands().Named(RageCmd)),
+			a.world.Commands().Named(RageCmd)),
 	)
 }
 
-func (s *arena) spawnUnits() {
+func (a *arena) spawnUnits() {
 	total := Walkers + Ghosts + Leaders
 	placement := world.NewGridPlacement(ScreenWidth, ScreenHeight, Size)
 	ways := [4]geom.Vec{
@@ -149,9 +149,9 @@ func (s *arena) spawnUnits() {
 		geom.NewVec(0, 1),
 		geom.NewVec(0, -1),
 	}
-	leaderKind := kind.Named[walker](s.world.Kinds(), LeaderKind)
-	ghostKind := kind.Named[walker](s.world.Kinds(), GhostKind)
-	walkerKind := kind.Named[walker](s.world.Kinds(), WalkerKind)
+	leaderKind := kind.Named[walker](a.world.Kinds(), LeaderKind)
+	ghostKind := kind.Named[walker](a.world.Kinds(), GhostKind)
+	walkerKind := kind.Named[walker](a.world.Kinds(), WalkerKind)
 	entries := make([]kind.Entry, total)
 	for i := range entries {
 		w := walker{
@@ -169,18 +169,18 @@ func (s *arena) spawnUnits() {
 			entries[i] = walkerKind.Entry(w)
 		}
 	}
-	s.world.Seed(entries...)
+	a.world.Seed(entries...)
 }
 
-func (s *arena) defineScenes() []game.Scene {
-	m := &mainScene{arena: s}
-	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(s.players.Handle)}
+func (a *arena) defineScenes() []game.Scene {
+	m := &mainScene{arena: a}
+	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(a.players.Handle)}
 }
 
-func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
-	s.world.RunPlan(ctx, d)
-	s.collision.RunPlan(ctx, d)
-	s.cameras.RunPlan(ctx, d)
-	s.players.RunPlan(ctx, d)
+func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
+	a.world.RunPlan(ctx, d)
+	a.collision.RunPlan(ctx, d)
+	a.cameras.RunPlan(ctx, d)
+	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }
