@@ -73,6 +73,7 @@ func main() {
 				MinSize:  leverSize,
 				MaxSize:  CellSize,
 			},
+			Heights: true,
 		}).
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).

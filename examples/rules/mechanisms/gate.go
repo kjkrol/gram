@@ -25,7 +25,9 @@ func (gate) Effects(b *board.Plugin) {
 
 func (gate) Define(b *board.Plugin) {
 	board.NewEntities(b, board.Shape{Size: CellSize}, standingAt).Define(GateKind,
-		comp.Const(cell.Wall{Keeps: cell.Land}))
+		comp.Const(cell.Wall{Keeps: cell.Land}),
+		// its top spans the gateway over the hero's head: he passes under it
+		comp.Const(world.Z{Altitude: heroHeight, Height: CellSize / 4}))
 }
 
 func (gate) Look(a *world.Atlas, w *world.Plugin) {

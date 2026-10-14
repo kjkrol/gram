@@ -57,7 +57,11 @@ everything below `Marks` back to front by depth (ties by tier, then arrival). On
 A `render.Direct` source draws with a WGSL shader of its own (`render.NewMeshShaderWith`,
 `Instanced(n)`, depth test and write, `ReadDepth`) at its tier, handed a `render.Target{Screen,
 Depth}` (the frame's shared depth buffer, reversed, cleared as the frame begins) and the
-composer's uniforms: the terrain, the sky, the rain, the world's sprites (`render.Sprites`), the
+composer's uniforms: the terrain, the sky, the rain, the world's sprites (`render.Sprites`: by
+`Layer(depth, under)`, the lower first and at one depth the lying, sorted on buffers kept from
+frame to frame; the world's flat look layers a standing sprite at `Z.Top()` and a lying one at
+its `Altitude`, so seen from above a world with heights draws what is higher over what is lower
+and a flat one, with no `Z`, as it came), the
 views of sight, the routes, the clouds' shadows. A `render.Still` is a frame composed once in
 world units and kept on the GPU (`gpu.Kept`), drawn every frame scaled, moved and lit
 (`gpu.Draw.Place`/`Tint`): the board's flat map. `render.Frame.Time` is the clock's `Shown`

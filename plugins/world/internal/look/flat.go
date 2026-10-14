@@ -12,11 +12,12 @@ import (
 )
 
 // Flat is the world seen from above: a sprite over its box, split where it crosses a wrap seam.
-// Readied for a frame it draws the sprites on the GPU, else it lays them on the frame.
+// Readied for a frame it draws the sprites on the GPU by height, a standing one at its top and a
+// lying one at its Altitude before those standing as high, else it lays them on the frame.
 type Flat struct {
 	worldW, worldH float32
 	quads          []camera.Quad
-	lain, sprites  render.Sprites
+	sprites        render.Sprites
 	direct         bool
 }
 
@@ -25,7 +26,6 @@ func NewFlat(width, height float32) *Flat { return &Flat{worldW: width, worldH: 
 
 // Begin readies the look to gather the frame's sprites for the GPU.
 func (l *Flat) Begin(camera.Camera) {
-	l.lain.Reset()
 	l.sprites.Reset()
 	l.direct = true
 }
@@ -33,42 +33,44 @@ func (l *Flat) Begin(camera.Camera) {
 // DrawSprites draws the sprites gathered since Begin.
 func (l *Flat) DrawSprites(t render.Target, cam camera.Camera, _ render.Uniforms) {
 	if l.direct {
-		l.lain.Draw(t, cam)
 		l.sprites.Draw(t, cam)
 	}
 	l.direct = false
 }
 
-func (l *Flat) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, _ entity.Z, atlas render.AtlasSource, a render.Appearance, light render.Light) {
-	l.lay(f, cam, &l.sprites, render.Objects, box, atlas, a, light)
+func (l *Flat) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z entity.Z,
+	atlas render.AtlasSource, a render.Appearance, light render.Light) {
+	l.sprites.Layer(float32(z.Top()), false)
+	l.lay(f, cam, render.Objects, box, atlas, a, light)
 }
 
-// Lie lays the sprite as Sprite does, under every sprite standing.
-func (l *Flat) Lie(f *render.Frame, cam camera.Camera, box plane.AABB, _ entity.Z,
+// Lie lays the sprite as Sprite does, at its Altitude: under whatever stands higher.
+func (l *Flat) Lie(f *render.Frame, cam camera.Camera, box plane.AABB, z entity.Z,
 	atlas render.AtlasSource, a render.Appearance, light render.Light) {
-	l.lay(f, cam, &l.lain, render.Objects-1, box, atlas, a, light)
+	l.sprites.Layer(float32(z.Altitude), true)
+	l.lay(f, cam, render.Objects-1, box, atlas, a, light)
 }
 
 // Lay lays the sprite over the rectangle lie says and, lie being Edged, the edge sprite along its
 // long sides as strips a tenth of its Width wide.
 func (l *Flat) Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.Vec,
-	lie entity.Lie, _ entity.Z, atlas render.AtlasSource, a render.Appearance,
+	lie entity.Lie, z entity.Z, atlas render.AtlasSource, a render.Appearance,
 	edge render.SpriteID, light render.Light) {
+	l.sprites.Layer(float32(z.Altitude), true)
 	if dir == (geom.Vec{}) {
 		dir = geom.NewVec(1, 0)
 	}
 	a.Angle = float32(math.Atan2(-dir.Y, dir.X) * 180 / math.Pi)
 	m := geom.NewVec(box.TopLeft.X+box.Size.X/2+dir.X*lie.Ahead,
 		box.TopLeft.Y+box.Size.Y/2+dir.Y*lie.Ahead)
-	l.turned(f, cam, &l.lain, render.Objects-1, around(m, lie.Length, lie.Width), atlas, a, light)
+	l.turned(f, cam, render.Objects-1, around(m, lie.Length, lie.Width), atlas, a, light)
 	if !lie.Edged {
 		return
 	}
 	a.SpriteID = edge
 	for _, side := range [2]float64{-1, 1} {
 		at := geom.NewVec(m.X-dir.Y*side*lie.Width/2, m.Y+dir.X*side*lie.Width/2)
-		l.turned(f, cam, &l.lain, render.Objects-1, around(at, lie.Length, lie.Width/10), atlas,
-			a, light)
+		l.turned(f, cam, render.Objects-1, around(at, lie.Length, lie.Width/10), atlas, a, light)
 	}
 }
 
@@ -76,10 +78,10 @@ func around(m geom.Vec, w, h float64) plane.AABB {
 	return plane.NewAABB(geom.NewVec(m.X-w/2, m.Y-h/2), w, h)
 }
 
-func (l *Flat) lay(f *render.Frame, cam camera.Camera, to *render.Sprites, tier render.Tier,
-	box plane.AABB, atlas render.AtlasSource, a render.Appearance, light render.Light) {
+func (l *Flat) lay(f *render.Frame, cam camera.Camera, tier render.Tier, box plane.AABB,
+	atlas render.AtlasSource, a render.Appearance, light render.Light) {
 	if a.Angle != 0 {
-		l.turned(f, cam, to, tier, box, atlas, a, light)
+		l.turned(f, cam, tier, box, atlas, a, light)
 		return
 	}
 	id := a.SpriteID
@@ -90,7 +92,7 @@ func (l *Flat) lay(f *render.Frame, cam camera.Camera, to *render.Sprites, tier 
 		u0, u1 := uvSpan(x1-x0, sizeX, dx)
 		v0, v1 := uvSpan(y1-y0, sizeY, dy)
 		if l.direct {
-			to.Rect(cam, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, light)
+			l.sprites.Rect(cam, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, light)
 		} else {
 			f.SpriteRectUV(tier, 0, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, render.Lit(light))
 		}
@@ -99,13 +101,13 @@ func (l *Flat) lay(f *render.Frame, cam camera.Camera, to *render.Sprites, tier 
 }
 
 // one piece per wrap image, never split across a seam
-func (l *Flat) turned(f *render.Frame, cam camera.Camera, to *render.Sprites, tier render.Tier,
-	box plane.AABB, atlas render.AtlasSource, a render.Appearance, light render.Light) {
+func (l *Flat) turned(f *render.Frame, cam camera.Camera, tier render.Tier, box plane.AABB,
+	atlas render.AtlasSource, a render.Appearance, light render.Light) {
 	rad := a.Angle * math.Pi / 180
 	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
 	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
 	if l.direct {
-		to.Turned(cam, atlas, a.SpriteID, x0, y0, x1, y1, rad, light)
+		l.sprites.Turned(cam, atlas, a.SpriteID, x0, y0, x1, y1, rad, light)
 		return
 	}
 	sx0, sy0, sx1, sy1 := atlas.UV(a.SpriteID)

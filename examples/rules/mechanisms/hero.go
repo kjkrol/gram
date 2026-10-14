@@ -90,7 +90,7 @@ func (hero) Rules(b *board.Plugin) {
 func (hero) Define(b *board.Plugin) {
 	roles := b.World().Roles()
 	units := board.NewUnits[unitRow](b,
-		board.Shape{Size: heroHeight, Width: heroWidth},
+		board.Shape{Size: heroHeight, Width: heroWidth, Height: heroHeight},
 		func(u unitRow) geom.Vec { return b.Board().CellCenter(u.Start) })
 	profile := steering.Steering{
 		MaxSpeed: heroSpeed,
