@@ -92,6 +92,6 @@
 // [Braking]),
 // [Leaving] (every tick an entity is past an open edge). Knobs, for an effect's Alter:
 // render.Appearance, the look's. Commands: [Spawn] (a player's or an entity's own); [Despawn] (an
-// entity's own); [Pause], [Faster], [Slower], [Boxes] (a player's). The clock's moment and the
+// entity's own); [Pause], [Faster], [Slower] (a player's). The clock's moment and the
 // commands about effects (ceremony.Put, Take, Toggle, Trigger) are carried here too.
 package world

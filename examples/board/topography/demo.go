@@ -181,7 +181,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.atmosphere.WithWeathering(s.board, s.defineClimate())
 	s.cameras = cameras.NewPlugin(s.world)
 	s.telemetry = telemetry.NewPlugin(s.world).With(s.atmosphere.Reporter())
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving,
+	s.players = players.NewPlugin(s.world, s.collision, s.cameras, s.board, s.selection, s.nav, s.driving,
 		s.atmosphere, s.topography, s.vision, s.bridges)
 }
 

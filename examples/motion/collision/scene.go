@@ -54,7 +54,7 @@ func (m *mainScene) picture() render.Picture {
 	atlas.Close()
 	s.world.WithRenderer(atlas)
 
-	return render.NewComposer(s.world.Renderer())
+	return render.NewComposer(s.world.Renderer(), s.collision.Renderer())
 }
 
 func (m *mainScene) screen() *ui.Element {

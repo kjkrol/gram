@@ -67,5 +67,7 @@
 // # Vocabulary
 //
 // Moments, for a role's rules: [Meeting] (a pair, host.Met; its word [Facing]), [Struck] (one that
-// struck something the tick before). Knobs, for an effect's Alter: [Physics]. Commands: none.
+// struck something the tick before). Knobs, for an effect's Alter: [Physics]. Commands: [Boxes]
+// (a player's, Shift+X, a look: every entity's box outlined in red by [Plugin.Renderer], a layer
+// for the scene's composer).
 package collision

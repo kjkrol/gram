@@ -45,9 +45,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   steering's `Course`), a `Leaving` and a `clock.Moment` (every step, just
   before the effects' pass). It handles `steering.Away{From}`, `Toward{To}` (`host.Aimed`),
   `Turn{Angle}` (the steering system asks the `Helm`, one a step), the commands about effects,
-  `Pause` (Shift+P), `Faster` (]), `Slower` ([) and `Boxes` (Shift+X: every entity's box
-  outlined in red by `Plugin.BoxesRenderer()`, a layer a scene puts in its composer;
-  `ShowBoxes`, `BoxesShown`; a look, not saved). Every `host.Tick` comes from
+  `Pause` (Shift+P), `Faster` (]) and `Slower` ([). Every `host.Tick` comes from
   `world.Plugin.Tick(d)`: the carrier (`world.Plugin.Carrier()`, the stage's one
   `command.Carrier` for players and entities alike; the engine carries every
   `plugin.CommandHandler` a stage uses), `Time`, `Seed`, `Roles`, `World` (the clock's entity).
@@ -300,7 +298,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `resolve` refines each pair to the segment, `nearest` keeps one contact a step (`Contact.Along`,
   `Sensed`); a swept entity is a sensor, two swept pass through each other; a wrapping world refuses
   it. Counting and logging the contacts is collision's own work (`WithStats(&stats)`, a
-  `collision.ContactStats` with its `Reporter`; `WithLog`). Depends on `world`.
+  `collision.ContactStats` with its `Reporter`; `WithLog`). `Boxes` (Shift+X) outlines every
+  entity's box in red: `Plugin.Renderer()` draws them, so a scene's composer takes it and the
+  game hands the plugin to players. Depends on `world`.
 - **`navigation`** — pathfinding and movement toward a `MoveOrder` across a `board`. The route
   finder is `internal/pathfind` (`Finder`: `Find`, `FindAround`, `NearestFree`), given the unit's
   `pathfind.Body{Feet, Step, Height}`: with heights its nodes are a cell and a level (a deck's or
@@ -499,8 +499,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `vision.Closing()`. The views drawn are every observer's unless `WithViews(render.Show(...))`
   picks some (given in the scene); `Cones{}` (Shift+C) shows and hides them (`ShowCones`,
   `HideCones`, `ConesShown`; not saved). `WithLog`. Depends on `world`.
-- **`bridges`** — bridges built by one set of rules whoever builds them: `bridges.NewPlugin(
-  world, board, Config{Rules site.Rules, Builds})`, `WithShaper(ground.Shaper)` (the topography's
+- **`bridges`** — bridges built by one set of rules whoever builds them: `bridges.NewPlugin( world,
+  board, Config{Rules site.Rules, Builds})`, `WithShaper(ground.Shaper)` (the topography's
   `Flatten`). `bridges/site.Plan(Ground, Rules, from, to, deck)` is where one may stand, pure:
   straight along one of the grid's directions, `Longest` cells, its heads Takes and on no bridge,
   every span's ground `Clearance` under the deck, no higher than `High`, never over or beside
@@ -509,11 +509,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   spans; a `Refusal` says why. Kinds: `Plugin.Types().Define(name, Spec{Allows, Width, Thickness,
   Cost, Rail, Pier})` — the name a level's lines call a bridge by (`bridges.Row{From, To}`),
   `<name>.deck` (`board.NewEntities`: a Graded band) and `<name>.pier` (a still collider, drawn
-  standing); `Type.Deck()`/`Pier()` the atlas's slots. `Plugin.Spawn(level)` in Spawn lays a
-  level's bridges, held to the rules at Populate (an error with the line). A player's: `Tool`,
-  Shift+B, the cursor `Aim`s, a left click `Mark`s each head, right click and Esc drop; `Window()`
-  asks "Build the bridge?", `Reason()` says why not; `Build` levels the heads and spawns the parts
-  at the next step.
+  standing); `Type.Deck()`/`Pier()` the atlas's slots. `Plugin.Spawn(level)` in Spawn lays a level's
+  bridges, held to the rules at Populate (an error with the line). A player's: `Tool`, Shift+B,
+  the cursor `Aim`s, a left click `Mark`s each head, right click and Esc drop; `Window()` asks
+  "Build the bridge?", `Reason()` says why not; `Build` levels the heads and spawns the parts at the
+  next step.
 - **`telemetry`** — the panel in the top-left corner: `telemetry.NewPlugin(w)` with the
   standard lines (FPS, TPS, `Frame` from `render.Spent`, `Entities`, the clock's `Game time`),
   `With(reporters...)` (`render.Reporter`), `Line(label, value)`, `Clear()` — all before the

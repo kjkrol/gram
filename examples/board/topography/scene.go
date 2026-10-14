@@ -106,7 +106,7 @@ func (m *mainScene) picture() render.Picture {
 
 	return render.NewComposer(
 		s.atmosphere.Renderer(), s.board.Renderer(), s.topography.Renderer(),
-		s.world.Renderer(), s.vision.Renderer(), s.selection.Renderer(),
+		s.world.Renderer(), s.collision.Renderer(), s.vision.Renderer(), s.selection.Renderer(),
 		s.nav.Renderer(), s.bridges.Renderer(), s.atmosphere.Precipitation())
 }
 

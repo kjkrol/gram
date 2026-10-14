@@ -94,7 +94,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.collision = collision.NewPlugin(s.world).WithStats(&s.collisionStats)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.telemetry = telemetry.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras)
+	s.players = players.NewPlugin(s.world, s.collision, s.cameras)
 }
 
 func (s *arena) definePlayer() error {

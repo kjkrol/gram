@@ -83,7 +83,7 @@ func (m *mainScene) picture() render.Picture {
 	return render.NewComposer(
 		s.atmosphere.Renderer(),
 		s.board.Renderer(),
-		s.world.Renderer(),
+		s.world.Renderer(), s.collision.Renderer(),
 		s.atmosphere.Clouds(),
 		s.vision.Renderer(),
 		s.selection.Renderer(),

@@ -19,6 +19,12 @@ Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
   front of a unit, the way it faces, beside `Around(n)`; `unit.Standing` carries its `Heading`
   and is `host.Headed`, the board filling `Tick.Ahead` (the grid's direction nearest the
   heading, stopping at the edge; a cell faces nowhere, so a `cell.Now` refuses it).
+- The entities' boxes (Shift+X) are collision's: `collision.Boxes`, `Plugin.ShowBoxes`,
+  `BoxesShown`, drawn by `collision.Plugin.Renderer()`, which every demo with collision has in
+  its composer and whose plugin it hands to players, so the key works everywhere (`world.Boxes`
+  and `BoxesRenderer` are gone). The list of shortcuts puts a
+  key under the plugin whose defaults gave it (the bridge tool's `control.Take` is carried by
+  players and was listed under "General").
 - The wire demo's hero is bored in a round: still 5 s he is bored (`BoredEf`), and bored he
   goes round the stages his plan (`plan.New`) puts on and takes off — 5 s blinking
   (`BlinkingEf`), 5 s stamping a foot now and then (`StampingEf`; a series of three quick

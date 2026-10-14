@@ -133,7 +133,7 @@ func (s *Shortcuts) groups() []group {
 				continue
 			}
 			seen[key+" "+b.Label] = true
-			switch h := s.p.handlerOf(b.Type()); {
+			switch h := s.p.originOf(b); {
 			case pl.own[i]:
 				own.add(key, b.Label)
 			case h == plugin.CommandHandler(s.p) || h == nil:

@@ -44,7 +44,7 @@ func (m *mainScene) picture() render.Picture {
 	boardAtlas.Close()
 	s.board.WithRenderer(boardAtlas)
 
-	return render.NewComposer(s.board.Renderer(), s.world.Renderer())
+	return render.NewComposer(s.board.Renderer(), s.world.Renderer(), s.collision.Renderer())
 }
 
 func (m *mainScene) screen() *ui.Element {

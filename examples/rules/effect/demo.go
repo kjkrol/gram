@@ -103,7 +103,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.nav = navigation.NewPlugin(s.board, s.world, s.selection, s.driving).
 		WithCollision(s.collision)
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.selection, s.nav, s.driving)
+	s.players = players.NewPlugin(s.world, s.collision, s.cameras, s.board, s.selection, s.nav, s.driving)
 }
 
 func (s *arena) definePlayer() error {

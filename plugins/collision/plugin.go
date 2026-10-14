@@ -4,6 +4,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
@@ -25,9 +26,13 @@ type Plugin struct {
 	field    Field
 	stats    *ContactStats
 	log      *log.Logger
+
+	boxes     command.Queue[Boxes]
+	boxesView *boxesView
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
+var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // NewPlugin builds the collision plugin over worldPlugin's space.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
@@ -35,6 +40,7 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	worldPlugin.Roster().Unit.Default(comp.Const(Physics{}))
 	p := &Plugin{worldPlugin: worldPlugin}
 	p.Self = world.NewSelf(worldPlugin, p)
+	p.boxesView = &boxesView{w: worldPlugin}
 	return p
 }
 
@@ -70,13 +76,16 @@ func (p *Plugin) WithField(f Field) *Plugin {
 }
 
 // RunPlan runs the collisions in the simulation; call it after the world's RunPlan.
-func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
+func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
+	p.switchBoxes()
+	p.module.RunPlan(ctx, d)
+}
 
-// WithRenderer does nothing: collision draws nothing.
+// WithRenderer does nothing: collision draws from no atlas.
 func (p *Plugin) WithRenderer(render.AtlasSource) {}
 
-// Renderer is nil: collision draws nothing.
-func (p *Plugin) Renderer() render.Layer { return nil }
+// Renderer outlines every entity's box while Boxes shows them (Shift+X), for a scene's composer.
+func (p *Plugin) Renderer() render.Layer { return p.boxesView }
 
 // EventHandler is nil: collision reads no input.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

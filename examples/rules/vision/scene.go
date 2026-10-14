@@ -33,7 +33,7 @@ func (m *mainScene) picture() render.Picture {
 	s.vision.ShowCones()
 	s.vision.WithRenderer(atlas)
 
-	return render.NewComposer(s.vision.Renderer(), s.world.Renderer())
+	return render.NewComposer(s.vision.Renderer(), s.world.Renderer(), s.collision.Renderer())
 }
 
 func (m *mainScene) screen() *ui.Element {

@@ -61,7 +61,7 @@ func (m *mainScene) picture() render.Picture {
 	return render.NewComposer(
 		s.topography.Renderer(),
 		s.board.Renderer(),
-		s.world.Renderer(),
+		s.world.Renderer(), s.collision.Renderer(),
 		s.vision.Renderer(),
 		s.selection.Renderer(),
 		s.nav.Renderer(),

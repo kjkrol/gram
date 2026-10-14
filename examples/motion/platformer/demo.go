@@ -108,7 +108,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(
 		s.world,
-		s.cameras,
+		s.collision, s.cameras,
 		s.selection,
 		s.driving,
 		s.gravity,

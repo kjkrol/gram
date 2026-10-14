@@ -24,16 +24,11 @@ type Faster struct{}
 // Slower lowers the tempo of the simulation a notch. [ by default.
 type Slower struct{}
 
-// Boxes shows every entity's box as a red outline over the picture, or hides them: a look for
-// finding out why things touch or miss, not saved. Shift+X by default.
-type Boxes struct{}
-
 func (Despawn) Command() {}
 func (Spawn) Command()   {}
 func (Pause) Command()   {}
 func (Faster) Command()  {}
 func (Slower) Command()  {}
-func (Boxes) Command()   {}
 
 var (
 	_ command.Command = Despawn{}
@@ -41,7 +36,6 @@ var (
 	_ command.Command = Pause{}
 	_ command.Command = Faster{}
 	_ command.Command = Slower{}
-	_ command.Command = Boxes{}
 )
 
 // Queues are the queues of every command the world carries out.
@@ -49,7 +43,7 @@ func (p *Plugin) Queues() []command.CommandQueue {
 	m := p.module
 	q := []command.CommandQueue{
 		&m.pauses, &m.fasters, &m.slowers, &m.spawns, &m.despawns,
-		&m.effectCmds.queue, &m.effectCmds.triggers, &p.boxes,
+		&m.effectCmds.queue, &m.effectCmds.triggers,
 	}
 	return append(q, m.steer.Queues()...)
 }
@@ -61,8 +55,5 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		control.Build(control.KeyPress{Key: control.KeyP, Mods: control.Mods{Shift: true}}, "Pause the game", func(control.Context) (Pause, bool) { return Pause{}, true }),
 		control.Build(control.KeyPress{Key: control.KeyBracketRight}, "Speed the game up", func(control.Context) (Faster, bool) { return Faster{}, true }),
 		control.Build(control.KeyPress{Key: control.KeyBracketLeft}, "Slow the game down", func(control.Context) (Slower, bool) { return Slower{}, true }),
-		control.Build(control.KeyPress{Key: control.KeyX, Mods: control.Mods{Shift: true}},
-			"Show every entity's box, or hide them",
-			func(control.Context) (Boxes, bool) { return Boxes{}, true }),
 	}
 }

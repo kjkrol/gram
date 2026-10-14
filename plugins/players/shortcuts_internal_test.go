@@ -343,3 +343,32 @@ func TestHandle_TheTildeTogglesTheTelemetryPanelUnderGeneral(t *testing.T) {
 		t.Errorf("~ again left %v shown, want the panel hidden", comp.names)
 	}
 }
+
+type toolHandler struct{ takes command.Queue[game.Save] }
+
+func (h *toolHandler) Name() string                   { return "gram.bridges" }
+func (h *toolHandler) Queues() []command.CommandQueue { return nil }
+func (h *toolHandler) DefaultBindings() []control.Binding {
+	return []control.Binding{control.Give(control.KeyPress{Key: control.KeyB,
+		Mods: control.Mods{Shift: true}}, "Build a bridge", game.Save{})}
+}
+
+func TestShortcuts_ListAKeyUnderThePluginWhoseDefaultsGaveIt(t *testing.T) {
+	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
+	if err := w.Carry(&engine{}); err != nil {
+		t.Fatal(err)
+	}
+	p := NewPlugin(w, cameras.NewPlugin(w), &toolHandler{})
+	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
+		t.Fatal(err)
+	}
+	for _, g := range p.shortcuts.groups() {
+		lines := strings.Join(g.lines, "\n")
+		if g.name == "Bridges" && !strings.Contains(lines, "Build a bridge") {
+			t.Errorf("the bridges' lines %q, want Build a bridge among them", lines)
+		}
+		if g.name == "General" && strings.Contains(lines, "Build a bridge") {
+			t.Errorf("the general lines %q list Build a bridge: it is the bridges' key", lines)
+		}
+	}
+}

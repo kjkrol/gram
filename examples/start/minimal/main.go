@@ -82,7 +82,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
 	a.cameras = cameras.NewPlugin(a.world)
 	a.telemetry = telemetry.NewPlugin(a.world)
-	a.players = players.NewPlugin(a.world, a.cameras)
+	a.players = players.NewPlugin(a.world, a.collision, a.cameras)
 }
 
 func (a *arena) definePlayer() error {
@@ -151,5 +151,5 @@ func (m *mainScene) picture() render.Picture {
 	atlas.Add(boxKind, boxSize, render.Solid(boxColor))
 	atlas.Close()
 	a.world.WithRenderer(atlas)
-	return render.NewComposer(a.world.Renderer())
+	return render.NewComposer(a.world.Renderer(), a.collision.Renderer())
 }

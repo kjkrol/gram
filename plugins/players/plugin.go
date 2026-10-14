@@ -31,6 +31,7 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	sections    section.Reader
 	handlers    []plugin.CommandHandler
+	origins     map[string]plugin.CommandHandler
 	players     []*Player
 	listings    command.Queue[ShowShortcuts]
 	panels      command.Queue[telemetry.Panel]
@@ -120,9 +121,28 @@ func (p *Plugin) ByID(id command.Issuer) *Player {
 func (p *Plugin) Defaults() []control.Binding {
 	var out []control.Binding
 	for _, c := range p.handlers {
-		out = append(out, c.DefaultBindings()...)
+		for _, b := range c.DefaultBindings() {
+			p.note(b, c)
+			out = append(out, b)
+		}
 	}
 	return out
+}
+
+// note remembers which handler's defaults a binding came from, for the list of shortcuts
+func (p *Plugin) note(b control.Binding, h plugin.CommandHandler) {
+	if p.origins == nil {
+		p.origins = map[string]plugin.CommandHandler{}
+	}
+	p.origins[Written(b.Trigger)+" "+b.Label] = h
+}
+
+// the handler a binding came from, else the one carrying out its command
+func (p *Plugin) originOf(b control.Binding) plugin.CommandHandler {
+	if h, ok := p.origins[Written(b.Trigger)+" "+b.Label]; ok {
+		return h
+	}
+	return p.handlerOf(b.Type())
 }
 
 // Issue gives cmd as player (nil for Nobody); ErrUnknownCommand when no handler defines its

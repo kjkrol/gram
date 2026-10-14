@@ -114,7 +114,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 	s.selection = selection.NewPlugin(s.world)
 	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board).WithTap(tapFor)
 	s.cameras = cameras.NewPlugin(s.world)
-	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.driving)
+	s.players = players.NewPlugin(s.world, s.collision, s.cameras, s.board, s.driving)
 }
 
 func (s *arena) definePlayer() error {
@@ -126,6 +126,7 @@ func (s *arena) definePlayer() error {
 	return s.player.Bind(slices.Concat(
 		s.players.DefaultBindings(),
 		s.world.DefaultBindings(),
+		s.collision.DefaultBindings(),
 		s.board.DefaultBindings(),
 		view.Bindings(),
 		walk.Bindings(),
