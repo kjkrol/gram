@@ -16,11 +16,17 @@ type mainScene struct {
 var (
 	grassColor = color.RGBA{R: 60, G: 95, B: 60, A: 255}
 	ashColor   = color.RGBA{R: 120, G: 115, B: 110, A: 255}
+	sootColor  = color.RGBA{R: 70, G: 65, B: 60, A: 255}
 )
 
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
-	return render.NewComposer(a.board.Renderer(), a.world.Renderer(), a.cameras.Renderer())
+	return render.NewComposer(
+		a.board.Renderer(),
+		a.world.Renderer(), a.collision.Renderer(), a.cameras.Renderer(),
+		a.selection.Renderer(),
+		a.nav.Renderer(),
+	)
 }
 
 func (m *mainScene) screen() *ui.Element {

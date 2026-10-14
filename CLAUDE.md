@@ -47,8 +47,7 @@ make demo-start-minimal                                         # the README exa
 make demo-start-scenes                                          # a menu Stage and a game Stage
 make demo-start-split-screen                                    # two players at one keyboard, each a block and a camera of its own; a minimap
 make demo-look-animation                                        # a gallery of animations from sheets: walking, braking, bored, pulling, a lever swinging
-make demo-look-material                                         # an entity drawn by a material instead of a sprite; C calms it into a sprite
-make demo-look-ember                                            # procedural animation out of the entity's state; F douses into soot
+make demo-look-material                                         # a ward's material pulsing, embers drawn out of their state circling it; G calms, F douses
 make demo-rules-effect                                          # an ice witch: frost and frozen as effects; J hastens the selected
 make demo-rules-mechanisms                                      # a lever, a plate and a switch driving trapdoors and a gate; one hero on WSAD, the lever pulled by touch (Space)
 make demo-rules-dialog                                          # conversations from YAML: the miller and the smith

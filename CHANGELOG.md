@@ -105,6 +105,9 @@ Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
   sent by a right click, each side outlined and routed in its own colour, sight cut by walls and
   dimmed by forests; the hex one has a river with a bridge its 16 px scouts cross and a wagon of
   22 px goes round by the ford.
+- `look/material` and `look/ember` are one demo, `look/material`: four embers drawn out of their
+  own state circle the ward's pulsing material; G calms the ward (C follows the selected), F
+  douses the embers.
 - The make targets are named after the demos' directories, `demo-<group>-<name>`:
   `make demo-rules-effect`, `make demo-start-minimal`, `make demo-board-flat` (was
   `demo-board`), `make demo-navigation-square` (was `demo-navigation`); each runs

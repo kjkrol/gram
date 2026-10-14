@@ -280,8 +280,7 @@ demo opens a window; what it shows is tested in the library's package that does 
 | Demo | Shows | Run |
 |:---|:---|:---|
 | [`look/animation`](examples/look/animation) | A gallery of animations drawn frame after frame from sheets in game time (Shift+P freezes them), each figure labelled: a walker on a patrol stepping the way it goes in eight directions and braking, an idler bored by stages (blinking, stamping, looking about), a puller's hands on a lever, a lever swinging down and up | `make demo-look-animation` |
-| [`look/material`](examples/look/material) | An entity drawn by a material worked out per pixel in place of a sprite; C calms it into a plain sprite for a while | `make demo-look-material` |
-| [`look/ember`](examples/look/ember) | Procedural animation out of the entity's state: embers breathe standing and stream a tail driven (WSAD); F douses them | `make demo-look-ember` |
+| [`look/material`](examples/look/material) | Materials of the game's own WGSL in place of sprites: a ward pulsing on the clock and four embers circling it, drawn out of their own state, breathing standing and streaming a tail driven (WSAD); G calms the ward and F douses the embers into plain sprites for a while | `make demo-look-material` |
 
 ### Rules: states, rules and commands
 
