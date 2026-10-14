@@ -61,6 +61,31 @@ world units and kept on the GPU (`gpu.Kept`), drawn every frame scaled, moved an
 (`render.Clocked`), so animations move every frame. A plugin adds telemetry lines through a
 `render.Reporter` (`telemetry.NewPlugin(w).With(p.Reporter())`, the telemetry panel).
 
+## The plugins' renderers and `WithRenderer` (facts found in the code, 2026-10-14)
+
+- Only scenes call `plugin.Plugin.WithRenderer(atlas)`; the engine never does. Three kinds of
+  implementor: **needs the atlas** — `world` (applies the atlas's swaps and rules, panics on a
+  bare `render.NewAtlas` for `Looks`) and `board` (panics on nil; sets
+  `Res.Render.ShowGridLines = true` itself, so a scene's `= true` is dead and `= false` is the
+  real option); **ignores it** — `collision`, `atmosphere`, `topography` (`WithRenderer` a no-op,
+  `Renderer()` made by the plugin); **uses it as a construction step only** — `navigation`,
+  `vision`, `selection`, `bridges` (`Renderer()` is nil before `WithRenderer(nil)`): 40
+  `WithRenderer(nil)` calls in the demos are that boilerplate.
+- What each renderer draws is a look of an entity under a state, not of the plugin: navigation
+  the routes and goals of an entity's `MoveOrder` (`WithRouteStyle`, one style for all); vision
+  the cone of an entity's `Sight` (`WithStyle`, `WithShadow`; `WithViews(render.Show(…))` picks
+  whose); selection the outline of the `Selected` tag through `world.Look.Footprint`
+  (`HighlightStyle`, no way for a game to set it today) plus the marquee, a player's gesture;
+  bridges the bridge in hand, a future entity drawn from its deck's slot; collision the boxes.
+- The composer's order matters only on ties within a tier (tier, then depth, then arrival).
+- Decided direction (not done): these customisations become figure-style hooks declared in a
+  figure's `Look` on the world's atlas — looks `Under` a tag as under an effect, per-kind
+  attributes other plugins read (`Sight(style)`, `Route(style)`) — the plugin keeping the
+  algorithm, the figure the style, defaults where a figure says nothing; `WithRenderer` leaves
+  the `plugin.Plugin` contract, renderers without an atlas are made by their plugin. First step:
+  `Under` a tag and the selection's outline; then vision and navigation; the composer gathered
+  from the plugins made (`world.Made()`) is a separate talk (a minimap omits layers).
+
 How things lie on the screen is a plugin's `Look`, swappable: `world.Look` (an entity's sprite,
 where it is picked, its footprint) and `look.Look` (a cell as a `look.Tile`), both flat from above
 by default; the topography sets both for relief. The renderers keep their data and ask the Look

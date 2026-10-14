@@ -76,7 +76,6 @@ func main() {
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).
 		Players(a.definePlayer).
-		Kinds(a.defineBridge).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
 		Update(a.update)
@@ -109,6 +108,7 @@ func (a *arena) definePlayer() error {
 func (a *arena) defineFigures() {
 	a.board.Tiles(tiles()...)
 	a.board.Figures(walker{kind: RedKind, color: redColor}, walker{kind: BlueKind, color: blueColor})
+	a.bridges.Figures(bridge{})
 }
 
 func (a *arena) spawn() error {

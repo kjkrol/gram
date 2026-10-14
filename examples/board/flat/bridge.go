@@ -7,9 +7,13 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// the bridges plugin's kind, no figure: defined in Kinds, looked beside the figures
-func (a *arena) defineBridge() {
-	a.bridges.Types().Define(BridgeKind, bridges.Spec{
+// bridge is a graded deck a cell wide, railed
+type bridge struct{}
+
+var _ bridges.Figure = bridge{}
+
+func (bridge) Define(p *bridges.Plugin) {
+	p.Types().Define(BridgeKind, bridges.Spec{
 		Allows: cell.Land,
 		Width:  48,
 		Cost:   1,
@@ -17,9 +21,8 @@ func (a *arena) defineBridge() {
 	})
 }
 
-func (a *arena) bridgeLook(atlas *world.Atlas) {
-	bridge := a.bridges.Types().Named(BridgeKind)
-	atlas.Add(bridge.Deck(), CellSize, deck).Lying().Edges(railing)
+func (bridge) Look(a *world.Atlas, p *bridges.Plugin) {
+	a.Add(p.Types().Named(BridgeKind).Deck(), CellSize, deck).Lying().Edges(railing)
 }
 
 // authored running east

@@ -29,7 +29,6 @@ func (m *mainScene) picture() render.Picture {
 	a := m.arena
 	worldAtlas := a.world.NewAtlas()
 	worldAtlas.Looks()
-	a.bridgeLook(worldAtlas)
 	worldAtlas.Close()
 	a.world.WithRenderer(worldAtlas)
 

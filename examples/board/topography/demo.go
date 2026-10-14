@@ -106,7 +106,6 @@ func main() {
 		Effects(a.defineEffects).
 		Rules(a.defineRules).
 		Commands(a.defineCommands).
-		Kinds(a.defineBridge).
 		Controls(a.bindKeys).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
@@ -223,6 +222,7 @@ func (a *arena) defineFigures() {
 		hawk{},
 		ford{},
 	)
+	a.bridges.Figures(bridge{})
 }
 
 func (a *arena) bindKeys() error {

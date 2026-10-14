@@ -9,9 +9,13 @@ import (
 
 var deckThickness = scale.Figure(0.2)
 
-// the bridges plugin's kind, no figure: defined in Kinds, looked beside the figures
-func (a *arena) defineBridge() {
-	a.bridges.Types().Define(BridgeKind, bridges.Spec{
+// bridge is a graded deck on piers, railed a metre high
+type bridge struct{}
+
+var _ bridges.Figure = bridge{}
+
+func (bridge) Define(p *bridges.Plugin) {
+	p.Types().Define(BridgeKind, bridges.Spec{
 		Allows:    cell.Land,
 		Width:     12,
 		Thickness: deckThickness,
@@ -21,10 +25,10 @@ func (a *arena) defineBridge() {
 	})
 }
 
-func (a *arena) bridgeLook(atlas *world.Atlas) {
-	bridge := a.bridges.Types().Named(BridgeKind)
-	atlas.Add(bridge.Deck(), CellSize, deck).Lying().Edges(railing)
-	atlas.Add(bridge.Pier(), CellSize, render.Solid(pierColor)).Upright()
+func (bridge) Look(a *world.Atlas, p *bridges.Plugin) {
+	t := p.Types().Named(BridgeKind)
+	a.Add(t.Deck(), CellSize, deck).Lying().Edges(railing)
+	a.Add(t.Pier(), CellSize, render.Solid(pierColor)).Upright()
 }
 
 // authored running east

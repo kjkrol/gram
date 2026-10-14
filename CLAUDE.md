@@ -134,7 +134,8 @@ Decisions the user has made; they are not up for revisiting in passing.
   (`hero.go`, `lever.go`, `tiles.go`) with everything that is its alone: its effects
   (`Effects`), its roles and rules (`Rules`), what it is (`Define`), how it looks (`Look`),
   **asserted beside the type** (`var _ board.Figure = hero{}`, `board.Stateful`, `board.Ruled`,
-  `board.Tile`; `world.Figure` without a board) — the optional parts are found by assertion, so
+  `board.Tile`; `world.Figure` without a board; a plugin with a register of kinds gives its own,
+  `bridges.Figure`, `bullet.Figure`) — the optional parts are found by assertion, so
   only the `var _` says a misspelt `Effects` is noticed.
   The Stage's `Figures` link notes them and runs each part in its section; the scene asks the
   atlas's `Looks()`. The arena's `Effects` and `Rules` keep only what several kinds share (a

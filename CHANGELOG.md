@@ -33,8 +33,12 @@ Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
   `plate.go`, `trapdoor.go`, `gate.go`, `tiles.go`; the arena keeps the mortal role, the
   commands and the map), as is every demo whose kinds are more than coloured balls (collision,
   minimal and scenes keep theirs in `demo.go`): kinds alike are one table of values (the
-  island's `ground` tiles, its `walker{kind, color, ordered}`), a kind of another plugin's
-  register (the bridge, an ammo) stays in `Kinds` in a file of its own; a figure's numbers —
+  island's `ground` tiles, its `walker{kind, color, ordered}`); a plugin with a register of
+  kinds gives its own figure — `bridges.Figure` and `bullet.Figure` (`Define(p)`, `Look(a *world.
+  Atlas, p)`, `Stateful`, `Ruled`), `bridges.Plugin.Figures`/`bullet.Plugin.Figures` noting
+  them among the world's, `World()` on both — so the bridge and the ammo are figures too
+  (topography's, flat's and hex's `bridge.go`, bullet's `round.go` and `grenade.go`) and
+  `Kinds` holds coloured balls alone; a figure's numbers —
   its size, speed, timings — stand beside it, lowercase; the demos' arenas are received as
   `a`, not `s`.
 - The entities' boxes (Shift+X) are collision's: `collision.Boxes`, `Plugin.ShowBoxes`,

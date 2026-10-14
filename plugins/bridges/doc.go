@@ -27,6 +27,14 @@
 // the bridge?": [Build] has it built at the next step of the simulation, its heads levelled on
 // the ground [Plugin.WithShaper] gives, [Cancel] builds nothing.
 //
+// # Figures
+//
+// A [Figure] is a kind of bridge in one piece: Define its Spec on the plugin's Types, Look the
+// looks of its deck and pier on the world's atlas, and, [Stateful] or [Ruled], its own effects
+// and rules. [Plugin.Figures], called in the Stage's Figures link, hands them on to the world's
+// figures, which the Stage leads through its sections; [Plugin.World] is the world they stand
+// in.
+//
 // # Vocabulary
 //
 // Commands, a player's with the bridge tool in hand: [Aim], [Mark], [Build], [Cancel].

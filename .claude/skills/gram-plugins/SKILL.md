@@ -518,8 +518,21 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   spans; a `Refusal` says why. Kinds: `Plugin.Types().Define(name, Spec{Allows, Width, Thickness,
   Cost, Rail, Pier})` — the name a level's lines call a bridge by (`bridges.Row{From, To}`),
   `<name>.deck` (`board.NewEntities`: a Graded band) and `<name>.pier` (a still collider, drawn
-  standing); `Type.Deck()`/`Pier()` the atlas's slots. `Plugin.Spawn(level)` in Spawn lays a level's
-  bridges, held to the rules at Populate (an error with the line). A player's: `Tool`, Shift+B,
+  standing); `Type.Deck()`/`Pier()` the atlas's slots; a kind of bridge in one piece is a
+  `bridges.Figure` (`Define(p)`, `Look(a, p)`; `Stateful`, `Ruled`), noted by `Plugin.Figures`
+  among the world's, `Plugin.World()` the world. The flow of a bridge (`types.go`,
+  `plugin.go`): `Types.Define` registers three kinds — the name itself over `Row{From, To}`,
+  never spawned, only the type the level's line `{kind: bridge, from, to}` is read as; the
+  deck through `board.NewEntities` over the private `deckRow{At, Links, Height, Dir}` with a
+  `cell.Floor` built from the Spec, the `Rail`, the heading, a `Block` in relief; the pier
+  over `pierRow{At, Bottom, Top}` with heights only — each kind getting its `SpriteID` from the
+  world's registry as it is registered (`kinds.Register`), which `Type.Deck()`/`Pier()` hand
+  out empty for the figure's `Look` to fill; `Plugin.Spawn(level)` in Spawn keeps the rows,
+  `Populate` plans each with `site.Plan` and `parts` builds the entries (a deck a cell, a
+  head's `Links` one way, a span's both, a pier between spans), every entity drawn by its
+  kind's slot. The plugin never calls the atlas: the look is the figure's alone.
+  `Plugin.Spawn(level)` in Spawn lays a level's bridges, held to the rules at Populate (an
+  error with the line). A player's: `Tool`, Shift+B,
   the cursor `Aim`s, a left click `Mark`s each head, right click and Esc drop; `Window()` asks
   "Build the bridge?", `Reason()` says why not; `Build` levels the heads and spawns the parts at the
   next step.
@@ -547,7 +560,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   a shot that does not `Lands` lies one more step and is despawned. A landed shot that `Lands` is
   a `Resting` every step; `Burst{Radius}` (an entity's own) has the `burstSystem` dispatch a
   `Blast{Self, Other, Distance}` (`bullet.Within(d)`) per entity within the radius, then despawn
-  it. A wrapping world is refused. A shot is dressed as any entity (`.Turning()` on the ammo's
+  it. A wrapping world is refused. A kind of ammo in one piece is a `bullet.Figure`
+  (`Define(p)`, `Look(a, p)`; `Stateful`, `Ruled`), noted by `Plugin.Figures` among the world's,
+  `Plugin.World()` the world. A shot is dressed as any entity (`.Turning()` on the ammo's
   Slot, the heading kept on `Base.Vel.Dir`). A weapon — ammo, reloading, who carries it — is the
   game's rules and effects. Depends on `world`, `collision`, `selection`, `players/owner`,
   `board/ground`.

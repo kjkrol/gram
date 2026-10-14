@@ -80,7 +80,6 @@ func main() {
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).
 		Players(a.definePlayer).
-		Kinds(a.defineBridge).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
 		Shows(MainScene, telemetry.SceneName).
@@ -125,6 +124,7 @@ func (a *arena) definePlayer() error {
 func (a *arena) defineFigures() {
 	a.board.Tiles(tiles()...)
 	a.board.Figures(walker{}, ford{})
+	a.bridges.Figures(bridge{})
 }
 
 func (a *arena) spawn() error {

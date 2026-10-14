@@ -37,6 +37,13 @@
 // A wrapping world is refused. Shots do not penetrate: the nearest contact ends the flight. A
 // landed shot touches nothing.
 //
+// # Figures
+//
+// A [Figure] is a kind of ammo in one piece: Define its Body on the plugin's Shots, Look its
+// look on the world's atlas, and, [Stateful] or [Ruled], its own effects and rules.
+// [Plugin.Figures], called in the Stage's Figures link, hands them on to the world's figures,
+// which the Stage leads through its sections; [Plugin.World] is the world the shots fly in.
+//
 // # Vocabulary
 //
 // Moments, for a role's rules: [Landing] (a shot landing, its subject what it struck), [Resting] (a

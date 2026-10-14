@@ -78,7 +78,6 @@ func main() {
 		Players(a.definePlayers).
 		Effects(a.defineEffects).
 		Rules(a.defineRules).
-		Kinds(a.defineAmmo).
 		Controls(a.bindKeys).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
@@ -137,12 +136,10 @@ func (a *arena) defineEffects() {
 		effect.Lasts(woundLasts),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed /= 2 }),
 	})
-	a.ammoEffects()
 }
 
 func (a *arena) defineRules() {
 	a.world.Roles().Define(MortalRole)
-	a.ammoRules()
 }
 
 type unitRow struct {
@@ -168,6 +165,7 @@ func walking() steering.Steering {
 func (a *arena) defineFigures() {
 	a.board.Tiles(tiles()...)
 	a.board.Figures(soldier{}, wanderer{})
+	a.bullet.Figures(round{}, grenade{})
 }
 
 func (a *arena) bindKeys() error {
