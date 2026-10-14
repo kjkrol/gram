@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/render"
@@ -28,22 +27,14 @@ var (
 
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
-	redKind := kind.Named[unitRow](a.world.Kinds(), RedKind)
-	blueKind := kind.Named[unitRow](a.world.Kinds(), BlueKind)
-
-	bridge := a.bridges.Types().Named(BridgeKind)
-
 	worldAtlas := a.world.NewAtlas()
-	worldAtlas.Add(redKind, EntitySize, render.Diamond(redColor))
-	worldAtlas.Add(blueKind, EntitySize, render.Diamond(blueColor))
-	worldAtlas.Add(bridge.Deck(), 2*HexSize, deck).Lying().Edges(railing)
+	worldAtlas.Looks()
+	a.bridgeLook(worldAtlas)
 	worldAtlas.Close()
 	a.world.WithRenderer(worldAtlas)
 
 	boardAtlas := a.board.NewAtlas(2 * HexSize)
-	boardAtlas.Add(GrassCell, render.Hexagon(grassColor))
-	boardAtlas.Add(WaterCell, render.Hexagon(waterColor))
-	boardAtlas.Add(RoadCell, render.Hexagon(roadColor))
+	boardAtlas.Looks()
 	boardAtlas.Close()
 	a.board.WithRenderer(boardAtlas)
 
@@ -69,21 +60,4 @@ func (m *mainScene) screen() *ui.Element {
 		ui.BottomMiddle(a.bridges.Reason().Padding(6)).Margin(40),
 		ui.Center(a.bridges.Window()),
 	)
-}
-
-// authored running east
-func deck(dst *render.Canvas, size int) {
-	w := float32(size)
-	dst.Fill(deckColor)
-	for i := range 8 {
-		dst.FillRect(w*float32(i)/8, 0, w*0.02, w, railColor)
-	}
-}
-
-func railing(dst *render.Canvas, size int) {
-	w := float32(size)
-	dst.FillRect(0, 0, w, w*0.2, railColor)
-	for i := range 4 {
-		dst.FillRect(w*(float32(i)+0.4)/4, 0, w*0.06, w, railColor)
-	}
 }

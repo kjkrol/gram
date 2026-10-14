@@ -9,10 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/act"
-	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/cond"
-	"github.com/kjkrol/ceremony/effect"
-	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
@@ -40,8 +37,8 @@ const (
 	CellSize     = 32
 	ScreenWidth  = GridWidth * CellSize
 	ScreenHeight = GridHeight * CellSize
-	EntitySize   = 20
-	UnitSpeed    = CellSize * 2
+	unitSize     = 20
+	unitSpeed    = CellSize * 2
 	MaxEntCount  = 64
 )
 
@@ -73,16 +70,15 @@ func main() {
 			Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
-				MinSize:  EntitySize,
+				MinSize:  unitSize,
 				MaxSize:  CellSize,
 			},
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayer).
-		Effects(a.defineEffects).
 		Rules(a.defineRules).
 		Commands(a.defineCommands).
-		Kinds(a.defineCells, a.defineKinds).
 		Controls(a.bindKeys).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
@@ -102,23 +98,13 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
 		WithCollision(a.collision)
 	a.cameras = cameras.NewPlugin(a.world)
-	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection, a.nav, a.driving)
+	a.players = players.NewPlugin(a.world, a.collision,
+		a.cameras, a.board, a.selection, a.nav, a.driving)
 }
 
 func (a *arena) definePlayer() error {
 	a.player = a.players.Local("player")
 	return a.player.Bind(a.players.Defaults()...)
-}
-
-func (a *arena) defineEffects() {
-	fx := a.world.Effects()
-	fx.Define(OpenEf, effect.Spec{effect.Alter(func(f *cell.Floor) { f.Allows = 0 })})
-	fx.Define(HasteEf, effect.Spec{
-		effect.Lasts(2 * time.Second),
-		effect.Alter(
-			func(st *steering.Steering) { st.MaxSpeed, st.Accel = st.MaxSpeed*2, st.Accel*2 },
-		),
-	})
 }
 
 func (a *arena) defineRules() {
@@ -144,13 +130,8 @@ func (a *arena) defineCommands() {
 				For(3*time.Second),
 		)
 	}
-	cmds.Define(HastenCmd, ceremony.Put(a.world.Effects().Named(HasteEf)).On(a.selection.Selected()))
-}
-
-func (a *arena) defineCells() {
-	kinds := a.board.CellKinds()
-	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define(PitCell, cell.Kind{Cost: 1}) // holds nobody
+	hasten := ceremony.Put(a.world.Effects().Named(HasteEf)).On(a.selection.Selected())
+	cmds.Define(HastenCmd, hasten)
 }
 
 type unitRow struct {
@@ -162,41 +143,23 @@ type standingRow struct {
 	At cell.ID `yaml:"at"`
 }
 
-func (a *arena) defineKinds() {
-	brd := a.board.Board()
-	units := board.NewUnits[unitRow](
-		a.board,
-		board.Shape{Size: EntitySize},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
-	)
-	profile := steering.Steering{
-		MaxSpeed: UnitSpeed,
-		Accel:    UnitSpeed * 2,
-		V0:       UnitSpeed / 2,
-		TurnRate: 0.15,
-	}
-	land := unit.Mover{Domain: cell.Land}
-	units.Define(ScoutKind, land, profile, ceremony.Plays(a.world.Roles().Named(MortalRole)))
-	patrol := plan.New(PatrolPlan, plan.Steps(
-		plan.Loop[any]{
-			Name:  "leg",
-			When:  cond.Self.If(cond.Always),
-			Then:  plan.Self.Do(navigation.Onward{}),
-			Until: cond.Self.If(navigation.Arrived{}),
-		},
-		plan.Loop[any]{Name: "rest", When: cond.Self.If(cond.Always), Then: plan.Self.Wait(time.Second)},
-	))
-	round := comp.Load(func(u unitRow) navigation.Round {
-		return navigation.NewRound(u.To, u.Start)
-	})
-	units.Define(WandererKind, land, profile, ceremony.Plays(a.world.Roles().Named(MortalRole)),
-		round, patrol)
-	standing := board.NewEntities(
-		a.board,
-		board.Shape{Size: CellSize},
-		func(r standingRow) cell.ID { return r.At },
-	)
-	standing.Define(TrapdoorKind, comp.Const(cell.Floor{Allows: cell.Land}))
+func standingAt(r standingRow) cell.ID { return r.At }
+
+func units(b *board.Plugin) *board.Units[unitRow] {
+	return board.NewUnits[unitRow](b, board.Shape{Size: unitSize},
+		func(u unitRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+}
+
+var profile = steering.Steering{
+	MaxSpeed: unitSpeed,
+	Accel:    unitSpeed * 2,
+	V0:       unitSpeed / 2,
+	TurnRate: 0.15,
+}
+
+func (a *arena) defineFigures() {
+	a.board.Tiles(grass{}, pit{})
+	a.board.Figures(scout{}, wanderer{}, trapdoor{})
 }
 
 func (a *arena) bindKeys() error {

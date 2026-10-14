@@ -19,6 +19,24 @@ Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
   front of a unit, the way it faces, beside `Around(n)`; `unit.Standing` carries its `Heading`
   and is `host.Headed`, the board filling `Tick.Ahead` (the grid's direction nearest the
   heading, stopping at the edge; a cell faces nowhere, so a `cell.Now` refuses it).
+- Figures and tiles: a kind of entity in one piece — `world.Figure{Define(w); Look(a, w)}`,
+  `board.Figure{Define(b); Look(a, w)}` for one standing on the board (defined over it with
+  `NewUnits`/`NewEntities`, looked on the world's atlas as any), `board.Tile{Define(b); Look(a,
+  b)}` for a kind of cell with its covers — and, `Stateful` (`Effects`) or `Ruled` (`Rules`),
+  with the effects and the roles that are its own. The Stage's new `Figures` link, right after
+  `Plugins`, notes them (`world.Plugin.Figures`, `board.Plugin.Figures`, `board.Plugin.Tiles`)
+  and the Stage runs their parts in the Effects, Rules and Kinds sections after the game's own
+  functions, in the order noted (`world.Plugin.FiguresIn`), so a game's `Effects` and `Rules`
+  keep only what several kinds share; `world.Atlas.Looks` and `board.Atlas.Looks` declare every
+  look in a scene; `Kinds` is for what is no figure. `board.Plugin.World` is the world the
+  board lies over. The wire demo is written so (`hero.go` with its boredom, `lever.go`,
+  `plate.go`, `trapdoor.go`, `gate.go`, `tiles.go`; the arena keeps the mortal role, the
+  commands and the map), as is every demo whose kinds are more than coloured balls (collision,
+  minimal and scenes keep theirs in `demo.go`): kinds alike are one table of values (the
+  island's `ground` tiles, its `walker{kind, color, ordered}`), a kind of another plugin's
+  register (the bridge, an ammo) stays in `Kinds` in a file of its own; a figure's numbers —
+  its size, speed, timings — stand beside it, lowercase; the demos' arenas are received as
+  `a`, not `s`.
 - The entities' boxes (Shift+X) are collision's: `collision.Boxes`, `Plugin.ShowBoxes`,
   `BoxesShown`, drawn by `collision.Plugin.Renderer()`, which every demo with collision has in
   its composer and whose plugin it hands to players, so the key works everywhere (`world.Boxes`

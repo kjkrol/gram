@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
@@ -24,16 +23,12 @@ var (
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
 	worldAtlas := a.world.NewAtlas()
-	worldAtlas.Add(kind.Named[guardRow](a.world.Kinds(), GuardKind), EntitySize,
-		render.Solid(guardColor))
-	worldAtlas.Add(kind.Named[wandererRow](a.world.Kinds(), WandererKind), EntitySize,
-		render.Solid(wandererColor))
+	worldAtlas.Looks()
 	worldAtlas.Close()
 	a.world.WithRenderer(worldAtlas)
 
 	boardAtlas := a.board.NewAtlas(CellSize)
-	boardAtlas.Add(GrassCell, render.Solid(grassColor))
-	boardAtlas.Add(WallCell, render.Solid(wallColor))
+	boardAtlas.Looks()
 	boardAtlas.Close()
 	a.board.WithRenderer(boardAtlas)
 

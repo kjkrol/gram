@@ -86,6 +86,17 @@
 //
 // [Telemetry] counts the population; [Resources] publishes it with the Config.
 //
+// # Figures
+//
+// A [Figure] is a kind of entity in one piece: Define says what it is (kind.Define with the
+// roster, the roles it plays, its plan), Look how it looks on the world's [Atlas]; one with
+// states of its own is [Stateful] (Effects), one with roles and rules of its own [Ruled]
+// (Rules). [Plugin.Figures] notes them in the Stage's Figures link, and the Stage runs each
+// part in its section after the game's own functions ([Plugin.FiguresIn]); [Atlas.Looks]
+// declares every look in a scene. What several kinds share — a role many play, a rule of the
+// whole — stays the game's, in its sections. A figure standing on a board is the board's
+// (board.Plugin.Figures), defined over it and looked here.
+//
 // # Vocabulary
 //
 // Moments, for a role's rules: [Moving] (every entity before it moves; its words [Still],

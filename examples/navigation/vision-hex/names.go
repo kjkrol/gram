@@ -18,6 +18,3 @@ const (
 	BoardNavigationVisionHexStage = "board-navigation-vision-hex-demo"
 	MainScene                     = "main"
 )
-
-// in the order of their colours
-var scouts = []string{RedKind, BlueKind, YellowKind}

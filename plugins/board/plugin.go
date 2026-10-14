@@ -65,6 +65,7 @@ type Plugin struct {
 	holdsShown  bool
 	bridges     Bridges
 	cellOf      map[string]func(row any) cell.ID
+	tiles       []Tile
 	where       map[cell.ID]string // the file and line a level laid the entity on a cell by
 }
 
@@ -297,6 +298,9 @@ func (p *Plugin) Covering(e effect.Effect) render.SpriteID {
 
 // Board is the board: its terrain, read and written.
 func (p *Plugin) Board() *Board { return p.Res.Logic.Board }
+
+// World is the world the board lies over: its registers, for a figure defined over the board.
+func (p *Plugin) World() *world.Plugin { return p.worldPlugin }
 
 // CellKinds are this Plugin's registered kinds of cells.
 func (p *Plugin) CellKinds() cell.Kinds { return p.kinds }

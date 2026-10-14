@@ -69,11 +69,11 @@ func main() {
 			},
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayer).
 		Effects(a.defineEffects).
 		Rules(a.defineRules).
 		Commands(a.defineCommands).
-		Kinds(a.defineKinds).
 		Controls(a.bindKeys).
 		Spawn(a.spawnUnits).
 		Scenes(a.defineScenes).
@@ -107,7 +107,8 @@ func (a *arena) defineRules() {
 }
 
 func (a *arena) defineCommands() {
-	a.world.Commands().Define(RageCmd, ceremony.Put(a.world.Effects().Named(RageEf)).On(ceremony.World))
+	a.world.Commands().Define(RageCmd,
+		ceremony.Put(a.world.Effects().Named(RageEf)).On(ceremony.World))
 }
 
 type walker struct {
@@ -116,22 +117,21 @@ type walker struct {
 	vel  world.Velocity
 }
 
-func (a *arena) defineKinds() {
-	kinds := a.world.Kinds()
-	spec := kind.Spec{
-		comp.Load(func(w walker) world.Position {
-			top := geom.NewVec(w.at.X-w.w/2, w.at.Y-w.h/2)
-			return world.Position{AABB: plane.NewAABB(top, w.w, w.h)}
+// what every walker carries: its box and its way from its row, a body that bounces, the mood
+func walkerSpec(w *world.Plugin) kind.Spec {
+	return kind.Spec{
+		comp.Load(func(wk walker) world.Position {
+			top := geom.NewVec(wk.at.X-wk.w/2, wk.at.Y-wk.h/2)
+			return world.Position{AABB: plane.NewAABB(top, wk.w, wk.h)}
 		}),
-		comp.Load(func(w walker) world.Velocity { return w.vel }),
+		comp.Load(func(wk walker) world.Velocity { return wk.vel }),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Restitution: 1}),
-		ceremony.Plays(a.world.Roles().Named(MoodyRole)),
+		ceremony.Plays(w.Roles().Named(MoodyRole)),
 	}
-	kind.Define[walker](kinds, WalkerKind, spec)
-	kind.Define[walker](kinds, GhostKind, spec)
-	kind.Define[walker](kinds, LeaderKind, spec)
 }
+
+func (a *arena) defineFigures() { a.world.Figures(newHero(), leader{}, ghost{}) }
 
 func (a *arena) bindKeys() error {
 	return a.player.Bind(

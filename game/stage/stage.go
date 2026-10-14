@@ -124,13 +124,41 @@ func (b built) Init(ctx game.Initializer) error {
 	d := b.d
 	d.ctx = ctx
 	defer enter(ctx, section.Done)
+	figures := figuresIn{d: d, ctx: ctx}
 	for _, s := range d.steps {
+		figures.before(s.part)
 		enter(ctx, s.part)
 		if err := s.run(ctx); err != nil {
 			return fmt.Errorf("stage %q, %v: %w", d.name, s.part, err)
 		}
 	}
+	figures.before(section.Done)
 	return nil
+}
+
+// figuresIn runs the figures' parts of the Effects, Rules and Kinds sections, each once the
+// steps have moved past that section, so after the game's own functions of it
+type figuresIn struct {
+	d    *def
+	ctx  game.Initializer
+	next int
+}
+
+var figureParts = []section.Part{section.Effects, section.Rules, section.Kinds}
+
+func (f *figuresIn) before(part section.Part) {
+	if f.d.world == nil {
+		return
+	}
+	at := part
+	if after, _, ok := part.Between(); ok {
+		at = after // a plugin's section lies right after a Stage's own
+	}
+	for f.next < len(figureParts) && figureParts[f.next] < at {
+		enter(f.ctx, figureParts[f.next])
+		f.d.world.FiguresIn(figureParts[f.next])
+		f.next++
+	}
 }
 
 func (b built) Loaded() error { return b.d.makeScenes() }

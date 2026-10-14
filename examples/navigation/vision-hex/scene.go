@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
@@ -15,11 +14,9 @@ type mainScene struct {
 }
 
 var (
-	unitColors = []color.RGBA{
-		{R: 220, G: 90, B: 90, A: 255},
-		{R: 90, G: 140, B: 220, A: 255},
-		{R: 230, G: 200, B: 80, A: 255},
-	}
+	redColor    = color.RGBA{R: 220, G: 90, B: 90, A: 255}
+	blueColor   = color.RGBA{R: 90, G: 140, B: 220, A: 255}
+	yellowColor = color.RGBA{R: 230, G: 200, B: 80, A: 255}
 	hawkColor   = color.RGBA{R: 120, G: 130, B: 60, A: 255}
 	grassColor  = color.RGBA{R: 60, G: 95, B: 60, A: 255}
 	wallColor   = color.RGBA{R: 40, G: 40, B: 40, A: 255}
@@ -30,25 +27,13 @@ var (
 
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
-	scoutKind := func(i int) kind.Of[unitRow] {
-		return kind.Named[unitRow](a.world.Kinds(), scouts[i])
-	}
-	hawkKind := kind.Named[unitRow](a.world.Kinds(), HawkKind)
-
-	worldAtlas := render.NewAtlas()
-	for i := range scouts {
-		worldAtlas.Add(scoutKind(i), EntitySize, render.Diamond(unitColors[i]))
-	}
-	worldAtlas.Add(hawkKind, EntitySize, render.Diamond(hawkColor))
+	worldAtlas := a.world.NewAtlas()
+	worldAtlas.Looks()
 	worldAtlas.Close()
 	a.world.WithRenderer(worldAtlas)
 
 	boardAtlas := a.board.NewAtlas(2 * HexSize)
-	boardAtlas.Add(GrassCell, render.Hexagon(grassColor))
-	boardAtlas.Add(WallCell, render.Hexagon(wallColor))
-	boardAtlas.Add(ForestCell, render.Hexagon(forestColor))
-	boardAtlas.Add(RoadCell, render.Hexagon(roadColor))
-	boardAtlas.Add(HillCell, render.Hexagon(hillColor))
+	boardAtlas.Looks()
 	boardAtlas.Close()
 	a.board.WithRenderer(boardAtlas)
 

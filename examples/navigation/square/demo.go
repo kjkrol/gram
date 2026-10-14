@@ -5,10 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/act"
-	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
@@ -26,7 +23,6 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -37,8 +33,6 @@ const (
 	CellSize     = 32
 	ScreenWidth  = GridWidth * CellSize
 	ScreenHeight = GridHeight * CellSize
-	EntitySize   = 22
-	UnitSpeed    = CellSize * 2
 	MaxEntCount  = 16
 )
 
@@ -69,14 +63,14 @@ func main() {
 			Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
-				MinSize:  EntitySize,
-				MaxSize:  EntitySize,
+				MinSize:  walkerPx,
+				MaxSize:  walkerPx,
 			},
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayer).
 		Rules(a.defineRules).
-		Kinds(a.defineCells, a.defineKinds).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
 		Update(a.update)
@@ -95,7 +89,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
 		WithCollision(a.collision)
 	a.cameras = cameras.NewPlugin(a.world)
-	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection, a.nav, a.driving)
+	a.players = players.NewPlugin(a.world, a.collision,
+		a.cameras, a.board, a.selection, a.nav, a.driving)
 }
 
 func (a *arena) definePlayer() error {
@@ -111,42 +106,9 @@ func (a *arena) defineRules() {
 	})
 }
 
-func (a *arena) defineCells() {
-	kinds := a.board.CellKinds()
-	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
-	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
-	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
-	// admits nobody and is not solid: whoever stands on it falls
-	kinds.Define(HoleCell, cell.Kind{Cost: 1})
-}
-
-type unitRow struct {
-	Start  cell.ID `yaml:"start"`
-	Target cell.ID `yaml:"target"`
-}
-
-func (a *arena) defineKinds() {
-	brd := a.board.Board()
-	units := board.NewUnits[unitRow](
-		a.board,
-		board.Shape{Size: EntitySize},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
-	)
-	profile := steering.Steering{
-		MaxSpeed: UnitSpeed,
-		Accel:    UnitSpeed * 2,
-		Brake:    UnitSpeed * 4,
-		V0:       UnitSpeed / 2,
-		TurnRate: 0.15,
-	}
-	own := []comp.Comp{
-		comp.Load(
-			func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.Target} },
-		),
-		ceremony.Plays(a.world.Roles().Named(MortalRole)),
-	}
-	units.Define(RedKind, unit.Mover{Domain: cell.Land}, profile, own...)
-	units.Define(BlueKind, unit.Mover{Domain: cell.Land}, profile, own...)
+func (a *arena) defineFigures() {
+	a.board.Tiles(tiles()...)
+	a.board.Figures(walker{kind: RedKind, color: redColor}, walker{kind: BlueKind, color: blueColor})
 }
 
 func (a *arena) spawn() error {

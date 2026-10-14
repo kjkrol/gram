@@ -36,11 +36,12 @@ type Resources struct {
 
 // Plugin is the world a Stage makes with its World link (ctx.UseWorld); never Use your own.
 type Plugin struct {
-	Res    Resources
-	module *module
-	roles  Roles
-	named  Commands
-	made   plugin.Made
+	Res     Resources
+	module  *module
+	figures []Figure
+	roles   Roles
+	named   Commands
+	made    plugin.Made
 	*Self
 	renderer *renderer
 	kinds    *Kinds

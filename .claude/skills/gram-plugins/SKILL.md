@@ -45,7 +45,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   steering's `Course`), a `Leaving` and a `clock.Moment` (every step, just
   before the effects' pass). It handles `steering.Away{From}`, `Toward{To}` (`host.Aimed`),
   `Turn{Angle}` (the steering system asks the `Helm`, one a step), the commands about effects,
-  `Pause` (Shift+P), `Faster` (]) and `Slower` ([). Every `host.Tick` comes from
+  `Pause` (Shift+P), `Faster` (]) and `Slower` ([). `Figures(f...)` notes kinds of entity in
+  one piece (`world.Figure`: `Define(w)`, `Look(a, w)`; `Stateful`, `Ruled`), `FiguresIn(part)`
+  runs their parts as the Stage reaches Effects, Rules and Kinds, the atlas's `Looks()` draws
+  them.
+  Every `host.Tick` comes from
   `world.Plugin.Tick(d)`: the carrier (`world.Plugin.Carrier()`, the stage's one
   `command.Carrier` for players and entities alike; the engine carries every
   `plugin.CommandHandler` a stage uses), `Time`, `Seed`, `Roles`, `World` (the clock's entity).
@@ -136,7 +140,12 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `units.Define(name, unit.Mover{…}, steering, extra...)` derives `Position` and `At` from the one
   point `at` reads off a row, `Layers` from the domain, with heights a `Z{Height}`, runs the
   world's roster and `kind.Define`; `units.Named(name)` is the `kind.Of[Row]`. A unit's `Mover`
-  says which domains it moves in and, with heights, `Lift`, `Clearance`, `Ceiling`. The occupancy
+  says which domains it moves in and, with heights, `Lift`, `Clearance`, `Ceiling`.
+  `Figures(f...)` and `Tiles(t...)` note figures standing on the board (`board.Figure`:
+  `Define(b)`, `Look(a, w)`) and kinds of cell (`board.Tile`: `Define(b)`, `Look(a, b)`, covers
+  included), `Stateful`/`Ruled` with their own effects and rules, among the world's figures, so
+  the Stage leads them through its sections; the atlases' `Looks()` draw them;
+  `Plugin.World()` is the world under the board. The occupancy
   (`internal/occupancy`, `KeepSystem` after the units' pass) lets go of whoever left the world
   and has every unit hold the cell it stands on, each on its level (a walker on a deck and one
   under it share a cell); one holding nothing lets go of the cell it was `At`, is `At` the one it

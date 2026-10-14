@@ -2,10 +2,8 @@ package main
 
 import (
 	"image/color"
-	"math"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/painter"
@@ -64,42 +62,25 @@ func (m *mainScene) picture() render.Picture {
 		Style(BrookCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
 		Style(StreamCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
 		Style(RiverCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell})
-	for _, name := range snowable {
+	for _, name := range snowable() {
 		a.topography.Style(snowyCell(name), a.topography.StyleOf(name))
 	}
 	a.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
 	a.topography.WithAtmosphere(a.atmosphere)
-	unitKind := kind.Named[unitRow](a.world.Kinds(), UnitKind)
-	plateauKind := kind.Named[unitRow](a.world.Kinds(), PlateauKind)
-	rivalKind := kind.Named[unitRow](a.world.Kinds(), RivalKind)
-	hawkKind := kind.Named[unitRow](a.world.Kinds(), HawkKind)
-	bridge := a.bridges.Types().Named(BridgeKind)
-	fordKind := kind.Named[fordRow](a.world.Kinds(), FordKind)
-
 	worldAtlas := a.world.NewAtlas()
-	worldAtlas.Add(unitKind, spritePx, render.Solid(playerColor))
-	worldAtlas.Add(plateauKind, spritePx, render.Solid(playerColor))
-	worldAtlas.Add(rivalKind, spritePx, render.Solid(rivalColor))
-	worldAtlas.Add(hawkKind, spritePx, render.Diamond(hawkColor))
-	worldAtlas.Add(bridge.Deck(), CellSize, deck).Lying().Edges(railing)
-	worldAtlas.Add(bridge.Pier(), CellSize, render.Solid(pierColor)).Upright()
-	worldAtlas.Add(fordKind, CellSize, stones(0)).Facing(8, stones).Lying()
+	worldAtlas.Looks()
+	a.bridgeLook(worldAtlas)
 	worldAtlas.Close()
 	a.world.WithRenderer(worldAtlas)
 
 	boardAtlas := a.board.NewAtlas(CellSize)
-	for name, c := range cellColors {
-		boardAtlas.Add(name, render.Solid(c))
-	}
-	for name, c := range snowyColors {
-		boardAtlas.Add(snowyCell(name), render.Solid(c))
-	}
-	boardAtlas.Add(IceCell, render.Solid(iceColor))
+	boardAtlas.Looks()
 	boardAtlas.Close()
 	a.board.WithRenderer(boardAtlas)
 	a.board.Res.Render.ShowGridLines = true
 	a.nav.WithRenderer(nil)
-	a.vision.WithViews(render.Show(a.selection.IsSelected)) // TODO: to jest rule a tu s.board.Res.Render.ShowGridLines = true jest flaga
+	// TODO: to jest rule a tu a.board.Res.Render.ShowGridLines = true jest flaga
+	a.vision.WithViews(render.Show(a.selection.IsSelected))
 	a.vision.WithRenderer(nil)
 	a.selection.WithRenderer(nil)
 	a.bridges.WithRenderer(nil)
@@ -120,40 +101,4 @@ func (m *mainScene) screen() *ui.Element {
 		ui.BottomMiddle(a.bridges.Reason().Padding(6).Fill(reasonColor)).Margin(40),
 		ui.Center(a.bridges.Window()),
 	)
-}
-
-// authored running east
-func deck(dst *render.Canvas, size int) {
-	w := float32(size)
-	dst.Fill(deckColor)
-	for i := range 8 {
-		dst.FillRect(w*float32(i)/8, 0, w*0.02, w, railColor)
-	}
-}
-
-func railing(dst *render.Canvas, size int) {
-	w := float32(size)
-	dst.FillRect(0, 0, w, w*0.2, railColor)
-	for i := range 4 {
-		dst.FillRect(w*(float32(i)+0.4)/4, 0, w*0.06, w, railColor)
-	}
-}
-
-func stones(angle float64) render.SpriteDrawer {
-	return func(dst *render.Canvas, size int) {
-		x0, y0, x1, y1 := across(angle, size)
-		for i := range 4 {
-			t := (float32(i) + 0.5) / 4
-			dst.FillCircle(x0+(x1-x0)*t, y0+(y1-y0)*t, float32(size)*0.09, stoneColor)
-		}
-	}
-}
-
-func across(angle float64, size int) (x0, y0, x1, y1 float32) {
-	sin, cos := math.Sincos(angle * math.Pi / 180)
-	half := float64(size) / 2
-	reach := half / max(math.Abs(cos), math.Abs(sin))
-	dx, dy := float32(cos*reach), float32(-sin*reach)
-	m := float32(half)
-	return m - dx, m - dy, m + dx, m + dy
 }

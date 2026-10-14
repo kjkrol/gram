@@ -5,11 +5,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
-	"github.com/kjkrol/ceremony/act"
-	"github.com/kjkrol/ceremony/comp"
-	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
@@ -19,7 +15,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
@@ -27,7 +22,6 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -36,17 +30,9 @@ const (
 	GridWidth   = 48
 	GridHeight  = 18
 	CellSize    = 16
-	HeroSize    = 12
-	HeroSpeed   = 140
 	MaxEntCount = 8
 
-	// in cells
-	pull = 900
-	leap = 3.5 * CellSize
-
-	// a landing faster than this dazes, falls of four cells and more
-	hardLanding = 340
-	dazeLasts   = time.Second
+	pull = 900 // in cells
 )
 
 //go:embed map.yaml
@@ -80,16 +66,15 @@ func main() {
 			Space: world.SpaceCfg{Width: GridWidth * CellSize, Height: GridHeight * CellSize},
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
-				MinSize:  HeroSize,
-				MaxSize:  HeroSize,
+				MinSize:  heroSize,
+				MaxSize:  heroSize,
 			},
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayers).
 		Effects(a.defineEffects).
-		Rules(a.defineRules).
 		Commands(a.defineCommands).
-		Kinds(a.defineCells, a.defineKinds).
 		Controls(a.bindKeys).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
@@ -139,18 +124,6 @@ func (a *arena) defineEffects() {
 	a.world.Effects().Define(FlippedEf, effect.Spec{
 		effect.Alter(func(p *gravity.Pull) { p.Y = -p.Y }),
 	})
-	a.world.Effects().Define(DazedEf, effect.Spec{
-		effect.Lasts(dazeLasts),
-		effect.Alter(func(st *steering.Steering) { st.MaxSpeed /= 4 }),
-	})
-}
-
-func (a *arena) defineRules() {
-	a.world.Roles().Define(HeroRole, act.Branch[gravity.Landing]{
-		Name: "daze",
-		When: cond.Self.If(gravity.HarderThan(hardLanding)),
-		Then: act.Self.Put(a.world.Effects().Named(DazedEf)),
-	})
 }
 
 func (a *arena) defineCommands() {
@@ -158,32 +131,9 @@ func (a *arena) defineCommands() {
 	a.world.Commands().Define(FlipCmd, flip)
 }
 
-func (a *arena) defineCells() {
-	kinds := a.board.CellKinds()
-	kinds.Define(SkyCell, cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define(RockCell, cell.Kind{Solid: true})
-	kinds.Define(LedgeCell, cell.Kind{Solid: true})
-}
-
-type heroRow struct {
-	Start cell.ID `yaml:"start"`
-}
-
-func (a *arena) defineKinds() {
-	brd := a.board.Board()
-	units := board.NewUnits[heroRow](
-		a.board,
-		board.Shape{Size: HeroSize},
-		func(u heroRow) geom.Vec { return brd.CellCenter(u.Start) },
-	)
-	units.Define(HeroKind,
-		unit.Mover{Domain: cell.Land},
-		steering.Steering{MaxSpeed: HeroSpeed, Accel: HeroSpeed * 8, Brake: HeroSpeed * 8},
-		ceremony.Plays(a.world.Roles().Named(HeroRole)),
-		comp.Const(gravity.Body{Leap: leap}),
-		comp.Const(collision.Collider{}),
-		comp.Const(collision.Physics{Mass: 1}),
-	)
+func (a *arena) defineFigures() {
+	a.board.Tiles(tiles()...)
+	a.board.Figures(hero{})
 }
 
 func (a *arena) bindKeys() error {

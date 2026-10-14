@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
@@ -46,17 +45,13 @@ func (m *mainScene) screen() *ui.Element {
 
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
-	redKind := kind.Named[block](a.world.Kinds(), RedKind)
-	blueKind := kind.Named[block](a.world.Kinds(), BlueKind)
-	worldAtlas := render.NewAtlas()
-	worldAtlas.Add(redKind, BlockSize, render.Solid(redColor))
-	worldAtlas.Add(blueKind, BlockSize, render.Solid(blueColor))
+	worldAtlas := a.world.NewAtlas()
+	worldAtlas.Looks()
 	worldAtlas.Close()
 	a.world.WithRenderer(worldAtlas)
 
 	boardAtlas := a.board.NewAtlas(CellSize)
-	boardAtlas.Add(FloorCell, render.Solid(floorColor))
-	boardAtlas.Add(WallCell, render.Solid(wallColor))
+	boardAtlas.Looks()
 	boardAtlas.Close()
 	a.board.WithRenderer(boardAtlas)
 	a.board.Res.Render.ShowGridLines = false

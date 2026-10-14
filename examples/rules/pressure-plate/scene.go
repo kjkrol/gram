@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
@@ -25,23 +24,13 @@ var (
 
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
-	scoutKind := kind.Named[unitRow](a.world.Kinds(), ScoutKind)
-	wandererKind := kind.Named[unitRow](a.world.Kinds(), WandererKind)
-	trapdoorKind := kind.Named[standingRow](a.world.Kinds(), TrapdoorKind)
-	plateKind := kind.Named[standingRow](a.world.Kinds(), PlateKind)
-
 	worldAtlas := a.world.NewAtlas()
-	worldAtlas.Add(trapdoorKind, CellSize, render.Solid(boardsColor)).
-		Under(a.world.Effects().Named(OpenEf), render.Solid(pitColor))
-	worldAtlas.Add(plateKind, EntitySize, render.Solid(plateColor))
-	worldAtlas.Add(scoutKind, EntitySize, render.Solid(scoutColor))
-	worldAtlas.Add(wandererKind, EntitySize, render.Diamond(wandererColor))
+	worldAtlas.Looks()
 	worldAtlas.Close()
 	a.world.WithRenderer(worldAtlas)
 
 	boardAtlas := a.board.NewAtlas(CellSize)
-	boardAtlas.Add(GrassCell, render.Solid(grassColor))
-	boardAtlas.Add(PitCell, render.Solid(pitColor))
+	boardAtlas.Looks()
 	boardAtlas.Close()
 	a.board.WithRenderer(boardAtlas)
 

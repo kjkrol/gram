@@ -6,12 +6,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
-	"github.com/kjkrol/ceremony/comp"
-	"github.com/kjkrol/ceremony/cond"
-	"github.com/kjkrol/ceremony/effect"
-	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/camera"
@@ -21,7 +16,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
@@ -29,8 +23,6 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -41,15 +33,7 @@ const (
 	CellSize     = 32
 	ScreenWidth  = GridWidth * CellSize
 	ScreenHeight = GridHeight * CellSize
-	EntitySize   = 28
-	UnitSpeed    = CellSize * 3
 )
-
-//go:embed ember.wgsl
-var emberFS embed.FS
-
-// registered before the composer's shader compiles
-var emberMaterial = render.RegisterMaterials(render.Files(emberFS, "ember.wgsl"), nil, "Ember")[0]
 
 //go:embed map.yaml
 var mapFile embed.FS
@@ -77,13 +61,12 @@ func main() {
 	mainStage := stage.New(EmberStage).
 		World(world.Config{
 			Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
-			Entities: world.EntitiesCfg{MaxCount: 8, MinSize: EntitySize, MaxSize: EntitySize},
+			Entities: world.EntitiesCfg{MaxCount: 8, MinSize: emberPx, MaxSize: emberPx},
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayer).
-		Effects(a.defineEffects).
 		Commands(a.defineCommands).
-		Kinds(a.defineCells, a.defineKinds).
 		Controls(a.bindKeys).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
@@ -103,7 +86,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
 		WithCollision(a.collision)
 	a.cameras = cameras.NewPlugin(a.world)
-	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection, a.nav, a.driving)
+	a.players = players.NewPlugin(a.world, a.collision,
+		a.cameras, a.board, a.selection, a.nav, a.driving)
 }
 
 func (a *arena) definePlayer() error {
@@ -128,54 +112,14 @@ func (a *arena) definePlayer() error {
 	)...)
 }
 
-func (a *arena) defineEffects() {
-	a.world.Effects().Define(DousedEf, effect.Spec{
-		effect.Described("Doused: the flame put out — soot until it rekindles."),
-		effect.Lasts(3 * time.Second),
-	})
-}
-
 func (a *arena) defineCommands() {
 	a.world.Commands().Define(DouseCmd,
 		ceremony.Put(a.world.Effects().Named(DousedEf)).On(a.selection.Selected()))
 }
 
-func (a *arena) defineCells() {
-	a.board.CellKinds().Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
-}
-
-type unitRow struct {
-	Start cell.ID    `yaml:"start"`
-	Round [4]cell.ID `yaml:"round"`
-}
-
-func (a *arena) defineKinds() {
-	brd := a.board.Board()
-	units := board.NewUnits[unitRow](
-		a.board,
-		board.Shape{Size: EntitySize},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
-	)
-	profile := steering.Steering{
-		MaxSpeed: UnitSpeed,
-		Accel:    UnitSpeed * 2,
-		Brake:    UnitSpeed * 4,
-		V0:       UnitSpeed / 2,
-		TurnRate: 0.1,
-	}
-	patrol := plan.New(PatrolPlan, plan.Steps(
-		plan.Loop[any]{
-			Name:  "leg",
-			When:  cond.Self.If(cond.Always),
-			Then:  plan.Self.Do(navigation.Onward{}),
-			Until: cond.Self.If(navigation.Arrived{}),
-		},
-		plan.Loop[any]{Name: "rest", When: cond.Self.If(cond.Always), Then: plan.Self.Wait(2 * time.Second)},
-	))
-	round := comp.Load(func(u unitRow) navigation.Round {
-		return navigation.NewRound(u.Round[:]...)
-	})
-	units.Define(EmberKind, unit.Mover{Domain: cell.Land}, profile, round, patrol)
+func (a *arena) defineFigures() {
+	a.board.Tiles(grass{})
+	a.board.Figures(ember{})
 }
 
 func (a *arena) bindKeys() error {

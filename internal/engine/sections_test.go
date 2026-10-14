@@ -483,3 +483,50 @@ func TestStage_UsesThePluginsInTheOrderMade(t *testing.T) {
 		t.Errorf("without a world installed %v, want third, then fourth", installed)
 	}
 }
+
+type notedFigure struct{ s *sectioned }
+
+func (f notedFigure) Effects(*world.Plugin)            { f.s.note("figure effects") }
+func (f notedFigure) Rules(*world.Plugin)              { f.s.note("figure rules") }
+func (f notedFigure) Define(*world.Plugin)             { f.s.note("figure define") }
+func (f notedFigure) Look(*world.Atlas, *world.Plugin) { f.s.note("figure look") }
+
+func TestStage_LeadsItsFiguresThroughTheSectionsAfterTheGamesOwn(t *testing.T) {
+	s := &sectioned{}
+	st := stage.New("meadow").
+		World(testWorldConfig()).Plugins(s.makeWorld).
+		Figures(func() { s.note("figures"); s.world.Figures(notedFigure{s}) }).
+		Players(func() { s.note("players") }).
+		Effects(func() { s.note("effects") }).
+		Rules(func() { s.note("rules") }).
+		Kinds(func() { s.note("cells") }, s.defineUnit).
+		Spawn(func() { s.world.Seed(s.unit.Entry(struct{}{})) }).
+		Scenes(func() []game.Scene { return []game.Scene{&scene{name: "main"}} }).
+		Update(s.update)
+	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	want := []string{"plugins", "figures", "players", "effects", "figure effects", "rules",
+		"figure rules", "cells", "kinds", "figure define"}
+	if !slices.Equal(s.ran, want) {
+		t.Errorf("sections ran %v, want %v", s.ran, want)
+	}
+}
+
+func TestStage_LeadsItsFiguresThroughSectionsTheGameLeftOut(t *testing.T) {
+	s := &sectioned{}
+	st := stage.New("meadow").
+		World(testWorldConfig()).Plugins(s.makeWorld).
+		Figures(func() { s.world.Figures(notedFigure{s}) }).
+		Commands(func() { s.note("commands") }).
+		Spawn(func() {}).
+		Scenes(func() []game.Scene { return []game.Scene{&scene{name: "main"}} }).
+		Update(s.update)
+	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	want := []string{"plugins", "figure effects", "figure rules", "commands", "figure define"}
+	if !slices.Equal(s.ran, want) {
+		t.Errorf("sections ran %v, want %v", s.ran, want)
+	}
+}

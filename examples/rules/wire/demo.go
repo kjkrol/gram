@@ -4,18 +4,12 @@ import (
 	"embed"
 	"errors"
 	"log"
-	"math"
 	"slices"
 	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/act"
-	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/cond"
-	"github.com/kjkrol/ceremony/effect"
-	cgoke "github.com/kjkrol/ceremony/goke"
-	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
@@ -31,7 +25,6 @@ import (
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -42,19 +35,9 @@ const (
 	CellSize     = 32
 	ScreenWidth  = GridWidth * CellSize
 	ScreenHeight = GridHeight * CellSize
-	EntitySize   = 20
-	LeverSize    = 16 // the lever as it was drawn, its box what is drawn
+	MaxEntCount  = 64
 
-	leverSwing  = 400 * time.Millisecond
-	reachFor    = time.Second     // a press waits for a swinging lever this long
-	boredAfter  = 5 * time.Second // still so long, the hero is bored
-	stageFor    = 5 * time.Second // each stage of boredom
-	shortLook   = 4 * time.Second
-	longLook    = 10 * time.Second
-	stampSeries = 800 * time.Millisecond
-	tapFor      = 160 * time.Millisecond
-	UnitSpeed   = CellSize * 2
-	MaxEntCount = 64
+	tapFor = 160 * time.Millisecond // a key let go sooner turns the hero without a step
 )
 
 //go:embed map.yaml
@@ -87,16 +70,15 @@ func main() {
 			Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
-				MinSize:  LeverSize,
+				MinSize:  leverSize,
 				MaxSize:  CellSize,
 			},
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayer).
-		Effects(a.defineEffects).
 		Rules(a.defineRoles).
 		Commands(a.defineCommands).
-		Kinds(a.defineCells, a.defineKinds).
 		Controls(a.bindKeys).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
@@ -133,97 +115,13 @@ func (a *arena) definePlayer() error {
 	)...)
 }
 
-func (a *arena) defineEffects() {
-	fx := a.world.Effects()
-	fx.Define(OpenEf, effect.Spec{effect.Alter(func(f *cell.Floor) { f.Allows = 0 })})
-	fx.Define(AjarEf, effect.Spec{effect.Alter(func(w *cell.Wall) { w.Keeps = 0 })})
-	fx.Define(ReachingEf, effect.Spec{effect.Lasts(reachFor)})
-	fx.Define(PullingEf, effect.Spec{effect.Lasts(leverSwing)})
-	fx.Define(InReachEf, effect.Spec{})
-	fx.Define(BrakingEf, effect.Spec{})
-	fx.Define(StillEf, effect.Spec{})
-	fx.Define(BoredEf, effect.Spec{})
-	fx.Define(BlinkingEf, effect.Spec{})
-	fx.Define(StampingEf, effect.Spec{})
-	fx.Define(StampEf, effect.Spec{effect.Lasts(stampSeries)})
-	fx.Define(LookingEf, effect.Spec{})
-	fx.Define(LookingLongEf, effect.Spec{effect.Lasts(longLook)})
-	fx.Define(LeverPulledEf, effect.Spec{})
-	fx.Define(LeverPullingEf, effect.Spec{
-		effect.Lasts(leverSwing),
-		effect.Then(fx.Named(LeverPulledEf)),
-	})
-	fx.Define(LeverPushingEf, effect.Spec{effect.Lasts(leverSwing)})
-}
-
+// mortal is everyone's who may fall into the pit: a role shared, so the arena's
 func (a *arena) defineRoles() {
-	roles, fx := a.world.Roles(), a.world.Effects()
-	roles.Define(PlateRole, act.Branch[collision.Meeting]{
-		Name: "press",
-		When: cond.Self.If(cond.Always),
-		Then: act.Self.Do(ceremony.Trigger{}),
-	})
-	roles.Define(LeverRole)
-	atHand := cond.Other.If(roles.Named(LeverRole)).And(cond.Self.If(collision.Facing(math.Pi / 4)))
-	// a lever swinging is not pulled again: the hands stay on it as long as the swing
-	leverStill := cond.Other.If(cond.Not(fx.Named(LeverPullingEf))).
-		And(cond.Other.If(cond.Not(fx.Named(LeverPushingEf))))
-	roles.Define(HandyRole,
-		act.Branch[collision.Meeting]{
-			Name: "a lever at hand",
-			When: atHand,
-			Then: act.Self.Hold(fx.Named(InReachEf)),
-		},
-		act.Branch[collision.Meeting]{
-			Name: "pull the lever at hand",
-			When: cond.Self.If(fx.Named(ReachingEf)).And(atHand).And(leverStill).
-				And(cond.Other.If(cond.Not(fx.Named(LeverPulledEf)))),
-			Then: act.Steps(
-				act.Self.Take(fx.Named(ReachingEf)),
-				wakeUp(fx),
-				act.Self.Put(fx.Named(PullingEf)),
-				act.Other.Put(fx.Named(LeverPullingEf)),
-				act.Other.Do(ceremony.Trigger{}),
-			),
-		},
-		act.Branch[collision.Meeting]{
-			Name: "push the lever at hand",
-			When: cond.Self.If(fx.Named(ReachingEf)).And(atHand).And(leverStill).
-				And(cond.Other.If(fx.Named(LeverPulledEf))),
-			Then: act.Steps(
-				act.Self.Take(fx.Named(ReachingEf)),
-				wakeUp(fx),
-				act.Self.Put(fx.Named(PullingEf)),
-				act.Other.Take(fx.Named(LeverPulledEf)),
-				act.Other.Put(fx.Named(LeverPushingEf)),
-				act.Other.Do(ceremony.Trigger{}),
-			),
-		},
-	)
-	roles.Define(MortalRole, act.Branch[unit.Standing]{
+	a.world.Roles().Define(MortalRole, act.Branch[unit.Standing]{
 		Name: "fall in",
 		When: cond.Self.If(unit.Fallen()),
 		Then: act.Self.Do(world.Despawn{}),
 	})
-	roles.Define(HeroRole,
-		act.Branch[world.Moving]{
-			Name: "stands still",
-			When: cond.Self.If(world.Still()).
-				And(cond.Self.If(cond.Not(fx.Named(StillEf)))).
-				And(cond.Self.If(cond.Not(fx.Named(PullingEf)))),
-			Then: act.Self.Put(fx.Named(StillEf)),
-		},
-		act.Branch[world.Moving]{
-			Name: "moves on",
-			When: cond.Self.If(cond.Not(world.Still())),
-			Then: wakeUp(fx),
-		},
-		act.Branch[world.Moving]{
-			Name: "brakes",
-			When: cond.Self.If(world.Braking()),
-			Then: act.Self.Hold(fx.Named(BrakingEf)),
-		},
-	)
 }
 
 func (a *arena) defineCommands() {
@@ -246,54 +144,16 @@ func (a *arena) defineCommands() {
 	cmds.Define(PullCmd, ceremony.Put(fx.Named(ReachingEf)).On(ceremony.Named(HeroName)))
 }
 
-func (a *arena) defineCells() {
-	kinds := a.board.CellKinds()
-	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define(PitCell, cell.Kind{Cost: 1})
-	kinds.Define(FenceCell, cell.Kind{Cost: 1, Solid: true})
-}
-
-type unitRow struct {
-	Start cell.ID `yaml:"start"`
-}
-
 type standingRow struct {
 	At cell.ID `yaml:"at"`
 }
 
-func (a *arena) defineKinds() {
-	brd := a.board.Board()
-	roles := a.world.Roles()
-	units := board.NewUnits[unitRow](
-		a.board,
-		board.Shape{Size: heroHeight, Width: heroWidth}, // the box is the figure, pixel for pixel
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
-	)
-	profile := steering.Steering{
-		MaxSpeed: UnitSpeed,
-		Accel:    UnitSpeed * 4, // full speed in a quarter of a second
-		Brake:    UnitSpeed * 6,
-		TurnRate: 0, // eight ways drawn: the hero turns at once
-	}
-	units.Define(HeroKind, unit.Mover{Domain: cell.Land}, profile,
-		comp.Const(world.Velocity{Dir: geom.NewVec(0, 1)}), // facing the player
-		comp.Const(collision.Collider{}),
-		comp.Const(collision.Physics{Mass: 1}),
-		ceremony.Plays(roles.Named(HandyRole), roles.Named(MortalRole), roles.Named(HeroRole)),
-		a.boredom())
-	at := func(r standingRow) cell.ID { return r.At }
-	cellWide := board.NewEntities(a.board, board.Shape{Size: CellSize}, at)
-	cellWide.Define(TrapdoorKind, comp.Const(cell.Floor{Allows: cell.Land}))
-	cellWide.Define(GateKind, comp.Const(cell.Wall{Keeps: cell.Land}))
-	small := board.NewEntities(a.board, board.Shape{Size: EntitySize}, at)
-	small.Define(PlateKind,
-		comp.Const(collision.Collider{}), // a sensor: stood on, never pushed
-		ceremony.Plays(roles.Named(PlateRole)))
-	posts := board.NewEntities(a.board, board.Shape{Size: LeverSize}, at)
-	posts.Define(LeverKind,
-		comp.Const(collision.Collider{}),
-		comp.Const(collision.Physics{Mass: math.Inf(1)}), // a post: the hero walks up to it
-		ceremony.Plays(roles.Named(LeverRole)))
+func standingAt(r standingRow) cell.ID { return r.At }
+
+// the tiles the board is laid with and the figures standing on it, in the order they are defined
+func (a *arena) defineFigures() {
+	a.board.Tiles(grass{}, pit{}, fence{})
+	a.board.Figures(newLever(), newHero(), plate{}, trapdoor{}, gate{})
 }
 
 func (a *arena) bindKeys() error {
@@ -337,53 +197,4 @@ func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.cameras.RunPlan(ctx, d)
 	a.players.RunPlan(ctx, d)
 	ctx.Sync()
-}
-
-// boredom off, every stage of it: the hero moves, or pulls
-func wakeUp(fx *cgoke.Effects) act.Step {
-	return act.Steps(
-		act.Self.Take(fx.Named(StillEf)),
-		act.Self.Take(fx.Named(BoredEf)),
-		act.Self.Take(fx.Named(BlinkingEf)),
-		act.Self.Take(fx.Named(StampingEf)),
-		act.Self.Take(fx.Named(StampEf)),
-		act.Self.Take(fx.Named(LookingEf)),
-		act.Self.Take(fx.Named(LookingLongEf)),
-	)
-}
-
-// the hero's boredom: still for a while he is bored, and bored he goes round the stages — blinks,
-// stamps a foot now and then, turns to look about twice, each 4 seconds or, on a coin, 10 —
-// until he moves
-func (a *arena) boredom() plan.Planned {
-	fx := a.world.Effects()
-	still, bored, long := fx.Named(StillEf), fx.Named(BoredEf), fx.Named(LookingLongEf)
-	always, coin := cond.Self.If(cond.Always), cond.Self.If(cond.Chance(0.5))
-	stage := func(e effect.Effect, parts ...plan.Part) plan.Part {
-		return plan.Steps(append(append([]plan.Part{plan.Self.Put(e)}, parts...),
-			plan.Self.Take(e))...)
-	}
-	// a long look lasts its time from the coin; the short wait passes under it, then the rest
-	look := plan.Steps(
-		plan.OneOf(
-			act.Branch[any]{When: coin, Then: plan.Self.Do(steering.Turn{Angle: math.Pi / 4})},
-			plan.Self.Do(steering.Turn{Angle: -math.Pi / 4}),
-		),
-		plan.OneOf(act.Branch[any]{When: coin, Then: plan.Self.Put(long)}, plan.Self.Wait(0)),
-		plan.Self.Wait(shortLook),
-		plan.Loop[any]{Name: "a long look", When: always, Then: plan.Self.Idle(),
-			Until: cond.Self.If(cond.Not(long))},
-	)
-	return plan.New(BoredPlan, plan.OneOf(
-		plan.Loop[any]{Name: "bored", When: cond.Self.If(bored), Then: plan.Steps(
-			stage(fx.Named(BlinkingEf), plan.Self.Wait(stageFor)),
-			stage(fx.Named(StampingEf),
-				plan.Self.Put(fx.Named(StampEf)), plan.Self.Wait(4*time.Second),
-				plan.Self.Put(fx.Named(StampEf)), plan.Self.Wait(time.Second)),
-			stage(fx.Named(LookingEf), look, look),
-		)},
-		plan.Loop[any]{Name: "still", When: cond.Self.If(still),
-			Then: plan.Steps(plan.Self.Wait(boredAfter), plan.Self.Put(bored))},
-		plan.Loop[any]{Name: "idle", When: always, Then: plan.Self.Idle()},
-	))
 }

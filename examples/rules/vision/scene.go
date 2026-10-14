@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
@@ -22,12 +21,8 @@ var (
 
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
-	preyKind := kind.Named[body](a.world.Kinds(), PreyKind)
-	hunterKind := kind.Named[body](a.world.Kinds(), HunterKind)
-
-	atlas := render.NewAtlas()
-	atlas.Add(preyKind, RectSize, render.Solid(preyColor))
-	atlas.Add(hunterKind, RectSize, render.Solid(hunterColor))
+	atlas := a.world.NewAtlas()
+	atlas.Looks()
 	atlas.Close()
 	a.world.WithRenderer(atlas)
 	a.vision.ShowCones()

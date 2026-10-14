@@ -3,13 +3,10 @@ package main
 import (
 	"embed"
 	"log"
-	"math"
 	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/act"
-	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
@@ -18,7 +15,6 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/atmosphere"
-	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
@@ -40,7 +36,6 @@ import (
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
@@ -54,8 +49,6 @@ const (
 	WorldHeight  = GridHeight * CellSize
 	ScreenWidth  = 1024
 	ScreenHeight = 768
-	spritePx     = 22
-	Sprint       = 4
 	MaxEntCount  = 320
 )
 
@@ -65,13 +58,8 @@ var mapFile embed.FS
 // A cell is 333 m of Madeira; the figures on it are drawn 50 times bigger than life.
 var scale = world.Scale{Metres: 333.0 / CellSize, Figures: 50}
 
-// unitSpeed is a demo's pace, three quarters of a cell a second: a man walks 1.4 m/s.
-var unitSpeed = scale.Units(250)
-
 // figure is how tall a walker stands as drawn: what passes under a bridge.
 var figure = scale.Figure(1.8)
-
-var deckThickness = scale.Figure(0.2)
 
 type arena struct {
 	world      *world.Plugin
@@ -113,11 +101,12 @@ func main() {
 			Heights: true,
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayers).
 		Effects(a.defineEffects).
 		Rules(a.defineRules).
 		Commands(a.defineCommands).
-		Kinds(a.defineCells, a.defineKinds).
+		Kinds(a.defineBridge).
 		Controls(a.bindKeys).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
@@ -181,7 +170,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.atmosphere.WithWeathering(a.board, a.defineClimate())
 	a.cameras = cameras.NewPlugin(a.world)
 	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter())
-	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection, a.nav, a.driving,
+	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection,
+		a.nav, a.driving,
 		a.atmosphere, a.topography, a.vision, a.bridges)
 }
 
@@ -219,106 +209,20 @@ func (a *arena) defineCommands() {
 	a.world.Commands().Define(BleedCmd, bleed)
 }
 
-func (a *arena) defineCells() {
-	kinds := a.board.CellKinds()
-	ground := cell.Land | cell.Air
-	wet := cell.Water | cell.Air
-	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: wet})
-	kinds.Define(EarthCell, cell.Kind{Cost: 2.5, Allows: ground}.Costing(cell.Air, 1))
-	kinds.Define(SandCell, cell.Kind{Cost: 4, Allows: ground}.Costing(cell.Air, 1))
-	kinds.Define(RockCell, cell.Kind{Cost: 3.25, Allows: ground}.Costing(cell.Air, 1))
-	kinds.Define(BrookCell, cell.Kind{Cost: 3.25, Allows: cell.Land | wet}.Costing(wet, 1))
-	kinds.Define(StreamCell, cell.Kind{Cost: 5, Allows: cell.Land | wet}.Costing(wet, 1))
-	kinds.Define(RiverCell, cell.Kind{Cost: 1, Allows: wet})
-	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: ground, Graded: true})
-	kinds.Define(ForestCell, cell.Kind{
-		Cost:   7.5,
-		Allows: ground,
-		Veil:   0.6,
-		Height: scale.Units(20),
-	}.Costing(cell.Air, 1))
-	a.defineWinterCells()
-}
-
 type unitRow struct {
 	Start  cell.ID `yaml:"start"`
 	Target cell.ID `yaml:"target"`
 }
 
-type fordRow struct {
-	At  cell.ID `yaml:"at"`
-	Way [2]int  `yaml:"way"`
-}
-
-func (a *arena) defineKinds() {
-	brd := a.board.Board()
-	units := board.NewUnits[unitRow](
-		a.board,
-		board.Shape{Size: scale.Figure(0.6), Height: figure},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
+func (a *arena) defineFigures() {
+	a.board.Tiles(tiles()...)
+	a.board.Figures(
+		walker{kind: UnitKind, color: playerColor, ordered: true},
+		walker{kind: PlateauKind, color: playerColor},
+		walker{kind: RivalKind, color: rivalColor, ordered: true},
+		hawk{},
+		ford{},
 	)
-	order := comp.Load(
-		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.Target} },
-	)
-	sight := comp.Const(vision.Sight{
-		Facing: geom.NewVec(1, 0),
-		Radius: scale.Units(10000),
-		Ahead:  true,
-	})
-	eye := comp.Const(world.Eye{Angle: 72 * math.Pi / 180})
-	walker := steering.Steering{
-		MaxSpeed: unitSpeed,
-		Sprint:   Sprint,
-		Accel:    unitSpeed * 2,
-		Brake:    unitSpeed * 4,
-		V0:       unitSpeed / 2,
-		TurnRate: 0.15,
-	}
-	mortal := ceremony.Plays(a.world.Roles().Named(MortalRole))
-	body := comp.Const(gravity.Body{Leap: scale.Figure(1.5)})
-	units.Define(UnitKind, unit.Mover{Domain: cell.Land}, walker,
-		order,
-		sight, eye, mortal, body,
-	)
-	units.Define(PlateauKind, unit.Mover{Domain: cell.Land}, walker,
-		sight, eye, mortal, body,
-	)
-	units.Define(RivalKind, unit.Mover{Domain: cell.Land}, walker,
-		order,
-		sight, eye, mortal, body,
-	)
-	units.Define(HawkKind,
-		unit.Mover{
-			Domain:    cell.Air,
-			Lift:      scale.Units(300),
-			Clearance: scale.Units(20),
-			Ceiling:   scale.Units(air.CloudBase - 100),
-		},
-		steering.Steering{
-			MaxSpeed: unitSpeed * 1.5,
-			Sprint:   Sprint,
-			Accel:    unitSpeed * 2,
-			Brake:    unitSpeed * 4,
-			V0:       unitSpeed / 2,
-			TurnRate: 0.1},
-		order,
-		sight, eye,
-	)
-	a.bridges.Types().Define(BridgeKind, bridges.Spec{
-		Allows:    cell.Land,
-		Width:     12,
-		Thickness: deckThickness,
-		Cost:      1,
-		Rail:      cell.Rail{Keeps: cell.Land, Height: scale.Figure(1)},
-		Pier:      3,
-	})
-	fords := board.NewEntities(a.board, board.Shape{Size: CellSize, Height: scale.Units(2)},
-		func(r fordRow) cell.ID { return r.At })
-	fords.Define(FordKind,
-		comp.Load(func(r fordRow) world.Velocity {
-			return world.Velocity{Dir: geom.NewVec(float64(r.Way[0]), float64(r.Way[1]))}
-		}),
-		comp.Const(cell.Floor{Allows: cell.Land, Cost: 6.25}))
 }
 
 func (a *arena) bindKeys() error {

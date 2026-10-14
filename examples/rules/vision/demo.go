@@ -8,9 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
-	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/comp"
-	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
@@ -24,7 +22,6 @@ import (
 	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -76,11 +73,11 @@ func main() {
 			},
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayer).
 		Effects(a.defineEffects).
 		Rules(a.defineRoles).
 		Commands(a.defineCommands).
-		Kinds(a.defineKinds).
 		Controls(a.bindKeys).
 		Spawn(a.spawnUnits).
 		Scenes(a.defineScenes).
@@ -103,78 +100,20 @@ func (a *arena) definePlayer() error {
 	return a.player.Bind(a.players.Defaults()...)
 }
 
+// the flight is a state of the whole world
 func (a *arena) defineEffects() {
 	a.world.Effects().Define(FleeingEf, effect.Spec{})
-	a.world.Effects().Define(TurnedEf, effect.Spec{effect.Lasts(time.Second)})
 }
 
-func (a *arena) defineRoles() {
-	roles, effects := a.world.Roles(), a.world.Effects()
-	roles.Define(PreyRole)
-	prey := roles.Named(PreyRole)
-	left, right := steering.Turn{Angle: math.Pi / 2}, steering.Turn{Angle: -math.Pi / 2}
-	roles.Define(PredatorRole,
-		act.Branch[vision.Sighting]{
-			Name: "chase",
-			When: cond.Other.If(prey),
-			Then: act.Self.Do(steering.Toward{}),
-		},
-		act.Branch[vision.Sighting]{
-			Name: "search",
-			When: cond.Self.If(vision.SeesNobody()),
-			Then: act.Branch[any]{
-				When: cond.Self.If(cond.Not(effects.Named(TurnedEf))),
-				Then: act.Steps(
-					act.Self.Put(effects.Named(TurnedEf)),
-					act.OneOf(
-						act.Branch[any]{
-							When: cond.Self.If(cond.Chance(0.5)),
-							Then: act.Self.Do(left),
-						},
-						act.Self.Do(right),
-					),
-				),
-			},
-		},
-		act.Branch[collision.Meeting]{
-			Name: "caught",
-			When: cond.Other.If(prey),
-			Then: act.Other.Do(world.Despawn{}),
-		},
-	)
-	roles.Define(SkittishRole,
-		act.Branch[vision.Sighting]{
-			Name: "flee the hunter",
-			When: cond.Other.If(roles.Named(PredatorRole)).
-				And(cond.On(a.world).If(effects.Named(FleeingEf))),
-			Then: act.Self.Do(steering.Away{}),
-		},
-		act.Branch[vision.Sighting]{
-			Name: "give way",
-			When: cond.On(a.world).If(effects.Named(FleeingEf)).
-				And(cond.Other.If(vision.Closing())),
-			Then: act.Self.Do(steering.Away{}),
-		},
-	)
-}
+// prey is what the hunter hunts: a role named by its rules, played by the prey
+func (a *arena) defineRoles() { a.world.Roles().Define(PreyRole) }
 
 func (a *arena) defineCommands() {
 	flee := ceremony.Toggle(a.world.Effects().Named(FleeingEf)).On(ceremony.World)
 	a.world.Commands().Define(FleeCmd, flee)
 }
 
-func (a *arena) defineKinds() {
-	kinds := a.world.Kinds()
-	kind.Define[body](kinds, PreyKind, append(sees(),
-		comp.Const(steering.Steering{Reflex: 3, TurnRate: 0.12}),
-		ceremony.Plays(a.world.Roles().Named(SkittishRole), a.world.Roles().Named(PreyRole)),
-		comp.Const(collision.Physics{Restitution: 1}),
-	))
-	kind.Define[body](kinds, HunterKind, append(sees(),
-		comp.Const(steering.Steering{Reflex: 1, TurnRate: 0.30}),
-		ceremony.Plays(a.world.Roles().Named(PredatorRole)),
-	))
-}
+func (a *arena) defineFigures() { a.world.Figures(hunter{}, prey{}) }
 
 func (a *arena) bindKeys() error {
 	return a.player.Bind(

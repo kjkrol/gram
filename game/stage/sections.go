@@ -15,7 +15,7 @@ import (
 // out, and Update ends the chain with the game.Stage.
 func New(name string) Start {
 	d := &def{name: name}
-	return Start{AfterWorld{AfterPlugins{AfterPlayers{AfterEffects{AfterRules{AfterCommands{AfterKinds{AfterControls{AfterSpawn{AfterScenes{AfterShows{d}}}}}}}}}}}}
+	return Start{AfterWorld{AfterPlugins{AfterFigures{AfterPlayers{AfterEffects{AfterRules{AfterCommands{AfterKinds{AfterControls{AfterSpawn{AfterScenes{AfterShows{d}}}}}}}}}}}}}
 }
 
 // Start is a Stage of which nothing is defined yet. Each type on is the Stage after a section:
@@ -58,10 +58,21 @@ func (s AfterWorld) Plugins(plugins func(w *world.Plugin)) AfterPlugins {
 	return s.AfterPlugins
 }
 
-type AfterPlugins struct{ AfterPlayers }
+type AfterPlugins struct{ AfterFigures }
+
+// Figures notes the figures and the tiles (world.Plugin.Figures, board.Plugin.Figures and
+// Tiles): the Stage runs their Effects, Rules and Define in those sections after the game's own
+// functions, in the order noted; a scene draws them with the atlases' Looks.
+func (s AfterPlugins) Figures[F Step](f F) AfterFigures {
+	s.d.add(section.Plugins, stepOf(f))
+	return s.AfterFigures
+}
+
+// AfterFigures is a Stage with its figures noted, or none.
+type AfterFigures struct{ AfterPlayers }
 
 // Players makes the players and binds the plugins' default keys.
-func (s AfterPlugins) Players[F Step](f F) AfterPlayers {
+func (s AfterFigures) Players[F Step](f F) AfterPlayers {
 	s.d.add(section.Players, stepOf(f))
 	return s.AfterPlayers
 }
@@ -158,6 +169,12 @@ func (s AfterShows) Update(f func(ctx goke.RunCtx, d time.Duration)) game.Stage 
 // With writes plugins' sections into the Stage where it stands, each run with the plugin it is
 // of. One written out of the place its plugin says panics as the chain is built.
 func (s AfterPlugins) With(sections ...section.Section) AfterPlugins {
+	s.d.with(sections)
+	return s
+}
+
+// With writes plugins' sections into the Stage here, as AfterPlugins.With does.
+func (s AfterFigures) With(sections ...section.Section) AfterFigures {
 	s.d.with(sections)
 	return s
 }

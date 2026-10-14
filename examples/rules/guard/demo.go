@@ -5,12 +5,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
-	"github.com/kjkrol/ceremony/comp"
-	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/effect"
-	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
@@ -19,7 +15,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
@@ -38,8 +33,8 @@ const (
 	CellSize     = 32
 	ScreenWidth  = GridWidth * CellSize
 	ScreenHeight = GridHeight * CellSize
-	EntitySize   = 22
-	UnitSpeed    = CellSize * 2
+	unitSize     = 22
+	unitSpeed    = CellSize * 2
 	MaxEntCount  = 16
 )
 
@@ -74,15 +69,15 @@ func main() {
 			Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
-				MinSize:  EntitySize,
-				MaxSize:  EntitySize,
+				MinSize:  unitSize,
+				MaxSize:  unitSize,
 			},
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayer).
 		Effects(a.defineEffects).
 		Commands(a.defineCommands).
-		Kinds(a.defineCells, a.defineKinds).
 		Controls(a.bindKeys).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
@@ -102,7 +97,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
 		WithCollision(a.collision)
 	a.cameras = cameras.NewPlugin(a.world)
-	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection, a.nav, a.driving)
+	a.players = players.NewPlugin(a.world, a.collision,
+		a.cameras, a.board, a.selection, a.nav, a.driving)
 }
 
 func (a *arena) definePlayer() error {
@@ -119,80 +115,17 @@ func (a *arena) defineCommands() {
 		ceremony.Toggle(a.world.Effects().Named(AlarmEf)).On(ceremony.World))
 }
 
-func (a *arena) defineCells() {
-	kinds := a.board.CellKinds()
-	kinds.Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true})
+var profile = steering.Steering{
+	MaxSpeed: unitSpeed,
+	Accel:    unitSpeed * 2,
+	Brake:    unitSpeed * 4,
+	V0:       unitSpeed / 2,
+	TurnRate: 0.15,
 }
 
-type guardRow struct {
-	Start cell.ID    `yaml:"start"`
-	Round [2]cell.ID `yaml:"round"`
-}
-
-type wandererRow struct {
-	Start cell.ID `yaml:"start"`
-	To    cell.ID `yaml:"to"`
-}
-
-func (a *arena) defineKinds() {
-	brd := a.board.Board()
-	profile := steering.Steering{
-		MaxSpeed: UnitSpeed,
-		Accel:    UnitSpeed * 2,
-		Brake:    UnitSpeed * 4,
-		V0:       UnitSpeed / 2,
-		TurnRate: 0.15,
-	}
-	alarm := a.world.Effects().Named(AlarmEf)
-	guard := plan.New(GuardPlan, plan.OneOf(
-		plan.Loop[any]{
-			Name:    "to the gate",
-			When:    cond.On(a.world).If(alarm),
-			Then:    plan.Self.Do(navigation.MoveTo{To: ceremony.Named(GateName)}),
-			Until:   cond.Self.If(navigation.Arrived{}),
-			Timeout: 20 * time.Second,
-		},
-		plan.Loop[navigation.Blocked]{
-			Name: "blocked",
-			When: cond.Self.If(navigation.Stuck()),
-			Then: plan.Self.Do(navigation.StepAside{}),
-		},
-		plan.Loop[navigation.Arrived]{
-			Name: "rest",
-			When: cond.Self.If(cond.Always),
-			Then: plan.Self.Wait(2 * time.Second),
-		},
-		plan.Loop[any]{
-			Name:  "patrol",
-			When:  cond.Self.If(cond.Always),
-			Then:  plan.Self.Do(navigation.Onward{}),
-			Until: cond.Self.If(navigation.Arrived{}),
-		},
-		plan.Loop[any]{Name: "idle", When: cond.Self.If(cond.Always), Then: plan.Self.Idle()},
-	))
-	guards := board.NewUnits[guardRow](a.board, board.Shape{Size: EntitySize},
-		func(g guardRow) geom.Vec { return brd.CellCenter(g.Start) })
-	guards.Define(GuardKind, unit.Mover{Domain: cell.Land}, profile, guard,
-		comp.Load(func(g guardRow) navigation.Round {
-			return navigation.NewRound(g.Round[:]...)
-		}))
-
-	patrol := plan.New(PatrolPlan, plan.Steps(
-		plan.Loop[any]{
-			Name:  "leg",
-			When:  cond.Self.If(cond.Always),
-			Then:  plan.Self.Do(navigation.Onward{}),
-			Until: cond.Self.If(navigation.Arrived{}),
-		},
-		plan.Loop[any]{Name: "rest", When: cond.Self.If(cond.Always), Then: plan.Self.Wait(3 * time.Second)},
-	))
-	wanderers := board.NewUnits[wandererRow](a.board, board.Shape{Size: EntitySize},
-		func(w wandererRow) geom.Vec { return brd.CellCenter(w.Start) })
-	wanderers.Define(WandererKind, unit.Mover{Domain: cell.Land}, profile, patrol,
-		comp.Load(func(w wandererRow) navigation.Round {
-			return navigation.NewRound(w.To, w.Start)
-		}))
+func (a *arena) defineFigures() {
+	a.board.Tiles(grass{}, wall{})
+	a.board.Figures(guard{}, wanderer{})
 }
 
 func (a *arena) bindKeys() error {

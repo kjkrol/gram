@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
@@ -30,30 +29,13 @@ var (
 func (m *mainScene) picture() render.Picture {
 	a := m.arena
 
-	witchKind := kind.Named[unitRow](a.world.Kinds(), WitchKind)
-	walkerKind := kind.Named[unitRow](a.world.Kinds(), WalkerKind)
-	boatKind := kind.Named[unitRow](a.world.Kinds(), BoatKind)
-	effects := a.world.Effects()
-	frozen := effects.Named(FrozenEf)
-
 	worldAtlas := a.world.NewAtlas()
-	worldAtlas.Add(witchKind, EntitySize, render.Diamond(witchColor)).
-		Under(frozen, render.Diamond(witchFrozenColor))
-	worldAtlas.Add(walkerKind, EntitySize, render.Solid(walkerColor)).
-		Under(frozen, render.Solid(walkerFrozenColor))
-	worldAtlas.Add(boatKind, EntitySize, render.Solid(boatColor)).
-		Under(frozen, func(dst *render.Canvas, size int) {
-			render.Solid(boatColor)(dst, size)
-			render.Border(boatRimColor)(dst, size)
-		})
+	worldAtlas.Looks()
 	worldAtlas.Close()
 	a.world.WithRenderer(worldAtlas)
 
 	boardAtlas := a.board.NewAtlas(CellSize)
-	boardAtlas.Add(GrassCell, render.Solid(grassColor)).
-		Under(effects.Named(FrostEf), render.Solid(snowColor))
-	boardAtlas.Add(WaterCell, render.Solid(waterColor)).
-		Under(effects.Named(IcedEf), render.Solid(iceColor))
+	boardAtlas.Looks()
 	boardAtlas.Close()
 	a.board.WithRenderer(boardAtlas)
 

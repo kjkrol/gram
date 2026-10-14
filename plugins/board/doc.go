@@ -113,6 +113,16 @@
 // ([Plugin.NewAtlas]), which [Plugin.WithRenderer] draws from; a state of the ground is an effect
 // on its cells, shown as a cover ([Plugin.Covering], [Slot.Under]).
 //
+// # Tiles and figures
+//
+// A [Tile] is a kind of cell in one piece: Define its cell.Kind and the roles its cells play,
+// Look its look on the board's [Atlas] and its covers under effects, and, [Stateful] or
+// [Ruled], its own effects and rules. A [Figure] is a kind of entity standing on the board the
+// same way: Define over the board (NewUnits, NewEntities), Look on the world's atlas as any
+// figure's. [Plugin.Tiles] and [Plugin.Figures], called in the Stage's Figures link, hand them
+// on to the world's figures, which the Stage leads through its sections; [Atlas.Looks]
+// declares the tiles' looks, the world atlas's the figures'.
+//
 // # Vocabulary
 //
 // Moments, for a role's rules: unit.Standing (every unit a step; host.Placed and host.Headed; its

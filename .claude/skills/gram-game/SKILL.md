@@ -110,6 +110,37 @@ entity it is shown for (`ceremony.ID(id)`); a plugin's own command that is a `ui
 feed through a camera made beside it, a backdrop `Blank`, the telemetry and the clock's HUD as
 `ui.Layer`s.
 
+## Figures and tiles
+
+A demo's kinds are figures (`world.Figure`: `Define(w)`, `Look(a, w)`; on a board
+`board.Figure`: `Define(b)`, `Look(a, w)`) and tiles (`board.Tile`: `Define(b)`, `Look(a, b)`),
+each in its own file with its sheet, its frames and, as `Stateful`/`Ruled`, its own `Effects`
+and `Rules`, every interface it implements asserted beside the type — `var _ board.Figure =
+hero{}` for one, a `var (…)` block for several (`board.Figure`, `board.Stateful`,
+`board.Ruled`; `(*hero)(nil)` for pointer receivers): `Stateful` and `Ruled` are found by
+assertion at run time, so without the `var _` a misspelt `Effects` is silently skipped. The
+chain's `Figures(a.defineFigures)` link, right after `Plugins`, notes them —
+`a.board.Tiles(grass{}, pit{})`, `a.board.Figures(newLever(), newHero(), plate{})` — and the
+Stage runs their parts in Effects, Rules and Kinds after the game's own functions, in the order
+noted (the lever before the hero whose rules name `LeverRole`); `picture()` is only
+`worldAtlas.Looks()` / `boardAtlas.Looks()` between `NewAtlas` and `Close`. The arena's
+`Effects`/`Rules` keep what several kinds share; `Kinds` is for what is no figure, often
+absent. A figure takes nothing in its constructor but its sheet: what a part needs (the board,
+the world's registers through `b.World()`) comes in the call; the arena keeps the rows several
+figures read (`unitRow`), the commands and the spawn; a row one figure reads goes with it
+(`fordRow`). Kinds alike are one type of values noted several times (topography's `ground`
+table of tiles, its `walker{kind, color, ordered}`); a kind of another plugin's register —
+the bridge (`bridges.Types().Define`), an ammo (`bullet.Shots().Define`) — is no figure: an
+arena method in `Kinds(...)` and a `xLook(atlas)` called in `picture()` beside `Looks()`, both
+in the thing's own file (topography's `bridge.go`, bullet's `ammo.go`). A figure whose kind is
+built on another plugin's method takes that plugin in its constructor (dialog's
+`host{talks: a.dialog}` for `Script`), nothing else. A figure's numbers — its size in pixels,
+its speed, its timings, its sheet's columns — are constants beside it, lowercase; `demo.go`
+keeps the game's (TPS, the grid, the screen, the entity count, a plugin's setting like the
+driving's tap). Coloured balls that are nothing but a kind (collision, minimal, scenes) stay
+in `demo.go`. A `Put` in a plan lands at the step's end, a `Hold` in a plan runs for its
+loop's life: see the `ceremony` skill.
+
 ## A plugin's own scene, input and keys (facts found in the code)
 
 - A plugin's scene (`game.Scenic`, `Scenes()`) is gathered by `PluginScenes()` into the stack

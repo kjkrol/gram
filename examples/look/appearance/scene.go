@@ -3,10 +3,7 @@ package main
 import (
 	"image/color"
 
-	"time"
-
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -42,38 +39,8 @@ func (m *mainScene) screen() *ui.Element {
 }
 
 func (a *arena) looks() *world.Atlas {
-	walkerKind := kind.Named[walker](a.world.Kinds(), WalkerKind)
-	ghostKind := kind.Named[walker](a.world.Kinds(), GhostKind)
-	leaderKind := kind.Named[walker](a.world.Kinds(), LeaderKind)
-	angry := a.world.Effects().Named(AngryEf)
-
 	atlas := a.world.NewAtlas()
-	// a walker is the figure, stepping the way it goes; angry, it stamps
-	atlas.Add(walkerKind, heroHeight, heroStanding(0)).
-		Facing(heroWays, heroStanding).
-		Animated(heroWalkFrames, 120*time.Millisecond, heroPose(heroWalk)).WhileMoving().
-		Under(angry,
-			render.LoopedFacing(heroIdleFrames, 200*time.Millisecond, heroPose(heroIdle)))
-	atlas.Add(leaderKind, Size, crowned(calmColor)).
-		Under(angry, crowned(angryColor)).
-		Turning()
-	atlas.Add(ghostKind, Size, spook).
-		Turning()
+	atlas.Looks()
 	atlas.Close()
 	return atlas
-}
-
-// drawn east within the inscribed circle, so it turns whole
-func crowned(body color.RGBA) render.SpriteDrawer {
-	return func(dst *render.Canvas, size int) {
-		render.Diamond(body)(dst, size)
-		render.Arrow(90, 3, goldColor)(dst, size)
-	}
-}
-
-func spook(dst *render.Canvas, size int) {
-	r := float32(size) / 2
-	dst.FillCircle(r, r, r-1, ghostColor)
-	dst.FillRect(r-4, r-3, 2, 3, eyeColor)
-	dst.FillRect(r+2, r-3, 2, 3, eyeColor)
 }

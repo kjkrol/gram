@@ -2,14 +2,9 @@ package main
 
 import (
 	"embed"
-	"math"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/ceremony"
-	"github.com/kjkrol/ceremony/act"
-	"github.com/kjkrol/ceremony/comp"
-	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/game"
@@ -17,7 +12,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/dialog"
@@ -42,8 +36,8 @@ const (
 	CellSize     = 32
 	ScreenWidth  = GridWidth * CellSize
 	ScreenHeight = GridHeight * CellSize
-	UnitSize     = 20
-	UnitSpeed    = CellSize * 3
+	unitSize     = 20
+	unitSpeed    = CellSize * 3
 	MaxEntCount  = 4
 )
 
@@ -78,16 +72,15 @@ func main() {
 			Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
-				MinSize:  UnitSize,
-				MaxSize:  UnitSize,
+				MinSize:  unitSize,
+				MaxSize:  unitSize,
 			},
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayer).
 		Effects(a.defineEffects).
-		Rules(a.defineRoles).
 		With(dialog.Conversations(a.defineConversations)).
-		Kinds(a.defineCells, a.defineKinds).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
 		Update(a.update)
@@ -125,28 +118,6 @@ func (a *arena) definePlayer() error {
 
 func (a *arena) defineEffects() { a.dialog.DefineEffects() }
 
-func (a *arena) defineRoles() {
-	effects := a.world.Effects()
-	talking, talked := effects.Named(dialog.TalkingEf), effects.Named(dialog.TalkedEf)
-	roles := a.world.Roles()
-	roles.Define(TravellerRole)
-	traveller := roles.Named(TravellerRole)
-	roles.Define(HostRole,
-		act.Branch[vision.Sighting]{
-			Name: "talk",
-			When: cond.Other.If(traveller).
-				And(cond.Self.If(cond.Not(talking))).
-				And(cond.Self.If(cond.Not(talked))),
-			Then: act.Self.Do(dialog.Begin{}),
-		},
-		act.Branch[vision.Sighting]{
-			Name: "part",
-			When: cond.Self.If(vision.SeesNobody()),
-			Then: act.Self.Take(talking),
-		},
-	)
-}
-
 func (a *arena) defineConversations(d *dialog.Plugin) error {
 	like := func(by int8) dialog.Change {
 		return dialog.Alter(func(r *Regard, listener uid.UID64) { r.Like(listener, by) })
@@ -168,42 +139,27 @@ func (a *arena) defineConversations(d *dialog.Plugin) error {
 	return nil
 }
 
-func (a *arena) defineCells() {
-	a.board.CellKinds().Define(MeadowCell, cell.Kind{Cost: 1, Allows: cell.Land})
-}
-
 type unitRow struct {
 	Start cell.ID `yaml:"start"`
 	Talks string  `yaml:"talks"`
 }
 
-func (a *arena) defineKinds() {
-	brd := a.board.Board()
-	units := board.NewUnits[unitRow](
-		a.board,
-		board.Shape{Size: UnitSize},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
-	)
-	walks := steering.Steering{
-		MaxSpeed: UnitSpeed,
-		Accel:    UnitSpeed * 3,
-		Brake:    UnitSpeed * 6,
-		TurnRate: 0.3,
-	}
-	roles := a.world.Roles()
+func units(b *board.Plugin) *board.Units[unitRow] {
+	return board.NewUnits[unitRow](b, board.Shape{Size: unitSize},
+		func(u unitRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+}
 
-	units.Define(
-		TravellerKind,
-		unit.Mover{Domain: cell.Land},
-		walks,
-		ceremony.Plays(roles.Named(TravellerRole)),
-	)
-	units.Define(HostKind, unit.Mover{Domain: cell.Land}, walks, ceremony.Plays(roles.Named(HostRole)),
-		comp.Const(vision.Sight{Facing: geom.NewVec(-1, 0), Radius: CellSize * 2.5}),
-		comp.Const(world.Eye{Angle: math.Pi / 3}), // looking west, the way the traveller comes
-		comp.Load(func(u unitRow) dialog.Script { return a.dialog.Script(u.Talks) }),
-		comp.Const(Regard{}),
-	)
+var walks = steering.Steering{
+	MaxSpeed: unitSpeed,
+	Accel:    unitSpeed * 3,
+	Brake:    unitSpeed * 6,
+	TurnRate: 0.3,
+}
+
+// the traveller's role before the host's rule that names it
+func (a *arena) defineFigures() {
+	a.board.Tiles(meadow{})
+	a.board.Figures(traveller{}, host{talks: a.dialog})
 }
 
 func (a *arena) spawn() error {

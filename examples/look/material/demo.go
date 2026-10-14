@@ -4,15 +4,10 @@ import (
 	"embed"
 	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony"
-	"github.com/kjkrol/ceremony/comp"
-	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/board"
@@ -21,7 +16,6 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -32,15 +26,7 @@ const (
 	CellSize     = 32
 	ScreenWidth  = GridWidth * CellSize
 	ScreenHeight = GridHeight * CellSize
-
-	WardPx = 9 * CellSize
 )
-
-//go:embed ward.wgsl
-var wardFS embed.FS
-
-// registered before the composer's shader compiles
-var wardMaterial = render.RegisterMaterials(render.Files(wardFS, "ward.wgsl"), nil, "Ward")[0]
 
 //go:embed map.yaml
 var mapFile embed.FS
@@ -64,13 +50,12 @@ func main() {
 	mainStage := stage.New(MaterialStage).
 		World(world.Config{
 			Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
-			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: CellSize, MaxSize: WardPx},
+			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: CellSize, MaxSize: wardPx},
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayer).
-		Effects(a.defineEffects).
 		Commands(a.defineCommands).
-		Kinds(a.defineCells, a.defineKinds).
 		Controls(a.bindKeys).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
@@ -91,35 +76,14 @@ func (a *arena) definePlayer() error {
 	return a.player.Bind(a.players.Defaults()...)
 }
 
-func (a *arena) defineEffects() {
-	a.world.Effects().Define(CalmEf, effect.Spec{
-		effect.Described("Calmed: the ward's glow put out for a while."),
-		effect.Lasts(2 * time.Second),
-	})
-}
-
 func (a *arena) defineCommands() {
 	a.world.Commands().Define(CalmCmd,
 		ceremony.Put(a.world.Effects().Named(CalmEf)).On(ceremony.Named(WardName)))
 }
 
-func (a *arena) defineCells() {
-	a.board.CellKinds().Define(GrassCell, cell.Kind{Cost: 1, Allows: cell.Land})
-}
-
-type wardRow struct {
-	At geom.Vec `yaml:"at"`
-}
-
-func (a *arena) defineKinds() {
-	kind.Define[wardRow](a.world.Kinds(), WardKind, kind.Spec{
-		comp.Load(func(w wardRow) world.Position {
-			return world.Position{
-				AABB: plane.NewAABB(geom.NewVec(w.At.X-WardPx/2, w.At.Y-WardPx/2), WardPx, WardPx),
-			}
-		}),
-		comp.Const(world.Velocity{}),
-	})
+func (a *arena) defineFigures() {
+	a.board.Tiles(grass{})
+	a.board.Figures(ward{})
 }
 
 func (a *arena) bindKeys() error {

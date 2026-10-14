@@ -3,11 +3,8 @@ package main
 import (
 	"embed"
 	"log"
-	"math"
 	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/game"
@@ -15,7 +12,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
@@ -25,7 +21,6 @@ import (
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -36,8 +31,6 @@ const (
 	CellSize     = 32
 	ScreenWidth  = GridWidth * CellSize
 	ScreenHeight = GridHeight * CellSize
-	EntitySize   = 22
-	UnitSpeed    = CellSize * 2
 	MaxEntCount  = 32
 )
 
@@ -71,14 +64,14 @@ func main() {
 			Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
-				MinSize:  EntitySize,
-				MaxSize:  EntitySize,
+				MinSize:  scoutPx,
+				MaxSize:  scoutPx,
 			},
 			Heights: true,
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayer).
-		Kinds(a.defineCells, a.defineKinds).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
 		Update(a.update)
@@ -114,56 +107,19 @@ func (a *arena) definePlayer() error {
 	return a.player.Bind(a.players.Defaults()...)
 }
 
-func (a *arena) defineCells() {
-	kinds := a.board.CellKinds()
-	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1))
-	kinds.Define(WallCell, cell.Kind{Cost: 1, Solid: true, Allows: cell.Air, Veil: 1, Height: 10})
-	kinds.Define(
-		ForestCell,
-		cell.Kind{Cost: 3, Allows: cell.Land | cell.Air, Veil: 0.6, Height: 8}.Costing(cell.Air, 1),
-	)
-	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land | cell.Air})
-	kinds.Define(HillCell, cell.Kind{Cost: 2, Allows: cell.Land | cell.Air}.Costing(cell.Air, 1))
-}
-
 type unitRow struct {
 	Start  cell.ID `yaml:"start"`
 	Target cell.ID `yaml:"target"`
 }
 
-func (a *arena) defineKinds() {
-	brd := a.board.Board()
-	units := board.NewUnits[unitRow](
-		a.board,
-		board.Shape{Size: EntitySize, Height: 2},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
+func (a *arena) defineFigures() {
+	a.board.Tiles(tiles()...)
+	a.board.Figures(
+		scout{kind: RedKind, color: redColor},
+		scout{kind: BlueKind, color: blueColor},
+		scout{kind: YellowKind, color: yellowColor},
+		hawk{},
 	)
-	order := comp.Load(
-		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.Target} },
-	)
-	sight := comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 200, Ahead: true})
-	eye := func(height float64) comp.Comp {
-		return comp.Const(world.Eye{Height: height, Angle: 2 * math.Pi / 5})
-	}
-	scout := steering.Steering{
-		MaxSpeed: UnitSpeed,
-		Accel:    UnitSpeed * 2,
-		Brake:    UnitSpeed * 4,
-		V0:       UnitSpeed / 2,
-		TurnRate: 0.15,
-	}
-	for _, name := range scouts {
-		units.Define(name, unit.Mover{Domain: cell.Land}, scout, order, sight, eye(1.5))
-	}
-	flyer := steering.Steering{
-		MaxSpeed: UnitSpeed * 1.5,
-		Accel:    UnitSpeed * 2,
-		Brake:    UnitSpeed * 4,
-		V0:       UnitSpeed / 2,
-		TurnRate: 0.1,
-	}
-	units.Define(HawkKind, unit.Mover{Domain: cell.Air, Lift: 40}, flyer, order,
-		sight, eye(1))
 }
 
 func (a *arena) spawn() error {

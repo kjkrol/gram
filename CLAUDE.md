@@ -130,6 +130,16 @@ Decisions the user has made; they are not up for revisiting in passing.
   (atlases, `WithAtmosphere`, styles, views) and nothing else does; `makePlugins` configures what
   a plugin does. A sprite in a Stage's struct is a leak. A look is drawing (`Under`), never an
   effect's Spec.
+- **A kind of entity is a figure, a kind of cell a tile**, each in a file of its own
+  (`hero.go`, `lever.go`, `tiles.go`) with everything that is its alone: its effects
+  (`Effects`), its roles and rules (`Rules`), what it is (`Define`), how it looks (`Look`),
+  **asserted beside the type** (`var _ board.Figure = hero{}`, `board.Stateful`, `board.Ruled`,
+  `board.Tile`; `world.Figure` without a board) — the optional parts are found by assertion, so
+  only the `var _` says a misspelt `Effects` is noticed.
+  The Stage's `Figures` link notes them and runs each part in its section; the scene asks the
+  atlas's `Looks()`. The arena's `Effects` and `Rules` keep only what several kinds share (a
+  role many play, a rule of the whole); the commands wiring the map and the spawn are the
+  arena's. Coloured balls that are nothing but a kind stay in `demo.go`.
 - **A map is a file** (`map.yaml` beside a demo's code). Entities standing on the board are
   entities, listed one by one, never placed by a legend's character. Kinds stay in Go.
 - **What stands on the board is an entity, not terrain**: a lever, a trapdoor, a gate, a plate.

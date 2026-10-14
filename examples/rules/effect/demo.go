@@ -39,8 +39,8 @@ const (
 	CellSize     = 32
 	ScreenWidth  = GridWidth * CellSize
 	ScreenHeight = GridHeight * CellSize
-	EntitySize   = 22
-	UnitSpeed    = CellSize * 2
+	unitSize     = 22
+	unitSpeed    = CellSize * 2
 	MaxEntCount  = 16
 
 	Frost = cell.Domain(1 << 3)
@@ -74,16 +74,16 @@ func main() {
 			Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
-				MinSize:  EntitySize,
-				MaxSize:  EntitySize,
+				MinSize:  unitSize,
+				MaxSize:  unitSize,
 			},
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayer).
 		Effects(a.defineEffects).
 		Rules(a.defineRoles).
 		Commands(a.defineCommands).
-		Kinds(a.defineCells, a.defineKinds).
 		Controls(a.bindKeys).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
@@ -103,7 +103,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
 		WithCollision(a.collision)
 	a.cameras = cameras.NewPlugin(a.world)
-	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection, a.nav, a.driving)
+	a.players = players.NewPlugin(a.world, a.collision,
+		a.cameras, a.board, a.selection, a.nav, a.driving)
 }
 
 func (a *arena) definePlayer() error {
@@ -111,26 +112,9 @@ func (a *arena) definePlayer() error {
 	return a.player.Bind(a.players.Defaults()...)
 }
 
+// the states every unit may be in, fallen into the lake or walking the ice
 func (a *arena) defineEffects() {
 	effects := a.world.Effects()
-	effects.Define(FrostEf, effect.Spec{
-		effect.Described("Land under snow: slower, and the witch's own ground."),
-		effect.Lasts(5 * time.Second),
-		effect.Alter(func(g *cell.Ground) {
-			g.Kind.Allows |= Frost
-			g.Kind.Cost++
-			g.Kind = g.Kind.Costing(Frost, 0.5)
-		}),
-	})
-	effects.Define(IcedEf, effect.Spec{
-		effect.Described("Water under ice: walked over, not sailed."),
-		effect.Lasts(5 * time.Second),
-		effect.Alter(func(g *cell.Ground) {
-			g.Kind.Allows = cell.Land | Frost
-			g.Kind.Cost = 2
-			g.Kind = g.Kind.Costing(Frost, 0.5)
-		}),
-	})
 	effects.Define(FrozenEf, effect.Spec{
 		effect.Described("Frozen stiff: stood dead still, an immovable block."),
 		effect.Alter(func(p *collision.Physics) { p.Mass = math.Inf(1) }),
@@ -142,25 +126,11 @@ func (a *arena) defineEffects() {
 	})
 }
 
+// mortal is everyone's: the witch, the walker and the boat
 func (a *arena) defineRoles() {
 	effects := a.world.Effects()
-	frost, iced := effects.Named(FrostEf), effects.Named(IcedEf)
-	frozen, slip := effects.Named(FrozenEf), effects.Named(SlipEf)
-
-	roles := a.world.Roles()
-	roles.Define(LakeRole)
-	roles.Define(WitchRole, act.Branch[unit.Standing]{
-		Name: "freeze",
-		When: cond.Self.If(cond.Always),
-		Then: act.OneOf(
-			act.Branch[any]{
-				When: cond.Around(1).If(roles.Named(LakeRole)),
-				Then: act.Around(1).Put(iced),
-			},
-			act.Around(1).Put(frost),
-		),
-	})
-	roles.Define(MortalRole,
+	iced, frozen, slip := effects.Named(IcedEf), effects.Named(FrozenEf), effects.Named(SlipEf)
+	a.world.Roles().Define(MortalRole,
 		act.Branch[unit.Standing]{
 			Name: "fallen in",
 			When: cond.Self.If(unit.Fallen()),
@@ -182,14 +152,8 @@ func (a *arena) defineRoles() {
 }
 
 func (a *arena) defineCommands() {
-	a.world.Commands().Define(FreezeCmd,
-		ceremony.Put(a.world.Effects().Named(FrozenEf)).On(a.selection.Pointed()).For(3*time.Second))
-}
-
-func (a *arena) defineCells() {
-	kinds := a.board.CellKinds()
-	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
-	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water})
+	freeze := ceremony.Put(a.world.Effects().Named(FrozenEf)).On(a.selection.Pointed())
+	a.world.Commands().Define(FreezeCmd, freeze.For(3*time.Second))
 }
 
 type unitRow struct {
@@ -197,46 +161,31 @@ type unitRow struct {
 	Target cell.ID `yaml:"target"`
 }
 
-func (a *arena) defineKinds() {
-	brd := a.board.Board()
-	units := board.NewUnits[unitRow](
-		a.board,
-		board.Shape{Size: EntitySize},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
-	)
-	profile := func(brake float64) steering.Steering {
-		return steering.Steering{
-			MaxSpeed: UnitSpeed,
-			Accel:    UnitSpeed * 2,
-			Brake:    brake,
-			V0:       UnitSpeed / 2,
-			TurnRate: 0.15,
-		}
+func units(b *board.Plugin) *board.Units[unitRow] {
+	return board.NewUnits[unitRow](b, board.Shape{Size: unitSize},
+		func(u unitRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+}
+
+func profile(brake float64) steering.Steering {
+	return steering.Steering{
+		MaxSpeed: unitSpeed,
+		Accel:    unitSpeed * 2,
+		Brake:    brake,
+		V0:       unitSpeed / 2,
+		TurnRate: 0.15,
 	}
-	order := comp.Load(
-		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.Target} },
-	)
-	roles := a.world.Roles()
-	units.Define(
-		WitchKind,
-		unit.Mover{Domain: cell.Land | cell.Water | Frost},
-		profile(UnitSpeed*4),
-		order,
-		ceremony.Plays(roles.Named(WitchRole), roles.Named(MortalRole)),
-	)
-	units.Define(
-		WalkerKind,
-		unit.Mover{Domain: cell.Land},
-		profile(UnitSpeed*4),
-		ceremony.Plays(roles.Named(MortalRole)),
-	)
-	units.Define(
-		BoatKind,
-		unit.Mover{Domain: cell.Water},
-		profile(UnitSpeed/4),
-		order,
-		ceremony.Plays(roles.Named(MortalRole)),
-	)
+}
+
+func ordered() comp.Comp {
+	return comp.Load(func(u unitRow) navigation.MoveOrder {
+		return navigation.MoveOrder{Target: u.Target}
+	})
+}
+
+// the lake's role before the witch's rule that names it
+func (a *arena) defineFigures() {
+	a.board.Tiles(grass{}, water{})
+	a.board.Figures(witch{}, walker{}, boat{})
 }
 
 func (a *arena) bindKeys() error {

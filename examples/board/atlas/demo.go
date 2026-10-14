@@ -4,8 +4,6 @@ import (
 	"embed"
 	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/game"
@@ -13,7 +11,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
@@ -22,7 +19,6 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -35,8 +31,6 @@ const (
 	WorldHeight  = GridHeight * CellSize
 	ScreenWidth  = 1024
 	ScreenHeight = 768
-	EntitySize   = 24
-	UnitSpeed    = CellSize * 2
 	UnitCount    = 4
 )
 
@@ -68,13 +62,13 @@ func main() {
 			Space: world.SpaceCfg{Width: WorldWidth, Height: WorldHeight},
 			Entities: world.EntitiesCfg{
 				MaxCount: 2 * UnitCount,
-				MinSize:  EntitySize,
-				MaxSize:  EntitySize,
+				MinSize:  walkerPx,
+				MaxSize:  walkerPx,
 			},
 		}).
 		Plugins(a.makePlugins).
+		Figures(a.defineFigures).
 		Players(a.definePlayer).
-		Kinds(a.defineCells, a.defineKinds).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
 		Shows(MainScene, telemetry.SceneName).
@@ -92,7 +86,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
 		WithCollision(a.collision)
 	a.cameras = cameras.NewPlugin(a.world)
-	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection, a.nav, a.driving)
+	a.players = players.NewPlugin(a.world, a.collision,
+		a.cameras, a.board, a.selection, a.nav, a.driving)
 }
 
 func (a *arena) definePlayer() error {
@@ -100,41 +95,9 @@ func (a *arena) definePlayer() error {
 	return a.player.Bind(a.players.Defaults()...)
 }
 
-func (a *arena) defineCells() {
-	kinds := a.board.CellKinds()
-	kinds.Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
-	kinds.Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water})
-	kinds.Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
-	kinds.Define(WoodCell, cell.Kind{Cost: 4, Allows: cell.Land, Veil: 0.6})
-}
-
-type unitRow struct {
-	Start  cell.ID `yaml:"start"`
-	Target cell.ID `yaml:"target"`
-}
-
-func (a *arena) defineKinds() {
-	brd := a.board.Board()
-	units := board.NewUnits[unitRow](
-		a.board,
-		board.Shape{Size: EntitySize},
-		func(u unitRow) geom.Vec { return brd.CellCenter(u.Start) },
-	)
-	order := comp.Load(
-		func(u unitRow) navigation.MoveOrder { return navigation.MoveOrder{Target: u.Target} },
-	)
-	units.Define(
-		UnitKind,
-		unit.Mover{Domain: cell.Land},
-		steering.Steering{
-			MaxSpeed: UnitSpeed,
-			Accel:    UnitSpeed * 2,
-			Brake:    UnitSpeed * 4,
-			V0:       UnitSpeed / 2,
-			TurnRate: 0.15,
-		},
-		order,
-	)
+func (a *arena) defineFigures() {
+	a.board.Tiles(grass{}, water{}, road{}, wood{})
+	a.board.Figures(walker{})
 }
 
 func (a *arena) spawn() error {
