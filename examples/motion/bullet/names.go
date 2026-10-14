@@ -22,6 +22,8 @@ const (
 	RoundKind    = "round"
 	GrenadeKind  = "grenade"
 
+	SoldierName = "soldier"
+
 	PlayerSide = "player"
 	WildSide   = "wild"
 

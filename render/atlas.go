@@ -7,7 +7,7 @@ import (
 )
 
 // SpriteID identifies a sprite in an Atlas.
-type SpriteID uint8
+type SpriteID uint16
 
 // SpriteDrawer paints one sprite's size x size pixels into dst.
 type SpriteDrawer func(dst *Canvas, size int)

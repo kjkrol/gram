@@ -8,12 +8,14 @@ const (
 	FrostEf  = "frost"
 	IcedEf   = "iced"
 	SlipEf   = "slip"
+	HasteEf  = "haste"
 
 	LakeRole   = "lake"
 	WitchRole  = "witch"
 	MortalRole = "mortal"
 
 	FreezeCmd = "freeze"
+	HastenCmd = "hasten"
 
 	WitchKind  = "witch"
 	WalkerKind = "walker"

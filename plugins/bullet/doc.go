@@ -14,10 +14,11 @@
 //
 // # Shoot
 //
-// [Shoot] is the command: by a player, from every Selected unit it owns; by an entity, through
-// act.Self.Do in a rule or a plan, from itself. The shot goes towards At when Targeted, towards the
-// moment's Subject when aimed, else the way the shooter faces. A thrown shot comes down where
-// it goes to, on the ground [Plugin.WithGround] gives.
+// [Shoot] is the command: by a player, from the unit its Camera is fastened to, else from every
+// Selected unit it owns; by an entity, through act.Self.Do in a rule or a plan, from itself. The
+// shot goes towards At when Targeted, towards the moment's Subject when aimed, else the way the
+// shooter faces. A thrown shot comes down where it goes to, on the ground [Plugin.WithGround]
+// gives, untargeted as far as its Power says.
 //
 // # Landing, Resting and Blast
 //

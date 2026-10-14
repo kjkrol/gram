@@ -9,7 +9,6 @@ import (
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
@@ -40,6 +39,11 @@ const (
 	unitSize   = 22
 	unitSpeed  = CellSize * 2
 	woundLasts = 5 * time.Second
+
+	tapFor = 160 * time.Millisecond // a key let go sooner turns the soldier without a step
+	// Shift held this long throws a grenade its whole range; a tap throws it a fifth of it
+	fullThrow = 1200 * time.Millisecond
+	tapThrow  = 0.2
 )
 
 //go:embed map.yaml
@@ -61,8 +65,9 @@ type arena struct {
 
 func main() {
 	props := game.Props{
-		Title:       "gram bullet demo",
-		Description: "A soldier shoots.",
+		Title: "gram bullet demo",
+		Description: "A soldier on WSAD shoots rounds with Space and throws grenades with " +
+			"Shift: the longer it is held, the further the grenade flies.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -91,7 +96,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.collision = collision.NewPlugin(a.world)
 	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).WithCollision(a.collision)
 	a.selection = selection.NewPlugin(a.world)
-	a.driving = driving.NewPlugin(a.world, a.selection).WithGround(a.board)
+	a.driving = driving.NewPlugin(a.world, a.selection).WithGround(a.board).WithTap(tapFor)
 	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
 		WithCollision(a.collision)
 	a.bullet = bullet.NewPlugin(a.world, a.selection).WithGround(a.board.Heights)
@@ -110,24 +115,17 @@ func (a *arena) makePlugins(w *world.Plugin) {
 func (a *arena) definePlayers() error {
 	a.player = a.players.Local("player")
 	a.wild = a.players.Add("wild")
-	view := cameras.Keys{Wheel: true, Drag: true, Edge: true}
-	drive := driving.Tank{
-		Ahead: control.KeyW,
-		Back:  control.KeyS,
-		Left:  control.KeyA,
-		Right: control.KeyD,
-		In:    camera.Outside,
+	walk := driving.Compass{
+		Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD,
 	}
+	view := cameras.Keys{Wheel: true, ZoomIn: control.KeyEqual, ZoomOut: control.KeyMinus}
 	return a.player.Bind(slices.Concat(
 		a.players.DefaultBindings(),
 		a.world.DefaultBindings(),
-		view.Bindings(),
+		a.collision.DefaultBindings(),
 		a.board.DefaultBindings(),
-		a.selection.DefaultBindings(),
-		a.nav.DefaultBindings(),
-		a.driving.DefaultBindings(),
-		a.bullet.DefaultBindings(),
-		drive.Bindings(),
+		view.Bindings(),
+		walk.Bindings(),
 	)...)
 }
 
@@ -169,19 +167,19 @@ func (a *arena) defineFigures() {
 }
 
 func (a *arena) bindKeys() error {
+	shots := a.bullet.Shots()
 	return a.player.Bind(
-		control.Give(
-			control.KeyPress{Key: control.KeyF},
+		control.Build(control.KeyPress{Key: control.KeySpace},
 			"Fire a round the way the soldier faces",
-			bullet.Shoot{Ammo: a.bullet.Shots().Named(RoundKind)},
-		),
-		control.Build(control.KeyPress{Key: control.KeyG}, "Throw a grenade at the cursor",
 			func(c control.Context) (bullet.Shoot, bool) {
-				return bullet.Shoot{
-					Ammo:     a.bullet.Shots().Named(GrenadeKind),
-					At:       c.World(c.Cursor),
-					Targeted: true,
-				}, true
+				return bullet.Shoot{Ammo: shots.Named(RoundKind), Camera: c.Camera}, true
+			}),
+		control.Build(control.KeyReleased{Key: control.KeyShift},
+			"Throw a grenade, the further the longer held",
+			func(c control.Context) (bullet.Shoot, bool) {
+				power := max(float64(c.Held)/float64(fullThrow), tapThrow)
+				grenade := shots.Named(GrenadeKind)
+				return bullet.Shoot{Ammo: grenade, Camera: c.Camera, Power: power}, true
 			}),
 	)
 }
@@ -192,7 +190,7 @@ func (a *arena) spawn() error {
 		return err
 	}
 	return board.Spawn[unitRow](level, board.Sides{
-		PlayerSide: {players.Give{To: a.player.ID}, selection.Allow{Selected: true}},
+		PlayerSide: {players.Give{To: a.player.ID}},
 		WildSide:   {players.Give{To: a.wild.ID}},
 	})
 }

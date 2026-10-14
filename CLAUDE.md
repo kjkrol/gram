@@ -50,15 +50,15 @@ make demo-navigation-spawn                                         # walkers spa
 make demo-guard                                                    # guards on a plan: patrol, step aside, rest, run to the gate while the alarm (A) is on
 make demo-navigation-vision                                        # board + navigation + vision: walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-vision-hex                                    # the same on a hex board
-make demo-effect                                                   # an ice witch: frost and frozen as effects
-make demo-bullet                                                   # a soldier on WSAD shoots rounds (F) and throws grenades (G)
+make demo-effect                                                   # an ice witch: frost and frozen as effects; J hastens the selected
+make demo-bullet                                                   # a soldier on WSAD shoots rounds (Space) and throws grenades (Shift held, the longer the further)
 make demo-board                                                    # Madeira on the simple map: a flat board, bands for the ways, bridges and fords
 make demo-board-topography                                         # Madeira in relief: light, water, roads, bridges, isometric or from above (Tab), the weather
 go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS
 make demo-board-atlas                                              # a small flat board from the game's own atlas, the water a material
-make demo-wire                                                     # a lever, a plate and a switch driving trapdoors and a gate; one hero on WSAD, the lever pulled by touch (Space)
+make demo-mechanisms                                               # a lever, a plate and a switch driving trapdoors and a gate; one hero on WSAD, the lever pulled by touch (Space)
 make demo-material                                                 # an entity drawn by a material instead of a sprite; C calms it into a sprite
-make demo-animation                                                # a figure drawn frame after frame from a sheet; Shift+P freezes the gait
+make demo-animation                                                # a gallery of animations from sheets: walking, braking, bored, pulling, a lever swinging
 make demo-dialog                                                   # conversations from YAML: the miller and the smith
 make demo-ember                                                    # procedural animation out of the entity's state; F douses into soot
 make demo-platformer                                               # a hero in a side view under gravity: A/D walk, W jumps, G turns gravity over

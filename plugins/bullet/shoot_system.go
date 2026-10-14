@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -56,17 +57,32 @@ func (s *shootSystem) Update(*goke.CmdBuf, time.Duration) {
 	}
 	s.shoots.Drain(func(i command.Issued[Shoot]) {
 		s.shooters = s.shooters[:0]
-		if i.ByEntity {
+		switch f := fastening(i.Command.Camera); {
+		case i.ByEntity:
 			if s.query.Seek(i.Entity) {
 				s.shooters = append(s.shooters, s.at(i.Entity, s.query.Cursor()))
 			}
-		} else {
+		case f.How != 0:
+			if s.query.Seek(f.Entity) {
+				if sh := s.at(f.Entity, s.query.Cursor()); owner.Obeys(sh.owners, i.Issuer) {
+					s.shooters = append(s.shooters, sh)
+				}
+			}
+		default:
 			s.selectedOf(i.Issuer)
 		}
 		for _, sh := range s.shooters {
 			s.fire(i.Command, sh)
 		}
 	})
+}
+
+// what cam is fastened to; none for no camera, or one fastened to nothing
+func fastening(cam camera.Camera) camera.Fastening {
+	if c, ok := cam.(camera.Fastenable); ok {
+		return c.Fastening()
+	}
+	return camera.Fastening{}
 }
 
 func (s *shootSystem) at(id uid.UID64, cur *goke.Cursor) shooter {
@@ -133,8 +149,11 @@ func (s *shootSystem) fire(cmd Shoot, sh shooter) {
 		}
 	}
 	if body.Gravity > 0 {
-		if targeted {
+		switch {
+		case targeted:
 			shot.Range = min(math.Hypot(at.X-from.X, at.Y-from.Y), body.Range)
+		case cmd.Power > 0:
+			shot.Range = body.Range * min(cmd.Power, 1)
 		}
 		t := max(shot.Range, 1e-9) / body.Speed
 		down := geom.NewVec(from.X+dir.X*shot.Range, from.Y+dir.Y*shot.Range)

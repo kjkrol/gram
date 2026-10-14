@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/kjkrol/ceremony"
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
@@ -27,6 +28,12 @@ func (m *mainScene) picture() render.Picture {
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	return ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-		Input(a.players.Through(a.player))
+	feed := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())
+	return ui.Layers(
+		ui.Image(feed).Input(a.players.Through(a.player)),
+		ui.Label("walking, braking").On(ceremony.Named(WalkerName)),
+		ui.Label("bored: blinking, stamping, looking about").On(ceremony.Named(IdlerName)),
+		ui.Label("pulling").On(ceremony.Named(PullerName)),
+		ui.Label("swinging").On(ceremony.Named(LeverName)).Below(),
+	)
 }

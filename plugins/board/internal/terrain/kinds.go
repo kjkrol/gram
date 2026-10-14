@@ -16,6 +16,7 @@ type Kinds struct {
 	entries map[cell.Name]cell.Kind
 	plays   map[cell.Name]tag.Tags[cond.Roles]
 	next    render.SpriteID
+	taken   int // slots issued: next wraps round past the last
 	heights bool
 	// Guard, when set, is called with each kind's name as it is defined; it refuses one defined
 	// out of its section.
@@ -44,8 +45,7 @@ func (d *Kinds) Define(name string, k cell.Kind, plays ...*ceremony.Part) {
 	if !d.heights && k.Height != 0 {
 		panic(fmt.Sprintf("board: kind %q has a Height in a flat world; set world.Config.Heights", name))
 	}
-	k.SpriteID = d.next
-	d.next++
+	k.SpriteID = d.NewSprite()
 	d.entries[k.Name] = k
 	if len(plays) > 0 {
 		var roles tag.Tags[cond.Roles]
@@ -76,10 +76,15 @@ func (d *Kinds) Plays(name string) tag.Tags[cond.Roles] {
 	return d.plays[cell.Named(name)]
 }
 
-// NewSprite reserves a slot of the board's atlas that belongs to no kind: a cover's.
+// NewSprite reserves a slot of the board's atlas that belongs to no kind: a cover's. It panics
+// once every one of the render.MaxSprites is taken.
 func (d *Kinds) NewSprite() render.SpriteID {
+	if d.taken == render.MaxSprites {
+		panic(fmt.Sprintf("board: every one of the %d atlas sprites is taken", render.MaxSprites))
+	}
 	id := d.next
 	d.next++
+	d.taken++
 	return id
 }
 

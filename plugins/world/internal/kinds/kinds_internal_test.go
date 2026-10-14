@@ -1,6 +1,7 @@
 package kinds
 
 import (
+	"github.com/kjkrol/gram/render"
 	"reflect"
 	"slices"
 	"strings"
@@ -173,12 +174,13 @@ func TestKinds_Define_TakesOneOfEachComponentType(t *testing.T) {
 	}
 }
 
-func TestKinds_NewSprite_RefusesTheTwoHundredAndFiftySeventh(t *testing.T) {
+func TestKinds_NewSprite_RefusesOnePastTheLast(t *testing.T) {
 	kinds := New(false)
-	for range 256 {
+	for range render.MaxSprites {
 		kinds.NewSprite()
 	}
 	if msg := panicsWith(t, func() { kinds.NewSprite() }); !strings.Contains(msg, "atlas sprites") {
-		t.Errorf("the 257th sprite: %q, want a panic saying the sprites are taken", msg)
+		t.Errorf("one sprite past %d: %q, want a panic saying the sprites are taken",
+			render.MaxSprites, msg)
 	}
 }

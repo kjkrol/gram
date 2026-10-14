@@ -197,6 +197,8 @@ func Written(t control.Trigger) string {
 		return keyName(t.Key)
 	case control.KeyHeld:
 		return keyName(t.Key) + " (held)"
+	case control.KeyReleased:
+		return keyName(t.Key) + " (hold, let go)"
 	case control.ButtonPress:
 		return withMods(t.Mods, buttonName(t.Button)+" click")
 	case control.Drag:

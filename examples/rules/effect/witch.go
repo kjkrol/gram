@@ -47,5 +47,6 @@ func (witch) Define(b *board.Plugin) {
 
 func (witch) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[unitRow](w.Kinds(), WitchKind), unitSize, render.Diamond(witchColor)).
-		Under(w.Effects().Named(FrozenEf), render.Diamond(witchFrozenColor))
+		Under(w.Effects().Named(FrozenEf), render.Diamond(witchFrozenColor)).
+		Under(w.Effects().Named(HasteEf), render.Diamond(witchHasteColor))
 }

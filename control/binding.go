@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
@@ -46,6 +47,10 @@ type KeyDown struct{ Key Key }
 // tick after. A key tapped between two ticks never fires.
 type KeyHeld struct{ Key Key }
 
+// KeyReleased fires when Key comes up, Context.Held saying how long it was down: a throw as
+// strong as the key was held. A key held for a chord with modifiers (Shift+X) does not fire it.
+type KeyReleased struct{ Key Key }
+
 // ButtonPress fires when Button goes down with Mods held; Context.Cursor is where.
 type ButtonPress struct {
 	Button MouseButton
@@ -80,6 +85,7 @@ type CursorMove struct{}
 func (KeyPress) trigger()     {}
 func (KeyDown) trigger()      {}
 func (KeyHeld) trigger()      {}
+func (KeyReleased) trigger()  {}
 func (ButtonPress) trigger()  {}
 func (Drag) trigger()         {}
 func (Wheel) trigger()        {}
@@ -100,6 +106,7 @@ type Context struct {
 	Screen      geom.Vec // the window's size in pixels
 	Mods        Mods
 	FillsScreen bool
+	Held        time.Duration // how long a key was held, for KeyReleased
 }
 
 // World is the ground point under screen position s: a camera.Picker's own Pick, else the

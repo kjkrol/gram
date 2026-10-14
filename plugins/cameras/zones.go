@@ -43,19 +43,35 @@ func (v *zonesView) Compose(f *render.Frame, cam camera.Camera) {
 		return
 	}
 	w, h := cam.Viewport()
-	m, g := float32(control.EdgeMargin), float32(zoneGap)
-	r := float32(control.CornerSide(float64(w), float64(h)))
-	rounded(f, r+g, 0, w-r-g, m, zoneColor)
-	rounded(f, r+g, h-m, w-r-g, h, zoneColor)
-	rounded(f, 0, r+g, m, h-r-g, zoneColor)
-	rounded(f, w-m, r+g, w, h-r-g, zoneColor)
-	for _, c := range [4][2]float32{{0, 0}, {w - r, 0}, {0, h - r}, {w - r, h - r}} {
-		rounded(f, c[0], c[1], c[0]+r, c[1]+r, cornerColor)
+	thick := float32(control.EdgeMargin)                        // how far in a strip reaches
+	side := float32(control.CornerSide(float64(w), float64(h))) // a corner's square
+	ends := side + zoneGap                                      // where a strip stops, from an edge
+
+	topStrip := zone{left: ends, top: 0, right: w - ends, bottom: thick}
+	bottomStrip := zone{left: ends, top: h - thick, right: w - ends, bottom: h}
+	leftStrip := zone{left: 0, top: ends, right: thick, bottom: h - ends}
+	rightStrip := zone{left: w - thick, top: ends, right: w, bottom: h - ends}
+
+	topLeftCorner := zone{left: 0, top: 0, right: side, bottom: side}
+	topRightCorner := zone{left: w - side, top: 0, right: w, bottom: side}
+	bottomLeftCorner := zone{left: 0, top: h - side, right: side, bottom: h}
+	bottomRightCorner := zone{left: w - side, top: h - side, right: w, bottom: h}
+
+	for _, strip := range []zone{topStrip, bottomStrip, leftStrip, rightStrip} {
+		strip.draw(f, zoneColor)
+	}
+	corners := []zone{topLeftCorner, topRightCorner, bottomLeftCorner, bottomRightCorner}
+	for _, corner := range corners {
+		corner.draw(f, cornerColor)
 	}
 }
 
-// a rectangle with its corners rounded by zoneRound, on the Marks tier
-func rounded(f *render.Frame, x0, y0, x1, y1 float32, c color.RGBA) {
+// a rectangle of the picture, in its pixels, y down the screen
+type zone struct{ left, top, right, bottom float32 }
+
+// draw fills the zone in c with its corners rounded by zoneRound, on the Marks tier
+func (z zone) draw(f *render.Frame, c color.RGBA) {
+	x0, y0, x1, y1 := z.left, z.top, z.right, z.bottom
 	if x1 <= x0 || y1 <= y0 {
 		return
 	}

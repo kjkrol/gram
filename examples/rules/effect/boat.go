@@ -22,7 +22,8 @@ func (boat) Define(b *board.Plugin) {
 
 func (boat) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[unitRow](w.Kinds(), BoatKind), unitSize, render.Solid(boatColor)).
-		Under(w.Effects().Named(FrozenEf), iced)
+		Under(w.Effects().Named(FrozenEf), iced).
+		Under(w.Effects().Named(HasteEf), render.Solid(boatHasteColor))
 }
 
 func iced(dst *render.Canvas, size int) {

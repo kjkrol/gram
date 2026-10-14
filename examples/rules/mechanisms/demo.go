@@ -56,8 +56,8 @@ type arena struct {
 
 func main() {
 	props := game.Props{
-		Title: "gram wire demo",
-		Description: "Wires: a lever, a plate and a switch. Walk the hero with WSAD. At the " +
+		Title: "gram mechanisms demo",
+		Description: "Mechanisms: a lever, a plate and a switch. Walk the hero with WSAD. At the " +
 			"lever, turned to it, Space pulls it: its trapdoors open; Space again pushes it " +
 			"back and they shut. The plate stood on opens the other trapdoors for a while, " +
 			"G flips the gate.",
@@ -65,7 +65,7 @@ func main() {
 		TargetTPS: TPS,
 	}
 	a := &arena{}
-	mainStage := stage.New(WireStage).
+	mainStage := stage.New(MechanismsStage).
 		World(world.Config{
 			Space: world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 			Entities: world.EntitiesCfg{
@@ -153,7 +153,7 @@ func standingAt(r standingRow) cell.ID { return r.At }
 // the tiles the board is laid with and the figures standing on it, in the order they are defined
 func (a *arena) defineFigures() {
 	a.board.Tiles(grass{}, pit{}, fence{})
-	a.board.Figures(newLever(), newHero(), plate{}, trapdoor{}, gate{})
+	a.board.Figures(lever{}, hero{}, plate{}, trapdoor{}, gate{})
 }
 
 func (a *arena) bindKeys() error {

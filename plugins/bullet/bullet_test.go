@@ -2,6 +2,8 @@ package bullet_test
 
 import (
 	cgoke "github.com/kjkrol/ceremony/goke"
+	"github.com/kjkrol/gram/camera"
+	icamera "github.com/kjkrol/gram/internal/camera"
 	"math"
 	"testing"
 	"time"
@@ -756,5 +758,46 @@ func TestBody_AnEffectHoldsAShotInTheAir(t *testing.T) {
 	r.tick(5)
 	if f := r.theShot().flight; f.Landed || f.Flown != flown || flown >= 100 {
 		t.Errorf("the flight is %+v, want it held in the air at %v flown", *f, flown)
+	}
+}
+
+func TestShoot_APlayerFiresFromTheUnitItsCameraIsFastenedTo(t *testing.T) {
+	r := newRig(t, scene{pieces: []piece{
+		{x: 50, y: 50, size: 20, facing: east, selectable: true, selected: true, owner: 1},
+		{x: 50, y: 150, size: 20, facing: east, owner: 2},
+		{x: 50, y: 250, size: 20, facing: east, owner: 1},
+	}})
+	ammo := round(r, true)
+	r.start()
+	cam := icamera.NewFromSpace(400, 400, 0)
+	cam.(camera.Fastenable).Fasten(camera.Fastening{Entity: r.ids[2], How: camera.Centred})
+	r.w.Carrier().Put(1, bullet.Shoot{Ammo: ammo, Camera: cam})
+	r.tick(1)
+	if shot := r.theShot(); shot.flight.Shooter != r.ids[2] {
+		t.Errorf("the shot is %v's, want the followed unit's %v, not the selected one's",
+			shot.flight.Shooter, r.ids[2])
+	}
+	cam.(camera.Fastenable).Fasten(camera.Fastening{Entity: r.ids[1], How: camera.Centred})
+	r.w.Carrier().Put(1, bullet.Shoot{Ammo: ammo, Camera: cam})
+	r.tick(1)
+	if n := len(r.shots()); n != 1 {
+		t.Errorf("fastened to another player's unit: %d shots, want the first alone", n)
+	}
+}
+
+func TestShoot_AThrowGoesAsFarAsItsPowerSays(t *testing.T) {
+	thrower := piece{x: 100, y: 100, size: 20, facing: east, z: world.Z{Height: 20}}
+	thrower.eye = &world.Eye{Height: 16}
+	r := newRig(t, scene{heights: true, eyes: true, pieces: []piece{thrower}})
+	r.arms.Define("grenade", bullet.Body{Size: 8, Speed: 160, Range: 200, Gravity: 240, Lands: true})
+	grenade := r.arms.Named("grenade")
+	r.start()
+	r.w.Carrier().PutFrom(r.ids[0], bullet.Shoot{Ammo: grenade, Power: 0.5})
+	for i := 0; i < 90 && !(i > 0 && r.theShot().flight.Landed); i++ {
+		r.tick(1)
+	}
+	// the muzzle at 125, half a range of 200 on
+	if shot := r.theShot(); !shot.flight.Landed || math.Abs(shot.flight.At.X-225) > 5 {
+		t.Errorf("thrown at half power the shot is %+v, want landed near 225", *shot.flight)
 	}
 }

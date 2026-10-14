@@ -33,13 +33,11 @@ func (m *mainScene) picture() render.Picture {
 	return render.NewComposer(
 		a.board.Renderer(),
 		a.world.Renderer(), a.collision.Renderer(), a.cameras.Renderer(),
-		a.selection.Renderer(),
-		a.nav.Renderer(),
 	)
 }
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	return ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-		Input(a.players.Through(a.player))
+	cam := a.cameras.New(cameras.TopDown(), camera.Config{Follow: SoldierName})
+	return ui.Image(render.NewFeed(cam, m.picture())).Input(a.players.Through(a.player))
 }

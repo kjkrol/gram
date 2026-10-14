@@ -83,6 +83,18 @@ Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
   then added nearly full yellow light and came out as bright as an opaque one. Translucent
   colours — the cones, the bridge in hand, the panels, the ghost, the zones — are as faint now
   as their alpha says.
+- `control.KeyReleased{Key}` fires as a key comes up, `Context.Held` how long it was down, and
+  not after a chord with modifiers fired meanwhile. `bullet.Shoot` fires from the unit its
+  `Camera` is fastened to, as driving's hand drives it, and throws `Power` of its range. The
+  bullet demo is driven as wire is — WSAD, the camera following the soldier, a tap turning him
+  — Space fires and Shift held and let go throws a grenade, the further the longer held.
+- Demos: `rules/wire` is `rules/mechanisms` (`make demo-mechanisms`), drawn plain — the hero a
+  rectangle, the lever a square of its position's colour — its rules as they were;
+  `look/animation` is a gallery of the figure's and the lever's animations, each kind labelled:
+  a walker on a patrol stepping and braking, an idler bored by stages, a puller, a lever
+  swinging by itself on a plan; `rules/effect` gains haste (J, the selected twice as fast for two
+  seconds); `look/appearance`, `rules/trapdoor` and `rules/pressure-plate` are gone, what they
+  showed being in the others.
 - The entities' boxes (Shift+X) are collision's: `collision.Boxes`, `Plugin.ShowBoxes`,
   `BoxesShown`, drawn by `collision.Plugin.Renderer()`, which every demo with collision has in
   its composer and whose plugin it hands to players, so the key works everywhere (`world.Boxes`
@@ -105,8 +117,11 @@ Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
   and the rest missed the twin it put in. The world's atlas now adds the effects' swaps latest
   declared first (`Atlas.swaps`), so the later look wins as documented; the wire demo's stamp
   showed nothing under the blinking stage before.
-- `world.Kinds().NewSprite()` panics once all 256 atlas sprites (`render.SpriteID`) are taken,
-  in place of wrapping round to sprite 0 and failing later as "added twice".
+- `render.SpriteID` is two bytes: an atlas holds `render.MaxSprites` (65 536) sprites, every
+  frame of every way under every effect among them, where a byte held 256 — the wire demo's
+  figure alone took nearly all. `world.Kinds().NewSprite()` and the board's panic past the last
+  in place of wrapping round to sprite 0 and failing later as "added twice". Saves holding an
+  `Appearance` do not load.
 - A tap on a standing unit only turns it: `driving.Plugin.WithTap(d)` has a `Toward` key held
   no longer than d turn the unit and not walk it (`steering.Driven.Held`, how long the hand has
   lain on it). `world.Braking()` is the word of an entity slowing down (`Moving.Course`, the

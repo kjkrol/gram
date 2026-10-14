@@ -36,6 +36,7 @@ type Plugin struct {
 	listings    command.Queue[ShowShortcuts]
 	panels      command.Queue[telemetry.Panel]
 	shortcuts   *Shortcuts
+	now         func() time.Time // the clock KeyReleased measures by
 	owned       *goke.Query
 	ownedBase   goke.Comp[world.Base]
 	ownedBy     goke.OptComp[tag.Tags[owner.Family]]
@@ -60,7 +61,7 @@ func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Pl
 		}
 	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[owner.Family]()) // every unit may be given
-	p := &Plugin{worldPlugin: worldPlugin}
+	p := &Plugin{worldPlugin: worldPlugin, now: time.Now}
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.shortcuts = newShortcuts(p)
 	p.handlers = append([]plugin.CommandHandler{p, worldPlugin}, handlers...)

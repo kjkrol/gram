@@ -1,7 +1,6 @@
 package main
 
 import (
-	_ "embed"
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
@@ -22,6 +21,11 @@ var (
 	fenceColor   = color.RGBA{R: 85, G: 60, B: 40, A: 255}
 	gateColor    = color.RGBA{R: 70, G: 75, B: 90, A: 255}
 	gatewayColor = color.RGBA{R: 150, G: 130, B: 95, A: 255}
+	heroColor    = color.RGBA{R: 90, G: 140, B: 230, A: 255}
+
+	leverUpColor    = color.RGBA{R: 200, G: 170, B: 60, A: 255}
+	leverSwingColor = color.RGBA{R: 230, G: 120, B: 50, A: 255}
+	leverDownColor  = color.RGBA{R: 200, G: 60, B: 50, A: 255}
 )
 
 func (m *mainScene) picture() render.Picture {

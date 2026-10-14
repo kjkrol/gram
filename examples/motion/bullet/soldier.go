@@ -32,7 +32,7 @@ func (soldier) Look(a *world.Atlas, w *world.Plugin) {
 		Turning()
 }
 
-// authored facing east: the barrel shows where F fires
+// authored facing east: the barrel shows where Space fires
 func armed(body color.RGBA) render.SpriteDrawer {
 	return func(dst *render.Canvas, size int) {
 		render.Diamond(body)(dst, size)

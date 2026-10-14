@@ -199,7 +199,7 @@ command, where a game defines things, commands from keys and ui, what a plugin d
 writing a new behaviour in a plugin, states as effects — is the public page `doc/behaviour.md`;
 read it rather than restating it. Two things to keep in mind beside it:
 
-**A thing used by touch** (the wire demo's lever): a post (`Collider`, `Physics{Mass: +Inf}`)
+**A thing used by touch** (the mechanisms demo's lever): a post (`Collider`, `Physics{Mass: +Inf}`)
 the hero (`Physics{Mass: 1}`) walks up to and rests against; the hero's rules of a
 `collision.Meeting` under `cond.Self.If(collision.Facing(angle))` hold `InReachEf` while a lever
 is at hand (a ui prompt pinned `Under` it) and, under the player's `ReachingEf` (the intent, a

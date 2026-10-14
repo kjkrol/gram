@@ -432,7 +432,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   pass panic). `Issue(player, cmd)` is how any command comes in (`ErrUnknownCommand`);
   `IssueAs(pl)` for a ui scene's buttons and keys; players implements `ui.Looker` and `ui.Owner`
   and draws nothing but the marquee. The input's contract — `Binding`, the `Trigger`s `KeyPress`,
-  `KeyDown`, `KeyHeld` (once a tick while the key is down), `ButtonPress`, `Drag`, `Wheel`,
+  `KeyDown`, `KeyHeld` (once a tick while the key is down), `KeyReleased` (as the key comes up,
+  `Context.Held` how long it was down — real time, `players.ClockWith` in tests; not after a
+  chord with modifiers fired while it was down: Shift+X is no throw), `ButtonPress`, `Drag`,
+  `Wheel`,
   `ButtonHeld`, `CursorAtEdge`, `CursorOver`, `CursorMove`, with exact `Mods`
   (`Mods{}.Holding(key)`), `Build[C]` from a `Context` (`World`/`WorldBox` through the camera's
   `Picker`), `Give(trigger, label, cmd)`, `Binding.In(hows...)`, `With(tool)` — lives in
@@ -571,10 +574,13 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Range, Gravity, Lands}, extra...)`, `Named` the `Ammo`, a kind whose entities carry a sensor
   `Collider`, a `collision.Sweep` ignoring the shooter, the `Body` (a knob), the `Flight` (`At`,
   `Dir`, `Range`, `Flown`, `Climb`, `Shooter`, `Ending`, `Other`, `Cell`, `Landed`), the shooter's
-  owners, with heights a `Z`. `Shoot{Ammo, At, Targeted}` (`host.Aimed`; no default bindings)
-  fires from every `Selected` unit the player owns, or from the entity giving it itself, at the
+  owners, with heights a `Z`. `Shoot{Ammo, At, Targeted, Camera, Power}` (`host.Aimed`; no
+  default bindings) fires from the unit `Camera` is fastened to (the player's own; as driving's
+  hand), else every `Selected` unit the player owns, or from the entity giving it itself, at the
   muzzle just outside its box, towards `At`, the subject, else the way it faces, from its
-  `Eye.Level`; a thrown shot gets the `Climb` that brings it down where it goes on the ground
+  `Eye.Level`; a thrown shot untargeted goes `Power` of its `Range` (0 the whole; bullet's demo
+  throws by Shift held, `control.KeyReleased`); a thrown shot gets the `Climb` that brings it
+  down where it goes on the ground
   `WithGround(board.Heights)` gives. The `flightSystem` runs **before the world** (`Stage.Update`
   calls `bullet.RunPlan` first): it flies every shot past the step cap, writing the `Sweep.From`
   and the box, noting the `Ending`; the next step the nearest contact lands the shot just short of

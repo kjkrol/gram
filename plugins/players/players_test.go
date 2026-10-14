@@ -524,3 +524,37 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 func (c *installCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
 
 func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }
+
+func TestKeyReleased_FiresWithHowLongTheKeyWasHeldAndNotAfterAChord(t *testing.T) {
+	r := newRig(t)
+	now := time.Unix(0, 0)
+	players.ClockWith(r.p, func() time.Time { return now })
+	r.bind(
+		control.Build(control.KeyReleased{Key: control.KeyShift}, "throw",
+			func(c control.Context) (order, bool) {
+				return order{int(c.Held / time.Millisecond)}, true
+			}),
+		control.Build(control.KeyPress{Key: control.KeyX, Mods: control.Mods{Shift: true}}, "boxes",
+			orderOf(-1)),
+	)
+	r.start()
+	key := func(k control.Key, a control.KeyAction, shift bool) {
+		ev := &control.InputEvents{KeyEvents: []control.KeyEvent{{Key: k, Action: a}}}
+		ev.Modifiers.Shift = shift
+		r.handle(ev)
+	}
+	key(control.KeyShift, control.ActionPress, true)
+	now = now.Add(700 * time.Millisecond)
+	key(control.KeyShift, control.ActionRelease, false)
+	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != 700 {
+		t.Errorf("held 700 ms and let go: %+v, want one order of 700", got)
+	}
+	key(control.KeyShift, control.ActionPress, true)
+	key(control.KeyX, control.ActionPress, true)
+	key(control.KeyX, control.ActionRelease, true)
+	now = now.Add(time.Second)
+	key(control.KeyShift, control.ActionRelease, false)
+	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != -1 {
+		t.Errorf("Shift+X and Shift let go: %+v, want the chord's order alone", got)
+	}
+}

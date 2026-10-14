@@ -2,6 +2,7 @@ package players
 
 import (
 	"slices"
+	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
@@ -28,13 +29,20 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 		for _, k := range ev.KeyEvents {
 			switch k.Action {
 			case control.ActionPress:
-				t.fire(pl, control.KeyPress{Key: k.Key, Mods: pl.in.withHeld(mods)}, ctx)
+				chord := t.fire(pl, control.KeyPress{Key: k.Key, Mods: pl.in.withHeld(mods)}, ctx) &&
+					(mods.Shift || mods.Ctrl || mods.Alt)
 				t.fire(pl, control.KeyDown{Key: k.Key}, ctx)
 				pl.in.keyDown(pl.bindings, k.Key)
 				pl.in.steer(pl.bindings, k.Key, true)
+				pl.in.pressed(pl.bindings, k.Key, t.p.now(), chord)
 			case control.ActionRelease:
 				pl.in.keyUp(k.Key)
 				pl.in.steer(pl.bindings, k.Key, false)
+				if held, ok := pl.in.released(k.Key, t.p.now()); ok {
+					up := ctx
+					up.Held = held
+					t.fire(pl, control.KeyReleased{Key: k.Key}, up)
+				}
 			}
 		}
 		pl.in.last = ctx
@@ -92,8 +100,10 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 	}
 }
 
-func (t eventHandler) fire(pl *Player, trigger control.Trigger, ctx control.Context) {
+// fire issues what the bindings on trigger build; true when any did
+func (t eventHandler) fire(pl *Player, trigger control.Trigger, ctx control.Context) bool {
 	how := camera.HowOf(pl.pic.camera)
+	fired := false
 	for _, b := range pl.bindings {
 		if b.Trigger != trigger || !pl.fires(b, how) {
 			continue
@@ -102,8 +112,10 @@ func (t eventHandler) fire(pl *Player, trigger control.Trigger, ctx control.Cont
 			if err := t.p.Issue(pl, cmd); err != nil {
 				panic(err)
 			}
+			fired = true
 		}
 	}
+	return fired
 }
 
 func (t eventHandler) hold() {
@@ -122,8 +134,44 @@ type input struct {
 	held     map[control.MouseButton]geom.Vec
 	keys     []control.Key
 	steering []control.Key
+	down     map[control.Key]keyDown // keys a KeyReleased watches, since when
 	last     control.Context
 	over     bool
+}
+
+type keyDown struct {
+	at    time.Time
+	chord bool // a chord with modifiers fired while it was down: no release of its own
+}
+
+// a key a KeyReleased watches goes down; a chord fired marks every other one held
+func (in *input) pressed(bindings []control.Binding, key control.Key, now time.Time, chord bool) {
+	if chord {
+		for k, d := range in.down {
+			if k != key {
+				d.chord = true
+				in.down[k] = d
+			}
+		}
+	}
+	for _, b := range bindings {
+		if b.Trigger == control.Trigger(control.KeyReleased{Key: key}) {
+			if in.down == nil {
+				in.down = map[control.Key]keyDown{}
+			}
+			if _, already := in.down[key]; !already { // a key repeating as it is held
+				in.down[key] = keyDown{at: now}
+			}
+			return
+		}
+	}
+}
+
+// how long key was down, false where nothing watches it or a chord took it
+func (in *input) released(key control.Key, now time.Time) (time.Duration, bool) {
+	d, ok := in.down[key]
+	delete(in.down, key)
+	return now.Sub(d.at), ok && !d.chord
 }
 
 func (in *input) press(button control.MouseButton, at geom.Vec) {

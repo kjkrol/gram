@@ -19,8 +19,11 @@ board:
     ........................
     ........................
     ........................
+  entities:
+    - {kind: lever, name: lever, at: [16, 8]}
 units:
-  - {kind: hero, side: player, start: [4, 4], round: [[19, 4], [19, 11], [4, 11], [4, 4]]}
-  - {kind: hero, side: player, start: [19, 4], round: [[19, 11], [4, 11], [4, 4], [19, 4]]}
-  - {kind: hero, side: player, start: [19, 11], round: [[4, 11], [4, 4], [19, 4], [19, 11]]}
-  - {kind: hero, side: player, start: [4, 11], round: [[4, 4], [19, 4], [19, 11], [4, 11]]}
+  - {kind: walker, side: player, name: walker, start: [4, 4],
+     round: [[19, 4], [19, 11], [4, 11], [4, 4]]}
+  - {kind: walker, side: player, start: [19, 11], round: [[4, 11], [4, 4], [19, 4], [19, 11]]}
+  - {kind: idler, side: player, name: idler, start: [8, 8]}
+  - {kind: puller, side: player, name: puller, start: [16, 7]}

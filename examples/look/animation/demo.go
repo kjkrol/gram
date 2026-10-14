@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"errors"
 	"log"
 	"time"
 
@@ -32,11 +33,6 @@ const (
 	ScreenHeight = GridHeight * CellSize
 )
 
-type unitRow struct {
-	Start cell.ID    `yaml:"start"`
-	Round [4]cell.ID `yaml:"round"`
-}
-
 //go:embed map.yaml
 var mapFile embed.FS
 
@@ -55,8 +51,9 @@ type arena struct {
 func main() {
 	props := game.Props{
 		Title: "gram animation demo",
-		Description: "A figure drawn frame after frame, stepping the way it goes, standing at " +
-			"rest; Shift+P freezes the gait.",
+		Description: "Animations drawn frame after frame from sheets: a walker on a patrol, " +
+			"stepping and braking; an idler bored by stages, blinking, stamping, looking about; " +
+			"a puller's hands on a lever; a lever swinging. Shift+P freezes them.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -64,11 +61,13 @@ func main() {
 	mainStage := stage.New(AnimationStage).
 		World(world.Config{
 			Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
-			Entities: world.EntitiesCfg{MaxCount: 8, MinSize: heroWidth, MaxSize: heroHeight},
+			Entities: world.EntitiesCfg{MaxCount: 8, MinSize: leverSize, MaxSize: heroHeight},
 		}).
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).
 		Players(a.definePlayer).
+		Effects(a.defineEffects).
+		Rules(a.defineRules).
 		Spawn(a.spawn).
 		Scenes(a.defineScenes).
 		Update(a.update)
@@ -98,7 +97,7 @@ func (a *arena) definePlayer() error {
 
 func (a *arena) defineFigures() {
 	a.board.Tiles(grass{})
-	a.board.Figures(newHero())
+	a.board.Figures(hero{WalkerKind}, hero{IdlerKind}, hero{PullerKind}, lever{})
 }
 
 func (a *arena) spawn() error {
@@ -106,9 +105,12 @@ func (a *arena) spawn() error {
 	if err != nil {
 		return err
 	}
-	return board.Spawn[unitRow](level, board.Sides{
-		PlayerSide: {players.Give{To: a.player.ID}, selection.Allow{}},
-	})
+	return errors.Join(
+		board.Spawn[standingRow](level, nil),
+		board.Spawn[unitRow](level, board.Sides{
+			PlayerSide: {players.Give{To: a.player.ID}, selection.Allow{}},
+		}),
+	)
 }
 
 func (a *arena) defineScenes() []game.Scene {

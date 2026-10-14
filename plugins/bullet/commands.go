@@ -4,18 +4,22 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/uid"
 )
 
-// Shoot is the command to fire a shot of Ammo: by a player from every selected unit it owns, by
-// an entity from itself. It goes towards At when Targeted, at the moment's Subject when aimed,
-// else the way the shooter faces.
+// Shoot is the command to fire a shot of Ammo: by a player from the unit Camera is fastened to,
+// else from every selected unit it owns; by an entity from itself. It goes towards At when
+// Targeted, at the moment's Subject when aimed, else the way the shooter faces, a thrown shot
+// as far as Power says, a share of its Range (0 the whole).
 type Shoot struct {
 	Ammo     Ammo
 	At       geom.Vec
 	Targeted bool
+	Camera   camera.Camera
+	Power    float64
 
 	target uid.UID64
 	aimed  bool

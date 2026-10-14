@@ -217,8 +217,8 @@ The plugin its target belongs to carries it out — the world for those named, g
 world itself, the selection for its own — a step later, with the step's effects; commands of one
 effect for one entity in one step are netted. A ui element pinned to an entity gives its commands
 for that entity (`ceremony.Take(greeting).On(ui.It)`); a plugin's own command that is a
-`ui.About` (`dialog.Choose`) gets the entity the same way. The wire demo
-(`examples/rules/wire/demo.go`) is a whole program of it: a lever, a plate and a switch, each a
+`ui.About` (`dialog.Choose`) gets the entity the same way. The mechanisms demo
+(`examples/rules/mechanisms/demo.go`) is a whole program of it: a lever, a plate and a switch, each a
 command for a group of trapdoors or a gate, entities standing on the board; the trapdoor and
 pressure plate demos are the same in less.
 

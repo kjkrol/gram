@@ -39,9 +39,10 @@ pier). Frames come off a `render.Sheet` (`NewSheet(img, w, h)`, `DecodeSheet(nam
 A periodic cosmetic — a blink every 3 s, a foot stamped every 4 s — is a timed look, not an
 effect: `render.Timed(beat, draw)`/`TimedFacing` go round a `Beat` of named frames each for its
 span (a blink: two beats of two frames; two periods at once: one round of their common
-multiple), so few sprites are drawn; `Loops.Frame(now)` picks the frame. `render.SpriteID` is a
-byte: 256 sprites an atlas, every frame of every way under every effect among them —
-`Kinds().NewSprite()` panics past that.
+multiple), so few sprites are drawn; `Loops.Frame(now)` picks the frame. `render.SpriteID` is
+two bytes: `render.MaxSprites` (65 536) sprites an atlas, every frame of every way under every
+effect among them — `Kinds().NewSprite()` and the board's panic past that (a byte until
+2026-10-14: the wire demo's figure alone took nearly 256).
 
 ## Rendering
 

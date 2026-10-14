@@ -63,8 +63,9 @@ type arena struct {
 
 func main() {
 	props := game.Props{
-		Title:       "gram effect demo",
-		Description: "An ice witch writes the terrain.",
+		Title: "gram effect demo",
+		Description: "An ice witch writes the terrain. F freezes the one pointed at, J hastens " +
+			"the selected for two seconds: effects altering a unit's knobs and looks.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -112,7 +113,7 @@ func (a *arena) definePlayer() error {
 	return a.player.Bind(a.players.Defaults()...)
 }
 
-// the states every unit may be in, fallen into the lake or walking the ice
+// the states every unit may be in: fallen into the lake, walking the ice, hastened
 func (a *arena) defineEffects() {
 	effects := a.world.Effects()
 	effects.Define(FrozenEf, effect.Spec{
@@ -123,6 +124,14 @@ func (a *arena) defineEffects() {
 	effects.Define(SlipEf, effect.Spec{
 		effect.Described("On the ice: hardly any braking, whoever moves slides on."),
 		effect.Alter(func(st *steering.Steering) { st.Brake = st.Accel / 8 }),
+	})
+	effects.Define(HasteEf, effect.Spec{
+		effect.Described("In haste: twice as fast, for two seconds."),
+		effect.Lasts(2 * time.Second),
+		effect.Alter(func(st *steering.Steering) {
+			st.MaxSpeed *= 2
+			st.Accel *= 2
+		}),
 	})
 }
 
@@ -154,6 +163,8 @@ func (a *arena) defineRoles() {
 func (a *arena) defineCommands() {
 	freeze := ceremony.Put(a.world.Effects().Named(FrozenEf)).On(a.selection.Pointed())
 	a.world.Commands().Define(FreezeCmd, freeze.For(3*time.Second))
+	hasten := ceremony.Put(a.world.Effects().Named(HasteEf)).On(a.selection.Selected())
+	a.world.Commands().Define(HastenCmd, hasten)
 }
 
 type unitRow struct {
@@ -192,6 +203,8 @@ func (a *arena) bindKeys() error {
 	return a.player.Bind(
 		control.Give(control.KeyPress{Key: control.KeyF}, "Freeze the one pointed at",
 			a.world.Commands().Named(FreezeCmd)),
+		control.Give(control.KeyPress{Key: control.KeyJ}, "Hasten the selected for a while",
+			a.world.Commands().Named(HastenCmd)),
 	)
 }
 
