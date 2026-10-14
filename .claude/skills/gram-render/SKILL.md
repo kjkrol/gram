@@ -34,6 +34,13 @@ pier). Frames come off a `render.Sheet` (`NewSheet(img, w, h)`, `DecodeSheet(nam
 `board.Shape{Size, Width}`). The board's `Covering(e)` is the cover laid over cells under an effect,
 `Slot.Under(effect, draw)` on the board's atlas.
 
+A periodic cosmetic — a blink every 3 s, a foot stamped every 4 s — is a timed look, not an
+effect: `render.Timed(beat, draw)`/`TimedFacing` go round a `Beat` of named frames each for its
+span (a blink: two beats of two frames; two periods at once: one round of their common
+multiple), so few sprites are drawn; `Loops.Frame(now)` picks the frame. `render.SpriteID` is a
+byte: 256 sprites an atlas, every frame of every way under every effect among them —
+`Kinds().NewSprite()` panics past that.
+
 ## Rendering
 
 The world of a scene is one `render.Composer` over the plugins' renderers, `render.Source`s:

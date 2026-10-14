@@ -16,7 +16,7 @@
 // # Driven and Pace
 //
 // [Driven] is an entity steered by hand, written every tick by whoever steers it and carried out
-// by the driving plugin. [Pace] is how fast the ground lets an entity go, written by the board.
+// by the driving plugin; its Held is how long the hand has lain on it. [Pace] is how fast the ground lets an entity go, written by the board.
 //
 // # Vocabulary
 //

@@ -7,6 +7,8 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/tag"
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -19,7 +21,8 @@ func facedAtlas(moving bool) *Atlas {
 	}
 	for k, way := range a.faced[1] {
 		base := render.SpriteID(30 + 10*k)
-		a.animated[way] = animation{frames: []render.SpriteID{way, base + 1, base + 2}, period: time.Second}
+		a.animated[way] = animation{frames: []render.SpriteID{way, base + 1, base + 2},
+			loops: render.Loops{N: 3, Period: time.Second}}
 		a.moving[way] = moving
 	}
 	return a
@@ -104,5 +107,61 @@ func TestAtlas_ALookUnderAnEffectFacesEveryWayAndRunsItsFrames(t *testing.T) {
 	// the hero, 8 ways, 8 x 4 frames, 2 twins, 8 ways x 2 and 8 ways x 3 under them
 	if want := 1 + 8 + 8*4 + 2 + 8*2 + 8*3; kin != want {
 		t.Errorf("the hero's kin counts %d sprites, want %d", kin, want)
+	}
+}
+
+func TestAtlas_UnderTwoEffectsTheLookDeclaredLaterIsDrawn(t *testing.T) {
+	w := NewPlugin(Config{
+		Space:    SpaceCfg{Width: 100, Height: 100},
+		Entities: EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	w.Effects().Define("blinking", effect.Spec{})
+	w.Effects().Define("stamp", effect.Spec{})
+	blinking, stamp := w.Effects().Named("blinking"), w.Effects().Named("stamp")
+	hero := w.Kinds().NewSprite()
+	blank := render.Solid(color.RGBA{})
+	a := w.NewAtlas()
+	a.Add(hero, 8, blank).Under(blinking, blank).Under(stamp, blank)
+	var drawing render.Rules
+	if err := drawing.Add(a.swaps()...); err != nil {
+		t.Fatal(err)
+	}
+	var look goke.Comp[render.Appearance]
+	var marks goke.Comp[tag.Tags[effect.States]]
+	var q *goke.Query
+	ecs := goke.New()
+	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		f := si.NewFactory(&look, &marks)
+		f.Create(1)
+		for f.Next() {
+			look.Slice(&f.Cursor)[0] = render.Appearance{SpriteID: hero}
+		}
+		qb := si.NewQueryBuilder(&look, &marks)
+		render.Own(&drawing, &marks)
+		drawing.Bind(qb)
+		q = qb.Build()
+	}})
+	drawn := func(under ...effect.Effect) render.SpriteID {
+		q.All()
+		q.Next()
+		cur := q.Cursor()
+		var m tag.Tags[effect.States]
+		for _, e := range under {
+			m = m.With(e.Mark())
+		}
+		marks.Slice(cur)[0] = m
+		layers := [][]render.Appearance{{look.Slice(cur)[0]}}
+		drawing.Run(cur, layers, nil)
+		return layers[0][0].SpriteID
+	}
+	if got := drawn(blinking, stamp); got != a.twins[stamp.Mark()][hero] {
+		t.Errorf("under both, sprite %d drawn, want stamp's look %d: the later declared wins", got,
+			a.twins[stamp.Mark()][hero])
+	}
+	if got := drawn(blinking); got != a.twins[blinking.Mark()][hero] {
+		t.Errorf("under blinking alone, sprite %d drawn, want its look", got)
+	}
+	if got := drawn(); got != hero {
+		t.Errorf("under nothing, sprite %d drawn, want the hero's own", got)
 	}
 }

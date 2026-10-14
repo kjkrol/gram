@@ -25,7 +25,7 @@ plugin.
 | `collision.Struck` | collision, one that struck something | one | — | — |
 | `vision.Sighting` | vision, every observer a step | a pair grouped by observer; `host.Met` | the nearest seen | `vision.SeesNobody()`, `vision.Closing()` (of the other) |
 | `navigation.Touch` | navigation, two units touching | a pair; `host.Met` | the other | `PushedByAlly()`, `ReachedTheGroup()`, `InTheWay()`, `ClearsTheWay()`, `Blocks()`, `GoalTaken()`, `StrangerOnMyGoal()`, `WaitsFirst()`, `NoWayRound()`, `WaitedLong()` |
-| `world.Moving` | the world, every entity before it moves | one | — | `world.Still()` (neither walking nor strafing) |
+| `world.Moving` | the world, every entity before it moves | one | — | `world.Still()` (neither walking nor strafing), `world.Braking()` (slowing down) |
 | `world.Leaving` | the world, every tick past an open edge | one | — | — |
 | `clock.Moment` | the world, once a step | the clock's own entity | — | `clock.At(t)`, `clock.Every(period, offset)` |
 | `climate.Weathering` | the atmosphere, once a step | the atmosphere's own entity | — | — |

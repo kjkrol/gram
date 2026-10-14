@@ -23,6 +23,7 @@ type driveSystem struct {
 	surfaces  func() ground.Surfaces
 	occupancy cell.Occupancy
 	keeping   Keeping
+	tap       time.Duration
 	*units
 
 	drivenID, placesID goke.CompID
@@ -128,8 +129,10 @@ func (s *driveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			// asked to go far off its way, it brakes and turns first
 			turning := facing && st.Speed > 0 &&
 				heading.X*base.Vel.Dir.X+heading.Y*base.Vel.Dir.Y < turnBrake
+			// a tap on a standing unit only turns it
+			tapping := s.tap > 0 && facing && st.Speed == 0 && base.Vel.Value == 0 && in.Held <= s.tap
 			switch {
-			case in.Ahead > 0 && turning:
+			case in.Ahead > 0 && (turning || tapping):
 				st.RequestSpeed(0)
 			case in.Ahead > 0 && s.open(w, heading) && in.Sprint:
 				st.RequestSprint()

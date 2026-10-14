@@ -2,6 +2,7 @@ package steering
 
 import (
 	"math"
+	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 )
@@ -10,7 +11,8 @@ import (
 // walk on, -1 to brake and back away, 0 neither; Turn -1 anticlockwise, 1 clockwise; Side 1 to
 // strafe right, -1 left, facing on; Face a way to turn to instead, Look the way an eye riding
 // in it looks, turned to before Face; Flown, it holds its height, rising by Climb (-1 to 1, the
-// sine of the look up or down) along its way.
+// sine of the look up or down) along its way; Held how long the hand has lain on it without a
+// break.
 type Driven struct {
 	Ahead, Turn int8
 	Side        int8
@@ -19,6 +21,7 @@ type Driven struct {
 	Look        geom.Vec
 	Flown       bool
 	Climb       float64
+	Held        time.Duration
 }
 
 // sin 80°, the steepest climb or dive

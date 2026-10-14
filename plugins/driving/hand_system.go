@@ -33,7 +33,7 @@ func (s *handSystem) Init(si *goke.SysInit) {
 	s.statesID = si.RegComp[tag.Tags[States]]()
 }
 
-func (s *handSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
+func (s *handSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	s.hands.sum()
 	for s.query.All(); s.query.Next(); {
 		cur := s.query.Cursor()
@@ -56,6 +56,7 @@ func (s *handSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 			case on:
 				// driveSystem normalises Face
 				in.Ahead, in.Turn, in.Side, in.Sprint, in.Face = h.ahead, h.turn, h.side, h.sprint, h.way
+				in.Held += d
 				if drivens != nil {
 					drivens[i] = in
 				} else {
@@ -68,6 +69,7 @@ func (s *handSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 				}
 			case drivens != nil && states != nil && states[i].Has(Driving):
 				in.Ahead, in.Turn, in.Side, in.Sprint, in.Face = 0, 0, 0, false, geom.Vec{}
+				in.Held = 0
 				drivens[i] = in
 			}
 		}

@@ -198,11 +198,8 @@ func (p *Plugin) WithRenderer(atlas render.AtlasSource) {
 	if !p.looked {
 		p.looked = true
 		if wa, ok := atlas.(*Atlas); ok {
-			// two effects on one entity: the look declared later wins
-			for _, mark := range wa.marks {
-				if err := p.module.drawing.Add(render.Swap(wa.twins[mark], mark.In)); err != nil {
-					panic(err)
-				}
+			if err := p.module.drawing.Add(wa.swaps()...); err != nil {
+				panic(err)
 			}
 			if err := p.module.drawing.Add(wa.rules(p.module.clock.Shown)...); err != nil {
 				panic(err)

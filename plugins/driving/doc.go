@@ -11,7 +11,8 @@
 // for itself (act.Self.Do) is its own hand. The hand is written into the unit's steering.Driven
 // and the unit marked [Driving]; asked to go more than 45 degrees off its way, a walking unit
 // brakes first and turns, then walks; a tick with no hand on it brakes it, and it is let go
-// once it stands.
+// once it stands. With [Plugin.WithTap] a key held no longer than that on a standing unit only
+// turns it the way of the key; held longer, it walks.
 //
 // # Keys
 //

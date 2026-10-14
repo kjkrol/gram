@@ -172,3 +172,13 @@ func TestKinds_Define_TakesOneOfEachComponentType(t *testing.T) {
 		t.Errorf("the family's tags = %b, want 1001: both bits of the one Tagged", tags)
 	}
 }
+
+func TestKinds_NewSprite_RefusesTheTwoHundredAndFiftySeventh(t *testing.T) {
+	kinds := New(false)
+	for range 256 {
+		kinds.NewSprite()
+	}
+	if msg := panicsWith(t, func() { kinds.NewSprite() }); !strings.Contains(msg, "atlas sprites") {
+		t.Errorf("the 257th sprite: %q, want a panic saying the sprites are taken", msg)
+	}
+}

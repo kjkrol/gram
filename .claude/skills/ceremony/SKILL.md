@@ -80,6 +80,27 @@ gram's.
 What each gram plugin perceives and carries out is the `# Vocabulary` section at the end of its
 `doc.go` (moments with words and subjects, facts for plans, knobs, commands).
 
+## Shapes found for periodic and random behaviour
+
+- A repeating cycle of effects (A `Then` B `Then` A) cannot be defined: `Named` before `Define`
+  panics. Periodic cosmetics (a blink every 3 s) are a look (`render.Timed` under the stage's
+  effect), not effects.
+- A plan's loop runs its `Then` once; repetition is the plan finishing and beginning again at
+  the top (`plan.OneOf` of loops gated on effects). Two periods at once (3 s and 4 s) do not fit
+  one plan: one of them is a look.
+- `act.Branch[any]` inside a plan takes an `act.Step` in its `Then`: `plan.Self.Do`/`Put` yes,
+  `plan.Self.Wait` no (a part, not a step). A random wait is a lasting effect: a coin `Put`s it
+  (`Lasts` the long time), the short wait passes, then `plan.Loop[any]{Then: Idle(), Until:
+  cond.Self.If(cond.Not(e))}` idles while it lasts. A `Put` lands at the step's end: a clause
+  reading its marker in the same step sees nothing yet, so a wait must lie between.
+- A plan's `Hold` runs as long as its loop: in a `plan.Steps` nothing after it ever comes.
+  A stage with a length is `Steps(Put(e), Wait(d), Take(e))`, the interrupting rule taking `e`
+  off too. A round is the plan done and beginning again at the top.
+- `cond.Chance` draws per guard (seed, time, entity, the guard's place), so two coins in one
+  step are independent.
+- `cond.Chance` is drawn afresh every step: never the `When` of a loop that should last (the
+  coin flips and the loop stops); use it in an instant `act.Branch[any]` inside the steps.
+
 ## Pitfalls met
 
 - A state meant to end a rule's firing must be taken off in the rule's own `Then` (or the rule

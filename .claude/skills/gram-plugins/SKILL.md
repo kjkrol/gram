@@ -40,8 +40,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   movement the `view.System` refreshes every `view.View` (`Plugin.View()` the camera's,
   `ViewFor(cam)` any's); the renderer draws what the View contains. The world makes no camera.
   It hosts rules of a `Moving` (every entity, in the velocity pass, which also scales
-  `Base.Vel.Value` by the entity's `steering.Pace`, the board's share; its word `world.Still()`
-  an entity neither walking nor strafing), a `Leaving` and a `clock.Moment` (every step, just
+  `Base.Vel.Value` by the entity's `steering.Pace`, the board's share; its words `world.Still()`,
+  neither walking nor strafing, and `world.Braking()`, slowing down — `Moving` carries the
+  steering's `Course`), a `Leaving` and a `clock.Moment` (every step, just
   before the effects' pass). It handles `steering.Away{From}`, `Toward{To}` (`host.Aimed`),
   `Turn{Angle}` (the steering system asks the `Helm`, one a step), the commands about effects,
   `Pause` (Shift+P), `Faster` (]), `Slower` ([) and `Boxes` (Shift+X: every entity's box
@@ -451,21 +452,21 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Depends on `world`.
 - **`driving`** — units driven by hand, with or without navigation: `driving.NewPlugin(world,
   selection).WithGround(board)`. Its commands `Ahead{Camera, Sprint}`, `Back`, `Turn{Way}`,
-  `Toward{Way}`, `Strafe{Camera, Way}` add up a tick into a hand — a player's through the camera
-  the command names: on the unit it is fastened to, else on the player's selected units; an
-  entity's own (`act.Do`) — written into `steering.Driven` with the marker `driving.Driving`
-  (`handSystem`); the `driveSystem` (in the simulation) turns the unit (by `Turn`, or to `Look`
-  before `Face`), walks, brakes, backs, strafes, flies it, never onto ground its domain may not
-  take on the level of its feet nor where the `Keeping` says no — one under gravity refused only
-  what is higher than its step; asked to go more than 45° off its way while walking (`turnBrake`)
-  it brakes first, turns, then walks; with no hand it brakes and is let go once it stands or
-  `Keeping.Ordered` — held still by a wall it stands at once. `Jump{Camera}` has every unit the
-  hand is on give itself a `gravity.Leap` (`driving.JumpKey(key)`; Space `In(camera.Inside)`
-  among the defaults). Keys are sets: `driving.Tank{Ahead, Back, Left, Right, In}` (Left and Right
-  turn), `driving.Shooter{…}` (Left and Right strafe, the mouse turns) and `driving.Compass{Up,
-  Down, Left, Right, In}` (`Bindings()`); `DefaultKeys()` a `Shooter` of WSAD `In(camera.Inside)`
-  and a `Tank` of the arrows `In(camera.Behind)`. Depends on `world`, `selection`, `board`,
-  `players/owner`, `gravity`.
+  `Toward{Way}`, `Strafe{Camera, Way}` add up a tick into a hand — a player's through the camera the
+  command names: on the unit it is fastened to, else on the player's selected units; an entity's own
+  (`act.Do`) — written into `steering.Driven` with the marker `driving.Driving` (`handSystem`); the
+  `driveSystem` (in the simulation) turns the unit (by `Turn`, or to `Look` before `Face`), walks,
+  brakes, backs, strafes, flies it, never onto ground its domain may not take on the level of its
+  feet nor where the `Keeping` says no — one under gravity refused only what is higher than its
+  step; asked to go more than 45° off its way while walking (`turnBrake`) it brakes first, turns,
+  then walks; with no hand it brakes and is let go once it stands or `Keeping.Ordered` — held still
+  by a wall it stands at once; `WithTap(d)`: a `Toward` key held no longer than d on a standing unit
+  only turns it (`Driven.Held`). `Jump{Camera}` has every unit the hand is on give itself a
+  `gravity.Leap` (`driving.JumpKey(key)`; Space `In(camera.Inside)` among the defaults). Keys are
+  sets: `driving.Tank{Ahead, Back, Left, Right, In}` (Left and Right turn), `driving.Shooter{…}`
+  (Left and Right strafe, the mouse turns) and `driving.Compass{Up, Down, Left, Right, In}`
+  (`Bindings()`); `DefaultKeys()` a `Shooter` of WSAD `In(camera.Inside)` and a `Tank` of the arrows
+  `In(camera.Behind)`. Depends on `world`, `selection`, `board`, `players/owner`, `gravity`.
 - **`gravity`** — bodies falling, standing, leaping (a character controller, not rigid bodies;
   one plugin, two modes): `gravity.NewPlugin(world, Config{Pull})`, its own entity carrying the
   knob `gravity.Pull{X, Y, Z}` (an effect's `Alter` turns it over; zero, the Earth's as the

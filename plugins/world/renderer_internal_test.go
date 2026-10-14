@@ -228,7 +228,8 @@ func TestRenderer_Compose_AnAnimatedSpriteShowsItsFrameOfTheClock(t *testing.T) 
 		2 * period: 12,
 		3 * period: 10, // round again
 	} {
-		a := &Atlas{animated: map[render.SpriteID]animation{1: {frames: frames, period: period}}}
+		a := &Atlas{animated: map[render.SpriteID]animation{1: {frames: frames,
+			loops: render.Loops{N: len(frames), Period: period}}}}
 		look := drawThrough(t, nil, a.rules(func() time.Duration { return now }), geom.NewVec(1, 0), quarters[0])
 		if len(look.sprites) != 1 || look.sprites[0] != want {
 			t.Errorf("at %v drew %v, want frame %v", now, look.sprites, want)

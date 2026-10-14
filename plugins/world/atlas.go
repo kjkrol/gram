@@ -32,7 +32,7 @@ type Atlas struct {
 
 type animation struct {
 	frames []render.SpriteID
-	period time.Duration
+	loops  render.Loops // its timing: Period or Spans
 }
 
 type phase struct {
@@ -156,7 +156,7 @@ func (s Slot) Under[L render.Look](e effect.Effect, look L) Slot {
 				}
 				return l.Draw(i)
 			})
-			s.a.animated[on] = animation{frames: frames, period: l.Period}
+			s.a.animated[on] = animation{frames: frames, loops: l}
 		})
 	case render.SpriteDrawer:
 		s.a.atlas.Add(twin, s.size, l)
@@ -244,7 +244,7 @@ func (s Slot) Animated[D frameDrawer](n int, period time.Duration, draw D) Slot 
 		frames := s.frames(0, n, func(i int) render.SpriteDrawer {
 			return drawFrame(draw, 0, i)
 		})
-		s.a.animated[s.id] = animation{frames: frames, period: period}
+		s.a.animated[s.id] = animation{frames: frames, loops: render.Loops{N: n, Period: period}}
 		return s
 	}
 	for k, way := range ways {
@@ -252,7 +252,7 @@ func (s Slot) Animated[D frameDrawer](n int, period time.Duration, draw D) Slot 
 		frames := s.frames(0, n, func(i int) render.SpriteDrawer {
 			return drawFrame(draw, angle, i)
 		})
-		s.a.animated[way] = animation{frames: frames, period: period}
+		s.a.animated[way] = animation{frames: frames, loops: render.Loops{N: n, Period: period}}
 	}
 	return s
 }
@@ -363,6 +363,18 @@ func (a *Atlas) edged() map[render.SpriteID]render.SpriteID {
 	return out
 }
 
+// the effects' swaps, the look declared later first: a swap finds the kind's own sprite, so
+// under two effects at once the first swap that matches is the one that holds, and the rest
+// miss the twin it put in
+func (a *Atlas) swaps() []render.Rule {
+	out := make([]render.Rule, 0, len(a.marks))
+	for i := len(a.marks) - 1; i >= 0; i-- {
+		mark := a.marks[i]
+		out = append(out, render.Swap(a.twins[mark], mark.In))
+	}
+	return out
+}
+
 // in their order: the facing swaps, the frames by the clock, the frames along an effect, then
 // the turning, after the effects' own swaps
 func (a *Atlas) rules(now func() time.Duration) []render.Rule {
@@ -383,7 +395,7 @@ func (a *Atlas) rules(now func() time.Duration) []render.Rule {
 			if !ok || moving[ap.SpriteID] && b.Vel.Value == 0 && b.Vel.Side == 0 {
 				return ap
 			}
-			ap.SpriteID = an.frames[int(now()/an.period)%len(an.frames)]
+			ap.SpriteID = an.frames[an.loops.Frame(now())]
 			return ap
 		}))
 	}

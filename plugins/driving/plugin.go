@@ -40,6 +40,7 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	selected    tag.Tag[selection.Family]
 	hands       hands
+	tap         time.Duration
 	board       *board.Plugin
 	keeping     Keeping
 	module      *module
@@ -75,11 +76,18 @@ func (p *Plugin) WithKeeping(k Keeping) *Plugin {
 	return p
 }
 
+// WithTap has a key held no longer than d on a standing unit only turn it the way of the key
+// (Toward); held longer, it walks. Zero, it walks at once. Call it before Use.
+func (p *Plugin) WithTap(d time.Duration) *Plugin {
+	p.tap = d
+	return p
+}
+
 func (p *Plugin) Name() string { return "gram.driving" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	shared := &units{}
-	drive := &driveSystem{keeping: p.keeping, units: shared}
+	drive := &driveSystem{keeping: p.keeping, tap: p.tap, units: shared}
 	if p.board != nil {
 		drive.board, drive.occupancy = p.board.Board(), p.board.Occupancy()
 		drive.surfaces = p.board.Surfaces

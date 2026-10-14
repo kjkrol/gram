@@ -62,8 +62,12 @@ func (m *mainScene) picture() render.Picture {
 	worldAtlas.Add(heroKind, heroHeight, heroStanding(0)).
 		Facing(heroWays, heroStanding).
 		Animated(heroWalkFrames, 120*time.Millisecond, heroPose(heroWalk)).WhileMoving().
-		Under(fx.Named(BoredEf),
-			render.LoopedFacing(heroIdleFrames, 350*time.Millisecond, heroPose(heroIdle))).
+		Under(fx.Named(BrakingEf),
+			render.LoopedFacing(heroBrakeFrames, 150*time.Millisecond, heroPose(heroBrake))).
+		Under(fx.Named(BlinkingEf), render.TimedFacing(heroBlinkBeat, heroBeat)).
+		Under(fx.Named(StampingEf), render.TimedFacing(heroBlinkBeat, heroBeat)).
+		Under(fx.Named(StampEf), render.PhasedFacing(heroStampFrames, heroStampSeries)).
+		Under(fx.Named(LookingEf), render.TimedFacing(heroBlinkBeat, heroBeat)).
 		Under(fx.Named(PullingEf),
 			render.PhasedFacing(heroPullFrames, heroPose(heroPull)))
 	worldAtlas.Close()

@@ -88,7 +88,8 @@
 //
 // # Vocabulary
 //
-// Moments, for a role's rules: [Moving] (every entity before it moves; its word [Still]),
+// Moments, for a role's rules: [Moving] (every entity before it moves; its words [Still],
+// [Braking]),
 // [Leaving] (every tick an entity is past an open edge). Knobs, for an effect's Alter:
 // render.Appearance, the look's. Commands: [Spawn] (a player's or an entity's own); [Despawn] (an
 // entity's own); [Pause], [Faster], [Slower], [Boxes] (a player's). The clock's moment and the

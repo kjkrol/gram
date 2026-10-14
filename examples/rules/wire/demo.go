@@ -14,6 +14,8 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/effect"
+	cgoke "github.com/kjkrol/ceremony/goke"
+	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
 	"github.com/kjkrol/gram/control"
@@ -44,8 +46,13 @@ const (
 	LeverSize    = 16 // the lever as it was drawn, its box what is drawn
 
 	leverSwing  = 400 * time.Millisecond
-	reachFor    = time.Second // a press waits for a swinging lever this long
-	boredAfter  = 3 * time.Second
+	reachFor    = time.Second     // a press waits for a swinging lever this long
+	boredAfter  = 5 * time.Second // still so long, the hero is bored
+	stageFor    = 5 * time.Second // each stage of boredom
+	shortLook   = 4 * time.Second
+	longLook    = 10 * time.Second
+	stampSeries = 800 * time.Millisecond
+	tapFor      = 160 * time.Millisecond
 	UnitSpeed   = CellSize * 2
 	MaxEntCount = 64
 )
@@ -105,7 +112,7 @@ func (s *arena) makePlugins(w *world.Plugin) {
 		WithCollision(s.collision).
 		WithLog(log.Default())
 	s.selection = selection.NewPlugin(s.world)
-	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board)
+	s.driving = driving.NewPlugin(s.world, s.selection).WithGround(s.board).WithTap(tapFor)
 	s.cameras = cameras.NewPlugin(s.world)
 	s.players = players.NewPlugin(s.world, s.cameras, s.board, s.driving)
 }
@@ -132,8 +139,14 @@ func (s *arena) defineEffects() {
 	fx.Define(ReachingEf, effect.Spec{effect.Lasts(reachFor)})
 	fx.Define(PullingEf, effect.Spec{effect.Lasts(leverSwing)})
 	fx.Define(InReachEf, effect.Spec{})
+	fx.Define(BrakingEf, effect.Spec{})
+	fx.Define(StillEf, effect.Spec{})
 	fx.Define(BoredEf, effect.Spec{})
-	fx.Define(StillEf, effect.Spec{effect.Lasts(boredAfter), effect.Then(fx.Named(BoredEf))})
+	fx.Define(BlinkingEf, effect.Spec{})
+	fx.Define(StampingEf, effect.Spec{})
+	fx.Define(StampEf, effect.Spec{effect.Lasts(stampSeries)})
+	fx.Define(LookingEf, effect.Spec{})
+	fx.Define(LookingLongEf, effect.Spec{effect.Lasts(longLook)})
 	fx.Define(LeverPulledEf, effect.Spec{})
 	fx.Define(LeverPullingEf, effect.Spec{
 		effect.Lasts(leverSwing),
@@ -166,8 +179,7 @@ func (s *arena) defineRoles() {
 				And(cond.Other.If(cond.Not(fx.Named(LeverPulledEf)))),
 			Then: act.Steps(
 				act.Self.Take(fx.Named(ReachingEf)),
-				act.Self.Take(fx.Named(StillEf)),
-				act.Self.Take(fx.Named(BoredEf)),
+				wakeUp(fx),
 				act.Self.Put(fx.Named(PullingEf)),
 				act.Other.Put(fx.Named(LeverPullingEf)),
 				act.Other.Do(ceremony.Trigger{}),
@@ -179,8 +191,7 @@ func (s *arena) defineRoles() {
 				And(cond.Other.If(fx.Named(LeverPulledEf))),
 			Then: act.Steps(
 				act.Self.Take(fx.Named(ReachingEf)),
-				act.Self.Take(fx.Named(StillEf)),
-				act.Self.Take(fx.Named(BoredEf)),
+				wakeUp(fx),
 				act.Self.Put(fx.Named(PullingEf)),
 				act.Other.Take(fx.Named(LeverPulledEf)),
 				act.Other.Put(fx.Named(LeverPushingEf)),
@@ -198,14 +209,18 @@ func (s *arena) defineRoles() {
 			Name: "stands still",
 			When: cond.Self.If(world.Still()).
 				And(cond.Self.If(cond.Not(fx.Named(StillEf)))).
-				And(cond.Self.If(cond.Not(fx.Named(BoredEf)))).
 				And(cond.Self.If(cond.Not(fx.Named(PullingEf)))),
 			Then: act.Self.Put(fx.Named(StillEf)),
 		},
 		act.Branch[world.Moving]{
 			Name: "moves on",
 			When: cond.Self.If(cond.Not(world.Still())),
-			Then: act.Steps(act.Self.Take(fx.Named(StillEf)), act.Self.Take(fx.Named(BoredEf))),
+			Then: wakeUp(fx),
+		},
+		act.Branch[world.Moving]{
+			Name: "brakes",
+			When: cond.Self.If(world.Braking()),
+			Then: act.Self.Hold(fx.Named(BrakingEf)),
 		},
 	)
 }
@@ -255,14 +270,16 @@ func (s *arena) defineKinds() {
 	)
 	profile := steering.Steering{
 		MaxSpeed: UnitSpeed,
-		Accel:    UnitSpeed * 2,
-		V0:       UnitSpeed / 2,
+		Accel:    UnitSpeed * 4, // full speed in a quarter of a second
+		Brake:    UnitSpeed * 6,
 		TurnRate: 0, // eight ways drawn: the hero turns at once
 	}
 	units.Define(HeroKind, unit.Mover{Domain: cell.Land}, profile,
+		comp.Const(world.Velocity{Dir: geom.NewVec(0, 1)}), // facing the player
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Mass: 1}),
-		ceremony.Plays(roles.Named(HandyRole), roles.Named(MortalRole), roles.Named(HeroRole)))
+		ceremony.Plays(roles.Named(HandyRole), roles.Named(MortalRole), roles.Named(HeroRole)),
+		s.boredom())
 	at := func(r standingRow) cell.ID { return r.At }
 	cellWide := board.NewEntities(s.board, board.Shape{Size: CellSize}, at)
 	cellWide.Define(TrapdoorKind, comp.Const(cell.Floor{Allows: cell.Land}))
@@ -319,4 +336,53 @@ func (s *arena) update(ctx goke.RunCtx, d time.Duration) {
 	s.cameras.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 	ctx.Sync()
+}
+
+// boredom off, every stage of it: the hero moves, or pulls
+func wakeUp(fx *cgoke.Effects) act.Step {
+	return act.Steps(
+		act.Self.Take(fx.Named(StillEf)),
+		act.Self.Take(fx.Named(BoredEf)),
+		act.Self.Take(fx.Named(BlinkingEf)),
+		act.Self.Take(fx.Named(StampingEf)),
+		act.Self.Take(fx.Named(StampEf)),
+		act.Self.Take(fx.Named(LookingEf)),
+		act.Self.Take(fx.Named(LookingLongEf)),
+	)
+}
+
+// the hero's boredom: still for a while he is bored, and bored he goes round the stages — blinks,
+// stamps a foot now and then, turns to look about twice, each 4 seconds or, on a coin, 10 —
+// until he moves
+func (s *arena) boredom() plan.Planned {
+	fx := s.world.Effects()
+	still, bored, long := fx.Named(StillEf), fx.Named(BoredEf), fx.Named(LookingLongEf)
+	always, coin := cond.Self.If(cond.Always), cond.Self.If(cond.Chance(0.5))
+	stage := func(e effect.Effect, parts ...plan.Part) plan.Part {
+		return plan.Steps(append(append([]plan.Part{plan.Self.Put(e)}, parts...),
+			plan.Self.Take(e))...)
+	}
+	// a long look lasts its time from the coin; the short wait passes under it, then the rest
+	look := plan.Steps(
+		plan.OneOf(
+			act.Branch[any]{When: coin, Then: plan.Self.Do(steering.Turn{Angle: math.Pi / 4})},
+			plan.Self.Do(steering.Turn{Angle: -math.Pi / 4}),
+		),
+		plan.OneOf(act.Branch[any]{When: coin, Then: plan.Self.Put(long)}, plan.Self.Wait(0)),
+		plan.Self.Wait(shortLook),
+		plan.Loop[any]{Name: "a long look", When: always, Then: plan.Self.Idle(),
+			Until: cond.Self.If(cond.Not(long))},
+	)
+	return plan.New(BoredPlan, plan.OneOf(
+		plan.Loop[any]{Name: "bored", When: cond.Self.If(bored), Then: plan.Steps(
+			stage(fx.Named(BlinkingEf), plan.Self.Wait(stageFor)),
+			stage(fx.Named(StampingEf),
+				plan.Self.Put(fx.Named(StampEf)), plan.Self.Wait(4*time.Second),
+				plan.Self.Put(fx.Named(StampEf)), plan.Self.Wait(time.Second)),
+			stage(fx.Named(LookingEf), look, look),
+		)},
+		plan.Loop[any]{Name: "still", When: cond.Self.If(still),
+			Then: plan.Steps(plan.Self.Wait(boredAfter), plan.Self.Put(bored))},
+		plan.Loop[any]{Name: "idle", When: always, Then: plan.Self.Idle()},
+	))
 }

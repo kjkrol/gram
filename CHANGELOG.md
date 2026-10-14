@@ -19,6 +19,30 @@ Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
   front of a unit, the way it faces, beside `Around(n)`; `unit.Standing` carries its `Heading`
   and is `host.Headed`, the board filling `Tick.Ahead` (the grid's direction nearest the
   heading, stopping at the edge; a cell faces nowhere, so a `cell.Now` refuses it).
+- The wire demo's hero is bored in a round: still 5 s he is bored (`BoredEf`), and bored he
+  goes round the stages his plan (`plan.New`) puts on and takes off — 5 s blinking
+  (`BlinkingEf`), 5 s stamping a foot now and then (`StampingEf`; a series of three quick
+  stamps is the effect `StampEf`, drawn `Phased` along its course), two turns to look
+  about (`LookingEf`, a quarter turn either way, each 4 s or, on a coin, 10: the long look an
+  effect that lasts, `LookingLongEf`, the plan idling until it is gone) — until he moves.
+  Blinking and stamping are looks:
+  `render.Timed`/`TimedFacing`, a look going round a `Beat` of named frames each for its span
+  (a blink is two beats of two frames), so periodic
+  cosmetics draw few sprites and need no effects. `render.Loops.Frame(now)` picks the frame.
+  The hero's old idle frames are gone; blink and stamp frames are derived from the standing one.
+- Fixed: under two effects at once an entity was drawn by the look declared *earlier*, not
+  later as said — a `render.Swap` finds the kind's own sprite, so the first swap to match held
+  and the rest missed the twin it put in. The world's atlas now adds the effects' swaps latest
+  declared first (`Atlas.swaps`), so the later look wins as documented; the wire demo's stamp
+  showed nothing under the blinking stage before.
+- `world.Kinds().NewSprite()` panics once all 256 atlas sprites (`render.SpriteID`) are taken,
+  in place of wrapping round to sprite 0 and failing later as "added twice".
+- A tap on a standing unit only turns it: `driving.Plugin.WithTap(d)` has a `Toward` key held
+  no longer than d turn the unit and not walk it (`steering.Driven.Held`, how long the hand has
+  lain on it). `world.Braking()` is the word of an entity slowing down (`Moving.Course`, the
+  steering's, nil without one): the wire demo's hero holds `BrakingEf` while braking and is
+  drawn bracing (two frames more in `hero.png`); his profile sets off from nothing
+  (`V0` 0, `Accel` 4x, `Brake` 6x his speed), so a tap turns him and a hold walks him.
 - `plugins/telemetry`: the panel in the top-left corner saying how the game runs — FPS, TPS,
   where a frame's time goes (`render.Spent`, set by the engine), the entities, the game time,
   the plugins' `render.Reporter`s (`With`) and the game's own lines (`Line`; `Clear` drops

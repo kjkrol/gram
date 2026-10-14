@@ -20,6 +20,7 @@ import (
 type Registry struct {
 	entries map[string]Kind
 	next    render.SpriteID
+	sprites int
 	order   []string // kind.ID -> name
 	saved   []string // what a save brought in
 
@@ -148,12 +149,20 @@ func remapTags[F any](si *goke.SysInit, lut []uint8) {
 	}
 }
 
-// NewSprite reserves an atlas slot that belongs to no kind.
+// NewSprite reserves an atlas slot that belongs to no kind; it panics once every one of the
+// 256 is taken.
 func (k *Registry) NewSprite() render.SpriteID {
+	if k.sprites == maxSprites {
+		panic(fmt.Sprintf("world: every one of the %d atlas sprites is taken: fewer kinds, frames "+
+			"or looks under effects", maxSprites))
+	}
 	id := k.next
 	k.next++
+	k.sprites++
 	return id
 }
+
+const maxSprites = 1 << 8
 
 // LoadComps lists every component type the defined kinds give their entities, each once.
 func (k *Registry) LoadComps() []goke.CompToken {

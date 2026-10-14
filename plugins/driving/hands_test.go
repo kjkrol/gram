@@ -85,7 +85,7 @@ func newFencedField(t *testing.T, fences []cell.ID, walkers ...walker) *field {
 	brd := board.NewPlugin(f.grid, &cell.SingleOccupancy{}, f.w).WithCollision(col)
 	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(f.w)
-	drv := driving.NewPlugin(f.w, sel).WithGround(brd)
+	drv := driving.NewPlugin(f.w, sel).WithGround(brd).WithTap(rigTap)
 	if err := f.w.Carry(drv); err != nil { // as the engine does with Use
 		t.Fatal(err)
 	}
@@ -242,7 +242,9 @@ func TestHand_TwoKeysInOneTickAddUp(t *testing.T) {
 	f.give(1, driving.Turn{Camera: f.cams[1], Way: 1})
 	f.give(1, driving.Turn{Camera: f.cams[1], Way: 1})
 	f.tick(1)
-	if s := f.read()[f.ids[0]]; s.driven == nil || *s.driven != (steering.Driven{Ahead: 1, Turn: 1}) {
+	tick := time.Second / 60
+	if s := f.read()[f.ids[0]]; s.driven == nil ||
+		*s.driven != (steering.Driven{Ahead: 1, Turn: 1, Held: tick}) {
 		t.Errorf("the unit carries %+v, want Ahead 1 and Turn 1", s.driven)
 	}
 }
@@ -252,7 +254,9 @@ func TestHand_StrafeKeysAddUpAndNeverPastOne(t *testing.T) {
 	f.give(1, driving.Strafe{Camera: f.cams[1], Way: 1})
 	f.give(1, driving.Strafe{Camera: f.cams[1], Way: 1})
 	f.tick(1)
-	if s := f.read()[f.ids[0]]; s.driven == nil || *s.driven != (steering.Driven{Side: 1}) {
+	tick := time.Second / 60
+	if s := f.read()[f.ids[0]]; s.driven == nil ||
+		*s.driven != (steering.Driven{Side: 1, Held: tick}) {
 		t.Errorf("the unit carries %+v, want Side 1", s.driven)
 	}
 }
@@ -397,5 +401,40 @@ func TestHand_AnEntitysOwnHandDrivesIt(t *testing.T) {
 	}
 	if after := f.read()[id]; after.at == before || !after.driving {
 		t.Errorf("driving itself the unit stands at %v, Driving %v; want it walked on", after.at, after.driving)
+	}
+}
+
+// the rig's tap, set by a test and put back
+var rigTap time.Duration
+
+func TestHand_ATapOnAStandingUnitOnlyTurnsIt(t *testing.T) {
+	rigTap = 150 * time.Millisecond
+	defer func() { rigTap = 0 }()
+	f := newField(t, walker{start: 2, owner: 1, selected: true})
+	id := f.ids[0]
+	before := f.read()[id]
+	south := geom.NewVec(0, 1)
+	for range 3 { // 50 ms, a tap
+		f.give(1, driving.Toward{Camera: f.cams[1], Way: south})
+		f.tick(1)
+	}
+	tapped := f.read()[id]
+	if tapped.dir != south || tapped.at != before.at || tapped.speed != 0 {
+		t.Fatalf("tapped south: dir %v at %v speed %v, want turned south, not moved", tapped.dir,
+			tapped.at, tapped.speed)
+	}
+	if tapped.driven == nil || tapped.driven.Held != 3*(time.Second/60) {
+		t.Errorf("the hand held %v, want three ticks", tapped.driven)
+	}
+	f.tick(2)
+	if letGo := f.read()[id]; letGo.driven != nil && letGo.driven.Held != 0 {
+		t.Errorf("let go, the hand is still held %v", letGo.driven.Held)
+	}
+	for range 12 { // 200 ms, held past the tap
+		f.give(1, driving.Toward{Camera: f.cams[1], Way: south})
+		f.tick(1)
+	}
+	if held := f.read()[id]; held.at.Y <= before.at.Y || held.speed == 0 {
+		t.Errorf("held south: at %v speed %v, want it walking down the screen", held.at, held.speed)
 	}
 }
