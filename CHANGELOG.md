@@ -105,6 +105,9 @@ Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
   sent by a right click, each side outlined and routed in its own colour, sight cut by walls and
   dimmed by forests; the hex one has a river with a bridge its 16 px scouts cross and a wagon of
   22 px goes round by the ford.
+- A unit driven by hand looks ahead from its side the way it goes, not from half its longer side:
+  the mechanisms' hero, 16 across and 32 down, walks up to the fence inside the open gate instead
+  of stopping 8 px short of it.
 - `look/material` and `look/ember` are one demo, `look/material`: four embers drawn out of their
   own state circle the ward's pulsing material; G calms the ward (C follows the selected), F
   douses the embers.

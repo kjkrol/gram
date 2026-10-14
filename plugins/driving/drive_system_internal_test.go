@@ -186,6 +186,26 @@ func TestDrive_StopsAtTheWaterAndAtACellTakenAndBrakesWithNoHand(t *testing.T) {
 	}
 }
 
+// 4 across and 8 down, facing east: its side, not its length, runs out ahead
+func TestDrive_AnOblongWalkerLooksAheadFromItsSideTheWayItGoes(t *testing.T) {
+	r := newDriveRig(t)
+	at := func(x float64) {
+		r.with(func(_ *unit.At, b *world.Base, _ steering.Helm, _ *steering.Driven, _ bool) {
+			b.Pos.AABB = plane.NewAABB(geom.NewVec(x, 1), 4, 8)
+		})
+	}
+	at(52) // its side 4 short of the water
+	r.drive(steering.Driven{Ahead: 1})
+	if st := r.steering(); st.WantSpeed != 20 {
+		t.Errorf("Up 4 short of the water asks %v, want walking on", st.WantSpeed)
+	}
+	at(55) // 1 short
+	r.drive(steering.Driven{Ahead: 1})
+	if st := r.steering(); st.WantSpeed != 0 {
+		t.Errorf("Up 1 short of the water asks %v, want stopped", st.WantSpeed)
+	}
+}
+
 func TestDrive_KeepsTheCellAndTheOccupancyWithTheWalker(t *testing.T) {
 	r := newDriveRig(t)
 	r.place(35)

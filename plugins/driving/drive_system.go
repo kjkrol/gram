@@ -210,7 +210,8 @@ func (s *driveSystem) open(w walker, heading geom.Vec) bool {
 	if s.board == nil {
 		return true
 	}
-	reach := max(w.pos.Size.X, w.pos.Size.Y)/2 + driveMargin
+	// as far as the box runs out the way it heads, an oblong unit's side across its length
+	reach := (w.pos.Size.X*math.Abs(heading.X)+w.pos.Size.Y*math.Abs(heading.Y))/2 + driveMargin
 	centre := w.pos.Center()
 	point := geom.NewVec(centre.X+heading.X*reach, centre.Y+heading.Y*reach)
 	ahead, ok := s.board.CellAt(point)
