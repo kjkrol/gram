@@ -41,6 +41,7 @@ func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 4 * boardtest.CellSize, Height: 4 * boardtest.CellSize},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: boardtest.UnitSize, MaxSize: boardtest.UnitSize},
+		Heights:  true,
 	})
 	cw.fx = w.Effects()
 	cw.brd = board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)

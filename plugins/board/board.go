@@ -20,7 +20,6 @@ type Board struct {
 	cells   *terrain.Cells
 	field   *field.Field
 	square  *grids.Square // nil unless the grid is square
-	heights bool
 	mapping Map
 	decks   []terrain.Deck
 }
@@ -33,11 +32,6 @@ func NewBoard(g grid.Grid) *Board {
 	b := &Board{Grid: g, cells: terrain.New(g), square: sq}
 	b.field = field.New(g, b.cells, b.altitude)
 	return b
-}
-
-func (b *Board) setHeights(heights bool) {
-	b.heights = heights
-	b.field.SetHeights(heights)
 }
 
 // Shape is the board's grid's shape when it is one of grid.DefaultGrids; false for any other.

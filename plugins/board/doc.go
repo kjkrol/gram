@@ -1,6 +1,7 @@
 // Package board lays a square or hex grid over the game world, with per-cell terrain (who may
 // pass, what a step costs) and occupancy. Entities on the board move at the terrain's cost, solid
 // cells push them out and veiled ones dim sight, and plugins/navigation builds pathfinding on top.
+// A board stands only in a world with heights (world.Config.Heights).
 //
 // # Packages
 //
@@ -109,7 +110,7 @@
 //
 // # Drawing
 //
-// The board's own Map is the simple map: a flat world seen from above, every kind in its sprite,
+// The board's own Map is the simple map: a flat ground seen from above, every kind in its sprite,
 // the ways as bands. [Plugin.WithMap] puts another in. How a kind looks is its tile's, gathered
 // on the board's [Atlas] as [Plugin.Renderer] is first asked for, every sprite the cell's size
 // across (a game declaring looks by hand starts its own, [Plugin.NewAtlas]); a state of the

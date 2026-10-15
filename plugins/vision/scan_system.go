@@ -406,9 +406,6 @@ func (s *scanner) cone(sight *Sight, eye world.Eye, z world.Z) aabbworld.Cone {
 		}
 		return c
 	}
-	if sight.Blockers != 0 {
-		panic("vision: Sight.Blockers in a world with heights; layers cut sight only in a flat one")
-	}
 	c.Eye, c.Elevation, c.Ground, c.GroundStep = eye.Level(z), s.elev, s.groundAt, s.step
 	if s.sunk != nil {
 		c.Ground = s.sunk

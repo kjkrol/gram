@@ -40,6 +40,7 @@ func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *pl
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 8 * boardtest.CellSize, Height: 8 * boardtest.CellSize},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 8, MaxSize: 8},
+		Heights:  true,
 	})
 	pw.w, pw.fx = w, w.Effects()
 	pw.fx.Define("scorched", effect.Spec{})

@@ -19,6 +19,7 @@ func testWorldConfig() world.Config {
 	return world.Config{
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+		Heights:  true,
 	}
 }
 

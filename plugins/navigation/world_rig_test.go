@@ -56,6 +56,7 @@ func newNavWorldWith(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: cols * cellSize, Height: rows * cellSize},
 		Entities: world.EntitiesCfg{MaxCount: len(units) + 8, MinSize: 1, MaxSize: cellSize},
+		Heights:  true,
 	})
 	brd := board.NewPlugin(nw.grid, nw.occupancy, w)
 	nw.board = brd.Board()

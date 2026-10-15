@@ -39,7 +39,8 @@ plugin's capability reaches a Scene by constructor injection, never through `Run
 a type holding the links after it, so a chain out of order does not compile, a link may be left
 out, and `Update` alone must come. A section takes a function of whatever shape it needs
 (`stage.Step`); `Kinds` and `Spawn` take several, run in order. `World(cfg)` makes the world
-anew each time the Stage is entered; `Plugins(func(w *world.Plugin))` has the arena make the
+anew each time the Stage is entered (`Heights: true` wherever a board, a topography or an
+atmosphere stands; a side view too, gravity pulling along Y); `Plugins(func(w *world.Plugin))` has the arena make the
 plugins over it, used in the order made; `Plugins(func(made *plugin.Made))` the same for a Stage
 without a world. **A plugin may have a section of its own**: `section.Define(name, after,
 before)`, `section.Of[P](part, f)`, written with `With(sections...)` on any link from `World` to

@@ -69,6 +69,7 @@ func main() {
 				MinSize:  blockSize,
 				MaxSize:  blockSize,
 			},
+			Heights: true,
 		}).
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).

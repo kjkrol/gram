@@ -20,11 +20,8 @@ type Entities[P any] struct {
 }
 
 // NewEntities binds a game's rows of entities standing on the board to it: shape is their body,
-// at the cell a row stands one on. A Height in a flat world panics.
+// at the cell a row stands one on.
 func NewEntities[P any](brd *Plugin, shape Shape, at func(row P) cell.ID) *Entities[P] {
-	if !brd.worldPlugin.HasHeights() && shape.Height != 0 {
-		panic("board: entities with a Height in a flat world; set world.Config.Heights")
-	}
 	return &Entities[P]{brd: brd, shape: shape, at: at}
 }
 
@@ -53,7 +50,7 @@ func (e *Entities[P]) Define(name string, extra ...comp.Comp) {
 	}) {
 		own = append(own, comp.Const(world.Lie{}))
 	}
-	if e.brd.worldPlugin.HasHeights() && !slices.ContainsFunc(extra, func(c comp.Comp) bool {
+	if !slices.ContainsFunc(extra, func(c comp.Comp) bool {
 		return c.Type() == reflect.TypeFor[world.Z]()
 	}) {
 		own = append(own, comp.Const(world.Z{Height: e.shape.Height}))

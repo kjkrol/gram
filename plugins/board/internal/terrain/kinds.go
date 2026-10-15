@@ -17,7 +17,6 @@ type Kinds struct {
 	plays   map[cell.Name]tag.Tags[cond.Roles]
 	next    render.SpriteID
 	taken   int // slots issued: next wraps round past the last
-	heights bool
 	// Guard, when set, is called with each kind's name as it is defined; it refuses one defined
 	// out of its section.
 	Guard func(name string)
@@ -25,12 +24,11 @@ type Kinds struct {
 	Played func(roles ...*ceremony.Part)
 }
 
-// NewKinds is an empty dictionary; one of a flat world refuses a kind with a Height.
-func NewKinds(heights bool) *Kinds {
+// NewKinds is an empty dictionary.
+func NewKinds() *Kinds {
 	return &Kinds{
 		entries: make(map[cell.Name]cell.Kind),
 		plays:   make(map[cell.Name]tag.Tags[cond.Roles]),
-		heights: heights,
 	}
 }
 
@@ -41,9 +39,6 @@ func (d *Kinds) Define(name string, k cell.Kind, plays ...*ceremony.Part) {
 	k.Name = cell.Named(name)
 	if _, ok := d.entries[k.Name]; ok {
 		panic(fmt.Sprintf("board: the cell kind %q is defined already", name))
-	}
-	if !d.heights && k.Height != 0 {
-		panic(fmt.Sprintf("board: kind %q has a Height in a flat world; set world.Config.Heights", name))
 	}
 	k.SpriteID = d.NewSprite()
 	d.entries[k.Name] = k

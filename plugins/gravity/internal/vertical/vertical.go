@@ -1,5 +1,5 @@
-// Package vertical is a body's fall in a world with heights: a step of the pull along the
-// vertical between the surface under its feet and the slab over its head.
+// Package vertical is a body's fall along Z: a step of the pull along the vertical between the
+// surface under its feet and the slab over its head.
 package vertical
 
 import "math"

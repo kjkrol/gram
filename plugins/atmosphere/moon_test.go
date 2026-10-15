@@ -30,7 +30,7 @@ func newNight(t *testing.T, cal calendar.Config, define func(n *night), rules fu
 	t.Helper()
 	n := &night{}
 	st := stage.New("night").
-		World(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}}).
+		World(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true}).
 		Plugins(func(w *world.Plugin) { n.w, n.a = w, atmosphere.NewPlugin(w, atmosphere.Config{Calendar: cal}) }).
 		Effects(func(ctx game.Initializer) { n.ecs = ctx.ECS(); define(n) }).
 		Rules(func() {

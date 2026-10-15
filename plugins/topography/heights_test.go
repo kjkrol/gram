@@ -1,7 +1,6 @@
 package topography_test
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -11,10 +10,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
-	"github.com/kjkrol/gram/plugins/topography"
 	irelief "github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/plugins/topography/internal/topotest"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
@@ -47,14 +44,4 @@ func TestCover_SpansTheCellsBandAndFollowsItsGround(t *testing.T) {
 	if got := coverAcross(qw); len(got) != 1 || got[0][2] != 20 || got[0][3] != 30 {
 		t.Errorf("cover after lifting the wall %v, want it from 20 to 30", got)
 	}
-}
-
-func TestPlugin_RefusesAFlatWorld(t *testing.T) {
-	defer func() {
-		if r, _ := recover().(string); !strings.Contains(r, "Heights") {
-			t.Errorf("NewPlugin over a flat world: %q, want a refusal naming irelief.Heights", r)
-		}
-	}()
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 20}})
-	topography.NewPlugin(w, board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, w), topography.Config{Cell: 32})
 }

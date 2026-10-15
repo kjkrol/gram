@@ -27,7 +27,6 @@ type Field struct {
 	grid         grid.Grid
 	square       *grids.Square // nil for any other grid
 	cells        *terrain.Cells
-	heights      bool
 	altitude     func(c cell.ID) float64
 	boxes        []geom.AABB
 	decks        []terrain.Deck
@@ -43,12 +42,9 @@ func New(g grid.Grid, cells *terrain.Cells, altitude func(c cell.ID) float64) *F
 	return &Field{grid: g, square: sq, cells: cells, altitude: altitude}
 }
 
-// SetHeights says whether the world has heights, so cover and solid cells span the cells' bands.
-func (f *Field) SetHeights(heights bool) { f.heights = heights }
-
 // Walk is the cover of the board along a ray, the Cover contract: every cell whose kind has a
 // Veil that dims an observer on blockers, in order, with the stretch of the ray inside it, its
-// band (±Inf in a flat world) and τ = 1 − Veil.
+// band (±Inf for a kind of no Height) and τ = 1 − Veil.
 func (f *Field) Walk(origin, dir geom.Vec, length float64, blockers world.Layers, visit func(near, far, bottom, top, tau float64) bool) {
 	if f.square != nil {
 		f.walkSquare(origin, dir, length, blockers, visit)
@@ -99,7 +95,8 @@ func (f *Field) Ready() {
 			return
 		}
 		*v = veil{bottom: math.Inf(-1), top: math.Inf(1), tau: 1 - min(k.Veil, 1), veils: world.Layers(k.Veils), ok: true}
-		if f.heights {
+		// a veil of no height stands at every height, as a wall of none does
+		if k.Height > 0 {
 			v.bottom = f.altitude(c)
 			v.top = v.bottom + k.Height
 		}
@@ -255,7 +252,7 @@ func (f *Field) wallsOf(c cell.ID, m geom.Vec, layers world.Layers, band collisi
 			continue
 		}
 		open := ends(freeA, freeB)
-		if f.heights && fl.Height > 0 && fl.Thickness > 0 &&
+		if fl.Height > 0 && fl.Thickness > 0 &&
 			(collision.Band{Bottom: top - fl.Thickness, Top: top}).Meets(band.Above()) {
 			slab := collide.FieldWall{
 				A:    a,
@@ -271,7 +268,7 @@ func (f *Field) wallsOf(c cell.ID, m geom.Vec, layers world.Layers, band collisi
 		r := d.Built.Rail
 		railing := collision.Band{Bottom: top, Top: top + r.Height}
 		if r.Keeps == 0 || !world.Layers(r.Keeps).Meets(layers) ||
-			f.heights && r.Height > 0 && !railing.Meets(band) {
+			r.Height > 0 && !railing.Meets(band) {
 			continue
 		}
 		half := terrain.RailHalf(f.grid.CellSpan())
@@ -419,7 +416,7 @@ func (f *Field) stops(c cell.ID, layers world.Layers, band collision.Band) bool 
 		return true
 	}
 	fl := b.Floor
-	if !f.heights || fl.Thickness <= 0 || fl.Height <= 0 || fl.Width > 0 {
+	if fl.Thickness <= 0 || fl.Height <= 0 || fl.Width > 0 {
 		return false
 	}
 	deck := f.altitude(c) + fl.Height
@@ -429,7 +426,7 @@ func (f *Field) stops(c cell.ID, layers world.Layers, band collision.Band) bool 
 // from below up, so nothing passes under a wall on a slope; a wall of no height stands at every
 // height
 func (f *Field) solidBand(c cell.ID, height float64) collision.Band {
-	if !f.heights || height <= 0 {
+	if height <= 0 {
 		return collision.Everywhere
 	}
 	return collision.Band{Bottom: math.Inf(-1), Top: f.altitude(c) + height}

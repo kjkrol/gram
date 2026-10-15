@@ -17,10 +17,10 @@ type module struct {
 
 func (m *module) RegSystems(ecs *goke.ECS) {
 	m.give = ecs.RegSys(&giveSystem{})
-	if m.p.worldPlugin.HasHeights() {
-		m.fall = ecs.RegSys(newFallSystem(m.p))
-	} else {
+	if m.p.across {
 		m.fall = ecs.RegSys(newPlaneSystem(m.p))
+	} else {
+		m.fall = ecs.RegSys(newFallSystem(m.p))
 	}
 }
 

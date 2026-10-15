@@ -10,12 +10,11 @@
 //
 // # Two modes
 //
-// The world's dimension is the mode (world.Config.Heights), and each refuses the other's facts.
-// In a world with heights the pull is along Z: every step a body stands on the surface under its
-// centre ([Plugin.WithSurfaces], the board's ground.Surfaces), follows the ground down a slope
-// within its reach, flies off a deck's edge, by a leap or a throw, and lands. A flat world, a
-// platformer's, pulls across it any way: a body is borne by whatever collision found it touching
-// against the pull, a wall bearing nothing.
+// The pull's way is the mode, kept as long as the world lasts. Along Z (a world with heights) every
+// step a body stands on the surface under its centre ([Plugin.WithSurfaces], the board's
+// ground.Surfaces), follows the ground down a slope within its reach, flies off a deck's edge, by
+// a leap or a throw, and lands. Across X and Y (a platformer's side view, its Z the depth) a body
+// is borne by whatever collision found it touching against the pull, a wall bearing nothing.
 //
 // # Commands and Landing
 //

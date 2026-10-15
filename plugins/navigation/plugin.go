@@ -77,9 +77,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.spacing = p.spacing.resolve(float64(p.worldPlugin.Res.Config.Entities.MaxSize), min(w, h))
 	// routes are planned blind to the others: the keeping answers what a route runs into
 	finder := newPathFinder(brd, brd, p.boardPlugin, openOccupancy{})
-	if p.worldPlugin.HasHeights() {
-		finder.WithLevels(boardLevels{p.boardPlugin})
-	}
+	finder.WithLevels(boardLevels{p.boardPlugin})
 	var keep keeping
 	if p.spacing == BodySpacing {
 		keep = newBodyKeeping(finder, p.worldPlugin.Space(), p.boardPlugin.Heights)

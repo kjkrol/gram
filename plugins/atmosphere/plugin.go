@@ -56,8 +56,11 @@ type Plugin struct {
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// NewPlugin puts the atmosphere of cfg over worldPlugin.
+// NewPlugin puts the atmosphere of cfg over worldPlugin; a world without heights panics.
 func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
+	if !worldPlugin.HasHeights() {
+		panic("atmosphere: an atmosphere stands over a world with heights; set world.Config.Heights")
+	}
 	cal := calendar.New(worldPlugin.Clock(), cfg.Calendar)
 	clim := climate.New(worldPlugin, cal, cfg.Climate)
 	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, calendar: cal, climate: clim,
@@ -135,8 +138,8 @@ func (p *Plugin) Renderer() render.Layer {
 // Precipitation is what falls, a render.Source for a scene's Composer on render.Air.
 func (p *Plugin) Precipitation() render.Layer { return precipitation.New(p.Sun, p.Air) }
 
-// Clouds is the clouds' shadows over a flat world, a render.Source for a scene's Composer. A
-// world with heights has its terrain shadow itself.
+// Clouds is the clouds' shadows over a board without relief, a render.Source for a scene's
+// Composer. A board in relief has its terrain shadow itself.
 func (p *Plugin) Clouds() render.Layer { return overcast.New(p.Sun, p.Air) }
 
 // Reporter is the atmosphere's lines for the telemetry panel.

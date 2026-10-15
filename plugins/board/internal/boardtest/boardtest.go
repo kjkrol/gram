@@ -90,6 +90,7 @@ func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(
 	bw.World = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: width, Height: height},
 		Entities: world.EntitiesCfg{MaxCount: 16, MinSize: UnitSize, MaxSize: UnitSize},
+		Heights:  true,
 	})
 	c := collision.NewPlugin(bw.World)
 	bw.Board = board.NewPlugin(g, &cell.MultipleOccupancy{}, bw.World).WithCollision(c)

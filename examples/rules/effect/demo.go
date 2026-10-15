@@ -78,6 +78,7 @@ func main() {
 				MinSize:  unitSize,
 				MaxSize:  unitSize,
 			},
+			Heights: true,
 		}).
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).

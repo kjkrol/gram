@@ -10,8 +10,8 @@ import (
 type Config struct {
 	Space    SpaceCfg
 	Entities EntitiesCfg
-	// Heights gives the world heights: entities carry a Z. A flat world (the default) is a set of
-	// planes and refuses heights where it meets them.
+	// Heights gives the world heights: entities carry a Z, and a board stands in it. A flat world
+	// (the default) is a set of planes and refuses heights where it meets them.
 	Heights bool
 	// Clock is how the tactical clock goes; the zero Config is tempos ½, 1, 2 and 4 in steps.
 	Clock clock.Config

@@ -10,7 +10,7 @@ import (
 )
 
 func TestPlugin_RunningSwitchesTheAtmospheresWorkings(t *testing.T) {
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}})
+	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true})
 	r := AllRunning()
 	r.Day, r.Moon, r.Wind, r.Falls = false, false, false, false
 	a := NewPlugin(w, Config{Running: &r})
@@ -27,7 +27,7 @@ func TestPlugin_RunningSwitchesTheAtmospheresWorkings(t *testing.T) {
 	if a.Sky().Frozen() || !a.Sky().Moon() || a.Climate().Running() != climate.AllRunning() || a.Running() != AllRunning() {
 		t.Errorf("set going, the atmosphere runs %+v", a.Running())
 	}
-	other := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}})
+	other := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true})
 	if all := NewPlugin(other, Config{}).Running(); all != AllRunning() {
 		t.Errorf("a Config without Running runs %+v, want all of it", all)
 	}
@@ -35,7 +35,7 @@ func TestPlugin_RunningSwitchesTheAtmospheresWorkings(t *testing.T) {
 
 // riding in a unit, W with Shift sprints
 func TestDefaultBindings_ChangeTheWeatherWithTheCameraFreeOnly(t *testing.T) {
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}})
+	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true})
 	for _, b := range NewPlugin(w, Config{}).DefaultBindings() {
 		if b.Type() != reflect.TypeFor[ChangeWeather]() {
 			continue

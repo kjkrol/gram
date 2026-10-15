@@ -32,6 +32,7 @@ func (g *fieldStage) Init(ctx game.Initializer) error {
 	g.world = ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: 6 * boardtest.CellSize, Height: 16 * boardtest.CellSize},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: boardtest.UnitSize, MaxSize: boardtest.UnitSize},
+		Heights:  true,
 	})
 	g.collision = collision.NewPlugin(g.world)
 	if err := ctx.Use(g.collision); err != nil {

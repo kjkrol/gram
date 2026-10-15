@@ -31,8 +31,8 @@ const (
 type Sight struct {
 	Facing geom.Vec // unit vector
 	Radius float64  // world units
-	// Blockers are the world.Layers whose entities cut or dim this sight, every one for zero; one
-	// on none of them is looked over and still seen. A flat world's: one with heights refuses it.
+	// Blockers are the world.Layers whose entities and cover cut or dim this sight, every one for
+	// zero; one on none of them is looked over and still seen.
 	Blockers world.Layers
 	// Ahead has the sight look the way the entity moves, Facing only while it has no heading.
 	Ahead bool

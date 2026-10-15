@@ -298,7 +298,7 @@ func (v *views) copy(ground ground.Heights, cover ground.Cover, w, h, step float
 	for k := range n {
 		hi, lo := enc(v.heights[k])
 		c := v.covers[k]
-		// a band without end, a flat world's cover, has it all: alpha none
+		// a band without end, a cover of no height, has it all: alpha none
 		whole := byte(255)
 		if math.IsInf(c.bottom, 0) || math.IsInf(c.top, 0) {
 			whole = 0

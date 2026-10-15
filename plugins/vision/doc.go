@@ -14,8 +14,8 @@
 //
 // Every entity cuts sight unless it carries a [Transparency]: 1 as if absent, 0 cutting, between
 // them dimming. The world's cover (the board's veiled cells) dims or cuts a ray the same way and
-// is never seen. In a flat world Sight.Blockers are the world.Layers that cut or dim a sight at
-// all; an entity on none of them is looked over and still seen.
+// is never seen. Sight.Blockers are the world.Layers that cut or dim a sight at all; an entity
+// on none of them is looked over and still seen.
 //
 // # Heights
 //
@@ -26,7 +26,7 @@
 // under the observer's level as far off as it lies. An Eye with a Vertical field sees up and
 // down within it alone, turned up or down by its Tilt (a rider's head): a sentinel on a wall
 // looking down sees the wall's foot, not the distance; the view drawn is the ground the field
-// meets. Blockers are refused there, Eye.Height and Eye.Vertical in a flat world.
+// meets. Eye.Height and Eye.Vertical are refused in a flat world.
 //
 // # Sighting
 //

@@ -71,6 +71,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: cols * fieldCell, Height: rows * fieldCell},
 		Entities: world.EntitiesCfg{MaxCount: len(units), MinSize: 1, MaxSize: largest},
+		Heights:  true,
 	})
 	c := collision.NewPlugin(w)
 	brd := board.NewPlugin(fw.grid, &cell.SingleOccupancy{}, w).WithCollision(c)

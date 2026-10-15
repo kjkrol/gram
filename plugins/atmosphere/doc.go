@@ -3,10 +3,11 @@
 //
 // # Plugin
 //
-// [NewPlugin] takes the world and a [Config]: the calendar's (plugins/atmosphere/calendar), the
-// sky's (plugins/atmosphere/sky), the climate's (plugins/atmosphere/climate) and which of its
-// workings go on ([Running]; [Plugin.SetRunning] switches them as the game goes). The light runs
-// once a tick, in the tactical pause too; the weather in every step of the simulation.
+// [NewPlugin] takes a world with heights and a [Config]: the calendar's
+// (plugins/atmosphere/calendar), the sky's (plugins/atmosphere/sky), the climate's
+// (plugins/atmosphere/climate) and which of its workings go on ([Running]; [Plugin.SetRunning]
+// switches them as the game goes). The light runs once a tick, in the tactical pause too; the
+// weather in every step of the simulation.
 // [Plugin.Sun] and [Plugin.Air] are what a board takes to light and shade itself
 // (board.Plugin.WithAtmosphere, topography.Plugin.WithAtmosphere).
 //
@@ -24,7 +25,7 @@
 // # Drawing
 //
 // [Plugin.Renderer] is the sky behind the world (plugins/atmosphere/backdrop),
-// [Plugin.Precipitation] the rain and the snow, [Plugin.Clouds] a flat world's cloud shadows
+// [Plugin.Precipitation] the rain and the snow, [Plugin.Clouds] the cloud shadows over a flat board
 // (plugins/atmosphere/overcast), all render.Sources for a scene's Composer; [Plugin.Reporter]
 // adds the time, the light and the weather to the telemetry panel, [Plugin.HUD] the
 // calendar to a scene's layers.

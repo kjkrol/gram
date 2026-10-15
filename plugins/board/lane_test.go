@@ -53,6 +53,7 @@ func TestBoard_AUnitBiggerThanACellsSidePanics(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 50, Height: 30},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 1, MaxSize: 10},
+		Heights:  true,
 	})
 	p := board.NewPlugin(grid.DefaultGrids{}.Square(5, 3, 10), &cell.MultipleOccupancy{}, w)
 	at := func(v geom.Vec) geom.Vec { return v }

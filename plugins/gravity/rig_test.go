@@ -142,7 +142,7 @@ func newRig(t *testing.T, sc scene) *rig {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 40, Height: 40},
 		Entities: world.EntitiesCfg{MaxCount: len(sc.bodies) + 8, MinSize: 1, MaxSize: 10},
-		Heights:  sc.level == nil,
+		Heights:  true,
 	})
 	r := &rig{t: t, w: w}
 	if err := w.Carry(&r.heard); err != nil {
@@ -209,11 +209,7 @@ func newRig(t *testing.T, sc scene) *rig {
 	if err := w.Carry(r.g); err != nil {
 		t.Fatal(err)
 	}
-	shape := board.Shape{Size: 2, Height: 2}
-	if sc.level != nil {
-		shape.Height = 0
-	}
-	units := board.NewUnits(r.brd, shape,
+	units := board.NewUnits(r.brd, board.Shape{Size: 2, Height: 2},
 		func(b body) geom.Vec { return geom.NewVec(b.x, b.y) })
 	units.Define("body", unit.Mover{Domain: cell.Land},
 		steering.Steering{MaxSpeed: 5},

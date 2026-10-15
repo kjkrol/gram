@@ -90,12 +90,9 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ board.Map = (*Plugin)(nil)
 
 // NewPlugin puts boardPlugin, over worldPlugin, in relief as cfg says: from then on the
-// topography is the board's Map and the world's Ground and Look. It panics for a world without
-// heights or one that wraps.
+// topography is the board's Map and the world's Ground and Look. It panics for a world that
+// wraps.
 func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config) *Plugin {
-	if !worldPlugin.HasHeights() {
-		panic("topography: a map in relief needs a world with heights; set world.Config.Heights")
-	}
 	if edges := worldPlugin.Res.Config.Space.Edges; edges.WrapsX() || edges.WrapsY() {
 		panic("topography: a world that wraps cannot be seen in relief")
 	}

@@ -21,8 +21,8 @@ type Standing struct {
 	Heading  geom.Vec // the way the unit faces (Vel.Dir), standing or not; zero facing nowhere
 	Domain   cell.Domain
 	Airborne bool    // in the air over the cell, not on it
-	Feet     float64 // where its feet stand; -Inf in a world without heights
-	Level    float64 // the cell's ground, under its decks; 0 in a world without heights
+	Feet     float64 // where its feet stand; -Inf for one carrying no Z
+	Level    float64 // the cell's ground, under its decks
 	Reach    float64 // how high it steps
 }
 

@@ -33,7 +33,7 @@ func (w *chart) check(data []byte) (err error) {
 			MinSize:  1,
 			MaxSize:  units,
 		},
-		Heights: !w.flat,
+		Heights: true,
 		Scale:   world.Scale{Metres: w.perUnit},
 	})
 	g := grid.DefaultGrids{}.Square(uint32(w.cols), uint32(w.rows), uint32(units))

@@ -47,6 +47,7 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	worldPlugin := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 50, Height: 50},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+		Heights:  true,
 	})
 	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
 	boardPlugin.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
@@ -107,6 +108,7 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 	worldPlugin := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 50, Height: 50},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+		Heights:  true,
 	})
 	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
 	boardPlugin.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
@@ -158,6 +160,7 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 	worldPlugin := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 50, Height: 50},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+		Heights:  true,
 	})
 	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
 	sel := selection.NewPlugin(worldPlugin)

@@ -1,4 +1,4 @@
-// Package planar is a body's fall across a flat world, a platformer's: the pull any way across it,
+// Package planar is a body's fall across the plane, a platformer's: the pull any way across it,
 // the body borne by whatever collision found it touching against the pull.
 package planar
 

@@ -208,6 +208,7 @@ func TestStanding_WorksWithoutCollision(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 4 * boardtest.CellSize, Height: 4 * boardtest.CellSize},
 		Entities: world.EntitiesCfg{MaxCount: 2, MinSize: boardtest.UnitSize, MaxSize: boardtest.UnitSize},
+		Heights:  true,
 	})
 	orders := carried(t, w, &heards{})
 	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)

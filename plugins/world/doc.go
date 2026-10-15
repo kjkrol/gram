@@ -10,11 +10,12 @@
 // # Plugin
 //
 // [Plugin] is the world a Stage makes from a [Config]: the [SpaceCfg] sizes it and sets the edge
-// rule per axis (closed, wrapping or open), the [EntitiesCfg] bounds how many entities it holds
-// and their sizes. An entity wholly past an open edge carries [Outside]; the rules of a [Leaving]
-// hear of it every tick, and with none it is despawned. Config.Heights gives the world heights:
-// entities carry a [Z]; a flat world refuses one. The world knows its entities and nothing else:
-// the ground is the board's, the sky the atmosphere's.
+// rule per axis (closed, wrapping or open), the [EntitiesCfg] bounds how many entities it holds and
+// their sizes. An entity wholly past an open edge carries [Outside]; the rules of a [Leaving] hear
+// of it every tick, and with none it is despawned. Config.Heights gives the world heights: entities
+// carry a [Z], and the board, the topography and the atmosphere stand in no other; a flat world
+// refuses a Z. The world knows its entities and nothing else: the ground is the board's, the sky
+// the atmosphere's.
 //
 // # Base, Position and Velocity
 //

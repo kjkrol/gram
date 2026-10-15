@@ -58,6 +58,7 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []cell
 	w := ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: side, Height: side},
 		Entities: world.EntitiesCfg{MaxCount: terrainUnits, MinSize: 10, MaxSize: 10},
+		Heights:  true,
 	})
 	c := collision.NewPlugin(w)
 	grid := grid.DefaultGrids{}.Square(terrainSide, terrainSide, terrainCell)

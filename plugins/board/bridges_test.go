@@ -42,14 +42,14 @@ type decked struct {
 	sag effect.Effect
 }
 
-func newDecked(t *testing.T, g grid.Grid, w, h uint32, heights bool, bridges board.Bridges,
+func newDecked(t *testing.T, g grid.Grid, w, h uint32, bridges board.Bridges,
 	rows ...deckRow) *decked {
 	t.Helper()
 	d := &decked{}
 	d.w = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: w, Height: h},
 		Entities: world.EntitiesCfg{MaxCount: 16, MinSize: 1, MaxSize: 10},
-		Heights:  heights,
+		Heights:  true,
 	})
 	d.p = board.NewPlugin(g, &cell.MultipleOccupancy{}, d.w).WithBridges(bridges)
 	d.p.Board().SetAll(water)
@@ -123,7 +123,7 @@ func bridgeRows(g grid.Grid, way [2]int, width, height float64, cells ...cell.ID
 
 func TestDecks_ABandSlantwiseCutsTheCorners(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 5, 10)
-	d := newDecked(t, g, 50, 50, false, board.Bridges{},
+	d := newDecked(t, g, 50, 50, board.Bridges{},
 		band(g, [2]int{1, 1}, 4, 0, g.At(1, 1), g.At(2, 2), g.At(3, 3))...)
 	d.tick()
 	brd := d.p.Board()
@@ -201,7 +201,7 @@ func (d *decked) lies() ([]world.Lie, []geom.Vec) {
 
 func TestDecks_ABandLiesAlongItself(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 5, 10)
-	d := newDecked(t, g, 50, 50, false, board.Bridges{},
+	d := newDecked(t, g, 50, 50, board.Bridges{},
 		band(g, [2]int{1, 1}, 4, 0, g.At(1, 1), g.At(2, 2))...)
 	d.tick()
 	lies, dirs := d.lies()
@@ -221,7 +221,7 @@ func TestDecks_ABandLiesAlongItself(t *testing.T) {
 
 func TestDecks_ABandOnAHexRunsFromEdgeToEdge(t *testing.T) {
 	g := grid.DefaultGrids{}.Hex(5, 5, 10)
-	d := newDecked(t, g, 130, 90, false, board.Bridges{},
+	d := newDecked(t, g, 130, 90, board.Bridges{},
 		band(g, [2]int{0, 1}, 6, 0, g.At(2, 1), g.At(2, 2), g.At(2, 3))...)
 	d.tick()
 	brd := d.p.Board()
@@ -249,7 +249,7 @@ func TestDecks_ABandOnAHexRunsFromEdgeToEdge(t *testing.T) {
 
 func TestRailings_OnAHexRunAlongTheBand(t *testing.T) {
 	g := grid.DefaultGrids{}.Hex(5, 5, 10)
-	d := newDecked(t, g, 130, 90, false, board.Bridges{},
+	d := newDecked(t, g, 130, 90, board.Bridges{},
 		band(g, [2]int{0, 1}, 6, 0, g.At(2, 1), g.At(2, 2), g.At(2, 3))...)
 	d.tick()
 	se, _ := grid.Direction(g, 0, 1)
@@ -313,17 +313,17 @@ func TestBridges_BrokenPanicsSayingWhy(t *testing.T) {
 		{"too low", board.Bridges{Clearance: 3}, row(), "clears it by 3.00"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			d := newDecked(t, g, 60, 50, true, c.bridges, c.rows...)
+			d := newDecked(t, g, 60, 50, c.bridges, c.rows...)
 			panicsWith(t, d.tick, c.want)
 		})
 	}
-	d := newDecked(t, g, 60, 50, true, board.Bridges{}, row()...)
+	d := newDecked(t, g, 60, 50, board.Bridges{}, row()...)
 	d.tick()
 	if got := d.over(g.CellCenter(g.At(2, 2))); len(got) != 1 {
 		t.Errorf("a bridge keeping to the rules: decks of %v, want its own", got)
 	}
 	fence := band(g, [2]int{0, 1}, 4, 0, g.At(2, 1))
-	d = newDecked(t, g, 60, 50, true, board.Bridges{Clearance: 3}, fence...)
+	d = newDecked(t, g, 60, 50, board.Bridges{Clearance: 3}, fence...)
 	d.tick()
 	if got := d.over(g.CellCenter(g.At(2, 1))); len(got) != 1 {
 		t.Errorf("a band carrying no road: decks of %v, want its own, kept to no rule", got)
@@ -332,7 +332,7 @@ func TestBridges_BrokenPanicsSayingWhy(t *testing.T) {
 
 func TestDecks_AHeadIsAHalfBand(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 5, 10)
-	d := newDecked(t, g, 60, 50, false, board.Bridges{},
+	d := newDecked(t, g, 60, 50, board.Bridges{},
 		bridgeRows(g, [2]int{1, 0}, 4, 0, g.At(1, 2), g.At(2, 2), g.At(3, 2))...)
 	d.tick()
 	brd := d.p.Board()
@@ -420,7 +420,7 @@ func TestBridges_BrokenInTheGameIsNotBuilt(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 5, 10)
 	rows := bridgeRows(g, [2]int{1, 0}, 4, 0, g.At(1, 2), g.At(2, 2), g.At(3, 2))
 	rows[0], rows[1] = rows[1], rows[0] // the one called "first" between the heads
-	d := newDecked(t, g, 50, 50, true, board.Bridges{}, rows...)
+	d := newDecked(t, g, 50, 50, board.Bridges{}, rows...)
 	var out bytes.Buffer
 	d.p.WithLog(log.New(&out, "", 0))
 	d.tick()

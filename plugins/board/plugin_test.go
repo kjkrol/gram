@@ -25,6 +25,7 @@ func TestNewPlugin_SetsEachGridAxisFromTheWorldsEdges(t *testing.T) {
 		worldPlugin := world.NewPlugin(world.Config{
 			Space:    world.SpaceCfg{Width: 100, Height: 100, Edges: tc.edges},
 			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+			Heights:  true,
 		})
 		NewPlugin(g, &cell.SingleOccupancy{}, worldPlugin)
 
@@ -34,12 +35,27 @@ func TestNewPlugin_SetsEachGridAxisFromTheWorldsEdges(t *testing.T) {
 	}
 }
 
+func TestNewPlugin_RefusesAFlatWorld(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 50, Height: 50},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	defer func() {
+		if msg, _ := recover().(string); !strings.Contains(msg, "world.Config.Heights") {
+			t.Errorf("panic %q, want one asking for world.Config.Heights", msg)
+		}
+	}()
+	NewPlugin(grid.DefaultGrids{}.Square(5, 5, 10), &cell.SingleOccupancy{}, w)
+	t.Error("a board in a flat world: want a panic")
+}
+
 func newSeedTestPlugin(t *testing.T) (*Plugin, cell.ID) {
 	t.Helper()
 	grid := grid.DefaultGrids{}.Square(5, 5, 10)
 	worldPlugin := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 50, Height: 50},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+		Heights:  true,
 	})
 	p := NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
 	p.CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
@@ -49,7 +65,7 @@ func newSeedTestPlugin(t *testing.T) (*Plugin, cell.ID) {
 }
 
 func TestNewPlugin_RequiresACellAndAMoverOfEveryUnit(t *testing.T) {
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 10, MaxSize: 10}})
+	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 10, MaxSize: 10}, Heights: true})
 	NewPlugin(grid.DefaultGrids{}.Square(2, 2, 32), &cell.MultipleOccupancy{}, w)
 	defer func() {
 		msg, _ := recover().(string)
@@ -96,6 +112,7 @@ func TestPlugin_DrawsFromTheGamesAtlasAlone(t *testing.T) {
 	worldPlugin := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+		Heights:  true,
 	})
 	p := NewPlugin(grid.DefaultGrids{}.Square(5, 5, 10), &cell.SingleOccupancy{}, worldPlugin)
 	if p.Atlas() != nil {

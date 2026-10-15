@@ -68,6 +68,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: width * roadCell, Height: 3 * roadCell},
 		Entities: world.EntitiesCfg{MaxCount: len(units), MinSize: 22, MaxSize: 22},
+		Heights:  true,
 	})
 	rw.w = w
 	w.Effects().Define("alarm", effect.Spec{})

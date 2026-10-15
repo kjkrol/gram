@@ -1,7 +1,6 @@
 package board_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -158,15 +157,6 @@ func TestAround_VisitsTheEntitiesStandingOnTheCellsNotTheUnits(t *testing.T) {
 	if brd.States(decoys).Has(open.Mark()) {
 		t.Error("the unit beside the walker was pulled as a lever: Around visited a unit")
 	}
-}
-
-func TestBuilt_AFlatWorldRefusesAHeight(t *testing.T) {
-	defer func() {
-		if msg, _ := recover().(string); !strings.Contains(msg, "flat world") {
-			t.Errorf("a Wall at a Height in a flat world: %q, want a panic saying so", msg)
-		}
-	}()
-	newStrip(t, grass, effect.Spec{}, comp.Const(cell.Wall{Keeps: cell.Land, Height: 3}))
 }
 
 func TestFloor_CostsWhatItSaysAndSparesTheSlope(t *testing.T) {

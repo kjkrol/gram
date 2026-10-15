@@ -53,10 +53,12 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `world.Plugin.Tick(d)`: the carrier (`world.Plugin.Carrier()`, the stage's one
   `command.Carrier` for players and entities alike; the engine carries every
   `plugin.CommandHandler` a stage uses), `Time`, `Seed`, `Roles`, `World` (the clock's entity).
-- **`board`** — optional grid and terrain over `world`; its grids wrap per axis, following the
-  world's `Edges`. The root keeps the `Plugin`, the `Board` (`Plugin.Board()`: `At(x, y)`,
-  `Kind`, `KindAt`, `KindFor`, `Bare`, `Set`, `SetAll`, `Way`, `SetWay`, `Along`, `DecksOver`,
-  `Reaches`, `Fenced`, `Lane`, `CellFor`, `LevelFor`, `CellVersion`, `Changes`, `Version`, `Touch`,
+- **`board`** — optional grid and terrain over `world`, standing only in a world with heights
+  (`board.NewPlugin` panics in a flat one; a world without a board — collision, minimal,
+  rules/vision, scenes — stays flat); its grids wrap per axis, following the world's `Edges`. The
+  root keeps the `Plugin`, the `Board` (`Plugin.Board()`: `At(x, y)`, `Kind`, `KindAt`, `KindFor`,
+  `Bare`, `Set`, `SetAll`, `Way`, `SetWay`, `Along`, `DecksOver`, `Reaches`, `Fenced`, `Lane`,
+  `CellFor`, `LevelFor`, `CellVersion`, `Changes`, `Version`, `Touch`,
   `Shape`, `Built`, `States`), the `Layout`, the `Map` contract, `NewUnits`, `NewEntities`, `Lay`
   (`level.go`), `Spawn[R]`, `Each[R]`, `Sides`, `Shape`. Public subpackages: **`board/cell`**
   (`cell.ID`, `cell.Kind`, `cell.Kinds` through `board.Plugin.CellKinds()`, `cell.Domain` —
@@ -95,8 +97,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   kind the noun; what lies on it is a **cover** (`board.Plugin.Covering(e)`, `effect.Shows`);
   `Board.States(c)` a cell's effect markers, `unit.Standing.States` those under a unit,
   `unit.StandingOn(e)` the word.
-  The board is flat; the ground's heights are the topography's relief (`topography.Relief`). In
-  a world with heights the `altitudeSystem` writes every `Z.Altitude` each step from
+  The board is flat; the ground's heights are the topography's relief (`topography.Relief`). The
+  `altitudeSystem` writes every `Z.Altitude` each step from
   `Relief.Surface` (the board's `ground.Surfaces`: the highest of the ground and a `cell.Floor`'s
   deck carrying its domain within its step of its feet; the ceiling a slab's underside) plus its
   `Lift` — except one carrying a `world.Drift`, which gravity carries.
@@ -188,8 +190,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `world` and `collision`.
 - **`topography`** — a map in relief: `topography.NewPlugin(world, board, Config{Cell, TileW,
   TileH, HeightUnit, Headroom, Shaping, Climbing, Perspective, Solid, Fine, EdgeTurn, EdgeTilt})`,
-  made right after the world and the board; refuses a flat or a wrapping world. It hands its
-  cameras as makers (`Plugin.Views(start)`, a `cameras.Maker`; each camera begins as
+  made right after the world and the board (so a world with heights); refuses a wrapping world. It
+  hands its cameras as makers (`Plugin.Views(start)`, a `cameras.Maker`; each camera begins as
   `topography.Start` says — `FromAbove`, `Isometrically`), sets the world's Look
   (`billboards.Look`), the board's Map (`look.Nothing`: the ground is drawn on the GPU) and the
   world's Ground (its `Relief`: `At`, `Step`, `Altitude`, `SetHeights`, `Corners`, `Lift`,
@@ -242,7 +244,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   entities and nothing else; the ground is the board's, the sky the atmosphere's, `render`
   generic.** A relief is lit by the sun of its `topography.Atmosphere` (`WithAtmosphere`; without
   one `sky.DefaultSun`).
-- **`atmosphere`** — the time of day, the climate and the weather on the world's clock; its root
+- **`atmosphere`** — the time of day, the climate and the weather on the world's clock, over a
+  world with heights alone (`NewPlugin` panics in a flat one); its root
   keeps no shaders and draws nothing itself: every part is a package that never imports it.
   `atmosphere/calendar`: the clock at a fixed scale — a day every `Config.DayRealTime` from
   `Start` in the middle of `Season`, a `GameYear` of 8 days and a 4-day moon or an `EarthYear`;
@@ -278,7 +281,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   sways swaying above a wind of 15); `atmosphere.Plugin.WithWeathering(board, cfg)` as the
   atmosphere is made. `atmosphere/air`: the weather as drawn (`Weather.Frame`, `Sway`, `Cloud`,
   `Shade`, `Haze`; the clouds' periodic noise baked once by `air.BakeTile` into a tile the sky and
-  the terrain look up per pixel). `atmosphere/overcast`: the clouds' shadows over a flat world
+  the terrain look up per pixel). `atmosphere/overcast`: the clouds' shadows over a flat board
   (`atmosphere.Plugin.Clouds()`, a Direct at `Objects+50`). `atmosphere.Running`
   (`Config.Running`, `Plugin.SetRunning`) switches the day, the weather's changes, the wind, the
   clouds, what falls, the weathering, the stars and the moon, all on by default, not saved.
@@ -332,48 +335,50 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   asks the board's `Lane` (the band less its railings keeping the domain, on the step's level; a
   band on the ground counts on the ground's) and refuses a body whose box across the step
   (`Size.X·|s.Y| + Size.Y·|s.X|` over the step's length) is wider — in both searches and in
-  `Steps`; a zero Size fits anything. With heights its nodes are a cell and a level (a deck's or
-  what lies under it; a step onto a deck where the ground at the shared edge lies within the step,
-  off one only onto a surface within the step, under one only for a unit that fits, `underway`;
-  the goal reached on either level, the goal's cell met mid-route a waypoint; a step across a
-  railing refused, a slantwise step on or off a deck only along it); `price` is what a step costs
-  (the destination's `CostFor` over the length, times `Map.Climb` unless `Graded`; a slantwise
-  step not `Along` a way priced by the destination's `Bare` ground, so roads are followed round
-  their bends). A navigated unit carries a `steering.Steering`: navigation asks it for a heading
-  at a lookahead point and its top speed, braking before the goal; a waypoint is passed by
-  projection, the goal by radius; the lookahead is the turning radius (`|Speed|·dt/TurnRate`,
-  ~5–8 px in the demos), so a turn's corner is cut by about that — at a bridge's head, onto the
-  band past its railings' ends, which collision then pushes back (a unit wider than the lane
-  slid along a railing's end over the water and stood there, frozen in); a `MoveOrder` queues up to `MaxWaypoints` goals. **A patrol is a
-  plan**: the unit carries its `navigation.Round` of cells (`NewRound`), `navigation.Onward{}`
-  sends it to the next, and the kind's plan is `plan.Steps` of `plan.Self.Do(Onward{})` with
-  `Until: cond.Self.If(Arrived{})` and `plan.Self.Wait(pause)`. `MoveTo{Cell, To, At, Append,
-  Level, Face}` orders every `Selected` entity the player owns, or the entity giving it itself
-  (`act.Do`); `To` names the goal (`ceremony.Named`: a cell's `Plot` or a unit's `At`); `Level`
-  (`EitherLevel`, `OnGround`, `OnDeck`) is what the camera picked; `Face` the point it turns to on
-  arrival (a right click on its own cell, or `LookAt`); the right button's `Drag` is a click, a
-  `ButtonHeld` past the slop a `LookAt` every move; Shift appends. `Spacing` (`WithSpacing`;
-  `AutoSpacing`) is how units keep apart through the `keeping` seam (`cellKeeping`,
-  `bodyKeeping`), one `navigationSystem.Update` loop; both plan routes blind to the others. What
-  a unit does about another is rules of the moment `Touch` navigation hosts (a
-  `host.PairRules[Touch]`; words `PushedByAlly()`, `Blocks()`, `WaitedLong()`…; `crowd()`,
-  StarCraft II's, added at Install unless `WithCrowd(rules...)`): `BodySpacing` the Collider's
-  contacts (a `Resting` or `Sensed` contact bumps nobody), `CellSpacing` a step refused; handed
-  `GivingWay`, `LastGoal`, `Ally`, `Groupmate` (`LastOrder.Group`), `OnMyGoal`, `HeadOn`, `Room`,
-  `WaitedOut`/`Cornered`. The rules' commands (`StepAside`, `Detour`, `Pass`, `Hold`, `Settle`,
-  `Stop`; `Aimed` at the other) are carried out for that unit alone, the engine's rules kept there:
-  `stepAside` goes where the ground takes the unit, no steeper than `yieldClimb`, nobody standing;
-  the last word stays navigation's (`stallAfter`, `maxStalls`, `bumpInterval`). A group gets its
-  spots from `bodyKeeping.place` and goes cell centre to cell centre. The board has every unit hold
-  the cell it stands on, navigation the cells of the steps in progress on their level
-  (`Path.Decks`, a `Leg`'s `FromDeck`/`ToDeck`); a unit standing off its route plans again. The
-  driving plugin gets its `driving.Keeping` from navigation (`handKeeping`); a unit whose
-  `steering.Driven.Steers()` gives its order up in navigation's pass; navigation's RunPlan comes
-  before the driving's. The renderer of routes (`internal/routes`, made in `NewPlugin`): every
-  selected unit's goals as its outline (`Marks`) and, on `Routes{}` (Shift+R), its routes as thin
-  lines at the ground's depth; `WithRouteStyle`. Facts told a unit with a tree: `Blocked`,
-  `Arrived`; `MoveOrder.HitUnit` (entity ids start at 0: never use 0 as "nobody"). Depends on
-  `board`, `world`, `selection`, `driving`.
+  `Steps`; a zero Size fits anything. The plugin always plans by levels (a board's world has
+  heights; the planner's plain mode is its own tests' alone): its nodes are a cell and a level (a
+  deck's or what lies under it; a step onto a deck where the ground at the shared edge lies within
+  the step, off one only onto a surface within the step, under one only for a unit that fits,
+  `underway`; the goal reached on either level, the goal's cell met mid-route a waypoint; a step
+  across a railing refused, a slantwise step on or off a deck only along it, one on the ground
+  cutting a corner of water only along a deck lying on the ground, `along`: the flat map's
+  slantwise bridges); `price` is what a step costs (the destination's `CostFor` over the length,
+  times `Map.Climb` unless `Graded`; a slantwise step not `Along` a way priced by the destination's
+  `Bare` ground, so roads are followed round their bends). A navigated unit carries a
+  `steering.Steering`: navigation asks it for a heading at a lookahead point and its top speed,
+  braking before the goal; a waypoint is passed by projection, the goal by radius; the lookahead is
+  the turning radius (`|Speed|·dt/TurnRate`, ~5–8 px in the demos), so a turn's corner is cut by
+  about that — at a bridge's head, onto the band past its railings' ends, which collision then
+  pushes back (a unit wider than the lane slid along a railing's end over the water and stood there,
+  frozen in); a `MoveOrder` queues up to `MaxWaypoints` goals. **A patrol is a plan**: the unit
+  carries its `navigation.Round` of cells (`NewRound`), `navigation.Onward{}` sends it to the next,
+  and the kind's plan is `plan.Steps` of `plan.Self.Do(Onward{})` with `Until:
+  cond.Self.If(Arrived{})` and `plan.Self.Wait(pause)`. `MoveTo{Cell, To, At, Append, Level, Face}`
+  orders every `Selected` entity the player owns, or the entity giving it itself (`act.Do`); `To`
+  names the goal (`ceremony.Named`: a cell's `Plot` or a unit's `At`); `Level` (`EitherLevel`,
+  `OnGround`, `OnDeck`) is what the camera picked; `Face` the point it turns to on arrival (a right
+  click on its own cell, or `LookAt`); the right button's `Drag` is a click, a `ButtonHeld` past the
+  slop a `LookAt` every move; Shift appends. `Spacing` (`WithSpacing`; `AutoSpacing`) is how units
+  keep apart through the `keeping` seam (`cellKeeping`, `bodyKeeping`), one
+  `navigationSystem.Update` loop; both plan routes blind to the others. What a unit does about
+  another is rules of the moment `Touch` navigation hosts (a `host.PairRules[Touch]`; words
+  `PushedByAlly()`, `Blocks()`, `WaitedLong()`…; `crowd()`, StarCraft II's, added at Install unless
+  `WithCrowd(rules...)`): `BodySpacing` the Collider's contacts (a `Resting` or `Sensed` contact
+  bumps nobody), `CellSpacing` a step refused; handed `GivingWay`, `LastGoal`, `Ally`, `Groupmate`
+  (`LastOrder.Group`), `OnMyGoal`, `HeadOn`, `Room`, `WaitedOut`/`Cornered`. The rules' commands
+  (`StepAside`, `Detour`, `Pass`, `Hold`, `Settle`, `Stop`; `Aimed` at the other) are carried out
+  for that unit alone, the engine's rules kept there: `stepAside` goes where the ground takes the
+  unit, no steeper than `yieldClimb`, nobody standing; the last word stays navigation's
+  (`stallAfter`, `maxStalls`, `bumpInterval`). A group gets its spots from `bodyKeeping.place` and
+  goes cell centre to cell centre. The board has every unit hold the cell it stands on, navigation
+  the cells of the steps in progress on their level (`Path.Decks`, a `Leg`'s `FromDeck`/`ToDeck`); a
+  unit standing off its route plans again. The driving plugin gets its `driving.Keeping` from
+  navigation (`handKeeping`); a unit whose `steering.Driven.Steers()` gives its order up in
+  navigation's pass; navigation's RunPlan comes before the driving's. The renderer of routes
+  (`internal/routes`, made in `NewPlugin`): every selected unit's goals as its outline (`Marks`)
+  and, on `Routes{}` (Shift+R), its routes as thin lines at the ground's depth; `WithRouteStyle`.
+  Facts told a unit with a tree: `Blocked`, `Arrived`; `MoveOrder.HitUnit` (entity ids start at 0:
+  never use 0 as "nobody"). Depends on `board`, `world`, `selection`, `driving`.
 - **`entity`** (core) — what every entity carries: `Base`, `Position` (`StepReach`, `MaxStep`,
   `MaxSpeed`), `Velocity` (`Dir`, `Value`, `Side`), `Z`, `Layers`, `Drift{X, Y, Z}` (the velocity
   it is carried at beyond its walk, written by gravity alone), `Eye{Height, Angle, Vertical,
@@ -517,13 +522,16 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`Bindings()`); `DefaultKeys()` a `Shooter` of WSAD `In(camera.Inside)` and a `Tank` of the arrows
   `In(camera.Behind)`. Depends on `world`, `selection`, `board`, `players/owner`, `gravity`.
 - **`gravity`** — bodies falling, standing, leaping (a character controller, not rigid bodies;
-  one plugin, two modes): `gravity.NewPlugin(world, Config{Pull})`, its own entity carrying the
-  knob `gravity.Pull{X, Y, Z}` (an effect's `Alter` turns it over; zero, the Earth's as the
-  figures feel it). A kind falls carrying `gravity.Body{Leap}`; `giveSystem` puts a `world.Drift`
-  on it where missing. With heights the `fallSystem` (`internal/vertical`) stands a body every
-  step on the surface under its centre (`WithSurfaces(board.Surfaces)`) within its reach down,
-  flies it under the pull, stops its head at a slab's underside and lands it; a flat world's
-  `planeSystem` (`internal/planar`) has collision's contacts (not `Sensed`) take the drift
+  one plugin, two modes, chosen by the pull's axis, not by the world): `gravity.NewPlugin(world,
+  Config{Pull})`, its own entity carrying the knob `gravity.Pull{X, Y, Z}` (an effect's `Alter`
+  turns it over within its axis; turned from Z to X/Y or back it panics; a pull both ways, or
+  along Z in a flat world, panics; zero, the Earth's as the figures feel it). A kind falls
+  carrying `gravity.Body{Leap}`; `giveSystem` puts a `world.Drift` on it where missing. Along Z
+  the `fallSystem` (`internal/vertical`) stands a body every step on the surface under its centre
+  (`WithSurfaces(board.Surfaces)`, refused for a pull across) within its reach down, flies it
+  under the pull, stops its head at a slab's underside and lands it; across X/Y (a side view, the
+  platformer: a world with heights, `Pull{Y}`, Z its depth) the `planeSystem`
+  (`internal/planar`) has collision's contacts (not `Sensed`) take the drift
   running into them, a body borne by one facing against the pull, braked across the pull while
   borne. `unit.Airborne` is on while in the air. Commands, an entity's own: `Leap{}` (none in the
   air), `Away{Speed, Rise}` (`host.Aimed`: thrown off from the moment's subject). A `Landing{ID,
@@ -538,10 +546,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   every ray, dimming or cutting it, a ray spending its radius as a budget; `Sight.Blockers` are
   the `world.Layers` that cut or dim this sight (a hawk with `Air` looks over walls). With heights
   sight has heights instead: the cone's eye is the unit's `world.Eye` (a Sight without an Eye is
-  not scanned), every entity spans its `Z`, the ground is read along every ray — exactly where it
-  is a `ground.Profile` (the relief's `Along`), else sampled every `WithGroundStep`; `Blockers`
-  refused there, `Eye.Height` and `Eye.Vertical` in a flat world; an `Eye.Vertical` keeps what
-  the scan found to the field `Tilt ± Vertical/2` by elevation (`scanner.vertical`, after
+  not scanned), every entity spans its `Z`, the ground is read along every ray — exactly where it is
+  a `ground.Profile` (the relief's `Along`), else sampled every `WithGroundStep`, `Blockers` cutting
+  as in a flat world; `Eye.Height` and `Eye.Vertical` refused in a flat world; an `Eye.Vertical`
+  keeps what the scan found to the field `Tilt ± Vertical/2` by elevation (`scanner.vertical`, after
   aabbworld's cone, which knows no vertical angle), the views drawn the ring of ground the field
   meets (near and far on the CPU from the eye's height, per pixel on the GPU by `atan2`, the
   instance's fifth vec4). Every observer is scanned every step, or
@@ -568,10 +576,12 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `plugin.go`): `Types.Define` registers three kinds — the name itself over `Row{From, To}`,
   never spawned, only the type the level's line `{kind: bridge, from, to}` is read as; the
   deck through `board.NewEntities` over the private `deckRow{At, Links, Height, Dir}` with a
-  `cell.Floor` built from the Spec, the `Rail`, the heading, a `Block` in relief; the pier
-  over `pierRow{At, Bottom, Top}` with heights only — each kind getting its `SpriteID` from the
-  world's registry as it is registered (`kinds.Register`), which `Type.Deck()`/`Pier()` hand
-  out empty for the figure's `Look` to fill; `Plugin.Spawn(level)` in Spawn keeps the rows,
+  `cell.Floor` built from the Spec, the `Rail`, the heading, a `Block`; the pier over `pierRow{At,
+  Bottom, Top}`, spawned only over a map in relief (`Rules.Heights` follows the relief: a level's
+  `Heights()`, the board's `Heights()`; without it a bridge is a deck at the ground over water or a
+  cell its road may not take, no piers) — each kind getting its `SpriteID` from the world's registry
+  as it is registered (`kinds.Register`), which `Type.Deck()`/`Pier()` hand out empty for the
+  figure's `Look` to fill; `Plugin.Spawn(level)` in Spawn keeps the rows,
   `Populate` plans each with `site.Plan` and `parts` builds the entries (a deck a cell, a
   head's `Links` one way, a span's both, a pier between spans), every entity drawn by its
   kind's slot. The plugin never calls the atlas: the look is the figure's alone.

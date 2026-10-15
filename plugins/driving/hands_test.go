@@ -80,6 +80,7 @@ func newFencedField(t *testing.T, fences []cell.ID, walkers ...walker) *field {
 	f.w = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 320, Height: 96},
 		Entities: world.EntitiesCfg{MaxCount: len(walkers) + len(fences), MinSize: 10, MaxSize: 22},
+		Heights:  true,
 	})
 	col := collision.NewPlugin(f.w)
 	brd := board.NewPlugin(f.grid, &cell.SingleOccupancy{}, f.w).WithCollision(col)

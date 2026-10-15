@@ -73,11 +73,11 @@ cgo. Without a GPU the tests that draw skip themselves.
 | **World** | `plugins/world` | Every entity's `Base`; movement under stop, wrap or open edges; the spatial index; kinds and spawning before the game and during it; heights or planes |
 | **Steering** | `plugins/world/steering` | A `Steering` profile turned into heading and speed each step; `Driven` for a unit steered by hand |
 | **Collisions** | `plugins/collision` | `Collider` to take part, `Physics` to bounce and be pushed apart, the solid ground of a board, `Meeting` and `Struck` for rules |
-| **Gravity** | `plugins/gravity` | Bodies falling, standing on what bears them and leaping, along Z in a world with heights or across a flat one; `Leap`, `Away` and `Landing` for rules |
+| **Gravity** | `plugins/gravity` | Bodies falling, standing on what bears them and leaping, along Z or across the plane, as the pull goes; `Leap`, `Away` and `Landing` for rules |
 | **Shooting** | `plugins/bullet` | Shots as entities fired from a unit's muzzle or thrown in an arc, swept by collision; `Landing`, `Resting` and `Blast` for rules |
 | **Sight** | `plugins/vision` | A `Sight` cone scanned into `Sighted`, cut by walls and dimmed by forests, over them by height; `Sighting` rules per observer |
 | **Conversations** | `plugins/dialog` | Nodes of lines and answers from YAML, every unit with lines of its own; what an answer changes is the game's own |
-| **Board and navigation** | `plugins/board`, `plugins/navigation` | Square or hex grid with terrain, ways and what stands on it; a map laid out of a file; `MoveOrder` paths that re-route, onto a bridge's deck or under it |
+| **Board and navigation** | `plugins/board`, `plugins/navigation` | Square or hex grid with terrain, ways and what stands on it, in a world with heights; a map laid out of a file; `MoveOrder` paths that re-route, onto a bridge's deck or under it |
 | **Bridges** | `plugins/bridges` | Bridges built by one set of rules whoever builds them: a level's file, the map maker, a player with a bridge in hand |
 | **Topography** | `plugins/topography` | A map in relief on the GPU: heights shaped and priced, the sun's light and shadows, water glinting and running, from above, isometrically or in perspective |
 | **Atmosphere** | `plugins/atmosphere` | The calendar, the sky of the hour with the real stars, the climate and the weather, what falls and what it does to the board |

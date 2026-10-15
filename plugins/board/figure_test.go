@@ -56,6 +56,7 @@ func TestFiguresAndTiles_RunTheirPartsOverTheBoardAndLookOnTheirAtlases(t *testi
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 3 * boardtest.CellSize, Height: 3 * boardtest.CellSize},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 16},
+		Heights:  true,
 	})
 	b := board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
 	tile, f := &mud{}, &post{}

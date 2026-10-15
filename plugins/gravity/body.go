@@ -3,8 +3,8 @@ package gravity
 import "github.com/kjkrol/ceremony/effect"
 
 // Pull is the gravity of a world, a knob on the plugin's own entity in world units a second
-// squared: −Z in a world with heights, any way across a flat one. The plugin only reads it, so an
-// effect's Alter turns it.
+// squared: along Z, or any way across X and Y, never turned from the one to the other. The plugin
+// only reads it, so an effect's Alter turns it.
 type Pull struct{ X, Y, Z float64 }
 
 // Knob: an effect may turn it (effect.Knob).

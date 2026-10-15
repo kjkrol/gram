@@ -21,8 +21,8 @@ type Kind struct {
 	Veil float64
 	// Veils is whom the Veil dims; zero veils everyone.
 	Veils Domain
-	// Height is what stands on the cell in a world with heights; a flat world refuses it. A Solid
-	// kind of no Height stands at every height.
+	// Height is how tall what stands on the cell is. A Solid or veiled kind of no Height stands at
+	// every height.
 	Height float64
 	// Sway is how much what stands on the cell bends in the wind, 0 to 1.
 	Sway float64

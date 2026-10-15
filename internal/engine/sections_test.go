@@ -299,6 +299,8 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 		players *players.Plugin
 		player  *players.Player
 	}
+	cfg := testWorldConfig()
+	cfg.Heights = true
 	plugins := func(b *built) func(w *world.Plugin) {
 		return func(w *world.Plugin) {
 			b.makeWorld(w)
@@ -318,7 +320,7 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			b := &built{}
-			st := stage.New("meadow").World(testWorldConfig()).Plugins(plugins(b)).
+			st := stage.New("meadow").World(cfg).Plugins(plugins(b)).
 				Players(func() { b.player = b.players.Add("ai") }).
 				Effects(func() (err error) {
 					defer func() {
@@ -336,7 +338,7 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 	}
 	// each in its own section is taken
 	b := &built{}
-	st := stage.New("meadow").World(testWorldConfig()).Plugins(plugins(b)).
+	st := stage.New("meadow").World(cfg).Plugins(plugins(b)).
 		Players(func() { b.player = b.players.Add("ai") }).
 		Kinds(func() { b.board.CellKinds().Define("grass", grass) }).
 		Controls(func() error { return b.player.Bind() }).

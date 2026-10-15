@@ -27,6 +27,7 @@ func TestAtmosphere_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 128, Height: 128},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
+		Heights:  true,
 	})
 	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)

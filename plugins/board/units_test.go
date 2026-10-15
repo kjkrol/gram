@@ -25,6 +25,7 @@ func unitsWorld(t *testing.T, define func(units *board.Units[recruit]) kind.Of[r
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 128, Height: 128},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 20, MaxSize: 20},
+		Heights:  true,
 	})
 	c := collision.NewPlugin(w)
 	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).WithCollision(c)
@@ -103,6 +104,7 @@ func TestUnits_AUnitOffTheBoardPanicsWhenSpawned(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 128, Height: 128},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 20, MaxSize: 20},
+		Heights:  true,
 	})
 	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	units := board.NewUnits[recruit](brd, board.Shape{Size: 20}, func(recruit) geom.Vec { return geom.NewVec(-50, -50) })

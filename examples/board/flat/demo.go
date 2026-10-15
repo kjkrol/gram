@@ -76,6 +76,7 @@ func main() {
 				MinSize:  walkerPx,
 				MaxSize:  CellSize,
 			},
+			Heights: true,
 		}).
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).

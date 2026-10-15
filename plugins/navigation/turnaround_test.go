@@ -48,6 +48,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 3 * size, Height: 4 * size},
 		Entities: world.EntitiesCfg{MaxCount: 2, MinSize: 22, MaxSize: 22},
+		Heights:  true,
 	})
 	occupancy := &cell.SingleOccupancy{}
 	brd := board.NewPlugin(tw.grid, occupancy, w)

@@ -327,13 +327,22 @@ func (p *Finder) crosses(from node, n cell.ID, level uint8, domain cell.Domain,
 	return level == from.level || !p.fenced(from.c, n, domain, level == deck)
 }
 
-// such a step passes over the corner it cuts
+// such a step passes over the corner it cuts: along a raised deck's link, or on the ground along
+// a deck lying on it
 func (p *Finder) along(from node, n cell.ID, level uint8) bool {
-	if p.built == nil || from.level != deck && level != deck {
+	if p.built == nil {
 		return false
+	}
+	if from.level != deck && level != deck {
+		return p.decked(from.c, n) && !p.raised(from.c) && !p.raised(n)
 	}
 	return (from.level != deck || p.built.Reaches(from.c, n)) &&
 		(level != deck || p.built.Reaches(n, from.c))
+}
+
+func (p *Finder) raised(c cell.ID) bool {
+	_, _, _, ok := p.levels.Deck(c)
+	return ok
 }
 
 func (p *Finder) decked(from, n cell.ID) bool {

@@ -71,10 +71,7 @@ func (t *Types) Define(name string, spec Spec) {
 		}),
 		comp.Const(world.Velocity{}),
 	})
-	shape := board.Shape{Size: span}
-	if w.HasHeights() {
-		shape.Height = spec.Thickness
-	}
+	shape := board.Shape{Size: span, Height: spec.Thickness}
 	decks := board.NewEntities(brd, shape, func(r deckRow) cell.ID { return r.At })
 	deck := []comp.Comp{
 		comp.Load(func(r deckRow) cell.Floor {
@@ -90,27 +87,23 @@ func (t *Types) Define(name string, spec Spec) {
 		}),
 		comp.Const(spec.Rail),
 		comp.Load(func(r deckRow) world.Velocity { return world.Velocity{Dir: r.Dir} }),
-	}
-	if w.HasHeights() {
-		deck = append(deck, comp.Const(world.Block{}))
+		comp.Const(world.Block{}),
 	}
 	decks.Define(deckName(name), deck...)
-	if w.HasHeights() {
-		half := spec.Pier / 2
-		kind.Define[pierRow](w.Kinds(), pierName(name), kind.Spec{
-			comp.Load(func(r pierRow) world.Position {
-				return world.Position{AABB: plane.NewAABB(geom.NewVec(r.At.X-half, r.At.Y-half),
-					spec.Pier, spec.Pier)}
-			}),
-			comp.Const(world.Velocity{}),
-			comp.Load(func(r pierRow) world.Z {
-				return world.Z{Altitude: r.Bottom, Height: max(r.Top-r.Bottom, 0)}
-			}),
-			comp.Const(collision.Collider{}),
-			comp.Const(collision.Physics{Mass: math.Inf(1)}),
-			comp.Const(world.Block{}),
-		})
-	}
+	half := spec.Pier / 2
+	kind.Define[pierRow](w.Kinds(), pierName(name), kind.Spec{
+		comp.Load(func(r pierRow) world.Position {
+			return world.Position{AABB: plane.NewAABB(geom.NewVec(r.At.X-half, r.At.Y-half),
+				spec.Pier, spec.Pier)}
+		}),
+		comp.Const(world.Velocity{}),
+		comp.Load(func(r pierRow) world.Z {
+			return world.Z{Altitude: r.Bottom, Height: max(r.Top-r.Bottom, 0)}
+		}),
+		comp.Const(collision.Collider{}),
+		comp.Const(collision.Physics{Mass: math.Inf(1)}),
+		comp.Const(world.Block{}),
+	})
 	if t.specs == nil {
 		t.specs = map[string]Spec{}
 	}
@@ -125,20 +118,20 @@ func (t *Types) Named(name string) Type {
 		panic(fmt.Sprintf("bridges: no bridge is defined as %q", name))
 	}
 	w := t.p.worldPlugin
-	ty := Type{name: name, spec: spec, deck: kind.Named[deckRow](w.Kinds(), deckName(name))}
-	if w.HasHeights() {
-		ty.pier, ty.piers = kind.Named[pierRow](w.Kinds(), pierName(name)), true
+	return Type{
+		name: name,
+		spec: spec,
+		deck: kind.Named[deckRow](w.Kinds(), deckName(name)),
+		pier: kind.Named[pierRow](w.Kinds(), pierName(name)),
 	}
-	return ty
 }
 
 // Type is a kind of bridge defined.
 type Type struct {
-	name  string
-	spec  Spec
-	deck  kind.Of[deckRow]
-	pier  kind.Of[pierRow]
-	piers bool
+	name string
+	spec Spec
+	deck kind.Of[deckRow]
+	pier kind.Of[pierRow]
 }
 
 // Name is what the kind of bridge is called.
@@ -150,15 +143,9 @@ func (t Type) Spec() Spec { return t.spec }
 // Deck is the atlas slot its deck's pieces are drawn from, a sprite laid flat.
 func (t Type) Deck() render.SpriteID { return t.deck.SpriteID() }
 
-// Pier is the atlas slot its piers are drawn from, standing; in a world without heights it
-// panics.
-func (t Type) Pier() render.SpriteID {
-	if !t.piers {
-		panic(fmt.Sprintf("bridges: bridge %q stands on no piers in a world without heights",
-			t.name))
-	}
-	return t.pier.SpriteID()
-}
+// Pier is the atlas slot its piers are drawn from, standing; a bridge over a map without relief
+// stands on none.
+func (t Type) Pier() render.SpriteID { return t.pier.SpriteID() }
 
 func deckName(name string) string { return name + ".deck" }
 func pierName(name string) string { return name + ".pier" }

@@ -1,11 +1,12 @@
 package gravity
 
 import (
-	cgoke "github.com/kjkrol/ceremony/goke"
+	"fmt"
 	"math"
 	"time"
 
 	"github.com/kjkrol/ceremony/command"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
@@ -64,7 +65,11 @@ func (s *fallSystem) Init(si *goke.SysInit) {
 }
 
 func (s *fallSystem) Update(cb *goke.CmdBuf, d time.Duration) {
-	g := max(-pullOf(s.pulls, &s.pull).Z, 0)
+	pull := pullOf(s.pulls, &s.pull)
+	if pull.X != 0 || pull.Y != 0 {
+		panic(fmt.Sprintf("gravity: the pull along Z turned across, %+v; a world keeps its way", pull))
+	}
+	g := max(-pull.Z, 0)
 	s.throw(g)
 	var surfaces ground.Surfaces
 	if s.p.surfaces != nil {

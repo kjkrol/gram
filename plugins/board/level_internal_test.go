@@ -29,12 +29,12 @@ type recruit struct {
 	Ignored cell.ID
 }
 
-func newLevelBoard(t *testing.T, g grid.Grid, heights bool, metres float64) *Plugin {
+func newLevelBoard(t *testing.T, g grid.Grid, metres float64) *Plugin {
 	t.Helper()
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 400, Height: 400},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 1, MaxSize: 32},
-		Heights:  heights,
+		Heights:  true,
 		Scale:    world.Scale{Metres: metres},
 	})
 	p := NewPlugin(g, &cell.MultipleOccupancy{}, w)
@@ -62,7 +62,7 @@ func lay(t *testing.T, p *Plugin, file string) (*Level, error) {
 
 func TestLay_TheDrawingLaysTheLegendsKinds(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(4, 2, 10)
-	p := newLevelBoard(t, g, false, 0)
+	p := newLevelBoard(t, g, 0)
 	_, err := lay(t, p, `
 board:
   default: grass
@@ -108,7 +108,7 @@ board:
 
 func TestLay_AHexRowIsAnR(t *testing.T) {
 	g := grid.DefaultGrids{}.Hex(3, 2, 10)
-	p := newLevelBoard(t, g, false, 0)
+	p := newLevelBoard(t, g, 0)
 	if _, err := lay(t, p, `
 board:
   legend: {".": grass, "~": water}
@@ -133,7 +133,7 @@ board:
 
 func TestLay_TheReliefIsInMetres(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(2, 1, 10)
-	p := newLevelBoard(t, g, true, 2)
+	p := newLevelBoard(t, g, 2)
 	level, err := lay(t, p, "relief:\n  cells: |\n    4 8\n")
 	if err != nil {
 		t.Fatal(err)
@@ -145,7 +145,7 @@ func TestLay_TheReliefIsInMetres(t *testing.T) {
 	if got := h(geom.NewVec(10, 5)); got != 3 {
 		t.Errorf("where the cells meet: %v, want the mean, 3", got)
 	}
-	p = newLevelBoard(t, g, true, 0)
+	p = newLevelBoard(t, g, 0)
 	level, err = lay(t, p, "relief:\n  corners: |\n    0 1 2\n    3 4 5\n")
 	if err != nil {
 		t.Fatal(err)
@@ -157,7 +157,7 @@ func TestLay_TheReliefIsInMetres(t *testing.T) {
 
 func TestLay_WaysRunAlongTheirPaths(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 6, 10)
-	p := newLevelBoard(t, g, false, 0)
+	p := newLevelBoard(t, g, 0)
 	if _, err := lay(t, p, `
 ways:
   roads:
@@ -201,7 +201,7 @@ ways:
 
 func TestLay_ARiverTurnsAtItsPoints(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 6, 10)
-	p := newLevelBoard(t, g, false, 0)
+	p := newLevelBoard(t, g, 0)
 	if _, err := lay(t, p, `
 ways:
   rivers:
@@ -232,7 +232,7 @@ ways:
 
 func TestSpawn_AnEntrysRowIsItsTaggedKeys(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 6, 10)
-	p := newLevelBoard(t, g, false, 0)
+	p := newLevelBoard(t, g, 0)
 	level, err := lay(t, p, `units:
   - {kind: scout, side: red, name: ann, group: scouts, start: [1, 2], route: [[2, 2], [3, 4]],
      talks: miller, rests: 2s, muster: {at: [5, 5]}}`)
@@ -312,10 +312,6 @@ func TestLay_AWrongLevelSaysWhere(t *testing.T) {
 			"units:\n  - {kind: scout, name: ann}\n  - {kind: scout, name: ann}\n",
 			`level.yaml:3: the name "ann" is given on line 2 already`,
 		},
-		"a relief in a flat world": {
-			"relief:\n  cells: |\n    0 0 0 0\n    0 0 0 0\n",
-			`a relief in a flat world`,
-		},
 		"a road over a river": {
 			"ways:\n  roads: {road: {width: 4, paths: [[[0, 0], [3, 0]]]}}\n" +
 				"  rivers: [[{at: [1, 0], kind: river, width: 2}, [1, 1]]]\n",
@@ -339,7 +335,7 @@ func TestLay_AWrongLevelSaysWhere(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			p := newLevelBoard(t, grid.DefaultGrids{}.Square(4, 2, 10), false, 0)
+			p := newLevelBoard(t, grid.DefaultGrids{}.Square(4, 2, 10), 0)
 			level, err := lay(t, p, tc.file)
 			if err != nil && p.seeded != nil {
 				t.Error("the board was seeded by a level it could not lay")
@@ -358,7 +354,7 @@ func TestSpawn_ARowMayNotTagAnEntrysKey(t *testing.T) {
 	type named struct {
 		Name string `yaml:"name"`
 	}
-	p := newLevelBoard(t, grid.DefaultGrids{}.Square(4, 2, 10), false, 0)
+	p := newLevelBoard(t, grid.DefaultGrids{}.Square(4, 2, 10), 0)
 	kind.Define[named](p.worldPlugin.Kinds(), "herald", kind.Spec{
 		comp.Const(world.Position{}),
 		comp.Const(world.Velocity{}),
@@ -376,7 +372,7 @@ func TestSpawn_ARowMayNotTagAnEntrysKey(t *testing.T) {
 var _ command.Command = mark{}
 
 func TestSpawn_AnEntityNobodySpawnsFailsPopulate(t *testing.T) {
-	p := newLevelBoard(t, grid.DefaultGrids{}.Square(4, 2, 10), false, 0)
+	p := newLevelBoard(t, grid.DefaultGrids{}.Square(4, 2, 10), 0)
 	if _, err := lay(t, p, "board:\n  default: grass\nunits:\n  - {kind: scout}\n"); err != nil {
 		t.Fatal(err)
 	}
@@ -394,7 +390,7 @@ func TestLay_ARoadLiesAsTransportTycoonLaysIt(t *testing.T) {
 		"a ramp too steep":           {"0 0 3 3 3\n    0 0 3 3 3", "road at [1, 0] lies on ground"},
 		"tilted across the road":     {"0 0 0 0 0\n    2 2 2 2 2", "road at [0, 0] lies on ground"},
 	} {
-		p := newLevelBoard(t, grid.DefaultGrids{}.Square(4, 2, 10), true, 0)
+		p := newLevelBoard(t, grid.DefaultGrids{}.Square(4, 2, 10), 0)
 		file := "relief:\n  corners: |\n    " + c.corners + "\n    0 0 0 0 0\n" + road
 		_, err := lay(t, p, file)
 		if c.want == "" && err != nil || c.want != "" && (err == nil ||
@@ -402,7 +398,7 @@ func TestLay_ARoadLiesAsTransportTycoonLaysIt(t *testing.T) {
 			t.Errorf("%s: %v, want %q", name, err, c.want)
 		}
 	}
-	hex := newLevelBoard(t, grid.DefaultGrids{}.Hex(3, 1, 10), true, 0)
+	hex := newLevelBoard(t, grid.DefaultGrids{}.Hex(3, 1, 10), 0)
 	hexRoad := "ways:\n  roads: {road: {width: 4, paths: [[[0, 0], [2, 0]]]}}\n"
 	_, err := lay(t, hex, "relief:\n  cells: |\n    0 0 5\n"+hexRoad)
 	if err == nil || !strings.Contains(err.Error(), "joins cells at different levels") {

@@ -153,6 +153,11 @@ Decisions the user has made; they are not up for revisiting in passing.
   tried and dropped.
 - **Physics, not blocking**, for a unit under gravity: into the water and off an edge as it
   pleases, the rules deciding.
+- **A board stands in a world with heights** (`world.Config.Heights`), and so do the topography
+  and the atmosphere: each panics in a flat one. A flat map is a board without relief; a side
+  view (motion/platformer) is a world with heights, gravity pulling along Y, Z its depth. A
+  world without a board (motion/collision, start/minimal, start/scenes, rules/vision) stays
+  flat.
 - **Examples are self-contained** (a demo keeps its `hero.go` and `hero.png`; no shared package
   under `examples/`), **not tested** (what a demo shows is tested in the library's package; no
   `_test.go` in `examples/`), **grouped by what they show** (`start`, `look`, `rules`, `board`,

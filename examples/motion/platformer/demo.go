@@ -69,6 +69,7 @@ func main() {
 				MinSize:  heroSize,
 				MaxSize:  heroSize,
 			},
+			Heights: true,
 		}).
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).

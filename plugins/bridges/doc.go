@@ -9,7 +9,7 @@
 // # A bridge is its parts
 //
 // A bridge is entities standing on the board, saved as any: a piece of deck on every cell from
-// head to head, a band with its railings, and in a world with heights a pier between every two
+// head to head, a band with its railings, and over a map in relief a pier between every two
 // spans. [Type.Deck] and [Type.Pier] are their looks' slots for a scene's atlas.
 //
 // # A level's bridges

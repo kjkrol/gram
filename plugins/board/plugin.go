@@ -79,14 +79,18 @@ var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// NewPlugin builds a board over g with the given occupancy, slowing worldPlugin's entities.
+// NewPlugin builds a board over g with the given occupancy, slowing worldPlugin's entities; a
+// world without heights panics.
 func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin) *Plugin {
+	if !worldPlugin.HasHeights() {
+		panic("board: a board stands in a world with heights; set world.Config.Heights")
+	}
 	kind.Require[unit.At](&worldPlugin.Roster().Unit, "board", "the cell it starts in")
 	kind.Require[unit.Mover](&worldPlugin.Roster().Unit, "board", "the domains it moves in")
 	p := &Plugin{
 		occupancy:   occupancy,
 		worldPlugin: worldPlugin,
-		kinds:       terrain.NewKinds(worldPlugin.HasHeights()),
+		kinds:       terrain.NewKinds(),
 		gridShown:   true,
 	}
 	p.Self = world.NewSelf(worldPlugin, p)
@@ -98,7 +102,6 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	p.kinds.Played = worldPlugin.Kinds().Play
 	brd := NewBoard(g)
 	p.Res.Logic.Board = brd
-	brd.setHeights(worldPlugin.HasHeights())
 	p.simple = newSimpleMap(brd)
 	p.mapping = p.simple
 	brd.mapping = p.mapping
@@ -127,7 +130,7 @@ func (p *Plugin) Name() string { return "gram.board" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
 		cells:     p.Board().cells.System(&p.worldPlugin.Roster().Cell),
-		built:     p.Board().cells.BuiltSystem(p.worldPlugin.HasHeights(), p.worldPlugin.Space),
+		built:     p.Board().cells.BuiltSystem(p.worldPlugin.Space),
 		template:  &p.worldPlugin.Roster().Cell,
 		keep:      occupancy.KeepSystem(p.occupancy, p.Board().footing),
 		standing:  p.rules.StandingSystem(),

@@ -21,7 +21,7 @@ type Units[P any] struct {
 }
 
 // Shape is a unit's body: the side of its box, Width across it where the box is no square (0:
-// Size, square), and, in a world with heights, how tall it stands.
+// Size, square), and how tall it stands.
 type Shape struct{ Size, Width, Height float64 }
 
 // Box is the shape's box centred on c: Width across, Size down the screen.
@@ -35,11 +35,8 @@ func (s Shape) Box(c geom.Vec) plane.AABB {
 
 // NewUnits binds a game's rows to the board: shape is the units' body, at reads a unit's centre
 // from its row. A unit is no bigger than a cell's side, so it takes any step a deck does not
-// narrow; a bigger shape panics, as does a Height in a flat world.
+// narrow; a bigger shape panics.
 func NewUnits[P any](brd *Plugin, shape Shape, at func(row P) geom.Vec) *Units[P] {
-	if !brd.worldPlugin.HasHeights() && shape.Height != 0 {
-		panic("board: units with a Height in a flat world; set world.Config.Heights")
-	}
 	if box, side := shape.Box(geom.Vec{}), float64(brd.Board().CellSpan()); max(box.Size.X,
 		box.Size.Y) > side {
 		panic(fmt.Sprintf("board: units %v across and %v down, bigger than a cell's side, %v",
@@ -52,10 +49,6 @@ func NewUnits[P any](brd *Plugin, shape Shape, at func(row P) geom.Vec) *Units[P
 // game gives its entities. A unit standing off the board panics when spawned.
 func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steering, extra ...comp.Comp) {
 	brd := u.brd.Board()
-	heights := u.brd.worldPlugin.HasHeights()
-	if !heights && mover.Lift != 0 {
-		panic(fmt.Sprintf("board: %q has a Lift in a flat world; set world.Config.Heights", name))
-	}
 	own := []comp.Comp{
 		comp.Load(func(row P) world.Position {
 			return world.Position{AABB: u.shape.Box(u.at(row))}
@@ -70,9 +63,7 @@ func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steer
 		comp.Const(mover),
 		comp.Const(world.Layers(mover.Domain)),
 		comp.Const(steering),
-	}
-	if heights {
-		own = append(own, comp.Const(world.Z{Height: u.shape.Height})) // Altitude is the board's to write
+		comp.Const(world.Z{Height: u.shape.Height}), // Altitude is the board's to write
 	}
 	spec := u.brd.worldPlugin.Roster().Unit.Spec(append(own, extra...)...)
 	kind.Define[P](u.brd.worldPlugin.Kinds(), name, spec)

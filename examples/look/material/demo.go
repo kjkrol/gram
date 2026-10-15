@@ -64,6 +64,7 @@ func main() {
 		World(world.Config{
 			Space:    world.SpaceCfg{Width: ScreenWidth, Height: ScreenHeight},
 			Entities: world.EntitiesCfg{MaxCount: 8, MinSize: emberPx, MaxSize: wardPx},
+			Heights:  true,
 		}).
 		Plugins(a.makePlugins).
 		Figures(a.defineFigures).

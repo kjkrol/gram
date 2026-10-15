@@ -12,7 +12,26 @@ where it begins: `navigation.Path` changed shape. Nor those made before the beha
 `ceremony`: the component types' paths changed (`ceremony/tag.Tags[…]`, `effect.Active`,
 `plan.Mind`, `ceremony.Label`). Nor those made before ceremony's store went behind its contract:
 `effect.Active` and `Wide` are the binding's `goke.Active` and `Wide`, `plan.Mind` is `store.Mind`.
-Nor those made before a unit could strafe: `entity.Velocity` has a `Side`.
+Nor those made before a unit could strafe: `entity.Velocity` has a `Side`. Nor those of a board
+in a flat world: a board stands only in a world with heights now.
+
+**A board stands only in a world with heights** (2026-10-15)
+- `board.NewPlugin` and `atmosphere.NewPlugin` panic in a flat world, as the topography did; the
+  board's flat branches are gone (`terrain.NewKinds`, `BuiltSystem`, `Field.SetHeights`; units
+  and entities on the board always carry a `Z`; a relief laid in a flat world is no longer an
+  error of its own). A veiled or Solid kind of no `Height` stands at every height, so a flat
+  map's forests dim and its walls cut as before. Every demo with a board sets `Heights: true`.
+- Gravity chooses its mode by the pull's axis, not by the world: along Z a body falls onto the
+  surfaces, across X and Y (`Pull{Y}`) it falls in the plane, now in a world with heights too —
+  motion/platformer is one, Z its depth. A pull both ways, along Z in a flat world, or turned
+  from one axis to the other in play panics; `WithSurfaces` is refused for a pull across.
+- `vision.Sight.Blockers` work in a world with heights: an entity or a cover on none of the
+  layers is looked over whatever its height.
+- Bridges choose their kind by the map's relief, not by the world: over a map without relief a
+  bridge is a deck at the ground's level, one cell of water or of what its road may not take, on
+  no piers; over a relief a deck at a height on piers. `Type.Pier` no longer panics.
+- Navigation always plans by levels; a slantwise step on the ground passes a corner of water
+  along a deck lying on the ground (a flat map's slantwise bridge), as the plain planner did.
 
 **One hero on WSAD, a lever and a plate that always answer, the figure in the look demos** (2026-10-14)
 - `cond.Ahead(n)`/`act.Ahead(n)` (ceremony v0.2.1): the places on the cells one to n steps in

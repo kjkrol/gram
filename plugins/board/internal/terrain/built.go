@@ -18,9 +18,8 @@ import (
 var _ goke.System = (*builtSystem)(nil)
 
 type builtSystem struct {
-	cells   *Cells
-	heights bool
-	space   func() *aabbworld.Space
+	cells *Cells
+	space func() *aabbworld.Space
 
 	query *goke.Query
 	on    goke.Comp[cell.On]
@@ -43,8 +42,8 @@ type site struct {
 
 // BuiltSystem gathers what the entities standing on the cells build onto the cells' entities
 // every step; space is the world's, where Standing finds them.
-func (t *Cells) BuiltSystem(heights bool, space func() *aabbworld.Space) goke.System {
-	return &builtSystem{cells: t, heights: heights, space: space}
+func (t *Cells) BuiltSystem(space func() *aabbworld.Space) goke.System {
+	return &builtSystem{cells: t, space: space}
 }
 
 func (s *builtSystem) Init(si *goke.SysInit) {
@@ -88,10 +87,6 @@ func (s *builtSystem) Update(*goke.CmdBuf, time.Duration) {
 			}
 			if rails != nil {
 				b.Rail = rails[i]
-			}
-			if !s.heights && (b.Floor.Height != 0 || b.Wall.Height != 0 || b.Rail.Height != 0) {
-				panic(fmt.Sprintf("board: entity %d builds at a Height in a flat world; "+
-					"set world.Config.Heights", cur.IDs[i]))
 			}
 			s.refuse(cur.IDs[i], b.Floor)
 			if b.Floor.Allows == 0 {

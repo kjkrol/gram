@@ -73,6 +73,7 @@ func installCells(t *testing.T, g grid.Grid, prepare func(w *world.Plugin, brd *
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 4 * boardtest.CellSize, Height: 4 * boardtest.CellSize},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: boardtest.UnitSize, MaxSize: boardtest.UnitSize},
+		Heights:  true,
 	})
 	brd := board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
 	brd.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})

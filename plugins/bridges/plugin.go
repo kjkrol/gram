@@ -63,7 +63,6 @@ var (
 
 // NewPlugin builds the bridges plugin over w and brd.
 func NewPlugin(w *world.Plugin, brd *board.Plugin, cfg Config) *Plugin {
-	cfg.Rules.Heights = w.HasHeights()
 	if cfg.Rules.Longest <= 0 {
 		cfg.Rules.Longest = 3
 	}
@@ -97,7 +96,7 @@ func (p *Plugin) Spawn(level *board.Level) error {
 			return err
 		}
 		b := site.Bridge{From: r.From, To: r.To, Way: way, Deck: g.level(r.From), Spans: spans}
-		if p.cfg.Rules.Heights {
+		if level.Heights() != nil {
 			b.Piers = site.Piers(gr, spans)
 		}
 		p.laid = append(p.laid, laid{t: t, plan: b, at: at, heights: level.Heights()})
@@ -117,6 +116,7 @@ func (p *Plugin) Populate() error {
 	for _, l := range laid {
 		if g == nil {
 			g = newGround(p.board.Board(), l.heights, 0)
+			rules.Heights = l.heights != nil
 		}
 		g.allows = l.t.spec.Allows
 		if _, err := site.Plan(g, rules, l.plan.From, l.plan.To, l.plan.Deck); err != nil {
@@ -140,11 +140,8 @@ func (p *Plugin) parts(t Type, b site.Bridge, g *boardGround) []kind.Entry {
 	length := math.Hypot(step.X, step.Y)
 	dir := geom.NewVec(step.X/length, step.Y/length)
 	piece := func(c cell.ID, links cell.Links, d geom.Vec) kind.Entry {
-		height := 0.0
-		if p.worldPlugin.HasHeights() {
-			height = b.Deck - g.level(c)
-		}
-		return t.deck.Entry(deckRow{At: c, Links: links, Height: height, Dir: d})
+		row := deckRow{At: c, Links: links, Height: b.Deck - g.level(c), Dir: d}
+		return t.deck.Entry(row)
 	}
 	back := gr.Opposite(b.Way)
 	out := []kind.Entry{
@@ -154,17 +151,16 @@ func (p *Plugin) parts(t Type, b site.Bridge, g *boardGround) []kind.Entry {
 	for _, s := range b.Spans {
 		out = append(out, piece(s, 1<<b.Way|1<<back, dir))
 	}
-	if t.piers {
-		for _, at := range b.Piers {
-			row := pierRow{At: at, Bottom: g.at(at), Top: b.Deck - t.spec.Thickness}
-			out = append(out, t.pier.Entry(row))
-		}
+	for _, at := range b.Piers {
+		row := pierRow{At: at, Bottom: g.at(at), Top: b.Deck - t.spec.Thickness}
+		out = append(out, t.pier.Entry(row))
 	}
 	return out
 }
 
 func (p *Plugin) rules() site.Rules {
 	r := p.cfg.Rules
+	r.Heights = p.board.Heights() != nil
 	if p.shaper == nil {
 		r.Reshape = 1e-3 * float64(p.board.Board().Grid.CellSpan())
 	}
@@ -183,22 +179,21 @@ func (p *Plugin) building() Type {
 
 func (p *Plugin) ground(t Type) *boardGround {
 	var at func(geom.Vec) float64
-	if p.worldPlugin.HasHeights() {
-		if h := p.board.Heights(); h != nil {
-			at = h.At
-		}
+	if h := p.board.Heights(); h != nil {
+		at = h.At
 	}
 	return newGround(p.board.Board(), at, t.spec.Allows)
 }
 
 func (p *Plugin) build(b pending) {
 	g := p.ground(b.t)
-	plan, err := site.Plan(g, p.rules(), b.plan.From, b.plan.To, b.plan.Deck)
+	rules := p.rules()
+	plan, err := site.Plan(g, rules, b.plan.From, b.plan.To, b.plan.Deck)
 	if err != nil {
 		log.Printf("bridges: not built: %v", err)
 		return
 	}
-	if p.cfg.Rules.Heights && p.shaper != nil {
+	if rules.Heights && p.shaper != nil {
 		for _, h := range []cell.ID{plan.From, plan.To} {
 			if !p.shaper.Flatten(h, plan.Deck) {
 				x, y, _ := g.Grid().Coords(h)

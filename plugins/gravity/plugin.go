@@ -20,8 +20,8 @@ const earth = 9.81
 
 // Config is how a world's gravity begins.
 type Config struct {
-	// Pull is the pull the world begins under; zero, the Earth's as its figures feel it: −Z in a
-	// world with heights, +Y (down the screen) in a flat one.
+	// Pull is the pull the world begins under, along Z or across X and Y; zero, the Earth's as its
+	// figures feel it: −Z in a world with heights, +Y (down the screen) in a flat one.
 	Pull Pull
 }
 
@@ -34,6 +34,7 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	surfaces    func() ground.Surfaces
 	module      *module
+	across      bool // the pull across X and Y, a side view's; else along Z
 
 	landings host.Rules[Landing]
 	leaps    command.Queue[Leap]
@@ -42,8 +43,8 @@ type Plugin struct {
 
 var _ plugin.Plugin = (*Plugin)(nil)
 
-// NewPlugin builds the gravity of w as cfg begins it; a pull across a world with heights, or up
-// a flat one, panics.
+// NewPlugin builds the gravity of w as cfg begins it: along Z, a body falling to the ground, or
+// across X and Y, a side view's. A pull both ways, or along Z in a flat world, panics.
 func NewPlugin(w *world.Plugin, cfg Config) *Plugin {
 	pull := cfg.Pull
 	g := w.Scale().Figure(earth)
@@ -52,21 +53,21 @@ func NewPlugin(w *world.Plugin, cfg Config) *Plugin {
 		pull.Z = -g
 	case pull == Pull{}:
 		pull.Y = g
-	case w.HasHeights() && (pull.X != 0 || pull.Y != 0):
-		panic(fmt.Sprintf("gravity: a world with heights pulls along Z, not across: %+v", pull))
+	case pull.Z != 0 && (pull.X != 0 || pull.Y != 0):
+		panic(fmt.Sprintf("gravity: a pull along Z or across, not both: %+v", pull))
 	case !w.HasHeights() && pull.Z != 0:
 		panic(fmt.Sprintf("gravity: a flat world pulls across, not along Z: %+v", pull))
 	}
-	p := &Plugin{worldPlugin: w}
+	p := &Plugin{worldPlugin: w, across: pull.Z == 0}
 	p.Self = world.NewSelf(w, p, comp.Const(pull))
 	return p
 }
 
-// WithSurfaces gives the plugin what bears a body in a world with heights (the board's
-// Surfaces); without it the ground lies at 0. A flat world panics; call before Use.
+// WithSurfaces gives the plugin what bears a body falling along Z (the board's Surfaces); without
+// it the ground lies at 0. A pull across panics; call before Use.
 func (p *Plugin) WithSurfaces(surfaces func() ground.Surfaces) *Plugin {
-	if !p.worldPlugin.HasHeights() {
-		panic("gravity: a flat world has no surfaces — a body stands on what collision found")
+	if p.across {
+		panic("gravity: a pull across has no surfaces — a body stands on what collision found")
 	}
 	p.surfaces = surfaces
 	return p

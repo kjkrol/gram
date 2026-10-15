@@ -1,11 +1,12 @@
 package gravity
 
 import (
-	cgoke "github.com/kjkrol/ceremony/goke"
+	"fmt"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
@@ -65,6 +66,9 @@ func (s *planeSystem) Init(si *goke.SysInit) {
 
 func (s *planeSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	pull := pullOf(s.pulls, &s.pull)
+	if pull.Z != 0 {
+		panic(fmt.Sprintf("gravity: the pull across turned along Z, %+v; a world keeps its way", pull))
+	}
 	g := geom.NewVec(pull.X, pull.Y)
 	s.throw(g)
 	hosted := !s.landings.Empty()

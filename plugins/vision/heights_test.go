@@ -58,7 +58,7 @@ func TestHeights_AHillHidesTheLowlandFromAWalkerAndNotFromAHawk(t *testing.T) {
 	}
 }
 
-func TestHeights_AFlatWorldRefusesAnEyeAndAWorldWithHeightsRefusesBlockers(t *testing.T) {
+func TestHeights_AFlatWorldRefusesAnEye(t *testing.T) {
 	expect := func(t *testing.T, want string, run func()) {
 		t.Helper()
 		defer func() {
@@ -73,9 +73,31 @@ func TestHeights_AFlatWorldRefusesAnEyeAndAWorldWithHeightsRefusesBlockers(t *te
 	narrow := eastward(math.Pi/8, 300)
 	narrow.Eye.Vertical = 1
 	expect(t, "Eye.Vertical", func() { scene(t, spawn{x: 0, y: 0, sight: narrow}) })
-	blocked := eastward(math.Pi/8, 300)
-	blocked.Blockers = 1
-	expect(t, "Sight.Blockers", func() { sceneIn(t, &relief{}, spawn{x: 0, y: 0, sight: blocked}) })
+}
+
+func TestHeights_BlockersLookOverAWallOnAnotherLayer(t *testing.T) {
+	for name, tc := range map[string]struct {
+		blockers world.Layers
+		want     uint8
+	}{
+		"blockers zero, the wall cuts":     {want: 1},
+		"the wall on a blocking layer":     {blockers: 1, want: 1},
+		"the wall on another layer is not": {blockers: 2, want: 2},
+	} {
+		t.Run(name, func(t *testing.T) {
+			walker := eyed(1.5)
+			walker.Blockers = tc.blockers
+			_, seen, _ := sceneIn(t, &relief{},
+				spawn{x: 0, y: 0, z: z(0, 2), sight: walker},
+				spawn{x: 100, y: 0, size: 60, z: z(0, 10), layers: 1},
+				spawn{x: 240, y: 0, z: z(0, 2)},
+			)
+			if seen[0].Count != tc.want || seen[0].Dists[0] > 100 {
+				t.Errorf("saw %d at %v, want %d with the wall first", seen[0].Count,
+					seen[0].Dists[:seen[0].Count], tc.want)
+			}
+		})
+	}
 }
 
 func TestHeights_AViewReachesItsRadiusWithTheGroundOutOfSightAsShadows(t *testing.T) {

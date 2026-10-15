@@ -45,6 +45,7 @@ func BenchmarkPathFinder_Terrain(b *testing.B) {
 		w := world.NewPlugin(world.Config{
 			Space:    world.SpaceCfg{Width: side * size, Height: side * size},
 			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
+			Heights:  true,
 		})
 		brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 		lay(brd.Board())

@@ -649,9 +649,6 @@ func (l *leveler) relief(r *levelRelief) (func(p geom.Vec) float64, error) {
 	} else if corners {
 		return nil, l.errorf(&r.Corners, "the relief gives its cells or its corners, not both")
 	}
-	if !l.p.worldPlugin.HasHeights() {
-		return nil, l.errorf(n, "a relief in a flat world; set world.Config.Heights")
-	}
 	cols, rows := int(l.shape.Cols), int(l.shape.Rows)
 	if corners {
 		if l.shape.Hex || l.shape.WrapX || l.shape.WrapY {

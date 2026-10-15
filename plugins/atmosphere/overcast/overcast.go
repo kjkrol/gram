@@ -21,7 +21,7 @@ var shader = render.NewMeshShaderWith("clouds' shadows", render.Files(shaders, "
 	{Name: "RayDir", Size: 3}, {Name: "RayDDX", Size: 3}, {Name: "RayDDY", Size: 3},
 })
 
-// Renderer lays the clouds' shadows over a flat world, a render.Direct over what stands on the
+// Renderer lays the clouds' shadows over a flat board, a render.Direct over what stands on the
 // ground and under the overlays.
 type Renderer struct {
 	sun func() sky.Sun
