@@ -6,8 +6,8 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// Still is a picture composed once in world units, kept on the GPU, and drawn frame after frame
-// as a camera looking straight down shows it, placed and lit.
+// Still is a picture composed once in world units, in the order its pieces come, kept on the GPU,
+// and drawn frame after frame as a camera looking straight down shows it, placed and lit.
 type Still struct {
 	c    Composer
 	view worldView
@@ -22,6 +22,7 @@ type stillRun struct {
 // NewStill is a Still holding nothing yet.
 func NewStill() *Still {
 	s := &Still{}
+	s.c.heights = true
 	s.c.draw = func(_ *Image, verts []Vertex, indices []uint16, sheet *Image) {
 		s.runs = append(s.runs, stillRun{sheet: sheet, kept: gpu.NewKept(verts, indices)})
 	}
@@ -34,7 +35,7 @@ func (s *Still) Compose(w, h float32, compose func(f *Frame, cam camera.Camera))
 	s.view = worldView{w: w, h: h}
 	s.c.frame.Reset(&s.view)
 	compose(&s.c.frame, &s.view)
-	s.c.sort()
+	s.c.inOrder()
 	for _, r := range s.runs {
 		r.kept.Release()
 	}
@@ -45,20 +46,34 @@ func (s *Still) Compose(w, h float32, compose func(f *Frame, cam camera.Camera))
 // Len is how many pieces the still holds.
 func (s *Still) Len() int { return s.c.frame.Len() }
 
-// Draw draws the still onto screen zoom pixels a world unit, the world point (x, y) at the
-// screen's top-left, its colours times light, under the uniforms u of the frame it is drawn in.
-func (s *Still) Draw(screen *Image, u Uniforms, zoom, x, y float32, light Light) {
-	if screen == nil || len(s.runs) == 0 {
+// Draw draws the still onto the target's screen zoom pixels a world unit, the world point (x, y)
+// at the screen's top-left, its colours times light, under the uniforms u of the frame it is drawn
+// in; into the target's depth at its heights through cam, opaque, where the target has one.
+func (s *Still) Draw(t Target, cam camera.Camera, u Uniforms, zoom, x, y float32, light Light) {
+	if t.Screen == nil || len(s.runs) == 0 {
 		return
 	}
 	s.c.packed = append(s.c.packed[:0], composer.pack(u.m)...)
-	dw := gpu.Draw{Target: screen.gpu(), Program: composer.program(), Uniforms: s.c.packed, Blend: gpu.SourceOver,
-		Place: [4]float32{zoom, zoom, -x * zoom, -y * zoom}, Tint: [4]float32{light[0], light[1], light[2], 1}}
+	dw := gpu.Draw{
+		Target:   t.Screen.gpu(),
+		Program:  composer.program(),
+		Uniforms: s.c.packed,
+		Blend:    gpu.SourceOver,
+		Place:    [4]float32{zoom, zoom, -x * zoom, -y * zoom},
+		Tint:     [4]float32{light[0], light[1], light[2], 1},
+	}
+	dw.Sight = &level
+	if t.Depth != nil && s.c.sightOf(cam) {
+		dw.Depth, dw.Test, dw.Sight = t.Depth.d, gpu.Written, &s.c.sight
+	}
 	for _, r := range s.runs {
 		dw.Images[0] = r.sheet.gpu()
 		gpu.DrawKept(&dw, r.kept)
 	}
 }
+
+// every height at depth 0: a still's, drawn where there is no depth to meet
+var level = gpu.Sight{Dir: [3]float32{0, 0, -1}, W: [4]float32{0, 0, 0, 1}}
 
 type worldView struct{ w, h float32 }
 

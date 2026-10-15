@@ -262,29 +262,31 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`Place{Latitude, NoonWay}.HeavensAt`), the sphere turned by the sidereal time, `SunPath`,
   `MoonAt`, `Phase`, the stars `sky.Config.Stars` chooses (`RealStars`: the Yale Bright Star
   Catalogue to V 6.0 in `stars.bin`; `ScatteredStars`), `MoonFace()` (NASA SVS CGI Moon Kit).
-  `atmosphere/backdrop`: the viewport in the sky's colour on `render.Backdrop`, through a
-  perspective the sky of the day (the gradient, the sun's disc, the moon's face lit by its phase,
-  the clouds' layer, the real stars as instances). `atmosphere/climate`: a `climate.Zone{Latitude,
-  Factors}` (`Equatorial`, `Tropical`, `Mediterranean`, `Temperate`, `Cold`, `Polar`; `SeaCurrent`,
-  `DrySummer`) is `Zone.Profile()` (`Mean`, `Year`, `Day`, `Wet` per season); the kinds of weather
-  `climate/weather` (`weather.State`, `weather.Default`: clear, fair, cloudy, rain, storm); the
-  weather now a `climate.Weather` on its own entity (saved with its dice), beginning in
-  `Config.Start` or a state thrown by `Often[season]`, going from one of `Config.Weathers` to the
-  next, blending the wind, the clouds, what falls and the `Temperature` (snow below 1°C), every
-  step of the simulation under `clock.Simulate`; `Climate.Air()` an `air.Weather`. It hosts rules of
-  `Weathering` (`host.StepRules`, about the atmosphere's own entity). `Change` (Shift+W),
-  `Set{Name}`. `atmosphere/precipitation`: what falls (screen-space streaks and flakes, tier
-  `render.Air`). `atmosphere/weathering`: what the weather does to a board — `weathering.Config{
-  Snowy, Ice, Water, Sway, Swaying, High, Seed}` names the game's kinds, `New` defines three effects
-  (`Alter[cell.Ground]`: snow, ice, sway), laid by its own system once a second of game time (snow
-  in drifts while it snows in the frost, melting once warm, ice from the shore below −3°C, what
-  sways swaying above a wind of 15); `atmosphere.Plugin.WithWeathering(board, cfg)` as the
-  atmosphere is made. `atmosphere/air`: the weather as drawn (`Weather.Frame`, `Sway`, `Cloud`,
-  `Shade`, `Haze`; the clouds' periodic noise baked once by `air.BakeTile` into a tile the sky and
-  the terrain look up per pixel). `atmosphere/overcast`: the clouds' shadows over a flat board
-  (`atmosphere.Plugin.Clouds()`, a Direct at `Objects+50`). `atmosphere.Running`
-  (`Config.Running`, `Plugin.SetRunning`) switches the day, the weather's changes, the wind, the
-  clouds, what falls, the weathering, the stars and the moon, all on by default, not saved.
+  `atmosphere/backdrop`: the viewport in the sky's colour behind the world (`render.Furthest`,
+  `Image.FillBehind`: only where nothing was drawn), through a perspective the sky of the day (the
+  gradient, the sun's disc, the moon's face lit by its phase, the clouds' layer, the real stars as
+  instances). `atmosphere/climate`: a `climate.Zone{Latitude, Factors}` (`Equatorial`, `Tropical`,
+  `Mediterranean`, `Temperate`, `Cold`, `Polar`; `SeaCurrent`, `DrySummer`) is `Zone.Profile()`
+  (`Mean`, `Year`, `Day`, `Wet` per season); the kinds of weather `climate/weather`
+  (`weather.State`, `weather.Default`: clear, fair, cloudy, rain, storm); the weather now a
+  `climate.Weather` on its own entity (saved with its dice), beginning in `Config.Start` or a state
+  thrown by `Often[season]`, going from one of `Config.Weathers` to the next, blending the wind, the
+  clouds, what falls and the `Temperature` (snow below 1°C), every step of the simulation under
+  `clock.Simulate`; `Climate.Air()` an `air.Weather`. It hosts rules of `Weathering`
+  (`host.StepRules`, about the atmosphere's own entity). `Change` (Shift+W), `Set{Name}`.
+  `atmosphere/precipitation`: what falls (screen-space streaks and flakes, before the whole world,
+  `render.Nearest`, untested). `atmosphere/weathering`: what the weather does to a board —
+  `weathering.Config{Snowy, Ice, Water, Sway, Swaying, High, Seed}` names the game's kinds, `New`
+  defines three effects (`Alter[cell.Ground]`: snow, ice, sway), laid by its own system once a
+  second of game time (snow in drifts while it snows in the frost, melting once warm, ice from the
+  shore below −3°C, what sways swaying above a wind of 15); `atmosphere.Plugin.WithWeathering(board,
+  cfg)` as the atmosphere is made. `atmosphere/air`: the weather as drawn (`Weather.Frame`, `Sway`,
+  `Cloud`, `Shade`, `Haze`; the clouds' periodic noise baked once by `air.BakeTile` into a tile the
+  sky and the terrain look up per pixel). `atmosphere/overcast`: the clouds' shadows over a flat
+  board (`atmosphere.Plugin.Clouds()`, a Direct lying on the ground at a lift of 0.5, under the
+  figures). `atmosphere.Running` (`Config.Running`, `Plugin.SetRunning`) switches the day, the
+  weather's changes, the wind, the clouds, what falls, the weathering, the stars and the moon, all
+  on by default, not saved.
 - **`collision`** — collision detection over `world`'s space, one `collisionSystem` a tick. An
   entity collides exactly while it carries `Collider`; the system settles every `Collider`'s
   `Base.Caps` (`CanCollide`, `Static` for an immovable `Physics`, `Sensor` for none) and rebuilds

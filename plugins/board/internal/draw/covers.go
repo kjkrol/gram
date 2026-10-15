@@ -23,7 +23,7 @@ func (d *Bands) Cover(mark tag.Tag[effect.States], sprite render.SpriteID) {
 	d.covers = append(d.covers, Cover{Mark: mark, Sprite: sprite})
 }
 
-func (d *Bands) covered(f *render.Frame, cam camera.Camera, t *look.Tile, depth float32) {
+func (d *Bands) covered(f *render.Frame, cam camera.Camera, t *look.Tile, at render.At) {
 	if len(d.covers) == 0 {
 		return
 	}
@@ -60,7 +60,7 @@ func (d *Bands) covered(f *render.Frame, cam camera.Camera, t *look.Tile, depth 
 			for k, p := range [4][2]float32{{q.Part[0], q.Part[1]}, {q.Part[2], q.Part[1]}, {q.Part[0], q.Part[3]}, {q.Part[2], q.Part[3]}} {
 				dst[k][0], dst[k][1] = cam.Project(t.X0+p[0]*w, t.Y0+p[1]*h, 0)
 			}
-			f.SpriteBlendPart(render.Ground, depth, t.Atlas, c.Sprite, q.Part, dst, t.Light(), q.Weight, coverSoft)
+			f.SpriteBlendPart(at, t.Atlas, c.Sprite, q.Part, dst, t.Light(), q.Weight, coverSoft)
 		}
 	}
 }

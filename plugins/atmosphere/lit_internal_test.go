@@ -47,7 +47,7 @@ func TestAtmosphere_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 		f.Reset(cam)
 		w.Look().Sprite(&f, cam, plane.NewAABB(geom.NewVec(40, 40), 10, 10), world.Z{}, litSheet{}, render.Appearance{}, render.Light{1, 1, 1})
 		var v render.Vertex
-		f.Each(func(_ render.Tier, _ float32, verts []render.Vertex) { v = verts[0] })
+		f.Each(func(_ render.At, verts []render.Vertex) { v = verts[0] })
 		return v
 	}
 	if l := tile(); l != (render.Light{1, 1, 1}) {

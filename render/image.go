@@ -47,6 +47,12 @@ func (i *Image) Fill(c color.Color) {
 	gpu.Fill(i.gpu(), r, g, b, a)
 }
 
+// FillBehind puts c where nothing was drawn into d: behind the whole world.
+func (i *Image) FillBehind(c color.Color, d *Depth) {
+	r, g, b, a := rgbaOf(c)
+	gpu.FillBehind(i.gpu(), d.d, r, g, b, a)
+}
+
 // Clear makes the image transparent.
 func (i *Image) Clear() { gpu.Fill(i.gpu(), 0, 0, 0, 0) }
 

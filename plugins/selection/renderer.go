@@ -11,8 +11,8 @@ import (
 )
 
 // Highlight is how a Selected entity of a kind is outlined: its footprint, the ground under it on
-// screen, stroked in Line, Width pixels wide, on the Marks tier. A figure declares it on the
-// world's atlas (Slot.Styled); a kind without one is outlined by DefaultHighlight.
+// screen, stroked in Line, Width pixels wide, a mark on top (render.OnTop). A figure declares it
+// on the world's atlas (Slot.Styled); a kind without one is outlined by DefaultHighlight.
 type Highlight struct {
 	Line  color.RGBA
 	Width float32
@@ -35,7 +35,7 @@ func (h Highlight) compose(f *render.Frame, footprint []render.Corners) {
 func outline(f *render.Frame, pts [4][2]float32, width float32, c color.RGBA) {
 	for i, p := range pts {
 		q := pts[(i+1)%len(pts)]
-		f.Line(render.Marks, 0, p[0], p[1], q[0], q[1], width, c)
+		f.Line(render.OnTop, p[0], p[1], q[0], q[1], width, c)
 	}
 }
 
@@ -69,8 +69,8 @@ func (r *Renderer) Init(si *goke.SysInit) {
 	r.query = si.NewQueryBuilder(&r.base, &r.marks).Optional(&r.app).Optional(&r.z).Build()
 }
 
-// Compose outlines the Selected entities through cam, and the box being dragged in it, on the Marks
-// tier.
+// Compose outlines the Selected entities through cam, and the box being dragged in it, marks on
+// top.
 func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	look := r.look()
 	var styles *render.Styles

@@ -24,6 +24,18 @@ type Depth struct {
 // NewDepth is a depth buffer, sized at each draw to the texture drawn into.
 func NewDepth() *Depth { return &Depth{} }
 
+// Readable has dp read as well as drawn against (MeshDraw.ReadDepth, CopyDepth); asked before its
+// first draw, it keeps what it holds. A buffer only drawn against is kept packed, faster.
+func (dp *Depth) Readable() *Depth {
+	if !dp.readable {
+		dp.readable = true
+		if dp.tex != nil {
+			dp.Release()
+		}
+	}
+	return dp
+}
+
 // Size is the buffer's width and height: those of the texture it was last drawn with.
 func (dp *Depth) Size() (w, h int) { return dp.w, dp.h }
 
@@ -151,6 +163,8 @@ type MeshDraw struct {
 	Blend      Blend
 	// ReadDepth is a depth buffer the program reads (depthAt), another than Depth.
 	ReadDepth *Depth
+	// Untested draws everywhere, the Depth kept as it is.
+	Untested bool
 }
 
 // ClearDepth clears the depth buffer dp, fitted to target's texture.
@@ -190,6 +204,9 @@ func Mesh(dw *MeshDraw) {
 	if dw.Primed {
 		mode = depthEqual
 	}
+	if dw.Untested {
+		mode = depthIgnore
+	}
 	if dw.Depth == nil {
 		mode = noDepth
 	}
@@ -211,10 +228,8 @@ func Mesh(dw *MeshDraw) {
 		if read.w != t.w || read.h != t.h {
 			read.fit(t.w, t.h)
 		}
-		if !read.readable { // made anew, to be read: what it held is gone this once
-			d.endPass()
-			read.free()
-			read.readable = true
+		if !read.readable {
+			panic("gpu: a mesh reads a depth buffer that is not Readable")
 		}
 	}
 	group2 := read.readGroup(d)
@@ -229,7 +244,7 @@ func Mesh(dw *MeshDraw) {
 			d.verts = appendF32(d.verts, f)
 		}
 	}
-	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, [4]float32{}, [4]float32{})
+	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, [4]float32{}, [4]float32{}, nil)
 	pass := d.begin(t, dw.Depth, dw.ClearDepth && dw.Depth != nil)
 	if dw.Primed && dw.Depth != nil {
 		r := dw.Target.rect()
@@ -257,6 +272,38 @@ func Mesh(dw *MeshDraw) {
 	pass.SetScissorRect(gputypes.ScissorRect{X: uint32(clip.X), Y: uint32(clip.Y), Width: uint32(clip.W), Height: uint32(clip.H)})
 	draw(pass, indices, count, instances)
 	pass.SetViewport(gputypes.Viewport{Width: float32(t.w), Height: float32(t.h), MaxDepth: 1})
+}
+
+var copyProgram = NewMesh("depth copy", "", shader("depth"))
+
+// CopyDepth puts what from holds in place of what to holds, both fitted to target's texture: a
+// draw, since a texture copy of a depth is wrong on some backends. From must be Readable.
+func CopyDepth(target Image, from, to *Depth) {
+	d := must()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if !from.readable {
+		panic("gpu: a depth copied from is not Readable")
+	}
+	t := target.Texture.gpuTarget(d)
+	for _, dp := range []*Depth{from, to} {
+		if dp.w != t.w || dp.h != t.h {
+			dp.fit(t.w, t.h)
+		}
+	}
+	pipeline := copyProgram.pipeline(d, Copy, t.format, depthCopy)
+	group1 := d.images([4]*Texture{})
+	group2 := from.readGroup(d)
+	d.ensure(0, 0)
+	dOff, uOff := d.drawBlock(t, [4]Image{}, nil, [4]float32{}, [4]float32{}, nil)
+	pass := d.begin(t, to, false)
+	pass.SetPipeline(pipeline)
+	pass.SetBindGroup(0, d.group0, []uint32{uint32(dOff), uint32(uOff)})
+	pass.SetBindGroup(1, group1, nil)
+	pass.SetBindGroup(2, group2, nil)
+	pass.SetViewport(gputypes.Viewport{Width: float32(t.w), Height: float32(t.h), MaxDepth: 1})
+	pass.SetScissorRect(gputypes.ScissorRect{Width: uint32(t.w), Height: uint32(t.h)})
+	pass.Draw(gputypes.DrawArgs{VertexCount: 3, InstanceCount: 1})
 }
 
 func draw(pass *wgpu.RenderPassEncoder, indices *wgpu.Buffer, count, instances uint32) {

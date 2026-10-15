@@ -21,8 +21,8 @@ var shader = render.NewMeshShaderWith("precipitation", render.Files(shaders, "sh
 	{Name: "RainColor", Size: 4}, {Name: "SnowColor", Size: 4},
 })
 
-// Renderer is what falls through the air before the eye, rain and snow, a render.Direct at
-// render.Air.
+// Renderer is what falls through the air before the eye, rain and snow, a render.Direct before
+// the whole world.
 type Renderer struct {
 	sun func() sky.Sun
 	air func() air.Weather
@@ -60,11 +60,8 @@ type fall struct {
 
 func (*Renderer) Init(*goke.SysInit) {}
 
-// Compose hands the frame nothing: what falls is drawn Direct.
-func (*Renderer) Compose(*render.Frame, camera.Camera) {}
-
-// Tier is render.Air.
-func (*Renderer) Tier() render.Tier { return render.Air }
+// Compose has what falls drawn Direct, before the whole world.
+func (*Renderer) Compose(f *render.Frame, _ camera.Camera) { f.DrawAt(render.Nearest) }
 
 // Draw draws what falls into the target's screen through cam.
 func (p *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
@@ -80,6 +77,7 @@ func (p *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	p.set("RainColor", f.Rain[:]...)
 	p.set("SnowColor", f.Snow[:]...)
 	p.opts.Vertices = 6 * (f.Drops + f.Flakes)
+	p.opts.Depth, p.opts.Untested = t.Depth, true
 	t.Screen.DrawMesh(nil, shader, &p.opts)
 }
 

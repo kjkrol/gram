@@ -41,8 +41,8 @@ const (
 
 var _ render.Direct = (*Ground)(nil)
 
-// Ground is the ground of a hex board in relief drawn on the GPU, a render.Direct at the Ground
-// tier in place of the tiles: every cell a prism to its top, coloured from the tiles composed
+// Ground is the ground of a hex board in relief drawn on the GPU, a render.Direct in the opaque
+// pass in place of the tiles: every cell a prism to its top, coloured from the tiles composed
 // once from above.
 type Ground struct {
 	world  *world.Plugin
@@ -75,11 +75,8 @@ func New(w *world.Plugin, b *board.Plugin, m board.Map, r *relief.Relief, sky Sk
 
 func (*Ground) Init(*goke.SysInit) {}
 
-// Compose hands the frame nothing: the ground is drawn Direct.
-func (*Ground) Compose(*render.Frame, camera.Camera) {}
-
-// Tier is render.Ground.
-func (*Ground) Tier() render.Tier { return render.Ground }
+// Compose has the ground drawn Direct, in the opaque pass.
+func (*Ground) Compose(f *render.Frame, _ camera.Camera) { f.DrawOpaque() }
 
 // Draw draws the ground into the target through cam, under the frame's uniforms u.
 func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
@@ -102,7 +99,8 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	u.Into(h.uv)
 	h.uv["Pixel"] = []float32{1 / h.px}
 	h.top.Fill(color.Transparent)
-	h.still.Draw(h.top, render.UniformsOf(h.uv), h.px, 0, 0, render.Light{1, 1, 1})
+	top := render.Target{Screen: h.top}
+	h.still.Draw(top, nil, render.UniformsOf(h.uv), h.px, 0, 0, render.Light{1, 1, 1})
 
 	u.Into(h.opts.Uniforms)
 	h.set("ViewProj", tr.M[:]...)

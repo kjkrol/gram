@@ -4,7 +4,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
 	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/gram/plugins/world/view"
 
@@ -80,24 +79,27 @@ func (s *renderer) Clock() (time.Duration, bool) {
 func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	look := s.look()
 	if d, ok := look.(DirectLook); ok {
-		d.Begin(cam)
+		d.Begin(f, cam)
 	}
 	lies, _ := look.(LyingLook)
 	uprights, _ := look.(UprightLook)
 	s.view = s.views(cam)
+	lowest, any := render.Nearest, false
 	s.each(func(i int, z *Z, lie *Lie) {
 		box := s.bases[i].Pos.AABB
 		dir := s.bases[i].Vel.Dir
-		if !cam.Visible(spread(box.AABB, dir, lie)) {
-			return
-		}
 		var stands Z
 		if z != nil {
 			stands = *z
 		}
+		mid := s.bases[i].Pos.Center()
+		at := f.Lifted(float32(mid.X), float32(mid.Y), float32(stands.Altitude), FigureLift)
+		if !any || at.Before(lowest) {
+			lowest, any = at, true
+		}
 		for _, l := range s.layers[i] {
 			if m, ok := s.shaded[l.SpriteID]; ok {
-				s.material(f, cam, &s.bases[i], m, s.progress(l.SpriteID, i))
+				s.material(f, cam, &s.bases[i], at, m, s.progress(l.SpriteID, i))
 				continue
 			}
 			if lies != nil && s.lying[l.SpriteID] && lie != nil && lie.Length > 0 {
@@ -118,28 +120,16 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			look.Sprite(f, cam, box, stands, s.atlas, l, render.Light{1, 1, 1})
 		}
 	})
+	if _, ok := look.(DirectLook); ok && any {
+		f.DrawAt(lowest) // the figures come after what lies beneath the lowest of them
+	}
 }
-
-// Tier is where a DirectLook's sprites come in the picture.
-func (s *renderer) Tier() render.Tier { return render.Objects }
 
 // Draw has a DirectLook draw the sprites Compose handed it.
 func (s *renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if d, ok := s.look().(DirectLook); ok {
 		d.DrawSprites(t, cam, u)
 	}
-}
-
-func spread(box geom.AABB, dir geom.Vec, lie *Lie) geom.AABB {
-	if lie == nil || lie.Length <= 0 {
-		return box
-	}
-	m := geom.NewVec((box.TopLeft.X+box.BottomRight.X)/2, (box.TopLeft.Y+box.BottomRight.Y)/2)
-	for _, c := range lie.Corners(m, dir) {
-		box.TopLeft = geom.NewVec(min(box.TopLeft.X, c.X), min(box.TopLeft.Y, c.Y))
-		box.BottomRight = geom.NewVec(max(box.BottomRight.X, c.X), max(box.BottomRight.Y, c.Y))
-	}
-	return box
 }
 
 func (s *renderer) each(visit func(i int, z *Z, lie *Lie)) {
@@ -190,8 +180,10 @@ func (s *renderer) progress(id render.SpriteID, i int) float32 {
 // the material's inputs: Custom the box's middle, half its side and its heading in radians,
 // Red how fast it moves in its own lengths a second up to 1, the fraction how far the effect it
 // is under has run
-func (s *renderer) material(f *render.Frame, cam camera.Camera, b *Base, m render.MaterialID,
-	progress float32) {
+func (s *renderer) material(
+	f *render.Frame, cam camera.Camera, b *Base, at render.At, m render.MaterialID,
+	progress float32,
+) {
 	box := b.Pos.AABB
 	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
 	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
@@ -213,6 +205,6 @@ func (s *renderer) material(f *render.Frame, cam camera.Camera, b *Base, m rende
 	}
 	s.quads = cam.ToScreenQuads(x0, y0, x1, y1, s.quads[:0])
 	for _, q := range s.quads {
-		f.Material(render.Objects, 0, render.Corners{{q.X0, q.Y0}, {q.X1, q.Y0}, {q.X0, q.Y1}, {q.X1, q.Y1}}, &o)
+		f.Material(at, render.Corners{{q.X0, q.Y0}, {q.X1, q.Y0}, {q.X0, q.Y1}, {q.X1, q.Y1}}, &o)
 	}
 }

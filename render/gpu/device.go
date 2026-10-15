@@ -16,9 +16,9 @@ import (
 const Format = gputypes.TextureFormatRGBA8Unorm
 
 const (
-	vertexSize = 12 * 4 // dst, src, colour, custom
-	// the target's size, four images' rectangles, the vertices' place and tint
-	drawSize = 7 * 16
+	vertexSize = 13 * 4 // dst, src, colour, custom
+	// the target's size, four images' rectangles, the vertices' place and tint, the sight
+	drawSize = 16 * 16
 	// the most a program's uniforms may take, the size every block is bound at
 	uniformBlock = 4096
 )

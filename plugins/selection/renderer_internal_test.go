@@ -58,9 +58,9 @@ func TestHighlight_OutlinesEveryPieceOfTheFootprintOnTheMarksTier(t *testing.T) 
 	if f.Len() != 8 {
 		t.Errorf("%d pieces, want the four sides of each of two pieces", f.Len())
 	}
-	f.Each(func(tier render.Tier, _ float32, _ []render.Vertex) {
-		if tier != render.Marks {
-			t.Errorf("an outline side on tier %d, want Marks", tier)
+	f.Each(func(at render.At, _ []render.Vertex) {
+		if at != render.OnTop {
+			t.Errorf("an outline side lies at %v, want a mark on top", at)
 		}
 	})
 }
@@ -98,7 +98,7 @@ func TestRenderer_OutlinesEachKindInItsHighlight(t *testing.T) {
 	f.Reset(cam)
 	r.Compose(&f, cam)
 	blue, red := 0, 0
-	f.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
+	f.Each(func(_ render.At, v []render.Vertex) {
 		switch {
 		case v[0].ColorB == 1:
 			blue++

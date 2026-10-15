@@ -100,8 +100,8 @@ func (p projection) Unproject(sx, sy, z float32) (float32, float32) {
 	return (across*p.cos + down*p.sin) * p.Cell, (down*p.cos - across*p.sin) * p.Cell
 }
 
-// The middle of the cell: everything in one cell ties with its tile, so a higher tier is drawn
-// over it.
+// The middle of the cell: everything in one cell ties with its tile, the depth buffer saying what
+// covers what.
 func (p projection) Depth(x, y, _ float32) float32 {
 	if p.flat {
 		return y

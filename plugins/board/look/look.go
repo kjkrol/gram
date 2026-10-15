@@ -29,8 +29,11 @@ type Dressing interface {
 	// Covers reports whether Dress lays over t's top what would hide its outline; the dressing
 	// then outlines it itself.
 	Covers(t *Tile) bool
-	// Dress lays over t's top, drawn over the box x0..x1, y0..y1 at depth, what lies on it.
-	Dress(f *render.Frame, cam camera.Camera, t *Tile, x0, y0, x1, y1, depth float32)
+	// Dress lays over t's top, drawn over the box x0..x1, y0..y1 lying at at, what lies on it.
+	Dress(f *render.Frame, cam camera.Camera, t *Tile, x0, y0, x1, y1 float32, at render.At)
+	// Across lays over t what runs across the board, the ways: over every tile's top and what
+	// Dress laid on it.
+	Across(f *render.Frame, cam camera.Camera, t *Tile)
 }
 
 // EvenLit is a Dressing that lights every tile of a flat map alike, so the map is composed once
@@ -118,11 +121,11 @@ func (t *Tile) Covered() bool {
 	return false
 }
 
-// Dress lays over the tile's top, drawn over the box x0..x1, y0..y1 at depth, what the Dressing
-// has lie on it; nothing without one.
-func (t *Tile) Dress(f *render.Frame, cam camera.Camera, x0, y0, x1, y1, depth float32) {
+// Dress lays over the tile's top, drawn over the box x0..x1, y0..y1 lying at at, what the
+// Dressing has lie on it; nothing without one.
+func (t *Tile) Dress(f *render.Frame, cam camera.Camera, x0, y0, x1, y1 float32, at render.At) {
 	if d := t.dress; d != nil {
-		d.Dress(f, cam, t, x0, y0, x1, y1, depth)
+		d.Dress(f, cam, t, x0, y0, x1, y1, at)
 	}
 }
 
@@ -156,10 +159,11 @@ func (l flatLook) Worker(int, Dressing) Look { return l }
 
 func (flatLook) Cell(f *render.Frame, cam camera.Camera, t *Tile) {
 	x0, y0, x1, y1 := t.X0, t.Y0, t.X1, t.Y1
+	at := f.At((x0+x1)/2, (y0+y1)/2, 0)
 	if t.Outlined && !t.Covered() {
-		f.TileRect(render.Ground, 0, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
+		f.TileRect(at, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
 	} else {
-		f.SpriteRect(render.Ground, 0, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
+		f.SpriteRect(at, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
 	}
-	t.Dress(f, cam, x0, y0, x1, y1, 0)
+	t.Dress(f, cam, x0, y0, x1, y1, at)
 }

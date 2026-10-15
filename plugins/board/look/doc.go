@@ -1,8 +1,8 @@
 // Package look is how a board is drawn. A [Map] says how the cells lie on the screen ([Look]),
 // what lies over them beyond their sprites ([Dressing]) and how high they stand; the [Renderer]
 // reads the board as a [Board] and hands the Look every visible cell as a [Tile], which the Look
-// lays on the render.Ground tier: from above its sprite over its box ([FlatLook], the simple
-// map's), or as the Map has it. A Map drawing its ground some other way has the Look [Nothing].
+// lays on the ground: from above its sprite over its box ([FlatLook], the simple map's), or as
+// the Map has it. A Map drawing its ground some other way has the Look [Nothing].
 //
 // # Dressing
 //

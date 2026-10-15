@@ -18,9 +18,6 @@ var lining = render.NewMeshShaderWith("navigation routes", render.Files(shaders,
 	{Name: "Unproject", Size: 16}, {Name: "ViewSize", Size: 2}, {Name: "ViewAt", Size: 2},
 }).Instanced(4)
 
-// Tier is where the routes come: over the ground, under what stands on it.
-const Tier = render.Ground + 60
-
 // Lines are stretches of route gathered as the frame is composed and drawn on the GPU over the
 // ground the frame drew.
 type Lines struct {
@@ -77,11 +74,14 @@ func (g *Lines) Add(
 		width, 0, 0, 0)
 }
 
+// Len is how many stretches are gathered.
+func (g *Lines) Len() int { return len(g.stretches) / 16 }
+
 // Draw lays the gathered stretches over the ground into the target, each in its colour and
 // width, and starts gathering anew.
 func (g *Lines) Draw(t render.Target, cam camera.Camera) {
 	defer func() { g.stretches = g.stretches[:0] }()
-	if t.Screen == nil || t.Depth == nil || len(g.stretches) == 0 {
+	if t.Screen == nil || t.Ground == nil || len(g.stretches) == 0 {
 		return
 	}
 	rays, ok := cam.(camera.Rays)
@@ -105,7 +105,7 @@ func (g *Lines) Draw(t render.Target, cam camera.Camera) {
 	g.set("Unproject", unproject[:]...)
 	g.set("ViewSize", vw, vh)
 	g.set("ViewAt", float32(at.X), float32(at.Y))
-	g.opts.ReadDepth, g.opts.Instances = t.Depth, g.stretches
+	g.opts.Depth, g.opts.ReadDepth, g.opts.Instances = t.Depth, t.Ground, g.stretches
 	t.Screen.DrawMesh(nil, lining, &g.opts)
 }
 

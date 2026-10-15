@@ -35,7 +35,9 @@ func (lookMap) Slope(geom.Vec, geom.Vec, cell.Domain) float64   { return 1 }
 
 func mapOf(l look.Look) look.Map { return lookMap{l} }
 
-func newRenderer(b look.Board, atlas render.AtlasSource, state look.RenderState, m look.Map) *look.Renderer {
+func newRenderer(
+	b look.Board, atlas render.AtlasSource, state look.RenderState, m look.Map,
+) *look.Renderer {
 	r := look.NewRenderer(b, atlas, m, world.SpaceCfg{})
 	*r.State() = state
 	return r
@@ -45,12 +47,13 @@ func flatRenderer(brd *board.Board, state look.RenderState) *look.Renderer {
 	return newRenderer(brd, flatAtlas{}, state, mapOf(look.FlatLook()))
 }
 
-func compose(r *look.Renderer, cam camera.Camera) map[render.Tier]int {
+// how many pieces lie at each height
+func compose(r *look.Renderer, cam camera.Camera) map[float32]int {
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
-	out := map[render.Tier]int{}
-	f.Each(func(tier render.Tier, _ float32, _ []render.Vertex) { out[tier]++ })
+	out := map[float32]int{}
+	f.Each(func(at render.At, _ []render.Vertex) { out[at.Z()]++ })
 	return out
 }
 
@@ -58,8 +61,8 @@ func outlinedTiles(r *look.Renderer, cam camera.Camera) (tiles, outlined int) {
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
-	f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
-		if tier != render.Ground {
+	f.Each(func(at render.At, v []render.Vertex) {
+		if at.Z() != 0 {
 			return
 		}
 		tiles++
@@ -74,7 +77,8 @@ func TestRenderer_Compose_FlatLaysEveryVisibleCellOverItsBox(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, Height: 0})
-	if got := compose(flatRenderer(brd, look.RenderState{}), icamera.NewFromSpace(128, 128, 0)); len(got) != 1 || got[render.Ground] != 16 {
+	got := compose(flatRenderer(brd, look.RenderState{}), icamera.NewFromSpace(128, 128, 0))
+	if len(got) != 1 || got[0] != 16 {
 		t.Errorf("composed %v, want the 16 cells on the ground and nothing else", got)
 	}
 }
@@ -86,7 +90,7 @@ func TestRenderer_Compose_OutlinesSquareTilesWhenCellsAreLargeEnough(t *testing.
 	r := flatRenderer(brd, look.RenderState{ShowGridLines: true})
 
 	cam := icamera.NewFromSpace(128, 128, 0)
-	if got := compose(r, cam); len(got) != 1 || got[render.Ground] != 16 {
+	if got := compose(r, cam); len(got) != 1 || got[0] != 16 {
 		t.Errorf("composed %v, want the 16 tiles and nothing more", got)
 	}
 	if tiles, outlined := outlinedTiles(r, cam); outlined != tiles {
@@ -104,7 +108,7 @@ func TestRenderer_Compose_StrokesTheOutlinesOfHexCells(t *testing.T) {
 	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	got := compose(flatRenderer(brd, look.RenderState{ShowGridLines: true}), icamera.NewFromSpace(256, 256, 0))
-	if got[look.GridTier] == 0 || got[render.Ground] != 9 {
+	if got[look.GridLift] == 0 || got[0] != 9 {
 		t.Errorf("composed %v, want the nine hexes and the lines round them", got)
 	}
 }
@@ -157,7 +161,7 @@ func TestRenderer_Compose_FlatTilesAreDrawnAsTheyAre(t *testing.T) {
 	f.Reset(cam)
 	r.Compose(&f, cam)
 	var v render.Vertex
-	f.Each(func(_ render.Tier, _ float32, verts []render.Vertex) { v = verts[0] })
+	f.Each(func(_ render.At, verts []render.Vertex) { v = verts[0] })
 	if v.ColorR != 1 || v.ColorG != 1 || v.ColorB != 1 {
 		t.Errorf("a flat world's tile is lit %v %v %v, want as it is", v.ColorR, v.ColorG, v.ColorB)
 	}
@@ -182,8 +186,8 @@ func TestRenderer_Compose_OutlinesEachCellAsLargeAsItIsDrawn(t *testing.T) {
 	f.Reset(cam)
 	r.Compose(&f, cam)
 	near, far := 0, 0 // outlined tiles in the two nearer rows, and further
-	f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
-		if tier != render.Ground || v[0].Custom0 >= 0 {
+	f.Each(func(at render.At, v []render.Vertex) {
+		if at.Z() != 0 || v[0].Custom0 >= 0 {
 			return
 		}
 		if v[0].DstY < 64 {

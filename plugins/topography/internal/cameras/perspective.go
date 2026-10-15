@@ -116,8 +116,8 @@ func (p perspective) Vanish(dx, dy, dz float32) (float32, float32, bool) {
 	return p.focal * vec.Dot(d, p.right) / ahead, -p.focal * vec.Dot(d, p.up) / ahead, true
 }
 
-// The middle of the cell: everything in one cell ties with its tile, so a higher tier is drawn
-// over it.
+// The middle of the cell: everything in one cell ties with its tile, the depth buffer saying what
+// covers what.
 func (p perspective) Depth(x, y, _ float32) float32 {
 	cx := (float32(math.Floor(float64(x/p.cell))) + 0.5) * p.cell
 	cy := (float32(math.Floor(float64(y/p.cell))) + 0.5) * p.cell

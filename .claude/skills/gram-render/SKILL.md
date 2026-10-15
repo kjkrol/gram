@@ -1,6 +1,6 @@
 ---
 name: gram-render
-description: How gram draws — the Composer, tiers and depth, Direct sources with their own WGSL, Still, Feed, the world's and the board's atlases and looks (Add, Under, Turning, Facing, Animated, WhileMoving, Phased, Looped, Lying, Upright, Edges, Sheet, materials), the plugins' Look seams, telemetry. Use when touching render/, an atlas or a look in a plugin or a demo's scene.go, a shader, a renderer, or when something is drawn wrong.
+description: How gram draws — the Composer, order by Z and the depth buffer (At, passes, places), Direct sources with their own WGSL, Still, Feed, the world's and the board's atlases and looks (Add, Under, Turning, Facing, Animated, WhileMoving, Phased, Looped, Lying, Upright, Edges, Sheet, materials), the plugins' Look seams, telemetry. Use when touching render/, an atlas or a look in a plugin or a demo's scene.go, a shader, a renderer, or when something is drawn wrong.
 ---
 
 # gram-render
@@ -46,27 +46,48 @@ effect among them — `Kinds().NewSprite()` and the board's panic past that (a b
 
 ## Rendering
 
-The world of a scene is one `render.Composer` over the plugins' renderers, `render.Source`s:
-each hands its pieces to a `render.Frame` in screen pixels with a `Tier` (`Ground` 100,
-`Objects` 200, `Overlays` 300, `Air` 350, `Marks` 400; `Backdrop` 0; a game may use the gaps)
-and a depth; the composer draws tiers in order and, when the camera's projection `Sorts()`,
-everything below `Marks` back to front by depth (ties by tier, then arrival). One WGSL shader
-(`render/shaders/compose.wgsl` over the library and every material registered with
-`render.RegisterMaterials`) draws every piece; `Frame.Line`/`Soft` fade their edges;
-`Frame.Tile`/`TileRect` outline a tile; a piece across cells takes the depth of its nearest end.
-A `render.Direct` source draws with a WGSL shader of its own (`render.NewMeshShaderWith`,
-`Instanced(n)`, depth test and write, `ReadDepth`) at its tier, handed a `render.Target{Screen,
-Depth}` (the frame's shared depth buffer, reversed, cleared as the frame begins) and the
-composer's uniforms: the terrain, the sky, the rain, the world's sprites (`render.Sprites`: by
-`Layer(depth, under)`, the lower first and at one depth the lying, sorted on buffers kept from
-frame to frame; the world's flat look layers a standing sprite at `Z.Top()` and a lying one at
-its `Altitude`, so seen from above a world with heights draws what is higher over what is lower
-and a flat one, with no `Z`, as it came), the
-views of sight, the routes, the clouds' shadows. A `render.Still` is a frame composed once in
-world units and kept on the GPU (`gpu.Kept`), drawn every frame scaled, moved and lit
-(`gpu.Draw.Place`/`Tint`): the board's flat map. `render.Frame.Time` is the clock's `Shown`
+The world of a scene is one `render.Composer` over the plugins' renderers, `render.Source`s.
+**What is drawn over what is Z's alone (2026-10-15), never a layer**: `render.Tier` is gone. Each
+piece a source hands its `render.Frame` lies at a `render.At`: `f.At(x, y, z)` (a height in the
+world; the key back to front is z from above, `cam.Depth` in a view that sorts), `f.Lifted(x, y,
+z, lift)` (what lies on a surface, ordered among what lies there by its lift), `f.OnGround(lift)`
+(the view's middle, for a Direct over the whole ground), `render.OnTop` (a mark), `Furthest` (the
+sky), `Nearest` (the rain). The passes: the **opaque** ground first (the board's `Still`, the
+terrain, the hex prisms: depth tested and written, any order), then the world **seen through**,
+back to front by key, every piece tested against the depth (its depth worked out on the GPU from
+its height: `gpu.Vertex.DstZ`, `gpu.Sight` from the camera's rays and `SceneTransform`), then the
+**marks** in the order added, untested. A frame with no opaque ground (a world without heights)
+has no depth at all, as before, the order alone deciding. Equal Z: the later wins (GreaterEqual
+for everyone); among the figures the lying first (`Sprites.Layer(at, under)`), so the standing
+covers the lying. A `render.Direct` (no `Tier()`) asks in Compose where it draws:
+`f.DrawOpaque()`, `f.DrawAt(at)` (a place among the pieces), `f.ReadGround()` (it reads the
+ground's depth: the opaque pass is drawn into a readable buffer, `Image.CopyDepth`, a draw since a
+texture copy of a depth is wrong on GLES and Vulkan in gogpu, gives the frame's buffer; the reader
+gets `Target.Ground` and writes `frag_depth` = the ground's own, testing GreaterEqual, so what
+stands nearer hides it); `Target.Pass` says which pass it is drawing; one asking for nothing is not
+drawn, `Frame.Places` lists the asks for a test. Lifts (world units over the ground): board
+materials 0.05, hex grid lines 0.1, sight 0.25, cloud shadows 0.5, routes 0.75, figures
+`world.FigureLift` 2 (topography's `spriteLift` is the same 2). The figures (`render.Sprites`,
+the world's flat look) are drawn once, among what is seen through, after the opaque ground, at
+the lowest figure's place, back to front among themselves; where the frame has a depth their
+visible pixels (alpha over half a step) write it, so a decal drawn after and behind them hides,
+and one before shows under their soft edges. `render.Sprites` lays world rectangles on the GPU
+(the camera's `SceneTransform` matrix, the box round the projected corners like `ToScreenQuads`,
+over a wrapping world the copy `windowed` nearest the window and one past each seam, six vertices
+a copy in one call): no per-figure projection, wrap splitting or `Visible` on the CPU any more
+(`Benchmark_World_Draw` −35…−50%). One WGSL shader (`render/shaders/compose.wgsl` over the library
+and every material registered with `render.RegisterMaterials`) draws every piece; `Frame.Line`/
+`Soft` fade their edges; `Frame.Tile`/`TileRect` outline a tile; a piece across cells takes the
+place of its nearest end. A `render.Still` is a picture composed once in world units **in the
+order its pieces come** (no sort: the board composes tiles and what lies on them, then
+`Dressing.Across`, the bands and the ways, in a second round), kept on the GPU (`gpu.Kept`, its
+vertices holding their heights), drawn every frame scaled, moved and lit (`gpu.Draw.Place`/
+`Tint`), into the depth where the target has one. `render.Frame.Time` is the clock's `Shown`
 (`render.Clocked`), so animations move every frame. A plugin adds telemetry lines through a
 `render.Reporter` (`telemetry.NewPlugin(w).With(p.Reporter())`, the telemetry panel).
+`GRAM_SHOT=<file.png>` (and `GRAM_SHOT_FRAME`, 120) has a game save that frame and quit, the world
+taking one step a frame till then: shoot a baseline tree and the working one and compare (the
+telemetry panel and random weather or scenes are noise).
 
 ## The plugins' renderers and styles per kind (done 2026-10-14; the findings below led to it)
 
@@ -97,7 +118,6 @@ per instance on the GPU. `board.ShowGrid(bool)` is the grid option.
   whose); selection the outline of the `Selected` tag through `world.Look.Footprint`
   (`HighlightStyle`, no way for a game to set it today) plus the marquee, a player's gesture;
   bridges the bridge in hand, a future entity drawn from its deck's slot; collision the boxes.
-- The composer's order matters only on ties within a tier (tier, then depth, then arrival).
 - Decided direction (done, as above): these customisations become figure-style hooks declared in a
   figure's `Look` on the world's atlas — looks `Under` a tag as under an effect, per-kind
   attributes other plugins read (`Sight(style)`, `Route(style)`) — the plugin keeping the

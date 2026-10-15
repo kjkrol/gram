@@ -15,6 +15,33 @@ where it begins: `navigation.Path` changed shape. Nor those made before the beha
 Nor those made before a unit could strafe: `entity.Velocity` has a `Side`. Nor those of a board
 in a flat world: a board stands only in a world with heights now.
 
+**What is drawn over what is Z's alone** (2026-10-15)
+- `render.Tier` and its tiers are gone. A piece of a `render.Frame` lies at a `render.At`
+  (`Frame.At(x, y, z)`, `Lifted`, `OnGround`; `OnTop` for a mark, `Furthest` the sky, `Nearest`
+  the rain); every drawing method takes it in place of `(tier, depth)`, `Frame.Each` hands it.
+- The composer draws the opaque ground first (depth written), the world back to front by where it
+  lies, tested against the depth, its depth worked out on the GPU from its height
+  (`gpu.Vertex.DstZ`, `gpu.Sight`), then the marks on top. A frame without a ground has no depth.
+- `render.Direct` has no `Tier()`: it asks in Compose where it draws (`Frame.DrawOpaque`,
+  `Frame.DrawAt`, `Frame.ReadGround`), `Target.Pass` saying which pass, `Target.Ground` the
+  ground's depth alone for one that reads it (copied by a draw, `Image.CopyDepth`; a buffer read
+  must be `Depth.Readable`); `Frame.Places` lists the asks.
+- What lay on a tier above another lies at a lift: board materials, grid lines, sight, cloud
+  shadows, routes; the figures at `world.FigureLift`. So the routes and cones drawn in the frame on
+  a flat board, and the cloud shadows, lie under the figures; a material look under the figures
+  standing higher.
+- `render.Sprites` takes world rectangles and lays them on the GPU through the camera's matrix,
+  a wrapping world's copies in one call (`Rect`/`Turned` without a camera, `Layer(at, under)`,
+  16 floats an instance); the world's renderer no longer culls every figure on the CPU:
+  `Benchmark_World_Draw` −35…−50%, a frame of motion/collision drawn in about 1.5 ms in place of
+  2.15.
+- The sky is drawn behind the world (`Image.FillBehind`), `celestial.StarField.Draw` takes a
+  `render.Target`; `world.DirectLook.Begin` takes the frame; `board/look.Dressing` lays what runs
+  across the board apart (`Across`), `Dress` takes an `At`; `vision.ConePoint` carries an `At`;
+  `render.Still.Draw` takes the target and the camera, and draws its pieces in the order they came.
+- A topography camera's pixel step is taken by the origin: far from it the relief and what is drawn
+  on the CPU met a pixel or more apart. `GRAM_SHOT` saves a frame for comparing pictures.
+
 **A board stands only in a world with heights** (2026-10-15)
 - `board.NewPlugin` and `atmosphere.NewPlugin` panic in a flat world, as the topography did; the
   board's flat branches are gone (`terrain.NewKinds`, `BuiltSystem`, `Field.SetHeights`; units

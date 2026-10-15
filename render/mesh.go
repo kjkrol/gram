@@ -12,6 +12,17 @@ func (i *Image) ClearDepth(d *Depth) { gpu.ClearDepth(i.gpu(), d.d) }
 // NewDepth is a depth buffer, fitted to the image it is drawn with.
 func NewDepth() *Depth { return &Depth{gpu.NewDepth()} }
 
+// Readable has the buffer read as well as drawn against (DrawMeshOptions.ReadDepth, CopyDepth);
+// asked before its first draw, it keeps what it holds.
+func (d *Depth) Readable() *Depth {
+	d.d.Readable()
+	return d
+}
+
+// CopyDepth puts what from holds in place of what to holds, both fitted to the image's texture;
+// from must be Readable.
+func (i *Image) CopyDepth(from, to *Depth) { gpu.CopyDepth(i.gpu(), from.d, to.d) }
+
 // Size is the buffer's width and height, those of the texture it was last drawn with.
 func (d *Depth) Size() (w, h int) { return d.d.Size() }
 
@@ -57,6 +68,8 @@ type DrawMeshOptions struct {
 	ReadDepth *Depth
 	Images    [4]*Image
 	Uniforms  map[string]any
+	// Untested draws everywhere, the Depth kept as it is.
+	Untested bool
 }
 
 // DrawMesh draws the triangles of idx with s, a mesh's shader, into the image; idx nil,
@@ -81,5 +94,7 @@ func (i *Image) DrawMesh(idx *Indices, s *Shader, op *DrawMeshOptions) {
 		indices = idx.i
 	}
 	gpu.Mesh(&gpu.MeshDraw{Target: i.gpu(), Depth: depth, Vertices: uint32(max(op.Vertices, 0)), Instances: op.Instances, ReadDepth: read, ClearDepth: op.ClearDepth, Write: op.WriteDepth, Primed: op.Primed,
-		Program: s.program(), Images: imgs, Uniforms: s.pack(op.Uniforms), Indices: indices, Blend: gpu.SourceOver})
+		Untested: op.Untested,
+		Program:  s.program(), Images: imgs, Uniforms: s.pack(op.Uniforms), Indices: indices,
+		Blend: gpu.SourceOver})
 }

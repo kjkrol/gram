@@ -2,7 +2,8 @@
 // (x, y) to (z, w), world units — and the rectangle of the viewport it may cover, pixels. Every
 // pixel of it finds the ground point drawn there from the depth the ground left (depthAt, through
 // U.Unproject, the viewport U.ViewSize pixels from U.ViewAt on the target) and, as near the
-// stretch as half of its width (pixels, the fourth vec4's x), draws it in its colour (the third).
+// stretch as half of its width (pixels, the fourth vec4's x), draws it in its colour (the third),
+// lying at the ground's depth.
 
 struct Stretch {
     @builtin(position) clip: vec4<f32>,
@@ -24,8 +25,13 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) ends: vec4<f32>, @locat
     return s;
 }
 
+struct Laid {
+    @location(0) color: vec4<f32>,
+    @builtin(frag_depth) depth: f32,
+}
+
 @fragment
-fn fs_main(@builtin(position) frag: vec4<f32>, s: Stretch) -> @location(0) vec4<f32> {
+fn fs_main(@builtin(position) frag: vec4<f32>, s: Stretch) -> Laid {
     let depth = depthAt(frag.xy);
     let px = frag.xy - U.ViewAt;
     let w = U.Unproject * vec4<f32>(px.x / U.ViewSize.x * 2.0 - 1.0, 1.0 - px.y / U.ViewSize.y * 2.0, depth, 1.0);
@@ -39,5 +45,5 @@ fn fs_main(@builtin(position) frag: vec4<f32>, s: Stretch) -> @location(0) vec4<
     if depth <= 0.0 || cover < 0.002 {
         discard; // nothing drawn there, the sky; or off the line
     }
-    return s.color * cover;
+    return Laid(s.color * cover, depth);
 }

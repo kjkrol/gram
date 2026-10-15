@@ -13,13 +13,18 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// ConePoint is a point of a view's outline on screen, with the depth of the world point under it
-// and how many screen units a world unit spans there (camera.ScaleAt; 0 not in front of the eye).
-type ConePoint struct{ X, Y, Depth, Scale float32 }
+// ConePoint is a point of a view's outline on screen, where the view lies there over the ground
+// (At) and how many screen units a world unit spans there (camera.ScaleAt; 0 not in front of the
+// eye).
+type ConePoint struct {
+	X, Y  float32
+	At    render.At
+	Scale float32
+}
 
 // ConeStyle composes one entity's view from its outline: a closed ring starting at the observer,
 // out along one edge of the cone, round its boundary and back along the other edge. Each point
-// has the depth of the ground under it.
+// lies where the view does over the ground under it.
 type ConeStyle interface {
 	Compose(f *render.Frame, outline []ConePoint)
 }
@@ -47,13 +52,24 @@ var (
 // DefaultCone is a pale yellow edge.
 var DefaultCone = Cone{Color: color.RGBA{R: 255, G: 220, B: 90, A: 160}}
 
-// Compose strokes the ring on the Overlays tier.
+// Compose strokes the ring, each stretch where the nearer of its ends lies.
 func (c Cone) Compose(f *render.Frame, outline []ConePoint) {
 	for i, p := range outline {
 		q := outline[(i+1)%len(outline)]
-		f.Line(render.Overlays, max(p.Depth, q.Depth), p.X, p.Y, q.X, q.Y, 1, c.Color)
+		f.Line(nearer(p.At, q.At), p.X, p.Y, q.X, q.Y, 1, c.Color)
 	}
 }
+
+func nearer(a, b render.At) render.At {
+	if a.Before(b) {
+		return b
+	}
+	return a
+}
+
+// how far over the ground a view lies among what lies on it: over the board's grid, under the
+// routes and the figures
+const sightLift = 0.25
 
 // Shadow is how the ground out of sight is shaded: a veil of Color over it, fading in over Fade
 // world units wherever it meets ground in sight.
@@ -67,9 +83,9 @@ var DefaultShadow = Shadow{Color: color.RGBA{R: 10, G: 10, B: 20, A: 110}, Fade:
 
 var _ render.Direct = (*Renderer)(nil)
 
-// Renderer draws the views: through a camera with Rays and in the default style every observer's
-// on the GPU on ViewTier, the ground out of sight veiled in a Shadow; otherwise, as a
-// render.Source on the Overlays tier, the outline of every entity carrying SightOutline in a
+// Renderer draws the views, lying over the ground under what stands on it: through a camera with
+// Rays and in the default style every observer's on the GPU, the ground out of sight veiled in a
+// Shadow; otherwise, as a render.Source, the outline of every entity carrying SightOutline in a
 // ConeStyle.
 type Renderer struct {
 	camera camera.Camera
@@ -103,6 +119,7 @@ type Renderer struct {
 
 	gpu     *views
 	onGPU   bool
+	placed  bool // the views drawn on the GPU have their place this frame
 	coverOf func() ground.Cover
 	cover   ground.Cover
 	bend    float64
@@ -195,14 +212,8 @@ func (r *Renderer) Init(si *goke.SysInit) {
 	r.query = qb.Build()
 }
 
-// Tier is ViewTier.
-func (r *Renderer) Tier() render.Tier { return ViewTier }
-
 // world units, where a world without heights reads its cover
 const levelStep = 8
-
-// ViewTier is where the views drawn on the GPU come: over the ground, under what stands on it.
-const ViewTier = render.Ground + 50
 
 // Draw draws the views Compose noted on the GPU; nothing where it composed them.
 func (r *Renderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
@@ -224,7 +235,7 @@ func (r *Renderer) settle(cursor *goke.Cursor) {
 
 // Compose hands f every view in sight of cam, or notes them for Draw; nothing while hidden.
 func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
-	r.onGPU = false
+	r.onGPU, r.placed = false, false
 	if r.hidden {
 		return
 	}
@@ -281,6 +292,13 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 			// over level ground only the outline holds the entities cutting the view
 			outlined := outlines != nil && outlines[i].Count >= 2
 			if r.onGPU && (r.ground != nil || !outlined) {
+				if r.ground != nil {
+					f.ReadGround() // the views find the ground under them
+				}
+				if !r.placed {
+					f.DrawAt(f.OnGround(sightLift))
+					r.placed = true
+				}
 				ox, oy := centreOf(&bases[i].Pos)
 				f := sights[i].Looking(bases[i].Vel.Dir)
 				r.gpu.look(cam, observer{
@@ -320,8 +338,9 @@ func (r *Renderer) cone(
 
 	zoom := r.camera.Zoom()
 	box := r.space.WrapAABB(r.coneBox(ox, oy, s.Radius))
+	at := r.frame.Lifted(float32(ox), float32(oy), float32(z.Altitude), sightLift)
 	render.VisitWrapImages(box, r.worldW, r.worldH, func(_ geom.AABB, dx, dy float32) bool {
-		style.Compose(r.frame, r.fan(sx+dx*zoom, sy+dy*zoom, half, s, o))
+		style.Compose(r.frame, r.fan(sx+dx*zoom, sy+dy*zoom, at, half, s, o))
 		return true
 	})
 }
@@ -368,7 +387,7 @@ func (r *Renderer) draped(
 	}
 
 	ax, ay := r.camera.Project(ox, oy, alt)
-	r.pts = append(r.pts, ConePoint{X: ax, Y: ay, Depth: r.camera.Depth(ox, oy, alt)})
+	r.pts = append(r.pts, ConePoint{X: ax, Y: ay, At: r.frame.Lifted(ox, oy, alt, sightLift)})
 	for d := r.step; r.step > 0 && d < depth(0); d += r.step {
 		r.pts = append(r.pts, r.onGround(ox, oy, first, d))
 	}
@@ -425,8 +444,12 @@ func (r *Renderer) shade(ox, oy float32, half float64, s *Sight, o *SightOutline
 				if !shadowed(o, i+1, d0, d1) {
 					edges.Right = fade
 				}
-				depth := max(p0.Depth, p1.Depth, p2.Depth, p3.Depth) // over every tile it lies on
-				r.frame.Soft(render.Overlays, depth, render.Corners{{p0.X, p0.Y}, {p1.X, p1.Y}, {p2.X, p2.Y}, {p3.X, p3.Y}}, r.shadow.Color, edges)
+				at := nearer(
+					nearer(p0.At, p1.At),
+					nearer(p2.At, p3.At),
+				) // over every tile it lies on
+				quad := render.Corners{{p0.X, p0.Y}, {p1.X, p1.Y}, {p2.X, p2.Y}, {p3.X, p3.Y}}
+				r.frame.Soft(at, quad, r.shadow.Color, edges)
 			}
 		}
 	}
@@ -451,21 +474,25 @@ func (r *Renderer) onGround(ox, oy float32, a float64, dist float32) ConePoint {
 		z = float32(r.ground.At(geom.NewVec(float64(x), float64(y))))
 	}
 	sx, sy := r.camera.Project(x, y, z)
-	return ConePoint{X: sx, Y: sy, Depth: r.camera.Depth(x, y, z), Scale: camera.ScaleAt(r.camera, x, y, z)}
+	return ConePoint{X: sx, Y: sy,
+		At: r.frame.Lifted(x, y, z, sightLift), Scale: camera.ScaleAt(r.camera, x, y, z)}
 }
 
-func (r *Renderer) fan(sx, sy float32, half float64, s *Sight, o *SightOutline) []ConePoint {
+func (r *Renderer) fan(
+	sx, sy float32, at render.At, half float64, s *Sight, o *SightOutline,
+) []ConePoint {
 	facing := math.Atan2(s.Facing.Y, s.Facing.X)
 	step := 2 * half / float64(o.Count-1)
 	zoom := r.camera.Zoom()
 
-	r.pts = append(r.pts[:0], ConePoint{X: sx, Y: sy})
+	r.pts = append(r.pts[:0], ConePoint{X: sx, Y: sy, At: at})
 	for i := range int(o.Count) {
 		a := facing - half + float64(i)*step
 		d := float64(o.Depths[i])
 		r.pts = append(r.pts, ConePoint{
-			X: sx + float32(d*math.Cos(a))*zoom,
-			Y: sy + float32(d*math.Sin(a))*zoom,
+			X:  sx + float32(d*math.Cos(a))*zoom,
+			Y:  sy + float32(d*math.Sin(a))*zoom,
+			At: at,
 		})
 	}
 	return r.pts

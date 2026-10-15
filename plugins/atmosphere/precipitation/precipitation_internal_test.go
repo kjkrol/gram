@@ -18,9 +18,14 @@ func TestPrecipitation_FallsAsMuchAsTheWeatherSaysAndNotAtAllWhenDry(t *testing.
 	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	weather := air.Weather{}
 	p := New(func() sky.Sun { return sky.DefaultSun }, func() air.Weather { return weather })
-	if p.Tier() != render.Air {
-		t.Errorf("what falls comes on tier %v, want the Air", p.Tier())
-	}
+	var fr render.Frame
+	fr.Reset(cam)
+	p.Compose(&fr, cam)
+	fr.Places(func(pass render.Pass, at render.At) {
+		if pass != render.SeeThrough || at != render.Nearest {
+			t.Errorf("what falls is drawn in pass %v at %v, want before the whole world", pass, at)
+		}
+	})
 	if f := p.fall(cam); f.Drops+f.Flakes != 0 {
 		t.Errorf("a dry sky lets %d drops and %d flakes fall", f.Drops, f.Flakes)
 	}

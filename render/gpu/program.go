@@ -22,9 +22,10 @@ func shader(name string) string {
 }
 
 // Vertex is one corner of a triangle drawn: where in the target (Dst) and in the first image
-// (Src), both in pixels, its colour and four numbers the fragment reads (Custom).
+// (Src), both in pixels, its colour and four numbers the fragment reads (Custom). DstZ is its
+// depth, or with the draw's Sight its height in the world.
 type Vertex struct {
-	DstX, DstY                     float32
+	DstX, DstY, DstZ               float32
 	SrcX, SrcY                     float32
 	ColorR, ColorG, ColorB, ColorA float32
 	Custom0, Custom1               float32
@@ -78,11 +79,44 @@ type depthMode uint8
 
 const (
 	noDepth depthMode = iota
+	depthIgnore
 	depthTest
 	depthWrite
 	depthPrime
 	depthEqual
+	depthCopy
 )
+
+// DepthTest is how a draw meets its depth buffer: drawn only where it lies as near as what is
+// there or nearer, and the buffer kept or written; or drawn everywhere, the buffer kept.
+type DepthTest uint8
+
+const (
+	Tested DepthTest = iota
+	Written
+	Untested
+)
+
+func (t DepthTest) mode() depthMode {
+	switch t {
+	case Written:
+		return depthWrite
+	case Untested:
+		return depthIgnore
+	}
+	return depthTest
+}
+
+// Sight is how the heights of a draw's vertices become depths: the line of sight through the
+// target's pixel (x, y) starts at Origin + x·DX + y·DY and runs along Dir + x·DDX + y·DDY; where it
+// meets a vertex's height, sunk Bend·d² round Eye, the rows Z and W of the camera's matrix take it.
+type Sight struct {
+	Origin, DX, DY [3]float32
+	Dir, DDX, DDY  [3]float32
+	Z, W           [4]float32
+	Eye            [3]float32
+	Bend           float32
+}
 
 // NewProgram is the fragment source over the package's vertex stage, its uniforms the WGSL struct
 // fields given, none an empty string.
@@ -149,7 +183,9 @@ func (p *Program) compile(d *device) error {
 	return nil
 }
 
-func (p *Program) pipeline(d *device, blend Blend, format gputypes.TextureFormat, depth depthMode) *wgpu.RenderPipeline {
+func (p *Program) pipeline(
+	d *device, blend Blend, format gputypes.TextureFormat, depth depthMode,
+) *wgpu.RenderPipeline {
 	key := pipelineKey{blend, format, depth}
 	if pl, ok := p.pipelines[key]; ok {
 		return pl
@@ -164,10 +200,10 @@ func (p *Program) pipeline(d *device, blend Blend, format gputypes.TextureFormat
 	}
 	buffers := []gputypes.VertexBufferLayout{{
 		ArrayStride: vertexSize, StepMode: gputypes.VertexStepModeVertex, Attributes: []gputypes.VertexAttribute{
-			{Format: gputypes.VertexFormatFloat32x2, Offset: 0, ShaderLocation: 0},
-			{Format: gputypes.VertexFormatFloat32x2, Offset: 8, ShaderLocation: 1},
-			{Format: gputypes.VertexFormatFloat32x4, Offset: 16, ShaderLocation: 2},
-			{Format: gputypes.VertexFormatFloat32x4, Offset: 32, ShaderLocation: 3},
+			{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 0},
+			{Format: gputypes.VertexFormatFloat32x2, Offset: 12, ShaderLocation: 1},
+			{Format: gputypes.VertexFormatFloat32x4, Offset: 20, ShaderLocation: 2},
+			{Format: gputypes.VertexFormatFloat32x4, Offset: 36, ShaderLocation: 3},
 		},
 	}}
 	if p.mesh {
@@ -181,15 +217,27 @@ func (p *Program) pipeline(d *device, blend Blend, format gputypes.TextureFormat
 		}
 	}
 	var ds *wgpu.DepthStencilState
-	if depth != noDepth { // reversed: nearer is greater
-		ds = &wgpu.DepthStencilState{Format: DepthFormat, DepthWriteEnabled: depth == depthWrite || depth == depthPrime, DepthCompare: gputypes.CompareFunctionGreater}
-		if depth == depthEqual {
+	if depth != noDepth { // reversed: nearer is greater, and at one depth the later wins
+		ds = &wgpu.DepthStencilState{Format: DepthFormat,
+			DepthCompare: gputypes.CompareFunctionGreaterEqual,
+		}
+		switch depth {
+		case depthWrite, depthPrime:
+			ds.DepthWriteEnabled = true
+		case depthEqual:
 			ds.DepthCompare = gputypes.CompareFunctionEqual
+		case depthIgnore:
+			ds.DepthCompare = gputypes.CompareFunctionAlways
+		case depthCopy:
+			ds.DepthWriteEnabled, ds.DepthCompare = true, gputypes.CompareFunctionAlways
 		}
 	}
 	entry, mask := "fs_main", gputypes.ColorWriteMaskAll
-	if depth == depthPrime {
+	switch depth {
+	case depthPrime:
 		entry, mask = "fs_prime", gputypes.ColorWriteMaskNone
+	case depthCopy:
+		mask = gputypes.ColorWriteMaskNone
 	}
 	pl, err := d.dev.CreateRenderPipeline(&wgpu.RenderPipelineDescriptor{
 		Label:        p.label,
@@ -221,6 +269,11 @@ type Draw struct {
 	Place [4]float32
 	// Tint multiplies the vertices' colours; zero, white.
 	Tint [4]float32
+	// Depth is the depth buffer the draw meets as Test says; nil, none.
+	Depth *Depth
+	Test  DepthTest
+	// Sight takes the vertices' DstZ for heights; nil, for depths as they are.
+	Sight *Sight
 }
 
 // Triangles draws the triangles indices picks out of verts as dw says.
@@ -246,15 +299,14 @@ func (d *device) triangles(t *target, clip Rect, dw *Draw, verts []Vertex, indic
 	for i, im := range dw.Images {
 		imgs[i] = im.Texture
 	}
-	pipeline := dw.Program.pipeline(d, dw.Blend, t.format, noDepth)
+	mode := dw.depthMode(t)
+	pipeline := dw.Program.pipeline(d, dw.Blend, t.format, mode)
 	group1 := d.images(imgs) // realises the images before the buffers are measured
 	d.ensure(len(verts), len(indices))
 
 	vOff := uint64(len(d.verts))
 	for _, v := range verts {
-		for _, f := range [12]float32{v.DstX, v.DstY, v.SrcX, v.SrcY, v.ColorR, v.ColorG, v.ColorB, v.ColorA, v.Custom0, v.Custom1, v.Custom2, v.Custom3} {
-			d.verts = appendF32(d.verts, f)
-		}
+		d.verts = appendVertex(d.verts, v)
 	}
 	iOff := uint64(len(d.indices))
 	for _, i := range indices {
@@ -263,9 +315,9 @@ func (d *device) triangles(t *target, clip Rect, dw *Draw, verts []Vertex, indic
 	for len(d.indices)%4 != 0 {
 		d.indices = append(d.indices, 0)
 	}
-	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, dw.Place, dw.Tint)
+	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, dw.Place, dw.Tint, dw.Sight)
 
-	pass := d.begin(t, nil, false)
+	pass := d.begin(t, dw.Depth, false)
 	pass.SetPipeline(pipeline) // gogpu's Vulkan binds a group through the pipeline's layout: first
 	pass.SetBindGroup(0, d.group0, []uint32{uint32(dOff), uint32(uOff)})
 	pass.SetBindGroup(1, group1, nil)
@@ -276,7 +328,30 @@ func (d *device) triangles(t *target, clip Rect, dw *Draw, verts []Vertex, indic
 	pass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: uint32(len(indices)), InstanceCount: 1})
 }
 
-func (d *device) drawBlock(t *target, images [4]Image, uniforms []byte, place, tint [4]float32) (dOff, uOff uint64) {
+// depthMode fits the draw's depth buffer to t, the mode it is drawn in
+func (dw *Draw) depthMode(t *target) depthMode {
+	if dw.Depth == nil {
+		return noDepth
+	}
+	if dw.Depth.w != t.w || dw.Depth.h != t.h {
+		dw.Depth.fit(t.w, t.h)
+	}
+	return dw.Test.mode()
+}
+
+func appendVertex(b []byte, v Vertex) []byte {
+	for _, f := range [13]float32{
+		v.DstX, v.DstY, v.DstZ, v.SrcX, v.SrcY, v.ColorR, v.ColorG, v.ColorB, v.ColorA,
+		v.Custom0, v.Custom1, v.Custom2, v.Custom3,
+	} {
+		b = appendF32(b, f)
+	}
+	return b
+}
+
+func (d *device) drawBlock(
+	t *target, images [4]Image, uniforms []byte, place, tint [4]float32, sight *Sight,
+) (dOff, uOff uint64) {
 	if len(uniforms) > uniformBlock {
 		panic(fmt.Sprintf("gpu: %d bytes of uniforms, more than %d", len(uniforms), uniformBlock))
 	}
@@ -299,11 +374,36 @@ func (d *device) drawBlock(t *target, images [4]Image, uniforms []byte, place, t
 	for _, v := range append(place[:], tint[:]...) {
 		d.draws = appendF32(d.draws, v)
 	}
+	d.draws = appendSight(d.draws, sight)
 	uOff = alignUp(uint64(len(d.uniforms)), d.align)
 	d.uniforms = append(d.uniforms, make([]byte, int(uOff)-len(d.uniforms))...)
 	d.uniforms = append(d.uniforms, uniforms...)
 	d.uniforms = append(d.uniforms, make([]byte, uniformBlock-len(uniforms))...)
 	return dOff, uOff
+}
+
+// appendSight writes the Draw's sight: the rays in five vec4s, the matrix's rows Z and W, the eye
+// and the bend; w of the first 1 for a sight, 0 for none
+func appendSight(b []byte, s *Sight) []byte {
+	var f [36]float32
+	if s != nil {
+		vec := func(k int, v [3]float32, w float32) {
+			f[4*k], f[4*k+1], f[4*k+2], f[4*k+3] = v[0], v[1], v[2], w
+		}
+		vec(0, s.Origin, 1)
+		vec(1, s.DX, 0)
+		vec(2, s.DY, 0)
+		vec(3, s.Dir, 0)
+		vec(4, s.DDX, 0)
+		vec(5, s.DDY, 0)
+		copy(f[24:28], s.Z[:])
+		copy(f[28:32], s.W[:])
+		vec(8, s.Eye, s.Bend)
+	}
+	for _, v := range f {
+		b = appendF32(b, v)
+	}
+	return b
 }
 
 func (r Rect) intersect(o Rect) Rect {

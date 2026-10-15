@@ -8,19 +8,6 @@ import (
 	"github.com/kjkrol/gram/camera"
 )
 
-// Tier is which part of the picture an item belongs to, drawn in order of value; the gaps leave a
-// game room for tiers of its own.
-type Tier int
-
-const (
-	Backdrop Tier = 0   // what lies behind the world: the sky
-	Ground   Tier = 100 // the tiles and what the ground is made of
-	Objects  Tier = 200 // what stands: entities, tall terrain
-	Overlays Tier = 300 // what lies on the world: routes, sight
-	Air      Tier = 350 // what fills the air before the eye: rain, snow
-	Marks    Tier = 400 // what must always show: the selection, the box being dragged
-)
-
 // Source is a world layer that hands its pieces to a Frame instead of drawing them.
 type Source interface {
 	Layer
@@ -46,16 +33,17 @@ const (
 )
 
 type item struct {
-	tier  Tier
-	depth float32
+	at    At
 	atlas AtlasSource // nil for a plain colour, drawn on whatever sheet's white texel
 	first int32
-	count int32
+	count int32 // 0 for a Direct's place among the pieces
 	shape shape
+	// the source drawing itself at this place, one more than its index; 0 a piece
+	direct int32
 }
 
 // Frame gathers what the sources of a Composer draw for one viewport, in screen pixels, each
-// piece with its tier and depth.
+// piece where it lies (At), and where the Direct sources draw themselves.
 type Frame struct {
 	cam   camera.Camera
 	items []item
@@ -66,13 +54,15 @@ type Frame struct {
 
 	lastFirst int
 	lastRect  bool
-	lastTier  Tier
-	lastDepth float32
+	lastAt    At
 	lastAtlas AtlasSource
 	lastShape shape
 
 	uniforms []uniform
 	time     float32
+	ground   bool    // a source reads the ground's depth this frame
+	source   int32   // the source composing, one more than its index; 0 none
+	opaque   []int32 // the sources drawing in the opaque pass, one more than their index
 }
 
 type uniform struct {
@@ -90,7 +80,34 @@ func (f *Frame) Len() int { return f.count }
 // Reset starts the frame over, drawn through cam.
 func (f *Frame) Reset(cam camera.Camera) {
 	f.cam, f.items, f.verts, f.order, f.count = cam, f.items[:0], f.verts[:0], f.order[:0], 0
-	f.uniforms = f.uniforms[:0]
+	f.uniforms, f.ground, f.opaque = f.uniforms[:0], false, f.opaque[:0]
+}
+
+// DrawOpaque has the composing Direct draw in the opaque pass, the ground's: tested against the
+// depth and writing it, before anything seen through.
+func (f *Frame) DrawOpaque() { f.opaque = append(f.opaque, f.source) }
+
+// DrawAt has the composing Direct draw among what is seen through, back to front, at at.
+func (f *Frame) DrawAt(at At) {
+	f.items = append(f.items, item{at: at, first: int32(len(f.verts)), direct: f.source})
+}
+
+// Places calls fn with every pass a Direct composing into f asked to draw in, and where.
+func (f *Frame) Places(fn func(p Pass, at At)) {
+	for range f.opaque {
+		fn(Opaque, At{})
+	}
+	for _, it := range f.items {
+		if it.count == 0 {
+			fn(SeeThrough, it.at)
+		}
+	}
+}
+
+// ReadGround has the ground's depth kept apart this frame, for the composing source to read it
+// (Target.Ground) once the ground is drawn.
+func (f *Frame) ReadGround() {
+	f.ground = true
 }
 
 // Uniform sets the shader's uniform name to v, a float or a vector of two to four, for this
@@ -112,30 +129,36 @@ func (f *Frame) Uniform(name string, v ...float32) {
 // Time is the frame's clock, in seconds, for what moves by itself.
 func (f *Frame) Time() float32 { return f.time }
 
-// Each calls fn with every piece in the order it came: its tier, depth and vertices, the frame's
-// own.
-func (f *Frame) Each(fn func(tier Tier, depth float32, verts []Vertex)) {
+// Each calls fn with every piece in the order it came: where it lies and its vertices, the
+// frame's own.
+func (f *Frame) Each(fn func(at At, verts []Vertex)) {
 	for _, it := range f.items {
 		if it.shape == fan {
-			fn(it.tier, it.depth, f.verts[it.first:it.first+it.count])
+			fn(it.at, f.verts[it.first:it.first+it.count])
 			continue
 		}
 		for k := it.first; k < it.first+it.count; k += 4 {
-			fn(it.tier, it.depth, f.verts[k:k+4])
+			fn(it.at, f.verts[k:k+4])
 		}
 	}
 }
 
-func (f *Frame) add(tier Tier, depth float32, atlas AtlasSource, s shape, count int) {
+func (f *Frame) add(at At, atlas AtlasSource, s shape, count int) {
 	f.count++
 	if n := len(f.items); n > 0 && s != fan {
 		last := &f.items[n-1]
-		if last.shape == s && last.tier == tier && last.depth == depth && last.atlas == atlas {
+		if last.count > 0 && last.shape == s && last.at == at && last.atlas == atlas {
 			last.count += int32(count)
 			return
 		}
 	}
-	f.items = append(f.items, item{tier: tier, depth: depth, atlas: atlas, first: int32(len(f.verts)) - int32(count), count: int32(count), shape: s})
+	f.items = append(f.items, item{
+		at:    at,
+		atlas: atlas,
+		first: int32(len(f.verts)) - int32(count),
+		count: int32(count),
+		shape: s,
+	})
 }
 
 func vertex(x, y, sx, sy float32, c [4]float32) Vertex {
@@ -165,19 +188,22 @@ func Lit(l Light) Shade { return Shade{l, l, l, l} }
 func lit(l Light) [4]float32 { return [4]float32{l[0], l[1], l[2], 1} }
 
 // Sprite draws sprite id of atlas over the screen corners dst, as bright as shade says.
-func (f *Frame) Sprite(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade Shade) {
-	f.lastFirst, f.lastRect, f.lastTier, f.lastDepth, f.lastAtlas, f.lastShape = len(f.verts), false, tier, depth, atlas, quad
+func (f *Frame) Sprite(at At, atlas AtlasSource, id SpriteID, dst Corners, shade Shade) {
+	f.lastFirst, f.lastRect, f.lastAt = len(f.verts), false, at
+	f.lastAtlas, f.lastShape = atlas, quad
 	u0, v0, u1, v1 := inset(atlas.UV(id))
 	f.verts = append(f.verts,
 		vertex(dst[0][0], dst[0][1], u0, v0, lit(shade[0])), vertex(dst[1][0], dst[1][1], u1, v0, lit(shade[1])),
 		vertex(dst[2][0], dst[2][1], u0, v1, lit(shade[2])), vertex(dst[3][0], dst[3][1], u1, v1, lit(shade[3])))
-	f.add(tier, depth, atlas, quad, 4)
+	f.add(at, atlas, quad, 4)
 }
 
 // Glaze is Sprite laid over what lies under it as much as opacity says at each of its corners, 0
 // to 1.
-func (f *Frame) Glaze(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade Shade, opacity [4]float32) {
-	f.Sprite(tier, depth, atlas, id, dst, shade)
+func (f *Frame) Glaze(
+	at At, atlas AtlasSource, id SpriteID, dst Corners, shade Shade, opacity [4]float32,
+) {
+	f.Sprite(at, atlas, id, dst, shade)
 	v := f.verts[len(f.verts)-4:]
 	for i := range v {
 		o := min(max(opacity[i], 0), 1)
@@ -200,25 +226,35 @@ func (f *Frame) Fold(z [4]float32) {
 	if last.count == 0 {
 		f.items = f.items[:n-1]
 	}
-	f.items = append(f.items, item{tier: f.lastTier, depth: f.lastDepth, atlas: f.lastAtlas, first: int32(f.lastFirst), count: 4, shape: folded})
+	f.items = append(f.items, item{
+		at:    f.lastAt,
+		atlas: f.lastAtlas,
+		first: int32(f.lastFirst),
+		count: 4,
+		shape: folded,
+	})
 	f.lastShape = folded
 }
 
 // SpritePart is Sprite drawing the part src (x0, y0, x1, y1 in the sheet's pixels) of atlas's
 // sheet rather than a sprite of it.
-func (f *Frame) SpritePart(tier Tier, depth float32, atlas AtlasSource, src [4]float32, dst Corners, shade Shade) {
-	f.lastFirst, f.lastRect, f.lastTier, f.lastDepth, f.lastAtlas, f.lastShape = len(f.verts), false, tier, depth, atlas, quad
+func (f *Frame) SpritePart(at At, atlas AtlasSource, src [4]float32, dst Corners, shade Shade) {
+	f.lastFirst, f.lastRect, f.lastAt = len(f.verts), false, at
+	f.lastAtlas, f.lastShape = atlas, quad
 	u0, v0, u1, v1 := src[0], src[1], src[2], src[3]
 	f.verts = append(f.verts,
 		vertex(dst[0][0], dst[0][1], u0, v0, lit(shade[0])), vertex(dst[1][0], dst[1][1], u1, v0, lit(shade[1])),
 		vertex(dst[2][0], dst[2][1], u0, v1, lit(shade[2])), vertex(dst[3][0], dst[3][1], u1, v1, lit(shade[3])))
-	f.add(tier, depth, atlas, quad, 4)
+	f.add(at, atlas, quad, 4)
 }
 
 // SpriteBlend draws sprite id over dst where weight, blended between its corners, is over a half,
 // fading in over soft either side of it (0 to a half).
-func (f *Frame) SpriteBlend(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade Shade, weight [4]float32, soft float32) {
-	f.Sprite(tier, depth, atlas, id, dst, shade)
+func (f *Frame) SpriteBlend(
+	at At, atlas AtlasSource, id SpriteID, dst Corners, shade Shade, weight [4]float32,
+	soft float32,
+) {
+	f.Sprite(at, atlas, id, dst, shade)
 	v := f.verts[len(f.verts)-4:]
 	for i := range v {
 		v[i].ColorA, v[i].Custom3 = weight[i], blendMark+min(max(soft, 0.01), 0.5)
@@ -227,10 +263,13 @@ func (f *Frame) SpriteBlend(tier Tier, depth float32, atlas AtlasSource, id Spri
 
 // SpriteBlendPart is SpriteBlend of a part of sprite id, part its left, top, right and bottom as
 // shares of the sprite, 0 to 1.
-func (f *Frame) SpriteBlendPart(tier Tier, depth float32, atlas AtlasSource, id SpriteID, part [4]float32, dst Corners, shade Shade, weight [4]float32, soft float32) {
+func (f *Frame) SpriteBlendPart(
+	at At, atlas AtlasSource, id SpriteID, part [4]float32, dst Corners, shade Shade,
+	weight [4]float32, soft float32,
+) {
 	u0, v0, u1, v1 := inset(atlas.UV(id))
 	src := [4]float32{u0 + (u1-u0)*part[0], v0 + (v1-v0)*part[1], u0 + (u1-u0)*part[2], v0 + (v1-v0)*part[3]}
-	f.SpritePart(tier, depth, atlas, src, dst, shade)
+	f.SpritePart(at, atlas, src, dst, shade)
 	v := f.verts[len(f.verts)-4:]
 	for i := range v {
 		v[i].ColorA, v[i].Custom3 = weight[i], blendMark+min(max(soft, 0.01), 0.5)
@@ -238,8 +277,11 @@ func (f *Frame) SpriteBlendPart(tier Tier, depth float32, atlas AtlasSource, id 
 }
 
 // GlazeBlend is Glaze drawn blended as SpriteBlend is.
-func (f *Frame) GlazeBlend(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade Shade, weight [4]float32, soft float32, opacity [4]float32) {
-	f.SpriteBlend(tier, depth, atlas, id, dst, shade, weight, soft)
+func (f *Frame) GlazeBlend(
+	at At, atlas AtlasSource, id SpriteID, dst Corners, shade Shade, weight [4]float32,
+	soft float32, opacity [4]float32,
+) {
+	f.SpriteBlend(at, atlas, id, dst, shade, weight, soft)
 	v := f.verts[len(f.verts)-4:]
 	for i := range v {
 		v[i].Custom2 = 1 + min(max(opacity[i], 0), 1)
@@ -254,8 +296,8 @@ const (
 )
 
 // Tile is Sprite outlined along its four edges, half a pixel inside each.
-func (f *Frame) Tile(tier Tier, depth float32, atlas AtlasSource, id SpriteID, dst Corners, shade Shade) {
-	f.Sprite(tier, depth, atlas, id, dst, shade)
+func (f *Frame) Tile(at At, atlas AtlasSource, id SpriteID, dst Corners, shade Shade) {
+	f.Sprite(at, atlas, id, dst, shade)
 	v := f.verts[len(f.verts)-4:]
 	for i, p := range dst {
 		v[i].Custom0 = outline(p, dst[0], dst[2]) // left
@@ -267,9 +309,11 @@ func (f *Frame) Tile(tier Tier, depth float32, atlas AtlasSource, id SpriteID, d
 
 // TileRect is SpriteRect outlined along the world rectangle's edges; where a wrap seam splits it,
 // the pieces are outlined only along the rectangle's own edges.
-func (f *Frame) TileRect(tier Tier, depth float32, atlas AtlasSource, id SpriteID, x0, y0, x1, y1 float32, shade Shade) {
+func (f *Frame) TileRect(
+	at At, atlas AtlasSource, id SpriteID, x0, y0, x1, y1 float32, shade Shade,
+) {
 	first := len(f.verts)
-	f.SpriteRectUV(tier, depth, atlas, id, x0, y0, x1, y1, 0, 0, 1, 1, shade)
+	f.SpriteRectUV(at, atlas, id, x0, y0, x1, y1, 0, 0, 1, 1, shade)
 	for k, q := range f.quads {
 		// the whole rectangle on screen, from the part of it this piece shows
 		w, h := (q.X1-q.X0)/(q.T1X-q.T0X), (q.Y1-q.Y0)/(q.T1Y-q.T0Y)
@@ -296,18 +340,23 @@ func outline(p, a, b [2]float32) float32 {
 
 // SpriteRect draws sprite id over the world rectangle (x0, y0)-(x1, y1) through the frame's
 // camera, split where it crosses a wrap seam.
-func (f *Frame) SpriteRect(tier Tier, depth float32, atlas AtlasSource, id SpriteID, x0, y0, x1, y1 float32, shade Shade) {
-	f.SpriteRectUV(tier, depth, atlas, id, x0, y0, x1, y1, 0, 0, 1, 1, shade)
+func (f *Frame) SpriteRect(
+	at At, atlas AtlasSource, id SpriteID, x0, y0, x1, y1 float32, shade Shade,
+) {
+	f.SpriteRectUV(at, atlas, id, x0, y0, x1, y1, 0, 0, 1, 1, shade)
 }
 
 // SpriteRectUV is SpriteRect showing only the part u0..u1, v0..v1 of the sprite, 0 to 1 across it.
-func (f *Frame) SpriteRectUV(tier Tier, depth float32, atlas AtlasSource, id SpriteID, x0, y0, x1, y1, u0, v0, u1, v1 float32, shade Shade) {
-	f.lastFirst, f.lastRect, f.lastTier, f.lastDepth, f.lastAtlas, f.lastShape = len(f.verts), true, tier, depth, atlas, quad
+func (f *Frame) SpriteRectUV(
+	at At, atlas AtlasSource, id SpriteID, x0, y0, x1, y1, u0, v0, u1, v1 float32, shade Shade,
+) {
+	f.lastFirst, f.lastRect, f.lastAt = len(f.verts), true, at
+	f.lastAtlas, f.lastShape = atlas, quad
 	f.quads = spritePieces(f.cam, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, f.quads[:0], func(q camera.Quad, a0, b0, a1, b1 float32) {
 		f.verts = append(f.verts,
 			vertex(q.X0, q.Y0, a0, b0, lit(shade.at(q.T0X, q.T0Y))), vertex(q.X1, q.Y0, a1, b0, lit(shade.at(q.T1X, q.T0Y))),
 			vertex(q.X0, q.Y1, a0, b1, lit(shade.at(q.T0X, q.T1Y))), vertex(q.X1, q.Y1, a1, b1, lit(shade.at(q.T1X, q.T1Y))))
-		f.add(tier, depth, atlas, quad, 4)
+		f.add(at, atlas, quad, 4)
 	})
 }
 
@@ -335,15 +384,15 @@ type Overlay struct {
 
 // Overlay lays o over the last sprite added, every piece of a SpriteRect's.
 func (f *Frame) Overlay(o *Overlay) {
-	f.overlay(Mark{first: f.lastFirst, rect: f.lastRect, tier: f.lastTier, depth: f.lastDepth, atlas: f.lastAtlas, shape: f.lastShape, quads: f.quads}, o)
+	f.overlay(Mark{first: f.lastFirst, rect: f.lastRect,
+		at: f.lastAt, atlas: f.lastAtlas, shape: f.lastShape, quads: f.quads}, o)
 }
 
 // Mark is a sprite already in a frame, for an overlay laid over it later.
 type Mark struct {
 	first int
 	rect  bool
-	tier  Tier
-	depth float32
+	at    At
 	atlas AtlasSource
 	shape shape
 	quads []camera.Quad // a SpriteRect's pieces; none when whole
@@ -351,14 +400,15 @@ type Mark struct {
 
 // Last is the last sprite added, for OverlayOn.
 func (f *Frame) Last() Mark {
-	m := Mark{first: f.lastFirst, rect: f.lastRect, tier: f.lastTier, depth: f.lastDepth, atlas: f.lastAtlas, shape: f.lastShape}
+	m := Mark{first: f.lastFirst, rect: f.lastRect,
+		at: f.lastAt, atlas: f.lastAtlas, shape: f.lastShape}
 	if f.lastRect && !whole(f.quads) {
 		m.quads = slices.Clone(f.quads)
 	}
 	return m
 }
 
-// OverlayOn is Overlay laid over the sprite m, at its tier and depth.
+// OverlayOn is Overlay laid over the sprite m, where it lies.
 func (f *Frame) OverlayOn(m Mark, o *Overlay) { f.overlay(m, o) }
 
 func whole(quads []camera.Quad) bool {
@@ -394,7 +444,7 @@ func (f *Frame) overlay(m Mark, o *Overlay) {
 			}
 			f.verts = append(f.verts, vx)
 		}
-		f.add(m.tier, m.depth, m.atlas, m.shape, 4)
+		f.add(m.at, m.atlas, m.shape, 4)
 	}
 	if !m.rect || whole(m.quads) {
 		for k := range 4 {
@@ -410,7 +460,7 @@ func (f *Frame) overlay(m Mark, o *Overlay) {
 			}
 			f.verts = append(f.verts, vx)
 		}
-		f.add(m.tier, m.depth, m.atlas, m.shape, 4)
+		f.add(m.at, m.atlas, m.shape, 4)
 		return
 	}
 	for k, q := range m.quads {
@@ -447,7 +497,7 @@ func blend(corners [4]float32, u, v float32) float32 {
 
 // Line draws the line from (x0, y0) to (x1, y1) on screen, width pixels wide, in c, its sides
 // fading over a pixel.
-func (f *Frame) Line(tier Tier, depth float32, x0, y0, x1, y1, width float32, c color.RGBA) {
+func (f *Frame) Line(at At, x0, y0, x1, y1, width float32, c color.RGBA) {
 	dx, dy := x1-x0, y1-y0
 	n := float32(math.Hypot(float64(dx), float64(dy)))
 	if n == 0 || width <= 0 {
@@ -465,11 +515,11 @@ func (f *Frame) Line(tier Tier, depth float32, x0, y0, x1, y1, width float32, c 
 		}
 		f.verts = append(f.verts, v)
 	}
-	f.add(tier, depth, nil, quad, 4)
+	f.add(at, nil, quad, 4)
 }
 
 // Fan fills in c the polygon pts, which every point of sees whole from pts[0].
-func (f *Frame) Fan(tier Tier, depth float32, pts [][2]float32, c color.RGBA) {
+func (f *Frame) Fan(at At, pts [][2]float32, c color.RGBA) {
 	if len(pts) < 3 {
 		return
 	}
@@ -477,13 +527,13 @@ func (f *Frame) Fan(tier Tier, depth float32, pts [][2]float32, c color.RGBA) {
 	for _, p := range pts {
 		f.verts = append(f.verts, vertex(p[0], p[1], 0, 0, col))
 	}
-	f.add(tier, depth, nil, fan, len(pts))
+	f.add(at, nil, fan, len(pts))
 }
 
 // SpriteFan fills the polygon pts, which every point of sees whole from pts[0], with the part of
 // sprite id under it when the sprite is laid over the screen box x0, y0, x1, y1, as opaque as
 // opacity says, 0 to 1.
-func (f *Frame) SpriteFan(tier Tier, depth float32, atlas AtlasSource, id SpriteID, pts [][2]float32,
+func (f *Frame) SpriteFan(at At, atlas AtlasSource, id SpriteID, pts [][2]float32,
 	box [4]float32, opacity float32) {
 	if len(pts) < 3 || box[2] == box[0] || box[3] == box[1] {
 		return
@@ -496,7 +546,7 @@ func (f *Frame) SpriteFan(tier Tier, depth float32, atlas AtlasSource, id Sprite
 		v := min(max((p[1]-box[1])/(box[3]-box[1]), 0), 1)
 		f.verts = append(f.verts, vertex(p[0], p[1], sx0+u*(sx1-sx0), sy0+v*(sy1-sy0), col))
 	}
-	f.add(tier, depth, atlas, fan, len(pts))
+	f.add(at, atlas, fan, len(pts))
 }
 
 // Fog has the last plain sprite added turn to the colour of the Fog uniform as much as amount
@@ -520,26 +570,26 @@ func (f *Frame) Fog(amount [4]float32) {
 const fogSpan = 0.49
 
 // Material lays o on its own, the screen quad dst for o's material to work out.
-func (f *Frame) Material(tier Tier, depth float32, dst Corners, o *Overlay) {
+func (f *Frame) Material(at At, dst Corners, o *Overlay) {
 	w := o.World
 	for k, p := range dst {
 		c := o.Custom[k]
 		f.verts = append(f.verts, Vertex{DstX: p[0], DstY: p[1], ColorR: o.Red[k], ColorG: w[k][0], ColorB: w[k][1],
 			ColorA: overlayMark + 2*float32(o.Material) + min(max(o.Fraction[k], 0), 1), Custom0: c[0], Custom1: c[1], Custom2: c[2], Custom3: c[3]})
 	}
-	f.add(tier, depth, nil, quad, 4)
+	f.add(at, nil, quad, 4)
 }
 
 // Quad fills dst in a colour per corner, blended across.
-func (f *Frame) Quad(tier Tier, depth float32, dst Corners, c [4]color.RGBA) {
+func (f *Frame) Quad(at At, dst Corners, c [4]color.RGBA) {
 	for i, p := range dst {
 		f.verts = append(f.verts, vertex(p[0], p[1], 0, 0, premultiplied(c[i])))
 	}
-	f.add(tier, depth, nil, quad, 4)
+	f.add(at, nil, quad, 4)
 }
 
 // Soft fills the quad dst in c, fading towards each side over the pixels fade gives it.
-func (f *Frame) Soft(tier Tier, depth float32, dst Corners, c color.RGBA, fade Fade) {
+func (f *Frame) Soft(at At, dst Corners, c color.RGBA, fade Fade) {
 	col := premultiplied(c)
 	customs := fadeCustoms(dst, fade)
 	for i, p := range dst {
@@ -547,7 +597,7 @@ func (f *Frame) Soft(tier Tier, depth float32, dst Corners, c color.RGBA, fade F
 		v.Custom0, v.Custom1, v.Custom2, v.Custom3 = customs[i][0], customs[i][1], customs[i][2], customs[i][3]
 		f.verts = append(f.verts, v)
 	}
-	f.add(tier, depth, nil, quad, 4)
+	f.add(at, nil, quad, 4)
 }
 
 func fadeCustoms(dst Corners, fade Fade) [4][4]float32 {
@@ -603,11 +653,14 @@ func (f *Frame) Append(o *Frame) {
 		f.items = append(f.items, it)
 	}
 	f.count += o.count
+	f.ground = f.ground || o.ground
+	f.opaque = append(f.opaque, o.opaque...)
 	for _, u := range o.uniforms {
 		f.Uniform(u.name, u.v[:u.n]...)
 	}
 	if o.count > 0 {
-		f.lastFirst, f.lastRect, f.lastTier, f.lastDepth, f.lastAtlas, f.lastShape = o.lastFirst+int(base), o.lastRect, o.lastTier, o.lastDepth, o.lastAtlas, o.lastShape
+		f.lastFirst, f.lastRect, f.lastAt = o.lastFirst+int(base), o.lastRect, o.lastAt
+		f.lastAtlas, f.lastShape = o.lastAtlas, o.lastShape
 		f.quads = append(f.quads[:0], o.quads...)
 	}
 }

@@ -61,10 +61,10 @@ func (v *boxesView) Compose(f *render.Frame, cam camera.Camera) {
 			v.quads = cam.ToScreenQuads(float32(b.TopLeft.X), float32(b.TopLeft.Y),
 				float32(b.BottomRight.X), float32(b.BottomRight.Y), v.quads[:0])
 			for _, q := range v.quads {
-				f.Line(render.Marks, 0, q.X0, q.Y0, q.X1, q.Y0, boxWidth, boxColor)
-				f.Line(render.Marks, 0, q.X1, q.Y0, q.X1, q.Y1, boxWidth, boxColor)
-				f.Line(render.Marks, 0, q.X1, q.Y1, q.X0, q.Y1, boxWidth, boxColor)
-				f.Line(render.Marks, 0, q.X0, q.Y1, q.X0, q.Y0, boxWidth, boxColor)
+				f.Line(render.OnTop, q.X0, q.Y0, q.X1, q.Y0, boxWidth, boxColor)
+				f.Line(render.OnTop, q.X1, q.Y0, q.X1, q.Y1, boxWidth, boxColor)
+				f.Line(render.OnTop, q.X1, q.Y1, q.X0, q.Y1, boxWidth, boxColor)
+				f.Line(render.OnTop, q.X0, q.Y1, q.X0, q.Y0, boxWidth, boxColor)
 			}
 		}
 	}

@@ -81,9 +81,12 @@ func (v *views) look(cam camera.Camera, o observer) {
 	v.observers = append(v.observers, o)
 }
 
-func (v *views) draw(t render.Target, cam camera.Camera, ground ground.Heights, cover ground.Cover, w, h, step float32, wrap [2]bool, bend float64, shadow Shadow) {
+func (v *views) draw(
+	t render.Target, cam camera.Camera, ground ground.Heights, cover ground.Cover, w, h,
+	step float32, wrap [2]bool, bend float64, shadow Shadow,
+) {
 	defer func() { v.observers = v.observers[:0] }()
-	if t.Screen == nil || t.Depth == nil || len(v.observers) == 0 || step <= 0 {
+	if t.Screen == nil || ground != nil && t.Ground == nil || len(v.observers) == 0 || step <= 0 {
 		return
 	}
 	rays, ok := cam.(camera.Rays)
@@ -156,7 +159,12 @@ func (v *views) draw(t render.Target, cam camera.Camera, ground ground.Heights, 
 	v.groundUniforms(u, own)
 	sc := unitColor(shadow.Color)
 	set(u, own, "ShadowColor", sc[:]...)
-	v.drawing.ReadDepth, v.drawing.Images, v.drawing.Instances = t.Depth, [4]*render.Image{v.ground, v.bands, v.sight, nil}, v.instances
+	v.drawing.Images = [4]*render.Image{v.ground, v.bands, v.sight, nil}
+	v.drawing.Instances = v.instances
+	v.drawing.Depth, v.drawing.ReadDepth = nil, nil
+	if ground != nil {
+		v.drawing.Depth, v.drawing.ReadDepth = t.Depth, t.Ground
+	}
 	t.Screen.DrawMesh(nil, viewing, &v.drawing)
 }
 

@@ -70,6 +70,21 @@ What the frame pays back is the drawing: one call per sheet for everything a vie
 a call or several per cone, shadow, route and outline: whole frames of the island demos are 25–60%
 shorter.
 
+Since the order came from Z (2026-10-15) the figures are laid on the screen by the GPU: the
+renderer hands `render.Sprites` world rectangles and the shader projects them through the camera's
+matrix, a wrapping world's copies in the same call, so the CPU no longer projects, splits at the
+seams or culls every figure (`ToScreenQuads`, `Visible`, `math.Mod`). Measured alternately against
+the tree before, three runs each, the median:
+
+| Camera view | Before | After |
+|:---|---:|---:|
+| whole world | 841 µs | 409 µs |
+| a quarter | 233 µs | 121 µs |
+| a twentieth | 65 µs | 42 µs |
+
+The drawing of a motion/collision frame (8,388 boxes on a torus, `GRAM_FPS_LOG`) went from 2.15 ms
+to about 1.5 ms; its presenting grew by some 50 µs, the GPU projecting four copies of every box.
+
 ## Collision tick — `Benchmark_Collision_Tick`
 
 One tick of world plus collision at the collision demo's scales: movement, the space rebuilt,
@@ -274,11 +289,12 @@ appending every worker's vertices to the frame once more (`render.Frame.Append`)
 
 The composer's own share of handing a frame to Ebitengine — `Benchmark_Composer_Render`, the
 draw stubbed: each run of quads copied into the call's buffer and indexed, plain colours given
-the sheet's white texel — is 0.35 ms for 18 thousand pieces and 1.7 ms for 72 thousand; the whole
-island from above is 15.7 thousand pieces (63 thousand vertices), the perspective through 1080p
-8.7 thousand, the isometric view through 1080p 1.5 thousand. The rest of a frame's cost past
-composing is Ebitengine's: it converts every vertex it is handed per call, so a frame is handed
-in runs, never whole.
+the sheet's white texel — is 0.35 ms for 18 thousand pieces and 1.7 ms for 72 thousand (since a
+vertex carries its height, 2026-10-15, some 5% more: 0.43 and 2.07 against 0.41 and 2.0 that
+day); the whole island from above is 15.7 thousand pieces (63 thousand vertices), the perspective
+through 1080p 8.7 thousand, the isometric view through 1080p 1.5 thousand. The rest of a frame's
+cost past composing is Ebitengine's: it converts every vertex it is handed per call, so a frame is
+handed in runs, never whole.
 
 Before, every frame read every cell anew from the ECS, worked out every tile's light three times,
 and every blend's weights and every way's curve over again. Now the renderer keeps what it read of

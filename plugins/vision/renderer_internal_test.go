@@ -51,6 +51,8 @@ func testRenderer(t *testing.T, w, h uint32, toroidal bool, view camera.AABB) *R
 	t.Helper()
 	r := NewRenderer(testSpace(t, w, h, toroidal))
 	r.camera = icamera.NewFromSpace(w, h, torusIf(toroidal), view)
+	r.frame = new(render.Frame)
+	r.frame.Reset(r.camera)
 	return r
 }
 
@@ -65,7 +67,7 @@ func TestRenderer_FanRebuildsTheAnglesFromTheIndex(t *testing.T) {
 	out := SightOutline{Count: 3}
 	out.Depths[0], out.Depths[1], out.Depths[2] = 100, 200, 300
 
-	pts := r.fan(505, 505, math.Pi/4, &sight, &out)
+	pts := r.fan(505, 505, render.At{}, math.Pi/4, &sight, &out)
 	if len(pts) != 4 {
 		t.Fatalf("fan returned %d points, want the observer plus three samples", len(pts))
 	}
@@ -345,6 +347,8 @@ func isoRenderer(t *testing.T) *Renderer {
 	r.camera = isoCamera(1000, 1000, 800, 600)
 	r.camera.MoveTo(0, 0)
 	r.ground, r.step, r.grounded = slope{}, 10, true
+	r.frame = new(render.Frame)
+	r.frame.Reset(r.camera)
 	return r
 }
 
@@ -360,13 +364,13 @@ func TestRenderer_DrapesTheRingOverTheGroundInItsSteps(t *testing.T) {
 	if len(ring) != 1+4+3+2 {
 		t.Fatalf("a ring of %d points, want 10", len(ring))
 	}
-	if ring[0].Depth != r.camera.Depth(100, 100, 7) {
-		t.Errorf("the apex at depth %v, want the observer's at its altitude", ring[0].Depth)
+	if z := ring[0].At.Z(); z != 7+sightLift {
+		t.Errorf("the apex lies at %v, want just over the observer's altitude", z)
 	}
 	a := -0.2
-	x, y := 100+20*float32(math.Cos(a)), 100+20*float32(math.Sin(a))
-	if p := ring[2]; p.Depth != r.camera.Depth(x, y, x/10) {
-		t.Errorf("the edge point 20 out at depth %v, want the ground's there %v", p.Depth, r.camera.Depth(x, y, x/10))
+	x := 100 + 20*float32(math.Cos(a))
+	if z := ring[2].At.Z(); z != x/10+sightLift {
+		t.Errorf("the edge point 20 out lies at %v, want just over the ground there, %v", z, x/10)
 	}
 	from := func(p ConePoint) float64 { return math.Hypot(float64(p.X-ring[0].X), float64(p.Y-ring[0].Y)) }
 	if from(ring[8]) <= from(ring[9]) {
@@ -387,9 +391,9 @@ func TestRenderer_ShadowsFadeOnlyWhereTheyMeetGroundInSight(t *testing.T) {
 	r.shade(100, 100, 0.2, &sight, &o)
 
 	var pieces [][]float32 // per piece: left, right, top, bottom fade distance at its first corner
-	f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
-		if tier != render.Overlays {
-			t.Errorf("a shadow on tier %d, want Overlays", tier)
+	f.Each(func(at render.At, v []render.Vertex) {
+		if at == render.OnTop {
+			t.Error("a shadow is a mark, want it lying on the ground")
 		}
 		pieces = append(pieces, []float32{v[0].Custom0, v[3].Custom1, v[0].Custom2, v[3].Custom3})
 	})
@@ -451,7 +455,7 @@ func TestRenderer_ShadowsLeaveOutWhatIsNotInFrontOfTheEye(t *testing.T) {
 	}
 	r.shade(100, 100, 0.2, &sight, &o)
 	n := 0
-	f.Each(func(render.Tier, float32, []render.Vertex) { n++ })
+	f.Each(func(render.At, []render.Vertex) { n++ })
 	if n != 3 {
 		t.Errorf("%d shadow pieces, want the three farther ones: the nearer reach back short of x 146", n)
 	}
@@ -489,7 +493,7 @@ func TestRenderer_DrawsEachKindsConeInItsOwnColour(t *testing.T) {
 	)
 	f := composeWith(r)
 	blue, pale := 0, 0
-	f.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
+	f.Each(func(_ render.At, v []render.Vertex) {
 		switch {
 		case v[0].ColorB == 1:
 			blue++

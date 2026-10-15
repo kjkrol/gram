@@ -80,7 +80,8 @@ togglable modal panel over the still-ticking world.
 ## UI: a scene's screen composed of elements (`ui`)
 
 A Stage has many scenes, each a composition of a view built out of elements. Two levels of
-composing, never mixed: **the world** (2.5D/3D) is `render`'s (a Composer, tiers, depth, `Direct`),
+composing, never mixed: **the world** (2.5D/3D) is `render`'s (a Composer, order by Z in a depth
+buffer, `Direct`),
 **the screen** (2D) is `ui`'s tree, the order its containers' names say. **ui knows no camera** and
 no `render` rule: the world through a camera is a `render.Feed` (`render.NewFeed(cam, picture)`,
 drawn every frame into an image of the size it is shown at; `ToWorld`/`ToPixels`), which

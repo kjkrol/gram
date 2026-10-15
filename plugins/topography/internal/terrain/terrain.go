@@ -1,6 +1,6 @@
 // Package terrain draws a relief on the GPU as a mesh, every lattice corner a vertex at its
-// height, in place of the board's tiles: a [Renderer] ([New]) is a render.Direct source at the
-// Ground tier over a [Ground] (the relief), looking as its [Surface] says ([Painted]: the board
+// height, in place of the board's tiles: a [Renderer] ([New]) is a render.Direct source in the
+// opaque pass over a [Ground] (the relief), looking as its [Surface] says ([Painted]: the board
 // painted flat, its water, the shores, the grid) under a [Sky]. What stands on the ground is
 // tested against the depth it leaves; [Renderer.DrawShadows] lays the shadows of what stands on
 // it. The relief's shadows and those of the world's blocks are baked as the sun moves.
@@ -114,7 +114,7 @@ type Config struct {
 	Scale   world.Scale
 }
 
-// Renderer draws the ground as a mesh: a render.Direct source at the Ground tier.
+// Renderer draws the ground as a mesh: a render.Direct source in the opaque pass.
 type Renderer struct {
 	ground  Ground
 	surface Surface
@@ -181,11 +181,8 @@ func (r *Renderer) Init(si *goke.SysInit) {
 	r.findBlocks = r.onGround
 }
 
-// Compose hands the frame nothing: the ground is drawn Direct.
-func (r *Renderer) Compose(*render.Frame, camera.Camera) {}
-
-// Tier is render.Ground.
-func (r *Renderer) Tier() render.Tier { return render.Ground }
+// Compose has the ground drawn Direct, in the opaque pass.
+func (r *Renderer) Compose(f *render.Frame, _ camera.Camera) { f.DrawOpaque() }
 
 // Draw draws the ground into the target through cam under the frame's uniforms u. It draws
 // nothing through a camera without Rays, or off a square grid.

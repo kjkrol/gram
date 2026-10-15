@@ -47,9 +47,16 @@ func (c *viewCamera) Rays() (contract.RayField, bool) {
 	}
 	_, high := c.iso.layer()
 	x0, y0 := c.iso.Unproject(0, 0, high)
-	x1, y1 := c.iso.Unproject(1, 0, high)
-	x2, y2 := c.iso.Unproject(0, 1, high)
-	f := contract.RayField{Origin: [3]float32{x0, y0, high}, DX: [3]float32{x1 - x0, y1 - y0, 0}, DY: [3]float32{x2 - x0, y2 - y0, 0}}
+	// a pixel's step taken by the origin: between two far points it loses its last digits
+	p, k := c.iso.proj, 1/c.iso.zoom
+	ox, oy := p.Unproject(0, 0, high)
+	x1, y1 := p.Unproject(k, 0, high)
+	x2, y2 := p.Unproject(0, k, high)
+	f := contract.RayField{
+		Origin: [3]float32{x0, y0, high},
+		DX:     [3]float32{x1 - ox, y1 - oy, 0},
+		DY:     [3]float32{x2 - ox, y2 - oy, 0},
+	}
 	f.Dir = vec.Scale(c.iso.Projection().Toward(), -1)
 	return f, true
 }
@@ -95,7 +102,11 @@ func (c *viewCamera) Fasten(f contract.Fastening) { c.fastening = f }
 func (c *viewCamera) Fastening() contract.Fastening { return c.fastening }
 
 // fov is radians; the camera starts a pixel wide until whoever shows it gives it its size
-func newCamera(proj projection, width, height uint32, edges aabbworld.Edges, cfg contract.Config, fov float32, reaches bool, ground func(x, y float32) float32, extent func() (low, high float32), bend float32) *viewCamera {
+func newCamera(
+	proj projection, width, height uint32, edges aabbworld.Edges, cfg contract.Config, fov float32,
+	reaches bool, ground func(x, y float32) float32, extent func() (low, high float32),
+	bend float32,
+) *viewCamera {
 	if cfg.Whole {
 		panic("topography: a camera in relief cannot keep the whole world in view (camera.Config.Whole): that is a top-down camera's")
 	}

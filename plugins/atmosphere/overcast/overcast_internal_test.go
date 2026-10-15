@@ -67,3 +67,27 @@ func TestClouds_ShadeAFlatWorldOnTheGPU(t *testing.T) {
 		}
 	}
 }
+
+func TestClouds_LieOnTheGroundUnderWhatStands(t *testing.T) {
+	w := world.NewPlugin(
+		world.Config{
+			Space:    world.SpaceCfg{Width: 4096, Height: 4096},
+			Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8},
+		},
+	)
+	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
+	c := New(func() sky.Sun { return sky.DefaultSun }, func() air.Weather { return air.Weather{} })
+	var f render.Frame
+	f.Reset(cam)
+	c.Compose(&f, cam)
+	var places []render.At
+	f.Places(func(p render.Pass, at render.At) {
+		if p == render.SeeThrough {
+			places = append(places, at)
+		}
+	})
+	if len(places) != 1 || places[0].Z() != cloudLift || cloudLift >= world.FigureLift {
+		t.Errorf("the shadows lie at %v, want once at %v over the ground, under the figures' %v",
+			places, cloudLift, world.FigureLift)
+	}
+}

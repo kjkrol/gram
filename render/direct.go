@@ -4,20 +4,31 @@ import (
 	"github.com/kjkrol/gram/camera"
 )
 
-// Direct is a Source that draws a part of the picture itself, with a shader of its own, at its
-// Tier: after every piece the frame orders before that tier and before all the rest. Draw is
-// handed where to draw and the composer's uniforms this frame.
+// Direct is a Source that draws a part of the picture itself, with a shader of its own: in the
+// passes its Compose asked for (Frame.DrawOpaque, Frame.DrawAt), where Draw is handed which. A
+// Direct asking for none is not drawn.
 type Direct interface {
 	Source
-	Tier() Tier
 	Draw(t Target, cam camera.Camera, u Uniforms)
 }
 
-// Target is where a Direct source draws: the screen, nil in a test, and the depth buffer every
-// mesh of the frame shares.
+// Pass is which part of the picture a Direct draws in: the opaque ground first, then what is seen
+// through, back to front.
+type Pass uint8
+
+const (
+	Opaque Pass = iota
+	SeeThrough
+)
+
+// Target is where a Direct source draws: the screen, nil in a test; the depth buffer every mesh of
+// the frame shares, nil in a frame without a ground; the ground's depth alone for a source that
+// asked for it (Frame.ReadGround), nil in the opaque pass; and the pass.
 type Target struct {
 	Screen *Image
 	Depth  *Depth
+	Ground *Depth
+	Pass   Pass
 }
 
 // Uniforms is the composer's shader's uniforms this frame, by name, for a Direct source.

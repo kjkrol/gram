@@ -29,9 +29,7 @@ func (k *Kept) buffers(d *device) (*wgpu.Buffer, *wgpu.Buffer) {
 	}
 	verts := make([]byte, 0, vertexSize*len(k.verts))
 	for _, v := range k.verts {
-		for _, f := range [12]float32{v.DstX, v.DstY, v.SrcX, v.SrcY, v.ColorR, v.ColorG, v.ColorB, v.ColorA, v.Custom0, v.Custom1, v.Custom2, v.Custom3} {
-			verts = appendF32(verts, f)
-		}
+		verts = appendVertex(verts, v)
 	}
 	indices := make([]byte, 0, 2*len(k.indices)+2)
 	for _, i := range k.indices {
@@ -84,12 +82,12 @@ func DrawKept(dw *Draw, k *Kept) {
 	for i, im := range dw.Images {
 		imgs[i] = im.Texture
 	}
-	pipeline := dw.Program.pipeline(d, dw.Blend, t.format, noDepth)
+	pipeline := dw.Program.pipeline(d, dw.Blend, t.format, dw.depthMode(t))
 	group1 := d.images(imgs)
 	vbuf, ibuf := k.buffers(d)
 	d.ensure(0, 0)
-	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, dw.Place, dw.Tint)
-	pass := d.begin(t, nil, false)
+	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, dw.Place, dw.Tint, dw.Sight)
+	pass := d.begin(t, dw.Depth, false)
 	pass.SetPipeline(pipeline)
 	pass.SetBindGroup(0, d.group0, []uint32{uint32(dOff), uint32(uOff)})
 	pass.SetBindGroup(1, group1, nil)

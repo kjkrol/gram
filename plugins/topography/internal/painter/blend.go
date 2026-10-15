@@ -177,8 +177,8 @@ func contains(ids []render.SpriteID, id render.SpriteID) bool {
 	return false
 }
 
-// DrawBlends draws the neighbours' grounds running into the tile at depth.
-func (t *tile) DrawBlends(f *render.Frame, cam camera.Camera, depth float32) {
+// DrawBlends draws the neighbours' grounds running into the tile, lying at at.
+func (t *tile) DrawBlends(f *render.Frame, cam camera.Camera, at render.At) {
 	for _, p := range t.Blends() {
 		if !t.r.inFront(cam, p.World, p.Z) {
 			continue // beside or behind the eye, it would be thrown across the screen
@@ -187,6 +187,6 @@ func (t *tile) DrawBlends(f *render.Frame, cam camera.Camera, depth float32) {
 		for k, at := range p.World {
 			c[k][0], c[k][1] = cam.Project(at[0], at[1], p.Z[k])
 		}
-		f.SpriteBlend(render.Ground, depth, t.Atlas, p.Sprite, c, p.Light, p.Weight, p.Soft)
+		f.SpriteBlend(at, t.Atlas, p.Sprite, c, p.Light, p.Weight, p.Soft)
 	}
 }

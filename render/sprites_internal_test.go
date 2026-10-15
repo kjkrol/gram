@@ -7,10 +7,10 @@ import (
 
 func TestSprites_DrawsTheLowerFirstAndAtOneHeightTheLyingFirst(t *testing.T) {
 	var s Sprites
-	add := func(mark, depth float32, under bool) {
-		s.Layer(depth, under)
+	add := func(mark, z float32, under bool) {
+		s.Layer(At{z: z, key: z}, under)
 		s.piece(nil)
-		s.instances = append(s.instances, mark, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+		s.instances = append(s.instances, mark, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, z, 0, 0, 0)
 	}
 	add(1, 40, false) // a gate's top
 	add(2, 32, false) // a walker 32 tall
@@ -18,7 +18,7 @@ func TestSprites_DrawsTheLowerFirstAndAtOneHeightTheLyingFirst(t *testing.T) {
 	add(4, 32, true)  // a deck as high as his head
 	drawn, runs := s.byLayer()
 	var got []float32
-	for k := 0; k < len(drawn); k += 12 {
+	for k := 0; k < len(drawn); k += spriteFloats {
 		got = append(got, drawn[k])
 	}
 	if want := []float32{3, 4, 2, 1}; !slices.Equal(got, want) {

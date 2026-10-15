@@ -34,7 +34,7 @@
 //
 // # Drawing and commands
 //
-// [Plugin.Renderer] draws the ground, a render.Direct at the Ground tier for the scene's
+// [Plugin.Renderer] draws the ground, a render.Direct in the opaque pass of the scene's
 // composer. The plugin is a plugin.CommandHandler for the views', the shaping's and the shadows'
 // commands ([Plugin.Queues], [Plugin.DefaultBindings]); call [Plugin.RunPlan] after the world
 // has moved and before the players' RunPlan.

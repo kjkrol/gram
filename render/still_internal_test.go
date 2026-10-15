@@ -14,14 +14,14 @@ func TestStill_IsDrawnWhereTheCameraShowsTheWorld(t *testing.T) {
 	atlas.Close()
 	s := NewStill()
 	s.Compose(100, 100, func(f *Frame, _ camera.Camera) {
-		f.SpriteRect(Ground, 0, atlas, 1, 10, 10, 20, 20, Even(1))
+		f.SpriteRect(h(0), atlas, 1, 10, 10, 20, 20, Even(1))
 	})
 	if s.Len() != 1 {
 		t.Fatalf("the still holds %d pieces, want 1", s.Len())
 	}
 	screen := NewImage(64, 64)
 	pix := make([]byte, 4*64*64)
-	s.Draw(screen, UniformsOf(map[string]any{}), 2, 5, 5, Light{0.5, 0.5, 0.5})
+	s.Draw(Target{Screen: screen}, nil, UniformsOf(map[string]any{}), 2, 5, 5, Light{0.5, 0.5, 0.5})
 	screen.ReadPixels(pix)
 	at := func(x, y int) [4]byte { i := 4 * (y*64 + x); return [4]byte(pix[i : i+4]) }
 	// the world (10, 10) to (20, 20) seen from (5, 5) at 2 pixels a unit: the screen's 10 to 30

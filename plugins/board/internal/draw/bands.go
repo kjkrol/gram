@@ -13,9 +13,6 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// over the tiles, under the grid's lines
-const bandTier = render.Ground + 5
-
 // Ways is what Bands read of a board: where each cell's neighbours lie and what runs across it.
 type Ways interface {
 	Toward(c cell.ID, i int) (cell.ID, bool)
@@ -55,14 +52,19 @@ func (*Bands) Light(*look.Tile) render.Shade { return render.Even(1) }
 // EvenLight is white: the simple map's tiles are drawn as they are.
 func (*Bands) EvenLight() (render.Light, bool) { return render.Light{1, 1, 1}, true }
 
-func (d *Bands) Dress(f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1, depth float32) {
-	d.covered(f, cam, t, depth)
+func (d *Bands) Dress(
+	f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1 float32, at render.At,
+) {
+	d.covered(f, cam, t, at)
+}
+
+func (d *Bands) Across(f *render.Frame, cam camera.Camera, t *look.Tile) {
 	if w := d.board.Way(t.ID); w.Runs() {
-		d.bands(f, cam, t, w, depth)
+		d.bands(f, cam, t, w, f.At((t.X0+t.X1)/2, (t.Y0+t.Y1)/2, 0))
 	}
 }
 
-func (d *Bands) bands(f *render.Frame, cam camera.Camera, t *look.Tile, w cell.Way, depth float32) {
+func (d *Bands) bands(f *render.Frame, cam camera.Camera, t *look.Tile, w cell.Way, at render.At) {
 	keep := 1 - min(max(w.Fade, 0), 1)
 	var box [4]float32
 	box[0], box[1] = cam.Project(t.X0, t.Y0, 0)
@@ -89,7 +91,7 @@ func (d *Bands) bands(f *render.Frame, cam camera.Camera, t *look.Tile, w cell.W
 			sx, sy := cam.Project(p[0], p[1], 0)
 			d.pts = append(d.pts, [2]float32{sx, sy})
 		}
-		f.SpriteFan(bandTier, depth, t.Atlas, w.Kind.SpriteID, d.pts, box, keep)
+		f.SpriteFan(at, t.Atlas, w.Kind.SpriteID, d.pts, box, keep)
 	}
 	// the hub: an octagon of the band's width, so the bands meet round without a notch
 	d.pts = d.pts[:0]
@@ -98,5 +100,5 @@ func (d *Bands) bands(f *render.Frame, cam camera.Camera, t *look.Tile, w cell.W
 		sx, sy := cam.Project(cx+half*float32(math.Cos(a)), cy+half*float32(math.Sin(a)), 0)
 		d.pts = append(d.pts, [2]float32{sx, sy})
 	}
-	f.SpriteFan(bandTier, depth, t.Atlas, w.Kind.SpriteID, d.pts, box, keep)
+	f.SpriteFan(at, t.Atlas, w.Kind.SpriteID, d.pts, box, keep)
 }

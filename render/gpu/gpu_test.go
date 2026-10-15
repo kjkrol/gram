@@ -154,7 +154,12 @@ func TestMesh_TheNearerCoversTheFurtherWhicheverComesFirst(t *testing.T) {
 struct Out { @builtin(position) clip: vec4<f32> }
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> Out {
-    var corners = array<vec2<f32>, 4>(vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0));
+    var corners = array<vec2<f32>, 4>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(1.0, -1.0),
+        vec2<f32>(-1.0, 1.0),
+        vec2<f32>(1.0, 1.0),
+    );
     var o: Out;
     o.clip = vec4<f32>(corners[vid], U.Depth, 1.0);
     return o;
@@ -228,5 +233,221 @@ func TestNewTexture_IsTransparent(t *testing.T) {
 		if b != 0 {
 			t.Fatalf("byte %d of a new texture is %d, want transparent", i, b)
 		}
+	}
+}
+
+// a 4 by 4 quad over the whole target at depth z, in c
+func depthQuad(dst *Texture, dp *Depth, test DepthTest, z float32, c [4]float32) {
+	v := func(x, y float32) Vertex {
+		return Vertex{
+			DstX:   x,
+			DstY:   y,
+			DstZ:   z,
+			ColorR: c[0],
+			ColorG: c[1],
+			ColorB: c[2],
+			ColorA: c[3],
+		}
+	}
+	Triangles(
+		&Draw{
+			Target:  Image{Texture: dst},
+			Program: fillProgram,
+			Blend:   Copy,
+			Depth:   dp,
+			Test:    test,
+		},
+		[]Vertex{v(0, 0), v(4, 0), v(0, 4), v(4, 4)},
+		[]uint16{0, 1, 2, 1, 2, 3},
+	)
+}
+
+var (
+	red   = [4]float32{1, 0, 0, 1}
+	green = [4]float32{0, 1, 0, 1}
+	blue  = [4]float32{0, 0, 1, 1}
+)
+
+func TestTriangles_TheNearerCoversTheFurtherAndAtOneDepthTheLaterWins(t *testing.T) {
+	needGPU(t)
+	dst := NewTexture(4, 4)
+	dp := NewDepth()
+	pix := make([]byte, 64)
+	for _, tc := range []struct {
+		name   string
+		draws  []func()
+		want   [4]byte
+		reason string
+	}{
+		{"near then far", []func(){
+			func() { depthQuad(dst, dp, Written, 0.8, red) },
+			func() { depthQuad(dst, dp, Written, 0.2, blue) },
+		}, [4]byte{255, 0, 0, 255}, "the far blue drawn later stays behind"},
+		{"far then near", []func(){
+			func() { depthQuad(dst, dp, Written, 0.2, blue) },
+			func() { depthQuad(dst, dp, Written, 0.8, green) },
+		}, [4]byte{0, 255, 0, 255}, "the near green drawn later covers"},
+		{"one depth", []func(){
+			func() { depthQuad(dst, dp, Written, 0.5, red) },
+			func() { depthQuad(dst, dp, Tested, 0.5, blue) },
+		}, [4]byte{0, 0, 255, 255}, "at one depth the later wins"},
+		{"untested", []func(){
+			func() { depthQuad(dst, dp, Written, 0.9, red) },
+			func() { depthQuad(dst, dp, Untested, 0.1, green) },
+		}, [4]byte{0, 255, 0, 255}, "an untested draw covers whatever the depth"},
+	} {
+		ClearDepth(Image{Texture: dst}, dp)
+		for _, d := range tc.draws {
+			d()
+		}
+		dst.ReadPixels(pix)
+		if p := pixel(pix, 4, 1, 2); p != tc.want {
+			t.Errorf("%s: %v, want %v: %s", tc.name, p, tc.want, tc.reason)
+		}
+	}
+}
+
+func TestCopyDepth_AReaderOfTheCopyIsHiddenWhereSomethingNearerCameAfter(t *testing.T) {
+	needGPU(t)
+	reader := NewMesh("test reader", "", `
+struct Out { @builtin(position) clip: vec4<f32> }
+@vertex
+fn vs_main(@builtin(vertex_index) vid: u32) -> Out {
+    var corners = array<vec2<f32>, 4>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(1.0, -1.0),
+        vec2<f32>(-1.0, 1.0),
+        vec2<f32>(1.0, 1.0),
+    );
+    var o: Out;
+    o.clip = vec4<f32>(corners[vid], 0.0, 1.0);
+    return o;
+}
+struct Laid { @location(0) color: vec4<f32>, @builtin(frag_depth) depth: f32 }
+@fragment
+fn fs_main(o: Out) -> Laid { return Laid(vec4<f32>(0.0, 0.0, 1.0, 1.0), depthAt(o.clip.xy)); }`)
+	dst := NewTexture(4, 4)
+	main, ground := NewDepth().Readable(), NewDepth().Readable()
+	ClearDepth(Image{Texture: dst}, main)
+	depthQuad(dst, main, Written, 0.3, red) // the ground
+	CopyDepth(Image{Texture: dst}, main, ground)
+	v := func(x, y float32) Vertex {
+		return Vertex{DstX: x, DstY: y, DstZ: 0.7, ColorG: 1, ColorA: 1}
+	}
+	// a figure, left half
+	Triangles(
+		&Draw{
+			Target:  Image{Texture: dst},
+			Program: fillProgram,
+			Blend:   Copy,
+			Depth:   main,
+			Test:    Written,
+		},
+		[]Vertex{v(0, 0), v(2, 0), v(0, 4), v(2, 4)},
+		[]uint16{0, 1, 2, 1, 2, 3},
+	)
+	Mesh(&MeshDraw{Target: Image{Texture: dst}, Depth: main, ReadDepth: ground, Program: reader,
+		Vertices: 4, Indices: NewIndices([]uint32{0, 1, 2, 1, 2, 3}), Blend: Copy})
+	pix := make([]byte, 64)
+	dst.ReadPixels(pix)
+	if l, r := pixel(pix, 4, 0, 1), pixel(pix, 4, 3, 1); l != [4]byte{0, 255, 0, 255} ||
+		r != [4]byte{0, 0, 255, 255} {
+		t.Errorf("the left is %v and the right %v, want the figure green over the laid blue", l, r)
+	}
+}
+
+func TestReadable_ADepthMadeReadableBeforeItsFirstDrawKeepsWhatItHolds(t *testing.T) {
+	needGPU(t)
+	dst := NewTexture(4, 4)
+	held, copied := NewDepth().Readable(), NewDepth().Readable()
+	ClearDepth(Image{Texture: dst}, held)
+	depthQuad(dst, held, Written, 0.5, red)
+	CopyDepth(Image{Texture: dst}, held, copied)
+	depthQuad(dst, copied, Tested, 0.4, blue) // behind what was copied
+	pix := make([]byte, 64)
+	dst.ReadPixels(pix)
+	if p := pixel(pix, 4, 2, 2); p != [4]byte{255, 0, 0, 255} {
+		t.Errorf("behind the copied depth %v, want the red kept", p)
+	}
+}
+
+func TestTriangles_ASightTakesHeightsForDepths(t *testing.T) {
+	needGPU(t)
+	// straight down from 100, a pixel a unit: the depth (z + 200) / 400, 1 nearest
+	sight := &Sight{Origin: [3]float32{0, 0, 100}, DX: [3]float32{1, 0, 0}, DY: [3]float32{0, 1, 0},
+		Dir: [3]float32{
+			0,
+			0,
+			-1,
+		}, Z: [4]float32{0, 0, 1.0 / 400, 200.0 / 400}, W: [4]float32{0, 0, 0, 1}}
+	dst := NewTexture(4, 4)
+	dp := NewDepth()
+	at := func(z float32, test DepthTest, c [4]float32) {
+		v := func(x, y float32) Vertex {
+			return Vertex{
+				DstX:   x,
+				DstY:   y,
+				DstZ:   z,
+				ColorR: c[0],
+				ColorG: c[1],
+				ColorB: c[2],
+				ColorA: c[3],
+			}
+		}
+		Triangles(
+			&Draw{
+				Target:  Image{Texture: dst},
+				Program: fillProgram,
+				Blend:   Copy,
+				Depth:   dp,
+				Test:    test,
+				Sight:   sight,
+			},
+			[]Vertex{v(0, 0), v(4, 0), v(0, 4), v(4, 4)},
+			[]uint16{0, 1, 2, 1, 2, 3},
+		)
+	}
+	pix := make([]byte, 64)
+	ClearDepth(Image{Texture: dst}, dp)
+	at(40, Written, red)
+	at(0, Tested, blue)
+	dst.ReadPixels(pix)
+	if p := pixel(pix, 4, 1, 1); p != [4]byte{255, 0, 0, 255} {
+		t.Errorf("the ground drawn after a roof 40 up %v, want the roof red", p)
+	}
+	ClearDepth(Image{Texture: dst}, dp)
+	at(0, Written, blue)
+	at(40, Tested, green)
+	dst.ReadPixels(pix)
+	if p := pixel(pix, 4, 1, 1); p != [4]byte{0, 255, 0, 255} {
+		t.Errorf("a roof 40 up drawn after the ground %v, want it green", p)
+	}
+}
+
+func TestFillBehind_FillsOnlyWhereNothingWasDrawn(t *testing.T) {
+	needGPU(t)
+	dst := NewTexture(4, 4)
+	dp := NewDepth()
+	ClearDepth(Image{Texture: dst}, dp)
+	v := func(x, y float32) Vertex {
+		return Vertex{DstX: x, DstY: y, DstZ: 0.3, ColorR: 1, ColorA: 1}
+	}
+	Triangles(
+		&Draw{
+			Target:  Image{Texture: dst},
+			Program: fillProgram,
+			Blend:   Copy,
+			Depth:   dp,
+			Test:    Written,
+		},
+		[]Vertex{v(0, 0), v(2, 0), v(0, 4), v(2, 4)},
+		[]uint16{0, 1, 2, 1, 2, 3},
+	)
+	FillBehind(Image{Texture: dst}, dp, 0, 0, 1, 1)
+	pix := make([]byte, 64)
+	dst.ReadPixels(pix)
+	if l, r := pixel(pix, 4, 1, 1), pixel(pix, 4, 2, 1); l != [4]byte{255, 0, 0, 255} ||
+		r != [4]byte{0, 0, 255, 255} {
+		t.Errorf("the drawn left is %v and the empty right %v, want red kept and blue filled", l, r)
 	}
 }

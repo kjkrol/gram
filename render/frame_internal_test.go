@@ -9,8 +9,12 @@ import (
 
 func pieces(f *Frame) [][3]float32 {
 	var out [][3]float32
-	f.Each(func(tier Tier, depth float32, v []Vertex) {
-		out = append(out, [3]float32{float32(tier), depth, v[0].DstX})
+	f.Each(func(at At, v []Vertex) {
+		top := float32(0)
+		if at.top {
+			top = 1
+		}
+		out = append(out, [3]float32{top, at.key, v[0].DstX})
 	})
 	return out
 }
@@ -21,9 +25,9 @@ func TestFrame_AppendTakesBackWhatABranchGatheredInOrder(t *testing.T) {
 	draw := func(f *Frame, from, to int) {
 		for i := from; i < to; i++ {
 			x := float32(i)
-			f.Soft(Ground, x, quad(x), color.RGBA{A: 255}, Fade{})
-			f.Line(Overlays, x, x, 0, x+1, 1, 1, color.RGBA{R: 255, A: 255})
-			f.Fan(Marks, x, [][2]float32{{x, 0}, {x + 1, 0}, {x + 1, 1}}, color.RGBA{A: 255})
+			f.Soft(h(x), quad(x), color.RGBA{A: 255}, Fade{})
+			f.Line(h(x), x, 0, x+1, 1, 1, color.RGBA{R: 255, A: 255})
+			f.Fan(OnTop, [][2]float32{{x, 0}, {x + 1, 0}, {x + 1, 1}}, color.RGBA{A: 255})
 			f.Uniform("Seen", x)
 		}
 	}

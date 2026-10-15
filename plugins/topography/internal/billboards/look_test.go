@@ -48,7 +48,7 @@ func TestBillboards_StandEntitiesUprightOnTheirCentre(t *testing.T) {
 	stand := func(z world.Z) [][6]float32 {
 		var f render.Frame
 		f.Reset(cam)
-		look.(world.DirectLook).Begin(cam)
+		look.(world.DirectLook).Begin(&render.Frame{}, cam)
 		look.Sprite(&f, cam, box, z, sheet{}, render.Appearance{}, render.Light{1, 1, 1})
 		return billboards.Stood(look)
 	}
@@ -91,7 +91,7 @@ func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 	lean := func(sway float32) float32 {
 		var f render.Frame
 		f.Reset(cam)
-		look.(world.DirectLook).Begin(cam)
+		look.(world.DirectLook).Begin(&render.Frame{}, cam)
 		look.Sprite(&f, cam, box, world.Z{}, sheet{}, render.Appearance{Sway: sway}, render.Light{1, 1, 1})
 		return billboards.Stood(look)[0][5]
 	}
@@ -106,7 +106,7 @@ func TestBillboards_LayADeckOnItsBeam(t *testing.T) {
 	look := w.Look()
 	var f render.Frame
 	f.Reset(cam)
-	look.(world.DirectLook).Begin(cam)
+	look.(world.DirectLook).Begin(&render.Frame{}, cam)
 	box := plane.NewAABB(geom.NewVec(40, 40), 16, 16)
 	lie := world.Lie{Length: 30, Width: 12, Edged: true, Edge: 2}
 	look.(world.LyingLook).Lay(&f, cam, box, geom.NewVec(1, 0), lie,

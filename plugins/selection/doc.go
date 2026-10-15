@@ -31,9 +31,9 @@
 //
 // # Renderer
 //
-// [Plugin.Renderer] is the [Renderer], a render.Source outlining every Selected entity on the
-// render.Marks tier in its kind's [Highlight] ([DefaultHighlight] a thin red outline), and the
-// box of a selection being dragged ([Marquee]), one per camera.
+// [Plugin.Renderer] is the [Renderer], a render.Source outlining every Selected entity, a mark on
+// top, in its kind's [Highlight] ([DefaultHighlight] a thin red outline), and the box of a
+// selection being dragged ([Marquee]), one per camera.
 //
 // # Vocabulary
 //

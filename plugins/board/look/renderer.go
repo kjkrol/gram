@@ -76,6 +76,7 @@ type Renderer struct {
 	// scaleVaries: a perspective draws a world unit larger in some places than others
 	scaleVaries bool
 
+	over       render.Frame   // what runs across the board, laid after every tile
 	space      world.SpaceCfg // zero for none: the tiles composed every frame
 	still      *render.Still
 	stillAt    uint64
@@ -100,10 +101,16 @@ const MinGridCell = 6
 
 var _ render.Direct = (*Renderer)(nil)
 
-const gridTier = render.Ground + 10
+// how far over the ground what the board lays on it lies among what lies there: its materials,
+// then its grid, under the sight and the routes
+const (
+	materialLift = 0.05
+	gridLift     = 0.1
+)
 
 type tileWorker struct {
 	frame   render.Frame
+	over    render.Frame
 	tile    Tile
 	outline []geom.Vec
 	dress   Dressing
@@ -151,6 +158,10 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if l.stillLight, l.stillOn = l.evenLight(m, d, cam); l.stillOn {
 		l.composeStill(look, d)
 		l.camera = cam
+		f.DrawOpaque()
+		if l.gridDrawn(cam) {
+			f.DrawAt(f.OnGround(gridLift))
+		}
 		l.materials(f)
 		return
 	}
@@ -158,8 +169,9 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	l.materials(f)
 }
 
-// over the still and the tiles, under the grid's lines
-const materialTier = render.Ground + 5
+func (l *Renderer) gridDrawn(cam camera.Camera) bool {
+	return l.state.ShowGridLines && float32(min(l.cellW, l.cellH))*cam.Zoom() >= MinGridCell
+}
 
 // the material's inputs: World the cell's box, Custom its middle and half its width, Red 1
 func (l *Renderer) materials(f *render.Frame) {
@@ -182,20 +194,25 @@ func (l *Renderer) materials(f *render.Frame) {
 			Red:      [4]float32{1, 1, 1, 1},
 			Custom:   [4][4]float32{custom, custom, custom, custom},
 		}
+		at := f.Lifted(float32(center.X), float32(center.Y), l.topOf(c).alt, materialLift)
 		l.quads = cam.ToScreenQuads(x0, y0, x1, y1, l.quads[:0])
 		for _, q := range l.quads {
-			f.Material(materialTier, 0, render.Corners{{q.X0, q.Y0}, {q.X1, q.Y0}, {q.X0, q.Y1}, {q.X1, q.Y1}}, &o)
+			quad := render.Corners{{q.X0, q.Y0}, {q.X1, q.Y0}, {q.X0, q.Y1}, {q.X1, q.Y1}}
+			f.Material(at, quad, &o)
 		}
 	})
 }
 
-// Tier is where the still comes.
-func (l *Renderer) Tier() render.Tier { return render.Ground }
-
-// Draw draws the still through cam and the grid over it; nothing where the tiles were composed
-// into the frame.
+// Draw draws the still through cam in the opaque pass, and the grid over it after; nothing where
+// the tiles were composed into the frame.
 func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if !l.stillOn || t.Screen == nil {
+		return
+	}
+	if t.Pass == render.SeeThrough {
+		if l.gridDrawn(cam) {
+			l.grid.draw(t, cam, u, l.board, l.space.Edges.WrapsX(), l.space.Edges.WrapsY())
+		}
 		return
 	}
 	zoom := cam.Zoom()
@@ -211,11 +228,8 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	}
 	for _, sy := range ys {
 		for _, sx := range xs {
-			l.still.Draw(t.Screen, u, zoom, sx, sy, l.stillLight)
+			l.still.Draw(t, cam, u, zoom, sx, sy, l.stillLight)
 		}
-	}
-	if l.state.ShowGridLines && float32(min(l.cellW, l.cellH))*zoom >= MinGridCell {
-		l.grid.draw(t, cam, u, l.board, l.space.Edges.WrapsX(), l.space.Edges.WrapsY())
 	}
 }
 
@@ -267,7 +281,11 @@ func (l *Renderer) compose(f *render.Frame, look Look, d Dressing) {
 	par, ok := d.(Parallel)
 	pl, okLook := look.(ParallelLook)
 	if !ok || !okLook || l.count == 1 {
-		l.eachVisible(func(c cell.ID) { l.outline = l.cell(f, look, &l.tile, c, l.outline) })
+		f.Branch(&l.over)
+		l.eachVisible(func(c cell.ID) {
+			l.outline = l.cell(f, &l.over, look, &l.tile, c, l.outline)
+		})
+		f.Append(&l.over)
 		return
 	}
 	l.cells = l.cells[:0]
@@ -279,9 +297,11 @@ func (l *Renderer) compose(f *render.Frame, look Look, d Dressing) {
 	})
 	k := parallel.Workers(len(l.cells), tilesPerWorker, l.count)
 	if k < 2 {
+		f.Branch(&l.over)
 		for _, c := range l.cells {
-			l.outline = l.cell(f, look, &l.tile, c, l.outline)
+			l.outline = l.cell(f, &l.over, look, &l.tile, c, l.outline)
 		}
+		f.Append(&l.over)
 		return
 	}
 	par.Ready()
@@ -295,15 +315,19 @@ func (l *Renderer) compose(f *render.Frame, look Look, d Dressing) {
 		tw.look = pl.Worker(w, tw.dress)
 		tw.tile.Atlas, tw.tile.dress = sheet, tw.dress
 		f.Branch(&tw.frame)
+		f.Branch(&tw.over)
 	}
 	parallel.Run(k, len(l.cells), func(w, from, to int) {
 		tw := l.workers[w]
 		for _, c := range l.cells[from:to] {
-			tw.outline = l.cell(&tw.frame, tw.look, &tw.tile, c, tw.outline)
+			tw.outline = l.cell(&tw.frame, &tw.over, tw.look, &tw.tile, c, tw.outline)
 		}
 	})
 	for _, tw := range l.workers[:k] {
 		f.Append(&tw.frame)
+	}
+	for _, tw := range l.workers[:k] {
+		f.Append(&tw.over)
 	}
 }
 
@@ -315,7 +339,10 @@ func (l *Renderer) place(t *Tile, c cell.ID) geom.Vec {
 	return center
 }
 
-func (l *Renderer) cell(f *render.Frame, look Look, t *Tile, c cell.ID, outline []geom.Vec) []geom.Vec {
+// the tile and what lies on it go to f, what runs across the board to over
+func (l *Renderer) cell(
+	f, over *render.Frame, look Look, t *Tile, c cell.ID, outline []geom.Vec,
+) []geom.Vec {
 	if _, ok := l.shaded[l.board.Kind(c).Name]; ok {
 		return outline // a material, never drawn as a tile
 	}
@@ -323,6 +350,9 @@ func (l *Renderer) cell(f *render.Frame, look Look, t *Tile, c cell.ID, outline 
 	grid := l.gridShown(c, center)
 	t.Outlined = grid && l.square
 	look.Cell(f, l.camera, t)
+	if t.dress != nil {
+		t.dress.Across(over, l.camera, t)
+	}
 	if grid && !l.square {
 		return l.outlineLines(f, c, outline)
 	}
@@ -353,7 +383,8 @@ func (l *Renderer) outlineLines(f *render.Frame, c cell.ID, outline []geom.Vec) 
 		if abs32(bx-ax) > reach || abs32(by-ay) > reach {
 			continue
 		}
-		f.Line(gridTier, max(l.camera.Depth(px, py, alt), l.camera.Depth(qx, qy, alt)), ax, ay, bx, by, 1, colorGridLine)
+		at := f.Lifted((px+qx)/2, (py+qy)/2, alt, gridLift)
+		f.Line(at, ax, ay, bx, by, 1, colorGridLine)
 	}
 	return outline
 }

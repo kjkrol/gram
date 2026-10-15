@@ -2,8 +2,8 @@
 // instance a patch (sky.Patch): its middle (x, y) and the way away from the sun (z, w); how far it
 // reaches along and across that way, how far in it fades and how dark it is; the rectangle of the
 // viewport it may cover, pixels. Every pixel of it finds the ground point drawn there from the
-// frame's depth (depthAt, through U.Unproject, the viewport U.ViewSize pixels from U.ViewAt) and
-// darkens it as the terrain's shadows do (terrain's shadow.wgsl).
+// ground's depth (depthAt, through U.Unproject, the viewport U.ViewSize pixels from U.ViewAt) and
+// darkens it as the terrain's shadows do (terrain's shadow.wgsl), lying at the ground's depth.
 
 struct Shade {
     @builtin(position) clip: vec4<f32>,
@@ -28,8 +28,13 @@ fn vs_main(
     return s;
 }
 
+struct Laid {
+    @location(0) color: vec4<f32>,
+    @builtin(frag_depth) depth: f32,
+}
+
 @fragment
-fn fs_main(@builtin(position) frag: vec4<f32>, s: Shade) -> @location(0) vec4<f32> {
+fn fs_main(@builtin(position) frag: vec4<f32>, s: Shade) -> Laid {
     let depth = depthAt(frag.xy);
     if depth <= 0.0 {
         discard; // nothing drawn there
@@ -44,5 +49,5 @@ fn fs_main(@builtin(position) frag: vec4<f32>, s: Shade) -> @location(0) vec4<f3
     if a < 0.002 {
         discard;
     }
-    return vec4<f32>(0.0, 0.0, 0.0, a);
+    return Laid(vec4<f32>(0.0, 0.0, 0.0, a), depth);
 }

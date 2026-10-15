@@ -29,14 +29,17 @@ func (*stripes) Base(t *look.Tile) render.SpriteID                 { return t.Sp
 func (*stripes) FaceLight(*look.Tile, int, int) render.Light       { return render.Light{1, 1, 1} }
 func (*stripes) Covers(*look.Tile) bool                            { return false }
 func (*stripes) Light(t *look.Tile) render.Shade                   { return render.Even(float32(t.ID%7) / 7) }
-func (s *stripes) Dress(f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1, depth float32) {
+func (s *stripes) Dress(
+	f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1 float32, at render.At,
+) {
 	ax, ay := cam.Project(x0, y0, 0)
 	bx, by := cam.Project(x1, y1, 0)
-	f.Line(render.Ground+5, depth, ax, ay, bx, by, 1, color.RGBA{R: uint8(t.ID), A: 255})
+	f.Line(at, ax, ay, bx, by, 1, color.RGBA{R: uint8(t.ID), A: 255})
 	s.dressed = append(s.dressed, int(t.ID))
 }
-func (s *stripes) Warm(*look.Tile) { s.warmed.Add(1) }
-func (s *stripes) Ready()          { s.readied++ }
+func (*stripes) Across(*render.Frame, camera.Camera, *look.Tile) {}
+func (s *stripes) Warm(*look.Tile)                               { s.warmed.Add(1) }
+func (s *stripes) Ready()                                        { s.readied++ }
 func (s *stripes) Worker(k int) look.Dressing {
 	s.workers = max(s.workers, k+1)
 	return &stripes{}
@@ -53,7 +56,7 @@ func piecesOf(r *look.Renderer, cam camera.Camera) (out [][]render.Vertex, n int
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
-	f.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
+	f.Each(func(_ render.At, v []render.Vertex) {
 		out = append(out, append([]render.Vertex(nil), v...))
 	})
 	return out, f.Len()
@@ -97,7 +100,7 @@ func TestRenderer_Compose_APlainLookKeepsOneGoroutine(t *testing.T) {
 	seen := 0
 	lk := lookFn(func(f *render.Frame, cam camera.Camera, tile *look.Tile) {
 		seen++
-		tile.Dress(f, cam, tile.X0, tile.Y0, tile.X1, tile.Y1, 0)
+		tile.Dress(f, cam, tile.X0, tile.Y0, tile.X1, tile.Y1, f.At(tile.X0, tile.Y0, 0))
 	})
 	r := newRenderer(brd, flatAtlas{}, look.RenderState{}, stripedMap{lookMap{lk}, d})
 	if _, n := piecesOf(r, icamera.NewFromSpace(512, 512, 0)); n != 256 || seen != 256 || d.warmed.Load() != 0 || d.workers != 0 {

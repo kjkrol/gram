@@ -289,33 +289,35 @@ type wayOut struct {
 // rise over run under which water lies level
 const stillFall = 0.01
 
-// over every tile: a way reaching into a neighbour's cell is never covered by its tile
-const wayTier = render.Ground + 5
-
-// DrawWay draws what runs across the tile over it, at depth. A piece reaching across a corner
-// takes the depth of the nearest of the four cells meeting there, so none of them covers it.
-func (t *tile) DrawWay(f *render.Frame, cam camera.Camera, depth float32) {
-	t.drawLane(f, cam, depth, wayTier, t.Way())
+// DrawWay draws what runs across the tile over it. A piece reaching across a corner lies where the
+// nearest of the four cells meeting there does, so none of them covers it.
+func (t *tile) DrawWay(f *render.Frame, cam camera.Camera) {
+	t.drawLane(f, cam, t.Way())
 }
 
-func (t *tile) drawLane(f *render.Frame, cam camera.Camera, depth float32, tier render.Tier, pieces []WayPiece) {
+func (t *tile) drawLane(f *render.Frame, cam camera.Camera, pieces []WayPiece) {
 	w, h := (t.X1-t.X0)/2, (t.Y1-t.Y0)/2
 	for _, p := range pieces {
 		if !t.r.inFront(cam, p.World, p.Z) {
 			continue // beside or behind the eye, it would be thrown across the screen
 		}
 		var corners render.Corners
+		var cx, cy float32
 		for k, at := range p.World {
 			corners[k][0], corners[k][1] = cam.Project(at[0], at[1], p.Z[k])
+			cx, cy = cx+at[0]/4, cy+at[1]/4
 		}
-		d := depth
+		at := f.At(cx, cy, max(p.Z[0], p.Z[1], p.Z[2], p.Z[3]))
 		if p.Across {
 			for _, o := range [4][2]float32{{-w, -h}, {w, -h}, {-w, h}, {w, h}} {
 				x, y := p.Corner[0]+o[0], p.Corner[1]+o[1]
-				d = max(d, cam.Depth(x, y, float32(t.r.relief.GroundAt(geom.NewVec(float64(x), float64(y))))))
+				ground := float32(t.r.relief.GroundAt(geom.NewVec(float64(x), float64(y))))
+				if near := f.At(x, y, ground); at.Before(near) {
+					at = near
+				}
 			}
 		}
-		p.draw(f, tier, d, t.Atlas, corners, p.Light)
+		p.draw(f, at, t.Atlas, corners, p.Light)
 		lit := p.Lit
 		var runs, glints [4]float32
 		for k, m := range p.Mix {
@@ -333,24 +335,27 @@ func (t *tile) drawLane(f *render.Frame, cam camera.Camera, depth float32, tier 
 	}
 }
 
-func (p *WayPiece) draw(f *render.Frame, tier render.Tier, depth float32, atlas render.AtlasSource, corners render.Corners, shade render.Shade) render.Mark {
+func (p *WayPiece) draw(
+	f *render.Frame, at render.At, atlas render.AtlasSource, corners render.Corners,
+	shade render.Shade,
+) render.Mark {
 	mixes := p.Mixes && max(p.Mix[0], p.Mix[1], p.Mix[2], p.Mix[3]) > 0
 	if p.Faded {
 		soft := p.Soft
 		if soft <= 0 {
 			soft = 0.5
 		}
-		f.SpriteBlend(tier, depth, atlas, p.Sprite, corners, shade, p.Weight, soft)
+		f.SpriteBlend(at, atlas, p.Sprite, corners, shade, p.Weight, soft)
 		drawn := f.Last()
 		if mixes {
-			f.GlazeBlend(tier, depth, atlas, p.MixSprite, corners, shade, p.Weight, soft, p.Mix)
+			f.GlazeBlend(at, atlas, p.MixSprite, corners, shade, p.Weight, soft, p.Mix)
 		}
 		return drawn
 	}
-	f.Sprite(tier, depth, atlas, p.Sprite, corners, shade)
+	f.Sprite(at, atlas, p.Sprite, corners, shade)
 	drawn := f.Last()
 	if mixes {
-		f.Glaze(tier, depth, atlas, p.MixSprite, corners, shade, p.Mix)
+		f.Glaze(at, atlas, p.MixSprite, corners, shade, p.Mix)
 	}
 	return drawn
 }

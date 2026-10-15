@@ -54,49 +54,52 @@ func drawn(cam camera.Camera, sources ...Layer) (*Composer, []item) {
 	return c, out
 }
 
-func TestComposer_FromAboveDrawsByTierAloneKeepingTheOrderGiven(t *testing.T) {
+// a piece at height z from above
+func h(z float32) At { return At{z: z, key: z} }
+
+func TestComposer_DrawsTheWorldBackToFrontAndTheMarksLastAsTheyCame(t *testing.T) {
 	a, b := sheet{"a"}, sheet{"b"}
 	_, got := drawn(topDown(),
 		items(func(f *Frame) {
-			f.Sprite(Overlays, 1, a, 0, unit, Even(1))
-			f.Sprite(Ground, 9, a, 0, unit, Even(1))
+			f.Sprite(h(1), a, 0, unit, Even(1))
+			f.Sprite(OnTop, a, 0, unit, Even(0.5))
+			f.Sprite(h(9), a, 0, unit, Even(1))
 		}),
 		items(func(f *Frame) {
-			f.Sprite(Ground, 2, b, 0, unit, Even(1))
-			f.Sprite(Marks, 0, b, 0, unit, Even(1))
-			f.Sprite(Objects, 5, b, 0, unit, Even(1))
+			f.Sprite(h(1), b, 0, unit, Even(1)) // as high: after the first, as it came
+			f.Sprite(OnTop, b, 0, unit, Even(1))
+			f.Sprite(h(5), b, 0, unit, Even(1))
 		}))
-	want := []struct {
-		tier  Tier
-		depth float32
-	}{{Ground, 9}, {Ground, 2}, {Objects, 5}, {Overlays, 1}, {Marks, 0}}
+	want := []At{h(1), h(1), h(5), h(9), OnTop, OnTop}
 	for i, w := range want {
-		if got[i].tier != w.tier || got[i].depth != w.depth {
-			t.Fatalf("drawn %v, want tiers in order and ties as given: %v", got, want)
+		if got[i].at != w {
+			t.Fatalf("drawn %v, want the world lowest first, ties as they came, the marks last: %v",
+				got, want)
 		}
+	}
+	if got[0].atlas != (sheet{"a"}) || got[4].atlas != (sheet{"a"}) ||
+		got[5].atlas != (sheet{"b"}) {
+		t.Errorf("drawn %v, want the first source's before the second's at one height and "+
+			"among the marks", got)
 	}
 }
 
-func TestComposer_ThroughAProjectionThatSortsDrawsBackToFrontWithMarksOnTop(t *testing.T) {
-	s := sheet{}
-	_, got := drawn(sorted(), items(func(f *Frame) {
-		f.Sprite(Marks, 0, s, 0, unit, Even(1))      // always on top, whatever its depth
-		f.Sprite(Overlays, 3, s, 0, unit, Even(1))   // a route on the tile at 3
-		f.Sprite(Objects, 3, s, 0, unit, Even(1))    // a unit on it
-		f.Sprite(Ground, 3, s, 0, unit, Even(1))     // the tile
-		f.Sprite(Ground, 7, s, 0, unit, Even(1))     // a mountain in front
-		f.Sprite(Tier(250), 1, s, 0, unit, Even(1))  // a game's own tier, far back
-		f.Sprite(Marks+10, -5, s, 0, unit, Even(1))  // a label above the marks
-		f.Sprite(Overlays, 3, s, 0, unit, Even(0.5)) // a second route piece, after the first
-	}))
-	want := []struct {
-		tier  Tier
-		depth float32
-	}{{250, 1}, {Ground, 3}, {Objects, 3}, {Overlays, 3}, {Overlays, 3}, {Ground, 7}, {Marks, 0}, {Marks + 10, -5}}
-	for i, w := range want {
-		if got[i].tier != w.tier || got[i].depth != w.depth {
-			t.Fatalf("drawn %+v, want %v", got, want)
-		}
+func TestFrame_AtFromAboveIsTheHeightAndThroughAViewThatSortsTheCamerasDepth(t *testing.T) {
+	var f Frame
+	f.Reset(topDown())
+	if at := f.At(10, 20, 3); at.key != 3 || at.Z() != 3 {
+		t.Errorf("from above (10, 20) at 3 lies at key %v, height %v; want 3, 3", at.key, at.Z())
+	}
+	if at := f.Lifted(10, 20, 3, 0.5); at.key != 3.5 || at.Z() != 3.5 {
+		t.Errorf("lifted by a half it lies at %v, %v; want 3.5", at.key, at.Z())
+	}
+	f.Reset(sorted())
+	if at := f.At(10, 20, 3); at.key != 20 || at.Z() != 3 {
+		t.Errorf("through a view that sorts it lies at key %v, height %v; want the camera's "+
+			"depth 20, 3", at.key, at.Z())
+	}
+	if !Furthest.Before(h(-1e9)) || !h(1e9).Before(Nearest) {
+		t.Error("the sky is not behind everything, or the rain before it")
 	}
 }
 
@@ -110,20 +113,20 @@ func calls(c *Composer) []string {
 func TestComposer_DrawsARunSharingASheetInOneCallColoursIncluded(t *testing.T) {
 	a, b := &sheet{"a"}, &sheet{"b"}
 	c, _ := drawn(sorted(), items(func(f *Frame) {
-		f.Sprite(Ground, 1, a, 0, unit, Even(1))
-		f.Line(Ground, 1.5, 0, 0, 10, 0, 1, white)
-		f.Soft(Overlays, 2, unit, black, Fade{Left: 2})
-		f.Sprite(Objects, 3, a, 0, unit, Even(1))
+		f.Sprite(h(1), a, 0, unit, Even(1))
+		f.Line(h(1.5), 0, 0, 10, 0, 1, white)
+		f.Soft(h(2), unit, black, Fade{Left: 2})
+		f.Sprite(h(3), a, 0, unit, Even(1))
 	}))
 	if n := len(calls(c)); n != 1 {
 		t.Errorf("%d calls for one sheet with lines and a shadow among its sprites, want 1", n)
 	}
 
 	c, _ = drawn(sorted(), items(func(f *Frame) {
-		f.Sprite(Ground, 1, a, 0, unit, Even(1))
-		f.Sprite(Ground, 2, b, 0, unit, Even(1))
-		f.Line(Ground, 3, 0, 0, 10, 0, 1, white) // joins b's run
-		f.Sprite(Ground, 4, a, 0, unit, Even(1))
+		f.Sprite(h(1), a, 0, unit, Even(1))
+		f.Sprite(h(2), b, 0, unit, Even(1))
+		f.Line(h(3), 0, 0, 10, 0, 1, white) // joins b's run
+		f.Sprite(h(4), a, 0, unit, Even(1))
 	}))
 	if n := len(calls(c)); n != 3 {
 		t.Errorf("%d calls for sheets a, b, a, want 3", n)
@@ -133,8 +136,8 @@ func TestComposer_DrawsARunSharingASheetInOneCallColoursIncluded(t *testing.T) {
 func TestComposer_AColourJoiningARunSamplesItsSheetsWhite(t *testing.T) {
 	a := &sheet{"a"}
 	c, _ := drawn(topDown(), items(func(f *Frame) {
-		f.Sprite(Ground, 0, a, 0, unit, Even(1))
-		f.Line(Ground, 0, 0, 0, 10, 0, 1, white)
+		f.Sprite(h(0), a, 0, unit, Even(1))
+		f.Line(h(0), 0, 0, 10, 0, 1, white)
 	}))
 	var verts []Vertex
 	c.draw = func(_ *Image, v []Vertex, _ []uint16, _ *Image) { verts = append(verts, v...) }
@@ -149,7 +152,7 @@ func TestComposer_SplitsACallBeforeItsIndicesOverflow(t *testing.T) {
 	quads := chunkVertices/4 + 5
 	c, _ := drawn(topDown(), items(func(f *Frame) {
 		for range quads {
-			f.Sprite(Ground, 0, a, 0, unit, Even(1))
+			f.Sprite(h(0), a, 0, unit, Even(1))
 		}
 	}))
 	var sizes []int
@@ -185,14 +188,14 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 	a := &sheet{"a"}
 	c := NewComposer(items(func(f *Frame) {
 		for i := range 200 {
-			f.Sprite(Ground, float32(i%7), a, 0, unit, Even(1))
-			f.Line(Overlays, float32(i%5), 0, 0, 5, 5, 1, white)
-			f.Soft(Overlays, 1, unit, black, Fade{Top: 3})
-			f.Tile(Ground, float32(i%7), a, 0, unit, Even(1))
+			f.Sprite(h(float32(i%7)), a, 0, unit, Even(1))
+			f.Line(h(float32(i%5)), 0, 0, 5, 5, 1, white)
+			f.Soft(h(1), unit, black, Fade{Top: 3})
+			f.Tile(h(float32(i%7)), a, 0, unit, Even(1))
 			f.Overlay(&Overlay{Material: tint, World: Box(0, 0, 32, 32), Red: [4]float32{1, 1, 1, 1}})
 		}
 		f.Uniform("Sun", 0, 0, 1)
-		f.Fan(Overlays, 2, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}}, white)
+		f.Fan(h(2), [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}}, white)
 	}))
 	c.draw = func(*Image, []Vertex, []uint16, *Image) {}
 	cam := sorted()
@@ -208,7 +211,7 @@ func TestFrame_SpriteRectSplitsAtAWrapSeamWithoutStretching(t *testing.T) {
 	cam.Translate(1000, 0)
 	var f Frame
 	f.Reset(cam)
-	f.SpriteRect(Objects, 0, sheet{}, 0, 998, 0, 1010, 10, Even(1))
+	f.SpriteRect(h(0), sheet{}, 0, 998, 0, 1010, 10, Even(1))
 	if f.Len() != 2 {
 		t.Fatalf("%d quads across the seam, want 2", f.Len())
 	}
@@ -221,7 +224,7 @@ func TestFrame_SpriteRectSplitsAtAWrapSeamWithoutStretching(t *testing.T) {
 func TestFrame_ALineIsAQuadOfItsWidthFadingAtItsSides(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
-	f.Line(Marks, 0, 10, 20, 30, 20, 2, color.RGBA{R: 20, A: 120})
+	f.Line(OnTop, 10, 20, 30, 20, 2, color.RGBA{R: 20, A: 120})
 	if f.Len() != 1 {
 		t.Fatalf("%d items, want 1", f.Len())
 	}
@@ -237,7 +240,7 @@ func TestFrame_ALineIsAQuadOfItsWidthFadingAtItsSides(t *testing.T) {
 	if math.Abs(red-20.0/255*120/255) > 1e-6 || math.Abs(alpha-120.0/255) > 1e-6 {
 		t.Errorf("colour %v alpha %v, want red 20/255 premultiplied by alpha 120/255", red, alpha)
 	}
-	f.Line(Marks, 0, 5, 5, 5, 5, 1, white)
+	f.Line(OnTop, 5, 5, 5, 5, 1, white)
 	if f.Len() != 1 {
 		t.Error("a line of no length made an item")
 	}
@@ -246,7 +249,7 @@ func TestFrame_ALineIsAQuadOfItsWidthFadingAtItsSides(t *testing.T) {
 func TestFrame_SoftFadesOnlyTheSidesAsked(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
-	f.Soft(Overlays, 0, Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}, black, Fade{Left: 5, Bottom: 4})
+	f.Soft(h(0), Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}, black, Fade{Left: 5, Bottom: 4})
 	v := f.verts
 	if v[0].Custom0 != 1 || v[1].Custom0 != 3 || v[3].Custom0 != 3 {
 		t.Errorf("left fade %v %v %v, want 1 on the left, 1 + 10/5 on the right", v[0].Custom0, v[1].Custom0, v[3].Custom0)
@@ -262,8 +265,8 @@ func TestFrame_SoftFadesOnlyTheSidesAsked(t *testing.T) {
 func TestFrame_AFanIsTrianglesRoundItsFirstPoint(t *testing.T) {
 	a := &sheet{}
 	c, _ := drawn(topDown(), items(func(f *Frame) {
-		f.Sprite(Ground, 0, a, 0, unit, Even(1))
-		f.Fan(Overlays, 0, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}, {-5, 5}}, white)
+		f.Sprite(h(0), a, 0, unit, Even(1))
+		f.Fan(h(0), [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}, {-5, 5}}, white)
 	}))
 	var idx []uint16
 	c.draw = func(_ *Image, _ []Vertex, i []uint16, _ *Image) { idx = append(idx, i...) }
@@ -277,9 +280,9 @@ func TestFrame_AFanIsTrianglesRoundItsFirstPoint(t *testing.T) {
 func TestFrame_ASpriteFanIsThePartOfTheSpriteUnderIt(t *testing.T) {
 	var f Frame
 	pts := [][2]float32{{150, 100}, {200, 150}, {150, 200}, {250, 150}}
-	f.SpriteFan(Ground, 0, &sheet{}, 0, pts, [4]float32{100, 100, 200, 200}, 0.5)
+	f.SpriteFan(h(0), &sheet{}, 0, pts, [4]float32{100, 100, 200, 200}, 0.5)
 	var got []Vertex
-	f.Each(func(_ Tier, _ float32, v []Vertex) { got = append(got, v...) })
+	f.Each(func(_ At, v []Vertex) { got = append(got, v...) })
 	if len(got) != 4 {
 		t.Fatalf("%d vertices, want one a point", len(got))
 	}
@@ -324,7 +327,7 @@ func TestFrame_AnOverlayIsAQuadOverTheSpriteMarkedWithItsMaterialAndWhatItReads(
 	var f Frame
 	f.Reset(topDown())
 	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
-	f.Tile(Ground, 3, sheet{}, 0, dst, Even(0.5))
+	f.Tile(h(3), sheet{}, 0, dst, Even(0.5))
 	f.Overlay(&Overlay{Material: 3, World: Box(100, 200, 132, 232), Red: [4]float32{0.9, 0.9, 0.9, 0.9},
 		Fraction: [4]float32{1, 0.5, 0, 0.25}, Custom: [4][4]float32{{1, 0, 8, 0.75}, {1, 0, 40, 0}, {1, 0, 8, 0.75}, {1, 0, 40, 0}}})
 	if f.Len() != 2 || len(f.items) != 1 {
@@ -353,7 +356,7 @@ func TestFrame_AnOverlayFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
 	cam.Translate(1000, 0)
 	var f Frame
 	f.Reset(cam)
-	f.TileRect(Ground, 0, sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
+	f.TileRect(h(0), sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
 	f.Overlay(&Overlay{World: Box(992, 0, 1008, 10), Fraction: [4]float32{0, 1, 0, 1}, Custom: [4][4]float32{{0}, {16}, {0}, {16}}})
 	v := f.verts
 	if len(v) != 16 {
@@ -370,9 +373,9 @@ func TestFrame_ATopFoldsAlongTheDiagonalOfTheNearerHeights(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
 	dst := Corners{{0, 0}, {10, 0}, {0, 10}, {10, 10}}
-	f.Sprite(Ground, 0, sheet{}, 0, dst, Even(1))
+	f.Sprite(h(0), sheet{}, 0, dst, Even(1))
 	f.Fold([4]float32{0, 0, 0, 0})
-	f.Sprite(Ground, 0, sheet{}, 0, dst, Even(1))
+	f.Sprite(h(0), sheet{}, 0, dst, Even(1))
 	f.Fold([4]float32{5, 0, 5, 5}) // the top-right corner stands apart
 	f.Overlay(&Overlay{World: Box(0, 0, 10, 10)})
 	if len(f.items) != 2 || f.items[0].shape != quad || f.items[0].count != 4 || f.items[1].shape != folded || f.items[1].count != 8 {
@@ -387,9 +390,9 @@ func TestFrame_AnOutlineLiesOverWhatLiesOnTheTile(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
 	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
-	f.Sprite(Ground, 3, sheet{}, 0, dst, Even(1))
+	f.Sprite(h(3), sheet{}, 0, dst, Even(1))
 	top := f.Last()
-	f.Sprite(Ground, 3, sheet{}, 0, Corners{{0, 0}, {5, 0}, {0, 20}, {5, 20}}, Even(1)) // lying on it
+	f.Sprite(h(3), sheet{}, 0, Corners{{0, 0}, {5, 0}, {0, 20}, {5, 20}}, Even(1)) // lying on it
 	f.OutlineOn(top)
 	v := f.verts[8:]
 	if len(v) != 4 || v[0].DstX != 0 || v[3].DstX != 10 || v[3].DstY != 20 {
@@ -403,7 +406,8 @@ func TestFrame_AnOutlineLiesOverWhatLiesOnTheTile(t *testing.T) {
 func TestFrame_AGlazeShowsAsMuchAsItsOpacity(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
-	f.Glaze(Ground, 0, sheet{}, 0, Corners{{0, 0}, {10, 0}, {0, 10}, {10, 10}}, Even(0.8), [4]float32{0, 0.5, 1, 2})
+	square := Corners{{0, 0}, {10, 0}, {0, 10}, {10, 10}}
+	f.Glaze(h(0), sheet{}, 0, square, Even(0.8), [4]float32{0, 0.5, 1, 2})
 	for k, want := range [4]float32{0, 0.5, 1, 1} {
 		if v := f.verts[k]; v.ColorA != want || math.Abs(float64(v.ColorR-0.8*want)) > 1e-6 {
 			t.Errorf("corner %d glazed %v, alpha %v; want %v, %v", k, v.ColorR, v.ColorA, 0.8*want, want)
@@ -414,7 +418,8 @@ func TestFrame_AGlazeShowsAsMuchAsItsOpacity(t *testing.T) {
 func TestFrame_APartOfASheetSamplesThePixelsAskedFor(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
-	f.SpritePart(Ground, 0, sheet{}, [4]float32{16, 32, 24, 40}, Corners{{0, 0}, {10, 0}, {0, 10}, {10, 10}}, Even(1))
+	square := Corners{{0, 0}, {10, 0}, {0, 10}, {10, 10}}
+	f.SpritePart(h(0), sheet{}, [4]float32{16, 32, 24, 40}, square, Even(1))
 	v := f.verts
 	if v[0].SrcX != 16 || v[0].SrcY != 32 || v[3].SrcX != 24 || v[3].SrcY != 40 {
 		t.Errorf("the part samples %v,%v to %v,%v; want 16,32 to 24,40", v[0].SrcX, v[0].SrcY, v[3].SrcX, v[3].SrcY)
@@ -425,13 +430,13 @@ func TestFrame_AnOverlayOnAnEarlierSpriteLiesOverIt(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
 	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
-	f.Tile(Ground, 3, sheet{}, 0, dst, Even(1))
+	f.Tile(h(3), sheet{}, 0, dst, Even(1))
 	top := f.Last()
-	f.Sprite(Ground+5, 7, sheet{}, 0, Corners{{50, 50}, {60, 50}, {50, 60}, {60, 60}}, Even(1))
+	f.Sprite(h(7), sheet{}, 0, Corners{{50, 50}, {60, 50}, {50, 60}, {60, 60}}, Even(1))
 	f.OverlayOn(top, &Overlay{Material: 1, World: Box(0, 0, 10, 20)})
 	last := f.items[len(f.items)-1]
-	if last.tier != Ground || last.depth != 3 {
-		t.Errorf("the overlay is at tier %v, depth %v; want the tile's %v, 3", last.tier, last.depth, Ground)
+	if last.at != h(3) {
+		t.Errorf("the overlay lies at %v, want the tile's height 3", last.at)
 	}
 	for k, v := range f.verts[8:] {
 		if v.DstX != dst[k][0] || v.DstY != dst[k][1] {
@@ -442,9 +447,9 @@ func TestFrame_AnOverlayOnAnEarlierSpriteLiesOverIt(t *testing.T) {
 	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
 	cam.Translate(1000, 0)
 	f.Reset(cam)
-	f.TileRect(Ground, 0, sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
+	f.TileRect(h(0), sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
 	split := f.Last()
-	f.TileRect(Ground, 0, sheet{}, 0, 0, 100, 10, 110, Even(1))
+	f.TileRect(h(0), sheet{}, 0, 0, 100, 10, 110, Even(1))
 	f.OverlayOn(split, &Overlay{World: Box(992, 0, 1008, 10)})
 	if v := f.verts; len(v) != 20 || v[12].DstX != v[0].DstX || v[16].DstX != v[4].DstX {
 		t.Fatalf("%d vertices, the overlays at x %v and %v; want 20, over the split rect's pieces at %v and %v",
@@ -458,7 +463,7 @@ func TestFrame_AnOverlayTakesWhatItShouldOfTheSpriteUnderIt(t *testing.T) {
 	dst := Corners{{0, 0}, {8, 0}, {0, 10}, {8, 10}}
 	band := World{{10, 0}, {14, 4}, {0, 10}, {4, 14}}
 	weight := [4]float32{0, 0.5, 0.25, 1}
-	f.SpriteBlend(Ground, 0, sheet{}, 0, dst, Even(1), weight, 0.2)
+	f.SpriteBlend(h(0), sheet{}, 0, dst, Even(1), weight, 0.2)
 	f.Overlay(&Overlay{Material: 1, World: band, Under: true})
 	f.Overlay(&Overlay{Material: 2, World: band, Custom: [4][4]float32{{3}, {3}, {3}, {3}}, Blended: true})
 	v := f.verts
@@ -478,7 +483,7 @@ func TestFrame_AnOverlayTakesWhatItShouldOfTheSpriteUnderIt(t *testing.T) {
 func TestFrame_ATileIsOutlinedAlongItsOwnEdges(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
-	f.Tile(Ground, 0, sheet{}, 0, Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}, Even(1))
+	f.Tile(h(0), sheet{}, 0, Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}, Even(1))
 	v := f.verts
 	// the top-left corner is on the left and top edges, 10 from the right, 20 from the bottom
 	if v[0].Custom0 != -1 || v[0].Custom2 != -1 || v[0].Custom1 != -11 || v[0].Custom3 != -21 {
@@ -494,7 +499,7 @@ func TestFrame_ATileSplitAtAWrapSeamIsOutlinedOnlyAlongItsOwnEdges(t *testing.T)
 	cam.Translate(1000, 0)
 	var f Frame
 	f.Reset(cam)
-	f.TileRect(Ground, 0, sheet{}, 0, 998, 0, 1010, 10, Even(1)) // 2 before the seam, 10 after
+	f.TileRect(h(0), sheet{}, 0, 998, 0, 1010, 10, Even(1)) // 2 before the seam, 10 after
 	if f.Len() != 2 {
 		t.Fatalf("%d pieces, want 2", f.Len())
 	}
@@ -552,45 +557,81 @@ func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T)
 }
 
 type direct struct {
-	tier  Tier
-	after *int
-	drawn []int
-	sun   []float32
+	opaque bool
+	at     *At
+	ground bool
+	after  *int
+	drawn  []int
+	passes []Pass
+	sun    []float32
 }
 
-func (*direct) Init(*goke.SysInit)            {}
-func (*direct) Compose(*Frame, camera.Camera) {}
-func (d *direct) Tier() Tier                  { return d.tier }
-func (d *direct) Draw(_ Target, _ camera.Camera, u Uniforms) {
+func (*direct) Init(*goke.SysInit) {}
+func (d *direct) Compose(f *Frame, _ camera.Camera) {
+	if d.opaque {
+		f.DrawOpaque()
+	}
+	if d.at != nil {
+		f.DrawAt(*d.at)
+	}
+	if d.ground {
+		f.ReadGround()
+	}
+}
+func (d *direct) Draw(t Target, _ camera.Camera, u Uniforms) {
 	d.drawn = append(d.drawn, *d.after)
+	d.passes = append(d.passes, t.Pass)
 	d.sun = u.Get("Seen")
 }
 
-func TestComposer_ADirectSourceDrawsWhereItsTierComes(t *testing.T) {
+func TestComposer_ADirectDrawsWhereItAskedAndOnlyThere(t *testing.T) {
 	a := sheet{"a"}
 	calls := 0
-	ground := &direct{tier: Ground, after: &calls}
-	marks := &direct{tier: Marks, after: &calls}
-	c := NewComposer(marks, items(func(f *Frame) {
-		f.Sprite(Backdrop, 0, a, 0, unit, Even(1)) // the sky, drawn first
-		f.Sprite(Ground, 0, a, 0, unit, Even(1))   // a tile
-		f.Sprite(Overlays, 0, a, 0, unit, Even(1)) // a route
+	sky, rain := Furthest, Nearest
+	ground := &direct{opaque: true, after: &calls}
+	views := &direct{at: &[]At{h(0.25)}[0], after: &calls}
+	figures := &direct{at: &[]At{h(2)}[0], after: &calls}
+	nothing := &direct{after: &calls}
+	c := NewComposer(figures, &direct{at: &rain, after: &calls}, items(func(f *Frame) {
+		f.Sprite(h(0.75), a, 0, unit, Even(1)) // a route
+		f.Sprite(h(5), a, 0, unit, Even(1))    // a figure's material
+		f.Sprite(OnTop, a, 0, unit, Even(1))   // a mark
 		f.Uniform("Seen", 7)
-	}), nil, ground)
+	}), nil, views, ground, &direct{at: &sky, after: &calls}, nothing)
 	c.draw = func(*Image, []Vertex, []uint16, *Image) { calls++ }
 	c.compose(topDown())
 	c.render(nil)
-	if len(c.sources) != 3 || len(c.directs) != 2 || c.directs[0] != ground {
-		t.Fatalf("%d sources, %d directs in order %v; want the nil layer left out and the directs by tier", len(c.sources), len(c.directs), c.directs)
+	if len(c.sources) != 7 || len(c.directs) != 7 {
+		t.Fatalf("%d sources, %d directs, want the nil layer left out", len(c.sources),
+			len(c.directs))
 	}
-	if got := ground.drawn; len(got) != 1 || got[0] != 1 {
-		t.Errorf("the ground's direct drew after %v calls, want once after the sky's one", got)
+	if got := ground.drawn; len(got) != 1 || got[0] != 0 || ground.passes[0] != Opaque {
+		t.Errorf("the ground drew after %v calls in %v, want once before all, in the opaque pass",
+			got, ground.passes)
 	}
-	if got := marks.drawn; len(got) != 1 || got[0] != 2 || calls != 2 {
-		t.Errorf("the marks' direct drew after %v calls of %d, want once after the tile's and the route's run", got, calls)
+	if got := views.drawn; len(got) != 1 || got[0] != 0 || views.passes[0] != SeeThrough {
+		t.Errorf("the views drew after %v calls in %v, want once before the route's",
+			got, views.passes)
 	}
-	if len(ground.sun) != 1 || ground.sun[0] != 7 {
-		t.Errorf("the direct was handed the uniform Seen as %v, want the 7 a source set", ground.sun)
+	if got := figures.drawn; len(got) != 1 || got[0] != 1 {
+		t.Errorf(
+			"the figures drew after %v calls, want after the route's, before the material's", got)
+	}
+	if got := c.directs[1].(*direct).drawn; len(got) != 1 || got[0] != 2 {
+		t.Errorf("the rain drew after %v calls, want after the world's, before the marks'", got)
+	}
+	if len(nothing.drawn) != 0 || calls != 3 {
+		t.Errorf("a direct asking for nothing drew %v times; %d calls, want 3",
+			len(nothing.drawn), calls)
+	}
+	if len(views.sun) != 1 || views.sun[0] != 7 {
+		t.Errorf("the direct was handed the uniform Seen as %v, want the 7 a source set", views.sun)
+	}
+	var places []Pass
+	c.frame.Places(func(p Pass, _ At) { places = append(places, p) })
+	if len(places) != 5 || places[0] != Opaque {
+		t.Errorf("the frame holds the places %v, want the ground's opaque one and four seen "+
+			"through", places)
 	}
 }
 

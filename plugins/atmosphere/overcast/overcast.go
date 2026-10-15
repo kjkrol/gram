@@ -21,8 +21,8 @@ var shader = render.NewMeshShaderWith("clouds' shadows", render.Files(shaders, "
 	{Name: "RayDir", Size: 3}, {Name: "RayDDX", Size: 3}, {Name: "RayDDY", Size: 3},
 })
 
-// Renderer lays the clouds' shadows over a flat board, a render.Direct over what stands on the
-// ground and under the overlays.
+// Renderer lays the clouds' shadows over a flat board, a render.Direct lying on the ground, under
+// whatever stands on it.
 type Renderer struct {
 	sun func() sky.Sun
 	air func() air.Weather
@@ -32,10 +32,10 @@ type Renderer struct {
 }
 
 // cloudPiece in pixels; shaders/overcast.wgsl has the same
-const (
-	cloudTier  = render.Objects + 50
-	cloudPiece = 8
-)
+const cloudPiece = 8
+
+// how far over the ground the shadows lie among what lies on it: over the sight, under the routes
+const cloudLift = 0.5
 
 // New is the clouds' shadows of the weather weather gives, under sun.
 func New(sun func() sky.Sun, weather func() air.Weather) *Renderer {
@@ -44,15 +44,14 @@ func New(sun func() sky.Sun, weather func() air.Weather) *Renderer {
 
 func (*Renderer) Init(*goke.SysInit) {}
 
-// Compose hands the frame the sun and the weather; the shadows are drawn Direct.
+// Compose hands the frame the sun and the weather; the shadows are drawn Direct, over the
+// ground.
 func (c *Renderer) Compose(f *render.Frame, _ camera.Camera) {
 	sun := c.sun()
 	sun.Frame(f)
 	c.air().Frame(f, sun)
+	f.DrawAt(f.OnGround(cloudLift))
 }
-
-// Tier is render.Objects + 50.
-func (*Renderer) Tier() render.Tier { return cloudTier }
 
 // Draw lays the shadows over the target's screen through cam; nothing under a clear sky or
 // through a camera without lines of sight.

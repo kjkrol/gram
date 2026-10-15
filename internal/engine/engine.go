@@ -46,6 +46,7 @@ type Engine struct {
 
 	quit          bool
 	width, height int
+	shot          *shot
 }
 
 var _ game.Runtime = (*Engine)(nil)
@@ -149,6 +150,7 @@ func (e *Engine) Run() {
 		log.Fatal(err)
 	}
 	gpu.Windowed()
+	e.shot = shotFromEnv()
 	// paced by the swapchain alone: on Wayland gogpu otherwise waits for the compositor's word
 	// after every frame, drawing each only once the last is on the screen
 	if _, set := os.LookupEnv("GOGPU_WAYLAND_FRAME_CALLBACK"); !set {
@@ -196,6 +198,10 @@ func (e *Engine) frame(dc *gogpu.Context) {
 	}
 	e.window.Clear()
 	e.Draw(e.window)
+	if e.shot != nil && e.shot.take(e.window) {
+		e.app.Quit()
+		return
+	}
 	drawn := time.Now()
 	fw, fh := dc.FramebufferSize()
 	if enc := dc.CommandEncoder(); enc != nil {
@@ -261,6 +267,9 @@ func (e *Engine) Update() error {
 	}
 
 	steps := e.timeTracker.calculateSteps(e.step, maxStepsAFrame)
+	if e.shot != nil {
+		steps, e.timeTracker.accumulator = 1, 0
+	}
 	for range steps {
 		e.current.host.ecs.Tick(e.step)
 		e.ticks++

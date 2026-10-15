@@ -69,7 +69,7 @@ func (v *zonesView) Compose(f *render.Frame, cam camera.Camera) {
 // a rectangle of the picture, in its pixels, y down the screen
 type zone struct{ left, top, right, bottom float32 }
 
-// draw fills the zone in c with its corners rounded by zoneRound, on the Marks tier
+// draw fills the zone in c with its corners rounded by zoneRound, a mark on top
 func (z zone) draw(f *render.Frame, c color.RGBA) {
 	x0, y0, x1, y1 := z.left, z.top, z.right, z.bottom
 	if x1 <= x0 || y1 <= y0 {
@@ -88,7 +88,7 @@ func (z zone) draw(f *render.Frame, c color.RGBA) {
 			pts = append(pts, [2]float32{x, y})
 		}
 	}
-	f.Fan(render.Marks, 0, pts, c)
+	f.Fan(render.OnTop, pts, c)
 }
 
 // ShowZones shows the scroll zones over every picture, or hides them.

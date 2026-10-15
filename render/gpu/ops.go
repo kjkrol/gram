@@ -42,6 +42,18 @@ func Fill(dst Image, r, g, b, a float32) {
 		[]Vertex{v(x0, y0), v(x1, y0), v(x0, y1), v(x1, y1)}, []uint16{0, 1, 2, 1, 2, 3})
 }
 
+// FillBehind puts the colour (r, g, b, a), premultiplied, 0 to 1, over all of dst where nothing was
+// drawn into dp: at the furthest depth, tested.
+func FillBehind(dst Image, dp *Depth, r, g, b, a float32) {
+	rc := dst.rect()
+	x0, y0, x1, y1 := float32(rc.X), float32(rc.Y), float32(rc.X+rc.W), float32(rc.Y+rc.H)
+	v := func(x, y float32) Vertex {
+		return Vertex{DstX: x, DstY: y, ColorR: r, ColorG: g, ColorB: b, ColorA: a}
+	}
+	Triangles(&Draw{Target: dst, Program: fillProgram, Blend: Copy, Depth: dp, Test: Tested},
+		[]Vertex{v(x0, y0), v(x1, y0), v(x0, y1), v(x1, y1)}, []uint16{0, 1, 2, 1, 2, 3})
+}
+
 // Affine maps a point of a source image to the target: x' = A·x + C·y + TX, y' = B·x + D·y + TY.
 type Affine struct{ A, B, C, D, TX, TY float32 }
 
@@ -117,7 +129,10 @@ func DrawImageIn(dst, src Image, x, y float32, pts [][2]float32, blend Blend) {
 
 // Present draws screen over the window's surface view, w by h pixels of format, into enc, the
 // window's frame encoder. Everything drawn before is submitted first.
-func Present(enc *wgpu.CommandEncoder, view *wgpu.TextureView, format gputypes.TextureFormat, w, h int, screen *Texture) error {
+func Present(
+	enc *wgpu.CommandEncoder, view *wgpu.TextureView, format gputypes.TextureFormat, w, h int,
+	screen *Texture,
+) error {
 	d := must()
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -131,13 +146,26 @@ func Present(enc *wgpu.CommandEncoder, view *wgpu.TextureView, format gputypes.T
 	fw, fh := float32(w), float32(h)
 	var verts []byte
 	for _, v := range [4][4]float32{{0, 0, 0, 0}, {fw, 0, sw, 0}, {0, fh, 0, sh}, {fw, fh, sw, sh}} {
-		for _, f := range [12]float32{v[0], v[1], v[2], v[3], 1, 1, 1, 1, 0, 0, 0, 0} {
-			verts = appendF32(verts, f)
-		}
+		verts = appendVertex(
+			verts,
+			Vertex{
+				DstX:   v[0],
+				DstY:   v[1],
+				SrcX:   v[2],
+				SrcY:   v[3],
+				ColorR: 1,
+				ColorG: 1,
+				ColorB: 1,
+				ColorA: 1,
+			},
+		)
 	}
 	indices := []byte{0, 0, 1, 0, 2, 0, 1, 0, 2, 0, 3, 0}
 	var draw []byte
-	for _, f := range [28]float32{fw, fh, 0, 0, 0, 0, sw, sh, 20: 1, 21: 1, 24: 1, 25: 1, 26: 1, 27: 1} {
+	// the target's size, the image's rectangle, the place and the tint as they come
+	for _, f := range [drawSize / 4]float32{
+		fw, fh, 0, 0, 0, 0, sw, sh, 20: 1, 21: 1, 24: 1, 25: 1, 26: 1, 27: 1,
+	} {
 		draw = appendF32(draw, f)
 	}
 	uniforms := make([]byte, uniformBlock)

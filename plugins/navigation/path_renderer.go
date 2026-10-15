@@ -106,8 +106,6 @@ func newPathRenderer(grid grid.Grid, style RouteStyle, selected tag.Tag[selectio
 	return &pathRenderer{grid: grid, style: style, current: style, selected: selected, gpu: routes.New()}
 }
 
-func (r *pathRenderer) Tier() render.Tier { return routes.Tier }
-
 func (r *pathRenderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
 	if r.onGPU {
 		r.gpu.Draw(t, cam)
@@ -194,7 +192,14 @@ func (r *pathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 			}
 		}
 	}
+	if r.onGPU && r.gpu.Len() > 0 {
+		f.ReadGround() // the routes find the ground under them
+		f.DrawAt(f.OnGround(routeLift))
+	}
 }
+
+// how far over the ground a route lies among what lies on it: over the sight, under the figures
+const routeLift = 0.75
 
 // a step aside is no goal
 func (r *pathRenderer) goals(size geom.Vec, domain cell.Domain, o *MoveOrder) {
@@ -259,7 +264,9 @@ func (r *pathRenderer) line(a, b geom.Vec) {
 		dy := shortestAxisDelta(a.Y, b.Y, r.space.Height, r.space.Edges.WrapsY())
 		x0, y0 := r.camera.ToScreen(float32(a.X), float32(a.Y))
 		x1, y1 := r.camera.ToScreen(float32(a.X+dx), float32(a.Y+dy))
-		r.frame.Line(render.Overlays, 0, x0, y0, x1, y1, r.current.Width, r.current.Line)
+		mid := geom.NewVec(a.X+dx/2, a.Y+dy/2)
+		at := r.frame.Lifted(float32(mid.X), float32(mid.Y), 0, routeLift)
+		r.frame.Line(at, x0, y0, x1, y1, r.current.Width, r.current.Line)
 		return
 	}
 	if r.onGPU {
@@ -277,7 +284,8 @@ func (r *pathRenderer) line(a, b geom.Vec) {
 		p := geom.NewVec(a.X+(b.X-a.X)*t, a.Y+(b.Y-a.Y)*t)
 		x1, y1 := r.on(p)
 		mid := geom.NewVec(a.X+(b.X-a.X)*(t-0.5/float64(pieces)), a.Y+(b.Y-a.Y)*(t-0.5/float64(pieces)))
-		r.frame.Line(render.Overlays, r.camera.Depth(float32(mid.X), float32(mid.Y), r.groundAt(mid)), x0, y0, x1, y1, r.current.Width, r.current.Line)
+		at := r.frame.Lifted(float32(mid.X), float32(mid.Y), r.groundAt(mid), routeLift)
+		r.frame.Line(at, x0, y0, x1, y1, r.current.Width, r.current.Line)
 		x0, y0 = x1, y1
 	}
 }
@@ -310,7 +318,7 @@ func (r *pathRenderer) goal(size geom.Vec, c cell.ID, spot geom.Vec, alt float32
 		pts := [4][2]float32{q[0], q[1], q[3], q[2]}
 		for i, p := range pts {
 			n := pts[(i+1)%len(pts)]
-			r.frame.Line(render.Marks, 0, p[0], p[1], n[0], n[1], goalWidth, r.current.Goal)
+			r.frame.Line(render.OnTop, p[0], p[1], n[0], n[1], goalWidth, r.current.Goal)
 		}
 	}
 }

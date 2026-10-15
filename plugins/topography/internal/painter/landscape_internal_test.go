@@ -129,12 +129,16 @@ func TestTile_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
 	}
 }
 
-func wayPieces(t *testing.T, brd *board.Board, st map[cell.Name]Style, w, h uint32) map[cell.ID][]WayPiece {
+func wayPieces(
+	t *testing.T, brd *board.Board, st map[cell.Name]Style, w, h uint32,
+) map[cell.ID][]WayPiece {
 	t.Helper()
 	return wayPiecesAt(t, brd, st, w, h, 2)
 }
 
-func wayPiecesAt(t *testing.T, brd *board.Board, st map[cell.Name]Style, w, h uint32, zoom float32) map[cell.ID][]WayPiece {
+func wayPiecesAt(
+	t *testing.T, brd *board.Board, st map[cell.Name]Style, w, h uint32, zoom float32,
+) map[cell.ID][]WayPiece {
 	t.Helper()
 	got := map[cell.ID][]WayPiece{}
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { got[t.ID] = append([]WayPiece(nil), t.Way()...) })
@@ -478,7 +482,8 @@ func TestTile_DrawSurfaceLaysTheWatersMaterial(t *testing.T) {
 		cam := icamera.NewFromSpace(96, 96, 0)
 		look := lookFn(func(f *render.Frame, _ camera.Camera, t *tile) {
 			if t.ID == c {
-				f.Sprite(render.Ground, 0, flatAtlas{}, 0, render.Corners{{0, 0}, {1, 0}, {0, 1}, {1, 1}}, render.Even(1))
+				unit := render.Corners{{0, 0}, {1, 0}, {0, 1}, {1, 1}}
+				f.Sprite(render.At{}, flatAtlas{}, 0, unit, render.Even(1))
 				t.DrawSurface(f, t.X0, t.Y0, t.X1, t.Y1)
 			}
 		})
@@ -486,7 +491,7 @@ func TestTile_DrawSurfaceLaysTheWatersMaterial(t *testing.T) {
 		r := dressed(brd, d, look)
 		f.Reset(cam)
 		r.Compose(&f, cam)
-		f.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
+		f.Each(func(_ render.At, v []render.Vertex) {
 			if v[0].ColorA > 1.5 { // an overlay
 				marks[running] = v[0].ColorA
 			}
@@ -689,7 +694,7 @@ func TestPainter_TheAlbedoPaintsEveryCellsBaseUnderItsGroundsAndWays(t *testing.
 	}
 	bases, blends, ways := 0, 0, 0
 	seaUnderCoast := false
-	d.canvas.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
+	d.canvas.Each(func(_ render.At, v []render.Vertex) {
 		switch {
 		case v[0].Custom3 > 50000:
 			blends++
@@ -738,7 +743,7 @@ func TestPainter_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
 		t.Fatalf("the water is %v pixels a cell, want 16 in quadrants of the board's 64 by 64", wpx)
 	}
 	sea00, seaCoast, covered, riverShine := false, false, 0, 0
-	d.albedo.wcanvas[water.ShineLayer].Each(func(_ render.Tier, _ float32, v []render.Vertex) {
+	d.albedo.wcanvas[water.ShineLayer].Each(func(_ render.At, v []render.Vertex) {
 		switch {
 		case v[0].Custom3 > 50000 && v[0].ColorR == 0 && v[0].ColorG == 0 && v[0].ColorB == 0:
 			covered++
@@ -751,7 +756,7 @@ func TestPainter_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
 		}
 	})
 	flows := 0
-	d.albedo.wcanvas[water.FlowLayer].Each(func(_ render.Tier, _ float32, v []render.Vertex) {
+	d.albedo.wcanvas[water.FlowLayer].Each(func(_ render.At, v []render.Vertex) {
 		if v[0].ColorB == 1 && v[0].ColorG > 0.5 && near(v[0].ColorR, 0.5) {
 			flows++ // running south, down the slope
 		}

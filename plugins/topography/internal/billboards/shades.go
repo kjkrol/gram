@@ -13,7 +13,7 @@ var shading = render.NewMeshShaderWith("topography shades", render.Files(shaders
 	{Name: "Unproject", Size: 16}, {Name: "ViewSize", Size: 2}, {Name: "ViewAt", Size: 2},
 }).Instanced(3)
 
-// the shadows over a ground that lays none itself (hex prisms), read from the frame's depth
+// the shadows over a ground that lays none itself (hex prisms), read from the ground's depth
 type shades struct {
 	opts      render.DrawMeshOptions
 	own       map[string][]float32
@@ -21,7 +21,7 @@ type shades struct {
 }
 
 func (s *shades) draw(t render.Target, cam camera.Camera, r *relief.Relief, patches []sky.Patch) {
-	if t.Screen == nil || t.Depth == nil || len(patches) == 0 {
+	if t.Screen == nil || t.Ground == nil || len(patches) == 0 {
 		return
 	}
 	rays, ok := cam.(camera.Rays)
@@ -61,7 +61,8 @@ func (s *shades) draw(t render.Target, cam camera.Camera, r *relief.Relief, patc
 	s.set("Unproject", unproject[:]...)
 	s.set("ViewSize", w, h)
 	s.set("ViewAt", float32(at.X), float32(at.Y))
-	s.opts.Vertices, s.opts.ReadDepth, s.opts.Instances = 6, t.Depth, s.instances
+	s.opts.Vertices, s.opts.Instances = 6, s.instances
+	s.opts.Depth, s.opts.ReadDepth = t.Depth, t.Ground
 	t.Screen.DrawMesh(nil, shading, &s.opts)
 }
 

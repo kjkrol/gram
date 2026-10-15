@@ -25,9 +25,14 @@ func TestBackdrop_FillsTheScreenWithTheSkyOnlyWhereTheGroundDoesNotCoverIt(t *te
 	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	sun := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.5, Sky: render.Light{0.5, 0.7, 1}}
 	b := New(w.Res.Config.Space, world.Scale{}, func() sky.Sun { return sun }, func() air.Weather { return air.Weather{} })
-	if b.Tier() != render.Backdrop {
-		t.Errorf("the sky comes on tier %v, want the Backdrop, before everything", b.Tier())
-	}
+	var f render.Frame
+	f.Reset(cam)
+	b.Compose(&f, cam)
+	f.Places(func(p render.Pass, at render.At) {
+		if p != render.SeeThrough || at != render.Furthest {
+			t.Errorf("the sky is drawn in pass %v at %v, want behind the whole world", p, at)
+		}
+	})
 	if p := b.plan(shifted{Camera: cam, dx: 50}); !p.None {
 		t.Errorf("over the middle of the world the backdrop draws %+v, want nothing: the ground covers the screen", p)
 	}

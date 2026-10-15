@@ -65,8 +65,8 @@ func (f *StarField) Place(cam camera.Camera, w, h float32, heavens Heavens, brig
 	return len(f.inst) / 8
 }
 
-// Draw draws the stars Place laid out onto screen, over what is there.
-func (f *StarField) Draw(screen *render.Image) {
+// Draw draws the stars Place laid out onto the target's screen, behind whatever its depth holds.
+func (f *StarField) Draw(t render.Target) {
 	if len(f.inst) == 0 {
 		return
 	}
@@ -74,8 +74,8 @@ func (f *StarField) Draw(screen *render.Image) {
 		f.opts = render.DrawMeshOptions{Vertices: 6, Uniforms: map[string]any{}}
 	}
 	f.opts.Uniforms["StarView"] = f.view[:]
-	f.opts.Instances = f.inst
-	screen.DrawMesh(nil, starShader, &f.opts)
+	f.opts.Instances, f.opts.Depth = f.inst, t.Depth
+	t.Screen.DrawMesh(nil, starShader, &f.opts)
 }
 
 // the light's two-fifths power, so the faint stars still show on a screen

@@ -24,10 +24,10 @@ type lookSource struct {
 }
 
 func (*lookSource) Init(*goke.SysInit) {}
-func (*lookSource) Tier() render.Tier  { return render.Objects }
 func (s *lookSource) Compose(f *render.Frame, cam camera.Camera) {
 	if s.direct {
-		s.look.Begin(cam)
+		s.look.Begin(f, cam)
+		f.DrawAt(f.At(0, 0, 0))
 	}
 	for _, b := range s.boxes {
 		s.look.Sprite(f, cam, b, entity.Z{}, s.atlas, render.Appearance{SpriteID: 1}, render.Light{0.8, 0.6, 1})
@@ -52,7 +52,12 @@ func TestFlatLook_DrawsOnTheGPUAsOnTheFrame(t *testing.T) {
 	cam.MoveTo(230, 20) // the seam in view
 	pix := func(direct bool) []byte {
 		screen := render.NewImage(160, 120)
-		src := &lookSource{look: NewFlat(256, 256), direct: direct, boxes: boxes, atlas: atlas}
+		src := &lookSource{
+			look:   NewFlat(256, 256, true, true),
+			direct: direct,
+			boxes:  boxes,
+			atlas:  atlas,
+		}
 		render.NewComposer(src).DrawWorld(screen, cam)
 		out := make([]byte, 4*160*120)
 		screen.ReadPixels(out)

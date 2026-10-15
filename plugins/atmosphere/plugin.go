@@ -135,7 +135,7 @@ func (p *Plugin) Renderer() render.Layer {
 	return backdrop.New(p.worldPlugin.Res.Config.Space, p.worldPlugin.Scale(), p.Sun, p.Air).WithHeavens(p.Heavens).WithShown(shown)
 }
 
-// Precipitation is what falls, a render.Source for a scene's Composer on render.Air.
+// Precipitation is what falls, a render.Source for a scene's Composer, before the whole world.
 func (p *Plugin) Precipitation() render.Layer { return precipitation.New(p.Sun, p.Air) }
 
 // Clouds is the clouds' shadows over a board without relief, a render.Source for a scene's

@@ -34,15 +34,17 @@
 // # Composer, Frame and Source
 //
 // A [Composer] is the Picture of a scene's world, drawn from several [Source]s. Each source hands
-// its pieces to a [Frame] in screen pixels, each with a [Tier] and a depth: sprites, lines, fans,
-// soft quads, each in a [Shade] of [Light]. Tiers are drawn in order ([Backdrop], [Ground],
-// [Objects], [Overlays], [Air], [Marks], with room between for a game's own), and when the
-// camera's projection sorts, everything below Marks goes back to front by depth. Every piece is
-// drawn with one shader, so a run of pieces on one sheet is one call. A [Direct] source draws a
-// part of the picture itself, with a shader of its own, where its tier comes, handed a [Target]
-// and the frame's [Uniforms]; [NewMeshShaderWith] builds such a shader on the composer's library,
-// drawn with [Image.DrawMesh] against a [Depth]. [Frame.Branch] and [Frame.Append] let a source
-// gather pieces on several goroutines.
+// its pieces to a [Frame] in screen pixels, each where it lies ([At]: [Frame.At], [Frame.Lifted]
+// a height in the world; [OnTop] a mark): sprites, lines, fans, soft quads, each in a [Shade] of
+// [Light]. What is drawn over what is the depth's: the opaque ground first, writing it, then the
+// world back to front by where it lies, each piece tested against what lies nearer (its depth
+// worked out on the GPU from its height), then the marks over all of it in the order they came.
+// Every piece is drawn with one shader, so a run of pieces on one sheet is one call. A [Direct]
+// source draws a part of the picture itself, with a shader of its own, in the passes its Compose
+// asks for ([Frame.DrawOpaque], [Frame.DrawAt], [Frame.ReadGround]), handed a [Target] and the
+// frame's [Uniforms]; [NewMeshShaderWith] builds such a shader on the composer's library, drawn
+// with [Image.DrawMesh] against a [Depth]. [Frame.Branch] and [Frame.Append] let a source gather
+// pieces on several goroutines.
 //
 // A color.RGBA given to render — a piece, a fill, text, a sprite drawn on a [Canvas] — is
 // straight alpha, as colours are written: {R: 255, G: 220, B: 60, A: 40} is a faint yellow. Go

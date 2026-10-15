@@ -358,7 +358,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// Renderer is the ground's renderer, a render.Direct at the Ground tier for the scene's composer.
+// Renderer is the ground's renderer, a render.Direct in the opaque pass of the scene's composer.
 func (p *Plugin) Renderer() render.Layer {
 	if p.ground != nil {
 		return p.ground

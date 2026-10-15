@@ -252,7 +252,8 @@ func (l *Painter) layBase(s *groundSheet, i int) {
 	}
 	r := s.cell(uint32(i%cols), uint32(i/cols))
 	x0, y0, x1, y1 := float32(r.Min.X), float32(r.Min.Y), float32(r.Max.X), float32(r.Max.Y)
-	l.canvas.Sprite(render.Ground, 0, s.atlas, l.base(c).sprite, render.Corners{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}}, render.Even(1))
+	corners := render.Corners{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}}
+	l.canvas.Sprite(render.At{}, s.atlas, l.base(c).sprite, corners, render.Even(1))
 }
 
 // drawn from the board's atlas: a sheet cannot draw on itself
@@ -268,10 +269,11 @@ func (l *Painter) lay(s *groundSheet, i int, blends []BlendPiece, ways []WayPiec
 		return c
 	}
 	for _, p := range blends {
-		l.canvas.SpriteBlend(render.Ground, 0, s.atlas, p.Sprite, at(p.World), render.Even(1), p.Weight, p.Soft)
+		l.canvas.SpriteBlend(render.At{}, s.atlas, p.Sprite, at(p.World), render.Even(1), p.Weight,
+			p.Soft)
 	}
 	for _, p := range ways {
-		p.draw(&l.canvas, render.Ground, 0, s.atlas, at(p.World), render.Even(1))
+		p.draw(&l.canvas, render.At{}, s.atlas, at(p.World), render.Even(1))
 	}
 }
 

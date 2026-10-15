@@ -73,7 +73,9 @@ the software rasteriser, which draws wrong) and skip without a GPU. A running ga
 rate and where a frame's time goes every second with `GRAM_FPS_LOG=1`, starts fullscreen with
 `GRAM_FULLSCREEN=1` (F11 switches) and runs unpaced with `GRAM_VSYNC=off`; headless probes of a
 demo's frame include about 10 ms of the GPU's readback at 2560x1440, so compare them with each
-other, not with a frame rate.
+other, not with a frame rate. `GRAM_SHOT=<file.png>` saves frame `GRAM_SHOT_FRAME` (120) and
+quits, the world taking one step a frame till then: shots of a baseline tree and of the working
+one compare a change's pictures (the telemetry panel, random weather and random scenes are noise).
 
 The `examples/<group>/<name>` programs are real GUI apps — `go test` cannot exercise them. To
 check one still runs after a change: build to a temp path, run under `timeout <n>s`, treat exit
@@ -153,6 +155,11 @@ Decisions the user has made; they are not up for revisiting in passing.
   tried and dropped.
 - **Physics, not blocking**, for a unit under gravity: into the water and off an edge as it
   pleases, the rules deciding.
+- **What is drawn over what is Z's alone**, never a layer or the order of adding: every piece of
+  the world lies at a height (`render.At`; what lies on a surface at a small lift over it, a
+  figure at `world.FigureLift`), the depth buffer deciding; the opaque ground first, the marks
+  (outlines, boxes, zones, goals, previews) over the world as a category of their own; a Direct
+  asks where it draws (`Frame.DrawOpaque`, `DrawAt`, `ReadGround`).
 - **A board stands in a world with heights** (`world.Config.Heights`), and so do the topography
   and the atmosphere: each panics in a flat one. A flat map is a board without relief; a side
   view (motion/platformer) is a world with heights, gravity pulling along Y, Z its depth. A

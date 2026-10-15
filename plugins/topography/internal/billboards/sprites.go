@@ -51,7 +51,7 @@ func newSprites(sky Sky, r *relief.Relief, ground *terrain.Renderer) *sprites {
 	return s
 }
 
-func (s *sprites) begin(cam camera.Camera) {
+func (s *sprites) begin(f *render.Frame, cam camera.Camera) {
 	for i := range s.batches {
 		s.batches[i].inst = s.batches[i].inst[:0]
 	}
@@ -61,6 +61,9 @@ func (s *sprites) begin(cam camera.Camera) {
 	s.shadows = s.shadows[:0]
 	_, rays := cam.(camera.Rays)
 	s.on, s.shading = rays && inRelief(cam), rays
+	if s.shading && s.ground == nil {
+		f.ReadGround() // the shades find the hex prisms under them
+	}
 }
 
 func (s *sprites) add(cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, id render.SpriteID, light render.Light, sway, t float32) {

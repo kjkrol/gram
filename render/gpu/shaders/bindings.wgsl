@@ -9,6 +9,17 @@ struct Draw {
     rect3: vec4<f32>,
     place: vec4<f32>, // a triangle draw's vertices scaled by xy and moved by zw (gpu.Draw.Place)
     tint: vec4<f32>,  // a triangle draw's plain colours times it (gpu.Draw.Tint)
+    // gpu.Draw.Sight: the rays (origin.w 1 for a sight), the matrix's rows z and w, the eye and
+    // the bend (eye.w)
+    origin: vec4<f32>,
+    dx: vec4<f32>,
+    dy: vec4<f32>,
+    dir: vec4<f32>,
+    ddx: vec4<f32>,
+    ddy: vec4<f32>,
+    rowZ: vec4<f32>,
+    rowW: vec4<f32>,
+    eye: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> D: Draw;
@@ -58,6 +69,23 @@ fn imageSrc3At(p: vec2<f32>) -> vec4<f32> {
 // reading their depth buffer (gpu.MeshDraw.ReadDepth): 0 where none was drawn, 1 nearest.
 fn depthAt(p: vec2<f32>) -> f32 {
     return textureLoad(depthImage, vec2<i32>(floor(p)), 0);
+}
+
+// heightDepth is the depth of what lies at height h under the target's pixel px, through the
+// draw's sight: where the line of sight meets h, sunk as the camera sinks the far ground.
+fn heightDepth(px: vec2<f32>, h: f32) -> f32 {
+    let o = D.origin.xyz + px.x * D.dx.xyz + px.y * D.dy.xyz;
+    let way = D.dir.xyz + px.x * D.ddx.xyz + px.y * D.ddy.xyz;
+    if abs(way.z) < 1e-9 {
+        return 0.0;
+    }
+    var z = h;
+    if D.eye.w != 0.0 {
+        let d = (o + way * ((h - o.z) / way.z)).xy - D.eye.xy;
+        z = h - D.eye.w * dot(d, d);
+    }
+    let p = vec4<f32>(o + way * ((z - o.z) / way.z), 1.0);
+    return dot(D.rowZ, p) / dot(D.rowW, p);
 }
 
 fn imageSrc0Origin() -> vec2<f32> { return D.rect0.xy; }

@@ -137,3 +137,29 @@ func needGPU(t *testing.T) {
 		t.Skipf("no GPU: %v", err)
 	}
 }
+
+func TestRenderer_DrawsTheBoardComposedOnceInTheOpaquePassAndItsGridOverIt(t *testing.T) {
+	grid := grid.DefaultGrids{}.Square(4, 4, 32)
+	brd := board.NewBoard(grid)
+	brd.SetAll(cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land})
+	space := world.SpaceCfg{Width: 128, Height: 128}
+	r := look.NewRenderer(brd, &flatAtlas{}, brd.Map(), space)
+	r.State().ShowGridLines = true
+	cam := icamera.NewFromSpace(space.Width, space.Height, 0)
+	var f render.Frame
+	f.Reset(cam)
+	r.Compose(&f, cam)
+	var opaque int
+	var through []render.At
+	f.Places(func(p render.Pass, at render.At) {
+		if p == render.Opaque {
+			opaque++
+		} else {
+			through = append(through, at)
+		}
+	})
+	if opaque != 1 || len(through) != 1 || through[0].Z() != look.GridLift {
+		t.Errorf("%d opaque places and the grid at %v, want the ground once and its grid at %v",
+			opaque, through, look.GridLift)
+	}
+}

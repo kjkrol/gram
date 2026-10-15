@@ -50,21 +50,21 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 	})}
 	cam := isoCamera(128, 128, camera.Config{})
 	a, b := geom.NewVec(48, 48), geom.NewVec(112, 48)
-	drawn := func(r *pathRenderer) (pieces [][]render.Vertex, depths []float32) {
+	drawn := func(r *pathRenderer) (pieces [][]render.Vertex, lies []render.At) {
 		var f render.Frame
 		f.Reset(cam)
 		r.Compose(&f, cam) // reads the ground; nothing to draw without a space
 		r.line(a, b)
-		f.Each(func(tier render.Tier, d float32, v []render.Vertex) {
-			if tier != render.Overlays {
-				t.Errorf("a route piece on tier %d, want Overlays", tier)
+		f.Each(func(at render.At, v []render.Vertex) {
+			if at == render.OnTop {
+				t.Error("a route piece is a mark, want it lying on the ground")
 			}
-			pieces, depths = append(pieces, append([]render.Vertex(nil), v...)), append(depths, d)
+			pieces, lies = append(pieces, append([]render.Vertex(nil), v...)), append(lies, at)
 		})
 		return
 	}
 	r := newPathRenderer(brd, RouteStyle{}, 0).WithHeights(func() ground.Heights { return land })
-	pieces, depths := drawn(r)
+	pieces, lies := drawn(r)
 	want := int(math.Ceil(64 / land.Step()))
 	if len(pieces) != want {
 		t.Fatalf("%d pieces over 64 units with a step of %v, want %d", len(pieces), land.Step(), want)
@@ -79,8 +79,9 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 		t.Errorf("the route ends at (%v, %v), want (%v, %v): on the ridge at its end", ex, ey, bx, by)
 	}
 	mid := geom.NewVec(112-32.0/2, 48)
-	if d := depths[len(depths)-1]; d != cam.Depth(float32(mid.X), float32(mid.Y), float32(land.At(mid))) {
-		t.Errorf("the last piece lies at depth %v, want the ground's under its middle", d)
+	if at, want := lies[len(lies)-1], float32(land.At(mid))+routeLift; at.Z() != want {
+		t.Errorf("the last piece lies at %v, want just over the ground under its middle, %v",
+			at.Z(), want)
 	}
 	flat := newPathRenderer(brd, RouteStyle{}, 0)
 	pieces, _ = drawn(flat)
@@ -104,9 +105,9 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 		r.Compose(&f, cam)
 		r.goal(geom.NewVec(10, 10), c, tc.spot, 0)
 		var starts [][2]float32
-		f.Each(func(tier render.Tier, _ float32, v []render.Vertex) {
-			if tier != render.Marks {
-				t.Errorf("a goal's line on tier %d, want Marks", tier)
+		f.Each(func(at render.At, v []render.Vertex) {
+			if at != render.OnTop {
+				t.Errorf("a goal's line lies at %v, want a mark on top", at)
 			}
 			x, y, _, _ := ends(v)
 			starts = append(starts, [2]float32{x, y})
@@ -146,7 +147,7 @@ func TestPathRenderer_OutlinesNoStepAside(t *testing.T) {
 		r.Compose(&f, cam)
 		r.goals(geom.NewVec(10, 10), cell.Land, &o)
 		n := 0
-		f.Each(func(render.Tier, float32, []render.Vertex) { n++ })
+		f.Each(func(render.At, []render.Vertex) { n++ })
 		if n != tc.lines {
 			t.Errorf("giving way %v: %d lines, want %d: 4 an outline", tc.givingWay, n, tc.lines)
 		}
@@ -206,7 +207,7 @@ func TestPathRenderer_OutlinesEachKindsGoalInItsRouteStyle(t *testing.T) {
 	f.Reset(cam)
 	r.Compose(&f, cam)
 	blue, orange := 0, 0
-	f.Each(func(_ render.Tier, _ float32, v []render.Vertex) {
+	f.Each(func(_ render.At, v []render.Vertex) {
 		switch {
 		case v[0].ColorB == 1:
 			blue++

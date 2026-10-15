@@ -41,10 +41,10 @@ func New(flat world.Look, sky Sky, r *relief.Relief, ground *terrain.Renderer) L
 }
 
 // Begin readies the billboards, the shadows and the flat sprites for a frame through cam.
-func (l Look) Begin(cam camera.Camera) {
-	l.gpu.begin(cam)
+func (l Look) Begin(f *render.Frame, cam camera.Camera) {
+	l.gpu.begin(f, cam)
 	if d, ok := l.flat.(world.DirectLook); ok {
-		d.Begin(cam)
+		d.Begin(f, cam)
 	}
 }
 

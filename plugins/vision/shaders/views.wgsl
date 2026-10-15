@@ -6,7 +6,7 @@
 // the target) — the views come after the ground, before what stands on it — or, over level ground
 // (U.FlatGround), where its line of sight meets the ground at 0 — and, inside the cone,
 // veils it in U.ShadowColor as far as the observer does not see it; the cone's edge is stroked in
-// the instance's colour, a pixel wide.
+// the instance's colour, a pixel wide, lying at the ground's depth.
 
 struct View {
     @builtin(position) clip: vec4<f32>,
@@ -30,11 +30,17 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>, @locatio
     return v;
 }
 
+struct Laid {
+    @location(0) color: vec4<f32>,
+    @builtin(frag_depth) depth: f32,
+}
+
 @fragment
-fn fs_main(@builtin(position) frag: vec4<f32>, v: View) -> @location(0) vec4<f32> {
+fn fs_main(@builtin(position) frag: vec4<f32>, v: View) -> Laid {
     let px = frag.xy - U.ViewAt;
     let ndc = vec2<f32>(px.x / U.ViewSize.x * 2.0 - 1.0, 1.0 - px.y / U.ViewSize.y * 2.0);
     var p: vec3<f32>;
+    var lies = frag.z;
     if U.FlatGround > 0.5 {
         // the line of sight through two depths, down to the ground at 0
         let far = U.Unproject * vec4<f32>(ndc, 0.25, 1.0);
@@ -50,6 +56,7 @@ fn fs_main(@builtin(position) frag: vec4<f32>, v: View) -> @location(0) vec4<f32
         if depth <= 0.0 {
             discard; // nothing drawn there: the sky
         }
+        lies = depth;
         let w = U.Unproject * vec4<f32>(ndc, depth, 1.0);
         p = w.xyz / w.w;
         let off = p.xy - U.Eye.xy;
@@ -92,5 +99,5 @@ fn fs_main(@builtin(position) frag: vec4<f32>, v: View) -> @location(0) vec4<f32
     if c.a < 0.002 {
         discard;
     }
-    return c;
+    return Laid(c, lies);
 }

@@ -100,7 +100,7 @@ func newHill(t *testing.T) aHill {
 		p.Renderer().(render.Direct).Draw(target, cam, u)
 		var f render.Frame
 		f.Reset(cam)
-		look.Begin(cam)
+		look.Begin(&render.Frame{}, cam)
 		if lay != nil {
 			lay(&f)
 		}
@@ -207,18 +207,20 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	at := grid.CellCenter(c)
 	cam.CenterOn(at.X, at.Y, 0)
 	vw, vh := cam.Viewport()
-	screen, depth := render.NewImage(int(vw), int(vh)), render.NewDepth()
+	screen := render.NewImage(int(vw), int(vh))
+	depth, ground := render.NewDepth(), render.NewDepth().Readable()
 	pix := make([]byte, 4*int(vw)*int(vh))
 	u := render.UniformsOf(map[string]any{"Sun": []float32{0.4, 0.3, 0.8}, "SunStrength": []float32{1}, "SunColor": []float32{1, 1, 1}, "Ambience": []float32{0.3, 0.3, 0.3}})
 	look := w.Look().(world.DirectLook)
 	draw := func(standing bool) []byte {
 		screen.Clear()
-		screen.ClearDepth(depth)
-		target := render.Target{Screen: screen, Depth: depth}
-		p.Renderer().(render.Direct).Draw(target, cam, u)
+		screen.ClearDepth(ground)
+		p.Renderer().(render.Direct).Draw(render.Target{Screen: screen, Depth: ground}, cam, u)
+		screen.CopyDepth(ground, depth)
+		target := render.Target{Screen: screen, Depth: depth, Ground: ground}
 		var f render.Frame
 		f.Reset(cam)
-		look.Begin(cam)
+		look.Begin(&render.Frame{}, cam)
 		if standing {
 			box := plane.NewAABB(geom.NewVec(at.X-3, at.Y-3), 6, 6)
 			look.Sprite(&f, cam, box, world.Z{Height: 6}, &magenta{}, render.Appearance{}, render.Light{1, 1, 1})
@@ -227,7 +229,6 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 		screen.ReadPixels(pix)
 		return append([]byte(nil), pix...)
 	}
-	draw(true) // a first frame: the depth buffer made to be read, what it held gone this once
 	bare, with := draw(false), draw(true)
 	shown, darker := 0, 0
 	for i := 0; i < len(with); i += 4 {

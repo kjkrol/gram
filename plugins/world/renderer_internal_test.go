@@ -65,7 +65,7 @@ func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules [
 }
 
 func drawShaded(t *testing.T, shaded map[render.SpriteID]render.MaterialID, pick func(ids []uid.UID64, v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *counting {
-	look := &counting{Look: ilook.NewFlat(1000, 1000)}
+	look := &counting{Look: ilook.NewFlat(1000, 1000, false, false)}
 	drawAs(t, look, func(r *renderer) { r.shade(shaded, nil) }, pick, rules, dir, at...)
 	return look
 }
@@ -200,7 +200,7 @@ func TestRenderer_Compose_AShadedSpriteIsOneMaterialQuad(t *testing.T) {
 		t.Fatalf("a shaded entity still drew sprites %v, want none", look.sprites)
 	}
 	quads := 0
-	look.frame.Each(func(_ render.Tier, _ float32, verts []render.Vertex) {
+	look.frame.Each(func(_ render.At, verts []render.Vertex) {
 		quads++
 		v := verts[0]
 		if v.ColorA <= 1.5 {
@@ -249,7 +249,7 @@ func TestRenderer_Compose_ALyingSpriteLiesWhereTheLookLaysIt(t *testing.T) {
 		}
 		return ap
 	})
-	lies := &lyingCounting{counting: &counting{Look: ilook.NewFlat(1000, 1000)}}
+	lies := &lyingCounting{counting: &counting{Look: ilook.NewFlat(1000, 1000, false, false)}}
 	drawAs(t, lies, func(r *renderer) { r.lie(a.lain(), nil, nil) }, nil, []render.Rule{under},
 		geom.Vec{},
 		quarters[0], quarters[1])
@@ -257,7 +257,7 @@ func TestRenderer_Compose_ALyingSpriteLiesWhereTheLookLaysIt(t *testing.T) {
 		t.Errorf("laid %v and stood %v, want the deck and its wet look laid", lies.lain,
 			lies.sprites)
 	}
-	stands := &counting{Look: ilook.NewFlat(1000, 1000)}
+	stands := &counting{Look: ilook.NewFlat(1000, 1000, false, false)}
 	drawAs(t, stands, func(r *renderer) { r.lie(a.lain(), nil, nil) }, nil, nil, geom.Vec{}, quarters[0])
 	if len(stands.sprites) != 1 {
 		t.Errorf("a look laying nothing drew %v, want the deck as a sprite", stands.sprites)
@@ -276,13 +276,13 @@ func (c *uprightCounting) Upright(_ *render.Frame, _ camera.Camera, _ plane.AABB
 
 func TestRenderer_Compose_AnUprightSpriteStandsTrue(t *testing.T) {
 	standing := map[render.SpriteID]bool{1: true}
-	stands := &uprightCounting{counting: &counting{Look: ilook.NewFlat(1000, 1000)}}
+	stands := &uprightCounting{counting: &counting{Look: ilook.NewFlat(1000, 1000, false, false)}}
 	drawAs(t, stands, func(r *renderer) { r.lie(nil, nil, standing) }, nil, nil, geom.Vec{},
 		quarters[0])
 	if len(stands.stood) != 1 || len(stands.sprites) != 0 {
 		t.Errorf("stood %v and drew %v, want the one stood true", stands.stood, stands.sprites)
 	}
-	flat := &counting{Look: ilook.NewFlat(1000, 1000)}
+	flat := &counting{Look: ilook.NewFlat(1000, 1000, false, false)}
 	drawAs(t, flat, func(r *renderer) { r.lie(nil, nil, standing) }, nil, nil, geom.Vec{},
 		quarters[0])
 	if len(flat.sprites) != 1 {
@@ -294,7 +294,7 @@ func TestRenderer_Compose_AnEntityWithALieIsLaidAlongIt(t *testing.T) {
 	const deck, plank, rail render.SpriteID = 1, 2, 9
 	lain := map[render.SpriteID]bool{deck: true, plank: true}
 	edges := map[render.SpriteID]render.SpriteID{deck: rail}
-	look := &lyingCounting{counting: &counting{Look: ilook.NewFlat(1000, 1000)}}
+	look := &lyingCounting{counting: &counting{Look: ilook.NewFlat(1000, 1000, false, false)}}
 	v := &view.View{}
 	cam := icamera.NewFromSpace(1000, 1000, 0)
 	var drawing render.Rules
@@ -332,4 +332,20 @@ func TestRenderer_Compose_AnEntityWithALieIsLaidAlongIt(t *testing.T) {
 	if !slices.Equal(look.along, want) || len(look.lain) != 0 {
 		t.Errorf("laid along %+v and flat %v, want %+v", look.along, look.lain, want)
 	}
+}
+
+func TestRenderer_Compose_TheFiguresComeOverWhatLiesBeneathTheLowestOfThem(t *testing.T) {
+	f := drawAs(t, ilook.NewFlat(1000, 1000, false, false), func(*renderer) {}, nil, nil,
+		geom.NewVec(1, 0), quarters...)
+	var places []render.At
+	f.Places(func(_ render.Pass, at render.At) { places = append(places, at) })
+	if len(places) != 1 || places[0].Z() != FigureLift {
+		t.Errorf("the figures are drawn at %v, want once, the figures' lift over the ground",
+			places)
+	}
+	none := drawAs(t, ilook.NewFlat(1000, 1000, false, false), func(*renderer) {}, nil, nil,
+		geom.NewVec(1, 0))
+	none.Places(func(render.Pass, render.At) {
+		t.Error("no figure in sight, yet a place for them")
+	})
 }

@@ -68,7 +68,7 @@ func NewPlugin(cfg Config) *Plugin {
 	kinds := newKinds(cfg.Heights)
 	m.kinds = kinds
 	p := &Plugin{Res: Resources{Config: cfg, Telemetry: &m.telemetry}, module: m, kinds: kinds, roster: kind.NewRoster(),
-		look: ilook.NewFlat(float32(cfg.Space.Width), float32(cfg.Space.Height))}
+		look: flatLook(cfg.Space)}
 	kind.Require[Position](&p.roster.Unit, "world", "where it stands")
 	p.roster.Unit.Default(comp.Const(Velocity{}))
 	m.effects = cgoke.NewEffects(effect.New(func(name string) tag.Tag[effect.States] {
@@ -143,7 +143,12 @@ func (p *Plugin) Look() Look { return p.look }
 
 // FlatLook is the world's own Look, seen from above.
 func (p *Plugin) FlatLook() Look {
-	return ilook.NewFlat(float32(p.Res.Config.Space.Width), float32(p.Res.Config.Space.Height))
+	return flatLook(p.Res.Config.Space)
+}
+
+func flatLook(space SpaceCfg) *ilook.Flat {
+	return ilook.NewFlat(float32(space.Width), float32(space.Height), space.Edges.WrapsX(),
+		space.Edges.WrapsY())
 }
 
 // ViewFor is the View of what cam sees, made at the first call and kept current from the next

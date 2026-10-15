@@ -7,7 +7,8 @@
 // [Engine] runs a game.Game in a window: every frame a tick of the active Stage and a picture of
 // its visible scenes. It is also the game.Runtime every Stage and Scene sees. GRAM_FPS_LOG has it
 // log the frame rate every second, GRAM_FULLSCREEN starts it fullscreen (F11 switches),
-// GRAM_VSYNC=off unpaces it.
+// GRAM_VSYNC=off unpaces it, GRAM_SHOT=<file.png> saves the frame GRAM_SHOT_FRAME (120) and quits,
+// the world taking one step a frame till then.
 //
 // # Initializer, runtime and persistence
 //

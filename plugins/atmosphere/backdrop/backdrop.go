@@ -27,7 +27,7 @@ var skyShader = render.NewMeshShaderWith("sky", render.Files(shaders, "shaders/b
 	{Name: "StarX", Size: 3}, {Name: "StarY", Size: 3}, {Name: "StarZ", Size: 3},
 })
 
-// Renderer is the sky behind the world, a render.Direct at the Backdrop tier: through a
+// Renderer is the sky behind the world, a render.Direct behind all of it: through a
 // perspective the sky of the day with the sun, the moon, the stars and the clouds on it, through
 // any other camera the viewport filled in the sky's colour wherever the ground does not cover it.
 type Renderer struct {
@@ -93,11 +93,8 @@ func (b *Renderer) WithShown(shown func() (stars, moon bool)) *Renderer {
 
 func (*Renderer) Init(*goke.SysInit) {}
 
-// Compose hands the frame nothing: the sky is drawn Direct.
-func (*Renderer) Compose(*render.Frame, camera.Camera) {}
-
-// Tier is render.Backdrop.
-func (*Renderer) Tier() render.Tier { return render.Backdrop }
+// Compose has the sky drawn Direct, behind the whole world.
+func (*Renderer) Compose(f *render.Frame, _ camera.Camera) { f.DrawAt(render.Furthest) }
 
 // Draw draws the sky into the target's screen through cam.
 func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
@@ -106,7 +103,7 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		return
 	}
 	if p.Flat && p.SunRadius == 0 {
-		t.Screen.Fill(rgba(p.Horizon))
+		fillBehind(t, rgba(p.Horizon))
 		return
 	}
 	if b.tri == nil {
@@ -135,8 +132,8 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	b.set("OverStars", 0)
 	if p.RealStars && p.Stars > 0 && b.stars.Place(cam, p.View[0], p.View[1], p.Heavens, p.Stars) > 0 {
 		// the stars on black first, the sky over them hiding what it covers
-		t.Screen.Fill(color.RGBA{A: 255})
-		b.stars.Draw(t.Screen)
+		fillBehind(t, color.RGBA{A: 255})
+		b.stars.Draw(t)
 		b.set("OverStars", 1)
 	}
 	b.set("StarX", p.StarTurn[0][:]...)
@@ -149,6 +146,7 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	b.set("LookDY", f.DDY[:]...)
 	b.set("CloudHeight", p.CloudHeight)
 	b.set("Visibility", p.Seeing)
+	b.opts.Depth = t.Depth // at the furthest depth: only where the world left nothing
 	if !p.Clouds {
 		b.set("SkyPieces", 0)
 		b.opts.Vertices = 0
@@ -168,6 +166,15 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 
 // pixels; shaders/backdrop.wgsl has the same
 const skyPiece = 16
+
+// the sky's colour where the world left nothing, everywhere without a depth
+func fillBehind(t render.Target, c color.Color) {
+	if t.Depth == nil {
+		t.Screen.Fill(c)
+		return
+	}
+	t.Screen.FillBehind(c, t.Depth)
+}
 
 func (b *Renderer) set(name string, v ...float32) {
 	s, ok := b.uniforms[name]

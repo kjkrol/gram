@@ -12,8 +12,8 @@ import (
 // outlines. The world's own is flat, seen from above; a view plugin puts its own in with
 // Plugin.SetLook.
 type Look interface {
-	// Sprite hands f the entity's settled Appearance for a box standing as z says, on the
-	// render.Objects tier, in light. A billboard in relief ignores the Angle.
+	// Sprite hands f the entity's settled Appearance for a box standing as z says, in light. A
+	// billboard in relief ignores the Angle.
 	Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource, a render.Appearance, light render.Light)
 	// Drawn is the screen quad that sprite covers, for picking.
 	Drawn(cam camera.Camera, box geom.AABB, z Z) render.Corners
@@ -22,11 +22,12 @@ type Look interface {
 	Footprint(cam camera.Camera, box geom.AABB, alt float32, dst []render.Corners) []render.Corners
 }
 
-// DirectLook is a Look that draws the sprites itself on the GPU: readied every frame with Begin,
-// handed the sprites in sight through Sprite, it draws them at DrawSprites.
+// DirectLook is a Look that draws the sprites itself on the GPU: readied every frame with Begin
+// (which may ask the frame for what it reads), handed the sprites in sight through Sprite, it
+// draws them at DrawSprites.
 type DirectLook interface {
 	Look
-	Begin(cam camera.Camera)
+	Begin(f *render.Frame, cam camera.Camera)
 	DrawSprites(t render.Target, cam camera.Camera, u render.Uniforms)
 }
 
@@ -49,6 +50,10 @@ type UprightLook interface {
 	Upright(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource,
 		a render.Appearance, light render.Light)
 }
+
+// FigureLift is how far over its height a figure lies among what is drawn back to front: over
+// whatever a plugin lays on the ground beneath it, at a lift of its own below this one.
+const FigureLift = ilook.FigureLift
 
 var (
 	_ DirectLook = (*ilook.Flat)(nil)

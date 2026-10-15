@@ -109,9 +109,17 @@ func (d *litDressing) FaceLight(t *look.Tile, dx, dy int) render.Light {
 
 func (d *litDressing) Covers(t *look.Tile) bool { return d.Dressing != nil && d.Dressing.Covers(t) }
 
-func (d *litDressing) Dress(f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1, depth float32) {
+func (d *litDressing) Dress(
+	f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1 float32, at render.At,
+) {
 	if d.Dressing != nil {
-		d.Dressing.Dress(f, cam, t, x0, y0, x1, y1, depth)
+		d.Dressing.Dress(f, cam, t, x0, y0, x1, y1, at)
+	}
+}
+
+func (d *litDressing) Across(f *render.Frame, cam camera.Camera, t *look.Tile) {
+	if d.Dressing != nil {
+		d.Dressing.Across(f, cam, t)
 	}
 }
 
@@ -122,9 +130,9 @@ type litLook struct {
 
 var _ world.LyingLook = litLook{}
 
-func (l litLook) Begin(cam camera.Camera) {
+func (l litLook) Begin(f *render.Frame, cam camera.Camera) {
 	if d, ok := l.Look.(world.DirectLook); ok {
-		d.Begin(cam)
+		d.Begin(f, cam)
 	}
 }
 
@@ -134,7 +142,10 @@ func (l litLook) DrawSprites(t render.Target, cam camera.Camera, u render.Unifor
 	}
 }
 
-func (l litLook) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource, a render.Appearance, light render.Light) {
+func (l litLook) Sprite(
+	f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z, atlas render.AtlasSource,
+	a render.Appearance, light render.Light,
+) {
 	sun := l.sky.Sun().Light(0, 0, 1)
 	lit := render.Light{sun[0] * light[0], sun[1] * light[1], sun[2] * light[2]}
 	if a.Sway > 0 { // seen from above by its top, as high as it is wide

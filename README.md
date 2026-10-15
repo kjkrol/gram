@@ -84,7 +84,7 @@ cgo. Without a GPU the tests that draw skip themselves.
 | **Selection, players, cameras** | `plugins/selection`, `plugins/players`, `plugins/cameras` | Click and marquee into `Selected`; players over the command handlers, their bindings and a list of keys (K); cameras made where a scene shows them, fastened over a unit, behind it or inside it |
 | **Telemetry** | `plugins/telemetry` | The panel in the corner saying how the game runs — the frame rate, the ticks, where a frame's time goes, the entities, the game time, the plugins' and the game's own lines — in every Stage with a world, shown and hidden with ~ |
 | **Persistence** | `game.Persistence` | Save, load and list the active Stage's ECS and every tracked value by name |
-| **Rendering** | `render`, `camera` | Everything drawn on the GPU (WebGPU, WGSL): sources composed by tier with a shared depth buffer, `Direct` sources with shaders of their own, a picture kept on the GPU (`Still`), an atlas baked at `Close` |
+| **Rendering** | `render`, `camera` | Everything drawn on the GPU (WebGPU, WGSL): sources drawn over one another by height in a shared depth buffer, the ground first and the marks last, `Direct` sources with shaders of their own, a picture kept on the GPU (`Still`), an atlas baked at `Close` |
 
 <a id="example"></a>
 # Example

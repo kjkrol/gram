@@ -26,18 +26,25 @@ fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(0.0, 0.0, 0.0, 1.0); }
 func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
 	needGPU(t)
 	cam := icamera.NewFromSpace(256, 256, 0)
-	screen, depth := render.NewImage(256, 256), render.NewDepth()
-	screen.ClearDepth(depth)
+	screen, depth, ground := render.NewImage(256, 256), render.NewDepth(), render.NewDepth().
+		Readable()
+	screen.ClearDepth(ground)
 	f, _ := cam.(camera.Rays).Rays()
 	tr, _ := camera.SceneTransform(f, 256, 256)
-	screen.DrawMesh(nil, level, &render.DrawMeshOptions{Depth: depth, WriteDepth: true, Vertices: 6, Uniforms: map[string]any{"ViewProj": tr.M[:]}})
+	screen.DrawMesh(nil, level, &render.DrawMeshOptions{
+		Depth:      ground,
+		WriteDepth: true,
+		Vertices:   6,
+		Uniforms:   map[string]any{"ViewProj": tr.M[:]},
+	})
+	screen.CopyDepth(ground, depth)
 	g := New()
 	flat := func(geom.Vec) float32 { return 0 }
 	g.Add(cam, geom.NewVec(40, 100), geom.NewVec(200, 100), flat, 32, 3, color.RGBA{R: 255, A: 255})
 	if len(g.stretches) != 16 {
 		t.Fatalf("a stretch is %d floats, want 16: ends, rect, colour, width", len(g.stretches))
 	}
-	g.Draw(render.Target{Screen: screen, Depth: depth}, cam)
+	g.Draw(render.Target{Screen: screen, Depth: depth, Ground: ground}, cam)
 	pix := make([]byte, 4*256*256)
 	screen.ReadPixels(pix)
 	red := func(x, y int) byte { return pix[4*(y*256+x)] }

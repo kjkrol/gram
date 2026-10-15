@@ -73,11 +73,16 @@ func (l *Painter) layWaterBase(s *groundSheet, i int) {
 		for k, f := range flow {
 			v[k] = render.Light{flowOf(f[0]), flowOf(f[1]), 1}
 		}
-		s.wcanvas[water.FlowLayer].Sprite(render.Ground, 0, white, 0, l.waterCorners(s, water.FlowLayer, i, box), v)
-		s.wcanvas[water.ShineLayer].Sprite(render.Ground, 0, white, 0, l.waterCorners(s, water.ShineLayer, i, box), render.Lit(render.Light{base.shine, 0, 0}))
+		flow := l.waterCorners(s, water.FlowLayer, i, box)
+		shine := l.waterCorners(s, water.ShineLayer, i, box)
+		s.wcanvas[water.FlowLayer].Sprite(render.At{}, white, 0, flow, v)
+		s.wcanvas[water.ShineLayer].Sprite(render.At{}, white, 0, shine,
+			render.Lit(render.Light{base.shine, 0, 0}))
 		return
 	}
-	s.wcanvas[water.ShineLayer].Sprite(render.Ground, 0, white, 0, l.waterCorners(s, water.ShineLayer, i, box), render.Lit(render.Light{0, base.shine, 1}))
+	shine := l.waterCorners(s, water.ShineLayer, i, box)
+	s.wcanvas[water.ShineLayer].Sprite(render.At{}, white, 0, shine,
+		render.Lit(render.Light{0, base.shine, 1}))
 }
 
 func (l *Painter) layWater(s *groundSheet, i int, blends []BlendPiece, ways []WayPiece) {
@@ -85,10 +90,10 @@ func (l *Painter) layWater(s *groundSheet, i int, blends []BlendPiece, ways []Wa
 	lay := func(q int, w render.World, shade render.Shade, faded bool, weight [4]float32, soft float32) {
 		c := l.waterCorners(s, q, i, w)
 		if faded {
-			s.wcanvas[q].SpriteBlend(render.Ground, 0, white, 0, c, shade, weight, soft)
+			s.wcanvas[q].SpriteBlend(render.At{}, white, 0, c, shade, weight, soft)
 			return
 		}
-		s.wcanvas[q].Sprite(render.Ground, 0, white, 0, c, shade)
+		s.wcanvas[q].Sprite(render.At{}, white, 0, c, shade)
 	}
 	for _, p := range blends {
 		lay(water.FlowLayer, p.World, dark, true, p.Weight, p.Soft)

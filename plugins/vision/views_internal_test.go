@@ -40,14 +40,22 @@ func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
 	needGPU(t)
 	cam := icamera.NewFromSpace(256, 256, 0)
 	v := newViews()
-	screen, depth := render.NewImage(256, 256), render.NewDepth()
+	screen, depth, ground := render.NewImage(256, 256), render.NewDepth(), render.NewDepth().
+		Readable()
 	screen.Fill(color.Black)
-	screen.ClearDepth(depth)
+	screen.ClearDepth(ground)
 	f, _ := cam.(camera.Rays).Rays()
 	tr, _ := camera.SceneTransform(f, 256, 256)
-	screen.DrawMesh(nil, level, &render.DrawMeshOptions{Depth: depth, WriteDepth: true, Vertices: 6, Uniforms: map[string]any{"ViewProj": tr.M[:]}})
+	screen.DrawMesh(nil, level, &render.DrawMeshOptions{
+		Depth:      ground,
+		WriteDepth: true,
+		Vertices:   6,
+		Uniforms:   map[string]any{"ViewProj": tr.M[:]},
+	})
+	screen.CopyDepth(ground, depth)
 	v.look(cam, observer{X: 40, Y: 128, Eye: 2, Reach: 200, Half: math.Pi / 6, Color: unitColor(DefaultCone.Color)})
-	v.draw(render.Target{Screen: screen, Depth: depth}, cam, ridge{}, nil, 256, 256, 4, [2]bool{}, 0, DefaultShadow)
+	target := render.Target{Screen: screen, Depth: depth, Ground: ground}
+	v.draw(target, cam, ridge{}, nil, 256, 256, 4, [2]bool{}, 0, DefaultShadow)
 	pix := make([]byte, 4*256*256)
 	screen.ReadPixels(pix)
 	at := func(x, y int) int { i := 4 * (y*256 + x); return int(pix[i]) + int(pix[i+1]) + int(pix[i+2]) }
@@ -78,7 +86,10 @@ func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
 
 type wall struct{}
 
-func (wall) Walk(origin, dir geom.Vec, length float64, _ world.Layers, visit func(near, far, bottom, top, tau float64) bool) {
+func (wall) Walk(
+	origin, dir geom.Vec, length float64, _ world.Layers,
+	visit func(near, far, bottom, top, tau float64) bool,
+) {
 	if dir.X > 0 && origin.X <= 100 && origin.X+length >= 120 {
 		visit(100-origin.X, 120-origin.X, math.Inf(-1), math.Inf(1), 0)
 	}
@@ -127,19 +138,21 @@ func TestViews_AnEyeLookingUpVeilsNoGround(t *testing.T) {
 	needGPU(t)
 	cam := icamera.NewFromSpace(256, 256, 0)
 	v := newViews()
-	screen, depth := render.NewImage(256, 256), render.NewDepth()
+	screen, depth, ground := render.NewImage(256, 256), render.NewDepth(), render.NewDepth().
+		Readable()
 	screen.Fill(color.Black)
-	screen.ClearDepth(depth)
+	screen.ClearDepth(ground)
 	f, _ := cam.(camera.Rays).Rays()
 	tr, _ := camera.SceneTransform(f, 256, 256)
 	screen.DrawMesh(nil, level, &render.DrawMeshOptions{
-		Depth: depth, WriteDepth: true, Vertices: 6, Uniforms: map[string]any{"ViewProj": tr.M[:]},
+		Depth: ground, WriteDepth: true, Vertices: 6, Uniforms: map[string]any{"ViewProj": tr.M[:]},
 	})
+	screen.CopyDepth(ground, depth)
 	v.look(cam, observer{
 		X: 40, Y: 128, Eye: 2, Reach: 200, Half: math.Pi / 6, Color: unitColor(DefaultCone.Color),
 		Tilt: math.Pi / 3, VHalf: math.Pi / 8,
 	})
-	target := render.Target{Screen: screen, Depth: depth}
+	target := render.Target{Screen: screen, Depth: depth, Ground: ground}
 	v.draw(target, cam, ridge{}, nil, 256, 256, 4, [2]bool{}, 0, DefaultShadow)
 	pix := make([]byte, 4*256*256)
 	screen.ReadPixels(pix)

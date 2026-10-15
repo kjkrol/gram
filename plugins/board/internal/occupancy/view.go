@@ -84,12 +84,12 @@ func (v *View) drawHold(e uid.UID64, _ cell.Domain, deck bool) {
 		if i == 0 {
 			x0, y0 = x, y
 		} else {
-			v.frame.Line(render.Marks, 0, xp, yp, x, y, holdWidth, col)
+			v.frame.Line(render.OnTop, xp, yp, x, y, holdWidth, col)
 		}
 		xp, yp = x, y
 	}
 	if len(v.outline) > 1 {
-		v.frame.Line(render.Marks, 0, xp, yp, x0, y0, holdWidth, col)
+		v.frame.Line(render.OnTop, xp, yp, x0, y0, holdWidth, col)
 	}
 }
 

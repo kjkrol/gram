@@ -188,16 +188,22 @@ func (l *Painter) Covers(t *look.Tile) bool {
 	return len(b.blends) > 0 || len(b.ways) > 0
 }
 
-// Dress lays over t's top, drawn over the box x0..x1, y0..y1 at depth, what lies on it: its
-// water, the grounds round it running in, its outline where covered, and the way across it.
-func (l *Painter) Dress(f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1, depth float32) {
+// Dress lays over t's top, drawn over the box x0..x1, y0..y1 lying at at, what lies on it: its
+// water, the grounds round it running in, its outline where covered.
+func (l *Painter) Dress(
+	f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1 float32, at render.At,
+) {
 	d, top := l.tileOf(t), f.Last()
 	d.DrawSurface(f, x0, y0, x1, y1)
-	d.DrawBlends(f, cam, depth)
+	d.DrawBlends(f, cam, at)
 	if t.Outlined && l.Covers(t) {
 		f.OutlineOn(top)
 	}
-	d.DrawWay(f, cam, depth)
+}
+
+// Across lays the way across t.
+func (l *Painter) Across(f *render.Frame, cam camera.Camera, t *look.Tile) {
+	l.tileOf(t).DrawWay(f, cam)
 }
 
 func (l *Painter) tileOf(t *look.Tile) *tile {
