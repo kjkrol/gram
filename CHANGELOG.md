@@ -15,6 +15,23 @@ where it begins: `navigation.Path` changed shape. Nor those made before the beha
 Nor those made before a unit could strafe: `entity.Velocity` has a `Side`. Nor those of a board
 in a flat world: a board stands only in a world with heights now.
 
+**The sky's colours from one place; the clouds' shadows in the ground** (2026-10-15)
+- The atmosphere's sky hands every frame the sun and the weather itself: its clouds no longer
+  wait for a lit board or a relief. `air.Weather.Frame` hands the sky's colours, `Fog` at the
+  horizon and the new `SkyOverhead`, the WGSL `skyAt(up)` between them; the vault and the relief's
+  water both take it (`overcastSky()` and the sea's own 1.15/0.7 blend are gone). Without an
+  atmosphere the topography hands the frame its still sky, giving way to one already there
+  (`render.Frame.Uniformed`); the board's lit dressing and the painter hand none.
+- The light by the sun's height is a game's: `sky.Config.Daylight` (`sky.Daylight` rows,
+  `sky.EarthDaylight()` when none), `Config.Moon` the moon the night begins under
+  (`Sky.Moonlight`); `Heavens.SunColor` is the sun's own colour where it stands, `SunColorAt` is
+  gone. `celestial.Up`, `Risen`, `Gone`, `Night` hold the thresholds the light and the sky share.
+- The clouds' shadows on a flat board are part of its ground, laid right after it in the opaque
+  pass (`look.GroundDressing`, the board's own `draw.Clouds`), as the relief's terrain shades its
+  own: the materials, the grid, the cells held and the sight drawn over them are no longer
+  darkened. `atmosphere.Plugin.Clouds()`, `board.Atmosphere.Clouds()` and the package
+  `atmosphere/overcast` are gone.
+
 **The Stage's picture: a plugin says what it draws** (2026-10-15)
 - `plugin.Plugin.Renderer()` is gone. A plugin gives what it draws to `plugin.Installer.Draws`
   in `Install` and has its looks declared through `Installer.Looks`, run once the Stage's Init

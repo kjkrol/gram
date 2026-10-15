@@ -29,7 +29,7 @@ func TestBackdrop_DrawsTheSkyOnTheGPU(t *testing.T) {
 	screen := render.NewImage(100, 100)
 	pix := make([]byte, 4*100*100)
 	at := func(x, y int) [4]byte { i := 4 * (y*100 + x); return [4]byte(pix[i : i+4]) }
-	b.Draw(render.Target{Screen: screen}, raying{height: 30}, render.UniformsOf(map[string]any{}))
+	b.Draw(render.Target{Screen: screen}, raying{height: 30}, framed(b, cam))
 	screen.ReadPixels(pix)
 	if top, bottom := at(5, 2), at(5, 97); top[0] >= bottom[0] || top[1] >= bottom[1] || top[3] != 255 || bottom[3] != 255 {
 		t.Errorf("the sky is %v at the top and %v at the bottom, want it opaque and deeper overhead", top, bottom)
@@ -38,7 +38,8 @@ func TestBackdrop_DrawsTheSkyOnTheGPU(t *testing.T) {
 		t.Errorf("the sun's disc in the middle is %v, want white", c)
 	}
 	screen.Clear()
-	b.Draw(render.Target{Screen: screen}, shifted{Camera: cam, dx: 150}, render.UniformsOf(map[string]any{}))
+	far := shifted{Camera: cam, dx: 150}
+	b.Draw(render.Target{Screen: screen}, far, framed(b, cam))
 	screen.ReadPixels(pix)
 	if c := at(70, 30); c != [4]byte{128, 179, 255, 255} {
 		t.Errorf("past the world's edge from above the screen is %v, want the sky's colour", c)

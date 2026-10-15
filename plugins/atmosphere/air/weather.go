@@ -15,7 +15,7 @@ var shaders embed.FS
 var weatherMaterials = render.RegisterMaterials(render.Files(shaders, "shaders/cloud_noise.wgsl", "shaders/cloud_shadow.wgsl", "shaders/clouds.wgsl"), []render.Uniform{
 	{Name: "Wind", Size: 2}, {Name: "Drift", Size: 2}, {Name: "Cover", Size: 1}, {Name: "Billow", Size: 1},
 	{Name: "EyeAt", Size: 3}, {Name: "LookDir", Size: 3}, {Name: "LookDX", Size: 3}, {Name: "LookDY", Size: 3},
-	{Name: "CloudHeight", Size: 1}, {Name: "Visibility", Size: 1},
+	{Name: "CloudHeight", Size: 1}, {Name: "Visibility", Size: 1}, {Name: "SkyOverhead", Size: 3},
 }, "CloudShadow")
 
 var cloudShadow = weatherMaterials[0]
@@ -52,13 +52,16 @@ func Visibility(scale world.Scale, w Weather) float64 {
 
 func clamp01(v float32) float32 { return min(max(v, 0), 1) }
 
-// Frame hands f the air's uniforms (shaders/*.wgsl) and the fog colour what lies far off turns
-// to.
+// Frame hands f the air's uniforms (shaders/*.wgsl) and the sky's colours under sun: at the
+// horizon, the Fog what lies far off turns to, and overhead (SkyOverhead).
 func (w Weather) Frame(f *render.Frame, sun sky.Sun) {
 	f.Uniform("Wind", w.Wind[0], w.Wind[1])
-	f.Uniform("Drift", float32(wrap(float64(w.Drift[0]), HeapTile)), float32(wrap(float64(w.Drift[1]), HeapTile)))
+	f.Uniform("Drift", float32(wrap(float64(w.Drift[0]), HeapTile)),
+		float32(wrap(float64(w.Drift[1]), HeapTile)))
 	f.Uniform("Cover", w.Clouds)
 	f.Uniform("Billow", w.Billow)
 	fog := Overcast(sun.SkyLight(), w.Clouds)
 	f.Uniform("Fog", fog[0], fog[1], fog[2])
+	overhead := Overhead(sun.SkyLight(), w.Clouds)
+	f.Uniform("SkyOverhead", overhead[0], overhead[1], overhead[2])
 }

@@ -9,7 +9,9 @@
 // The Map's Dressing lays what lies on the tiles beyond their sprites: the sheet they are drawn
 // from, their [Tile.Base], their light ([Tile.Light], [Tile.FaceLight]) and whatever lies on
 // them ([Tile.Dress]). A flat map seen from above whose Dressing lights every tile alike
-// ([EvenLit]) is composed once and kept on the GPU, composed anew only when a cell changes.
+// ([EvenLit]) is composed once and kept on the GPU, composed anew only when a cell changes. A
+// [GroundDressing] lays on the ground itself, right after it, what is part of it: the clouds'
+// shadows.
 //
 // # The grid
 //

@@ -9,13 +9,12 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -153,19 +152,12 @@ func (*drawsCtx) Hosts(...host.Host)         {}
 func (c *drawsCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
 func (c *drawsCtx) Looks(func())             { c.looks++ }
 
-type cloudySky struct{ clouds render.Source }
+type stillSky struct{}
 
-func (cloudySky) Sun() sky.Sun            { return sky.DefaultSun }
-func (cloudySky) Air() air.Weather        { return air.Weather{} }
-func (s cloudySky) Clouds() render.Source { return s.clouds }
+func (stillSky) Sun() sky.Sun     { return sky.DefaultSun }
+func (stillSky) Air() air.Weather { return air.Weather{} }
 
-type reserving struct{}
-
-func (reserving) Init(*goke.SysInit)                                 {}
-func (reserving) Compose(f *render.Frame, _ camera.Camera)           { f.DrawAt(f.OnGround(0.5)) }
-func (reserving) Draw(render.Target, camera.Camera, render.Uniforms) {}
-
-func TestPlugin_DrawsItsGroundItsHoldsAndTheCloudsOfItsSky(t *testing.T) {
+func TestPlugin_DrawsItsGroundAndItsHoldsAndDressesTheGroundUnderASky(t *testing.T) {
 	worldPlugin := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
@@ -176,24 +168,16 @@ func TestPlugin_DrawsItsGroundItsHoldsAndTheCloudsOfItsSky(t *testing.T) {
 	if err := p.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	want := []render.Source{p.renderer, p.holdsView, &p.clouds}
+	want := []render.Source{p.renderer, p.holdsView}
 	if !slices.Equal(ctx.drawn, want) || ctx.looks != 1 {
-		t.Fatalf("drew %v with %d looks, want the ground, the holds and the clouds, one look",
-			ctx.drawn, ctx.looks)
+		t.Fatalf("drew %v with %d looks, want the ground and the holds, one look", ctx.drawn,
+			ctx.looks)
 	}
-	cam := icamera.NewFromSpace(100, 100, 0)
-	places := func() (n int) {
-		var f render.Frame
-		f.Reset(cam)
-		p.clouds.Compose(&f, cam)
-		f.Places(func(render.Pass, render.At) { n++ })
-		return n
+	if _, ok := p.Map().Dressing().(look.GroundDressing); ok {
+		t.Error("under no sky the ground is dressed")
 	}
-	if n := places(); n != 0 {
-		t.Errorf("the clouds of no sky asked for %d places, want none", n)
-	}
-	p.WithAtmosphere(cloudySky{clouds: reserving{}})
-	if n := places(); n != 1 {
-		t.Errorf("the clouds of a sky asked for %d places, want the sky's one", n)
+	p.WithAtmosphere(stillSky{})
+	if _, ok := p.Map().Dressing().(look.GroundDressing); !ok {
+		t.Error("under a sky the ground is not dressed with the clouds' shadows")
 	}
 }

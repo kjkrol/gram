@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
@@ -25,11 +26,12 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 )
 
 // Atmosphere is the sky over the relief: the sun that lights it and casts its shadows, and the
-// weather. plugins/atmosphere's Plugin is one; given none the relief stands under sky.DefaultSun
-// in still, clear air.
+// weather. plugins/atmosphere's Plugin is one, its sky handing the frame them; given none the
+// relief stands under sky.DefaultSun in still, clear air, which it hands the frame itself.
 type Atmosphere interface {
 	Sun() sky.Sun
 	Air() air.Weather
@@ -39,6 +41,21 @@ type stillSky struct{}
 
 func (stillSky) Sun() sky.Sun     { return sky.DefaultSun }
 func (stillSky) Air() air.Weather { return air.Weather{} }
+
+// stillFrame hands the frame the still sky while no atmosphere lights the relief, giving way to a
+// sky some other source has put on the frame, whichever composes first
+type stillFrame struct{ p *Plugin }
+
+func (stillFrame) Init(*goke.SysInit) {}
+
+func (s stillFrame) Compose(f *render.Frame, _ camera.Camera) {
+	if _, still := s.p.sky.(stillSky); !still || f.Uniformed("Sun") {
+		return
+	}
+	sun := sky.DefaultSun
+	sun.Frame(f)
+	air.Weather{}.Frame(f, sun)
+}
 
 // Config is the topography: Cell (world units, must be set) is drawn isometrically as a TileW x
 // TileH diamond (64 x 32 when zero), a height lifts a point HeightUnit screen units a world unit
@@ -351,6 +368,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	} else {
 		ctx.Draws(p.hexes)
 	}
+	ctx.Draws(stillFrame{p})
 	return nil
 }
 

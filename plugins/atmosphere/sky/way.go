@@ -11,13 +11,16 @@ const Latitude = 30
 
 // Config is the sun's path and the light: which way the sun stands at noon, in how many Steps a
 // day the light moves (none: as it goes), whether it begins Frozen at Hour on the clock's face
-// (noon when zero), and which Stars the night shows.
+// (noon when zero), which Stars the night shows, the Daylight by the sun's height (none: the
+// Earth's) and the Moon the night begins under (zero: DefaultMoon).
 type Config struct {
-	NoonWay celestial.Way
-	Steps   int
-	Frozen  bool
-	Hour    time.Duration
-	Stars   celestial.StarSky
+	NoonWay  celestial.Way
+	Steps    int
+	Frozen   bool
+	Hour     time.Duration
+	Stars    celestial.StarSky
+	Daylight []Daylight
+	Moon     Moon
 
 	latitude float64 // degrees from the equator
 }
@@ -25,6 +28,12 @@ type Config struct {
 func (c Config) withDefaults() Config {
 	if c.Hour == 0 {
 		c.Hour = 12 * time.Hour
+	}
+	if len(c.Daylight) == 0 {
+		c.Daylight = earthDaylight
+	}
+	if c.Moon == (Moon{}) {
+		c.Moon = DefaultMoon()
 	}
 	return c
 }

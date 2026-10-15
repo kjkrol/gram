@@ -26,12 +26,13 @@ type night struct {
 	ecs *goke.ECS
 }
 
-func newNight(t *testing.T, cal calendar.Config, define func(n *night), rules func(n *night)) *night {
+func newNight(t *testing.T, cfg atmosphere.Config, define func(n *night),
+	rules func(n *night)) *night {
 	t.Helper()
 	n := &night{}
 	st := stage.New("night").
 		World(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true}).
-		Plugins(func(w *world.Plugin) { n.w, n.a = w, atmosphere.NewPlugin(w, atmosphere.Config{Calendar: cal}) }).
+		Plugins(func(w *world.Plugin) { n.w, n.a = w, atmosphere.NewPlugin(w, cfg) }).
 		Effects(func(ctx game.Initializer) { n.ecs = ctx.ECS(); define(n) }).
 		Rules(func() {
 			if rules != nil {
@@ -50,10 +51,24 @@ func newNight(t *testing.T, cal calendar.Config, define func(n *night), rules fu
 
 const tick = time.Second / 60
 
+func TestMoon_AGamesOwnLightsTheNightFromTheStart(t *testing.T) {
+	red := render.Light{1, 0.2, 0.2}
+	cfg := atmosphere.Config{Calendar: calendar.Config{Start: time.Hour}} // one in the morning
+	cfg.Sky.Moon = sky.Moon{Color: red, Strength: 0.5, Face: render.Light{1, 1, 1}}
+	n := newNight(t, cfg, func(*night) {}, nil)
+	for range 3 {
+		n.ecs.Tick(tick)
+	}
+	if got := n.a.Sun().Color; got != red {
+		t.Errorf("under the game's own moon the night is lit %v, want %v", got, red)
+	}
+}
+
 func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 	red := render.Light{1, 0.2, 0.2}
 	var blood effect.Effect
-	n := newNight(t, calendar.Config{Start: time.Hour}, func(n *night) { // one in the morning
+	early := atmosphere.Config{Calendar: calendar.Config{Start: time.Hour}} // one in the morning
+	n := newNight(t, early, func(n *night) {
 		n.w.Effects().Define("blood moon", effect.Spec{effect.Alter(func(m *sky.Moon) { m.Color = red })})
 		blood = n.w.Effects().Named("blood moon")
 	}, nil)
@@ -84,7 +99,8 @@ func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 func TestMoonrise_FiresOnceARiseAndFullPicksTheFullOnes(t *testing.T) {
 	var risen, full effect.Effect
 	day := 2 * time.Second // 120 ticks; the moon of a GameYear goes round in four days
-	n := newNight(t, calendar.Config{DayRealTime: day}, func(n *night) {
+	cfg := atmosphere.Config{Calendar: calendar.Config{DayRealTime: day}}
+	n := newNight(t, cfg, func(n *night) {
 		n.w.Effects().Define("risen", effect.Spec{effect.Lasts(4 * tick)})
 		risen = n.w.Effects().Named("risen")
 		n.w.Effects().Define("full risen", effect.Spec{effect.Lasts(4 * tick)})

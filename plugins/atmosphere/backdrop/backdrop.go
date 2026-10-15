@@ -20,7 +20,7 @@ var _ render.Direct = (*Renderer)(nil)
 var shaders embed.FS
 
 var skyShader = render.NewMeshShaderWith("sky", render.Files(shaders, "shaders/backdrop.wgsl"), []render.Uniform{
-	{Name: "SkyView", Size: 2}, {Name: "SkyPieces", Size: 1}, {Name: "SkyHorizon", Size: 3}, {Name: "SkyOverhead", Size: 3},
+	{Name: "SkyView", Size: 2}, {Name: "SkyPieces", Size: 1},
 	{Name: "SunAt", Size: 2}, {Name: "SunRadius", Size: 1}, {Name: "SunDisc", Size: 4}, {Name: "SunHalo", Size: 3}, {Name: "CloudsOn", Size: 1},
 	{Name: "MoonAt", Size: 2}, {Name: "MoonRadius", Size: 1}, {Name: "MoonLight", Size: 3}, {Name: "MoonNorth", Size: 2}, {Name: "MoonFace", Size: 4},
 	{Name: "StarsOn", Size: 1}, {Name: "ScatteredOn", Size: 1}, {Name: "OverStars", Size: 1},
@@ -50,7 +50,6 @@ type Renderer struct {
 
 type skyPlan struct {
 	None, Flat          bool
-	Horizon, Overhead   render.Light
 	View                [2]float32
 	Field               camera.RayField
 	Eye                 [3]float32
@@ -93,8 +92,14 @@ func (b *Renderer) WithShown(shown func() (stars, moon bool)) *Renderer {
 
 func (*Renderer) Init(*goke.SysInit) {}
 
-// Compose has the sky drawn Direct, behind the whole world.
-func (*Renderer) Compose(f *render.Frame, _ camera.Camera) { f.DrawAt(render.Furthest) }
+// Compose hands the frame the sun and the weather and has the sky drawn Direct, behind the whole
+// world.
+func (b *Renderer) Compose(f *render.Frame, _ camera.Camera) {
+	day := b.sun()
+	day.Frame(f)
+	b.air().Frame(f, day)
+	f.DrawAt(render.Furthest)
+}
 
 // Draw draws the sky into the target's screen through cam.
 func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
@@ -103,7 +108,9 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		return
 	}
 	if p.Flat && p.SunRadius == 0 {
-		fillBehind(t, rgba(p.Horizon))
+		var horizon render.Light
+		copy(horizon[:], u.Get("Fog"))
+		fillBehind(t, rgba(horizon))
 		return
 	}
 	if b.tri == nil {
@@ -116,8 +123,6 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	b.opts.Images[1] = b.moon
 	f := p.Field
 	b.set("SkyView", p.View[:]...)
-	b.set("SkyHorizon", p.Horizon[:]...)
-	b.set("SkyOverhead", p.Overhead[:]...)
 	b.set("SunAt", p.SunAt[:]...)
 	b.set("SunRadius", p.SunRadius)
 	b.set("SunDisc", p.SunDisc[:]...)
@@ -200,24 +205,23 @@ func (b *Renderer) plan(cam camera.Camera) skyPlan {
 	}
 	day := b.sun()
 	weather := b.air()
-	p := skyPlan{Horizon: air.Overcast(day.SkyLight(), weather.Clouds), View: [2]float32{w, h}}
+	p := skyPlan{View: [2]float32{w, h}}
 	heavens, sunColor := celestial.Heavens{Sun: day.Dir}, day.Color
 	if b.heavens != nil {
 		heavens = b.heavens()
-		sunColor = sky.SunColorAt(heavens.Sun[2])
+		sunColor = heavens.SunColor
 	}
 	p.Heavens = heavens
 	p.SunAt, p.SunRadius, p.SunDisc, p.SunHalo = b.sunOn(cam, w, h, heavens.Sun, sunColor, weather.Clouds)
 	field, ex, ey, ez, eyed := lines(cam)
 	if !eyed {
-		p.Flat, p.Overhead = true, p.Horizon
+		p.Flat = true
 		return p
 	}
 	if b.heavens != nil {
 		b.nightOn(&p, cam, field, w, h, heavens, weather.Clouds)
 	}
 	p.Field, p.Eye = field, [3]float32{ex, ey, ez}
-	p.Overhead = air.Overhead(day.SkyLight(), weather.Clouds)
 	p.CloudHeight = air.Base(b.scale)
 	p.Clouds = weather.Clouds > 0 && ez < p.CloudHeight
 	p.Seeing = float32(air.Visibility(b.scale, weather))
@@ -263,7 +267,6 @@ const (
 	sunRadius = 1.0 / 40
 	discAngle = 0.41421356 / 20 // tan(22.5°)/20
 	sunGlow   = 16
-	sunBelow  = 0.1
 )
 
 func discRadius(cam camera.Camera, h float32) float32 {
@@ -280,7 +283,7 @@ func discRadius(cam camera.Camera, h float32) float32 {
 // radius 0 where no sun shows
 func (b *Renderer) sunOn(cam camera.Camera, w, h float32, dir [3]float32, color render.Light, clouds float32) (at [2]float32, radius float32, disc [4]float32, halo render.Light) {
 	v, ok := cam.(camera.Vanisher)
-	if !ok || dir[2] <= -sunBelow {
+	if !ok || !celestial.Up(dir[2]) {
 		return at, 0, disc, halo
 	}
 	ax, ay, ahead := v.Vanish(dir[0], dir[1], dir[2])
@@ -299,7 +302,7 @@ func (b *Renderer) sunOn(cam camera.Camera, w, h float32, dir [3]float32, color 
 	if halo == (render.Light{}) {
 		halo = render.Light{1, 1, 1}
 	}
-	low := 1 - smoothstep(0, 0.2, dir[2])
+	low := 1 - celestial.Risen(dir[2])
 	for k := range 3 {
 		disc[k] = 1 + (halo[k]-1)*low
 	}
@@ -309,13 +312,13 @@ func (b *Renderer) sunOn(cam camera.Camera, w, h float32, dir [3]float32, color 
 
 func (b *Renderer) nightOn(p *skyPlan, cam camera.Camera, field camera.RayField, w, h float32, heavens celestial.Heavens, clouds float32) {
 	clear := 1 - min(max(clouds, 0), 1)
-	night := 1 - smoothstep(-0.2, -0.05, heavens.Sun[2])
+	night := celestial.Night(heavens.Sun[2])
 	moon, sun := heavens.Moon, heavens.Sun
 	stars, moonOn := true, true
 	if b.shown != nil {
 		stars, moonOn = b.shown()
 	}
-	if v, ok := cam.(camera.Vanisher); ok && moonOn && moon[2] > -sunBelow && clear > 0 {
+	if v, ok := cam.(camera.Vanisher); ok && moonOn && celestial.Up(moon[2]) && clear > 0 {
 		if ax, ay, ahead := v.Vanish(moon[0], moon[1], moon[2]); ahead && ax > -w && ax < 2*w && ay > -h && ay < 2*h {
 			// the way to the sun as the moon's face sees it
 			c := dot3(sun, moon)
@@ -358,11 +361,6 @@ func unit3(a [3]float32) [3]float32 {
 		return a
 	}
 	return [3]float32{a[0] / n, a[1] / n, a[2] / n}
-}
-
-func smoothstep(a, b, x float32) float32 {
-	t := min(max((x-a)/(b-a), 0), 1)
-	return t * t * (3 - 2*t)
 }
 
 func channel(v float32) uint8 { return uint8(min(max(v, 0), 1)*255 + 0.5) }

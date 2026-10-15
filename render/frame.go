@@ -128,6 +128,16 @@ func (f *Frame) Uniform(name string, v ...float32) {
 	f.uniforms = append(f.uniforms, u)
 }
 
+// Uniformed reports whether a source composing this frame has set the uniform name already.
+func (f *Frame) Uniformed(name string) bool {
+	for i := range f.uniforms {
+		if f.uniforms[i].name == name {
+			return true
+		}
+	}
+	return false
+}
+
 // Time is the frame's clock, in seconds, for what moves by itself.
 func (f *Frame) Time() float32 { return f.time }
 

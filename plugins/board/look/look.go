@@ -36,6 +36,13 @@ type Dressing interface {
 	Across(f *render.Frame, cam camera.Camera, t *Tile)
 }
 
+// GroundDressing is a Dressing that lays something over the drawn ground itself, part of it:
+// the clouds' shadows of an atmosphere.
+type GroundDressing interface {
+	// DressGround draws over the ground just drawn into t through cam, under the frame's u.
+	DressGround(t render.Target, cam camera.Camera, u render.Uniforms)
+}
+
 // EvenLit is a Dressing that lights every tile of a flat map alike, so the map is composed once
 // and drawn in EvenLight every frame.
 type EvenLit interface {

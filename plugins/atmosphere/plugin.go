@@ -14,7 +14,6 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
-	"github.com/kjkrol/gram/plugins/atmosphere/overcast"
 	"github.com/kjkrol/gram/plugins/atmosphere/precipitation"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/atmosphere/weathering"
@@ -66,7 +65,7 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	clim := climate.New(worldPlugin, cal, cfg.Climate)
 	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, calendar: cal, climate: clim,
 		sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
-	p.Self = world.NewSelf(worldPlugin, p, comp.Const(sky.DefaultMoon()))
+	p.Self = world.NewSelf(worldPlugin, p, comp.Const(p.sky.Moonlight()))
 	clim.About(p.Entity)
 	r := AllRunning()
 	if cfg.Running != nil {
@@ -134,11 +133,6 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.carryOut()
 	p.module.RunPlan(ctx, d)
 }
-
-// Clouds is the clouds' shadows over a board without relief, which the board draws once
-// board.Plugin.WithAtmosphere puts it under the sky. A board in relief has its terrain shadow
-// itself.
-func (p *Plugin) Clouds() render.Source { return overcast.New(p.Sun, p.Air) }
 
 // Reporter is the atmosphere's lines for the telemetry panel.
 func (p *Plugin) Reporter() render.Reporter {

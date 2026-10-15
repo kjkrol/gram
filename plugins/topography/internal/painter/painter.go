@@ -153,8 +153,6 @@ type cellTop struct {
 func (l *Painter) Begin(f *render.Frame, cam camera.Camera) {
 	l.camera, l.tile = cam, tile{}
 	l.lighted, l.weather = l.sky.Sun(), l.sky.Air()
-	l.lighted.Frame(f)
-	l.weather.Frame(f, l.lighted)
 	l.tables()
 	l.cellPx = float32(min(l.cellW, l.cellH)) * cam.Zoom()
 	w, h := cam.Viewport()

@@ -1,12 +1,15 @@
 package celestial
 
+import "github.com/kjkrol/gram/render"
+
 // Heavens is where the bodies of the sky stand over a world, for whoever draws the sky: the ways
 // to the sun and the moon (unit vectors, z up), how much of the moon's face is lit (Full, 0 new
 // to 1 full), the ways the celestial sphere's equatorial axes point (Sphere, Pole) and the stars.
 type Heavens struct {
 	Sun, Moon [3]float32
 	Full      float32
-	MoonTint  [3]float32 // zero for none
+	MoonTint  [3]float32   // zero for none
+	SunColor  render.Light // the sun's own colour where it stands; zero for white
 	Sphere    [3][3]float32
 	Pole      [3]float32
 	Stars     StarSky

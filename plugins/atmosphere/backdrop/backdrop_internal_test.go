@@ -36,8 +36,22 @@ func TestBackdrop_FillsTheScreenWithTheSkyOnlyWhereTheGroundDoesNotCoverIt(t *te
 	if p := b.plan(shifted{Camera: cam, dx: 50}); !p.None {
 		t.Errorf("over the middle of the world the backdrop draws %+v, want nothing: the ground covers the screen", p)
 	}
-	p := b.plan(shifted{Camera: cam, dx: 150})
-	if p.None || !p.Flat || math.Abs(float64(p.Horizon[0]-0.5)) > 0.01 || math.Abs(float64(p.Horizon[2]-1)) > 0.01 {
-		t.Errorf("over the world's edge the backdrop draws %+v, want the whole screen flat in the sky's colour", p)
+	if p := b.plan(shifted{Camera: cam, dx: 150}); p.None || !p.Flat {
+		t.Errorf("over the world's edge the backdrop draws %+v, want the whole screen flat", p)
 	}
+	if fog := framed(b, cam).Get("Fog"); len(fog) != 3 || math.Abs(float64(fog[0]-0.5)) > 0.01 ||
+		math.Abs(float64(fog[2]-1)) > 0.01 {
+		t.Errorf("the sky hands the frame the horizon %v, want the sky's colour", fog)
+	}
+}
+
+// framed is what the sky hands a frame of its own, as a scene shows it
+func framed(b *Renderer, cam camera.Camera) render.Uniforms {
+	c := render.NewComposer(b)
+	c.DrawWorld(nil, cam)
+	u := map[string]any{}
+	for name, v := range c.Uniforms() {
+		u[name] = v
+	}
+	return render.UniformsOf(u)
 }

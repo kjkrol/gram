@@ -184,7 +184,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `ground.Cover` (`Plugin.Cover`); both read the cell entities whenever asked. A flat board takes
   its light by the hour through `board.Plugin.WithAtmosphere(atmosphere)` (`lit.go`, reading
   `board.Atmosphere{Sun, Air}`: the board composed once and tinted on the GPU, sprites lit, what
-  sways leaning), called in a scene before the first frame; without one it is drawn as it is. The
+  sways leaning, the clouds' shadows laid on its ground right after it, `draw.Clouds`), called in a
+  scene before the first frame; without one it is drawn as it is. The
   board's own Map is the simple map — flat, every kind in its sprite from the game's atlas
   (declared by `ctx.Looks` from the tiles, the sprites the cell's bounds across), the ways as bands
   cut out of their kinds' sprites, a step at its kind's cost; `plugins/topography` is the other.
@@ -246,7 +247,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   heights, not the view: sight reads them in a top-down game too. **Layering: the world knows its
   entities and nothing else; the ground is the board's, the sky the atmosphere's, `render`
   generic.** A relief is lit by the sun of its `topography.Atmosphere` (`WithAtmosphere`; without
-  one `sky.DefaultSun`).
+  one `sky.DefaultSun`, which the topography hands the frame itself). Its water reflects the
+  sky's own colours (`skyAt`).
 - **`atmosphere`** — the time of day, the climate and the weather on the world's clock, over a
   world with heights alone (`NewPlugin` panics in a flat one); its root
   keeps no shaders and draws nothing itself: every part is a package that never imports it.
@@ -258,7 +260,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   climate's latitude (`NoonWay` `celestial.South` or the default `NorthWest`, noon beyond the
   isometric view's sea), below the horizon the moon (`sky.Moon{Color, Strength, Face}`, a knob on
   the atmosphere's entity: board-topography's blood moon by a rule of `sky.Moonrise` or M;
-  `Sky.SetMoon`), the colours blended from the `daylight` table by the sun's height; `sky.Sun`
+  `Sky.SetMoon`; `Config.Moon` the one it begins with, `Sky.Moonlight`), the colours blended from
+  `Config.Daylight` (rows of `sky.Daylight`; `EarthDaylight()` when none) by the sun's height,
+  the sun's own colour at its height on `Heavens.SunColor`; `sky.Sun`
   (`Dir`, `Strength`, `Ambient`, colours; `Sun.Light`/`Shaded`, `Sun.Frame`, `Sun.ShadowOf`);
   `Freeze` (P) freezes the light alone, `Later`/`Earlier` (Shift+], Shift+[) move it half an hour,
   not saved. `atmosphere/celestial` (imported by `sky`, never the other way): `Heavens`
@@ -285,12 +289,12 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   shore below −3°C, what sways swaying above a wind of 15); `atmosphere.Plugin.WithWeathering(board,
   cfg)` as the atmosphere is made. `atmosphere/air`: the weather as drawn (`Weather.Frame`, `Sway`,
   `Cloud`, `Shade`, `Haze`; the clouds' periodic noise baked once by `air.BakeTile` into a tile the
-  sky and the terrain look up per pixel). `atmosphere/overcast`: the clouds' shadows over a flat
-  board (`atmosphere.Plugin.Clouds()`, a Direct lying on the ground at a lift of 0.5, under the
-  figures, which the board draws once `board.WithAtmosphere` puts it under the sky). The plugin
-  draws the sky and what falls itself (`ctx.Draws`). `atmosphere.Running` (`Config.Running`,
-  `Plugin.SetRunning`) switches the day, the weather's changes, the wind, the clouds, what falls,
-  the weathering, the stars and the moon, all on by default, not saved.
+  sky and the terrain look up per pixel; `Weather.Frame` hands the frame `Fog`, the sky at the
+  horizon, and `SkyOverhead`). The plugin draws the sky and what falls itself (`ctx.Draws`); its
+  sky hands every frame the sun and the weather; the clouds' shadows are drawn by whoever draws
+  the ground (the board's flat ground, the terrain, the hexes). `atmosphere.Running`
+  (`Config.Running`, `Plugin.SetRunning`) switches the day, the weather's changes, the wind, the
+  clouds, what falls, the weathering, the stars and the moon, all on by default, not saved.
 - **`collision`** — collision detection over `world`'s space, one `collisionSystem` a tick. An
   entity collides exactly while it carries `Collider`; the system settles every `Collider`'s
   `Base.Caps` (`CanCollide`, `Static` for an immovable `Physics`, `Sensor` for none) and rebuilds

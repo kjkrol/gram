@@ -3,73 +3,41 @@ package board
 import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/plugins/board/internal/draw"
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
-// Atmosphere is what lights a flat board and what stands on it: the sun of the hour, the
-// weather's wind, and the clouds' shadows over the board.
+// Atmosphere is what lights a flat board and what stands on it: the sun of the hour and the
+// weather; plugins/atmosphere's Plugin, whose sky hands the frame them for the clouds' shadows.
 type Atmosphere interface {
 	Sun() sky.Sun
 	Air() air.Weather
-	Clouds() render.Source
 }
 
 // WithAtmosphere puts the board under a's sky: its tiles and the world's sprites take the sun's
-// light, what sways leans with the wind, and the clouds' shadows pass over it. Call it after any
-// other Map or Look is set, before the first frame.
+// light, what sways leans with the wind, and the clouds' shadows lie on its ground. Call it after
+// any other Map or Look is set, before the first frame.
 func (p *Plugin) WithAtmosphere(a Atmosphere) *Plugin {
-	p.WithMap(&litMap{Map: p.Map(), sky: a})
+	p.WithMap(&litMap{Map: p.Map(), sky: a, clouds: &draw.Clouds{}})
 	p.worldPlugin.SetLook(litLook{Look: p.worldPlugin.Look(), sky: a})
-	p.clouds.of(a.Clouds())
 	return p
-}
-
-// clouds are the atmosphere's clouds' shadows over a board it lights, nothing under no sky
-type clouds struct {
-	src    render.Source
-	direct render.Direct
-}
-
-var _ render.Direct = (*clouds)(nil)
-
-func (c *clouds) of(src render.Source) {
-	c.src = src
-	c.direct, _ = src.(render.Direct)
-}
-
-func (c *clouds) Init(si *goke.SysInit) {
-	if c.src != nil {
-		c.src.Init(si)
-	}
-}
-
-func (c *clouds) Compose(f *render.Frame, cam camera.Camera) {
-	if c.src != nil {
-		c.src.Compose(f, cam)
-	}
-}
-
-func (c *clouds) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
-	if c.direct != nil {
-		c.direct.Draw(t, cam, u)
-	}
 }
 
 type litMap struct {
 	Map
-	sky Atmosphere
+	sky    Atmosphere
+	clouds *draw.Clouds
 }
 
 func (m *litMap) Look() look.Look { return litCells{Look: m.Map.Look(), sky: m.sky} }
 
 func (m *litMap) Dressing() look.Dressing {
-	return &litDressing{Dressing: m.Map.Dressing(), sky: m.sky}
+	return &litDressing{Dressing: m.Map.Dressing(), sky: m.sky, clouds: m.clouds}
 }
 
 type litCells struct {
@@ -91,16 +59,21 @@ func (l litCells) Cell(f *render.Frame, cam camera.Camera, t *look.Tile) {
 
 type litDressing struct {
 	look.Dressing
-	sky Atmosphere
+	sky    Atmosphere
+	clouds *draw.Clouds
 }
 
+var _ look.GroundDressing = (*litDressing)(nil)
+
 func (d *litDressing) Begin(f *render.Frame, cam camera.Camera) {
-	sun := d.sky.Sun()
-	sun.Frame(f)
-	d.sky.Air().Frame(f, sun)
 	if d.Dressing != nil {
 		d.Dressing.Begin(f, cam)
 	}
+}
+
+// DressGround lays the clouds' shadows on the ground.
+func (d *litDressing) DressGround(t render.Target, cam camera.Camera, u render.Uniforms) {
+	d.clouds.Draw(t, cam, u, d.sky.Air().Clouds)
 }
 
 func (d *litDressing) Light(*look.Tile) render.Shade {

@@ -17,8 +17,8 @@ func TestPlugin_TheGroundOnTheGPUTakesTheTilesPlace(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
-	if d := topotest.Drawn(t, p); len(d) != 1 || !drawnOpaque(d[0]) {
-		t.Fatalf("the topography draws %v, want one render.Direct drawing the opaque ground", d)
+	if d := topotest.Drawn(t, p); len(d) != 2 || !drawnOpaque(d[0]) {
+		t.Fatalf("the topography draws %v, want the opaque ground first and its still sky", d)
 	}
 	if p.Look() != look.Nothing {
 		t.Error("over a square grid the board's Look still lays tiles")
@@ -33,9 +33,9 @@ func TestPlugin_TheGroundOnTheGPUTakesTheTilesPlace(t *testing.T) {
 	hex := board.NewPlugin(grid.DefaultGrids{}.Hex(4, 4, 16), &cell.MultipleOccupancy{}, w2)
 	hex.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	prisms := topography.NewPlugin(w2, hex, topography.Config{Cell: 32, HeightUnit: 1})
-	if d := topotest.Drawn(t, prisms); len(d) != 1 || !drawnOpaque(d[0]) {
-		t.Errorf("over a hex grid the topography draws %v, want one render.Direct drawing the "+
-			"opaque ground", d)
+	if d := topotest.Drawn(t, prisms); len(d) != 2 || !drawnOpaque(d[0]) {
+		t.Errorf("over a hex grid the topography draws %v, want the opaque ground first and its "+
+			"still sky", d)
 	}
 	if prisms.Look() != look.Nothing {
 		t.Error("over a hex grid the board's Look still lays tiles")

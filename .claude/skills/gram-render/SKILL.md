@@ -79,31 +79,32 @@ buffer, `Image.CopyDepth`, a draw since a texture copy of a depth is wrong on GL
 gogpu, gives the frame's buffer; the reader gets `Target.Ground` and writes `frag_depth` = the
 ground's own, testing GreaterEqual, so what stands nearer hides it); `Target.Pass` says which pass
 it is drawing; one asking for nothing is not drawn, `Frame.Places` lists the asks for a test. Lifts
-(world units over the ground): board materials 0.05, hex grid lines 0.1, holds 0.15, sight 0.25,
-cloud shadows 0.5, routes 0.75, route goals 0.8, a bridge in hand 0.9 (over its deck's level),
-figures `world.FigureLift` 2 (topography's `spriteLift` is the same 2), an entity's box
-`FigureLift`+0.5 over its altitude in the order, its base's vertices 0.05 over it and its solid's at
-its altitude and top (collision's Shift+X: bases, solids in a world with heights, none). The figures
-(`render.Sprites`, the world's flat look) are drawn once, among what is seen through, after the
-opaque ground, at the lowest figure's place, back to front among themselves; where the frame has a
-depth their visible pixels (alpha over half a step) write it, so a decal drawn after and behind them
-hides, and one before shows under their soft edges. `render.Sprites` lays world rectangles on the
-GPU (the camera's `SceneTransform` matrix, the box round the projected corners like `ToScreenQuads`,
-over a wrapping world the copy `windowed` nearest the window and one past each seam, six vertices
-a copy in one call): no per-figure projection, wrap splitting or `Visible` on the CPU any more
-(`Benchmark_World_Draw` −35…−50%). One WGSL shader (`render/shaders/compose.wgsl` over the library
-and every material registered with `render.RegisterMaterials`) draws every piece; `Frame.Line`/
-`Soft` fade their edges; `Frame.Tile`/`TileRect` outline a tile; a piece across cells takes the
-place of its nearest end. A `render.Still` is a picture composed once in world units **in the
-order its pieces come** (no sort: the board composes tiles and what lies on them, then
-`Dressing.Across`, the bands and the ways, in a second round), kept on the GPU (`gpu.Kept`, its
-vertices holding their heights), drawn every frame scaled, moved and lit (`gpu.Draw.Place`/
-`Tint`), into the depth where the target has one. `render.Frame.Time` is the clock's `Shown`
-(`render.Clocked`), so animations move every frame. A plugin adds telemetry lines through a
-`render.Reporter` (`telemetry.NewPlugin(w).With(p.Reporter())`, the telemetry panel).
-`GRAM_SHOT=<file.png>` (and `GRAM_SHOT_FRAME`, 120) has a game save that frame and quit, the world
-taking one step a frame till then: shoot a baseline tree and the working one and compare (the
-telemetry panel and random weather or scenes are noise).
+(world units over the ground): what a `look.GroundDressing` lays over tiles composed into the frame
+0.02, board materials 0.05, hex grid lines 0.1, holds 0.15, sight 0.25, routes 0.75, route goals
+0.8, a bridge in hand 0.9 (over its deck's level), figures `world.FigureLift` 2 (topography's
+`spriteLift` is the same 2), an entity's box `FigureLift`+0.5 over its altitude in the order, its
+base's vertices 0.05 over it and its solid's at its altitude and top (collision's Shift+X: bases,
+solids in a world with heights, none). The figures (`render.Sprites`, the world's flat look) are
+drawn once, among what is seen through, after the opaque ground, at the lowest figure's place, back
+to front among themselves; where the frame has a depth their visible pixels (alpha over half a step)
+write it, so a decal drawn after and behind them hides, and one before shows under their soft edges.
+`render.Sprites` lays world rectangles on the GPU (the camera's `SceneTransform` matrix, the box
+round the projected corners like `ToScreenQuads`, over a wrapping world the copy `windowed` nearest
+the window and one past each seam, six vertices a copy in one call): no per-figure projection, wrap
+splitting or `Visible` on the CPU any more (`Benchmark_World_Draw` −35…−50%). One WGSL shader
+(`render/shaders/compose.wgsl` over the library and every material registered with
+`render.RegisterMaterials`) draws every piece; `Frame.Line`/ `Soft` fade their edges;
+`Frame.Tile`/`TileRect` outline a tile; a piece across cells takes the place of its nearest end. A
+`render.Still` is a picture composed once in world units **in the order its pieces come** (no sort:
+the board composes tiles and what lies on them, then `Dressing.Across`, the bands and the ways, in a
+second round), kept on the GPU (`gpu.Kept`, its vertices holding their heights), drawn every frame
+scaled, moved and lit (`gpu.Draw.Place`/ `Tint`), into the depth where the target has one.
+`render.Frame.Time` is the clock's `Shown` (`render.Clocked`), so animations move every frame. A
+plugin adds telemetry lines through a `render.Reporter`
+(`telemetry.NewPlugin(w).With(p.Reporter())`, the telemetry panel). `GRAM_SHOT=<file.png>` (and
+`GRAM_SHOT_FRAME`, 120) has a game save that frame and quit, the world taking one step a frame till
+then: shoot a baseline tree and the working one and compare (the telemetry panel and random weather
+or scenes are noise).
 
 ## The plugins' renderers and styles per kind
 
@@ -127,8 +128,18 @@ routes and goals of an entity's `MoveOrder`; vision the cone of an entity's `Sig
 `WithShadow`; `WithViews(render.Show(…))` picks whose); selection the outline of the `Selected`
 tag through `world.Look.Footprint` plus the marquee, a player's gesture; bridges the bridge in
 hand, a future entity drawn from its deck's slot; collision the boxes; the board the cells held
-and, under an atmosphere (`board.WithAtmosphere`), its clouds' shadows (`Atmosphere.Clouds`,
-till stage 4 draws them on the board's own ground).
+and, under an atmosphere (`board.WithAtmosphere`), its clouds' shadows as part of its ground
+(2026-10-15, stage 4: `look.GroundDressing` drawn right after the `Still` in the opaque pass,
+`board/internal/draw.Clouds`, the 8-px mesh the atmosphere's `overcast` was; what lies on the
+ground and over it is drawn unshaded, as the relief's terrain shades its own ground).
+
+**The sky's colours come from one place** (2026-10-15): the atmosphere's backdrop hands every
+frame the sun (`sky.Sun.Frame`) and the weather (`air.Weather.Frame`: `Fog` the vault's horizon,
+`SkyOverhead` its zenith, WGSL `skyAt(up)` between, which the vault and the relief's water both
+use); topography under no atmosphere hands its still sky through a source that gives way to one
+already on the frame (`Frame.Uniformed`). The light by the sun's height is `sky.Config.Daylight`
+(`EarthDaylight()`), its sun colour on `Heavens.SunColor`; the heights' thresholds are
+`celestial.Up/Risen/Gone/Night`.
 
 **A `color.RGBA` given to gram is straight alpha** (2026-10-14, after a zone at `A: 10` came out
 as bright as an opaque one): `render.Frame`'s pieces, `Image.Fill`, the shapes, text and the

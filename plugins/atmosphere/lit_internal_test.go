@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
 	"github.com/kjkrol/gram/plugins/atmosphere/precipitation"
@@ -106,5 +107,34 @@ func TestPlugin_DrawsTheSkyAndWhatFalls(t *testing.T) {
 	}
 	if _, ok := ctx.drawn[1].(*precipitation.Renderer); !ok {
 		t.Errorf("the atmosphere draws %T second, want what falls", ctx.drawn[1])
+	}
+}
+
+func TestPlugin_TheSkyHandsTheFrameTheSunAndTheWeatherOfItsDaylight(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 128, Height: 128},
+		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
+		Heights:  true,
+	})
+	red := render.Light{1, 0, 0}
+	a := NewPlugin(w, Config{Sky: sky.Config{
+		Daylight: []sky.Daylight{{Height: 0, Sky: red, Sun: red, Ambient: 0.5}},
+	}})
+	ctx := &drawsCtx{}
+	if err := a.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	c := render.NewComposer(ctx.drawn...)
+	c.DrawWorld(nil, icamera.NewFromSpace(128, 128, 0))
+	got := c.Uniforms()
+	for _, name := range []string{"Sun", "SunStrength", "SunColor", "SkyColor", "Ambience", "Wind",
+		"Drift", "Cover", "Billow", "Fog", "SkyOverhead"} {
+		if _, ok := got[name]; !ok {
+			t.Errorf("the atmosphere alone hands the frame no %s", name)
+		}
+	}
+	if sky, fog := got["SkyColor"], got["Fog"]; sky[0] != 1 || sky[1] != 0 || fog[0] <= fog[2] {
+		t.Errorf("under a red daylight the frame's sky is %v and its horizon %v, want red", sky,
+			fog)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
+	"github.com/kjkrol/gram/render"
 )
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
@@ -22,13 +23,16 @@ func TestSunAt_RisesInTheEastStandsOverTheSouthAndSetsInTheWest(t *testing.T) {
 	if s := south.SunAt(0, 0.25); s.Dir[0] < 0.99 || !near(s.Dir[2], 0) || s.Strength > 1e-6 {
 		t.Errorf("at 6 the sun is %+v, want it on the eastern horizon, no strength yet", s)
 	}
-	if s := south.SunAt(0, 0.5); !near(s.Dir[1], 0.5) || !near(s.Dir[2], float32(math.Sin(math.Pi/3))) || s.Strength != sunStrength || s.Sky != daylight[3].sky || s.Color != daylight[3].sun {
+	if s := south.SunAt(0, 0.5); !near(s.Dir[1], 0.5) ||
+		!near(s.Dir[2], float32(math.Sin(math.Pi/3))) || s.Strength != sunStrength ||
+		s.Sky != earthDaylight[3].Sky || s.Color != earthDaylight[3].Sun {
 		t.Errorf("at noon the sun is %+v, want it over the south 60° up at full strength", s)
 	}
 	if s := south.SunAt(0, 0.75); s.Dir[0] > -0.99 {
 		t.Errorf("at 18 the sun is %+v, want it on the western horizon", s)
 	}
-	if s := south.SunAt(0, 0); s.Dir[2] >= 0 || s.Strength != 0 || s.Sky != daylight[0].sky || s.Ambient != daylight[0].ambient {
+	if s := south.SunAt(0, 0); s.Dir[2] >= 0 || s.Strength != 0 ||
+		s.Sky != earthDaylight[0].Sky || s.Ambient != earthDaylight[0].Ambient {
 		t.Errorf("at midnight the sun is %+v, want it below the horizon, the night's ambient alone", s)
 	}
 	if morning, noonSun := south.SunAt(0, 0.3), south.SunAt(0, 0.5); morning.Dir[2] >= noonSun.Dir[2] {
@@ -177,9 +181,57 @@ func TestSunAt_ColoursTheSkyAndItsLightThroughTheDay(t *testing.T) {
 	if light := night.Light(0, 0, 1); light[2] <= light[0] || light[2] > 0.2 {
 		t.Errorf("at midnight the ground is lit %v, want a dim blue", light)
 	}
-	if sky, _, _ := daylightAt(0.2); sky[0] >= daylight[2].sky[0] || sky[0] <= daylight[3].sky[0] {
+	if sky, _, _ := defaults.withDefaults().daylightAt(0.2); sky[0] >= earthDaylight[2].Sky[0] ||
+		sky[0] <= earthDaylight[3].Sky[0] {
 		t.Errorf("between sunrise and day the sky is %v, want it blended between theirs", sky)
 	}
+}
+
+func TestDaylight_AGamesOwnColoursTheSkyItsLightAndTheSun(t *testing.T) {
+	if got := EarthDaylight(); len(got) != 4 || got[3] != earthDaylight[3] {
+		t.Fatalf("the Earth's daylight is %v, want the four rows of night, twilight, sunrise "+
+			"and day", got)
+	}
+	earth := Config{NoonWay: celestial.South, latitude: Latitude}
+	own := earth
+	own.Daylight = EarthDaylight()
+	if earth.SunAt(0, 0.5) != own.SunAt(0, 0.5) || earth.SunAt(0, 0.3) != own.SunAt(0, 0.3) {
+		t.Error("the Earth's daylight given by hand lights the world otherwise than none given")
+	}
+	red := render.Light{1, 0, 0}
+	mars := earth
+	mars.Daylight = []Daylight{{Height: 0, Sky: red, Sun: red, Ambient: 0.5}}
+	if sun := mars.SunAt(0, 0.5); sun.Sky != red || sun.Color != red || sun.Ambient != 0.5 {
+		t.Errorf("under a red daylight the sun is %+v, want its sky and light red", sun)
+	}
+	if c := skyOf(t, mars, calendar.Config{}).sky.Heavens().SunColor; c != red {
+		t.Errorf("under a red daylight the heavens' sun is %v, want red", c)
+	}
+}
+
+func TestHeavens_TheSunsColourIsTheDaylightsWhereItStands(t *testing.T) {
+	noon := defaults
+	noon.Frozen = true
+	if c := skyOf(t, noon, calendar.Config{}).sky.Heavens().SunColor; c[2] < 0.9 {
+		t.Errorf("at noon the sun is %v, want it nearly white", c)
+	}
+	night := noon
+	night.Hour = 30 * time.Minute
+	if c := skyOf(t, night, calendar.Config{}).sky.Heavens().SunColor; c != earthDaylight[0].Sun {
+		t.Errorf("at night the heavens' sun is %v, want the daylight's at its height, not the "+
+			"moon's", c)
+	}
+}
+
+func TestNew_ADaylightThatDoesNotRisePanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("a daylight falling from row to row was taken")
+		}
+	}()
+	c := defaults
+	c.Daylight = []Daylight{{Height: 0.3}, {Height: 0.1}}
+	skyOf(t, c, calendar.Config{})
 }
 
 func TestSunAt_StandsHigherAndLongerInSummerThanInWinter(t *testing.T) {

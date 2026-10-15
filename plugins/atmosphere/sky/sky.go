@@ -1,6 +1,7 @@
 package sky
 
 import (
+	"fmt"
 	"math"
 	"time"
 
@@ -28,11 +29,18 @@ type Sky struct {
 }
 
 // New is the sky over cal as cfg says, the sun's path at latitude degrees from the equator,
-// north or south alike.
+// north or south alike; a Daylight whose rows do not rise panics.
 func New(cal *calendar.Calendar, cfg Config, latitude float64) *Sky {
 	cfg = cfg.withDefaults()
 	cfg.latitude = latitude
-	s := &Sky{cfg: cfg, calendar: cal, frozen: cfg.Frozen, hour: dayPart(cfg.Hour), step: -1, moon: DefaultMoon()}
+	for i := 1; i < len(cfg.Daylight); i++ {
+		if cfg.Daylight[i].Height <= cfg.Daylight[i-1].Height {
+			panic(fmt.Sprintf("sky: daylight row %d at %v does not rise over row %d at %v", i,
+				cfg.Daylight[i].Height, i-1, cfg.Daylight[i-1].Height))
+		}
+	}
+	s := &Sky{cfg: cfg, calendar: cal, frozen: cfg.Frozen, hour: dayPart(cfg.Hour), step: -1,
+		moon: cfg.Moon}
 	m := cal.Now()
 	if s.frozen {
 		m.Time = s.hour
@@ -47,6 +55,9 @@ func (s *Sky) Sun() Sun { return s.sun }
 // Heavens is where the sun, the moon and the stars stand at the hour of the light.
 func (s *Sky) Heavens() celestial.Heavens { return s.heavens }
 
+// Moonlight is the moon the sky lights the night with, the atmosphere's knob.
+func (s *Sky) Moonlight() Moon { return s.moon }
+
 func (s *Sky) light(m calendar.Moment) {
 	if s.moonless {
 		s.sun = s.cfg.SunAt(m.OfYear(), m.Time)
@@ -55,6 +66,7 @@ func (s *Sky) light(m calendar.Moment) {
 	}
 	s.heavens = s.cfg.place().HeavensAt(m.OfYear(), m.Time, m.Moon(), s.cfg.Stars)
 	s.heavens.MoonTint = s.moon.Face
+	_, s.heavens.SunColor, _ = s.cfg.daylightAt(s.heavens.Sun[2])
 }
 
 func (s *Sky) relight() {

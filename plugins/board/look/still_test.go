@@ -163,3 +163,55 @@ func TestRenderer_DrawsTheBoardComposedOnceInTheOpaquePassAndItsGridOverIt(t *te
 			opaque, through, look.GridLift)
 	}
 }
+
+type dressedGround struct {
+	look.Dressing
+	even   bool
+	passes []render.Pass
+}
+
+func (d *dressedGround) DressGround(t render.Target, _ camera.Camera, _ render.Uniforms) {
+	d.passes = append(d.passes, t.Pass)
+}
+
+func (d *dressedGround) EvenLight() (render.Light, bool) { return render.Light{1, 1, 1}, d.even }
+
+type dressedMap struct {
+	look.Map
+	d *dressedGround
+}
+
+func (m dressedMap) Dressing() look.Dressing { return m.d }
+
+func TestRenderer_DressesTheGroundOnceAFrameRightAfterIt(t *testing.T) {
+	needGPU(t)
+	grid := grid.DefaultGrids{}.Square(4, 4, 32)
+	brd := board.NewBoard(grid)
+	brd.SetAll(cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land})
+	space := world.SpaceCfg{Width: 128, Height: 128, Edges: aabbworld.Torus}
+	d := &dressedGround{Dressing: brd.Map().Dressing(), even: true}
+	atlas := render.NewAtlas()
+	atlas.Add(render.SpriteID(1), 8, render.Solid(color.RGBA{G: 200, A: 255}))
+	atlas.Close()
+	r := look.NewRenderer(brd, atlas, dressedMap{brd.Map(), d}, space)
+	cam := icamera.NewFromSpace(space.Width, space.Height, aabbworld.Torus)
+	cam.MoveTo(64, 64) // across both seams: the board drawn four times
+	render.NewComposer(r).DrawWorld(render.NewImage(128, 128), cam)
+	if len(d.passes) != 1 || d.passes[0] != render.Opaque {
+		t.Errorf("the ground was dressed in %v, want once, in the opaque pass", d.passes)
+	}
+	d.even, d.passes = false, nil
+	var f render.Frame
+	f.Reset(cam)
+	r.Compose(&f, cam)
+	var lying []render.At
+	f.Places(func(p render.Pass, at render.At) {
+		if p == render.SeeThrough {
+			lying = append(lying, at)
+		}
+	})
+	if len(lying) != 1 || lying[0].Z() != look.GroundLift || look.GroundLift >= look.GridLift {
+		t.Errorf("the tiles composed into the frame, the ground is dressed at %v, want once at "+
+			"%v, under what lies on the board", lying, look.GroundLift)
+	}
+}

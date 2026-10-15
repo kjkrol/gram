@@ -58,8 +58,8 @@ const cloudsSunLit: f32 = 1.1;
 // as far to see all of it: along the horizon the air alone shows.
 const skyLift: f32 = 0.02;
 
-// overcastSky is the sky's colour under the clouds covering it, as air.Overcast has it.
-fn overcastSky() -> vec3<f32> {
-    let grey = dot(U.SkyColor, vec3<f32>(0.3, 0.5, 0.2)) * 0.85;
-    return mix(U.SkyColor, vec3<f32>(grey), clamp(U.Cover, 0.0, 1.0) * 0.8);
+// skyAt is the sky's colour looking up as high as up says, 0 at the horizon to 1 overhead, as
+// air.Weather.Frame hands the frame its colours there.
+fn skyAt(up: f32) -> vec3<f32> {
+    return mix(U.Fog, U.SkyOverhead, sqrt(clamp(up, 0.0, 1.0)));
 }

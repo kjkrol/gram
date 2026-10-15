@@ -1,4 +1,4 @@
-// The clouds' shadows over a flat world (atmosphere's clouds): a mesh over the viewport of pieces
+// The clouds' shadows over a flat board's ground: a mesh over the viewport of pieces
 // cloudPiece pixels across, U.Pieces of them across and down, the clouds' noise worked out at every
 // corner — the pixel (x, y) of the viewport, U.ViewSize large, looks from U.RayAt + x·U.RayDX +
 // y·U.RayDY along U.RayDir + x·U.RayDDX + y·U.RayDDY (camera.RayField) down to the ground at 0 —

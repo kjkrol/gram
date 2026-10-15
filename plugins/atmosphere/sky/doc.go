@@ -13,8 +13,13 @@
 // [New] takes the calendar, a [Config] and the latitude. Once a tick ([Sky.Update], [Sky.System])
 // the sky sets its light ([Sky.Sun]) to [Config.LightAt] the hour: the sun on its path, or once it
 // is well below the horizon the [Moon] — a knob on the atmosphere's entity, which an effect may
-// turn; off with [Sky.SetMoon]. [Sky.Heavens] is where the sun, the moon and the stars stand at
-// that hour, [SunColorAt] the colour of the sun's disc.
+// turn, beginning as [Config.Moon] says ([DefaultMoon], [Sky.Moonlight]); off with [Sky.SetMoon].
+// [Sky.Heavens] is where the sun, the moon and the stars stand at that hour, the sun's own colour
+// there among them (Heavens.SunColor).
+//
+// The light by the sun's height is a table of [Daylight] rows, [Config.Daylight]: the sky's colour,
+// the sun's and the ambient light, blended between rows; the Earth's ([EarthDaylight]) when none.
+// The sky's colours, the world's light and the sun's disc all come from it.
 //
 // [Sky.SetFrozen] stops the light at the hour it stands and [Sky.Shift] moves a frozen one; only
 // the light freezes, a look at the world that is not saved.

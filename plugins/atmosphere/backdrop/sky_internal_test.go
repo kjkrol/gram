@@ -50,9 +50,6 @@ func TestBackdrop_DrawsTheSkyFromTheHorizonUpAndTheCloudsOnIt(t *testing.T) {
 	if p.None || p.Flat || p.Clouds {
 		t.Fatalf("under a clear sky through a perspective: %+v, want the sky along the lines of sight and no clouds", p)
 	}
-	if o, h := p.Overhead, p.Horizon; !(o[0] < h[0] && o[1] < h[1]) || o[2] < h[2]-0.1 {
-		t.Errorf("overhead %v, at the horizon %v: want the sky deeper overhead", o, h)
-	}
 	if f, _ := (raying{height: 30}).Rays(); p.Field != f || p.Eye != [3]float32{50, 150, 30} || p.View != [2]float32{100, 100} {
 		t.Errorf("the sky looks along %+v from %v over %v, want the camera's lines of sight from its eye over its viewport", p.Field, p.Eye, p.View)
 	}

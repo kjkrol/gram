@@ -84,6 +84,7 @@ type Renderer struct {
 	stillLight render.Light
 	white      bool
 	grid       gridLines
+	ground     GroundDressing // this frame's, nil for none
 }
 
 type cellTop struct {
@@ -106,6 +107,8 @@ var _ render.Direct = (*Renderer)(nil)
 const (
 	materialLift = 0.05
 	gridLift     = 0.1
+	// what a GroundDressing lays over tiles composed into the frame: over them, under the rest
+	groundLift = 0.02
 )
 
 type tileWorker struct {
@@ -163,6 +166,7 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if d != nil {
 		d.Begin(f, cam)
 	}
+	l.ground, _ = d.(GroundDressing)
 	if look == Nothing {
 		return // the dressing is readied for the frame, no more
 	}
@@ -177,6 +181,9 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		return
 	}
 	l.compose(f, look, d)
+	if l.ground != nil && m.Heights() == nil && !cam.Projection().Sorts() {
+		f.DrawAt(f.OnGround(groundLift))
+	}
 	l.materials(f)
 }
 
@@ -214,10 +221,17 @@ func (l *Renderer) materials(f *render.Frame) {
 	})
 }
 
-// Draw draws the still through cam in the opaque pass, and the grid over it after; nothing where
-// the tiles were composed into the frame.
+// Draw draws the still through cam in the opaque pass and what a GroundDressing lays over it, and
+// the grid over it after; where the tiles were composed into the frame, only what the dressing
+// lays.
 func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
-	if !l.stillOn || t.Screen == nil {
+	if t.Screen == nil {
+		return
+	}
+	if !l.stillOn {
+		if t.Pass == render.SeeThrough && l.ground != nil {
+			l.ground.DressGround(t, cam, u)
+		}
 		return
 	}
 	if t.Pass == render.SeeThrough {
@@ -241,6 +255,9 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		for _, sx := range xs {
 			l.still.Draw(t, cam, u, zoom, sx, sy, l.stillLight)
 		}
+	}
+	if l.ground != nil {
+		l.ground.DressGround(t, cam, u)
 	}
 }
 

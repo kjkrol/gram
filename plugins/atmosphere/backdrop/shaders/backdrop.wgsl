@@ -1,9 +1,9 @@
 // The sky through a perspective: one triangle over the whole viewport, U.SkyView pixels, or with
 // the clouds on, U.SkyPieces pieces across it skyPiece pixels wide, how the clouds look worked out
 // at their corners (cloudsLook) and smoothed between; every pixel looking along its own line of
-// sight (U.LookDir + U.LookDX·x + U.LookDY·y): paler at the horizon (U.SkyHorizon), deeper
-// overhead (U.SkyOverhead), the stars as bright as U.StarsOn — the scattered ones here where
-// U.ScatteredOn, the real ones drawn before and shining through it where U.OverStars — the moon's
+// sight (U.LookDir + U.LookDX·x + U.LookDY·y): paler at the horizon, deeper overhead (skyAt),
+// the stars as bright as U.StarsOn — the scattered ones here where U.ScatteredOn, the real ones
+// drawn before and shining through it where U.OverStars — the moon's
 // disc round U.MoonAt, U.MoonRadius wide, lit from U.MoonLight, the sun's glow (U.SunHalo) and disc
 // (U.SunDisc) round U.SunAt, U.SunRadius wide, and the clouds over them where U.CloudsOn, their
 // noise looked up in the tile of it baked into image0 (air.BakeTile).
@@ -45,8 +45,7 @@ fn fs_main(s: Sky) -> @location(0) vec4<f32> {
     let d = U.LookDir + U.LookDX * s.px.x + U.LookDY * s.px.y;
     let way = d / max(length(d), 1e-6);
     let pixel = max(length(dpdx(way)), length(dpdy(way))); // radians a pixel spans here
-    let up = clamp(way.z, 0.0, 1.0);
-    let air = mix(U.SkyHorizon, U.SkyOverhead, sqrt(up));
+    let air = skyAt(way.z);
     // what shines together: the sky's own light, the scattered stars, the moon's glow, the sun's
     // halo; and what hides whatever lies behind it, the real stars drawn before among it,
     // premultiplied: the moon's disc, the sun's, the clouds

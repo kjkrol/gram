@@ -116,7 +116,7 @@ func TestVisibility_SeesAsFarAsTheScaleAndTheWeatherSay(t *testing.T) {
 	}
 }
 
-func TestWeather_HandsTheFrameTheAirAndTheFog(t *testing.T) {
+func TestWeather_HandsTheFrameTheAirAndTheSkysColours(t *testing.T) {
 	sun := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
 	w := air.Weather{Wind: [2]float32{3, 4}, Drift: [2]float32{10, 20}, Clouds: 0.6}
 	c := render.NewComposer(source(func(f *render.Frame) { w.Frame(f, sun) }))
@@ -127,6 +127,13 @@ func TestWeather_HandsTheFrameTheAirAndTheFog(t *testing.T) {
 	}
 	if fog, want := got["Fog"], air.Overcast(sun.Sky, 0.6); fog[0] != want[0] || fog[2] != want[2] {
 		t.Errorf("the fog is %v, want the sky under the clouds %v", fog, want)
+	}
+	overhead, fog := got["SkyOverhead"], got["Fog"]
+	if want := air.Overhead(sun.Sky, 0.6); overhead[0] != want[0] || overhead[2] != want[2] {
+		t.Errorf("the sky overhead is %v, want %v", overhead, want)
+	}
+	if !(overhead[0] < fog[0] && overhead[1] < fog[1]) {
+		t.Errorf("overhead %v, at the horizon %v: want the sky deeper overhead", overhead, fog)
 	}
 	needGPU(t)
 	if err := render.Compile(); err != nil {

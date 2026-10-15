@@ -26,7 +26,7 @@ fn SeaGlintAt(p: vec2<f32>, shine: f32, lit: f32, shore: vec4<f32>, pixel: f32, 
     // turned from the eye, met all but along them, give back nothing but the sky
     let m = normalize(vec3<f32>(n.xy / max(n.z, 1e-3) * mirrorWave, 1.0));
     let r = reflect(-toward, m);
-    let sky = overcastSky() * mix(skyAtHorizon, skyOverhead, clamp(r.z, 0.0, 1.0));
+    let sky = skyAt(r.z);
     let mirror = shine * (mirrorHead + (1.0 - mirrorHead) * pow(1.0 - max(dot(m, toward), 0.0), 5.0));
     // the sun thrown back: a broad sheen and the glints on the steepest ripples
     let h = normalize(sun + toward);
@@ -118,12 +118,9 @@ const mirrorHead: f32 = 0.02;
 // mirrorWave is how much of the waves' slope tilts the sky the sea reflects.
 const mirrorWave: f32 = 0.5;
 
-// How much paler than the sky's colour the sky reflected is at the horizon and how much deeper
-// overhead; how much darker a wave's side turned from the light is at most and how much of the
-// light the side turned to it catches, as steep as waveTilt says; how broad the sun's sheen on the
-// sea is, and how bright.
-const skyAtHorizon: f32 = 1.15;
-const skyOverhead: f32 = 0.7;
+// How much darker a wave's side turned from the light is at most and how much of the light the
+// side turned to it catches, as steep as waveTilt says; how broad the sun's sheen on the sea is,
+// and how bright.
 const waveShade: f32 = 0.4;
 const waveCatch: f32 = 0.07;
 const waveTilt: f32 = 8.0;

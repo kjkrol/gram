@@ -4,9 +4,11 @@
 // # Weather
 //
 // The zero [Weather] is a calm, clear day. [Visibility] is how far one sees through it on a world
-// of a scale, [Weather.Frame] hands a render.Frame its shaders' uniforms and the fog colour
-// ([Overcast], the sky greyed by the clouds), [Weather.Haze] is how much of a point the air hides
-// from a camera's eye and [Weather.Sway] how far what sways leans in the wind.
+// of a scale, [Weather.Frame] hands a render.Frame its shaders' uniforms and the sky's colours,
+// one source for the sky, the fog and the water: at the horizon the Fog ([Overcast], the sky
+// greyed by the clouds), overhead deeper ([Overhead]), skyAt in WGSL between them;
+// [Weather.Haze] is how much of a point the air hides from a camera's eye and [Weather.Sway] how
+// far what sways leans in the wind.
 //
 // # Clouds
 //

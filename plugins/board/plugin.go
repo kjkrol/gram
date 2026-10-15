@@ -63,7 +63,6 @@ type Plugin struct {
 	grids       command.Queue[Grid]
 	holds       command.Queue[Holds]
 	holdsView   *occupancy.View
-	clouds      clouds
 	holdsShown  bool
 	gridShown   bool
 	bridges     Bridges
@@ -146,7 +145,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	}
 	ctx.UseModule(p.module)
 	ctx.Hosts(p.rules.Hosts()...)
-	ctx.Draws(p.renderer, p.holdsView, &p.clouds)
+	ctx.Draws(p.renderer, p.holdsView)
 	ctx.Looks(p.dress)
 	return nil
 }
