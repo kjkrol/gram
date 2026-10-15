@@ -27,9 +27,7 @@ func TestPlugin_Contract(t *testing.T) {
 	if p.Serializable() != nil {
 		t.Error("Serializable is not nil — vision's state lives in components")
 	}
-	if p.Renderer() == nil {
-		t.Error("Renderer is nil: vision makes it as it is made")
-	}
+	rendererOf(t, nil, p)
 }
 
 func TestPlugin_WithStyleReachesTheRenderer(t *testing.T) {
@@ -38,11 +36,7 @@ func TestPlugin_WithStyleReachesTheRenderer(t *testing.T) {
 
 	p := vision.NewPlugin(testWorldPlugin()).WithStyle(style)
 
-	r, ok := p.Renderer().(*vision.Renderer)
-	if !ok {
-		t.Fatalf("Renderer is %T, want *vision.Renderer", p.Renderer())
-	}
-	r.Style().Compose(nil, nil)
+	rendererOf(t, nil, p).Style().Compose(nil, nil)
 	if !used {
 		t.Error("the renderer did not take the style handed to WithStyle")
 	}

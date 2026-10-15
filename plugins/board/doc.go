@@ -87,7 +87,7 @@
 // # Commands
 //
 // [Grid] shows or hides the board's grid (B; [Plugin.ShowGrid] from a scene); [Holds] the cells
-// the occupancy holds (Shift+O, [Plugin.ShowHolds], drawn by [Plugin.HoldsRenderer]). Hand the
+// the occupancy holds (Shift+O, [Plugin.ShowHolds], each an outline over its cell). Hand the
 // board to players.NewPlugin for the keys.
 //
 // # Ways
@@ -112,8 +112,8 @@
 //
 // The board's own Map is the simple map: a flat ground seen from above, every kind in its sprite,
 // the ways as bands. [Plugin.WithMap] puts another in. How a kind looks is its tile's, gathered
-// on the board's [Atlas] as [Plugin.Renderer] is first asked for, every sprite the cell's size
-// across (a game declaring looks by hand starts its own, [Plugin.NewAtlas]); a state of the
+// on the board's [Atlas] once the Stage is set up, every sprite the cell's size across (a game
+// declaring looks by hand closes its own before, [Plugin.NewAtlas]); a state of the
 // ground is an effect on its cells, shown as a cover ([Plugin.Covering], [Slot.Under]).
 //
 // # Tiles and figures

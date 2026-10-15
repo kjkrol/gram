@@ -5,7 +5,6 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	"github.com/kjkrol/gram/render"
 )
 
 // Plugin is the one extension point: what a Stage uses, named for the saves.
@@ -18,9 +17,6 @@ type Plugin interface {
 
 	// RunPlan is the plugin's work of a tick, called from Stage.Update in the order the game needs.
 	RunPlan(ctx goke.RunCtx, d time.Duration)
-
-	// Renderer is the plugin's own layer, or nil for none.
-	Renderer() render.Layer
 
 	// EventHandler is the plugin's own, or nil for none.
 	EventHandler() control.EventHandler

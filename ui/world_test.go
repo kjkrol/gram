@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 )
 
 type installer struct {
@@ -34,6 +35,8 @@ func (c *installer) Setup(providers ...goke.SetupProvider) {
 func (c *installer) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
 func (c *installer) ECS() *goke.ECS                                  { return c.ecs }
 func (c *installer) Hosts(...host.Host)                              {}
+func (c *installer) Draws(...render.Source)                          {}
+func (c *installer) Looks(func())                                    {}
 
 func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 	w := world.NewPlugin(world.Config{
@@ -59,7 +62,7 @@ func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 	}
 	label := Label("frozen").Under(frozen)
 	s := NewScene("main", Layers(label))
-	d := s.Layers()[0].(*drawing)
+	d := s.Drawers()[0].(*drawing)
 	var systems []goke.System
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
@@ -123,7 +126,7 @@ func TestPin_WhereTaggedFollowsTheEntitiesCarryingTheTag(t *testing.T) {
 	}
 	label := Label("here").Where(Tagged(mark))
 	s := NewScene("main", Layers(label))
-	d := s.Layers()[0].(*drawing)
+	d := s.Drawers()[0].(*drawing)
 	var systems []goke.System
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
@@ -166,7 +169,7 @@ func TestText_OfReadsTheComponentOfTheEntityPinned(t *testing.T) {
 		t.Fatal(err)
 	}
 	src := Of(func(s *score) (string, bool) { return string(rune('0' + s.N)), true })
-	d := NewScene("main", Layers(LabelOf(src).On(nobody))).Layers()[0].(*drawing)
+	d := NewScene("main", Layers(LabelOf(src).On(nobody))).Drawers()[0].(*drawing)
 	var base goke.Comp[world.Base]
 	var q *goke.Query
 	var systems []goke.System

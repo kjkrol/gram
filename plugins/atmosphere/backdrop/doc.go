@@ -4,7 +4,7 @@
 //
 // # Renderer
 //
-// A [Renderer] ([New]) is a render.Direct behind the whole world for a scene's Composer. It reads
+// A [Renderer] ([New]) is a render.Direct behind the whole world, the atmosphere's. It reads
 // the sun and the weather as they stand, where the sun, the moon and the stars stand
 // ([Renderer.WithHeavens]) and whether the stars and the moon show ([Renderer.WithShown]).
 package backdrop

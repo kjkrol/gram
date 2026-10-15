@@ -16,17 +16,12 @@ var (
 	backgroundColor = color.RGBA{R: 30, G: 30, B: 40, A: 255}
 )
 
-func (m *gameplayScene) picture() render.Picture {
-	g := m.arena
-	return render.NewComposer(g.world.Renderer(), g.cameras.Renderer())
-}
-
 func (m *gameplayScene) screen() *ui.Element {
 	g := m.arena
+	feed := render.NewFeed(g.cameras.New(cameras.TopDown(), camera.Config{}), g.world.Picture())
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
-		ui.Image(render.NewFeed(g.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-			Input(g.players.Through(g.player)),
+		ui.Image(feed).Input(g.players.Through(g.player)),
 		ui.BottomLeft(ui.Label("P: panel, M: menu, F5: save, F9: load, K: keys")).Margin(8),
 		ui.Center(ui.Window("PANEL",
 			ui.Label("the world keeps ticking behind me"),

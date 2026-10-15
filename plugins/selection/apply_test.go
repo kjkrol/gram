@@ -18,6 +18,7 @@ import (
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
@@ -117,6 +118,8 @@ func TestSelected_IsThePlayersSelectedUnitsAlone(t *testing.T) {
 	}
 }
 
-func (c *installCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
+func (c *installCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
+func (c *installCtx) Draws(...render.Source) {}
+func (c *installCtx) Looks(func())           {}
 
 func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

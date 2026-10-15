@@ -27,7 +27,7 @@ func TestFrame_AppendTakesBackWhatABranchGatheredInOrder(t *testing.T) {
 			x := float32(i)
 			f.Soft(h(x), quad(x), color.RGBA{A: 255}, Fade{})
 			f.Line(h(x), x, 0, x+1, 1, 1, color.RGBA{R: 255, A: 255})
-			f.Fan(OnTop, [][2]float32{{x, 0}, {x + 1, 0}, {x + 1, 1}}, color.RGBA{A: 255})
+			f.Fan(OnTop(0), [][2]float32{{x, 0}, {x + 1, 0}, {x + 1, 1}}, color.RGBA{A: 255})
 			f.Uniform("Seen", x)
 		}
 	}

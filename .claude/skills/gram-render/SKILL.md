@@ -1,6 +1,6 @@
 ---
 name: gram-render
-description: How gram draws — the Composer, order by Z and the depth buffer (At, passes, places), Direct sources with their own WGSL, Still, Feed, the world's and the board's atlases and looks (Add, Under, Turning, Facing, Animated, WhileMoving, Phased, Looped, Lying, Upright, Edges, Sheet, materials), the plugins' Look seams, telemetry. Use when touching render/, an atlas or a look in a plugin or a demo's scene.go, a shader, a renderer, or when something is drawn wrong.
+description: How gram draws — the Stage's picture (world.Picture, ctx.Draws, ctx.Looks), the Composer, order by Z and the depth buffer (At, passes, places, mark levels), Direct sources with their own WGSL, Still, Feed, the world's and the board's atlases and looks (Add, Under, Turning, Facing, Animated, WhileMoving, Phased, Looped, Lying, Upright, Edges, Sheet, materials), the plugins' Look seams, telemetry. Use when touching render/, an atlas or a look in a plugin or a demo's scene.go, a shader, a renderer, or when something is drawn wrong.
 ---
 
 # gram-render
@@ -11,8 +11,8 @@ A `render.Atlas` sizes nothing up front: `Add(of, size, draw)` records a sprite 
 slot (`render.Sprited`: `kind.Of`, `cell.Of`, a bullet `Ammo`, a bare `SpriteID`) at a texture size
 of its own (the drawn size is the entity's box), `Close()` lays the sheet out and bakes it. The
 world's atlas (`world.Plugin.NewAtlas`, `plugins/world/atlas.go`, a facade; the board's
-`board.Plugin.NewAtlas(size)` is written the same way) is filled by the figures' `Look`s when
-`Renderer()` is first asked (`NewAtlas().Looks().Close()` inside; `Close()` hands it to the
+`board.Plugin.NewAtlas(size)` is written the same way) is filled by the figures' `Look`s once
+the Stage is set up (`ctx.Looks`: `NewAtlas().Looks().Close()`; `Close()` hands it to the
 plugin, `SetAtlas`, which applies its rules itself): `Add(kind, size, look)` — a `render.Look`
 is a
 SpriteDrawer drawn once, or a `MaterialID` worked out per pixel every frame (one `Frame.Material`
@@ -46,33 +46,49 @@ effect among them — `Kinds().NewSprite()` and the board's panic past that (a b
 
 ## Rendering
 
-The world of a scene is one `render.Composer` over the plugins' renderers, `render.Source`s.
-**What is drawn over what is Z's alone (2026-10-15), never a layer**: `render.Tier` is gone. Each
+The world of a Stage is one `render.Composer`, `world.Plugin.Picture()`, over the
+`render.Source`s its plugins gave `ctx.Draws` (2026-10-15, stage 3: no `Renderer()`, no
+`picture()` in a demo, `Composer.Init` once however many scenes show it; `render.Layer` is
+`render.Drawer`, `Scene.Layers` `Drawers`, `ui.Layer` `ui.Drawer`). A demo that makes a plugin
+draws all it draws: selection and routes in bullet, platformer and split-screen, holds (Shift+O)
+in every demo with a board. **What is drawn over what is Z's alone (2026-10-15), never a layer
+nor the order a plugin registers in**: `render.Tier` is gone. Each
 piece a source hands its `render.Frame` lies at a `render.At`: `f.At(x, y, z)` (a height in the
 world; the key back to front is z from above, `cam.Depth` in a view that sorts), `f.Lifted(x, y,
 z, lift)` (what lies on a surface, ordered among what lies there by its lift), `f.OnGround(lift)`
-(the view's middle, for a Direct over the whole ground), `render.OnTop` (a mark), `Furthest` (the
-sky), `Nearest` (the rain). The passes: the **opaque** ground first (the board's `Still`, the
-terrain, the hex prisms: depth tested and written, any order), then the world **seen through**,
-back to front by key, every piece tested against the depth (its depth worked out on the GPU from
-its height: `gpu.Vertex.DstZ`, `gpu.Sight` from the camera's rays and `SceneTransform`), then the
-**marks** in the order added, untested. A frame with no opaque ground (a world without heights)
-has no depth at all, as before, the order alone deciding. Equal Z: the later wins (GreaterEqual
-for everyone); among the figures the lying first (`Sprites.Layer(at, under)`), so the standing
-covers the lying. A `render.Direct` (no `Tier()`) asks in Compose where it draws:
-`f.DrawOpaque()`, `f.DrawAt(at)` (a place among the pieces), `f.ReadGround()` (it reads the
-ground's depth: the opaque pass is drawn into a readable buffer, `Image.CopyDepth`, a draw since a
-texture copy of a depth is wrong on GLES and Vulkan in gogpu, gives the frame's buffer; the reader
-gets `Target.Ground` and writes `frag_depth` = the ground's own, testing GreaterEqual, so what
-stands nearer hides it); `Target.Pass` says which pass it is drawing; one asking for nothing is not
-drawn, `Frame.Places` lists the asks for a test. Lifts (world units over the ground): board
-materials 0.05, hex grid lines 0.1, sight 0.25, cloud shadows 0.5, routes 0.75, figures
-`world.FigureLift` 2 (topography's `spriteLift` is the same 2). The figures (`render.Sprites`,
-the world's flat look) are drawn once, among what is seen through, after the opaque ground, at
-the lowest figure's place, back to front among themselves; where the frame has a depth their
-visible pixels (alpha over half a step) write it, so a decal drawn after and behind them hides,
-and one before shows under their soft edges. `render.Sprites` lays world rectangles on the GPU
-(the camera's `SceneTransform` matrix, the box round the projected corners like `ToScreenQuads`,
+(the view's middle, for a Direct over the whole ground), `render.OnTop(level)` (a mark at its
+level), `Furthest` (the sky), `Nearest` (the rain). The passes: the **opaque** ground first (the
+board's `Still`, the terrain, the hex prisms: depth tested and written, any order), then the world
+**seen through**, back to front by key, every piece tested against the depth (its depth worked out
+on the GPU from its height: `gpu.Vertex.DstZ`, `gpu.Sight` from the camera's rays and
+`SceneTransform`), then the **marks** by level, at one level in the order added, untested: the
+selection's outline 1, its box being dragged 2, the cameras' scroll zones 3 (each plugin's constant,
+`outlineLevel`, `marqueeLevel`, `zonesLevel`). Between the world and the marks lies what is
+`At.OverFigures()`: drawn after every figure, tested against the ground's depth alone (the frame
+reads the ground for it: a copy of the depth and a switch of buffer, some 0.15 ms a frame while
+drawn, nothing while not), so a collision solid shows through its own billboard and a hill before
+it hides it. Goals, holds, a bridge in hand and boxes are no
+marks: they lie in the world. `Frame.Edge` is a line whose ends carry heights of their own
+(`item.own`; the composer zeroes them where the frame has no depth, as a z outside 0..1 would be
+clipped). A frame with no opaque ground (a world without heights) has no depth at all, as before,
+the order alone deciding. Equal Z: the later wins (GreaterEqual for everyone); among the figures the
+lying first (`Sprites.Layer(at, under)`), so the standing covers the lying. A `render.Direct` (no
+`Tier()`) asks in Compose where it draws: `f.DrawOpaque()`, `f.DrawAt(at)` (a place among the
+pieces), `f.ReadGround()` (it reads the ground's depth: the opaque pass is drawn into a readable
+buffer, `Image.CopyDepth`, a draw since a texture copy of a depth is wrong on GLES and Vulkan in
+gogpu, gives the frame's buffer; the reader gets `Target.Ground` and writes `frag_depth` = the
+ground's own, testing GreaterEqual, so what stands nearer hides it); `Target.Pass` says which pass
+it is drawing; one asking for nothing is not drawn, `Frame.Places` lists the asks for a test. Lifts
+(world units over the ground): board materials 0.05, hex grid lines 0.1, holds 0.15, sight 0.25,
+cloud shadows 0.5, routes 0.75, route goals 0.8, a bridge in hand 0.9 (over its deck's level),
+figures `world.FigureLift` 2 (topography's `spriteLift` is the same 2), an entity's box
+`FigureLift`+0.5 over its altitude in the order, its base's vertices 0.05 over it and its solid's at
+its altitude and top (collision's Shift+X: bases, solids in a world with heights, none). The figures
+(`render.Sprites`, the world's flat look) are drawn once, among what is seen through, after the
+opaque ground, at the lowest figure's place, back to front among themselves; where the frame has a
+depth their visible pixels (alpha over half a step) write it, so a decal drawn after and behind them
+hides, and one before shows under their soft edges. `render.Sprites` lays world rectangles on the
+GPU (the camera's `SceneTransform` matrix, the box round the projected corners like `ToScreenQuads`,
 over a wrapping world the copy `windowed` nearest the window and one past each seam, six vertices
 a copy in one call): no per-figure projection, wrap splitting or `Visible` on the CPU any more
 (`Benchmark_World_Draw` −35…−50%). One WGSL shader (`render/shaders/compose.wgsl` over the library
@@ -89,42 +105,30 @@ vertices holding their heights), drawn every frame scaled, moved and lit (`gpu.D
 taking one step a frame till then: shoot a baseline tree and the working one and compare (the
 telemetry panel and random weather or scenes are noise).
 
-## The plugins' renderers and styles per kind (done 2026-10-14; the findings below led to it)
+## The plugins' renderers and styles per kind
 
-`WithRenderer` is gone and a scene names no atlas: `world.Renderer()` and `board.Renderer()`
-dress themselves from the figures and tiles the first time they are asked (`NewAtlas().Looks().
-Close()` inside, the board's sprites the cell's bounds across; `Close` hands the atlas to
-`SetAtlas`, which a test may call with a foreign `render.AtlasSource`); every other plugin
-makes its renderer in `NewPlugin`. A game declaring looks by hand closes its own `NewAtlas`
-before asking. The user's word (2026-10-14): an atlas made and closed at once in a scene is
-ceremony; a size given by another channel than the constructor is noise.
-A figure's `Look` styles what the plugins draw about its kind with `Slot.Styled(s)`
-— `selection.Highlight{Line, Width}`, `vision.Cone{Color}`, `navigation.RouteStyle{Line, Goal,
-Width}` — kept in `render.Styles` on the world's atlas (`world.Plugin.Styles()` once it is
-closed), read with `render.StyleOf[S](styles, sprite)`; the renderers carry the colour
-per instance on the GPU. `board.ShowGrid(bool)` is the grid option.
+A scene names nothing that draws and no atlas (2026-10-14: `WithRenderer` went; 2026-10-15:
+`Renderer()` went): every plugin makes its sources in `NewPlugin` or `Install` and gives them
+`ctx.Draws`; the world's and the board's are dressed by `ctx.Looks` once the Stage is set up
+(`NewAtlas().Looks().Close()`, the board's sprites the cell's bounds across; `Close` hands the
+atlas to `SetAtlas`, which a test may call with a foreign `render.AtlasSource`). A game declaring
+looks by hand closes its own `NewAtlas` in a section before. The user's word (2026-10-14): an
+atlas made and closed at once in a scene is ceremony; a size given by another channel than the
+constructor is noise. A figure's `Look` styles what the plugins draw about its kind with
+`Slot.Styled(s)` — `selection.Highlight{Line, Width}`, `vision.Cone{Color}`,
+`navigation.RouteStyle{Line, Goal, Width}` — kept in `render.Styles` on the world's atlas
+(`world.Plugin.Styles()` once it is closed), read with `render.StyleOf[S](styles, sprite)`; the
+renderers carry the colour per instance on the GPU. `board.ShowGrid(bool)` is the grid option
+(the board's `SetAtlas` copies it into `Res.Render`, which stays nil before: topography reads nil
+as no grid).
 
-- Only scenes call `plugin.Plugin.WithRenderer(atlas)`; the engine never does. Three kinds of
-  implementor: **needs the atlas** — `world` (applies the atlas's swaps and rules, panics on a
-  bare `render.NewAtlas` for `Looks`) and `board` (panics on nil; sets
-  `Res.Render.ShowGridLines = true` itself, so a scene's `= true` is dead and `= false` is the
-  real option); **ignores it** — `collision`, `atmosphere`, `topography` (`WithRenderer` a no-op,
-  `Renderer()` made by the plugin); **uses it as a construction step only** — `navigation`,
-  `vision`, `selection`, `bridges` (`Renderer()` is nil before `WithRenderer(nil)`): 40
-  `WithRenderer(nil)` calls in the demos are that boilerplate.
-- What each renderer draws is a look of an entity under a state, not of the plugin: navigation
-  the routes and goals of an entity's `MoveOrder` (`WithRouteStyle`, one style for all); vision
-  the cone of an entity's `Sight` (`WithStyle`, `WithShadow`; `WithViews(render.Show(…))` picks
-  whose); selection the outline of the `Selected` tag through `world.Look.Footprint`
-  (`HighlightStyle`, no way for a game to set it today) plus the marquee, a player's gesture;
-  bridges the bridge in hand, a future entity drawn from its deck's slot; collision the boxes.
-- Decided direction (done, as above): these customisations become figure-style hooks declared in a
-  figure's `Look` on the world's atlas — looks `Under` a tag as under an effect, per-kind
-  attributes other plugins read (`Sight(style)`, `Route(style)`) — the plugin keeping the
-  algorithm, the figure the style, defaults where a figure says nothing; `WithRenderer` leaves
-  the `plugin.Plugin` contract, renderers without an atlas are made by their plugin. First step:
-  `Under` a tag and the selection's outline; then vision and navigation; the composer gathered
-  from the plugins made (`world.Made()`) is a separate talk (a minimap omits layers).
+What each renderer draws is a look of an entity under a state, not of the plugin: navigation the
+routes and goals of an entity's `MoveOrder`; vision the cone of an entity's `Sight` (`WithStyle`,
+`WithShadow`; `WithViews(render.Show(…))` picks whose); selection the outline of the `Selected`
+tag through `world.Look.Footprint` plus the marquee, a player's gesture; bridges the bridge in
+hand, a future entity drawn from its deck's slot; collision the boxes; the board the cells held
+and, under an atmosphere (`board.WithAtmosphere`), its clouds' shadows (`Atmosphere.Clouds`,
+till stage 4 draws them on the board's own ground).
 
 **A `color.RGBA` given to gram is straight alpha** (2026-10-14, after a zone at `A: 10` came out
 as bright as an opaque one): `render.Frame`'s pieces, `Image.Fill`, the shapes, text and the

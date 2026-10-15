@@ -5,8 +5,8 @@
 // # Plugin
 //
 // A [Plugin] has a Name (saves match its state by it), an Install that queues its ECS wiring, a
-// RunPlan the Stage calls once a tick, and optional faces: Renderer for what it draws,
-// EventHandler for the input it reads, Serializable for the state it saves. A [Builtin]
+// RunPlan the Stage calls once a tick, and optional faces: EventHandler for the input it reads,
+// Serializable for the state it saves. A [Builtin]
 // plugin is one the engine installs itself. A plugin tells the Stage of itself as it is made
 // ([Made]); the Stage uses the plugins in the order made.
 //
@@ -15,7 +15,9 @@
 // [Installer] is ECS wiring and Hosts, which tells the engine the hosts of the rules of the
 // moments the plugin catches. Install only queues; the engine flushes every plugin's wiring in
 // one ecs.Setup after the Stage's Init. What a plugin needs of another it takes in its
-// constructor.
+// constructor. What a plugin draws it gives Draws, render.Sources of the Stage's one picture
+// (world.Plugin.Picture), ordered there by height; Looks has its looks declared and its atlases
+// closed once the Stage is set up, before its scenes are made.
 //
 // # Rules
 //

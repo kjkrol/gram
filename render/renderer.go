@@ -5,19 +5,19 @@ import (
 	"github.com/kjkrol/gram/camera"
 )
 
-// Layer is a part of the picture, initialised once.
-type Layer interface {
+// Drawer is what draws a part of the picture, readied once.
+type Drawer interface {
 	Init(*goke.SysInit)
 }
 
-// Renderer is a layer drawn once a frame on the whole screen, in screen pixels.
+// Renderer is a Drawer drawing once a frame on the whole screen, in screen pixels.
 type Renderer interface {
-	Layer
+	Drawer
 	Draw(screen *Image)
 }
 
 // Picture is what is in the world before a camera, drawn through the camera it is handed.
 type Picture interface {
-	Layer
+	Drawer
 	DrawWorld(screen *Image, cam camera.Camera)
 }

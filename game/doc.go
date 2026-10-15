@@ -29,7 +29,7 @@
 //
 // # Scene, Scenes and Composition
 //
-// A [Scene] is one thing a Stage can show: Layers, bottom to top, render.Renderers drawn on the
+// A [Scene] is one thing a Stage can show: Drawers, bottom to top, render.Renderers drawn on the
 // screen (the world among them through a ui.Image of a render.Feed); HandleEvents, this tick's
 // input, run only while the Scene is active; and Focusable, whether it can ever be active.
 // [Scenes], built by [NewStack], is the Stage's registry of them by Name. Its [Composition] is the

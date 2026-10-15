@@ -20,7 +20,6 @@ import (
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
@@ -50,7 +49,6 @@ type skyPlugin struct{}
 func (skyPlugin) Name() string                       { return "test.sky" }
 func (skyPlugin) Install(plugin.Installer) error     { return nil }
 func (skyPlugin) RunPlan(goke.RunCtx, time.Duration) {}
-func (skyPlugin) Renderer() render.Layer             { return nil }
 func (skyPlugin) EventHandler() control.EventHandler { return nil }
 func (skyPlugin) Serializable() plugin.Serializable  { return nil }
 

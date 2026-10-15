@@ -7,6 +7,7 @@ import "math"
 type At struct {
 	z, key float32
 	top    bool
+	over   bool // tested against the ground's depth alone
 }
 
 var (
@@ -14,12 +15,24 @@ var (
 	Furthest = At{key: float32(math.Inf(-1))}
 	// Nearest is before the whole world: what falls through the air.
 	Nearest = At{key: float32(math.Inf(1))}
-	// OnTop is a mark, not the world: drawn over it on the screen, in the order the marks came.
-	OnTop = At{top: true}
 )
+
+// OnTop is a mark at level, not the world: drawn over it on the screen, a higher level over a
+// lower, at one level in the order the marks came.
+func OnTop(level float32) At { return At{key: level, top: true} }
 
 // Z is the height the piece lies at.
 func (a At) Z() float32 { return a.z }
+
+// Top reports whether a is a mark, drawn over the world.
+func (a At) Top() bool { return a.top }
+
+// OverFigures is a drawn over whatever stands, hidden by the ground alone: a look into the world,
+// such as the solids of the entities' boxes, costing a copy of the ground's depth while drawn.
+func (a At) OverFigures() At {
+	a.over = true
+	return a
+}
 
 // Before reports whether a is drawn before b among what is drawn back to front.
 func (a At) Before(b At) bool { return a.key < b.key }

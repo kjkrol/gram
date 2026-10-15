@@ -63,6 +63,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module.sys.tick, p.module.sys.log = p.worldPlugin.Tick, p.log
 	ctx.UseModule(p.module)
 	ctx.Hosts(&p.sightings)
+	ctx.Draws(p.renderer)
 	return nil
 }
 
@@ -72,9 +73,6 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// Renderer draws the views, each kind in its Cone.
-func (p *Plugin) Renderer() render.Layer { return p.renderer }
-
 // EventHandler is nil: the Cones command comes from a player's bindings.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
@@ -82,7 +80,7 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 // WithViews has only the views of the observers a render.Show rule picks drawn; with none, every
-// one is. Call it in the scene, as the renderer is made.
+// one is. Call it in the scene, before the first frame.
 func (p *Plugin) WithViews(rules ...render.Rule) *Plugin {
 	if err := p.drawing.Add(rules...); err != nil {
 		panic(fmt.Errorf("%w in %s", err, p.Name()))

@@ -32,7 +32,7 @@ func (p *player) handle(ev *control.InputEvents, _ game.Runtime, _ game.Composit
 }
 
 func built(s *Scene) *Scene {
-	s.Layers()
+	s.Drawers()
 	s.root.lay(screen)
 	return s
 }

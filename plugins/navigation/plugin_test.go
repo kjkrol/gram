@@ -26,6 +26,7 @@ type stubInstallCtx struct {
 	hosts   []host.Host // of the rules of the moments the plugins installed catch
 	ecs     *goke.ECS
 	pending []func() []goke.System
+	drawn   []render.Source
 }
 
 func (c *stubInstallCtx) UseModule(m goke.Module) {
@@ -189,7 +190,27 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 	}
 }
 
-func (c *stubInstallCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
+func (c *stubInstallCtx) Hosts(h ...host.Host)     { c.hosts = append(c.hosts, h...) }
+func (c *stubInstallCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
+func (c *stubInstallCtx) Looks(func())             {}
 
 // as the engine does with the roles played once a Stage's Init returns
 func (c *stubInstallCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }
+
+func TestPlugin_DrawsItsRoutes(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 128, Height: 128},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 32},
+		Heights:  true,
+	})
+	brd := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.SingleOccupancy{}, w)
+	sel := selection.NewPlugin(w)
+	nav := NewPlugin(brd, w, sel, driving.NewPlugin(w, sel))
+	ctx := &stubInstallCtx{ecs: goke.New()}
+	if err := nav.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(ctx.drawn) != 1 || ctx.drawn[0] != render.Source(nav.pathRenderer) {
+		t.Errorf("navigation draws %v, want its routes", ctx.drawn)
+	}
+}

@@ -32,7 +32,7 @@ func (c *Clock) written() string {
 	return s
 }
 
-// HUD is a screen layer showing the clock in the window's bottom-left corner.
+// HUD is a screen renderer showing the clock in the window's bottom-left corner, for a ui.Drawer.
 func (c *Clock) HUD() render.Renderer { return &hud{c: c} }
 
 type hud struct{ c *Clock }

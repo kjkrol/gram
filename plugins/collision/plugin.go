@@ -11,7 +11,6 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 )
 
 // Plugin wires collision into a Stage over the world's space.
@@ -54,6 +53,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module.tick = p.worldPlugin.Tick
 	ctx.UseModule(p.module)
 	ctx.Hosts(&p.pairs, &p.entities)
+	ctx.Draws(p.boxesView)
 	return nil
 }
 
@@ -80,9 +80,6 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.switchBoxes()
 	p.module.RunPlan(ctx, d)
 }
-
-// Renderer outlines every entity's box while Boxes shows them (Shift+X), for a scene's composer.
-func (p *Plugin) Renderer() render.Layer { return p.boxesView }
 
 // EventHandler is nil: collision reads no input.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

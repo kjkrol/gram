@@ -30,25 +30,11 @@ var (
 	railColor   = color.RGBA{R: 70, G: 50, B: 35, A: 255}
 )
 
-func (m *mainScene) picture() render.Picture {
-	a := m.arena
-
-	a.vision.WithViews(render.Show(a.selection.IsSelected))
-
-	return render.NewComposer(
-		a.topography.Renderer(),
-		a.board.Renderer(),
-		a.world.Renderer(), a.cameras.Renderer(),
-		a.vision.Renderer(),
-		a.selection.Renderer(),
-		a.nav.Renderer(),
-		a.bridges.Renderer(),
-	)
-}
-
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
+	a.vision.WithViews(render.Show(a.selection.IsSelected))
+
 	return ui.Image(render.NewFeed(
 		a.cameras.New(a.topography.Views(topography.FromAbove), camera.Config{}),
-		m.picture())).Input(a.players.Through(a.player))
+		a.world.Picture())).Input(a.players.Through(a.player))
 }

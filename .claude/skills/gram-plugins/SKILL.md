@@ -47,8 +47,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Turn{Angle}` (the steering system asks the `Helm`, one a step), the commands about effects,
   `Pause` (Shift+P), `Faster` (]) and `Slower` ([). `Figures(f...)` notes kinds of entity in
   one piece (`world.Figure`: `Define(w)`, `Look(a, w)`; `Stateful`, `Ruled`), `FiguresIn(part)`
-  runs their parts as the Stage reaches Effects, Rules and Kinds; `Renderer()` gathers their
-  looks on the atlas when first asked.
+  runs their parts as the Stage reaches Effects, Rules and Kinds; `ctx.Looks` declares their
+  looks on the atlas once the Stage is set up. `Picture()` is the Stage's one picture: every
+  source its plugins gave `ctx.Draws`.
   Every `host.Tick` comes from
   `world.Plugin.Tick(d)`: the carrier (`world.Plugin.Carrier()`, the stage's one
   `command.Carrier` for players and entities alike; the engine carries every
@@ -154,7 +155,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   and has every unit hold the cell it stands on, each on its level (a walker on a deck and one
   under it share a cell); one holding nothing lets go of the cell it was `At`, is `At` the one it
   stands on with `unit.Entered` on; one mid-step holds both and is left to navigation.
-  `board.Holds` (Shift+O, `Plugin.ShowHolds`, `HoldsRenderer`) outlines every cell held.
+  `board.Holds` (Shift+O, `Plugin.ShowHolds`) outlines every cell held, lying 0.15 over it.
   **A map is a file**: `board.Plugin.Lay(fsys, path)` in Spawn seeds the board and hands back a
   `board.Level`; `board.Spawn[R](level, board.Sides)` seeds the world with the entities whose
   kind's rows are `R` (`R`'s fields tagged `yaml` are the file's keys), one no Spawn took fails
@@ -183,11 +184,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `ground.Cover` (`Plugin.Cover`); both read the cell entities whenever asked. A flat board takes
   its light by the hour through `board.Plugin.WithAtmosphere(atmosphere)` (`lit.go`, reading
   `board.Atmosphere{Sun, Air}`: the board composed once and tinted on the GPU, sprites lit, what
-  sways leaning), called in a scene before the renderers; without one it is drawn as it is. The
+  sways leaning), called in a scene before the first frame; without one it is drawn as it is. The
   board's own Map is the simple map — flat, every kind in its sprite from the game's atlas
-  (gathered by `Renderer()` from the tiles, the sprites the cell's bounds across), the ways as bands cut out of
-  their kinds' sprites, a step at its kind's cost; `plugins/topography` is the other. Depends on
-  `world` and `collision`.
+  (declared by `ctx.Looks` from the tiles, the sprites the cell's bounds across), the ways as bands
+  cut out of their kinds' sprites, a step at its kind's cost; `plugins/topography` is the other.
+  Depends on `world` and `collision`.
 - **`topography`** — a map in relief: `topography.NewPlugin(world, board, Config{Cell, TileW,
   TileH, HeightUnit, Headroom, Shaping, Climbing, Perspective, Solid, Fine, EdgeTurn, EdgeTilt})`,
   made right after the world and the board (so a world with heights); refuses a wrapping world. It
@@ -198,14 +199,16 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Flatten`; on a square grid a lattice of corners the neighbouring cells share, on a hex a level
   per cell; living on its own entity as `Heights`, runs of `HeightsRun` 1024, seeded by
   `Plugin.Seed(heights)` at Populate, shaped by `Raise`/`Lower`/`Level` — Shift+=, Shift+-,
-  L-drag — `Shaping`). `Plugin.Renderer()` is the ground, a `render.Direct` at `Ground` a demo
-  puts in its composer: over a square grid `internal/terrain` (the lattice as a mesh, a depth
-  prepass, the board painted flat by the painter into albedo and water sheets sampled per pixel,
-  lit by the sun with shadows baked on the GPU as the sun moves — a strip a frame, `shadeStrips`;
-  H `CoarseShadows` bakes them half as fine; `WithShadows` on by default — the clouds' cover
-  baked, water on wet cells, the grid, fog, a skirt of level ground to the horizon), over a hex
-  grid `internal/hexes` (every cell a prism from tiles composed once from above). The entities
-  are billboards on the GPU (`internal/billboards`, tested against the ground's depth, their
+  L-drag — `Shaping`). The plugin draws the ground, a `render.Direct` in the opaque pass (`ground`
+  or `hexes`, the one it has, given `ctx.Draws`): over a square grid `internal/terrain` (the lattice
+  as a mesh, a depth prepass, the board painted flat by the painter into albedo and water sheets
+  sampled per pixel, lit by the sun with shadows baked on the GPU as the sun moves — a strip a
+  frame, `shadeStrips`; H `CoarseShadows` bakes them half as fine; `WithShadows` on by default — the
+  clouds' cover baked, water on wet cells, the grid, fog, a skirt of level ground to the horizon),
+  over a hex grid `internal/hexes` (every cell a prism from tiles composed once from above). The
+  entities are billboards on the GPU (`internal/billboards`, standing upright in the world across
+  the screen's level right, so as tall on the screen as their `Height` stands there and inside
+  their solid (Shift+X), shorter the steeper the view; tested against the ground's depth, their
   shadows `sky.Sun.ShadowOf` patches draped over the terrain); a bridge's deck and piers are
   `world.Block`s whose shadows the terrain bakes with its own (`maxBlocks` 96; a deck stands on
   its beam down its `Z.Height`). One camera, three views (`internal/cameras`): from above (screen
@@ -284,9 +287,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Cloud`, `Shade`, `Haze`; the clouds' periodic noise baked once by `air.BakeTile` into a tile the
   sky and the terrain look up per pixel). `atmosphere/overcast`: the clouds' shadows over a flat
   board (`atmosphere.Plugin.Clouds()`, a Direct lying on the ground at a lift of 0.5, under the
-  figures). `atmosphere.Running` (`Config.Running`, `Plugin.SetRunning`) switches the day, the
-  weather's changes, the wind, the clouds, what falls, the weathering, the stars and the moon, all
-  on by default, not saved.
+  figures, which the board draws once `board.WithAtmosphere` puts it under the sky). The plugin
+  draws the sky and what falls itself (`ctx.Draws`). `atmosphere.Running` (`Config.Running`,
+  `Plugin.SetRunning`) switches the day, the weather's changes, the wind, the clouds, what falls,
+  the weathering, the stars and the moon, all on by default, not saved.
 - **`collision`** — collision detection over `world`'s space, one `collisionSystem` a tick. An
   entity collides exactly while it carries `Collider`; the system settles every `Collider`'s
   `Base.Caps` (`CanCollide`, `Static` for an immovable `Physics`, `Sensor` for none) and rebuilds
@@ -318,9 +322,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `resolve` refines each pair to the segment, `nearest` keeps one contact a step (`Contact.Along`,
   `Sensed`); a swept entity is a sensor, two swept pass through each other; a wrapping world refuses
   it. Counting and logging the contacts is collision's own work (`WithStats(&stats)`, a
-  `collision.ContactStats` with its `Reporter`; `WithLog`). `Boxes` (Shift+X) outlines every
-  entity's box in red: `Plugin.Renderer()` draws them, so a scene's composer takes it and the
-  game hands the plugin to players. Depends on `world`.
+  `collision.ContactStats` with its `Reporter`; `WithLog`). `Boxes` (Shift+X) switches every
+  entity's box in red, `BoxesShown`: `Bases` (the footprint at its altitude, after its figure in
+  the order, under its own sprite where there is a depth), `Solids` (the twelve edges from its
+  altitude to its top, `Frame.Edge`, only in a world with heights), `NoBoxes`; the game hands the
+  plugin to players for the key. Depends on `world`.
 - **`navigation`** — pathfinding and movement toward a `MoveOrder` across a `board`. **A route
   once planned is followed**: navigation plans again only when it breaks — the ground under its
   remaining steps turns against the unit (`admitsAll` on a terrain version change), a step is
@@ -377,8 +383,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   unit standing off its route plans again. The driving plugin gets its `driving.Keeping` from
   navigation (`handKeeping`); a unit whose `steering.Driven.Steers()` gives its order up in
   navigation's pass; navigation's RunPlan comes before the driving's. The renderer of routes
-  (`internal/routes`, made in `NewPlugin`): every selected unit's goals as its outline (`Marks`)
-  and, on `Routes{}` (Shift+R), its routes as thin lines at the ground's depth; `WithRouteStyle`.
+  (`internal/routes`, made in `NewPlugin`): every selected unit's goals as its outline lying 0.8
+  over the goal's ground and, on `Routes{}` (Shift+R), its routes as thin lines at the ground's
+  depth; `WithRouteStyle`.
   Facts told a unit with a tree: `Blocked`, `Arrived`; `MoveOrder.HitUnit` (entity ids start at 0:
   never use 0 as "nobody"). Depends on `board`, `world`, `selection`, `driving`.
 - **`entity`** (core) — what every entity carries: `Base`, `Position` (`StepReach`, `MaxStep`,
@@ -499,7 +506,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   a `camera.Scroller`
   takes it as `Scroll(dx, dy, corner)`, the relief's camera turning in a corner at
   `topography.CornerStep`, a quarter of Q, and any other camera pans). `Zones` (Shift+H,
-  `ShowZones`, `ZonesShown`, `Plugin.Renderer()` for the composer, hidden by default, shown at
+  `ShowZones`, `ZonesShown`, marks over every other, hidden by default, shown at
   the start of board/topography) lays the strips and the corner squares over every picture in
   translucent yellow, rounded (`render.Frame.Fan`), the strips a gap short of the corners and
   fainter (the user's sketch, 2026-10-14). `CursorAtEdge` fires once an `Engine.Update`, before

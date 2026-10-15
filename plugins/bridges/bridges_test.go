@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -20,11 +21,13 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 )
 
 type installer struct {
 	ecs     *goke.ECS
 	pending []func() []goke.System
+	drawn   []render.Source
 }
 
 func (c *installer) UseModule(m goke.Module) {
@@ -39,6 +42,8 @@ func (c *installer) Setup(providers ...goke.SetupProvider) {
 func (c *installer) RegSys(f func() goke.System) goke.Runnable { return c.ecs.RegSys(f()) }
 func (c *installer) ECS() *goke.ECS                            { return c.ecs }
 func (c *installer) Hosts(...host.Host)                        {}
+func (c *installer) Draws(s ...render.Source)                  { c.drawn = append(c.drawn, s...) }
+func (c *installer) Looks(func())                              {}
 
 // dale is a board 10 x 6 of cells 10 wide, the ground 20 up but for a valley at 0 from x 30 to
 // 60.
@@ -51,6 +56,7 @@ type dale struct {
 	bridges *bridges.Plugin
 	col     *collision.Plugin
 	ecs     *goke.ECS
+	drawn   []render.Source
 	floors  *goke.Query
 	floor   goke.Comp[cell.Floor]
 	on      goke.Comp[cell.On]
@@ -118,6 +124,7 @@ func (d *dale) start(heights func(geom.Vec) float64) {
 	if err := d.bridges.Populate(); err != nil {
 		d.t.Fatal(err)
 	}
+	d.drawn = ctx.drawn
 	var systems []goke.System
 	for _, produce := range ctx.pending {
 		systems = append(systems, produce()...)
@@ -222,6 +229,29 @@ func TestTool_APlayerLaysABridgeOutAndBuildsIt(t *testing.T) {
 	if n != len(decks)+len(piers) {
 		t.Errorf("%d blocks cast their shadows with the ground's, want the %d pieces of deck "+
 			"and the %d piers", n, len(decks), len(piers))
+	}
+}
+
+func TestTool_TheBridgeInHandLiesOverItsCells(t *testing.T) {
+	d := newDale(t)
+	d.start(valley)
+	at := func(x, y uint32) geom.Vec { return d.g.CellCenter(d.g.At(x, y)) }
+	d.give(bridges.Mark{At: at(2, 3)})
+	d.give(bridges.Aim{At: at(5, 3)})
+	hand := d.drawn[len(d.drawn)-1] // the bridges' own, installed last
+	cam := icamera.NewFromSpace(100, 60, 0)
+	var f render.Frame
+	f.Reset(cam)
+	hand.Compose(&f, cam)
+	n := 0
+	f.Each(func(at render.At, _ []render.Vertex) {
+		n++
+		if at.Top() || math.Abs(float64(at.Z())-20.9) > 1e-4 {
+			t.Errorf("the bridge in hand lies at %v, want over its head's ground at 20", at)
+		}
+	})
+	if n == 0 {
+		t.Fatal("the bridge in hand is not drawn")
 	}
 }
 

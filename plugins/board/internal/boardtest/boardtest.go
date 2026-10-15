@@ -23,6 +23,7 @@ import (
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/render"
 )
 
 // InstallCtx is the plugin.Installer a Stage would hand over, minus the engine.
@@ -314,7 +315,9 @@ func (g OneStageGame) Stages() (map[string]game.Stage, string) {
 }
 
 // Hosts keeps the hosts of the rules of the moments a plugin catches.
-func (c *InstallCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
+func (c *InstallCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
+func (c *InstallCtx) Draws(...render.Source) {}
+func (c *InstallCtx) Looks(func())           {}
 
 // Deliver hands rules to the hosts of their moments, as the engine does once a Stage's Init
 // returns.

@@ -14,8 +14,6 @@ import (
 func TestCones_ToggleTheViewsDrawn(t *testing.T) {
 	w := testWorldPlugin()
 	v := vision.NewPlugin(w)
-	r := v.Renderer().(*vision.Renderer)
-
 	ctx := &installCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {
 		t.Fatalf("world Install: %v", err)
@@ -23,6 +21,7 @@ func TestCones_ToggleTheViewsDrawn(t *testing.T) {
 	if err := v.Install(ctx); err != nil {
 		t.Fatalf("vision Install: %v", err)
 	}
+	r := rendererOf(t, ctx, v)
 	if err := w.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)
 	}
@@ -58,10 +57,10 @@ func TestCones_ToggleTheViewsDrawn(t *testing.T) {
 	}
 }
 
-func TestCones_ShowConesReachesARendererBuiltLater(t *testing.T) {
+func TestCones_ShowConesBeforeInstallReachesTheRenderer(t *testing.T) {
 	v := vision.NewPlugin(testWorldPlugin())
 	v.ShowCones()
-	if v.Renderer().(*vision.Renderer).Hidden() {
+	if rendererOf(t, nil, v).Hidden() {
 		t.Error("a renderer built after ShowCones is hidden")
 	}
 }

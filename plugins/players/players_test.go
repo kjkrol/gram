@@ -444,8 +444,8 @@ func TestPlugin_Contract(t *testing.T) {
 	if r.p.EventHandler() == nil {
 		t.Error("EventHandler is nil — players translate input")
 	}
-	if r.p.Renderer() != nil || r.p.Serializable() != nil {
-		t.Error("players draw nothing and save nothing of their own")
+	if r.p.Serializable() != nil {
+		t.Error("players save nothing of their own")
 	}
 }
 
@@ -521,7 +521,9 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 	}
 }
 
-func (c *installCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
+func (c *installCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
+func (c *installCtx) Draws(...render.Source) {}
+func (c *installCtx) Looks(func())           {}
 
 func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }
 

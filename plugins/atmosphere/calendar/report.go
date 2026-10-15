@@ -20,8 +20,9 @@ func (r reporter) Report(line func(label, value string)) {
 	line("Season", fmt.Sprintf("%s, %s, %s", m.Season(), m.Written(), m.MoonName()))
 }
 
-// HUD is a screen layer showing the hour, the date and the moon in the bottom-right corner.
-func (c *Calendar) HUD() render.Layer { return &hud{c: c} }
+// HUD is a screen renderer showing the hour, the date and the moon in the bottom-right corner,
+// for a ui.Drawer.
+func (c *Calendar) HUD() render.Renderer { return &hud{c: c} }
 
 type hud struct{ c *Calendar }
 

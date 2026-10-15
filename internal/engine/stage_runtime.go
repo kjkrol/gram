@@ -13,11 +13,11 @@ import (
 )
 
 type stageRuntime struct {
-	host        *ecsHost
-	stage       game.Stage
-	world       *world.Plugin
-	carrier     *command.Carrier
-	sceneLayers map[string][]render.Layer
+	host         *ecsHost
+	stage        game.Stage
+	world        *world.Plugin
+	carrier      *command.Carrier
+	sceneDrawers map[string][]render.Drawer
 }
 
 func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, error) {
@@ -30,6 +30,7 @@ func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, erro
 	if err := ctx.deliver(); err != nil {
 		return nil, err
 	}
+	ctx.look()
 	carrier, err := ctx.carrier()
 	if err != nil {
 		return nil, err
@@ -62,33 +63,42 @@ func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, erro
 		host.ecs.SetPlan(stage.Update)
 	}
 
-	sceneLayers := make(map[string][]render.Layer)
+	sceneDrawers := make(map[string][]render.Drawer)
 	for _, sc := range stage.Stack().All() {
-		layers := sc.Layers()
-		if err := checkLayers(sc, layers); err != nil {
+		drawers := sc.Drawers()
+		if err := checkDrawers(sc, drawers); err != nil {
 			return nil, err
 		}
-		for _, l := range layers {
-			host.registerLayer(l)
+		for _, l := range drawers {
+			host.registerDrawer(l)
 		}
-		sceneLayers[sc.Name()] = layers
+		sceneDrawers[sc.Name()] = drawers
 	}
 
 	host.flushPendingSetup()
 
-	return &stageRuntime{host: host, stage: stage, world: ctx.world, carrier: carrier, sceneLayers: sceneLayers}, nil
+	return &stageRuntime{
+		host:         host,
+		stage:        stage,
+		world:        ctx.world,
+		carrier:      carrier,
+		sceneDrawers: sceneDrawers,
+	}, nil
 }
 
-func checkLayers(sc game.Scene, layers []render.Layer) error {
-	for _, l := range layers {
+func checkDrawers(sc game.Scene, drawers []render.Drawer) error {
+	for _, l := range drawers {
 		if _, ok := l.(render.Renderer); ok {
 			continue
 		}
 		if _, ok := l.(render.Picture); ok {
-			return fmt.Errorf("gram: scene %q: %T is a world layer; show it through a ui.Image(render.NewFeed(camera, it))", sc.Name(), l)
+			return fmt.Errorf("gram: scene %q: %T is a world picture; show it through a "+
+				"ui.Image(render.NewFeed(camera, it))", sc.Name(), l)
 		}
 		if _, ok := l.(render.Source); ok {
-			return fmt.Errorf("gram: scene %q: %T is a render.Source; list it in a render.NewComposer", sc.Name(), l)
+			return fmt.Errorf("gram: scene %q: %T is a render.Source; its plugin draws it "+
+				"(ctx.Draws), a ui.Image(render.NewFeed(camera, world.Picture())) shows it",
+				sc.Name(), l)
 		}
 		return fmt.Errorf("gram: scene %q: %T is no Renderer", sc.Name(), l)
 	}
@@ -96,7 +106,7 @@ func checkLayers(sc game.Scene, layers []render.Layer) error {
 }
 
 func (r *stageRuntime) drawScene(screen *render.Image, sc game.Scene) {
-	for _, l := range r.sceneLayers[sc.Name()] {
+	for _, l := range r.sceneDrawers[sc.Name()] {
 		l.(render.Renderer).Draw(screen)
 	}
 }

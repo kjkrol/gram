@@ -8,9 +8,9 @@ import (
 	"github.com/kjkrol/gram/camera"
 )
 
-// Source is a world layer that hands its pieces to a Frame instead of drawing them.
+// Source is what draws a part of the world by handing its pieces to a Frame.
 type Source interface {
-	Layer
+	Drawer
 	Compose(f *Frame, cam camera.Camera)
 }
 
@@ -40,6 +40,7 @@ type item struct {
 	shape shape
 	// the source drawing itself at this place, one more than its index; 0 a piece
 	direct int32
+	own    bool // the vertices hold heights of their own, not the At's
 }
 
 // Frame gathers what the sources of a Composer draw for one viewport, in screen pixels, each
@@ -61,6 +62,7 @@ type Frame struct {
 	uniforms []uniform
 	time     float32
 	ground   bool    // a source reads the ground's depth this frame
+	overs    int     // the pieces lying over the figures
 	source   int32   // the source composing, one more than its index; 0 none
 	opaque   []int32 // the sources drawing in the opaque pass, one more than their index
 }
@@ -80,7 +82,7 @@ func (f *Frame) Len() int { return f.count }
 // Reset starts the frame over, drawn through cam.
 func (f *Frame) Reset(cam camera.Camera) {
 	f.cam, f.items, f.verts, f.order, f.count = cam, f.items[:0], f.verts[:0], f.order[:0], 0
-	f.uniforms, f.ground, f.opaque = f.uniforms[:0], false, f.opaque[:0]
+	f.uniforms, f.ground, f.opaque, f.overs = f.uniforms[:0], false, f.opaque[:0], 0
 }
 
 // DrawOpaque has the composing Direct draw in the opaque pass, the ground's: tested against the
@@ -144,10 +146,18 @@ func (f *Frame) Each(fn func(at At, verts []Vertex)) {
 }
 
 func (f *Frame) add(at At, atlas AtlasSource, s shape, count int) {
+	f.addOwn(at, atlas, s, count, false)
+}
+
+func (f *Frame) addOwn(at At, atlas AtlasSource, s shape, count int, own bool) {
 	f.count++
+	if at.over {
+		f.ground, f.overs = true, f.overs+1
+	}
 	if n := len(f.items); n > 0 && s != fan {
 		last := &f.items[n-1]
-		if last.count > 0 && last.shape == s && last.at == at && last.atlas == atlas {
+		if last.count > 0 && last.shape == s && last.at == at && last.atlas == atlas &&
+			last.own == own {
 			last.count += int32(count)
 			return
 		}
@@ -158,6 +168,7 @@ func (f *Frame) add(at At, atlas AtlasSource, s shape, count int) {
 		first: int32(len(f.verts)) - int32(count),
 		count: int32(count),
 		shape: s,
+		own:   own,
 	})
 }
 
@@ -498,10 +509,29 @@ func blend(corners [4]float32, u, v float32) float32 {
 // Line draws the line from (x0, y0) to (x1, y1) on screen, width pixels wide, in c, its sides
 // fading over a pixel.
 func (f *Frame) Line(at At, x0, y0, x1, y1, width float32, c color.RGBA) {
+	if f.line(x0, y0, x1, y1, width, c) {
+		f.add(at, nil, quad, 4)
+	}
+}
+
+// Edge is Line whose ends lie at the heights z0 and z1 in the world, each tested against the depth
+// where it lies, the line drawn among the pieces at at.
+func (f *Frame) Edge(at At, x0, y0, z0, x1, y1, z1, width float32, c color.RGBA) {
+	n := len(f.verts)
+	if !f.line(x0, y0, x1, y1, width, c) {
+		return
+	}
+	for k, z := range [4]float32{z0, z1, z0, z1} {
+		f.verts[n+k].DstZ = z
+	}
+	f.addOwn(at, nil, quad, 4, true)
+}
+
+func (f *Frame) line(x0, y0, x1, y1, width float32, c color.RGBA) bool {
 	dx, dy := x1-x0, y1-y0
 	n := float32(math.Hypot(float64(dx), float64(dy)))
 	if n == 0 || width <= 0 {
-		return
+		return false
 	}
 	full := width + 1 // half a pixel of fade either side
 	px, py := -dy/n*full/2, dx/n*full/2
@@ -515,7 +545,7 @@ func (f *Frame) Line(at At, x0, y0, x1, y1, width float32, c color.RGBA) {
 		}
 		f.verts = append(f.verts, v)
 	}
-	f.add(at, nil, quad, 4)
+	return true
 }
 
 // Fan fills in c the polygon pts, which every point of sees whole from pts[0].
@@ -652,7 +682,7 @@ func (f *Frame) Append(o *Frame) {
 		it.first += base
 		f.items = append(f.items, it)
 	}
-	f.count += o.count
+	f.count, f.overs = f.count+o.count, f.overs+o.overs
 	f.ground = f.ground || o.ground
 	f.opaque = append(f.opaque, o.opaque...)
 	for _, u := range o.uniforms {

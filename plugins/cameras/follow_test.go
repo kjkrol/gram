@@ -40,6 +40,8 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
 func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
 func (c *installCtx) Hosts(...host.Host)                              {}
+func (c *installCtx) Draws(...render.Source)                          {}
+func (c *installCtx) Looks(func())                                    {}
 
 type camp struct {
 	t        *testing.T

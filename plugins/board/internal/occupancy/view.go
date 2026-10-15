@@ -13,8 +13,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// View draws the cells an Occupancy holds while shown: every hold its cell's outline, at its
-// level, in its holder's colour.
+// View draws the cells an Occupancy holds while shown: every hold its cell's outline lying over
+// it at its level, in its holder's colour.
 type View struct {
 	grid      grid.Grid
 	occupancy cell.Occupancy
@@ -37,6 +37,8 @@ const (
 	// of the way to the cell's middle; a deck's further in
 	groundInset = 0.12
 	deckInset   = 0.26
+	// how far over its cell a hold lies among what lies there: over the grid, under the sight
+	holdLift = 0.15
 )
 
 var _ render.Source = (*View)(nil)
@@ -77,6 +79,8 @@ func (v *View) drawHold(e uid.UID64, _ cell.Domain, deck bool) {
 	if deck {
 		inset, col = deckInset, lighter(col)
 	}
+	z := float32(v.height(c, mid, deck))
+	at := v.frame.Lifted(float32(mid.X), float32(mid.Y), z, holdLift)
 	var x0, y0, xp, yp float32
 	for i, p := range v.outline {
 		p = geom.NewVec(p.X+(mid.X-p.X)*inset, p.Y+(mid.Y-p.Y)*inset)
@@ -84,12 +88,12 @@ func (v *View) drawHold(e uid.UID64, _ cell.Domain, deck bool) {
 		if i == 0 {
 			x0, y0 = x, y
 		} else {
-			v.frame.Line(render.OnTop, xp, yp, x, y, holdWidth, col)
+			v.frame.Line(at, xp, yp, x, y, holdWidth, col)
 		}
 		xp, yp = x, y
 	}
 	if len(v.outline) > 1 {
-		v.frame.Line(render.OnTop, xp, yp, x0, y0, holdWidth, col)
+		v.frame.Line(at, xp, yp, x0, y0, holdWidth, col)
 	}
 }
 

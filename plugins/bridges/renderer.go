@@ -23,6 +23,10 @@ type renderer struct {
 	outline []geom.Vec
 }
 
+// how far over its deck's level a bridge in hand lies among what lies there: over the routes,
+// under the figures
+const handLift = 0.9
+
 var _ render.Source = (*renderer)(nil)
 
 func (r *renderer) Init(*goke.SysInit) {}
@@ -58,9 +62,10 @@ func (r *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		} {
 			q[i][0], q[i][1] = cam.Project(float32(p.X), float32(p.Y), deck)
 		}
-		f.Quad(render.OnTop, q, [4]color.RGBA{fill, fill, fill, fill})
+		at := f.Lifted(float32(a.X+b.X)/2, float32(a.Y+b.Y)/2, deck, handLift)
+		f.Quad(at, q, [4]color.RGBA{fill, fill, fill, fill})
 		for _, e := range [4][2]int{{0, 1}, {1, 3}, {3, 2}, {2, 0}} {
-			f.Line(render.OnTop, q[e[0]][0], q[e[0]][1], q[e[1]][0], q[e[1]][1], 2, line)
+			f.Line(at, q[e[0]][0], q[e[0]][1], q[e[1]][0], q[e[1]][1], 2, line)
 		}
 	}
 }
@@ -68,10 +73,12 @@ func (r *renderer) Compose(f *render.Frame, cam camera.Camera) {
 func (r *renderer) cell(f *render.Frame, cam camera.Camera, c cell.ID, deck float32,
 	line color.RGBA) {
 	r.outline = r.p.board.Board().CellOutline(c, r.outline[:0])
+	mid := r.p.board.Board().CellCenter(c)
+	at := f.Lifted(float32(mid.X), float32(mid.Y), deck, handLift)
 	for i, p := range r.outline {
 		n := r.outline[(i+1)%len(r.outline)]
 		x0, y0 := cam.Project(float32(p.X), float32(p.Y), deck)
 		x1, y1 := cam.Project(float32(n.X), float32(n.Y), deck)
-		f.Line(render.OnTop, x0, y0, x1, y1, 2, line)
+		f.Line(at, x0, y0, x1, y1, 2, line)
 	}
 }

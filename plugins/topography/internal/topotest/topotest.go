@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -20,6 +21,7 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 )
 
 // Hill is the kind of a QuasiWorld's hill.
@@ -42,6 +44,7 @@ type InstallCtx struct {
 	hosts   []host.Host
 	ecs     *goke.ECS
 	pending []func() []goke.System
+	drawn   []render.Source
 }
 
 func (c *InstallCtx) UseModule(m goke.Module) {
@@ -200,7 +203,19 @@ func IsometricIsland() (*world.Plugin, *board.Plugin, grid.Grid, *topography.Plu
 }
 
 // Hosts keeps the hosts a plugin installs its rules' moments on.
-func (c *InstallCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
+func (c *InstallCtx) Hosts(h ...host.Host)     { c.hosts = append(c.hosts, h...) }
+func (c *InstallCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
+
+// Drawn is what p draws, as its Install hands it over.
+func Drawn(t testing.TB, p plugin.Plugin) []render.Source {
+	t.Helper()
+	ctx := NewInstallCtx()
+	if err := p.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	return ctx.drawn
+}
+func (c *InstallCtx) Looks(func()) {}
 
 // Deliver hands rules to the hosts of their moments, as the engine does once a Stage's Init
 // returns.

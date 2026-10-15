@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 )
 
 type headless struct {
@@ -26,6 +27,7 @@ type headless struct {
 	tracked []any
 	pending []func() []goke.System
 	tps     game.TPS
+	drawn   []render.Source
 }
 
 var _ game.Initializer = (*headless)(nil)
@@ -107,6 +109,24 @@ const step = time.Second / 60
 
 func entities(n int) string { return fmt.Sprintf("entities=%d", n) }
 
-func (c *headless) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
+func (c *headless) Hosts(h ...host.Host)     { c.hosts = append(c.hosts, h...) }
+func (c *headless) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
+func (c *headless) Looks(func())             {}
+
+// Drawn is what the installed plugins draw, for the world's picture.
+func (c *headless) Drawn() []render.Source { return c.drawn }
+
+// drawnAs is the source of type T the installed plugins draw.
+func drawnAs[T render.Source](b testing.TB, c *headless) T {
+	b.Helper()
+	for _, s := range c.drawn {
+		if t, ok := s.(T); ok {
+			return t
+		}
+	}
+	var none T
+	b.Fatalf("no plugin draws a %T", none)
+	return none
+}
 
 func (c *headless) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

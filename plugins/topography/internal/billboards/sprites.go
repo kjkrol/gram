@@ -15,8 +15,12 @@ import (
 )
 
 var sight = []render.Uniform{
-	{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1}, {Name: "Right", Size: 3}, {Name: "Up", Size: 3},
-	{Name: "Look", Size: 3}, {Name: "Perspective", Size: 1},
+	{Name: "ViewProj", Size: 16},
+	{Name: "Eye", Size: 3},
+	{Name: "Bend", Size: 1},
+	{Name: "Right", Size: 3},
+	{Name: "Look", Size: 3},
+	{Name: "Perspective", Size: 1},
 }
 
 var boards = render.NewMeshShaderWith("billboards",
@@ -175,20 +179,17 @@ func (s *sprites) draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if !ok {
 		return
 	}
-	right, up, persp := f.DX, [3]float32{-f.DY[0], -f.DY[1], -f.DY[2]}, float32(0)
+	right, persp := f.DX, float32(0)
 	if f.DDX != ([3]float32{}) || f.DDY != ([3]float32{}) {
-		right, up, persp = f.DDX, [3]float32{-f.DDY[0], -f.DDY[1], -f.DDY[2]}, 1
-	} else { // the screen's up, square to the way looked
-		d := vec.Unit(f.Dir)
-		up = vec.Sub(up, vec.Scale(d, vec.Dot(up, d)))
+		right, persp = f.DDX, 1
 	}
-	right, up = vec.Unit(right), vec.Unit(up)
+	// level, so a billboard across it stands upright
+	right = vec.Unit([3]float32{right[0], right[1], 0})
 	u.Into(s.opts.Uniforms)
 	s.set("ViewProj", tr.M[:]...)
 	s.set("Eye", tr.Eye[:]...)
 	s.set("Bend", tr.Bend)
 	s.set("Right", right[:]...)
-	s.set("Up", up[:]...)
 	s.set("Look", f.Dir[:]...)
 	s.set("Perspective", persp)
 	s.opts.Depth = t.Depth

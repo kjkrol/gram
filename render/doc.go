@@ -1,10 +1,10 @@
 // Package render is the drawing side of gram: primitives that know nothing of Stages, Scenes or
-// plugins. A Scene's Layers and a plugin's Renderer are made of these. Everything is drawn on the
-// GPU through WebGPU (render/gpu), in WGSL shaders.
+// plugins. What a Scene and a plugin draw are made of these. Everything is drawn on the GPU
+// through WebGPU (render/gpu), in WGSL shaders.
 //
-// # Layers: Renderer and Picture
+// # Drawers: Renderer and Picture
 //
-// A Scene's layers are [Layer]s. A [Renderer] draws on the screen once a frame, in screen pixels;
+// A Scene's parts are [Drawer]s. A [Renderer] draws on the screen once a frame, in screen pixels;
 // a [Picture] is what is in the world before a camera, drawn through the camera it is handed, so
 // one picture serves a player's view, the halves of a split screen and a minimap alike.
 // [SolidBackground] and [CachedRenderer] are ready-made renderers; a [Reporter] adds lines to
@@ -33,12 +33,16 @@
 //
 // # Composer, Frame and Source
 //
-// A [Composer] is the Picture of a scene's world, drawn from several [Source]s. Each source hands
-// its pieces to a [Frame] in screen pixels, each where it lies ([At]: [Frame.At], [Frame.Lifted]
-// a height in the world; [OnTop] a mark): sprites, lines, fans, soft quads, each in a [Shade] of
-// [Light]. What is drawn over what is the depth's: the opaque ground first, writing it, then the
-// world back to front by where it lies, each piece tested against what lies nearer (its depth
-// worked out on the GPU from its height), then the marks over all of it in the order they came.
+// A [Composer] is the Picture of a world, drawn from several [Source]s (a Stage's is
+// world.Plugin.Picture, of every source its plugins draw). Each source hands its pieces to a
+// [Frame] in screen pixels, each where it lies ([At]: [Frame.At], [Frame.Lifted] a height in the
+// world; [OnTop] a mark at its level): sprites, lines, fans, soft quads, each in a [Shade] of
+// [Light]; a [Frame.Edge]'s ends lie at heights of their own. What is drawn over what is the
+// depth's: the opaque ground first, writing it, then the world back to front by where it lies,
+// each piece tested against what lies nearer (its depth worked out on the GPU from its height),
+// then what lies over the figures ([At.OverFigures], hidden by the ground alone), then the marks
+// over all of it by level, at one level in the order they came. The order the sources come in
+// changes nothing but what lies at exactly one place.
 // Every piece is drawn with one shader, so a run of pieces on one sheet is one call. A [Direct]
 // source draws a part of the picture itself, with a shader of its own, in the passes its Compose
 // asks for ([Frame.DrawOpaque], [Frame.DrawAt], [Frame.ReadGround]), handed a [Target] and the

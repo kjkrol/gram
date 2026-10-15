@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
@@ -36,7 +37,6 @@ func (p *stubPlugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 func (p *stubPlugin) RunPlan(goke.RunCtx, time.Duration) {}
-func (p *stubPlugin) Renderer() render.Layer             { return nil }
 func (p *stubPlugin) EventHandler() control.EventHandler { return nil }
 func (p *stubPlugin) Serializable() plugin.Serializable  { return p.serializable }
 
@@ -221,4 +221,25 @@ func TestEngine_Init_StageWithoutUseWorldGetsNoWorld(t *testing.T) {
 	if eng.current.world != nil {
 		t.Errorf("Stage world = %v, want nil when the Stage never calls UseWorld", eng.current.world)
 	}
+}
+
+type drawnSource struct{}
+
+func (*drawnSource) Init(*goke.SysInit)                   {}
+func (*drawnSource) Compose(*render.Frame, camera.Camera) {}
+
+func TestInitializer_DrawsInTheOrderSaidAndNothingOnceThePictureIsMade(t *testing.T) {
+	c := &initializer{}
+	a, b := &drawnSource{}, &drawnSource{}
+	c.Draws(a, nil)
+	c.Draws(b)
+	if got := c.Drawn(); len(got) != 2 || got[0] != a || got[1] != b {
+		t.Fatalf("drawn %v, want the two sources in the order said, the nil left out", got)
+	}
+	defer func() {
+		if recover() == nil {
+			t.Errorf("a source drawn after the picture was made was taken")
+		}
+	}()
+	c.Draws(a)
 }

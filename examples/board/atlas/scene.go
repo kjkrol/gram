@@ -26,24 +26,13 @@ var (
 	woodDimColor  = color.RGBA{R: 30, G: 85, B: 40, A: 255}
 )
 
-func (m *mainScene) picture() render.Picture {
-	a := m.arena
-
-	a.board.ShowGrid(false)
-
-	return render.NewComposer(
-		a.board.Renderer(),
-		a.world.Renderer(), a.collision.Renderer(), a.cameras.Renderer(),
-		a.selection.Renderer(),
-		a.nav.Renderer(),
-	)
-}
-
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
+	a.board.ShowGrid(false)
+
+	feed := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), a.world.Picture())
 	return ui.Layers(
-		ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-			Input(a.players.Through(a.player)),
-		ui.Layer(a.world.Clock().HUD()),
+		ui.Image(feed).Input(a.players.Through(a.player)),
+		ui.Drawer(a.world.Clock().HUD()),
 	)
 }

@@ -16,7 +16,6 @@ import (
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 )
 
 // Maker makes a camera over a width x height world with the given edges, configured by cfg: the
@@ -93,6 +92,7 @@ func (p *Plugin) Name() string { return "gram.cameras" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{p: p}
 	ctx.UseModule(p.module)
+	ctx.Draws(p.zonesView)
 	return nil
 }
 
@@ -102,10 +102,6 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.switchZones()
 	p.module.RunPlan(ctx, d)
 }
-
-// Renderer lays the scroll zones over every picture while Zones shows them (Shift+H), for a
-// scene's composer.
-func (p *Plugin) Renderer() render.Layer { return p.zonesView }
 
 // EventHandler is nil: a player's bindings issue the commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

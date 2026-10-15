@@ -18,7 +18,7 @@ func TestTheme_ElementsTakeTheScenesColoursWhereTheySayNone(t *testing.T) {
 	th := DefaultTheme()
 	th.Panel = color.RGBA{B: 255, A: 255}
 	s.Theme(th)
-	s.Layers()
+	s.Drawers()
 	if plain.fillColor() != th.Panel {
 		t.Errorf("a panel saying no colour is %v, want the theme's %v", plain.fillColor(), th.Panel)
 	}
@@ -37,7 +37,7 @@ func TestTheme_ALabelMeasuresInTheThemesFont(t *testing.T) {
 	th := DefaultTheme()
 	th.Font = big
 	s.Theme(th)
-	s.Layers()
+	s.Drawers()
 	w, h := label.needs()
 	small, _ := DefaultTheme().Font.Measure("Cześć")
 	if w <= float64(small) || h < 40 {
@@ -57,7 +57,7 @@ func TestTheme_AHeadingMeasuresInTheThemesBoldFont(t *testing.T) {
 	th := DefaultTheme()
 	th.Bold = big
 	s.Theme(th)
-	s.Layers()
+	s.Drawers()
 	hw, hh := heading.needs()
 	lw, _ := label.needs()
 	if hw <= lw || hh < 40 {
@@ -68,7 +68,7 @@ func TestTheme_AHeadingMeasuresInTheThemesBoldFont(t *testing.T) {
 func TestTheme_ATitleMeasuresInTheThemesLargeFont(t *testing.T) {
 	title, heading := Title("Shortcuts"), Heading("Shortcuts")
 	s := NewScene("main", Layers(title, heading))
-	s.Layers()
+	s.Drawers()
 	tw, th := title.needs()
 	hw, hh := heading.needs()
 	if tw <= hw || th <= hh {

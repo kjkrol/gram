@@ -13,7 +13,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 )
 
 // Plugin fires shots and flies them, hosting the rules of their Landing, Resting and Blast.
@@ -70,9 +69,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan fires the Shoots given and hands the flights to the simulation. Call it before the
 // world's RunPlan, so a step's flights are tested by collision in the same step.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
-
-// Renderer is nil: bullet draws nothing of its own.
-func (p *Plugin) Renderer() render.Layer { return nil }
 
 // EventHandler is nil: bullet handles no input of its own.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

@@ -77,6 +77,9 @@ func (s *renderer) Clock() (time.Duration, bool) {
 // Compose hands f every drawn entity in sight of cam as the world's Look lays it, in white light:
 // the Look knows the light and the wind, the world its entities.
 func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
+	if s.atlas == nil {
+		return
+	}
 	look := s.look()
 	if d, ok := look.(DirectLook); ok {
 		d.Begin(f, cam)

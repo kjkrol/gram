@@ -148,7 +148,7 @@ func TestImage_GivesItsSurfaceItsBox(t *testing.T) {
 func TestScene_ShowsHidesAndTogglesByName(t *testing.T) {
 	panel := Label("panel").Named("panel").Hidden()
 	s := NewScene("main", Layers(panel))
-	s.Layers()
+	s.Drawers()
 	s.Show("panel")
 	if panel.hidden {
 		t.Fatal("Show left it hidden")
@@ -172,7 +172,7 @@ func (*counting) DrawWorld(*render.Image, camera.Camera) {}
 func TestScene_InitialisesAPictureOnceHoweverManyFeedsShowIt(t *testing.T) {
 	p := &counting{}
 	s := NewScene("main", Layers(Image(render.NewFeed(nil, p)), Image(render.NewFeed(nil, p))))
-	for _, l := range s.Layers() {
+	for _, l := range s.Drawers() {
 		l.Init(nil)
 	}
 	if p.inits != 1 {
@@ -224,7 +224,7 @@ func TestSteady_AnElementNeverShrinksBelowWhatItNeededBefore(t *testing.T) {
 	src := &changing{words: "a long line of words"}
 	label := LabelOf(src).Steady()
 	s := NewScene("main", Layers(label))
-	s.Layers()
+	s.Drawers()
 	w, h := label.needs()
 	src.words = "short"
 	if w2, h2 := label.needs(); w2 != w || h2 != h {

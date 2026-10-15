@@ -11,15 +11,15 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-type screenLayer struct{ inits *int }
+type screenDrawer struct{ inits *int }
 
-func (l screenLayer) Init(*goke.SysInit) { *l.inits++ }
-func (screenLayer) Draw(*render.Image)   {}
+func (l screenDrawer) Init(*goke.SysInit) { *l.inits++ }
+func (screenDrawer) Draw(*render.Image)   {}
 
-type worldLayer struct{}
+type worldPicture struct{}
 
-func (*worldLayer) Init(*goke.SysInit)                     {}
-func (*worldLayer) DrawWorld(*render.Image, camera.Camera) {}
+func (*worldPicture) Init(*goke.SysInit)                     {}
+func (*worldPicture) DrawWorld(*render.Image, camera.Camera) {}
 
 type neither struct{}
 
@@ -31,45 +31,48 @@ func (source) Init(*goke.SysInit)                   {}
 func (source) Compose(*render.Frame, camera.Camera) {}
 
 type scene struct {
-	name   string
-	layers []render.Layer
+	name    string
+	drawers []render.Drawer
 }
 
-func (s *scene) Name() string                                                      { return s.name }
-func (s *scene) Layers() []render.Layer                                            { return s.layers }
-func (s *scene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
-func (s *scene) Focusable() bool                                                   { return true }
+func (s *scene) Name() string             { return s.name }
+func (s *scene) Drawers() []render.Drawer { return s.drawers }
+func (s *scene) Focusable() bool          { return true }
 
-func TestCheckLayers_RefusesWhatCannotBeDrawn(t *testing.T) {
+func (s *scene) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
+
+func TestCheckDrawers_RefusesWhatCannotBeDrawn(t *testing.T) {
 	inits := 0
+	of := func(d render.Drawer) game.Scene { return &scene{name: "s", drawers: []render.Drawer{d}} }
 	for name, c := range map[string]struct {
 		sc   game.Scene
 		want string
 	}{
-		"neither":             {&scene{name: "s", layers: []render.Layer{neither{}}}, "no Renderer"},
-		"a source on its own": {&scene{name: "s", layers: []render.Layer{source{}}}, "NewComposer"},
-		"a world layer":       {&scene{name: "s", layers: []render.Layer{&worldLayer{}}}, "render.NewFeed"},
+		"neither":             {of(neither{}), "no Renderer"},
+		"a source on its own": {of(source{}), "ctx.Draws"},
+		"a world picture":     {of(&worldPicture{}), "render.NewFeed"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if err := checkLayers(c.sc, c.sc.Layers()); err == nil || !strings.Contains(err.Error(), c.want) {
-				t.Errorf("checkLayers = %v, want an error mentioning %q", err, c.want)
+			err := checkDrawers(c.sc, c.sc.Drawers())
+			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Errorf("checkDrawers = %v, want an error mentioning %q", err, c.want)
 			}
 		})
 	}
-	ok := &scene{name: "s", layers: []render.Layer{screenLayer{&inits}, screenLayer{&inits}}}
-	if err := checkLayers(ok, ok.Layers()); err != nil {
-		t.Errorf("a scene of screen layers: %v", err)
+	ok := &scene{name: "s", drawers: []render.Drawer{screenDrawer{&inits}, screenDrawer{&inits}}}
+	if err := checkDrawers(ok, ok.Drawers()); err != nil {
+		t.Errorf("a scene of screen drawers: %v", err)
 	}
 }
 
-func TestEnterStage_InitialisesALayerOnceHoweverManyScenesListIt(t *testing.T) {
+func TestEnterStage_InitialisesADrawerOnceHoweverManyScenesListIt(t *testing.T) {
 	inits := 0
-	shared := &screenLayer{&inits}
+	shared := &screenDrawer{&inits}
 	stage := &stubStage{}
 	var err error
 	stage.stack, err = game.NewStack(
-		&scene{name: "main", layers: []render.Layer{shared}},
-		&scene{name: "hud", layers: []render.Layer{shared, shared}},
+		&scene{name: "main", drawers: []render.Drawer{shared}},
+		&scene{name: "hud", drawers: []render.Drawer{shared, shared}},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -79,6 +82,6 @@ func TestEnterStage_InitialisesALayerOnceHoweverManyScenesListIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	if inits != 1 {
-		t.Errorf("the shared layer was initialised %d times, want once", inits)
+		t.Errorf("the shared drawer was initialised %d times, want once", inits)
 	}
 }

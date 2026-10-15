@@ -12,7 +12,6 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 )
 
 // metres a second squared
@@ -84,9 +83,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 // RunPlan runs the fall in the simulation; call it right after collision's.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
-
-// Renderer is nil: gravity draws nothing.
-func (p *Plugin) Renderer() render.Layer { return nil }
 
 // EventHandler is nil: gravity reads no input.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

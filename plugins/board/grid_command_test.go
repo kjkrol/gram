@@ -48,15 +48,14 @@ func TestHolds_ShowsAndHidesTheCellsHeld(t *testing.T) {
 		t.Fatal(err)
 	}
 	bw.Board.NewAtlas(boardtest.CellSize).Close()
-	view, ok := bw.Board.HoldsRenderer().(render.Source)
-	if !ok {
-		t.Fatal("the cells held are drawn by no render.Source")
-	}
+	view := bw.Board.HoldsView()
 	cam := icamera.NewFromSpace(6*boardtest.CellSize, 16*boardtest.CellSize, 0)
+	var lying []render.At
 	lines := func() int {
 		var f render.Frame
 		f.Reset(cam)
 		view.Compose(&f, cam)
+		f.Each(func(at render.At, _ []render.Vertex) { lying = append(lying, at) })
 		return f.Len()
 	}
 	bw.Tick()
@@ -70,6 +69,11 @@ func TestHolds_ShowsAndHidesTheCellsHeld(t *testing.T) {
 		bw.Tick()
 		if n := lines(); n != want {
 			t.Errorf("after %d Holds commands the view draws %d lines, want %d", i+1, n, want)
+		}
+	}
+	for _, at := range lying {
+		if at.Top() || at.Z() != 0.15 {
+			t.Errorf("a hold lies at %v, want over its cell, among what lies there", at)
 		}
 	}
 }

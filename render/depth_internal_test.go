@@ -72,7 +72,7 @@ func groundOf(a *Atlas) *groundSource {
 	return &groundSource{still: s}
 }
 
-func shot(t *testing.T, sources ...Layer) func(x, y int) [4]byte {
+func shot(t *testing.T, sources ...Source) func(x, y int) [4]byte {
 	t.Helper()
 	cam := icamera.NewFromSpace(64, 64, 0)
 	cam.SetViewport(64, 64)
@@ -90,29 +90,37 @@ func TestComposer_TheHigherCoversTheLowerWhateverTheOrderOfTheSources(t *testing
 	decal := items(func(f *Frame) {
 		f.Soft(f.Lifted(32, 32, 0, 0.75), Corners{{0, 0}, {64, 0}, {0, 64}, {64, 64}}, veil, Fade{})
 	})
-	mark := items(func(f *Frame) {
-		f.Quad(
-			OnTop,
-			Corners{{20, 20}, {28, 20}, {20, 28}, {28, 28}},
-			[4]color.RGBA{skyBlue, skyBlue, skyBlue, skyBlue},
-		)
-	})
-	orders := [][]int{{0, 1, 2, 3, 4}, {4, 3, 2, 1, 0}, {2, 0, 4, 1, 3}, {1, 4, 0, 3, 2}}
-	var first [5][4]byte
+	mark := func(level float32, x0 float32, c color.RGBA) Source {
+		return items(func(f *Frame) {
+			square := Corners{{x0, 20}, {28, 20}, {x0, 28}, {28, 28}}
+			f.Quad(OnTop(level), square, [4]color.RGBA{c, c, c, c})
+		})
+	}
+	one := color.RGBA{R: 255, G: 255, A: 255}
+	two := color.RGBA{G: 255, B: 255, A: 255}
+	orders := [][]int{
+		{0, 1, 2, 3, 4, 5, 6},
+		{6, 5, 4, 3, 2, 1, 0},
+		{2, 0, 6, 4, 1, 3, 5},
+		{1, 4, 0, 5, 3, 6, 2},
+	}
+	var first [6][4]byte
 	for k, order := range orders {
-		sources := []Layer{
+		sources := []Source{
 			groundOf(a),
 			&figureSource{atlas: a, z: 10, id: 2},
 			decal,
 			skySource{},
-			mark,
+			mark(3, 25, skyBlue),
+			mark(1, 20, one),
+			mark(2, 20, two),
 		}
-		var shuffled []Layer
+		var shuffled []Source
 		for _, i := range order {
 			shuffled = append(shuffled, sources[i])
 		}
 		at := shot(t, shuffled...)
-		got := [5][4]byte{at(17, 17), at(10, 40), at(50, 40), at(24, 24), at(30, 30)}
+		got := [6][4]byte{at(17, 17), at(10, 40), at(50, 40), at(22, 22), at(26, 26), at(30, 30)}
 		if got[0] != [4]byte{220, 0, 0, 255} {
 			t.Errorf("order %v: the figure shows %v, want it red over the veil and the ground",
 				order, got[0])
@@ -123,8 +131,9 @@ func TestComposer_TheHigherCoversTheLowerWhateverTheOrderOfTheSources(t *testing
 		if got[2][2] != 230 && got[2][2] < 200 {
 			t.Errorf("order %v: beside the ground %v, want the sky's blue", order, got[2])
 		}
-		if got[3] != [4]byte{0, 0, 230, 255} {
-			t.Errorf("order %v: the mark shows %v, want it on top of the figure", order, got[3])
+		if got[3] != [4]byte{0, 255, 255, 255} || got[4] != [4]byte{0, 0, 230, 255} {
+			t.Errorf("order %v: the marks show %v and %v, want the higher level over the lower",
+				order, got[3], got[4])
 		}
 		if k == 0 {
 			first = got
@@ -132,6 +141,26 @@ func TestComposer_TheHigherCoversTheLowerWhateverTheOrderOfTheSources(t *testing
 			t.Errorf("order %v drew %v, the first %v: the picture hangs on the order of the "+
 				"sources", order, got, first)
 		}
+	}
+}
+
+func TestComposer_WhatLiesOverTheFiguresIsHiddenByTheGroundAlone(t *testing.T) {
+	needGPU(t)
+	a := atlasOf(t)
+	look := color.RGBA{G: 255, B: 255, A: 255}
+	over := func(z float32) Source {
+		return items(func(f *Frame) {
+			square := Corners{{4, 20}, {28, 20}, {4, 28}, {28, 28}}
+			f.Quad(f.At(16, 24, z).OverFigures(), square, [4]color.RGBA{look, look, look, look})
+		})
+	}
+	at := shot(t, groundOf(a), &figureSource{atlas: a, z: 10, id: 2}, over(1))
+	if p := at(24, 24); p != [4]byte{0, 255, 255, 255} {
+		t.Errorf("over a figure standing higher it shows %v, want itself", p)
+	}
+	at = shot(t, groundOf(a), &figureSource{atlas: a, z: 10, id: 2}, over(-5))
+	if p := at(8, 24); p[1] != 200 || p[2] != 0 {
+		t.Errorf("under the ground it shows %v, want the ground hiding it", p)
 	}
 }
 

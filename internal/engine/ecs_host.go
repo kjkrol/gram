@@ -16,11 +16,11 @@ type ecsHost struct {
 	loaded       map[string][]byte // the last Load's groups, for values tracked after it
 	pendingSetup []func() []goke.System
 	names        map[string]bool
-	layers       map[render.Layer]bool // registered, when comparable
+	drawers      map[render.Drawer]bool // registered, when comparable
 }
 
 func newECSHost() *ecsHost {
-	return &ecsHost{ecs: goke.New(), resources: newStorage(), layers: map[render.Layer]bool{}}
+	return &ecsHost{ecs: goke.New(), resources: newStorage(), drawers: map[render.Drawer]bool{}}
 }
 
 func (h *ecsHost) track(v any) { h.tracked = append(h.tracked, v) }
@@ -60,12 +60,12 @@ func (h *ecsHost) regSys(factory func() goke.System) goke.Runnable {
 	return h.ecs.RegSys(factory())
 }
 
-func (h *ecsHost) registerLayer(l render.Layer) {
+func (h *ecsHost) registerDrawer(l render.Drawer) {
 	if reflect.TypeOf(l).Comparable() {
-		if h.layers[l] {
+		if h.drawers[l] {
 			return
 		}
-		h.layers[l] = true
+		h.drawers[l] = true
 	}
 	sys := goke.SystemFn{OnInit: func(si *goke.SysInit) { l.Init(si) }}
 	h.addPendingSetup(func() []goke.System { return []goke.System{sys} })

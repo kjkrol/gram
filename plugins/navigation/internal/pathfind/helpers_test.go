@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
@@ -84,7 +85,9 @@ func (c *stubInstallCtx) RegSys(factory func() goke.System) goke.Runnable {
 }
 func (c *stubInstallCtx) ECS() *goke.ECS { return c.ecs }
 
-func (c *stubInstallCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
+func (c *stubInstallCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
+func (c *stubInstallCtx) Draws(...render.Source) {}
+func (c *stubInstallCtx) Looks(func())           {}
 
 // as the engine does with the roles played once a Stage's Init returns
 func (c *stubInstallCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

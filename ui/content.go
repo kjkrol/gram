@@ -197,9 +197,9 @@ func (blank) place(*Element, geom.AABB)     {}
 func (blank) draw(*Element, *render.Image)  {}
 func (blank) needs(*Element) (w, h float64) { return 0, 0 }
 
-// Layer is an element drawn by r, a screen renderer drawing in the screen's pixels: the
+// Drawer is an element drawn by r, a screen renderer drawing in the screen's pixels: the
 // telemetry line.
-func Layer(r render.Renderer) *Element { return newElement(&layered{r: r}) }
+func Drawer(r render.Renderer) *Element { return newElement(&layered{r: r}) }
 
 type layered struct{ r render.Renderer }
 

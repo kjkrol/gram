@@ -124,6 +124,53 @@ func TestStage_ShowsAndALoadedStage(t *testing.T) {
 	}
 }
 
+func TestStage_RunsThePluginsLooksOnceSetUpBeforeItSpawnsOrLoads(t *testing.T) {
+	props := game.Props{Saves: t.TempDir()}
+	define := func(s *sectioned) game.Stage {
+		looking := &stubPlugin{name: "looking", installFn: func(ctx plugin.Installer) error {
+			ctx.Looks(func() { s.note("looks") })
+			return nil
+		}}
+		return stage.New("meadow").
+			World(testWorldConfig()).
+			Plugins(func(w *world.Plugin) {
+				s.makeWorld(w)
+				w.Made().Add(looking)
+			}).
+			Kinds(s.defineUnit).
+			Spawn(func() { s.note("spawn") }).
+			Scenes(func() []game.Scene {
+				s.note("scenes")
+				return []game.Scene{&scene{name: "main"}}
+			}).
+			Update(s.update)
+	}
+	s := &sectioned{}
+	eng := NewEngine(oneStageGame{stage: define(s), props: props})
+	if err := eng.Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	want := []string{"plugins", "kinds", "looks", "spawn", "scenes"}
+	if !slices.Equal(s.ran, want) {
+		t.Errorf("a fresh Stage ran %v, want %v", s.ran, want)
+	}
+	if err := eng.Save(""); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	s = &sectioned{}
+	eng = NewEngine(oneStageGame{stage: define(s), props: props})
+	if err := eng.Load("", ""); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if err := eng.Init(); err != nil {
+		t.Fatalf("Init from the save: %v", err)
+	}
+	want = []string{"plugins", "kinds", "looks", "scenes"}
+	if !slices.Equal(s.ran, want) {
+		t.Errorf("a loaded Stage ran %v, want %v", s.ran, want)
+	}
+}
+
 type kept struct {
 	scene
 	note     string
@@ -509,7 +556,7 @@ func TestStage_LeadsItsFiguresThroughTheSectionsAfterTheGamesOwn(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 	want := []string{"plugins", "figures", "players", "effects", "figure effects", "rules",
-		"figure rules", "cells", "kinds", "figure define"}
+		"figure rules", "cells", "kinds", "figure define", "figure look"}
 	if !slices.Equal(s.ran, want) {
 		t.Errorf("sections ran %v, want %v", s.ran, want)
 	}
@@ -527,7 +574,8 @@ func TestStage_LeadsItsFiguresThroughSectionsTheGameLeftOut(t *testing.T) {
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	want := []string{"plugins", "figure effects", "figure rules", "commands", "figure define"}
+	want := []string{"plugins", "figure effects", "figure rules", "commands", "figure define",
+		"figure look"}
 	if !slices.Equal(s.ran, want) {
 		t.Errorf("sections ran %v, want %v", s.ran, want)
 	}

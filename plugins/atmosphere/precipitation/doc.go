@@ -3,6 +3,6 @@
 //
 // # Renderer
 //
-// A [Renderer] ([New]) is a render.Direct for a scene's Composer before the whole world and under
-// the marks, drawn on the GPU.
+// A [Renderer] ([New]) is a render.Direct before the whole world and under the marks, the
+// atmosphere's, drawn on the GPU.
 package precipitation

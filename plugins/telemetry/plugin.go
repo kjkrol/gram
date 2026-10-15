@@ -136,9 +136,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 func (p *Plugin) RunPlan(goke.RunCtx, time.Duration) {}
 
-// Renderer is nil: the panel is a scene of its own.
-func (p *Plugin) Renderer() render.Layer { return nil }
-
 // EventHandler is nil: the players' key shows and hides the panel.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 

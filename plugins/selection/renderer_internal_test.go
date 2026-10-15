@@ -1,15 +1,17 @@
 package selection
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/aabbworld/plane"
-	"github.com/kjkrol/ceremony/tag"
-	"github.com/kjkrol/gram/plugins/world"
 	"image/color"
 	"testing"
 
+	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -50,7 +52,7 @@ func TestRenderer_Init_QueryMatchesOnlySelectedEntity(t *testing.T) {
 	}
 }
 
-func TestHighlight_OutlinesEveryPieceOfTheFootprintOnTheMarksTier(t *testing.T) {
+func TestHighlight_OutlinesEveryPieceOfTheFootprintAsAMark(t *testing.T) {
 	var f render.Frame
 	f.Reset(icamera.NewFromSpace(1000, 1000, 0))
 	unit := render.Corners{{0, 0}, {10, 0}, {0, 10}, {10, 10}}
@@ -59,7 +61,7 @@ func TestHighlight_OutlinesEveryPieceOfTheFootprintOnTheMarksTier(t *testing.T) 
 		t.Errorf("%d pieces, want the four sides of each of two pieces", f.Len())
 	}
 	f.Each(func(at render.At, _ []render.Vertex) {
-		if at != render.OnTop {
+		if at != render.OnTop(outlineLevel) {
 			t.Errorf("an outline side lies at %v, want a mark on top", at)
 		}
 	})
@@ -109,5 +111,29 @@ func TestRenderer_OutlinesEachKindInItsHighlight(t *testing.T) {
 	if blue != 4 || red != 4 {
 		t.Errorf("%d blue and %d red sides, want 4 each: the styled kind in its Highlight, the "+
 			"other in DefaultHighlight", blue, red)
+	}
+}
+
+type drawsCtx struct {
+	plugin.Installer
+	drawn []render.Source
+}
+
+func (*drawsCtx) UseModule(goke.Module)      {}
+func (*drawsCtx) Hosts(...host.Host)         {}
+func (*drawsCtx) ECS() *goke.ECS             { return goke.New() }
+func (c *drawsCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
+
+func TestPlugin_DrawsTheHighlightsAndTheBox(t *testing.T) {
+	p := NewPlugin(world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 100, Height: 100},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	}))
+	ctx := &drawsCtx{}
+	if err := p.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(ctx.drawn) != 1 || ctx.drawn[0] != render.Source(p.renderer) {
+		t.Errorf("selection draws %v, want its renderer", ctx.drawn)
 	}
 }

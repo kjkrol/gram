@@ -17,7 +17,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/bridges/site"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -226,15 +225,13 @@ func (p *Plugin) Name() string { return "gram.bridges" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = newModule(p)
 	ctx.UseModule(p.module)
+	ctx.Draws(p.renderer)
 	return nil
 }
 
 // RunPlan carries out the players' commands at once and builds the bridges confirmed in the
 // simulation.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
-
-// Renderer draws the bridges in the players' hands.
-func (p *Plugin) Renderer() render.Layer { return p.renderer }
 
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 

@@ -43,10 +43,11 @@ func ridden(cam camera.Camera, x0, y0, x1, y1 float32) bool {
 	return ok && x >= x0 && x <= x1 && y >= y0 && y <= y1
 }
 
-// the bottom edge centred on the projected point, as large as the camera draws a world unit there
+// the bottom edge centred on the projected point, as wide as the camera draws w across there and
+// as tall as it draws h standing upright
 func billboard(cam camera.Camera, x, y, z, w, h float32) render.Corners {
 	sx, sy := cam.Project(x, y, z)
-	zoom := camera.ScaleAt(cam, x, y, z)
-	hw, hh := w*zoom/2, h*zoom
+	_, top := cam.Project(x, y, z+h)
+	hw, hh := w*camera.ScaleAt(cam, x, y, z)/2, max(sy-top, 0)
 	return render.Corners{{sx - hw, sy - hh}, {sx + hw, sy - hh}, {sx - hw, sy}, {sx + hw, sy}}
 }

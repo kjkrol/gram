@@ -27,17 +27,24 @@ var _ render.Style = Highlight{}
 var DefaultHighlight = Highlight{Line: color.RGBA{R: 220, G: 40, B: 40, A: 255}, Width: 2}
 
 func (h Highlight) compose(f *render.Frame, footprint []render.Corners) {
+	at := render.OnTop(outlineLevel)
 	for _, c := range footprint {
-		outline(f, [4][2]float32{c[0], c[1], c[3], c[2]}, h.Width, h.Line)
+		outline(f, at, [4][2]float32{c[0], c[1], c[3], c[2]}, h.Width, h.Line)
 	}
 }
 
-func outline(f *render.Frame, pts [4][2]float32, width float32, c color.RGBA) {
+func outline(f *render.Frame, at render.At, pts [4][2]float32, width float32, c color.RGBA) {
 	for i, p := range pts {
 		q := pts[(i+1)%len(pts)]
-		f.Line(render.OnTop, p[0], p[1], q[0], q[1], width, c)
+		f.Line(at, p[0], p[1], q[0], q[1], width, c)
 	}
 }
+
+// the marks' levels: the box being dragged over the outlines
+const (
+	outlineLevel = 1
+	marqueeLevel = 2
+)
 
 // Renderer outlines every Selected entity and, when the plugin built it, the box being dragged in
 // the viewport's camera.

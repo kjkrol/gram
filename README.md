@@ -126,9 +126,27 @@ const (
 	boxCount                  = 300
 )
 
-type box struct {
+type boxRow struct {
 	pos world.Position
 	vel world.Velocity
+}
+
+// box is the one kind: a bouncing square
+type box struct{}
+
+var _ world.Figure = box{}
+
+func (box) Define(w *world.Plugin) {
+	kind.Define[boxRow](w.Kinds(), BoxKind, kind.Spec{
+		comp.Load(func(b boxRow) world.Position { return b.pos }),
+		comp.Load(func(b boxRow) world.Velocity { return b.vel }),
+		comp.Const(collision.Collider{}),
+		comp.Const(collision.Physics{Restitution: 1}),
+	})
+}
+
+func (box) Look(a *world.Atlas, w *world.Plugin) {
+	a.Add(kind.Named[boxRow](w.Kinds(), BoxKind), boxSize, render.Solid(boxColor))
 }
 
 const (
@@ -179,7 +197,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
 	a.cameras = cameras.NewPlugin(a.world)
 	a.telemetry = telemetry.NewPlugin(a.world)
-	a.players = players.NewPlugin(a.world, a.cameras)
+	a.players = players.NewPlugin(a.world, a.collision, a.cameras)
 }
 
 func (a *arena) definePlayer() error {
@@ -197,7 +215,7 @@ func (a *arena) spawnUnits() {
 	for i := range entries {
 		var vel world.Velocity
 		vel.SetDelta(geom.NewVec(rng.Float64()*200-100, rng.Float64()*200-100))
-		entries[i] = boxKind.Entry(box{pos: placement.Place(i, boxCount), vel: vel})
+		entries[i] = boxKind.Entry(boxRow{pos: placement.Place(i, boxCount), vel: vel})
 	}
 	a.world.Seed(entries...)
 }
@@ -227,16 +245,11 @@ var (
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	view := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())
+	view := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), a.world.Picture())
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
 		ui.Image(view).Input(a.players.Through(a.player)),
 	)
-}
-
-func (m *mainScene) picture() render.Picture {
-	a := m.arena
-	return render.NewComposer(a.world.Renderer())
 }
 ```
 
@@ -342,7 +355,7 @@ stage.New(MeadowStage).
 	Kinds(s.defineCells, s.defineKinds).               // the kinds of cells and of units
 	Controls(s.bindKeys).                              // the game's own keys, each a command
 	Spawn(s.spawn).                                    // a fresh game, out of its map
-	Scenes(s.defineScenes).                            // the scenes, their pictures and cameras
+	Scenes(s.defineScenes).                            // the scenes and their cameras
 	Update(s.update)                                   // the tick; hands back the game.Stage
 ```
 
@@ -350,13 +363,13 @@ Saving and loading are the engine's: commands like any other (`game.Save`, `game
 `game.Enter`, `game.Quit`) bound to keys (F5, F9, Shift+Esc in every game) or to ui buttons, a
 Stage entered from its save from any other, a menu's Continue.
 
-A Scene is one thing a Stage can show. Its screen is a `ui` tree: the world as a picture through
-a camera made beside it, `render.NewFeed(s.cameras.New(cameras.TopDown(), camera.Config{}),
-picture)`, wired to the player who acts through it, `ui.Image(feed).Input(s.players.Through(
-player))`. The Stage's `Scenes` registry is static; the `Composition` over it is live: which
-Scenes are visible, in what order, and which is active, the topmost focusable one and the only
-one whose `HandleEvents` runs. `Runtime` (pause, quit, switch Stage, persistence, full screen)
-reaches a Stage and every Scene alike.
+A Scene is one thing a Stage can show. Its screen is a `ui` tree: the world's picture, all its
+plugins draw, through a camera made beside it, `render.NewFeed(s.cameras.New(cameras.TopDown(),
+camera.Config{}), s.world.Picture())`, wired to the player who acts through it,
+`ui.Image(feed).Input(s.players.Through(player))`. The Stage's `Scenes` registry is static; the
+`Composition` over it is live: which Scenes are visible, in what order, and which is active, the
+topmost focusable one and the only one whose `HandleEvents` runs. `Runtime` (pause, quit, switch
+Stage, persistence, full screen) reaches a Stage and every Scene alike.
 
 ## Plugins, rules and plans
 

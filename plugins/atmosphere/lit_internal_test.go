@@ -6,7 +6,12 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
+	"github.com/kjkrol/gram/plugins/atmosphere/precipitation"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -69,5 +74,37 @@ func TestAtmosphere_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 	}
 	if v := sprite(); v.ColorR >= 0.5 || v.ColorB <= v.ColorR {
 		t.Errorf("under the midnight sky a sprite is lit %v %v %v, want it dark and blue", v.ColorR, v.ColorG, v.ColorB)
+	}
+}
+
+type drawsCtx struct {
+	plugin.Installer
+	drawn []render.Source
+}
+
+func (*drawsCtx) UseModule(goke.Module)      {}
+func (*drawsCtx) Hosts(...host.Host)         {}
+func (*drawsCtx) ECS() *goke.ECS             { return goke.New() }
+func (c *drawsCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
+
+func TestPlugin_DrawsTheSkyAndWhatFalls(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 128, Height: 128},
+		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
+		Heights:  true,
+	})
+	a := NewPlugin(w, Config{})
+	ctx := &drawsCtx{}
+	if err := a.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(ctx.drawn) != 2 {
+		t.Fatalf("the atmosphere draws %v, want the sky and what falls", ctx.drawn)
+	}
+	if _, ok := ctx.drawn[0].(*backdrop.Renderer); !ok {
+		t.Errorf("the atmosphere draws %T first, want the sky", ctx.drawn[0])
+	}
+	if _, ok := ctx.drawn[1].(*precipitation.Renderer); !ok {
+		t.Errorf("the atmosphere draws %T second, want what falls", ctx.drawn[1])
 	}
 }

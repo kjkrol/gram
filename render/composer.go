@@ -1,7 +1,6 @@
 package render
 
 import (
-	"fmt"
 	"slices"
 	"time"
 
@@ -18,11 +17,14 @@ type Composer struct {
 	directs []Direct // by source, nil for one that is no Direct
 	frame   Frame
 	white   whiteSheet
-	// how the frame's runs meet the depth: none in a frame without a ground
-	depth *Depth
-	test  gpu.DepthTest
-	sight gpu.Sight
-	seen  bool // the sight holds the camera's
+	// how the frame's runs meet the depth: none in a frame without a ground; the ground's alone
+	// for what lies over the figures, and the one bound to the run being gathered
+	depth  *Depth
+	ground *Depth
+	bound  *Depth
+	test   gpu.DepthTest
+	sight  gpu.Sight
+	seen   bool // the sight holds the camera's
 	// the pieces' vertices carry their heights, for a sight to make depths of: a frame's with a
 	// ground, a still's always
 	heights bool
@@ -36,33 +38,35 @@ type Composer struct {
 	depths   []depths // a pair for each size of target drawn into, the latest last
 	start    time.Time
 	draw     func(screen *Image, verts []Vertex, indices []uint16, sheet *Image)
+	inited   bool
 }
 
 var _ Picture = (*Composer)(nil)
 
-// NewComposer takes the layers to compose, which must all be Sources; a nil layer is left out.
-func NewComposer(layers ...Layer) *Composer {
+// NewComposer composes sources into one picture; a nil source is left out.
+func NewComposer(sources ...Source) *Composer {
 	c := &Composer{start: time.Now(), uniforms: map[string][]float32{}, boxed: map[string]any{}}
 	c.uniform("Toward", 3)
 	c.uniform("Clock", 1)
 	c.uniform("Pixel", 1)
-	for _, l := range layers {
-		if l == nil {
+	for _, src := range sources {
+		if src == nil {
 			continue
 		}
-		src, ok := l.(Source)
-		if !ok {
-			panic(fmt.Sprintf("render: %T cannot be composed: it is no Source", l))
-		}
 		c.sources = append(c.sources, src)
-		d, _ := l.(Direct)
+		d, _ := src.(Direct)
 		c.directs = append(c.directs, d)
 	}
 	c.draw = c.drawTriangles
 	return c
 }
 
+// Init readies the sources once, however many scenes show the picture.
 func (c *Composer) Init(si *goke.SysInit) {
+	if c.inited {
+		return
+	}
+	c.inited = true
 	for _, s := range c.sources {
 		s.Init(si)
 	}
@@ -112,15 +116,24 @@ func (c *Composer) clock() time.Duration {
 	return time.Since(c.start)
 }
 
-// sort orders the world back to front by key, as it came at one key, and the marks after it
+// sort orders the world back to front by key, as it came at one key, what lies over the figures
+// after it alike, and the marks last by their levels
 func (c *Composer) sort() {
 	f := &c.frame
 	for i := range f.items {
-		if !f.items[i].at.top {
+		if !f.items[i].at.top && !f.items[i].at.over {
 			f.order = append(f.order, int32(i))
 		}
 	}
 	world := len(f.order)
+	if f.overs > 0 {
+		for i := range f.items {
+			if f.items[i].at.over && !f.items[i].at.top {
+				f.order = append(f.order, int32(i))
+			}
+		}
+	}
+	over := len(f.order)
 	for i := range f.items {
 		if f.items[i].at.top {
 			f.order = append(f.order, int32(i))
@@ -137,8 +150,10 @@ func (c *Composer) sort() {
 		return 0
 	}
 	// sources mostly hand their pieces in order already: a walk costs less than a sort
-	if !slices.IsSortedFunc(f.order[:world], cmp) {
-		slices.SortStableFunc(f.order[:world], cmp)
+	for _, run := range [3][]int32{f.order[:world], f.order[world:over], f.order[over:]} {
+		if !slices.IsSortedFunc(run, cmp) {
+			slices.SortStableFunc(run, cmp)
+		}
 	}
 }
 
@@ -209,7 +224,7 @@ func (c *Composer) render(screen *Image) {
 	c.packed = append(c.packed[:0], composer.pack(c.boxed)...)
 	f := &c.frame
 	t := Target{Screen: screen, Pass: Opaque}
-	c.depth, c.seen = nil, false
+	c.depth, c.ground, c.seen = nil, nil, false
 	if len(f.opaque) > 0 {
 		var d *depths
 		if screen != nil {
@@ -230,7 +245,7 @@ func (c *Composer) render(screen *Image) {
 			t.Depth = d.main
 			if f.ground {
 				screen.CopyDepth(d.ground, d.main)
-				t.Ground = d.ground
+				t.Ground, c.ground = d.ground, d.ground
 			}
 			c.depth, c.seen = d.main, c.sightOf(f.cam)
 		}
@@ -267,7 +282,7 @@ func (c *Composer) paint(screen *Image, target Target) {
 	f := &c.frame
 	var sheet AtlasSource
 	c.verts, c.indices = c.verts[:0], c.indices[:0]
-	c.test = gpu.Tested
+	c.bound, c.test = c.depth, gpu.Tested
 	for _, i := range f.order {
 		it := &f.items[i]
 		if it.direct > 0 {
@@ -277,9 +292,16 @@ func (c *Composer) paint(screen *Image, target Target) {
 			}
 			continue
 		}
-		if it.at.top && c.test != gpu.Untested {
+		bound, test := c.depth, gpu.Tested
+		switch {
+		case it.at.top:
+			test = gpu.Untested
+		case it.at.over && c.ground != nil:
+			bound = c.ground
+		}
+		if bound != c.bound || test != c.test {
 			c.flush(screen, sheet)
-			c.test = gpu.Untested
+			c.bound, c.test = bound, test
 		}
 		switch {
 		case it.atlas != nil && it.atlas != sheet:
@@ -331,9 +353,15 @@ func (c *Composer) fan(screen *Image, sheet AtlasSource, it *item) {
 func (c *Composer) append(verts []Vertex, it *item, sheet AtlasSource) {
 	from := len(c.verts)
 	c.verts = append(c.verts, verts...)
-	if c.heights {
+	switch {
+	case c.heights && !it.own:
 		for k := from; k < len(c.verts); k++ {
 			c.verts[k].DstZ = it.at.z
+		}
+	case !c.heights && it.own:
+		// with no depth to meet the vertex's z is the depth itself: one at a height falls outside
+		for k := from; k < len(c.verts); k++ {
+			c.verts[k].DstZ = 0
 		}
 	}
 	if it.atlas != nil {
@@ -360,8 +388,8 @@ func (c *Composer) drawTriangles(screen *Image, verts []Vertex, indices []uint16
 		Uniforms: c.packed,
 		Blend:    gpu.SourceOver,
 	}
-	if c.depth != nil {
-		dw.Depth, dw.Test = c.depth.d, c.test
+	if c.bound != nil {
+		dw.Depth, dw.Test = c.bound.d, c.test
 	}
 	if c.seen {
 		dw.Sight = &c.sight

@@ -19,19 +19,13 @@ var (
 	backgroundColor = color.RGBA{R: 40, G: 40, B: 46, A: 255}
 )
 
-func (m *mainScene) picture() render.Picture {
+func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 	a.vision.ShowCones()
 
-	return render.NewComposer(a.vision.Renderer(), a.world.Renderer(), a.collision.Renderer(),
-		a.cameras.Renderer())
-}
-
-func (m *mainScene) screen() *ui.Element {
-	a := m.arena
+	feed := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), a.world.Picture())
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
-		ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-			Input(a.players.Through(a.player)),
+		ui.Image(feed).Input(a.players.Through(a.player)),
 	)
 }

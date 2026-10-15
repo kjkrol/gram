@@ -25,6 +25,7 @@ import (
 	"github.com/kjkrol/gram/plugins/gravity"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
@@ -48,6 +49,8 @@ func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable {
 }
 func (c *installCtx) ECS() *goke.ECS                  { return c.ecs }
 func (c *installCtx) Hosts(h ...host.Host)            { c.hosts = append(c.hosts, h...) }
+func (c *installCtx) Draws(...render.Source)          {}
+func (c *installCtx) Looks(func())                    {}
 func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }
 func (c *installCtx) systems() []goke.System {
 	var systems []goke.System

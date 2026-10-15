@@ -4,8 +4,11 @@ import (
 	"testing"
 
 	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -26,7 +29,12 @@ func TestZones_TheCommandSwitchesTheZonesDrawn(t *testing.T) {
 	pieces := func() int {
 		var f render.Frame
 		f.Reset(cam)
-		p.Renderer().(render.Source).Compose(&f, cam)
+		p.zonesView.Compose(&f, cam)
+		f.Each(func(at render.At, _ []render.Vertex) {
+			if at != render.OnTop(zonesLevel) {
+				t.Errorf("a zone lies at %v, want a mark over every other", at)
+			}
+		})
 		return f.Len()
 	}
 	if n := pieces(); n != 0 {
@@ -53,5 +61,29 @@ func TestZones_TheCommandSwitchesTheZonesDrawn(t *testing.T) {
 	}
 	if len(keys) != 1 || keys[0] != "H" {
 		t.Errorf("Zones is bound to %v, want Shift+H", keys)
+	}
+}
+
+type drawsCtx struct {
+	plugin.Installer
+	drawn []render.Source
+}
+
+func (*drawsCtx) UseModule(goke.Module)      {}
+func (*drawsCtx) Hosts(...host.Host)         {}
+func (*drawsCtx) ECS() *goke.ECS             { return goke.New() }
+func (c *drawsCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
+
+func TestPlugin_DrawsTheZones(t *testing.T) {
+	p := NewPlugin(world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 100, Height: 100},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	}))
+	ctx := &drawsCtx{}
+	if err := p.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(ctx.drawn) != 1 || ctx.drawn[0] != render.Source(p.zonesView) {
+		t.Errorf("the cameras draw %v, want the zones", ctx.drawn)
 	}
 }

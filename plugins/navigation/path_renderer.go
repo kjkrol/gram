@@ -198,8 +198,12 @@ func (r *pathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 	}
 }
 
-// how far over the ground a route lies among what lies on it: over the sight, under the figures
-const routeLift = 0.75
+// how far over the ground a route lies among what lies on it: over the sight, under the figures;
+// its goal over it
+const (
+	routeLift = 0.75
+	goalLift  = 0.8
+)
 
 // a step aside is no goal
 func (r *pathRenderer) goals(size geom.Vec, domain cell.Domain, o *MoveOrder) {
@@ -314,11 +318,12 @@ func (r *pathRenderer) goal(size geom.Vec, c cell.ID, spot geom.Vec, alt float32
 		}
 		r.footprint = append(r.footprint, q)
 	}
+	lies := r.frame.Lifted(float32(at.X), float32(at.Y), alt, goalLift)
 	for _, q := range r.footprint {
 		pts := [4][2]float32{q[0], q[1], q[3], q[2]}
 		for i, p := range pts {
 			n := pts[(i+1)%len(pts)]
-			r.frame.Line(render.OnTop, p[0], p[1], n[0], n[1], goalWidth, r.current.Goal)
+			r.frame.Line(lies, p[0], p[1], n[0], n[1], goalWidth, r.current.Goal)
 		}
 	}
 }

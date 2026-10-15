@@ -9,7 +9,6 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -65,9 +64,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan carries the conversations on in the simulation. Call it after the plugins whose
 // rules begin them.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
-
-// Renderer is nil: a conversation is drawn by a scene's elements (Window).
-func (p *Plugin) Renderer() render.Layer { return nil }
 
 // EventHandler is nil: the window's buttons give Choose.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

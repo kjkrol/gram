@@ -67,7 +67,7 @@ func TestPlugin_TheLayersInitialiseTheReportersAndCloseTheLines(t *testing.T) {
 	w := newWorld()
 	r := &stubReporter{label: "Weather"}
 	p := telemetry.NewPlugin(w).With(r)
-	layers := p.Scenes()[0].Layers()
+	layers := p.Scenes()[0].Drawers()
 	ecs := goke.New()
 	systems := make([]goke.System, 0, len(layers))
 	for _, l := range layers {
@@ -111,6 +111,6 @@ func TestPlugin_ToggleShowsAndHidesThePanelWithoutTakingTheInput(t *testing.T) {
 type plain struct{}
 
 func (plain) Name() string                                                      { return "main" }
-func (plain) Layers() []render.Layer                                            { return nil }
+func (plain) Drawers() []render.Drawer                                          { return nil }
 func (plain) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
 func (plain) Focusable() bool                                                   { return true }

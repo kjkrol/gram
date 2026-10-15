@@ -21,9 +21,10 @@ sits idle until the player starts the game. A `Stage` is never a `plugin.Plugin`
 plugins. Its `Init` gets a `game.Initializer` (`Use`, `UseWorld`, `Track`, `TPS`, the embedded
 `plugin.Installer`, `Commands`). **A `Stage` has no `HandleEvents`**: input is a `Scene`'s.
 
-Within one active `Stage`, a `game.Scene` is `Name`, `Layers() []render.Layer` (built once on
-entering the Stage; a world layer listed straight in a scene is refused — the world is shown
-through a `ui.Image` of a `render.Feed`), `HandleEvents`, `Focusable`. `Stage.Stack()` is the
+Within one active `Stage`, a `game.Scene` is `Name`, `Drawers() []render.Drawer` (built once on
+entering the Stage; a picture or a source listed straight in a scene is refused — the world is
+shown through a `ui.Image` of a `render.Feed` of `world.Picture()`), `HandleEvents`,
+`Focusable`. `Stage.Stack()` is the
 `Name()`-keyed registry of every `Scene` it can show (`game.NewStack(scenes...)`);
 `Stack.Composition()` the live state — which scenes are visible, in what order, which is
 `Active()` (the topmost `Focusable`; a HUD on top never steals input). Every tick the engine
@@ -68,12 +69,12 @@ A demo groups its plugins in an **arena**, the collector every section builds on
 `gram.Run(game.New(props, mainStage))`); the sections are its methods (`makePlugins`,
 `definePlayer`, `defineEffects`, `defineRules`, `defineCommands`, `defineCells`, `defineKinds`,
 `bindKeys`, `spawn`, `defineScenes`, `update`). The scene is apart in `scene.go`: a
-`mainScene{arena: a, …}` builds it — its colours, `picture()` (the plugins' look options —
-`vision.WithViews`, `board.ShowGrid(false)`, `WithAtmosphere`, the painter's styles — and the
-composer of the plugins' `Renderer()`s, `a.cameras.Renderer()` among them for the scroll
-zones; no atlas: `world.Renderer()` and `board.Renderer()`
-dress themselves from the figures and tiles when first asked, the board's sprites the cell's
-size across) and `screen()` (the ui tree) — and `defineScenes` only makes it. See
+`mainScene{arena: a, …}` builds it — its colours and `screen()`: first the plugins' look
+options (`vision.WithViews`, `board.ShowGrid(false)`, `WithAtmosphere`, the painter's styles,
+`ShowHolds`, `ShowRoutes`, `ShowZones`), then the ui tree, the world shown as
+`feed := render.NewFeed(cam, a.world.Picture())` (2026-10-15: no `picture()`, no composer named
+in a demo; every plugin made draws what it gave `ctx.Draws`, the atlases closed by the Stage
+before the scenes) — and `defineScenes` only makes it. See
 `examples/start/scenes` for a menu Stage with no world, a ui scene of the engine's commands and a
 togglable modal panel over the still-ticking world.
 
@@ -114,7 +115,7 @@ in sight (`ui.Owner`: a player's picture shows its own entities and nobody's);
 entity it is shown for (`ceremony.ID(id)`); a plugin's own command that is a `ui.About`
 (`dialog.Choose`) gets the entity the same way. Every demo shows its world through a ui scene: the
 feed through a camera made beside it, a backdrop `Blank`, the telemetry and the clock's HUD as
-`ui.Layer`s.
+`ui.Drawer`s.
 
 ## Figures and tiles
 
@@ -128,9 +129,9 @@ assertion at run time, so without the `var _` a misspelt `Effects` is silently s
 chain's `Figures(a.defineFigures)` link, right after `Plugins`, notes them —
 `a.board.Tiles(grass{}, pit{})`, `a.board.Figures(newLever(), newHero(), plate{})` — and the
 Stage runs their parts in Effects, Rules and Kinds after the game's own functions, in the order
-noted (the lever before the hero whose rules name `LeverRole`); the looks are gathered by
-`world.Renderer()`/`board.Renderer()` themselves, so `picture()` names no atlas. The arena's
-`Effects`/`Rules` keep what several kinds share; `Kinds` is gone from every demo. A figure
+noted (the lever before the hero whose rules name `LeverRole`); the looks are declared by the
+Stage once it is set up (the world's and the board's `ctx.Looks`), so a scene names no atlas. The
+arena's `Effects`/`Rules` keep what several kinds share; `Kinds` is gone from every demo. A figure
 takes nothing in its constructor but its sheet: what a part needs (the board,
 the world's registers through `b.World()`) comes in the call; the arena keeps the rows several
 figures read (`unitRow`), the commands and the spawn; a row one figure reads goes with it
@@ -179,10 +180,11 @@ alive, grep the logs for `panic`.
   `Use`d is still carried (`initializer.go`), but listed under "General" and left out of
   `Defaults()`. `control.Mods` has `Ctrl` and `Alt` (unused so far; `withMods` writes
   "Ctrl+"); `SceneKey` compares Shift alone.
-- Every scene's `Layers()`, hidden ones included, is built and `Init`ed once on entering the
-  Stage (`stage_runtime.go`); `ui.Scene.Replace` does not re-init layers. A `ui.LabelOf(Text)`
+- Every scene's `Drawers()`, hidden ones included, is built and `Init`ed once on entering the
+  Stage (`stage_runtime.go`), the world's picture once however many scenes show it;
+  `ui.Scene.Replace` does not re-init drawers. A `ui.LabelOf(Text)`
   reads its words several times a frame (`needs`, `absent`, `draw`): cache per frame.
-  `ui.Layer(renderer)` ignores its box and draws on the whole screen; `render.DebugPrint` starts
+  `ui.Drawer(renderer)` ignores its box and draws on the whole screen; `render.DebugPrint` starts
   at the corner, which is why the old telemetry sat top-left.
 - Telemetry numbers: `render.ActualFPS/ActualTPS` (set by the engine once a second with one
   rate for both), `render.Spent()` (where a frame's time went, set beside them),

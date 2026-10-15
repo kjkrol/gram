@@ -7,12 +7,20 @@ description: How a gram plugin is built and how to write one — the plugin cont
 
 ## Plugin system
 
-`plugin.Plugin` — `Name`, `Install(ctx plugin.Installer) error`, `RunPlan`, `Renderer`,
-`EventHandler`, `Serializable` — is the one extension point. A plugin makes its renderer itself,
-in `NewPlugin`, and `Renderer()` hands it to the scene's composer; `world` and `board` dress
-theirs from the figures' looks the first time `Renderer()` is asked (an atlas made, `Looks`,
-`Close`, which hands it to `SetAtlas`; a test gives a foreign `render.AtlasSource` to
-`SetAtlas` by hand); `WithRenderer` is gone (2026-10-14). What a plugin draws about a kind — an
+`plugin.Plugin` — `Name`, `Install(ctx plugin.Installer) error`, `RunPlan`, `EventHandler`,
+`Serializable` — is the one extension point. **What a plugin draws it gives `ctx.Draws` in
+`Install`** (2026-10-15; `Renderer()` is gone): `render.Source`s made in `NewPlugin` or
+`Install`, existing from then on even where what they draw comes later (the world's and the
+board's renderers get their atlas in `SetAtlas`; a typed nil passes `Draws`' nil check, so a
+plugin with one of two renderers names the one it has). `world.Plugin.Picture()` is one composer
+of everything the Stage's plugins drew, read from the Installer the world keeps (an assertion
+for `Drawn()`, as telemetry reads `TPS`); a `Draws` after it panics. `ctx.Looks(declare)` has
+the looks declared and the atlases closed by the engine once the Stage's Init returns and the
+rules are delivered, before Spawn or Load, on both paths: `world` and `board` close theirs
+there (an atlas made, `Looks`, `Close`, which hands it to `SetAtlas`) unless a game closed its
+own; a test gives a foreign `render.AtlasSource` to `SetAtlas` by hand. A plugin's tests get
+its sources from a recording Installer (`topotest.Drawn`, the bench's `drawnAs`, a `drawsCtx`
+embedding `plugin.Installer`) or its fields in internal tests. What a plugin draws about a kind — an
 outline, a cone, a route — is styled by the
 figure: a `render.Style` type of the plugin's (`Style()` marker, asserted), declared on the
 kind's slot with `Slot.Styled`, read per entity with `render.StyleOf[S](world.Plugin.Styles(),

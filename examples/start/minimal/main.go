@@ -148,14 +148,9 @@ var (
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	view := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())
+	view := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), a.world.Picture())
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
 		ui.Image(view).Input(a.players.Through(a.player)),
 	)
-}
-
-func (m *mainScene) picture() render.Picture {
-	a := m.arena
-	return render.NewComposer(a.world.Renderer(), a.collision.Renderer(), a.cameras.Renderer())
 }

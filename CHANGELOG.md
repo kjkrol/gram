@@ -15,6 +15,30 @@ where it begins: `navigation.Path` changed shape. Nor those made before the beha
 Nor those made before a unit could strafe: `entity.Velocity` has a `Side`. Nor those of a board
 in a flat world: a board stands only in a world with heights now.
 
+**The Stage's picture: a plugin says what it draws** (2026-10-15)
+- `plugin.Plugin.Renderer()` is gone. A plugin gives what it draws to `plugin.Installer.Draws`
+  in `Install` and has its looks declared through `Installer.Looks`, run once the Stage's Init
+  returns, before Spawn or Load; `world.Plugin.Picture()` composes everything the Stage's plugins
+  drew, one picture for every scene, readied once (`Composer.Init` runs once).
+- A scene shows `render.NewFeed(cam, a.world.Picture())` and names nothing that draws: the
+  demos' `picture()` is gone, its look options open `screen()`. Every plugin made draws: the
+  selection and the routes in motion/bullet, motion/platformer and start/split-screen, the cells
+  held (Shift+O) in every demo with a board. `board.HoldsRenderer`, `atmosphere.Precipitation`
+  and the atmosphere's `Renderer` are gone; the board draws the atmosphere's cloud shadows once
+  `WithAtmosphere` puts it under the sky (`board.Atmosphere.Clouds`).
+- `render.Layer` is `render.Drawer`, `game.Scene.Layers` is `Drawers`, `ui.Layer` is
+  `ui.Drawer`; `render.NewComposer` takes `render.Source`s.
+- Nothing hangs on the order plugins register in: the marks lie at levels, `render.OnTop(level)`
+  (the selection's outline, its box being dragged over it, the cameras' scroll zones over all);
+  a route's goals, the cells held and a bridge in hand lie over their ground in the world.
+- Shift+X switches the entities' boxes between their bases, lying at their altitude under their
+  figures, their solids, the twelve edges from altitude to top in a world with heights, and none
+  (`collision.BoxesShown`); the solids lie over the figures, hidden by the ground alone
+  (`render.At.OverFigures`); `render.Frame.Edge` is a line whose ends lie at heights of their own.
+- A figure in relief stands upright in the world, as tall on the screen as its Height stands
+  there: inside its solid, shorter the more steeply the view looks down (it was a card turned
+  to the screen, taller than its body seen from above).
+
 **What is drawn over what is Z's alone** (2026-10-15)
 - `render.Tier` and its tiers are gone. A piece of a `render.Frame` lies at a `render.At`
   (`Frame.At(x, y, z)`, `Lifted`, `OnGround`; `OnTop` for a mark, `Furthest` the sky, `Nearest`

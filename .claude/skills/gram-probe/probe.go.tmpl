@@ -15,7 +15,6 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 )
 
 type probe struct {
@@ -37,7 +36,6 @@ func newProbe(a *arena) *probe {
 }
 
 func (p *probe) Name() string                       { return "probe" }
-func (p *probe) Renderer() render.Layer             { return nil }
 func (p *probe) EventHandler() control.EventHandler { return nil }
 func (p *probe) Serializable() plugin.Serializable  { return nil }
 

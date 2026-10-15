@@ -28,19 +28,10 @@ var (
 	leverDownColor  = color.RGBA{R: 200, G: 60, B: 50, A: 255}
 )
 
-func (m *mainScene) picture() render.Picture {
-	a := m.arena
-	return render.NewComposer(
-		a.board.Renderer(),
-		a.world.Renderer(), a.collision.Renderer(), a.cameras.Renderer(),
-		a.selection.Renderer(),
-	)
-}
-
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 	feed := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{Follow: HeroName}),
-		m.picture())
+		a.world.Picture())
 	return ui.Layers(
 		ui.Image(feed).Input(a.players.Through(a.player)),
 		ui.Label("Space: pull the lever").Under(a.world.Effects().Named(InReachEf)),

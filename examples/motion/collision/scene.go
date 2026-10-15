@@ -35,16 +35,11 @@ var shapes = [entityShapes]func(color.RGBA) render.SpriteDrawer{
 	render.Cross,
 }
 
-func (m *mainScene) picture() render.Picture {
-	a := m.arena
-	return render.NewComposer(a.world.Renderer(), a.collision.Renderer(), a.cameras.Renderer())
-}
-
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
+	feed := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), a.world.Picture())
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
-		ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-			Input(a.players.Through(a.player)),
+		ui.Image(feed).Input(a.players.Through(a.player)),
 	)
 }

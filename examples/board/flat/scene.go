@@ -46,33 +46,16 @@ var (
 	iceColor = color.RGBA{R: 175, G: 210, B: 230, A: 255}
 )
 
-func (m *mainScene) picture() render.Picture {
-	a := m.arena
-	a.board.WithAtmosphere(a.atmosphere)
-
-	a.board.ShowGrid(false)
-
-	a.vision.WithViews(render.Show(a.selection.IsSelected))
-
-	return render.NewComposer(
-		a.atmosphere.Renderer(),
-		a.board.Renderer(),
-		a.world.Renderer(), a.collision.Renderer(), a.cameras.Renderer(),
-		a.atmosphere.Clouds(),
-		a.vision.Renderer(),
-		a.selection.Renderer(),
-		a.nav.Renderer(),
-		a.bridges.Renderer(),
-		a.atmosphere.Precipitation(),
-	)
-}
-
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
+	a.board.WithAtmosphere(a.atmosphere)
+	a.board.ShowGrid(false)
+	a.vision.WithViews(render.Show(a.selection.IsSelected))
+
+	feed := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), a.world.Picture())
 	return ui.Layers(
-		ui.Image(render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), m.picture())).
-			Input(a.players.Through(a.player)),
-		ui.Layer(a.world.Clock().HUD()),
+		ui.Image(feed).Input(a.players.Through(a.player)),
+		ui.Drawer(a.world.Clock().HUD()),
 		ui.BottomMiddle(a.bridges.Reason().Padding(6).Fill(reasonColor)).Margin(40),
 		ui.Center(a.bridges.Window()),
 	)

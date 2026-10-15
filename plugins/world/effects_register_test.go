@@ -566,6 +566,8 @@ func TestEffects_AnEffectThatShowsChangesTheEntityAsItBeginsAndEnds(t *testing.T
 	}
 }
 
-func (c *fxInstallCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
+func (c *fxInstallCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
+func (c *fxInstallCtx) Draws(...render.Source) {}
+func (c *fxInstallCtx) Looks(func())           {}
 
 func (c *fxInstallCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

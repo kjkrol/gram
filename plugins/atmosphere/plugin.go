@@ -55,6 +55,7 @@ type Plugin struct {
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
+var _ board.Atmosphere = (*Plugin)(nil)
 
 // NewPlugin puts the atmosphere of cfg over worldPlugin; a world without heights panics.
 func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
@@ -111,12 +112,20 @@ func (p *Plugin) Weathering() *weathering.Weathering { return p.weathering }
 
 func (p *Plugin) Name() string { return "gram.atmosphere" }
 
-// Install wires the sky's, the weather's and the weathering's systems.
+// Install wires the sky's, the weather's and the weathering's systems, and draws the sky behind
+// the world and what falls before it.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{p: p, sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Clock()}
 	ctx.UseModule(p.module)
 	p.module.rises = p.sky.RiseSystem(p.worldPlugin.Tick, p.Entity)
 	ctx.Hosts(p.climate.Rules(), p.sky.Rules())
+	shown := func() (stars, moon bool) {
+		r := p.Running()
+		return r.Stars, r.Moon
+	}
+	space, scale := p.worldPlugin.Res.Config.Space, p.worldPlugin.Scale()
+	vault := backdrop.New(space, scale, p.Sun, p.Air).WithHeavens(p.Heavens).WithShown(shown)
+	ctx.Draws(vault, precipitation.New(p.Sun, p.Air))
 	return nil
 }
 
@@ -126,29 +135,18 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// Renderer is the sky behind the world, a render.Source for a scene's Composer.
-func (p *Plugin) Renderer() render.Layer {
-	shown := func() (stars, moon bool) {
-		r := p.Running()
-		return r.Stars, r.Moon
-	}
-	return backdrop.New(p.worldPlugin.Res.Config.Space, p.worldPlugin.Scale(), p.Sun, p.Air).WithHeavens(p.Heavens).WithShown(shown)
-}
-
-// Precipitation is what falls, a render.Source for a scene's Composer, before the whole world.
-func (p *Plugin) Precipitation() render.Layer { return precipitation.New(p.Sun, p.Air) }
-
-// Clouds is the clouds' shadows over a board without relief, a render.Source for a scene's
-// Composer. A board in relief has its terrain shadow itself.
-func (p *Plugin) Clouds() render.Layer { return overcast.New(p.Sun, p.Air) }
+// Clouds is the clouds' shadows over a board without relief, which the board draws once
+// board.Plugin.WithAtmosphere puts it under the sky. A board in relief has its terrain shadow
+// itself.
+func (p *Plugin) Clouds() render.Source { return overcast.New(p.Sun, p.Air) }
 
 // Reporter is the atmosphere's lines for the telemetry panel.
 func (p *Plugin) Reporter() render.Reporter {
 	return reporters{p.calendar.Reporter(), p.sky.Reporter(), p.climate.Reporter()}
 }
 
-// HUD is the calendar's screen layer: the hour, the date and the moon.
-func (p *Plugin) HUD() render.Layer { return p.calendar.HUD() }
+// HUD is the calendar's screen renderer: the hour, the date and the moon, for a ui.Drawer.
+func (p *Plugin) HUD() render.Renderer { return p.calendar.HUD() }
 
 // EventHandler is nil: the atmosphere takes commands, not input.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

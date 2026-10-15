@@ -21,7 +21,7 @@
 //
 // [Panel] is a background and a border round an element; [Label] a line of text; [Image] a
 // render.Surface filling its box; [Window] a panel with a title over its elements, which
-// [Element.Modal] makes hold the input while shown; [Blank] a gap; [Layer] a screen renderer. Any
+// [Element.Modal] makes hold the input while shown; [Blank] a gap; [Drawer] a screen renderer. Any
 // element takes [Element.Fill], [Element.Border] and [Element.Padding]. [LabelOf], [ButtonOf] and
 // [WindowOf] read their words off a [Text] every frame, for the entity a pinned element is shown
 // for; [Of] is a Text read off a component of that entity. A Text saying nothing leaves its

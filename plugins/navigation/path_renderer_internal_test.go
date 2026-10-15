@@ -56,7 +56,7 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 		r.Compose(&f, cam) // reads the ground; nothing to draw without a space
 		r.line(a, b)
 		f.Each(func(at render.At, v []render.Vertex) {
-			if at == render.OnTop {
+			if at.Top() {
 				t.Error("a route piece is a mark, want it lying on the ground")
 			}
 			pieces, lies = append(pieces, append([]render.Vertex(nil), v...)), append(lies, at)
@@ -106,8 +106,8 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 		r.goal(geom.NewVec(10, 10), c, tc.spot, 0)
 		var starts [][2]float32
 		f.Each(func(at render.At, v []render.Vertex) {
-			if at != render.OnTop {
-				t.Errorf("a goal's line lies at %v, want a mark on top", at)
+			if at.Top() || at.Z() != goalLift {
+				t.Errorf("a goal's line lies at %v, want over the ground it stands on", at)
 			}
 			x, y, _, _ := ends(v)
 			starts = append(starts, [2]float32{x, y})

@@ -52,7 +52,7 @@ var (
 	iceColor = color.RGBA{R: 175, G: 210, B: 230, A: 255}
 )
 
-func (m *mainScene) picture() render.Picture {
+func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 	a.topography.
 		Style(WaterCell, painter.Style{Under: true, Shine: 0.9}).
@@ -70,20 +70,11 @@ func (m *mainScene) picture() render.Picture {
 	a.vision.WithViews(render.Show(a.selection.IsSelected))
 	a.cameras.ShowZones(true)
 
-	return render.NewComposer(
-		a.atmosphere.Renderer(), a.board.Renderer(), a.topography.Renderer(),
-		a.world.Renderer(), a.collision.Renderer(), a.cameras.Renderer(), a.vision.Renderer(),
-		a.selection.Renderer(),
-		a.nav.Renderer(), a.bridges.Renderer(), a.atmosphere.Precipitation())
-}
-
-func (m *mainScene) screen() *ui.Element {
-	a := m.arena
 	return ui.Layers(
 		ui.Image(render.NewFeed(
 			a.cameras.New(a.topography.Views(topography.Isometrically), camera.Config{}),
-			m.picture())).Input(a.players.Through(a.player)),
-		ui.Layer(a.world.Clock().HUD()),
+			a.world.Picture())).Input(a.players.Through(a.player)),
+		ui.Drawer(a.world.Clock().HUD()),
 		ui.BottomMiddle(a.bridges.Reason().Padding(6).Fill(reasonColor)).Margin(40),
 		ui.Center(a.bridges.Window()),
 	)

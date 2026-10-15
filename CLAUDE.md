@@ -115,10 +115,10 @@ Decisions the user has made; they are not up for revisiting in passing.
   `command.Command`, never `any`.
 - **The default keys are the same in every game and no demo repeats one**: Shift+P the tactical
   pause, Shift+Esc quits, K lists the keys, ~ the telemetry panel, F5 saves, F9 loads, F11 full
-  screen, ] and [ the tempo, Shift+X the boxes (collision's), Shift+H the scroll zones
-  (cameras'), Shift+O the holds, Shift+B the
-  bridge tool, Shift+R the routes, Shift+C the cones, Shift+W the weather, P freezes the light,
-  Space jumps in first person, = and - zoom, Shift+= and Shift+- shape the relief. A plugin's keys a
+  screen, ] and [ the tempo, Shift+X the boxes (collision's: the bases, the solids, none),
+  Shift+H the scroll zones (cameras'), Shift+O the holds, Shift+B the bridge tool, Shift+R the
+  routes, Shift+C the cones, Shift+W the weather, P freezes the light, Space jumps in first
+  person, = and - zoom, Shift+= and Shift+- shape the relief. A plugin's keys a
   game sets up (`driving.Compass`, `selection.FollowKey`, the cameras' zoom keys) are bound in the
   Players section with the defaults; the game's own go to the Controls section and are listed under
   "Game".
@@ -127,14 +127,15 @@ Decisions the user has made; they are not up for revisiting in passing.
 - **The order a game makes its plugins in is the order they are used in**; no list, no `ctx` in
   a game's code. A plugin needing another's logic takes it as a constructor argument.
 - **A thing in its section**: what is defined in another section is refused (`gram-game`).
-- **How things look is the scene's**: `picture()` in a demo's `scene.go` sets what is drawing
-  (atlases, `WithAtmosphere`, styles, views) and nothing else does; `makePlugins` configures what
-  a plugin does. A sprite in a Stage's struct is a leak. A look is drawing (`Under`), never an
-  effect's Spec. What a plugin draws about a kind — its outline, cone, route — is styled in the
-  figure's `Look` with `Styled` (`selection.Highlight`, `vision.Cone`, `navigation.RouteStyle`);
-  a scene declares no atlas: `world.Renderer()` and `board.Renderer()` dress themselves from
-  the figures and tiles the first time the composer asks; every other renderer is its plugin's
-  own, made in `NewPlugin`.
+- **How things look is the scene's**: the start of `screen()` in a demo's `scene.go` sets how the
+  plugins draw (`WithAtmosphere`, styles, views, what is shown) and nothing else does;
+  `makePlugins` configures what a plugin does. A sprite in a Stage's struct is a leak. A look is
+  drawing (`Under`), never an effect's Spec. What a plugin draws about a kind — its outline,
+  cone, route — is styled in the figure's `Look` with `Styled` (`selection.Highlight`,
+  `vision.Cone`, `navigation.RouteStyle`). A scene names nothing that draws and declares no
+  atlas: every plugin draws what it gave `ctx.Draws` in `Install`, a feed shows the Stage's one
+  picture (`render.NewFeed(cam, a.world.Picture())`), and the Stage has the figures' and tiles'
+  looks declared and the atlases closed before its scenes (`ctx.Looks`).
 - **A kind of entity is a figure, a kind of cell a tile**, each in a file of its own
   (`hero.go`, `lever.go`, `tiles.go`) with everything that is its alone: its effects
   (`Effects`), its roles and rules (`Rules`), what it is (`Define`), how it looks (`Look`),
@@ -143,7 +144,7 @@ Decisions the user has made; they are not up for revisiting in passing.
   `bridges.Figure`, `bullet.Figure`) — the optional parts are found by assertion, so
   only the `var _` says a misspelt `Effects` is noticed.
   The Stage's `Figures` link notes them and runs each part in its section; their looks are
-  gathered as the renderer is first asked for. The arena's `Effects` and `Rules` keep only
+  declared once the Stage is set up, before its scenes. The arena's `Effects` and `Rules` keep only
   what several kinds share (a role many play, a rule of the whole); the commands wiring the
   map and the spawn are the arena's. Coloured balls that are nothing but a kind are a figure
   in `demo.go`.
@@ -155,11 +156,13 @@ Decisions the user has made; they are not up for revisiting in passing.
   tried and dropped.
 - **Physics, not blocking**, for a unit under gravity: into the water and off an edge as it
   pleases, the rules deciding.
-- **What is drawn over what is Z's alone**, never a layer or the order of adding: every piece of
-  the world lies at a height (`render.At`; what lies on a surface at a small lift over it, a
-  figure at `world.FigureLift`), the depth buffer deciding; the opaque ground first, the marks
-  (outlines, boxes, zones, goals, previews) over the world as a category of their own; a Direct
-  asks where it draws (`Frame.DrawOpaque`, `DrawAt`, `ReadGround`).
+- **What is drawn over what is Z's alone**, never a layer, the order of adding or the order a
+  plugin registers in: every piece of the world lies at a height (`render.At`; what lies on a
+  surface at a small lift over it — a route's goal, a cell held, a bridge in hand — a figure at
+  `world.FigureLift`, an entity's box at its base), the depth buffer deciding; the opaque ground
+  first; the marks over the world at fixed levels (`render.OnTop(level)`: the selection's
+  outline, then its box, the cameras' zones over all); a Direct asks where it draws
+  (`Frame.DrawOpaque`, `DrawAt`, `ReadGround`).
 - **A board stands in a world with heights** (`world.Config.Heights`), and so do the topography
   and the atmosphere: each panics in a flat one. A flat map is a board without relief; a side
   view (motion/platformer) is a world with heights, gravity pulling along Y, Z its depth. A

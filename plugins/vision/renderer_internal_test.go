@@ -392,7 +392,7 @@ func TestRenderer_ShadowsFadeOnlyWhereTheyMeetGroundInSight(t *testing.T) {
 
 	var pieces [][]float32 // per piece: left, right, top, bottom fade distance at its first corner
 	f.Each(func(at render.At, v []render.Vertex) {
-		if at == render.OnTop {
+		if at.Top() {
 			t.Error("a shadow is a mark, want it lying on the ground")
 		}
 		pieces = append(pieces, []float32{v[0].Custom0, v[3].Custom1, v[0].Custom2, v[3].Custom3})

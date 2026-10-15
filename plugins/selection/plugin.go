@@ -10,7 +10,6 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
@@ -75,13 +74,11 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	sys.allows, sys.forbids = &p.allows, &p.forbids
 	p.module = &module{sys: sys}
 	ctx.UseModule(p.module)
+	ctx.Draws(p.renderer)
 	return nil
 }
 
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
-
-// Renderer draws the highlights, each kind in its Highlight, and the box being dragged.
-func (p *Plugin) Renderer() render.Layer { return p.renderer }
 
 // EventHandler is nil: a player's bindings issue the commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

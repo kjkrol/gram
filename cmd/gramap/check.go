@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/bridges"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 )
 
 type fordRow struct {
@@ -137,7 +138,9 @@ func (c *installer) RegSys(factory func() goke.System) goke.Runnable {
 
 func (c *installer) ECS() *goke.ECS { return c.ecs }
 
-func (c *installer) Hosts(...host.Host) {}
+func (c *installer) Hosts(...host.Host)     {}
+func (c *installer) Draws(...render.Source) {}
+func (c *installer) Looks(func())           {}
 
 func (c *installer) systems() []goke.System {
 	var out []goke.System

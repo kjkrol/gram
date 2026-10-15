@@ -17,7 +17,6 @@ import (
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 )
 
 // ErrUnknownCommand is what Issue reports for a command type no handler defines.
@@ -209,9 +208,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan hands over the units given and issues the keys held for the next tick; call it last in
 // Update.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
-
-// Renderer is nil: players draw nothing.
-func (p *Plugin) Renderer() render.Layer { return nil }
 
 // EventHandler translates this tick's input through every local player's bindings.
 func (p *Plugin) EventHandler() control.EventHandler { return eventHandler{p} }

@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/internal/billboards"
+	"github.com/kjkrol/gram/plugins/topography/internal/topotest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -58,6 +59,7 @@ func newHill(t *testing.T) aHill {
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+	terrain := topotest.Drawn(t, p)[0]
 	p.Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); x >= 3 && x <= 4 && y >= 3 && y <= 4 {
 			return 90
@@ -97,7 +99,7 @@ func newHill(t *testing.T) aHill {
 		screen.Clear()
 		screen.ClearDepth(depth)
 		target := render.Target{Screen: screen, Depth: depth}
-		p.Renderer().(render.Direct).Draw(target, cam, u)
+		terrain.(render.Direct).Draw(target, cam, u)
 		var f render.Frame
 		f.Reset(cam)
 		look.Begin(&render.Frame{}, cam)
@@ -200,6 +202,7 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	tiles.Close()
 	b.SetAtlas(tiles)
 	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+	prisms := topotest.Drawn(t, p)[0]
 	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{})
 	cam.SetViewport(320, 240)
 	cam.MoveTo(0, 0)
@@ -215,7 +218,7 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	draw := func(standing bool) []byte {
 		screen.Clear()
 		screen.ClearDepth(ground)
-		p.Renderer().(render.Direct).Draw(render.Target{Screen: screen, Depth: ground}, cam, u)
+		prisms.(render.Direct).Draw(render.Target{Screen: screen, Depth: ground}, cam, u)
 		screen.CopyDepth(ground, depth)
 		target := render.Target{Screen: screen, Depth: depth, Ground: ground}
 		var f render.Frame

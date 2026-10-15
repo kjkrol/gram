@@ -25,7 +25,6 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/plugins/topography/relief"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/render"
 )
 
 // Atmosphere is the sky over the relief: the sun that lights it and casts its shadows, and the
@@ -347,6 +346,11 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		clock:    p.worldPlugin.Clock(),
 	}
 	ctx.UseModule(p.module)
+	if p.ground != nil {
+		ctx.Draws(p.ground)
+	} else {
+		ctx.Draws(p.hexes)
+	}
 	return nil
 }
 
@@ -356,14 +360,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.coarse.Drain(func(command.Issued[CoarseShadows]) { p.WithCoarseShadows(!p.ShadowsCoarse()) })
 	p.module.RunPlan(ctx, d)
-}
-
-// Renderer is the ground's renderer, a render.Direct in the opaque pass of the scene's composer.
-func (p *Plugin) Renderer() render.Layer {
-	if p.ground != nil {
-		return p.ground
-	}
-	return p.hexes
 }
 
 // EventHandler is nil: the topography takes commands, not input.

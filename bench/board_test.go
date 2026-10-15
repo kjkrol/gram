@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/board/water"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/painter"
@@ -104,7 +105,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	atlas.Close()
 	p.SetAtlas(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
-	src := p.Renderer().(render.Source)
+	src := drawnAs[*look.Renderer](b, ctx)
 	cam := ctx.camera(topo.Views(topography.FromAbove), 0, 0)
 	var f render.Frame
 	low := fixedSky{sun: sky.Sun{Dir: [3]float32{-0.8, 0.45, 0.3}, Strength: 0.75, Ambient: 0.3}}
@@ -161,7 +162,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 	atlas.Close()
 	p.SetAtlas(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
-	src := p.Renderer().(render.Source)
+	src := drawnAs[*look.Renderer](b, ctx)
 	cam := ctx.camera(topo.Views(topography.FromAbove), 0, 0)
 	var f render.Frame
 	far := grid.At(6, 6)
@@ -289,7 +290,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	if far {
 		ctx.cam.ZoomOut(100, w*size/2, h*size/2)
 	}
-	return ctx, p.Board(), p.Renderer().(render.Source)
+	return ctx, p.Board(), drawnAs[*look.Renderer](b, ctx)
 }
 
 // Benchmark_Board_Island composes the island through every view, near, far and on a 1080p

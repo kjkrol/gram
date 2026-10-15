@@ -49,8 +49,8 @@ func (s *Scene) Input(fn func(*control.InputEvents, game.Runtime, game.Compositi
 
 func (s *Scene) Name() string { return s.name }
 
-// Layers is the one layer drawing the screen.
-func (s *Scene) Layers() []render.Layer {
+// Drawers is the one drawer drawing the screen.
+func (s *Scene) Drawers() []render.Drawer {
 	var pictures []render.Picture
 	if s.root != nil {
 		s.root.walk(func(e *Element) {
@@ -68,14 +68,14 @@ func (s *Scene) Layers() []render.Layer {
 		s.note()
 	}
 	s.drawing = &drawing{scene: s, pictures: pictures}
-	return []render.Layer{s.drawing}
+	return []render.Drawer{s.drawing}
 }
 
 func (s *Scene) Focusable() bool { return true }
 
 // Replace puts screen in place of the scene's tree, for one built afresh each time it is shown
-// (a listing): dressed in the theme at once, drawn from the next frame. What Layers binds once —
-// pictures, layers, pinned elements, texts read off components — must not be in it.
+// (a listing): dressed in the theme at once, drawn from the next frame. What Drawers binds once —
+// pictures, screen renderers, pinned elements, texts read off components — must not be in it.
 func (s *Scene) Replace(screen *Element) {
 	s.root = screen
 	s.dress()

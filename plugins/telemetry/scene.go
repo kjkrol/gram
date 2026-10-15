@@ -76,10 +76,10 @@ func (s *panel) Text(uid.UID64, bool) (string, bool) {
 
 func (s *panel) Name() string { return SceneName }
 
-// Layers is the screen's layer and one initialising the reporters; after it nothing is added.
-func (s *panel) Layers() []render.Layer {
+// Drawers is the screen's drawer and one readying the reporters; after it nothing is added.
+func (s *panel) Drawers() []render.Drawer {
 	s.p.made = true
-	return append(s.screen.Layers(), reporters(s.p.reporters))
+	return append(s.screen.Drawers(), reporters(s.p.reporters))
 }
 
 func (*panel) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
@@ -87,7 +87,7 @@ func (*panel) HandleEvents(*control.InputEvents, game.Runtime, game.Composition)
 // Focusable is false: the panel never takes the input from the scene under it.
 func (*panel) Focusable() bool { return false }
 
-// a layer that only initialises the reporters: the panel's text draws their lines
+// a drawer that only readies the reporters: the panel's text draws their lines
 type reporters []render.Reporter
 
 func (rs reporters) Init(si *goke.SysInit) {

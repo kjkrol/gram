@@ -1,9 +1,10 @@
 // The world's entities in relief, drawn on the GPU (topography's sprites): an instance an entity —
 // where its feet stand and how tall it is; how wide, how far its top leans with the wind and how
 // hazed it is; its sprite's corners on the atlas, the first image; the light it is drawn in — a
-// billboard upright on the screen, U.Right and U.Up the screen's ways in the world, at the depths
-// of a thing standing upright at its feet, nudged towards the eye: the ground before it hides it,
-// the ground it stands on and the slope behind it do not.
+// billboard standing upright in the world across U.Right, the screen's way across, as tall on the
+// screen as what stands there, at the depths of a thing standing upright at its feet, nudged
+// towards the eye: the ground before it hides it, the ground it stands on and the slope behind it
+// do not.
 
 struct Board {
     @builtin(position) clip: vec4<f32>,
@@ -18,7 +19,8 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) feet: vec4<f32>, @locat
     let a = across[vid];
     let up = 1.0 - down[vid];
     let base = feet.xyz;
-    let p = base + U.Right * ((a - 0.5) * shape.x) + U.Up * (up * feet.w) + vec3<f32>(shape.yz * up, 0.0);
+    let side = U.Right * ((a - 0.5) * shape.x);
+    let p = base + side + vec3<f32>(shape.yz * up, up * feet.w);
     let q = upright(p, base);
     let at = project(q + nudge(q));
     var b: Board;

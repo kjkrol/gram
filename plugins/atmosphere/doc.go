@@ -24,11 +24,11 @@
 //
 // # Drawing
 //
-// [Plugin.Renderer] is the sky behind the world (plugins/atmosphere/backdrop),
-// [Plugin.Precipitation] the rain and the snow, [Plugin.Clouds] the cloud shadows over a flat board
-// (plugins/atmosphere/overcast), all render.Sources for a scene's Composer; [Plugin.Reporter]
-// adds the time, the light and the weather to the telemetry panel, [Plugin.HUD] the
-// calendar to a scene's layers.
+// The plugin draws the sky behind the world (plugins/atmosphere/backdrop) and the rain and the
+// snow before it (plugins/atmosphere/precipitation); [Plugin.Clouds] are the cloud shadows a
+// flat board under the atmosphere lays over itself (plugins/atmosphere/overcast);
+// [Plugin.Reporter] adds the time, the light and the weather to the telemetry panel, [Plugin.HUD]
+// the calendar to a scene (ui.Drawer).
 //
 // # Vocabulary
 //

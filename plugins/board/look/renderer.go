@@ -130,6 +130,13 @@ func NewRenderer(b Board, atlas render.AtlasSource, m Map, space world.SpaceCfg)
 	return r
 }
 
+// SetAtlas has the cells drawn from atlas from the next frame on.
+func (l *Renderer) SetAtlas(atlas render.AtlasSource) {
+	l.atlas, l.tile.Atlas = atlas, atlas
+	l.stillAt = 0
+	l.tops = l.tops[:0]
+}
+
 // State is the renderer's live toggles.
 func (l *Renderer) State() *RenderState { return &l.state }
 
@@ -143,8 +150,12 @@ func (l *Renderer) Shade(shaded map[cell.Name]render.MaterialID) { l.shaded = sh
 // as many as there are CPUs, 1 none.
 func (l *Renderer) Workers(n int) { l.count = max(n, 0) }
 
-// Compose hands the Map's Look every cell under cam, and the grid when it is on.
+// Compose hands the Map's Look every cell under cam, and the grid when it is on; nothing before
+// the renderer has an atlas.
 func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
+	if l.atlas == nil {
+		return
+	}
 	l.camera = cam
 	d := l.dressing()
 	m := l.mapping

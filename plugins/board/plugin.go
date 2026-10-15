@@ -63,6 +63,7 @@ type Plugin struct {
 	grids       command.Queue[Grid]
 	holds       command.Queue[Holds]
 	holdsView   *occupancy.View
+	clouds      clouds
 	holdsShown  bool
 	gridShown   bool
 	bridges     Bridges
@@ -122,7 +123,13 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	}
 	worldPlugin.Roster().Unit.Default(comp.Marks[unit.States]())
 	p.keepBridges()
+	p.renderer = look.NewRenderer(brd, nil, mapRef{p}, worldPlugin.Res.Config.Space)
+	p.holdsView = p.newHoldsView()
 	return p
+}
+
+func (p *Plugin) newHoldsView() *occupancy.View {
+	return occupancy.NewView(p.Board().Grid, p.occupancy, p.holdAt)
 }
 
 func (p *Plugin) Name() string { return "gram.board" }
@@ -139,7 +146,18 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	}
 	ctx.UseModule(p.module)
 	ctx.Hosts(p.rules.Hosts()...)
+	ctx.Draws(p.renderer, p.holdsView, &p.clouds)
+	ctx.Looks(p.dress)
 	return nil
+}
+
+// dress declares the tiles' looks on the board's atlas, every sprite the cell's size across, and
+// closes it, unless a game closed its own
+func (p *Plugin) dress() {
+	if p.atlas == nil {
+		w, h := p.Board().Grid.CellBounds()
+		p.NewAtlas(int(math.Ceil(max(w, h)))).Looks().Close()
+	}
 }
 
 // RunPlan runs the board's step; call it after collision's RunPlan.
@@ -149,22 +167,20 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// SetAtlas takes atlas as the board's looks and builds the board renderer over it; a *Atlas's
-// Close calls it, a foreign render.AtlasSource is given by hand. nil panics.
+// SetAtlas takes atlas as the board's looks for the board's renderer; a *Atlas's Close calls it,
+// a foreign render.AtlasSource is given by hand. nil panics.
 func (p *Plugin) SetAtlas(atlas render.AtlasSource) {
 	if atlas == nil {
 		panic("board: SetAtlas needs the game's atlas of the cell kinds (board.Plugin.NewAtlas)")
 	}
 	p.atlas = atlas
-	p.renderer = look.NewRenderer(p.Board(), atlas, mapRef{p}, p.worldPlugin.Res.Config.Space)
+	p.renderer.SetAtlas(atlas)
+	p.renderer.Shade(nil)
 	if ba, ok := atlas.(*Atlas); ok {
 		p.renderer.Shade(ba.shaded)
 	}
 	p.Res.Render = p.renderer.State()
 	p.Res.Render.ShowGridLines = p.gridShown
-	p.renderer.Workers(p.workers)
-	p.holdsView = occupancy.NewView(p.Board().Grid, p.occupancy, p.holdAt)
-	p.holdsView.Show(p.holdsShown)
 }
 
 // ShowGrid draws the grid over the board, or not, as the Grid command (B) switches it: a look,
@@ -183,18 +199,7 @@ func (p *Plugin) GridShown() bool { return p.gridShown }
 // hides them: a look, not saved.
 func (p *Plugin) ShowHolds(shown bool) {
 	p.holdsShown = shown
-	if p.holdsView != nil {
-		p.holdsView.Show(shown)
-	}
-}
-
-// HoldsRenderer draws the cells the occupancy holds while ShowHolds says, for a scene's composer;
-// nil before the atlas is closed.
-func (p *Plugin) HoldsRenderer() render.Layer {
-	if p.holdsView == nil {
-		return nil
-	}
-	return p.holdsView
+	p.holdsView.Show(shown)
 }
 
 func (p *Plugin) holdAt(c cell.ID, at geom.Vec, deck bool) float64 {
@@ -247,25 +252,12 @@ func (p *Plugin) keepBridges() {
 // 0 as many as there are CPUs, 1 none.
 func (p *Plugin) WithWorkers(n int) *Plugin {
 	p.workers = n
-	if p.renderer != nil {
-		p.renderer.Workers(n)
-	}
+	p.renderer.Workers(n)
 	return p
 }
 
 // Atlas is the sprite sheet the board's renderer draws the cells from; nil before it is closed.
 func (p *Plugin) Atlas() render.AtlasSource { return p.atlas }
-
-// Renderer is the board's renderer, drawing the tiles' looks: asked for the first time, it
-// declares them on the board's atlas, every sprite the cell's size across, and bakes it (a game
-// declaring looks by hand closes its own NewAtlas before).
-func (p *Plugin) Renderer() render.Layer {
-	if p.renderer == nil {
-		w, h := p.Board().Grid.CellBounds()
-		p.NewAtlas(int(math.Ceil(max(w, h)))).Looks().Close()
-	}
-	return p.renderer
-}
 
 // EventHandler is nil: the board handles no input of its own.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

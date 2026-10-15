@@ -16,7 +16,6 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
@@ -109,9 +108,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan puts this tick's hands on the units at once and carries them out in the simulation; call
 // it after navigation's, whose orders a hand ends.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
-
-// Renderer is nil: the driving draws nothing.
-func (p *Plugin) Renderer() render.Layer { return nil }
 
 // EventHandler is nil: a player's bindings issue the commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

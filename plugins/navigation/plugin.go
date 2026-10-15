@@ -19,7 +19,6 @@ import (
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/steering"
-	"github.com/kjkrol/gram/render"
 )
 
 // Plugin moves entities along a MoveOrder's path across a board, re-pathing when terrain changes,
@@ -112,6 +111,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 	p.module = &module{navigationSystem: navSys, moveCommandSystem: moveCommandSystem, clock: p.worldPlugin.Clock()}
 	ctx.UseModule(p.module)
+	ctx.Draws(p.pathRenderer)
 	return nil
 }
 
@@ -140,9 +140,6 @@ func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
 	p.collision = c
 	return p
 }
-
-// Renderer draws the selected units' goals and routes, each kind in its RouteStyle.
-func (p *Plugin) Renderer() render.Layer { return p.pathRenderer }
 
 // EventHandler returns nil.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

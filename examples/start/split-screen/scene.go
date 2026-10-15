@@ -21,7 +21,9 @@ type mainScene struct{ arena *arena }
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	picture := m.picture()
+	a.board.ShowGrid(false)
+
+	picture := a.world.Picture()
 	red := render.NewFeed(
 		a.cameras.New(cameras.TopDown(), camera.Config{Follow: RedBlock}),
 		picture,
@@ -41,13 +43,4 @@ func (m *mainScene) screen() *ui.Element {
 			Fraction(MinimapShare, 0).
 			Margin(10),
 	)
-}
-
-func (m *mainScene) picture() render.Picture {
-	a := m.arena
-
-	a.board.ShowGrid(false)
-
-	return render.NewComposer(a.board.Renderer(), a.world.Renderer(), a.collision.Renderer(),
-		a.cameras.Renderer())
 }

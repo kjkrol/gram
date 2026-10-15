@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 )
 
 // InstallCtx is the plugin.Installer a Stage would hand over, minus the engine.
@@ -87,7 +88,9 @@ func Step(w *world.Plugin, c *collision.Plugin) func(goke.RunCtx, time.Duration)
 }
 
 // Hosts keeps the hosts a plugin tells of.
-func (c *InstallCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
+func (c *InstallCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
+func (c *InstallCtx) Draws(...render.Source) {}
+func (c *InstallCtx) Looks(func())           {}
 
 // Deliver hands rules to the hosts of their moments, as the engine does.
 func (c *InstallCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

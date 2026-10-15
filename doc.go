@@ -22,15 +22,19 @@
 // visible, in what order, and which is active, the only one whose HandleEvents runs.
 // [game.Runtime] — pause, quit, switch Stage, persistence, full screen — reaches a Stage and
 // every Scene alike. A scene's screen is a tree of elements of package ui, the world among them
-// as a picture through a camera ([ui.Image] of a render.Feed); the cameras are the cameras
-// plugin's, made beside the picture that shows them. A player owns no camera: it acts through
+// as its picture, everything the Stage's plugins draw (world.Plugin.Picture), through a camera
+// ([ui.Image] of a render.Feed); the cameras are the cameras plugin's, made beside the feed that
+// shows them. A player owns no camera: it acts through
 // the picture a scene wires it to.
 //
 // # Plugins and rules
 //
 // A [plugin.Plugin] is used from a Stage's Plugins section. Its Install only queues ECS wiring,
-// flushed in one ecs.Setup after Init returns. A plugin needing another takes it as a
-// constructor argument: there is no registry and no lookup by name.
+// flushed in one ecs.Setup after Init returns, and says what the plugin draws
+// (plugin.Installer.Draws, the Stage's one picture of it all ordered by height) and how its kinds
+// look (plugin.Installer.Looks, declared once Init returns, before the scenes are made). A plugin
+// needing another takes it as a constructor argument: there is no registry and no lookup by
+// name.
 //
 // What a game does about what a plugin finds is a rule of the library ceremony
 // (github.com/kjkrol/ceremony), which gram builds on with goke as the store:

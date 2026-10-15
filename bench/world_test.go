@@ -67,7 +67,7 @@ func Benchmark_World_Draw(b *testing.B) {
 				atlas.Add(movers.SpriteID(), 20, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 				atlas.Close()
 				w.SetAtlas(atlas)
-				r = render.NewComposer(w.Renderer())
+				r = w.Picture().(*render.Composer)
 				ctx.pending = append(ctx.pending, func() []goke.System {
 					return []goke.System{goke.SystemFn{OnInit: r.Init}}
 				})

@@ -51,7 +51,8 @@ type Plugin struct {
 	look     Look
 	looked   bool
 	styles   *render.Styles
-	sections any
+	ctx      plugin.Installer
+	picture  *render.Composer
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -89,6 +90,8 @@ func NewPlugin(cfg Config) *Plugin {
 	p.roles.w, p.named.w = p, p
 	// the clock's entity is the world's own
 	p.Self = newSelf(p, p.Name(), comp.Const(m.clock.State()))
+	p.renderer = newRenderer(nil, p.ViewFor, &m.drawing, p.Look)
+	p.renderer.clock = m.clock.Shown
 	return p
 }
 
@@ -99,7 +102,7 @@ func (p *Plugin) Made() *plugin.Made { return &p.made }
 // InSection is an error for what defined while the Stage is in another section than those
 // want names; nil for a Stage written by hand.
 func (p *Plugin) InSection(what string, want ...section.Part) error {
-	return section.Check(p.sections, what, want...)
+	return section.Check(p.ctx, what, want...)
 }
 
 func (p *Plugin) must(what string, want ...section.Part) {
@@ -168,12 +171,34 @@ func (p *Plugin) ViewFor(cam camera.Camera) *view.View {
 func (p *Plugin) Name() string { return "gram.world" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	p.sections = ctx
+	p.ctx = ctx
 	ctx.UseModule(p.module)
 	ctx.UseModule(p.module.effects.Module())
 	ctx.Setup(p.kinds)
 	ctx.Hosts(p.module.movers, p.module.leavers, &p.module.moments.host)
+	ctx.Draws(p.renderer)
+	ctx.Looks(p.dress)
 	return nil
+}
+
+// Picture is everything the Stage's plugins draw, one picture for every scene showing the world.
+func (p *Plugin) Picture() render.Picture {
+	if p.picture == nil {
+		d, ok := p.ctx.(interface{ Drawn() []render.Source })
+		if !ok {
+			panic("world: a picture is made of what the Stage's plugins draw, and none was told")
+		}
+		p.picture = render.NewComposer(d.Drawn()...)
+	}
+	return p.picture
+}
+
+// dress declares the figures' looks on the world's atlas and closes it, unless a game closed its
+// own
+func (p *Plugin) dress() {
+	if !p.looked {
+		p.NewAtlas().Looks().Close()
+	}
 }
 
 // RunPlan runs the world's tick. Call it from Stage.Update before whatever reads the world's
@@ -195,8 +220,8 @@ func (p *Plugin) Carry(handlers ...plugin.CommandHandler) error {
 // Carrier is the Stage's one carrier of commands, taking each to its handler's queue.
 func (p *Plugin) Carrier() *command.Carrier { return &p.module.commands }
 
-// SetAtlas takes atlas as the world's looks and builds the entity renderer over it, applying
-// what a *Atlas declared; its Close calls it. A foreign render.AtlasSource is given by hand.
+// SetAtlas takes atlas as the world's looks for the entity renderer, applying what a *Atlas
+// declared; its Close calls it. A foreign render.AtlasSource is given by hand.
 func (p *Plugin) SetAtlas(atlas render.AtlasSource) {
 	if !p.looked {
 		p.looked = true
@@ -209,8 +234,9 @@ func (p *Plugin) SetAtlas(atlas render.AtlasSource) {
 			}
 		}
 	}
-	p.renderer = newRenderer(atlas, p.ViewFor, &p.module.drawing, p.Look)
-	p.renderer.clock = p.module.clock.Shown
+	p.renderer.atlas = atlas
+	p.renderer.shade(nil, nil)
+	p.renderer.lie(nil, nil, nil)
 	if wa, ok := atlas.(*Atlas); ok {
 		p.renderer.shade(wa.shaded, wa.phased)
 		p.renderer.lie(wa.lain(), wa.edged(), wa.stood())
@@ -221,16 +247,6 @@ func (p *Plugin) SetAtlas(atlas render.AtlasSource) {
 // Styles are the styles the figures declared on the world's atlas (Slot.Styled), for the
 // plugins drawing about a kind; none before the atlas is closed.
 func (p *Plugin) Styles() *render.Styles { return p.styles }
-
-// Renderer is the world's entity renderer, drawing the figures' looks: asked for the first time,
-// it declares them on the world's atlas and bakes it (a game declaring looks by hand closes its
-// own NewAtlas before).
-func (p *Plugin) Renderer() render.Layer {
-	if p.renderer == nil {
-		p.NewAtlas().Looks().Close()
-	}
-	return p.renderer
-}
 
 // EventHandler is nil: a player's bindings issue the world's commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

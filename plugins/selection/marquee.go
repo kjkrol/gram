@@ -28,5 +28,6 @@ func (m *marquees) compose(f *render.Frame, cam camera.Camera) {
 		return
 	}
 	x0, y0, x1, y1 := float32(b.TopLeft.X), float32(b.TopLeft.Y), float32(b.BottomRight.X), float32(b.BottomRight.Y)
-	outline(f, [4][2]float32{{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}, 1, MarqueeColor)
+	box := [4][2]float32{{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}}
+	outline(f, render.OnTop(marqueeLevel), box, 1, MarqueeColor)
 }

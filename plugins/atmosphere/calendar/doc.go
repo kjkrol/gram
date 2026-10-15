@@ -10,5 +10,5 @@
 //
 // For a rule of the clock's Moment, [Calendar.Daily], [Calendar.Yearly] and [Calendar.Seasonal]
 // give clock.Every its period and offset. [Calendar.Reporter] is two telemetry lines,
-// [Calendar.HUD] a screen layer.
+// [Calendar.HUD] a screen renderer.
 package calendar

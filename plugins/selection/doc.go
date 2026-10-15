@@ -31,9 +31,9 @@
 //
 // # Renderer
 //
-// [Plugin.Renderer] is the [Renderer], a render.Source outlining every Selected entity, a mark on
-// top, in its kind's [Highlight] ([DefaultHighlight] a thin red outline), and the box of a
-// selection being dragged ([Marquee]), one per camera.
+// The plugin draws with a [Renderer], outlining every Selected entity in its kind's [Highlight]
+// ([DefaultHighlight] a thin red outline) and the box of a selection being dragged ([Marquee]),
+// one per camera: marks over the world, the box over the outlines.
 //
 // # Vocabulary
 //
@@ -42,5 +42,5 @@
 // [Plugin.Pointed] are routed here.
 //
 // Styles, for a figure's Look on the world's atlas (Slot.Styled): [Highlight], how a kind's
-// selected entities are outlined, [DefaultHighlight] without. [Plugin.Renderer] draws them.
+// selected entities are outlined, [DefaultHighlight] without.
 package selection

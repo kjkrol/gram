@@ -28,16 +28,8 @@ var (
 	lowWallColor  = color.RGBA{R: 150, G: 150, B: 160, A: 255}
 )
 
-func (m *mainScene) picture() render.Picture {
-	a := m.arena
-	return render.NewComposer(
-		a.board.Renderer(),
-		a.world.Renderer(), a.collision.Renderer(), a.cameras.Renderer(),
-	)
-}
-
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 	cam := a.cameras.New(cameras.TopDown(), camera.Config{Follow: SoldierName})
-	return ui.Image(render.NewFeed(cam, m.picture())).Input(a.players.Through(a.player))
+	return ui.Image(render.NewFeed(cam, a.world.Picture())).Input(a.players.Through(a.player))
 }

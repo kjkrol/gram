@@ -31,6 +31,9 @@ const (
 	zoneRound = 10
 )
 
+// the zones' level among the marks: over every other, the selection's box included
+const zonesLevel = 3
+
 // zonesView lays the scroll zones over the picture of the camera being composed.
 type zonesView struct{ shown bool }
 
@@ -88,7 +91,7 @@ func (z zone) draw(f *render.Frame, c color.RGBA) {
 			pts = append(pts, [2]float32{x, y})
 		}
 	}
-	f.Fan(render.OnTop, pts, c)
+	f.Fan(render.OnTop(zonesLevel), pts, c)
 }
 
 // ShowZones shows the scroll zones over every picture, or hides them.

@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 )
 
 type initializer struct {
@@ -20,6 +21,9 @@ type initializer struct {
 	handlers []plugin.CommandHandler // used before the world, or by a Stage without one
 	hosts    []host.Host
 	part     section.Part
+	draws    []render.Source
+	drawn    bool
+	looks    []func()
 }
 
 var (
@@ -86,6 +90,32 @@ func (c *initializer) PluginScenes() []game.Scene {
 }
 
 func (c *initializer) Hosts(hosts ...host.Host) { c.hosts = append(c.hosts, hosts...) }
+
+func (c *initializer) Draws(sources ...render.Source) {
+	if c.drawn {
+		panic("gram: a plugin draws after the Stage's picture was made")
+	}
+	for _, s := range sources {
+		if s != nil {
+			c.draws = append(c.draws, s)
+		}
+	}
+}
+
+// Drawn is what the Stage's plugins draw, in the order they said it; the picture made of it is
+// whole, so a later Draws panics.
+func (c *initializer) Drawn() []render.Source {
+	c.drawn = true
+	return c.draws
+}
+
+func (c *initializer) Looks(declare func()) { c.looks = append(c.looks, declare) }
+
+func (c *initializer) look() {
+	for _, declare := range c.looks {
+		declare()
+	}
+}
 
 func (c *initializer) deliver() error {
 	if c.world == nil {

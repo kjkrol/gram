@@ -20,6 +20,7 @@ import (
 	"github.com/kjkrol/gram/plugins/dialog"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 	"github.com/kjkrol/uid"
 )
@@ -41,6 +42,8 @@ func (c *installer) Setup(providers ...goke.SetupProvider) {
 func (c *installer) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
 func (c *installer) ECS() *goke.ECS                                  { return c.ecs }
 func (c *installer) Hosts(...host.Host)                              {}
+func (c *installer) Draws(...render.Source)                          {}
+func (c *installer) Looks(func())                                    {}
 
 const hosts = `
 greet:

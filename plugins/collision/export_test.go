@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/render"
 )
 
 // New builds the collision module over space without a world plugin.
@@ -54,3 +55,9 @@ func hostAll(pairs *host.PairRules[Meeting], entities *host.Rules[Struck], rules
 	}
 	return nil
 }
+
+// BoxesView is what draws the entities' boxes.
+func (p *Plugin) BoxesView() render.Source { return p.boxesView }
+
+// BoxLift is how far over its entity's altitude a box lies among what lies there.
+const BoxLift = boxLift

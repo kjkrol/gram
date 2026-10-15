@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
@@ -24,6 +25,7 @@ type installCtx struct {
 	ecs     *goke.ECS
 	pending []func() []goke.System
 	tracked []any
+	drawn   []render.Source
 }
 
 func (c *installCtx) UseModule(m goke.Module) {
@@ -338,6 +340,26 @@ func scaleOf(r *relief) world.Scale {
 	return r.scale
 }
 
-func (c *installCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
+func (c *installCtx) Hosts(h ...host.Host)     { c.hosts = append(c.hosts, h...) }
+func (c *installCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
+
+// rendererOf is what v draws its sight with, as its Install into ctx hands it over.
+func rendererOf(t *testing.T, ctx *installCtx, v *vision.Plugin) *vision.Renderer {
+	t.Helper()
+	if ctx == nil {
+		ctx = &installCtx{ecs: goke.New()}
+		if err := v.Install(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, s := range ctx.drawn {
+		if r, ok := s.(*vision.Renderer); ok {
+			return r
+		}
+	}
+	t.Fatal("vision draws its sight with no *vision.Renderer")
+	return nil
+}
+func (c *installCtx) Looks(func()) {}
 
 func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

@@ -44,7 +44,7 @@ type sortingProjection struct{ camera.TopDown }
 
 func (sortingProjection) Sorts() bool { return true }
 
-func drawn(cam camera.Camera, sources ...Layer) (*Composer, []item) {
+func drawn(cam camera.Camera, sources ...Source) (*Composer, []item) {
 	c := NewComposer(sources...)
 	c.compose(cam)
 	var out []item
@@ -62,15 +62,15 @@ func TestComposer_DrawsTheWorldBackToFrontAndTheMarksLastAsTheyCame(t *testing.T
 	_, got := drawn(topDown(),
 		items(func(f *Frame) {
 			f.Sprite(h(1), a, 0, unit, Even(1))
-			f.Sprite(OnTop, a, 0, unit, Even(0.5))
+			f.Sprite(OnTop(0), a, 0, unit, Even(0.5))
 			f.Sprite(h(9), a, 0, unit, Even(1))
 		}),
 		items(func(f *Frame) {
 			f.Sprite(h(1), b, 0, unit, Even(1)) // as high: after the first, as it came
-			f.Sprite(OnTop, b, 0, unit, Even(1))
+			f.Sprite(OnTop(0), b, 0, unit, Even(1))
 			f.Sprite(h(5), b, 0, unit, Even(1))
 		}))
-	want := []At{h(1), h(1), h(5), h(9), OnTop, OnTop}
+	want := []At{h(1), h(1), h(5), h(9), OnTop(0), OnTop(0)}
 	for i, w := range want {
 		if got[i].at != w {
 			t.Fatalf("drawn %v, want the world lowest first, ties as they came, the marks last: %v",
@@ -81,6 +81,60 @@ func TestComposer_DrawsTheWorldBackToFrontAndTheMarksLastAsTheyCame(t *testing.T
 		got[5].atlas != (sheet{"b"}) {
 		t.Errorf("drawn %v, want the first source's before the second's at one height and "+
 			"among the marks", got)
+	}
+}
+
+func TestComposer_DrawsTheMarksByLevelAndAtOneLevelAsTheyCame(t *testing.T) {
+	a, b := sheet{"a"}, sheet{"b"}
+	for _, order := range [][2]int{{0, 1}, {1, 0}} {
+		sources := []Source{
+			items(func(f *Frame) {
+				f.Sprite(OnTop(3), a, 0, unit, Even(1))
+				f.Sprite(OnTop(1), a, 0, unit, Even(1))
+			}),
+			items(func(f *Frame) {
+				f.Sprite(OnTop(2), b, 0, unit, Even(1))
+				f.Sprite(OnTop(1), b, 0, unit, Even(1))
+			}),
+		}
+		_, got := drawn(topDown(), sources[order[0]], sources[order[1]])
+		levels := []At{OnTop(1), OnTop(1), OnTop(2), OnTop(3)}
+		for i, w := range levels {
+			if got[i].at != w {
+				t.Fatalf("sources %v drawn %v, want the marks by level", order, got)
+			}
+		}
+		if got[2].atlas != b || got[3].atlas != a {
+			t.Errorf("sources %v drawn %v, want each mark at its level", order, got)
+		}
+	}
+}
+
+func TestFrame_AnEdgesEndsKeepTheirHeightsAndWithNoDepthNone(t *testing.T) {
+	c, _ := drawn(topDown(), items(func(f *Frame) {
+		f.Line(h(5), 0, 0, 10, 0, 1, white)
+		f.Edge(h(5), 0, 10, 2, 10, 10, 8, 1, white)
+	}))
+	if c.frame.Len() != 2 {
+		t.Fatalf("%d pieces, want the line and the edge apart", c.frame.Len())
+	}
+	var gotV []Vertex
+	c.draw = func(_ *Image, verts []Vertex, _ []uint16, _ *Image) {
+		gotV = append(gotV, verts...)
+	}
+	for _, heights := range []bool{true, false} {
+		gotV = gotV[:0]
+		c.heights = heights
+		c.paint(nil, Target{})
+		want := [8]float32{5, 5, 5, 5, 2, 8, 2, 8}
+		if !heights {
+			want = [8]float32{}
+		}
+		for k, w := range want {
+			if gotV[k].DstZ != w {
+				t.Errorf("heights %v: vertex %d at %v, want %v", heights, k, gotV[k].DstZ, w)
+			}
+		}
 	}
 }
 
@@ -170,19 +224,22 @@ func TestComposer_SplitsACallBeforeItsIndicesOverflow(t *testing.T) {
 	}
 }
 
-func TestComposer_RefusesALayerThatIsNoSource(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil || !strings.Contains(r.(string), "no Source") {
-			t.Errorf("NewComposer took a layer that is no Source: %v", r)
-		}
-	}()
-	NewComposer(screenOnly{})
+type counted struct {
+	items
+	inits int
 }
 
-type screenOnly struct{}
+func (c *counted) Init(*goke.SysInit) { c.inits++ }
 
-func (screenOnly) Init(*goke.SysInit) {}
-func (screenOnly) Draw(*Image)        {}
+func TestComposer_InitsItsSourcesOnceHoweverManyScenesShowIt(t *testing.T) {
+	src := &counted{}
+	c := NewComposer(src)
+	c.Init(nil)
+	c.Init(nil)
+	if src.inits != 1 {
+		t.Errorf("the source was readied %d times, want once", src.inits)
+	}
+}
 
 func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 	a := &sheet{"a"}
@@ -224,7 +281,7 @@ func TestFrame_SpriteRectSplitsAtAWrapSeamWithoutStretching(t *testing.T) {
 func TestFrame_ALineIsAQuadOfItsWidthFadingAtItsSides(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
-	f.Line(OnTop, 10, 20, 30, 20, 2, color.RGBA{R: 20, A: 120})
+	f.Line(OnTop(0), 10, 20, 30, 20, 2, color.RGBA{R: 20, A: 120})
 	if f.Len() != 1 {
 		t.Fatalf("%d items, want 1", f.Len())
 	}
@@ -240,7 +297,7 @@ func TestFrame_ALineIsAQuadOfItsWidthFadingAtItsSides(t *testing.T) {
 	if math.Abs(red-20.0/255*120/255) > 1e-6 || math.Abs(alpha-120.0/255) > 1e-6 {
 		t.Errorf("colour %v alpha %v, want red 20/255 premultiplied by alpha 120/255", red, alpha)
 	}
-	f.Line(OnTop, 5, 5, 5, 5, 1, white)
+	f.Line(OnTop(0), 5, 5, 5, 5, 1, white)
 	if f.Len() != 1 {
 		t.Error("a line of no length made an item")
 	}
@@ -593,9 +650,9 @@ func TestComposer_ADirectDrawsWhereItAskedAndOnlyThere(t *testing.T) {
 	figures := &direct{at: &[]At{h(2)}[0], after: &calls}
 	nothing := &direct{after: &calls}
 	c := NewComposer(figures, &direct{at: &rain, after: &calls}, items(func(f *Frame) {
-		f.Sprite(h(0.75), a, 0, unit, Even(1)) // a route
-		f.Sprite(h(5), a, 0, unit, Even(1))    // a figure's material
-		f.Sprite(OnTop, a, 0, unit, Even(1))   // a mark
+		f.Sprite(h(0.75), a, 0, unit, Even(1))  // a route
+		f.Sprite(h(5), a, 0, unit, Even(1))     // a figure's material
+		f.Sprite(OnTop(0), a, 0, unit, Even(1)) // a mark
 		f.Uniform("Seen", 7)
 	}), nil, views, ground, &direct{at: &sky, after: &calls}, nothing)
 	c.draw = func(*Image, []Vertex, []uint16, *Image) { calls++ }

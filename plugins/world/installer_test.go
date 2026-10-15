@@ -5,6 +5,7 @@ import (
 	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/render"
 )
 
 type installCtx struct {
@@ -25,6 +26,8 @@ func (c *installCtx) Setup(providers ...goke.SetupProvider) {
 func (c *installCtx) RegSys(factory func() goke.System) goke.Runnable { return c.ecs.RegSys(factory()) }
 func (c *installCtx) ECS() *goke.ECS                                  { return c.ecs }
 
-func (c *installCtx) Hosts(h ...host.Host) { c.hosts = append(c.hosts, h...) }
+func (c *installCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
+func (c *installCtx) Draws(...render.Source) {}
+func (c *installCtx) Looks(func())           {}
 
 func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }
