@@ -4,6 +4,7 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/atmosphere"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/render"
@@ -49,7 +50,7 @@ var (
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 	a.board.WithAtmosphere(a.atmosphere)
-	a.atmosphere.ShowClouds(true)
+	a.atmosphere.ShowClouds(atmosphere.AllBodies)
 	a.board.ShowGrid(false)
 	a.vision.WithViews(render.Show(a.selection.IsSelected))
 

@@ -7,11 +7,13 @@
 struct Ground {
     @builtin(position) @invariant clip: vec4<f32>,
     @location(0) world: vec3<f32>,
+    @location(1) cloud: f32, // how much of the sun the clouds take, blended between the corners
 }
 
-// vs_main stands the lattice corner vid, counted row by row, at its height; past the lattice's
-// corners, the skirt's: ring after ring, each round the edge clockwise from the top-left, pushed
-// out from the middle, at the height of the edge's corner it runs out from.
+// vs_main stands the lattice corner vid, counted row by row, at its height, under as much of the
+// clouds' shadow as falls on it; past the lattice's corners, the skirt's, unshaded: ring after
+// ring, each round the edge clockwise from the top-left, pushed out from the middle, at the height
+// of the edge's corner it runs out from.
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> Ground {
     let cols = u32(U.Corners.x);
@@ -27,9 +29,13 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> Ground {
     }
     let p = vec3<f32>(xy, corner(i));
     let off = p.xy - U.Eye.xy;
-    var g: Ground;
-    g.clip = U.ViewProj * vec4<f32>(p.xy, p.z - U.Bend * dot(off, off), 1.0);
-    g.world = p;
+    var g = Ground(U.ViewProj * vec4<f32>(p.xy, p.z - U.Bend * dot(off, off), 1.0), p, 0.0);
+    // at the corners alone: a cloud spans many cells, and every pixel cost a frame dearly; none on
+    // the skirt, whose cells grow so big out to the horizon that the shadows showed as their
+    // triangles
+    if U.Cover > 0.0 && vid < lattice {
+        g.cloud = cloudsShadeAt(p, U.Cell);
+    }
     return g;
 }
 
@@ -86,10 +92,7 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
         }
     }
     var rgb = albedo(p.xy) * (U.Ambience + U.SunColor * max(dot(n, sun), 0.0) * lit * U.SunStrength);
-    var cover = 0.0;
-    if U.Cover > 0.0 {
-        cover = clouds(p.xy, pixel);
-    }
+    let cover = g.cloud;
     let wet = lit * (1.0 - cover); // the sun on the water, the clouds' shadow taken off
     let detail = clamp((span - 6.0) / 6.0, 0.0, 1.0);
     var run = vec3<f32>(0.0);
@@ -134,18 +137,4 @@ fn baked(p: vec2<f32>, x: f32, px: f32) -> vec4<f32> {
     let size = (U.Corners - 1.0) * px;
     let t = clamp(p / U.Cell * px, vec2<f32>(0.5), size - 0.5);
     return imageSrc3Linear(imageSrc3Origin() + vec2<f32>(x, 0.0) + t);
-}
-
-// clouds is how thick the clouds stand over p, a pixel pixel world units wide there: their noise
-// looked up in the frame's tile of it (CloudTile, air.Tile), evened out as far as the pixel sees
-// it.
-fn clouds(p: vec2<f32>, pixel: f32) -> f32 {
-    let m = airAt(p);
-    let lod = cloudTileLevel(pixel, cloudTile * cloudSize);
-    let torn = cloudTileAt(p, lod, cloudTile * cloudSize).r;
-    var core = 0.0;
-    if m.y > 0.0 {
-        core = cloudTileAt(p, cloudTileLevel(pixel, heapTile * heapSize), heapTile * heapSize).g;
-    }
-    return cloudCoverSoft(cloudFromTile(torn, core, m.y), cloudTileSoft * lod, m);
 }

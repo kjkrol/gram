@@ -37,7 +37,14 @@ type Look interface {
 	~func(dst *Canvas, size int) | MaterialID | Phases | Loops
 }
 
-var libraryUniforms = []Uniform{{Name: "Toward", Size: 3}, {Name: "Clock", Size: 1}, {Name: "Pixel", Size: 1}, {Name: "Fog", Size: 3}}
+var libraryUniforms = []Uniform{
+	{Name: "Toward", Size: 3},
+	{Name: "Clock", Size: 1},
+	{Name: "Pixel", Size: 1},
+	{Name: "Fog", Size: 3},
+	{Name: "GroundLattice", Size: 4},
+	{Name: "GroundSpan", Size: 4},
+}
 
 var (
 	sources  [][]byte

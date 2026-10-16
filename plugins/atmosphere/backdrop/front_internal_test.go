@@ -26,8 +26,8 @@ func TestBackdrop_TheSunHidesBehindAFrontBeforeItReachesTheEye(t *testing.T) {
 			}
 			return air.Mass{}, 0
 		}, true)
-		weather := air.Weather{Dome: d}
-		b := New(world.SpaceCfg{Width: 200, Height: 200}, world.Scale{},
+		weather := air.Weather{Dome: d, Bases: air.Bases(world.Scale{})}
+		b := New(world.SpaceCfg{Width: 200, Height: 200},
 			func() sky.Sun { return sun }, func() air.Weather { return weather })
 		p := b.plan(raying{height: 30})
 		if (p.SunRadius > 0) != c.shown {

@@ -65,8 +65,7 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) cell: vec4<f32>, @locat
     f.world = p;
     f.cloud = 0.0;
     if U.Cover > 0.0 {
-        let m = airAt(p.xy);
-        f.cloud = cloudShade(cloudCover(cloudField(p.xy, m.y), m));
+        f.cloud = cloudShade(cloudsShadeAt(p, U.HexSize)); // the noise as fine as a cell shows it
     }
     return f;
 }

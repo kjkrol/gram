@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
@@ -21,7 +22,8 @@ func needGPU(t *testing.T) {
 	}
 }
 
-// heaped clouds over the west half of a world 640 by 480, the east clear
+// half heaped clouds over the west half of a world 640 by 480, the east clear, a heap drifted
+// over the west's middle: they lie a heap's cell apart, wider than the world
 func westCloudy() air.Weather {
 	d := air.NewDome(640, 480, 2000)
 	d.Own()
@@ -31,7 +33,18 @@ func westCloudy() air.Weather {
 		}
 		return air.Mass{}, 0
 	}, true)
-	return air.Weather{Dome: d, Temperature: 10}
+	var still air.Weather
+	most, heap := float32(0), [2]float32{}
+	for i := range 64 {
+		for j := range 64 {
+			x, y := float32(i)*50, float32(j)*50
+			if n := still.Cloud(air.Low, x, y); n > most {
+				most, heap = n, [2]float32{x, y}
+			}
+		}
+	}
+	return air.Weather{Dome: d, Temperature: 10, Bases: air.Bases(world.Scale{}),
+		Drift: [2]float32{160 - heap[0], 240 - heap[1]}}
 }
 
 // a view from above whose lines of sight start under the clouds, over the highest ground
@@ -54,6 +67,49 @@ func (s sunk) Rays() (camera.RayField, bool) {
 		DDX: [3]float32{0.01, 0, 0}, DDY: [3]float32{0, 0.01, 0}}, true
 }
 
+// the uniforms the frame hands a renderer of the weather now, the dome's picture and the tile too
+func framed(t *testing.T, w *world.Plugin, cam camera.Camera, weather func() air.Weather,
+	r *Renderer, more ...render.Source) render.Uniforms {
+	t.Helper()
+	sun := func() sky.Sun { return sky.DefaultSun }
+	sources := append([]render.Source{backdrop.New(w.Res.Config.Space, sun, weather), r}, more...)
+	c := render.NewComposer(sources...)
+	c.DrawWorld(nil, cam)
+	u := map[string]any{}
+	for name, v := range c.Uniforms() {
+		u[name] = v
+	}
+	for _, s := range more {
+		if g, ok := s.(heights); ok {
+			u["GroundHeights"] = g.Image
+		}
+	}
+	var masses air.DomeImage
+	if d := weather().Dome; d != nil {
+		u["AirMasses"] = masses.Of(d)
+	}
+	u["CloudTile"] = air.Tile()
+	return render.UniformsOf(u)
+}
+
+// how much of the columns x0 to x1 of a view 640 by 480 the clouds r draws through cam cover
+func covering(r *Renderer, t render.Target, cam camera.Camera, u render.Uniforms,
+	x0, x1 int) float64 {
+	screen := render.NewImage(640, 480)
+	defer screen.Deallocate()
+	t.Screen = screen
+	r.Draw(t, cam, u)
+	pix := make([]byte, 4*640*480)
+	screen.ReadPixels(pix)
+	sum := 0.0
+	for y := range 480 {
+		for x := x0; x < x1; x++ {
+			sum += float64(pix[4*(y*640+x)+3])
+		}
+	}
+	return sum / float64(255*480*(x1-x0))
+}
+
 func TestRenderer_DrawsTheCloudsFromAboveOverTheirMassAlone(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
@@ -61,49 +117,108 @@ func TestRenderer_DrawsTheCloudsFromAboveOverTheirMassAlone(t *testing.T) {
 	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	cam.SetViewport(640, 480)
 	weather := westCloudy()
-	sun := func() sky.Sun { return sky.DefaultSun }
 	weatherNow := func() air.Weather { return weather }
-	vault := backdrop.New(w.Res.Config.Space, world.Scale{}, sun, weatherNow)
-	r := New(world.Scale{}, weatherNow)
-	if _, ok := r.field(cam); ok {
-		t.Fatal("hidden, the clouds are drawn from above")
-	}
-	r.Show(true)
-	c := render.NewComposer(vault, r)
-	c.DrawWorld(nil, cam)
-	u := map[string]any{}
-	for name, v := range c.Uniforms() {
-		u[name] = v
-	}
-	// the frame's images, as the sky hands them
-	var masses air.DomeImage
-	u["AirMasses"], u["CloudTile"] = masses.Of(weather.Dome), air.Tile()
-	cover := func(cam camera.Camera, x0, x1 int) float64 {
-		screen := render.NewImage(640, 480)
-		defer screen.Deallocate()
-		r.Draw(render.Target{Screen: screen}, cam, render.UniformsOf(u))
-		pix := make([]byte, 4*640*480)
-		screen.ReadPixels(pix)
-		sum := 0.0
-		for y := range 480 {
-			for x := x0; x < x1; x++ {
-				sum += float64(pix[4*(y*640+x)+3])
+	bases := weather.Bases
+	for _, layer := range []air.Layer{air.Low, air.High} {
+		r := New(weatherNow, layer)
+		if _, ok := r.field(cam); ok {
+			t.Fatal("hidden, the clouds are drawn from above")
+		}
+		r.Show(true)
+		u := framed(t, w, cam, weatherNow, r)
+		// the noise leaves gaps: the west half covered on the whole, the east bare
+		for _, through := range []camera.Camera{cam, low{cam}} {
+			west := covering(r, render.Target{}, through, u, 0, 280)
+			east := covering(r, render.Target{}, through, u, 360, 640)
+			if west < 0.1 || east > 0.01 {
+				t.Errorf("layer %d seen from above through %T: the west is covered %.2f and the "+
+					"east %.2f, want the clouds over the west alone", layer, through, west, east)
 			}
 		}
-		return sum / float64(255*480*(x1-x0))
-	}
-	// the noise leaves gaps: the west half covered on the whole, the east bare
-	for _, through := range []camera.Camera{cam, low{cam}} {
-		west, east := cover(through, 0, 280), cover(through, 360, 640)
-		if west < 0.2 || east > 0.01 {
-			t.Errorf("seen from above through %T the west is covered %.2f and the east %.2f, want "+
-				"the clouds over the west alone", through, west, east)
+		for _, c := range []struct {
+			z    float32
+			seen bool
+		}{{100, false}, {(bases[air.Low] + bases[air.High]) / 2, layer == air.Low}, {9000, true}} {
+			if _, ok := r.field(sunk{Camera: cam, z: c.z}); ok != c.seen {
+				t.Errorf("layer %d from an eye %v up: seen from above %v, want %v", layer, c.z, ok,
+					c.seen)
+			}
 		}
 	}
-	if _, ok := r.field(sunk{Camera: cam, z: 100}); ok {
-		t.Error("an eye under the clouds sees them from above, want them left to the sky")
+}
+
+func TestRenderer_InOneLayerDrawsTheLowOnesHighAlone(t *testing.T) {
+	w := westCloudy()
+	w.OneLayer = true
+	weatherNow := func() air.Weather { return w }
+	cam := cameras.NewPlugin(world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 640, Height: 480},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8},
+	})).New(cameras.TopDown(), camera.Config{})
+	low, high := New(weatherNow, air.Low), New(weatherNow, air.High)
+	low.Show(true)
+	high.Show(true)
+	if _, ok := high.field(cam); ok {
+		t.Error("in one layer the high clouds are drawn from above")
 	}
-	if _, ok := r.field(sunk{Camera: cam, z: 9000}); !ok {
-		t.Error("an eye over the clouds does not see them from above")
+	between := (w.Bases[air.Low] + w.Bases[air.High]) / 2
+	if _, ok := low.field(sunk{Camera: cam, z: between}); ok {
+		t.Errorf("in one layer an eye %v up sees the clouds from above, want them %v up",
+			between, w.Bases[air.High])
+	}
+	if _, ok := low.field(cam); !ok || low.base() != w.Bases[air.High] {
+		t.Errorf("in one layer the clouds from above are drawn %v, %v up; want %v up", ok,
+			low.base(), w.Bases[air.High])
+	}
+}
+
+// the ground's heights handed to the frame
+type heights struct{ render.GroundHeights }
+
+func (heights) Init(*goke.SysInit)                         {}
+func (h heights) Compose(f *render.Frame, _ camera.Camera) { f.GroundHeights(h.GroundHeights) }
+
+// a world 640 by 480 whose west half stands 2000 up, over the low clouds' heaps, the east at 0
+func westRaised() heights {
+	const cols, rows = 65, 49
+	img := render.NewImage(cols, rows)
+	pix := make([]byte, 0, 4*cols*rows)
+	for range rows {
+		for x := range cols {
+			v := byte(0)
+			if x < 32 {
+				v = 255
+			}
+			pix = append(pix, v, v, 0, 255)
+		}
+	}
+	img.WritePixels(pix)
+	return heights{render.GroundHeights{Image: img, Corners: [2]int{cols, rows}, Cell: 10,
+		Span: 2000}}
+}
+
+func TestRenderer_HidesTheCloudsInsideTheGround(t *testing.T) {
+	needGPU(t)
+	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
+	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
+	cam.SetViewport(640, 480)
+	ground := westRaised()
+	for _, layer := range []air.Layer{air.Low, air.High} {
+		// all of the cover in the layer
+		weather := air.Weather{Clouds: 0.9, Billow: float32(1 - layer),
+			Bases: air.Bases(world.Scale{})}
+		weatherNow := func() air.Weather { return weather }
+		r := New(weatherNow, layer)
+		r.Show(true)
+		r.Bodies(true)
+		u := framed(t, w, cam, weatherNow, r, ground)
+		west := covering(r, render.Target{}, cam, u, 0, 300)
+		east := covering(r, render.Target{}, cam, u, 340, 640)
+		hidden := layer == air.Low
+		if east < 0.1 || (west < 0.01) != hidden || (west > 0.1) == hidden {
+			t.Errorf("layer %d over ground 2000 up in the west, 0 in the east: covered %.2f in "+
+				"the west, %.2f in the east; want hidden in the west %v", layer, west, east, hidden)
+		}
 	}
 }

@@ -24,9 +24,15 @@
 //
 // # Clouds
 //
-// [Weather.Cloud] is the clouds' noise over a point, drifted with the wind, and [Weather.Shade]
-// how thick they are there under its mass's cover: on the CPU the very numbers the shaders work
-// out on the GPU, [CloudShadow] their material. The noise repeats every [CloudTile] and
-// [HeapTile], so [Tile] is a tile of it, baked once, which every shader looks up per pixel as the
-// frame's image CloudTile ([Weather.Frame] hands it).
+// The clouds hang in two layers, each a [Layer]: the heaps [Low], their bodies reaching
+// [Weather.Top], and the torn shreds [High], thin sheets each at its own height through a band
+// from into the heaps up to the weather's Bases ([Weather.HighHeight]; [Bases] on a world of a
+// scale). A mass holds the heaps the more the sky is covered and heaped, the shreds with a few
+// clouds already ([Mass.Layer]), the shreds in patches ([Weather.HighAt]). [Weather.Cloud]
+// is a layer's noise over a point, drifted with the wind, and [Weather.Shade] how much of the sun
+// the clouds take at a point of the ground, each layer's shadow where the way to the sun crosses
+// it: on the CPU the numbers the shaders work out on the GPU (cloudsShadeAt), [CloudShadow] their
+// material. The noise repeats every [CloudTile] and [HeapTile], so [Tile] is a tile of it, baked
+// once, which every shader looks up per pixel as the frame's image CloudTile ([Weather.Frame]
+// hands it).
 package air

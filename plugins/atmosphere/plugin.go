@@ -46,6 +46,8 @@ type Plugin struct {
 	changes    command.Queue[ChangeWeather]
 	sets       command.Queue[SetWeather]
 	clouds     command.Queue[Clouds]
+	shades     command.Queue[HighShade]
+	downpours  command.Queue[Downpour]
 	calendar   *calendar.Calendar
 	sky        *sky.Sky
 	climate    *climate.Climate
@@ -54,7 +56,9 @@ type Plugin struct {
 	running    Running
 	skies      []Sky
 	vault      *backdrop.Renderer
-	aloft      *aloft.Renderer
+	aloft      [2]*aloft.Renderer // by layer
+	look       CloudLook
+	highShade  bool
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -70,7 +74,9 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	clim := climate.New(worldPlugin, cal, cfg.Climate)
 	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, calendar: cal, climate: clim,
 		sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
-	p.aloft = aloft.New(worldPlugin.Scale(), p.Air)
+	p.aloft = [2]*aloft.Renderer{aloft.New(p.Air, air.Low), aloft.New(p.Air, air.High)}
+	p.ShowClouds(AllBodies)
+	p.highShade = true
 	p.Self = world.NewSelf(worldPlugin, p, comp.Const(p.sky.Moonlight()))
 	clim.About(p.Entity)
 	r := AllRunning()
@@ -88,16 +94,61 @@ func (p *Plugin) Sun() sky.Sun { return p.sky.Sun() }
 // Heavens is where the sun, the moon and the stars stand at the hour of the light.
 func (p *Plugin) Heavens() celestial.Heavens { return p.sky.Heavens() }
 
-// Air is the weather as the last step of the simulation left it.
-func (p *Plugin) Air() air.Weather { return p.climate.Air() }
+// Air is the weather as the last step of the simulation left it, the high clouds shading the
+// ground as HighShade has them.
+func (p *Plugin) Air() air.Weather {
+	w := p.climate.Air()
+	w.HighShade = p.highShade
+	return w
+}
 
-// ShowClouds has the clouds drawn as bodies, half see-through from above and heaped from under
-// them, or not: their shadows alone from above, a flat layer on the sky; a scene's say as it
-// starts, Clouds switching it as the game goes.
-func (p *Plugin) ShowClouds(shown bool) { p.aloft.Show(shown) }
+// CloudLook is how the clouds are drawn: FlatClouds as flat sheets on the sky and from above,
+// LowBodies the low ones as bodies, heaped from under them and half see-through from above,
+// AllBodies both layers so, ShadowsAlone none, only their shadows on the ground.
+type CloudLook uint8
 
-// CloudsShown reports whether the clouds are drawn as bodies.
-func (p *Plugin) CloudsShown() bool { return p.aloft.Shown() }
+const (
+	FlatClouds CloudLook = iota
+	LowBodies
+	AllBodies
+	ShadowsAlone
+)
+
+// String is the look's name: flat, the low as bodies, all as bodies, shadows alone.
+func (l CloudLook) String() string {
+	switch l {
+	case FlatClouds:
+		return "flat"
+	case LowBodies:
+		return "the low as bodies"
+	case AllBodies:
+		return "all as bodies"
+	case ShadowsAlone:
+		return "shadows alone"
+	}
+	return "?"
+}
+
+// ShowClouds has the clouds drawn as look says, AllBodies till then; a scene's say as it starts,
+// Clouds going on to the next look as the game goes.
+func (p *Plugin) ShowClouds(look CloudLook) {
+	p.look = look
+	for _, r := range p.aloft {
+		r.Show(look != ShadowsAlone)
+	}
+	p.aloft[air.Low].Bodies(look == LowBodies || look == AllBodies)
+	p.aloft[air.High].Bodies(look == AllBodies)
+}
+
+// ShownClouds is how the clouds are drawn.
+func (p *Plugin) ShownClouds() CloudLook { return p.look }
+
+func (p *Plugin) skyClouds() backdrop.Clouds {
+	return backdrop.Clouds{
+		Hidden: p.look == ShadowsAlone,
+		Bodies: [2]bool{p.look == LowBodies || p.look == AllBodies, p.look == AllBodies},
+	}
+}
 
 // WithWeathering has the weather work on brd as cfg says: snow, ice, what sways. Call it as the
 // plugin is made; a kind cfg names that the board lacks panics as the weather first touches it.
@@ -136,10 +187,9 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		r := p.Running()
 		return r.Stars, r.Moon
 	}
-	space, scale := p.worldPlugin.Res.Config.Space, p.worldPlugin.Scale()
-	p.vault = backdrop.New(space, scale, p.Sun, p.Air).WithHeavens(p.Heavens).WithShown(shown).
-		WithBodies(p.aloft.Shown)
-	ctx.Draws(p.vault, p.aloft, precipitation.New(p.Sun, p.Air))
+	p.vault = backdrop.New(p.worldPlugin.Res.Config.Space, p.Sun, p.Air).WithHeavens(p.Heavens).
+		WithShown(shown).WithClouds(p.skyClouds)
+	ctx.Draws(p.vault, p.aloft[air.Low], p.aloft[air.High], precipitation.NewDrops(p.Sun, p.Air))
 	ctx.Looks(p.dress)
 	return nil
 }
@@ -152,7 +202,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 
 // Reporter is the atmosphere's lines for the telemetry panel.
 func (p *Plugin) Reporter() render.Reporter {
-	return reporters{p.calendar.Reporter(), p.sky.Reporter(), p.climate.Reporter()}
+	return reporters{p.calendar.Reporter(), p.sky.Reporter(), p.climate.Reporter(), cloudsReport{p}}
 }
 
 // HUD is the calendar's screen renderer: the hour, the date and the moon, for a ui.Drawer.
@@ -205,6 +255,19 @@ func (m *module) SetupSystems() []goke.System { return nil }
 func (m *module) LoadComps() []goke.CompToken { return m.comps }
 
 type reporters []render.Reporter
+
+type cloudsReport struct{ p *Plugin }
+
+func (cloudsReport) Init(*goke.SysInit) {}
+
+func (r cloudsReport) Report(line func(label, value string)) {
+	line("Clouds", r.p.look.String())
+	shadows := "the low clouds'"
+	if r.p.highShade {
+		shadows = "both layers'"
+	}
+	line("Shadows", shadows)
+}
 
 func (rs reporters) Init(si *goke.SysInit) {
 	for _, r := range rs {

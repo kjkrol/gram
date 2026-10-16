@@ -180,8 +180,18 @@ func (r *Renderer) Init(si *goke.SysInit) {
 	r.findBlocks = r.onGround
 }
 
-// Compose has the ground drawn Direct, in the opaque pass.
-func (r *Renderer) Compose(f *render.Frame, _ camera.Camera) { f.DrawOpaque() }
+// Compose has the ground drawn Direct, in the opaque pass, and hands the frame its heights
+// (render.GroundHeights).
+func (r *Renderer) Compose(f *render.Frame, _ camera.Camera) {
+	f.DrawOpaque()
+	cols, rows, cell, _, ok := r.ground.Lattice()
+	if !ok || r.lattice == nil || r.heightsAt == 0 {
+		return
+	}
+	// the heights as the last frame drew them: they change as the relief is shaped, by hand
+	f.GroundHeights(render.GroundHeights{Image: r.lattice, Corners: [2]int{cols, rows}, Cell: cell,
+		Low: r.low, Span: r.span})
+}
 
 // Draw draws the ground into the target through cam under the frame's uniforms u. It draws
 // nothing through a camera without Rays, or off a square grid.

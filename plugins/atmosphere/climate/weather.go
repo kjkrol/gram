@@ -48,7 +48,8 @@ type Lane struct {
 // one a fresh Stage begins in (Start, by name; thrown when empty), the Seed of the dice and how
 // long the air takes to settle into a new weather (Blend; 20 seconds when zero). Horizon is how
 // many metres past the world the sky's air masses reach (three times air.ClearAir when zero);
-// Patchy, the horizon brings weathers lane by lane, each its own.
+// Patchy, the horizon brings weathers lane by lane, each its own; OneLayer, the clouds hang in one
+// layer, for a flat map nothing stands up into (air.Weather.OneLayer).
 type Config struct {
 	Zone     Zone
 	Weathers []weather.State
@@ -57,6 +58,7 @@ type Config struct {
 	Blend    time.Duration
 	Horizon  float64
 	Patchy   bool
+	OneLayer bool
 }
 
 func (c Config) withDefaults() Config {

@@ -1,33 +1,122 @@
-// The clouds' noise over the world, carried by the wind: the CPU works out the very same
-// (air.Weather.Cloud), so the clouds and their shadows agree wherever either is drawn.
+// The clouds' noise over the world, carried by the wind, baked into a tile the shaders look up
+// (air.Tile): the CPU works out the same (air.Weather.Cloud), so the clouds and their shadows agree
+// wherever either is drawn.
 
-// cloudField is the clouds' noise over the world point p, carried by the Drift, 0 to 1: torn
-// shreds about cloudSize wide gathered into big heaps far apart as much as billow says (cloudMix,
-// the mass's there, airAt); the same again every heapTile heaps' cells.
-fn cloudField(p: vec2<f32>, billow: f32) -> f32 {
-    let q = p - U.Drift;
-    let torn = shreds(q / cloudSize);
-    if billow <= 0.0 {
-        return torn;
+// cloudLowMass is the low layer's share of the air mass m (airAt), the heaps, the more of them
+// the more the sky is covered and the more heaped; cloudHighMass the high's, the shreds, there
+// with a few clouds already and the less heaped the more, in patches (cloudHighHere); as
+// air.Weather.Share has it; with U.CloudsOneLayer all of it low.
+fn cloudLowMass(m: vec4<f32>) -> vec4<f32> {
+    if U.CloudsOneLayer > 0.5 {
+        return m;
     }
-    return cloudMix(torn, heaps(heapCores(q / heapSize), torn), billow);
+    let heaped = cloudLowLeast + (1.0 - cloudLowLeast) * clamp(m.y, 0.0, 1.0);
+    let cover = clamp(m.x, 0.0, 1.0) * heaped;
+    return vec4<f32>(cover, 1.0, m.z, m.w);
 }
 
-// cloudFromTile is the clouds' noise of shreds torn and heaps' cores core as their tile holds them
-// (air.Tile: the cores from heapCoreLow over heapCoreSpan), heaped as billow says.
-fn cloudFromTile(torn: f32, core: f32, billow: f32) -> f32 {
-    if billow <= 0.0 {
-        return torn;
+fn cloudHighMass(m: vec4<f32>) -> vec4<f32> {
+    if U.CloudsOneLayer > 0.5 {
+        return vec4<f32>(0.0);
     }
-    return cloudMix(torn, heaps(heapCoreLow + core * heapCoreSpan, torn), billow);
+    let cover = min(cloudHighEarly * clamp(m.x, 0.0, 1.0), 1.0) *
+        (1.0 - cloudHighHeaped * clamp(m.y, 0.0, 1.0));
+    return vec4<f32>(cover, 0.0, m.z, m.w);
+}
+
+// cloudHighHere is the high clouds' mass m (cloudHighMass) at p: there in patches, none between,
+// so the high and the low come together or apart.
+fn cloudHighHere(m: vec4<f32>, p: vec2<f32>) -> vec4<f32> {
+    let q = (p - U.Drift) / cloudPatchWide + 17.0;
+    let n = cloudNoise(q, cloudTile * cloudSize / cloudPatchWide);
+    return vec4<f32>(m.x * smoothstep(0.3, 0.7, n), m.yzw);
+}
+
+// cloudHighHeight is how high the high clouds hang over p, world units: each sheet of shreds at
+// its own height through their band, from cloudHighFloor up to U.CloudBases.y.
+fn cloudHighHeight(p: vec2<f32>) -> f32 {
+    let n = cloudNoise((p - U.Drift) / cloudBandWide, cloudTile * cloudSize / cloudBandWide);
+    return mix(cloudHighFloor(), U.CloudBases.y, n);
+}
+
+// cloudHighCross is how far along the line from o along d it meets the high clouds' sheet
+// (cloudHighHeight) between t0 and t1, found step by step, then halved down to it; -1 if it does
+// not.
+fn cloudHighCross(o: vec3<f32>, d: vec3<f32>, t0: f32, t1: f32) -> f32 {
+    var near = t0;
+    var above = o.z + d.z * t0 - cloudHighHeight(o.xy + d.xy * t0);
+    let step = (t1 - t0) / f32(cloudCrossSteps);
+    for (var i = 1; i <= cloudCrossSteps; i++) {
+        let t = t0 + f32(i) * step;
+        let now = o.z + d.z * t - cloudHighHeight(o.xy + d.xy * t);
+        if (now < 0.0) != (above < 0.0) {
+            var a = near;
+            var b = t;
+            for (var k = 0; k < cloudCrossHalvings; k++) {
+                let mid = 0.5 * (a + b);
+                let there = o.z + d.z * mid - cloudHighHeight(o.xy + d.xy * mid);
+                if (there < 0.0) == (above < 0.0) {
+                    a = mid;
+                } else {
+                    b = mid;
+                }
+            }
+            return 0.5 * (a + b);
+        }
+        near = t;
+        above = now;
+    }
+    return -1.0;
+}
+
+// cloudHighFloor is where the high clouds' band begins: into the low clouds' bodies, so the two
+// leave no gap between them.
+fn cloudHighFloor() -> f32 {
+    return U.CloudBases.x + cloudOverlap * bodyLowDeep * cloudSize;
+}
+
+// How much of the cover the low clouds hold, unheaped, all of it heaped; how soon the high ones
+// come, a few clouds already holding all of them, and how many fewer the more heaped; how wide
+// their patches and the sheets of one height are, world units, a tile holding a whole number of
+// each; how far into the low clouds' bodies their band begins.
+const cloudLowLeast: f32 = 0.35;
+const cloudHighEarly: f32 = 2.0;
+const cloudHighHeaped: f32 = 0.5;
+const cloudPatchWide: f32 = 2520.0;
+const cloudBandWide: f32 = 1260.0;
+const cloudOverlap: f32 = 0.6;
+
+// How many steps a line takes looking for the high clouds' sheet, and how many times the one that
+// crosses it is halved.
+const cloudCrossSteps: i32 = 8;
+const cloudCrossHalvings: i32 = 4;
+
+// cloudLowAt is the low clouds' noise at p (x) and how much their edge softens there (y), as a
+// pixel pixel world units wide sees them, heaped as billow says (their mass's: 1 but in one
+// layer): looked up in the frame's tile of it (CloudTile, air.Tile), evened out as far as the
+// pixel sees it; cloudHighAt the high clouds'.
+fn cloudLowAt(p: vec2<f32>, pixel: f32, billow: f32) -> vec2<f32> {
+    let lod = cloudTileLevel(pixel, cloudTile * cloudSize);
+    let torn = cloudTileAt(p, lod, cloudTile * cloudSize).r;
+    if billow <= 0.0 {
+        return vec2<f32>(torn, cloudTileSoft * lod);
+    }
+    let core = cloudTileAt(p, cloudTileLevel(pixel, heapTile * heapSize), heapTile * heapSize).g;
+    let heap = heaps(heapCoreLow + core * heapCoreSpan, torn);
+    return vec2<f32>(cloudMix(torn, heap, billow), cloudTileSoft * lod);
+}
+
+fn cloudHighAt(p: vec2<f32>, pixel: f32) -> vec2<f32> {
+    let lod = cloudTileLevel(pixel, cloudTile * cloudSize);
+    return vec2<f32>(cloudTileAt(p, lod, cloudTile * cloudSize).r, cloudTileSoft * lod);
 }
 
 // cloudMix is the clouds' noise of shreds torn and heaps heap mixed as billow says, spread apart
-// as either alone.
+// as either alone: heap alone at 1.
 fn cloudMix(torn: f32, heap: f32, billow: f32) -> f32 {
     let b = clamp(billow, 0.0, 1.0);
-    if b <= 0.0 {
-        return torn;
+    if b >= 1.0 {
+        return heap;
     }
     let n = (1.0 - b) * torn + b * heap;
     return 0.5 + (n - 0.5) / sqrt((1.0 - b) * (1.0 - b) + b * b + heapTorn * b * (1.0 - b));
@@ -41,9 +130,9 @@ fn shreds(q: vec2<f32>) -> f32 {
 }
 
 // heapCores is how high the heaps' cores stand at q, in heaps' cells, as air.heapCores has it: in
-// each cell one heap kept well in from its edges, its size and the cover it forms under thrown by
-// the cell, its top flat and whole, the highest over the point, round lobes bulging from its edge;
-// the same again every heapTile cells.
+// each cell one heap kept well in from its edges, an ellipse with puffs of many sizes on its rim,
+// its size, its shape and the cover it forms under thrown by the cell, its top flat and whole, the
+// highest over the point, lobes bulging from its edge; the same again every heapTile cells.
 fn heapCores(q: vec2<f32>) -> f32 {
     let c = floor(q);
     var top = -10.0;
@@ -51,19 +140,38 @@ fn heapCores(q: vec2<f32>) -> f32 {
     for (var j = -1; j <= 1; j++) {
         for (var i = -1; i <= 1; i++) {
             let at = c + vec2<f32>(f32(i), f32(j));
-            let k = cloudThrow(modulo2(at, heapTile)); // one throw a cell, turned four ways
-            let d = at + 0.5 + heapStray * (vec2<f32>(k, modulo(37.0 * k, 289.0)) / 289.0 - 0.5) - q;
-            let r = heapLeast + heapMore * modulo(53.0 * k, 289.0) / 289.0;
-            let into = min((1.0 - length(d) / r) / heapFlat, 1.0);
-            let t = 1.0 - heapReady * modulo(71.0 * k, 289.0) / 289.0 + heapSlope * (into - 1.0);
-            if t > top {
-                top = t;
-                inside = into;
+            let k = cloudThrow(modulo2(at, heapTile)); // one throw a cell, turned many ways
+            let stray = vec2<f32>(heapRoll(k, 1.0), heapRoll(k, 37.0)) - 0.5;
+            let off = q - (at + 0.5 + heapStray * stray);
+            // an ellipse, long and turned as the throw says, puffs of many sizes on its rim
+            let wide = heapLeast + heapMore * heapRoll(k, 53.0);
+            let narrow = wide / (1.0 + heapStretch * heapRoll(k, 59.0));
+            let turn = 3.14159265 * heapRoll(k, 61.0);
+            let way = vec2<f32>(cos(turn), sin(turn));
+            let across = vec2<f32>(-way.y, way.x);
+            var into = 1.0 - length(vec2<f32>(dot(off, way) / wide, dot(off, across) / narrow));
+            for (var l = 0; l < heapPuffs; l++) {
+                let round = 6.2831853 * heapRoll(k, 67.0 + 7.0 * f32(l));
+                let size = heapPuffLeast + heapPuffMore * heapRoll(k, 73.0 + 7.0 * f32(l));
+                let puff = narrow * size;
+                let rim = heapPuffOut * (cos(round) * wide * way + sin(round) * narrow * across);
+                into = max(into, 1.0 - length(off - rim) / puff);
             }
+            into = min(into / heapFlat, 1.0);
+            top = max(top, 1.0 - heapReady * heapRoll(k, 71.0) + heapSlope * (into - 1.0));
+            // the deepest in any heap: the winning one's jumped where another rose over it,
+            // cutting the lobes off along a straight line
+            inside = max(inside, into);
         }
     }
     let lobes = cloudNoise(4.0 * q + vec2<f32>(0.37, 0.61), 4.0 * heapTile) + 0.5 * cloudNoise(8.0 * q + vec2<f32>(0.53, 0.29), 8.0 * heapTile) - 0.75;
     return top + heapLobes * lobes * clamp(1.0 - inside, 0.0, 1.0);
+}
+
+// heapRoll is a number 0 to 1 the throw k gives, by its multiplier m: whole numbers all, so the
+// CPU (air.heapRoll) works out the very same.
+fn heapRoll(k: f32, m: f32) -> f32 {
+    return modulo(m * k, 289.0) / 289.0;
 }
 
 // heaps is billowing clouds of cores core (heapCores) over shreds torn there, 0 to 1: the shreds
@@ -107,9 +215,14 @@ fn cloudThrow(i: vec2<f32>) -> f32 {
 // heapCoreSpan, what lies under it no heap).
 const cloudSize: f32 = 420.0;
 const cloudTile: f32 = 30.0;
-const heapSize: f32 = 3150.0;
+const heapSize: f32 = 787.5;
 const heapTile: f32 = 16.0;
 const heapStray: f32 = 0.8;
+const heapStretch: f32 = 1.2;
+const heapPuffs: i32 = 5;
+const heapPuffLeast: f32 = 0.35;
+const heapPuffMore: f32 = 0.5;
+const heapPuffOut: f32 = 0.8;
 const heapLeast: f32 = 0.25;
 const heapMore: f32 = 0.2;
 const heapFlat: f32 = 0.25;
@@ -164,9 +277,9 @@ const cloudTileTexels: f32 = 1024.0;
 const cloudTileLevels: f32 = 6.0;
 const cloudTileSoft: f32 = 0.03;
 
-// cloudCover is how thick the clouds are over a point whose noise is field under the air mass m
-// (airAt): 0 in the clear, 1 under the thickest, the noise spread out and cut at the mass's cover,
-// heaps' edges sharper than shreds', as air.Weather.Shade has it.
+// cloudCover is how thick the clouds of a layer are over a point whose noise is field under the
+// layer's air mass m (cloudLowMass, cloudHighMass): 0 in the clear, 1 under the thickest, the noise
+// spread out and cut at the mass's cover, heaps' edges sharper than shreds'.
 fn cloudCover(field: f32, m: vec4<f32>) -> f32 {
     return cloudCoverSoft(field, 0.0, m);
 }

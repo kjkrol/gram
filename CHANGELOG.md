@@ -17,6 +17,42 @@ in a flat world: a board stands only in a world with heights now. Nor those made
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
 entities.
 
+**Low heaps and high shreds** (2026-10-16)
+- The clouds hang in two layers (`air.Layer`): the heaps low, 1.5 km up (`air.CloudLow`), their
+  bodies with lumpy tops reaching `air.Weather.Top`, and the torn shreds, thin sheets each at its
+  own height from into the heaps up to 6 km (`air.CloudBase`, `Weather.HighHeight`), as the
+  weather's `Bases` say (`air.Bases(scale)`). The heaps come the more the sky is covered and
+  heaped, the shreds with a few clouds already and in patches (`air.Mass.Layer`,
+  `Weather.HighAt`): the two together or apart, in rain and in sun. The heaps are four times
+  smaller than before, an ellipse with puffs of many sizes on its rim.
+- Each layer's shadow falls along the way to the sun from its own height, the low ones nearer,
+  the high ones further off; ground standing over the low clouds is out of their shadow
+  (`air.Weather.Shade(x, y, z, sun)`, WGSL `cloudsShadeAt`). The terrain, the hexes, the flat
+  board's ground and `air.CloudShadow` read the clouds' tile for it; `air.Weather.Cloud` takes
+  the layer.
+- On the sky the high layer lies behind the low one, flat or heaped; seen from above the line of
+  sight passes through the heaps' bodies and meets the shreds' sheets at their heights
+  (`aloft.New(weather, layer)`), the clouds thinning away into the ground; an eye under a layer's
+  top sees it on the sky, behind the hills. The sun's and the moon's discs hide behind either.
+- `climate.Config.OneLayer` keeps the clouds in one layer as before, for a flat map nothing stands
+  up into: heaps and shreds mixed, their shadows straight under them.
+- `Clouds` (Shift+V) goes through four looks (`atmosphere.CloudLook`, `Plugin.ShowClouds(look)`):
+  flat sheets on the sky and from above, the low clouds as bodies, both layers as bodies (the
+  high ones heaped thin on the sky too, the game's start), their shadows alone. Seen from above
+  the low clouds stand deep and let the map show through.
+- The telemetry panel shows the moon on a line of its own, the weather a line each for its name,
+  its temperature and its wind, and how the clouds look.
+- The high clouds shade the ground only with `air.Weather.HighShade`, switched by `HighShade`
+  (Shift+S, with the camera free): on as the game starts, off the low ones' shadows alone.
+- Rain and snow fall from the low clouds alone (`air.Weather.FallsAt`), drop by drop in the world
+  between them and the ground (`precipitation.Drops`): a dot from above, a short line from the
+  side, leaning with the wind, too small to make out from far off, where the rain's fog alone
+  shows it. The rain drawn on the screen is gone.
+- The clouds' shadows on the relief are worked out at its lattice's corners, cheaper than before.
+- `render.GroundHeights`: whoever draws the ground hands the frame its heights
+  (`Frame.GroundHeights`, the terrain does), which a shader reads with WGSL `groundHeightAt`; the
+  clouds from above hide inside the ground by them.
+
 **Clouds as bodies** (2026-10-16)
 - Seen from above the clouds are drawn half see-through over the world
   (`plugins/atmosphere/aloft`): thin slices of the clouds' noise from the layer's height up, the

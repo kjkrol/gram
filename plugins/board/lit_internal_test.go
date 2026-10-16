@@ -67,7 +67,8 @@ func TestAtmosphere_TheCloudsShadowsLieOnTheBoardsGroundUnderWhatLiesOnIt(t *tes
 	p.ShowGrid(false)
 	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	cam.SetViewport(512, 384)
-	weather := air.Weather{Clouds: 0.7, Drift: [2]float32{130, -40}}
+	weather := air.Weather{Clouds: 0.7, Drift: [2]float32{130, -40},
+		Bases: air.Bases(world.Scale{}), HighShade: true}
 	held := heldSky{sun: sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 1}, weather: &weather}
 	p.WithAtmosphere(held)
 	screen := render.NewImage(512, 384)

@@ -204,6 +204,7 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		s.carry(w, dt)
 		over := s.over(w, dt, m)
 		now := w.air(s.world.Scale(), *s.running, s.dome, over)
+		now.OneLayer = s.cfg.OneLayer
 		s.current = now
 		if !s.host.Empty() {
 			t := s.world.Tick(d)
@@ -429,7 +430,7 @@ func (w *Weather) wind() [2]float32 {
 func (w *Weather) air(scale world.Scale, r Running, d *air.Dome, over air.Mass) air.Weather {
 	a := air.Weather{Wind: w.wind(), Clouds: over.Cover, Billow: over.Billow, Rain: w.Rain,
 		Snow: w.Snow, Temperature: w.Temperature, Drift: w.Drift, Sight: air.Sight(scale),
-		Dome: d, Dry: !r.Falls}
+		Bases: air.Bases(scale), Dome: d, Dry: !r.Falls}
 	if !r.Wind {
 		a.Wind = [2]float32{}
 	}

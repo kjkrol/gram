@@ -4,6 +4,7 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 )
 
@@ -25,9 +26,16 @@ type ChangeWeather struct{}
 // game's own); a name the climate lacks changes nothing.
 type SetWeather struct{ Name string }
 
-// Clouds has the clouds drawn as bodies, half see-through from above and heaped from under them,
-// or not: their shadows alone from above, a flat layer on the sky.
+// Clouds has the clouds drawn in the next look (CloudLook): flat, the low ones as bodies, all,
+// their shadows alone, flat again.
 type Clouds struct{}
+
+// HighShade has the high clouds shade the ground too, as the game starts, or no longer: the low
+// ones alone do.
+type HighShade struct{}
+
+// Downpour has it rain now: SetWeather of weather.Rain, a key to look at the rain with.
+type Downpour struct{}
 
 func (Freeze) Command()        {}
 func (Later) Command()         {}
@@ -35,6 +43,8 @@ func (Earlier) Command()       {}
 func (ChangeWeather) Command() {}
 func (SetWeather) Command()    {}
 func (Clouds) Command()        {}
+func (HighShade) Command()     {}
+func (Downpour) Command()      {}
 
 var (
 	_ command.Command = Freeze{}
@@ -43,16 +53,19 @@ var (
 	_ command.Command = ChangeWeather{}
 	_ command.Command = SetWeather{}
 	_ command.Command = Clouds{}
+	_ command.Command = HighShade{}
+	_ command.Command = Downpour{}
 )
 
 // Queues are where the atmosphere's commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
 	return []command.CommandQueue{&p.freezes, &p.laters, &p.earliers, &p.changes, &p.sets,
-		&p.clouds}
+		&p.clouds, &p.shades, &p.downpours}
 }
 
 // DefaultBindings are P (Freeze), Shift+] and Shift+[ (Later, Earlier), Shift+V (Clouds) and,
-// with the camera free, Shift+W (ChangeWeather).
+// with the camera free, Shift+W (ChangeWeather) and Shift+S (HighShade): riding, S with Shift
+// sprints back; Shift+U (Downpour).
 func (p *Plugin) DefaultBindings() []control.Binding {
 	shift := control.Mods{Shift: true}
 	return []control.Binding{
@@ -61,8 +74,14 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		control.Build(control.KeyPress{Key: control.KeyBracketLeft, Mods: shift}, "Frozen light half an hour earlier", func(control.Context) (Earlier, bool) { return Earlier{}, true }),
 		control.Build(control.KeyPress{Key: control.KeyW, Mods: shift}, "Change the weather", func(control.Context) (ChangeWeather, bool) { return ChangeWeather{}, true }).In(camera.Outside),
 		control.Build(control.KeyPress{Key: control.KeyV, Mods: shift},
-			"Clouds as bodies, or flat",
+			"Clouds flat, the low as bodies, all, shadows alone",
 			func(control.Context) (Clouds, bool) { return Clouds{}, true }),
+		control.Build(control.KeyPress{Key: control.KeyS, Mods: shift},
+			"The high clouds' shadows, or the low ones' alone",
+			func(control.Context) (HighShade, bool) { return HighShade{}, true },
+		).In(camera.Outside),
+		control.Build(control.KeyPress{Key: control.KeyU, Mods: shift}, "Rain now",
+			func(control.Context) (Downpour, bool) { return Downpour{}, true }),
 	}
 }
 
@@ -72,5 +91,7 @@ func (p *Plugin) carryOut() {
 	p.earliers.Drain(func(command.Issued[Earlier]) { p.sky.Shift(-sky.HalfHour) })
 	p.changes.Drain(func(command.Issued[ChangeWeather]) { p.climate.Change() })
 	p.sets.Drain(func(i command.Issued[SetWeather]) { p.climate.Set(i.Command.Name) })
-	p.clouds.Drain(func(command.Issued[Clouds]) { p.aloft.Show(!p.aloft.Shown()) })
+	p.clouds.Drain(func(command.Issued[Clouds]) { p.ShowClouds((p.look + 1) % (ShadowsAlone + 1)) })
+	p.shades.Drain(func(command.Issued[HighShade]) { p.highShade = !p.highShade })
+	p.downpours.Drain(func(command.Issued[Downpour]) { p.climate.Set(weather.Rain) })
 }

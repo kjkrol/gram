@@ -17,11 +17,14 @@ var weatherUniforms = []render.Uniform{
 	{Name: "Drift", Size: 2},
 	{Name: "Cover", Size: 1},
 	{Name: "Billow", Size: 1},
+	{Name: "AirFalls", Size: 1},
 	{Name: "EyeAt", Size: 3},
 	{Name: "LookDir", Size: 3},
 	{Name: "LookDX", Size: 3},
 	{Name: "LookDY", Size: 3},
-	{Name: "CloudHeight", Size: 1},
+	{Name: "CloudBases", Size: 2},
+	{Name: "CloudsOneLayer", Size: 1},
+	{Name: "CloudsHighShade", Size: 1},
 	{Name: "Visibility", Size: 1},
 	{Name: "SkyOverhead", Size: 3},
 }
@@ -62,8 +65,10 @@ func CloudShadow() render.MaterialID { return cloudShadow }
 // Weather is the air over the world; the zero Weather is a calm, clear day at 0°. Wind is in
 // world units a second, Clouds, Rain and Snow 0 to 1, Billow 0 torn shreds to 1 big heaps,
 // Temperature degrees Celsius, Drift how far the wind has carried the clouds, Sight how far one
-// sees through clear air (Sight), world units, 0 without end. Dome is the air masses the wind
-// carries over the world and its sky, nil the weather alike everywhere; Dry, nothing falls.
+// sees through clear air (Sight), world units, 0 without end, Bases how high each Layer of clouds
+// hangs (Bases), OneLayer all of them High's height, heaps and shreds mixed, shadows straight
+// under, HighShade the high ones shading the ground too. Dome is the air masses the wind carries
+// over the world and its sky, nil the weather alike everywhere; Dry, nothing falls.
 type Weather struct {
 	Wind        [2]float32
 	Clouds      float32
@@ -72,6 +77,9 @@ type Weather struct {
 	Temperature float32
 	Drift       [2]float32
 	Sight       float64
+	Bases       [2]float32
+	OneLayer    bool
+	HighShade   bool
 	Dome        *Dome
 	Dry         bool
 }
@@ -150,9 +158,21 @@ func (w Weather) Frame(f *render.Frame, sun sky.Sun, x, y float32) {
 	f.Uniform("Wind", w.Wind[0], w.Wind[1])
 	f.Uniform("Drift", float32(wrap(float64(w.Drift[0]), HeapTile)),
 		float32(wrap(float64(w.Drift[1]), HeapTile)))
+	f.Uniform("CloudBases", w.Base(Low), w.Base(High))
+	one := float32(0)
+	if w.OneLayer {
+		one = 1
+	}
+	f.Uniform("CloudsOneLayer", one)
+	high := float32(0)
+	if w.HighShade {
+		high = 1
+	}
+	f.Uniform("CloudsHighShade", high)
 	most := w.Most()
 	f.Uniform("Cover", most.Cover)
 	f.Uniform("Billow", most.Billow)
+	f.Uniform("AirFalls", most.Falls)
 	if w.Dome != nil {
 		for k, names := range levelNames {
 			a, c := w.Dome.frame(k)

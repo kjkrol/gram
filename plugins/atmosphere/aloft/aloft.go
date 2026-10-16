@@ -6,7 +6,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -25,24 +24,36 @@ var shader = render.NewMeshShaderWith("aloft", render.Files(shaders, "shaders/al
 		{Name: "AloftWayX", Size: 3},
 		{Name: "AloftWayY", Size: 3},
 		{Name: "AloftBase", Size: 1},
+		{Name: "AloftLow", Size: 1},
+		{Name: "AloftBody", Size: 1},
 		{Name: "AloftShown", Size: 1},
 		{Name: "AloftOrtho", Size: 1},
+		{Name: "AloftSeeing", Size: 1},
 	})
 
-// Renderer is the clouds seen from above, a render.Direct over the world, drawn while shown.
+var layShader = render.NewMeshShaderWith("aloft laid", render.Files(shaders, "shaders/lay.wgsl"),
+	[]render.Uniform{
+		{Name: "LayView", Size: 2},
+		{Name: "LayCoarse", Size: 1},
+	})
+
+// Renderer is a layer of clouds seen from above, a render.Direct over the world at the layer's
+// height, drawn while shown.
 type Renderer struct {
-	base  float32
-	air   func() air.Weather
-	shown bool
+	layer  air.Layer
+	air    func() air.Weather
+	shown  bool
+	bodies bool
 
 	opts     render.DrawMeshOptions
+	layOpts  render.DrawMeshOptions
 	uniforms map[string][]float32 // boxed once in the options
-	low      *render.Image        // the clouds, coarser than the screen
+	coarse   *render.Image        // the clouds, coarser than the screen
 }
 
-// New is the clouds of the weather air gives, seen from above, on a world of scale.
-func New(scale world.Scale, weather func() air.Weather) *Renderer {
-	r := &Renderer{base: air.Base(scale), air: weather, uniforms: map[string][]float32{}}
+// New is the layer of clouds of the weather air gives, seen from above.
+func New(weather func() air.Weather, layer air.Layer) *Renderer {
+	r := &Renderer{layer: layer, air: weather, uniforms: map[string][]float32{}}
 	r.opts.Uniforms = map[string]any{}
 	return r
 }
@@ -50,7 +61,7 @@ func New(scale world.Scale, weather func() air.Weather) *Renderer {
 // how much of what is behind the thickest cloud it hides; how many pixels of the screen a pixel of
 // the clouds spans each way: they are soft, worked out a sixteenth as often and laid over enlarged
 const (
-	shownAt = 0.85
+	shownAt = 0.75
 	coarse  = 4
 )
 
@@ -59,6 +70,9 @@ func (r *Renderer) Show(shown bool) { r.shown = shown }
 
 // Shown reports whether the clouds are drawn from above.
 func (r *Renderer) Shown() bool { return r.shown }
+
+// Bodies has the clouds drawn as bodies, slices stacked as thick as they are, or flat, one sheet.
+func (r *Renderer) Bodies(bodies bool) { r.bodies = bodies }
 
 func (*Renderer) Init(*goke.SysInit) {}
 
@@ -70,13 +84,15 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	}
 	w, h := cam.Viewport()
 	x, y := cam.Unproject(w/2, h/2, 0)
-	f.DrawAt(f.At(x, y, r.base))
+	f.DrawAt(f.At(x, y, r.base()))
 }
 
+func (r *Renderer) base() float32 { return r.air().Base(r.layer) }
+
 // the lines of sight cam looks along, while there are clouds to see from above: none from an eye
-// under the layer, which sees them on the sky
+// under the layer's top, which sees them on the sky
 func (r *Renderer) field(cam camera.Camera) (camera.RayField, bool) {
-	if !r.shown || r.air().Most().Cover <= 0 {
+	if w := r.air(); !r.shown || w.Share(w.Most(), r.layer).Cover <= 0 {
 		return camera.RayField{}, false
 	}
 	rays, ok := cam.(camera.Rays)
@@ -87,13 +103,16 @@ func (r *Renderer) field(cam camera.Camera) (camera.RayField, bool) {
 	if !ok {
 		return camera.RayField{}, false
 	}
-	if f.DX == ([3]float32{}) && f.DY == ([3]float32{}) && f.Origin[2] <= r.base {
+	// an eye among the clouds sees them on the sky, behind the hills: from above, past a ridge
+	// they showed through it
+	if f.DX == ([3]float32{}) && f.DY == ([3]float32{}) && f.Origin[2] <= r.air().Top(r.layer) {
 		return camera.RayField{}, false
 	}
 	return f, true
 }
 
-// Draw draws the clouds into the target's screen through cam.
+// Draw draws the clouds into the target's screen through cam, hidden inside the ground as the
+// frame's render.GroundHeights have it.
 func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	f, ok := r.field(cam)
 	if t.Screen == nil || !ok {
@@ -108,28 +127,36 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	r.set("AloftWay", f.Dir[:]...)
 	r.set("AloftWayX", f.DDX[:]...)
 	r.set("AloftWayY", f.DDY[:]...)
-	r.set("AloftBase", r.base)
+	r.set("AloftBase", r.base())
+	r.set("AloftLow", flag(r.layer == air.Low))
+	r.set("AloftBody", flag(r.bodies))
 	r.set("AloftShown", shownAt)
-	ortho := float32(0)
-	if f.DDX == ([3]float32{}) && f.DDY == ([3]float32{}) {
-		ortho = 1
-	}
-	r.set("AloftOrtho", ortho)
-	r.opts.Vertices = 3
+	r.set("AloftOrtho", flag(f.DDX == ([3]float32{}) && f.DDY == ([3]float32{})))
+	r.set("AloftSeeing", float32(r.air().Visibility(air.Under(cam))))
 	b := t.Screen.Bounds()
+	r.opts.Vertices = 3
 	lw, lh := (b.Dx()+coarse-1)/coarse, (b.Dy()+coarse-1)/coarse
-	if r.low == nil || r.low.Bounds().Dx() != lw || r.low.Bounds().Dy() != lh {
-		if r.low != nil {
-			r.low.Deallocate()
+	if r.coarse == nil || r.coarse.Bounds().Dx() != lw || r.coarse.Bounds().Dy() != lh {
+		if r.coarse != nil {
+			r.coarse.Deallocate()
 		}
-		r.low = render.NewImage(lw, lh)
+		r.coarse = render.NewImage(lw, lh)
 	}
-	r.low.Clear()
-	r.low.DrawMesh(nil, shader, &r.opts)
-	var op render.DrawImageOptions
-	op.GeoM.Scale(float64(b.Dx())/float64(lw), float64(b.Dy())/float64(lh))
-	op.Filter = render.FilterLinear
-	t.Screen.DrawImage(r.low, &op)
+	r.coarse.Clear()
+	r.coarse.DrawMesh(nil, shader, &r.opts)
+	if r.layer == air.High || !r.bodies {
+		// sheets, met once a pixel: no grain to blur
+		var op render.DrawImageOptions
+		op.GeoM.Scale(float64(b.Dx())/float64(lw), float64(b.Dy())/float64(lh))
+		op.Filter = render.FilterLinear
+		t.Screen.DrawImage(r.coarse, &op)
+		return
+	}
+	r.set("LayView", float32(b.Dx()), float32(b.Dy()))
+	r.set("LayCoarse", coarse)
+	r.layOpts.Uniforms, r.layOpts.Vertices = r.opts.Uniforms, 3
+	r.layOpts.Images[0] = r.coarse
+	t.Screen.DrawMesh(nil, layShader, &r.layOpts)
 }
 
 func (r *Renderer) set(name string, v ...float32) {
@@ -140,4 +167,11 @@ func (r *Renderer) set(name string, v ...float32) {
 	}
 	copy(s, v)
 	r.opts.Uniforms[name] = s
+}
+
+func flag(on bool) float32 {
+	if on {
+		return 1
+	}
+	return 0
 }

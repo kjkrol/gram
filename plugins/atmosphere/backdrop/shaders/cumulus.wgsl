@@ -1,8 +1,8 @@
-// The clouds as heaps seen from under them (backdrop, with bodies on): every pixel of a view
-// U.HeapsView pixels wide, worked out U.HeapsPixel screen pixels at a time, looks along its line of
-// sight (U.LookDir + U.LookDX·x + U.LookDY·y from U.EyeAt) through the layer U.CloudHeight up and
-// heapsDeep clouds' widths deep: a cloud's base flat on it, its top domed as high as it is thick,
-// lit from above and darker underneath, its thin edges shining towards the sun; hazed with the
+// The clouds as heaps seen from under them (backdrop, with bodies on), the layers U.HeapsLayers
+// says, the low before the high: every pixel of a view U.HeapsView pixels wide, worked out
+// U.HeapsPixel screen pixels at a time, looks along its line of sight (U.LookDir + U.LookDX·x +
+// U.LookDY·y from U.EyeAt) through the heaps (cloudHeap), lit from above and darker underneath,
+// the thin edges shining towards the sun, and to the sheets of shreds over them; hazed with the
 // distance (U.Visibility) and faded along the horizon. Premultiplied, for the sky to lay over.
 
 struct Out {
@@ -26,70 +26,95 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> Out {
 @fragment
 fn fs_main(o: Out) -> @location(0) vec4<f32> {
     let d = U.LookDir + U.LookDX * o.px.x + U.LookDY * o.px.y;
-    let len = length(d);
-    let view = d / max(len, 1e-6);
+    let view = d / max(length(d), 1e-6);
     let fade = smoothstep(skyLift, 3.0 * skyLift, view.z);
     if fade <= 0.0 {
         return vec4<f32>(0.0);
     }
-    let deep = heapsDeep * cloudSize;
-    let enter = max((U.CloudHeight - U.EyeAt.z) / d.z, 0.0);
-    let leave = (U.CloudHeight + deep - U.EyeAt.z) / d.z;
+    // the steps put off at random a pixel: an even pattern showed as stripes
+    let dither = fract(sin(dot(o.px, vec2<f32>(12.9898, 78.233))) * 43758.5453);
+    var seen = vec4<f32>(0.0);
+    if U.HeapsLayers.x > 0.5 {
+        seen = heapsOf(o.px, d, dither, true);
+    }
+    if U.HeapsLayers.y > 0.5 && seen.a < 0.97 {
+        seen += (1.0 - seen.a) * heapsOf(o.px, d, dither, false);
+    }
+    return seen * fade;
+}
+
+// heapsOf is the low layer's heaps if low, else the high one's sheets, along the line of sight d
+// of the view's pixel px, the heaps' steps put off by dither: premultiplied, hazed with the
+// distance.
+fn heapsOf(px: vec2<f32>, d: vec3<f32>, dither: f32, low: bool) -> vec4<f32> {
+    let span = cloudBodySpan(low);
+    let enter = max((span.x - U.EyeAt.z) / d.z, 0.0);
+    let leave = (span.y - U.EyeAt.z) / d.z;
     if leave <= enter {
         return vec4<f32>(0.0);
     }
-    let m = airAt(U.EyeAt.xy + d.xy * 0.5 * (enter + leave));
+    let len = length(d);
+    let sky = U.Ambience * cloudsSkyLit;
+    let sun = U.SunColor * U.SunStrength * cloudsSunLit;
+    if !low {
+        // a thin sheet where the line meets it, at its own height
+        let t = cloudHighCross(U.EyeAt, d, enter, leave);
+        if t < 0.0 {
+            return vec4<f32>(0.0);
+        }
+        let p = U.EyeAt.xy + d.xy * t;
+        let m = cloudHighHere(cloudHighMass(airAt(p)), p);
+        if m.x <= 0.0 {
+            return vec4<f32>(0.0);
+        }
+        let c = cloudHighAt(p, t * length(U.LookDX) * U.HeapsPixel);
+        // thin wisps, thicker only in the middle
+        let a = cloudCoverSoft(c.x, c.y, m) * heapsSheet * (0.5 + 0.5 * cloudThick(c.x, m));
+        return vec4<f32>((sky + sun) * a, a) * (1.0 - heapsHaze(t * len));
+    }
+    let m = cloudLowMass(airAt(U.EyeAt.xy + d.xy * 0.5 * (enter + leave)));
     if m.x <= 0.0 {
         return vec4<f32>(0.0);
     }
-    var haze = 0.0;
-    if U.Visibility > 0.0 {
-        haze = 1.0 - exp(-enter * len / U.Visibility);
-    }
-    let toward = max(dot(view, sunWay()), 0.0);
+    let toward = max(dot(d / max(len, 1e-6), sunWay()), 0.0);
     let glow = toward * toward * toward * toward * toward * toward;
-    let sky = U.Ambience * cloudsSkyLit;
-    let sun = U.SunColor * U.SunStrength * cloudsSunLit;
-    let dither = fract(52.9829189 * fract(dot(o.px, vec2<f32>(0.06711056, 0.00583715))));
     let step = (leave - enter) / f32(heapsSteps);
     var seen = vec4<f32>(0.0);
     for (var i = 0; i < heapsSteps; i++) {
         let t = enter + (f32(i) + dither) * step;
-        let h = (U.EyeAt.z + d.z * t - U.CloudHeight) / deep;
+        let z = U.EyeAt.z + d.z * t;
         let p = U.EyeAt.xy + d.xy * t;
-        let pixel = t * length(U.LookDX) * U.HeapsPixel;
-        let lod = cloudTileLevel(pixel, cloudTile * cloudSize);
-        let torn = cloudTileAt(p, lod, cloudTile * cloudSize).r;
-        var core = 0.0;
-        if m.y > 0.0 {
-            let heapLod = cloudTileLevel(pixel, heapTile * heapSize);
-            core = cloudTileAt(p, heapLod, heapTile * heapSize).g;
-        }
-        let field = cloudFromTile(torn, core, m.y);
-        let cover = cloudCoverSoft(field, cloudTileSoft * lod, m);
-        let thick = cloudThick(field, m);
-        // the top domed over the thick middle, rounded off to the edge
-        let top = sqrt(thick) + 0.15 * cover;
-        let a = cover * (1.0 - smoothstep(top - heapsSoft, top, h)) * heapsDense;
+        let heap = cloudHeap(p, z, t * length(U.LookDX) * U.HeapsPixel, m);
+        let a = heap.x * heapsDense;
         if a <= 0.0 {
             continue;
         }
-        let rgb = sky * mix(heapsUnder, 1.0, h) + sun * (0.35 + 0.65 * h) +
-            U.SunColor * U.SunStrength * glow * (1.0 - thick) * heapsRim;
+        // as much of the sun as the heap over the point lets through: white at the top, grey at
+        // the flat base
+        let rgb = sky * mix(heapsUnder, 1.0, heap.y) + sun * mix(heapsBase, 1.0, heap.y) +
+            U.SunColor * U.SunStrength * glow * (1.0 - heap.x) * heapsRim;
         seen += (1.0 - seen.a) * vec4<f32>(rgb * a, a);
         if seen.a > 0.97 {
             break;
         }
     }
-    return seen * (1.0 - haze) * fade;
+    return seen * (1.0 - heapsHaze(enter * len));
 }
 
-// How many steps a line of sight takes through the layer, how deep the layer is in clouds'
-// widths, over how much of it a top rounds off, how much of what is behind one step hides, how
-// much darker a cloud's base is than its top, how brightly its thin edges shine towards the sun.
-const heapsSteps: i32 = 24;
-const heapsDeep: f32 = 0.5;
-const heapsSoft: f32 = 0.2;
-const heapsDense: f32 = 0.2;
-const heapsUnder: f32 = 0.55;
+// heapsHaze is how much of what lies d world units off the air hides.
+fn heapsHaze(d: f32) -> f32 {
+    if U.Visibility <= 0.0 {
+        return 0.0;
+    }
+    return 1.0 - exp(-d / U.Visibility);
+}
+
+// How many steps a line of sight takes through the heaps; how much of what is behind one step
+// hides, and behind a sheet of shreds; how much darker a heap's base is than its top in the sky's
+// light, and in the sun's; how brightly its thin edges shine to the sun.
+const heapsSteps: i32 = 20;
+const heapsSheet: f32 = 0.55;
+const heapsDense: f32 = 0.28;
+const heapsUnder: f32 = 0.7;
+const heapsBase: f32 = 0.55;
 const heapsRim: f32 = 0.8;

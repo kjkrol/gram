@@ -25,7 +25,8 @@ func TestBackdrop_DrawsTheSkyOnTheGPU(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	sun := sky.Sun{Dir: eyedF, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
-	b := New(w.Res.Config.Space, world.Scale{}, func() sky.Sun { return sun }, func() air.Weather { return air.Weather{} })
+	b := New(w.Res.Config.Space, func() sky.Sun { return sun },
+		func() air.Weather { return air.Weather{} })
 	screen := render.NewImage(100, 100)
 	pix := make([]byte, 4*100*100)
 	at := func(x, y int) [4]byte { i := 4 * (y*100 + x); return [4]byte(pix[i : i+4]) }
@@ -46,17 +47,18 @@ func TestBackdrop_DrawsTheSkyOnTheGPU(t *testing.T) {
 	}
 }
 
-func TestBackdrop_HeapsTheCloudsWhileTheyAreBodies(t *testing.T) {
+func TestBackdrop_DrawsTheLayersFlatOrHeapedOrNone(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	sun := sky.Sun{Dir: eyedF, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
-	weather := air.Weather{}
-	bodies := false
-	b := New(w.Res.Config.Space, world.Scale{}, func() sky.Sun { return sun },
-		func() air.Weather { return weather }).WithBodies(func() bool { return bodies })
-	draw := func() []byte {
+	bases := air.Bases(world.Scale{})
+	weather := air.Weather{Bases: bases}
+	var look Clouds
+	b := New(w.Res.Config.Space, func() sky.Sun { return sun },
+		func() air.Weather { return weather }).WithClouds(func() Clouds { return look })
+	draw := func(eye float32) []byte {
 		u := map[string]any{"CloudTile": air.Tile()}
 		c := render.NewComposer(b)
 		c.DrawWorld(nil, cam)
@@ -65,28 +67,45 @@ func TestBackdrop_HeapsTheCloudsWhileTheyAreBodies(t *testing.T) {
 		}
 		screen := render.NewImage(100, 100)
 		defer screen.Deallocate()
-		b.Draw(render.Target{Screen: screen}, raying{height: 30}, render.UniformsOf(u))
+		b.Draw(render.Target{Screen: screen}, raying{height: eye}, render.UniformsOf(u))
 		pix := make([]byte, 4*100*100)
 		screen.ReadPixels(pix)
 		return pix
 	}
-	clear := draw()
-	weather = air.Weather{Clouds: 0.9, Billow: 0.8}
-	for _, bodies = range []bool{false, true} {
-		pix := draw()
-		clouded := 0
-		for i := 0; i < len(pix); i += 4 {
-			if pix[i+3] != 255 {
-				t.Fatalf("bodies %v: the sky's pixel %d is see-through, %v", bodies, i/4,
-					pix[i:i+4])
+	// over the clouds, both layers
+	over := bases[air.High] + 300
+	for _, c := range []struct {
+		billow float32
+		one    bool
+	}{{0, false}, {1, false}, {1, true}} {
+		billow := c.billow
+		// the sky as grey, its clouds both under the eye
+		weather = air.Weather{Clouds: 0.9, Billow: billow, Bases: [2]float32{1, 2}, OneLayer: c.one}
+		clear := map[float32][]byte{30: draw(30), over: draw(over)}
+		weather.Bases = bases
+		looks := []Clouds{{}, {Bodies: [2]bool{true, false}}, {Bodies: [2]bool{true, true}},
+			{Hidden: true}}
+		for _, look = range looks {
+			for _, eye := range []float32{30, over} {
+				pix := draw(eye)
+				clouded := 0
+				for i := 0; i < len(pix); i += 4 {
+					if pix[i+3] != 255 {
+						t.Fatalf("%+v: the sky's pixel %d is see-through, %v", look, i/4,
+							pix[i:i+4])
+					}
+					c := clear[eye]
+					if pix[i] != c[i] || pix[i+1] != c[i+1] || pix[i+2] != c[i+2] {
+						clouded++
+					}
+				}
+				want := eye < over && !look.Hidden
+				if got := clouded >= 100*100/5; got != want || look.Hidden && clouded > 0 {
+					t.Errorf("billow %v, one layer %v, %+v, from %v up: clouds over %d of the "+
+						"sky's pixels, want a heavy cover's worth %v", billow, c.one, look, eye,
+						clouded, want)
+				}
 			}
-			if pix[i] != clear[i] || pix[i+1] != clear[i+1] || pix[i+2] != clear[i+2] {
-				clouded++
-			}
-		}
-		if clouded < 100*100/5 {
-			t.Errorf("bodies %v: clouds over %d of the sky's pixels, want a heavy cover's worth",
-				bodies, clouded)
 		}
 	}
 }

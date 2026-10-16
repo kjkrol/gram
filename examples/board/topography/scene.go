@@ -4,6 +4,7 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/atmosphere"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/painter"
@@ -67,7 +68,7 @@ func (m *mainScene) screen() *ui.Element {
 	}
 	a.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
 	a.topography.WithAtmosphere(a.atmosphere)
-	a.atmosphere.ShowClouds(true)
+	a.atmosphere.ShowClouds(atmosphere.AllBodies)
 	a.vision.WithViews(render.Show(a.selection.IsSelected))
 	a.cameras.ShowZones(true)
 

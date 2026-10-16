@@ -45,7 +45,8 @@ func TestBackdrop_DrawsTheSkyFromTheHorizonUpAndTheCloudsOnIt(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	sun := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
 	weather := air.Weather{}
-	b := New(w.Res.Config.Space, world.Scale{}, func() sky.Sun { return sun }, func() air.Weather { return weather })
+	b := New(w.Res.Config.Space, func() sky.Sun { return sun },
+		func() air.Weather { return weather })
 	p := b.plan(raying{height: 30})
 	if p.None || p.Flat || p.Clouds {
 		t.Fatalf("under a clear sky through a perspective: %+v, want the sky along the lines of sight and no clouds", p)
@@ -53,11 +54,14 @@ func TestBackdrop_DrawsTheSkyFromTheHorizonUpAndTheCloudsOnIt(t *testing.T) {
 	if f, _ := (raying{height: 30}).Rays(); p.Field != f || p.Eye != [3]float32{50, 150, 30} || p.View != [2]float32{100, 100} {
 		t.Errorf("the sky looks along %+v from %v over %v, want the camera's lines of sight from its eye over its viewport", p.Field, p.Eye, p.View)
 	}
-	weather = air.Weather{Clouds: 1}
-	if p := b.plan(raying{height: 30}); !p.Clouds || p.CloudHeight != air.Base(world.Scale{}) {
-		t.Errorf("under full cloud from 30 up: clouds %v %v up, want them on the layer %v up", p.Clouds, p.CloudHeight, air.Base(world.Scale{}))
+	bases := air.Bases(world.Scale{})
+	weather = air.Weather{Clouds: 1, Bases: bases}
+	for _, z := range []float32{30, bases[air.Low] + 1} {
+		if p := b.plan(raying{height: z}); !p.Clouds {
+			t.Errorf("under full cloud from %v up the sky shows none", z)
+		}
 	}
-	if p := b.plan(raying{height: air.Base(world.Scale{}) + 1}); p.Clouds {
-		t.Error("from above the cloud layer the clouds are drawn on the sky")
+	if p := b.plan(raying{height: bases[air.High] + 1}); p.Clouds {
+		t.Error("from above both layers the clouds are drawn on the sky")
 	}
 }

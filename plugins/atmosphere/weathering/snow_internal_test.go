@@ -23,7 +23,7 @@ func TestWeathering_SnowFallsOnlyUnderTheSnowingMass(t *testing.T) {
 	// a snowing mass over the west, two of the dome's cells deep
 	dome.Carry([2]float32{}, func(x, _ float32) (air.Mass, int16) {
 		if x < 2*air.BoardCell {
-			return air.Mass{Cover: 1, Falls: 1}, 0
+			return air.Mass{Cover: 1, Billow: 1, Falls: 1}, 0
 		}
 		return air.Mass{}, 0
 	}, true)

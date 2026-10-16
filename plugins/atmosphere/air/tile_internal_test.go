@@ -51,10 +51,18 @@ func TestTile_ReadsOnAcrossItsWrap(t *testing.T) {
 		screen.ReadPixels(pix)
 		screen.Deallocate()
 		for k, name := range []string{"shreds", "cores"} {
+			// across the wrap no steeper than the noise anywhere else on the line
+			steep := 0.0
 			for x := 1; x < w; x++ {
-				if d := math.Abs(float64(pix[4*x+k]) - float64(pix[4*(x-1)+k])); d > 2 {
+				if x < w/2-8 || x > w/2+8 {
+					steep = max(steep, math.Abs(float64(pix[4*x+k])-float64(pix[4*(x-1)+k])))
+				}
+			}
+			for x := w/2 - 8; x <= w/2+8; x++ {
+				if d := math.Abs(float64(pix[4*x+k]) - float64(pix[4*(x-1)+k])); d > steep+2 {
 					t.Errorf("from %v on level %v the %s step %v at %d units on, want no jump "+
-						"across the wrap at %d", c.from, c.level, name, d, x, w/2)
+						"across the wrap at %d over the %v elsewhere", c.from, c.level, name, d, x,
+						w/2, steep)
 				}
 			}
 		}

@@ -17,7 +17,8 @@ func (reporter) Init(*goke.SysInit) {}
 func (r reporter) Report(line func(label, value string)) {
 	m := r.c.Now()
 	line("Time of day", m.Hour())
-	line("Season", fmt.Sprintf("%s, %s, %s", m.Season(), m.Written(), m.MoonName()))
+	line("Season", fmt.Sprintf("%s, %s", m.Season(), m.Written()))
+	line("Moon", m.MoonName())
 }
 
 // HUD is a screen renderer showing the hour, the date and the moon in the bottom-right corner,

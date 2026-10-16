@@ -47,10 +47,10 @@ fn airLevelC(k: i32) -> vec4<f32> {
 
 // airAt is the air mass over the world point p: its cover, billow, falls and damp; the finest
 // level read there, given way to the next along its edge, and past the dome its edge. Without a
-// dome, the frame's cover and billow everywhere.
+// dome, the frame's cover, billow and falls everywhere.
 fn airAt(p: vec2<f32>) -> vec4<f32> {
     if U.AirLevel0A.z <= 0.0 {
-        return vec4<f32>(U.Cover, U.Billow, 0.0, 0.0);
+        return vec4<f32>(U.Cover, U.Billow, U.AirFalls, 0.0);
     }
     var last = 0;
     for (var k = 0; k < 6; k++) {

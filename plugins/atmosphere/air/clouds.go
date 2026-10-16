@@ -25,11 +25,104 @@ func Overhead(sky render.Light, clouds float32) render.Light {
 	return Overcast(deep, clouds)
 }
 
-// CloudBase is how high the clouds hang, in metres.
-const CloudBase = 6000.0
+// Layer is a layer of clouds: Low the heaps, High the torn shreds over them.
+type Layer uint8
 
-// Base is the height of the cloud layer on a world of scale, in world units.
-func Base(scale world.Scale) float32 { return float32(scale.Units(CloudBase)) }
+const (
+	Low Layer = iota
+	High
+)
+
+// CloudLow is how high the low clouds hang, in metres, CloudBase the high ones.
+const (
+	CloudLow  = 1500.0
+	CloudBase = 6000.0
+)
+
+// Bases is how high each Layer of clouds hangs on a world of scale, in world units.
+func Bases(scale world.Scale) [2]float32 {
+	return [2]float32{float32(scale.Units(CloudLow)), float32(scale.Units(CloudBase))}
+}
+
+// Base is how high the layer l of clouds hangs, world units.
+func (w Weather) Base(l Layer) float32 {
+	if w.OneLayer {
+		return w.Bases[High]
+	}
+	return w.Bases[l]
+}
+
+// Top is how high the layer l of clouds reaches, world units: the heaps' lumps, the shreds' band.
+func (w Weather) Top(l Layer) float32 {
+	if l == High && !w.OneLayer {
+		return w.Bases[High]
+	}
+	return w.Base(l) + lowRise*lowDeep*cloudSize
+}
+
+// Share is the share of m the layer l of clouds holds (Mass.Layer); in one layer, all of it Low's.
+func (w Weather) Share(m Mass, l Layer) Mass {
+	switch {
+	case !w.OneLayer:
+		return m.Layer(l)
+	case l == Low:
+		return m
+	}
+	return Mass{}
+}
+
+// Layer is the share of m the layer l of clouds holds: the heaps the more the sky is covered and
+// the more heaped, the shreds there with a few clouds already and the fewer the more heaped, in
+// patches (Weather.HighAt), the two together or apart.
+func (m Mass) Layer(l Layer) Mass {
+	cover, billow := min(max(m.Cover, 0), 1), min(max(m.Billow, 0), 1)
+	if l == Low {
+		m.Cover, m.Billow = cover*(lowLeast+(1-lowLeast)*billow), 1
+		return m
+	}
+	m.Cover, m.Billow = min(highEarly*cover, 1)*(1-highHeaped*billow), 0
+	return m
+}
+
+// how much of the cover the low clouds hold, unheaped, all of it heaped; how soon the high ones
+// come, a few clouds already holding all of them, and how many fewer the more heaped; the shaders
+// have the same
+const (
+	lowLeast   = 0.35
+	highEarly  = 2
+	highHeaped = 0.5
+)
+
+// HighAt is the high clouds' mass m (Mass.Layer) at the world point (x, y): there in patches,
+// none between.
+func (w Weather) HighAt(m Mass, x, y float32) Mass {
+	q := float64(x-w.Drift[0])/patchWide + 17
+	r := float64(y-w.Drift[1])/patchWide + 17
+	t := min(max((cloudNoise(q, r, CloudTile/patchWide)-0.3)/0.4, 0), 1)
+	m.Cover *= float32(t * t * (3 - 2*t))
+	return m
+}
+
+// HighHeight is how high the high clouds hang over the world point (x, y), world units: each
+// sheet of shreds at its own height through their band, from into the low clouds' bodies up to
+// their Base.
+func (w Weather) HighHeight(x, y float32) float32 {
+	n := float32(cloudNoise(float64(x-w.Drift[0])/bandWide, float64(y-w.Drift[1])/bandWide,
+		CloudTile/bandWide))
+	floor := w.Bases[Low] + overlap*lowDeep*cloudSize
+	return floor + (w.Bases[High]-floor)*n
+}
+
+// how wide the high clouds' patches and the sheets of one height are, world units, a tile holding
+// a whole number of each; how deep the heaps' bodies stand, in clouds' widths, and how far into
+// them the high clouds' band begins; the shaders have the same
+const (
+	patchWide = 2520
+	bandWide  = 1260
+	lowDeep   = 0.45
+	lowRise   = 1.6
+	overlap   = 0.6
+)
 
 // cloudSize in world units; the shaders have the same numbers
 const (
@@ -54,31 +147,60 @@ const (
 
 // heapSize in world units, the rest in heaps' cells or parts of the cover
 const (
-	heapSize  = 3150
+	heapSize  = 787.5
 	heapStray = 0.8
-	heapLeast = 0.25
-	heapMore  = 0.2
-	heapFlat  = 0.25
-	heapReady = 0.6
-	heapSlope = 0.6
-	heapLobes = 1.2
-	heapBumps = 0.3
-	heapFloor = 0.2
-	heapTorn  = 0.4
+	// the ellipse up to so much longer than wide, the puffs on its rim, how big of its width and
+	// how far out
+	heapStretch   = 1.2
+	heapPuffs     = 5
+	heapPuffLeast = 0.35
+	heapPuffMore  = 0.5
+	heapPuffOut   = 0.8
+	heapLeast     = 0.25
+	heapMore      = 0.2
+	heapFlat      = 0.25
+	heapReady     = 0.6
+	heapSlope     = 0.6
+	heapLobes     = 1.2
+	heapBumps     = 0.3
+	heapFloor     = 0.2
+	heapTorn      = 0.4
 )
 
-// Cloud is the clouds' noise over the world point (x, y), heaped as its mass is, 0 to 1, the
-// clouds where it is high: the very noise the shaders work out per pixel (cloudField).
-func (w Weather) Cloud(x, y float32) float32 { return w.cloud(x, y, w.At(x, y).Billow) }
+// Cloud is the noise of the layer l of clouds over the world point (x, y), 0 to 1, the clouds
+// where it is high: the heaps' or the shreds', which the shaders look up in their Tile; in one
+// layer, both mixed as heaped as the mass there is.
+func (w Weather) Cloud(l Layer, x, y float32) float32 {
+	return w.cloud(l, x, y, w.Share(w.At(x, y), l).Billow)
+}
 
-func (w Weather) cloud(x, y, billow float32) float32 {
-	b := float64(min(max(billow, 0), 1))
+func (w Weather) cloud(l Layer, x, y, billow float32) float32 {
+	torn, heap := w.noise(x, y, l == Low && billow > 0)
+	if l == High {
+		return torn
+	}
+	return mix(torn, heap, billow)
+}
+
+// the shreds' noise and the heaps' mixed as billow says, spread apart as either alone, as
+// cloudMix has it
+func mix(torn, heap, billow float32) float32 {
+	b := float64(clamp01(billow))
+	if b <= 0 {
+		return torn
+	}
+	n := (1-b)*float64(torn) + b*float64(heap)
+	return clamp01(float32(0.5 + (n-0.5)/math.Sqrt((1-b)*(1-b)+b*b+heapTorn*b*(1-b))))
+}
+
+// the shreds' noise over (x, y) and, if heaped, the heaps' grown out of them
+func (w Weather) noise(x, y float32, heaped bool) (torn, heap float32) {
 	x, y = x-w.Drift[0], y-w.Drift[1]
 	n := shreds(float64(x)/cloudSize, float64(y)/cloudSize)
-	if b > 0 {
-		n = (1-b)*n + b*heaps(heapCores(float64(x)/heapSize, float64(y)/heapSize), n)
+	if heaped {
+		heap = clamp01(float32(heaps(heapCores(float64(x)/heapSize, float64(y)/heapSize), n)))
 	}
-	return float32(0.5 + (n-0.5)/math.Sqrt((1-b)*(1-b)+b*b+heapTorn*b*(1-b)))
+	return clamp01(float32(n)), heap
 }
 
 func shreds(x, y float64) float64 {
@@ -87,7 +209,8 @@ func shreds(x, y float64) float64 {
 	return n / 1.875
 }
 
-// one heap a cell, kept well in from its edges so the heaps stand apart
+// one heap a cell, kept well in from its edges so the heaps stand apart: an ellipse with puffs on
+// its rim, as the shaders' heapCores
 func heapCores(x, y float64) float64 {
 	cx, cy := math.Floor(x), math.Floor(y)
 	top, inside := -10.0, 0.0
@@ -95,18 +218,30 @@ func heapCores(x, y float64) float64 {
 		for i := -1.0; i <= 1; i++ {
 			px, py := cx+i, cy+j
 			k := cloudThrow(wrap(px, heapTile), wrap(py, heapTile))
-			dx := px + 0.5 + heapStray*(k/289-0.5) - x
-			dy := py + 0.5 + heapStray*(mod289(37*k)/289-0.5) - y
-			r := heapLeast + heapMore*mod289(53*k)/289
-			in := min((1-math.Sqrt(dx*dx+dy*dy)/r)/heapFlat, 1)
-			if t := 1 - heapReady*mod289(71*k)/289 + heapSlope*(in-1); t > top {
-				top, inside = t, in
+			ox := x - (px + 0.5 + heapStray*(heapRoll(k, 1)-0.5))
+			oy := y - (py + 0.5 + heapStray*(heapRoll(k, 37)-0.5))
+			wide := heapLeast + heapMore*heapRoll(k, 53)
+			narrow := wide / (1 + heapStretch*heapRoll(k, 59))
+			wy, wx := math.Sincos(math.Pi * heapRoll(k, 61))
+			along, across := (ox*wx+oy*wy)/wide, (oy*wx-ox*wy)/narrow
+			in := 1 - math.Sqrt(along*along+across*across)
+			for l := range heapPuffs {
+				sr, cr := math.Sincos(2 * math.Pi * heapRoll(k, 67+7*float64(l)))
+				puff := narrow * (heapPuffLeast + heapPuffMore*heapRoll(k, 73+7*float64(l)))
+				rx := heapPuffOut * (cr*wide*wx - sr*narrow*wy)
+				ry := heapPuffOut * (cr*wide*wy + sr*narrow*wx)
+				in = max(in, 1-math.Hypot(ox-rx, oy-ry)/puff)
 			}
+			in = min(in/heapFlat, 1)
+			top = max(top, 1-heapReady*heapRoll(k, 71)+heapSlope*(in-1))
+			inside = max(inside, in) // the deepest in any heap, as the shaders'
 		}
 	}
 	lobes := cloudNoise(4*x+0.37, 4*y+0.61, 4*heapTile) + 0.5*cloudNoise(8*x+0.53, 8*y+0.29, 8*heapTile) - 0.75
 	return top + heapLobes*lobes*min(max(1-inside, 0), 1)
 }
+
+func heapRoll(k, m float64) float64 { return mod289(m*k) / 289 }
 
 func heaps(core, torn float64) float64 {
 	return max(0.5+(core+heapBumps*(torn-0.5)-0.5)/cloudContrast, torn-heapFloor)
@@ -114,22 +249,59 @@ func heaps(core, torn float64) float64 {
 
 func wrap(v, period float64) float64 { return v - period*math.Floor(v/period) }
 
-// Shade is how thick the clouds are over the world point (x, y), their noise (Cloud) cut at its
-// mass's cover, 0 in the clear up to 1 under the thickest.
-func (w Weather) Shade(x, y float32) float32 {
-	m := w.At(x, y)
-	return shade(w.cloud(x, y, m.Billow), m)
+// Shade is how much of the sun the clouds take at the world point (x, y, z) under the sun at sun,
+// 0 in the clear up to 1 under the thickest: each layer where the way to the sun crosses it, in
+// one layer straight over the point, the high one only with HighShade.
+func (w Weather) Shade(x, y, z float32, sun [3]float32) float32 {
+	var ax, ay float32 // across a world unit up the way to the sun
+	n := float32(math.Sqrt(float64(sun[0]*sun[0] + sun[1]*sun[1] + sun[2]*sun[2])))
+	if n > 0 && !w.OneLayer {
+		slant := max(sun[2]/n, lowSun) * n
+		ax, ay = sun[0]/slant, sun[1]/slant
+	}
+	clear := float32(1)
+	for _, l := range []Layer{Low, High} {
+		h := w.Base(l) - z
+		if l == High {
+			h = w.HighHeight(x, y) - z // the sheet's over the point, near enough
+		}
+		if h <= 0 || l == High && !w.HighShade {
+			continue // the ground over the layer, or high clouds shading nothing
+		}
+		clear *= 1 - w.cover(l, x+ax*h, y+ay*h)
+	}
+	return 1 - clear
+}
+
+// the sun lower than this casts the clouds' shadows as far as at it
+const lowSun = 0.25
+
+// how thick the clouds of the layer l are over the world point (x, y)
+func (w Weather) cover(l Layer, x, y float32) float32 {
+	m := w.Share(w.At(x, y), l)
+	if l == High {
+		m = w.HighAt(m, x, y)
+	}
+	if m.Cover <= 0 {
+		return 0
+	}
+	return shade(w.cloud(l, x, y, m.Billow), m)
 }
 
 // FallsAt is the rain and the snow coming down at the world point (x, y), 0 to 1: its mass's,
-// only as thick as the clouds over it let fall, none from their gaps.
+// only as thick as the low clouds over it let fall, none from their gaps nor from the high ones.
 func (w Weather) FallsAt(x, y float32) (rain, snow float32) {
 	m := w.At(x, y)
 	rain, snow = w.Falls(m)
 	if rain+snow <= 0 {
 		return 0, 0
 	}
-	t := min(shade(w.cloud(x, y, m.Billow), m)/fallUnder, 1)
+	low := w.Share(m, Low)
+	if low.Cover <= 0 {
+		return 0, 0
+	}
+	torn, heap := w.noise(x, y, low.Billow > 0)
+	t := min(shade(mix(torn, heap, low.Billow), low)/fallUnder, 1)
 	under := t * t * (3 - 2*t)
 	return rain * under, snow * under
 }

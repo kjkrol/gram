@@ -2,6 +2,7 @@ package atmosphere
 
 import (
 	"github.com/kjkrol/ceremony/command"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/aloft"
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
 	"github.com/kjkrol/gram/plugins/atmosphere/precipitation"
@@ -102,26 +104,43 @@ func TestPlugin_DrawsTheSkyTheCloudsAndWhatFalls(t *testing.T) {
 	if err := a.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(ctx.drawn) != 3 {
-		t.Fatalf("the atmosphere draws %v, want the sky, the clouds seen from above and what "+
-			"falls", ctx.drawn)
+	if len(ctx.drawn) != 4 {
+		t.Fatalf("the atmosphere draws %v, want the sky, the low clouds and the high seen from "+
+			"above and what falls", ctx.drawn)
 	}
 	if _, ok := ctx.drawn[0].(*backdrop.Renderer); !ok {
 		t.Errorf("the atmosphere draws %T first, want the sky", ctx.drawn[0])
 	}
-	if _, ok := ctx.drawn[1].(*aloft.Renderer); !ok {
-		t.Errorf("the atmosphere draws %T second, want the clouds seen from above", ctx.drawn[1])
+	for _, i := range []int{1, 2} {
+		if _, ok := ctx.drawn[i].(*aloft.Renderer); !ok {
+			t.Errorf("the atmosphere draws %T %d., want a layer of clouds seen from above",
+				ctx.drawn[i], i+1)
+		}
 	}
-	if _, ok := ctx.drawn[2].(*precipitation.Renderer); !ok {
-		t.Errorf("the atmosphere draws %T third, want what falls", ctx.drawn[2])
+	if _, ok := ctx.drawn[3].(*precipitation.Drops); !ok {
+		t.Errorf("the atmosphere draws %T last, want what falls drop by drop", ctx.drawn[3])
 	}
-	if a.CloudsShown() {
-		t.Error("the clouds are drawn from above before a scene says so")
+	look := func() (CloudLook, [2]bool, [2]bool) {
+		return a.ShownClouds(), [2]bool{a.aloft[air.Low].Shown(), a.aloft[air.High].Shown()},
+			a.skyClouds().Bodies
 	}
-	a.clouds.Put(command.Nobody, Clouds{})
-	a.carryOut()
-	if !a.CloudsShown() {
-		t.Error("Clouds left the clouds seen from above hidden")
+	for _, want := range []struct {
+		look          CloudLook
+		above, bodies [2]bool
+	}{
+		{AllBodies, [2]bool{true, true}, [2]bool{true, true}},
+		{ShadowsAlone, [2]bool{}, [2]bool{}},
+		{FlatClouds, [2]bool{true, true}, [2]bool{}},
+		{LowBodies, [2]bool{true, true}, [2]bool{true, false}},
+		{AllBodies, [2]bool{true, true}, [2]bool{true, true}},
+	} {
+		if l, above, bodies := look(); l != want.look || above != want.above ||
+			bodies != want.bodies || a.skyClouds().Hidden != (l == ShadowsAlone) {
+			t.Errorf("the clouds look %v, seen from above %v, heaped on the sky %v; want %+v", l,
+				above, bodies, want)
+		}
+		a.clouds.Put(command.Nobody, Clouds{})
+		a.carryOut()
 	}
 }
 
@@ -151,5 +170,33 @@ func TestPlugin_TheSkyHandsTheFrameTheSunAndTheWeatherOfItsDaylight(t *testing.T
 	if sky, fog := got["SkyColor"], got["Fog"]; sky[0] != 1 || sky[1] != 0 || fog[0] <= fog[2] {
 		t.Errorf("under a red daylight the frame's sky is %v and its horizon %v, want red", sky,
 			fog)
+	}
+}
+
+func TestPlugin_ReportsTheMoonOnItsOwnHowTheCloudsLookAndWhoseShadowsFall(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 128, Height: 128},
+		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
+		Heights:  true,
+	})
+	a := NewPlugin(w, Config{})
+	a.ShowClouds(LowBodies)
+	got := map[string]string{}
+	reporters{a.calendar.Reporter(), a.Reporter().(reporters)[3]}.Report(
+		func(label, value string) { got[label] = value })
+	if got["Moon"] == "" || strings.Count(got["Season"], ",") != 1 {
+		t.Errorf("the season is %q and the moon %q, want the moon on a line of its own",
+			got["Season"], got["Moon"])
+	}
+	if got["Clouds"] != "the low as bodies" || got["Shadows"] != "both layers'" {
+		t.Errorf("the clouds look %q, their shadows %q; want the low as bodies, both layers' "+
+			"shadows as the game starts", got["Clouds"], got["Shadows"])
+	}
+	a.shades.Put(command.Nobody, HighShade{})
+	a.carryOut()
+	a.Reporter().(reporters)[3].Report(func(label, value string) { got[label] = value })
+	if a.Air().HighShade || got["Shadows"] != "the low clouds'" {
+		t.Errorf("after HighShade the weather's HighShade is %v, the shadows %q; want the low "+
+			"clouds' alone", a.Air().HighShade, got["Shadows"])
 	}
 }

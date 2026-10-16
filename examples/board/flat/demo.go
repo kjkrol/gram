@@ -107,7 +107,11 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		a.world,
 		atmosphere.Config{
 			Calendar: calendar.Config{Start: 8 * time.Hour, Season: calendar.Summer},
-			Climate:  climate.Config{Zone: climate.Temperate, Seed: uint64(time.Now().UnixNano())},
+			Climate: climate.Config{
+				Zone:     climate.Temperate,
+				Seed:     uint64(time.Now().UnixNano()),
+				OneLayer: true,
+			},
 		},
 	).WithWeathering(a.board, a.defineClimate())
 	a.cameras = cameras.NewPlugin(a.world)

@@ -28,8 +28,8 @@ func (r *report) Report(line func(label, value string)) {
 		if w.Snow > w.Rain && w.Snow > 0.05 {
 			name += " (snow)"
 		}
-		s := fmt.Sprintf("%s, %.0f°C, wind %.0f %s", name, w.Temperature, w.Blow, compass(w.Heading))
-		line("Weather", s)
+		line("Weather", fmt.Sprintf("%s\n%.0f°C\nwind %.0f %s", name, w.Temperature, w.Blow,
+			compass(w.Heading)))
 		return
 	}
 }

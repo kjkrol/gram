@@ -48,7 +48,8 @@ func TestBackdrop_TheSunStandsWhereItsWayVanishesThroughAPerspective(t *testing.
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	wcam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	sun, weather := sky.Sun{}, air.Weather{}
-	b := New(w.Res.Config.Space, world.Scale{}, func() sky.Sun { return sun }, func() air.Weather { return weather })
+	b := New(w.Res.Config.Space, func() sky.Sun { return sun },
+		func() air.Weather { return weather })
 	cam := raying{height: 30}
 	sun = sky.Sun{Dir: eyedF, Strength: 0.7}
 	p := b.plan(cam)
@@ -71,7 +72,7 @@ func TestBackdrop_TheSunStandsWhereItsWayVanishesThroughAPerspective(t *testing.
 		t.Errorf("the sun under the horizon shows at %v", p.SunAt)
 	}
 	sun = sky.Sun{Dir: eyedF, Strength: 0.7}
-	weather = air.Weather{Clouds: 1}
+	weather = air.Weather{Clouds: 1, Bases: air.Bases(world.Scale{})}
 	if p := b.plan(cam); p.SunRadius != 0 {
 		t.Errorf("the sun under full cloud shows at %v", p.SunAt)
 	}
@@ -82,7 +83,7 @@ func TestBackdrop_TheSunStandsWhereItsWayVanishesThroughAPerspective(t *testing.
 }
 
 func TestBackdrop_TheSunSetsAndTheNightComesOut(t *testing.T) {
-	b := New(world.SpaceCfg{Width: 100, Height: 100}, world.Scale{}, nil, nil)
+	b := New(world.SpaceCfg{Width: 100, Height: 100}, nil, nil)
 	cam := eyed{}
 	if _, r, disc, _ := b.sunOn(cam, 100, 100, norm3([3]float32{0, -1, -0.02}), render.Light{1, 0.6, 0.3}, 0); r == 0 || disc[1] >= 1 {
 		t.Errorf("a sun just under the horizon has a disc %v wide in %v, want one, reddened", r, disc)
@@ -103,7 +104,7 @@ func TestBackdrop_ShowsTheStarsAndTheMoonOnlyAsShownSays(t *testing.T) {
 	field := camera.RayField{Dir: eyedF, DDX: eyedR, DDY: [3]float32{-eyedU[0], -eyedU[1], -eyedU[2]}}
 	night := celestial.Heavens{Sun: norm3([3]float32{0, 1, -0.4}), Moon: eyedF, Full: 1, Pole: [3]float32{0, 0, 1}}
 	for _, c := range []struct{ stars, moon bool }{{true, false}, {false, true}, {false, false}} {
-		b := New(world.SpaceCfg{Width: 100, Height: 100}, world.Scale{}, nil, nil).
+		b := New(world.SpaceCfg{Width: 100, Height: 100}, nil, nil).
 			WithShown(func() (bool, bool) { return c.stars, c.moon })
 		var p skyPlan
 		b.nightOn(&p, cam, field, 100, 100, night, 0)

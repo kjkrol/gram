@@ -248,6 +248,7 @@ func TestWeather_AStateComesOnlyInItsSeasonsAndTheSameSeedGoesTheSameWay(t *test
 	}
 }
 
+// a line each, as the panel lays a value's lines under its label
 func TestReport_SaysTheWeatherTheWindAndTheSnow(t *testing.T) {
 	r := weatherOf(t, twoStates(), calendar.Winter)
 	rep := &report{names: []string{"clear", "cloudy"}, query: r.sys.query, now: r.sys.now}
@@ -255,8 +256,12 @@ func TestReport_SaysTheWeatherTheWindAndTheSnow(t *testing.T) {
 	r.run(20 * time.Second)
 	var got string
 	rep.Report(func(label, value string) { got = label + ": " + value })
-	if !strings.HasPrefix(got, "Weather: cloudy (snow), -") || !strings.Contains(got, "°C, wind 20") {
-		t.Errorf("the report says %q, want the clouds snowing, the frost and the wind of 20", got)
+	lines := strings.Split(got, "\n")
+	if len(lines) != 3 || lines[0] != "Weather: cloudy (snow)" ||
+		!strings.HasPrefix(lines[1], "-") || !strings.HasSuffix(lines[1], "°C") ||
+		!strings.HasPrefix(lines[2], "wind 20") {
+		t.Errorf("the report says %q, want the clouds snowing, the frost and the wind of 20, a "+
+			"line each", got)
 	}
 }
 

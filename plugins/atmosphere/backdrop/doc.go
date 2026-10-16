@@ -8,8 +8,9 @@
 // hands the frame the sun and the weather (sky.Sun.Frame, air.Weather.Frame). It reads them as
 // they stand, where the sun, the moon and the stars stand
 // ([Renderer.WithHeavens]), whether the stars and the moon show ([Renderer.WithShown]) and whether
-// the clouds are heaps, bodies seen from under them ([Renderer.WithBodies]), worked out coarser
-// than the screen into image2, or a flat layer.
+// the low clouds are heaps, bodies seen from under them ([Renderer.WithBodies]), worked out
+// coarser than the screen into image2, or a flat layer before the high ones; the layers under the
+// eye it leaves to plugins/atmosphere/aloft.
 //
 // # Dome
 //

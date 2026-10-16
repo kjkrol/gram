@@ -77,7 +77,9 @@ lying first (`Sprites.Layer(at, under)`), so the standing covers the lying. A `r
 pieces), `f.ReadGround()` (it reads the ground's depth: the opaque pass is drawn into a readable
 buffer, `Image.CopyDepth`, a draw since a texture copy of a depth is wrong on GLES and Vulkan in
 gogpu, gives the frame's buffer; the reader gets `Target.Ground` and writes `frag_depth` = the
-ground's own, testing GreaterEqual, so what stands nearer hides it); `Target.Pass` says which pass
+ground's own, testing GreaterEqual, so what stands nearer hides it; dear: the opaque pass into a
+readable buffer cost the topography ~0.6 ms a frame, 2026-10-16 — what needs only where the
+ground stands reads `GroundHeights`, below); `Target.Pass` says which pass
 it is drawing; one asking for nothing is not drawn, `Frame.Places` lists the asks for a test. Lifts
 (world units over the ground): what a `look.GroundDressing` lays over tiles composed into the frame
 0.02, board materials 0.05, hex grid lines 0.1, holds 0.15, sight 0.25, routes 0.75, route goals
@@ -122,9 +124,16 @@ the GPU. Uses: `CloudTile` (`air.Tile()`, baked once, read by the sky and the te
 `cloudTileAt`); `AirMasses` (`air.DomeImage.Of(dome)`, held by the sky's renderer, each level's
 cells in order so one filtered sample reads a point, a level written as its window moves or a
 patch of it changes, read by `airAt(p)` in every cloud shader: the clouds' cover and billow are
-the mass's at the point, never one number for the world); next the ground's baked shade (plan
-stage 9). **A frame image read per pixel is read once**: let the sampler blend (lay the picture
-so it can), never four `textureLoad`s and arithmetic by hand. gogpu
+the mass's at the point, never one number for the world); `GroundHeights`, render's own
+(`Frame.GroundHeights(render.GroundHeights{...})`, uniforms `GroundLattice`, `GroundSpan`, WGSL
+`groundHeightAt(p)` blended between the corners, `groundHighest()`, `groundNone` in a frame
+without it), handed by whoever draws the ground (the terrain: its lattice image, 16 bits in red
+and green, the heights as the last frame drew them), read by the clouds from above to hide a
+slice inside the ground at a few loads a pixel instead of the ground's depth (16 bits in two
+channels do not blend in the sampler: four loads, so read it at a coarse resolution, never per
+screen pixel); next the ground's baked shade (plan stage 9). **A frame image read per pixel is
+read once**: let the sampler blend (lay the picture so it can), never four `textureLoad`s and
+arithmetic by hand. gogpu
 binds a group through the bound pipeline's layout, all ours share one, so `bindFrame` sets group
 3 once a pass till it changes. **Pixels written into an image are drawn in place**: up to 65536
 (`gpu.maxPut`), a part or the whole, `Texture.WritePixels` draws them from the draws' uniforms
@@ -178,7 +187,9 @@ already on the frame (`Frame.Uniformed`). The light by the sun's height is `sky.
 sets the parts it draws its own way, the Earth's in the rest. The vault is handed `s.air`, the
 air's colour the fog and the water share: a vault far from it at the horizon shows a seam with
 the ground's fog, and the water reflects the air, never the vault. gogpu's compiler (naga
-v0.19.0 and v0.19.1) leaves a WGSL `var` without an initialiser undefined (garbage, not zero) and
+v0.19.0 and v0.19.1) leaves a WGSL `var` without an initialiser undefined (garbage, not zero: a
+`var c: CloudOver;` returned early by a branch came out as stray full shadows in single pixels,
+2026-10-16; write `var c = CloudOver(...)`) and
 reads a module-scope vector `const` as zero where it meets a runtime value (`c * 1.0` folds and
 works, `c * light` is zero): gram's own WGSL has no vector consts; write them inside the function.
 

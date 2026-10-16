@@ -70,7 +70,9 @@
 // registered as a package starts ([RegisterImage]), read in WGSL as a texture_2d<f32> of that name
 // (sampled through linear, or wrapped, repeating past its edges), handed by a source composing
 // the frame ([Frame.Image]) to the composer and every Direct alike, through the [Uniforms]. An
-// image whose pixels need the GPU is filled as a draw first reads it ([Image.Defer]).
+// image whose pixels need the GPU is filled as a draw first reads it ([Image.Defer]). The
+// ground's heights are render's own ([GroundHeights], [Frame.GroundHeights]): whoever draws the
+// ground hands them, a shader reads them with groundHeightAt.
 //
 // # Still and Sprites
 //

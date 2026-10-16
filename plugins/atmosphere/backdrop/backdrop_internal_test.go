@@ -24,7 +24,8 @@ func TestBackdrop_FillsTheScreenWithTheSkyOnlyWhereTheGroundDoesNotCoverIt(t *te
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	sun := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.5, Sky: render.Light{0.5, 0.7, 1}}
-	b := New(w.Res.Config.Space, world.Scale{}, func() sky.Sun { return sun }, func() air.Weather { return air.Weather{} })
+	b := New(w.Res.Config.Space, func() sky.Sun { return sun },
+		func() air.Weather { return air.Weather{} })
 	var f render.Frame
 	f.Reset(cam)
 	b.Compose(&f, cam)

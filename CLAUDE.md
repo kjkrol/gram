@@ -126,8 +126,9 @@ Decisions the user has made; they are not up for revisiting in passing.
   pause, Shift+Esc quits, K lists the keys, ~ the telemetry panel, F5 saves, F9 loads, F11 full
   screen, ] and [ the tempo, Shift+X the boxes (collision's: the bases, the solids, none),
   Shift+H the scroll zones (cameras'), Shift+O the holds, Shift+B the bridge tool, Shift+R the
-  routes, Shift+C the cones, Shift+W the weather, Shift+V the clouds as bodies, P freezes
-  the light, Space jumps in first person, = and - zoom, Shift+= and Shift+- shape the relief.
+  routes, Shift+C the cones, Shift+W the weather, Shift+V the clouds' look, Shift+S the high
+  clouds' shadows (with the camera free: riding, Shift+S sprints back), P freezes the light,
+  Space jumps in first person, = and - zoom, Shift+= and Shift+- shape the relief.
   A key held, down or let go leaves the chords with Shift, Ctrl or Alt to these shortcuts unless
   its binding is `InChords()` (a sprint, a jump while sprinting). A plugin's keys a game sets up
   (`driving.Compass`, `selection.FollowKey`, the cameras' zoom keys) are bound in the

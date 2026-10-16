@@ -82,7 +82,7 @@ func TestAssemble_StandsAStubForEachPartWithoutWGSL(t *testing.T) {
 }
 
 func TestValues_SetOnlyWhatThePartReads(t *testing.T) {
-	b := New(world.SpaceCfg{Width: 100, Height: 100}, world.Scale{}, nil, nil)
+	b := New(world.SpaceCfg{Width: 100, Height: 100}, nil, nil)
 	b.Dress(Dome{Vault: vault(red, "Glow")})
 	b.values[0].Set("Glow", 0.5)
 	if got := b.uniforms["Glow"]; len(got) != 1 || got[0] != 0.5 {
@@ -97,7 +97,7 @@ func TestDome_ADiscWithoutWGSLShowsNoneAndSizeScalesIt(t *testing.T) {
 	night := celestial.Heavens{Sun: norm3([3]float32{0, 1, -0.4}), Moon: eyedF, Full: 1,
 		Pole: [3]float32{0, 0, 1}}
 	radii := func(d Dome) (sun, moon float32) {
-		b := New(world.SpaceCfg{Width: 100, Height: 100}, world.Scale{},
+		b := New(world.SpaceCfg{Width: 100, Height: 100},
 			func() sky.Sun { return sky.Sun{Dir: eyedF, Strength: 0.7} },
 			func() air.Weather { return air.Weather{} })
 		b.Dress(d)
@@ -137,7 +137,7 @@ func TestDome_CompilesTheEarthsAndAGamesSkies(t *testing.T) {
 	}}
 	for name, d := range map[string]Dome{"Earth": Earth(), "Earth with dots": dots,
 		"none": {}, "a game's vault": own} {
-		b := New(world.SpaceCfg{Width: 100, Height: 100}, world.Scale{}, nil, nil)
+		b := New(world.SpaceCfg{Width: 100, Height: 100}, nil, nil)
 		b.Dress(d)
 		if err := b.shader.Compile(); err != nil {
 			t.Errorf("the sky of %s does not compile: %v", name, err)
@@ -151,7 +151,7 @@ func TestDome_DrawsOnlyThePartsItHasOnTheGPU(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	top := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
 	sun := sky.Sun{Dir: eyedF, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
-	b := New(w.Res.Config.Space, world.Scale{}, func() sky.Sun { return sun },
+	b := New(w.Res.Config.Space, func() sky.Sun { return sun },
 		func() air.Weather { return air.Weather{} })
 	screen := render.NewImage(100, 100)
 	pix := make([]byte, 4*100*100)

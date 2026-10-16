@@ -42,12 +42,14 @@ var own = []render.Uniform{
 	{Name: "StarY", Size: 3},
 	{Name: "StarZ", Size: 3},
 	{Name: "CloudBodies", Size: 1},
+	{Name: "CloudsFlat", Size: 2},
 }
 
 var heaps = render.NewMeshShaderWith("cumulus", render.Files(shaders, "shaders/cumulus.wgsl"),
 	[]render.Uniform{
 		{Name: "HeapsView", Size: 2},
 		{Name: "HeapsPixel", Size: 1},
+		{Name: "HeapsLayers", Size: 2},
 	})
 
 // how many pixels of the screen a pixel of the heaps spans each way: they are soft, worked out a
@@ -65,15 +67,14 @@ var (
 // any other camera the viewport filled in the sky's colour wherever the ground does not cover it.
 type Renderer struct {
 	space world.SpaceCfg
-	scale world.Scale
 	sun   func() sky.Sun
 	air   func() air.Weather
 	// nil: the sun where the light comes from
 	heavens func() celestial.Heavens
 	// nil: both
 	shown func() (stars, moon bool)
-	// nil: none, the clouds a layer on the sky
-	bodies func() bool
+	// nil: every layer flat
+	clouds func() Clouds
 
 	dome     Dome
 	shader   *render.Shader
@@ -89,17 +90,17 @@ type Renderer struct {
 }
 
 type skyPlan struct {
-	None, Flat          bool
-	View                [2]float32
-	Field               camera.RayField
-	Eye                 [3]float32
-	SunAt               [2]float32
-	SunRadius           float32
-	SunDisc             [4]float32
-	SunHalo             render.Light
-	SunTint             render.Light
-	Clouds              bool
-	CloudHeight, Seeing float32
+	None, Flat bool
+	View       [2]float32
+	Field      camera.RayField
+	Eye        [3]float32
+	SunAt      [2]float32
+	SunRadius  float32
+	SunDisc    [4]float32
+	SunHalo    render.Light
+	SunTint    render.Light
+	Clouds     bool
+	Seeing     float32
 	// MoonLight and MoonNorth are in the face's frame: x right, y down, z towards the eye
 	MoonAt     [2]float32
 	MoonRadius float32
@@ -111,11 +112,9 @@ type skyPlan struct {
 	Heavens    celestial.Heavens
 }
 
-// New is the Earth's sky behind a world of space and scale, under sun and the weather air give.
-func New(space world.SpaceCfg, scale world.Scale, sun func() sky.Sun,
-	weather func() air.Weather) *Renderer {
-	b := &Renderer{space: space, scale: scale, sun: sun, air: weather,
-		uniforms: map[string][]float32{}}
+// New is the Earth's sky behind a world of space, under sun and the weather air give.
+func New(space world.SpaceCfg, sun func() sky.Sun, weather func() air.Weather) *Renderer {
+	b := &Renderer{space: space, sun: sun, air: weather, uniforms: map[string][]float32{}}
 	b.opts.Uniforms = map[string]any{}
 	b.Dress(Earth())
 	return b
@@ -153,11 +152,24 @@ func (b *Renderer) WithShown(shown func() (stars, moon bool)) *Renderer {
 	return b
 }
 
-// WithBodies has the sky show the clouds as heaps, bodies seen from under them, while bodies says
-// so: dearer than the flat layer it shows otherwise.
-func (b *Renderer) WithBodies(bodies func() bool) *Renderer {
-	b.bodies = bodies
+// Clouds is how the sky shows the clouds: none if Hidden, else each layer (by air.Layer) flat or,
+// in Bodies, heaped, bodies seen from under them, dearer than flat.
+type Clouds struct {
+	Hidden bool
+	Bodies [2]bool
+}
+
+// WithClouds has the sky show the clouds as clouds says.
+func (b *Renderer) WithClouds(clouds func() Clouds) *Renderer {
+	b.clouds = clouds
 	return b
+}
+
+func (b *Renderer) look() Clouds {
+	if b.clouds == nil {
+		return Clouds{}
+	}
+	return b.clouds()
 }
 
 func (*Renderer) Init(*goke.SysInit) {}
@@ -176,13 +188,26 @@ func (b *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	f.DrawAt(render.Furthest)
 }
 
-// the clouds' cover where the way dir from the eye at (x, y, z) passes their layer at height base
-func coverAlong(weather air.Weather, x, y, z, base float32, dir [3]float32) float32 {
-	if dir[2] > 1e-3 && z < base {
-		t := (base - z) / dir[2]
-		x, y = x+dir[0]*t, y+dir[1]*t
+// the clouds' cover where the way dir from the eye at (x, y, z) passes their layers, those under
+// the eye left out; none while they are not shown
+func coverAlong(weather air.Weather, shown bool, x, y, z float32, dir [3]float32) float32 {
+	if !shown {
+		return 0
 	}
-	return weather.At(x, y).Cover
+	clear := float32(1)
+	for _, l := range []air.Layer{air.Low, air.High} {
+		base := weather.Base(l)
+		if z >= base {
+			continue
+		}
+		at := [2]float32{x, y}
+		if dir[2] > 1e-3 {
+			t := (base - z) / dir[2]
+			at = [2]float32{x + dir[0]*t, y + dir[1]*t}
+		}
+		clear *= 1 - weather.Share(weather.At(at[0], at[1]), l).Cover
+	}
+	return 1 - clear
 }
 
 // Draw draws the sky into the target's screen through cam.
@@ -235,7 +260,6 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	b.set("LookDir", f.Dir[:]...)
 	b.set("LookDX", f.DDX[:]...)
 	b.set("LookDY", f.DDY[:]...)
-	b.set("CloudHeight", p.CloudHeight)
 	b.set("Visibility", p.Seeing)
 	for i, piece := range b.dome.pieces() {
 		if len(piece.part.Source) > 0 && piece.part.Feed != nil {
@@ -245,12 +269,14 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	b.opts.Depth = t.Depth // at the furthest depth: only where the world left nothing
 	b.set("CloudBodies", 0)
 	b.opts.Images[2] = nil
-	if p.Clouds && b.bodies != nil && b.bodies() {
-		b.drawHeaps(p)
+	look := b.look()
+	b.set("CloudsFlat", flag(!look.Bodies[air.Low]), flag(!look.Bodies[air.High]))
+	if p.Clouds && (look.Bodies[air.Low] || look.Bodies[air.High]) {
+		b.drawHeaps(p, look)
 		b.set("CloudBodies", 1)
 		b.opts.Images[2] = b.heaps
 	}
-	if !p.Clouds || b.opts.Images[2] != nil {
+	if !p.Clouds {
 		b.set("SkyPieces", 0)
 		b.opts.Vertices = 0
 		t.Screen.DrawMesh(b.tri, b.shader, &b.opts)
@@ -265,8 +291,9 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 // pixels; shaders/backdrop.wgsl has the same
 const skyPiece = 16
 
-// the clouds as heaps into an image of their own, coarser than the view, for the sky to read
-func (b *Renderer) drawHeaps(p skyPlan) {
+// the layers of clouds as heaps into an image of their own, coarser than the view, for the sky to
+// read
+func (b *Renderer) drawHeaps(p skyPlan, look Clouds) {
 	w, h := int(p.View[0]+heapsCoarse-1)/heapsCoarse, int(p.View[1]+heapsCoarse-1)/heapsCoarse
 	if b.heaps == nil || b.heaps.Bounds().Dx() != w || b.heaps.Bounds().Dy() != h {
 		if b.heaps != nil {
@@ -276,6 +303,7 @@ func (b *Renderer) drawHeaps(p skyPlan) {
 	}
 	b.set("HeapsView", p.View[:]...)
 	b.set("HeapsPixel", heapsCoarse)
+	b.set("HeapsLayers", flag(look.Bodies[air.Low]), flag(look.Bodies[air.High]))
 	b.heapOpts.Uniforms, b.heapOpts.Vertices = b.opts.Uniforms, 3
 	b.heaps.Clear()
 	b.heaps.DrawMesh(nil, heaps, &b.heapOpts)
@@ -328,20 +356,19 @@ func (b *Renderer) plan(cam camera.Camera) skyPlan {
 	if !eyed {
 		ex, ey = air.Under(cam)
 	}
-	base := air.Base(b.scale)
+	shown := !b.look().Hidden
 	p.SunAt, p.SunRadius, p.SunDisc, p.SunHalo = b.sunOn(cam, w, h, heavens.Sun, p.SunTint,
-		coverAlong(weather, ex, ey, ez, base, heavens.Sun))
+		coverAlong(weather, shown, ex, ey, ez, heavens.Sun))
 	if !eyed {
 		p.Flat = true
 		return p
 	}
 	if b.heavens != nil {
 		b.nightOn(&p, cam, field, w, h, heavens,
-			coverAlong(weather, ex, ey, ez, base, heavens.Moon))
+			coverAlong(weather, shown, ex, ey, ez, heavens.Moon))
 	}
 	p.Field, p.Eye = field, [3]float32{ex, ey, ez}
-	p.CloudHeight = base
-	p.Clouds = weather.Most().Cover > 0 && ez < p.CloudHeight
+	p.Clouds = shown && weather.Most().Cover > 0 && ez < weather.Base(air.High)
 	p.Seeing = float32(weather.Visibility(ex, ey))
 	return p
 }

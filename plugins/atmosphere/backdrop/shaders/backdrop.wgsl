@@ -4,14 +4,15 @@
 // sight (U.LookDir + U.LookDX·x + U.LookDY·y) at the parts of the sky (shaders/sky.wgsl): the
 // vault, the stars added to it as bright as U.StarsOn (the real ones drawn before and shining
 // through it where U.OverStars), the moon round U.MoonAt and the sun round U.SunAt, each where its
-// radius is not 0, and the clouds over them where U.CloudsOn, their noise looked up in the frame's
-// tile of it (CloudTile, air.Tile), or with U.CloudBodies the heaps image2 holds
-// (shaders/cumulus.wgsl).
+// radius is not 0, and the clouds over them where U.CloudsOn, the high ones and the low before
+// them: a layer U.CloudsFlat says flat, its noise looked up in the frame's tile of it (CloudTile,
+// air.Tile), the others with U.CloudBodies the heaps image2 holds (shaders/cumulus.wgsl).
 
 struct Sky {
     @builtin(position) clip: vec4<f32>,
     @location(0) px: vec2<f32>,
-    @location(1) look: vec4<f32>,
+    @location(1) look: vec4<f32>, // the low clouds', then the high clouds' (cloudsLook)
+    @location(2) high: vec4<f32>,
 }
 
 const skyPiece: f32 = 16.0;
@@ -33,7 +34,8 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> Sky {
     let corner = vec2<f32>(f32(n % pieces) + across[vid % 6u], f32(n / pieces) + down[vid % 6u]);
     s.px = min(corner * skyPiece, U.SkyView);
     s.clip = vec4<f32>(s.px.x / U.SkyView.x * 2.0 - 1.0, 1.0 - s.px.y / U.SkyView.y * 2.0, 0.0, 1.0);
-    s.look = cloudsLook(s.px);
+    s.look = cloudsLook(s.px, U.CloudBases.x);
+    s.high = cloudsLook(s.px, 0.5 * (cloudHighFloor() + U.CloudBases.y));
     return s;
 }
 
@@ -87,26 +89,18 @@ fn fs_main(v: Sky) -> @location(0) vec4<f32> {
         add += sun.glow;
         front = sun.front + front * (1.0 - sun.front.a);
     }
-    if U.CloudsOn > 0.5 && U.CloudBodies > 0.5 {
-        let c = textureSampleLevel(image2, linear, v.px / U.SkyView, 0.0);
-        front = c + front * (1.0 - c.a);
-    } else if U.CloudsOn > 0.5 {
-        // where the line of sight meets the layer, and how much of it a pixel spans there
-        let t = (U.CloudHeight - U.EyeAt.z) / max(d.z, 1e-3);
-        let hit = U.EyeAt.xy + d.xy * t;
-        let span = max(length(dpdx(hit)), length(dpdy(hit)));
-        if d.z > skyLift && t > 0.0 {
-            let m = airAt(hit);
-            let lod = cloudTileLevel(span, cloudTile * cloudSize);
-            let torn = cloudTileAt(hit, lod, cloudTile * cloudSize).r;
-            var core = 0.0;
-            if m.y > 0.0 {
-                let heapLod = cloudTileLevel(span, heapTile * heapSize);
-                core = cloudTileAt(hit, heapLod, heapTile * heapSize).g;
-            }
-            let field = cloudFromTile(torn, core, m.y);
-            let c = skyClouds(field, cloudTileSoft * lod, v.look, vault, m);
-            front = c + front * (1.0 - c.a);
+    if U.CloudsOn > 0.5 {
+        if U.CloudsFlat.y > 0.5 {
+            let high = skyLayer(d, U.CloudBases.y, false, v.high, vault);
+            front = high + front * (1.0 - high.a);
+        }
+        if U.CloudBodies > 0.5 {
+            let heaps = skyHeaps(v.px);
+            front = heaps + front * (1.0 - heaps.a);
+        }
+        if U.CloudsFlat.x > 0.5 {
+            let low = skyLayer(d, U.CloudBases.x, true, v.look, vault);
+            front = low + front * (1.0 - low.a);
         }
     }
     // half a step of the screen's colours either way, so a dark gradient shows no bands; over the
@@ -117,4 +111,55 @@ fn fs_main(v: Sky) -> @location(0) vec4<f32> {
         return vec4<f32>(rgb, front.a);
     }
     return vec4<f32>(rgb, 1.0);
+}
+
+// skyLayer is a layer of clouds seen flat along d from the eye: the heaps if low, height up, else
+// the sheets of shreds, each at its own height (cloudHighCross); looking as look says (cloudsLook)
+// over the sky behind: premultiplied, none where d does not meet the layer.
+fn skyLayer(d: vec3<f32>, height: f32, low: bool, look: vec4<f32>, behind: vec3<f32>) -> vec4<f32> {
+    // where the line of sight meets the layer, and how much of it a pixel spans there
+    var t = (height - U.EyeAt.z) / max(d.z, 1e-3);
+    if !low {
+        let band = cloudBodySpan(false);
+        t = cloudHighCross(U.EyeAt, d, max((band.x - U.EyeAt.z) / max(d.z, 1e-3), 0.0),
+            (band.y - U.EyeAt.z) / max(d.z, 1e-3));
+    }
+    let hit = U.EyeAt.xy + d.xy * t;
+    let span = max(length(dpdx(hit)), length(dpdy(hit)));
+    if d.z <= skyLift || t <= 0.0 {
+        return vec4<f32>(0.0);
+    }
+    let air = airAt(hit);
+    var m = cloudHighHere(cloudHighMass(air), hit);
+    if low {
+        m = cloudLowMass(air);
+    }
+    if m.x <= 0.0 {
+        return vec4<f32>(0.0);
+    }
+    var c: vec2<f32>;
+    if low {
+        c = cloudLowAt(hit, span, m.y);
+    } else {
+        c = cloudHighAt(hit, span);
+    }
+    if low {
+        return skyClouds(c.x, c.y, look, behind, m);
+    }
+    // the shreds thin wisps, thicker only in the middle
+    return skyClouds(c.x, c.y, look, behind, m) * (skyThin * (0.5 + 0.5 * cloudThick(c.x, m)));
+}
+
+// How much of what lies behind the thickest shreds hide.
+const skyThin: f32 = 0.55;
+
+// skyHeaps is the heaps image2 holds at the view's pixel px, a coarse pixel's worth blurred: their
+// steps put off at random a pixel showed as grain.
+fn skyHeaps(px: vec2<f32>) -> vec4<f32> {
+    let at = px / U.SkyView;
+    let off = 0.5 / vec2<f32>(textureDimensions(image2));
+    return 0.25 * (textureSampleLevel(image2, linear, at + vec2<f32>(off.x, off.y), 0.0) +
+        textureSampleLevel(image2, linear, at + vec2<f32>(-off.x, off.y), 0.0) +
+        textureSampleLevel(image2, linear, at + vec2<f32>(off.x, -off.y), 0.0) +
+        textureSampleLevel(image2, linear, at + vec2<f32>(-off.x, -off.y), 0.0));
 }

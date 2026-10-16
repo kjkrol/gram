@@ -22,18 +22,19 @@
 //
 // [Freeze] stops the light of the day (P), [Later] and [Earlier] move a frozen light half an hour
 // (Shift+], Shift+[), [ChangeWeather] throws the next weather (Shift+W) and [SetWeather] names
-// one, either over the world within seconds; [Clouds] has the clouds drawn as bodies or flat
-// (Shift+V).
+// one, either over the world within seconds; [Clouds] has the clouds drawn in the next
+// [CloudLook] (Shift+V).
 //
 // # Drawing
 //
 // The plugin draws the sky behind the world (plugins/atmosphere/backdrop), which hands every frame
-// the sun and the weather, the clouds as bodies while a scene shows them so ([Plugin.ShowClouds]):
-// heaped on the sky from under them, half see-through over the world from above
-// (plugins/atmosphere/aloft); and the rain and the snow before it
-// (plugins/atmosphere/precipitation); whoever draws the ground shadows it under the clouds.
-// [Plugin.Reporter] adds the time, the light and the weather to the telemetry panel, [Plugin.HUD]
-// the calendar to a scene (ui.Drawer).
+// the sun and the weather; the clouds in two layers, low heaps and high shreds, flat or as bodies
+// as a scene shows them ([Plugin.ShowClouds]): heaped on the sky from under them, half see-through
+// over the world from above (plugins/atmosphere/aloft); and the rain and the snow before it
+// (plugins/atmosphere/precipitation); whoever draws the ground shadows it under the clouds, each
+// layer's along the way to the sun.
+// [Plugin.Reporter] adds the time, the moon, the light, the weather and how the clouds look to
+// the telemetry panel, [Plugin.HUD] the calendar to a scene (ui.Drawer).
 //
 // # Sky
 //
