@@ -5,7 +5,8 @@
 // vault, the stars added to it as bright as U.StarsOn (the real ones drawn before and shining
 // through it where U.OverStars), the moon round U.MoonAt and the sun round U.SunAt, each where its
 // radius is not 0, and the clouds over them where U.CloudsOn, their noise looked up in the frame's
-// tile of it (CloudTile, air.Tile).
+// tile of it (CloudTile, air.Tile), or with U.CloudBodies the heaps image2 holds
+// (shaders/cumulus.wgsl).
 
 struct Sky {
     @builtin(position) clip: vec4<f32>,
@@ -86,7 +87,10 @@ fn fs_main(v: Sky) -> @location(0) vec4<f32> {
         add += sun.glow;
         front = sun.front + front * (1.0 - sun.front.a);
     }
-    if U.CloudsOn > 0.5 {
+    if U.CloudsOn > 0.5 && U.CloudBodies > 0.5 {
+        let c = textureSampleLevel(image2, linear, v.px / U.SkyView, 0.0);
+        front = c + front * (1.0 - c.a);
+    } else if U.CloudsOn > 0.5 {
         // where the line of sight meets the layer, and how much of it a pixel spans there
         let t = (U.CloudHeight - U.EyeAt.z) / max(d.z, 1e-3);
         let hit = U.EyeAt.xy + d.xy * t;

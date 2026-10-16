@@ -7,7 +7,9 @@
 // A [Renderer] ([New]) is a render.Direct behind the whole world, the atmosphere's; composing, it
 // hands the frame the sun and the weather (sky.Sun.Frame, air.Weather.Frame). It reads them as
 // they stand, where the sun, the moon and the stars stand
-// ([Renderer.WithHeavens]) and whether the stars and the moon show ([Renderer.WithShown]).
+// ([Renderer.WithHeavens]), whether the stars and the moon show ([Renderer.WithShown]) and whether
+// the clouds are heaps, bodies seen from under them ([Renderer.WithBodies]), worked out coarser
+// than the screen into image2, or a flat layer.
 //
 // # Dome
 //
@@ -20,6 +22,7 @@
 // A part is WGSL written to the contract of shaders/sky.wgsl: its entry (SkyVault, SkyStars,
 // SkyMoon, SkySun) is handed the sky at a pixel and a disc, and reads uniforms of its own
 // ([Part].Reads), which its Feed sets every frame the sky is drawn ([Values]); the moon's face is
-// image1. A part's names stand beside the library's and the materials': prefix them (duskBand). A
-// uniform or a name two parts declare, or the library's, panics as the sky is dressed.
+// image1, the heaps image2. A part's names stand beside the library's and the materials': prefix
+// them (duskBand). A uniform or a name two parts declare, or the library's, panics as the sky is
+// dressed.
 package backdrop

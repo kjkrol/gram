@@ -331,7 +331,25 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   with `wrapped` a level, as `Dome.At` does on the CPU (a test keeps them within 2.5/255, also
   after the windows moved). Four `textureLoad`s a level with the ring's arithmetic cost the
   terrain, reading it every pixel, ~15% of topography's frame rate. Every cloud function takes
-  the mass. `atmosphere/precipitation`: what falls
+  the mass. `atmosphere/aloft`: the clouds seen from above (`aloft.Renderer`, a Direct among
+  what is seen through at the layer's height): one full-screen pass, the pixel's line of sight
+  from `camera.Rays()` (lines all one way — iso, top-down — start anywhere along them, so `t`
+  may be negative: their origin lies over the highest ground, under the clouds), five slices
+  from `air.Base` up 0.4 `cloudSize`, a higher one only where `cloudThick` reaches it, composed
+  from the top, lit like `skyClouds`; `airAt` once a pixel at the layer's middle; worked out at
+  a quarter of the screen's resolution each way into an image of its own and laid over enlarged,
+  linear (full resolution cost ~4 ms of a UHD 620's frame, a quarter ~0.4 ms, looking alike);
+  none while
+  hidden, under no cover, or from a perspective eye under the layer (the sky draws them).
+  `atmosphere.ShowClouds(bool)` from the scene (every demo with an atmosphere shows them),
+  `Clouds` (Shift+V) switches: bodies in both views — from under them the sky draws heaps
+  (`backdrop.WithBodies`, `shaders/cumulus.wgsl`: 24 steps through the layer 0.5 `cloudSize`
+  deep, top `sqrt(thick)`, at a quarter resolution each way into image2, which the sky shader
+  lays over in place of the flat clouds; as cheap as the flat layer it replaces), off: a flat
+  layer on the sky and shadows alone from above. look/sky runs no clouds (`Running` without
+  `Clouds`). The clouds' tile (`air.Tile`) keeps a pixel of wrap round every level: reading it
+  clamped half a pixel in left a seam where the heaps' cores rise steeply.
+  `atmosphere/precipitation`: what falls
   (screen-space streaks and flakes, before the whole world, `render.Nearest`), only under the
   clouds: an 8×6 mask of `FallsAt` at the screen's points thrown to the ground (and over the eye),
   worked out every 8 frames a camera, a drop kept where its share is under the mask.

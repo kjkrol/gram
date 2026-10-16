@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/atmosphere/aloft"
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
@@ -44,6 +45,7 @@ type Plugin struct {
 	earliers   command.Queue[Earlier]
 	changes    command.Queue[ChangeWeather]
 	sets       command.Queue[SetWeather]
+	clouds     command.Queue[Clouds]
 	calendar   *calendar.Calendar
 	sky        *sky.Sky
 	climate    *climate.Climate
@@ -52,6 +54,7 @@ type Plugin struct {
 	running    Running
 	skies      []Sky
 	vault      *backdrop.Renderer
+	aloft      *aloft.Renderer
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -67,6 +70,7 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	clim := climate.New(worldPlugin, cal, cfg.Climate)
 	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, calendar: cal, climate: clim,
 		sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
+	p.aloft = aloft.New(worldPlugin.Scale(), p.Air)
 	p.Self = world.NewSelf(worldPlugin, p, comp.Const(p.sky.Moonlight()))
 	clim.About(p.Entity)
 	r := AllRunning()
@@ -86,6 +90,14 @@ func (p *Plugin) Heavens() celestial.Heavens { return p.sky.Heavens() }
 
 // Air is the weather as the last step of the simulation left it.
 func (p *Plugin) Air() air.Weather { return p.climate.Air() }
+
+// ShowClouds has the clouds drawn as bodies, half see-through from above and heaped from under
+// them, or not: their shadows alone from above, a flat layer on the sky; a scene's say as it
+// starts, Clouds switching it as the game goes.
+func (p *Plugin) ShowClouds(shown bool) { p.aloft.Show(shown) }
+
+// CloudsShown reports whether the clouds are drawn as bodies.
+func (p *Plugin) CloudsShown() bool { return p.aloft.Shown() }
 
 // WithWeathering has the weather work on brd as cfg says: snow, ice, what sways. Call it as the
 // plugin is made; a kind cfg names that the board lacks panics as the weather first touches it.
@@ -114,7 +126,7 @@ func (p *Plugin) Weathering() *weathering.Weathering { return p.weathering }
 func (p *Plugin) Name() string { return "gram.atmosphere" }
 
 // Install wires the sky's, the weather's and the weathering's systems, and draws the sky behind
-// the world, looking as its Skies say, and what falls before it.
+// the world, looking as its Skies say, the clouds seen from above and what falls before it.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{p: p, sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Clock()}
 	ctx.UseModule(p.module)
@@ -125,8 +137,9 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		return r.Stars, r.Moon
 	}
 	space, scale := p.worldPlugin.Res.Config.Space, p.worldPlugin.Scale()
-	p.vault = backdrop.New(space, scale, p.Sun, p.Air).WithHeavens(p.Heavens).WithShown(shown)
-	ctx.Draws(p.vault, precipitation.New(p.Sun, p.Air))
+	p.vault = backdrop.New(space, scale, p.Sun, p.Air).WithHeavens(p.Heavens).WithShown(shown).
+		WithBodies(p.aloft.Shown)
+	ctx.Draws(p.vault, p.aloft, precipitation.New(p.Sun, p.Air))
 	ctx.Looks(p.dress)
 	return nil
 }

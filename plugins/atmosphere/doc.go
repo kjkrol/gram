@@ -22,14 +22,18 @@
 //
 // [Freeze] stops the light of the day (P), [Later] and [Earlier] move a frozen light half an hour
 // (Shift+], Shift+[), [ChangeWeather] throws the next weather (Shift+W) and [SetWeather] names
-// one, either over the world within seconds.
+// one, either over the world within seconds; [Clouds] has the clouds drawn as bodies or flat
+// (Shift+V).
 //
 // # Drawing
 //
 // The plugin draws the sky behind the world (plugins/atmosphere/backdrop), which hands every frame
-// the sun and the weather, and the rain and the snow before it (plugins/atmosphere/precipitation);
-// whoever draws the ground shadows it under the clouds. [Plugin.Reporter] adds the time, the light
-// and the weather to the telemetry panel, [Plugin.HUD] the calendar to a scene (ui.Drawer).
+// the sun and the weather, the clouds as bodies while a scene shows them so ([Plugin.ShowClouds]):
+// heaped on the sky from under them, half see-through over the world from above
+// (plugins/atmosphere/aloft); and the rain and the snow before it
+// (plugins/atmosphere/precipitation); whoever draws the ground shadows it under the clouds.
+// [Plugin.Reporter] adds the time, the light and the weather to the telemetry panel, [Plugin.HUD]
+// the calendar to a scene (ui.Drawer).
 //
 // # Sky
 //
@@ -42,5 +46,5 @@
 // Moments, for a role's rules, hosted by its parts: sky.Moonrise and climate.Weathering (the
 // atmosphere's own entity, once a step). Knobs, for an effect's Alter: sky.Moon (on the
 // atmosphere's own entity). Commands, a player's: [Freeze], [Later], [Earlier], [ChangeWeather],
-// [SetWeather].
+// [SetWeather], [Clouds].
 package atmosphere

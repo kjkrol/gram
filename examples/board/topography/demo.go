@@ -146,7 +146,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.atmosphere = atmosphere.NewPlugin(a.world, atmosphere.Config{
 		Calendar: calendar.Config{
 			Start:  12 * time.Hour,
-			Season: calendar.Winter,
+			Season: calendar.Summer,
 			Year:   calendar.EarthYear,
 		},
 		Climate: climate.Config{

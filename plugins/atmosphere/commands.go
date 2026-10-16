@@ -25,11 +25,16 @@ type ChangeWeather struct{}
 // game's own); a name the climate lacks changes nothing.
 type SetWeather struct{ Name string }
 
+// Clouds has the clouds drawn as bodies, half see-through from above and heaped from under them,
+// or not: their shadows alone from above, a flat layer on the sky.
+type Clouds struct{}
+
 func (Freeze) Command()        {}
 func (Later) Command()         {}
 func (Earlier) Command()       {}
 func (ChangeWeather) Command() {}
 func (SetWeather) Command()    {}
+func (Clouds) Command()        {}
 
 var (
 	_ command.Command = Freeze{}
@@ -37,15 +42,17 @@ var (
 	_ command.Command = Earlier{}
 	_ command.Command = ChangeWeather{}
 	_ command.Command = SetWeather{}
+	_ command.Command = Clouds{}
 )
 
 // Queues are where the atmosphere's commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
-	return []command.CommandQueue{&p.freezes, &p.laters, &p.earliers, &p.changes, &p.sets}
+	return []command.CommandQueue{&p.freezes, &p.laters, &p.earliers, &p.changes, &p.sets,
+		&p.clouds}
 }
 
-// DefaultBindings are P (Freeze), Shift+] and Shift+[ (Later, Earlier) and, with the camera
-// free, Shift+W (ChangeWeather).
+// DefaultBindings are P (Freeze), Shift+] and Shift+[ (Later, Earlier), Shift+V (Clouds) and,
+// with the camera free, Shift+W (ChangeWeather).
 func (p *Plugin) DefaultBindings() []control.Binding {
 	shift := control.Mods{Shift: true}
 	return []control.Binding{
@@ -53,6 +60,9 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		control.Build(control.KeyPress{Key: control.KeyBracketRight, Mods: shift}, "Frozen light half an hour later", func(control.Context) (Later, bool) { return Later{}, true }),
 		control.Build(control.KeyPress{Key: control.KeyBracketLeft, Mods: shift}, "Frozen light half an hour earlier", func(control.Context) (Earlier, bool) { return Earlier{}, true }),
 		control.Build(control.KeyPress{Key: control.KeyW, Mods: shift}, "Change the weather", func(control.Context) (ChangeWeather, bool) { return ChangeWeather{}, true }).In(camera.Outside),
+		control.Build(control.KeyPress{Key: control.KeyV, Mods: shift},
+			"Clouds as bodies, or flat",
+			func(control.Context) (Clouds, bool) { return Clouds{}, true }),
 	}
 }
 
@@ -62,4 +72,5 @@ func (p *Plugin) carryOut() {
 	p.earliers.Drain(func(command.Issued[Earlier]) { p.sky.Shift(-sky.HalfHour) })
 	p.changes.Drain(func(command.Issued[ChangeWeather]) { p.climate.Change() })
 	p.sets.Drain(func(i command.Issued[SetWeather]) { p.climate.Set(i.Command.Name) })
+	p.clouds.Drain(func(command.Issued[Clouds]) { p.aloft.Show(!p.aloft.Shown()) })
 }

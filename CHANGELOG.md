@@ -17,6 +17,18 @@ in a flat world: a board stands only in a world with heights now. Nor those made
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
 entities.
 
+**Clouds as bodies** (2026-10-16)
+- Seen from above the clouds are drawn half see-through over the world
+  (`plugins/atmosphere/aloft`): thin slices of the clouds' noise from the layer's height up, the
+  higher ones only where a cloud is thick, lit from above.
+- Seen from under them they are heaps: the sky looks through the layer, a cloud's base flat, its
+  top domed as high as it is thick, darker underneath, its thin edges shining towards the sun
+  (`backdrop.Renderer.WithBodies`), worked out coarser than the screen.
+- A scene has them so (`atmosphere.Plugin.ShowClouds`), `Clouds` (Shift+V) switches to their
+  shadows alone from above and a flat layer on the sky.
+- The clouds' tile holds a pixel round every level of what lies past its far edge, so it reads
+  across its wrap: a seam across the heaps' cores is gone.
+
 **Chords left to the shortcuts** (2026-10-16)
 - A key held, down or let go no longer fires with Shift, Ctrl or Alt held unless its binding is
   in chords (`control.Binding.InChords`, `Binding.Takes`): Shift+W changes the weather without

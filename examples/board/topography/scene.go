@@ -67,6 +67,7 @@ func (m *mainScene) screen() *ui.Element {
 	}
 	a.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
 	a.topography.WithAtmosphere(a.atmosphere)
+	a.atmosphere.ShowClouds(true)
 	a.vision.WithViews(render.Show(a.selection.IsSelected))
 	a.cameras.ShowZones(true)
 

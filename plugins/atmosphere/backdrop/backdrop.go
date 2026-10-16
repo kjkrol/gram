@@ -41,7 +41,18 @@ var own = []render.Uniform{
 	{Name: "StarX", Size: 3},
 	{Name: "StarY", Size: 3},
 	{Name: "StarZ", Size: 3},
+	{Name: "CloudBodies", Size: 1},
 }
+
+var heaps = render.NewMeshShaderWith("cumulus", render.Files(shaders, "shaders/cumulus.wgsl"),
+	[]render.Uniform{
+		{Name: "HeapsView", Size: 2},
+		{Name: "HeapsPixel", Size: 1},
+	})
+
+// how many pixels of the screen a pixel of the heaps spans each way: they are soft, worked out a
+// sixteenth as often, the sky reading them enlarged
+const heapsCoarse = 4
 
 // the skies' shaders by their source, so a Stage entered again compiles none anew
 var (
@@ -61,6 +72,8 @@ type Renderer struct {
 	heavens func() celestial.Heavens
 	// nil: both
 	shown func() (stars, moon bool)
+	// nil: none, the clouds a layer on the sky
+	bodies func() bool
 
 	dome     Dome
 	shader   *render.Shader
@@ -71,6 +84,8 @@ type Renderer struct {
 	opts     render.DrawMeshOptions
 	uniforms map[string][]float32 // boxed once in the options
 	masses   air.DomeImage
+	heaps    *render.Image // the clouds as heaps, coarser than the screen
+	heapOpts render.DrawMeshOptions
 }
 
 type skyPlan struct {
@@ -135,6 +150,13 @@ func (b *Renderer) WithHeavens(heavens func() celestial.Heavens) *Renderer {
 // WithShown has the sky show the stars and the moon only while shown says they go on.
 func (b *Renderer) WithShown(shown func() (stars, moon bool)) *Renderer {
 	b.shown = shown
+	return b
+}
+
+// WithBodies has the sky show the clouds as heaps, bodies seen from under them, while bodies says
+// so: dearer than the flat layer it shows otherwise.
+func (b *Renderer) WithBodies(bodies func() bool) *Renderer {
+	b.bodies = bodies
 	return b
 }
 
@@ -221,7 +243,14 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		}
 	}
 	b.opts.Depth = t.Depth // at the furthest depth: only where the world left nothing
-	if !p.Clouds {
+	b.set("CloudBodies", 0)
+	b.opts.Images[2] = nil
+	if p.Clouds && b.bodies != nil && b.bodies() {
+		b.drawHeaps(p)
+		b.set("CloudBodies", 1)
+		b.opts.Images[2] = b.heaps
+	}
+	if !p.Clouds || b.opts.Images[2] != nil {
 		b.set("SkyPieces", 0)
 		b.opts.Vertices = 0
 		t.Screen.DrawMesh(b.tri, b.shader, &b.opts)
@@ -235,6 +264,22 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 
 // pixels; shaders/backdrop.wgsl has the same
 const skyPiece = 16
+
+// the clouds as heaps into an image of their own, coarser than the view, for the sky to read
+func (b *Renderer) drawHeaps(p skyPlan) {
+	w, h := int(p.View[0]+heapsCoarse-1)/heapsCoarse, int(p.View[1]+heapsCoarse-1)/heapsCoarse
+	if b.heaps == nil || b.heaps.Bounds().Dx() != w || b.heaps.Bounds().Dy() != h {
+		if b.heaps != nil {
+			b.heaps.Deallocate()
+		}
+		b.heaps = render.NewImage(w, h)
+	}
+	b.set("HeapsView", p.View[:]...)
+	b.set("HeapsPixel", heapsCoarse)
+	b.heapOpts.Uniforms, b.heapOpts.Vertices = b.opts.Uniforms, 3
+	b.heaps.Clear()
+	b.heaps.DrawMesh(nil, heaps, &b.heapOpts)
+}
 
 // the sky's colour where the world left nothing, everywhere without a depth
 func fillBehind(t render.Target, c color.Color) {

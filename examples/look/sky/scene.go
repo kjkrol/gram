@@ -30,6 +30,7 @@ func (m *mainScene) screen() *ui.Element {
 		Style(EarthCell, painter.Style{Spread: 0.3}).
 		Style(RockCell, painter.Style{Spread: 0.25})
 	a.topography.WithAtmosphere(a.atmosphere)
+	a.atmosphere.ShowClouds(true)
 
 	cam := a.cameras.New(a.topography.Views(topography.Isometrically), camera.Config{})
 	return ui.Layers(

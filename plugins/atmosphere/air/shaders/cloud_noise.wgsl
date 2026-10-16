@@ -129,17 +129,19 @@ fn cloudTileLevel(pixel: f32, period: f32) -> f32 {
 }
 
 // cloudTileSpot is where in the clouds' tile (air.Tile) of period world units the world point
-// p lies on level level, a whole number, in the tile's pixels from its corner: the tile wrapping
-// round, held half a pixel in from the level's edge. The shreds' period is cloudTile clouds'
-// widths (red), the heaps' cores' heapTile heaps' cells (green).
+// p lies on level level, a whole number, in the tile's pixels from its corner: each level with a
+// pixel round it of what lies past its far edge, so the GPU's filter reads across the wrap. The
+// shreds' period is cloudTile clouds' widths (red), the heaps' cores' heapTile heaps' cells
+// (green).
 fn cloudTileSpot(p: vec2<f32>, level: f32, period: f32) -> vec2<f32> {
     let size = cloudTileTexels / exp2(level);
     var origin = vec2<f32>(0.0);
     if level > 0.0 {
-        origin = vec2<f32>(cloudTileTexels, cloudTileTexels - 2.0 * size);
+        let down = cloudTileTexels - 2.0 * size + 2.0 * (level - 1.0);
+        origin = vec2<f32>(cloudTileTexels + 2.0, down);
     }
     let q = fract((p - U.Drift) / period);
-    return origin + clamp(q * size, vec2<f32>(0.5), vec2<f32>(size - 0.5));
+    return origin + 1.0 + q * size;
 }
 
 // cloudTileAt is the clouds' tile (the frame's CloudTile) at p on level lod, its period period:

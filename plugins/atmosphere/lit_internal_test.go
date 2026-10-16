@@ -1,6 +1,7 @@
 package atmosphere
 
 import (
+	"github.com/kjkrol/ceremony/command"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/atmosphere/aloft"
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
 	"github.com/kjkrol/gram/plugins/atmosphere/precipitation"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -89,7 +91,7 @@ func (*drawsCtx) ECS() *goke.ECS             { return goke.New() }
 func (c *drawsCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
 func (*drawsCtx) Looks(func())               {}
 
-func TestPlugin_DrawsTheSkyAndWhatFalls(t *testing.T) {
+func TestPlugin_DrawsTheSkyTheCloudsAndWhatFalls(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 128, Height: 128},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
@@ -100,14 +102,26 @@ func TestPlugin_DrawsTheSkyAndWhatFalls(t *testing.T) {
 	if err := a.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(ctx.drawn) != 2 {
-		t.Fatalf("the atmosphere draws %v, want the sky and what falls", ctx.drawn)
+	if len(ctx.drawn) != 3 {
+		t.Fatalf("the atmosphere draws %v, want the sky, the clouds seen from above and what "+
+			"falls", ctx.drawn)
 	}
 	if _, ok := ctx.drawn[0].(*backdrop.Renderer); !ok {
 		t.Errorf("the atmosphere draws %T first, want the sky", ctx.drawn[0])
 	}
-	if _, ok := ctx.drawn[1].(*precipitation.Renderer); !ok {
-		t.Errorf("the atmosphere draws %T second, want what falls", ctx.drawn[1])
+	if _, ok := ctx.drawn[1].(*aloft.Renderer); !ok {
+		t.Errorf("the atmosphere draws %T second, want the clouds seen from above", ctx.drawn[1])
+	}
+	if _, ok := ctx.drawn[2].(*precipitation.Renderer); !ok {
+		t.Errorf("the atmosphere draws %T third, want what falls", ctx.drawn[2])
+	}
+	if a.CloudsShown() {
+		t.Error("the clouds are drawn from above before a scene says so")
+	}
+	a.clouds.Put(command.Nobody, Clouds{})
+	a.carryOut()
+	if !a.CloudsShown() {
+		t.Error("Clouds left the clouds seen from above hidden")
 	}
 }
 
