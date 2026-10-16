@@ -332,34 +332,58 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   after the windows moved). Four `textureLoad`s a level with the ring's arithmetic cost the
   terrain, reading it every pixel, ~15% of topography's frame rate. Every cloud function takes
   the mass. **Two layers of clouds** (2026-10-16, stage 7c, reshaped at the user's eye):
-  `air.Low` the heaps from 1500 m (`air.CloudLow`), bodies `cloudHeap(p, z, pixel, m)` (air's
-  `clouds.wgsl`: flat base, top `pow(thick, 0.8)·(0.6 + 0.8·lumps)`, lumps two octaves of billow
-  noise, never flat — "owieczki"; 0.45 `cloudSize` deep, lumps up to 1.6× that,
-  `Weather.Top(Low)`), `air.High` the shreds as thin sheets each at its own height
-  (`cloudHighHeight`, `Weather.HighHeight`: from 0.6 into the heaps' depth up to 6000 m, so no
-  gap shows between the layers), found along a line by `cloudHighCross` (8 steps, 4 halvings),
-  never marched. Heights on `air.Weather.Bases` (`air.Bases(scale)`, set by the climate; a
-  hand-built Weather without them has its clouds at 0: tests set them). Shares
+  `air.Low` the heaps in **three bands over the ground's relief** (2026-10-17, stage 7c′, the
+  user's design: the same show over peaks of 1900 m or 4000 m): under the peaks 0.68–0.79,
+  covering them 0.74–1.05, over them 1.05–1.25 of the relief from its low ground (the tenth of
+  the board's cells lowest, none under the sea) up to its highest (`atmosphere.Plugin.Over(board)`,
+  `WithWeathering` calls it; `climate.Climate.Over`; `air.ReliefOf`: a relief under 1 km taken as
+  1 km, so hills never pierce; without Over, 1 km). Each band holds places of its own
+  (`Weather.LowBand`, WGSL `cloudLowBand`: noise 2520 wide cut by the weather's shares,
+  `weather.State.Ceilings` under/covering/over, eased by the climate like the air, soft 0.08,
+  drifting at 0.6 of the clouds' drift, so a cloud flying on rises or sinks over minutes). Bodies
+  `cloudHeap(p, z, band, pixel, m)` (air's `clouds.wgsl`: flat base on the band's, top
+  `pow(thick, 0.8)·(0.6 + 0.8·lumps)` in the band's deck, lumps two octaves of billow noise, never
+  flat — "owieczki"; lumps up to 1.6× the deck, `Weather.Top(Low)` the highest anywhere); the
+  marches narrowed to the bands at a line's two ends when they lie within 1260 of each other
+  (`cloudLowRay`, `cloudRayBand`: a 200 m deck takes all the steps). A Weather without `Relief`
+  (hand-built in tests) has one deck on `Bases[Low]`, 0.45 `cloudSize` deep, as before.
+  `air.High` the shreds as thin sheets each at its own height (`cloudHighHeight`,
+  `Weather.HighHeight`: from over the highest deck up to `Bases[High]` = max(6000 m, that +
+  2500 m), `air.BasesOver`), found along a line by `cloudSheetCross` (8 steps, 4 halvings; the
+  low ones' base crossed so for the flat look), never marched. Heights on `air.Weather.Bases`
+  (`air.BasesOver`, set by the climate; `Base(Low)` the lowest base, `BaseSpan` the lowest and
+  highest; a hand-built Weather without them has its clouds at 0: tests set them). Shares
   (`Mass.Layer`, WGSL `cloudLowMass`/`cloudHighMass`): low `C·(0.35 + 0.65·B)`, high
   `min(2C, 1)·(1 − 0.5·B)` in patches (`cloudHighHere`, `Weather.HighAt`, noise 2520 units
   wide): together or apart, shreds in fair weather too, heaps the more the sky fills. Heaps 4×
   smaller than at first (`heapSize` 787.5; the tile bakes cores at `q·heapTile/CloudTile`), each
   an ellipse (aspect up to 2.2, turned) with five puffs of many sizes on its rim (`heapCores`,
   `heapRoll`, the CPU the same). The shadow: `cloudsShadeAt(p, pixel)`, each layer where the way
-  to the sun crosses it (`sun.xy/max(sun.z, 0.25)·(h − p.z)`, the high one's h its sheet's over
-  the point), none over ground above it, combined `1-(1-a)(1-b)`; CPU `Weather.Shade` within
+  to the sun crosses it (`sun.xy/max(sun.z, 0.25)·(h − p.z)`, the low one's h its band's base
+  over the point, corrected once where the way to the sun meets it, the high one's its sheet's
+  over the point), none over ground above it, combined `1-(1-a)(1-b)`; CPU `Weather.Shade` within
   2.5/255 on the whole; `FallsAt` from the low clouds alone. The terrain works it out at its
   lattice's corners (`mesh.wgsl` vs_main, a varying; none on the skirt, whose huge far triangles
   showed as angular shadows on the horizon): per pixel it cost the topography ~1.2 ms a frame
   more for the high layer alone; the board's flat ground at its 8-px corners, the hexes
   per vertex. `atmosphere/aloft`: a layer seen from above (`aloft.New(weather, layer)`, a
-  Direct at the layer's height; one a layer): the heaps marched 12 steps through their bodies
+  Direct at the layer's height; one a layer): the heaps marched 10 steps through their bodies
   (random offsets a pixel: an even pattern showed stripes; slices instead showed as stacked
   discs from the side), the shreds' sheets crossed once; thinning into the ground
   (`groundHeightAt`, checked only under the highest ground); through a perspective faded along
-  the horizon and hazed to `U.Fog` by the visibility over the eye; none from a perspective eye
-  under the layer's `Top` (from a hill above the heaps' base it drew them over the ridges and as
-  a band on the horizon); a quarter resolution each way.
+  the horizon and hazed to `U.Fog` by the visibility over the eye; from a perspective eye under
+  the layer's `Top` the high ones none (they are the sky's), the low ones as bodies **before the
+  ground** (`aloftBelow`, 12 steps, from where the line of sight enters the band as far as it
+  stays under `groundHighest()`, stopping where it goes under the ground; the sky's cumulus draws
+  those past the highest ground, `backdrop.Clouds.Before`, so neither doubles nor leaves a gap;
+  not drawn at all while the frame's ground, `GroundSpan`, stays under the lowest base); a
+  quarter resolution each way. The low clouds lie as deep as their first dense sample: the coarse
+  pass writes `frag_depth` (through the scene's transform, `AloftViewProj`, as the drops) into a
+  Readable depth of its own, the lay (`lay.wgsl`) reads it (`depthAt`) and writes `frag_depth`
+  tested against the world's (`t.Depth`): the ground or anything nearer hides them, they hide
+  what stands behind (a hill in front of the band's entry, which the march does not see, too).
+  The high ones are laid by `DrawImage`. Seen from a valley, clouds behind hills lower than the
+  band are hidden: before slopes they stand only where the slopes reach into the band.
   `atmosphere.ShowClouds(look)` from the scene (the demos start `AllBodies`), `Clouds`
   (Shift+V) goes on to the next `CloudLook` (the user's choice, 2026-10-16, to compare them):
   `FlatClouds` (flat sheets on the sky, one flat slice a layer from above), `LowBodies`,
@@ -378,6 +402,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   terrain ~0.7 ms (`Weather.HighShade`, on as the game starts at the user's word, Shift+S
   `HighShade` with the camera free:
   WGSL `cloudHighOver` none without `U.CloudsHighShade`), the second pass from above ~0.2 ms.
+  At 7c′ (2026-10-17, 2560×1440, against 7c): iso and perspective +0.3 ms (the bands +0.1, the
+  depth lay +0.2), a walker's eyes and look/sky looking up +0.7–0.9 ms (the clouds before the
+  ground, drawn from under them for the first time). A Readable depth read by a target of
+  another size was refit to it every draw (two texture allocations a frame, ~2 ms, its content
+  lost): `render/gpu` now keeps it the size it was drawn at.
   The sun's and the moon's discs fade by both layers' covers where their
   ways cross them (`coverAlong`). look/sky runs no clouds (`Running` without `Clouds`). The
   clouds' tile (`air.Tile`) keeps a pixel of wrap round every level: reading it clamped half a
@@ -399,7 +428,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`Alter[cell.Ground]`: snow, ice, sway), laid by its own system once a second of game time (snow
   in drifts where it snows in the frost, `FallsAt` on the cell, melting once warm, ice from the
   shore below −3°C, what sways swaying above a wind of 15);
-  `atmosphere.Plugin.WithWeathering(board, cfg)` as the atmosphere is made.
+  `atmosphere.Plugin.WithWeathering(board, cfg)` as the atmosphere is made (it calls `Over`).
   `atmosphere/air`: the weather as drawn (`Weather.Frame`, `Sway`, `Cloud(layer)`, `Shade`,
   `Haze`; the clouds' periodic noise baked once into `air.Tile()`, the frame's image `CloudTile`
   (2026-10-16), which every cloud shader looks up per pixel (`cloudTileAt`); `Weather.Frame`

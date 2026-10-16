@@ -1,6 +1,8 @@
 // The clouds worked out coarser than the screen (aloft.Renderer, image0) laid over a view
 // U.LayView pixels wide, U.LayCoarse pixels of it a pixel of theirs, a coarse pixel's worth
-// blurred: their steps put off at random a pixel showed as grain.
+// blurred: their steps put off at random a pixel showed as grain. Each lies as deep as the
+// nearest of the coarse pixels round it left in the depth read (depthAt), so what stands nearer
+// hides them.
 
 struct Out {
     @builtin(position) clip: vec4<f32>,
@@ -20,10 +22,26 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> Out {
     return o;
 }
 
+struct Laid {
+    @location(0) color: vec4<f32>,
+    @builtin(frag_depth) depth: f32,
+}
+
 @fragment
-fn fs_main(o: Out) -> @location(0) vec4<f32> {
+fn fs_main(o: Out) -> Laid {
     let at = imageSrc0Origin() + o.px / U.LayCoarse;
-    return 0.25 * (imageSrc0Linear(at + vec2<f32>(0.5, 0.5)) +
+    var l: Laid;
+    l.color = 0.25 * (imageSrc0Linear(at + vec2<f32>(0.5, 0.5)) +
         imageSrc0Linear(at + vec2<f32>(-0.5, 0.5)) + imageSrc0Linear(at + vec2<f32>(0.5, -0.5)) +
         imageSrc0Linear(at + vec2<f32>(-0.5, -0.5)));
+    if l.color.a < 1.0 / 512.0 {
+        discard;
+    }
+    l.depth = coarseDepth(at);
+    return l;
+}
+
+// coarseDepth is the depth the clouds left at their pixel p, held within their image.
+fn coarseDepth(p: vec2<f32>) -> f32 {
+    return depthAt(clamp(p, imageSrc0Origin(), imageSrc0Origin() + imageSrc0Size() - 1.0));
 }

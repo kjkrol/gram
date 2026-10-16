@@ -1,4 +1,4 @@
-// What falls, drop by drop, between the low clouds' base (U.CloudBases.x) and the ground
+// What falls, drop by drop, between the low clouds' base (cloudLowBand) and the ground
 // (precipitation.Drops), six vertices a drop: U.DropsEach drops in each of three boxes round where
 // the eye looks (U.DropBox0 to U.DropBox2: the middle and how wide, none where 0; U.DropTall how
 // tall each), every drop a
@@ -39,7 +39,7 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> Drop {
     let lo = box.xyz - 0.5 * size;
     let fall = vec3<f32>(U.DropLean, -1.0) * (U.Clock * U.DropSpeed);
     let p = lo + dropWrap(h.xyz * size + fall - lo, size);
-    let base = U.CloudBases.x;
+    let base = cloudLowBand(p.xy).x;
     if p.z > base || p.z < max(groundHeightAt(p.xy), 0.0) {
         return d;
     }

@@ -34,7 +34,8 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> Sky {
     let corner = vec2<f32>(f32(n % pieces) + across[vid % 6u], f32(n / pieces) + down[vid % 6u]);
     s.px = min(corner * skyPiece, U.SkyView);
     s.clip = vec4<f32>(s.px.x / U.SkyView.x * 2.0 - 1.0, 1.0 - s.px.y / U.SkyView.y * 2.0, 0.0, 1.0);
-    s.look = cloudsLook(s.px, U.CloudBases.x);
+    let bases = cloudLowBases();
+    s.look = cloudsLook(s.px, 0.5 * (bases.x + bases.y));
     s.high = cloudsLook(s.px, 0.5 * (cloudHighFloor() + U.CloudBases.y));
     return s;
 }
@@ -99,7 +100,7 @@ fn fs_main(v: Sky) -> @location(0) vec4<f32> {
             front = heaps + front * (1.0 - heaps.a);
         }
         if U.CloudsFlat.x > 0.5 {
-            let low = skyLayer(d, U.CloudBases.x, true, v.look, vault);
+            let low = skyLayer(d, cloudLowBases().x, true, v.look, vault);
             front = low + front * (1.0 - low.a);
         }
     }
@@ -113,16 +114,21 @@ fn fs_main(v: Sky) -> @location(0) vec4<f32> {
     return vec4<f32>(rgb, 1.0);
 }
 
-// skyLayer is a layer of clouds seen flat along d from the eye: the heaps if low, height up, else
-// the sheets of shreds, each at its own height (cloudHighCross); looking as look says (cloudsLook)
-// over the sky behind: premultiplied, none where d does not meet the layer.
+// skyLayer is a layer of clouds seen flat along d from the eye, height up where all its sheets
+// hang alike: the heaps if low, each on its base (cloudLowBand), else the sheets of shreds, each at
+// its own height (cloudHighHeight); looking as look says (cloudsLook) over the sky behind:
+// premultiplied, none where d does not meet the layer.
 fn skyLayer(d: vec3<f32>, height: f32, low: bool, look: vec4<f32>, behind: vec3<f32>) -> vec4<f32> {
-    // where the line of sight meets the layer, and how much of it a pixel spans there
-    var t = (height - U.EyeAt.z) / max(d.z, 1e-3);
+    // where the line of sight meets the layer, each sheet at its own height, and how much of it a
+    // pixel spans there
+    var band = cloudLowBases();
     if !low {
-        let band = cloudBodySpan(false);
-        t = cloudHighCross(U.EyeAt, d, max((band.x - U.EyeAt.z) / max(d.z, 1e-3), 0.0),
-            (band.y - U.EyeAt.z) / max(d.z, 1e-3));
+        band = cloudBodySpan(false);
+    }
+    var t = (height - U.EyeAt.z) / max(d.z, 1e-3);
+    if band.y > band.x {
+        t = cloudSheetCross(U.EyeAt, d, max((band.x - U.EyeAt.z) / max(d.z, 1e-3), 0.0),
+            (band.y - U.EyeAt.z) / max(d.z, 1e-3), low);
     }
     let hit = U.EyeAt.xy + d.xy * t;
     let span = max(length(dpdx(hit)), length(dpdy(hit)));

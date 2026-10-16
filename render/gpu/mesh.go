@@ -163,7 +163,8 @@ type MeshDraw struct {
 	Vertices  uint32    // without Indices: how many vertices, in order, three a triangle
 	Instances []float32 // an Instanced program's: its vec4s an instance, the mesh drawn once each
 	Blend     Blend
-	// ReadDepth is a depth buffer the program reads (depthAt), another than Depth.
+	// ReadDepth is a depth buffer the program reads (depthAt), another than Depth, at the size it
+	// was drawn at.
 	ReadDepth *Depth
 	// Untested draws everywhere, the Depth kept as it is.
 	Untested bool
@@ -227,8 +228,8 @@ func Mesh(dw *MeshDraw) {
 			panic("gpu: a mesh reads the depth buffer it is drawn against")
 		}
 		read = dw.ReadDepth
-		if read.w != t.w || read.h != t.h {
-			read.fit(t.w, t.h)
+		if read.w == 0 || read.h == 0 {
+			read.fit(t.w, t.h) // never drawn; one drawn keeps its size, read by any target
 		}
 		if !read.readable {
 			panic("gpu: a mesh reads a depth buffer that is not Readable")

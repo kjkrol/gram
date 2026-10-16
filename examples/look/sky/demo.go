@@ -102,7 +102,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		},
 		Climate: climate.Config{Start: weather.Clear},
 		Running: &atmosphere.Running{Day: true, Stars: true, Moon: true},
-	})
+	}).Over(a.board)
 	a.cameras = cameras.NewPlugin(a.world)
 	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter())
 	a.players = players.NewPlugin(a.world, a.cameras, a.board, a.atmosphere, a.topography)

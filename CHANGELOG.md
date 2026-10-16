@@ -17,6 +17,21 @@ in a flat world: a board stands only in a world with heights now. Nor those made
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
 entities.
 
+**Low clouds over the relief** (2026-10-17)
+- The low heaps hang in three bands fitted to the ground's relief, whatever its height: under the
+  peaks, covering them and over them (`air.Weather.LowBand`, WGSL `cloudLowBand`), each in
+  places of its own as the weather shares them (`weather.State.Ceilings`, `Weather.Ceilings`),
+  drifting slower than the clouds, so a cloud flying on rises or sinks slowly. The relief runs
+  from the board's low ground to its peaks (`atmosphere.Plugin.Over(board)`, which
+  `WithWeathering` calls; `climate.Climate.Over`, `air.ReliefOf`, a relief under 1 km taken as
+  1 km), the high shreds always over the low heaps (`air.BasesOver`). A heap's deck lies in its
+  band, the heaped ones rising past it.
+- Seen from under their top the low heaps stand before the slopes that reach into them, and the
+  clouds hide and are hidden by whatever stands nearer: they lie as deep as where they begin
+  (`aloft`; `backdrop.Clouds.Before` leaves those before the ground to it).
+- `render.DrawMeshOptions.ReadDepth` reads a depth buffer at the size it was drawn at, whatever
+  the size of the target reading it.
+
 **Low heaps and high shreds** (2026-10-16)
 - The clouds hang in two layers (`air.Layer`): the heaps low, 1.5 km up (`air.CloudLow`), their
   bodies with lumpy tops reaching `air.Weather.Top`, and the torn shreds, thin sheets each at its

@@ -40,21 +40,27 @@ fn cloudHighHeight(p: vec2<f32>) -> f32 {
 }
 
 // cloudHighCross is how far along the line from o along d it meets the high clouds' sheet
-// (cloudHighHeight) between t0 and t1, found step by step, then halved down to it; -1 if it does
-// not.
+// (cloudHighHeight) between t0 and t1; -1 if it does not.
 fn cloudHighCross(o: vec3<f32>, d: vec3<f32>, t0: f32, t1: f32) -> f32 {
+    return cloudSheetCross(o, d, t0, t1, false);
+}
+
+// cloudSheetCross is how far along the line from o along d it meets a sheet of clouds between t0
+// and t1, found step by step, then halved down to it: the low clouds' base (cloudLowBand) if low,
+// else the high clouds' sheet (cloudHighHeight); -1 if it does not.
+fn cloudSheetCross(o: vec3<f32>, d: vec3<f32>, t0: f32, t1: f32, low: bool) -> f32 {
     var near = t0;
-    var above = o.z + d.z * t0 - cloudHighHeight(o.xy + d.xy * t0);
+    var above = o.z + d.z * t0 - cloudSheetHeight(o.xy + d.xy * t0, low);
     let step = (t1 - t0) / f32(cloudCrossSteps);
     for (var i = 1; i <= cloudCrossSteps; i++) {
         let t = t0 + f32(i) * step;
-        let now = o.z + d.z * t - cloudHighHeight(o.xy + d.xy * t);
+        let now = o.z + d.z * t - cloudSheetHeight(o.xy + d.xy * t, low);
         if (now < 0.0) != (above < 0.0) {
             var a = near;
             var b = t;
             for (var k = 0; k < cloudCrossHalvings; k++) {
                 let mid = 0.5 * (a + b);
-                let there = o.z + d.z * mid - cloudHighHeight(o.xy + d.xy * mid);
+                let there = o.z + d.z * mid - cloudSheetHeight(o.xy + d.xy * mid, low);
                 if (there < 0.0) == (above < 0.0) {
                     a = mid;
                 } else {
@@ -69,11 +75,90 @@ fn cloudHighCross(o: vec3<f32>, d: vec3<f32>, t0: f32, t1: f32) -> f32 {
     return -1.0;
 }
 
-// cloudHighFloor is where the high clouds' band begins: into the low clouds' bodies, so the two
-// leave no gap between them.
-fn cloudHighFloor() -> f32 {
-    return U.CloudBases.x + cloudOverlap * bodyLowDeep * cloudSize;
+fn cloudSheetHeight(p: vec2<f32>, low: bool) -> f32 {
+    if low {
+        return cloudLowBand(p).x;
+    }
+    return cloudHighHeight(p);
 }
+
+// cloudHighFloor is where the high clouds' band begins: over the low clouds' highest deck, or
+// without U.CloudRelief into their bodies, so the two leave no gap between them.
+fn cloudHighFloor() -> f32 {
+    if U.CloudRelief.y <= 0.0 {
+        return U.CloudBases.x + cloudOverlap * bodyLowDeep * cloudSize;
+    }
+    return U.CloudRelief.x + U.CloudRelief.y * cloudOverTop;
+}
+
+// cloudLowBand is how high the low clouds hang over p, world units, as air.Weather.LowBand has it:
+// their base (x) and the top of their deck (y), the heaps' lumps rising past it, in the band of
+// the three (under the peaks, covering them, over them) the noise gives that place as
+// U.CloudCeilings cuts it, shares of U.CloudRelief, drifting U.CloudCeilingDrift; without a
+// relief, or in one layer, one deck on U.CloudBases.x.
+fn cloudLowBand(p: vec2<f32>) -> vec2<f32> {
+    if U.CloudsOneLayer > 0.5 || U.CloudRelief.y <= 0.0 {
+        return vec2<f32>(U.CloudBases.x, U.CloudBases.x + bodyLowDeep * cloudSize);
+    }
+    let q = (p - U.CloudCeilingDrift) / cloudCeilingWide + cloudCeilingOff;
+    let n = cloudNoise(q, cloudTile * cloudSize / cloudCeilingWide);
+    let u = clamp((n - 0.5) * cloudCeilingSpread + 0.5, 0.0, 1.0);
+    let a = cloudCeilingStep(U.CloudCeilings.x, u);
+    let b = cloudCeilingStep(U.CloudCeilings.y, u);
+    let under = 1.0 - a;
+    let cover = max(a - b, 0.0);
+    let base = under * cloudUnderBase + cover * cloudCoverBase + b * cloudOverBase;
+    let top = under * cloudUnderTop + cover * cloudCoverTop + b * cloudOverTop;
+    return U.CloudRelief.x + U.CloudRelief.y * vec2<f32>(base, top);
+}
+
+// cloudCeilingStep is how far past the cut c the ceilings' noise u stands, 0 to 1, a cut at either
+// end hard.
+fn cloudCeilingStep(c: f32, u: f32) -> f32 {
+    if c <= 0.0 {
+        return 1.0;
+    }
+    if c >= 1.0 {
+        return 0.0;
+    }
+    let soft = min(cloudCeilingSoft, min(c, 1.0 - c));
+    let t = clamp((u - c + soft) / (2.0 * soft), 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
+}
+
+// cloudLowSpan is how low the low clouds' lowest base hangs anywhere (x) and how high their highest
+// lumps rise (y), world units, as air.Weather.Base and Top have them.
+fn cloudLowSpan() -> vec2<f32> {
+    if U.CloudsOneLayer > 0.5 || U.CloudRelief.y <= 0.0 {
+        return vec2<f32>(U.CloudBases.x, U.CloudBases.x + bodyLowRise * bodyLowDeep * cloudSize);
+    }
+    let over = cloudOverBase + bodyLowRise * (cloudOverTop - cloudOverBase);
+    return vec2<f32>(U.CloudBases.x, U.CloudRelief.x + U.CloudRelief.y * over);
+}
+
+// cloudLowBases is how low the low clouds' bases hang (x) and how high (y), world units, as
+// air.Weather.BaseSpan has it.
+fn cloudLowBases() -> vec2<f32> {
+    if U.CloudsOneLayer > 0.5 || U.CloudRelief.y <= 0.0 {
+        return vec2<f32>(U.CloudBases.x);
+    }
+    return vec2<f32>(U.CloudBases.x, U.CloudRelief.x + U.CloudRelief.y * cloudOverBase);
+}
+
+// The low clouds' three bands, their base and their deck's top as shares of the relief (scalars:
+// a vector constant read wrong); how wide the places of one band are, world units, a tile holding a
+// whole number of them; where their noise begins, how far it is spread and how softly one band
+// gives way to the next.
+const cloudUnderBase: f32 = 0.68;
+const cloudUnderTop: f32 = 0.79;
+const cloudCoverBase: f32 = 0.74;
+const cloudCoverTop: f32 = 1.05;
+const cloudOverBase: f32 = 1.05;
+const cloudOverTop: f32 = 1.25;
+const cloudCeilingWide: f32 = 2520.0;
+const cloudCeilingOff: f32 = 29.0;
+const cloudCeilingSpread: f32 = 1.8;
+const cloudCeilingSoft: f32 = 0.08;
 
 // How much of the cover the low clouds hold, unheaped, all of it heaped; how soon the high ones
 // come, a few clouds already holding all of them, and how many fewer the more heaped; how wide

@@ -68,8 +68,9 @@ fn imageSrc3At(p: vec2<f32>) -> vec4<f32> {
     return textureLoad(image3, vec2<i32>(floor(p)), 0);
 }
 
-// depthAt is the depth the meshes drawn before left at the target texture's pixel p, for a mesh
-// reading their depth buffer (gpu.MeshDraw.ReadDepth): 0 where none was drawn, 1 nearest.
+// depthAt is the depth the meshes drawn before left at the pixel p of the texture they were drawn
+// into, for a mesh reading their depth buffer (gpu.MeshDraw.ReadDepth): 0 where none was drawn,
+// 1 nearest.
 fn depthAt(p: vec2<f32>) -> f32 {
     return textureLoad(depthImage, vec2<i32>(floor(p)), 0);
 }

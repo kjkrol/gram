@@ -1,6 +1,8 @@
 package atmosphere
 
 import (
+	"fmt"
+	"slices"
 	"time"
 
 	"github.com/kjkrol/ceremony/command"
@@ -19,6 +21,8 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/atmosphere/weathering"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -144,15 +148,42 @@ func (p *Plugin) ShowClouds(look CloudLook) {
 func (p *Plugin) ShownClouds() CloudLook { return p.look }
 
 func (p *Plugin) skyClouds() backdrop.Clouds {
+	low := p.look == LowBodies || p.look == AllBodies
 	return backdrop.Clouds{
 		Hidden: p.look == ShadowsAlone,
-		Bodies: [2]bool{p.look == LowBodies || p.look == AllBodies, p.look == AllBodies},
+		Bodies: [2]bool{low, p.look == AllBodies},
+		Before: low,
 	}
 }
 
-// WithWeathering has the weather work on brd as cfg says: snow, ice, what sways. Call it as the
-// plugin is made; a kind cfg names that the board lacks panics as the weather first touches it.
+// Over has the low clouds hang over brd's ground, their bands fitted to its relief: from its low
+// ground, the sea's or the valleys', up to its peaks. Call it as the plugin is made;
+// WithWeathering does.
+func (p *Plugin) Over(brd *board.Plugin) *Plugin {
+	p.climate.Over(func() (low, peaks float64) { return reliefOf(brd.Heights(), brd.Board()) })
+	return p
+}
+
+// the low ground of b's cells under heights h, the tenth of them lowest, none under the sea's, and
+// their highest
+func reliefOf(h ground.Heights, b *board.Board) (low, peaks float64) {
+	if h == nil {
+		return 0, 0
+	}
+	all := make([]float64, 0, b.CellCount())
+	b.EachCell(func(c cell.ID) { all = append(all, h.At(b.CellCenter(c))) })
+	if len(all) == 0 {
+		return 0, 0
+	}
+	slices.Sort(all)
+	return max(all[len(all)/10], 0), all[len(all)-1]
+}
+
+// WithWeathering has the weather work on brd as cfg says: snow, ice, what sways, the low clouds
+// hanging over its ground (Over). Call it as the plugin is made; a kind cfg names that the board
+// lacks panics as the weather first touches it.
 func (p *Plugin) WithWeathering(brd *board.Plugin, cfg weathering.Config) *Plugin {
+	p.Over(brd)
 	w, err := weathering.New(brd, p.Air, p.worldPlugin.Effects(), p.calendar, cfg)
 	if err != nil {
 		panic(err)
@@ -261,7 +292,13 @@ type cloudsReport struct{ p *Plugin }
 func (cloudsReport) Init(*goke.SysInit) {}
 
 func (r cloudsReport) Report(line func(label, value string)) {
-	line("Clouds", r.p.look.String())
+	look := r.p.look.String()
+	if w := r.p.Air(); !w.OneLayer && w.Relief[1] > 0 {
+		c := w.Ceilings
+		look += fmt.Sprintf("\nunder the peaks %.0f%%\ncovering %.0f%%, over %.0f%%",
+			100*c[0], 100*c[1], 100*c[2])
+	}
+	line("Clouds", look)
 	shadows := "the low clouds'"
 	if r.p.highShade {
 		shadows = "both layers'"

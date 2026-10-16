@@ -43,10 +43,52 @@ type weatherSystem struct {
 	stale  []uid.UID64 // patches of a save the dome has no place for
 	part   int         // of the dome's patches, settling next
 	setNow bool
+
+	ground   func() (low, peaks float64) // nil over no ground in particular
+	relief   [2]float32                  // as air.ReliefOf, from the first step on
+	bases    [2]float32
+	ceilings [3]float32 // coming to the weather's over the world's middle
+	ceiled   bool
 }
 
 func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, asked *[]string, rules *host.StepRules[Weathering], running *Running) *weatherSystem {
 	return &weatherSystem{cfg: cfg, world: w, calendar: cal, asked: asked, running: running, host: rules, profile: cfg.Zone.Profile()}
+}
+
+// the ground the low clouds hang over and how high each layer hangs, worked out once
+func (s *weatherSystem) hang() {
+	if s.relief[1] > 0 {
+		return
+	}
+	var low, peaks float64
+	if s.ground != nil {
+		low, peaks = s.ground()
+	}
+	scale := s.world.Scale()
+	s.relief = air.ReliefOf(scale, low, peaks)
+	s.bases = air.BasesOver(scale, s.relief)
+}
+
+// the shares of the low clouds' bands go towards the weather's over the world's middle, as fast
+// as the air settles into it
+func (s *weatherSystem) ceil(w *Weather, dt float32) {
+	to := s.cfg.Weathers[w.Over].Ceilings
+	if sum := to[0] + to[1] + to[2]; sum > 0 {
+		to = [3]float32{to[0] / sum, to[1] / sum, to[2] / sum}
+	} else {
+		to = [3]float32{1.0 / 3, 1.0 / 3, 1.0 / 3}
+	}
+	if !s.ceiled {
+		s.ceilings, s.ceiled = to, true
+		return
+	}
+	k := s.share(dt)
+	if w.Forced > 0 {
+		k = 1 - float32(math.Exp(-float64(dt)/setting))
+	}
+	for i := range s.ceilings {
+		s.ceilings[i] += (to[i] - s.ceilings[i]) * k
+	}
 }
 
 const (
@@ -203,7 +245,10 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		s.blend(w, dt)
 		s.carry(w, dt)
 		over := s.over(w, dt, m)
+		s.hang()
+		s.ceil(w, dt)
 		now := w.air(s.world.Scale(), *s.running, s.dome, over)
+		now.Bases, now.Relief, now.Ceilings = s.bases, s.relief, s.ceilings
 		now.OneLayer = s.cfg.OneLayer
 		s.current = now
 		if !s.host.Empty() {
@@ -430,7 +475,7 @@ func (w *Weather) wind() [2]float32 {
 func (w *Weather) air(scale world.Scale, r Running, d *air.Dome, over air.Mass) air.Weather {
 	a := air.Weather{Wind: w.wind(), Clouds: over.Cover, Billow: over.Billow, Rain: w.Rain,
 		Snow: w.Snow, Temperature: w.Temperature, Drift: w.Drift, Sight: air.Sight(scale),
-		Bases: air.Bases(scale), Dome: d, Dry: !r.Falls}
+		Dome: d, Dry: !r.Falls}
 	if !r.Wind {
 		a.Wind = [2]float32{}
 	}

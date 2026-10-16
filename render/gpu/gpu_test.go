@@ -449,6 +449,42 @@ func TestReadable_ADepthMadeReadableBeforeItsFirstDrawKeepsWhatItHolds(t *testin
 	}
 }
 
+func TestMesh_ADepthReadByALargerTargetKeepsItsSizeAndWhatItHolds(t *testing.T) {
+	needGPU(t)
+	reader := NewMesh("test half reader", "", `
+struct Out { @builtin(position) clip: vec4<f32> }
+@vertex
+fn vs_main(@builtin(vertex_index) vid: u32) -> Out {
+    var corners = array<vec2<f32>, 4>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(1.0, -1.0),
+        vec2<f32>(-1.0, 1.0),
+        vec2<f32>(1.0, 1.0),
+    );
+    var o: Out;
+    o.clip = vec4<f32>(corners[vid], 0.0, 1.0);
+    return o;
+}
+@fragment
+fn fs_main(o: Out) -> @location(0) vec4<f32> {
+    return vec4<f32>(depthAt(o.clip.xy / 2.0), 0.0, 0.0, 1.0);
+}`)
+	small, big := NewTexture(4, 4), NewTexture(8, 8)
+	held := NewDepth().Readable()
+	ClearDepth(Image{Texture: small}, held)
+	depthQuad(small, held, Written, 0.6, red)
+	Mesh(&MeshDraw{Target: Image{Texture: big}, ReadDepth: held, Program: reader, Vertices: 4,
+		Indices: NewIndices([]uint32{0, 1, 2, 1, 2, 3}), Blend: Copy})
+	pix := make([]byte, 4*8*8)
+	big.ReadPixels(pix)
+	if p := pixel(pix, 8, 6, 5); p[0] < 152 || p[0] > 154 {
+		t.Errorf("an 8 by 8 target reads %v of a 4 by 4 depth holding 0.6, want 0.6 in red", p)
+	}
+	if w, h := held.Size(); w != 4 || h != 4 {
+		t.Errorf("read by an 8 by 8 target the depth is %d by %d, want 4 by 4 as drawn", w, h)
+	}
+}
+
 func TestTriangles_ASightTakesHeightsForDepths(t *testing.T) {
 	needGPU(t)
 	// straight down from 100, a pixel a unit: the depth (z + 200) / 400, 1 nearest

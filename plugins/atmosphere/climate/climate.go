@@ -21,6 +21,7 @@ type Climate struct {
 	report   report
 	rules    host.StepRules[Weathering]
 	about    func() uid.UID64
+	ground   func() (low, peaks float64)
 	running  Running
 }
 
@@ -67,7 +68,7 @@ func (c *Climate) Zone() Zone { return c.cfg.Zone }
 // System is the weather's system, to run in every step of the simulation. Call it once.
 func (c *Climate) System() goke.System {
 	c.sys = newWeatherSystem(c.cfg, c.world, c.calendar, &c.asked, &c.rules, &c.running)
-	c.sys.about = c.about
+	c.sys.about, c.sys.ground = c.about, c.ground
 	return c.sys
 }
 
@@ -84,6 +85,11 @@ func (c *Climate) Set(name string) {
 
 // About says whose entity a Weathering is about, the world's without it. Call it before System.
 func (c *Climate) About(self func() uid.UID64) { c.about = self }
+
+// Over has the low clouds hang over the ground ground gives at the first step: its low ground and
+// its peaks, world units up (air.ReliefOf); without it, over no ground in particular. Call it
+// before System.
+func (c *Climate) Over(ground func() (low, peaks float64)) { c.ground = ground }
 
 // LoadComps lists the weather's components for the saves: its own and the air masses' patches.
 func (c *Climate) LoadComps() []goke.CompToken {

@@ -136,7 +136,7 @@ func (d *Drops) boxes(cam camera.Camera) (boxes, bool) {
 	if !ok {
 		return boxes{}, false
 	}
-	base := w.Base(air.Low)
+	_, base := w.BaseSpan(air.Low) // the highest, any drop under it
 	length := lookOf(w).length
 	vw, vh := cam.Viewport()
 	b := boxes{field: f, ortho: f.DDX == ([3]float32{}) && f.DDY == ([3]float32{})}

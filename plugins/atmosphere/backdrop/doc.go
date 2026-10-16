@@ -7,10 +7,10 @@
 // A [Renderer] ([New]) is a render.Direct behind the whole world, the atmosphere's; composing, it
 // hands the frame the sun and the weather (sky.Sun.Frame, air.Weather.Frame). It reads them as
 // they stand, where the sun, the moon and the stars stand
-// ([Renderer.WithHeavens]), whether the stars and the moon show ([Renderer.WithShown]) and whether
-// the low clouds are heaps, bodies seen from under them ([Renderer.WithBodies]), worked out
-// coarser than the screen into image2, or a flat layer before the high ones; the layers under the
-// eye it leaves to plugins/atmosphere/aloft.
+// ([Renderer.WithHeavens]), whether the stars and the moon show ([Renderer.WithShown]) and how
+// the clouds show ([Renderer.WithClouds], [Clouds]): each layer flat or as heaps, bodies seen
+// from under them, worked out coarser than the screen into image2; the layers under the eye, and
+// the heaps before the ground when another draws them, it leaves to plugins/atmosphere/aloft.
 //
 // # Dome
 //

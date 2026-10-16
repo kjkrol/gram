@@ -121,7 +121,7 @@ func TestRenderer_DrawsTheCloudsFromAboveOverTheirMassAlone(t *testing.T) {
 	bases := weather.Bases
 	for _, layer := range []air.Layer{air.Low, air.High} {
 		r := New(weatherNow, layer)
-		if _, ok := r.field(cam); ok {
+		if _, _, ok := r.field(cam); ok {
 			t.Fatal("hidden, the clouds are drawn from above")
 		}
 		r.Show(true)
@@ -139,7 +139,7 @@ func TestRenderer_DrawsTheCloudsFromAboveOverTheirMassAlone(t *testing.T) {
 			z    float32
 			seen bool
 		}{{100, false}, {(bases[air.Low] + bases[air.High]) / 2, layer == air.Low}, {9000, true}} {
-			if _, ok := r.field(sunk{Camera: cam, z: c.z}); ok != c.seen {
+			if _, _, ok := r.field(sunk{Camera: cam, z: c.z}); ok != c.seen {
 				t.Errorf("layer %d from an eye %v up: seen from above %v, want %v", layer, c.z, ok,
 					c.seen)
 			}
@@ -158,15 +158,15 @@ func TestRenderer_InOneLayerDrawsTheLowOnesHighAlone(t *testing.T) {
 	low, high := New(weatherNow, air.Low), New(weatherNow, air.High)
 	low.Show(true)
 	high.Show(true)
-	if _, ok := high.field(cam); ok {
+	if _, _, ok := high.field(cam); ok {
 		t.Error("in one layer the high clouds are drawn from above")
 	}
 	between := (w.Bases[air.Low] + w.Bases[air.High]) / 2
-	if _, ok := low.field(sunk{Camera: cam, z: between}); ok {
+	if _, _, ok := low.field(sunk{Camera: cam, z: between}); ok {
 		t.Errorf("in one layer an eye %v up sees the clouds from above, want them %v up",
 			between, w.Bases[air.High])
 	}
-	if _, ok := low.field(cam); !ok || low.base() != w.Bases[air.High] {
+	if _, _, ok := low.field(cam); !ok || low.base() != w.Bases[air.High] {
 		t.Errorf("in one layer the clouds from above are drawn %v, %v up; want %v up", ok,
 			low.base(), w.Bases[air.High])
 	}
@@ -220,5 +220,105 @@ func TestRenderer_HidesTheCloudsInsideTheGround(t *testing.T) {
 			t.Errorf("layer %d over ground 2000 up in the west, 0 in the east: covered %.2f in "+
 				"the west, %.2f in the east; want hidden in the west %v", layer, west, east, hidden)
 		}
+	}
+}
+
+// a perspective eye at (600, 240, z) looking west, up at the top of a view 640 by 480 and down
+// at its bottom
+type level struct {
+	camera.Camera
+	z float32
+}
+
+func (l level) Rays() (camera.RayField, bool) {
+	return camera.RayField{Origin: [3]float32{600, 240, l.z}, Dir: [3]float32{-1, -0.32, 0.24},
+		DDX: [3]float32{0, 0.001, 0}, DDY: [3]float32{0, 0, -0.001}}, true
+}
+
+// how much of the rows y0 to y1 of a view 640 by 480 the clouds r draws through cam cover
+func coveringRows(r *Renderer, t render.Target, cam camera.Camera, u render.Uniforms,
+	y0, y1 int) float64 {
+	screen := render.NewImage(640, 480)
+	defer screen.Deallocate()
+	if t.Depth != nil {
+		screen.ClearDepth(t.Depth)
+	}
+	t.Screen = screen
+	r.Draw(t, cam, u)
+	pix := make([]byte, 4*640*480)
+	screen.ReadPixels(pix)
+	sum := 0.0
+	for y := y0; y < y1; y++ {
+		for x := range 640 {
+			sum += float64(pix[4*(y*640+x)+3])
+		}
+	}
+	return sum / float64(255*640*(y1-y0))
+}
+
+// what stands nearest everywhere, in the depth buffer
+var nearest = render.NewMeshShaderWith("nearest", []byte(`
+struct Out { @builtin(position) clip: vec4<f32> }
+struct Laid { @location(0) color: vec4<f32>, @builtin(frag_depth) depth: f32 }
+@vertex
+fn vs_main(@builtin(vertex_index) vid: u32) -> Out {
+    var corners = array<vec2<f32>, 3>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(3.0, -1.0),
+        vec2<f32>(-1.0, 3.0),
+    );
+    return Out(vec4<f32>(corners[vid], 0.0, 1.0));
+}
+@fragment
+fn fs_main(o: Out) -> Laid { return Laid(vec4<f32>(0.0), 1.0); }
+`), nil)
+
+func TestRenderer_DrawsTheLowCloudsBeforeTheSlopesFromUnderThem(t *testing.T) {
+	needGPU(t)
+	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
+	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
+	cam.SetViewport(640, 480)
+	relief := air.ReliefOf(world.Scale{}, 0, 1860)
+	weather := air.Weather{Clouds: 0.9, Billow: 1, Relief: relief,
+		Bases: air.BasesOver(world.Scale{}, relief), Ceilings: [3]float32{1, 0, 0}}
+	weatherNow := func() air.Weather { return weather }
+	r := New(weatherNow, air.Low)
+	r.Show(true)
+	r.Bodies(true)
+	eye := level{Camera: cam, z: 1250}
+	if _, under, ok := r.field(eye); !ok || !under {
+		t.Fatalf("from an eye 1250 up, under the clouds' top %v: drawn %v, from under them %v; "+
+			"want both", weather.Top(air.Low), ok, under)
+	}
+	wall := framed(t, w, eye, weatherNow, r, westRaised())
+	up := coveringRows(r, render.Target{}, eye, wall, 0, 120)
+	down := coveringRows(r, render.Target{}, eye, wall, 360, 480)
+	if up < 0.1 || down > 0.01 {
+		t.Errorf("looking at a wall 2000 high through clouds 1265 up: covered %.2f above, %.2f "+
+			"below; want the clouds before the wall above alone", up, down)
+	}
+	bare := New(weatherNow, air.Low)
+	bare.Show(true)
+	bare.Bodies(true)
+	flat := framed(t, w, eye, weatherNow, bare)
+	if got := coveringRows(bare, render.Target{}, eye, flat, 0, 120); got > 0.01 {
+		t.Errorf("with no ground standing up into the clouds covered %.2f above, want none: the "+
+			"sky has them", got)
+	}
+	depth := render.NewDepth()
+	screen := render.NewImage(640, 480)
+	defer screen.Deallocate()
+	screen.DrawMesh(nil, nearest, &render.DrawMeshOptions{Vertices: 3, Depth: depth,
+		ClearDepth: true, WriteDepth: true})
+	r.Draw(render.Target{Screen: screen, Depth: depth}, eye, wall)
+	pix := make([]byte, 4*640*480)
+	screen.ReadPixels(pix)
+	hidden := 0.0
+	for i := 3; i < len(pix); i += 4 {
+		hidden += float64(pix[i])
+	}
+	if hidden > 0 {
+		t.Errorf("behind what stands nearest everywhere the clouds still show, %v of alpha", hidden)
 	}
 }

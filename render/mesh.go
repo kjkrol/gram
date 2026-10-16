@@ -64,7 +64,8 @@ type DrawMeshOptions struct {
 	Primed     bool
 	Vertices   int       // without indices: how many vertices, in order, three a triangle
 	Instances  []float32 // an Instanced shader's, its vec4s each
-	// ReadDepth is a depth buffer the shader reads (depthAt), another than Depth.
+	// ReadDepth is a depth buffer the shader reads (depthAt), another than Depth, at the size it
+	// was drawn at.
 	ReadDepth *Depth
 	Images    [4]*Image
 	Uniforms  map[string]any

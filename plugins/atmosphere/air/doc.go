@@ -26,9 +26,13 @@
 //
 // The clouds hang in two layers, each a [Layer]: the heaps [Low], their bodies reaching
 // [Weather.Top], and the torn shreds [High], thin sheets each at its own height through a band
-// from into the heaps up to the weather's Bases ([Weather.HighHeight]; [Bases] on a world of a
-// scale). A mass holds the heaps the more the sky is covered and heaped, the shreds with a few
-// clouds already ([Mass.Layer]), the shreds in patches ([Weather.HighAt]). [Weather.Cloud]
+// from over the heaps up to the weather's Bases ([Weather.HighHeight]). The heaps hang over the
+// ground's relief ([ReliefOf], [BasesOver]; [Bases] over no ground in particular) in three bands,
+// under the peaks, covering them and over them, each in places of its own as the weather's
+// Ceilings share them, drifting slower than the clouds ([Weather.LowBand], cloudLowBand in WGSL):
+// the same show over a relief of any height. A mass holds the heaps the more the sky is covered
+// and heaped, the shreds with a few clouds already ([Mass.Layer]), the shreds in patches
+// ([Weather.HighAt]). [Weather.Cloud]
 // is a layer's noise over a point, drifted with the wind, and [Weather.Shade] how much of the sun
 // the clouds take at a point of the ground, each layer's shadow where the way to the sun crosses
 // it: on the CPU the numbers the shaders work out on the GPU (cloudsShadeAt), [CloudShadow] their

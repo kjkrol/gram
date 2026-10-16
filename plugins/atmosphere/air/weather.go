@@ -23,6 +23,9 @@ var weatherUniforms = []render.Uniform{
 	{Name: "LookDX", Size: 3},
 	{Name: "LookDY", Size: 3},
 	{Name: "CloudBases", Size: 2},
+	{Name: "CloudRelief", Size: 2},
+	{Name: "CloudCeilings", Size: 2},
+	{Name: "CloudCeilingDrift", Size: 2},
 	{Name: "CloudsOneLayer", Size: 1},
 	{Name: "CloudsHighShade", Size: 1},
 	{Name: "Visibility", Size: 1},
@@ -66,9 +69,12 @@ func CloudShadow() render.MaterialID { return cloudShadow }
 // world units a second, Clouds, Rain and Snow 0 to 1, Billow 0 torn shreds to 1 big heaps,
 // Temperature degrees Celsius, Drift how far the wind has carried the clouds, Sight how far one
 // sees through clear air (Sight), world units, 0 without end, Bases how high each Layer of clouds
-// hangs (Bases), OneLayer all of them High's height, heaps and shreds mixed, shadows straight
-// under, HighShade the high ones shading the ground too. Dome is the air masses the wind carries
-// over the world and its sky, nil the weather alike everywhere; Dry, nothing falls.
+// hangs (Bases, BasesOver), Relief the ground the low ones hang over (ReliefOf; none, at their
+// Base), Ceilings the shares of their three bands, under the peaks, covering them and over them
+// (LowBand; none, a third each), OneLayer all of them High's height, heaps and shreds mixed,
+// shadows straight under, HighShade the high ones shading the ground too. Dome is the air masses
+// the wind carries over the world and its sky, nil the weather alike everywhere; Dry, nothing
+// falls.
 type Weather struct {
 	Wind        [2]float32
 	Clouds      float32
@@ -78,6 +84,8 @@ type Weather struct {
 	Drift       [2]float32
 	Sight       float64
 	Bases       [2]float32
+	Relief      [2]float32
+	Ceilings    [3]float32
 	OneLayer    bool
 	HighShade   bool
 	Dome        *Dome
@@ -159,6 +167,12 @@ func (w Weather) Frame(f *render.Frame, sun sky.Sun, x, y float32) {
 	f.Uniform("Drift", float32(wrap(float64(w.Drift[0]), HeapTile)),
 		float32(wrap(float64(w.Drift[1]), HeapTile)))
 	f.Uniform("CloudBases", w.Base(Low), w.Base(High))
+	f.Uniform("CloudRelief", w.Relief[0], w.Relief[1])
+	c0, c1 := w.cuts()
+	f.Uniform("CloudCeilings", c0, c1)
+	f.Uniform("CloudCeilingDrift",
+		float32(wrap(float64(ceilingLag*w.Drift[0]), CloudTile)),
+		float32(wrap(float64(ceilingLag*w.Drift[1]), CloudTile)))
 	one := float32(0)
 	if w.OneLayer {
 		one = 1

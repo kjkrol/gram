@@ -50,6 +50,7 @@ var heaps = render.NewMeshShaderWith("cumulus", render.Files(shaders, "shaders/c
 		{Name: "HeapsView", Size: 2},
 		{Name: "HeapsPixel", Size: 1},
 		{Name: "HeapsLayers", Size: 2},
+		{Name: "HeapsBefore", Size: 1},
 	})
 
 // how many pixels of the screen a pixel of the heaps spans each way: they are soft, worked out a
@@ -153,10 +154,12 @@ func (b *Renderer) WithShown(shown func() (stars, moon bool)) *Renderer {
 }
 
 // Clouds is how the sky shows the clouds: none if Hidden, else each layer (by air.Layer) flat or,
-// in Bodies, heaped, bodies seen from under them, dearer than flat.
+// in Bodies, heaped, bodies seen from under them, dearer than flat. Before, another draws the low
+// heaps before the ground (aloft), and the sky only those past the highest ground.
 type Clouds struct {
 	Hidden bool
 	Bodies [2]bool
+	Before bool
 }
 
 // WithClouds has the sky show the clouds as clouds says.
@@ -304,6 +307,7 @@ func (b *Renderer) drawHeaps(p skyPlan, look Clouds) {
 	b.set("HeapsView", p.View[:]...)
 	b.set("HeapsPixel", heapsCoarse)
 	b.set("HeapsLayers", flag(look.Bodies[air.Low]), flag(look.Bodies[air.High]))
+	b.set("HeapsBefore", flag(look.Before))
 	b.heapOpts.Uniforms, b.heapOpts.Vertices = b.opts.Uniforms, 3
 	b.heaps.Clear()
 	b.heaps.DrawMesh(nil, heaps, &b.heapOpts)

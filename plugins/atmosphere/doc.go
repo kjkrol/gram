@@ -13,7 +13,9 @@
 // [Plugin.Sun] and [Plugin.Air] are what a board takes to light and shade itself
 // (board.Plugin.WithAtmosphere, topography.Plugin.WithAtmosphere).
 //
-// [Plugin.WithWeathering], as the plugin is made, lays the weather on a board
+// [Plugin.Over], as the plugin is made, has the low clouds hang over a board's ground, their bands
+// fitted to its relief: under the peaks, covering them and over them, whatever height they
+// reach. [Plugin.WithWeathering] does that too and lays the weather on the board
 // (plugins/atmosphere/weathering): snow, ice and what sways, as effects on the cells. The
 // atmosphere is an entity of its own: it plays roles, whose rules of climate.Weathering are told
 // the weather once a step, and a command may be for it.
@@ -30,11 +32,12 @@
 // The plugin draws the sky behind the world (plugins/atmosphere/backdrop), which hands every frame
 // the sun and the weather; the clouds in two layers, low heaps and high shreds, flat or as bodies
 // as a scene shows them ([Plugin.ShowClouds]): heaped on the sky from under them, half see-through
-// over the world from above (plugins/atmosphere/aloft); and the rain and the snow before it
+// over the world from above and before the slopes from under them (plugins/atmosphere/aloft),
+// hiding and hidden by what stands nearer; and the rain and the snow before it
 // (plugins/atmosphere/precipitation); whoever draws the ground shadows it under the clouds, each
 // layer's along the way to the sun.
-// [Plugin.Reporter] adds the time, the moon, the light, the weather and how the clouds look to
-// the telemetry panel, [Plugin.HUD] the calendar to a scene (ui.Drawer).
+// [Plugin.Reporter] adds the time, the moon, the light, the weather and how the clouds look and
+// share their bands to the telemetry panel, [Plugin.HUD] the calendar to a scene (ui.Drawer).
 //
 // # Sky
 //

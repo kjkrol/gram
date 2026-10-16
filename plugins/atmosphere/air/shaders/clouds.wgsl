@@ -66,12 +66,13 @@ fn skyAt(up: f32) -> vec3<f32> {
 }
 
 // cloudHeap is the low clouds as bodies at the world point p, z world units up: how much of a heap
-// is there (x, 0 to 1) and how much of the sun reaches it through the heap over it (y), under the
-// low clouds' air mass m, their noise read as a pixel pixel world units wide sees it. A heap's
-// base lies flat on the layer, its top domed as high as it is thick and bulging in round lumps of
-// two sizes creased between, never flat.
-fn cloudHeap(p: vec2<f32>, z: f32, pixel: f32, m: vec4<f32>) -> vec2<f32> {
-    let h = (z - U.CloudBases.x) / (bodyLowDeep * cloudSize);
+// is there (x, 0 to 1) and how much of the sun reaches it through the heap over it (y), in the band
+// band of them there (cloudLowBand), under the low clouds' air mass m, their noise read as a pixel
+// pixel world units wide sees it. A heap's base lies flat on the band's base, its top domed as high
+// as it is thick, up past the band's deck, and bulging in round lumps of two sizes creased between,
+// never flat.
+fn cloudHeap(p: vec2<f32>, z: f32, band: vec2<f32>, pixel: f32, m: vec4<f32>) -> vec2<f32> {
+    let h = (z - band.x) / max(band.y - band.x, 1e-3);
     if h < 0.0 {
         return vec2<f32>(0.0, 1.0);
     }
@@ -88,6 +89,43 @@ fn cloudHeap(p: vec2<f32>, z: f32, pixel: f32, m: vec4<f32>) -> vec2<f32> {
     return vec2<f32>(there, exp(-max(top - h, 0.0) * bodyShade));
 }
 
+// CloudRay is a line of sight through the low clouds: where it enters them and leaves (enter,
+// leave), and their band (cloudLowBand) where it was looked at, at from and at to, read between.
+struct CloudRay {
+    enter: f32,
+    leave: f32,
+    from: f32,
+    to: f32,
+    near: vec2<f32>,
+    far: vec2<f32>,
+}
+
+// cloudLowRay is the line from o along d through the low clouds between t0 and t1, their whole
+// span, narrowed down to the bands at its two ends, when they lie near enough together for the
+// bands between to be like theirs: a thin deck takes all the steps.
+fn cloudLowRay(o: vec3<f32>, d: vec3<f32>, t0: f32, t1: f32) -> CloudRay {
+    let near = cloudLowBand(o.xy + d.xy * t0);
+    var r = CloudRay(t0, t1, t0, t1, near, cloudLowBand(o.xy + d.xy * t1));
+    if length(d.xy) * abs(t1 - t0) > 0.5 * cloudCeilingWide || abs(d.z) < 1e-6 {
+        return r;
+    }
+    let ta = (min(r.near.x, r.far.x) - o.z) / d.z;
+    let tb = (max(cloudLumpsTop(r.near), cloudLumpsTop(r.far)) - o.z) / d.z;
+    r.enter = max(t0, min(ta, tb));
+    r.leave = min(t1, max(ta, tb));
+    return r;
+}
+
+// cloudRayBand is the low clouds' band t along the line of sight r.
+fn cloudRayBand(r: CloudRay, t: f32) -> vec2<f32> {
+    return mix(r.near, r.far, clamp((t - r.from) / max(r.to - r.from, 1e-6), 0.0, 1.0));
+}
+
+// cloudLumpsTop is how high the heaps' lumps rise over a band of them (cloudLowBand).
+fn cloudLumpsTop(band: vec2<f32>) -> f32 {
+    return band.x + bodyLowRise * (band.y - band.x);
+}
+
 // bodyBillow is round bulges creased between at p, wide clouds' widths apart, 0 to 1: the noise
 // folded at its middle, the folds the creases (the other way round, they stood up as peaks).
 fn bodyBillow(p: vec2<f32>, wide: f32) -> f32 {
@@ -95,18 +133,18 @@ fn bodyBillow(p: vec2<f32>, wide: f32) -> f32 {
 }
 
 // cloudBodySpan is how high a layer of clouds reaches, world units, from (x) up to (y): the
-// heaps' bodies if low, else the band of the shreds' sheets.
+// heaps' bodies if low (cloudLowSpan), else the band of the shreds' sheets.
 fn cloudBodySpan(low: bool) -> vec2<f32> {
     if low {
-        return vec2<f32>(U.CloudBases.x, U.CloudBases.x + bodyLowRise * bodyLowDeep * cloudSize);
+        return cloudLowSpan();
     }
     return vec2<f32>(cloudHighFloor(), U.CloudBases.y);
 }
 
-// How deep the heaps' layer is, in clouds' widths, and how much higher their lumps rise; how wide a
-// lump on a top is, in clouds' widths, and how far it bulges either way; over how much of the
-// layer a top rounds off; how quickly the cloud over a point takes the sun; how a top rises with
-// how thick the cloud is.
+// How deep the heaps' deck is without a relief, in clouds' widths, and how much higher than their
+// deck their lumps rise; how wide a lump on a top is, in clouds' widths, and how far it bulges
+// either way; over how much of the deck a top rounds off; how quickly the cloud over a point takes
+// the sun; how a top rises with how thick the cloud is.
 const bodyLowDeep: f32 = 0.45;
 const bodyLowRise: f32 = 1.6;
 const bodyLump: f32 = 0.25;

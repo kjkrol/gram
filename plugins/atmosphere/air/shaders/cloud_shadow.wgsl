@@ -1,6 +1,6 @@
 // The clouds' shadow on the ground: each layer's where the way from the ground to the sun crosses
-// it (U.CloudBases how high each hangs), with U.CloudsOneLayer straight under the one, the high
-// one's only with U.CloudsHighShade, as air.Weather.Shade has it.
+// it (cloudLowBand, cloudHighHeight how high each hangs), with U.CloudsOneLayer straight under the
+// one, the high one's only with U.CloudsHighShade, as air.Weather.Shade has it.
 
 // CloudShadow is the clouds' shadow over a sprite lying on the ground at the pixel's point of the
 // world, how faint the sprite under it is in red and how it fades or blends in custom; it darkens
@@ -33,7 +33,12 @@ fn cloudsShadeAt(p: vec3<f32>, pixel: f32) -> f32 {
 // U.CloudsHighShade.
 fn cloudLowOver(p: vec3<f32>, pixel: f32) -> CloudOver {
     var c = CloudOver(vec2<f32>(0.0), vec4<f32>(0.0));
-    let h = U.CloudBases.x - p.z;
+    // the base over the point, then over where the way to the sun meets it
+    var h = cloudLowBand(p.xy).x - p.z;
+    if h <= 0.0 {
+        return c;
+    }
+    h = cloudLowBand(p.xy + cloudSunSlant() * h).x - p.z;
     if h <= 0.0 {
         return c;
     }

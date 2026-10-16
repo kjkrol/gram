@@ -3,7 +3,9 @@
 // U.HeapsPixel screen pixels at a time, looks along its line of sight (U.LookDir + U.LookDX·x +
 // U.LookDY·y from U.EyeAt) through the heaps (cloudHeap), lit from above and darker underneath,
 // the thin edges shining towards the sun, and to the sheets of shreds over them; hazed with the
-// distance (U.Visibility) and faded along the horizon. Premultiplied, for the sky to lay over.
+// distance (U.Visibility) and faded along the horizon; with U.HeapsBefore the low heaps only past
+// the highest ground (groundHighest), those before it drawn before the ground. Premultiplied, for
+// the sky to lay over.
 
 struct Out {
     @builtin(position) clip: vec4<f32>,
@@ -72,19 +74,31 @@ fn heapsOf(px: vec2<f32>, d: vec3<f32>, dither: f32, low: bool) -> vec4<f32> {
         let a = cloudCoverSoft(c.x, c.y, m) * heapsSheet * (0.5 + 0.5 * cloudThick(c.x, m));
         return vec4<f32>((sky + sun) * a, a) * (1.0 - heapsHaze(t * len));
     }
-    let m = cloudLowMass(airAt(U.EyeAt.xy + d.xy * 0.5 * (enter + leave)));
+    var from = enter;
+    if U.HeapsBefore > 0.5 {
+        from = max(from, (groundHighest() - U.EyeAt.z) / d.z);
+    }
+    if leave <= from {
+        return vec4<f32>(0.0);
+    }
+    let ray = cloudLowRay(U.EyeAt, d, from, leave);
+    if ray.leave <= ray.enter {
+        return vec4<f32>(0.0);
+    }
+    let m = cloudLowMass(airAt(U.EyeAt.xy + d.xy * 0.5 * (ray.enter + ray.leave)));
     if m.x <= 0.0 {
         return vec4<f32>(0.0);
     }
     let toward = max(dot(d / max(len, 1e-6), sunWay()), 0.0);
     let glow = toward * toward * toward * toward * toward * toward;
-    let step = (leave - enter) / f32(heapsSteps);
+    let step = (ray.leave - ray.enter) / f32(heapsSteps);
     var seen = vec4<f32>(0.0);
     for (var i = 0; i < heapsSteps; i++) {
-        let t = enter + (f32(i) + dither) * step;
+        let t = ray.enter + (f32(i) + dither) * step;
         let z = U.EyeAt.z + d.z * t;
         let p = U.EyeAt.xy + d.xy * t;
-        let heap = cloudHeap(p, z, t * length(U.LookDX) * U.HeapsPixel, m);
+        let band = cloudRayBand(ray, t);
+        let heap = cloudHeap(p, z, band, t * length(U.LookDX) * U.HeapsPixel, m);
         let a = heap.x * heapsDense;
         if a <= 0.0 {
             continue;
@@ -98,7 +112,7 @@ fn heapsOf(px: vec2<f32>, d: vec3<f32>, dither: f32, low: bool) -> vec4<f32> {
             break;
         }
     }
-    return seen * (1.0 - heapsHaze(enter * len));
+    return seen * (1.0 - heapsHaze(ray.enter * len));
 }
 
 // heapsHaze is how much of what lies d world units off the air hides.

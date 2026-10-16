@@ -21,6 +21,9 @@
 // Patchy climate each [Lane] of the horizon throws its own, likelier its neighbours'. Without
 // wind the weather settles where it is. [Climate.Change] goes on to the next weather,
 // [Climate.Set] into a named one, either over the world and upwind of it within seconds.
+// [Climate.Over] has the low clouds hang over the ground's relief, their bands shared as the
+// weather over the world's middle has them (weather.State.Ceilings), going over to a new
+// weather's as its air does.
 // [Climate.Air] is the air as the last step left it, the weather now that over the world's
 // middle, for whoever draws; [Climate.SetRunning] stops what of it a game wants still
 // ([Running]).

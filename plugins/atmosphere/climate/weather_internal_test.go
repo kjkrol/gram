@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/world"
@@ -45,12 +46,17 @@ func weatherOf(t *testing.T, cfg Config, season calendar.Season) *rig {
 	return loaded(t, cfg, season, "")
 }
 
-// a weather read back from the save at path, or a fresh one when path is empty
-func loaded(t *testing.T, cfg Config, season calendar.Season, path string) *rig {
+// a weather read back from the save at path, or a fresh one when path is empty; over the ground
+// the first of ground gives, if any
+func loaded(t *testing.T, cfg Config, season calendar.Season, path string,
+	ground ...func() (low, peaks float64)) *rig {
 	t.Helper()
 	r := &rig{w: world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}}), clk: clock.New(clock.Config{})}
 	cal := calendar.New(r.clk, calendar.Config{DayRealTime: 4 * time.Minute, Season: season})
 	r.c = New(r.w, cal, cfg)
+	if len(ground) > 0 {
+		r.c.Over(ground[0])
+	}
 	if err := r.w.Carry(&r.winter); err != nil {
 		t.Fatal(err)
 	}
@@ -525,4 +531,45 @@ func TestWeather_IsAComponentOfFixedSizeWithoutPointers(t *testing.T) {
 		}
 	}
 	check(reflect.TypeFor[Weather](), "Weather")
+}
+
+func TestWeather_HangsTheLowCloudsOverTheGround(t *testing.T) {
+	over := loaded(t, twoStates(), calendar.Summer, "", func() (low, peaks float64) {
+		return 20, 1880
+	})
+	over.tick(time.Millisecond)
+	relief := air.ReliefOf(world.Scale{}, 20, 1880)
+	if got := over.c.Air(); got.Relief != relief ||
+		got.Bases != air.BasesOver(world.Scale{}, relief) {
+		t.Errorf("over ground 20 up to peaks 1880 up the low clouds hang over %v, the layers' "+
+			"bases %v; want %v and %v", got.Relief, got.Bases, relief,
+			air.BasesOver(world.Scale{}, relief))
+	}
+	none := weatherOf(t, twoStates(), calendar.Summer)
+	none.tick(time.Millisecond)
+	if got := none.c.Air().Relief; got != [2]float32{0, air.LeastRelief} {
+		t.Errorf("over no ground in particular the low clouds hang over %v, want [0 %v]", got,
+			air.LeastRelief)
+	}
+}
+
+func TestWeather_TheLowCloudsBandsComeToTheWeathersShares(t *testing.T) {
+	cfg := twoStates()
+	cfg.Weathers[0].Ceilings = [3]float32{2, 0, 0}
+	cfg.Weathers[1].Ceilings = [3]float32{0, 1, 3}
+	r := weatherOf(t, cfg, calendar.Summer)
+	r.tick(time.Millisecond)
+	if got := r.c.Air().Ceilings; got != [3]float32{1, 0, 0} {
+		t.Fatalf("begun clear, the low clouds' bands share %v, want the clear's [1 0 0]", got)
+	}
+	r.c.Set("cloudy")
+	r.run(time.Second)
+	half := r.c.Air().Ceilings
+	r.run(9 * time.Second)
+	got := r.c.Air().Ceilings
+	if half[0] < 0.1 || half[0] > 0.9 || !near(got[0], 0, 0.02) || !near(got[1], 0.25, 0.02) ||
+		!near(got[2], 0.75, 0.02) {
+		t.Errorf("set cloudy, the bands share %v after a second and %v after ten, want them "+
+			"going over to the cloudy's [0 0.25 0.75]", half, got)
+	}
 }

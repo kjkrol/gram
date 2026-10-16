@@ -191,7 +191,15 @@ v0.19.0 and v0.19.1) leaves a WGSL `var` without an initialiser undefined (garba
 `var c: CloudOver;` returned early by a branch came out as stray full shadows in single pixels,
 2026-10-16; write `var c = CloudOver(...)`) and
 reads a module-scope vector `const` as zero where it meets a runtime value (`c * 1.0` folds and
-works, `c * light` is zero): gram's own WGSL has no vector consts; write them inside the function.
+works, `c * light` is zero): gram's own WGSL has no vector consts; write them inside the function
+or as scalars (the low clouds' bands came out at the ground, 2026-10-17, till they were).
+
+**A depth buffer is read at the size it was drawn at** (`DrawMeshOptions.ReadDepth`, `depthAt`
+in the pixels of the texture it was drawn with, 2026-10-17): a Direct may draw a coarse pass with
+a Readable depth of its own (`frag_depth`) and read it laying the result over the screen
+(aloft's clouds lie as deep as they begin). Till then `gpu.Mesh` refit the buffer read to every
+target reading it — a new texture each draw, its content lost (read as 1, nearest), ~2 ms a
+frame for aloft's two passes; the ground's copy (`t.Ground`) is the screen's size and unchanged.
 
 **A `color.RGBA` given to gram is straight alpha** (2026-10-14, after a zone at `A: 10` came out
 as bright as an opaque one): `render.Frame`'s pieces, `Image.Fill`, the shapes, text and the

@@ -29,6 +29,10 @@ var shader = render.NewMeshShaderWith("aloft", render.Files(shaders, "shaders/al
 		{Name: "AloftShown", Size: 1},
 		{Name: "AloftOrtho", Size: 1},
 		{Name: "AloftSeeing", Size: 1},
+		{Name: "AloftUnder", Size: 1},
+		{Name: "AloftViewProj", Size: 16},
+		{Name: "AloftEye", Size: 3},
+		{Name: "AloftBend", Size: 1},
 	})
 
 var layShader = render.NewMeshShaderWith("aloft laid", render.Files(shaders, "shaders/lay.wgsl"),
@@ -38,7 +42,7 @@ var layShader = render.NewMeshShaderWith("aloft laid", render.Files(shaders, "sh
 	})
 
 // Renderer is a layer of clouds seen from above, a render.Direct over the world at the layer's
-// height, drawn while shown.
+// height, drawn while shown; the low heaps seen from under their top too, before the ground.
 type Renderer struct {
 	layer  air.Layer
 	air    func() air.Weather
@@ -49,11 +53,14 @@ type Renderer struct {
 	layOpts  render.DrawMeshOptions
 	uniforms map[string][]float32 // boxed once in the options
 	coarse   *render.Image        // the clouds, coarser than the screen
+	depth    *render.Depth        // how deep they lie there
+	alone    *render.Depth        // to lay them against on a screen without depth
 }
 
 // New is the layer of clouds of the weather air gives, seen from above.
 func New(weather func() air.Weather, layer air.Layer) *Renderer {
-	r := &Renderer{layer: layer, air: weather, uniforms: map[string][]float32{}}
+	r := &Renderer{layer: layer, air: weather, uniforms: map[string][]float32{},
+		depth: render.NewDepth().Readable()}
 	r.opts.Uniforms = map[string]any{}
 	return r
 }
@@ -79,7 +86,7 @@ func (*Renderer) Init(*goke.SysInit) {}
 // Compose has the clouds drawn among what is seen through, at the layer's height over the middle
 // of the view.
 func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
-	if _, ok := r.field(cam); !ok {
+	if _, _, ok := r.field(cam); !ok {
 		return
 	}
 	w, h := cam.Viewport()
@@ -89,37 +96,46 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 
 func (r *Renderer) base() float32 { return r.air().Base(r.layer) }
 
-// the lines of sight cam looks along, while there are clouds to see from above: none from an eye
-// under the layer's top, which sees them on the sky
-func (r *Renderer) field(cam camera.Camera) (camera.RayField, bool) {
+// the lines of sight cam looks along, while there are clouds to see: from above, or for the low
+// heaps from an eye under their top (under), before the ground; none of the high ones from under
+// theirs, which sees them on the sky
+func (r *Renderer) field(cam camera.Camera) (f camera.RayField, under, ok bool) {
 	if w := r.air(); !r.shown || w.Share(w.Most(), r.layer).Cover <= 0 {
-		return camera.RayField{}, false
+		return camera.RayField{}, false, false
 	}
 	rays, ok := cam.(camera.Rays)
 	if !ok {
-		return camera.RayField{}, false
+		return camera.RayField{}, false, false
 	}
-	f, ok := rays.Rays()
+	f, ok = rays.Rays()
 	if !ok {
-		return camera.RayField{}, false
+		return camera.RayField{}, false, false
 	}
-	// an eye among the clouds sees them on the sky, behind the hills: from above, past a ridge
-	// they showed through it
-	if f.DX == ([3]float32{}) && f.DY == ([3]float32{}) && f.Origin[2] <= r.air().Top(r.layer) {
-		return camera.RayField{}, false
+	perspective := f.DX == ([3]float32{}) && f.DY == ([3]float32{})
+	if !perspective || f.Origin[2] > r.air().Top(r.layer) {
+		return f, false, true
 	}
-	return f, true
+	// an eye among the clouds sees them on the sky, behind the hills; the low heaps before the
+	// slopes too, as bodies
+	if r.layer == air.High || !r.bodies {
+		return camera.RayField{}, false, false
+	}
+	return f, true, true
 }
 
 // Draw draws the clouds into the target's screen through cam, hidden inside the ground as the
-// frame's render.GroundHeights have it.
+// frame's render.GroundHeights have it and behind what stands nearer.
 func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
-	f, ok := r.field(cam)
-	if t.Screen == nil || !ok {
+	f, under, ok := r.field(cam)
+	if t.Screen == nil || !ok || under && !r.standsUp(u) {
+		return
+	}
+	w, h := cam.Viewport()
+	tr, ok := camera.SceneTransform(f, w, h)
+	if !ok {
 		return
 	}
 	u.Into(r.opts.Uniforms)
-	w, h := cam.Viewport()
 	r.set("AloftView", w, h)
 	r.set("AloftFrom", f.Origin[:]...)
 	r.set("AloftDX", f.DX[:]...)
@@ -133,6 +149,10 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	r.set("AloftShown", shownAt)
 	r.set("AloftOrtho", flag(f.DDX == ([3]float32{}) && f.DDY == ([3]float32{})))
 	r.set("AloftSeeing", float32(r.air().Visibility(air.Under(cam))))
+	r.set("AloftUnder", flag(under))
+	r.set("AloftViewProj", tr.M[:]...)
+	r.set("AloftEye", tr.Eye[:]...)
+	r.set("AloftBend", tr.Bend)
 	b := t.Screen.Bounds()
 	r.opts.Vertices = 3
 	lw, lh := (b.Dx()+coarse-1)/coarse, (b.Dy()+coarse-1)/coarse
@@ -143,9 +163,10 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		r.coarse = render.NewImage(lw, lh)
 	}
 	r.coarse.Clear()
+	r.opts.Depth, r.opts.ClearDepth, r.opts.WriteDepth = r.depth, true, true
 	r.coarse.DrawMesh(nil, shader, &r.opts)
-	if r.layer == air.High || !r.bodies {
-		// sheets, met once a pixel: no grain to blur
+	if r.layer == air.High {
+		// sheets over all the world stands up into, met once a pixel: no grain to blur
 		var op render.DrawImageOptions
 		op.GeoM.Scale(float64(b.Dx())/float64(lw), float64(b.Dy())/float64(lh))
 		op.Filter = render.FilterLinear
@@ -156,7 +177,23 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	r.set("LayCoarse", coarse)
 	r.layOpts.Uniforms, r.layOpts.Vertices = r.opts.Uniforms, 3
 	r.layOpts.Images[0] = r.coarse
+	r.layOpts.Depth, r.layOpts.ReadDepth, r.layOpts.ClearDepth = t.Depth, r.depth, false
+	if t.Depth == nil {
+		if r.alone == nil {
+			r.alone = render.NewDepth()
+		}
+		r.layOpts.Depth, r.layOpts.ClearDepth = r.alone, true
+	}
 	t.Screen.DrawMesh(nil, layShader, &r.layOpts)
+}
+
+// whether the frame's ground (render.GroundHeights) stands up into the low clouds anywhere
+func (r *Renderer) standsUp(u render.Uniforms) bool {
+	lattice, span := u.Get("GroundLattice"), u.Get("GroundSpan")
+	if len(lattice) < 4 || lattice[3] < 0.5 || len(span) < 4 {
+		return false
+	}
+	return span[2]+span[3] > r.air().Base(air.Low)
 }
 
 func (r *Renderer) set(name string, v ...float32) {

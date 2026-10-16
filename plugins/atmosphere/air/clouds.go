@@ -39,12 +39,35 @@ const (
 	CloudBase = 6000.0
 )
 
-// Bases is how high each Layer of clouds hangs on a world of scale, in world units.
+// Bases is how high each Layer of clouds hangs on a world of scale, in world units, over no
+// ground in particular.
 func Bases(scale world.Scale) [2]float32 {
 	return [2]float32{float32(scale.Units(CloudLow)), float32(scale.Units(CloudBase))}
 }
 
-// Base is how high the layer l of clouds hangs, world units.
+// LeastRelief is the least relief the low clouds hang over, in metres: lower hills are taken as
+// this high, so they do not stand up into the clouds.
+const LeastRelief = 1000.0
+
+// ReliefOf is the ground from low up to its peaks, metres over the world's zero in world units
+// on a world of scale, as Weather.Relief has it: where it begins and how high it rises.
+func ReliefOf(scale world.Scale, low, peaks float64) [2]float32 {
+	span := max(peaks-low, scale.Units(LeastRelief))
+	return [2]float32{float32(low), float32(span)}
+}
+
+// BasesOver is how high each Layer of clouds hangs over the relief (ReliefOf) on a world of
+// scale, as Weather.Bases has it: the low ones' lowest base, the high ones over their tops.
+func BasesOver(scale world.Scale, relief [2]float32) [2]float32 {
+	floor := float64(relief[0] + relief[1]*bandOver[1])
+	high := max(scale.Units(CloudBase), floor+scale.Units(highOverLow))
+	return [2]float32{relief[0] + relief[1]*bandUnder[0], float32(high)}
+}
+
+// metres the high clouds' base stands at least over the low ones' decks
+const highOverLow = 2500.0
+
+// Base is how high the layer l of clouds hangs, world units: the low ones' lowest base.
 func (w Weather) Base(l Layer) float32 {
 	if w.OneLayer {
 		return w.Bases[High]
@@ -57,8 +80,83 @@ func (w Weather) Top(l Layer) float32 {
 	if l == High && !w.OneLayer {
 		return w.Bases[High]
 	}
-	return w.Base(l) + lowRise*lowDeep*cloudSize
+	if w.OneLayer || w.Relief[1] <= 0 {
+		return w.Base(l) + lowRise*lowDeep*cloudSize
+	}
+	return w.Relief[0] + w.Relief[1]*(bandOver[0]+lowRise*(bandOver[1]-bandOver[0]))
 }
+
+// BaseSpan is how low and how high the bases of the layer l of clouds hang, world units.
+func (w Weather) BaseSpan(l Layer) (lowest, highest float32) {
+	if l == High || w.OneLayer || w.Relief[1] <= 0 {
+		return w.Base(l), w.Base(l)
+	}
+	return w.Base(Low), w.Relief[0] + w.Relief[1]*bandOver[0]
+}
+
+// LowBand is how high the low clouds hang over the world point (x, y), world units: their base and
+// the top of their deck, the heaps' lumps rising past it. Each of the three bands of Ceilings
+// holds places of its own over the Relief, drifting slower than the clouds, so a cloud flying on
+// rises or sinks slowly.
+func (w Weather) LowBand(x, y float32) (base, top float32) {
+	if w.OneLayer || w.Relief[1] <= 0 {
+		base = w.Base(Low)
+		return base, base + lowDeep*cloudSize
+	}
+	q := float64(x)/ceilingWide - float64(ceilingLag*w.Drift[0])/ceilingWide + ceilingOff
+	r := float64(y)/ceilingWide - float64(ceilingLag*w.Drift[1])/ceilingWide + ceilingOff
+	n := float32(cloudNoise(q, r, CloudTile/ceilingWide))
+	u := clamp01((n-0.5)*ceilingSpread + 0.5)
+	c0, c1 := w.cuts()
+	a, b := ceilingStep(c0, u), ceilingStep(c1, u)
+	under, cover, over := 1-a, max(a-b, 0), b
+	lo := under*bandUnder[0] + cover*bandCover[0] + over*bandOver[0]
+	hi := under*bandUnder[1] + cover*bandCover[1] + over*bandOver[1]
+	return w.Relief[0] + w.Relief[1]*lo, w.Relief[0] + w.Relief[1]*hi
+}
+
+// where along the ceilings' noise the clouds under the peaks give way to those covering them,
+// and those to the ones over them, as the shaders' CloudCeilings
+func (w Weather) cuts() (c0, c1 float32) {
+	s := w.Ceilings
+	sum := s[0] + s[1] + s[2]
+	if sum <= 0 {
+		return 1.0 / 3, 2.0 / 3
+	}
+	return s[0] / sum, (s[0] + s[1]) / sum
+}
+
+// how far past the cut c the ceilings' noise u stands, 0 to 1, a cut at either end hard
+func ceilingStep(c, u float32) float32 {
+	switch {
+	case c <= 0:
+		return 1
+	case c >= 1:
+		return 0
+	}
+	soft := min(ceilingSoft, c, 1-c)
+	t := clamp01((u - c + soft) / (2 * soft))
+	return t * t * (3 - 2*t)
+}
+
+// the three bands the low clouds hang in, their base and their deck's top as shares of the
+// relief: under the peaks, covering them, over them; how wide the places of one band are, world
+// units, a tile holding a whole number of them; how fast they drift as against the clouds; how
+// far their noise is spread and how softly one band gives way to the next; the shaders have the
+// same
+var (
+	bandUnder = [2]float32{0.68, 0.79}
+	bandCover = [2]float32{0.74, 1.05}
+	bandOver  = [2]float32{1.05, 1.25}
+)
+
+const (
+	ceilingWide   = 2520
+	ceilingLag    = 0.6
+	ceilingOff    = 29
+	ceilingSpread = 1.8
+	ceilingSoft   = 0.08
+)
 
 // Share is the share of m the layer l of clouds holds (Mass.Layer); in one layer, all of it Low's.
 func (w Weather) Share(m Mass, l Layer) Mass {
@@ -109,8 +207,16 @@ func (w Weather) HighAt(m Mass, x, y float32) Mass {
 func (w Weather) HighHeight(x, y float32) float32 {
 	n := float32(cloudNoise(float64(x-w.Drift[0])/bandWide, float64(y-w.Drift[1])/bandWide,
 		CloudTile/bandWide))
-	floor := w.Bases[Low] + overlap*lowDeep*cloudSize
+	floor := w.highFloor()
 	return floor + (w.Bases[High]-floor)*n
+}
+
+// where the high clouds' band begins: into the low clouds' bodies, or over their highest deck
+func (w Weather) highFloor() float32 {
+	if w.Relief[1] <= 0 {
+		return w.Bases[Low] + overlap*lowDeep*cloudSize
+	}
+	return w.Relief[0] + w.Relief[1]*bandOver[1]
 }
 
 // how wide the high clouds' patches and the sheets of one height are, world units, a tile holding
@@ -261,9 +367,16 @@ func (w Weather) Shade(x, y, z float32, sun [3]float32) float32 {
 	}
 	clear := float32(1)
 	for _, l := range []Layer{Low, High} {
-		h := w.Base(l) - z
+		var h float32
 		if l == High {
 			h = w.HighHeight(x, y) - z // the sheet's over the point, near enough
+		} else {
+			// the base over the point, then over where the way to the sun meets it
+			base, _ := w.LowBand(x, y)
+			if base > z {
+				base, _ = w.LowBand(x+ax*(base-z), y+ay*(base-z))
+			}
+			h = base - z
 		}
 		if h <= 0 || l == High && !w.HighShade {
 			continue // the ground over the layer, or high clouds shading nothing

@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -107,5 +108,64 @@ func TestBackdrop_DrawsTheLayersFlatOrHeapedOrNone(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// ground standing as high as Span everywhere, handed to the frame
+type standing struct{ render.GroundHeights }
+
+func (standing) Init(*goke.SysInit)                         {}
+func (s standing) Compose(f *render.Frame, _ camera.Camera) { f.GroundHeights(s.GroundHeights) }
+
+func TestBackdrop_LeavesTheHeapsBeforeTheGroundToAnother(t *testing.T) {
+	needGPU(t)
+	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
+	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
+	sun := sky.Sun{Dir: eyedF, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
+	weather := air.Weather{Clouds: 0.9, Billow: 1, Bases: air.Bases(world.Scale{})}
+	img := render.NewImage(2, 2)
+	defer img.Deallocate()
+	img.WritePixels([]byte{255, 255, 0, 255, 255, 255, 0, 255, 255, 255, 0, 255, 255, 255, 0,
+		255})
+	draw := func(look Clouds, ground float32) []byte {
+		b := New(w.Res.Config.Space, func() sky.Sun { return sun },
+			func() air.Weather { return weather }).WithClouds(func() Clouds { return look })
+		u := map[string]any{"CloudTile": air.Tile()}
+		wall := standing{render.GroundHeights{Image: img, Corners: [2]int{2, 2}, Cell: 200,
+			Span: ground}}
+		c := render.NewComposer(b, wall)
+		c.DrawWorld(nil, cam)
+		for name, v := range c.Uniforms() {
+			u[name] = v
+		}
+		u["GroundHeights"] = img
+		screen := render.NewImage(100, 100)
+		defer screen.Deallocate()
+		b.Draw(render.Target{Screen: screen}, raying{height: 30}, render.UniformsOf(u))
+		pix := make([]byte, 4*100*100)
+		screen.ReadPixels(pix)
+		return pix
+	}
+	differ := func(a, b []byte) int {
+		n := 0
+		for i := 0; i < len(a); i += 4 {
+			if a[i] != b[i] || a[i+1] != b[i+1] || a[i+2] != b[i+2] {
+				n++
+			}
+		}
+		return n
+	}
+	heaped := Clouds{Bodies: [2]bool{true, true}}
+	before := Clouds{Bodies: [2]bool{true, true}, Before: true}
+	// ground higher than the heaps' lumps rise, then lower than their base
+	high, low := 2*weather.Top(air.Low), weather.Base(air.Low)/2
+	if n := differ(draw(heaped, high), draw(before, high)); n < 100*100/5 {
+		t.Errorf("under ground higher than the heaps rise, those before it another's: the sky "+
+			"changes over %d pixels, want the heaps gone off a heavy cover's worth", n)
+	}
+	if n := differ(draw(heaped, low), draw(before, low)); n > 0 {
+		t.Errorf("under ground lower than the heaps' base, those before it another's: the sky "+
+			"changes over %d pixels, want none", n)
 	}
 }
