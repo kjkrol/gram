@@ -267,30 +267,85 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Freeze` (P) freezes the light alone, `Later`/`Earlier` (Shift+], Shift+[) move it half an hour,
   not saved. `atmosphere/celestial` (imported by `sky`, never the other way): `Heavens`
   (`Place{Latitude, NoonWay}.HeavensAt`), the sphere turned by the sidereal time, `SunPath`,
-  `MoonAt`, `Phase`, the stars `sky.Config.Stars` chooses (`RealStars`: the Yale Bright Star
-  Catalogue to V 6.0 in `stars.bin`; `ScatteredStars`), `MoonFace()` (NASA SVS CGI Moon Kit).
+  `MoonAt`, `Phase`, `Stars()` (the Yale Bright Star Catalogue to V 6.0 in `stars.bin`;
+  `StarField.Place` takes a catalogue), `MoonFace()` (NASA SVS CGI Moon Kit).
   `atmosphere/backdrop`: the viewport in the sky's colour behind the world (`render.Furthest`,
-  `Image.FillBehind`: only where nothing was drawn), through a perspective the sky of the day (the
-  gradient, the sun's disc, the moon's face lit by its phase, the clouds' layer, the real stars as
-  instances). `atmosphere/climate`: a `climate.Zone{Latitude, Factors}` (`Equatorial`, `Tropical`,
-  `Mediterranean`, `Temperate`, `Cold`, `Polar`; `SeaCurrent`, `DrySummer`) is `Zone.Profile()`
+  `Image.FillBehind`: only where nothing was drawn), through a perspective the sky of the day in
+  four parts, a `backdrop.Dome` (2026-10-16): the vault, the sun, the moon (`Size`, `Color`,
+  `ByDay`, `Image`), the stars (`Catalogue` drawn as instances behind the sky, `Dots` its shader
+  adds); `Earth()` part by part (`EarthVault`/`Sun`/`Moon`/`Stars`, `ScatteredStars` the dots);
+  a part is WGSL to `shaders/sky.wgsl` (`SkyVault(s: SkyAt)`, `SkyStars`, `SkyMoon(s, d: SkyDisc)
+  -> SkyShine`, `SkySun`) with `Reads` its uniforms and `Feed(v *Values)` setting them; without
+  WGSL it draws nothing (a stub stands in). `Renderer.Dress` assembles the shader as the Stage's
+  looks are declared, panicking on a uniform or a module-scope name two parts (or the library,
+  `render.SharedUniforms`) declare; compiled at the first draw, cached by source. The clouds'
+  layer stays the sky's own. A game's sky: `atmosphere.Sky{Look(d *backdrop.Dome, p)}` in its
+  `sky.go`, noted in the Figures link (`a.atmosphere.Skies(dusk{})`), each Look in order, a later
+  part replacing an earlier; none is the Earth's (examples/look/sky; board/flat and
+  board/topography note `earth{}`). naga v0.19 (v0.19.1 too) traps for a part: a `var` without
+  an initialiser is undefined (start from `SkyShine()`), a module-scope vector `const` reads as
+  zero in a runtime expression (spell vectors inside the function). `atmosphere/climate`: a
+  `climate.Zone{Latitude, Factors}` (`Equatorial`, `Tropical`, `Mediterranean`, `Temperate`,
+  `Cold`, `Polar`; `SeaCurrent`, `DrySummer`) is `Zone.Profile()`
   (`Mean`, `Year`, `Day`, `Wet` per season); the kinds of weather `climate/weather`
   (`weather.State`, `weather.Default`: clear, fair, cloudy, rain, storm); the weather now a
   `climate.Weather` on its own entity (saved with its dice), beginning in `Config.Start` or a state
   thrown by `Often[season]`, going from one of `Config.Weathers` to the next, blending the wind, the
   clouds, what falls and the `Temperature` (snow below 1°C), every step of the simulation under
   `clock.Simulate`; `Climate.Air()` an `air.Weather`. It hosts rules of `Weathering`
-  (`host.StepRules`, about the atmosphere's own entity). `Change` (Shift+W), `Set{Name}`.
-  `atmosphere/precipitation`: what falls (screen-space streaks and flakes, before the whole world,
-  `render.Nearest`, untested). `atmosphere/weathering`: what the weather does to a board —
-  `weathering.Config{Snowy, Ice, Water, Sway, Swaying, High, Seed}` names the game's kinds, `New`
-  defines three effects (`Alter[cell.Ground]`: snow, ice, sway), laid by its own system once a
-  second of game time (snow in drifts while it snows in the frost, melting once warm, ice from the
-  shore below −3°C, what sways swaying above a wind of 15); `atmosphere.Plugin.WithWeathering(board,
-  cfg)` as the atmosphere is made. `atmosphere/air`: the weather as drawn (`Weather.Frame`, `Sway`,
-  `Cloud`, `Shade`, `Haze`; the clouds' periodic noise baked once by `air.BakeTile` into a tile the
-  sky and the terrain look up per pixel; `Weather.Frame` hands the frame `Fog`, the sky at the
-  horizon, and `SkyOverhead`). The plugin draws the sky and what falls itself (`ctx.Draws`); its
+  (`host.StepRules`, about the atmosphere's own entity). `Change` (Shift+W), `Set{Name}`. The
+  weather is born at the horizon and carried by the wind (2026-10-16, stage 7): `air.Dome` holds
+  the `air.Mass`es (cover, billow, falls, damp) over the world and its sky out to
+  `Config.Horizon` metres past it (0: 3 × `air.ClearAir`, 120 km), level 0 over the world in
+  cells of `air.BoardCell` (128 world units), each further level in cells ≥ 2× (rect ±23 cells,
+  4×4 patches), at most 6, every level a ring of `air.Patch` (16×16 cells, `[256]Mass`,
+  `[256]int16` states, `Version`; fixed size, no pointers: **a component never holds a pointer,
+  slice or map, and nothing of the weather is saved but by goke** — the user's rule). The
+  climate's system creates the patches in `Init` (`Dome.Slots()`; from a save it holds those
+  that fit, removes the rest, lays anew when any are missing) and `Hold`s them every step (their
+  memory may move), `Carry(drift, born, fresh)`: cells entering the coarsest level take the mass
+  born there, finer levels' entering cells the coarser level's; fresh, every cell takes `born`.
+  `climate.Weather.Lanes[0]` is the weather the horizon brings (`Patchy`: lanes across the wind,
+  `ClearAir/2` wide, ≤ `MaxLanes`, blended between their middles, each its own chain, a
+  neighbour's state twice as likely); `Over` is the state over the world's middle (the panel,
+  temperature, `Rain`/`Snow` there). Shift+W/`Set`: lane 0 jumps to its targets and the dome
+  over the world and upwind of it (a ramp of one cell past its far side downwind) settles with
+  a time constant of 2 s of game time (`setting`) for 5 of them, a quarter of the patches a step
+  (`setParts`), all of them the first step; the user asked for the change to show within
+  seconds (2026-10-16). Without wind the whole dome settles to the targets over Blend, 1/15 of
+  the patches a step (`Dome.Settle(to, share, part, parts)`).
+  `Left = max(Lasts, crossing)` so a weather lasts till the wind carried it across.
+  The front takes distance/wind to come: over Madeira about an hour of game time at a wind of
+  5–8, from a dome edge ~20000 units upwind (a headless sim of the climate showed it).
+  `air.Weather.At(x, y)` the mass there (nil Dome: uniform from the globals),
+  `Most()` the most anywhere (gates `U.Cover`/`U.Billow`), `FallsAt` rain and snow under the
+  clouds (none from their gaps), `Visibility(x, y)` from the mass (field `Sight` = clear air),
+  `air.Under(cam)` the eye's point or the view's middle (an iso camera is `Eyed` but has no eye),
+  `Hazer` the haze worked out once a frame. WGSL `airAt(p)` reads the frame's image `AirMasses`
+  (`air.DomeImage`, held by the sky's renderer, which sets it in Compose; a block of pixels a
+  level, its kept cells in order from the first, not the ring, so the GPU's filter blends them:
+  a level is copied out of the world's memory and written whole as its window moves or a patch
+  of it changes, drawn in place by gpu, see gram-render): `U.AirLevelNA` (the block's first
+  cell in the world, cell, block across the picture) and `U.AirLevelNC` (the rect read in), the
+  finest level holding p, mixed with the next over its 2-cell band, one `textureSampleLevel`
+  with `wrapped` a level, as `Dome.At` does on the CPU (a test keeps them within 2.5/255, also
+  after the windows moved). Four `textureLoad`s a level with the ring's arithmetic cost the
+  terrain, reading it every pixel, ~15% of topography's frame rate. Every cloud function takes
+  the mass. `atmosphere/precipitation`: what falls
+  (screen-space streaks and flakes, before the whole world, `render.Nearest`), only under the
+  clouds: an 8×6 mask of `FallsAt` at the screen's points thrown to the ground (and over the eye),
+  worked out every 8 frames a camera, a drop kept where its share is under the mask.
+  `atmosphere/weathering`: what the weather does to a board — `weathering.Config{Snowy, Ice,
+  Water, Sway, Swaying, High, Seed}` names the game's kinds, `New` defines three effects
+  (`Alter[cell.Ground]`: snow, ice, sway), laid by its own system once a second of game time (snow
+  in drifts where it snows in the frost, `FallsAt` on the cell, melting once warm, ice from the
+  shore below −3°C, what sways swaying above a wind of 15);
+  `atmosphere.Plugin.WithWeathering(board, cfg)` as the atmosphere is made.
+  `atmosphere/air`: the weather as drawn (`Weather.Frame`, `Sway`,
+  `Cloud`, `Shade`, `Haze`; the clouds' periodic noise baked once into `air.Tile()`, the frame's
+  image `CloudTile` (2026-10-16), which the sky and the terrain look up per pixel
+  (`cloudTileAt`); `Weather.Frame` hands the frame the tile, `Fog`, the sky at the horizon, and
+  `SkyOverhead`). The plugin draws the sky and what falls itself (`ctx.Draws`); its
   sky hands every frame the sun and the weather; the clouds' shadows are drawn by whoever draws
   the ground (the board's flat ground, the terrain, the hexes). `atmosphere.Running`
   (`Config.Running`, `Plugin.SetRunning`) switches the day, the weather's changes, the wind, the
@@ -471,7 +526,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   and draws nothing but the marquee. The input's contract — `Binding`, the `Trigger`s `KeyPress`,
   `KeyDown`, `KeyHeld` (once a tick while the key is down), `KeyReleased` (as the key comes up,
   `Context.Held` how long it was down — real time, `players.ClockWith` in tests; not after a
-  chord with modifiers fired while it was down: Shift+X is no throw), `ButtonPress`, `Drag`,
+  chord with modifiers fired while it was down: Shift+X is no throw); these three fire with
+  Shift, Ctrl or Alt held (the key's own modifier aside) only when the binding is `InChords()`
+  (`Binding.Takes(mods)`): the cameras' scroll leaves Shift+W to the weather and the
+  topography's head Shift+R to the routes, driving's keys and `JumpKey` are in chords (sprint,
+  a jump while sprinting, walking while a grenade charges) — `ButtonPress`, `Drag`,
   `Wheel`,
   `ButtonHeld`, `CursorAtEdge`, `CursorOver`, `CursorMove`, with exact `Mods`
   (`Mods{}.Holding(key)`), `Build[C]` from a `Context` (`World`/`WorldBox` through the camera's

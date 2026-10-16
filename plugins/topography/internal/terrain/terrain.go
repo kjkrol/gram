@@ -33,7 +33,7 @@ var shader = render.NewMeshShaderWith("terrain",
 		{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
 		{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
 		{Name: "ShoreReach", Size: 1}, {Name: "Px", Size: 1}, {Name: "AlbedoSize", Size: 2}, {Name: "WaterPx", Size: 1}, {Name: "FlowSpan", Size: 1},
-		{Name: "Shadows", Size: 1}, {Name: "GridFrom", Size: 1}, {Name: "ShadePx", Size: 1}, {Name: "CloudFrom", Size: 1},
+		{Name: "Shadows", Size: 1}, {Name: "GridFrom", Size: 1}, {Name: "ShadePx", Size: 1},
 		{Name: "Skirt", Size: 2}, {Name: "Perspective", Size: 1},
 	})
 
@@ -133,7 +133,6 @@ type Renderer struct {
 	plain     *render.Image
 	painted   Painted
 
-	// the shade, and right of it the clouds' tile (air.BakeTile) baked once
 	baked     *render.Image
 	shadeAt   uint64
 	shadeSun  [3]float32
@@ -233,12 +232,11 @@ func (r *Renderer) bake(u render.Uniforms) {
 	cols, rows, cell, _, _ := r.ground.Lattice()
 	ks := bakedScale(cols, rows, r.coarse)
 	ws, h := ks*(cols-1), ks*(rows-1)
-	if r.baked == nil || r.baked.Bounds().Dx() != ws+air.TileWidth || r.baked.Bounds().Dy() != max(h, air.TileHeight) {
+	if r.baked == nil || r.baked.Bounds().Dx() != ws || r.baked.Bounds().Dy() != h {
 		if r.baked != nil {
 			r.baked.Deallocate()
 		}
-		r.baked = render.NewImage(ws+air.TileWidth, max(h, air.TileHeight))
-		air.BakeTile(r.baked.SubImage(image.Rect(ws, 0, ws+air.TileWidth, air.TileHeight)))
+		r.baked = render.NewImage(ws, h)
 		r.shadeAt = 0
 		r.bakeVerts = make([]render.Vertex, 4)
 		r.baking.Uniforms = map[string]any{}
@@ -450,7 +448,7 @@ func (r *Renderer) bakeInto(at image.Rectangle, from, size [2]float32, s *render
 var quad = []uint16{0, 1, 2, 1, 2, 3}
 
 func bakedScale(cols, rows int, coarse bool) int {
-	shade := max(min(shadePx, (maxBaked-air.TileWidth)/max(cols-1, 1), maxBaked/max(rows-1, 1)), 2)
+	shade := max(min(shadePx, maxBaked/max(cols-1, 1), maxBaked/max(rows-1, 1)), 2)
 	if coarse {
 		shade = max(shade/2, 2)
 	}
@@ -707,10 +705,9 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	r.set("Skirt", skirtReach(cols, rows, cell, r.cfg.Scale), skirtRings)
 	ks := bakedScale(cols, rows, r.coarse)
 	r.set("ShadePx", float32(ks))
-	r.set("CloudFrom", float32(ks*(cols-1)))
 	visibility := float32(0)
 	if _, eyed := cam.(camera.Eyed); eyed && r.sky != nil {
-		visibility = float32(air.Visibility(r.cfg.Scale, r.sky.Air()))
+		visibility = float32(r.sky.Air().Visibility(air.Under(cam)))
 	}
 	r.set("Visibility", visibility)
 }

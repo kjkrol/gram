@@ -8,4 +8,18 @@
 // hands the frame the sun and the weather (sky.Sun.Frame, air.Weather.Frame). It reads them as
 // they stand, where the sun, the moon and the stars stand
 // ([Renderer.WithHeavens]) and whether the stars and the moon show ([Renderer.WithShown]).
+//
+// # Dome
+//
+// The sky is drawn in four parts, a [Dome]: the vault (a [Part]), the [Sun], the [Moon] and the
+// [Stars], a catalogue drawn behind the sky where each stands or dots its shader adds, or both.
+// [Earth] is the Earth's sky, its parts one by one [EarthVault], [EarthSun], [EarthMoon] and
+// [EarthStars], [ScatteredStars] made-up dots; a part without WGSL draws nothing.
+// [Renderer.Dress] has the sky drawn with a dome; a game's sky is an atmosphere.Sky.
+//
+// A part is WGSL written to the contract of shaders/sky.wgsl: its entry (SkyVault, SkyStars,
+// SkyMoon, SkySun) is handed the sky at a pixel and a disc, and reads uniforms of its own
+// ([Part].Reads), which its Feed sets every frame the sky is drawn ([Values]); the moon's face is
+// image1. A part's names stand beside the library's and the materials': prefix them (duskBand). A
+// uniform or a name two parts declare, or the library's, panics as the sky is dressed.
 package backdrop

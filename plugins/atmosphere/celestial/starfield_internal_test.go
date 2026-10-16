@@ -33,9 +33,9 @@ func unit(a [3]float32) [3]float32 {
 }
 
 func TestStarField_LaysOutTheStarsInSight(t *testing.T) {
-	h := Place{NoonWay: South, Latitude: 45}.HeavensAt(0.3, 0.95, 0.4, RealStars)
+	h := Place{NoonWay: South, Latitude: 45}.HeavensAt(0.3, 0.95, 0.4)
 	var f StarField
-	n := f.Place(looking(h.Pole), 100, 100, h, 1)
+	n := f.Place(looking(h.Pole), 100, 100, h, Stars(), 1)
 	if n == 0 {
 		t.Fatal("looking at the pole at night, no stars")
 	}
@@ -53,11 +53,14 @@ func TestStarField_LaysOutTheStarsInSight(t *testing.T) {
 	if !polaris {
 		t.Errorf("no bright star within 2 pixels of the pole at (%v, %v)", px, py)
 	}
-	if n := f.Place(looking(unit([3]float32{0, -1, -1})), 100, 100, h, 1); n != 0 {
+	if n := f.Place(looking(unit([3]float32{0, -1, -1})), 100, 100, h, Stars(), 1); n != 0 {
 		t.Errorf("looking down into the ground, %d stars laid out", n)
 	}
-	if dim := f.Place(looking(h.Pole), 100, 100, h, 0.02); dim >= n || dim == 0 {
+	if dim := f.Place(looking(h.Pole), 100, 100, h, Stars(), 0.02); dim >= n || dim == 0 {
 		t.Errorf("a dim sky shows %d stars, a dark one %d; want fewer dim", dim, n)
+	}
+	if none := f.Place(looking(h.Pole), 100, 100, h, nil, 1); none != 0 {
+		t.Errorf("a sky of no stars shows %d", none)
 	}
 }
 

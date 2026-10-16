@@ -34,6 +34,7 @@ type Composer struct {
 	// kept and written over so a frame allocates none; boxed for a Direct source
 	uniforms map[string][]float32
 	boxed    map[string]any
+	frameTex [gpu.FrameImages]*gpu.Texture
 	packed   []byte
 	depths   []depths // a pair for each size of target drawn into, the latest last
 	start    time.Time
@@ -191,6 +192,12 @@ func (c *Composer) setUniforms() {
 	for _, u := range f.uniforms {
 		copy(c.uniform(u.name, int(u.n)), u.v[:u.n])
 	}
+	for _, name := range images {
+		c.boxed[name] = (*Image)(nil)
+	}
+	for _, im := range f.images {
+		c.boxed[im.name] = im.img
+	}
 }
 
 // depths are the depth buffers of one size of target: the frame's, and the ground's alone, read
@@ -222,6 +229,7 @@ func (c *Composer) depthsFor(screen *Image) *depths {
 func (c *Composer) render(screen *Image) {
 	c.setUniforms()
 	c.packed = append(c.packed[:0], composer.pack(c.boxed)...)
+	c.frameTex = frameOf(c.boxed)
 	f := &c.frame
 	t := Target{Screen: screen, Pass: Opaque}
 	c.depth, c.ground, c.seen = nil, nil, false
@@ -385,6 +393,7 @@ func (c *Composer) drawTriangles(screen *Image, verts []Vertex, indices []uint16
 		Target:   screen.gpu(),
 		Program:  composer.program(),
 		Images:   [4]gpu.Image{sheet.gpu()},
+		Frame:    c.frameTex,
 		Uniforms: c.packed,
 		Blend:    gpu.SourceOver,
 	}

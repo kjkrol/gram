@@ -48,6 +48,7 @@ make demo-start-scenes                                          # a menu Stage a
 make demo-start-split-screen                                    # two players at one keyboard, each a block and a camera of its own; a minimap
 make demo-look-animation                                        # a gallery of animations from sheets: walking, braking, bored, pulling, a lever swinging
 make demo-look-material                                         # a ward's material pulsing, embers drawn out of their state circling it; G calms, F douses
+make demo-look-sky                                              # a sky of the game's own over a valley: its vault, a big orange moon by day, made-up stars
 make demo-rules-effect                                          # an ice witch: frost and frozen as effects; J hastens the selected
 make demo-rules-mechanisms                                      # a lever, a plate and a switch driving trapdoors and a gate; one hero on WSAD, the lever pulled by touch (Space)
 make demo-rules-dialog                                          # conversations from YAML: the miller and the smith
@@ -82,6 +83,14 @@ check one still runs after a change: build to a temp path, run under `timeout <n
 124 (still running) as healthy. That is no substitute for looking at the demo when a visual
 change needs confirmation; for what a demo does tick by tick without a window, the `gram-probe`
 skill.
+
+**A change is checked on the demos that use what it changed**: `grep -rl
+'"github.com/kjkrol/gram/plugins/<pkg>"' examples` lists them (the atmosphere: board/topography,
+board/flat, look/sky); a demo without the package shows nothing of it. Every demo is the field
+only for a change to `render`, `render/gpu`, the engine or the world. Pictures and frame rates
+compare a copy of the tree from before the change with the working one, alternately, in each
+regime the change has (steady, and the moment it works hardest): `gram-probe`, § Checking a
+change.
 
 CI (`.github/workflows/go.yml`) runs
 `xvfb-run -a go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...` on Go 1.27.0.
@@ -118,7 +127,9 @@ Decisions the user has made; they are not up for revisiting in passing.
   screen, ] and [ the tempo, Shift+X the boxes (collision's: the bases, the solids, none),
   Shift+H the scroll zones (cameras'), Shift+O the holds, Shift+B the bridge tool, Shift+R the
   routes, Shift+C the cones, Shift+W the weather, P freezes the light, Space jumps in first
-  person, = and - zoom, Shift+= and Shift+- shape the relief. A plugin's keys a
+  person, = and - zoom, Shift+= and Shift+- shape the relief. A key held, down or let go leaves
+  the chords with Shift, Ctrl or Alt to these shortcuts unless its binding is `InChords()` (a
+  sprint, a jump while sprinting). A plugin's keys a
   game sets up (`driving.Compass`, `selection.FollowKey`, the cameras' zoom keys) are bound in the
   Players section with the defaults; the game's own go to the Controls section and are listed under
   "Game".

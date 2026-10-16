@@ -92,6 +92,11 @@ What is left to do. Take an item out when it lands.
 - **Forests come back** — with a plugin for plants; the `forest` kind stays for it.
 - **More knobs of the sky** — the sun and the weather as knobs on the atmosphere's entity, as
   the moon is (`sky.Moon`), so an eclipse or a spell of fog is an effect.
+- **Evaporation and fog** — clouds may form in place only over water (evaporation) and fog lie
+  low at night and at dawn: sources in the air masses (`air.Dome`, their Damp channel waiting
+  for it), never clouds growing out of nothing over the land.
+- **The weather in a place, for rules** — `climate.Weathering` tells the weather over the
+  world's middle; a rule about the rain over an entity (taking shelter) needs the mass over it.
 
 ## Open questions
 

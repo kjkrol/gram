@@ -4,6 +4,7 @@ import (
 	"embed"
 	"image/color"
 	"math"
+	"sync"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
@@ -19,13 +20,34 @@ var _ render.Direct = (*Renderer)(nil)
 //go:embed shaders/*.wgsl
 var shaders embed.FS
 
-var skyShader = render.NewMeshShaderWith("sky", render.Files(shaders, "shaders/backdrop.wgsl"), []render.Uniform{
-	{Name: "SkyView", Size: 2}, {Name: "SkyPieces", Size: 1},
-	{Name: "SunAt", Size: 2}, {Name: "SunRadius", Size: 1}, {Name: "SunDisc", Size: 4}, {Name: "SunHalo", Size: 3}, {Name: "CloudsOn", Size: 1},
-	{Name: "MoonAt", Size: 2}, {Name: "MoonRadius", Size: 1}, {Name: "MoonLight", Size: 3}, {Name: "MoonNorth", Size: 2}, {Name: "MoonFace", Size: 4},
-	{Name: "StarsOn", Size: 1}, {Name: "ScatteredOn", Size: 1}, {Name: "OverStars", Size: 1},
-	{Name: "StarX", Size: 3}, {Name: "StarY", Size: 3}, {Name: "StarZ", Size: 3},
-})
+// the sky's own uniforms, beside its parts'
+var own = []render.Uniform{
+	{Name: "SkyView", Size: 2},
+	{Name: "SkyPieces", Size: 1},
+	{Name: "SunAt", Size: 2},
+	{Name: "SunRadius", Size: 1},
+	{Name: "SunDisc", Size: 4},
+	{Name: "SunHalo", Size: 3},
+	{Name: "SunWay", Size: 3},
+	{Name: "SunTint", Size: 3},
+	{Name: "CloudsOn", Size: 1},
+	{Name: "MoonAt", Size: 2},
+	{Name: "MoonRadius", Size: 1},
+	{Name: "MoonLight", Size: 3},
+	{Name: "MoonNorth", Size: 2},
+	{Name: "MoonFace", Size: 4},
+	{Name: "StarsOn", Size: 1},
+	{Name: "OverStars", Size: 1},
+	{Name: "StarX", Size: 3},
+	{Name: "StarY", Size: 3},
+	{Name: "StarZ", Size: 3},
+}
+
+// the skies' shaders by their source, so a Stage entered again compiles none anew
+var (
+	skyShadersMu sync.Mutex
+	skyShaders   = map[string]*render.Shader{}
+)
 
 // Renderer is the sky behind the world, a render.Direct behind all of it: through a
 // perspective the sky of the day with the sun, the moon, the stars and the clouds on it, through
@@ -40,12 +62,15 @@ type Renderer struct {
 	// nil: both
 	shown func() (stars, moon bool)
 
+	dome     Dome
+	shader   *render.Shader
+	values   [4]Values // by piece
 	tri      *render.Indices
-	tile     *render.Image
 	moon     *render.Image
 	stars    celestial.StarField
 	opts     render.DrawMeshOptions
 	uniforms map[string][]float32 // boxed once in the options
+	masses   air.DomeImage
 }
 
 type skyPlan struct {
@@ -57,6 +82,7 @@ type skyPlan struct {
 	SunRadius           float32
 	SunDisc             [4]float32
 	SunHalo             render.Light
+	SunTint             render.Light
 	Clouds              bool
 	CloudHeight, Seeing float32
 	// MoonLight and MoonNorth are in the face's frame: x right, y down, z towards the eye
@@ -66,17 +92,39 @@ type skyPlan struct {
 	MoonNorth  [2]float32
 	MoonFace   [4]float32
 	Stars      float32
-	RealStars  bool
 	StarTurn   [3][3]float32
 	Heavens    celestial.Heavens
 }
 
-// New is the sky behind a world of space and scale, under sun and the weather air give.
-func New(space world.SpaceCfg, scale world.Scale, sun func() sky.Sun, weather func() air.Weather) *Renderer {
-	b := &Renderer{space: space, scale: scale, sun: sun, air: weather, uniforms: map[string][]float32{}}
+// New is the Earth's sky behind a world of space and scale, under sun and the weather air give.
+func New(space world.SpaceCfg, scale world.Scale, sun func() sky.Sun,
+	weather func() air.Weather) *Renderer {
+	b := &Renderer{space: space, scale: scale, sun: sun, air: weather,
+		uniforms: map[string][]float32{}}
 	b.opts.Uniforms = map[string]any{}
+	b.Dress(Earth())
 	return b
 }
+
+// Dress has the sky drawn with d's parts. A uniform or a name of the shaders two parts declare, or
+// one of the library's, panics naming them; a part's WGSL is compiled the first time it is drawn.
+func (b *Renderer) Dress(d Dome) {
+	src, uniforms := assemble(&d)
+	skyShadersMu.Lock()
+	shader, ok := skyShaders[src]
+	if !ok {
+		shader = render.NewMeshShaderWith("sky", []byte(src), uniforms)
+		skyShaders[src] = shader
+	}
+	skyShadersMu.Unlock()
+	b.dome, b.shader, b.moon = d, shader, nil
+	for i, p := range b.dome.pieces() {
+		b.values[i] = Values{b: b, part: p.name, reads: p.part.Reads}
+	}
+}
+
+// Dome is the parts the sky is drawn with.
+func (b *Renderer) Dome() Dome { return b.dome }
 
 // WithHeavens has the sky show the sun, the moon and the stars where heavens says they stand.
 func (b *Renderer) WithHeavens(heavens func() celestial.Heavens) *Renderer {
@@ -92,13 +140,27 @@ func (b *Renderer) WithShown(shown func() (stars, moon bool)) *Renderer {
 
 func (*Renderer) Init(*goke.SysInit) {}
 
-// Compose hands the frame the sun and the weather and has the sky drawn Direct, behind the whole
-// world.
-func (b *Renderer) Compose(f *render.Frame, _ camera.Camera) {
+// Compose hands the frame the sun, the weather over cam's eye and the air masses, and has the
+// sky drawn Direct, behind the whole world.
+func (b *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	day := b.sun()
 	day.Frame(f)
-	b.air().Frame(f, day)
+	x, y := air.Under(cam)
+	w := b.air()
+	w.Frame(f, day, x, y)
+	if w.Dome != nil {
+		f.Image("AirMasses", b.masses.Of(w.Dome))
+	}
 	f.DrawAt(render.Furthest)
+}
+
+// the clouds' cover where the way dir from the eye at (x, y, z) passes their layer at height base
+func coverAlong(weather air.Weather, x, y, z, base float32, dir [3]float32) float32 {
+	if dir[2] > 1e-3 && z < base {
+		t := (base - z) / dir[2]
+		x, y = x+dir[0]*t, y+dir[1]*t
+	}
+	return weather.At(x, y).Cover
 }
 
 // Draw draws the sky into the target's screen through cam.
@@ -117,8 +179,8 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		b.tri = render.NewIndices([]uint32{0, 1, 2})
 	}
 	u.Into(b.opts.Uniforms)
-	if p.MoonRadius > 0 && b.moon == nil {
-		b.moon = celestial.MoonFace()
+	if p.MoonRadius > 0 && b.moon == nil && b.dome.Moon.Image != nil {
+		b.moon = b.dome.Moon.Image()
 	}
 	b.opts.Images[1] = b.moon
 	f := p.Field
@@ -127,15 +189,17 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	b.set("SunRadius", p.SunRadius)
 	b.set("SunDisc", p.SunDisc[:]...)
 	b.set("SunHalo", p.SunHalo[:]...)
+	b.set("SunWay", p.Heavens.Sun[:]...)
+	b.set("SunTint", p.SunTint[:]...)
 	b.set("MoonAt", p.MoonAt[:]...)
 	b.set("MoonRadius", p.MoonRadius)
 	b.set("MoonLight", p.MoonLight[:]...)
 	b.set("MoonNorth", p.MoonNorth[:]...)
 	b.set("MoonFace", p.MoonFace[:]...)
 	b.set("StarsOn", p.Stars)
-	b.set("ScatteredOn", flag(!p.RealStars))
 	b.set("OverStars", 0)
-	if p.RealStars && p.Stars > 0 && b.stars.Place(cam, p.View[0], p.View[1], p.Heavens, p.Stars) > 0 {
+	if stars := b.dome.Stars.Catalogue; len(stars) > 0 && p.Stars > 0 &&
+		b.stars.Place(cam, p.View[0], p.View[1], p.Heavens, stars, p.Stars) > 0 {
 		// the stars on black first, the sky over them hiding what it covers
 		fillBehind(t, color.RGBA{A: 255})
 		b.stars.Draw(t)
@@ -151,22 +215,22 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	b.set("LookDY", f.DDY[:]...)
 	b.set("CloudHeight", p.CloudHeight)
 	b.set("Visibility", p.Seeing)
+	for i, piece := range b.dome.pieces() {
+		if len(piece.part.Source) > 0 && piece.part.Feed != nil {
+			piece.part.Feed(&b.values[i])
+		}
+	}
 	b.opts.Depth = t.Depth // at the furthest depth: only where the world left nothing
 	if !p.Clouds {
 		b.set("SkyPieces", 0)
 		b.opts.Vertices = 0
-		t.Screen.DrawMesh(b.tri, skyShader, &b.opts)
+		t.Screen.DrawMesh(b.tri, b.shader, &b.opts)
 		return
 	}
-	if b.tile == nil {
-		b.tile = render.NewImage(air.TileWidth, air.TileHeight)
-		air.BakeTile(b.tile)
-	}
-	b.opts.Images[0] = b.tile
 	nx, ny := int(math.Ceil(float64(p.View[0]/skyPiece))), int(math.Ceil(float64(p.View[1]/skyPiece)))
 	b.set("SkyPieces", float32(nx))
 	b.opts.Vertices = 6 * nx * ny
-	t.Screen.DrawMesh(nil, skyShader, &b.opts)
+	t.Screen.DrawMesh(nil, b.shader, &b.opts)
 }
 
 // pixels; shaders/backdrop.wgsl has the same
@@ -211,20 +275,29 @@ func (b *Renderer) plan(cam camera.Camera) skyPlan {
 		heavens = b.heavens()
 		sunColor = heavens.SunColor
 	}
-	p.Heavens = heavens
-	p.SunAt, p.SunRadius, p.SunDisc, p.SunHalo = b.sunOn(cam, w, h, heavens.Sun, sunColor, weather.Clouds)
+	p.Heavens, p.SunTint = heavens, sunColor
+	if p.SunTint == (render.Light{}) {
+		p.SunTint = render.Light{1, 1, 1}
+	}
 	field, ex, ey, ez, eyed := lines(cam)
+	if !eyed {
+		ex, ey = air.Under(cam)
+	}
+	base := air.Base(b.scale)
+	p.SunAt, p.SunRadius, p.SunDisc, p.SunHalo = b.sunOn(cam, w, h, heavens.Sun, p.SunTint,
+		coverAlong(weather, ex, ey, ez, base, heavens.Sun))
 	if !eyed {
 		p.Flat = true
 		return p
 	}
 	if b.heavens != nil {
-		b.nightOn(&p, cam, field, w, h, heavens, weather.Clouds)
+		b.nightOn(&p, cam, field, w, h, heavens,
+			coverAlong(weather, ex, ey, ez, base, heavens.Moon))
 	}
 	p.Field, p.Eye = field, [3]float32{ex, ey, ez}
-	p.CloudHeight = air.Base(b.scale)
-	p.Clouds = weather.Clouds > 0 && ez < p.CloudHeight
-	p.Seeing = float32(air.Visibility(b.scale, weather))
+	p.CloudHeight = base
+	p.Clouds = weather.Most().Cover > 0 && ez < p.CloudHeight
+	p.Seeing = float32(weather.Visibility(ex, ey))
 	return p
 }
 
@@ -281,16 +354,17 @@ func discRadius(cam camera.Camera, h float32) float32 {
 }
 
 // radius 0 where no sun shows
-func (b *Renderer) sunOn(cam camera.Camera, w, h float32, dir [3]float32, color render.Light, clouds float32) (at [2]float32, radius float32, disc [4]float32, halo render.Light) {
+func (b *Renderer) sunOn(cam camera.Camera, w, h float32, dir [3]float32, color render.Light,
+	clouds float32) (at [2]float32, radius float32, disc [4]float32, halo render.Light) {
 	v, ok := cam.(camera.Vanisher)
-	if !ok || !celestial.Up(dir[2]) {
+	if !ok || !celestial.Up(dir[2]) || len(b.dome.Sun.Source) == 0 {
 		return at, 0, disc, halo
 	}
 	ax, ay, ahead := v.Vanish(dir[0], dir[1], dir[2])
 	if !ahead {
 		return at, 0, disc, halo
 	}
-	r := discRadius(cam, h)
+	r := discRadius(cam, h) * size(b.dome.Sun.Size)
 	if ax < -sunGlow*r || ax > w+sunGlow*r || ay < -sunGlow*r || ay > h+sunGlow*r {
 		return at, 0, disc, halo
 	}
@@ -299,9 +373,6 @@ func (b *Renderer) sunOn(cam camera.Camera, w, h float32, dir [3]float32, color 
 		return at, 0, disc, halo
 	}
 	halo = color
-	if halo == (render.Light{}) {
-		halo = render.Light{1, 1, 1}
-	}
 	low := 1 - celestial.Risen(dir[2])
 	for k := range 3 {
 		disc[k] = 1 + (halo[k]-1)*low
@@ -310,7 +381,8 @@ func (b *Renderer) sunOn(cam camera.Camera, w, h float32, dir [3]float32, color 
 	return [2]float32{ax, ay}, r, disc, halo
 }
 
-func (b *Renderer) nightOn(p *skyPlan, cam camera.Camera, field camera.RayField, w, h float32, heavens celestial.Heavens, clouds float32) {
+func (b *Renderer) nightOn(p *skyPlan, cam camera.Camera, field camera.RayField, w, h float32,
+	heavens celestial.Heavens, clouds float32) {
 	clear := 1 - min(max(clouds, 0), 1)
 	night := celestial.Night(heavens.Sun[2])
 	moon, sun := heavens.Moon, heavens.Sun
@@ -318,14 +390,18 @@ func (b *Renderer) nightOn(p *skyPlan, cam camera.Camera, field camera.RayField,
 	if b.shown != nil {
 		stars, moonOn = b.shown()
 	}
-	if v, ok := cam.(camera.Vanisher); ok && moonOn && celestial.Up(moon[2]) && clear > 0 {
-		if ax, ay, ahead := v.Vanish(moon[0], moon[1], moon[2]); ahead && ax > -w && ax < 2*w && ay > -h && ay < 2*h {
+	m := b.dome.Moon
+	v, ok := cam.(camera.Vanisher)
+	if ok && moonOn && len(m.Source) > 0 && celestial.Up(moon[2]) && clear > 0 {
+		ax, ay, ahead := v.Vanish(moon[0], moon[1], moon[2])
+		if ahead && ax > -w && ax < 2*w && ay > -h && ay < 2*h {
 			// the way to the sun as the moon's face sees it
 			c := dot3(sun, moon)
 			across := [3]float32{sun[0] - moon[0]*c, sun[1] - moon[1]*c, sun[2] - moon[2]*c}
 			right, down := unit3(field.DDX), unit3(field.DDY)
 			light := unit3([3]float32{dot3(across, right), dot3(across, down), -c})
-			p.MoonAt, p.MoonRadius, p.MoonLight = [2]float32{ax, ay}, discRadius(cam, h), light
+			p.MoonAt, p.MoonLight = [2]float32{ax, ay}, light
+			p.MoonRadius = discRadius(cam, h) * size(m.Size)
 			pole := heavens.Pole
 			k := dot3(pole, moon)
 			up := [3]float32{pole[0] - moon[0]*k, pole[1] - moon[1]*k, pole[2] - moon[2]*k}
@@ -339,19 +415,29 @@ func (b *Renderer) nightOn(p *skyPlan, cam camera.Camera, field camera.RayField,
 			if tint == ([3]float32{}) {
 				tint = [3]float32{1, 1, 1}
 			}
-			p.MoonFace = [4]float32{moonFace[0] * tint[0], moonFace[1] * tint[1], moonFace[2] * tint[2], clear * (moonByDay + (1-moonByDay)*night)}
+			face := m.Color
+			if face == (render.Light{}) {
+				face = render.Light{1, 1, 1}
+			}
+			for k := range 3 {
+				p.MoonFace[k] = face[k] * tint[k]
+			}
+			p.MoonFace[3] = clear * (m.ByDay + (1-m.ByDay)*night)
 		}
 	}
 	if stars {
 		p.Stars = night
 	}
-	p.RealStars = heavens.Stars == celestial.RealStars
 	p.StarTurn = heavens.Sphere
 }
 
-var moonFace = render.Light{0.92, 0.93, 0.96}
-
-const moonByDay = 0.3
+// a disc's Size, 0 as the Earth's
+func size(s float32) float32 {
+	if s == 0 {
+		return 1
+	}
+	return s
+}
 
 func dot3(a, b [3]float32) float32 { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2] }
 

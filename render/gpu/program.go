@@ -259,9 +259,11 @@ func (p *Program) pipeline(
 
 // Draw is a draw of triangles into a rectangle of a texture, clipped to it.
 type Draw struct {
-	Target   Image
-	Program  *Program
-	Images   [4]Image
+	Target  Image
+	Program *Program
+	Images  [4]Image
+	// Frame is the images of the frame drawn, which every program reads by name; nil a blank.
+	Frame    [FrameImages]*Texture
 	Uniforms []byte // packed by WGSL's layout (Layout)
 	Blend    Blend
 	// Place lays the vertices' Dst on the target scaled by its first two and moved by its last
@@ -302,6 +304,7 @@ func (d *device) triangles(t *target, clip Rect, dw *Draw, verts []Vertex, indic
 	mode := dw.depthMode(t)
 	pipeline := dw.Program.pipeline(d, dw.Blend, t.format, mode)
 	group1 := d.images(imgs) // realises the images before the buffers are measured
+	group3 := d.frame(dw.Frame)
 	d.ensure(len(verts), len(indices))
 
 	vOff := uint64(len(d.verts))
@@ -322,6 +325,7 @@ func (d *device) triangles(t *target, clip Rect, dw *Draw, verts []Vertex, indic
 	pass.SetBindGroup(0, d.group0, []uint32{uint32(dOff), uint32(uOff)})
 	pass.SetBindGroup(1, group1, nil)
 	pass.SetBindGroup(2, d.noDepth.readGroup(d), nil)
+	d.bindFrame(pass, group3)
 	pass.SetVertexBuffer(0, d.vbuf, vOff)
 	pass.SetIndexBuffer(d.ibuf, gputypes.IndexFormatUint16, iOff)
 	pass.SetScissorRect(gputypes.ScissorRect{X: uint32(clip.X), Y: uint32(clip.Y), Width: uint32(clip.W), Height: uint32(clip.H)})

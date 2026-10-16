@@ -87,6 +87,7 @@ func (*drawsCtx) UseModule(goke.Module)      {}
 func (*drawsCtx) Hosts(...host.Host)         {}
 func (*drawsCtx) ECS() *goke.ECS             { return goke.New() }
 func (c *drawsCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
+func (*drawsCtx) Looks(func())               {}
 
 func TestPlugin_DrawsTheSkyAndWhatFalls(t *testing.T) {
 	w := world.NewPlugin(world.Config{

@@ -64,6 +64,14 @@
 // uniforms are set by a source ([Frame.Uniform]); the composer's own are Toward, Clock
 // ([Frame.Time]), Pixel and Fog ([Frame.Fog]).
 //
+// # Frame images
+//
+// What every shader of a frame reads that is too big for uniforms is a frame's image: a name
+// registered as a package starts ([RegisterImage]), read in WGSL as a texture_2d<f32> of that name
+// (sampled through linear, or wrapped, repeating past its edges), handed by a source composing
+// the frame ([Frame.Image]) to the composer and every Direct alike, through the [Uniforms]. An
+// image whose pixels need the GPU is filled as a draw first reads it ([Image.Defer]).
+//
 // # Still and Sprites
 //
 // A [Still] is a frame composed once in world units and kept on the GPU, drawn every frame

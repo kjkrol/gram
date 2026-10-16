@@ -34,7 +34,7 @@ type Target struct {
 // Uniforms is the composer's shader's uniforms this frame, by name, for a Direct source.
 type Uniforms struct{ m map[string]any }
 
-// UniformsOf is the uniforms m, by name, each a []float32.
+// UniformsOf is the uniforms m, by name, each a []float32, or an *Image for a frame's image.
 func UniformsOf(m map[string]any) Uniforms { return Uniforms{m} }
 
 // Into puts every uniform into dst, boxed as the composer holds it.

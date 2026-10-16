@@ -3,6 +3,7 @@ package render
 import (
 	"embed"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/kjkrol/gram/render/gpu"
@@ -42,6 +43,7 @@ var (
 	sources  [][]byte
 	uniforms = append([]Uniform(nil), libraryUniforms...)
 	entries  []string // by MaterialID
+	images   []string // the frame's, by their binding
 	sealed   bool     // a shader has been built on the materials: no more may come
 	composer = &Shader{label: "composer", source: func() string { return shaderSourceWith(Files(shaderFiles, "shaders/compose.wgsl")) }, layout: composerLayout}
 )
@@ -69,6 +71,35 @@ func RegisterMaterials(source []byte, reads []Uniform, entry ...string) []Materi
 	return ids
 }
 
+// RegisterImage names an image every shader built on the materials may read, a texture_2d<f32> of
+// that name in WGSL, which a frame hands them (Frame.Image). It panics once a shader has been
+// built, for a name given twice and past gpu.FrameImages names.
+func RegisterImage(name string) {
+	switch {
+	case sealed:
+		panic(fmt.Sprintf("render: the image %s registered after a shader was built", name))
+	case slices.Contains(images, name):
+		panic(fmt.Sprintf("render: the image %s registered twice", name))
+	case len(images) == gpu.FrameImages:
+		panic(fmt.Sprintf("render: the image %s past the %d a frame holds", name, gpu.FrameImages))
+	}
+	images = append(images, name)
+}
+
+// the textures of the frame's images the uniforms u hold, by their binding, ready to be read
+func frameOf(u map[string]any) (f [gpu.FrameImages]*gpu.Texture) {
+	for i, name := range images {
+		if img, _ := u[name].(*Image); img != nil {
+			f[i] = img.ready().tex
+		}
+	}
+	return f
+}
+
+// SharedUniforms are the uniforms every shader built on the materials has: the library's and those
+// the registered materials read, for a shader of one's own to keep its names apart.
+func SharedUniforms() []Uniform { return append([]Uniform(nil), uniforms...) }
+
 // ShaderSource is the composer's shader as it compiles.
 func ShaderSource() string { return composer.Source() }
 
@@ -91,6 +122,9 @@ func shaderSourceWith(fragment []byte) string {
 	sealed = true
 	var b strings.Builder
 	b.Write(Files(shaderFiles, "shaders/library.wgsl", "shaders/noise.wgsl"))
+	for i, name := range images {
+		fmt.Fprintf(&b, "@group(3) @binding(%d) var %s: texture_2d<f32>;\n", i, name)
+	}
 	for _, src := range sources {
 		b.Write(src)
 		b.WriteString("\n")

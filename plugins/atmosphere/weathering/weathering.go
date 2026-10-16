@@ -169,9 +169,13 @@ func (w *Weathering) second(cb *goke.CmdBuf) {
 			w.winter(cb)
 		}
 	}
+	_, most := air.Falls(air.Most())
 	switch {
-	case air.Temperature < 0 && air.Snow > 0.05:
-		w.scatter(cb, snowSettles*air.Snow, w.snow, w.snowLies)
+	case air.Temperature < 0 && most > 0.05:
+		// as thick as the most snow falling anywhere, laid only where it falls
+		w.scatter(cb, snowSettles*most, w.snow, func(c cell.ID) bool {
+			return w.roll()*most < w.snowing(air, c) && w.snowLies(c)
+		})
 	case air.Temperature > 0:
 		w.clear(snowMelts*air.Temperature, w.snow, w.snowEdge)
 	}
@@ -236,6 +240,13 @@ func (w *Weathering) winter(cb *goke.CmdBuf) {
 			w.effects.Cast(id, w.ice)
 		}
 	})
+}
+
+// how much snow falls on the cell c, out of the clouds over it
+func (w *Weathering) snowing(air air.Weather, c cell.ID) float32 {
+	p := w.board.Board().CellCenter(c)
+	_, snow := air.FallsAt(float32(p.X), float32(p.Y))
+	return snow
 }
 
 func (w *Weathering) takesSnow(c cell.ID) bool {

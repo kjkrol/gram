@@ -60,6 +60,7 @@ type Frame struct {
 	lastShape shape
 
 	uniforms []uniform
+	images   []frameImage
 	time     float32
 	ground   bool    // a source reads the ground's depth this frame
 	overs    int     // the pieces lying over the figures
@@ -73,6 +74,11 @@ type uniform struct {
 	v    [4]float32
 }
 
+type frameImage struct {
+	name string
+	img  *Image
+}
+
 // Camera is the camera the frame is drawn through.
 func (f *Frame) Camera() camera.Camera { return f.cam }
 
@@ -83,6 +89,7 @@ func (f *Frame) Len() int { return f.count }
 func (f *Frame) Reset(cam camera.Camera) {
 	f.cam, f.items, f.verts, f.order, f.count = cam, f.items[:0], f.verts[:0], f.order[:0], 0
 	f.uniforms, f.ground, f.opaque, f.overs = f.uniforms[:0], false, f.opaque[:0], 0
+	f.images = f.images[:0]
 }
 
 // DrawOpaque has the composing Direct draw in the opaque pass, the ground's: tested against the
@@ -126,6 +133,21 @@ func (f *Frame) Uniform(name string, v ...float32) {
 	u := uniform{name: name, n: uint8(n)}
 	copy(u.v[:], v[:n])
 	f.uniforms = append(f.uniforms, u)
+}
+
+// Image hands every shader drawing this frame the image registered as name (RegisterImage); a
+// name not registered panics.
+func (f *Frame) Image(name string, img *Image) {
+	if !slices.Contains(images, name) {
+		panic("render: no image is registered as " + name)
+	}
+	for i := range f.images {
+		if f.images[i].name == name {
+			f.images[i].img = img
+			return
+		}
+	}
+	f.images = append(f.images, frameImage{name: name, img: img})
 }
 
 // Uniformed reports whether a source composing this frame has set the uniform name already.

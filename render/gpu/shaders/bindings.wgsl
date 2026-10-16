@@ -31,6 +31,9 @@ struct Draw {
 @group(1) @binding(4) var nearest: sampler;
 @group(1) @binding(5) var linear: sampler;
 @group(2) @binding(0) var depthImage: texture_depth_2d;
+// the frame's images (gpu.Draw.Frame) are declared by whoever names them, bindings 0 up to 7; a
+// sampler filtering them, repeated past their edges
+@group(3) @binding(8) var wrapped: sampler;
 
 // inside reports whether p lies in the rectangle r (origin, size).
 fn inside(p: vec2<f32>, r: vec4<f32>) -> bool {

@@ -105,7 +105,7 @@ func (t eventHandler) fire(pl *Player, trigger control.Trigger, ctx control.Cont
 	how := camera.HowOf(pl.pic.camera)
 	fired := false
 	for _, b := range pl.bindings {
-		if b.Trigger != trigger || !pl.fires(b, how) {
+		if b.Trigger != trigger || !pl.fires(b, how) || !b.Takes(ctx.Mods) {
 			continue
 		}
 		if cmd, ok := b.Build(ctx); ok {

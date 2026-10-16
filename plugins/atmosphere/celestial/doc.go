@@ -17,7 +17,7 @@
 //
 // # Stars
 //
-// [Stars] is the real night sky, the Yale Bright Star Catalogue to magnitude 6; [StarSky] chooses
-// it ([RealStars]) or made-up stars ([ScatteredStars]). A [StarField] lays out the stars a camera
-// sees and draws them on the GPU. [MoonFace] is the moon's face, from NASA's CGI Moon Kit.
+// [Stars] is the real night sky, the Yale Bright Star Catalogue to magnitude 6. A [StarField] lays
+// out the stars of a catalogue a camera sees and draws them on the GPU. [MoonFace] is the moon's
+// face, from NASA's CGI Moon Kit.
 package celestial

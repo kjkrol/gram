@@ -1,20 +1,25 @@
 #!/bin/bash
 # probe.sh <demo dir> <probe.go> <real seconds> <work dir>: copies the demo into a module of its
 # own under the work dir, hooks the probe into the copy, runs it at tempo x4 and prints the lines
-# logged with "P:". The demo's own files are never touched.
+# logged with "P:". The demo's own files are never touched. PROBE_TREE builds against another
+# copy of gram (a baseline), PROBE_SED edits the copied demo.go (a sed expression), PROBE_SEED
+# puts a seed in place of the demo's uint64(time.Now().UnixNano()).
 set -e
-G=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
+R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
+G=${PROBE_TREE:-$R}
 W=$4/probews
 rm -rf "$W"; mkdir -p "$W/demo"
 cp "$G/$1"/* "$W/demo/"
 cp "$2" "$W/demo/zz_probe.go"
+[ -n "$PROBE_SED" ] && sed -i "$PROBE_SED" "$W/demo/demo.go"
+[ -n "$PROBE_SEED" ] && sed -i "s/uint64(time.Now().UnixNano())/$PROBE_SEED/" "$W/demo/demo.go"
 GOV=$(sed -n 's/^go //p' "$G/go.mod")
 printf 'module probe\n\ngo %s\n' "$GOV" > "$W/demo/go.mod"
 # the probe module, gram and the modules gram's go.work joins
 {
 	printf 'go %s\n\nuse (\n\t./demo\n\t%s\n' "$GOV" "$G"
-	sed -n 's#^\t\./\(.*\)$#\1#p' "$G/../go.work" | grep -vx gram |
-		while read -r m; do printf '\t%s\n' "$(cd "$G/.." && pwd)/$m"; done
+	sed -n 's#^\t\./\(.*\)$#\1#p' "$R/../go.work" | grep -vx gram |
+		while read -r m; do printf '\t%s\n' "$(cd "$R/.." && pwd)/$m"; done
 	printf ')\n'
 } > "$W/go.work"
 python3 - "$W/demo/demo.go" <<'PY'

@@ -20,7 +20,8 @@ type Uniform = gpu.Uniform
 type Image struct {
 	tex   *gpu.Texture
 	rect  image.Rectangle
-	owner bool // made by NewImage: Deallocate frees the texture
+	owner bool             // made by NewImage: Deallocate frees the texture
+	fill  func(dst *Image) // Defer's, run as a draw next reads the image
 }
 
 // NewImage is a w by h image, transparent.
@@ -34,6 +35,18 @@ func (i *Image) Bounds() image.Rectangle { return i.rect }
 // SubImage is the part r of the image, sharing its pixels.
 func (i *Image) SubImage(r image.Rectangle) *Image {
 	return &Image{tex: i.tex, rect: r.Intersect(i.rect)}
+}
+
+// Defer has fill make the image's pixels as a draw next reads it, when there surely is a GPU: a
+// picture baked or written the first time it is needed. A later Defer before then replaces it.
+func (i *Image) Defer(fill func(dst *Image)) { i.fill = fill }
+
+func (i *Image) ready() *Image {
+	if fill := i.fill; fill != nil {
+		i.fill = nil
+		fill(i)
+	}
+	return i
 }
 
 func (i *Image) gpu() gpu.Image {
@@ -157,12 +170,13 @@ func (i *Image) DrawTrianglesShader(verts []Vertex, indices []uint16, s *Shader,
 	if op != nil {
 		for k, im := range op.Images {
 			if im != nil {
-				imgs[k] = im.gpu()
+				imgs[k] = im.ready().gpu()
 			}
 		}
 		u = op.Uniforms
 	}
-	gpu.Triangles(&gpu.Draw{Target: i.gpu(), Program: s.program(), Images: imgs, Uniforms: s.pack(u), Blend: gpu.SourceOver}, verts, indices)
+	gpu.Triangles(&gpu.Draw{Target: i.gpu(), Program: s.program(), Images: imgs, Frame: frameOf(u),
+		Uniforms: s.pack(u), Blend: gpu.SourceOver}, verts, indices)
 }
 
 // a colour as gram takes it, straight alpha, premultiplied for the GPU, 0 to 1
@@ -212,6 +226,9 @@ func (s *Shader) pack(u map[string]any) []byte {
 	}
 	clear(s.buf)
 	for name, v := range u {
+		if _, img := v.(*Image); img {
+			continue // a frame's image, bound apart
+		}
 		f, ok := v.([]float32)
 		if !ok {
 			panic(fmt.Sprintf("render: uniform %s is a %T, not a []float32", name, v))

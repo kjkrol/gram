@@ -28,12 +28,18 @@ func (s source) Compose(f *render.Frame, _ camera.Camera) { s(f) }
 
 func TestCloud_IsSmoothNoiseCarriedByTheDrift(t *testing.T) {
 	var lo, hi float32 = 1, 0
+	var low, high [2]float32
 	still, carried := air.Weather{}, air.Weather{Drift: [2]float32{300, -120}}
 	for i := range 64 {
 		for j := range 64 {
 			x, y := float32(i)*50, float32(j)*50
 			n := still.Cloud(x, y)
-			lo, hi = min(lo, n), max(hi, n)
+			if n < lo {
+				lo, low = n, [2]float32{x, y}
+			}
+			if n > hi {
+				hi, high = n, [2]float32{x, y}
+			}
 			if d := n - still.Cloud(x+1, y+1); d > 0.02 || d < -0.02 {
 				t.Errorf("the clouds' noise jumps by %v over a unit at (%v, %v)", d, x, y)
 			}
@@ -46,7 +52,8 @@ func TestCloud_IsSmoothNoiseCarriedByTheDrift(t *testing.T) {
 		t.Errorf("the clouds' noise runs %v to %v, want within 0 to 1 and varied", lo, hi)
 	}
 	half := air.Weather{Clouds: 0.5}
-	if half.Shade(0) != 0 || half.Shade(1) != 1 || (air.Weather{}).Shade(1) != 0 {
+	if half.Shade(low[0], low[1]) != 0 || half.Shade(high[0], high[1]) != 1 ||
+		(air.Weather{}).Shade(high[0], high[1]) != 0 {
 		t.Error("Shade: no cloud where the noise is low, all of it where high, none under a clear sky")
 	}
 }
@@ -92,7 +99,7 @@ func TestHaze_GrowsWithDistance(t *testing.T) {
 	if h := clear.Haze(eyed{}, 100, 0, 10); h != 0 {
 		t.Fatalf("in air without end the haze is %v, want 0", h)
 	}
-	w := air.Weather{Visibility: 100}
+	w := air.Weather{Sight: 100}
 	near, far := w.Haze(eyed{}, 10, 0, 10), w.Haze(eyed{}, 300, 0, 10)
 	if near <= 0 || near >= far || far >= 1 || math.Abs(float64(w.Haze(eyed{}, 100, 0, 10))-(1-math.Exp(-1))) > 1e-6 {
 		t.Errorf("the haze 10, 100 and 300 off is %v, %v and %v; want growing, 1 − 1/e at the visibility", near, w.Haze(eyed{}, 100, 0, 10), far)
@@ -104,14 +111,16 @@ func TestHaze_GrowsWithDistance(t *testing.T) {
 
 func TestVisibility_SeesAsFarAsTheScaleAndTheWeatherSay(t *testing.T) {
 	s := world.Scale{Metres: 1000.0 / 32}
-	clear := air.Visibility(s, air.Weather{})
+	sight := air.Sight(s)
+	clear := air.Weather{Sight: sight}.Visibility(0, 0)
 	if math.Abs(clear*s.Metres-air.ClearAir) > 1e-6 {
 		t.Errorf("clear air lets one see %v m, want %v", clear*s.Metres, air.ClearAir)
 	}
-	if rain := air.Visibility(s, air.Weather{Rain: 1, Clouds: 1}); rain >= clear/5 {
+	pour := air.Weather{Sight: sight, Rain: 1, Clouds: 1, Temperature: 10}
+	if rain := pour.Visibility(0, 0); rain >= clear/5 {
 		t.Errorf("in a downpour one sees %v world units, want well under a fifth of %v", rain, clear)
 	}
-	if air.Visibility(world.Scale{}, air.Weather{}) != 0 {
+	if air.Sight(world.Scale{}) != 0 || (air.Weather{}).Visibility(0, 0) != 0 {
 		t.Error("without a scale the air is not clear without end")
 	}
 }
@@ -119,7 +128,7 @@ func TestVisibility_SeesAsFarAsTheScaleAndTheWeatherSay(t *testing.T) {
 func TestWeather_HandsTheFrameTheAirAndTheSkysColours(t *testing.T) {
 	sun := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
 	w := air.Weather{Wind: [2]float32{3, 4}, Drift: [2]float32{10, 20}, Clouds: 0.6}
-	c := render.NewComposer(source(func(f *render.Frame) { w.Frame(f, sun) }))
+	c := render.NewComposer(source(func(f *render.Frame) { w.Frame(f, sun, 0, 0) }))
 	c.DrawWorld(nil, icamera.NewFromSpace(64, 64, 0))
 	got := c.Uniforms()
 	if got["Wind"][1] != 4 || got["Drift"][0] != 10 || got["Cover"][0] != 0.6 {

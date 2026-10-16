@@ -24,7 +24,7 @@ type framing struct{ sun sky.Sun }
 func (framing) Init(*goke.SysInit) {}
 func (s framing) Compose(f *render.Frame, _ camera.Camera) {
 	s.sun.Frame(f)
-	air.Weather{}.Frame(f, s.sun)
+	air.Weather{}.Frame(f, s.sun, 0, 0)
 }
 
 func TestPlugin_WithoutAnAtmosphereTheReliefHandsTheFrameItsStillSky(t *testing.T) {

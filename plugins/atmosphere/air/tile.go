@@ -8,17 +8,27 @@ import (
 
 var tileShader = render.NewShaderWith("cloud tile", render.Files(shaders, "shaders/cloud_tile.wgsl"), nil)
 
-// TileWidth and TileHeight are the size in pixels of the tile BakeTile bakes.
+// the tile's size in pixels: its finest level and the coarser beside it
 const (
 	tileTexels = 1024
 	tileLevels = 6
-	TileWidth  = tileTexels * 3 / 2
-	TileHeight = tileTexels
+	tileWidth  = tileTexels * 3 / 2
+	tileHeight = tileTexels
 )
 
-// BakeTile bakes a tile of the clouds' noise into dst, TileWidth by TileHeight pixels from its
-// corner, for the shaders to look the clouds up in.
-func BakeTile(dst *render.Image) {
+var tile *render.Image
+
+// Tile is a tile of the clouds' noise for the shaders to look the clouds up in, the frame's image
+// CloudTile, baked once, as a draw first reads it.
+func Tile() *render.Image {
+	if tile == nil {
+		tile = render.NewImage(tileWidth, tileHeight)
+		tile.Defer(bakeTile)
+	}
+	return tile
+}
+
+func bakeTile(dst *render.Image) {
 	corner := dst.Bounds().Min
 	verts := make([]render.Vertex, 4)
 	for level := range tileLevels {

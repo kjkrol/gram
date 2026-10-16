@@ -220,6 +220,84 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> { return o.color; }`).Instanced(2)
 	}
 }
 
+func TestWritePixels_GoesInTheOrderOfTheDraws(t *testing.T) {
+	needGPU(t)
+	red, green, blue := []byte{255, 0, 0, 255}, []byte{0, 255, 0, 255}, []byte{0, 0, 255, 255}
+	src := NewTexture(3, 1)
+	Fill(Image{Texture: src}, 1, 0, 0, 1)
+	src.WritePixels(1, 0, 1, 1, green)
+	dst := NewTexture(3, 1)
+	DrawImage(Image{Texture: dst}, Image{Texture: src}, Affine{A: 1, D: 1}, [4]float32{1, 1, 1, 1},
+		false, Copy)
+	// written after the draw that copied it, with no submission between
+	src.WritePixels(2, 0, 1, 1, blue)
+	got, was := make([]byte, 12), make([]byte, 12)
+	dst.ReadPixels(got)
+	src.ReadPixels(was)
+	for x, want := range [][]byte{red, green, red} {
+		if p := pixel(got, 3, x, 0); p != [4]byte(want) {
+			t.Errorf("drawn at %d is %v, want %v", x, p, want)
+		}
+	}
+	if p := pixel(was, 3, 2, 0); p != [4]byte(blue) {
+		t.Errorf("written last at 2 is %v, want blue", p)
+	}
+}
+
+func TestWritePixels_ManyInAFrameAllLand(t *testing.T) {
+	needGPU(t)
+	const side, n = 16, 24
+	tex := NewTexture(side*n, side)
+	for k := range n {
+		part := make([]byte, 4*side*side)
+		for i := range side * side {
+			part[4*i], part[4*i+1], part[4*i+3] = byte(k), byte(i), 255
+		}
+		tex.WritePixels(k*side, 0, side, side, part)
+	}
+	got := make([]byte, 4*side*n*side)
+	tex.ReadPixels(got)
+	for k := range n {
+		for i := range side * side {
+			x, y := k*side+i%side, i/side
+			if p := pixel(got, side*n, x, y); p != [4]byte{byte(k), byte(i), 0, 255} {
+				t.Fatalf("pixel (%d, %d) of write %d is %v", x, y, k, p)
+			}
+		}
+	}
+}
+
+// wider than a draw puts at once, and more than drawing puts at all
+func TestWritePixels_WideAndBigPartsLandWhole(t *testing.T) {
+	needGPU(t)
+	for _, c := range []struct{ tw, th, x, y, w, h int }{
+		{1500, 3, 0, 1, 1500, 1},
+		{400, 400, 10, 10, 300, 300},
+	} {
+		tex := NewTexture(c.tw, c.th)
+		part := make([]byte, 4*c.w*c.h)
+		for i := range c.w * c.h {
+			part[4*i], part[4*i+1], part[4*i+3] = byte(i), byte(i>>8), 255
+		}
+		tex.WritePixels(c.x, c.y, c.w, c.h, part)
+		got := make([]byte, 4*c.tw*c.th)
+		tex.ReadPixels(got)
+		for y := range c.th {
+			for x := range c.tw {
+				want := [4]byte{}
+				if x >= c.x && x < c.x+c.w && y >= c.y && y < c.y+c.h {
+					i := (y-c.y)*c.w + x - c.x
+					want = [4]byte{byte(i), byte(i >> 8), 0, 255}
+				}
+				if p := pixel(got, c.tw, x, y); p != want {
+					t.Fatalf("%dx%d at (%d, %d): pixel (%d, %d) is %v, want %v", c.w, c.h, c.x, c.y,
+						x, y, p, want)
+				}
+			}
+		}
+	}
+}
+
 func TestNewTexture_IsTransparent(t *testing.T) {
 	needGPU(t)
 	used := NewTexture(64, 64)
@@ -449,5 +527,64 @@ func TestFillBehind_FillsOnlyWhereNothingWasDrawn(t *testing.T) {
 	if l, r := pixel(pix, 4, 1, 1), pixel(pix, 4, 2, 1); l != [4]byte{255, 0, 0, 255} ||
 		r != [4]byte{0, 0, 255, 255} {
 		t.Errorf("the drawn left is %v and the empty right %v, want red kept and blue filled", l, r)
+	}
+}
+
+func TestMesh_AProgramReadsTheFramesImagesByName(t *testing.T) {
+	needGPU(t)
+	layout := NewLayout([]Uniform{{"At", 1}})
+	p := NewMesh("test frame", layout.Fields, `
+@group(3) @binding(2) var Probe: texture_2d<f32>;
+struct Out { @builtin(position) clip: vec4<f32> }
+@vertex
+fn vs_main(@builtin(vertex_index) vid: u32) -> Out {
+    var corners = array<vec2<f32>, 3>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(3.0, -1.0),
+        vec2<f32>(-1.0, 3.0),
+    );
+    var o: Out;
+    o.clip = vec4<f32>(corners[vid], 0.0, 1.0);
+    return o;
+}
+@fragment
+fn fs_main(o: Out) -> @location(0) vec4<f32> {
+    return textureSampleLevel(Probe, wrapped, vec2<f32>(U.At, 0.5), 0.0);
+}`)
+	// red on the left, green on the right
+	img := NewTexture(2, 1)
+	img.WritePixels(0, 0, 2, 1, []byte{255, 0, 0, 255, 0, 255, 0, 255})
+	blue := NewTexture(1, 1)
+	blue.WritePixels(0, 0, 1, 1, []byte{0, 0, 255, 255})
+	dst := NewTexture(2, 2)
+	pix := make([]byte, 16)
+	draw := func(at float32, frame *Texture) [4]byte {
+		u := make([]byte, layout.Size)
+		layout.Put(u, "At", []float32{at})
+		dw := &MeshDraw{Target: Image{Texture: dst}, Program: p, Uniforms: u, Vertices: 3,
+			Blend: Copy}
+		dw.Frame[2] = frame
+		Mesh(dw)
+		dst.ReadPixels(pix)
+		return pixel(pix, 2, 1, 1)
+	}
+	if c := draw(0.25, img); c != [4]byte{255, 0, 0, 255} {
+		t.Errorf("the frame's image read on its left is %v, want red", c)
+	}
+	if c := draw(1.75, img); c != [4]byte{0, 255, 0, 255} {
+		t.Errorf("the frame's image read past its right edge is %v, want it repeated: green", c)
+	}
+	if c := draw(0.25, nil); c != [4]byte{} {
+		t.Errorf("a frame without the image reads %v, want nothing", c)
+	}
+	groups := len(cur.frames)
+	if c := draw(0.25, blue); c != [4]byte{0, 0, 255, 255} {
+		t.Errorf("another frame's image reads %v, want blue", c)
+	}
+	draw(0.75, img)
+	draw(0.75, blue)
+	if n := len(cur.frames); n != groups+1 {
+		t.Errorf("two sets of the frame's images drawn again made %d groups, want the one new",
+			n-groups)
 	}
 }

@@ -23,6 +23,9 @@ const (
 	uniformBlock = 4096
 )
 
+// FrameImages is how many images a frame hands every program (group 3, Draw.Frame).
+const FrameImages = 8
+
 type device struct {
 	mu       sync.Mutex
 	dev      *wgpu.Device
@@ -34,18 +37,20 @@ type device struct {
 	pass       *wgpu.RenderPassEncoder
 	passTarget *target
 	passDepth  *Depth
+	passFrame  *wgpu.BindGroup // the frame's images bound in the pass, kept till they change
 
 	verts, indices, draws, uniforms []byte
 	vbuf, ibuf, dbuf, ubuf          *wgpu.Buffer
 	group0                          *wgpu.BindGroup
 
-	layout0, layout1 *wgpu.BindGroupLayout
-	layout2          *wgpu.BindGroupLayout
-	noDepth          *Depth // read where a draw reads none
-	layout           *wgpu.PipelineLayout
-	nearest, linear  *wgpu.Sampler
-	blank            *Texture
-	groups           map[[4]*Texture]*wgpu.BindGroup
+	layout0, layout1         *wgpu.BindGroupLayout
+	layout2, layout3         *wgpu.BindGroupLayout
+	noDepth                  *Depth // read where a draw reads none
+	layout                   *wgpu.PipelineLayout
+	nearest, linear, wrapped *wgpu.Sampler
+	blank                    *Texture
+	groups                   map[[4]*Texture]*wgpu.BindGroup
+	frames                   map[[FrameImages]*Texture]*wgpu.BindGroup
 
 	present      [4]*wgpu.Buffer // vertices, indices, the draw, the uniforms
 	presentGroup *wgpu.BindGroup
@@ -64,7 +69,8 @@ func Use(dev *wgpu.Device) error {
 	if cur != nil && cur.dev == dev {
 		return nil
 	}
-	d := &device{dev: dev, queue: dev.Queue(), groups: map[[4]*Texture]*wgpu.BindGroup{}}
+	d := &device{dev: dev, queue: dev.Queue(), groups: map[[4]*Texture]*wgpu.BindGroup{},
+		frames: map[[FrameImages]*Texture]*wgpu.BindGroup{}}
 	if err := d.setup(); err != nil {
 		return err
 	}
@@ -161,7 +167,24 @@ func (d *device) setup() error {
 	}}); err != nil {
 		return err
 	}
-	if d.layout, err = d.dev.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{Label: "gpu", BindGroupLayouts: []*wgpu.BindGroupLayout{d.layout0, d.layout1, d.layout2}}); err != nil {
+	frame := make([]gputypes.BindGroupLayoutEntry, 0, FrameImages+1)
+	for i := range FrameImages {
+		frame = append(frame, tex(uint32(i)))
+	}
+	frame = append(frame, gputypes.BindGroupLayoutEntry{Binding: FrameImages, Visibility: vf,
+		Sampler: &gputypes.SamplerBindingLayout{Type: gputypes.SamplerBindingTypeFiltering}})
+	d.layout3, err = d.dev.CreateBindGroupLayout(&wgpu.BindGroupLayoutDescriptor{
+		Label:   "gpu frame",
+		Entries: frame,
+	})
+	if err != nil {
+		return err
+	}
+	d.layout, err = d.dev.CreatePipelineLayout(&wgpu.PipelineLayoutDescriptor{
+		Label:            "gpu",
+		BindGroupLayouts: []*wgpu.BindGroupLayout{d.layout0, d.layout1, d.layout2, d.layout3},
+	})
+	if err != nil {
 		return err
 	}
 	d.noDepth = &Depth{w: 1, h: 1, readable: true}
@@ -170,6 +193,13 @@ func (d *device) setup() error {
 		return err
 	}
 	if d.linear, err = d.dev.CreateSampler(&wgpu.SamplerDescriptor{Label: "linear", AddressModeU: clamp, AddressModeV: clamp, AddressModeW: clamp, MagFilter: gputypes.FilterModeLinear, MinFilter: gputypes.FilterModeLinear, LodMaxClamp: 32}); err != nil {
+		return err
+	}
+	repeat := gputypes.AddressModeRepeat
+	if d.wrapped, err = d.dev.CreateSampler(&wgpu.SamplerDescriptor{Label: "wrapped",
+		AddressModeU: repeat, AddressModeV: repeat, AddressModeW: repeat,
+		MagFilter: gputypes.FilterModeLinear, MinFilter: gputypes.FilterModeLinear,
+		LodMaxClamp: 32}); err != nil {
 		return err
 	}
 	d.blank = NewTexture(1, 1)
@@ -268,8 +298,17 @@ func (d *device) begin(t *target, dp *Depth, clearDepth bool) *wgpu.RenderPassEn
 		panic(fmt.Errorf("gpu: beginning a pass: %w", err))
 	}
 	t.load = gputypes.LoadOpLoad
-	d.pass, d.passTarget, d.passDepth = pass, t, dp
+	d.pass, d.passTarget, d.passDepth, d.passFrame = pass, t, dp, nil
 	return pass
+}
+
+// bindFrame binds the frame's images g in the pass, unless bound already: every pipeline shares
+// one layout, so a group bound stays bound across them. Call it after the pass's pipeline is set.
+func (d *device) bindFrame(pass *wgpu.RenderPassEncoder, g *wgpu.BindGroup) {
+	if g != d.passFrame {
+		pass.SetBindGroup(3, g, nil)
+		d.passFrame = g
+	}
 }
 
 func (d *device) ensure(nv, ni int) {
@@ -300,10 +339,11 @@ func (d *device) ensure(nv, ni int) {
 		*b = nb
 		return true
 	}
-	grow(&d.vbuf, uint64(nv*vertexSize), wgpu.BufferUsageVertex, "vertices")
-	grow(&d.ibuf, uint64((ni*2+3)&^3), wgpu.BufferUsageIndex, "indices")
-	regrouped := grow(&d.dbuf, drawSize+d.align, wgpu.BufferUsageUniform, "draws")
-	regrouped = grow(&d.ubuf, uniformBlock+d.align, wgpu.BufferUsageUniform, "uniforms") || regrouped
+	// as big as what was gathered, so the next frame gathers as much without a submission between
+	grow(&d.vbuf, needV, wgpu.BufferUsageVertex, "vertices")
+	grow(&d.ibuf, needI, wgpu.BufferUsageIndex, "indices")
+	regrouped := grow(&d.dbuf, needD, wgpu.BufferUsageUniform, "draws")
+	regrouped = grow(&d.ubuf, needU, wgpu.BufferUsageUniform, "uniforms") || regrouped
 	if regrouped || d.group0 == nil {
 		g, err := d.dev.CreateBindGroup(&wgpu.BindGroupDescriptor{Label: "gpu draw", Layout: d.layout0, Entries: []wgpu.BindGroupEntry{
 			{Binding: 0, Buffer: d.dbuf, Size: drawSize},
@@ -311,6 +351,9 @@ func (d *device) ensure(nv, ni int) {
 		}})
 		if err != nil {
 			panic(fmt.Errorf("gpu: the draw group: %w", err))
+		}
+		if d.group0 != nil {
+			d.retire(d.group0.Release) // the submissions before may still bind it
 		}
 		d.group0 = g
 	}
@@ -344,11 +387,51 @@ func (d *device) images(imgs [4]*Texture) *wgpu.BindGroup {
 	return g
 }
 
+// the frame's images' group, one for each set of them
+func (d *device) frame(imgs [FrameImages]*Texture) *wgpu.BindGroup {
+	for i := range imgs {
+		if imgs[i] == nil {
+			imgs[i] = d.blank
+		}
+	}
+	if g, ok := d.frames[imgs]; ok {
+		return g
+	}
+	if len(d.frames) > 256 {
+		for k, g := range d.frames {
+			d.retire(g.Release)
+			delete(d.frames, k)
+		}
+	}
+	entries := make([]wgpu.BindGroupEntry, 0, FrameImages+1)
+	for i, t := range imgs {
+		entries = append(entries,
+			wgpu.BindGroupEntry{Binding: uint32(i), TextureView: t.gpuView(d)})
+	}
+	entries = append(entries, wgpu.BindGroupEntry{Binding: FrameImages, Sampler: d.wrapped})
+	g, err := d.dev.CreateBindGroup(&wgpu.BindGroupDescriptor{Label: "gpu frame", Layout: d.layout3,
+		Entries: entries})
+	if err != nil {
+		panic(fmt.Errorf("gpu: a frame's group: %w", err))
+	}
+	d.frames[imgs] = g
+	return g
+}
+
 func (d *device) forget(t *Texture) {
 	for k, g := range d.groups {
 		if k[0] == t || k[1] == t || k[2] == t || k[3] == t {
 			d.retire(g.Release)
 			delete(d.groups, k)
+		}
+	}
+	for k, g := range d.frames {
+		for _, f := range k {
+			if f == t {
+				d.retire(g.Release)
+				delete(d.frames, k)
+				break
+			}
 		}
 	}
 }

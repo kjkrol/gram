@@ -37,10 +37,11 @@ type Atmosphere interface {
 	Air() air.Weather
 }
 
-type stillSky struct{}
+// clear air seen as far as the world's scale lets one see
+type stillSky struct{ sight float64 }
 
-func (stillSky) Sun() sky.Sun     { return sky.DefaultSun }
-func (stillSky) Air() air.Weather { return air.Weather{} }
+func (stillSky) Sun() sky.Sun       { return sky.DefaultSun }
+func (s stillSky) Air() air.Weather { return air.Weather{Sight: s.sight} }
 
 // stillFrame hands the frame the still sky while no atmosphere lights the relief, giving way to a
 // sky some other source has put on the frame, whichever composes first
@@ -54,7 +55,7 @@ func (s stillFrame) Compose(f *render.Frame, _ camera.Camera) {
 	}
 	sun := sky.DefaultSun
 	sun.Frame(f)
-	air.Weather{}.Frame(f, sun)
+	air.Weather{}.Frame(f, sun, 0, 0)
 }
 
 // Config is the topography: Cell (world units, must be set) is drawn isometrically as a TileW x
@@ -113,7 +114,8 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 		panic("topography: a world that wraps cannot be seen in relief")
 	}
 	brd := boardPlugin.Board()
-	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, sky: stillSky{},
+	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin,
+		sky:      stillSky{sight: air.Sight(worldPlugin.Scale())},
 		climbing: cfg.Climbing}
 	p.Self = world.NewSelf(worldPlugin, p)
 	if p.climbing == (relief.Climbing{}) {

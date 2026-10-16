@@ -85,8 +85,10 @@ func (c *Climate) Set(name string) {
 // About says whose entity a Weathering is about, the world's without it. Call it before System.
 func (c *Climate) About(self func() uid.UID64) { c.about = self }
 
-// LoadComps lists the weather's component for the saves.
-func (c *Climate) LoadComps() []goke.CompToken { return []goke.CompToken{goke.LoadComp[Weather]()} }
+// LoadComps lists the weather's components for the saves: its own and the air masses' patches.
+func (c *Climate) LoadComps() []goke.CompToken {
+	return []goke.CompToken{goke.LoadComp[Weather](), goke.LoadComp[air.Patch]()}
+}
 
 // Rules takes the rules of Weathering.
 func (c *Climate) Rules() host.Host { return &c.rules }

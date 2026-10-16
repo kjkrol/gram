@@ -115,7 +115,7 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	h.set("GridOn", grid)
 	visibility := float32(0)
 	if _, eyed := cam.(camera.Eyed); eyed {
-		visibility = float32(air.Visibility(h.world.Scale(), h.sky.Air()))
+		visibility = float32(h.sky.Air().Visibility(air.Under(cam)))
 	}
 	h.set("Visibility", visibility)
 	h.opts.Depth, h.opts.Images, h.opts.Instances = t.Depth, [4]*render.Image{h.top, nil, nil, nil}, h.cells

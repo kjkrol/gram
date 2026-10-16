@@ -50,6 +50,8 @@ type Plugin struct {
 	weathering *weathering.Weathering
 	module     *module
 	running    Running
+	skies      []Sky
+	vault      *backdrop.Renderer
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -112,7 +114,7 @@ func (p *Plugin) Weathering() *weathering.Weathering { return p.weathering }
 func (p *Plugin) Name() string { return "gram.atmosphere" }
 
 // Install wires the sky's, the weather's and the weathering's systems, and draws the sky behind
-// the world and what falls before it.
+// the world, looking as its Skies say, and what falls before it.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{p: p, sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Clock()}
 	ctx.UseModule(p.module)
@@ -123,8 +125,9 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		return r.Stars, r.Moon
 	}
 	space, scale := p.worldPlugin.Res.Config.Space, p.worldPlugin.Scale()
-	vault := backdrop.New(space, scale, p.Sun, p.Air).WithHeavens(p.Heavens).WithShown(shown)
-	ctx.Draws(vault, precipitation.New(p.Sun, p.Air))
+	p.vault = backdrop.New(space, scale, p.Sun, p.Air).WithHeavens(p.Heavens).WithShown(shown)
+	ctx.Draws(p.vault, precipitation.New(p.Sun, p.Air))
+	ctx.Looks(p.dress)
 	return nil
 }
 
@@ -145,7 +148,7 @@ func (p *Plugin) HUD() render.Renderer { return p.calendar.HUD() }
 // EventHandler is nil: the atmosphere takes commands, not input.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil: the weather is its own entity, saved with the ECS.
+// Serializable is nil: the weather and its air masses are entities, saved with the ECS.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }
 
 var _ goke.Module = (*module)(nil)

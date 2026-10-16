@@ -84,6 +84,7 @@ func DrawKept(dw *Draw, k *Kept) {
 	}
 	pipeline := dw.Program.pipeline(d, dw.Blend, t.format, dw.depthMode(t))
 	group1 := d.images(imgs)
+	group3 := d.frame(dw.Frame)
 	vbuf, ibuf := k.buffers(d)
 	d.ensure(0, 0)
 	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, dw.Place, dw.Tint, dw.Sight)
@@ -92,6 +93,7 @@ func DrawKept(dw *Draw, k *Kept) {
 	pass.SetBindGroup(0, d.group0, []uint32{uint32(dOff), uint32(uOff)})
 	pass.SetBindGroup(1, group1, nil)
 	pass.SetBindGroup(2, d.noDepth.readGroup(d), nil)
+	d.bindFrame(pass, group3)
 	pass.SetVertexBuffer(0, vbuf, 0)
 	pass.SetIndexBuffer(ibuf, gputypes.IndexFormatUint16, 0)
 	pass.SetScissorRect(gputypes.ScissorRect{X: uint32(clip.X), Y: uint32(clip.Y), Width: uint32(clip.W), Height: uint32(clip.H)})

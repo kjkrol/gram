@@ -26,22 +26,22 @@ fn cloudsLook(px: vec2<f32>) -> vec4<f32> {
     return vec4<f32>(haze, smoothstep(0.1, 0.6, view.z), t2 * t2 * t2, smoothstep(skyLift, 3.0 * skyLift, view.z));
 }
 
-// skyClouds is the clouds of noise field on the sky, premultiplied, their edge softened soft
-// either way, looking as look says (cloudsLook), over the sky behind them: lit by the sky and by
-// the sun or the moon, as much as they shine, greyer underneath the more of the sky they cover,
-// their thick middles darker seen from below and their thin edges shining towards the light, the
-// more so the more heaped they are, turning to the sky behind as far off as the layer lies in the
-// air; whole, hiding the stars, the moon and the sun behind them.
-fn skyClouds(field: f32, soft: f32, look: vec4<f32>, behind: vec3<f32>) -> vec4<f32> {
-    let cover = cloudCoverSoft(field, soft);
+// skyClouds is the clouds of noise field under the air mass m on the sky, premultiplied, their
+// edge softened soft either way, looking as look says (cloudsLook), over the sky behind them: lit
+// by the sky and by the sun or the moon, as much as they shine, greyer underneath the more of the
+// sky they cover, their thick middles darker seen from below and their thin edges shining towards
+// the light, the more so the more heaped they are, turning to the sky behind as far off as the
+// layer lies in the air; whole, hiding the stars, the moon and the sun behind them.
+fn skyClouds(field: f32, soft: f32, look: vec4<f32>, behind: vec3<f32>, m: vec4<f32>) -> vec4<f32> {
+    let cover = cloudCoverSoft(field, soft, m);
     if cover <= 0.0 {
         return vec4<f32>(0.0);
     }
     let lit = clamp(U.SunStrength * 1.4, 0.0, 1.0);
     let light = U.Ambience * cloudsSkyLit + U.SunColor * U.SunStrength * cloudsSunLit;
-    let under = mix(1.0, 0.72, clamp(U.Cover, 0.0, 1.0)); // the undersides greyer under a heavier sky
-    let heaped = clamp(U.Billow, 0.0, 1.0);
-    let thick = cloudThick(field);
+    let under = mix(1.0, 0.72, clamp(m.x, 0.0, 1.0)); // the undersides greyer under a heavier sky
+    let heaped = clamp(m.y, 0.0, 1.0);
+    let thick = cloudThick(field, m);
     let base = 1.0 - thick * thick * (0.1 + 0.25 * heaped) * mix(0.6, 1.0, look.y);
     let rim = look.z * (1.0 - thick) * lit * (0.3 + 0.5 * heaped);
     let rgb = mix(light * under * base + U.SunColor * rim, behind, look.x);

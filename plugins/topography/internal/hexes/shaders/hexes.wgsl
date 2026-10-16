@@ -65,7 +65,8 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) cell: vec4<f32>, @locat
     f.world = p;
     f.cloud = 0.0;
     if U.Cover > 0.0 {
-        f.cloud = cloudShade(cloudCover(cloudField(p.xy)));
+        let m = airAt(p.xy);
+        f.cloud = cloudShade(cloudCover(cloudField(p.xy, m.y), m));
     }
     return f;
 }

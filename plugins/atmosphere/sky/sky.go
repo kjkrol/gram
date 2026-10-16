@@ -64,7 +64,7 @@ func (s *Sky) light(m calendar.Moment) {
 	} else {
 		s.sun = s.cfg.LightAt(m.OfYear(), m.Time, m.Moon(), s.moon)
 	}
-	s.heavens = s.cfg.place().HeavensAt(m.OfYear(), m.Time, m.Moon(), s.cfg.Stars)
+	s.heavens = s.cfg.place().HeavensAt(m.OfYear(), m.Time, m.Moon())
 	s.heavens.MoonTint = s.moon.Face
 	_, s.heavens.SunColor, _ = s.cfg.daylightAt(s.heavens.Sun[2])
 }

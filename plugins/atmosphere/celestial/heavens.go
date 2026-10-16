@@ -12,16 +12,15 @@ type Heavens struct {
 	SunColor  render.Light // the sun's own colour where it stands; zero for white
 	Sphere    [3][3]float32
 	Pole      [3]float32
-	Stars     StarSky
 }
 
 // HeavensAt is the sky over p at ofYear, the part of the year gone, and time of day t, with the
 // moon moon round from new, showing stars.
-func (p Place) HeavensAt(ofYear, t, moon float32, stars StarSky) Heavens {
+func (p Place) HeavensAt(ofYear, t, moon float32) Heavens {
 	sphere := p.Sphere(SiderealTime(ofYear, t))
 	return Heavens{
 		Sun: p.SunPath(ofYear, t), Moon: p.MoonAt(ofYear, t, moon), Full: Phase(moon),
-		Sphere: sphere, Pole: sphere[2], Stars: stars,
+		Sphere: sphere, Pole: sphere[2],
 	}
 }
 

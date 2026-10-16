@@ -6,7 +6,8 @@ import (
 	"github.com/kjkrol/gram/control"
 )
 
-// Keys are a set of keys driving a player's units, bound as one: Tank or Compass.
+// Keys are a set of keys driving a player's units, bound as one and in chords, sprinting with
+// Shift: Tank, Shooter or Compass.
 type Keys interface {
 	Bindings() []control.Binding
 }
@@ -51,7 +52,7 @@ func (k Tank) Bindings() []control.Binding {
 	var out []control.Binding
 	held := func(key control.Key, b control.Binding) {
 		if key != control.KeyUnknown {
-			out = append(out, b.In(k.In))
+			out = append(out, b.In(k.In).InChords())
 		}
 	}
 	// the held key's context has the modifiers as they are
@@ -72,7 +73,7 @@ func (k Shooter) Bindings() []control.Binding {
 	var out []control.Binding
 	held := func(key control.Key, b control.Binding) {
 		if key != control.KeyUnknown {
-			out = append(out, b.In(k.In))
+			out = append(out, b.In(k.In).InChords())
 		}
 	}
 	held(k.Ahead, control.Build(control.KeyHeld{Key: k.Ahead}, "Walk on; with Shift, sprint", func(c control.Context) (Ahead, bool) {
@@ -93,7 +94,7 @@ func (k Compass) Bindings() []control.Binding {
 		if key != control.KeyUnknown {
 			out = append(out, control.Build(control.KeyHeld{Key: key}, label, func(c control.Context) (Toward, bool) {
 				return Toward{Camera: c.Camera, Way: geom.NewVec(dx, dy)}, true
-			}).In(k.In))
+			}).In(k.In).InChords())
 		}
 	}
 	held(k.Up, "Drive up", 0, -1)
@@ -116,5 +117,5 @@ func strafe(way int8) func(control.Context) (Strafe, bool) {
 func JumpKey(key control.Key) control.Binding {
 	return control.Build(control.KeyDown{Key: key}, "Jump", func(c control.Context) (Jump, bool) {
 		return Jump{Camera: c.Camera}, true
-	})
+	}).InChords()
 }

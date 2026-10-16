@@ -183,6 +183,7 @@ func Present(
 	}
 	pipeline := blitProgram.pipeline(d, Copy, format, noDepth)
 	images := d.images([4]*Texture{screen})
+	frame := d.frame([FrameImages]*Texture{})
 	pass, err := enc.BeginRenderPass(&wgpu.RenderPassDescriptor{Label: "present", ColorAttachments: []wgpu.RenderPassColorAttachment{{
 		View: view, LoadOp: gputypes.LoadOpClear, StoreOp: gputypes.StoreOpStore, ClearValue: gputypes.Color{A: 1},
 	}}})
@@ -193,6 +194,7 @@ func Present(
 	pass.SetBindGroup(0, d.presentGroup, []uint32{0, 0})
 	pass.SetBindGroup(1, images, nil)
 	pass.SetBindGroup(2, d.noDepth.readGroup(d), nil)
+	pass.SetBindGroup(3, frame, nil)
 	pass.SetVertexBuffer(0, d.present[0], 0)
 	pass.SetIndexBuffer(d.present[1], gputypes.IndexFormatUint16, 0)
 	pass.SetScissorRect(gputypes.ScissorRect{Width: uint32(w), Height: uint32(h)})

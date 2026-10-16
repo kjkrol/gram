@@ -19,7 +19,8 @@
 // [ButtonPress], [Drag], [Wheel], [ButtonHeld], [CursorAtEdge] — the cursor within [EdgeMargin]
 // of the picture's edge, or in a corner's square of [CornerReach] a side, [CornerSide] for a
 // small picture ([Edges], [Corner]) — [CursorMove], [CursorOver]) with exactly its [Mods], the
-// command [Build] makes from a [Context] or [Give] names, and a label for the list of keys. A
+// command [Build] makes from a [Context] or [Give] names, and a label for the list of keys; a key
+// held, down or let go fires with Shift, Ctrl or Alt held only [Binding.InChords]. A
 // Context carries the player, its camera, the cursor and the point picked in the world through the
 // camera.
 //

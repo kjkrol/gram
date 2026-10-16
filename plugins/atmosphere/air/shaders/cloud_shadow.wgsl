@@ -9,7 +9,8 @@ fn CloudShadow(p: vec2<f32>, red: f32, frac: f32, custom: vec4<f32>) -> vec4<f32
     if custom.w > 50000.0 {
         weight = blended(red, custom.w);
     }
-    return vec4<f32>(0.0, 0.0, 0.0, cloudShade(cloudCover(cloudField(p))) * weight);
+    let m = airAt(p);
+    return vec4<f32>(0.0, 0.0, 0.0, cloudShade(cloudCover(cloudField(p, m.y), m)) * weight);
 }
 
 // cloudShade is how much the clouds darken the ground under a cover of cover: as much as they take

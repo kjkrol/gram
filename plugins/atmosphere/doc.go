@@ -7,7 +7,9 @@
 // (plugins/atmosphere/calendar), the sky's (plugins/atmosphere/sky), the climate's
 // (plugins/atmosphere/climate) and which of its workings go on ([Running]; [Plugin.SetRunning]
 // switches them as the game goes). The light runs once a tick, in the tactical pause too; the
-// weather in every step of the simulation.
+// weather in every step of the simulation, carried over the world by the wind: a new one is born
+// at the horizon it blows from and comes in over the world, and rain and snow fall only under
+// their clouds.
 // [Plugin.Sun] and [Plugin.Air] are what a board takes to light and shade itself
 // (board.Plugin.WithAtmosphere, topography.Plugin.WithAtmosphere).
 //
@@ -20,7 +22,7 @@
 //
 // [Freeze] stops the light of the day (P), [Later] and [Earlier] move a frozen light half an hour
 // (Shift+], Shift+[), [ChangeWeather] throws the next weather (Shift+W) and [SetWeather] names
-// one.
+// one, either over the world within seconds.
 //
 // # Drawing
 //
@@ -28,6 +30,12 @@
 // the sun and the weather, and the rain and the snow before it (plugins/atmosphere/precipitation);
 // whoever draws the ground shadows it under the clouds. [Plugin.Reporter] adds the time, the light
 // and the weather to the telemetry panel, [Plugin.HUD] the calendar to a scene (ui.Drawer).
+//
+// # Sky
+//
+// The sky is the Earth's unless a game gives its own: a [Sky], in a file of its own (sky.go),
+// noted in the Stage's Figures link ([Plugin.Skies]). Its Look sets the parts of the dome
+// (plugins/atmosphere/backdrop) it draws its own way: the vault, the sun, the moon, the stars.
 //
 // # Vocabulary
 //

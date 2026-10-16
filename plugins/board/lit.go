@@ -73,7 +73,7 @@ func (d *litDressing) Begin(f *render.Frame, cam camera.Camera) {
 
 // DressGround lays the clouds' shadows on the ground.
 func (d *litDressing) DressGround(t render.Target, cam camera.Camera, u render.Uniforms) {
-	d.clouds.Draw(t, cam, u, d.sky.Air().Clouds)
+	d.clouds.Draw(t, cam, u, d.sky.Air().Most().Cover)
 }
 
 func (d *litDressing) Light(*look.Tile) render.Shade {

@@ -32,9 +32,10 @@ type StarField struct {
 	begun time.Time
 }
 
-// Place lays out the stars of heavens seen through cam, a viewport w by h pixels, as bright as
-// bright (0 none), and is how many it laid out.
-func (f *StarField) Place(cam camera.Camera, w, h float32, heavens Heavens, bright float32) int {
+// Place lays out the stars, where heavens has them, seen through cam, a viewport w by h pixels, as
+// bright as bright (0 none), and is how many it laid out.
+func (f *StarField) Place(cam camera.Camera, w, h float32, heavens Heavens, stars []Star,
+	bright float32) int {
 	f.inst, f.view = f.inst[:0], [2]float32{w, h}
 	v, ok := cam.(camera.Vanisher)
 	if !ok || bright <= 0 {
@@ -44,7 +45,7 @@ func (f *StarField) Place(cam camera.Camera, w, h float32, heavens Heavens, brig
 		f.begun = time.Now()
 	}
 	t := time.Since(f.begun).Seconds()
-	for i, st := range Stars() {
+	for i, st := range stars {
 		way := heavens.OnSky(st.Dir)
 		if way[2] < -0.01 {
 			continue

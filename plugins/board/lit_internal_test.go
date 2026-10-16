@@ -42,7 +42,7 @@ type skyAndStrip struct {
 func (skyAndStrip) Init(*goke.SysInit) {}
 func (s skyAndStrip) Compose(f *render.Frame, cam camera.Camera) {
 	s.sun.Frame(f)
-	s.weather.Frame(f, s.sun)
+	s.weather.Frame(f, s.sun, 0, 0)
 	x0, y0 := cam.FromScreen(0, 0)
 	x1, y1 := cam.FromScreen(100, 384)
 	at := f.Lifted((x0+x1)/2, (y0+y1)/2, 0, 0.05) // a board material's lift

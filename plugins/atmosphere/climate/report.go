@@ -22,8 +22,8 @@ func (r *report) Report(line func(label, value string)) {
 	for r.query.All(); r.query.Next(); {
 		w := r.now.Slice(r.query.Cursor())[0]
 		name := "?" // from an older save
-		if w.State >= 0 && int(w.State) < len(r.names) {
-			name = r.names[w.State]
+		if w.Over >= 0 && int(w.Over) < len(r.names) {
+			name = r.names[w.Over]
 		}
 		if w.Snow > w.Rain && w.Snow > 0.05 {
 			name += " (snow)"

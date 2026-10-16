@@ -78,7 +78,7 @@ func (i *Image) DrawMesh(idx *Indices, s *Shader, op *DrawMeshOptions) {
 	var imgs [4]gpu.Image
 	for k, im := range op.Images {
 		if im != nil {
-			imgs[k] = im.gpu()
+			imgs[k] = im.ready().gpu()
 		}
 	}
 	var depth *gpu.Depth
@@ -93,8 +93,21 @@ func (i *Image) DrawMesh(idx *Indices, s *Shader, op *DrawMeshOptions) {
 	if idx != nil {
 		indices = idx.i
 	}
-	gpu.Mesh(&gpu.MeshDraw{Target: i.gpu(), Depth: depth, Vertices: uint32(max(op.Vertices, 0)), Instances: op.Instances, ReadDepth: read, ClearDepth: op.ClearDepth, Write: op.WriteDepth, Primed: op.Primed,
-		Untested: op.Untested,
-		Program:  s.program(), Images: imgs, Uniforms: s.pack(op.Uniforms), Indices: indices,
-		Blend: gpu.SourceOver})
+	gpu.Mesh(&gpu.MeshDraw{
+		Target:     i.gpu(),
+		Depth:      depth,
+		Vertices:   uint32(max(op.Vertices, 0)),
+		Instances:  op.Instances,
+		ReadDepth:  read,
+		ClearDepth: op.ClearDepth,
+		Write:      op.WriteDepth,
+		Primed:     op.Primed,
+		Untested:   op.Untested,
+		Program:    s.program(),
+		Images:     imgs,
+		Frame:      frameOf(op.Uniforms),
+		Uniforms:   s.pack(op.Uniforms),
+		Indices:    indices,
+		Blend:      gpu.SourceOver,
+	})
 }

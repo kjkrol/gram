@@ -137,26 +137,15 @@ fn baked(p: vec2<f32>, x: f32, px: f32) -> vec4<f32> {
 }
 
 // clouds is how thick the clouds stand over p, a pixel pixel world units wide there: their noise
-// looked up in the tile of it baked into the fourth image from U.CloudFrom across (air.BakeTile),
-// evened out as far as the pixel sees it.
+// looked up in the frame's tile of it (CloudTile, air.Tile), evened out as far as the pixel sees
+// it.
 fn clouds(p: vec2<f32>, pixel: f32) -> f32 {
-    let torn = cloudsTile(p, cloudTileLevel(pixel, cloudTile * cloudSize), cloudTile * cloudSize).r;
+    let m = airAt(p);
+    let lod = cloudTileLevel(pixel, cloudTile * cloudSize);
+    let torn = cloudTileAt(p, lod, cloudTile * cloudSize).r;
     var core = 0.0;
-    if U.Billow > 0.0 {
-        core = cloudsTile(p, cloudTileLevel(pixel, heapTile * heapSize), heapTile * heapSize).g;
+    if m.y > 0.0 {
+        core = cloudTileAt(p, cloudTileLevel(pixel, heapTile * heapSize), heapTile * heapSize).g;
     }
-    return cloudCoverSoft(cloudFromTile(torn, core), cloudTileSoft * cloudTileLevel(pixel, cloudTile * cloudSize));
-}
-
-// cloudsTile is the clouds' tile at p on level lod, its period period: the two levels round it
-// blended.
-fn cloudsTile(p: vec2<f32>, lod: f32, period: f32) -> vec2<f32> {
-    let low = floor(lod);
-    let dims = vec2<f32>(textureDimensions(image3));
-    let from = imageSrc3Origin() + vec2<f32>(U.CloudFrom, 0.0);
-    var n = textureSampleLevel(image3, linear, (from + cloudTileSpot(p, low, period)) / dims, 0.0).rg;
-    if lod > low {
-        n = mix(n, textureSampleLevel(image3, linear, (from + cloudTileSpot(p, low + 1.0, period)) / dims, 0.0).rg, lod - low);
-    }
-    return n;
+    return cloudCoverSoft(cloudFromTile(torn, core, m.y), cloudTileSoft * lod, m);
 }

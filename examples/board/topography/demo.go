@@ -145,8 +145,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.vision = vision.NewPlugin(a.world).WithBoard(a.board).WithFrequency(15)
 	a.atmosphere = atmosphere.NewPlugin(a.world, atmosphere.Config{
 		Calendar: calendar.Config{
-			Start:  18 * time.Hour,
-			Season: calendar.Summer,
+			Start:  12 * time.Hour,
+			Season: calendar.Winter,
 			Year:   calendar.EarthYear,
 		},
 		Climate: climate.Config{
@@ -223,6 +223,7 @@ func (a *arena) defineFigures() {
 		ford{},
 	)
 	a.bridges.Figures(bridge{})
+	a.atmosphere.Skies(earth{})
 }
 
 func (a *arena) bindKeys() error {

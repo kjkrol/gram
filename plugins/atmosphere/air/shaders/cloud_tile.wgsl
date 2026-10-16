@@ -1,4 +1,4 @@
-// A tile of the clouds' noise, baked once (air.BakeTile) for a shader to look up: every pixel holds
+// A tile of the clouds' noise, baked once (air.Tile) for a shader to look up: every pixel holds
 // the shreds (red) averaged over the world square round custom.xy, custom.z world units wide, and
 // the heaps' cores (green, heapCoreLow up over heapCoreSpan) over the square four times as far
 // out and as wide — their tile four times the shreds' — each from custom.w by custom.w points.

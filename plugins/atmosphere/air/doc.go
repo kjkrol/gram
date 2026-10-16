@@ -3,17 +3,30 @@
 //
 // # Weather
 //
-// The zero [Weather] is a calm, clear day. [Visibility] is how far one sees through it on a world
-// of a scale, [Weather.Frame] hands a render.Frame its shaders' uniforms and the sky's colours,
-// one source for the sky, the fog and the water: at the horizon the Fog ([Overcast], the sky
-// greyed by the clouds), overhead deeper ([Overhead]), skyAt in WGSL between them;
-// [Weather.Haze] is how much of a point the air hides from a camera's eye and [Weather.Sway] how
-// far what sways leans in the wind.
+// The zero [Weather] is a calm, clear day. [Weather.Visibility] is how far one sees through the
+// air over a point, its [Sight] that of clear air on a world of a scale; [Weather.Frame] hands a
+// render.Frame its shaders' uniforms and the sky's colours over the eye ([Under]), one source for
+// the sky, the fog and the water: at the horizon the Fog ([Overcast], the sky greyed by the
+// clouds), overhead deeper ([Overhead]), skyAt in WGSL between them. [Weather.Haze] is how much
+// of a point the air hides from a camera's eye ([Hazer] for a frame's worth) and [Weather.Sway]
+// how far what sways leans in the wind.
+//
+// # Dome
+//
+// The weather over a point is its air [Mass]: how much of the sky its clouds cover, how heaped
+// they are, how much falls from them. A [Dome] holds the masses over a world and its sky out to
+// the horizon, drifting with the clouds: level 0 over the world in cells of [BoardCell], each
+// level further out in coarser cells, every level a ring of [Patch]es, each an entity of its own.
+// [Dome.Carry] brings masses in where the wind blows from, at the horizon, [Dome.Settle] has them
+// settle in place. [Weather.At] is the mass over a point (airAt in WGSL, from the frame's image
+// AirMasses a [DomeImage] keeps), [Weather.Falls] its rain and snow by the temperature and
+// [Weather.FallsAt] what comes down there under the clouds, none from their gaps.
 //
 // # Clouds
 //
 // [Weather.Cloud] is the clouds' noise over a point, drifted with the wind, and [Weather.Shade]
-// how much shadow it casts under the cover: on the CPU the very numbers the shaders work out on
-// the GPU, [CloudShadow] their material. The noise repeats every [CloudTile] and [HeapTile], so
-// [BakeTile] bakes a tile of it once for the sky and the ground to look up per pixel.
+// how thick they are there under its mass's cover: on the CPU the very numbers the shaders work
+// out on the GPU, [CloudShadow] their material. The noise repeats every [CloudTile] and
+// [HeapTile], so [Tile] is a tile of it, baked once, which every shader looks up per pixel as the
+// frame's image CloudTile ([Weather.Frame] hands it).
 package air

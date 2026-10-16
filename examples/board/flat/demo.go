@@ -126,6 +126,7 @@ func (a *arena) defineFigures() {
 	a.board.Tiles(tiles()...)
 	a.board.Figures(walker{}, ford{})
 	a.bridges.Figures(bridge{})
+	a.atmosphere.Skies(earth{})
 }
 
 func (a *arena) spawn() error {

@@ -1,6 +1,6 @@
 ---
 name: gram-probe
-description: Reproduce what a gram demo does, headless, tick by tick, at tempo x4: a throwaway probe plugin compiled into a copy of the demo (the demo's files never touched) that drives it with key events and logs entities, effects, contacts and boxes. Use when the user reports a demo misbehaving (a jump, a lever, a plate, a turn), before guessing at a cause, and to confirm a fix without a window.
+description: Reproduce what a gram demo does, headless, tick by tick, at tempo x4: a throwaway probe plugin compiled into a copy of the demo (the demo's files never touched) that drives it with key events and logs entities, effects, contacts and boxes; and check a change on the demos that use what it changed — pictures and frame rates of a baseline copy against the working tree. Use when the user reports a demo misbehaving (a jump, a lever, a plate, a turn), before guessing at a cause, to confirm a fix without a window, and before reporting a change done.
 ---
 
 # gram-probe
@@ -30,6 +30,38 @@ them too, and a probe left in by an interrupted run is a broken demo.
    ticks still works, each tick spanning four steps — at tempo 1 (drop the two `Faster`) where a
    key's timing must be exact.
 4. Compress the log on the fields that matter (a line only when a state changes, `p.last`).
+
+## Checking a change
+
+1. **The demos that use what changed, and only those**: `grep -rl
+   '"github.com/kjkrol/gram/plugins/<pkg>"' examples` (the atmosphere: board/topography,
+   board/flat, look/sky). A demo without the package shows nothing of the change: motion/collision
+   has no atmosphere. Every demo is the field only for a change to `render`, `render/gpu`, the
+   engine or the world, which they all go through; there motion/collision is the one without a
+   board or a sky.
+2. **A baseline**: a copy of the tree from before the change in the scratchpad (`cp -r`, never
+   `git stash` or a checkout of the user's tree), run with `PROBE_TREE=<copy>`. Run the copy
+   and the working tree alternately, twice: this machine drifts ~10% between runs.
+3. **The same moment in both**: `PROBE_SEED` for a demo's random seed, `PROBE_SED` to fix what
+   the change depends on in the copied demo (`Start: weather.Cloudy`), the probe freezing the
+   light (P) and pressing what the change is about (Tab for the perspective, Q/E, a command put
+   through the carrier).
+4. **Pictures**: `GRAM_SHOT=<png> GRAM_SHOT_FRAME=<n>` with the probe; compare per pixel (max
+   difference, pixels differing). A steady state gives the same picture, ±1; every other
+   difference is named in the report. Shoot each view the change touches (from above, in
+   perspective, the head raised to the sky).
+5. **Frame rate**: `GRAM_FPS_LOG=1 GRAM_VSYNC=off`, 35 s a run; the median FPS, tick, drawing and
+   presenting from the per-second lines, after ~8 s of warm-up for a steady state, over the
+   seconds it lasts for a passing one (a weather set settles a minute of game time, ~15 s at
+   x4). Measure each regime the change has: steady, and the moment it works hardest. A slow
+   frame runs up to 5 steps of simulation, so a slow draw drags the tick with it: look for
+   the first of the two to go.
+6. **Where the time goes**: a probe calling `pprof.StartCPUProfile`/`StopCPUProfile` at two
+   ticks, `go tool pprof -top <probe_bin> <prof>`. A plugin's own pass costs in `bench/`
+   (`go test ./bench -bench <Name>`), run on the copy and the tree alike.
+7. **Slow game time** (a weather crossing the sky in an hour of game) without a window: a
+   scratch program over the plugin (`climate.New`, `System`, a goke ECS ticked in a loop)
+   simulates hours in a second.
 
 ## What a probe can reach
 

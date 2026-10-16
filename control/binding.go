@@ -40,15 +40,18 @@ type KeyPress struct {
 	Mods Mods
 }
 
-// KeyDown fires when Key goes down, whatever else is held: a jump while sprinting with Shift.
+// KeyDown fires when Key goes down, whatever other key is held; with Shift, Ctrl or Alt held only
+// as a binding InChords: a jump while sprinting with Shift.
 type KeyDown struct{ Key Key }
 
-// KeyHeld fires once a tick while Key is down, whatever else is held, its command landing in the
-// tick after. A key tapped between two ticks never fires.
+// KeyHeld fires once a tick while Key is down, whatever other key is held, with Shift, Ctrl or Alt
+// only as a binding InChords; its command lands in the tick after. A key tapped between two ticks
+// never fires.
 type KeyHeld struct{ Key Key }
 
 // KeyReleased fires when Key comes up, Context.Held saying how long it was down: a throw as
-// strong as the key was held. A key held for a chord with modifiers (Shift+X) does not fire it.
+// strong as the key was held. A key held for a chord with modifiers (Shift+X) does not fire it,
+// nor one let go with a modifier held besides it, unless the binding is InChords.
 type KeyReleased struct{ Key Key }
 
 // ButtonPress fires when Button goes down with Mods held; Context.Cursor is where.
@@ -254,6 +257,7 @@ type Binding struct {
 	build   func(Context) (command.Command, bool)
 	hows    camera.How // zero: every How
 	tool    Tool       // none: holds whatever the player holds
+	chords  bool       // a key held, down or let go fires with a modifier held too
 }
 
 // In is b holding only while the player's camera is fastened one of hows (camera.HowOf). A
@@ -268,6 +272,31 @@ func (b Binding) In(hows ...camera.How) Binding {
 
 // Holds reports whether b holds while the camera is fastened how.
 func (b Binding) Holds(how camera.How) bool { return b.hows == 0 || b.hows&how != 0 }
+
+// InChords is b, on a key held, down or let go, firing with Shift, Ctrl or Alt held too: a sprint
+// with Shift, a jump while sprinting. Without it such a binding leaves the chords to the shortcuts.
+func (b Binding) InChords() Binding {
+	b.chords = true
+	return b
+}
+
+// Takes reports whether b fires with mods held: a key's or a button's press and a drag as their
+// triggers ask; a key held, down or let go with no modifier but the key itself, unless InChords.
+func (b Binding) Takes(mods Mods) bool {
+	var key Key
+	switch t := b.Trigger.(type) {
+	case KeyHeld:
+		key = t.Key
+	case KeyDown:
+		key = t.Key
+	case KeyReleased:
+		key = t.Key
+	default:
+		return true
+	}
+	return b.chords || !(mods.Shift && key != KeyShift || mods.Ctrl && key != KeyControl ||
+		mods.Alt && key != KeyAlt)
+}
 
 // With is b holding only while the player holds tool, its trigger taken from the bindings with
 // no tool.

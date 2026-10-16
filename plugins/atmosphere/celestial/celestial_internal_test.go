@@ -41,13 +41,13 @@ func TestHeavensAt_TurnTheStarsRoundThePole(t *testing.T) {
 	c := Place{NoonWay: South, Latitude: 45}
 	polaris := equatorial(2.5302, 89.264)
 	for _, hour := range []float32{0, 0.25, 0.5, 0.75} {
-		h := c.HeavensAt(0.3, hour, 0.2, RealStars)
+		h := c.HeavensAt(0.3, hour, 0.2)
 		p := h.OnSky(polaris)
 		if up := math.Asin(float64(p[2])) * 180 / math.Pi; math.Abs(up-45) > 1 || p[1] > 0 {
 			t.Errorf("at %v of the day Polaris stands at %v, %.1f° up; want 45° up over the north (−y)", hour, p, up)
 		}
 	}
-	h := c.HeavensAt(0.3, 0.1, 0, RealStars)
+	h := c.HeavensAt(0.3, 0.1, 0)
 	lst := SiderealTime(0.3, 0.1)
 	star := h.OnSky(equatorial(lst*12/math.Pi, 0))
 	if math.Abs(float64(star[0])) > 1e-4 || star[1] <= 0 || math.Abs(math.Asin(float64(star[2]))*180/math.Pi-45) > 0.01 {
@@ -60,10 +60,11 @@ func TestHeavensAt_TurnTheStarsRoundThePole(t *testing.T) {
 
 func TestHeavensAt_TheMoonDriftsAmongTheStars(t *testing.T) {
 	c := Place{NoonWay: South, Latitude: 45}
-	if h := c.HeavensAt(0.3, 0.5, 0.5, RealStars); angle(h.Sun, h.Moon) < 170 {
+	if h := c.HeavensAt(0.3, 0.5, 0.5); angle(h.Sun, h.Moon) < 170 {
 		t.Errorf("the full moon stands %.1f° from the sun, want across the sky", angle(h.Sun, h.Moon))
 	}
-	a, b := c.HeavensAt(0.3, 0.9, 0.1, RealStars), c.HeavensAt(0.3+1/365.25, 0.9, 0.1+1/29.53, RealStars) // a day of the Earth's year on
+	// a day of the Earth's year on
+	a, b := c.HeavensAt(0.3, 0.9, 0.1), c.HeavensAt(0.3+1/365.25, 0.9, 0.1+1/29.53)
 	// the moon's way turned back into the celestial frame
 	among := func(h Heavens) [3]float32 {
 		m := h.Moon

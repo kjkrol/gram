@@ -141,8 +141,14 @@ own gives its own `Figure` and `Figures`, the plugin coming in both calls (`brid
 `Define(p)`, `Look(a *world.Atlas, p)`, the bridge's Spec on `p.Types()`, its deck's and pier's
 looks from `p.Types().Named(name)`; `bullet.Figure` the same over `p.Shots()`; `p.World()` the
 registers), noted with `a.bridges.Figures(bridge{})`, `a.bullet.Figures(round{}, grenade{})`
-after the board's. The rule: `Look` takes the
-atlas it draws on and the plugin whose register the kind is in. A figure whose kind is
+after the board's. A game's own sky is the same kind of thing: a type in `sky.go`
+(`var _ atmosphere.Sky = dusk{}`, `Look(d *backdrop.Dome, p *atmosphere.Plugin)` setting the
+parts it draws its own way, its WGSL beside it, `//go:embed vault.wgsl`), noted last in the link,
+`a.atmosphere.Skies(dusk{})`; a demo under the Earth's sky notes `earth{}` assigning the four
+`backdrop.Earth*` parts. In a perspective the sky shows only above the topography's `MinPitch`
+(30° by default hides it; look/sky sets 2). Q and E turn about the ground in the middle of the
+screen, far off with the head raised: turn first, then raise the head (R). The rule: `Look`
+takes the atlas it draws on and the plugin whose register the kind is in. A figure whose kind is
 built on another plugin's method takes that plugin in its constructor (dialog's
 `host{talks: a.dialog}` for `Script`), nothing else. A figure's numbers — its size in pixels,
 its speed, its timings, its sheet's columns — are constants beside it, lowercase; `demo.go`
@@ -152,16 +158,16 @@ minimal's `box{}`, scenes' `mover{}`) are a figure in `demo.go`. A `Put` in a pl
 the step's end, a `Hold` in a plan runs for its
 loop's life: see the `ceremony` skill.
 
-**A pattern introduced is applied to every demo in the same pass** (the user's word,
-2026-10-14, finding topography still a "museum" after three demos were converted): the user
-reads all 24 demos; convert them all, with forks by group (board, look, navigation, rules,
-motion/start) when the pass is big, then review the forks' output for one style (shared
-sizes lowercase, comments only where the code cannot say it). Mechanical changes across the
-demos are a `go/ast` tool in the scratchpad (parse, edit, `printer.Fprint`, then `gofmt -w`):
-the `s`→`a` receiver rename and the `var _ board.Figure = …` assertions were made so, one
-tool each; a shell loop strips unused imports from `go build`'s lines. Check all demos at
-once: build each to the scratchpad and run it from its directory under `timeout 5s`, exit 124
-alive, grep the logs for `panic`.
+**A pattern introduced is applied to every demo in the same pass** (the user's word, 2026-10-14,
+finding topography still a "museum" after three demos were converted): the user reads all the demos
+(20 programs in 2026-10); convert them all, with forks by group (board, look, navigation, rules,
+motion/start) when the pass is big, then review the forks' output for one style (shared sizes
+lowercase, comments only where the code cannot say it). Mechanical changes across the demos are a
+`go/ast` tool in the scratchpad (parse, edit, `printer.Fprint`, then `gofmt -w`): the `s`→`a`
+receiver rename and the `var _ board.Figure = …` assertions were made so, one tool each; a shell
+loop strips unused imports from `go build`'s lines. Check all demos at once: build each to the
+scratchpad and run it from its directory under `timeout 5s`, exit 124 alive, grep the logs for
+`panic`.
 
 ## A plugin's own scene, input and keys (facts found in the code)
 

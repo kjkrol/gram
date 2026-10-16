@@ -14,14 +14,16 @@
 //
 //	fn Fragment(dst: vec4<f32>, src: vec2<f32>, color: vec4<f32>, custom: vec4<f32>) -> vec4<f32>
 //
-// and reads up to four images with imageSrcNAt(p), p in the texture's pixels. Its uniforms are a
-// struct Uniforms, read as U, laid out by a [Layout] and handed to each draw packed, at most 4096
-// bytes in all. A mesh program ([NewMesh]) brings its own vertex stage and draws against a
-// [Depth] buffer ([Mesh]).
+// and reads up to four images with imageSrcNAt(p), p in the texture's pixels, and the frame's
+// images (group 3, [Draw].Frame, up to [FrameImages]), which whoever names them declares. Its
+// uniforms are a struct Uniforms, read as U, laid out by a [Layout] and handed to each draw
+// packed, at most 4096 bytes in all. A mesh program ([NewMesh]) brings its own vertex stage and
+// draws against a [Depth] buffer ([Mesh]).
 //
 // # Frames
 //
 // Draws are gathered into one command buffer and written to the GPU as it is submitted: at
-// [Submit], before pixels are written into a texture or read out of one, and when the gathered
-// data outgrows its buffers. A write of pixels lands after every draw made before it.
+// [Submit], before pixels are read out of a texture or a big write goes into one, and when the
+// gathered data outgrows its buffers, which then grow to it. A write of pixels lands after every
+// draw made before it, drawn in place among them.
 package gpu

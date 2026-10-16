@@ -2,30 +2,30 @@
 // (air.Weather.Cloud), so the clouds and their shadows agree wherever either is drawn.
 
 // cloudField is the clouds' noise over the world point p, carried by the Drift, 0 to 1: torn
-// shreds about cloudSize wide gathered into big heaps far apart as much as U.Billow says
-// (cloudMix); the same again every heapTile heaps' cells.
-fn cloudField(p: vec2<f32>) -> f32 {
+// shreds about cloudSize wide gathered into big heaps far apart as much as billow says (cloudMix,
+// the mass's there, airAt); the same again every heapTile heaps' cells.
+fn cloudField(p: vec2<f32>, billow: f32) -> f32 {
     let q = p - U.Drift;
     let torn = shreds(q / cloudSize);
-    if U.Billow <= 0.0 {
+    if billow <= 0.0 {
         return torn;
     }
-    return cloudMix(torn, heaps(heapCores(q / heapSize), torn));
+    return cloudMix(torn, heaps(heapCores(q / heapSize), torn), billow);
 }
 
 // cloudFromTile is the clouds' noise of shreds torn and heaps' cores core as their tile holds them
-// (air.BakeTile: the cores from heapCoreLow over heapCoreSpan).
-fn cloudFromTile(torn: f32, core: f32) -> f32 {
-    if U.Billow <= 0.0 {
+// (air.Tile: the cores from heapCoreLow over heapCoreSpan), heaped as billow says.
+fn cloudFromTile(torn: f32, core: f32, billow: f32) -> f32 {
+    if billow <= 0.0 {
         return torn;
     }
-    return cloudMix(torn, heaps(heapCoreLow + core * heapCoreSpan, torn));
+    return cloudMix(torn, heaps(heapCoreLow + core * heapCoreSpan, torn), billow);
 }
 
-// cloudMix is the clouds' noise of shreds torn and heaps heap mixed as U.Billow says, spread
-// apart as either alone.
-fn cloudMix(torn: f32, heap: f32) -> f32 {
-    let b = clamp(U.Billow, 0.0, 1.0);
+// cloudMix is the clouds' noise of shreds torn and heaps heap mixed as billow says, spread apart
+// as either alone.
+fn cloudMix(torn: f32, heap: f32, billow: f32) -> f32 {
+    let b = clamp(billow, 0.0, 1.0);
     if b <= 0.0 {
         return torn;
     }
@@ -122,13 +122,13 @@ const heapTorn: f32 = 0.4;
 const heapCoreLow: f32 = -0.6;
 const heapCoreSpan: f32 = 1.6;
 
-// cloudTileLevel is the level of a tile of the clouds (air.BakeTile) period world units wide that a
+// cloudTileLevel is the level of a tile of the clouds (air.Tile) period world units wide that a
 // pixel pixel world units wide sees it at: a fraction between two.
 fn cloudTileLevel(pixel: f32, period: f32) -> f32 {
     return clamp(log2(max(pixel * cloudTileTexels / period, 1.0)), 0.0, cloudTileLevels - 1.0);
 }
 
-// cloudTileSpot is where in the clouds' tile (air.BakeTile) of period world units the world point
+// cloudTileSpot is where in the clouds' tile (air.Tile) of period world units the world point
 // p lies on level level, a whole number, in the tile's pixels from its corner: the tile wrapping
 // round, held half a pixel in from the level's edge. The shreds' period is cloudTile clouds'
 // widths (red), the heaps' cores' heapTile heaps' cells (green).
@@ -142,35 +142,50 @@ fn cloudTileSpot(p: vec2<f32>, level: f32, period: f32) -> vec2<f32> {
     return origin + clamp(q * size, vec2<f32>(0.5), vec2<f32>(size - 0.5));
 }
 
+// cloudTileAt is the clouds' tile (the frame's CloudTile) at p on level lod, its period period:
+// the two levels round it blended.
+fn cloudTileAt(p: vec2<f32>, lod: f32, period: f32) -> vec2<f32> {
+    let low = floor(lod);
+    let dims = vec2<f32>(textureDimensions(CloudTile));
+    var n = textureSampleLevel(CloudTile, linear, cloudTileSpot(p, low, period) / dims, 0.0).rg;
+    if lod > low {
+        let at = cloudTileSpot(p, low + 1.0, period) / dims;
+        let next = textureSampleLevel(CloudTile, linear, at, 0.0).rg;
+        n = mix(n, next, lod - low);
+    }
+    return n;
+}
+
 // The clouds' tile: how many pixels across its first level, how many levels, and how much the
 // clouds' edge softens for each level their noise is seen at, its detail evened out.
 const cloudTileTexels: f32 = 1024.0;
 const cloudTileLevels: f32 = 6.0;
 const cloudTileSoft: f32 = 0.03;
 
-// cloudCover is how thick the clouds are over a point whose noise is n: 0 in the clear, 1 under
-// the thickest, the noise spread out and cut at the cover, heaps' edges sharper than shreds', as
-// air.Weather.Shade has it.
-fn cloudCover(field: f32) -> f32 {
-    return cloudCoverSoft(field, 0.0);
+// cloudCover is how thick the clouds are over a point whose noise is field under the air mass m
+// (airAt): 0 in the clear, 1 under the thickest, the noise spread out and cut at the mass's cover,
+// heaps' edges sharper than shreds', as air.Weather.Shade has it.
+fn cloudCover(field: f32, m: vec4<f32>) -> f32 {
+    return cloudCoverSoft(field, 0.0, m);
 }
 
 // cloudCoverSoft is cloudCover with the edge softened soft either way, for noise seen from afar,
 // its detail evened out.
-fn cloudCoverSoft(field: f32, soft: f32) -> f32 {
-    if U.Cover <= 0.0 {
+fn cloudCoverSoft(field: f32, soft: f32, m: vec4<f32>) -> f32 {
+    let cover = m.x;
+    if cover <= 0.0 {
         return 0.0;
     }
     let n = clamp((field - 0.5) * cloudContrast + 0.5, 0.0, 1.0); // the noise bunches round a half: spread it out
-    let edge = mix(cloudEdge, heapEdge, clamp(U.Billow, 0.0, 1.0));
-    return smoothstep(1.0 - U.Cover - soft, 1.0 - U.Cover + edge + soft, n);
+    let edge = mix(cloudEdge, heapEdge, clamp(m.y, 0.0, 1.0));
+    return smoothstep(1.0 - cover - soft, 1.0 - cover + edge + soft, n);
 }
 
-// cloudThick is how deep in a cloud a point whose noise is field lies: 0 at its edge, 1 as deep as
-// cloudDepth and more, where the sun gets least through.
-fn cloudThick(field: f32) -> f32 {
+// cloudThick is how deep in a cloud a point whose noise is field lies under the air mass m: 0 at
+// its edge, 1 as deep as cloudDepth and more, where the sun gets least through.
+fn cloudThick(field: f32, m: vec4<f32>) -> f32 {
     let n = clamp((field - 0.5) * cloudContrast + 0.5, 0.0, 1.0);
-    return clamp((n - (1.0 - U.Cover)) / cloudDepth, 0.0, 1.0);
+    return clamp((n - (1.0 - m.x)) / cloudDepth, 0.0, 1.0);
 }
 
 const cloudDepth: f32 = 0.6;

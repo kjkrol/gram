@@ -13,7 +13,79 @@ where it begins: `navigation.Path` changed shape. Nor those made before the beha
 `plan.Mind`, `ceremony.Label`). Nor those made before ceremony's store went behind its contract:
 `effect.Active` and `Wide` are the binding's `goke.Active` and `Wide`, `plan.Mind` is `store.Mind`.
 Nor those made before a unit could strafe: `entity.Velocity` has a `Side`. Nor those of a board
-in a flat world: a board stands only in a world with heights now.
+in a flat world: a board stands only in a world with heights now. Nor those made before the
+weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
+entities.
+
+**Chords left to the shortcuts** (2026-10-16)
+- A key held, down or let go no longer fires with Shift, Ctrl or Alt held unless its binding is
+  in chords (`control.Binding.InChords`, `Binding.Takes`): Shift+W changes the weather without
+  scrolling the board, Shift+R shows the routes without raising the head. Driving's keys and its
+  jump are in chords: a sprint with Shift, a jump while sprinting, a walk while a grenade charges.
+
+**Pixels written among the draws** (2026-10-16)
+- `gpu.Texture.WritePixels` of up to 65536 pixels, a part of a texture or the whole of it, draws
+  them in place among the frame's draws, from the draws' uniforms: no texture of its own, no
+  submission, in the order of the draws. The air masses' picture, vision's views and the
+  terrain's lattice, up to that size, are written so as they change; a bigger write goes as
+  before.
+- The buffers a frame's draws are gathered in grow to what a frame gathered, so a frame of many
+  draws is submitted once.
+
+**The weather born at the horizon and carried by the wind; rain only under its clouds**
+(2026-10-16)
+- The weather over a point is its air mass (`air.Mass`: cover, billow, falls, damp). The masses
+  over the world and its sky out to the horizon are an `air.Dome`: level 0 over the world in
+  cells of 128 world units (`air.BoardCell`), each level further out in cells at least twice as
+  big, out to `climate.Config.Horizon` (three times the sight through clear air, 120 km, when
+  zero), every level a ring of `air.Patch`es, entities of a fixed size saved with the ECS. The
+  shaders read them from the frame's image `AirMasses` (`air.DomeImage`, a level written as its
+  window moves or a patch of it changes) through WGSL `airAt(p)`.
+- A new weather is born at the horizon the wind blows from and carried in over the world as the
+  old one sails off, the clouds never growing out of nothing over the land; the weather now (the
+  panel, `climate.Weathering`, the globals of `air.Weather`) is the one over the world's middle
+  (`climate.Weather.Over`). A weather lasts at least as long as the wind takes to carry it across
+  the world; without wind it settles where it is. `ChangeWeather` (Shift+W) and `SetWeather`
+  change it over the world and upwind of it within two seconds of game time. `climate.Config.Patchy` has the horizon
+  bring weathers lane by lane (`climate.Lane`), each its own, likelier its neighbours'.
+- Rain and snow fall only under their clouds, as thick as the clouds let fall
+  (`air.Weather.FallsAt`): the drops on the screen, the snow laid on the board; the rain's haze
+  and the sky's greyness are the mass's over the eye (`air.Under`), the sun's and the moon's discs
+  hidden by the clouds where their light crosses the layer.
+- `air.Weather` gains `At`, `Most`, `Falls`, `FallsAt`, `Visibility(x, y)` (the field is
+  `Sight`, clear air's), `Dome`, `Dry`; `air.Falling`, `air.Sight`, `air.Under`, `air.Hazer`;
+  `Weather.Frame` takes the point under the eye, `Weather.Shade` a point. The WGSL cloud
+  functions take the mass (`cloudField(p, billow)`, `cloudCover(field, m)`, `skyClouds(…, m)`).
+
+**Frame images** (2026-10-16)
+- What every shader of a frame reads that is too big for uniforms is a frame's image: a name a
+  package registers as it starts (`render.RegisterImage`, up to `gpu.FrameImages`, 8), read in WGSL
+  as a texture of that name, handed by a source's Compose (`render.Frame.Image`) to the composer
+  and every Direct through the `Uniforms` they already copy; a draw binds them in group 3, with a
+  sampler `wrapped` repeating past their edges (`gpu.Draw.Frame`, `MeshDraw.Frame`).
+- `render.Image.Defer` has an image filled the next time a draw reads it, when there surely is a
+  GPU.
+- The clouds' tile is the frame's image `CloudTile` (`air.Tile()`, baked once, read by
+  `cloudTileAt`): the sky and the terrain no longer bake a copy each; `air.BakeTile`,
+  `TileWidth`, `TileHeight` and the terrain's `CloudFrom` are gone, the sky's image0 is free.
+
+**A sky of the game's own, of four parts** (2026-10-16)
+- The sky is drawn in four parts, a `backdrop.Dome`: the vault, the sun, the moon and the stars,
+  each WGSL to the contract of `backdrop/shaders/sky.wgsl` (`SkyVault`, `SkySun`, `SkyMoon`,
+  `SkyStars`, handed a `SkyAt` and a `SkyDisc`) with uniforms of its own a `Feed` sets each frame.
+  `backdrop.Earth()` is the Earth's sky, part by part `EarthVault`, `EarthSun`, `EarthMoon`,
+  `EarthStars`; a part without WGSL draws nothing; `Sun.Size` and `Moon.Size` scale the discs,
+  `Moon.Color`, `Moon.ByDay` and `Moon.Image` are the moon's. The shader is assembled as the sky
+  is dressed (`Renderer.Dress`), panicking on a uniform or a name two parts declare or one of the
+  library's (`render.SharedUniforms`), compiled the first time it is drawn, once for a source.
+- A game's sky is an `atmosphere.Sky` in its `sky.go`, noted in the Figures link
+  (`atmosphere.Plugin.Skies`), each Look setting the parts it draws its own way; none is the
+  Earth's. board/flat and board/topography note the Earth's; the new demo look/sky has its own:
+  a turquoise vault turning violet at night, a big orange moon showing by day, made-up stars.
+- Which stars are drawn is the sky's look: `sky.Config.Stars`, `celestial.StarSky`,
+  `RealStars`, `ScatteredStars` and `Heavens.Stars` are gone; `backdrop.Stars` holds a
+  `Catalogue` (`celestial.Stars()`, drawn by `StarField.Place`, which takes it) and `Dots`
+  (`backdrop.ScatteredStars()`). `Place.HeavensAt` takes no stars.
 
 **The sky's colours from one place; the clouds' shadows in the ground** (2026-10-15)
 - The atmosphere's sky hands every frame the sun and the weather itself: its clouds no longer

@@ -67,10 +67,12 @@ const (
 	heapTorn  = 0.4
 )
 
-// Cloud is the clouds' noise over the world point (x, y), 0 to 1, the clouds where it is high:
-// the very noise the shaders work out per pixel (cloudField).
-func (w Weather) Cloud(x, y float32) float32 {
-	b := float64(min(max(w.Billow, 0), 1))
+// Cloud is the clouds' noise over the world point (x, y), heaped as its mass is, 0 to 1, the
+// clouds where it is high: the very noise the shaders work out per pixel (cloudField).
+func (w Weather) Cloud(x, y float32) float32 { return w.cloud(x, y, w.At(x, y).Billow) }
+
+func (w Weather) cloud(x, y, billow float32) float32 {
+	b := float64(min(max(billow, 0), 1))
 	x, y = x-w.Drift[0], y-w.Drift[1]
 	n := shreds(float64(x)/cloudSize, float64(y)/cloudSize)
 	if b > 0 {
@@ -112,15 +114,37 @@ func heaps(core, torn float64) float64 {
 
 func wrap(v, period float64) float64 { return v - period*math.Floor(v/period) }
 
-// Shade is how thick the clouds are over a point whose noise is n (Cloud) under w's cover, 0 in
-// the clear up to 1 under the thickest.
-func (w Weather) Shade(n float32) float32 {
-	if w.Clouds <= 0 {
+// Shade is how thick the clouds are over the world point (x, y), their noise (Cloud) cut at its
+// mass's cover, 0 in the clear up to 1 under the thickest.
+func (w Weather) Shade(x, y float32) float32 {
+	m := w.At(x, y)
+	return shade(w.cloud(x, y, m.Billow), m)
+}
+
+// FallsAt is the rain and the snow coming down at the world point (x, y), 0 to 1: its mass's,
+// only as thick as the clouds over it let fall, none from their gaps.
+func (w Weather) FallsAt(x, y float32) (rain, snow float32) {
+	m := w.At(x, y)
+	rain, snow = w.Falls(m)
+	if rain+snow <= 0 {
+		return 0, 0
+	}
+	t := min(shade(w.cloud(x, y, m.Billow), m)/fallUnder, 1)
+	under := t * t * (3 - 2*t)
+	return rain * under, snow * under
+}
+
+// how thick a cloud must be for all its rain or snow to fall: under a thinner one, less
+const fallUnder = 0.35
+
+// how thick the clouds of noise n are under the mass m, as cloudCover has it
+func shade(n float32, m Mass) float32 {
+	if m.Cover <= 0 {
 		return 0
 	}
 	n = min(max((n-0.5)*cloudContrast+0.5, 0), 1)
-	b := min(max(w.Billow, 0), 1)
-	t := min(max((n-(1-w.Clouds))/(cloudEdge+(heapEdge-cloudEdge)*b), 0), 1)
+	b := min(max(m.Billow, 0), 1)
+	t := min(max((n-(1-m.Cover))/(cloudEdge+(heapEdge-cloudEdge)*b), 0), 1)
 	return t * t * (3 - 2*t)
 }
 

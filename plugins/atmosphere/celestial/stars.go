@@ -16,14 +16,6 @@ type Star struct {
 	Mag, BV float32
 }
 
-// StarSky is which stars a sky shows at night: the real ones or made-up ones.
-type StarSky uint8
-
-const (
-	RealStars StarSky = iota
-	ScatteredStars
-)
-
 // the Yale Bright Star Catalogue, 5th revised edition (Hoffleit & Warren 1991, CDS V/50) to V 6.0,
 // written by stars_gen.go
 //

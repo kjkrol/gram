@@ -263,13 +263,15 @@ func TestLightAt_TheMoonLightsTheNightAsFullAsItIs(t *testing.T) {
 
 func TestHeavensAt_StandTheSunTheMoonAndThePole(t *testing.T) {
 	c := Config{NoonWay: celestial.South, latitude: 50}
-	if h, l := c.place().HeavensAt(0.2, 0.5, 0.5, celestial.RealStars), c.LightAt(0.2, 0.5, 0.5, DefaultMoon()); h.Sun != l.Dir {
+	h, l := c.place().HeavensAt(0.2, 0.5, 0.5), c.LightAt(0.2, 0.5, 0.5, DefaultMoon())
+	if h.Sun != l.Dir {
 		t.Errorf("at noon the heavens' sun is %v, the light's %v", h.Sun, l.Dir)
 	}
-	if h, l := c.place().HeavensAt(0.2, 0.02, 0.5, celestial.RealStars), c.LightAt(0.2, 0.02, 0.5, DefaultMoon()); h.Moon != l.Dir || h.Full < 0.99 {
+	h, l = c.place().HeavensAt(0.2, 0.02, 0.5), c.LightAt(0.2, 0.02, 0.5, DefaultMoon())
+	if h.Moon != l.Dir || h.Full < 0.99 {
 		t.Errorf("at night the heavens' moon is %v, full %v; the light's %v, want it, full", h.Moon, h.Full, l.Dir)
 	}
-	h := c.place().HeavensAt(0.2, 0.5, 0, celestial.RealStars)
+	h = c.place().HeavensAt(0.2, 0.5, 0)
 	if up := float64(h.Pole[2]); math.Abs(up-math.Sin(50*math.Pi/180)) > 1e-5 || h.Pole[1] > -0.5 {
 		t.Errorf("the pole is %v, want 50° up over the north, away from the noon sun", h.Pole)
 	}

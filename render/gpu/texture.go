@@ -2,7 +2,10 @@ package gpu
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"math"
+	"strconv"
 
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
@@ -97,25 +100,72 @@ func (t *Texture) WritePixels(x, y, w, h int, pix []byte) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	t.realize(d)
-	if x == 0 && y == 0 && w == t.w && h == t.h {
+	switch {
+	case w*h <= maxPut:
+		d.put(t, x, y, w, h, pix)
+	case x == 0 && y == 0 && w == t.w && h == t.h:
 		d.submit()
 		d.write(t, 0, 0, w, h, pix)
-		return
+	default:
+		d.blitIn(t, x, y, w, h, pix)
 	}
-	// gogpu's write at an origin but the corner spoils the texture left of it: the pixels go into
-	// a texture of their own, whole, and are drawn into place from there
+}
+
+// the most pixels a write puts in place by drawing them, a draw's uniforms at a time
+const maxPut = 1 << 16
+
+// a draw's uniforms, uniformBlock bytes, hold the piece's width and putPixels pixels
+const putPixels = (uniformBlock - 16) / 4
+
+var putProgram = NewProgram("put", "    At: vec4<f32>,\n    Pixels: array<vec4<u32>, "+
+	strconv.Itoa(putPixels/4)+">,\n", shader("put"))
+
+// put draws the pixels in place among the draws, after every draw made so far, the pixels in the
+// draws' uniforms: gogpu's Queue.WriteTexture discards what the texture held and waits for a
+// submission of its own, and its copy into a texture drawn in the same commands is refused
+func (d *device) put(t *Texture, x, y, w, h int, pix []byte) {
+	pw := min(w, putPixels)
+	ph := max(putPixels/pw, 1)
+	u := make([]byte, uniformBlock)
+	for py := 0; py < h; py += ph {
+		for px := 0; px < w; px += pw {
+			cw, ch := min(pw, w-px), min(ph, h-py)
+			binary.LittleEndian.PutUint32(u, math.Float32bits(float32(cw)))
+			for r := range ch {
+				at := 4 * ((py+r)*w + px)
+				copy(u[16+4*r*cw:], pix[at:at+4*cw])
+			}
+			d.triangles(t.gpuTarget(d), Rect{x + px, y + py, cw, ch},
+				&Draw{Program: putProgram, Uniforms: u[:int(alignUp(uint64(16+4*cw*ch), 16))],
+					Blend: Copy},
+				quad(x+px, y+py, cw, ch), []uint16{0, 1, 2, 1, 2, 3})
+		}
+	}
+}
+
+// gogpu's write at an origin but the corner spoils the texture left of it: the pixels go into
+// a texture of their own, whole, and are drawn into place from there
+func (d *device) blitIn(t *Texture, x, y, w, h int, pix []byte) {
 	part := NewTexture(w, h)
 	part.cpu = pix[:4*w*h]
 	part.realize(d)
-	one := func(dx, dy float32) Vertex {
-		return Vertex{DstX: float32(x) + dx, DstY: float32(y) + dy, SrcX: dx, SrcY: dy, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1}
-	}
-	fw, fh := float32(w), float32(h)
-	d.triangles(t.gpuTarget(d), Rect{x, y, w, h}, &Draw{Program: blitProgram, Images: [4]Image{{Texture: part}}, Uniforms: make([]byte, blitLayout.Size), Blend: Copy},
-		[]Vertex{one(0, 0), one(fw, 0), one(0, fh), one(fw, fh)}, []uint16{0, 1, 2, 1, 2, 3})
+	d.triangles(t.gpuTarget(d), Rect{x, y, w, h}, &Draw{Program: blitProgram,
+		Images: [4]Image{{Texture: part}}, Uniforms: make([]byte, blitLayout.Size), Blend: Copy},
+		quad(x, y, w, h), []uint16{0, 1, 2, 1, 2, 3})
 	d.submit()
 	d.forget(part)
-	d.retire(func() { part.tgt.view.Release(); part.tex.Release() }) // the draw into place may still read it
+	// the draw into place may still read it
+	d.retire(func() { part.tgt.view.Release(); part.tex.Release() })
+}
+
+// a quad over w by h pixels at (x, y), its source the piece's own pixels
+func quad(x, y, w, h int) []Vertex {
+	one := func(dx, dy float32) Vertex {
+		return Vertex{DstX: float32(x) + dx, DstY: float32(y) + dy, SrcX: dx, SrcY: dy,
+			ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1}
+	}
+	fw, fh := float32(w), float32(h)
+	return []Vertex{one(0, 0), one(fw, 0), one(0, fh), one(fw, fh)}
 }
 
 func (d *device) write(t *Texture, x, y, w, h int, pix []byte) {

@@ -285,26 +285,79 @@ func TestKeysAndButtons_FireWithExactlyTheirModifiers(t *testing.T) {
 	}
 }
 
-func TestKeyDown_FiresWhateverIsHeld(t *testing.T) {
+func TestKeyDown_FiresWithAModifierHeldOnlyInChords(t *testing.T) {
 	r := newRig(t)
 	r.bind(
-		control.Build(control.KeyDown{Key: control.KeySpace}, "jump", orderOf(1)),
+		control.Build(control.KeyDown{Key: control.KeySpace}, "jump", orderOf(1)).InChords(),
 		control.Build(control.KeyPress{Key: control.KeyA}, "a", orderOf(2)),
+		control.Build(control.KeyDown{Key: control.KeyJ}, "j", orderOf(3)),
+		control.Build(control.KeyDown{Key: control.KeyShift}, "shift", orderOf(4)),
 	)
 	ev := &control.InputEvents{}
 	ev.Modifiers.Shift = true
+	ev.AddKeyEvent(control.KeyShift, control.ActionPress)
 	ev.AddKeyEvent(control.KeySpace, control.ActionPress)
 	ev.AddKeyEvent(control.KeyA, control.ActionPress)
+	ev.AddKeyEvent(control.KeyJ, control.ActionPress)
 	r.handle(ev)
-	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != 1 {
-		t.Errorf("Space and A with Shift held issued %v, want the jump alone", got)
+	if got := cellsOf(r.drained()); !slices.Equal(got, []int{1, 4}) {
+		t.Errorf("Shift, Space, A and J with Shift held issued %v, want the jump in chords and "+
+			"Shift's own", got)
 	}
 	ev = &control.InputEvents{}
 	ev.AddKeyEvent(control.KeySpace, control.ActionPress)
+	ev.AddKeyEvent(control.KeyJ, control.ActionPress)
 	r.handle(ev)
-	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != 1 {
-		t.Errorf("Space alone issued %v, want the jump", got)
+	if got := cellsOf(r.drained()); !slices.Equal(got, []int{1, 3}) {
+		t.Errorf("Space and J alone issued %v, want both", got)
 	}
+}
+
+// a key held for scrolling leaves Shift+W to its shortcut; a walk in chords sprints
+func TestKeyHeld_LeavesChordsToTheShortcutsUnlessInChords(t *testing.T) {
+	r := newRig(t)
+	r.bind(
+		control.Build(control.KeyHeld{Key: control.KeyW}, "scroll", orderOf(1)),
+		control.Build(control.KeyHeld{Key: control.KeyD}, "walk",
+			func(c control.Context) (order, bool) {
+				if c.Mods.Shift {
+					return order{20}, true
+				}
+				return order{2}, true
+			}).InChords(),
+		control.Build(control.KeyPress{Key: control.KeyW, Mods: control.Mods{Shift: true}},
+			"weather", orderOf(3)),
+	)
+	ecs := r.start()
+	key := func(k control.Key, a control.KeyAction, shift bool) {
+		ev := &control.InputEvents{KeyEvents: []control.KeyEvent{{Key: k, Action: a}}}
+		ev.Modifiers.Shift = shift
+		r.handle(ev)
+	}
+	tick := func() []int {
+		ecs.Tick(time.Second / 60)
+		return cellsOf(r.drained())
+	}
+	key(control.KeyShift, control.ActionPress, true)
+	key(control.KeyW, control.ActionPress, true)
+	key(control.KeyD, control.ActionPress, true)
+	if got := tick(); !slices.Equal(got, []int{3, 20}) {
+		t.Errorf("Shift+W and D held with Shift gave %v, want the shortcut and the sprint, "+
+			"no scroll", got)
+	}
+	key(control.KeyShift, control.ActionRelease, false)
+	if got := tick(); !slices.Equal(got, []int{1, 2}) {
+		t.Errorf("Shift let go, W and D still held, gave %v, want the scroll and the walk", got)
+	}
+}
+
+func cellsOf(orders []command.Issued[order]) []int {
+	var got []int
+	for _, o := range orders {
+		got = append(got, o.Command.Cell)
+	}
+	slices.Sort(got)
+	return got
 }
 
 func TestDrag_FiresOnReleaseAndButtonHeldKnowsWhereItBegan(t *testing.T) {

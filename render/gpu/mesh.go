@@ -156,11 +156,13 @@ type MeshDraw struct {
 	Primed     bool
 	Program    *Program
 	Images     [4]Image
-	Uniforms   []byte
-	Indices    *Indices
-	Vertices   uint32    // without Indices: how many vertices, in order, three a triangle
-	Instances  []float32 // an Instanced program's: its vec4s an instance, the mesh drawn once each
-	Blend      Blend
+	// Frame is the images of the frame drawn, which every program reads by name; nil a blank.
+	Frame     [FrameImages]*Texture
+	Uniforms  []byte
+	Indices   *Indices
+	Vertices  uint32    // without Indices: how many vertices, in order, three a triangle
+	Instances []float32 // an Instanced program's: its vec4s an instance, the mesh drawn once each
+	Blend     Blend
 	// ReadDepth is a depth buffer the program reads (depthAt), another than Depth.
 	ReadDepth *Depth
 	// Untested draws everywhere, the Depth kept as it is.
@@ -233,6 +235,7 @@ func Mesh(dw *MeshDraw) {
 		}
 	}
 	group2 := read.readGroup(d)
+	group3 := d.frame(dw.Frame)
 	var indices *wgpu.Buffer
 	if dw.Indices != nil {
 		indices = dw.Indices.gpuBuffer(d)
@@ -254,6 +257,7 @@ func Mesh(dw *MeshDraw) {
 		pass.SetBindGroup(0, d.group0, []uint32{uint32(dOff), uint32(uOff)})
 		pass.SetBindGroup(1, group1, nil)
 		pass.SetBindGroup(2, group2, nil)
+		d.bindFrame(pass, group3)
 		if dw.Program.instance > 0 {
 			pass.SetVertexBuffer(0, d.vbuf, iOff)
 		}
@@ -263,6 +267,7 @@ func Mesh(dw *MeshDraw) {
 	pass.SetBindGroup(0, d.group0, []uint32{uint32(dOff), uint32(uOff)})
 	pass.SetBindGroup(1, group1, nil)
 	pass.SetBindGroup(2, group2, nil)
+	d.bindFrame(pass, group3)
 	if dw.Program.instance > 0 {
 		pass.SetVertexBuffer(0, d.vbuf, iOff)
 	}
@@ -294,6 +299,7 @@ func CopyDepth(target Image, from, to *Depth) {
 	pipeline := copyProgram.pipeline(d, Copy, t.format, depthCopy)
 	group1 := d.images([4]*Texture{})
 	group2 := from.readGroup(d)
+	group3 := d.frame([FrameImages]*Texture{})
 	d.ensure(0, 0)
 	dOff, uOff := d.drawBlock(t, [4]Image{}, nil, [4]float32{}, [4]float32{}, nil)
 	pass := d.begin(t, to, false)
@@ -301,6 +307,7 @@ func CopyDepth(target Image, from, to *Depth) {
 	pass.SetBindGroup(0, d.group0, []uint32{uint32(dOff), uint32(uOff)})
 	pass.SetBindGroup(1, group1, nil)
 	pass.SetBindGroup(2, group2, nil)
+	d.bindFrame(pass, group3)
 	pass.SetViewport(gputypes.Viewport{Width: float32(t.w), Height: float32(t.h), MaxDepth: 1})
 	pass.SetScissorRect(gputypes.ScissorRect{Width: uint32(t.w), Height: uint32(t.h)})
 	pass.Draw(gputypes.DrawArgs{VertexCount: 3, InstanceCount: 1})

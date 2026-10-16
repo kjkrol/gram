@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/plugins/topography/internal/terrain"
@@ -40,6 +41,7 @@ type sprites struct {
 	batches []spriteBatch
 	lain    []spriteBatch
 	shadows []sky.Patch
+	haze    air.Hazer
 	opts    render.DrawMeshOptions
 	own     map[string][]float32
 }
@@ -65,6 +67,7 @@ func (s *sprites) begin(f *render.Frame, cam camera.Camera) {
 	s.shadows = s.shadows[:0]
 	_, rays := cam.(camera.Rays)
 	s.on, s.shading = rays && inRelief(cam), rays
+	s.haze = s.sky.Air().Hazer(cam)
 	if s.shading && s.ground == nil {
 		f.ReadGround() // the shades find the hex prisms under them
 	}
@@ -83,7 +86,7 @@ func (s *sprites) add(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	if sway > 0 {
 		lx, ly = weather.Sway(t, cx, cy, sway)
 	}
-	haze := weather.Haze(cam, cx, cy, alt)
+	haze := s.haze.At(cx, cy, alt)
 	u0, v0, u1, v1 := atlas.UV(id)
 	l := lit(sun, light)
 	b := batchOf(&s.batches, atlas)
@@ -106,7 +109,7 @@ func (s *sprites) lay(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	}
 	u0, v0, u1, v1 := atlas.UV(id)
 	l := lit(s.sky.Sun(), light)
-	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.sky.Air().Haze(cam, cx, cy, alt))
+	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.haze.At(cx, cy, alt))
 }
 
 // c is top-left, top-right, bottom-left, bottom-right
@@ -119,7 +122,7 @@ func (s *sprites) level(cam camera.Camera, c [4]geom.Vec, alt float32, atlas ren
 	mx, my := float32(c[0].X+c[3].X)/2, float32(c[0].Y+c[3].Y)/2
 	u0, v0, u1, v1 := atlas.UV(id)
 	l := lit(s.sky.Sun(), light)
-	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.sky.Air().Haze(cam, mx, my, alt))
+	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.haze.At(mx, my, alt))
 }
 
 // seen from the right of a to b, the way out of what it edges
@@ -136,7 +139,7 @@ func (s *sprites) upright(cam camera.Camera, a, b geom.Vec, alt, high float32,
 	n := float32(math.Hypot(float64(dx), float64(dy)))
 	sun := s.sky.Sun().Light(-dy/n, dx/n, 0)
 	u0, v0, u1, v1 := atlas.UV(id)
-	haze := s.sky.Air().Haze(cam, (ax+bx)/2, (ay+by)/2, alt)
+	haze := s.haze.At((ax+bx)/2, (ay+by)/2, alt)
 	bt.inst = append(bt.inst, u0, v0, u1, v1,
 		sun[0]*light[0], sun[1]*light[1], sun[2]*light[2], haze)
 }

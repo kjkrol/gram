@@ -106,6 +106,38 @@ plugin adds telemetry lines through a `render.Reporter`
 then: shoot a baseline tree and the working one and compare (the telemetry panel and random weather
 or scenes are noise).
 
+**Frame images** (2026-10-16, stage 6): what every shader of a frame reads that is too big for
+uniforms — 4096 bytes a draw in all (`gpu/device.go` `uniformBlock`), the shared set ~240 and the
+terrain's shade bake ~3344 of it — is an image the frame hands like a uniform. `render.RegisterImage
+(name)` in a package's init (panics once a shader is built, twice, past `gpu.FrameImages` = 8) has
+the library declare `@group(3) @binding(k) var <name>: texture_2d<f32>;`; WGSL reads it by name,
+through `linear` (clamped) or `wrapped` (group 3's sampler, repeating: a ring buffer's seam). A
+source's Compose hands it, `f.Image(name, img)`; the composer boxes it with the uniforms
+(`c.boxed`, nil where a frame set none), so every Direct gets it through `u.Into(opts.Uniforms)`
+untouched, `Shader.pack` skips it and `DrawMesh`/`DrawTrianglesShader` bind it (`frameOf`); the
+gpu side is `Draw.Frame`/`MeshDraw.Frame`, one cached group a set of textures. An image whose
+pixels need the GPU — baked, or written from the CPU — is `img.Defer(fill)`: filled the next time
+a draw reads it (frame image or image slot), so a Compose without a device (tests) never touches
+the GPU. Uses: `CloudTile` (`air.Tile()`, baked once, read by the sky and the terrain through
+`cloudTileAt`); `AirMasses` (`air.DomeImage.Of(dome)`, held by the sky's renderer, each level's
+cells in order so one filtered sample reads a point, a level written as its window moves or a
+patch of it changes, read by `airAt(p)` in every cloud shader: the clouds' cover and billow are
+the mass's at the point, never one number for the world); next the ground's baked shade (plan
+stage 9). **A frame image read per pixel is read once**: let the sampler blend (lay the picture
+so it can), never four `textureLoad`s and arithmetic by hand. gogpu
+binds a group through the bound pipeline's layout, all ours share one, so `bindFrame` sets group
+3 once a pass till it changes. **Pixels written into an image are drawn in place**: up to 65536
+(`gpu.maxPut`), a part or the whole, `Texture.WritePixels` draws them from the draws' uniforms
+(the `put` program, 1020 pixels a draw) among the frame's draws, after every draw made before,
+with no submission. gogpu's own ways are traps: `Queue.WriteTexture` discards what the texture
+held (an UNDEFINED transition) and needs a submission of its own (~1 ms mid-frame: a dozen a
+frame took topography from 160 to 11 FPS); a copy from a buffer into a texture drawn in the same
+commands is refused (a usage conflict; gogpu's tracker treats a whole encoder as one scope). A
+bigger write still goes those ways: the whole texture after a submission, a part through a
+texture of its own. The gathered buffers grow to what a frame gathered, so a frame of many
+draws is submitted once.
+Image slots of a draw stay its own (4, group 1); the terrain uses all four.
+
 ## The plugins' renderers and styles per kind
 
 A scene names nothing that draws and no atlas (2026-10-14: `WithRenderer` went; 2026-10-15:
@@ -140,6 +172,15 @@ use); topography under no atmosphere hands its still sky through a source that g
 already on the frame (`Frame.Uniformed`). The light by the sun's height is `sky.Config.Daylight`
 (`EarthDaylight()`), its sun colour on `Heavens.SunColor`; the heights' thresholds are
 `celestial.Up/Risen/Gone/Night`.
+
+**The sky is the game's look** (2026-10-16, stage 5): a `backdrop.Dome` of four WGSL parts
+(vault, sun, moon, stars) assembled into one shader with the clouds; a game's `atmosphere.Sky`
+sets the parts it draws its own way, the Earth's in the rest. The vault is handed `s.air`, the
+air's colour the fog and the water share: a vault far from it at the horizon shows a seam with
+the ground's fog, and the water reflects the air, never the vault. gogpu's compiler (naga
+v0.19.0 and v0.19.1) leaves a WGSL `var` without an initialiser undefined (garbage, not zero) and
+reads a module-scope vector `const` as zero where it meets a runtime value (`c * 1.0` folds and
+works, `c * light` is zero): gram's own WGSL has no vector consts; write them inside the function.
 
 **A `color.RGBA` given to gram is straight alpha** (2026-10-14, after a zone at `A: 10` came out
 as bright as an opaque one): `render.Frame`'s pieces, `Image.Fill`, the shapes, text and the
