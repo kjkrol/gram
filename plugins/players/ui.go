@@ -41,12 +41,12 @@ func (t *through) Over(area geom.AABB, shown render.Surface) {
 	pl.pic = picture{area: area, camera: t.cam}
 }
 
-// LookAt moves the camera of pl's picture to have the entity in its middle (cameras.LookAt).
+// LookAt moves the camera of pl's picture to have the entity in its middle (cameras.CenterOn).
 func (t *through) LookAt(entity uid.UID64) {
 	if t.cam == nil {
 		return
 	}
-	if err := t.p.Issue(t.pl, cameras.LookAt{Camera: t.cam, Entity: entity}); err != nil {
+	if err := t.p.Issue(t.pl, cameras.CenterOn{Camera: t.cam, Entity: entity}); err != nil {
 		log.Printf("players: %v", err)
 	}
 }

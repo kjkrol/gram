@@ -73,8 +73,15 @@ func TestFlatLook_FromAboveDrawsOnTheGPUAsOnTheFrame(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 65536, Height: 65536},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(2048, 2048, 32), &cell.MultipleOccupancy{}, w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, TileW: 64, HeightUnit: 1})
-	cam := cameras.NewPlugin(w).New(p.Views(topography.FromAbove), camera.Config{})
+	p := topography.NewPlugin(w, b, topography.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{
+		Turn:       true,
+		Tilt:       true,
+		Cell:       32,
+		TileW:      64,
+		HeightUnit: 1,
+		Cage:       p,
+	}).New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(320, 240)
 	cam.ZoomIn(2.5, 160, 120)
 	cam.CenterOn(40030, 30010, 0)

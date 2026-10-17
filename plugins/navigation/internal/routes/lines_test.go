@@ -7,7 +7,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
 )
@@ -25,7 +25,7 @@ fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(0.0, 0.0, 0.0, 1.0); }
 
 func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
 	needGPU(t)
-	cam := icamera.NewFromSpace(256, 256, 0)
+	cam := cameratest.NewFromSpace(256, 256, 0)
 	screen, depth, ground := render.NewImage(256, 256), render.NewDepth(), render.NewDepth().
 		Readable()
 	screen.ClearDepth(ground)

@@ -113,7 +113,7 @@ it. **Elements from the game are pinned to entities**, written as `Under` on the
 tag; `Above`/`Below`/`Beside`/`Offset` say how it stands by its entity in every picture that has it
 in sight (`ui.Owner`: a player's picture shows its own entities and nobody's);
 `OffScreen(ui.PointAtIt | ui.ShowIt | ui.GoToIt)` what it does out of sight (`ui.Looker`:
-`cameras.LookAt`). A pinned element's button gives every `ceremony.Command` for `ui.It` for the
+`cameras.CenterOn`). A pinned element's button gives every `ceremony.Command` for `ui.It` for the
 entity it is shown for (`ceremony.ID(id)`); a plugin's own command that is a `ui.About`
 (`dialog.Choose`) gets the entity the same way. Every demo shows its world through a ui scene: the
 feed through a camera made beside it, a backdrop `Blank`, the telemetry and the clock's HUD as

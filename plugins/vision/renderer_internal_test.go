@@ -11,12 +11,12 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -50,7 +50,7 @@ func testSpace(t *testing.T, w, h uint32, toroidal bool) *aabbworld.Space {
 func testRenderer(t *testing.T, w, h uint32, toroidal bool, view camera.AABB) *Renderer {
 	t.Helper()
 	r := NewRenderer(testSpace(t, w, h, toroidal))
-	r.camera = icamera.NewFromSpace(w, h, torusIf(toroidal), view)
+	r.camera = cameratest.NewFromSpace(w, h, torusIf(toroidal), view)
 	r.frame = new(render.Frame)
 	r.frame.Reset(r.camera)
 	return r
@@ -425,8 +425,14 @@ func isoCamera(width, height uint32, screenW, screenH float32) camera.Camera {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
-	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{})
+	p := topography.NewPlugin(w, b, topography.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{
+		Turn:       true,
+		Tilt:       true,
+		Cell:       32,
+		HeightUnit: 1,
+		Cage:       p,
+	}).New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(screenW, screenH)
 	cam.MoveTo(0, 0)
 	return cam

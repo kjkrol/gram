@@ -58,7 +58,7 @@ func NewGameplayStage() game.Stage {
 func (g *gameplayArena) makePlugins(w *world.Plugin) {
 	g.world = w
 	g.motion = motion.NewPlugin(g.world)
-	g.cameras = cameras.NewPlugin(g.world)
+	g.cameras = cameras.NewPlugin(g.world, cameras.Config{})
 	g.players = players.NewPlugin(g.world, g.cameras)
 }
 

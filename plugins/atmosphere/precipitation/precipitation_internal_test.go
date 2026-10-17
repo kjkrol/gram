@@ -16,7 +16,7 @@ import (
 func TestDrops_FallUnderTheLowCloudsWhereTheyAreBigEnoughToMakeOut(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(640, 480)
 	bases := air.Bases(world.Scale{})
 	var weather air.Weather

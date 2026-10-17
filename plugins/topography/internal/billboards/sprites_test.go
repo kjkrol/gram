@@ -58,7 +58,7 @@ func newHill(t *testing.T) aHill {
 	grid := grid.DefaultGrids{}.Square(8, 8, 32)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+	p := topography.NewPlugin(w, b, topography.Config{})
 	terrain := topotest.Drawn(t, p)[0]
 	p.Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); x >= 3 && x <= 4 && y >= 3 && y <= 4 {
@@ -66,7 +66,13 @@ func newHill(t *testing.T) aHill {
 		}
 		return 0
 	}))
-	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{
+		Turn:       true,
+		Tilt:       true,
+		Cell:       32,
+		HeightUnit: 1,
+		Cage:       p,
+	}).New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(320, 240)
 	cam.MoveTo(0, 0)
 	cam.CenterOn(128, 128, 0)
@@ -203,9 +209,15 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	tiles.Add(render.SpriteID(1), 8, render.Solid(color.RGBA{R: 90, G: 150, B: 90, A: 255}))
 	tiles.Close()
 	b.SetAtlas(tiles)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+	p := topography.NewPlugin(w, b, topography.Config{})
 	prisms := topotest.Drawn(t, p)[0]
-	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{
+		Turn:       true,
+		Tilt:       true,
+		Cell:       32,
+		HeightUnit: 1,
+		Cage:       p,
+	}).New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(320, 240)
 	cam.MoveTo(0, 0)
 	c := grid.At(2, 2)

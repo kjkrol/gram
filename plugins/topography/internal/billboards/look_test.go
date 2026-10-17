@@ -12,9 +12,9 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/internal/billboards"
-	icameras "github.com/kjkrol/gram/plugins/topography/internal/cameras"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -33,8 +33,14 @@ func isometricIsland() (*world.Plugin, *topography.Plugin, camera.Camera) {
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, w)
 	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
-	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{})
+	p := topography.NewPlugin(w, b, topography.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{
+		Turn:       true,
+		Tilt:       true,
+		Cell:       32,
+		HeightUnit: 1,
+		Cage:       p,
+	}).New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(128, 64)
 	cam.MoveTo(0, 0)
 	return w, p, cam
@@ -66,7 +72,7 @@ func TestBillboards_StandEntitiesUprightOnTheirCentre(t *testing.T) {
 	if fp := look.Footprint(cam, box.AABB, 6, nil); len(fp) != 1 || fp[0][0][1] == fp[0][1][1] {
 		t.Errorf("footprint %v, want one diamond on the ground", fp)
 	}
-	icameras.Switch(cam)
+	cameratest.Switch(cam)
 	drawn = look.Drawn(cam, box.AABB, world.Z{Altitude: 6})
 	if x0, y0 := cam.Project(40, 40, 0); drawn[0][0] != x0 || drawn[0][1] != y0 {
 		t.Errorf("from above the entity is drawn at %v, want over its box's corner (%v, %v)", drawn[0], x0, y0)

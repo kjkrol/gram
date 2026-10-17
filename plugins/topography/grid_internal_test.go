@@ -22,7 +22,7 @@ func TestBoardSurface_DrawsTheGridInTheBoardsLine(t *testing.T) {
 	b.CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
 	grass, _ := b.CellKinds().Get("grass")
 	b.Board().SetAll(grass)
-	p := NewPlugin(w, b, Config{Cell: 32, HeightUnit: 1})
+	p := NewPlugin(w, b, Config{})
 	a := b.NewAtlas(32)
 	a.Add("grass", render.Solid(color.RGBA{G: 160, A: 255}))
 	a.Grid(board.Line{Color: color.RGBA{R: 255, A: 255}, Width: 3})

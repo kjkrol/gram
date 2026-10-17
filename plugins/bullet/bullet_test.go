@@ -3,7 +3,7 @@ package bullet_test
 import (
 	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"math"
 	"testing"
 	"time"
@@ -787,7 +787,7 @@ func TestShoot_APlayerFiresFromTheUnitItsCameraIsFastenedTo(t *testing.T) {
 	}})
 	ammo := round(r, true)
 	r.start()
-	cam := icamera.NewFromSpace(400, 400, 0)
+	cam := cameratest.NewFromSpace(400, 400, 0)
 	cam.(camera.Fastenable).Fasten(camera.Fastening{Entity: r.ids[2], How: camera.Centred})
 	r.w.Carrier().Put(1, bullet.Shoot{Ammo: ammo, Camera: cam})
 	r.tick(1)

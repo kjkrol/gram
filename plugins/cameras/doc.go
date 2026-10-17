@@ -1,35 +1,57 @@
-// Package cameras makes the cameras a game looks at its world through and moves them.
+// Package cameras makes the cameras a game looks at its world through and moves them: from above
+// over any world, and over a world in relief from above, isometrically and in perspective,
+// turned, tilted and riding with an entity.
 //
 // # Making cameras
 //
-// [NewPlugin] takes the world and makes no camera: each is made where a scene shows it
-// ([Plugin.New], render.NewFeed), with a [Maker] and a camera.Config of its own, and sized by
-// whoever shows it. [TopDown] is the plain camera from above over a flat world; in a world in
-// relief the cameras are the view plugin's (topography.Plugin.Views). camera.Config.Follow names
-// the entity a camera starts fastened Centred over. Every camera made is saved with the game, in
-// the order made, and one made after a Load takes the state of the camera made in its place.
+// [NewPlugin] takes the world and a [Config] and makes no camera: each is made where a scene
+// shows it ([Plugin.New], render.NewFeed), beginning as its [Start] says, with a camera.Config of
+// its own, and sized by whoever shows it. The zero Config is the plain camera from above, which
+// wraps on a wrapping axis; one that turns, tilts, reaches the perspective or has a [Cage] sees
+// the world in relief, a Cell of it drawn isometrically as a TileW x TileH diamond, and refuses a
+// world that wraps. camera.Config.Follow names the entity a camera starts fastened Centred over.
+// Every camera made is saved with the game, in the order made, and one made after a Load takes
+// the state of the camera made in its place.
+//
+// # Cage
+//
+// A [Cage] is where the cameras may be: a game hands the one of its map (the topography is one)
+// or its own. A line of sight stops where it is not Free, so a camera picks the point under the
+// cursor on the top of what is solid there; a [Grained] cage steps finer near what is thin.
+//
+// # Views
+//
+// In relief the world is seen from above, isometrically (the 2:1 view of Transport Tycoon, heights
+// lifting what stands) or, where the Config reaches it, in perspective; switching keeps the ground
+// point in the middle of the screen, the heading, the pitch and the scale there. From above and
+// isometrically the whole screen stays over the world at sea level: a pan stops at the edge, and
+// zooming out stops where the screen just fits the world. The perspective is an eye flying over
+// the world, never lower than two cells over its highest ground; on a world with a scale the
+// ground far off sinks under the eye's level and hazes. Riding in an entity the eye is the
+// entity's world.Eye, going with it and looking the way it faces.
 //
 // # Commands
 //
 // [Pan] moves a camera by screen pixels and lets go of whatever it was fastened to; [Zoom] scales
 // it about a world point; [Follow] fastens it Centred over an entity, kept in the middle of the
-// screen as it goes, or lets it go; [LookAt] moves it once onto an entity, fastened to nothing.
-// Each names its camera, taken from the context by its binding, so the plugin never knows the
-// players. A camera riding Inside an entity looks round with the mouse, the cursor captured. A camera fastened Behind or Inside an entity is the view
-// plugin's to keep.
+// screen as it goes, or lets it go; [CenterOn] moves it once onto an entity, fastened to nothing.
+// In relief [View] goes round the views, [Turn] and [Tilt] move the camera, [Ride] takes it
+// behind and inside the entity it is fastened to, [LookFrom] and [LookAt] place the eye in
+// perspective and [Look] looks round riding, the cursor captured. Each names its camera, taken
+// from the context by its binding, so the plugin never knows the players. The plugin writes only
+// the eye's part of a ridden entity's steering.Driven (Look, Flown, Climb).
 //
 // # Keys
 //
 // [Keys] are a player's keys to its camera: four keys held scrolling it, the wheel zooming about
 // the cursor, the middle drag panning, the cursor at an edge scrolling and in a corner scrolling
-// slantwise (a camera.Scroller its own way: the relief's turns there). [DefaultKeys] are W, S,
-// A, D with all three, and [Plugin.DefaultBindings] are those; a game wanting other keys, or
-// several players at one keyboard, binds its own Keys.
+// slantwise. [DefaultKeys] are W, S, A, D with all three; [Plugin.DefaultBindings] are those,
+// Shift+H and the views' keys the Config gives: Q and E turning, R and F tilting, Tab going round
+// the views, V riding, the mouse looking round inside an entity.
 //
 // # Vocabulary
 //
-// Commands: [Pan], [Zoom], [LookAt] (a player's through its camera); [Zones] (a player's, a
-// look: the scroll zones over every picture, Shift+H, drawn by [Plugin.Renderer]); [Follow] (a
-// player's, or an
-// entity's own fastening the camera over itself).
+// Commands, a player's through its camera: [Pan], [Zoom], [CenterOn], [View], [Turn], [Tilt],
+// [LookFrom], [LookAt], [Ride], [Look]; [Zones] (a look: the scroll zones over every picture,
+// Shift+H); [Follow] (a player's, or an entity's own fastening the camera over itself).
 package cameras

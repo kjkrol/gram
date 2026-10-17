@@ -7,40 +7,75 @@ import (
 	"log"
 	"time"
 
-	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras/internal/stick"
+	"github.com/kjkrol/gram/plugins/cameras/internal/topdown"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-// Maker makes a camera over a width x height world with the given edges, configured by cfg: the
-// view a game looks at its world through.
-type Maker func(width, height uint32, edges aabbworld.Edges, cfg camera.Config) camera.Camera
+// Config is what a game's cameras may do and how they see: Turn (Q, E), Tilt (R, F) and
+// Perspective (Tab) say which keys a player has, the rest how a world in relief is drawn and where
+// the cameras may be. The zero Config is the plain camera from above: wrapping on a wrapping axis,
+// a world unit a pixel at zoom 1.
+type Config struct {
+	Turn        bool
+	Tilt        bool
+	Perspective bool
+	// degrees: the flattest the eye may look (zero, 30) and how much it sees top to bottom in
+	// perspective (zero, 45)
+	MinPitch    float32
+	FieldOfView float32
+	// world units over the highest ground a camera looks for what stands there; zero, 64
+	Headroom float32
+	// a Cell-sized square of the world drawn isometrically as a TileW x TileH diamond (zero, 64 x
+	// 32), a height lifting a point HeightUnit screen units a world unit (zero, 1)
+	Cell       float32
+	TileW      float32
+	TileH      float32
+	HeightUnit float32
+	// where the cameras may be; nil, anywhere over level ground at sea level
+	Cage Cage
+}
 
-// TopDown is the plain camera from above over a flat world: it wraps on a wrapping axis and holds
-// inside the world on any other.
-func TopDown() Maker { return icamera.NewFromSpaceWithConfig }
+// plain is the camera from above that neither turns nor tilts nor sees anything in relief
+func (c Config) plain() bool { return c.Cage == nil && !c.Turn && !c.Tilt && !c.Perspective }
 
-// Plugin makes a world's cameras and moves them: Pan, Zoom and Follow, and a camera fastened
-// Centred over an entity kept over it as it goes.
+// Start is how a camera begins: FromAbove or Isometrically.
+type Start uint8
+
+const (
+	// FromAbove begins a camera looking straight down.
+	FromAbove Start = iota
+	// Isometrically begins a camera in the isometric view; a plain Config has none.
+	Isometrically
+)
+
+// Plugin makes a world's cameras and moves them: Pan, Zoom and Follow, a camera fastened Centred
+// over an entity kept over it as it goes, and in relief the views, turning, tilting and riding.
 type Plugin struct {
 	*world.Self
 
 	worldPlugin *world.Plugin
+	cfg         Config
+	views       *stick.Control
+	viewCfg     stick.Config
+	ground      func(x, y float32) float32
+	extent      func() (low, high float32)
 	cameras     []camera.Camera
 	saved       [][]byte
 	loaded      bool
-	starts      []start
+	starts      []starting
 	pans        command.Queue[Pan]
 	zooms       command.Queue[Zoom]
 	follows     command.Queue[Follow]
-	lookAts     command.Queue[LookAt]
+	centerOns   command.Queue[CenterOn]
 	zones       command.Queue[Zones]
+	orders      orders
 	zonesView   *zonesView
 	module      *module
 }
@@ -49,20 +84,58 @@ var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
 
-// NewPlugin keeps and moves the cameras of worldPlugin's world; it makes none itself.
-func NewPlugin(worldPlugin *world.Plugin) *Plugin {
-	p := &Plugin{worldPlugin: worldPlugin}
+// NewPlugin keeps and moves the cameras of worldPlugin's world as cfg says; it makes none itself.
+// A Config seeing in relief (any but the plain one) panics without a Cell or over a world that
+// wraps.
+func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
+	p := &Plugin{worldPlugin: worldPlugin, cfg: cfg}
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.zonesView = &zonesView{}
+	if !cfg.plain() {
+		if edges := worldPlugin.Res.Config.Space.Edges; edges.WrapsX() || edges.WrapsY() {
+			panic("cameras: a world that wraps cannot be seen in relief")
+		}
+		if cfg.Cell <= 0 {
+			panic("cameras: seeing in relief needs the world size of a cell, Config.Cell")
+		}
+		views := stick.Config{
+			Cell:        cfg.Cell,
+			TileW:       cfg.TileW,
+			TileH:       cfg.TileH,
+			HeightUnit:  cfg.HeightUnit,
+			Headroom:    cfg.Headroom,
+			MinPitch:    cfg.MinPitch,
+			Perspective: cfg.Perspective,
+			FieldOfView: cfg.FieldOfView,
+		}
+		p.viewCfg, p.ground, p.extent = stick.Over(views, cfg.Cage)
+		var free func(x, y, z float32) bool
+		if cfg.Cage != nil {
+			free = cfg.Cage.Free
+		}
+		p.views = stick.NewControl(free, cfg.Perspective)
+	}
 	return p
 }
 
-// New is a camera over the world made by make and configured by cfg, made where a scene shows
-// it and sized by whoever shows it. It is saved with the game: one made after a Load is as the
-// camera made in its place was saved.
-func (p *Plugin) New(make Maker, cfg camera.Config) camera.Camera {
+// New is a camera over the world beginning as start says, configured by cfg, made where a scene
+// shows it and sized by whoever shows it. It is saved with the game: one made after a Load is as
+// the camera made in its place was saved.
+func (p *Plugin) New(start Start, cfg camera.Config) camera.Camera {
 	space := p.worldPlugin.Res.Config.Space
-	cam := make(space.Width, space.Height, space.Edges, cfg)
+	var cam camera.Camera
+	switch {
+	case p.views == nil && start == Isometrically:
+		panic("cameras: a plain Config has no isometric view")
+	case p.views == nil:
+		cam = topdown.NewFromSpaceWithConfig(space.Width, space.Height, space.Edges, cfg)
+	default:
+		views := p.viewCfg
+		views.Isometric = start == Isometrically
+		bend := float32(p.worldPlugin.Scale().Bend())
+		made := p.views.Maker(views, p.ground, p.extent, bend)
+		cam = made(space.Width, space.Height, space.Edges, cfg)
+	}
 	at := len(p.cameras)
 	p.cameras = append(p.cameras, cam)
 	if p.loaded && at < len(p.saved) {
@@ -74,12 +147,12 @@ func (p *Plugin) New(make Maker, cfg camera.Config) camera.Camera {
 		if !ok {
 			panic(fmt.Sprintf("cameras: a %T cannot be fastened, so cannot follow %q", cam, cfg.Follow))
 		}
-		p.starts = append(p.starts, start{cam: f, whom: ceremony.Named(cfg.Follow)})
+		p.starts = append(p.starts, starting{cam: f, whom: ceremony.Named(cfg.Follow)})
 	}
 	return cam
 }
 
-type start struct {
+type starting struct {
 	cam  camera.Fastenable
 	whom ceremony.Whom
 }
@@ -96,8 +169,8 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 
-// RunPlan carries out Pan, Zoom and Follow and keeps every camera fastened Centred over its
-// entity; call it after the world's.
+// RunPlan carries out the cameras' commands and keeps every camera fastened to its entity, at
+// once, in the tactical pause too; call it after whatever moves the entities.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.switchZones()
 	p.module.RunPlan(ctx, d)

@@ -4,7 +4,7 @@ import (
 	"image"
 	"testing"
 
-	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -24,7 +24,7 @@ func (s shaded) frame(t *testing.T, way [3]float32) {
 	t.Helper()
 	s.sky.way = way
 	u := render.UniformsOf(map[string]any{"Sun": way[:], "SunStrength": []float32{1}})
-	if !s.prepare(icamera.NewFromSpace(512, 512, 0), u) {
+	if !s.prepare(cameratest.NewFromSpace(512, 512, 0), u) {
 		t.Fatal("nothing to draw")
 	}
 	s.planBake()

@@ -11,7 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
@@ -74,7 +74,7 @@ func drawAs(t *testing.T, look Look, ready func(*renderer), pick func(ids []uid.
 	v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *render.Frame {
 	t.Helper()
 	v := &view.View{}
-	cam := icamera.NewFromSpace(1000, 1000, 0)
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	var drawing render.Rules
 	if err := drawing.Add(rules...); err != nil {
 		t.Fatal(err)
@@ -296,7 +296,7 @@ func TestRenderer_Compose_AnEntityWithALieIsLaidAlongIt(t *testing.T) {
 	edges := map[render.SpriteID]render.SpriteID{deck: rail}
 	look := &lyingCounting{counting: &counting{Look: ilook.NewFlat(1000, 1000, false, false)}}
 	v := &view.View{}
-	cam := icamera.NewFromSpace(1000, 1000, 0)
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	var drawing render.Rules
 	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, &drawing,
 		func() Look { return look })
@@ -392,7 +392,7 @@ func TestRenderer_Compose_CastsEachEntitysShadowOnceAsItsShadowSays(t *testing.T
 		}
 		r.Init(si)
 	}})
-	cam := icamera.NewFromSpace(1000, 1000, 0)
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)

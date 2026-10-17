@@ -41,7 +41,7 @@ func TestWritten_SpellsATriggerAsAHelpScreenDoes(t *testing.T) {
 
 func TestShortcuts_ListTheBindingsByPluginAndTheScenesKeys(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
-	cams := cameras.NewPlugin(w)
+	cams := cameras.NewPlugin(w, cameras.Config{})
 	p := NewPlugin(w, cams)
 	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestShortcuts_ListTheGamesOwnBindingsUnderGame(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
-	p := NewPlugin(w, cameras.NewPlugin(w))
+	p := NewPlugin(w, cameras.NewPlugin(w, cameras.Config{}))
 	now := partNow(section.Players)
 	p.sections = &now
 	one := p.Local("one")
@@ -113,9 +113,9 @@ func TestShortcuts_ListTheGamesOwnBindingsUnderGame(t *testing.T) {
 
 func TestShortcuts_ListWhatHoldsInTheCamerasMode(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
-	cams := cameras.NewPlugin(w)
+	cams := cameras.NewPlugin(w, cameras.Config{})
 	p := NewPlugin(w, cams)
-	cam := &ridingCam{Camera: cams.New(cameras.TopDown(), camera.Config{})}
+	cam := &ridingCam{Camera: cams.New(cameras.FromAbove, camera.Config{})}
 	pl := p.Local("one")
 	p.Through(pl).Over(geom.AABB{}, render.NewFeed(cam, nil))
 	if err := pl.Bind(p.Defaults()...); err != nil {
@@ -217,7 +217,7 @@ func TestHandle_TurnsTheGamesKeysIntoCommands(t *testing.T) {
 	if err := w.Carry(eng); err != nil {
 		t.Fatal(err)
 	}
-	cams := cameras.NewPlugin(w)
+	cams := cameras.NewPlugin(w, cameras.Config{})
 	p := NewPlugin(w, cams)
 	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
@@ -268,7 +268,7 @@ func TestShortcuts_TheListingLaysTheDescriptionOverTheTitleAndTheColumnsApart(t 
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
-	cams := cameras.NewPlugin(w)
+	cams := cameras.NewPlugin(w, cameras.Config{})
 	p := NewPlugin(w, cams)
 	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
@@ -314,7 +314,7 @@ func (c *composed) Order() []string { return c.names }
 func TestHandle_TheTildeTogglesTheTelemetryPanelUnderGeneral(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
 	tp := telemetry.NewPlugin(w)
-	p := NewPlugin(w, cameras.NewPlugin(w))
+	p := NewPlugin(w, cameras.NewPlugin(w, cameras.Config{}))
 	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}
@@ -358,7 +358,7 @@ func TestShortcuts_ListAKeyUnderThePluginWhoseDefaultsGaveIt(t *testing.T) {
 	if err := w.Carry(&engine{}); err != nil {
 		t.Fatal(err)
 	}
-	p := NewPlugin(w, cameras.NewPlugin(w), &toolHandler{})
+	p := NewPlugin(w, cameras.NewPlugin(w, cameras.Config{}), &toolHandler{})
 	if err := p.Local("one").Bind(p.Defaults()...); err != nil {
 		t.Fatal(err)
 	}

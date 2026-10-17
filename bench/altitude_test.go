@@ -51,7 +51,7 @@ func standing(b *testing.B, bodies, bands bool) {
 				b.Fatal(err)
 			}
 			p := board.NewPlugin(g, &cell.MultipleOccupancy{}, ctx.world).WithMotion(m)
-			topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size})
+			topo := topography.NewPlugin(ctx.world, p, topography.Config{})
 			if err := ctx.Use(p); err != nil {
 				b.Fatal(err)
 			}

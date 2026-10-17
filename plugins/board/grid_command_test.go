@@ -7,10 +7,10 @@ import (
 
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
 	"github.com/kjkrol/gram/plugins/board/look"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -50,7 +50,7 @@ func TestHolds_ShowsAndHidesTheCellsHeld(t *testing.T) {
 	}
 	bw.Board.NewAtlas(boardtest.CellSize).Close()
 	view := bw.Board.HoldsView()
-	cam := icamera.NewFromSpace(6*boardtest.CellSize, 16*boardtest.CellSize, 0)
+	cam := cameratest.NewFromSpace(6*boardtest.CellSize, 16*boardtest.CellSize, 0)
 	var lying []render.At
 	lines := func() int {
 		var f render.Frame

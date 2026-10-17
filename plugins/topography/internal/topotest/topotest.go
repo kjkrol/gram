@@ -102,7 +102,7 @@ func NewQuasiWorldWith(
 		c = collision.NewPlugin(qw.World, qw.Motion)
 	}
 	qw.Board = board.NewPlugin(qw.Grid, &cell.MultipleOccupancy{}, qw.World).WithMotion(qw.Motion)
-	qw.Topo = topography.NewPlugin(qw.World, qw.Board, topography.Config{Cell: 32})
+	qw.Topo = topography.NewPlugin(qw.World, qw.Board, topography.Config{})
 	qw.Board.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | cell.Air})
 	hillCell := qw.Grid.At(2, 1)
 	qw.Board.Board().Set(hillCell, Hill)
@@ -185,9 +185,10 @@ func NewWorld(edges aabbworld.Edges) *world.Plugin {
 	})
 }
 
-// Camera is the main camera of a cameras plugin over w made by p's Views, 128 x 64.
-func Camera(w *world.Plugin, p *topography.Plugin) camera.Camera {
-	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{})
+// Camera is the main camera of a cameras plugin over w as cfg says, 128 x 64, beginning
+// isometrically.
+func Camera(w *world.Plugin, cfg cameras.Config) camera.Camera {
+	cam := cameras.NewPlugin(w, cfg).New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(128, 64)
 	cam.MoveTo(0, 0)
 	return cam
@@ -205,7 +206,7 @@ func LevelBoard(w *world.Plugin) (*board.Plugin, grid.Grid) {
 func IsometricIsland() (*world.Plugin, *board.Plugin, grid.Grid, *topography.Plugin) {
 	w := NewWorld(0)
 	b, grid := LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+	p := topography.NewPlugin(w, b, topography.Config{})
 	return w, b, grid, p
 }
 

@@ -71,12 +71,12 @@ func (c *headless) UseWorld(cfg world.Config) *world.Plugin {
 }
 
 // w, h 0: the whole world
-func (c *headless) camera(make cameras.Maker, w, h float32) camera.Camera {
+func (c *headless) camera(cfg cameras.Config, start cameras.Start, w, h float32) camera.Camera {
 	if w == 0 {
 		space := c.world.Res.Config.Space
 		w, h = float32(space.Width), float32(space.Height)
 	}
-	cam := cameras.NewPlugin(c.world).New(make, camera.Config{})
+	cam := cameras.NewPlugin(c.world, cfg).New(start, camera.Config{})
 	cam.SetViewport(w, h)
 	cam.MoveTo(0, 0)
 	return cam

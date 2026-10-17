@@ -7,12 +7,12 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/look"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -84,7 +84,7 @@ func TestRenderer_Compose_FlatLaysEveryVisibleCellOverItsBox(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, Height: 0})
-	got := compose(flatRenderer(brd, look.RenderState{}), icamera.NewFromSpace(128, 128, 0))
+	got := compose(flatRenderer(brd, look.RenderState{}), cameratest.NewFromSpace(128, 128, 0))
 	if len(got) != 1 || got[0] != 16 {
 		t.Errorf("composed %v, want the 16 cells on the ground and nothing else", got)
 	}
@@ -95,7 +95,7 @@ func TestRenderer_Compose_DrawsEverySideOfASquareGridOnceWhereCellsAreLargeEnoug
 	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	r := flatRenderer(brd, gridOf(black, 1))
-	cam := icamera.NewFromSpace(128, 128, 0)
+	cam := cameratest.NewFromSpace(128, 128, 0)
 	if got := compose(r, cam); got[0] != 16 || got[look.GridLift] != 40 {
 		t.Errorf("composed %v, want the 16 tiles and the 40 sides of their cells", got)
 	}
@@ -110,7 +110,7 @@ func TestRenderer_Compose_DrawsEverySideOfAHexGridOnce(t *testing.T) {
 	grid := grid.DefaultGrids{}.Hex(3, 3, 32)
 	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	got := compose(flatRenderer(brd, gridOf(black, 1)), icamera.NewFromSpace(256, 256, 0))
+	got := compose(flatRenderer(brd, gridOf(black, 1)), cameratest.NewFromSpace(256, 256, 0))
 	if got[0] != 9 || got[look.GridLift] != 38 {
 		t.Errorf("composed %v, want the nine hexes and the 38 sides of their cells", got)
 	}
@@ -121,7 +121,7 @@ func TestRenderer_Compose_DrawsTheGridInItsLine(t *testing.T) {
 	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	red := color.RGBA{R: 200, A: 128}
-	lines := gridLinesOf(flatRenderer(brd, gridOf(red, 3)), icamera.NewFromSpace(64, 64, 0))
+	lines := gridLinesOf(flatRenderer(brd, gridOf(red, 3)), cameratest.NewFromSpace(64, 64, 0))
 	if len(lines) != 12 {
 		t.Fatalf("%d lines, want the 12 sides of four cells", len(lines))
 	}
@@ -135,7 +135,7 @@ func TestRenderer_Compose_DrawsTheGridInItsLine(t *testing.T) {
 		}
 	}
 	none := flatRenderer(brd, gridOf(red, 0))
-	if n := len(gridLinesOf(none, icamera.NewFromSpace(64, 64, 0))); n != 0 {
+	if n := len(gridLinesOf(none, cameratest.NewFromSpace(64, 64, 0))); n != 0 {
 		t.Errorf("%d lines in a line no pixel wide, want none", n)
 	}
 }
@@ -146,7 +146,8 @@ func TestRenderer_Compose_AMaterialsCellKeepsItsGrid(t *testing.T) {
 	brd.SetAll(cell.Kind{Name: cell.Named("lava"), Cost: 1, Allows: cell.Land})
 	r := flatRenderer(brd, gridOf(black, 1))
 	r.Shade(map[cell.Name]render.MaterialID{cell.Named("lava"): 1})
-	if got := compose(r, icamera.NewFromSpace(64, 64, 0)); got[0] != 0 || got[look.GridLift] != 12 {
+	got := compose(r, cameratest.NewFromSpace(64, 64, 0))
+	if got[0] != 0 || got[look.GridLift] != 12 {
 		t.Errorf("composed %v, want no tile but the 12 sides of the four cells", got)
 	}
 }
@@ -158,7 +159,7 @@ func TestRenderer_Compose_DrawsEachSideOfAPartlySeenHexBoardOnce(t *testing.T) {
 	var seen []cell.ID
 	lk := lookFn(func(_ *render.Frame, _ camera.Camera, t *look.Tile) { seen = append(seen, t.ID) })
 	r := newRenderer(brd, flatAtlas{}, gridOf(black, 1), mapOf(lk))
-	cam := icamera.NewFromSpace(400, 400, 0)
+	cam := cameratest.NewFromSpace(400, 400, 0)
 	cam.SetViewport(150, 110)
 	cam.MoveTo(70, 50)
 	type side [4]int32
@@ -215,7 +216,7 @@ func TestRenderer_Compose_HandsTheLookEveryCell(t *testing.T) {
 		}
 	})
 	r := newRenderer(brd, flatAtlas{}, look.RenderState{}, mapOf(lk))
-	compose(r, icamera.NewFromSpace(128, 128, 0))
+	compose(r, cameratest.NewFromSpace(128, 128, 0))
 	if seen != 16 || amount != 1 || rise != 8 {
 		t.Errorf("look saw %d cells, the wood swaying %v and standing %v high; want 16, 1 and the kind's 8", seen, amount, rise)
 	}
@@ -232,7 +233,7 @@ func TestTile_AFlatWorldIsDrawnAsItsSpritesAre(t *testing.T) {
 	var got render.Shade
 	lk := lookFn(func(_ *render.Frame, _ camera.Camera, t *look.Tile) { got = t.Light() })
 	r := newRenderer(brd, flatAtlas{}, look.RenderState{}, mapOf(lk))
-	compose(r, icamera.NewFromSpace(64, 64, 0))
+	compose(r, cameratest.NewFromSpace(64, 64, 0))
 	if got != render.Even(1) {
 		t.Errorf("a flat world's tile is lit %v, want as drawn", got)
 	}
@@ -244,7 +245,7 @@ func TestRenderer_Compose_FlatTilesAreDrawnAsTheyAre(t *testing.T) {
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	r := newRenderer(brd, flatAtlas{}, look.RenderState{}, mapOf(look.FlatLook()))
 	var f render.Frame
-	cam := icamera.NewFromSpace(64, 64, 0)
+	cam := cameratest.NewFromSpace(64, 64, 0)
 	f.Reset(cam)
 	r.Compose(&f, cam)
 	var v render.Vertex
@@ -268,7 +269,7 @@ func TestRenderer_Compose_DrawsEachCellsGridAsLargeAsItIsDrawn(t *testing.T) {
 	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	r := flatRenderer(brd, gridOf(black, 1))
-	lines := gridLinesOf(r, scaledCam{icamera.NewFromSpace(128, 128, 0)})
+	lines := gridLinesOf(r, scaledCam{cameratest.NewFromSpace(128, 128, 0)})
 	for _, v := range lines {
 		if v[0].DstY > 66 && v[1].DstY > 66 {
 			t.Fatalf("a line at %v down the screen, want none past the two nearer rows", v[0].DstY)

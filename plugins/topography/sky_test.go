@@ -5,9 +5,9 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/internal/topotest"
 	"github.com/kjkrol/gram/render"
@@ -30,13 +30,13 @@ func (s framing) Compose(f *render.Frame, _ camera.Camera) {
 func TestPlugin_WithoutAnAtmosphereTheReliefHandsTheFrameItsStillSky(t *testing.T) {
 	framed := func(sources ...render.Source) map[string][]float32 {
 		c := render.NewComposer(sources...)
-		c.DrawWorld(nil, icamera.NewFromSpace(256, 256, 0))
+		c.DrawWorld(nil, cameratest.NewFromSpace(256, 256, 0))
 		return c.Uniforms()
 	}
 	relief := func() *topography.Plugin {
 		w := topotest.NewWorld(0)
 		b, _ := topotest.LevelBoard(w)
-		return topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+		return topography.NewPlugin(w, b, topography.Config{})
 	}
 	got := framed(topotest.Drawn(t, relief())...)
 	if s, fog := got["SunStrength"], got["Fog"]; len(s) != 1 || s[0] != sky.DefaultSun.Strength ||

@@ -33,12 +33,12 @@ func TestKeys_TheCursorInACornerBuildsADiagonalPanFromTheEdge(t *testing.T) {
 	ctx := control.Context{Screen: geom.NewVec(1000, 800), Cursor: geom.NewVec(985, 100)}
 	cmd, ok := keys[0].Build(ctx)
 	pan, isPan := cmd.(cameras.Pan)
-	if !ok || !isPan || !pan.Edge || !pan.Corner || pan.Dx <= 0 || pan.Dy >= 0 {
+	if !ok || !isPan || pan.Dx <= 0 || pan.Dy >= 0 {
 		t.Errorf("in the top-right corner the edge builds %+v (%v), want a Pan right and up", cmd, ok)
 	}
 	ctx.Cursor = geom.NewVec(985, 400)
 	cmd, _ = keys[0].Build(ctx)
-	if pan := cmd.(cameras.Pan); pan.Corner || pan.Dx <= 0 || pan.Dy != 0 {
-		t.Errorf("at the right side the edge builds %+v, want a Pan right alone, no corner", pan)
+	if pan := cmd.(cameras.Pan); pan.Dx <= 0 || pan.Dy != 0 {
+		t.Errorf("at the right side the edge builds %+v, want a Pan right alone", pan)
 	}
 }

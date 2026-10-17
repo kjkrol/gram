@@ -3,12 +3,10 @@ package bench_test
 import (
 	"image/color"
 	"math"
-	"reflect"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -18,6 +16,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/board/water"
+	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/plugins/world"
@@ -44,7 +44,7 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	})
 	grid := grid.DefaultGrids{}.Square(side, side, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size})
+	topo := topography.NewPlugin(ctx.world, p, topography.Config{})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	})
 	grid := grid.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size})
+	topo := topography.NewPlugin(ctx.world, p, topography.Config{})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
 	}
@@ -106,7 +106,8 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	p.SetAtlas(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 	src := drawnAs[*look.Renderer](b, ctx)
-	cam := ctx.camera(topo.Views(topography.FromAbove), 0, 0)
+	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo},
+		cameras.FromAbove, 0, 0)
 	var f render.Frame
 	low := fixedSky{sun: sky.Sun{Dir: [3]float32{-0.8, 0.45, 0.3}, Strength: 0.75, Ambient: 0.3}}
 	topo.WithAtmosphere(low)
@@ -139,7 +140,8 @@ func Benchmark_Board_Shores(b *testing.B) {
 	})
 	grid := grid.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size}).Style("sea", painter.Style{Shine: 0.9})
+	topo := topography.NewPlugin(ctx.world, p, topography.Config{}).
+		Style("sea", painter.Style{Shine: 0.9})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
 	}
@@ -163,7 +165,8 @@ func Benchmark_Board_Shores(b *testing.B) {
 	p.SetAtlas(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 	src := drawnAs[*look.Renderer](b, ctx)
-	cam := ctx.camera(topo.Views(topography.FromAbove), 0, 0)
+	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo},
+		cameras.FromAbove, 0, 0)
 	var f render.Frame
 	far := grid.At(6, 6)
 	shallows := sea
@@ -199,16 +202,23 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	ctx.UseWorld(cfg)
 	grid := grid.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size, HeightUnit: 1, Perspective: view == "persp"})
+	topo := topography.NewPlugin(ctx.world, p, topography.Config{})
 	var screenW, screenH float32
 	if far {
 		screenW, screenH = 576, 384
 	}
-	start := topography.Isometrically
+	start := cameras.Isometrically
 	if view == "above" {
-		start = topography.FromAbove
+		start = cameras.FromAbove
 	}
-	ctx.cam = ctx.camera(topo.Views(start), screenW, screenH)
+	ctx.cam = ctx.camera(cameras.Config{
+		Turn:        true,
+		Tilt:        true,
+		Perspective: view == "persp",
+		Cell:        size,
+		HeightUnit:  1,
+		Cage:        topo,
+	}, start, screenW, screenH)
 	kinds := p.CellKinds()
 	kinds.Define("sea", cell.Kind{Cost: 1, Allows: cell.Water})
 	kinds.Define("earth", cell.Kind{Cost: 1, Allows: cell.Land})
@@ -280,11 +290,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	p.WithWorkers(workers).SetAtlas(atlas)
 	ecs := ctx.start(b, func(ctx goke.RunCtx, d time.Duration) { topo.RunPlan(ctx, d) })
 	if view == "persp" {
-		for _, q := range topo.Queues() {
-			if q.Accepts() == reflect.TypeFor[topography.View]() {
-				q.Put(command.Nobody, topography.View{Camera: ctx.cam})
-			}
-		}
+		cameratest.Switch(ctx.cam)
 		ecs.Tick(step)
 	}
 	if far {

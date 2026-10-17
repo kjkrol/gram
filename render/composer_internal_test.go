@@ -10,7 +10,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render/gpu"
 )
 
@@ -32,9 +32,9 @@ var (
 
 var unit = Corners{{0, 0}, {1, 0}, {0, 1}, {1, 1}}
 
-func topDown() camera.Camera { return icamera.NewFromSpace(1024, 1024, 0) }
+func topDown() camera.Camera { return cameratest.NewFromSpace(1024, 1024, 0) }
 
-func sorted() camera.Camera { return sortingCamera{icamera.NewFromSpace(1024, 1024, 0)} }
+func sorted() camera.Camera { return sortingCamera{cameratest.NewFromSpace(1024, 1024, 0)} }
 
 type sortingCamera struct{ camera.Camera }
 
@@ -263,7 +263,7 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 }
 
 func TestFrame_SpriteRectSplitsAtAWrapSeamWithoutStretching(t *testing.T) {
-	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
+	cam := cameratest.NewFromSpace(1024, 1024, aabbworld.Torus)
 	cam.Translate(1000, 0)
 	var f Frame
 	f.Reset(cam)
@@ -406,7 +406,7 @@ func TestFrame_AnOverlayIsAQuadOverTheSpriteMarkedWithItsMaterialAndWhatItReads(
 }
 
 func TestFrame_AnOverlayFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
-	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
+	cam := cameratest.NewFromSpace(1024, 1024, aabbworld.Torus)
 	cam.Translate(1000, 0)
 	var f Frame
 	f.Reset(cam)
@@ -481,7 +481,7 @@ func TestFrame_AnOverlayOnAnEarlierSpriteLiesOverIt(t *testing.T) {
 		}
 	}
 
-	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
+	cam := cameratest.NewFromSpace(1024, 1024, aabbworld.Torus)
 	cam.Translate(1000, 0)
 	f.Reset(cam)
 	f.SpriteRect(h(0), sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after

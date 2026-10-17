@@ -11,7 +11,6 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/aloft"
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
@@ -22,6 +21,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -38,7 +38,7 @@ func TestAtmosphere_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
 		Heights:  true,
 	})
-	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
@@ -156,7 +156,7 @@ func TestPlugin_TheSkyHandsTheFrameTheSunAndTheWeatherOfItsDaylight(t *testing.T
 		t.Fatal(err)
 	}
 	c := render.NewComposer(ctx.drawn...)
-	c.DrawWorld(nil, icamera.NewFromSpace(128, 128, 0))
+	c.DrawWorld(nil, cameratest.NewFromSpace(128, 128, 0))
 	got := c.Uniforms()
 	for _, name := range []string{"Sun", "SunStrength", "SunColor", "SkyColor", "Ambience", "Wind",
 		"Drift", "Cover", "Billow", "Fog", "SkyOverhead"} {

@@ -17,6 +17,24 @@ in a flat world: a board stands only in a world with heights now. Nor those made
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
 entities. Nor those made before motion left the world: `world.Outside` is `motion.Outside`.
 
+**The cameras, all in their plugin** (2026-10-17)
+- Every camera is the cameras plugin's: the plain one from above (was `internal/camera`) and the
+  views of a world in relief, from above, isometrically and in perspective, riding with a unit
+  (were the topography's). `cameras.NewPlugin(w, cameras.Config{…})` takes what the game's cameras
+  may do — `Turn` (Q, E), `Tilt` (R, F), `Perspective` (Tab) — how the relief is drawn (`Cell`,
+  `TileW`, `TileH`, `HeightUnit`, `Headroom`, `MinPitch`, `FieldOfView`, out of
+  `topography.Config`, which keeps `Shaping` and `Climbing`) and where the cameras may be: a
+  `cameras.Cage` (`Free(x, y, z)`, `Span()`, optionally `Grained`), the topography being one.
+- A scene makes a camera as it begins: `s.cameras.New(cameras.FromAbove, …)` or
+  `cameras.Isometrically` (was `cameras.TopDown()` and `topography.Plugin.Views`); `cameras.Maker`
+  is gone. The views' commands `View`, `Turn`, `Tilt`, `Ride`, `Look`, `LookFrom`, `LookAt` are the
+  cameras'; the old `cameras.LookAt{Camera, Entity}` is `CenterOn`.
+- The cursor at the window's edge only pans, slantwise in a corner: the view no longer turns in a
+  corner nor turns and bows when a pan meets the world's edge (`camera.Scroller`, `Pan.Edge`,
+  `Pan.Corner`, `topography.CornerStep` gone).
+- A camera behind a unit keeps it in sight against whatever the cage says is solid, forests and
+  decks too, not the bare ground alone. Tests take a plain camera from `cameras/cameratest`.
+
 **Motion, a plugin of its own** (2026-10-17)
 - `plugins/motion` moves the entities: the steering (`plugins/motion/steering`, was
   `plugins/world/steering`), the velocity with the rules of a `motion.Moving` (`Still`,

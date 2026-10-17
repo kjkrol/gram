@@ -9,8 +9,8 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -54,7 +54,7 @@ func TestRenderer_Init_QueryMatchesOnlySelectedEntity(t *testing.T) {
 
 func TestHighlight_OutlinesEveryPieceOfTheFootprintAsAMark(t *testing.T) {
 	var f render.Frame
-	f.Reset(icamera.NewFromSpace(1000, 1000, 0))
+	f.Reset(cameratest.NewFromSpace(1000, 1000, 0))
 	unit := render.Corners{{0, 0}, {10, 0}, {0, 10}, {10, 10}}
 	DefaultHighlight.compose(&f, []render.Corners{unit, unit})
 	if f.Len() != 8 {
@@ -95,7 +95,7 @@ func TestRenderer_OutlinesEachKindInItsHighlight(t *testing.T) {
 		}},
 		goke.SystemFn{OnInit: r.Init},
 	)
-	cam := icamera.NewFromSpace(1000, 1000, 0)
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)

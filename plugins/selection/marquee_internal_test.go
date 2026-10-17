@@ -4,12 +4,12 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
-	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 )
 
 func TestMarquees_ABoxBelongsToTheCameraItIsDraggedIn(t *testing.T) {
 	var m marquees
-	a, b := icamera.NewFromSpace(100, 100, 0), icamera.NewFromSpace(100, 100, 0)
+	a, b := cameratest.NewFromSpace(100, 100, 0), cameratest.NewFromSpace(100, 100, 0)
 	box := geom.NewAABBAt(geom.NewVec(1, 2), 3, 4)
 	m.show(a, box)
 	if got, ok := m.boxes[a]; !ok || got != box {

@@ -12,9 +12,9 @@
 //
 // # Projection
 //
-// A [Projection] is the arithmetic a Camera draws through: [TopDown] here, a view plugin's own
-// with its cameras. Sorts says whether what is drawn through it must go back to front, Wraps
-// whether a wrapping world can be drawn through it, Toward the way towards the eye.
+// A [Projection] is the arithmetic a Camera draws through: [TopDown] here, the cameras plugin's
+// own in relief. Sorts says whether what is drawn through it must go back to front, Wraps whether
+// a wrapping world can be drawn through it, Toward the way towards the eye.
 //
 // # State
 //
@@ -28,8 +28,7 @@
 // [Picker] finds what is under a screen point and its height; a [Scaler] draws a world unit
 // larger near the eye than far off, and [ScaleAt] is the scale at a point through any camera; a
 // [Rayer] says which way a screen point looks, [Rays] every line of sight at once as a [RayField],
-// an [Eyed] camera where its eye stands and a [Vanisher] where a direction vanishes; a
-// [Scroller] takes the cursor at the window's edge its own way (a corner turning it). A
+// an [Eyed] camera where its eye stands and a [Vanisher] where a direction vanishes. A
 // [Transform] is a RayField as the GPU draws it.
 //
 // # FromScreenRect

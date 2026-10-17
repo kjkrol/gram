@@ -229,11 +229,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (declared by `ctx.Looks` from the tiles, the sprites the cell's bounds across), the ways as bands
   cut out of their kinds' sprites, a step at its kind's cost; `plugins/topography` is the other.
   Depends on `world`, `motion` and `collision`.
-- **`topography`** — a map in relief: `topography.NewPlugin(world, board, Config{Cell, TileW,
-  TileH, HeightUnit, Headroom, Shaping, Climbing, Perspective, Solid, Fine, EdgeTurn, EdgeTilt})`,
-  made right after the world and the board (so a world with heights); refuses a wrapping world. It
-  hands its cameras as makers (`Plugin.Views(start)`, a `cameras.Maker`; each camera begins as
-  `topography.Start` says — `FromAbove`, `Isometrically`), sets the world's Look
+- **`topography`** — a map in relief: `topography.NewPlugin(world, board, Config{Shaping,
+  Climbing})`, made right after the world and the board (so a world with heights); refuses a
+  wrapping world. It is the cameras' `cameras.Cage` (`Free(x, y, z)`: over the ground, over the
+  kind on its cell to its `Height`, out of a deck's slab; `Span()` the relief's extent; `Grain`
+  near decks — a game hands it as `cameras.Config.Cage`), sets the world's Look
   (`billboards.Look`), the board's Map (`look.Nothing`: the ground is drawn on the GPU) and the
   world's Ground (its `Relief`: `At`, `Step`, `Altitude`, `SetHeights`, `Corners`, `Lift`,
   `Flatten`; on a square grid a lattice of corners the neighbouring cells share, on a hex a level
@@ -259,38 +259,15 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   over the terrain (`terrain.DrawShadows`, twelve floats a cast) or laid over the hex prisms' depth;
   `Baked` the terrain's, `NoShadow` none; they receive the shade at their height — light's sun share
   in the instance, `groundShadeAt`/`standingShadeAt` and the clouds in the vertex stage); a bridge's
-  deck and piers are `Baked` (a deck stands on its beam down its `Z.Height`). One camera, three
-  views (`internal/cameras`): from above (screen x, y the world's, no sorting), isometric (turning
-  by any angle, Q/E `Turn`, R/F `Tilt`, the pitch 10°–90°) and, given `Config.Perspective`, the
-  perspective; `View{Camera}` (Tab) goes round them keeping the ground point in the middle. From
-  above and isometrically the screen stays over the world at sea level, a pan stops at the edge (in
-  relief the part stopped turns or bows the view; drawn back the view lies down again as far as the
-  edge bowed it, `viewCamera.bowed`; the cursor in a corner of the window turns the view a quarter
-  as fast as Q and E, left corners as Q, right as E, `viewCamera.Scroll(dx, dy, corner)`,
-  `Config.CornerTurn`; the user's word 2026-10-14), zooming out stops where the screen fits the map,
-  `ZoomIn` keeps the ground under the cursor; the perspective keeps the ground point in the middle,
-  flies no higher than shows the world's diagonal (`maxAlt`). A pick (`camera.Picker.Pick`) finds a
-  deck a line of sight passes under (`Config.Solid`, `Fine`). The cameras' `camera.Rays` give
-  `camera.SceneTransform` for every GPU source. **The fastening is the camera's**
-  (`camera.Fastening{Entity, How}`, `camera.How` `Loose`/`Centred`/`Behind`/`Inside`, `Outside` all
-  but `Inside`, `HowOf(cam)`): the cameras plugin keeps `Centred`, the topography's camera system
-  `Behind` (centred, turned until the unit's `Vel.Dir` runs up the screen) and `Inside` (first
-  person: the eye where the unit's `world.Eye` stands, the screen as wide as `Eye.Angle`, the mouse
-  always looks — `Driven.Look`, the cursor captured by players; up and down it writes `Eye.Tilt`
-  (−pitch), the unit's own given back on letting go — and a flyer rides: `Driven.Flown`, `Climb`);
-  `Ride{Camera}` (V) goes `Centred` → `Behind` → `Inside` → `Centred` over the entity the camera is
-  fastened to (`cameras.Follow`, C through `selection.FollowKey`). Bindings `.In(camera.Inside)`
-  fire riding (the driving's `Shooter` WSAD, Space `Jump`, the mouse, V, Tab), `.In(camera.Outside)`
-  the free camera's (Q/E, R/F, Tab, the cameras' WASD pan, Shift+W), the arrows `.In(camera.Behind)`
-  drive the followed unit. Commands carry `control.Context.Camera`, so the plugin knows neither
-  players nor selection; cameras are no entities. Its parts are packages none of which imports the
-  plugin: `relief`, `painter` (the board's Dressing in relief, the sheets, `Style`), `water` (the
-  materials: the sea five octaves of value noise along x, roughened by the wind, a swell within
-  `shoreReach` of the shore, Fresnel against the way to the eye; `stream.wgsl` a flow map),
-  `terrain`, `hexes`, `billboards`, `cameras`, `internal/vec`. selection must not import topography,
-  even in tests. Everything that is the view alone — the projection, the camera, the billboard, the
-  blocks' shading — is private; `camera` has the contract and `TopDown`, `internal/camera` the plain
-  top-down camera. `world.Z`, relief and `Heights` are the world's heights, not the view: sight
+  deck and piers are `Baked` (a deck stands on its beam down its `Z.Height`). The views are the
+  cameras plugin's (its entry); `camera.Rays` of its cameras give `camera.SceneTransform` for every
+  GPU source here. Its parts are packages none of which imports the plugin: `relief`, `painter` (the
+  board's Dressing in relief, the sheets, `Style`), `water` (the materials: the sea five octaves of
+  value noise along x, roughened by the wind, a swell within `shoreReach` of the shore, Fresnel
+  against the way to the eye; `stream.wgsl` a flow map), `terrain`, `hexes`, `billboards`
+  (vectors from gram's `internal/vec`). selection must not import topography, even in tests.
+  Everything that is the drawing alone — the billboard, the blocks' shading — is private. `world.Z`,
+  relief and `Heights` are the world's heights, not the view: sight
   reads them in a top-down game too. **Layering: the world knows its entities and nothing else; the
   ground is the board's, the sky the atmosphere's, `render` generic.** A relief is lit by the sun of
   its `topography.Atmosphere` (`WithAtmosphere`; without one `sky.DefaultSun`, which the topography
@@ -737,32 +714,51 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   plugin, then "General" — each a `ui.Heading` over two aligned columns of keys and labels, in
   columns as wide as their lines, as many as the height takes. `players.RunPlan` runs last and
   empties the queues. Depends on `world`.
-- **`cameras`** — the cameras a game looks through: `cameras.NewPlugin(world)` makes no camera;
-  **each is made where a scene shows it**, beside the picture in the Scenes section,
-  `render.NewFeed(s.cameras.New(maker, camera.Config{...}), picture)`, with `cameras.TopDown()` (a
-  flat world, wrapping on a wrapping axis) or a view plugin's maker. `camera.Config` has no pixels
-  (`render.Feed.Resize` every frame): `Zoom`, `Whole` (the whole world in view at every size, a
-  minimap; refused in relief), `Follow` (the name of the entity it starts fastened `Centred` over),
-  `MinZoom`, `MaxZoom`. Every camera is saved (window, zoom, fastening), in the order made. Its
-  commands name their camera, so it knows no players: `Pan` (lets go of a fastening), `Zoom`,
-  `Follow{Camera, Entity, On}` (fastens `Centred`; its system keeps every `Centred` camera over its
-  entity), `LookAt{Camera, Entity}` (once, fastened to nothing). `cameras.Keys{Up, Down, Left,
-  Right, ZoomIn, ZoomOut, ScrollSpeed, Wheel, Drag, Edge}` are a player's keys, `DefaultKeys()`
-  W/S/A/D, = and - (`ZoomStep` about the cursor), the wheel, the middle drag, the edge (a
-  `Pan{Edge: true}`, in a corner of the picture — `control.Edges.Corner`, a square of
-  `control.CornerReach` 120 px a side, a quarter of the shorter side at most
-  (`control.CornerSide`: a 200-px test viewport would be all corner), `Edges.Any` true there —
-  slantwise with `Corner: true`;
-  a `camera.Scroller`
-  takes it as `Scroll(dx, dy, corner)`, the relief's camera turning in a corner at
-  `topography.CornerStep`, a quarter of Q, and any other camera pans). `Zones` (Shift+H,
+- **`cameras`** — every camera a game looks through, and all camera behaviour (the contract
+  stays in the root `camera`, which `render` and `control` read): `cameras.NewPlugin(world,
+  cameras.Config{…})` makes no camera; the Config is the game's (in `makePlugins`) and says what
+  the keys may do — `Turn` (Q/E), `Tilt` (R/F), `Perspective` (Tab reaches it, V rides Inside, the
+  mouse looks) — and how a world in relief is drawn (`Cell` required, `TileW`/`TileH` 64×32,
+  `HeightUnit`, `Headroom`, `MinPitch`, `FieldOfView`) and where the cameras may be (`Cage`, a
+  `cameras.Cage{Free(x, y, z), Span()}` — the topography is one, a game may give its own;
+  `Grained{Grain(x, y)}` optional). The zero Config is the plain camera from above
+  (`internal/topdown`, wrapping on a wrapping axis, `Whole` for a minimap); any other sees in
+  relief (`internal/stick`: from above, isometric, perspective, picking where the cage is not
+  free) and refuses a wrapping world and a missing `Cell`. **Each camera is made where a scene
+  shows it**, beside the picture in the Scenes section, `render.NewFeed(s.cameras.New(start,
+  camera.Config{...}), picture)` with `cameras.FromAbove` or `cameras.Isometrically` (a plain
+  Config has none). `camera.Config` has no pixels (`render.Feed.Resize` every frame): `Zoom`,
+  `Whole` (refused in relief), `Follow` (the name of the entity it starts fastened `Centred` over),
+  `MinZoom`, `MaxZoom`. Every camera is saved, in the order made. Its commands name their camera,
+  so it knows no players: `Pan` (lets go of a fastening), `Zoom`, `Follow{Camera, Entity, On}`
+  (fastens `Centred`), `CenterOn{Camera, Entity}` (once, fastened to nothing; players'
+  `through.LookAt`), and in relief `View` (Tab), `Turn`, `Tilt` (`TurnStep`, `TiltStep`), `Ride`
+  (V: `Centred` → `Behind` → `Inside` → `Centred`), `Look` (the mouse inside), `LookFrom`,
+  `LookAt{Camera, X, Y, Z}`. **The fastening is the camera's** (`camera.Fastening{Entity, How}`,
+  `How` `Loose`/`Centred`/`Behind`/`Inside`, `Outside` all but `Inside`, `HowOf(cam)`), all kept
+  here: `Centred` over the entity, `Behind` (turned until the unit's `Vel.Dir` runs up the screen)
+  and `Inside` (first person: the eye where the unit's `world.Eye` stands, the screen as wide as
+  `Eye.Angle`, the mouse looks — `Driven.Look`, the cursor captured by players; up and down it
+  writes `Eye.Tilt`, given back on letting go — and a flyer rides: `Driven.Flown`, `Climb`; the
+  plugin loads `steering.Driven` itself). Bindings `.In(camera.Inside)` fire riding,
+  `.In(camera.Outside)` the free camera's (Q/E, R/F, Tab, WASD, Shift+W), the arrows
+  `.In(camera.Behind)` drive the followed unit. `cameras.Keys{Up, Down, Left, Right, ZoomIn,
+  ZoomOut, ScrollSpeed, Wheel, Drag, Edge}` are a player's keys, `DefaultKeys()` W/S/A/D, = and -
+  (`ZoomStep` about the cursor), the wheel, the middle drag, the edge (a `Pan`; in a corner of the
+  picture — `control.Edges.Corner`, a square of `control.CornerReach` 120 px a side, a quarter of
+  the shorter side at most (`control.CornerSide`: a 200-px test viewport would be all corner),
+  `Edges.Any` true there — slantwise; the old turning and bowing at the world's edge and in a
+  corner are gone, the user's word 2026-10-17). Tests take a plain camera from
+  `cameras/cameratest` (`NewFromSpace`; `Switch` going round a relief camera's views), which imports
+  neither render nor the world, so their own tests use it too: `internal/stick` is arithmetic and
+  a `Keeper` over `stick.Entities`, the plugin's `riding` system reading the ECS for it. `Zones` (Shift+H,
   `ShowZones`, `ZonesShown`, marks over every other, hidden by default, shown at
   the start of board/topography) lays the strips and the corner squares over every picture in
   translucent yellow, rounded (`render.Frame.Fan`), the strips a gap short of the corners and
   fainter (the user's sketch, 2026-10-14). `CursorAtEdge` fires once an `Engine.Update`, before
   the ticks, not once a tick; a demo
   whose WSAD drive binds `cameras.Keys{Wheel, ZoomIn, ZoomOut}` alone. The engine sizes no camera.
-  Depends on `world`.
+  Depends on `world`, `motion/steering`.
 - **`driving`** — units driven by hand, with or without navigation: `driving.NewPlugin(world,
   motion, selection).WithGround(board)`. Its commands `Ahead{Camera, Sprint}`, `Back`, `Turn{Way}`,
   `Toward{Way}`, `Strafe{Camera, Way}` add up a tick into a hand — a player's through the camera the

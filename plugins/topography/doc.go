@@ -1,11 +1,11 @@
 // Package topography is a map in relief over a board: the ground's heights, the light and the
-// water on them, drawn on the GPU, and the views of it from above, isometric and in perspective.
+// water on them, drawn on the GPU.
 //
 // [NewPlugin] takes the world, the board and the [Config] and puts the board in relief at once:
-// the plugin is the board's Map and the world's Ground and Look. The world must have heights
-// (world.Config.Heights) and may not wrap. What a game and the other plugins both name is in two
-// small packages, relief (Climbing) and painter (Style); the rest is the plugin's own, in
-// plugins/topography/internal.
+// the plugin is the board's Map, the world's Ground and Look and the cameras' Cage. The world must
+// have heights (world.Config.Heights) and may not wrap. What a game and the other plugins both
+// name is in two small packages, relief (Climbing) and painter (Style); the rest is the plugin's
+// own, in plugins/topography/internal.
 //
 // # Relief
 //
@@ -17,12 +17,12 @@
 // as the Config's relief.Climbing says, in the planner and on the move, unless the kind is
 // Graded. [Plugin.Flatten] lays a cell flat as a ground.Shaper does.
 //
-// # Views
+// # Cage
 //
-// [Plugin.Views] is a maker of cameras for the cameras plugin, each beginning as its [Start]
-// says; every camera of a world in relief is one of them. [View] goes round the views, [Turn]
-// and [Tilt] move the camera, [Ride] takes it behind and inside the entity it is fastened to,
-// [LookFrom] and [LookAt] place the eye in perspective and [Look] looks round riding.
+// The plugin is a cameras.Cage for a game to hand its cameras (cameras.Config.Cage): a point is
+// [Plugin.Free] over the ground, over the kind standing on its cell to its Height and out of a
+// deck's slab; [Plugin.Span] is the lowest and the highest the ground reaches, [Plugin.Grain]
+// how finely a line of sight steps near a deck.
 //
 // # Light and shadows
 //
@@ -43,13 +43,11 @@
 // The plugin draws the ground, a render.Direct in the opaque pass of the world's picture, the
 // board's grid on it in the board's line (board.Surface), and under no atmosphere hands the frame
 // its still sky, giving way to a sky some other source hands it. It is a plugin.CommandHandler
-// for the views', the shaping's and the shadows' commands ([Plugin.Queues],
-// [Plugin.DefaultBindings]); call [Plugin.RunPlan] after the world has moved and before the
-// players' RunPlan.
+// for the shaping's and the shadows' commands ([Plugin.Queues], [Plugin.DefaultBindings]); call
+// [Plugin.RunPlan] after the world has moved and before the cameras' RunPlan.
 //
 // # Vocabulary
 //
-// Commands, a player's through its camera: [View], [LookFrom], [LookAt], [Look], [Ride], [Turn],
-// [Tilt] (the views); [Raise], [Lower], [Level] (the shaping); [CoarseShadows], [HazeFromAbove]
-// (looks).
+// Commands, a player's: [Raise], [Lower], [Level] (the shaping); [CoarseShadows],
+// [HazeFromAbove] (looks).
 package topography

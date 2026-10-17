@@ -23,8 +23,8 @@ type viewedStage struct {
 
 func (s *viewedStage) Name() string { return "stage" }
 func (s *viewedStage) Init(ctx game.Initializer) error {
-	s.cams = cameras.NewPlugin(ctx.UseWorld(testWorldConfig()))
-	s.cam = s.cams.New(cameras.TopDown(), camera.Config{})
+	s.cams = cameras.NewPlugin(ctx.UseWorld(testWorldConfig()), cameras.Config{})
+	s.cam = s.cams.New(cameras.FromAbove, camera.Config{})
 	if err := ctx.Use(s.cams); err != nil {
 		return err
 	}

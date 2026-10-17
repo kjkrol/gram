@@ -6,11 +6,11 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/vec"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/plugins/topography/internal/terrain"
-	"github.com/kjkrol/gram/plugins/topography/internal/vec"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )

@@ -4,7 +4,7 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
@@ -30,6 +30,6 @@ func (m *mainScene) screen() *ui.Element {
 	a.vision.WithViews(render.Show(a.selection.IsSelected))
 
 	return ui.Image(render.NewFeed(
-		a.cameras.New(a.topography.Views(topography.FromAbove), camera.Config{}),
+		a.cameras.New(cameras.FromAbove, camera.Config{}),
 		a.world.Picture())).Input(a.players.Through(a.player))
 }

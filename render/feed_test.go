@@ -6,12 +6,12 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render"
 )
 
 func TestFeed_ResizeGivesTheCameraItsViewport(t *testing.T) {
-	cam := icamera.NewFromSpace(1000, 1000, 0)
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	feed := render.NewFeed(cam, nil)
 	feed.Resize(320, 200)
 	if w, h := cam.Viewport(); w != 320 || h != 200 {
@@ -20,14 +20,14 @@ func TestFeed_ResizeGivesTheCameraItsViewport(t *testing.T) {
 }
 
 func TestFeed_DrawsNothingWithoutASize(t *testing.T) {
-	feed := render.NewFeed(icamera.NewFromSpace(1000, 1000, 0), nil)
+	feed := render.NewFeed(cameratest.NewFromSpace(1000, 1000, 0), nil)
 	if img := feed.Draw(); img != nil {
 		t.Fatalf("a feed of no size drew %v", img.Bounds())
 	}
 }
 
 func TestFeed_ToWorldAndToPixelsAreEachOthersInverse(t *testing.T) {
-	cam := icamera.NewFromSpace(1000, 1000, 0)
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	feed := render.NewFeed(cam, nil)
 	feed.Resize(400, 300)
 	cam.ZoomIn(2, 0, 0)
@@ -44,7 +44,7 @@ func TestFeed_ToWorldAndToPixelsAreEachOthersInverse(t *testing.T) {
 }
 
 func TestFeed_APointOutsideIsNotVisible(t *testing.T) {
-	cam := icamera.NewFromSpace(1000, 1000, 0)
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	feed := render.NewFeed(cam, nil)
 	feed.Resize(100, 100)
 	cam.MoveTo(0, 0)
@@ -60,7 +60,7 @@ func (picking) Pick(sx, sy float32) (float32, float32, float32, bool) {
 }
 
 func TestFeed_ToWorldAsksAPickerFirst(t *testing.T) {
-	feed := render.NewFeed(picking{icamera.NewFromSpace(1000, 1000, 0)}, nil)
+	feed := render.NewFeed(picking{cameratest.NewFromSpace(1000, 1000, 0)}, nil)
 	x, y, ok := feed.ToWorld(5, 6)
 	if x != 1005 || y != 1006 || ok {
 		t.Fatalf("got (%v, %v, %v), want the picker's (1005, 1006, false)", x, y, ok)
@@ -79,7 +79,7 @@ func (r *recording) DrawWorld(screen *render.Image, cam camera.Camera) {
 }
 
 func TestFeed_DrawsItsPictureThroughItsCameraAtItsSize(t *testing.T) {
-	cam := icamera.NewFromSpace(1000, 1000, 0)
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	picture := &recording{}
 	feed := render.NewFeed(cam, picture)
 	feed.Resize(64, 48)

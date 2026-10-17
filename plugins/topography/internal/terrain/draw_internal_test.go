@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
 )
@@ -52,7 +52,8 @@ func TestTerrain_DrawsTheLevelEvenlyAndABumpWhereItStands(t *testing.T) {
 	u := render.UniformsOf(map[string]any{"Sun": []float32{0.3, 0.2, 1}, "SunStrength": []float32{1}, "SunColor": []float32{1, 1, 1}, "Ambience": []float32{0.2, 0.2, 0.2}})
 	depth := render.NewDepth()
 	screen.ClearDepth(depth)
-	r.Draw(render.Target{Screen: screen, Depth: depth}, downward{icamera.NewFromSpace(64, 64, 0)}, u)
+	r.Draw(render.Target{Screen: screen, Depth: depth},
+		downward{cameratest.NewFromSpace(64, 64, 0)}, u)
 	pix := make([]byte, 4*64*64)
 	screen.ReadPixels(pix)
 	red := func(x, y int) byte { return pix[4*(y*64+x)] }

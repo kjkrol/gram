@@ -9,9 +9,9 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
@@ -34,7 +34,7 @@ func TestWorld_PictureIsWhatTheStagesPluginsDrawReadiedOnceForEveryScene(t *test
 	src := &countedSource{}
 	var w *world.Plugin
 	var pictures []render.Picture
-	cam := icamera.NewFromSpace(100, 100, 0)
+	cam := cameratest.NewFromSpace(100, 100, 0)
 	st := stage.New("meadow").
 		World(testWorldConfig()).
 		Plugins(func(made *world.Plugin) {

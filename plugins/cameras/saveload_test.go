@@ -24,8 +24,8 @@ func (g *savedStage) Init(ctx game.Initializer) error {
 	g.cams = cameras.NewPlugin(ctx.UseWorld(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
-	}))
-	g.cam = g.cams.New(cameras.TopDown(), camera.Config{})
+	}), cameras.Config{})
+	g.cam = g.cams.New(cameras.FromAbove, camera.Config{})
 	return ctx.Use(g.cams)
 }
 func (g *savedStage) Loaded() error                     { return nil }

@@ -18,7 +18,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/topography/internal/billboards"
-	icameras "github.com/kjkrol/gram/plugins/topography/internal/cameras"
 	"github.com/kjkrol/gram/plugins/topography/internal/hexes"
 	ipainter "github.com/kjkrol/gram/plugins/topography/internal/painter"
 	irelief "github.com/kjkrol/gram/plugins/topography/internal/relief"
@@ -58,25 +57,15 @@ func (s stillFrame) Compose(f *render.Frame, _ camera.Camera) {
 	air.Weather{}.Frame(f, sun, 0, 0)
 }
 
-// Config is the topography: Cell (world units, must be set) is drawn isometrically as a TileW x
-// TileH diamond (64 x 32 when zero), a height lifts a point HeightUnit screen units a world unit
-// (1), Headroom is how far above the ground a camera looks for sprites (64), MinPitch the
-// flattest the eye may look along the ground in degrees (30), Perspective whether View reaches
-// a perspective view seeing FieldOfView degrees top to bottom (45). Shaping zero is a quarter
-// of a cell a step and any slope, Climbing zero relief.DefaultClimbing.
+// Config is the topography: Shaping zero is a quarter of a cell a step and any slope, Climbing
+// zero relief.DefaultClimbing.
 type Config struct {
-	Cell, TileW, TileH float32
-	HeightUnit         float32
-	Headroom           float32
-	MinPitch           float32
-	Perspective        bool
-	FieldOfView        float32
-	Shaping            Shaping
-	Climbing           relief.Climbing
+	Shaping  Shaping
+	Climbing relief.Climbing
 }
 
-// Plugin is a map in relief over a board: the ground's heights, lit and shaded, and the views of
-// it from above, isometric and in perspective. It is the board's Map and the world's Ground.
+// Plugin is a map in relief over a board: the ground's heights, lit and shaded. It is the board's
+// Map, the world's Ground and the cameras' Cage.
 type Plugin struct {
 	*world.Self
 
@@ -94,9 +83,6 @@ type Plugin struct {
 	ground *terrain.Renderer
 	hexes  *hexes.Ground
 
-	cameras   *icameras.Control
-	views     func(icameras.Config) cameras.Maker
-	camQueues cameraQueues
 	coarse    command.Queue[CoarseShadows]
 	hazing    command.Queue[HazeFromAbove]
 	hazeAbove bool
@@ -108,6 +94,8 @@ var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ board.Map = (*Plugin)(nil)
+var _ cameras.Cage = (*Plugin)(nil)
+var _ cameras.Grained = (*Plugin)(nil)
 
 // NewPlugin puts boardPlugin, over worldPlugin, in relief as cfg says: from then on the
 // topography is the board's Map and the world's Ground and Look. It panics for a world that
@@ -133,26 +121,6 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	p.shaper = &shaper{relief: p.relief, cfg: shaping}
 	p.painter = ipainter.New(brd, p.relief, liveSky{p}, true, map[cell.Name]painter.Style{}).WithKinds(boardPlugin.CellKinds())
 	boardPlugin.WithMap(p)
-	ground := func(x, y float32) float32 {
-		return float32(p.seenAt(geom.NewVec(float64(x), float64(y))))
-	}
-	extent := func() (float32, float32) {
-		low, high := p.relief.Extent()
-		return float32(low), float32(high)
-	}
-	views := icameras.Config{Cell: cfg.Cell, TileW: cfg.TileW, TileH: cfg.TileH, HeightUnit: cfg.HeightUnit, Headroom: cfg.Headroom,
-		MinPitch: cfg.MinPitch, Perspective: cfg.Perspective, FieldOfView: cfg.FieldOfView,
-		EdgeTurn:   TurnStep / cameras.DefaultScrollSpeed,
-		EdgeTilt:   TiltStep / cameras.DefaultScrollSpeed,
-		CornerTurn: CornerStep / cameras.DefaultScrollSpeed,
-		Fine:       p.fineAt,
-		Solid:      p.solidAt}
-	p.cameras = icameras.NewControl(p.relief, p.topAt, cfg.Perspective)
-	bend := float32(worldPlugin.Scale().Bend())
-	p.views = func(start icameras.Config) cameras.Maker {
-		views.Isometric = start.Isometric
-		return cameras.Maker(p.cameras.Maker(views, ground, extent, bend))
-	}
 	if _, _, _, _, square := p.relief.Lattice(); square {
 		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{Shadows: true, Scale: worldPlugin.Scale()})
 	} else {
@@ -161,22 +129,6 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	worldPlugin.SetLook(billboards.New(worldPlugin.FlatLook(), liveSky{p}, p.relief, p.ground,
 		p.castOf))
 	return p
-}
-
-// Start is the view a camera of a world in relief begins in: FromAbove or Isometrically.
-type Start uint8
-
-const (
-	// FromAbove begins a camera looking down from above, heights not drawn.
-	FromAbove Start = iota
-	// Isometrically begins a camera in the isometric view.
-	Isometrically
-)
-
-// Views make the cameras of a world in relief for the cameras plugin, each beginning as start
-// says. Every camera of such a world must be one of them.
-func (p *Plugin) Views(start Start) cameras.Maker {
-	return p.views(icameras.Config{Isometric: start == Isometrically})
 }
 
 type boardSurface struct{ p *Plugin }
@@ -215,37 +167,6 @@ func (p *Plugin) topAt(at geom.Vec) float64 {
 	if c, ok := brd.CellAt(at); ok {
 		top += brd.Kind(c).Height
 	}
-	return top
-}
-
-func (p *Plugin) fineAt(x, y float32) (float32, float32) {
-	brd := p.boardPlugin.Board()
-	if !brd.NearDeck(geom.NewVec(float64(x), float64(y))) {
-		return 0, 0
-	}
-	return float32(brd.NarrowestDeck() / 2), float32(brd.ThinnestDeck())
-}
-
-func (p *Plugin) solidAt(x, y, z float32) (float32, bool) {
-	at := geom.NewVec(float64(x), float64(y))
-	if top := float32(p.topAt(at)); z < top {
-		return top, true
-	}
-	top, in := float32(0), false
-	p.boardPlugin.Board().DecksOver(at, func(c cell.ID, f cell.Floor) {
-		deck := float32(p.relief.Altitude(c) + f.Height)
-		if f.Height > 0 && z < deck && z >= deck-max(float32(f.Thickness), 1e-3) {
-			top, in = max(top, deck), true
-		}
-	})
-	return top, in
-}
-
-func (p *Plugin) seenAt(at geom.Vec) float64 {
-	top := p.topAt(at)
-	p.boardPlugin.Board().DecksOver(at, func(c cell.ID, f cell.Floor) {
-		top = max(top, p.relief.Altitude(c)+f.Height)
-	})
 	return top
 }
 
@@ -398,7 +319,6 @@ func (p *Plugin) Name() string { return "gram.topography" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
 		heights:  p.relief.HeightsSystem(),
-		cameras:  p.cameras.System(&p.camQueues),
 		shaping:  p.shaper.system(),
 		altitude: p.relief.AltitudeSystem(),
 		clock:    p.worldPlugin.Clock(),
@@ -413,9 +333,9 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	return nil
 }
 
-// RunPlan carries out the views' and the shaping commands at once, in the tactical pause too,
-// and puts every unit at its altitude in the simulation. Call it after the world has moved and
-// before the players' RunPlan.
+// RunPlan carries out the shaping commands at once, in the tactical pause too, and puts every
+// unit at its altitude in the simulation. Call it after the world has moved and before the
+// cameras' RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.coarse.Drain(func(command.Issued[CoarseShadows]) { p.WithCoarseShadows(!p.ShadowsCoarse()) })
 	p.hazing.Drain(func(command.Issued[HazeFromAbove]) { p.WithHazeFromAbove(!p.HazesFromAbove()) })
@@ -425,6 +345,5 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 // EventHandler is nil: the topography takes commands, not input.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil: the heights live on the topography's entity and the cameras save
-// themselves.
+// Serializable is nil: the heights live on the topography's entity.
 func (p *Plugin) Serializable() plugin.Serializable { return nil }

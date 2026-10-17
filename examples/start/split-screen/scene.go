@@ -25,14 +25,14 @@ func (m *mainScene) screen() *ui.Element {
 
 	picture := a.world.Picture()
 	red := render.NewFeed(
-		a.cameras.New(cameras.TopDown(), camera.Config{Follow: RedBlock}),
+		a.cameras.New(cameras.FromAbove, camera.Config{Follow: RedBlock}),
 		picture,
 	)
 	blue := render.NewFeed(
-		a.cameras.New(cameras.TopDown(), camera.Config{Follow: BlueBlock}),
+		a.cameras.New(cameras.FromAbove, camera.Config{Follow: BlueBlock}),
 		picture,
 	)
-	minimap := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{Whole: true}), picture)
+	minimap := render.NewFeed(a.cameras.New(cameras.FromAbove, camera.Config{Whole: true}), picture)
 	return ui.Layers(
 		ui.Columns(
 			ui.Share(1, ui.Image(red).Input(a.players.Through(a.redPlayer))),

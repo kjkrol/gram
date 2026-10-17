@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -76,8 +77,8 @@ func newRig(t *testing.T) *rig {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
-	cams := cameras.NewPlugin(w)
-	cam := cams.New(cameras.TopDown(), camera.Config{})
+	cams := cameras.NewPlugin(w, cameras.Config{})
+	cam := cams.New(cameras.FromAbove, camera.Config{})
 	g := &general{}
 	p := players.NewPlugin(w, cams, g)
 	local := p.Local("tester")
@@ -389,7 +390,7 @@ func TestDrag_FiresOnReleaseAndButtonHeldKnowsWhereItBegan(t *testing.T) {
 }
 
 func TestWorldBox_StaysNarrowAcrossATorusSeam(t *testing.T) {
-	cam := cameras.TopDown()(1000, 1000, aabbworld.Torus, camera.Config{})
+	cam := cameratest.NewFromSpace(1000, 1000, aabbworld.Torus)
 	cam.SetViewport(200, 200)
 	cam.MoveTo(950, 500)
 	ctx := control.Context{Camera: cam}

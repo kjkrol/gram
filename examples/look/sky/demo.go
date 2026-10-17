@@ -87,12 +87,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world)
-	a.topography = topography.NewPlugin(a.world, a.board, topography.Config{
-		Cell:        CellSize,
-		HeightUnit:  1,
-		MinPitch:    2,
-		Perspective: true,
-	})
+	a.topography = topography.NewPlugin(a.world, a.board, topography.Config{})
 	a.atmosphere = atmosphere.NewPlugin(a.world, atmosphere.Config{
 		Calendar: calendar.Config{
 			DayRealTime: 90 * time.Second,
@@ -103,7 +98,15 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Climate: climate.Config{Start: weather.Clear},
 		Running: &atmosphere.Running{Day: true, Stars: true, Moon: true},
 	}).Over(a.board)
-	a.cameras = cameras.NewPlugin(a.world)
+	a.cameras = cameras.NewPlugin(a.world, cameras.Config{
+		Turn:        true,
+		Tilt:        true,
+		Perspective: true,
+		MinPitch:    2,
+		Cell:        CellSize,
+		HeightUnit:  1,
+		Cage:        a.topography,
+	})
 	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter())
 	a.players = players.NewPlugin(a.world, a.cameras, a.board, a.atmosphere, a.topography)
 }

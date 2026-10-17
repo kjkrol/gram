@@ -19,7 +19,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
-	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/motion"
@@ -96,7 +96,7 @@ func newFencedField(t *testing.T, fences []cell.ID, walkers ...walker) *field {
 		t.Fatal(err)
 	}
 	for p := range f.cams {
-		f.cams[p] = cameras.TopDown()(320, 96, 0, camera.Config{})
+		f.cams[p] = cameratest.NewFromSpace(320, 96, 0)
 	}
 	ctx := &installCtx{ecs: goke.New()}
 	for _, p := range []plugin.Plugin{f.w, m, col, brd, sel, drv} {

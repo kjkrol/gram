@@ -96,7 +96,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		WithCollision(a.collision)
 	a.selection = selection.NewPlugin(a.world)
 	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)
-	a.cameras = cameras.NewPlugin(a.world)
+	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
 	a.players = players.NewPlugin(
 		a.world,
 		a.collision, a.cameras,

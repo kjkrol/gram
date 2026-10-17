@@ -9,12 +9,12 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game/stage"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -121,7 +121,7 @@ func holdWidth(t *testing.T, b *board.Plugin) float32 {
 	c := g.At(1, 1)
 	b.Occupancy().Enter(c, false, 7, cell.Land)
 	b.ShowHolds(true)
-	cam := icamera.NewFromSpace(256, 256, 0)
+	cam := cameratest.NewFromSpace(256, 256, 0)
 	var f render.Frame
 	f.Reset(cam)
 	b.HoldsView().Compose(&f, cam)

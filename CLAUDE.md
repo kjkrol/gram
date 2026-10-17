@@ -211,7 +211,7 @@ Built-in plugins (`gram-plugins`): `world` (the foundation: space, entities, the
 the clock), `motion` (steering, movement and the leavers past an open edge, made first and run
 right after the world; whatever steers or pushes takes it), `board` (grid and terrain, cells as
 entities, what stands on the board, bridges, maps as files; `cmd/gramap` makes maps of the
-Earth), `topography` (a map in relief and its cameras), `atmosphere` (the time of day, the
+Earth), `topography` (a map in relief, the cameras' cage), `atmosphere` (the time of day, the
 climate, the weather), `collision`, `navigation`, `selection`, `dialog`, `players` (with
 `players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `bullet`, `telemetry`
 (the panel in the corner, a scene of its own in every Stage with a world). Each package has a

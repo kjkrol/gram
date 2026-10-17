@@ -17,7 +17,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
-	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/motion"
@@ -86,7 +86,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	rw.nav = NewPlugin(brd, w, m, sel, rw.driving).WithCollision(c)
 	rw.players = players.NewPlugin(w, rw.nav, rw.driving)
 	for _, name := range []string{"one", "two"} {
-		cam := cameras.TopDown()(width*roadCell, 3*roadCell, 0, camera.Config{})
+		cam := cameratest.NewFromSpace(width*roadCell, 3*roadCell, 0)
 		rw.players.Through(rw.players.Add(name)).Over(geom.AABB{}, render.NewFeed(cam, nil))
 		rw.cams = append(rw.cams, cam)
 	}

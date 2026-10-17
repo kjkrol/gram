@@ -5,7 +5,7 @@ import (
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere"
-	"github.com/kjkrol/gram/plugins/topography"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
@@ -33,7 +33,7 @@ func (m *mainScene) screen() *ui.Element {
 	a.topography.WithAtmosphere(a.atmosphere)
 	a.atmosphere.ShowClouds(atmosphere.AllBodies)
 
-	cam := a.cameras.New(a.topography.Views(topography.Isometrically), camera.Config{})
+	cam := a.cameras.New(cameras.Isometrically, camera.Config{})
 	return ui.Layers(
 		ui.Image(render.NewFeed(cam, a.world.Picture())).Input(a.players.Through(a.player)),
 		ui.Drawer(a.world.Clock().HUD()),

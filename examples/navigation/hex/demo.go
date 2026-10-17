@@ -94,13 +94,18 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.motion = motion.NewPlugin(a.world)
 	grid := grid.DefaultGrids{}.Hex(GridWidth, GridHeight, HexSize)
 	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).WithMotion(a.motion)
-	a.topography = topography.NewPlugin(a.world, a.board, topography.Config{Cell: HexSize})
+	a.topography = topography.NewPlugin(a.world, a.board, topography.Config{})
 	a.bridges = bridges.NewPlugin(a.world, a.board, bridges.Config{Rules: site.Rules{Longest: 3}})
 	a.selection = selection.NewPlugin(a.world)
 	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)
 	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving)
 	a.vision = vision.NewPlugin(a.world).WithBoard(a.board).WithLog(log.Default())
-	a.cameras = cameras.NewPlugin(a.world)
+	a.cameras = cameras.NewPlugin(a.world, cameras.Config{
+		Turn: true,
+		Tilt: true,
+		Cell: HexSize,
+		Cage: a.topography,
+	})
 	a.players = players.NewPlugin(
 		a.world,
 		a.cameras,

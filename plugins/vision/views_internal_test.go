@@ -9,7 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -38,7 +38,7 @@ fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }
 
 func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
 	needGPU(t)
-	cam := icamera.NewFromSpace(256, 256, 0)
+	cam := cameratest.NewFromSpace(256, 256, 0)
 	v := newViews()
 	screen, depth, ground := render.NewImage(256, 256), render.NewDepth(), render.NewDepth().
 		Readable()
@@ -98,7 +98,7 @@ func (wall) Version() uint64 { return 3 }
 
 func TestViews_OverAFlatWorldOnTheGPU(t *testing.T) {
 	needGPU(t)
-	cam := icamera.NewFromSpace(256, 256, aabbworld.Torus)
+	cam := cameratest.NewFromSpace(256, 256, aabbworld.Torus)
 	v := newViews()
 	screen, depth := render.NewImage(256, 256), render.NewDepth()
 	screen.Fill(color.White)
@@ -136,7 +136,7 @@ func needGPU(t *testing.T) {
 
 func TestViews_AnEyeLookingUpVeilsNoGround(t *testing.T) {
 	needGPU(t)
-	cam := icamera.NewFromSpace(256, 256, 0)
+	cam := cameratest.NewFromSpace(256, 256, 0)
 	v := newViews()
 	screen, depth, ground := render.NewImage(256, 256), render.NewDepth(), render.NewDepth().
 		Readable()

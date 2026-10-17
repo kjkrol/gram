@@ -83,7 +83,7 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 		occupancy, spacing = &cell.SingleOccupancy{}, CellSpacing
 	}
 	brd := board.NewPlugin(g, occupancy, w).WithMotion(m).WithCollision(c)
-	topo := topography.NewPlugin(w, brd, topography.Config{Cell: 32})
+	topo := topography.NewPlugin(w, brd, topography.Config{})
 	sel := selection.NewPlugin(w)
 	drive := driving.NewPlugin(w, m, sel).WithGround(brd)
 	nav := NewPlugin(brd, w, m, sel, drive).WithCollision(c).WithSpacing(spacing)

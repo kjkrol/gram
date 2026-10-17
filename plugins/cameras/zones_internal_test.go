@@ -7,8 +7,8 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -18,14 +18,14 @@ func TestZones_TheCommandSwitchesTheZonesDrawn(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 1000, Height: 800},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
-	p := NewPlugin(w)
+	p := NewPlugin(w, Config{})
 	if err := w.Carry(p); err != nil {
 		t.Fatal(err)
 	}
 	if p.ZonesShown() {
 		t.Error("the zones start shown")
 	}
-	cam := icamera.NewFromSpace(1000, 800, 0)
+	cam := cameratest.NewFromSpace(1000, 800, 0)
 	pieces := func() int {
 		var f render.Frame
 		f.Reset(cam)
@@ -78,7 +78,7 @@ func TestPlugin_DrawsTheZones(t *testing.T) {
 	p := NewPlugin(world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
-	}))
+	}), Config{})
 	ctx := &drawsCtx{}
 	if err := p.Install(ctx); err != nil {
 		t.Fatal(err)

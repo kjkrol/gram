@@ -11,7 +11,7 @@ import (
 func TestPlugin_HMakesTheShadowsCoarse(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+	p := topography.NewPlugin(w, b, topography.Config{})
 	bound := false
 	for _, bd := range p.DefaultBindings() {
 		bound = bound || players.Written(bd.Trigger) == "H"
@@ -27,7 +27,7 @@ func TestPlugin_HMakesTheShadowsCoarse(t *testing.T) {
 func TestPlugin_CtrlFHazesTheGroundFromAbove(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
+	p := topography.NewPlugin(w, b, topography.Config{})
 	bound := ""
 	for _, bd := range p.DefaultBindings() {
 		if written := players.Written(bd.Trigger); written == "Ctrl+F" {

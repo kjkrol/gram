@@ -114,7 +114,7 @@ func TestRenderer_DrawsTheCloudsFromAboveOverTheirMassAlone(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(640, 480)
 	weather := westCloudy()
 	weatherNow := func() air.Weather { return weather }
@@ -154,7 +154,7 @@ func TestRenderer_InOneLayerDrawsTheLowOnesHighAlone(t *testing.T) {
 	cam := cameras.NewPlugin(world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 640, Height: 480},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8},
-	})).New(cameras.TopDown(), camera.Config{})
+	}), cameras.Config{}).New(cameras.FromAbove, camera.Config{})
 	low, high := New(weatherNow, air.Low), New(weatherNow, air.High)
 	low.Show(true)
 	high.Show(true)
@@ -201,7 +201,7 @@ func TestRenderer_HidesTheCloudsInsideTheGround(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(640, 480)
 	ground := westRaised()
 	for _, layer := range []air.Layer{air.Low, air.High} {
@@ -277,7 +277,7 @@ func TestRenderer_DrawsTheLowCloudsBeforeTheSlopesFromUnderThem(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(640, 480)
 	relief := air.ReliefOf(world.Scale{}, 0, 1860)
 	weather := air.Weather{Clouds: 0.9, Billow: 1, Relief: relief,

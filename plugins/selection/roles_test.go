@@ -14,11 +14,10 @@ import (
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -59,7 +58,8 @@ func newSquad(t *testing.T) *squad {
 	sel := selection.NewPlugin(w)
 	s := &squad{t: t, w: w, sel: sel, players: players.NewPlugin(w, sel), kinds: map[string]kind.Of[soldier]{}}
 	s.me, s.rival = s.players.Local("me"), s.players.Add("rival")
-	s.players.Through(s.me).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(1000, 1000, 0, camera.Config{}), nil))
+	s.players.Through(s.me).
+		Over(geom.AABB{}, render.NewFeed(cameratest.NewFromSpace(1000, 1000, 0), nil))
 	w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
 	s.haste = w.Effects().Named("haste")
 	w.Effects().Define("rally", effect.Spec{effect.Lasts(time.Hour)})
@@ -258,7 +258,11 @@ func TestPointed_IsTheEntityUnderTheCursor(t *testing.T) {
 	cure := control.Give(control.KeyPress{Key: control.KeyC}, "Hasten the one pointed at",
 		s.named("cure", ceremony.Put(s.haste).On(s.sel.Pointed())))
 	point := func(x, y float64) {
-		cmd, ok := cure.Build(control.Context{Player: s.me.ID, Camera: cameras.TopDown()(1000, 1000, 0, camera.Config{}), Cursor: geom.NewVec(x, y)})
+		cmd, ok := cure.Build(control.Context{
+			Player: s.me.ID,
+			Camera: cameratest.NewFromSpace(1000, 1000, 0),
+			Cursor: geom.NewVec(x, y),
+		})
 		if !ok {
 			t.Fatal("the binding built nothing")
 		}

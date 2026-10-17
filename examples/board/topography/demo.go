@@ -128,9 +128,6 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		WithLog(log.Default())
 	a.gravity = gravity.NewPlugin(a.world, a.motion, gravity.Config{}).WithSurfaces(a.board.Footing)
 	a.topography = topography.NewPlugin(a.world, a.board, topography.Config{
-		Cell:        CellSize,
-		HeightUnit:  1,
-		Perspective: true,
 		Shaping: topography.Shaping{
 			Step:    scale.Units(40),
 			MaxStep: scale.Units(160),
@@ -172,7 +169,14 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		},
 	})
 	a.atmosphere.WithWeathering(a.board, a.defineClimate())
-	a.cameras = cameras.NewPlugin(a.world)
+	a.cameras = cameras.NewPlugin(a.world, cameras.Config{
+		Turn:        true,
+		Tilt:        true,
+		Perspective: true,
+		Cell:        CellSize,
+		HeightUnit:  1,
+		Cage:        a.topography,
+	})
 	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter())
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection,
 		a.nav, a.driving,

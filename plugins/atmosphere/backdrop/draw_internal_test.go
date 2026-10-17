@@ -24,7 +24,7 @@ func needGPU(t *testing.T) {
 func TestBackdrop_DrawsTheSkyOnTheGPU(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
 	sun := sky.Sun{Dir: eyedF, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
 	b := New(w.Res.Config.Space, func() sky.Sun { return sun },
 		func() air.Weather { return air.Weather{} })
@@ -52,7 +52,7 @@ func TestBackdrop_DrawsTheLayersFlatOrHeapedOrNone(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
 	sun := sky.Sun{Dir: eyedF, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
 	bases := air.Bases(world.Scale{})
 	weather := air.Weather{Bases: bases}
@@ -121,7 +121,7 @@ func TestBackdrop_LeavesTheHeapsBeforeTheGroundToAnother(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w).New(cameras.TopDown(), camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
 	sun := sky.Sun{Dir: eyedF, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
 	weather := air.Weather{Clouds: 0.9, Billow: 1, Bases: air.Bases(world.Scale{})}
 	img := render.NewImage(2, 2)

@@ -9,12 +9,11 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players"
@@ -58,7 +57,8 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, m, sel, driving.NewPlugin(worldPlugin, m, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
 	local := pl.Local("tester")
-	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(50, 50, 0, camera.Config{}), nil)) // as a scene showing it wires it
+	// as a scene showing it wires it
+	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameratest.NewFromSpace(50, 50, 0), nil))
 	if err := local.Bind(navPlugin.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,8 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, m, sel, driving.NewPlugin(worldPlugin, m, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
 	local := pl.Local("tester")
-	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(50, 50, 0, camera.Config{}), nil)) // as a scene showing it wires it
+	// as a scene showing it wires it
+	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameratest.NewFromSpace(50, 50, 0), nil))
 	if err := local.Bind(navPlugin.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +173,8 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, m, sel, driving.NewPlugin(worldPlugin, m, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
 	local := pl.Local("tester")
-	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(50, 50, 0, camera.Config{}), nil)) // as a scene showing it wires it
+	// as a scene showing it wires it
+	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameratest.NewFromSpace(50, 50, 0), nil))
 	if err := local.Bind(navPlugin.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}

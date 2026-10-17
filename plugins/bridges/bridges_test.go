@@ -11,13 +11,13 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/bridges"
 	"github.com/kjkrol/gram/plugins/bridges/site"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/topography"
@@ -85,7 +85,7 @@ func newDale(t *testing.T) *dale {
 	d.board = board.NewPlugin(d.g, &cell.MultipleOccupancy{}, d.w).
 		WithMotion(d.m).
 		WithCollision(d.col)
-	d.topo = topography.NewPlugin(d.w, d.board, topography.Config{Cell: 10})
+	d.topo = topography.NewPlugin(d.w, d.board, topography.Config{})
 	d.bridges = bridges.NewPlugin(d.w, d.board, bridges.Config{Rules: rules}).WithShaper(d.topo)
 	d.board.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	d.bridges.Types().Define("bridge", bridges.Spec{
@@ -250,7 +250,7 @@ func TestTool_TheBridgeInHandLiesOverItsCells(t *testing.T) {
 	d.give(bridges.Mark{At: at(2, 3)})
 	d.give(bridges.Aim{At: at(5, 3)})
 	hand := d.drawn[len(d.drawn)-1] // the bridges' own, installed last
-	cam := icamera.NewFromSpace(100, 60, 0)
+	cam := cameratest.NewFromSpace(100, 60, 0)
 	var f render.Frame
 	f.Reset(cam)
 	hand.Compose(&f, cam)

@@ -2,21 +2,17 @@ package topography_test
 
 import (
 	"math"
-	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/kjkrol/aabbworld"
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/cameras"
-	"github.com/kjkrol/gram/plugins/players"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/topography"
-	icameras "github.com/kjkrol/gram/plugins/topography/internal/cameras"
 	"github.com/kjkrol/gram/plugins/topography/internal/topotest"
 	"github.com/kjkrol/gram/plugins/world"
 )
@@ -29,8 +25,15 @@ func TestPlugin_ViewSwitchesBetweenAboveAndIsometric(t *testing.T) {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(64, 64, 32), &cell.MultipleOccupancy{}, w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, TileW: 64, HeightUnit: 1})
-	cam := cameras.NewPlugin(w).New(p.Views(topography.FromAbove), camera.Config{})
+	p := topography.NewPlugin(w, b, topography.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{
+		Turn:       true,
+		Tilt:       true,
+		Cell:       32,
+		TileW:      64,
+		HeightUnit: 1,
+		Cage:       p,
+	}).New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(128, 64)
 	cam.MoveTo(0, 0)
 	if cam.Projection().Sorts() {
@@ -44,7 +47,7 @@ func TestPlugin_ViewSwitchesBetweenAboveAndIsometric(t *testing.T) {
 	cam.CenterOn(1024, 1024, 0)
 	cellBefore, _ := cam.Project(1024, 1024, 0)
 	cellBefore2, _ := cam.Project(1056, 1024, 0)
-	icameras.Switch(cam)
+	cameratest.Switch(cam)
 	if !cam.Projection().Sorts() {
 		t.Fatal("after View the camera does not look isometrically")
 	}
@@ -58,11 +61,10 @@ func TestPlugin_ViewSwitchesBetweenAboveAndIsometric(t *testing.T) {
 	if width := right - left; math.Abs(float64(width-(cellBefore2-cellBefore))) > 0.5 {
 		t.Errorf("after View a cell spans %v pixels, want the %v it did from above", width, cellBefore2-cellBefore)
 	}
-	icameras.Switch(cam)
+	cameratest.Switch(cam)
 	if cam.Projection().Sorts() {
 		t.Error("View again does not look from above")
 	}
-	_ = p
 }
 
 func TestPlugin_RefusesAWrappingWorld(t *testing.T) {
@@ -73,71 +75,16 @@ func TestPlugin_RefusesAWrappingWorld(t *testing.T) {
 	}()
 	w := topotest.NewWorld(aabbworld.Torus)
 	b, _ := topotest.LevelBoard(w)
-	topography.NewPlugin(w, b, topography.Config{Cell: 32})
-}
-
-func TestDefaultBindings_RidingKeysHoldInsideOnly(t *testing.T) {
-	w := topotest.NewWorld(0)
-	b, _ := topotest.LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1, Perspective: true})
-	holding := func(how camera.How) map[string]control.Binding {
-		out := map[string]control.Binding{}
-		for _, bd := range p.DefaultBindings() {
-			if bd.Holds(how) {
-				out[players.Written(bd.Trigger)] = bd
-			}
-		}
-		return out
-	}
-	riding, loose, over := holding(camera.Inside), holding(camera.Loose), holding(camera.Centred)
-	for _, key := range []string{"W (held)", "S (held)", "A (held)", "D (held)", "Up (held)"} {
-		if _, ok := riding[key]; ok {
-			t.Errorf("riding, %s is the topography's, want the players'", key)
-		}
-		if _, ok := loose[key]; ok {
-			t.Errorf("loose, %s is the topography's: the camera's WASD would be taken", key)
-		}
-	}
-	for _, key := range []string{"Q (held)", "E (held)", "R (held)", "F (held)"} {
-		if _, ok := riding[key]; ok {
-			t.Errorf("riding, %s is bound, want nothing: the mouse looks round", key)
-		}
-		if _, ok := loose[key]; !ok {
-			t.Errorf("loose, %s is not bound", key)
-		}
-	}
-	cam := topotest.Camera(w, p)
-	if bd, ok := riding["mouse"]; !ok {
-		t.Error("riding, there is no binding of the mouse")
-	} else if cmd, _ := bd.Build(control.Context{Camera: cam, Delta: geom.NewVec(3, -2)}); cmd != (topography.Look{Camera: cam, Dx: 3, Dy: -2}) {
-		t.Errorf("riding, a move of (3, -2) issues %+v, want Look{Dx: 3, Dy: -2}", cmd)
-	}
-	if _, ok := loose["mouse"]; ok {
-		t.Error("loose, the mouse looks round")
-	}
-	if _, ok := riding["Tab"]; !ok {
-		t.Error("riding, Tab is not bound")
-	}
-	if _, ok := loose["Tab"]; !ok {
-		t.Error("loose, Tab is not bound")
-	}
-	if cmd, _ := riding["V"].Build(control.Context{}); reflect.TypeOf(cmd) != reflect.TypeFor[topography.Ride]() {
-		t.Errorf("riding, V issues %T, want Ride: it leaves", cmd)
-	}
-	if cmd, _ := over["V"].Build(control.Context{}); reflect.TypeOf(cmd) != reflect.TypeFor[topography.Ride]() {
-		t.Errorf("over the unit, V issues %T, want Ride: it goes behind", cmd)
-	}
-	if _, ok := loose["V"]; ok {
-		t.Error("loose, V is bound: there is nothing to ride")
-	}
+	topography.NewPlugin(w, b, topography.Config{})
 }
 
 func TestViews_EveryCameraBeginsAsItsStartSays(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
-	cams := cameras.NewPlugin(w)
-	above, iso := cams.New(p.Views(topography.FromAbove), camera.Config{}), cams.New(p.Views(topography.Isometrically), camera.Config{})
+	p := topography.NewPlugin(w, b, topography.Config{})
+	cams := cameras.NewPlugin(w, cameras.Config{Turn: true, Tilt: true, Cell: 32, Cage: p})
+	above := cams.New(cameras.FromAbove, camera.Config{})
+	iso := cams.New(cameras.Isometrically, camera.Config{})
 	if above.Projection().Sorts() {
 		t.Error("the camera begun FromAbove looks isometrically")
 	}

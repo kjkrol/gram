@@ -161,8 +161,14 @@ func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1})
-	return cameras.NewPlugin(w).New(p.Views(topography.Isometrically), cfg)
+	p := topography.NewPlugin(w, b, topography.Config{})
+	return cameras.NewPlugin(w, cameras.Config{
+		Turn:       true,
+		Tilt:       true,
+		Cell:       32,
+		HeightUnit: 1,
+		Cage:       p,
+	}).New(cameras.Isometrically, cfg)
 }
 
 func TestPathRenderer_OutlinesEachKindsGoalInItsRouteStyle(t *testing.T) {

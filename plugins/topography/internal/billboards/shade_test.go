@@ -68,7 +68,7 @@ func TestSprites_StandDarkerInTheReliefsShadow(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	b := board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
 	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	p := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 1}).
+	p := topography.NewPlugin(w, b, topography.Config{}).
 		WithAtmosphere(westSky{})
 	drawn := topotest.Drawn(t, p)
 	// a wall 120 high west of x 96: its shadow reaches 69 east over the level ground, towards the
@@ -79,7 +79,13 @@ func TestSprites_StandDarkerInTheReliefsShadow(t *testing.T) {
 		}
 		return 0
 	}))
-	cam := cameras.NewPlugin(w).New(p.Views(topography.Isometrically), camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{
+		Turn:       true,
+		Tilt:       true,
+		Cell:       32,
+		HeightUnit: 1,
+		Cage:       p,
+	}).New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(320, 240)
 	cam.MoveTo(0, 0)
 	cam.ZoomOut(2.5, 160, 120)

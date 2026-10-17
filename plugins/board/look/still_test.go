@@ -7,11 +7,11 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/look"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -41,7 +41,7 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 	space := world.SpaceCfg{Width: 256, Height: 256}
 	every := newRenderer(brd, atlas, look.RenderState{}, brd.Map())
 	once := look.NewRenderer(brd, atlas, brd.Map(), space)
-	cam := icamera.NewFromSpace(space.Width, space.Height, 0)
+	cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
 	cam.SetViewport(200, 150)
 	cam.ZoomIn(1.5, 0, 0)
 	cam.MoveTo(40, 20)
@@ -72,7 +72,7 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 	// over a wrapping world's seam
 	space.Edges = aabbworld.Torus
 	once = look.NewRenderer(brd, atlas, brd.Map(), space)
-	cam = icamera.NewFromSpace(space.Width, space.Height, aabbworld.Torus)
+	cam = cameratest.NewFromSpace(space.Width, space.Height, aabbworld.Torus)
 	cam.SetViewport(200, 150)
 	cam.ZoomIn(1.5, 0, 0)
 	cam.MoveTo(190, 20)
@@ -114,7 +114,7 @@ func TestRenderer_DrawsTheGridOverABoardComposedOnce(t *testing.T) {
 		every := newRenderer(brd, atlas, c.state, brd.Map())
 		once := look.NewRenderer(brd, atlas, brd.Map(), space)
 		*once.State() = c.state
-		cam := icamera.NewFromSpace(space.Width, space.Height, 0)
+		cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
 		cam.SetViewport(200, 150)
 		cam.ZoomIn(1.3, 0, 0)
 		cam.MoveTo(10, 10)
@@ -158,7 +158,7 @@ func TestRenderer_DrawsTheBoardComposedOnceInTheOpaquePassAndItsGridOverIt(t *te
 	space := world.SpaceCfg{Width: 128, Height: 128}
 	r := look.NewRenderer(brd, &flatAtlas{}, brd.Map(), space)
 	*r.State() = gridOf(black, 1)
-	cam := icamera.NewFromSpace(space.Width, space.Height, 0)
+	cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
@@ -207,7 +207,7 @@ func TestRenderer_DressesTheGroundOnceAFrameRightAfterIt(t *testing.T) {
 	atlas.Add(render.SpriteID(1), 8, render.Solid(color.RGBA{G: 200, A: 255}))
 	atlas.Close()
 	r := look.NewRenderer(brd, atlas, dressedMap{brd.Map(), d}, space)
-	cam := icamera.NewFromSpace(space.Width, space.Height, aabbworld.Torus)
+	cam := cameratest.NewFromSpace(space.Width, space.Height, aabbworld.Torus)
 	cam.MoveTo(64, 64) // across both seams: the board drawn four times
 	render.NewComposer(r).DrawWorld(render.NewImage(128, 128), cam)
 	if len(d.passes) != 1 || d.passes[0] != render.Opaque {

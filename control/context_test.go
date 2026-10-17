@@ -22,9 +22,15 @@ func isoCamera(width, height uint32, screenW, screenH float32, heights func(geom
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
-	topo := topography.NewPlugin(w, b, topography.Config{Cell: 32, HeightUnit: 2})
+	topo := topography.NewPlugin(w, b, topography.Config{})
 	topo.Relief().SetHeights(heights)
-	cam := cameras.NewPlugin(w).New(topo.Views(topography.Isometrically), camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{
+		Turn:       true,
+		Tilt:       true,
+		Cell:       32,
+		HeightUnit: 2,
+		Cage:       topo,
+	}).New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(screenW, screenH)
 	cam.MoveTo(0, 0)
 	return cam
@@ -42,7 +48,7 @@ type hidden struct{ camera.Camera }
 func TestContext_WorldAsksThePicker(t *testing.T) {
 	cam := isoCamera(640, 640, 400, 300, plateau)
 	if _, ok := cam.(camera.Picker); !ok {
-		t.Fatal("the topography's camera is no camera.Picker")
+		t.Fatal("the camera in relief is no camera.Picker")
 	}
 	cam.MoveTo(160, 160)
 	sx, sy := cam.Project(250, 100, 12) // a point on the plateau, drawn 24 pixels above its ground

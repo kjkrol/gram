@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/render"
 )
@@ -258,7 +258,7 @@ func TestRenderer_PreparesTheFramesUniformsWithItsOwnOver(t *testing.T) {
 	needGPU(t)
 	f := &flat{grid: 6, line: [4]float32{0.5, 0, 0, 0.5}, width: 3}
 	r := New(hill{}, f, stillSky{}, Config{})
-	cam := eye{Camera: icamera.NewFromSpace(512, 512, 0), at: [3]float32{100, 256, 4}}
+	cam := eye{Camera: cameratest.NewFromSpace(512, 512, 0), at: [3]float32{100, 256, 4}}
 	frame := map[string]any{"Pixel": []float32{0.5}, "Sun": []float32{1, 2, 3}, "Cell": []float32{9, 9}}
 	u := render.UniformsOf(frame)
 	if !r.prepare(cam, u) {

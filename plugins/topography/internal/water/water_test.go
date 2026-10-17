@@ -7,8 +7,8 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	_ "github.com/kjkrol/gram/plugins/atmosphere/air" // the clouds' functions the water calls
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -45,7 +45,7 @@ func TestGlint_TheSeaReflectsTheSkysOwnColours(t *testing.T) {
 	middle := func(horizon, zenith [3]float32) [4]byte {
 		screen := render.NewImage(64, 64)
 		render.NewComposer(&sea{atlas: atlas, horizon: horizon, zenith: zenith}).
-			DrawWorld(screen, icamera.NewFromSpace(64, 64, 0))
+			DrawWorld(screen, cameratest.NewFromSpace(64, 64, 0))
 		pix := make([]byte, 4*64*64)
 		screen.ReadPixels(pix)
 		i := 4 * (32*64 + 32)

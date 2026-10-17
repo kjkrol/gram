@@ -8,8 +8,8 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -51,13 +51,13 @@ func TestSun_ColoursItsLightAndTheSkysAndHandsTheFrameThem(t *testing.T) {
 		t.Errorf("ground in shadow at dusk is lit %v, want the sky's blue light alone", got)
 	}
 	c := render.NewComposer(source(func(f *render.Frame) { dusk.Frame(f) }))
-	c.DrawWorld(nil, icamera.NewFromSpace(64, 64, 0))
+	c.DrawWorld(nil, cameratest.NewFromSpace(64, 64, 0))
 	got := c.Uniforms()
 	if got["SunStrength"][0] != 0.5 || got["SunColor"][1] != 0.5 || got["SkyColor"][2] != 1 || !near(got["Ambience"][2], 0.4) || got["Sun"][2] != 1 {
 		t.Errorf("the shader is handed %v, want the sun's way and strength, the colours of its light and the sky's, and the sky's light on every surface", got)
 	}
 	c = render.NewComposer(source(func(f *render.Frame) { sky.DefaultSun.Frame(f) }))
-	c.DrawWorld(nil, icamera.NewFromSpace(64, 64, 0))
+	c.DrawWorld(nil, cameratest.NewFromSpace(64, 64, 0))
 	if got := c.Uniforms(); got["SunColor"][0] != 1 || got["SkyColor"][2] != 1 {
 		t.Errorf("the default sun hands the shader colours %v and %v, want white", got["SunColor"], got["SkyColor"])
 	}

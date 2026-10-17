@@ -4,7 +4,7 @@ import (
 	"image/color"
 	"testing"
 
-	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 )
 
 func pieces(f *Frame) [][3]float32 {
@@ -20,7 +20,7 @@ func pieces(f *Frame) [][3]float32 {
 }
 
 func TestFrame_AppendTakesBackWhatABranchGatheredInOrder(t *testing.T) {
-	cam := icamera.NewFromSpace(100, 100, 0)
+	cam := cameratest.NewFromSpace(100, 100, 0)
 	quad := func(x float32) Corners { return Corners{{x, 0}, {x + 1, 0}, {x, 1}, {x + 1, 1}} }
 	draw := func(f *Frame, from, to int) {
 		for i := from; i < to; i++ {

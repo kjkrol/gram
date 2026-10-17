@@ -7,9 +7,9 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -278,7 +278,7 @@ func TestHaze_GrowsWithDistance(t *testing.T) {
 	if near <= 0 || near >= far || far >= 1 || math.Abs(float64(w.Haze(eyed{}, 100, 0, 10))-(1-math.Exp(-1))) > 1e-6 {
 		t.Errorf("the haze 10, 100 and 300 off is %v, %v and %v; want growing, 1 − 1/e at the visibility", near, w.Haze(eyed{}, 100, 0, 10), far)
 	}
-	if h := w.Haze(icamera.NewFromSpace(64, 64, 0), 1000, 0, 0); h != 0 {
+	if h := w.Haze(cameratest.NewFromSpace(64, 64, 0), 1000, 0, 0); h != 0 {
 		t.Errorf("through a camera without an eye the haze is %v, want 0", h)
 	}
 }
@@ -303,7 +303,7 @@ func TestWeather_HandsTheFrameTheAirAndTheSkysColours(t *testing.T) {
 	sun := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
 	w := air.Weather{Wind: [2]float32{3, 4}, Drift: [2]float32{10, 20}, Clouds: 0.6}
 	c := render.NewComposer(source(func(f *render.Frame) { w.Frame(f, sun, 0, 0) }))
-	c.DrawWorld(nil, icamera.NewFromSpace(64, 64, 0))
+	c.DrawWorld(nil, cameratest.NewFromSpace(64, 64, 0))
 	got := c.Uniforms()
 	if got["Wind"][1] != 4 || got["Drift"][0] != 10 || got["Cover"][0] != 0.6 {
 		t.Errorf("the shader is handed wind %v, drift %v, cover %v; want the weather's", got["Wind"], got["Drift"], got["Cover"])

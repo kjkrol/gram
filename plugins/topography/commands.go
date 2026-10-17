@@ -23,17 +23,17 @@ var (
 	_ command.Command = HazeFromAbove{}
 )
 
-// Queues are where the view's, the shaping's and the shadows' commands land.
+// Queues are where the shaping's and the shadows' commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
-	return append(append(p.camQueues.queues(), p.shaper.queues()...), &p.coarse, &p.hazing)
+	return append(p.shaper.queues(), &p.coarse, &p.hazing)
 }
 
-// DefaultBindings are the views' keys, Shift+= and Shift+- raising and lowering the ground under
-// the cursor (= and - alone zoom the camera), a left drag with L held levelling it, H switching
-// the shadows' detail and Ctrl+F the haze seen from above.
+// DefaultBindings are Shift+= and Shift+- raising and lowering the ground under the cursor (= and
+// - alone zoom the camera), a left drag with L held levelling it, H switching the shadows' detail
+// and Ctrl+F the haze seen from above.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	at := func(c control.Context) geom.Vec { return c.World(c.Cursor) }
-	return append(cameraBindings(p.cfg.Perspective),
+	return append([]control.Binding{},
 		control.Build(control.KeyPress{Key: control.KeyEqual, Mods: control.Mods{Shift: true}},
 			"Raise the ground",
 			func(c control.Context) (Raise, bool) { return Raise{At: at(c)}, true }),

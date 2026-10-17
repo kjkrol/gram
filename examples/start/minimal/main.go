@@ -101,7 +101,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
 	a.motion = motion.NewPlugin(a.world)
 	a.collision = collision.NewPlugin(a.world, a.motion).WithStats(&a.stats)
-	a.cameras = cameras.NewPlugin(a.world)
+	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
 	a.telemetry = telemetry.NewPlugin(a.world)
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras)
 }
@@ -152,7 +152,7 @@ var (
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	view := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), a.world.Picture())
+	view := render.NewFeed(a.cameras.New(cameras.FromAbove, camera.Config{}), a.world.Picture())
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
 		ui.Image(view).Input(a.players.Through(a.player)),

@@ -6,7 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 )
 
 var (
@@ -74,7 +74,7 @@ func groundOf(a *Atlas) *groundSource {
 
 func shot(t *testing.T, sources ...Source) func(x, y int) [4]byte {
 	t.Helper()
-	cam := icamera.NewFromSpace(64, 64, 0)
+	cam := cameratest.NewFromSpace(64, 64, 0)
 	cam.SetViewport(64, 64)
 	screen := NewImage(64, 64)
 	NewComposer(sources...).DrawWorld(screen, cam)

@@ -79,9 +79,9 @@ cgo. Without a GPU the tests that draw skip themselves.
 | **Conversations** | `plugins/dialog` | Nodes of lines and answers from YAML, every unit with lines of its own; what an answer changes is the game's own |
 | **Board and navigation** | `plugins/board`, `plugins/navigation` | Square or hex grid with terrain, ways and what stands on it, in a world with heights; a map laid out of a file; `MoveOrder` paths that re-route, onto a bridge's deck or under it |
 | **Bridges** | `plugins/bridges` | Bridges built by one set of rules whoever builds them: a level's file, the map maker, a player with a bridge in hand |
-| **Topography** | `plugins/topography` | A map in relief on the GPU: heights shaped and priced, the sun's light and shadows, water glinting and running, from above, isometrically or in perspective |
+| **Topography** | `plugins/topography` | A map in relief on the GPU: heights shaped and priced, the sun's light and shadows, water glinting and running; the cameras' cage |
 | **Atmosphere** | `plugins/atmosphere` | The calendar, the sky of the hour (the Earth's with the real stars, or a game's own of four parts), the climate and the weather, what falls and what it does to the board |
-| **Selection, players, cameras** | `plugins/selection`, `plugins/players`, `plugins/cameras` | Click and marquee into `Selected`; players over the command handlers, their bindings and a list of keys (K); cameras made where a scene shows them, fastened over a unit, behind it or inside it |
+| **Selection, players, cameras** | `plugins/selection`, `plugins/players`, `plugins/cameras` | Click and marquee into `Selected`; players over the command handlers, their bindings and a list of keys (K); cameras made where a scene shows them, from above, isometrically or in perspective, kept out of what a map makes solid, fastened over a unit, behind it or inside it |
 | **Telemetry** | `plugins/telemetry` | The panel in the corner saying how the game runs — the frame rate, the ticks, where a frame's time goes, the entities, the game time, the plugins' and the game's own lines — in every Stage with a world, shown and hidden with ~ |
 | **Persistence** | `game.Persistence` | Save, load and list the active Stage's ECS and every tracked value by name |
 | **Rendering** | `render`, `camera` | Everything drawn on the GPU (WebGPU, WGSL): sources drawn over one another by height in a shared depth buffer, the ground first and the marks last, `Direct` sources with shaders of their own, a picture kept on the GPU (`Still`), an atlas baked at `Close` |
@@ -198,7 +198,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
 	a.motion = motion.NewPlugin(a.world)
 	a.collision = collision.NewPlugin(a.world, a.motion).WithStats(&a.stats)
-	a.cameras = cameras.NewPlugin(a.world)
+	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
 	a.telemetry = telemetry.NewPlugin(a.world)
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras)
 }
@@ -249,7 +249,7 @@ var (
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	view := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), a.world.Picture())
+	view := render.NewFeed(a.cameras.New(cameras.FromAbove, camera.Config{}), a.world.Picture())
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
 		ui.Image(view).Input(a.players.Through(a.player)),
@@ -369,7 +369,7 @@ Saving and loading are the engine's: commands like any other (`game.Save`, `game
 Stage entered from its save from any other, a menu's Continue.
 
 A Scene is one thing a Stage can show. Its screen is a `ui` tree: the world's picture, all its
-plugins draw, through a camera made beside it, `render.NewFeed(s.cameras.New(cameras.TopDown(),
+plugins draw, through a camera made beside it, `render.NewFeed(s.cameras.New(cameras.FromAbove,
 camera.Config{}), s.world.Picture())`, wired to the player who acts through it,
 `ui.Image(feed).Input(s.players.Through(player))`. The Stage's `Scenes` registry is static; the
 `Composition` over it is live: which Scenes are visible, in what order, and which is active, the
@@ -576,7 +576,7 @@ has a `doc.go` describing what it brings. What is left to do is in
 | [`plugins/vision`](plugins/vision/doc.go) | `Sight` cones into `Sighted`, `Sighting` rules, the views drawn |
 | [`plugins/board`](plugins/board/doc.go) | A square or hex grid with terrain over the world: the `Board`, `Layout` and `Map`, `NewUnits`, `NewEntities`, a level out of a file (`Lay`); `cell` the vocabulary of a cell, `unit` of a unit on it, `grid` the topology, `look` how it is drawn, `ground` what its ground is to the others, `water` and `network` rivers and roads |
 | [`plugins/atmosphere`](plugins/atmosphere/doc.go) | The sky over a world on the world's clock: `calendar`, `sky`, `celestial`, `climate` and its `weather`, `air`, `precipitation`, `weathering`, `backdrop` |
-| [`plugins/topography`](plugins/topography/doc.go) | A map in relief drawn on the GPU: the heights, the light and the shadows, the water, the views from above, isometric and in perspective, the commands shaping the ground; `relief` and `painter` its vocabulary |
+| [`plugins/topography`](plugins/topography/doc.go) | A map in relief drawn on the GPU: the heights, the light and the shadows, the water, the commands shaping the ground, the cameras' cage; `relief` and `painter` its vocabulary |
 | [`plugins/navigation`](plugins/navigation/doc.go) | `MoveOrder` paths across a board, re-routing as terrain changes, on a bridge's deck or under it; `MoveTo` a cell or an entity by name; a patrol as a plan over the unit's `Round` (`Onward`); the crowd as rules over `Touch`; routes drawn |
 | [`plugins/driving`](plugins/driving/doc.go) | Units driven by hand: `Ahead`, `Back`, `Turn`, `Toward`, `Jump`, `Tank` and `Compass` keys |
 | [`plugins/gravity`](plugins/gravity/doc.go) | Bodies falling, standing and leaping: `Pull`, `Body`, `Leap`, `Away`, `Landing` |
@@ -584,7 +584,7 @@ has a `doc.go` describing what it brings. What is left to do is in
 | [`plugins/bullet`](plugins/bullet/doc.go) | Shots fired and flown: `Shoot`, `Shots`, `Flight`, `Landing`, `Resting`, `Burst` into `Blast`s |
 | [`plugins/selection`](plugins/selection/doc.go) | `Select` into `Selected`, `Hovered`, `Selected(roles...)` and `Pointed()` as the targets of commands |
 | [`plugins/dialog`](plugins/dialog/doc.go) | Conversations as data: `Node`s from YAML, a unit's `Script`, the game's `Changes` and `Conditions`, `Window` |
-| [`plugins/cameras`](plugins/cameras/doc.go) | The cameras a game looks through: `New`, `Pan`, `Zoom`, `Follow`, `LookAt`, `Keys` |
+| [`plugins/cameras`](plugins/cameras/doc.go) | The cameras a game looks through: `Config`, `New`, the `Cage`, `Pan`, `Zoom`, `Follow`, `CenterOn`, the views' `View`, `Turn`, `Tilt`, `Ride`, `Keys` |
 | [`plugins/players`](plugins/players/doc.go) | Players over the command handlers: bindings into commands, `Through` and `IssueAs` for a ui scene, the list of keys; `players/owner` whose a unit is |
 | [`plugins/telemetry`](plugins/telemetry/doc.go) | The telemetry panel: standard lines, the plugins' reporters and the game's own lines, a scene of its own in every Stage with a world, ~ |
 | [`internal/engine`](internal/engine/doc.go) | The `Engine`: the window's loop, one active Stage, saves and loads |

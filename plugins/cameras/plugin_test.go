@@ -19,11 +19,11 @@ func newWorld() *world.Plugin {
 
 func TestCameras_AreSavedAndRestoredWithTheGame(t *testing.T) {
 	newCamera := func(p *cameras.Plugin, w, h float32) camera.Camera {
-		cam := p.New(cameras.TopDown(), camera.Config{})
+		cam := p.New(cameras.FromAbove, camera.Config{})
 		cam.SetViewport(w, h)
 		return cam
 	}
-	saved := cameras.NewPlugin(newWorld())
+	saved := cameras.NewPlugin(newWorld(), cameras.Config{})
 	newCamera(saved, 200, 200)
 	second := newCamera(saved, 300, 100)
 	second.Translate(120, 80)
@@ -36,7 +36,7 @@ func TestCameras_AreSavedAndRestoredWithTheGame(t *testing.T) {
 		}
 	}
 
-	loaded := cameras.NewPlugin(newWorld())
+	loaded := cameras.NewPlugin(newWorld(), cameras.Config{})
 	first := newCamera(loaded, 200, 200) // made before the load
 	dec := gob.NewDecoder(&buf)
 	for _, v := range loaded.Serializable().Persisted() {
@@ -58,9 +58,9 @@ func TestCameras_AreSavedAndRestoredWithTheGame(t *testing.T) {
 }
 
 func TestNew_EveryCameraHasAConfigOfItsOwn(t *testing.T) {
-	p := cameras.NewPlugin(newWorld())
-	red := p.New(cameras.TopDown(), camera.Config{Zoom: 2})
-	blue := p.New(cameras.TopDown(), camera.Config{})
+	p := cameras.NewPlugin(newWorld(), cameras.Config{})
+	red := p.New(cameras.FromAbove, camera.Config{Zoom: 2})
+	blue := p.New(cameras.FromAbove, camera.Config{})
 	if red.Zoom() != 2 || blue.Zoom() != 1 {
 		t.Errorf("red's camera at zoom %v, blue's at %v; want each its own: 2 and 1", red.Zoom(), blue.Zoom())
 	}

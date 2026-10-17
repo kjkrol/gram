@@ -30,6 +30,6 @@ var (
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	cam := a.cameras.New(cameras.TopDown(), camera.Config{Follow: SoldierName})
+	cam := a.cameras.New(cameras.FromAbove, camera.Config{Follow: SoldierName})
 	return ui.Image(render.NewFeed(cam, a.world.Picture())).Input(a.players.Through(a.player))
 }

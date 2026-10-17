@@ -50,7 +50,7 @@ func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint
 		entries = append(entries, movers.Entry(mover{float64(10 + (i%side)*spacing), float64(10 + (i/side)*spacing)}))
 	}
 	w.Seed(entries...)
-	ctx.cam = ctx.camera(cameras.TopDown(), float32(view), float32(view))
+	ctx.cam = ctx.camera(cameras.Config{}, cameras.FromAbove, float32(view), float32(view))
 	w.ViewFor(ctx.cam) // its View kept from the first tick
 	if arrange != nil {
 		arrange(w, movers)

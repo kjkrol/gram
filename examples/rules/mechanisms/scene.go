@@ -30,7 +30,7 @@ var (
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	feed := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{Follow: HeroName}),
+	feed := render.NewFeed(a.cameras.New(cameras.FromAbove, camera.Config{Follow: HeroName}),
 		a.world.Picture())
 	return ui.Layers(
 		ui.Image(feed).Input(a.players.Through(a.player)),

@@ -3,10 +3,10 @@ package hexes
 import (
 	"testing"
 
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -20,7 +20,7 @@ func TestGround_OutlinesThePrismsInTheBoardsGridLine(t *testing.T) {
 	b := board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
 	b.NewAtlas(32).Close()
 	h := New(w, b, nil, nil, nil)
-	cam := icamera.NewFromSpace(256, 256, 0)
+	cam := cameratest.NewFromSpace(256, 256, 0)
 	want := board.DefaultGridLine(g)
 	a := float32(want.Color.A) / 255
 	line, width := h.gridOf(cam)
@@ -33,7 +33,7 @@ func TestGround_OutlinesThePrismsInTheBoardsGridLine(t *testing.T) {
 	if _, width := h.gridOf(cam); width != 0 {
 		t.Errorf("cells a pixel across outlined %v pixels wide, want none", width)
 	}
-	cam = icamera.NewFromSpace(256, 256, 0)
+	cam = cameratest.NewFromSpace(256, 256, 0)
 	b.ShowGrid(false)
 	if _, width := h.gridOf(cam); width != 0 {
 		t.Errorf("the board's grid hidden, the prisms outlined %v pixels wide, want none", width)

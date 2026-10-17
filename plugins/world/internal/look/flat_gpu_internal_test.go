@@ -11,7 +11,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity"
-	icamera "github.com/kjkrol/gram/internal/camera"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
 )
@@ -46,7 +46,7 @@ func TestFlatLook_DrawsOnTheGPUAsOnTheFrame(t *testing.T) {
 	})
 	atlas.Close()
 	boxes := []plane.AABB{plane.NewAABB(geom.NewVec(20, 30), 16, 16), plane.NewAABB(geom.NewVec(250, 60), 12, 20), plane.NewAABB(geom.NewVec(90, 250), 30, 10)}
-	cam := icamera.NewFromSpace(256, 256, aabbworld.Torus)
+	cam := cameratest.NewFromSpace(256, 256, aabbworld.Torus)
 	cam.SetViewport(160, 120)
 	cam.ZoomIn(2, 0, 0)
 	cam.MoveTo(230, 20) // the seam in view

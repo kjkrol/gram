@@ -5,12 +5,12 @@ import (
 	"os"
 	"testing"
 
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/draw"
 	"github.com/kjkrol/gram/plugins/board/look"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -42,7 +42,7 @@ func TestBands_AWayIsThePartOfItsKindsSpriteUnderIt(t *testing.T) {
 	atlas.Close()
 	space := world.SpaceCfg{Width: 256, Height: 256}
 	r := look.NewRenderer(brd, atlas, covered{draw.NewBands(brd)}, space)
-	cam := icamera.NewFromSpace(space.Width, space.Height, 0)
+	cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
 	cam.SetViewport(256, 256)
 	screen := render.NewImage(256, 256)
 	render.NewComposer(r).DrawWorld(screen, cam)

@@ -18,7 +18,7 @@ var grassColor = color.RGBA{R: 60, G: 95, B: 60, A: 255}
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	feed := render.NewFeed(a.cameras.New(cameras.TopDown(), camera.Config{}), a.world.Picture())
+	feed := render.NewFeed(a.cameras.New(cameras.FromAbove, camera.Config{}), a.world.Picture())
 	return ui.Layers(
 		ui.Image(feed).Input(a.players.Through(a.player)),
 		ui.Label("walking, braking").On(ceremony.Named(WalkerName)),

@@ -72,9 +72,9 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	})
 	unit := kind.Named[float64](c.w.Kinds(), "unit")
 	c.sel = selection.NewPlugin(c.w)
-	c.cams = cameras.NewPlugin(c.w)
+	c.cams = cameras.NewPlugin(c.w, cameras.Config{})
 	c.players = players.NewPlugin(c.w, c.cams, c.sel)
-	cam := c.cams.New(cameras.TopDown(), camera.Config{})
+	cam := c.cams.New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(200, 200)
 	cam.MoveTo(0, 0)
 	c.one, c.two = c.players.Local("one"), c.players.Add("two")
@@ -235,7 +235,7 @@ func TestLookAt_CentresTheCameraOnceAndLetsGo(t *testing.T) {
 	c := newCamp(t, twoUnits)
 	far := c.ids()[200]
 	c.moveTo(far, 700, 600)
-	c.w.Carrier().Put(c.one.ID, cameras.LookAt{Camera: c.cam, Entity: far})
+	c.w.Carrier().Put(c.one.ID, cameras.CenterOn{Camera: c.cam, Entity: far})
 	c.tick()
 	if !centred(c, 700, 600) || fastening(c) != (camera.Fastening{}) {
 		t.Fatalf("after LookAt: centred %v, fastened %+v; want centred and loose", centred(c, 700, 600), fastening(c))
@@ -252,7 +252,7 @@ func TestNew_ACameraStartsFastenedToTheEntityItsConfigNames(t *testing.T) {
 		return []kind.Entry{unit.Entry(100), unit.Entry(300).Named("scout")}
 	})
 	scout := c.ids()[300]
-	cam := c.cams.New(cameras.TopDown(), camera.Config{Follow: "scout"})
+	cam := c.cams.New(cameras.FromAbove, camera.Config{Follow: "scout"})
 	cam.SetViewport(200, 200)
 	c.tick()
 	if f := cam.(camera.Fastenable).Fastening(); f != (camera.Fastening{Entity: scout, How: camera.Centred}) {

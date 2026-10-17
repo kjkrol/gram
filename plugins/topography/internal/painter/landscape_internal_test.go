@@ -9,7 +9,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/gram/camera"
-	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
@@ -17,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/look"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/plugins/world"
@@ -116,7 +116,7 @@ func TestTile_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { flows[t.ID], runs[t.ID] = t.Flow() })
 	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
 	r := dressed(brd, d, look)
-	compose(r, icamera.NewFromSpace(30, 30, 0))
+	compose(r, cameratest.NewFromSpace(30, 30, 0))
 
 	want := float32(10 * math.Sqrt(0.4))
 	for k, v := range flows[at(1, 1)] {
@@ -144,7 +144,7 @@ func wayPiecesAt(
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { got[t.ID] = append([]WayPiece(nil), t.Way()...) })
 	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
 	r := dressed(brd, d, look)
-	cam := icamera.NewFromSpace(w, h, 0)
+	cam := cameratest.NewFromSpace(w, h, 0)
 	cam.ZoomIn(zoom, float32(w)/2, float32(h)/2)
 	if z := cam.Zoom(); math.Abs(float64(z-zoom)) > 1e-4 {
 		t.Fatalf("the camera zoomed to %v, want %v", z, zoom)
@@ -305,7 +305,7 @@ func TestTile_BlendsWeighTheNeighboursGroundsAtTheTilesPoints(t *testing.T) {
 		look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { got[t.ID] = append([]BlendPiece(nil), t.Blends()...) })
 		d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
 		r := dressed(brd, d, look)
-		compose(r, icamera.NewFromSpace(30, 30, 0))
+		compose(r, cameratest.NewFromSpace(30, 30, 0))
 		return got
 	}
 	got := blends()
@@ -353,7 +353,7 @@ func TestTile_ByTheSeaTheLandIsLaidOverTheSeaUnderIt(t *testing.T) {
 	})
 	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
 	r := dressed(brd, d, look)
-	compose(r, icamera.NewFromSpace(30, 30, 0))
+	compose(r, cameratest.NewFromSpace(30, 30, 0))
 
 	if bases[at(1, 1)] != sea.SpriteID || bases[at(2, 1)] != earth.SpriteID {
 		t.Errorf("bases %v by the sea, %v away from it; want the sea and the earth", bases[at(1, 1)], bases[at(2, 1)])
@@ -395,7 +395,7 @@ func TestRenderer_KeepsATilesBakeUntilACellRoundItChanges(t *testing.T) {
 	})
 	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
 	r := dressed(brd, d, look)
-	cam := icamera.NewFromSpace(60, 30, 0)
+	cam := cameratest.NewFromSpace(60, 30, 0)
 	compose(r, cam)
 	baked := d.bakes[1*6+1].ver
 	if len(got) != 0 {
@@ -441,7 +441,8 @@ func TestTile_FarOffTheWaterGlintsLessAndThenNot(t *testing.T) {
 		glints bool
 		shore  bool
 	}{{1, 0.8, true, true}, {9.0 / 32, 0.4, true, false}, {4.0 / 32, 0, false, false}} {
-		cam := icamera.NewFromSpace(128, 128, 0, geom.NewAABBAt(geom.NewVec(0, 0), 16, 16)) // room to zoom out to 1/8
+		// room to zoom out to 1/8
+		cam := cameratest.NewFromSpace(128, 128, 0, geom.NewAABBAt(geom.NewVec(0, 0), 16, 16))
 		cam.ZoomIn(c.zoom, 64, 64)
 		if z := cam.Zoom(); math.Abs(float64(z-c.zoom)) > 1e-4 {
 			t.Fatalf("the camera zoomed to %v, want %v", z, c.zoom)
@@ -479,7 +480,7 @@ func TestTile_DrawSurfaceLaysTheWatersMaterial(t *testing.T) {
 			brd.SetAll(styled(st, cell.Kind{Name: cell.Named("k13"), Allows: cell.Water, SpriteID: 1}, Style{Shine: 1, Flow: 20}))
 		}
 		var f render.Frame
-		cam := icamera.NewFromSpace(96, 96, 0)
+		cam := cameratest.NewFromSpace(96, 96, 0)
 		look := lookFn(func(f *render.Frame, _ camera.Camera, t *tile) {
 			if t.ID == c {
 				unit := render.Corners{{0, 0}, {1, 0}, {0, 1}, {1, 1}}
@@ -527,7 +528,7 @@ func TestTile_AShinyCellShines(t *testing.T) {
 		})
 		d := New(brd, reliefFor(brd), skyOf(sun), heights, st)
 		r := dressed(brd, d, look)
-		compose(r, icamera.NewFromSpace(256, 256, 0))
+		compose(r, cameratest.NewFromSpace(256, 256, 0))
 		return out
 	}
 	day := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3}
@@ -557,7 +558,7 @@ func TestTile_TheShoreLiesTheWayOfTheNearestCellThatDoesNotShine(t *testing.T) {
 	sun := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6}
 	d := New(brd, reliefFor(brd), skyOf(sun), true, st)
 	r := dressed(brd, d, look)
-	compose(r, icamera.NewFromSpace(320, 128, 0))
+	compose(r, cameratest.NewFromSpace(320, 128, 0))
 	at := func(x uint32) water.Shores { c := grid.At(x, 1); return shores[c] }
 
 	if c := at(1)[0]; c.Dist != 0 || c.Near != 1 || abs32(c.X+1) > 1e-4 || abs32(c.Y) > 1e-4 {
@@ -627,7 +628,7 @@ func TestTile_AWayTurnsIntoTheKindItMixesWith(t *testing.T) {
 	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
 	d.kinds = kindsOf{sea, stream}
 	r := dressed(brd, d, look)
-	compose(r, icamera.NewFromSpace(30, 30, 0))
+	compose(r, cameratest.NewFromSpace(30, 30, 0))
 	if len(pieces) == 0 {
 		t.Fatal("no pieces")
 	}
