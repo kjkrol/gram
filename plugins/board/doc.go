@@ -103,7 +103,7 @@
 //
 // The board is flat: what is high or steep is its [Map]'s (plugins/topography), which prices
 // every slope ([Map.Climb], [Map.Least], [Map.Slope]). The board is the ground the other plugins
-// meet: [Plugin.Heights], [Plugin.Surfaces], [Plugin.Cover] for sight, and its Solid cells the
+// meet: [Plugin.Heights], [Plugin.Footing], [Plugin.Cover] for sight, and its Solid cells the
 // solid ground collision pushes colliders out of ([Plugin.WithCollision]). Its cell.Occupancy
 // tracks who holds each cell; the board has every unit hold the cell it stands on and lets go of
 // the holds of whoever left the world.
@@ -124,7 +124,14 @@
 // same way: Define over the board (NewUnits, NewEntities), Look on the world's atlas as any
 // figure's. [Plugin.Tiles] and [Plugin.Figures], called in the Stage's Figures link, hand them
 // on to the world's figures, which the Stage leads through its sections; [Atlas.Looks]
-// declares the tiles' looks, the world atlas's the figures'.
+// declares the tiles' looks, then the surfaces', the world atlas's the figures'.
+//
+// # Surface
+//
+// A [Surface] is how the board looks beyond its tiles: its Look sets on the board's [Atlas] the
+// [Line] the grid is drawn in ([Atlas.Grid]) and how wide a cell held is outlined
+// ([Atlas.Holds]). [Plugin.Surfaces], called in the Stage's Figures link, notes them, a later
+// setting taking the place of an earlier; none draws [DefaultGridLine] and [DefaultHoldWidth].
 //
 // # Vocabulary
 //

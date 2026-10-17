@@ -126,6 +126,7 @@ var profile = steering.Steering{
 
 func (a *arena) defineFigures() {
 	a.board.Tiles(grass{}, wall{})
+	a.board.Surfaces(surface{})
 	a.board.Figures(guard{}, wanderer{})
 }
 

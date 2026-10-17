@@ -114,8 +114,6 @@ func (d *litDressing) FaceLight(t *look.Tile, dx, dy int) render.Light {
 	return d.Dressing.FaceLight(t, dx, dy)
 }
 
-func (d *litDressing) Covers(t *look.Tile) bool { return d.Dressing != nil && d.Dressing.Covers(t) }
-
 func (d *litDressing) Dress(
 	f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1 float32, at render.At,
 ) {

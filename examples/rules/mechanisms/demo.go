@@ -151,9 +151,11 @@ type standingRow struct {
 
 func standingAt(r standingRow) cell.ID { return r.At }
 
-// the tiles the board is laid with and the figures standing on it, in the order they are defined
+// the tiles the board is laid with, its surface and the figures standing on it, in the order
+// they are defined
 func (a *arena) defineFigures() {
 	a.board.Tiles(grass{}, pit{}, fence{})
+	a.board.Surfaces(surface{})
 	a.board.Figures(lever{}, hero{}, plate{}, trapdoor{}, gate{})
 }
 

@@ -20,6 +20,7 @@ type View struct {
 	occupancy cell.Occupancy
 	height    Height
 	shown     bool
+	width     float32
 
 	frame   *render.Frame
 	cam     camera.Camera
@@ -33,7 +34,6 @@ type View struct {
 type Height func(c cell.ID, p geom.Vec, deck bool) float64
 
 const (
-	holdWidth = 2
 	// of the way to the cell's middle; a deck's further in
 	groundInset = 0.12
 	deckInset   = 0.26
@@ -43,12 +43,16 @@ const (
 
 var _ render.Source = (*View)(nil)
 
-// NewView is a View, hidden, of o's holds over g, each drawn at the height height says.
+// NewView is a View, hidden, of o's holds over g, each drawn at the height height says, in no
+// line till Width.
 func NewView(g grid.Grid, o cell.Occupancy, height Height) *View {
 	v := &View{grid: g, occupancy: o, height: height}
 	v.cell, v.hold = v.inCell, v.drawHold
 	return v
 }
+
+// Width sets how many pixels wide a hold is outlined.
+func (v *View) Width(px float32) { v.width = px }
 
 // Show shows the holds, or hides them.
 func (v *View) Show(shown bool) { v.shown = shown }
@@ -88,12 +92,12 @@ func (v *View) drawHold(e uid.UID64, _ cell.Domain, deck bool) {
 		if i == 0 {
 			x0, y0 = x, y
 		} else {
-			v.frame.Line(at, xp, yp, x, y, holdWidth, col)
+			v.frame.Line(at, xp, yp, x, y, v.width, col)
 		}
 		xp, yp = x, y
 	}
 	if len(v.outline) > 1 {
-		v.frame.Line(at, xp, yp, x0, y0, holdWidth, col)
+		v.frame.Line(at, xp, yp, x0, y0, v.width, col)
 	}
 }
 

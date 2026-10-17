@@ -197,6 +197,7 @@ func ordered() comp.Comp {
 // the lake's role before the witch's rule that names it
 func (a *arena) defineFigures() {
 	a.board.Tiles(grass{}, water{})
+	a.board.Surfaces(surface{})
 	a.board.Figures(witch{}, walker{}, boat{})
 }
 

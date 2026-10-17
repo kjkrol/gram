@@ -92,17 +92,28 @@ func TestRenderer_DrawsTheGridOverABoardComposedOnce(t *testing.T) {
 	atlas := render.NewAtlas()
 	atlas.Add(render.SpriteID(1), 4, render.Solid(color.RGBA{R: 60, G: 160, B: 60, A: 255}))
 	atlas.Close()
+	square := grid.DefaultGrids{}.Square(8, 8, 32)
+	hex := grid.DefaultGrids{}.Hex(8, 8, 20)
+	red := color.RGBA{R: 220, G: 30, B: 30, A: 200}
 	for _, c := range []struct {
-		name       string
-		grid       grid.Grid
-		most, mean int // the largest difference of a channel allowed, and of all of them on average, ×100
-	}{{"square", grid.DefaultGrids{}.Square(8, 8, 32), 1, 1}, {"hex", grid.DefaultGrids{}.Hex(8, 8, 20), 64, 150}} {
+		name  string
+		grid  grid.Grid
+		state look.RenderState
+		// the largest difference of a channel allowed, and of all of them on average, ×100: the
+		// lines laid tile by tile pile up where they cross and reach past the board's corners
+		most, mean int
+	}{
+		{"square", square, gridOf(color.RGBA{A: 115}, 1), 40, 5},
+		{"hex", hex, gridOf(color.RGBA{R: 20, G: 20, B: 20, A: 184}, 1), 64, 150},
+		{"square in red, 3 pixels", square, gridOf(red, 3), 40, 10},
+		{"hex in red, 3 pixels", hex, gridOf(red, 3), 180, 150},
+	} {
 		brd := board.NewBoard(c.grid)
 		brd.SetAll(grass)
 		space := world.SpaceCfg{Width: 400, Height: 300}
-		every := newRenderer(brd, atlas, look.RenderState{ShowGridLines: true}, brd.Map())
+		every := newRenderer(brd, atlas, c.state, brd.Map())
 		once := look.NewRenderer(brd, atlas, brd.Map(), space)
-		once.State().ShowGridLines = true
+		*once.State() = c.state
 		cam := icamera.NewFromSpace(space.Width, space.Height, 0)
 		cam.SetViewport(200, 150)
 		cam.ZoomIn(1.3, 0, 0)
@@ -126,7 +137,9 @@ func TestRenderer_DrawsTheGridOverABoardComposedOnce(t *testing.T) {
 			most, sum = max(most, d), sum+d
 		}
 		if most > c.most || 100*sum/len(a) > c.mean {
-			t.Errorf("%s: the grid drawn on the GPU differs by %d at most, %.2f on average; want at most %d and %.2f", c.name, most, float64(sum)/float64(len(a)), c.most, float64(c.mean)/100)
+			t.Errorf("%s: the grid drawn on the GPU differs by %d at most, %.2f on average; want "+
+				"at most %d and %.2f", c.name, most, float64(sum)/float64(len(a)), c.most,
+				float64(c.mean)/100)
 		}
 	}
 }
@@ -144,7 +157,7 @@ func TestRenderer_DrawsTheBoardComposedOnceInTheOpaquePassAndItsGridOverIt(t *te
 	brd.SetAll(cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land})
 	space := world.SpaceCfg{Width: 128, Height: 128}
 	r := look.NewRenderer(brd, &flatAtlas{}, brd.Map(), space)
-	r.State().ShowGridLines = true
+	*r.State() = gridOf(black, 1)
 	cam := icamera.NewFromSpace(space.Width, space.Height, 0)
 	var f render.Frame
 	f.Reset(cam)

@@ -6,13 +6,16 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Atlas is the board's sprite sheet under construction: Add each kind's look by its name, chain
-// Under for its covers, then Close it: the board takes it as its looks.
+// Atlas is the board's looks under construction: Add each kind's look by its name, chain Under
+// for its covers, set the surface's Grid and Holds, then Close it: the board takes it as its
+// looks.
 type Atlas struct {
 	p      *Plugin
 	atlas  *render.Atlas
 	size   int
 	shaded map[cell.Name]render.MaterialID
+	grid   Line
+	holds  float32
 }
 
 var _ render.AtlasSource = (*Atlas)(nil)
@@ -20,7 +23,14 @@ var _ render.AtlasSource = (*Atlas)(nil)
 // NewAtlas starts the board's atlas for looks declared by hand, every sprite drawn size x size
 // (the drawn size is the cell's box, this is resolution); Dress is the tiles' way.
 func (p *Plugin) NewAtlas(size int) *Atlas {
-	return &Atlas{p: p, atlas: render.NewAtlas(), size: size, shaded: map[cell.Name]render.MaterialID{}}
+	return &Atlas{
+		p:      p,
+		atlas:  render.NewAtlas(),
+		size:   size,
+		shaded: map[cell.Name]render.MaterialID{},
+		grid:   DefaultGridLine(p.Board().Grid),
+		holds:  DefaultHoldWidth,
+	}
 }
 
 // Add takes look on as the look of the cell kind named kind: a SpriteDrawer drawn once into the
@@ -46,6 +56,12 @@ func (s Slot) Under(e effect.Effect, draw render.SpriteDrawer) Slot {
 	s.a.atlas.Add(s.a.p.Covering(e), s.a.size, draw)
 	return s
 }
+
+// Grid sets the line the board's grid is drawn in.
+func (a *Atlas) Grid(l Line) { a.grid = l }
+
+// Holds sets how many pixels wide a cell held is outlined.
+func (a *Atlas) Holds(width float32) { a.holds = width }
 
 // Close lays the sheet out, bakes it and hands it to the board (Plugin.SetAtlas); call once,
 // after the last look.

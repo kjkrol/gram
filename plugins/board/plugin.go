@@ -69,6 +69,7 @@ type Plugin struct {
 	bridges     Bridges
 	cellOf      map[string]func(row any) cell.ID
 	tiles       []Tile
+	surfaces    []Surface
 	where       map[cell.ID]string // the file and line a level laid the entity on a cell by
 }
 
@@ -129,7 +130,9 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 }
 
 func (p *Plugin) newHoldsView() *occupancy.View {
-	return occupancy.NewView(p.Board().Grid, p.occupancy, p.holdAt)
+	v := occupancy.NewView(p.Board().Grid, p.occupancy, p.holdAt)
+	v.Width(DefaultHoldWidth)
+	return v
 }
 
 func (p *Plugin) Name() string { return "gram.board" }
@@ -179,8 +182,15 @@ func (p *Plugin) SetAtlas(atlas render.AtlasSource) {
 	if ba, ok := atlas.(*Atlas); ok {
 		p.renderer.Shade(ba.shaded)
 	}
+	line, holds := DefaultGridLine(p.Board().Grid), float32(DefaultHoldWidth)
+	if ba, ok := atlas.(*Atlas); ok {
+		line, holds = ba.grid, ba.holds
+	}
 	p.Res.Render = p.renderer.State()
 	p.Res.Render.ShowGridLines = p.gridShown
+	p.Res.Render.GridLine = line.Color
+	p.Res.Render.GridWidth = line.Width
+	p.holdsView.Width(holds)
 }
 
 // ShowGrid draws the grid over the board, or not, as the Grid command (B) switches it: a look,
@@ -444,9 +454,9 @@ func (p *Plugin) cast() {
 // Heights is the board's ground heights, its Map's; nil on a flat map.
 func (p *Plugin) Heights() ground.Heights { return p.mapping.Heights() }
 
-// Surfaces is where whoever moves over the board stands, the ground or a deck; nil on a flat
+// Footing is where whoever moves over the board stands, the ground or a deck; nil on a flat
 // map.
-func (p *Plugin) Surfaces() ground.Surfaces {
+func (p *Plugin) Footing() ground.Surfaces {
 	s, _ := p.mapping.Heights().(ground.Surfaces)
 	return s
 }

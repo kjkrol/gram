@@ -82,7 +82,7 @@ readable buffer cost the topography ~0.6 ms a frame, 2026-10-16 — what needs o
 ground stands reads `GroundHeights`, below); `Target.Pass` says which pass
 it is drawing; one asking for nothing is not drawn, `Frame.Places` lists the asks for a test. Lifts
 (world units over the ground): what a `look.GroundDressing` lays over tiles composed into the frame
-0.02, board materials 0.05, hex grid lines 0.1, holds 0.15, sight 0.25, routes 0.75, route goals
+0.02, board materials 0.05, grid lines 0.1, holds 0.15, sight 0.25, routes 0.75, route goals
 0.8, a bridge in hand 0.9 (over its deck's level), figures `world.FigureLift` 2 (topography's
 `spriteLift` is the same 2), an entity's box `FigureLift`+0.5 over its altitude in the order, its
 base's vertices 0.05 over it and its solid's at its altitude and top (collision's Shift+X: bases,
@@ -95,8 +95,8 @@ round the projected corners like `ToScreenQuads`, over a wrapping world the copy
 the window and one past each seam, six vertices a copy in one call): no per-figure projection, wrap
 splitting or `Visible` on the CPU any more (`Benchmark_World_Draw` −35…−50%). One WGSL shader
 (`render/shaders/compose.wgsl` over the library and every material registered with
-`render.RegisterMaterials`) draws every piece; `Frame.Line`/ `Soft` fade their edges;
-`Frame.Tile`/`TileRect` outline a tile; a piece across cells takes the place of its nearest end. A
+`render.RegisterMaterials`) draws every piece; `Frame.Line`/ `Soft` fade their edges; a piece
+across cells takes the place of its nearest end. A
 `render.Still` is a picture composed once in world units **in the order its pieces come** (no sort:
 the board composes tiles and what lies on them, then `Dressing.Across`, the bands and the ways, in a
 second round), kept on the GPU (`gpu.Kept`, its vertices holding their heights), drawn every frame
@@ -160,9 +160,11 @@ constructor is noise. A figure's `Look` styles what the plugins draw about its k
 `Slot.Styled(s)` — `selection.Highlight{Line, Width}`, `vision.Cone{Color}`,
 `navigation.RouteStyle{Line, Goal, Width}` — kept in `render.Styles` on the world's atlas
 (`world.Plugin.Styles()` once it is closed), read with `render.StyleOf[S](styles, sprite)`; the
-renderers carry the colour per instance on the GPU. `board.ShowGrid(bool)` is the grid option
-(the board's `SetAtlas` copies it into `Res.Render`, which stays nil before: topography reads nil
-as no grid).
+renderers carry the colour per instance on the GPU. `board.ShowGrid(bool)` is the grid option;
+the grid's line and the holds' width are the board's surface (`board.Surface`, `Atlas.Grid`,
+`Atlas.Holds`): the board's `SetAtlas` copies them into `Res.Render`, which stays nil before
+(`RenderState.Grid()` reads nil as no grid), and the flat grid, the terrain and the hex prisms
+draw `rgb·(1 − a·e) + line·e`, e a line `Width` pixels wide fading over a pixel either side.
 
 What each renderer draws is a look of an entity under a state, not of the plugin: navigation the
 routes and goals of an entity's `MoveOrder`; vision the cone of an entity's `Sight` (`WithStyle`,

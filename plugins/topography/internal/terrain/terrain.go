@@ -34,6 +34,7 @@ var shader = render.NewMeshShaderWith("terrain",
 		{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
 		{Name: "ShoreReach", Size: 1}, {Name: "Px", Size: 1}, {Name: "AlbedoSize", Size: 2}, {Name: "WaterPx", Size: 1}, {Name: "FlowSpan", Size: 1},
 		{Name: "Shadows", Size: 1}, {Name: "GridFrom", Size: 1}, {Name: "ShadePx", Size: 1},
+		{Name: "GridLine", Size: 4}, {Name: "GridWidth", Size: 1},
 		{Name: "Skirt", Size: 2}, {Name: "Perspective", Size: 1},
 		{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
 	})
@@ -96,9 +97,11 @@ type Painted struct {
 	Albedo, Water *render.Image
 	Px, WaterPx   int // pixels a cell
 	Shores        []water.Shore
-	Reach         float32 // the farthest a shore is seen from
-	Coast         uint64  // counts the shores' changes
-	Grid          float32 // screen pixels a cell spans from which the grid is drawn
+	Reach         float32    // the farthest a shore is seen from
+	Coast         uint64     // counts the shores' changes
+	Grid          float32    // screen pixels a cell spans from which the grid is drawn
+	GridLine      [4]float32 // premultiplied
+	GridWidth     float32    // screen pixels
 	Wet           []bool
 	Wetness       uint64 // counts the changes of Wet
 }
@@ -718,6 +721,8 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	r.set("FlowSpan", water.FlowSpan)
 	r.set("Shadows", flag(r.cfg.Shadows))
 	r.set("GridFrom", r.painted.Grid)
+	r.set("GridLine", r.painted.GridLine[:]...)
+	r.set("GridWidth", r.painted.GridWidth)
 	r.set("Skirt", skirtReach(cols, rows, cell, r.cfg.Scale), skirtRings)
 	ks := bakedScale(cols, rows, r.coarse)
 	r.set("ShadePx", float32(ks))

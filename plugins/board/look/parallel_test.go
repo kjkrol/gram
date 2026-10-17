@@ -27,7 +27,6 @@ func (*stripes) Begin(*render.Frame, camera.Camera)                {}
 func (*stripes) Sheet(atlas render.AtlasSource) render.AtlasSource { return atlas }
 func (*stripes) Base(t *look.Tile) render.SpriteID                 { return t.Sprite() }
 func (*stripes) FaceLight(*look.Tile, int, int) render.Light       { return render.Light{1, 1, 1} }
-func (*stripes) Covers(*look.Tile) bool                            { return false }
 func (*stripes) Light(t *look.Tile) render.Shade                   { return render.Even(float32(t.ID%7) / 7) }
 func (s *stripes) Dress(
 	f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1 float32, at render.At,
@@ -68,9 +67,11 @@ func TestRenderer_Compose_WorkersDrawWhatOneGoroutineDoes(t *testing.T) {
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	cam := icamera.NewFromSpace(512, 512, 0)
 	one, many := &stripes{}, &stripes{}
-	serial := newRenderer(brd, flatAtlas{}, look.RenderState{ShowGridLines: true}, stripedMap{lookMap{look.FlatLook()}, one})
+	serial := newRenderer(brd, flatAtlas{}, gridOf(black, 1),
+		stripedMap{lookMap{look.FlatLook()}, one})
 	serial.Workers(1)
-	parallel := newRenderer(brd, flatAtlas{}, look.RenderState{ShowGridLines: true}, stripedMap{lookMap{look.FlatLook()}, many})
+	parallel := newRenderer(brd, flatAtlas{}, gridOf(black, 1),
+		stripedMap{lookMap{look.FlatLook()}, many})
 	parallel.Workers(4)
 	want, wantN := piecesOf(serial, cam)
 	got, gotN := piecesOf(parallel, cam)
@@ -113,7 +114,7 @@ func TestRenderer_Compose_NothingLaysNoTile(t *testing.T) {
 	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	d := &stripes{}
-	r := newRenderer(brd, flatAtlas{}, look.RenderState{ShowGridLines: true}, stripedMap{lookMap{look.Nothing}, d})
+	r := newRenderer(brd, flatAtlas{}, gridOf(black, 1), stripedMap{lookMap{look.Nothing}, d})
 	if _, n := piecesOf(r, icamera.NewFromSpace(128, 128, 0)); n != 0 || len(d.dressed) != 0 || d.warmed.Load() != 0 {
 		t.Errorf("%d pieces, %d tiles dressed, %d warmed under look.Nothing; want none of each", n, len(d.dressed), d.warmed.Load())
 	}

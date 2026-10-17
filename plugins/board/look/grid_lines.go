@@ -11,18 +11,39 @@ import (
 //go:embed shaders/*.wgsl
 var shaders embed.FS
 
-var gridShader = render.NewMeshShaderWith("board grid", render.Files(shaders, "shaders/grid.wgsl"), []render.Uniform{
-	{Name: "ViewAt", Size: 2}, {Name: "RayAt", Size: 3}, {Name: "RayDX", Size: 3}, {Name: "RayDY", Size: 3},
-	{Name: "RayDir", Size: 3}, {Name: "RayDDX", Size: 3}, {Name: "RayDDY", Size: 3},
-	{Name: "GridHex", Size: 1}, {Name: "GridCell", Size: 1}, {Name: "GridCells", Size: 2}, {Name: "GridWrap", Size: 2}, {Name: "GridLine", Size: 4},
-})
+var gridShader = render.NewMeshShaderWith(
+	"board grid",
+	render.Files(shaders, "shaders/grid.wgsl"),
+	[]render.Uniform{
+		{Name: "ViewAt", Size: 2},
+		{Name: "RayAt", Size: 3},
+		{Name: "RayDX", Size: 3},
+		{Name: "RayDY", Size: 3},
+		{Name: "RayDir", Size: 3},
+		{Name: "RayDDX", Size: 3},
+		{Name: "RayDDY", Size: 3},
+		{Name: "GridHex", Size: 1},
+		{Name: "GridCell", Size: 1},
+		{Name: "GridCells", Size: 2},
+		{Name: "GridWrap", Size: 2},
+		{Name: "GridLine", Size: 4},
+		{Name: "GridWidth", Size: 1},
+	},
+)
 
 type gridLines struct {
 	opts render.DrawMeshOptions
 	own  map[string][]float32
 }
 
-func (g *gridLines) draw(t render.Target, cam camera.Camera, u render.Uniforms, brd Board, wrapX, wrapY bool) {
+func (g *gridLines) draw(
+	t render.Target, cam camera.Camera, u render.Uniforms, brd Board, state *RenderState,
+	wrapX, wrapY bool,
+) {
+	line, width, shown := state.Grid()
+	if !shown {
+		return
+	}
 	rays, ok := cam.(camera.Rays)
 	if !ok {
 		return
@@ -51,8 +72,8 @@ func (g *gridLines) draw(t render.Target, cam camera.Camera, u render.Uniforms, 
 	g.set("GridCell", float32(shape.Cell))
 	g.set("GridCells", float32(shape.Cols), float32(shape.Rows))
 	g.set("GridWrap", flag(wrapX), flag(wrapY))
-	c := premultiplied(colorGridLine)
-	g.set("GridLine", c[:]...)
+	g.set("GridLine", line[:]...)
+	g.set("GridWidth", width)
 	g.opts.Vertices = 3
 	t.Screen.DrawMesh(nil, gridShader, &g.opts)
 }

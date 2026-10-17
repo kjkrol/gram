@@ -45,7 +45,6 @@ func (*Bands) Begin(*render.Frame, camera.Camera)                {}
 func (*Bands) Sheet(atlas render.AtlasSource) render.AtlasSource { return atlas }
 func (*Bands) Base(t *look.Tile) render.SpriteID                 { return t.Sprite() }
 func (*Bands) FaceLight(*look.Tile, int, int) render.Light       { return render.Light{1, 1, 1} }
-func (*Bands) Covers(*look.Tile) bool                            { return false }
 
 func (*Bands) Light(*look.Tile) render.Shade { return render.Even(1) }
 

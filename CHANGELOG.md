@@ -17,6 +17,24 @@ in a flat world: a board stands only in a world with heights now. Nor those made
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
 entities.
 
+**The board's surface as a look** (2026-10-17)
+- What the board draws beyond its tiles is a look a game declares as it does a tile's or a sky's:
+  a `board.Surface` noted in the Stage's Figures link (`board.Plugin.Surfaces`), its `Look`
+  setting on the board's atlas the line the grid is drawn in (`Atlas.Grid(board.Line{Color,
+  Width})`) and how wide a cell held is outlined (`Atlas.Holds`). Without one the board draws
+  `board.DefaultGridLine` and `board.DefaultHoldWidth`. Every demo with a board has its
+  `surface.go`; board/atlas draws its grid of its own.
+- The grid is drawn in that line wherever it is: from above over a flat board, tile by tile, on
+  the topography's ground and on its hex prisms (`look.RenderState.Grid`). Tile by tile every
+  side of a cell is drawn once, in lines over the tiles and the materials alike.
+- `board.Plugin.Surfaces()`, where whoever moves stands, is `board.Plugin.Footing()`.
+- Gone: `render.Frame.Tile`, `TileRect` and `OutlineOn`, the composer's outline of a sprite,
+  `look.Tile.Outlined` and `Covered`, `look.Dressing.Covers`,
+  `look.RenderState.ToggleShowGridLines`.
+- Looks a little different: the hex grid's border on a flat board is as dark as its inner sides,
+  the hex prisms' lines are a dark grey instead of black, the square grid on the relief fades over
+  a pixel instead of three quarters of one.
+
 **The weather in places** (2026-10-17)
 - Rain, storms and clouds never cover the whole map: a storm in the middle of rain, rain amid
   clouds, the clouds with fair breaks, each on at most the share of the world the knob

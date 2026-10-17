@@ -30,9 +30,6 @@ fn seenAt(span: f32, pixel: f32) -> f32 {
     return smoothstep(finest, 2.0 * finest, span / max(pixel, 1e-3));
 }
 
-// outlineDark is how much an outline darkens what it is drawn on.
-const outlineDark: f32 = 0.45;
-
 // finest is how many pixels long the finest pattern drawn is.
 const finest: f32 = 2.0;
 

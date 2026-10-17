@@ -322,7 +322,7 @@ func TestSurface_ASlantwiseDeckCarriesOverTheCornerItCuts(t *testing.T) {
 	}
 	qw := topotest.NewQuasiWorldWith(t, false, define)
 	qw.ECS.Tick(time.Second / 60)
-	surfaces := qw.Board.Surfaces()
+	surfaces := qw.Board.Footing()
 	ground := qw.Topo.Relief()
 	for _, c := range []struct {
 		name string

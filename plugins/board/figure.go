@@ -47,11 +47,14 @@ func (p *Plugin) Tiles(tiles ...Tile) {
 	p.tiles = append(p.tiles, tiles...)
 }
 
-// Looks declares every tile's look on the atlas, in the order the tiles were noted, and hands
-// the atlas back to Close.
+// Looks declares every tile's look on the atlas, in the order the tiles were noted, then every
+// surface's, and hands the atlas back to Close.
 func (a *Atlas) Looks() *Atlas {
 	for _, t := range a.p.tiles {
 		t.Look(a, a.p)
+	}
+	for _, s := range a.p.surfaces {
+		s.Look(a, a.p)
 	}
 	return a
 }

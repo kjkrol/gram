@@ -56,7 +56,7 @@ func standing(b *testing.B, bodies, bands bool) {
 			var fall *gravity.Plugin
 			var extra []comp.Comp
 			if bodies {
-				fall = gravity.NewPlugin(ctx.world, gravity.Config{}).WithSurfaces(p.Surfaces)
+				fall = gravity.NewPlugin(ctx.world, gravity.Config{}).WithSurfaces(p.Footing)
 				if err := ctx.Use(fall); err != nil {
 					b.Fatal(err)
 				}

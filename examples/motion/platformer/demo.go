@@ -134,6 +134,7 @@ func (a *arena) defineCommands() {
 
 func (a *arena) defineFigures() {
 	a.board.Tiles(tiles()...)
+	a.board.Surfaces(surface{})
 	a.board.Figures(hero{})
 }
 

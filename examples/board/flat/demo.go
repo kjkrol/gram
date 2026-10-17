@@ -128,6 +128,7 @@ func (a *arena) definePlayer() error {
 
 func (a *arena) defineFigures() {
 	a.board.Tiles(tiles()...)
+	a.board.Surfaces(surface{})
 	a.board.Figures(walker{}, ford{})
 	a.bridges.Figures(bridge{})
 	a.atmosphere.Skies(earth{})

@@ -162,6 +162,7 @@ func walking() steering.Steering {
 
 func (a *arena) defineFigures() {
 	a.board.Tiles(tiles()...)
+	a.board.Surfaces(surface{})
 	a.board.Figures(soldier{}, wanderer{})
 	a.bullet.Figures(round{}, grenade{})
 }

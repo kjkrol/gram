@@ -1,10 +1,10 @@
 // The board's grid over its tiles seen from above (board's gridLines), one triangle over the
 // viewport: the pixel (x, y) of it looks from U.RayAt + x·U.RayDX + y·U.RayDY along U.RayDir +
-// x·U.RayDDX + y·U.RayDDY (camera.RayField) down to the ground at 0. A square grid of U.GridCells
-// cells U.GridCell across darkens a tile along its edges as an outlined tile is (outlineDark, a
-// pixel in); a hex grid of pointy-top cells U.GridCell from centre to corner draws their edges a
-// pixel wide in U.GridLine, premultiplied, as dark as by both cells' outlines. U.GridWrap says which axes wrap: there the cells run
-// on; elsewhere only the board's own are drawn.
+// x·U.RayDDX + y·U.RayDDY (camera.RayField) down to the ground at 0. The cells' edges, of a square
+// grid of U.GridCells cells U.GridCell across or a hex grid of pointy-top cells U.GridCell from
+// centre to corner, are drawn U.GridWidth pixels wide in U.GridLine, premultiplied, fading over a
+// pixel either side. U.GridWrap says which axes wrap: there the cells run on; elsewhere only the
+// edges of the board's own cells are drawn.
 
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
@@ -28,17 +28,30 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     return squareEdge(p, unit);
 }
 
-// squareEdge darkens the tile at p as far as it lies within a pixel of its edges.
+// squareEdge is the square grid's line at p, along the edges nearest it that a cell of the
+// board's lies by.
 fn squareEdge(p: vec2<f32>, unit: f32) -> vec4<f32> {
     let g = p / U.GridCell;
     let cell = floor(g);
-    if !onBoard(cell) {
+    let edge = round(g);
+    let d = abs(g - edge) * U.GridCell / unit; // pixels to the nearest edge on each axis
+    var near = 0.0;
+    if onBoard(vec2<f32>(edge.x - 1.0, cell.y)) || onBoard(vec2<f32>(edge.x, cell.y)) {
+        near = cover(d.x);
+    }
+    if onBoard(vec2<f32>(cell.x, edge.y - 1.0)) || onBoard(vec2<f32>(cell.x, edge.y)) {
+        near = max(near, cover(d.y));
+    }
+    if near <= 0.0 {
         discard;
     }
-    let f = fract(g);
-    let d = min(f, 1.0 - f) * U.GridCell / unit; // pixels to the nearer edge on each axis
-    let near = 1.0 - smoothstep(vec2<f32>(0.0), vec2<f32>(1.0), clamp(d, vec2<f32>(0.0), vec2<f32>(1.0)));
-    return vec4<f32>(0.0, 0.0, 0.0, outlineDark * max(near.x, near.y));
+    return U.GridLine * near;
+}
+
+// cover is how much of a pixel d pixels from an edge its line covers.
+fn cover(d: f32) -> f32 {
+    let half = U.GridWidth * 0.5;
+    return 1.0 - smoothstep(half - 0.5, half + 0.5, d);
 }
 
 // hexEdge is the hex grid's line at p, where the cell p lies in, or the one across the edge nearest
@@ -65,11 +78,7 @@ fn hexEdge(p: vec2<f32>, unit: f32) -> vec4<f32> {
         discard;
     }
     let d = (s * sqrt(3.0) / 2.0 - max(a.x, max(a.y, a.z))) / unit; // pixels to the nearest edge
-    let line = U.GridLine * clamp(1.0 - d, 0.0, 1.0);
-    if here && there {
-        return line * (2.0 - line.a); // outlined by the cells either side, as twice over
-    }
-    return line;
+    return U.GridLine * cover(d);
 }
 
 // axialRound is the axial cell the fractional axial point c lies in.

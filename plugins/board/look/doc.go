@@ -15,8 +15,9 @@
 //
 // # The grid
 //
-// [RenderState] holds the renderer's live toggles, the grid among them. It is left out where a
-// cell spans fewer than [MinGridCell] pixels on screen.
+// [RenderState] holds the renderer's live toggles, the grid among them, and the line the grid is
+// drawn in ([RenderState.Grid]). It is left out where a cell spans fewer than [MinGridCell]
+// pixels on screen.
 //
 // # Parallel
 //

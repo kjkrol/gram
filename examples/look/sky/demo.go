@@ -110,6 +110,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 
 func (a *arena) defineFigures() {
 	a.board.Tiles(tiles()...)
+	a.board.Surfaces(surface{})
 	a.atmosphere.Skies(dusk{})
 }
 

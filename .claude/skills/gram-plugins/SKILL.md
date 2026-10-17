@@ -154,12 +154,19 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Define(b)`, `Look(a, w)`) and kinds of cell (`board.Tile`: `Define(b)`, `Look(a, b)`, covers
   included), `Stateful`/`Ruled` with their own effects and rules, among the world's figures, so
   the Stage leads them through its sections; the renderers gather their looks when first asked;
-  `Plugin.World()` is the world under the board. The occupancy
-  (`internal/occupancy`, `KeepSystem` after the units' pass) lets go of whoever left the world
+  `Plugin.World()` is the world under the board. `Surfaces(s...)` (in the Figures link too)
+  notes `board.Surface`s, whose `Look(a, b)` runs after the tiles' on the board's atlas and sets
+  `a.Grid(board.Line{Color, Width})` and `a.Holds(width)`, a later setting winning; none draws
+  `DefaultGridLine(g)` (a square grid black at 115, a hex one grey 20 at 184, a pixel wide) and
+  `DefaultHoldWidth` (2). `SetAtlas` hands the line to `Res.Render` (`look.RenderState.Grid()`,
+  premultiplied), which the flat grid, the terrain and the hex prisms all read; a foreign atlas
+  draws the defaults. The flat grid composed tile by tile draws every side once, in lines. The
+  occupancy (`internal/occupancy`, `KeepSystem` after the units' pass) lets go of whoever left the world
   and has every unit hold the cell it stands on, each on its level (a walker on a deck and one
   under it share a cell); one holding nothing lets go of the cell it was `At`, is `At` the one it
   stands on with `unit.Entered` on; one mid-step holds both and is left to navigation.
-  `board.Holds` (Shift+O, `Plugin.ShowHolds`) outlines every cell held, lying 0.15 over it.
+  `board.Holds` (Shift+O, `Plugin.ShowHolds`) outlines every cell held, lying 0.15 over it, in
+  its holder's hue, as wide as the surface says.
   **A map is a file**: `board.Plugin.Lay(fsys, path)` in Spawn seeds the board and hands back a
   `board.Level`; `board.Spawn[R](level, board.Sides)` seeds the world with the entities whose
   kind's rows are `R` (`R`'s fields tagged `yaml` are the file's keys), one no Spawn took fails
@@ -209,7 +216,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   as a mesh, a depth prepass, the board painted flat by the painter into albedo and water sheets
   sampled per pixel, lit by the sun with shadows baked on the GPU as the sun moves — a strip a
   frame, `shadeStrips`; H `CoarseShadows` bakes them half as fine; `WithShadows` on by default — the
-  clouds' cover baked, water on wet cells, the grid, fog, a skirt of level ground to the horizon),
+  clouds' cover baked, water on wet cells, the grid in the board's line, fog, a skirt of level
+  ground to the horizon),
   over a hex grid `internal/hexes` (every cell a prism from tiles composed once from above). The
   entities are billboards on the GPU (`internal/billboards`, standing upright in the world across
   the screen's level right, so as tall on the screen as their `Height` stands there and inside
@@ -742,7 +750,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   along Z in a flat world, panics; zero, the Earth's as the figures feel it). A kind falls
   carrying `gravity.Body{Leap}`; `giveSystem` puts a `world.Drift` on it where missing. Along Z
   the `fallSystem` (`internal/vertical`) stands a body every step on the surface under its centre
-  (`WithSurfaces(board.Surfaces)`, refused for a pull across) within its reach down, flies it
+  (`WithSurfaces(board.Footing)`, refused for a pull across) within its reach down, flies it
   under the pull, stops its head at a slab's underside and lands it; across X/Y (a side view, the
   platformer: a world with heights, `Pull{Y}`, Z its depth) the `planeSystem`
   (`internal/planar`) has collision's contacts (not `Sensed`) take the drift

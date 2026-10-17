@@ -1,6 +1,8 @@
 package look_test
 
 import (
+	"image/color"
+	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -57,20 +59,25 @@ func compose(r *look.Renderer, cam camera.Camera) map[float32]int {
 	return out
 }
 
-func outlinedTiles(r *look.Renderer, cam camera.Camera) (tiles, outlined int) {
+// the grid on in a line width pixels wide
+func gridOf(line color.RGBA, width float32) look.RenderState {
+	return look.RenderState{ShowGridLines: true, GridLine: line, GridWidth: width}
+}
+
+var black = color.RGBA{A: 255}
+
+// the lines of the grid composed through cam
+func gridLinesOf(r *look.Renderer, cam camera.Camera) [][]render.Vertex {
 	var f render.Frame
 	f.Reset(cam)
 	r.Compose(&f, cam)
+	var out [][]render.Vertex
 	f.Each(func(at render.At, v []render.Vertex) {
-		if at.Z() != 0 {
-			return
-		}
-		tiles++
-		if v[0].Custom0 < 0 {
-			outlined++
+		if at.Z() == look.GridLift {
+			out = append(out, append([]render.Vertex(nil), v...))
 		}
 	})
-	return tiles, outlined
+	return out
 }
 
 func TestRenderer_Compose_FlatLaysEveryVisibleCellOverItsBox(t *testing.T) {
@@ -83,33 +90,113 @@ func TestRenderer_Compose_FlatLaysEveryVisibleCellOverItsBox(t *testing.T) {
 	}
 }
 
-func TestRenderer_Compose_OutlinesSquareTilesWhenCellsAreLargeEnough(t *testing.T) {
+func TestRenderer_Compose_DrawsEverySideOfASquareGridOnceWhereCellsAreLargeEnough(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	r := flatRenderer(brd, look.RenderState{ShowGridLines: true})
-
+	r := flatRenderer(brd, gridOf(black, 1))
 	cam := icamera.NewFromSpace(128, 128, 0)
-	if got := compose(r, cam); len(got) != 1 || got[0] != 16 {
-		t.Errorf("composed %v, want the 16 tiles and nothing more", got)
-	}
-	if tiles, outlined := outlinedTiles(r, cam); outlined != tiles {
-		t.Errorf("%d of %d tiles outlined, want all", outlined, tiles)
+	if got := compose(r, cam); got[0] != 16 || got[look.GridLift] != 40 {
+		t.Errorf("composed %v, want the 16 tiles and the 40 sides of their cells", got)
 	}
 	cam.SetViewport(20, 20) // the whole board on 20 pixels: a cell is 5 across
 	cam.ZoomOut(32, 0, 0)
-	if _, outlined := outlinedTiles(r, cam); outlined != 0 {
-		t.Errorf("%d tiles outlined with cells a few pixels wide, want none", outlined)
+	if n := len(gridLinesOf(r, cam)); n != 0 {
+		t.Errorf("%d lines drawn with cells a few pixels wide, want none", n)
 	}
 }
 
-func TestRenderer_Compose_StrokesTheOutlinesOfHexCells(t *testing.T) {
+func TestRenderer_Compose_DrawsEverySideOfAHexGridOnce(t *testing.T) {
 	grid := grid.DefaultGrids{}.Hex(3, 3, 32)
 	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	got := compose(flatRenderer(brd, look.RenderState{ShowGridLines: true}), icamera.NewFromSpace(256, 256, 0))
-	if got[look.GridLift] == 0 || got[0] != 9 {
-		t.Errorf("composed %v, want the nine hexes and the lines round them", got)
+	got := compose(flatRenderer(brd, gridOf(black, 1)), icamera.NewFromSpace(256, 256, 0))
+	if got[0] != 9 || got[look.GridLift] != 38 {
+		t.Errorf("composed %v, want the nine hexes and the 38 sides of their cells", got)
+	}
+}
+
+func TestRenderer_Compose_DrawsTheGridInItsLine(t *testing.T) {
+	grid := grid.DefaultGrids{}.Square(2, 2, 32)
+	brd := board.NewBoard(grid)
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	red := color.RGBA{R: 200, A: 128}
+	lines := gridLinesOf(flatRenderer(brd, gridOf(red, 3)), icamera.NewFromSpace(64, 64, 0))
+	if len(lines) != 12 {
+		t.Fatalf("%d lines, want the 12 sides of four cells", len(lines))
+	}
+	for _, v := range lines {
+		across := float32(math.Hypot(float64(v[0].DstX-v[2].DstX), float64(v[0].DstY-v[2].DstY)))
+		r, a := float64(v[0].ColorR), float64(v[0].ColorA)
+		if math.Abs(r-200.0/255*128/255) > 1e-6 || math.Abs(a-128.0/255) > 1e-6 || across != 4 {
+			t.Fatalf("a line in %v %v %v %v, %v pixels across; want the red premultiplied, 3 "+
+				"pixels and its fading ones", v[0].ColorR, v[0].ColorG, v[0].ColorB, v[0].ColorA,
+				across)
+		}
+	}
+	none := flatRenderer(brd, gridOf(red, 0))
+	if n := len(gridLinesOf(none, icamera.NewFromSpace(64, 64, 0))); n != 0 {
+		t.Errorf("%d lines in a line no pixel wide, want none", n)
+	}
+}
+
+func TestRenderer_Compose_AMaterialsCellKeepsItsGrid(t *testing.T) {
+	grid := grid.DefaultGrids{}.Square(2, 2, 32)
+	brd := board.NewBoard(grid)
+	brd.SetAll(cell.Kind{Name: cell.Named("lava"), Cost: 1, Allows: cell.Land})
+	r := flatRenderer(brd, gridOf(black, 1))
+	r.Shade(map[cell.Name]render.MaterialID{cell.Named("lava"): 1})
+	if got := compose(r, icamera.NewFromSpace(64, 64, 0)); got[0] != 0 || got[look.GridLift] != 12 {
+		t.Errorf("composed %v, want no tile but the 12 sides of the four cells", got)
+	}
+}
+
+func TestRenderer_Compose_DrawsEachSideOfAPartlySeenHexBoardOnce(t *testing.T) {
+	g := grid.DefaultGrids{}.Hex(8, 8, 20)
+	brd := board.NewBoard(g)
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	var seen []cell.ID
+	lk := lookFn(func(_ *render.Frame, _ camera.Camera, t *look.Tile) { seen = append(seen, t.ID) })
+	r := newRenderer(brd, flatAtlas{}, gridOf(black, 1), mapOf(lk))
+	cam := icamera.NewFromSpace(400, 400, 0)
+	cam.SetViewport(150, 110)
+	cam.MoveTo(70, 50)
+	type side [4]int32
+	sideOf := func(ax, ay, bx, by float64) side {
+		a := [2]int32{int32(math.Round(ax * 10)), int32(math.Round(ay * 10))}
+		b := [2]int32{int32(math.Round(bx * 10)), int32(math.Round(by * 10))}
+		if a[0] > b[0] || a[0] == b[0] && a[1] > b[1] {
+			a, b = b, a
+		}
+		return side{a[0], a[1], b[0], b[1]}
+	}
+	drawn := map[side]int{}
+	ox, oy := cam.FromScreen(0, 0)
+	for _, v := range gridLinesOf(r, cam) {
+		// a line's ends are the middles of its quad's short sides, on screen from (ox, oy)
+		ax, ay := (v[0].DstX+v[2].DstX)/2+ox, (v[0].DstY+v[2].DstY)/2+oy
+		bx, by := (v[1].DstX+v[3].DstX)/2+ox, (v[1].DstY+v[3].DstY)/2+oy
+		drawn[sideOf(float64(ax), float64(ay), float64(bx), float64(by))]++
+	}
+	want := map[side]bool{}
+	for _, c := range seen {
+		o := g.CellOutline(c, nil)
+		for i, p := range o {
+			q := o[(i+1)%len(o)]
+			want[sideOf(p.X, p.Y, q.X, q.Y)] = true
+		}
+	}
+	if len(seen) == 0 || len(seen) == 64 {
+		t.Fatalf("%d of the 64 cells seen, want some of them", len(seen))
+	}
+	for s, n := range drawn {
+		if n != 1 || !want[s] {
+			t.Errorf("the side %v drawn %d times, want once, and only a seen cell's", s, n)
+		}
+	}
+	if len(drawn) != len(want) {
+		t.Errorf("%d sides drawn, want the %d of the %d cells seen", len(drawn), len(want),
+			len(seen))
 	}
 }
 
@@ -176,27 +263,19 @@ func (scaledCam) ScaleAt(_, y, _ float32) float32 {
 	return 0.1
 }
 
-func TestRenderer_Compose_OutlinesEachCellAsLargeAsItIsDrawn(t *testing.T) {
+func TestRenderer_Compose_DrawsEachCellsGridAsLargeAsItIsDrawn(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd := board.NewBoard(grid)
 	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	r := flatRenderer(brd, look.RenderState{ShowGridLines: true})
-	var f render.Frame
-	cam := scaledCam{icamera.NewFromSpace(128, 128, 0)}
-	f.Reset(cam)
-	r.Compose(&f, cam)
-	near, far := 0, 0 // outlined tiles in the two nearer rows, and further
-	f.Each(func(at render.At, v []render.Vertex) {
-		if at.Z() != 0 || v[0].Custom0 >= 0 {
-			return
+	r := flatRenderer(brd, gridOf(black, 1))
+	lines := gridLinesOf(r, scaledCam{icamera.NewFromSpace(128, 128, 0)})
+	for _, v := range lines {
+		if v[0].DstY > 66 && v[1].DstY > 66 {
+			t.Fatalf("a line at %v down the screen, want none past the two nearer rows", v[0].DstY)
 		}
-		if v[0].DstY < 64 {
-			near++
-		} else {
-			far++
-		}
-	})
-	if near != 8 || far != 0 {
-		t.Errorf("outlined %d tiles in the nearer rows and %d further, want the 8 near ones: 32 pixels a cell there, 3 further", near, far)
+	}
+	if len(lines) != 22 {
+		t.Errorf("%d lines, want the 22 sides of the 8 cells in the nearer rows: 32 pixels a "+
+			"cell there, 3 further", len(lines))
 	}
 }

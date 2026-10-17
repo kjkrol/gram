@@ -125,6 +125,7 @@ func (a *arena) definePlayers() error {
 
 func (a *arena) defineFigures() {
 	a.board.Tiles(tiles()...)
+	a.board.Surfaces(surface{})
 	a.board.Figures(block{kind: RedKind, color: redColor}, block{kind: BlueKind, color: blueColor})
 }
 

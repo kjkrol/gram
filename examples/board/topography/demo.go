@@ -122,7 +122,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).
 		WithCollision(a.collision).
 		WithLog(log.Default())
-	a.gravity = gravity.NewPlugin(a.world, gravity.Config{}).WithSurfaces(a.board.Surfaces)
+	a.gravity = gravity.NewPlugin(a.world, gravity.Config{}).WithSurfaces(a.board.Footing)
 	a.topography = topography.NewPlugin(a.world, a.board, topography.Config{
 		Cell:        CellSize,
 		HeightUnit:  1,
@@ -233,6 +233,7 @@ type unitRow struct {
 
 func (a *arena) defineFigures() {
 	a.board.Tiles(tiles()...)
+	a.board.Surfaces(surface{})
 	a.board.Figures(
 		walker{kind: UnitKind, color: playerColor, ordered: true},
 		walker{kind: PlateauKind, color: playerColor},

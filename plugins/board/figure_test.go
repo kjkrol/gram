@@ -79,8 +79,14 @@ func TestFiguresAndTiles_RunTheirPartsOverTheBoardAndLookOnTheirAtlases(t *testi
 	if f.ran[len(f.ran)-1] != "look" || tile.ran[len(tile.ran)-1] == "look" {
 		t.Errorf("the world's Looks: figure %v, tile %v; want the figure looked, not the tile", f.ran, tile.ran)
 	}
+	b.Surfaces(surfaced(func(*board.Atlas, *board.Plugin) {
+		if tile.ran[len(tile.ran)-1] != "look" {
+			t.Errorf("a surface looked before the tile, which ran %v", tile.ran)
+		}
+		tile.ran = append(tile.ran, "surface")
+	}))
 	b.NewAtlas(8).Looks()
-	if tile.ran[len(tile.ran)-1] != "look" {
-		t.Errorf("the board's Looks: tile %v, want it looked", tile.ran)
+	if tile.ran[len(tile.ran)-1] != "surface" {
+		t.Errorf("the board's Looks: tile %v, want it looked and the surface after it", tile.ran)
 	}
 }

@@ -189,8 +189,8 @@ func (s boardSurface) Surface() terrain.Painted {
 		}
 	}
 	out.Shores, out.Reach, out.Coast = d.Coast()
-	if rs := s.p.boardPlugin.Res.Render; rs != nil && rs.ShowGridLines {
-		out.Grid = look.MinGridCell
+	if line, width, shown := s.p.boardPlugin.Res.Render.Grid(); shown {
+		out.Grid, out.GridLine, out.GridWidth = look.MinGridCell, line, width
 	}
 	return out
 }

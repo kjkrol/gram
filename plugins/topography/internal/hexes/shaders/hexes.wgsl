@@ -4,7 +4,8 @@
 // down each edge to the neighbour's top, none where that is as high. Drawn through U.ViewProj
 // (camera.Transform) sunk U.Bend·d² under U.Eye's level; coloured from the board from above, the
 // first image, U.TopPx pixels a world unit, lit by the sun on its faces, shaded by the clouds,
-// outlined where U.GridOn, hazed as much air as lies before it (hazeDepth) over U.Visibility.
+// outlined in the grid's line U.GridLine, premultiplied, U.GridWidth pixels wide (0 none), hazed
+// as much air as lies before it (hazeDepth) over U.Visibility.
 
 struct Face {
     @builtin(position) clip: vec4<f32>,
@@ -77,18 +78,17 @@ fn fs_main(f: Face) -> @location(0) vec4<f32> {
     let sun = sunWay();
     var rgb = albedo.rgb * (U.Ambience + U.SunColor * max(dot(f.normal, sun), 0.0) * U.SunStrength);
     rgb *= 1.0 - f.cloud;
-    if U.GridOn > 0.5 && f.edge >= 0.0 {
+    if U.GridWidth > 0.0 && f.edge >= 0.0 {
         let d = f.edge * U.HexSize * 0.8660254 / max(unit, 1e-6); // pixels to the cell's edge
-        rgb *= 1.0 - gridDark * clamp(1.0 - d, 0.0, 1.0);
+        let half = U.GridWidth * 0.5;
+        let e = 1.0 - smoothstep(half - 0.5, half + 0.5, d);
+        rgb = rgb * (1.0 - U.GridLine.a * e) + U.GridLine.rgb * e;
     }
     if U.Visibility > 0.0 {
         rgb = mix(rgb, U.Fog, 1.0 - exp(-hazeDepth(f.world) / U.Visibility));
     }
     return vec4<f32>(rgb, 1.0);
 }
-
-// gridDark is how much the grid darkens a top along its edge, as the two outlines laid over it.
-const gridDark: f32 = 0.72;
 
 // hazeDepth is how much air lies between the eye and the world point p, world units: its
 // distance from U.Eye, or seen from above (U.HazeUp) the air over p up to that height, along the

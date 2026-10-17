@@ -26,9 +26,6 @@ type Dressing interface {
 	Light(t *Tile) render.Shade
 	// FaceLight is the light on t's upright face looking dx, dy cells away.
 	FaceLight(t *Tile, dx, dy int) render.Light
-	// Covers reports whether Dress lays over t's top what would hide its outline; the dressing
-	// then outlines it itself.
-	Covers(t *Tile) bool
 	// Dress lays over t's top, drawn over the box x0..x1, y0..y1 lying at at, what lies on it.
 	Dress(f *render.Frame, cam camera.Camera, t *Tile, x0, y0, x1, y1 float32, at render.At)
 	// Across lays over t what runs across the board, the ways: over every tile's top and what
@@ -77,8 +74,6 @@ type Tile struct {
 	ID             cell.ID
 	X0, Y0, X1, Y1 float32 // its box in the world
 	Atlas          render.AtlasSource
-	// Outlined asks the Look to outline the tile along its own edges: the grid is on.
-	Outlined bool
 
 	r     *Renderer
 	dress Dressing
@@ -117,15 +112,6 @@ func (t *Tile) FaceLight(dx, dy int) render.Light {
 		return d.FaceLight(t, dx, dy)
 	}
 	return render.Light{1, 1, 1}
-}
-
-// Covered reports whether the Dressing lays over the tile's top what would hide its outline, so
-// the Look draws the top without one.
-func (t *Tile) Covered() bool {
-	if d := t.dress; d != nil {
-		return d.Covers(t)
-	}
-	return false
 }
 
 // Dress lays over the tile's top, drawn over the box x0..x1, y0..y1 lying at at, what the
@@ -167,10 +153,6 @@ func (l flatLook) Worker(int, Dressing) Look { return l }
 func (flatLook) Cell(f *render.Frame, cam camera.Camera, t *Tile) {
 	x0, y0, x1, y1 := t.X0, t.Y0, t.X1, t.Y1
 	at := f.At((x0+x1)/2, (y0+y1)/2, 0)
-	if t.Outlined && !t.Covered() {
-		f.TileRect(at, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
-	} else {
-		f.SpriteRect(at, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
-	}
+	f.SpriteRect(at, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
 	t.Dress(f, cam, x0, y0, x1, y1, at)
 }

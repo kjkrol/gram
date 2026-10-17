@@ -248,7 +248,6 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 			f.Sprite(h(float32(i%7)), a, 0, unit, Even(1))
 			f.Line(h(float32(i%5)), 0, 0, 5, 5, 1, white)
 			f.Soft(h(1), unit, black, Fade{Top: 3})
-			f.Tile(h(float32(i%7)), a, 0, unit, Even(1))
 			f.Overlay(&Overlay{Material: tint, World: Box(0, 0, 32, 32), Red: [4]float32{1, 1, 1, 1}})
 		}
 		f.Uniform("Sun", 0, 0, 1)
@@ -384,11 +383,12 @@ func TestFrame_AnOverlayIsAQuadOverTheSpriteMarkedWithItsMaterialAndWhatItReads(
 	var f Frame
 	f.Reset(topDown())
 	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
-	f.Tile(h(3), sheet{}, 0, dst, Even(0.5))
+	f.Sprite(h(3), sheet{}, 0, dst, Even(0.5))
 	f.Overlay(&Overlay{Material: 3, World: Box(100, 200, 132, 232), Red: [4]float32{0.9, 0.9, 0.9, 0.9},
 		Fraction: [4]float32{1, 0.5, 0, 0.25}, Custom: [4][4]float32{{1, 0, 8, 0.75}, {1, 0, 40, 0}, {1, 0, 8, 0.75}, {1, 0, 40, 0}}})
 	if f.Len() != 2 || len(f.items) != 1 {
-		t.Fatalf("%d pieces in %d items, want the tile and its overlay in one", f.Len(), len(f.items))
+		t.Fatalf("%d pieces in %d items, want the sprite and its overlay in one", f.Len(),
+			len(f.items))
 	}
 	v := f.verts[4:]
 	for k, want := range [4][4]float32{{0.9, 100, 200, 9}, {0.9, 132, 200, 8.5}, {0.9, 100, 232, 8}, {0.9, 132, 232, 8.25}} {
@@ -403,9 +403,6 @@ func TestFrame_AnOverlayIsAQuadOverTheSpriteMarkedWithItsMaterialAndWhatItReads(
 	if v[0].Custom0 != 1 || v[0].Custom2 != 8 || v[0].Custom3 != 0.75 || v[1].Custom2 != 40 {
 		t.Errorf("the overlay carries customs %v %v %v / %v, want its corners'", v[0].Custom0, v[0].Custom2, v[0].Custom3, v[1].Custom2)
 	}
-	if f.verts[0].Custom0 != -1 {
-		t.Errorf("the tile lost its outline: %v", f.verts[0].Custom0)
-	}
 }
 
 func TestFrame_AnOverlayFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
@@ -413,7 +410,7 @@ func TestFrame_AnOverlayFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
 	cam.Translate(1000, 0)
 	var f Frame
 	f.Reset(cam)
-	f.TileRect(h(0), sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
+	f.SpriteRect(h(0), sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
 	f.Overlay(&Overlay{World: Box(992, 0, 1008, 10), Fraction: [4]float32{0, 1, 0, 1}, Custom: [4][4]float32{{0}, {16}, {0}, {16}}})
 	v := f.verts
 	if len(v) != 16 {
@@ -440,23 +437,6 @@ func TestFrame_ATopFoldsAlongTheDiagonalOfTheNearerHeights(t *testing.T) {
 	}
 	if got := appendQuad(nil, 0, folded); got[0] != 0 || got[2] != 3 || got[3] != 0 || got[5] != 3 {
 		t.Errorf("a folded quad's triangles are %v, want both meeting along 0 to 3", got)
-	}
-}
-
-func TestFrame_AnOutlineLiesOverWhatLiesOnTheTile(t *testing.T) {
-	var f Frame
-	f.Reset(topDown())
-	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
-	f.Sprite(h(3), sheet{}, 0, dst, Even(1))
-	top := f.Last()
-	f.Sprite(h(3), sheet{}, 0, Corners{{0, 0}, {5, 0}, {0, 20}, {5, 20}}, Even(1)) // lying on it
-	f.OutlineOn(top)
-	v := f.verts[8:]
-	if len(v) != 4 || v[0].DstX != 0 || v[3].DstX != 10 || v[3].DstY != 20 {
-		t.Fatalf("the outline lies at %v, want over the tile", v)
-	}
-	if v[0].Custom0 != -1 || v[1].Custom0 != -11 || v[3].Custom3 != -1 || v[0].Custom3 != -21 {
-		t.Errorf("the outline's corners are %v %v %v, want the distances to the tile's edges", v[0].Custom0, v[1].Custom0, v[3].Custom3)
 	}
 }
 
@@ -487,7 +467,7 @@ func TestFrame_AnOverlayOnAnEarlierSpriteLiesOverIt(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
 	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
-	f.Tile(h(3), sheet{}, 0, dst, Even(1))
+	f.Sprite(h(3), sheet{}, 0, dst, Even(1))
 	top := f.Last()
 	f.Sprite(h(7), sheet{}, 0, Corners{{50, 50}, {60, 50}, {50, 60}, {60, 60}}, Even(1))
 	f.OverlayOn(top, &Overlay{Material: 1, World: Box(0, 0, 10, 20)})
@@ -504,9 +484,9 @@ func TestFrame_AnOverlayOnAnEarlierSpriteLiesOverIt(t *testing.T) {
 	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
 	cam.Translate(1000, 0)
 	f.Reset(cam)
-	f.TileRect(h(0), sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
+	f.SpriteRect(h(0), sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
 	split := f.Last()
-	f.TileRect(h(0), sheet{}, 0, 0, 100, 10, 110, Even(1))
+	f.SpriteRect(h(0), sheet{}, 0, 0, 100, 10, 110, Even(1))
 	f.OverlayOn(split, &Overlay{World: Box(992, 0, 1008, 10)})
 	if v := f.verts; len(v) != 20 || v[12].DstX != v[0].DstX || v[16].DstX != v[4].DstX {
 		t.Fatalf("%d vertices, the overlays at x %v and %v; want 20, over the split rect's pieces at %v and %v",
@@ -534,36 +514,6 @@ func TestFrame_AnOverlayTakesWhatItShouldOfTheSpriteUnderIt(t *testing.T) {
 		if got := [2]float32{v[8+k].ColorG, v[8+k].ColorB}; got != band[k] {
 			t.Errorf("corner %d lies at %v, want %v", k, got, band[k])
 		}
-	}
-}
-
-func TestFrame_ATileIsOutlinedAlongItsOwnEdges(t *testing.T) {
-	var f Frame
-	f.Reset(topDown())
-	f.Tile(h(0), sheet{}, 0, Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}, Even(1))
-	v := f.verts
-	// the top-left corner is on the left and top edges, 10 from the right, 20 from the bottom
-	if v[0].Custom0 != -1 || v[0].Custom2 != -1 || v[0].Custom1 != -11 || v[0].Custom3 != -21 {
-		t.Errorf("top-left outline values %v %v %v %v, want -1 -11 -1 -21", v[0].Custom0, v[0].Custom1, v[0].Custom2, v[0].Custom3)
-	}
-	if v[3].Custom1 != -1 || v[3].Custom3 != -1 {
-		t.Errorf("bottom-right on its right and bottom edges gives %v %v, want -1", v[3].Custom1, v[3].Custom3)
-	}
-}
-
-func TestFrame_ATileSplitAtAWrapSeamIsOutlinedOnlyAlongItsOwnEdges(t *testing.T) {
-	cam := icamera.NewFromSpace(1024, 1024, aabbworld.Torus)
-	cam.Translate(1000, 0)
-	var f Frame
-	f.Reset(cam)
-	f.TileRect(h(0), sheet{}, 0, 998, 0, 1010, 10, Even(1)) // 2 before the seam, 10 after
-	if f.Len() != 2 {
-		t.Fatalf("%d pieces, want 2", f.Len())
-	}
-	v := f.verts
-	// the first piece's right side is the seam: 2 from the tile's left edge, 10 from its right
-	if v[1].Custom0 != -3 || v[1].Custom1 != -11 {
-		t.Errorf("at the seam the first piece gives %v %v, want -3 and -11: no outline along the seam", v[1].Custom0, v[1].Custom1)
 	}
 }
 
@@ -705,7 +655,8 @@ fn Fragment(dst: vec4<f32>, src: vec2<f32>, color: vec4<f32>, custom: vec4<f32>)
 	if !strings.Contains(s.Source(), "return TestTint(p, red, fraction, custom);") {
 		t.Error("the library holds no material registered")
 	}
-	if !strings.Contains(ShaderSource(), "fn faded(") || !strings.Contains(ShaderSource(), "fn Outline(") {
+	if src := ShaderSource(); !strings.Contains(src, "fn faded(") ||
+		!strings.Contains(src, "fn TestTint(") {
 		t.Error("the composer's shader is not built on the library and its materials")
 	}
 	defer func() {

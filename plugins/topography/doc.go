@@ -36,11 +36,12 @@
 //
 // # Drawing and commands
 //
-// The plugin draws the ground, a render.Direct in the opaque pass of the world's picture, and
-// under no atmosphere hands the frame its still sky, giving way to a sky some other source hands
-// it. It is a plugin.CommandHandler for the views', the shaping's and the shadows' commands
-// ([Plugin.Queues], [Plugin.DefaultBindings]); call [Plugin.RunPlan] after the world has moved
-// and before the players' RunPlan.
+// The plugin draws the ground, a render.Direct in the opaque pass of the world's picture, the
+// board's grid on it in the board's line (board.Surface), and under no atmosphere hands the frame
+// its still sky, giving way to a sky some other source hands it. It is a plugin.CommandHandler
+// for the views', the shaping's and the shadows' commands ([Plugin.Queues],
+// [Plugin.DefaultBindings]); call [Plugin.RunPlan] after the world has moved and before the
+// players' RunPlan.
 //
 // # Vocabulary
 //

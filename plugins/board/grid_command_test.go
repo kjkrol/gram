@@ -1,6 +1,7 @@
 package board_test
 
 import (
+	"image/color"
 	"reflect"
 	"testing"
 
@@ -84,12 +85,15 @@ func TestShowGrid_HoldsThroughTheAtlasClosing(t *testing.T) {
 		t.Error("the grid starts hidden, want shown")
 	}
 	bw.Board.ShowGrid(false)
-	bw.Board.NewAtlas(boardtest.CellSize).Close()
+	a := bw.Board.NewAtlas(boardtest.CellSize)
+	a.Grid(board.Line{Color: color.RGBA{R: 255, A: 255}, Width: 2})
+	a.Close()
 	if bw.Board.GridShown() || bw.Board.Res.Render.ShowGridLines {
 		t.Error("the grid hidden before the atlas closed is drawn after it")
 	}
 	bw.Board.ShowGrid(true)
-	if !bw.Board.Res.Render.ShowGridLines {
-		t.Error("ShowGrid(true) after the atlas closed draws no grid")
+	if _, width, shown := bw.Board.Res.Render.Grid(); !shown || width != 2 {
+		t.Errorf("ShowGrid(true) after the atlas closed draws the grid %v, %v pixels wide; want "+
+			"it in the atlas's line, 2", shown, width)
 	}
 }

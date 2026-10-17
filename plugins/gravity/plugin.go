@@ -62,7 +62,7 @@ func NewPlugin(w *world.Plugin, cfg Config) *Plugin {
 	return p
 }
 
-// WithSurfaces gives the plugin what bears a body falling along Z (the board's Surfaces); without
+// WithSurfaces gives the plugin what bears a body falling along Z (the board's Footing); without
 // it the ground lies at 0. A pull across panics; call before Use.
 func (p *Plugin) WithSurfaces(surfaces func() ground.Surfaces) *Plugin {
 	if p.across {

@@ -24,6 +24,7 @@ var (
 	roadDimColor  = color.RGBA{R: 135, G: 118, B: 92, A: 255}
 	woodColor     = color.RGBA{R: 70, G: 120, B: 60, A: 255}
 	woodDimColor  = color.RGBA{R: 30, G: 85, B: 40, A: 255}
+	gridColor     = color.RGBA{R: 240, G: 230, B: 190, A: 150}
 )
 
 func (m *mainScene) screen() *ui.Element {

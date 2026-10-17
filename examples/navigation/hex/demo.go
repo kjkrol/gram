@@ -123,6 +123,7 @@ type unitRow struct {
 
 func (a *arena) defineFigures() {
 	a.board.Tiles(tiles()...)
+	a.board.Surfaces(surface{})
 	a.board.Figures(
 		scout{kind: RedKind, color: redColor},
 		scout{kind: BlueKind, color: blueColor},

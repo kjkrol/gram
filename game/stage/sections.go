@@ -60,10 +60,10 @@ func (s AfterWorld) Plugins(plugins func(w *world.Plugin)) AfterPlugins {
 
 type AfterPlugins struct{ AfterFigures }
 
-// Figures notes the figures, the tiles and the skies (world.Plugin.Figures, board.Plugin.Figures
-// and Tiles, atmosphere.Plugin.Skies): the Stage runs their Effects, Rules and Define in those
-// sections after the game's own functions, in the order noted; their looks are declared before
-// the scenes.
+// Figures notes the figures, the tiles, the surfaces and the skies (world.Plugin.Figures,
+// board.Plugin.Figures, Tiles and Surfaces, atmosphere.Plugin.Skies): the Stage runs their
+// Effects, Rules and Define in those sections after the game's own functions, in the order
+// noted; their looks are declared before the scenes.
 func (s AfterPlugins) Figures[F Step](f F) AfterFigures {
 	s.d.add(section.Plugins, stepOf(f))
 	return s.AfterFigures

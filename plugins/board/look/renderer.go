@@ -15,15 +15,22 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-var colorGridLine = color.RGBA{R: 20, G: 20, B: 20, A: 120}
-
-// RenderState is a Renderer's live display toggles.
+// RenderState is a Renderer's live display toggles and the line its grid is drawn in.
 type RenderState struct {
 	ShowGridLines bool
+	// GridLine is the grid's colour, GridWidth its width in screen pixels; 0 draws no grid.
+	GridLine  color.RGBA
+	GridWidth float32
 }
 
-// ToggleShowGridLines flips whether grid lines are drawn.
-func (r *RenderState) ToggleShowGridLines() { r.ShowGridLines = !r.ShowGridLines }
+// Grid is the grid's line as the shaders take it, premultiplied, and its width in pixels; false
+// while the grid is hidden or drawn in no line.
+func (s *RenderState) Grid() (line [4]float32, width float32, shown bool) {
+	if s == nil || !s.ShowGridLines || s.GridWidth <= 0 || s.GridLine.A == 0 {
+		return line, 0, false
+	}
+	return premultiplied(s.GridLine), s.GridWidth, true
+}
 
 // Map is what a board is drawn by: how its cells lie on the screen, what lies over them beyond
 // their sprites and how high they stand.
@@ -64,7 +71,7 @@ type Renderer struct {
 	square  bool
 	state   RenderState
 	shaded  map[cell.Name]render.MaterialID
-	outline []geom.Vec
+	scratch scratch
 	quads   []camera.Quad
 	tile    Tile
 	cells   []cell.ID
@@ -73,6 +80,11 @@ type Renderer struct {
 	seen    []uint32
 	stamp   uint32
 	tops    []cellTop
+	// the sides of every cell's outline on one of grid.DefaultGrids, nil on another grid
+	rims []rim
+	// gridded[i] is gridStamp where the cell of ordinal i draws its grid this frame
+	gridded   []uint32
+	gridStamp uint32
 	// scaleVaries: a perspective draws a world unit larger in some places than others
 	scaleVaries bool
 
@@ -83,6 +95,7 @@ type Renderer struct {
 	stillOn    bool
 	stillLight render.Light
 	white      bool
+	gridOn     bool // this frame's tiles draw the grid
 	grid       gridLines
 	ground     GroundDressing // this frame's, nil for none
 }
@@ -115,9 +128,22 @@ type tileWorker struct {
 	frame   render.Frame
 	over    render.Frame
 	tile    Tile
-	outline []geom.Vec
+	scratch scratch
 	dress   Dressing
 	look    Look
+}
+
+// what a goroutine drawing tiles keeps from one to the next
+type scratch struct {
+	outline []geom.Vec
+	rims    []rim
+}
+
+// a side of a cell's outline: the direction it faces, its ends among the outline's corners, and
+// whether the cell draws it even where the cell across draws its grid too
+type rim struct {
+	dir, a, b int
+	owns      bool
 }
 
 // tilesPerWorker is the fewest tiles worth a goroutine of their own.
@@ -128,9 +154,33 @@ const tilesPerWorker = 64
 func NewRenderer(b Board, atlas render.AtlasSource, m Map, space world.SpaceCfg) *Renderer {
 	w, h := b.CellBounds()
 	shape, ok := b.Shape()
-	r := &Renderer{board: b, atlas: atlas, cellW: w, cellH: h, square: ok && !shape.Hex, mapping: m, space: space}
+	r := &Renderer{
+		board:   b,
+		atlas:   atlas,
+		cellW:   w,
+		cellH:   h,
+		square:  ok && !shape.Hex,
+		mapping: m,
+		space:   space,
+	}
 	r.tile.r, r.tile.Atlas = r, atlas
+	if ok && b.CellCount() > 0 {
+		r.rims = rimsOf(b, b.At(0, 0), nil)
+	}
 	return r
+}
+
+// the sides of c's outline, each owned by one of the two cells it lies between
+func rimsOf(g grid.Grid, c cell.ID, out []rim) []rim {
+	out = out[:0]
+	for i := range g.Directions() {
+		if g.Corner(i) {
+			continue
+		}
+		a, b := grid.Rim(g, c, i)
+		out = append(out, rim{dir: i, a: a, b: b, owns: i < g.Opposite(i)})
+	}
+	return out
 }
 
 // SetAtlas has the cells drawn from atlas from the next frame on.
@@ -188,7 +238,8 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 }
 
 func (l *Renderer) gridDrawn(cam camera.Camera) bool {
-	return l.state.ShowGridLines && float32(min(l.cellW, l.cellH))*cam.Zoom() >= MinGridCell
+	_, _, shown := l.state.Grid()
+	return shown && float32(min(l.cellW, l.cellH))*cam.Zoom() >= MinGridCell
 }
 
 // the material's inputs: World the cell's box, Custom its middle and half its width, Red 1
@@ -236,7 +287,8 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	}
 	if t.Pass == render.SeeThrough {
 		if l.gridDrawn(cam) {
-			l.grid.draw(t, cam, u, l.board, l.space.Edges.WrapsX(), l.space.Edges.WrapsY())
+			l.grid.draw(t, cam, u, l.board, &l.state, l.space.Edges.WrapsX(),
+				l.space.Edges.WrapsY())
 		}
 		return
 	}
@@ -308,26 +360,32 @@ func (l *Renderer) compose(f *render.Frame, look Look, d Dressing) {
 	l.scaleVaries = top != camera.ScaleAt(cam, x1, y1, 0) || top != cam.Zoom()
 	par, ok := d.(Parallel)
 	pl, okLook := look.(ParallelLook)
-	if !ok || !okLook || l.count == 1 {
-		f.Branch(&l.over)
-		l.eachVisible(func(c cell.ID) {
-			l.outline = l.cell(f, &l.over, look, &l.tile, c, l.outline)
-		})
-		f.Append(&l.over)
-		return
+	split := ok && okLook && l.count != 1
+	_, _, shown := l.state.Grid()
+	if l.gridOn = shown && !l.white; l.gridOn { // a still's grid is drawn over it on the GPU
+		l.nextGrid()
 	}
 	l.cells = l.cells[:0]
 	l.eachVisible(func(c cell.ID) {
 		l.topOf(c)
-		l.place(&l.tile, c)
-		par.Warm(&l.tile)
+		if l.gridOn && l.gridShown(c) {
+			i, _ := l.board.Ordinal(c)
+			l.gridded[i] = l.gridStamp
+		}
+		if split {
+			l.place(&l.tile, c)
+			par.Warm(&l.tile)
+		}
 		l.cells = append(l.cells, c)
 	})
-	k := parallel.Workers(len(l.cells), tilesPerWorker, l.count)
+	k := 1
+	if split {
+		k = parallel.Workers(len(l.cells), tilesPerWorker, l.count)
+	}
 	if k < 2 {
 		f.Branch(&l.over)
 		for _, c := range l.cells {
-			l.outline = l.cell(f, &l.over, look, &l.tile, c, l.outline)
+			l.cell(f, &l.over, look, &l.tile, c, &l.scratch)
 		}
 		f.Append(&l.over)
 		return
@@ -348,7 +406,7 @@ func (l *Renderer) compose(f *render.Frame, look Look, d Dressing) {
 	parallel.Run(k, len(l.cells), func(w, from, to int) {
 		tw := l.workers[w]
 		for _, c := range l.cells[from:to] {
-			tw.outline = l.cell(&tw.frame, &tw.over, tw.look, &tw.tile, c, tw.outline)
+			l.cell(&tw.frame, &tw.over, tw.look, &tw.tile, c, &tw.scratch)
 		}
 	})
 	for _, tw := range l.workers[:k] {
@@ -367,54 +425,77 @@ func (l *Renderer) place(t *Tile, c cell.ID) geom.Vec {
 	return center
 }
 
-// the tile and what lies on it go to f, what runs across the board to over
-func (l *Renderer) cell(
-	f, over *render.Frame, look Look, t *Tile, c cell.ID, outline []geom.Vec,
-) []geom.Vec {
-	if _, ok := l.shaded[l.board.Kind(c).Name]; ok {
-		return outline // a material, never drawn as a tile
+// the tile and what lies on it go to f, what runs across the board to over; a material's cell
+// has only its grid drawn
+func (l *Renderer) cell(f, over *render.Frame, look Look, t *Tile, c cell.ID, s *scratch) {
+	if _, ok := l.shaded[l.board.Kind(c).Name]; !ok {
+		l.place(t, c)
+		look.Cell(f, l.camera, t)
+		if t.dress != nil {
+			t.dress.Across(over, l.camera, t)
+		}
 	}
-	center := l.place(t, c)
-	grid := l.gridShown(c, center)
-	t.Outlined = grid && l.square
-	look.Cell(f, l.camera, t)
-	if t.dress != nil {
-		t.dress.Across(over, l.camera, t)
+	if l.gridOn && l.griddedAt(c) {
+		l.gridLines(f, c, s)
 	}
-	if grid && !l.square {
-		return l.outlineLines(f, c, outline)
-	}
-	return outline
 }
 
-func (l *Renderer) gridShown(c cell.ID, center geom.Vec) bool {
-	if !l.state.ShowGridLines || l.white { // a still's grid is drawn over it on the GPU
-		return false
+// nextGrid starts a frame's marks of the cells drawing their grid
+func (l *Renderer) nextGrid() {
+	if n := l.board.CellCount(); len(l.gridded) != n {
+		l.gridded, l.gridStamp = make([]uint32, n), 0
 	}
+	if l.gridStamp++; l.gridStamp == 0 { // wrapped round: old marks would pass for new
+		clear(l.gridded)
+		l.gridStamp = 1
+	}
+}
+
+func (l *Renderer) griddedAt(c cell.ID) bool {
+	i, ok := l.board.Ordinal(c)
+	return ok && l.gridded[i] == l.gridStamp
+}
+
+func (l *Renderer) gridShown(c cell.ID) bool {
 	scale := l.camera.Zoom()
 	if l.scaleVaries {
+		center := l.board.CellCenter(c)
 		scale = camera.ScaleAt(l.camera, float32(center.X), float32(center.Y), l.topOf(c).alt)
 	}
 	return float32(min(l.cellW, l.cellH))*scale >= MinGridCell
 }
 
-// an edge straddling a wrap seam is left out: the cells either side draw its images
-func (l *Renderer) outlineLines(f *render.Frame, c cell.ID, outline []geom.Vec) []geom.Vec {
+// gridLines draws the sides of c the cell across leaves to it, each side of the board once
+func (l *Renderer) gridLines(f *render.Frame, c cell.ID, s *scratch) {
 	alt := l.topOf(c).alt
-	outline = l.board.CellOutline(c, outline[:0])
-	reach := float32(l.cellW+l.cellH) * l.camera.Zoom()
-	for i, p := range outline {
-		q := outline[(i+1)%len(outline)]
+	s.outline = l.board.CellOutline(c, s.outline[:0])
+	rims := l.rims
+	if rims == nil {
+		s.rims = rimsOf(l.board, c, s.rims)
+		rims = s.rims
+	}
+	zoom := l.camera.Zoom()
+	reach := float32(l.cellW+l.cellH) * zoom
+	line, width := l.state.GridLine, l.state.GridWidth
+	for _, e := range rims {
+		if n, ok := l.board.Toward(c, e.dir); ok && !e.owns && l.griddedAt(n) {
+			continue
+		}
+		p, q := s.outline[e.a], s.outline[e.b]
 		px, py, qx, qy := float32(p.X), float32(p.Y), float32(q.X), float32(q.Y)
 		ax, ay := l.camera.Project(px, py, alt)
 		bx, by := l.camera.Project(qx, qy, alt)
-		if abs32(bx-ax) > reach || abs32(by-ay) > reach {
+		at := f.Lifted((px+qx)/2, (py+qy)/2, alt, gridLift)
+		if abs32(bx-ax) <= reach && abs32(by-ay) <= reach {
+			f.Line(at, ax, ay, bx, by, width, line)
 			continue
 		}
-		at := f.Lifted((px+qx)/2, (py+qy)/2, alt, gridLift)
-		f.Line(at, ax, ay, bx, by, 1, colorGridLine)
+		// its ends on either side of a wrap seam, which only a camera from above has: both
+		// images of it
+		dx, dy := (qx-px)*zoom, (qy-py)*zoom
+		f.Line(at, ax, ay, ax+dx, ay+dy, width, line)
+		f.Line(at, bx-dx, by-dy, bx, by, width, line)
 	}
-	return outline
 }
 
 func (l *Renderer) nextTops() {

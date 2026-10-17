@@ -27,7 +27,8 @@ type Sky interface {
 
 var prisms = render.NewMeshShaderWith("hexes", render.Files(shaders, "shaders/hexes.wgsl"), []render.Uniform{
 	{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
-	{Name: "HexSize", Size: 1}, {Name: "TopPx", Size: 1}, {Name: "GridOn", Size: 1},
+	{Name: "HexSize", Size: 1}, {Name: "TopPx", Size: 1}, {Name: "GridLine", Size: 4},
+	{Name: "GridWidth", Size: 1},
 	{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
 }).Instanced(3)
 
@@ -114,11 +115,9 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	h.set("Bend", tr.Bend)
 	h.set("HexSize", h.size)
 	h.set("TopPx", h.px)
-	grid := float32(0)
-	if rs := h.board.Res.Render; rs != nil && rs.ShowGridLines && h.size*cam.Zoom() >= look.MinGridCell {
-		grid = 1
-	}
-	h.set("GridOn", grid)
+	line, width := h.gridOf(cam)
+	h.set("GridLine", line[:]...)
+	h.set("GridWidth", width)
 	seeing, up, way := h.sky.Air().Seen(cam, h.hazeAbove)
 	h.set("Visibility", seeing)
 	h.set("HazeUp", up)
@@ -182,6 +181,16 @@ func (h *Ground) edges() [6]int {
 		}
 	}
 	return out
+}
+
+// gridOf is the board's grid's line through cam, premultiplied, and its width; 0 wide where the
+// grid is hidden or its cells too small to show it
+func (h *Ground) gridOf(cam camera.Camera) (line [4]float32, width float32) {
+	line, width, shown := h.board.Res.Render.Grid()
+	if !shown || h.size*cam.Zoom() < look.MinGridCell {
+		return line, 0
+	}
+	return line, width
 }
 
 func (h *Ground) set(name string, v ...float32) {

@@ -53,6 +53,8 @@ type flat struct {
 	shores []water.Shore
 	coast  uint64
 	grid   float32
+	line   [4]float32
+	width  float32
 }
 
 func (f *flat) Surface() Painted {
@@ -60,7 +62,16 @@ func (f *flat) Surface() Painted {
 		f.img = render.NewImage(16, 16)
 		f.img.Fill(color.RGBA{128, 128, 128, 255})
 	}
-	return Painted{Albedo: f.img, Px: 1, Shores: f.shores, Reach: 96, Coast: f.coast, Grid: f.grid}
+	return Painted{
+		Albedo:    f.img,
+		Px:        1,
+		Shores:    f.shores,
+		Reach:     96,
+		Coast:     f.coast,
+		Grid:      f.grid,
+		GridLine:  f.line,
+		GridWidth: f.width,
+	}
 }
 
 type none struct{}
@@ -235,7 +246,7 @@ func TestShores_HoldTheWayAndHowFar(t *testing.T) {
 
 func TestRenderer_PreparesTheFramesUniformsWithItsOwnOver(t *testing.T) {
 	needGPU(t)
-	f := &flat{grid: 6}
+	f := &flat{grid: 6, line: [4]float32{0.5, 0, 0, 0.5}, width: 3}
 	r := New(hill{}, f, stillSky{}, Config{})
 	cam := eye{Camera: icamera.NewFromSpace(512, 512, 0), at: [3]float32{100, 256, 4}}
 	frame := map[string]any{"Pixel": []float32{0.5}, "Sun": []float32{1, 2, 3}, "Cell": []float32{9, 9}}
@@ -261,6 +272,10 @@ func TestRenderer_PreparesTheFramesUniformsWithItsOwnOver(t *testing.T) {
 	}
 	if v := get("GridFrom"); len(v) != 1 || v[0] != 6 {
 		t.Errorf("GridFrom %v, want the surface's 6", v)
+	}
+	if v, w := get("GridLine"), get("GridWidth"); len(v) != 4 || v[0] != 0.5 || len(w) != 1 ||
+		w[0] != 3 {
+		t.Errorf("the grid's line %v, %v pixels wide; want the surface's red, 3", v, w)
 	}
 	if v := frame["Pixel"].([]float32); v[0] != 0.5 {
 		t.Errorf("the frame's own Pixel became %v: the renderer wrote into the composer's", v[0])

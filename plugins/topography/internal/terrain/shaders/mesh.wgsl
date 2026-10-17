@@ -115,7 +115,8 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
         rgb *= 1.0 - cloudShade(cover);
     }
     if U.GridFrom > 0.0 && span >= U.GridFrom && inside {
-        rgb *= 1.0 - outlineDark * edge(p.xy, moveX, moveY);
+        let e = edge(p.xy, moveX, moveY);
+        rgb = rgb * (1.0 - U.GridLine.a * e) + U.GridLine.rgb * e;
     }
     // the water running down the ways and the cells it runs over, and where a way turns into water
     if run.b > 0.004 && span > 16.0 {

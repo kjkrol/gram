@@ -160,6 +160,7 @@ var walks = steering.Steering{
 // the traveller's role before the host's rule that names it
 func (a *arena) defineFigures() {
 	a.board.Tiles(meadow{})
+	a.board.Surfaces(surface{})
 	a.board.Figures(traveller{}, host{talks: a.dialog})
 }
 
