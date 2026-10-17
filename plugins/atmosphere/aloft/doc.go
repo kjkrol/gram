@@ -10,6 +10,6 @@
 // flat ([Renderer.Bodies]); the clouds lie as deep as where they begin, so the ground and what
 // stands nearer hide them. An eye under the layer's top sees it on the sky instead, behind the
 // hills, but for the heaps as bodies before the ground, as far as the highest ground: the sky
-// draws those past it (backdrop.Clouds.Before). The atmosphere plugin draws one a layer, shown or
-// not as its scene says.
+// draws those past it (backdrop.Clouds.Before). The atmosphere plugin draws the low layer, shown
+// or not as its scene says: the high one from above veiled the whole map.
 package aloft

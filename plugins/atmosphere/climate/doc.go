@@ -23,10 +23,20 @@
 // [Climate.Set] into a named one, either over the world and upwind of it within seconds.
 // [Climate.Over] has the low clouds hang over the ground's relief, their bands shared as the
 // weather over the world's middle has them (weather.State.Ceilings), going over to a new
-// weather's as its air does.
+// weather's as its air does. The masses carry their weather's damp (weather.State.Damp);
+// [Climate.OnLand] has the land work on them (air.Dome.Lift).
 // [Climate.Air] is the air as the last step left it, the weather now that over the world's
 // middle, for whoever draws; [Climate.SetRunning] stops what of it a game wants still
 // ([Running]).
+//
+// # Spread
+//
+// The rain, the storms and the clouds come in places, never over the whole world: a storm in the
+// middle of rain, rain amid clouds, the clouds with fair breaks, each place at most the share of
+// the world the [Spread] gives — a knob on the atmosphere's entity, [DefaultSpread] as the game
+// starts, an effect turning it. The places drift with the clouds and repeat past the world, so
+// any stretch as wide as it holds those shares. The weathers so placed are weather.Default's by
+// name; a climate without them has each weather over all of it.
 //
 // # Weathering
 //
@@ -37,5 +47,6 @@
 //
 // # Vocabulary
 //
-// Moments, for a role's rules: [Weathering] (the atmosphere's own entity, once a step).
+// Moments, for a role's rules: [Weathering] (the atmosphere's own entity, once a step). Knobs,
+// for an effect's Alter: [Spread] (the atmosphere's own entity).
 package climate

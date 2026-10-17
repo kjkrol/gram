@@ -22,6 +22,7 @@ type Climate struct {
 	rules    host.StepRules[Weathering]
 	about    func() uid.UID64
 	ground   func() (low, peaks float64)
+	land     *air.Land
 	running  Running
 }
 
@@ -68,7 +69,7 @@ func (c *Climate) Zone() Zone { return c.cfg.Zone }
 // System is the weather's system, to run in every step of the simulation. Call it once.
 func (c *Climate) System() goke.System {
 	c.sys = newWeatherSystem(c.cfg, c.world, c.calendar, &c.asked, &c.rules, &c.running)
-	c.sys.about, c.sys.ground = c.about, c.ground
+	c.sys.about, c.sys.ground, c.sys.land = c.about, c.ground, c.land
 	return c.sys
 }
 
@@ -91,9 +92,16 @@ func (c *Climate) About(self func() uid.UID64) { c.about = self }
 // before System.
 func (c *Climate) Over(ground func() (low, peaks float64)) { c.ground = ground }
 
-// LoadComps lists the weather's components for the saves: its own and the air masses' patches.
+// OnLand has the land work on the air masses over the world every step (air.Dome.Lift): the low
+// clouds held back by the ground, rain and clouds wrung out of the air where it says. Call it
+// before System.
+func (c *Climate) OnLand(land *air.Land) { c.land = land }
+
+// LoadComps lists the weather's components for the saves: its own, the air masses' patches and
+// the Spread knob.
 func (c *Climate) LoadComps() []goke.CompToken {
-	return []goke.CompToken{goke.LoadComp[Weather](), goke.LoadComp[air.Patch]()}
+	return []goke.CompToken{goke.LoadComp[Weather](), goke.LoadComp[air.Patch](),
+		goke.LoadComp[Spread]()}
 }
 
 // Rules takes the rules of Weathering.

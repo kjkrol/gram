@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/plugins/atmosphere/weathering"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -187,6 +188,10 @@ func (a *arena) defineEffects() {
 			m.Color, m.Face = render.Light{1, 0.25, 0.2}, render.Light{1, 0.3, 0.25}
 			m.Strength *= 2
 		})})
+	a.world.Effects().Define(WindwardRainEf, effect.Spec{effect.Lasts(2 * time.Second),
+		effect.Alter(func(w *weathering.Wring) { w.Falls = 0.8 })})
+	a.world.Effects().Define(GatheringEf, effect.Spec{effect.Lasts(2 * time.Second),
+		effect.Alter(func(w *weathering.Wring) { w.Gathers = 0.05 })})
 }
 
 func (a *arena) defineRules() {
@@ -201,6 +206,19 @@ func (a *arena) defineRules() {
 		Then: act.Self.Put(a.world.Effects().Named(BloodMoonEf)),
 	})
 	a.atmosphere.Plays(a.world.Roles().Named(LunarRole))
+	a.world.Roles().Define(UplandRole,
+		act.Branch[weathering.Overhead]{
+			Name: "rain on the windward slopes",
+			When: cond.Self.If(weathering.Reaches(0.9)).And(cond.Self.If(weathering.Clouded(0.6))),
+			Then: act.Self.Put(a.world.Effects().Named(WindwardRainEf)),
+		},
+		act.Branch[weathering.Overhead]{
+			Name: "clouds over the hills of an afternoon",
+			When: cond.Self.If(weathering.Hours(12*time.Hour, 17*time.Hour)).
+				And(cond.Self.If(weathering.Damp(0.3))).
+				And(cond.Self.If(weathering.Reaches(0.7))),
+			Then: act.Self.Put(a.world.Effects().Named(GatheringEf)),
+		})
 }
 
 func (a *arena) defineCommands() {

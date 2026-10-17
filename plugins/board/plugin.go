@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"reflect"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -135,7 +136,7 @@ func (p *Plugin) Name() string { return "gram.board" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
-		cells:     p.Board().cells.System(&p.worldPlugin.Roster().Cell),
+		cells:     p.Board().cells.System(&p.worldPlugin.Roster().Cell, p.mattering),
 		built:     p.Board().cells.BuiltSystem(p.worldPlugin.Space),
 		template:  &p.worldPlugin.Roster().Cell,
 		keep:      occupancy.KeepSystem(p.occupancy, p.Board().footing),
@@ -286,6 +287,38 @@ func (p *Plugin) CellEntity(c cell.ID) (uid.UID64, bool) { return p.Board().Cell
 
 // Occupancy is the occupancy the plugin was built with.
 func (p *Plugin) Occupancy() cell.Occupancy { return p.occupancy }
+
+// the marks of the effects the terrain changes under: those its cells show, those granting tags
+// and those turning a knob of its own; not those turning only another's, as the air's
+func (p *Plugin) mattering() tag.Tags[effect.States] {
+	fx := p.worldPlugin.Effects()
+	var matters tag.Tags[effect.States]
+	for k := range fx.Count() {
+		d := fx.Definition(uint8(k))
+		mark := fx.Named(d.Name).Mark()
+		foreign := !d.Shows && len(d.Alters) > 0
+		for _, g := range d.Grants {
+			// every effect grants its own marker
+			own := g.Family == reflect.TypeFor[tag.Tags[effect.States]]() && g.Bits == 1<<mark
+			foreign = foreign && own
+		}
+		for _, a := range d.Alters {
+			foreign = foreign && !ownKnobs[a.Comp]
+		}
+		if !foreign {
+			matters = matters.With(mark)
+		}
+	}
+	return matters
+}
+
+// the knobs of a cell the terrain reads
+var ownKnobs = map[reflect.Type]bool{
+	reflect.TypeFor[cell.Ground](): true,
+	reflect.TypeFor[cell.Floor]():  true,
+	reflect.TypeFor[cell.Wall]():   true,
+	reflect.TypeFor[cell.Rail]():   true,
+}
 
 // Covering is the slot of the board's atlas laid over the cells under the effect e, issued the
 // first time it is asked for. Add what it shows to the atlas before it is closed; Slot.Under

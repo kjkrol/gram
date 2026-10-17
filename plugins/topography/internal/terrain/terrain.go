@@ -35,6 +35,7 @@ var shader = render.NewMeshShaderWith("terrain",
 		{Name: "ShoreReach", Size: 1}, {Name: "Px", Size: 1}, {Name: "AlbedoSize", Size: 2}, {Name: "WaterPx", Size: 1}, {Name: "FlowSpan", Size: 1},
 		{Name: "Shadows", Size: 1}, {Name: "GridFrom", Size: 1}, {Name: "ShadePx", Size: 1},
 		{Name: "Skirt", Size: 2}, {Name: "Perspective", Size: 1},
+		{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
 	})
 
 // enough rings for the world's curve to bend the skirt under the horizon smoothly
@@ -116,10 +117,11 @@ type Config struct {
 
 // Renderer draws the ground as a mesh: a render.Direct source in the opaque pass.
 type Renderer struct {
-	ground  Ground
-	surface Surface
-	sky     Sky
-	cfg     Config
+	ground    Ground
+	surface   Surface
+	sky       Sky
+	cfg       Config
+	hazeAbove bool
 
 	// quadrants: heights, normals, wet cells, shores
 	lattice   *render.Image
@@ -685,6 +687,10 @@ func decode(hi, lo byte, low, span float32) float32 {
 // Shadows says whether the ground casts shadows, from the next frame on.
 func (r *Renderer) Shadows(on bool) { r.cfg.Shadows = on }
 
+// HazeAbove says whether the ground is hazed through a camera looking from above, with no eye, by
+// the air over it; off, it is drawn clear so.
+func (r *Renderer) HazeAbove(on bool) { r.hazeAbove = on }
+
 func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	cols, rows, cell, _, _ := r.ground.Lattice()
 	r.set("ViewProj", t.M[:]...)
@@ -715,11 +721,14 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	r.set("Skirt", skirtReach(cols, rows, cell, r.cfg.Scale), skirtRings)
 	ks := bakedScale(cols, rows, r.coarse)
 	r.set("ShadePx", float32(ks))
-	visibility := float32(0)
-	if _, eyed := cam.(camera.Eyed); eyed && r.sky != nil {
-		visibility = float32(r.sky.Air().Visibility(air.Under(cam)))
+	var seeing, up float32
+	var way [3]float32
+	if r.sky != nil {
+		seeing, up, way = r.sky.Air().Seen(cam, r.hazeAbove)
 	}
-	r.set("Visibility", visibility)
+	r.set("Visibility", seeing)
+	r.set("HazeUp", up)
+	r.set("HazeWay", way[:]...)
 }
 
 // times farther from the world's middle than its edge: to the horizon seen from under the

@@ -13,14 +13,17 @@
 //
 // # Dome
 //
-// The weather over a point is its air [Mass]: how much of the sky its clouds cover, how heaped
-// they are, how much falls from them. A [Dome] holds the masses over a world and its sky out to
-// the horizon, drifting with the clouds: level 0 over the world in cells of [BoardCell], each
-// level further out in coarser cells, every level a ring of [Patch]es, each an entity of its own.
-// [Dome.Carry] brings masses in where the wind blows from, at the horizon, [Dome.Settle] has them
-// settle in place. [Weather.At] is the mass over a point (airAt in WGSL, from the frame's image
-// AirMasses a [DomeImage] keeps), [Weather.Falls] its rain and snow by the temperature and
-// [Weather.FallsAt] what comes down there under the clouds, none from their gaps.
+// The weather over a point is its air [Mass]: how much of the sky its clouds cover, how heaped they
+// are, how much falls from them, how damp it is. A [Dome] holds the masses over a world and its sky
+// out to the horizon, drifting with the clouds: level 0 over the world in cells of [BoardCell],
+// each level further out in coarser cells, every level a ring of [Patch]es, each an entity of its
+// own. [Dome.Carry] brings masses in where the wind blows from, at the horizon, [Dome.Settle] has
+// them settle in place, [Dome.Lift] has the [Land] under them work on them: the low clouds held
+// back and piling up before ground standing up into them, rain wrung out and damp gathered into low
+// clouds where it says ([Mass.WithLow] changes the low ones alone). [Weather.At] is the mass over a
+// point (airAt in WGSL, from the frame's image AirMasses a [DomeImage] keeps), [Weather.Falls] its
+// rain and snow by the temperature and [Weather.FallsAt] what comes down there under the clouds,
+// none from their gaps.
 //
 // # Clouds
 //

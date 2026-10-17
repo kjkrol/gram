@@ -29,8 +29,10 @@
 // The relief stands under an [Atmosphere] ([Plugin.WithAtmosphere]; sky.DefaultSun in still,
 // clear air given none): its sun lights the ground per pixel and casts the shadows of the relief
 // and of what stands on it, baked as the sun moves ([Plugin.WithShadows], [CoarseShadows]); its
-// weather leans what sways, lays the clouds' shadows and hazes the far off. How a kind looks
-// beyond its sprite is its painter.Style ([Plugin.Style]).
+// weather leans what sways, lays the clouds' shadows and hazes the far off from an eye — seen
+// from above, through a camera with none, only when asked ([Plugin.WithHazeFromAbove],
+// [HazeFromAbove]), the map clear by default. How a kind looks beyond its sprite is its
+// painter.Style ([Plugin.Style]).
 //
 // # Drawing and commands
 //
@@ -43,5 +45,6 @@
 // # Vocabulary
 //
 // Commands, a player's through its camera: [View], [LookFrom], [LookAt], [Look], [Ride], [Turn],
-// [Tilt] (the views); [Raise], [Lower], [Level] (the shaping); [CoarseShadows] (a look).
+// [Tilt] (the views); [Raise], [Lower], [Level] (the shaping); [CoarseShadows], [HazeFromAbove]
+// (looks).
 package topography

@@ -37,6 +37,7 @@ type Dome struct {
 	laid   bool
 	width  int // the picture's
 	height int
+	held   holding
 }
 
 // BoardCell is the size of level 0's cells, in world units.
@@ -143,6 +144,12 @@ func (l *domeLevel) cellAt(gx, gy int) (*Patch, int) {
 }
 
 func mod(i, n int) int { return (i%n + n) % n }
+
+// the slot of the patch the cell (gx, gy) is kept in
+func (l *domeLevel) slotOf(gx, gy int) int {
+	tx, ty := floorDiv(gx, PatchCells), floorDiv(gy, PatchCells)
+	return mod(ty, l.tiles[1])*l.tiles[0] + mod(tx, l.tiles[0])
+}
 
 // the cells kept at drift: those whose middles lie within a cell of the rect
 func (l *domeLevel) span(drift [2]float32) (lo, hi [2]int) {

@@ -98,6 +98,8 @@ type Plugin struct {
 	views     func(icameras.Config) cameras.Maker
 	camQueues cameraQueues
 	coarse    command.Queue[CoarseShadows]
+	hazing    command.Queue[HazeFromAbove]
+	hazeAbove bool
 	module    *module
 }
 
@@ -295,6 +297,23 @@ func (p *Plugin) WithCoarseShadows(on bool) *Plugin {
 // ShadowsCoarse reports whether the terrain's shadows are baked coarse.
 func (p *Plugin) ShadowsCoarse() bool { return p.ground != nil && p.ground.Coarsened() }
 
+// WithHazeFromAbove has the ground hazed seen from above too, through a camera with no eye (the
+// tactical views), by the air over it as thick as the weather makes it; off by default, the map
+// clear.
+func (p *Plugin) WithHazeFromAbove(on bool) *Plugin {
+	p.hazeAbove = on
+	if p.ground != nil {
+		p.ground.HazeAbove(on)
+	}
+	if p.hexes != nil {
+		p.hexes.HazeAbove(on)
+	}
+	return p
+}
+
+// HazesFromAbove reports whether the ground is hazed seen from above.
+func (p *Plugin) HazesFromAbove() bool { return p.hazeAbove }
+
 // Seed sets the ground's heights raised when the Stage starts fresh.
 func (p *Plugin) Seed(heights func(p geom.Vec) float64) {
 	if err := p.worldPlugin.InSection("the ground's heights seeded", section.Spawn); err != nil {
@@ -379,6 +398,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // before the players' RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.coarse.Drain(func(command.Issued[CoarseShadows]) { p.WithCoarseShadows(!p.ShadowsCoarse()) })
+	p.hazing.Drain(func(command.Issued[HazeFromAbove]) { p.WithHazeFromAbove(!p.HazesFromAbove()) })
 	p.module.RunPlan(ctx, d)
 }
 

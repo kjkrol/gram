@@ -182,6 +182,32 @@ func (m Mass) Layer(l Layer) Mass {
 	return m
 }
 
+// WithLow is m with low the cover of its low layer (Layer), its high layer kept as far as the two
+// can stand together: a heap holds some shreds above it, and heaps grow heaped.
+func (m Mass) WithLow(low float32) Mass {
+	low = clamp01(low)
+	if low <= 0 {
+		m.Cover = 0
+		return m
+	}
+	const a, e, h = lowLeast, highEarly, highHeaped
+	high := m.Layer(High).Cover
+	cover := func(billow float32) float32 { return low / (a + (1-a)*billow) }
+	// under 1/e of cover the shreds grow with it: both shares solved together
+	b := clamp01((e*low - high*a) / max(high*(1-a)+e*low*h, 1e-6))
+	if c := cover(b); c < 1.0/e {
+		m.Cover, m.Billow = c, b
+		return m
+	}
+	b = clamp01((1 - high) / h)
+	c := cover(b)
+	if c > 1 {
+		c, b = 1, clamp01((low-a)/(1-a))
+	}
+	m.Cover, m.Billow = c, b
+	return m
+}
+
 // how much of the cover the low clouds hold, unheaped, all of it heaped; how soon the high ones
 // come, a few clouds already holding all of them, and how many fewer the more heaped; the shaders
 // have the same

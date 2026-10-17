@@ -44,8 +44,19 @@ type weatherSystem struct {
 	part   int         // of the dome's patches, settling next
 	setNow bool
 
-	ground   func() (low, peaks float64) // nil over no ground in particular
-	relief   [2]float32                  // as air.ReliefOf, from the first step on
+	ground  func() (low, peaks float64) // nil over no ground in particular
+	land    *air.Land                   // nil without
+	places  *places
+	spread  Spread
+	spreads *goke.Query
+	knob    goke.Comp[Spread]
+	// the Default weathers', -1 for none
+	named struct{ fair, cloudy, rain, storm int32 }
+	// seconds since the land last worked on the air, and steps
+	lifted float32
+	lifts  int
+	// as air.ReliefOf, from the first step on
+	relief   [2]float32
 	bases    [2]float32
 	ceilings [3]float32 // coming to the weather's over the world's middle
 	ceiled   bool
@@ -53,6 +64,14 @@ type weatherSystem struct {
 
 func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, asked *[]string, rules *host.StepRules[Weathering], running *Running) *weatherSystem {
 	return &weatherSystem{cfg: cfg, world: w, calendar: cal, asked: asked, running: running, host: rules, profile: cfg.Zone.Profile()}
+}
+
+// what falls from the weather of the state st
+func (s *weatherSystem) falls(st int16) float32 {
+	if st < 0 || int(st) >= len(s.cfg.Weathers) {
+		return 0
+	}
+	return s.cfg.Weathers[st].Falls
 }
 
 // the ground the low clouds hang over and how high each layer hangs, worked out once
@@ -98,6 +117,7 @@ const (
 	setting     = 2.0  // seconds the air over the world takes to settle into a weather set now
 	forcing     = 5    // settings a weather set now settles in for
 	neighbourly = 2    // how much likelier a lane takes a neighbour's weather
+	liftParts   = 4    // steps the land takes to work on the air once, as long as they took
 )
 
 func (s *weatherSystem) Init(si *goke.SysInit) {
@@ -110,6 +130,10 @@ func (s *weatherSystem) Init(si *goke.SysInit) {
 	s.lanesOf(scale)
 	s.query = si.NewQueryBuilder(&s.now).Build()
 	s.patches = si.NewQueryBuilder(&s.patch).Build()
+	s.spreads = si.NewQueryBuilder(&s.knob).Build()
+	s.places = newPlaces(width, height)
+	s.named.fair, s.named.cloudy = s.cfg.index(weather.Fair), s.cfg.index(weather.Cloudy)
+	s.named.rain, s.named.storm = s.cfg.index(weather.Rain), s.cfg.index(weather.Storm)
 	kept := false
 	for s.query.All(); s.query.Next(); {
 		kept = true
@@ -206,6 +230,10 @@ func lane(k int) int { return (k%MaxLanes + MaxLanes) % MaxLanes }
 
 func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	s.hold()
+	s.spread = DefaultSpread()
+	for s.spreads.All(); s.spreads.Next(); {
+		s.spread = s.knob.Slice(s.spreads.Cursor())[0]
+	}
 	for _, id := range s.stale {
 		cb.RemoveOne(id)
 	}
@@ -250,6 +278,11 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		now := w.air(s.world.Scale(), *s.running, s.dome, over)
 		now.Bases, now.Relief, now.Ceilings = s.bases, s.relief, s.ceilings
 		now.OneLayer = s.cfg.OneLayer
+		s.lifted, s.lifts = s.lifted+dt, (s.lifts+1)%liftParts
+		if s.land != nil && now.Dome != nil && s.lifts == 0 {
+			s.dome.Lift(now, s.land, s.falls, s.lifted)
+			s.lifted = 0
+		}
 		s.current = now
 		if !s.host.Empty() {
 			t := s.world.Tick(d)
@@ -414,16 +447,20 @@ func (s *weatherSystem) carry(w *Weather, dt float32) {
 
 // the mass the lanes bring in at the world point (x, y), or the one they are coming to
 func (s *weatherSystem) born(w *Weather, to bool) func(x, y float32) (air.Mass, int16) {
-	mass := func(l *Lane) air.Mass {
-		if to {
-			falls := s.cfg.Weathers[l.State].Falls
-			return air.Mass{Cover: l.CloudsTo, Billow: l.BillowTo, Falls: falls}
+	var parts [MaxLanes][]part
+	var laid [MaxLanes]bool
+	at := func(k int, x, y float32) (air.Mass, int16) {
+		l := &w.Lanes[k]
+		if !laid[k] {
+			parts[k], laid[k] = s.partsOf(l, to), true
 		}
-		return air.Mass{Cover: l.Clouds, Billow: l.Billow, Falls: l.Falls}
+		if len(parts[k]) == 1 {
+			return parts[k][0].mass, parts[k][0].state
+		}
+		return spreadAt(parts[k], s.places.rank(x, y, w.Drift))
 	}
 	if s.lanes == 0 {
-		m, st := mass(&w.Lanes[0]), int16(w.Lanes[0].State)
-		return func(float32, float32) (air.Mass, int16) { return m, st }
+		return func(x, y float32) (air.Mass, int16) { return at(0, x, y) }
 	}
 	sin, cos := math.Sincos(float64(w.Heading))
 	return func(x, y float32) (air.Mass, int16) {
@@ -432,18 +469,75 @@ func (s *weatherSystem) born(w *Weather, to bool) func(x, y float32) (air.Mass, 
 		u = min(max(u, -float32(s.lanes)), float32(s.lanes))
 		k := int(math.Floor(float64(u)))
 		t := u - float32(k)
-		a, b := &w.Lanes[lane(k)], &w.Lanes[lane(k+1)]
-		ma, mb := mass(a), mass(b)
-		st := a.State
+		ma, sa := at(lane(k), x, y)
+		mb, sb := at(lane(k+1), x, y)
+		st := sa
 		if t >= 0.5 {
-			st = b.State
+			st = sb
 		}
 		return air.Mass{
 			Cover:  ma.Cover + (mb.Cover-ma.Cover)*t,
 			Billow: ma.Billow + (mb.Billow-ma.Billow)*t,
 			Falls:  ma.Falls + (mb.Falls-ma.Falls)*t,
-		}, int16(st)
+			Damp:   ma.Damp + (mb.Damp-ma.Damp)*t,
+		}, st
 	}
+}
+
+// the parts of the world the weather of the lane l comes in, by rank (places): a storm amid rain
+// amid clouds, rain amid clouds, clouds alone, each with fair breaks, as the Spread has them; any
+// other weather, or one whose climate lacks those round it, over all of it
+func (s *weatherSystem) partsOf(l *Lane, to bool) []part {
+	st := &s.cfg.Weathers[l.State]
+	own := air.Mass{Cover: l.Clouds, Billow: l.Billow, Falls: l.Falls, Damp: st.Damp}
+	if to {
+		own = air.Mass{
+			Cover:  l.CloudsTo,
+			Billow: l.BillowTo,
+			Falls:  st.Falls,
+			Damp:   st.Damp,
+		}
+	}
+	whole := []part{{mass: own, state: int16(l.State)}}
+	n := s.named
+	round := func(at int32, from float32) part {
+		return part{from: from, mass: middling(s.cfg.Weathers[at]), state: int16(at)}
+	}
+	sp := s.spread
+	rain := min(max(sp.Rain, 0), 1)
+	storm := min(max(sp.Storm, 0), rain)
+	// the cloudier the weather was thrown, the fewer breaks it leaves
+	cloudier := float32(0.5)
+	if lo, hi := st.Clouds[0], st.Clouds[1]; hi > lo {
+		cloudier = min(max((l.CloudsTo-lo)/(hi-lo), 0), 1)
+	}
+	fair := min(max(sp.Fair, 0), 1-rain) * (1 - cloudier)
+	var parts []part
+	if n.fair >= 0 && fair > 0 {
+		parts = append(parts, round(n.fair, 0))
+	}
+	switch l.State {
+	case n.storm:
+		if n.rain < 0 || n.cloudy < 0 {
+			return whole
+		}
+		parts = append(parts, round(n.cloudy, fair), round(n.rain, 1-rain),
+			part{from: 1 - storm, mass: own, state: int16(l.State)})
+	case n.rain:
+		if n.cloudy < 0 {
+			return whole
+		}
+		parts = append(parts, round(n.cloudy, fair),
+			part{from: 1 - rain, mass: own, state: int16(l.State)})
+	case n.cloudy:
+		parts = append(parts, part{from: fair, mass: own, state: int16(l.State)})
+	default:
+		return whole
+	}
+	if len(parts) > 0 {
+		parts[0].from = 0
+	}
+	return parts
 }
 
 // the weather over the world's middle now, the temperature coming to be its

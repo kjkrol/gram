@@ -60,7 +60,7 @@ type Plugin struct {
 	running    Running
 	skies      []Sky
 	vault      *backdrop.Renderer
-	aloft      [2]*aloft.Renderer // by layer
+	aloft      *aloft.Renderer // the low clouds: the high ones from above would veil the map
 	look       CloudLook
 	highShade  bool
 }
@@ -78,10 +78,11 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	clim := climate.New(worldPlugin, cal, cfg.Climate)
 	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, calendar: cal, climate: clim,
 		sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
-	p.aloft = [2]*aloft.Renderer{aloft.New(p.Air, air.Low), aloft.New(p.Air, air.High)}
+	p.aloft = aloft.New(p.Air, air.Low)
 	p.ShowClouds(AllBodies)
 	p.highShade = true
-	p.Self = world.NewSelf(worldPlugin, p, comp.Const(p.sky.Moonlight()))
+	p.Self = world.NewSelf(worldPlugin, p, comp.Const(p.sky.Moonlight()),
+		comp.Const(climate.DefaultSpread()))
 	clim.About(p.Entity)
 	r := AllRunning()
 	if cfg.Running != nil {
@@ -106,9 +107,10 @@ func (p *Plugin) Air() air.Weather {
 	return w
 }
 
-// CloudLook is how the clouds are drawn: FlatClouds as flat sheets on the sky and from above,
-// LowBodies the low ones as bodies, heaped from under them and half see-through from above,
-// AllBodies both layers so, ShadowsAlone none, only their shadows on the ground.
+// CloudLook is how the clouds are drawn: FlatClouds as flat sheets on the sky and the low ones
+// from above, LowBodies the low ones as bodies, heaped from under them and half see-through from
+// above, AllBodies the high ones heaped on the sky too, ShadowsAlone none, only their shadows on
+// the ground; the high ones never over the map from above, where they veiled it.
 type CloudLook uint8
 
 const (
@@ -137,11 +139,8 @@ func (l CloudLook) String() string {
 // Clouds going on to the next look as the game goes.
 func (p *Plugin) ShowClouds(look CloudLook) {
 	p.look = look
-	for _, r := range p.aloft {
-		r.Show(look != ShadowsAlone)
-	}
-	p.aloft[air.Low].Bodies(look == LowBodies || look == AllBodies)
-	p.aloft[air.High].Bodies(look == AllBodies)
+	p.aloft.Show(look != ShadowsAlone)
+	p.aloft.Bodies(look == LowBodies || look == AllBodies)
 }
 
 // ShownClouds is how the clouds are drawn.
@@ -179,9 +178,10 @@ func reliefOf(h ground.Heights, b *board.Board) (low, peaks float64) {
 	return max(all[len(all)/10], 0), all[len(all)-1]
 }
 
-// WithWeathering has the weather work on brd as cfg says: snow, ice, what sways, the low clouds
-// hanging over its ground (Over). Call it as the plugin is made; a kind cfg names that the board
-// lacks panics as the weather first touches it.
+// WithWeathering has the weather work on brd as cfg says, snow, ice and what sways, and brd's
+// ground on the air over it: the low clouds hang over it (Over), held back by what stands up into
+// them. Call it as the plugin is made; a kind cfg names that the board lacks panics as the
+// weather first touches it.
 func (p *Plugin) WithWeathering(brd *board.Plugin, cfg weathering.Config) *Plugin {
 	p.Over(brd)
 	w, err := weathering.New(brd, p.Air, p.worldPlugin.Effects(), p.calendar, cfg)
@@ -190,6 +190,7 @@ func (p *Plugin) WithWeathering(brd *board.Plugin, cfg weathering.Config) *Plugi
 	}
 	p.weathering = w
 	w.SetRunning(p.running.Weathering)
+	p.climate.OnLand(w.Land())
 	return p
 }
 
@@ -214,13 +215,16 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	ctx.UseModule(p.module)
 	p.module.rises = p.sky.RiseSystem(p.worldPlugin.Tick, p.Entity)
 	ctx.Hosts(p.climate.Rules(), p.sky.Rules())
+	if p.weathering != nil {
+		ctx.Hosts(p.weathering.Rules())
+	}
 	shown := func() (stars, moon bool) {
 		r := p.Running()
 		return r.Stars, r.Moon
 	}
 	p.vault = backdrop.New(p.worldPlugin.Res.Config.Space, p.Sun, p.Air).WithHeavens(p.Heavens).
 		WithShown(shown).WithClouds(p.skyClouds)
-	ctx.Draws(p.vault, p.aloft[air.Low], p.aloft[air.High], precipitation.NewDrops(p.Sun, p.Air))
+	ctx.Draws(p.vault, p.aloft, precipitation.NewDrops(p.Sun, p.Air))
 	ctx.Looks(p.dress)
 	return nil
 }
@@ -264,7 +268,7 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	m.climateRun = ecs.RegSys(m.climate)
 	m.risesRun = ecs.RegSys(m.rises)
 	if w := m.p.weathering; w != nil {
-		m.weatheringRun = ecs.RegSys(w.System(m.clock))
+		m.weatheringRun = ecs.RegSys(w.System(m.clock, m.p.worldPlugin.Tick))
 	}
 }
 

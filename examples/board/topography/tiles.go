@@ -1,16 +1,19 @@
 package main
 
 import (
+	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/render"
 )
 
-// ground is a kind of the island's ground; a snowable one has a snowy twin the winter lays.
+// ground is a kind of the island's ground; a snowable one has a snowy twin the winter lays, an
+// upland one plays the uplands' role, where the air rains and gathers clouds.
 type ground struct {
 	name     string
 	kind     cell.Kind
 	snowable bool
+	upland   bool
 }
 
 var _ board.Tile = ground{}
@@ -22,9 +25,19 @@ var (
 
 var grounds = []ground{
 	{name: WaterCell, kind: cell.Kind{Cost: 1, Allows: wet}},
-	{name: EarthCell, kind: cell.Kind{Cost: 2.5, Allows: dry}.Costing(cell.Air, 1), snowable: true},
+	{
+		name:     EarthCell,
+		kind:     cell.Kind{Cost: 2.5, Allows: dry}.Costing(cell.Air, 1),
+		snowable: true,
+		upland:   true,
+	},
 	{name: SandCell, kind: cell.Kind{Cost: 4, Allows: dry}.Costing(cell.Air, 1), snowable: true},
-	{name: RockCell, kind: cell.Kind{Cost: 3.25, Allows: dry}.Costing(cell.Air, 1), snowable: true},
+	{
+		name:     RockCell,
+		kind:     cell.Kind{Cost: 3.25, Allows: dry}.Costing(cell.Air, 1),
+		snowable: true,
+		upland:   true,
+	},
 	{name: BrookCell, kind: cell.Kind{Cost: 3.25, Allows: cell.Land | wet}.Costing(wet, 1)},
 	{name: StreamCell, kind: cell.Kind{Cost: 5, Allows: cell.Land | wet}.Costing(wet, 1)},
 	{name: RiverCell, kind: cell.Kind{Cost: 1, Allows: wet}},
@@ -38,13 +51,18 @@ var grounds = []ground{
 			Height: scale.Units(20),
 		}.Costing(cell.Air, 1),
 		snowable: true,
+		upland:   true,
 	},
 }
 
 func (g ground) Define(b *board.Plugin) {
-	b.CellKinds().Define(g.name, g.kind)
+	var plays []*ceremony.Part
+	if g.upland {
+		plays = append(plays, b.World().Roles().Named(UplandRole))
+	}
+	b.CellKinds().Define(g.name, g.kind, plays...)
 	if g.snowable {
-		b.CellKinds().Define(snowyCell(g.name), g.kind)
+		b.CellKinds().Define(snowyCell(g.name), g.kind, plays...)
 	}
 }
 

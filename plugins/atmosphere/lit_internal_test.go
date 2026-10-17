@@ -13,7 +13,6 @@ import (
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/aloft"
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
 	"github.com/kjkrol/gram/plugins/atmosphere/precipitation"
@@ -104,35 +103,33 @@ func TestPlugin_DrawsTheSkyTheCloudsAndWhatFalls(t *testing.T) {
 	if err := a.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(ctx.drawn) != 4 {
-		t.Fatalf("the atmosphere draws %v, want the sky, the low clouds and the high seen from "+
-			"above and what falls", ctx.drawn)
+	if len(ctx.drawn) != 3 {
+		t.Fatalf("the atmosphere draws %v, want the sky, the low clouds seen from above and what "+
+			"falls", ctx.drawn)
 	}
 	if _, ok := ctx.drawn[0].(*backdrop.Renderer); !ok {
 		t.Errorf("the atmosphere draws %T first, want the sky", ctx.drawn[0])
 	}
-	for _, i := range []int{1, 2} {
-		if _, ok := ctx.drawn[i].(*aloft.Renderer); !ok {
-			t.Errorf("the atmosphere draws %T %d., want a layer of clouds seen from above",
-				ctx.drawn[i], i+1)
-		}
+	if _, ok := ctx.drawn[1].(*aloft.Renderer); !ok {
+		t.Errorf("the atmosphere draws %T second, want the low clouds seen from above",
+			ctx.drawn[1])
 	}
-	if _, ok := ctx.drawn[3].(*precipitation.Drops); !ok {
-		t.Errorf("the atmosphere draws %T last, want what falls drop by drop", ctx.drawn[3])
+	if _, ok := ctx.drawn[2].(*precipitation.Drops); !ok {
+		t.Errorf("the atmosphere draws %T last, want what falls drop by drop", ctx.drawn[2])
 	}
-	look := func() (CloudLook, [2]bool, [2]bool) {
-		return a.ShownClouds(), [2]bool{a.aloft[air.Low].Shown(), a.aloft[air.High].Shown()},
-			a.skyClouds().Bodies
+	look := func() (CloudLook, bool, [2]bool) {
+		return a.ShownClouds(), a.aloft.Shown(), a.skyClouds().Bodies
 	}
 	for _, want := range []struct {
-		look          CloudLook
-		above, bodies [2]bool
+		look   CloudLook
+		above  bool
+		bodies [2]bool
 	}{
-		{AllBodies, [2]bool{true, true}, [2]bool{true, true}},
-		{ShadowsAlone, [2]bool{}, [2]bool{}},
-		{FlatClouds, [2]bool{true, true}, [2]bool{}},
-		{LowBodies, [2]bool{true, true}, [2]bool{true, false}},
-		{AllBodies, [2]bool{true, true}, [2]bool{true, true}},
+		{AllBodies, true, [2]bool{true, true}},
+		{ShadowsAlone, false, [2]bool{}},
+		{FlatClouds, true, [2]bool{}},
+		{LowBodies, true, [2]bool{true, false}},
+		{AllBodies, true, [2]bool{true, true}},
 	} {
 		if l, above, bodies := look(); l != want.look || above != want.above ||
 			bodies != want.bodies || a.skyClouds().Hidden != (l == ShadowsAlone) {

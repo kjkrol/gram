@@ -91,7 +91,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   middle, a way's `Fade` has it fade out (a river into the sea). Every cell is an entity for good,
   without a `world.Base`: `Plot`, `Ground` (kept apart so an effect ending restores the kind
   alone), `Way`, `Built`, made at Setup out of the seed or found after a load; `Version` and
-  `CellVersion` count every change (writes, effects on cells, `Board.Touch(c)`). A cell plays the
+  `CellVersion` count every change (writes, effects on cells, `Board.Touch(c)`) — of an effect
+  only as it begins or ends, and only one the terrain changes under (`Plugin.mattering`: shown as
+  a cover, granting tags or turning `cell.Ground`, `Floor`, `Wall`, `Rail`), never one turning
+  another's knob alone (`weathering.Wring`): each change repaints the topography's surface,
+  ~2–3 ms a time over Madeira (2026-10-17, the uplands' rules first showed it). A cell plays the
   roles of its kind and its entry's own and is called by its entry's `Name` and `Group` (such
   cells are made apart). What the board does to its terrain over time is effects on the cells'
   entities (`Alter` of `cell.Ground`, `cell.Way`); a state of the ground is an adjective, the
@@ -382,8 +386,18 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Readable depth of its own, the lay (`lay.wgsl`) reads it (`depthAt`) and writes `frag_depth`
   tested against the world's (`t.Depth`): the ground or anything nearer hides them, they hide
   what stands behind (a hill in front of the band's entry, which the march does not see, too).
-  The high ones are laid by `DrawImage`. Seen from a valley, clouds behind hills lower than the
-  band are hidden: before slopes they stand only where the slopes reach into the band.
+  The high ones are laid by `DrawImage` — but the atmosphere draws only the low layer from above
+  (2026-10-17, the user's word: from the tactical view the high sheets veiled the whole map like a
+  fog); the high ones show on the sky and as shadows. What greyed the tactical view was the
+  ground's haze: the terrain and the hexes took any `camera.Eyed` for an eye, and a camera from
+  above, whose `Eye()` says no, hazed from its field's start (`Transform.Eye` = `f.Origin`), the
+  map all fog but its corner. Now `air.Weather.Seen(cam, fromAbove)` decides for both: a camera
+  with an eye (riding, or free in perspective) hazes by its eye's distance, as ever — the far
+  ground must fade into the horizon's fog; one looking from above, with none, only with
+  `topography.Plugin.WithHazeFromAbove(true)` (Ctrl+F, `HazeFromAbove`; off by default, the
+  user's choice), by the air over the ground up to the high clouds' base along its lines of sight
+  (`HazeUp`, `HazeWay`, `hazeDepth` in `mesh.wgsl` and `hexes.wgsl`). Seen from a valley, clouds behind hills
+  lower than the band are hidden: before slopes they stand only where the slopes reach into it.
   `atmosphere.ShowClouds(look)` from the scene (the demos start `AllBodies`), `Clouds`
   (Shift+V) goes on to the next `CloudLook` (the user's choice, 2026-10-16, to compare them):
   `FlatClouds` (flat sheets on the sky, one flat slice a layer from above), `LowBodies`,
@@ -429,6 +443,46 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   in drifts where it snows in the frost, `FallsAt` on the cell, melting once warm, ice from the
   shore below −3°C, what sways swaying above a wind of 15);
   `atmosphere.Plugin.WithWeathering(board, cfg)` as the atmosphere is made (it calls `Over`).
+  **Clouds at the peaks** (2026-10-17, stage 7d, the user's design: the piling is the climate's
+  Go, the rain and the gathering the game's rules over the board's cells): the masses carry their
+  weather's damp (`weather.State.Damp`, `born` gives it, no new saved field); the weathering walks
+  the board's cells a share a step, all of them a second (`weathering/walk.go`, the cells'
+  heights kept and worked out anew every 8 s), noting their ground and their `Wring` on an
+  `air.Land` (squares of `BoardCell`, the most of each, turned in once all are walked);
+  `climate.Climate.OnLand(land)` has the climate run `air.Dome.Lift` every 4 steps over level 0:
+  ground reaching 0.7–1 of the low clouds' base there (`LowBand`, read off a grid every 4 cells)
+  hands as much of the low layer as the wind carries past in dt to the cells upwind, which keep
+  it while they have room (`Mass.WithLow` keeps the high layer): a bank piles up before a ridge,
+  spills over it, the lee clears; the land's `Falls` wrings rain out of the low clouds over it,
+  draining their damp (a rain shadow past it), easing back to the cell's state's falls past it;
+  its `Gathers` turns damp into low clouds, never clouds out of dry air. ~0.2 ms a lift at worst
+  (all land high and clouded). The rules: `weathering.Overhead` (`host.About`, not Placed — the
+  board's Around is not public) told each cell once a second (`RunWhere` over the block's walked
+  rows), words `Clouded`, `Damp`, `Reaches` (ground over the band's base), `Hours`; the knob
+  `weathering.Wring{Falls, Gathers}` given to every cell (`Exclude` + `cb.AddOne`) and **not
+  saved**: ceremony keeps no originals of a knob, so one saved under an effect would keep its
+  altered value once the effect ends after a load (as `cell.Ground` under snow does); a fresh
+  one only misses an effect running across the load till it lapses. Madeira's uplands (earth,
+  rock, forest play `UplandRole`): rain on the windward slopes (`Reaches(0.9)`, `Clouded(0.6)`)
+  and clouds gathering of an afternoon (12–17 h, `Damp(0.3)`, `Reaches(0.7)`), effects lasting
+  2 s put anew each second: in rain ~1000 cells wring, in fair weather the heaps under the peaks
+  pile up to 0.9 within a minute and shower over a dozen.
+  **The weather in places** (2026-10-17, stage 7e, the user's word: a map wholly under cloud
+  loses the one looking at it): the knob `climate.Spread{Rain, Storm, Fair}` on the atmosphere's
+  entity (`comp.Const(climate.DefaultSpread())` in `world.NewSelf`, saved with it; the climate
+  lists it among its `LoadComps` too, its query registering the type) — rain on a quarter of the
+  world at most (the storm's included), a storm on an eighth in its middle, fair breaks on up to
+  a quarter, fewer the cloudier the spell was thrown (`Fair·(1−f)`, f where `CloudsTo` fell in
+  its range). `born()` lays a lane's weather in parts by the rank of a periodic noise as wide as
+  the world, drifting with the clouds (`climate/spread.go`: `places`, ranks from its sorted
+  samples, so any stretch as wide as the world holds exactly the shares): storm ⊂ rain ⊂ cloudy,
+  fair at the other end; each part grows out of the one before over 0.02 of rank inside its own
+  share; its own part the lane's thrown numbers, the others the middles of the
+  `weather.Default`-named states (a climate without them: over all, as before); a cell's
+  `States` the part's. The places are patches ~1/4 of the world across: on a world only a few
+  of the dome's 128-unit cells wide they blur (tests measure over 6400×3200). The panel names
+  the weather of the time (lane 0) and, where it differs, the one over the middle ("rain (here
+  cloudy)"). The rain the uplands' rules wring out (7d) is beyond the knob.
   `atmosphere/air`: the weather as drawn (`Weather.Frame`, `Sway`, `Cloud(layer)`, `Shade`,
   `Haze`; the clouds' periodic noise baked once into `air.Tile()`, the frame's image `CloudTile`
   (2026-10-16), which every cloud shader looks up per pixel (`cloudTileAt`); `Weather.Frame`

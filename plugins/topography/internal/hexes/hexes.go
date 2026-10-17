@@ -28,6 +28,7 @@ type Sky interface {
 var prisms = render.NewMeshShaderWith("hexes", render.Files(shaders, "shaders/hexes.wgsl"), []render.Uniform{
 	{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
 	{Name: "HexSize", Size: 1}, {Name: "TopPx", Size: 1}, {Name: "GridOn", Size: 1},
+	{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
 }).Instanced(3)
 
 // a prism's top in six triangles and six faces of two
@@ -45,22 +46,23 @@ var _ render.Direct = (*Ground)(nil)
 // pass in place of the tiles: every cell a prism to its top, coloured from the tiles composed
 // once from above.
 type Ground struct {
-	world  *world.Plugin
-	board  *board.Plugin
-	m      board.Map
-	relief *relief.Relief
-	sky    Sky
-	grid   grid.Grid
-	size   float32 // from a cell's centre to its corner
-	still  *render.Still
-	tiles  *look.Renderer
-	at     [2]uint64
-	top    *render.Image
-	px     float32   // pixels a world unit
-	cells  []float32 // three vec4s a cell: centre and top, the six neighbours' tops
-	opts   render.DrawMeshOptions
-	own    map[string][]float32
-	uv     map[string]any
+	world     *world.Plugin
+	board     *board.Plugin
+	m         board.Map
+	relief    *relief.Relief
+	sky       Sky
+	grid      grid.Grid
+	hazeAbove bool
+	size      float32 // from a cell's centre to its corner
+	still     *render.Still
+	tiles     *look.Renderer
+	at        [2]uint64
+	top       *render.Image
+	px        float32   // pixels a world unit
+	cells     []float32 // three vec4s a cell: centre and top, the six neighbours' tops
+	opts      render.DrawMeshOptions
+	own       map[string][]float32
+	uv        map[string]any
 }
 
 // New is the ground of b's hex board in the relief r over w, the cells standing as m says,
@@ -79,6 +81,10 @@ func (*Ground) Init(*goke.SysInit) {}
 func (*Ground) Compose(f *render.Frame, _ camera.Camera) { f.DrawOpaque() }
 
 // Draw draws the ground into the target through cam, under the frame's uniforms u.
+// HazeAbove says whether the prisms are hazed through a camera looking from above, with no eye, by
+// the air over them; off, they are drawn clear so.
+func (h *Ground) HazeAbove(on bool) { h.hazeAbove = on }
+
 func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if t.Screen == nil || t.Depth == nil {
 		return
@@ -113,11 +119,10 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		grid = 1
 	}
 	h.set("GridOn", grid)
-	visibility := float32(0)
-	if _, eyed := cam.(camera.Eyed); eyed {
-		visibility = float32(h.sky.Air().Visibility(air.Under(cam)))
-	}
-	h.set("Visibility", visibility)
+	seeing, up, way := h.sky.Air().Seen(cam, h.hazeAbove)
+	h.set("Visibility", seeing)
+	h.set("HazeUp", up)
+	h.set("HazeWay", way[:]...)
 	h.opts.Depth, h.opts.Images, h.opts.Instances = t.Depth, [4]*render.Image{h.top, nil, nil, nil}, h.cells
 	t.Screen.DrawMesh(nil, prisms, &h.opts)
 }

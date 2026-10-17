@@ -51,7 +51,16 @@ func weatherOf(t *testing.T, cfg Config, season calendar.Season) *rig {
 func loaded(t *testing.T, cfg Config, season calendar.Season, path string,
 	ground ...func() (low, peaks float64)) *rig {
 	t.Helper()
-	r := &rig{w: world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}}), clk: clock.New(clock.Config{})}
+	return sized(t, cfg, season, path, 640, 480, ground...)
+}
+
+// a weather over a world width by height
+func sized(t *testing.T, cfg Config, season calendar.Season, path string, width, height uint32,
+	ground ...func() (low, peaks float64)) *rig {
+	t.Helper()
+	r := &rig{w: world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: width, Height: height},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}}),
+		clk: clock.New(clock.Config{})}
 	cal := calendar.New(r.clk, calendar.Config{DayRealTime: 4 * time.Minute, Season: season})
 	r.c = New(r.w, cal, cfg)
 	if len(ground) > 0 {
@@ -571,5 +580,77 @@ func TestWeather_TheLowCloudsBandsComeToTheWeathersShares(t *testing.T) {
 		!near(got[2], 0.75, 0.02) {
 		t.Errorf("set cloudy, the bands share %v after a second and %v after ten, want them "+
 			"going over to the cloudy's [0 0.25 0.75]", half, got)
+	}
+}
+
+func TestWeather_TheMassesCarryTheirWeathersDamp(t *testing.T) {
+	cfg := twoStates()
+	cfg.Weathers[0].Damp = 0.25
+	cfg.Weathers[1].Damp = 0.75
+	r := weatherOf(t, cfg, calendar.Summer)
+	r.tick(time.Millisecond)
+	if got := r.c.Air().At(320, 240).Damp; !near(got, 0.25, 1e-3) {
+		t.Fatalf("begun clear, the air over the world is %v damp, want the clear's 0.25", got)
+	}
+	r.c.Set("cloudy")
+	r.run(10 * time.Second)
+	if got := r.c.Air().At(320, 240).Damp; !near(got, 0.75, 0.02) {
+		t.Errorf("set cloudy, the air over the world is %v damp after 10 s, want the cloudy's "+
+			"0.75", got)
+	}
+}
+
+// the shares of the world 6400 by 3200 under rain (falling at least half the rain's), under a
+// storm (falling more than the rain does), and fair (a thin cover, nothing falling)
+func (r *rig) shares() (rain, storm, fair float32) {
+	n := float32(0)
+	for x := float32(25); x < 6400; x += 50 {
+		for y := float32(25); y < 3200; y += 50 {
+			m := r.c.Air().At(x, y)
+			n++
+			switch {
+			case m.Falls > 0.8:
+				storm++
+				rain++
+			case m.Falls > 0.3:
+				rain++
+			case m.Cover < 0.3:
+				fair++
+			}
+		}
+	}
+	return rain / n, storm / n, fair / n
+}
+
+func TestWeather_RainAndStormsComeInPlacesNeverOverTheWholeWorld(t *testing.T) {
+	for _, name := range []string{weather.Rain, weather.Storm} {
+		// as wide as a map of fifty of the air's cells, which the places' patches span many of
+		r := sized(t, Config{Start: weather.Fair, Seed: 3}, calendar.Summer, "", 6400, 3200)
+		r.tick(time.Millisecond)
+		r.c.Set(name)
+		r.run(12 * time.Second)
+		for range 3 {
+			rain, storm, fair := r.shares()
+			if rain > 0.25+0.01 || storm > 0.125+0.01 || fair > 0.25+0.01 || rain < 0.2 {
+				t.Errorf("%s: rain on %.2f of the world, a storm on %.2f, fair on %.2f; want "+
+					"rain on a quarter at most, a storm on an eighth, fair on a quarter", name,
+					rain, storm, fair)
+			}
+			if name == weather.Rain && storm > 0 {
+				t.Errorf("rain alone: a storm on %.2f of the world, want none", storm)
+			}
+			r.run(5 * time.Second) // the wind carries the places on
+		}
+	}
+}
+
+func TestWeather_CloudsLeaveFairBreaksAndNoRain(t *testing.T) {
+	r := sized(t, Config{Start: weather.Fair, Seed: 5}, calendar.Summer, "", 6400, 3200)
+	r.tick(time.Millisecond)
+	r.c.Set(weather.Cloudy)
+	r.run(12 * time.Second)
+	if rain, _, fair := r.shares(); rain > 0 || fair > 0.25+0.01 {
+		t.Errorf("cloudy: rain on %.2f of the world, fair on %.2f; want no rain and fair on a "+
+			"quarter at most", rain, fair)
 	}
 }

@@ -54,3 +54,29 @@ func Under(cam camera.Camera) (x, y float32) {
 	w, h := cam.Viewport()
 	return cam.Unproject(w/2, h/2, 0)
 }
+
+// Seen is how the air hazes the ground cam sees, for its shaders: how far one sees (seeing, 0
+// for no haze), from an eye by the distance from it; through a camera looking from above, which
+// has none, only if fromAbove, by the air over the ground up to the high clouds' base (up) along
+// its lines of sight (way).
+func (w Weather) Seen(cam camera.Camera, fromAbove bool) (seeing, up float32, way [3]float32) {
+	if w.Sight <= 0 || cam == nil {
+		return 0, 0, way
+	}
+	if e, ok := cam.(camera.Eyed); ok {
+		if _, _, _, ok := e.Eye(); ok {
+			return float32(w.Visibility(Under(cam))), 0, way
+		}
+	}
+	rays, ok := cam.(camera.Rays)
+	if !fromAbove || !ok {
+		return 0, 0, way
+	}
+	f, ok := rays.Rays()
+	n := float32(math.Sqrt(float64(f.Dir[0]*f.Dir[0] + f.Dir[1]*f.Dir[1] + f.Dir[2]*f.Dir[2])))
+	if !ok || n == 0 || f.DDX != ([3]float32{}) || f.DDY != ([3]float32{}) {
+		return 0, 0, way // a perspective without an eye: none to haze from
+	}
+	way = [3]float32{f.Dir[0] / n, f.Dir[1] / n, f.Dir[2] / n}
+	return float32(w.Visibility(Under(cam))), w.Base(High), way
+}

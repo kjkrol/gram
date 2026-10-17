@@ -126,7 +126,7 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
         rgb = over(SeaGlintAt(p.xy, mouth.r / mouth.g * detail, wet, vec4<f32>(0.0), pixel, toward) * mouth.g, rgb);
     }
     if U.Visibility > 0.0 {
-        rgb = mix(rgb, U.Fog, 1.0 - exp(-distance(U.Eye, p) / U.Visibility));
+        rgb = mix(rgb, U.Fog, 1.0 - exp(-hazeDepth(p) / U.Visibility));
     }
     return vec4<f32>(rgb, 1.0);
 }
@@ -137,4 +137,14 @@ fn baked(p: vec2<f32>, x: f32, px: f32) -> vec4<f32> {
     let size = (U.Corners - 1.0) * px;
     let t = clamp(p / U.Cell * px, vec2<f32>(0.5), size - 0.5);
     return imageSrc3Linear(imageSrc3Origin() + vec2<f32>(x, 0.0) + t);
+}
+
+// hazeDepth is how much air lies between the eye and the ground point p, world units: its
+// distance from U.Eye, or seen from above (U.HazeUp) the air over p up to that height, along the
+// lines of sight U.HazeWay.
+fn hazeDepth(p: vec3<f32>) -> f32 {
+    if U.HazeUp <= 0.0 {
+        return distance(U.Eye, p);
+    }
+    return max(U.HazeUp - p.z, 0.0) / max(-U.HazeWay.z, 0.05);
 }

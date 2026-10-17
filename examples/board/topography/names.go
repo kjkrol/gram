@@ -12,10 +12,13 @@ const (
 	RoadCell   = "road"
 	IceCell    = "ice"
 
-	BloodMoonEf = "blood moon"
+	BloodMoonEf    = "blood moon"
+	WindwardRainEf = "windward rain"
+	GatheringEf    = "gathering"
 
 	MortalRole = "mortal"
 	LunarRole  = "lunar"
+	UplandRole = "upland"
 
 	BleedCmd = "bleed"
 

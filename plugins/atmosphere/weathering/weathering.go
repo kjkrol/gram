@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/ceremony/effect"
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
@@ -72,6 +73,8 @@ type Weathering struct {
 	water           cell.Name
 	swaying         map[cell.Name]bool
 	cells           []cell.ID
+	land            *air.Land
+	overheads       host.Rules[Overhead]
 	dice            uint64
 	laid            bool
 	still           bool
@@ -89,8 +92,10 @@ func (w *Weathering) Running() bool { return !w.still }
 // unknown name panics then.
 func New(brd *board.Plugin, weather func() air.Weather, fx *cgoke.Effects, cal *calendar.Calendar, cfg Config) (*Weathering, error) {
 	cfg = cfg.withDefaults()
+	space := brd.World().Res.Config.Space
 	ww := &Weathering{cfg: cfg, board: brd, air: weather, effects: fx, calendar: cal, dice: cfg.Seed,
-		water: cell.Named(cfg.Water), swaying: map[cell.Name]bool{}}
+		water: cell.Named(cfg.Water), swaying: map[cell.Name]bool{},
+		land: air.NewLand(float32(space.Width), float32(space.Height))}
 	for _, name := range cfg.Sway {
 		ww.swaying[cell.Named(name)] = true
 	}
@@ -137,25 +142,17 @@ func (w *Weathering) ready() {
 	w.snowy = snowy
 }
 
+// Land is the board's ground as the air over it feels it, walked over once a second of game time.
+func (w *Weathering) Land() *air.Land { return w.land }
+
 // Effects are the weathering's three effects.
 func (w *Weathering) Effects() (snow, ice, sway effect.Effect) { return w.snow, w.ice, w.sway }
 
 // System is the weathering's system, run in every step of the simulation on clk, working once a
-// second of game time.
-func (w *Weathering) System(clk *clock.Clock) goke.System {
-	second := clock.Every(time.Second, 0)
-	var last time.Duration
-	begun := false
-	return goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, d time.Duration) {
-		now := clk.Time() + d
-		if !begun {
-			last, begun = clk.Time(), true
-		}
-		if second.Holds(clock.Moment{Last: last, Now: now}) {
-			w.second(cb)
-		}
-		last = now
-	}}
+// second of game time and walking the board's cells, a share a step, all of them a second: the
+// rules of an Overhead in the Ticks tick makes, and the land under the air (Land).
+func (w *Weathering) System(clk *clock.Clock, tick host.TickSource) goke.System {
+	return &system{w: w, clk: clk, tick: tick, second: clock.Every(time.Second, 0)}
 }
 
 func (w *Weathering) second(cb *goke.CmdBuf) {

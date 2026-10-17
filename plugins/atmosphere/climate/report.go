@@ -21,9 +21,10 @@ func (r *report) Init(si *goke.SysInit) { r.query = si.NewQueryBuilder(&r.now).B
 func (r *report) Report(line func(label, value string)) {
 	for r.query.All(); r.query.Next(); {
 		w := r.now.Slice(r.query.Cursor())[0]
-		name := "?" // from an older save
-		if w.Over >= 0 && int(w.Over) < len(r.names) {
-			name = r.names[w.Over]
+		// the weather of the time, and the place's over the world's middle where it comes in parts
+		name := r.name(w.Lanes[0].State)
+		if here := r.name(w.Over); here != name {
+			name += " (here " + here + ")"
 		}
 		if w.Snow > w.Rain && w.Snow > 0.05 {
 			name += " (snow)"
@@ -32,6 +33,14 @@ func (r *report) Report(line func(label, value string)) {
 			compass(w.Heading)))
 		return
 	}
+}
+
+// the name of the weather st, "?" for one an older save knew
+func (r *report) name(st int32) string {
+	if st >= 0 && int(st) < len(r.names) {
+		return r.names[st]
+	}
+	return "?"
 }
 
 // heading in radians from +x, east, with y running south

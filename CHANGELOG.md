@@ -17,6 +17,36 @@ in a flat world: a board stands only in a world with heights now. Nor those made
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
 entities.
 
+**The weather in places** (2026-10-17)
+- Rain, storms and clouds never cover the whole map: a storm in the middle of rain, rain amid
+  clouds, the clouds with fair breaks, each on at most the share of the world the knob
+  `climate.Spread` on the atmosphere's entity gives — rain a quarter, a storm an eighth, fair
+  breaks up to a quarter (`climate.DefaultSpread`), an effect turning it. The telemetry panel
+  names the weather of the time and the one over the map's middle where they differ.
+- The high clouds are no longer drawn over the map from above: from the tactical view they
+  veiled it. They show on the sky and as their shadows on the ground.
+- The topography's ground and hexes haze only through a camera with an eye: from above, all the
+  lines of sight one way, the start of the camera's field was taken for an eye, and the whole map
+  but its corner turned the fog's grey, the greyer the cloudier the sky. Seen from above the
+  ground is clear unless asked (`topography.Plugin.WithHazeFromAbove`, Ctrl+F,
+  `topography.HazeFromAbove`): then hazed by the air over it (`air.Weather.Seen`); a camera with
+  an eye hazes as before.
+
+**Clouds at the peaks** (2026-10-17)
+- The air masses carry their weather's damp (`weather.State.Damp`). Ground standing up into the
+  low clouds holds them back: they pile up before a ridge, spill over it and clear past it
+  (`air.Dome.Lift` over an `air.Land` the weathering walks, `climate.Climate.OnLand`;
+  `air.Mass.WithLow`).
+- Every cell of a weathered board hears the air over it once a second
+  (`weathering.Overhead`, its words `Clouded`, `Damp`, `Reaches`, `Hours`), and a rule of a role
+  it plays turns its knob `weathering.Wring`: the rain the low clouds over it let fall, draining
+  the air's damp, and the damp gathering into clouds over it. Madeira rains on its windward
+  slopes and gathers clouds over its hills of an afternoon.
+- `weather.Default` is written a field a line.
+- An effect on a board's cell changes the board only if the terrain changes under it: shown as a
+  cover, granting tags or turning a knob of the board's own; one turning another plugin's knob
+  alone leaves it, and the topography's surface, as they are.
+
 **Low clouds over the relief** (2026-10-17)
 - The low heaps hang in three bands fitted to the ground's relief, whatever its height: under the
   peaks, covering them and over them (`air.Weather.LowBand`, WGSL `cloudLowBand`), each in

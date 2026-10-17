@@ -9,14 +9,15 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 )
 
-// weather.Default written out to play with: wind in world units a second, clouds, billow and
-// what falls 0 to 1, each thrown between its two numbers; the low clouds' shares under the
-// peaks, covering them and over them
+// weather.Default written out to play with: wind in world units a second, clouds, billow, what
+// falls and the air's damp 0 to 1, each range thrown between its two numbers; the low clouds'
+// shares under the peaks, covering them and over them
 var weathers = []weather.State{
 	{
 		Name:     weather.Clear,
 		Wind:     [2]float32{4, 14},
 		Warmth:   1,
+		Damp:     0.2,
 		Lasts:    [2]time.Duration{45 * time.Second, 100 * time.Second},
 		Ceilings: [3]float32{0.3, 0.15, 0.55},
 		Next:     map[string]float32{weather.Fair: 1},
@@ -27,6 +28,7 @@ var weathers = []weather.State{
 		Clouds:   [2]float32{0.03, 0.25},
 		Billow:   [2]float32{0.85, 1},
 		Warmth:   1,
+		Damp:     0.4,
 		Lasts:    [2]time.Duration{45 * time.Second, 100 * time.Second},
 		Ceilings: [3]float32{0.3, 0.15, 0.55},
 		Next:     map[string]float32{weather.Clear: 1, weather.Cloudy: 1},
@@ -36,6 +38,7 @@ var weathers = []weather.State{
 		Wind:     [2]float32{10, 25},
 		Clouds:   [2]float32{0.4, 0.7},
 		Billow:   [2]float32{0, 1},
+		Damp:     0.6,
 		Lasts:    [2]time.Duration{40 * time.Second, 90 * time.Second},
 		Ceilings: [3]float32{0.2, 0.6, 0.2},
 		Next:     map[string]float32{weather.Fair: 1, weather.Rain: 1},
@@ -47,6 +50,7 @@ var weathers = []weather.State{
 		Billow:   [2]float32{0.3, 1},
 		Falls:    0.6,
 		Warmth:   -1,
+		Damp:     0.9,
 		Lasts:    [2]time.Duration{30 * time.Second, 60 * time.Second},
 		Ceilings: [3]float32{0.3, 0.6, 0.1},
 		Next:     map[string]float32{weather.Cloudy: 2, weather.Storm: 0.5},
@@ -58,6 +62,7 @@ var weathers = []weather.State{
 		Billow:   [2]float32{0.7, 1},
 		Falls:    1,
 		Warmth:   -3,
+		Damp:     1,
 		Lasts:    [2]time.Duration{20 * time.Second, 40 * time.Second},
 		Ceilings: [3]float32{0.2, 0.7, 0.1},
 		Next:     map[string]float32{weather.Rain: 1},

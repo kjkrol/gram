@@ -19,9 +19,13 @@ import (
 var _ goke.System = (*entitySystem)(nil)
 
 type entitySystem struct {
-	cells    *Cells
-	template *kind.Template
-	extra    *cgoke.Spawner
+	cells     *Cells
+	template  *kind.Template
+	extra     *cgoke.Spawner
+	mattering func() tag.Tags[effect.States] // the effects the terrain changes under
+	matters   tag.Tags[effect.States]
+	known     bool
+	was       []tag.Tags[effect.States] // a cell's effects as it last changed, by ordinal
 
 	active      *goke.Query
 	activeComp  goke.Comp[cgoke.Active]
@@ -159,6 +163,13 @@ func (s *entitySystem) templated() kind.Spec {
 }
 
 func (s *entitySystem) Update(*goke.CmdBuf, time.Duration) {
+	if !s.known {
+		s.matters, s.known = ^tag.Tags[effect.States](0), true
+		if s.mattering != nil {
+			s.matters = s.mattering()
+		}
+		s.was = make([]tag.Tags[effect.States], s.cells.grid.CellCount())
+	}
 	changed := false
 	for s.active.All(); s.active.Next(); {
 		cur := s.active.Cursor()
@@ -167,10 +178,22 @@ func (s *entitySystem) Update(*goke.CmdBuf, time.Duration) {
 			continue
 		}
 		for i := range plots {
-			if marks[i].Has(effect.Changed) {
-				s.cells.touch(plots[i].Cell)
-				changed = true
+			if !marks[i].Has(effect.Changed) {
+				continue
 			}
+			// the terrain changes as an effect it changes under begins or ends; one turning only
+			// what it does not hold leaves it as it is
+			now := marks[i].Without(effect.Changed)
+			o, ok := s.cells.Ordinal(plots[i].Cell)
+			if ok && o < len(s.was) {
+				was := s.was[o]
+				s.was[o] = now
+				if (now^was)&s.matters == 0 {
+					continue
+				}
+			}
+			s.cells.touch(plots[i].Cell)
+			changed = true
 		}
 	}
 	if changed {
