@@ -197,7 +197,8 @@ Decisions the user has made; they are not up for revisiting in passing.
 
 Dependency direction is one-way: `render` ← `plugin` ← `game` ← `internal/engine` ← `gram`.
 `render` draws with no knowledge of Stages, Scenes or plugins; `plugin` is the extension
-contract (`Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`/`CommandHandler`/`Made`,
+contract (`Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`/`CommandHandler`/
+`KindTemplater`/`Made`,
 `plugin/section`); `game` is what a Stage implements and receives; `internal/engine` the
 `Engine`. Built-in plugins (`plugins/*`) import `plugin`/`render` directly, as a third-party
 plugin would. gram's core beside them — `ceremony`, `entity` (with `entity/kind`), `clock`,

@@ -20,6 +20,7 @@ var _ goke.System = (*entitySystem)(nil)
 
 type entitySystem struct {
 	cells     *Cells
+	roster    *kind.Roster
 	template  *kind.Template
 	extra     *cgoke.Spawner
 	mattering func() tag.Tags[effect.States] // the effects the terrain changes under
@@ -150,7 +151,7 @@ func (s *entitySystem) templated() kind.Spec {
 	if s.template == nil {
 		return nil
 	}
-	spec := s.template.Spec()
+	spec := s.roster.Spec(s.template)
 	for _, c := range spec {
 		if own[c.Type()] {
 			panic(fmt.Sprintf("board: the cells' template gives %v, which the board gives every cell itself", c.Type()))

@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 )
@@ -31,16 +32,22 @@ type Plugin struct {
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
+var _ plugin.KindTemplater = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // NewPlugin builds the collision plugin over worldPlugin's space.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
-	worldPlugin.Roster().Unit.Default(comp.Const(Collider{}))
-	worldPlugin.Roster().Unit.Default(comp.Const(Physics{}))
 	p := &Plugin{worldPlugin: worldPlugin}
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.boxesView = &boxesView{w: worldPlugin}
 	return p
+}
+
+// KindTemplates is what collision asks of the kinds a game defines: every unit a collider of the
+// physics' defaults.
+func (p *Plugin) KindTemplates(r *kind.Roster) {
+	r.Default(world.UnitTemplate, comp.Const(Collider{}))
+	r.Default(world.UnitTemplate, comp.Const(Physics{}))
 }
 
 func (p *Plugin) Name() string { return "gram.collision" }

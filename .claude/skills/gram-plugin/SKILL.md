@@ -112,16 +112,17 @@ game. `Self` is a `ceremony.Router` (`ceremony.Put(e).On(s.atmosphere)`), `Self.
 anew), `Self.Plays(roles...)`; `cond.On(s.atmosphere).If(e)` reads it back. One thing of a kind a
 plugin.
 
-**Tags** are bits of a family, not component types (`ceremony/tag`): `tag.Tags[F]` holds up to
-64 tags of family `F` (an empty type a plugin names the family by; tags are the plugins'
-technique, a game says roles, names, groups and commands), `kinds.DefineTag[F](name)` hands out
-the bits by name through `world.Kinds` (saved by name, remapped on load), `comp.Tagged(tags...)`
-gives them to a kind, a query over the family's `Tags` narrows to those carrying any, a bit flip
-is seen the same tick; `host.Marks.Carries(tag)`. **Tags** are groups a kind gives; **markers**
-are states switched on and off — a plugin's family `States`, carried for good (`comp.Marks[F]()`,
-`Roster().Unit.Default`), each a constant bit (`effect.Changed`, every effect's `Mark()`,
-`unit.Entered`). Putting a component on or off moves the entity (~200 ns) against 1–2 ns for a
-bit: a state that changes often or lasts a step is a marker; one that lasts, on few entities,
+**Tags** are bits of a family, not component types (`ceremony/tag`): `tag.Tags[F]` holds up to 64
+tags of family `F` (an empty type a plugin names the family by; tags are the plugins' technique, a
+game says roles, names, groups and commands), `kinds.DefineTag[F](name)` hands out the bits by name
+through `world.Kinds` (saved by name, remapped on load), `comp.Tagged(tags...)` gives them to a
+kind, a query over the family's `Tags` narrows to those carrying any, a bit flip is seen the same
+tick; `host.Marks.Carries(tag)`. **Tags** are groups a kind gives; **markers** are states switched
+on and off — a plugin's family `States`, carried for good (`comp.Marks[F]()`,
+`r.Default(world.UnitTemplate, …)` in the plugin's `KindTemplates(r *kind.Roster)`, the one place it
+writes what it asks of the kinds' templates), each a constant bit (`effect.Changed`, every effect's
+`Mark()`, `unit.Entered`). Putting a component on or off moves the entity (~200 ns) against 1–2 ns
+for a bit: a state that changes often or lasts a step is a marker; one that lasts, on few entities,
 walked alone (`MoveOrder`, `Mind`, the facts, `world.Outside`) keeps its own component. Data that
 comes and goes keeps its component, empty when off (`cgoke.Active`).
 

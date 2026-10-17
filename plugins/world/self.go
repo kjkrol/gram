@@ -32,6 +32,10 @@ var _ ceremony.Router = (*Self)(nil)
 // NewSelf is the entity of the plugin p in w, carrying knobs, and notes p as made over w. Call
 // it in the plugin's constructor; a second entity of one name panics.
 func NewSelf(w *Plugin, p plugin.Plugin, knobs ...comp.Comp) *Self {
+	if _, asks := p.(plugin.KindTemplater); asks && w.roster.Filled() {
+		panic(fmt.Sprintf("world: the plugin %q, asking of the kinds' templates, made after "+
+			"they were read: make every plugin before defining a kind", p.Name()))
+	}
 	s := newSelf(w, p.Name(), knobs...)
 	w.made.Add(p)
 	return s

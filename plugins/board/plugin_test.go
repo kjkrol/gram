@@ -84,7 +84,7 @@ func TestNewPlugin_RequiresACellAndAMoverOfEveryUnit(t *testing.T) {
 		}
 	}()
 
-	w.Roster().Unit.Spec(comp.Const(world.Position{}))
+	w.Roster().Spec(world.UnitTemplate, comp.Const(world.Position{}))
 	t.Error("the roster accepted a unit without an unit.At and a unit.Mover")
 }
 

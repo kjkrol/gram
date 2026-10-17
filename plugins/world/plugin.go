@@ -59,6 +59,7 @@ var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Builtin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
+var _ plugin.KindTemplater = (*Plugin)(nil)
 
 // Builtin marks Plugin as installed by the engine itself.
 func (*Plugin) Builtin() {}
@@ -66,34 +67,76 @@ func (*Plugin) Builtin() {}
 // NewPlugin makes the world from cfg, usable before Install.
 func NewPlugin(cfg Config) *Plugin {
 	m := newModule(cfg)
-	kinds := newKinds(cfg.Heights)
-	m.kinds = kinds
-	p := &Plugin{Res: Resources{Config: cfg, Telemetry: &m.telemetry}, module: m, kinds: kinds, roster: kind.NewRoster(),
-		look: flatLook(cfg.Space)}
-	kind.Require[Position](&p.roster.Unit, "world", "where it stands")
-	p.roster.Unit.Default(comp.Const(Velocity{}))
-	m.effects = cgoke.NewEffects(effect.New(func(name string) tag.Tag[effect.States] {
-		return kinds.DefineTag[effect.States](name)
-	}))
-	m.effects.Guard(func(name string) { p.must(fmt.Sprintf("effect %q defined", name), section.Effects) })
-	kinds.guard = func(name string) { p.must(fmt.Sprintf("kind %q defined", name), section.Kinds) }
-	m.effectCmds.effects, m.effectCmds.world, m.effectCmds.commands = m.effects, m.clock.Entity, &m.commands
-	m.plans = plan.NewPlans(m.clock.Time, cfg.Seed, m.effects, &m.commands)
-	m.plansSys = cgoke.NewPlans(m.plans)
-	m.plans.Roles(m.effectCmds.RolesOf)
-	kinds.plans = m.plans
-	p.roster.Unit.Default(comp.Marks[effect.States]())
-	p.roster.Unit.Default(comp.Const(steering.Course{}))
-	p.roster.Unit.Default(comp.Const(Shadow{Cast: Patch}))
-	if err := m.commands.Carry(p.Queues()...); err != nil {
-		panic(err)
+	p := &Plugin{
+		Res:    Resources{Config: cfg, Telemetry: &m.telemetry},
+		module: m,
+		kinds:  newKinds(cfg.Heights),
+		look:   flatLook(cfg.Space),
 	}
-	p.roles.w, p.named.w = p, p
+	p.roster = kind.NewRoster(p.fillRoster)
+	m.kinds = p.kinds
+	p.newEffects()
+	p.newPlans()
+	p.carryOwn()
 	// the clock's entity is the world's own
 	p.Self = newSelf(p, p.Name(), comp.Const(m.clock.State()))
 	p.renderer = newRenderer(nil, p.ViewFor, &m.drawing, p.Look)
 	p.renderer.clock = m.clock.Shown
 	return p
+}
+
+// KindTemplates is what the world asks of the kinds a game defines: of every one it spawns,
+// where it stands; of what moves, its effects' markers, its course and a live patch of a shadow.
+func (p *Plugin) KindTemplates(r *kind.Roster) {
+	kind.Require[Position](r, EntityTemplate, "world", "where it stands")
+	r.Default(EntityTemplate, comp.Const(Velocity{}))
+	r.Default(UnitTemplate, comp.Marks[effect.States]())
+	r.Default(UnitTemplate, comp.Const(steering.Course{}))
+	r.Default(UnitTemplate, comp.Const(Shadow{Cast: Patch}))
+}
+
+// fillRoster has the world and every plugin made over it, in the order made, write what they ask
+// of the kinds' templates
+func (p *Plugin) fillRoster(r *kind.Roster) {
+	p.KindTemplates(r)
+	for _, made := range p.made.All() {
+		if t, ok := made.(plugin.KindTemplater); ok {
+			t.KindTemplates(r)
+		}
+	}
+}
+
+// newEffects makes the register of effects, their tags the kinds', and guards it and the kinds'
+// to their sections
+func (p *Plugin) newEffects() {
+	m, kinds := p.module, p.kinds
+	m.effects = cgoke.NewEffects(effect.New(func(name string) tag.Tag[effect.States] {
+		return kinds.DefineTag[effect.States](name)
+	}))
+	m.effects.Guard(func(name string) {
+		p.must(fmt.Sprintf("effect %q defined", name), section.Effects)
+	})
+	kinds.guard = func(name string) { p.must(fmt.Sprintf("kind %q defined", name), section.Kinds) }
+}
+
+// newPlans makes the commands about effects and the plans, which play the roles they say
+func (p *Plugin) newPlans() {
+	m := p.module
+	m.effectCmds.effects, m.effectCmds.world, m.effectCmds.commands = m.effects, m.clock.Entity,
+		&m.commands
+	m.plans = plan.NewPlans(m.clock.Time, p.Res.Config.Seed, m.effects, &m.commands)
+	m.plansSys = cgoke.NewPlans(m.plans)
+	m.plans.Roles(m.effectCmds.RolesOf)
+	p.kinds.plans = m.plans
+}
+
+// carryOwn has the world's carrier take the world's own commands, and its registers of roles and
+// commands answer for it
+func (p *Plugin) carryOwn() {
+	if err := p.module.commands.Carry(p.Queues()...); err != nil {
+		panic(err)
+	}
+	p.roles.w, p.named.w = p, p
 }
 
 // Made are the plugins made over the world, in the order made, which the Stage uses in that

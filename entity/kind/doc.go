@@ -13,12 +13,14 @@
 //
 // # Roster
 //
-// A [Roster] is what the plugins of a world ask of the entities a game makes, gathered as the
-// plugins are made. Its [Template] for a unit lists what plugins require ([Require]: the game
-// must supply a component of that type) and what they bring themselves (Template.Default, which
-// the game may override or leave out with comp.Without); Template.Spec builds the Spec from both
-// and panics naming every requirement left unmet. Its Template for a cell is what every cell a
-// board makes carries besides the board's own components.
+// A [Template] is a sort of kind a plugin brings in by name ([NewTemplate]: what the world
+// spawns, what moves, a board's cell), under a parent whose asks come with its own; the package
+// knows none. A [Roster] is what the plugins of a world ask of the kinds of each template: what
+// they require ([Require]: the game must supply a component of that type) and what they bring
+// themselves ([Roster.Default], which the game may override or leave out with comp.Without). It
+// is written once, as it is first read, by every plugin's KindTemplates in the order made, and
+// refuses a write anywhere else; [Roster.Spec] builds a kind's Spec of a template and panics
+// naming every requirement left unmet.
 //
 // # Registry
 //

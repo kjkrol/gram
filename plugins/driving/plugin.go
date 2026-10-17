@@ -46,16 +46,15 @@ type Plugin struct {
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
+var _ plugin.KindTemplater = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // NewPlugin builds the driving over worldPlugin's units, a player's hand on those it has selected
 // in selectionPlugin while its camera is fastened to none.
 func NewPlugin(worldPlugin *world.Plugin, selectionPlugin *selection.Plugin) *Plugin {
-	kind.Require[steering.Steering](&worldPlugin.Roster().Unit, "driving", "the profile it is driven by")
 	if t := worldPlugin.Kinds().DefineTag[States](drivingName); t != Driving {
 		panic(fmt.Sprintf("driving: its markers have tags of their own before %q", drivingName))
 	}
-	worldPlugin.Roster().Unit.Default(comp.Marks[States]())
 	p := &Plugin{worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
 	p.Self = world.NewSelf(worldPlugin, p)
 	return p
@@ -80,6 +79,13 @@ func (p *Plugin) WithKeeping(k Keeping) *Plugin {
 func (p *Plugin) WithTap(d time.Duration) *Plugin {
 	p.tap = d
 	return p
+}
+
+// KindTemplates is what driving asks of the kinds a game defines: of a unit, the profile it is
+// driven by and its driving's markers.
+func (p *Plugin) KindTemplates(r *kind.Roster) {
+	kind.Require[steering.Steering](r, world.UnitTemplate, "driving", "the profile it is driven by")
+	r.Default(world.UnitTemplate, comp.Marks[States]())
 }
 
 func (p *Plugin) Name() string { return "gram.driving" }

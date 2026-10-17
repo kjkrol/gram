@@ -51,12 +51,11 @@ type Plugin struct {
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
+var _ plugin.KindTemplater = (*Plugin)(nil)
 
 // NewPlugin builds a navigation plugin over a board; hand it to the players plugin for its MoveTo
 // command and default bindings.
 func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPlugin *selection.Plugin, drivingPlugin *driving.Plugin) *Plugin {
-	kind.Require[steering.Steering](&worldPlugin.Roster().Unit, "navigation", "the profile it is steered by")
-	worldPlugin.Roster().Unit.Default(comp.Const(LastOrder{}))
 	p := &Plugin{boardPlugin: boardPlugin, worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
 	p.Self = world.NewSelf(worldPlugin, p)
 	drivingPlugin.WithKeeping(&p.handKeeping)
@@ -64,6 +63,14 @@ func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPl
 		WithHeights(boardPlugin.Heights).WithLook(worldPlugin.Look).WithStyles(worldPlugin.Styles)
 	p.pathRenderer.BindSpace(worldPlugin.Space())
 	return p
+}
+
+// KindTemplates is what navigation asks of the kinds a game defines: of a unit, the profile it is
+// steered by, and the order it was given last.
+func (p *Plugin) KindTemplates(r *kind.Roster) {
+	kind.Require[steering.Steering](r, world.UnitTemplate, "navigation",
+		"the profile it is steered by")
+	r.Default(world.UnitTemplate, comp.Const(LastOrder{}))
 }
 
 func (p *Plugin) Name() string { return "gram.navigation" }

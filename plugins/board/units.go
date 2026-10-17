@@ -65,7 +65,7 @@ func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steer
 		comp.Const(steering),
 		comp.Const(world.Z{Height: u.shape.Height}), // Altitude is the board's to write
 	}
-	spec := u.brd.worldPlugin.Roster().Unit.Spec(append(own, extra...)...)
+	spec := u.brd.worldPlugin.Roster().Spec(world.UnitTemplate, append(own, extra...)...)
 	kind.Define[P](u.brd.worldPlugin.Kinds(), name, spec)
 }
 

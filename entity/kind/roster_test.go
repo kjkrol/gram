@@ -19,11 +19,18 @@ func types(spec kind.Spec) []string {
 	return out
 }
 
-func TestTemplate_SpecBringsTheDefaultsAndTheGamesOwn(t *testing.T) {
-	r := kind.NewRoster()
-	r.Unit.Default(comp.Const(stat{HP: 3}))
+var (
+	thing   = kind.NewTemplate("thing", nil)
+	soldier = kind.NewTemplate("soldier", thing)
+)
 
-	spec := r.Unit.Spec(comp.Load(func(r row) armour { return armour{Plate: r.hp} }))
+// a roster asks writes as it is first read
+func rosterOf(asks func(r *kind.Roster)) *kind.Roster { return kind.NewRoster(asks) }
+
+func TestRoster_SpecBringsTheDefaultsAndTheGamesOwn(t *testing.T) {
+	r := rosterOf(func(r *kind.Roster) { r.Default(soldier, comp.Const(stat{HP: 3})) })
+
+	spec := r.Spec(soldier, comp.Load(func(r row) armour { return armour{Plate: r.hp} }))
 
 	if len(spec) != 2 {
 		t.Fatalf("spec has %d components, want the default stat and the game's armour: %v", len(spec), types(spec))
@@ -33,11 +40,10 @@ func TestTemplate_SpecBringsTheDefaultsAndTheGamesOwn(t *testing.T) {
 	}
 }
 
-func TestTemplate_TheGamesOwnReplacesADefaultOfTheSameType(t *testing.T) {
-	r := kind.NewRoster()
-	r.Unit.Default(comp.Const(stat{HP: 3}))
+func TestRoster_TheGamesOwnReplacesADefaultOfTheSameType(t *testing.T) {
+	r := rosterOf(func(r *kind.Roster) { r.Default(soldier, comp.Const(stat{HP: 3})) })
 
-	spec := r.Unit.Spec(comp.Const(stat{HP: 9}))
+	spec := r.Spec(soldier, comp.Const(stat{HP: 9}))
 
 	if len(spec) != 1 {
 		t.Fatalf("spec has %d components, want the game's stat alone: %v", len(spec), types(spec))
@@ -47,12 +53,13 @@ func TestTemplate_TheGamesOwnReplacesADefaultOfTheSameType(t *testing.T) {
 	}
 }
 
-func TestTemplate_WithoutDropsADefaultAndLeavesNoTrace(t *testing.T) {
-	r := kind.NewRoster()
-	r.Unit.Default(comp.Const(stat{HP: 3}))
-	r.Unit.Default(comp.Const(armour{Plate: 1}))
+func TestRoster_WithoutDropsADefaultAndLeavesNoTrace(t *testing.T) {
+	r := rosterOf(func(r *kind.Roster) {
+		r.Default(soldier, comp.Const(stat{HP: 3}))
+		r.Default(soldier, comp.Const(armour{Plate: 1}))
+	})
 
-	spec := r.Unit.Spec(comp.Without[stat]())
+	spec := r.Spec(soldier, comp.Without[stat]())
 
 	if len(spec) != 1 {
 		t.Fatalf("spec has %d components, want the armour alone: %v", len(spec), types(spec))
@@ -62,34 +69,89 @@ func TestTemplate_WithoutDropsADefaultAndLeavesNoTrace(t *testing.T) {
 	}
 }
 
-func TestTemplate_ARequirementIsMetByAConstOrALoad(t *testing.T) {
+func TestRoster_ARequirementIsMetByAConstOrALoad(t *testing.T) {
 	for name, own := range map[string]comp.Comp{
 		"const": comp.Const(stat{}),
 		"load":  comp.Load(func(r row) stat { return stat{HP: r.hp} }),
 	} {
 		t.Run(name, func(t *testing.T) {
-			r := kind.NewRoster()
-			kind.Require[stat](&r.Unit, "board", "its health")
-			if spec := r.Unit.Spec(own); len(spec) != 1 {
+			r := rosterOf(func(r *kind.Roster) {
+				kind.Require[stat](r, soldier, "board", "its health")
+			})
+			if spec := r.Spec(soldier, own); len(spec) != 1 {
 				t.Errorf("spec has %d components, want the one given", len(spec))
 			}
 		})
 	}
 }
 
-func TestTemplate_SpecPanicsNamingEveryUnmetRequirement(t *testing.T) {
-	r := kind.NewRoster()
-	kind.Require[stat](&r.Unit, "board", "its health")
-	kind.Require[armour](&r.Unit, "collision", "what it is clad in")
+func TestRoster_SpecPanicsNamingEveryUnmetRequirement(t *testing.T) {
+	r := rosterOf(func(r *kind.Roster) {
+		kind.Require[stat](r, soldier, "board", "its health")
+		kind.Require[armour](r, soldier, "collision", "what it is clad in")
+	})
 	defer func() {
 		msg, _ := recover().(string)
-		for _, want := range []string{"kind: unit:", "board requires kind_test.stat (its health)", "collision requires kind_test.armour (what it is clad in)"} {
+		for _, want := range []string{
+			"kind: soldier:",
+			"board requires kind_test.stat (its health)",
+			"collision requires kind_test.armour (what it is clad in)",
+		} {
 			if !strings.Contains(msg, want) {
 				t.Errorf("panic %q does not mention %q", msg, want)
 			}
 		}
 	}()
 
-	r.Unit.Spec()
-	t.Error("Spec accepted a unit missing both requirements")
+	r.Spec(soldier)
+	t.Error("Spec accepted a soldier missing both requirements")
+}
+
+func TestRoster_ATemplateTakesItsParentsAsksItsOwnDefaultsFirst(t *testing.T) {
+	r := rosterOf(func(r *kind.Roster) {
+		r.Default(thing, comp.Const(stat{HP: 1}))
+		r.Default(thing, comp.Const(armour{Plate: 1}))
+		kind.Require[row](r, thing, "world", "where it stands")
+		r.Default(soldier, comp.Const(stat{HP: 5}))
+	})
+
+	spec := r.Spec(soldier, comp.Const(row{}))
+
+	got := map[string]bool{}
+	for _, c := range spec {
+		got[fmt.Sprintf("%T", c)] = true
+		if s, ok := c.(comp.Template[stat]); ok && s.Resolve(nil).HP != 5 {
+			t.Errorf("a soldier's stat is %+v, want its own 5 over the thing's 1", s.Resolve(nil))
+		}
+	}
+	if len(spec) != 3 || !got[fmt.Sprintf("%T", comp.Const(armour{}))] {
+		t.Errorf("a soldier's spec is %v, want its stat, the thing's armour and its row",
+			types(spec))
+	}
+	if spec := r.Spec(thing, comp.Const(row{})); len(spec) != 3 {
+		t.Errorf("a thing's spec is %v, want none of a soldier's", types(spec))
+	}
+}
+
+func TestRoster_IsWrittenOnlyAsItIsFirstRead(t *testing.T) {
+	r := rosterOf(func(*kind.Roster) {})
+	wrote := func() (msg string) {
+		defer func() { msg, _ = recover().(string) }()
+		r.Default(soldier, comp.Const(stat{}))
+		return ""
+	}
+	if msg := wrote(); !strings.Contains(msg, "outside a plugin's KindTemplates") {
+		t.Errorf("a default written before the roster was read panics %q, want it refused", msg)
+	}
+	r.Spec(soldier)
+	if msg := wrote(); !strings.Contains(msg, "outside a plugin's KindTemplates") {
+		t.Errorf("a default written after the roster was read panics %q, want it refused", msg)
+	}
+	reading := rosterOf(func(r *kind.Roster) { r.Spec(thing) })
+	defer func() {
+		if msg, _ := recover().(string); !strings.Contains(msg, "read while") {
+			t.Errorf("a roster read while written panics %q, want it refused", msg)
+		}
+	}()
+	reading.Spec(thing)
 }

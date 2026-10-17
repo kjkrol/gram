@@ -12,48 +12,55 @@ facts for plans, knobs and commands (who may give each). That section is the aut
 - **`world`** — the foundation a Stage makes from `world.Config` (`stage.World(cfg)`;
   `ctx.UseWorld(cfg)` underneath, once): the space's size and edges (`SpaceCfg.Edges`:
   `aabbworld.Torus`, `WrapX`/`WrapY`, `OpenX`/`OpenY`, closed by default — a box stops whole at a
-  closed edge, wraps at a wrapping one, may leave by an open one: wholly past it the entity
-  carries `world.Outside`, rules of a `world.Leaving` hear of it every tick, with none it is
-  despawned), entity bounds, `Heights`, `Scale{Metres, Figures}` (what a world unit is;
-  `Scale.Units` metres; `Figures` how many times bigger than life the figures are drawn,
-  `Scale.Figure(m)` their boxes, heights and eyes; speeds and sight stay real; with it the ground
-  sinks under an eye's level, `Scale.Drop`, and the air hazes far off), `Seed` (which `Chance`
-  draws from). `world.Roster()` is what the plugins ask of a unit's kind, gathered as they are
-  made: `kind.Require[T](&roster.Unit, by, why)` names what the game must supply (world:
-  `Position`; board: `At`, `Mover`; navigation: `steering.Steering`), `roster.Unit.Default(
-  comp.Const(v))` what a plugin brings itself (`Velocity{}`, `Collider{}`, `Physics{}`; dropped
-  with `comp.Without[T]()`); `roster.Unit.Spec(own...)` builds a unit's Spec, a missing
-  requirement panics by plugin and reason; `roster.Cell` is what every cell carries besides the
-  board's own. `world.Layers` are the planes an entity is on (none: every plane); collision and
-  vision read it. `world.Config{Heights: true}` gives the world heights: entities carry
-  `world.Z{Altitude, Height, Step}` (`Z.Reach()`: how high it steps up), written by the board in
-  relief or by gravity; collision and sight follow Z; a flat world asks none of it, and each
-  plugin refuses the other mode's facts where it first meets them. `Base` is the one component
-  every entity carries (`Position`, `Velocity`, `TypeID`, `Caps`). Entities are spawned before
-  the game (`Seed`/`Populate`) and during it (`world.Spawn{Entry}`, `Plugin.Spawn`: the world's
-  own system makes the entity at the next step after the plans, refusing with a log line an
-  unknown kind, a wrong row, a full world, a bad size, a box past an open edge) and go by
-  `world.Despawn{}` (an entity's own, `act.Do`). Movement is capped per entity at half its
-  shorter side (`world.StepReach`, `Position.MaxStep`/`MaxSpeed`); the move pass moves every box
-  by its `Velocity` and `world.Drift` (gravity's) under the edge rules, then rebuilds the space
+  closed edge, wraps at a wrapping one, may leave by an open one: wholly past it the entity carries
+  `world.Outside`, rules of a `world.Leaving` hear of it every tick, with none it is despawned),
+  entity bounds, `Heights`, `Scale{Metres, Figures}` (what a world unit is; `Scale.Units` metres;
+  `Figures` how many times bigger than life the figures are drawn, `Scale.Figure(m)` their boxes,
+  heights and eyes; speeds and sight stay real; with it the ground sinks under an eye's level,
+  `Scale.Drop`, and the air hazes far off), `Seed` (which `Chance` draws from). `world.Roster()` is
+  what the plugins ask of the kinds of each template: a `kind.Template` is a sort of kind a plugin
+  brings in by name under a parent (`kind.NewTemplate(name, parent)`; world: `EntityTemplate`,
+  `UnitTemplate` under it; board: `StandingTemplate` under the entity's, `CellTemplate`;
+  `entity/kind` knows none). A plugin writes its asks in `KindTemplates(r *kind.Roster)`
+  (`plugin.KindTemplater`, asserted beside the type) and nowhere else: the world calls its own and
+  every made plugin's, in the order made, as the roster is first read, and refuses a write elsewhere
+  and a plugin asking made after (make every plugin before defining a kind).
+  `kind.Require[T](r, t, by, why)` names what the game must supply (world: `Position` of every
+  entity; board: `At`, `Mover` of a unit; navigation, driving: `steering.Steering`),
+  `r.Default(t, comp.Const(v))` what a plugin brings itself (world: `Velocity{}` of every entity,
+  effect marks, `steering.Course`, `Shadow{Patch}` of a unit; board: `Lie{}`, `Shadow{Baked}` of
+  what stands; collision: `Collider{}`, `Physics{}`; dropped with `comp.Without[T]()`, a template's
+  own taking the place of its parent's); `r.Spec(t, own...)` builds a kind's Spec
+  (`board.NewUnits` from the unit's, `Entities.Define` from the standing one's with its shape's `Z`,
+  the cells from the cell's), a missing requirement panicking by plugin and reason. `world.Layers`
+  are the planes an entity is on (none: every plane); collision and vision read it.
+  `world.Config{Heights: true}` gives the world heights: entities carry `world.Z{Altitude, Height,
+  Step}` (`Z.Reach()`: how high it steps up), written by the board in relief or by gravity;
+  collision and sight follow Z; a flat world asks none of it, and each plugin refuses the other
+  mode's facts where it first meets them. `Base` is the one component every entity carries
+  (`Position`, `Velocity`, `TypeID`, `Caps`). Entities are spawned before the game
+  (`Seed`/`Populate`) and during it (`world.Spawn{Entry}`, `Plugin.Spawn`: the world's own system
+  makes the entity at the next step after the plans, refusing with a log line an unknown kind, a
+  wrong row, a full world, a bad size, a box past an open edge) and go by `world.Despawn{}` (an
+  entity's own, `act.Do`). Movement is capped per entity at half its shorter side
+  (`world.StepReach`, `Position.MaxStep`/`MaxSpeed`); the move pass moves every box by its
+  `Velocity` and `world.Drift` (gravity's) under the edge rules, then rebuilds the space
   (`Space.Rebuild`): `Query`, `Scan` and collisions read that grid until the next tick. After
   movement the `view.System` refreshes every `view.View` (`Plugin.View()` the camera's,
-  `ViewFor(cam)` any's); the renderer draws what the View contains. The world makes no camera.
-  It hosts rules of a `Moving` (every entity, in the velocity pass, which also scales
-  `Base.Vel.Value` by the entity's `steering.Pace`, the board's share; its words `world.Still()`,
-  neither walking nor strafing, and `world.Braking()`, slowing down — `Moving` carries the
-  steering's `Course`), a `Leaving` and a `clock.Moment` (every step, just
-  before the effects' pass). It handles `steering.Away{From}`, `Toward{To}` (`host.Aimed`),
-  `Turn{Angle}` (the steering system asks the `Helm`, one a step), the commands about effects,
-  `Pause` (Shift+P), `Faster` (]) and `Slower` ([). `Figures(f...)` notes kinds of entity in
-  one piece (`world.Figure`: `Define(w)`, `Look(a, w)`; `Stateful`, `Ruled`), `FiguresIn(part)`
-  runs their parts as the Stage reaches Effects, Rules and Kinds; `ctx.Looks` declares their
-  looks on the atlas once the Stage is set up. `Picture()` is the Stage's one picture: every
-  source its plugins gave `ctx.Draws`.
-  Every `host.Tick` comes from
-  `world.Plugin.Tick(d)`: the carrier (`world.Plugin.Carrier()`, the stage's one
-  `command.Carrier` for players and entities alike; the engine carries every
-  `plugin.CommandHandler` a stage uses), `Time`, `Seed`, `Roles`, `World` (the clock's entity).
+  `ViewFor(cam)` any's); the renderer draws what the View contains. The world makes no camera. It
+  hosts rules of a `Moving` (every entity, in the velocity pass, which also scales `Base.Vel.Value`
+  by the entity's `steering.Pace`, the board's share; its words `world.Still()`, neither walking nor
+  strafing, and `world.Braking()`, slowing down — `Moving` carries the steering's `Course`), a
+  `Leaving` and a `clock.Moment` (every step, just before the effects' pass). It handles
+  `steering.Away{From}`, `Toward{To}` (`host.Aimed`), `Turn{Angle}` (the steering system asks the
+  `Helm`, one a step), the commands about effects, `Pause` (Shift+P), `Faster` (]) and `Slower` ([).
+  `Figures(f...)` notes kinds of entity in one piece (`world.Figure`: `Define(w)`, `Look(a, w)`;
+  `Stateful`, `Ruled`), `FiguresIn(part)` runs their parts as the Stage reaches Effects, Rules and
+  Kinds; `ctx.Looks` declares their looks on the atlas once the Stage is set up. `Picture()` is the
+  Stage's one picture: every source its plugins gave `ctx.Draws`. Every `host.Tick` comes from
+  `world.Plugin.Tick(d)`: the carrier (`world.Plugin.Carrier()`, the stage's one `command.Carrier`
+  for players and entities alike; the engine carries every `plugin.CommandHandler` a stage uses),
+  `Time`, `Seed`, `Roles`, `World` (the clock's entity).
 - **`board`** — optional grid and terrain over `world`, standing only in a world with heights
   (`board.NewPlugin` panics in a flat one; a world without a board — collision, minimal,
   rules/vision, scenes — stays flat); its grids wrap per axis, following the world's `Edges`. The

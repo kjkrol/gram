@@ -229,10 +229,11 @@ func TestRail_AnEffectTakesTheRailingsDown(t *testing.T) {
 func TestEntities_CastBakedShadowsUnlessTheirKindSaysOtherwise(t *testing.T) {
 	for _, c := range []struct {
 		extra []comp.Comp
-		want  world.Casting
+		want  int // a Casting, -1 for none carried
 	}{
-		{nil, world.Baked},
-		{[]comp.Comp{comp.Const(world.Shadow{Cast: world.NoShadow})}, world.NoShadow},
+		{nil, int(world.Baked)},
+		{[]comp.Comp{comp.Const(world.Shadow{Cast: world.NoShadow})}, int(world.NoShadow)},
+		{[]comp.Comp{comp.Without[world.Shadow]()}, -1},
 	} {
 		s := newStrip(t, grass, effect.Spec{}, c.extra...)
 		var shadow goke.Comp[world.Shadow]
@@ -246,7 +247,13 @@ func TestEntities_CastBakedShadowsUnlessTheirKindSaysOtherwise(t *testing.T) {
 				got = append(got, sh.Cast)
 			}
 		}
-		if len(got) != 1 || got[0] != c.want {
+		if c.want < 0 {
+			if len(got) != 0 {
+				t.Errorf("a thing told to carry no Shadow casts %v, want it carrying none", got)
+			}
+			continue
+		}
+		if len(got) != 1 || int(got[0]) != c.want {
 			t.Errorf("a thing given %d components casts %v, want %v", len(c.extra), got, c.want)
 		}
 	}

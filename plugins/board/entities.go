@@ -26,8 +26,8 @@ func NewEntities[P any](brd *Plugin, shape Shape, at func(row P) cell.ID) *Entit
 }
 
 // Define registers one kind of entity standing on the board, its entities carrying extra
-// besides, a Velocity, a Lie, a Z or a Shadow among them in place of the board's (a Baked
-// shadow); one standing off the board panics as it is spawned.
+// besides, in place of what the roster's Standing template gives and of a Z as tall as its shape;
+// one standing off the board panics as it is spawned.
 func (e *Entities[P]) Define(name string, extra ...comp.Comp) {
 	brd := e.brd.Board()
 	own := []comp.Comp{
@@ -40,27 +40,14 @@ func (e *Entities[P]) Define(name string, extra ...comp.Comp) {
 		}),
 		comp.Load(func(row P) cell.On { return cell.On{Cell: e.at(row)} }),
 	}
-	if !slices.ContainsFunc(extra, func(c comp.Comp) bool {
-		return c.Type() == reflect.TypeFor[world.Velocity]()
-	}) {
-		own = append(own, comp.Const(world.Velocity{}))
-	}
-	if !slices.ContainsFunc(extra, func(c comp.Comp) bool {
-		return c.Type() == reflect.TypeFor[world.Lie]()
-	}) {
-		own = append(own, comp.Const(world.Lie{}))
-	}
+	// a Z as tall as its shape: the template gives every kind the same
 	if !slices.ContainsFunc(extra, func(c comp.Comp) bool {
 		return c.Type() == reflect.TypeFor[world.Z]()
 	}) {
 		own = append(own, comp.Const(world.Z{Height: e.shape.Height}))
 	}
-	if !slices.ContainsFunc(extra, func(c comp.Comp) bool {
-		return c.Type() == reflect.TypeFor[world.Shadow]()
-	}) {
-		own = append(own, comp.Const(world.Shadow{Cast: world.Baked}))
-	}
-	kind.Define[P](e.brd.worldPlugin.Kinds(), name, append(own, extra...))
+	spec := e.brd.worldPlugin.Roster().Spec(StandingTemplate, append(own, extra...)...)
+	kind.Define[P](e.brd.worldPlugin.Kinds(), name, spec)
 	if e.brd.cellOf == nil {
 		e.brd.cellOf = map[string]func(any) cell.ID{}
 	}

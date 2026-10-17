@@ -37,7 +37,9 @@
 // [Plugin.Kinds] is the register kind.Define registers with; [Kinds.DefineTag] hands out the
 // bits of a tag family by name and [Kinds.NewSprite] atlas slots no kind owns. A Stage's Spawn
 // puts entities on the roster with [Plugin.Seed]; the engine calls [Plugin.Populate] only for a
-// Stage entered afresh. [Plugin.Roster] is what the plugins ask of a unit's kind.
+// Stage entered afresh. [Plugin.Roster] is what the plugins ask of the kinds of each template
+// ([EntityTemplate], [UnitTemplate], others a plugin brings), the world and every plugin made
+// writing theirs in their KindTemplates as it is first read.
 //
 // # Roles and Commands
 //

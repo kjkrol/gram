@@ -2,8 +2,13 @@ package terrain_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/kjkrol/ceremony/comp"
+	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/world"
@@ -13,7 +18,7 @@ func TestCells_EveryCellCarriesTheRostersCellDefaults(t *testing.T) {
 	for name, g := range cellGrids() {
 		t.Run(name, func(t *testing.T) {
 			_, _, _, probe := installCells(t, g, func(w *world.Plugin, _ *board.Plugin) {
-				w.Roster().Cell.Default(comp.Load(func(c cell.ID) fuel { return fuel{Left: int(c) + 1} }))
+				giveCells(w, comp.Load(func(c cell.ID) fuel { return fuel{Left: int(c) + 1} }))
 			})
 			got := probe.read(t)
 			if len(got) != g.CellCount() {
@@ -39,8 +44,23 @@ func TestCells_ATemplateRefusedPanicsSayingWhy(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			panicsWith(t, func() {
-				installCells(t, g, func(w *world.Plugin, _ *board.Plugin) { w.Roster().Cell.Default(c.give) })
+				installCells(t, g, func(w *world.Plugin, _ *board.Plugin) { giveCells(w, c.give) })
 			}, c.want...)
 		})
 	}
 }
+
+// giving is a plugin giving every cell c besides the board's own
+type giving struct{ c comp.Comp }
+
+var _ plugin.KindTemplater = giving{}
+
+func (giving) Name() string                       { return "giving" }
+func (giving) Install(plugin.Installer) error     { return nil }
+func (giving) RunPlan(goke.RunCtx, time.Duration) {}
+func (giving) EventHandler() control.EventHandler { return nil }
+func (giving) Serializable() plugin.Serializable  { return nil }
+
+func (g giving) KindTemplates(r *kind.Roster) { r.Default(board.CellTemplate, g.c) }
+
+func giveCells(w *world.Plugin, c comp.Comp) { world.NewSelf(w, giving{c}) }

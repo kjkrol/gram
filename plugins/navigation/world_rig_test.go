@@ -61,11 +61,11 @@ func newNavWorldWith(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 	brd := board.NewPlugin(nw.grid, nw.occupancy, w)
 	nw.board = brd.Board()
 	nw.board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	sel := selection.NewPlugin(w)
+	nw.nav = NewPlugin(brd, w, sel, driving.NewPlugin(w, sel)).WithSpacing(CellSpacing)
 	if prepare != nil {
 		prepare(w, brd)
 	}
-	sel := selection.NewPlugin(w)
-	nw.nav = NewPlugin(brd, w, sel, driving.NewPlugin(w, sel)).WithSpacing(CellSpacing)
 	if err := w.Carry(nw.nav); err != nil { // as the engine does with Use
 		t.Fatal(err)
 	}

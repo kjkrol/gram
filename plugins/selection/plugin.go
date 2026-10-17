@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
@@ -31,6 +32,7 @@ type Plugin struct {
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
+var _ plugin.KindTemplater = (*Plugin)(nil)
 
 // NewPlugin builds the selection plugin over worldPlugin's space; hand it to the players plugin
 // for its Select command and default bindings.
@@ -41,7 +43,6 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 		Selected:   reg.DefineTag[Family]("selection.selected"),
 		Hovered:    reg.DefineTag[Family]("selection.hovered"),
 	}
-	worldPlugin.Roster().Unit.Default(comp.Marks[Family]()) // every unit may be told Allow
 	p := &Plugin{worldPlugin: worldPlugin, tags: tags}
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.renderer = NewRenderer(tags.Selected, worldPlugin.Look, worldPlugin.Styles)
@@ -51,6 +52,12 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 
 // Tags returns selection's tags: for the plugins reading who is Selected.
 func (p *Plugin) Tags() Tags { return p.tags }
+
+// KindTemplates is what selection asks of the kinds a game defines: every unit marked, so it may
+// be told Allow.
+func (p *Plugin) KindTemplates(r *kind.Roster) {
+	r.Default(world.UnitTemplate, comp.Marks[Family]())
+}
 
 // Chosen is the one Selected unit player by owns; false with none, or several. Nothing before
 // the plugin is installed.

@@ -50,11 +50,11 @@ func New(g grid.Grid) *Cells {
 	return t
 }
 
-// System makes an entity for every cell at Setup, each with template's defaults, or finds those
-// a save brought back. It counts the changes effects make to them.
-func (t *Cells) System(template *kind.Template,
+// System makes an entity for every cell at Setup, each with what roster asks of template, or finds
+// those a save brought back. It counts the changes effects make to them.
+func (t *Cells) System(roster *kind.Roster, template *kind.Template,
 	mattering func() tag.Tags[effect.States]) goke.System {
-	return &entitySystem{cells: t, template: template, mattering: mattering}
+	return &entitySystem{cells: t, roster: roster, template: template, mattering: mattering}
 }
 
 // Made reports whether the cells are entities yet.

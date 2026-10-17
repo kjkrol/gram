@@ -23,6 +23,7 @@ type module struct {
 	keep      goke.System
 	cellRules goke.System
 	clock     *clock.Clock // nil: run at once
+	roster    *kind.Roster
 	template  *kind.Template
 
 	cellsRunnable     goke.Runnable
@@ -57,7 +58,7 @@ func (m *module) SetupSystems() []goke.System { return nil }
 func (m *module) LoadComps() []goke.CompToken {
 	var templated []goke.CompToken
 	if m.template != nil {
-		for _, c := range m.template.Spec() {
+		for _, c := range m.roster.Spec(m.template) {
 			templated = append(templated, cgoke.LoadComp(c))
 		}
 	}

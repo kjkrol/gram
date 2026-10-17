@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
@@ -49,6 +50,7 @@ type Plugin struct {
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
+var _ plugin.KindTemplater = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
 // NewPlugin builds the players plugin over worldPlugin, having the world carry the commands of
@@ -59,7 +61,6 @@ func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Pl
 			panic(fmt.Sprintf("players: the owners' family has tags of its own before %q", owner.Name(id)))
 		}
 	}
-	worldPlugin.Roster().Unit.Default(comp.Marks[owner.Family]()) // every unit may be given
 	p := &Plugin{worldPlugin: worldPlugin, now: time.Now}
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.shortcuts = newShortcuts(p)
@@ -194,6 +195,12 @@ func (p *Plugin) tools() {
 			pl.tool = ""
 		}
 	})
+}
+
+// KindTemplates is what the players ask of the kinds a game defines: every unit marked, so it may
+// be given an owner.
+func (p *Plugin) KindTemplates(r *kind.Roster) {
+	r.Default(world.UnitTemplate, comp.Marks[owner.Family]())
 }
 
 func (p *Plugin) Name() string { return "gram.players" }

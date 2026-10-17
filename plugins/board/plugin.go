@@ -80,6 +80,7 @@ type Bridges struct{ Clearance float64 }
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
+var _ plugin.KindTemplater = (*Plugin)(nil)
 
 // NewPlugin builds a board over g with the given occupancy, slowing worldPlugin's entities; a
 // world without heights panics.
@@ -87,8 +88,6 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	if !worldPlugin.HasHeights() {
 		panic("board: a board stands in a world with heights; set world.Config.Heights")
 	}
-	kind.Require[unit.At](&worldPlugin.Roster().Unit, "board", "the cell it starts in")
-	kind.Require[unit.Mover](&worldPlugin.Roster().Unit, "board", "the domains it moves in")
 	p := &Plugin{
 		occupancy:   occupancy,
 		worldPlugin: worldPlugin,
@@ -113,7 +112,6 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	}
 	slope := func(at, dir geom.Vec, d cell.Domain) float64 { return brd.Map().Slope(at, dir, d) }
 	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Tick, slope, brd.altitude)
-	worldPlugin.Roster().Unit.Default(comp.Const(steering.Pace{Share: 1}))
 	if t := worldPlugin.Kinds().DefineTag[unit.States](unit.EnteredName); t != unit.Entered {
 		panic(fmt.Sprintf("board: the units' markers have tags of their own before %q",
 			unit.EnteredName))
@@ -122,11 +120,22 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 		panic(fmt.Sprintf("board: the units' markers have tags of their own before %q",
 			unit.AirborneName))
 	}
-	worldPlugin.Roster().Unit.Default(comp.Marks[unit.States]())
 	p.keepBridges()
 	p.renderer = look.NewRenderer(brd, nil, mapRef{p}, worldPlugin.Res.Config.Space)
 	p.holdsView = p.newHoldsView()
 	return p
+}
+
+// KindTemplates is what the board asks of the kinds a game defines: of a unit, where it starts
+// and the domains it moves in; of a kind standing on it, lying as it is and casting a Baked
+// shadow.
+func (p *Plugin) KindTemplates(r *kind.Roster) {
+	kind.Require[unit.At](r, world.UnitTemplate, "board", "the cell it starts in")
+	kind.Require[unit.Mover](r, world.UnitTemplate, "board", "the domains it moves in")
+	r.Default(world.UnitTemplate, comp.Const(steering.Pace{Share: 1}))
+	r.Default(world.UnitTemplate, comp.Marks[unit.States]())
+	r.Default(StandingTemplate, comp.Const(world.Lie{}))
+	r.Default(StandingTemplate, comp.Const(world.Shadow{Cast: world.Baked}))
 }
 
 func (p *Plugin) newHoldsView() *occupancy.View {
@@ -139,9 +148,10 @@ func (p *Plugin) Name() string { return "gram.board" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
-		cells:     p.Board().cells.System(&p.worldPlugin.Roster().Cell, p.mattering),
+		cells:     p.Board().cells.System(p.worldPlugin.Roster(), CellTemplate, p.mattering),
 		built:     p.Board().cells.BuiltSystem(p.worldPlugin.Space),
-		template:  &p.worldPlugin.Roster().Cell,
+		roster:    p.worldPlugin.Roster(),
+		template:  CellTemplate,
 		keep:      occupancy.KeepSystem(p.occupancy, p.Board().footing),
 		standing:  p.rules.StandingSystem(),
 		cellRules: p.rules.CellSystem(),

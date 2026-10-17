@@ -95,8 +95,8 @@ func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(
 	})
 	c := collision.NewPlugin(bw.World)
 	bw.Board = board.NewPlugin(g, &cell.MultipleOccupancy{}, bw.World).WithCollision(c)
-	rules := prepare(bw.World, bw.Board)
 	v := vision.NewPlugin(bw.World).WithBoard(bw.Board)
+	rules := prepare(bw.World, bw.Board)
 
 	ctx := NewInstallCtx()
 	if err := bw.World.Install(ctx); err != nil {
