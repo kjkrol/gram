@@ -212,6 +212,9 @@ func (p *Plugin) Name() string { return "gram.atmosphere" }
 // the world, looking as its Skies say, the clouds seen from above and what falls before it.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{p: p, sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Clock()}
+	if p.weathering != nil {
+		p.module.comps = append(p.module.comps, goke.LoadComp[weathering.Wring]())
+	}
 	ctx.UseModule(p.module)
 	p.module.rises = p.sky.RiseSystem(p.worldPlugin.Tick, p.Entity)
 	ctx.Hosts(p.climate.Rules(), p.sky.Rules())

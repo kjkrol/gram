@@ -17,6 +17,25 @@ in a flat world: a board stands only in a world with heights now. Nor those made
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
 entities.
 
+**Shadows as strategies** (2026-10-17)
+- How an entity casts its shadow is its `world.Shadow{Cast}` (`entity.Shadow`), a knob: a soft
+  `Patch` every frame, the `Silhouette` of its sprite, `Baked` with the ground, or `NoShadow`.
+  Units cast patches and entities standing on the board are baked unless their kind declares
+  otherwise; an effect turns it for one entity. `entity.Block` is gone: saves made before do not
+  load.
+- Baked shadows have no limit: every `Baked` entity is drawn into the shade as an instance, the
+  darkest kept (`render.DrawMeshOptions.Darkest`), after the relief's. The shade fades band by
+  band from its last bake into the new instead of jumping as the sun turns.
+- The sun on the ground is a frame image every shader reads (`render.GroundShade`; WGSL
+  `groundShadeAt`, `standingShadeAt`): what stands in relief darkens in a mountain's shadow at
+  its height, in a block's near the ground and under the clouds.
+- Each entity casts its live shadow once, through the world's `ShadowLook`, as the topography's
+  `ShadowPolicy` turns it by the distance from the eye (`Plugin.WithShadowPolicy`).
+- `weathering.Wring` is saved: a knob under an effect at a save goes back to its value as the
+  effect ends after the load (ceremony keeps the originals).
+- `render.Image.CopyFrom`. The topography demo: G has the selected cast their silhouettes; its
+  fords cast no shadow.
+
 **The board's surface as a look** (2026-10-17)
 - What the board draws beyond its tiles is a look a game declares as it does a tile's or a sky's:
   a `board.Surface` noted in the Stage's Figures link (`board.Plugin.Surfaces`), its `Look`

@@ -25,10 +25,16 @@ var sight = []render.Uniform{
 }
 
 var boards = render.NewMeshShaderWith("billboards",
-	render.Files(shaders, "shaders/sight.wgsl", "shaders/billboard.wgsl"), sight).Instanced(4)
+	render.Files(shaders, "shaders/sight.wgsl", "shaders/billboard.wgsl"), sight).Instanced(5)
 
 var lyings = render.NewMeshShaderWith("lying",
-	render.Files(shaders, "shaders/sight.wgsl", "shaders/lying.wgsl"), sight).Instanced(6)
+	render.Files(shaders, "shaders/sight.wgsl", "shaders/lying.wgsl"), sight).Instanced(7)
+
+// floats an instance of a billboard and of what lies or stands upright
+const (
+	boardFloats = 20
+	lainFloats  = 28
+)
 
 type sprites struct {
 	sky     Sky
@@ -40,7 +46,8 @@ type sprites struct {
 
 	batches []spriteBatch
 	lain    []spriteBatch
-	shadows []sky.Patch
+	casts   []spriteBatch // castFloats a cast, a sprite's shape on its batch's atlas
+	right   [2]float32    // the camera's way across, level
 	haze    air.Hazer
 	opts    render.DrawMeshOptions
 	own     map[string][]float32
@@ -64,9 +71,20 @@ func (s *sprites) begin(f *render.Frame, cam camera.Camera) {
 	for i := range s.lain {
 		s.lain[i].inst = s.lain[i].inst[:0]
 	}
-	s.shadows = s.shadows[:0]
-	_, rays := cam.(camera.Rays)
+	for i := range s.casts {
+		s.casts[i].inst = s.casts[i].inst[:0]
+	}
+	r, rays := cam.(camera.Rays)
 	s.on, s.shading = rays && inRelief(cam), rays
+	if rays {
+		if f, ok := r.Rays(); ok {
+			right := f.DX
+			if f.DDX != ([3]float32{}) || f.DDY != ([3]float32{}) {
+				right = f.DDX
+			}
+			s.right = [2]float32{right[0], right[1]}
+		}
+	}
 	s.haze = s.sky.Air().Hazer(cam)
 	if s.shading && s.ground == nil {
 		f.ReadGround() // the shades find the hex prisms under them
@@ -90,8 +108,8 @@ func (s *sprites) add(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	u0, v0, u1, v1 := atlas.UV(id)
 	l := lit(sun, light)
 	b := batchOf(&s.batches, atlas)
-	b.inst = append(b.inst, cx, cy, alt, h, x1-x0, lx*h, ly*h, haze, u0, v0, u1, v1, l[0], l[1], l[2], 0)
-	s.shadow(box, z)
+	b.inst = append(b.inst, cx, cy, alt, h, x1-x0, lx*h, ly*h, haze, u0, v0, u1, v1,
+		l[0], l[1], l[2], sunShare(sun, 0, 0, 1), s.groundAt(cx, cy), 0, 0, 0)
 }
 
 // angle in degrees; wherever the ground stands higher, the sprite lies on the ground
@@ -105,24 +123,39 @@ func (s *sprites) lay(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	b := batchOf(&s.lain, atlas)
 	for _, k := range [4][2]float32{{-hw, -hh}, {hw, -hh}, {-hw, hh}, {hw, hh}} {
 		x, y := cx+k[0]*c32+k[1]*s32, cy+k[1]*c32-k[0]*s32
-		b.inst = append(b.inst, x, y, max(alt, s.groundAt(x, y)), 0)
+		ground := s.groundAt(x, y)
+		b.inst = append(b.inst, x, y, max(alt, ground), ground)
 	}
 	u0, v0, u1, v1 := atlas.UV(id)
-	l := lit(s.sky.Sun(), light)
-	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.haze.At(cx, cy, alt))
+	sun := s.sky.Sun()
+	l := lit(sun, light)
+	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.haze.At(cx, cy, alt),
+		sunShare(sun, 0, 0, 1), lyingSoft*min(hw, hh), 0, 0)
 }
+
+// how far into the relief's shadow what lies over the ground fades into it, of half its shorter
+// side, and what stands upright of its height
+const (
+	lyingSoft   = 0.5
+	uprightSoft = 0.25
+)
 
 // c is top-left, top-right, bottom-left, bottom-right
 func (s *sprites) level(cam camera.Camera, c [4]geom.Vec, alt float32, atlas render.AtlasSource,
 	id render.SpriteID, light render.Light) {
 	b := batchOf(&s.lain, atlas)
 	for _, p := range c {
-		b.inst = append(b.inst, float32(p.X), float32(p.Y), alt, 0)
+		x, y := float32(p.X), float32(p.Y)
+		b.inst = append(b.inst, x, y, alt, s.groundAt(x, y))
 	}
 	mx, my := float32(c[0].X+c[3].X)/2, float32(c[0].Y+c[3].Y)/2
 	u0, v0, u1, v1 := atlas.UV(id)
-	l := lit(s.sky.Sun(), light)
-	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.haze.At(mx, my, alt))
+	sun := s.sky.Sun()
+	l := lit(sun, light)
+	short := float32(min(math.Hypot(c[1].X-c[0].X, c[1].Y-c[0].Y),
+		math.Hypot(c[2].X-c[0].X, c[2].Y-c[0].Y)))
+	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.haze.At(mx, my, alt),
+		sunShare(sun, 0, 0, 1), lyingSoft*short/2, 0, 0)
 }
 
 // seen from the right of a to b, the way out of what it edges
@@ -134,20 +167,45 @@ func (s *sprites) upright(cam camera.Camera, a, b geom.Vec, alt, high float32,
 	bt := batchOf(&s.lain, atlas)
 	ax, ay, bx, by := float32(a.X), float32(a.Y), float32(b.X), float32(b.Y)
 	top := alt + high
-	bt.inst = append(bt.inst, ax, ay, top, 0, bx, by, top, 0, ax, ay, alt, 0, bx, by, alt, 0)
+	ga, gb := s.groundAt(ax, ay), s.groundAt(bx, by)
+	bt.inst = append(bt.inst, ax, ay, top, ga, bx, by, top, gb, ax, ay, alt, ga, bx, by, alt, gb)
 	dx, dy := bx-ax, by-ay
 	n := float32(math.Hypot(float64(dx), float64(dy)))
-	sun := s.sky.Sun().Light(-dy/n, dx/n, 0)
+	sky := s.sky.Sun()
+	sun := sky.Light(-dy/n, dx/n, 0)
 	u0, v0, u1, v1 := atlas.UV(id)
 	haze := s.haze.At((ax+bx)/2, (ay+by)/2, alt)
 	bt.inst = append(bt.inst, u0, v0, u1, v1,
-		sun[0]*light[0], sun[1]*light[1], sun[2]*light[2], haze)
+		sun[0]*light[0], sun[1]*light[1], sun[2]*light[2], haze,
+		sunShare(sky, -dy/n, dx/n, 0), uprightSoft*high, 0, 0)
 }
 
-func (s *sprites) shadow(box plane.AABB, z world.Z) {
-	if p, ok := s.sky.Sun().ShadowOf(box.AABB, z, s.groundAt); ok {
-		s.shadows = append(s.shadows, p)
+// castFloats is a cast's floats: a sky.Patch and the corners of the sprite whose shape it has
+const castFloats = 12
+
+// cast lays on the ground the shadow of what stands in box as z says: a patch, or the shape of
+// the sprite id on atlas
+func (s *sprites) cast(box plane.AABB, z world.Z, atlas render.AtlasSource, id render.SpriteID,
+	shape bool) {
+	sun := s.sky.Sun()
+	var p sky.Patch
+	var ok bool
+	var u0, v0, u1, v1 float32
+	if shape {
+		p, ok = sun.SilhouetteOf(box.AABB, z, s.groundAt)
+		u0, v0, u1, v1 = atlas.UV(id)
+		// seen from the side the sprite faces: its left on the left of the eye's way across
+		if -p.UY*s.right[0]+p.UX*s.right[1] < 0 {
+			u0, u1 = u1, u0
+		}
+	} else {
+		p, ok = sun.ShadowOf(box.AABB, z, s.groundAt)
 	}
+	if !ok {
+		return
+	}
+	b := batchOf(&s.casts, atlas)
+	b.inst = append(b.inst, p.X, p.Y, p.UX, p.UY, p.Along, p.Wide, p.Fade, p.Veil, u0, v0, u1, v1)
 }
 
 func batchOf(batches *[]spriteBatch, atlas render.AtlasSource) *spriteBatch {
@@ -168,10 +226,12 @@ func (s *sprites) draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if !s.shading || t.Screen == nil || t.Depth == nil {
 		return
 	}
-	if s.ground != nil {
-		s.ground.DrawShadows(t, cam, u, s.shadows)
-	} else {
-		s.shades.draw(t, cam, s.relief, s.shadows)
+	for _, b := range s.casts {
+		if s.ground != nil {
+			s.ground.DrawShadows(t, cam, u, b.atlas, b.inst)
+		} else {
+			s.shades.draw(t, cam, s.relief, b.atlas, b.inst)
+		}
 	}
 	if !s.on {
 		return

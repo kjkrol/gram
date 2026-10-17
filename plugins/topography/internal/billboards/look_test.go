@@ -120,3 +120,47 @@ func TestBillboards_LayADeckOnItsBeam(t *testing.T) {
 			"and 4 at the railings' top (22)", at)
 	}
 }
+
+func TestBillboards_CastShadowsAsThePolicySays(t *testing.T) {
+	w, p, cam := isometricIsland()
+	cam.CenterOn(64, 64, 0)
+	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
+	cast := func(c world.Casting) [][12]float32 {
+		look := w.Look()
+		var f render.Frame
+		f.Reset(cam)
+		look.(world.DirectLook).Begin(&render.Frame{}, cam)
+		look.(world.ShadowLook).Shadow(&f, cam, box, world.Z{Height: 10}, sheet{},
+			render.Appearance{}, c)
+		return billboards.Cast(look)
+	}
+	shaped := func(k [12]float32) bool { return k[8] != 0 || k[9] != 0 || k[10] != 0 || k[11] != 0 }
+	if got := cast(world.Patch); len(got) != 1 || shaped(got[0]) {
+		t.Errorf("a patch casts %v, want one with no sprite's shape", got)
+	}
+	if got := cast(world.Silhouette); len(got) != 1 || !shaped(got[0]) {
+		t.Errorf("a silhouette casts %v, want one in its sprite's shape", got)
+	}
+	for _, c := range []world.Casting{world.NoShadow, world.Baked} {
+		if got := cast(c); len(got) != 0 {
+			t.Errorf("casting %v lays %v, want nothing: none, or the terrain's", c, got)
+		}
+	}
+	var asked []world.Casting
+	p.WithShadowPolicy(func(declared world.Casting, distance float32) world.Casting {
+		asked = append(asked, declared)
+		if declared == world.Silhouette {
+			return world.Patch
+		}
+		return declared
+	})
+	if got := cast(world.Silhouette); len(got) != 1 || shaped(got[0]) || len(asked) != 1 {
+		t.Errorf("a silhouette the policy turns a patch casts %v, asked %v; want a patch, "+
+			"asked once", got, asked)
+	}
+	asked = nil
+	cast(world.Baked)
+	if len(asked) != 0 {
+		t.Errorf("a Baked shadow asked the policy %v, want it asked nothing", asked)
+	}
+}

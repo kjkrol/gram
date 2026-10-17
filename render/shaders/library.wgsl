@@ -64,3 +64,45 @@ fn groundCorner(i: vec2<f32>) -> f32 {
 }
 
 const groundNone: f32 = -3.0e38;
+
+// groundShadeOf is the frame's GroundShade at the world point p (render.GroundShade), each band
+// faded from the shade before as far as it has come: the sun everywhere, (1, 0, 1, 1), in a frame
+// without it.
+fn groundShadeOf(p: vec2<f32>) -> vec4<f32> {
+    if U.GroundShadeArea.z <= 0.0 {
+        return vec4<f32>(1.0, 0.0, 1.0, 1.0);
+    }
+    let at = (p - U.GroundShadeArea.xy) / U.GroundShadeArea.zw;
+    let uv = clamp(at, vec2<f32>(0.0), vec2<f32>(1.0));
+    let now = textureSampleLevel(GroundShade, linear, uv, 0.0);
+    let was = textureSampleLevel(GroundShadeWas, linear, uv, 0.0);
+    let band = min(i32(uv.y / max(U.GroundShadeSpan.y, 1e-6)), 15);
+    var mixes = U.GroundShadeMix0;
+    if band >= 12 {
+        mixes = U.GroundShadeMix3;
+    } else if band >= 8 {
+        mixes = U.GroundShadeMix2;
+    } else if band >= 4 {
+        mixes = U.GroundShadeMix1;
+    }
+    let k = band % 4;
+    let pick = vec4<f32>(f32(k == 0), f32(k == 1), f32(k == 2), f32(k == 3));
+    return mix(was, now, dot(mixes, pick));
+}
+
+// groundShadeAt is how much of the sun reaches the point over world units over the ground at p
+// past the relief: none below how high its shadow reaches there, fading in over soft under it.
+fn groundShadeAt(p: vec2<f32>, over: f32, soft: f32) -> f32 {
+    let g = groundShadeOf(p).g;
+    let reach = g * g * U.GroundShadeSpan.x;
+    return smoothstep(reach - max(soft, 1e-3), reach, over);
+}
+
+// standingShadeAt is how much of the sun reaches the point over world units over the ground at p
+// past the blocks standing on it: as much as at the ground below how high their shadows reach
+// there, all of it over, fading in over soft under it.
+fn standingShadeAt(p: vec2<f32>, over: f32, soft: f32) -> f32 {
+    let s = groundShadeOf(p);
+    let reach = (1.0 - s.b) * (1.0 - s.b) * U.GroundShadeSpan.x;
+    return mix(s.a, 1.0, smoothstep(reach - max(soft, 1e-3), reach, over));
+}

@@ -12,7 +12,16 @@ type (
 	Eye      = entity.Eye
 	Drift    = entity.Drift
 	Lie      = entity.Lie
-	Block    = entity.Block
+	Shadow   = entity.Shadow
+	Casting  = entity.Casting
+)
+
+// How an entity casts its shadow, as package entity has it.
+const (
+	Patch      = entity.Patch
+	Silhouette = entity.Silhouette
+	Baked      = entity.Baked
+	NoShadow   = entity.NoShadow
 )
 
 // StepReach is how far an entity may travel in one tick, as a share of its own shorter side.

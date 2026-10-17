@@ -21,8 +21,9 @@
 //
 // [Base] is the one component every entity carries: its [Position], its [Velocity] (a unit
 // heading and a speed in world units a second), the kind it was spawned from and the capability
-// bits the space indexes it under. [Z], [Layers], [Eye], [Drift], [Lie] and [Block] are the
-// types of package entity under the world's own names. No entity moves further in a step than
+// bits the space indexes it under. [Z], [Layers], [Eye], [Drift], [Lie] and [Shadow] are the
+// types of package entity under the world's own names; every unit casts a [Patch] unless its kind
+// says otherwise. No entity moves further in a step than
 // [StepReach] of its own shorter side.
 //
 // # Scale
@@ -80,7 +81,8 @@
 // ([Plugin.NewAtlas]) before. Each
 // entity is laid on the screen by the world's [Look] ([Plugin.Look], [Plugin.SetLook]), flat
 // from above unless a view plugin sets its own; a [DirectLook] draws the sprites itself on the
-// GPU, a [LyingLook] lays some flat, an [UprightLook] stands some true.
+// GPU, a [LyingLook] lays some flat, an [UprightLook] stands some true, a [ShadowLook] casts each
+// entity's shadow as its [Shadow] says.
 //
 // [Plugin.Picture] is everything the Stage's plugins draw (plugin.Installer.Draws), one picture
 // for every scene; a scene shows it through a camera, ui.Image(render.NewFeed(camera, it)).
@@ -108,9 +110,9 @@
 // # Vocabulary
 //
 // Moments, for a role's rules: [Moving] (every entity before it moves; its words [Still],
-// [Braking]),
-// [Leaving] (every tick an entity is past an open edge). Knobs, for an effect's Alter:
-// render.Appearance, the look's. Commands: [Spawn] (a player's or an entity's own); [Despawn] (an
-// entity's own); [Pause], [Faster], [Slower] (a player's). The clock's moment and the
-// commands about effects (ceremony.Put, Take, Toggle, Trigger) are carried here too.
+// [Braking]), [Leaving] (every tick an entity is past an open edge). Knobs, for an effect's Alter:
+// render.Appearance, the look's; [Shadow], how it casts its shadow. Commands: [Spawn] (a player's
+// or an entity's own); [Despawn] (an entity's own); [Pause], [Faster], [Slower] (a player's). The
+// clock's moment and the commands about effects (ceremony.Put, Take, Toggle, Trigger) are carried
+// here too.
 package world

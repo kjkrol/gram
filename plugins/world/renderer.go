@@ -20,6 +20,7 @@ type renderer struct {
 	appearance  goke.Comp[render.Appearance]
 	z           goke.OptComp[Z]
 	lies        goke.OptComp[Lie]
+	shadow      goke.OptComp[Shadow]
 	active      goke.OptComp[cgoke.Active]
 	rules       *render.Rules
 	layers      [][]render.Appearance
@@ -57,7 +58,7 @@ func (s *renderer) lie(lying map[render.SpriteID]bool, edges map[render.SpriteID
 
 func (s *renderer) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base, &s.appearance).Optional(&s.z).Optional(&s.lies).
-		Optional(&s.active)
+		Optional(&s.shadow).Optional(&s.active)
 	render.Own(s.rules, &s.base)
 	render.Own(s.rules, &s.appearance)
 	render.Own(s.rules, &s.z)
@@ -86,9 +87,10 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	}
 	lies, _ := look.(LyingLook)
 	uprights, _ := look.(UprightLook)
+	shadows, _ := look.(ShadowLook)
 	s.view = s.views(cam)
 	lowest, any := render.Nearest, false
-	s.each(func(i int, z *Z, lie *Lie) {
+	s.each(func(i int, z *Z, lie *Lie, shadow *Shadow) {
 		box := s.bases[i].Pos.AABB
 		dir := s.bases[i].Vel.Dir
 		var stands Z
@@ -100,6 +102,7 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		if !any || at.Before(lowest) {
 			lowest, any = at, true
 		}
+		cast := shadows != nil
 		for _, l := range s.layers[i] {
 			if m, ok := s.shaded[l.SpriteID]; ok {
 				s.material(f, cam, &s.bases[i], at, m, s.progress(l.SpriteID, i))
@@ -121,6 +124,14 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 				continue
 			}
 			look.Sprite(f, cam, box, stands, s.atlas, l, render.Light{1, 1, 1})
+			if cast {
+				var c Casting // a Patch for an entity carrying no Shadow
+				if shadow != nil {
+					c = shadow.Cast
+				}
+				shadows.Shadow(f, cam, box, stands, s.atlas, l, c)
+				cast = false
+			}
 		}
 	})
 	if _, ok := look.(DirectLook); ok && any {
@@ -135,7 +146,7 @@ func (s *renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	}
 }
 
-func (s *renderer) each(visit func(i int, z *Z, lie *Lie)) {
+func (s *renderer) each(visit func(i int, z *Z, lie *Lie, shadow *Shadow)) {
 	s.renderQuery.All()
 	for s.renderQuery.Next() {
 		cursor := s.renderQuery.Cursor()
@@ -143,7 +154,7 @@ func (s *renderer) each(visit func(i int, z *Z, lie *Lie)) {
 		s.bases = s.base.Slice(cursor)
 		s.actives = s.active.Slice(cursor)
 		appearances := s.appearance.Slice(cursor)
-		zs, lies := s.z.Slice(cursor), s.lies.Slice(cursor)
+		zs, lies, shadows := s.z.Slice(cursor), s.lies.Slice(cursor), s.shadow.Slice(cursor)
 
 		for len(s.layers) < len(ids) {
 			s.layers = append(s.layers, nil)
@@ -165,7 +176,11 @@ func (s *renderer) each(visit func(i int, z *Z, lie *Lie)) {
 			if lies != nil {
 				lie = &lies[i]
 			}
-			visit(i, z, lie)
+			var shadow *Shadow
+			if shadows != nil {
+				shadow = &shadows[i]
+			}
+			visit(i, z, lie, shadow)
 		}
 	}
 }

@@ -31,12 +31,13 @@
 //
 // # Entities standing on the board
 //
-// A lever, a trapdoor, a gate, a plate is an entity standing still on a cell: [NewEntities] binds
-// a game's rows of them and [Entities.Define] makes a kind, carrying cell.On and whatever the
-// game gives besides, a cell.Floor, a cell.Wall, a cell.Rail, the roles it plays. The board
-// gathers them on the cells' entities every step (cell.Built), and [Board.Kind] and [Board.Bare]
-// are the cells with them. A Floor with a Height is a deck, and the cell has two levels
-// ([Board.KindAt], [Board.KindFor], [Board.CellFor], [Board.LevelFor]); one with a Width and
+// A lever, a trapdoor, a gate, a plate is an entity standing still on a cell: [NewEntities] binds a
+// game's rows of them and [Entities.Define] makes a kind, carrying cell.On and whatever the game
+// gives besides, a cell.Floor, a cell.Wall, a cell.Rail, the roles it plays. The board gathers them
+// on the cells' entities every step (cell.Built), and [Board.Kind] and [Board.Bare] are the cells
+// with them. Their shadows are Baked with the ground's unless a kind's Shadow says otherwise
+// (world.Shadow); a unit's are live patches. A Floor with a Height is a deck, and the cell has two
+// levels ([Board.KindAt], [Board.KindFor], [Board.CellFor], [Board.LevelFor]); one with a Width and
 // Links is a band ([Board.DecksOver], [Board.Reaches]), its railings never stepped across
 // ([Board.Fenced]); a step along it takes a body no wider than its [Board.Lane]. A unit is no
 // bigger than a cell's side ([NewUnits] panics past it), so any other step takes it.

@@ -15,12 +15,14 @@ const (
 	BloodMoonEf    = "blood moon"
 	WindwardRainEf = "windward rain"
 	GatheringEf    = "gathering"
+	SilhouetteEf   = "silhouette"
 
 	MortalRole = "mortal"
 	LunarRole  = "lunar"
 	UplandRole = "upland"
 
-	BleedCmd = "bleed"
+	BleedCmd      = "bleed"
+	SilhouetteCmd = "silhouette"
 
 	UnitKind    = "unit"
 	RivalKind   = "rival"

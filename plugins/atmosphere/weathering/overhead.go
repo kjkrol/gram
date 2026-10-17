@@ -59,7 +59,7 @@ func Hours(from, to time.Duration) cond.Word[Overhead] {
 
 // Wring is a knob on every cell of the board: how much of the low clouds over it falls (Falls, 0
 // to 1) and how much of the air's damp over it gathers into low clouds a second (Gathers), none
-// but as an effect turns it; not saved, given anew to a game loaded.
+// but as an effect turns it.
 type Wring struct{ Falls, Gathers float32 }
 
 // Knob: an effect may turn it (effect.Knob).

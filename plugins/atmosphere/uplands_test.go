@@ -29,11 +29,38 @@ type uplands struct {
 	a      *atmosphere.Plugin
 	b      *board.Plugin
 	ecs    *goke.ECS
+	eng    *engine.Engine
 	shower effect.Effect
 	heard  []weathering.Overhead
+	wrung  goke.Comp[weathering.Wring]
+	cells  *goke.Query
+}
+
+func (u *uplands) SetupSystems() []goke.System {
+	return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		u.cells = si.NewQueryBuilder(&u.wrung).Build()
+	}}}
+}
+
+// falls is how many of the cells' Wring let rain fall
+func (u *uplands) falls() (n int) {
+	for u.cells.All(); u.cells.Next(); {
+		for _, w := range u.wrung.Slice(u.cells.Cursor()) {
+			if w.Falls > 0 {
+				n++
+			}
+		}
+	}
+	return n
 }
 
 func newUplands(t *testing.T, covered float32, shower effect.Spec) *uplands {
+	t.Helper()
+	return uplandsFrom(t, covered, shower, false)
+}
+
+// uplandsFrom is newUplands, read back from the save in the working directory when load
+func uplandsFrom(t *testing.T, covered float32, shower effect.Spec, load bool) *uplands {
 	t.Helper()
 	u := &uplands{}
 	grey := weather.State{Name: "grey", Clouds: [2]float32{0.9, 0.9}, Billow: [2]float32{1, 1},
@@ -51,6 +78,7 @@ func newUplands(t *testing.T, covered float32, shower effect.Spec) *uplands {
 		}).
 		Effects(func(ctx game.Initializer) {
 			u.ecs = ctx.ECS()
+			ctx.Setup(u)
 			u.w.Effects().Define("shower", shower)
 			u.shower = u.w.Effects().Named("shower")
 		}).
@@ -83,7 +111,13 @@ func newUplands(t *testing.T, covered float32, shower effect.Spec) *uplands {
 			u.b.RunPlan(ctx, d)
 			u.a.RunPlan(ctx, d)
 		})
-	if err := engine.NewEngine(oneStage{stage: st}).Init(); err != nil {
+	u.eng = engine.NewEngine(oneStage{stage: st})
+	if load {
+		if err := u.eng.Load("", ""); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+	}
+	if err := u.eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	return u
@@ -188,5 +222,29 @@ func TestSpread_AnEffectTurnsHowMuchOfTheWorldTheRainTakes(t *testing.T) {
 	}
 	if share := float32(raining) / float32(n); share < 0.45 || share > 0.51 {
 		t.Errorf("the spread turned to rain on half the world: it rains on %.2f of it", share)
+	}
+}
+
+func TestWeathering_TheWringOutlastsASave(t *testing.T) {
+	t.Chdir(t.TempDir())
+	shower := effect.Spec{effect.Lasts(2 * time.Second),
+		effect.Alter(func(w *weathering.Wring) { w.Falls = 1 })}
+	u := newUplands(t, 0.5, shower)
+	u.run(2 * time.Second)
+	n := u.falls()
+	if n == 0 {
+		t.Fatal("no hill's shower is on under low clouds 0.9")
+	}
+	if err := u.eng.Save(""); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	back := uplandsFrom(t, 2, shower, true) // its hills shower no more: the save's shower ends
+	back.run(time.Second / 60)
+	if got := back.falls(); got != n {
+		t.Errorf("read back from a save %d cells let rain fall, want the %d saved", got, n)
+	}
+	back.run(3 * time.Second)
+	if got := back.falls(); got != 0 {
+		t.Errorf("the showers over since the load, %d cells let rain fall, want none", got)
 	}
 }

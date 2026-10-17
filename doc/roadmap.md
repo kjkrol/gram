@@ -47,8 +47,12 @@ What is left to do. Take an item out when it lands.
   the board's rules and not made by `cmd/gramap`.
 - **Roads with a tool** — a player lays a road as a bridge (`control.Tool`, a road's rules beside
   `bridges/site`'s), and takes a bridge down.
-- **Blocks' shadows over hex prisms** — the terrain over a hex grid bakes no shade, so a
-  bridge's deck and its piers cast no shadow there.
+- **Baked shadows over hex prisms** — the terrain over a hex grid bakes no shade, so what casts
+  a Baked shadow (a bridge's deck and its piers) casts none there, and what stands there receives
+  only the clouds'.
+- **Figures from above in the shade** — seen from above the figures are the world's flat
+  sprites (`render.Sprites`), which receive no shade of the relief, the blocks or the clouds.
+- **Shadows by distance** — `topography.ShadowPolicy` is the seam; no game sets one yet.
 - **Gamepads** — a trigger vocabulary for pads, so split screen is not only a keyboard's.
 - **Networking** — `plugins/netview` over players; the server is one engine, a remote client a
   player whose translator decodes frames:
@@ -89,7 +93,12 @@ What is left to do. Take an item out when it lands.
 - **Roads in the isometric view** — dark and thin, covered by the routes: their colour and width.
 - **Two mouths side by side** — two rivers reaching the sea next to each other look like a "U" at
   the water: the drainage joins them by the shore.
-- **Forests come back** — with a plugin for plants; the `forest` kind stays for it.
+- **Forests come back** — with a plugin for plants; the `forest` kind stays for it. The trees are
+  to stand on the board as entities, as bridges do, so a unit walks among them in first person;
+  that needs the world parted into sectors, sparing the GPU, the memory and the CPU.
+- **Winter without the slowdown** — snow and ice on Madeira (`weathering`) slow the game down
+  badly; a lead: `weathering` asks `air.FallsAt` of every cell once a second of game time, and
+  since the clouds came in two layers it works out both layers' noise on the CPU.
 - **More knobs of the sky** — the sun and the weather as knobs on the atmosphere's entity, as
   the moon is (`sky.Moon`), so an eclipse or a spell of fog is an effect.
 - **Evaporation and fog** — the air masses carry their weather's damp and the rules of the

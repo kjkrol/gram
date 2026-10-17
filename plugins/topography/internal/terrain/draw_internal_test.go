@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
 )
@@ -34,6 +35,8 @@ func (g *grey) Surface() Painted {
 type noAir struct{}
 
 func (noAir) Air() air.Weather { return air.Weather{} }
+
+func (noAir) Sun() sky.Sun { return sky.Sun{} }
 
 // straight down from 200 up, a screen pixel 8 world units
 type downward struct{ camera.Camera }

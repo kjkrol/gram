@@ -210,57 +210,63 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   world's Ground (its `Relief`: `At`, `Step`, `Altitude`, `SetHeights`, `Corners`, `Lift`,
   `Flatten`; on a square grid a lattice of corners the neighbouring cells share, on a hex a level
   per cell; living on its own entity as `Heights`, runs of `HeightsRun` 1024, seeded by
-  `Plugin.Seed(heights)` at Populate, shaped by `Raise`/`Lower`/`Level` — Shift+=, Shift+-,
-  L-drag — `Shaping`). The plugin draws the ground, a `render.Direct` in the opaque pass (`ground`
-  or `hexes`, the one it has, given `ctx.Draws`): over a square grid `internal/terrain` (the lattice
-  as a mesh, a depth prepass, the board painted flat by the painter into albedo and water sheets
+  `Plugin.Seed(heights)` at Populate, shaped by `Raise`/`Lower`/`Level` — Shift+=, Shift+-, L-drag —
+  `Shaping`). The plugin draws the ground, a `render.Direct` in the opaque pass (`ground` or
+  `hexes`, the one it has, given `ctx.Draws`): over a square grid `internal/terrain` (the lattice as
+  a mesh, a depth prepass, the board painted flat by the painter into albedo and water sheets
   sampled per pixel, lit by the sun with shadows baked on the GPU as the sun moves — a strip a
-  frame, `shadeStrips`; H `CoarseShadows` bakes them half as fine; `WithShadows` on by default — the
-  clouds' cover baked, water on wet cells, the grid in the board's line, fog, a skirt of level
-  ground to the horizon),
+  frame, `shadeStrips`, each band fading from its last bake (`now`/`was`, `render.GroundShade`
+  planned in Compose, run in Draw); the relief first (`shade.wgsl`: red the sun at the ground, green
+  how high the relief's shadow reaches), then every `Baked` entity an instance (`blocks.wgsl`,
+  `DrawMeshOptions.Darkest`: blue how high its shadow reaches, alpha the sun it leaves), no limit; H
+  `CoarseShadows` bakes them half as fine; `WithShadows` on by default — the clouds' cover baked,
+  water on wet cells, the grid in the board's line, fog, a skirt of level ground to the horizon),
   over a hex grid `internal/hexes` (every cell a prism from tiles composed once from above). The
   entities are billboards on the GPU (`internal/billboards`, standing upright in the world across
-  the screen's level right, so as tall on the screen as their `Height` stands there and inside
-  their solid (Shift+X), shorter the steeper the view; tested against the ground's depth, their
-  shadows `sky.Sun.ShadowOf` patches draped over the terrain); a bridge's deck and piers are
-  `world.Block`s whose shadows the terrain bakes with its own (`maxBlocks` 96; a deck stands on
-  its beam down its `Z.Height`). One camera, three views (`internal/cameras`): from above (screen
-  x, y the world's, no sorting), isometric (turning by any angle, Q/E `Turn`, R/F `Tilt`, the
-  pitch 10°–90°) and, given `Config.Perspective`, the perspective; `View{Camera}` (Tab) goes
-  round them keeping the ground point in the middle. From above and isometrically the screen stays
-  over the world at sea level, a pan stops at the edge (in relief the part stopped turns or bows
-  the view; drawn back the view lies down again as far as the edge bowed it, `viewCamera.bowed`;
-  the cursor in a corner of the window turns the view a quarter as fast as Q and E, left corners
-  as Q, right as E, `viewCamera.Scroll(dx, dy, corner)`, `Config.CornerTurn`; the user's word
-  2026-10-14), zooming out stops where the screen fits the map, `ZoomIn` keeps the ground under the
-  cursor; the perspective keeps the ground point in the middle, flies no higher than shows the
-  world's diagonal (`maxAlt`). A pick (`camera.Picker.Pick`) finds a deck a line of sight passes
-  under (`Config.Solid`, `Fine`). The cameras' `camera.Rays` give `camera.SceneTransform` for every
-  GPU source. **The fastening is the camera's** (`camera.Fastening{Entity, How}`, `camera.How`
-  `Loose`/`Centred`/`Behind`/`Inside`, `Outside` all but `Inside`, `HowOf(cam)`): the cameras
-  plugin keeps `Centred`, the topography's camera system `Behind` (centred, turned until the
-  unit's `Vel.Dir` runs up the screen) and `Inside` (first person: the eye where the unit's
-  `world.Eye` stands, the screen as wide as `Eye.Angle`, the mouse always looks — `Driven.Look`,
-  the cursor captured by players; up and down it writes `Eye.Tilt` (−pitch), the unit's own
-  given back on letting go — and a flyer rides: `Driven.Flown`, `Climb`); `Ride{Camera}`
-  (V) goes `Centred` → `Behind` → `Inside` → `Centred` over the entity the camera is fastened
-  to (`cameras.Follow`, C through `selection.FollowKey`). Bindings `.In(camera.Inside)` fire
-  riding (the driving's `Shooter` WSAD, Space `Jump`, the mouse, V, Tab), `.In(camera.Outside)`
+  the screen's level right, so as tall on the screen as their `Height` stands there and inside their
+  solid (Shift+X), shorter the steeper the view; tested against the ground's depth; each entity's
+  shadow cast once a frame through `world.ShadowLook`, as its `world.Shadow` says and the
+  `ShadowPolicy` turns it by the distance from the eye (`WithShadowPolicy`, as declared without
+  one): a `Patch` (`sky.Sun.ShadowOf`) or a `Silhouette` (`SilhouetteOf`, the sprite's alpha) draped
+  over the terrain (`terrain.DrawShadows`, twelve floats a cast) or laid over the hex prisms' depth;
+  `Baked` the terrain's, `NoShadow` none; they receive the shade at their height — light's sun share
+  in the instance, `groundShadeAt`/`standingShadeAt` and the clouds in the vertex stage); a bridge's
+  deck and piers are `Baked` (a deck stands on its beam down its `Z.Height`). One camera, three
+  views (`internal/cameras`): from above (screen x, y the world's, no sorting), isometric (turning
+  by any angle, Q/E `Turn`, R/F `Tilt`, the pitch 10°–90°) and, given `Config.Perspective`, the
+  perspective; `View{Camera}` (Tab) goes round them keeping the ground point in the middle. From
+  above and isometrically the screen stays over the world at sea level, a pan stops at the edge (in
+  relief the part stopped turns or bows the view; drawn back the view lies down again as far as the
+  edge bowed it, `viewCamera.bowed`; the cursor in a corner of the window turns the view a quarter
+  as fast as Q and E, left corners as Q, right as E, `viewCamera.Scroll(dx, dy, corner)`,
+  `Config.CornerTurn`; the user's word 2026-10-14), zooming out stops where the screen fits the map,
+  `ZoomIn` keeps the ground under the cursor; the perspective keeps the ground point in the middle,
+  flies no higher than shows the world's diagonal (`maxAlt`). A pick (`camera.Picker.Pick`) finds a
+  deck a line of sight passes under (`Config.Solid`, `Fine`). The cameras' `camera.Rays` give
+  `camera.SceneTransform` for every GPU source. **The fastening is the camera's**
+  (`camera.Fastening{Entity, How}`, `camera.How` `Loose`/`Centred`/`Behind`/`Inside`, `Outside` all
+  but `Inside`, `HowOf(cam)`): the cameras plugin keeps `Centred`, the topography's camera system
+  `Behind` (centred, turned until the unit's `Vel.Dir` runs up the screen) and `Inside` (first
+  person: the eye where the unit's `world.Eye` stands, the screen as wide as `Eye.Angle`, the mouse
+  always looks — `Driven.Look`, the cursor captured by players; up and down it writes `Eye.Tilt`
+  (−pitch), the unit's own given back on letting go — and a flyer rides: `Driven.Flown`, `Climb`);
+  `Ride{Camera}` (V) goes `Centred` → `Behind` → `Inside` → `Centred` over the entity the camera is
+  fastened to (`cameras.Follow`, C through `selection.FollowKey`). Bindings `.In(camera.Inside)`
+  fire riding (the driving's `Shooter` WSAD, Space `Jump`, the mouse, V, Tab), `.In(camera.Outside)`
   the free camera's (Q/E, R/F, Tab, the cameras' WASD pan, Shift+W), the arrows `.In(camera.Behind)`
   drive the followed unit. Commands carry `control.Context.Camera`, so the plugin knows neither
   players nor selection; cameras are no entities. Its parts are packages none of which imports the
   plugin: `relief`, `painter` (the board's Dressing in relief, the sheets, `Style`), `water` (the
   materials: the sea five octaves of value noise along x, roughened by the wind, a swell within
   `shoreReach` of the shore, Fresnel against the way to the eye; `stream.wgsl` a flow map),
-  `terrain`, `hexes`, `billboards`, `cameras`, `internal/vec`. selection must not import
-  topography, even in tests. Everything that is the view alone — the projection, the camera, the
-  billboard, the blocks' shading — is private; `camera` has the contract and `TopDown`,
-  `internal/camera` the plain top-down camera. `world.Z`, relief and `Heights` are the world's
-  heights, not the view: sight reads them in a top-down game too. **Layering: the world knows its
-  entities and nothing else; the ground is the board's, the sky the atmosphere's, `render`
-  generic.** A relief is lit by the sun of its `topography.Atmosphere` (`WithAtmosphere`; without
-  one `sky.DefaultSun`, which the topography hands the frame itself). Its water reflects the
-  sky's own colours (`skyAt`).
+  `terrain`, `hexes`, `billboards`, `cameras`, `internal/vec`. selection must not import topography,
+  even in tests. Everything that is the view alone — the projection, the camera, the billboard, the
+  blocks' shading — is private; `camera` has the contract and `TopDown`, `internal/camera` the plain
+  top-down camera. `world.Z`, relief and `Heights` are the world's heights, not the view: sight
+  reads them in a top-down game too. **Layering: the world knows its entities and nothing else; the
+  ground is the board's, the sky the atmosphere's, `render` generic.** A relief is lit by the sun of
+  its `topography.Atmosphere` (`WithAtmosphere`; without one `sky.DefaultSun`, which the topography
+  hands the frame itself). Its water reflects the sky's own colours (`skyAt`).
 - **`atmosphere`** — the time of day, the climate and the weather on the world's clock, over a
   world with heights alone (`NewPlugin` panics in a flat one); its root
   keeps no shaders and draws nothing itself: every part is a package that never imports it.
@@ -467,10 +473,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (all land high and clouded). The rules: `weathering.Overhead` (`host.About`, not Placed — the
   board's Around is not public) told each cell once a second (`RunWhere` over the block's walked
   rows), words `Clouded`, `Damp`, `Reaches` (ground over the band's base), `Hours`; the knob
-  `weathering.Wring{Falls, Gathers}` given to every cell (`Exclude` + `cb.AddOne`) and **not
-  saved**: ceremony keeps no originals of a knob, so one saved under an effect would keep its
-  altered value once the effect ends after a load (as `cell.Ground` under snow does); a fresh
-  one only misses an effect running across the load till it lapses. Madeira's uplands (earth,
+  `weathering.Wring{Falls, Gathers}` given to every cell (`Exclude` + `cb.AddOne`) and saved with
+  the atmosphere's components (ceremony saves a knob's originals: one saved under an effect goes
+  back to them as the effect ends after a load). Madeira's uplands (earth,
   rock, forest play `UplandRole`): rain on the windward slopes (`Reaches(0.9)`, `Clouded(0.6)`)
   and clouds gathering of an afternoon (12–17 h, `Damp(0.3)`, `Reaches(0.7)`), effects lasting
   2 s put anew each second: in rain ~1000 cells wring, in fair weather the heaps under the peaks
@@ -603,7 +608,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Tilt}` (where one that looks looks from and how wide; `Vertical` the field up and down, 0
   every height; `Tilt` how far the eye is turned up, radians, written by the riding camera;
   `Eye.Level(z)`, `Eye.Within(lo, hi)`; read by vision's cone and the first-person camera
-  alike), `Lie`, `Block`. A leaf; the world re-exports them as type aliases.
+  alike), `Lie`, `Shadow{Cast}` (a knob: `Patch` the zero, `Silhouette`, `Baked`, `NoShadow`;
+  units get a `Patch`, board entities `Baked`, a kind may declare its own, an effect turn it). A
+  leaf; the world re-exports them as type aliases.
 - **`world/steering`** — `steering.Steering{TurnRate, Reflex, MaxSpeed, Sprint, Accel, Brake,
   V0, Halted}` the knobs, `steering.Course{Want, Pending, Delay, Speed, WantSpeed}` the state
   (given to every unit by the roster and by the system where missing), `steering.Helm{*Steering,
@@ -798,7 +805,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `plugin.go`): `Types.Define` registers three kinds — the name itself over `Row{From, To}`,
   never spawned, only the type the level's line `{kind: bridge, from, to}` is read as; the
   deck through `board.NewEntities` over the private `deckRow{At, Links, Height, Dir}` with a
-  `cell.Floor` built from the Spec, the `Rail`, the heading, a `Block`; the pier over `pierRow{At,
+  `cell.Floor` built from the Spec, the `Rail`, the heading, the board's `Baked` shadow; the pier
+  (a `Baked` `world.Shadow`) over `pierRow{At,
   Bottom, Top}`, spawned only over a map in relief (`Rules.Heights` follows the relief: a level's
   `Heights()`, the board's `Heights()`; without it a bridge is a deck at the ground over water or a
   cell its road may not take, no piers) — each kind getting its `SpriteID` from the world's registry

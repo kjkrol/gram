@@ -131,6 +131,8 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 			box := plane.NewAABB(geom.NewVec(at.X-3, at.Y-3), 6, 6)
 			z := world.Z{Altitude: h.relief.At(at), Height: 6}
 			h.look.Sprite(f, h.cam, box, z, atlas, render.Appearance{}, render.Light{1, 1, 1})
+			h.look.(world.ShadowLook).Shadow(f, h.cam, box, z, atlas, render.Appearance{},
+				world.Patch)
 		}
 	}
 	if n := purples(h.draw(stand(h.behind))); n != 0 {
@@ -215,7 +217,7 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 	pix := make([]byte, 4*int(vw)*int(vh))
 	u := render.UniformsOf(map[string]any{"Sun": []float32{0.4, 0.3, 0.8}, "SunStrength": []float32{1}, "SunColor": []float32{1, 1, 1}, "Ambience": []float32{0.3, 0.3, 0.3}})
 	look := w.Look().(world.DirectLook)
-	draw := func(standing bool) []byte {
+	draw := func(standing bool, atlas render.AtlasSource, cast world.Casting) []byte {
 		screen.Clear()
 		screen.ClearDepth(ground)
 		prisms.(render.Direct).Draw(render.Target{Screen: screen, Depth: ground}, cam, u)
@@ -225,34 +227,79 @@ func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
 		f.Reset(cam)
 		look.Begin(&render.Frame{}, cam)
 		if standing {
-			box := plane.NewAABB(geom.NewVec(at.X-3, at.Y-3), 6, 6)
-			look.Sprite(&f, cam, box, world.Z{Height: 6}, &magenta{}, render.Appearance{}, render.Light{1, 1, 1})
+			box := plane.NewAABB(geom.NewVec(at.X-8, at.Y-8), 16, 16)
+			if cast != world.Silhouette { // a silhouette alone, the sprite hiding none of it
+				look.Sprite(&f, cam, box, world.Z{Height: 30}, atlas, render.Appearance{},
+					render.Light{1, 1, 1})
+			}
+			look.(world.ShadowLook).Shadow(&f, cam, box, world.Z{Height: 30}, atlas,
+				render.Appearance{}, cast)
 		}
 		look.DrawSprites(target, cam, u)
 		screen.ReadPixels(pix)
 		return append([]byte(nil), pix...)
 	}
-	bare, with := draw(false), draw(true)
-	shown, darker := 0, 0
-	for i := 0; i < len(with); i += 4 {
-		switch {
-		case purple(with[i:]):
-			shown++
-		case int(with[i])+int(with[i+1])+int(with[i+2]) < int(bare[i])+int(bare[i+1])+int(bare[i+2])-6:
-			darker++
+	bare := draw(false, nil, world.Patch)
+	cast := func(atlas render.AtlasSource, how world.Casting) (shown, darker int) {
+		with := draw(true, atlas, how)
+		for i := 0; i < len(with); i += 4 {
+			switch {
+			case purple(with[i:]):
+				shown++
+			case sum(with[i:i+3]) < sum(bare[i:i+3])-6:
+				darker++
+			}
 		}
+		return shown, darker
 	}
 	if bare[4*(int(vh)/2*int(vw)+int(vw)/2)+3] == 0 {
 		t.Fatal("the prisms draw nothing in the middle of the screen")
 	}
-	if shown == 0 || darker == 0 {
-		t.Errorf("a billboard on the prisms shows %d pixels and darkens %d round it, want some of each", shown, darker)
+	shown, patch := cast(&magenta{}, world.Patch)
+	if shown == 0 || patch == 0 {
+		t.Errorf("a billboard on the prisms shows %d pixels and darkens %d round it, want some "+
+			"of each", shown, patch)
+	}
+	if _, none := cast(&magenta{}, world.NoShadow); none != 0 {
+		t.Errorf("a billboard casting no shadow darkens %d pixels round it, want none", none)
+	}
+	_, whole := cast(&magenta{}, world.Silhouette)
+	_, half := cast(&halved{}, world.Silhouette)
+	if whole == 0 || half == 0 || half*4 > whole*3 || half*4 < whole {
+		t.Errorf("a sprite's silhouette darkens %d pixels, one half see-through %d; want about "+
+			"half as many", whole, half)
 	}
 }
+
+// the magenta sprite with its left half see-through
+type halved struct{ img *render.Image }
+
+func (a *halved) Atlas() *render.Image {
+	if a.img == nil {
+		a.img = render.NewImage(8, 8)
+		pix := make([]byte, 4*64)
+		for i := 0; i < len(pix); i += 4 {
+			if (i/4)%8 >= 4 {
+				pix[i], pix[i+1], pix[i+2], pix[i+3] = 255, 0, 255, 255
+			}
+		}
+		a.img.WritePixels(pix)
+	}
+	return a.img
+}
+func (*halved) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 8, 8 }
+func (*halved) White() (u, v float32)                           { return 6, 4 }
 
 func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
 		t.Skipf("no GPU: %v", err)
 	}
+}
+
+func sum(px []byte) (n int) {
+	for _, c := range px {
+		n += int(c)
+	}
+	return n
 }

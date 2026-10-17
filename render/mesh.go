@@ -71,6 +71,9 @@ type DrawMeshOptions struct {
 	Uniforms  map[string]any
 	// Untested draws everywhere, the Depth kept as it is.
 	Untested bool
+	// Darkest keeps the lesser of what is drawn and what is there, channel by channel, in place of
+	// laying it over.
+	Darkest bool
 }
 
 // DrawMesh draws the triangles of idx with s, a mesh's shader, into the image; idx nil,
@@ -109,6 +112,13 @@ func (i *Image) DrawMesh(idx *Indices, s *Shader, op *DrawMeshOptions) {
 		Frame:      frameOf(op.Uniforms),
 		Uniforms:   s.pack(op.Uniforms),
 		Indices:    indices,
-		Blend:      gpu.SourceOver,
+		Blend:      blendOf(op.Darkest),
 	})
+}
+
+func blendOf(darkest bool) gpu.Blend {
+	if darkest {
+		return gpu.Darkest
+	}
+	return gpu.SourceOver
 }

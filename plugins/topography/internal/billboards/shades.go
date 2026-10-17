@@ -11,7 +11,7 @@ import (
 
 var shading = render.NewMeshShaderWith("topography shades", render.Files(shaders, "shaders/shade.wgsl"), []render.Uniform{
 	{Name: "Unproject", Size: 16}, {Name: "ViewSize", Size: 2}, {Name: "ViewAt", Size: 2},
-}).Instanced(3)
+}).Instanced(4)
 
 // the shadows over a ground that lays none itself (hex prisms), read from the ground's depth
 type shades struct {
@@ -20,8 +20,12 @@ type shades struct {
 	instances []float32
 }
 
-func (s *shades) draw(t render.Target, cam camera.Camera, r *relief.Relief, patches []sky.Patch) {
-	if t.Screen == nil || t.Ground == nil || len(patches) == 0 {
+// draw lays casts, twelve floats each as terrain.Renderer.DrawShadows takes them, the sprites'
+// shapes from atlas
+func (s *shades) draw(
+	t render.Target, cam camera.Camera, r *relief.Relief, atlas render.AtlasSource, casts []float32,
+) {
+	if t.Screen == nil || t.Ground == nil || len(casts) == 0 {
 		return
 	}
 	rays, ok := cam.(camera.Rays)
@@ -43,13 +47,15 @@ func (s *shades) draw(t render.Target, cam camera.Camera, r *relief.Relief, patc
 	}
 	low, high := r.Extent()
 	s.instances = s.instances[:0]
-	for _, p := range patches {
+	for k := 0; k+castFloats <= len(casts); k += castFloats {
+		c := casts[k : k+castFloats]
+		p := sky.Patch{X: c[0], Y: c[1], UX: c[2], UY: c[3], Along: c[4], Wide: c[5]}
 		rect, ok := covers(tr, p, float32(low), float32(high)+shadeHeadroom, w, h)
 		if !ok {
 			continue
 		}
-		s.instances = append(s.instances, p.X, p.Y, p.UX, p.UY, p.Along, p.Wide, p.Fade, p.Veil,
-			rect[0], rect[1], rect[2], rect[3])
+		s.instances = append(s.instances, c...)
+		s.instances = append(s.instances, rect[0], rect[1], rect[2], rect[3])
 	}
 	if len(s.instances) == 0 {
 		return
@@ -63,6 +69,10 @@ func (s *shades) draw(t render.Target, cam camera.Camera, r *relief.Relief, patc
 	s.set("ViewAt", float32(at.X), float32(at.Y))
 	s.opts.Vertices, s.opts.Instances = 6, s.instances
 	s.opts.Depth, s.opts.ReadDepth = t.Depth, t.Ground
+	s.opts.Images = [4]*render.Image{}
+	if atlas != nil {
+		s.opts.Images[0] = atlas.Atlas()
+	}
 	t.Screen.DrawMesh(nil, shading, &s.opts)
 }
 

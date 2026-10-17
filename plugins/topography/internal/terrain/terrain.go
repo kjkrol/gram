@@ -33,7 +33,7 @@ var shader = render.NewMeshShaderWith("terrain",
 		{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
 		{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
 		{Name: "ShoreReach", Size: 1}, {Name: "Px", Size: 1}, {Name: "AlbedoSize", Size: 2}, {Name: "WaterPx", Size: 1}, {Name: "FlowSpan", Size: 1},
-		{Name: "Shadows", Size: 1}, {Name: "GridFrom", Size: 1}, {Name: "ShadePx", Size: 1},
+		{Name: "Shadows", Size: 1}, {Name: "GridFrom", Size: 1},
 		{Name: "GridLine", Size: 4}, {Name: "GridWidth", Size: 1},
 		{Name: "Skirt", Size: 2}, {Name: "Perspective", Size: 1},
 		{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
@@ -47,7 +47,7 @@ var shadows = render.NewMeshShaderWith("terrain shadows",
 	[]render.Uniform{
 		{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1}, {Name: "Look", Size: 3}, {Name: "Perspective", Size: 1},
 		{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
-	}).Instanced(2)
+	}).Instanced(3)
 
 // shadow.wgsl's shadowGrid squared, six vertices a piece
 const shadowPieces = 6 * 6 * 6
@@ -55,13 +55,25 @@ const shadowPieces = 6 * 6 * 6
 var bakeShade = render.NewShaderWith("terrain shade",
 	render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl", "shaders/shade.wgsl"),
 	[]render.Uniform{
-		{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1},
-		{Name: "Span", Size: 1}, {Name: "Shadows", Size: 1}, {Name: "BlockCount", Size: 1},
-		{Name: "Blocks", Size: 8 * maxBlocks},
+		{Name: "Cell", Size: 1},
+		{Name: "Corners", Size: 2},
+		{Name: "Low", Size: 1},
+		{Name: "Span", Size: 1},
+		{Name: "Shadows", Size: 1},
+		{Name: "ShadeSpan", Size: 1},
 	})
 
-// what the uniforms hold beside the library's
-const maxBlocks = 96
+var bakeBlocks = render.NewMeshShaderWith("terrain blocks' shade",
+	render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl", "shaders/blocks.wgsl"),
+	[]render.Uniform{
+		{Name: "Cell", Size: 1},
+		{Name: "Corners", Size: 2},
+		{Name: "Low", Size: 1},
+		{Name: "Span", Size: 1},
+		{Name: "Shadows", Size: 1},
+		{Name: "ShadeSpan", Size: 1},
+		{Name: "Strip", Size: 4},
+	}).Instanced(2)
 
 // pixels a cell the baked shade holds at most, and how wide the image may be
 const (
@@ -106,9 +118,11 @@ type Painted struct {
 	Wetness       uint64 // counts the changes of Wet
 }
 
-// Sky is the air over the ground, for how far one sees through it.
+// Sky is the air over the ground, for how far one sees through it, and the sun its shadows fall
+// from.
 type Sky interface {
 	Air() air.Weather
+	Sun() sky.Sun
 }
 
 // Config is how the ground is drawn: whether it casts its shadows, and the world's Scale for
@@ -138,12 +152,22 @@ type Renderer struct {
 	plain     *render.Image
 	painted   Painted
 
+	// the shade baked, and as it was before each band's last bake (render.GroundShade)
 	baked     *render.Image
+	was       *render.Image
+	fresh     bool // neither filled yet
+	shown     bool // baked once since they were made
+	shade     render.GroundShade
+	frames    uint64                 // Compose calls
+	bakedAt   [shadeStrips]uint64    // the frame each band was last baked in
+	plan      struct{ from, to int } // the rows the frame's Draw bakes
+	planWay   [3]float32             // the sun's way they are baked under
 	shadeAt   uint64
 	shadeSun  [3]float32
 	strip     int
 	coarse    bool
 	baking    render.DrawTrianglesShaderOptions
+	blocking  render.DrawMeshOptions
 	bakeVerts []render.Vertex
 
 	opts     render.DrawMeshOptions
@@ -151,12 +175,12 @@ type Renderer struct {
 	boxed    map[string]any
 
 	casting render.DrawMeshOptions
-	patches []float32
 
 	findBlocks func(dst []block) []block // nil before Init
 	blockQuery *goke.Query
 	base       goke.Comp[world.Base]
 	z          goke.Comp[world.Z]
+	shadow     goke.Comp[world.Shadow]
 	lie        goke.OptComp[world.Lie]
 	found      []block
 	blocks     []float32
@@ -180,13 +204,12 @@ func New(ground Ground, surface Surface, sky Sky, cfg Config) *Renderer {
 func Shader() *render.Shader { return shader }
 
 func (r *Renderer) Init(si *goke.SysInit) {
-	r.blockQuery = si.NewQueryBuilder(&r.base, &r.z).Optional(&r.lie).
-		Include(goke.Include[world.Block]()).Build()
+	r.blockQuery = si.NewQueryBuilder(&r.base, &r.z, &r.shadow).Optional(&r.lie).Build()
 	r.findBlocks = r.onGround
 }
 
 // Compose has the ground drawn Direct, in the opaque pass, and hands the frame its heights
-// (render.GroundHeights).
+// (render.GroundHeights) and the sun on it (render.GroundShade).
 func (r *Renderer) Compose(f *render.Frame, _ camera.Camera) {
 	f.DrawOpaque()
 	cols, rows, cell, _, ok := r.ground.Lattice()
@@ -196,6 +219,10 @@ func (r *Renderer) Compose(f *render.Frame, _ camera.Camera) {
 	// the heights as the last frame drew them: they change as the relief is shaped, by hand
 	f.GroundHeights(render.GroundHeights{Image: r.lattice, Corners: [2]int{cols, rows}, Cell: cell,
 		Low: r.low, Span: r.span})
+	r.planBake()
+	if r.shown {
+		f.GroundShade(r.shade)
+	}
 }
 
 // Draw draws the ground into the target through cam under the frame's uniforms u. It draws
@@ -213,20 +240,21 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		albedo = r.plain
 	}
 	r.bake(u)
-	r.opts.Images = [4]*render.Image{r.lattice, albedo, r.painted.Water, r.baked}
+	r.opts.Images = [4]*render.Image{r.lattice, albedo, r.painted.Water, nil}
 	r.opts.Depth = t.Depth
 	t.Screen.DrawMesh(r.mesh, shader, &r.opts)
 }
 
-// DrawShadows lays the shadows patches on the ground drawn last through cam, following its rise
-// and fall. It draws nothing off a square grid or through a camera without Rays.
-func (r *Renderer) DrawShadows(t render.Target, cam camera.Camera, u render.Uniforms, patches []sky.Patch) {
-	if t.Screen == nil || t.Depth == nil || len(patches) == 0 || !r.prepare(cam, u) {
+// DrawShadows lays the shadows casts on the ground drawn last through cam, following its rise and
+// fall: twelve floats a cast, a sky.Patch and the corners of the sprite on atlas whose shape it
+// has, all 0 for a patch's own. It draws nothing off a square grid or through a camera without
+// Rays.
+func (r *Renderer) DrawShadows(
+	t render.Target, cam camera.Camera, u render.Uniforms, atlas render.AtlasSource,
+	casts []float32,
+) {
+	if t.Screen == nil || t.Depth == nil || len(casts) == 0 || !r.prepare(cam, u) {
 		return
-	}
-	r.patches = r.patches[:0]
-	for _, p := range patches {
-		r.patches = append(r.patches, p.X, p.Y, p.UX, p.UY, p.Along, p.Wide, p.Fade, p.Veil)
 	}
 	if r.casting.Uniforms == nil {
 		r.casting.Uniforms = map[string]any{}
@@ -238,71 +266,144 @@ func (r *Renderer) DrawShadows(t render.Target, cam camera.Camera, u render.Unif
 	f, _ := rays.Rays()
 	r.casting.Uniforms["Look"] = []float32{f.Dir[0], f.Dir[1], f.Dir[2]}
 	r.casting.Uniforms["Perspective"] = []float32{flag(perspective(f))}
-	r.casting.Depth, r.casting.Images = t.Depth, [4]*render.Image{r.lattice, nil, nil, nil}
-	r.casting.Vertices, r.casting.Instances = shadowPieces, r.patches
+	var sheet *render.Image
+	if atlas != nil {
+		sheet = atlas.Atlas()
+	}
+	r.casting.Depth, r.casting.Images = t.Depth, [4]*render.Image{r.lattice, sheet, nil, nil}
+	r.casting.Vertices, r.casting.Instances = shadowPieces, casts
 	t.Screen.DrawMesh(nil, shadows, &r.casting)
 }
 
-func (r *Renderer) bake(u render.Uniforms) {
-	cols, rows, cell, _, _ := r.ground.Lattice()
+// planBake settles what of the shade the frame's Draw bakes, and how far each band has faded
+// from the shade before into its own since it was last baked.
+func (r *Renderer) planBake() {
+	r.frames++
+	if r.plan.from < r.plan.to { // planned, never drawn: what it would have baked is missing
+		r.shadeAt = 0
+	}
+	r.plan.from, r.plan.to = 0, 0
+	cols, rows, cell, _, ok := r.ground.Lattice()
+	if !r.cfg.Shadows || !ok || r.sky == nil {
+		r.shown = false
+		return
+	}
 	ks := bakedScale(cols, rows, r.coarse)
 	ws, h := ks*(cols-1), ks*(rows-1)
 	if r.baked == nil || r.baked.Bounds().Dx() != ws || r.baked.Bounds().Dy() != h {
 		if r.baked != nil {
 			r.baked.Deallocate()
+			r.was.Deallocate()
 		}
-		r.baked = render.NewImage(ws, h)
-		r.shadeAt = 0
+		r.baked, r.was = render.NewImage(ws, h), render.NewImage(ws, h)
+		r.fresh, r.shown, r.shadeAt = true, false, 0
 		r.bakeVerts = make([]render.Vertex, 4)
 		r.baking.Uniforms = map[string]any{}
 	}
-	size := [2]float32{float32(cols-1) * cell, float32(rows-1) * cell}
-	if !r.cfg.Shadows {
-		return
-	}
-	sun := u.Get("Sun")
-	n := float32(0)
-	if len(sun) == 3 {
-		n = float32(math.Sqrt(float64(sun[0]*sun[0] + sun[1]*sun[1] + sun[2]*sun[2])))
-	}
+	per := (h + shadeStrips - 1) / shadeStrips
+	r.shade.Now, r.shade.Was = r.baked, r.was
+	r.shade.Area = [4]float32{0, 0, float32(cols-1) * cell, float32(rows-1) * cell}
+	r.shade.Band = float32(per) / float32(h)
+	defer r.fade()
+	sun := r.sky.Sun().Dir
+	n := float32(math.Sqrt(float64(sun[0]*sun[0] + sun[1]*sun[1] + sun[2]*sun[2])))
 	if n == 0 {
 		return
 	}
 	way := [3]float32{sun[0] / n, sun[1] / n, sun[2] / n}
-	y0, y1 := 0, h
 	turned := way[0]*r.shadeSun[0] + way[1]*r.shadeSun[1] + way[2]*r.shadeSun[2]
 	moved := r.gather()
 	switch {
 	case r.shadeAt != r.heightsAt || turned < shadeLeap || moved:
 		r.shadeAt, r.shadeSun, r.strip = r.heightsAt, way, 0
+		r.plan.from, r.plan.to = 0, h
+		for k := range r.bakedAt {
+			r.bakedAt[k] = r.frames
+		}
 	case r.strip == 0 && turned > shadeTurn:
 		return
 	default:
 		if r.strip == 0 {
 			r.shadeSun = way
 		}
-		per := (h + shadeStrips - 1) / shadeStrips
-		y0, y1 = min(r.strip*per, h), min((r.strip+1)*per, h)
+		r.plan.from, r.plan.to = min(r.strip*per, h), min((r.strip+1)*per, h)
+		r.bakedAt[r.strip] = r.frames
 		r.strip = (r.strip + 1) % shadeStrips
-		if y0 >= y1 {
-			return
+	}
+	if !r.shown { // the first shade baked shows at once
+		for k := range r.bakedAt {
+			r.bakedAt[k] = r.frames - shadeStrips
 		}
 	}
+	r.planWay = way
+	r.shade.Span = r.shadeSpan()
+}
+
+// fade has each band fade from the shade before into its own over shadeStrips frames since it was
+// baked.
+func (r *Renderer) fade() {
+	for k, at := range r.bakedAt {
+		r.shade.Mix[k] = min(float32(r.frames-at)/shadeStrips, 1)
+	}
+}
+
+// bake bakes the rows the frame's plan says, under the sun r.planWay, keeping each band as it was
+// before (r.was) for the frame to fade from.
+func (r *Renderer) bake(u render.Uniforms) {
+	if r.baked == nil {
+		return
+	}
+	if r.fresh {
+		// the sun everywhere: none of it held back, no shadow reaching up
+		r.baked.Fill(color.RGBA{R: 255, B: 255, A: 255})
+		r.was.Fill(color.RGBA{R: 255, B: 255, A: 255})
+		r.fresh = false
+	}
+	y0, y1 := r.plan.from, r.plan.to
+	r.plan.from, r.plan.to = 0, 0
+	if y0 >= y1 {
+		return
+	}
+	r.shown = true
+	cols, rows, cell, _, _ := r.ground.Lattice()
+	ws, h := r.baked.Bounds().Dx(), r.baked.Bounds().Dy()
+	size := [2]float32{float32(cols-1) * cell, float32(rows-1) * cell}
+	rows0 := image.Rect(0, y0, ws, y1)
+	r.was.SubImage(rows0).CopyFrom(r.baked.SubImage(rows0))
 	u.Into(r.baking.Uniforms)
+	// the images baked into are never read while baked
+	delete(r.baking.Uniforms, "GroundShade")
+	delete(r.baking.Uniforms, "GroundShadeWas")
 	for _, name := range []string{"Cell", "Corners", "Low", "Span"} {
 		r.baking.Uniforms[name] = r.boxed[name]
 	}
 	r.baking.Uniforms["Shadows"] = []float32{1}
+	r.baking.Uniforms["ShadeSpan"] = []float32{r.shade.Span}
 	r.baking.Images = [4]*render.Image{r.lattice, nil, nil, nil}
+	r.blocking.Uniforms, r.blocking.Images = r.baking.Uniforms, r.baking.Images
+	r.blocking.Vertices, r.blocking.Darkest = 6, true
 	per := (h + shadeStrips - 1) / shadeStrips
 	for y := y0; y < y1; y += per {
 		from := [2]float32{0, float32(y) / float32(h) * size[1]}
 		part := [2]float32{size[0], float32(min(y+per, y1)-y) / float32(h) * size[1]}
-		near := r.shading(from[1], from[1]+part[1], way, cell)
-		r.baking.Uniforms["BlockCount"] = []float32{float32(len(near) / 8)}
-		r.baking.Uniforms["Blocks"] = near
-		r.bakeInto(image.Rect(0, y, ws, min(y+per, y1)), from, part, bakeShade, &r.baking)
+		at := image.Rect(0, y, ws, min(y+per, y1))
+		r.bakeInto(at, from, part, bakeShade, &r.baking)
+		if near := r.shading(from[1], from[1]+part[1], r.planWay, cell); len(near) > 0 {
+			r.baking.Uniforms["Strip"] = []float32{from[0], from[1], part[0], part[1]}
+			r.blocking.Instances = near
+			r.baked.SubImage(at).DrawMesh(nil, bakeBlocks, &r.blocking)
+		}
 	}
+}
+
+// shadeSpan is how high over the ground a shadow may reach: up the relief, or to the top of the
+// highest block over its lowest ground
+func (r *Renderer) shadeSpan() float32 {
+	span := max(r.span, 1)
+	for k := 7; k < len(r.blocks); k += 8 {
+		span = max(span, r.blocks[k]-r.low)
+	}
+	return span
 }
 
 func (r *Renderer) shading(y0, y1 float32, sun [3]float32, cell float32) []float32 {
@@ -335,10 +436,7 @@ func (r *Renderer) gather() bool {
 	}
 	r.blocksAt = at
 	r.blocks = r.blocks[:0]
-	for i, b := range joined(slices.Clone(r.found)) {
-		if i == maxBlocks {
-			break
-		}
+	for _, b := range joined(slices.Clone(r.found)) {
 		r.blocks = append(r.blocks, b.x, b.y, b.ux, b.uy, b.along, b.wide, b.bottom, b.top)
 	}
 	return true
@@ -350,7 +448,10 @@ func (r *Renderer) onGround(dst []block) []block {
 	for r.blockQuery.All(); r.blockQuery.Next(); {
 		cursor := r.blockQuery.Cursor()
 		bases, zs, lies := r.base.Slice(cursor), r.z.Slice(cursor), r.lie.Slice(cursor)
-		for i := range zs {
+		for i, s := range r.shadow.Slice(cursor) {
+			if s.Cast != world.Baked {
+				continue
+			}
 			box, alt := bases[i].Pos.AABB, float32(zs[i].Altitude)
 			if lies != nil && lies[i].Length > 0 {
 				dst = append(dst, lying(bases[i].Pos.Center(), bases[i].Vel.Dir, lies[i],
@@ -724,8 +825,6 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	r.set("GridLine", r.painted.GridLine[:]...)
 	r.set("GridWidth", r.painted.GridWidth)
 	r.set("Skirt", skirtReach(cols, rows, cell, r.cfg.Scale), skirtRings)
-	ks := bakedScale(cols, rows, r.coarse)
-	r.set("ShadePx", float32(ks))
 	var seeing, up float32
 	var way [3]float32
 	if r.sky != nil {

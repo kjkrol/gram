@@ -71,8 +71,10 @@
 // (sampled through linear, or wrapped, repeating past its edges), handed by a source composing
 // the frame ([Frame.Image]) to the composer and every Direct alike, through the [Uniforms]. An
 // image whose pixels need the GPU is filled as a draw first reads it ([Image.Defer]). The
-// ground's heights are render's own ([GroundHeights], [Frame.GroundHeights]): whoever draws the
-// ground hands them, a shader reads them with groundHeightAt.
+// ground's heights and the sun on it are render's own ([GroundHeights], [Frame.GroundHeights],
+// [GroundShade], [Frame.GroundShade]): whoever draws the ground hands them, a shader reads them
+// with groundHeightAt, and with groundShadeAt and standingShadeAt how much of the sun reaches a
+// point at a height over the ground past the relief's shadows and the blocks'.
 //
 // # Still and Sprites
 //

@@ -157,7 +157,7 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[Eye](),
 		goke.LoadComp[Drift](),
 		goke.LoadComp[Lie](),
-		goke.LoadComp[Block](),
+		goke.LoadComp[Shadow](),
 		goke.LoadComp[steering.Driven](),
 		goke.LoadComp[tag.Tags[clock.Phase]](),
 		goke.LoadComp[ceremony.Label](),

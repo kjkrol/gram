@@ -72,7 +72,9 @@ never a system per behaviour — handed a `host.Tick`.
   host.About = Standing{}`; `host.Met` a pair, `host.Placed` one standing on places), a fact by
   `Fact()` (`navigation.Blocked`, `Arrived`, `bullet.Flight`), a knob by `Knob()`
   (`steering.Steering`, `cell.Ground`, `Floor`, `Wall`, `collision.Physics`, `gravity.Pull`,
-  `sky.Moon`, `vision.Sight`, `render.Appearance`), a command by `Command()`, a word by
+  `sky.Moon`, `vision.Sight`, `render.Appearance`, `world.Shadow`; saved with their originals,
+  so one under an effect at a save goes back as the effect ends after the load), a command by
+  `Command()`, a word by
   `cond.NewWord(name, func(P) bool)` (`unit.Fallen()`, `vision.SeesNobody()`, `clock.At(t)`).
   The moment's type — `collision.Meeting`, `collision.Struck`, `vision.Sighting`,
   `unit.Standing`, `cell.Now`, `world.Moving`, `clock.Moment` — says whose it is.

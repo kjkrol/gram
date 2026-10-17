@@ -100,6 +100,7 @@ type Plugin struct {
 	coarse    command.Queue[CoarseShadows]
 	hazing    command.Queue[HazeFromAbove]
 	hazeAbove bool
+	policy    ShadowPolicy
 	module    *module
 }
 
@@ -157,7 +158,8 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	} else {
 		p.hexes = hexes.New(worldPlugin, boardPlugin, p, p.relief, liveSky{p})
 	}
-	worldPlugin.SetLook(billboards.New(worldPlugin.FlatLook(), liveSky{p}, p.relief, p.ground))
+	worldPlugin.SetLook(billboards.New(worldPlugin.FlatLook(), liveSky{p}, p.relief, p.ground,
+		p.castOf))
 	return p
 }
 
@@ -276,6 +278,24 @@ func (p *Plugin) Style(name string, s painter.Style) *Plugin {
 
 // StyleOf is how the kind named name looks, as Style set it.
 func (p *Plugin) StyleOf(name string) painter.Style { return p.painter.StyleOf(name) }
+
+// ShadowPolicy is how an entity casts its live shadow at distance world units from the eye (0
+// through a camera without one), its Shadow declaring declared: Patch, Silhouette or NoShadow.
+type ShadowPolicy func(declared world.Casting, distance float32) world.Casting
+
+// WithShadowPolicy has the entities cast their live shadows as policy says; nil, as each declares.
+// A Baked shadow is the terrain's, asked of no policy.
+func (p *Plugin) WithShadowPolicy(policy ShadowPolicy) *Plugin {
+	p.policy = policy
+	return p
+}
+
+func (p *Plugin) castOf(declared world.Casting, distance float32) world.Casting {
+	if p.policy == nil {
+		return declared
+	}
+	return p.policy(declared, distance)
+}
 
 // WithShadows says whether the terrain casts shadows; on by default.
 func (p *Plugin) WithShadows(on bool) *Plugin {

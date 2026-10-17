@@ -29,7 +29,8 @@ func (ford) Define(b *board.Plugin) {
 		comp.Load(func(r fordRow) world.Velocity {
 			return world.Velocity{Dir: geom.NewVec(float64(r.Way[0]), float64(r.Way[1]))}
 		}),
-		comp.Const(cell.Floor{Allows: cell.Land, Cost: 6.25}))
+		comp.Const(cell.Floor{Allows: cell.Land, Cost: 6.25}),
+		comp.Const(world.Shadow{Cast: world.NoShadow}))
 }
 
 func (ford) Look(a *world.Atlas, w *world.Plugin) {

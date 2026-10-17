@@ -44,6 +44,12 @@ var libraryUniforms = []Uniform{
 	{Name: "Fog", Size: 3},
 	{Name: "GroundLattice", Size: 4},
 	{Name: "GroundSpan", Size: 4},
+	{Name: "GroundShadeArea", Size: 4},
+	{Name: "GroundShadeSpan", Size: 2},
+	{Name: "GroundShadeMix0", Size: 4},
+	{Name: "GroundShadeMix1", Size: 4},
+	{Name: "GroundShadeMix2", Size: 4},
+	{Name: "GroundShadeMix3", Size: 4},
 }
 
 var (

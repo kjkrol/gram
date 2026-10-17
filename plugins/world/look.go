@@ -51,6 +51,14 @@ type UprightLook interface {
 		a render.Appearance, light render.Light)
 }
 
+// ShadowLook is a Look that casts the entities' shadows on what they stand on: each once a frame,
+// with its first layer drawn a sprite, as its Shadow says (a Patch for one carrying none).
+type ShadowLook interface {
+	Look
+	Shadow(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource,
+		a render.Appearance, cast Casting)
+}
+
 // FigureLift is how far over its height a figure lies among what is drawn back to front: over
 // whatever a plugin lays on the ground beneath it, at a lift of its own below this one.
 const FigureLift = ilook.FigureLift

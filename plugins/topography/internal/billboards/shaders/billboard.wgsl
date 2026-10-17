@@ -1,19 +1,27 @@
 // The world's entities in relief, drawn on the GPU (topography's sprites): an instance an entity —
 // where its feet stand and how tall it is; how wide, how far its top leans with the wind and how
-// hazed it is; its sprite's corners on the atlas, the first image; the light it is drawn in — a
-// billboard standing upright in the world across U.Right, the screen's way across, as tall on the
-// screen as what stands there, at the depths of a thing standing upright at its feet, nudged
-// towards the eye: the ground before it hides it, the ground it stands on and the slope behind it
-// do not.
+// hazed it is; its sprite's corners on the atlas, the first image; the light it is drawn in and how
+// much of it is the sun's; the ground under its feet — a billboard standing upright in the world
+// across U.Right, the screen's way across, as tall on the screen as what stands there, at the
+// depths of a thing standing upright at its feet, nudged towards the eye: the ground before it
+// hides it, the ground it stands on and the slope behind it do not.
 
 struct Board {
     @builtin(position) clip: vec4<f32>,
     @location(0) uv: vec2<f32>,
     @location(1) @interpolate(flat) light: vec4<f32>,
+    @location(2) shade: f32,
 }
 
 @vertex
-fn vs_main(@builtin(vertex_index) vid: u32, @location(0) feet: vec4<f32>, @location(1) shape: vec4<f32>, @location(2) uv: vec4<f32>, @location(3) light: vec4<f32>) -> Board {
+fn vs_main(
+    @builtin(vertex_index) vid: u32,
+    @location(0) feet: vec4<f32>,
+    @location(1) shape: vec4<f32>,
+    @location(2) uv: vec4<f32>,
+    @location(3) light: vec4<f32>,
+    @location(4) ground: vec4<f32>,
+) -> Board {
     var across = array<f32, 6>(0.0, 1.0, 0.0, 1.0, 1.0, 0.0);
     var down = array<f32, 6>(0.0, 0.0, 1.0, 0.0, 1.0, 1.0);
     let a = across[vid];
@@ -31,7 +39,22 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) feet: vec4<f32>, @locat
     }
     b.uv = mix(uv.xy, uv.zw, vec2<f32>(a, down[vid]));
     b.light = vec4<f32>(light.rgb, shape.w);
+    b.shade = shaded(feet, ground.x, mix(0.1, 1.0, up), light.w, shape.x);
     return b;
+}
+
+// shaded is how much of its light reaches the point a share up of what stands at feet over ground,
+// sun of the light the sun's: the shadows the ground holds and the clouds take some of the sun's,
+// the clouds some of the sky's too.
+fn shaded(feet: vec4<f32>, ground: f32, up: f32, sun: f32, wide: f32) -> f32 {
+    let over = feet.z - ground + up * feet.w;
+    let soft = 0.25 * feet.w;
+    let reached = min(groundShadeAt(feet.xy, over, soft), standingShadeAt(feet.xy, over, soft));
+    var clouds = 1.0;
+    if U.Cover > 0.0 {
+        clouds = 1.0 - cloudShade(cloudsShadeAt(vec3<f32>(feet.xy, ground + over), wide));
+    }
+    return (1.0 - sun * (1.0 - reached)) * clouds;
 }
 
 // upright is where the line of sight through the billboard's point p meets the upright plane
@@ -62,5 +85,5 @@ fn fs_main(b: Board) -> @location(0) vec4<f32> {
     if c.a < 0.5 {
         discard;
     }
-    return vec4<f32>(mix(c.rgb * b.light.rgb, U.Fog * c.a, b.light.a), c.a);
+    return vec4<f32>(mix(c.rgb * b.light.rgb * b.shade, U.Fog * c.a, b.light.a), c.a);
 }

@@ -225,3 +225,29 @@ func TestRail_AnEffectTakesTheRailingsDown(t *testing.T) {
 		t.Errorf("built under the effect: %+v, want the railings gone", b)
 	}
 }
+
+func TestEntities_CastBakedShadowsUnlessTheirKindSaysOtherwise(t *testing.T) {
+	for _, c := range []struct {
+		extra []comp.Comp
+		want  world.Casting
+	}{
+		{nil, world.Baked},
+		{[]comp.Comp{comp.Const(world.Shadow{Cast: world.NoShadow})}, world.NoShadow},
+	} {
+		s := newStrip(t, grass, effect.Spec{}, c.extra...)
+		var shadow goke.Comp[world.Shadow]
+		var q *goke.Query
+		s.ECS.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			q = si.NewQueryBuilder(&shadow).Build()
+		}})
+		var got []world.Casting
+		for q.All(); q.Next(); {
+			for _, sh := range shadow.Slice(q.Cursor()) {
+				got = append(got, sh.Cast)
+			}
+		}
+		if len(got) != 1 || got[0] != c.want {
+			t.Errorf("a thing given %d components casts %v, want %v", len(c.extra), got, c.want)
+		}
+	}
+}

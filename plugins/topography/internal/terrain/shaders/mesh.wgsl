@@ -87,8 +87,8 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     var lit = 0.0;
     if sun.z > 0.0 {
         lit = 1.0;
-        if U.Shadows > 0.5 && inside {
-            lit = baked(p.xy, 0.0, U.ShadePx).r;
+        if inside {
+            lit = groundShadeOf(p.xy).r;
         }
     }
     var rgb = albedo(p.xy) * (U.Ambience + U.SunColor * max(dot(n, sun), 0.0) * lit * U.SunStrength);
@@ -130,14 +130,6 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
         rgb = mix(rgb, U.Fog, 1.0 - exp(-hazeDepth(p) / U.Visibility));
     }
     return vec4<f32>(rgb, 1.0);
-}
-
-// baked is the fourth image's part from x across, px pixels a cell over the lattice's cells, at
-// p: blended between its pixels, held within the part — the shade (shade.wgsl) the Renderer bakes.
-fn baked(p: vec2<f32>, x: f32, px: f32) -> vec4<f32> {
-    let size = (U.Corners - 1.0) * px;
-    let t = clamp(p / U.Cell * px, vec2<f32>(0.5), size - 0.5);
-    return imageSrc3Linear(imageSrc3Origin() + vec2<f32>(x, 0.0) + t);
 }
 
 // hazeDepth is how much air lies between the eye and the ground point p, world units: its

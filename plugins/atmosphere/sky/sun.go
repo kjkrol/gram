@@ -124,3 +124,28 @@ func (s Sun) ShadowOf(box geom.AABB, z world.Z, groundAt func(x, y float32) floa
 	mid := start + length/2
 	return Patch{X: cx + ux*mid, Y: cy + uy*mid, UX: ux, UY: uy, Along: length/2 + half, Wide: half, Fade: half / 2, Veil: veil}, true
 }
+
+// SilhouetteOf is where the drawn shape of an entity standing in box as z says lies on the ground
+// groundAt gives (nil: level at 0): from its feet away from the sun, as long as it stands tall
+// there, as wide as its box across, unfaded. It is false with the sun down or too faint.
+func (s Sun) SilhouetteOf(box geom.AABB, z world.Z, groundAt func(x, y float32) float32) (
+	Patch, bool,
+) {
+	p, ok := s.ShadowOf(box, z, groundAt)
+	if !ok {
+		return Patch{}, false
+	}
+	sx, sy, sz := s.Dir[0], s.Dir[1], s.Dir[2]
+	reach := min(float32(math.Hypot(float64(sx), float64(sy)))/sz, maxShadowReach)
+	cx, cy := float32(box.TopLeft.X+box.BottomRight.X)/2, float32(box.TopLeft.Y+box.BottomRight.Y)/2
+	ground := float32(0)
+	if groundAt != nil {
+		ground = groundAt(cx, cy)
+	}
+	start := max(float32(z.Altitude)-ground, 0) * reach
+	length := max(float32(z.Height)*reach, 1e-3)
+	mid := start + length/2
+	p.X, p.Y = cx+p.UX*mid, cy+p.UY*mid
+	p.Along, p.Wide, p.Fade = length/2, float32(box.BottomRight.X-box.TopLeft.X)/2, 0
+	return p, true
+}

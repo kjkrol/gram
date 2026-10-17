@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
+	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/render"
 )
@@ -134,6 +135,15 @@ func TestNormals_LeanAwayFromTheRidge(t *testing.T) {
 type stillSky struct{}
 
 func (stillSky) Air() air.Weather { return air.Weather{} }
+
+func (stillSky) Sun() sky.Sun { return sky.Sun{} }
+
+// a still sky under a sun whose way a test sets
+type litSky struct{ way [3]float32 }
+
+func (*litSky) Air() air.Weather { return air.Weather{} }
+
+func (s *litSky) Sun() sky.Sun { return sky.Sun{Dir: s.way, Strength: 1} }
 
 // a perspective for the rays, the top-down camera for everything else
 type eye struct {

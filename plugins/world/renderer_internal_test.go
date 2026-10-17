@@ -349,3 +349,60 @@ func TestRenderer_Compose_TheFiguresComeOverWhatLiesBeneathTheLowestOfThem(t *te
 		t.Error("no figure in sight, yet a place for them")
 	})
 }
+
+type casting struct {
+	*counting
+	casts []Casting
+}
+
+func (c *casting) Shadow(_ *render.Frame, _ camera.Camera, _ plane.AABB, _ Z,
+	_ render.AtlasSource, _ render.Appearance, cast Casting) {
+	c.casts = append(c.casts, cast)
+}
+
+func TestRenderer_Compose_CastsEachEntitysShadowOnceAsItsShadowSays(t *testing.T) {
+	look := &casting{counting: &counting{Look: ilook.NewFlat(1000, 1000, false, false)}}
+	var drawing render.Rules
+	crown := render.Over[render.Appearance](render.Appearance{SpriteID: 9})
+	if err := drawing.Add(crown); err != nil {
+		t.Fatal(err)
+	}
+	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return &view.View{} }, &drawing,
+		func() Look { return look })
+	var base goke.Comp[Base]
+	var appearance goke.Comp[render.Appearance]
+	var shadow goke.Comp[Shadow]
+	ecs := goke.New()
+	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		for k, cast := range []*Casting{nil, ptr(Silhouette), ptr(NoShadow)} {
+			comps := []goke.Addable{&base, &appearance}
+			if cast != nil {
+				comps = append(comps, &shadow)
+			}
+			f := si.NewFactory(comps...)
+			f.Create(1)
+			for f.Next() {
+				box := plane.NewAABB(quarters[k], 10, 10)
+				base.Slice(&f.Cursor)[0] = Base{Pos: Position{AABB: box}}
+				appearance.Slice(&f.Cursor)[0] = render.Appearance{SpriteID: 1}
+				if cast != nil {
+					shadow.Slice(&f.Cursor)[0] = Shadow{Cast: *cast}
+				}
+			}
+		}
+		r.Init(si)
+	}})
+	cam := icamera.NewFromSpace(1000, 1000, 0)
+	var f render.Frame
+	f.Reset(cam)
+	r.Compose(&f, cam)
+	got := slices.Clone(look.casts)
+	slices.Sort(got)
+	want := []Casting{Patch, Silhouette, NoShadow}
+	if !slices.Equal(got, want) || len(look.sprites) != 6 {
+		t.Errorf("three entities of two layers each drew %d sprites and cast %v, want 6 and %v: "+
+			"one a Patch carrying no Shadow", len(look.sprites), got, want)
+	}
+}
+
+func ptr[T any](v T) *T { return &v }

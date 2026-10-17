@@ -192,6 +192,8 @@ func (a *arena) defineEffects() {
 		effect.Alter(func(w *weathering.Wring) { w.Falls = 0.8 })})
 	a.world.Effects().Define(GatheringEf, effect.Spec{effect.Lasts(2 * time.Second),
 		effect.Alter(func(w *weathering.Wring) { w.Gathers = 0.05 })})
+	a.world.Effects().Define(SilhouetteEf, effect.Spec{
+		effect.Alter(func(s *world.Shadow) { s.Cast = world.Silhouette })})
 }
 
 func (a *arena) defineRules() {
@@ -224,6 +226,8 @@ func (a *arena) defineRules() {
 func (a *arena) defineCommands() {
 	bleed := ceremony.Toggle(a.world.Effects().Named(BloodMoonEf)).On(a.atmosphere)
 	a.world.Commands().Define(BleedCmd, bleed)
+	outline := ceremony.Toggle(a.world.Effects().Named(SilhouetteEf)).On(a.selection.Selected())
+	a.world.Commands().Define(SilhouetteCmd, outline)
 }
 
 type unitRow struct {
@@ -246,11 +250,18 @@ func (a *arena) defineFigures() {
 }
 
 func (a *arena) bindKeys() error {
-	return a.player.Bind(control.Give(
-		control.KeyPress{Key: control.KeyM},
-		"Blood moon, on or off",
-		a.world.Commands().Named(BleedCmd),
-	))
+	return a.player.Bind(
+		control.Give(
+			control.KeyPress{Key: control.KeyM},
+			"Blood moon, on or off",
+			a.world.Commands().Named(BleedCmd),
+		),
+		control.Give(
+			control.KeyPress{Key: control.KeyG},
+			"The selected cast their silhouettes, or patches again",
+			a.world.Commands().Named(SilhouetteCmd),
+		),
+	)
 }
 
 func (a *arena) spawn() error {

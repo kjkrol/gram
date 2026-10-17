@@ -56,6 +56,8 @@ const (
 	SourceOver Blend = iota
 	// Copy puts the colour in place of what is there.
 	Copy
+	// Darkest keeps the lesser of the colour and what is there, channel by channel.
+	Darkest
 )
 
 // Program is a WGSL fragment on the package's vertex stage, compiled at first draw.
@@ -194,9 +196,17 @@ func (p *Program) pipeline(
 		panic(err)
 	}
 	var state *gputypes.BlendState
-	if blend == SourceOver {
+	switch blend {
+	case SourceOver:
 		over := gputypes.BlendComponent{SrcFactor: gputypes.BlendFactorOne, DstFactor: gputypes.BlendFactorOneMinusSrcAlpha, Operation: gputypes.BlendOperationAdd}
 		state = &gputypes.BlendState{Color: over, Alpha: over}
+	case Darkest:
+		least := gputypes.BlendComponent{
+			SrcFactor: gputypes.BlendFactorOne,
+			DstFactor: gputypes.BlendFactorOne,
+			Operation: gputypes.BlendOperationMin,
+		}
+		state = &gputypes.BlendState{Color: least, Alpha: least}
 	}
 	buffers := []gputypes.VertexBufferLayout{{
 		ArrayStride: vertexSize, StepMode: gputypes.VertexStepModeVertex, Attributes: []gputypes.VertexAttribute{

@@ -150,6 +150,14 @@ func (i *Image) DrawImage(src *Image, op *DrawImageOptions) {
 	gpu.DrawImage(i.gpu(), src.gpu(), o.GeoM.affine(), [4]float32{1, 1, 1, 1}, o.Filter == FilterLinear, gpu.SourceOver)
 }
 
+// CopyFrom puts src's pixels, alpha and all, in place of the image's, from its top-left corner.
+func (i *Image) CopyFrom(src *Image) {
+	var at GeoM
+	at.Translate(float64(i.rect.Min.X), float64(i.rect.Min.Y))
+	gpu.DrawImage(i.gpu(), src.ready().gpu(), at.affine(), [4]float32{1, 1, 1, 1}, false,
+		gpu.Copy)
+}
+
 // DrawImageIn lays src over the image, its top-left corner at (x, y), only inside the convex
 // polygon pts, in the image's pixels.
 func (i *Image) DrawImageIn(src *Image, x, y float32, pts [][2]float32) {

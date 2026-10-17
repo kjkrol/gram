@@ -31,6 +31,17 @@ func lit(sun sky.Sun, light render.Light) render.Light {
 	return render.Light{l[0] * light[0], l[1] * light[1], l[2] * light[2]}
 }
 
+// sunShare is how much of the light on a surface whose normal is (nx, ny, nz) is the sun's, 0 to
+// 1: what a shadow over it takes away
+func sunShare(sun sky.Sun, nx, ny, nz float32) float32 {
+	all, sky := sun.Shaded(nx, ny, nz, 1), sun.Shaded(nx, ny, nz, 0)
+	total := all[0] + all[1] + all[2]
+	if total <= 0 {
+		return 0
+	}
+	return 1 - (sky[0]+sky[1]+sky[2])/total
+}
+
 func ridden(cam camera.Camera, x0, y0, x1, y1 float32) bool {
 	if camera.HowOf(cam) != camera.Inside {
 		return false

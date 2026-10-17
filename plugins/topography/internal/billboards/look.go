@@ -1,6 +1,8 @@
 package billboards
 
 import (
+	"math"
+
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
@@ -24,20 +26,27 @@ func inRelief(cam camera.Camera) bool { return cam.Projection().Sorts() }
 var (
 	_ world.DirectLook = Look{}
 	_ world.LyingLook  = Look{}
+	_ world.ShadowLook = Look{}
 )
+
+// Policy is how an entity casts its shadow as far as distance from the eye, declared to cast it as
+// it does: the topography's ShadowPolicy.
+type Policy func(declared world.Casting, distance float32) world.Casting
 
 // Look lays the world's entities on the GPU: billboards standing upright in the views in relief,
 // the world's own flat sprites from above.
 type Look struct {
-	flat world.Look
-	sky  Sky
-	gpu  *sprites
+	flat   world.Look
+	sky    Sky
+	gpu    *sprites
+	policy Policy
 }
 
 // New is the look of the entities standing on the relief r under sky, flat the world's own look
-// from above. The shadows go on ground, or over the frame's depth where it is nil (hex prisms).
-func New(flat world.Look, sky Sky, r *relief.Relief, ground *terrain.Renderer) Look {
-	return Look{flat: flat, sky: sky, gpu: newSprites(sky, r, ground)}
+// from above, casting their shadows as policy says. The shadows go on ground, or over the frame's
+// depth where it is nil (hex prisms).
+func New(flat world.Look, sky Sky, r *relief.Relief, ground *terrain.Renderer, policy Policy) Look {
+	return Look{flat: flat, sky: sky, gpu: newSprites(sky, r, ground), policy: policy}
 }
 
 // Begin readies the billboards, the shadows and the flat sprites for a frame through cam.
@@ -61,9 +70,6 @@ func (l Look) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world
 		l.gpu.add(cam, box, z, atlas, a.SpriteID, light, a.Sway, f.Time())
 		return
 	}
-	if l.gpu.shading {
-		l.gpu.shadow(box, z)
-	}
 	if a.Sway > 0 { // from above the top leans as far as the entity is wide
 		sizeX, sizeY := float32(box.Size.X), float32(box.Size.Y)
 		cx, cy := float32(box.TopLeft.X)+sizeX/2, float32(box.TopLeft.Y)+sizeY/2
@@ -73,6 +79,40 @@ func (l Look) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z world
 	}
 	a.Sway = 0 // leant here already
 	l.flat.Sprite(f, cam, box, z, atlas, a, lit(l.sky.Sun(), light))
+}
+
+// Shadow casts on the ground the shadow of the entity standing in box as z says, as cast and the
+// policy say: a patch, the shape of its sprite or none; a Baked shadow is the terrain's.
+func (l Look) Shadow(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z,
+	atlas render.AtlasSource, a render.Appearance, cast world.Casting) {
+	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
+	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
+	if !l.gpu.shading || cast == world.Baked || cast == world.NoShadow ||
+		ridden(cam, x0, y0, x1, y1) {
+		return
+	}
+	if l.policy != nil {
+		cast = l.policy(cast, distance(cam, (x0+x1)/2, (y0+y1)/2, float32(z.Altitude)))
+	}
+	switch cast {
+	case world.Patch:
+		l.gpu.cast(box, z, atlas, a.SpriteID, false)
+	case world.Silhouette:
+		l.gpu.cast(box, z, atlas, a.SpriteID, true)
+	}
+}
+
+// how far the point (x, y, z) lies from cam's eye; 0 through a camera without one
+func distance(cam camera.Camera, x, y, z float32) float32 {
+	e, ok := cam.(camera.Eyed)
+	if !ok {
+		return 0
+	}
+	ex, ey, ez, ok := e.Eye()
+	if !ok {
+		return 0
+	}
+	return float32(math.Sqrt(float64((x-ex)*(x-ex) + (y-ey)*(y-ey) + (z-ez)*(z-ez))))
 }
 
 // Lie lays the sprite flat at the entity's Altitude. It neither sways nor casts a shadow.
@@ -92,7 +132,7 @@ func (l Look) Lie(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z,
 
 // Lay lays the sprite level at the entity's Altitude over the rectangle lie says, its sides
 // down its Height and its edges standing up along its long sides. It does not sway and casts no
-// patch: a world.Block's shadow is the terrain's.
+// patch: a Baked shadow is the terrain's.
 func (l Look) Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.Vec,
 	lie world.Lie, z world.Z, atlas render.AtlasSource, a render.Appearance,
 	edge render.SpriteID, light render.Light) {
@@ -119,7 +159,7 @@ func (l Look) Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.V
 }
 
 // Upright stands the sprite on the four sides of the box from its Altitude up its Height and
-// over its top. It casts no patch: a world.Block's shadow is the terrain's.
+// over its top. It casts no patch: a Baked shadow is the terrain's.
 func (l Look) Upright(f *render.Frame, cam camera.Camera, box plane.AABB, z world.Z,
 	atlas render.AtlasSource, a render.Appearance, light render.Light) {
 	x0, y0 := box.TopLeft.X, box.TopLeft.Y

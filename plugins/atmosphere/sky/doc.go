@@ -5,7 +5,8 @@
 // A [Sun] is a direction towards it, a strength, the sky's ambient light and the colours of its
 // light and of the sky. [Sun.Light] and [Sun.Shaded] are the light it casts on a surface, a [Lamp]
 // the sun ready to light many; [Sun.Frame] hands a render.Frame its shader's uniforms
-// (shaders/sun.wgsl) and [Sun.ShadowOf] is the [Patch] an entity's shadow covers on the ground.
+// (shaders/sun.wgsl); [Sun.ShadowOf] is the [Patch] an entity's shadow covers on the ground,
+// [Sun.SilhouetteOf] where its drawn shape lies.
 // [DefaultSun] is the sun of a relief under no sky.
 //
 // # Sky

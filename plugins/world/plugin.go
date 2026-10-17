@@ -84,6 +84,7 @@ func NewPlugin(cfg Config) *Plugin {
 	kinds.plans = m.plans
 	p.roster.Unit.Default(comp.Marks[effect.States]())
 	p.roster.Unit.Default(comp.Const(steering.Course{}))
+	p.roster.Unit.Default(comp.Const(Shadow{Cast: Patch}))
 	if err := m.commands.Carry(p.Queues()...); err != nil {
 		panic(err)
 	}

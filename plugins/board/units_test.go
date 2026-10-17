@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/board"
@@ -124,4 +125,33 @@ func TestUnits_AUnitOffTheBoardPanicsWhenSpawned(t *testing.T) {
 	systems := ctx.Systems()
 	ctx.ECS().Setup(systems...) // Setup runs the queued spawn, where the At is read off the position
 	t.Error("a unit off the board spawned")
+}
+
+func TestUnits_CastPatchesUnlessTheirKindSaysOtherwise(t *testing.T) {
+	for _, c := range []struct {
+		extra []comp.Comp
+		want  world.Casting
+	}{
+		{nil, world.Patch},
+		{[]comp.Comp{comp.Const(world.Shadow{Cast: world.Silhouette})}, world.Silhouette},
+	} {
+		ecs, _, _ := unitsWorld(t, func(units *board.Units[recruit]) kind.Of[recruit] {
+			units.Define("recruit", unit.Mover{Domain: cell.Land}, steering.Steering{}, c.extra...)
+			return units.Named("recruit")
+		})
+		var shadow goke.Comp[world.Shadow]
+		var q *goke.Query
+		ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			q = si.NewQueryBuilder(&shadow).Build()
+		}})
+		var got []world.Casting
+		for q.All(); q.Next(); {
+			for _, s := range shadow.Slice(q.Cursor()) {
+				got = append(got, s.Cast)
+			}
+		}
+		if len(got) != 1 || got[0] != c.want {
+			t.Errorf("a recruit given %d components casts %v, want %v", len(c.extra), got, c.want)
+		}
+	}
 }

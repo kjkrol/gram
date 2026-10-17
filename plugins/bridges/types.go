@@ -87,7 +87,6 @@ func (t *Types) Define(name string, spec Spec) {
 		}),
 		comp.Const(spec.Rail),
 		comp.Load(func(r deckRow) world.Velocity { return world.Velocity{Dir: r.Dir} }),
-		comp.Const(world.Block{}),
 	}
 	decks.Define(deckName(name), deck...)
 	half := spec.Pier / 2
@@ -102,7 +101,7 @@ func (t *Types) Define(name string, spec Spec) {
 		}),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Mass: math.Inf(1)}),
-		comp.Const(world.Block{}),
+		comp.Const(world.Shadow{Cast: world.Baked}),
 	})
 	if t.specs == nil {
 		t.specs = map[string]Spec{}

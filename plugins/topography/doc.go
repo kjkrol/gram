@@ -28,7 +28,11 @@
 //
 // The relief stands under an [Atmosphere] ([Plugin.WithAtmosphere]; sky.DefaultSun in still,
 // clear air given none): its sun lights the ground per pixel and casts the shadows of the relief
-// and of what stands on it, baked as the sun moves ([Plugin.WithShadows], [CoarseShadows]); its
+// and of what stands on it as each entity's world.Shadow says — Baked with the ground as the sun
+// moves, fading into the new ([Plugin.WithShadows], [CoarseShadows]), or a Patch or the
+// Silhouette of its sprite every frame, as a [ShadowPolicy] turns them by the distance from the
+// eye ([Plugin.WithShadowPolicy]). What stands receives the shadows at its height: the relief's
+// and the clouds' wherever it is, the blocks' near the ground (render.GroundShade). Its
 // weather leans what sways, lays the clouds' shadows and hazes the far off from an eye — seen
 // from above, through a camera with none, only when asked ([Plugin.WithHazeFromAbove],
 // [HazeFromAbove]), the map clear by default. How a kind looks beyond its sprite is its

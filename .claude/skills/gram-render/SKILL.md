@@ -109,8 +109,9 @@ then: shoot a baseline tree and the working one and compare (the telemetry panel
 or scenes are noise).
 
 **Frame images** (2026-10-16, stage 6): what every shader of a frame reads that is too big for
-uniforms — 4096 bytes a draw in all (`gpu/device.go` `uniformBlock`), the shared set ~240 and the
-terrain's shade bake ~3344 of it — is an image the frame hands like a uniform. `render.RegisterImage
+uniforms — 4096 bytes a draw in all (`gpu/device.go` `uniformBlock`), the shared set ~600 of it
+(no shader holds a big array any more: the terrain's blocks are instances) — is an image the frame
+hands like a uniform. `render.RegisterImage
 (name)` in a package's init (panics once a shader is built, twice, past `gpu.FrameImages` = 8) has
 the library declare `@group(3) @binding(k) var <name>: texture_2d<f32>;`; WGSL reads it by name,
 through `linear` (clamped) or `wrapped` (group 3's sampler, repeating: a ring buffer's seam). A
@@ -131,7 +132,13 @@ without it), handed by whoever draws the ground (the terrain: its lattice image,
 and green, the heights as the last frame drew them), read by the clouds from above to hide a
 slice inside the ground at a few loads a pixel instead of the ground's depth (16 bits in two
 channels do not blend in the sampler: four loads, so read it at a coarse resolution, never per
-screen pixel); next the ground's baked shade (plan stage 9). **A frame image read per pixel is
+screen pixel). The sun on the ground is the second: `Frame.GroundShade(render.GroundShade{Now,
+Was, Area, Span, Band, Mix})`, images `GroundShade` and `GroundShadeWas`, uniforms
+`GroundShadeArea` (its width 0: none), `GroundShadeSpan` (span, band height), `GroundShadeMix0..3`
+(16 bands' fades); WGSL `groundShadeOf(p)` (the texel, each band faded from `Was`; `(1,0,1,1)`
+without it), `groundShadeAt(p, over, soft)` (the relief's shadow at a height over the ground),
+`standingShadeAt(p, over, soft)` (the blocks'); handed by the terrain, which never binds it while
+baking into it (it deletes both from the bake's uniforms). **A frame image read per pixel is
 read once**: let the sampler blend (lay the picture so it can), never four `textureLoad`s and
 arithmetic by hand. gogpu
 binds a group through the bound pipeline's layout, all ours share one, so `bindFrame` sets group
@@ -194,7 +201,9 @@ v0.19.0 and v0.19.1) leaves a WGSL `var` without an initialiser undefined (garba
 2026-10-16; write `var c = CloudOver(...)`) and
 reads a module-scope vector `const` as zero where it meets a runtime value (`c * 1.0` folds and
 works, `c * light` is zero): gram's own WGSL has no vector consts; write them inside the function
-or as scalars (the low clouds' bands came out at the ground, 2026-10-17, till they were).
+or as scalars (the low clouds' bands came out at the ground, 2026-10-17, till they were). Its
+SPIR-V writer has no `all()`/`any()` ("unsupported expression kind: ir.ExprRelational", a panic
+at the first draw): test a vector by its components (`max(max(abs(v.x), …)) <= 0.0`).
 
 **A depth buffer is read at the size it was drawn at** (`DrawMeshOptions.ReadDepth`, `depthAt`
 in the pixels of the texture it was drawn with, 2026-10-17): a Direct may draw a coarse pass with
