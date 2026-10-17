@@ -68,8 +68,9 @@
 // Props.TargetTPS is the engine's one fixed step. The window's loop runs one Update per frame,
 // stepping as many times as the time gone says, at most five, so a slow frame slows the game
 // instead of spiralling. Each step calls the active Scene's HandleEvents, then Stage.Update,
-// where the game runs its plugins' RunPlan in the order it needs: the world before whatever
-// reads its space. What is drawn goes by the clock's Shown time, which runs on between the steps.
+// where the game runs its plugins' RunPlan in the order it needs: the world, then motion, before
+// whatever reads its space. What is drawn goes by the clock's Shown time, which runs on between
+// the steps.
 //
 // # Persistence
 //
@@ -92,22 +93,24 @@
 //	3  entity               what every entity carries: Base, Z        → kind
 //	   plugin               the extension contract                    → control, render, ceremony
 //	   plugins/players/owner whose a unit is; a leaf                  → ceremony/command, tag
-//	4  plugins/world        the foundation: space, movement, kinds    → plugin, clock, ceremony
+//	4  plugins/world        the foundation: space, entities, kinds    → plugin, clock, ceremony
 //	5  game                 Game, Stage, Scene, Composition, Runtime  → plugin, world, ceremony
 //	   ui                   a scene's screen of elements              → game, render, control
-//	   plugins/cameras, collision, selection, vision                  → world, …
-//	6  plugins/board        a grid with terrain over the world        → world, collision, …
+//	   plugins/motion       entities steered and moved, the leavers   → world
+//	   plugins/cameras, vision                                        → world, …
+//	6  plugins/collision, selection                                   → world, motion, …
+//	7  plugins/board        a grid with terrain over the world        → motion, collision, …
 //	   plugins/dialog       conversations as data                     → world, ui, …
-//	7  plugins/driving      units driven by hand                      → world, selection, board
-//	8  plugins/navigation   MoveOrder paths across a board            → board, selection, driving
-//	   plugins/bullet       shots fired, flown, landing and bursting  → world, collision, board
-//	   plugins/gravity      bodies falling, standing and leaping      → world, board, collision
+//	8  plugins/driving      units driven by hand                      → motion, selection, board
+//	9  plugins/navigation   MoveOrder paths across a board            → board, selection, driving
+//	   plugins/bullet       shots fired, flown, landing and bursting  → motion, collision, board
+//	   plugins/gravity      bodies falling, standing and leaping      → motion, board, collision
 //	   plugins/bridges      bridges built by one set of rules         → world, board, …
-//	   plugins/topography   a map in relief drawn on the GPU          → world, board, atmosphere
+//	   plugins/topography   a map in relief drawn on the GPU          → motion, board, atmosphere
 //	   plugins/atmosphere   calendar, climate, weather, sky           → world, board, …
-//	   plugins/players      players over the command handlers         → world, cameras, ui, …
-//	9  internal/engine      the Engine: the loop, one Stage, saves    → game, world, ceremony
-//	10 gram                 Run; the package you import               → game, internal/engine
+//	   plugins/players      players over the command handlers         → motion, cameras, ui, …
+//	10 internal/engine      the Engine: the loop, one Stage, saves    → game, world, ceremony
+//	11 gram                 Run; the package you import               → game, internal/engine
 //
 // Outside the module: ceremony is the behaviour — rules, plans, effects, roles, commands, facts
 // — the layer under plugin and control, its store goke/v3 through its binding ceremony/goke

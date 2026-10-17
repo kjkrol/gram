@@ -5,7 +5,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
-	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/motion"
 )
 
 var _ goke.Module = (*module)(nil)
@@ -36,5 +36,5 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 func (m *module) SetupSystems() []goke.System { return nil }
 
 func (m *module) LoadComps() []goke.CompToken {
-	return []goke.CompToken{goke.LoadComp[Body](), goke.LoadComp[world.Drift]()}
+	return []goke.CompToken{goke.LoadComp[Body](), goke.LoadComp[motion.Drift]()}
 }

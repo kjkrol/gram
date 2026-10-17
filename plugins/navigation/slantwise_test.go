@@ -16,10 +16,11 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -74,17 +75,18 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 		Entities: world.EntitiesCfg{MaxCount: 16, MinSize: 2, MaxSize: 32},
 		Heights:  true,
 	})
-	c := collision.NewPlugin(w)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m)
 	var occupancy cell.Occupancy = &cell.MultipleOccupancy{}
 	spacing := BodySpacing
 	if site.cells {
 		occupancy, spacing = &cell.SingleOccupancy{}, CellSpacing
 	}
-	brd := board.NewPlugin(g, occupancy, w).WithCollision(c)
+	brd := board.NewPlugin(g, occupancy, w).WithMotion(m).WithCollision(c)
 	topo := topography.NewPlugin(w, brd, topography.Config{Cell: 32})
 	sel := selection.NewPlugin(w)
-	drive := driving.NewPlugin(w, sel).WithGround(brd)
-	nav := NewPlugin(brd, w, sel, drive).WithCollision(c).WithSpacing(spacing)
+	drive := driving.NewPlugin(w, m, sel).WithGround(brd)
+	nav := NewPlugin(brd, w, m, sel, drive).WithCollision(c).WithSpacing(spacing)
 	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	for _, c := range site.wet {
 		brd.Board().Set(c, cell.Kind{Cost: 1, Allows: cell.Water})
@@ -138,6 +140,7 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 	ctx := &stubInstallCtx{ecs: goke.New()}
 	for _, install := range []func() error{
 		func() error { return w.Install(ctx) },
+		func() error { return m.Install(ctx) },
 		func() error { return c.Install(ctx) },
 		func() error { return brd.Install(ctx) },
 		func() error { return topo.Install(ctx) },
@@ -165,6 +168,7 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
 		c.RunPlan(rc, d)
 		brd.RunPlan(rc, d)
 		topo.RunPlan(rc, d)

@@ -70,8 +70,8 @@ cgo. Without a GPU the tests that draw skip themselves.
 | **Stages and Scenes** | `game`, `game/stage` | Named Stages with their own ECS, defined a section at a time; Scenes as `ui` screens showing the world through cameras; a live Composition of what is shown and which Scene takes input |
 | **Plugins** | `plugin` | The one extension contract; `Installer.Hosts`, where a plugin hands the engine the hosts that run the rules of its moments inside its own pass |
 | **Behaviour** | [`ceremony`](https://github.com/kjkrol/ceremony) | The library gram builds on, through its binding over goke (`ceremony/goke`): `act.Branch[P]{Name, When, Then}` a rule of a moment, `plan.Loop[P]{Name, When, Then, Until, Timeout, Cooldown}` a loop of a plan, every clause of either saying whom it is about (`cond.Self.If(x)`, `act.Other.Do(cmd)`); roles a kind, a cell or a plugin plays; effects that hold for a while and turn the plugins' knobs; messages between plans; commands written as sentences, for entities found by name or group |
-| **World** | `plugins/world` | Every entity's `Base`; movement under stop, wrap or open edges; the spatial index; kinds and spawning before the game and during it; heights or planes |
-| **Steering** | `plugins/world/steering` | A `Steering` profile turned into heading and speed each step; `Driven` for a unit steered by hand |
+| **World** | `plugins/world` | Every entity's `Base`; the spatial index under stop, wrap or open edges; kinds and spawning before the game and during it; heights or planes |
+| **Motion** | `plugins/motion`, `plugins/motion/steering` | Every entity moved each step, `Moving` and `Leaving` for rules; a `Steering` profile turned into heading and speed; `Driven` for a unit steered by hand |
 | **Collisions** | `plugins/collision` | `Collider` to take part, `Physics` to bounce and be pushed apart, the solid ground of a board, `Meeting` and `Struck` for rules |
 | **Gravity** | `plugins/gravity` | Bodies falling, standing on what bears them and leaping, along Z or across the plane, as the pull goes; `Leap`, `Away` and `Landing` for rules |
 | **Shooting** | `plugins/bullet` | Shots as entities fired from a unit's muzzle or thrown in an arc, swept by collision; `Landing`, `Resting` and `Blast` for rules |
@@ -113,6 +113,7 @@ import (
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
@@ -157,6 +158,7 @@ const (
 
 type arena struct {
 	world     *world.Plugin
+	motion    *motion.Plugin
 	collision *collision.Plugin
 	cameras   *cameras.Plugin
 	players   *players.Plugin
@@ -194,7 +196,8 @@ func main() {
 
 func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
-	a.collision = collision.NewPlugin(a.world).WithStats(&a.stats)
+	a.motion = motion.NewPlugin(a.world)
+	a.collision = collision.NewPlugin(a.world, a.motion).WithStats(&a.stats)
 	a.cameras = cameras.NewPlugin(a.world)
 	a.telemetry = telemetry.NewPlugin(a.world)
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras)
@@ -228,6 +231,7 @@ func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
 
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.world.RunPlan(ctx, d)
+	a.motion.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
 	a.cameras.RunPlan(ctx, d)
 	a.players.RunPlan(ctx, d)
@@ -564,7 +568,8 @@ has a `doc.go` describing what it brings. What is left to do is in
 | [`entity`](entity/doc.go) | What every entity carries: `Base`, `Position`, `Velocity`, `Z`, `Layers`, `Eye`, `Lie`; `entity/kind` what an entity is (`Spec`, `Define`, `Of`, the roster) |
 | [`clock`](clock/doc.go) | The tactical clock: game time as the sum of the simulation's steps, the pause (Shift+P), the tempo (] and [), the `Moment` of a step with `At` and `Every` |
 | [`ceremony`](https://github.com/kjkrol/ceremony) | The library gram builds on, outside the module: how entities behave — `cond` the conditions, `act` the steps and the branch of a rule, `plan` the loops of a plan, `effect` the states and knobs, `fact` the facts and messages, roles, commands about effects and labels in its root, `host` the hosts a plugin runs rules with, `command` the queues and the carrier, `tag` and `comp`; the language in its `doc/ceremony.md`, how a game uses it over gram's plugins in [`doc/behaviour.md`](doc/behaviour.md) |
-| [`plugins/world`](plugins/world/doc.go) | The foundation: the space, movement under the edge rules, kinds and tags, `Seed`/`Populate`, `Spawn`, `Despawn`, the commands about effects, the carrier of commands, the entities' looks on the atlas; it runs the core's systems; `steering` and `view` beside it |
+| [`plugins/world`](plugins/world/doc.go) | The foundation: the space under the edge rules, kinds and tags, `Seed`/`Populate`, `Spawn`, `Despawn`, the commands about effects, the carrier of commands, the entities' looks on the atlas; it runs the core's systems; `view` beside it |
+| [`plugins/motion`](plugins/motion/doc.go) | The entities moved: `Moving` with `Still` and `Braking`, `Leaving` and `Outside` past an open edge, `Drift`, `UnitTemplate`; `steering` the heading and speed reached gradually |
 | [`game`](game/doc.go) | What a game implements and receives: `Game`, `Stage`, `Scene`, `Scenes`, `Composition`, `Initializer`, `Runtime`, `Persistence`; `game/stage` a Stage defined a section at a time |
 | [`ui`](ui/doc.go) | A scene's screen as a tree of elements: `Layers`, `Columns`/`Rows`, anchors, `Panel`, `Label`, `Image` of a feed, `Window`, `Button` giving commands, elements pinned to entities `Under` an effect or `On` a name, a `Theme` |
 | [`plugins/collision`](plugins/collision/doc.go) | Collision over the world's space: `Collider`, `Physics`, `Sweep`, the solid ground of a `Field`, `Meeting` and `Struck` |

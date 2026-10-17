@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/plugins/bridges/site"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -46,6 +47,7 @@ var mapFile embed.FS
 
 type arena struct {
 	world      *world.Plugin
+	motion     *motion.Plugin
 	board      *board.Plugin
 	topography *topography.Plugin
 	bridges    *bridges.Plugin
@@ -89,13 +91,14 @@ func main() {
 
 func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
+	a.motion = motion.NewPlugin(a.world)
 	grid := grid.DefaultGrids{}.Hex(GridWidth, GridHeight, HexSize)
-	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world)
+	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).WithMotion(a.motion)
 	a.topography = topography.NewPlugin(a.world, a.board, topography.Config{Cell: HexSize})
 	a.bridges = bridges.NewPlugin(a.world, a.board, bridges.Config{Rules: site.Rules{Longest: 3}})
 	a.selection = selection.NewPlugin(a.world)
-	a.driving = driving.NewPlugin(a.world, a.selection).WithGround(a.board)
-	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving)
+	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)
+	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving)
 	a.vision = vision.NewPlugin(a.world).WithBoard(a.board).WithLog(log.Default())
 	a.cameras = cameras.NewPlugin(a.world)
 	a.players = players.NewPlugin(
@@ -157,6 +160,7 @@ func (a *arena) defineScenes() []game.Scene {
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.bridges.RunPlan(ctx, d)
 	a.world.RunPlan(ctx, d)
+	a.motion.RunPlan(ctx, d)
 	a.board.RunPlan(ctx, d)
 	a.nav.RunPlan(ctx, d)
 	a.driving.RunPlan(ctx, d)

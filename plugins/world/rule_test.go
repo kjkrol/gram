@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -33,6 +34,7 @@ type triggerStage struct {
 	hook           func(g *triggerStage) error
 	rules          []act.Rule
 	world          *world.Plugin
+	motion         *motion.Plugin
 	coll           *collision.Plugin
 	bullet, target *ceremony.Part
 	unit           kind.Of[spot]
@@ -60,7 +62,8 @@ func (g *triggerStage) Init(ctx game.Initializer) error {
 	g.world.Roles().Define("target")
 	g.bullet, g.target = g.world.Roles().Named("bullet"), g.world.Roles().Named("target")
 	ctx.Setup(triggerProbe{g})
-	g.coll = collision.NewPlugin(g.world)
+	g.motion = motion.NewPlugin(g.world)
+	g.coll = collision.NewPlugin(g.world, g.motion)
 	if err := g.hook(g); err != nil {
 		return err
 	}
@@ -81,6 +84,9 @@ func (g *triggerStage) Init(ctx game.Initializer) error {
 		}),
 	})
 	g.unit = kind.Named[spot](g.world.Kinds(), "unit")
+	if err := ctx.Use(g.motion); err != nil {
+		return err
+	}
 	return ctx.Use(g.coll)
 }
 
@@ -101,6 +107,7 @@ func (g *triggerStage) Spawn() error {
 }
 func (g *triggerStage) Update(ctx goke.RunCtx, d time.Duration) {
 	g.world.RunPlan(ctx, d)
+	g.motion.RunPlan(ctx, d)
 	g.coll.RunPlan(ctx, d)
 }
 func (g *triggerStage) Stack() game.Scenes {
@@ -147,7 +154,7 @@ func TestRule_PlayingNarrowsToTheRolesPlayers(t *testing.T) {
 	g.hook = func(g *triggerStage) error {
 		g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
 		marked = g.world.Effects().Named("marked")
-		return g.obey(act.Branch[world.Moving]{
+		return g.obey(act.Branch[motion.Moving]{
 			Name: "mark the bullet",
 			When: cond.Self.If(g.bullet),
 			Then: act.Self.Put(marked),
@@ -190,7 +197,7 @@ func TestRule_AnEffectIsItsMemory(t *testing.T) {
 		mark = g.world.Effects().Named("mark")
 		g.world.Effects().Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
 		tallying = g.world.Effects().Named("tally")
-		return g.obey(act.Branch[world.Moving]{
+		return g.obey(act.Branch[motion.Moving]{
 			Name: "once a while",
 			When: cond.Self.If(cond.Not(mark)),
 			Then: act.Steps(act.Self.Put(mark), act.Self.Put(tallying)),
@@ -205,7 +212,7 @@ func TestRule_AnEffectIsItsMemory(t *testing.T) {
 func TestRule_OrdersCommands(t *testing.T) {
 	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 500, vx: 60}}}
 	g.hook = func(g *triggerStage) error {
-		return g.obey(act.Branch[world.Moving]{
+		return g.obey(act.Branch[motion.Moving]{
 			Name: "the bullet leaves",
 			When: cond.Self.If(g.bullet),
 			Then: act.Self.Do(world.Despawn{}),
@@ -232,7 +239,7 @@ func TestRule_AnEffectsMarkerFiltersInAnotherPlugin(t *testing.T) {
 			g.world.Effects().Define("burning", effect.Spec{effect.Lasts(time.Hour)})
 			burning = g.world.Effects().Named("burning")
 			if ignite {
-				if err := g.obey(act.Branch[world.Moving]{
+				if err := g.obey(act.Branch[motion.Moving]{
 					Name: "the bullet ignites",
 					When: cond.Self.If(g.bullet).
 						And(cond.Self.If(cond.Not(burning))),

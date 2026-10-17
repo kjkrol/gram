@@ -20,9 +20,10 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -60,11 +61,12 @@ type Mover struct {
 // UnitSize is the side of a unit's box.
 const UnitSize = 22
 
-// World is world + collision + board + vision ticked as the demo ticks them.
+// World is world + motion + collision + board + vision ticked as the demo ticks them.
 type World struct {
-	World *world.Plugin
-	Board *board.Plugin
-	ECS   *goke.ECS
+	World  *world.Plugin
+	Motion *motion.Plugin
+	Board  *board.Plugin
+	ECS    *goke.ECS
 
 	t        *testing.T
 	base     goke.Comp[world.Base]
@@ -93,13 +95,19 @@ func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(
 		Entities: world.EntitiesCfg{MaxCount: 16, MinSize: UnitSize, MaxSize: UnitSize},
 		Heights:  true,
 	})
-	c := collision.NewPlugin(bw.World)
-	bw.Board = board.NewPlugin(g, &cell.MultipleOccupancy{}, bw.World).WithCollision(c)
+	bw.Motion = motion.NewPlugin(bw.World)
+	c := collision.NewPlugin(bw.World, bw.Motion)
+	bw.Board = board.NewPlugin(g, &cell.MultipleOccupancy{}, bw.World).
+		WithMotion(bw.Motion).
+		WithCollision(c)
 	v := vision.NewPlugin(bw.World).WithBoard(bw.Board)
 	rules := prepare(bw.World, bw.Board)
 
 	ctx := NewInstallCtx()
 	if err := bw.World.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := bw.Motion.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := c.Install(ctx); err != nil {
@@ -165,6 +173,7 @@ func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(
 	ctx.ECS().Setup(systems...)
 	ctx.ECS().SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		bw.World.RunPlan(rc, d)
+		bw.Motion.RunPlan(rc, d)
 		c.RunPlan(rc, d)
 		bw.Board.RunPlan(rc, d)
 		v.RunPlan(rc, d)

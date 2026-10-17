@@ -68,7 +68,7 @@ them too, and a probe left in by an interrupted run is a broken demo.
 - Entities: a query over `world.Base` with `Optional` columns — `cgoke.Active` (effects:
   `ac.Left(fx.Named(name))`, false when not under it), `collision.Collider` (`Contacts()`:
   `Other`, `Sensed`, `Resting`, `Terrain`), `cell.Floor`/`cell.On` (a trapdoor's `Allows` by its
-  cell), `steering.Driven`/`Course`, `world.Z`, `world.Drift`, `tag.Tags[unit.States]`
+  cell), `steering.Driven`/`Course`, `world.Z`, `motion.Drift`, `tag.Tags[unit.States]`
   (`unit.Airborne`). Kinds by `p.a.world.Kinds().Lookup(KindName)` → id to match `Base.TypeID`.
 - Keys go through `p.a.players.EventHandler().HandleEvents(ev)`, one `InputEvents` a tick, so
   the players' bindings, contexts and cameras are the real ones; `KeyHeld` fires on the ticks

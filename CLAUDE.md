@@ -207,14 +207,15 @@ holds its entries, its public subpackages the vocabulary and contracts, `interna
 (`gram-plugin`). **Layering: the world knows its entities and nothing else; the ground is the
 board's, the sky the atmosphere's, `render` generic.**
 
-Built-in plugins (`gram-plugins`): `world` (the foundation: space, entities, movement, the
-registers, the clock), `board` (grid and terrain, cells as entities, what stands on the board,
-bridges, maps as files; `cmd/gramap` makes maps of the Earth), `topography` (a map in relief
-and its cameras), `atmosphere` (the time of day, the climate, the weather), `collision`,
-`navigation`, `selection`, `dialog`, `players` (with `players/owner`), `cameras`, `driving`,
-`gravity`, `vision`, `bridges`, `bullet`, `telemetry` (the panel in the corner, a scene of its
-own in every Stage with a world). Each package has a `doc.go` describing what it brings, ending
-with its `# Vocabulary`.
+Built-in plugins (`gram-plugins`): `world` (the foundation: space, entities, the registers,
+the clock), `motion` (steering, movement and the leavers past an open edge, made first and run
+right after the world; whatever steers or pushes takes it), `board` (grid and terrain, cells as
+entities, what stands on the board, bridges, maps as files; `cmd/gramap` makes maps of the
+Earth), `topography` (a map in relief and its cameras), `atmosphere` (the time of day, the
+climate, the weather), `collision`, `navigation`, `selection`, `dialog`, `players` (with
+`players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `bullet`, `telemetry`
+(the panel in the corner, a scene of its own in every Stage with a world). Each package has a
+`doc.go` describing what it brings, ending with its `# Vocabulary`.
 
 ## Testing conventions
 

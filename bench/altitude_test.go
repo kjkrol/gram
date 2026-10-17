@@ -14,9 +14,10 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/gravity"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 type walkerRow struct{ At cell.ID }
@@ -45,7 +46,11 @@ func standing(b *testing.B, bodies, bands bool) {
 				Heights:  true,
 			})
 			g := grid.DefaultGrids{}.Square(side, side, size)
-			p := board.NewPlugin(g, &cell.MultipleOccupancy{}, ctx.world)
+			m := motion.NewPlugin(ctx.world)
+			if err := ctx.Use(m); err != nil {
+				b.Fatal(err)
+			}
+			p := board.NewPlugin(g, &cell.MultipleOccupancy{}, ctx.world).WithMotion(m)
 			topo := topography.NewPlugin(ctx.world, p, topography.Config{Cell: size})
 			if err := ctx.Use(p); err != nil {
 				b.Fatal(err)
@@ -56,7 +61,7 @@ func standing(b *testing.B, bodies, bands bool) {
 			var fall *gravity.Plugin
 			var extra []comp.Comp
 			if bodies {
-				fall = gravity.NewPlugin(ctx.world, gravity.Config{}).WithSurfaces(p.Footing)
+				fall = gravity.NewPlugin(ctx.world, m, gravity.Config{}).WithSurfaces(p.Footing)
 				if err := ctx.Use(fall); err != nil {
 					b.Fatal(err)
 				}
@@ -101,6 +106,7 @@ func standing(b *testing.B, bodies, bands bool) {
 			ctx.world.Seed(entries...)
 			ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
 				ctx.world.RunPlan(rc, d)
+				m.RunPlan(rc, d)
 				if fall != nil {
 					fall.RunPlan(rc, d)
 				}

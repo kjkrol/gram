@@ -2,6 +2,7 @@ package board_test
 
 import (
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -55,7 +57,8 @@ func TestBoard_AUnitBiggerThanACellsSidePanics(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 1, MaxSize: 10},
 		Heights:  true,
 	})
-	p := board.NewPlugin(grid.DefaultGrids{}.Square(5, 3, 10), &cell.MultipleOccupancy{}, w)
+	p := board.NewPlugin(grid.DefaultGrids{}.Square(5, 3, 10), &cell.MultipleOccupancy{}, w).
+		WithMotion(motion.NewPlugin(w))
 	at := func(v geom.Vec) geom.Vec { return v }
 	board.NewUnits(p, board.Shape{Size: 10}, at)
 	defer func() {
@@ -64,6 +67,21 @@ func TestBoard_AUnitBiggerThanACellsSidePanics(t *testing.T) {
 		}
 	}()
 	board.NewUnits(p, board.Shape{Size: 6, Width: 11}, at)
+}
+
+func TestBoard_UnitsOnABoardWithoutMotionPanic(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 50, Height: 30},
+		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 1, MaxSize: 10},
+		Heights:  true,
+	})
+	p := board.NewPlugin(grid.DefaultGrids{}.Square(5, 3, 10), &cell.MultipleOccupancy{}, w)
+	defer func() {
+		if msg, _ := recover().(string); !strings.Contains(msg, "WithMotion") {
+			t.Errorf("units on a board without motion panic %q, want them refused", msg)
+		}
+	}()
+	board.NewUnits(p, board.Shape{Size: 10}, func(v geom.Vec) geom.Vec { return v })
 }
 
 func banded(t *testing.T, g grid.Grid, height float64, keeps cell.Domain) *board.Board {

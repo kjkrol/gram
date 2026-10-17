@@ -16,8 +16,9 @@ import (
 	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -34,6 +35,7 @@ var _ fact.Fact = pulse{}
 type behaviour struct {
 	ctx    *headless
 	w      *world.Plugin
+	m      *motion.Plugin
 	ecs    *goke.ECS
 	glow   effect.Effect
 	spark  effect.Effect
@@ -51,6 +53,10 @@ func newBehaviour(b *testing.B, n int, define func(bh *behaviour) kind.Spec) *be
 		Space:    world.SpaceCfg{Width: 4000, Height: 4000, Edges: aabbworld.Torus},
 		Entities: world.EntitiesCfg{MaxCount: n, MinSize: 1, MaxSize: 100},
 	})
+	bh.m = motion.NewPlugin(bh.w)
+	if err := bh.ctx.Use(bh.m); err != nil {
+		b.Fatal(err)
+	}
 	fx := bh.w.Effects()
 	lit := bh.w.Kinds().DefineTag[glowing]("lit")
 	fx.Define("glow", effect.Spec{
@@ -120,6 +126,7 @@ func newBehaviour(b *testing.B, n int, define func(bh *behaviour) kind.Spec) *be
 		rc.Run(bh.driver, d)
 		rc.Sync()
 		bh.w.RunPlan(rc, d)
+		bh.m.RunPlan(rc, d)
 	})
 	for range 4 {
 		bh.ecs.Tick(step)
@@ -161,21 +168,23 @@ func Benchmark_Plans_Tick(b *testing.B) {
 	}
 }
 
-// Benchmark_Rules_Moving is one tick of n units playing a role of two rules of world.Moving:
+// Benchmark_Rules_Moving is one tick of n units playing a role of two rules of motion.Moving:
 // one holding an effect while a word of the moment holds, one putting another on by chance
 // while under it.
 func Benchmark_Rules_Moving(b *testing.B) {
 	for _, n := range []int{1000, 5000} {
 		b.Run(entities(n), func(b *testing.B) {
-			still := cond.NewWord("still", func(m world.Moving) bool { return m.Base.Vel.Value == 0 })
+			still := cond.NewWord("still", func(m motion.Moving) bool {
+				return m.Base.Vel.Value == 0
+			})
 			bh := newBehaviour(b, n, func(bh *behaviour) kind.Spec {
 				bh.w.Roles().Define("glower",
-					act.Branch[world.Moving]{
+					act.Branch[motion.Moving]{
 						Name: "glow",
 						When: cond.Self.If(still),
 						Then: act.Self.Hold(bh.glow),
 					},
-					act.Branch[world.Moving]{
+					act.Branch[motion.Moving]{
 						Name: "spark",
 						When: cond.Self.If(bh.glow).And(cond.Self.If(cond.Chance(0.1))),
 						Then: act.Self.Put(bh.spark),

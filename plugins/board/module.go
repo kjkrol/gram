@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 )
 
 var _ goke.Module = (*module)(nil)
@@ -77,5 +78,7 @@ func (m *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[cgoke.Active](),
 		goke.LoadComp[tag.Tags[effect.States]](),
 		goke.LoadComp[tag.Tags[cond.Roles]](),
+		// the board reads it in a world without motion too
+		goke.LoadComp[steering.Pace](),
 	)
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 )
@@ -20,6 +21,7 @@ type Plugin struct {
 	*world.Self
 
 	worldPlugin *world.Plugin
+	motion      *motion.Plugin
 	shots       *Shots
 	selected    tag.Tag[selection.Family]
 	ground      func() ground.Heights // nil: the ground lies at 0
@@ -36,9 +38,9 @@ type Plugin struct {
 var _ plugin.Plugin = (*Plugin)(nil)
 
 // NewPlugin builds the bullet plugin over w, firing a player's Shoot from the units sel marks
-// Selected.
-func NewPlugin(w *world.Plugin, sel *selection.Plugin) *Plugin {
-	p := &Plugin{worldPlugin: w, shots: NewShots(w), selected: sel.Tags().Selected}
+// Selected, a shot gone past an open edge m's leaver.
+func NewPlugin(w *world.Plugin, m *motion.Plugin, sel *selection.Plugin) *Plugin {
+	p := &Plugin{worldPlugin: w, motion: m, shots: NewShots(w), selected: sel.Tags().Selected}
 	p.Self = world.NewSelf(w, p)
 	return p
 }

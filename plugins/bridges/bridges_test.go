@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/gram/plugins/bridges"
 	"github.com/kjkrol/gram/plugins/bridges/site"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -51,6 +52,7 @@ type dale struct {
 	t       *testing.T
 	g       grid.Grid
 	w       *world.Plugin
+	m       *motion.Plugin
 	board   *board.Plugin
 	topo    *topography.Plugin
 	bridges *bridges.Plugin
@@ -78,8 +80,11 @@ func newDale(t *testing.T) *dale {
 		Entities: world.EntitiesCfg{MaxCount: 64, MinSize: 1, MaxSize: 10},
 		Heights:  true,
 	})
-	d.col = collision.NewPlugin(d.w)
-	d.board = board.NewPlugin(d.g, &cell.MultipleOccupancy{}, d.w).WithCollision(d.col)
+	d.m = motion.NewPlugin(d.w)
+	d.col = collision.NewPlugin(d.w, d.m)
+	d.board = board.NewPlugin(d.g, &cell.MultipleOccupancy{}, d.w).
+		WithMotion(d.m).
+		WithCollision(d.col)
 	d.topo = topography.NewPlugin(d.w, d.board, topography.Config{Cell: 10})
 	d.bridges = bridges.NewPlugin(d.w, d.board, bridges.Config{Rules: rules}).WithShaper(d.topo)
 	d.board.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
@@ -108,7 +113,7 @@ func (d *dale) start(heights func(geom.Vec) float64) {
 	d.t.Helper()
 	d.topo.Seed(heights)
 	ctx := &installer{ecs: goke.New()}
-	for _, p := range []plugin.Plugin{d.w, d.col, d.board, d.topo, d.bridges} {
+	for _, p := range []plugin.Plugin{d.w, d.m, d.col, d.board, d.topo, d.bridges} {
 		if err := p.Install(ctx); err != nil {
 			d.t.Fatal(err)
 		}
@@ -140,6 +145,7 @@ func (d *dale) start(heights func(geom.Vec) float64) {
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, dt time.Duration) {
 		d.bridges.RunPlan(rc, dt)
 		d.w.RunPlan(rc, dt)
+		d.m.RunPlan(rc, dt)
 		d.col.RunPlan(rc, dt)
 		d.board.RunPlan(rc, dt)
 		d.topo.RunPlan(rc, dt)

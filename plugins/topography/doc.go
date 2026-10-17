@@ -13,7 +13,7 @@
 // (board.Level.Heights, or ground.MeanOfCells from a height per cell) and shaped at play by
 // [Raise], [Lower] and [Level] as the Config's [Shaping] says. Every step the plugin puts every
 // unit at the surface under it, the ground or a deck carrying its domain within its step, plus
-// its Mover's Lift; a unit carrying a world.Drift is gravity's. Slopes multiply a kind's cost
+// its Mover's Lift; a unit carrying a motion.Drift is gravity's. Slopes multiply a kind's cost
 // as the Config's relief.Climbing says, in the planner and on the move, unless the kind is
 // Graded. [Plugin.Flatten] lays a cell flat as a ground.Shaper does.
 //

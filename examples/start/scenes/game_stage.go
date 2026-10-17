@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/ui"
@@ -25,6 +26,7 @@ const (
 
 type gameplayArena struct {
 	world   *world.Plugin
+	motion  *motion.Plugin
 	players *players.Plugin
 	player  *players.Player
 	cameras *cameras.Plugin
@@ -55,6 +57,7 @@ func NewGameplayStage() game.Stage {
 
 func (g *gameplayArena) makePlugins(w *world.Plugin) {
 	g.world = w
+	g.motion = motion.NewPlugin(g.world)
 	g.cameras = cameras.NewPlugin(g.world)
 	g.players = players.NewPlugin(g.world, g.cameras)
 }
@@ -109,6 +112,7 @@ func (g *gameplayArena) defineScenes() []game.Scene {
 
 func (g *gameplayArena) update(ctx goke.RunCtx, d time.Duration) {
 	g.world.RunPlan(ctx, d)
+	g.motion.RunPlan(ctx, d)
 	g.cameras.RunPlan(ctx, d)
 	g.players.RunPlan(ctx, d)
 	ctx.Sync()

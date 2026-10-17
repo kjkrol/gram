@@ -10,7 +10,6 @@ type (
 	Z        = entity.Z
 	Layers   = entity.Layers
 	Eye      = entity.Eye
-	Drift    = entity.Drift
 	Lie      = entity.Lie
 	Shadow   = entity.Shadow
 	Casting  = entity.Casting

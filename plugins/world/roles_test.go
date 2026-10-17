@@ -6,16 +6,29 @@ import (
 
 	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/cond"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
 func TestRoles_AreTheStagesOwn(t *testing.T) {
 	forest, arena := world.NewPlugin(testWorldConfig()), world.NewPlugin(testWorldConfig())
 	forest.Roles().Define("mortal",
-		act.Branch[world.Moving]{Name: "drown", When: cond.Self.If(cond.Always), Then: act.Self.Do(world.Despawn{})})
+		act.Branch[motion.Moving]{
+			Name: "drown",
+			When: cond.Self.If(cond.Always),
+			Then: act.Self.Do(world.Despawn{}),
+		})
 	arena.Roles().Define("mortal",
-		act.Branch[world.Moving]{Name: "fall", When: cond.Self.If(cond.Always), Then: act.Self.Do(world.Despawn{})},
-		act.Branch[world.Leaving]{Name: "leave", When: cond.Self.If(cond.Always), Then: act.Self.Do(world.Despawn{})})
+		act.Branch[motion.Moving]{
+			Name: "fall",
+			When: cond.Self.If(cond.Always),
+			Then: act.Self.Do(world.Despawn{}),
+		},
+		act.Branch[motion.Leaving]{
+			Name: "leave",
+			When: cond.Self.If(cond.Always),
+			Then: act.Self.Do(world.Despawn{}),
+		})
 
 	a, b := forest.Roles().Named("mortal"), arena.Roles().Named("mortal")
 	if len(a.Rules()) != 1 || len(b.Rules()) != 2 {

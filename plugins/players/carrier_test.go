@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/world"
 )
@@ -23,6 +24,7 @@ import (
 type carrierStage struct {
 	boxes     bool
 	world     *world.Plugin
+	motion    *motion.Plugin
 	collision *collision.Plugin
 	players   *players.Plugin
 	leaver    kind.Of[float64]
@@ -39,7 +41,8 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 3, MinSize: 10, MaxSize: 10},
 	})
-	s.collision = collision.NewPlugin(s.world)
+	s.motion = motion.NewPlugin(s.world)
+	s.collision = collision.NewPlugin(s.world, s.motion)
 	s.world.Roles().Define("fragile", act.Branch[collision.Struck]{
 		Name: "gone when struck",
 		When: cond.Self.If(cond.Always),
@@ -68,6 +71,9 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 	s.players = players.NewPlugin(s.world)
 	s.players.Local("first")
 	ctx.Setup(carrierProbe{s})
+	if err := ctx.Use(s.motion); err != nil {
+		return err
+	}
 	if err := ctx.Use(s.collision); err != nil {
 		return err
 	}
@@ -86,6 +92,7 @@ func (s *carrierStage) Spawn() error {
 
 func (s *carrierStage) Update(ctx goke.RunCtx, d time.Duration) {
 	s.world.RunPlan(ctx, d)
+	s.motion.RunPlan(ctx, d)
 	s.collision.RunPlan(ctx, d)
 	s.players.RunPlan(ctx, d)
 }

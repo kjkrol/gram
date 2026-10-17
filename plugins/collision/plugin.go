@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -19,6 +20,7 @@ type Plugin struct {
 	*world.Self
 
 	worldPlugin *world.Plugin
+	motion      *motion.Plugin
 	module      *module
 
 	pairs    host.PairRules[Meeting]
@@ -35,9 +37,9 @@ var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.KindTemplater = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// NewPlugin builds the collision plugin over worldPlugin's space.
-func NewPlugin(worldPlugin *world.Plugin) *Plugin {
-	p := &Plugin{worldPlugin: worldPlugin}
+// NewPlugin builds the collision plugin over worldPlugin's space, its leavers motion's.
+func NewPlugin(worldPlugin *world.Plugin, m *motion.Plugin) *Plugin {
+	p := &Plugin{worldPlugin: worldPlugin, motion: m}
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.boxesView = &boxesView{w: worldPlugin}
 	return p
@@ -46,8 +48,8 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 // KindTemplates is what collision asks of the kinds a game defines: every unit a collider of the
 // physics' defaults.
 func (p *Plugin) KindTemplates(r *kind.Roster) {
-	r.Default(world.UnitTemplate, comp.Const(Collider{}))
-	r.Default(world.UnitTemplate, comp.Const(Physics{}))
+	r.Default(motion.UnitTemplate, comp.Const(Collider{}))
+	r.Default(motion.UnitTemplate, comp.Const(Physics{}))
 }
 
 func (p *Plugin) Name() string { return "gram.collision" }
@@ -58,6 +60,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module.heights = p.worldPlugin.HasHeights()
 	p.module.stats, p.module.log = p.stats, p.log
 	p.module.tick = p.worldPlugin.Tick
+	p.module.leave = p.motion.Leave
 	ctx.UseModule(p.module)
 	ctx.Hosts(&p.pairs, &p.entities)
 	ctx.Draws(p.boxesView)
@@ -82,7 +85,7 @@ func (p *Plugin) WithField(f Field) *Plugin {
 	return p
 }
 
-// RunPlan runs the collisions in the simulation; call it after the world's RunPlan.
+// RunPlan runs the collisions in the simulation; call it after motion's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.switchBoxes()
 	p.module.RunPlan(ctx, d)

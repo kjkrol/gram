@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -54,7 +55,8 @@ func TestZ_TheGroundStopsOnlyWhatStandsInItsBand(t *testing.T) {
 				Entities: world.EntitiesCfg{MaxCount: 2, MinSize: 10, MaxSize: 10},
 				Heights:  true,
 			})
-			c := collision.NewPlugin(w).WithField(tc.field)
+			m := motion.NewPlugin(w)
+			c := collision.NewPlugin(w, m).WithField(tc.field)
 			kind.Define[raised](w.Kinds(), "runner", kind.Spec{
 				comp.Load(func(r raised) world.Position { return posAt(r.x, 500, 10, 10) }),
 				comp.Const(world.Velocity{Dir: geom.NewVec(1, 0), Value: 300}),
@@ -69,7 +71,9 @@ func TestZ_TheGroundStopsOnlyWhatStandsInItsBand(t *testing.T) {
 			}
 			var base goke.Comp[world.Base]
 			var q *goke.Query
-			ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base).Build() }})
+			ecs := collisiontest.Start(t, w, m, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+				q = si.NewQueryBuilder(&base).Build()
+			}})
 			for range 30 {
 				ecs.Tick(time.Second / 60)
 			}
@@ -92,12 +96,13 @@ func TestZ_AFlatWorldIgnoresIt(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
 	var stats collision.ContactStats
-	c := collision.NewPlugin(w).WithStats(&stats)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m).WithStats(&stats)
 	var base goke.Comp[world.Base]
 	var coll goke.Comp[collision.Collider]
 	var zs goke.Comp[world.Z]
 	// the kinds refuse a Z in a flat world, so the two are made by hand
-	ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+	ecs := collisiontest.Start(t, w, m, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		f := si.NewFactory(&base, &coll, &zs)
 		f.Create(2)
 		for f.Next() {

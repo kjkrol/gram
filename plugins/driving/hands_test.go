@@ -22,10 +22,11 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -85,11 +86,12 @@ func newFencedField(t *testing.T, fences []cell.ID, walkers ...walker) *field {
 		Entities: world.EntitiesCfg{MaxCount: len(walkers) + len(fences), MinSize: 10, MaxSize: 22},
 		Heights:  true,
 	})
-	col := collision.NewPlugin(f.w)
-	brd := board.NewPlugin(f.grid, &cell.SingleOccupancy{}, f.w).WithCollision(col)
+	m := motion.NewPlugin(f.w)
+	col := collision.NewPlugin(f.w, m)
+	brd := board.NewPlugin(f.grid, &cell.SingleOccupancy{}, f.w).WithMotion(m).WithCollision(col)
 	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(f.w)
-	drv := driving.NewPlugin(f.w, sel).WithGround(brd).WithTap(rigTap)
+	drv := driving.NewPlugin(f.w, m, sel).WithGround(brd).WithTap(rigTap)
 	if err := f.w.Carry(drv); err != nil { // as the engine does with Use
 		t.Fatal(err)
 	}
@@ -97,7 +99,7 @@ func newFencedField(t *testing.T, fences []cell.ID, walkers ...walker) *field {
 		f.cams[p] = cameras.TopDown()(320, 96, 0, camera.Config{})
 	}
 	ctx := &installCtx{ecs: goke.New()}
-	for _, p := range []plugin.Plugin{f.w, col, brd, sel, drv} {
+	for _, p := range []plugin.Plugin{f.w, m, col, brd, sel, drv} {
 		if err := p.Install(ctx); err != nil {
 			t.Fatal(err)
 		}
@@ -167,6 +169,7 @@ func newFencedField(t *testing.T, fences []cell.ID, walkers ...walker) *field {
 	f.ecs.Setup(systems...)
 	f.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		f.w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
 		col.RunPlan(rc, d)
 		brd.RunPlan(rc, d)
 		drv.RunPlan(rc, d)

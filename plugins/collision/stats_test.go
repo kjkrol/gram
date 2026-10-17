@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -27,7 +28,8 @@ func colliding(t *testing.T, elastic bool, ticks int, with func(*collision.Plugi
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 2, MinSize: 10, MaxSize: 10},
 	})
-	c := collision.NewPlugin(w)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m)
 	with(c)
 	spec := kind.Spec{
 		comp.Load(func(b slider) world.Position {
@@ -53,7 +55,7 @@ func colliding(t *testing.T, elastic bool, ticks int, with func(*collision.Plugi
 	if err := w.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)
 	}
-	ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+	ecs := collisiontest.Start(t, w, m, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		var base goke.Comp[world.Base]
 		q := si.NewQueryBuilder(&base).Build()
 		for q.All(); q.Next(); {

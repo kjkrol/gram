@@ -13,9 +13,10 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -49,9 +50,16 @@ var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.KindTemplater = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 
-// NewPlugin builds the driving over worldPlugin's units, a player's hand on those it has selected
-// in selectionPlugin while its camera is fastened to none.
-func NewPlugin(worldPlugin *world.Plugin, selectionPlugin *selection.Plugin) *Plugin {
+// NewPlugin builds the driving over worldPlugin's units, moved by m, a player's hand on those it
+// has selected in selectionPlugin while its camera is fastened to none.
+func NewPlugin(
+	worldPlugin *world.Plugin,
+	m *motion.Plugin,
+	selectionPlugin *selection.Plugin,
+) *Plugin {
+	if m == nil {
+		panic("driving: a unit driven moves by motion, and none was given")
+	}
 	if t := worldPlugin.Kinds().DefineTag[States](drivingName); t != Driving {
 		panic(fmt.Sprintf("driving: its markers have tags of their own before %q", drivingName))
 	}
@@ -84,8 +92,9 @@ func (p *Plugin) WithTap(d time.Duration) *Plugin {
 // KindTemplates is what driving asks of the kinds a game defines: of a unit, the profile it is
 // driven by and its driving's markers.
 func (p *Plugin) KindTemplates(r *kind.Roster) {
-	kind.Require[steering.Steering](r, world.UnitTemplate, "driving", "the profile it is driven by")
-	r.Default(world.UnitTemplate, comp.Marks[States]())
+	kind.Require[steering.Steering](r, motion.UnitTemplate, "driving",
+		"the profile it is driven by")
+	r.Default(motion.UnitTemplate, comp.Marks[States]())
 }
 
 func (p *Plugin) Name() string { return "gram.driving" }

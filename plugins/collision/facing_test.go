@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -29,7 +30,8 @@ func TestMeeting_FacingIsTheWordOfTheOneTurnedTowardsTheOther(t *testing.T) {
 	if err := w.Carry(&orders); err != nil {
 		t.Fatal(err)
 	}
-	c := collision.NewPlugin(w)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m)
 	if err := c.Hook(act.Branch[collision.Meeting]{
 		Name: "facing",
 		When: cond.Self.If(collision.Facing(math.Pi / 4)),
@@ -49,7 +51,7 @@ func TestMeeting_FacingIsTheWordOfTheOneTurnedTowardsTheOther(t *testing.T) {
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
-	ecs := collisiontest.Start(t, w, c)
+	ecs := collisiontest.Start(t, w, m, c)
 	ecs.Tick(time.Second / 60)
 	var told []float64
 	for _, h := range orders.given() {

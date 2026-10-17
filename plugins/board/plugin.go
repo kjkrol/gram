@@ -27,8 +27,9 @@ import (
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -58,6 +59,7 @@ type Plugin struct {
 	covers    map[tag.Tag[effect.States]]render.SpriteID
 
 	worldPlugin *world.Plugin
+	motion      *motion.Plugin
 	module      *module
 	rules       *moments.Rules
 	workers     int // 0 all the CPUs, 1 none
@@ -130,10 +132,10 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 // and the domains it moves in; of a kind standing on it, lying as it is and casting a Baked
 // shadow.
 func (p *Plugin) KindTemplates(r *kind.Roster) {
-	kind.Require[unit.At](r, world.UnitTemplate, "board", "the cell it starts in")
-	kind.Require[unit.Mover](r, world.UnitTemplate, "board", "the domains it moves in")
-	r.Default(world.UnitTemplate, comp.Const(steering.Pace{Share: 1}))
-	r.Default(world.UnitTemplate, comp.Marks[unit.States]())
+	kind.Require[unit.At](r, motion.UnitTemplate, "board", "the cell it starts in")
+	kind.Require[unit.Mover](r, motion.UnitTemplate, "board", "the domains it moves in")
+	r.Default(motion.UnitTemplate, comp.Const(steering.Pace{Share: 1}))
+	r.Default(motion.UnitTemplate, comp.Marks[unit.States]())
 	r.Default(StandingTemplate, comp.Const(world.Lie{}))
 	r.Default(StandingTemplate, comp.Const(world.Shadow{Cast: world.Baked}))
 }
@@ -473,6 +475,12 @@ func (p *Plugin) Footing() ground.Surfaces {
 
 // Cover is what stands on the board and holds sight back; it is a ground.Readied too.
 func (p *Plugin) Cover() ground.Cover { return p.Board().field }
+
+// WithMotion has m move the board's units; a board without it has none. Call before Use.
+func (p *Plugin) WithMotion(m *motion.Plugin) *Plugin {
+	p.motion = m
+	return p
+}
 
 // WithCollision makes the board's Solid cells the solid ground c pushes colliders out of; call
 // before Use.

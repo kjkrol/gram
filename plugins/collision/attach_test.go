@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -21,7 +22,8 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 10, MaxSize: 10},
 	})
 	var stats collision.ContactStats
-	c := collision.NewPlugin(w).WithStats(&stats)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m).WithStats(&stats)
 
 	kind.Define[float64](w.Kinds(), "town", kind.Spec{
 		comp.Load(func(x float64) world.Position { return posAt(x, 100, 10, 10) }),
@@ -36,7 +38,7 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 
 	var first uid.UID64
 	var edit func(cb *goke.CmdBuf)
-	ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+	ecs := collisiontest.Start(t, w, m, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		var base goke.Comp[world.Base]
 		q := si.NewQueryBuilder(&base).Build()
 		q.All()
@@ -50,7 +52,7 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 			edit = nil
 		}
 	}})
-	step := collisiontest.Step(w, c)
+	step := collisiontest.Step(w, m, c)
 	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		rc.Run(editor, d)
 		rc.Sync()

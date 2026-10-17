@@ -7,6 +7,7 @@ import (
 
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/bullet"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -39,7 +40,8 @@ func TestFigures_RunTheirPartsOnTheShotsAndLookOnTheWorldsAtlas(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 1, MaxSize: 10},
 	})
-	b := bullet.NewPlugin(w, selection.NewPlugin(w))
+	m := motion.NewPlugin(w)
+	b := bullet.NewPlugin(w, m, selection.NewPlugin(w))
 	f := &pellet{}
 	b.Figures(f)
 	for _, part := range []section.Part{section.Effects, section.Rules, section.Kinds} {

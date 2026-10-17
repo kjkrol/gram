@@ -12,8 +12,8 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
 	contract "github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 

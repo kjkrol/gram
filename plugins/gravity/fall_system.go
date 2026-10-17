@@ -2,6 +2,7 @@ package gravity
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/plugins/motion"
 	"math"
 	"time"
 
@@ -31,7 +32,7 @@ type fallSystem struct {
 	bodies *goke.Query
 	base   goke.Comp[world.Base]
 	body   goke.Comp[Body]
-	drift  goke.Comp[world.Drift]
+	drift  goke.Comp[motion.Drift]
 	marks  goke.Comp[tag.Tags[unit.States]]
 	z      goke.OptComp[world.Z]
 	mover  goke.OptComp[unit.Mover]
@@ -98,7 +99,7 @@ func (s *fallSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				floor, ceiling = surfaces.Surface(bases[i].Pos.Center(), unit.DomainAt(movers, i),
 					z.Altitude, z.Reach())
 			}
-			if drifts[i] == (world.Drift{}) && !marks[i].Has(unit.Airborne) &&
+			if drifts[i] == (motion.Drift{}) && !marks[i].Has(unit.Airborne) &&
 				z.Altitude-floor <= z.Reach() {
 				z.Altitude = floor
 				s.walking.speeds = append(s.walking.speeds, -1)
@@ -152,14 +153,14 @@ func (s *fallSystem) throw(g float64) {
 	})
 }
 
-func bodyOf(z *world.Z, d *world.Drift, marks tag.Tags[unit.States]) vertical.Body {
+func bodyOf(z *world.Z, d *motion.Drift, marks tag.Tags[unit.States]) vertical.Body {
 	return vertical.Body{Feet: z.Altitude, Height: z.Height, Reach: z.Reach(),
 		X: d.X, Y: d.Y, Rise: d.Z, Airborne: marks.Has(unit.Airborne)}
 }
 
-func put(b *vertical.Body, z *world.Z, d *world.Drift, marks *tag.Tags[unit.States]) {
+func put(b *vertical.Body, z *world.Z, d *motion.Drift, marks *tag.Tags[unit.States]) {
 	z.Altitude = b.Feet
-	*d = world.Drift{X: b.X, Y: b.Y, Z: b.Rise}
+	*d = motion.Drift{X: b.X, Y: b.Y, Z: b.Rise}
 	if b.Airborne {
 		*marks = marks.With(unit.Airborne)
 	} else {

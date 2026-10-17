@@ -1,18 +1,17 @@
-// Package world is the foundation for a Stage with moving, drawable entities: a Position and
-// Velocity each, a shared spatial index other plugins query, and motion integrated each step,
-// never further than Position.MaxStep. What an entity carries is set by its kind (entity/kind).
+// Package world is the foundation for a Stage with drawable entities: a Position and Velocity
+// each and a shared spatial index other plugins query; the motion plugin moves them. What an
+// entity carries is set by its kind (entity/kind).
 //
 // The world runs gram's core: entity and entity/kind, clock, and ceremony through its goke
 // binding (the effects, the plans, the commands about effects, the roles' tags).
-// Its sub-packages are steering (heading and speed reached gradually) and view (what one camera
-// sees); its machinery is in plugins/world/internal.
+// Its sub-package is view (what one camera sees); its machinery is in plugins/world/internal.
 //
 // # Plugin
 //
 // [Plugin] is the world a Stage makes from a [Config]: the [SpaceCfg] sizes it and sets the edge
 // rule per axis (closed, wrapping or open), the [EntitiesCfg] bounds how many entities it holds and
-// their sizes. An entity wholly past an open edge carries [Outside]; the rules of a [Leaving] hear
-// of it every tick, and with none it is despawned. Config.Heights gives the world heights: entities
+// their sizes; what becomes of one past an open edge is motion's. Config.Heights gives the world
+// heights: entities
 // carry a [Z], and the board, the topography and the atmosphere stand in no other; a flat world
 // refuses a Z. The world knows its entities and nothing else: the ground is the board's, the sky
 // the atmosphere's.
@@ -21,10 +20,10 @@
 //
 // [Base] is the one component every entity carries: its [Position], its [Velocity] (a unit
 // heading and a speed in world units a second), the kind it was spawned from and the capability
-// bits the space indexes it under. [Z], [Layers], [Eye], [Drift], [Lie] and [Shadow] are the
-// types of package entity under the world's own names; every unit casts a [Patch] unless its kind
-// says otherwise. No entity moves further in a step than
-// [StepReach] of its own shorter side.
+// bits the space indexes it under. [Z], [Layers], [Eye], [Lie] and [Shadow] are the types of
+// package entity under the world's own names; every entity of a template casts a [Patch] unless
+// its template or its kind says otherwise. No entity moves further in a step than [StepReach] of
+// its own shorter side.
 //
 // # Scale
 //
@@ -38,8 +37,8 @@
 // bits of a tag family by name and [Kinds.NewSprite] atlas slots no kind owns. A Stage's Spawn
 // puts entities on the roster with [Plugin.Seed]; the engine calls [Plugin.Populate] only for a
 // Stage entered afresh. [Plugin.Roster] is what the plugins ask of the kinds of each template
-// ([EntityTemplate], [UnitTemplate], others a plugin brings), the world and every plugin made
-// writing theirs in their KindTemplates as it is first read.
+// ([EntityTemplate] and those a plugin brings: motion.UnitTemplate, the board's), the world and
+// every plugin made writing theirs in their KindTemplates as it is first read.
 //
 // # Roles and Commands
 //
@@ -68,9 +67,9 @@
 //
 // The world keeps the tactical clock ([Plugin.Clock]) and the commands [Pause], [Faster] and
 // [Slower] on it. [Plugin.RunPlan] runs the tick: the clock's commands and the views at once;
-// in every step of the simulation the plans, the spawns, the steering, the rules of a [Moving]
-// over every entity, movement, the leavers, the commands about effects, the clock's moments and
-// the effects. [Plugin.Carrier] is the Stage's one carrier of commands.
+// in every step of the simulation the plans, the spawns and the despawns, the commands about
+// effects, the clock's moments and the effects, the space told of every entity after a spawn or a
+// despawn. [Plugin.Carrier] is the Stage's one carrier of commands.
 //
 // # Drawing and Look
 //
@@ -111,10 +110,8 @@
 //
 // # Vocabulary
 //
-// Moments, for a role's rules: [Moving] (every entity before it moves; its words [Still],
-// [Braking]), [Leaving] (every tick an entity is past an open edge). Knobs, for an effect's Alter:
-// render.Appearance, the look's; [Shadow], how it casts its shadow. Commands: [Spawn] (a player's
-// or an entity's own); [Despawn] (an entity's own); [Pause], [Faster], [Slower] (a player's). The
-// clock's moment and the commands about effects (ceremony.Put, Take, Toggle, Trigger) are carried
-// here too.
+// Knobs, for an effect's Alter: render.Appearance, the look's; [Shadow], how it casts its shadow.
+// Commands: [Spawn] (a player's or an entity's own); [Despawn] (an entity's own); [Pause],
+// [Faster], [Slower] (a player's). The clock's moment and the commands about effects
+// (ceremony.Put, Take, Toggle, Trigger) are carried here too.
 package world

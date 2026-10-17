@@ -19,10 +19,11 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -73,15 +74,16 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 		Entities: world.EntitiesCfg{MaxCount: len(units), MinSize: 1, MaxSize: largest},
 		Heights:  true,
 	})
-	c := collision.NewPlugin(w)
-	brd := board.NewPlugin(fw.grid, &cell.SingleOccupancy{}, w).WithCollision(c)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m)
+	brd := board.NewPlugin(fw.grid, &cell.SingleOccupancy{}, w).WithMotion(m).WithCollision(c)
 	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	if lay != nil {
 		lay(brd.Board(), fw.at)
 	}
 	sel := selection.NewPlugin(w)
-	drv := driving.NewPlugin(w, sel).WithGround(brd)
-	fw.nav = NewPlugin(brd, w, sel, drv).WithCollision(c).WithSpacing(spacing)
+	drv := driving.NewPlugin(w, m, sel).WithGround(brd)
+	fw.nav = NewPlugin(brd, w, m, sel, drv).WithCollision(c).WithSpacing(spacing)
 	if configure != nil {
 		configure(fw.nav)
 	}
@@ -90,6 +92,9 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	}
 	ctx := &stubInstallCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := c.Install(ctx); err != nil {
@@ -151,6 +156,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
 		c.RunPlan(rc, d)
 		brd.RunPlan(rc, d)
 		fw.nav.RunPlan(rc, d)

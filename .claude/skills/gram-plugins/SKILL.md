@@ -1,6 +1,6 @@
 ---
 name: gram-plugins
-description: Reference of gram's built-in plugins, one entry each with its current API and rules — world, board (cells, units, entities on the board, bridges, maps as files, gramap), topography, atmosphere, collision, navigation, entity, steering, view, clock, selection, dialog, players and owner, cameras, driving, gravity, vision, bridges, bullet. Use when working in or with a specific plugin, to learn what it keeps, hosts, handles and depends on before reading its code.
+description: Reference of gram's built-in plugins, one entry each with its current API and rules — world, motion, board (cells, units, entities on the board, bridges, maps as files, gramap), topography, atmosphere, collision, navigation, entity, steering, view, clock, selection, dialog, players and owner, cameras, driving, gravity, vision, bridges, bullet. Use when working in or with a specific plugin, to learn what it keeps, hosts, handles and depends on before reading its code.
 ---
 
 # gram-plugins
@@ -12,24 +12,25 @@ facts for plans, knobs and commands (who may give each). That section is the aut
 - **`world`** — the foundation a Stage makes from `world.Config` (`stage.World(cfg)`;
   `ctx.UseWorld(cfg)` underneath, once): the space's size and edges (`SpaceCfg.Edges`:
   `aabbworld.Torus`, `WrapX`/`WrapY`, `OpenX`/`OpenY`, closed by default — a box stops whole at a
-  closed edge, wraps at a wrapping one, may leave by an open one: wholly past it the entity carries
-  `world.Outside`, rules of a `world.Leaving` hear of it every tick, with none it is despawned),
+  closed edge, wraps at a wrapping one, may leave by an open one: what becomes of it then is
+  motion's),
   entity bounds, `Heights`, `Scale{Metres, Figures}` (what a world unit is; `Scale.Units` metres;
   `Figures` how many times bigger than life the figures are drawn, `Scale.Figure(m)` their boxes,
   heights and eyes; speeds and sight stay real; with it the ground sinks under an eye's level,
   `Scale.Drop`, and the air hazes far off), `Seed` (which `Chance` draws from). `world.Roster()` is
   what the plugins ask of the kinds of each template: a `kind.Template` is a sort of kind a plugin
-  brings in by name under a parent (`kind.NewTemplate(name, parent)`; world: `EntityTemplate`,
-  `UnitTemplate` under it; board: `StandingTemplate` under the entity's, `CellTemplate`;
+  brings in by name under a parent (`kind.NewTemplate(name, parent)`; world: `EntityTemplate`;
+  motion: `UnitTemplate` under it; board: `StandingTemplate` under the entity's, `CellTemplate`;
   `entity/kind` knows none). A plugin writes its asks in `KindTemplates(r *kind.Roster)`
   (`plugin.KindTemplater`, asserted beside the type) and nowhere else: the world calls its own and
   every made plugin's, in the order made, as the roster is first read, and refuses a write elsewhere
   and a plugin asking made after (make every plugin before defining a kind).
   `kind.Require[T](r, t, by, why)` names what the game must supply (world: `Position` of every
   entity; board: `At`, `Mover` of a unit; navigation, driving: `steering.Steering`),
-  `r.Default(t, comp.Const(v))` what a plugin brings itself (world: `Velocity{}` of every entity,
-  effect marks, `steering.Course`, `Shadow{Patch}` of a unit; board: `Lie{}`, `Shadow{Baked}` of
-  what stands; collision: `Collider{}`, `Physics{}`; dropped with `comp.Without[T]()`, a template's
+  `r.Default(t, comp.Const(v))` what a plugin brings itself (world: `Velocity{}`, effect marks,
+  `Shadow{Patch}` of every entity; motion: `steering.Course` of a unit; board: `Lie{}`,
+  `Shadow{Baked}` of what stands; collision: `Collider{}`, `Physics{}` of a unit; dropped with
+  `comp.Without[T]()`, a template's
   own taking the place of its parent's); `r.Spec(t, own...)` builds a kind's Spec
   (`board.NewUnits` from the unit's, `Entities.Define` from the standing one's with its shape's `Z`,
   the cells from the cell's), a missing requirement panicking by plugin and reason. `world.Layers`
@@ -42,18 +43,15 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`Seed`/`Populate`) and during it (`world.Spawn{Entry}`, `Plugin.Spawn`: the world's own system
   makes the entity at the next step after the plans, refusing with a log line an unknown kind, a
   wrong row, a full world, a bad size, a box past an open edge) and go by `world.Despawn{}` (an
-  entity's own, `act.Do`). Movement is capped per entity at half its shorter side
-  (`world.StepReach`, `Position.MaxStep`/`MaxSpeed`); the move pass moves every box by its
-  `Velocity` and `world.Drift` (gravity's) under the edge rules, then rebuilds the space
-  (`Space.Rebuild`): `Query`, `Scan` and collisions read that grid until the next tick. After
-  movement the `view.System` refreshes every `view.View` (`Plugin.View()` the camera's,
-  `ViewFor(cam)` any's); the renderer draws what the View contains. The world makes no camera. It
-  hosts rules of a `Moving` (every entity, in the velocity pass, which also scales `Base.Vel.Value`
-  by the entity's `steering.Pace`, the board's share; its words `world.Still()`, neither walking nor
-  strafing, and `world.Braking()`, slowing down — `Moving` carries the steering's `Course`), a
-  `Leaving` and a `clock.Moment` (every step, just before the effects' pass). It handles
-  `steering.Away{From}`, `Toward{To}` (`host.Aimed`), `Turn{Angle}` (the steering system asks the
-  `Helm`, one a step), the commands about effects, `Pause` (Shift+P), `Faster` (]) and `Slower` ([).
+  entity's own, `act.Do`, carried out in the world's step; `Plugin.Despawn(cb, id)` a plugin's).
+  The world's step: the plans, the spawns and despawns, the commands about effects, the clock's
+  moments, a Sync, the space indexed anew if anything spawned or went (`Space.Rebuild`; motion
+  indexes it after moving), the effects' pass. `Query`, `Scan` and collisions read that grid
+  until the next rebuild. At the start of the world's tick the `view.System` refreshes every
+  `view.View` (`Plugin.View()` the camera's, `ViewFor(cam)` any's); the renderer draws what the
+  View contains. The world makes no camera. It hosts rules of a `clock.Moment` (every step, just
+  before the effects' pass) and handles the commands about effects, `Pause` (Shift+P), `Faster`
+  (]) and `Slower` ([).
   `Figures(f...)` notes kinds of entity in one piece (`world.Figure`: `Define(w)`, `Look(a, w)`;
   `Stateful`, `Ruled`), `FiguresIn(part)` runs their parts as the Stage reaches Effects, Rules and
   Kinds; `ctx.Looks` declares their looks on the atlas once the Stage is set up. `Picture()` is the
@@ -61,6 +59,28 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `world.Plugin.Tick(d)`: the carrier (`world.Plugin.Carrier()`, the stage's one `command.Carrier`
   for players and entities alike; the engine carries every `plugin.CommandHandler` a stage uses),
   `Time`, `Seed`, `Roles`, `World` (the clock's entity).
+- **`motion`** — moves the world's entities (`motion.NewPlugin(w)`, made first in `makePlugins`,
+  its `RunPlan` right after the world's; a world without it, look/sky, keeps everything where it
+  stands). Every step after the world's: the steering system (`motion/steering`: carries out the
+  `Course` asked of each entity as its `Steering` lets it, gives a `Course` where there is none,
+  handles `steering.Away{From}`, `Toward{To}` (`host.Aimed`), `Turn{Angle}`, one a step), the
+  velocity pass (scales `Base.Vel.Value` by the entity's `steering.Pace`, the board's share, and
+  runs the rules of a `motion.Moving`: its words `motion.Still()`, neither walking nor strafing,
+  and `motion.Braking()`, slowing down — `Moving` carries the steering's `Course`), the move pass
+  (every box by its `Velocity` and `motion.Drift`, gravity's, under the edge rules, capped at half
+  its shorter side, `world.StepReach`, `Position.MaxStep`/`MaxSpeed`; then the space rebuilt), a
+  Sync, the leavers (wholly past an open edge an entity carries `motion.Outside`; rules of a
+  `motion.Leaving` hear of it every tick, with none it is despawned; one back inside loses the
+  mark). Running after the effects' pass, an effect on the steering tells the step it begins; what
+  a rule of `Moving` or `Leaving` puts on or takes off lands with the next step's effects.
+  `motion.UnitTemplate` (under `world.EntityTemplate`) is the template of what moves.
+  Whatever steers or pushes takes motion as it is made — `collision.NewPlugin(w, m)`,
+  `bullet.NewPlugin(w, m, sel)`, `driving.NewPlugin(w, m, sel)`,
+  `navigation.NewPlugin(brd, w, m, sel, drv)`, `gravity.NewPlugin(w, m, cfg)`; a board's units
+  `board.Plugin.WithMotion(m)` (`NewUnits` panics without it); collision and bullet hand an
+  entity they put out to `motion.Plugin.Leave(cb, id)`. A plugin reading a steering component in a
+  world that may lack motion lists its `LoadComp` itself (the board `Pace`, the topography
+  `Course`, `Driven`, `Drift`), so a save loads either way.
 - **`board`** — optional grid and terrain over `world`, standing only in a world with heights
   (`board.NewPlugin` panics in a flat one; a world without a board — collision, minimal,
   rules/vision, scenes — stays flat); its grids wrap per axis, following the world's `Edges`. The
@@ -113,7 +133,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `altitudeSystem` writes every `Z.Altitude` each step from
   `Relief.Surface` (the board's `ground.Surfaces`: the highest of the ground and a `cell.Floor`'s
   deck carrying its domain within its step of its feet; the ceiling a slab's underside) plus its
-  `Lift` — except one carrying a `world.Drift`, which gravity carries.
+  `Lift` — except one carrying a `motion.Drift`, which gravity carries.
   Every tick, after collision's `RunPlan`, `board.RunPlan` reports a `Standing` (cell under the
   centre, its kind on the unit's level, the box, the domain, `Airborne`, `Feet`, `Level`,
   `Reach`) to its rules: `unit.Fallen()` a land unit fallen into water or a hole (never in the
@@ -150,7 +170,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (the file and line of its entity in a map), one broken later is not built, said in the log.
   `Board.DecksOver(p, visit)` gives every deck over a point, `Board.KindFor(c, p, feet, reach)` the
   kind there, `Board.CellFor`/`LevelFor` the cell and level whoever stands there is on.
-  `board.NewUnits[Row](brd, board.Shape{Size, Width, Height}, at)` defines a game's units:
+  `board.NewUnits[Row](brd, board.Shape{Size, Width, Height}, at)` defines a game's units, on a
+  board given motion (`WithMotion(m)`, else it panics):
   `units.Define(name, unit.Mover{…}, steering, extra...)` derives `Position` and `At` from the one
   point `at` reads off a row, `Layers` from the domain, with heights a `Z{Height}`, runs the
   world's roster and `kind.Define`; `units.Named(name)` is the `kind.Of[Row]`; a Shape bigger
@@ -207,7 +228,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   board's own Map is the simple map — flat, every kind in its sprite from the game's atlas
   (declared by `ctx.Looks` from the tiles, the sprites the cell's bounds across), the ways as bands
   cut out of their kinds' sprites, a step at its kind's cost; `plugins/topography` is the other.
-  Depends on `world` and `collision`.
+  Depends on `world`, `motion` and `collision`.
 - **`topography`** — a map in relief: `topography.NewPlugin(world, board, Config{Cell, TileW,
   TileH, HeightUnit, Headroom, Shaping, Climbing, Perspective, Solid, Fine, EdgeTurn, EdgeTilt})`,
   made right after the world and the board (so a world with heights); refuses a wrapping world. It
@@ -519,7 +540,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   heights, where their `collision.Band`s overlap. The tick is one `collide.Engine.Tick`
   (`github.com/kjkrol/aabbworld/collide`; the system is its `Handler`): the engine pairs whoever
   may touch within a step, tests the pairs, pushes the overlapping apart and reports each pushed
-  box, written back to `Base.Pos`; one pushed out through an open edge is marked `world.Outside`.
+  box, written back to `Base.Pos`; one pushed out through an open edge is motion's leaver
+  (`motion.Plugin.Leave`).
   Overlapping boxes touch: the box is the shape. **A pair parted stays met while it touches**:
   the pairs of the tick before that the engine did not push but whose boxes lie within `restGap`,
   layers and bands meeting, neither swept, get a `Contact` with `Resting` on both sides, no
@@ -547,7 +569,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   entity's box in red, `BoxesShown`: `Bases` (the footprint at its altitude, after its figure in
   the order, under its own sprite where there is a depth), `Solids` (the twelve edges from its
   altitude to its top, `Frame.Edge`, only in a world with heights), `NoBoxes`; the game hands the
-  plugin to players for the key. Depends on `world`.
+  plugin to players for the key. Made `collision.NewPlugin(world, motion)`; depends on `world`,
+  `motion`.
 - **`navigation`** — pathfinding and movement toward a `MoveOrder` across a `board`. **A route
   once planned is followed**: navigation plans again only when it breaks — the ground under its
   remaining steps turns against the unit (`admitsAll` on a terrain version change), a step is
@@ -608,7 +631,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   over the goal's ground and, on `Routes{}` (Shift+R), its routes as thin lines at the ground's
   depth; `WithRouteStyle`.
   Facts told a unit with a tree: `Blocked`, `Arrived`; `MoveOrder.HitUnit` (entity ids start at 0:
-  never use 0 as "nobody"). Depends on `board`, `world`, `selection`, `driving`.
+  never use 0 as "nobody"). Depends on `board`, `world`, `motion`, `selection`, `driving`.
 - **`entity`** (core) — what every entity carries: `Base`, `Position` (`StepReach`, `MaxStep`,
   `MaxSpeed`), `Velocity` (`Dir`, `Value`, `Side`), `Z`, `Layers`, `Drift{X, Y, Z}` (the velocity
   it is carried at beyond its walk, written by gravity alone), `Eye{Height, Angle, Vertical,
@@ -618,11 +641,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   alike), `Lie`, `Shadow{Cast}` (a knob: `Patch` the zero, `Silhouette`, `Baked`, `NoShadow`;
   units get a `Patch`, board entities `Baked`, a kind may declare its own, an effect turn it). A
   leaf; the world re-exports them as type aliases.
-- **`world/steering`** — `steering.Steering{TurnRate, Reflex, MaxSpeed, Sprint, Accel, Brake,
+- **`motion/steering`** — `steering.Steering{TurnRate, Reflex, MaxSpeed, Sprint, Accel, Brake,
   V0, Halted}` the knobs, `steering.Course{Want, Pending, Delay, Speed, WantSpeed}` the state
   (given to every unit by the roster and by the system where missing), `steering.Helm{*Steering,
   *Course}` what steers (`Request(heading)`, `RequestSpeed`, `RequestSprint`, `RequestBack`,
-  `RequestSide`). `steering.System` runs in every simulation step before movement: turns `Vel.Dir`
+  `RequestSide`). `steering.System` runs in motion's every step before it moves: turns `Vel.Dir`
   towards `Want` by at most `TurnRate` a tick after `Reflex` ticks (`TurnRate` 0 turns at once),
   writes `Vel.Value` from the profile; `Halted` holds speed at 0. `steering.Driven{Ahead, Turn,
   Sprint, Face, Side, Look, Flown, Climb}` is an entity steered by hand, two writers: the driving
@@ -741,7 +764,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   whose WSAD drive binds `cameras.Keys{Wheel, ZoomIn, ZoomOut}` alone. The engine sizes no camera.
   Depends on `world`.
 - **`driving`** — units driven by hand, with or without navigation: `driving.NewPlugin(world,
-  selection).WithGround(board)`. Its commands `Ahead{Camera, Sprint}`, `Back`, `Turn{Way}`,
+  motion, selection).WithGround(board)`. Its commands `Ahead{Camera, Sprint}`, `Back`, `Turn{Way}`,
   `Toward{Way}`, `Strafe{Camera, Way}` add up a tick into a hand — a player's through the camera the
   command names: on the unit it is fastened to, else on the player's selected units; an entity's own
   (`act.Do`) — written into `steering.Driven` with the marker `driving.Driving` (`handSystem`); the
@@ -756,25 +779,25 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   sets: `driving.Tank{Ahead, Back, Left, Right, In}` (Left and Right turn), `driving.Shooter{…}`
   (Left and Right strafe, the mouse turns) and `driving.Compass{Up, Down, Left, Right, In}`
   (`Bindings()`); `DefaultKeys()` a `Shooter` of WSAD `In(camera.Inside)` and a `Tank` of the arrows
-  `In(camera.Behind)`. Depends on `world`, `selection`, `board`, `players/owner`, `gravity`.
-- **`gravity`** — bodies falling, standing, leaping (a character controller, not rigid bodies;
-  one plugin, two modes, chosen by the pull's axis, not by the world): `gravity.NewPlugin(world,
+  `In(camera.Behind)`. Depends on `world`, `motion`, `selection`, `board`, `players/owner`,
+  `gravity`.
+- **`gravity`** — bodies falling, standing, leaping (a character controller, not rigid bodies; one
+  plugin, two modes, chosen by the pull's axis, not by the world): `gravity.NewPlugin(world, motion,
   Config{Pull})`, its own entity carrying the knob `gravity.Pull{X, Y, Z}` (an effect's `Alter`
-  turns it over within its axis; turned from Z to X/Y or back it panics; a pull both ways, or
-  along Z in a flat world, panics; zero, the Earth's as the figures feel it). A kind falls
-  carrying `gravity.Body{Leap}`; `giveSystem` puts a `world.Drift` on it where missing. Along Z
-  the `fallSystem` (`internal/vertical`) stands a body every step on the surface under its centre
-  (`WithSurfaces(board.Footing)`, refused for a pull across) within its reach down, flies it
-  under the pull, stops its head at a slab's underside and lands it; across X/Y (a side view, the
-  platformer: a world with heights, `Pull{Y}`, Z its depth) the `planeSystem`
-  (`internal/planar`) has collision's contacts (not `Sensed`) take the drift
-  running into them, a body borne by one facing against the pull, braked across the pull while
-  borne. `unit.Airborne` is on while in the air. Commands, an entity's own: `Leap{}` (none in the
-  air), `Away{Speed, Rise}` (`host.Aimed`: thrown off from the moment's subject). A `Landing{ID,
-  Speed}` is told the rules hosted once as a body lands, its word `gravity.HarderThan(v)`. Run it
-  right after collision's RunPlan. board-topography's walkers leap 1.5 m over 1 m railings (a leap
-  no higher than a railing never clears it). Depends on `world`, `board/ground`, `board/unit`,
-  `collision`.
+  turns it over within its axis; turned from Z to X/Y or back it panics; a pull both ways, or along
+  Z in a flat world, panics; zero, the Earth's as the figures feel it). A kind falls carrying
+  `gravity.Body{Leap}`; `giveSystem` puts a `motion.Drift` on it where missing. Along Z the
+  `fallSystem` (`internal/vertical`) stands a body every step on the surface under its centre
+  (`WithSurfaces(board.Footing)`, refused for a pull across) within its reach down, flies it under
+  the pull, stops its head at a slab's underside and lands it; across X/Y (a side view, the
+  platformer: a world with heights, `Pull{Y}`, Z its depth) the `planeSystem` (`internal/planar`)
+  has collision's contacts (not `Sensed`) take the drift running into them, a body borne by one
+  facing against the pull, braked across the pull while borne. `unit.Airborne` is on while in the
+  air. Commands, an entity's own: `Leap{}` (none in the air), `Away{Speed, Rise}` (`host.Aimed`:
+  thrown off from the moment's subject). A `Landing{ID, Speed}` is told the rules hosted once as a
+  body lands, its word `gravity.HarderThan(v)`. Run it right after collision's RunPlan.
+  board-topography's walkers leap 1.5 m over 1 m railings (a leap no higher than a railing never
+  clears it). Depends on `world`, `motion`, `board/ground`, `board/unit`, `collision`.
 - **`vision`** — narrowed perception: a `Sight` cone scanned against the space each step fills
   the entity's `Sighted` (who it can see, nearest first; `Sight` is a knob vision only reads,
   `Sight.Ahead`, `Sight.Looking(dir)`), `SightOutline` gets its view's shape drawn. An entity
@@ -858,7 +881,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`Define(p)`, `Look(a, p)`; `Stateful`, `Ruled`), noted by `Plugin.Figures` among the world's,
   `Plugin.World()` the world. A shot is dressed as any entity (`.Turning()` on the ammo's
   Slot, the heading kept on `Base.Vel.Dir`). A weapon — ammo, reloading, who carries it — is the
-  game's rules and effects. Depends on `world`, `collision`, `selection`, `players/owner`,
-  `board/ground`.
+  game's rules and effects. Depends on `world`, `motion`, `collision`, `selection`,
+  `players/owner`, `board/ground`.
 
 Each package has a `doc.go` describing the gameplay capability it adds.

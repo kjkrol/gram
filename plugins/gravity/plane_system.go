@@ -2,6 +2,7 @@ package gravity
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/plugins/motion"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -31,7 +32,7 @@ type planeSystem struct {
 	bodies *goke.Query
 	base   goke.Comp[world.Base]
 	body   goke.Comp[Body]
-	drift  goke.Comp[world.Drift]
+	drift  goke.Comp[motion.Drift]
 	marks  goke.Comp[tag.Tags[unit.States]]
 	coll   goke.OptComp[collision.Collider]
 
@@ -133,12 +134,12 @@ func (s *planeSystem) throw(g geom.Vec) {
 	})
 }
 
-func planeOf(d *world.Drift, marks tag.Tags[unit.States]) planar.Body {
+func planeOf(d *motion.Drift, marks tag.Tags[unit.States]) planar.Body {
 	return planar.Body{Drift: geom.NewVec(d.X, d.Y), Airborne: marks.Has(unit.Airborne)}
 }
 
-func planePut(b *planar.Body, d *world.Drift, marks *tag.Tags[unit.States]) {
-	*d = world.Drift{X: b.Drift.X, Y: b.Drift.Y}
+func planePut(b *planar.Body, d *motion.Drift, marks *tag.Tags[unit.States]) {
+	*d = motion.Drift{X: b.Drift.X, Y: b.Drift.Y}
 	if b.Airborne {
 		*marks = marks.With(unit.Airborne)
 	} else {

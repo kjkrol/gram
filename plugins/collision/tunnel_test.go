@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -23,7 +24,8 @@ func TestWorldAndCollisions_MixedSizes_NeverTunnel(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 4000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 2, MaxSize: 100},
 	})
-	c := collision.NewPlugin(w)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m)
 	kind.Define[runner](w.Kinds(), "runner", kind.Spec{
 		comp.Load(func(r runner) world.Position { return posAt(r.x, 500-r.side/2, r.side, r.side) }),
 		comp.Load(func(r runner) world.Velocity {
@@ -41,7 +43,9 @@ func TestWorldAndCollisions_MixedSizes_NeverTunnel(t *testing.T) {
 
 	var base goke.Comp[world.Base]
 	var q *goke.Query
-	ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base).Build() }})
+	ecs := collisiontest.Start(t, w, m, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		q = si.NewQueryBuilder(&base).Build()
+	}})
 
 	where := func() (smallX, bigX float64) {
 		for q.All(); q.Next(); {

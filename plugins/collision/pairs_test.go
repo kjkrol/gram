@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 
 	"github.com/kjkrol/aabbworld"
@@ -62,7 +63,8 @@ func broadTick(t *testing.T, ticks int, boxes ...placed) ([]pair, []uid.UID64) {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: len(boxes), MinSize: 10, MaxSize: 10},
 	})
-	c := collision.NewPlugin(w)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m)
 	spec := kind.Spec{
 		comp.Load(func(b placed) world.Position { return posAt(b.x, b.y, 10, 10) }),
 		comp.Load(func(b placed) world.Velocity { return b.vel }),
@@ -84,7 +86,7 @@ func broadTick(t *testing.T, ticks int, boxes ...placed) ([]pair, []uid.UID64) {
 	var coll goke.Comp[collision.Collider]
 	var q *goke.Query
 	ids := make([]uid.UID64, len(boxes))
-	ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+	ecs := collisiontest.Start(t, w, m, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		q = si.NewQueryBuilder(&coll).Build()
 		var base goke.Comp[world.Base]
 		all := si.NewQueryBuilder(&base).Build()

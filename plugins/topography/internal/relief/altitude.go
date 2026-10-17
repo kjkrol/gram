@@ -7,13 +7,14 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 var _ goke.System = (*altitudeSystem)(nil)
 
-// one carried at a world.Drift is gravity's, which writes its height itself
+// one carried at a motion.Drift is gravity's, which writes its height itself
 type altitudeSystem struct {
 	relief *Relief
 
@@ -35,7 +36,7 @@ func (r *Relief) AltitudeSystem() goke.System { return &altitudeSystem{relief: r
 
 func (s *altitudeSystem) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.base, &s.z, &s.mover).Optional(&s.driven).Optional(&s.course).
-		Exclude(goke.Exclude[world.Drift]()).Build()
+		Exclude(goke.Exclude[motion.Drift]()).Build()
 	s.standing = si.NewQueryBuilder(&s.base, &s.z, &s.on).Optional(&s.floor).Build()
 }
 

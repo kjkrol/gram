@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -64,11 +65,12 @@ type Recruit struct{ Start cell.ID }
 
 // QuasiWorld is a world with heights over a 4x4 board in relief with a hill at (2,1).
 type QuasiWorld struct {
-	ECS   *goke.ECS
-	World *world.Plugin
-	Board *board.Plugin
-	Topo  *topography.Plugin
-	Grid  grid.Grid
+	ECS    *goke.ECS
+	World  *world.Plugin
+	Motion *motion.Plugin
+	Board  *board.Plugin
+	Topo   *topography.Plugin
+	Grid   grid.Grid
 }
 
 // NewQuasiWorld is a QuasiWorld with the units define makes; collide adds the collision plugin.
@@ -94,11 +96,12 @@ func NewQuasiWorldWith(
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 20, MaxSize: 20},
 		Heights:  true,
 	})
+	qw.Motion = motion.NewPlugin(qw.World)
 	var c *collision.Plugin
 	if collide {
-		c = collision.NewPlugin(qw.World)
+		c = collision.NewPlugin(qw.World, qw.Motion)
 	}
-	qw.Board = board.NewPlugin(qw.Grid, &cell.MultipleOccupancy{}, qw.World)
+	qw.Board = board.NewPlugin(qw.Grid, &cell.MultipleOccupancy{}, qw.World).WithMotion(qw.Motion)
 	qw.Topo = topography.NewPlugin(qw.World, qw.Board, topography.Config{Cell: 32})
 	qw.Board.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | cell.Air})
 	hillCell := qw.Grid.At(2, 1)
@@ -109,6 +112,9 @@ func NewQuasiWorldWith(
 
 	ctx := NewInstallCtx()
 	if err := qw.World.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := qw.Motion.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if c != nil {
@@ -129,6 +135,7 @@ func NewQuasiWorldWith(
 	ctx.ecs.Setup(ctx.Systems()...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		qw.World.RunPlan(rc, d)
+		qw.Motion.RunPlan(rc, d)
 		if c != nil {
 			c.RunPlan(rc, d)
 		}

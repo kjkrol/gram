@@ -1,5 +1,5 @@
 // Package collisiontest is what the collision's tests share: an installer and a world with
-// collision, stepped as a game steps it.
+// motion and collision, stepped as a game steps it.
 package collisiontest
 
 import (
@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -52,19 +53,35 @@ func (c *InstallCtx) Systems() []goke.System {
 // Tracked is every module and provider installed.
 func (c *InstallCtx) Tracked() []any { return c.tracked }
 
-// Start installs w and c on a new ECS, sets their systems and after up and plans Step. Seed and
-// populate before it.
-func Start(t testing.TB, w *world.Plugin, c *collision.Plugin, after ...goke.System) *goke.ECS {
+// Start installs w, m and c on a new ECS, sets their systems and after up and plans Step. Seed
+// and populate before it.
+func Start(
+	t testing.TB,
+	w *world.Plugin,
+	m *motion.Plugin,
+	c *collision.Plugin,
+	after ...goke.System,
+) *goke.ECS {
 	t.Helper()
-	return StartObeying(t, w, c, nil, after...)
+	return StartObeying(t, w, m, c, nil, after...)
 }
 
 // StartObeying is Start with rules handed to the hosts of their moments.
-func StartObeying(t testing.TB, w *world.Plugin, c *collision.Plugin, rules []act.Rule, after ...goke.System) *goke.ECS {
+func StartObeying(
+	t testing.TB,
+	w *world.Plugin,
+	m *motion.Plugin,
+	c *collision.Plugin,
+	rules []act.Rule,
+	after ...goke.System,
+) *goke.ECS {
 	t.Helper()
 	ctx := NewInstallCtx(goke.New())
 	if err := w.Install(ctx); err != nil {
 		t.Fatalf("world Install: %v", err)
+	}
+	if err := m.Install(ctx); err != nil {
+		t.Fatalf("motion Install: %v", err)
 	}
 	if err := c.Install(ctx); err != nil {
 		t.Fatalf("collision Install: %v", err)
@@ -73,14 +90,15 @@ func StartObeying(t testing.TB, w *world.Plugin, c *collision.Plugin, rules []ac
 		t.Fatalf("rules: %v", err)
 	}
 	ctx.ecs.Setup(append(ctx.Systems(), after...)...)
-	ctx.ecs.SetPlan(Step(w, c))
+	ctx.ecs.SetPlan(Step(w, m, c))
 	return ctx.ecs
 }
 
-// Step is a step as a game takes it: the world, the collision, the clock's replay.
-func Step(w *world.Plugin, c *collision.Plugin) func(goke.RunCtx, time.Duration) {
+// Step is a step as a game takes it: the world, motion, the collision, the clock's replay.
+func Step(w *world.Plugin, m *motion.Plugin, c *collision.Plugin) func(goke.RunCtx, time.Duration) {
 	return func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
 		c.RunPlan(rc, d)
 		rc.Sync()
 		w.Clock().Replay(rc, d)

@@ -5,6 +5,8 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	irelief "github.com/kjkrol/gram/plugins/topography/internal/relief"
 )
 
@@ -43,5 +45,11 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 func (m *module) SetupSystems() []goke.System { return nil }
 
 func (m *module) LoadComps() []goke.CompToken {
-	return []goke.CompToken{goke.LoadComp[irelief.Heights]()}
+	return []goke.CompToken{
+		goke.LoadComp[irelief.Heights](),
+		// the relief reads them in a world without motion too
+		goke.LoadComp[steering.Course](),
+		goke.LoadComp[steering.Driven](),
+		goke.LoadComp[motion.Drift](),
+	}
 }

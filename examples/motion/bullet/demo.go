@@ -19,11 +19,12 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -51,6 +52,7 @@ var mapFile embed.FS
 
 type arena struct {
 	world     *world.Plugin
+	motion    *motion.Plugin
 	board     *board.Plugin
 	nav       *navigation.Plugin
 	driving   *driving.Plugin
@@ -92,14 +94,19 @@ func main() {
 
 func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
+	a.motion = motion.NewPlugin(a.world)
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	a.collision = collision.NewPlugin(a.world)
-	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).WithCollision(a.collision)
-	a.selection = selection.NewPlugin(a.world)
-	a.driving = driving.NewPlugin(a.world, a.selection).WithGround(a.board).WithTap(tapFor)
-	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
+	a.collision = collision.NewPlugin(a.world, a.motion)
+	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).
+		WithMotion(a.motion).
 		WithCollision(a.collision)
-	a.bullet = bullet.NewPlugin(a.world, a.selection).WithGround(a.board.Heights)
+	a.selection = selection.NewPlugin(a.world)
+	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).
+		WithGround(a.board).
+		WithTap(tapFor)
+	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving).
+		WithCollision(a.collision)
+	a.bullet = bullet.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board.Heights)
 	a.cameras = cameras.NewPlugin(a.world)
 	a.players = players.NewPlugin(
 		a.world,
@@ -204,6 +211,7 @@ func (a *arena) defineScenes() []game.Scene {
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.bullet.RunPlan(ctx, d)
 	a.world.RunPlan(ctx, d)
+	a.motion.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
 	a.board.RunPlan(ctx, d)
 	a.nav.RunPlan(ctx, d)

@@ -18,6 +18,7 @@ import (
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/vision"
@@ -41,6 +42,7 @@ type body struct {
 
 type arena struct {
 	world     *world.Plugin
+	motion    *motion.Plugin
 	vision    *vision.Plugin
 	collision *collision.Plugin
 	players   *players.Plugin
@@ -88,8 +90,9 @@ func main() {
 
 func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
+	a.motion = motion.NewPlugin(a.world)
 	a.vision = vision.NewPlugin(a.world)
-	a.collision = collision.NewPlugin(a.world).WithStats(&a.hits)
+	a.collision = collision.NewPlugin(a.world, a.motion).WithStats(&a.hits)
 	a.cameras = cameras.NewPlugin(a.world)
 	a.telemetry = telemetry.NewPlugin(a.world)
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.vision)
@@ -167,6 +170,7 @@ func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.vision.RunPlan(ctx, d)
 	a.world.RunPlan(ctx, d)
+	a.motion.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
 	a.cameras.RunPlan(ctx, d)
 	a.players.RunPlan(ctx, d)

@@ -77,7 +77,7 @@ never a system per behaviour — handed a `host.Tick`.
   `Command()`, a word by
   `cond.NewWord(name, func(P) bool)` (`unit.Fallen()`, `vision.SeesNobody()`, `clock.At(t)`).
   The moment's type — `collision.Meeting`, `collision.Struck`, `vision.Sighting`,
-  `unit.Standing`, `cell.Now`, `world.Moving`, `clock.Moment` — says whose it is.
+  `unit.Standing`, `cell.Now`, `motion.Moving`, `clock.Moment` — says whose it is.
 
 **The store is behind a contract**: the engine reads a `store.Row` a block at a time (an array a
 column out of goke's own accessors, `cgoke.Columns`, indexed as `Slice(cur)[i]`) and stages what
@@ -119,12 +119,12 @@ through `world.Kinds` (saved by name, remapped on load), `comp.Tagged(tags...)` 
 kind, a query over the family's `Tags` narrows to those carrying any, a bit flip is seen the same
 tick; `host.Marks.Carries(tag)`. **Tags** are groups a kind gives; **markers** are states switched
 on and off — a plugin's family `States`, carried for good (`comp.Marks[F]()`,
-`r.Default(world.UnitTemplate, …)` in the plugin's `KindTemplates(r *kind.Roster)`, the one place it
-writes what it asks of the kinds' templates), each a constant bit (`effect.Changed`, every effect's
-`Mark()`, `unit.Entered`). Putting a component on or off moves the entity (~200 ns) against 1–2 ns
-for a bit: a state that changes often or lasts a step is a marker; one that lasts, on few entities,
-walked alone (`MoveOrder`, `Mind`, the facts, `world.Outside`) keeps its own component. Data that
-comes and goes keeps its component, empty when off (`cgoke.Active`).
+`r.Default(motion.UnitTemplate, …)` in the plugin's `KindTemplates(r *kind.Roster)`, the one place
+it writes what it asks of the kinds' templates), each a constant bit (`effect.Changed`, every
+effect's `Mark()`, `unit.Entered`). Putting a component on or off moves the entity (~200 ns) against
+1–2 ns for a bit: a state that changes often or lasts a step is a marker; one that lasts, on few
+entities, walked alone (`MoveOrder`, `Mind`, the facts, `motion.Outside`) keeps its own component.
+Data that comes and goes keeps its component, empty when off (`cgoke.Active`).
 
 **Kinds** (`entity/kind`): `kind.Define[P](world.Kinds(), name, kind.Spec{...})` — a `Spec` is
 the list of a kind's components, each made in `ceremony/comp`: `comp.Const(v)` or
@@ -218,6 +218,6 @@ second, put by Space), put the lever's transition on it and give it `Trigger`; t
 position is its own effect held for good (`LeverPulledEf`, the transition's `Then`), the
 trapdoors' command a `Toggle`. An intent and an animation are two effects: `ReachingEf` the
 intent, `PullingEf` the hands on the lever for the swing (the Phased look); a press during a
-swing waits for its end. **Boredom is a state too**: a rule of `world.Moving` under
-`world.Still()` puts `StillEf`, whose `Then` casts `BoredEf` after three seconds; a step takes
+swing waits for its end. **Boredom is a state too**: a rule of `motion.Moving` under
+`motion.Still()` puts `StillEf`, whose `Then` casts `BoredEf` after three seconds; a step takes
 both off.

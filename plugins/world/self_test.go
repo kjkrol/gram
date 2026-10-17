@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/internal/engine"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -29,6 +30,7 @@ type skyStage struct {
 	load bool
 
 	world  *world.Plugin
+	motion *motion.Plugin
 	sky    *world.Self
 	ecs    *goke.ECS
 	storm  effect.Effect
@@ -54,6 +56,7 @@ func (skyPlugin) Serializable() plugin.Serializable  { return nil }
 
 func (g *skyStage) Init(ctx game.Initializer) error {
 	g.world, g.ecs = ctx.UseWorld(testWorldConfig()), ctx.ECS()
+	g.motion = motion.NewPlugin(g.world)
 	g.sky = world.NewSelf(g.world, skyPlugin{}, comp.Const(dial{Level: 1}))
 	ctx.Setup(g)
 	fx := g.world.Effects()
@@ -67,7 +70,7 @@ func (g *skyStage) Init(ctx game.Initializer) error {
 		g.states = append(g.states, fx.Named(name))
 	}
 	g.world.Roles().Define("sky watcher",
-		act.Branch[world.Moving]{
+		act.Branch[motion.Moving]{
 			Name: "lit by the storm",
 			When: cond.On(g.sky).If(g.storm),
 			Then: act.Self.Hold(g.lit),
@@ -79,7 +82,7 @@ func (g *skyStage) Init(ctx game.Initializer) error {
 		ceremony.Plays(watcher),
 	})
 	g.scout = kind.Named[struct{}](g.world.Kinds(), "scout")
-	return nil
+	return ctx.Use(g.motion)
 }
 
 func (g *skyStage) SetupSystems() []goke.System {
@@ -96,7 +99,10 @@ func (g *skyStage) Spawn() error {
 	return nil
 }
 
-func (g *skyStage) Update(ctx goke.RunCtx, d time.Duration) { g.world.RunPlan(ctx, d) }
+func (g *skyStage) Update(ctx goke.RunCtx, d time.Duration) {
+	g.world.RunPlan(ctx, d)
+	g.motion.RunPlan(ctx, d)
+}
 
 func (g *skyStage) Stack() game.Scenes {
 	if g.stack == nil {

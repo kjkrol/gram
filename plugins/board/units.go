@@ -8,8 +8,9 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 // Units makes a game's unit kinds over the board, deriving Position, At, Layers and Z from where
@@ -35,8 +36,11 @@ func (s Shape) Box(c geom.Vec) plane.AABB {
 
 // NewUnits binds a game's rows to the board: shape is the units' body, at reads a unit's centre
 // from its row. A unit is no bigger than a cell's side, so it takes any step a deck does not
-// narrow; a bigger shape panics.
+// narrow; a bigger shape, or a board without motion (Plugin.WithMotion), panics.
 func NewUnits[P any](brd *Plugin, shape Shape, at func(row P) geom.Vec) *Units[P] {
+	if brd.motion == nil {
+		panic("board: units move by motion, and the board was given none (WithMotion)")
+	}
 	if box, side := shape.Box(geom.Vec{}), float64(brd.Board().CellSpan()); max(box.Size.X,
 		box.Size.Y) > side {
 		panic(fmt.Sprintf("board: units %v across and %v down, bigger than a cell's side, %v",
@@ -65,7 +69,7 @@ func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steer
 		comp.Const(steering),
 		comp.Const(world.Z{Height: u.shape.Height}), // Altitude is the board's to write
 	}
-	spec := u.brd.worldPlugin.Roster().Spec(world.UnitTemplate, append(own, extra...)...)
+	spec := u.brd.worldPlugin.Roster().Spec(motion.UnitTemplate, append(own, extra...)...)
 	kind.Define[P](u.brd.worldPlugin.Kinds(), name, spec)
 }
 

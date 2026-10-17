@@ -18,6 +18,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -26,6 +27,7 @@ type hookStage struct {
 	before, after []plugin.Plugin
 
 	world  *world.Plugin
+	motion *motion.Plugin
 	walker kind.Of[struct{}]
 	base   goke.Comp[world.Base]
 	query  *goke.Query
@@ -41,6 +43,10 @@ func (s *hookStage) Init(ctx game.Initializer) error {
 		}
 	}
 	s.world = ctx.UseWorld(testWorldConfig())
+	s.motion = motion.NewPlugin(s.world)
+	if err := ctx.Use(s.motion); err != nil {
+		return err
+	}
 	for _, p := range s.after {
 		if err := ctx.Use(p); err != nil {
 			return err
@@ -77,7 +83,10 @@ func (s *hookStage) Spawn() error {
 	return nil
 }
 
-func (s *hookStage) Update(ctx goke.RunCtx, d time.Duration) { s.world.RunPlan(ctx, d) }
+func (s *hookStage) Update(ctx goke.RunCtx, d time.Duration) {
+	s.world.RunPlan(ctx, d)
+	s.motion.RunPlan(ctx, d)
+}
 
 func (s *hookStage) Stack() game.Scenes {
 	if s.stack == nil {
@@ -108,7 +117,11 @@ func runHookStage(t *testing.T, s *hookStage) (before, after int) {
 }
 
 func despawning() act.Rule {
-	return act.Branch[world.Moving]{Name: "leave", When: cond.Self.If(cond.Always), Then: act.Self.Do(world.Despawn{})}
+	return act.Branch[motion.Moving]{
+		Name: "leave",
+		When: cond.Self.If(cond.Always),
+		Then: act.Self.Do(world.Despawn{}),
+	}
 }
 
 type hostPlugin struct {
@@ -183,30 +196,34 @@ func TestEngine_TriesTheHostsInUseOrder(t *testing.T) {
 		s := &hookStage{before: []plugin.Plugin{&stubPlugin{name: "test.plain"}, refusing}, plays: []role{leaver()}}
 		before, after := runHookStage(t, s)
 		if len(refusing.asked) != 1 {
-			t.Errorf("the host used before the world was asked %d times, want once", len(refusing.asked))
+			t.Errorf("the host used before motion was asked %d times, want once",
+				len(refusing.asked))
 		}
 		if before != 1 || after != 0 {
-			t.Errorf("walkers = %d after Init, %d after two ticks; want 1, then 0 despawned by the world's rule", before, after)
+			t.Errorf("walkers = %d after Init, %d after two ticks; want 1, then 0 despawned by "+
+				"motion's rule", before, after)
 		}
 	})
-	t.Run("a host used before the world takes the rule from it", func(t *testing.T) {
+	t.Run("a host used before motion takes the rule from it", func(t *testing.T) {
 		taking := &hostPlugin{stubPlugin: stubPlugin{name: "test.taking"}}
 		before, after := runHookStage(t, &hookStage{before: []plugin.Plugin{taking}, plays: []role{leaver()}})
 		if len(taking.asked) != 1 {
-			t.Errorf("the host used before the world was asked %d times, want once", len(taking.asked))
+			t.Errorf("the host used before motion was asked %d times, want once", len(taking.asked))
 		}
 		if before != 1 || after != 1 {
-			t.Errorf("walkers = %d after Init, %d after two ticks; want 1 and 1 — the world never got the rule", before, after)
+			t.Errorf("walkers = %d after Init, %d after two ticks; want 1 and 1 — motion never "+
+				"got the rule", before, after)
 		}
 	})
-	t.Run("a host used after the world is not asked once the world takes it", func(t *testing.T) {
+	t.Run("a host used after motion is not asked once motion takes it", func(t *testing.T) {
 		taking := &hostPlugin{stubPlugin: stubPlugin{name: "test.taking"}}
 		before, after := runHookStage(t, &hookStage{after: []plugin.Plugin{taking}, plays: []role{leaver()}})
 		if len(taking.asked) != 0 {
-			t.Errorf("the host used after the world was asked %d times, want never", len(taking.asked))
+			t.Errorf("the host used after motion was asked %d times, want never", len(taking.asked))
 		}
 		if before != 1 || after != 0 {
-			t.Errorf("walkers = %d after Init, %d after two ticks; want 1, then 0 despawned by the world's rule", before, after)
+			t.Errorf("walkers = %d after Init, %d after two ticks; want 1, then 0 despawned by "+
+				"motion's rule", before, after)
 		}
 	})
 	t.Run("another error stops the delivery", func(t *testing.T) {

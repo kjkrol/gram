@@ -30,6 +30,7 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/gravity"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
@@ -64,6 +65,7 @@ var figure = scale.Figure(1.8)
 
 type arena struct {
 	world      *world.Plugin
+	motion     *motion.Plugin
 	board      *board.Plugin
 	topography *topography.Plugin
 	bridges    *bridges.Plugin
@@ -117,12 +119,14 @@ func main() {
 
 func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
+	a.motion = motion.NewPlugin(a.world)
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	a.collision = collision.NewPlugin(a.world)
+	a.collision = collision.NewPlugin(a.world, a.motion)
 	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).
+		WithMotion(a.motion).
 		WithCollision(a.collision).
 		WithLog(log.Default())
-	a.gravity = gravity.NewPlugin(a.world, gravity.Config{}).WithSurfaces(a.board.Footing)
+	a.gravity = gravity.NewPlugin(a.world, a.motion, gravity.Config{}).WithSurfaces(a.board.Footing)
 	a.topography = topography.NewPlugin(a.world, a.board, topography.Config{
 		Cell:        CellSize,
 		HeightUnit:  1,
@@ -139,8 +143,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		High:      scale.Units(200),
 	}}).WithShaper(a.topography)
 	a.selection = selection.NewPlugin(a.world)
-	a.driving = driving.NewPlugin(a.world, a.selection).WithGround(a.board)
-	a.nav = navigation.NewPlugin(a.board, a.world, a.selection, a.driving).
+	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)
+	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving).
 		WithCollision(a.collision).
 		WithSpacing(navigation.BodySpacing)
 	a.vision = vision.NewPlugin(a.world).WithBoard(a.board).WithFrequency(15)
@@ -293,6 +297,7 @@ func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.bridges.RunPlan(ctx, d)
 	a.world.RunPlan(ctx, d)
+	a.motion.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
 	a.gravity.RunPlan(ctx, d)
 	a.board.RunPlan(ctx, d)

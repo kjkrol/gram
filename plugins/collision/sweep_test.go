@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -84,7 +85,8 @@ func sweptRun(t *testing.T, edges aabbworld.Edges, field collision.Field, ticks 
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 4, MaxSize: 40},
 	})
 	var stats collision.ContactStats
-	c := collision.NewPlugin(w).WithStats(&stats)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m).WithStats(&stats)
 	if field != nil {
 		c.WithField(field)
 	}
@@ -118,6 +120,9 @@ func sweptRun(t *testing.T, edges aabbworld.Edges, field collision.Field, ticks 
 	if err := w.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
+	if err := m.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
 	if err := c.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -131,6 +136,7 @@ func sweptRun(t *testing.T, edges aabbworld.Edges, field collision.Field, ticks 
 		rc.Run(fly, d)
 		rc.Sync()
 		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
 		c.RunPlan(rc, d)
 		rc.Sync()
 		w.Clock().Replay(rc, d)
@@ -188,7 +194,8 @@ func TestSweep_TheSpaceHoldsOnlyTheRealBoxAfterTheTick(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 2, MinSize: 4, MaxSize: 4},
 	})
-	c := collision.NewPlugin(w)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m)
 	kind.Define[piece](w.Kinds(), "shot", kind.Spec{
 		comp.Load(func(b piece) world.Position { return posAt(b.x, b.y, b.size, b.size) }),
 		comp.Const(world.Velocity{}),
@@ -205,6 +212,9 @@ func TestSweep_TheSpaceHoldsOnlyTheRealBoxAfterTheTick(t *testing.T) {
 	if err := w.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
+	if err := m.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
 	if err := c.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -215,6 +225,7 @@ func TestSweep_TheSpaceHoldsOnlyTheRealBoxAfterTheTick(t *testing.T) {
 		rc.Run(fly, d)
 		rc.Sync()
 		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
 		c.RunPlan(rc, d)
 		rc.Sync()
 		w.Clock().Replay(rc, d)

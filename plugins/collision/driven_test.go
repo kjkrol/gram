@@ -11,8 +11,9 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 func TestBounce_AWallTurnsNoUnitAHandSteers(t *testing.T) {
@@ -33,7 +34,8 @@ func TestBounce_AWallTurnsNoUnitAHandSteers(t *testing.T) {
 				box:  geom.NewAABBAt(geom.NewVec(200, 0), 32, 1000),
 				band: collision.Everywhere,
 			}
-			c := collision.NewPlugin(w).WithField(wall)
+			m := motion.NewPlugin(w)
+			c := collision.NewPlugin(w, m).WithField(wall)
 			spec := kind.Spec{
 				comp.Load(func(r raised) world.Position { return posAt(r.x, 500, 10, 10) }),
 				comp.Const(world.Velocity{Dir: heading, Value: 300}),
@@ -50,7 +52,7 @@ func TestBounce_AWallTurnsNoUnitAHandSteers(t *testing.T) {
 			}
 			var base goke.Comp[world.Base]
 			var q *goke.Query
-			ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			ecs := collisiontest.Start(t, w, m, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 				q = si.NewQueryBuilder(&base).Build()
 			}})
 			for range 10 {

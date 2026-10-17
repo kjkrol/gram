@@ -22,7 +22,6 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -86,13 +85,12 @@ func NewPlugin(cfg Config) *Plugin {
 }
 
 // KindTemplates is what the world asks of the kinds a game defines: of every one it spawns,
-// where it stands; of what moves, its effects' markers, its course and a live patch of a shadow.
+// where it stands, its velocity, its effects' markers and a live patch of a shadow.
 func (p *Plugin) KindTemplates(r *kind.Roster) {
 	kind.Require[Position](r, EntityTemplate, "world", "where it stands")
 	r.Default(EntityTemplate, comp.Const(Velocity{}))
-	r.Default(UnitTemplate, comp.Marks[effect.States]())
-	r.Default(UnitTemplate, comp.Const(steering.Course{}))
-	r.Default(UnitTemplate, comp.Const(Shadow{Cast: Patch}))
+	r.Default(EntityTemplate, comp.Marks[effect.States]())
+	r.Default(EntityTemplate, comp.Const(Shadow{Cast: Patch}))
 }
 
 // fillRoster has the world and every plugin made over it, in the order made, write what they ask
@@ -219,7 +217,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	ctx.UseModule(p.module)
 	ctx.UseModule(p.module.effects.Module())
 	ctx.Setup(p.kinds)
-	ctx.Hosts(p.module.movers, p.module.leavers, &p.module.moments.host)
+	ctx.Hosts(&p.module.moments.host)
 	ctx.Draws(p.renderer)
 	ctx.Looks(p.dress)
 	return nil
@@ -344,7 +342,8 @@ func (p *Plugin) Spawn(entries ...kind.Entry) {
 // Despawn takes an entity out of the ECS at the end of the tick.
 func (p *Plugin) Despawn(cb *goke.CmdBuf, id uid.UID64) { p.module.despawn(cb, id) }
 
-// Space is the world's shared spatial index, rebuilt every tick after movement.
+// Space is the world's shared spatial index of its entities, indexed again as they spawn, go and
+// move.
 func (p *Plugin) Space() *aabbworld.Space { return p.module.space }
 
 // Kinds is this Stage's register of entity kinds, which kind.Define registers with.

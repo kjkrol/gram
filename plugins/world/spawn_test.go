@@ -110,20 +110,22 @@ func TestSpawn_FillsTheRoomADespawnLeaves(t *testing.T) {
 	}
 }
 
+type stamped struct{}
+
 func TestSpawn_AnEntitySpawnedThisStepTakesAComponentAtOnce(t *testing.T) {
 	p, things, ecs, q, _ := spawnWorld(t, 0, 2)
 	wm := p.module
-	var outside goke.CompID
+	var stamp goke.CompID
 	var marked *goke.Query
 	ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		outside = si.RegComp[Outside]()
-		marked = si.NewQueryBuilder(new(goke.Comp[Base])).Include(goke.Include[Outside]()).Build()
+		stamp = si.RegComp[stamped]()
+		marked = si.NewQueryBuilder(new(goke.Comp[Base])).Include(goke.Include[stamped]()).Build()
 	}})
 	p.Spawn(things.Entry(thing{x: 100, y: 100, size: 10}))
 	run(ecs, wm, func(*goke.CmdBuf) {})
 	handle := ecs.RegSys(goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, _ time.Duration) {
 		for id := range living(q) {
-			cb.AddOne(id, outside, Outside{})
+			cb.AddOne(id, stamp, stamped{})
 		}
 	}})
 	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {

@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 )
@@ -25,6 +26,10 @@ func benchVision(b *testing.B, n int, outlines bool, workers int) *goke.ECS {
 		Space:    world.SpaceCfg{Width: 4000, Height: 4000},
 		Entities: world.EntitiesCfg{MaxCount: n, MinSize: 1, MaxSize: 100},
 	})
+	m := motion.NewPlugin(w)
+	if err := ctx.Use(m); err != nil {
+		b.Fatal(err)
+	}
 	v := vision.NewPlugin(w).WithWorkers(workers)
 	if err := ctx.Use(v); err != nil {
 		b.Fatal(err)
@@ -50,6 +55,7 @@ func benchVision(b *testing.B, n int, outlines bool, workers int) *goke.ECS {
 	w.Seed(entries...)
 	return ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
 		v.RunPlan(rc, d)
 		rc.Sync()
 	})

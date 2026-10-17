@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -34,13 +35,14 @@ func pushedOutWorld(t *testing.T, hooked bool) (*goke.ECS, *heards, *goke.Query,
 	}
 	var rules []act.Rule
 	if hooked {
-		rules = append(rules, act.Branch[world.Leaving]{
+		rules = append(rules, act.Branch[motion.Leaving]{
 			Name: "left",
 			When: cond.Self.If(cond.Always),
 			Then: act.Self.Do(heard{}),
 		})
 	}
-	c := collision.NewPlugin(w)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m)
 	kind.Define[pushedOut](w.Kinds(), "box", kind.Spec{
 		comp.Load(func(b pushedOut) world.Position { return posAt(b.x, 500, 10, 10) }),
 		comp.Const(world.Velocity{}),
@@ -59,11 +61,12 @@ func pushedOutWorld(t *testing.T, hooked bool) (*goke.ECS, *heards, *goke.Query,
 	}
 	base := &goke.Comp[world.Base]{}
 	var q *goke.Query
-	ecs := collisiontest.StartObeying(t, w, c, rules, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(base).Build() }})
+	probe := goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(base).Build() }}
+	ecs := collisiontest.StartObeying(t, w, m, c, rules, probe)
 	return ecs, orders, q, base
 }
 
-func TestCollision_ABoxPushedThroughAnOpenEdgeIsReportedToTheWorld(t *testing.T) {
+func TestCollision_ABoxPushedThroughAnOpenEdgeIsMotionsLeaver(t *testing.T) {
 	ecs, orders, q, base := pushedOutWorld(t, true)
 	for range 3 {
 		ecs.Tick(time.Second / 60)

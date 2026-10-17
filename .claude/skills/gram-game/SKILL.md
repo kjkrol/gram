@@ -36,20 +36,22 @@ plugin's capability reaches a Scene by constructor injection, never through `Run
 
 **A Stage is defined a section at a time** (`game/stage`): `stage.New(name).World(cfg)
 .Plugins(a.makePlugins).Players(f).Effects(f).Rules(f).Commands(f).Kinds(f...).Controls(f)
-.Spawn(f...).Scenes(f).Shows(names...).Update(f)` hands back a `game.Stage`. Each link returns
-a type holding the links after it, so a chain out of order does not compile, a link may be left
-out, and `Update` alone must come. A section takes a function of whatever shape it needs
-(`stage.Step`); `Kinds` and `Spawn` take several, run in order. `World(cfg)` makes the world
-anew each time the Stage is entered (`Heights: true` wherever a board, a topography or an
-atmosphere stands; a side view too, gravity pulling along Y); `Plugins(func(w *world.Plugin))` has the arena make the
-plugins over it, used in the order made; `Plugins(func(made *plugin.Made))` the same for a Stage
-without a world. **A plugin may have a section of its own**: `section.Define(name, after,
-before)`, `section.Of[P](part, f)`, written with `With(sections...)` on any link from `World` to
-`Controls` (out of place it panics as the chain is built; a Stage using no `P` fails `Init`):
-`With(dialog.Conversations(f))` after the commands, before the kinds. The Stage so built makes
-its scenes once the world is there — in `Loaded` from a save, else at the end of `Spawn`, before
-`Populate` (nothing in them reads the entities spawned): the stack, the first scene shown or
-those `Shows` names, the Composition and the ui scenes tracked. The order is what builds on
+.Spawn(f...).Scenes(f).Shows(names...).Update(f)` hands back a `game.Stage`. Each link returns a
+type holding the links after it, so a chain out of order does not compile, a link may be left out,
+and `Update` alone must come. A section takes a function of whatever shape it needs (`stage.Step`);
+`Kinds` and `Spawn` take several, run in order. `World(cfg)` makes the world anew each time the
+Stage is entered (`Heights: true` wherever a board, a topography or an atmosphere stands; a side
+view too, gravity pulling along Y); `Plugins(func(w *world.Plugin))` has the arena make the plugins
+over it, used in the order made — `motion.NewPlugin(w)` first wherever anything moves, handed to
+whatever steers or pushes (collision, bullet, driving, navigation, gravity; the board's units by
+`WithMotion`), its `RunPlan` right after the world's in `Update`; `Plugins(func(made *plugin.Made))`
+the same for a Stage without a world. **A plugin may have a section of its own**:
+`section.Define(name, after, before)`, `section.Of[P](part, f)`, written with `With(sections...)` on
+any link from `World` to `Controls` (out of place it panics as the chain is built; a Stage using no
+`P` fails `Init`): `With(dialog.Conversations(f))` after the commands, before the kinds. The Stage
+so built makes its scenes once the world is there — in `Loaded` from a save, else at the end of
+`Spawn`, before `Populate` (nothing in them reads the entities spawned): the stack, the first scene
+shown or those `Shows` names, the Composition and the ui scenes tracked. The order is what builds on
 what: players before the kinds, effects before the rules, roles before the commands for their
 players and the kinds playing them, everything before the keys, the world before the scenes.
 

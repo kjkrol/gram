@@ -25,8 +25,8 @@ plugin.
 | `collision.Struck` | collision, one that struck something | one | — | — |
 | `vision.Sighting` | vision, every observer a step | a pair grouped by observer; `host.Met` | the nearest seen | `vision.SeesNobody()`, `vision.Closing()` (of the other) |
 | `navigation.Touch` | navigation, two units touching | a pair; `host.Met` | the other | `PushedByAlly()`, `ReachedTheGroup()`, `InTheWay()`, `ClearsTheWay()`, `Blocks()`, `GoalTaken()`, `StrangerOnMyGoal()`, `WaitsFirst()`, `NoWayRound()`, `WaitedLong()` |
-| `world.Moving` | the world, every entity before it moves | one | — | `world.Still()` (neither walking nor strafing), `world.Braking()` (slowing down) |
-| `world.Leaving` | the world, every tick past an open edge | one | — | — |
+| `motion.Moving` | motion, every entity before it moves | one | — | `motion.Still()` (neither walking nor strafing), `motion.Braking()` (slowing down) |
+| `motion.Leaving` | motion, every tick past an open edge | one | — | — |
 | `clock.Moment` | the world, once a step | the clock's own entity | — | `clock.At(t)`, `clock.Every(period, offset)` |
 | `climate.Weathering` | the atmosphere, once a step | the atmosphere's own entity | — | — |
 | `sky.Moonrise` | the sky, as the moon comes over the horizon | the atmosphere's own entity | — | `sky.FullMoon()` |
@@ -162,7 +162,7 @@ world:
 ```go
 fx.Define(BloodMoonEf, effect.Spec{effect.Lasts(night), effect.Alter(func(m *sky.Moon) { … })})
 cmds.Define(BleedCmd, ceremony.Put(fx.Named(BloodMoonEf)).On(s.atmosphere))
-act.Branch[world.Moving]{
+act.Branch[motion.Moving]{
 	Name: "frenzy",
 	When: cond.On(s.atmosphere).If(fx.Named(BloodMoonEf)),
 	Then: act.Self.Hold(fx.Named(FrenziedEf)),
@@ -228,7 +228,7 @@ A rule holds no Go code (ceremony's "No Go code in a rule"); what a plugin does 
 own work in a pass it makes anyway, never a rule of another plugin's moment:
 
 - the ground's pace: the board's pass over the units writes each one's `steering.Pace` — the cost
-  and the slope of the cell under it — and the world's velocity pass multiplies the speed by it,
+  and the slope of the cell under it — and motion's velocity pass multiplies the speed by it,
   from the next step;
 - navigation's bumps: its pass reads the `collision.Collider` contacts of every unit under orders;
 - contacts counted and logged, sightings and falls logged: `collision.Plugin.WithStats`,

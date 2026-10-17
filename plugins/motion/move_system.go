@@ -1,4 +1,4 @@
-package world
+package motion
 
 import (
 	"math"
@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/plugins/world"
 )
 
 var _ goke.System = (*moveSystem)(nil)
@@ -14,7 +15,7 @@ var _ goke.System = (*moveSystem)(nil)
 type moveSystem struct {
 	space     *aabbworld.Space
 	moveQuery *goke.Query
-	base      goke.Comp[Base]
+	base      goke.Comp[world.Base]
 	drift     goke.OptComp[Drift]
 	outside   goke.OptComp[Outside]
 	outsideID goke.CompID
@@ -52,20 +53,21 @@ func (s *moveSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 		}
 	}
-	s.items = rebuild(s.space, s.moveQuery, &s.base, s.items)
+	s.rebuild()
 }
 
-func rebuild(space *aabbworld.Space, q *goke.Query, base *goke.Comp[Base], items []aabbworld.Item) []aabbworld.Item {
-	items = items[:0]
-	q.All()
-	for q.Next() {
-		cursor := q.Cursor()
-		for i, b := range base.Slice(cursor) {
-			items = append(items, aabbworld.Item{ID: cursor.IDs[i], Box: b.Pos.AABB, Caps: b.Caps})
+// the space holds the items handed it, so motion keeps its own
+func (s *moveSystem) rebuild() {
+	s.items = s.items[:0]
+	s.moveQuery.All()
+	for s.moveQuery.Next() {
+		cursor := s.moveQuery.Cursor()
+		for i, b := range s.base.Slice(cursor) {
+			item := aabbworld.Item{ID: cursor.IDs[i], Box: b.Pos.AABB, Caps: b.Caps}
+			s.items = append(s.items, item)
 		}
 	}
-	space.Rebuild(items)
-	return items
+	s.space.Rebuild(s.items)
 }
 
 func clampStep(step geom.Vec, max float64) geom.Vec {

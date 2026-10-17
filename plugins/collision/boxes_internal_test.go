@@ -26,7 +26,7 @@ func TestBoxes_TheCommandSwitchesFromTheBasesToTheSolidsToNone(t *testing.T) {
 		{raised, []BoxesShown{Bases, Solids, NoBoxes, Bases}},
 		{flat, []BoxesShown{Bases, NoBoxes, Bases}},
 	} {
-		p := NewPlugin(tc.w)
+		p := newTestPlugin(tc.w)
 		if err := tc.w.Carry(p); err != nil {
 			t.Fatal(err)
 		}
@@ -42,7 +42,7 @@ func TestBoxes_TheCommandSwitchesFromTheBasesToTheSolidsToNone(t *testing.T) {
 			}
 		}
 	}
-	p := NewPlugin(testWorldPlugin())
+	p := newTestPlugin(testWorldPlugin())
 	var keys []string
 	for _, b := range p.DefaultBindings() {
 		if b.Type().Name() == "Boxes" {
@@ -65,7 +65,7 @@ func (*drawsCtx) ECS() *goke.ECS             { return goke.New() }
 func (c *drawsCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
 
 func TestPlugin_DrawsTheBoxes(t *testing.T) {
-	p := NewPlugin(testWorldPlugin())
+	p := newTestPlugin(testWorldPlugin())
 	ctx := &drawsCtx{}
 	if err := p.Install(ctx); err != nil {
 		t.Fatal(err)

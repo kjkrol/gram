@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -24,7 +25,8 @@ func layersRun(t *testing.T, a, b world.Layers) (met bool, gap float64) {
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
 	var stats collision.ContactStats
-	c := collision.NewPlugin(w).WithStats(&stats)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m).WithStats(&stats)
 	kind.Define[layered](w.Kinds(), "box", kind.Spec{
 		comp.Load(func(b layered) world.Position { return posAt(b.x, 500, 10, 10) }),
 		comp.Const(world.Velocity{}),
@@ -39,7 +41,9 @@ func layersRun(t *testing.T, a, b world.Layers) (met bool, gap float64) {
 	}
 	var base goke.Comp[world.Base]
 	var q *goke.Query
-	ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base).Build() }})
+	ecs := collisiontest.Start(t, w, m, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		q = si.NewQueryBuilder(&base).Build()
+	}})
 	ecs.Tick(time.Second / 60)
 
 	var lefts []float64

@@ -4,10 +4,11 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 type units struct {
@@ -23,7 +24,7 @@ type units struct {
 	states goke.OptComp[tag.Tags[States]]
 	places goke.OptComp[tag.Tags[unit.States]]
 	z      goke.OptComp[world.Z]
-	drift  goke.OptComp[world.Drift]
+	drift  goke.OptComp[motion.Drift]
 }
 
 func (u *units) build(si *goke.SysInit) {

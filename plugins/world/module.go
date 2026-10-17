@@ -19,7 +19,6 @@ import (
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/entity/kind"
 	ikinds "github.com/kjkrol/gram/plugins/world/internal/kinds"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -38,15 +37,11 @@ type module struct {
 
 	kinds *Kinds
 
-	leavers *host.Rules[Leaving]
-	movers  *host.Rules[Moving]
 	drawing render.Rules
 
-	steer            *steering.System
-	steeringRunnable goke.Runnable
-	velocityRunnable goke.Runnable
-	moveRunnable     goke.Runnable
-	exitRunnable     goke.Runnable
+	// a spawn or a despawn since the space last took every entity
+	unindexed     bool
+	indexRunnable goke.Runnable
 
 	views        []*view.View
 	viewRunnable goke.Runnable
@@ -73,7 +68,8 @@ type module struct {
 	spawns   command.Queue[Spawn]
 	despawns command.Queue[Despawn]
 
-	spawnRunnable goke.Runnable
+	spawnRunnable   goke.Runnable
+	despawnRunnable goke.Runnable
 }
 
 var _ goke.Module = (*module)(nil)
@@ -81,8 +77,7 @@ var _ goke.Module = (*module)(nil)
 func newModule(cfg Config) *module {
 	clk := clock.New(cfg.Clock)
 	w := &module{config: cfg, space: buildSpace(cfg), despawned: make(map[uid.UID64]struct{}),
-		leavers: &host.Rules[Leaving]{}, movers: &host.Rules[Moving]{},
-		clock: clk, steer: steering.NewSystem()}
+		clock: clk}
 	w.moments = moments{clock: clk, tick: w.tick}
 	return w
 }
@@ -93,7 +88,7 @@ func (w *module) tick(d time.Duration) host.Tick {
 }
 
 func (w *module) RegSystems(ecs *goke.ECS) {
-	if w.velocityRunnable != nil {
+	if w.spawnRunnable != nil {
 		return
 	}
 	// before the clock's, which finds its State on the world's own entity
@@ -101,12 +96,8 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	// first in a step, so its commands land with the step's effects
 	w.effectCmdsRunnable = ecs.RegSys(w.effectCmds.system())
 	w.spawnRunnable = ecs.RegSys(newSpawnSystem(w))
-	w.steeringRunnable = ecs.RegSys(w.steer)
-	velocity := newVelocitySystem(w.movers)
-	velocity.tick = w.tick
-	w.velocityRunnable = ecs.RegSys(velocity)
-	w.moveRunnable = ecs.RegSys(newMoveSystem(w.space))
-	w.exitRunnable = ecs.RegSys(newExitSystem(w, w.leavers))
+	w.despawnRunnable = ecs.RegSys(newDespawnSystem(w))
+	w.indexRunnable = ecs.RegSys(newIndexSystem(w))
 	w.viewRunnable = ecs.RegSys(view.NewSystem(w.space, &w.views, w.config.Space.Width, w.config.Space.Height))
 	w.clockRunnable = ecs.RegSys(w.clock.System())
 	w.plansRunnable = ecs.RegSys(w.plansSys)
@@ -129,16 +120,12 @@ func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {
 	ctx.Run(w.plansRunnable, step)
 	ctx.Sync()
 	ctx.Run(w.spawnRunnable, step)
-	ctx.Run(w.steeringRunnable, step)
-	ctx.Run(w.velocityRunnable, step)
-	ctx.Run(w.moveRunnable, step)
-	// lands the Outside marks, so a leaver is dealt with the step it left
-	ctx.Sync()
-	ctx.Run(w.exitRunnable, step)
-	ctx.Sync()
+	ctx.Run(w.despawnRunnable, step)
 	ctx.Run(w.effectCmdsRunnable, step)
 	ctx.Run(w.momentsRunnable, step)
+	// lands the despawns, so the space is indexed without them
 	ctx.Sync()
+	ctx.Run(w.indexRunnable, step)
 	w.effects.Module().RunPlan(ctx, step)
 }
 
@@ -148,17 +135,11 @@ func (w *module) LoadComps() []goke.CompToken {
 	tokens := append([]goke.CompToken{
 		goke.LoadComp[Base](),
 		goke.LoadComp[render.Appearance](),
-		goke.LoadComp[steering.Steering](),
-		goke.LoadComp[steering.Course](),
-		goke.LoadComp[steering.Pace](),
-		goke.LoadComp[Outside](),
 		goke.LoadComp[Layers](),
 		goke.LoadComp[Z](),
 		goke.LoadComp[Eye](),
-		goke.LoadComp[Drift](),
 		goke.LoadComp[Lie](),
 		goke.LoadComp[Shadow](),
-		goke.LoadComp[steering.Driven](),
 		goke.LoadComp[tag.Tags[clock.Phase]](),
 		goke.LoadComp[ceremony.Label](),
 		goke.LoadComp[tag.Tags[cond.Roles]](),
@@ -187,6 +168,7 @@ func (w *module) despawn(cb *goke.CmdBuf, id uid.UID64) {
 		return
 	}
 	w.despawned[id] = struct{}{}
+	w.unindexed = true
 	cb.RemoveOne(id)
 	w.spawnedCount--
 	w.telemetry.Count--

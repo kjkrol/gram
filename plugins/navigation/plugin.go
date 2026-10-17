@@ -16,9 +16,10 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 // Plugin moves entities along a MoveOrder's path across a board, re-pathing when terrain changes,
@@ -53,10 +54,23 @@ type Plugin struct {
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.KindTemplater = (*Plugin)(nil)
 
-// NewPlugin builds a navigation plugin over a board; hand it to the players plugin for its MoveTo
-// command and default bindings.
-func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPlugin *selection.Plugin, drivingPlugin *driving.Plugin) *Plugin {
-	p := &Plugin{boardPlugin: boardPlugin, worldPlugin: worldPlugin, selected: selectionPlugin.Tags().Selected}
+// NewPlugin builds a navigation plugin over a board, its units moved by m; hand it to the players
+// plugin for its MoveTo command and default bindings.
+func NewPlugin(
+	boardPlugin *board.Plugin,
+	worldPlugin *world.Plugin,
+	m *motion.Plugin,
+	selectionPlugin *selection.Plugin,
+	drivingPlugin *driving.Plugin,
+) *Plugin {
+	if m == nil {
+		panic("navigation: a unit sent moves by motion, and none was given")
+	}
+	p := &Plugin{
+		boardPlugin: boardPlugin,
+		worldPlugin: worldPlugin,
+		selected:    selectionPlugin.Tags().Selected,
+	}
 	p.Self = world.NewSelf(worldPlugin, p)
 	drivingPlugin.WithKeeping(&p.handKeeping)
 	p.pathRenderer = newPathRenderer(boardPlugin.Board(), DefaultRouteStyle, p.selected).
@@ -68,9 +82,9 @@ func NewPlugin(boardPlugin *board.Plugin, worldPlugin *world.Plugin, selectionPl
 // KindTemplates is what navigation asks of the kinds a game defines: of a unit, the profile it is
 // steered by, and the order it was given last.
 func (p *Plugin) KindTemplates(r *kind.Roster) {
-	kind.Require[steering.Steering](r, world.UnitTemplate, "navigation",
+	kind.Require[steering.Steering](r, motion.UnitTemplate, "navigation",
 		"the profile it is steered by")
-	r.Default(world.UnitTemplate, comp.Const(LastOrder{}))
+	r.Default(motion.UnitTemplate, comp.Const(LastOrder{}))
 }
 
 func (p *Plugin) Name() string { return "gram.navigation" }

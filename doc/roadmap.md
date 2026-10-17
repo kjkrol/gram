@@ -109,8 +109,8 @@ What is left to do. Take an item out when it lands.
 
 ## Open questions
 
-- **`world.Leaving`** — a moment no game uses: the world tells its rules of an entity past an open
-  edge and despawns it with none. Should it stay a moment, or should the world simply despawn
+- **`motion.Leaving`** — a moment no game uses: motion tells its rules of an entity past an open
+  edge and despawns it with none. Should it stay a moment, or should motion simply despawn
   whoever leaves?
 - **The frozen light** freezes the hour alone, and is not saved: should it freeze the date too,
   and come back after a load (a component on the clock's entity)?

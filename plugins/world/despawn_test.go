@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/uid"
 )
@@ -94,5 +95,34 @@ func TestDespawn_TwiceInATickCountsOnce(t *testing.T) {
 
 	if wm.telemetry.Count != 2 {
 		t.Errorf("telemetry.Count = %d, want 2 — the second ask was for an entity already gone", wm.telemetry.Count)
+	}
+}
+
+func TestDespawn_AnEntitysOwnIsCarriedOutAndIndexedAtOnce(t *testing.T) {
+	wm := testWorld()
+	ids, ecs, q, _ := despawnWorld(t, wm, 3)
+
+	wm.commands.PutFrom(ids[0], Despawn{})
+	wm.commands.Put(command.Nobody, Despawn{})
+	run(ecs, wm, func(*goke.CmdBuf) {})
+
+	if alive := living(q); alive[ids[0]] || len(alive) != 2 {
+		t.Errorf("entities left = %v, want all but the one that gave itself a Despawn", alive)
+	}
+	if seen := indexed(wm.space); seen[ids[0]] || len(seen) != 2 {
+		t.Errorf("the index offers %v the step it went, want the two left", seen)
+	}
+}
+
+func TestDespawn_OneGivenByAnEntityGoneAlreadyIsIgnored(t *testing.T) {
+	wm := testWorld()
+	ids, ecs, _, _ := despawnWorld(t, wm, 3)
+
+	run(ecs, wm, func(cb *goke.CmdBuf) { wm.despawn(cb, ids[0]) })
+	wm.commands.PutFrom(ids[0], Despawn{})
+	run(ecs, wm, func(*goke.CmdBuf) {})
+
+	if wm.telemetry.Count != 2 {
+		t.Errorf("telemetry.Count = %d, want 2 — the entity giving it was gone", wm.telemetry.Count)
 	}
 }

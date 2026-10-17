@@ -3,6 +3,7 @@ package bench_test
 import (
 	"image/color"
 	"testing"
+	"time"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
@@ -11,6 +12,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -35,6 +37,10 @@ func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint
 		comp.Const(world.Velocity{Dir: geom.NewVec(1, 0), Value: 60}),
 	})
 	movers := kind.Named[mover](w.Kinds(), "mover")
+	m := motion.NewPlugin(w)
+	if err := ctx.Use(m); err != nil {
+		b.Fatal(err)
+	}
 	side := 1
 	for side*side < n {
 		side++
@@ -49,7 +55,10 @@ func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint
 	if arrange != nil {
 		arrange(w, movers)
 	}
-	return ctx.start(b, w.RunPlan)
+	return ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
+		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
+	})
 }
 
 // Benchmark_World_Draw composes one frame of the entity renderer over 5000 boxes with the camera

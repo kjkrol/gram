@@ -6,7 +6,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
-	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 )
 
 var _ goke.Module = (*module)(nil)

@@ -23,8 +23,9 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/gravity"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -120,6 +121,7 @@ type scene struct {
 type rig struct {
 	t     *testing.T
 	w     *world.Plugin
+	m     *motion.Plugin
 	c     *collision.Plugin
 	g     *gravity.Plugin
 	brd   *board.Plugin
@@ -130,7 +132,7 @@ type rig struct {
 	q      *goke.Query
 	base   goke.Comp[world.Base]
 	z      goke.OptComp[world.Z]
-	drift  goke.OptComp[world.Drift]
+	drift  goke.OptComp[motion.Drift]
 	pulls  *goke.Query
 	pull   goke.Comp[gravity.Pull]
 	marks  goke.Comp[tag.Tags[unit.States]]
@@ -151,9 +153,10 @@ func newRig(t *testing.T, sc scene) *rig {
 	if err := w.Carry(&r.heard); err != nil {
 		t.Fatal(err)
 	}
-	r.c = collision.NewPlugin(w)
+	r.m = motion.NewPlugin(w)
+	r.c = collision.NewPlugin(w, r.m)
 	g := grid.DefaultGrids{}.Square(4, 4, 10)
-	r.brd = board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
+	r.brd = board.NewPlugin(g, &cell.MultipleOccupancy{}, w).WithMotion(r.m)
 	r.brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	for y, line := range sc.level {
 		for x, c := range line {
@@ -200,7 +203,7 @@ func newRig(t *testing.T, sc scene) *rig {
 	if sc.level != nil {
 		pull = gravity.Pull{Y: 10}
 	}
-	r.g = gravity.NewPlugin(w, gravity.Config{Pull: pull})
+	r.g = gravity.NewPlugin(w, r.m, gravity.Config{Pull: pull})
 	if sc.land != nil {
 		l := *sc.land
 		r.g.WithSurfaces(func() ground.Surfaces { return l })
@@ -234,7 +237,7 @@ func (r *rig) start(sc scene) {
 		t.Fatal(err)
 	}
 	ctx := &installCtx{ecs: goke.New()}
-	for _, p := range []plugin.Plugin{r.w, r.c, r.g, r.brd} {
+	for _, p := range []plugin.Plugin{r.w, r.m, r.c, r.g, r.brd} {
 		if err := p.Install(ctx); err != nil {
 			t.Fatal(err)
 		}
@@ -251,6 +254,7 @@ func (r *rig) start(sc scene) {
 	r.ecs.Setup(systems...)
 	r.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		r.w.RunPlan(rc, d)
+		r.m.RunPlan(rc, d)
 		r.c.RunPlan(rc, d)
 		r.g.RunPlan(rc, d)
 		r.brd.RunPlan(rc, d)
@@ -295,7 +299,7 @@ func (r *rig) walk(k int, speed float64) {
 type state struct {
 	at       geom.Vec
 	z        world.Z
-	drift    world.Drift
+	drift    motion.Drift
 	airborne bool
 }
 

@@ -2,6 +2,7 @@ package gravity
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/plugins/motion"
 	"time"
 
 	"github.com/kjkrol/ceremony/command"
@@ -42,9 +43,13 @@ type Plugin struct {
 
 var _ plugin.Plugin = (*Plugin)(nil)
 
-// NewPlugin builds the gravity of w as cfg begins it: along Z, a body falling to the ground, or
-// across X and Y, a side view's. A pull both ways, or along Z in a flat world, panics.
-func NewPlugin(w *world.Plugin, cfg Config) *Plugin {
+// NewPlugin builds the gravity of w as cfg begins it, m carrying what it drifts: along Z, a body
+// falling to the ground, or across X and Y, a side view's. A pull both ways, or along Z in a flat
+// world, panics.
+func NewPlugin(w *world.Plugin, m *motion.Plugin, cfg Config) *Plugin {
+	if m == nil {
+		panic("gravity: a body drifts by motion, and none was given")
+	}
 	pull := cfg.Pull
 	g := w.Scale().Figure(earth)
 	switch {

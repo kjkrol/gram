@@ -26,6 +26,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/bullet"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -87,6 +88,7 @@ type rig struct {
 	t      *testing.T
 	pieces []piece
 	w      *world.Plugin
+	m      *motion.Plugin
 	c      *collision.Plugin
 	sel    *selection.Plugin
 	b      *bullet.Plugin
@@ -117,12 +119,23 @@ func newRig(t *testing.T, sc scene) *rig {
 		Entities: world.EntitiesCfg{MaxCount: len(sc.pieces) + 8, MinSize: 4, MaxSize: 40},
 		Heights:  sc.heights,
 	})
-	c := collision.NewPlugin(w)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m)
 	if sc.field != nil {
 		c.WithField(sc.field)
 	}
 	sel := selection.NewPlugin(w)
-	r := &rig{t: t, pieces: sc.pieces, w: w, c: c, sel: sel, b: bullet.NewPlugin(w, sel), arms: bullet.NewShots(w), fx: w.Effects()}
+	r := &rig{
+		t:      t,
+		pieces: sc.pieces,
+		w:      w,
+		m:      m,
+		c:      c,
+		sel:    sel,
+		b:      bullet.NewPlugin(w, m, sel),
+		arms:   bullet.NewShots(w),
+		fx:     w.Effects(),
+	}
 	spec := kind.Spec{
 		comp.Load(func(p piece) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(p.x, p.y), p.size, p.size)}
@@ -182,7 +195,7 @@ func (r *rig) start() {
 		t.Fatal(err)
 	}
 	ctx := &installCtx{ecs: goke.New()}
-	for _, p := range []plugin.Plugin{r.w, r.c, r.b} {
+	for _, p := range []plugin.Plugin{r.w, r.m, r.c, r.b} {
 		if err := p.Install(ctx); err != nil {
 			t.Fatal(err)
 		}
@@ -198,6 +211,7 @@ func (r *rig) start() {
 	r.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		r.b.RunPlan(rc, d)
 		r.w.RunPlan(rc, d)
+		r.m.RunPlan(rc, d)
 		r.c.RunPlan(rc, d)
 		rc.Sync()
 		r.w.Clock().Replay(rc, d)
@@ -601,7 +615,7 @@ func TestFlight_AnOpenEdgeIsLeftAClosedOneStopsTheShot(t *testing.T) {
 		ammo := round(r, true)
 		r.fx.Define("gone", effect.Spec{effect.Lasts(time.Minute)})
 		gone := r.fx.Named("gone")
-		if err := r.obey(act.Branch[world.Leaving]{
+		if err := r.obey(act.Branch[motion.Leaving]{
 			Name: "leaving",
 			When: cond.Self.If(cond.Always),
 			Then: act.Self.Put(gone),
@@ -704,7 +718,7 @@ func TestSaveLoad_AFlightGoesOnAfterALoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := &installCtx{ecs: goke.New()}
-	for _, p := range []plugin.Plugin{r2.w, r2.c, r2.b} {
+	for _, p := range []plugin.Plugin{r2.w, r2.m, r2.c, r2.b} {
 		if err := p.Install(ctx); err != nil {
 			t.Fatal(err)
 		}
@@ -726,6 +740,7 @@ func TestSaveLoad_AFlightGoesOnAfterALoad(t *testing.T) {
 	r2.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		r2.b.RunPlan(rc, d)
 		r2.w.RunPlan(rc, d)
+		r2.m.RunPlan(rc, d)
 		r2.c.RunPlan(rc, d)
 		rc.Sync()
 		r2.w.Clock().Replay(rc, d)

@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/plan"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -18,10 +19,10 @@ func hookGlow(r *rig, glow, shield effect.Effect, douse *bool) {
 		keep = act.Branch[any]{When: cond.Self.If(cond.Not(shield)), Then: act.Self.Hold(glow)}
 		put = act.Steps(act.Self.Put(shield), act.Self.Take(glow))
 	}
-	dousing := cond.NewWord("dousing", func(world.Moving) bool { return *douse })
+	dousing := cond.NewWord("dousing", func(motion.Moving) bool { return *douse })
 	r.rules = append(r.rules,
-		act.Branch[world.Moving]{Name: "glow", When: cond.Self.If(cond.Always), Then: keep},
-		act.Branch[world.Moving]{Name: "douse", When: cond.Self.If(dousing), Then: put})
+		act.Branch[motion.Moving]{Name: "glow", When: cond.Self.If(cond.Always), Then: keep},
+		act.Branch[motion.Moving]{Name: "douse", When: cond.Self.If(dousing), Then: put})
 }
 
 func TestRule_TakeTakesOffWhatAnotherRuleHoldsTillItsNextStep(t *testing.T) {
@@ -40,6 +41,8 @@ func TestRule_TakeTakesOffWhatAnotherRuleHoldsTillItsNextStep(t *testing.T) {
 	douse = true
 	r.fxTick()
 	douse = false
+	// motion's rules run after the step's effects, their commands carried out in the next
+	r.fxTick()
 	if r.marked(glow.Mark()) {
 		t.Error("the dispelled effect is still on")
 	}
@@ -64,6 +67,7 @@ func TestRule_AShieldLetsTheDispellerWin(t *testing.T) {
 	douse = true
 	r.fxTick()
 	douse = false
+	r.fxTick()
 	for i := range 2 {
 		if r.marked(glow.Mark()) {
 			t.Fatalf("%d steps after the douse the glow is back under the shield", i)
@@ -156,7 +160,7 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 				)))
 				return
 			}
-			r.rules = append(r.rules, act.Branch[world.Moving]{
+			r.rules = append(r.rules, act.Branch[motion.Moving]{
 				Name: "open while pulled",
 				When: cond.On(r.w).If(lever),
 				Then: act.Self.Hold(open),

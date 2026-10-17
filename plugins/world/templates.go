@@ -2,8 +2,5 @@ package world
 
 import "github.com/kjkrol/gram/entity/kind"
 
-// The world's templates: every kind it spawns, and what moves of them.
-var (
-	EntityTemplate = kind.NewTemplate("entity", nil)
-	UnitTemplate   = kind.NewTemplate("unit", EntityTemplate)
-)
+// EntityTemplate is the template of every kind the world spawns, the parent of a plugin's own.
+var EntityTemplate = kind.NewTemplate("entity", nil)

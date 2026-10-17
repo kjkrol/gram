@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -50,10 +51,11 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 		Heights:  true,
 	})
-	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
+	m := motion.NewPlugin(worldPlugin)
+	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin).WithMotion(m)
 	boardPlugin.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(worldPlugin)
-	navPlugin := NewPlugin(boardPlugin, worldPlugin, sel, driving.NewPlugin(worldPlugin, sel))
+	navPlugin := NewPlugin(boardPlugin, worldPlugin, m, sel, driving.NewPlugin(worldPlugin, m, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
 	local := pl.Local("tester")
 	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(50, 50, 0, camera.Config{}), nil)) // as a scene showing it wires it
@@ -111,10 +113,11 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 		Heights:  true,
 	})
-	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
+	m := motion.NewPlugin(worldPlugin)
+	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin).WithMotion(m)
 	boardPlugin.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(worldPlugin)
-	navPlugin := NewPlugin(boardPlugin, worldPlugin, sel, driving.NewPlugin(worldPlugin, sel))
+	navPlugin := NewPlugin(boardPlugin, worldPlugin, m, sel, driving.NewPlugin(worldPlugin, m, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
 	local := pl.Local("tester")
 	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(50, 50, 0, camera.Config{}), nil)) // as a scene showing it wires it
@@ -163,9 +166,10 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 		Heights:  true,
 	})
-	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
+	m := motion.NewPlugin(worldPlugin)
+	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin).WithMotion(m)
 	sel := selection.NewPlugin(worldPlugin)
-	navPlugin := NewPlugin(boardPlugin, worldPlugin, sel, driving.NewPlugin(worldPlugin, sel))
+	navPlugin := NewPlugin(boardPlugin, worldPlugin, m, sel, driving.NewPlugin(worldPlugin, m, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
 	local := pl.Local("tester")
 	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameras.TopDown()(50, 50, 0, camera.Config{}), nil)) // as a scene showing it wires it
@@ -203,9 +207,11 @@ func TestPlugin_DrawsItsRoutes(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 32},
 		Heights:  true,
 	})
-	brd := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.SingleOccupancy{}, w)
+	m := motion.NewPlugin(w)
+	brd := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.SingleOccupancy{}, w).
+		WithMotion(m)
 	sel := selection.NewPlugin(w)
-	nav := NewPlugin(brd, w, sel, driving.NewPlugin(w, sel))
+	nav := NewPlugin(brd, w, m, sel, driving.NewPlugin(w, m, sel))
 	ctx := &stubInstallCtx{ecs: goke.New()}
 	if err := nav.Install(ctx); err != nil {
 		t.Fatal(err)

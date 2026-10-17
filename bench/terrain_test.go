@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 )
@@ -60,9 +61,13 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []cell
 		Entities: world.EntitiesCfg{MaxCount: terrainUnits, MinSize: 10, MaxSize: 10},
 		Heights:  true,
 	})
-	c := collision.NewPlugin(w)
+	m := motion.NewPlugin(w)
+	if err := ctx.Use(m); err != nil {
+		b.Fatal(err)
+	}
+	c := collision.NewPlugin(w, m)
 	grid := grid.DefaultGrids{}.Square(terrainSide, terrainSide, terrainCell)
-	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
+	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).WithMotion(m)
 	v := vision.NewPlugin(w)
 	if err := ctx.Use(c); err != nil {
 		b.Fatal(err)
@@ -106,6 +111,7 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []cell
 
 	ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
 		c.RunPlan(rc, d)
 		brd.RunPlan(rc, d)
 		v.RunPlan(rc, d)

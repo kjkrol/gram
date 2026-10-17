@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -25,7 +26,8 @@ func zRun(t *testing.T, a, b raised) (met bool, gap float64) {
 		Heights:  true,
 	})
 	var stats collision.ContactStats
-	c := collision.NewPlugin(w).WithStats(&stats)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m).WithStats(&stats)
 	spec := kind.Spec{
 		comp.Load(func(r raised) world.Position { return posAt(r.x, 500, 10, 10) }),
 		comp.Const(world.Velocity{}),
@@ -46,7 +48,9 @@ func zRun(t *testing.T, a, b raised) (met bool, gap float64) {
 	}
 	var base goke.Comp[world.Base]
 	var q *goke.Query
-	ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base).Build() }})
+	ecs := collisiontest.Start(t, w, m, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		q = si.NewQueryBuilder(&base).Build()
+	}})
 	ecs.Tick(time.Second / 60)
 
 	var lefts []float64

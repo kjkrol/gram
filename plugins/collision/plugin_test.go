@@ -3,6 +3,7 @@ package collision
 import (
 	"testing"
 
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -13,8 +14,10 @@ func testWorldPlugin() *world.Plugin {
 	})
 }
 
+func newTestPlugin(w *world.Plugin) *Plugin { return NewPlugin(w, motion.NewPlugin(w)) }
+
 func TestPlugin_Name(t *testing.T) {
-	p := NewPlugin(testWorldPlugin())
+	p := newTestPlugin(testWorldPlugin())
 	if p.Name() != "gram.collision" {
 		t.Errorf("Name() = %q, want %q", p.Name(), "gram.collision")
 	}

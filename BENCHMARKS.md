@@ -21,9 +21,9 @@ the larger scenes is the amortised growth of buffers kept between ticks.
 
 ## World tick — `Benchmark_World_*`
 
-`Benchmark_World_Tick` is one tick of the world plugin alone: the plans, steering and
-velocity folded into each entity's speed, every box moved under the edge rules, and the space
-rebuilt from every entity. `Benchmark_World_PositionScan` is the floor under it: reading every
+`Benchmark_World_Tick` is one tick of the world and motion: the plans, steering and velocity
+folded into each entity's speed, every box moved under the edge rules, and the space rebuilt from
+every entity. `Benchmark_World_PositionScan` is the floor under it: reading every
 entity's `Base` through a goke query, chunk by chunk. The boxes stand on a 30-unit lattice, so
 5,000 of them fill one 2130×2130 corner of the 4000×4000 torus.
 
@@ -307,8 +307,8 @@ quads — the tiles, their outlines, the glints and the ways.
 
 * **A tick is the plugins' RunPlan and nothing else.** The engine adds no work of its own per
   entity; what a Stage pays is the sum of the plugins it runs, in the order it runs them.
-* **The world tick is the space rebuild plus a walk.** Moving 5,000 entities and handing the space
-  every `Base` costs under 200 µs; the query walk under it is 12 µs.
+* **The world tick with motion is the space rebuild plus a walk.** Moving 5,000 entities and
+  handing the space every `Base` costs under 200 µs; the query walk under it is 12 µs.
 * **Collisions cost by population.** At the demo's default scale (8,388 boxes of 5×5) a tick is
   under 3 ms, well inside the 8.3 ms of a 120 TPS step; the crowd that halves the demo's TPS is the
   40% coverage one, where contacts dominate.
@@ -334,7 +334,7 @@ stand still on a lattice; a sixteenth of them are told a pulse (a fact) every ti
 eight, so plans begin and end as facts come and go. `Benchmark_Plans_Tick`: every unit on a plan
 of two loops, one idling until a pulse comes afresh, one begun by the pulse when a word of it
 holds, putting an effect on and waiting a step. `Benchmark_Rules_Moving`: every unit playing a
-role of two rules of `world.Moving`, one holding an effect while a word of the moment holds, one
+role of two rules of `motion.Moving`, one holding an effect while a word of the moment holds, one
 putting another on by chance while under it. `Benchmark_Effects_Tick`: every unit under an
 effect lasting three steps with a `Grant` and an `Alter`, cast again by a plan as it ends.
 

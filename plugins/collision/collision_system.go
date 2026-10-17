@@ -13,8 +13,8 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/collision/internal/response"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -69,7 +69,7 @@ type collisionSystem struct {
 	contacts []pairSides
 	between  *host.PairRules[Meeting]
 	seekCols *cgoke.Columns
-	outside  goke.CompID
+	leave    func(cb *goke.CmdBuf, id uid.UID64)
 
 	fieldOf func() Field
 	heights bool
@@ -256,7 +256,6 @@ func (d *collisionSystem) Init(si *goke.SysInit) {
 	d.engine = d.space.CollideEngine((*handler)(d), cfg)
 	_, _, edges := d.space.Bounds()
 	d.wraps = edges.WrapsX() || edges.WrapsY()
-	d.outside = si.RegComp[world.Outside]()
 	qb := si.NewQueryBuilder(&d.base, &d.collider).Optional(&d.physics)
 	d.cols = cgoke.NewColumns(qb)
 	d.cols.Own(&d.walkSweep)
@@ -286,7 +285,7 @@ func (d *collisionSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 		if d.seek(l.ID) {
 			d.lookupBase.At(d.lookup.Cursor()).Pos.AABB = l.Box
 		}
-		cb.AddOne(l.ID, d.outside, world.Outside{})
+		d.leave(cb, l.ID)
 	}
 	if d.sweeping {
 		d.nearest()

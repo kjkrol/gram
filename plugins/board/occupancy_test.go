@@ -14,8 +14,9 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -40,7 +41,8 @@ func newKeptBoard(t *testing.T, seeded ...[2]uint32) *keptBoard {
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 1, MaxSize: 10},
 		Heights:  true,
 	})
-	p := board.NewPlugin(k.g, k.occupancy, k.w)
+	m := motion.NewPlugin(k.w)
+	p := board.NewPlugin(k.g, k.occupancy, k.w).WithMotion(m)
 	p.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	west, _ := grid.Direction(k.g, -1, 0)
 	east, _ := grid.Direction(k.g, 1, 0)
@@ -66,6 +68,9 @@ func newKeptBoard(t *testing.T, seeded ...[2]uint32) *keptBoard {
 	if err := k.w.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
+	if err := m.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
 	if err := p.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -78,6 +83,7 @@ func newKeptBoard(t *testing.T, seeded ...[2]uint32) *keptBoard {
 	}})...)
 	k.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		k.w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
 		p.RunPlan(rc, d)
 		rc.Sync()
 		k.w.Clock().Replay(rc, d)

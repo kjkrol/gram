@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/look"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -84,7 +85,7 @@ func TestNewPlugin_RequiresACellAndAMoverOfEveryUnit(t *testing.T) {
 		}
 	}()
 
-	w.Roster().Spec(world.UnitTemplate, comp.Const(world.Position{}))
+	w.Roster().Spec(motion.UnitTemplate, comp.Const(world.Position{}))
 	t.Error("the roster accepted a unit without an unit.At and a unit.Mover")
 }
 

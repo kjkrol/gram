@@ -15,10 +15,11 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -58,11 +59,12 @@ func newNavWorldWith(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 		Entities: world.EntitiesCfg{MaxCount: len(units) + 8, MinSize: 1, MaxSize: cellSize},
 		Heights:  true,
 	})
-	brd := board.NewPlugin(nw.grid, nw.occupancy, w)
+	m := motion.NewPlugin(w)
+	brd := board.NewPlugin(nw.grid, nw.occupancy, w).WithMotion(m)
 	nw.board = brd.Board()
 	nw.board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(w)
-	nw.nav = NewPlugin(brd, w, sel, driving.NewPlugin(w, sel)).WithSpacing(CellSpacing)
+	nw.nav = NewPlugin(brd, w, m, sel, driving.NewPlugin(w, m, sel)).WithSpacing(CellSpacing)
 	if prepare != nil {
 		prepare(w, brd)
 	}
@@ -72,6 +74,7 @@ func newNavWorldWith(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 	ctx := &stubInstallCtx{ecs: goke.New()}
 	for _, install := range []func() error{
 		func() error { return w.Install(ctx) },
+		func() error { return m.Install(ctx) },
 		func() error { return brd.Install(ctx) },
 		func() error { return nw.nav.Install(ctx) },
 	} {
@@ -130,6 +133,7 @@ func newNavWorldWith(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 	ctx.ecs.Setup(append(systems, after...)...)
 	nw.step = func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
 		brd.RunPlan(rc, d)
 		nw.nav.RunPlan(rc, d)
 		rc.Sync()

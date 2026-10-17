@@ -15,7 +15,34 @@ where it begins: `navigation.Path` changed shape. Nor those made before the beha
 Nor those made before a unit could strafe: `entity.Velocity` has a `Side`. Nor those of a board
 in a flat world: a board stands only in a world with heights now. Nor those made before the
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
-entities.
+entities. Nor those made before motion left the world: `world.Outside` is `motion.Outside`.
+
+**Motion, a plugin of its own** (2026-10-17)
+- `plugins/motion` moves the entities: the steering (`plugins/motion/steering`, was
+  `plugins/world/steering`), the velocity with the rules of a `motion.Moving` (`Still`,
+  `Braking`), the move and the leavers past an open edge (`motion.Outside`, `motion.Leaving`);
+  `motion.Drift` and `motion.UnitTemplate` were the world's. A game makes it first
+  (`motion.NewPlugin(w)`) and runs its `RunPlan` right after the world's; a world without it
+  keeps its entities where they stand (look/sky).
+- What steers or pushes takes it as it is made: `collision.NewPlugin(w, m)`,
+  `bullet.NewPlugin(w, m, sel)`, `driving.NewPlugin(w, m, sel)`,
+  `navigation.NewPlugin(brd, w, m, sel, drv)`, `gravity.NewPlugin(w, m, cfg)`; a board's units
+  need `board.Plugin.WithMotion`. Collision and bullet hand a leaver to `motion.Plugin.Leave`.
+- The world keeps the spawns and the despawns (an entity's own `Despawn` is carried out in the
+  world's step) and indexes the space after either; motion indexes it after moving.
+- Motion runs after the world's step, its effects among them: an effect on the steering tells the
+  step it begins, and what a rule of `Moving` or `Leaving` puts on or takes off lands with the
+  next step's effects.
+- The world's entity template carries the effects' markers and a `Patch` shadow by default
+  (things standing on the board theirs from the start); motion's unit template a course.
+
+**Kinds' templates by name** (2026-10-17)
+- `kind.Template` is a handle a plugin names (`kind.NewTemplate(name, parent)`): the world's
+  `EntityTemplate`, the board's `StandingTemplate` and `CellTemplate`. A plugin asks of them in
+  its `KindTemplates(r *kind.Roster)` (`plugin.KindTemplater`): `kind.Require`, `r.Default`;
+  `r.Spec(t, own...)` builds a kind's spec, a template's defaults over its parent's. The roster
+  is written as it is first read, by the world and every plugin made over it in the order made;
+  one made after that panics.
 
 **Shadows as strategies** (2026-10-17)
 - How an entity casts its shadow is its `world.Shadow{Cast}` (`entity.Shadow`), a knob: a soft

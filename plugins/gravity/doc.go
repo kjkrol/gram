@@ -5,8 +5,8 @@
 //
 // [NewPlugin] gives the world its gravity, a [Pull] on the plugin's own entity: a knob an effect's
 // Alter turns. A kind falls carrying a [Body], which says how high it leaps; the plugin gives it
-// a world.Drift, the velocity it is carried at beyond its walk. Whatever carries a Body is a unit
-// of the board: unit.Airborne is on while it is in the air.
+// a motion.Drift, the velocity motion carries it at beyond its walk. Whatever carries a Body is a
+// unit of the board: unit.Airborne is on while it is in the air.
 //
 // # Two modes
 //

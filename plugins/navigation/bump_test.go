@@ -20,11 +20,12 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -73,15 +74,16 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	rw.w = w
 	w.Effects().Define("alarm", effect.Spec{})
 	occupancy := &cell.SingleOccupancy{}
-	c := collision.NewPlugin(w)
-	brd := board.NewPlugin(rw.grid, occupancy, w)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m)
+	brd := board.NewPlugin(rw.grid, occupancy, w).WithMotion(m)
 	brd.Board().SetAll(cell.Kind{Cost: 2, Allows: cell.Land | cell.Air})
 	for x := uint32(0); x < width; x++ {
 		brd.Board().Set(rw.at(x, 1), cell.Kind{Cost: 1, Allows: cell.Land | cell.Air}) // the road
 	}
 	sel := selection.NewPlugin(w)
-	rw.driving = driving.NewPlugin(w, sel).WithGround(brd)
-	rw.nav = NewPlugin(brd, w, sel, rw.driving).WithCollision(c)
+	rw.driving = driving.NewPlugin(w, m, sel).WithGround(brd)
+	rw.nav = NewPlugin(brd, w, m, sel, rw.driving).WithCollision(c)
 	rw.players = players.NewPlugin(w, rw.nav, rw.driving)
 	for _, name := range []string{"one", "two"} {
 		cam := cameras.TopDown()(width*roadCell, 3*roadCell, 0, camera.Config{})
@@ -91,6 +93,9 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 
 	ctx := &stubInstallCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := c.Install(ctx); err != nil {
@@ -172,6 +177,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
 		c.RunPlan(rc, d)
 		brd.RunPlan(rc, d)
 		rw.nav.RunPlan(rc, d)

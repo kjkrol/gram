@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -23,7 +24,8 @@ func TestStruck_ComesOnlyToWhoStruckSomething(t *testing.T) {
 	if err := w.Carry(&orders); err != nil {
 		t.Fatal(err)
 	}
-	c := collision.NewPlugin(w)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m)
 	if err := c.Hook(act.Branch[collision.Struck]{
 		Name: "struck",
 		When: cond.Self.If(cond.Always),
@@ -48,7 +50,7 @@ func TestStruck_ComesOnlyToWhoStruckSomething(t *testing.T) {
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
-	ecs := collisiontest.Start(t, w, c)
+	ecs := collisiontest.Start(t, w, m, c)
 	for range 2 {
 		ecs.Tick(time.Second / 60)
 	}

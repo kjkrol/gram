@@ -14,8 +14,9 @@ import (
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 type recruit struct{ start cell.ID }
@@ -28,14 +29,18 @@ func unitsWorld(t *testing.T, define func(units *board.Units[recruit]) kind.Of[r
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 20, MaxSize: 20},
 		Heights:  true,
 	})
-	c := collision.NewPlugin(w)
-	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).WithCollision(c)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m)
+	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).WithMotion(m).WithCollision(c)
 	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land | cell.Water})
 	units := board.NewUnits[recruit](brd, board.Shape{Size: 20}, func(r recruit) geom.Vec { return grid.CellCenter(r.start) })
 	k := define(units)
 
 	ctx := boardtest.NewInstallCtx()
 	if err := w.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := c.Install(ctx); err != nil {
@@ -107,7 +112,7 @@ func TestUnits_AUnitOffTheBoardPanicsWhenSpawned(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 20, MaxSize: 20},
 		Heights:  true,
 	})
-	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
+	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).WithMotion(motion.NewPlugin(w))
 	units := board.NewUnits[recruit](brd, board.Shape{Size: 20}, func(recruit) geom.Vec { return geom.NewVec(-50, -50) })
 	units.Define("stray", unit.Mover{Domain: cell.Land}, steering.Steering{})
 	k := units.Named("stray")

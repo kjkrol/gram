@@ -17,8 +17,9 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -50,6 +51,7 @@ const fxTick = time.Second / 10
 type rig struct {
 	t       *testing.T
 	w       *world.Plugin
+	m       *motion.Plugin
 	fx      *cgoke.Effects
 	ecs     *goke.ECS
 	id      uid.UID64
@@ -73,12 +75,16 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 		Space:    world.SpaceCfg{Width: 400, Height: 400},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
+	r.m = motion.NewPlugin(r.w)
 	r.angry = r.w.Kinds().DefineTag[fxMoods]("angry")
 	r.fx = r.w.Effects()
 	define(r)
 
 	ctx := &fxInstallCtx{ecs: goke.New()}
 	if err := r.w.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.m.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := ctx.Deliver(r.rules...); err != nil {
@@ -119,6 +125,7 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 		rc.Run(caster, d)
 		rc.Sync()
 		r.w.RunPlan(rc, d)
+		r.m.RunPlan(rc, d)
 		r.w.Clock().Replay(rc, d)
 		rc.Sync()
 	})

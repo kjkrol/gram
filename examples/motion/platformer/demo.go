@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/gravity"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
@@ -40,6 +41,7 @@ var mapFile embed.FS
 
 type arena struct {
 	world     *world.Plugin
+	motion    *motion.Plugin
 	board     *board.Plugin
 	collision *collision.Plugin
 	gravity   *gravity.Plugin
@@ -85,12 +87,15 @@ func main() {
 
 func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
+	a.motion = motion.NewPlugin(a.world)
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
-	a.collision = collision.NewPlugin(a.world)
-	a.gravity = gravity.NewPlugin(a.world, gravity.Config{Pull: gravity.Pull{Y: pull}})
-	a.board = board.NewPlugin(grid, &cell.MultipleOccupancy{}, a.world).WithCollision(a.collision)
+	a.collision = collision.NewPlugin(a.world, a.motion)
+	a.gravity = gravity.NewPlugin(a.world, a.motion, gravity.Config{Pull: gravity.Pull{Y: pull}})
+	a.board = board.NewPlugin(grid, &cell.MultipleOccupancy{}, a.world).
+		WithMotion(a.motion).
+		WithCollision(a.collision)
 	a.selection = selection.NewPlugin(a.world)
-	a.driving = driving.NewPlugin(a.world, a.selection).WithGround(a.board)
+	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)
 	a.cameras = cameras.NewPlugin(a.world)
 	a.players = players.NewPlugin(
 		a.world,
@@ -163,6 +168,7 @@ func (a *arena) defineScenes() []game.Scene {
 
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.world.RunPlan(ctx, d)
+	a.motion.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
 	a.gravity.RunPlan(ctx, d)
 	a.board.RunPlan(ctx, d)

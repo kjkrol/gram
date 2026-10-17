@@ -1,4 +1,4 @@
-package world
+package motion
 
 import (
 	"testing"
@@ -10,7 +10,8 @@ import (
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/world/steering"
+	"github.com/kjkrol/gram/plugins/motion/steering"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
 
@@ -18,7 +19,11 @@ type moved struct{}
 
 func (moved) Command() {}
 
-func velocityTick(t *testing.T, share float64, rules ...act.Rule) (paced, unpaced float64, gave []uid.UID64) {
+func velocityTick(
+	t *testing.T,
+	share float64,
+	rules ...act.Rule,
+) (paced, unpaced float64, gave []uid.UID64) {
 	t.Helper()
 	var commands command.Carrier
 	var given command.Queue[moved]
@@ -37,19 +42,19 @@ func velocityTick(t *testing.T, share float64, rules ...act.Rule) (paced, unpace
 	}
 
 	ecs := goke.New()
-	var base goke.Comp[Base]
+	var base goke.Comp[world.Base]
 	var pace goke.Comp[steering.Pace]
 	var q *goke.Query
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		f := si.NewFactory(&base, &pace)
 		f.Create(1)
 		f.Next()
-		base.Slice(&f.Cursor)[0].Vel = Velocity{Dir: geom.NewVec(1, 0), Value: 100}
+		base.Slice(&f.Cursor)[0].Vel = world.Velocity{Dir: geom.NewVec(1, 0), Value: 100}
 		pace.Slice(&f.Cursor)[0] = steering.Pace{Share: share}
 		g := si.NewFactory(&base)
 		g.Create(1)
 		g.Next()
-		base.Slice(&g.Cursor)[0].Vel = Velocity{Dir: geom.NewVec(1, 0), Value: 100}
+		base.Slice(&g.Cursor)[0].Vel = world.Velocity{Dir: geom.NewVec(1, 0), Value: 100}
 		q = si.NewQueryBuilder(&base).Build()
 	}})
 	handle := ecs.RegSys(sys)
@@ -75,7 +80,8 @@ func velocityTick(t *testing.T, share float64, rules ...act.Rule) (paced, unpace
 func TestVelocitySystem_ScalesByThePace(t *testing.T) {
 	paced, unpaced, _ := velocityTick(t, 0.25)
 	if paced != 25 || unpaced != 100 {
-		t.Errorf("speeds %v and %v, want 25 at a pace of a quarter and 100 without one", paced, unpaced)
+		t.Errorf("speeds %v and %v, want 25 at a pace of a quarter and 100 without one", paced,
+			unpaced)
 	}
 }
 

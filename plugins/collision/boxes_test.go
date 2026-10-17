@@ -12,6 +12,7 @@ import (
 	icamera "github.com/kjkrol/gram/internal/camera"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -30,7 +31,8 @@ func TestBoxes_ABaseLiesUnderItsFigureAndASolidStandsFromItsAltitudeToItsTop(t *
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 10, MaxSize: 10},
 		Heights:  true,
 	})
-	c := collision.NewPlugin(w)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m)
 	kind.Define[struct{}](w.Kinds(), "block", kind.Spec{
 		comp.Const(posAt(500, 500, 10, 10)),
 		comp.Const(world.Velocity{}),
@@ -41,7 +43,7 @@ func TestBoxes_ABaseLiesUnderItsFigureAndASolidStandsFromItsAltitudeToItsTop(t *
 		t.Fatal(err)
 	}
 	boxes := c.BoxesView()
-	ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: boxes.Init})
+	ecs := collisiontest.Start(t, w, m, c, goke.SystemFn{OnInit: boxes.Init})
 	cam := raising{icamera.NewFromSpace(1000, 1000, 0)}
 	drawn := func(shown collision.BoxesShown) (ats []render.At, heights []float32) {
 		c.ShowBoxes(shown)

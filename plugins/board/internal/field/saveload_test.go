@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -21,6 +22,7 @@ type fieldStage struct {
 	grid grid.Grid
 
 	world     *world.Plugin
+	motion    *motion.Plugin
 	collision *collision.Plugin
 	board     *board.Plugin
 	stack     game.Scenes
@@ -34,11 +36,17 @@ func (g *fieldStage) Init(ctx game.Initializer) error {
 		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: boardtest.UnitSize, MaxSize: boardtest.UnitSize},
 		Heights:  true,
 	})
-	g.collision = collision.NewPlugin(g.world)
+	g.motion = motion.NewPlugin(g.world)
+	if err := ctx.Use(g.motion); err != nil {
+		return err
+	}
+	g.collision = collision.NewPlugin(g.world, g.motion)
 	if err := ctx.Use(g.collision); err != nil {
 		return err
 	}
-	g.board = board.NewPlugin(g.grid, &cell.MultipleOccupancy{}, g.world).WithCollision(g.collision)
+	g.board = board.NewPlugin(g.grid, &cell.MultipleOccupancy{}, g.world).
+		WithMotion(g.motion).
+		WithCollision(g.collision)
 	g.board.CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
 	g.board.CellKinds().Define("wall", cell.Kind{Cost: 1, Solid: true})
 	if err := ctx.Use(g.board); err != nil {
@@ -61,6 +69,7 @@ func (g *fieldStage) Spawn() error {
 
 func (g *fieldStage) Update(ctx goke.RunCtx, d time.Duration) {
 	g.world.RunPlan(ctx, d)
+	g.motion.RunPlan(ctx, d)
 	g.collision.RunPlan(ctx, d)
 	g.board.RunPlan(ctx, d)
 	ctx.Sync()

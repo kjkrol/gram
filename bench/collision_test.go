@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -57,7 +58,11 @@ func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int,
 		Entities: world.EntitiesCfg{MaxCount: count, MinSize: rect, MaxSize: rect},
 	})
 	stats := &collision.ContactStats{}
-	c := collision.NewPlugin(w).WithStats(stats)
+	m := motion.NewPlugin(w)
+	if err := ctx.Use(m); err != nil {
+		b.Fatal(err)
+	}
+	c := collision.NewPlugin(w, m).WithStats(stats)
 	if err := ctx.Use(c); err != nil {
 		b.Fatal(err)
 	}
@@ -77,6 +82,7 @@ func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int,
 
 	ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
 		c.RunPlan(rc, d)
 		rc.Sync()
 	})
@@ -185,7 +191,11 @@ func benchSwept(b *testing.B, shots int) (*goke.ECS, *collision.ContactStats) {
 		Entities: world.EntitiesCfg{MaxCount: count + shots, MinSize: 4, MaxSize: rect},
 	})
 	stats := &collision.ContactStats{}
-	c := collision.NewPlugin(w).WithStats(stats)
+	m := motion.NewPlugin(w)
+	if err := ctx.Use(m); err != nil {
+		b.Fatal(err)
+	}
+	c := collision.NewPlugin(w, m).WithStats(stats)
 	if err := ctx.Use(c); err != nil {
 		b.Fatal(err)
 	}
@@ -222,6 +232,7 @@ func benchSwept(b *testing.B, shots int) (*goke.ECS, *collision.ContactStats) {
 		rc.Run(fly, d)
 		rc.Sync()
 		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
 		c.RunPlan(rc, d)
 		rc.Sync()
 	})

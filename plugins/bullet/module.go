@@ -26,7 +26,9 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	p := m.p
 	w := p.worldPlugin
 	m.shoot = ecs.RegSys(newShootSystem(w, &p.shoots, p.selected, p.ground))
-	m.flight = ecs.RegSys(newFlightSystem(w, &p.landings, &p.restings, p.ground))
+	flight := newFlightSystem(w, &p.landings, &p.restings, p.ground)
+	flight.leave = p.motion.Leave
+	m.flight = ecs.RegSys(flight)
 	m.burst = ecs.RegSys(newBurstSystem(w, &p.bursts, &p.blasts))
 	m.built = true
 }

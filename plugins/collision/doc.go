@@ -5,10 +5,10 @@
 //
 // # Plugin and its system
 //
-// [Plugin] is built over a world plugin ([NewPlugin]) and installed with Use; it runs one
-// collision system a tick over the world's space. A Collider counts from the tick it is carried;
-// one that loses its Collider meets nobody from the next. Whoever is pushed out through an open
-// edge is marked world.Outside.
+// [Plugin] is built over a world plugin and motion ([NewPlugin]) and installed with Use; it runs
+// one collision system a tick over the world's space. A Collider counts from the tick it is
+// carried; one that loses its Collider meets nobody from the next. Whoever is pushed out through
+// an open edge is motion's leaver (motion.Plugin.Leave).
 //
 // # Solid ground
 //

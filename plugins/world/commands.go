@@ -41,11 +41,10 @@ var (
 // Queues are the queues of every command the world carries out.
 func (p *Plugin) Queues() []command.CommandQueue {
 	m := p.module
-	q := []command.CommandQueue{
+	return []command.CommandQueue{
 		&m.pauses, &m.fasters, &m.slowers, &m.spawns, &m.despawns,
 		&m.effectCmds.queue, &m.effectCmds.triggers,
 	}
-	return append(q, m.steer.Queues()...)
 }
 
 // DefaultBindings are the clock's keys — Shift+P pauses, ] goes faster, [ slower — and Shift+X

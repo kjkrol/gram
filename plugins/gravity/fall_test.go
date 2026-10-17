@@ -8,7 +8,7 @@ import (
 	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/gram/plugins/board/unit"
-	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/motion"
 )
 
 var (
@@ -150,7 +150,7 @@ func TestFall_AwayThrowsItOffFromAnother(t *testing.T) {
 		r.tick()
 	}
 	s := r.of(1)
-	if s.airborne || s.drift != (world.Drift{}) || s.at.X < 28 {
+	if s.airborne || s.drift != (motion.Drift{}) || s.at.X < 28 {
 		t.Errorf("after the throw: %+v, want it landed further east and still", s)
 	}
 	if o := r.of(0); o.at.X != 15 || o.airborne {

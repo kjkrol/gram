@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -86,6 +87,9 @@ func TestSaveLoadCycle(t *testing.T) {
 	if err := wp.Install(ctx); err != nil {
 		t.Fatalf("Install: %v", err)
 	}
+	if err := motion.NewPlugin(wp).Install(ctx); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
 
 	var origIDs []uint64
 	var origAppearance map[uint64]render.SpriteID
@@ -132,6 +136,9 @@ func TestSaveLoadCycle(t *testing.T) {
 
 	ctx2 := collisiontest.NewInstallCtx(ecs2)
 	if err := plugin2.Install(ctx2); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	if err := motion.NewPlugin(plugin2).Install(ctx2); err != nil {
 		t.Fatalf("Install: %v", err)
 	}
 

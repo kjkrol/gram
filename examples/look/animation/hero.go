@@ -17,9 +17,10 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -99,20 +100,20 @@ func (a *arena) defineEffects() {
 func (a *arena) defineRules() {
 	fx := a.world.Effects()
 	a.world.Roles().Define(HeroRole,
-		act.Branch[world.Moving]{
+		act.Branch[motion.Moving]{
 			Name: "stands still",
-			When: cond.Self.If(world.Still()).
+			When: cond.Self.If(motion.Still()).
 				And(cond.Self.If(cond.Not(fx.Named(StillEf)))),
 			Then: act.Self.Put(fx.Named(StillEf)),
 		},
-		act.Branch[world.Moving]{
+		act.Branch[motion.Moving]{
 			Name: "moves on",
-			When: cond.Self.If(cond.Not(world.Still())),
+			When: cond.Self.If(cond.Not(motion.Still())),
 			Then: wakeUp(fx),
 		},
-		act.Branch[world.Moving]{
+		act.Branch[motion.Moving]{
 			Name: "brakes",
-			When: cond.Self.If(world.Braking()),
+			When: cond.Self.If(motion.Braking()),
 			Then: act.Self.Hold(fx.Named(BrakingEf)),
 		},
 	)

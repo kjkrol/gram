@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/motion"
 )
 
 var _ goke.System = (*giveSystem)(nil)
@@ -16,15 +16,15 @@ type giveSystem struct {
 }
 
 func (s *giveSystem) Init(si *goke.SysInit) {
-	s.id = si.RegComp[world.Drift]()
+	s.id = si.RegComp[motion.Drift]()
 	var body goke.Comp[Body]
-	s.driftless = si.NewQueryBuilder(&body).Exclude(goke.Exclude[world.Drift]()).Build()
+	s.driftless = si.NewQueryBuilder(&body).Exclude(goke.Exclude[motion.Drift]()).Build()
 }
 
 func (s *giveSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	for s.driftless.All(); s.driftless.Next(); {
 		for _, e := range s.driftless.Cursor().IDs {
-			cb.AddOne(e, s.id, world.Drift{})
+			cb.AddOne(e, s.id, motion.Drift{})
 		}
 	}
 }

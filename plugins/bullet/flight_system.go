@@ -47,7 +47,8 @@ type flightSystem struct {
 	rflight goke.Comp[Flight]
 	rbody   goke.Comp[Body]
 
-	sweepID, collID, outsideID goke.CompID
+	sweepID, collID goke.CompID
+	leave           func(cb *goke.CmdBuf, id uid.UID64)
 
 	walking struct {
 		ids     []uid.UID64
@@ -68,7 +69,7 @@ func newFlightSystem(w *world.Plugin, landings *host.Rules[Landing], restings *h
 }
 
 func (s *flightSystem) Init(si *goke.SysInit) {
-	s.sweepID, s.collID, s.outsideID = si.RegComp[collision.Sweep](), si.RegComp[collision.Collider](), si.RegComp[world.Outside]()
+	s.sweepID, s.collID = si.RegComp[collision.Sweep](), si.RegComp[collision.Collider]()
 	qb := si.NewQueryBuilder(&s.base, &s.flight, &s.body).Optional(&s.coll).Optional(&s.sweep).Optional(&s.z)
 	s.landCols = cgoke.NewColumns(qb)
 	s.landings.Bind(s.landCols)
@@ -126,7 +127,7 @@ func (s *flightSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 		s.landings.RunWhere(t, s.landCols.Row(cur), len(cur.IDs), s.landsAt, s.landingAt)
 		for i, id := range cur.IDs {
 			if s.walking.ends[i] && flights[i].Ending == Left {
-				cb.AddOne(id, s.outsideID, world.Outside{})
+				s.leave(cb, id)
 			}
 		}
 	}

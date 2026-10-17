@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
@@ -200,7 +201,7 @@ func (p *Plugin) tools() {
 // KindTemplates is what the players ask of the kinds a game defines: every unit marked, so it may
 // be given an owner.
 func (p *Plugin) KindTemplates(r *kind.Roster) {
-	r.Default(world.UnitTemplate, comp.Marks[owner.Family]())
+	r.Default(motion.UnitTemplate, comp.Marks[owner.Family]())
 }
 
 func (p *Plugin) Name() string { return "gram.players" }

@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -56,7 +57,7 @@ func (p *Plugin) Tags() Tags { return p.tags }
 // KindTemplates is what selection asks of the kinds a game defines: every unit marked, so it may
 // be told Allow.
 func (p *Plugin) KindTemplates(r *kind.Roster) {
-	r.Default(world.UnitTemplate, comp.Marks[Family]())
+	r.Default(motion.UnitTemplate, comp.Marks[Family]())
 }
 
 // Chosen is the one Selected unit player by owns; false with none, or several. Nothing before

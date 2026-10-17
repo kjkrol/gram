@@ -14,10 +14,11 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 )
 
 // a ground with no profile: sight samples it every step
@@ -47,7 +48,11 @@ func Benchmark_Vision_Relief(b *testing.B) {
 				Heights:  true,
 			})
 			g := grid.DefaultGrids{}.Square(cols, rows, size)
-			p := board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
+			m := motion.NewPlugin(w)
+			if err := ctx.Use(m); err != nil {
+				b.Fatal(err)
+			}
+			p := board.NewPlugin(g, &cell.MultipleOccupancy{}, w).WithMotion(m)
 			topo := topography.NewPlugin(w, p, topography.Config{Cell: size})
 			v := vision.NewPlugin(w).WithBoard(p).WithFrequency(c.every)
 			if c.step > 0 {
@@ -82,6 +87,7 @@ func Benchmark_Vision_Relief(b *testing.B) {
 			w.Seed(entries...)
 			ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
 				w.RunPlan(rc, d)
+				m.RunPlan(rc, d)
 				p.RunPlan(rc, d)
 				v.RunPlan(rc, d)
 				topo.RunPlan(rc, d)

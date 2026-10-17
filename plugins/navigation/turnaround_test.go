@@ -15,9 +15,10 @@ import (
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/motion"
+	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/gram/plugins/world/steering"
 	"github.com/kjkrol/uid"
 )
 
@@ -51,16 +52,17 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 		Heights:  true,
 	})
 	occupancy := &cell.SingleOccupancy{}
-	brd := board.NewPlugin(tw.grid, occupancy, w)
+	m := motion.NewPlugin(w)
+	brd := board.NewPlugin(tw.grid, occupancy, w).WithMotion(m)
 	brd.Board().SetAll(cell.Kind{Cost: 2, Allows: cell.Land}) // grass, as in the demo
 	for y := uint32(0); y < 4; y++ {
 		brd.Board().Set(tw.at(0, y), cell.Kind{Cost: 1, Solid: true})
 	}
 	sel := selection.NewPlugin(w)
-	tw.nav = NewPlugin(brd, w, sel, driving.NewPlugin(w, sel))
+	tw.nav = NewPlugin(brd, w, m, sel, driving.NewPlugin(w, m, sel))
 	var c *collision.Plugin
 	if collide {
-		c = collision.NewPlugin(w)
+		c = collision.NewPlugin(w, m)
 	}
 
 	if err := w.Carry(tw.nav); err != nil { // as the engine does with Use
@@ -68,6 +70,9 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	}
 	ctx := &stubInstallCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := brd.Install(ctx); err != nil {
@@ -122,6 +127,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
 		if c != nil {
 			c.RunPlan(rc, d)
 		}

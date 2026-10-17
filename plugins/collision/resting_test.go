@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -32,7 +33,8 @@ func TestResting_APairPartedStillMeetsWhileItTouches(t *testing.T) {
 	if err := w.Carry(&orders); err != nil {
 		t.Fatal(err)
 	}
-	c := collision.NewPlugin(w)
+	m := motion.NewPlugin(w)
+	c := collision.NewPlugin(w, m)
 	if err := c.Hook(
 		act.Branch[collision.Meeting]{
 			Name: "met",
@@ -62,7 +64,7 @@ func TestResting_APairPartedStillMeetsWhileItTouches(t *testing.T) {
 	var base goke.Comp[world.Base]
 	var collider goke.Comp[collision.Collider]
 	var q *goke.Query
-	ecs := collisiontest.Start(t, w, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
+	ecs := collisiontest.Start(t, w, m, c, goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		q = si.NewQueryBuilder(&base, &collider).Build()
 	}})
 	for range 8 { // into the post and held at it
