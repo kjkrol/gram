@@ -65,12 +65,16 @@ type module struct {
 	plansSys      *cgoke.Plans
 	plansRunnable goke.Runnable
 
-	commands command.Carrier
-	pauses   command.Queue[Pause]
-	fasters  command.Queue[Faster]
-	slowers  command.Queue[Slower]
-	spawns   command.Queue[Spawn]
-	despawns command.Queue[Despawn]
+	commands     command.Carrier
+	pauses       command.Queue[Pause]
+	fasters      command.Queue[Faster]
+	slowers      command.Queue[Slower]
+	bandSwitches command.Queue[SwitchBands]
+	// what is drawn of the sectors, switched by sectorSwitches
+	sectorsShown   SectorsShown
+	sectorSwitches command.Queue[SwitchSectors]
+	spawns         command.Queue[Spawn]
+	despawns       command.Queue[Despawn]
 
 	spawnRunnable   goke.Runnable
 	despawnRunnable goke.Runnable
@@ -115,6 +119,10 @@ func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	w.pauses.Drain(func(command.Issued[Pause]) { w.clock.TogglePause() })
 	w.fasters.Drain(func(command.Issued[Faster]) { w.clock.Faster() })
 	w.slowers.Drain(func(command.Issued[Slower]) { w.clock.Slower() })
+	w.bandSwitches.Drain(func(command.Issued[SwitchBands]) {
+		w.sectors.unbanded = !w.sectors.unbanded
+	})
+	w.switchSectors()
 	ctx.Run(w.clockRunnable, d)
 	ctx.Run(w.sectorsRunnable, d)
 	ctx.Run(w.viewRunnable, d)

@@ -44,6 +44,7 @@ type Plugin struct {
 	made    plugin.Made
 	*Self
 	renderer *renderer
+	sectors  *sectorsView
 	kinds    *Kinds
 	roster   *kind.Roster
 	seeded   []kind.Entry
@@ -81,6 +82,7 @@ func NewPlugin(cfg Config) *Plugin {
 	// the clock's entity is the world's own
 	p.Self = newSelf(p, p.Name(), comp.Const(m.clock.State()))
 	p.renderer = newRenderer(nil, p.ViewFor, &m.drawing, p.Look)
+	p.sectors = newSectorsView(p)
 	p.renderer.clock = m.clock.Shown
 	return p
 }
@@ -224,7 +226,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	ctx.UseModule(p.module.effects.Module())
 	ctx.Setup(p.kinds)
 	ctx.Hosts(&p.module.moments.host)
-	ctx.Draws(p.renderer)
+	ctx.Draws(p.renderer, p.sectors)
 	ctx.Looks(p.dress)
 	return nil
 }

@@ -98,7 +98,10 @@
 // A system adds the pace of its policy ([Plugin.Pace]) to its query and walks it with
 // goke.Query.Paced; the world's plans and effects go Paced. [Plugin.Sectors] lays them on the
 // telemetry panel. A camera's View in such a world is of the sectors it sees, each at a level
-// (view.NewSeen); [Plugin.Seen] lays the first camera's on the panel.
+// (view.NewSeen); [Plugin.Seen] lays the first camera's on the panel. [SwitchSectors] (Shift+G)
+// shows the sectors over the ground by their bands or by how the camera sees them
+// ([Plugin.ShowSectors]); [SwitchBands] (Ctrl+G) switches the bands off, every sector in the
+// first, to weigh what they spare ([Plugin.SetBanded]).
 //
 // # Views
 //
@@ -124,6 +127,6 @@
 //
 // Knobs, for an effect's Alter: render.Appearance, the look's; [Shadow], how it casts its shadow.
 // Commands: [Spawn] (a player's or an entity's own); [Despawn] (an entity's own); [Pause],
-// [Faster], [Slower] (a player's). The clock's moment and the commands about effects
-// (ceremony.Put, Take, Toggle, Trigger) are carried here too.
+// [Faster], [Slower], [SwitchSectors], [SwitchBands] (a player's). The clock's moment and the
+// commands about effects (ceremony.Put, Take, Toggle, Trigger) are carried here too.
 package world

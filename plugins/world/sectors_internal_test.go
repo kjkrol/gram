@@ -8,8 +8,10 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
@@ -203,6 +205,52 @@ func TestSectors_ReportTheSectorsAndEntitiesByBand(t *testing.T) {
 	}
 	if got["Entities by band"] != "1 · 1, beyond 2" {
 		t.Errorf("entities %q, want 1 · 1, beyond 2", got["Entities by band"])
+	}
+}
+
+func TestSectors_SwitchedOffLiveEverywhereAndOnAgainGoBackPastTheMargin(t *testing.T) {
+	r := sectorWorld(t, twoBands...)
+	r.spawn(100, 1200, 2000, 3500)
+	r.run()
+	r.p.module.commands.Put(command.Nobody, SwitchBands{})
+	r.run()
+	r.run()
+	near, second, off := r.bands()
+	if r.p.Banded() || len(near) != 4 || len(second) != 0 || len(off) != 0 {
+		t.Errorf("bands off (banded %v): near %v, second %v, beyond %v; want every entity near",
+			r.p.Banded(), near, second, off)
+	}
+	got := map[string]string{}
+	r.p.Sectors().Report(func(label, value string) { got[label] = value })
+	if got["Sectors"] != "8 · 0, beyond 0, bands off" {
+		t.Errorf("sectors %q, want 8 · 0, beyond 0, bands off", got["Sectors"])
+	}
+	r.p.module.commands.Put(command.Nobody, SwitchBands{})
+	r.run()
+	r.run()
+	// the sector of 2000 lies 1436 off, short of the second band's 1200 and its margin of 256
+	near, second, off = r.bands()
+	if !r.p.Banded() || !same(near, 100) || !same(second, 1200, 2000) || !same(off, 3500) {
+		t.Errorf("bands on (banded %v): near %v, second %v, beyond %v; want 100, 1200 and 2000, "+
+			"3500", r.p.Banded(), near, second, off)
+	}
+}
+
+func TestSectors_KeysOnlyInAWorldCutIntoSectors(t *testing.T) {
+	ctrlG := func(p *Plugin) (command.Command, bool) {
+		for _, k := range p.DefaultBindings() {
+			press, ok := k.Trigger.(control.KeyPress)
+			if ok && press.Key == control.KeyG && press.Mods.Ctrl {
+				return k.Build(control.Context{})
+			}
+		}
+		return nil, false
+	}
+	if cmd, ok := ctrlG(sectorWorld(t, twoBands...).p); !ok || cmd != (SwitchBands{}) {
+		t.Errorf("Ctrl+G builds %v (%v), want SwitchBands", cmd, ok)
+	}
+	if cmd, ok := ctrlG(sectorWorld(t).p); ok {
+		t.Errorf("Ctrl+G builds %v in a world of no sectors, want no such key", cmd)
 	}
 }
 

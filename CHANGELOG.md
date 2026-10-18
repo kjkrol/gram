@@ -17,6 +17,17 @@ in a flat world: a board stands only in a world with heights now. Nor those made
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
 entities. Nor those made before motion left the world: `world.Outside` is `motion.Outside`.
 
+**The sectors shown, the bands switched off, a world of a hundred thousand** (2026-10-18)
+- Shift+G shows a world's sectors over the ground, by their bands, by how the camera sees them,
+  or not at all (`world.SwitchSectors`, `world.Plugin.ShowSectors`): in relief over the ground's
+  depth on the GPU, on a flat world as quads under the figures.
+- Ctrl+G switches the bands off, every sector in the first and the whole world alive, and on
+  again (`world.SwitchBands`, `world.Plugin.SetBanded`); the panel says "bands off". Both keys
+  are the world's only where it is cut into sectors.
+- `sector.Grid` gives its `Side`, `Cols` and `Rows`. Madeira's sectors are two buckets a side.
+- motion/expanse: a hundred thousand boxes on a torus of about 98 km, alive in bands round the
+  camera; switched off, the frame rate falls from about 700 to under 10.
+
 **The ground by the sectors seen** (2026-10-18)
 - In a world cut into sectors the ground drawn is that of the sectors a camera sees. The relief's
   mesh is laid sector by sector, each whole and coarse (every second corner within, the edge

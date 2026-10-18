@@ -24,6 +24,13 @@ func (p *Plugin) Anchor(a sector.Anchors) {
 // band.
 func (p *Plugin) Sectors() render.Reporter { return sectorsReport{p.module} }
 
+// SetBanded switches the sectors' bands on, or off with every sector in the first (SwitchBands);
+// not saved.
+func (p *Plugin) SetBanded(on bool) { p.module.sectors.unbanded = !on }
+
+// Banded reports whether the sectors' bands are on; true in a world of no sectors.
+func (p *Plugin) Banded() bool { return !p.module.sectors.unbanded }
+
 // Seen is the world's part of the telemetry panel about the first camera made: how many sectors
 // it sees at each level.
 func (p *Plugin) Seen() render.Reporter { return seenReport{p.module} }
@@ -37,6 +44,8 @@ type sectors struct {
 	anchors []sector.Anchors
 	at      []geom.Vec
 	margin  float64
+	// the bands switched off: the anchors left out, every sector in the first
+	unbanded bool
 	// by band: the first's none, Beyond's Off
 	marks []goke.CompID
 	// by band but Beyond's, each its own column
@@ -145,6 +154,9 @@ func (s *sectors) Update(cb *goke.CmdBuf, _ time.Duration) {
 	}
 	s.at = s.at[:0]
 	for _, a := range s.anchors {
+		if s.unbanded {
+			break
+		}
 		a.Anchors(func(x, y float32) { s.at = append(s.at, geom.NewVec(float64(x), float64(y))) })
 	}
 	s.woke = s.woke[:0]
@@ -284,7 +296,11 @@ func (r sectorsReport) Report(line func(label, value string)) {
 		return
 	}
 	in := s.grid.Count(nil)
-	line("Sectors", bandsOf(in))
+	if s.unbanded {
+		line("Sectors", bandsOf(in)+", bands off")
+	} else {
+		line("Sectors", bandsOf(in))
+	}
 	counts := append([]int(nil), s.counts...)
 	near := 0
 	for _, n := range counts[:len(counts)-1] {

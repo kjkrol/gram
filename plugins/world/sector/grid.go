@@ -40,6 +40,15 @@ func (g *Grid) Reset() {
 // Len is how many sectors there are.
 func (g *Grid) Len() int { return len(g.in) }
 
+// Side is a sector's side, in world units.
+func (g *Grid) Side() float64 { return g.side }
+
+// Cols is how many sectors lie across the world; sector i lies in column i%Cols.
+func (g *Grid) Cols() int { return g.cols }
+
+// Rows is how many sectors lie down the world.
+func (g *Grid) Rows() int { return g.rows }
+
 // Beyond is the band of the sectors past the last band.
 func (g *Grid) Beyond() int { return len(g.bands) }
 

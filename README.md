@@ -331,6 +331,7 @@ demo opens a window; what it shows is tested in the library's package that does 
 | Demo | Shows | Run |
 |:---|:---|:---|
 | [`motion/collision`](examples/motion/collision) | Thousands of bouncing boxes of many kinds, hit overlays, telemetry, save and load | `make demo-motion-collision` |
+| [`motion/expanse`](examples/motion/expanse) | A hundred thousand boxes on a torus of about 98 km: the world lives in bands round the camera, Shift+G shows the sectors by their bands or by what the camera sees, Ctrl+G switches the bands off to weigh what they spare | `make demo-motion-expanse` |
 | [`motion/bullet`](examples/motion/bullet) | A soldier on WSAD, the camera following him: Space fires a round the way he faces, Shift held and let go throws a grenade the further the longer held, in an arc that lies with a spark and bursts; the shots are the plugin's, the wounds and the fuse rules, effects and a plan | `make demo-motion-bullet` |
 | [`motion/platformer`](examples/motion/platformer) | A hero in a side view under gravity: A and D walk, W jumps, G turns gravity over, a hard landing dazes | `make demo-motion-platformer` |
 

@@ -104,7 +104,7 @@ func main() {
 				MaxSize:  CellSize,
 			},
 			Sectors: world.SectorsCfg{
-				Buckets: 4,
+				Buckets: 2,
 				Bands: []sector.Band{
 					{Reach: scale.Units(16_000)},
 					{Reach: scale.Units(32_000), Pace: 4},

@@ -33,7 +33,18 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (zero-size, `CmdBuf` `AddOne`/`RemoveCompOne`, saved), the first band unmarked. Anchors are
   `sector.Anchors` handed to `Plugin.Anchor` (the cameras plugin's, the `camera.Focused` point
   of each camera but a `Whole` one); `Plugin.Sectors()` is a `render.Reporter` ("Sectors",
-  "Entities by band"); board/topography has them. **Systems go in the bands by a policy**
+  "Entities by band", ", bands off" while they are); board/topography and motion/expanse have
+  them. **Bands off** (`SwitchBands`, Ctrl+G; `SetBanded`, `Banded`; not saved): the supervisor
+  leaves the anchors out, so `Grid.Place` lays every sector in the first band at once, the
+  sleepers wake and the marks go — the whole world as if without bands but for the supervisor's
+  pass; on again, the sectors go back past the margin. **The sectors shown** (`SwitchSectors`,
+  Shift+G through `SectorsShown`: `SectorBands`, `SectorsSeen` — the camera's `view.Level` —
+  `NoSectors`; `ShowSectors` from a scene; not saved): the world's `sectorsView`, in a world with
+  heights through a camera with `Rays` on the GPU over the ground's depth
+  (`internal/sectorview`: a texel a sector a camera, `ReadGround`, `OnGround(0.2)`, nothing past
+  an open edge, the edges fading where a pixel spans much of a sector), in a flat one quads from
+  `Look().Footprint` (copies at a seam) at 0.2 under the figures. Both keys are in
+  `DefaultBindings` only in a world cut into sectors. **Systems go in the bands by a policy**
   (`sector.Policy`: `Everywhere` every step but `Off`, `Paced` a step every `Pace` in the
   farther bands over `Pace·d` — all at once, on the steps where `Clock.Steps() % Pace ==
   Pace−1` — `Near` the first band alone): `world.Plugin.Pace(policy)` is a goke query option,

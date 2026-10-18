@@ -106,6 +106,21 @@ The cost follows the entity count more than the contact count: at the same cover
 the box side quadruples the population and roughly quadruples the tick, while doubling the
 coverage at one size quadruples the contacts and the tick alike.
 
+## Bands — `Benchmark_Sectors_Expanse`
+
+One tick of world, motion and collision at the expanse demo's scale: a 16384×16384 torus, a
+hundred thousand boxes 5 a side spread evenly, sectors 512 a side, the first band 750 round the
+middle, the second 2000 at a step in four, beyond it nothing; then the same with the bands
+switched off (`SetBanded(false)`), every box moving and colliding.
+
+| Bands | Entities | Tick |
+|:---|---:|---:|
+| on | 100,000 | 2.42 ms |
+| off | 100,000 | 19.1 ms |
+
+With the bands on about 1,600 boxes go every step and 4,400 a step in four; the rest lie out of
+the space at no cost but the supervisor's pass over the bands near.
+
 ## Sight — `Benchmark_Vision_*`
 
 One tick of the vision plugin alone over a 4000×4000 world: every observer, on a 120-unit
