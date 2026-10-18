@@ -15,10 +15,4 @@ type Now struct {
 // Who is the cell's entity.
 func (n Now) Who() uid.UID64 { return n.ID }
 
-// Placed marks the moment as a place: Around(0) acts on this cell, Around(n) on the rings round it.
-func (Now) Placed() {}
-
-var (
-	_ host.About  = Now{}
-	_ host.Placed = Now{}
-)
+var _ host.About = Now{}

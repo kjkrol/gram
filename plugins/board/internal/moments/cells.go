@@ -43,7 +43,7 @@ func (s *cellSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		return
 	}
 	tick := s.r.tick.Of(d)
-	tick.Around = s.r.around
+	tick.Places = s.r.places
 	for s.query.All(); s.query.Next(); {
 		cursor := s.query.Cursor()
 		s.ids, s.plots, s.grounds = cursor.IDs, s.plot.Slice(cursor), s.ground.Slice(cursor)

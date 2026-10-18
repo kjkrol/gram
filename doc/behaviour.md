@@ -19,8 +19,8 @@ plugin.
 
 | moment | caught by | of | subject | words |
 |---|---|---|---|---|
-| `unit.Standing` | the board, every unit a step | one; `host.Placed`, `host.Headed` | — | `unit.Fallen()`, `unit.StandingOn(e)`, `unit.OnKind(k)` |
-| `cell.Now` | the board, every cell a step | one; `host.Placed` | — | — |
+| `unit.Standing` | the board, every unit a step | one; places `board.Around`, `board.Ahead` | — | `unit.Fallen()`, `unit.StandingOn(e)`, `unit.OnKind(k)` |
+| `cell.Now` | the board, every cell a step | one; places `board.Around` | — | — |
 | `collision.Meeting` | collision, a confirmed contact, a pair resting against each other too | a pair; `host.Met` | — | `collision.Facing(within)` (turned to the other within the angle) |
 | `collision.Struck` | collision, one that struck something | one | — | — |
 | `vision.Sighting` | vision, every observer a step | a pair grouped by observer; `host.Met` | the nearest seen | `vision.SeesNobody()`, `vision.Closing()` (of the other) |
@@ -38,22 +38,25 @@ plugin.
 Every plugin's `doc.go` ends with a `# Vocabulary` section listing its moments, words, facts,
 knobs and commands; it is the authoritative list.
 
-A moment is one by its `Who()` (`host.About`), a pair by `Whom` (`host.Met`), one standing on
-places by `Placed()` (`host.Placed`), confirmed beside its type (`var _ host.About = Standing{}`).
+A moment is one by its `Who()` (`host.About`), a pair by `Whom` (`host.Met`), confirmed beside its
+type (`var _ host.About = Standing{}`); the places it has are a kind its plugin names
+(`host.NewPlacing`), the board's `board.Around` and `board.Ahead`.
 A word is a `cond.Word` made with `cond.NewWord(name, func(P) bool)`, `.OfOther()` for one of the
 other; a game writes its own the same way over a plugin's moment or over a fact.
 
-- **Where one stands.** On a `host.Placed` moment — a `unit.Standing`, a cell's `cell.Now` —
-  `cond.Around(n).If(x)` and `act.Around(n).Put(e)` turn to each place within `n` rings of the
+- **Where one stands.** On a board's moment — a `unit.Standing`, a cell's `cell.Now` —
+  `cond.At(board.Around(n)).If(x)` and `act.At(board.Around(n)).Put(e)` turn to each place
+  within `n` rings of the
   cells under the entity (for a cell, of itself): the cell and the entities standing on it, each
   once, on square and hex boards alike; `0` the cells under it alone. An effect put on the ground
   round a witch, a lake's cells iced. The cell under a unit is a word of its `Standing`:
   `unit.StandingOn(e)`, `unit.OnKind(k)`. The units there are no part of it. A `unit.Standing`
-  is `host.Headed` too, carrying the way the unit faces (`Heading`, its `Vel.Dir`):
-  `cond.Ahead(n).If(x)` and `act.Ahead(n).Put(e)` turn to the places on the cells one to `n`
+  carries the way the unit faces too (`Heading`, its `Vel.Dir`):
+  `cond.At(board.Ahead(n)).If(x)` and `act.At(board.Ahead(n)).Put(e)` turn to the places on the
+  cells one to `n`
   steps in front of it, the grid's direction nearest its heading, stopping at the edge — a
   lever in front of a scout, a wall three cells on; one kind of places a rule, and a cell faces
-  nowhere (a `cell.Now` refuses `Ahead`). A thing used by touch — a lever — is a
+  nowhere (a `cell.Now` refuses `board.Ahead`). A thing used by touch — a lever — is a
   `collision.Meeting` under `collision.Facing(angle)`, which holds without a board.
 - **The clock's moment is the clock's.** A `clock.Moment` is of the clock's own entity: an effect
   a clock rule puts on lands there — `act.Branch[clock.Moment]{Name: "dusk", When:
@@ -259,8 +262,9 @@ are drawn), run every frame. They read a component and decide nothing in the gam
 (`g.Kind.Allows`, `Cost`) and is drawn as a cover, `board.Plugin.Covering(e)` — a texture a state,
 laid along a line of its own. A rule asks for the state under a unit, not for a kind:
 `When: cond.Self.If(unit.StandingOn(iced)), Then: act.Self.Hold(slip)`. Which cells take which
-state is a role they play: `act.OneOf(act.Branch[any]{When: cond.Around(1).If(lake), Then:
-act.Around(1).Put(iced)}, act.Around(1).Put(frost))`.
+state is a role they play: `act.OneOf(act.Branch[any]{When:
+cond.At(board.Around(1)).If(lake), Then: act.At(board.Around(1)).Put(iced)},
+act.At(board.Around(1)).Put(frost))`.
 
 **The look of a state.** A state is an effect: what it does to the knobs, and its marker. How an
 entity looks under it is the kind's, settled at drawing, on the world's atlas in the scene's
@@ -344,7 +348,7 @@ A game built on the plugins is written in three parts, and none of them is Go co
    One effect may lead to the next (`Then`).
 2. **Rules connect.** A rule turns a plugin's moment — a touch, a sighting, where one
    stands — into effects: `Put`, `Hold`, `Take`, under a state (`cond.Self.If(e)`) or obeyed by
-   a role, of the entity, the other or the places round (`Self`, `Other`, `Around`), now and
+   a role, of the entity, the other or the places round (`Self`, `Other`, `At`), now and
    then (`cond.Chance`).
 3. **Plugins give knobs.** What an effect changes is a component a plugin reads — `Steering`,
    `Sight`, a cell's `Ground`, `collision.Physics`, `Appearance` — turned by the effect's `Alter`
@@ -390,7 +394,7 @@ roles.Define(FlammableRole,
 			},
 			act.Branch[any]{
 				When: cond.Self.If(cond.Chance(0.1)),
-				Then: act.Around(0).Put(burning),
+				Then: act.At(board.Around(0)).Put(burning),
 			},
 		),
 	},
@@ -398,10 +402,10 @@ roles.Define(FlammableRole,
 	act.Branch[cell.Now]{
 		Name: "fire spreads over the ground",
 		When: cond.Self.If(burning).
-			And(cond.Around(1).If(cond.Not(burning))).
-			And(cond.Around(1).If(cond.Not(smouldering))).
-			And(cond.Around(1).If(cond.Chance(0.05))),
-		Then: act.Around(1).Put(burning),
+			And(cond.At(board.Around(1)).If(cond.Not(burning))).
+			And(cond.At(board.Around(1)).If(cond.Not(smouldering))).
+			And(cond.At(board.Around(1)).If(cond.Chance(0.05))),
+		Then: act.At(board.Around(1)).Put(burning),
 	},
 )
 kinds.Define("grass", cell.Kind{Cost: 2, Allows: cell.Land}, roles.Named(FlammableRole))
@@ -411,7 +415,7 @@ units.Define(WalkerKind, land, profile, ceremony.Plays(roles.Named(FlammableRole
 
 The engine hands the first rule to collision and the other two to the board: the game names no
 plugin. One effect serves units and cells: an `Alter` of a component the entity does not carry is
-passed over. `Around` takes in the places stood on too — a cell itself — so the spreading rule
+passed over. `board.Around` takes in the places stood on too — a cell itself — so the spreading rule
 keeps off what burns already, or a cell would keep itself burning for ever.
 
 Another plugin, added later, adds its own rules for fire — vision's units flee from what they see
@@ -420,5 +424,5 @@ effect is the common word.
 
 Where a rule cannot say what the game needs, a moment, a word, a step or a knob is missing; it is
 added to the plugin, not written as code in a rule. Fire needed three: acting on the places round
-(`Around`), a board moment of a cell (`cell.Now`), and the clock's moment as its own entity's, so
-that a clock rule puts a phase on.
+(`board.Around`), a board moment of a cell (`cell.Now`), and the clock's moment as its own entity's,
+so that a clock rule puts a phase on.

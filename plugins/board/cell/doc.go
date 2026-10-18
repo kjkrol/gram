@@ -30,7 +30,7 @@
 // # Now
 //
 // [Now] is the cell at a step as a rule gets it, run for every cell playing a role that obeys
-// one; it is host.Placed, so Around(0) acts on the cell and Around(n) on the rings round it.
+// one: board.Around(0) acts on the cell, board.Around(n) on the rings round it.
 //
 // # Occupancy
 //
@@ -39,6 +39,6 @@
 //
 // # Vocabulary
 //
-// Moments, for a role's rules: [Now] (every cell a step; host.Placed). Knobs, for an effect's
-// Alter: [Ground], [Floor], [Wall], [Rail].
+// Moments, for a role's rules: [Now] (every cell a step; places board.Around). Knobs, for an
+// effect's Alter: [Ground], [Floor], [Wall], [Rail].
 package cell

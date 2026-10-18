@@ -28,10 +28,10 @@ func (witch) Rules(b *board.Plugin) {
 		When: cond.Self.If(cond.Always),
 		Then: act.OneOf(
 			act.Branch[any]{
-				When: cond.Around(1).If(roles.Named(LakeRole)),
-				Then: act.Around(1).Put(fx.Named(IcedEf)),
+				When: cond.At(board.Around(1)).If(roles.Named(LakeRole)),
+				Then: act.At(board.Around(1)).Put(fx.Named(IcedEf)),
 			},
-			act.Around(1).Put(fx.Named(FrostEf)),
+			act.At(board.Around(1)).Put(fx.Named(FrostEf)),
 		),
 	})
 }

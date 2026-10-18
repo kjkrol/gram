@@ -59,28 +59,30 @@ gram's.
   no rhythm of its own**: the user's word 2026-10-18 — a schedule is the executor's, the pace
   lives in goke.
 
-## How a subject kind runs (Around, and adding one like it)
+## How places run (cond.At, act.At)
 
-- ceremony knows no geometry: `Around(n)` is a subject kind (`cond/cond.go` `who{kind, rings}`,
-  `act/subject.go`), lowered to `steps.OfTarget` with `Lowering.Rings`/`Places` (`cond.go`
-  `whose`), and the host's callback does the walking: `host.Tick.Around(moment any, rings,
-  each)` copied into `steps.Pass` by `act/rule.go` `fire`; the callback gets a **pointer** to
-  the moment (`&f.current`), so it switches on `*P`.
+- **Ceremony names no places** (the user's word 2026-10-18: `Around`, `Ahead` were gram's and went
+  to the board). A library names its kinds: `host.NewPlacing(name, takes)` — `takes(moment)`,
+  handed a **pointer** to the moment (`&f.current`), says which moments have them — and gives
+  `host.Places{Placing, N}`; gram's board: `board.Around(n)`, `board.Ahead(n)`
+  (`board/internal/moments/around.go`: `AroundPlaces`, `AheadPlaces`, `Rules.places` dispatching
+  by `p.Placing`).
+- `cond.At(p)` / `act.At(p)` are one subject kind (`cond/cond.go` `who{kind, at}`,
+  `act/subject.go`), lowered to `steps.OfTarget` with `Lowering.At`/`Places` (`cond.go`
+  `whose`); the host's callback does the walking: `host.Tick.Places(moment, p, each)` copied
+  into `steps.Pass` by `act/rule.go` `fire`.
 - The exec `steps.around` (`internal/steps/instant.go`) wraps the **smallest part of the rule
-  holding every place clause** (`act/step.go` `build.place`: each leaf, group and Branch asks;
-  `placed{rings, count, mixed}`), runs it once a place with `c.id` the place, succeeds when any
-  place does; `refuses(payload)` at build (`NewInstant`) when the moment is not `Placed`.
-- "One ring of places a rule": `cond.go` `whose` fails on two rings, `act/branch.go` `build`
-  on `placed.mixed`; a plan refuses places (`act/lasting.go` `loop.node`, `branch.go` `topNode`).
+  holding every place clause** (`act/step.go` `build.place`; `placed{at, count, mixed, kinds}`),
+  runs it once a place with `c.id` the place, succeeds when any place does; `refuses(payload)` at
+  build (`NewInstant`) when the kind does not take the moment ("needs a moment with places X").
+- One kind and one reach (`N`) of places a rule (`cond.go` `whose`, `act/branch.go` `build`);
+  a plan refuses places (`act/lasting.go` `loop.node`, `branch.go` `topNode`).
 - A role under a place is `GuardPlaying(bit, OfTarget)` read through `Tick.Roles` (the host's;
   gram: `world.effectCmds.RolesOf`); a word under a place is refused (words are of Self/Other).
-- Adding a kind beside it (as `Ahead(n)`): `host/moments.go` (a marker interface), `host/tick.go`
-  (a callback), `steps.Pass` + the exec + `refuses`, `cond.go` (`whoKind`, constructor,
-  `String`, `whose`), `act/subject.go` (kind, constructor, `places`), `act/step.go`
-  (`placed`, `build`, the wrap), `act/branch.go`/`lasting.go` (the plan refusal), `act/rule.go`
-  (the Pass copy), then `doc/ceremony.md` grammar lines, README, `CLAUDE.md`, `cond/doc.go`,
-  `act/doc.go`. Tests: `act/clause_test.go` (`spot` fixture with a hand-written `Tick.Around`),
-  `act/steps_test.go`, `cond/cond_test.go`, `plan/loop_test.go`.
+- Tests: ceremony's `act/clause_test.go` (`spot`/`facing` with the test kinds `Round`/`Front`
+  and a hand-written `Tick.Places`), `act/steps_test.go`, `cond/cond_test.go`,
+  `plan/loop_test.go`; gram's `board/internal/moments/rules_test.go`, `board/entities_test.go`,
+  `board/covering_test.go`.
 
 What each gram plugin perceives and carries out is the `# Vocabulary` section at the end of its
 `doc.go` (moments with words and subjects, facts for plans, knobs, commands).

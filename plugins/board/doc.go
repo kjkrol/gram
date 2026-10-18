@@ -23,10 +23,10 @@
 //
 // Every step the board runs the rules of its moments, which the roles obey: a unit.Standing for
 // every entity on the board (the cell under it, its kind on the unit's level, whether it has
-// Fallen where its domain may not be) and a cell.Now for every cell. Both are host.Placed: a
-// rule's Around(n) acts on the cells within n rings of those under the entity and the entities
-// standing on them (0: those under it alone). A Standing is host.Headed too: Ahead(n) acts on
-// the cells one to n steps in front of the unit, the way it faces. The same pass writes every
+// Fallen where its domain may not be) and a cell.Now for every cell. The board names its places
+// for cond.At and act.At: [Around](n) are the cells within n rings of those under the entity
+// and the entities standing on them (0: those under it alone), [Ahead](n) the cells one to n
+// steps in front of a unit, the way it faces (a cell faces nowhere). The same pass writes every
 // unit's steering.Pace from the ground under it.
 //
 // # Entities standing on the board
@@ -138,8 +138,9 @@
 //
 // # Vocabulary
 //
-// Moments, for a role's rules: unit.Standing (every unit a step; host.Placed and host.Headed; its
-// words unit.Fallen, unit.StandingOn, unit.OnKind) and cell.Now (every cell a step; host.Placed).
+// Moments, for a role's rules: unit.Standing (every unit a step; places [Around], [Ahead]; its
+// words unit.Fallen, unit.StandingOn, unit.OnKind) and cell.Now (every cell a step; places
+// [Around]).
 // Knobs, for an effect's Alter: cell.Ground (a cell's kind), cell.Floor, cell.Wall, cell.Rail
 // (what stands on it). Commands, a player's: [Grid], [Holds] (looks).
 package board

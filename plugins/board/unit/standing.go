@@ -29,12 +29,6 @@ type Standing struct {
 // Who is the entity standing: whose moment it is, for a rule.
 func (s Standing) Who() uid.UID64 { return s.ID }
 
-// Placed: a rule's Around turns to the rings of cells round those under the entity's box.
-func (Standing) Placed() {}
-
-// Headed: a rule's Ahead turns to the cells in front of the unit, the way it faces.
-func (Standing) Headed() {}
-
 // Fallen is the word of a unit that has fallen in where its domain may not be: a hole, water
 // on foot — with its feet down at the cell's ground, never in the air over it nor on a deck
 // over it.
@@ -56,8 +50,4 @@ func StandingOn(e effect.Effect) cond.Word[Standing] {
 	return cond.NewWord("standing on", func(s Standing) bool { return s.States.Has(mark) })
 }
 
-var (
-	_ host.About  = Standing{}
-	_ host.Placed = Standing{}
-	_ host.Headed = Standing{}
-)
+var _ host.About = Standing{}

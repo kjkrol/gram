@@ -125,8 +125,8 @@ func TestAround_VisitsTheEntitiesStandingOnTheCellsNotTheUnits(t *testing.T) {
 		lever := w.Roles().Named("lever")
 		w.Roles().Define("walker", act.Branch[unit.Standing]{
 			Name: "pull",
-			When: cond.Around(1).If(lever),
-			Then: act.Around(1).Do(ceremony.Trigger{}),
+			When: cond.At(board.Around(1)).If(lever),
+			Then: act.At(board.Around(1)).Do(ceremony.Trigger{}),
 		})
 		walker := w.Roles().Named("walker")
 

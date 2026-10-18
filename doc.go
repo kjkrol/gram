@@ -41,17 +41,17 @@
 // act.Branch[P]{Name, When, Then}, run inside the pass of the plugin that catches its moment P —
 // a collision.Meeting for a pair of entities, a unit.Standing for an entity on the board — when
 // its When holds, clauses of ceremony/cond each saying whom they are about (cond.Self.If,
-// cond.Other.If, cond.Around(n).If, cond.On(plugin).If), its Then doing steps said of somebody
-// the same way (act.Self.Do, act.Other.Put, act.Around(n).Put): putting on and taking off
-// effects, giving commands. A rule is a role's (world.Roles), a role is played by a kind, a cell
-// or a plugin, and once Init returns the engine hands the rules of every role played to the
-// plugin that catches their moment (ceremony.Deliver, to the hosts of plugin.Installer.Hosts);
-// one none catches is an error. What an entity does over time is a plan, plan.New, of loops of
-// the same words, plan.Loop[P]{Name, When, Then, Until, Timeout, Cooldown}, carried by its kind.
-// What somebody asks for is a command (ceremony/command): a player's key, a rule's act.Self.Do,
-// and about an effect a sentence —
-// ceremony.Put(open).On(ceremony.Group("trapdoors")).By(ceremony.Named("lever")). The language
-// is ceremony's own documentation; gram's plugins give the moments, facts, words and knobs it is
+// cond.Other.If, cond.At(board.Around(n)).If, cond.On(plugin).If), its Then doing steps said
+// of somebody the same way (act.Self.Do, act.Other.Put, act.At(board.Around(n)).Put): putting on
+// and taking off effects, giving commands. A rule is a role's (world.Roles), a role is played by a
+// kind, a cell or a plugin, and once Init returns the engine hands the rules of every role played
+// to the plugin that catches their moment (ceremony.Deliver, to the hosts of
+// plugin.Installer.Hosts); one none catches is an error. What an entity does over time is a plan,
+// plan.New, of loops of the same words, plan.Loop[P]{Name, When, Then, Until, Timeout, Cooldown},
+// carried by its kind. What somebody asks for is a command (ceremony/command): a player's key, a
+// rule's act.Self.Do, and about an effect a sentence —
+// ceremony.Put(open).On(ceremony.Group("trapdoors")).By(ceremony.Named("lever")). The language is
+// ceremony's own documentation; gram's plugins give the moments, facts, words and knobs it is
 // written over, each marked beside its type, and the world keeps a Stage's registers of effects,
 // roles and commands by name (doc/behaviour.md).
 //

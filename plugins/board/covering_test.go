@@ -29,8 +29,8 @@ func TestCovering_AnEffectOnACellShowsOnTheBoardAndToTheRules(t *testing.T) {
 				Name: "freeze",
 				When: cond.Self.If(cond.Always),
 				Then: act.Branch[any]{
-					When: cond.Around(0).If(cond.Not(iced)),
-					Then: act.Around(0).Put(iced),
+					When: cond.At(board.Around(0)).If(cond.Not(iced)),
+					Then: act.At(board.Around(0)).Put(iced),
 				},
 			},
 			act.Branch[unit.Standing]{

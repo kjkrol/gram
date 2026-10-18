@@ -10,8 +10,8 @@ What is left to do. Take an item out when it lands.
   (`Until` under a `Timeout` in a `OneOf`): named shapes written out of the bricks, in
   `doc/behaviour.md` or as functions a game copies, never steps of the engine.
 - **Effects, what is left** — an effect taking a tag off while it runs (a `Revoke` beside
-  `Grant`); `Around` in plans; a step shared by the moments of several plugins; more than 8
-  effects on one entity and 63 defined; an entity in more than one group; which effects a player
+  `Grant`); places (`cond.At`) in plans; a step shared by the moments of several plugins; more than
+  8 effects on one entity and 63 defined; an entity in more than one group; which effects a player
   may apply (any, today, on whatever a command names — a game over a network will want a list).
 - **Messages passed on** — a reply to a message passed on goes to the one who passed it on, not to
   the first asker; passing the answer back is the game's branch (ceremony's `plan/message_test.go`,

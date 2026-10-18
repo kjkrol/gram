@@ -167,11 +167,12 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   air nor on a deck), `unit.OnKind(k)`; the reaction is the game's (`act.Self.Do(world.Despawn{})`;
   `board.Plugin.WithLog(log.Default())` writes a line each fall). The same pass writes every
   unit's `steering.Pace{Share}`. Then, while there is a rule of it, every cell as a `cell.Now`.
-  Both moments are `host.Placed`: `cond.Around(n).If(x)`/`act.Around(n).Do(cmd)` turn to the
-  cells within `n` rings of the box (0: the cells under it) and the entities standing on them
-  (`cell.On`), each cell once; a `Standing` is `host.Headed` too (`Heading`, its `Vel.Dir`):
-  `Ahead(n)` turns to the cells one to `n` steps in front of the unit (`grid.Nearest` +
-  `Toward`, stopping at the edge), one kind of places a rule.
+  The board names its places (`places.go`, kinds in `internal/moments/around.go`):
+  `cond.At(board.Around(n)).If(x)`/`act.At(board.Around(n)).Do(cmd)` turn to the cells within
+  `n` rings of the box (0: the cells under it) or of a cell and the entities standing on them
+  (`cell.On`), each cell once, in a rule of either moment; `board.Ahead(n)` to the cells one to
+  `n` steps in front of a `Standing` (`Heading`, its `Vel.Dir`; `grid.Nearest` + `Toward`,
+  stopping at the edge), a `cell.Now` refusing it; one kind of places a rule.
   **What stands on the board is an entity**: `board.NewEntities[Row](brd, board.Shape{Size,
   Width, Height}, at)`, `Define(name, extra...)` — a box at the cell's middle, `world.Velocity{}`
   (one among the extra takes its place, its `Dir` the way a ford runs), `cell.On{Cell}`, with
@@ -503,41 +504,40 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   spills over it, the lee clears; the land's `Falls` wrings rain out of the low clouds over it,
   draining their damp (a rain shadow past it), easing back to the cell's state's falls past it;
   its `Gathers` turns damp into low clouds, never clouds out of dry air. ~0.2 ms a lift at worst
-  (all land high and clouded). The rules: `weathering.Overhead` (`host.About`, not Placed — the
-  board's Around is not public) told each cell once a second (`RunWhere` over the block's walked
-  rows), words `Clouded`, `Damp`, `Reaches` (ground over the band's base), `Hours`; the knob
-  `weathering.Wring{Falls, Gathers}` given to every cell (`Exclude` + `cb.AddOne`) and saved with
-  the atmosphere's components (ceremony saves a knob's originals: one saved under an effect goes
-  back to them as the effect ends after a load). Madeira's uplands (earth,
-  rock, forest play `UplandRole`): rain on the windward slopes (`Reaches(0.9)`, `Clouded(0.6)`)
-  and clouds gathering of an afternoon (12–17 h, `Damp(0.3)`, `Reaches(0.7)`), effects lasting
-  2 s put anew each second: in rain ~1000 cells wring, in fair weather the heaps under the peaks
-  pile up to 0.9 within a minute and shower over a dozen.
-  **The weather in places** (2026-10-17, stage 7e, the user's word: a map wholly under cloud
-  loses the one looking at it): the knob `climate.Spread{Rain, Storm, Fair}` on the atmosphere's
-  entity (`comp.Const(climate.DefaultSpread())` in `world.NewSelf`, saved with it; the climate
-  lists it among its `LoadComps` too, its query registering the type) — rain on a quarter of the
-  world at most (the storm's included), a storm on an eighth in its middle, fair breaks on up to
-  a quarter, fewer the cloudier the spell was thrown (`Fair·(1−f)`, f where `CloudsTo` fell in
-  its range). `born()` lays a lane's weather in parts by the rank of a periodic noise as wide as
-  the world, drifting with the clouds (`climate/spread.go`: `places`, ranks from its sorted
-  samples, so any stretch as wide as the world holds exactly the shares): storm ⊂ rain ⊂ cloudy,
-  fair at the other end; each part grows out of the one before over 0.02 of rank inside its own
-  share; its own part the lane's thrown numbers, the others the middles of the
-  `weather.Default`-named states (a climate without them: over all, as before); a cell's
-  `States` the part's. The places are patches ~1/4 of the world across: on a world only a few
-  of the dome's 128-unit cells wide they blur (tests measure over 6400×3200). The panel names
-  the weather of the time (lane 0) and, where it differs, the one over the middle ("rain (here
-  cloudy)"). The rain the uplands' rules wring out (7d) is beyond the knob.
-  `atmosphere/air`: the weather as drawn (`Weather.Frame`, `Sway`, `Cloud(layer)`, `Shade`,
-  `Haze`; the clouds' periodic noise baked once into `air.Tile()`, the frame's image `CloudTile`
-  (2026-10-16), which every cloud shader looks up per pixel (`cloudTileAt`); `Weather.Frame`
-  hands the frame the tile, `Fog`, the sky at the horizon, `SkyOverhead` and the layers'
-  `CloudBases`). The plugin draws the sky and what falls itself (`ctx.Draws`); its sky hands
-  every frame the sun and the weather; the clouds' shadows are drawn by whoever draws the ground
-  (the board's flat ground, the terrain, the hexes). `atmosphere.Running`
-  (`Config.Running`, `Plugin.SetRunning`) switches the day, the weather's changes, the wind, the
-  clouds, what falls, the weathering, the stars and the moon, all on by default, not saved.
+  (all land high and clouded). The rules: `weathering.Overhead` (`host.About`, no places — the
+  board's `AroundPlaces` takes its own moments alone) told each cell once a second (`RunWhere` over
+  the block's walked rows), words `Clouded`, `Damp`, `Reaches` (ground over the band's base),
+  `Hours`; the knob `weathering.Wring{Falls, Gathers}` given to every cell (`Exclude` + `cb.AddOne`)
+  and saved with the atmosphere's components (ceremony saves a knob's originals: one saved under an
+  effect goes back to them as the effect ends after a load). Madeira's uplands (earth, rock, forest
+  play `UplandRole`): rain on the windward slopes (`Reaches(0.9)`, `Clouded(0.6)`) and clouds
+  gathering of an afternoon (12–17 h, `Damp(0.3)`, `Reaches(0.7)`), effects lasting 2 s put anew
+  each second: in rain ~1000 cells wring, in fair weather the heaps under the peaks pile up to 0.9
+  within a minute and shower over a dozen. **The weather in places** (2026-10-17, stage 7e, the
+  user's word: a map wholly under cloud loses the one looking at it): the knob `climate.Spread{Rain,
+  Storm, Fair}` on the atmosphere's entity (`comp.Const(climate.DefaultSpread())` in
+  `world.NewSelf`, saved with it; the climate lists it among its `LoadComps` too, its query
+  registering the type) — rain on a quarter of the world at most (the storm's included), a storm on
+  an eighth in its middle, fair breaks on up to a quarter, fewer the cloudier the spell was thrown
+  (`Fair·(1−f)`, f where `CloudsTo` fell in its range). `born()` lays a lane's weather in parts by
+  the rank of a periodic noise as wide as the world, drifting with the clouds (`climate/spread.go`:
+  `places`, ranks from its sorted samples, so any stretch as wide as the world holds exactly the
+  shares): storm ⊂ rain ⊂ cloudy, fair at the other end; each part grows out of the one before over
+  0.02 of rank inside its own share; its own part the lane's thrown numbers, the others the middles
+  of the `weather.Default`-named states (a climate without them: over all, as before); a cell's
+  `States` the part's. The places are patches ~1/4 of the world across: on a world only a few of the
+  dome's 128-unit cells wide they blur (tests measure over 6400×3200). The panel names the weather
+  of the time (lane 0) and, where it differs, the one over the middle ("rain (here cloudy)"). The
+  rain the uplands' rules wring out (7d) is beyond the knob. `atmosphere/air`: the weather as drawn
+  (`Weather.Frame`, `Sway`, `Cloud(layer)`, `Shade`, `Haze`; the clouds' periodic noise baked once
+  into `air.Tile()`, the frame's image `CloudTile` (2026-10-16), which every cloud shader looks up
+  per pixel (`cloudTileAt`); `Weather.Frame` hands the frame the tile, `Fog`, the sky at the
+  horizon, `SkyOverhead` and the layers' `CloudBases`). The plugin draws the sky and what falls
+  itself (`ctx.Draws`); its sky hands every frame the sun and the weather; the clouds' shadows are
+  drawn by whoever draws the ground (the board's flat ground, the terrain, the hexes).
+  `atmosphere.Running` (`Config.Running`, `Plugin.SetRunning`) switches the day, the weather's
+  changes, the wind, the clouds, what falls, the weathering, the stars and the moon, all on by
+  default, not saved.
 - **`collision`** — collision detection over `world`'s space, one `collisionSystem` a tick. An
   entity collides exactly while it carries `Collider`; the system settles every `Collider`'s
   `Base.Caps` (`CanCollide`, `Static` for an immovable `Physics`, `Sensor` for none) and rebuilds

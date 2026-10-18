@@ -62,8 +62,7 @@ func (s *standingSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	var tick host.Tick
 	if hosted {
 		tick = s.r.tick.Of(d)
-		tick.Around = s.r.around
-		tick.Ahead = s.r.ahead
+		tick.Places = s.r.places
 	}
 	for s.query.All(); s.query.Next(); {
 		cursor := s.query.Cursor()

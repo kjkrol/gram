@@ -17,6 +17,13 @@ in a flat world: a board stands only in a world with heights now. Nor those made
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
 entities. Nor those made before motion left the world: `world.Outside` is `motion.Outside`.
 
+**The board's places** (2026-10-18)
+- `board.Around(n)` and `board.Ahead(n)` are the board's places, for ceremony's `cond.At` and
+  `act.At`: `cond.At(board.Around(1)).If(lake)`, `act.At(board.Ahead(2)).Do(cmd)` where
+  `cond.Around(1)` and `act.Ahead(2)` were. Ceremony names no places of its own (v0.3.0: the
+  kinds are a host library's, `host.NewPlacing`); `unit.Standing` and `cell.Now` are no longer
+  `host.Placed` nor `host.Headed`, the board's kinds taking them.
+
 **Systems in the bands** (2026-10-18)
 - Every system goes in the world's bands by a policy (`sector.Policy`): `Everywhere` every step
   in every band (navigation), `Paced` the farther bands a step every `Pace` over as many steps at

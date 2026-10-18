@@ -80,9 +80,10 @@ never a system per behaviour — handed a `host.Tick`.
   command with a `By` is kept in the register, and a name nobody bears, or two bear, panics as the
   first step begins. A command given to a key must come from the register (`control.Give` panics
   otherwise). A `ceremony.Command` without an `On` is no step: `act.Self.Put(e)`/`Take(e)`
-  (`Other`, `Around(n)` the same) are the steps on effects.
+  (`Other`, `At(board.Around(n))` the same) are the steps on effects.
 - The perceiving, each marked and asserted beside its type: a moment by `Who()` (`var _
-  host.About = Standing{}`; `host.Met` a pair, `host.Placed` one standing on places), a fact by
+  host.About = Standing{}`; `host.Met` a pair; places a kind its plugin names, `host.NewPlacing`,
+  the board's `board.Around`/`board.Ahead`), a fact by
   `Fact()` (`navigation.Blocked`, `Arrived`, `bullet.Flight`), a knob by `Knob()`
   (`steering.Steering`, `cell.Ground`, `Floor`, `Wall`, `collision.Physics`, `gravity.Pull`,
   `sky.Moon`, `vision.Sight`, `render.Appearance`, `world.Shadow`; saved with their originals,
@@ -110,8 +111,8 @@ roles that obey one rule obeys it once per role). A kind plays roles through
 panics), a cell through its kind (`cell.Kinds.Define(name, kind, roles...)`) or its Layout entry
 (`cell.Entry.Plays`), a plugin through `world.Self.Plays`. A rule of a moment of the world as a
 whole (`clock.Moment`, `climate.Weathering`; `host.StepRules`, once a step, no entities walked)
-fires while the entity the moment is about plays its role. A role under `cond.Around(n)` or
-`cond.Ahead(n)` holds for the place turned to.
+fires while the entity the moment is about plays its role. A role under
+`cond.At(board.Around(n))` or `cond.At(board.Ahead(n))` holds for the place turned to.
 
 **A plugin is an entity** (`plugins/world/self.go`): `p.Self = world.NewSelf(w, p, knobs...)` in
 `NewPlugin`, which notes `p` as made over the world (`world.Plugin.Made()`, the order the Stage
@@ -159,7 +160,7 @@ Stage entered afresh.
   in that order, each a sentence, every name a doc link. A new moment, word, fact, knob or
   command is added there as it is defined; a plugin without any has no section.
 
-- A moment's assertions (`_ host.About`, `_ host.Met`, `_ host.Placed`, `_ fact.Subject`) in a
+- A moment's assertions (`_ host.About`, `_ host.Met`, `_ fact.Subject`) in a
   grouped `var (…)` at the bottom of the moment's own file (`collision/meeting.go`,
   `navigation/touch.go`, `board/unit/standing.go`); bullet and gravity keep a `moments.go`.
 - A fact's and a knob's one-liner beside the type (`var _ fact.Fact = Blocked{}`,
@@ -172,7 +173,8 @@ Stage entered afresh.
 - The board's places machinery: `board/internal/moments/around.go` (`Rules.around`, the cells
   under the box, `ringsRound` by `grid.Neighbors` — not reentrant; each place the cell's entity
   then `terrain.Cells.Standing`, which gives entities carrying `cell.On`, never units) filled
-  into `Tick.Around` in `moments/standing.go` and `cells.go`; the unit's heading is in
+  into `Tick.Places` (`Rules.places`, by the board's `AroundPlaces`/`AheadPlaces`) in
+  `moments/standing.go` and `cells.go`; the unit's heading is in
   `s.bases[i].Vel.Dir` as the moment is built. The cell ahead of a driven unit is a world point
   past the box in `driving/drive_system.go` `open()`; `grid.Nearest(g, v)` + `Grid.Toward(c, i)`
   are the grid's way to it.

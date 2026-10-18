@@ -395,13 +395,12 @@ kind.Define[body](kinds, HunterKind, kind.Spec{…, ceremony.Plays(roles.Named(P
 
 reads as a sentence, who, when, what: a predator, meeting one playing prey, has it give itself a
 `Despawn`. Every clause says whom it is about: `cond.Self` the entity, `cond.Other` the other of
-the pair or the moment's subject, `cond.Around(n)` the places round, `cond.On(s.world)` the
-world's own entity; and in what state, `.If(x)`: under an effect, playing a role, as a word of
+the pair or the moment's subject, `cond.At(board.Around(n))` the places round, `cond.On(s.world)`
+the world's own entity; and in what state, `.If(x)`: under an effect, playing a role, as a word of
 the moment says (`unit.Fallen()`, `vision.SeesNobody()`), `cond.Chance(p)`, `cond.Always`, or
 `cond.Not` of one; clauses join with `And` and `Or`. The steps say the same, `act.Self.Put(e)`,
-`act.Other.Do(cmd)`, `act.Around(1).Put(e)`, in order (`act.Steps`) or the first that does
-(`act.OneOf`).
-Nobody hands the rule to collision: once `Init` returns, the engine gives the rules
+`act.Other.Do(cmd)`, `act.At(board.Around(1)).Put(e)`, in order (`act.Steps`) or the first that does
+(`act.OneOf`). Nobody hands the rule to collision: once `Init` returns, the engine gives the rules
 of every role somebody plays to the plugin that catches their moment, and a rule none catches is
 an error. What an entity does over time is a *plan* of loops, `plan.New(name, root)`, carried
 by its kind: a `plan.Loop` is a branch with an end — `Until` the *fact* a plugin tells it

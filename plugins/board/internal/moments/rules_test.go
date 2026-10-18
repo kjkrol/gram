@@ -157,7 +157,7 @@ func TestAround_ReachesTheRingsRoundTheCellsUnderTheUnit(t *testing.T) {
 				return []act.Rule{act.Branch[unit.Standing]{
 					Name: "scorch",
 					When: cond.Self.If(cond.Always),
-					Then: act.Around(rings).Put(pw.scorched),
+					Then: act.At(board.Around(rings)).Put(pw.scorched),
 				}}
 			})
 			pw.tick(3)
@@ -195,7 +195,7 @@ func TestAhead_ReachesTheCellsInFrontOfTheUnitUpToTheEdge(t *testing.T) {
 				return []act.Rule{act.Branch[unit.Standing]{
 					Name: "scorch ahead",
 					When: cond.Self.If(faces),
-					Then: act.Ahead(steps).Put(pw.scorched),
+					Then: act.At(board.Ahead(steps)).Put(pw.scorched),
 				}}
 			})
 			pw.tick(3)
@@ -213,7 +213,7 @@ func TestAhead_FacingNowhereReachesNothing(t *testing.T) {
 		return []act.Rule{act.Branch[unit.Standing]{
 			Name: "scorch ahead",
 			When: cond.Self.If(cond.Always),
-			Then: act.Ahead(1).Put(pw.scorched),
+			Then: act.At(board.Ahead(1)).Put(pw.scorched),
 		}}
 	})
 	pw.tick(3)
@@ -224,15 +224,15 @@ func TestAhead_FacingNowhereReachesNothing(t *testing.T) {
 
 func TestAhead_IsRefusedOnACell(t *testing.T) {
 	defer func() {
-		if msg, _ := recover().(string); !strings.Contains(msg, "Headed") {
-			t.Errorf("panic %q; want one saying Headed: a cell faces nowhere", msg)
+		if msg, _ := recover().(string); !strings.Contains(msg, "with places Ahead") {
+			t.Errorf("panic %q; want one saying a cell has no places ahead: it faces nowhere", msg)
 		}
 	}()
 	newPlaceWorld(t, placeGrids()["square"], false, func(pw *placeWorld) []act.Rule {
 		return []act.Rule{act.Branch[cell.Now]{
 			Name: "scorch ahead",
 			When: cond.Self.If(cond.Always),
-			Then: act.Ahead(1).Put(pw.scorched),
+			Then: act.At(board.Ahead(1)).Put(pw.scorched),
 		}}
 	})
 }
@@ -259,7 +259,7 @@ func TestCell_FireSpreadsFromCellToCell(t *testing.T) {
 			return []act.Rule{act.Branch[cell.Now]{
 				Name: "fire spreads",
 				When: cond.Self.If(pw.scorched),
-				Then: act.Around(1).Put(pw.scorched),
+				Then: act.At(board.Around(1)).Put(pw.scorched),
 			}}
 		})
 		start, _ := pw.brd.CellEntity(pw.middle)
@@ -339,8 +339,8 @@ func TestStanding_ReachesThePlaceUnderTheUnitByItsRole(t *testing.T) {
 			Name: "press",
 			When: cond.Self.If(cond.Always),
 			Then: act.Branch[any]{
-				When: cond.Around(0).If(plate),
-				Then: act.Around(0).Put(pw.scorched),
+				When: cond.At(board.Around(0)).If(plate),
+				Then: act.At(board.Around(0)).Put(pw.scorched),
 			},
 		}}
 	})

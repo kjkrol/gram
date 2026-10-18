@@ -1,11 +1,38 @@
 package moments
 
 import (
+	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/uid"
 )
+
+// AroundPlaces are those within rings of a unit standing (cells under its box first) or of a
+// cell; AheadPlaces those on the cells in front of a unit, the way it faces.
+var (
+	AroundPlaces = host.NewPlacing("Around", func(m any) bool {
+		switch m.(type) {
+		case *unit.Standing, *cell.Now:
+			return true
+		}
+		return false
+	})
+	AheadPlaces = host.NewPlacing("Ahead", func(m any) bool {
+		_, ok := m.(*unit.Standing)
+		return ok
+	})
+)
+
+// the places a rule turned to, of the moment it fires on
+func (r *Rules) places(moment any, p host.Places, each func(uid.UID64)) {
+	switch p.Placing {
+	case AroundPlaces:
+		r.around(moment, p.N, each)
+	case AheadPlaces:
+		r.ahead(moment, p.N, each)
+	}
+}
 
 type rings struct {
 	met        []uint32
