@@ -33,16 +33,18 @@ type figureSource struct {
 	z       float32
 	lying   bool
 	id      SpriteID
+	fog     float32
 }
 
 func (*figureSource) Init(*goke.SysInit) {}
 func (s *figureSource) Compose(f *Frame, _ camera.Camera) {
 	at := f.Lifted(24, 24, s.z, 2)
 	s.sprites.Layer(at, s.lying)
+	s.sprites.Fog(s.fog)
 	s.sprites.Rect(s.atlas, s.id, 16, 16, 32, 32, 0, 0, 1, 1, Light{1, 1, 1})
 	f.DrawAt(at)
 }
-func (s *figureSource) Draw(t Target, cam camera.Camera, _ Uniforms) { s.sprites.Draw(t, cam) }
+func (s *figureSource) Draw(t Target, cam camera.Camera, u Uniforms) { s.sprites.Draw(t, cam, u) }
 
 type skySource struct{}
 
@@ -188,7 +190,7 @@ func (s *twoFigures) Compose(f *Frame, _ camera.Camera) {
 	s.sprites.Rect(s.atlas, 3, 16, 16, 32, 32, 0, 0, 1, 1, Light{1, 1, 1})
 	f.DrawAt(at)
 }
-func (s *twoFigures) Draw(t Target, cam camera.Camera, _ Uniforms) { s.sprites.Draw(t, cam) }
+func (s *twoFigures) Draw(t Target, cam camera.Camera, u Uniforms) { s.sprites.Draw(t, cam, u) }
 
 // what Draw was handed: whether the frame had a depth and the ground's apart
 type peek struct {

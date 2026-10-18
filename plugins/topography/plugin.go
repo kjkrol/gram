@@ -123,7 +123,11 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	p.painter = ipainter.New(brd, p.relief, liveSky{p}, true, map[cell.Name]painter.Style{}).WithKinds(boardPlugin.CellKinds())
 	boardPlugin.WithMap(p)
 	if _, _, _, _, square := p.relief.Lattice(); square {
-		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{Shadows: true, Scale: worldPlugin.Scale()})
+		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{
+			Shadows: true,
+			Scale:   worldPlugin.Scale(),
+			Seen:    worldPlugin.ViewFor,
+		})
 	} else {
 		p.hexes = hexes.New(worldPlugin, boardPlugin, p, p.relief, liveSky{p})
 	}

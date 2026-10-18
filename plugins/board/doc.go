@@ -117,7 +117,10 @@
 // the ways as bands. [Plugin.WithMap] puts another in. How a kind looks is its tile's, gathered
 // on the board's [Atlas] once the Stage is set up, every sprite the cell's size across (a game
 // declaring looks by hand closes its own before, [Plugin.NewAtlas]); a state of the
-// ground is an effect on its cells, shown as a cover ([Plugin.Covering], [Slot.Under]).
+// ground is an effect on its cells, shown as a cover ([Plugin.Covering], [Slot.Under]). In a world
+// cut into sectors the cells drawn are those of the sectors a camera sees: plainly, undressed and
+// with no grid where it sees them coarsely (look.Tile.Coarse), fading into the fog before its
+// sight's end (look.Tile.Fog).
 //
 // # Tiles and figures
 //

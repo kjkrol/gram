@@ -83,7 +83,7 @@ func TestTriangles_SplitEachCellAlongItsNearerDiagonal(t *testing.T) {
 	// the left cell's 0–3 corners stand level, the right cell's 1–2 nearer than its others
 	heights := []float32{0, 0, 10, 5, 0, 20}
 	_, _, enc := encode(heights, nil)
-	got := triangles(3, 2, enc, nil)
+	got := lattice{cols: 3, enc: enc}.whole(cells{0, 0, 2, 1}, nil)
 	if len(got) != 12 {
 		t.Fatalf("%d indices for two cells, want 12", len(got))
 	}
@@ -167,20 +167,21 @@ func TestRenderer_RefreshesTheLatticeWhenTheGroundOrTheCoastChanges(t *testing.T
 	g := &hill{}
 	f := &flat{}
 	r := New(g, f, stillSky{}, Config{})
-	if !r.refresh() || r.lattice == nil || r.lattice.Bounds().Dx() != 34 || r.lattice.Bounds().Dy() != 34 {
+	if !r.refresh(nil) || r.lattice == nil || r.lattice.Bounds().Dx() != 34 ||
+		r.lattice.Bounds().Dy() != 34 {
 		t.Fatal("no lattice of four 17 by 17 quadrants after the first refresh")
 	}
 	if r.low != 0 || r.span != 30 {
 		t.Errorf("low %v, span %v, want 0 and 30", r.low, r.span)
 	}
 	heights, coast := r.heightsAt, r.coastAt
-	r.refresh()
+	r.refresh(nil)
 	if r.heightsAt != heights || r.coastAt != coast {
 		t.Error("the lattice was written again with the ground and the coast as they were")
 	}
 	g.version++
 	f.coast++
-	r.refresh()
+	r.refresh(nil)
 	if r.heightsAt == heights || r.coastAt == coast {
 		t.Error("the lattice was not written anew after the ground and the coast changed")
 	}

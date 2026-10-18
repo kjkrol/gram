@@ -111,7 +111,7 @@ func (a *arena) definePlayers() error {
 	keys := slices.Concat(
 		a.players.DefaultBindings(),
 		a.world.DefaultBindings(),
-		cameras.Keys{Wheel: true}.Bindings(),
+		cameras.Keys{Wheel: true, Farther: control.KeyEqual, Nearer: control.KeyMinus}.Bindings(),
 	)
 	walk := []driving.Compass{
 		{Left: control.KeyA, Right: control.KeyD},

@@ -157,11 +157,15 @@ type MeshDraw struct {
 	Program    *Program
 	Images     [4]Image
 	// Frame is the images of the frame drawn, which every program reads by name; nil a blank.
-	Frame     [FrameImages]*Texture
-	Uniforms  []byte
-	Indices   *Indices
-	Vertices  uint32    // without Indices: how many vertices, in order, three a triangle
-	Instances []float32 // an Instanced program's: its vec4s an instance, the mesh drawn once each
+	Frame    [FrameImages]*Texture
+	Uniforms []byte
+	Indices  *Indices
+	// Ranges are the ranges of the Indices drawn, at one go; none, every one
+	Ranges []Range
+	// without Indices: how many vertices, in order, three a triangle
+	Vertices uint32
+	// an Instanced program's: its vec4s an instance, the mesh drawn once each
+	Instances []float32
 	Blend     Blend
 	// ReadDepth is a depth buffer the program reads (depthAt), another than Depth, at the size it
 	// was drawn at.
@@ -192,6 +196,12 @@ func Mesh(dw *MeshDraw) {
 	count := dw.Vertices
 	if dw.Indices != nil {
 		count = dw.Indices.count
+		if len(dw.Ranges) > 0 {
+			count = 0
+			for _, r := range dw.Ranges {
+				count += r.Count
+			}
+		}
 	}
 	instances := uint32(1)
 	if n := dw.Program.instance; n > 0 {
@@ -237,9 +247,8 @@ func Mesh(dw *MeshDraw) {
 	}
 	group2 := read.readGroup(d)
 	group3 := d.frame(dw.Frame)
-	var indices *wgpu.Buffer
 	if dw.Indices != nil {
-		indices = dw.Indices.gpuBuffer(d)
+		dw.Indices.gpuBuffer(d)
 	}
 	d.ensure((4*len(dw.Instances)+vertexSize-1)/vertexSize, 0)
 	iOff := uint64(len(d.verts))
@@ -262,7 +271,7 @@ func Mesh(dw *MeshDraw) {
 		if dw.Program.instance > 0 {
 			pass.SetVertexBuffer(0, d.vbuf, iOff)
 		}
-		draw(pass, indices, count, instances)
+		draw(pass, dw.Indices, dw.Ranges, count, instances)
 	}
 	pass.SetPipeline(pipeline)
 	pass.SetBindGroup(0, d.group0, []uint32{uint32(dOff), uint32(uOff)})
@@ -276,7 +285,7 @@ func Mesh(dw *MeshDraw) {
 	r := dw.Target.rect()
 	pass.SetViewport(gputypes.Viewport{X: float32(r.X), Y: float32(r.Y), Width: float32(r.W), Height: float32(r.H), MaxDepth: 1})
 	pass.SetScissorRect(gputypes.ScissorRect{X: uint32(clip.X), Y: uint32(clip.Y), Width: uint32(clip.W), Height: uint32(clip.H)})
-	draw(pass, indices, count, instances)
+	draw(pass, dw.Indices, dw.Ranges, count, instances)
 	pass.SetViewport(gputypes.Viewport{Width: float32(t.w), Height: float32(t.h), MaxDepth: 1})
 }
 
@@ -314,11 +323,24 @@ func CopyDepth(target Image, from, to *Depth) {
 	pass.Draw(gputypes.DrawArgs{VertexCount: 3, InstanceCount: 1})
 }
 
-func draw(pass *wgpu.RenderPassEncoder, indices *wgpu.Buffer, count, instances uint32) {
+// Range is Count of a mesh's Indices from First.
+type Range struct{ First, Count uint32 }
+
+func draw(pass *wgpu.RenderPassEncoder, indices *Indices, ranges []Range, count, instances uint32) {
 	if indices == nil {
 		pass.Draw(gputypes.DrawArgs{VertexCount: count, InstanceCount: instances})
 		return
 	}
-	pass.SetIndexBuffer(indices, gputypes.IndexFormatUint32, 0)
-	pass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: count, InstanceCount: instances})
+	pass.SetIndexBuffer(indices.buf, gputypes.IndexFormatUint32, 0)
+	if len(ranges) == 0 {
+		pass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: count, InstanceCount: instances})
+		return
+	}
+	for _, r := range ranges {
+		first := min(r.First, indices.count)
+		if n := min(r.Count, indices.count-first); n > 0 {
+			pass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: n, InstanceCount: instances,
+				FirstIndex: first})
+		}
+	}
 }

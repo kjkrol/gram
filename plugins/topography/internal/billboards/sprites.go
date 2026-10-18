@@ -50,6 +50,7 @@ type sprites struct {
 	right   [2]float32    // the camera's way across, level
 	haze    air.Hazer
 	hazed   bool
+	fog     float32 // how far into the fog before the camera's sight what is laid next lies
 	opts    render.DrawMeshOptions
 	own     map[string][]float32
 }
@@ -108,7 +109,7 @@ func (s *sprites) add(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	if sway > 0 {
 		lx, ly = weather.Sway(t, cx, cy, sway)
 	}
-	haze := s.haze.At(cx, cy, alt)
+	haze := s.hazeAt(cx, cy, alt)
 	u0, v0, u1, v1 := atlas.UV(id)
 	l := lit(sun, light)
 	b := batchOf(&s.batches, atlas)
@@ -133,7 +134,7 @@ func (s *sprites) lay(cam camera.Camera, box plane.AABB, z world.Z, atlas render
 	u0, v0, u1, v1 := atlas.UV(id)
 	sun := s.sky.Sun()
 	l := lit(sun, light)
-	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.haze.At(cx, cy, alt),
+	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.hazeAt(cx, cy, alt),
 		sunShare(sun, 0, 0, 1), lyingSoft*min(hw, hh), 0, 0)
 }
 
@@ -158,7 +159,7 @@ func (s *sprites) level(cam camera.Camera, c [4]geom.Vec, alt float32, atlas ren
 	l := lit(sun, light)
 	short := float32(min(math.Hypot(c[1].X-c[0].X, c[1].Y-c[0].Y),
 		math.Hypot(c[2].X-c[0].X, c[2].Y-c[0].Y)))
-	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.haze.At(mx, my, alt),
+	b.inst = append(b.inst, u0, v0, u1, v1, l[0], l[1], l[2], s.hazeAt(mx, my, alt),
 		sunShare(sun, 0, 0, 1), lyingSoft*short/2, 0, 0)
 }
 
@@ -178,7 +179,7 @@ func (s *sprites) upright(cam camera.Camera, a, b geom.Vec, alt, high float32,
 	sky := s.sky.Sun()
 	sun := sky.Light(-dy/n, dx/n, 0)
 	u0, v0, u1, v1 := atlas.UV(id)
-	haze := s.haze.At((ax+bx)/2, (ay+by)/2, alt)
+	haze := s.hazeAt((ax+bx)/2, (ay+by)/2, alt)
 	bt.inst = append(bt.inst, u0, v0, u1, v1,
 		sun[0]*light[0], sun[1]*light[1], sun[2]*light[2], haze,
 		sunShare(sky, -dy/n, dx/n, 0), uprightSoft*high, 0, 0)
@@ -284,3 +285,6 @@ func (s *sprites) set(name string, v ...float32) {
 	copy(o, v)
 	s.opts.Uniforms[name] = o
 }
+
+// the air's haze at the point, at least the fog before the camera's sight
+func (s *sprites) hazeAt(x, y, z float32) float32 { return max(s.haze.At(x, y, z), s.fog) }

@@ -276,8 +276,13 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   how high the relief's shadow reaches), then every `Baked` entity an instance (`blocks.wgsl`,
   `DrawMeshOptions.Darkest`: blue how high its shadow reaches, alpha the sun it leaves), no limit; H
   `CoarseShadows` bakes them half as fine; `WithShadows` on by default — the clouds' cover baked,
-  water on wet cells, the grid in the board's line, fog, a skirt of level ground to the horizon),
-  over a hex grid `internal/hexes` (every cell a prism from tiles composed once from above). The
+  water on wet cells, the grid in the board's line, fog, a skirt of level ground to the horizon;
+  in a world with sectors the indices laid sector by sector, each whole then coarse — every
+  second corner within, the edge ring whole and stitched by fans, `sectors.go` `lattice.coarse`,
+  tested crack-free — drawn by the ranges the camera's View sees (`runs`, joined where they
+  follow, the skirt last) and fogged per pixel past `Sight − Fog` from `View.Fogging()`),
+  over a hex grid `internal/hexes` (every cell a prism from tiles composed once from above; by
+  sector the instances laid in runs, a coarse sector's tops alone, `topVertices` 18). The
   entities are billboards on the GPU (`internal/billboards`, standing upright in the world across
   the screen's level right, so as tall on the screen as their `Height` stands there and inside their
   solid (Shift+X), shorter the steeper the view; tested against the ground's depth; each entity's
@@ -656,7 +661,16 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Sprint, Face, Side, Look, Flown, Climb}` is an entity steered by hand, two writers: the driving
   the hand's (`Ahead`, `Turn`, `Sprint`, `Face`, `Side`), the topography's camera system the eye's
   (`Look`, `Flown`, `Climb`); `Steers()`. `steering.Pace{Share}` the ground's share of the speed.
-- **`world/view`** — `view.View{Bounds, Culled, In}`, `view.EntitySet`, `view.System`.
+- **`world/view`** — `view.View{Bounds, Culled, In}`, `view.EntitySet`, `view.System`. In a
+  world with sectors `ViewFor` makes `view.NewSeen(cam, sectors)`: every tick each sector's
+  `view.Level` — `Hidden` beyond every band (`Off`), past the camera's sight from its
+  `camera.Viewpoint` (horizontal distance to the sector's nearest point) or off the picture
+  (`cam.Visible(box)`); `Fogged` within the fog band; `Coarse` where `camera.ScaleAt` at the
+  nearest point (z 0) is under `Detail.Coarse` (0, behind the eye, counts as near); else
+  `Exact` — then the space queried by the boxes of the sectors seen. `View.Level(x, y)`,
+  `View.Sectors(each)`, `View.Fog(x, y)` (smoothstep over the band). The renderer's query leaves
+  `sector.Off` out, so even an unculled View never draws it. `world.Plugin.Seen()` is the panel
+  line "Sectors seen" of the first camera's View.
 - **`clock`** (core) — the tactical clock, made and run by the world (`world.Plugin.Clock()`):
   game time is the sum of the simulation's steps, `clock.State{Time, Tempo, Paused}` on the
   clock's own entity, saved. Shift+P the tactical pause, ] and [ the tempo (`Config.Tempos`;
@@ -765,7 +779,13 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   camera.Config{...}), picture)` with `cameras.FromAbove` or `cameras.Isometrically` (a plain
   Config has none). `camera.Config` has no pixels (`render.Feed.Resize` every frame): `Zoom`,
   `Whole` (refused in relief), `Follow` (the name of the entity it starts fastened `Centred` over),
-  `MinZoom`, `MaxZoom`. Every camera is saved, in the order made. Its commands name their camera,
+  `MinZoom`, `MaxZoom`. `cameras.Config.Detail` (`camera.Detail{Sight, Fog, Coarse}`) is how
+  far every camera sees from its `camera.Viewpoint` (the eye, else the focus), the fog band
+  before it and the scale (px a world unit) below which it draws coarsely; both cameras are
+  `camera.Detailed`, `Sight{Camera, Factor}` (Ctrl+= / Ctrl+-, `Keys.Farther`/`Nearer`,
+  `SightStep` 1.25; a sight of 0 has no end and stays so) changes it, saved with the camera
+  (forms `"top 1"`, `"stick 3"`: older saves begin afresh). Every camera is saved, in the order
+  made. Its commands name their camera,
   so it knows no players: `Pan` (lets go of a fastening), `Zoom`, `Follow{Camera, Entity, On}`
   (fastens `Centred`), `CenterOn{Camera, Entity}` (once, fastened to nothing; players'
   `through.LookAt`), and in relief `View` (Tab, only with `Perspective`), `Turn`, `Tilt`

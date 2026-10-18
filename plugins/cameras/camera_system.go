@@ -51,6 +51,11 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 			cam.ZoomOut(1/i.Command.Factor, x, y)
 		}
 	})
+	s.p.sights.Drain(func(i command.Issued[Sight]) {
+		if cam, ok := i.Command.Camera.(seeing); ok {
+			cam.See(i.Command.Factor)
+		}
+	})
 	s.p.follows.Drain(func(i command.Issued[Follow]) {
 		cam, ok := i.Command.Camera.(camera.Fastenable)
 		if !ok {

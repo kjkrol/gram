@@ -29,8 +29,13 @@
 // larger near the eye than far off, and [ScaleAt] is the scale at a point through any camera; a
 // [Rayer] says which way a screen point looks, [Rays] every line of sight at once as a [RayField],
 // an [Eyed] camera where its eye stands and a [Vanisher] where a direction vanishes, a [Focused]
-// camera the world point it observes. A
-// [Transform] is a RayField as the GPU draws it.
+// camera the world point it observes. A [Transform] is a RayField as the GPU draws it.
+//
+// # Detail
+//
+// A [Detailed] camera says how far it sees and how finely ([Detail]): its Sight from its
+// [Viewpoint], the eye or else the point it observes, the last stretch of it in the fog, and the
+// scale below which it draws coarsely; [DetailOf] is any camera's, none for one without.
 //
 // # FromScreenRect
 //

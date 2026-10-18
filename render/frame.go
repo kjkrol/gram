@@ -568,12 +568,23 @@ func (f *Frame) SpriteFan(at At, atlas AtlasSource, id SpriteID, pts [][2]float3
 }
 
 // Fog has the last plain sprite added turn to the colour of the Fog uniform as much as amount
-// says at each corner, 0 to 1.
+// says at each corner, 0 to 1; a rectangle's (SpriteRect) as much as its corners on average,
+// every piece it lies in.
 func (f *Frame) Fog(amount [4]float32) {
-	if amount == ([4]float32{}) || f.lastRect || len(f.verts) < f.lastFirst+4 {
+	if amount == ([4]float32{}) || len(f.verts) < f.lastFirst+4 {
 		return
 	}
-	v := f.verts[f.lastFirst : f.lastFirst+4]
+	if f.lastRect {
+		even := (amount[0] + amount[1] + amount[2] + amount[3]) / 4
+		for at := f.lastFirst; at+4 <= len(f.verts); at += 4 {
+			f.fog(f.verts[at:at+4], [4]float32{even, even, even, even})
+		}
+		return
+	}
+	f.fog(f.verts[f.lastFirst:f.lastFirst+4], amount)
+}
+
+func (f *Frame) fog(v []Vertex, amount [4]float32) {
 	for i := range v {
 		if v[i].ColorA != 1 {
 			return

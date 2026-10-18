@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
@@ -184,8 +185,14 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Cell:        CellSize,
 		HeightUnit:  1,
 		Cage:        a.topography,
+		Detail: camera.Detail{
+			Sight:  scale.Units(30_000),
+			Fog:    scale.Units(6_000),
+			Coarse: 0.25,
+		},
 	})
-	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter(), a.world.Sectors())
+	a.telemetry = telemetry.NewPlugin(a.world).
+		With(a.atmosphere.Reporter(), a.world.Sectors(), a.world.Seen())
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection,
 		a.nav, a.driving,
 		a.atmosphere, a.topography, a.vision, a.bridges)

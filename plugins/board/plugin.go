@@ -123,7 +123,8 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 			unit.AirborneName))
 	}
 	p.keepBridges()
-	p.renderer = look.NewRenderer(brd, nil, mapRef{p}, worldPlugin.Res.Config.Space)
+	p.renderer = look.NewRenderer(brd, nil, mapRef{p}, worldPlugin.Res.Config.Space).
+		WithSeen(worldPlugin.ViewFor)
 	p.holdsView = p.newHoldsView()
 	return p
 }

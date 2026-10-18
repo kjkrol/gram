@@ -83,7 +83,9 @@
 // entity is laid on the screen by the world's [Look] ([Plugin.Look], [Plugin.SetLook]), flat
 // from above unless a view plugin sets its own; a [DirectLook] draws the sprites itself on the
 // GPU, a [LyingLook] lays some flat, an [UprightLook] stands some true, a [ShadowLook] casts each
-// entity's shadow as its [Shadow] says.
+// entity's shadow as its [Shadow] says, a [FoggyLook] fades one into the fog before a camera's
+// sight. In a sector a camera sees coarsely an entity is drawn plainly: no shadow, no edges, flat
+// where it would stand. [Plugin.WithFog] is the fog's colour in a world without an atmosphere.
 //
 // [Plugin.Picture] is everything the Stage's plugins draw (plugin.Installer.Draws), one picture
 // for every scene; a scene shows it through a camera, ui.Image(render.NewFeed(camera, it)).
@@ -95,7 +97,8 @@
 // with its sector's band (package sector); what lies beyond the last band is out of the space.
 // A system adds the pace of its policy ([Plugin.Pace]) to its query and walks it with
 // goke.Query.Paced; the world's plans and effects go Paced. [Plugin.Sectors] lays them on the
-// telemetry panel.
+// telemetry panel. A camera's View in such a world is of the sectors it sees, each at a level
+// (view.NewSeen); [Plugin.Seen] lays the first camera's on the panel.
 //
 // # Views
 //

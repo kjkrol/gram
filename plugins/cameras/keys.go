@@ -25,13 +25,17 @@ type Keys struct {
 	// CornersTurn has the cursor in a corner turn the camera the way Q and E do, a CornerStep a
 	// tick, the left corners anticlockwise, the right ones clockwise, where Edge would scroll.
 	CornersTurn bool
+	// Farther and Nearer pressed with Ctrl have the camera see a SightStep farther and nearer.
+	Farther, Nearer control.Key
 }
 
-// DefaultKeys are W, S, A and D, = and - to zoom, the wheel, the middle drag and the edge.
+// DefaultKeys are W, S, A and D, = and - to zoom, Ctrl+= and Ctrl+- to see farther and nearer,
+// the wheel, the middle drag and the edge.
 func DefaultKeys() Keys {
 	return Keys{
 		Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD,
 		ZoomIn: control.KeyEqual, ZoomOut: control.KeyMinus,
+		Farther: control.KeyEqual, Nearer: control.KeyMinus,
 		Wheel: true, Drag: true, Edge: true,
 	}
 }
@@ -67,6 +71,16 @@ func (k Keys) Bindings() []control.Binding {
 	}
 	zoom(k.ZoomIn, "Zoom in", ZoomStep)
 	zoom(k.ZoomOut, "Zoom out", 1/ZoomStep)
+	see := func(key control.Key, label string, factor float64) {
+		if key != control.KeyUnknown {
+			press := control.KeyPress{Key: key, Mods: control.Mods{Ctrl: true}}
+			out = append(out, control.Build(press, label, func(c control.Context) (Sight, bool) {
+				return Sight{Camera: c.Camera, Factor: factor}, true
+			}))
+		}
+	}
+	see(k.Farther, "See farther", SightStep)
+	see(k.Nearer, "See nearer", 1/SightStep)
 	if k.Wheel {
 		out = append(out, control.Build(control.Wheel{}, "Zoom", func(c control.Context) (Zoom, bool) {
 			if c.Wheel > 0 {

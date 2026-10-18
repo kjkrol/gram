@@ -111,7 +111,13 @@ func (a *arena) definePlayer() error {
 	walk := driving.Compass{
 		Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD,
 	}
-	view := cameras.Keys{Wheel: true, ZoomIn: control.KeyEqual, ZoomOut: control.KeyMinus}
+	view := cameras.Keys{
+		Wheel:   true,
+		ZoomIn:  control.KeyEqual,
+		ZoomOut: control.KeyMinus,
+		Farther: control.KeyEqual,
+		Nearer:  control.KeyMinus,
+	}
 	return a.player.Bind(slices.Concat(
 		a.players.DefaultBindings(),
 		a.world.DefaultBindings(),

@@ -9,7 +9,9 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/uid"
 )
 
 var _ render.Direct = (*renderer)(nil)
@@ -27,6 +29,7 @@ type renderer struct {
 	shown       []bool
 	atlas       render.AtlasSource
 	look        func() Look
+	fog         *[3]float32 // the fog's colour where nothing else gives it
 	shaded      map[render.SpriteID]render.MaterialID
 	phased      map[render.SpriteID]phase // a material's effect, for how far it has run
 	lying       map[render.SpriteID]bool
@@ -57,8 +60,9 @@ func (s *renderer) lie(lying map[render.SpriteID]bool, edges map[render.SpriteID
 }
 
 func (s *renderer) Init(si *goke.SysInit) {
+	// what lies beyond every band of the sectors is drawn by no camera
 	qb := si.NewQueryBuilder(&s.base, &s.appearance).Optional(&s.z).Optional(&s.lies).
-		Optional(&s.shadow).Optional(&s.active)
+		Optional(&s.shadow).Optional(&s.active).Exclude(goke.Exclude[sector.Off]())
 	render.Own(s.rules, &s.base)
 	render.Own(s.rules, &s.appearance)
 	render.Own(s.rules, &s.z)
@@ -81,6 +85,9 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if s.atlas == nil {
 		return
 	}
+	if s.fog != nil && !f.Uniformed("Fog") {
+		f.Uniform("Fog", s.fog[:]...)
+	}
 	look := s.look()
 	if d, ok := look.(DirectLook); ok {
 		d.Begin(f, cam)
@@ -88,6 +95,7 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	lies, _ := look.(LyingLook)
 	uprights, _ := look.(UprightLook)
 	shadows, _ := look.(ShadowLook)
+	foggy, _ := look.(FoggyLook)
 	s.view = s.views(cam)
 	lowest, any := render.Nearest, false
 	s.each(func(i int, z *Z, lie *Lie, shadow *Shadow) {
@@ -102,7 +110,13 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 		if !any || at.Before(lowest) {
 			lowest, any = at, true
 		}
-		cast := shadows != nil
+		// coarsely: no shadow, no edges, flat where it would stand
+		level := s.view.Level(mid.X, mid.Y)
+		coarse := level == view.Coarse || level == view.Fogged
+		if foggy != nil {
+			foggy.Fog(s.view.Fog(mid.X, mid.Y))
+		}
+		cast := shadows != nil && !coarse
 		for _, l := range s.layers[i] {
 			if m, ok := s.shaded[l.SpriteID]; ok {
 				s.material(f, cam, &s.bases[i], at, m, s.progress(l.SpriteID, i))
@@ -111,7 +125,7 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			if lies != nil && s.lying[l.SpriteID] && lie != nil && lie.Length > 0 {
 				lain := *lie
 				edge, ok := s.edges[l.SpriteID]
-				lain.Edged = lain.Edged && ok
+				lain.Edged = lain.Edged && ok && !coarse
 				lies.Lay(f, cam, box, dir, lain, stands, s.atlas, l, edge, render.Light{1, 1, 1})
 				continue
 			}
@@ -119,7 +133,7 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 				lies.Lie(f, cam, box, stands, s.atlas, l, render.Light{1, 1, 1})
 				continue
 			}
-			if uprights != nil && s.standing[l.SpriteID] {
+			if uprights != nil && s.standing[l.SpriteID] && !coarse {
 				uprights.Upright(f, cam, box, stands, s.atlas, l, render.Light{1, 1, 1})
 				continue
 			}
@@ -134,6 +148,9 @@ func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			}
 		}
 	})
+	if foggy != nil {
+		foggy.Fog(0)
+	}
 	if _, ok := look.(DirectLook); ok && any {
 		f.DrawAt(lowest) // the figures come after what lies beneath the lowest of them
 	}
@@ -160,6 +177,9 @@ func (s *renderer) each(visit func(i int, z *Z, lie *Lie, shadow *Shadow)) {
 			s.layers = append(s.layers, nil)
 			s.shown = append(s.shown, false)
 		}
+		if !s.seenAny(ids) {
+			continue
+		}
 		for i := range ids {
 			s.layers[i] = append(s.layers[i][:0], appearances[i])
 		}
@@ -183,6 +203,19 @@ func (s *renderer) each(visit func(i int, z *Z, lie *Lie, shadow *Shadow)) {
 			visit(i, z, lie, shadow)
 		}
 	}
+}
+
+// whether the view holds any of ids, so the looks' rules run on a chunk worth drawing alone
+func (s *renderer) seenAny(ids []uid.UID64) bool {
+	if !s.view.Culled {
+		return true
+	}
+	for _, id := range ids {
+		if s.view.In.Has(id) {
+			return true
+		}
+	}
+	return false
 }
 
 // how far the effect a material is under has run on the entity i of the chunk, 0 for none

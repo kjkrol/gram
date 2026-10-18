@@ -59,6 +59,13 @@ type ShadowLook interface {
 		a render.Appearance, cast Casting)
 }
 
+// FoggyLook is a Look turning what it lays next into the fog by amount, 0 clear to 1 all fog: how
+// far an entity lies into the fog before a camera's sight (view.View.Fog).
+type FoggyLook interface {
+	Look
+	Fog(amount float32)
+}
+
 // FigureLift is how far over its height a figure lies among what is drawn back to front: over
 // whatever a plugin lays on the ground beneath it, at a lift of its own below this one.
 const FigureLift = ilook.FigureLift
@@ -66,4 +73,5 @@ const FigureLift = ilook.FigureLift
 var (
 	_ DirectLook = (*ilook.Flat)(nil)
 	_ LyingLook  = (*ilook.Flat)(nil)
+	_ FoggyLook  = (*ilook.Flat)(nil)
 )

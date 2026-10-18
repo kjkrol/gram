@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 
 	"embed"
@@ -37,6 +38,7 @@ var shader = render.NewMeshShaderWith("terrain",
 		{Name: "GridLine", Size: 4}, {Name: "GridWidth", Size: 1},
 		{Name: "Skirt", Size: 2}, {Name: "Perspective", Size: 1},
 		{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
+		{Name: "Sight", Size: 4},
 	})
 
 // enough rings for the world's curve to bend the skirt under the horizon smoothly
@@ -130,6 +132,8 @@ type Sky interface {
 type Config struct {
 	Shadows bool
 	Scale   world.Scale
+	// what a camera sees of the world's sectors, the ground drawn of those alone; nil, all of it
+	Seen func(camera.Camera) *view.View
 }
 
 // Renderer draws the ground as a mesh: a render.Direct source in the opaque pass.
@@ -149,8 +153,14 @@ type Renderer struct {
 	buf       []byte
 	mesh      *render.Indices
 	tris      []uint32
-	plain     *render.Image
-	painted   Painted
+	// the sectors the triangles are laid by, nil for none, each one's runs, the skirt's, and the
+	// runs a frame draws
+	grid    view.Sectors
+	spans   []sectorSpans
+	skirted span
+	drawn   []span
+	plain   *render.Image
+	painted Painted
 
 	// the shade baked, and as it was before each band's last bake (render.GroundShade)
 	baked     *render.Image
@@ -242,6 +252,11 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	r.bake(u)
 	r.opts.Images = [4]*render.Image{r.lattice, albedo, r.painted.Water, nil}
 	r.opts.Depth = t.Depth
+	r.drawn = r.runs(cam, r.drawn[:0])
+	r.opts.Ranges = r.opts.Ranges[:0]
+	for _, s := range r.drawn {
+		r.opts.Ranges = append(r.opts.Ranges, render.IndexRange{First: s.first, Count: s.count})
+	}
 	t.Screen.DrawMesh(r.mesh, shader, &r.opts)
 }
 
@@ -577,7 +592,7 @@ func (r *Renderer) prepare(cam camera.Camera, u render.Uniforms) bool {
 		return false
 	}
 	field, ok := rays.Rays()
-	if !ok || !r.refresh() {
+	if !ok || !r.refresh(cam) {
 		return false
 	}
 	w, h := cam.Viewport()
@@ -602,7 +617,7 @@ func flag(b bool) float32 {
 	return 0
 }
 
-func (r *Renderer) refresh() bool {
+func (r *Renderer) refresh(cam camera.Camera) bool {
 	cols, rows, cell, heights, ok := r.ground.Lattice()
 	if !ok || cols < 2 || rows < 2 || 2*cols > maxLattice || 2*rows > maxLattice {
 		return false
@@ -615,13 +630,13 @@ func (r *Renderer) refresh() bool {
 		r.heightsAt = v
 		r.low, r.span, r.buf = encode(heights, r.buf[:0])
 		r.write(0, 0, cols, rows)
-		r.tris = skirt(cols, rows, triangles(cols, rows, r.buf, r.tris[:0]))
-		if r.mesh != nil {
-			r.mesh.Release()
-		}
-		r.mesh = render.NewIndices(r.tris)
+		r.relay(cam, cols, rows, cell)
 		r.buf = normals(cols, rows, cell, heights, r.buf[:0])
 		r.write(cols, 0, cols, rows)
+	} else if r.cfg.Seen != nil && r.cfg.Seen(cam).Grid() != r.grid {
+		r.buf = r.buf[:0]
+		_, _, r.buf = encode(heights, r.buf)
+		r.relay(cam, cols, rows, cell)
 	}
 	r.painted = r.surface.Surface()
 	if v := r.painted.Coast + 1; r.coastAt != v {
@@ -635,6 +650,19 @@ func (r *Renderer) refresh() bool {
 		r.write(0, rows, cols, rows)
 	}
 	return true
+}
+
+// the triangles laid anew by the sectors cam's View sees, from the heights encoded in r.buf
+func (r *Renderer) relay(cam camera.Camera, cols, rows int, cell float32) {
+	r.grid = nil
+	if r.cfg.Seen != nil {
+		r.grid = r.cfg.Seen(cam).Grid()
+	}
+	r.lay(cols, rows, cell, r.buf)
+	if r.mesh != nil {
+		r.mesh.Release()
+	}
+	r.mesh = render.NewIndices(r.tris)
 }
 
 // a cell's flag at its top-left corner, in red
@@ -684,30 +712,6 @@ func rim(cols, rows, j int) (x, y int) {
 		return a - (j - a - b), b
 	}
 	return 0, b - (j - 2*a - b)
-}
-
-// split along the diagonal whose corners stand nearer, as the shader's drawn splits it
-func triangles(cols, rows int, enc []byte, dst []uint32) []uint32 {
-	at := func(i uint32) int { return int(enc[4*i])<<8 | int(enc[4*i+1]) }
-	apart := func(a, b uint32) int {
-		d := at(a) - at(b)
-		if d < 0 {
-			return -d
-		}
-		return d
-	}
-	for y := range rows - 1 {
-		for x := range cols - 1 {
-			i0 := uint32(y*cols + x)
-			i1, i2, i3 := i0+1, i0+uint32(cols), i0+uint32(cols)+1
-			if apart(i0, i3) < apart(i1, i2) {
-				dst = append(dst, i0, i1, i3, i0, i3, i2)
-			} else {
-				dst = append(dst, i0, i1, i2, i1, i3, i2)
-			}
-		}
-	}
-	return dst
 }
 
 const maxLattice = 4096
@@ -824,6 +828,11 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	r.set("GridLine", r.painted.GridLine[:]...)
 	r.set("GridWidth", r.painted.GridWidth)
 	r.set("Skirt", skirtReach(cols, rows, cell, r.cfg.Scale), skirtRings)
+	var fog [4]float32
+	if r.cfg.Seen != nil {
+		fog = r.cfg.Seen(cam).Fogging()
+	}
+	r.set("Sight", fog[:]...)
 	var seeing, up float32
 	var way [3]float32
 	if r.sky != nil {

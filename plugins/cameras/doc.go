@@ -12,7 +12,9 @@
 // world that wraps. camera.Config.Follow names the entity a camera starts fastened Centred over.
 // Every camera made is saved with the game, in the order made, and one made after a Load takes
 // the state of the camera made in its place. The world's sectors are anchored at the point each
-// camera observes (camera.Focused), a minimap's none.
+// camera observes (camera.Focused), a minimap's none. Every camera sees as Config.Detail says
+// (camera.Detailed): how far, the fog before it, the scale below which it draws coarsely; [Sight]
+// changes how far, saved with the camera.
 //
 // # Cage
 //
@@ -54,15 +56,16 @@
 //
 // [Keys] are a player's keys to its camera: four keys held scrolling it, the wheel zooming about
 // the cursor, the middle drag panning, the cursor at an edge scrolling and in a corner scrolling
-// slantwise, or turning as Q and E do (Keys.CornersTurn). [DefaultKeys] are W, S, A, D with all
-// three; [Plugin.DefaultBindings] are those, the corners turning where the Config turns, Shift+H
-// and the views' keys the Config gives: Q and E turning, R looking down more steeply and
-// F flatter, Tab switching between the orthographic view and the perspective, V riding, the mouse
-// looking round inside an entity.
+// slantwise, or turning as Q and E do (Keys.CornersTurn), two with Ctrl seeing farther and nearer.
+// [DefaultKeys] are W, S, A, D, = and -, Ctrl+= and Ctrl+-, with all three;
+// [Plugin.DefaultBindings] are those, the corners turning where the Config turns, Shift+H and the
+// views' keys the Config gives: Q and E turning, R looking down more steeply and F flatter, Tab
+// switching between the orthographic view and the perspective, V riding, the mouse looking round
+// inside an entity.
 //
 // # Vocabulary
 //
 // Commands, a player's through its camera: [Pan], [Zoom], [CenterOn], [View], [Turn], [Tilt],
-// [LookFrom], [LookAt], [Ride], [Look]; [Zones] (a look: the scroll zones over every picture,
-// Shift+H); [Follow] (a player's, or an entity's own fastening the camera over itself).
+// [LookFrom], [LookAt], [Ride], [Look], [Sight]; [Zones] (a look: the scroll zones over every
+// picture, Shift+H); [Follow] (a player's, or an entity's own fastening the camera over itself).
 package cameras

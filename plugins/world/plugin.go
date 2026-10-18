@@ -3,11 +3,11 @@ package world
 import (
 	"fmt"
 	cgoke "github.com/kjkrol/ceremony/goke"
+	"image/color"
 	"reflect"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/effect"
@@ -172,10 +172,11 @@ func (p *Plugin) Tick(d time.Duration) host.Tick { return p.module.tick(d) }
 // HasHeights reports whether this world has heights.
 func (p *Plugin) HasHeights() bool { return p.Res.Config.Heights }
 
-func (p *Plugin) newView(bounds func() geom.AABB) *view.View {
-	v := view.New(bounds)
-	p.module.views = append(p.module.views, v)
-	return v
+// WithFog has what lies far off fade into c where nothing else, the atmosphere, gives the fog's
+// colour; a scene sets it as it begins.
+func (p *Plugin) WithFog(c color.RGBA) *Plugin {
+	p.renderer.fog = &[3]float32{float32(c.R) / 255, float32(c.G) / 255, float32(c.B) / 255}
+	return p
 }
 
 // Scale is how many metres a world unit spans.
@@ -206,7 +207,11 @@ func (p *Plugin) ViewFor(cam camera.Camera) *view.View {
 	if p.views == nil {
 		p.views = map[camera.Camera]*view.View{}
 	}
-	v := p.newView(cam.Bounds)
+	v := view.New(cam.Bounds)
+	if p.module.sectors.grid != nil {
+		v = view.NewSeen(cam, seenSectors{p.module.sectors})
+	}
+	p.module.views = append(p.module.views, v)
 	p.views[cam] = v
 	return v
 }

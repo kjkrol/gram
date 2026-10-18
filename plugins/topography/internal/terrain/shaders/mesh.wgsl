@@ -129,6 +129,10 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     if U.Visibility > 0.0 {
         rgb = mix(rgb, U.Fog, 1.0 - exp(-hazeDepth(p) / U.Visibility));
     }
+    // the fog before the camera's sight ends (U.Sight: from where, where it begins and ends)
+    if U.Sight.w > 0.0 {
+        rgb = mix(rgb, U.Fog, smoothstep(U.Sight.z, U.Sight.w, distance(p.xy, U.Sight.xy)));
+    }
     return vec4<f32>(rgb, 1.0);
 }
 

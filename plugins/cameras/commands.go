@@ -81,6 +81,13 @@ type Turn struct {
 	Angle  float32
 }
 
+// Sight has Camera see Factor times as far (camera.Detail.Sight); one seeing without end stays
+// so.
+type Sight struct {
+	Camera camera.Camera
+	Factor float64
+}
+
 // Tilt leans Camera's stick about its foot by Angle radians, towards straight down as it grows and
 // flatter for a negative one, between Config.MinPitch and straight down; a plain camera stays.
 type Tilt struct {
@@ -99,6 +106,7 @@ func (Look) Command()     {}
 func (Ride) Command()     {}
 func (Turn) Command()     {}
 func (Tilt) Command()     {}
+func (Sight) Command()    {}
 
 var (
 	_ command.Command = Pan{}
@@ -112,6 +120,7 @@ var (
 	_ command.Command = Ride{}
 	_ command.Command = Turn{}
 	_ command.Command = Tilt{}
+	_ command.Command = Sight{}
 )
 
 // TurnStep is how far Q and E turn the view a tick they are held, in radians, eighteen of them an
@@ -123,10 +132,13 @@ const (
 	TiltStep   = math.Pi / 180
 )
 
+// SightStep is the factor Ctrl+= and Ctrl+- see farther and nearer by.
+const SightStep = 1.25
+
 // Queues are where the cameras' commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
-	return append([]command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.centerOns, &p.zones},
-		p.orders.queues()...)
+	return append([]command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.centerOns, &p.zones,
+		&p.sights}, p.orders.queues()...)
 }
 
 // DefaultBindings are DefaultKeys, their corners turning where the Config turns, Shift+H showing

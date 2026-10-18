@@ -22,13 +22,14 @@ type viewCamera struct {
 	// behind an entity, the tactical camera's own scale and stick, to come back to
 	tactical  struct{ scale, length float32 }
 	fastening contract.Fastening
+	detail    contract.Detail
 }
 
 // form names how a stick camera is saved, so a save of another shape is refused at its first
 // value
 type form struct{}
 
-const savedAs = "stick 2"
+const savedAs = "stick 3"
 
 func (form) GobEncode() ([]byte, error) { return []byte(savedAs), nil }
 
@@ -48,6 +49,16 @@ var _ contract.Picker = (*viewCamera)(nil)
 var _ contract.Rayer = (*viewCamera)(nil)
 var _ contract.Rays = (*viewCamera)(nil)
 var _ contract.Focused = (*viewCamera)(nil)
+var _ contract.Detailed = (*viewCamera)(nil)
+
+// Detail is how far the camera sees and how finely.
+func (c *viewCamera) Detail() contract.Detail { return c.detail }
+
+// SetDetail has the camera see as d says.
+func (c *viewCamera) SetDetail(d contract.Detail) { c.detail = d }
+
+// See has the camera see factor times as far.
+func (c *viewCamera) See(factor float64) { c.detail = c.detail.Widened(factor) }
 
 // In the parallel view all one way, from Headroom over the highest ground.
 func (c *viewCamera) Rays() (contract.RayField, bool) {
@@ -348,7 +359,8 @@ func (c *viewCamera) SetMaxZoom(maxZoom float32) {
 
 func (c *viewCamera) Persisted() []any {
 	saved := append([]any{&c.form}, c.ortho.Persisted()...)
-	return append(append(saved, c.persp.Persisted()...), &c.inPersp, &c.fastening)
+	return append(append(saved, c.persp.Persisted()...), &c.inPersp, &c.fastening,
+		&c.detail.Sight)
 }
 
 func (c *viewCamera) Restore() {

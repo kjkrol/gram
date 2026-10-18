@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -125,6 +126,8 @@ type Renderer struct {
 	bend    float64
 	custom  bool
 	wrap    [2]bool
+	// what a camera sees of the world, so an observer out of it draws no view
+	seen func(camera.Camera) *view.View
 }
 
 // NewRenderer builds a Renderer drawing every kind in DefaultCone and DefaultShadow over space.
@@ -134,6 +137,12 @@ func NewRenderer(space *aabbworld.Space) *Renderer {
 		space: space, style: DefaultCone, shadow: DefaultShadow,
 		worldW: float32(w), worldH: float32(h), wraps: edges&aabbworld.Torus != 0, wrap: [2]bool{edges.WrapsX(), edges.WrapsY()}, gpu: newViews(),
 	}
+}
+
+// WithSeen has the views drawn only of the observers in what a camera sees, as seen says.
+func (r *Renderer) WithSeen(seen func(camera.Camera) *view.View) *Renderer {
+	r.seen = seen
+	return r
 }
 
 // WithCover has the views drawn on the GPU dimmed by the cover coverOf gives.
@@ -262,6 +271,10 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if r.styles != nil {
 		styles = r.styles()
 	}
+	var in *view.View
+	if r.seen != nil {
+		in = r.seen(cam)
+	}
 	r.query.All()
 	for r.query.Next() {
 		cursor := r.query.Cursor()
@@ -272,8 +285,8 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		outlines := r.out.Slice(cursor)
 		zs := r.z.Slice(cursor)
 		r.settle(cursor)
-		for i := range cursor.IDs {
-			if !r.shown[i] {
+		for i, id := range cursor.IDs {
+			if !r.shown[i] || in != nil && !in.Contains(id) {
 				continue
 			}
 			var z world.Z

@@ -20,8 +20,24 @@ func TestKeys_ZoomKeysBuildAZoomInAndOut(t *testing.T) {
 			t.Errorf("key %d gives %v (%v), want a Zoom by %v", i, cmd, ok, want)
 		}
 	}
-	if n := len(cameras.DefaultKeys().Bindings()); n != 9 {
-		t.Errorf("the default keys bind %d, want 9: the zoom keys among them", n)
+	if n := len(cameras.DefaultKeys().Bindings()); n != 11 {
+		t.Errorf("the default keys bind %d, want 11: the zoom and the sight keys among them", n)
+	}
+}
+
+func TestKeys_SightKeysWithCtrlSeeFartherAndNearer(t *testing.T) {
+	keys := cameras.Keys{Farther: control.KeyEqual, Nearer: control.KeyMinus}.Bindings()
+	if len(keys) != 2 {
+		t.Fatalf("%d bindings, want the two sight keys", len(keys))
+	}
+	for i, want := range []float64{cameras.SightStep, 1 / cameras.SightStep} {
+		press, isPress := keys[i].Trigger.(control.KeyPress)
+		cmd, ok := keys[i].Build(control.Context{})
+		s, isSight := cmd.(cameras.Sight)
+		if !isPress || !press.Mods.Ctrl || !ok || !isSight || s.Factor != want {
+			t.Errorf("key %d is %+v giving %v (%v), want Ctrl held and a Sight by %v", i,
+				keys[i].Trigger, cmd, ok, want)
+		}
 	}
 }
 

@@ -52,6 +52,14 @@ func New(flat world.Look, sky Sky, r *relief.Relief, ground *terrain.Renderer, p
 // Haze says whether the air hazes the billboards far off from an eye; off, they are drawn clear.
 func (l Look) Haze(on bool) { l.gpu.hazed = on }
 
+// Fog has the billboards and the flat sprites laid next turn into the fog by amount.
+func (l Look) Fog(amount float32) {
+	l.gpu.fog = amount
+	if f, ok := l.flat.(world.FoggyLook); ok {
+		f.Fog(amount)
+	}
+}
+
 // Begin readies the billboards, the shadows and the flat sprites for a frame through cam.
 func (l Look) Begin(f *render.Frame, cam camera.Camera) {
 	l.gpu.begin(f, cam)
@@ -182,6 +190,7 @@ func (l Look) Upright(f *render.Frame, cam camera.Camera, box plane.AABB, z worl
 }
 
 var _ world.UprightLook = Look{}
+var _ world.FoggyLook = Look{}
 
 func (l Look) Drawn(cam camera.Camera, box geom.AABB, z world.Z) render.Corners {
 	if inRelief(cam) {

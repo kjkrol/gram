@@ -1,6 +1,7 @@
 package topdown
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/kjkrol/aabbworld"
@@ -20,12 +21,39 @@ type basicCamera struct {
 
 	effective plane.AABB
 	fastening contract.Fastening
+	form      form
+	detail    contract.Detail
+}
+
+// form names how a camera from above is saved, so a save of another shape is refused at its
+// first value
+type form struct{}
+
+const savedAs = "top 1"
+
+func (form) GobEncode() ([]byte, error) { return []byte(savedAs), nil }
+
+func (*form) GobDecode(b []byte) error {
+	if string(b) != savedAs {
+		return fmt.Errorf("saved as %q, not %q", b, savedAs)
+	}
+	return nil
 }
 
 var _ contract.Camera = (*basicCamera)(nil)
 var _ contract.Fastenable = (*basicCamera)(nil)
 var _ contract.Fitting = (*basicCamera)(nil)
 var _ contract.Focused = (*basicCamera)(nil)
+var _ contract.Detailed = (*basicCamera)(nil)
+
+// Detail is how far the camera sees and how finely.
+func (c *basicCamera) Detail() contract.Detail { return c.detail }
+
+// SetDetail has the camera see as d says.
+func (c *basicCamera) SetDetail(d contract.Detail) { c.detail = d }
+
+// See has the camera see factor times as far.
+func (c *basicCamera) See(factor float64) { c.detail = c.detail.Widened(factor) }
 
 // Fasten fastens the camera to an entity, or to nothing.
 func (c *basicCamera) Fasten(f contract.Fastening) { c.fastening = f }
@@ -380,9 +408,10 @@ func (c *basicCamera) State() contract.State {
 	return contract.State{Viewport: c.effective.AABB, Zoom: c.zoom}
 }
 
-// Persisted is pointers to the live window, zoom and fastening, for saves and loads.
+// Persisted is pointers to the live window, zoom, fastening and sight, for saves and loads, after
+// the camera's form.
 func (c *basicCamera) Persisted() []any {
-	return []any{&c.effective.AABB, &c.zoom, &c.fastening}
+	return []any{&c.form, &c.effective.AABB, &c.zoom, &c.fastening, &c.detail.Sight}
 }
 
 // Restore rebuilds derived state after a load has written through Persisted's pointers.

@@ -90,7 +90,9 @@ solids in a world with heights, none). The figures (`render.Sprites`, the world'
 drawn once, among what is seen through, after the opaque ground, at the lowest figure's place, back
 to front among themselves; where the frame has a depth their visible pixels (alpha over half a step)
 write it, so a decal drawn after and behind them hides, and one before shows under their soft edges.
-`render.Sprites` lays world rectangles on the GPU (the camera's `SceneTransform` matrix, the box
+`render.Sprites` (`Fog(amount)` for the pieces next: the instance's `lift.y`, mixed into the
+frame's `U.Fog` in `sprites.wgsl`; `Draw(t, cam, u)` takes the frame's uniforms for it) lays world
+rectangles on the GPU (the camera's `SceneTransform` matrix, the box
 round the projected corners like `ToScreenQuads`, over a wrapping world the copy `windowed` nearest
 the window and one past each seam, six vertices a copy in one call): no per-figure projection, wrap
 splitting or `Visible` on the CPU any more (`Benchmark_World_Draw` −35…−50%). One WGSL shader
@@ -204,6 +206,10 @@ works, `c * light` is zero): gram's own WGSL has no vector consts; write them in
 or as scalars (the low clouds' bands came out at the ground, 2026-10-17, till they were). Its
 SPIR-V writer has no `all()`/`any()` ("unsupported expression kind: ir.ExprRelational", a panic
 at the first draw): test a vector by its components (`max(max(abs(v.x), …)) <= 0.0`).
+
+**A mesh may be drawn by ranges of its indices** (`DrawMeshOptions.Ranges`, none all): one
+call, one setup of the pass, a `DrawIndexed` a range; the relief draws the sectors a camera sees
+so. A call a run cost a setup each, twice when `Primed`.
 
 **A depth buffer is read at the size it was drawn at** (`DrawMeshOptions.ReadDepth`, `depthAt`
 in the pixels of the texture it was drawn with, 2026-10-17): a Direct may draw a coarse pass with

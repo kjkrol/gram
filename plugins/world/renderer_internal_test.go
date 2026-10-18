@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -406,3 +407,34 @@ func TestRenderer_Compose_CastsEachEntitysShadowOnceAsItsShadowSays(t *testing.T
 }
 
 func ptr[T any](v T) *T { return &v }
+
+func TestRenderer_Compose_DrawsNothingBeyondEveryBandEvenUnculled(t *testing.T) {
+	look := &counting{Look: ilook.NewFlat(1000, 1000, false, false)}
+	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return &view.View{} },
+		&render.Rules{}, func() Look { return look })
+	r.shade(nil, nil)
+	var base goke.Comp[Base]
+	var appearance goke.Comp[render.Appearance]
+	var off goke.Comp[sector.Off]
+	ecs := goke.New()
+	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		for k, f := range []*goke.Factory{
+			si.NewFactory(&base, &appearance),
+			si.NewFactory(&base, &appearance, &off),
+		} {
+			f.Create(1)
+			f.Next()
+			base.Slice(&f.Cursor)[0] = Base{Pos: Position{AABB: plane.NewAABB(quarters[k], 10, 10)}}
+			appearance.Slice(&f.Cursor)[0] = render.Appearance{SpriteID: 1}
+		}
+		r.Init(si)
+	}})
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	var f render.Frame
+	f.Reset(cam)
+	r.Compose(&f, cam)
+	if len(look.sprites) != 1 {
+		t.Errorf("the zero View drew %d sprites, want the one this side of the bands",
+			len(look.sprites))
+	}
+}

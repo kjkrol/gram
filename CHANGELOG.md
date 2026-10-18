@@ -17,6 +17,38 @@ in a flat world: a board stands only in a world with heights now. Nor those made
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
 entities. Nor those made before motion left the world: `world.Outside` is `motion.Outside`.
 
+**The ground by the sectors seen** (2026-10-18)
+- In a world cut into sectors the ground drawn is that of the sectors a camera sees. The relief's
+  mesh is laid sector by sector, each whole and coarse (every second corner within, the edge
+  whole and stitched, no crack against a whole neighbour), drawn by ranges of its indices at one
+  go (`render.DrawMeshOptions.Ranges`); a hex board's prisms by sector, their tops alone
+  coarsely; the flat board's cells of the sectors seen, plainly undressed with no grid coarsely
+  (`look.Tile.Coarse`).
+- The ground turns into the fog before the camera's sight ends, by the pixel
+  (`view.View.Fogging`, the shaders' `Sight`); a flat tile through `Frame.Fog`, which now takes a
+  rectangle (`look.Tile.Fog`).
+
+**What a camera sees of the sectors** (2026-10-18)
+- In a world cut into sectors a camera's View is of the sectors it sees (`view.NewSeen`), each at
+  a `view.Level`: Exact; Coarse where a world unit spans fewer screen units than the camera's
+  `Detail.Coarse`; Fogged in the fog before the end of its sight; Hidden past it, off the picture
+  or beyond every band. It holds their entities alone; `View.Level`, `View.Fog`, `View.Sectors`.
+  `world.Plugin.Seen()` lays the first camera's on the telemetry panel.
+- An entity seen coarsely is drawn plainly: no shadow, no edges, flat where it would stand. One in
+  the fog turns into the fog's colour (`world.FoggyLook`; `render.Sprites.Fog`, the billboards'
+  haze), the atmosphere's or a scene's (`world.Plugin.WithFog`).
+- The look's rules run on the chunks with an entity in view alone; vision draws the views of the
+  observers in view alone.
+- Fixed: a camera seeing the whole world drew the entities beyond every band.
+
+**How far a camera sees** (2026-10-18)
+- `camera.Detail{Sight, Fog, Coarse}` (`camera.Detailed`, `DetailOf`): how far a camera sees from
+  its `camera.Viewpoint` (the eye, else the point it observes), the fog before that, the scale
+  below which it draws coarsely. `cameras.Config.Detail` sets it for every camera; `cameras.Sight`
+  on Ctrl+= and Ctrl+- (`Keys.Farther`, `Nearer`) sees a `SightStep` farther or nearer.
+- A camera saves its sight: a camera from above is saved as `"top 1"`, one in relief as
+  `"stick 3"`; saves of either from before begin afresh, logged.
+
 **The board's places** (2026-10-18)
 - `board.Around(n)` and `board.Ahead(n)` are the board's places, for ceremony's `cond.At` and
   `act.At`: `cond.At(board.Around(1)).If(lake)`, `act.At(board.Ahead(2)).Do(cmd)` where

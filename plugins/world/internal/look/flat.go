@@ -33,6 +33,9 @@ func NewFlat(width, height float32, wrapX, wrapY bool) *Flat {
 	return l
 }
 
+// Fog has the sprites laid next turn into the fog by amount.
+func (l *Flat) Fog(amount float32) { l.sprites.Fog(amount) }
+
 // Begin readies the look to gather the frame's sprites for the GPU.
 func (l *Flat) Begin(*render.Frame, camera.Camera) {
 	l.sprites.Reset()
@@ -40,9 +43,9 @@ func (l *Flat) Begin(*render.Frame, camera.Camera) {
 }
 
 // DrawSprites draws the sprites gathered since Begin.
-func (l *Flat) DrawSprites(t render.Target, cam camera.Camera, _ render.Uniforms) {
+func (l *Flat) DrawSprites(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if l.direct {
-		l.sprites.Draw(t, cam)
+		l.sprites.Draw(t, cam, u)
 	}
 	l.direct = false
 }

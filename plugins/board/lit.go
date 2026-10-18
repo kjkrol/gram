@@ -134,10 +134,17 @@ type litLook struct {
 }
 
 var _ world.LyingLook = litLook{}
+var _ world.FoggyLook = litLook{}
 
 func (l litLook) Begin(f *render.Frame, cam camera.Camera) {
 	if d, ok := l.Look.(world.DirectLook); ok {
 		d.Begin(f, cam)
+	}
+}
+
+func (l litLook) Fog(amount float32) {
+	if f, ok := l.Look.(world.FoggyLook); ok {
+		f.Fog(amount)
 	}
 }
 

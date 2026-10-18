@@ -41,6 +41,9 @@ type Config struct {
 	HeightUnit float32
 	// where the cameras may be; nil, anywhere over level ground at sea level
 	Cage Cage
+	// how far every camera sees and how finely as it is made (Sight changes it); zero, as far as
+	// the world goes, every bit
+	Detail camera.Detail
 }
 
 // plain is the camera from above that neither turns nor tilts nor sees anything in relief
@@ -77,6 +80,7 @@ type Plugin struct {
 	follows     command.Queue[Follow]
 	centerOns   command.Queue[CenterOn]
 	zones       command.Queue[Zones]
+	sights      command.Queue[Sight]
 	orders      orders
 	zonesView   *zonesView
 	module      *module
@@ -141,6 +145,7 @@ func (p *Plugin) New(start Start, cfg camera.Config) camera.Camera {
 		made := p.views.Maker(p.viewCfg, from, p.ground, p.extent, bend)
 		cam = made(space.Width, space.Height, space.Edges, cfg)
 	}
+	cam.(seeing).SetDetail(p.cfg.Detail)
 	at := len(p.cameras)
 	p.cameras = append(p.cameras, cam)
 	if p.loaded && at < len(p.saved) {
@@ -155,6 +160,12 @@ func (p *Plugin) New(start Start, cfg camera.Config) camera.Camera {
 		p.starts = append(p.starts, starting{cam: f, whom: ceremony.Named(cfg.Follow)})
 	}
 	return cam
+}
+
+// a camera of the plugin's, seeing as far as it is told
+type seeing interface {
+	SetDetail(d camera.Detail)
+	See(factor float64)
 }
 
 // the world lives round the point each camera observes, a minimap's none

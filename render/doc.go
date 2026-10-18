@@ -47,7 +47,8 @@
 // source draws a part of the picture itself, with a shader of its own, in the passes its Compose
 // asks for ([Frame.DrawOpaque], [Frame.DrawAt], [Frame.ReadGround]), handed a [Target] and the
 // frame's [Uniforms]; [NewMeshShaderWith] builds such a shader on the composer's library, drawn
-// with [Image.DrawMesh] against a [Depth]. [Frame.Branch] and [Frame.Append] let a source gather
+// with [Image.DrawMesh] against a [Depth], whole or by ranges of its indices at one go
+// (DrawMeshOptions.Ranges). [Frame.Branch] and [Frame.Append] let a source gather
 // pieces on several goroutines.
 //
 // A color.RGBA given to render — a piece, a fill, text, a sprite drawn on a [Canvas] — is
@@ -80,7 +81,8 @@
 //
 // A [Still] is a frame composed once in world units and kept on the GPU, drawn every frame
 // scaled, moved and lit as a camera from above shows it. [Sprites] is a Direct source's sprites
-// drawn as instances. [Paint] paints a frame's sprites once into an image of one's own.
+// drawn as instances, each turning into the frame's Fog colour as far as [Sprites.Fog] says.
+// [Paint] paints a frame's sprites once into an image of one's own.
 //
 // # Appearance and Rules
 //

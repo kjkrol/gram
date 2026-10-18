@@ -9,6 +9,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
@@ -262,5 +263,48 @@ func TestNew_ACameraStartsFastenedToTheEntityItsConfigNames(t *testing.T) {
 	c.tick()
 	if sx, sy := cam.Project(605, 505, 0); math.Abs(float64(sx-100)) > 0.5 || math.Abs(float64(sy-100)) > 0.5 {
 		t.Errorf("the scout is drawn at (%v, %v), want the middle of the screen", sx, sy)
+	}
+}
+
+func TestSight_HasACameraSeeFartherAndNearer(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 10, MaxSize: 10},
+	})
+	p := cameras.NewPlugin(w, cameras.Config{Detail: camera.Detail{Sight: 1000, Fog: 100}})
+	if err := w.Carry(p); err != nil {
+		t.Fatal(err)
+	}
+	seeing := p.New(cameras.FromAbove, camera.Config{})
+	ctx := &installCtx{ecs: goke.New()}
+	for _, pl := range []plugin.Plugin{w, p} {
+		if err := pl.Install(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var systems []goke.System
+	for _, produce := range ctx.pending {
+		systems = append(systems, produce()...)
+	}
+	ctx.ecs.Setup(systems...)
+	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+		w.RunPlan(rc, d)
+		w.Clock().Replay(rc, d)
+		rc.Sync()
+		p.RunPlan(rc, d)
+	})
+	sight := func(factor float64) float64 {
+		w.Carrier().Put(command.Nobody, cameras.Sight{Camera: seeing, Factor: factor})
+		ctx.ecs.Tick(time.Second / 10)
+		return camera.DetailOf(seeing).Sight
+	}
+	if got := sight(cameras.SightStep); got != 1250 {
+		t.Errorf("seeing farther, the sight is %v, want 1250", got)
+	}
+	if got := sight(1 / cameras.SightStep); got != 1000 {
+		t.Errorf("seeing nearer again, the sight is %v, want 1000", got)
+	}
+	if d := camera.DetailOf(seeing); d.Fog != 100 {
+		t.Errorf("the fog is %v, want the Config's 100 kept", d.Fog)
 	}
 }

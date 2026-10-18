@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/world/sector"
+	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -22,6 +23,10 @@ func (p *Plugin) Anchor(a sector.Anchors) {
 // Sectors is the world's part of the telemetry panel: how many sectors and entities lie in each
 // band.
 func (p *Plugin) Sectors() render.Reporter { return sectorsReport{p.module} }
+
+// Seen is the world's part of the telemetry panel about the first camera made: how many sectors
+// it sees at each level.
+func (p *Plugin) Seen() render.Reporter { return seenReport{p.module} }
 
 const defaultSectorBuckets = 4
 
@@ -243,6 +248,30 @@ func (s *sectors) move(cb *goke.CmdBuf, id uid.UID64, from, to, at int) {
 	default:
 		cb.AddOne(id, s.marks[to], sector.Band5{})
 	}
+}
+
+// the sectors as a camera's view sees them
+type seenSectors struct{ s *sectors }
+
+var _ view.Sectors = seenSectors{}
+
+func (s seenSectors) Len() int            { return s.s.grid.Len() }
+func (s seenSectors) Box(i int) geom.AABB { return s.s.grid.Box(i) }
+func (s seenSectors) Of(x, y float64) int { return s.s.grid.Of(x, y) }
+func (s seenSectors) Off(i int) bool      { return s.s.grid.Band(i) == s.s.grid.Beyond() }
+
+type seenReport struct{ w *module }
+
+func (seenReport) Init(*goke.SysInit) {}
+
+func (r seenReport) Report(line func(label, value string)) {
+	if r.w.sectors.grid == nil || len(r.w.views) == 0 {
+		return
+	}
+	var n [4]int
+	r.w.views[0].Sectors(func(_ int, _ geom.AABB, l view.Level) { n[l]++ })
+	line("Sectors seen", fmt.Sprintf("exact %d · coarse %d · fog %d", n[view.Exact],
+		n[view.Coarse], n[view.Fogged]))
 }
 
 type sectorsReport struct{ w *module }

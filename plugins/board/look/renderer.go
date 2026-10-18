@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -65,6 +66,10 @@ type Renderer struct {
 	board   Board
 	mapping Map
 	camera  camera.Camera
+	// what a camera sees of the world's sectors, and what the frame's sees: the cells drawn are
+	// those of the sectors seen alone, at their levels
+	sees    func(camera.Camera) *view.View
+	sight   *view.View
 	atlas   render.AtlasSource
 	cellW   float64
 	cellH   float64
@@ -199,6 +204,13 @@ func (l *Renderer) Init(*goke.SysInit) {}
 // takes no part in blending.
 func (l *Renderer) Shade(shaded map[cell.Name]render.MaterialID) { l.shaded = shaded }
 
+// WithSeen has the cells drawn of the sectors a camera sees alone, as seen says, coarsely where it
+// sees one coarsely, fading into the fog before its sight's end.
+func (l *Renderer) WithSeen(seen func(camera.Camera) *view.View) *Renderer {
+	l.sees = seen
+	return l
+}
+
 // Workers sets how many goroutines at most share a frame's tiles under a Parallel Dressing: 0
 // as many as there are CPUs, 1 none.
 func (l *Renderer) Workers(n int) { l.count = max(n, 0) }
@@ -210,6 +222,12 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		return
 	}
 	l.camera = cam
+	l.sight = nil
+	if l.sees != nil {
+		if v := l.sees(cam); v.Grid() != nil {
+			l.sight = v
+		}
+	}
 	d := l.dressing()
 	m := l.mapping
 	look := m.Look()
@@ -428,14 +446,20 @@ func (l *Renderer) place(t *Tile, c cell.ID) geom.Vec {
 // the tile and what lies on it go to f, what runs across the board to over; a material's cell
 // has only its grid drawn
 func (l *Renderer) cell(f, over *render.Frame, look Look, t *Tile, c cell.ID, s *scratch) {
+	t.Coarse, t.Fog = false, 0
+	if l.sight != nil && !l.white {
+		middle := l.board.CellCenter(c)
+		t.Coarse = l.sight.Level(middle.X, middle.Y) != view.Exact
+		t.Fog = l.sight.Fog(middle.X, middle.Y)
+	}
 	if _, ok := l.shaded[l.board.Kind(c).Name]; !ok {
 		l.place(t, c)
 		look.Cell(f, l.camera, t)
-		if t.dress != nil {
+		if t.dress != nil && !t.Coarse {
 			t.dress.Across(over, l.camera, t)
 		}
 	}
-	if l.gridOn && l.griddedAt(c) {
+	if l.gridOn && !t.Coarse && l.griddedAt(c) {
 		l.gridLines(f, c, s)
 	}
 }
@@ -546,8 +570,35 @@ func (l *Renderer) onScreen(c cell.ID) bool {
 // pixels past the viewport's edge a cell still counts as drawn: what stands on it may reach in
 const offScreen = 48
 
+// the cells under the camera: of the sectors it sees where the world has them, each cell in the
+// sector its middle lies in
 func (l *Renderer) eachVisible(fn func(c cell.ID)) {
 	bounds := l.camera.Bounds()
+	if l.sight == nil || l.white {
+		l.eachIn(bounds, fn)
+		return
+	}
+	grid := l.sight.Grid()
+	l.sight.Sectors(func(i int, box geom.AABB, _ view.Level) {
+		part, ok := overlap(bounds, box)
+		if !ok {
+			return
+		}
+		l.eachIn(part, func(c cell.ID) {
+			if middle := l.board.CellCenter(c); grid.Of(middle.X, middle.Y) == i {
+				fn(c)
+			}
+		})
+	})
+}
+
+func overlap(a, b geom.AABB) (geom.AABB, bool) {
+	lo := geom.NewVec(max(a.TopLeft.X, b.TopLeft.X), max(a.TopLeft.Y, b.TopLeft.Y))
+	hi := geom.NewVec(min(a.BottomRight.X, b.BottomRight.X), min(a.BottomRight.Y, b.BottomRight.Y))
+	return geom.NewAABB(lo, hi), lo.X < hi.X && lo.Y < hi.Y
+}
+
+func (l *Renderer) eachIn(bounds geom.AABB, fn func(c cell.ID)) {
 	if l.square {
 		if l.camera.Projection().Sorts() {
 			// the bounds are the rectangle round the screen's diamond, twice the cells on it
