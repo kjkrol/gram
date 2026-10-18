@@ -11,7 +11,8 @@
 // the world in relief, a Cell of it drawn isometrically as a TileW x TileH diamond, and refuses a
 // world that wraps. camera.Config.Follow names the entity a camera starts fastened Centred over.
 // Every camera made is saved with the game, in the order made, and one made after a Load takes
-// the state of the camera made in its place.
+// the state of the camera made in its place. The world's sectors are anchored at the point each
+// camera observes (camera.Focused), a minimap's none.
 //
 // # Cage
 //

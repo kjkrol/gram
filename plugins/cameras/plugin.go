@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras/internal/stick"
 	"github.com/kjkrol/gram/plugins/cameras/internal/topdown"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 )
 
 // Config is what a game's cameras may do and how they see: Turn (Q, E), Tilt (R, F) and
@@ -92,6 +93,7 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin, cfg: cfg}
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.zonesView = &zonesView{}
+	worldPlugin.Anchor(anchors{p})
 	if !cfg.plain() {
 		if edges := worldPlugin.Res.Config.Space.Edges; edges.WrapsX() || edges.WrapsY() {
 			panic("cameras: a world that wraps cannot be seen in relief")
@@ -153,6 +155,25 @@ func (p *Plugin) New(start Start, cfg camera.Config) camera.Camera {
 		p.starts = append(p.starts, starting{cam: f, whom: ceremony.Named(cfg.Follow)})
 	}
 	return cam
+}
+
+// the world lives round the point each camera observes, a minimap's none
+type anchors struct{ p *Plugin }
+
+var _ sector.Anchors = anchors{}
+
+func (a anchors) Anchors(at func(x, y float32)) {
+	for _, cam := range a.p.cameras {
+		if f, ok := cam.(camera.Fitting); ok {
+			if _, _, whole := f.Fits(); whole {
+				continue
+			}
+		}
+		if f, ok := cam.(camera.Focused); ok {
+			x, y, _ := f.Focus()
+			at(x, y)
+		}
+	}
 }
 
 type starting struct {

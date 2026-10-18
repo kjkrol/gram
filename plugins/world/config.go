@@ -3,6 +3,7 @@ package world
 import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/gram/clock"
+	"github.com/kjkrol/gram/plugins/world/sector"
 )
 
 // Config is the world's shape, its bounds on entities, whether it has heights and how its clock
@@ -19,6 +20,16 @@ type Config struct {
 	Scale Scale
 	// Seed is what the rules' and the plans' Chance draws from, the same after a load.
 	Seed uint64
+	// Sectors cuts the world into sectors in bands of pace round the anchors; zero, the whole
+	// world at the world's pace.
+	Sectors SectorsCfg
+}
+
+// SectorsCfg is the world's sectors: Buckets of the space's buckets a side (zero, 4) and their
+// bands, nearest first, at most sector.MaxBands, each reaching farther than the one before.
+type SectorsCfg struct {
+	Buckets int
+	Bands   []sector.Band
 }
 
 type SpaceCfg struct {

@@ -17,7 +17,20 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   entity bounds, `Heights`, `Scale{Metres, Figures}` (what a world unit is; `Scale.Units` metres;
   `Figures` how many times bigger than life the figures are drawn, `Scale.Figure(m)` their boxes,
   heights and eyes; speeds and sight stay real; with it the ground sinks under an eye's level,
-  `Scale.Drop`, and the air hazes far off), `Seed` (which `Chance` draws from). `world.Roster()` is
+  `Scale.Drop`, and the air hazes far off), `Seed` (which `Chance` draws from), `Sectors`
+  (`SectorsCfg{Buckets, Bands}`: square sectors of `Buckets` space buckets a side, 4 by default,
+  and up to `sector.MaxBands` bands `sector.Band{Reach, Pace}` round the anchors, nearest first,
+  reaches growing, the first `Pace` 1; none, the whole world in one band and no supervisor's
+  cost). The supervisor (`sectors.go`, once a tick after the clock, before the views) lays each
+  sector in the band its nearest anchor reaches (`sector.Grid.Place`: nearer at once, farther
+  only half a sector past the reach; every sector begins beyond, so the first tick and a load
+  wake everything near), wakes the `sector.Off` entities whose middle lies in a sector come back
+  (a space query), and moves the mark of every entity whose sector's band is not its own over the
+  band queries; marks `sector.Band2`…`Band5`, `Off` (zero-size, `CmdBuf` `AddOne`/`RemoveCompOne`,
+  saved), the first band unmarked. Anchors are `sector.Anchors` handed to `Plugin.Anchor` (the
+  cameras plugin's, the `camera.Focused` point of each camera but a `Whole` one);
+  `Plugin.Sectors()` is a `render.Reporter` ("Sectors", "Entities by band"); board/topography
+  has them. No system reads the marks yet (D2). `world.Roster()` is
   what the plugins ask of the kinds of each template: a `kind.Template` is a sort of kind a plugin
   brings in by name under a parent (`kind.NewTemplate(name, parent)`; world: `EntityTemplate`;
   motion: `UnitTemplate` under it; board: `StandingTemplate` under the entity's, `CellTemplate`;
@@ -766,6 +779,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Edges.Any` true there — slantwise, or with `CornersTurn` a `Turn` as Q in the left corners and
   as E in the right ones, a `CornerStep` (a third of `TurnStep`) a tick, instead; `DefaultBindings` set it where the Config
   turns, the user's word 2026-10-18; the old turning and bowing at the world's edge are gone).
+  `NewPlugin` anchors the world's sectors (`world.Plugin.Anchor`) at each camera's `Focus`
+  (`camera.Focused`: the window's middle from above, the stick's foot in either projection, the
+  eye inside a unit), a `Whole` camera skipped.
   Tests take a plain camera from `cameras/cameratest` (`NewFromSpace`; `Switch`, `Turn`, `Tilt`
   as a relief camera's keys), which imports
   neither render nor the world, so their own tests use it too: `internal/stick` is arithmetic and

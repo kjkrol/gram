@@ -224,6 +224,15 @@ func TestNewFromSpaceWithConfig_StartsOverTheMiddleAtItsZoom(t *testing.T) {
 	}
 }
 
+func TestBasicCamera_FocusIsTheMiddleOfTheWindow(t *testing.T) {
+	c := NewFromSpaceWithConfig(1000, 1000, 0, contract.Config{})
+	c.SetViewport(300, 150)
+	c.CenterOn(200, 700, 0)
+	if x, y, z := c.(contract.Focused).Focus(); x != 200 || y != 700 || z != 0 {
+		t.Errorf("Focus() = (%v, %v, %v), want the middle of the window (200, 700, 0)", x, y, z)
+	}
+}
+
 func TestWholeCamera_KeepsTheWholeWorldCentred(t *testing.T) {
 	c := NewFromSpaceWithConfig(400, 200, 0, contract.Config{Whole: true})
 	for _, size := range [][2]float32{{200, 100}, {300, 100}, {100, 200}, {150, 150}} {

@@ -66,10 +66,10 @@
 // # Clock and the tick
 //
 // The world keeps the tactical clock ([Plugin.Clock]) and the commands [Pause], [Faster] and
-// [Slower] on it. [Plugin.RunPlan] runs the tick: the clock's commands and the views at once;
-// in every step of the simulation the plans, the spawns and the despawns, the commands about
-// effects, the clock's moments and the effects, the space told of every entity after a spawn or a
-// despawn. [Plugin.Carrier] is the Stage's one carrier of commands.
+// [Slower] on it. [Plugin.RunPlan] runs the tick: the clock's commands, the sectors and the views
+// at once; in every step of the simulation the plans, the spawns and the despawns, the commands
+// about effects, the clock's moments and the effects, the space told of every entity after a
+// spawn or a despawn. [Plugin.Carrier] is the Stage's one carrier of commands.
 //
 // # Drawing and Look
 //
@@ -87,6 +87,12 @@
 //
 // [Plugin.Picture] is everything the Stage's plugins draw (plugin.Installer.Draws), one picture
 // for every scene; a scene shows it through a camera, ui.Image(render.NewFeed(camera, it)).
+//
+// # Sectors
+//
+// Config.Sectors cuts the world into sectors in bands of pace round the anchors, the points the
+// players observe ([Plugin.Anchor]; the cameras plugin gives its cameras'), and marks each entity
+// with its sector's band (package sector). [Plugin.Sectors] lays them on the telemetry panel.
 //
 // # Views
 //

@@ -1,0 +1,28 @@
+package sector
+
+// Band is a band of pace round the anchors: the sectors within Reach world units of the nearest
+// anchor and not of a nearer band, their systems going a step every Pace of the world's (the
+// first band's every one).
+type Band struct {
+	Reach float64
+	Pace  int
+}
+
+// MaxBands is how many bands a world may have.
+const MaxBands = 5
+
+// The marks of what lies in the bands past the first and beyond the last: zero-size components a
+// system's query includes or excludes. What lies in the first band carries none.
+type (
+	Band2 struct{}
+	Band3 struct{}
+	Band4 struct{}
+	Band5 struct{}
+	Off   struct{}
+)
+
+// Anchors are the points the world lives round, each handed to at: the nearer a sector, the
+// fuller its band.
+type Anchors interface {
+	Anchors(at func(x, y float32))
+}

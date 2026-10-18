@@ -25,6 +25,7 @@ type basicCamera struct {
 var _ contract.Camera = (*basicCamera)(nil)
 var _ contract.Fastenable = (*basicCamera)(nil)
 var _ contract.Fitting = (*basicCamera)(nil)
+var _ contract.Focused = (*basicCamera)(nil)
 
 // Fasten fastens the camera to an entity, or to nothing.
 func (c *basicCamera) Fasten(f contract.Fastening) { c.fastening = f }
@@ -235,6 +236,12 @@ func (c *basicCamera) Visible(box contract.AABB) bool {
 	far := c.Bounds()
 	return brX > float32(c.effective.TopLeft.X) && tlX < float32(far.BottomRight.X) &&
 		brY > float32(c.effective.TopLeft.Y) && tlY < float32(far.BottomRight.Y)
+}
+
+// Focus is the middle of the window, at the ground.
+func (c *basicCamera) Focus() (float32, float32, float32) {
+	return float32(c.effective.TopLeft.X + c.effective.Size.X/2),
+		float32(c.effective.TopLeft.Y + c.effective.Size.Y/2), 0
 }
 
 // Bounds is the visible window, which on a torus may run past the world's own size.

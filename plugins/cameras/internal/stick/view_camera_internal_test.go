@@ -177,6 +177,22 @@ func TestViewCamera_InsideAUnitTheScreenIsAsWideAsItsEyeSees(t *testing.T) {
 	}
 }
 
+func TestViewCamera_FocusIsTheFootOfTheStickOrTheEyeInAUnit(t *testing.T) {
+	c := testViews(true)
+	c.CenterOn(330, 310, 0)
+	for _, persp := range []bool{false, true} {
+		if x, y, _ := c.Focus(); !near(x, 330) || !near(y, 310) {
+			t.Errorf("perspective %v: Focus() at (%v, %v), want the foot (330, 310)", persp, x, y)
+		}
+		c.next()
+	}
+	c.next()
+	c.enterInside([3]float32{100, 200, 7}, 0, 0)
+	if x, y, z := c.Focus(); x != 100 || y != 200 || z != 7 {
+		t.Errorf("inside a unit Focus() = (%v, %v, %v), want its eye (100, 200, 7)", x, y, z)
+	}
+}
+
 func TestViewCamera_RaysRunThroughWhatTheScreenPointsSee(t *testing.T) {
 	c := testViews(true)
 	for _, view := range []string{"isometric", "perspective", "from above"} {

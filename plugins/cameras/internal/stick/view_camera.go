@@ -47,6 +47,7 @@ var _ contract.Eyed = (*viewCamera)(nil)
 var _ contract.Picker = (*viewCamera)(nil)
 var _ contract.Rayer = (*viewCamera)(nil)
 var _ contract.Rays = (*viewCamera)(nil)
+var _ contract.Focused = (*viewCamera)(nil)
 
 // In the parallel view all one way, from Headroom over the highest ground.
 func (c *viewCamera) Rays() (contract.RayField, bool) {
@@ -111,6 +112,19 @@ func worldBox(minX, minY, maxX, maxY float32, size geom.Vec) contract.AABB {
 }
 
 func (c *viewCamera) Fasten(f contract.Fastening) { c.fastening = f }
+
+// Focus is the foot of the stick, or the eye riding in a unit.
+func (c *viewCamera) Focus() (float32, float32, float32) {
+	switch {
+	case c.insideUnit():
+		e := c.persp.proj.eye
+		return e[0], e[1], e[2]
+	case c.inPersp:
+		return c.persp.foot[0], c.persp.foot[1], c.persp.foot[2]
+	}
+	f := c.ortho.foot
+	return float32(f[0]), float32(f[1]), float32(f[2])
+}
 
 func (c *viewCamera) Fastening() contract.Fastening { return c.fastening }
 

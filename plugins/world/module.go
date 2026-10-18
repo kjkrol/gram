@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/entity/kind"
 	ikinds "github.com/kjkrol/gram/plugins/world/internal/kinds"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
@@ -45,6 +46,9 @@ type module struct {
 
 	views        []*view.View
 	viewRunnable goke.Runnable
+
+	sectors         *sectors
+	sectorsRunnable goke.Runnable
 
 	clock           *clock.Clock
 	moments         moments
@@ -79,6 +83,7 @@ func newModule(cfg Config) *module {
 	w := &module{config: cfg, space: buildSpace(cfg), despawned: make(map[uid.UID64]struct{}),
 		clock: clk}
 	w.moments = moments{clock: clk, tick: w.tick}
+	w.sectors = newSectors(w)
 	return w
 }
 
@@ -99,6 +104,7 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	w.despawnRunnable = ecs.RegSys(newDespawnSystem(w))
 	w.indexRunnable = ecs.RegSys(newIndexSystem(w))
 	w.viewRunnable = ecs.RegSys(view.NewSystem(w.space, &w.views, w.config.Space.Width, w.config.Space.Height))
+	w.sectorsRunnable = ecs.RegSys(w.sectors)
 	w.clockRunnable = ecs.RegSys(w.clock.System())
 	w.plansRunnable = ecs.RegSys(w.plansSys)
 	w.momentsRunnable = ecs.RegSys(w.moments.system())
@@ -110,6 +116,7 @@ func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	w.fasters.Drain(func(command.Issued[Faster]) { w.clock.Faster() })
 	w.slowers.Drain(func(command.Issued[Slower]) { w.clock.Slower() })
 	ctx.Run(w.clockRunnable, d)
+	ctx.Run(w.sectorsRunnable, d)
 	ctx.Run(w.viewRunnable, d)
 	ctx.Sync()
 	w.clock.Simulate(ctx, w.simulate)
@@ -143,6 +150,11 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[tag.Tags[clock.Phase]](),
 		goke.LoadComp[ceremony.Label](),
 		goke.LoadComp[tag.Tags[cond.Roles]](),
+		goke.LoadComp[sector.Band2](),
+		goke.LoadComp[sector.Band3](),
+		goke.LoadComp[sector.Band4](),
+		goke.LoadComp[sector.Band5](),
+		goke.LoadComp[sector.Off](),
 	}, w.effects.Module().LoadComps()...)
 	tokens = append(tokens, w.selves.tokens()...)
 	return append(tokens, w.plansSys.LoadComps()...)

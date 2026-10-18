@@ -17,6 +17,19 @@ in a flat world: a board stands only in a world with heights now. Nor those made
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
 entities. Nor those made before motion left the world: `world.Outside` is `motion.Outside`.
 
+**Sectors of the world in bands round the players** (2026-10-18)
+- `world.Config.Sectors` cuts the world into square sectors, `Buckets` of the space's buckets a
+  side (4 by default), in up to five `sector.Band{Reach, Pace}` round the anchors: the first at
+  the world's pace, each farther a step every `Pace`, what lies past the last off. Without bands
+  the world is as before.
+- Once a tick the world lays each sector in the band its nearest anchor reaches (farther only
+  half a sector past the reach) and marks the entities by their sector's band: `sector.Band2` to
+  `Band5`, `sector.Off`, the first band unmarked; the marks are saved. No system reads them yet.
+- The cameras plugin anchors the world at the point each camera observes (`camera.Focused`: the
+  window's middle, the stick's foot, the eye inside a unit), a minimap's none.
+- `world.Plugin.Sectors()` reports the sectors and the entities by band on the telemetry panel;
+  board/topography shows them.
+
 **The stick in perspective** (2026-10-18)
 - The free perspective camera is the stick too: its foot in the middle of the screen, the eye at
   the stick's end, Q and E turning and R and F leaning it about the foot; it no longer flies two

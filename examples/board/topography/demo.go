@@ -38,6 +38,7 @@ import (
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
@@ -100,6 +101,13 @@ func main() {
 				MaxCount: MaxEntCount,
 				MinSize:  2,
 				MaxSize:  CellSize,
+			},
+			Sectors: world.SectorsCfg{
+				Buckets: 4,
+				Bands: []sector.Band{
+					{Reach: 1536},
+					{Reach: 3072, Pace: 4},
+				},
 			},
 			Heights: true,
 		}).
@@ -177,7 +185,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		HeightUnit:  1,
 		Cage:        a.topography,
 	})
-	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter())
+	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter(), a.world.Sectors())
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection,
 		a.nav, a.driving,
 		a.atmosphere, a.topography, a.vision, a.bridges)
