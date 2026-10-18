@@ -45,6 +45,10 @@ entities. Nor those made before motion left the world: `world.Outside` is `motio
   (Ctrl+F, `topography.Plugin.WithHaze`, `Hazes`, `topography.Haze`, were `WithHazeFromAbove`,
   `HazesFromAbove` and `HazeFromAbove`; `air.Weather.Seen` takes whether to haze at all).
 - A relief camera saved before the stick begins afresh, the log naming it; one from above loads.
+- Seen straight down with the view turned, a flat sprite turns with the world: its corners lie
+  where the camera lays them, where it lay in the screen's box round them; so do the outlines a
+  footprint draws (the selection's, a route's, the boxes). A sprite the screen turns other than
+  by quarters is read smooth, its border fading over a pixel, so it no longer crawls as it moves.
 
 **The cameras, all in their plugin** (2026-10-17)
 - Every camera is the cameras plugin's: the plain one from above (was `internal/camera`) and the

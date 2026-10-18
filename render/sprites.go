@@ -87,7 +87,7 @@ func (s *Sprites) Rect(
 }
 
 // Turned adds the whole of sprite id of atlas over the world rectangle (x0, y0)-(x1, y1), turned
-// on the screen by angle radians about its middle, in light.
+// by angle radians about its middle, anticlockwise as the world is seen from above, in light.
 func (s *Sprites) Turned(
 	atlas AtlasSource, id SpriteID, x0, y0, x1, y1, angle float32, light Light) {
 	sx0, sy0, sx1, sy1 := atlas.UV(id)

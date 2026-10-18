@@ -22,7 +22,9 @@ import (
 type flatSource struct {
 	look   world.Look
 	direct bool
-	atlas  render.AtlasSource
+	// lays the deck slanting alone, else the sprite and the deck running east
+	slant bool
+	atlas render.AtlasSource
 }
 
 func (*flatSource) Init(*goke.SysInit) {}
@@ -33,17 +35,22 @@ func (s *flatSource) Compose(f *render.Frame, cam camera.Camera) {
 		f.DrawAt(f.At(0, 0, 0))
 	}
 	a := render.Appearance{SpriteID: 1}
-	s.look.Sprite(
-		f,
-		cam,
-		plane.NewAABB(geom.NewVec(40000, 30000), 16, 16),
-		world.Z{},
-		s.atlas,
-		a,
-		render.Light{1, 1, 1},
-	)
+	if !s.slant {
+		s.look.Sprite(
+			f,
+			cam,
+			plane.NewAABB(geom.NewVec(40000, 30000), 16, 16),
+			world.Z{},
+			s.atlas,
+			a,
+			render.Light{1, 1, 1},
+		)
+	}
 	lie := world.Lie{Length: 96, Width: 20, Edged: true}
 	for k, dir := range []geom.Vec{geom.NewVec(0.6, 0.8), geom.NewVec(1, 0)} {
+		if s.slant != (k == 0) {
+			continue
+		}
 		box := plane.NewAABB(geom.NewVec(40030, 29960+float64(k)*60), 10, 10)
 		s.look.(world.LyingLook).Lay(
 			f,
@@ -95,15 +102,15 @@ func TestFlatLook_FromAboveDrawsOnTheGPUAsOnTheFrame(t *testing.T) {
 	atlas.Add(render.SpriteID(1), 16, stripes)
 	atlas.Add(render.SpriteID(2), 16, stripes)
 	atlas.Close()
-	pix := func(direct bool) []byte {
+	pix := func(direct, slant bool) []byte {
 		screen := render.NewImage(320, 240)
-		src := &flatSource{look: w.FlatLook(), direct: direct, atlas: atlas}
+		src := &flatSource{look: w.FlatLook(), direct: direct, slant: slant, atlas: atlas}
 		render.NewComposer(src).DrawWorld(screen, cam)
 		out := make([]byte, 4*320*240)
 		screen.ReadPixels(out)
 		return out
 	}
-	frame, direct := pix(false), pix(true)
+	frame, direct := pix(false, false), pix(true, false)
 	drawn, uncovered, recoloured := 0, 0, 0
 	for i := 0; i < len(frame); i += 4 {
 		if frame[i+3] != 0 {
@@ -124,10 +131,25 @@ func TestFlatLook_FromAboveDrawsOnTheGPUAsOnTheFrame(t *testing.T) {
 		t.Fatal("nothing in view")
 	}
 	// the GPU lays a sprite through the camera's matrix, the frame through its projection, under a
-	// hundredth of a pixel apart: a long slanted edge, or a magnified texel's, flips a pixel here
-	// and there
+	// hundredth of a pixel apart: a magnified texel's edge flips a pixel here and there
 	if uncovered > drawn/100 || recoloured > drawn/20 {
 		t.Errorf("of %d pixels drawn, %d covered otherwise on the GPU and %d coloured otherwise",
 			drawn, uncovered, recoloured)
+	}
+	// slanting, the GPU reads the deck smooth: it lies where the frame lays it, half covered and
+	// more where the frame covers a pixel
+	frame, direct = pix(false, true), pix(true, true)
+	drawn, uncovered = 0, 0
+	for i := 0; i < len(frame); i += 4 {
+		if frame[i+3] != 0 {
+			drawn++
+		}
+		if (frame[i+3] >= 128) != (direct[i+3] >= 128) {
+			uncovered++
+		}
+	}
+	if drawn == 0 || uncovered > drawn/100 {
+		t.Errorf("of %d pixels of the slanting deck, %d covered otherwise on the GPU", drawn,
+			uncovered)
 	}
 }

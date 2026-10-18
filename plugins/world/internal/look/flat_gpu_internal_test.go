@@ -86,3 +86,74 @@ func needGPU(t *testing.T) {
 		t.Skipf("no GPU: %v", err)
 	}
 }
+
+func TestFlatLook_TurnedFromAboveDrawsOnTheGPUAsOnTheFrame(t *testing.T) {
+	needGPU(t)
+	atlas := render.NewAtlas()
+	atlas.Add(render.SpriteID(1), 8, func(dst *render.Canvas, size int) {
+		dst.FillRect(0, 0, float32(size), float32(size), color.RGBA{R: 200, G: 40, B: 40, A: 255})
+	})
+	atlas.Close()
+	box := plane.NewAABB(geom.NewVec(110, 120), 40, 16)
+	cam := cameratest.NewFromAbove(256, 256)
+	cam.SetViewport(160, 120)
+	cam.CenterOn(130, 128, 0)
+	cameratest.Turn(cam, 0.6)
+	pix := func(direct bool) []byte {
+		screen := render.NewImage(160, 120)
+		src := &lookSource{
+			look:   NewFlat(256, 256, false, false),
+			direct: direct,
+			boxes:  []plane.AABB{box},
+			atlas:  atlas,
+		}
+		render.NewComposer(src).DrawWorld(screen, cam)
+		out := make([]byte, 4*160*120)
+		screen.ReadPixels(out)
+		return out
+	}
+	frame, direct := pix(false), pix(true)
+	// the box's border, within which a pixel is partly the sprite's
+	border := func(x, y float32) bool {
+		d := min(x-110, 150-x, y-120, 136-y)
+		return d > -1.5 && d < 1.5
+	}
+	differ, bare, over, partial := 0, 0, 0, 0
+	for i := 0; i < len(frame); i += 4 {
+		x, y := cam.Unproject(float32((i/4)%160)+0.5, float32((i/4)/160)+0.5, 0)
+		if border(x, y) {
+			if a := direct[i+3]; a != 0 && a != 255 {
+				partial++
+			}
+			continue
+		}
+		for k := range 4 {
+			if d := int(frame[i+k]) - int(direct[i+k]); d > 1 || d < -1 {
+				differ++
+				break
+			}
+		}
+		in := x > 110 && x < 150 && y > 120 && y < 136
+		switch {
+		case !in && direct[i+3] != 0:
+			over++
+		case in && direct[i+3] != 255:
+			bare++
+		}
+	}
+	if differ != 0 {
+		t.Errorf("%d pixels off the border differ between the GPU and the frame, want the same "+
+			"turned box", differ)
+	}
+	if bare != 0 || over != 0 {
+		t.Errorf("turned, %d pixels within the box are not the sprite's and %d off it are: want "+
+			"the sprite turned with the world, not the screen's box round it", bare, over)
+	}
+	if partial == 0 {
+		t.Error("turned, no pixel on the box's border is partly the sprite's: want its edge smooth")
+	}
+	fp := (&Flat{}).Footprint(cam, box.AABB, 0, nil)
+	if len(fp) != 1 || fp[0][0][1] == fp[0][1][1] {
+		t.Errorf("turned, the footprint is %v, want one turned with the world", fp)
+	}
+}

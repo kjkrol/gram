@@ -98,7 +98,7 @@ func around(m geom.Vec, w, h float64) plane.AABB {
 
 func (l *Flat) lay(f *render.Frame, cam camera.Camera, at render.At, box plane.AABB,
 	atlas render.AtlasSource, a render.Appearance, light render.Light) {
-	if a.Angle != 0 {
+	if a.Angle != 0 || !l.direct && !cam.Projection().Wraps() {
 		l.turned(f, cam, at, box, atlas, a, light)
 		return
 	}
@@ -130,6 +130,16 @@ func (l *Flat) turned(f *render.Frame, cam camera.Camera, at render.At, box plan
 	}
 	sx0, sy0, sx1, sy1 := atlas.UV(a.SpriteID)
 	sin, cos := float32(math.Sin(float64(rad))), float32(math.Cos(float64(rad)))
+	if !cam.Projection().Wraps() { // turned in the world, as the view may be
+		cx, cy := (x0+x1)/2, (y0+y1)/2
+		var dst render.Corners
+		for i, c := range [4][2]float32{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}} {
+			ox, oy := c[0]-cx, c[1]-cy
+			dst[i][0], dst[i][1] = cam.Project(cx+ox*cos+oy*sin, cy+oy*cos-ox*sin, 0)
+		}
+		f.SpritePart(at, atlas, [4]float32{sx0, sy0, sx1, sy1}, dst, render.Lit(light))
+		return
+	}
 	l.quads = cam.ToScreenQuads(x0, y0, x1, y1, l.quads[:0])
 	for _, q := range l.quads {
 		cx, cy := (q.X0+q.X1)/2, (q.Y0+q.Y1)/2
@@ -146,8 +156,17 @@ func (*Flat) Drawn(cam camera.Camera, box geom.AABB, z entity.Z) render.Corners 
 	return render.ProjectCorners(cam, float32(box.TopLeft.X), float32(box.TopLeft.Y), float32(box.BottomRight.X), float32(box.BottomRight.Y), float32(z.Altitude))
 }
 
-func (l *Flat) Footprint(cam camera.Camera, box geom.AABB, _ float32, dst []render.Corners) []render.Corners {
-	l.quads = cam.ToScreenQuads(float32(box.TopLeft.X), float32(box.TopLeft.Y), float32(box.BottomRight.X), float32(box.BottomRight.Y), l.quads[:0])
+// A piece a copy of the box a camera over a wrapping world shows; through any other its corners
+// where the camera lays them, turning with a view turned.
+func (l *Flat) Footprint(
+	cam camera.Camera, box geom.AABB, alt float32, dst []render.Corners,
+) []render.Corners {
+	x0, y0 := float32(box.TopLeft.X), float32(box.TopLeft.Y)
+	x1, y1 := float32(box.BottomRight.X), float32(box.BottomRight.Y)
+	if !cam.Projection().Wraps() {
+		return append(dst, render.ProjectCorners(cam, x0, y0, x1, y1, alt))
+	}
+	l.quads = cam.ToScreenQuads(x0, y0, x1, y1, l.quads[:0])
 	for _, q := range l.quads {
 		dst = append(dst, render.Corners{{q.X0, q.Y0}, {q.X1, q.Y0}, {q.X0, q.Y1}, {q.X1, q.Y1}})
 	}

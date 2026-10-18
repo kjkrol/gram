@@ -19,6 +19,13 @@ func NewFromSpace(
 	return topdown.NewFromSpace(width, height, edges, viewport...)
 }
 
+// NewFromAbove is a camera of a Config seeing in relief over a width x height world of level
+// ground, a cell 32 across, looking straight down: one to Turn and Tilt.
+func NewFromAbove(width, height uint32) camera.Camera {
+	made := stick.Maker(stick.Config{Cell: 32}, stick.FromAbove, nil, nil, 0)
+	return made(width, height, 0, camera.Config{})
+}
+
 // Switch has cam, a camera of a Config seeing in relief, switch its projection as View does, and
 // is false for any other camera.
 func Switch(cam camera.Camera) bool { return stick.Switch(cam) }
