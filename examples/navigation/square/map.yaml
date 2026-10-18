@@ -6,24 +6,30 @@ board:
     "T": forest
     "^": hill
     "=": road
-  # a hill in the first unit's way: its cone climbs the slope and stops, the hawk's passes over
+    "~": water
+    "f": ford
+  # a hill in the first unit's way: its cone climbs the slope and stops, the hawk's passes over;
+  # a river beyond the wall's gap, a bridge over it too narrow for the wagon and a ford at its
+  # foot
   cells: |
-    ........................
-    ..====================..
-    ..=.........#........=..
-    ..=....^^^..#........=..
-    ..=....^^^..#........=..
-    ..=....^^^..#........=..
-    ..=...TTTT..#........=..
-    ..=...TTTT..#........=..
-    ..=...TTTT...........=..
-    ..=.........#........=..
-    ..=.........#....TTTT=..
-    ..=.........#....TTTT=..
-    ..=.........#....TTTT=..
-    ..=.........#........=..
-    ............#...........
-    ............#...........
+    ..............~.........
+    ..============~=======..
+    ..=.........#.~......=..
+    ..=....^^^..#.~......=..
+    ..=....^^^..#.~......=..
+    ..=....^^^..#.~......=..
+    ..=...TTTT..#.~......=..
+    ..=...TTTT..#.~......=..
+    ..=...TTTT....~......=..
+    ..=.........#.~......=..
+    ..=.........#.~..TTTT=..
+    ..=.........#.~..TTTT=..
+    ..=.........#.~..TTTT=..
+    ..=.........#.~......=..
+    ............#.~.........
+    ............#.f.........
+  entities:
+    - {kind: bridge, from: [13, 8], to: [15, 8]}
 relief:
   cells: |
     0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
@@ -48,3 +54,4 @@ units:
   - {kind: yellow, side: player, start: [21, 8], target: [2, 8]}
   # the hawk crosses the wall and the second forest head-on
   - {kind: hawk, side: reserve, start: [1, 11], target: [22, 11]}
+  - {kind: wagon, side: player, start: [1, 14], target: [22, 14]}

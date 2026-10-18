@@ -12,6 +12,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/bridges"
+	"github.com/kjkrol/gram/plugins/bridges/site"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/motion"
@@ -42,6 +44,7 @@ type arena struct {
 	motion     *motion.Plugin
 	board      *board.Plugin
 	topography *topography.Plugin
+	bridges    *bridges.Plugin
 	nav        *navigation.Plugin
 	driving    *driving.Plugin
 	selection  *selection.Plugin
@@ -55,7 +58,8 @@ func main() {
 	props := game.Props{
 		Title: "gram navigation demo",
 		Description: "Units selected and sent by a right click along routes that go round the " +
-			"wall, sight across the board: walls cut, forests dim, a hawk flies over.",
+			"wall and over the bridge; the wagon, too wide for the bridge, goes round by the " +
+			"ford. Sight: walls cut, forests dim, a hawk flies over.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -66,7 +70,7 @@ func main() {
 			Entities: world.EntitiesCfg{
 				MaxCount: MaxEntCount,
 				MinSize:  scoutPx,
-				MaxSize:  scoutPx,
+				MaxSize:  CellSize, // a bridge's deck spans a cell
 			},
 			Heights: true,
 		}).
@@ -85,6 +89,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).WithMotion(a.motion)
 	a.topography = topography.NewPlugin(a.world, a.board, topography.Config{})
+	a.bridges = bridges.NewPlugin(a.world, a.board, bridges.Config{Rules: site.Rules{Longest: 3}})
 	a.selection = selection.NewPlugin(a.world)
 	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)
 	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving)
@@ -104,6 +109,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		a.driving,
 		a.topography,
 		a.vision,
+		a.bridges,
 	)
 }
 
@@ -125,7 +131,9 @@ func (a *arena) defineFigures() {
 		scout{kind: BlueKind, color: blueColor},
 		scout{kind: YellowKind, color: yellowColor},
 		hawk{},
+		wagon{},
 	)
+	a.bridges.Figures(bridge{})
 }
 
 func (a *arena) spawn() error {
@@ -134,6 +142,9 @@ func (a *arena) spawn() error {
 		return err
 	}
 	a.topography.Seed(level.Heights())
+	if err := a.bridges.Spawn(level); err != nil {
+		return err
+	}
 	return board.Spawn[unitRow](level, board.Sides{
 		PlayerSide:  {players.Give{To: a.player.ID}, selection.Allow{Selected: true}},
 		ReserveSide: {players.Give{To: a.player.ID}, selection.Allow{}},
@@ -146,6 +157,7 @@ func (a *arena) defineScenes() []game.Scene {
 }
 
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
+	a.bridges.RunPlan(ctx, d)
 	a.world.RunPlan(ctx, d)
 	a.motion.RunPlan(ctx, d)
 	a.board.RunPlan(ctx, d)

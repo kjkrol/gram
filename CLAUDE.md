@@ -58,8 +58,8 @@ make demo-board-atlas                                           # a small flat b
 make demo-board-flat                                            # Madeira on the simple map: a flat board, bands for the ways, bridges and fords
 make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, the camera on a stick (Q/E, R/F, Tab), the weather
 go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS
-make demo-navigation-square                                     # units sent round a wall; walls cut sight, forests dim it, a hawk flies over
-make demo-navigation-hex                                        # the same on a hex board, over a river by a bridge a wagon is too wide for
+make demo-navigation-square                                     # units sent round a wall, over a river by a bridge a wagon is too wide for; walls cut sight, forests dim it, a hawk flies over
+make demo-navigation-hex                                        # the same on a hex board
 make demo-navigation-spawn                                      # walkers spawned under the cursor (N) hold their cells; Shift+O shows the cells held
 make demo-motion-collision                                      # thousands of bouncing boxes of many kinds, a flash on every hit
 make demo-motion-bullet                                         # a soldier on WSAD shoots rounds (Space) and throws grenades (Shift held, the longer the further)

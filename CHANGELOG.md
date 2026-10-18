@@ -49,6 +49,8 @@ entities. Nor those made before motion left the world: `world.Outside` is `motio
   where the camera lays them, where it lay in the screen's box round them; so do the outlines a
   footprint draws (the selection's, a route's, the boxes). A sprite the screen turns other than
   by quarters is read smooth, its border fading over a pixel, so it no longer crawls as it moves.
+- navigation/square crosses a river by a bridge, and its wagon, too wide for it, by the ford, as
+  navigation/hex does.
 
 **The cameras, all in their plugin** (2026-10-17)
 - Every camera is the cameras plugin's: the plain one from above (was `internal/camera`) and the

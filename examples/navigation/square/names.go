@@ -6,11 +6,15 @@ const (
 	ForestCell = "forest"
 	RoadCell   = "road"
 	HillCell   = "hill"
+	WaterCell  = "water"
+	FordCell   = "ford"
 
 	RedKind    = "red"
 	BlueKind   = "blue"
 	YellowKind = "yellow"
 	HawkKind   = "hawk"
+	WagonKind  = "wagon"
+	BridgeKind = "bridge"
 
 	PlayerSide  = "player"
 	ReserveSide = "reserve"

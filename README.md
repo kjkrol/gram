@@ -322,8 +322,8 @@ demo opens a window; what it shows is tested in the library's package that does 
 
 | Demo | Shows | Run |
 |:---|:---|:---|
-| [`navigation/square`](examples/navigation/square) | Units sent by a right click round a wall, sight cones that stop at walls and fade in forests, and a hawk that flies over both | `make demo-navigation-square` |
-| [`navigation/hex`](examples/navigation/hex) | The same on a hex board, over a river by a bridge; a wagon too wide for it goes round by the ford | `make demo-navigation-hex` |
+| [`navigation/square`](examples/navigation/square) | Units sent by a right click round a wall and over a river by a bridge, a wagon too wide for it going round by the ford; sight cones that stop at walls and fade in forests, and a hawk that flies over both | `make demo-navigation-square` |
+| [`navigation/hex`](examples/navigation/hex) | The same on a hex board | `make demo-navigation-hex` |
 | [`navigation/spawn`](examples/navigation/spawn) | Walkers spawned under the cursor (N) hold their cells at once; Shift+O outlines the cells held | `make demo-navigation-spawn` |
 
 ### Motion: collisions, shots and gravity

@@ -36,6 +36,16 @@ var grounds = []ground{
 	},
 	{name: RoadCell, kind: cell.Kind{Cost: 1, Allows: open}, color: roadColor},
 	{name: HillCell, kind: cell.Kind{Cost: 2, Allows: open}.Costing(cell.Air, 1), color: hillColor},
+	{
+		name:  WaterCell,
+		kind:  cell.Kind{Cost: 1, Allows: cell.Water | cell.Air}.Costing(cell.Air, 1),
+		color: waterColor,
+	},
+	{
+		name:  FordCell,
+		kind:  cell.Kind{Cost: 3, Allows: open | cell.Water}.Costing(cell.Air, 1),
+		color: fordColor,
+	},
 }
 
 func (g ground) Define(b *board.Plugin) { b.CellKinds().Define(g.name, g.kind) }
