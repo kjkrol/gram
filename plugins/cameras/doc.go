@@ -29,11 +29,12 @@
 // where the Config reaches it, in perspective; [View] switches between the two keeping the foot,
 // the turn, the pitch and the scale. Orthographically the whole screen stays over the world at
 // sea level: a pan stops at the edge, and zooming out stops where the screen just fits the world.
-// The perspective is an eye flying over the world, never lower than two cells over its highest
-// ground but behind an entity, where it is held on an arm, shortened where the cage puts something
-// solid between; on a world with a scale the ground far off sinks under the eye's level. Behind
-// an entity a camera stands as near as that arm in either projection, nothing zooming it, and
-// gives its tactical view back on letting go.
+// In perspective the eye stands at the stick's end, the wheel drawing it and the foot towards the
+// cursor; where the cage puts something solid at the eye, it is lifted straight up and let down
+// as the way clears. Behind an entity the eye is held on an arm, shortened where the cage puts
+// something solid between; a camera stands as near as that arm in either projection there,
+// nothing zooming it, and gives its tactical view back on letting go. On a world with a scale
+// the ground far off sinks under the eye's level.
 // Riding in an entity the eye is the entity's world.Eye, going with it and looking the way it
 // faces. A camera in relief saved before the stick begins afresh, the log naming it.
 //

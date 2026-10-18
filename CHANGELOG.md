@@ -17,6 +17,19 @@ in a flat world: a board stands only in a world with heights now. Nor those made
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
 entities. Nor those made before motion left the world: `world.Outside` is `motion.Outside`.
 
+**The stick in perspective** (2026-10-18)
+- The free perspective camera is the stick too: its foot in the middle of the screen, the eye at
+  the stick's end, Q and E turning and R and F leaning it about the foot; it no longer flies two
+  cells over the highest ground nor narrows its view (but inside a unit). The wheel draws the eye
+  and the foot towards the cursor, the stick between a cell and the world's diagonal, coming in
+  no further than the eye stays free; a pan slides the foot at its height.
+- Where the cage puts something solid at the eye, the spring lifts it straight up at once,
+  still looking at the foot, and lets it down as the way clears.
+- Tab keeps the foot, the turn, the pitch and the scale both ways: the stick as long as the focal
+  length over the scale. LookFrom puts the eye, LookAt the foot.
+- A relief camera's save is `"stick 2"`: one saved with the orthographic stick alone begins
+  afresh, logged.
+
 **The tactical camera on a stick, orthographically** (2026-10-18)
 - A camera in relief hangs on a stick whose foot is the point in the middle of the screen: a pan
   slides the foot at its height, Q and E turn the stick about it (2.5° a tick, `TurnStep` π/72,

@@ -2,7 +2,6 @@ package stick
 
 import (
 	"fmt"
-	"math"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
@@ -20,8 +19,8 @@ type viewCamera struct {
 	// the view the eye was in before it went into a unit, to come back to
 	wasPersp bool
 	was      perspPose
-	// behind an entity, the tactical camera's own scale and eye height, to come back to
-	tactical  struct{ scale, alt float32 }
+	// behind an entity, the tactical camera's own scale and stick, to come back to
+	tactical  struct{ scale, length float32 }
 	fastening contract.Fastening
 }
 
@@ -29,7 +28,7 @@ type viewCamera struct {
 // value
 type form struct{}
 
-const savedAs = "stick 1"
+const savedAs = "stick 2"
 
 func (form) GobEncode() ([]byte, error) { return []byte(savedAs), nil }
 
@@ -171,41 +170,26 @@ func (c *viewCamera) next() {
 	}
 }
 
-// the eye as far from the ground seen in the middle of the screen as the focal length over the
-// scale, so the scale there stays
+// the stick stood on what is seen in the middle, as long as the focal length over the scale
 func (c *viewCamera) toPersp() {
 	o, p := c.ortho, c.persp
-	w, h := o.Viewport()
-	x, y, z, hit := o.Pick(w/2, h/2)
-	if !hit {
-		x, y, z = float32(o.foot[0]), float32(o.foot[1]), float32(o.foot[2])
-	}
-	scale := o.Zoom()
-	p.inside, p.narrow = false, 1
+	o.plant()
+	p.inside, p.narrow, p.held, p.lift = false, 1, false, 0
 	p.heading, p.pitch = o.Heading(), max(o.Pitch(), p.minPitch)
-	p.alt = max(p.ceiling(), z+p.focal()*float32(math.Sin(float64(p.pitch)))/scale)
-	p.CenterOn(float64(x), float64(y), float64(z))
-	if natural := p.Zoom(); natural < scale {
-		p.narrow = min(scale/natural, narrowest)
-		p.look()
-	}
+	p.foot = [3]float32{float32(o.foot[0]), float32(o.foot[1]), float32(o.foot[2])}
+	p.length = p.focal() / o.Zoom()
+	p.look()
 	c.inPersp, c.cur = true, p
 }
 
+// the scale the focal length over the stick's length
 func (c *viewCamera) toOrtho() {
 	p, o := c.persp, c.ortho
-	at := p.target()
-	if p.sky { // far along the way looked: its ground instead
-		at[2] = 0
-		if p.ground != nil {
-			at[2] = p.ground(at[0], at[1])
-		}
-	}
 	o.turn, o.pitch = float64(p.Heading())+eighth, float64(p.Pitch())
 	o.look()
-	o.scale = o.limited(p.Zoom())
+	o.scale = o.limited(p.focal() / p.length)
 	c.inPersp, c.cur = false, o
-	o.CenterOn(float64(at[0]), float64(at[1]), float64(at[2]))
+	o.CenterOn(float64(p.foot[0]), float64(p.foot[1]), float64(p.foot[2]))
 }
 
 func (c *viewCamera) Turn(angle float32) {
@@ -315,15 +299,7 @@ func (c *viewCamera) MoveTo(x, y float64)            { c.cur.MoveTo(x, y) }
 func (c *viewCamera) CenterOn(x, y, z float64)       { c.cur.CenterOn(x, y, z) }
 func (c *viewCamera) Translate(dx, dy float64)       { c.cur.Translate(dx, dy) }
 
-func (c *viewCamera) Pan(dx, dy float32) { c.shift(dx, dy) }
-
-// bx, by: the part of the delta the world's edge stopped, screen pixels
-func (c *viewCamera) shift(dx, dy float32) (bx, by float32) {
-	if c.inPersp {
-		return c.persp.shift(dx, dy)
-	}
-	return c.ortho.shift(dx, dy)
-}
+func (c *viewCamera) Pan(dx, dy float32) { c.cur.Pan(dx, dy) }
 
 func (c *viewCamera) Zoom() float32 { return c.cur.Zoom() }
 

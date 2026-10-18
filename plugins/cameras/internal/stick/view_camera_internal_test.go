@@ -86,8 +86,8 @@ func TestViewCamera_LookFromGoesIntoPerspectiveWhereReached(t *testing.T) {
 	if !c.LookFrom(100, 100, 50) || !c.inPersp {
 		t.Fatal("LookFrom on the isometric view did not go into the perspective one")
 	}
-	if e := c.persp.proj.eye; !near(e[0], 100) || !near(e[1], 100) || !near(e[2], c.persp.ceiling()) {
-		t.Errorf("the eye is at %v, want (100, 100) at the ceiling %v: no lower than it flies", e, c.persp.ceiling())
+	if e := c.persp.proj.eye; !near(e[0], 100) || !near(e[1], 100) || !near(e[2], 50) {
+		t.Errorf("the eye is at %v, want (100, 100, 50)", e)
 	}
 	unreached := testViews(false)
 	if unreached.LookFrom(100, 100, 50) || unreached.LookAt(1, 2, 3) || unreached.enterInside([3]float32{1, 1, 1}, 0, 0) || unreached.inPersp {
@@ -103,8 +103,8 @@ func TestViewCamera_PersistedRoundTripKeepsTheView(t *testing.T) {
 	bx, by := c.Project(300, 280, 4)
 	other := testViews(true)
 	saved, restored := c.Persisted(), other.Persisted()
-	if len(saved) != 12 || len(restored) != 12 {
-		t.Fatalf("Persisted has %d and %d values, want 12: the form, every view's, which is in "+
+	if len(saved) != 11 || len(restored) != 11 {
+		t.Fatalf("Persisted has %d and %d values, want 11: the form, every view's, which is in "+
 			"and the fastening", len(saved), len(restored))
 	}
 	carry(t, saved, restored)
@@ -125,12 +125,12 @@ func TestViewCamera_PersistedRoundTripKeepsTheView(t *testing.T) {
 
 type otherForm struct{}
 
-func (otherForm) GobEncode() ([]byte, error) { return []byte("stick 0"), nil }
+func (otherForm) GobEncode() ([]byte, error) { return []byte("stick 1"), nil }
 
 func TestViewCamera_RefusesASaveOfAnotherFormAtItsFirstValue(t *testing.T) {
 	for name, first := range map[string]any{
 		"the views before the stick": &geom.Vec{X: 10, Y: 20},
-		"another form":               otherForm{},
+		"the stick before its eye":   otherForm{},
 	} {
 		var buf bytes.Buffer
 		if err := gob.NewEncoder(&buf).Encode(first); err != nil {

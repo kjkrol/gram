@@ -117,9 +117,17 @@ func (c *orthoCamera) Tilt(angle float32) {
 	c.lean()
 }
 
-// the stick turned or tilted about its foot, slid first along itself onto what is seen in the
-// middle of the screen: over no ground it stays where it was
+// the stick turned or tilted about its foot, stood first on what is seen in the middle
 func (c *orthoCamera) lean() {
+	c.plant()
+	c.look()
+	c.scale = max(c.scale, c.minZoom())
+	c.place()
+}
+
+// the foot slid along the stick onto what is seen in the middle of the screen, the picture as it
+// was: over no ground it stays where it is
+func (c *orthoCamera) plant() {
 	if c.ground != nil {
 		w, h := c.Viewport()
 		if _, _, z, hit := c.Pick(w/2, h/2); hit {
@@ -130,9 +138,6 @@ func (c *orthoCamera) lean() {
 			c.foot[2] = float64(z)
 		}
 	}
-	c.look()
-	c.scale = max(c.scale, c.minZoom())
-	c.place()
 }
 
 func (c *orthoCamera) Heading() float32 { return float32(wrapTurn(c.turn - eighth)) }
@@ -276,14 +281,7 @@ func (c *orthoCamera) Translate(dx, dy float64) {
 	c.place()
 }
 
-func (c *orthoCamera) Pan(dx, dy float32) { c.shift(dx, dy) }
-
-// bx, by: the part of the delta the world's edge stopped, screen pixels
-func (c *orthoCamera) shift(dx, dy float32) (bx, by float32) {
-	want := geom.NewVec(c.pan.X-float64(dx), c.pan.Y-float64(dy))
-	c.slide(float64(dx), float64(dy))
-	return float32(c.pan.X - want.X), float32(c.pan.Y - want.Y)
-}
+func (c *orthoCamera) Pan(dx, dy float32) { c.slide(float64(dx), float64(dy)) }
 
 // the foot moved, at its height, to what is drawn (dsx, dsy) off the middle of the screen
 func (c *orthoCamera) slide(dsx, dsy float64) {

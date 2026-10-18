@@ -3,6 +3,7 @@ package stick
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/internal/vec"
@@ -19,215 +20,191 @@ func testPersp(ground func(x, y float32) float32, highest func() float32) *persp
 	return c
 }
 
-func TestPerspCamera_CenterOnPutsThePointInTheMiddleFromWhereverItFlies(t *testing.T) {
+// the length the eye stands up the stick from its foot
+func stickOf(c *perspCamera) float32 { return vec.Norm(vec.Sub(c.eye(), c.foot)) }
+
+func TestPerspCamera_TheFootIsInTheMiddleTheEyeUpTheStick(t *testing.T) {
 	c := testPersp(nil, nil)
 	if _, ok := c.Projection().(perspective); !ok {
 		t.Fatalf("Projection is %T, want perspective", c.Projection())
 	}
-	if sx, sy := c.Project(320, 320, 0); !near(sx, 200) || !near(sy, 150) {
-		t.Errorf("the point is drawn at (%v, %v), want the middle (200, 150)", sx, sy)
-	}
-	if e := c.eye(); !near(e[2], c.ceiling()) || !near(c.ceiling(), 2*32) {
-		t.Errorf("the eye flies at %v, want the ceiling: two cells over level ground, 64", e)
-	}
-	c.alt = 200
-	c.CenterOn(330, 310, 12)
-	if sx, sy := c.Project(330, 310, 12); !near(sx, 200) || !near(sy, 150) || !near(c.eye()[2], 200) {
-		t.Errorf("from 200 up the point is drawn at (%v, %v) and the eye flies at %v, want the middle and 200", sx, sy, c.eye()[2])
-	}
-	if at := c.target(); !near(at[2], 0) {
-		t.Errorf("the middle of the screen looks at %v, want a point on the ground, at sea level", at)
+	for _, foot := range [][3]float32{{320, 320, 0}, {330, 310, 12}} {
+		c.CenterOn(float64(foot[0]), float64(foot[1]), float64(foot[2]))
+		if sx, sy := c.Project(foot[0], foot[1], foot[2]); !near(sx, 200) || !near(sy, 150) {
+			t.Errorf("the foot %v is drawn at (%v, %v), want the middle (200, 150)", foot, sx, sy)
+		}
+		want := vec.Add(foot, vec.Scale(c.out(), c.length))
+		if e := c.eye(); vec.Norm(vec.Sub(e, want)) > 1e-3 {
+			t.Errorf("the eye stands at %v, want %v: the stick's length up from the foot", e, want)
+		}
 	}
 }
 
-func TestPerspCamera_FliesOverTheHighestGround(t *testing.T) {
-	high := float32(0)
-	c := testPersp(nil, func() float32 { return high })
-	if e := c.eye(); !near(e[2], 64) {
-		t.Fatalf("over level ground the eye flies at %v, want 64", e)
-	}
-	high = 250
-	c.CenterOn(320, 320, 0)
-	if e := c.eye(); !near(e[2], 314) {
-		t.Errorf("the ground raised to 250, the eye flies at %v, want 314: two cells over it", e)
-	}
-	if sx, sy := c.Project(320, 320, 0); !near(sx, 200) || !near(sy, 150) {
-		t.Errorf("the point is drawn at (%v, %v), want the middle still", sx, sy)
-	}
-	c.ZoomIn(100, 320, 320)
-	if e := c.eye(); e[2] < 314-1e-3 || c.narrow <= 1 {
-		t.Errorf("zoomed far in the eye flies at %v with the view narrowed %v times, want no lower than 314 and narrowed", e, c.narrow)
-	}
-	c.Tilt(-5)
-	c.Pan(1000, 1000)
-	if e := c.eye(); e[2] < 314-1e-3 {
-		t.Errorf("tilted and panned the eye flies at %v, want no lower than 314", e)
-	}
-}
-
-func TestPerspCamera_PanMovesTheEyeAlongTheGroundAsTheMiddleMoves(t *testing.T) {
+func TestPerspCamera_PanSlidesTheFootAtItsHeightOverTheWorld(t *testing.T) {
 	c := testPersp(nil, nil)
-	x, y := c.Unproject(210, 145, 0)
-	e0 := c.eye()
+	c.CenterOn(320, 320, 12)
+	x, y := c.Unproject(210, 145, 12)
 	c.Pan(10, -5)
-	if sx, sy := c.Project(x, y, 0); !near(sx, 200) || !near(sy, 150) {
-		t.Errorf("after Pan(10, -5) the point drawn at (210, 145) before is at (%v, %v), want the middle", sx, sy)
+	if sx, sy := c.Project(x, y, 12); !near(sx, 200) || !near(sy, 150) || c.foot[2] != 12 {
+		t.Errorf("after Pan(10, -5) the point drawn at (210, 145) before is at (%v, %v), the foot "+
+			"%v up; want the middle, 12", sx, sy, c.foot[2])
 	}
-	if e := c.eye(); !near(e[2], e0[2]) || (near(e[0], e0[0]) && near(e[1], e0[1])) {
-		t.Errorf("after Pan the eye went from %v to %v, want moved along the ground, as high", e0, e)
-	}
-	e1 := c.eye()
-	c.Pan(0, -10000) // over the horizon: nothing to look at there
-	if c.eye() != e1 {
-		t.Errorf("a Pan over the horizon moved the eye from %v to %v", e1, c.eye())
+	foot := c.foot
+	c.Pan(0, -10000) // over the horizon: nothing to slide to
+	if c.foot != foot {
+		t.Errorf("a Pan over the horizon moved the foot from %v to %v", foot, c.foot)
 	}
 	c.Translate(10, -20)
-	if e := c.eye(); !near(e[0], e1[0]+10) || !near(e[1], e1[1]-20) || !near(e[2], e1[2]) {
-		t.Errorf("after Translate(10, -20) the eye is at %v, want %v moved 10, -20", e, e1)
+	if !near(c.foot[0], foot[0]+10) || !near(c.foot[1], foot[1]-20) {
+		t.Errorf("after Translate(10, -20) the foot is at %v, want %v moved", c.foot, foot)
+	}
+	for range 40 {
+		c.Pan(200, 200)
+	}
+	c.Translate(1e6, -1e6)
+	if c.foot[0] != 640 || c.foot[1] != 0 {
+		t.Errorf("translated far to the north-east the foot is at %v, want the world's corner",
+			c.foot)
 	}
 }
 
-func TestPerspCamera_TurnGoesRoundTheMiddleAsHigh(t *testing.T) {
+func TestPerspCamera_TurnAndTiltGoRoundTheFoot(t *testing.T) {
 	c := testPersp(nil, nil)
-	at, e0 := c.target(), c.eye()
-	r := math.Hypot(float64(e0[0]-at[0]), float64(e0[1]-at[1]))
+	length := stickOf(c)
 	c.Turn(1)
-	e := c.eye()
-	if !near(c.Heading(), 1) || !near(e[2], e0[2]) || !near(float32(math.Hypot(float64(e[0]-at[0]), float64(e[1]-at[1]))), float32(r)) {
-		t.Errorf("after Turn(1) the heading is %v and the eye at %v, want 1 and the eye %v from %v as high as %v", c.Heading(), e, r, at, e0[2])
+	if !near(c.Heading(), 1) || !near(stickOf(c), length) {
+		t.Errorf("after Turn(1) the heading is %v, the eye %v off the foot; want 1, %v",
+			c.Heading(), stickOf(c), length)
 	}
-	if sx, sy := c.Project(at[0], at[1], at[2]); !near(sx, 200) || !near(sy, 150) {
-		t.Errorf("after Turn the point in the middle is drawn at (%v, %v), want the middle", sx, sy)
-	}
-	if got := c.target(); math.Abs(float64(got[0]-at[0])) > 0.01 || math.Abs(float64(got[1]-at[1])) > 0.01 {
-		t.Errorf("after Turn the middle looks at %v, want %v still", got, at)
-	}
-	c.Turn(2 * math.Pi)
-	if !near(c.Heading(), 1) {
-		t.Errorf("a whole turn more gives heading %v, want 1 again", c.Heading())
-	}
-}
-
-func TestPerspCamera_TiltMovesTheHeadNotTheEye(t *testing.T) {
-	c := testPersp(nil, nil)
-	e0, at0 := c.eye(), c.target()
 	c.Tilt(0.2)
-	if e := c.eye(); e != e0 || !near(c.Pitch(), defaultMinPitch+0.2) {
-		t.Errorf("after Tilt(0.2) the eye is at %v looking down at %v, want %v still, at %v: the head bows", e, c.Pitch(), e0, defaultMinPitch+0.2)
+	if !near(c.Pitch(), defaultMinPitch+0.2) || !near(stickOf(c), length) {
+		t.Errorf("after Tilt(0.2) the pitch is %v, the eye %v off the foot; want %v, %v",
+			c.Pitch(), stickOf(c), defaultMinPitch+0.2, length)
 	}
-	if at := c.target(); math.Hypot(float64(at[0]-e0[0]), float64(at[1]-e0[1])) >= math.Hypot(float64(at0[0]-e0[0]), float64(at0[1]-e0[1])) {
-		t.Errorf("bowed, the middle looks at %v, want nearer the eye than %v", at, at0)
+	if sx, sy := c.Project(320, 320, 0); !near(sx, 200) || !near(sy, 150) {
+		t.Errorf("turned and tilted the foot is drawn at (%v, %v), want the middle", sx, sy)
 	}
 	c.Tilt(-5)
-	if !near(c.Pitch(), defaultMinPitch) || c.eye() != e0 {
-		t.Errorf("raised far the pitch is %v and the eye at %v, want held at the floor %v, the eye %v", c.Pitch(), c.eye(), defaultMinPitch, e0)
+	if !near(c.Pitch(), defaultMinPitch) {
+		t.Errorf("flattened far the pitch is %v, want held at the floor %v", c.Pitch(),
+			defaultMinPitch)
 	}
 	c.Tilt(5)
-	if !near(c.Pitch(), maxPitch) || c.eye() != e0 {
-		t.Errorf("bowed far the pitch is %v and the eye at %v, want straight down %v, the eye %v", c.Pitch(), c.eye(), maxPitch, e0)
-	}
-	if at := c.target(); !near(at[0], e0[0]) || !near(at[1], e0[1]) {
-		t.Errorf("straight down the middle looks at %v, want under the eye %v", at, e0)
+	if e := c.eye(); !near(c.Pitch(), maxPitch) || !near(e[0], 320) || !near(e[1], 320) ||
+		!near(e[2], length) {
+		t.Errorf("steepened far the pitch is %v, the eye at %v; want straight over the foot, %v up",
+			c.Pitch(), e, length)
 	}
 	if c.tilts != 3 {
 		t.Errorf("the tilts count %d, want 3", c.tilts)
 	}
 }
 
-func TestPerspCamera_ZoomComesInToTheCeilingThenNarrowsAndOutTheOtherWayRound(t *testing.T) {
-	c := testPersp(nil, nil)
-	e0, z0 := c.eye(), c.Zoom()
-	c.ZoomIn(2, 320, 320)
-	if e := c.eye(); e != e0 || !near(c.narrow, 2) || !near(c.Zoom()/z0, 2) {
-		t.Errorf("at the ceiling, zoomed in twice the eye is at %v narrowed %v for a zoom %v times, want %v, 2 and 2", e, c.narrow, c.Zoom()/z0, e0)
-	}
-	c.ZoomOut(2, 320, 320)
-	if e := c.eye(); e != e0 || !near(c.narrow, 1) || !near(c.Zoom(), z0) {
-		t.Errorf("zoomed back out the eye is at %v narrowed %v, want %v unnarrowed", e, c.narrow, e0)
-	}
-	bx, by := c.Project(330, 300, 0)
-	c.ZoomOut(2, 330, 300)
-	if e := c.eye(); !near(e[2], 128) || !near(c.narrow, 1) || !near(c.Zoom()/z0, 0.5) {
-		t.Errorf("zoomed out again the eye flies at %v narrowed %v for a zoom %v times, want twice as high, 128, unnarrowed, half", e, c.narrow, c.Zoom()/z0)
-	}
-	if ax, ay := c.Project(330, 300, 0); !near(ax, bx) || !near(ay, by) {
-		t.Errorf("zoomed out the anchor moved from (%v, %v) to (%v, %v)", bx, by, ax, ay)
-	}
-	c.ZoomIn(2, 330, 300)
-	if ax, ay := c.Project(330, 300, 0); !near(ax, bx) || !near(ay, by) || !near(c.eye()[2], 64) || !near(c.narrow, 1) {
-		t.Errorf("zoomed back in the anchor is at (%v, %v), the eye flies at %v narrowed %v; want (%v, %v), 64 and unnarrowed", ax, ay, c.eye()[2], c.narrow, bx, by)
-	}
-	c.ZoomIn(2, 330, 300)
-	if !near(c.eye()[2], 64) || !near(c.narrow, 2) {
-		t.Errorf("zoomed in at the ceiling the eye flies at %v narrowed %v, want 64 and twice", c.eye()[2], c.narrow)
-	}
-	c.ZoomIn(100, 330, 300)
-	if c.narrow > narrowest {
-		t.Errorf("zoomed hard the view is narrowed %v times, want no more than %v", c.narrow, narrowest)
-	}
-}
-
-func TestPerspCamera_ZoomAtTheCeilingKeepsTheAnchorByTurningTheHead(t *testing.T) {
-	c := testPersp(nil, nil)
-	heading, pitch := c.heading, c.pitch
-	bx, by := c.Project(330, 300, 0)
-	c.ZoomIn(2, 330, 300)
-	if ax, ay := c.Project(330, 300, 0); math.Abs(float64(ax-bx)) > 0.5 || math.Abs(float64(ay-by)) > 0.5 || !near(c.narrow, 2) {
-		t.Errorf("zoomed in at the ceiling the anchor moved from (%v, %v) to (%v, %v), narrowed %v; want it still, narrowed twice", bx, by, ax, ay, c.narrow)
-	}
-	if c.heading == heading && c.pitch == pitch {
-		t.Error("the head did not turn towards the anchor")
-	}
-	c.ZoomOut(2, 330, 300)
-	if ax, ay := c.Project(330, 300, 0); math.Abs(float64(ax-bx)) > 0.5 || math.Abs(float64(ay-by)) > 0.5 || !near(c.narrow, 1) {
-		t.Errorf("widened back the anchor is at (%v, %v), want (%v, %v) still", ax, ay, bx, by)
-	}
-}
-
-func TestPerspCamera_TheMiddleStaysOverTheWorldAndTheEyeNoHigherThanShowsItAcross(t *testing.T) {
-	c := testPersp(nil, nil)
-	over := func(what string) {
-		if at := c.target(); at[0] < -1e-2 || at[0] > 640+1e-2 || at[1] < -1e-2 || at[1] > 640+1e-2 {
-			t.Errorf("%s the middle of the screen looks at %v, beyond the 640x640 world", what, at)
+func TestPerspCamera_TurnAndTiltStandTheStickOnTheGroundSeen(t *testing.T) {
+	plateau := func(_, _ float32) float32 { return 40 }
+	c := testPersp(plateau, func() float32 { return 40 })
+	c.CenterOn(320, 320, 0) // the foot under the plateau
+	x, y, z, _ := c.Pick(200, 150)
+	for _, move := range []func(){func() { c.Turn(1) }, func() { c.Tilt(0.3) }} {
+		move()
+		if sx, sy := c.Project(x, y, z); !near(sx, 200) || !near(sy, 150) {
+			t.Errorf("the ground seen in the middle (%v, %v, %v) is drawn at (%v, %v), want the "+
+				"middle", x, y, z, sx, sy)
 		}
 	}
-	for range 40 {
-		c.Pan(200, 200)
+	if c.foot[2] != 40 {
+		t.Errorf("the foot stands %v up, want on the plateau, 40", c.foot[2])
 	}
-	over("panned far")
-	c.Translate(1e6, -1e6)
-	over("translated far")
-	if at := c.target(); !near(at[0], 640) || !near(at[1], 0) {
-		t.Errorf("translated far to the north-east the middle looks at %v, want the world's corner (640, 0)", at)
-	}
-	c.CenterOn(320, 320, 0)
-	c.ZoomOut(1000, 320, 320)
-	w, _ := c.Viewport()
-	diagonal := float32(math.Hypot(640, 640))
-	if across := w / c.Zoom(); across > diagonal+1 || across < diagonal-1 || c.eye()[2] < c.ceiling() {
-		t.Errorf("zoomed far out the middle of the screen shows %v across from %v up, want the diagonal %v", across, c.eye()[2], diagonal)
-	}
-	if !near(c.eye()[2], c.maxAlt()) || !near(c.narrow, 1) {
-		t.Errorf("zoomed far out the eye flies at %v narrowed %v, want maxAlt %v unnarrowed", c.eye()[2], c.narrow, c.maxAlt())
-	}
-	over("zoomed far out")
 }
 
-func TestPerspCamera_LookFromStaysOverTheCeilingAndLookAtKeepsTheEye(t *testing.T) {
+func TestPerspCamera_ZoomShortensTheStickAboutTheCursor(t *testing.T) {
 	c := testPersp(nil, nil)
-	c.LookFrom(320, 520, 30)
-	if e := c.eye(); !near(e[0], 320) || !near(e[1], 520) || !near(e[2], 64) {
-		t.Errorf("after LookFrom 30 up the eye is at %v, want (320, 520) at the ceiling 64", e)
+	length := c.length
+	ax, ay := c.Unproject(250, 180, 0)
+	c.ZoomIn(2, ax, ay)
+	sx, sy := c.Project(ax, ay, 0)
+	if !near(sx, 250) || !near(sy, 180) || !near(c.length, length/2) {
+		t.Errorf("zoomed in twice the anchor is drawn at (%v, %v), the stick %v long; want (250, "+
+			"180), %v", sx, sy, c.length, length/2)
+	}
+	c.ZoomOut(2, ax, ay)
+	if !near(c.length, length) {
+		t.Errorf("zoomed back out the stick is %v long, want %v", c.length, length)
+	}
+	c.ZoomIn(1000, ax, ay)
+	if !near(c.length, 32) {
+		t.Errorf("zoomed far in the stick is %v long, want a cell, 32", c.length)
+	}
+	c.ZoomOut(1e6, ax, ay)
+	if diagonal := float32(math.Hypot(640, 640)); !near(c.length, diagonal) {
+		t.Errorf("zoomed far out the stick is %v long, want the world's diagonal %v", c.length,
+			diagonal)
+	}
+}
+
+func TestPerspCamera_ZoomStopsWhereTheEyeWouldNotBeFree(t *testing.T) {
+	// a plateau 30 high from where x and y sum to 700, round the eye
+	behind := func(x, y float32) float32 {
+		if x+y >= 700 {
+			return 30
+		}
+		return 0
+	}
+	c := testPersp(behind, func() float32 { return 30 })
+	length := c.length
+	c.ZoomIn(2, 320, 320)
+	if c.length <= length/2 || c.length >= length || c.need(c.rest()) != 0 {
+		t.Errorf("zoomed in twice towards the plateau the stick is %v long, the eye %v short of "+
+			"free; want between %v and %v, free", c.length, c.need(c.rest()), length/2, length)
+	}
+}
+
+func TestPerspCamera_TheSpringLiftsTheEyeOverAHillAtOnceAndSettlesBack(t *testing.T) {
+	// a hill 200 high where x and y sum to 760 to 840, behind the foot where the eye stands
+	hill := func(x, y float32) float32 {
+		if s := x + y; s >= 760 && s <= 840 {
+			return 200
+		}
+		return 0
+	}
+	c := testPersp(hill, func() float32 { return 200 })
+	rest := c.rest()
+	if e := c.eye(); e[2] < 208 || !near(e[0], rest[0]) || !near(e[1], rest[1]) {
+		t.Errorf("over the hill the eye stands at %v, want lifted over it a quarter of a cell, "+
+			"straight up from %v", e, rest)
 	}
 	if sx, sy := c.Project(320, 320, 0); !near(sx, 200) || !near(sy, 150) {
-		t.Errorf("after LookFrom the point looked at is drawn at (%v, %v), want the middle", sx, sy)
+		t.Errorf("lifted, the foot is drawn at (%v, %v), want the middle", sx, sy)
+	}
+	c.CenterOn(200, 200, 0) // the eye clear of the hill
+	lifted := c.eye()[2] - c.rest()[2]
+	c.settle(time.Second / 60)
+	if got := c.eye()[2] - c.rest()[2]; got <= 0 || got >= lifted {
+		t.Errorf("clear of the hill a tick on the eye is lifted %v, want easing down from %v",
+			got, lifted)
+	}
+	c.settle(3 * time.Second)
+	if got := c.eye()[2] - c.rest()[2]; got != 0 {
+		t.Errorf("clear of the hill three seconds on the eye is lifted %v, want none", got)
+	}
+}
+
+func TestPerspCamera_LookFromPutsTheEyeAndLookAtTheFoot(t *testing.T) {
+	c := testPersp(nil, nil)
+	c.LookFrom(320, 520, 30)
+	if e := c.eye(); !near(e[0], 320) || !near(e[1], 520) || !near(e[2], 30) {
+		t.Errorf("after LookFrom the eye is at %v, want (320, 520, 30)", e)
+	}
+	if sx, sy := c.Project(320, 320, 0); !near(sx, 200) || !near(sy, 150) {
+		t.Errorf("after LookFrom the foot is drawn at (%v, %v), want the middle", sx, sy)
 	}
 	if c.Pitch() >= c.minPitch {
-		t.Errorf("after LookFrom the pitch is %v, want below the floor %v until the next Tilt", c.Pitch(), c.minPitch)
+		t.Errorf("after LookFrom the pitch is %v, want below the floor %v until the next Tilt",
+			c.Pitch(), c.minPitch)
 	}
 	eye := c.eye()
 	c.LookAt(400, 320, 10)
-	if e := c.eye(); e != eye {
+	if e := c.eye(); vec.Norm(vec.Sub(e, eye)) > 1e-3 {
 		t.Errorf("after LookAt the eye moved from %v to %v", eye, e)
 	}
 	if sx, sy := c.Project(400, 320, 10); !near(sx, 200) || !near(sy, 150) {
@@ -235,7 +212,8 @@ func TestPerspCamera_LookFromStaysOverTheCeilingAndLookAtKeepsTheEye(t *testing.
 	}
 	c.Tilt(0.01)
 	if c.Pitch() < c.minPitch {
-		t.Errorf("after the next Tilt the pitch is %v, want held to the floor %v again", c.Pitch(), c.minPitch)
+		t.Errorf("after the next Tilt the pitch is %v, want held to the floor %v again",
+			c.Pitch(), c.minPitch)
 	}
 }
 
@@ -285,23 +263,14 @@ func TestPerspCamera_PersistedRoundTrip(t *testing.T) {
 	c.Pan(7, 3)
 	bx, by := c.Project(300, 280, 4)
 	other := testPersp(nil, nil)
-	saved, restored := c.Persisted(), other.Persisted()
-	if len(saved) != 5 {
-		t.Fatalf("Persisted has %d values, want 5", len(saved))
+	if len(c.Persisted()) != 4 {
+		t.Fatalf("Persisted has %d values, want 4: the foot, the length, the heading, the pitch",
+			len(c.Persisted()))
 	}
-	for i := range saved {
-		switch v := saved[i].(type) {
-		case *geom.Vec:
-			*restored[i].(*geom.Vec) = *v
-		case *float32:
-			*restored[i].(*float32) = *v
-		default:
-			t.Fatalf("Persisted()[%d] is %T", i, v)
-		}
-	}
+	carry(t, c.Persisted(), other.Persisted())
 	other.Restore()
-	if ax, ay := other.Project(300, 280, 4); !near(ax, bx) || !near(ay, by) || !near(other.Zoom(), c.Zoom()) {
-		t.Errorf("restored camera draws the point at (%v, %v) zoom %v, want (%v, %v) zoom %v", ax, ay, other.Zoom(), bx, by, c.Zoom())
+	if ax, ay := other.Project(300, 280, 4); !near(ax, bx) || !near(ay, by) {
+		t.Errorf("restored camera draws the point at (%v, %v), want (%v, %v)", ax, ay, bx, by)
 	}
 }
 
@@ -350,7 +319,8 @@ func TestPerspCamera_InsideAUnitTheEyeIsTheUnitsLookingWhereItIsTurned(t *testin
 		t.Errorf("the ground under the eye is %v, want (310, 300, 0)", at)
 	}
 	c.setPose(free)
-	if c.inside || c.narrow != 1 || !near(c.eye()[2], 64) || !near(c.Pitch(), free.pitch) {
+	if c.inside || c.narrow != 1 || vec.Norm(vec.Sub(c.eye(), c.rest())) > 1e-3 ||
+		!near(c.Pitch(), free.pitch) {
 		t.Errorf("set back free the eye is inside %v, narrowed %v, at %v looking down at %v; want free as it was", c.inside, c.narrow, c.eye(), c.Pitch())
 	}
 	c.enterInside([3]float32{300, 300, 20}, 0, 0)

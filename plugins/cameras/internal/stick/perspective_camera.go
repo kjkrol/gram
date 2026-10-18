@@ -2,6 +2,7 @@ package stick
 
 import (
 	"math"
+	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	contract "github.com/kjkrol/gram/camera"
@@ -11,11 +12,18 @@ import (
 type perspCamera struct {
 	world        geom.Vec
 	viewportSize geom.Vec
-	origin       geom.Vec // the eye, x and y
-	alt          float32  // the eye's height
-	heading      float32
-	pitch        float32
-	narrow       float32 // how many times the field of view is narrowed, 1 up to narrowest
+	// the stick, out of a unit: its foot in the middle of the screen, the eye length along it,
+	// turned by heading and leaning by pitch, lifted lift over what the cage makes solid
+	foot    [3]float32
+	length  float32
+	heading float32
+	pitch   float32
+	lift    float32
+	// inside a unit: the eye, x and y and its height, and how many times the field of view is
+	// narrowed, 1 up to narrowest
+	origin geom.Vec
+	alt    float32
+	narrow float32
 
 	fov        float32 // radians, the top of the screen to the bottom, unnarrowed
 	minPitch   float32
@@ -30,8 +38,8 @@ type perspCamera struct {
 	inside     bool
 	across     float32 // inside a unit, radians; 0, fov
 	bend       float32 // the ground d off sinks bend·d² under the eye's level
-	// behind a unit, the arm the eye is held on, the ceiling not holding it; 0, it flies
-	arm float32
+	// behind a unit, the stick held on its arm: no spring lifts it
+	held bool
 
 	fine  func(x, y float32) (step, thin float32)
 	solid func(x, y, z float32) (float32, bool)
@@ -45,12 +53,10 @@ type perspCamera struct {
 
 var _ contract.Camera = (*perspCamera)(nil)
 
-// 45° top to bottom; narrowest: how many times the eye may narrow it; eyeOver: cells over the
-// highest ground the eye flies at least
+// 45° top to bottom; narrowest: how many times the eye inside a unit may narrow it
 const (
 	defaultFOV = math.Pi / 4
 	narrowest  = 8
-	eyeOver    = 2
 )
 
 func newPerspCamera(
@@ -68,9 +74,9 @@ func newPerspCamera(
 		cell: o.Cell, headroom: o.Headroom, ground: ground, extent: extent,
 		viewportSize: geom.NewVec(viewport.BottomRight.X-viewport.TopLeft.X,
 			viewport.BottomRight.Y-viewport.TopLeft.Y),
-		heading: heading, pitch: pitch, narrow: 1}
-	c.look()
-	c.CenterOn((viewport.TopLeft.X+viewport.BottomRight.X)/2, (viewport.TopLeft.Y+viewport.BottomRight.Y)/2, 0)
+		heading: heading, pitch: pitch, narrow: 1, length: 4 * o.Cell}
+	c.CenterOn((viewport.TopLeft.X+viewport.BottomRight.X)/2,
+		(viewport.TopLeft.Y+viewport.BottomRight.Y)/2, 0)
 	return c
 }
 
@@ -98,14 +104,6 @@ func (c *perspCamera) Eye() (float32, float32, float32, bool) {
 	return e[0], e[1], e[2], true
 }
 
-func (c *perspCamera) ceiling() float32 {
-	var high float32
-	if c.extent != nil {
-		_, high = c.extent()
-	}
-	return high + eyeOver*c.cell
-}
-
 func (c *perspCamera) layer() (low, high float32) {
 	if c.extent != nil {
 		low, high = c.extent()
@@ -127,49 +125,100 @@ func (c *perspCamera) Vanish(dx, dy, dz float32) (float32, float32, bool) {
 	return sx + float32(c.viewportSize.X/2), sy + float32(c.viewportSize.Y/2), ok
 }
 
-// one height whatever the heading and the pitch, so a turn or a tilt never moves the eye
-func (c *perspCamera) maxAlt() float32 {
-	diagonal := float32(math.Hypot(c.world.X, c.world.Y))
-	alt := diagonal
-	if c.minZoomCfg > 0 {
-		alt = c.focal() * float32(math.Sin(float64(max(c.pitch, c.minPitch)))) / c.minZoomCfg
-	}
-	across := diagonal * c.focal() / float32(c.viewportSize.X) * float32(math.Sin(float64(c.minPitch)))
-	return min(alt, across)
-}
-
 func (c *perspCamera) target() [3]float32 { return c.at }
 
 func (c *perspCamera) eye() [3]float32 { return c.proj.eye }
 
+// the way from the foot up the stick to the eye
 func (c *perspCamera) out() [3]float32 {
 	s, k := math.Sincos(float64(c.heading) + math.Pi/4)
 	sp, cp := math.Sincos(float64(c.pitch))
 	return [3]float32{float32(cp * s), float32(cp * k), float32(sp)}
 }
 
+// the stick's length within the zoom's bounds: a cell at the shortest, the world's diagonal at the
+// longest
+func (c *perspCamera) bounded(length float32) float32 {
+	shortest, longest := c.cell, float32(math.Hypot(c.world.X, c.world.Y))
+	if c.maxZoom > 0 {
+		shortest = max(shortest, c.focal()/c.maxZoom)
+	}
+	if c.minZoomCfg > 0 {
+		longest = min(longest, c.focal()/c.minZoomCfg)
+	}
+	return min(max(length, shortest), max(longest, shortest))
+}
+
+// the eye at the end of the stick, unlifted
+func (c *perspCamera) rest() [3]float32 {
+	return vec.Add(c.foot, vec.Scale(c.out(), c.length))
+}
+
 func (c *perspCamera) look() {
 	c.heading = wrapAngle(c.heading)
-	c.pitch = min(max(c.pitch, -maxPitch), maxPitch)
 	c.narrow = min(max(c.narrow, 1), narrowest)
-	if !c.inside && c.arm == 0 {
-		c.alt = min(max(c.alt, c.ceiling()), max(c.maxAlt(), c.ceiling()))
+	var e, at [3]float32
+	if c.inside {
+		c.pitch = min(max(c.pitch, -maxPitch), maxPitch)
+		e = [3]float32{float32(c.origin.X), float32(c.origin.Y), c.alt}
+		// far along the way looked, for the frame's precision
+		at = vec.Add(e, vec.Scale(c.out(), -c.far()))
+	} else {
+		c.pitch = min(c.pitch, maxPitch)
+		if !c.held {
+			c.length = c.bounded(c.length)
+		}
+		e = c.rest()
+		c.lift = max(c.lift, c.need(e))
+		if c.held {
+			c.lift = 0
+		}
+		e[2] += c.lift
+		// the foot as the eye sees it, sunk by the ground's curve
+		h := float32(math.Hypot(float64(e[0]-c.foot[0]), float64(e[1]-c.foot[1])))
+		at = [3]float32{c.foot[0], c.foot[1], c.foot[2] + c.bend*h*h}
 	}
-	e := [3]float32{float32(c.origin.X), float32(c.origin.Y), c.alt}
-	// far along the way looked, for the frame's precision
-	ahead := vec.Add(e, vec.Scale(c.out(), -c.far()))
-	c.proj = newPerspective(e, ahead, c.heading, c.focal()*c.narrow, c.near(), c.far(), c.cell)
+	c.proj = newPerspective(e, at, c.heading, c.focal()*c.narrow, c.near(), c.far(), c.cell)
 	c.proj.bend = c.bend
 	c.projection = c.proj
 	c.at, c.sky = c.middle()
-	if c.maxZoom > 0 { // the top zoom caps the narrowing
-		if z := c.Zoom(); z > c.maxZoom && c.narrow > 1 {
-			c.narrow = max(1, c.narrow*c.maxZoom/z)
-			c.proj = newPerspective(e, ahead, c.heading, c.focal()*c.narrow, c.near(), c.far(), c.cell)
-			c.proj.bend = c.bend
-			c.projection = c.proj
-		}
+}
+
+// how far over e the eye has to go to be clear of what is solid there, and a quarter of a cell
+// over it
+func (c *perspCamera) need(e [3]float32) float32 {
+	if c.solid == nil && c.ground == nil {
+		return 0
 	}
+	solid := solidOf(c.solid, c.ground)
+	free := func(x, y, z float32) bool {
+		_, in := solid(x, y, z)
+		return !in
+	}
+	under := e[2] - c.cell/4
+	switch {
+	case !free(e[0], e[1], under):
+		return rise(free, e[0], e[1], under, c.cell) + c.cell/4 - e[2]
+	case !free(e[0], e[1], e[2]):
+		return rise(free, e[0], e[1], e[2], c.cell) + c.cell/4 - e[2]
+	}
+	return 0
+}
+
+// the spring easing the lifted eye back down as far as the cage lets it
+func (c *perspCamera) settle(d time.Duration) {
+	if c.inside || c.held || c.lift == 0 {
+		return
+	}
+	need := c.need(c.rest())
+	if need >= c.lift {
+		return
+	}
+	c.lift = need + (c.lift-need)*(1-eased(d))
+	if c.lift-need < c.cell/1024 {
+		c.lift = need
+	}
+	c.look()
 }
 
 func (c *perspCamera) middle() ([3]float32, bool) {
@@ -184,55 +233,29 @@ func (c *perspCamera) middle() ([3]float32, bool) {
 	return [3]float32{x, y, z}, false
 }
 
-func (c *perspCamera) confine() (dx, dy float32) {
-	if c.inside || c.sky {
-		return 0, 0
+// the foot slid along the stick onto what is seen in the middle of the screen, the eye where it
+// is; not while the spring lifts the eye
+func (c *perspCamera) plant() {
+	o := c.out()
+	if c.inside || c.held || c.lift > 0 || o[2] < 1e-3 {
+		return
 	}
-	x := min(max(c.at[0], 0), float32(c.world.X))
-	y := min(max(c.at[1], 0), float32(c.world.Y))
-	if x == c.at[0] && y == c.at[1] {
-		return 0, 0
+	_, _, z, hit := c.Pick(float32(c.viewportSize.X/2), float32(c.viewportSize.Y/2))
+	if !hit {
+		return
 	}
-	dx, dy = x-c.at[0], y-c.at[1]
-	c.origin = geom.NewVec(c.origin.X+float64(dx), c.origin.Y+float64(dy))
-	c.look()
-	return dx, dy
+	k := (z - c.foot[2]) / o[2]
+	if c.length-k < c.cell/4 {
+		return
+	}
+	c.foot = vec.Add(c.foot, vec.Scale(o, k))
+	c.length -= k
 }
 
-// the view swings towards the point zoomed at; where the pitch floor holds the head, the eye
-// flies on instead
-func (c *perspCamera) aim(a [3]float32, sx, sy float32) {
-	for range 8 {
-		ax, ay := c.Project(a[0], a[1], a[2])
-		ex, ey := ax-sx, ay-sy
-		if math.Abs(float64(ex)) < 1e-2 && math.Abs(float64(ey)) < 1e-2 {
-			return
-		}
-		f := c.focal() * c.narrow
-		c.heading -= ex / f
-		pitch := c.pitch + ey/f
-		c.pitch = min(max(pitch, c.minPitch), maxPitch)
-		if pitch < c.pitch {
-			c.advance(a, sy)
-		}
-		c.look()
-	}
-}
-
-func (c *perspCamera) advance(a [3]float32, sy float32) {
-	f := c.focal() * c.narrow
-	// how far under the horizontal the point should lie
-	below := float64(c.pitch) + math.Atan(float64(sy-float32(c.viewportSize.Y/2))/float64(f))
-	e := c.proj.eye
-	drop := float64(e[2] - a[2])
-	if below <= 1e-4 || drop <= 0 {
-		return // no distance draws it there
-	}
-	// the eye looks along the ground the way -(s, k)
-	s, k := math.Sincos(float64(c.heading) + math.Pi/4)
-	ahead := -(float64(a[0]-e[0])*s + float64(a[1]-e[1])*k)
-	on := ahead - drop/math.Tan(below)
-	c.origin = geom.NewVec(c.origin.X-on*s, c.origin.Y-on*k)
+// the foot kept over the world
+func (c *perspCamera) confine() {
+	c.foot[0] = min(max(c.foot[0], 0), float32(c.world.X))
+	c.foot[1] = min(max(c.foot[1], 0), float32(c.world.Y))
 }
 
 func (c *perspCamera) Pick(sx, sy float32) (float32, float32, float32, bool) {
@@ -264,19 +287,26 @@ func wrapAngle(a float32) float32 {
 	return float32(h)
 }
 
+// the eye put at (x, y, z), looking at the foot
 func (c *perspCamera) LookFrom(x, y, z float32) {
-	at := c.at
-	c.inside, c.narrow = false, 1
-	c.origin, c.alt = geom.NewVec(float64(x), float64(y)), max(z, c.ceiling())
-	c.heading, c.pitch = anglesOf([3]float32{x, y, c.alt}, at, c.heading)
+	c.inside, c.narrow, c.held, c.lift = false, 1, false, 0
+	e := [3]float32{x, y, z}
+	if l := vec.Norm(vec.Sub(e, c.foot)); l > 1e-3 {
+		c.length = l
+		c.heading, c.pitch = anglesOf(e, c.foot, c.heading)
+	}
 	c.look()
 }
 
-// below the pitch floor too, until the next Tilt
+// the eye where it is, the foot put at (x, y, z); below the pitch floor too, until the next Tilt
 func (c *perspCamera) LookAt(x, y, z float32) {
-	c.inside, c.narrow = false, 1
-	c.alt = max(c.alt, c.ceiling())
-	c.heading, c.pitch = anglesOf([3]float32{float32(c.origin.X), float32(c.origin.Y), c.alt}, [3]float32{x, y, z}, c.heading)
+	e := c.proj.eye
+	c.inside, c.narrow, c.held, c.lift = false, 1, false, 0
+	c.foot = [3]float32{x, y, z}
+	if l := vec.Norm(vec.Sub(e, c.foot)); l > 1e-3 {
+		c.length = l
+		c.heading, c.pitch = anglesOf(e, c.foot, c.heading)
+	}
 	c.look()
 }
 
@@ -288,10 +318,11 @@ func (c *perspCamera) enterInside(eye [3]float32, heading, across float32) {
 	c.look()
 }
 
-// hold puts the eye length along the stick from foot, the middle of the screen on foot
+// hold puts the foot at foot and the eye length up the stick from it, held there without the
+// spring
 func (c *perspCamera) hold(foot [3]float32, length float32) {
-	e := vec.Add(foot, vec.Scale(c.out(), length))
-	c.origin, c.alt = geom.NewVec(float64(e[0]), float64(e[1])), e[2]
+	c.held, c.lift = true, 0
+	c.foot, c.length = foot, length
 	c.look()
 }
 
@@ -305,31 +336,23 @@ func (c *perspCamera) underEye() [3]float32 {
 }
 
 type perspPose struct {
-	origin                      geom.Vec
-	alt, heading, pitch, narrow float32
+	foot                   [3]float32
+	length, heading, pitch float32
 }
 
 func (c *perspCamera) pose() perspPose {
-	return perspPose{origin: c.origin, alt: c.alt, heading: c.heading, pitch: c.pitch, narrow: c.narrow}
+	return perspPose{foot: c.foot, length: c.length, heading: c.heading, pitch: c.pitch}
 }
 
 func (c *perspCamera) setPose(p perspPose) {
-	c.inside = false
-	c.origin, c.alt, c.heading, c.pitch, c.narrow = p.origin, p.alt, p.heading, max(p.pitch, c.minPitch), p.narrow
+	c.inside, c.narrow, c.held, c.lift = false, 1, false, 0
+	c.foot, c.length, c.heading, c.pitch = p.foot, p.length, p.heading, max(p.pitch, c.minPitch)
 	c.look()
 }
 
 func (c *perspCamera) Turn(angle float32) {
-	if c.inside {
-		c.heading += angle
-		c.look()
-		return
-	}
-	at := c.at
-	r := math.Hypot(c.origin.X-float64(at[0]), c.origin.Y-float64(at[1]))
-	c.heading = wrapAngle(c.heading + angle)
-	s, k := math.Sincos(float64(c.heading) + math.Pi/4)
-	c.origin = geom.NewVec(float64(at[0])+s*r, float64(at[1])+k*r)
+	c.plant()
+	c.heading += angle
 	c.look()
 }
 
@@ -338,6 +361,7 @@ func (c *perspCamera) Tilt(angle float32) {
 	if c.inside {
 		floor = -maxPitch
 	}
+	c.plant()
 	c.pitch = min(max(c.pitch+angle, floor), maxPitch)
 	c.tilts++
 	c.look()
@@ -461,17 +485,19 @@ func (c *perspCamera) Bounds() contract.AABB {
 	return worldBox(minX, minY, maxX, maxY, c.world)
 }
 
+// the world point (x, y) in the screen's top-left corner, at the foot's height
 func (c *perspCamera) MoveTo(x, y float64) {
 	if c.inside {
 		c.origin = geom.NewVec(x, y)
 		c.look()
 		return
 	}
-	at := c.at
-	if tx, ty, hit := c.cast(0, 0, at[2]); hit {
-		x, y = x+float64(at[0]-tx), y+float64(at[1]-ty)
+	if tx, ty, hit := c.cast(0, 0, c.foot[2]); hit {
+		c.foot[0] += float32(x) - tx
+		c.foot[1] += float32(y) - ty
 	}
-	c.CenterOn(x, y, float64(at[2]))
+	c.confine()
+	c.look()
 }
 
 func (c *perspCamera) CenterOn(x, y, z float64) {
@@ -480,50 +506,33 @@ func (c *perspCamera) CenterOn(x, y, z float64) {
 		c.look()
 		return
 	}
-	c.alt = max(c.alt, c.ceiling())
-	r := 0.0
-	if t := math.Tan(float64(c.pitch)); t > 1e-4 {
-		r = float64(c.alt-float32(z)) / t
-	}
-	s, k := math.Sincos(float64(c.heading) + math.Pi/4)
-	c.origin = geom.NewVec(x+s*r, y+k*r)
-	c.look()
+	c.foot = [3]float32{float32(x), float32(y), float32(z)}
 	c.confine()
+	c.look()
 }
 
 func (c *perspCamera) Translate(dx, dy float64) {
-	c.origin = geom.NewVec(c.origin.X+dx, c.origin.Y+dy)
-	c.look()
+	c.foot[0] += float32(dx)
+	c.foot[1] += float32(dy)
 	c.confine()
+	c.look()
 }
 
-func (c *perspCamera) Pan(dx, dy float32) { c.shift(dx, dy) }
-
-// bx, by: the part of the delta the world's edge stopped, screen pixels as the view stood; none
-// where the middle stood outside the world already, put back rather than stopped
-func (c *perspCamera) shift(dx, dy float32) (bx, by float32) {
+// the foot slid at its height to what is drawn (dx, dy) off the middle of the screen
+func (c *perspCamera) Pan(dx, dy float32) {
 	if c.inside {
-		return 0, 0
+		return
 	}
 	mx, my := float32(c.viewportSize.X/2), float32(c.viewportSize.Y/2)
-	x0, y0, hit0 := c.cast(mx, my, c.at[2])
-	x1, y1, hit1 := c.cast(mx+dx, my+dy, c.at[2])
+	x0, y0, hit0 := c.cast(mx, my, c.foot[2])
+	x1, y1, hit1 := c.cast(mx+dx, my+dy, c.foot[2])
 	if !hit0 || !hit1 {
-		return 0, 0
+		return
 	}
-	inside := !c.sky && c.at[0] >= 0 && c.at[1] >= 0 && c.at[0] <= float32(c.world.X) &&
-		c.at[1] <= float32(c.world.Y)
-	before := c.proj
-	c.origin = geom.NewVec(c.origin.X+float64(x1-x0), c.origin.Y+float64(y1-y0))
+	c.foot[0] += x1 - x0
+	c.foot[1] += y1 - y0
+	c.confine()
 	c.look()
-	at := c.at
-	cx, cy := c.confine()
-	if !inside || cx == 0 && cy == 0 {
-		return 0, 0
-	}
-	wx, wy := before.Project(at[0], at[1], at[2])
-	gx, gy := before.Project(at[0]+cx, at[1]+cy, at[2])
-	return wx - gx, wy - gy
 }
 
 // screen units a world unit spans at the ground point in the middle of the screen
@@ -531,7 +540,9 @@ func (c *perspCamera) Zoom() float32 {
 	return c.focal() * c.narrow / max(vec.Norm(vec.Sub(c.proj.eye, c.at)), c.proj.near)
 }
 
-// in: the eye nearer down to the ceiling, then the view narrowed; out the other way round
+// Inside a unit the view narrowed; out of it the eye and the foot drawn towards the ground under
+// the anchor, the stick shortened so: the anchor stays where it is drawn, and coming in stops
+// where the eye would no longer be free.
 func (c *perspCamera) ZoomIn(factor float32, anchorX, anchorY float32) {
 	if factor <= 0 {
 		return
@@ -546,47 +557,30 @@ func (c *perspCamera) ZoomIn(factor float32, anchorX, anchorY float32) {
 	if c.ground != nil {
 		a[2] = c.ground(anchorX, anchorY)
 	}
-	bx, by := c.Project(a[0], a[1], a[2])
-	narrow := c.narrow
-	e := c.proj.eye
-	if factor >= 1 {
-		to := vec.Add(a, vec.Scale(vec.Sub(e, a), 1/factor))
-		if floor := c.ceiling(); to[2] < floor {
-			k := float32(1)
-			if drop := e[2] - to[2]; drop > 0 {
-				k = max(min((e[2]-floor)/drop, 1), 0)
-			}
-			to = vec.Add(e, vec.Scale(vec.Sub(to, e), k))
-			achieved := vec.Norm(vec.Sub(e, a)) / max(vec.Norm(vec.Sub(to, a)), c.proj.near)
-			c.narrow *= factor / max(achieved, 1e-3)
+	k := min(max(factor, c.length/c.bounded(c.length*1e6)), c.length/c.bounded(0))
+	toward := func(k float32) ([3]float32, float32) {
+		return vec.Add(a, vec.Scale(vec.Sub(c.foot, a), 1/k)), c.length / k
+	}
+	if k > 1 {
+		free := func(k float32) bool {
+			foot, length := toward(k)
+			return c.need(vec.Add(foot, vec.Scale(c.out(), length))) == 0
 		}
-		e = to
-	} else {
-		rest := factor
-		if c.narrow > 1 {
-			n := max(c.narrow*factor, 1)
-			rest = factor * c.narrow / n
-			c.narrow = n
-		}
-		if rest < 1 {
-			to := vec.Add(a, vec.Scale(vec.Sub(e, a), 1/rest))
-			// the step shortened along the same line
-			if top := max(c.maxAlt(), c.ceiling()); to[2] > top {
-				k := float32(1)
-				if rise := to[2] - e[2]; rise > 0 {
-					k = max(min((top-e[2])/rise, 1), 0)
+		if !free(k) {
+			lo, hi := float32(1), k
+			for range 24 {
+				if mid := (lo + hi) / 2; free(mid) {
+					lo = mid
+				} else {
+					hi = mid
 				}
-				to = vec.Add(e, vec.Scale(vec.Sub(to, e), k))
 			}
-			e = to
+			k = lo
 		}
 	}
-	c.origin, c.alt = geom.NewVec(float64(e[0]), float64(e[1])), e[2]
-	c.look()
-	if c.narrow != narrow {
-		c.aim(a, bx, by)
-	}
+	c.foot, c.length = toward(k)
 	c.confine()
+	c.look()
 }
 
 func (c *perspCamera) ZoomOut(factor float32, anchorX, anchorY float32) {
@@ -608,12 +602,11 @@ func (c *perspCamera) State() contract.State {
 }
 
 func (c *perspCamera) Persisted() []any {
-	return []any{&c.origin, &c.alt, &c.heading, &c.pitch, &c.narrow}
+	return []any{&c.foot, &c.length, &c.heading, &c.pitch}
 }
 
 func (c *perspCamera) Restore() {
-	c.inside = false
+	c.inside, c.narrow, c.held, c.lift = false, 1, false, 0
 	c.pitch = max(c.pitch, c.minPitch) // out of the unit until the camera system takes it back in
 	c.look()
-	c.confine()
 }

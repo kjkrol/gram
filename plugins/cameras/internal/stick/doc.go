@@ -18,10 +18,13 @@
 // units a world unit, or, given Config.Perspective, in perspective; switching keeps the foot, the
 // turn, the pitch and the scale there, and the view is saved with the camera. Orthographically
 // the whole screen stays over the world at sea level: a pan stops at the edge, and zooming out
-// stops where the screen just fits the world. The perspective is an eye flying over the world,
-// never lower than two cells over its highest ground, keeping the ground point in the middle of
-// the screen over the world; LookFrom and LookAt put the eye anywhere. On a world with a scale
-// the ground far off sinks under the eye's level and hazes.
+// stops where the screen just fits the world. In perspective the eye stands at the stick's end,
+// as far from the foot as the focal length over the scale it had; the wheel draws the eye and the
+// foot towards the cursor, the stick no shorter than a cell nor than where the eye stays free,
+// no longer than the world's diagonal. Where the cage is not free at the eye or a quarter of a
+// cell under it, the spring lifts the eye straight up at once, still looking at the foot, and
+// lets it down as the way clears. LookFrom puts the eye anywhere, LookAt the foot. On a world
+// with a scale the ground far off sinks under the eye's level.
 //
 // Riding in a unit (fastened camera.Inside) the eye is the unit's world.Eye, going with it and
 // looking the way it faces; Look turns the view and the unit, up and down it tilts the unit's

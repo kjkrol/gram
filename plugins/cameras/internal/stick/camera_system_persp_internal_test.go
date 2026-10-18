@@ -185,7 +185,8 @@ func TestInside_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 	if r.cam.insideUnit() || !r.cam.inPersp || r.sys.fastened(r.cam) != nil || contract.HowOf(r.cam) != contract.Centred {
 		t.Fatalf("Tab while riding: first person %v, in perspective %v, fastened %+v; want back in the free perspective, over the walker", r.cam.insideUnit(), r.cam.inPersp, r.cam.Fastening())
 	}
-	if p := r.cam.persp.pose(); p.alt != pose.alt || p.heading != pose.heading || p.pitch != pose.pitch || p.narrow != pose.narrow {
+	if p := r.cam.persp.pose(); p.length != pose.length || p.heading != pose.heading ||
+		p.pitch != pose.pitch {
 		t.Errorf("back, the free eye stands %+v, want as it stood %+v, moved over the walker only", p, pose)
 	}
 	if sx, sy := r.cam.Project(405, 305, 0); !near(sx, 200) || !near(sy, 150) {
@@ -333,5 +334,23 @@ func TestFollow_InPerspectiveBehindTheTiltIsThePlayersAtOnceTheUnitInTheMiddle(t
 		if !r.centredOn(305, 305) {
 			t.Errorf("tilted %v, the walker is off the middle of the screen", by)
 		}
+	}
+}
+
+func TestFollow_InPerspectiveLettingGoGivesTheStickBack(t *testing.T) {
+	r := newFollowRig(t)
+	r.cam.next()
+	r.ridged(1000, 1001) // a relief with no ridge in the way
+	length := r.cam.persp.length
+	r.walk(300, 300, 1, 0)
+	r.behind()
+	if near(r.cam.persp.length, length) {
+		t.Fatalf("behind the walker the stick is %v long, want the arm's, not %v",
+			r.cam.persp.length, length)
+	}
+	r.letGo()
+	if !near(r.cam.persp.length, length) || r.cam.persp.held {
+		t.Errorf("let go, the stick is %v long, held %v; want the tactical %v, free",
+			r.cam.persp.length, r.cam.persp.held, length)
 	}
 }

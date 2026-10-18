@@ -123,6 +123,13 @@ func (s *Keeper) Update(d time.Duration, ents Entities) {
 		}
 	}
 	s.following = kept
+	if s.cams != nil {
+		for _, cam := range *s.cams {
+			if cam.inPersp {
+				cam.persp.settle(d)
+			}
+		}
+	}
 	for _, f := range gone {
 		if f.inside {
 			f.cam.leaveInside()
@@ -186,17 +193,17 @@ func (s *Keeper) fasten(cam *viewCamera, id uid.UID64, inside bool) {
 		return
 	}
 	if !inside {
-		cam.tactical.scale, cam.tactical.alt = cam.ortho.scale, cam.persp.alt
+		cam.tactical.scale, cam.tactical.length = cam.ortho.scale, cam.persp.length
 	}
 	s.following = append(s.following, following{cam: cam, target: id, inside: inside})
 	s.keep(&s.following[len(s.following)-1], 0)
 }
 
-// from behind id back to the tactical camera's own scale and eye height, over id where it still is
+// from behind id back to the tactical camera's own scale and stick, over id where it still is
 func (s *Keeper) release(cam *viewCamera, id uid.UID64) {
-	cam.persp.arm = 0
+	cam.persp.held = false
 	cam.ortho.scale = cam.ortho.limited(cam.tactical.scale)
-	cam.persp.alt = cam.tactical.alt
+	cam.persp.length = cam.tactical.length
 	cam.ortho.place()
 	cam.persp.look()
 	if t, ok := s.ents.Of(id); ok {
@@ -330,10 +337,7 @@ func (s *Keeper) keep(f *following, d time.Duration) bool {
 // out as the way clears
 func (s *Keeper) hold(f *following, t [3]float32, d time.Duration) {
 	p := f.cam.persp
-	if p.arm == 0 {
-		p.arm = behindArm * p.cell
-	}
-	reach := s.reach(t, p.out(), p.arm, p.cell)
+	reach := s.reach(t, p.out(), behindArm*p.cell, p.cell)
 	if f.reach > 0 && reach > f.reach {
 		reach = f.reach + (reach-f.reach)*eased(d)
 	}

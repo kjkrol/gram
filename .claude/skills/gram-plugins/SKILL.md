@@ -727,9 +727,13 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   relief (`internal/stick`: a stick whose foot is the point in the middle of the screen, a pan
   sliding it at its height, turned about the upright and leaned from straight down to `MinPitch`;
   isometric is an eighth turned at asin(TileH/TileW); orthographic, `Zoom` screen pixels a world
-  unit in every view, or perspective; picking where the cage is not free) and refuses a wrapping
-  world and a missing `Cell`. A relief camera's save begins with its form, `"stick 1"`: one saved
-  before the stick begins afresh, logged. **Each camera is made where a scene
+  unit in every view, or perspective — the eye at the stick's end, `length` the focal length over
+  the scale at Tab, the wheel drawing eye and foot towards the cursor (a cell to the world's
+  diagonal, stopping where the eye would not be free), the spring lifting the eye straight up
+  where the cage is not free at it or a quarter cell under it and letting it down eased (`settle`
+  a tick), no ceiling and no narrowing but inside a unit; picking where the cage is not free)
+  and refuses a wrapping world and a missing `Cell`. A relief camera's save begins with its
+  form, `"stick 2"`: one saved otherwise begins afresh, logged. **Each camera is made where a scene
   shows it**, beside the picture in the Scenes section, `render.NewFeed(s.cameras.New(start,
   camera.Config{...}), picture)` with `cameras.FromAbove` or `cameras.Isometrically` (a plain
   Config has none). `camera.Config` has no pixels (`render.Feed.Resize` every frame): `Zoom`,
