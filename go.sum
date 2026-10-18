@@ -18,8 +18,8 @@ github.com/kjkrol/aabbworld v1.12.0 h1:Hk+HaBOZSmHbO+pIxtQmJJ9+d8lnxmFy/653UOZRt
 github.com/kjkrol/aabbworld v1.12.0/go.mod h1:V6azBQgb9/UrxEdU9uLaICGeocn1si/taviOskcOg3A=
 github.com/kjkrol/astar v1.1.1 h1:gsPGclCd6BTGbsZkpMgbqBA/VgVg/pgtKAsHZIiL0Yc=
 github.com/kjkrol/astar v1.1.1/go.mod h1:hBjF0fn4Bznw+o8H3VqJ9Gm9Pdd+7or+pgOAYPznuuc=
-github.com/kjkrol/ceremony v0.2.1 h1:/dBt9xoTf60GSwKuZkgkC9lUrQh+i76J+3Pc4WznSUw=
-github.com/kjkrol/ceremony v0.2.1/go.mod h1:A4owokzEZyybd9j6Yywy/ofUHfgxM07IiTQX0ACX6kQ=
+github.com/kjkrol/ceremony v0.3.0 h1:er2JH8Pd0+757pE7nuA7ojW4ktKsoCTlTZ9R58fK66I=
+github.com/kjkrol/ceremony v0.3.0/go.mod h1:A4owokzEZyybd9j6Yywy/ofUHfgxM07IiTQX0ACX6kQ=
 github.com/kjkrol/goke/v3 v3.5.0 h1:dx+zl2mJBtGC6sIbMUW97Onq0spDeBmVSCdcm/fcxLw=
 github.com/kjkrol/goke/v3 v3.5.0/go.mod h1:58uVZD5rzMFkDp7kOxpwobjcwDV04SYZ58eQzxLeusU=
 github.com/kjkrol/uid v0.3.0 h1:awbHtzOA6tUF/aICp6M/TOMPh6yldNZrzhQd0cvFOjs=
