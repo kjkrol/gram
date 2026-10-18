@@ -17,7 +17,8 @@
 //
 // A system goes in the bands as the plugin owning it says ([Policy]): [Everywhere] every step in
 // every band, [Paced] a step every Pace in the farther ones over as many steps at once, [Near] in
-// the first alone; beyond the last none goes. It asks a world.Pace of each block of its query.
+// the first alone; beyond the last none goes. world.Plugin.Pace is the pace of a policy, an
+// option of the system's query.
 //
 // # Anchors
 //

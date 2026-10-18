@@ -33,8 +33,7 @@ type collisionSystem struct {
 	space  *aabbworld.Space
 	engine collide.Engine
 	tickOf host.TickSource
-	pace   cgoke.Pace
-	blocks cgoke.Blocks
+	pace   goke.Opt
 
 	walk      *goke.Query
 	base      goke.Comp[world.Base]
@@ -263,7 +262,9 @@ func (d *collisionSystem) Init(si *goke.SysInit) {
 	d.cols = cgoke.NewColumns(qb)
 	d.cols.Own(&d.walkSweep)
 	d.each.Bind(d.cols)
-	d.blocks = cgoke.Over(d.pace, qb)
+	if d.pace != nil {
+		qb.With(d.pace)
+	}
 	d.walk = qb.Build()
 
 	d.all = si.NewQueryBuilder(&d.allBase).Optional(&d.allSweep).
@@ -326,7 +327,7 @@ func (d *collisionSystem) mark() bool {
 	for d.walk.Next() {
 		cursor := d.walk.Cursor()
 		bases, colliders, physics := d.base.Slice(cursor), d.collider.Slice(cursor), d.physics.Slice(cursor)
-		if _, ok := d.blocks.Step(cursor, 0); !ok {
+		if !d.walk.Due() {
 			changed = d.still(bases, colliders) || changed
 			continue
 		}

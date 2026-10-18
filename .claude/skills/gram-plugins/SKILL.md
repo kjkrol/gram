@@ -36,12 +36,13 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   "Entities by band"); board/topography has them. **Systems go in the bands by a policy**
   (`sector.Policy`: `Everywhere` every step but `Off`, `Paced` a step every `Pace` in the
   farther bands over `Pace·d` — all at once, on the steps where `Clock.Steps() % Pace ==
-  Pace−1` — `Near` the first band alone): `world.Plugin.Pace(policy)` is a `cgoke.Pace`, laid
-  over a system's query with `cgoke.Over(pace, qb)` before `Build` (it adds the marks as
-  optionals; without bands, or a nil pace, every block goes), asked `Step(cur, d)` per block in
-  the loop. Who goes how: motion (steering, velocity, move, exit), gravity along Z, the world's
-  plans and effects `Paced`; navigation `Everywhere`; collision (far boxes `Plain`, contacts
-  cleared), bullet's flight, vision (far observers' `Sighted` cleared), gravity across `Near`.
+  Pace−1` — `Near` the first band alone): `world.Plugin.Pace(policy)` is a goke query option,
+  `goke.PacedBy(clock.Steps, rules…)` (`Every[BandK](Pace_k)`, `Never[Off]`; without bands no
+  rules), added with `qb.With(pace)`, the loop walking `q.Paced(d)` and taking `q.Dt()` (goke
+  works out a block's period once, as its archetype is matched). Who goes how: motion
+  (steering, velocity, move, exit), gravity along Z, the world's plans and effects `Paced`;
+  navigation `Everywhere`; collision (far boxes `Plain`, contacts cleared), bullet's flight,
+  vision (far observers' `Sighted` cleared), gravity across `Near`.
   Per-step quantities scale by the steps given (steering's `TurnRate`, `Delay`; move's
   `MaxStep`). `world.Roster()` is
   what the plugins ask of the kinds of each template: a `kind.Template` is a sort of kind a plugin

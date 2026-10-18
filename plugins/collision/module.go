@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld"
-	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
@@ -28,7 +27,7 @@ type module struct {
 	log     *log.Logger
 	clock   *clock.Clock
 	tick    host.TickSource
-	pace    cgoke.Pace
+	pace    goke.Opt
 	leave   func(cb *goke.CmdBuf, id uid.UID64)
 	built   bool
 }

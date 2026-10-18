@@ -170,8 +170,7 @@ func (l Leg) held() []spot {
 }
 
 type navigationSystem struct {
-	pace       cgoke.Pace
-	blocks     cgoke.Blocks
+	pace       goke.Opt
 	grid       grid.Grid
 	terrain    cell.Terrain
 	occupancy  cell.Occupancy
@@ -260,7 +259,9 @@ func (s *navigationSystem) Init(si *goke.SysInit) {
 		Optional(&s.owners, &s.lastOrder).
 		Optional(&s.mind, &s.blocked, &s.arrived).
 		Optional(&s.states)
-	s.blocks = cgoke.Over(s.pace, qb)
+	if s.pace != nil {
+		qb.With(s.pace)
+	}
 	s.query = qb.Build()
 	s.orderID = si.RegComp[MoveOrder]()
 	s.blockedID, s.arrivedID, s.lastOrderID = si.RegComp[Blocked](), si.RegComp[Arrived](), si.RegComp[LastOrder]()
@@ -299,12 +300,8 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		s.given.drain(s.told)
 	}
 
-	s.query.All()
-	for s.query.Next() {
+	for s.query.Paced(d); s.query.Next(); {
 		cursor := s.query.Cursor()
-		if _, ok := s.blocks.Step(cursor, d); !ok {
-			continue
-		}
 		orders := s.order.Slice(cursor)
 		if orders == nil {
 			s.standing(cb, cursor)
@@ -925,12 +922,8 @@ func (s *navigationSystem) wayTo(m member, c cell.ID) geom.Vec {
 }
 
 func (s *navigationSystem) gather(dst []body) []body {
-	s.query.All()
-	for s.query.Next() {
+	for s.query.Paced(0); s.query.Next(); {
 		cursor := s.query.Cursor()
-		if _, ok := s.blocks.Step(cursor, 0); !ok {
-			continue
-		}
 		bases, orders, movers := s.base.Slice(cursor), s.order.Slice(cursor), s.mover.Slice(cursor)
 		cells, owned, lasts := s.cell.Slice(cursor), s.owners.Slice(cursor), s.lastOrder.Slice(cursor)
 		zs, minded := s.z.Slice(cursor), s.mind.Slice(cursor) != nil

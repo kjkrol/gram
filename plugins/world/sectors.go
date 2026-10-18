@@ -29,7 +29,6 @@ const defaultSectorBuckets = 4
 type sectors struct {
 	w       *module
 	grid    *sector.Grid
-	bands   []sector.Band
 	anchors []sector.Anchors
 	at      []geom.Vec
 	margin  float64
@@ -67,7 +66,6 @@ func newSectors(w *module) *sectors {
 	space := w.config.Space
 	s.grid = sector.NewGrid(space.Width, space.Height, space.Edges.WrapsX(), space.Edges.WrapsY(),
 		side, cfg.Bands)
-	s.bands = cfg.Bands
 	s.margin = side / 2
 	s.sleep = make([][]uid.UID64, s.grid.Len())
 	return s

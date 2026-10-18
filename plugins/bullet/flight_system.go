@@ -27,8 +27,6 @@ const rangeEps = 1e-3
 var _ goke.System = (*flightSystem)(nil)
 
 type flightSystem struct {
-	// far off a shot hangs where it is
-	flying, lying      cgoke.Blocks
 	w                  *world.Plugin
 	space              *aabbworld.Space
 	landings           *host.Rules[Landing]
@@ -76,33 +74,26 @@ func (s *flightSystem) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base, &s.flight, &s.body).Optional(&s.coll).Optional(&s.sweep).Optional(&s.z)
 	s.landCols = cgoke.NewColumns(qb)
 	s.landings.Bind(s.landCols)
+	// far off a shot hangs where it is
 	near := s.w.Pace(sector.Near)
-	s.flying = near.Over(qb)
-	s.flights = qb.Build()
+	s.flights = qb.With(near).Build()
 	rb := si.NewQueryBuilder(&s.rbase, &s.rflight, &s.rbody)
 	s.restCols = cgoke.NewColumns(rb)
 	s.restings.Bind(s.restCols)
-	s.lying = near.Over(rb)
-	s.resting = rb.Build()
+	s.resting = rb.With(near).Build()
 }
 
 func (s *flightSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 	t := s.tickOf.Of(dt)
 	if !s.restings.Empty() {
-		for s.resting.All(); s.resting.Next(); {
+		for s.resting.Paced(dt); s.resting.Next(); {
 			cur := s.resting.Cursor()
-			if _, ok := s.lying.Step(cur, dt); !ok {
-				continue
-			}
 			s.walking.ids, s.walking.flights, s.walking.bodies = cur.IDs, s.rflight.Slice(cur), s.rbody.Slice(cur)
 			s.restings.RunWhere(t, s.restCols.Row(cur), len(cur.IDs), s.restsAt, s.restingAt)
 		}
 	}
-	for s.flights.All(); s.flights.Next(); {
+	for s.flights.Paced(dt); s.flights.Next(); {
 		cur := s.flights.Cursor()
-		if _, ok := s.flying.Step(cur, dt); !ok {
-			continue
-		}
 		bases, flights, bodies := s.base.Slice(cur), s.flight.Slice(cur), s.body.Slice(cur)
 		colls, sweeps, zs := s.coll.Slice(cur), s.sweep.Slice(cur), s.z.Slice(cur)
 		s.walking.ids, s.walking.flights, s.walking.ends = cur.IDs, flights, s.walking.ends[:0]

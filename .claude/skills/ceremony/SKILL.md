@@ -52,11 +52,12 @@ gram's.
   `Command()` — each asserted beside its type (`var _ host.About = Standing{}`).
 - `cgoke`: `Effects` (register + runtime, `Cast`, `CastFor`, `Dispel`, `Has`), `Active`/`Wide`
   (`Left(e)`), `Plans`, `Columns`, `Spawner`. The effect system casts through its own `CmdBuf`
-  (`ECS.CmdBuf`) and stages facts with `Reserve`. `Pace{Over(qb) Blocks}` and
-  `Blocks{Step(cur, dt) (dt, ok)}` are the caller's rhythm: `Plans.Paced(pace)`,
-  `Effects.Paced(pace)` (before Init/registration) skip a block refused and run the others over
-  the step given (an effect counts down by it; plans take time from `now`); ceremony knows no
-  bands — gram's `world.Pace` is one.
+  (`ECS.CmdBuf`) and stages facts with `Reserve`. `NewPlans(plans, opts...)` and
+  `NewEffects(register, opts...)` take the caller's goke options for their queries (a filter, a
+  pace: gram's `world.Plugin.Pace` is a `goke.PacedBy`) and walk them with `Query.Paced`, each
+  block over its `Dt` (an effect counts down by it; plans take time from `now`). **Ceremony keeps
+  no rhythm of its own**: the user's word 2026-10-18 — a schedule is the executor's, the pace
+  lives in goke.
 
 ## How a subject kind runs (Around, and adding one like it)
 

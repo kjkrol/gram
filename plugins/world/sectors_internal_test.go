@@ -9,7 +9,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/comp"
-	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/sector"
@@ -41,9 +40,8 @@ type sectorRig struct {
 }
 
 type pacedQuery struct {
-	q      *goke.Query
-	blocks cgoke.Blocks
-	base   goke.Comp[Base]
+	q    *goke.Query
+	base goke.Comp[Base]
 }
 
 // a world 4096x512 cut into sectors 512 a side: the first band 600 round the anchor, the second
@@ -75,9 +73,7 @@ func sectorWorld(t *testing.T, bands ...sector.Band) *sectorRig {
 		r.off = si.NewQueryBuilder(&b).Include(goke.Include[sector.Off]()).Build()
 		for k := range r.paced {
 			pq := &r.paced[k]
-			qb := si.NewQueryBuilder(&pq.base)
-			pq.blocks = r.p.Pace(sector.Policy(k)).Over(qb)
-			pq.q = qb.Build()
+			pq.q = si.NewQueryBuilder(&pq.base).With(r.p.Pace(sector.Policy(k))).Build()
 		}
 	}})...)
 	r.p.module.RegSystems(r.ecs)
@@ -231,13 +227,9 @@ func TestSectors_RefuseBandsOutOfOrder(t *testing.T) {
 func (r *sectorRig) going(policy sector.Policy) map[float64]time.Duration {
 	pq := &r.paced[policy]
 	got := map[float64]time.Duration{}
-	for pq.q.All(); pq.q.Next(); {
-		cur := pq.q.Cursor()
-		dt, ok := pq.blocks.Step(cur, 10*time.Millisecond)
-		for _, b := range pq.base.Slice(cur) {
-			if ok {
-				got[b.Pos.TopLeft.X] = dt
-			}
+	for pq.q.Paced(10 * time.Millisecond); pq.q.Next(); {
+		for _, b := range pq.base.Slice(pq.q.Cursor()) {
+			got[b.Pos.TopLeft.X] = pq.q.Dt()
 		}
 	}
 	return got
@@ -274,10 +266,6 @@ func TestPace_LetsEveryBlockGoWithoutBands(t *testing.T) {
 	want := map[float64]time.Duration{100: 10 * time.Millisecond, 2000: 10 * time.Millisecond}
 	if got := r.going(sector.Near); !maps.Equal(got, want) {
 		t.Errorf("going %v, want every entity every step", got)
-	}
-	var nothing *Pace
-	if _, ok := nothing.Over(nil).Step(nil, time.Millisecond); !ok {
-		t.Error("a nil pace refused a block")
 	}
 }
 

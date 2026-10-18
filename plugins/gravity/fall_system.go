@@ -26,7 +26,6 @@ type fallSystem struct {
 	tickOf   host.TickSource
 	landings *host.Rules[Landing]
 	cols     *cgoke.Columns
-	blocks   cgoke.Blocks
 
 	pulls *goke.Query
 	pull  goke.Comp[Pull]
@@ -63,8 +62,7 @@ func (s *fallSystem) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base, &s.body, &s.drift, &s.marks).Optional(&s.z).Optional(&s.mover)
 	s.cols = cgoke.NewColumns(qb)
 	s.landings.Bind(s.cols)
-	s.blocks = cgoke.Over(s.p.worldPlugin.Pace(sector.Paced), qb)
-	s.bodies = qb.Build()
+	s.bodies = qb.With(s.p.worldPlugin.Pace(sector.Paced)).Build()
 	s.whence.init(si)
 }
 
@@ -80,16 +78,13 @@ func (s *fallSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		surfaces = s.p.surfaces()
 	}
 	hosted := !s.landings.Empty()
-	for s.bodies.All(); s.bodies.Next(); {
+	for s.bodies.Paced(d); s.bodies.Next(); {
 		cur := s.bodies.Cursor()
 		zs := s.z.Slice(cur)
 		if zs == nil {
 			continue
 		}
-		step, ok := s.blocks.Step(cur, d)
-		if !ok {
-			continue
-		}
+		step := s.bodies.Dt()
 		dt := step.Seconds()
 		bases, drifts, marks, movers := s.base.Slice(cur), s.drift.Slice(cur), s.marks.Slice(cur),
 			s.mover.Slice(cur)

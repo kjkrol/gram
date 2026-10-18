@@ -23,15 +23,17 @@ entities. Nor those made before motion left the world: `world.Outside` is `motio
   once (motion's steering, velocity, movement and leaving; gravity along Z; the world's plans
   and effects), `Near` the first band alone (collision, bullet's flight, vision, gravity
   across). Nothing goes beyond the last band. A world without bands goes as before.
-- `world.Plugin.Pace(policy)` is a `cgoke.Pace` a system lays over its query
-  (`cgoke.Over(pace, qb)`) and asks of each block; `steering.System.Paced` and
-  `vision.ScanSystem.Paced` take one. `clock.Clock.Steps()` numbers the steps.
+- `world.Plugin.Pace(policy)` is a goke query option (`goke.PacedBy` by the clock's steps, a rule
+  a band) a system adds to its query and walks with `Query.Paced`; `steering.System.Paced` and
+  `vision.ScanSystem.Paced` take one, the world hands it to ceremony's plans and effects.
+  `clock.Clock.Steps()` numbers the steps.
 - What lies beyond the last band is out of the world's space: no view, sight, query or
   collision meets it. The world keeps it asleep by sector and wakes a sector's sleepers as the
   sector comes back into a band.
 - Far off a box collides with nothing and keeps no contacts, an observer sees nothing, a shot
   hangs where it is.
-- Needs ceremony with `goke.Pace` (`Plans.Paced`, `Effects.Paced`, `Over`).
+- Needs goke 3.5 (paced queries) and ceremony whose `NewPlans` and `NewEffects` take query
+  options.
 
 **Sectors of the world in bands round the players** (2026-10-18)
 - `world.Config.Sectors` cuts the world into square sectors, `Buckets` of the space's buckets a

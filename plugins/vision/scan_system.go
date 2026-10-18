@@ -23,8 +23,7 @@ var _ goke.System = (*ScanSystem)(nil)
 type ScanSystem struct {
 	scanner
 
-	pace   cgoke.Pace
-	blocks cgoke.Blocks
+	pace goke.Opt
 
 	tick host.TickSource
 
@@ -113,8 +112,9 @@ func NewScanSystem(space *aabbworld.Space) *ScanSystem {
 	return newScanSystem(space, &host.PairRules[Sighting]{})
 }
 
-// Paced has the system scan each block of observers as pace says; set before Init.
-func (s *ScanSystem) Paced(pace cgoke.Pace) *ScanSystem {
+// Paced has the system scan each block of observers as pace, an option of its query, says; set
+// before Init.
+func (s *ScanSystem) Paced(pace goke.Opt) *ScanSystem {
 	s.pace = pace
 	return s
 }
@@ -149,7 +149,9 @@ func (s *ScanSystem) Init(si *goke.SysInit) {
 	seek := si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupTau, &s.lookupLay, &s.lookupZ)
 	s.walkCols, s.seekCols = cgoke.NewColumns(walk), cgoke.NewColumns(seek)
 	s.host.Bind(s.walkCols, s.seekCols)
-	s.blocks = cgoke.Over(s.pace, walk)
+	if s.pace != nil {
+		walk.With(s.pace)
+	}
 	s.query, s.lookup = walk.Build(), seek.Build()
 	s.sightedID = si.RegComp[Sighted]()
 	s.scanners = append(s.scanners[:0], &s.scanner)
@@ -266,7 +268,7 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 			continue
 		}
-		if _, ok := s.blocks.Step(cursor, d); !ok {
+		if !s.query.Due() {
 			forget(j.seens)
 			continue
 		}
@@ -297,14 +299,10 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		})
 	}
 
-	s.query.All()
-	for s.query.Next() {
+	for s.query.Paced(d); s.query.Next(); {
 		cursor := s.query.Cursor()
 		j := s.job(cursor)
 		if j.seens == nil {
-			continue
-		}
-		if _, ok := s.blocks.Step(cursor, d); !ok {
 			continue
 		}
 		for i, id := range cursor.IDs {

@@ -93,8 +93,8 @@
 // Config.Sectors cuts the world into sectors in bands of pace round the anchors, the points the
 // players observe ([Plugin.Anchor]; the cameras plugin gives its cameras'), and marks each entity
 // with its sector's band (package sector); what lies beyond the last band is out of the space.
-// A system takes the [Pace] of its policy ([Plugin.Pace]), lays it over its query and asks it of
-// each block; the world's plans and effects go Paced. [Plugin.Sectors] lays them on the
+// A system adds the pace of its policy ([Plugin.Pace]) to its query and walks it with
+// goke.Query.Paced; the world's plans and effects go Paced. [Plugin.Sectors] lays them on the
 // telemetry panel.
 //
 // # Views

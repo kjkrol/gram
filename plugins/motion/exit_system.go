@@ -21,8 +21,7 @@ type exitSystem struct {
 	query   *goke.Query
 	base    goke.Comp[world.Base]
 	outside goke.CompID
-	pace    cgoke.Pace
-	blocks  cgoke.Blocks
+	pace    goke.Opt
 
 	ids   []uid.UID64
 	bases []world.Base
@@ -37,20 +36,17 @@ func (s *exitSystem) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base).Include(goke.Include[Outside]())
 	s.cols = cgoke.NewColumns(qb)
 	s.m.leavers.Bind(s.cols)
-	s.blocks = cgoke.Over(s.pace, qb)
+	if s.pace != nil {
+		qb.With(s.pace)
+	}
 	s.query = qb.Build()
 }
 
 func (s *exitSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	leavers := s.m.leavers
 	w := s.m.w
-	s.query.All()
-	for s.query.Next() {
-		cursor := s.query.Cursor()
-		dt, ok := s.blocks.Step(cursor, d)
-		if !ok {
-			continue
-		}
+	for s.query.Paced(d); s.query.Next(); {
+		cursor, dt := s.query.Cursor(), s.query.Dt()
 		s.ids, s.bases = cursor.IDs, s.base.Slice(cursor)
 		if !leavers.Empty() {
 			leavers.Run(w.Tick(dt), s.cols.Row(cursor), len(cursor.IDs), s.at)

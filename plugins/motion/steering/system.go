@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
-	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/uid"
@@ -21,8 +20,7 @@ type System struct {
 	course   goke.OptComp[Course]
 	base     goke.Comp[entity.Base]
 	courseID goke.CompID
-	pace     cgoke.Pace
-	blocks   cgoke.Blocks
+	pace     goke.Opt
 
 	told       queues
 	obeyed     map[uid.UID64]bool
@@ -35,16 +33,18 @@ type System struct {
 // NewSystem is the steering system.
 func NewSystem() *System { return &System{obeyed: map[uid.UID64]bool{}} }
 
-// Paced has the system steer each block of entities as pace says, turning and counting the
-// reflex down by as many steps as it is given; set before Init.
-func (s *System) Paced(pace cgoke.Pace) *System {
+// Paced has the system steer each block of entities as pace, an option of its query, says,
+// turning and counting the reflex down by as many steps as it is given; set before Init.
+func (s *System) Paced(pace goke.Opt) *System {
 	s.pace = pace
 	return s
 }
 
 func (s *System) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.steer, &s.base).Optional(&s.course)
-	s.blocks = cgoke.Over(s.pace, qb)
+	if s.pace != nil {
+		qb.With(s.pace)
+	}
 	s.query = qb.Build()
 	s.lookup = si.NewQueryBuilder(&s.lookBase).Optional(&s.lookSteer, &s.lookCourse).Build()
 	s.courseID = si.RegComp[Course]()
@@ -52,8 +52,7 @@ func (s *System) Init(si *goke.SysInit) {
 
 func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 	s.obey()
-	s.query.All()
-	for s.query.Next() {
+	for s.query.Paced(d); s.query.Next(); {
 		cursor := s.query.Cursor()
 		if !s.course.Present(cursor) {
 			for _, id := range cursor.IDs {
@@ -61,10 +60,7 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 			continue
 		}
-		step, ok := s.blocks.Step(cursor, d)
-		if !ok {
-			continue
-		}
+		step := s.query.Dt()
 		dt, n := step.Seconds(), steps(step, d)
 		steers, courses := s.steer.Slice(cursor), s.course.Slice(cursor)
 		bases := s.base.Slice(cursor)
