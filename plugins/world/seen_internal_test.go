@@ -3,6 +3,7 @@ package world
 import (
 	"testing"
 
+	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
@@ -84,5 +85,27 @@ func TestSeen_HoldsTheEntitiesOfTheSectorsSeenInThePictureFoggedOnTheWayToTheSig
 	}
 	if fog := v.Fog(1555, 255); fog <= 0 || fog >= 1 {
 		t.Errorf("755 off, into the fog from 700 to 1000, the fog is %v, want some", fog)
+	}
+}
+
+func TestSeen_HoldsTheEntitiesAcrossTheSeamOfATorus(t *testing.T) {
+	r := sectorWorldOf(t, aabbworld.Torus, twoBands...)
+	r.spawn(100, 3900, 2000)
+	cam := cameratest.NewFromSpace(4096, 512, aabbworld.Torus)
+	cam.SetViewport(600, 512)
+	cam.MoveTo(3800, 0)
+	r.anchor.at[0] = geom.NewVec(4000, 256)
+	v := r.p.ViewFor(cam)
+	r.run()
+	seen := map[float64]bool{}
+	for r.all.All(); r.all.Next(); {
+		cur := r.all.Cursor()
+		for i, id := range cur.IDs {
+			seen[r.base.Slice(cur)[i].Pos.TopLeft.X] = v.Contains(id)
+		}
+	}
+	// the picture runs from 3800 past the seam to 304
+	if !seen[100] || !seen[3900] || seen[2000] {
+		t.Errorf("seen %v, want the one at 3900 and the one across the seam at 100", seen)
 	}
 }

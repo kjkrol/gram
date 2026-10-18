@@ -1,6 +1,6 @@
 ---
 name: gram-plugins
-description: Reference of gram's built-in plugins, one entry each with its current API and rules — world, motion, board (cells, units, entities on the board, bridges, maps as files, gramap), topography, atmosphere, collision, navigation, entity, steering, view, clock, selection, dialog, players and owner, cameras, driving, gravity, vision, bridges, bullet. Use when working in or with a specific plugin, to learn what it keeps, hosts, handles and depends on before reading its code.
+description: Reference of gram's built-in plugins, one entry each with its current API and rules — world, motion, board (cells, units, entities on the board, bridges, maps as files, gramap), topography, atmosphere, collision, navigation, entity, steering, view, clock, selection, dialog, players and owner, cameras, driving, gravity, vision, bridges, minimap, bullet. Use when working in or with a specific plugin, to learn what it keeps, hosts, handles and depends on before reading its code.
 ---
 
 # gram-plugins
@@ -799,7 +799,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   made. Its commands name their camera,
   so it knows no players: `Pan` (lets go of a fastening), `Zoom`, `Follow{Camera, Entity, On}`
   (fastens `Centred`), `CenterOn{Camera, Entity}` (once, fastened to nothing; players'
-  `through.LookAt`), and in relief `View` (Tab, only with `Perspective`), `Turn`, `Tilt`
+  `through.LookAt`), `CenterAt{Camera, X, Y}` (once onto the ground there, the cameras' ground
+  height, fastened to nothing; a minimap's click), and in relief `View` (Tab, only with
+  `Perspective`), `Turn`, `Tilt`
   (`TurnStep` π/72, eighteen to an eighth; `TiltStep` 1°, positive steeper), `Ride`
   (V: `Centred` → `Behind` → `Inside` → `Centred`), `Look` (the mouse inside), `LookFrom`,
   `LookAt{Camera, X, Y, Z}`. **The fastening is the camera's** (`camera.Fastening{Entity, How}`,
@@ -934,6 +936,28 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   with a world has it, hidden; `.Shows(MainScene, telemetry.SceneName)` shows it from the start.
   Its command `Panel` is carried by players (`GameBindings`, ~, "General"), which
   toggles it through the Composition in `Handle`. Depends on `world`, `ui`.
+- **`minimap`** — small pictures round the players' cameras: `minimap.NewPlugin(w, ground,
+  Config{Reach, Turning})` after the cameras (a `Reach` past the world's last band panics), in
+  the players' handlers, `RunPlan` after the cameras'. `For(cam, issuer) *ui.Element` is a
+  camera's minimap for the scene to place and dress (`ui.TopRight(...).Size(220, 220)`,
+  `.Masked(ui.Circle)`, `.Fill`, `.Border`). **Its picture is its own, not the Stage's**: a
+  `lens` (an inner `camera.Camera` straight down, over `cam`'s `Focus`, turned so `camera.Headed`
+  `Ahead` runs up when turning, `min(w, h) / (2·Reach)` pixels a unit, the shorter way round a
+  torus; neither in the cameras' list — no anchor, not saved — nor in `ctx.Draws`) and a
+  composer of three sources: the ground (`Ground.Miniature() (img, perUnit)`, drawn opaque with
+  `GeoM` scale, turn, copies round a torus; none, the element's `Fill` shows), the marks (the
+  space's ids in the picture's rectangle, each kind's `Mark{Color, Size}` declared
+  `Styled(minimap.Mark{...})` in its figure's `Look`, looked up once a sprite; a square dot
+  `OnTop(1)`; a kind without one not drawn) and the outline of `cam`'s screen on the ground
+  (`camera.Picker`, past the horizon cut at twice the reach; `OnTop(2)`). Drawn anew at most 30
+  times a second (`paced`), the last picture in between. A press on it is its own
+  (`ui.Clicked`): `cameras.CenterAt` with the world point under it as the issuer's; the player's
+  picture under it is covered (`ui.Hovered`), so the cursor there neither scrolls nor turns.
+  `Switch` (Shift+M) shows or hides them (`Show`, `Shown`), `Turn` (Ctrl+M) turns them with the
+  camera or keeps north up (`SetTurning`); `SetReach`. Grounds: `board.Plugin.Miniature` (the
+  flat look baked from a `render.Still`, a pixel a unit up to 2048, anew as the board changes),
+  `topography.Plugin.Miniature` (the painter's albedo, `px / cell`; the hexes' `top`). Depends on
+  `world`, `cameras` (the command), `ui`, `render`.
 - **`bullet`** — shots as entities: `Plugin.Shots()` — `Shots.Define(name, Body{Size, Speed,
   Range, Gravity, Lands}, extra...)`, `Named` the `Ammo`, a kind whose entities carry a sensor
   `Collider`, a `collision.Sweep` ignoring the shooter, the `Body` (a knob), the `Flight` (`At`,

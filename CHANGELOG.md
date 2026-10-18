@@ -17,6 +17,23 @@ in a flat world: a board stands only in a world with heights now. Nor those made
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
 entities. Nor those made before motion left the world: `world.Outside` is `motion.Outside`.
 
+**The minimap** (2026-10-18)
+- `plugins/minimap`: a small picture round a player's camera (`minimap.Plugin.For(cam, player)`,
+  placed and dressed by the scene): the ground in miniature (`minimap.Ground`:
+  `board.Plugin.Miniature`, `topography.Plugin.Miniature`), a dot for each kind whose figure
+  marks it (`Styled(minimap.Mark{Color, Size})`), the camera's view outlined. It reaches as far
+  as `Config.Reach`, never past the world's last band, turns with the camera
+  (`Config.Turning`, Ctrl+M) or keeps north up, shows and hides with Shift+M, and is drawn anew
+  at most 30 times a second, a picture of its own neither anchoring the bands nor saved.
+- A click on it takes the camera there: `ui.Clicked`, an Input taking its picture's press
+  itself; `cameras.CenterAt{Camera, X, Y}`. The cursor over an element covering a player's
+  picture scrolls and turns nothing there (`ui.Hovered`). `ui.Element.Show`, `Hide`.
+- `camera.Headed`: the way along the ground that runs up a camera's screen. `render.GeoM.Rotate`.
+  `render.StrokePolygon` is one draw, not one a side.
+- Madeira (turning), Madeira on the simple map and motion/expanse have a minimap.
+- Fixed: on a torus a camera's View in a world cut into sectors lost the entities across the
+  seam from its window.
+
 **The sectors shown, the bands switched off, a world of a hundred thousand** (2026-10-18)
 - Shift+G shows a world's sectors over the ground, by their bands, by how the camera sees them,
   or not at all (`world.SwitchSectors`, `world.Plugin.ShowSectors`): in relief over the ground's

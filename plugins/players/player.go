@@ -50,6 +50,8 @@ func (p *Player) fires(b control.Binding, how camera.How) bool {
 type picture struct {
 	area   geom.AABB
 	camera camera.Camera
+	// an element over it under the cursor: what the cursor's place does goes to neither
+	covered bool
 }
 
 // Area is the player's part of the screen, in pixels, as its picture was last laid out.

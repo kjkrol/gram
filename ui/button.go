@@ -37,6 +37,21 @@ type Input interface {
 	Over(area geom.AABB, shown render.Surface)
 }
 
+// Clicked is an Input that takes a press on its picture itself: Click hears where, in the
+// picture's pixels from its top-left corner, and neither the press nor the wheel over the picture
+// goes further.
+type Clicked interface {
+	Input
+	Click(at geom.Vec)
+}
+
+// Hovered is an Input told before each pass of input whether the cursor lies on its picture, no
+// element over it there.
+type Hovered interface {
+	Input
+	Hover(on bool)
+}
+
 // Input hands the input over the picture to in: a click on it reaches in, nothing of ui keeps it.
 func (e *Element) Input(in Input) *Element {
 	if p, ok := e.content.(*picture); ok {

@@ -79,6 +79,7 @@ type Plugin struct {
 	zooms       command.Queue[Zoom]
 	follows     command.Queue[Follow]
 	centerOns   command.Queue[CenterOn]
+	centerAts   command.Queue[CenterAt]
 	zones       command.Queue[Zones]
 	sights      command.Queue[Sight]
 	orders      orders

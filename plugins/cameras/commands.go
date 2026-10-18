@@ -40,6 +40,13 @@ type CenterOn struct {
 	Entity uid.UID64
 }
 
+// CenterAt moves Camera, once, to have the ground at the world point (X, Y) in the middle of the
+// screen, fastening it to nothing: a click on a minimap.
+type CenterAt struct {
+	Camera camera.Camera
+	X, Y   float64
+}
+
 // View has Camera switch between the orthographic view and the perspective, keeping the foot of
 // its stick, its turn, pitch and scale, or leave the entity it rides in; a camera whose Config has
 // no Perspective stays as it is.
@@ -99,6 +106,7 @@ func (Pan) Command()      {}
 func (Zoom) Command()     {}
 func (Follow) Command()   {}
 func (CenterOn) Command() {}
+func (CenterAt) Command() {}
 func (View) Command()     {}
 func (LookFrom) Command() {}
 func (LookAt) Command()   {}
@@ -113,6 +121,7 @@ var (
 	_ command.Command = Zoom{}
 	_ command.Command = Follow{}
 	_ command.Command = CenterOn{}
+	_ command.Command = CenterAt{}
 	_ command.Command = View{}
 	_ command.Command = LookFrom{}
 	_ command.Command = LookAt{}
@@ -137,8 +146,8 @@ const SightStep = 1.25
 
 // Queues are where the cameras' commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
-	return append([]command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.centerOns, &p.zones,
-		&p.sights}, p.orders.queues()...)
+	return append([]command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.centerOns,
+		&p.centerAts, &p.zones, &p.sights}, p.orders.queues()...)
 }
 
 // DefaultBindings are DefaultKeys, their corners turning where the Config turns, Shift+H showing

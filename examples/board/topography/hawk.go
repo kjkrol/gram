@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/minimap"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -43,5 +44,6 @@ func (hawk) Define(b *board.Plugin) {
 }
 
 func (hawk) Look(a *world.Atlas, w *world.Plugin) {
-	a.Add(kind.Named[unitRow](w.Kinds(), HawkKind), hawkPx, render.Diamond(hawkColor))
+	a.Add(kind.Named[unitRow](w.Kinds(), HawkKind), hawkPx, render.Diamond(hawkColor)).
+		Styled(minimap.Mark{Color: hawkColor, Size: 5})
 }

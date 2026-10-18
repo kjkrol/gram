@@ -31,6 +31,7 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/gravity"
+	"github.com/kjkrol/gram/plugins/minimap"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -79,6 +80,7 @@ type arena struct {
 	players    *players.Plugin
 	telemetry  *telemetry.Plugin
 	cameras    *cameras.Plugin
+	minimap    *minimap.Plugin
 	player     *players.Player
 	rival      *players.Player
 	vision     *vision.Plugin
@@ -89,7 +91,9 @@ func main() {
 	props := game.Props{
 		Title: "gram board topography",
 		Description: "Madeira in relief. Select a unit, C follows it, V rides it: inside, the " +
-			"mouse looks round, W and S walk, A and D strafe, Shift sprints, Space jumps.",
+			"mouse looks round, W and S walk, A and D strafe, Shift sprints, Space jumps. The " +
+			"minimap turns with the camera (Ctrl+M keeps north up, Shift+M hides it); a click on " +
+			"it takes the camera there.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -191,11 +195,15 @@ func (a *arena) makePlugins(w *world.Plugin) {
 			Coarse: 0.25,
 		},
 	})
+	a.minimap = minimap.NewPlugin(a.world, a.topography, minimap.Config{
+		Reach:   scale.Units(12_000),
+		Turning: true,
+	})
 	a.telemetry = telemetry.NewPlugin(a.world).
 		With(a.atmosphere.Reporter(), a.world.Sectors(), a.world.Seen())
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection,
 		a.nav, a.driving,
-		a.atmosphere, a.topography, a.vision, a.bridges)
+		a.atmosphere, a.topography, a.vision, a.bridges, a.minimap)
 }
 
 func (a *arena) definePlayers() error {
@@ -327,6 +335,7 @@ func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.selection.RunPlan(ctx, d)
 	a.topography.RunPlan(ctx, d)
 	a.cameras.RunPlan(ctx, d)
+	a.minimap.RunPlan(ctx, d)
 	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

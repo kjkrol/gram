@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"math"
 
 	"github.com/kjkrol/gram/render/gpu"
 )
@@ -124,6 +125,16 @@ func (g *GeoM) Scale(x, y float64) {
 	g.c *= x
 	g.tx *= x
 	g.ty *= y
+}
+
+// Rotate turns by theta radians after g, x towards y.
+func (g *GeoM) Rotate(theta float64) {
+	s, c := math.Sincos(theta)
+	a, d := g.a1+1, g.d1+1
+	na, nc := c*a-s*g.b, c*g.c-s*d
+	nb, nd := s*a+c*g.b, s*g.c+c*d
+	g.a1, g.c, g.b, g.d1 = na-1, nc, nb, nd-1
+	g.tx, g.ty = c*g.tx-s*g.ty, s*g.tx+c*g.ty
 }
 
 // Apply is where g takes (x, y).

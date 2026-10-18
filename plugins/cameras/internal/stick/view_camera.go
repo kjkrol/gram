@@ -50,6 +50,7 @@ var _ contract.Rayer = (*viewCamera)(nil)
 var _ contract.Rays = (*viewCamera)(nil)
 var _ contract.Focused = (*viewCamera)(nil)
 var _ contract.Detailed = (*viewCamera)(nil)
+var _ contract.Headed = (*viewCamera)(nil)
 
 // Detail is how far the camera sees and how finely.
 func (c *viewCamera) Detail() contract.Detail { return c.detail }
@@ -238,6 +239,11 @@ func (c *viewCamera) Heading() float32 {
 		return c.persp.Heading()
 	}
 	return c.ortho.Heading()
+}
+
+func (c *viewCamera) Ahead() (x, y float32) {
+	f := facing(c.Heading())
+	return float32(f.X), float32(f.Y)
 }
 
 func (c *viewCamera) Pitch() float32 {

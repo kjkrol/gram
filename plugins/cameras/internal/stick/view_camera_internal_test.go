@@ -199,6 +199,26 @@ func TestViewCamera_FocusIsTheFootOfTheStickOrTheEyeInAUnit(t *testing.T) {
 	}
 }
 
+func TestViewCamera_AheadRunsUpTheScreenInEitherViewAndAfterATurn(t *testing.T) {
+	c := testViews(true)
+	c.CenterOn(330, 310, 0)
+	for _, turn := range []float32{0, 0.7} {
+		c.Turn(turn)
+		for _, persp := range []bool{false, true} {
+			x, y, _ := c.Focus()
+			ax, ay := c.Ahead()
+			sx0, sy0 := c.Project(x, y, 0)
+			sx1, sy1 := c.Project(x+20*ax, y+20*ay, 0)
+			if !near(sx0, sx1) || sy1 >= sy0 {
+				t.Errorf("turned %v, perspective %v: ahead (%v, %v) of the focus lies at (%v, %v) "+
+					"on the screen from (%v, %v), want straight up", turn, persp, ax, ay, sx1, sy1,
+					sx0, sy0)
+			}
+			c.next()
+		}
+	}
+}
+
 func TestViewCamera_RaysRunThroughWhatTheScreenPointsSee(t *testing.T) {
 	c := testViews(true)
 	for _, view := range []string{"isometric", "perspective", "from above"} {

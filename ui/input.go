@@ -43,15 +43,20 @@ func (s *Scene) HandleEvents(events *control.InputEvents, runtime game.Runtime, 
 	}
 	s.press(events)
 	if s.input != nil {
-		s.wire()
+		s.wire(events.MousePos)
 		s.input(&s.passed, runtime, composition)
 	}
 }
 
-func (s *Scene) wire() {
+func (s *Scene) wire(cursor geom.Vec) {
 	if s.root == nil {
 		return
 	}
+	within := s.root
+	if modal := s.modal(); modal != nil {
+		within = modal
+	}
+	under := topmost(within, cursor, nil).hit
 	var visit func(e *Element)
 	visit = func(e *Element) {
 		if e.hidden {
@@ -59,6 +64,9 @@ func (s *Scene) wire() {
 		}
 		if p, ok := e.content.(*picture); ok && p.input != nil {
 			p.input.Over(shrink(e.box, e.padding), p.src)
+			if h, ok := p.input.(Hovered); ok {
+				h.Hover(under == e)
+			}
 		}
 		for _, c := range e.children {
 			visit(c)
@@ -92,7 +100,19 @@ func (s *Scene) click(modal *Element, c control.ClickEvent) bool {
 		return modal == nil
 	default:
 		p, ok := t.hit.content.(*picture)
-		return ok && p.input != nil
+		if !ok || p.input == nil {
+			return false
+		}
+		clicked, ok := p.input.(Clicked)
+		if !ok {
+			return true
+		}
+		// its own press alone: a drag begun elsewhere still ends where it is let go
+		if c.Action == control.ActionPress {
+			clicked.Click(c.Pos.Sub(shrink(t.hit.box, t.hit.padding).TopLeft))
+			return false
+		}
+		return true
 	}
 }
 
@@ -108,7 +128,11 @@ func (s *Scene) through(modal *Element, p geom.Vec) bool {
 		return true
 	}
 	pic, ok := t.hit.content.(*picture)
-	return ok && pic.input != nil
+	if !ok || pic.input == nil {
+		return false
+	}
+	_, clicked := pic.input.(Clicked)
+	return !clicked
 }
 
 func (s *Scene) press(events *control.InputEvents) {

@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/minimap"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/telemetry"
@@ -62,6 +63,7 @@ type arena struct {
 	players        *players.Plugin
 	telemetry      *telemetry.Plugin
 	cameras        *cameras.Plugin
+	minimap        *minimap.Plugin
 	player         *players.Player
 	collisionStats collision.ContactStats
 }
@@ -74,7 +76,9 @@ func main() {
 			"moves and collides, farther the boxes move four times as seldom and pass through " +
 			"each other, beyond the bands nothing stirs. Shift+G shows the sectors by their " +
 			"bands, by what the camera sees, or not at all; Ctrl+G switches the bands off, the " +
-			"whole world alive, and on again. WSAD scroll, = and - zoom, ~ the telemetry.",
+			"whole world alive, and on again. The minimap shows 9 km round the camera (Shift+M " +
+			"hides it); a click on it takes the camera there. WSAD scroll, = and - zoom, ~ the " +
+			"telemetry.",
 		ScreenWidth:  ScreenWidth,
 		ScreenHeight: ScreenHeight,
 		Resizable:    true,
@@ -124,8 +128,9 @@ func (a *arena) makePlugins(w *world.Plugin) {
 			Coarse: 0.5,
 		},
 	})
+	a.minimap = minimap.NewPlugin(a.world, nil, minimap.Config{Reach: scale.Units(9_000)})
 	a.telemetry = telemetry.NewPlugin(a.world)
-	a.players = players.NewPlugin(a.world, a.collision, a.cameras)
+	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.minimap)
 }
 
 func (a *arena) definePlayer() error {
@@ -162,7 +167,8 @@ func (b box) Define(w *world.Plugin) {
 
 func (b box) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[body](w.Kinds(), bodyKind(b.color)), BoxSize, render.Solid(palette[b.color])).
-		Under(w.Effects().Named(HitEf), render.Solid(hitColor))
+		Under(w.Effects().Named(HitEf), render.Solid(hitColor)).
+		Styled(minimap.Mark{Color: palette[b.color], Size: 2})
 }
 
 func (a *arena) defineFigures() {
@@ -197,6 +203,7 @@ func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.motion.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
 	a.cameras.RunPlan(ctx, d)
+	a.minimap.RunPlan(ctx, d)
 	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

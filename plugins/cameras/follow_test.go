@@ -266,36 +266,48 @@ func TestNew_ACameraStartsFastenedToTheEntityItsConfigNames(t *testing.T) {
 	}
 }
 
-func TestSight_HasACameraSeeFartherAndNearer(t *testing.T) {
-	w := world.NewPlugin(world.Config{
+// a world 1000 a side with no entities and the cameras over it, cfg theirs: start installs them
+// once the cameras are made, tick runs a tick
+func emptyWorld(t *testing.T, cfg cameras.Config) (w *world.Plugin, p *cameras.Plugin,
+	start func(), tick func()) {
+	t.Helper()
+	w = world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 10, MaxSize: 10},
 	})
-	p := cameras.NewPlugin(w, cameras.Config{Detail: camera.Detail{Sight: 1000, Fog: 100}})
+	p = cameras.NewPlugin(w, cfg)
 	if err := w.Carry(p); err != nil {
 		t.Fatal(err)
 	}
-	seeing := p.New(cameras.FromAbove, camera.Config{})
 	ctx := &installCtx{ecs: goke.New()}
-	for _, pl := range []plugin.Plugin{w, p} {
-		if err := pl.Install(ctx); err != nil {
-			t.Fatal(err)
+	start = func() {
+		for _, pl := range []plugin.Plugin{w, p} {
+			if err := pl.Install(ctx); err != nil {
+				t.Fatal(err)
+			}
 		}
+		var systems []goke.System
+		for _, produce := range ctx.pending {
+			systems = append(systems, produce()...)
+		}
+		ctx.ecs.Setup(systems...)
+		ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+			w.RunPlan(rc, d)
+			w.Clock().Replay(rc, d)
+			rc.Sync()
+			p.RunPlan(rc, d)
+		})
 	}
-	var systems []goke.System
-	for _, produce := range ctx.pending {
-		systems = append(systems, produce()...)
-	}
-	ctx.ecs.Setup(systems...)
-	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
-		w.RunPlan(rc, d)
-		w.Clock().Replay(rc, d)
-		rc.Sync()
-		p.RunPlan(rc, d)
-	})
+	return w, p, start, func() { ctx.ecs.Tick(time.Second / 10) }
+}
+
+func TestSight_HasACameraSeeFartherAndNearer(t *testing.T) {
+	w, p, start, tick := emptyWorld(t, cameras.Config{Detail: camera.Detail{Sight: 1000, Fog: 100}})
+	seeing := p.New(cameras.FromAbove, camera.Config{})
+	start()
 	sight := func(factor float64) float64 {
 		w.Carrier().Put(command.Nobody, cameras.Sight{Camera: seeing, Factor: factor})
-		ctx.ecs.Tick(time.Second / 10)
+		tick()
 		return camera.DetailOf(seeing).Sight
 	}
 	if got := sight(cameras.SightStep); got != 1250 {
@@ -306,5 +318,21 @@ func TestSight_HasACameraSeeFartherAndNearer(t *testing.T) {
 	}
 	if d := camera.DetailOf(seeing); d.Fog != 100 {
 		t.Errorf("the fog is %v, want the Config's 100 kept", d.Fog)
+	}
+}
+
+func TestCenterAt_PutsTheCameraOverThePointUnfastened(t *testing.T) {
+	w, p, start, tick := emptyWorld(t, cameras.Config{})
+	cam := p.New(cameras.FromAbove, camera.Config{})
+	start()
+	cam.SetViewport(200, 200)
+	cam.(camera.Fastenable).Fasten(camera.Fastening{Entity: 7, How: camera.Loose})
+	w.Carrier().Put(command.Nobody, cameras.CenterAt{Camera: cam, X: 700, Y: 300})
+	tick()
+	if x, y, _ := cam.(camera.Focused).Focus(); x != 700 || y != 300 {
+		t.Errorf("the camera's middle is at (%v, %v), want (700, 300)", x, y)
+	}
+	if f := cam.(camera.Fastenable).Fastening(); f.How != 0 {
+		t.Errorf("the camera is fastened %+v, want to nothing", f)
 	}
 }

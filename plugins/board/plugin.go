@@ -73,6 +73,7 @@ type Plugin struct {
 	tiles       []Tile
 	surfaces    []Surface
 	where       map[cell.ID]string // the file and line a level laid the entity on a cell by
+	mini        miniature
 }
 
 // Bridges is what a bridge keeps to besides running straight and level from a head to a head:

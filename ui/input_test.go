@@ -147,3 +147,63 @@ func TestInput_TheScenesKeysGiveTheirCommands(t *testing.T) {
 		t.Fatal("P left the panel hidden")
 	}
 }
+
+// a picture the player only clicks: what it heard, and whether the cursor was on it
+type minimap struct {
+	player
+	pressed []geom.Vec
+	on      bool
+}
+
+func (m *minimap) Click(at geom.Vec) { m.pressed = append(m.pressed, at) }
+func (m *minimap) Hover(on bool)     { m.on = on }
+
+type hovering struct {
+	player
+	on bool
+}
+
+func (h *hovering) Hover(on bool) { h.on = on }
+
+func TestInput_AClickedPictureTakesItsPressAndWheelAndLetsAReleaseGoOn(t *testing.T) {
+	red, mini := &hovering{}, &minimap{}
+	s := built(NewScene("main", Layers(Image(&sized{}).Input(red),
+		TopRight(Image(&sized{}).Input(mini)).Size(200, 200))).Input(red.handle))
+	over := geom.NewVec(1100, 100)
+	ev := click(over)
+	ev.ScrollDelta = 1
+	s.HandleEvents(ev, nil, nil)
+	// the minimap from 1000 across: the press 100 into it
+	if len(mini.pressed) != 1 || mini.pressed[0] != geom.NewVec(100, 100) || !mini.on || red.on {
+		t.Errorf("the minimap heard %v, on it %v, the world under it %v; want the press at "+
+			"(100, 100) on it, the world covered", mini.pressed, mini.on, red.on)
+	}
+	if len(red.clicks) != 0 || red.wheel != 0 {
+		t.Errorf("the world got clicks %v and wheel %v through the minimap, want none", red.clicks,
+			red.wheel)
+	}
+	s.HandleEvents(&control.InputEvents{MousePos: over, ClickQueue: []control.ClickEvent{
+		{Button: control.MouseButtonLeft, Action: control.ActionRelease, Pos: over}}}, nil, nil)
+	if len(red.clicks) != 1 || len(mini.pressed) != 1 {
+		t.Errorf("a release over the minimap reached the world %d times and the minimap %d, want "+
+			"the world once", len(red.clicks), len(mini.pressed)-1)
+	}
+	s.HandleEvents(click(geom.NewVec(600, 400)), nil, nil)
+	if !red.on || mini.on {
+		t.Errorf("the cursor on the world: the world hovered %v, the minimap %v", red.on, mini.on)
+	}
+}
+
+func TestElement_HideAndShowHaveItHitOrNot(t *testing.T) {
+	e := Panel(Label("hud")).Size(200, 100)
+	built(NewScene("main", TopLeft(e)))
+	at := geom.NewVec(50, 50)
+	e.Hide()
+	if e.Hits(at) {
+		t.Error("hidden, the element is hit")
+	}
+	e.Show()
+	if !e.Hits(at) {
+		t.Error("shown again, the element is not hit")
+	}
+}

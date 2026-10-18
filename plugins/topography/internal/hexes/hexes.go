@@ -183,6 +183,15 @@ func (h *Ground) each(seen *view.View, draw func(cells []float32, vertices int))
 	flush()
 }
 
+// Miniature is the board's tops as last drawn from above, px pixels a world unit; nil before the
+// board's atlas is closed.
+func (h *Ground) Miniature() (*render.Image, float32) {
+	if !h.refresh() {
+		return nil, 0
+	}
+	return h.top, h.px
+}
+
 // false while the board has no atlas to draw from
 func (h *Ground) refresh() bool {
 	atlas := h.board.Atlas()

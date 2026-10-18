@@ -26,8 +26,10 @@
 // is the wire: the active scene tells the player before each pass of input where its picture lies
 // ([Player.Area]) and what it shows, so the mouse over it is the player's and every command it
 // gives carries that picture's camera (control.Context.Camera). A scene gives a player one view:
-// two of its pictures in one pass panic. [Plugin.IssueAs] is how the scene's buttons and keys give
-// their commands as the player. Players draw nothing.
+// two of its pictures in one pass panic. Where an element lies over the picture under the cursor
+// (a minimap), the cursor's place does nothing there: no scrolling at an edge, no turning in a
+// corner. [Plugin.IssueAs] is how the scene's buttons and keys give their commands as the player.
+// Players draw nothing.
 //
 // # Players and bindings
 //

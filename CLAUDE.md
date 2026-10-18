@@ -132,7 +132,8 @@ Decisions the user has made; they are not up for revisiting in passing.
   Space jumps in first person, = and - zoom, Shift+= and Shift+- shape the relief, Ctrl+= and
   Ctrl+- the camera's sight (farther, nearer), Ctrl+F the ground's haze, through any camera (off
   as a game starts); in a world cut into sectors Shift+G the sectors (by band, by what the camera
-  sees, none) and Ctrl+G the bands (off, on).
+  sees, none) and Ctrl+G the bands (off, on); with a minimap Shift+M shows or hides it and Ctrl+M
+  turns it with the camera or keeps north up.
   A key held, down or let go leaves the chords with Shift, Ctrl or Alt to these shortcuts unless
   its binding is `InChords()` (a sprint, a jump while sprinting). A plugin's keys a game sets up
   (`driving.Compass`, `selection.FollowKey`, the cameras' zoom keys) are bound in the
@@ -152,8 +153,10 @@ Decisions the user has made; they are not up for revisiting in passing.
   line, the width of the cells held — is a surface's `Look` (`surface.go`, `board.Surface`), as
   the sky is a `Sky`'s. A scene names nothing that draws and declares no atlas: every plugin
   draws what it gave `ctx.Draws` in `Install`, a feed shows the Stage's one picture
-  (`render.NewFeed(cam, a.world.Picture())`), and the Stage has the figures', tiles' and
-  surfaces' looks declared and the atlases closed before its scenes (`ctx.Looks`).
+  (`render.NewFeed(cam, a.world.Picture())`) — a minimap alone shows a picture of its own
+  (`minimap.Plugin.For(cam, player)`, placed and dressed by the scene) — and the Stage has the
+  figures', tiles' and surfaces' looks declared and the atlases closed before its scenes
+  (`ctx.Looks`).
 - **A kind of entity is a figure, a kind of cell a tile**, each in a file of its own
   (`hero.go`, `lever.go`, `tiles.go`) with everything that is its alone: its effects
   (`Effects`), its roles and rules (`Rules`), what it is (`Define`), how it looks (`Look`),
@@ -216,7 +219,8 @@ right after the world; whatever steers or pushes takes it), `board` (grid and te
 entities, what stands on the board, bridges, maps as files; `cmd/gramap` makes maps of the
 Earth), `topography` (a map in relief, the cameras' cage), `atmosphere` (the time of day, the
 climate, the weather), `collision`, `navigation`, `selection`, `dialog`, `players` (with
-`players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `bullet`, `telemetry`
+`players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `bullet`, `minimap`
+(small pictures round the players' cameras), `telemetry`
 (the panel in the corner, a scene of its own in every Stage with a world). Each package has a
 `doc.go` describing what it brings, ending with its `# Vocabulary`.
 

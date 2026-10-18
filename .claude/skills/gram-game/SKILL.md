@@ -77,7 +77,10 @@ there is no atmosphere, the painter's styles,
 `ShowHolds`, `ShowRoutes`, `ShowZones`), then the ui tree, the world shown as
 `feed := render.NewFeed(cam, a.world.Picture())` (2026-10-15: no `picture()`, no composer named
 in a demo; every plugin made draws what it gave `ctx.Draws`, the atlases closed by the Stage
-before the scenes) — and `defineScenes` only makes it. See
+before the scenes) — and `defineScenes` only makes it. A minimap is the one picture of its own:
+`ui.TopRight(a.minimap.For(cam, a.player.ID).Masked(ui.Circle).Border(rim, 2)).Size(220, 220)`
+over the feed of the same `cam` (made once in `screen()`), `.Fill` where there is no ground
+(motion/expanse); a press on it moves `cam`. See
 `examples/start/scenes` for a menu Stage with no world, a ui scene of the engine's commands and a
 togglable modal panel over the still-ticking world.
 

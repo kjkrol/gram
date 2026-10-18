@@ -25,15 +25,23 @@ var (
 	}
 	hitColor        = color.RGBA{R: 220, G: 40, B: 40, A: 255}
 	backgroundColor = color.RGBA{R: 40, G: 42, B: 46, A: 255}
+	minimapGround   = color.RGBA{R: 24, G: 26, B: 30, A: 235}
+	minimapRim      = color.RGBA{R: 90, G: 92, B: 98, A: 255}
 )
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 	a.world.WithFog(backgroundColor)
 	a.world.ShowSectors(world.SectorBands)
-	feed := render.NewFeed(a.cameras.New(cameras.FromAbove, camera.Config{}), a.world.Picture())
+	cam := a.cameras.New(cameras.FromAbove, camera.Config{})
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
-		ui.Image(feed).Input(a.players.Through(a.player)),
+		ui.Image(render.NewFeed(cam, a.world.Picture())).Input(a.players.Through(a.player)),
+		ui.TopRight(a.minimap.For(cam, a.player.ID).
+			Masked(ui.Circle).
+			Fill(minimapGround).
+			Border(minimapRim, 2)).
+			Size(220, 220).
+			Margin(16),
 	)
 }

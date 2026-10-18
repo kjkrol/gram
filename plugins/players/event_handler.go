@@ -19,7 +19,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 	// the pass the cursor is caught or let go it jumps: no move is taken from it
 	settled := t.p.capture()
 	for _, pl := range t.p.Locals() {
-		under := covers(pl, ev.MousePos)
+		under := covers(pl, ev.MousePos) && !pl.pic.covered
 		if under {
 			pl.in.cursor = localPoint(pl, ev.MousePos)
 		}

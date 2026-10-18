@@ -45,7 +45,8 @@
 //
 // [Pan] moves a camera by screen pixels and lets go of whatever it was fastened to; [Zoom] scales
 // it about a world point; [Follow] fastens it Centred over an entity, kept in the middle of the
-// screen as it goes, or lets it go; [CenterOn] moves it once onto an entity, fastened to nothing.
+// screen as it goes, or lets it go; [CenterOn] moves it once onto an entity, [CenterAt] onto the
+// ground at a world point (a click on a minimap), fastened to nothing.
 // In relief [View] switches the projection, [Turn] and [Tilt] move the stick, [Ride] takes it
 // behind and inside the entity it is fastened to, [LookFrom] and [LookAt] place the eye in
 // perspective and [Look] looks round riding, the cursor captured. Each names its camera, taken
@@ -65,7 +66,8 @@
 //
 // # Vocabulary
 //
-// Commands, a player's through its camera: [Pan], [Zoom], [CenterOn], [View], [Turn], [Tilt],
+// Commands, a player's through its camera: [Pan], [Zoom], [CenterOn], [CenterAt], [View], [Turn],
+// [Tilt],
 // [LookFrom], [LookAt], [Ride], [Look], [Sight]; [Zones] (a look: the scroll zones over every
 // picture, Shift+H); [Follow] (a player's, or an entity's own fastening the camera over itself).
 package cameras

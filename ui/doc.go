@@ -36,9 +36,11 @@
 //
 // A click goes to the topmost element it hits. A [Button] gives its commands: the scene's own
 // ([Show], [Hide], [Toggle]) or any other through [Scene.Issue], else as nobody through the
-// Runtime. A picture with an [Input] ([Element.Input]) lets the click through to [Scene.Input]; any
-// other element keeps it; a shown modal element holds every click and the wheel outside it.
-// [Scene.Keys] are the scene's own keys.
+// Runtime. A picture with an [Input] ([Element.Input]) lets the click through to [Scene.Input],
+// unless its Input is [Clicked] and takes the press itself (a minimap); any other element keeps
+// it; a shown modal element holds every click and the wheel outside it. A [Hovered] Input hears
+// whether the cursor lies on its picture uncovered. [Scene.Keys] are the scene's own keys;
+// [Element.Show] and [Element.Hide] show and hide an element from code.
 //
 // # Pinned to entities
 //

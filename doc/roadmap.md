@@ -17,13 +17,9 @@ What is left to do. Take an item out when it lands.
   the first asker; passing the answer back is the game's branch (ceremony's `plan/message_test.go`,
   the giver). A loop (A asks B, B asks A) ends by `MaxChain` and by a branch of a fact firing once
   per coming; whether `Hops` should count across types is open.
-- **A minimap plugin** — a `ui` element: a feed from a camera keeping the whole world in view
-  (`camera.Config.Whole`), the game's picture under dots of its own by kind, picked by drawing
-  rules (what my units see: `vision.Seen`), the players' views outlined on it, a key to show and
-  hide it, a click on it panning the player's view; a round or many-sided one through `ui.Masked`.
-  The click needs a picture a player only clicks through: the point under the cursor worked out
-  through the minimap's camera, the camera commands still going to the player's view — today a
-  player acts through one picture a scene, its wire (`players.Plugin.Through`) both.
+- **The minimap, further** — marks picked by what a player's units see (`vision.Seen`), the
+  other players' views outlined; beyond the bands a picture kept of what was last seen in place
+  of the live world.
 - **ui, what is left** — `Dialog`, `Toast`, `MenuBar`/`Menu`/`ContextMenu`, `Tabs`, `Scroll`,
   `List`; `Canvas` (a tech tree), `Tooltip`, drag and drop, focus moved by keys and pads; the
   UI drawn into one `render.Frame` in place of a draw an element, once a profile asks for it.

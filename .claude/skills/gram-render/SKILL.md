@@ -49,7 +49,11 @@ effect among them — `Kinds().NewSprite()` and the board's panic past that (a b
 The world of a Stage is one `render.Composer`, `world.Plugin.Picture()`, over the
 `render.Source`s its plugins gave `ctx.Draws` (2026-10-15, stage 3: no `Renderer()`, no
 `picture()` in a demo, `Composer.Init` once however many scenes show it; `render.Layer` is
-`render.Drawer`, `Scene.Layers` `Drawers`, `ui.Layer` `ui.Drawer`). A demo that makes a plugin
+`render.Drawer`, `Scene.Layers` `Drawers`, `ui.Layer` `ui.Drawer`). The one other composer is a
+minimap's (`plugins/minimap`): its own three sources, none in `ctx.Draws`, through an inner
+camera of its own, drawn anew at most 30 times a second (a `render.Surface` returning its last
+image in between; `ui.Image` lays it out every frame, so a resize alone forces a redraw).
+`render.StrokePolygon` is one draw however many sides (a round element's border). A demo that makes a plugin
 draws all it draws: selection and routes in bullet, platformer and split-screen, holds (Shift+O)
 in every demo with a board. **What is drawn over what is Z's alone (2026-10-15), never a layer
 nor the order a plugin registers in**: `render.Tier` is gone. Each

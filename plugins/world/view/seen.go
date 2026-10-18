@@ -88,10 +88,27 @@ func (v *View) see(space *aabbworld.Space) {
 	v.from, v.sighted = geom.NewVec(float64(x), float64(y)), ok && v.detail.Sight > 0
 	v.Bounds, v.Culled = v.cam.Bounds(), true
 	v.In.Clear()
+	// on a torus the bounds may run past the world's edge: their copies a world away meet the
+	// sectors across the seam
+	cfg := space.Config
+	wx, wy := float64(cfg.Width), float64(cfg.Height)
 	for i := range v.levels {
 		v.levels[i] = v.level(i)
-		if in, ok := overlap(v.sectors.Box(i), v.Bounds); ok && v.levels[i] != Hidden {
-			space.Query(in, aabbworld.AnyCapability, v.add)
+		if v.levels[i] == Hidden {
+			continue
+		}
+		box := v.sectors.Box(i)
+		for kx := -1; kx <= 1; kx++ {
+			for ky := -1; ky <= 1; ky++ {
+				if kx != 0 && !cfg.Edges.WrapsX() || ky != 0 && !cfg.Edges.WrapsY() {
+					continue
+				}
+				by := geom.NewVec(float64(kx)*wx, float64(ky)*wy)
+				seen := geom.NewAABB(v.Bounds.TopLeft.Add(by), v.Bounds.BottomRight.Add(by))
+				if in, ok := overlap(box, seen); ok {
+					space.Query(in, aabbworld.AnyCapability, v.add)
+				}
+			}
 		}
 	}
 }

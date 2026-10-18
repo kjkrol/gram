@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/minimap"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -33,7 +34,8 @@ func (ford) Define(b *board.Plugin) {
 }
 
 func (ford) Look(a *world.Atlas, w *world.Plugin) {
-	a.Add(kind.Named[fordRow](w.Kinds(), FordKind), CellSize, stones(0)).Facing(8, stones).Lying()
+	a.Add(kind.Named[fordRow](w.Kinds(), FordKind), CellSize, stones(0)).Facing(8, stones).Lying().
+		Styled(minimap.Mark{Color: stoneColor, Size: 3})
 }
 
 func stones(angle float64) render.SpriteDrawer {

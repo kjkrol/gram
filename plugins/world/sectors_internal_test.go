@@ -50,9 +50,15 @@ type pacedQuery struct {
 // 1200
 func sectorWorld(t *testing.T, bands ...sector.Band) *sectorRig {
 	t.Helper()
+	return sectorWorldOf(t, 0, bands...)
+}
+
+// sectorWorld with its edges
+func sectorWorldOf(t *testing.T, edges aabbworld.Edges, bands ...sector.Band) *sectorRig {
+	t.Helper()
 	r := &sectorRig{anchor: &points{at: []geom.Vec{geom.NewVec(100, 256)}}}
 	r.p = NewPlugin(Config{
-		Space:    SpaceCfg{Width: 4096, Height: 512},
+		Space:    SpaceCfg{Width: 4096, Height: 512, Edges: edges},
 		Entities: EntitiesCfg{MaxCount: 8, MinSize: 5, MaxSize: 20},
 		Sectors:  SectorsCfg{Buckets: 2, Bands: bands},
 	})

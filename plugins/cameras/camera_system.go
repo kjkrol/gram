@@ -79,6 +79,20 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 			s.centre(cam)
 		}
 	})
+	s.p.centerAts.Drain(func(i command.Issued[CenterAt]) {
+		cam := i.Command.Camera
+		if cam == nil {
+			return
+		}
+		if f, ok := cam.(camera.Fastenable); ok && f.Fastening().How != 0 {
+			f.Fasten(camera.Fastening{})
+		}
+		var z float32
+		if s.p.ground != nil {
+			z = s.p.ground(float32(i.Command.X), float32(i.Command.Y))
+		}
+		cam.CenterOn(i.Command.X, i.Command.Y, float64(z))
+	})
 	s.start()
 	s.keep()
 }
