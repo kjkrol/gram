@@ -167,3 +167,22 @@ func TestMoveTo_ByNameGoesToTheNamedCellOrUnit(t *testing.T) {
 		}
 	}
 }
+
+func TestModule_LoadsAPatrolsRound(t *testing.T) {
+	path := t.TempDir() + "/save.bin"
+	ecs := goke.New()
+	var round goke.Comp[Round]
+	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		f := si.NewFactory(&round)
+		f.Create(1)
+		f.Next()
+		round.Slice(&f.Cursor)[0] = Round{Count: 2}
+	}})
+	ecs.Pause()
+	if err := ecs.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := goke.New().Load(path, (&module{}).LoadComps()...); err != nil {
+		t.Errorf("a save of a unit on a patrol does not load: %v", err)
+	}
+}

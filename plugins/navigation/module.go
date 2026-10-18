@@ -43,5 +43,6 @@ func (m *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[LastOrder](),
 		goke.LoadComp[Blocked](),
 		goke.LoadComp[Arrived](),
+		goke.LoadComp[Round](),
 	}
 }
