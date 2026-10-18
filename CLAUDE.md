@@ -56,7 +56,7 @@ make demo-rules-vision                                          # sight, avoidan
 make demo-rules-guard                                           # guards on a plan: patrol, step aside, rest, run to the gate while the alarm (A) is on
 make demo-board-atlas                                           # a small flat board from the game's own atlas, the water a material
 make demo-board-flat                                            # Madeira on the simple map: a flat board, bands for the ways, bridges and fords
-make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, isometric or from above (Tab), the weather
+make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, the camera on a stick (Q/E, R/F, Tab), the weather
 go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS
 make demo-navigation-square                                     # units sent round a wall; walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-hex                                        # the same on a hex board, over a river by a bridge a wagon is too wide for
@@ -129,7 +129,7 @@ Decisions the user has made; they are not up for revisiting in passing.
   routes, Shift+C the cones, Shift+W the weather, Shift+V the clouds' look, Shift+S the high
   clouds' shadows (with the camera free: riding, Shift+S sprints back), P freezes the light,
   Space jumps in first person, = and - zoom, Shift+= and Shift+- shape the relief, Ctrl+F the
-  ground's haze seen from above (off as a game starts).
+  ground's haze, through any camera (off as a game starts).
   A key held, down or let go leaves the chords with Shift, Ctrl or Alt to these shortcuts unless
   its binding is `InChords()` (a sprint, a jump while sprinting). A plugin's keys a game sets up
   (`driving.Compass`, `selection.FollowKey`, the cameras' zoom keys) are bound in the

@@ -52,23 +52,18 @@ type following struct {
 	aim    geom.Vec
 	aiming bool
 
-	// behind, in perspective: how steeply the player wants to look down, and how steeply the
-	// eye does
-	wantPitch, appliedPitch float32
-	tilts                   uint32
+	// behind, in perspective: how far the arm reaches, shortened by what stands between
+	reach float32
 	// inside: the unit's own Eye.Tilt, given back on letting go
 	tilt0  float64
 	tilted bool
 }
 
-// a part of the screen's height a fastened camera holds its entity below the middle
-const shoulder = 0.25
-
 // about two thirds of any turn in this time
 const followEase = 250 * time.Millisecond
 
-// how much steeper a fastened eye looks at a time until the ground no longer hides its entity
-const clearStep = 5 * math.Pi / 180
+// cells the arm behind an entity is long at first, in perspective
+const behindArm = 2
 
 // Update carries out the commands given since and keeps the cameras over ents as d goes by.
 func (s *Keeper) Update(d time.Duration, ents Entities) {
@@ -119,18 +114,22 @@ func (s *Keeper) Update(d time.Duration, ents Entities) {
 	})
 	s.reconcile()
 	kept := s.following[:0]
-	var gone []*viewCamera
+	var gone []following
 	for _, f := range s.following {
 		if s.keep(&f, d) {
 			kept = append(kept, f)
 		} else {
-			gone = append(gone, f.cam)
+			gone = append(gone, f)
 		}
 	}
 	s.following = kept
-	for _, cam := range gone {
-		cam.leaveInside()
-		cam.Fasten(camera.Fastening{})
+	for _, f := range gone {
+		if f.inside {
+			f.cam.leaveInside()
+		} else {
+			s.release(f.cam, f.target)
+		}
+		f.cam.Fasten(camera.Fastening{})
 	}
 }
 
@@ -186,8 +185,23 @@ func (s *Keeper) fasten(cam *viewCamera, id uid.UID64, inside bool) {
 		cam.Fasten(camera.Fastening{Entity: id, How: camera.Centred})
 		return
 	}
+	if !inside {
+		cam.tactical.scale, cam.tactical.alt = cam.ortho.scale, cam.persp.alt
+	}
 	s.following = append(s.following, following{cam: cam, target: id, inside: inside})
 	s.keep(&s.following[len(s.following)-1], 0)
+}
+
+// from behind id back to the tactical camera's own scale and eye height, over id where it still is
+func (s *Keeper) release(cam *viewCamera, id uid.UID64) {
+	cam.persp.arm = 0
+	cam.ortho.scale = cam.ortho.limited(cam.tactical.scale)
+	cam.persp.alt = cam.tactical.alt
+	cam.ortho.place()
+	cam.persp.look()
+	if t, ok := s.ents.Of(id); ok {
+		cam.CenterOn(t.X, t.Y, t.Alt)
+	}
 }
 
 func (s *Keeper) letGo(cam *viewCamera) bool {
@@ -198,6 +212,8 @@ func (s *Keeper) letGo(cam *viewCamera) bool {
 			s.following = append(s.following[:i], s.following[i+1:]...)
 			if f.inside {
 				cam.leaveInside()
+			} else {
+				s.release(cam, f.target)
 			}
 			return true
 		}
@@ -273,13 +289,14 @@ func (s *Keeper) keep(f *following, d time.Duration) bool {
 				f.cam.Turn(by)
 			}
 		}
-		f.cam.CenterOn(cx, cy, t.Alt)
-		if f.cam.inPersp { // before it looks over its shoulder
-			s.clear(f, [3]float32{float32(cx), float32(cy), float32(t.Alt)}, d)
+		if f.cam.inPersp {
+			s.hold(f, [3]float32{float32(cx), float32(cy), float32(t.Alt)}, d)
+			return true
 		}
-		// over its shoulder: the lower the eye, the lower the entity on the screen
-		_, h := f.cam.Viewport()
-		f.cam.shift(0, -h*shoulder*float32(math.Cos(float64(f.cam.Pitch()))))
+		// as near as the arm: the scale the perspective has, its eye on it
+		o, p := f.cam.ortho, f.cam.persp
+		o.scale = o.limited(p.focal() / (behindArm * p.cell))
+		f.cam.CenterOn(cx, cy, t.Alt)
 		return true
 	}
 	// flown from inside: the way it is steered rises as the rider looks up
@@ -309,49 +326,37 @@ func (s *Keeper) keep(f *following, d time.Duration) bool {
 	return true
 }
 
-// looks down steeply enough to see the entity at once, eases back out as the way clears
-func (s *Keeper) clear(f *following, t [3]float32, d time.Duration) {
+// the eye on the arm behind the entity at t: shortened at once to what stands between, eased back
+// out as the way clears
+func (s *Keeper) hold(f *following, t [3]float32, d time.Duration) {
 	p := f.cam.persp
-	if f.appliedPitch == 0 || p.tilts != f.tilts {
-		f.wantPitch, f.tilts = p.pitch, p.tilts
+	if p.arm == 0 {
+		p.arm = behindArm * p.cell
 	}
-	free := f.wantPitch
-	if s.free != nil {
-		free = s.clearPitch(p, t, f.wantPitch)
+	reach := s.reach(t, p.out(), p.arm, p.cell)
+	if f.reach > 0 && reach > f.reach {
+		reach = f.reach + (reach-f.reach)*eased(d)
 	}
-	if f.appliedPitch > 0 && free < f.appliedPitch {
-		free = f.appliedPitch + (free-f.appliedPitch)*eased(d)
-	}
-	if free != p.pitch {
-		p.pitch = free
-		p.CenterOn(float64(t[0]), float64(t[1]), float64(t[2]))
-	}
-	f.appliedPitch = p.pitch
+	f.reach = reach
+	p.hold(t, reach)
 }
 
-func (s *Keeper) clearPitch(p *perspCamera, t [3]float32, want float32) float32 {
-	sn, cs := math.Sincos(float64(p.heading) + math.Pi/4)
-	for pitch := want; pitch < maxPitch; pitch += clearStep {
-		r := float64(p.alt-t[2]) / math.Tan(float64(pitch))
-		e := [3]float32{t[0] + float32(sn*r), t[1] + float32(cs*r), p.alt}
-		if s.lineClear(t, e, p.cell) {
-			return pitch
+// how far along way from t the arm reaches, up to length: a quarter of a cell short of the first
+// thing solid
+func (s *Keeper) reach(t, way [3]float32, length, cell float32) float32 {
+	if s.free == nil {
+		return length
+	}
+	step := cell / 4
+	for along := step; ; along += step {
+		at := vec.Add(t, vec.Scale(way, min(along, length)))
+		if !s.free(at[0], at[1], at[2]) {
+			return max(min(along, length)-step, step)
+		}
+		if along >= length {
+			return length
 		}
 	}
-	return maxPitch
-}
-
-func (s *Keeper) lineClear(t, e [3]float32, cell float32) bool {
-	d := vec.Sub(e, t)
-	h := float32(math.Hypot(float64(d[0]), float64(d[1])))
-	step := cell / 2
-	for along := cell; along < h; along += step {
-		at := vec.Add(t, vec.Scale(d, along/h))
-		if !s.free(at[0], at[1], at[2]-cell/4) {
-			return false
-		}
-	}
-	return true
 }
 
 func (s *Keeper) enter(cam *viewCamera, id uid.UID64) bool {

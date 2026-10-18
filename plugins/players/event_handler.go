@@ -94,8 +94,11 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 				t.fire(pl, control.ButtonHeld{Button: control.MouseButtonMiddle}, ctx)
 			}
 		}
-		if ctx.Edges().Any() {
+		if edges := ctx.Edges(); edges.Any() {
 			t.fire(pl, control.CursorAtEdge{}, ctx)
+			if edges.Corner != control.NoCorner {
+				t.fire(pl, control.CursorInCorner{}, ctx)
+			}
 		}
 	}
 }

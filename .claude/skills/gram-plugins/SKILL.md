@@ -410,12 +410,13 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   fog); the high ones show on the sky and as shadows. What greyed the tactical view was the
   ground's haze: the terrain and the hexes took any `camera.Eyed` for an eye, and a camera from
   above, whose `Eye()` says no, hazed from its field's start (`Transform.Eye` = `f.Origin`), the
-  map all fog but its corner. Now `air.Weather.Seen(cam, fromAbove)` decides for both: a camera
-  with an eye (riding, or free in perspective) hazes by its eye's distance, as ever — the far
-  ground must fade into the horizon's fog; one looking from above, with none, only with
-  `topography.Plugin.WithHazeFromAbove(true)` (Ctrl+F, `HazeFromAbove`; off by default, the
-  user's choice), by the air over the ground up to the high clouds' base along its lines of sight
-  (`HazeUp`, `HazeWay`, `hazeDepth` in `mesh.wgsl` and `hexes.wgsl`). Seen from a valley, clouds behind hills
+  map all fog but its corner. Now `air.Weather.Seen(cam, hazed)` decides for both, hazing only
+  where `topography.Plugin.WithHaze(true)` asks (Ctrl+F, `topography.Haze`; off by default
+  through every camera, the user's choice, 2026-10-18; the billboards' `Hazer` follows it): a
+  camera with an eye (riding, or free in perspective) by its eye's distance, one looking from
+  above, with none, by the air over the ground up to the high clouds' base along its lines of
+  sight (`HazeUp`, `HazeWay`, `hazeDepth` in `mesh.wgsl` and `hexes.wgsl`). The sky's own fog
+  (the backdrop's and the clouds' `Visibility`) is not switched. Seen from a valley, clouds behind hills
   lower than the band are hidden: before slopes they stand only where the slopes reach into it.
   `atmosphere.ShowClouds(look)` from the scene (the demos start `AllBodies`), `Clouds`
   (Shift+V) goes on to the next `CloudLook` (the user's choice, 2026-10-16, to compare them):
@@ -717,14 +718,18 @@ facts for plans, knobs and commands (who may give each). That section is the aut
 - **`cameras`** — every camera a game looks through, and all camera behaviour (the contract
   stays in the root `camera`, which `render` and `control` read): `cameras.NewPlugin(world,
   cameras.Config{…})` makes no camera; the Config is the game's (in `makePlugins`) and says what
-  the keys may do — `Turn` (Q/E), `Tilt` (R/F), `Perspective` (Tab reaches it, V rides Inside, the
-  mouse looks) — and how a world in relief is drawn (`Cell` required, `TileW`/`TileH` 64×32,
+  the keys may do — `Turn` (Q/E), `Tilt` (R steeper, F flatter), `Perspective` (Tab switches to
+  it and back, V rides Inside, the mouse looks) — and how a world in relief is drawn (`Cell` required, `TileW`/`TileH` 64×32,
   `HeightUnit`, `Headroom`, `MinPitch`, `FieldOfView`) and where the cameras may be (`Cage`, a
   `cameras.Cage{Free(x, y, z), Span()}` — the topography is one, a game may give its own;
   `Grained{Grain(x, y)}` optional). The zero Config is the plain camera from above
   (`internal/topdown`, wrapping on a wrapping axis, `Whole` for a minimap); any other sees in
-  relief (`internal/stick`: from above, isometric, perspective, picking where the cage is not
-  free) and refuses a wrapping world and a missing `Cell`. **Each camera is made where a scene
+  relief (`internal/stick`: a stick whose foot is the point in the middle of the screen, a pan
+  sliding it at its height, turned about the upright and leaned from straight down to `MinPitch`;
+  isometric is an eighth turned at asin(TileH/TileW); orthographic, `Zoom` screen pixels a world
+  unit in every view, or perspective; picking where the cage is not free) and refuses a wrapping
+  world and a missing `Cell`. A relief camera's save begins with its form, `"stick 1"`: one saved
+  before the stick begins afresh, logged. **Each camera is made where a scene
   shows it**, beside the picture in the Scenes section, `render.NewFeed(s.cameras.New(start,
   camera.Config{...}), picture)` with `cameras.FromAbove` or `cameras.Isometrically` (a plain
   Config has none). `camera.Config` has no pixels (`render.Feed.Resize` every frame): `Zoom`,
@@ -732,24 +737,33 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `MinZoom`, `MaxZoom`. Every camera is saved, in the order made. Its commands name their camera,
   so it knows no players: `Pan` (lets go of a fastening), `Zoom`, `Follow{Camera, Entity, On}`
   (fastens `Centred`), `CenterOn{Camera, Entity}` (once, fastened to nothing; players'
-  `through.LookAt`), and in relief `View` (Tab), `Turn`, `Tilt` (`TurnStep`, `TiltStep`), `Ride`
+  `through.LookAt`), and in relief `View` (Tab, only with `Perspective`), `Turn`, `Tilt`
+  (`TurnStep` π/72, eighteen to an eighth; `TiltStep` 1°, positive steeper), `Ride`
   (V: `Centred` → `Behind` → `Inside` → `Centred`), `Look` (the mouse inside), `LookFrom`,
   `LookAt{Camera, X, Y, Z}`. **The fastening is the camera's** (`camera.Fastening{Entity, How}`,
   `How` `Loose`/`Centred`/`Behind`/`Inside`, `Outside` all but `Inside`, `HowOf(cam)`), all kept
-  here: `Centred` over the entity, `Behind` (turned until the unit's `Vel.Dir` runs up the screen)
+  here: `Centred` over the entity, `Behind` (turned until the unit's `Vel.Dir` runs up the screen, the
+  unit in the middle, as near as an arm of `behindArm` 2 cells in either projection — the
+  orthographic scale the perspective's focal length over it — nothing zooming it, the view
+  camera refusing it, the tactical scale and eye height (`viewCamera.tactical`) given back on
+  letting go: behind is no tactical view, the user's word 2026-10-18; in perspective the eye on
+  the arm, R/F leaning it, shortened at once where the cage is not free between, easing back
+  out; the ceiling does not hold it)
   and `Inside` (first person: the eye where the unit's `world.Eye` stands, the screen as wide as
   `Eye.Angle`, the mouse looks — `Driven.Look`, the cursor captured by players; up and down it
   writes `Eye.Tilt`, given back on letting go — and a flyer rides: `Driven.Flown`, `Climb`; the
   plugin loads `steering.Driven` itself). Bindings `.In(camera.Inside)` fire riding,
   `.In(camera.Outside)` the free camera's (Q/E, R/F, Tab, WASD, Shift+W), the arrows
   `.In(camera.Behind)` drive the followed unit. `cameras.Keys{Up, Down, Left, Right, ZoomIn,
-  ZoomOut, ScrollSpeed, Wheel, Drag, Edge}` are a player's keys, `DefaultKeys()` W/S/A/D, = and -
+  ZoomOut, ScrollSpeed, Wheel, Drag, Edge, CornersTurn}` are a player's keys, `DefaultKeys()` W/S/A/D, = and -
   (`ZoomStep` about the cursor), the wheel, the middle drag, the edge (a `Pan`; in a corner of the
   picture — `control.Edges.Corner`, a square of `control.CornerReach` 120 px a side, a quarter of
   the shorter side at most (`control.CornerSide`: a 200-px test viewport would be all corner),
-  `Edges.Any` true there — slantwise; the old turning and bowing at the world's edge and in a
-  corner are gone, the user's word 2026-10-17). Tests take a plain camera from
-  `cameras/cameratest` (`NewFromSpace`; `Switch` going round a relief camera's views), which imports
+  `Edges.Any` true there — slantwise, or with `CornersTurn` a `Turn` as Q in the left corners and
+  as E in the right ones, a `CornerStep` (a third of `TurnStep`) a tick, instead; `DefaultBindings` set it where the Config
+  turns, the user's word 2026-10-18; the old turning and bowing at the world's edge are gone).
+  Tests take a plain camera from `cameras/cameratest` (`NewFromSpace`; `Switch`, `Turn`, `Tilt`
+  as a relief camera's keys), which imports
   neither render nor the world, so their own tests use it too: `internal/stick` is arithmetic and
   a `Keeper` over `stick.Entities`, the plugin's `riding` system reading the ECS for it. `Zones` (Shift+H,
   `ShowZones`, `ZonesShown`, marks over every other, hidden by default, shown at

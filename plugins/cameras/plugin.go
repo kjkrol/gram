@@ -49,9 +49,10 @@ func (c Config) plain() bool { return c.Cage == nil && !c.Turn && !c.Tilt && !c.
 type Start uint8
 
 const (
-	// FromAbove begins a camera looking straight down.
+	// FromAbove begins a camera looking straight down, a screen pixel a world unit.
 	FromAbove Start = iota
-	// Isometrically begins a camera in the isometric view; a plain Config has none.
+	// Isometrically begins a camera in the 2:1 view, a Cell a TileW-wide diamond; a plain Config
+	// has none.
 	Isometrically
 )
 
@@ -130,10 +131,12 @@ func (p *Plugin) New(start Start, cfg camera.Config) camera.Camera {
 	case p.views == nil:
 		cam = topdown.NewFromSpaceWithConfig(space.Width, space.Height, space.Edges, cfg)
 	default:
-		views := p.viewCfg
-		views.Isometric = start == Isometrically
+		from := stick.FromAbove
+		if start == Isometrically {
+			from = stick.Isometrically
+		}
 		bend := float32(p.worldPlugin.Scale().Bend())
-		made := p.views.Maker(views, p.ground, p.extent, bend)
+		made := p.views.Maker(p.viewCfg, from, p.ground, p.extent, bend)
 		cam = made(space.Width, space.Height, space.Edges, cfg)
 	}
 	at := len(p.cameras)

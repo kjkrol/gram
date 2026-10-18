@@ -1,6 +1,6 @@
 // Package cameras makes the cameras a game looks at its world through and moves them: from above
-// over any world, and over a world in relief from above, isometrically and in perspective,
-// turned, tilted and riding with an entity.
+// over any world, and over a world in relief on a stick, turned and leaned, orthographically or
+// in perspective, riding with an entity.
 //
 // # Making cameras
 //
@@ -21,21 +21,28 @@
 //
 // # Views
 //
-// In relief the world is seen from above, isometrically (the 2:1 view of Transport Tycoon, heights
-// lifting what stands) or, where the Config reaches it, in perspective; switching keeps the ground
-// point in the middle of the screen, the heading, the pitch and the scale there. From above and
-// isometrically the whole screen stays over the world at sea level: a pan stops at the edge, and
-// zooming out stops where the screen just fits the world. The perspective is an eye flying over
-// the world, never lower than two cells over its highest ground; on a world with a scale the
-// ground far off sinks under the eye's level and hazes. Riding in an entity the eye is the
-// entity's world.Eye, going with it and looking the way it faces.
+// In relief a camera hangs on a stick whose foot is the point in the middle of the screen: a pan
+// slides the foot over the world at its height, [Turn] turns the stick about the upright through
+// it, [Tilt] leans it from straight down to Config.MinPitch over the ground. Isometrically (the
+// 2:1 view of Transport Tycoon, heights lifting what stands) is the stick turned an eighth and
+// leaning at asin(TileH/TileW). The view is orthographic, Zoom screen pixels a world unit, or,
+// where the Config reaches it, in perspective; [View] switches between the two keeping the foot,
+// the turn, the pitch and the scale. Orthographically the whole screen stays over the world at
+// sea level: a pan stops at the edge, and zooming out stops where the screen just fits the world.
+// The perspective is an eye flying over the world, never lower than two cells over its highest
+// ground but behind an entity, where it is held on an arm, shortened where the cage puts something
+// solid between; on a world with a scale the ground far off sinks under the eye's level. Behind
+// an entity a camera stands as near as that arm in either projection, nothing zooming it, and
+// gives its tactical view back on letting go.
+// Riding in an entity the eye is the entity's world.Eye, going with it and looking the way it
+// faces. A camera in relief saved before the stick begins afresh, the log naming it.
 //
 // # Commands
 //
 // [Pan] moves a camera by screen pixels and lets go of whatever it was fastened to; [Zoom] scales
 // it about a world point; [Follow] fastens it Centred over an entity, kept in the middle of the
 // screen as it goes, or lets it go; [CenterOn] moves it once onto an entity, fastened to nothing.
-// In relief [View] goes round the views, [Turn] and [Tilt] move the camera, [Ride] takes it
+// In relief [View] switches the projection, [Turn] and [Tilt] move the stick, [Ride] takes it
 // behind and inside the entity it is fastened to, [LookFrom] and [LookAt] place the eye in
 // perspective and [Look] looks round riding, the cursor captured. Each names its camera, taken
 // from the context by its binding, so the plugin never knows the players. The plugin writes only
@@ -45,9 +52,11 @@
 //
 // [Keys] are a player's keys to its camera: four keys held scrolling it, the wheel zooming about
 // the cursor, the middle drag panning, the cursor at an edge scrolling and in a corner scrolling
-// slantwise. [DefaultKeys] are W, S, A, D with all three; [Plugin.DefaultBindings] are those,
-// Shift+H and the views' keys the Config gives: Q and E turning, R and F tilting, Tab going round
-// the views, V riding, the mouse looking round inside an entity.
+// slantwise, or turning as Q and E do (Keys.CornersTurn). [DefaultKeys] are W, S, A, D with all
+// three; [Plugin.DefaultBindings] are those, the corners turning where the Config turns, Shift+H
+// and the views' keys the Config gives: Q and E turning, R looking down more steeply and
+// F flatter, Tab switching between the orthographic view and the perspective, V riding, the mouse
+// looking round inside an entity.
 //
 // # Vocabulary
 //

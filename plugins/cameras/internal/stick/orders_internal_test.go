@@ -6,13 +6,13 @@ import (
 )
 
 type (
-	View struct{ Camera camera.Camera }
-	Ride struct{ Camera camera.Camera }
-	Turn struct {
+	View      struct{ Camera camera.Camera }
+	Ride      struct{ Camera camera.Camera }
+	TurnOrder struct {
 		Camera camera.Camera
 		Angle  float32
 	}
-	Tilt struct {
+	TiltOrder struct {
 		Camera camera.Camera
 		Angle  float32
 	}
@@ -32,7 +32,7 @@ type (
 
 func (Look) Command() {}
 
-func (Tilt) Command() {}
+func (TiltOrder) Command() {}
 
 func (LookAt) Command() {}
 
@@ -42,13 +42,13 @@ func (LookFrom) Command() {}
 
 func (Ride) Command() {}
 
-func (Turn) Command() {}
+func (TurnOrder) Command() {}
 
 // a nil queue gives nothing
 type queued struct {
 	views     *command.Queue[View]
-	turns     *command.Queue[Turn]
-	tilts     *command.Queue[Tilt]
+	turns     *command.Queue[TurnOrder]
+	tilts     *command.Queue[TiltOrder]
 	lookFroms *command.Queue[LookFrom]
 	lookAts   *command.Queue[LookAt]
 	rides     *command.Queue[Ride]
@@ -68,11 +68,11 @@ func (q queued) Views(fn func(camera.Camera)) {
 }
 
 func (q queued) Turns(fn func(camera.Camera, float32)) {
-	drain(q.turns, func(i command.Issued[Turn]) { fn(i.Command.Camera, i.Command.Angle) })
+	drain(q.turns, func(i command.Issued[TurnOrder]) { fn(i.Command.Camera, i.Command.Angle) })
 }
 
 func (q queued) Tilts(fn func(camera.Camera, float32)) {
-	drain(q.tilts, func(i command.Issued[Tilt]) { fn(i.Command.Camera, i.Command.Angle) })
+	drain(q.tilts, func(i command.Issued[TiltOrder]) { fn(i.Command.Camera, i.Command.Angle) })
 }
 
 func (q queued) LookFroms(fn func(camera.Camera, float32, float32, float32)) {

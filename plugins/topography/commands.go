@@ -12,15 +12,15 @@ type CoarseShadows struct{}
 
 func (CoarseShadows) Command() {}
 
-// HazeFromAbove switches the haze over the ground seen from above, through a camera with no eye
-// (the tactical views): the air over the ground, as thick as the weather makes it.
-type HazeFromAbove struct{}
+// Haze switches the air's haze over the ground and what stands on it, through any camera, as
+// thick as the weather makes it.
+type Haze struct{}
 
-func (HazeFromAbove) Command() {}
+func (Haze) Command() {}
 
 var (
 	_ command.Command = CoarseShadows{}
-	_ command.Command = HazeFromAbove{}
+	_ command.Command = Haze{}
 )
 
 // Queues are where the shaping's and the shadows' commands land.
@@ -30,7 +30,7 @@ func (p *Plugin) Queues() []command.CommandQueue {
 
 // DefaultBindings are Shift+= and Shift+- raising and lowering the ground under the cursor (= and
 // - alone zoom the camera), a left drag with L held levelling it, H switching the shadows' detail
-// and Ctrl+F the haze seen from above.
+// and Ctrl+F the haze.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	at := func(c control.Context) geom.Vec { return c.World(c.Cursor) }
 	return append([]control.Binding{},
@@ -47,7 +47,7 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		control.Build(control.KeyPress{Key: control.KeyH}, "Coarser shadows, a quarter of the work, or fine again",
 			func(control.Context) (CoarseShadows, bool) { return CoarseShadows{}, true }),
 		control.Build(control.KeyPress{Key: control.KeyF, Mods: control.Mods{Ctrl: true}},
-			"The haze over the ground seen from above, or clear",
-			func(control.Context) (HazeFromAbove, bool) { return HazeFromAbove{}, true }),
+			"The haze over the ground, or clear",
+			func(control.Context) (Haze, bool) { return Haze{}, true }),
 	)
 }

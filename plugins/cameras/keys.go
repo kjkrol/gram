@@ -15,12 +15,16 @@ const (
 // Keys are a player's keys to its camera: Up, Down, Left and Right held scroll it on the screen
 // (KeyUnknown leaves one unbound), ZoomIn and ZoomOut pressed zoom about the cursor a ZoomStep,
 // Wheel zooms about the cursor, Drag pans with the middle button, Edge scrolls with the cursor
-// at a window edge. Scrolling holds while the camera is outside any entity (camera.Outside).
+// at a window edge, slantwise in a corner. Scrolling holds while the camera is outside any entity
+// (camera.Outside).
 type Keys struct {
 	Up, Down, Left, Right control.Key
 	ZoomIn, ZoomOut       control.Key
 	ScrollSpeed           float32 // screen pixels a tick; zero is DefaultScrollSpeed
 	Wheel, Drag, Edge     bool
+	// CornersTurn has the cursor in a corner turn the camera the way Q and E do, a CornerStep a
+	// tick, the left corners anticlockwise, the right ones clockwise, where Edge would scroll.
+	CornersTurn bool
 }
 
 // DefaultKeys are W, S, A and D, = and - to zoom, the wheel, the middle drag and the edge.
@@ -82,7 +86,7 @@ func (k Keys) Bindings() []control.Binding {
 			side := c.Edges()
 			if side.Corner != control.NoCorner {
 				sx, sy := side.Corner.Signs()
-				return Pan{Camera: c.Camera, Dx: sx * speed, Dy: sy * speed}, true
+				return Pan{Camera: c.Camera, Dx: sx * speed, Dy: sy * speed}, !k.CornersTurn
 			}
 			switch {
 			case side.Left:
@@ -98,6 +102,14 @@ func (k Keys) Bindings() []control.Binding {
 			}
 			return Pan{Camera: c.Camera, Dx: dx, Dy: dy}, dx != 0 || dy != 0
 		}).In(camera.Outside))
+		if k.CornersTurn {
+			out = append(out, control.Build(control.CursorInCorner{},
+				"Turn the world in a corner: anticlockwise on the left, clockwise on the right",
+				func(c control.Context) (Turn, bool) {
+					sx, _ := c.Edges().Corner.Signs()
+					return Turn{Camera: c.Camera, Angle: sx * CornerStep}, sx != 0
+				}).In(camera.Outside))
+		}
 	}
 	return out
 }

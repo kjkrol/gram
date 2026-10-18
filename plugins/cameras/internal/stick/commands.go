@@ -37,11 +37,12 @@ func NewControl(free func(x, y, z float32) bool, perspective bool) *Control {
 // Maker is Maker, every camera it makes kept fastened by the control's Keeper.
 func (ctl *Control) Maker(
 	cfg Config,
+	start Start,
 	ground func(x, y float32) float32,
 	extent func() (low, high float32),
 	bend float32,
 ) func(width, height uint32, edges aabbworld.Edges, c camera.Config) camera.Camera {
-	make := Maker(cfg, ground, extent, bend)
+	make := Maker(cfg, start, ground, extent, bend)
 	return func(width, height uint32, edges aabbworld.Edges, c camera.Config) camera.Camera {
 		cam := make(width, height, edges, c)
 		ctl.cams = append(ctl.cams, cam.(*viewCamera))

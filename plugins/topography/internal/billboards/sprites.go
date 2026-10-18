@@ -49,6 +49,7 @@ type sprites struct {
 	casts   []spriteBatch // castFloats a cast, a sprite's shape on its batch's atlas
 	right   [2]float32    // the camera's way across, level
 	haze    air.Hazer
+	hazed   bool
 	opts    render.DrawMeshOptions
 	own     map[string][]float32
 }
@@ -85,7 +86,10 @@ func (s *sprites) begin(f *render.Frame, cam camera.Camera) {
 			s.right = [2]float32{right[0], right[1]}
 		}
 	}
-	s.haze = s.sky.Air().Hazer(cam)
+	s.haze = air.Hazer{}
+	if s.hazed {
+		s.haze = s.sky.Air().Hazer(cam)
+	}
 	if s.shading && s.ground == nil {
 		f.ReadGround() // the shades find the hex prisms under them
 	}

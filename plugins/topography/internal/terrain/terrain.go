@@ -134,11 +134,11 @@ type Config struct {
 
 // Renderer draws the ground as a mesh: a render.Direct source in the opaque pass.
 type Renderer struct {
-	ground    Ground
-	surface   Surface
-	sky       Sky
-	cfg       Config
-	hazeAbove bool
+	ground  Ground
+	surface Surface
+	sky     Sky
+	cfg     Config
+	hazed   bool
 
 	// quadrants: heights, normals, wet cells, shores
 	lattice   *render.Image
@@ -791,9 +791,8 @@ func decode(hi, lo byte, low, span float32) float32 {
 // Shadows says whether the ground casts shadows, from the next frame on.
 func (r *Renderer) Shadows(on bool) { r.cfg.Shadows = on }
 
-// HazeAbove says whether the ground is hazed through a camera looking from above, with no eye, by
-// the air over it; off, it is drawn clear so.
-func (r *Renderer) HazeAbove(on bool) { r.hazeAbove = on }
+// Haze says whether the air hazes the ground through any camera; off, it is drawn clear.
+func (r *Renderer) Haze(on bool) { r.hazed = on }
 
 func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	cols, rows, cell, _, _ := r.ground.Lattice()
@@ -828,7 +827,7 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	var seeing, up float32
 	var way [3]float32
 	if r.sky != nil {
-		seeing, up, way = r.sky.Air().Seen(cam, r.hazeAbove)
+		seeing, up, way = r.sky.Air().Seen(cam, r.hazed)
 	}
 	r.set("Visibility", seeing)
 	r.set("HazeUp", up)

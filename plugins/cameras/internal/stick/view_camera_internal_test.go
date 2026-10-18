@@ -1,6 +1,8 @@
 package stick
 
 import (
+	"bytes"
+	"encoding/gob"
 	"math"
 	"testing"
 
@@ -15,49 +17,67 @@ func sized(c *viewCamera, w, h float32) *viewCamera {
 	return c
 }
 
-func testViews(reaches bool) *viewCamera {
-	return sized(newCamera(testProjection, 640, 640, 0, contract.Config{}, 0, reaches, nil, nil, 0), 400, 300)
+// isometric over a size x size world
+func testViewsOver(size uint32, reaches bool) *viewCamera {
+	return sized(newCamera(testOptics, Isometrically, size, size, 0, contract.Config{}, 0, reaches,
+		nil, nil, 0), 400, 300)
 }
+
+func testViews(reaches bool) *viewCamera { return testViewsOver(640, reaches) }
 
 func middle(c *viewCamera) (x, y float32) { return c.Unproject(200, 150, 0) }
 
-func TestViewCamera_NextGoesRoundTheViewsKeepingTheMiddleAndTheScale(t *testing.T) {
+func TestViewCamera_NextSwitchesTheProjectionKeepingTheStick(t *testing.T) {
 	c := testViews(true)
 	c.CenterOn(330, 310, 0)
 	c.Turn(0.3)
+	c.Tilt(0.2)
 	x0, y0 := middle(c)
-	for _, step := range []struct {
-		name          string
-		persp, relief bool
-	}{{"perspective", true, true}, {"from above", false, false}, {"isometric", false, true}, {"perspective", true, true}} {
-		before := c.iso.scale()
+	heading, pitch, scale := c.Heading(), c.Pitch(), c.Zoom()
+	for _, persp := range []bool{true, false, true} {
 		c.next()
-		if c.inPersp != step.persp || c.relief() != step.relief || (step.persp && c.cur != contract.Camera(c.persp)) || (!step.persp && c.cur != contract.Camera(c.iso)) {
-			t.Fatalf("%s: in perspective %v, in relief %v, current %T", step.name, c.inPersp, c.relief(), c.cur)
+		if c.inPersp != persp || (persp && c.cur != contract.Camera(c.persp)) ||
+			(!persp && c.cur != contract.Camera(c.ortho)) {
+			t.Fatalf("in perspective %v, want %v; current %T", c.inPersp, persp, c.cur)
 		}
 		if x, y := middle(c); !near(x, x0) || !near(y, y0) {
-			t.Errorf("%s: the middle of the screen shows (%v, %v), want (%v, %v) still", step.name, x, y, x0, y0)
+			t.Errorf("perspective %v: the middle of the screen shows (%v, %v), want (%v, %v)",
+				persp, x, y, x0, y0)
 		}
-		if step.persp {
-			if _, ok := c.Projection().(perspective); !ok {
-				t.Errorf("%s: Projection is %T", step.name, c.Projection())
-			}
-			if s := c.persp.Zoom(); !near(s/before, 1) {
-				t.Errorf("%s: a world unit spans %v screen units in the middle, want the isometric view's %v", step.name, s, before)
-			}
-			if !near(c.Heading(), c.iso.heading) || !near(c.Pitch(), c.iso.pitch) {
-				t.Errorf("%s: the heading is %v and the pitch %v, want the isometric view's %v and %v", step.name, c.Heading(), c.Pitch(), c.iso.heading, c.iso.pitch)
-			}
+		if !near(c.Heading(), heading) || !near(c.Pitch(), pitch) || !near(c.Zoom()/scale, 1) {
+			t.Errorf("perspective %v: heading %v, pitch %v, zoom %v; want %v, %v, %v as before",
+				persp, c.Heading(), c.Pitch(), c.Zoom(), heading, pitch, scale)
 		}
-		if step.name == "isometric" && !near(c.iso.Zoom(), 1) {
-			t.Errorf("round the views and back the isometric zoom is %v, want 1 as it began", c.iso.Zoom())
+		if _, ok := c.Projection().(perspective); ok != persp {
+			t.Errorf("perspective %v: Projection is %T", persp, c.Projection())
 		}
 	}
 	unreached := testViews(false)
+	unreached.CenterOn(330, 310, 0)
+	bx, by := unreached.Project(300, 300, 0)
 	unreached.next()
-	unreached.next()
-	if unreached.inPersp || !unreached.relief() {
-		t.Errorf("a camera not reaching the perspective went from above to: perspective %v, relief %v; want isometric", unreached.inPersp, unreached.relief())
+	if ax, ay := unreached.Project(300, 300, 0); unreached.inPersp || ax != bx || ay != by {
+		t.Errorf("a camera not reaching the perspective switched: perspective %v, (300, 300) "+
+			"from (%v, %v) to (%v, %v)", unreached.inPersp, bx, by, ax, ay)
+	}
+}
+
+func TestViewCamera_NextOverHighGroundKeepsTheGroundSeenInTheMiddle(t *testing.T) {
+	c := sized(newCamera(testOptics, Isometrically, 3200, 3200, 0, contract.Config{}, 0, true,
+		func(x, y float32) float32 { return 100 }, func() (float32, float32) { return 0, 100 },
+		0), 400, 300)
+	c.CenterOn(1600, 1600, 0) // the foot at sea level, under the ground
+	x, y, z, _ := c.Pick(200, 150)
+	scale := c.Zoom()
+	for _, persp := range []bool{true, false} {
+		c.next()
+		if sx, sy := c.Project(x, y, z); c.inPersp != persp || !near(sx, 200) || !near(sy, 150) {
+			t.Errorf("perspective %v (%v): the ground seen in the middle is drawn at (%v, %v), "+
+				"want (200, 150)", persp, c.inPersp, sx, sy)
+		}
+		if s := c.Zoom(); !near(s/scale, 1) {
+			t.Errorf("perspective %v: the zoom is %v, want %v as before", persp, s, scale)
+		}
 	}
 }
 
@@ -84,22 +104,10 @@ func TestViewCamera_PersistedRoundTripKeepsTheView(t *testing.T) {
 	other := testViews(true)
 	saved, restored := c.Persisted(), other.Persisted()
 	if len(saved) != 12 || len(restored) != 12 {
-		t.Fatalf("Persisted has %d and %d values, want 12: every view's, which is in and the fastening", len(saved), len(restored))
+		t.Fatalf("Persisted has %d and %d values, want 12: the form, every view's, which is in "+
+			"and the fastening", len(saved), len(restored))
 	}
-	for i := range saved {
-		switch v := saved[i].(type) {
-		case *geom.Vec:
-			*restored[i].(*geom.Vec) = *v
-		case *float32:
-			*restored[i].(*float32) = *v
-		case *bool:
-			*restored[i].(*bool) = *v
-		case *contract.Fastening:
-			*restored[i].(*contract.Fastening) = *v
-		default:
-			t.Fatalf("Persisted()[%d] is %T", i, v)
-		}
-	}
+	carry(t, saved, restored)
 	other.Restore()
 	if !other.inPersp || other.cur != contract.Camera(other.persp) {
 		t.Fatal("restored camera is not in the perspective view")
@@ -108,14 +116,30 @@ func TestViewCamera_PersistedRoundTripKeepsTheView(t *testing.T) {
 		t.Errorf("restored camera draws the point at (%v, %v), want (%v, %v)", ax, ay, bx, by)
 	}
 	unreached := testViews(false)
-	for i, p := range unreached.Persisted() {
-		if b, ok := p.(*bool); ok && i == 10 {
-			*b = true
-		}
-	}
+	carry(t, saved, unreached.Persisted())
 	unreached.Restore()
 	if unreached.inPersp {
 		t.Error("a save in perspective loaded by a game not reaching it stayed in perspective")
+	}
+}
+
+type otherForm struct{}
+
+func (otherForm) GobEncode() ([]byte, error) { return []byte("stick 0"), nil }
+
+func TestViewCamera_RefusesASaveOfAnotherFormAtItsFirstValue(t *testing.T) {
+	for name, first := range map[string]any{
+		"the views before the stick": &geom.Vec{X: 10, Y: 20},
+		"another form":               otherForm{},
+	} {
+		var buf bytes.Buffer
+		if err := gob.NewEncoder(&buf).Encode(first); err != nil {
+			t.Fatal(err)
+		}
+		c := testViews(true)
+		if err := gob.NewDecoder(&buf).Decode(c.Persisted()[0]); err == nil {
+			t.Errorf("%s: a save beginning %v is taken as the stick's", name, first)
+		}
 	}
 }
 
@@ -154,43 +178,41 @@ func TestViewCamera_InsideAUnitTheScreenIsAsWideAsItsEyeSees(t *testing.T) {
 }
 
 func TestViewCamera_RaysRunThroughWhatTheScreenPointsSee(t *testing.T) {
-	c := sized(newCamera(testProjection, 640, 640, 0, contract.Config{}, 0, true, nil, nil, 0), 400, 300)
-	seen := map[string]bool{}
-	for range 3 {
-		view := "iso"
-		switch {
-		case c.inPersp:
-			view = "persp"
-		case c.iso.proj.flat:
-			view = "above"
+	c := testViews(true)
+	for _, view := range []string{"isometric", "perspective", "from above"} {
+		switch view {
+		case "perspective":
+			c.next()
+		case "from above":
+			c.next()
+			c.Tilt(math.Pi)
 		}
-		seen[view] = true
 		field, ok := c.Rays()
 		if !ok {
 			t.Fatalf("%s: no rays", view)
 		}
 		for _, s := range [][2]float32{{0, 0}, {200, 150}, {399, 20}, {30, 299}} {
 			o, d := field.At(s[0], s[1])
-			if view == "persp" {
+			if c.inPersp {
 				dx, dy, dz, _ := c.Ray(s[0], s[1])
 				n := vec.Norm(d)
 				ex, ey, ez, _ := c.Eye()
-				if !near(d[0]/n, dx) || !near(d[1]/n, dy) || !near(d[2]/n, dz) || o != [3]float32{ex, ey, ez} {
-					t.Errorf("%s: the ray through %v is %v from %v, want %v from the eye %v", view, s, d, o, [3]float32{dx, dy, dz}, [3]float32{ex, ey, ez})
+				if !near(d[0]/n, dx) || !near(d[1]/n, dy) || !near(d[2]/n, dz) ||
+					o != [3]float32{ex, ey, ez} {
+					t.Errorf("%s: the ray through %v is %v from %v, want %v from the eye %v",
+						view, s, d, o, [3]float32{dx, dy, dz}, [3]float32{ex, ey, ez})
 				}
 				continue
 			}
 			for _, z := range []float32{0, 40} {
 				k := (z - o[2]) / d[2]
 				x, y := c.Unproject(s[0], s[1], z)
-				if px, py := o[0]+k*d[0], o[1]+k*d[1]; math.Abs(float64(px-x)) > 0.05 || math.Abs(float64(py-y)) > 0.05 {
-					t.Errorf("%s: the ray through %v meets height %v at (%v, %v), the screen point sees (%v, %v)", view, s, z, px, py, x, y)
+				px, py := o[0]+k*d[0], o[1]+k*d[1]
+				if math.Abs(float64(px-x)) > 0.05 || math.Abs(float64(py-y)) > 0.05 {
+					t.Errorf("%s: the ray through %v meets height %v at (%v, %v), the screen "+
+						"point sees (%v, %v)", view, s, z, px, py, x, y)
 				}
 			}
 		}
-		c.next()
-	}
-	if len(seen) != 3 {
-		t.Errorf("the views seen were %v, want all three", seen)
 	}
 }

@@ -25,20 +25,20 @@ func (s seer) Rays() (camera.RayField, bool) {
 	return f, true
 }
 
-func TestWeather_SeenHazesFromAboveOnlyWhenAsked(t *testing.T) {
+func TestWeather_SeenHazesOnlyWhenAsked(t *testing.T) {
 	w := air.Weather{Clouds: 0.5, Sight: 4000, Bases: [2]float32{1500, 6000}}
 	for _, c := range []struct {
 		name      string
 		cam       seer
-		fromAbove bool
+		asked     bool
 		hazed, up bool
 	}{
-		{"an eye", seer{eye: true}, false, true, false},
-		{"an eye, hazed from above", seer{eye: true}, true, true, false},
+		{"an eye", seer{eye: true}, false, false, false},
+		{"an eye, hazed", seer{eye: true}, true, true, false},
 		{"from above", seer{}, false, false, false},
-		{"from above, hazed from above", seer{}, true, true, true},
+		{"from above, hazed", seer{}, true, true, true},
 	} {
-		seeing, up, way := w.Seen(c.cam, c.fromAbove)
+		seeing, up, way := w.Seen(c.cam, c.asked)
 		if (seeing > 0) != c.hazed || (up > 0) != c.up {
 			t.Errorf("%s: one sees %v far, the air %v up; want hazed %v, through the air over the "+
 				"ground %v", c.name, seeing, up, c.hazed, c.up)

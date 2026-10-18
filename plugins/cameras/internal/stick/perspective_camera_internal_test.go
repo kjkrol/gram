@@ -13,7 +13,8 @@ func testPersp(ground func(x, y float32) float32, highest func() float32) *persp
 	if highest != nil {
 		extent = func() (float32, float32) { return 0, highest() }
 	}
-	c := newPerspCamera(testProjection, 0, geom.NewVec(640, 640), geom.NewAABBAt(geom.NewVec(0, 0), 400, 300), ground, extent)
+	c := newPerspCamera(testOptics, 0, float32(testOptics.isoPitch()), 0, geom.NewVec(640, 640),
+		geom.NewAABBAt(geom.NewVec(0, 0), 400, 300), ground, extent)
 	c.CenterOn(320, 320, 0)
 	return c
 }

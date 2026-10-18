@@ -76,7 +76,8 @@ type Camera interface {
 // Config is how a camera starts: its window on the world and what it follows. It is never
 // persisted: a loaded camera is as it was saved.
 type Config struct {
-	// Zoom is the scale it starts at, screen pixels a world unit; 0 is 1.
+	// Zoom is the scale it starts at, screen pixels a world unit; 0 is where its maker begins,
+	// 1 from above.
 	Zoom float32
 	// Whole keeps the whole world in view at whatever size the camera is shown, centred, the
 	// background in bars: a minimap. Such a camera is not panned or zoomed.

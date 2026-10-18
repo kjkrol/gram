@@ -57,7 +57,7 @@ func main() {
 		Description: "A sky of the game's own over a valley, a day in a minute and a half: the " +
 			"vault turquoise, violet at night with a band shimmering across it, a big orange " +
 			"moon showing by day too, made-up stars. Tab turns to the perspective, Q and E " +
-			"turn it, R held raises the head to the sky.",
+			"turn it, F held lays the stick down to the sky.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}

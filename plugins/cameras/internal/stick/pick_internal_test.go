@@ -21,8 +21,9 @@ func settle(unproject func(sx, sy, z float32) (float32, float32), ground func(x,
 	return x, y
 }
 
-func testIso(ground func(x, y float32) float32, high float32) *isoCamera {
-	c := newIsoCamera(testProjection.viewed(false), geom.NewVec(640, 640), geom.NewAABBAt(geom.NewVec(0, 0), 400, 300), 0)
+func testIso(ground func(x, y float32) float32, high float32) *orthoCamera {
+	c := newOrthoCamera(testOptics, Isometrically, geom.NewVec(640, 640),
+		geom.NewAABBAt(geom.NewVec(0, 0), 400, 300), 0)
 	c.ground, c.extent = ground, func() (float32, float32) { return 0, high }
 	return c
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	contract "github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/vec"
 )
 
 // a ridge across the 20 x 20 cells of 32 from x0 to x1, 400 high, sloping down a cell either side
@@ -42,39 +43,63 @@ func (r *followRig) ridged(x0, x1 float32) *ridge {
 	return g
 }
 
-func TestFollow_InPerspectiveTheEyeLooksDownSteeplyEnoughToSeeOverTheGround(t *testing.T) {
+func TestFollow_InPerspectiveBehindTheArmShortensBeforeARidgeAndComesBack(t *testing.T) {
 	r := newFollowRig(t)
 	r.cam.next() // isometric to perspective
 	if !r.cam.inPersp {
 		t.Fatal("the rig's camera is not in perspective")
 	}
 	r.walk(300, 300, 1, 0)      // east: the eye stands west of the walker
-	ridge := r.ridged(160, 192) // west of the walker, sloping down to 224
-	want := r.cam.Pitch()
+	ridge := r.ridged(256, 256) // west of the walker, sloping down to 288
+	pitch := r.cam.Pitch()
 	r.behind()
-	if len(r.sys.following) != 1 {
-		t.Fatalf("fastened Behind: kept %d, want 1", len(r.sys.following))
-	}
-	got := r.cam.Pitch()
-	if got <= want+0.5 || got >= maxPitch {
-		t.Errorf("behind the ridge the eye looks down at %v, want well steeper than %v, short of straight down", got, want)
-	}
 	unit := [3]float32{305, 305, 5}
-	if e := r.cam.persp.eye(); !near(e[2], r.cam.persp.ceiling()) || !r.sys.lineClear(unit, e, 32) {
-		t.Errorf("the eye flies at %v, want at the ceiling %v with the walker in sight over the ridge", e, r.cam.persp.ceiling())
+	reach := func() float32 { return vec.Norm(vec.Sub(r.cam.persp.eye(), unit)) }
+	full := float32(behindArm * 32)
+	short := reach()
+	if short >= full-1 || !r.centredOn(305, 305) || !near(r.cam.Pitch(), pitch) {
+		t.Errorf("before the ridge the arm reaches %v at pitch %v, want shorter than its %v at "+
+			"the player's %v, the walker in the middle", short, r.cam.Pitch(), full, pitch)
 	}
-	r.tick(time.Second / 60)
-	if p := r.cam.Pitch(); !near(p, got) {
-		t.Errorf("a tick on, the ridge still there, the pitch moved from %v to %v", got, p)
+	e := r.cam.persp.eye()
+	for k := float32(0); k <= 1; k += 0.05 {
+		if at := vec.Add(unit, vec.Scale(vec.Sub(e, unit), k)); !r.sys.free(at[0], at[1], at[2]) {
+			t.Errorf("the ridge stands between the walker and the eye at %v", at)
+			break
+		}
 	}
 	ridge.flat = true
 	r.tick(time.Second / 60)
-	if p := r.cam.Pitch(); p >= got || p <= want {
-		t.Errorf("the ridge gone, a tick on the pitch is %v, want easing back from %v towards %v", p, got, want)
+	if got := reach(); got <= short || got >= full {
+		t.Errorf("the ridge gone, a tick on the arm reaches %v, want easing out from %v to %v",
+			got, short, full)
 	}
 	r.tick(3 * time.Second)
-	if p := r.cam.Pitch(); math.Abs(float64(p-want)) > 0.01 {
-		t.Errorf("the ridge gone, three seconds on the pitch is %v, want back at %v", p, want)
+	if got := reach(); !near(got, full) {
+		t.Errorf("the ridge gone, three seconds on the arm reaches %v, want all of it, %v", got,
+			full)
+	}
+}
+
+func TestFollow_InPerspectiveBehindTheWheelLeavesTheArm(t *testing.T) {
+	r := newFollowRig(t)
+	r.cam.next()
+	r.ridged(1000, 1001) // a relief with no ridge in the way
+	r.walk(300, 300, 1, 0)
+	r.behind()
+	unit := [3]float32{305, 305, 5}
+	reach := func() float32 { return vec.Norm(vec.Sub(r.cam.persp.eye(), unit)) }
+	full := float32(behindArm * 32)
+	for _, zoom := range []func(){
+		func() { r.cam.ZoomIn(2, 305, 305) },
+		func() { r.cam.ZoomOut(4, 305, 305) },
+	} {
+		zoom()
+		r.tick(time.Second / 60)
+		if got := reach(); !near(got, full) || !r.centredOn(305, 305) {
+			t.Errorf("zoomed behind the walker the arm reaches %v, want %v as ever, the walker "+
+				"in the middle", got, full)
+		}
 	}
 }
 
@@ -95,8 +120,10 @@ func TestFollow_InPerspectiveOverLevelGroundThePitchIsThePlayers(t *testing.T) {
 	if p := r.cam.Pitch(); !near(p, want+0.3) {
 		t.Errorf("bowed by the player while fastened, a second on the pitch is %v, want %v: the player's", p, want+0.3)
 	}
-	if e := r.cam.persp.eye(); e[2] < r.cam.persp.ceiling() {
-		t.Errorf("fastened, the eye flies at %v, want no lower than the ceiling %v", e, r.cam.persp.ceiling())
+	unit := [3]float32{305, 305, 5}
+	if d := vec.Norm(vec.Sub(r.cam.persp.eye(), unit)); !near(d, behindArm*32) {
+		t.Errorf("fastened, the eye stands %v from the walker, want on the arm, %v", d,
+			behindArm*32)
 	}
 }
 
@@ -104,7 +131,7 @@ func TestInside_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 	r := newFollowRig(t)
 	r.ridged(1000, 1001)
 	r.walk(300, 300, 1, 0)
-	iso := r.cam.iso.Zoom()
+	iso := r.cam.ortho.Zoom()
 	r.inside()
 	if f := r.sys.fastened(r.cam); f == nil || !f.inside || !r.cam.insideUnit() || contract.HowOf(r.cam) != contract.Inside {
 		t.Fatalf("fastened Inside: kept %v, first person %v; want riding in the walker", f != nil, r.cam.insideUnit())
@@ -122,7 +149,7 @@ func TestInside_RidesInTheWalkerLookingTheWayItFaces(t *testing.T) {
 		t.Errorf("the walker gone east and turned south, the eye is at %v looking from %v, want (405, 305, 7) from %v", r.cam.persp.eye(), r.cam.Heading(), wrapAngle(behind(0, 1)))
 	}
 	// Q and E do nothing: the eye stays on the way the walker faces
-	r.turns.Add(command.Nobody, Turn{Camera: r.cam, Angle: 0.5})
+	r.turns.Add(command.Nobody, TurnOrder{Camera: r.cam, Angle: 0.5})
 	r.tick(time.Second / 60)
 	if !near(r.cam.Heading(), wrapAngle(behind(0, 1))) {
 		t.Errorf("Turn inside took the heading to %v, want %v still", r.cam.Heading(), wrapAngle(behind(0, 1)))
@@ -282,5 +309,29 @@ func TestInside_TheRidersHeadTiltsTheUnitsEyeAndGivesItBack(t *testing.T) {
 	r.pressV()
 	if e := r.eyeOf(r.walkers[0]); e.Tilt != 0 {
 		t.Errorf("out of the unit its eye still tilts %v, want its own 0 back", e.Tilt)
+	}
+}
+
+func TestFollow_InPerspectiveBehindTheTiltIsThePlayersAtOnceTheUnitInTheMiddle(t *testing.T) {
+	r := newFollowRig(t)
+	r.cam.next()
+	r.ridged(1000, 1001) // a relief with no ridge in the way
+	r.walk(300, 300, 1, 0)
+	r.behind()
+	if !r.centredOn(305, 305) {
+		sx, sy := r.cam.Project(305, 305, 5)
+		t.Errorf("behind the walker it is drawn at (%v, %v), want the middle (200, 150)", sx, sy)
+	}
+	for _, by := range []float32{0.6, -0.4} {
+		want := r.cam.Pitch() + by
+		r.tilts.Add(command.Nobody, TiltOrder{Camera: r.cam, Angle: by})
+		r.tick(time.Second / 60)
+		if p := r.cam.Pitch(); !near(p, want) {
+			t.Errorf("tilted %v behind the walker, a tick on the pitch is %v, want %v at once",
+				by, p, want)
+		}
+		if !r.centredOn(305, 305) {
+			t.Errorf("tilted %v, the walker is off the middle of the screen", by)
+		}
 	}
 }

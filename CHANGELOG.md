@@ -17,6 +17,35 @@ in a flat world: a board stands only in a world with heights now. Nor those made
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
 entities. Nor those made before motion left the world: `world.Outside` is `motion.Outside`.
 
+**The tactical camera on a stick, orthographically** (2026-10-18)
+- A camera in relief hangs on a stick whose foot is the point in the middle of the screen: a pan
+  slides the foot at its height, Q and E turn the stick about it (2.5° a tick, `TurnStep` π/72,
+  eighteen to an eighth), R leans it steeper up to straight down and F flatter down to
+  `MinPitch` (the other way round before; `Tilt` grows towards straight down). From above and
+  isometrically are one orthographic view at another turn and pitch: the view from above turns
+  too. A turn or a tilt stands the stick first on what is seen in the middle of the screen, so
+  that stays there.
+- Tab only switches between the orthographic view and the perspective, keeping the foot, the
+  turn, the pitch and the scale, and only where `cameras.Config.Perspective` reaches it.
+- The cursor in a corner of the window turns the view the way Q does in the left corners and E
+  in the right ones, a third as fast (`cameras.CornerStep`), where the Config turns
+  (`cameras.Keys.CornersTurn`); elsewhere it scrolls slantwise.
+- One measure: `Zoom` is screen pixels a world unit in every view; isometrically a camera begins
+  at `TileW/(√2·Cell)` (√2 for 64 x 32 tiles of 32 cells; was 1), `camera.Config.Zoom` and the
+  zoom limits read so. The marquee meets a figure as wide as it is drawn.
+- Behind a unit the camera keeps it in the middle of the screen (it lay a quarter of the screen
+  lower, and in perspective below the screen's edge). In perspective the eye is held on an arm
+  two cells behind it, not at the ceiling over the highest ground: R and F lean the arm, and it
+  shortens at once where the cage puts something solid between, easing back out as the way
+  clears (it used to look down more steeply instead). Isometrically it stands as near, the scale
+  that arm's. Behind a unit nothing zooms the camera, and letting go gives the tactical zoom and
+  eye height back.
+- The ground and what stands on it are clear through a camera with an eye too, in perspective
+  and riding, until the haze is asked for: one switch for every camera, off as a game starts
+  (Ctrl+F, `topography.Plugin.WithHaze`, `Hazes`, `topography.Haze`, were `WithHazeFromAbove`,
+  `HazesFromAbove` and `HazeFromAbove`; `air.Weather.Seen` takes whether to haze at all).
+- A relief camera saved before the stick begins afresh, the log naming it; one from above loads.
+
 **The cameras, all in their plugin** (2026-10-17)
 - Every camera is the cameras plugin's: the plain one from above (was `internal/camera`) and the
   views of a world in relief, from above, isometrically and in perspective, riding with a unit
@@ -29,9 +58,8 @@ entities. Nor those made before motion left the world: `world.Outside` is `motio
   `cameras.Isometrically` (was `cameras.TopDown()` and `topography.Plugin.Views`); `cameras.Maker`
   is gone. The views' commands `View`, `Turn`, `Tilt`, `Ride`, `Look`, `LookFrom`, `LookAt` are the
   cameras'; the old `cameras.LookAt{Camera, Entity}` is `CenterOn`.
-- The cursor at the window's edge only pans, slantwise in a corner: the view no longer turns in a
-  corner nor turns and bows when a pan meets the world's edge (`camera.Scroller`, `Pan.Edge`,
-  `Pan.Corner`, `topography.CornerStep` gone).
+- The cursor at the window's edge only pans: the view no longer turns and bows when a pan meets
+  the world's edge (`camera.Scroller`, `Pan.Edge`, `Pan.Corner`, `topography.CornerStep` gone).
 - A camera behind a unit keeps it in sight against whatever the cage says is solid, forests and
   decks too, not the bare ground alone. Tests take a plain camera from `cameras/cameratest`.
 
@@ -110,9 +138,8 @@ entities. Nor those made before motion left the world: `world.Outside` is `motio
 - The topography's ground and hexes haze only through a camera with an eye: from above, all the
   lines of sight one way, the start of the camera's field was taken for an eye, and the whole map
   but its corner turned the fog's grey, the greyer the cloudier the sky. Seen from above the
-  ground is clear unless asked (`topography.Plugin.WithHazeFromAbove`, Ctrl+F,
-  `topography.HazeFromAbove`): then hazed by the air over it (`air.Weather.Seen`); a camera with
-  an eye hazes as before.
+  ground is clear unless asked (`topography.Plugin.WithHaze`, Ctrl+F, `topography.Haze`): then
+  hazed by the air over it (`air.Weather.Seen`).
 
 **Clouds at the peaks** (2026-10-17)
 - The air masses carry their weather's damp (`weather.State.Damp`). Ground standing up into the

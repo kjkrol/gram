@@ -47,23 +47,23 @@ var _ render.Direct = (*Ground)(nil)
 // pass in place of the tiles: every cell a prism to its top, coloured from the tiles composed
 // once from above.
 type Ground struct {
-	world     *world.Plugin
-	board     *board.Plugin
-	m         board.Map
-	relief    *relief.Relief
-	sky       Sky
-	grid      grid.Grid
-	hazeAbove bool
-	size      float32 // from a cell's centre to its corner
-	still     *render.Still
-	tiles     *look.Renderer
-	at        [2]uint64
-	top       *render.Image
-	px        float32   // pixels a world unit
-	cells     []float32 // three vec4s a cell: centre and top, the six neighbours' tops
-	opts      render.DrawMeshOptions
-	own       map[string][]float32
-	uv        map[string]any
+	world  *world.Plugin
+	board  *board.Plugin
+	m      board.Map
+	relief *relief.Relief
+	sky    Sky
+	grid   grid.Grid
+	hazed  bool
+	size   float32 // from a cell's centre to its corner
+	still  *render.Still
+	tiles  *look.Renderer
+	at     [2]uint64
+	top    *render.Image
+	px     float32   // pixels a world unit
+	cells  []float32 // three vec4s a cell: centre and top, the six neighbours' tops
+	opts   render.DrawMeshOptions
+	own    map[string][]float32
+	uv     map[string]any
 }
 
 // New is the ground of b's hex board in the relief r over w, the cells standing as m says,
@@ -81,11 +81,10 @@ func (*Ground) Init(*goke.SysInit) {}
 // Compose has the ground drawn Direct, in the opaque pass.
 func (*Ground) Compose(f *render.Frame, _ camera.Camera) { f.DrawOpaque() }
 
-// Draw draws the ground into the target through cam, under the frame's uniforms u.
-// HazeAbove says whether the prisms are hazed through a camera looking from above, with no eye, by
-// the air over them; off, they are drawn clear so.
-func (h *Ground) HazeAbove(on bool) { h.hazeAbove = on }
+// Haze says whether the air hazes the prisms through any camera; off, they are drawn clear.
+func (h *Ground) Haze(on bool) { h.hazed = on }
 
+// Draw draws the ground into the target through cam, under the frame's uniforms u.
 func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if t.Screen == nil || t.Depth == nil {
 		return
@@ -118,7 +117,7 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	line, width := h.gridOf(cam)
 	h.set("GridLine", line[:]...)
 	h.set("GridWidth", width)
-	seeing, up, way := h.sky.Air().Seen(cam, h.hazeAbove)
+	seeing, up, way := h.sky.Air().Seen(cam, h.hazed)
 	h.set("Visibility", seeing)
 	h.set("HazeUp", up)
 	h.set("HazeWay", way[:]...)

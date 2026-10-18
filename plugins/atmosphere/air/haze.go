@@ -55,12 +55,12 @@ func Under(cam camera.Camera) (x, y float32) {
 	return cam.Unproject(w/2, h/2, 0)
 }
 
-// Seen is how the air hazes the ground cam sees, for its shaders: how far one sees (seeing, 0
-// for no haze), from an eye by the distance from it; through a camera looking from above, which
-// has none, only if fromAbove, by the air over the ground up to the high clouds' base (up) along
-// its lines of sight (way).
-func (w Weather) Seen(cam camera.Camera, fromAbove bool) (seeing, up float32, way [3]float32) {
-	if w.Sight <= 0 || cam == nil {
+// Seen is how the air hazes the ground cam sees, for its shaders, where hazed: how far one sees
+// (seeing, 0 for no haze), from an eye by the distance from it; through a camera looking from
+// above, which has none, by the air over the ground up to the high clouds' base (up) along its
+// lines of sight (way).
+func (w Weather) Seen(cam camera.Camera, hazed bool) (seeing, up float32, way [3]float32) {
+	if !hazed || w.Sight <= 0 || cam == nil {
 		return 0, 0, way
 	}
 	if e, ok := cam.(camera.Eyed); ok {
@@ -69,7 +69,7 @@ func (w Weather) Seen(cam camera.Camera, fromAbove bool) (seeing, up float32, wa
 		}
 	}
 	rays, ok := cam.(camera.Rays)
-	if !fromAbove || !ok {
+	if !ok {
 		return 0, 0, way
 	}
 	f, ok := rays.Rays()

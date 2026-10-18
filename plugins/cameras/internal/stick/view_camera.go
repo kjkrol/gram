@@ -1,6 +1,7 @@
 package stick
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/kjkrol/aabbworld"
@@ -10,16 +11,33 @@ import (
 )
 
 type viewCamera struct {
-	iso     *isoCamera // from above, and isometric
+	form    form
+	ortho   *orthoCamera
 	persp   *perspCamera
 	cur     contract.Camera
 	inPersp bool
 	reaches bool
 	// the view the eye was in before it went into a unit, to come back to
-	wasPersp  bool
-	was       perspPose
+	wasPersp bool
+	was      perspPose
+	// behind an entity, the tactical camera's own scale and eye height, to come back to
+	tactical  struct{ scale, alt float32 }
 	fastening contract.Fastening
-	// radians a pixel of a pan the world's edge stopped
+}
+
+// form names how a stick camera is saved, so a save of another shape is refused at its first
+// value
+type form struct{}
+
+const savedAs = "stick 1"
+
+func (form) GobEncode() ([]byte, error) { return []byte(savedAs), nil }
+
+func (*form) GobDecode(b []byte) error {
+	if string(b) != savedAs {
+		return fmt.Errorf("saved as %q, not %q", b, savedAs)
+	}
+	return nil
 }
 
 var _ contract.Camera = (*viewCamera)(nil)
@@ -31,7 +49,7 @@ var _ contract.Picker = (*viewCamera)(nil)
 var _ contract.Rayer = (*viewCamera)(nil)
 var _ contract.Rays = (*viewCamera)(nil)
 
-// From above or isometrically all one way, from Headroom over the highest ground.
+// In the parallel view all one way, from Headroom over the highest ground.
 func (c *viewCamera) Rays() (contract.RayField, bool) {
 	if c.inPersp {
 		p := c.persp.proj
@@ -41,10 +59,10 @@ func (c *viewCamera) Rays() (contract.RayField, bool) {
 		f.Dir = vec.Add(p.forward, vec.Add(vec.Scale(f.DDX, -w/2), vec.Scale(f.DDY, -h/2)))
 		return f, true
 	}
-	_, high := c.iso.layer()
-	x0, y0 := c.iso.Unproject(0, 0, high)
+	_, high := c.ortho.layer()
+	x0, y0 := c.ortho.Unproject(0, 0, high)
 	// a pixel's step taken by the origin: between two far points it loses its last digits
-	p, k := c.iso.proj, 1/c.iso.zoom
+	p, k := c.ortho.proj, 1/c.ortho.scale
 	ox, oy := p.Unproject(0, 0, high)
 	x1, y1 := p.Unproject(k, 0, high)
 	x2, y2 := p.Unproject(0, k, high)
@@ -53,7 +71,7 @@ func (c *viewCamera) Rays() (contract.RayField, bool) {
 		DX:     [3]float32{x1 - ox, y1 - oy, 0},
 		DY:     [3]float32{x2 - ox, y2 - oy, 0},
 	}
-	f.Dir = vec.Scale(c.iso.Projection().Toward(), -1)
+	f.Dir = vec.Scale(p.Toward(), -1)
 	return f, true
 }
 
@@ -68,7 +86,7 @@ func (c *viewCamera) Pick(sx, sy float32) (float32, float32, float32, bool) {
 	if c.inPersp {
 		return c.persp.Pick(sx, sy)
 	}
-	return c.iso.Pick(sx, sy)
+	return c.ortho.Pick(sx, sy)
 }
 
 func (c *viewCamera) Eye() (float32, float32, float32, bool) {
@@ -99,26 +117,35 @@ func (c *viewCamera) Fastening() contract.Fastening { return c.fastening }
 
 // fov is radians; the camera starts a pixel wide until whoever shows it gives it its size
 func newCamera(
-	proj projection, width, height uint32, edges aabbworld.Edges, cfg contract.Config, fov float32,
-	reaches bool, ground func(x, y float32) float32, extent func() (low, high float32),
+	o optics,
+	start Start,
+	width, height uint32,
+	edges aabbworld.Edges,
+	cfg contract.Config,
+	fov float32,
+	reaches bool,
+	ground func(x, y float32) float32,
+	extent func() (low, high float32),
 	bend float32,
 ) *viewCamera {
 	if cfg.Whole {
-		panic("topography: a camera in relief cannot keep the whole world in view (camera.Config.Whole): that is a top-down camera's")
+		panic("cameras: a camera in relief cannot keep the whole world in view " +
+			"(camera.Config.Whole): that is a top-down camera's")
 	}
 	vp := geom.NewAABBAt(geom.NewVec(float64(width)/2-0.5, float64(height)/2-0.5), 1, 1)
 	world := geom.NewVec(float64(width), float64(height))
-	iso := newIsoCamera(proj, world, vp, edges)
+	ortho := newOrthoCamera(o, start, world, vp, edges)
 	if cfg.Zoom > 0 {
-		iso.zoom = cfg.Zoom
-		iso.CenterOn(world.X/2, world.Y/2, 0)
+		ortho.scale = cfg.Zoom
+		ortho.CenterOn(world.X/2, world.Y/2, 0)
 	}
-	iso.extent, iso.ground = extent, ground
-	persp := newPerspCamera(iso.proj, fov, world, vp, ground, extent)
+	ortho.extent, ortho.ground = extent, ground
+	persp := newPerspCamera(ortho.optics, ortho.Heading(), ortho.Pitch(), fov, world, vp, ground,
+		extent)
 	persp.bend = bend
 	persp.look()
-	c := &viewCamera{iso: iso, persp: persp, reaches: reaches}
-	c.cur = c.iso
+	c := &viewCamera{ortho: ortho, persp: persp, reaches: reaches}
+	c.cur = c.ortho
 	if cfg.MinZoom > 0 {
 		c.SetMinZoom(cfg.MinZoom)
 	}
@@ -128,36 +155,34 @@ func newCamera(
 	return c
 }
 
-func (c *viewCamera) relief() bool { return c.inPersp || !c.iso.proj.flat }
-
 func (c *viewCamera) insideUnit() bool { return c.inPersp && c.persp.inside }
 
+// out of the unit, or into the other projection keeping the foot, the turn, the pitch and the
+// scale there
 func (c *viewCamera) next() {
 	switch {
 	case c.insideUnit():
 		c.leaveInside()
+	case !c.reaches:
 	case c.inPersp:
-		c.toIso(false)
-	case c.iso.proj.flat:
-		c.iso.SetIsometric(true)
-	case c.reaches:
-		c.toPersp()
+		c.toOrtho()
 	default:
-		c.iso.SetIsometric(false)
+		c.toPersp()
 	}
 }
 
+// the eye as far from the ground seen in the middle of the screen as the focal length over the
+// scale, so the scale there stays
 func (c *viewCamera) toPersp() {
-	w, h := c.iso.Viewport()
-	x, y := c.iso.Unproject(w/2, h/2, 0)
-	scale := c.iso.scale()
-	p := c.persp
-	p.inside, p.narrow = false, 1
-	p.heading, p.pitch = c.iso.heading, max(c.iso.pitch, p.minPitch)
-	var z float32
-	if p.ground != nil {
-		z = p.ground(x, y)
+	o, p := c.ortho, c.persp
+	w, h := o.Viewport()
+	x, y, z, hit := o.Pick(w/2, h/2)
+	if !hit {
+		x, y, z = float32(o.foot[0]), float32(o.foot[1]), float32(o.foot[2])
 	}
+	scale := o.Zoom()
+	p.inside, p.narrow = false, 1
+	p.heading, p.pitch = o.Heading(), max(o.Pitch(), p.minPitch)
 	p.alt = max(p.ceiling(), z+p.focal()*float32(math.Sin(float64(p.pitch)))/scale)
 	p.CenterOn(float64(x), float64(y), float64(z))
 	if natural := p.Zoom(); natural < scale {
@@ -167,17 +192,20 @@ func (c *viewCamera) toPersp() {
 	c.inPersp, c.cur = true, p
 }
 
-func (c *viewCamera) toIso(isometric bool) {
-	at := c.persp.target()
-	x, y := float64(at[0]), float64(at[1])
-	scale := c.persp.Zoom()
-	c.inPersp, c.cur = false, c.iso
-	c.iso.SetIsometric(true)
-	c.iso.CenterOn(x, y, 0)
-	c.iso.ZoomIn(scale/c.iso.scale(), float32(x), float32(y))
-	if !isometric {
-		c.iso.SetIsometric(false)
+func (c *viewCamera) toOrtho() {
+	p, o := c.persp, c.ortho
+	at := p.target()
+	if p.sky { // far along the way looked: its ground instead
+		at[2] = 0
+		if p.ground != nil {
+			at[2] = p.ground(at[0], at[1])
+		}
 	}
+	o.turn, o.pitch = float64(p.Heading())+eighth, float64(p.Pitch())
+	o.look()
+	o.scale = o.limited(p.Zoom())
+	c.inPersp, c.cur = false, o
+	o.CenterOn(float64(at[0]), float64(at[1]), float64(at[2]))
 }
 
 func (c *viewCamera) Turn(angle float32) {
@@ -185,7 +213,7 @@ func (c *viewCamera) Turn(angle float32) {
 		c.persp.Turn(angle)
 		return
 	}
-	c.iso.Turn(angle)
+	c.ortho.Turn(angle)
 }
 
 func (c *viewCamera) Tilt(angle float32) {
@@ -193,21 +221,21 @@ func (c *viewCamera) Tilt(angle float32) {
 		c.persp.Tilt(angle)
 		return
 	}
-	c.iso.Tilt(angle)
+	c.ortho.Tilt(angle)
 }
 
 func (c *viewCamera) Heading() float32 {
 	if c.inPersp {
 		return c.persp.Heading()
 	}
-	return c.iso.Heading()
+	return c.ortho.Heading()
 }
 
 func (c *viewCamera) Pitch() float32 {
 	if c.inPersp {
 		return c.persp.Pitch()
 	}
-	return c.iso.Pitch()
+	return c.ortho.Pitch()
 }
 
 func (c *viewCamera) enterPersp() bool {
@@ -256,15 +284,15 @@ func (c *viewCamera) leaveInside() {
 		c.persp.CenterOn(float64(at[0]), float64(at[1]), float64(at[2]))
 		return
 	}
-	c.inPersp, c.cur = false, c.iso
-	c.iso.CenterOn(float64(at[0]), float64(at[1]), float64(at[2]))
+	c.inPersp, c.cur = false, c.ortho
+	c.ortho.CenterOn(float64(at[0]), float64(at[1]), float64(at[2]))
 }
 
 func (c *viewCamera) ScaleAt(x, y, z float32) float32 {
 	if c.inPersp {
 		return c.persp.ScaleAt(x, y, z)
 	}
-	return c.iso.Zoom()
+	return c.ortho.Zoom()
 }
 
 func (c *viewCamera) Projection() contract.Projection            { return c.cur.Projection() }
@@ -294,44 +322,52 @@ func (c *viewCamera) shift(dx, dy float32) (bx, by float32) {
 	if c.inPersp {
 		return c.persp.shift(dx, dy)
 	}
-	return c.iso.shift(dx, dy)
+	return c.ortho.shift(dx, dy)
 }
 
 func (c *viewCamera) Zoom() float32 { return c.cur.Zoom() }
+
+// behind an entity the camera is no tactical one: nothing zooms it
 func (c *viewCamera) ZoomIn(factor, anchorX, anchorY float32) {
-	c.cur.ZoomIn(factor, anchorX, anchorY)
+	if c.fastening.How != contract.Behind {
+		c.cur.ZoomIn(factor, anchorX, anchorY)
+	}
 }
+
 func (c *viewCamera) ZoomOut(factor, anchorX, anchorY float32) {
-	c.cur.ZoomOut(factor, anchorX, anchorY)
+	if c.fastening.How != contract.Behind {
+		c.cur.ZoomOut(factor, anchorX, anchorY)
+	}
 }
 func (c *viewCamera) State() contract.State { return c.cur.State() }
 
 func (c *viewCamera) SetViewport(w, h float32) {
-	c.iso.SetViewport(w, h)
+	c.ortho.SetViewport(w, h)
 	c.persp.SetViewport(w, h)
 }
 
 func (c *viewCamera) SetMinZoom(minZoom float32) {
-	c.iso.SetMinZoom(minZoom)
+	c.ortho.SetMinZoom(minZoom)
 	c.persp.SetMinZoom(minZoom)
 }
 
 func (c *viewCamera) SetMaxZoom(maxZoom float32) {
-	c.iso.SetMaxZoom(maxZoom)
+	c.ortho.SetMaxZoom(maxZoom)
 	c.persp.SetMaxZoom(maxZoom)
 }
 
 func (c *viewCamera) Persisted() []any {
-	return append(append(c.iso.Persisted(), c.persp.Persisted()...), &c.inPersp, &c.fastening)
+	saved := append([]any{&c.form}, c.ortho.Persisted()...)
+	return append(append(saved, c.persp.Persisted()...), &c.inPersp, &c.fastening)
 }
 
 func (c *viewCamera) Restore() {
-	c.iso.Restore()
+	c.ortho.Restore()
 	c.persp.Restore()
 	if c.inPersp && !c.reaches {
 		c.inPersp = false
 	}
-	c.cur = c.iso
+	c.cur = c.ortho
 	if c.inPersp {
 		c.cur = c.persp
 	}

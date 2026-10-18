@@ -19,8 +19,8 @@ import (
 type followRig struct {
 	t       *testing.T
 	sys     *Keeper
-	turns   command.Queue[Turn]
-	tilts   command.Queue[Tilt]
+	turns   command.Queue[TurnOrder]
+	tilts   command.Queue[TiltOrder]
 	rides   command.Queue[Ride]
 	views   command.Queue[View]
 	looks   command.Queue[Look]
@@ -79,7 +79,7 @@ func (ws walkers) Tilt(id uid.UID64, tilt float64) {
 func newFollowRig(t *testing.T) *followRig {
 	t.Helper()
 	r := &followRig{t: t, ents: walkers{}}
-	r.cam = sized(newCamera(testProjection, 1280, 1280, 0, contract.Config{}, 0, true, nil, nil, 0), 400, 300)
+	r.cam = testViewsOver(1280, true)
 	r.cams = []*viewCamera{r.cam}
 	orders := queued{
 		turns: &r.turns,
@@ -135,8 +135,7 @@ func (r *followRig) hand(id uid.UID64, ahead, turn int8) {
 
 func (r *followRig) centredOn(x, y float32) bool {
 	sx, sy := r.cam.Project(x, y, 5)
-	below := 300 * shoulder * float32(math.Cos(float64(r.cam.Pitch())))
-	return near(sx, 200) && near(sy, 150+below)
+	return near(sx, 200) && near(sy, 150)
 }
 
 func (r *followRig) upTheScreen(x, y, dx, dy float32) bool {
@@ -165,13 +164,38 @@ func TestBehind_FastensTheCameraBehindTheWalkerWhereverItHeads(t *testing.T) {
 	}
 }
 
+func TestBehind_IsNearNothingZoomsItAndLettingGoGivesTheTacticalViewBack(t *testing.T) {
+	r := newFollowRig(t)
+	tactical := r.cam.Zoom()
+	r.walk(300, 300, 1, 0)
+	r.behind()
+	arm := r.cam.persp.focal() / (behindArm * 32)
+	if z := r.cam.Zoom(); math.Abs(float64(z-arm)) > 1e-3 || !r.centredOn(305, 305) {
+		t.Errorf("behind the walker the zoom is %v, want the arm's %v, the walker in the middle",
+			z, arm)
+	}
+	r.cam.ZoomIn(2, 305, 305)
+	r.cam.ZoomOut(3, 305, 305)
+	r.tick(time.Second / 60)
+	if z := r.cam.Zoom(); math.Abs(float64(z-arm)) > 1e-3 {
+		t.Errorf("zoomed behind the walker, the zoom is %v, want %v as it was", z, arm)
+	}
+	r.letGo()
+	if z := r.cam.Zoom(); z != tactical {
+		t.Errorf("let go, the zoom is %v, want the tactical %v back", z, tactical)
+	}
+	if r.cam.ZoomIn(2, 305, 305); math.Abs(float64(r.cam.Zoom()-2*tactical)) > 1e-3 {
+		t.Errorf("let go, zoomed in twice the zoom is %v, want %v", r.cam.Zoom(), 2*tactical)
+	}
+}
+
 func TestBehind_HoldsWhateverElseIsDoneUntilLetGo(t *testing.T) {
 	r := newFollowRig(t)
 	r.walk(300, 300, 1, 0)
 	r.behind()
 	r.cam.Pan(30, 0)
 	r.cam.ZoomIn(1.5, 305, 305)
-	r.turns.Add(command.Nobody, Turn{Camera: r.cam, Angle: 0.2})
+	r.turns.Add(command.Nobody, TurnOrder{Camera: r.cam, Angle: 0.2})
 	r.tick(time.Second / 60)
 	if len(r.sys.following) != 1 || !r.centredOn(305, 305) {
 		t.Fatalf("after panning, zooming and turning: kept %d, centred %v; want it held on the walker",
@@ -235,7 +259,7 @@ func TestRide_ACameraSavedInsideComesBackInside(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	loaded := sized(newCamera(testProjection, 1280, 1280, 0, contract.Config{}, 0, true, nil, nil, 0), 400, 300)
+	loaded := testViewsOver(1280, true)
 	dec := gob.NewDecoder(&buf)
 	for _, v := range loaded.Persisted() {
 		if err := dec.Decode(v); err != nil {
@@ -260,8 +284,8 @@ func TestBehind_LetsGoOfAWalkerGone(t *testing.T) {
 
 func TestTurn_TurnsACameraOfThisViewAndNoOther(t *testing.T) {
 	r := newFollowRig(t)
-	r.turns.Add(command.Nobody, Turn{Camera: r.cam, Angle: 0.5})
-	r.turns.Add(command.Nobody, Turn{Camera: nil, Angle: 0.5})
+	r.turns.Add(command.Nobody, TurnOrder{Camera: r.cam, Angle: 0.5})
+	r.turns.Add(command.Nobody, TurnOrder{Camera: nil, Angle: 0.5})
 	r.tick(time.Second / 60)
 	if !near(r.cam.Heading(), 0.5) {
 		t.Errorf("heading %v after Turn by 0.5, want 0.5", r.cam.Heading())

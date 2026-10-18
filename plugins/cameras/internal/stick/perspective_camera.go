@@ -30,6 +30,8 @@ type perspCamera struct {
 	inside     bool
 	across     float32 // inside a unit, radians; 0, fov
 	bend       float32 // the ground d off sinks bend·d² under the eye's level
+	// behind a unit, the arm the eye is held on, the ceiling not holding it; 0, it flies
+	arm float32
 
 	fine  func(x, y float32) (step, thin float32)
 	solid func(x, y, z float32) (float32, bool)
@@ -51,13 +53,22 @@ const (
 	eyeOver    = 2
 )
 
-func newPerspCamera(proj projection, fov float32, world geom.Vec, viewport contract.AABB, ground func(x, y float32) float32, extent func() (low, high float32)) *perspCamera {
+func newPerspCamera(
+	o optics,
+	heading, pitch, fov float32,
+	world geom.Vec,
+	viewport contract.AABB,
+	ground func(x, y float32) float32,
+	extent func() (low, high float32),
+) *perspCamera {
 	if fov <= 0 {
 		fov = defaultFOV
 	}
-	c := &perspCamera{world: world, fov: min(fov, math.Pi-0.01), minPitch: proj.MinPitch, cell: proj.Cell, headroom: proj.Headroom, ground: ground, extent: extent,
-		viewportSize: geom.NewVec(viewport.BottomRight.X-viewport.TopLeft.X, viewport.BottomRight.Y-viewport.TopLeft.Y),
-		heading:      proj.Heading, pitch: proj.Pitch, narrow: 1}
+	c := &perspCamera{world: world, fov: min(fov, math.Pi-0.01), minPitch: o.MinPitch,
+		cell: o.Cell, headroom: o.Headroom, ground: ground, extent: extent,
+		viewportSize: geom.NewVec(viewport.BottomRight.X-viewport.TopLeft.X,
+			viewport.BottomRight.Y-viewport.TopLeft.Y),
+		heading: heading, pitch: pitch, narrow: 1}
 	c.look()
 	c.CenterOn((viewport.TopLeft.X+viewport.BottomRight.X)/2, (viewport.TopLeft.Y+viewport.BottomRight.Y)/2, 0)
 	return c
@@ -141,7 +152,7 @@ func (c *perspCamera) look() {
 	c.heading = wrapAngle(c.heading)
 	c.pitch = min(max(c.pitch, -maxPitch), maxPitch)
 	c.narrow = min(max(c.narrow, 1), narrowest)
-	if !c.inside {
+	if !c.inside && c.arm == 0 {
 		c.alt = min(max(c.alt, c.ceiling()), max(c.maxAlt(), c.ceiling()))
 	}
 	e := [3]float32{float32(c.origin.X), float32(c.origin.Y), c.alt}
@@ -274,6 +285,13 @@ func (c *perspCamera) enterInside(eye [3]float32, heading, across float32) {
 	c.inside, c.narrow, c.across = true, 1, across
 	c.origin, c.alt = geom.NewVec(float64(eye[0]), float64(eye[1])), eye[2]
 	c.heading, c.pitch = heading, 0
+	c.look()
+}
+
+// hold puts the eye length along the stick from foot, the middle of the screen on foot
+func (c *perspCamera) hold(foot [3]float32, length float32) {
+	e := vec.Add(foot, vec.Scale(c.out(), length))
+	c.origin, c.alt = geom.NewVec(float64(e[0]), float64(e[1])), e[2]
 	c.look()
 }
 

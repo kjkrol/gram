@@ -40,8 +40,9 @@ type CenterOn struct {
 	Entity uid.UID64
 }
 
-// View has Camera look the next way round: from above, isometrically, in perspective where the
-// Config reaches it, from above again; a plain camera stays as it is.
+// View has Camera switch between the orthographic view and the perspective, keeping the foot of
+// its stick, its turn, pitch and scale, or leave the entity it rides in; a camera whose Config has
+// no Perspective stays as it is.
 type View struct{ Camera camera.Camera }
 
 // LookFrom puts Camera's eye at the world point (X, Y, Z) in perspective, still looking at the
@@ -73,15 +74,15 @@ type Look struct {
 // (camera.Inside), and over it again. A camera fastened to nothing stays as it is.
 type Ride struct{ Camera camera.Camera }
 
-// Turn turns Camera by Angle radians, the world clockwise on the screen, keeping the ground point
-// in the middle of the screen where it is; a plain camera stays as it is.
+// Turn turns Camera's stick about its foot by Angle radians, the world clockwise on the screen; a
+// plain camera stays as it is.
 type Turn struct {
 	Camera camera.Camera
 	Angle  float32
 }
 
-// Tilt bows Camera's head by Angle radians — it looks down more steeply — raises it for a negative
-// one, between Config.MinPitch over the ground and straight down; a plain camera stays as it is.
+// Tilt leans Camera's stick about its foot by Angle radians, towards straight down as it grows and
+// flatter for a negative one, between Config.MinPitch and straight down; a plain camera stays.
 type Tilt struct {
 	Camera camera.Camera
 	Angle  float32
@@ -113,11 +114,13 @@ var (
 	_ command.Command = Tilt{}
 )
 
-// TurnStep is how far Q and E turn the view a tick they are held, in radians; TiltStep how far
-// R and F tilt it.
+// TurnStep is how far Q and E turn the view a tick they are held, in radians, eighteen of them an
+// eighth of a turn; CornerStep how far the cursor in a corner turns it; TiltStep how far R and F
+// tilt it.
 const (
-	TurnStep = math.Pi / 90
-	TiltStep = math.Pi / 180
+	TurnStep   = math.Pi / 72
+	CornerStep = TurnStep / 3
+	TiltStep   = math.Pi / 180
 )
 
 // Queues are where the cameras' commands land.
@@ -126,11 +129,13 @@ func (p *Plugin) Queues() []command.CommandQueue {
 		p.orders.queues()...)
 }
 
-// DefaultBindings are DefaultKeys, Shift+H showing or hiding the scroll zones and the views' keys
-// the Config gives: Q and E turning, R and F tilting, Tab going round the views, V riding and the
-// mouse looking round inside an entity.
+// DefaultBindings are DefaultKeys, their corners turning where the Config turns, Shift+H showing
+// or hiding the scroll zones, and the views' keys the Config gives: Q and E turning, R and F
+// tilting, Tab switching the projection, V riding and the mouse looking round inside an entity.
 func (p *Plugin) DefaultBindings() []control.Binding {
-	out := append(DefaultKeys().Bindings(),
+	keys := DefaultKeys()
+	keys.CornersTurn = p.cfg.Turn
+	out := append(keys.Bindings(),
 		control.Build(control.KeyPress{Key: control.KeyH, Mods: control.Mods{Shift: true}},
 			"Show the scroll zones at the picture's edges, or hide them",
 			func(control.Context) (Zones, bool) { return Zones{}, true }))

@@ -84,15 +84,11 @@ func viewBindings(cfg Config) []control.Binding {
 	tab := control.KeyPress{Key: control.KeyTab}
 	v := control.KeyPress{Key: control.KeyV}
 	var out []control.Binding
-	if cfg.Tilt || cfg.Perspective {
-		views := "Switch the view: from above, isometric"
-		if cfg.Perspective {
-			views += ", in perspective"
-		}
-		out = append(out, control.Build(tab, views, view).In(camera.Outside))
-	}
 	if cfg.Perspective {
-		out = append(out, control.Build(tab, "Leave the unit", view).In(camera.Inside))
+		out = append(out,
+			control.Build(tab, "Switch between the orthographic view and the perspective", view).
+				In(camera.Outside),
+			control.Build(tab, "Leave the unit", view).In(camera.Inside))
 	}
 	if cfg.Turn {
 		out = append(out,
@@ -103,10 +99,11 @@ func viewBindings(cfg Config) []control.Binding {
 	}
 	if cfg.Tilt {
 		out = append(out,
-			control.Build(control.KeyHeld{Key: control.KeyR}, "Raise the head: look further off",
-				tilt(-TiltStep)).In(camera.Outside),
-			control.Build(control.KeyHeld{Key: control.KeyF},
-				"Bow the head: look down more steeply", tilt(TiltStep)).In(camera.Outside))
+			control.Build(control.KeyHeld{Key: control.KeyR},
+				"Look down more steeply, straight down at the most", tilt(TiltStep)).
+				In(camera.Outside),
+			control.Build(control.KeyHeld{Key: control.KeyF}, "Look flatter: further off",
+				tilt(-TiltStep)).In(camera.Outside))
 	}
 	if cfg.Turn || cfg.Perspective {
 		closer := "Follow the unit from behind, or over it again"

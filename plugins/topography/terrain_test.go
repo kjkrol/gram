@@ -37,9 +37,7 @@ func TestPlugin_CtrlFHazesTheGroundFromAbove(t *testing.T) {
 	if bound == "" {
 		t.Error("Ctrl+F is bound to nothing")
 	}
-	if p.HazesFromAbove() || !p.WithHazeFromAbove(true).HazesFromAbove() ||
-		p.WithHazeFromAbove(false).HazesFromAbove() {
-		t.Error("the ground seen from above is not clear at first, hazed when asked and clear " +
-			"again")
+	if p.Hazes() || !p.WithHaze(true).Hazes() || p.WithHaze(false).Hazes() {
+		t.Error("the ground is not clear at first, hazed when asked and clear again")
 	}
 }

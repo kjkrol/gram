@@ -209,6 +209,8 @@ func Written(t control.Trigger) string {
 		return "wheel"
 	case control.CursorAtEdge:
 		return "cursor at an edge"
+	case control.CursorInCorner:
+		return "cursor in a corner"
 	case control.CursorMove:
 		return "mouse"
 	case control.CursorOver:

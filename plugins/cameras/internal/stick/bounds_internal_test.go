@@ -14,7 +14,7 @@ func inBounds(b contract.AABB, x, y float32) bool {
 func onWorld(x, y float32) bool { return x >= 0 && x <= 640 && y >= 0 && y <= 640 }
 
 func TestIsoCamera_BoundsHoldTheGroundTheScreenShowsAtAnyHeight(t *testing.T) {
-	c := testCamera(t, 0).(*viewCamera).iso
+	c := testCamera(t, 0).(*viewCamera).ortho
 	c.ZoomIn(3, 160, 160)
 	c.CenterOn(160, 160, 0) // room on the world below the screen
 	c.extent = func() (float32, float32) { return 0, 150 }

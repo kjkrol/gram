@@ -1,6 +1,7 @@
 package billboards_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -72,7 +73,8 @@ func TestBillboards_StandEntitiesUprightOnTheirCentre(t *testing.T) {
 	if fp := look.Footprint(cam, box.AABB, 6, nil); len(fp) != 1 || fp[0][0][1] == fp[0][1][1] {
 		t.Errorf("footprint %v, want one diamond on the ground", fp)
 	}
-	cameratest.Switch(cam)
+	cameratest.Turn(cam, -math.Pi/4)
+	cameratest.Tilt(cam, math.Pi)
 	drawn = look.Drawn(cam, box.AABB, world.Z{Altitude: 6})
 	if x0, y0 := cam.Project(40, 40, 0); drawn[0][0] != x0 || drawn[0][1] != y0 {
 		t.Errorf("from above the entity is drawn at %v, want over its box's corner (%v, %v)", drawn[0], x0, y0)
@@ -168,5 +170,41 @@ func TestBillboards_CastShadowsAsThePolicySays(t *testing.T) {
 	cast(world.Baked)
 	if len(asked) != 0 {
 		t.Errorf("a Baked shadow asked the policy %v, want it asked nothing", asked)
+	}
+}
+
+func TestBillboards_HazeFarOffOnlyWhenAsked(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 4096, Height: 4096},
+		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
+		Heights:  true,
+	})
+	b := board.NewPlugin(grid.DefaultGrids{}.Square(128, 128, 32), &cell.MultipleOccupancy{}, w)
+	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	p := topography.NewPlugin(w, b, topography.Config{})
+	p.WithAtmosphere(fixedSky{sun: sky.DefaultSun, air: air.Weather{Sight: 300}})
+	cam := cameras.NewPlugin(w, cameras.Config{
+		Perspective: true,
+		Cell:        32,
+		Cage:        p,
+	}).New(cameras.Isometrically, camera.Config{})
+	cam.SetViewport(320, 240)
+	cam.CenterOn(2048, 2048, 0)
+	cameratest.Switch(cam)
+	look := w.Look()
+	haze := func() []float32 {
+		var f render.Frame
+		f.Reset(cam)
+		look.(world.DirectLook).Begin(&render.Frame{}, cam)
+		look.Sprite(&f, cam, plane.NewAABB(geom.NewVec(2043, 2043), 10, 10), world.Z{}, sheet{},
+			render.Appearance{}, render.Light{1, 1, 1})
+		return billboards.Hazed(look)
+	}
+	if got := haze(); len(got) != 1 || got[0] != 0 {
+		t.Errorf("in perspective in thick air a billboard is hazed %v, want clear: not asked", got)
+	}
+	p.WithHaze(true)
+	if got := haze(); len(got) != 1 || got[0] <= 0 {
+		t.Errorf("asked, in thick air a billboard is hazed %v, want some", got)
 	}
 }

@@ -33,9 +33,9 @@
 // Silhouette of its sprite every frame, as a [ShadowPolicy] turns them by the distance from the
 // eye ([Plugin.WithShadowPolicy]). What stands receives the shadows at its height: the relief's
 // and the clouds' wherever it is, the blocks' near the ground (render.GroundShade). Its
-// weather leans what sways, lays the clouds' shadows and hazes the far off from an eye — seen
-// from above, through a camera with none, only when asked ([Plugin.WithHazeFromAbove],
-// [HazeFromAbove]), the map clear by default. How a kind looks beyond its sprite is its
+// weather leans what sways and lays the clouds' shadows; its air hazes the ground and what stands
+// on it only when asked ([Plugin.WithHaze], [Haze]): far off from an eye, over the ground from
+// above, all clear by default. How a kind looks beyond its sprite is its
 // painter.Style ([Plugin.Style]).
 //
 // # Drawing and commands
@@ -48,6 +48,6 @@
 //
 // # Vocabulary
 //
-// Commands, a player's: [Raise], [Lower], [Level] (the shaping); [CoarseShadows],
-// [HazeFromAbove] (looks).
+// Commands, a player's: [Raise], [Lower], [Level] (the shaping); [CoarseShadows], [Haze]
+// (looks).
 package topography

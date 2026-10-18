@@ -81,7 +81,7 @@ cgo. Without a GPU the tests that draw skip themselves.
 | **Bridges** | `plugins/bridges` | Bridges built by one set of rules whoever builds them: a level's file, the map maker, a player with a bridge in hand |
 | **Topography** | `plugins/topography` | A map in relief on the GPU: heights shaped and priced, the sun's light and shadows, water glinting and running; the cameras' cage |
 | **Atmosphere** | `plugins/atmosphere` | The calendar, the sky of the hour (the Earth's with the real stars, or a game's own of four parts), the climate and the weather, what falls and what it does to the board |
-| **Selection, players, cameras** | `plugins/selection`, `plugins/players`, `plugins/cameras` | Click and marquee into `Selected`; players over the command handlers, their bindings and a list of keys (K); cameras made where a scene shows them, from above, isometrically or in perspective, kept out of what a map makes solid, fastened over a unit, behind it or inside it |
+| **Selection, players, cameras** | `plugins/selection`, `plugins/players`, `plugins/cameras` | Click and marquee into `Selected`; players over the command handlers, their bindings and a list of keys (K); cameras made where a scene shows them, on a stick turned and leaned from straight down to isometric and flatter, orthographic or in perspective, kept out of what a map makes solid, fastened over a unit, behind it or inside it |
 | **Telemetry** | `plugins/telemetry` | The panel in the corner saying how the game runs — the frame rate, the ticks, where a frame's time goes, the entities, the game time, the plugins' and the game's own lines — in every Stage with a world, shown and hidden with ~ |
 | **Persistence** | `game.Persistence` | Save, load and list the active Stage's ECS and every tracked value by name |
 | **Rendering** | `render`, `camera` | Everything drawn on the GPU (WebGPU, WGSL): sources drawn over one another by height in a shared depth buffer, the ground first and the marks last, `Direct` sources with shaders of their own, a picture kept on the GPU (`Still`), an atlas baked at `Close` |
@@ -298,7 +298,7 @@ demo opens a window; what it shows is tested in the library's package that does 
 |:---|:---|:---|
 | [`look/animation`](examples/look/animation) | A gallery of animations drawn frame after frame from sheets in game time (Shift+P freezes them), each figure labelled: a walker on a patrol stepping the way it goes in eight directions and braking, an idler bored by stages (blinking, stamping, looking about), a puller's hands on a lever, a lever swinging down and up | `make demo-look-animation` |
 | [`look/material`](examples/look/material) | Materials of the game's own WGSL in place of sprites: a ward pulsing on the clock and four embers circling it, drawn out of their own state, breathing standing and streaming a tail driven (WSAD); G calms the ward and F douses the embers into plain sprites for a while | `make demo-look-material` |
-| [`look/sky`](examples/look/sky) | A sky of the game's own over a valley in relief, a day in a minute and a half: its own WGSL vault, turquoise by day and violet at night with a band shimmering along the stars' equator, the Earth's moon three times as big and orange, showing by day too, made-up stars; Tab turns to the perspective, Q and E turn it, R raises the head | `make demo-look-sky` |
+| [`look/sky`](examples/look/sky) | A sky of the game's own over a valley in relief, a day in a minute and a half: its own WGSL vault, turquoise by day and violet at night with a band shimmering along the stars' equator, the Earth's moon three times as big and orange, showing by day too, made-up stars; Tab turns to the perspective, Q and E turn it, F lays the stick down to the sky | `make demo-look-sky` |
 
 ### Rules: states, rules and commands
 
@@ -316,7 +316,7 @@ demo opens a window; what it shows is tested in the library's package that does 
 |:---|:---|:---|
 | [`board/atlas`](examples/board/atlas) | A small flat board drawn from the game's own atlas, the water a material shimmering per pixel, a road laid as a way | `make demo-board-atlas` |
 | [`board/flat`](examples/board/flat) | Madeira on the simple map out of `cmd/gramap`: the island in its colours, rivers and roads as bands, bridges and fords standing on it, a day and the weather going by | `make demo-board-flat` |
-| [`board/topography`](examples/board/topography) | Madeira in relief, its true heights, a cell 333 m: lit by the sun, water running, roads laid as Transport Tycoon lays them, bridges on piers (Shift+B builds one), the ground shaped under the cursor; from above, isometrically or in perspective (Tab) | `make demo-board-topography` |
+| [`board/topography`](examples/board/topography) | Madeira in relief, its true heights, a cell 333 m: lit by the sun, water running, roads laid as Transport Tycoon lays them, bridges on piers (Shift+B builds one), the ground shaped under the cursor; the camera on a stick turned (Q, E) and leaned (R, F) from straight down to isometric and flatter, orthographic or in perspective (Tab) | `make demo-board-topography` |
 
 ### Navigation: units sent across a board
 

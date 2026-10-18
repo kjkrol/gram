@@ -19,6 +19,17 @@ func Stood(l world.Look) [][6]float32 {
 	return out
 }
 
+// Hazed is how much the air hides of every billboard the look l took since it was readied.
+func Hazed(l world.Look) []float32 {
+	var out []float32
+	for _, b := range l.(Look).gpu.batches {
+		for i := 0; i+boardFloats <= len(b.inst); i += boardFloats {
+			out = append(out, b.inst[i+7])
+		}
+	}
+	return out
+}
+
 // Lain is the corners (x, y, height) of every sprite the look l took lying since it was readied.
 func Lain(l world.Look) [][3]float32 {
 	var out [][3]float32

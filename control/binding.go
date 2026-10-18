@@ -77,6 +77,10 @@ type ButtonHeld struct{ Button MouseButton }
 // CursorAtEdge fires every tick the cursor rests near a window edge; the carrier says how near.
 type CursorAtEdge struct{}
 
+// CursorInCorner fires every tick the cursor rests in a corner's square, as CursorAtEdge does
+// too; Context.Edges says which corner.
+type CursorInCorner struct{}
+
 // CursorOver fires once a tick while the cursor lies over the player's picture of the world,
 // still or not, its command landing in the tick after.
 type CursorOver struct{}
@@ -85,17 +89,18 @@ type CursorOver struct{}
 // the cursor is over, and one whose camera rides in an entity wherever the cursor is.
 type CursorMove struct{}
 
-func (KeyPress) trigger()     {}
-func (KeyDown) trigger()      {}
-func (KeyHeld) trigger()      {}
-func (KeyReleased) trigger()  {}
-func (ButtonPress) trigger()  {}
-func (Drag) trigger()         {}
-func (Wheel) trigger()        {}
-func (ButtonHeld) trigger()   {}
-func (CursorAtEdge) trigger() {}
-func (CursorMove) trigger()   {}
-func (CursorOver) trigger()   {}
+func (KeyPress) trigger()       {}
+func (KeyDown) trigger()        {}
+func (KeyHeld) trigger()        {}
+func (KeyReleased) trigger()    {}
+func (ButtonPress) trigger()    {}
+func (Drag) trigger()           {}
+func (Wheel) trigger()          {}
+func (ButtonHeld) trigger()     {}
+func (CursorAtEdge) trigger()   {}
+func (CursorInCorner) trigger() {}
+func (CursorMove) trigger()     {}
+func (CursorOver) trigger()     {}
 
 // Context is what a binding builds its command from: the player, its camera and this tick's input
 // in screen pixels; World and WorldBox go through the camera.

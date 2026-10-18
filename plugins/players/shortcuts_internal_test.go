@@ -32,6 +32,7 @@ func TestWritten_SpellsATriggerAsAHelpScreenDoes(t *testing.T) {
 		{control.ButtonHeld{Button: control.MouseButtonMiddle}, "middle drag"},
 		{control.Wheel{}, "wheel"},
 		{control.CursorAtEdge{}, "cursor at an edge"},
+		{control.CursorInCorner{}, "cursor in a corner"},
 	} {
 		if got := Written(c.trigger); got != c.want {
 			t.Errorf("Written(%#v) = %q, want %q", c.trigger, got, c.want)

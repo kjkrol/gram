@@ -8,9 +8,12 @@ import (
 )
 
 func TestViewCamera_ItsTransformDrawsWhereItProjects(t *testing.T) {
-	cam := sized(newCamera(testProjection, 3200, 3200, 0, camera.Config{}, 0, true, nil, nil, 0), 400, 300)
+	cam := testViewsOver(3200, true)
 	cam.CenterOn(1600, 1600, 0)
 	for view := range 3 {
+		if view == 2 { // back in the parallel view, from above
+			cam.Tilt(math.Pi)
+		}
 		f, ok := cam.Rays()
 		if !ok {
 			t.Fatalf("view %d: no rays", view)

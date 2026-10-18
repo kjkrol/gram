@@ -49,6 +49,9 @@ func New(flat world.Look, sky Sky, r *relief.Relief, ground *terrain.Renderer, p
 	return Look{flat: flat, sky: sky, gpu: newSprites(sky, r, ground), policy: policy}
 }
 
+// Haze says whether the air hazes the billboards far off from an eye; off, they are drawn clear.
+func (l Look) Haze(on bool) { l.gpu.hazed = on }
+
 // Begin readies the billboards, the shadows and the flat sprites for a frame through cam.
 func (l Look) Begin(f *render.Frame, cam camera.Camera) {
 	l.gpu.begin(f, cam)

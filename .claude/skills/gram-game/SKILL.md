@@ -152,9 +152,9 @@ parts it draws its own way, its WGSL beside it, `//go:embed vault.wgsl`), noted 
 `a.Grid(board.Line{...})` and `a.Holds(width)`; the defaults spelt out as
 `board.DefaultGridLine(b.Board().Grid)` and `board.DefaultHoldWidth`), noted right after the
 tiles, `a.board.Surfaces(surface{})`. In a perspective the sky shows only above the
-topography's `MinPitch` (30° by default hides it; look/sky sets 2). Q and E turn about the
-ground in the middle of the screen, far off with the head raised: turn first, then raise the
-head (R). The rule: `Look`
+cameras' `MinPitch` (`cameras.Config`; 30° by default hides it; look/sky sets 2). Q and E turn
+about the ground in the middle of the screen, far off once the stick lies flat: turn first, then
+lay it down (F). The rule: `Look`
 takes the atlas it draws on and the plugin whose register the kind is in. A figure whose kind is
 built on another plugin's method takes that plugin in its constructor (dialog's
 `host{talks: a.dialog}` for `Script`), nothing else. A figure's numbers — its size in pixels,

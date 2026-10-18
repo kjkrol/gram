@@ -83,11 +83,12 @@ type Plugin struct {
 	ground *terrain.Renderer
 	hexes  *hexes.Ground
 
-	coarse    command.Queue[CoarseShadows]
-	hazing    command.Queue[HazeFromAbove]
-	hazeAbove bool
-	policy    ShadowPolicy
-	module    *module
+	coarse command.Queue[CoarseShadows]
+	hazing command.Queue[Haze]
+	hazed  bool
+	look   billboards.Look
+	policy ShadowPolicy
+	module *module
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -126,8 +127,8 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, cfg Config)
 	} else {
 		p.hexes = hexes.New(worldPlugin, boardPlugin, p, p.relief, liveSky{p})
 	}
-	worldPlugin.SetLook(billboards.New(worldPlugin.FlatLook(), liveSky{p}, p.relief, p.ground,
-		p.castOf))
+	p.look = billboards.New(worldPlugin.FlatLook(), liveSky{p}, p.relief, p.ground, p.castOf)
+	worldPlugin.SetLook(p.look)
 	return p
 }
 
@@ -238,22 +239,22 @@ func (p *Plugin) WithCoarseShadows(on bool) *Plugin {
 // ShadowsCoarse reports whether the terrain's shadows are baked coarse.
 func (p *Plugin) ShadowsCoarse() bool { return p.ground != nil && p.ground.Coarsened() }
 
-// WithHazeFromAbove has the ground hazed seen from above too, through a camera with no eye (the
-// tactical views), by the air over it as thick as the weather makes it; off by default, the map
-// clear.
-func (p *Plugin) WithHazeFromAbove(on bool) *Plugin {
-	p.hazeAbove = on
+// WithHaze has the air haze the ground and what stands on it as thick as the weather makes it,
+// through any camera: far off from an eye, over the ground from above; off by default, all clear.
+func (p *Plugin) WithHaze(on bool) *Plugin {
+	p.hazed = on
 	if p.ground != nil {
-		p.ground.HazeAbove(on)
+		p.ground.Haze(on)
 	}
 	if p.hexes != nil {
-		p.hexes.HazeAbove(on)
+		p.hexes.Haze(on)
 	}
+	p.look.Haze(on)
 	return p
 }
 
-// HazesFromAbove reports whether the ground is hazed seen from above.
-func (p *Plugin) HazesFromAbove() bool { return p.hazeAbove }
+// Hazes reports whether the air hazes the ground.
+func (p *Plugin) Hazes() bool { return p.hazed }
 
 // Seed sets the ground's heights raised when the Stage starts fresh.
 func (p *Plugin) Seed(heights func(p geom.Vec) float64) {
@@ -338,7 +339,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // cameras' RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.coarse.Drain(func(command.Issued[CoarseShadows]) { p.WithCoarseShadows(!p.ShadowsCoarse()) })
-	p.hazing.Drain(func(command.Issued[HazeFromAbove]) { p.WithHazeFromAbove(!p.HazesFromAbove()) })
+	p.hazing.Drain(func(command.Issued[Haze]) { p.WithHaze(!p.Hazes()) })
 	p.module.RunPlan(ctx, d)
 }
 
