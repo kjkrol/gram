@@ -170,6 +170,8 @@ func (l Leg) held() []spot {
 }
 
 type navigationSystem struct {
+	pace       cgoke.Pace
+	blocks     cgoke.Blocks
 	grid       grid.Grid
 	terrain    cell.Terrain
 	occupancy  cell.Occupancy
@@ -249,7 +251,7 @@ func (s *navigationSystem) withKeeping(k keeping) *navigationSystem {
 func (s *navigationSystem) BindSpace(space *aabbworld.Space) { s.space = space }
 
 func (s *navigationSystem) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.cell, &s.base, &s.steer, &s.course).
+	qb := si.NewQueryBuilder(&s.cell, &s.base, &s.steer, &s.course).
 		Optional(&s.order).
 		Optional(&s.mover).
 		Optional(&s.z).
@@ -257,8 +259,9 @@ func (s *navigationSystem) Init(si *goke.SysInit) {
 		Optional(&s.hand).
 		Optional(&s.owners, &s.lastOrder).
 		Optional(&s.mind, &s.blocked, &s.arrived).
-		Optional(&s.states).
-		Build()
+		Optional(&s.states)
+	s.blocks = cgoke.Over(s.pace, qb)
+	s.query = qb.Build()
 	s.orderID = si.RegComp[MoveOrder]()
 	s.blockedID, s.arrivedID, s.lastOrderID = si.RegComp[Blocked](), si.RegComp[Arrived](), si.RegComp[LastOrder]()
 	s.arrivedEditor = s.query.NewEditorBuilder().Remove(goke.Remove[MoveOrder]()).Build()
@@ -299,6 +302,9 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
+		if _, ok := s.blocks.Step(cursor, d); !ok {
+			continue
+		}
 		orders := s.order.Slice(cursor)
 		if orders == nil {
 			s.standing(cb, cursor)
@@ -922,6 +928,9 @@ func (s *navigationSystem) gather(dst []body) []body {
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
+		if _, ok := s.blocks.Step(cursor, 0); !ok {
+			continue
+		}
 		bases, orders, movers := s.base.Slice(cursor), s.order.Slice(cursor), s.mover.Slice(cursor)
 		cells, owned, lasts := s.cell.Slice(cursor), s.owners.Slice(cursor), s.lastOrder.Slice(cursor)
 		zs, minded := s.z.Slice(cursor), s.mind.Slice(cursor) != nil

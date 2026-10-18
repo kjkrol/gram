@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/clock"
@@ -27,6 +28,7 @@ type module struct {
 	log     *log.Logger
 	clock   *clock.Clock
 	tick    host.TickSource
+	pace    cgoke.Pace
 	leave   func(cb *goke.CmdBuf, id uid.UID64)
 	built   bool
 }
@@ -61,7 +63,7 @@ func (m *module) LoadComps() []goke.CompToken {
 func (m *module) build() {
 	s := newCollisionSystem(m.space, m.pairs, m.entities, m.fieldOf)
 	s.stats, s.log, s.heights = m.stats, m.log, m.heights
-	s.tickOf = m.tick
+	s.tickOf, s.pace = m.tick, m.pace
 	s.leave = m.leave
 	m.system = m.ecs.RegSys(s)
 	m.built = true

@@ -45,6 +45,7 @@ type Clock struct {
 
 	entity  uid.UID64
 	blocks  []Block
+	steps   uint64
 	carry   float32 // the part of a step the tempo did not fill this tick
 	step    time.Duration
 	pending time.Duration // real time held toward the next tick
@@ -72,6 +73,10 @@ func (c *Clock) State() State { return c.state }
 
 // Time is the game time gone by.
 func (c *Clock) Time() time.Duration { return c.state.Time }
+
+// Steps is how many steps of the simulation have gone by: in a step, its number from 0. What
+// goes every so many steps counts by it; it is not saved.
+func (c *Clock) Steps() uint64 { return c.steps }
 
 // In reports whether the clock is in phase: its entity carries the tag, as of this step of the
 // simulation — an effect granting it in one step is seen in the next.
@@ -120,6 +125,7 @@ func (c *Clock) run(ctx goke.RunCtx, step time.Duration) {
 		b(ctx, step)
 	}
 	c.state.Time += step
+	c.steps++
 }
 
 // Behind tells the clock the engine could not run every tick this frame: a tempo above 1 held

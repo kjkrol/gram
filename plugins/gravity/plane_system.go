@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/gravity/internal/planar"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
 )
 
@@ -25,6 +26,8 @@ type planeSystem struct {
 	tickOf   host.TickSource
 	landings *host.Rules[Landing]
 	cols     *cgoke.Columns
+	// a body borne by what it touches goes only where collision runs
+	blocks cgoke.Blocks
 
 	pulls *goke.Query
 	pull  goke.Comp[Pull]
@@ -61,6 +64,7 @@ func (s *planeSystem) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.base, &s.body, &s.drift, &s.marks).Optional(&s.coll)
 	s.cols = cgoke.NewColumns(qb)
 	s.landings.Bind(s.cols)
+	s.blocks = cgoke.Over(s.p.worldPlugin.Pace(sector.Near), qb)
 	s.bodies = qb.Build()
 	s.whence.init(si)
 }
@@ -80,6 +84,9 @@ func (s *planeSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	dt := d.Seconds()
 	for s.bodies.All(); s.bodies.Next(); {
 		cur := s.bodies.Cursor()
+		if _, ok := s.blocks.Step(cur, d); !ok {
+			continue
+		}
 		bases, drifts, marks, colls := s.base.Slice(cur), s.drift.Slice(cur), s.marks.Slice(cur),
 			s.coll.Slice(cur)
 		s.walking.ids, s.walking.speeds = cur.IDs, s.walking.speeds[:0]

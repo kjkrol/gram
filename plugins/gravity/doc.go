@@ -15,6 +15,8 @@
 // ground.Surfaces), follows the ground down a slope within its reach, flies off a deck's edge, by
 // a leap or a throw, and lands. Across X and Y (a platformer's side view, its Z the depth) a body
 // is borne by whatever collision found it touching against the pull, a wall bearing nothing.
+// Along Z a body falls Paced in the world's bands (sector.Paced), across only Near, where collision
+// runs.
 //
 // # Commands and Landing
 //

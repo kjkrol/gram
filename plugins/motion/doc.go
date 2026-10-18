@@ -8,6 +8,7 @@
 // takes it as it is made (collision, bullet, driving, navigation, gravity; a board's units,
 // board.Plugin.WithMotion); its [Plugin.RunPlan] is called right after the world's. Its
 // sub-package steering is how an entity is steered: a heading and a speed reached gradually.
+// Steering and movement go Paced in the world's bands (sector.Paced).
 //
 // # Units and Drift
 //

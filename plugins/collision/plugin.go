@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 )
 
 // Plugin wires collision into a Stage over the world's space.
@@ -60,6 +61,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module.heights = p.worldPlugin.HasHeights()
 	p.module.stats, p.module.log = p.stats, p.log
 	p.module.tick = p.worldPlugin.Tick
+	p.module.pace = p.worldPlugin.Pace(sector.Near)
 	p.module.leave = p.motion.Leave
 	ctx.UseModule(p.module)
 	ctx.Hosts(&p.pairs, &p.entities)

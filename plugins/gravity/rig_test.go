@@ -116,7 +116,14 @@ type scene struct {
 	water  bool
 	bodies []body
 	rules  []act.Rule
+	// cut into sectors round the anchor
+	sectors world.SectorsCfg
+	anchor  geom.Vec
 }
+
+type anchor geom.Vec
+
+func (a anchor) Anchors(at func(x, y float32)) { at(float32(a.X), float32(a.Y)) }
 
 type rig struct {
 	t     *testing.T
@@ -148,7 +155,9 @@ func newRig(t *testing.T, sc scene) *rig {
 		Space:    world.SpaceCfg{Width: 40, Height: 40},
 		Entities: world.EntitiesCfg{MaxCount: len(sc.bodies) + 8, MinSize: 1, MaxSize: 10},
 		Heights:  true,
+		Sectors:  sc.sectors,
 	})
+	w.Anchor(anchor(sc.anchor))
 	r := &rig{t: t, w: w}
 	if err := w.Carry(&r.heard); err != nil {
 		t.Fatal(err)

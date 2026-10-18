@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/uid"
@@ -20,6 +21,8 @@ type System struct {
 	course   goke.OptComp[Course]
 	base     goke.Comp[entity.Base]
 	courseID goke.CompID
+	pace     cgoke.Pace
+	blocks   cgoke.Blocks
 
 	told       queues
 	obeyed     map[uid.UID64]bool
@@ -32,15 +35,23 @@ type System struct {
 // NewSystem is the steering system.
 func NewSystem() *System { return &System{obeyed: map[uid.UID64]bool{}} }
 
+// Paced has the system steer each block of entities as pace says, turning and counting the
+// reflex down by as many steps as it is given; set before Init.
+func (s *System) Paced(pace cgoke.Pace) *System {
+	s.pace = pace
+	return s
+}
+
 func (s *System) Init(si *goke.SysInit) {
-	s.query = si.NewQueryBuilder(&s.steer, &s.base).Optional(&s.course).Build()
+	qb := si.NewQueryBuilder(&s.steer, &s.base).Optional(&s.course)
+	s.blocks = cgoke.Over(s.pace, qb)
+	s.query = qb.Build()
 	s.lookup = si.NewQueryBuilder(&s.lookBase).Optional(&s.lookSteer, &s.lookCourse).Build()
 	s.courseID = si.RegComp[Course]()
 }
 
 func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 	s.obey()
-	dt := d.Seconds()
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
@@ -50,6 +61,11 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 			continue
 		}
+		step, ok := s.blocks.Step(cursor, d)
+		if !ok {
+			continue
+		}
+		dt, n := step.Seconds(), steps(step, d)
 		steers, courses := s.steer.Slice(cursor), s.course.Slice(cursor)
 		bases := s.base.Slice(cursor)
 
@@ -61,10 +77,10 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 				continue
 			}
 			if h.Want.X != 0 || h.Want.Y != 0 {
-				bases[i].Vel.Dir = turnTowards(bases[i].Vel.Dir, h.Want, h.TurnRate)
+				bases[i].Vel.Dir = turnTowards(bases[i].Vel.Dir, h.Want, h.TurnRate*float64(n))
 			}
 			if h.Delay > 0 {
-				h.Delay--
+				h.Delay -= uint8(min(int(h.Delay), n))
 				if h.Delay == 0 {
 					h.Want = h.Pending
 				}
@@ -75,6 +91,14 @@ func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 		}
 	}
+}
+
+// how many steps of d a step given lasts, at least one
+func steps(given, d time.Duration) int {
+	if d <= 0 {
+		return 1
+	}
+	return max(int(given/d), 1)
 }
 
 // a zero rate or heading snaps to the target

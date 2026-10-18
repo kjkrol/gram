@@ -53,11 +53,20 @@ func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, aft
 func newNavWorldWith(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 	prepare func(*world.Plugin, *board.Plugin), after ...goke.System) *navWorld {
 	t.Helper()
+	return newNavWorldIn(t, cols, rows, cellSize, units, world.SectorsCfg{}, prepare, after...)
+}
+
+// the world cut into sectors as given
+func newNavWorldIn(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
+	sectors world.SectorsCfg, prepare func(*world.Plugin, *board.Plugin),
+	after ...goke.System) *navWorld {
+	t.Helper()
 	nw := &navWorld{grid: grid.DefaultGrids{}.Square(cols, rows, cellSize), occupancy: &cell.SingleOccupancy{}}
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: cols * cellSize, Height: rows * cellSize},
 		Entities: world.EntitiesCfg{MaxCount: len(units) + 8, MinSize: 1, MaxSize: cellSize},
 		Heights:  true,
+		Sectors:  sectors,
 	})
 	m := motion.NewPlugin(w)
 	brd := board.NewPlugin(nw.grid, nw.occupancy, w).WithMotion(m)

@@ -20,6 +20,7 @@ import (
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 )
 
 // Plugin moves entities along a MoveOrder's path across a board, re-pathing when terrain changes,
@@ -119,6 +120,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	navSys := newNavigationSystem(finder, brd, brd, finder.occupancy).withKeeping(keep)
 	navSys.BindSpace(p.worldPlugin.Space())
 	navSys.given, navSys.touches, navSys.tick = &p.given, &p.touches, p.worldPlugin.Tick
+	navSys.pace = p.worldPlugin.Pace(sector.Everywhere)
 
 	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected).withKeeping(keep)
 	moveCommandSystem.onwards = &p.onwards

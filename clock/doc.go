@@ -7,8 +7,9 @@
 // pause and goes at the clock's tempo, ½, 1, 2 or 4 by default ([Config.Tempos]). In a tick the
 // clock replays the simulation as many times as the tempo says ([Clock.Replay]), each time over
 // the same step, so the game runs the same at any tempo; a [Config.BiggerStep] clock replays once
-// over a longer step instead. What is drawn goes by [Clock.Shown], game time run on past the last
-// tick by the real time the engine holds toward the next, so animations move every frame.
+// over a longer step instead. [Clock.Steps] numbers the steps, for what goes every so many. What
+// is drawn goes by [Clock.Shown], game time run on past the last tick by the real time the engine
+// holds toward the next, so animations move every frame.
 //
 // # Interface and simulation
 //

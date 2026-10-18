@@ -1,11 +1,15 @@
 package world
 
 import (
+	"maps"
 	"testing"
+	"time"
 
+	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/comp"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/world/sector"
@@ -32,6 +36,14 @@ type sectorRig struct {
 	second *goke.Query
 	off    *goke.Query
 	base   *goke.Comp[Base]
+	// by policy
+	paced [3]pacedQuery
+}
+
+type pacedQuery struct {
+	q      *goke.Query
+	blocks cgoke.Blocks
+	base   goke.Comp[Base]
 }
 
 // a world 4096x512 cut into sectors 512 a side: the first band 600 round the anchor, the second
@@ -61,6 +73,12 @@ func sectorWorld(t *testing.T, bands ...sector.Band) *sectorRig {
 			goke.Exclude[sector.Band3](), goke.Exclude[sector.Off]()).Build()
 		r.second = si.NewQueryBuilder(&b).Include(goke.Include[sector.Band2]()).Build()
 		r.off = si.NewQueryBuilder(&b).Include(goke.Include[sector.Off]()).Build()
+		for k := range r.paced {
+			pq := &r.paced[k]
+			qb := si.NewQueryBuilder(&pq.base)
+			pq.blocks = r.p.Pace(sector.Policy(k)).Over(qb)
+			pq.q = qb.Build()
+		}
 	}})...)
 	r.p.module.RegSystems(r.ecs)
 	return r
@@ -206,5 +224,98 @@ func TestSectors_RefuseBandsOutOfOrder(t *testing.T) {
 			}()
 			sectorWorld(t, bands...)
 		})
+	}
+}
+
+// the entities going this step by policy, each by its x with the step it is given
+func (r *sectorRig) going(policy sector.Policy) map[float64]time.Duration {
+	pq := &r.paced[policy]
+	got := map[float64]time.Duration{}
+	for pq.q.All(); pq.q.Next(); {
+		cur := pq.q.Cursor()
+		dt, ok := pq.blocks.Step(cur, 10*time.Millisecond)
+		for _, b := range pq.base.Slice(cur) {
+			if ok {
+				got[b.Pos.TopLeft.X] = dt
+			}
+		}
+	}
+	return got
+}
+
+func TestPace_GoesInTheBandsAsItsPolicySays(t *testing.T) {
+	r := sectorWorld(t, twoBands...)
+	r.spawn(100, 1200, 2000)
+	r.run()
+	const d = 10 * time.Millisecond
+	for range 4 {
+		r.run()
+		paced := map[float64]time.Duration{100: d}
+		if r.p.Clock().Steps()%4 == 3 {
+			paced[1200] = 4 * d
+		}
+		for policy, want := range map[sector.Policy]map[float64]time.Duration{
+			sector.Everywhere: {100: d, 1200: d},
+			sector.Paced:      paced,
+			sector.Near:       {100: d},
+		} {
+			if got := r.going(policy); !maps.Equal(got, want) {
+				t.Errorf("step %d, policy %d: going %v, want %v", r.p.Clock().Steps(), policy,
+					got, want)
+			}
+		}
+	}
+}
+
+func TestPace_LetsEveryBlockGoWithoutBands(t *testing.T) {
+	r := sectorWorld(t)
+	r.spawn(100, 2000)
+	r.run()
+	want := map[float64]time.Duration{100: 10 * time.Millisecond, 2000: 10 * time.Millisecond}
+	if got := r.going(sector.Near); !maps.Equal(got, want) {
+		t.Errorf("going %v, want every entity every step", got)
+	}
+	var nothing *Pace
+	if _, ok := nothing.Over(nil).Step(nil, time.Millisecond); !ok {
+		t.Error("a nil pace refused a block")
+	}
+}
+
+func (r *sectorRig) held(x float64) bool {
+	found := false
+	box := geom.NewAABB(geom.NewVec(x, 250), geom.NewVec(x+10, 260))
+	r.p.Space().Query(box, aabbworld.AnyCapability, func(uid.UID64) { found = true })
+	return found
+}
+
+func TestSectors_LeaveWhatLiesBeyondOutOfTheSpaceAndBringItBack(t *testing.T) {
+	r := sectorWorld(t, twoBands...)
+	r.spawn(100, 2000)
+	r.run()
+	if !r.held(100) || r.held(2000) {
+		t.Fatalf("the space holds the near entity %v and the one beyond %v; want only the near",
+			r.held(100), r.held(2000))
+	}
+	r.anchor.at[0] = geom.NewVec(2000, 256)
+	r.run()
+	if !r.held(2000) {
+		t.Error("the entity woken is not back in the space")
+	}
+}
+
+func TestSectors_AfterALoadLayTheSleepersAnew(t *testing.T) {
+	r := sectorWorld(t, twoBands...)
+	r.spawn(100, 3500)
+	r.run()
+	s := r.p.module.sectors
+	// a load brings other entities than those the sectors knew
+	for i := range s.sleep {
+		s.sleep[i] = nil
+	}
+	s.restart()
+	r.anchor.at[0] = geom.NewVec(3500, 256)
+	r.run()
+	if near, _, _ := r.bands(); !same(near, 3500) {
+		t.Errorf("near %v after the load, want the sleeper the anchor came to", near)
 	}
 }

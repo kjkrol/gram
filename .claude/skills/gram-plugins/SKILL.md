@@ -24,13 +24,26 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   cost). The supervisor (`sectors.go`, once a tick after the clock, before the views) lays each
   sector in the band its nearest anchor reaches (`sector.Grid.Place`: nearer at once, farther
   only half a sector past the reach; every sector begins beyond, so the first tick and a load
-  wake everything near), wakes the `sector.Off` entities whose middle lies in a sector come back
-  (a space query), and moves the mark of every entity whose sector's band is not its own over the
-  band queries; marks `sector.Band2`…`Band5`, `Off` (zero-size, `CmdBuf` `AddOne`/`RemoveCompOne`,
-  saved), the first band unmarked. Anchors are `sector.Anchors` handed to `Plugin.Anchor` (the
-  cameras plugin's, the `camera.Focused` point of each camera but a `Whole` one);
-  `Plugin.Sectors()` is a `render.Reporter` ("Sectors", "Entities by band"); board/topography
-  has them. No system reads the marks yet (D2). `world.Roster()` is
+  wake everything near), wakes the sleepers of a sector come back (its list of `sector.Off`
+  entities, kept by sector, never a space query: **the space holds no `Off` entity** — the
+  world's index, motion's rebuild and collision's `all` exclude them — so asking the space for
+  them would never find them again; lists laid anew at the first tick and after a load,
+  `restart`), and moves the mark of every entity whose sector's band is not its own over the
+  band queries; a move to or from `Off` sets `unindexed`; marks `sector.Band2`…`Band5`, `Off`
+  (zero-size, `CmdBuf` `AddOne`/`RemoveCompOne`, saved), the first band unmarked. Anchors are
+  `sector.Anchors` handed to `Plugin.Anchor` (the cameras plugin's, the `camera.Focused` point
+  of each camera but a `Whole` one); `Plugin.Sectors()` is a `render.Reporter` ("Sectors",
+  "Entities by band"); board/topography has them. **Systems go in the bands by a policy**
+  (`sector.Policy`: `Everywhere` every step but `Off`, `Paced` a step every `Pace` in the
+  farther bands over `Pace·d` — all at once, on the steps where `Clock.Steps() % Pace ==
+  Pace−1` — `Near` the first band alone): `world.Plugin.Pace(policy)` is a `cgoke.Pace`, laid
+  over a system's query with `cgoke.Over(pace, qb)` before `Build` (it adds the marks as
+  optionals; without bands, or a nil pace, every block goes), asked `Step(cur, d)` per block in
+  the loop. Who goes how: motion (steering, velocity, move, exit), gravity along Z, the world's
+  plans and effects `Paced`; navigation `Everywhere`; collision (far boxes `Plain`, contacts
+  cleared), bullet's flight, vision (far observers' `Sighted` cleared), gravity across `Near`.
+  Per-step quantities scale by the steps given (steering's `TurnRate`, `Delay`; move's
+  `MaxStep`). `world.Roster()` is
   what the plugins ask of the kinds of each template: a `kind.Template` is a sort of kind a plugin
   brings in by name under a parent (`kind.NewTemplate(name, parent)`; world: `EntityTemplate`;
   motion: `UnitTemplate` under it; board: `StandingTemplate` under the entity's, `CellTemplate`;

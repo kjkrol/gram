@@ -94,6 +94,40 @@ func TestClock_TheTimeShownRunsOnBetweenTheTicks(t *testing.T) {
 	}
 }
 
+func TestClock_StepsNumberTheStepsOfTheSimulation(t *testing.T) {
+	for _, bigger := range []bool{false, true} {
+		c := clock.New(clock.Config{BiggerStep: bigger})
+		ecs := goke.New()
+		var seen []uint64
+		ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+			c.Simulate(rc, func(goke.RunCtx, time.Duration) { seen = append(seen, c.Steps()) })
+			c.Replay(rc, d)
+		})
+		ecs.Setup()
+		tick := func(n int) {
+			for range n {
+				ecs.Tick(step)
+			}
+		}
+		tick(2)
+		if err := c.SetTempo(4); err != nil {
+			t.Fatal(err)
+		}
+		tick(2)
+		c.SetPaused(true)
+		tick(3)
+		for i, n := range seen {
+			if n != uint64(i) {
+				t.Fatalf("bigger step %v: the steps are numbered %v, want 0, 1, 2 and on",
+					bigger, seen)
+			}
+		}
+		if want := map[bool]int{false: 10, true: 4}[bigger]; len(seen) != want {
+			t.Errorf("bigger step %v: %d steps, want %d", bigger, len(seen), want)
+		}
+	}
+}
+
 func TestClock_ABiggerStepReplaysOnceOverALongerStep(t *testing.T) {
 	r := newRig(t, clock.Config{BiggerStep: true})
 	if err := r.c.SetTempo(4); err != nil {

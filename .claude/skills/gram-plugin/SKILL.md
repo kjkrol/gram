@@ -32,6 +32,17 @@ attribute, never a uniform (vision's views, navigation's routes). `ctx.Use(p)` r
 lets `Persistence.Load` decide fresh-spawn vs. restore before the ECS commits. `ctx.Track(s)`
 registers non-`Plugin` state (a `Composition`, a ui scene) into the same save/load machinery.
 
+**A system goes in the world's bands by a policy its plugin chooses** (`sector.Everywhere`,
+`Paced`, `Near`; `gram-plugins`, world): it holds a `cgoke.Pace` (`w.Pace(policy)`, set by the
+module, nil in a test building the system bare), lays it over its main query in `Init`
+(`s.blocks = cgoke.Over(s.pace, qb)` before `Build`) and asks each block `dt, ok :=
+s.blocks.Step(cur, d)`, skipping one refused and running the others over `dt` (a `host.Tick`
+of `dt` for its rules; what is "a tick" — a turn rate, a reflex — times `dt/d`). One query and
+one system, never a system per band: its command queues, its hosted rules and `Seek` stay as
+they are, and what rebuilds the space reads every entity but `sector.Off`. An exported system
+offers `Paced(pace) *System` (steering, vision's `ScanSystem`), as ceremony's `Plans` and
+`Effects` do.
+
 **How entities behave is ceremony's**: a rule is an `act.Branch[P]{Name, When, Then}` run inside
 the pass of the plugin that catches its moment `P`; a plan `plan.New(name, root)` of
 `plan.Loop[P]{Name, When, Then, Until, Timeout, Cooldown}` on the entity's mind; an effect an

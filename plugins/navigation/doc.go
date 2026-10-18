@@ -10,6 +10,7 @@
 // step by step, planned again when the entity stands off it; its [Leg] is the single step in
 // flight. A navigated entity carries a steering.Steering profile, which navigation asks for a
 // heading and a top speed; a MoveOrder is put on by the MoveTo command, or by the game at spawn.
+// Navigation goes every step in every band of the world's sectors (sector.Everywhere).
 //
 // # Spacing
 //

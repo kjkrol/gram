@@ -6,8 +6,10 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 )
 
 var _ goke.System = (*moveSystem)(nil)
@@ -20,6 +22,11 @@ type moveSystem struct {
 	outside   goke.OptComp[Outside]
 	outsideID goke.CompID
 	items     []aabbworld.Item
+	pace      cgoke.Pace
+	blocks    cgoke.Blocks
+	// what the space holds: all but those beyond the last band
+	held     *goke.Query
+	heldBase goke.Comp[world.Base]
 }
 
 func newMoveSystem(space *aabbworld.Space) *moveSystem {
@@ -28,14 +35,22 @@ func newMoveSystem(space *aabbworld.Space) *moveSystem {
 
 func (s *moveSystem) Init(si *goke.SysInit) {
 	s.outsideID = si.RegComp[Outside]()
-	s.moveQuery = si.NewQueryBuilder(&s.base).Optional(&s.drift).Optional(&s.outside).Build()
+	qb := si.NewQueryBuilder(&s.base).Optional(&s.drift).Optional(&s.outside)
+	s.blocks = cgoke.Over(s.pace, qb)
+	s.moveQuery = qb.Build()
+	s.held = si.NewQueryBuilder(&s.heldBase).Exclude(goke.Exclude[sector.Off]()).Build()
 }
 
 func (s *moveSystem) Update(cb *goke.CmdBuf, d time.Duration) {
-	dt := d.Seconds()
 	s.moveQuery.All()
 	for s.moveQuery.Next() {
 		cursor := s.moveQuery.Cursor()
+		step, ok := s.blocks.Step(cursor, d)
+		if !ok {
+			continue
+		}
+		// a longer step reaches as many steps' worth
+		dt, reach := step.Seconds(), float64(max(step/d, 1))
 		bases, drifts := s.base.Slice(cursor), s.drift.Slice(cursor)
 		marked := s.outside.Present(cursor)
 		for i, id := range cursor.IDs {
@@ -44,11 +59,11 @@ func (s *moveSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				rate.X += drifts[i].X
 				rate.Y += drifts[i].Y
 			}
-			step := clampStep(geom.NewVec(rate.X*dt, rate.Y*dt), bases[i].Pos.MaxStep())
-			if step.X == 0 && step.Y == 0 {
+			by := clampStep(geom.NewVec(rate.X*dt, rate.Y*dt), bases[i].Pos.MaxStep()*reach)
+			if by.X == 0 && by.Y == 0 {
 				continue
 			}
-			if inside := s.space.Move(&bases[i].Pos.AABB, step); !inside && !marked {
+			if inside := s.space.Move(&bases[i].Pos.AABB, by); !inside && !marked {
 				cb.AddOne(id, s.outsideID, Outside{})
 			}
 		}
@@ -59,10 +74,9 @@ func (s *moveSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 // the space holds the items handed it, so motion keeps its own
 func (s *moveSystem) rebuild() {
 	s.items = s.items[:0]
-	s.moveQuery.All()
-	for s.moveQuery.Next() {
-		cursor := s.moveQuery.Cursor()
-		for i, b := range s.base.Slice(cursor) {
+	for s.held.All(); s.held.Next(); {
+		cursor := s.held.Cursor()
+		for i, b := range s.heldBase.Slice(cursor) {
 			item := aabbworld.Item{ID: cursor.IDs[i], Box: b.Pos.AABB, Caps: b.Caps}
 			s.items = append(s.items, item)
 		}

@@ -52,7 +52,11 @@ gram's.
   `Command()` — each asserted beside its type (`var _ host.About = Standing{}`).
 - `cgoke`: `Effects` (register + runtime, `Cast`, `CastFor`, `Dispel`, `Has`), `Active`/`Wide`
   (`Left(e)`), `Plans`, `Columns`, `Spawner`. The effect system casts through its own `CmdBuf`
-  (`ECS.CmdBuf`) and stages facts with `Reserve`.
+  (`ECS.CmdBuf`) and stages facts with `Reserve`. `Pace{Over(qb) Blocks}` and
+  `Blocks{Step(cur, dt) (dt, ok)}` are the caller's rhythm: `Plans.Paced(pace)`,
+  `Effects.Paced(pace)` (before Init/registration) skip a block refused and run the others over
+  the step given (an effect counts down by it; plans take time from `now`); ceremony knows no
+  bands — gram's `world.Pace` is one.
 
 ## How a subject kind runs (Around, and adding one like it)
 

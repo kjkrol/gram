@@ -8,7 +8,8 @@
 // how wide it sees and from how high is its world.Eye, without which it is never scanned. What
 // the last scan found is its [Sighted]: at most [MaxSeen] entities, nearest first. Every observer
 // is scanned every step, or [Plugin.WithFrequency] times a second of game time, the scan shared
-// among goroutines ([Plugin.WithWorkers]).
+// among goroutines ([Plugin.WithWorkers]). Only the first band of the world's sectors looks
+// (sector.Near): farther off an observer sees nothing.
 //
 // # Transparency
 //

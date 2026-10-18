@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -58,6 +59,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		h = &heights{groundOf: p.groundOf, step: p.groundStep, bend: p.worldPlugin.Scale().Bend()}
 	}
 	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.coverOf, p.workers)
+	p.module.sys.Paced(p.worldPlugin.Pace(sector.Near))
 	p.module.sys.Every(p.frequency)
 	p.module.clock = p.worldPlugin.Clock()
 	p.module.sys.tick, p.module.sys.log = p.worldPlugin.Tick, p.log

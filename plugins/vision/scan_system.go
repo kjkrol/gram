@@ -23,6 +23,9 @@ var _ goke.System = (*ScanSystem)(nil)
 type ScanSystem struct {
 	scanner
 
+	pace   cgoke.Pace
+	blocks cgoke.Blocks
+
 	tick host.TickSource
 
 	log  *log.Logger
@@ -110,6 +113,12 @@ func NewScanSystem(space *aabbworld.Space) *ScanSystem {
 	return newScanSystem(space, &host.PairRules[Sighting]{})
 }
 
+// Paced has the system scan each block of observers as pace says; set before Init.
+func (s *ScanSystem) Paced(pace cgoke.Pace) *ScanSystem {
+	s.pace = pace
+	return s
+}
+
 func newScanSystem(space *aabbworld.Space, host *host.PairRules[Sighting]) *ScanSystem {
 	s := &ScanSystem{host: host}
 	s.scanner.bind(space)
@@ -140,6 +149,7 @@ func (s *ScanSystem) Init(si *goke.SysInit) {
 	seek := si.NewQueryBuilder(&s.lookupBase).Optional(&s.lookupTau, &s.lookupLay, &s.lookupZ)
 	s.walkCols, s.seekCols = cgoke.NewColumns(walk), cgoke.NewColumns(seek)
 	s.host.Bind(s.walkCols, s.seekCols)
+	s.blocks = cgoke.Over(s.pace, walk)
 	s.query, s.lookup = walk.Build(), seek.Build()
 	s.sightedID = si.RegComp[Sighted]()
 	s.scanners = append(s.scanners[:0], &s.scanner)
@@ -248,11 +258,16 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	n, due := 0, 0
 	s.query.All()
 	for s.query.Next() {
-		j := s.job(s.query.Cursor())
+		cursor := s.query.Cursor()
+		j := s.job(cursor)
 		if j.seens == nil {
 			for _, id := range j.ids {
 				cb.AddOne(id, s.sightedID, Sighted{})
 			}
+			continue
+		}
+		if _, ok := s.blocks.Step(cursor, d); !ok {
+			forget(j.seens)
 			continue
 		}
 		j.first = n
@@ -289,6 +304,9 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		if j.seens == nil {
 			continue
 		}
+		if _, ok := s.blocks.Step(cursor, d); !ok {
+			continue
+		}
 		for i, id := range cursor.IDs {
 			if k <= 1 && s.due(id) {
 				j.scan(&s.scanner, i)
@@ -302,6 +320,15 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				s.gather(&j.seens[i])
 				s.host.DispatchGrouped(t, s.host.Read(walked, s.walkCols.Row(cursor), i), s.seenTags, s.sightingOf)
 			}
+		}
+	}
+}
+
+// an observer not looking sees nothing, so no rule acts on what it saw last
+func forget(seens []Sighted) {
+	for i := range seens {
+		if seens[i].Count != 0 {
+			seens[i] = Sighted{}
 		}
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/world/sector"
@@ -30,19 +29,25 @@ const defaultSectorBuckets = 4
 type sectors struct {
 	w       *module
 	grid    *sector.Grid
+	bands   []sector.Band
 	anchors []sector.Anchors
 	at      []geom.Vec
 	margin  float64
 	// by band: the first's none, Beyond's Off
 	marks []goke.CompID
 	// by band but Beyond's, each its own column
-	bands  []*goke.Query
-	bases  []goke.Comp[Base]
-	lookup *goke.Query
-	base   goke.Comp[Base]
-	off    goke.OptComp[sector.Off]
-	woke   []int
-	ids    []uid.UID64
+	queries []*goke.Query
+	bases   []goke.Comp[Base]
+	lookup  *goke.Query
+	base    goke.Comp[Base]
+	off     goke.OptComp[sector.Off]
+	// those beyond the last band by the sector they sleep in, the space not holding them
+	sleep     [][]uid.UID64
+	sleepers  *goke.Query
+	sleepBase goke.Comp[Base]
+	asleep    bool
+	woke      []int
+	ids       []uid.UID64
 	// entities in each band at the last pass, Beyond's but those it holds since
 	counts []int
 }
@@ -62,7 +67,9 @@ func newSectors(w *module) *sectors {
 	space := w.config.Space
 	s.grid = sector.NewGrid(space.Width, space.Height, space.Edges.WrapsX(), space.Edges.WrapsY(),
 		side, cfg.Bands)
+	s.bands = cfg.Bands
 	s.margin = side / 2
+	s.sleep = make([][]uid.UID64, s.grid.Len())
 	return s
 }
 
@@ -94,7 +101,7 @@ func (s *sectors) Init(si *goke.SysInit) {
 	copy(s.marks[1:n], regs[1:n])
 	s.marks[n] = si.RegComp[sector.Off]()
 	s.bases = make([]goke.Comp[Base], n)
-	s.bands = make([]*goke.Query, n)
+	s.queries = make([]*goke.Query, n)
 	for k := range n {
 		qb := si.NewQueryBuilder(&s.bases[k])
 		if k == 0 {
@@ -104,9 +111,10 @@ func (s *sectors) Init(si *goke.SysInit) {
 		} else {
 			qb.Include(markOf(k))
 		}
-		s.bands[k] = qb.Build()
+		s.queries[k] = qb.Build()
 	}
 	s.lookup = si.NewQueryBuilder(&s.base).Optional(&s.off).Build()
+	s.sleepers = si.NewQueryBuilder(&s.sleepBase).Include(goke.Include[sector.Off]()).Build()
 	s.counts = make([]int, n+1)
 }
 
@@ -123,11 +131,14 @@ func markOf(band int) goke.Opt {
 }
 
 // Update lays the sectors in their bands round the anchors and moves the marks: of the entities
-// in the sectors that came back from beyond the last band, then of every entity this side of it
-// whose sector's band is not the one it carries.
+// asleep in the sectors that came back from beyond the last band, then of every entity this side
+// of it whose sector's band is not the one it carries.
 func (s *sectors) Update(cb *goke.CmdBuf, _ time.Duration) {
 	if s.grid == nil {
 		return
+	}
+	if !s.asleep {
+		s.lull()
 	}
 	s.at = s.at[:0]
 	for _, a := range s.anchors {
@@ -144,23 +155,24 @@ func (s *sectors) Update(cb *goke.CmdBuf, _ time.Duration) {
 	for _, i := range s.woke {
 		s.wake(i)
 	}
-	// a box across a seam is found once a piece
 	slices.Sort(s.ids)
 	for _, id := range slices.Compact(s.ids) {
 		s.lookup.Seek(id)
 		c := s.base.At(s.lookup.Cursor()).Pos.Center()
-		s.move(cb, id, beyond, s.grid.Band(s.grid.Of(c.X, c.Y)))
+		at := s.grid.Of(c.X, c.Y)
+		s.move(cb, id, beyond, s.grid.Band(at), at)
 	}
 	clear(s.counts)
-	for k, q := range s.bands {
+	for k, q := range s.queries {
 		for q.All(); q.Next(); {
 			cur := q.Cursor()
 			bases := s.bases[k].Slice(cur)
 			for j, id := range cur.IDs {
 				c := bases[j].Pos.Center()
-				to := s.grid.Band(s.grid.Of(c.X, c.Y))
+				at := s.grid.Of(c.X, c.Y)
+				to := s.grid.Band(at)
 				if to != k {
-					s.move(cb, id, k, to)
+					s.move(cb, id, k, to, at)
 				}
 				s.counts[to]++
 			}
@@ -168,24 +180,57 @@ func (s *sectors) Update(cb *goke.CmdBuf, _ time.Duration) {
 	}
 }
 
-// gathers the entities marked Off whose middle lies in sector i
-func (s *sectors) wake(i int) {
-	box := s.grid.Box(i)
-	// a box's edge touching the next sector's buckets would reach into them
-	inner := geom.NewAABB(box.TopLeft, geom.NewVec(box.BottomRight.X-1e-6, box.BottomRight.Y-1e-6))
-	s.w.space.Query(inner, aabbworld.AnyCapability, func(id uid.UID64) {
-		if !s.lookup.Seek(id) || !s.off.Present(s.lookup.Cursor()) {
-			return
+// lays every entity marked Off in the sector it sleeps in, as a game begins or after a load
+func (s *sectors) lull() {
+	for i := range s.sleep {
+		s.sleep[i] = s.sleep[i][:0]
+	}
+	for s.sleepers.All(); s.sleepers.Next(); {
+		cur := s.sleepers.Cursor()
+		for j, b := range s.sleepBase.Slice(cur) {
+			c := b.Pos.Center()
+			i := s.grid.Of(c.X, c.Y)
+			s.sleep[i] = append(s.sleep[i], cur.IDs[j])
 		}
-		if c := s.base.At(s.lookup.Cursor()).Pos.Center(); s.grid.Of(c.X, c.Y) == i {
-			s.ids = append(s.ids, id)
-		}
-	})
+	}
+	s.asleep = true
 }
 
-func (s *sectors) move(cb *goke.CmdBuf, id uid.UID64, from, to int) {
+// gathers the entities asleep in sector i still marked Off; one moved off sleeps on where it is
+// if that sector lies beyond too
+func (s *sectors) wake(i int) {
+	for _, id := range s.sleep[i] {
+		if !s.lookup.Seek(id) || !s.off.Present(s.lookup.Cursor()) {
+			continue
+		}
+		c := s.base.At(s.lookup.Cursor()).Pos.Center()
+		if at := s.grid.Of(c.X, c.Y); at != i && s.grid.Band(at) == s.grid.Beyond() {
+			s.sleep[at] = append(s.sleep[at], id)
+			continue
+		}
+		s.ids = append(s.ids, id)
+	}
+	s.sleep[i] = s.sleep[i][:0]
+}
+
+// after a load every sector begins beyond again, its sleepers laid anew
+func (s *sectors) restart() {
+	if s.grid != nil {
+		s.grid.Reset()
+		s.asleep = false
+	}
+}
+
+// to the band of sector at; across the last band's edge the space is told to index anew
+func (s *sectors) move(cb *goke.CmdBuf, id uid.UID64, from, to, at int) {
 	if from != 0 {
 		cb.RemoveCompOne(id, s.marks[from])
+	}
+	if beyond := s.grid.Beyond(); from == beyond || to == beyond {
+		s.w.unindexed = true
+		if to == beyond {
+			s.sleep[at] = append(s.sleep[at], id)
+		}
 	}
 	switch {
 	case to == 0:

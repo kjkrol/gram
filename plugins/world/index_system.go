@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/plugins/world/sector"
 )
 
 var _ goke.System = (*indexSystem)(nil)
@@ -19,7 +20,12 @@ type indexSystem struct {
 
 func newIndexSystem(w *module) *indexSystem { return &indexSystem{w: w} }
 
-func (s *indexSystem) Init(si *goke.SysInit) { s.query = si.NewQueryBuilder(&s.base).Build() }
+func (s *indexSystem) Init(si *goke.SysInit) { s.query = heldQuery(si, &s.base) }
+
+// what the space holds: every entity but those beyond the last band of the sectors
+func heldQuery(si *goke.SysInit, base *goke.Comp[Base]) *goke.Query {
+	return si.NewQueryBuilder(base).Exclude(goke.Exclude[sector.Off]()).Build()
+}
 
 func (s *indexSystem) Update(*goke.CmdBuf, time.Duration) {
 	if s.w.unindexed {

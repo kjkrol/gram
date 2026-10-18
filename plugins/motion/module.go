@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
 )
 
@@ -41,12 +42,17 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	if m.steeringRunnable != nil {
 		return
 	}
-	m.steeringRunnable = ecs.RegSys(m.steer)
+	pace := m.w.Pace(sector.Paced)
+	m.steeringRunnable = ecs.RegSys(m.steer.Paced(pace))
 	velocity := newVelocitySystem(m.movers)
-	velocity.tick = m.w.Tick
+	velocity.tick, velocity.rhythm = m.w.Tick, pace
 	m.velocityRunnable = ecs.RegSys(velocity)
-	m.moveRunnable = ecs.RegSys(newMoveSystem(m.w.Space()))
-	m.exitRunnable = ecs.RegSys(newExitSystem(m))
+	move := newMoveSystem(m.w.Space())
+	move.pace = pace
+	m.moveRunnable = ecs.RegSys(move)
+	exit := newExitSystem(m)
+	exit.pace = pace
+	m.exitRunnable = ecs.RegSys(exit)
 }
 
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {

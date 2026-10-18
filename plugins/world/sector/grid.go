@@ -26,10 +26,15 @@ func NewGrid(width, height uint32, wrapX, wrapY bool, side float64, bands []Band
 	g := &Grid{side: side, cols: cols, rows: rows, width: float64(width),
 		height: float64(height), wrapX: wrapX, wrapY: wrapY, bands: bands,
 		in: make([]uint8, cols*rows)}
-	for i := range g.in {
-		g.in[i] = uint8(len(bands))
-	}
+	g.Reset()
 	return g
+}
+
+// Reset lays every sector Beyond again.
+func (g *Grid) Reset() {
+	for i := range g.in {
+		g.in[i] = uint8(len(g.bands))
+	}
 }
 
 // Len is how many sectors there are.

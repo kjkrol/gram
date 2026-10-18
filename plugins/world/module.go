@@ -164,15 +164,26 @@ func (w *module) PostLoad() goke.System {
 	return goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		w.kinds.r.RemapTypes(si)
 		w.kinds.r.RemapTags(si)
-		w.spawnedCount = len(w.reindex(si))
+		w.spawnedCount = w.count(si)
 		w.telemetry.Count = w.spawnedCount
+		w.reindex(si)
+		w.sectors.restart()
 	}}
 }
 
-func (w *module) reindex(si *goke.SysInit) []aabbworld.Item {
+func (w *module) reindex(si *goke.SysInit) {
 	var base goke.Comp[Base]
-	w.items = rebuild(w.space, si.NewQueryBuilder(&base).Build(), &base, w.items)
-	return w.items
+	w.items = rebuild(w.space, heldQuery(si, &base), &base, w.items)
+}
+
+func (w *module) count(si *goke.SysInit) int {
+	var base goke.Comp[Base]
+	n := 0
+	q := si.NewQueryBuilder(&base).Build()
+	for q.All(); q.Next(); {
+		n += len(q.Cursor().IDs)
+	}
+	return n
 }
 
 func (w *module) despawn(cb *goke.CmdBuf, id uid.UID64) {

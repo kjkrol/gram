@@ -22,6 +22,9 @@ type velocitySystem struct {
 	base   goke.Comp[world.Base]
 	pace   goke.OptComp[steering.Pace]
 	course goke.OptComp[steering.Course]
+	// the bands' pace, not the steering's share of speed
+	rhythm cgoke.Pace
+	blocks cgoke.Blocks
 
 	ids     []uid.UID64
 	bases   []world.Base
@@ -40,6 +43,7 @@ func (s *velocitySystem) Init(si *goke.SysInit) {
 	s.cols = cgoke.NewColumns(qb)
 	s.cols.Own(&s.course)
 	s.host.Bind(s.cols)
+	s.blocks = cgoke.Over(s.rhythm, qb)
 	s.query = qb.Build()
 }
 
@@ -52,6 +56,13 @@ func (s *velocitySystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
+		dt, ok := s.blocks.Step(cursor, d)
+		if !ok {
+			continue
+		}
+		if hosted && dt != d {
+			tick = s.tick.Of(dt)
+		}
 		s.ids, s.bases, s.courses = cursor.IDs, s.base.Slice(cursor), s.course.Slice(cursor)
 		if paces := s.pace.Slice(cursor); paces != nil {
 			for i := range s.bases {
@@ -60,6 +71,9 @@ func (s *velocitySystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		}
 		if hosted {
 			s.host.Run(tick, s.cols.Row(cursor), len(cursor.IDs), s.about)
+			if dt != d {
+				tick = s.tick.Of(d)
+			}
 		}
 	}
 }

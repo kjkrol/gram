@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/collision/internal/response"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
 )
 
@@ -32,6 +33,8 @@ type collisionSystem struct {
 	space  *aabbworld.Space
 	engine collide.Engine
 	tickOf host.TickSource
+	pace   cgoke.Pace
+	blocks cgoke.Blocks
 
 	walk      *goke.Query
 	base      goke.Comp[world.Base]
@@ -260,9 +263,12 @@ func (d *collisionSystem) Init(si *goke.SysInit) {
 	d.cols = cgoke.NewColumns(qb)
 	d.cols.Own(&d.walkSweep)
 	d.each.Bind(d.cols)
+	d.blocks = cgoke.Over(d.pace, qb)
 	d.walk = qb.Build()
 
-	d.all = si.NewQueryBuilder(&d.allBase).Optional(&d.allSweep).Build()
+	d.all = si.NewQueryBuilder(&d.allBase).Optional(&d.allSweep).
+		Exclude(goke.Exclude[sector.Off]()).
+		Build()
 
 	seek := si.NewQueryBuilder(&d.lookupBase, &d.lookupCollider).
 		Optional(&d.lookupPhysics, &d.lookupLayers, &d.lookupZ, &d.lookupSweep, &d.lookupDriven)
@@ -320,6 +326,10 @@ func (d *collisionSystem) mark() bool {
 	for d.walk.Next() {
 		cursor := d.walk.Cursor()
 		bases, colliders, physics := d.base.Slice(cursor), d.collider.Slice(cursor), d.physics.Slice(cursor)
+		if _, ok := d.blocks.Step(cursor, 0); !ok {
+			changed = d.still(bases, colliders) || changed
+			continue
+		}
 		sweeps := d.walkSweep.Slice(cursor)
 
 		d.walking.ids, d.walking.colliders = cursor.IDs, colliders
@@ -347,6 +357,18 @@ func (d *collisionSystem) mark() bool {
 			if bases[i].Caps != caps {
 				bases[i].Caps, changed = caps, true
 			}
+		}
+	}
+	return changed
+}
+
+// far off a box collides with nothing, out of the pairs and the push from the ground
+func (d *collisionSystem) still(bases []world.Base, colliders []Collider) bool {
+	changed := false
+	for i := range bases {
+		colliders[i].clearContacts()
+		if bases[i].Caps != aabbworld.Plain {
+			bases[i].Caps, changed = aabbworld.Plain, true
 		}
 	}
 	return changed

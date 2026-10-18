@@ -105,8 +105,8 @@ func main() {
 			Sectors: world.SectorsCfg{
 				Buckets: 4,
 				Bands: []sector.Band{
-					{Reach: 1536},
-					{Reach: 3072, Pace: 4},
+					{Reach: scale.Units(16_000)},
+					{Reach: scale.Units(32_000), Pace: 4},
 				},
 			},
 			Heights: true,
