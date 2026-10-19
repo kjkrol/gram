@@ -12,6 +12,7 @@ build)
 	rm -rf "$W"; mkdir -p "$W/demo"
 	cp -r "$R/$2"/* "$W/demo/"
 	if [ -d "$3" ]; then cp "$3"/*.go "$W/demo/"; else cp "$3" "$W/demo/zz_probe.go"; fi
+	[ -n "$PROBE_SEED" ] && sed -i "s/uint64(time.Now().UnixNano())/$PROBE_SEED/" "$W/demo/demo.go"
 	GOV=$(sed -n 's/^go //p' "$R/go.mod")
 	printf 'module probe\n\ngo %s\n' "$GOV" > "$W/demo/go.mod"
 	{
