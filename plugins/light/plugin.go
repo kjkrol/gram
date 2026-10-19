@@ -25,13 +25,16 @@ import (
 // MaxLamps is how many lamps at most light a picture: the nearest its camera.
 const MaxLamps = 8
 
-var lampUniforms = func() []render.Uniform {
+// the lamps' uniforms declared, and the names each lamp's place and colour go to the frame by
+var lampUniforms, lampNames = func() ([]render.Uniform, [MaxLamps][2]string) {
 	u := []render.Uniform{{Name: "LampCount", Size: 1}}
+	var names [MaxLamps][2]string
 	for k := range MaxLamps {
-		u = append(u, render.Uniform{Name: fmt.Sprintf("Lamp%dAt", k), Size: 4},
-			render.Uniform{Name: fmt.Sprintf("Lamp%dColor", k), Size: 3})
+		names[k] = [2]string{fmt.Sprintf("Lamp%dAt", k), fmt.Sprintf("Lamp%dColor", k)}
+		u = append(u, render.Uniform{Name: names[k][0], Size: 4},
+			render.Uniform{Name: names[k][1], Size: 3})
 	}
-	return u
+	return u, names
 }()
 
 var _ = render.RegisterMaterials(render.Files(shaders, "shaders/lamps.wgsl"), lampUniforms)
@@ -304,8 +307,8 @@ func (p *Plugin) Begin(f *render.Frame, cam camera.Camera) {
 	}
 	f.Uniform("LampCount", float32(len(p.near)))
 	for k, l := range p.near {
-		f.Uniform(fmt.Sprintf("Lamp%dAt", k), l.X, l.Y, l.Z, l.Reach)
-		f.Uniform(fmt.Sprintf("Lamp%dColor", k), l.Color[0], l.Color[1], l.Color[2])
+		f.Uniform(lampNames[k][0], l.X, l.Y, l.Z, l.Reach)
+		f.Uniform(lampNames[k][1], l.Color[0], l.Color[1], l.Color[2])
 	}
 }
 

@@ -20,3 +20,7 @@ func Shaped(p *Plugin) []bool {
 	}
 	return out
 }
+
+// LampNames are the names each lamp's place and colour go to the frame by, LampUniforms the
+// uniforms declared.
+var LampNames, LampUniforms = lampNames, lampUniforms

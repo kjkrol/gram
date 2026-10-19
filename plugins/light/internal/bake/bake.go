@@ -87,6 +87,7 @@ type Baker struct {
 	baking    render.DrawTrianglesShaderOptions
 	blocking  render.DrawMeshOptions
 	bakeVerts []render.Vertex
+	own       map[string][]float32 // the bake's own uniforms, a slice a name kept between bakes
 
 	blocks   []float32
 	near     []float32
@@ -127,7 +128,7 @@ func (b *Baker) Plan(lat Lattice, sun [3]float32, blocks []Block) (render.Ground
 		b.baked, b.was = render.NewImage(ws, h), render.NewImage(ws, h)
 		b.fresh, b.shown, b.shadeAt = true, false, 0
 		b.bakeVerts = make([]render.Vertex, 4)
-		b.baking.Uniforms = map[string]any{}
+		b.baking.Uniforms, b.own = map[string]any{}, map[string][]float32{}
 	}
 	per := (h + shadeStrips - 1) / shadeStrips
 	b.shade.Now, b.shade.Was = b.baked, b.was
@@ -208,8 +209,8 @@ func (b *Baker) Bake(u render.Uniforms) {
 	// the images baked into are never read while baked
 	delete(b.baking.Uniforms, "GroundShade")
 	delete(b.baking.Uniforms, "GroundShadeWas")
-	b.baking.Uniforms["BakeCell"] = []float32{b.lat.Cell}
-	b.baking.Uniforms["ShadeSpan"] = []float32{b.shade.Span}
+	b.set("BakeCell", b.lat.Cell)
+	b.set("ShadeSpan", b.shade.Span)
 	b.blocking.Uniforms = b.baking.Uniforms
 	b.blocking.Vertices, b.blocking.Darkest = 6, true
 	per := (h + shadeStrips - 1) / shadeStrips
@@ -219,11 +220,23 @@ func (b *Baker) Bake(u render.Uniforms) {
 		at := image.Rect(0, y, ws, min(y+per, y1))
 		b.bakeInto(at, from, part)
 		if near := b.shading(from[1], from[1]+part[1], b.planWay); len(near) > 0 {
-			b.baking.Uniforms["Strip"] = []float32{from[0], from[1], part[0], part[1]}
+			b.set("Strip", from[0], from[1], part[0], part[1])
 			b.blocking.Instances = near
 			b.baked.SubImage(at).DrawMesh(nil, bakeBlocks, &b.blocking)
 		}
 	}
+}
+
+// set is the bake's uniform name, vals copied into the slice kept for it: a draw packs its
+// uniforms before it returns, so one slice serves every strip
+func (b *Baker) set(name string, vals ...float32) {
+	u, ok := b.own[name]
+	if !ok || len(u) != len(vals) {
+		u = make([]float32, len(vals))
+		b.own[name] = u
+		b.baking.Uniforms[name] = u
+	}
+	copy(u, vals)
 }
 
 // Pending reports whether the frame's Plan left anything for its Bake to bake.

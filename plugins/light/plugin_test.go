@@ -1,6 +1,7 @@
 package light_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -182,6 +183,20 @@ func TestPlugin_LampsLightWhatLiesInTheirReachFadingWithTheDistance(t *testing.T
 	}
 	if n := len(p.Lamps()); n != 1 {
 		t.Errorf("%d lamps, want the torch", n)
+	}
+}
+
+func TestLamps_UniformNamesAreTheDeclaredOnes(t *testing.T) {
+	declared := map[string]int{}
+	for _, u := range light.LampUniforms {
+		declared[u.Name] = u.Size
+	}
+	for k, names := range light.LampNames {
+		at, colour := fmt.Sprintf("Lamp%dAt", k), fmt.Sprintf("Lamp%dColor", k)
+		if names != [2]string{at, colour} || declared[at] != 4 || declared[colour] != 3 {
+			t.Errorf("lamp %d goes to the frame as %v, declared as %d and %d floats; "+
+				"want %s of 4 and %s of 3", k, names, declared[at], declared[colour], at, colour)
+		}
 	}
 }
 

@@ -385,3 +385,19 @@ func TestGroundShade_TellsWhatStandsInAShadowAtItsHeight(t *testing.T) {
 		}
 	}
 }
+
+func TestBaker_SetKeepsASliceForEachName(t *testing.T) {
+	b := New()
+	b.baking.Uniforms, b.own = map[string]any{}, map[string][]float32{}
+	b.set("Strip", 1, 2, 3, 4)
+	first := b.baking.Uniforms["Strip"].([]float32)
+	b.set("Strip", 5, 6, 7, 8)
+	again := b.baking.Uniforms["Strip"].([]float32)
+	if &first[0] != &again[0] || again[1] != 6 {
+		t.Errorf("Strip set twice is %v then %v; want one slice holding the values last set",
+			first, again)
+	}
+	if n := testing.AllocsPerRun(10, func() { b.set("Strip", 1, 2, 3, 4) }); n != 0 {
+		t.Errorf("set allocates %v times a call, want none", n)
+	}
+}
