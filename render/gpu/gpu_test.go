@@ -317,6 +317,11 @@ func TestNewTexture_IsTransparent(t *testing.T) {
 
 // a 4 by 4 quad over the whole target at depth z, in c
 func depthQuad(dst *Texture, dp *Depth, test DepthTest, z float32, c [4]float32) {
+	depthRect(dst, dp, test, 0, 0, 4, 4, z, c)
+}
+
+// the pixels (x0, y0)-(x1, y1) of the target at depth z, in c
+func depthRect(dst *Texture, dp *Depth, test DepthTest, x0, y0, x1, y1, z float32, c [4]float32) {
 	v := func(x, y float32) Vertex {
 		return Vertex{
 			DstX:   x,
@@ -336,7 +341,7 @@ func depthQuad(dst *Texture, dp *Depth, test DepthTest, z float32, c [4]float32)
 			Depth:   dp,
 			Test:    test,
 		},
-		[]Vertex{v(0, 0), v(4, 0), v(0, 4), v(4, 4)},
+		[]Vertex{v(x0, y0), v(x1, y0), v(x0, y1), v(x1, y1)},
 		[]uint16{0, 1, 2, 1, 2, 3},
 	)
 }
@@ -483,6 +488,53 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> {
 	}
 	if w, h := held.Size(); w != 4 || h != 4 {
 		t.Errorf("read by an 8 by 8 target the depth is %d by %d, want 4 by 4 as drawn", w, h)
+	}
+}
+
+func TestScaleDepth_SpreadsASmallDepthOverALargerTarget(t *testing.T) {
+	needGPU(t)
+	reader := NewMesh("test depth reader", "", `
+struct Out { @builtin(position) clip: vec4<f32> }
+@vertex
+fn vs_main(@builtin(vertex_index) vid: u32) -> Out {
+    var corners = array<vec2<f32>, 4>(
+        vec2<f32>(-1.0, -1.0),
+        vec2<f32>(1.0, -1.0),
+        vec2<f32>(-1.0, 1.0),
+        vec2<f32>(1.0, 1.0),
+    );
+    var o: Out;
+    o.clip = vec4<f32>(corners[vid], 0.0, 1.0);
+    return o;
+}
+@fragment
+fn fs_main(o: Out) -> @location(0) vec4<f32> {
+    return vec4<f32>(depthAt(o.clip.xy), 0.0, 0.0, 1.0);
+}`)
+	small, big := NewTexture(2, 2), NewTexture(8, 8)
+	from, to := NewDepth().Readable(), NewDepth().Readable()
+	ClearDepth(Image{Texture: small}, from)
+	for i, z := range []float32{0.2, 0.4, 0.6, 0.8} {
+		x, y := float32(i%2), float32(i/2)
+		depthRect(small, from, Written, x, y, x+1, y+1, z, red)
+	}
+	ScaleDepth(Image{Texture: big}, from, to)
+	Mesh(&MeshDraw{Target: Image{Texture: big}, ReadDepth: to, Program: reader, Vertices: 4,
+		Indices: NewIndices([]uint32{0, 1, 2, 1, 2, 3}), Blend: Copy})
+	pix := make([]byte, 4*8*8)
+	big.ReadPixels(pix)
+	for i, want := range []int{51, 102, 153, 204} {
+		x, y := 1+4*(i%2), 1+4*(i/2)
+		if p := pixel(pix, 8, x, y); int(p[0]) < want-1 || int(p[0]) > want+1 {
+			t.Errorf("at (%d, %d) the scaled depth reads %v, want %d: the small one's pixel it "+
+				"maps to", x, y, p, want)
+		}
+	}
+	if w, h := from.Size(); w != 2 || h != 2 {
+		t.Errorf("scaled over an 8 by 8 target the depth is %d by %d, want 2 by 2 as drawn", w, h)
+	}
+	if w, h := to.Size(); w != 8 || h != 8 {
+		t.Errorf("the depth scaled into is %d by %d, want the target's 8 by 8", w, h)
 	}
 }
 
