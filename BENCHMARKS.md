@@ -38,7 +38,7 @@ After etap 1 of `doc/plans-perf.md` (2026-10-19, medians of 12 runs, the tree be
 alternately): 1,000 boxes 35 µs and 5,000 boxes 169 µs, 0 allocs/op — `clampStep` compares
 squares instead of calling `Hypot` (and inlines now, which the `Hypot` version did not), and every
 plugin's simulation block is bound once. With aabbworld's `Translate` keeping a box inside the
-world where it is (v1.13.0 once tagged; measured against the local tree): 27 µs and 128 µs, a
+world where it is (v1.13.0, gram's go.mod since `perf/plans-perf`): 27 µs and 128 µs, a
 tick 40% shorter than at the start of the day. What is left is the copy of every `Base` into the
 space (54%), the one etap 3 removes.
 

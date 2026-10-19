@@ -408,12 +408,9 @@ rozwiązana własną kopią. Każde wywołanie natywne to jeden `runtime.cgocall
 `__errno_location`; HAL Vulkana boxuje argumenty każdego `vkCmd*`, ok. 36 alokacji na draw: to
 dolna granica alokacji klatki z tekstem, poza zasięgiem gram.
 
-**aabbworld.** Zmiany 1C są w staging na gałęzi `perf/translate-inside` w
-`/home/karol/CODE/aabbworld` (commit zablokował klasyfikator trybu auto): `surface.go`,
-`space_translate_test.go`, `bench/plane_test.go` (`across`/`inside`), `BENCHMARKS.md`,
-`CHANGELOG.md` (nagłówek v1.13.0). Właściciel: `git commit -m 'perf(plane): a box inside the
-world is moved without folding it'`, tag v1.13.0, podbicie `gram/go.mod`. `/home/karol/CODE/go.work`
-przywrócony bez aabbworld; gram buduje v1.12.0 z cache (tick 164 µs), zysk 1C wchodzi po podbiciu.
+**aabbworld.** 1C wydane jako v1.13.0 (`surface.go`, `space_translate_test.go`,
+`bench/plane_test.go` z `across`/`inside`, `BENCHMARKS.md`, `CHANGELOG.md`); gram podbity do
+v1.13.0 w `go.mod` na `perf/plans-perf`, `/home/karol/CODE/go.work` bez aabbworld.
 
 **Pominięte i uwagi.** Cache „raz na klatkę” odczytu tekstu etykiety w ui (4 odczyty na klatkę)
 nie zrobiony, telemetria odświeża tekst co 250 ms, co zeruje ten koszt tam. `DrawImageIn`
