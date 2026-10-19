@@ -23,6 +23,7 @@ type DesktopAdapter struct {
 
 	mu      sync.Mutex
 	pending []gpucontext.InputEvent
+	spare   []gpucontext.InputEvent // the array drained last, for the next Collect to fill
 }
 
 // Collect keeps the events of the window's pass for the next Capture, which the window would
@@ -41,13 +42,9 @@ func (a *DesktopAdapter) Capture(e *control.InputEvents) {
 	if a.app == nil {
 		return
 	}
-	a.mu.Lock()
-	events := a.pending
-	a.pending = nil
-	a.mu.Unlock()
 	pos := e.MousePos
 	var moved, scroll geom.Vec
-	for _, ev := range events {
+	a.drain(func(ev gpucontext.InputEvent) {
 		switch ev := ev.(type) {
 		case gpucontext.KeyEvent:
 			if k := keyOf(ev.Key); k != control.KeyUnknown {
@@ -72,7 +69,7 @@ func (a *DesktopAdapter) Capture(e *control.InputEvents) {
 		case gpucontext.ScrollEvent:
 			scroll = geom.NewVec(scroll.X+ev.DeltaX, scroll.Y+ev.DeltaY)
 		}
-	}
+	})
 	if a.captured {
 		e.CursorDelta = moved
 	} else {
@@ -86,6 +83,19 @@ func (a *DesktopAdapter) Capture(e *control.InputEvents) {
 	e.Modifiers.Alt = kb.Pressed(input.KeyAltLeft) || kb.Pressed(input.KeyAltRight)
 	e.MiddleDown = mouse.Pressed(input.MouseButtonMiddle)
 	e.WindowFillsScreen = a.app.IsFullscreen() || a.app.IsMaximized()
+}
+
+// drain hands consume every event Collect kept, then keeps their array for Collect to fill
+// again: the two arrays swap under the lock, so a frame allocates none.
+func (a *DesktopAdapter) drain(consume func(gpucontext.InputEvent)) {
+	a.mu.Lock()
+	events := a.pending
+	a.pending = a.spare[:0]
+	a.mu.Unlock()
+	for _, ev := range events {
+		consume(ev)
+	}
+	a.spare = events
 }
 
 func (a *DesktopAdapter) capture(on bool) {
