@@ -8,8 +8,8 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -98,7 +98,7 @@ func TestDome_ADiscWithoutWGSLShowsNoneAndSizeScalesIt(t *testing.T) {
 		Pole: [3]float32{0, 0, 1}}
 	radii := func(d Dome) (sun, moon float32) {
 		b := New(world.SpaceCfg{Width: 100, Height: 100},
-			func() sky.Sun { return sky.Sun{Dir: eyedF, Strength: 0.7} },
+			func() light.Distant { return light.Distant{Dir: eyedF, Strength: 0.7} },
 			func() air.Weather { return air.Weather{} })
 		b.Dress(d)
 		_, sun, _, _ = b.sunOn(eyed{}, 100, 100, eyedF, render.Light{1, 1, 1}, 0)
@@ -150,8 +150,8 @@ func TestDome_DrawsOnlyThePartsItHasOnTheGPU(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	top := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
-	sun := sky.Sun{Dir: eyedF, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
-	b := New(w.Res.Config.Space, func() sky.Sun { return sun },
+	sun := light.Distant{Dir: eyedF, Strength: 0.7, AmbientColor: render.Light{0.5, 0.7, 1}}
+	b := New(w.Res.Config.Space, func() light.Distant { return sun },
 		func() air.Weather { return air.Weather{} })
 	screen := render.NewImage(100, 100)
 	pix := make([]byte, 4*100*100)

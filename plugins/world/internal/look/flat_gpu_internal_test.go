@@ -30,7 +30,7 @@ func (s *lookSource) Compose(f *render.Frame, cam camera.Camera) {
 		f.DrawAt(f.At(0, 0, 0))
 	}
 	for _, b := range s.boxes {
-		s.look.Sprite(f, cam, b, entity.Z{}, s.atlas, render.Appearance{SpriteID: 1}, render.Light{0.8, 0.6, 1})
+		s.look.Sprite(f, cam, b, entity.Z{}, s.atlas, render.Appearance{SpriteID: 1}, render.Illumination{Light: render.Light{0.8, 0.6, 1}})
 	}
 }
 func (s *lookSource) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {

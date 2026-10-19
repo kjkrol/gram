@@ -84,7 +84,7 @@ fn aloftSeen(o: Out) -> Seen {
     // the ground may stand up into the layer, as high as the highest ground
     let highest = groundHighest();
     let grounded = highest > span.x;
-    let light = U.Ambience * cloudsSkyLit + U.SunColor * U.SunStrength * cloudsSunLit;
+    let light = U.Ambience * cloudsSkyLit + U.LightColor * U.LightStrength * cloudsSunLit;
     if !low || !body {
         // a sheet: the high ones at their own heights, the low ones on their bases
         var t = leave;
@@ -196,7 +196,7 @@ fn aloftBelow(o: Out) -> Seen {
         return none;
     }
     let sky = U.Ambience * cloudsSkyLit;
-    let sun = U.SunColor * U.SunStrength * cloudsSunLit;
+    let sun = U.LightColor * U.LightStrength * cloudsSunLit;
     let step = (ray.leave - ray.enter) / f32(aloftBelowSteps);
     let dither = fract(sin(dot(o.px, vec2<f32>(12.9898, 78.233))) * 43758.5453);
     var seen = Seen(vec4<f32>(0.0), 0.0);

@@ -100,15 +100,21 @@ func TestViewCamera_PersistedRoundTripKeepsTheView(t *testing.T) {
 	c.next()
 	c.Turn(0.7)
 	c.ZoomIn(1.5, 320, 320)
+	c.SetDetail(contract.Detail{Sight: 900})
+	c.See(2)
 	bx, by := c.Project(300, 280, 4)
 	other := testViews(true)
 	saved, restored := c.Persisted(), other.Persisted()
-	if len(saved) != 11 || len(restored) != 11 {
-		t.Fatalf("Persisted has %d and %d values, want 11: the form, every view's, which is in "+
-			"and the fastening", len(saved), len(restored))
+	if len(saved) != 12 || len(restored) != 12 {
+		t.Fatalf("Persisted has %d and %d values, want 12: the form, every view's, which is in, "+
+			"the fastening and the sight", len(saved), len(restored))
 	}
 	carry(t, saved, restored)
 	other.Restore()
+	if other.Detail().Sight != 1800 {
+		t.Errorf("restored camera sees %v far, want the 1800 it was saved seeing",
+			other.Detail().Sight)
+	}
 	if !other.inPersp || other.cur != contract.Camera(other.persp) {
 		t.Fatal("restored camera is not in the perspective view")
 	}
@@ -190,6 +196,26 @@ func TestViewCamera_FocusIsTheFootOfTheStickOrTheEyeInAUnit(t *testing.T) {
 	c.enterInside([3]float32{100, 200, 7}, 0, 0)
 	if x, y, z := c.Focus(); x != 100 || y != 200 || z != 7 {
 		t.Errorf("inside a unit Focus() = (%v, %v, %v), want its eye (100, 200, 7)", x, y, z)
+	}
+}
+
+func TestViewCamera_AheadRunsUpTheScreenInEitherViewAndAfterATurn(t *testing.T) {
+	c := testViews(true)
+	c.CenterOn(330, 310, 0)
+	for _, turn := range []float32{0, 0.7} {
+		c.Turn(turn)
+		for _, persp := range []bool{false, true} {
+			x, y, _ := c.Focus()
+			ax, ay := c.Ahead()
+			sx0, sy0 := c.Project(x, y, 0)
+			sx1, sy1 := c.Project(x+20*ax, y+20*ay, 0)
+			if !near(sx0, sx1) || sy1 >= sy0 {
+				t.Errorf("turned %v, perspective %v: ahead (%v, %v) of the focus lies at (%v, %v) "+
+					"on the screen from (%v, %v), want straight up", turn, persp, ax, ay, sx1, sy1,
+					sx0, sy0)
+			}
+			c.next()
+		}
 	}
 }
 

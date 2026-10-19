@@ -8,10 +8,10 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -25,12 +25,12 @@ func needGPU(t *testing.T) {
 }
 
 type heldSky struct {
-	sun     sky.Sun
+	sun     light.Distant
 	weather *air.Weather
 }
 
-func (s heldSky) Sun() sky.Sun     { return s.sun }
-func (s heldSky) Air() air.Weather { return *s.weather }
+func (s heldSky) Distant() light.Distant { return s.sun }
+func (s heldSky) Air() air.Weather       { return *s.weather }
 
 // the atmosphere's sky handing the frame its sun and weather, and a strip lying on the ground at
 // a material's lift
@@ -68,8 +68,8 @@ func TestAtmosphere_TheCloudsShadowsLieOnTheBoardsGroundUnderWhatLiesOnIt(t *tes
 	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(512, 384)
 	weather := air.Weather{Clouds: 0.7, Drift: [2]float32{130, -40},
-		Bases: air.Bases(world.Scale{}), HighShade: true}
-	held := heldSky{sun: sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 1}, weather: &weather}
+		Bases: air.Bases(world.Scale{}), HighShade: true, ShadeGround: true}
+	held := heldSky{sun: light.Distant{Dir: [3]float32{0, 0, 1}, Strength: 1}, weather: &weather}
 	p.WithAtmosphere(held)
 	screen := render.NewImage(512, 384)
 	pix := make([]byte, 4*512*384)

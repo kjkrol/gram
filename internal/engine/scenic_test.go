@@ -10,6 +10,8 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/plugin"
+	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -83,5 +85,26 @@ func TestStage_WithAWorldHasATelemetryPanelHiddenUnlessTheGameMadeOne(t *testing
 					p, own)
 			}
 		})
+	}
+}
+
+func TestStage_WithPlayersHasTheirShortcutsAndSettings(t *testing.T) {
+	cfg := world.Config{Space: world.SpaceCfg{Width: 100, Height: 100},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}}
+	st := stage.New("meadow").World(cfg).
+		Plugins(func(w *world.Plugin) {
+			players.NewPlugin(w, cameras.NewPlugin(w, cameras.Config{}))
+		}).
+		Scenes(func() []game.Scene { return []game.Scene{plainScene{"main"}} }).
+		Update(func(goke.RunCtx, time.Duration) {})
+	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	var names []string
+	for _, sc := range st.Stack().All() {
+		names = append(names, sc.Name())
+	}
+	if !slices.Contains(names, players.ShortcutsName) || !slices.Contains(names, players.SettingsName) {
+		t.Errorf("the stack holds %v, want the players' shortcuts and settings among them", names)
 	}
 }

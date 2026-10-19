@@ -26,6 +26,7 @@ type module struct {
 	stats   *ContactStats
 	log     *log.Logger
 	clock   *clock.Clock
+	step    clock.Block // bound once, so a tick allocates no method value
 	tick    host.TickSource
 	pace    goke.Opt
 	leave   func(cb *goke.CmdBuf, id uid.UID64)
@@ -33,7 +34,9 @@ type module struct {
 }
 
 func newModule(space *aabbworld.Space, ecs *goke.ECS, pairs *host.PairRules[Meeting], entities *host.Rules[Struck]) *module {
-	return &module{space: space, ecs: ecs, pairs: pairs, entities: entities}
+	m := &module{space: space, ecs: ecs, pairs: pairs, entities: entities}
+	m.step = m.simulate
+	return m
 }
 
 func (m *module) RegSystems(ecs *goke.ECS) {
@@ -43,10 +46,12 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 }
 
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
-		ctx.Run(m.system, step)
-		ctx.Sync()
-	})
+	clock.Simulate(m.clock, ctx, d, m.step)
+}
+
+func (m *module) simulate(ctx goke.RunCtx, step time.Duration) {
+	ctx.Run(m.system, step)
+	ctx.Sync()
 }
 
 func (m *module) SetupSystems() []goke.System { return nil }

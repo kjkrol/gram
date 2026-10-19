@@ -4,11 +4,11 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/look"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/render"
 )
@@ -25,7 +25,7 @@ type Painter struct {
 	square  bool
 	sq      grid.Shape
 
-	lighted sky.Sun
+	lighted light.Distant
 	weather air.Weather
 	camera  camera.Camera
 	cellW   float64
@@ -58,7 +58,7 @@ var _ look.Dressing = (*Painter)(nil)
 // Sky is the sky over the board as the painter reads it: the sun that lights the tiles and the
 // weather.
 type Sky interface {
-	Sun() sky.Sun
+	Distant() light.Distant
 	Air() air.Weather
 }
 
@@ -152,7 +152,7 @@ type cellTop struct {
 // Begin readies the Painter for a frame through cam.
 func (l *Painter) Begin(f *render.Frame, cam camera.Camera) {
 	l.camera, l.tile = cam, tile{}
-	l.lighted, l.weather = l.sky.Sun(), l.sky.Air()
+	l.lighted, l.weather = l.sky.Distant(), l.sky.Air()
 	l.tables()
 	l.cellPx = float32(min(l.cellW, l.cellH)) * cam.Zoom()
 	w, h := cam.Viewport()

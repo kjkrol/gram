@@ -49,7 +49,11 @@ effect among them — `Kinds().NewSprite()` and the board's panic past that (a b
 The world of a Stage is one `render.Composer`, `world.Plugin.Picture()`, over the
 `render.Source`s its plugins gave `ctx.Draws` (2026-10-15, stage 3: no `Renderer()`, no
 `picture()` in a demo, `Composer.Init` once however many scenes show it; `render.Layer` is
-`render.Drawer`, `Scene.Layers` `Drawers`, `ui.Layer` `ui.Drawer`). A demo that makes a plugin
+`render.Drawer`, `Scene.Layers` `Drawers`, `ui.Layer` `ui.Drawer`). The one other composer is a
+minimap's (`plugins/minimap`): its own three sources, none in `ctx.Draws`, through an inner
+camera of its own, drawn anew at most 30 times a second (a `render.Surface` returning its last
+image in between; `ui.Image` lays it out every frame, so a resize alone forces a redraw).
+`render.StrokePolygon` is one draw however many sides (a round element's border). A demo that makes a plugin
 draws all it draws: selection and routes in bullet, platformer and split-screen, holds (Shift+O)
 in every demo with a board. **What is drawn over what is Z's alone (2026-10-15), never a layer
 nor the order a plugin registers in**: `render.Tier` is gone. Each
@@ -90,7 +94,9 @@ solids in a world with heights, none). The figures (`render.Sprites`, the world'
 drawn once, among what is seen through, after the opaque ground, at the lowest figure's place, back
 to front among themselves; where the frame has a depth their visible pixels (alpha over half a step)
 write it, so a decal drawn after and behind them hides, and one before shows under their soft edges.
-`render.Sprites` lays world rectangles on the GPU (the camera's `SceneTransform` matrix, the box
+`render.Sprites` (`Fog(amount)` for the pieces next: the instance's `lift.y`, mixed into the
+frame's `U.Fog` in `sprites.wgsl`; `Draw(t, cam, u)` takes the frame's uniforms for it) lays world
+rectangles on the GPU (the camera's `SceneTransform` matrix, the box
 round the projected corners like `ToScreenQuads`, over a wrapping world the copy `windowed` nearest
 the window and one past each seam, six vertices a copy in one call): no per-figure projection, wrap
 splitting or `Visible` on the CPU any more (`Benchmark_World_Draw` −35…−50%). One WGSL shader
@@ -137,8 +143,15 @@ Was, Area, Span, Band, Mix})`, images `GroundShade` and `GroundShadeWas`, unifor
 `GroundShadeArea` (its width 0: none), `GroundShadeSpan` (span, band height), `GroundShadeMix0..3`
 (16 bands' fades); WGSL `groundShadeOf(p)` (the texel, each band faded from `Was`; `(1,0,1,1)`
 without it), `groundShadeAt(p, over, soft)` (the relief's shadow at a height over the ground),
-`standingShadeAt(p, over, soft)` (the blocks'); handed by the terrain, which never binds it while
-baking into it (it deletes both from the bake's uniforms). **A frame image read per pixel is
+`standingShadeAt(p, over, soft)` (the blocks'); handed by the light plugin, which never binds it
+while baking into it (it deletes both from the bake's uniforms) and reads the heights as the mesh
+draws them (`groundDrawnAt`, `groundSplit`). What a drawn thing takes of the shade is its
+`render.Taking` bits (`takes(t, bit)`, `takesRelief|takesBlocks|takesClouds|takesLamps`; `Shines`
+none), carried in a sprite's instance with the sun's share of its light (`Sprites.Take`, `Sun`;
+`render.Illumination{Light, Lamps, Direct, Takes}` as the world's `Lighting` hands it), honoured by
+`sprites.wgsl` (the flat sprites, from above in relief too), `billboard.wgsl`, `lying.wgsl` and the
+grounds. `DrawMeshOptions.Multiply` (gpu `Multiply`, dst × src) lays a shade or a glow over what
+is drawn. **A frame image read per pixel is
 read once**: let the sampler blend (lay the picture so it can), never four `textureLoad`s and
 arithmetic by hand. gogpu
 binds a group through the bound pipeline's layout, all ours share one, so `bindFrame` sets group
@@ -177,11 +190,12 @@ What each renderer draws is a look of an entity under a state, not of the plugin
 routes and goals of an entity's `MoveOrder`; vision the cone of an entity's `Sight` (`WithStyle`,
 `WithShadow`; `WithViews(render.Show(…))` picks whose); selection the outline of the `Selected`
 tag through `world.Look.Footprint` plus the marquee, a player's gesture; bridges the bridge in
-hand, a future entity drawn from its deck's slot; collision the boxes; the board the cells held
-and, under an atmosphere (`board.WithAtmosphere`), its clouds' shadows as part of its ground
-(2026-10-15, stage 4: `look.GroundDressing` drawn right after the `Still` in the opaque pass,
-`board/internal/draw.Clouds`, the 8-px mesh the atmosphere's `overcast` was; what lies on the
-ground and over it is drawn unshaded, as the relief's terrain shades its own ground).
+hand, a future entity drawn from its deck's slot; collision the boxes; the board the cells held,
+under a `Lighting` its `Still` drawn as it is and the frame's light multiplied over it right
+after (`look/shade.go`, 2026-10-19) and, under an atmosphere (`board.WithAtmosphere`), its clouds'
+shadows as part of its ground (2026-10-15, stage 4: `look.GroundDressing` drawn after, in the
+opaque pass, `board/internal/draw.Clouds`, the 8-px mesh the atmosphere's `overcast` was; what
+lies over the ground is drawn unshaded, as the relief's terrain shades its own ground).
 
 **The sky's colours come from one place** (2026-10-15): the atmosphere's backdrop hands every
 frame the sun (`sky.Sun.Frame`) and the weather (`air.Weather.Frame`: `Fog` the vault's horizon,
@@ -204,6 +218,10 @@ works, `c * light` is zero): gram's own WGSL has no vector consts; write them in
 or as scalars (the low clouds' bands came out at the ground, 2026-10-17, till they were). Its
 SPIR-V writer has no `all()`/`any()` ("unsupported expression kind: ir.ExprRelational", a panic
 at the first draw): test a vector by its components (`max(max(abs(v.x), …)) <= 0.0`).
+
+**A mesh may be drawn by ranges of its indices** (`DrawMeshOptions.Ranges`, none all): one
+call, one setup of the pass, a `DrawIndexed` a range; the relief draws the sectors a camera sees
+so. A call a run cost a setup each, twice when `Primed`.
 
 **A depth buffer is read at the size it was drawn at** (`DrawMeshOptions.ReadDepth`, `depthAt`
 in the pixels of the texture it was drawn with, 2026-10-17): a Direct may draw a coarse pass with

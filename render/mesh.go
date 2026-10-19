@@ -30,10 +30,16 @@ func (d *Depth) Size() (w, h int) { return d.d.Size() }
 func (d *Depth) Release() { d.d.Release() }
 
 // Indices are a mesh's triangles, three vertex indices each, kept on the GPU once drawn.
-type Indices struct{ i *gpu.Indices }
+type Indices struct {
+	i      *gpu.Indices
+	ranges []gpu.Range
+}
+
+// IndexRange is Count of a mesh's indices from First.
+type IndexRange struct{ First, Count int }
 
 // NewIndices keeps the triangles of indices.
-func NewIndices(indices []uint32) *Indices { return &Indices{gpu.NewIndices(indices)} }
+func NewIndices(indices []uint32) *Indices { return &Indices{i: gpu.NewIndices(indices)} }
 
 // Release frees the indices on the GPU.
 func (x *Indices) Release() { x.i.Release() }
@@ -62,8 +68,10 @@ type DrawMeshOptions struct {
 	ClearDepth bool
 	WriteDepth bool
 	Primed     bool
-	Vertices   int       // without indices: how many vertices, in order, three a triangle
-	Instances  []float32 // an Instanced shader's, its vec4s each
+	Vertices   int // without indices: how many vertices, in order, three a triangle
+	// Ranges are the ranges of the indices drawn, at one go; none, every one.
+	Ranges    []IndexRange
+	Instances []float32 // an Instanced shader's, its vec4s each
 	// ReadDepth is a depth buffer the shader reads (depthAt), another than Depth, at the size it
 	// was drawn at.
 	ReadDepth *Depth
@@ -74,6 +82,9 @@ type DrawMeshOptions struct {
 	// Darkest keeps the lesser of what is drawn and what is there, channel by channel, in place of
 	// laying it over.
 	Darkest bool
+	// Multiply scales what is there by what is drawn, channel by channel, in place of laying it
+	// over: a shade or a glow over a picture drawn.
+	Multiply bool
 }
 
 // DrawMesh draws the triangles of idx with s, a mesh's shader, into the image; idx nil,
@@ -94,8 +105,15 @@ func (i *Image) DrawMesh(idx *Indices, s *Shader, op *DrawMeshOptions) {
 	if op.ReadDepth != nil {
 		read = op.ReadDepth.d
 	}
+	var ranges []gpu.Range
 	if idx != nil {
 		indices = idx.i
+		idx.ranges = idx.ranges[:0]
+		for _, r := range op.Ranges {
+			idx.ranges = append(idx.ranges, gpu.Range{First: uint32(max(r.First, 0)),
+				Count: uint32(max(r.Count, 0))})
+		}
+		ranges = idx.ranges
 	}
 	gpu.Mesh(&gpu.MeshDraw{
 		Target:     i.gpu(),
@@ -112,13 +130,17 @@ func (i *Image) DrawMesh(idx *Indices, s *Shader, op *DrawMeshOptions) {
 		Frame:      frameOf(op.Uniforms),
 		Uniforms:   s.pack(op.Uniforms),
 		Indices:    indices,
-		Blend:      blendOf(op.Darkest),
+		Ranges:     ranges,
+		Blend:      blendOf(op.Darkest, op.Multiply),
 	})
 }
 
-func blendOf(darkest bool) gpu.Blend {
-	if darkest {
+func blendOf(darkest, multiply bool) gpu.Blend {
+	switch {
+	case darkest:
 		return gpu.Darkest
+	case multiply:
+		return gpu.Multiply
 	}
 	return gpu.SourceOver
 }

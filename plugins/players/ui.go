@@ -20,6 +20,8 @@ import (
 // (ui.Image(feed).Input): the picture pl acts through while the scene is active.
 func (p *Plugin) Through(pl *Player) ui.Input { return &through{p: p, pl: pl} }
 
+var _ ui.Hovered = (*through)(nil)
+
 type through struct {
 	p   *Plugin
 	pl  *Player
@@ -40,6 +42,9 @@ func (t *through) Over(area geom.AABB, shown render.Surface) {
 	pl.wiredBy, pl.wiredIn = t, t.p.pass
 	pl.pic = picture{area: area, camera: t.cam}
 }
+
+// Hover says whether the cursor lies on pl's picture, no element over it there.
+func (t *through) Hover(on bool) { t.pl.pic.covered = !on }
 
 // LookAt moves the camera of pl's picture to have the entity in its middle (cameras.CenterOn).
 func (t *through) LookAt(entity uid.UID64) {

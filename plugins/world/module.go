@@ -26,6 +26,7 @@ import (
 )
 
 type module struct {
+	p      *Plugin // the plugin over the module, for its Settings
 	config Config
 	space  *aabbworld.Space
 
@@ -51,6 +52,7 @@ type module struct {
 	sectorsRunnable goke.Runnable
 
 	clock           *clock.Clock
+	step            clock.Block // bound once, so a tick allocates no method value
 	moments         moments
 	effects         *cgoke.Effects
 	clockRunnable   goke.Runnable
@@ -60,17 +62,23 @@ type module struct {
 
 	effectCmds         effectCommands
 	effectCmdsRunnable goke.Runnable
+	rolesOf            func(uid.UID64) uint64 // bound once, so a tick allocates no method value
 
 	plans         *plan.Plans
 	plansSys      *cgoke.Plans
 	plansRunnable goke.Runnable
 
-	commands command.Carrier
-	pauses   command.Queue[Pause]
-	fasters  command.Queue[Faster]
-	slowers  command.Queue[Slower]
-	spawns   command.Queue[Spawn]
-	despawns command.Queue[Despawn]
+	commands     command.Carrier
+	pauses       command.Queue[Pause]
+	fasters      command.Queue[Faster]
+	slowers      command.Queue[Slower]
+	tempos       command.Queue[Tempo]
+	bandSwitches command.Queue[SwitchBands]
+	// what is drawn of the sectors, switched by sectorSwitches
+	sectorsShown   SectorsShown
+	sectorSwitches command.Queue[SwitchSectors]
+	spawns         command.Queue[Spawn]
+	despawns       command.Queue[Despawn]
 
 	spawnRunnable   goke.Runnable
 	despawnRunnable goke.Runnable
@@ -82,6 +90,8 @@ func newModule(cfg Config) *module {
 	clk := clock.New(cfg.Clock)
 	w := &module{config: cfg, space: buildSpace(cfg), despawned: make(map[uid.UID64]struct{}),
 		clock: clk}
+	w.step = w.simulate
+	w.rolesOf = w.effectCmds.RolesOf
 	w.moments = moments{clock: clk, tick: w.tick}
 	w.sectors = newSectors(w)
 	return w
@@ -89,7 +99,7 @@ func newModule(cfg Config) *module {
 
 func (w *module) tick(d time.Duration) host.Tick {
 	return host.Tick{Now: time.Now(), Dt: d, Commands: &w.commands, Effects: w.effects,
-		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity(), Roles: w.effectCmds.RolesOf}
+		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity(), Roles: w.rolesOf}
 }
 
 func (w *module) RegSystems(ecs *goke.ECS) {
@@ -115,11 +125,14 @@ func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	w.pauses.Drain(func(command.Issued[Pause]) { w.clock.TogglePause() })
 	w.fasters.Drain(func(command.Issued[Faster]) { w.clock.Faster() })
 	w.slowers.Drain(func(command.Issued[Slower]) { w.clock.Slower() })
+	w.tempos.Drain(func(i command.Issued[Tempo]) { w.clock.SetTempo(i.Command.X) })
+	w.bandSwitches.Drain(func(i command.Issued[SwitchBands]) { w.p.SetBanded(i.Command.On) })
+	w.switchSectors()
 	ctx.Run(w.clockRunnable, d)
 	ctx.Run(w.sectorsRunnable, d)
 	ctx.Run(w.viewRunnable, d)
 	ctx.Sync()
-	w.clock.Simulate(ctx, w.simulate)
+	w.clock.Simulate(ctx, w.step)
 }
 
 func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {
@@ -146,7 +159,6 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[Z](),
 		goke.LoadComp[Eye](),
 		goke.LoadComp[Lie](),
-		goke.LoadComp[Shadow](),
 		goke.LoadComp[tag.Tags[clock.Phase]](),
 		goke.LoadComp[ceremony.Label](),
 		goke.LoadComp[tag.Tags[cond.Roles]](),

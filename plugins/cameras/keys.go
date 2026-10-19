@@ -25,13 +25,21 @@ type Keys struct {
 	// CornersTurn has the cursor in a corner turn the camera the way Q and E do, a CornerStep a
 	// tick, the left corners anticlockwise, the right ones clockwise, where Edge would scroll.
 	CornersTurn bool
+	// Farther and Nearer pressed with Ctrl have the camera see a SightStep farther and nearer.
+	Farther, Nearer control.Key
+	// Finer and Coarser pressed with Alt have the picture drawn at a ResolutionStep more and fewer
+	// of its pixels.
+	Finer, Coarser control.Key
 }
 
-// DefaultKeys are W, S, A and D, = and - to zoom, the wheel, the middle drag and the edge.
+// DefaultKeys are W, S, A and D, = and - to zoom, Ctrl+= and Ctrl+- to see farther and nearer,
+// Alt+= and Alt+- for a finer and a coarser picture, the wheel, the middle drag and the edge.
 func DefaultKeys() Keys {
 	return Keys{
 		Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD,
 		ZoomIn: control.KeyEqual, ZoomOut: control.KeyMinus,
+		Farther: control.KeyEqual, Nearer: control.KeyMinus,
+		Finer: control.KeyEqual, Coarser: control.KeyMinus,
 		Wheel: true, Drag: true, Edge: true,
 	}
 }
@@ -42,9 +50,12 @@ func (k Keys) Bindings() []control.Binding {
 	if speed == 0 {
 		speed = DefaultScrollSpeed
 	}
+	// the speed in the camera's pixels: the same on the screen at any resolution
+	step := func(c control.Context) float32 { return float32(c.Pixels(float64(speed))) }
 	scroll := func(dx, dy float32) func(control.Context) (Pan, bool) {
 		return func(c control.Context) (Pan, bool) {
-			return Pan{Camera: c.Camera, Dx: dx * speed, Dy: dy * speed}, true
+			s := step(c)
+			return Pan{Camera: c.Camera, Dx: dx * s, Dy: dy * s}, true
 		}
 	}
 	var out []control.Binding
@@ -67,6 +78,27 @@ func (k Keys) Bindings() []control.Binding {
 	}
 	zoom(k.ZoomIn, "Zoom in", ZoomStep)
 	zoom(k.ZoomOut, "Zoom out", 1/ZoomStep)
+	see := func(key control.Key, label string, factor float64) {
+		if key != control.KeyUnknown {
+			press := control.KeyPress{Key: key, Mods: control.Mods{Ctrl: true}}
+			out = append(out, control.Build(press, label, func(c control.Context) (Sight, bool) {
+				return Sight{Camera: c.Camera, Factor: factor}, true
+			}))
+		}
+	}
+	see(k.Farther, "See farther", SightStep)
+	see(k.Nearer, "See nearer", 1/SightStep)
+	draw := func(key control.Key, label string, factor float32) {
+		if key != control.KeyUnknown {
+			press := control.KeyPress{Key: key, Mods: control.Mods{Alt: true}}
+			out = append(out, control.Build(press, label,
+				func(c control.Context) (Resolution, bool) {
+					return Resolution{Camera: c.Camera, Factor: factor}, true
+				}))
+		}
+	}
+	draw(k.Finer, "A finer picture", 1/ResolutionStep)
+	draw(k.Coarser, "A coarser picture", ResolutionStep)
 	if k.Wheel {
 		out = append(out, control.Build(control.Wheel{}, "Zoom", func(c control.Context) (Zoom, bool) {
 			if c.Wheel > 0 {
@@ -83,7 +115,7 @@ func (k Keys) Bindings() []control.Binding {
 	if k.Edge {
 		out = append(out, control.Build(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {
 			var dx, dy float32
-			side := c.Edges()
+			side, speed := c.Edges(), step(c)
 			if side.Corner != control.NoCorner {
 				sx, sy := side.Corner.Signs()
 				return Pan{Camera: c.Camera, Dx: sx * speed, Dy: sy * speed}, !k.CornersTurn

@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/kjkrol/ceremony"
@@ -17,6 +18,7 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras/internal/topdown"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
+	"github.com/kjkrol/gram/render"
 )
 
 // Config is what a game's cameras may do and how they see: Turn (Q, E), Tilt (R, F) and
@@ -41,6 +43,16 @@ type Config struct {
 	HeightUnit float32
 	// where the cameras may be; nil, anywhere over level ground at sea level
 	Cage Cage
+	// how far every camera sees and how finely as it is made (Sight changes it); zero, as far as
+	// the world goes, every bit
+	Detail camera.Detail
+	// Resolution is the share of the pixels every picture but a minimap's is drawn at as its
+	// camera is made, LeastResolution up to 1 (zero, all of them); Adaptive has it follow the
+	// FrameBudget from the start (Adapt), the time a frame may take (zero, a sixtieth of a
+	// second): a rate the vsync caps is met, never exceeded.
+	Resolution  float32
+	Adaptive    bool
+	FrameBudget time.Duration
 }
 
 // plain is the camera from above that neither turns nor tilts nor sees anything in relief
@@ -76,14 +88,23 @@ type Plugin struct {
 	zooms       command.Queue[Zoom]
 	follows     command.Queue[Follow]
 	centerOns   command.Queue[CenterOn]
+	centerAts   command.Queue[CenterAt]
 	zones       command.Queue[Zones]
+	sights      command.Queue[Sight]
+	resolutions command.Queue[Resolution]
+	adapts      command.Queue[Adapt]
 	orders      orders
 	zonesView   *zonesView
+	adapter     adapter
+	kept        *plugin.Kept[Settings]
 	module      *module
+
+	Res Resources
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
+var _ plugin.Tunable = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
 
 // NewPlugin keeps and moves the cameras of worldPlugin's world as cfg says; it makes none itself.
@@ -92,7 +113,13 @@ var _ plugin.Restorer = (*Plugin)(nil)
 func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin, cfg: cfg}
 	p.Self = world.NewSelf(worldPlugin, p)
-	p.zonesView = &zonesView{}
+	p.zonesView = &zonesView{settings: &p.Res.Settings}
+	p.kept = plugin.Keep(&p.Res.Settings)
+	p.Res.Settings.Adaptive = cfg.Adaptive
+	p.adapter = adapter{on: cfg.Adaptive, budget: cfg.FrameBudget}
+	if p.adapter.budget <= 0 {
+		p.adapter.budget = time.Second / 60
+	}
 	worldPlugin.Anchor(anchors{p})
 	if !cfg.plain() {
 		if edges := worldPlugin.Res.Config.Space.Edges; edges.WrapsX() || edges.WrapsY() {
@@ -141,6 +168,10 @@ func (p *Plugin) New(start Start, cfg camera.Config) camera.Camera {
 		made := p.views.Maker(p.viewCfg, from, p.ground, p.extent, bend)
 		cam = made(space.Width, space.Height, space.Edges, cfg)
 	}
+	cam.(seeing).SetDetail(p.cfg.Detail)
+	if r, ok := cam.(camera.Resolved); ok && p.cfg.Resolution > 0 && !fitsWhole(cam) {
+		r.SetResolution(clamped(p.cfg.Resolution))
+	}
 	at := len(p.cameras)
 	p.cameras = append(p.cameras, cam)
 	if p.loaded && at < len(p.saved) {
@@ -157,6 +188,21 @@ func (p *Plugin) New(start Start, cfg camera.Config) camera.Camera {
 	return cam
 }
 
+// a camera of the plugin's, seeing as far as it is told
+type seeing interface {
+	SetDetail(d camera.Detail)
+	See(factor float64)
+}
+
+// fitsWhole reports whether cam keeps the whole world in view: a minimap's
+func fitsWhole(cam camera.Camera) bool {
+	if f, ok := cam.(camera.Fitting); ok {
+		_, _, whole := f.Fits()
+		return whole
+	}
+	return false
+}
+
 // the world lives round the point each camera observes, a minimap's none
 type anchors struct{ p *Plugin }
 
@@ -164,10 +210,8 @@ var _ sector.Anchors = anchors{}
 
 func (a anchors) Anchors(at func(x, y float32)) {
 	for _, cam := range a.p.cameras {
-		if f, ok := cam.(camera.Fitting); ok {
-			if _, _, whole := f.Fits(); whole {
-				continue
-			}
+		if fitsWhole(cam) {
+			continue
 		}
 		if f, ok := cam.(camera.Focused); ok {
 			x, y, _ := f.Focus()
@@ -197,18 +241,58 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // once, in the tactical pause too; call it after whatever moves the entities.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.switchZones()
+	if f := p.adapter.step(time.Now(), render.ActualFPS()); f != 1 {
+		p.redraw(f)
+	}
 	p.module.RunPlan(ctx, d)
+}
+
+// redraw has every picture but a minimap's drawn at factor times its resolution
+func (p *Plugin) redraw(factor float32) {
+	for _, cam := range p.cameras {
+		if r, ok := cam.(camera.Resolved); ok && !fitsWhole(cam) {
+			r.SetResolution(clamped(r.Resolution() * factor))
+		}
+	}
+}
+
+// Reporter is the cameras' part of the telemetry panel: the share of its pixels each picture is
+// drawn at, and whether it follows the frame budget.
+func (p *Plugin) Reporter() render.Reporter { return reporter{p} }
+
+type reporter struct{ p *Plugin }
+
+func (reporter) Init(*goke.SysInit) {}
+
+func (r reporter) Report(line func(label, value string)) {
+	var shares []string
+	for _, cam := range r.p.cameras {
+		if _, ok := cam.(camera.Resolved); ok && !fitsWhole(cam) {
+			shares = append(shares, fmt.Sprintf("%.2f", camera.ResolutionOf(cam)))
+		}
+	}
+	if len(shares) == 0 {
+		return
+	}
+	value := strings.Join(shares, ", ") + " of the pixels"
+	if r.p.adapter.on {
+		value += ", adaptive"
+	}
+	line("Picture", value)
 }
 
 // EventHandler is nil: a player's bindings issue the commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is every camera's state, its window, zoom and fastening, in the order made.
+// Serializable is every camera's state, its window, zoom and fastening, in the order made, and
+// the Settings.
 func (p *Plugin) Serializable() plugin.Serializable { return persisted{p} }
 
-// Restore gives the cameras made so far the state a Load wrote; those made later take theirs as
-// they are made.
+// Restore gives the cameras made so far the state a Load wrote, those made later take theirs as
+// they are made, and takes the Settings loaded.
 func (p *Plugin) Restore() {
+	p.kept.Restore()
+	p.adapter.on = p.Res.Settings.Adaptive
 	p.loaded = true
 	for at := range p.cameras {
 		if at < len(p.saved) {

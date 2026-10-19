@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/internal/billboards"
 	"github.com/kjkrol/gram/plugins/world"
@@ -34,7 +35,7 @@ func isometricIsland() (*world.Plugin, *topography.Plugin, camera.Camera) {
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, w)
 	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	p := topography.NewPlugin(w, b, topography.Config{})
+	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	cam := cameras.NewPlugin(w, cameras.Config{
 		Turn:       true,
 		Tilt:       true,
@@ -56,7 +57,7 @@ func TestBillboards_StandEntitiesUprightOnTheirCentre(t *testing.T) {
 		var f render.Frame
 		f.Reset(cam)
 		look.(world.DirectLook).Begin(&render.Frame{}, cam)
-		look.Sprite(&f, cam, box, z, sheet{}, render.Appearance{}, render.Light{1, 1, 1})
+		look.Sprite(&f, cam, box, z, sheet{}, render.Appearance{}, render.WhiteLight)
 		return billboards.Stood(look)
 	}
 	if b := stand(world.Z{Altitude: 6}); len(b) != 1 || b[0] != [6]float32{45, 45, 6, 10, 10, 0} {
@@ -82,12 +83,12 @@ func TestBillboards_StandEntitiesUprightOnTheirCentre(t *testing.T) {
 }
 
 type fixedSky struct {
-	sun sky.Sun
+	sun light.Distant
 	air air.Weather
 }
 
-func (s fixedSky) Sun() sky.Sun     { return s.sun }
-func (s fixedSky) Air() air.Weather { return s.air }
+func (s fixedSky) Distant() light.Distant { return s.sun }
+func (s fixedSky) Air() air.Weather       { return s.air }
 
 func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 	w, p, cam := isometricIsland()
@@ -100,7 +101,7 @@ func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 		var f render.Frame
 		f.Reset(cam)
 		look.(world.DirectLook).Begin(&render.Frame{}, cam)
-		look.Sprite(&f, cam, box, world.Z{}, sheet{}, render.Appearance{Sway: sway}, render.Light{1, 1, 1})
+		look.Sprite(&f, cam, box, world.Z{}, sheet{}, render.Appearance{Sway: sway}, render.WhiteLight)
 		return billboards.Stood(look)[0][5]
 	}
 	if still, swaying := lean(0), lean(1); still != 0 || swaying == 0 {
@@ -118,7 +119,7 @@ func TestBillboards_LayADeckOnItsBeam(t *testing.T) {
 	box := plane.NewAABB(geom.NewVec(40, 40), 16, 16)
 	lie := world.Lie{Length: 30, Width: 12, Edged: true, Edge: 2}
 	look.(world.LyingLook).Lay(&f, cam, box, geom.NewVec(1, 0), lie,
-		world.Z{Altitude: 20, Height: 3}, sheet{}, render.Appearance{}, 0, render.Light{1, 1, 1})
+		world.Z{Altitude: 20, Height: 3}, sheet{}, render.Appearance{}, 0, render.WhiteLight)
 	at := map[float32]int{}
 	for _, k := range billboards.Lain(look) {
 		at[k[2]]++
@@ -126,50 +127,6 @@ func TestBillboards_LayADeckOnItsBeam(t *testing.T) {
 	if at[20] != 12 || at[17] != 4 || at[22] != 4 || len(at) != 3 {
 		t.Errorf("corners by height %v, want 12 at the deck (20), 4 at the beam's foot (17) "+
 			"and 4 at the railings' top (22)", at)
-	}
-}
-
-func TestBillboards_CastShadowsAsThePolicySays(t *testing.T) {
-	w, p, cam := isometricIsland()
-	cam.CenterOn(64, 64, 0)
-	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
-	cast := func(c world.Casting) [][12]float32 {
-		look := w.Look()
-		var f render.Frame
-		f.Reset(cam)
-		look.(world.DirectLook).Begin(&render.Frame{}, cam)
-		look.(world.ShadowLook).Shadow(&f, cam, box, world.Z{Height: 10}, sheet{},
-			render.Appearance{}, c)
-		return billboards.Cast(look)
-	}
-	shaped := func(k [12]float32) bool { return k[8] != 0 || k[9] != 0 || k[10] != 0 || k[11] != 0 }
-	if got := cast(world.Patch); len(got) != 1 || shaped(got[0]) {
-		t.Errorf("a patch casts %v, want one with no sprite's shape", got)
-	}
-	if got := cast(world.Silhouette); len(got) != 1 || !shaped(got[0]) {
-		t.Errorf("a silhouette casts %v, want one in its sprite's shape", got)
-	}
-	for _, c := range []world.Casting{world.NoShadow, world.Baked} {
-		if got := cast(c); len(got) != 0 {
-			t.Errorf("casting %v lays %v, want nothing: none, or the terrain's", c, got)
-		}
-	}
-	var asked []world.Casting
-	p.WithShadowPolicy(func(declared world.Casting, distance float32) world.Casting {
-		asked = append(asked, declared)
-		if declared == world.Silhouette {
-			return world.Patch
-		}
-		return declared
-	})
-	if got := cast(world.Silhouette); len(got) != 1 || shaped(got[0]) || len(asked) != 1 {
-		t.Errorf("a silhouette the policy turns a patch casts %v, asked %v; want a patch, "+
-			"asked once", got, asked)
-	}
-	asked = nil
-	cast(world.Baked)
-	if len(asked) != 0 {
-		t.Errorf("a Baked shadow asked the policy %v, want it asked nothing", asked)
 	}
 }
 
@@ -181,7 +138,7 @@ func TestBillboards_HazeFarOffOnlyWhenAsked(t *testing.T) {
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(128, 128, 32), &cell.MultipleOccupancy{}, w)
 	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	p := topography.NewPlugin(w, b, topography.Config{})
+	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	p.WithAtmosphere(fixedSky{sun: sky.DefaultSun, air: air.Weather{Sight: 300}})
 	cam := cameras.NewPlugin(w, cameras.Config{
 		Perspective: true,
@@ -197,7 +154,7 @@ func TestBillboards_HazeFarOffOnlyWhenAsked(t *testing.T) {
 		f.Reset(cam)
 		look.(world.DirectLook).Begin(&render.Frame{}, cam)
 		look.Sprite(&f, cam, plane.NewAABB(geom.NewVec(2043, 2043), 10, 10), world.Z{}, sheet{},
-			render.Appearance{}, render.Light{1, 1, 1})
+			render.Appearance{}, render.WhiteLight)
 		return billboards.Hazed(look)
 	}
 	if got := haze(); len(got) != 1 || got[0] != 0 {

@@ -53,7 +53,7 @@ func Benchmark_Vision_Relief(b *testing.B) {
 				b.Fatal(err)
 			}
 			p := board.NewPlugin(g, &cell.MultipleOccupancy{}, w).WithMotion(m)
-			topo := topography.NewPlugin(w, p, topography.Config{})
+			topo := topography.NewPlugin(w, p, nil, topography.Config{})
 			v := vision.NewPlugin(w).WithBoard(p).WithFrequency(c.every)
 			if c.step > 0 {
 				v.WithGroundStep(scale.Units(c.step)).

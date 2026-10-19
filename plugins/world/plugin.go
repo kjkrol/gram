@@ -3,11 +3,11 @@ package world
 import (
 	"fmt"
 	cgoke "github.com/kjkrol/ceremony/goke"
+	"image/color"
 	"reflect"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/effect"
@@ -28,15 +28,17 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Resources is what the world publishes: its Config and its Telemetry.
+// Resources is what the world publishes: its Config, its Telemetry and its Settings.
 type Resources struct {
 	Config    Config
 	Telemetry *Telemetry
+	Settings  Settings
 }
 
 // Plugin is the world a Stage makes with its World link (ctx.UseWorld); never Use your own.
 type Plugin struct {
 	Res     Resources
+	kept    *plugin.Kept[Settings]
 	module  *module
 	figures []Figure
 	roles   Roles
@@ -44,6 +46,7 @@ type Plugin struct {
 	made    plugin.Made
 	*Self
 	renderer *renderer
+	sectors  *sectorsView
 	kinds    *Kinds
 	roster   *kind.Roster
 	seeded   []kind.Entry
@@ -60,6 +63,8 @@ var _ plugin.Builtin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ plugin.KindTemplater = (*Plugin)(nil)
+var _ plugin.Tunable = (*Plugin)(nil)
+var _ plugin.Restorer = (*Plugin)(nil)
 
 // Builtin marks Plugin as installed by the engine itself.
 func (*Plugin) Builtin() {}
@@ -74,24 +79,25 @@ func NewPlugin(cfg Config) *Plugin {
 		look:   flatLook(cfg.Space),
 	}
 	p.roster = kind.NewRoster(p.fillRoster)
-	m.kinds = p.kinds
+	p.kept = plugin.Keep(&p.Res.Settings)
+	m.p, m.kinds = p, p.kinds
 	p.newEffects()
 	p.newPlans()
 	p.carryOwn()
 	// the clock's entity is the world's own
 	p.Self = newSelf(p, p.Name(), comp.Const(m.clock.State()))
 	p.renderer = newRenderer(nil, p.ViewFor, &m.drawing, p.Look)
+	p.sectors = newSectorsView(p)
 	p.renderer.clock = m.clock.Shown
 	return p
 }
 
 // KindTemplates is what the world asks of the kinds a game defines: of every one it spawns,
-// where it stands, its velocity, its effects' markers and a live patch of a shadow.
+// where it stands, its velocity and its effects' markers.
 func (p *Plugin) KindTemplates(r *kind.Roster) {
 	kind.Require[Position](r, EntityTemplate, "world", "where it stands")
 	r.Default(EntityTemplate, comp.Const(Velocity{}))
 	r.Default(EntityTemplate, comp.Marks[effect.States]())
-	r.Default(EntityTemplate, comp.Const(Shadow{Cast: Patch}))
 }
 
 // fillRoster has the world and every plugin made over it, in the order made, write what they ask
@@ -172,10 +178,11 @@ func (p *Plugin) Tick(d time.Duration) host.Tick { return p.module.tick(d) }
 // HasHeights reports whether this world has heights.
 func (p *Plugin) HasHeights() bool { return p.Res.Config.Heights }
 
-func (p *Plugin) newView(bounds func() geom.AABB) *view.View {
-	v := view.New(bounds)
-	p.module.views = append(p.module.views, v)
-	return v
+// WithFog has what lies far off fade into c where nothing else, the atmosphere, gives the fog's
+// colour; a scene sets it as it begins.
+func (p *Plugin) WithFog(c color.RGBA) *Plugin {
+	p.renderer.fog = &[3]float32{float32(c.R) / 255, float32(c.G) / 255, float32(c.B) / 255}
+	return p
 }
 
 // Scale is how many metres a world unit spans.
@@ -183,6 +190,13 @@ func (p *Plugin) Scale() Scale { return p.Res.Config.Scale }
 
 // SetLook has the world's entities drawn, picked and outlined by look, a view plugin's.
 func (p *Plugin) SetLook(look Look) { p.look = look }
+
+// SetLighting has the world's entities lit by l, the light plugin's; without one they are drawn
+// in white light. Before Install.
+func (p *Plugin) SetLighting(l Lighting) { p.renderer.lighting = l }
+
+// Lighting is what lights the world's entities, nil for white light.
+func (p *Plugin) Lighting() Lighting { return p.renderer.lighting }
 
 // Look is how the world's entities lie on the screen.
 func (p *Plugin) Look() Look { return p.look }
@@ -206,7 +220,11 @@ func (p *Plugin) ViewFor(cam camera.Camera) *view.View {
 	if p.views == nil {
 		p.views = map[camera.Camera]*view.View{}
 	}
-	v := p.newView(cam.Bounds)
+	v := view.New(cam.Bounds)
+	if p.module.sectors.grid != nil {
+		v = view.NewSeen(cam, seenSectors{p.module.sectors})
+	}
+	p.module.views = append(p.module.views, v)
 	p.views[cam] = v
 	return v
 }
@@ -219,7 +237,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	ctx.UseModule(p.module.effects.Module())
 	ctx.Setup(p.kinds)
 	ctx.Hosts(&p.module.moments.host)
-	ctx.Draws(p.renderer)
+	ctx.Draws(p.renderer, p.sectors)
 	ctx.Looks(p.dress)
 	return nil
 }
@@ -263,6 +281,9 @@ func (p *Plugin) Carry(handlers ...plugin.CommandHandler) error {
 // Carrier is the Stage's one carrier of commands, taking each to its handler's queue.
 func (p *Plugin) Carrier() *command.Carrier { return &p.module.commands }
 
+// Atlas is the world's looks as SetAtlas took them, nil before.
+func (p *Plugin) Atlas() render.AtlasSource { return p.renderer.atlas }
+
 // SetAtlas takes atlas as the world's looks for the entity renderer, applying what a *Atlas
 // declared; its Close calls it. A foreign render.AtlasSource is given by hand.
 func (p *Plugin) SetAtlas(atlas render.AtlasSource) {
@@ -294,8 +315,15 @@ func (p *Plugin) Styles() *render.Styles { return p.styles }
 // EventHandler is nil: a player's bindings issue the world's commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil: the world's entities are saved with the ECS.
-func (p *Plugin) Serializable() plugin.Serializable { return nil }
+// Serializable is the world's Settings, kept whole; its entities are saved with the ECS.
+func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
+
+// Restore takes the Settings loaded and draws as they say.
+func (p *Plugin) Restore() {
+	p.kept.Restore()
+	p.ShowSectors(p.Res.Settings.Sectors)
+	p.SetBanded(!p.Res.Settings.Unbanded)
+}
 
 // Seed adds entries to the entities spawned when this Stage starts fresh.
 func (p *Plugin) Seed(entries ...kind.Entry) {

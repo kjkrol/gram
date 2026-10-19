@@ -1,6 +1,7 @@
 package topdown
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/kjkrol/aabbworld"
@@ -16,16 +17,45 @@ type basicCamera struct {
 	minZoomCfg   float32
 	maxZoom      float32
 	zoom         float32
+	res          float32
 	whole        bool
 
 	effective plane.AABB
 	fastening contract.Fastening
+	form      form
+	detail    contract.Detail
+}
+
+// form names how a camera from above is saved, so a save of another shape is refused at its
+// first value
+type form struct{}
+
+const savedAs = "top 1"
+
+func (form) GobEncode() ([]byte, error) { return []byte(savedAs), nil }
+
+func (*form) GobDecode(b []byte) error {
+	if string(b) != savedAs {
+		return fmt.Errorf("saved as %q, not %q", b, savedAs)
+	}
+	return nil
 }
 
 var _ contract.Camera = (*basicCamera)(nil)
 var _ contract.Fastenable = (*basicCamera)(nil)
 var _ contract.Fitting = (*basicCamera)(nil)
 var _ contract.Focused = (*basicCamera)(nil)
+var _ contract.Detailed = (*basicCamera)(nil)
+var _ contract.Resolved = (*basicCamera)(nil)
+
+// Detail is how far the camera sees and how finely.
+func (c *basicCamera) Detail() contract.Detail { return c.detail }
+
+// SetDetail has the camera see as d says.
+func (c *basicCamera) SetDetail(d contract.Detail) { c.detail = d }
+
+// See has the camera see factor times as far.
+func (c *basicCamera) See(factor float64) { c.detail = c.detail.Widened(factor) }
 
 // Fasten fastens the camera to an entity, or to nothing.
 func (c *basicCamera) Fasten(f contract.Fastening) { c.fastening = f }
@@ -40,6 +70,7 @@ func newBasicCamera(world geom.Vec, viewport contract.AABB, edges aabbworld.Edge
 		viewportSize: geom.NewVec(w, h),
 		edges:        edges,
 		zoom:         1,
+		res:          1,
 		effective:    plane.NewAABB(viewport.TopLeft, w, h),
 	}
 }
@@ -112,8 +143,16 @@ func windowOffset(x, ref, ww, ws float32) float32 {
 
 func (c *basicCamera) Projection() contract.Projection { return contract.TopDown{} }
 
+// SetResolution has the camera drawn at s of the pixels it is shown at; its window stays.
+func (c *basicCamera) SetResolution(s float32) { c.res = s }
+
+func (c *basicCamera) Resolution() float32 { return c.res }
+
+// camera pixels a world unit
+func (c *basicCamera) px() float32 { return c.zoom * c.res }
+
 func (c *basicCamera) Viewport() (float32, float32) {
-	return float32(c.viewportSize.X), float32(c.viewportSize.Y)
+	return float32(c.viewportSize.X) * c.res, float32(c.viewportSize.Y) * c.res
 }
 
 func (c *basicCamera) SetViewport(w, h float32) {
@@ -150,13 +189,18 @@ func (c *basicCamera) ToScreen(x, y float32) (float32, float32) {
 	if c.edges.WrapsY() {
 		y = wrapRelative(y, float32(c.effective.TopLeft.Y), float32(c.world.Y))
 	}
-	return (x - float32(c.effective.TopLeft.X)) * c.zoom, (y - float32(c.effective.TopLeft.Y)) * c.zoom
+	px := c.px()
+	return (x - float32(c.effective.TopLeft.X)) * px, (y - float32(c.effective.TopLeft.Y)) * px
 }
 
 func (c *basicCamera) ToScreenQuads(x0, y0, x1, y1 float32, dst []contract.Quad) []contract.Quad {
+	px := c.px()
 	if c.edges&aabbworld.Torus == 0 {
 		sx0, sy0 := c.ToScreen(x0, y0)
-		return append(dst, contract.Quad{X0: sx0, Y0: sy0, X1: sx0 + (x1-x0)*c.zoom, Y1: sy0 + (y1-y0)*c.zoom, T0X: 0, T1X: 1, T0Y: 0, T1Y: 1})
+		return append(dst, contract.Quad{
+			X0: sx0, Y0: sy0, X1: sx0 + (x1-x0)*px, Y1: sy0 + (y1-y0)*px,
+			T0X: 0, T1X: 1, T0Y: 0, T1Y: 1,
+		})
 	}
 	u0 := c.offsetX(x0)
 	u1 := u0 + (x1 - x0)
@@ -166,10 +210,10 @@ func (c *basicCamera) ToScreenQuads(x0, y0, x1, y1 float32, dst []contract.Quad)
 	var xs, ys [2]rangePiece
 	for _, xp := range axisPieces(u0, u1, float32(c.world.X), c.edges.WrapsX(), &xs) {
 		for _, yp := range axisPieces(v0, v1, float32(c.world.Y), c.edges.WrapsY(), &ys) {
-			sx0 := xp.screenLo * c.zoom
-			sx1 := sx0 + (xp.hi-xp.lo)*c.zoom
-			sy0 := yp.screenLo * c.zoom
-			sy1 := sy0 + (yp.hi-yp.lo)*c.zoom
+			sx0 := xp.screenLo * px
+			sx1 := sx0 + (xp.hi-xp.lo)*px
+			sy0 := yp.screenLo * px
+			sy1 := sy0 + (yp.hi-yp.lo)*px
 			dst = append(dst, contract.Quad{
 				X0: sx0, Y0: sy0, X1: sx1, Y1: sy1,
 				T0X: (xp.lo - u0) / (u1 - u0), T1X: (xp.hi - u0) / (u1 - u0),
@@ -208,8 +252,9 @@ func axisPieces(u0, u1, size float32, wraps bool, buf *[2]rangePiece) []rangePie
 }
 
 func (c *basicCamera) FromScreen(sx, sy float32) (float32, float32) {
-	x := sx/c.zoom + float32(c.effective.TopLeft.X)
-	y := sy/c.zoom + float32(c.effective.TopLeft.Y)
+	px := c.px()
+	x := sx/px + float32(c.effective.TopLeft.X)
+	y := sy/px + float32(c.effective.TopLeft.Y)
 	if c.edges.WrapsX() {
 		x = wrapMod(x, float32(c.world.X))
 	}
@@ -271,9 +316,10 @@ func (c *basicCamera) Translate(dx, dy float64) {
 	c.place(c.effective.TopLeft.X+dx, c.effective.TopLeft.Y+dy, c.effective.Size.X, c.effective.Size.Y)
 }
 
-// Pan shifts the visible window by a delta in screen pixels.
+// Pan shifts the visible window by a delta in camera pixels.
 func (c *basicCamera) Pan(dx, dy float32) {
-	c.Translate(float64(dx)/float64(c.zoom), float64(dy)/float64(c.zoom))
+	px := float64(c.px())
+	c.Translate(float64(dx)/px, float64(dy)/px)
 }
 
 func (c *basicCamera) place(x, y, w, h float64) {
@@ -296,8 +342,8 @@ func fitAxis(lo, length, world float64, wraps bool) float64 {
 	return lo
 }
 
-// Zoom is the current zoom factor.
-func (c *basicCamera) Zoom() float32 { return c.zoom }
+// Zoom is the current zoom factor, camera pixels a world unit.
+func (c *basicCamera) Zoom() float32 { return c.px() }
 
 // ZoomIn multiplies the zoom by factor, keeping the world point (anchorX, anchorY) fixed on
 // screen.
@@ -320,8 +366,9 @@ func (c *basicCamera) ZoomIn(factor float32, anchorX, anchorY float32) {
 	c.setZoom(newZoom)
 
 	afterX, afterY := c.ToScreen(anchorX, anchorY)
-	dx := float64((afterX - beforeX) / c.zoom)
-	dy := float64((afterY - beforeY) / c.zoom)
+	px := c.px()
+	dx := float64((afterX - beforeX) / px)
+	dy := float64((afterY - beforeY) / px)
 	if dx != 0 || dy != 0 {
 		c.Translate(dx, dy)
 	}
@@ -380,9 +427,10 @@ func (c *basicCamera) State() contract.State {
 	return contract.State{Viewport: c.effective.AABB, Zoom: c.zoom}
 }
 
-// Persisted is pointers to the live window, zoom and fastening, for saves and loads.
+// Persisted is pointers to the live window, zoom, fastening and sight, for saves and loads, after
+// the camera's form.
 func (c *basicCamera) Persisted() []any {
-	return []any{&c.effective.AABB, &c.zoom, &c.fastening}
+	return []any{&c.form, &c.effective.AABB, &c.zoom, &c.fastening, &c.detail.Sight}
 }
 
 // Restore rebuilds derived state after a load has written through Persisted's pointers.
@@ -395,10 +443,10 @@ func (c *basicCamera) Restore() {
 	}
 }
 
-// Rays are the camera's lines of sight: straight down onto the ground, a screen pixel 1/zoom
+// Rays are the camera's lines of sight: straight down onto the ground, a camera pixel 1/zoom
 // world units.
 func (c *basicCamera) Rays() (contract.RayField, bool) {
-	k := 1 / c.zoom
+	k := 1 / c.px()
 	return contract.RayField{
 		Origin: [3]float32{float32(c.effective.TopLeft.X), float32(c.effective.TopLeft.Y), basicEye},
 		DX:     [3]float32{k, 0, 0}, DY: [3]float32{0, k, 0}, Dir: [3]float32{0, 0, -1},

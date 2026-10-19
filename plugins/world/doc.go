@@ -20,10 +20,9 @@
 //
 // [Base] is the one component every entity carries: its [Position], its [Velocity] (a unit
 // heading and a speed in world units a second), the kind it was spawned from and the capability
-// bits the space indexes it under. [Z], [Layers], [Eye], [Lie] and [Shadow] are the types of
-// package entity under the world's own names; every entity of a template casts a [Patch] unless
-// its template or its kind says otherwise. No entity moves further in a step than [StepReach] of
-// its own shorter side.
+// bits the space indexes it under. [Z], [Layers], [Eye] and [Lie] are the types of package
+// entity under the world's own names. No entity moves further in a step than [StepReach] of its
+// own shorter side.
 //
 // # Scale
 //
@@ -82,8 +81,11 @@
 // ([Plugin.NewAtlas]) before. Each
 // entity is laid on the screen by the world's [Look] ([Plugin.Look], [Plugin.SetLook]), flat
 // from above unless a view plugin sets its own; a [DirectLook] draws the sprites itself on the
-// GPU, a [LyingLook] lays some flat, an [UprightLook] stands some true, a [ShadowLook] casts each
-// entity's shadow as its [Shadow] says.
+// GPU, a [LyingLook] lays some flat, an [UprightLook] stands some true, a [FoggyLook] fades one
+// into the fog before a camera's sight. Each is lit as the [Lighting] says, the light plugin's
+// ([Plugin.SetLighting]), in white light without one. In a sector a camera sees coarsely an entity
+// is drawn plainly: no edges, flat where it would stand. [Plugin.WithFog] is the fog's colour in a
+// world without an atmosphere.
 //
 // [Plugin.Picture] is everything the Stage's plugins draw (plugin.Installer.Draws), one picture
 // for every scene; a scene shows it through a camera, ui.Image(render.NewFeed(camera, it)).
@@ -95,7 +97,11 @@
 // with its sector's band (package sector); what lies beyond the last band is out of the space.
 // A system adds the pace of its policy ([Plugin.Pace]) to its query and walks it with
 // goke.Query.Paced; the world's plans and effects go Paced. [Plugin.Sectors] lays them on the
-// telemetry panel.
+// telemetry panel. A camera's View in such a world is of the sectors it sees, each at a level
+// (view.NewSeen); [Plugin.Seen] lays the first camera's on the panel. [SwitchSectors] (Shift+G)
+// shows the sectors over the ground by their bands or by how the camera sees them
+// ([Plugin.ShowSectors]); [SwitchBands] (Ctrl+G) switches the bands off, every sector in the
+// first, to weigh what they spare ([Plugin.SetBanded]).
 //
 // # Views
 //
@@ -119,8 +125,10 @@
 //
 // # Vocabulary
 //
-// Knobs, for an effect's Alter: render.Appearance, the look's; [Shadow], how it casts its shadow.
+// Knobs, for an effect's Alter: render.Appearance, the look's.
 // Commands: [Spawn] (a player's or an entity's own); [Despawn] (an entity's own); [Pause],
-// [Faster], [Slower] (a player's). The clock's moment and the commands about effects
-// (ceremony.Put, Take, Toggle, Trigger) are carried here too.
+// [Faster], [Slower], [Tempo], [SwitchSectors], [SwitchBands] (a player's). Settings
+// ([Settings], saved with the game, in [Resources]): the sectors drawn, their bands. The clock's
+// moment and the commands about effects (ceremony.Put, Take, Toggle, Trigger) are carried here
+// too.
 package world

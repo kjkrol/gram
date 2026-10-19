@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/atmosphere"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/render"
@@ -35,6 +34,7 @@ var (
 	railColor   = color.RGBA{R: 70, G: 50, B: 35, A: 255}
 	stoneColor  = color.RGBA{R: 150, G: 145, B: 135, A: 255}
 	reasonColor = color.RGBA{R: 20, G: 20, B: 20, A: 180}
+	minimapRim  = color.RGBA{R: 30, G: 30, B: 30, A: 255}
 )
 
 var (
@@ -50,14 +50,15 @@ var (
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 	a.board.WithAtmosphere(a.atmosphere)
-	a.atmosphere.ShowClouds(atmosphere.AllBodies)
-	a.board.ShowGrid(false)
 	a.vision.WithViews(render.Show(a.selection.IsSelected))
 
-	feed := render.NewFeed(a.cameras.New(cameras.FromAbove, camera.Config{}), a.world.Picture())
+	cam := a.cameras.New(cameras.FromAbove, camera.Config{})
 	return ui.Layers(
-		ui.Image(feed).Input(a.players.Through(a.player)),
+		ui.Image(render.NewFeed(cam, a.world.Picture())).Input(a.players.Through(a.player)),
 		ui.Drawer(a.world.Clock().HUD()),
+		ui.TopRight(a.minimap.For(cam, a.player.ID).Masked(ui.Circle).Border(minimapRim, 2)).
+			Size(220, 220).
+			Margin(16),
 		ui.BottomMiddle(a.bridges.Reason().Padding(6).Fill(reasonColor)).Margin(40),
 		ui.Center(a.bridges.Window()),
 	)

@@ -3,6 +3,7 @@ package telemetry
 import (
 	"image/color"
 	"strings"
+	"time"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
@@ -49,29 +50,39 @@ func (l line) write(sb *strings.Builder) {
 	add(l.label, l.value())
 }
 
+// how long the panel's text stands before it is built anew
+const refreshEvery = 250 * time.Millisecond
+
 // panel is the scene: never active, so the game under it keeps the input
 type panel struct {
 	p      *Plugin
 	screen *ui.Scene
+	text   string
+	at     time.Time // when text was built
+	every  time.Duration
 }
 
 var _ game.Scene = (*panel)(nil)
 
 func newPanel(p *Plugin) *panel {
-	s := &panel{p: p}
+	s := &panel{p: p, every: refreshEvery}
 	s.screen = ui.NewScene(SceneName, ui.TopLeft(
 		ui.Panel(ui.LabelOf(s)).Fill(panelFill).Border(color.RGBA{}, 0).Steady(),
 	).Margin(panelMargin))
 	return s
 }
 
-// Text is the panel's lines, read every frame (ui.Text).
+// Text is the panel's lines, read several times a frame (ui.Text): built anew four times a
+// second.
 func (s *panel) Text(uid.UID64, bool) (string, bool) {
-	var sb strings.Builder
-	for _, l := range s.p.lines {
-		l.write(&sb)
+	if now := time.Now(); now.Sub(s.at) >= s.every {
+		var sb strings.Builder
+		for _, l := range s.p.lines {
+			l.write(&sb)
+		}
+		s.text, s.at = sb.String(), now
 	}
-	return sb.String(), sb.Len() > 0
+	return s.text, len(s.text) > 0
 }
 
 func (s *panel) Name() string { return SceneName }

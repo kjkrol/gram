@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
@@ -30,6 +31,8 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
 	"github.com/kjkrol/gram/plugins/gravity"
+	"github.com/kjkrol/gram/plugins/light"
+	"github.com/kjkrol/gram/plugins/minimap"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -78,6 +81,8 @@ type arena struct {
 	players    *players.Plugin
 	telemetry  *telemetry.Plugin
 	cameras    *cameras.Plugin
+	minimap    *minimap.Plugin
+	light      *light.Plugin
 	player     *players.Player
 	rival      *players.Player
 	vision     *vision.Plugin
@@ -88,7 +93,9 @@ func main() {
 	props := game.Props{
 		Title: "gram board topography",
 		Description: "Madeira in relief. Select a unit, C follows it, V rides it: inside, the " +
-			"mouse looks round, W and S walk, A and D strafe, Shift sprints, Space jumps.",
+			"mouse looks round, W and S walk, A and D strafe, Shift sprints, Space jumps. The " +
+			"minimap turns with the camera (Ctrl+M keeps north up, Shift+M hides it); a click on " +
+			"it takes the camera there.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -103,7 +110,7 @@ func main() {
 				MaxSize:  CellSize,
 			},
 			Sectors: world.SectorsCfg{
-				Buckets: 4,
+				Buckets: 2,
 				Bands: []sector.Band{
 					{Reach: scale.Units(16_000)},
 					{Reach: scale.Units(32_000), Pace: 4},
@@ -130,12 +137,13 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.motion = motion.NewPlugin(a.world)
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	a.collision = collision.NewPlugin(a.world, a.motion)
+	a.light = light.NewPlugin(a.world, light.Config{LampShadows: 2})
 	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).
 		WithMotion(a.motion).
 		WithCollision(a.collision).
 		WithLog(log.Default())
 	a.gravity = gravity.NewPlugin(a.world, a.motion, gravity.Config{}).WithSurfaces(a.board.Footing)
-	a.topography = topography.NewPlugin(a.world, a.board, topography.Config{
+	a.topography = topography.NewPlugin(a.world, a.board, a.light, topography.Config{
 		Shaping: topography.Shaping{
 			Step:    scale.Units(40),
 			MaxStep: scale.Units(160),
@@ -153,7 +161,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		WithCollision(a.collision).
 		WithSpacing(navigation.BodySpacing)
 	a.vision = vision.NewPlugin(a.world).WithBoard(a.board).WithFrequency(15)
-	a.atmosphere = atmosphere.NewPlugin(a.world, atmosphere.Config{
+	a.atmosphere = atmosphere.NewPlugin(a.world, a.light, atmosphere.Config{
 		Calendar: calendar.Config{
 			Start:  12 * time.Hour,
 			Season: calendar.Summer,
@@ -184,11 +192,25 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Cell:        CellSize,
 		HeightUnit:  1,
 		Cage:        a.topography,
+		Detail: camera.Detail{
+			Sight:  scale.Units(30_000),
+			Fog:    scale.Units(6_000),
+			Coarse: 0.25,
+		},
 	})
-	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter(), a.world.Sectors())
+	a.minimap = minimap.NewPlugin(a.world, a.topography, minimap.Config{
+		Reach:   scale.Units(12_000),
+		Turning: true,
+	})
+	a.telemetry = telemetry.NewPlugin(a.world).
+		With(a.atmosphere.Reporter(), a.light.Reporter(), a.topography.Reporter(),
+			a.cameras.Reporter(), a.world.Sectors(), a.world.Seen())
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection,
 		a.nav, a.driving,
-		a.atmosphere, a.topography, a.vision, a.bridges)
+		a.atmosphere, a.topography, a.vision, a.bridges, a.minimap, a.light)
+	a.atmosphere.ShowClouds(atmosphere.AllBodies)
+	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})
+	a.cameras.ShowZones(true)
 }
 
 func (a *arena) definePlayers() error {
@@ -209,7 +231,7 @@ func (a *arena) defineEffects() {
 	a.world.Effects().Define(GatheringEf, effect.Spec{effect.Lasts(2 * time.Second),
 		effect.Alter(func(w *weathering.Wring) { w.Gathers = 0.05 })})
 	a.world.Effects().Define(SilhouetteEf, effect.Spec{
-		effect.Alter(func(s *world.Shadow) { s.Cast = world.Silhouette })})
+		effect.Alter(func(s *light.Shadow) { s.Cast = light.Silhouette })})
 }
 
 func (a *arena) defineRules() {
@@ -260,6 +282,7 @@ func (a *arena) defineFigures() {
 		walker{kind: RivalKind, color: rivalColor, ordered: true},
 		hawk{},
 		ford{},
+		lantern{},
 	)
 	a.bridges.Figures(bridge{})
 	a.atmosphere.Skies(earth{})
@@ -289,6 +312,9 @@ func (a *arena) spawn() error {
 	if err := board.Spawn[fordRow](level, nil); err != nil {
 		return err
 	}
+	if err := board.Spawn[lanternRow](level, nil); err != nil {
+		return err
+	}
 	if err := a.bridges.Spawn(level); err != nil {
 		return err
 	}
@@ -309,6 +335,7 @@ func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.bridges.RunPlan(ctx, d)
 	a.world.RunPlan(ctx, d)
+	a.light.RunPlan(ctx, d)
 	a.motion.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
 	a.gravity.RunPlan(ctx, d)
@@ -320,6 +347,7 @@ func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.selection.RunPlan(ctx, d)
 	a.topography.RunPlan(ctx, d)
 	a.cameras.RunPlan(ctx, d)
+	a.minimap.RunPlan(ctx, d)
 	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

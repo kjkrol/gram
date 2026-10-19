@@ -27,6 +27,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
@@ -39,7 +40,8 @@ type Resources struct {
 	Logic struct {
 		Board *Board
 	}
-	Render *look.RenderState
+	Render   *look.RenderState
+	Settings Settings
 }
 
 // Plugin wires a Board into a Game; it depends on world, and hands collision its solid ground.
@@ -66,13 +68,13 @@ type Plugin struct {
 	grids       command.Queue[Grid]
 	holds       command.Queue[Holds]
 	holdsView   *occupancy.View
-	holdsShown  bool
-	gridShown   bool
+	kept        *plugin.Kept[Settings]
 	bridges     Bridges
 	cellOf      map[string]func(row any) cell.ID
 	tiles       []Tile
 	surfaces    []Surface
 	where       map[cell.ID]string // the file and line a level laid the entity on a cell by
+	mini        miniature
 }
 
 // Bridges is what a bridge keeps to besides running straight and level from a head to a head:
@@ -94,8 +96,9 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 		occupancy:   occupancy,
 		worldPlugin: worldPlugin,
 		kinds:       terrain.NewKinds(),
-		gridShown:   true,
 	}
+	p.Res.Settings.Grid = true
+	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.kinds.Guard = func(name string) {
 		if err := worldPlugin.InSection(fmt.Sprintf("cell kind %q defined", name), section.Kinds); err != nil {
@@ -123,7 +126,9 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 			unit.AirborneName))
 	}
 	p.keepBridges()
-	p.renderer = look.NewRenderer(brd, nil, mapRef{p}, worldPlugin.Res.Config.Space)
+	p.renderer = look.NewRenderer(brd, nil, mapRef{p}, worldPlugin.Res.Config.Space).
+		WithSeen(worldPlugin.ViewFor).
+		WithLighting(worldPlugin.Lighting)
 	p.holdsView = p.newHoldsView()
 	return p
 }
@@ -137,7 +142,7 @@ func (p *Plugin) KindTemplates(r *kind.Roster) {
 	r.Default(motion.UnitTemplate, comp.Const(steering.Pace{Share: 1}))
 	r.Default(motion.UnitTemplate, comp.Marks[unit.States]())
 	r.Default(StandingTemplate, comp.Const(world.Lie{}))
-	r.Default(StandingTemplate, comp.Const(world.Shadow{Cast: world.Baked}))
+	r.Default(StandingTemplate, comp.Const(light.Shadow{Cast: light.Baked}))
 }
 
 func (p *Plugin) newHoldsView() *occupancy.View {
@@ -159,6 +164,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		cellRules: p.rules.CellSystem(),
 		clock:     p.worldPlugin.Clock(),
 	}
+	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)
 	ctx.Hosts(p.rules.Hosts()...)
 	ctx.Draws(p.renderer, p.holdsView)
@@ -177,8 +183,8 @@ func (p *Plugin) dress() {
 
 // RunPlan runs the board's step; call it after collision's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.grids.Drain(func(command.Issued[Grid]) { p.ShowGrid(!p.gridShown) })
-	p.holds.Drain(func(command.Issued[Holds]) { p.ShowHolds(!p.holdsShown) })
+	p.grids.Drain(func(i command.Issued[Grid]) { p.ShowGrid(i.Command.Shown) })
+	p.holds.Drain(func(i command.Issued[Holds]) { p.ShowHolds(i.Command.Shown) })
 	p.module.RunPlan(ctx, d)
 }
 
@@ -199,30 +205,33 @@ func (p *Plugin) SetAtlas(atlas render.AtlasSource) {
 		line, holds = ba.grid, ba.holds
 	}
 	p.Res.Render = p.renderer.State()
-	p.Res.Render.ShowGridLines = p.gridShown
+	p.Res.Render.ShowGridLines = p.Res.Settings.Grid
 	p.Res.Render.GridLine = line.Color
 	p.Res.Render.GridWidth = line.Width
 	p.holdsView.Width(holds)
 }
 
-// ShowGrid draws the grid over the board, or not, as the Grid command (B) switches it: a look,
-// not saved; shown from the start.
+// ShowGrid draws the grid over the board, or not, as the Grid command (B) switches it
+// (Settings.Grid); shown from the start.
 func (p *Plugin) ShowGrid(shown bool) {
-	p.gridShown = shown
+	p.Res.Settings.Grid = shown
 	if p.Res.Render != nil {
 		p.Res.Render.ShowGridLines = shown
 	}
 }
 
 // GridShown reports whether the grid is drawn.
-func (p *Plugin) GridShown() bool { return p.gridShown }
+func (p *Plugin) GridShown() bool { return p.Res.Settings.Grid }
 
 // ShowHolds shows the cells the occupancy holds, each an outline in its holder's colour, or
-// hides them: a look, not saved.
+// hides them (Settings.Holds).
 func (p *Plugin) ShowHolds(shown bool) {
-	p.holdsShown = shown
+	p.Res.Settings.Holds = shown
 	p.holdsView.Show(shown)
 }
+
+// HoldsShown reports whether the cells held are drawn.
+func (p *Plugin) HoldsShown() bool { return p.Res.Settings.Holds }
 
 func (p *Plugin) holdAt(c cell.ID, at geom.Vec, deck bool) float64 {
 	if deck {
@@ -284,8 +293,16 @@ func (p *Plugin) Atlas() render.AtlasSource { return p.atlas }
 // EventHandler is nil: the board handles no input of its own.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil: the terrain is the cells' entities, saved with the ECS.
-func (p *Plugin) Serializable() plugin.Serializable { return nil }
+// Serializable is the board's Settings, kept whole; the terrain is the cells' entities, saved
+// with the ECS.
+func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
+
+// Restore takes the Settings loaded and shows what they say.
+func (p *Plugin) Restore() {
+	p.kept.Restore()
+	p.ShowGrid(p.Res.Settings.Grid)
+	p.ShowHolds(p.Res.Settings.Holds)
+}
 
 // WithMap has the board drawn and priced by m in place of the simple map. Call before Use.
 func (p *Plugin) WithMap(m Map) *Plugin {

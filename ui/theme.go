@@ -7,7 +7,7 @@ import (
 )
 
 // Theme is how a scene's elements look where they say nothing of their own: the font and the colour
-// of their text, and the colours of panels, windows' titles and buttons.
+// of their text, and the colours of panels, windows' titles, buttons and the widgets' marks.
 type Theme struct {
 	Font   *render.Font
 	Bold   *render.Font // a Heading's; nil, the Font
@@ -18,6 +18,7 @@ type Theme struct {
 	Border color.RGBA // a panel's, a window's and a button's border
 	Title  color.RGBA // a window's title's background
 	Button color.RGBA // a button's background
+	Accent color.RGBA // a checkbox's tick, a slider's knob and the track behind it
 }
 
 // DefaultTheme is light text in Go Regular over dark panels.
@@ -32,6 +33,7 @@ func DefaultTheme() Theme {
 		Border: color.RGBA{R: 200, G: 200, B: 210, A: 255},
 		Title:  color.RGBA{R: 50, G: 56, B: 72, A: 255},
 		Button: color.RGBA{R: 60, G: 70, B: 95, A: 255},
+		Accent: color.RGBA{R: 120, G: 170, B: 255, A: 255},
 	}
 }
 
@@ -93,4 +95,7 @@ func (s *Scene) dress() {
 			e.pin.show.walk(func(b *Element) { b.theme = &s.theme })
 		}
 	})
+	if s.overlay != nil {
+		s.overlay.walk(func(e *Element) { e.theme = &s.theme })
+	}
 }

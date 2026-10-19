@@ -1,8 +1,10 @@
 package telemetry_test
 
 import (
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
@@ -40,6 +42,7 @@ func text(p *telemetry.Plugin) string {
 func TestPlugin_HasTheStandardLinesAndTakesMore(t *testing.T) {
 	w := newWorld()
 	p := telemetry.NewPlugin(w)
+	telemetry.Refresh(p, 0)
 	if telemetry.Of(w) != p {
 		t.Fatal("Of does not find the plugin made over the world")
 	}
@@ -60,6 +63,26 @@ func TestPlugin_HasTheStandardLinesAndTakesMore(t *testing.T) {
 		Text(uid.UID64, bool) (string, bool)
 	}).Text(0, false); ok || got != "" {
 		t.Errorf("cleared, the panel says %q, want nothing", got)
+	}
+}
+
+func TestPanel_TextIsRefreshedFourTimesASecond(t *testing.T) {
+	w := newWorld()
+	reads := 0
+	p := telemetry.NewPlugin(w).Clear().Line("Reads", func() string {
+		reads++
+		return strconv.Itoa(reads)
+	})
+	if got := text(p); got != "Reads: 1" {
+		t.Fatalf("the panel says %q, want its line read once", got)
+	}
+	telemetry.Aged(p, 100*time.Millisecond)
+	if got := text(p); got != "Reads: 1" {
+		t.Errorf("read 100 ms on, the panel says %q, want the text kept", got)
+	}
+	telemetry.Aged(p, 150*time.Millisecond)
+	if got := text(p); got != "Reads: 2" {
+		t.Errorf("read 250 ms on, the panel says %q, want its line read anew", got)
 	}
 }
 

@@ -38,10 +38,21 @@ type device struct {
 	passTarget *target
 	passDepth  *Depth
 	passFrame  *wgpu.BindGroup // the frame's images bound in the pass, kept till they change
+	// the pass's descriptor, kept: gogpu converts it before BeginRenderPass returns
+	passDesc     wgpu.RenderPassDescriptor
+	passColor    [1]wgpu.RenderPassColorAttachment
+	passDepthAtt wgpu.RenderPassDepthStencilAttachment
+	cmds         [2]*wgpu.CommandBuffer // the upload and the draws, handed to Submit
 
 	verts, indices, draws, uniforms []byte
 	vbuf, ibuf, dbuf, ubuf          *wgpu.Buffer
 	group0                          *wgpu.BindGroup
+	// the draws' dynamic offsets, two a draw, let go after Submit: gogpu's GLES backend keeps the
+	// slice handed to SetBindGroup in a deferred command replayed at Submit
+	offs []uint32
+	// DrawPieces' triangles, gathered into the frame's buffers before it returns
+	pieceVerts   []Vertex
+	pieceIndices []uint16
 
 	layout0, layout1         *wgpu.BindGroupLayout
 	layout2, layout3         *wgpu.BindGroupLayout
@@ -54,7 +65,8 @@ type device struct {
 
 	present      [4]*wgpu.Buffer // vertices, indices, the draw, the uniforms
 	presentGroup *wgpu.BindGroup
-	presented    [4][]byte
+	presented    [4][]byte // what the buffers hold, copies of the device's own
+	quad         [4][]byte // where Present builds them, never what presented holds
 
 	stages []*staging
 
@@ -244,11 +256,17 @@ func (d *device) trySubmit() error {
 	// gogpu binds the window's swapchain to the next submission: this one is kept off the window
 	d.queue.SetSwapchainSuppressed(true)
 	defer d.queue.SetSwapchainSuppressed(false)
-	all := []*wgpu.CommandBuffer{cmds}
+	n := 0
 	if up != nil {
-		all = []*wgpu.CommandBuffer{up, cmds}
+		d.cmds[n] = up
+		n++
 	}
-	if _, err := d.queue.Submit(all...); err != nil {
+	d.cmds[n] = cmds
+	n++
+	_, err = d.queue.Submit(d.cmds[:n]...)
+	d.cmds = [2]*wgpu.CommandBuffer{}
+	d.offs = d.offs[:0]
+	if err != nil {
 		return fmt.Errorf("gpu: submitting: %w", err)
 	}
 	d.bury()
@@ -283,23 +301,39 @@ func (d *device) begin(t *target, dp *Depth, clearDepth bool) *wgpu.RenderPassEn
 		return d.pass
 	}
 	d.endPass()
-	desc := &wgpu.RenderPassDescriptor{Label: "gpu", ColorAttachments: []wgpu.RenderPassColorAttachment{{
-		View: t.view, LoadOp: t.load, StoreOp: gputypes.StoreOpStore, ClearValue: t.clear,
-	}}}
-	if dp != nil {
-		load := gputypes.LoadOpLoad
-		if clearDepth {
-			load = gputypes.LoadOpClear
-		}
-		desc.DepthStencilAttachment = &wgpu.RenderPassDepthStencilAttachment{View: dp.gpuView(d), DepthLoadOp: load, DepthStoreOp: gputypes.StoreOpStore, DepthClearValue: 0}
-	}
-	pass, err := d.encoder().BeginRenderPass(desc)
+	pass, err := d.encoder().BeginRenderPass(d.passDescriptor(t, dp, clearDepth))
 	if err != nil {
 		panic(fmt.Errorf("gpu: beginning a pass: %w", err))
 	}
 	t.load = gputypes.LoadOpLoad
 	d.pass, d.passTarget, d.passDepth, d.passFrame = pass, t, dp, nil
 	return pass
+}
+
+// passDescriptor fills the kept descriptor for a pass into t over dp, none without one
+func (d *device) passDescriptor(t *target, dp *Depth, clearDepth bool) *wgpu.RenderPassDescriptor {
+	d.passColor[0] = wgpu.RenderPassColorAttachment{
+		View: t.view, LoadOp: t.load, StoreOp: gputypes.StoreOpStore, ClearValue: t.clear,
+	}
+	d.passDesc = wgpu.RenderPassDescriptor{Label: "gpu", ColorAttachments: d.passColor[:]}
+	if dp != nil {
+		load := gputypes.LoadOpLoad
+		if clearDepth {
+			load = gputypes.LoadOpClear
+		}
+		d.passDepthAtt = wgpu.RenderPassDepthStencilAttachment{
+			View: dp.gpuView(d), DepthLoadOp: load, DepthStoreOp: gputypes.StoreOpStore,
+		}
+		d.passDesc.DepthStencilAttachment = &d.passDepthAtt
+	}
+	return &d.passDesc
+}
+
+// offsets are a draw's dynamic offsets for SetBindGroup, kept till the next Submit
+func (d *device) offsets(dOff, uOff uint64) []uint32 {
+	n := len(d.offs)
+	d.offs = append(d.offs, uint32(dOff), uint32(uOff))
+	return d.offs[n : n+2 : n+2]
 }
 
 // bindFrame binds the frame's images g in the pass, unless bound already: every pipeline shares

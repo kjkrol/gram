@@ -74,6 +74,10 @@ type Tile struct {
 	ID             cell.ID
 	X0, Y0, X1, Y1 float32 // its box in the world
 	Atlas          render.AtlasSource
+	// Coarse, the tile is drawn plainly, undressed; Fog is how far into the fog before the
+	// camera's sight it lies, 0 to 1
+	Coarse bool
+	Fog    float32
 
 	r     *Renderer
 	dress Dressing
@@ -94,15 +98,27 @@ func (t *Tile) Base() render.SpriteID {
 // Kind is the cell's kind as whoever crosses it meets it.
 func (t *Tile) Kind() cell.Kind { return t.r.board.Kind(t.ID) }
 
-// Light is the light on the tile's top at its corners: the Dressing's, even without one.
+// Light is the light on the tile's top at its corners: the Dressing's, even without one, under
+// the sun as the renderer's Lighting has it.
 func (t *Tile) Light() render.Shade {
 	if t.r.white {
 		return render.Even(1) // composed once, lit on the GPU
 	}
+	shade := render.Even(1)
 	if d := t.dress; d != nil {
-		return d.Light(t)
+		shade = d.Light(t)
 	}
-	return render.Even(1)
+	lighting := t.r.lit()
+	if lighting == nil {
+		return shade
+	}
+	lit := lighting.At((t.X0+t.X1)/2, (t.Y0+t.Y1)/2, 0).Light
+	for c := range shade {
+		for k := range shade[c] {
+			shade[c][k] *= lit[k]
+		}
+	}
+	return shade
 }
 
 // FaceLight is the light on an upright face of the tile looking dx, dy cells away: the
@@ -117,7 +133,7 @@ func (t *Tile) FaceLight(dx, dy int) render.Light {
 // Dress lays over the tile's top, drawn over the box x0..x1, y0..y1 lying at at, what the
 // Dressing has lie on it; nothing without one.
 func (t *Tile) Dress(f *render.Frame, cam camera.Camera, x0, y0, x1, y1 float32, at render.At) {
-	if d := t.dress; d != nil {
+	if d := t.dress; d != nil && !t.Coarse {
 		d.Dress(f, cam, t, x0, y0, x1, y1, at)
 	}
 }
@@ -154,5 +170,6 @@ func (flatLook) Cell(f *render.Frame, cam camera.Camera, t *Tile) {
 	x0, y0, x1, y1 := t.X0, t.Y0, t.X1, t.Y1
 	at := f.At((x0+x1)/2, (y0+y1)/2, 0)
 	f.SpriteRect(at, t.Atlas, t.Base(), x0, y0, x1, y1, t.Light())
+	f.Fog([4]float32{t.Fog, t.Fog, t.Fog, t.Fog})
 	t.Dress(f, cam, x0, y0, x1, y1, at)
 }

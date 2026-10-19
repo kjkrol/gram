@@ -90,7 +90,7 @@ func DrawKept(dw *Draw, k *Kept) {
 	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, dw.Place, dw.Tint, dw.Sight)
 	pass := d.begin(t, dw.Depth, false)
 	pass.SetPipeline(pipeline)
-	pass.SetBindGroup(0, d.group0, []uint32{uint32(dOff), uint32(uOff)})
+	pass.SetBindGroup(0, d.group0, d.offsets(dOff, uOff))
 	pass.SetBindGroup(1, group1, nil)
 	pass.SetBindGroup(2, d.noDepth.readGroup(d), nil)
 	d.bindFrame(pass, group3)

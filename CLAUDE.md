@@ -49,6 +49,7 @@ make demo-start-split-screen                                    # two players at
 make demo-look-animation                                        # a gallery of animations from sheets: walking, braking, bored, pulling, a lever swinging
 make demo-look-material                                         # a ward's material pulsing, embers drawn out of their state circling it; G calms, F douses
 make demo-look-sky                                              # a sky of the game's own over a valley: its vault, a big orange moon by day, made-up stars
+make demo-look-light                                            # a flat board under a sun of the game's own circling in a day: a tower's shadow baked, walkers' patches, the hero's silhouette (WSAD), a lantern lighting the night, lava taking no shade; Shift+L the lamps' shadows
 make demo-rules-effect                                          # an ice witch: frost and frozen as effects; J hastens the selected
 make demo-rules-mechanisms                                      # a lever, a plate and a switch driving trapdoors and a gate; one hero on WSAD, the lever pulled by touch (Space)
 make demo-rules-dialog                                          # conversations from YAML: the miller and the smith
@@ -62,6 +63,7 @@ make demo-navigation-square                                     # units sent rou
 make demo-navigation-hex                                        # the same on a hex board
 make demo-navigation-spawn                                      # walkers spawned under the cursor (N) hold their cells; Shift+O shows the cells held
 make demo-motion-collision                                      # thousands of bouncing boxes of many kinds, a flash on every hit
+make demo-motion-expanse                                        # a hundred thousand boxes on a torus of ~98 km, alive in bands round the camera (Shift+G, Ctrl+G)
 make demo-motion-bullet                                         # a soldier on WSAD shoots rounds (Space) and throws grenades (Shift held, the longer the further)
 make demo-motion-platformer                                     # a hero in a side view under gravity: A/D walk, W jumps, G turns gravity over
 make bench                                                      # every benchmark once, with allocations
@@ -123,13 +125,19 @@ Decisions the user has made; they are not up for revisiting in passing.
   (`var _ command.Command = MoveTo{}` beside the type). Whatever takes commands takes a
   `command.Command`, never `any`.
 - **The default keys are the same in every game and no demo repeats one**: Shift+P the tactical
-  pause, Shift+Esc quits, K lists the keys, ~ the telemetry panel, F5 saves, F9 loads, F11 full
-  screen, ] and [ the tempo, Shift+X the boxes (collision's: the bases, the solids, none),
+  pause, Shift+Esc quits, K lists the keys, F10 the settings screen, ~ the telemetry panel, F5
+  saves, F9 loads, F11 full screen, ] and [ the tempo, Shift+X the boxes (collision's: the bases, the solids, none),
   Shift+H the scroll zones (cameras'), Shift+O the holds, Shift+B the bridge tool, Shift+R the
   routes, Shift+C the cones, Shift+W the weather, Shift+V the clouds' look, Shift+S the high
   clouds' shadows (with the camera free: riding, Shift+S sprints back), P freezes the light,
-  Space jumps in first person, = and - zoom, Shift+= and Shift+- shape the relief, Ctrl+F the
-  ground's haze, through any camera (off as a game starts).
+  Space jumps in first person, = and - zoom, Shift+= and Shift+- shape the relief, Ctrl+= and
+  Ctrl+- the camera's sight (farther, nearer), Alt+= and Alt+- the picture's resolution (finer,
+  coarser), Alt+A its following the frame budget (off, on), Alt+Shift+= and Alt+Shift+- the
+  ground's full care (farther, nearer), Ctrl+F the ground's haze, through any camera (off
+  as a game starts), H the shadows' detail (coarse, fine), Shift+L the lamps' shadows (off, on);
+  in a world cut into sectors Shift+G the sectors (by band, by what the camera
+  sees, none) and Ctrl+G the bands (off, on); with a minimap Shift+M shows or hides it and Ctrl+M
+  turns it with the camera or keeps north up.
   A key held, down or let go leaves the chords with Shift, Ctrl or Alt to these shortcuts unless
   its binding is `InChords()` (a sprint, a jump while sprinting). A plugin's keys a game sets up
   (`driving.Compass`, `selection.FollowKey`, the cameras' zoom keys) are bound in the
@@ -140,17 +148,30 @@ Decisions the user has made; they are not up for revisiting in passing.
 - **The order a game makes its plugins in is the order they are used in**; no list, no `ctx` in
   a game's code. A plugin needing another's logic takes it as a constructor argument.
 - **A thing in its section**: what is defined in another section is refused (`gram-game`).
+- **A plugin's settings are its own, saved with the game**: what a plugin shows or how hard it
+  works at a player's word — the grid, the boxes, the cones, the routes, the zones, the clouds'
+  look, the shadows' detail, the haze, the tempo — is a field of its `Res.Settings`, set by a
+  command carrying the value (`Boxes{Shown}`, `Haze{On}`, `Tempo{X}`), announced in `Settings()`
+  (`plugin.Tunable`: a `control.Switch`, `Choice` or `Range`, `Get` read every frame, `Set`
+  building the command) and kept whole by `plugin.Keep(&p.Res.Settings)`, never a
+  command that means "the next one": the key's binding builds the next value from the setting.
+  Its start is the plugin's Config or a setter in `makePlugins` (`ShowGrid(false)`,
+  `ShowCones()`), never the scene's, which is made after a load. F10 opens the players' settings
+  screen, generated from every `Tunable` the players carry; while it is up the game stands in
+  the tactical pause unless its own setting says it runs.
 - **How things look is the scene's**: the start of `screen()` in a demo's `scene.go` sets how the
-  plugins draw (`WithAtmosphere`, styles, views, what is shown) and nothing else does;
-  `makePlugins` configures what a plugin does. A sprite in a Stage's struct is a leak. A look is
+  plugins draw (`WithAtmosphere`, styles, views) and nothing else does; `makePlugins`
+  configures what a plugin does and what it starts showing. A sprite in a Stage's struct is a leak. A look is
   drawing (`Under`), never an effect's Spec. What a plugin draws about a kind — its outline,
   cone, route — is styled in the figure's `Look` with `Styled` (`selection.Highlight`,
   `vision.Cone`, `navigation.RouteStyle`). What the board draws beyond its tiles — the grid's
   line, the width of the cells held — is a surface's `Look` (`surface.go`, `board.Surface`), as
   the sky is a `Sky`'s. A scene names nothing that draws and declares no atlas: every plugin
   draws what it gave `ctx.Draws` in `Install`, a feed shows the Stage's one picture
-  (`render.NewFeed(cam, a.world.Picture())`), and the Stage has the figures', tiles' and
-  surfaces' looks declared and the atlases closed before its scenes (`ctx.Looks`).
+  (`render.NewFeed(cam, a.world.Picture())`) — a minimap alone shows a picture of its own
+  (`minimap.Plugin.For(cam, player)`, placed and dressed by the scene) — and the Stage has the
+  figures', tiles' and surfaces' looks declared and the atlases closed before its scenes
+  (`ctx.Looks`).
 - **A kind of entity is a figure, a kind of cell a tile**, each in a file of its own
   (`hero.go`, `lever.go`, `tiles.go`) with everything that is its alone: its effects
   (`Effects`), its roles and rules (`Rules`), what it is (`Define`), how it looks (`Look`),
@@ -171,6 +192,13 @@ Decisions the user has made; they are not up for revisiting in passing.
   tried and dropped.
 - **Physics, not blocking**, for a unit under gravity: into the water and off an edge as it
   pleases, the rules deciding.
+- **The light plugin gives the instruments, never the sun**: a `light.Distant` light (way,
+  strength, ambient, colours), lamps, and what each thing casts and takes (`light.Shadow`, a
+  cell's `cell.Kind.Takes`); what shines is a `light.Source` on an entity. The sun is the
+  atmosphere's: its sky writes the sun of the hour into the `light.Shining` beside its own
+  entity's Source; a scene without a sky sets a `WithDistant` light. The light bakes the
+  ground's shade and lays the live shadows; a ground draws itself in the frame's light, shade and
+  lamps (`render.GroundShade`, `lightWay`, `lampLightAt`), never working light out of its own.
 - **What is drawn over what is Z's alone**, never a layer, the order of adding or the order a
   plugin registers in: every piece of the world lies at a height (`render.At`; what lies on a
   surface at a small lift over it — a route's goal, a cell held, a bridge in hand — a figure at
@@ -198,7 +226,7 @@ Decisions the user has made; they are not up for revisiting in passing.
 Dependency direction is one-way: `render` ← `plugin` ← `game` ← `internal/engine` ← `gram`.
 `render` draws with no knowledge of Stages, Scenes or plugins; `plugin` is the extension
 contract (`Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`/`CommandHandler`/
-`KindTemplater`/`Made`,
+`KindTemplater`/`Tunable`/`Keep`/`Made`,
 `plugin/section`); `game` is what a Stage implements and receives; `internal/engine` the
 `Engine`. Built-in plugins (`plugins/*`) import `plugin`/`render` directly, as a third-party
 plugin would. gram's core beside them — `ceremony`, `entity` (with `entity/kind`), `clock`,
@@ -209,11 +237,14 @@ board's, the sky the atmosphere's, `render` generic.**
 
 Built-in plugins (`gram-plugins`): `world` (the foundation: space, entities, the registers,
 the clock), `motion` (steering, movement and the leavers past an open edge, made first and run
-right after the world; whatever steers or pushes takes it), `board` (grid and terrain, cells as
-entities, what stands on the board, bridges, maps as files; `cmd/gramap` makes maps of the
+right after the world; whatever steers or pushes takes it), `light` (a distant light and the
+lamps, the shadows baked and cast; made before the board and the topography, which draw by it),
+`board` (grid and terrain, cells as entities, what stands on the board, bridges, maps as files;
+`cmd/gramap` makes maps of the
 Earth), `topography` (a map in relief, the cameras' cage), `atmosphere` (the time of day, the
 climate, the weather), `collision`, `navigation`, `selection`, `dialog`, `players` (with
-`players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `bullet`, `telemetry`
+`players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `bullet`, `minimap`
+(small pictures round the players' cameras), `telemetry`
 (the panel in the corner, a scene of its own in every Stage with a world). Each package has a
 `doc.go` describing what it brings, ending with its `# Vocabulary`.
 

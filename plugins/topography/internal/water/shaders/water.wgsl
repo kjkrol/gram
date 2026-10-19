@@ -8,9 +8,9 @@
 fn water(shine: f32, lit: f32, s: vec3<f32>) -> vec4<f32> {
     let mirror = shine * s.z;
     let foam = s.y;
-    let light = U.Ambience + U.SunColor * (U.SunStrength * lit * max(sunWay().z, 0.0));
+    let light = U.Ambience + U.LightColor * (U.LightStrength * lit * max(lightWay().z, 0.0));
     let sky = skyAt(U.Toward.z); // a level mirror shows the sky as high as the eye looks down
-    let rgb = sky * mirror * (1.0 - foam) + light * foam + U.SunColor * (shine * lit * s.x);
+    let rgb = sky * mirror * (1.0 - foam) + light * foam + U.LightColor * (shine * lit * s.x);
     return vec4<f32>(rgb, 1.0 - (1.0 - mirror) * (1.0 - foam));
 }
 

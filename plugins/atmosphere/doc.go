@@ -55,5 +55,7 @@
 // atmosphere's own entity, once a step), weathering.Overhead (a board's cell, once a second, with
 // WithWeathering). Knobs, for an effect's Alter: sky.Moon and climate.Spread (on the atmosphere's
 // own entity), weathering.Wring (on every cell of the board). Commands, a player's: [Freeze],
-// [Later], [Earlier], [ChangeWeather], [SetWeather], [Clouds].
+// [Hour], [ChangeWeather], [SetWeather], [Downpour], [Clouds], [HighShade]. Settings
+// ([Settings], saved with the game, in [Resources]): the frozen light and its hour, the clouds'
+// look, the high clouds' shadows.
 package atmosphere

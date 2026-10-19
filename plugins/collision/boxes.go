@@ -12,13 +12,23 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// Boxes switches what is drawn of every entity's box, in turn its base, its solid and nothing:
-// a look for finding out why things touch or miss, not saved. Shift+X by default.
-type Boxes struct{}
+// Boxes has Shown drawn of every entity's box (Settings.Boxes): a look for finding out why things
+// touch or miss. Shift+X by default, in turn the bases, the solids and none.
+type Boxes struct{ Shown BoxesShown }
 
 func (Boxes) Command() {}
 
 var _ command.Command = Boxes{}
+
+// Settings is what collision lets the players adjust, saved with the game.
+type Settings struct {
+	Boxes BoxesShown
+}
+
+// Resources is what collision publishes: its Settings.
+type Resources struct {
+	Settings Settings
+}
 
 // BoxesShown is what is drawn of the entities' boxes.
 type BoxesShown uint8
@@ -41,8 +51,22 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 	return []control.Binding{
 		control.Build(control.KeyPress{Key: control.KeyX, Mods: control.Mods{Shift: true}},
 			"Show the entities' boxes: their bases, their solids, none",
-			func(control.Context) (Boxes, bool) { return Boxes{}, true }),
+			func(control.Context) (Boxes, bool) { return Boxes{Shown: p.next()}, true }),
 	}
+}
+
+// Settings is the one setting, what is drawn of the entities' boxes (plugin.Tunable).
+func (p *Plugin) Settings() []control.Setting {
+	options := []string{"none", "bases"}
+	if p.worldPlugin.HasHeights() {
+		options = append(options, "solids")
+	}
+	return []control.Setting{control.Choice{
+		Label:   "Entities' boxes",
+		Options: options,
+		Get:     func() int { return int(p.Res.Settings.Boxes) },
+		Set:     func(i int) command.Command { return Boxes{Shown: BoxesShown(i)} },
+	}}
 }
 
 var boxColor = color.RGBA{R: 230, G: 40, B: 40, A: 255}
@@ -60,7 +84,7 @@ const (
 // boxesView draws every entity's box in sight of the camera as BoxesShown says.
 type boxesView struct {
 	w         *world.Plugin
-	shown     BoxesShown
+	settings  *Settings
 	q         *goke.Query
 	base      goke.Comp[world.Base]
 	z         goke.OptComp[world.Z]
@@ -72,7 +96,8 @@ func (v *boxesView) Init(si *goke.SysInit) {
 }
 
 func (v *boxesView) Compose(f *render.Frame, cam camera.Camera) {
-	if v.shown == NoBoxes {
+	shown := v.settings.Boxes
+	if shown == NoBoxes {
 		return
 	}
 	in := v.w.ViewFor(cam)
@@ -91,7 +116,7 @@ func (v *boxesView) Compose(f *render.Frame, cam camera.Camera) {
 			box, mid := bases[i].Pos.AABB, bases[i].Pos.Center()
 			alt := float32(z.Altitude)
 			at := f.Lifted(float32(mid.X), float32(mid.Y), alt, boxLift)
-			if v.shown == Solids {
+			if shown == Solids {
 				v.solid(f, cam, at.OverFigures(), box.AABB, alt, float32(z.Top()))
 				continue
 			}
@@ -126,16 +151,18 @@ func (v *boxesView) solid(f *render.Frame, cam camera.Camera, at render.At, box 
 	}
 }
 
-// ShowBoxes has the entities' boxes drawn as shown says: a look for finding out why things touch
-// or miss, not saved.
-func (p *Plugin) ShowBoxes(shown BoxesShown) { p.boxesView.shown = shown }
+// ShowBoxes has the entities' boxes drawn as shown says (Settings.Boxes), as the game starts.
+func (p *Plugin) ShowBoxes(shown BoxesShown) *Plugin {
+	p.Res.Settings.Boxes = shown
+	return p
+}
 
 // BoxesShown is what is drawn of the entities' boxes.
-func (p *Plugin) BoxesShown() BoxesShown { return p.boxesView.shown }
+func (p *Plugin) BoxesShown() BoxesShown { return p.Res.Settings.Boxes }
 
-// next is what Boxes switches to: the solids only where there are heights to raise them by
+// next is what Shift+X switches to: the solids only where there are heights to raise them by
 func (p *Plugin) next() BoxesShown {
-	switch p.boxesView.shown {
+	switch p.Res.Settings.Boxes {
 	case NoBoxes:
 		return Bases
 	case Bases:
@@ -147,5 +174,5 @@ func (p *Plugin) next() BoxesShown {
 }
 
 func (p *Plugin) switchBoxes() {
-	p.boxes.Drain(func(command.Issued[Boxes]) { p.ShowBoxes(p.next()) })
+	p.boxes.Drain(func(i command.Issued[Boxes]) { p.ShowBoxes(i.Command.Shown) })
 }

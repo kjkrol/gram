@@ -17,10 +17,13 @@ type module struct {
 	sys      *talkSystem
 	runnable goke.Runnable
 	clock    *clock.Clock // nil: run at once
+	step     clock.Block  // bound once, so a tick allocates no method value
 }
 
 func newModule(p *Plugin) *module {
-	return &module{p: p, sys: newTalkSystem(p), clock: p.w.Clock()}
+	m := &module{p: p, sys: newTalkSystem(p), clock: p.w.Clock()}
+	m.step = m.simulate
+	return m
 }
 
 func (m *module) RegSystems(ecs *goke.ECS) {
@@ -31,10 +34,12 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 }
 
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
-		ctx.Run(m.runnable, step)
-		ctx.Sync()
-	})
+	clock.Simulate(m.clock, ctx, d, m.step)
+}
+
+func (m *module) simulate(ctx goke.RunCtx, step time.Duration) {
+	ctx.Run(m.runnable, step)
+	ctx.Sync()
 }
 
 func (m *module) SetupSystems() []goke.System {

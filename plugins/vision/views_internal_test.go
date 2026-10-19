@@ -166,3 +166,34 @@ func TestViews_AnEyeLookingUpVeilsNoGround(t *testing.T) {
 		}
 	}
 }
+
+type counted struct {
+	version uint64
+	walks   int
+}
+
+func (c *counted) Walk(
+	_, _ geom.Vec, _ float64, _ world.Layers, _ func(near, far, bottom, top, tau float64) bool,
+) {
+	c.walks++
+}
+func (c *counted) Version() uint64 { return c.version }
+
+func TestViews_CopyKeepsTheGroundTillTheCoverChanges(t *testing.T) {
+	v := newViews()
+	cover := &counted{}
+	v.copy(nil, cover, 64, 64, 4, [2]bool{true, true})
+	if v.ny == 0 || cover.walks != v.ny {
+		t.Fatalf("%d walks over %d rows, want one a row", cover.walks, v.ny)
+	}
+	v.copy(nil, cover, 64, 64, 4, [2]bool{true, true})
+	if cover.walks != v.ny {
+		t.Errorf("%d walks after a second copy of the same cover, want %d: the first kept",
+			cover.walks, v.ny)
+	}
+	cover.version++
+	v.copy(nil, cover, 64, 64, 4, [2]bool{true, true})
+	if cover.walks != 2*v.ny {
+		t.Errorf("%d walks after the cover changed, want %d: copied anew", cover.walks, 2*v.ny)
+	}
+}

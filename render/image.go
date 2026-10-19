@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"math"
 
 	"github.com/kjkrol/gram/render/gpu"
 )
@@ -126,6 +127,16 @@ func (g *GeoM) Scale(x, y float64) {
 	g.ty *= y
 }
 
+// Rotate turns by theta radians after g, x towards y.
+func (g *GeoM) Rotate(theta float64) {
+	s, c := math.Sincos(theta)
+	a, d := g.a1+1, g.d1+1
+	na, nc := c*a-s*g.b, c*g.c-s*d
+	nb, nd := s*a+c*g.b, s*g.c+c*d
+	g.a1, g.c, g.b, g.d1 = na-1, nc, nb, nd-1
+	g.tx, g.ty = c*g.tx-s*g.ty, s*g.tx+c*g.ty
+}
+
 // Apply is where g takes (x, y).
 func (g GeoM) Apply(x, y float64) (float64, float64) {
 	return (g.a1+1)*x + g.c*y + g.tx, g.b*x + (g.d1+1)*y + g.ty
@@ -158,10 +169,15 @@ func (i *Image) CopyFrom(src *Image) {
 		gpu.Copy)
 }
 
-// DrawImageIn lays src over the image, its top-left corner at (x, y), only inside the convex
-// polygon pts, in the image's pixels.
-func (i *Image) DrawImageIn(src *Image, x, y float32, pts [][2]float32) {
-	gpu.DrawImageIn(i.gpu(), src.gpu(), x, y, pts, gpu.SourceOver)
+// DrawImageIn lays src over the image as DrawImage does, only inside the convex polygon pts, in
+// the image's pixels.
+func (i *Image) DrawImageIn(src *Image, op *DrawImageOptions, pts [][2]float32) {
+	var o DrawImageOptions
+	if op != nil {
+		o = *op
+	}
+	gpu.DrawImageIn(i.gpu(), src.gpu(), o.GeoM.affine(), o.Filter == FilterLinear, pts,
+		gpu.SourceOver)
 }
 
 // DrawTrianglesShaderOptions is what a shader draws with: its uniforms by name, each a []float32,

@@ -18,19 +18,21 @@ import (
 	"github.com/kjkrol/gram/plugins/board/water"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 )
 
 type fixedSky struct {
-	sun sky.Sun
+	sun light.Distant
 	air air.Weather
 }
 
-func (s fixedSky) Sun() sky.Sun     { return s.sun }
-func (s fixedSky) Air() air.Weather { return s.air }
+func (s fixedSky) Distant() light.Distant { return s.sun }
+func (s fixedSky) Air() air.Weather       { return s.air }
 
 // Benchmark_Board_GroundAt reads the ground at 64 points along a diagonal of a 256x256 board of
 // hills, as sight samples it along one ray.
@@ -44,7 +46,7 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	})
 	grid := grid.DefaultGrids{}.Square(side, side, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, topography.Config{})
+	topo := topography.NewPlugin(ctx.world, p, nil, topography.Config{})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
 	}
@@ -73,8 +75,8 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	_ = sum
 }
 
-// Benchmark_Board_Shadows composes a 96x64 board of hills from above, its shadows warm and anew
-// after the sun has moved.
+// Benchmark_Board_Shadows plans the shade of a 96x64 board of hills, warm and anew after the
+// sun has moved: the light's part of composing a frame, the bake itself the GPU's.
 func Benchmark_Board_Shadows(b *testing.B) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
@@ -85,7 +87,9 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	})
 	grid := grid.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, topography.Config{})
+	sun := light.Distant{Dir: [3]float32{-0.8, 0.45, 0.3}, Strength: 0.75, Ambient: 0.3}
+	l := light.NewPlugin(ctx.world, light.Config{}).WithDistant(sun)
+	topo := topography.NewPlugin(ctx.world, p, l, topography.Config{})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
 	}
@@ -100,17 +104,10 @@ func Benchmark_Board_Shadows(b *testing.B) {
 		}
 		return 0
 	}))
-	atlas := render.NewAtlas()
-	atlas.Add(render.SpriteID(0), 8, render.Solid(color.RGBA{A: 255}))
-	atlas.Close()
-	p.SetAtlas(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
-	src := drawnAs[*look.Renderer](b, ctx)
 	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo},
 		cameras.FromAbove, 0, 0)
 	var f render.Frame
-	low := fixedSky{sun: sky.Sun{Dir: [3]float32{-0.8, 0.45, 0.3}, Strength: 0.75, Ambient: 0.3}}
-	topo.WithAtmosphere(low)
 	for _, sc := range []struct {
 		name  string
 		moved bool
@@ -118,11 +115,11 @@ func Benchmark_Board_Shadows(b *testing.B) {
 		b.Run(sc.name, func(b *testing.B) {
 			for b.Loop() {
 				if sc.moved {
-					low.sun.Dir[0] = -low.sun.Dir[0]
-					topo.WithAtmosphere(low)
+					sun.Dir[0] = -sun.Dir[0]
+					l.WithDistant(sun)
 				}
 				f.Reset(cam)
-				src.Compose(&f, cam)
+				l.Compose(&f, cam)
 			}
 		})
 	}
@@ -140,7 +137,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 	})
 	grid := grid.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, topography.Config{}).
+	topo := topography.NewPlugin(ctx.world, p, nil, topography.Config{}).
 		Style("sea", painter.Style{Shine: 0.9})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
@@ -192,6 +189,15 @@ func Benchmark_Board_Shores(b *testing.B) {
 
 // view is "above", "iso" or "persp"; far shows the whole island on a screen of 576 by 384
 func island(b *testing.B, view string, far bool, workers int) (*headless, *board.Board, render.Source) {
+	ctx, brd, src, _ := islandWith(b, view, far, workers, true, false, false)
+	return ctx, brd, src
+}
+
+// islandWith is island with the water's shine or without it (no water layer drawn), under a
+// distant sun with the ground's shade baked or in no light at all, and cut into sectors of 256
+// or whole; the topography is handed back for its care
+func islandWith(b *testing.B, view string, far bool, workers int, shine, lit, sectored bool) (
+	*headless, *board.Board, render.Source, *topography.Plugin) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
 	cfg := world.Config{
@@ -199,10 +205,19 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
 		Heights:  true,
 	}
+	if sectored {
+		// sectors of 256, every one in the band
+		cfg.Sectors = world.SectorsCfg{Buckets: 1, Bands: []sector.Band{{Reach: w * size}}}
+	}
 	ctx.UseWorld(cfg)
 	grid := grid.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, topography.Config{})
+	var l *light.Plugin
+	if lit {
+		sun := light.Distant{Dir: [3]float32{-0.8, 0.45, 0.3}, Strength: 0.75, Ambient: 0.3}
+		l = light.NewPlugin(ctx.world, light.Config{}).WithDistant(sun)
+	}
+	topo := topography.NewPlugin(ctx.world, p, l, topography.Config{})
 	var screenW, screenH float32
 	if far {
 		screenW, screenH = 576, 384
@@ -226,14 +241,23 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	kinds.Define("rock", cell.Kind{Cost: 1, Allows: cell.Land})
 	kinds.Define("stream", cell.Kind{Cost: 2, Allows: cell.Land | cell.Water})
 	kinds.Define("estuary", cell.Kind{Cost: 1, Allows: cell.Water})
-	topo.Style("sea", painter.Style{Shine: 0.9, Under: true}).
+	var wet float32
+	if shine {
+		wet = 0.9
+	}
+	topo.Style("sea", painter.Style{Shine: wet, Under: true}).
 		Style("earth", painter.Style{Spread: 0.3}).
 		Style("sand", painter.Style{Spread: 0.35}).
 		Style("rock", painter.Style{Spread: 0.25}).
-		Style("stream", painter.Style{Shine: 0.9, Flow: 60}).
-		Style("estuary", painter.Style{Shine: 0.9, Flow: 45})
+		Style("stream", painter.Style{Shine: wet, Flow: 60}).
+		Style("estuary", painter.Style{Shine: wet, Flow: 45})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
+	}
+	if l != nil {
+		if err := ctx.Use(l); err != nil {
+			b.Fatal(err)
+		}
 	}
 	if err := ctx.Use(topo); err != nil {
 		b.Fatal(err)
@@ -288,7 +312,17 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	}
 	atlas.Close()
 	p.WithWorkers(workers).SetAtlas(atlas)
-	ecs := ctx.start(b, func(ctx goke.RunCtx, d time.Duration) { topo.RunPlan(ctx, d) })
+	picture := ctx.world.Picture().(*render.Composer)
+	ctx.pending = append(ctx.pending, func() []goke.System {
+		return []goke.System{goke.SystemFn{OnInit: picture.Init}}
+	})
+	ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
+		ctx.world.RunPlan(rc, d)
+		if l != nil {
+			l.RunPlan(rc, d)
+		}
+		topo.RunPlan(rc, d)
+	})
 	if view == "persp" {
 		cameratest.Switch(ctx.cam)
 		ecs.Tick(step)
@@ -296,7 +330,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	if far {
 		ctx.cam.ZoomOut(100, w*size/2, h*size/2)
 	}
-	return ctx, p.Board(), drawnAs[*look.Renderer](b, ctx)
+	return ctx, p.Board(), drawnAs[*look.Renderer](b, ctx), topo
 }
 
 // Benchmark_Board_Island composes the island through every view, near, far and on a 1080p

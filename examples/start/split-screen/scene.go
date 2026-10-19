@@ -21,7 +21,6 @@ type mainScene struct{ arena *arena }
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	a.board.ShowGrid(false)
 
 	picture := a.world.Picture()
 	red := render.NewFeed(

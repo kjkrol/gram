@@ -2,6 +2,7 @@ package motion
 
 import (
 	"math"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -154,7 +155,7 @@ func TestMoveSystem_Update_ClampsTheStepToHalfTheEntitysOwnSide(t *testing.T) {
 	}
 }
 
-func TestClampStep(t *testing.T) {
+func TestClampStep_ScalesOnlyPastTheLimit(t *testing.T) {
 	cases := []struct {
 		name         string
 		step         geom.Vec
@@ -165,6 +166,7 @@ func TestClampStep(t *testing.T) {
 		{"exactly at max is left alone", geom.NewVec(3, 4), 5, 3, 4},
 		{"above max scales down, keeping the direction", geom.NewVec(6, 8), 5, 3, 4},
 		{"a standstill has no direction to keep", geom.NewVec(0, 0), 5, 0, 0},
+		{"a limit of nothing stops the step", geom.NewVec(3, 4), 0, 0, 0},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -174,5 +176,21 @@ func TestClampStep(t *testing.T) {
 					c.wantY)
 			}
 		})
+	}
+	byHypot := func(step geom.Vec, max float64) geom.Vec {
+		mag := math.Hypot(step.X, step.Y)
+		if mag <= max || mag == 0 {
+			return step
+		}
+		return geom.NewVec(step.X*max/mag, step.Y*max/mag)
+	}
+	rng := rand.New(rand.NewSource(7))
+	for range 100 {
+		step := geom.NewVec(rng.Float64()*20-10, rng.Float64()*20-10)
+		max := rng.Float64() * 10
+		got, want := clampStep(step, max), byHypot(step, max)
+		if math.Abs(got.X-want.X) > 1e-12 || math.Abs(got.Y-want.Y) > 1e-12 {
+			t.Errorf("clampStep(%v, %v) = %v, want %v as Hypot has it", step, max, got, want)
+		}
 	}
 }

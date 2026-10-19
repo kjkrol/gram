@@ -21,7 +21,7 @@ var spritesShader = NewMeshShaderWith("sprites", Files(shaderFiles, "shaders/spr
 type Sprites struct {
 	runs []spriteRun
 	// four vec4s a piece: its rectangle in the world, on the atlas, its light and its angle, its
-	// height
+	// height, its fog, the shade it takes and the sun's share of its light
 	instances []float32
 	opts      DrawMeshOptions
 	own       map[string][]float32
@@ -29,6 +29,9 @@ type Sprites struct {
 
 	layer   layer
 	layered bool
+	fog     float32
+	takes   Taking
+	sun     float32
 	// by piece
 	layers  []layer
 	atlases []AtlasSource
@@ -47,6 +50,9 @@ type layer struct {
 	at    At
 	under bool
 }
+
+// Fog has the pieces added next turn into the frame's Fog colour by amount, 0 clear to 1 all fog.
+func (s *Sprites) Fog(amount float32) { s.fog = amount }
 
 // Wrap has the sprites laid over a world w by h that wraps across where x says and down where y
 // does, each where a camera's window sees it.
@@ -83,8 +89,15 @@ func (s *Sprites) Rect(
 	w, h := sx1-sx0, sy1-sy0
 	s.piece(atlas)
 	s.instances = append(s.instances, x0, y0, x1, y1, sx0+u0*w, sy0+v0*h, sx0+u1*w, sy0+v1*h,
-		light[0], light[1], light[2], 0, s.layer.at.z, 0, 0, 0)
+		light[0], light[1], light[2], 0, s.layer.at.z, s.fog, float32(s.takes), s.sun)
 }
+
+// Take has the pieces added next take the shade takes says.
+func (s *Sprites) Take(takes Taking) { s.takes = takes }
+
+// Direct has the pieces added next lit share of their light by the distant light, 0 to 1: what a
+// shadow over them takes away.
+func (s *Sprites) Direct(share float32) { s.sun = share }
 
 // Turned adds the whole of sprite id of atlas over the world rectangle (x0, y0)-(x1, y1), turned
 // by angle radians about its middle, anticlockwise as the world is seen from above, in light.
@@ -93,7 +106,7 @@ func (s *Sprites) Turned(
 	sx0, sy0, sx1, sy1 := atlas.UV(id)
 	s.piece(atlas)
 	s.instances = append(s.instances, x0, y0, x1, y1, sx0, sy0, sx1, sy1,
-		light[0], light[1], light[2], angle, s.layer.at.z, 0, 0, 0)
+		light[0], light[1], light[2], angle, s.layer.at.z, s.fog, float32(s.takes), s.sun)
 }
 
 // Len is how many pieces are gathered.
@@ -105,13 +118,14 @@ const spriteFloats = 16
 func (s *Sprites) Reset() {
 	s.runs, s.instances = s.runs[:0], s.instances[:0]
 	s.layers, s.atlases = s.layers[:0], s.atlases[:0]
-	s.layer, s.layered = layer{}, false
+	s.layer, s.layered, s.fog, s.takes, s.sun = layer{}, false, 0, TakesAll, 0
 }
 
 // Draw draws the gathered sprites into the target's screen, a viewport cam's size, as cam lays
-// them, and starts gathering anew; into the target's depth, where it has one, each at its height,
-// what shows of it written. A camera that cannot say its lines of sight draws none.
-func (s *Sprites) Draw(t Target, cam camera.Camera) {
+// them under the frame's uniforms u, and starts gathering anew; into the target's depth, where it
+// has one, each at its height, what shows of it written. A camera that cannot say its lines of
+// sight draws none.
+func (s *Sprites) Draw(t Target, cam camera.Camera, u Uniforms) {
 	defer s.Reset()
 	if t.Screen == nil || len(s.runs) == 0 {
 		return
@@ -132,6 +146,7 @@ func (s *Sprites) Draw(t Target, cam camera.Camera) {
 	if s.own == nil {
 		s.own, s.opts.Uniforms = map[string][]float32{}, map[string]any{}
 	}
+	u.Into(s.opts.Uniforms)
 	s.set("ViewSize", w, h)
 	s.set("ViewProj", tr.M[:]...)
 	s.set("Wrap", s.wrap[:]...)

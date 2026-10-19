@@ -51,6 +51,19 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 			cam.ZoomOut(1/i.Command.Factor, x, y)
 		}
 	})
+	s.p.sights.Drain(func(i command.Issued[Sight]) {
+		if cam, ok := i.Command.Camera.(seeing); ok {
+			cam.See(i.Command.Factor)
+		}
+	})
+	s.p.resolutions.Drain(func(i command.Issued[Resolution]) {
+		cam := i.Command.Camera
+		if r, ok := cam.(camera.Resolved); ok && i.Command.Factor > 0 && !fitsWhole(cam) {
+			r.SetResolution(clamped(r.Resolution() * i.Command.Factor))
+			s.p.SetAdaptive(false)
+		}
+	})
+	s.p.adapts.Drain(func(i command.Issued[Adapt]) { s.p.SetAdaptive(i.Command.On) })
 	s.p.follows.Drain(func(i command.Issued[Follow]) {
 		cam, ok := i.Command.Camera.(camera.Fastenable)
 		if !ok {
@@ -73,6 +86,20 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 			}
 			s.centre(cam)
 		}
+	})
+	s.p.centerAts.Drain(func(i command.Issued[CenterAt]) {
+		cam := i.Command.Camera
+		if cam == nil {
+			return
+		}
+		if f, ok := cam.(camera.Fastenable); ok && f.Fastening().How != 0 {
+			f.Fasten(camera.Fastening{})
+		}
+		var z float32
+		if s.p.ground != nil {
+			z = s.p.ground(float32(i.Command.X), float32(i.Command.Y))
+		}
+		cam.CenterOn(i.Command.X, i.Command.Y, float64(z))
 	})
 	s.start()
 	s.keep()

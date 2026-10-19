@@ -96,3 +96,17 @@ func TestListSaves_QuicksaveAndNamed(t *testing.T) {
 		}
 	}
 }
+
+func TestLoad_ASaveFromBeforeALaterValueWasKeptLeavesIt(t *testing.T) {
+	basePath := t.TempDir() + "/save"
+	if err := save(goke.New(), basePath, "", map[string][]any{"a": {&stateA{N: 42}}}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	a, b := &stateA{}, &stateB{S: "start"}
+	if _, err := load(goke.New(), basePath, "", nil, map[string][]any{"a": {a, b}}); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if a.N != 42 || b.S != "start" {
+		t.Errorf("loaded a %+v and b %+v, want a as saved and b as it started", a, b)
+	}
+}

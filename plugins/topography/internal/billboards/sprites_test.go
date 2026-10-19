@@ -1,8 +1,6 @@
 package billboards_test
 
 import (
-	"image/color"
-	"os"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -18,7 +16,6 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/internal/topotest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 type magenta struct{ img *render.Image }
@@ -58,7 +55,7 @@ func newHill(t *testing.T) aHill {
 	grid := grid.DefaultGrids{}.Square(8, 8, 32)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	p := topography.NewPlugin(w, b, topography.Config{})
+	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	terrain := topotest.Drawn(t, p)[0]
 	p.Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); x >= 3 && x <= 4 && y >= 3 && y <= 4 {
@@ -97,7 +94,7 @@ func newHill(t *testing.T) aHill {
 	screen := render.NewImage(int(vw), int(vh))
 	depth := render.NewDepth()
 	pix := make([]byte, 4*int(vw)*int(vh))
-	u := render.UniformsOf(map[string]any{"Sun": []float32{0.4, 0.3, 0.8}, "SunStrength": []float32{1}, "SunColor": []float32{1, 1, 1}, "Ambience": []float32{0.3, 0.3, 0.3}})
+	u := render.UniformsOf(map[string]any{"LightWay": []float32{0.4, 0.3, 0.8}, "LightStrength": []float32{1}, "LightColor": []float32{1, 1, 1}, "Ambience": []float32{0.3, 0.3, 0.3}})
 	look := w.Look().(world.DirectLook)
 	h := aHill{relief: p.Relief(), look: look, cam: cam}
 	h.slope, h.behind = seen[len(seen)/2][0], seen[len(seen)/2][1]
@@ -136,27 +133,14 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 		return func(f *render.Frame) {
 			box := plane.NewAABB(geom.NewVec(at.X-3, at.Y-3), 6, 6)
 			z := world.Z{Altitude: h.relief.At(at), Height: 6}
-			h.look.Sprite(f, h.cam, box, z, atlas, render.Appearance{}, render.Light{1, 1, 1})
-			h.look.(world.ShadowLook).Shadow(f, h.cam, box, z, atlas, render.Appearance{},
-				world.Patch)
+			h.look.Sprite(f, h.cam, box, z, atlas, render.Appearance{}, render.WhiteLight)
 		}
 	}
 	if n := purples(h.draw(stand(h.behind))); n != 0 {
 		t.Errorf("a sprite behind the hill shows %d pixels, want it hidden", n)
 	}
-	bare := append([]byte(nil), h.draw(nil)...)
-	pix := h.draw(stand(h.slope))
-	if purples(pix) == 0 {
+	if purples(h.draw(stand(h.slope))) == 0 {
 		t.Fatal("a sprite on the hill's slope does not show")
-	}
-	darker := 0
-	for i := 0; i < len(pix); i += 4 {
-		if !purple(pix[i:]) && int(pix[i])+int(pix[i+1])+int(pix[i+2]) < int(bare[i])+int(bare[i+1])+int(bare[i+2])-6 {
-			darker++
-		}
-	}
-	if darker == 0 {
-		t.Error("the sprite on the slope casts no shadow on the ground")
 	}
 }
 
@@ -169,7 +153,7 @@ func TestSprites_ALyingSpriteLiesOnTheGround(t *testing.T) {
 			box := plane.NewAABB(geom.NewVec(at.X-8, at.Y-8), 16, 16)
 			lies := h.look.(world.LyingLook)
 			lies.Lie(f, h.cam, box, world.Z{Altitude: alt}, atlas, render.Appearance{},
-				render.Light{1, 1, 1})
+				render.WhiteLight)
 		}
 	}
 	if n := purples(h.draw(lie(h.behind, 0))); n != 0 {
@@ -193,125 +177,4 @@ func TestSprites_ALyingSpriteLiesOnTheGround(t *testing.T) {
 				"want on it", k, g)
 		}
 	}
-}
-
-func TestSprites_CastTheirShadowsOverHexPrisms(t *testing.T) {
-	needGPU(t)
-	w := world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 256, Height: 256},
-		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
-		Heights:  true,
-	})
-	grid := grid.DefaultGrids{}.Hex(6, 6, 16)
-	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
-	tiles := render.NewAtlas()
-	tiles.Add(render.SpriteID(1), 8, render.Solid(color.RGBA{R: 90, G: 150, B: 90, A: 255}))
-	tiles.Close()
-	b.SetAtlas(tiles)
-	p := topography.NewPlugin(w, b, topography.Config{})
-	prisms := topotest.Drawn(t, p)[0]
-	cam := cameras.NewPlugin(w, cameras.Config{
-		Turn:       true,
-		Tilt:       true,
-		Cell:       32,
-		HeightUnit: 1,
-		Cage:       p,
-	}).New(cameras.Isometrically, camera.Config{})
-	cam.SetViewport(320, 240)
-	cam.MoveTo(0, 0)
-	c := grid.At(2, 2)
-	at := grid.CellCenter(c)
-	cam.CenterOn(at.X, at.Y, 0)
-	vw, vh := cam.Viewport()
-	screen := render.NewImage(int(vw), int(vh))
-	depth, ground := render.NewDepth(), render.NewDepth().Readable()
-	pix := make([]byte, 4*int(vw)*int(vh))
-	u := render.UniformsOf(map[string]any{"Sun": []float32{0.4, 0.3, 0.8}, "SunStrength": []float32{1}, "SunColor": []float32{1, 1, 1}, "Ambience": []float32{0.3, 0.3, 0.3}})
-	look := w.Look().(world.DirectLook)
-	draw := func(standing bool, atlas render.AtlasSource, cast world.Casting) []byte {
-		screen.Clear()
-		screen.ClearDepth(ground)
-		prisms.(render.Direct).Draw(render.Target{Screen: screen, Depth: ground}, cam, u)
-		screen.CopyDepth(ground, depth)
-		target := render.Target{Screen: screen, Depth: depth, Ground: ground}
-		var f render.Frame
-		f.Reset(cam)
-		look.Begin(&render.Frame{}, cam)
-		if standing {
-			box := plane.NewAABB(geom.NewVec(at.X-8, at.Y-8), 16, 16)
-			if cast != world.Silhouette { // a silhouette alone, the sprite hiding none of it
-				look.Sprite(&f, cam, box, world.Z{Height: 30}, atlas, render.Appearance{},
-					render.Light{1, 1, 1})
-			}
-			look.(world.ShadowLook).Shadow(&f, cam, box, world.Z{Height: 30}, atlas,
-				render.Appearance{}, cast)
-		}
-		look.DrawSprites(target, cam, u)
-		screen.ReadPixels(pix)
-		return append([]byte(nil), pix...)
-	}
-	bare := draw(false, nil, world.Patch)
-	cast := func(atlas render.AtlasSource, how world.Casting) (shown, darker int) {
-		with := draw(true, atlas, how)
-		for i := 0; i < len(with); i += 4 {
-			switch {
-			case purple(with[i:]):
-				shown++
-			case sum(with[i:i+3]) < sum(bare[i:i+3])-6:
-				darker++
-			}
-		}
-		return shown, darker
-	}
-	if bare[4*(int(vh)/2*int(vw)+int(vw)/2)+3] == 0 {
-		t.Fatal("the prisms draw nothing in the middle of the screen")
-	}
-	shown, patch := cast(&magenta{}, world.Patch)
-	if shown == 0 || patch == 0 {
-		t.Errorf("a billboard on the prisms shows %d pixels and darkens %d round it, want some "+
-			"of each", shown, patch)
-	}
-	if _, none := cast(&magenta{}, world.NoShadow); none != 0 {
-		t.Errorf("a billboard casting no shadow darkens %d pixels round it, want none", none)
-	}
-	_, whole := cast(&magenta{}, world.Silhouette)
-	_, half := cast(&halved{}, world.Silhouette)
-	if whole == 0 || half == 0 || half*4 > whole*3 || half*4 < whole {
-		t.Errorf("a sprite's silhouette darkens %d pixels, one half see-through %d; want about "+
-			"half as many", whole, half)
-	}
-}
-
-// the magenta sprite with its left half see-through
-type halved struct{ img *render.Image }
-
-func (a *halved) Atlas() *render.Image {
-	if a.img == nil {
-		a.img = render.NewImage(8, 8)
-		pix := make([]byte, 4*64)
-		for i := 0; i < len(pix); i += 4 {
-			if (i/4)%8 >= 4 {
-				pix[i], pix[i+1], pix[i+2], pix[i+3] = 255, 0, 255, 255
-			}
-		}
-		a.img.WritePixels(pix)
-	}
-	return a.img
-}
-func (*halved) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 8, 8 }
-func (*halved) White() (u, v float32)                           { return 6, 4 }
-
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}
-
-func sum(px []byte) (n int) {
-	for _, c := range px {
-		n += int(c)
-	}
-	return n
 }

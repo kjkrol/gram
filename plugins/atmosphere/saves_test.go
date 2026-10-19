@@ -32,7 +32,7 @@ func TestAtmosphere_TheAirMassesOutlastASaveThroughTheEngine(t *testing.T) {
 		st := stage.New("sky").
 			World(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
 				Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true}).
-			Plugins(func(w *world.Plugin) { s.a = atmosphere.NewPlugin(w, cfg) }).
+			Plugins(func(w *world.Plugin) { s.a = atmosphere.NewPlugin(w, nil, cfg) }).
 			Effects(func(ctx game.Initializer) { s.ecs = ctx.ECS() }).
 			Update(func(ctx goke.RunCtx, d time.Duration) { s.a.RunPlan(ctx, d) })
 		return engine.NewEngine(oneStage{stage: st}), s

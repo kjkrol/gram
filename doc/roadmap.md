@@ -17,16 +17,14 @@ What is left to do. Take an item out when it lands.
   the first asker; passing the answer back is the game's branch (ceremony's `plan/message_test.go`,
   the giver). A loop (A asks B, B asks A) ends by `MaxChain` and by a branch of a fact firing once
   per coming; whether `Hops` should count across types is open.
-- **A minimap plugin** — a `ui` element: a feed from a camera keeping the whole world in view
-  (`camera.Config.Whole`), the game's picture under dots of its own by kind, picked by drawing
-  rules (what my units see: `vision.Seen`), the players' views outlined on it, a key to show and
-  hide it, a click on it panning the player's view; a round or many-sided one through `ui.Masked`.
-  The click needs a picture a player only clicks through: the point under the cursor worked out
-  through the minimap's camera, the camera commands still going to the player's view — today a
-  player acts through one picture a scene, its wire (`players.Plugin.Through`) both.
+- **The minimap, further** — marks picked by what a player's units see (`vision.Seen`), the
+  other players' views outlined; beyond the bands a picture kept of what was last seen in place
+  of the live world.
 - **ui, what is left** — `Dialog`, `Toast`, `MenuBar`/`Menu`/`ContextMenu`, `Tabs`, `Scroll`,
-  `List`; `Canvas` (a tech tree), `Tooltip`, drag and drop, focus moved by keys and pads; the
-  UI drawn into one `render.Frame` in place of a draw an element, once a profile asks for it.
+  `List`, `Radio`; `Canvas` (a tech tree), `Tooltip`, drag and drop, focus moved by keys and pads
+  over the controls too; the UI drawn into one `render.Frame` in place of a draw an element, once
+  a profile asks for it. Settings of a player's own (its camera's resolution and sight) on the
+  settings screen, beside the plugins'.
 - **Canals and building on shaped ground** — a cell lowered to the sea turns to water; a preview of
   a shaping drag (lost with the players' marquee); the costs of shaping.
 - **A smooth route** — an opt-in `RouteStyle` drawing the line the unit will follow: arcs of
@@ -47,12 +45,13 @@ What is left to do. Take an item out when it lands.
   the board's rules and not made by `cmd/gramap`.
 - **Roads with a tool** — a player lays a road as a bridge (`control.Tool`, a road's rules beside
   `bridges/site`'s), and takes a bridge down.
-- **Baked shadows over hex prisms** — the terrain over a hex grid bakes no shade, so what casts
-  a Baked shadow (a bridge's deck and its piers) casts none there, and what stands there receives
-  only the clouds'.
-- **Figures from above in the shade** — seen from above the figures are the world's flat
-  sprites (`render.Sprites`), which receive no shade of the relief, the blocks or the clouds.
-- **Shadows by distance** — `topography.ShadowPolicy` is the seam; no game sets one yet.
+- **Baked shadows over hex prisms** — the light bakes no shade over a hex grid's relief, so
+  what casts a Baked shadow (a bridge's deck and its piers) casts none there, and what stands
+  there receives only the clouds'.
+- **The lamps' shadows in relief** — a lamp casts shadows on level ground alone; over a relief
+  its cast would have to follow the ground as the sun's bake does.
+- **Clouds shading themselves** — the cover's own shade is the one look of a cloud's thickness;
+  a cloud lit by the sun from above and dark below is not drawn.
 - **Gamepads** — a trigger vocabulary for pads, so split screen is not only a keyboard's.
 - **Networking** — `plugins/netview` over players; the server is one engine, a remote client a
   player whose translator decodes frames:
@@ -112,8 +111,6 @@ What is left to do. Take an item out when it lands.
 - **`motion.Leaving`** — a moment no game uses: motion tells its rules of an entity past an open
   edge and despawns it with none. Should it stay a moment, or should motion simply despawn
   whoever leaves?
-- **The frozen light** freezes the hour alone, and is not saved: should it freeze the date too,
-  and come back after a load (a component on the clock's entity)?
 - **Big groups arriving** still strike each other where the column fans out to its spots.
 
 ## Housekeeping

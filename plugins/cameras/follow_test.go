@@ -9,6 +9,7 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
@@ -262,5 +263,123 @@ func TestNew_ACameraStartsFastenedToTheEntityItsConfigNames(t *testing.T) {
 	c.tick()
 	if sx, sy := cam.Project(605, 505, 0); math.Abs(float64(sx-100)) > 0.5 || math.Abs(float64(sy-100)) > 0.5 {
 		t.Errorf("the scout is drawn at (%v, %v), want the middle of the screen", sx, sy)
+	}
+}
+
+// a world 1000 a side with no entities and the cameras over it, cfg theirs: start installs them
+// once the cameras are made, tick runs a tick
+func emptyWorld(t *testing.T, cfg cameras.Config) (w *world.Plugin, p *cameras.Plugin,
+	start func(), tick func()) {
+	t.Helper()
+	w = world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 10, MaxSize: 10},
+	})
+	p = cameras.NewPlugin(w, cfg)
+	if err := w.Carry(p); err != nil {
+		t.Fatal(err)
+	}
+	ctx := &installCtx{ecs: goke.New()}
+	start = func() {
+		for _, pl := range []plugin.Plugin{w, p} {
+			if err := pl.Install(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var systems []goke.System
+		for _, produce := range ctx.pending {
+			systems = append(systems, produce()...)
+		}
+		ctx.ecs.Setup(systems...)
+		ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+			w.RunPlan(rc, d)
+			w.Clock().Replay(rc, d)
+			rc.Sync()
+			p.RunPlan(rc, d)
+		})
+	}
+	return w, p, start, func() { ctx.ecs.Tick(time.Second / 10) }
+}
+
+func TestSight_HasACameraSeeFartherAndNearer(t *testing.T) {
+	w, p, start, tick := emptyWorld(t, cameras.Config{Detail: camera.Detail{Sight: 1000, Fog: 100}})
+	seeing := p.New(cameras.FromAbove, camera.Config{})
+	start()
+	sight := func(factor float64) float64 {
+		w.Carrier().Put(command.Nobody, cameras.Sight{Camera: seeing, Factor: factor})
+		tick()
+		return camera.DetailOf(seeing).Sight
+	}
+	if got := sight(cameras.SightStep); got != 1250 {
+		t.Errorf("seeing farther, the sight is %v, want 1250", got)
+	}
+	if got := sight(1 / cameras.SightStep); got != 1000 {
+		t.Errorf("seeing nearer again, the sight is %v, want 1000", got)
+	}
+	if d := camera.DetailOf(seeing); d.Fog != 100 {
+		t.Errorf("the fog is %v, want the Config's 100 kept", d.Fog)
+	}
+}
+
+func TestCenterAt_PutsTheCameraOverThePointUnfastened(t *testing.T) {
+	w, p, start, tick := emptyWorld(t, cameras.Config{})
+	cam := p.New(cameras.FromAbove, camera.Config{})
+	start()
+	cam.SetViewport(200, 200)
+	cam.(camera.Fastenable).Fasten(camera.Fastening{Entity: 7, How: camera.Loose})
+	w.Carrier().Put(command.Nobody, cameras.CenterAt{Camera: cam, X: 700, Y: 300})
+	tick()
+	if x, y, _ := cam.(camera.Focused).Focus(); x != 700 || y != 300 {
+		t.Errorf("the camera's middle is at (%v, %v), want (700, 300)", x, y)
+	}
+	if f := cam.(camera.Fastenable).Fastening(); f.How != 0 {
+		t.Errorf("the camera is fastened %+v, want to nothing", f)
+	}
+}
+
+func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBudget(t *testing.T) {
+	w, p, start, tick := emptyWorld(t, cameras.Config{Adaptive: true})
+	cam := p.New(cameras.FromAbove, camera.Config{})
+	minimap := p.New(cameras.FromAbove, camera.Config{Whole: true})
+	start()
+	report := func() string {
+		var got string
+		p.Reporter().Report(func(label, value string) { got = label + ": " + value })
+		return got
+	}
+	if got := report(); got != "Picture: 1.00 of the pixels, adaptive" {
+		t.Fatalf("the telemetry says %q, want the one picture at all its pixels, adaptive", got)
+	}
+	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: cameras.ResolutionStep})
+	tick()
+	if got := camera.ResolutionOf(cam); got != cameras.ResolutionStep {
+		t.Errorf("after a coarser step the camera is drawn at %v, want %v", got,
+			cameras.ResolutionStep)
+	}
+	if got := report(); got != "Picture: 0.85 of the pixels" {
+		t.Errorf("the telemetry says %q, want the step and the following stopped", got)
+	}
+	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: 1 / cameras.ResolutionStep})
+	tick()
+	if got := camera.ResolutionOf(cam); math.Abs(float64(got-1)) > 1e-6 {
+		t.Errorf("after a finer step back the camera is drawn at %v, want 1", got)
+	}
+	for range 10 {
+		w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: cameras.ResolutionStep})
+		tick()
+	}
+	if got := camera.ResolutionOf(cam); got != cameras.LeastResolution {
+		t.Errorf("stepped coarser ten times the camera is drawn at %v, want the least, %v", got,
+			cameras.LeastResolution)
+	}
+	w.Carrier().Put(command.Nobody, cameras.Adapt{On: true})
+	tick()
+	if got := report(); got != "Picture: 0.40 of the pixels, adaptive" {
+		t.Errorf("after Adapt the telemetry says %q, want the resolution following the budget", got)
+	}
+	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: minimap, Factor: cameras.ResolutionStep})
+	tick()
+	if got := camera.ResolutionOf(minimap); got != 1 {
+		t.Errorf("a minimap's camera stepped coarser is drawn at %v, want all its pixels", got)
 	}
 }

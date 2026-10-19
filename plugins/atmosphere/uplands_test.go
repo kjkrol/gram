@@ -72,7 +72,7 @@ func uplandsFrom(t *testing.T, covered float32, shower effect.Spec, load bool) *
 			u.w = made
 			u.b = board.NewPlugin(grid.DefaultGrids{}.Square(20, 15, 32), &cell.MultipleOccupancy{},
 				made)
-			u.a = atmosphere.NewPlugin(made, atmosphere.Config{
+			u.a = atmosphere.NewPlugin(made, nil, atmosphere.Config{
 				Climate: climate.Config{Weathers: []weather.State{grey}, Start: "grey"},
 			}).WithWeathering(u.b, weathering.Config{})
 		}).
@@ -185,7 +185,7 @@ func TestSpread_AnEffectTurnsHowMuchOfTheWorldTheRainTakes(t *testing.T) {
 			Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true}).
 		Plugins(func(made *world.Plugin) {
 			w = made
-			a = atmosphere.NewPlugin(made, atmosphere.Config{
+			a = atmosphere.NewPlugin(made, nil, atmosphere.Config{
 				Climate: climate.Config{Start: weather.Fair, Seed: 3}})
 		}).
 		Effects(func(ctx game.Initializer) {

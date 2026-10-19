@@ -5,7 +5,7 @@
 // # Renderer
 //
 // A [Renderer] ([New]) is a render.Direct behind the whole world, the atmosphere's; composing, it
-// hands the frame the sun and the weather (sky.Sun.Frame, air.Weather.Frame). It reads them as
+// hands the frame the sun and the weather (light.Distant.Frame, air.Weather.Frame). It reads them as
 // they stand, where the sun, the moon and the stars stand
 // ([Renderer.WithHeavens]), whether the stars and the moon show ([Renderer.WithShown]) and how
 // the clouds show ([Renderer.WithClouds], [Clouds]): each layer flat or as heaps, bodies seen

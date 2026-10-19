@@ -40,6 +40,13 @@ type CenterOn struct {
 	Entity uid.UID64
 }
 
+// CenterAt moves Camera, once, to have the ground at the world point (X, Y) in the middle of the
+// screen, fastening it to nothing: a click on a minimap.
+type CenterAt struct {
+	Camera camera.Camera
+	X, Y   float64
+}
+
 // View has Camera switch between the orthographic view and the perspective, keeping the foot of
 // its stick, its turn, pitch and scale, or leave the entity it rides in; a camera whose Config has
 // no Perspective stays as it is.
@@ -81,6 +88,13 @@ type Turn struct {
 	Angle  float32
 }
 
+// Sight has Camera see Factor times as far (camera.Detail.Sight); one seeing without end stays
+// so.
+type Sight struct {
+	Camera camera.Camera
+	Factor float64
+}
+
 // Tilt leans Camera's stick about its foot by Angle radians, towards straight down as it grows and
 // flatter for a negative one, between Config.MinPitch and straight down; a plain camera stays.
 type Tilt struct {
@@ -88,23 +102,40 @@ type Tilt struct {
 	Angle  float32
 }
 
-func (Pan) Command()      {}
-func (Zoom) Command()     {}
-func (Follow) Command()   {}
-func (CenterOn) Command() {}
-func (View) Command()     {}
-func (LookFrom) Command() {}
-func (LookAt) Command()   {}
-func (Look) Command()     {}
-func (Ride) Command()     {}
-func (Turn) Command()     {}
-func (Tilt) Command()     {}
+// Resolution has Camera drawn at Factor times the pixels it is drawn at now, between
+// LeastResolution and all of them, and stops the resolution following the frame budget (Adapt).
+type Resolution struct {
+	Camera camera.Camera
+	Factor float32
+}
+
+// Adapt has every picture's resolution follow the frame budget (Config.FrameBudget,
+// Settings.Adaptive): coarser while the frames come slower than it, finer again while they keep
+// up; or stay. Alt+A by default, in turn.
+type Adapt struct{ On bool }
+
+func (Pan) Command()        {}
+func (Zoom) Command()       {}
+func (Resolution) Command() {}
+func (Adapt) Command()      {}
+func (Follow) Command()     {}
+func (CenterOn) Command()   {}
+func (CenterAt) Command()   {}
+func (View) Command()       {}
+func (LookFrom) Command()   {}
+func (LookAt) Command()     {}
+func (Look) Command()       {}
+func (Ride) Command()       {}
+func (Turn) Command()       {}
+func (Tilt) Command()       {}
+func (Sight) Command()      {}
 
 var (
 	_ command.Command = Pan{}
 	_ command.Command = Zoom{}
 	_ command.Command = Follow{}
 	_ command.Command = CenterOn{}
+	_ command.Command = CenterAt{}
 	_ command.Command = View{}
 	_ command.Command = LookFrom{}
 	_ command.Command = LookAt{}
@@ -112,6 +143,9 @@ var (
 	_ command.Command = Ride{}
 	_ command.Command = Turn{}
 	_ command.Command = Tilt{}
+	_ command.Command = Sight{}
+	_ command.Command = Resolution{}
+	_ command.Command = Adapt{}
 )
 
 // TurnStep is how far Q and E turn the view a tick they are held, in radians, eighteen of them an
@@ -123,21 +157,35 @@ const (
 	TiltStep   = math.Pi / 180
 )
 
+// SightStep is the factor Ctrl+= and Ctrl+- see farther and nearer by.
+const SightStep = 1.25
+
+// ResolutionStep is the factor Alt+- draws a coarser picture by and Alt+= a finer one; the
+// adaptive resolution steps by it too. LeastResolution is the coarsest a picture is drawn at.
+const (
+	ResolutionStep  = 0.85
+	LeastResolution = 0.4
+)
+
 // Queues are where the cameras' commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
-	return append([]command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.centerOns, &p.zones},
-		p.orders.queues()...)
+	return append([]command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.centerOns,
+		&p.centerAts, &p.zones, &p.sights, &p.resolutions, &p.adapts}, p.orders.queues()...)
 }
 
 // DefaultBindings are DefaultKeys, their corners turning where the Config turns, Shift+H showing
-// or hiding the scroll zones, and the views' keys the Config gives: Q and E turning, R and F
-// tilting, Tab switching the projection, V riding and the mouse looking round inside an entity.
+// or hiding the scroll zones, Alt+A the picture's resolution following the frame budget or not,
+// and the views' keys the Config gives: Q and E turning, R and F tilting, Tab switching the
+// projection, V riding and the mouse looking round inside an entity.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	keys := DefaultKeys()
 	keys.CornersTurn = p.cfg.Turn
 	out := append(keys.Bindings(),
 		control.Build(control.KeyPress{Key: control.KeyH, Mods: control.Mods{Shift: true}},
 			"Show the scroll zones at the picture's edges, or hide them",
-			func(control.Context) (Zones, bool) { return Zones{}, true }))
+			func(control.Context) (Zones, bool) { return Zones{Shown: !p.ZonesShown()}, true }),
+		control.Build(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Alt: true}},
+			"The picture's resolution follows the frame budget, or stays",
+			func(control.Context) (Adapt, bool) { return Adapt{On: !p.Adaptive()}, true }))
 	return append(out, viewBindings(p.cfg)...)
 }

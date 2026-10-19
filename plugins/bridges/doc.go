@@ -10,7 +10,7 @@
 //
 // A bridge is entities standing on the board, saved as any: a piece of deck on every cell from head
 // to head, a band with its railings, and over a map in relief a pier between every two spans, each
-// casting a Baked shadow (world.Shadow). [Type.Deck] and [Type.Pier] are their looks' slots for a
+// casting a Baked shadow (light.Shadow). [Type.Deck] and [Type.Pier] are their looks' slots for a
 // scene's atlas.
 //
 // # A level's bridges

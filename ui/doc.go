@@ -27,18 +27,30 @@
 // for; [Of] is a Text read off a component of that entity. A Text saying nothing leaves its
 // element out.
 //
+// # Controls
+//
+// A control shows a value read through a function every frame and gives, as it is used, the
+// command a second function builds for the new value, the way a Button gives its commands: a
+// [Checkbox] on or off, a [Slider] dragged along its track or stepped by the wheel over it, a
+// [Dropdown] opening its options over everything, the one clicked chosen. A control reads no
+// entity: pinned, every instance shows the same. The settings screen (players) is made of them.
+//
 // # Theme
 //
-// A [Theme] is how a scene's elements look where they say nothing of their own. [Scene.Theme] sets
-// it; an element's own Fill or Border wins.
+// A [Theme] is how a scene's elements look where they say nothing of their own, its Accent the
+// controls' marks. [Scene.Theme] sets it; an element's own Fill or Border wins.
 //
 // # Input
 //
 // A click goes to the topmost element it hits. A [Button] gives its commands: the scene's own
 // ([Show], [Hide], [Toggle]) or any other through [Scene.Issue], else as nobody through the
-// Runtime. A picture with an [Input] ([Element.Input]) lets the click through to [Scene.Input]; any
-// other element keeps it; a shown modal element holds every click and the wheel outside it.
-// [Scene.Keys] are the scene's own keys.
+// Runtime. A picture with an [Input] ([Element.Input]) lets the click through to [Scene.Input],
+// unless its Input is [Clicked] and takes the press itself (a minimap); any other element keeps
+// it; a shown modal element holds every click and the wheel outside it. A slider pressed holds
+// the cursor till the button is let go, wherever that is; a dropdown's open options take every
+// click, one outside them closing them, as Esc does ([Scene.Unfolded]). A [Hovered] Input hears
+// whether the cursor lies on its picture uncovered. [Scene.Keys] are the scene's own keys;
+// [Element.Show] and [Element.Hide] show and hide an element from code.
 //
 // # Pinned to entities
 //

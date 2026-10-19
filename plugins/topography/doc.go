@@ -26,28 +26,37 @@
 //
 // # Light and shadows
 //
-// The relief stands under an [Atmosphere] ([Plugin.WithAtmosphere]; sky.DefaultSun in still,
-// clear air given none): its sun lights the ground per pixel and casts the shadows of the relief
-// and of what stands on it as each entity's world.Shadow says — Baked with the ground as the sun
-// moves, fading into the new ([Plugin.WithShadows], [CoarseShadows]), or a Patch or the
-// Silhouette of its sprite every frame, as a [ShadowPolicy] turns them by the distance from the
-// eye ([Plugin.WithShadowPolicy]). What stands receives the shadows at its height: the relief's
-// and the clouds' wherever it is, the blocks' near the ground (render.GroundShade). Its
-// weather leans what sways and lays the clouds' shadows; its air hazes the ground and what stands
-// on it only when asked ([Plugin.WithHaze], [Haze]): far off from an eye, over the ground from
-// above, all clear by default. How a kind looks beyond its sprite is its
-// painter.Style ([Plugin.Style]).
+// The relief is lit by the light plugin's sun and lamps per pixel (light.White given none)
+// and shaded as the light bakes it: the relief's shadows, which fall on the relief from then on
+// (light.Plugin.OverRelief), and the Baked blocks' (render.GroundShade); the live shadows the
+// light lays over the ground's depth. What stands receives the shadows at its height as its
+// light.Shadow says: the relief's and the clouds' wherever it is, the blocks' near the ground.
+// A cell takes what its kind's Takes says. The relief stands under an [Atmosphere]
+// ([Plugin.WithAtmosphere]; still, clear air given none): its weather leans what sways and lays
+// the clouds' shadows; its air hazes the ground and what stands on it only when asked
+// ([Plugin.WithHaze], [Haze]): far off from an eye, over the ground from above, all clear by
+// default. How a kind looks beyond its sprite is its painter.Style ([Plugin.Style]).
 //
 // # Drawing and commands
 //
-// The plugin draws the ground, a render.Direct in the opaque pass of the world's picture, the
-// board's grid on it in the board's line (board.Surface), and under no atmosphere hands the frame
-// its still sky, giving way to a sky some other source hands it. It is a plugin.CommandHandler
-// for the shaping's and the shadows' commands ([Plugin.Queues], [Plugin.DefaultBindings]); call
-// [Plugin.RunPlan] after the world has moved and before the cameras' RunPlan.
+// The plugin draws the ground, a render.Direct in the opaque pass of the world's picture, handing
+// the frame its heights (render.GroundHeights), the board's grid on it in the board's line
+// (board.Surface), and under no atmosphere hands the frame its still sky, giving way to a sky
+// some other source hands it. In a world cut into sectors the
+// ground drawn is that of the sectors a camera sees, a coarser mesh (or, on a hex board, the
+// prisms' tops) where it sees one coarsely, turning into the fog before its sight's end, and
+// shaded with less care ring by ring out from the sector under the middle of the screen
+// ([Config.Care], [Plugin.SetCare], [Care]: the far water a level mirror of the sky, the
+// farthest ground without the baked shade and the lamps). [Plugin.Reporter] is the panel's
+// line on it.
+// [Plugin.Miniature] is the board painted flat as one picture, a minimap's ground. It is a
+// plugin.CommandHandler
+// for the shaping's, the haze's and the care's commands ([Plugin.Queues],
+// [Plugin.DefaultBindings]); call [Plugin.RunPlan] after the world has moved and before the
+// cameras' RunPlan.
 //
 // # Vocabulary
 //
-// Commands, a player's: [Raise], [Lower], [Level] (the shaping); [CoarseShadows], [Haze]
-// (looks).
+// Commands, a player's: [Raise], [Lower], [Level] (the shaping); [Haze], [Care] (a look).
+// Settings ([Settings], saved with the game, in [Resources]): the haze, the care.
 package topography

@@ -24,8 +24,8 @@ func TestPlugin_Contract(t *testing.T) {
 	if p.EventHandler() != nil {
 		t.Error("EventHandler is not nil — vision reads no input")
 	}
-	if p.Serializable() != nil {
-		t.Error("Serializable is not nil — vision's state lives in components")
+	if p.Serializable() == nil {
+		t.Error("Serializable is nil — vision keeps its Settings")
 	}
 	rendererOf(t, nil, p)
 }

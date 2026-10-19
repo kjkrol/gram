@@ -36,8 +36,8 @@
 // gives besides, a cell.Floor, a cell.Wall, a cell.Rail, the roles it plays. The board gathers them
 // on the cells' entities every step (cell.Built), and [Board.Kind] and [Board.Bare] are the cells
 // with them. What each kind carries beyond what it is given is its [StandingTemplate]'s
-// (world.Plugin.Roster): standing still, its shadow Baked with the ground's; a unit's is a live
-// patch. Every cell carries what its [CellTemplate] asks besides the board's own. A Floor with a
+// (world.Plugin.Roster): standing still, its shadow Baked into the ground's shade (light.Shadow);
+// a unit's is a live patch. Every cell carries what its [CellTemplate] asks besides the board's own. A Floor with a
 // Height is a deck, and the cell has two levels ([Board.KindAt], [Board.KindFor], [Board.CellFor],
 // [Board.LevelFor]); one with a Width and Links is a band ([Board.DecksOver], [Board.Reaches]), its
 // railings never stepped across ([Board.Fenced]); a step along it takes a body no wider than its
@@ -114,10 +114,16 @@
 // # Drawing
 //
 // The board's own Map is the simple map: a flat ground seen from above, every kind in its sprite,
-// the ways as bands. [Plugin.WithMap] puts another in. How a kind looks is its tile's, gathered
+// the ways as bands, composed once and lit per pixel under the light plugin by its distant light,
+// the shadows it baked and the lamps, as each cell takes them (cell.Kind.Takes). [Plugin.WithMap]
+// puts another in. How a kind looks is its tile's, gathered
 // on the board's [Atlas] once the Stage is set up, every sprite the cell's size across (a game
 // declaring looks by hand closes its own before, [Plugin.NewAtlas]); a state of the
-// ground is an effect on its cells, shown as a cover ([Plugin.Covering], [Slot.Under]).
+// ground is an effect on its cells, shown as a cover ([Plugin.Covering], [Slot.Under]). In a world
+// cut into sectors the cells drawn are those of the sectors a camera sees: plainly, undressed and
+// with no grid where it sees them coarsely (look.Tile.Coarse), fading into the fog before its
+// sight's end (look.Tile.Fog). [Plugin.Miniature] is the board flat from above as one picture, a
+// minimap's ground.
 //
 // # Tiles and figures
 //

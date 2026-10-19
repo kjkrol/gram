@@ -15,7 +15,129 @@ where it begins: `navigation.Path` changed shape. Nor those made before the beha
 Nor those made before a unit could strafe: `entity.Velocity` has a `Side`. Nor those of a board
 in a flat world: a board stands only in a world with heights now. Nor those made before the
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
-entities. Nor those made before motion left the world: `world.Outside` is `motion.Outside`.
+entities. Nor those made before motion left the world: `world.Outside` is `motion.Outside`. Nor
+those made before the light became a plugin: `entity.Shadow` is `light.Shadow`, and the
+atmosphere's entity carries a `light.Source` and a `light.Shining`.
+
+**The picture's resolution and the ground's care** (2026-10-19, etap R of `doc/plans-perf.md`)
+- A camera draws its picture at a resolution of the pixels it is shown at (`camera.Resolved`,
+  `cameras.Config.Resolution`, 0.4 to all): the world is drawn smaller and shown at the
+  element's size, the UI stays as it is; Alt+= and Alt+- step it, Alt+A has it follow the frame
+  budget (`cameras.Config.FrameBudget`, a sixtieth of a second), the telemetry's "Picture"
+  line shows it. Positions reach the bindings in the camera's pixels (`control.Context.Resolution`).
+- The ground is shaded with less care ring by ring from the sector under the screen's middle
+  (`topography.Config.Care`, Alt+Shift+= and Alt+Shift+-): far water keeps its colour and a level
+  mirror of the sky but no waves, glint or shore, farther still no ground shade or lamps.
+- `Benchmark_Frame_Topography`: the island's frame on a headless GPU at 1440p.
+
+**Faster ticks and frames** (2026-10-19, etap 1 of `doc/plans-perf.md`)
+- The world tick at 5,000 boxes from 215 to 169 µs and no allocations: `clampStep` compares
+  squares instead of calling `Hypot`, every plugin's simulation block and the world tick's roles
+  reader are bound once. With aabbworld v1.13.0 (`Translate` keeps a box inside the world where
+  it is) 128 µs.
+- The collision tick at 8,388 boxes from 4.06 to 3.35 ms and no allocations: `rest` finds the
+  pairs met this tick in a set, not a scan of the contacts.
+- The views' ground and cover are copied once, not every frame: the board's cover keeps the
+  cells' `Version` and `Changes`; `Benchmark_Views_Copy`.
+- `render/gpu` keeps its passes, submits, bind offsets (an arena reset after `Submit`, as GLES
+  keeps the slice till then) and the present quad; text is drawn without splitting its lines,
+  the glyph pieces kept; the telemetry panel's text refreshed four times a second; the lamps'
+  uniform names and the bake's strips kept; the input buffer swapped, spawn groups reused.
+- `gram-probe`: `run_demo.sh` takes `PROBE_SEED`.
+
+**The light** (2026-10-19)
+- `plugins/light`: the light over a world as one plugin (`light.NewPlugin(world,
+  Config{LampShadows})`, made before the board and the topography). What shines is an entity
+  with a `light.Source` knob: a lamp reaching from where it stands, or the sun, a distant source
+  whose way and strength of the hour the atmosphere writes beside it each tick (`light.Shining`;
+  a scene without a sky sets one with `WithDistant`). `light.Distant` (from `atmosphere/sky`'s
+  `Sun`) is the working light, `Shining × Source`, so an effect on the atmosphere's entity dims it (an eclipse).
+  The eight lamps nearest a camera light its picture: the entities, and the ground through the
+  shaders' `lampLightAt`.
+- `light.Shadow{Cast, Take}` (from `entity.Shadow`): how an entity casts its shadow and which
+  shade it takes, `render.Taking` bits (the relief's, the blocks', the clouds', the lamps' light;
+  `render.Shines` none), honoured by every shader; a cell takes what its kind's `Takes` says.
+  The world's `Lighting` hands every drawn entity its `render.Illumination` (its light, the
+  lamps', the direct light's share, what it takes); `world.ShadowLook` and `board/lit.go`'s light are
+  gone, the board keeping the weather alone (`WithAtmosphere`).
+- The shadows in one place: the ground's shade baked by the light (`internal/bake`, moved from
+  the terrain: the relief's shadows from the frame's `GroundHeights`, over the topography's
+  relief given it with `OverRelief`, and the `Baked` blocks'; over level ground the blocks'
+  alone, so a flat board gets its towers' and bridges' shadows), the live shadows laid by it over
+  whatever ground the frame drew (`internal/cast`, from the terrain's and the hexes' shaders):
+  the sun's as the `ShadowPolicy` turns them (`WithShadowPolicy`, from the topography), and on
+  level ground the lamps' too, from the `Config.LampShadows` lamps nearest the camera, Shift+L
+  off and on for a weak GPU. H `CoarseShadows` is the light's. The flat sprites from above take
+  the shade in relief too. A flat board's still is shaded and lit by the lamps per pixel
+  (`look/shade.go`, `render.DrawMeshOptions.Multiply`).
+- The clouds' shadows declared in a scene: `atmosphere.CastClouds(CloudShadows{Ground, Figures,
+  High})`, the atmosphere taking the light plugin; `topography.NewPlugin` and
+  `atmosphere.NewPlugin` take it. Madeira: a lantern at a bridge's head, shining warm, casting no
+  shadow and taking none. A world without the light plugin is lit white and casts no shadow:
+  navigation/square and navigation/hex make one and light it with `sky.DefaultSun` in the scene.
+- `examples/look/light`: a flat board under a sun of the game's own (`sun.go`, `WithDistant`
+  each tick from the clock): a tower Baked, walkers' patches, the hero's Silhouette, a lantern
+  lighting the night and casting their shadows by it, lava taking no shade (`cell.Kind.Takes`).
+
+**The minimap** (2026-10-18)
+- `plugins/minimap`: a small picture round a player's camera (`minimap.Plugin.For(cam, player)`,
+  placed and dressed by the scene): the ground in miniature (`minimap.Ground`:
+  `board.Plugin.Miniature`, `topography.Plugin.Miniature`), a dot for each kind whose figure
+  marks it (`Styled(minimap.Mark{Color, Size})`), the camera's view outlined. It reaches as far
+  as `Config.Reach`, never past the world's last band, turns with the camera
+  (`Config.Turning`, Ctrl+M) or keeps north up, shows and hides with Shift+M, and is drawn anew
+  at most 30 times a second, a picture of its own neither anchoring the bands nor saved.
+- A click on it takes the camera there: `ui.Clicked`, an Input taking its picture's press
+  itself; `cameras.CenterAt{Camera, X, Y}`. The cursor over an element covering a player's
+  picture scrolls and turns nothing there (`ui.Hovered`). `ui.Element.Show`, `Hide`.
+- `camera.Headed`: the way along the ground that runs up a camera's screen. `render.GeoM.Rotate`.
+  `render.StrokePolygon` is one draw, not one a side.
+- Madeira (turning), Madeira on the simple map and motion/expanse have a minimap.
+- Fixed: on a torus a camera's View in a world cut into sectors lost the entities across the
+  seam from its window.
+
+**The sectors shown, the bands switched off, a world of a hundred thousand** (2026-10-18)
+- Shift+G shows a world's sectors over the ground, by their bands, by how the camera sees them,
+  or not at all (`world.SwitchSectors`, `world.Plugin.ShowSectors`): in relief over the ground's
+  depth on the GPU, on a flat world as quads under the figures.
+- Ctrl+G switches the bands off, every sector in the first and the whole world alive, and on
+  again (`world.SwitchBands`, `world.Plugin.SetBanded`); the panel says "bands off". Both keys
+  are the world's only where it is cut into sectors.
+- `sector.Grid` gives its `Side`, `Cols` and `Rows`. Madeira's sectors are two buckets a side.
+- motion/expanse: a hundred thousand boxes on a torus of about 98 km, alive in bands round the
+  camera; switched off, the frame rate falls from about 700 to under 10.
+
+**The ground by the sectors seen** (2026-10-18)
+- In a world cut into sectors the ground drawn is that of the sectors a camera sees. The relief's
+  mesh is laid sector by sector, each whole and coarse (every second corner within, the edge
+  whole and stitched, no crack against a whole neighbour), drawn by ranges of its indices at one
+  go (`render.DrawMeshOptions.Ranges`); a hex board's prisms by sector, their tops alone
+  coarsely; the flat board's cells of the sectors seen, plainly undressed with no grid coarsely
+  (`look.Tile.Coarse`).
+- The ground turns into the fog before the camera's sight ends, by the pixel
+  (`view.View.Fogging`, the shaders' `Sight`); a flat tile through `Frame.Fog`, which now takes a
+  rectangle (`look.Tile.Fog`).
+
+**What a camera sees of the sectors** (2026-10-18)
+- In a world cut into sectors a camera's View is of the sectors it sees (`view.NewSeen`), each at
+  a `view.Level`: Exact; Coarse where a world unit spans fewer screen units than the camera's
+  `Detail.Coarse`; Fogged in the fog before the end of its sight; Hidden past it, off the picture
+  or beyond every band. It holds their entities alone; `View.Level`, `View.Fog`, `View.Sectors`.
+  `world.Plugin.Seen()` lays the first camera's on the telemetry panel.
+- An entity seen coarsely is drawn plainly: no shadow, no edges, flat where it would stand. One in
+  the fog turns into the fog's colour (`world.FoggyLook`; `render.Sprites.Fog`, the billboards'
+  haze), the atmosphere's or a scene's (`world.Plugin.WithFog`).
+- The look's rules run on the chunks with an entity in view alone; vision draws the views of the
+  observers in view alone.
+- Fixed: a camera seeing the whole world drew the entities beyond every band.
+
+**How far a camera sees** (2026-10-18)
+- `camera.Detail{Sight, Fog, Coarse}` (`camera.Detailed`, `DetailOf`): how far a camera sees from
+  its `camera.Viewpoint` (the eye, else the point it observes), the fog before that, the scale
+  below which it draws coarsely. `cameras.Config.Detail` sets it for every camera; `cameras.Sight`
+  on Ctrl+= and Ctrl+- (`Keys.Farther`, `Nearer`) sees a `SightStep` farther or nearer.
+- A camera saves its sight: a camera from above is saved as `"top 1"`, one in relief as
+  `"stick 3"`; saves of either from before begin afresh, logged.
 
 **The board's places** (2026-10-18)
 - `board.Around(n)` and `board.Ahead(n)` are the board's places, for ceremony's `cond.At` and

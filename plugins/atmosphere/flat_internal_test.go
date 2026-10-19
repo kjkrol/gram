@@ -17,6 +17,6 @@ func TestNewPlugin_RefusesAFlatWorld(t *testing.T) {
 			t.Errorf("panic %q, want one asking for world.Config.Heights", msg)
 		}
 	}()
-	NewPlugin(w, Config{})
+	NewPlugin(w, nil, Config{})
 	t.Error("an atmosphere over a flat world: want a panic")
 }

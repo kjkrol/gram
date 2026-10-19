@@ -43,14 +43,3 @@ func Lain(l world.Look) [][3]float32 {
 	}
 	return out
 }
-
-// Cast is every shadow the look l cast since it was readied: a patch's sprite corners all 0.
-func Cast(l world.Look) [][castFloats]float32 {
-	var out [][castFloats]float32
-	for _, b := range l.(Look).gpu.casts {
-		for i := 0; i+castFloats <= len(b.inst); i += castFloats {
-			out = append(out, [castFloats]float32(b.inst[i:i+castFloats]))
-		}
-	}
-	return out
-}

@@ -3,7 +3,7 @@ package air
 import (
 	"embed"
 
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -28,6 +28,8 @@ var weatherUniforms = []render.Uniform{
 	{Name: "CloudCeilingDrift", Size: 2},
 	{Name: "CloudsOneLayer", Size: 1},
 	{Name: "CloudsHighShade", Size: 1},
+	{Name: "CloudsShadeGround", Size: 1},
+	{Name: "CloudsShadeFigures", Size: 1},
 	{Name: "Visibility", Size: 1},
 	{Name: "SkyOverhead", Size: 3},
 }
@@ -88,8 +90,10 @@ type Weather struct {
 	Ceilings    [3]float32
 	OneLayer    bool
 	HighShade   bool
-	Dome        *Dome
-	Dry         bool
+	// whose shadows the clouds cast: the ground's and the figures'
+	ShadeGround, ShadeFigures bool
+	Dome                      *Dome
+	Dry                       bool
 }
 
 // At is the air mass over the world point (x, y).
@@ -161,7 +165,7 @@ func clamp01(v float32) float32 { return min(max(v, 0), 1) }
 // Tile, and the sky's colours under sun as the mass over the world point (x, y) has them, the
 // eye's: at the horizon, the Fog what lies far off turns to, and overhead (SkyOverhead). The
 // dome's own picture is its DomeImage's.
-func (w Weather) Frame(f *render.Frame, sun sky.Sun, x, y float32) {
+func (w Weather) Frame(f *render.Frame, sun light.Distant, x, y float32) {
 	f.Image("CloudTile", Tile())
 	f.Uniform("Wind", w.Wind[0], w.Wind[1])
 	f.Uniform("Drift", float32(wrap(float64(w.Drift[0]), HeapTile)),
@@ -183,6 +187,8 @@ func (w Weather) Frame(f *render.Frame, sun sky.Sun, x, y float32) {
 		high = 1
 	}
 	f.Uniform("CloudsHighShade", high)
+	f.Uniform("CloudsShadeGround", shadeFlag(w.ShadeGround))
+	f.Uniform("CloudsShadeFigures", shadeFlag(w.ShadeFigures))
 	most := w.Most()
 	f.Uniform("Cover", most.Cover)
 	f.Uniform("Billow", most.Billow)
@@ -195,8 +201,15 @@ func (w Weather) Frame(f *render.Frame, sun sky.Sun, x, y float32) {
 		}
 	}
 	cover := w.At(x, y).Cover
-	fog := Overcast(sun.SkyLight(), cover)
+	fog := Overcast(sun.AmbientLight(), cover)
 	f.Uniform("Fog", fog[0], fog[1], fog[2])
-	overhead := Overhead(sun.SkyLight(), cover)
+	overhead := Overhead(sun.AmbientLight(), cover)
 	f.Uniform("SkyOverhead", overhead[0], overhead[1], overhead[2])
+}
+
+func shadeFlag(b bool) float32 {
+	if b {
+		return 1
+	}
+	return 0
 }

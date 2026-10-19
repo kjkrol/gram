@@ -19,6 +19,15 @@ func TestFont_MeasureGrowsWithTheTextAndItsLines(t *testing.T) {
 	}
 }
 
+func TestFont_MeasureAllocatesNothing(t *testing.T) {
+	f := render.DefaultFont()
+	s := "FPS: 60.0\nFrame:\n  tick 1.0 ms\n  drawing 2.0 ms\nGame time: 12:34"
+	f.Measure(s)
+	if n := testing.AllocsPerRun(10, func() { f.Measure(s) }); n != 0 {
+		t.Errorf("Measure allocates %v times, want none", n)
+	}
+}
+
 func TestFont_TheDefaultHasThePolishLetters(t *testing.T) {
 	f := render.DefaultFont()
 	for _, r := range "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ" {

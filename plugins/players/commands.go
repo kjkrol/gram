@@ -11,37 +11,54 @@ import (
 // An entity gives it itself, as it is made (kind.Entry.Told) or later.
 type Give struct{ To command.Issuer }
 
-// ShowShortcuts opens the list of every key of the game (the Shortcuts scene), or closes it.
+// ShowShortcuts opens the list of every key of the game (the Shortcuts scene).
 type ShowShortcuts struct{}
+
+// ShowSettings opens the settings screen (the SettingsScene). F10 by default.
+type ShowSettings struct{}
+
+// KeepRunning has the game run on behind the settings screen (Settings.Running), or stand in the
+// tactical pause while it is up.
+type KeepRunning struct{ On bool }
 
 func (Give) Command()          {}
 func (ShowShortcuts) Command() {}
+func (ShowSettings) Command()  {}
+func (KeepRunning) Command()   {}
 
 var (
 	_ command.Command = Give{}
 	_ command.Command = ShowShortcuts{}
+	_ command.Command = ShowSettings{}
+	_ command.Command = KeepRunning{}
 )
 
 // Queues are where the players' own commands land, the telemetry panel's (it needs the
 // scene's Composition, which the players' Handle has), and the tools taken and put down
 // (control.Take, control.Drop).
 func (p *Plugin) Queues() []command.CommandQueue {
-	return []command.CommandQueue{&p.gives, &p.listings, &p.panels, &p.takes, &p.drops}
+	return []command.CommandQueue{&p.gives, &p.listings, &p.openings, &p.runnings, &p.panels,
+		&p.takes, &p.drops}
 }
 
 // DefaultBindings are GameBindings.
-func (p *Plugin) DefaultBindings() []control.Binding { return GameBindings() }
+func (p *Plugin) DefaultBindings() []control.Binding { return p.GameBindings() }
 
-// GameBindings are the keys every game has: K for the list of shortcuts, ~ for the
-// telemetry panel, F5 to save, F9 to load, Shift+Esc to quit. A game that binds its own keys in
-// place of the Defaults binds these beside them.
-func GameBindings() []control.Binding {
+// GameBindings are the keys every game has: K for the list of shortcuts, F10 for the settings,
+// ~ for the telemetry panel, F5 to save, F9 to load, Shift+Esc to quit. A game that binds its
+// own keys in place of the Defaults binds these beside them.
+func (p *Plugin) GameBindings() []control.Binding {
 	shift := control.Mods{Shift: true}
 	return []control.Binding{
 		control.Give(control.KeyPress{Key: control.KeyK}, "Shortcuts; Esc closes them",
 			ShowShortcuts{}),
-		control.Give(control.KeyPress{Key: control.KeyBackquote},
-			"Show or hide the telemetry panel", telemetry.Panel{}),
+		control.Give(control.KeyPress{Key: control.KeyF10}, "Settings; Esc closes them",
+			ShowSettings{}),
+		control.Build(control.KeyPress{Key: control.KeyBackquote},
+			"Show or hide the telemetry panel",
+			func(control.Context) (telemetry.Panel, bool) {
+				return telemetry.Panel{Shown: !p.panelShown()}, true
+			}),
 		control.Give(control.KeyPress{Key: control.KeyF5}, "Save the game", game.Save{}),
 		control.Give(control.KeyPress{Key: control.KeyF9}, "Load the game saved", game.Load{}),
 		control.Give(control.KeyPress{Key: control.KeyEscape, Mods: shift}, "Quit", game.Quit{}),

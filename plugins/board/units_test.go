@@ -1,6 +1,7 @@
 package board_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
@@ -132,30 +134,31 @@ func TestUnits_AUnitOffTheBoardPanicsWhenSpawned(t *testing.T) {
 	t.Error("a unit off the board spawned")
 }
 
-func TestUnits_CastPatchesUnlessTheirKindSaysOtherwise(t *testing.T) {
+func TestUnits_CastAsTheirKindSays(t *testing.T) {
 	for _, c := range []struct {
 		extra []comp.Comp
-		want  world.Casting
+		want  []light.Casting
 	}{
-		{nil, world.Patch},
-		{[]comp.Comp{comp.Const(world.Shadow{Cast: world.Silhouette})}, world.Silhouette},
+		{nil, nil}, // a Patch is the light plugin's default, which the board asks nothing of
+		{[]comp.Comp{comp.Const(light.Shadow{Cast: light.Silhouette})},
+			[]light.Casting{light.Silhouette}},
 	} {
 		ecs, _, _ := unitsWorld(t, func(units *board.Units[recruit]) kind.Of[recruit] {
 			units.Define("recruit", unit.Mover{Domain: cell.Land}, steering.Steering{}, c.extra...)
 			return units.Named("recruit")
 		})
-		var shadow goke.Comp[world.Shadow]
+		var shadow goke.Comp[light.Shadow]
 		var q *goke.Query
 		ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			q = si.NewQueryBuilder(&shadow).Build()
 		}})
-		var got []world.Casting
+		var got []light.Casting
 		for q.All(); q.Next(); {
 			for _, s := range shadow.Slice(q.Cursor()) {
 				got = append(got, s.Cast)
 			}
 		}
-		if len(got) != 1 || got[0] != c.want {
+		if !slices.Equal(got, c.want) {
 			t.Errorf("a recruit given %d components casts %v, want %v", len(c.extra), got, c.want)
 		}
 	}

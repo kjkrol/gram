@@ -47,7 +47,8 @@
 // source draws a part of the picture itself, with a shader of its own, in the passes its Compose
 // asks for ([Frame.DrawOpaque], [Frame.DrawAt], [Frame.ReadGround]), handed a [Target] and the
 // frame's [Uniforms]; [NewMeshShaderWith] builds such a shader on the composer's library, drawn
-// with [Image.DrawMesh] against a [Depth]. [Frame.Branch] and [Frame.Append] let a source gather
+// with [Image.DrawMesh] against a [Depth], whole or by ranges of its indices at one go
+// (DrawMeshOptions.Ranges). [Frame.Branch] and [Frame.Append] let a source gather
 // pieces on several goroutines.
 //
 // A color.RGBA given to render — a piece, a fill, text, a sprite drawn on a [Canvas] — is
@@ -72,15 +73,20 @@
 // the frame ([Frame.Image]) to the composer and every Direct alike, through the [Uniforms]. An
 // image whose pixels need the GPU is filled as a draw first reads it ([Image.Defer]). The
 // ground's heights and the sun on it are render's own ([GroundHeights], [Frame.GroundHeights],
-// [GroundShade], [Frame.GroundShade]): whoever draws the ground hands them, a shader reads them
-// with groundHeightAt, and with groundShadeAt and standingShadeAt how much of the sun reaches a
-// point at a height over the ground past the relief's shadows and the blocks'.
+// [GroundShade], [Frame.GroundShade]): whoever draws the ground hands the heights, whoever bakes
+// the shade the shade; a shader reads them with groundHeightAt (groundDrawnAt as the ground is
+// drawn), and with groundShadeAt and standingShadeAt how much of the sun reaches a point at a
+// height over the ground past the relief's shadows and the blocks'. What a drawn thing takes of
+// them is its [Taking], bits ([Illumination] carries it with its light and the sun's share of
+// it; WGSL takes(t, bit)).
 //
 // # Still and Sprites
 //
 // A [Still] is a frame composed once in world units and kept on the GPU, drawn every frame
 // scaled, moved and lit as a camera from above shows it. [Sprites] is a Direct source's sprites
-// drawn as instances. [Paint] paints a frame's sprites once into an image of one's own.
+// drawn as instances, each turning into the frame's Fog colour as far as [Sprites.Fog] says and
+// taking the shade the ground holds as [Sprites.Take] and [Sprites.Direct] say.
+// [Paint] paints a frame's sprites once into an image of one's own.
 //
 // # Appearance and Rules
 //

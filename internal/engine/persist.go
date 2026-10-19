@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -158,8 +159,12 @@ func decodeGroup(encoded map[string][]byte, name string, targets []any) error {
 		return nil
 	}
 	dec := gob.NewDecoder(bytes.NewReader(blob))
-	for _, t := range targets {
+	for k, t := range targets {
 		if err := dec.Decode(t); err != nil {
+			// a save from before the later values were kept leaves them as they are
+			if k > 0 && errors.Is(err, io.EOF) {
+				return nil
+			}
 			return fmt.Errorf("gram: decode resource %q: %w", name, err)
 		}
 	}

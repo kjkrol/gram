@@ -28,7 +28,6 @@ type Plugin struct {
 	groundStep  float64
 	heights     func() ground.Heights
 	cover       func() ground.Cover
-	hidden      bool
 	workers     int
 	frequency   float64
 	log         *log.Logger
@@ -36,17 +35,24 @@ type Plugin struct {
 
 	sightings host.PairRules[Sighting]
 	drawing   render.Rules
+	kept      *plugin.Kept[Settings]
+
+	Res Resources
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
+var _ plugin.Tunable = (*Plugin)(nil)
+var _ plugin.Restorer = (*Plugin)(nil)
 
 // NewPlugin builds the vision plugin over worldPlugin's space; the views drawn start hidden.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
-	p := &Plugin{worldPlugin: worldPlugin, hidden: true}
+	p := &Plugin{worldPlugin: worldPlugin}
+	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.renderer = NewRenderer(worldPlugin.Space()).WithGround(p.groundOf).WithCover(p.coverOf).
-		WithScale(worldPlugin.Scale()).WithDrawing(&p.drawing).WithStyles(worldPlugin.Styles)
+		WithScale(worldPlugin.Scale()).WithDrawing(&p.drawing).WithStyles(worldPlugin.Styles).
+		WithSeen(worldPlugin.ViewFor)
 	p.renderer.Hide(true)
 	return p
 }
@@ -71,15 +77,21 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 // RunPlan carries out the commands and runs the scan; call it after the world's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.cones.Drain(func(command.Issued[Cones]) { p.setHidden(!p.hidden) })
+	p.cones.Drain(func(i command.Issued[Cones]) { p.setHidden(!i.Command.Shown) })
 	p.module.RunPlan(ctx, d)
 }
 
 // EventHandler is nil: the Cones command comes from a player's bindings.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil: vision keeps no state beside its components.
-func (p *Plugin) Serializable() plugin.Serializable { return nil }
+// Serializable is vision's Settings, kept whole; its components go with the entities.
+func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
+
+// Restore takes the Settings loaded and shows the views as they say.
+func (p *Plugin) Restore() {
+	p.kept.Restore()
+	p.setHidden(!p.Res.Settings.Cones)
+}
 
 // WithViews has only the views of the observers a render.Show rule picks drawn; with none, every
 // one is. Call it in the scene, before the first frame.
@@ -90,17 +102,17 @@ func (p *Plugin) WithViews(rules ...render.Rule) *Plugin {
 	return p
 }
 
-// ShowCones shows every view drawn, as the Cones command does.
+// ShowCones shows every view drawn, as the Cones command does (Settings.Cones).
 func (p *Plugin) ShowCones() { p.setHidden(false) }
 
 // HideCones hides every view drawn; the scan goes on.
 func (p *Plugin) HideCones() { p.setHidden(true) }
 
 // ConesShown reports whether the views drawn are shown.
-func (p *Plugin) ConesShown() bool { return !p.hidden }
+func (p *Plugin) ConesShown() bool { return p.Res.Settings.Cones }
 
 func (p *Plugin) setHidden(hidden bool) {
-	p.hidden = hidden
+	p.Res.Settings.Cones = !hidden
 	p.renderer.Hide(hidden)
 }
 

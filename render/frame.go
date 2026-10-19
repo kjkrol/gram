@@ -217,6 +217,33 @@ func premultiplied(c color.RGBA) [4]float32 {
 // white.
 type Light [3]float32
 
+// Taking is which shade a drawn thing takes, bits of it: the relief's shadow, the baked blocks',
+// the clouds', and which light, the lamps'. One taking none shines as it is drawn.
+type Taking uint8
+
+const (
+	TakesRelief Taking = 1 << iota
+	TakesBlocks
+	TakesClouds
+	TakesLamps
+	// Shines takes nothing: the thing is drawn as it is.
+	Shines Taking = 1 << 7
+	// TakesAll takes every shade and the lamps' light, as a zero Taking does.
+	TakesAll = TakesRelief | TakesBlocks | TakesClouds | TakesLamps
+)
+
+// Illumination is the light a thing is drawn in: Light on a surface facing up, the sun's and the
+// lamps', Lamps the lamps' alone, and which shade it Takes.
+type Illumination struct {
+	Light, Lamps Light
+	// Direct is the share of Light that is the distant light's, 0 to 1: what a shadow takes away.
+	Direct float32
+	Takes  Taking
+}
+
+// WhiteLight is a thing drawn as it is, taking every shade: a world without a light plugin.
+var WhiteLight = Illumination{Light: Light{1, 1, 1}, Takes: TakesAll}
+
 // Shade is the light a piece is drawn in at its corners, top-left, top-right, bottom-left,
 // bottom-right, blended across it.
 type Shade [4]Light
@@ -568,12 +595,23 @@ func (f *Frame) SpriteFan(at At, atlas AtlasSource, id SpriteID, pts [][2]float3
 }
 
 // Fog has the last plain sprite added turn to the colour of the Fog uniform as much as amount
-// says at each corner, 0 to 1.
+// says at each corner, 0 to 1; a rectangle's (SpriteRect) as much as its corners on average,
+// every piece it lies in.
 func (f *Frame) Fog(amount [4]float32) {
-	if amount == ([4]float32{}) || f.lastRect || len(f.verts) < f.lastFirst+4 {
+	if amount == ([4]float32{}) || len(f.verts) < f.lastFirst+4 {
 		return
 	}
-	v := f.verts[f.lastFirst : f.lastFirst+4]
+	if f.lastRect {
+		even := (amount[0] + amount[1] + amount[2] + amount[3]) / 4
+		for at := f.lastFirst; at+4 <= len(f.verts); at += 4 {
+			f.fog(f.verts[at:at+4], [4]float32{even, even, even, even})
+		}
+		return
+	}
+	f.fog(f.verts[f.lastFirst:f.lastFirst+4], amount)
+}
+
+func (f *Frame) fog(v []Vertex, amount [4]float32) {
 	for i := range v {
 		if v[i].ColorA != 1 {
 			return

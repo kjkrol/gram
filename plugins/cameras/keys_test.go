@@ -20,8 +20,56 @@ func TestKeys_ZoomKeysBuildAZoomInAndOut(t *testing.T) {
 			t.Errorf("key %d gives %v (%v), want a Zoom by %v", i, cmd, ok, want)
 		}
 	}
-	if n := len(cameras.DefaultKeys().Bindings()); n != 9 {
-		t.Errorf("the default keys bind %d, want 9: the zoom keys among them", n)
+	if n := len(cameras.DefaultKeys().Bindings()); n != 13 {
+		t.Errorf("the default keys bind %d, want 13: the zoom, the sight and the resolution keys "+
+			"among them", n)
+	}
+}
+
+func TestKeys_ResolutionKeysWithAltDrawFinerAndCoarser(t *testing.T) {
+	keys := cameras.Keys{Finer: control.KeyEqual, Coarser: control.KeyMinus}.Bindings()
+	if len(keys) != 2 {
+		t.Fatalf("%d bindings, want the two resolution keys", len(keys))
+	}
+	for i, want := range []float32{1 / cameras.ResolutionStep, cameras.ResolutionStep} {
+		press, isPress := keys[i].Trigger.(control.KeyPress)
+		cmd, ok := keys[i].Build(control.Context{})
+		r, isResolution := cmd.(cameras.Resolution)
+		if !isPress || !press.Mods.Alt || press.Mods.Ctrl || !ok || !isResolution ||
+			r.Factor != want {
+			t.Errorf("key %d is %+v giving %v (%v), want Alt held and a Resolution by %v", i,
+				keys[i].Trigger, cmd, ok, want)
+		}
+	}
+	adapts := 0
+	for _, b := range cameras.NewPlugin(reliefWorld(), cameras.Config{}).DefaultBindings() {
+		if b.Trigger != (control.KeyPress{Key: control.KeyA, Mods: control.Mods{Alt: true}}) {
+			continue
+		}
+		if cmd, ok := b.Build(control.Context{}); ok {
+			if _, is := cmd.(cameras.Adapt); is {
+				adapts++
+			}
+		}
+	}
+	if adapts != 1 {
+		t.Errorf("the default bindings give Adapt on Alt+A %d times, want once", adapts)
+	}
+}
+
+func TestKeys_SightKeysWithCtrlSeeFartherAndNearer(t *testing.T) {
+	keys := cameras.Keys{Farther: control.KeyEqual, Nearer: control.KeyMinus}.Bindings()
+	if len(keys) != 2 {
+		t.Fatalf("%d bindings, want the two sight keys", len(keys))
+	}
+	for i, want := range []float64{cameras.SightStep, 1 / cameras.SightStep} {
+		press, isPress := keys[i].Trigger.(control.KeyPress)
+		cmd, ok := keys[i].Build(control.Context{})
+		s, isSight := cmd.(cameras.Sight)
+		if !isPress || !press.Mods.Ctrl || !ok || !isSight || s.Factor != want {
+			t.Errorf("key %d is %+v giving %v (%v), want Ctrl held and a Sight by %v", i,
+				keys[i].Trigger, cmd, ok, want)
+		}
 	}
 }
 
@@ -105,4 +153,35 @@ func TestDefaultBindings_CornersTurnWhereTheConfigTurns(t *testing.T) {
 	if turning(cameras.Config{Tilt: true, Cell: 32}) || turning(cameras.Config{}) {
 		t.Error("a Config not turning turns the camera in a corner")
 	}
+}
+
+func TestKeys_AtAResolutionTheScrollAndTheLookAreTheSameOnTheScreen(t *testing.T) {
+	keys := cameras.Keys{Up: control.KeyW, Edge: true}.Bindings()
+	if len(keys) != 2 {
+		t.Fatalf("%d bindings, want the key and the edge", len(keys))
+	}
+	half := control.Context{Resolution: 0.5, Screen: geom.NewVec(500, 400),
+		Cursor: geom.NewVec(495, 200)}
+	cmd, ok := keys[0].Build(half)
+	if pan, isPan := cmd.(cameras.Pan); !ok || !isPan || pan.Dy != -cameras.DefaultScrollSpeed/2 {
+		t.Errorf("W at 0.5 builds %+v (%v), want a Pan up by half the speed: the camera's pixels",
+			cmd, ok)
+	}
+	cmd, ok = keys[1].Build(half)
+	if pan, isPan := cmd.(cameras.Pan); !ok || !isPan || pan.Dx != cameras.DefaultScrollSpeed/2 {
+		t.Errorf("the edge at 0.5 builds %+v (%v), want a Pan right by half the speed", cmd, ok)
+	}
+	p := cameras.NewPlugin(reliefWorld(), cameras.Config{Perspective: true, Cell: 32})
+	for _, b := range p.DefaultBindings() {
+		if b.Trigger != (control.CursorMove{}) {
+			continue
+		}
+		cmd, ok := b.Build(control.Context{Resolution: 0.5, Delta: geom.NewVec(3, 4)})
+		if look, isLook := cmd.(cameras.Look); !ok || !isLook || look.Dx != 6 || look.Dy != 8 {
+			t.Errorf("a move of (3, 4) camera pixels at 0.5 builds %+v (%v), want a Look by (6, 8): "+
+				"the shown ones", cmd, ok)
+		}
+		return
+	}
+	t.Error("no binding on the mouse looks round")
 }

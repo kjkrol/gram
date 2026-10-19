@@ -69,8 +69,8 @@ func (p *Plugin) OwnKeys(keys SceneKeys) *Plugin {
 	return p
 }
 
-// Scenes is the players' one scene of their own, the list of shortcuts (game.Scenic).
-func (p *Plugin) Scenes() []game.Scene { return []game.Scene{p.shortcuts} }
+// Scenes are the players' own: the list of shortcuts and the settings screen (game.Scenic).
+func (p *Plugin) Scenes() []game.Scene { return []game.Scene{p.shortcuts, p.settings} }
 
 // Open shows the scene on top, the game's description over the keys, and holds the game paused
 // while it is up.

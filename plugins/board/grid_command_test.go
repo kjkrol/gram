@@ -27,7 +27,7 @@ func TestGrid_ShowsAndHidesTheGrid(t *testing.T) {
 	state := &look.RenderState{ShowGridLines: true}
 	bw.Board.Res.Render = state
 	for i, want := range []bool{false, true} {
-		if !bw.World.Carrier().Put(command.Nobody, board.Grid{}) {
+		if !bw.World.Carrier().Put(command.Nobody, board.Grid{Shown: want}) {
 			t.Fatal("the world carries no board.Grid")
 		}
 		bw.Tick()
@@ -64,7 +64,7 @@ func TestHolds_ShowsAndHidesTheCellsHeld(t *testing.T) {
 		t.Errorf("the cells held start shown: %d pieces", n)
 	}
 	for i, want := range []int{4, 0} {
-		if !bw.World.Carrier().Put(command.Nobody, board.Holds{}) {
+		if !bw.World.Carrier().Put(command.Nobody, board.Holds{Shown: want > 0}) {
 			t.Fatal("the world carries no board.Holds")
 		}
 		bw.Tick()

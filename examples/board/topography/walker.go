@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/kjkrol/gram/plugins/selection"
 	"image/color"
 	"math"
 
@@ -13,8 +12,10 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/gravity"
+	"github.com/kjkrol/gram/plugins/minimap"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/navigation"
+	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -61,7 +62,8 @@ func (wk walker) Define(b *board.Plugin) {
 
 func (wk walker) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[unitRow](w.Kinds(), wk.kind), walkerPx, render.Solid(wk.color)).
-		Styled(selection.Highlight{Line: wk.color, Width: 2})
+		Styled(selection.Highlight{Line: wk.color, Width: 2}).
+		Styled(minimap.Mark{Color: wk.color, Size: 5})
 }
 
 // the eyes of a unit: a sight the way it goes, as wide as a man's

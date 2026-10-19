@@ -13,6 +13,7 @@ var _ goke.Module = (*module)(nil)
 type module struct {
 	p          *Plugin
 	give, fall goke.Runnable
+	step       clock.Block // bound once, so a tick allocates no method value
 }
 
 func (m *module) RegSystems(ecs *goke.ECS) {
@@ -27,10 +28,12 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.give, d)
 	ctx.Sync()
-	clock.Simulate(m.p.worldPlugin.Clock(), ctx, d, func(ctx goke.RunCtx, step time.Duration) {
-		ctx.Run(m.fall, step)
-		ctx.Sync()
-	})
+	clock.Simulate(m.p.worldPlugin.Clock(), ctx, d, m.step)
+}
+
+func (m *module) simulate(ctx goke.RunCtx, step time.Duration) {
+	ctx.Run(m.fall, step)
+	ctx.Sync()
 }
 
 func (m *module) SetupSystems() []goke.System { return nil }

@@ -78,7 +78,7 @@ fn cloudSunSlant() -> vec2<f32> {
     if U.CloudsOneLayer > 0.5 {
         return vec2<f32>(0.0);
     }
-    let sun = sunWay();
+    let sun = lightWay();
     return sun.xy / max(sun.z, cloudLowSun);
 }
 
@@ -87,7 +87,7 @@ const cloudLowSun: f32 = 0.25;
 // cloudShade is how much the clouds darken the ground under a cover of cover: as much as they take
 // of the sun, more under a strong one.
 fn cloudShade(cover: f32) -> f32 {
-    return cloudDark * cover * clamp(U.SunStrength * 1.4, 0.0, 1.0);
+    return cloudDark * cover * clamp(U.LightStrength * 1.4, 0.0, 1.0);
 }
 
 // cloudDark is how much of the sun's light the thickest cloud takes.

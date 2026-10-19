@@ -88,10 +88,28 @@ func FillPolygon(dst *Image, pts [][2]float32, c color.Color) {
 	gpu.Colored(dst.gpu(), verts, indices, gpu.SourceOver)
 }
 
-// StrokePolygon lays c over the outline of the closed polygon pts, width wide.
+// StrokePolygon lays c over the outline of the closed polygon pts, width wide, at one draw.
 func StrokePolygon(dst *Image, pts [][2]float32, width float32, c color.Color) {
+	cr, cg, cb, ca := rgbaOf(c)
+	verts := make([]gpu.Vertex, 0, 4*len(pts))
+	indices := make([]uint16, 0, 6*len(pts))
 	for k, p := range pts {
 		q := pts[(k+1)%len(pts)]
-		StrokeLine(dst, p[0], p[1], q[0], q[1], width, c)
+		dx, dy := q[0]-p[0], q[1]-p[1]
+		n := float32(math.Hypot(float64(dx), float64(dy)))
+		if n == 0 {
+			continue
+		}
+		nx, ny := -dy/n*width/2, dx/n*width/2
+		at := uint16(len(verts))
+		for _, v := range [4][2]float32{{p[0] + nx, p[1] + ny}, {q[0] + nx, q[1] + ny},
+			{p[0] - nx, p[1] - ny}, {q[0] - nx, q[1] - ny}} {
+			verts = append(verts, gpu.Vertex{DstX: v[0], DstY: v[1], ColorR: cr, ColorG: cg,
+				ColorB: cb, ColorA: ca})
+		}
+		indices = append(indices, at, at+1, at+2, at+1, at+2, at+3)
+	}
+	if len(indices) > 0 {
+		gpu.Colored(dst.gpu(), verts, indices, gpu.SourceOver)
 	}
 }

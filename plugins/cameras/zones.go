@@ -12,13 +12,24 @@ import (
 )
 
 // Zones shows the strips at the picture's edges the cursor scrolls from and the squares at its
-// corners it turns from, a translucent yellow, or hides them: a look, not saved. Shift+H by
-// default.
-type Zones struct{}
+// corners it turns from, a translucent yellow, or hides them (Settings.Zones). Shift+H by
+// default, in turn.
+type Zones struct{ Shown bool }
 
 func (Zones) Command() {}
 
 var _ command.Command = Zones{}
+
+// Settings is what the cameras let the players adjust, saved with the game.
+type Settings struct {
+	Zones    bool
+	Adaptive bool
+}
+
+// Resources is what the cameras publish: their Settings.
+type Resources struct {
+	Settings Settings
+}
 
 var (
 	zoneColor   = color.RGBA{R: 255, G: 220, B: 60, A: 10}
@@ -35,20 +46,23 @@ const (
 const zonesLevel = 3
 
 // zonesView lays the scroll zones over the picture of the camera being composed.
-type zonesView struct{ shown bool }
+type zonesView struct{ settings *Settings }
 
 var _ render.Source = (*zonesView)(nil)
 
 func (*zonesView) Init(*goke.SysInit) {}
 
 func (v *zonesView) Compose(f *render.Frame, cam camera.Camera) {
-	if !v.shown {
+	if !v.settings.Zones {
 		return
 	}
 	w, h := cam.Viewport()
-	thick := float32(control.EdgeMargin)                        // how far in a strip reaches
-	side := float32(control.CornerSide(float64(w), float64(h))) // a corner's square
-	ends := side + zoneGap                                      // where a strip stops, from an edge
+	// the zones in shown pixels, drawn in the camera's: how far in a strip reaches, a corner's
+	// square, where a strip stops from an edge
+	k := camera.ResolutionOf(cam)
+	thick := float32(control.EdgeMargin) * k
+	side := float32(control.CornerSide(float64(w/k), float64(h/k))) * k
+	ends := side + zoneGap*k
 
 	topStrip := zone{left: ends, top: 0, right: w - ends, bottom: thick}
 	bottomStrip := zone{left: ends, top: h - thick, right: w - ends, bottom: h}
@@ -94,12 +108,39 @@ func (z zone) draw(f *render.Frame, c color.RGBA) {
 	f.Fan(render.OnTop(zonesLevel), pts, c)
 }
 
-// ShowZones shows the scroll zones over every picture, or hides them.
-func (p *Plugin) ShowZones(shown bool) { p.zonesView.shown = shown }
+// ShowZones shows the scroll zones over every picture, or hides them (Settings.Zones).
+func (p *Plugin) ShowZones(shown bool) { p.Res.Settings.Zones = shown }
 
 // ZonesShown reports whether the scroll zones are shown.
-func (p *Plugin) ZonesShown() bool { return p.zonesView.shown }
+func (p *Plugin) ZonesShown() bool { return p.Res.Settings.Zones }
+
+// SetAdaptive has every picture's resolution follow the frame budget, or stay
+// (Settings.Adaptive).
+func (p *Plugin) SetAdaptive(on bool) {
+	p.Res.Settings.Adaptive = on
+	p.adapter.on = on
+}
+
+// Adaptive reports whether the pictures' resolution follows the frame budget.
+func (p *Plugin) Adaptive() bool { return p.Res.Settings.Adaptive }
 
 func (p *Plugin) switchZones() {
-	p.zones.Drain(func(command.Issued[Zones]) { p.zonesView.shown = !p.zonesView.shown })
+	p.zones.Drain(func(i command.Issued[Zones]) { p.ShowZones(i.Command.Shown) })
+}
+
+// Settings are the scroll zones and the resolution following the frame budget
+// (plugin.Tunable).
+func (p *Plugin) Settings() []control.Setting {
+	return []control.Setting{
+		control.Switch{
+			Label: "Scroll zones",
+			Get:   p.ZonesShown,
+			Set:   func(on bool) command.Command { return Zones{Shown: on} },
+		},
+		control.Switch{
+			Label: "Resolution follows the frame budget",
+			Get:   p.Adaptive,
+			Set:   func(on bool) command.Command { return Adapt{On: on} },
+		},
+	}
 }

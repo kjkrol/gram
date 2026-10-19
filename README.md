@@ -79,9 +79,11 @@ cgo. Without a GPU the tests that draw skip themselves.
 | **Conversations** | `plugins/dialog` | Nodes of lines and answers from YAML, every unit with lines of its own; what an answer changes is the game's own |
 | **Board and navigation** | `plugins/board`, `plugins/navigation` | Square or hex grid with terrain, ways and what stands on it, in a world with heights; a map laid out of a file; `MoveOrder` paths that re-route, onto a bridge's deck or under it |
 | **Bridges** | `plugins/bridges` | Bridges built by one set of rules whoever builds them: a level's file, the map maker, a player with a bridge in hand |
-| **Topography** | `plugins/topography` | A map in relief on the GPU: heights shaped and priced, the sun's light and shadows, water glinting and running; the cameras' cage |
+| **Light** | `plugins/light` | The sun and the lamps as sources on entities, what each thing casts and takes; the shadows of the relief and of what stands still baked into the ground as the sun moves, the live ones laid over whatever ground is drawn |
+| **Topography** | `plugins/topography` | A map in relief on the GPU: heights shaped and priced, lit and shaded, water glinting and running; the cameras' cage |
 | **Atmosphere** | `plugins/atmosphere` | The calendar, the sky of the hour (the Earth's with the real stars, or a game's own of four parts), the climate and the weather, what falls and what it does to the board |
 | **Selection, players, cameras** | `plugins/selection`, `plugins/players`, `plugins/cameras` | Click and marquee into `Selected`; players over the command handlers, their bindings and a list of keys (K); cameras made where a scene shows them, on a stick turned and leaned from straight down to isometric and flatter, orthographic or in perspective, kept out of what a map makes solid, fastened over a unit, behind it or inside it |
+| **Minimap** | `plugins/minimap` | A small picture round a player's camera, turning with it or north up: the ground in miniature, a dot for each kind its figure marks, the camera's view outlined; a click on it takes the camera there |
 | **Telemetry** | `plugins/telemetry` | The panel in the corner saying how the game runs — the frame rate, the ticks, where a frame's time goes, the entities, the game time, the plugins' and the game's own lines — in every Stage with a world, shown and hidden with ~ |
 | **Persistence** | `game.Persistence` | Save, load and list the active Stage's ECS and every tracked value by name |
 | **Rendering** | `render`, `camera` | Everything drawn on the GPU (WebGPU, WGSL): sources drawn over one another by height in a shared depth buffer, the ground first and the marks last, `Direct` sources with shaders of their own, a picture kept on the GPU (`Still`), an atlas baked at `Close` |
@@ -299,6 +301,7 @@ demo opens a window; what it shows is tested in the library's package that does 
 | [`look/animation`](examples/look/animation) | A gallery of animations drawn frame after frame from sheets in game time (Shift+P freezes them), each figure labelled: a walker on a patrol stepping the way it goes in eight directions and braking, an idler bored by stages (blinking, stamping, looking about), a puller's hands on a lever, a lever swinging down and up | `make demo-look-animation` |
 | [`look/material`](examples/look/material) | Materials of the game's own WGSL in place of sprites: a ward pulsing on the clock and four embers circling it, drawn out of their own state, breathing standing and streaming a tail driven (WSAD); G calms the ward and F douses the embers into plain sprites for a while | `make demo-look-material` |
 | [`look/sky`](examples/look/sky) | A sky of the game's own over a valley in relief, a day in a minute and a half: its own WGSL vault, turquoise by day and violet at night with a band shimmering along the stars' equator, the Earth's moon three times as big and orange, showing by day too, made-up stars; Tab turns to the perspective, Q and E turn it, F lays the stick down to the sky | `make demo-look-sky` |
+| [`look/light`](examples/look/light) | A flat board under a sun of the game's own, circling in a day and a half a minute: a tower's shadow baked into the ground and swinging with the sun, walkers casting soft patches, a hero (WSAD) casting the silhouette of its sprite, a lantern lighting the night and casting their shadows by it (Shift+L off and on), lava that takes no shade | `make demo-look-light` |
 
 ### Rules: states, rules and commands
 
@@ -315,8 +318,8 @@ demo opens a window; what it shows is tested in the library's package that does 
 | Demo | Shows | Run |
 |:---|:---|:---|
 | [`board/atlas`](examples/board/atlas) | A small flat board drawn from the game's own atlas, the water a material shimmering per pixel, a road laid as a way | `make demo-board-atlas` |
-| [`board/flat`](examples/board/flat) | Madeira on the simple map out of `cmd/gramap`: the island in its colours, rivers and roads as bands, bridges and fords standing on it, a day and the weather going by | `make demo-board-flat` |
-| [`board/topography`](examples/board/topography) | Madeira in relief, its true heights, a cell 333 m: lit by the sun, water running, roads laid as Transport Tycoon lays them, bridges on piers (Shift+B builds one), the ground shaped under the cursor; the camera on a stick turned (Q, E) and leaned (R, F) from straight down to isometric and flatter, orthographic or in perspective (Tab) | `make demo-board-topography` |
+| [`board/flat`](examples/board/flat) | Madeira on the simple map out of `cmd/gramap`: the island in its colours, rivers and roads as bands, bridges and fords standing on it, a day and the weather going by, a minimap north up | `make demo-board-flat` |
+| [`board/topography`](examples/board/topography) | Madeira in relief, its true heights, a cell 333 m: lit by the sun, water running, roads laid as Transport Tycoon lays them, bridges on piers (Shift+B builds one), the ground shaped under the cursor; the camera on a stick turned (Q, E) and leaned (R, F) from straight down to isometric and flatter, orthographic or in perspective (Tab); a minimap turning with it, a click on it taking the camera there | `make demo-board-topography` |
 
 ### Navigation: units sent across a board
 
@@ -331,6 +334,7 @@ demo opens a window; what it shows is tested in the library's package that does 
 | Demo | Shows | Run |
 |:---|:---|:---|
 | [`motion/collision`](examples/motion/collision) | Thousands of bouncing boxes of many kinds, hit overlays, telemetry, save and load | `make demo-motion-collision` |
+| [`motion/expanse`](examples/motion/expanse) | A hundred thousand boxes on a torus of about 98 km: the world lives in bands round the camera, Shift+G shows the sectors by their bands or by what the camera sees, Ctrl+G switches the bands off to weigh what they spare; a minimap of the boxes round the camera | `make demo-motion-expanse` |
 | [`motion/bullet`](examples/motion/bullet) | A soldier on WSAD, the camera following him: Space fires a round the way he faces, Shift held and let go throws a grenade the further the longer held, in an arc that lies with a spark and bursts; the shots are the plugin's, the wounds and the fuse rules, effects and a plan | `make demo-motion-bullet` |
 | [`motion/platformer`](examples/motion/platformer) | A hero in a side view under gravity: A and D walk, W jumps, G turns gravity over, a hard landing dazes | `make demo-motion-platformer` |
 
@@ -365,7 +369,8 @@ stage.New(MeadowStage).
 ```
 
 Saving and loading are the engine's: commands like any other (`game.Save`, `game.Load`,
-`game.Enter`, `game.Quit`) bound to keys (F5, F9, Shift+Esc in every game) or to ui buttons, a
+`game.Enter`, `game.Quit`) bound to keys (F5, F9, Shift+Esc in every game, as K lists the keys
+and F10 opens the settings) or to ui buttons, a
 Stage entered from its save from any other, a menu's Continue.
 
 A Scene is one thing a Stage can show. Its screen is a `ui` tree: the world's picture, all its

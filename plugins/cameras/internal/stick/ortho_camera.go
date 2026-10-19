@@ -23,7 +23,9 @@ type orthoCamera struct {
 	turn  float64
 	pitch float64
 	scale float32
-	// where the world's origin at sea level lands on the screen, from the stick
+	// camera pixels a shown one: the stick and its scale in shown pixels, the screen in these
+	res float32
+	// where the world's origin at sea level lands on the screen, from the stick, in shown pixels
 	pan geom.Vec
 
 	// the ground the screen covers at a screen unit a world unit and sea level, for the zoom floor
@@ -50,7 +52,7 @@ func newOrthoCamera(
 	if edges.WrapsX() || edges.WrapsY() {
 		panic("cameras: a world that wraps cannot be seen in relief")
 	}
-	c := &orthoCamera{optics: o.withDefaults(), world: world, pitch: maxPitch, scale: 1,
+	c := &orthoCamera{optics: o.withDefaults(), world: world, pitch: maxPitch, scale: 1, res: 1,
 		viewportSize: geom.NewVec(viewport.BottomRight.X-viewport.TopLeft.X,
 			viewport.BottomRight.Y-viewport.TopLeft.Y)}
 	if start == Isometrically {
@@ -89,16 +91,18 @@ func wrapTurn(a float64) float64 {
 // at a screen unit a world unit the projection is affine, so the footprint scales as one over the
 // scale
 func (c *orthoCamera) measure() {
-	minX, maxX, minY, maxY := c.under(c.proj.Unproject)
+	w, h := float32(c.viewportSize.X), float32(c.viewportSize.Y)
+	minX, maxX, minY, maxY := c.under(w, h, c.proj.Unproject)
 	c.spanX, c.spanY = maxX-minX, maxY-minY
 }
 
+// the ground under a screen w by h pixels of unproject's
 func (c *orthoCamera) under(
+	w, h float32,
 	unproject func(sx, sy, z float32) (float32, float32),
 ) (minX, maxX, minY, maxY float32) {
 	minX, maxX = float32(math.Inf(1)), float32(math.Inf(-1))
 	minY, maxY = float32(math.Inf(1)), float32(math.Inf(-1))
-	w, h := float32(c.viewportSize.X), float32(c.viewportSize.Y)
 	for _, corner := range [4][2]float32{{0, 0}, {w, 0}, {0, h}, {w, h}} {
 		x, y := unproject(corner[0], corner[1], 0)
 		minX, maxX = min(minX, x), max(maxX, x)
@@ -146,8 +150,13 @@ func (c *orthoCamera) Pitch() float32   { return float32(c.pitch) }
 func (c *orthoCamera) Projection() contract.Projection { return c.projection }
 
 func (c *orthoCamera) Viewport() (float32, float32) {
-	return float32(c.viewportSize.X), float32(c.viewportSize.Y)
+	return float32(c.viewportSize.X) * c.res, float32(c.viewportSize.Y) * c.res
 }
+
+// SetResolution has the camera drawn at s of the pixels it is shown at; its window stays.
+func (c *orthoCamera) SetResolution(s float32) { c.res = s }
+
+func (c *orthoCamera) Resolution() float32 { return c.res }
 
 func (c *orthoCamera) SetViewport(w, h float32) {
 	if w <= 0 || h <= 0 {
@@ -161,10 +170,11 @@ func (c *orthoCamera) SetViewport(w, h float32) {
 
 func (c *orthoCamera) Project(x, y, z float32) (float32, float32) {
 	sx, sy := c.proj.Project(x, y, z)
-	return sx*c.scale + float32(c.pan.X), sy*c.scale + float32(c.pan.Y)
+	return (sx*c.scale + float32(c.pan.X)) * c.res, (sy*c.scale + float32(c.pan.Y)) * c.res
 }
 
 func (c *orthoCamera) Unproject(sx, sy, z float32) (float32, float32) {
+	sx, sy = sx/c.res, sy/c.res
 	return c.proj.Unproject((sx-float32(c.pan.X))/c.scale, (sy-float32(c.pan.Y))/c.scale, z)
 }
 
@@ -243,8 +253,8 @@ func (c *orthoCamera) Visible(box contract.AABB) bool {
 	low, high := c.layer()
 	minX, minY, maxX, maxY := c.rect(float32(box.TopLeft.X), float32(box.TopLeft.Y),
 		float32(box.BottomRight.X), float32(box.BottomRight.Y), low, high)
-	return maxX > 0 && minX < float32(c.viewportSize.X) && maxY > 0 &&
-		minY < float32(c.viewportSize.Y)
+	w, h := c.Viewport()
+	return maxX > 0 && minX < w && maxY > 0 && minY < h
 }
 
 // At any height of the layer: high ground from beyond the screen's lower edge at sea level is
@@ -253,7 +263,7 @@ func (c *orthoCamera) Bounds() contract.AABB {
 	low, high := c.layer()
 	minX, minY := float32(math.Inf(1)), float32(math.Inf(1))
 	maxX, maxY := float32(math.Inf(-1)), float32(math.Inf(-1))
-	w, h := float32(c.viewportSize.X), float32(c.viewportSize.Y)
+	w, h := c.Viewport()
 	for _, z := range [2]float32{low, high} {
 		for _, corner := range [4][2]float32{{0, 0}, {w, 0}, {0, h}, {w, h}} {
 			x, y := c.Unproject(corner[0], corner[1], z)
@@ -281,9 +291,12 @@ func (c *orthoCamera) Translate(dx, dy float64) {
 	c.place()
 }
 
-func (c *orthoCamera) Pan(dx, dy float32) { c.slide(float64(dx), float64(dy)) }
+func (c *orthoCamera) Pan(dx, dy float32) {
+	c.slide(float64(dx/c.res), float64(dy/c.res))
+}
 
-// the foot moved, at its height, to what is drawn (dsx, dsy) off the middle of the screen
+// the foot moved, at its height, to what is drawn (dsx, dsy) shown pixels off the middle of the
+// screen
 func (c *orthoCamera) slide(dsx, dsy float64) {
 	dx, dy := c.proj.step(dsx, dsy, float64(c.scale))
 	c.foot[0] += dx
@@ -294,7 +307,8 @@ func (c *orthoCamera) slide(dsx, dsy float64) {
 // the whole screen stays over the world at sea level, as the top-down camera keeps its window
 func (c *orthoCamera) place() {
 	c.aim()
-	minX, maxX, minY, maxY := c.under(c.Unproject)
+	w, h := c.Viewport()
+	minX, maxX, minY, maxY := c.under(w, h, c.Unproject)
 	dx, dy := fitSpan(minX, maxX, float32(c.world.X)), fitSpan(minY, maxY, float32(c.world.Y))
 	if dx != 0 || dy != 0 {
 		c.foot[0] += float64(dx)
@@ -320,7 +334,7 @@ func fitSpan(lo, hi, size float32) float32 {
 	return 0
 }
 
-func (c *orthoCamera) Zoom() float32 { return c.scale }
+func (c *orthoCamera) Zoom() float32 { return c.scale * c.res }
 
 func (c *orthoCamera) ZoomIn(factor float32, anchorX, anchorY float32) {
 	var z float32
@@ -331,7 +345,7 @@ func (c *orthoCamera) ZoomIn(factor float32, anchorX, anchorY float32) {
 	c.scale = c.limited(c.scale * factor)
 	c.aim()
 	ax, ay := c.Project(anchorX, anchorY, z)
-	c.slide(float64(ax-bx), float64(ay-by))
+	c.Pan(ax-bx, ay-by)
 }
 
 func (c *orthoCamera) ZoomOut(factor float32, anchorX, anchorY float32) {

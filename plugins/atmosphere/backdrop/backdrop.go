@@ -10,7 +10,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -68,7 +68,7 @@ var (
 // any other camera the viewport filled in the sky's colour wherever the ground does not cover it.
 type Renderer struct {
 	space world.SpaceCfg
-	sun   func() sky.Sun
+	sun   func() light.Distant
 	air   func() air.Weather
 	// nil: the sun where the light comes from
 	heavens func() celestial.Heavens
@@ -114,7 +114,7 @@ type skyPlan struct {
 }
 
 // New is the Earth's sky behind a world of space, under sun and the weather air give.
-func New(space world.SpaceCfg, sun func() sky.Sun, weather func() air.Weather) *Renderer {
+func New(space world.SpaceCfg, sun func() light.Distant, weather func() air.Weather) *Renderer {
 	b := &Renderer{space: space, sun: sun, air: weather, uniforms: map[string][]float32{}}
 	b.opts.Uniforms = map[string]any{}
 	b.Dress(Earth())

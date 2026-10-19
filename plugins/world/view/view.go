@@ -3,6 +3,7 @@ package view
 import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/uid"
 )
 
@@ -18,6 +19,14 @@ type View struct {
 
 	bounds func() geom.AABB
 	add    func(uid.UID64) // In.Add, bound once
+
+	// a camera seeing a world cut into sectors: each sector's level, how far it sees and from where
+	cam     camera.Camera
+	sectors Sectors
+	levels  []Level
+	detail  camera.Detail
+	from    geom.Vec
+	sighted bool
 }
 
 // New is a View over whatever bounds says.
@@ -31,6 +40,10 @@ func New(bounds func() geom.AABB) *View {
 func (v *View) Contains(id uid.UID64) bool { return !v.Culled || v.In.Has(id) }
 
 func (v *View) refresh(space *aabbworld.Space, worldArea float64) {
+	if v.sectors != nil {
+		v.see(space)
+		return
+	}
 	b := v.bounds()
 	v.Bounds = b
 	v.In.Clear()

@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/bridges"
+	"github.com/kjkrol/gram/plugins/minimap"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -22,7 +23,8 @@ func (bridge) Define(p *bridges.Plugin) {
 }
 
 func (bridge) Look(a *world.Atlas, p *bridges.Plugin) {
-	a.Add(p.Types().Named(BridgeKind).Deck(), CellSize, deck).Lying().Edges(railing)
+	a.Add(p.Types().Named(BridgeKind).Deck(), CellSize, deck).Lying().Edges(railing).
+		Styled(minimap.Mark{Color: deckColor, Size: 4})
 }
 
 // authored running east

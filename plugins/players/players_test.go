@@ -498,8 +498,8 @@ func TestPlugin_Contract(t *testing.T) {
 	if r.p.EventHandler() == nil {
 		t.Error("EventHandler is nil — players translate input")
 	}
-	if r.p.Serializable() != nil {
-		t.Error("players save nothing of their own")
+	if r.p.Serializable() == nil {
+		t.Error("players save their Settings")
 	}
 }
 
@@ -612,5 +612,44 @@ func TestKeyReleased_FiresWithHowLongTheKeyWasHeldAndNotAfterAChord(t *testing.T
 	key(control.KeyShift, control.ActionRelease, false)
 	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != -1 {
 		t.Errorf("Shift+X and Shift let go: %+v, want the chord's order alone", got)
+	}
+}
+
+func TestCamera_AtAResolutionTheCursorReachesTheBindingsInTheCamerasPixels(t *testing.T) {
+	r := newRig(t)
+	r.cam.(camera.Resolved).SetResolution(0.5)
+	r.cam.SetViewport(800, 600)
+	r.wire.Over(geom.NewAABBAt(geom.NewVec(0, 0), 800, 600), render.NewFeed(r.cam, nil))
+	var caught []control.Context
+	catch := func(c control.Context) (order, bool) {
+		caught = append(caught, c)
+		return order{1}, true
+	}
+	r.bind(control.Build(control.CursorAtEdge{}, "edge", catch),
+		control.Build(control.Drag{Button: control.MouseButtonLeft}, "drag", catch))
+	ecs := r.start()
+	r.move(&control.InputEvents{MousePos: geom.NewVec(790, 300)}, ecs)
+	if len(caught) != 1 {
+		t.Fatalf("the cursor 10 shown pixels from the right edge fired %d bindings, want the edge",
+			len(caught))
+	}
+	c := caught[0]
+	if c.Cursor != geom.NewVec(395, 150) || c.Screen != geom.NewVec(400, 300) ||
+		c.Resolution != 0.5 {
+		t.Errorf("the edge's context has the cursor at %v of a screen %v at %v, want (395, 150) "+
+			"of (400, 300) at 0.5", c.Cursor, c.Screen, c.Resolution)
+	}
+	caught = nil
+	ev := &control.InputEvents{MousePos: geom.NewVec(400, 300)}
+	left := control.MouseButtonLeft
+	ev.ClickQueue = []control.ClickEvent{
+		{Button: left, Action: control.ActionPress, Pos: geom.NewVec(100, 200)},
+		{Button: left, Action: control.ActionRelease, Pos: geom.NewVec(400, 300)},
+	}
+	r.move(ev, ecs)
+	if len(caught) != 1 || caught[0].Start != geom.NewVec(50, 100) ||
+		caught[0].Cursor != geom.NewVec(200, 150) {
+		t.Errorf("a drag from (100, 200) to (400, 300) reached the bindings as %+v, want from "+
+			"(50, 100) to (200, 150)", caught)
 	}
 }

@@ -425,7 +425,7 @@ func isoCamera(width, height uint32, screenW, screenH float32) camera.Camera {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
-	p := topography.NewPlugin(w, b, topography.Config{})
+	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	cam := cameras.NewPlugin(w, cameras.Config{
 		Turn:       true,
 		Tilt:       true,
@@ -538,5 +538,17 @@ func TestRenderer_DrapesTheRingTheVerticalFieldCoversOnTheGround(t *testing.T) {
 	eye.Tilt = math.Pi / 4
 	if pts := r.draped(500, 500, 0, math.Pi/8, &sight, &out, 10, eye); len(pts) != 0 {
 		t.Errorf("looking up the ring has %d points, want none: the field is all sky", len(pts))
+	}
+}
+
+func TestRenderer_TheBoardsCoverKeepsACount(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 256, Height: 256},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 100},
+		Heights:  true,
+	})
+	b := board.NewPlugin(grid.DefaultGrids{}.Square(8, 8, 32), &cell.MultipleOccupancy{}, w)
+	if versionOf(b.Cover()) == 0 {
+		t.Error("the board's cover keeps no count: the views copy it anew every frame")
 	}
 }

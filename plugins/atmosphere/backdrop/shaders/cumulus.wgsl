@@ -57,7 +57,7 @@ fn heapsOf(px: vec2<f32>, d: vec3<f32>, dither: f32, low: bool) -> vec4<f32> {
     }
     let len = length(d);
     let sky = U.Ambience * cloudsSkyLit;
-    let sun = U.SunColor * U.SunStrength * cloudsSunLit;
+    let sun = U.LightColor * U.LightStrength * cloudsSunLit;
     if !low {
         // a thin sheet where the line meets it, at its own height
         let t = cloudHighCross(U.EyeAt, d, enter, leave);
@@ -89,7 +89,7 @@ fn heapsOf(px: vec2<f32>, d: vec3<f32>, dither: f32, low: bool) -> vec4<f32> {
     if m.x <= 0.0 {
         return vec4<f32>(0.0);
     }
-    let toward = max(dot(d / max(len, 1e-6), sunWay()), 0.0);
+    let toward = max(dot(d / max(len, 1e-6), lightWay()), 0.0);
     let glow = toward * toward * toward * toward * toward * toward;
     let step = (ray.leave - ray.enter) / f32(heapsSteps);
     var seen = vec4<f32>(0.0);
@@ -106,7 +106,7 @@ fn heapsOf(px: vec2<f32>, d: vec3<f32>, dither: f32, low: bool) -> vec4<f32> {
         // as much of the sun as the heap over the point lets through: white at the top, grey at
         // the flat base
         let rgb = sky * mix(heapsUnder, 1.0, heap.y) + sun * mix(heapsBase, 1.0, heap.y) +
-            U.SunColor * U.SunStrength * glow * (1.0 - heap.x) * heapsRim;
+            U.LightColor * U.LightStrength * glow * (1.0 - heap.x) * heapsRim;
         seen += (1.0 - seen.a) * vec4<f32>(rgb * a, a);
         if seen.a > 0.97 {
             break;

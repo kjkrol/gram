@@ -92,3 +92,28 @@ func TestFeed_DrawsItsPictureThroughItsCameraAtItsSize(t *testing.T) {
 		t.Fatalf("resized feed drew %v, want 32x24", img.Bounds())
 	}
 }
+
+func TestFeed_DrawsAtItsCamerasResolutionAndSpeaksShownPixels(t *testing.T) {
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	cam.(camera.Resolved).SetResolution(0.5)
+	picture := &recording{}
+	feed := render.NewFeed(cam, picture)
+	feed.Resize(400, 300)
+	img := feed.Draw()
+	if img == nil || img.Bounds().Dx() != 200 || img.Bounds().Dy() != 150 || picture.w != 200 ||
+		picture.h != 150 {
+		t.Fatalf("at 0.5 a feed shown at 400x300 drew %v through a picture %dx%d, want 200x150",
+			img.Bounds(), picture.w, picture.h)
+	}
+	cam.ZoomIn(2, 0, 0)
+	cam.CenterOn(500, 500, 0)
+	x, y, ok := feed.ToWorld(120, 80)
+	if cx, cy := cam.FromScreen(60, 40); !ok || cx != x || cy != y {
+		t.Fatalf("under the shown pixel (120, 80) lies (%v, %v), want (%v, %v): the camera's (60, 40)",
+			x, y, cx, cy)
+	}
+	px, py, _, visible := feed.ToPixels(x, y, 0)
+	if !visible || math.Abs(float64(px-120)) > 1e-3 || math.Abs(float64(py-80)) > 1e-3 {
+		t.Fatalf("back to (%v, %v) visible %v, want (120, 80) visible", px, py, visible)
+	}
+}

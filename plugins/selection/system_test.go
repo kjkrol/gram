@@ -394,7 +394,7 @@ func TestSelection_PassesByWhatIsNotSelectable(t *testing.T) {
 
 type standing struct{}
 
-func (standing) Sprite(*render.Frame, camera.Camera, plane.AABB, world.Z, render.AtlasSource, render.Appearance, render.Light) {
+func (standing) Sprite(*render.Frame, camera.Camera, plane.AABB, world.Z, render.AtlasSource, render.Appearance, render.Illumination) {
 }
 
 func (standing) Drawn(cam camera.Camera, box geom.AABB, z world.Z) render.Corners {

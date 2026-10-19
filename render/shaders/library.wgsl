@@ -50,6 +50,33 @@ fn groundHeightAt(p: vec2<f32>) -> f32 {
     return mix(top, bottom, f.y);
 }
 
+// groundDrawnAt is the ground's height at p as the ground is drawn: two flat triangles a cell,
+// split along the diagonal whose corners stand nearer in height; groundNone in a frame without
+// heights.
+fn groundDrawnAt(p: vec2<f32>) -> f32 {
+    if U.GroundLattice.w < 0.5 {
+        return groundNone;
+    }
+    let g = clamp(p / U.GroundLattice.z, vec2<f32>(0.0), U.GroundLattice.xy - 1.0001);
+    let i = floor(g);
+    return groundSplit(g - i, groundCorner(i), groundCorner(i + vec2<f32>(1.0, 0.0)), groundCorner(i + vec2<f32>(0.0, 1.0)), groundCorner(i + 1.0));
+}
+
+// groundSplit is the height at f, 0 to 1 across and down a cell whose corners stand at h0 to h3,
+// as the cell is drawn: two flat triangles split along the diagonal whose corners stand nearer.
+fn groundSplit(f: vec2<f32>, h0: f32, h1: f32, h2: f32, h3: f32) -> f32 {
+    if abs(h0 - h3) < abs(h1 - h2) {
+        if f.x >= f.y {
+            return h0 + f.x * (h1 - h0) + f.y * (h3 - h1);
+        }
+        return h0 + f.y * (h2 - h0) + f.x * (h3 - h2);
+    }
+    if f.x + f.y <= 1.0 {
+        return h0 + f.x * (h1 - h0) + f.y * (h2 - h0);
+    }
+    return h3 + (1.0 - f.x) * (h2 - h3) + (1.0 - f.y) * (h1 - h3);
+}
+
 // groundHighest is the highest the frame's GroundHeights reach; groundNone without them.
 fn groundHighest() -> f32 {
     if U.GroundLattice.w < 0.5 {
@@ -64,6 +91,17 @@ fn groundCorner(i: vec2<f32>) -> f32 {
 }
 
 const groundNone: f32 = -3.0e38;
+
+// The shade a drawn thing takes, bits of its Taking (render.Taking): the relief's shadow, the
+// blocks', the clouds' and the lamps' light; takes says whether t, the bits as a float, holds bit.
+const takesRelief: u32 = 1u;
+const takesBlocks: u32 = 2u;
+const takesClouds: u32 = 4u;
+const takesLamps: u32 = 8u;
+
+fn takes(t: f32, bit: u32) -> bool {
+    return (u32(t + 0.5) & bit) != 0u;
+}
 
 // groundShadeOf is the frame's GroundShade at the world point p (render.GroundShade), each band
 // faded from the shade before as far as it has come: the sun everywhere, (1, 0, 1, 1), in a frame

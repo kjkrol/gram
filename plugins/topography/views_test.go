@@ -25,7 +25,7 @@ func TestPlugin_TheStickLeansFromAboveToIsometric(t *testing.T) {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(64, 64, 32), &cell.MultipleOccupancy{}, w)
-	p := topography.NewPlugin(w, b, topography.Config{})
+	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	cam := cameras.NewPlugin(w, cameras.Config{
 		Turn:       true,
 		Tilt:       true,
@@ -82,13 +82,13 @@ func TestPlugin_RefusesAWrappingWorld(t *testing.T) {
 	}()
 	w := topotest.NewWorld(aabbworld.Torus)
 	b, _ := topotest.LevelBoard(w)
-	topography.NewPlugin(w, b, topography.Config{})
+	topography.NewPlugin(w, b, nil, topography.Config{})
 }
 
 func TestViews_EveryCameraBeginsAsItsStartSays(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{})
+	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	cams := cameras.NewPlugin(w, cameras.Config{Turn: true, Tilt: true, Cell: 32, Cage: p})
 	above := cams.New(cameras.FromAbove, camera.Config{})
 	iso := cams.New(cameras.Isometrically, camera.Config{})

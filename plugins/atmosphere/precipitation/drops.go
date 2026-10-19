@@ -8,7 +8,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -41,7 +41,7 @@ var dropShader = render.NewMeshShaderWith("drops", render.Files(shaders, "shader
 // as it would be: a dot from above, a short line from the side, nothing too far off to make out;
 // a render.Direct among what is seen through.
 type Drops struct {
-	sun func() sky.Sun
+	sun func() light.Distant
 	air func() air.Weather
 
 	opts     render.DrawMeshOptions
@@ -49,7 +49,7 @@ type Drops struct {
 }
 
 // NewDrops is what falls out of the weather air gives, drop by drop, under sun.
-func NewDrops(sun func() sky.Sun, weather func() air.Weather) *Drops {
+func NewDrops(sun func() light.Distant, weather func() air.Weather) *Drops {
 	d := &Drops{sun: sun, air: weather, uniforms: map[string][]float32{}}
 	d.opts.Uniforms = map[string]any{}
 	return d

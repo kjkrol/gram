@@ -417,6 +417,8 @@ func TestCamera_PersistedRoundTrip_PreservesViewportAndZoom(t *testing.T) {
 	b := c.Bounds()
 	cx, cy := float32(b.TopLeft.X+b.BottomRight.X)/2, float32(b.TopLeft.Y+b.BottomRight.Y)/2
 	c.ZoomIn(2, cx, cy)
+	c.(*basicCamera).SetDetail(contract.Detail{Sight: 500})
+	c.(*basicCamera).See(2)
 	wantBounds := c.Bounds()
 	wantZoom := c.Zoom()
 
@@ -442,6 +444,20 @@ func TestCamera_PersistedRoundTrip_PreservesViewportAndZoom(t *testing.T) {
 	}
 	if fresh.Zoom() != wantZoom {
 		t.Errorf("Zoom() after Restore = %v, want %v", fresh.Zoom(), wantZoom)
+	}
+	if got := fresh.(*basicCamera).Detail().Sight; got != 1000 {
+		t.Errorf("sight after Restore = %v, want the 1000 it was saved with", got)
+	}
+}
+
+func TestCamera_RefusesASaveOfTheFormBeforeAtItsFirstValue(t *testing.T) {
+	var buf bytes.Buffer
+	// a camera from above saved its window first, before it had a form
+	if err := gob.NewEncoder(&buf).Encode(NewFromSpace(1000, 1000, 0).Bounds()); err != nil {
+		t.Fatal(err)
+	}
+	if err := gob.NewDecoder(&buf).Decode(NewFromSpace(1000, 1000, 0).Persisted()[0]); err == nil {
+		t.Error("a save before the form was taken")
 	}
 }
 

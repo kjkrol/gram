@@ -4,23 +4,14 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/aloft"
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
 	"github.com/kjkrol/gram/plugins/atmosphere/precipitation"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
-	"github.com/kjkrol/gram/plugins/board"
-	"github.com/kjkrol/gram/plugins/board/cell"
-	"github.com/kjkrol/gram/plugins/board/grid"
-	"github.com/kjkrol/gram/plugins/board/look"
-	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -31,55 +22,6 @@ type litSheet struct{}
 func (litSheet) Atlas() *render.Image                            { return nil }
 func (litSheet) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 8, 8 }
 func (litSheet) White() (u, v float32)                           { return 9, 9 }
-
-func TestAtmosphere_LightsAFlatBoardAndItsSpritesByTheHour(t *testing.T) {
-	w := world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 128, Height: 128},
-		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
-		Heights:  true,
-	})
-	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
-	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	b.SetAtlas(litSheet{})
-	even := func() render.Light {
-		l, ok := b.Map().Dressing().(look.EvenLit).EvenLight()
-		if !ok {
-			t.Fatal("a flat board's dressing does not light its tiles alike")
-		}
-		return l
-	}
-	tile := func() render.Light { return b.Map().Dressing().Light(nil)[0] }
-	sprite := func() render.Vertex {
-		var f render.Frame
-		f.Reset(cam)
-		w.Look().Sprite(&f, cam, plane.NewAABB(geom.NewVec(40, 40), 10, 10), world.Z{}, litSheet{}, render.Appearance{}, render.Light{1, 1, 1})
-		var v render.Vertex
-		f.Each(func(_ render.At, verts []render.Vertex) { v = verts[0] })
-		return v
-	}
-	if l := tile(); l != (render.Light{1, 1, 1}) {
-		t.Fatalf("without an atmosphere a tile is lit %v, want as it is", l)
-	}
-	if l := even(); l != (render.Light{1, 1, 1}) {
-		t.Fatalf("without an atmosphere the tiles' even light is %v, want white", l)
-	}
-	a := NewPlugin(w, Config{Sky: sky.Config{Frozen: true, Hour: 29 * time.Minute}})
-	b.WithAtmosphere(a)
-	if sun := a.Heavens().Sun; sun[2] > 0 {
-		t.Fatalf("the sun at half past midnight stands at %v, want under the horizon", sun)
-	}
-	if l := tile(); l[0] >= 0.5 || l[2] <= l[0] {
-		t.Errorf("under the midnight sky a tile is lit %v, want it dark and blue", l)
-	}
-	if l := even(); l != tile() {
-		t.Errorf("under the midnight sky the tiles' even light is %v, want the tile's %v", l, tile())
-	}
-	if v := sprite(); v.ColorR >= 0.5 || v.ColorB <= v.ColorR {
-		t.Errorf("under the midnight sky a sprite is lit %v %v %v, want it dark and blue", v.ColorR, v.ColorG, v.ColorB)
-	}
-}
 
 type drawsCtx struct {
 	plugin.Installer
@@ -98,7 +40,7 @@ func TestPlugin_DrawsTheSkyTheCloudsAndWhatFalls(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
 		Heights:  true,
 	})
-	a := NewPlugin(w, Config{})
+	a := NewPlugin(w, nil, Config{})
 	ctx := &drawsCtx{}
 	if err := a.Install(ctx); err != nil {
 		t.Fatal(err)
@@ -136,7 +78,7 @@ func TestPlugin_DrawsTheSkyTheCloudsAndWhatFalls(t *testing.T) {
 			t.Errorf("the clouds look %v, seen from above %v, heaped on the sky %v; want %+v", l,
 				above, bodies, want)
 		}
-		a.clouds.Put(command.Nobody, Clouds{})
+		a.clouds.Put(command.Nobody, Clouds{Look: (a.ShownClouds() + 1) % (ShadowsAlone + 1)})
 		a.carryOut()
 	}
 }
@@ -148,7 +90,7 @@ func TestPlugin_TheSkyHandsTheFrameTheSunAndTheWeatherOfItsDaylight(t *testing.T
 		Heights:  true,
 	})
 	red := render.Light{1, 0, 0}
-	a := NewPlugin(w, Config{Sky: sky.Config{
+	a := NewPlugin(w, nil, Config{Sky: sky.Config{
 		Daylight: []sky.Daylight{{Height: 0, Sky: red, Sun: red, Ambient: 0.5}},
 	}})
 	ctx := &drawsCtx{}
@@ -158,13 +100,13 @@ func TestPlugin_TheSkyHandsTheFrameTheSunAndTheWeatherOfItsDaylight(t *testing.T
 	c := render.NewComposer(ctx.drawn...)
 	c.DrawWorld(nil, cameratest.NewFromSpace(128, 128, 0))
 	got := c.Uniforms()
-	for _, name := range []string{"Sun", "SunStrength", "SunColor", "SkyColor", "Ambience", "Wind",
+	for _, name := range []string{"LightWay", "LightStrength", "LightColor", "AmbientColor", "Ambience", "Wind",
 		"Drift", "Cover", "Billow", "Fog", "SkyOverhead"} {
 		if _, ok := got[name]; !ok {
 			t.Errorf("the atmosphere alone hands the frame no %s", name)
 		}
 	}
-	if sky, fog := got["SkyColor"], got["Fog"]; sky[0] != 1 || sky[1] != 0 || fog[0] <= fog[2] {
+	if sky, fog := got["AmbientColor"], got["Fog"]; sky[0] != 1 || sky[1] != 0 || fog[0] <= fog[2] {
 		t.Errorf("under a red daylight the frame's sky is %v and its horizon %v, want red", sky,
 			fog)
 	}
@@ -176,7 +118,7 @@ func TestPlugin_ReportsTheMoonOnItsOwnHowTheCloudsLookAndWhoseShadowsFall(t *tes
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
 		Heights:  true,
 	})
-	a := NewPlugin(w, Config{})
+	a := NewPlugin(w, nil, Config{})
 	a.ShowClouds(LowBodies)
 	got := map[string]string{}
 	reporters{a.calendar.Reporter(), a.Reporter().(reporters)[3]}.Report(
@@ -185,14 +127,15 @@ func TestPlugin_ReportsTheMoonOnItsOwnHowTheCloudsLookAndWhoseShadowsFall(t *tes
 		t.Errorf("the season is %q and the moon %q, want the moon on a line of its own",
 			got["Season"], got["Moon"])
 	}
-	if got["Clouds"] != "the low as bodies" || got["Shadows"] != "both layers'" {
+	if got["Clouds"] != "the low as bodies" ||
+		got["Shadows"] != "both layers' on the ground and the figures" {
 		t.Errorf("the clouds look %q, their shadows %q; want the low as bodies, both layers' "+
 			"shadows as the game starts", got["Clouds"], got["Shadows"])
 	}
-	a.shades.Put(command.Nobody, HighShade{})
+	a.shades.Put(command.Nobody, HighShade{On: !a.shadows.High})
 	a.carryOut()
 	a.Reporter().(reporters)[3].Report(func(label, value string) { got[label] = value })
-	if a.Air().HighShade || got["Shadows"] != "the low clouds'" {
+	if a.Air().HighShade || got["Shadows"] != "the low clouds' on the ground and the figures" {
 		t.Errorf("after HighShade the weather's HighShade is %v, the shadows %q; want the low "+
 			"clouds' alone", a.Air().HighShade, got["Shadows"])
 	}

@@ -26,8 +26,10 @@
 // is the wire: the active scene tells the player before each pass of input where its picture lies
 // ([Player.Area]) and what it shows, so the mouse over it is the player's and every command it
 // gives carries that picture's camera (control.Context.Camera). A scene gives a player one view:
-// two of its pictures in one pass panic. [Plugin.IssueAs] is how the scene's buttons and keys give
-// their commands as the player. Players draw nothing.
+// two of its pictures in one pass panic. Where an element lies over the picture under the cursor
+// (a minimap), the cursor's place does nothing there: no scrolling at an edge, no turning in a
+// corner. [Plugin.IssueAs] is how the scene's buttons and keys give their commands as the player.
+// Players draw nothing.
 //
 // # Players and bindings
 //
@@ -45,25 +47,32 @@
 // [Plugin.EventHandler] is the layer between the device and the game: it matches each pass's
 // control.InputEvents against every local player's bindings and hands what they build to
 // [Plugin.Issue]. Keys reach every local player, the mouse the one whose picture it is over, in
-// that picture's pixels, so local players split the screen as the scene lays their pictures out.
+// the pixels of that picture's camera, so local players split the screen as the scene lays their
+// pictures out.
 // A control.KeyHeld fires from [Plugin.RunPlan] instead, once a tick while its key is down; call
 // RunPlan last in Update. Nothing is dropped: a command given after its handler's pass waits for
 // the next frame's.
 //
-// # Scene keys and the shortcuts
+// # Scene keys, the shortcuts and the settings
 //
 // A scene showing the world hands its input to [Plugin.Handle] and nothing else. [ShowShortcuts]
 // (K) opens [Shortcuts], the players' own scene listing every key of the game, over the paused
 // game; every Stage that uses the players has it in its stack ([Plugin.Scenes]), and Esc or K
-// closes it. Keys that are no command to a plugin are the game's own: [SceneKeys], given to
+// closes it. [ShowSettings] (F10) opens [SettingsScene], the screen of every setting the
+// plugins carried announce (plugin.Tunable): a control each, a checkbox, a dropdown or a
+// slider, grouped by plugin, giving the plugin's command as it is used; Esc or F10 closes it.
+// While it is up the game stands in the tactical pause, unless the players' own setting says it
+// runs on ([Settings], [KeepRunning]); the players' settings are saved with the game, as every
+// plugin's. Keys that are no command to a plugin are the game's own: [SceneKeys], given to
 // [Plugin.OwnKeys], run by Handle and listed under "Game" with what the Stage binds in its
-// Controls section. [GameBindings] are K, ~ (the telemetry panel, telemetry.Panel,
+// Controls section. [Plugin.GameBindings] are K, F10, ~ (the telemetry panel, telemetry.Panel,
 // carried here: it needs the scene's Composition), F5 game.Save, F9 game.Load and Shift+Esc
 // game.Quit, the same in every game. [Written] is a trigger as the list writes it.
 //
 // # Vocabulary
 //
-// Commands: [Give] (an entity's own: whose it is), [ShowShortcuts] (a player's, K); the
-// telemetry panel's telemetry.Panel (~) is carried here too. The owners' family is
-// players/owner's.
+// Commands: [Give] (an entity's own: whose it is), [ShowShortcuts] (a player's, K),
+// [ShowSettings] (F10), [KeepRunning]; the telemetry panel's telemetry.Panel (~) is carried here
+// too. Settings ([Settings], in [Resources]): the game running behind the settings screen. The
+// owners' family is players/owner's.
 package players

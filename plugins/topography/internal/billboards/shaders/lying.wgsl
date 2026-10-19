@@ -1,10 +1,10 @@
 // What lies on the ground in relief (topography's sprites): an instance an entity — its corners in
 // the world at their heights (top-left, top-right, bottom-left, bottom-right), each with the ground
 // under it, its sprite's corners on the atlas, the first image, the light it is drawn in with how
-// hazed it is, how much of the light is the sun's and how far into the relief's shadow it fades
-// into it — two triangles
-// split along the diagonal whose corners stand nearer, as the ground's cells are, at the depths of
-// its points nudged towards the eye: the ground it lies on passes behind it.
+// hazed it is, how much of the light is the sun's, how far into the relief's shadow it fades into
+// it and the shade it takes (render.Taking) — two triangles split along the diagonal whose corners
+// stand nearer, as the ground's cells are, at the depths of its points nudged towards the eye:
+// the ground it lies on passes behind it.
 
 struct Lain {
     @builtin(position) clip: vec4<f32>,
@@ -58,9 +58,12 @@ fn fs_main(l: Lain) -> @location(0) vec4<f32> {
         discard;
     }
     // the relief's shadow and the clouds': the blocks' would shade what casts them
-    let reached = groundShadeAt(l.world.xy, l.over, l.shade.y);
+    var reached = 1.0;
+    if takes(l.shade.z, takesRelief) {
+        reached = groundShadeAt(l.world.xy, l.over, l.shade.y);
+    }
     var clouds = 1.0;
-    if U.Cover > 0.0 {
+    if U.Cover > 0.0 && U.CloudsShadeFigures > 0.5 && takes(l.shade.z, takesClouds) {
         clouds = 1.0 - cloudShade(cloudsShadeAt(l.world, 1.0));
     }
     let shade = (1.0 - l.shade.x * (1.0 - reached)) * clouds;

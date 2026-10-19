@@ -41,7 +41,7 @@ func TestZones_TheCommandSwitchesTheZonesDrawn(t *testing.T) {
 		t.Errorf("hidden, the zones drew %d pieces", n)
 	}
 	for i, want := range []bool{true, false} {
-		if !w.Carrier().Put(command.Nobody, Zones{}) {
+		if !w.Carrier().Put(command.Nobody, Zones{Shown: want}) {
 			t.Fatal("the world carries no cameras.Zones")
 		}
 		p.switchZones()

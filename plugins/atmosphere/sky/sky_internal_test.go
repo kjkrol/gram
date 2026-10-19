@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -16,7 +17,7 @@ func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
 var defaults = Config{latitude: Latitude}
 
 // the year's second day, the middle of spring
-func firstDay(t float32) Sun { return defaults.SunAt((1+t)/8, t) }
+func firstDay(t float32) light.Distant { return defaults.SunAt((1+t)/8, t) }
 
 func TestSunAt_RisesInTheEastStandsOverTheSouthAndSetsInTheWest(t *testing.T) {
 	south := Config{NoonWay: celestial.South, latitude: Latitude}
@@ -25,14 +26,14 @@ func TestSunAt_RisesInTheEastStandsOverTheSouthAndSetsInTheWest(t *testing.T) {
 	}
 	if s := south.SunAt(0, 0.5); !near(s.Dir[1], 0.5) ||
 		!near(s.Dir[2], float32(math.Sin(math.Pi/3))) || s.Strength != sunStrength ||
-		s.Sky != earthDaylight[3].Sky || s.Color != earthDaylight[3].Sun {
+		s.AmbientColor != earthDaylight[3].Sky || s.Color != earthDaylight[3].Sun {
 		t.Errorf("at noon the sun is %+v, want it over the south 60° up at full strength", s)
 	}
 	if s := south.SunAt(0, 0.75); s.Dir[0] > -0.99 {
 		t.Errorf("at 18 the sun is %+v, want it on the western horizon", s)
 	}
 	if s := south.SunAt(0, 0); s.Dir[2] >= 0 || s.Strength != 0 ||
-		s.Sky != earthDaylight[0].Sky || s.Ambient != earthDaylight[0].Ambient {
+		s.AmbientColor != earthDaylight[0].Sky || s.Ambient != earthDaylight[0].Ambient {
 		t.Errorf("at midnight the sun is %+v, want it below the horizon, the night's ambient alone", s)
 	}
 	if morning, noonSun := south.SunAt(0, 0.3), south.SunAt(0, 0.5); morning.Dir[2] >= noonSun.Dir[2] {
@@ -172,11 +173,11 @@ func TestReport_SaysWhetherTheLightIsFrozen(t *testing.T) {
 
 func TestSunAt_ColoursTheSkyAndItsLightThroughTheDay(t *testing.T) {
 	noon, dawn, night := defaults.SunAt(0, 0.5), defaults.SunAt(0, 0.25), defaults.SunAt(0, 0)
-	if noon.Sky[2] <= noon.Sky[0] || noon.Color[0] < 0.95 || noon.Color[2] < 0.9 {
-		t.Errorf("at noon the sky is %v and the sun %v, want a blue sky and a nearly white sun", noon.Sky, noon.Color)
+	if noon.AmbientColor[2] <= noon.AmbientColor[0] || noon.Color[0] < 0.95 || noon.Color[2] < 0.9 {
+		t.Errorf("at noon the sky is %v and the sun %v, want a blue sky and a nearly white sun", noon.AmbientColor, noon.Color)
 	}
-	if dawn.Sky[0] <= dawn.Sky[2] || dawn.Color[2] >= dawn.Color[0]/2 {
-		t.Errorf("at 6 the sky is %v and the sun %v, want both warm, the sun orange", dawn.Sky, dawn.Color)
+	if dawn.AmbientColor[0] <= dawn.AmbientColor[2] || dawn.Color[2] >= dawn.Color[0]/2 {
+		t.Errorf("at 6 the sky is %v and the sun %v, want both warm, the sun orange", dawn.AmbientColor, dawn.Color)
 	}
 	if light := night.Light(0, 0, 1); light[2] <= light[0] || light[2] > 0.2 {
 		t.Errorf("at midnight the ground is lit %v, want a dim blue", light)
@@ -201,7 +202,7 @@ func TestDaylight_AGamesOwnColoursTheSkyItsLightAndTheSun(t *testing.T) {
 	red := render.Light{1, 0, 0}
 	mars := earth
 	mars.Daylight = []Daylight{{Height: 0, Sky: red, Sun: red, Ambient: 0.5}}
-	if sun := mars.SunAt(0, 0.5); sun.Sky != red || sun.Color != red || sun.Ambient != 0.5 {
+	if sun := mars.SunAt(0, 0.5); sun.AmbientColor != red || sun.Color != red || sun.Ambient != 0.5 {
 		t.Errorf("under a red daylight the sun is %+v, want its sky and light red", sun)
 	}
 	if c := skyOf(t, mars, calendar.Config{}).sky.Heavens().SunColor; c != red {
@@ -256,7 +257,7 @@ func TestLightAt_TheMoonLightsTheNightAsFullAsItIs(t *testing.T) {
 	if new.Strength != 0 {
 		t.Errorf("at midnight under a new moon the light has strength %v, want none", new.Strength)
 	}
-	if full.Ambient != c.SunAt(0, 0).Ambient || full.Sky != c.SunAt(0, 0).Sky {
+	if full.Ambient != c.SunAt(0, 0).Ambient || full.AmbientColor != c.SunAt(0, 0).AmbientColor {
 		t.Error("under the moon the night sky and its light changed, want the night's")
 	}
 }

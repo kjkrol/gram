@@ -8,26 +8,10 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/internal/topotest"
 )
 
-func TestPlugin_HMakesTheShadowsCoarse(t *testing.T) {
-	w := topotest.NewWorld(0)
-	b, _ := topotest.LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{})
-	bound := false
-	for _, bd := range p.DefaultBindings() {
-		bound = bound || players.Written(bd.Trigger) == "H"
-	}
-	if !bound {
-		t.Error("H is bound to nothing")
-	}
-	if p.ShadowsCoarse() || !p.WithCoarseShadows(true).ShadowsCoarse() || p.WithCoarseShadows(false).ShadowsCoarse() {
-		t.Error("the shadows are not fine at first, coarse when asked and fine again")
-	}
-}
-
 func TestPlugin_CtrlFHazesTheGroundFromAbove(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{})
+	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	bound := ""
 	for _, bd := range p.DefaultBindings() {
 		if written := players.Written(bd.Trigger); written == "Ctrl+F" {

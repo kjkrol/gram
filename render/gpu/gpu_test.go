@@ -1,6 +1,7 @@
 package gpu
 
 import (
+	"bytes"
 	"os"
 	"strings"
 	"testing"
@@ -622,5 +623,68 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> {
 	if n := len(cur.frames); n != groups+1 {
 		t.Errorf("two sets of the frame's images drawn again made %d groups, want the one new",
 			n-groups)
+	}
+}
+
+// the pass calls themselves allocate in gogpu's Vulkan HAL (every vkCmd* boxes its arguments
+// for the FFI), so what is measured is the device's own work a frame: the pass's descriptor,
+// each draw's vertices, indices, block and offsets
+func TestDevice_ARedrawnFrameAllocatesNothingOfItsOwn(t *testing.T) {
+	needGPU(t)
+	dst := NewTexture(64, 64)
+	src := NewTexture(4, 4)
+	src.WritePixels(0, 0, 4, 4, make([]byte, 64))
+	dp := NewDepth()
+	verts := []Vertex{
+		{DstX: 0, DstY: 0}, {DstX: 16, DstY: 0}, {DstX: 0, DstY: 16}, {DstX: 16, DstY: 16},
+	}
+	indices := []uint16{0, 1, 2, 1, 2, 3}
+	dw := &Draw{Target: Image{Texture: dst}, Program: blitProgram, Images: [4]Image{{Texture: src}},
+		Uniforms: make([]byte, blitLayout.Size), Depth: dp, Test: Written}
+	for range 8 {
+		Triangles(dw, verts, indices)
+	}
+	Submit()
+	d := cur
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	target := dst.gpuTarget(d)
+	frame := func() {
+		d.passDescriptor(target, dp, false)
+		for range 8 {
+			d.gather(verts, indices)
+			d.offsets(d.drawBlock(target, dw.Images, dw.Uniforms, dw.Place, dw.Tint, dw.Sight))
+		}
+		d.verts, d.indices, d.draws = d.verts[:0], d.indices[:0], d.draws[:0]
+		d.uniforms, d.offs = d.uniforms[:0], d.offs[:0]
+	}
+	if n := testing.AllocsPerRun(10, frame); n != 0 {
+		t.Errorf("a frame redrawn allocates %v times of its own, want none", n)
+	}
+}
+
+func TestPresented_IsKeptAsItsOwnCopy(t *testing.T) {
+	needGPU(t)
+	d := cur
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.presentBuffers(); err != nil {
+		t.Fatal(err)
+	}
+	const k = 1
+	defer func() { d.presented[k] = nil }()
+	data := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	if written, err := d.keepPresented(k, data); err != nil || !written {
+		t.Fatalf("the quad's first write: written %v, %v", written, err)
+	}
+	data[0] = 9
+	if bytes.Equal(d.presented[k], data) {
+		t.Error("the quad kept is the caller's slice, not a copy of its own")
+	}
+	if written, _ := d.keepPresented(k, data); !written {
+		t.Error("the quad changed was not written again")
+	}
+	if written, _ := d.keepPresented(k, data); written {
+		t.Error("the quad unchanged was written again")
 	}
 }

@@ -15,7 +15,7 @@ func TestSlope_SlowsAClimbAndASteepDescent(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 40, Height: 10}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 4}, Heights: true})
 	grid := grid.DefaultGrids{}.Square(4, 1, 10)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	p := NewPlugin(w, b, Config{})
+	p := NewPlugin(w, b, nil, Config{})
 	p.Relief().SetHeights(func(q geom.Vec) float64 { return 0.2 * q.X })
 	east, west := geom.NewVec(1, 0), geom.NewVec(-1, 0)
 	for _, c := range []struct {

@@ -86,14 +86,25 @@ func DrawImage(dst, src Image, m Affine, color [4]float32, linear bool, blend Bl
 // Piece is a W by H rectangle of a source image, at SrcX, SrcY in it, drawn at DstX, DstY.
 type Piece struct{ DstX, DstY, SrcX, SrcY, W, H float32 }
 
+// never written: a draw copies its uniforms into the frame's buffer
+var blitZero = make([]byte, blitLayout.Size)
+
 // DrawPieces draws pieces of src into dst, their colours times color (premultiplied).
 func DrawPieces(dst, src Image, pieces []Piece, color [4]float32, blend Blend) {
 	const most = 65536 / 4 // pieces a draw's 16-bit indices reach
+	if len(pieces) == 0 {
+		return
+	}
+	d := must()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	r := src.rect()
+	dw := Draw{
+		Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: blitZero, Blend: blend,
+	}
 	for len(pieces) > 0 {
 		n := min(len(pieces), most)
-		verts := make([]Vertex, 0, 4*n)
-		indices := make([]uint16, 0, 6*n)
+		verts, indices := d.pieceVerts[:0], d.pieceIndices[:0]
 		for k, p := range pieces[:n] {
 			v := func(dx, dy float32) Vertex {
 				return Vertex{DstX: p.DstX + dx, DstY: p.DstY + dy, SrcX: float32(r.X) + p.SrcX + dx, SrcY: float32(r.Y) + p.SrcY + dy,
@@ -103,28 +114,46 @@ func DrawPieces(dst, src Image, pieces []Piece, color [4]float32, blend Blend) {
 			b := uint16(4 * k)
 			indices = append(indices, b, b+1, b+2, b+1, b+2, b+3)
 		}
-		Triangles(&Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: make([]byte, blitLayout.Size), Blend: blend}, verts, indices)
+		d.pieceVerts, d.pieceIndices = verts, indices
+		d.triangles(dst.Texture.gpuTarget(d), dst.rect(), &dw, verts, indices)
 		pieces = pieces[n:]
 	}
 }
 
-// DrawImageIn draws src into dst, its top-left corner at (x, y), only inside the convex polygon
-// pts, in dst's pixels.
-func DrawImageIn(dst, src Image, x, y float32, pts [][2]float32, blend Blend) {
-	if len(pts) < 3 {
+// DrawImageIn draws src into dst as DrawImage does, its top-left corner at the origin moved by
+// m, sampled between texels where linear, only inside the convex polygon pts, in dst's pixels.
+func DrawImageIn(dst, src Image, m Affine, linear bool, pts [][2]float32, blend Blend) {
+	back, ok := m.inverse()
+	if len(pts) < 3 || !ok {
 		return
 	}
 	r := src.rect()
-	sx, sy := float32(r.X)-x, float32(r.Y)-y
 	verts := make([]Vertex, len(pts))
 	for k, p := range pts {
-		verts[k] = Vertex{DstX: p[0], DstY: p[1], SrcX: sx + p[0], SrcY: sy + p[1], ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1}
+		x, y := back.Apply(p[0], p[1])
+		verts[k] = Vertex{DstX: p[0], DstY: p[1], SrcX: float32(r.X) + x, SrcY: float32(r.Y) + y,
+			ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1}
 	}
 	indices := make([]uint16, 0, 3*(len(pts)-2))
 	for k := 1; k+1 < len(pts); k++ {
 		indices = append(indices, 0, uint16(k), uint16(k+1))
 	}
-	Triangles(&Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: make([]byte, blitLayout.Size), Blend: blend}, verts, indices)
+	u := make([]byte, blitLayout.Size)
+	if linear {
+		blitLayout.Put(u, "filter", []float32{1})
+	}
+	Triangles(&Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: u,
+		Blend: blend}, verts, indices)
+}
+
+// the affine taking a point back to where m took it from; false for one flattening the plane
+func (m Affine) inverse() (Affine, bool) {
+	det := m.A*m.D - m.B*m.C
+	if det == 0 {
+		return Affine{}, false
+	}
+	a, b, c, d := m.D/det, -m.B/det, -m.C/det, m.A/det
+	return Affine{A: a, B: b, C: c, D: d, TX: -(a*m.TX + c*m.TY), TY: -(b*m.TX + d*m.TY)}, true
 }
 
 // Present draws screen over the window's surface view, w by h pixels of format, into enc, the
@@ -144,7 +173,7 @@ func Present(
 	}
 	sw, sh := float32(screen.w), float32(screen.h)
 	fw, fh := float32(w), float32(h)
-	var verts []byte
+	verts := d.quad[0][:0]
 	for _, v := range [4][4]float32{{0, 0, 0, 0}, {fw, 0, sw, 0}, {0, fh, 0, sh}, {fw, fh, sw, sh}} {
 		verts = appendVertex(
 			verts,
@@ -160,38 +189,43 @@ func Present(
 			},
 		)
 	}
-	indices := []byte{0, 0, 1, 0, 2, 0, 1, 0, 2, 0, 3, 0}
-	var draw []byte
+	indices := append(d.quad[1][:0], 0, 0, 1, 0, 2, 0, 1, 0, 2, 0, 3, 0)
+	draw := d.quad[2][:0]
 	// the target's size, the image's rectangle, the place and the tint as they come
 	for _, f := range [drawSize / 4]float32{
 		fw, fh, 0, 0, 0, 0, sw, sh, 20: 1, 21: 1, 24: 1, 25: 1, 26: 1, 27: 1,
 	} {
 		draw = appendF32(draw, f)
 	}
-	uniforms := make([]byte, uniformBlock)
+	uniforms := d.quad[3]
+	if cap(uniforms) < uniformBlock {
+		uniforms = make([]byte, uniformBlock)
+	}
+	uniforms = uniforms[:uniformBlock]
+	clear(uniforms)
 	if screen.w != w || screen.h != h {
 		blitLayout.Put(uniforms, "filter", []float32{1})
 	}
-	for k, data := range [][]byte{verts, indices, draw, uniforms} {
-		if bytes.Equal(d.presented[k], data) {
-			continue // written as it is: Queue.WriteBuffer waits for the GPU
+	d.quad = [4][]byte{verts, indices, draw, uniforms}
+	for k, data := range d.quad {
+		if _, err := d.keepPresented(k, data); err != nil {
+			return err
 		}
-		if err := d.queue.WriteBuffer(d.present[k], 0, data); err != nil {
-			return fmt.Errorf("gpu: writing the frame's quad: %w", err)
-		}
-		d.presented[k] = data
 	}
 	pipeline := blitProgram.pipeline(d, Copy, format, noDepth)
 	images := d.images([4]*Texture{screen})
 	frame := d.frame([FrameImages]*Texture{})
-	pass, err := enc.BeginRenderPass(&wgpu.RenderPassDescriptor{Label: "present", ColorAttachments: []wgpu.RenderPassColorAttachment{{
-		View: view, LoadOp: gputypes.LoadOpClear, StoreOp: gputypes.StoreOpStore, ClearValue: gputypes.Color{A: 1},
-	}}})
+	d.passColor[0] = wgpu.RenderPassColorAttachment{
+		View: view, LoadOp: gputypes.LoadOpClear, StoreOp: gputypes.StoreOpStore,
+		ClearValue: gputypes.Color{A: 1},
+	}
+	d.passDesc = wgpu.RenderPassDescriptor{Label: "present", ColorAttachments: d.passColor[:]}
+	pass, err := enc.BeginRenderPass(&d.passDesc)
 	if err != nil {
 		return fmt.Errorf("gpu: the frame's pass: %w", err)
 	}
 	pass.SetPipeline(pipeline)
-	pass.SetBindGroup(0, d.presentGroup, []uint32{0, 0})
+	pass.SetBindGroup(0, d.presentGroup, zeroOffsets)
 	pass.SetBindGroup(1, images, nil)
 	pass.SetBindGroup(2, d.noDepth.readGroup(d), nil)
 	pass.SetBindGroup(3, frame, nil)
@@ -200,6 +234,23 @@ func Present(
 	pass.SetScissorRect(gputypes.ScissorRect{Width: uint32(w), Height: uint32(h)})
 	pass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: 6, InstanceCount: 1})
 	return pass.End()
+}
+
+// never written: gogpu submits the frame's pass after Present returns, once the draws' offsets
+// are let go, and its GLES backend reads the slice then
+var zeroOffsets = []uint32{0, 0}
+
+// keepPresented writes data into the quad's buffer k unless it holds it already, and keeps a
+// copy of its own to tell by: Queue.WriteBuffer waits for the GPU
+func (d *device) keepPresented(k int, data []byte) (written bool, err error) {
+	if bytes.Equal(d.presented[k], data) {
+		return false, nil
+	}
+	if err := d.queue.WriteBuffer(d.present[k], 0, data); err != nil {
+		return false, fmt.Errorf("gpu: writing the frame's quad: %w", err)
+	}
+	d.presented[k] = append(d.presented[k][:0], data...)
+	return true, nil
 }
 
 func (d *device) presentBuffers() error {

@@ -7,8 +7,8 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -25,8 +25,8 @@ func TestBackdrop_DrawsTheSkyOnTheGPU(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
-	sun := sky.Sun{Dir: eyedF, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
-	b := New(w.Res.Config.Space, func() sky.Sun { return sun },
+	sun := light.Distant{Dir: eyedF, Strength: 0.7, AmbientColor: render.Light{0.5, 0.7, 1}}
+	b := New(w.Res.Config.Space, func() light.Distant { return sun },
 		func() air.Weather { return air.Weather{} })
 	screen := render.NewImage(100, 100)
 	pix := make([]byte, 4*100*100)
@@ -53,11 +53,11 @@ func TestBackdrop_DrawsTheLayersFlatOrHeapedOrNone(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
-	sun := sky.Sun{Dir: eyedF, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
+	sun := light.Distant{Dir: eyedF, Strength: 0.7, AmbientColor: render.Light{0.5, 0.7, 1}}
 	bases := air.Bases(world.Scale{})
 	weather := air.Weather{Bases: bases}
 	var look Clouds
-	b := New(w.Res.Config.Space, func() sky.Sun { return sun },
+	b := New(w.Res.Config.Space, func() light.Distant { return sun },
 		func() air.Weather { return weather }).WithClouds(func() Clouds { return look })
 	draw := func(eye float32) []byte {
 		u := map[string]any{"CloudTile": air.Tile()}
@@ -122,14 +122,14 @@ func TestBackdrop_LeavesTheHeapsBeforeTheGroundToAnother(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
-	sun := sky.Sun{Dir: eyedF, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
+	sun := light.Distant{Dir: eyedF, Strength: 0.7, AmbientColor: render.Light{0.5, 0.7, 1}}
 	weather := air.Weather{Clouds: 0.9, Billow: 1, Bases: air.Bases(world.Scale{})}
 	img := render.NewImage(2, 2)
 	defer img.Deallocate()
 	img.WritePixels([]byte{255, 255, 0, 255, 255, 255, 0, 255, 255, 255, 0, 255, 255, 255, 0,
 		255})
 	draw := func(look Clouds, ground float32) []byte {
-		b := New(w.Res.Config.Space, func() sky.Sun { return sun },
+		b := New(w.Res.Config.Space, func() light.Distant { return sun },
 			func() air.Weather { return weather }).WithClouds(func() Clouds { return look })
 		u := map[string]any{"CloudTile": air.Tile()}
 		wall := standing{render.GroundHeights{Image: img, Corners: [2]int{2, 2}, Cell: 200,

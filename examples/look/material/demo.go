@@ -99,7 +99,13 @@ func (a *arena) makePlugins(w *world.Plugin) {
 
 func (a *arena) definePlayer() error {
 	a.player = a.players.Local("player")
-	view := cameras.Keys{Wheel: true, Drag: true, Edge: true}
+	view := cameras.Keys{
+		Wheel:   true,
+		Drag:    true,
+		Edge:    true,
+		Farther: control.KeyEqual,
+		Nearer:  control.KeyMinus,
+	}
 	drive := driving.Tank{
 		Ahead: control.KeyW,
 		Back:  control.KeyS,

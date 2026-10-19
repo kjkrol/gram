@@ -22,7 +22,7 @@ fn cloudsLook(px: vec2<f32>, height: f32) -> vec4<f32> {
     if U.Visibility > 0.0 {
         haze = 1.0 - exp(-t * length(d) / U.Visibility);
     }
-    let toward = max(dot(view, sunWay()), 0.0);
+    let toward = max(dot(view, lightWay()), 0.0);
     let t2 = toward * toward;
     return vec4<f32>(haze, smoothstep(0.1, 0.6, view.z), t2 * t2 * t2, smoothstep(skyLift, 3.0 * skyLift, view.z));
 }
@@ -38,14 +38,14 @@ fn skyClouds(field: f32, soft: f32, look: vec4<f32>, behind: vec3<f32>, m: vec4<
     if cover <= 0.0 {
         return vec4<f32>(0.0);
     }
-    let lit = clamp(U.SunStrength * 1.4, 0.0, 1.0);
-    let light = U.Ambience * cloudsSkyLit + U.SunColor * U.SunStrength * cloudsSunLit;
+    let lit = clamp(U.LightStrength * 1.4, 0.0, 1.0);
+    let light = U.Ambience * cloudsSkyLit + U.LightColor * U.LightStrength * cloudsSunLit;
     let under = mix(1.0, 0.72, clamp(m.x, 0.0, 1.0)); // the undersides greyer under a heavier sky
     let heaped = clamp(m.y, 0.0, 1.0);
     let thick = cloudThick(field, m);
     let base = 1.0 - thick * thick * (0.1 + 0.25 * heaped) * mix(0.6, 1.0, look.y);
     let rim = look.z * (1.0 - thick) * lit * (0.3 + 0.5 * heaped);
-    let rgb = mix(light * under * base + U.SunColor * rim, behind, look.x);
+    let rgb = mix(light * under * base + U.LightColor * rim, behind, look.x);
     let a = cover * look.w;
     return vec4<f32>(rgb * a, a);
 }

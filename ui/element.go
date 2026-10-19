@@ -74,6 +74,12 @@ func (e *Element) Hidden() *Element {
 	return e
 }
 
+// Show has the element drawn and hit again.
+func (e *Element) Show() { e.hidden = false }
+
+// Hide has the element neither drawn nor hit, as Hidden has it start.
+func (e *Element) Hide() { e.hidden = true }
+
 // Size asks for w by h pixels: what an anchor places, what Fit takes.
 func (e *Element) Size(w, h float64) *Element {
 	e.w, e.h = w, h

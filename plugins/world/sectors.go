@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/world/sector"
+	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
@@ -23,6 +24,20 @@ func (p *Plugin) Anchor(a sector.Anchors) {
 // band.
 func (p *Plugin) Sectors() render.Reporter { return sectorsReport{p.module} }
 
+// SetBanded switches the sectors' bands on, or off with every sector in the first (SwitchBands,
+// Settings.Unbanded).
+func (p *Plugin) SetBanded(on bool) {
+	p.Res.Settings.Unbanded = !on
+	p.module.sectors.unbanded = !on
+}
+
+// Banded reports whether the sectors' bands are on; true in a world of no sectors.
+func (p *Plugin) Banded() bool { return !p.Res.Settings.Unbanded }
+
+// Seen is the world's part of the telemetry panel about the first camera made: how many sectors
+// it sees at each level.
+func (p *Plugin) Seen() render.Reporter { return seenReport{p.module} }
+
 const defaultSectorBuckets = 4
 
 // the world cut into sectors and their bands round the anchors, the marks moved with them
@@ -32,6 +47,8 @@ type sectors struct {
 	anchors []sector.Anchors
 	at      []geom.Vec
 	margin  float64
+	// the bands switched off: the anchors left out, every sector in the first
+	unbanded bool
 	// by band: the first's none, Beyond's Off
 	marks []goke.CompID
 	// by band but Beyond's, each its own column
@@ -140,6 +157,9 @@ func (s *sectors) Update(cb *goke.CmdBuf, _ time.Duration) {
 	}
 	s.at = s.at[:0]
 	for _, a := range s.anchors {
+		if s.unbanded {
+			break
+		}
 		a.Anchors(func(x, y float32) { s.at = append(s.at, geom.NewVec(float64(x), float64(y))) })
 	}
 	s.woke = s.woke[:0]
@@ -245,6 +265,31 @@ func (s *sectors) move(cb *goke.CmdBuf, id uid.UID64, from, to, at int) {
 	}
 }
 
+// the sectors as a camera's view sees them
+type seenSectors struct{ s *sectors }
+
+var _ view.Sectors = seenSectors{}
+
+func (s seenSectors) Len() int            { return s.s.grid.Len() }
+func (s seenSectors) Cols() int           { return s.s.grid.Cols() }
+func (s seenSectors) Box(i int) geom.AABB { return s.s.grid.Box(i) }
+func (s seenSectors) Of(x, y float64) int { return s.s.grid.Of(x, y) }
+func (s seenSectors) Off(i int) bool      { return s.s.grid.Band(i) == s.s.grid.Beyond() }
+
+type seenReport struct{ w *module }
+
+func (seenReport) Init(*goke.SysInit) {}
+
+func (r seenReport) Report(line func(label, value string)) {
+	if r.w.sectors.grid == nil || len(r.w.views) == 0 {
+		return
+	}
+	var n [4]int
+	r.w.views[0].Sectors(func(_ int, _ geom.AABB, l view.Level) { n[l]++ })
+	line("Sectors seen", fmt.Sprintf("exact %d · coarse %d · fog %d", n[view.Exact],
+		n[view.Coarse], n[view.Fogged]))
+}
+
 type sectorsReport struct{ w *module }
 
 func (sectorsReport) Init(*goke.SysInit) {}
@@ -255,7 +300,11 @@ func (r sectorsReport) Report(line func(label, value string)) {
 		return
 	}
 	in := s.grid.Count(nil)
-	line("Sectors", bandsOf(in))
+	if s.unbanded {
+		line("Sectors", bandsOf(in)+", bands off")
+	} else {
+		line("Sectors", bandsOf(in))
+	}
 	counts := append([]int(nil), s.counts...)
 	near := 0
 	for _, n := range counts[:len(counts)-1] {

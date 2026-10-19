@@ -8,6 +8,8 @@ import (
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/light"
+	"github.com/kjkrol/gram/plugins/minimap"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -30,11 +32,12 @@ func (ford) Define(b *board.Plugin) {
 			return world.Velocity{Dir: geom.NewVec(float64(r.Way[0]), float64(r.Way[1]))}
 		}),
 		comp.Const(cell.Floor{Allows: cell.Land, Cost: 6.25}),
-		comp.Const(world.Shadow{Cast: world.NoShadow}))
+		comp.Const(light.Shadow{Cast: light.NoShadow}))
 }
 
 func (ford) Look(a *world.Atlas, w *world.Plugin) {
-	a.Add(kind.Named[fordRow](w.Kinds(), FordKind), CellSize, stones(0)).Facing(8, stones).Lying()
+	a.Add(kind.Named[fordRow](w.Kinds(), FordKind), CellSize, stones(0)).Facing(8, stones).Lying().
+		Styled(minimap.Mark{Color: stoneColor, Size: 3})
 }
 
 func stones(angle float64) render.SpriteDrawer {

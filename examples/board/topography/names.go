@@ -29,8 +29,9 @@ const (
 	HawkKind    = "hawk"
 	PlateauKind = "plateau"
 
-	BridgeKind = "bridge"
-	FordKind   = "ford"
+	BridgeKind  = "bridge"
+	FordKind    = "ford"
+	LanternKind = "lantern"
 
 	PlayerSide  = "player"
 	RivalSide   = "rival"

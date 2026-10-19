@@ -43,13 +43,13 @@ func TestCones_ToggleTheViewsDrawn(t *testing.T) {
 	if v.ConesShown() || !r.Hidden() {
 		t.Fatal("the views start shown, want hidden until asked for")
 	}
-	queues[0].Put(command.Nobody, vision.Cones{})
+	queues[0].Put(command.Nobody, vision.Cones{Shown: true})
 	ctx.ecs.Tick(time.Second / 60)
 	if !v.ConesShown() || r.Hidden() {
 		t.Errorf("after Cones the plugin shows %v and the renderer hides %v, want both shown",
 			v.ConesShown(), r.Hidden())
 	}
-	queues[0].Put(command.Nobody, vision.Cones{})
+	queues[0].Put(command.Nobody, vision.Cones{Shown: false})
 	ctx.ecs.Tick(time.Second / 60)
 	if v.ConesShown() || !r.Hidden() {
 		t.Errorf("after a second Cones the plugin shows %v and the renderer hides %v, "+

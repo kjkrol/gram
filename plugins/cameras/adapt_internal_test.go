@@ -1,0 +1,111 @@
+package cameras
+
+import (
+	"testing"
+	"time"
+)
+
+// a second a step from the start, fps frames a second each
+type ticking struct {
+	a   *adapter
+	now time.Time
+}
+
+func newTicking() *ticking {
+	return &ticking{a: &adapter{on: true, budget: time.Second / 60}, now: time.Unix(1000, 0)}
+}
+
+func (k *ticking) steps(fps float64, n int) (factors []float32) {
+	for range n {
+		k.now = k.now.Add(time.Second)
+		factors = append(factors, k.a.step(k.now, fps))
+	}
+	return factors
+}
+
+// the step want at at, none elsewhere
+func only(factors []float32, want float32, at int) bool {
+	for i, f := range factors {
+		if i == at && f != want || i != at && f != 1 {
+			return false
+		}
+	}
+	return true
+}
+
+func none(factors []float32) bool { return only(factors, 1, -1) }
+
+func TestAdapter_TwoSecondsUnderTheBudgetStepCoarser(t *testing.T) {
+	k := newTicking()
+	if got := k.steps(50, 3); !only(got, ResolutionStep, 1) {
+		t.Errorf("at 50 of 60 frames the steps are %v, want the coarser one at the second", got)
+	}
+	k = newTicking()
+	if got := k.steps(50, 1); got[0] != 1 {
+		t.Fatalf("one second under the budget stepped by %v, want nothing yet", got[0])
+	}
+	if got := k.steps(59, 1); got[0] != 1 {
+		t.Fatalf("a second meeting the budget stepped by %v, want nothing", got[0])
+	}
+	if got := k.steps(50, 1); got[0] != 1 {
+		t.Errorf("one second under again stepped by %v, want nothing: the count began anew", got[0])
+	}
+}
+
+func TestAdapter_FiveSecondsMeetingTheBudgetStepFinerTentatively(t *testing.T) {
+	k := newTicking()
+	if got := k.steps(60, 6); !only(got, 1/ResolutionStep, 4) {
+		t.Errorf("at 60 frames the steps are %v, want the finer one at the fifth", got)
+	}
+	k = newTicking()
+	k.steps(60, 4)
+	if got := k.steps(57, 1); got[0] != 1 {
+		t.Fatalf("a second between stepped by %v, want nothing", got[0])
+	}
+	if got := k.steps(60, 4); !none(got) {
+		t.Errorf("four seconds meeting the budget after one between stepped %v, want nothing: "+
+			"the count began anew", got)
+	}
+}
+
+func TestAdapter_AFinerStepCostingTheBudgetBurnsTheFinerStepsForAWhile(t *testing.T) {
+	k := newTicking()
+	k.steps(60, 5)
+	if got := k.steps(50, 2); got[1] != ResolutionStep {
+		t.Fatalf("under the budget right after a finer step the steps are %v, want coarser", got)
+	}
+	if got := k.steps(60, 30); !none(got) {
+		t.Errorf("meeting the budget within the burn stepped %v, want nothing for thirty seconds",
+			got)
+	}
+	if got := k.steps(60, 1); got[0] != 1/ResolutionStep {
+		t.Errorf("the burn over, the step is %v, want finer", got[0])
+	}
+}
+
+func TestAdapter_EvaluatesOnceASecondAndNeverHeadlessOrOff(t *testing.T) {
+	k := newTicking()
+	for range 10 {
+		k.now = k.now.Add(100 * time.Millisecond)
+		k.a.step(k.now, 50)
+	}
+	if k.a.under != 1 {
+		t.Errorf("ten passes under the budget within a second counted %d, want 1", k.a.under)
+	}
+	if got := k.steps(0, 5); !none(got) || k.a.under != 1 {
+		t.Errorf("without frames the steps are %v and the count %d, want nothing and 1 still",
+			got, k.a.under)
+	}
+	k.a.on = false
+	if got := k.steps(50, 5); !none(got) {
+		t.Errorf("switched off the steps are %v, want nothing", got)
+	}
+}
+
+func TestClamped_StaysBetweenTheLeastResolutionAndAllThePixels(t *testing.T) {
+	for in, want := range map[float32]float32{0.1: LeastResolution, 0.7: 0.7, 1.3: 1} {
+		if got := clamped(in); got != want {
+			t.Errorf("clamped(%v) = %v, want %v", in, got, want)
+		}
+	}
+}

@@ -24,6 +24,8 @@ type Plugin struct {
 	motion      *motion.Plugin
 	module      *module
 
+	Res Resources
+
 	pairs    host.PairRules[Meeting]
 	entities host.Rules[Struck]
 	field    Field
@@ -32,17 +34,21 @@ type Plugin struct {
 
 	boxes     command.Queue[Boxes]
 	boxesView *boxesView
+	kept      *plugin.Kept[Settings]
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.KindTemplater = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
+var _ plugin.Tunable = (*Plugin)(nil)
+var _ plugin.Restorer = (*Plugin)(nil)
 
 // NewPlugin builds the collision plugin over worldPlugin's space, its leavers motion's.
 func NewPlugin(worldPlugin *world.Plugin, m *motion.Plugin) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin, motion: m}
 	p.Self = world.NewSelf(worldPlugin, p)
-	p.boxesView = &boxesView{w: worldPlugin}
+	p.boxesView = &boxesView{w: worldPlugin, settings: &p.Res.Settings}
+	p.kept = plugin.Keep(&p.Res.Settings)
 	return p
 }
 
@@ -96,5 +102,8 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 // EventHandler is nil: collision reads no input.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil: collision keeps no state beside its components.
-func (p *Plugin) Serializable() plugin.Serializable { return nil }
+// Serializable is collision's Settings, kept whole; its components go with the entities.
+func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
+
+// Restore takes the Settings loaded.
+func (p *Plugin) Restore() { p.kept.Restore() }

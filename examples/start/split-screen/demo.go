@@ -97,6 +97,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
 	a.players = players.NewPlugin(a.world, a.collision,
 		a.cameras, a.board, a.selection, a.nav, a.driving)
+	a.board.ShowGrid(false)
 }
 
 func (a *arena) definePlayers() error {
@@ -114,7 +115,7 @@ func (a *arena) definePlayers() error {
 		return err
 	}
 	// one keyboard: bound once, not a player each
-	gameKeys := append(players.GameBindings(), a.world.DefaultBindings()...)
+	gameKeys := append(a.players.GameBindings(), a.world.DefaultBindings()...)
 	if err := a.redPlayer.Bind(gameKeys...); err != nil {
 		return err
 	}

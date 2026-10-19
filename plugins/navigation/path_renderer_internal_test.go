@@ -161,7 +161,7 @@ func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
-	p := topography.NewPlugin(w, b, topography.Config{})
+	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	return cameras.NewPlugin(w, cameras.Config{
 		Turn:       true,
 		Tilt:       true,

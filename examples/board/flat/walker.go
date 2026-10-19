@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/minimap"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/vision"
@@ -68,5 +69,6 @@ func (walker) Define(b *board.Plugin) {
 }
 
 func (walker) Look(a *world.Atlas, w *world.Plugin) {
-	a.Add(kind.Named[unitRow](w.Kinds(), UnitKind), walkerPx, render.Solid(unitColor))
+	a.Add(kind.Named[unitRow](w.Kinds(), UnitKind), walkerPx, render.Solid(unitColor)).
+		Styled(minimap.Mark{Color: unitColor, Size: 5})
 }

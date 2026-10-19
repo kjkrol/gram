@@ -22,13 +22,14 @@ type viewCamera struct {
 	// behind an entity, the tactical camera's own scale and stick, to come back to
 	tactical  struct{ scale, length float32 }
 	fastening contract.Fastening
+	detail    contract.Detail
 }
 
 // form names how a stick camera is saved, so a save of another shape is refused at its first
 // value
 type form struct{}
 
-const savedAs = "stick 2"
+const savedAs = "stick 3"
 
 func (form) GobEncode() ([]byte, error) { return []byte(savedAs), nil }
 
@@ -48,6 +49,18 @@ var _ contract.Picker = (*viewCamera)(nil)
 var _ contract.Rayer = (*viewCamera)(nil)
 var _ contract.Rays = (*viewCamera)(nil)
 var _ contract.Focused = (*viewCamera)(nil)
+var _ contract.Detailed = (*viewCamera)(nil)
+var _ contract.Headed = (*viewCamera)(nil)
+var _ contract.Resolved = (*viewCamera)(nil)
+
+// Detail is how far the camera sees and how finely.
+func (c *viewCamera) Detail() contract.Detail { return c.detail }
+
+// SetDetail has the camera see as d says.
+func (c *viewCamera) SetDetail(d contract.Detail) { c.detail = d }
+
+// See has the camera see factor times as far.
+func (c *viewCamera) See(factor float64) { c.detail = c.detail.Widened(factor) }
 
 // In the parallel view all one way, from Headroom over the highest ground.
 func (c *viewCamera) Rays() (contract.RayField, bool) {
@@ -62,7 +75,7 @@ func (c *viewCamera) Rays() (contract.RayField, bool) {
 	_, high := c.ortho.layer()
 	x0, y0 := c.ortho.Unproject(0, 0, high)
 	// a pixel's step taken by the origin: between two far points it loses its last digits
-	p, k := c.ortho.proj, 1/c.ortho.scale
+	p, k := c.ortho.proj, 1/(c.ortho.scale*c.ortho.res)
 	ox, oy := p.Unproject(0, 0, high)
 	x1, y1 := p.Unproject(k, 0, high)
 	x2, y2 := p.Unproject(0, k, high)
@@ -196,12 +209,12 @@ func (c *viewCamera) toPersp() {
 	c.inPersp, c.cur = true, p
 }
 
-// the scale the focal length over the stick's length
+// the scale the focal length over the stick's length, in shown pixels
 func (c *viewCamera) toOrtho() {
 	p, o := c.persp, c.ortho
 	o.turn, o.pitch = float64(p.Heading())+eighth, float64(p.Pitch())
 	o.look()
-	o.scale = o.limited(p.focal() / p.length)
+	o.scale = o.limited(p.focal() / p.length / o.res)
 	c.inPersp, c.cur = false, o
 	o.CenterOn(float64(p.foot[0]), float64(p.foot[1]), float64(p.foot[2]))
 }
@@ -227,6 +240,11 @@ func (c *viewCamera) Heading() float32 {
 		return c.persp.Heading()
 	}
 	return c.ortho.Heading()
+}
+
+func (c *viewCamera) Ahead() (x, y float32) {
+	f := facing(c.Heading())
+	return float32(f.X), float32(f.Y)
 }
 
 func (c *viewCamera) Pitch() float32 {
@@ -336,6 +354,13 @@ func (c *viewCamera) SetViewport(w, h float32) {
 	c.persp.SetViewport(w, h)
 }
 
+func (c *viewCamera) SetResolution(s float32) {
+	c.ortho.SetResolution(s)
+	c.persp.SetResolution(s)
+}
+
+func (c *viewCamera) Resolution() float32 { return c.ortho.res }
+
 func (c *viewCamera) SetMinZoom(minZoom float32) {
 	c.ortho.SetMinZoom(minZoom)
 	c.persp.SetMinZoom(minZoom)
@@ -348,7 +373,8 @@ func (c *viewCamera) SetMaxZoom(maxZoom float32) {
 
 func (c *viewCamera) Persisted() []any {
 	saved := append([]any{&c.form}, c.ortho.Persisted()...)
-	return append(append(saved, c.persp.Persisted()...), &c.inPersp, &c.fastening)
+	return append(append(saved, c.persp.Persisted()...), &c.inPersp, &c.fastening,
+		&c.detail.Sight)
 }
 
 func (c *viewCamera) Restore() {

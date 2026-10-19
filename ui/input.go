@@ -33,25 +33,45 @@ func (s *Scene) HandleEvents(events *control.InputEvents, runtime game.Runtime, 
 	if s.root != nil {
 		modal := s.modal()
 		for _, c := range events.ClickQueue {
-			if s.click(modal, c) {
+			switch {
+			case s.held != nil:
+				// a drag ends wherever the button is let go
+				if c.Action == control.ActionRelease {
+					s.held.content.(*slider).drag(s, s.held, c.Pos)
+					s.drop()
+				}
+			case s.overlay != nil:
+				s.clickOverlay(c)
+			case s.click(modal, c):
 				s.passed.ClickQueue = append(s.passed.ClickQueue, c)
 			}
 		}
-		if !s.through(modal, events.MousePos) {
+		if s.held != nil {
+			s.held.content.(*slider).drag(s, s.held, events.MousePos)
+		}
+		if s.overlay != nil || !s.through(modal, events.MousePos) {
 			s.passed.ScrollDelta = 0
+			if s.overlay == nil && events.ScrollDelta != 0 {
+				s.wheel(modal, events.MousePos, events.ScrollDelta)
+			}
 		}
 	}
 	s.press(events)
 	if s.input != nil {
-		s.wire()
+		s.wire(events.MousePos)
 		s.input(&s.passed, runtime, composition)
 	}
 }
 
-func (s *Scene) wire() {
+func (s *Scene) wire(cursor geom.Vec) {
 	if s.root == nil {
 		return
 	}
+	within := s.root
+	if modal := s.modal(); modal != nil {
+		within = modal
+	}
+	under := topmost(within, cursor, nil).hit
 	var visit func(e *Element)
 	visit = func(e *Element) {
 		if e.hidden {
@@ -59,6 +79,9 @@ func (s *Scene) wire() {
 		}
 		if p, ok := e.content.(*picture); ok && p.input != nil {
 			p.input.Over(shrink(e.box, e.padding), p.src)
+			if h, ok := p.input.(Hovered); ok {
+				h.Hover(under == e)
+			}
 		}
 		for _, c := range e.children {
 			visit(c)
@@ -77,14 +100,12 @@ func (s *Scene) click(modal *Element, c control.ClickEvent) bool {
 	}
 	t := topmost(within, c.Pos, nil)
 	switch {
-	case t.button != nil:
+	case t.pressed != nil:
 		if c.Action == control.ActionPress {
 			if t.look != nil {
 				t.look()
 			} else {
-				for _, cmd := range t.button.content.(*button).cmds {
-					s.giveAbout(cmd, t.about, t.pinned)
-				}
+				t.pressed.content.(pressable).press(s, t.pressed, c.Pos, t.about, t.pinned)
 			}
 		}
 		return false
@@ -92,7 +113,19 @@ func (s *Scene) click(modal *Element, c control.ClickEvent) bool {
 		return modal == nil
 	default:
 		p, ok := t.hit.content.(*picture)
-		return ok && p.input != nil
+		if !ok || p.input == nil {
+			return false
+		}
+		clicked, ok := p.input.(Clicked)
+		if !ok {
+			return true
+		}
+		// its own press alone: a drag begun elsewhere still ends where it is let go
+		if c.Action == control.ActionPress {
+			clicked.Click(c.Pos.Sub(shrink(t.hit.box, t.hit.padding).TopLeft))
+			return false
+		}
+		return true
 	}
 }
 
@@ -101,20 +134,66 @@ func (s *Scene) through(modal *Element, p geom.Vec) bool {
 		return false
 	}
 	t := topmost(s.root, p, nil)
-	if t.button != nil {
+	if t.pressed != nil {
 		return false
 	}
 	if t.hit == nil {
 		return true
 	}
 	pic, ok := t.hit.content.(*picture)
-	return ok && pic.input != nil
+	if !ok || pic.input == nil {
+		return false
+	}
+	_, clicked := pic.input.(Clicked)
+	return !clicked
+}
+
+// open shows list over everything, hanging from field, till an option is pressed or a click
+// falls outside it.
+func (s *Scene) open(list *Element, field geom.AABB) {
+	s.overlay, s.field = list, field
+	s.dress()
+}
+
+func (s *Scene) close() { s.overlay = nil }
+
+func (s *Scene) clickOverlay(c control.ClickEvent) {
+	if c.Action != control.ActionPress {
+		return
+	}
+	t := topmost(s.overlay, c.Pos, nil)
+	if t.pressed == nil {
+		s.close()
+		return
+	}
+	t.pressed.content.(pressable).press(s, t.pressed, c.Pos, t.about, t.pinned)
+}
+
+func (s *Scene) drop() {
+	s.held.content.(*slider).drop()
+	s.held = nil
+}
+
+func (s *Scene) wheel(modal *Element, p geom.Vec, delta float64) {
+	within := s.root
+	if modal != nil {
+		within = modal
+	}
+	if t := topmost(within, p, nil); t.pressed != nil {
+		if sl, ok := t.pressed.content.(*slider); ok {
+			sl.wheel(s, t.pressed, delta)
+		}
+	}
 }
 
 func (s *Scene) press(events *control.InputEvents) {
 	mods := control.Mods{Shift: events.Modifiers.Shift, Ctrl: events.Modifiers.Ctrl, Alt: events.Modifiers.Alt}
 	for _, k := range events.KeyEvents {
 		if k.Action != control.ActionPress {
+			continue
+		}
+		if s.overlay != nil && k.Key == control.KeyEscape {
+			s.close()
 			continue
 		}
 		for _, b := range s.keys {
@@ -172,11 +251,13 @@ func (s *Scene) modal() *Element {
 	return top
 }
 
+// target is what a point of the screen hits: the element, the pressable one it lies in, and
+// the entity that one is pinned to.
 type target struct {
-	hit, button *Element
-	look        func()
-	about       uid.UID64
-	pinned      bool
+	hit, pressed *Element
+	look         func()
+	about        uid.UID64
+	pinned       bool
 }
 
 func topmost(e *Element, p geom.Vec, in *Element) target {
@@ -194,7 +275,7 @@ func topmost(e *Element, p geom.Vec, in *Element) target {
 		}
 		if at.show && e.pin.show.hitsHere(p) {
 			id, looker := at.id, at.looker
-			t = target{hit: e.pin.show, button: e.pin.show, look: func() { looker.LookAt(id) }}
+			t = target{hit: e.pin.show, pressed: e.pin.show, look: func() { looker.LookAt(id) }}
 		}
 	})
 	return t
@@ -204,13 +285,13 @@ func topmostHere(e *Element, p geom.Vec, in *Element) target {
 	if e.absent() {
 		return target{}
 	}
-	if _, ok := e.content.(*button); ok {
+	if _, ok := e.content.(pressable); ok {
 		in = e
 	}
 	var t target
 	if _, ok := e.content.(container); !ok || e.fillColor().A > 0 {
 		if inside(e.box, p) && (e.mask == nil || e.mask.contains(e.box, p)) {
-			t = target{hit: e, button: in}
+			t = target{hit: e, pressed: in}
 		}
 	}
 	for _, c := range e.children {

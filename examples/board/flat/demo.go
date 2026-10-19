@@ -20,6 +20,8 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/light"
+	"github.com/kjkrol/gram/plugins/minimap"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/navigation"
 	"github.com/kjkrol/gram/plugins/players"
@@ -57,6 +59,8 @@ type arena struct {
 	players    *players.Plugin
 	telemetry  *telemetry.Plugin
 	cameras    *cameras.Plugin
+	minimap    *minimap.Plugin
+	light      *light.Plugin
 	player     *players.Player
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
@@ -64,8 +68,9 @@ type arena struct {
 
 func main() {
 	props := game.Props{
-		Title:       "gram board",
-		Description: "Madeira on the simple map.",
+		Title: "gram board",
+		Description: "Madeira on the simple map, a minimap round the camera (Shift+M hides " +
+			"it); a click on it takes the camera there.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
@@ -94,6 +99,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
 	a.motion = motion.NewPlugin(a.world)
 	a.collision = collision.NewPlugin(a.world, a.motion)
+	a.light = light.NewPlugin(a.world, light.Config{LampShadows: 2})
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
 	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world).
 		WithMotion(a.motion).
@@ -109,6 +115,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.vision = vision.NewPlugin(a.world).WithBoard(a.board)
 	a.atmosphere = atmosphere.NewPlugin(
 		a.world,
+		a.light,
 		atmosphere.Config{
 			Calendar: calendar.Config{Start: 8 * time.Hour, Season: calendar.Summer},
 			Climate: climate.Config{
@@ -119,10 +126,14 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		},
 	).WithWeathering(a.board, a.defineClimate())
 	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
-	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter())
+	a.minimap = minimap.NewPlugin(a.world, a.board, minimap.Config{Reach: 40 * CellSize})
+	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter(), a.light.Reporter())
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection,
 		a.nav, a.driving,
-		a.atmosphere, a.vision, a.bridges)
+		a.atmosphere, a.vision, a.bridges, a.minimap, a.light)
+	a.atmosphere.ShowClouds(atmosphere.AllBodies)
+	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})
+	a.board.ShowGrid(false)
 }
 
 func (a *arena) definePlayer() error {
@@ -164,6 +175,7 @@ func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.bridges.RunPlan(ctx, d)
 	a.world.RunPlan(ctx, d)
+	a.light.RunPlan(ctx, d)
 	a.motion.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)
 	a.board.RunPlan(ctx, d)
@@ -173,6 +185,7 @@ func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.atmosphere.RunPlan(ctx, d)
 	a.selection.RunPlan(ctx, d)
 	a.cameras.RunPlan(ctx, d)
+	a.minimap.RunPlan(ctx, d)
 	a.players.RunPlan(ctx, d)
 	ctx.Sync()
 }

@@ -66,7 +66,8 @@ type collisionSystem struct {
 
 	pair     pairSides
 	pending  []pendingContact
-	resting  []restingPair // the pairs of the tick before, to keep while they touch
+	resting  []restingPair            // the pairs of the tick before, to keep while they touch
+	met      map[restingPair]struct{} // the pairs in contacts this tick, a < b; emptied after rest
 	nearests []nearest
 	contacts []pairSides
 	between  *host.PairRules[Meeting]
@@ -239,6 +240,7 @@ const sought = 0
 
 func newCollisionSystem(space *aabbworld.Space, between *host.PairRules[Meeting], each *host.Rules[Struck], fieldOf func() Field) *collisionSystem {
 	d := &collisionSystem{space: space, between: between, each: each, fieldOf: fieldOf}
+	d.met = make(map[restingPair]struct{}, 256)
 	d.struckAt, d.hitAt = d.struck, d.hit
 	d.ground.physics = Physics{Mass: math.Inf(1)}
 	d.field.d = d
@@ -414,6 +416,13 @@ func (d *collisionSystem) hit(i int) bool {
 
 type restingPair struct{ a, b uid.UID64 }
 
+func ordered(a, b uid.UID64) restingPair {
+	if b < a {
+		return restingPair{a: b, b: a}
+	}
+	return restingPair{a: a, b: b}
+}
+
 // what rests a hair apart still touches
 const restGap = 1e-3
 
@@ -427,8 +436,12 @@ func touching(a, b geom.AABB) bool {
 // rest keeps the pairs of the tick before that still touch though nothing pushed them this
 // tick: a contact at rest on both sides and a Meeting, with no impulse.
 func (d *collisionSystem) rest() {
+	for i := range d.contacts {
+		c := &d.contacts[i]
+		d.met[ordered(c.A.Entity, c.B.Entity)] = struct{}{}
+	}
 	for _, p := range d.resting {
-		if d.met(p) {
+		if _, ok := d.met[p]; ok {
 			continue
 		}
 		a, tagsA, okA := d.side(p.a)
@@ -446,18 +459,10 @@ func (d *collisionSystem) rest() {
 			Along: 1, Resting: true})
 		d.contacts = append(d.contacts, pairSides{A: a, B: b, tagsA: tagsA, tagsB: tagsB,
 			normal: normal, along: 1})
+		d.met[p] = struct{}{}
 	}
 	d.resting = d.resting[:0]
-}
-
-func (d *collisionSystem) met(p restingPair) bool {
-	for i := range d.contacts {
-		c := &d.contacts[i]
-		if c.A.Entity == p.a && c.B.Entity == p.b || c.A.Entity == p.b && c.B.Entity == p.a {
-			return true
-		}
-	}
-	return false
+	clear(d.met)
 }
 
 type pairSides struct {

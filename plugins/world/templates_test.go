@@ -44,7 +44,7 @@ func TestRoster_AsksTheWorldAndEveryPluginMadeInTheOrderMade(t *testing.T) {
 	if len(stamps) != 1 || stamps[0] != "first" {
 		t.Errorf("an entity is stamped %v, want by the plugin made first", stamps)
 	}
-	if len(spec) < 5 {
+	if len(spec) < 4 {
 		t.Errorf("an entity's spec is %d components, want the world's own and the stamp",
 			len(spec))
 	}

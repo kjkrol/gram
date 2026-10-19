@@ -28,6 +28,9 @@ type Kind struct {
 	Sway float64
 	// Graded ground is built into the slope, so the slope neither slows nor prices a step over it.
 	Graded bool
+	// Takes is which shade the cell takes and whether the lamps light it (render.Taking): zero
+	// all, render.Shines none.
+	Takes render.Taking
 	// SpriteID is the kind's slot in the board's atlas, given as it is defined.
 	SpriteID render.SpriteID
 	// Costs overrides Cost for entities moving in a domain, Costs[i] for the domain bit i.

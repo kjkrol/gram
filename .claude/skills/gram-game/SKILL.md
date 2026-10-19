@@ -72,11 +72,17 @@ A demo groups its plugins in an **arena**, the collector every section builds on
 `definePlayer`, `defineEffects`, `defineRules`, `defineCommands`, `defineCells`, `defineKinds`,
 `bindKeys`, `spawn`, `defineScenes`, `update`). The scene is apart in `scene.go`: a
 `mainScene{arena: a, …}` builds it — its colours and `screen()`: first the plugins' look
-options (`vision.WithViews`, `board.ShowGrid(false)`, `WithAtmosphere`, the painter's styles,
+options (`vision.WithViews`, `board.ShowGrid(false)`, `WithAtmosphere`,
+`a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground, Figures, High})`, `a.light.WithDistant(…)`
+where there is no sky (a sun of the game's own moves by `WithDistant` in `update` before
+`a.light.RunPlan`, look/light's `sun.go`), `world.WithFog` where there is no atmosphere, the painter's styles,
 `ShowHolds`, `ShowRoutes`, `ShowZones`), then the ui tree, the world shown as
 `feed := render.NewFeed(cam, a.world.Picture())` (2026-10-15: no `picture()`, no composer named
 in a demo; every plugin made draws what it gave `ctx.Draws`, the atlases closed by the Stage
-before the scenes) — and `defineScenes` only makes it. See
+before the scenes) — and `defineScenes` only makes it. A minimap is the one picture of its own:
+`ui.TopRight(a.minimap.For(cam, a.player.ID).Masked(ui.Circle).Border(rim, 2)).Size(220, 220)`
+over the feed of the same `cam` (made once in `screen()`), `.Fill` where there is no ground
+(motion/expanse); a press on it moves `cam`. See
 `examples/start/scenes` for a menu Stage with no world, a ui scene of the engine's commands and a
 togglable modal panel over the still-ticking world.
 
@@ -100,12 +106,18 @@ theme's `Bold`), `Title` (its `Large`, Go Bold at 20), `Image`, `Window`, `Label
 `WindowOf` (their words read off a `ui.Text` every frame; `ui.Of[T]` reads a component of the pinned
 entity; a Text saying nothing leaves the element out), `Button(label, cmds...)` (the scene's own
 `ui.Show`/`Hide`/`Toggle{Name}`, or any command through `Issue`; no callbacks into the game),
-`Blank`, `Layer(renderer)`; any element takes `Fill`, `Border`, `Padding`, `Named`, `Hidden`,
+`Blank`, `Drawer(renderer)`; the controls `Checkbox(label, get, set)`, `Slider(min, max, step,
+get, set)` (dragged till the button is let go, the wheel over it a step; `Size` its length),
+`Dropdown(options, get, set)` (its options opened over everything, in the scene's overlay; a
+click outside or Esc closes them, `Scene.Unfolded`) — each `get` read every frame, each `set`
+building the command for the new value, given like a button's; they read no entity. Any
+element takes `Fill`, `Border`, `Padding`, `Named`, `Hidden`,
 `Modal`, `Masked(ui.Circle | ui.Polygon(...))`, `Fraction(w, h)` (an axis 0 following the
 proportions of the world a feed shows whole), `Steady` (never shrinks: a box round words that
-change). `ui.Theme{Font, Bold, Large, Text, Shadow, Panel, Border, Title, Button}` is how elements
-look where they say nothing of their own. A feed filling the screen is drawn straight onto it.
-Input: a click goes to the topmost element hit — a button gives its commands, an
+change). `ui.Theme{Font, Bold, Large, Text, Shadow, Panel, Border, Title, Button, Accent}` is how
+elements look where they say nothing of their own. A feed filling the screen is drawn straight
+onto it. Input: a click goes to the topmost element hit — a button or a control takes it
+(`pressable` in `input.go`), an
 `Image(feed).Input(players.Through(pl))` lets it through to the bindings, any other element keeps
 it. **Elements from the game are pinned to entities**, written as `Under` on the atlas:
 `ui.Label("frozen").Under(effects.Named(FrozenEf))` is shown once for every entity the effect is on,
@@ -184,10 +196,14 @@ scratchpad and run it from its directory under `timeout 5s`, exit 124 alive, gre
   `players.Shortcuts`: a `game.Scene` wrapping a `ui.Scene`, because `ui.Scene.Focusable()` is
   always true and a focusable scene on top takes all input. Only the active scene's
   `HandleEvents` (`players.Handle`) gets the `Composition` (`Show`/`Hide`/`Active`), so a key
-  that shows another scene is carried there (K: `p.listings.Drain` in `Handle`), and works while
+  that shows another scene is carried there (K, F10: `p.carry` in `Handle`), and works while
   the engine is paused (input runs before the pause check) but not while another scene is
   active. A plugin's queue drained in `RunPlan` (board's B, vision's Shift+C) does nothing
-  under the engine's pause.
+  under the engine's pause — which is why the settings screen (`players.SettingsScene`, F10)
+  holds the game in the clock's tactical pause instead: `RunPlan` runs, the controls' commands
+  are carried out, the picture redraws. It forwards its input to its `ui.Scene` (the Shortcuts
+  scene does not) and calls `p.carry` itself, so the players' own commands (`KeepRunning`,
+  `telemetry.Panel`) work while it is up.
 - K lists "General" = bindings whose handler is players or nil (`shortcuts.go` `groups`);
   `handlerOf` searches only the handlers given to `players.NewPlugin`: a CommandHandler merely
   `Use`d is still carried (`initializer.go`), but listed under "General" and left out of
@@ -223,6 +239,9 @@ there is an error and nothing changes), `game.Enter{Stage}`, `game.Quit{}` — b
 (`GameBindings`) or ui buttons (through `Runtime.Issue`); the engine's queues are in every
 Stage's carrier and are carried out after the input, before the ticks, so a rule's `act.Do`
 saves too. A save is a Stage's: `filepath.Join(Props.Saves, stage)`, a file a slot. `enterStage`
-loads after Init, before Setup, and calls `Stage.Loaded()` in place of `Spawn`; the tests' way:
+loads after Init, before Setup, and calls `Stage.Loaded()` in place of `Spawn`, so the scenes are made after the load — a start look set
+in `screen()` would clobber a loaded setting, which is why a plugin's start (`ShowGrid(false)`,
+`ShowCones()`) is set in `makePlugins`. A plugin's settings are `plugin.Keep(&p.Res.Settings)`
+(`gram-plugin`); the tests' way:
 `Props.Saves` a temp dir, `eng.Save("")`, a second engine `Load("", "")`, `Init`. A plan's shape
 changed, its saves do not load; goke registers 512 component types at most, every fact one.

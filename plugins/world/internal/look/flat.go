@@ -33,6 +33,9 @@ func NewFlat(width, height float32, wrapX, wrapY bool) *Flat {
 	return l
 }
 
+// Fog has the sprites laid next turn into the fog by amount.
+func (l *Flat) Fog(amount float32) { l.sprites.Fog(amount) }
+
 // Begin readies the look to gather the frame's sprites for the GPU.
 func (l *Flat) Begin(*render.Frame, camera.Camera) {
 	l.sprites.Reset()
@@ -40,18 +43,20 @@ func (l *Flat) Begin(*render.Frame, camera.Camera) {
 }
 
 // DrawSprites draws the sprites gathered since Begin.
-func (l *Flat) DrawSprites(t render.Target, cam camera.Camera, _ render.Uniforms) {
+func (l *Flat) DrawSprites(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if l.direct {
-		l.sprites.Draw(t, cam)
+		l.sprites.Draw(t, cam, u)
 	}
 	l.direct = false
 }
 
 func (l *Flat) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z entity.Z,
-	atlas render.AtlasSource, a render.Appearance, light render.Light) {
+	atlas render.AtlasSource, a render.Appearance, lit render.Illumination) {
 	stands := at(f, box, z.Top())
 	l.sprites.Layer(stands, false)
-	l.lay(f, cam, stands, box, atlas, a, light)
+	l.sprites.Take(lit.Takes)
+	l.sprites.Direct(lit.Direct)
+	l.lay(f, cam, stands, box, atlas, a, lit.Light)
 }
 
 // at is where a figure over box lies at height z, among what is drawn back to front
@@ -62,19 +67,24 @@ func at(f *render.Frame, box plane.AABB, z float64) render.At {
 
 // Lie lays the sprite as Sprite does, at its Altitude: under whatever stands higher.
 func (l *Flat) Lie(f *render.Frame, cam camera.Camera, box plane.AABB, z entity.Z,
-	atlas render.AtlasSource, a render.Appearance, light render.Light) {
+	atlas render.AtlasSource, a render.Appearance, lit render.Illumination) {
 	lies := at(f, box, z.Altitude)
 	l.sprites.Layer(lies, true)
-	l.lay(f, cam, lies, box, atlas, a, light)
+	l.sprites.Take(lit.Takes)
+	l.sprites.Direct(lit.Direct)
+	l.lay(f, cam, lies, box, atlas, a, lit.Light)
 }
 
 // Lay lays the sprite over the rectangle lie says and, lie being Edged, the edge sprite along its
 // long sides as strips a tenth of its Width wide.
 func (l *Flat) Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.Vec,
 	lie entity.Lie, z entity.Z, atlas render.AtlasSource, a render.Appearance,
-	edge render.SpriteID, light render.Light) {
+	edge render.SpriteID, lit render.Illumination) {
 	lies := at(f, box, z.Altitude)
 	l.sprites.Layer(lies, true)
+	l.sprites.Take(lit.Takes)
+	l.sprites.Direct(lit.Direct)
+	light := lit.Light
 	if dir == (geom.Vec{}) {
 		dir = geom.NewVec(1, 0)
 	}
