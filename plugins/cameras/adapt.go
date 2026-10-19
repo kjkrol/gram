@@ -1,6 +1,10 @@
 package cameras
 
-import "time"
+import (
+	"time"
+
+	"github.com/kjkrol/gram/camera"
+)
 
 // adapter steps the pictures' resolution after the frame rate, once a second at most: coarser
 // once it has fallen under the budget twice running, finer, tentatively, once it has met it five
@@ -63,3 +67,42 @@ func (a *adapter) step(now time.Time, fps float64) float32 {
 
 // clamped is s between LeastResolution and all the pixels
 func clamped(s float32) float32 { return min(max(s, LeastResolution), 1) }
+
+// the rings a picture drawn in rings starts with, the outermost first, and the least each is
+// stepped down to
+var (
+	defaultRings = []camera.Ring{
+		{Share: 1, Resolution: 0.6},
+		{Share: 0.6, Resolution: 0.8},
+		{Share: 0.35, Resolution: 1},
+	}
+	ringFloors = []float32{LeastResolution, 0.6, 0.7}
+)
+
+// stepRings steps one of c's rings by factor, coarser the outermost still over its floor, finer
+// the innermost still under all its pixels, and is the centre's resolution after
+func stepRings(c camera.Ringed, factor float32) float32 {
+	rings := c.Rings()
+	switch {
+	case factor < 1:
+		for i, r := range rings {
+			floor := float32(LeastResolution)
+			if i < len(ringFloors) {
+				floor = ringFloors[i]
+			}
+			if r.Resolution > floor {
+				rings[i].Resolution = max(r.Resolution*factor, floor)
+				break
+			}
+		}
+	case factor > 1:
+		for i := len(rings) - 1; i >= 0; i-- {
+			if r := rings[i].Resolution; r < 1 {
+				rings[i].Resolution = min(r*factor, 1)
+				break
+			}
+		}
+	}
+	c.SetRings(rings)
+	return rings[len(rings)-1].Resolution
+}

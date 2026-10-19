@@ -894,7 +894,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   neither render nor the world, so their own tests use it too: `internal/stick` is arithmetic and
   a `Keeper` over `stick.Entities`, the plugin's `riding` system reading the ECS for it. `Zones{Shown}` (Shift+H,
   `ShowZones`, `ZonesShown`, `Res.Settings.Zones`, saved beside the cameras' own `persisted`;
-  `Adapt{On}` Alt+A, `SetAdaptive`, `Adaptive`, `Res.Settings.Adaptive` likewise; marks over every other, hidden by default, shown
+  `Adapt{On, Rings}` Alt+A, `SetAdaptive`, `Adaptive`, `Res.Settings.Adaptive`, `SetRings`, `Rings`, `Res.Settings.Rings` likewise; marks over every other, hidden by default, shown
   in board/topography's `makePlugins`) lays the strips and the corner squares over every picture in
   translucent yellow, rounded (`render.Frame.Fan`), the strips a gap short of the corners and
   fainter (the user's sketch, 2026-10-14). `CursorAtEdge` fires once an `Engine.Update`, before

@@ -342,12 +342,7 @@ func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBu
 	cam := p.New(cameras.FromAbove, camera.Config{})
 	minimap := p.New(cameras.FromAbove, camera.Config{Whole: true})
 	start()
-	report := func() string {
-		var got string
-		p.Reporter().Report(func(label, value string) { got = label + ": " + value })
-		return got
-	}
-	if got := report(); got != "Picture: 1.00 of the pixels, adaptive" {
+	if got := report(p); got != "Picture: 1.00 of the pixels, adaptive" {
 		t.Fatalf("the telemetry says %q, want the one picture at all its pixels, adaptive", got)
 	}
 	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: cameras.ResolutionStep})
@@ -356,7 +351,7 @@ func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBu
 		t.Errorf("after a coarser step the camera is drawn at %v, want %v", got,
 			cameras.ResolutionStep)
 	}
-	if got := report(); got != "Picture: 0.85 of the pixels" {
+	if got := report(p); got != "Picture: 0.85 of the pixels" {
 		t.Errorf("the telemetry says %q, want the step and the following stopped", got)
 	}
 	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: 1 / cameras.ResolutionStep})
@@ -374,12 +369,104 @@ func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBu
 	}
 	w.Carrier().Put(command.Nobody, cameras.Adapt{On: true})
 	tick()
-	if got := report(); got != "Picture: 0.40 of the pixels, adaptive" {
+	if got := report(p); got != "Picture: 0.40 of the pixels, adaptive" {
 		t.Errorf("after Adapt the telemetry says %q, want the resolution following the budget", got)
 	}
 	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: minimap, Factor: cameras.ResolutionStep})
 	tick()
 	if got := camera.ResolutionOf(minimap); got != 1 {
 		t.Errorf("a minimap's camera stepped coarser is drawn at %v, want all its pixels", got)
+	}
+}
+
+// the cameras' line of the telemetry panel
+func report(p *cameras.Plugin) string {
+	var got string
+	p.Reporter().Report(func(label, value string) { got = label + ": " + value })
+	return got
+}
+
+// the command Alt+A builds among the plugin's default bindings
+func altA(t *testing.T, p *cameras.Plugin) command.Command {
+	t.Helper()
+	for _, b := range p.DefaultBindings() {
+		if b.Trigger != (control.KeyPress{Key: control.KeyA, Mods: control.Mods{Alt: true}}) {
+			continue
+		}
+		if cmd, ok := b.Build(control.Context{}); ok {
+			return cmd
+		}
+	}
+	t.Fatal("no default binding on Alt+A builds a command")
+	return nil
+}
+
+func TestAdapt_CyclesFollowingInRingsAndStill(t *testing.T) {
+	w, p, start, tick := emptyWorld(t, cameras.Config{})
+	cam := p.New(cameras.FromAbove, camera.Config{})
+	start()
+	for presses, want := range []struct {
+		rings    int
+		adaptive bool
+		report   string
+	}{
+		{0, false, "Picture: 1.00 of the pixels"},
+		{0, true, "Picture: 1.00 of the pixels, adaptive"},
+		{3, true, "Picture: 0.60/0.80/1.00 of the pixels, ringed, adaptive"},
+		{0, false, "Picture: 1.00 of the pixels"},
+	} {
+		if presses > 0 {
+			w.Carrier().Put(command.Nobody, altA(t, p))
+			tick()
+		}
+		rings := len(camera.RingsOf(cam))
+		if rings != want.rings || p.Rings() != (want.rings > 0) || p.Adaptive() != want.adaptive {
+			t.Errorf("after %d Alt+A the camera has %d rings, the plugin rings %v, adaptive %v; "+
+				"want %d rings and adaptive %v", presses, rings, p.Rings(), p.Adaptive(),
+				want.rings, want.adaptive)
+		}
+		if got := report(p); got != want.report {
+			t.Errorf("after %d Alt+A the telemetry says %q, want %q", presses, got, want.report)
+		}
+	}
+}
+
+func TestResolution_InRingsStepsTheOuterRingFirstAndStopsTheFollowing(t *testing.T) {
+	w, p, start, tick := emptyWorld(t, cameras.Config{Rings: true, Adaptive: true})
+	cam := p.New(cameras.FromAbove, camera.Config{})
+	start()
+	if got := report(p); got != "Picture: 0.60/0.80/1.00 of the pixels, ringed, adaptive" {
+		t.Fatalf("the telemetry says %q, want the preset's rings, ringed and adaptive", got)
+	}
+	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: cameras.ResolutionStep})
+	tick()
+	if got := report(p); got != "Picture: 0.51/0.80/1.00 of the pixels, ringed" {
+		t.Errorf("the telemetry says %q, want the outer ring stepped and the following stopped",
+			got)
+	}
+	rings := camera.RingsOf(cam)
+	if len(rings) != 3 || camera.ResolutionOf(cam) != rings[2].Resolution {
+		t.Errorf("the camera is drawn at %v in the rings %v, want the centre ring's resolution",
+			camera.ResolutionOf(cam), rings)
+	}
+}
+
+func TestAdapt_FromRingsStillGoesOnFollowingInRings(t *testing.T) {
+	w, p, start, tick := emptyWorld(t, cameras.Config{})
+	cam := p.New(cameras.FromAbove, camera.Config{})
+	start()
+	w.Carrier().Put(command.Nobody, cameras.Adapt{On: false, Rings: true})
+	tick()
+	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: cameras.ResolutionStep})
+	tick()
+	if got := report(p); got != "Picture: 0.51/0.80/1.00 of the pixels, ringed" {
+		t.Fatalf("the telemetry says %q, want the picture still, in rings, the outer one stepped",
+			got)
+	}
+	w.Carrier().Put(command.Nobody, altA(t, p))
+	tick()
+	if got := report(p); got != "Picture: 0.51/0.80/1.00 of the pixels, ringed, adaptive" {
+		t.Errorf("after Alt+A the telemetry says %q, want the following resumed in the rings as "+
+			"they are, not the preset again", got)
 	}
 }

@@ -24,6 +24,7 @@ var _ command.Command = Zones{}
 type Settings struct {
 	Zones    bool
 	Adaptive bool
+	Rings    bool
 }
 
 // Resources is what the cameras publish: their Settings.
@@ -124,12 +125,41 @@ func (p *Plugin) SetAdaptive(on bool) {
 // Adaptive reports whether the pictures' resolution follows the frame budget.
 func (p *Plugin) Adaptive() bool { return p.Res.Settings.Adaptive }
 
+// SetRings has every picture but a minimap's drawn in rings, the whole frame at 0.6 of its
+// pixels, the central 60% at 0.8 and the central 35% at all, or whole at the resolution it has
+// (Settings.Rings).
+func (p *Plugin) SetRings(on bool) {
+	p.Res.Settings.Rings = on
+	for _, cam := range p.cameras {
+		p.ring(cam)
+	}
+}
+
+// Rings reports whether the pictures are drawn in rings.
+func (p *Plugin) Rings() bool { return p.Res.Settings.Rings }
+
+// ring has cam drawn as Settings.Rings says, a minimap's as it is
+func (p *Plugin) ring(cam camera.Camera) {
+	c, ok := cam.(camera.Ringed)
+	if !ok || fitsWhole(cam) {
+		return
+	}
+	if !p.Res.Settings.Rings {
+		c.SetRings(nil)
+		return
+	}
+	c.SetRings(defaultRings)
+	if r, ok := cam.(camera.Resolved); ok {
+		r.SetResolution(1)
+	}
+}
+
 func (p *Plugin) switchZones() {
 	p.zones.Drain(func(i command.Issued[Zones]) { p.ShowZones(i.Command.Shown) })
 }
 
-// Settings are the scroll zones and the resolution following the frame budget
-// (plugin.Tunable).
+// Settings are the scroll zones, the resolution following the frame budget and the picture
+// drawn in rings (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
 	return []control.Setting{
 		control.Switch{
@@ -140,7 +170,12 @@ func (p *Plugin) Settings() []control.Setting {
 		control.Switch{
 			Label: "Resolution follows the frame budget",
 			Get:   p.Adaptive,
-			Set:   func(on bool) command.Command { return Adapt{On: on} },
+			Set:   func(on bool) command.Command { return Adapt{On: on, Rings: p.Rings()} },
+		},
+		control.Switch{
+			Label: "Picture drawn in rings",
+			Get:   p.Rings,
+			Set:   func(on bool) command.Command { return Adapt{On: p.Adaptive(), Rings: on} },
 		},
 	}
 }

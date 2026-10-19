@@ -57,13 +57,16 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 		}
 	})
 	s.p.resolutions.Drain(func(i command.Issued[Resolution]) {
-		cam := i.Command.Camera
-		if r, ok := cam.(camera.Resolved); ok && i.Command.Factor > 0 && !fitsWhole(cam) {
-			r.SetResolution(clamped(r.Resolution() * i.Command.Factor))
+		if i.Command.Factor > 0 && s.p.apply(i.Command.Camera, i.Command.Factor) {
 			s.p.SetAdaptive(false)
 		}
 	})
-	s.p.adapts.Drain(func(i command.Issued[Adapt]) { s.p.SetAdaptive(i.Command.On) })
+	s.p.adapts.Drain(func(i command.Issued[Adapt]) {
+		s.p.SetAdaptive(i.Command.On)
+		if i.Command.Rings != s.p.Rings() {
+			s.p.SetRings(i.Command.Rings)
+		}
+	})
 	s.p.follows.Drain(func(i command.Issued[Follow]) {
 		cam, ok := i.Command.Camera.(camera.Fastenable)
 		if !ok {

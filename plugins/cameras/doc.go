@@ -17,7 +17,10 @@
 // changes how far, saved with the camera. Every picture but a minimap's is drawn at
 // Config.Resolution of the pixels it is shown at (camera.Resolved; the ui stays sharp),
 // [Resolution] steps it and [Adapt] has it follow Config.FrameBudget: coarser while the frames
-// come slower, finer again while they keep up. The telemetry panel shows it ([Plugin.Reporter]).
+// come slower, finer again while they keep up. Drawn in rings (Config.Rings, camera.Ringed) a
+// picture is the whole frame at 0.6 of its pixels, its central 60% at 0.8 and its central 35%
+// at all, a step taking one ring at a time: coarser the outermost first, each down to a floor,
+// finer the innermost first. The telemetry panel shows it ([Plugin.Reporter]).
 //
 // # Cage
 //
@@ -53,10 +56,11 @@
 // In relief [View] switches the projection, [Turn] and [Tilt] move the stick, [Ride] takes it
 // behind and inside the entity it is fastened to, [LookFrom] and [LookAt] place the eye in
 // perspective and [Look] looks round riding, the cursor captured. [Resolution] draws a camera's
-// picture at a factor of its pixels, [Adapt] has every picture's resolution follow the frame
-// budget or stop. Each names its camera, taken from the context by its binding, so the plugin
-// never knows the players. The plugin writes only the eye's part of a ridden entity's
-// steering.Driven (Look, Flown, Climb).
+// picture at a factor of its pixels, a ring at a time in rings; [Adapt] has every picture's
+// resolution follow the frame budget or stop, and every picture drawn in rings or whole. Each
+// names its camera, taken from the context by its binding, so the plugin never knows the
+// players. The plugin writes only the eye's part of a ridden entity's steering.Driven (Look,
+// Flown, Climb).
 //
 // # Keys
 //
@@ -65,18 +69,19 @@
 // slantwise, or turning as Q and E do (Keys.CornersTurn), two with Ctrl seeing farther and nearer,
 // two with Alt drawing a finer and a coarser picture. [DefaultKeys] are W, S, A, D, = and -,
 // Ctrl+= and Ctrl+-, Alt+= and Alt+-, with all three; [Plugin.DefaultBindings] are those, the
-// corners turning where the Config turns, Shift+H, Alt+A (the resolution following the frame
-// budget) and the views' keys the Config gives: Q and E turning, R looking down more steeply and
-// F flatter, Tab switching between the orthographic view and the perspective, V riding, the mouse
-// looking round inside an entity.
+// corners turning where the Config turns, Shift+H, Alt+A (the picture following the frame
+// budget, in rings, or still and whole, in turn) and the views' keys the Config gives: Q and E
+// turning, R looking down more steeply and F flatter, Tab switching between the orthographic
+// view and the perspective, V riding, the mouse looking round inside an entity.
 //
 // # Vocabulary
 //
 // Commands, a player's through its camera: [Pan], [Zoom], [CenterOn], [CenterAt], [View], [Turn],
 // [Tilt],
 // [LookFrom], [LookAt], [Ride], [Look], [Sight], [Resolution]; [Adapt] (every picture's
-// resolution following the frame budget, Alt+A); [Zones] (a look: the scroll zones over every
-// picture, Shift+H); [Follow] (a player's, or an entity's own fastening the camera over itself).
+// resolution following the frame budget and the picture drawn in rings, Alt+A); [Zones] (a look:
+// the scroll zones over every picture, Shift+H); [Follow] (a player's, or an entity's own
+// fastening the camera over itself).
 // Settings ([Settings], saved with the game, in [Resources]): the zones, the resolution
-// following the budget.
+// following the budget, the picture drawn in rings.
 package cameras

@@ -110,9 +110,11 @@ type Resolution struct {
 }
 
 // Adapt has every picture's resolution follow the frame budget (Config.FrameBudget,
-// Settings.Adaptive): coarser while the frames come slower than it, finer again while they keep
-// up; or stay. Alt+A by default, in turn.
-type Adapt struct{ On bool }
+// Settings.Adaptive), coarser while the frames come slower than it and finer again while they
+// keep up, or stay; and has every picture drawn in rings (Settings.Rings), the whole frame at
+// 0.6 of its pixels, the central 60% at 0.8 and the central 35% at all, or whole. Alt+A by
+// default, in turn: following, following in rings, still and whole.
+type Adapt struct{ On, Rings bool }
 
 func (Pan) Command()        {}
 func (Zoom) Command()       {}
@@ -174,9 +176,9 @@ func (p *Plugin) Queues() []command.CommandQueue {
 }
 
 // DefaultBindings are DefaultKeys, their corners turning where the Config turns, Shift+H showing
-// or hiding the scroll zones, Alt+A the picture's resolution following the frame budget or not,
-// and the views' keys the Config gives: Q and E turning, R and F tilting, Tab switching the
-// projection, V riding and the mouse looking round inside an entity.
+// or hiding the scroll zones, Alt+A the picture following the frame budget, in rings, or staying
+// whole, and the views' keys the Config gives: Q and E turning, R and F tilting, Tab switching
+// the projection, V riding and the mouse looking round inside an entity.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	keys := DefaultKeys()
 	keys.CornersTurn = p.cfg.Turn
@@ -185,7 +187,18 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 			"Show the scroll zones at the picture's edges, or hide them",
 			func(control.Context) (Zones, bool) { return Zones{Shown: !p.ZonesShown()}, true }),
 		control.Build(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Alt: true}},
-			"The picture's resolution follows the frame budget, or stays",
-			func(control.Context) (Adapt, bool) { return Adapt{On: !p.Adaptive()}, true }))
+			"The picture follows the frame budget, in rings too, or stays whole",
+			func(control.Context) (Adapt, bool) { return p.nextAdapt(), true }))
 	return append(out, viewBindings(p.cfg)...)
+}
+
+// nextAdapt is the Adapt after the Settings: following, following in rings, still and whole
+func (p *Plugin) nextAdapt() Adapt {
+	switch {
+	case !p.Adaptive():
+		return Adapt{On: true, Rings: p.Rings()}
+	case !p.Rings():
+		return Adapt{On: true, Rings: true}
+	}
+	return Adapt{}
 }

@@ -6,11 +6,13 @@ import (
 	"log"
 	"math"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
@@ -182,5 +184,74 @@ func TestSettings_AreSavedWithTheCamerasAndAZeroSavedComesBackSo(t *testing.T) {
 	}
 	if loaded.Adaptive() {
 		t.Error("the resolution follows the budget after a load that saved it still")
+	}
+}
+
+var presetRings = []camera.Ring{
+	{Share: 1, Resolution: 0.6},
+	{Share: 0.6, Resolution: 0.8},
+	{Share: 0.35, Resolution: 1},
+}
+
+func TestNew_UnderRingsACameraIsDrawnInThePresetsRingsAMinimapsWhole(t *testing.T) {
+	p := cameras.NewPlugin(newWorld(), cameras.Config{Rings: true, Resolution: 0.7})
+	cam := p.New(cameras.FromAbove, camera.Config{})
+	whole := p.New(cameras.FromAbove, camera.Config{Whole: true})
+	if got := camera.RingsOf(cam); !slices.Equal(got, presetRings) || camera.ResolutionOf(cam) != 1 {
+		t.Errorf("the camera is drawn in %v at %v, want the preset %v at all its centre's pixels",
+			got, camera.ResolutionOf(cam), presetRings)
+	}
+	if got := camera.RingsOf(whole); len(got) != 0 {
+		t.Errorf("a camera keeping the whole world in view is drawn in %v, want whole", got)
+	}
+	relief := cameras.NewPlugin(newWorld(),
+		cameras.Config{Turn: true, Tilt: true, Cell: 32, Rings: true})
+	if got := camera.RingsOf(relief.New(cameras.Isometrically, camera.Config{})); !slices.Equal(
+		got, presetRings) {
+		t.Errorf("a camera in relief is drawn in %v, want the preset", got)
+	}
+}
+
+func TestSettings_AreTheZonesTheFollowingAndTheRingsEachBuildingAnAdaptWhole(t *testing.T) {
+	p := cameras.NewPlugin(newWorld(), cameras.Config{Adaptive: true})
+	settings := p.Settings()
+	if len(settings) != 3 {
+		t.Fatalf("%d settings, want the zones, the following and the rings", len(settings))
+	}
+	following, rings := settings[1].(control.Switch), settings[2].(control.Switch)
+	if following.Label != "Resolution follows the frame budget" || !following.Get() ||
+		rings.Label != "Picture drawn in rings" || rings.Get() {
+		t.Errorf("the switches are %q (%v) and %q (%v), want the following on and the rings off",
+			following.Label, following.Get(), rings.Label, rings.Get())
+	}
+	if got := rings.Set(true); got != (cameras.Adapt{On: true, Rings: true}) {
+		t.Errorf("the rings switched on build %v, want Adapt{On: true, Rings: true}", got)
+	}
+	if got := following.Set(false); got != (cameras.Adapt{}) {
+		t.Errorf("the following switched off builds %v, want Adapt{}: the picture as it is", got)
+	}
+}
+
+func TestRestore_DrawsTheCamerasInRingsAsTheSettingsLoadedSay(t *testing.T) {
+	saved := cameras.NewPlugin(newWorld(), cameras.Config{Rings: true})
+	loaded := cameras.NewPlugin(newWorld(), cameras.Config{})
+	before := loaded.New(cameras.FromAbove, camera.Config{})
+	before.(camera.Resolved).SetResolution(0.7)
+	carried(t, saved, loaded)
+	if got := camera.RingsOf(before); !slices.Equal(got, presetRings) ||
+		camera.ResolutionOf(before) != 1 {
+		t.Errorf("after the load the camera made before it is drawn in %v at %v, want the preset "+
+			"at all its centre's pixels", got, camera.ResolutionOf(before))
+	}
+	after := loaded.New(cameras.FromAbove, camera.Config{})
+	if got := camera.RingsOf(after); !slices.Equal(got, presetRings) {
+		t.Errorf("a camera made after the load is drawn in %v, want the preset", got)
+	}
+	whole := cameras.NewPlugin(newWorld(), cameras.Config{})
+	ringed := cameras.NewPlugin(newWorld(), cameras.Config{Rings: true})
+	cam := ringed.New(cameras.FromAbove, camera.Config{})
+	carried(t, whole, ringed)
+	if got := camera.RingsOf(cam); len(got) != 0 || ringed.Rings() {
+		t.Errorf("after a load saved whole the camera is drawn in %v, want whole", got)
 	}
 }
