@@ -540,3 +540,15 @@ func TestRenderer_DrapesTheRingTheVerticalFieldCoversOnTheGround(t *testing.T) {
 		t.Errorf("looking up the ring has %d points, want none: the field is all sky", len(pts))
 	}
 }
+
+func TestRenderer_TheBoardsCoverKeepsACount(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 256, Height: 256},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 100},
+		Heights:  true,
+	})
+	b := board.NewPlugin(grid.DefaultGrids{}.Square(8, 8, 32), &cell.MultipleOccupancy{}, w)
+	if versionOf(b.Cover()) == 0 {
+		t.Error("the board's cover keeps no count: the views copy it anew every frame")
+	}
+}

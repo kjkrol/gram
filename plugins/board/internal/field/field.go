@@ -42,6 +42,10 @@ func New(g grid.Grid, cells *terrain.Cells, altitude func(c cell.ID) float64) *F
 	return &Field{grid: g, square: sq, cells: cells, altitude: altitude}
 }
 
+// Version and Changes are the cells' counts: the cover's copies are kept by them.
+func (f *Field) Version() uint64 { return f.cells.Version() }
+func (f *Field) Changes() uint64 { return f.cells.Changes() }
+
 // Walk is the cover of the board along a ray, the Cover contract: every cell whose kind has a
 // Veil that dims an observer on blockers, in order, with the stretch of the ray inside it, its
 // band (±Inf for a kind of no Height) and τ = 1 − Veil.

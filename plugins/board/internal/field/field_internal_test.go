@@ -61,3 +61,24 @@ func TestGround_OverhangIsTheAreaOverGroundThatDoesNotTakeTheEntity(t *testing.T
 		t.Errorf("off the board the overhang is %v, want none", got)
 	}
 }
+
+func TestField_VersionAndChangesAreTheCells(t *testing.T) {
+	grid := grid.DefaultGrids{}.Square(8, 1, 10)
+	cells := terrain.New(grid)
+	f := New(grid, cells, func(cell.ID) float64 { return 0 })
+	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	same := func() {
+		t.Helper()
+		if f.Version() != cells.Version() || f.Changes() != cells.Changes() {
+			t.Fatalf("the field counts %d and %d, the cells %d and %d",
+				f.Version(), f.Changes(), cells.Version(), cells.Changes())
+		}
+	}
+	same()
+	version, changes := f.Version(), f.Changes()
+	cells.Set(grid.At(3, 0), cell.Kind{Cost: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land})
+	same()
+	if f.Version() == version && f.Changes() == changes {
+		t.Error("a cell set moved neither count")
+	}
+}
