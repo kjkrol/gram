@@ -30,6 +30,19 @@ atmosphere's entity carries a `light.Source` and a `light.Shining`.
   mirror of the sky but no waves, glint or shore, farther still no ground shade or lamps.
 - `Benchmark_Frame_Topography`: the island's frame on a headless GPU at 1440p.
 
+**The picture in rings** (2026-10-19, etap R2 of `doc/plans-perf.md`)
+- A camera's picture drawn in rings (`camera.Ringed`, `Cropping`): the whole frame at 0.6 of its
+  pixels, the central 60% at 0.8, the central 35% at every one, each a centred crop of the same
+  camera (`render.Feed`) laid over the last with a feathered edge (`DrawImageOptions.Fade`).
+  `cameras.Config.Rings` and the setting "Picture drawn in rings" (`Settings.Rings`, saved with
+  the game); `Adapt{On, Rings}` carries both, Alt+A in turn: following the frame budget,
+  following in rings, still and whole. The adapter and Alt+= / Alt+- step the outer ring first,
+  then the middle, the centre last, and back in the reverse order; the telemetry's "Picture"
+  line shows the three. `Benchmark_Frame_Topography` has `iso,ringed` and `persp,ringed`.
+- The cameras' settings (the zones, the following) are saved with the game: they never were.
+- The composer keeps depth buffers for eight target sizes, the clouds' images one a size, so a
+  view in rings recreates no texture a frame.
+
 **Faster ticks and frames** (2026-10-19, etap 1 of `doc/plans-perf.md`)
 - The world tick at 5,000 boxes from 215 to 169 µs and no allocations: `clampStep` compares
   squares instead of calling `Hypot`, every plugin's simulation block and the world tick's roles

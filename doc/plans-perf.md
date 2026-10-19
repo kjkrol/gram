@@ -478,3 +478,64 @@ bliskich do dalekich (pełna staranność pierwsza), żeby prime dalszych odrzuc
 wzgórzami; zmierzone wobec kolejności odwrotnej w 2560×1440: perspektywa R=1 49/51 → 49/52,
 R=2 47/49 → 48/50, izo bez zmian, czyli w granicach szumu. `zoneRound` stref krawędzi zostaje
 w pikselach kamery (kosmetyka). Hex: no-op.
+
+## Etap R2. Rozdzielczość pierścieniowa obrazu świata jako druga strategia adaptera
+
+**Skille:** `gram-render`, `gram-plugin`, `gram-plugins` (cameras), `gram-probe`. Dodany
+2026-10-19 po etapie R: użytkownik oczekiwał, że rozdzielczość będzie spadać pierścieniami od
+środka obrazu (pełna w centrum uwagi, niższa ku brzegom) i chce tego jako drugiej strategii
+adaptera. Composer składa wierzchołki w pikselach kamery dla jednego rozmiaru obrazu, więc obraz
+o różnej gęstości to kilka obrazów złożonych jeden na drugim.
+
+**Decyzje.** Trzy warstwy: cały kadr, środkowe 60%, środkowe 35%, każda to ta sama kamera z
+viewportem przyciętym do środka i swoją rozdzielczością, składane od najgrubszej do
+najdokładniejszej z miękką krawędzią (20 px); UI natywne. Przycięcie to stan kamery
+(`camera.Cropping`), nie dekorator; perspektywa trzyma ogniskową nieprzyciętego kadru i podmienia
+tylko `proj.focal`, bez `look()` i `Pick`. Pierścienie to ustawienie zapisywane z grą
+(`Settings.Rings`, panel F10) obok `Settings.Adaptive`; jedna komenda `Adapt{On, Rings}`; Alt+A
+cyklicznie: idzie za budżetem, idzie w pierścieniach, stoi w całości. Preset 0,6 / 0,8 / 1,0,
+podłogi drabinki 0,4 / 0,6 / 0,7; adapter i ręczne kroki Alt+=/− obniżają najpierw zewnętrzny
+pierścień, potem środkowy, środek ostatni, w górę odwrotnie; ręczny krok zatrzymuje adapter nie
+ruszając pierścieni. Rozdzielczość kamery jest rozdzielczością środka, więc konwersje wejścia i
+pinezek się nie zmieniają. Warstwy nakładają się (zewnętrzna rysuje cały kadr): preset to 0,71
+pikseli pełnej klatki (jak jednolite 0,85), podłoga 0,35 (jednolita 0,16); tryb kupuje detal
+środka przy podobnym budżecie, nie klatkarz ponad tryb jednolity.
+
+**Części.** A0: `camera.Ring`, `Ringed`, `Cropping`, `RingsOf`, `IsCropped`. A1–A2: `Crop`,
+`Uncrop`, `Cropped` w kamerach topdown, ortho, persp i view. B1: `DrawImageOptions.Fade`, blit
+przez shader `imageSrc0Linear * color * faded(custom)`. B2: `render.Feed` rysuje warstwy
+(przycięcie, obraz per pierścień, blit z piórem) i przywraca kamerę przed minimapą. B3:
+`keptDepths` 4 → 8. B4: obrazy chmur (aloft, backdrop) trzymane per rozmiar celu. B5: strefy
+krawędzi tylko na nieprzyciętej kamerze. C: `Settings.Rings`, `Config.Rings`, `Adapt{On, Rings}`,
+drabinka `stepRings`, reporter „Picture: 0.60/0.80/1.00 of the pixels, ringed, adaptive”. D:
+`Benchmark_Frame_Topography` `iso,ringed` i `persp,ringed`, pomiar demo 2560×1440, dokumenty.
+
+## Etap R2: wynik (2026-10-19, gałąź `perf/ringed-picture`, `76c18e9b` + dokumenty)
+
+Wykonanie: A0 i B3 przez integratora, WA (A1, A2, B1, B2, B4) i WB (B5, C) równolegle w
+worktree, cherry-pick na gałąź, pomiar na bezczynnej maszynie, baza `a25a4af2` i drzewo
+na przemian. Liczby w `BENCHMARKS.md`, „The island's frame”, akapit „In rings”.
+
+| Co | Wynik |
+|:--|--:|
+| Wyspa 1440p, izo / w pierścieniach (0,575 px), bez readbacku | 7,3 / 5,9 ms |
+| Wyspa 1440p, persp / w pierścieniach | 11,1 / 7,9 ms |
+| Demo 2560×1440 bez vsync, baza / drzewo, wszystkie piksele | 58 / 58 FPS |
+| jednolite 0,85 (0,72 px) / preset pierścieni (0,71 px) | 70 / 67 |
+| jednolite 0,72 (0,52 px) / zewnętrzny na podłodze (0,51 px) | 88 / 85 |
+| perspektywa: 0,85 / preset; 0,72 / podłoga | 67 / 64; 83 / 80 |
+
+**Wnioski.** Zgodnie z rachunkiem pikseli pierścienie nie biją trybu jednolitego na klatkach:
+przy tym samym udziale rysowanych pikseli kosztują ok. 3 FPS (4%) na trzy składania CPU
+(„drawing” 1,2 → 2,1 ms) i dwa blity, a dają pełny detal w środku kadru. Zrzuty klatki 600 w
+izo i perspektywie: brak szwów przy 60% i 35%, glint wody różni się nieco w paśmie pióra.
+Adapter w pierścieniach nie był mierzony: baza 58 FPS leży w jego paśmie spoczynku (55–59 z
+budżetu 60), więc nie miałby czego robić.
+
+**Uwagi.** WB wykrył, że `persisted.Persisted()` kamer nigdy nie zapisywał `Settings` (strefy,
+adaptacja): naprawione, starszy zapis zostawia je jak są. Perspektywa trzyma `crop` jako wektor
+(w/W, h/H), bo parzystość przycięć daje różne ułamki w osiach. Aloft i backdrop trzymają po 8
+rozmiarów (dwa widoki w pierścieniach w podzielonym ekranie). B6 (dziura w warstwach
+zewnętrznych, 0,71 → 0,505 px) niewykonane: zysk ok. 10 FPS przy presecie, do rozważenia, gdy
+tryb pierścieniowy okaże się używany. Alokacje na klatkę wyspy rosną z 446 do 1037 (trzy
+składania); to boxing gogpu per draw, nie nowe alokacje w gram.
