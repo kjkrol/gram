@@ -900,6 +900,13 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   fainter (the user's sketch, 2026-10-14). `CursorAtEdge` fires once an `Engine.Update`, before
   the ticks, not once a tick; a demo
   whose WSAD drive binds `cameras.Keys{Wheel, ZoomIn, ZoomOut}` alone. The engine sizes no camera.
+  `SharpFigures{On}` (`SetSharpFigures`, `SharpFigures()`, `Res.Settings.SoftFigures` — zero for
+  the figures at every pixel, so a save from before it keeps the feature — `Config.SoftFigures`,
+  "Figures at every pixel" under `control.PictureResolution`, no key; 2026-10-20) has every
+  camera but a minimap's `camera.Figured` (`ring` applies it as the camera is made and on
+  `Restore`): a picture drawn whole below all its pixels draws the `render.Overlying` sources at
+  every pixel over its ground at the resolution, nothing in rings, and the telemetry's Picture
+  line says ", the figures sharp".
   Depends on `world`, `motion/steering`.
 - **`driving`** — units driven by hand, with or without navigation: `driving.NewPlugin(world,
   motion, selection).WithGround(board)`. Its commands `Ahead{Camera, Sprint}`, `Back`, `Turn{Way}`,
