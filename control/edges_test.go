@@ -47,3 +47,34 @@ func TestEdges_ACornerIsOneEdgeWithinCornerReachOfTheNext(t *testing.T) {
 		t.Errorf("the corner of a 200-pixel picture is %v a side, want 50", side)
 	}
 }
+
+func TestEdges_TheMarginsAreInShownPixelsAtAResolution(t *testing.T) {
+	ctx := control.Context{Screen: geom.NewVec(2000, 1600), Resolution: 2}
+	for _, c := range []struct {
+		x, y   float64
+		left   bool
+		corner control.Corner
+	}{
+		{15, 800, false, control.NoCorner}, // the dead zone, 20 pixels
+		{50, 800, true, control.NoCorner},  // the strip, 60 pixels
+		{70, 800, false, control.NoCorner},
+		{230, 230, false, control.TopLeft}, // the corner, 240 a side
+		{250, 230, false, control.NoCorner},
+	} {
+		ctx.Cursor = geom.NewVec(c.x, c.y)
+		if e := ctx.Edges(); e.Left != c.left || e.Corner != c.corner {
+			t.Errorf("at (%v, %v) of 2000 x 1600 at a resolution of 2 the edges are %+v, want "+
+				"left %v in corner %v", c.x, c.y, e, c.left, c.corner)
+		}
+	}
+	if px := ctx.Pixels(8); px != 16 {
+		t.Errorf("8 shown pixels are %v of the camera's, want 16", px)
+	}
+	if s := ctx.Shown(geom.NewVec(6, 8)); s != geom.NewVec(3, 4) {
+		t.Errorf("(6, 8) of the camera's pixels is %v shown, want (3, 4)", s)
+	}
+	plain := control.Context{}
+	if plain.Pixels(8) != 8 || plain.Shown(geom.NewVec(6, 8)) != geom.NewVec(6, 8) {
+		t.Error("a Context of no resolution converts as 1")
+	}
+}

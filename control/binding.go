@@ -103,7 +103,8 @@ func (CursorMove) trigger()     {}
 func (CursorOver) trigger()     {}
 
 // Context is what a binding builds its command from: the player, its camera and this tick's input
-// in screen pixels; World and WorldBox go through the camera.
+// in the camera's pixels, Resolution of them a shown one; World and WorldBox go through the
+// camera.
 type Context struct {
 	Player      command.Issuer
 	Camera      camera.Camera
@@ -111,10 +112,27 @@ type Context struct {
 	Start       geom.Vec // where a Drag began
 	Delta       geom.Vec
 	Wheel       float64
-	Screen      geom.Vec // the window's size in pixels
+	Screen      geom.Vec // the picture's size in the camera's pixels
+	Resolution  float64  // camera pixels a shown pixel; 0 as 1
 	Mods        Mods
 	FillsScreen bool
 	Held        time.Duration // how long a key was held, for KeyReleased
+}
+
+// Pixels is shown pixels in the camera's: a speed in pixels of the screen as the camera has it.
+func (c Context) Pixels(shown float64) float64 { return shown * c.resolution() }
+
+// Shown is v, in the camera's pixels, in the shown ones: a move of the mouse as the hand made it.
+func (c Context) Shown(v geom.Vec) geom.Vec {
+	k := c.resolution()
+	return geom.NewVec(v.X/k, v.Y/k)
+}
+
+func (c Context) resolution() float64 {
+	if c.Resolution <= 0 {
+		return 1
+	}
+	return c.Resolution
 }
 
 // World is the ground point under screen position s: a camera.Picker's own Pick, else the
@@ -214,20 +232,22 @@ type Edges struct {
 func (e Edges) Any() bool { return e.Left || e.Right || e.Top || e.Bottom || e.Corner != NoCorner }
 
 // Edges is which window edges the cursor rests near, outside the dead zone, and in which corner's
-// square of CornerReach a side.
+// square of CornerReach a side, the margins in shown pixels.
 func (c Context) Edges() Edges {
-	dead := float64(EdgeDeadZone)
+	k := c.resolution()
+	dead := float64(EdgeDeadZone) * k
 	if c.FillsScreen {
 		dead = 0
 	}
+	margin := float64(EdgeMargin) * k
 	x, y := c.Cursor.X, c.Cursor.Y
 	e := Edges{
-		Left:   x >= dead && x < EdgeMargin,
-		Right:  x <= c.Screen.X-dead && x > c.Screen.X-EdgeMargin,
-		Top:    y >= dead && y < EdgeMargin,
-		Bottom: y <= c.Screen.Y-dead && y > c.Screen.Y-EdgeMargin,
+		Left:   x >= dead && x < margin,
+		Right:  x <= c.Screen.X-dead && x > c.Screen.X-margin,
+		Top:    y >= dead && y < margin,
+		Bottom: y <= c.Screen.Y-dead && y > c.Screen.Y-margin,
 	}
-	side := CornerSide(c.Screen.X, c.Screen.Y)
+	side := CornerSide(c.Screen.X/k, c.Screen.Y/k) * k
 	nearLeft := x >= dead && x < side
 	nearRight := x <= c.Screen.X-dead && x > c.Screen.X-side
 	nearTop := y >= dead && y < side

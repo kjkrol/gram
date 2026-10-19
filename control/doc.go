@@ -22,8 +22,8 @@
 // with exactly its [Mods], the
 // command [Build] makes from a [Context] or [Give] names, and a label for the list of keys; a key
 // held, down or let go fires with Shift, Ctrl or Alt held only [Binding.InChords]. A
-// Context carries the player, its camera, the cursor and the point picked in the world through the
-// camera.
+// Context carries the player, its camera, the cursor in the camera's pixels and the point picked
+// in the world through the camera.
 //
 // # Tools
 //
