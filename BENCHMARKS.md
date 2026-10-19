@@ -690,6 +690,37 @@ budget where the eye is. Shots of frame 600 in both views: no seam at the 60% an
 the water's glint differing a little inside the 20-pixel feather. The adapter in rings was not
 timed: the baseline's 58 FPS lies inside its rest band (55–59 of a budget of 60).
 
+**The ground at the camera's resolution, the figures at every pixel** (etap T of
+`doc/plans-perf.md`, 2026-10-20, the base `e5ec6dbc`): the ground drawn at 0.7 of the pixels
+into its own image and scaled up, then the figures, the clouds, the rain and the marks drawn at
+every pixel over it, tested against the ground's depth spread to the screen. Medians of 4 runs,
+the readback (7.3 ms) taken off; the base and the tree run alternately:
+
+| Frame | Time less the readback |
+|:---|---:|
+| isometric (base / tree) | 7.9 / 7.9 ms |
+| perspective (base / tree) | 11.6 / 11.6 ms |
+| isometric at 0.7 through a feed, the figures at the ground's resolution | 4.7 ms |
+| isometric at 0.7 through a feed, the figures at every pixel | 6.4 ms |
+| perspective at 0.7 through a feed | 6.7 ms |
+| perspective at 0.7 through a feed, the figures at every pixel | 8.5 ms |
+| isometric, full care within 1 sector, three cares (base) / five (tree) | 6.9 / 7.3 ms |
+
+The demo as above, the base and the tree alternately:
+
+| Picture | FPS |
+|:---|---:|
+| all the pixels, base / tree | 57 / 57 |
+| 0.72 of the pixels: base / the figures at every pixel / the figures soft | 86 / 76 / 86 |
+| 0.52 of the pixels: base / sharp / soft | 128 / 108 / 128 |
+| perspective, 0.72: base / sharp / soft | 82 / 73 / 82 |
+
+What it says: the pass over the ground costs a fixed 1.5–1.8 ms a frame, whatever the ground's
+resolution (the clouds are drawn at the screen's size there, the figures and the marks are few
+pixels), so at 0.52 of the pixels the picture runs at 108 FPS with the units' edges crisp
+against 128 with them blurred and 57 at every pixel. The five cares cost 0.4 ms more than the
+three at R = 1 (two more draws a frame); the far water goes flat two sectors sooner.
+
 ## How to benchmark
 
 ```bash
