@@ -30,7 +30,8 @@
 // A [Setting] is one thing of a plugin's the players adjust on the settings screen: a [Switch]
 // on or off, a [Choice] among options, a [Range] of a number. Each reads its value every frame
 // and builds, from the value chosen, the command that sets it; a key bound to the same command
-// builds the next value instead.
+// builds the next value instead. A setting names the section of the screen it is listed under
+// ([Picture], [Graphics] and the rest), or is listed under its plugin's.
 //
 // # Tools
 //

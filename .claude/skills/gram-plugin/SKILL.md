@@ -38,8 +38,10 @@ fields, the zero value the plugin's default where it can be), written by setters
 (`ShowGrid`, `SetCare`) and by a command carrying the value (`Grid{Shown}`, `Care{Rings}`); a key
 builds the next value in its `control.Build` closure (`Grid{Shown: !p.GridShown()}`), never a
 command that means "the next one". `Settings()` (`plugin.Tunable`, asserted) lists them as
-`control.Switch`/`Choice`/`Range`, `Get` read every frame, `Set` building the command: the
-players' settings screen (F10) is generated from them. `Serializable()` returns
+`control.Switch`/`Choice`/`Range`, `Get` read every frame, `Set` building the command, a
+`Section` (`control.Picture`, `Graphics` and the rest, a path of levels) putting one under a
+section the plugins share: the players' settings screen (F10) is generated from them, the
+shared sections first, then a section a plugin, centred. `Serializable()` returns
 `plugin.Keep(&p.Res.Settings)` made in `NewPlugin`, whose `Persisted` encodes the struct whole
 into one `[]byte` — gob sends no zero field and zeroes none on decode, so a `false` saved over a
 `true` start would come back `true` through plain pointers — and `Restore()` calls

@@ -47,8 +47,9 @@
 // prisms' tops) where it sees one coarsely, turning into the fog before its sight's end, and
 // shaded with less care ring by ring out from the sector under the middle of the screen
 // ([Config.Care], [Plugin.SetCare], [Care]: the far water a level mirror of the sky, the
-// farthest ground without the baked shade and the lamps). [Plugin.Reporter] is the panel's
-// line on it.
+// farthest ground without the baked shade and the lamps); asked to ([Plugin.ShowCare],
+// [ShowCare]), it lays the care's bands over the ground, the boundaries between sectors of
+// different care. [Plugin.Reporter] is the panel's line on it.
 // [Plugin.Miniature] is the board painted flat as one picture, a minimap's ground. It is a
 // plugin.CommandHandler
 // for the shaping's, the haze's and the care's commands ([Plugin.Queues],
@@ -57,6 +58,7 @@
 //
 // # Vocabulary
 //
-// Commands, a player's: [Raise], [Lower], [Level] (the shaping); [Haze], [Care] (a look).
-// Settings ([Settings], saved with the game, in [Resources]): the haze, the care.
+// Commands, a player's: [Raise], [Lower], [Level] (the shaping); [Haze], [Care], [ShowCare] (a
+// look). Settings ([Settings], saved with the game, in [Resources]): the haze, the care, the
+// care shown.
 package topography

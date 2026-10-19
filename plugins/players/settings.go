@@ -3,6 +3,7 @@ package players
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
@@ -28,9 +29,9 @@ type Resources struct {
 	Settings Settings
 }
 
-// SettingsScene is the screen of every plugin's settings (plugin.Tunable), a control each,
-// grouped by plugin as the shortcuts are. F10 opens it, Esc or F10 closes it; while it is up the
-// game stands in the tactical pause unless Settings.Running.
+// SettingsScene is the screen of every plugin's settings (plugin.Tunable), a control each, in
+// sections: those the plugins share first, then a plugin's own. F10 opens it, Esc or F10 closes
+// it; while it is up the game stands in the tactical pause unless Settings.Running.
 type SettingsScene struct {
 	p      *Plugin
 	screen *ui.Scene
@@ -101,8 +102,8 @@ const (
 	settingsLabel = 220
 )
 
-// listing is the screen: the title and, in columns as tall as the screen allows, a heading a
-// plugin and a line a setting, its label and its control.
+// listing is the screen: the title and, centred in columns as tall as the screen allows, the
+// sections of settings, a heading each and a line a setting, its label and its control.
 func (s *SettingsScene) listing(props game.Props) *ui.Element {
 	height := float64(props.ScreenHeight) - 2*shortcutsMargin
 	_, titleHeight := ui.DefaultTheme().Large.Measure("Settings")
@@ -111,52 +112,168 @@ func (s *SettingsScene) listing(props game.Props) *ui.Element {
 	var columns []ui.Part
 	var column []ui.Part
 	used := 0.0
-	for _, h := range s.p.handlers {
-		t, ok := h.(plugin.Tunable)
-		if !ok {
-			continue
-		}
-		settings := t.Settings()
-		if len(settings) == 0 {
-			continue
-		}
-		tall := float64(len(settings)+1) * settingsRow
-		if used > 0 && used+tall > height {
-			columns = append(columns, ui.Fit(ui.Rows(column...).Named(settingsColumn(len(columns)))),
+	for _, b := range s.tree().blocks("", 0, nil) {
+		if used > 0 && used+b.tall > height {
+			columns = append(columns,
+				ui.Fit(ui.Rows(column...).Named(settingsColumn(len(columns)))),
 				ui.Fixed(shortcutsGap*2, ui.Blank()))
 			column, used = nil, 0
 		}
-		column = append(column, ui.Fit(ui.Heading(handlerName(h))))
-		for _, st := range settings {
-			column = append(column, ui.Fixed(settingsRow, line(st)))
-		}
-		column = append(column, ui.Fixed(shortcutsGap, ui.Blank()))
-		used += tall + shortcutsGap
+		column = append(column, b.parts...)
+		used += b.tall
 	}
 	if len(column) > 0 {
 		columns = append(columns, ui.Fit(ui.Rows(column...).Named(settingsColumn(len(columns)))))
 	}
 	return ui.Layers(
 		ui.Blank().Fill(shortcutsDim),
-		ui.Rows(
-			ui.Fit(ui.Title("Settings").Named("settings.title")),
+		ui.TopMiddle(ui.Rows(
+			ui.Fit(ui.TopMiddle(ui.Title("Settings").Named("settings.title"))),
 			ui.Fixed(shortcutsGap, ui.Blank()),
-			ui.Share(1, ui.Columns(columns...)),
-		).Padding(shortcutsMargin),
+			ui.Fit(ui.Columns(columns...)),
+		)).Padding(shortcutsMargin),
 	)
 }
 
 func settingsColumn(i int) string { return fmt.Sprintf("settings.column.%d", i/2) }
 
-// line is a setting's label and its control, named "setting:" and the label: a Switch a
-// checkbox, a Choice a dropdown, a Range a slider with the number beside it.
-func line(st control.Setting) *ui.Element {
+// a section of the screen: its name, the settings right under it and its subsections
+type node struct {
+	name     string
+	settings []control.Setting
+	subs     []*node
+}
+
+// the sections the plugins share, in the order listed
+var sharedSections = []string{
+	control.Picture,
+	control.PictureResolution,
+	control.PictureAdaptive,
+	control.PictureRings,
+	control.PictureCare,
+	control.PictureAreas,
+	control.Graphics,
+}
+
+// tree is the sections in order: those the plugins share first, then a plugin's own, each
+// setting under its Section or in its plugin's; a section with nothing under it is left out.
+func (s *SettingsScene) tree() *node {
+	root := &node{}
+	for _, path := range sharedSections {
+		root.at(path)
+	}
+	for _, h := range s.p.handlers {
+		t, ok := h.(plugin.Tunable)
+		if !ok {
+			continue
+		}
+		own := root.at(handlerName(h))
+		for _, st := range t.Settings() {
+			to := own
+			if path := control.SectionOf(st); path != "" {
+				to = root.at(path)
+			}
+			to.settings = append(to.settings, st)
+		}
+	}
+	root.prune()
+	return root
+}
+
+// at is the section at path ("a/b/c") under n, made where it is not there.
+func (n *node) at(path string) *node {
+	name, rest, _ := strings.Cut(path, "/")
+	var sub *node
+	for _, c := range n.subs {
+		if c.name == name {
+			sub = c
+			break
+		}
+	}
+	if sub == nil {
+		sub = &node{name: name}
+		n.subs = append(n.subs, sub)
+	}
+	if rest == "" {
+		return sub
+	}
+	return sub.at(rest)
+}
+
+func (n *node) prune() {
+	kept := n.subs[:0]
+	for _, c := range n.subs {
+		c.prune()
+		if len(c.settings) > 0 || len(c.subs) > 0 {
+			kept = append(kept, c)
+		}
+	}
+	n.subs = kept
+}
+
+// a block never splits across columns: a heading (a parent's without entries of its own
+// joined to its first child's) and the lines right under it
+type block struct {
+	parts []ui.Part
+	tall  float64
+	bare  bool // headings alone so far
+}
+
+func (b *block) add(part ui.Part, tall float64) {
+	b.parts = append(b.parts, part)
+	b.tall += tall
+}
+
+// blocks appends n's blocks to dst: its heading, its settings' lines, then its subsections';
+// the root (level 0) has no heading and a top section's last block ends in a gap.
+func (n *node) blocks(path string, level int, dst []block) []block {
+	if level > 0 {
+		if i := len(dst) - 1; i < 0 || !dst[i].bare {
+			dst = append(dst, block{bare: true})
+		}
+		dst[len(dst)-1].add(n.heading(path, level), settingsRow)
+	}
+	for _, st := range n.settings {
+		last := &dst[len(dst)-1]
+		last.add(ui.Fixed(settingsRow, line(st, float64(level)*shortcutsGap/2)), settingsRow)
+		last.bare = false
+	}
+	for _, c := range n.subs {
+		under := c.name
+		if path != "" {
+			under = path + "/" + c.name
+		}
+		dst = c.blocks(under, level+1, dst)
+	}
+	if level == 1 {
+		dst[len(dst)-1].add(ui.Fixed(shortcutsGap, ui.Blank()), shortcutsGap)
+	}
+	return dst
+}
+
+// heading is the section's name, named "section:" and its path: a Heading at the top level,
+// a Subheading in a row of its own deeper, indented half a gap a level.
+func (n *node) heading(path string, level int) ui.Part {
+	if level == 1 {
+		return ui.Fit(ui.Heading(n.name).Named("section:" + path))
+	}
+	sub := ui.MiddleLeft(ui.Subheading(n.name).Named("section:" + path))
+	return ui.Fixed(settingsRow, indented(float64(level-1)*shortcutsGap/2, sub))
+}
+
+func indented(px float64, e *ui.Element) *ui.Element {
+	return ui.Columns(ui.Fixed(px, ui.Blank()), ui.Fit(e))
+}
+
+// line is a setting's label and its control, named "setting:" and the label, indent pixels in: a
+// Switch a checkbox, a Choice a dropdown, a Range a slider with the number beside it.
+func line(st control.Setting, indent float64) *ui.Element {
 	var label string
 	var ctl *ui.Element
 	switch st := st.(type) {
 	case control.Switch:
-		return ui.Columns(ui.Fixed(shortcutsGap/2, ui.Blank()),
-			ui.Fit(ui.MiddleLeft(ui.Checkbox(st.Label, st.Get, st.Set).Named("setting:"+st.Label))))
+		return indented(indent,
+			ui.MiddleLeft(ui.Checkbox(st.Label, st.Get, st.Set).Named("setting:"+st.Label)))
 	case control.Choice:
 		label, ctl = st.Label, ui.Dropdown(st.Options, st.Get, st.Set).Named("setting:"+st.Label)
 	case control.Range:
@@ -175,7 +292,7 @@ func line(st control.Setting) *ui.Element {
 		return ui.Blank()
 	}
 	return ui.Columns(
-		ui.Fixed(shortcutsGap/2, ui.Blank()),
+		ui.Fixed(indent, ui.Blank()),
 		ui.Fixed(settingsLabel, ui.MiddleLeft(ui.Label(label))),
 		ui.Fit(ui.MiddleLeft(ctl)),
 	)

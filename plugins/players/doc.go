@@ -60,7 +60,9 @@
 // game; every Stage that uses the players has it in its stack ([Plugin.Scenes]), and Esc or K
 // closes it. [ShowSettings] (F10) opens [SettingsScene], the screen of every setting the
 // plugins carried announce (plugin.Tunable): a control each, a checkbox, a dropdown or a
-// slider, grouped by plugin, giving the plugin's command as it is used; Esc or F10 closes it.
+// slider, giving the plugin's command as it is used, in sections centred on the screen: first
+// those the plugins share (control.Picture and its parts, a setting's Section), then one a
+// plugin for its own; Esc or F10 closes it.
 // While it is up the game stands in the tactical pause, unless the players' own setting says it
 // runs on ([Settings], [KeepRunning]); the players' settings are saved with the game, as every
 // plugin's. Keys that are no command to a plugin are the game's own: [SceneKeys], given to

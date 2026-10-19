@@ -654,6 +654,42 @@ the budget is where the adapter rests, and every thirty seconds it tries a finer
 backs off (67, 54, 65 FPS in the log). The resolution costs the CPU nothing; the care costs one
 draw call more a ring.
 
+**In rings** (etap R2 of `doc/plans-perf.md`, `76c18e9b`, 2026-10-19): the picture drawn in three
+layers, the whole frame at a coarse resolution, the central 60% finer, the central 35% at every
+pixel, each a centred crop of the same camera laid over the last with a feathered edge. The
+layers overlap, so the preset 0.6 / 0.8 / 1.0 draws 0.71 of the frame's pixels and the ladder's
+floor 0.4 / 0.6 / 0.7 draws 0.35. Medians of 5 runs of the island, the readback (7.9 ms) taken
+off:
+
+| Frame | Time less the readback |
+|:---|---:|
+| isometric | 7.3 ms |
+| isometric in rings (0.5, 0.75, 1: 0.575 of the pixels) | 5.9 ms |
+| perspective | 11.1 ms |
+| perspective in rings | 7.9 ms |
+
+The demo as above, the baseline `a25a4af2` and this tree run alternately (the machine's
+baseline that day was 58 FPS, not 45):
+
+| Picture | FPS |
+|:---|---:|
+| all the pixels, baseline / this tree | 58 / 58 |
+| 0.85 of the pixels (0.72 of them drawn) | 70 |
+| in rings, the preset (0.71 drawn) | 67 |
+| 0.72 of the pixels (0.52 drawn) | 88 |
+| in rings, the outer ring at 0.4 (0.51 drawn) | 85 |
+| perspective, 0.85 of the pixels | 67 |
+| perspective, in rings, the preset | 64 |
+| perspective, 0.72 of the pixels | 83 |
+| perspective, in rings, the outer ring at 0.4 | 80 |
+
+What it says: at the same pixels drawn the rings cost 3 FPS (4%), the three composes on the CPU
+("drawing" 1.2 → 2.1 ms in isometry, 1.3 → 2.1 ms in perspective) and the two blits, and buy the
+centre at every pixel. The rings do not beat a uniform picture on frames; they spend the same
+budget where the eye is. Shots of frame 600 in both views: no seam at the 60% and 35% edges,
+the water's glint differing a little inside the 20-pixel feather. The adapter in rings was not
+timed: the baseline's 58 FPS lies inside its rest band (55–59 of a budget of 60).
+
 ## How to benchmark
 
 ```bash

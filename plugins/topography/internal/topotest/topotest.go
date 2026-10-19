@@ -214,6 +214,9 @@ func IsometricIsland() (*world.Plugin, *board.Plugin, grid.Grid, *topography.Plu
 func (c *InstallCtx) Hosts(h ...host.Host)     { c.hosts = append(c.hosts, h...) }
 func (c *InstallCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
 
+// Sources are what the plugins installed draw, in the order their Installs handed them over.
+func (c *InstallCtx) Sources() []render.Source { return c.drawn }
+
 // Drawn is what p draws, as its Install hands it over.
 func Drawn(t testing.TB, p plugin.Plugin) []render.Source {
 	t.Helper()

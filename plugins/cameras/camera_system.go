@@ -57,13 +57,22 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 		}
 	})
 	s.p.resolutions.Drain(func(i command.Issued[Resolution]) {
-		cam := i.Command.Camera
-		if r, ok := cam.(camera.Resolved); ok && i.Command.Factor > 0 && !fitsWhole(cam) {
-			r.SetResolution(clamped(r.Resolution() * i.Command.Factor))
-			s.p.SetAdaptive(false)
+		if i.Command.Factor > 0 && s.p.apply(i.Command.Camera, i.Command.Factor) {
+			s.p.still()
+			s.p.note(i.Command.Camera)
 		}
 	})
-	s.p.adapts.Drain(func(i command.Issued[Adapt]) { s.p.SetAdaptive(i.Command.On) })
+	s.p.adapts.Drain(func(i command.Issued[Adapt]) { s.p.SetStrategy(i.Command.Strategy) })
+	s.p.pictures.Drain(func(i command.Issued[Picture]) { s.p.SetResolution(i.Command.Resolution) })
+	s.p.rings.Drain(func(i command.Issued[Rings]) { s.p.SetRings(i.Command.On) })
+	s.p.ringShares.Drain(func(i command.Issued[RingShares]) {
+		s.p.SetRingShares(i.Command.Inner, i.Command.Middle)
+	})
+	s.p.ringRes.Drain(func(i command.Issued[RingResolutions]) {
+		s.p.SetRingResolutions(i.Command.Outer, i.Command.Middle)
+	})
+	s.p.budgets.Drain(func(i command.Issued[Budget]) { s.p.SetBudget(i.Command.Frame) })
+	s.p.showRings.Drain(func(i command.Issued[ShowRings]) { s.p.ShowRings(i.Command.Shown) })
 	s.p.follows.Drain(func(i command.Issued[Follow]) {
 		cam, ok := i.Command.Camera.(camera.Fastenable)
 		if !ok {

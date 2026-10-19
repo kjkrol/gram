@@ -1,10 +1,13 @@
 package selection
 
 import (
+	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/render"
 )
 
 func TestMarquees_ABoxBelongsToTheCameraItIsDraggedIn(t *testing.T) {
@@ -22,4 +25,41 @@ func TestMarquees_ABoxBelongsToTheCameraItIsDraggedIn(t *testing.T) {
 	if _, ok := m.boxes[a]; ok {
 		t.Error("the box stays after hide")
 	}
+}
+
+func TestMarquees_ComposeTheBoxInThePixelsOfEveryRingsPass(t *testing.T) {
+	cam := cameratest.NewFromSpace(1000, 800, 0)
+	cam.SetViewport(400, 300)
+	var m marquees
+	m.show(cam, geom.NewAABB(geom.NewVec(100, 100), geom.NewVec(200, 200)))
+	var f render.Frame
+	bounds := func() (minX, minY, maxX, maxY float32) {
+		minX, minY, maxX, maxY = 1e9, 1e9, -1e9, -1e9
+		f.Each(func(_ render.At, verts []render.Vertex) {
+			for _, v := range verts {
+				minX, minY = min(minX, v.DstX), min(minY, v.DstY)
+				maxX, maxY = max(maxX, v.DstX), max(maxY, v.DstY)
+			}
+		})
+		return
+	}
+	near := func(a, b float32) bool { return math.Abs(float64(a-b)) <= 1 }
+	f.Reset(cam)
+	m.compose(&f, cam)
+	if x0, y0, x1, y1 := bounds(); !near(x0, 100) || !near(y0, 100) || !near(x1, 200) ||
+		!near(y1, 200) {
+		t.Errorf("drawn whole, the box spans (%v, %v)-(%v, %v), want (100, 100)-(200, 200)",
+			x0, y0, x1, y1)
+	}
+	// the central 200x150 of the 400x300 frame at a half: the box's corner (100, 100) of the
+	// frame is the crop's corner, 100 shown pixels in are 50 of the crop's
+	cam.(camera.Cropping).Crop(200, 150, 0.5)
+	f.Reset(cam)
+	m.compose(&f, cam)
+	if x0, y0, x1, y1 := bounds(); !near(x0, 0) || !near(y0, 12.5) || !near(x1, 50) ||
+		!near(y1, 62.5) {
+		t.Errorf("drawn a ring, the box spans (%v, %v)-(%v, %v), want (0, 12.5)-(50, 62.5)",
+			x0, y0, x1, y1)
+	}
+	cam.(camera.Cropping).Uncrop()
 }

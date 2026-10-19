@@ -133,14 +133,16 @@ func (p *Plugin) Settings() []control.Setting {
 		},
 		control.Choice{
 			Label:   "Clouds",
+			Section: control.Graphics,
 			Options: looks,
 			Get:     func() int { return int(p.ShownClouds()) },
 			Set:     func(i int) command.Command { return Clouds{Look: CloudLook(i)} },
 		},
 		control.Switch{
-			Label: "High clouds' shadows",
-			Get:   func() bool { return p.shadows.High },
-			Set:   func(on bool) command.Command { return HighShade{On: on} },
+			Label:   "High clouds' shadows",
+			Section: control.Graphics,
+			Get:     func() bool { return p.shadows.High },
+			Set:     func(on bool) command.Command { return HighShade{On: on} },
 		},
 	}
 }

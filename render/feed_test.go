@@ -2,6 +2,7 @@ package render_test
 
 import (
 	"math"
+	"slices"
 	"testing"
 
 	"github.com/kjkrol/goke/v3"
@@ -68,14 +69,25 @@ func TestFeed_ToWorldAsksAPickerFirst(t *testing.T) {
 }
 
 type recording struct {
-	w, h int
-	cam  camera.Camera
+	w, h    int
+	cam     camera.Camera
+	calls   []call
+	screens []*render.Image
+}
+
+// one DrawWorld: the screen's size and the camera's viewport
+type call struct {
+	w, h   int
+	vw, vh float32
 }
 
 func (*recording) Init(*goke.SysInit) {}
 
 func (r *recording) DrawWorld(screen *render.Image, cam camera.Camera) {
 	r.w, r.h, r.cam = screen.Bounds().Dx(), screen.Bounds().Dy(), cam
+	vw, vh := cam.Viewport()
+	r.calls = append(r.calls, call{r.w, r.h, vw, vh})
+	r.screens = append(r.screens, screen)
 }
 
 func TestFeed_DrawsItsPictureThroughItsCameraAtItsSize(t *testing.T) {
@@ -115,5 +127,73 @@ func TestFeed_DrawsAtItsCamerasResolutionAndSpeaksShownPixels(t *testing.T) {
 	px, py, _, visible := feed.ToPixels(x, y, 0)
 	if !visible || math.Abs(float64(px-120)) > 1e-3 || math.Abs(float64(py-80)) > 1e-3 {
 		t.Fatalf("back to (%v, %v) visible %v, want (120, 80) visible", px, py, visible)
+	}
+}
+
+func TestFeed_DrawsARingedCameraALayerARingCoarseToFine(t *testing.T) {
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	cam.(camera.Ringed).SetRings([]camera.Ring{
+		{Share: 1, Resolution: 0.5},
+		{Share: 0.6, Resolution: 0.75},
+		{Share: 0.35, Resolution: 1},
+	})
+	picture := &recording{}
+	feed := render.NewFeed(cam, picture)
+	feed.Resize(400, 300)
+	img := feed.Draw()
+	want := []call{{200, 150, 200, 150}, {180, 135, 180, 135}, {140, 106, 140, 106}}
+	if !slices.Equal(picture.calls, want) {
+		t.Errorf("the picture was drawn %v, want %v: the whole frame at 0.5, the central 240x180 "+
+			"at 0.75, the central 140x106 at every pixel, a layer each", picture.calls, want)
+	}
+	if img == nil || img.Bounds().Dx() != 400 || img.Bounds().Dy() != 300 {
+		t.Fatalf("the feed's image is %v, want 400x300: the shown size", img.Bounds())
+	}
+	if w, h := cam.Viewport(); w != 400 || h != 300 || camera.IsCropped(cam) {
+		t.Errorf("after the frame the viewport is %vx%v, cropped %v; want 400x300, not cropped",
+			w, h, camera.IsCropped(cam))
+	}
+	cam.ZoomIn(2, 0, 0)
+	cam.CenterOn(500, 500, 0)
+	x, y, ok := feed.ToWorld(120, 80)
+	px, py, _, visible := feed.ToPixels(x, y, 0)
+	if !ok || !visible || math.Abs(float64(px-120)) > 1e-3 || math.Abs(float64(py-80)) > 1e-3 {
+		t.Errorf("under (120, 80) lies (%v, %v) ok %v, back to (%v, %v) visible %v; want (120, 80)",
+			x, y, ok, px, py, visible)
+	}
+}
+
+func TestFeed_DrawsACameraOfOneRingAsAResolvedOne(t *testing.T) {
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	cam.(camera.Ringed).SetRings([]camera.Ring{{Share: 1, Resolution: 0.5}})
+	cam.(camera.Resolved).SetResolution(0.5)
+	picture := &recording{}
+	feed := render.NewFeed(cam, picture)
+	feed.Resize(400, 300)
+	feed.Draw()
+	if want := []call{{200, 150, 200, 150}}; !slices.Equal(picture.calls, want) {
+		t.Errorf("the picture was drawn %v, want %v: once, at the camera's resolution",
+			picture.calls, want)
+	}
+}
+
+func TestFeed_DrawOnDrawsTheWholeFrameAtEveryPixelStraightOntoTheTarget(t *testing.T) {
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	cam.(camera.Ringed).SetRings([]camera.Ring{
+		{Share: 1, Resolution: 1},
+		{Share: 0.5, Resolution: 0.5},
+	})
+	picture := &recording{}
+	feed := render.NewFeed(cam, picture)
+	dst := render.NewImage(400, 300)
+	feed.DrawOn(dst)
+	want := []call{{400, 300, 400, 300}, {100, 75, 100, 75}}
+	if !slices.Equal(picture.calls, want) || picture.screens[0] != dst {
+		t.Errorf("the picture was drawn %v, the first onto the target %v; want %v, the first "+
+			"straight onto it", picture.calls, picture.screens[0] == dst, want)
+	}
+	if w, h := cam.Viewport(); w != 400 || h != 300 || camera.IsCropped(cam) {
+		t.Errorf("after the frame the viewport is %vx%v, cropped %v; want 400x300, not cropped",
+			w, h, camera.IsCropped(cam))
 	}
 }

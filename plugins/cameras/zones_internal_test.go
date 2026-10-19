@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
@@ -74,7 +75,7 @@ func (*drawsCtx) Hosts(...host.Host)         {}
 func (*drawsCtx) ECS() *goke.ECS             { return goke.New() }
 func (c *drawsCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
 
-func TestPlugin_DrawsTheZones(t *testing.T) {
+func TestPlugin_DrawsTheZonesAndTheRings(t *testing.T) {
 	p := NewPlugin(world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
@@ -83,7 +84,33 @@ func TestPlugin_DrawsTheZones(t *testing.T) {
 	if err := p.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(ctx.drawn) != 1 || ctx.drawn[0] != render.Source(p.zonesView) {
-		t.Errorf("the cameras draw %v, want the zones", ctx.drawn)
+	if len(ctx.drawn) != 2 || ctx.drawn[0] != render.Source(p.zonesView) ||
+		ctx.drawn[1] != render.Source(p.ringsView) {
+		t.Errorf("the cameras draw %v, want the zones and the rings", ctx.drawn)
+	}
+}
+
+type cropped struct{ camera.Camera }
+
+func (cropped) Crop(w, h, s float32) {}
+func (cropped) Uncrop()              {}
+func (cropped) Cropped() bool        { return true }
+
+func (c cropped) Frame() (float32, float32) { return c.Camera.Viewport() }
+
+var _ camera.Cropping = cropped{}
+
+func TestZones_LieOnTheWholeFrameAloneNeverOnAPartOfIt(t *testing.T) {
+	p := NewPlugin(world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 800},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	}), Config{})
+	p.ShowZones(true)
+	cam := cropped{cameratest.NewFromSpace(1000, 800, 0)}
+	var f render.Frame
+	f.Reset(cam)
+	p.zonesView.Compose(&f, cam)
+	if n := f.Len(); n != 0 {
+		t.Errorf("a camera drawn a part of its frame got %d pieces of the zones, want none", n)
 	}
 }

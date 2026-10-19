@@ -65,14 +65,16 @@ func (p *Plugin) lampsNext() int {
 // whether they do (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
 	out := []control.Setting{control.Switch{
-		Label: "Coarse shadows",
-		Get:   func() bool { return p.Res.Settings.Coarse },
-		Set:   func(on bool) command.Command { return CoarseShadows{On: on} },
+		Label:   "Coarse shadows",
+		Section: control.Graphics,
+		Get:     func() bool { return p.Res.Settings.Coarse },
+		Set:     func(on bool) command.Command { return CoarseShadows{On: on} },
 	}}
 	if p.cfg.LampShadows > 0 {
 		out = append(out, control.Switch{
-			Label: "Lamps' shadows",
-			Get:   func() bool { return p.Res.Settings.LampShadows > 0 },
+			Label:   "Lamps' shadows",
+			Section: control.Graphics,
+			Get:     func() bool { return p.Res.Settings.LampShadows > 0 },
 			Set: func(on bool) command.Command {
 				if on {
 					return LampShadows{Count: p.cfg.LampShadows}

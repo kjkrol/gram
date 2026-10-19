@@ -1,8 +1,12 @@
 package cameras
 
 import (
+	"math"
 	"testing"
 	"time"
+
+	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 )
 
 // a second a step from the start, fps frames a second each
@@ -106,6 +110,48 @@ func TestClamped_StaysBetweenTheLeastResolutionAndAllThePixels(t *testing.T) {
 	for in, want := range map[float32]float32{0.1: LeastResolution, 0.7: 0.7, 1.3: 1} {
 		if got := clamped(in); got != want {
 			t.Errorf("clamped(%v) = %v, want %v", in, got, want)
+		}
+	}
+}
+
+func TestStepRings_StepsTheOutermostRingCoarserFirstAndTheInnermostFinerFirst(t *testing.T) {
+	near := func(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
+	for _, c := range []struct {
+		name   string
+		from   [3]float32
+		factor float32
+		steps  [][3]float32
+	}{
+		{"coarser from the preset", [3]float32{0.6, 0.8, 1}, ResolutionStep, [][3]float32{
+			{0.51, 0.8, 1}, {0.4335, 0.8, 1}, {0.4, 0.8, 1}, {0.4, 0.68, 1},
+		}},
+		{"finer from the floors", [3]float32{0.4, 0.6, 0.7}, 1 / ResolutionStep, [][3]float32{
+			{0.4, 0.6, 0.8235}, {0.4, 0.6, 0.9689}, {0.4, 0.6, 1}, {0.4, 0.7059, 1},
+		}},
+	} {
+		cam := cameratest.NewFromSpace(1000, 800, 0).(camera.Ringed)
+		shares := [3]float32{1, 0.6, 0.35}
+		rings := make([]camera.Ring, 3)
+		for i, s := range c.from {
+			rings[i] = camera.Ring{Share: shares[i], Resolution: s}
+		}
+		cam.SetRings(rings)
+		for n, want := range c.steps {
+			centre := stepRings(cam, c.factor)
+			var got [3]float32
+			for i, ring := range cam.Rings() {
+				got[i] = ring.Resolution
+			}
+			for i := range want {
+				if !near(got[i], want[i]) {
+					t.Errorf("%s, step %d: the rings are %.4v, want %.4v", c.name, n+1, got, want)
+					break
+				}
+			}
+			if centre != got[2] {
+				t.Errorf("%s, step %d: stepRings gave %v, want the centre's %v", c.name, n+1,
+					centre, got[2])
+			}
 		}
 	}
 }

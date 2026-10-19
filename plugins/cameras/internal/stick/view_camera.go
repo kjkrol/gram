@@ -2,6 +2,7 @@ package stick
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
@@ -23,6 +24,7 @@ type viewCamera struct {
 	tactical  struct{ scale, length float32 }
 	fastening contract.Fastening
 	detail    contract.Detail
+	rings     []contract.Ring
 }
 
 // form names how a stick camera is saved, so a save of another shape is refused at its first
@@ -52,6 +54,8 @@ var _ contract.Focused = (*viewCamera)(nil)
 var _ contract.Detailed = (*viewCamera)(nil)
 var _ contract.Headed = (*viewCamera)(nil)
 var _ contract.Resolved = (*viewCamera)(nil)
+var _ contract.Ringed = (*viewCamera)(nil)
+var _ contract.Cropping = (*viewCamera)(nil)
 
 // Detail is how far the camera sees and how finely.
 func (c *viewCamera) Detail() contract.Detail { return c.detail }
@@ -360,6 +364,25 @@ func (c *viewCamera) SetResolution(s float32) {
 }
 
 func (c *viewCamera) Resolution() float32 { return c.ortho.res }
+
+func (c *viewCamera) Crop(w, h, s float32) {
+	c.ortho.Crop(w, h, s)
+	c.persp.Crop(w, h, s)
+}
+
+func (c *viewCamera) Uncrop() {
+	c.ortho.Uncrop()
+	c.persp.Uncrop()
+}
+
+func (c *viewCamera) Cropped() bool { return c.ortho.Cropped() }
+
+func (c *viewCamera) Frame() (float32, float32) { return c.ortho.Frame() }
+
+// SetRings has the picture drawn in rings, or whole for none or one.
+func (c *viewCamera) SetRings(rings []contract.Ring) { c.rings = slices.Clone(rings) }
+
+func (c *viewCamera) Rings() []contract.Ring { return slices.Clone(c.rings) }
 
 func (c *viewCamera) SetMinZoom(minZoom float32) {
 	c.ortho.SetMinZoom(minZoom)

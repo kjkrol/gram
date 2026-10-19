@@ -46,12 +46,14 @@ type Config struct {
 	// how far every camera sees and how finely as it is made (Sight changes it); zero, as far as
 	// the world goes, every bit
 	Detail camera.Detail
-	// Resolution is the share of the pixels every picture but a minimap's is drawn at as its
-	// camera is made, LeastResolution up to 1 (zero, all of them); Adaptive has it follow the
-	// FrameBudget from the start (Adapt), the time a frame may take (zero, a sixtieth of a
-	// second): a rate the vsync caps is met, never exceeded.
+	// Resolution is the share of the pixels every picture but a minimap's is drawn at as the
+	// cameras are made, LeastResolution up to 1 (zero, all of them), the centre ring's in rings;
+	// Rings has them drawn in rings from the start (Settings.Rings); Strategy has their
+	// resolution follow the FrameBudget from the start (Adapt), the time a frame may take (zero,
+	// a sixtieth of a second): a rate the vsync caps is met, never exceeded.
 	Resolution  float32
-	Adaptive    bool
+	Strategy    Strategy
+	Rings       bool
 	FrameBudget time.Duration
 }
 
@@ -93,8 +95,15 @@ type Plugin struct {
 	sights      command.Queue[Sight]
 	resolutions command.Queue[Resolution]
 	adapts      command.Queue[Adapt]
+	pictures    command.Queue[Picture]
+	rings       command.Queue[Rings]
+	ringShares  command.Queue[RingShares]
+	ringRes     command.Queue[RingResolutions]
+	budgets     command.Queue[Budget]
+	showRings   command.Queue[ShowRings]
 	orders      orders
 	zonesView   *zonesView
+	ringsView   *ringsView
 	adapter     adapter
 	kept        *plugin.Kept[Settings]
 	module      *module
@@ -114,12 +123,21 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin, cfg: cfg}
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.zonesView = &zonesView{settings: &p.Res.Settings}
+	p.ringsView = &ringsView{settings: &p.Res.Settings}
 	p.kept = plugin.Keep(&p.Res.Settings)
-	p.Res.Settings.Adaptive = cfg.Adaptive
-	p.adapter = adapter{on: cfg.Adaptive, budget: cfg.FrameBudget}
-	if p.adapter.budget <= 0 {
-		p.adapter.budget = time.Second / 60
+	p.Res.Settings = Settings{
+		Resolution: 1,
+		Rings:      cfg.Rings,
+		Inner:      0.35,
+		Middle:     0.6,
+		OuterRes:   0.6,
+		MiddleRes:  0.8,
 	}
+	if cfg.Resolution > 0 {
+		p.Res.Settings.Resolution = clamped(cfg.Resolution)
+	}
+	p.SetBudget(cfg.FrameBudget)
+	p.SetStrategy(cfg.Strategy)
 	worldPlugin.Anchor(anchors{p})
 	if !cfg.plain() {
 		if edges := worldPlugin.Res.Config.Space.Edges; edges.WrapsX() || edges.WrapsY() {
@@ -169,9 +187,7 @@ func (p *Plugin) New(start Start, cfg camera.Config) camera.Camera {
 		cam = made(space.Width, space.Height, space.Edges, cfg)
 	}
 	cam.(seeing).SetDetail(p.cfg.Detail)
-	if r, ok := cam.(camera.Resolved); ok && p.cfg.Resolution > 0 && !fitsWhole(cam) {
-		r.SetResolution(clamped(p.cfg.Resolution))
-	}
+	p.ring(cam)
 	at := len(p.cameras)
 	p.cameras = append(p.cameras, cam)
 	if p.loaded && at < len(p.saved) {
@@ -233,7 +249,7 @@ func (p *Plugin) Name() string { return "gram.cameras" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{p: p}
 	ctx.UseModule(p.module)
-	ctx.Draws(p.zonesView)
+	ctx.Draws(p.zonesView, p.ringsView)
 	return nil
 }
 
@@ -247,17 +263,32 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// redraw has every picture but a minimap's drawn at factor times its resolution
+// redraw has every picture but a minimap's drawn at factor times its resolution, the Settings
+// showing the lead camera's
 func (p *Plugin) redraw(factor float32) {
 	for _, cam := range p.cameras {
-		if r, ok := cam.(camera.Resolved); ok && !fitsWhole(cam) {
-			r.SetResolution(clamped(r.Resolution() * factor))
-		}
+		p.apply(cam, factor)
 	}
+	p.note(p.lead())
+}
+
+// apply has cam's picture drawn at factor times its resolution, a ring at a time where it is
+// drawn in rings, and is false for a minimap's or a camera without one
+func (p *Plugin) apply(cam camera.Camera, factor float32) bool {
+	r, ok := cam.(camera.Resolved)
+	if !ok || fitsWhole(cam) {
+		return false
+	}
+	if c, ok := cam.(camera.Ringed); ok && len(c.Rings()) > 0 {
+		r.SetResolution(stepRings(c, factor))
+		return true
+	}
+	r.SetResolution(clamped(r.Resolution() * factor))
+	return true
 }
 
 // Reporter is the cameras' part of the telemetry panel: the share of its pixels each picture is
-// drawn at, and whether it follows the frame budget.
+// drawn at, ring by ring in rings with the rings' shares, and the budget it follows, or still.
 func (p *Plugin) Reporter() render.Reporter { return reporter{p} }
 
 type reporter struct{ p *Plugin }
@@ -268,17 +299,36 @@ func (r reporter) Report(line func(label, value string)) {
 	var shares []string
 	for _, cam := range r.p.cameras {
 		if _, ok := cam.(camera.Resolved); ok && !fitsWhole(cam) {
-			shares = append(shares, fmt.Sprintf("%.2f", camera.ResolutionOf(cam)))
+			shares = append(shares, share(cam))
 		}
 	}
 	if len(shares) == 0 {
 		return
 	}
+	s := r.p.Res.Settings
 	value := strings.Join(shares, ", ") + " of the pixels"
-	if r.p.adapter.on {
-		value += ", adaptive"
+	if s.Rings {
+		value += fmt.Sprintf(" in rings at %.0f%% and %.0f%%", s.Middle*100, s.Inner*100)
+	}
+	if s.Strategy == Still {
+		value += ", still"
+	} else {
+		value += fmt.Sprintf(", following a budget of %.0f FPS", budgetRate(s.FrameBudget))
 	}
 	line("Picture", value)
+}
+
+// share is the resolution cam's picture is drawn at, its rings' from the outermost in rings
+func share(cam camera.Camera) string {
+	rings := camera.RingsOf(cam)
+	if len(rings) == 0 {
+		return fmt.Sprintf("%.2f", camera.ResolutionOf(cam))
+	}
+	parts := make([]string, len(rings))
+	for i, ring := range rings {
+		parts[i] = fmt.Sprintf("%.2f", ring.Resolution)
+	}
+	return strings.Join(parts, "/")
 }
 
 // EventHandler is nil: a player's bindings issue the commands.
@@ -289,15 +339,16 @@ func (p *Plugin) EventHandler() control.EventHandler { return nil }
 func (p *Plugin) Serializable() plugin.Serializable { return persisted{p} }
 
 // Restore gives the cameras made so far the state a Load wrote, those made later take theirs as
-// they are made, and takes the Settings loaded.
+// they are made, and takes the Settings loaded, the pictures drawn as they say.
 func (p *Plugin) Restore() {
 	p.kept.Restore()
-	p.adapter.on = p.Res.Settings.Adaptive
+	p.adapter = adapter{on: p.Res.Settings.Strategy != Still, budget: p.Res.Settings.FrameBudget}
 	p.loaded = true
-	for at := range p.cameras {
+	for at, cam := range p.cameras {
 		if at < len(p.saved) {
 			p.restore(at)
 		}
+		p.ring(cam)
 	}
 }
 
@@ -328,5 +379,5 @@ func (s persisted) Persisted() []any {
 		}
 		p.saved = append(p.saved, buf.Bytes())
 	}
-	return []any{&p.saved}
+	return append([]any{&p.saved}, p.kept.Persisted()...)
 }

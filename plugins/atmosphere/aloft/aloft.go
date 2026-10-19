@@ -52,17 +52,51 @@ type Renderer struct {
 	opts     render.DrawMeshOptions
 	layOpts  render.DrawMeshOptions
 	uniforms map[string][]float32 // boxed once in the options
-	coarse   *render.Image        // the clouds, coarser than the screen
-	depth    *render.Depth        // how deep they lie there
-	alone    *render.Depth        // to lay them against on a screen without depth
+	sizes    []size               // the screens drawn on of late, by size
 }
+
+// what the clouds are drawn with on a screen of one size: the clouds coarser than it, how deep
+// they lie there, and a depth to lay them against on a screen without one
+type size struct {
+	w, h   int
+	coarse *render.Image
+	depth  *render.Depth
+	alone  *render.Depth
+}
+
+// the sizes of screen kept, as render keeps its depths: a view in rings is drawn at up to four
+// a frame, two such views at eight
+const keptSizes = 8
 
 // New is the layer of clouds of the weather air gives, seen from above.
 func New(weather func() air.Weather, layer air.Layer) *Renderer {
-	r := &Renderer{layer: layer, air: weather, uniforms: map[string][]float32{},
-		depth: render.NewDepth().Readable()}
+	r := &Renderer{layer: layer, air: weather, uniforms: map[string][]float32{}}
 	r.opts.Uniforms = map[string]any{}
 	return r
+}
+
+func (r *Renderer) sizeFor(w, h int) *size {
+	for i := range r.sizes {
+		if r.sizes[i].w == w && r.sizes[i].h == h {
+			return &r.sizes[i]
+		}
+	}
+	if len(r.sizes) == keptSizes {
+		r.sizes[0].free()
+		r.sizes = append(r.sizes[:0], r.sizes[1:]...)
+	}
+	lw, lh := (w+coarse-1)/coarse, (h+coarse-1)/coarse
+	r.sizes = append(r.sizes, size{w: w, h: h, coarse: render.NewImage(lw, lh),
+		depth: render.NewDepth().Readable()})
+	return &r.sizes[len(r.sizes)-1]
+}
+
+func (s *size) free() {
+	s.coarse.Deallocate()
+	s.depth.Release()
+	if s.alone != nil {
+		s.alone.Release()
+	}
 }
 
 // how much of what is behind the thickest cloud it hides; how many pixels of the screen a pixel of
@@ -154,35 +188,30 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	r.set("AloftEye", tr.Eye[:]...)
 	r.set("AloftBend", tr.Bend)
 	b := t.Screen.Bounds()
+	s := r.sizeFor(b.Dx(), b.Dy())
+	lw, lh := s.coarse.Bounds().Dx(), s.coarse.Bounds().Dy()
 	r.opts.Vertices = 3
-	lw, lh := (b.Dx()+coarse-1)/coarse, (b.Dy()+coarse-1)/coarse
-	if r.coarse == nil || r.coarse.Bounds().Dx() != lw || r.coarse.Bounds().Dy() != lh {
-		if r.coarse != nil {
-			r.coarse.Deallocate()
-		}
-		r.coarse = render.NewImage(lw, lh)
-	}
-	r.coarse.Clear()
-	r.opts.Depth, r.opts.ClearDepth, r.opts.WriteDepth = r.depth, true, true
-	r.coarse.DrawMesh(nil, shader, &r.opts)
+	s.coarse.Clear()
+	r.opts.Depth, r.opts.ClearDepth, r.opts.WriteDepth = s.depth, true, true
+	s.coarse.DrawMesh(nil, shader, &r.opts)
 	if r.layer == air.High {
 		// sheets over all the world stands up into, met once a pixel: no grain to blur
 		var op render.DrawImageOptions
 		op.GeoM.Scale(float64(b.Dx())/float64(lw), float64(b.Dy())/float64(lh))
 		op.Filter = render.FilterLinear
-		t.Screen.DrawImage(r.coarse, &op)
+		t.Screen.DrawImage(s.coarse, &op)
 		return
 	}
 	r.set("LayView", float32(b.Dx()), float32(b.Dy()))
 	r.set("LayCoarse", coarse)
 	r.layOpts.Uniforms, r.layOpts.Vertices = r.opts.Uniforms, 3
-	r.layOpts.Images[0] = r.coarse
-	r.layOpts.Depth, r.layOpts.ReadDepth, r.layOpts.ClearDepth = t.Depth, r.depth, false
+	r.layOpts.Images[0] = s.coarse
+	r.layOpts.Depth, r.layOpts.ReadDepth, r.layOpts.ClearDepth = t.Depth, s.depth, false
 	if t.Depth == nil {
-		if r.alone == nil {
-			r.alone = render.NewDepth()
+		if s.alone == nil {
+			s.alone = render.NewDepth()
 		}
-		r.layOpts.Depth, r.layOpts.ClearDepth = r.alone, true
+		r.layOpts.Depth, r.layOpts.ClearDepth = s.alone, true
 	}
 	t.Screen.DrawMesh(nil, layShader, &r.layOpts)
 }

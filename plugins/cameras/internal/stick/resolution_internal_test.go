@@ -117,3 +117,125 @@ func TestViewCamera_AtAResolutionTheViewsSwitchKeepingTheScale(t *testing.T) {
 		}
 	}
 }
+
+func TestOrthoCamera_CroppedItDrawsTheMiddleOfItsFrameAndComesBackExactly(t *testing.T) {
+	cam := testCamera(t, 0).(*viewCamera).ortho
+	cam.CenterOn(320, 320, 0)
+	cam.ZoomIn(1.5, 320, 320)
+	viewport, res, pan, foot, scale := cam.viewportSize, cam.res, cam.pan, cam.foot, cam.scale
+	zoom := cam.Zoom()
+	x0, y0 := cam.Unproject(100, 75, 0)
+	x1, y1 := cam.Unproject(300, 225, 0)
+	px, py := cam.Unproject(240, 150, 4)
+
+	cam.Crop(200, 150, 0.5)
+
+	if w, h := cam.Viewport(); w != 100 || h != 75 || !near(cam.Zoom(), zoom/2) || !cam.Cropped() {
+		t.Errorf("cropped to 200 x 150 at 0.5 the viewport is %v x %v at zoom %v, cropped %v; "+
+			"want 100 x 75 at %v, cropped", w, h, cam.Zoom(), cam.Cropped(), zoom/2)
+	}
+	f := cam.foot
+	if sx, sy := cam.Project(float32(f[0]), float32(f[1]), float32(f[2])); !near(sx, 50) ||
+		!near(sy, 37.5) {
+		t.Errorf("the foot is drawn at (%v, %v), want (50, 37.5): the middle", sx, sy)
+	}
+	if sx, sy := cam.Project(px, py, 4); !near(sx, 70) || !near(sy, 37.5) {
+		t.Errorf("a point 40 shown pixels right of the middle is drawn at (%v, %v), want "+
+			"(70, 37.5): 20 camera pixels right of it", sx, sy)
+	}
+	if x, y := cam.Unproject(0, 0, 0); !near(x, x0) || !near(y, y0) {
+		t.Errorf("the corner sees (%v, %v), want (%v, %v): a quarter into the frame", x, y, x0, y0)
+	}
+	if x, y := cam.Unproject(100, 75, 0); !near(x, x1) || !near(y, y1) {
+		t.Errorf("the far corner sees (%v, %v), want (%v, %v): three quarters into the frame",
+			x, y, x1, y1)
+	}
+	if cam.scale != scale || cam.foot != foot || *cam.Persisted()[3].(*float32) != scale {
+		t.Errorf("the scale is %v, the foot %v; want %v and %v as before, in shown pixels",
+			cam.scale, cam.foot, scale, foot)
+	}
+
+	cam.Crop(400, 300, 0.5)
+	if w, h := cam.Viewport(); w != 200 || h != 150 || cam.Cropped() {
+		t.Errorf("cropped to the whole frame at 0.5 the viewport is %v x %v, cropped %v; "+
+			"want 200 x 150, not cropped", w, h, cam.Cropped())
+	}
+
+	cam.Uncrop()
+	if cam.viewportSize != viewport || cam.res != res || cam.pan != pan || cam.Zoom() != zoom ||
+		cam.Cropped() {
+		t.Errorf("uncropped the camera is %v at %v panned %v, zoom %v; want %v at %v panned %v, "+
+			"zoom %v: exactly as before", cam.viewportSize, cam.res, cam.pan, cam.Zoom(),
+			viewport, res, pan, zoom)
+	}
+}
+
+func TestPerspCamera_CroppedTheFocalLengthIsTheFramesAndTheLimitsStay(t *testing.T) {
+	c := testPersp(nil, nil)
+	c.SetMaxZoom(6)
+	c.SetMinZoom(1)
+	f0, short, long := c.focal(), c.bounded(0), c.bounded(1e9)
+	at, foot, length, proj := c.at, c.foot, c.length, c.proj
+	px, py := c.Unproject(240, 150, 0)
+	bx, by := c.Project(px, py, 0)
+
+	c.Crop(200, 150, 0.5)
+
+	if w, h := c.Viewport(); w != 100 || h != 75 || !c.Cropped() {
+		t.Errorf("cropped to 200 x 150 at 0.5 the viewport is %v x %v, cropped %v; want 100 x 75, "+
+			"cropped", w, h, c.Cropped())
+	}
+	if f := c.focal(); !near(f, f0*0.5) {
+		t.Errorf("the focal length is %v, want %v: the frame's at 0.5", f, f0*0.5)
+	}
+	if sx, sy := c.Project(px, py, 0); !near(sx, 70) || !near(sy, 37.5) {
+		t.Errorf("a point 40 shown pixels right of the middle is drawn at (%v, %v), want "+
+			"(70, 37.5): 20 camera pixels right of it", sx, sy)
+	}
+	if c.bounded(0) != short || c.bounded(1e9) != long {
+		t.Errorf("the stick is bounded to %v..%v, want %v..%v as before: the zoom's limits are "+
+			"the frame's", c.bounded(0), c.bounded(1e9), short, long)
+	}
+	if c.at != at || c.foot != foot || c.length != length {
+		t.Errorf("the camera looks at %v from %v up %v; want %v from %v up %v as before",
+			c.at, c.foot, c.length, at, foot, length)
+	}
+
+	c.Uncrop()
+	if c.focal() != f0 || c.proj != proj || c.Cropped() {
+		t.Errorf("uncropped the focal length is %v, cropped %v; want %v, not cropped, the "+
+			"projection as before", c.focal(), c.Cropped(), f0)
+	}
+	if sx, sy := c.Project(px, py, 0); sx != bx || sy != by {
+		t.Errorf("uncropped the point is drawn at (%v, %v), want (%v, %v) exactly", sx, sy, bx, by)
+	}
+}
+
+func TestViewCamera_CroppedInPerspectiveTheMiddleLooksTheSameWay(t *testing.T) {
+	c := testViews(true)
+	c.CenterOn(330, 310, 0)
+	c.next()
+	if !c.inPersp {
+		t.Fatal("after Tab the view is not the perspective")
+	}
+	w, h := c.Viewport()
+	dx, dy, dz, _ := c.Ray(w/2, h/2)
+
+	c.Crop(200, 150, 0.5)
+
+	cw, ch := c.Viewport()
+	if cw != 100 || ch != 75 || !contract.IsCropped(c) {
+		t.Errorf("cropped the viewport is %v x %v, cropped %v; want 100 x 75, cropped", cw, ch,
+			contract.IsCropped(c))
+	}
+	if x, y, z, _ := c.Ray(cw/2, ch/2); x != dx || y != dy || z != dz {
+		t.Errorf("the middle looks along (%v, %v, %v), want (%v, %v, %v) as before the crop",
+			x, y, z, dx, dy, dz)
+	}
+
+	c.Uncrop()
+	if w, h := c.Viewport(); w != 400 || h != 300 || contract.IsCropped(c) {
+		t.Errorf("uncropped the viewport is %v x %v, cropped %v; want 400 x 300, not cropped",
+			w, h, contract.IsCropped(c))
+	}
+}

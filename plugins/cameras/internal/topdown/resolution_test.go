@@ -46,3 +46,41 @@ func TestBasicCamera_AtAResolutionItsPixelsAreTheShownOnesTimesIt(t *testing.T) 
 		t.Errorf("zoomed far in the zoom is %v, want 2: a limit of 4 in shown pixels", z)
 	}
 }
+
+func TestBasicCamera_CroppedItDrawsTheMiddleOfItsFrameAndComesBackExactly(t *testing.T) {
+	c := newBasicCamera(geom.NewVec(1000, 1000), testViewport(100, 100, 400, 300), 0)
+	c.ZoomIn(2, 300, 250)
+	viewport, res, effective, zoom := c.viewportSize, c.res, c.effective, c.Zoom()
+	rays, _ := c.Rays()
+
+	c.Crop(200, 150, 0.5)
+
+	if w, h := c.Viewport(); w != 100 || h != 75 || c.Zoom() != 1 || !c.Cropped() {
+		t.Errorf("cropped to 200 x 150 at 0.5 the viewport is %v x %v at zoom %v, cropped %v; "+
+			"want 100 x 75 at 1, cropped", w, h, c.Zoom(), c.Cropped())
+	}
+	if got, want := c.Bounds(), geom.NewAABBAt(geom.NewVec(250, 212.5), 100, 75); got != want {
+		t.Errorf("the window is %v, want %v: the middle quarter of the frame's", got, want)
+	}
+	if sx, sy := c.Project(300, 250, 0); sx != 50 || sy != 37.5 {
+		t.Errorf("the middle is drawn at (%v, %v), want (50, 37.5)", sx, sy)
+	}
+	if r, _ := c.Rays(); r.DX[0] != 2*rays.DX[0] || r.DY[1] != 2*rays.DY[1] {
+		t.Errorf("a camera pixel is %v world units, want %v: twice a shown one", r.DX[0],
+			2*rays.DX[0])
+	}
+
+	c.Crop(400, 300, 0.5)
+	if w, h := c.Viewport(); w != 200 || h != 150 || c.Cropped() {
+		t.Errorf("cropped to the whole frame at 0.5 the viewport is %v x %v, cropped %v; "+
+			"want 200 x 150, not cropped", w, h, c.Cropped())
+	}
+
+	c.Uncrop()
+	if c.viewportSize != viewport || c.res != res || c.effective != effective ||
+		c.Zoom() != zoom || c.Cropped() {
+		t.Errorf("uncropped the camera is %v at %v over %v, zoom %v; want %v at %v over %v, "+
+			"zoom %v: exactly as before", c.viewportSize, c.res, c.effective.AABB, c.Zoom(),
+			viewport, res, effective.AABB, zoom)
+	}
+}

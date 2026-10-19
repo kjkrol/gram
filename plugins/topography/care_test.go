@@ -6,13 +6,21 @@ import (
 	"time"
 
 	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/internal/topotest"
+	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
+	"github.com/kjkrol/gram/render"
 )
 
 func TestPlugin_ShadesTheGroundWithFullCareAsFarAsTheConfigSays(t *testing.T) {
@@ -34,15 +42,7 @@ func TestPlugin_ShadesTheGroundWithFullCareAsFarAsTheConfigSays(t *testing.T) {
 func TestPlugin_CareStepsFullCareFartherAndNearerRungByRung(t *testing.T) {
 	qw := topotest.NewQuasiWorld(t, false,
 		func(*board.Units[topotest.Recruit], grid.Grid) []kind.Entry { return nil })
-	var caring command.CommandQueue
-	for _, q := range qw.Topo.Queues() {
-		if q.Accepts() == reflect.TypeFor[topography.Care]() {
-			caring = q
-		}
-	}
-	if caring == nil {
-		t.Fatal("no queue takes a Care command")
-	}
+	caring := queueOf[topography.Care](t, qw.Topo)
 	keys := map[string]control.Binding{}
 	for _, bd := range qw.Topo.DefaultBindings() {
 		keys[players.Written(bd.Trigger)] = bd
@@ -70,5 +70,156 @@ func TestPlugin_CareStepsFullCareFartherAndNearerRungByRung(t *testing.T) {
 		if got := step(1); got != want {
 			t.Errorf("farther: full care within %d sectors, want %d", got, want)
 		}
+	}
+}
+
+func TestSettings_TheCaresReachIsASliderToEverySectorAndTheCareShownASwitch(t *testing.T) {
+	w := topotest.NewWorld(0)
+	b, _ := topotest.LevelBoard(w)
+	p := topography.NewPlugin(w, b, nil, topography.Config{Care: 2})
+	settings := p.Settings()
+	if len(settings) != 3 {
+		t.Fatalf("%d settings, want the haze, the care's reach and the care shown", len(settings))
+	}
+	haze, reach, shown := settings[0].(control.Switch), settings[1].(control.Range),
+		settings[2].(control.Switch)
+	if haze.Section != control.Graphics || reach.Section != control.PictureCare ||
+		shown.Section != control.PictureAreas {
+		t.Errorf("the sections are %q, %q and %q, want the graphics, the care and the areas",
+			haze.Section, reach.Section, shown.Section)
+	}
+	if reach.Label != "Full care out to" || reach.Min != 1 || reach.Max != 8 || reach.Step != 1 {
+		t.Errorf("the reach is %q from %v to %v by %v, want \"Full care out to\" 1 to 8 by 1",
+			reach.Label, reach.Min, reach.Max, reach.Step)
+	}
+	if got := reach.Get(); got != 2 {
+		t.Errorf("the reach reads %v, want the Config's 2", got)
+	}
+	for v, want := range map[float64]string{8: "every sector", 1: "a sector", 3: "3 sectors"} {
+		if got := reach.Shows(v); got != want {
+			t.Errorf("the reach shows %v as %q, want %q", v, got, want)
+		}
+	}
+	if got := reach.Set(8); got != (topography.Care{Rings: 0}) {
+		t.Errorf("the reach at the top builds %v, want Care{Rings: 0}: every sector", got)
+	}
+	if got := reach.Set(3); got != (topography.Care{Rings: 3}) {
+		t.Errorf("the reach at 3 builds %v, want Care{Rings: 3}", got)
+	}
+	p.SetCare(0)
+	if got := reach.Get(); got != 8 {
+		t.Errorf("the reach reads %v with every sector cared for, want the top", got)
+	}
+	p.SetCare(12)
+	if got := reach.Get(); got != 8 {
+		t.Errorf("the reach reads %v with the care past the top, want the top", got)
+	}
+	if shown.Label != "Show the care" || shown.Get() {
+		t.Errorf("the switch is %q (%v), want \"Show the care\" off", shown.Label, shown.Get())
+	}
+	if got := shown.Set(true); got != (topography.ShowCare{Shown: true}) {
+		t.Errorf("the switch on builds %v, want ShowCare{Shown: true}", got)
+	}
+}
+
+func TestPlugin_ShowCareThroughItsQueueShowsTheCare(t *testing.T) {
+	qw := topotest.NewQuasiWorld(t, false,
+		func(*board.Units[topotest.Recruit], grid.Grid) []kind.Entry { return nil })
+	showing := queueOf[topography.ShowCare](t, qw.Topo)
+	for _, shown := range []bool{true, false} {
+		showing.Put(command.Nobody, topography.ShowCare{Shown: shown})
+		qw.ECS.Tick(time.Second / 60)
+		if qw.Topo.CareShown() != shown {
+			t.Errorf("ShowCare{%v} leaves the care shown %v", shown, qw.Topo.CareShown())
+		}
+	}
+}
+
+func queueOf[C command.Command](t *testing.T, p *topography.Plugin) command.CommandQueue {
+	t.Helper()
+	for _, q := range p.Queues() {
+		if q.Accepts() == reflect.TypeFor[C]() {
+			return q
+		}
+	}
+	t.Fatalf("no queue takes a %v", reflect.TypeFor[C]())
+	return nil
+}
+
+// an anchor of the world's sectors standing still
+type anchored struct{ x, y float32 }
+
+func (a anchored) Anchors(at func(x, y float32)) { at(a.x, a.y) }
+
+func TestCareView_DrawsTheBoundariesBetweenTheCaresBandsOverTheGround(t *testing.T) {
+	// a 512 x 512 world of 4 x 4 sectors 128 a side (entities 4 across make buckets of 32),
+	// all in one band round the middle, over a board covering it
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 512, Height: 512},
+		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 4, MaxSize: 4},
+		Heights:  true,
+		Sectors:  world.SectorsCfg{Buckets: 4, Bands: []sector.Band{{Reach: 1000}}},
+	})
+	w.Anchor(anchored{256, 256})
+	m := motion.NewPlugin(w)
+	b := board.NewPlugin(grid.DefaultGrids{}.Square(16, 16, 32), &cell.MultipleOccupancy{}, w).
+		WithMotion(m)
+	b.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+	p := topography.NewPlugin(w, b, nil, topography.Config{Care: 1})
+	ctx := topotest.NewInstallCtx()
+	for _, plugin := range []interface {
+		Install(plugin.Installer) error
+	}{w, m, b, p} {
+		if err := plugin.Install(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sources := ctx.Sources()
+	if len(sources) < 2 {
+		t.Fatalf("the topography draws %v, want the ground and the care's view", sources)
+	}
+	careView := sources[len(sources)-2]
+	ecs := ctx.ECS()
+	ecs.Setup(ctx.Systems()...)
+	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
+		b.RunPlan(rc, d)
+		p.RunPlan(rc, d)
+		rc.Sync()
+		w.Clock().Replay(rc, d)
+	})
+	// the middle of the screen over the sector (2, 2): full care a ring round it, less in the
+	// first row and column; the view sees every sector once the bands are laid
+	cam := cameratest.NewFromSpace(512, 512, 0)
+	w.ViewFor(cam)
+	ecs.Tick(time.Second / 60)
+	ecs.Tick(time.Second / 60)
+	drawn := func() (pieces int, onTop bool) {
+		var f render.Frame
+		f.Reset(cam)
+		careView.Compose(&f, cam)
+		f.Each(func(at render.At, _ []render.Vertex) {
+			pieces++
+			onTop = onTop || at.Top()
+		})
+		return pieces, onTop
+	}
+	if pieces, _ := drawn(); pieces != 0 {
+		t.Errorf("%d pieces with the care not shown, want none", pieces)
+	}
+	p.ShowCare(true)
+	pieces, onTop := drawn()
+	// the boundary between the full and the less: 3 sectors' edges of 4 cells on each side
+	if pieces != 24 {
+		t.Errorf("%d pieces with the care shown, want 24: the boundary's segments a cell each",
+			pieces)
+	}
+	if onTop {
+		t.Error("a boundary's segment lies on top of the world, want it in the world")
+	}
+	p.SetCare(0)
+	if pieces, _ := drawn(); pieces != 0 {
+		t.Errorf("%d pieces with every sector shaded with full care, want none", pieces)
 	}
 }

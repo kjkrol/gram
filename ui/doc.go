@@ -19,7 +19,8 @@
 //
 // # Elements
 //
-// [Panel] is a background and a border round an element; [Label] a line of text; [Image] a
+// [Panel] is a background and a border round an element; [Label] a line of text ([Heading],
+// [Subheading] and [Title] its weights); [Image] a
 // render.Surface filling its box; [Window] a panel with a title over its elements, which
 // [Element.Modal] makes hold the input while shown; [Blank] a gap; [Drawer] a screen renderer. Any
 // element takes [Element.Fill], [Element.Border] and [Element.Padding]. [LabelOf], [ButtonOf] and

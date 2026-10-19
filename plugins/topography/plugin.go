@@ -86,11 +86,13 @@ type Plugin struct {
 	seeded      func(p geom.Vec) float64
 
 	// nil off a square grid, where hexes draws the ground
-	ground *terrain.Renderer
-	hexes  *hexes.Ground
+	ground   *terrain.Renderer
+	careView *careView
+	hexes    *hexes.Ground
 
 	hazing  command.Queue[Haze]
 	caring  command.Queue[Care]
+	showing command.Queue[ShowCare]
 	kept    *plugin.Kept[Settings]
 	look    billboards.Look
 	taking  []render.Taking // by cell, as the kinds last stood
@@ -138,6 +140,7 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 			Scale: worldPlugin.Scale(),
 			Seen:  worldPlugin.ViewFor,
 		})
+		p.careView = &careView{p}
 		p.SetCare(cfg.Care)
 	} else {
 		p.hexes = hexes.New(worldPlugin, boardPlugin, p, p.relief, liveSky{p})
@@ -281,6 +284,14 @@ func (p *Plugin) Care() int {
 	return p.Res.Settings.Care
 }
 
+// ShowCare has the care's bands drawn over the ground, or not, as the ShowCare command switches
+// it (Settings.ShowCare): the boundaries between sectors of different care. Nothing on a hex
+// board, nor with every sector shaded with full care.
+func (p *Plugin) ShowCare(shown bool) { p.Res.Settings.ShowCare = shown }
+
+// CareShown reports whether the care's bands are drawn.
+func (p *Plugin) CareShown() bool { return p.Res.Settings.ShowCare }
+
 // the rings of full care the keys step through, the last every sector
 var careLadder = []int{1, 2, 3, 0}
 
@@ -391,7 +402,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)
 	if p.ground != nil {
-		ctx.Draws(p.ground)
+		ctx.Draws(p.ground, p.careView)
 	} else {
 		ctx.Draws(p.hexes)
 	}
@@ -405,6 +416,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.hazing.Drain(func(i command.Issued[Haze]) { p.WithHaze(i.Command.On) })
 	p.caring.Drain(func(i command.Issued[Care]) { p.SetCare(i.Command.Rings) })
+	p.showing.Drain(func(i command.Issued[ShowCare]) { p.ShowCare(i.Command.Shown) })
 	p.module.RunPlan(ctx, d)
 }
 
