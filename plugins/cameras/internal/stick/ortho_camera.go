@@ -193,6 +193,14 @@ func (c *orthoCamera) Cropped() bool {
 	return c.cropped != nil && c.viewportSize != c.cropped.viewportSize
 }
 
+func (c *orthoCamera) Frame() (float32, float32) {
+	size := c.viewportSize
+	if c.cropped != nil {
+		size = c.cropped.viewportSize
+	}
+	return float32(size.X), float32(size.Y)
+}
+
 func (c *orthoCamera) SetViewport(w, h float32) {
 	if w <= 0 || h <= 0 {
 		return

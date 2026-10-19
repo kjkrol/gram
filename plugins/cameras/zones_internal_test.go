@@ -96,6 +96,8 @@ func (cropped) Crop(w, h, s float32) {}
 func (cropped) Uncrop()              {}
 func (cropped) Cropped() bool        { return true }
 
+func (c cropped) Frame() (float32, float32) { return c.Camera.Viewport() }
+
 var _ camera.Cropping = cropped{}
 
 func TestZones_LieOnTheWholeFrameAloneNeverOnAPartOfIt(t *testing.T) {

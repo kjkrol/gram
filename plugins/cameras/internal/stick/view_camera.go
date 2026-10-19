@@ -377,6 +377,8 @@ func (c *viewCamera) Uncrop() {
 
 func (c *viewCamera) Cropped() bool { return c.ortho.Cropped() }
 
+func (c *viewCamera) Frame() (float32, float32) { return c.ortho.Frame() }
+
 // SetRings has the picture drawn in rings, or whole for none or one.
 func (c *viewCamera) SetRings(rings []contract.Ring) { c.rings = slices.Clone(rings) }
 

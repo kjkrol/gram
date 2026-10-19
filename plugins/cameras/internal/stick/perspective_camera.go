@@ -448,6 +448,14 @@ func (c *perspCamera) Uncrop() {
 
 func (c *perspCamera) Cropped() bool { return c.crop.X < 1 || c.crop.Y < 1 }
 
+func (c *perspCamera) Frame() (float32, float32) {
+	size, res := c.viewportSize, c.res
+	if c.cropped != nil {
+		size, res = c.cropped.viewportSize, c.cropped.res
+	}
+	return float32(size.X) / res, float32(size.Y) / res
+}
+
 func (c *perspCamera) Project(x, y, z float32) (float32, float32) {
 	sx, sy := c.proj.Project(x, y, z)
 	return sx + float32(c.viewportSize.X/2), sy + float32(c.viewportSize.Y/2)

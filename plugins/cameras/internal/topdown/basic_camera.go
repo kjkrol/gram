@@ -194,6 +194,14 @@ func (c *basicCamera) Cropped() bool {
 	return c.cropped != nil && c.viewportSize != c.cropped.viewportSize
 }
 
+func (c *basicCamera) Frame() (float32, float32) {
+	size := c.viewportSize
+	if c.cropped != nil {
+		size = c.cropped.viewportSize
+	}
+	return float32(size.X), float32(size.Y)
+}
+
 // camera pixels a world unit
 func (c *basicCamera) px() float32 { return c.zoom * c.res }
 
