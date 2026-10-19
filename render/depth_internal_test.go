@@ -289,3 +289,81 @@ func TestComposer_ADepthOnlyUnderAGroundAndTheGroundsOnlyForOneReadingIt(t *test
 		}
 	}
 }
+
+// a camera from above with the figures at every pixel at its word
+type figured struct {
+	sharpened
+	sharp bool
+}
+
+type sharpened interface {
+	camera.Camera
+	camera.Resolved
+	camera.Cropping
+	camera.Rays
+}
+
+func (f *figured) SetSharpFigures(on bool) { f.sharp = on }
+func (f *figured) SharpFigures() bool      { return f.sharp }
+
+// a checker of two world units at 0 over the 64 by 64 world, and a block 32 high over its left
+// half
+func checkeredGround(a *Atlas) *groundSource {
+	s := NewStill()
+	s.Compose(64, 64, func(f *Frame, _ camera.Camera) {
+		for y := float32(0); y < 64; y += 2 {
+			for x := float32(0); x < 64; x += 2 {
+				id := SpriteID(1 + 2*(int(x/2+y/2)%2))
+				f.SpriteRect(f.At(x, y, 0), a, id, x, y, x+2, y+2, Even(1))
+			}
+		}
+		f.SpriteRect(f.At(16, 32, 32), a, 3, 0, 0, 32, 64, Even(1))
+	})
+	return &groundSource{still: s}
+}
+
+func TestFeed_DrawsAFigureAtEveryPixelOverAHalfResolutionGround(t *testing.T) {
+	needGPU(t)
+	a := atlasOf(t)
+	line := overlyingSource{items(func(f *Frame) {
+		x0, y0 := f.Camera().Project(4, 16.5, 0)
+		x1, _ := f.Camera().Project(60, 16.5, 0)
+		f.Line(OnTop(0), x0, y0, x1, y0, 1, white)
+	})}
+	figure := overlyingSource{items(func(f *Frame) {
+		corners := ProjectCorners(f.Camera(), 16, 40, 48, 56, 10)
+		f.Sprite(f.At(32, 48, 10), a, 2, corners, Even(1))
+	})}
+	picture := NewComposer(checkeredGround(a), figure, line)
+	// the rows of the column 8, left of the figure, the line covers over a half, and the pixels
+	shown := func(sharp bool) (int, func(x, y int) [4]byte) {
+		cam := &figured{cameratest.NewFromSpace(64, 64, 0).(sharpened), sharp}
+		cam.SetResolution(0.5)
+		screen := NewImage(64, 64)
+		NewFeed(cam, picture).DrawOn(screen)
+		at := pixelsOf(screen)
+		rows := 0
+		for y := range 64 {
+			if at(8, y)[0] >= 128 {
+				rows++
+			}
+		}
+		return rows, at
+	}
+	rows, at := shown(true)
+	if rows != 1 {
+		t.Errorf("with the figures sharp the line covers %d rows, want 1: a pixel wide at every "+
+			"shown pixel", rows)
+	}
+	if p := at(40, 48); p != [4]byte{220, 0, 0, 255} {
+		t.Errorf("right of the block the figure shows %v, want it red over the ground", p)
+	}
+	if p := at(24, 48); p[0] > 100 {
+		t.Errorf("behind the block the figure shows %v, want the block hiding it through the "+
+			"ground's depth spread to the screen", p)
+	}
+	if rows, _ := shown(false); rows < 2 {
+		t.Errorf("with the figures soft the line covers %d rows, want 2 or more: drawn at a "+
+			"half and scaled up", rows)
+	}
+}
