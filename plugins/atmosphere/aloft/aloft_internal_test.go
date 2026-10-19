@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -71,7 +72,7 @@ func (s sunk) Rays() (camera.RayField, bool) {
 func framed(t *testing.T, w *world.Plugin, cam camera.Camera, weather func() air.Weather,
 	r *Renderer, more ...render.Source) render.Uniforms {
 	t.Helper()
-	sun := func() sky.Sun { return sky.DefaultSun }
+	sun := func() light.Distant { return sky.DefaultSun }
 	sources := append([]render.Source{backdrop.New(w.Res.Config.Space, sun, weather), r}, more...)
 	c := render.NewComposer(sources...)
 	c.DrawWorld(nil, cam)

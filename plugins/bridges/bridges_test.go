@@ -19,6 +19,7 @@ import (
 	"github.com/kjkrol/gram/plugins/bridges/site"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
@@ -67,7 +68,7 @@ type dale struct {
 	pierB   goke.Comp[world.Base]
 	blocks  *goke.Query
 	blockZ  goke.Comp[world.Z]
-	cast    goke.Comp[world.Shadow]
+	cast    goke.Comp[light.Shadow]
 }
 
 var rules = site.Rules{Longest: 3, Under: 5, Clearance: 1, Reshape: 10}
@@ -85,7 +86,7 @@ func newDale(t *testing.T) *dale {
 	d.board = board.NewPlugin(d.g, &cell.MultipleOccupancy{}, d.w).
 		WithMotion(d.m).
 		WithCollision(d.col)
-	d.topo = topography.NewPlugin(d.w, d.board, topography.Config{})
+	d.topo = topography.NewPlugin(d.w, d.board, nil, topography.Config{})
 	d.bridges = bridges.NewPlugin(d.w, d.board, bridges.Config{Rules: rules}).WithShaper(d.topo)
 	d.board.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	d.bridges.Types().Define("bridge", bridges.Spec{
@@ -232,7 +233,7 @@ func TestTool_APlayerLaysABridgeOutAndBuildsIt(t *testing.T) {
 	n := 0
 	for d.blocks.All(); d.blocks.Next(); {
 		for _, s := range d.cast.Slice(d.blocks.Cursor()) {
-			if s.Cast == world.Baked {
+			if s.Cast == light.Baked {
 				n++
 			}
 		}

@@ -52,6 +52,7 @@ func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 	a.board.WithAtmosphere(a.atmosphere)
 	a.atmosphere.ShowClouds(atmosphere.AllBodies)
+	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})
 	a.board.ShowGrid(false)
 	a.vision.WithViews(render.Show(a.selection.IsSelected))
 

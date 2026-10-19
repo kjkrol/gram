@@ -143,8 +143,15 @@ Was, Area, Span, Band, Mix})`, images `GroundShade` and `GroundShadeWas`, unifor
 `GroundShadeArea` (its width 0: none), `GroundShadeSpan` (span, band height), `GroundShadeMix0..3`
 (16 bands' fades); WGSL `groundShadeOf(p)` (the texel, each band faded from `Was`; `(1,0,1,1)`
 without it), `groundShadeAt(p, over, soft)` (the relief's shadow at a height over the ground),
-`standingShadeAt(p, over, soft)` (the blocks'); handed by the terrain, which never binds it while
-baking into it (it deletes both from the bake's uniforms). **A frame image read per pixel is
+`standingShadeAt(p, over, soft)` (the blocks'); handed by the light plugin, which never binds it
+while baking into it (it deletes both from the bake's uniforms) and reads the heights as the mesh
+draws them (`groundDrawnAt`, `groundSplit`). What a drawn thing takes of the shade is its
+`render.Taking` bits (`takes(t, bit)`, `takesRelief|takesBlocks|takesClouds|takesLamps`; `Shines`
+none), carried in a sprite's instance with the sun's share of its light (`Sprites.Take`, `Sun`;
+`render.Illumination{Light, Lamps, Direct, Takes}` as the world's `Lighting` hands it), honoured by
+`sprites.wgsl` (the flat sprites, from above in relief too), `billboard.wgsl`, `lying.wgsl` and the
+grounds. `DrawMeshOptions.Multiply` (gpu `Multiply`, dst × src) lays a shade or a glow over what
+is drawn. **A frame image read per pixel is
 read once**: let the sampler blend (lay the picture so it can), never four `textureLoad`s and
 arithmetic by hand. gogpu
 binds a group through the bound pipeline's layout, all ours share one, so `bindFrame` sets group
@@ -183,11 +190,12 @@ What each renderer draws is a look of an entity under a state, not of the plugin
 routes and goals of an entity's `MoveOrder`; vision the cone of an entity's `Sight` (`WithStyle`,
 `WithShadow`; `WithViews(render.Show(…))` picks whose); selection the outline of the `Selected`
 tag through `world.Look.Footprint` plus the marquee, a player's gesture; bridges the bridge in
-hand, a future entity drawn from its deck's slot; collision the boxes; the board the cells held
-and, under an atmosphere (`board.WithAtmosphere`), its clouds' shadows as part of its ground
-(2026-10-15, stage 4: `look.GroundDressing` drawn right after the `Still` in the opaque pass,
-`board/internal/draw.Clouds`, the 8-px mesh the atmosphere's `overcast` was; what lies on the
-ground and over it is drawn unshaded, as the relief's terrain shades its own ground).
+hand, a future entity drawn from its deck's slot; collision the boxes; the board the cells held,
+under a `Lighting` the light's shade and the lamps' glow multiplied over its `Still` right after
+it (`look/shade.go`, 2026-10-19) and, under an atmosphere (`board.WithAtmosphere`), its clouds'
+shadows as part of its ground (2026-10-15, stage 4: `look.GroundDressing` drawn after, in the
+opaque pass, `board/internal/draw.Clouds`, the 8-px mesh the atmosphere's `overcast` was; what
+lies over the ground is drawn unshaded, as the relief's terrain shades its own ground).
 
 **The sky's colours come from one place** (2026-10-15): the atmosphere's backdrop hands every
 frame the sun (`sky.Sun.Frame`) and the weather (`air.Weather.Frame`: `Fog` the vault's horizon,

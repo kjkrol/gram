@@ -177,7 +177,6 @@ func TestUnitTemplate_CarriesACourseAndTheWorldsEntityDefaults(t *testing.T) {
 	for _, want := range []string{
 		"steering.Course",
 		"entity.Velocity",
-		"entity.Shadow",
 		"tag.Tags[github.com/kjkrol/ceremony/effect.States]",
 		"entity.Position",
 	} {

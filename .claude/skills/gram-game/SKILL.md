@@ -72,8 +72,9 @@ A demo groups its plugins in an **arena**, the collector every section builds on
 `definePlayer`, `defineEffects`, `defineRules`, `defineCommands`, `defineCells`, `defineKinds`,
 `bindKeys`, `spawn`, `defineScenes`, `update`). The scene is apart in `scene.go`: a
 `mainScene{arena: a, …}` builds it — its colours and `screen()`: first the plugins' look
-options (`vision.WithViews`, `board.ShowGrid(false)`, `WithAtmosphere`, `world.WithFog` where
-there is no atmosphere, the painter's styles,
+options (`vision.WithViews`, `board.ShowGrid(false)`, `WithAtmosphere`,
+`a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground, Figures, High})`, `a.light.WithDistant(…)`
+where there is no sky, `world.WithFog` where there is no atmosphere, the painter's styles,
 `ShowHolds`, `ShowRoutes`, `ShowZones`), then the ui tree, the world shown as
 `feed := render.NewFeed(cam, a.world.Picture())` (2026-10-15: no `picture()`, no composer named
 in a demo; every plugin made draws what it gave `ctx.Draws`, the atlases closed by the Stage

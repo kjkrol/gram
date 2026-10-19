@@ -1,5 +1,6 @@
 // The ground of a hex board in relief (topography's hexes): every cell a prism, an instance —
-// its centre (x, y) and top (z), the tops of the neighbours across its six edges (low) — of
+// its centre (x, y), top (z) and the shade it takes (w, render.Taking), the tops of the
+// neighbours across its six edges (low) — of
 // pointy-top cells U.HexSize from centre to corner; its top a fan of six triangles, then a face
 // down each edge to the neighbour's top, none where that is as high. Drawn through U.ViewProj
 // (camera.Transform) sunk U.Bend·d² under U.Eye's level; coloured from the board from above, the
@@ -14,6 +15,7 @@ struct Face {
     @location(2) @interpolate(flat) normal: vec3<f32>,
     @location(3) edge: f32,  // on a top, 1 at the centre, 0 on the edge; -1 on a face
     @location(4) cloud: f32, // how much the clouds darken it
+    @location(5) @interpolate(flat) takes: f32,
 }
 
 // how far in from its edge a face takes its colour from the top, and how far towards its centre a
@@ -65,7 +67,8 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) cell: vec4<f32>, @locat
     f.clip = U.ViewProj * vec4<f32>(p.xy, p.z - U.Bend * dot(off, off), 1.0);
     f.world = p;
     f.cloud = 0.0;
-    if U.Cover > 0.0 {
+    f.takes = cell.w;
+    if U.Cover > 0.0 && U.CloudsShadeGround > 0.5 && takes(cell.w, takesClouds) {
         f.cloud = cloudShade(cloudsShadeAt(p, U.HexSize)); // the noise as fine as a cell shows it
     }
     return f;
@@ -75,8 +78,12 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) cell: vec4<f32>, @locat
 fn fs_main(f: Face) -> @location(0) vec4<f32> {
     let unit = max(length(dpdx(f.world.xy)), length(dpdy(f.world.xy))); // world units a pixel spans
     let albedo = imageSrc0Linear(imageSrc0Origin() + f.sample * U.TopPx);
-    let sun = sunWay();
-    var rgb = albedo.rgb * (U.Ambience + U.SunColor * max(dot(f.normal, sun), 0.0) * U.SunStrength);
+    let sun = lightWay();
+    var light = U.Ambience + U.LightColor * max(dot(f.normal, sun), 0.0) * U.LightStrength;
+    if takes(f.takes, takesLamps) {
+        light += lampLightAt(f.world);
+    }
+    var rgb = albedo.rgb * light;
     rgb *= 1.0 - f.cloud;
     if U.GridWidth > 0.0 && f.edge >= 0.0 {
         let d = f.edge * U.HexSize * 0.8660254 / max(unit, 1e-6); // pixels to the cell's edge

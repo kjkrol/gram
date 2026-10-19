@@ -7,8 +7,8 @@ import (
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
 )
@@ -36,7 +36,7 @@ type noAir struct{}
 
 func (noAir) Air() air.Weather { return air.Weather{} }
 
-func (noAir) Sun() sky.Sun { return sky.Sun{} }
+func (noAir) Distant() light.Distant { return light.Distant{} }
 
 // straight down from 200 up, a screen pixel 8 world units
 type downward struct{ camera.Camera }
@@ -49,7 +49,7 @@ func TestTerrain_DrawsTheLevelEvenlyAndABumpWhereItStands(t *testing.T) {
 	needGPU(t)
 	r := New(bumped{}, &grey{}, noAir{}, Config{})
 	screen := render.NewImage(64, 64)
-	u := render.UniformsOf(map[string]any{"Sun": []float32{0.3, 0.2, 1}, "SunStrength": []float32{1}, "SunColor": []float32{1, 1, 1}, "Ambience": []float32{0.2, 0.2, 0.2}})
+	u := render.UniformsOf(map[string]any{"LightWay": []float32{0.3, 0.2, 1}, "LightStrength": []float32{1}, "LightColor": []float32{1, 1, 1}, "Ambience": []float32{0.2, 0.2, 0.2}})
 	depth := render.NewDepth()
 	screen.ClearDepth(depth)
 	r.Draw(render.Target{Screen: screen, Depth: depth},

@@ -32,7 +32,7 @@ func newNight(t *testing.T, cfg atmosphere.Config, define func(n *night),
 	n := &night{}
 	st := stage.New("night").
 		World(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true}).
-		Plugins(func(w *world.Plugin) { n.w, n.a = w, atmosphere.NewPlugin(w, cfg) }).
+		Plugins(func(w *world.Plugin) { n.w, n.a = w, atmosphere.NewPlugin(w, nil, cfg) }).
 		Effects(func(ctx game.Initializer) { n.ecs = ctx.ECS(); define(n) }).
 		Rules(func() {
 			if rules != nil {

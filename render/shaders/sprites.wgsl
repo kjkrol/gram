@@ -7,7 +7,9 @@
 // nearest the camera's window (U.Window: where it begins, how far it reaches), and a world back
 // past each seam: six vertices a copy. Deep (U.Deep), a sprite lies at its height (lift.x) for the
 // depth test, and what is all but clear of it is left out. A sprite the screen turns other than
-// by quarters is read smooth and its border fades over a pixel; any other texel for texel.
+// by quarters is read smooth and its border fades over a pixel; any other texel for texel. It
+// takes the shadows the ground holds (render.GroundShade) as its bits say (lift.z, render.Taking),
+// the sun's share of its light (lift.w) taken away in them.
 
 struct Piece {
     @builtin(position) clip: vec4<f32>,
@@ -17,6 +19,9 @@ struct Piece {
     @location(2) @interpolate(flat) part: vec4<f32>,
     @location(3) @interpolate(flat) smooth: f32,
     @location(4) @interpolate(flat) fog: f32,
+    @location(5) world: vec2<f32>,
+    // the shade it takes, the sun's share of its light, its height and how far up it fades in
+    @location(6) @interpolate(flat) shade: vec4<f32>,
 }
 
 fn onScreen(x: f32, y: f32) -> vec2<f32> {
@@ -93,6 +98,8 @@ fn vs_main(
     p.part = src;
     p.smooth = select(0.0, 1.0, smooth);
     p.fog = lift.y;
+    p.world = corner;
+    p.shade = vec4<f32>(lift.z, lift.w, lift.x, 0.5 * min(size.x, size.y));
     return p;
 }
 
@@ -108,6 +115,21 @@ fn fs_main(p: Piece) -> @location(0) vec4<f32> {
         c = imageSrc0Linear(clamp(p.src, lo + 0.5, hi - 0.5)) * cover;
     }
     c *= vec4<f32>(p.light.rgb, 1.0);
+    if p.shade.y > 0.0 {
+        var ground = groundHeightAt(p.world);
+        if ground == groundNone {
+            ground = 0.0;
+        }
+        let over = p.shade.z - ground;
+        var lit = 1.0;
+        if takes(p.shade.x, takesRelief) {
+            lit = min(lit, groundShadeAt(p.world, over, p.shade.w));
+        }
+        if takes(p.shade.x, takesBlocks) {
+            lit = min(lit, standingShadeAt(p.world, over, p.shade.w));
+        }
+        c = vec4<f32>(c.rgb * (1.0 - p.shade.y * (1.0 - lit)), c.a);
+    }
     c = vec4<f32>(mix(c.rgb, U.Fog * c.a, p.fog), c.a);
     if U.Deep > 0.5 && c.a < 0.5 / 255.0 {
         discard; // writing no depth where nothing shows

@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
+	"github.com/kjkrol/gram/plugins/light"
 )
 
 // Sky is the light of the day over a world: the sun of the calendar's hour, or of a frozen one.
@@ -16,7 +17,7 @@ import (
 type Sky struct {
 	cfg      Config
 	calendar *calendar.Calendar
-	sun      Sun
+	sun      light.Distant
 	heavens  celestial.Heavens
 
 	frozen   bool
@@ -50,7 +51,11 @@ func New(cal *calendar.Calendar, cfg Config, latitude float64) *Sky {
 }
 
 // Sun is the light of the day as it stands.
-func (s *Sky) Sun() Sun { return s.sun }
+func (s *Sky) Sun() light.Distant { return s.sun }
+
+// DefaultSun stands high over the world's south-east, towards the viewer of the isometric view,
+// in white light: the sun of a relief under no sky.
+var DefaultSun = light.Distant{Dir: [3]float32{0.522, 0.282, 0.805}, Strength: 0.708, Ambient: 0.35}
 
 // Heavens is where the sun, the moon and the stars stand at the hour of the light.
 func (s *Sky) Heavens() celestial.Heavens { return s.heavens }

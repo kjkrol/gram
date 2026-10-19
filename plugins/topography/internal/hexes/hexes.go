@@ -225,7 +225,8 @@ func (h *Ground) lay() {
 	add := func(c cell.ID) {
 		centre := h.grid.CellCenter(c)
 		top, _ := h.m.Top(c)
-		h.cells = append(h.cells, float32(centre.X), float32(centre.Y), top[0], 0)
+		h.cells = append(h.cells, float32(centre.X), float32(centre.Y), top[0],
+			float32(takesOf(h.board.Board().Kind(c).Takes)))
 		for _, i := range across {
 			n, ok := h.grid.Toward(c, i)
 			lowest := float32(min(low, 0))
@@ -294,3 +295,14 @@ func (h *Ground) set(name string, v ...float32) {
 type fromAbove struct{ board.Map }
 
 func (m fromAbove) Look() look.Look { return look.FlatLook() }
+
+// the shade a cell takes, every bit for a kind saying none, no bit for one that Shines
+func takesOf(t render.Taking) render.Taking {
+	switch {
+	case t == 0:
+		return render.TakesAll
+	case t&render.Shines != 0:
+		return 0
+	}
+	return t
+}

@@ -15,7 +15,40 @@ where it begins: `navigation.Path` changed shape. Nor those made before the beha
 Nor those made before a unit could strafe: `entity.Velocity` has a `Side`. Nor those of a board
 in a flat world: a board stands only in a world with heights now. Nor those made before the
 weather came from the horizon: `climate.Weather` changed shape, the air masses are `air.Patch`
-entities. Nor those made before motion left the world: `world.Outside` is `motion.Outside`.
+entities. Nor those made before motion left the world: `world.Outside` is `motion.Outside`. Nor
+those made before the light became a plugin: `entity.Shadow` is `light.Shadow`, and the
+atmosphere's entity carries a `light.Source` and a `light.Shining`.
+
+**The light** (2026-10-19)
+- `plugins/light`: the light over a world as one plugin (`light.NewPlugin(world,
+  Config{LampShadows})`, made before the board and the topography). What shines is an entity
+  with a `light.Source` knob: a lamp reaching from where it stands, or the sun, a distant source
+  whose way and strength of the hour the atmosphere writes beside it each tick (`light.Shining`;
+  a scene without a sky sets one with `WithDistant`). `light.Distant` (from `atmosphere/sky`'s
+  `Sun`) is the working light, `Shining × Source`, so an effect on the atmosphere's entity dims it (an eclipse).
+  The eight lamps nearest a camera light its picture: the entities, and the ground through the
+  shaders' `lampLightAt`.
+- `light.Shadow{Cast, Take}` (from `entity.Shadow`): how an entity casts its shadow and which
+  shade it takes, `render.Taking` bits (the relief's, the blocks', the clouds', the lamps' light;
+  `render.Shines` none), honoured by every shader; a cell takes what its kind's `Takes` says.
+  The world's `Lighting` hands every drawn entity its `render.Illumination` (its light, the
+  lamps', the direct light's share, what it takes); `world.ShadowLook` and `board/lit.go`'s light are
+  gone, the board keeping the weather alone (`WithAtmosphere`).
+- The shadows in one place: the ground's shade baked by the light (`internal/bake`, moved from
+  the terrain: the relief's shadows from the frame's `GroundHeights`, over the topography's
+  relief given it with `OverRelief`, and the `Baked` blocks'; over level ground the blocks'
+  alone, so a flat board gets its towers' and bridges' shadows), the live shadows laid by it over
+  whatever ground the frame drew (`internal/cast`, from the terrain's and the hexes' shaders):
+  the sun's as the `ShadowPolicy` turns them (`WithShadowPolicy`, from the topography), and on
+  level ground the lamps' too, from the `Config.LampShadows` lamps nearest the camera, Shift+L
+  off and on for a weak GPU. H `CoarseShadows` is the light's. The flat sprites from above take
+  the shade in relief too. A flat board's still is shaded and lit by the lamps per pixel
+  (`look/shade.go`, `render.DrawMeshOptions.Multiply`).
+- The clouds' shadows declared in a scene: `atmosphere.CastClouds(CloudShadows{Ground, Figures,
+  High})`, the atmosphere taking the light plugin; `topography.NewPlugin` and
+  `atmosphere.NewPlugin` take it. Madeira: a lantern at a bridge's head, shining warm, casting no
+  shadow and taking none. A world without the light plugin is lit white and casts no shadow:
+  navigation/square and navigation/hex make one and light it with `sky.DefaultSun` in the scene.
 
 **The minimap** (2026-10-18)
 - `plugins/minimap`: a small picture round a player's camera (`minimap.Plugin.For(cam, player)`,

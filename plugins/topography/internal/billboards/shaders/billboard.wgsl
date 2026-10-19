@@ -1,7 +1,8 @@
 // The world's entities in relief, drawn on the GPU (topography's sprites): an instance an entity —
 // where its feet stand and how tall it is; how wide, how far its top leans with the wind and how
 // hazed it is; its sprite's corners on the atlas, the first image; the light it is drawn in and how
-// much of it is the sun's; the ground under its feet — a billboard standing upright in the world
+// much of it is the sun's; the ground under its feet and the shade it takes (render.Taking) — a
+// billboard standing upright in the world
 // across U.Right, the screen's way across, as tall on the screen as what stands there, at the
 // depths of a thing standing upright at its feet, nudged towards the eye: the ground before it
 // hides it, the ground it stands on and the slope behind it do not.
@@ -39,19 +40,25 @@ fn vs_main(
     }
     b.uv = mix(uv.xy, uv.zw, vec2<f32>(a, down[vid]));
     b.light = vec4<f32>(light.rgb, shape.w);
-    b.shade = shaded(feet, ground.x, mix(0.1, 1.0, up), light.w, shape.x);
+    b.shade = shaded(feet, ground.x, mix(0.1, 1.0, up), light.w, shape.x, ground.y);
     return b;
 }
 
 // shaded is how much of its light reaches the point a share up of what stands at feet over ground,
-// sun of the light the sun's: the shadows the ground holds and the clouds take some of the sun's,
-// the clouds some of the sky's too.
-fn shaded(feet: vec4<f32>, ground: f32, up: f32, sun: f32, wide: f32) -> f32 {
+// sun of the light the sun's, taking the shade takes says: the shadows the ground holds and the
+// clouds take some of the sun's, the clouds some of the sky's too.
+fn shaded(feet: vec4<f32>, ground: f32, up: f32, sun: f32, wide: f32, takes: f32) -> f32 {
     let over = feet.z - ground + up * feet.w;
     let soft = 0.25 * feet.w;
-    let reached = min(groundShadeAt(feet.xy, over, soft), standingShadeAt(feet.xy, over, soft));
+    var reached = 1.0;
+    if takes(takes, takesRelief) {
+        reached = min(reached, groundShadeAt(feet.xy, over, soft));
+    }
+    if takes(takes, takesBlocks) {
+        reached = min(reached, standingShadeAt(feet.xy, over, soft));
+    }
     var clouds = 1.0;
-    if U.Cover > 0.0 {
+    if U.Cover > 0.0 && U.CloudsShadeFigures > 0.5 && takes(takes, takesClouds) {
         clouds = 1.0 - cloudShade(cloudsShadeAt(vec3<f32>(feet.xy, ground + over), wide));
     }
     return (1.0 - sun * (1.0 - reached)) * clouds;

@@ -3,7 +3,7 @@ package billboards
 import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -26,14 +26,16 @@ func footprint(cam camera.Camera, box geom.AABB, alt float32, dst []render.Corne
 	return append(dst, render.ProjectCorners(cam, float32(box.TopLeft.X), float32(box.TopLeft.Y), float32(box.BottomRight.X), float32(box.BottomRight.Y), alt))
 }
 
-func lit(sun sky.Sun, light render.Light) render.Light {
-	l := sun.Light(0, 0, 1)
-	return render.Light{l[0] * light[0], l[1] * light[1], l[2] * light[2]}
+// faceLit is the light on an upright face whose normal is (nx, ny, nz): the sun's on it and the
+// lamps' the entity takes
+func faceLit(sun light.Distant, nx, ny, nz float32, lit render.Illumination) render.Light {
+	l := sun.Light(nx, ny, nz)
+	return render.Light{l[0] + lit.Lamps[0], l[1] + lit.Lamps[1], l[2] + lit.Lamps[2]}
 }
 
-// sunShare is how much of the light on a surface whose normal is (nx, ny, nz) is the sun's, 0 to
+// directShare is how much of the light on a surface whose normal is (nx, ny, nz) is the sun's, 0 to
 // 1: what a shadow over it takes away
-func sunShare(sun sky.Sun, nx, ny, nz float32) float32 {
+func directShare(sun light.Distant, nx, ny, nz float32) float32 {
 	all, sky := sun.Shaded(nx, ny, nz, 1), sun.Shaded(nx, ny, nz, 0)
 	total := all[0] + all[1] + all[2]
 	if total <= 0 {

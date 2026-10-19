@@ -79,7 +79,7 @@ roles' tags, a plan's mind, a label) or a value in flight (a moment, a word).
 | thing | what it is | mark | gram's own |
 |---|---|---|---|
 | fact | a component told to an entity with a plan, carried until it goes; a message is one by embedding `fact.From`; its words are of it (`bullet.Lying()` of a `Flight`) | `Fact()`, `var _ fact.Fact = Arrived{}` | `navigation.Blocked` (its subject whom by), `navigation.Arrived`, `bullet.Flight` |
-| knob | a component a plugin only reads, which an effect's `Alter` turns and puts back | `Knob()`, `var _ effect.Knob = Steering{}` | `steering.Steering`, `cell.Ground`, `cell.Floor`, `cell.Wall`, `cell.Rail`, `collision.Physics`, `bullet.Body`, `gravity.Pull`, `sky.Moon`, `vision.Sight`, `render.Appearance` |
+| knob | a component a plugin only reads, which an effect's `Alter` turns and puts back | `Knob()`, `var _ effect.Knob = Steering{}` | `steering.Steering`, `cell.Ground`, `cell.Floor`, `cell.Wall`, `cell.Rail`, `collision.Physics`, `bullet.Body`, `gravity.Pull`, `sky.Moon`, `light.Source`, `light.Shadow`, `vision.Sight`, `render.Appearance` |
 | command | a request carried by its type to the plugin that handles it; the handler says who may give it — an entity's own (`world.Despawn`, `steering.Away`, `gravity.Leap`, `players.Give`), a player's (the looks, the cameras', the tools') or both (`world.Spawn`, `navigation.MoveTo`, `bullet.Shoot`, the driving's) | `Command()`, `var _ command.Command = MoveTo{}` | every plugin's `commands.go` (the topography's views in `camera_commands.go`, its shaping in `shaping.go`) |
 
 - **Facts** are how a plan learns what came of its commands: navigation tells `Blocked` (from a

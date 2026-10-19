@@ -18,6 +18,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/water"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/plugins/world"
@@ -25,12 +26,12 @@ import (
 )
 
 type fixedSky struct {
-	sun sky.Sun
+	sun light.Distant
 	air air.Weather
 }
 
-func (s fixedSky) Sun() sky.Sun     { return s.sun }
-func (s fixedSky) Air() air.Weather { return s.air }
+func (s fixedSky) Distant() light.Distant { return s.sun }
+func (s fixedSky) Air() air.Weather       { return s.air }
 
 // Benchmark_Board_GroundAt reads the ground at 64 points along a diagonal of a 256x256 board of
 // hills, as sight samples it along one ray.
@@ -44,7 +45,7 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	})
 	grid := grid.DefaultGrids{}.Square(side, side, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, topography.Config{})
+	topo := topography.NewPlugin(ctx.world, p, nil, topography.Config{})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
 	}
@@ -73,8 +74,8 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	_ = sum
 }
 
-// Benchmark_Board_Shadows composes a 96x64 board of hills from above, its shadows warm and anew
-// after the sun has moved.
+// Benchmark_Board_Shadows plans the shade of a 96x64 board of hills, warm and anew after the
+// sun has moved: the light's part of composing a frame, the bake itself the GPU's.
 func Benchmark_Board_Shadows(b *testing.B) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
@@ -85,7 +86,9 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	})
 	grid := grid.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, topography.Config{})
+	sun := light.Distant{Dir: [3]float32{-0.8, 0.45, 0.3}, Strength: 0.75, Ambient: 0.3}
+	l := light.NewPlugin(ctx.world, light.Config{}).WithDistant(sun)
+	topo := topography.NewPlugin(ctx.world, p, l, topography.Config{})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
 	}
@@ -100,17 +103,10 @@ func Benchmark_Board_Shadows(b *testing.B) {
 		}
 		return 0
 	}))
-	atlas := render.NewAtlas()
-	atlas.Add(render.SpriteID(0), 8, render.Solid(color.RGBA{A: 255}))
-	atlas.Close()
-	p.SetAtlas(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
-	src := drawnAs[*look.Renderer](b, ctx)
 	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo},
 		cameras.FromAbove, 0, 0)
 	var f render.Frame
-	low := fixedSky{sun: sky.Sun{Dir: [3]float32{-0.8, 0.45, 0.3}, Strength: 0.75, Ambient: 0.3}}
-	topo.WithAtmosphere(low)
 	for _, sc := range []struct {
 		name  string
 		moved bool
@@ -118,11 +114,11 @@ func Benchmark_Board_Shadows(b *testing.B) {
 		b.Run(sc.name, func(b *testing.B) {
 			for b.Loop() {
 				if sc.moved {
-					low.sun.Dir[0] = -low.sun.Dir[0]
-					topo.WithAtmosphere(low)
+					sun.Dir[0] = -sun.Dir[0]
+					l.WithDistant(sun)
 				}
 				f.Reset(cam)
-				src.Compose(&f, cam)
+				l.Compose(&f, cam)
 			}
 		})
 	}
@@ -140,7 +136,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 	})
 	grid := grid.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, topography.Config{}).
+	topo := topography.NewPlugin(ctx.world, p, nil, topography.Config{}).
 		Style("sea", painter.Style{Shine: 0.9})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
@@ -202,7 +198,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	ctx.UseWorld(cfg)
 	grid := grid.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, topography.Config{})
+	topo := topography.NewPlugin(ctx.world, p, nil, topography.Config{})
 	var screenW, screenH float32
 	if far {
 		screenW, screenH = 576, 384

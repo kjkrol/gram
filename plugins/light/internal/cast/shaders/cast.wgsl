@@ -1,10 +1,10 @@
-// The shadows of what stands laid over whatever ground the frame drew (topography's shades), an
-// instance a cast: its middle (x, y) and the way away from the sun (z, w); how far it reaches along
-// and across that way, how far in it fades and how dark it is (sky.Patch); the corners of the
+// The shadows of what stands, laid over the ground the frame drew (light's casts), an instance a
+// cast: its middle (x, y) and the way away from the light (z, w); how far it reaches along and
+// across that way, how far in it fades and how dark it is (light.Umbra); the corners of the
 // sprite on the first image whose shape it has, all 0 for a patch's own; the rectangle of the
 // viewport it may cover, pixels. Every pixel of it finds the ground point drawn there from the
 // ground's depth (depthAt, through U.Unproject, the viewport U.ViewSize pixels from U.ViewAt) and
-// darkens it as the terrain's shadows do (terrain's shadow.wgsl), lying at the ground's depth.
+// darkens it, lying at the ground's depth.
 
 struct Shade {
     @builtin(position) clip: vec4<f32>,
@@ -57,7 +57,7 @@ fn fs_main(@builtin(position) frag: vec4<f32>, s: Shade) -> Laid {
 }
 
 // cast is how much of the sprite's shape covers the point local of a cast of size: all of it for a
-// patch's own; the sprite's feet lie at the end nearest the sun, its head away from it.
+// patch's own; the sprite's feet lie at the end nearest the light, its head away from it.
 fn cast(local: vec2<f32>, size: vec4<f32>, sprite: vec4<f32>) -> f32 {
     let used = abs(sprite);
     if max(max(used.x, used.y), max(used.z, used.w)) <= 0.0 {

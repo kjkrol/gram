@@ -98,15 +98,27 @@ func (t *Tile) Base() render.SpriteID {
 // Kind is the cell's kind as whoever crosses it meets it.
 func (t *Tile) Kind() cell.Kind { return t.r.board.Kind(t.ID) }
 
-// Light is the light on the tile's top at its corners: the Dressing's, even without one.
+// Light is the light on the tile's top at its corners: the Dressing's, even without one, under
+// the sun as the renderer's Lighting has it.
 func (t *Tile) Light() render.Shade {
 	if t.r.white {
 		return render.Even(1) // composed once, lit on the GPU
 	}
+	shade := render.Even(1)
 	if d := t.dress; d != nil {
-		return d.Light(t)
+		shade = d.Light(t)
 	}
-	return render.Even(1)
+	lighting := t.r.lit()
+	if lighting == nil {
+		return shade
+	}
+	lit := lighting.At((t.X0+t.X1)/2, (t.Y0+t.Y1)/2, 0).Light
+	for c := range shade {
+		for k := range shade[c] {
+			shade[c][k] *= lit[k]
+		}
+	}
+	return shade
 }
 
 // FaceLight is the light on an upright face of the tile looking dx, dy cells away: the

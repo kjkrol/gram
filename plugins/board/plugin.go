@@ -27,6 +27,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
@@ -125,7 +126,8 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	}
 	p.keepBridges()
 	p.renderer = look.NewRenderer(brd, nil, mapRef{p}, worldPlugin.Res.Config.Space).
-		WithSeen(worldPlugin.ViewFor)
+		WithSeen(worldPlugin.ViewFor).
+		WithLighting(worldPlugin.Lighting)
 	p.holdsView = p.newHoldsView()
 	return p
 }
@@ -139,7 +141,7 @@ func (p *Plugin) KindTemplates(r *kind.Roster) {
 	r.Default(motion.UnitTemplate, comp.Const(steering.Pace{Share: 1}))
 	r.Default(motion.UnitTemplate, comp.Marks[unit.States]())
 	r.Default(StandingTemplate, comp.Const(world.Lie{}))
-	r.Default(StandingTemplate, comp.Const(world.Shadow{Cast: world.Baked}))
+	r.Default(StandingTemplate, comp.Const(light.Shadow{Cast: light.Baked}))
 }
 
 func (p *Plugin) newHoldsView() *occupancy.View {

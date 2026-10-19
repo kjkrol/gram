@@ -33,7 +33,7 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> Ground {
     // at the corners alone: a cloud spans many cells, and every pixel cost a frame dearly; none on
     // the skirt, whose cells grow so big out to the horizon that the shadows showed as their
     // triangles
-    if U.Cover > 0.0 && vid < lattice {
+    if U.Cover > 0.0 && U.CloudsShadeGround > 0.5 && vid < lattice {
         g.cloud = cloudsShadeAt(p, U.Cell);
     }
     return g;
@@ -83,16 +83,27 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     if inside {
         n = normal(p.xy);
     }
-    let sun = sunWay();
+    let sun = lightWay();
+    var taken = f32(takesRelief | takesBlocks | takesClouds | takesLamps);
+    if inside {
+        taken = takesAt(p.xy);
+    }
     var lit = 0.0;
     if sun.z > 0.0 {
         lit = 1.0;
-        if inside {
+        if inside && (takes(taken, takesRelief) || takes(taken, takesBlocks)) {
             lit = groundShadeOf(p.xy).r;
         }
     }
-    var rgb = albedo(p.xy) * (U.Ambience + U.SunColor * max(dot(n, sun), 0.0) * lit * U.SunStrength);
-    let cover = g.cloud;
+    var light = U.Ambience + U.LightColor * max(dot(n, sun), 0.0) * lit * U.LightStrength;
+    if takes(taken, takesLamps) {
+        light += lampLightAt(p);
+    }
+    var rgb = albedo(p.xy) * light;
+    var cover = g.cloud;
+    if !takes(taken, takesClouds) {
+        cover = 0.0;
+    }
     let wet = lit * (1.0 - cover); // the sun on the water, the clouds' shadow taken off
     let detail = clamp((span - 6.0) / 6.0, 0.0, 1.0);
     var run = vec3<f32>(0.0);

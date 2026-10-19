@@ -7,8 +7,8 @@ import (
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/render"
 )
@@ -136,14 +136,14 @@ type stillSky struct{}
 
 func (stillSky) Air() air.Weather { return air.Weather{} }
 
-func (stillSky) Sun() sky.Sun { return sky.Sun{} }
+func (stillSky) Distant() light.Distant { return light.Distant{} }
 
 // a still sky under a sun whose way a test sets
 type litSky struct{ way [3]float32 }
 
 func (*litSky) Air() air.Weather { return air.Weather{} }
 
-func (s *litSky) Sun() sky.Sun { return sky.Sun{Dir: s.way, Strength: 1} }
+func (s *litSky) Distant() light.Distant { return light.Distant{Dir: s.way, Strength: 1} }
 
 // a perspective for the rays, the top-down camera for everything else
 type eye struct {
@@ -216,17 +216,24 @@ func TestSkirt_RingsTheLatticeFromItsEdge(t *testing.T) {
 	}
 }
 
-func TestWetCells_FlagTheCellsWaterMayLieOn(t *testing.T) {
-	buf := wetCells(3, 3, []bool{true, false, false, true}, false, nil)
+func TestFlags_MarkTheCellsWaterMayLieOnAndTheShadeTheyTake(t *testing.T) {
+	takes := []render.Taking{0, render.Shines, render.TakesLamps, 0}
+	buf := flags(3, 3, []bool{true, false, false, true}, false, takes, nil)
 	for i, want := range []byte{255, 0, 0, 0, 255, 0, 0, 0, 0} {
 		if buf[4*i] != want {
 			t.Errorf("corner %d holds %d, want %d", i, buf[4*i], want)
 		}
 	}
-	all := wetCells(3, 3, nil, true, nil)
+	for i, want := range []render.Taking{render.TakesAll, 0, render.TakesAll, render.TakesLamps,
+		render.TakesAll, render.TakesAll, render.TakesAll, render.TakesAll, render.TakesAll} {
+		if got := render.Taking(buf[4*i+1]); got != want {
+			t.Errorf("corner %d takes %v, want %v", i, got, want)
+		}
+	}
+	all := flags(3, 3, nil, true, nil, nil)
 	for i := range 9 {
-		if all[4*i] != 255 {
-			t.Fatalf("with no flags known corner %d holds %d, want wet", i, all[4*i])
+		if all[4*i] != 255 || render.Taking(all[4*i+1]) != render.TakesAll {
+			t.Fatalf("with no flags known corner %d holds %v, want wet, taking all", i, all[4*i:4*i+2])
 		}
 	}
 }
@@ -260,7 +267,7 @@ func TestRenderer_PreparesTheFramesUniformsWithItsOwnOver(t *testing.T) {
 	f := &flat{grid: 6, line: [4]float32{0.5, 0, 0, 0.5}, width: 3}
 	r := New(hill{}, f, stillSky{}, Config{})
 	cam := eye{Camera: cameratest.NewFromSpace(512, 512, 0), at: [3]float32{100, 256, 4}}
-	frame := map[string]any{"Pixel": []float32{0.5}, "Sun": []float32{1, 2, 3}, "Cell": []float32{9, 9}}
+	frame := map[string]any{"Pixel": []float32{0.5}, "LightWay": []float32{1, 2, 3}, "Cell": []float32{9, 9}}
 	u := render.UniformsOf(frame)
 	if !r.prepare(cam, u) {
 		t.Fatal("nothing to draw")
@@ -275,7 +282,7 @@ func TestRenderer_PreparesTheFramesUniformsWithItsOwnOver(t *testing.T) {
 	if v := get("ViewProj"); len(v) != 16 {
 		t.Errorf("ViewProj %v, want the camera's transform", v)
 	}
-	if v := get("Sun"); len(v) != 3 || v[2] != 3 {
+	if v := get("LightWay"); len(v) != 3 || v[2] != 3 {
 		t.Errorf("Sun %v, want the frame's", v)
 	}
 	if v := get("Cell"); len(v) != 1 || v[0] != 32 {

@@ -3,6 +3,7 @@ package world
 import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
 	"github.com/kjkrol/gram/render"
@@ -12,9 +13,10 @@ import (
 // outlines. The world's own is flat, seen from above; a view plugin puts its own in with
 // Plugin.SetLook.
 type Look interface {
-	// Sprite hands f the entity's settled Appearance for a box standing as z says, in light. A
-	// billboard in relief ignores the Angle.
-	Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource, a render.Appearance, light render.Light)
+	// Sprite hands f the entity's settled Appearance for a box standing as z says, lit as lit
+	// says. A billboard in relief ignores the Angle.
+	Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource,
+		a render.Appearance, lit render.Illumination)
 	// Drawn is the screen quad that sprite covers, for picking.
 	Drawn(cam camera.Camera, box geom.AABB, z Z) render.Corners
 	// Footprint appends to dst the ground under box on screen, in pieces where it crosses a wrap
@@ -36,11 +38,11 @@ type DirectLook interface {
 type LyingLook interface {
 	Look
 	Lie(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource,
-		a render.Appearance, light render.Light)
+		a render.Appearance, lit render.Illumination)
 	// Lay lays the sprite level at z's Altitude over the rectangle lie says, on the middle of box
 	// and headed dir, and, lie being Edged, the sprite edge along both its long sides.
 	Lay(f *render.Frame, cam camera.Camera, box plane.AABB, dir geom.Vec, lie Lie, z Z,
-		atlas render.AtlasSource, a render.Appearance, edge render.SpriteID, light render.Light)
+		atlas render.AtlasSource, a render.Appearance, edge render.SpriteID, lit render.Illumination)
 }
 
 // UprightLook is a Look that stands the sprites declared Upright true on the four sides and the
@@ -48,15 +50,19 @@ type LyingLook interface {
 type UprightLook interface {
 	Look
 	Upright(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource,
-		a render.Appearance, light render.Light)
+		a render.Appearance, lit render.Illumination)
 }
 
-// ShadowLook is a Look that casts the entities' shadows on what they stand on: each once a frame,
-// with its first layer drawn a sprite, as its Shadow says (a Patch for one carrying none).
-type ShadowLook interface {
-	Look
-	Shadow(f *render.Frame, cam camera.Camera, box plane.AABB, z Z, atlas render.AtlasSource,
-		a render.Appearance, cast Casting)
+// Lighting is what lights the world's entities, a plugin's (Plugin.SetLighting): it joins its
+// columns to the renderer's query, is readied for each frame through a camera, and says the
+// light on every entity drawn, the row i of the chunk at cur standing in box as z says, its
+// first layer settled as a.
+type Lighting interface {
+	Join(qb *goke.QueryBuilder)
+	Begin(f *render.Frame, cam camera.Camera)
+	Of(cur *goke.Cursor, i int, box plane.AABB, z Z, a render.Appearance) render.Illumination
+	// At is the light on the ground at the world point, taking every shade.
+	At(x, y, z float32) render.Illumination
 }
 
 // FoggyLook is a Look turning what it lays next into the fog by amount, 0 clear to 1 all fog: how

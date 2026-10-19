@@ -58,6 +58,8 @@ const (
 	Copy
 	// Darkest keeps the lesser of the colour and what is there, channel by channel.
 	Darkest
+	// Multiply scales what is there by the colour, channel by channel, its alpha left as it is.
+	Multiply
 )
 
 // Program is a WGSL fragment on the package's vertex stage, compiled at first draw.
@@ -207,6 +209,19 @@ func (p *Program) pipeline(
 			Operation: gputypes.BlendOperationMin,
 		}
 		state = &gputypes.BlendState{Color: least, Alpha: least}
+	case Multiply:
+		state = &gputypes.BlendState{
+			Color: gputypes.BlendComponent{
+				SrcFactor: gputypes.BlendFactorDst,
+				DstFactor: gputypes.BlendFactorZero,
+				Operation: gputypes.BlendOperationAdd,
+			},
+			Alpha: gputypes.BlendComponent{
+				SrcFactor: gputypes.BlendFactorZero,
+				DstFactor: gputypes.BlendFactorOne,
+				Operation: gputypes.BlendOperationAdd,
+			},
+		}
 	}
 	buffers := []gputypes.VertexBufferLayout{{
 		ArrayStride: vertexSize, StepMode: gputypes.VertexStepModeVertex, Attributes: []gputypes.VertexAttribute{

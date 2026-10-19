@@ -55,7 +55,7 @@ func TestShade_TheShadersShadeAsTheCPUDoes(t *testing.T) {
 		u["From"] = []float32{-3000, 777}
 		u["Step"] = []float32{3}
 		u["Ground"] = []float32{c.ground}
-		u["Sun"] = sun[:]
+		u["LightWay"] = sun[:]
 		screen := render.NewImage(w, 1)
 		screen.DrawMesh(nil, shadeProbe, &render.DrawMeshOptions{Vertices: 3, Uniforms: u})
 		pix := make([]byte, 4*w)

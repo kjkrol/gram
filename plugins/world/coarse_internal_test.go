@@ -37,21 +37,16 @@ func (farther) ScaleAt(x, _, _ float32) float32 {
 	return map[bool]float32{true: 1, false: 0.1}[x < 512]
 }
 
-// draws what a stander and a caster draw, and the fog it is given
+// draws what a stander draws, and the fog it is given
 type standing struct {
 	*counting
-	uprights, shadows int
-	fogs              []float32
+	uprights int
+	fogs     []float32
 }
 
 func (s *standing) Upright(f *render.Frame, cam camera.Camera, box plane.AABB, z Z,
-	atlas render.AtlasSource, a render.Appearance, light render.Light) {
+	atlas render.AtlasSource, a render.Appearance, lit render.Illumination) {
 	s.uprights++
-}
-
-func (s *standing) Shadow(*render.Frame, camera.Camera, plane.AABB, Z, render.AtlasSource,
-	render.Appearance, Casting) {
-	s.shadows++
 }
 
 func (s *standing) Fog(amount float32) { s.fogs = append(s.fogs, amount) }
@@ -104,16 +99,11 @@ func drawStanding(t *testing.T, d camera.Detail, stands bool, rules ...render.Ru
 	return look
 }
 
-func TestRenderer_Compose_DrawsACoarseEntityFlatWithoutAShadow(t *testing.T) {
+func TestRenderer_Compose_DrawsACoarseEntityFlat(t *testing.T) {
 	look := drawStanding(t, camera.Detail{Coarse: 0.5}, true)
 	if look.uprights != 1 || len(look.sprites) != 2 {
 		t.Errorf("uprights %d, sprites %d; want the near one standing, the far two flat",
 			look.uprights, len(look.sprites))
-	}
-	flat := drawStanding(t, camera.Detail{Coarse: 0.5}, false)
-	if flat.shadows != 1 || len(flat.sprites) != 3 {
-		t.Errorf("shadows %d of %d sprites, want the near one's alone", flat.shadows,
-			len(flat.sprites))
 	}
 }
 

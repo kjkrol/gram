@@ -42,7 +42,7 @@ func (w *chart) check(data []byte) (err error) {
 	plugins := []plugin.Plugin{wp, b}
 	var topo *topography.Plugin
 	if !w.flat {
-		topo = topography.NewPlugin(wp, b, topography.Config{})
+		topo = topography.NewPlugin(wp, b, nil, topography.Config{})
 		plugins = append(plugins, topo)
 	}
 	k := w.r.Kinds

@@ -88,12 +88,11 @@ func NewPlugin(cfg Config) *Plugin {
 }
 
 // KindTemplates is what the world asks of the kinds a game defines: of every one it spawns,
-// where it stands, its velocity, its effects' markers and a live patch of a shadow.
+// where it stands, its velocity and its effects' markers.
 func (p *Plugin) KindTemplates(r *kind.Roster) {
 	kind.Require[Position](r, EntityTemplate, "world", "where it stands")
 	r.Default(EntityTemplate, comp.Const(Velocity{}))
 	r.Default(EntityTemplate, comp.Marks[effect.States]())
-	r.Default(EntityTemplate, comp.Const(Shadow{Cast: Patch}))
 }
 
 // fillRoster has the world and every plugin made over it, in the order made, write what they ask
@@ -187,6 +186,13 @@ func (p *Plugin) Scale() Scale { return p.Res.Config.Scale }
 // SetLook has the world's entities drawn, picked and outlined by look, a view plugin's.
 func (p *Plugin) SetLook(look Look) { p.look = look }
 
+// SetLighting has the world's entities lit by l, the light plugin's; without one they are drawn
+// in white light. Before Install.
+func (p *Plugin) SetLighting(l Lighting) { p.renderer.lighting = l }
+
+// Lighting is what lights the world's entities, nil for white light.
+func (p *Plugin) Lighting() Lighting { return p.renderer.lighting }
+
 // Look is how the world's entities lie on the screen.
 func (p *Plugin) Look() Look { return p.look }
 
@@ -269,6 +275,9 @@ func (p *Plugin) Carry(handlers ...plugin.CommandHandler) error {
 
 // Carrier is the Stage's one carrier of commands, taking each to its handler's queue.
 func (p *Plugin) Carrier() *command.Carrier { return &p.module.commands }
+
+// Atlas is the world's looks as SetAtlas took them, nil before.
+func (p *Plugin) Atlas() render.AtlasSource { return p.renderer.atlas }
 
 // SetAtlas takes atlas as the world's looks for the entity renderer, applying what a *Atlas
 // declared; its Close calls it. A foreign render.AtlasSource is given by hand.

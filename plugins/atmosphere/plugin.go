@@ -23,6 +23,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/ground"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -43,6 +44,7 @@ type Plugin struct {
 
 	cfg         Config
 	worldPlugin *world.Plugin
+	light       *light.Plugin
 
 	freezes    command.Queue[Freeze]
 	laters     command.Queue[Later]
@@ -62,27 +64,30 @@ type Plugin struct {
 	vault      *backdrop.Renderer
 	aloft      *aloft.Renderer // the low clouds: the high ones from above would veil the map
 	look       CloudLook
-	highShade  bool
+	shadows    CloudShadows
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ board.Atmosphere = (*Plugin)(nil)
 
-// NewPlugin puts the atmosphere of cfg over worldPlugin; a world without heights panics.
-func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
+// NewPlugin puts the atmosphere of cfg over worldPlugin, its sun shone through lightPlugin's
+// mechanism: the atmosphere's own entity carries the sun's Source and its Shining of the hour.
+// A world without heights panics.
+func NewPlugin(worldPlugin *world.Plugin, lightPlugin *light.Plugin, cfg Config) *Plugin {
 	if !worldPlugin.HasHeights() {
 		panic("atmosphere: an atmosphere stands over a world with heights; set world.Config.Heights")
 	}
 	cal := calendar.New(worldPlugin.Clock(), cfg.Calendar)
 	clim := climate.New(worldPlugin, cal, cfg.Climate)
-	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, calendar: cal, climate: clim,
-		sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
+	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, light: lightPlugin, calendar: cal,
+		climate: clim, sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
 	p.aloft = aloft.New(p.Air, air.Low)
 	p.ShowClouds(AllBodies)
-	p.highShade = true
+	p.shadows = CloudShadows{Ground: true, Figures: true, High: true}
 	p.Self = world.NewSelf(worldPlugin, p, comp.Const(p.sky.Moonlight()),
-		comp.Const(climate.DefaultSpread()))
+		comp.Const(climate.DefaultSpread()), comp.Const(light.Source{Strength: 1, Ambient: 1}),
+		comp.Const(light.Shining{}))
 	clim.About(p.Entity)
 	r := AllRunning()
 	if cfg.Running != nil {
@@ -93,19 +98,41 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	return p
 }
 
-// Sun is the light of the day as it stands.
-func (p *Plugin) Sun() sky.Sun { return p.sky.Sun() }
+// Sun is the light of the day as it stands: the light plugin's, the sky's of the hour as its
+// Source scales it; the sky's own without a light plugin.
+func (p *Plugin) Sun() light.Distant {
+	if p.light == nil {
+		return p.sky.Sun()
+	}
+	return p.light.Distant()
+}
 
 // Heavens is where the sun, the moon and the stars stand at the hour of the light.
 func (p *Plugin) Heavens() celestial.Heavens { return p.sky.Heavens() }
 
-// Air is the weather as the last step of the simulation left it, the high clouds shading the
-// ground as HighShade has them.
+// Air is the weather as the last step of the simulation left it, its clouds shading as
+// CloudShadows say.
 func (p *Plugin) Air() air.Weather {
 	w := p.climate.Air()
-	w.HighShade = p.highShade
+	w.HighShade, w.ShadeGround, w.ShadeFigures = p.shadows.High, p.shadows.Ground,
+		p.shadows.Figures
 	return w
 }
+
+// CloudShadows is whose shadows the clouds cast: on the Ground, on the Figures standing on it,
+// and whether the High clouds' fall too, or the low ones' alone. A cloud shades itself only as a
+// body lit from above, darker under its brow.
+type CloudShadows struct{ Ground, Figures, High bool }
+
+// CastClouds has the clouds' shadows fall as c says; all three as the atmosphere starts. A
+// scene sets it as it begins.
+func (p *Plugin) CastClouds(c CloudShadows) *Plugin {
+	p.shadows = c
+	return p
+}
+
+// CloudShadows is whose shadows the clouds cast.
+func (p *Plugin) CloudShadows() CloudShadows { return p.shadows }
 
 // CloudLook is how the clouds are drawn: FlatClouds as flat sheets on the sky and the low ones
 // from above, LowBodies the low ones as bodies, heaped from under them and half see-through from
@@ -259,6 +286,7 @@ type module struct {
 	comps         []goke.CompToken
 	clock         *clock.Clock
 	skyRun        goke.Runnable
+	shineRun      goke.Runnable
 	rises         goke.System
 	risesRun      goke.Runnable
 	climateRun    goke.Runnable
@@ -268,6 +296,7 @@ type module struct {
 
 func (m *module) RegSystems(ecs *goke.ECS) {
 	m.skyRun = ecs.RegSys(m.sky)
+	m.shineRun = ecs.RegSys(&shining{p: m.p})
 	m.climateRun = ecs.RegSys(m.climate)
 	m.risesRun = ecs.RegSys(m.rises)
 	if w := m.p.weathering; w != nil {
@@ -277,6 +306,7 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.skyRun, d)
+	ctx.Run(m.shineRun, d)
 	ctx.Sync()
 	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
 		ctx.Run(m.climateRun, step)
@@ -306,11 +336,40 @@ func (r cloudsReport) Report(line func(label, value string)) {
 			100*c[0], 100*c[1], 100*c[2])
 	}
 	line("Clouds", look)
-	shadows := "the low clouds'"
-	if r.p.highShade {
-		shadows = "both layers'"
+	line("Shadows", r.p.shadows.String())
+}
+
+// String says whose shadows fall: "both layers' on the ground and the figures".
+func (c CloudShadows) String() string {
+	layers := "the low clouds'"
+	if c.High {
+		layers = "both layers'"
 	}
-	line("Shadows", shadows)
+	switch {
+	case c.Ground && c.Figures:
+		return layers + " on the ground and the figures"
+	case c.Ground:
+		return layers + " on the ground"
+	case c.Figures:
+		return layers + " on the figures"
+	}
+	return "none"
+}
+
+// shining writes the sun of the hour beside the atmosphere's Source each tick, for the light
+// plugin to read
+type shining struct {
+	p     *Plugin
+	q     *goke.Query
+	shine goke.Comp[light.Shining]
+}
+
+func (s *shining) Init(si *goke.SysInit) { s.q = si.NewQueryBuilder(&s.shine).Build() }
+
+func (s *shining) Update(*goke.CmdBuf, time.Duration) {
+	if s.q.Seek(s.p.Entity()) {
+		s.shine.At(s.q.Cursor()).Light = s.p.sky.Sun()
+	}
 }
 
 func (rs reporters) Init(si *goke.SysInit) {

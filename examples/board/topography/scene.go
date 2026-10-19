@@ -36,12 +36,14 @@ var cellColors = map[string]color.RGBA{
 }
 
 var (
-	deckColor   = color.RGBA{R: 115, G: 85, B: 55, A: 255}
-	railColor   = color.RGBA{R: 70, G: 50, B: 35, A: 255}
-	stoneColor  = color.RGBA{R: 150, G: 145, B: 135, A: 255}
-	pierColor   = color.RGBA{R: 160, G: 150, B: 135, A: 255}
-	reasonColor = color.RGBA{R: 20, G: 20, B: 20, A: 180}
-	minimapRim  = color.RGBA{R: 30, G: 30, B: 30, A: 255}
+	deckColor    = color.RGBA{R: 115, G: 85, B: 55, A: 255}
+	railColor    = color.RGBA{R: 70, G: 50, B: 35, A: 255}
+	stoneColor   = color.RGBA{R: 150, G: 145, B: 135, A: 255}
+	pierColor    = color.RGBA{R: 160, G: 150, B: 135, A: 255}
+	lanternGlow  = color.RGBA{R: 255, G: 200, B: 110, A: 255}
+	lanternColor = render.Light{1, 0.75, 0.4}
+	reasonColor  = color.RGBA{R: 20, G: 20, B: 20, A: 180}
+	minimapRim   = color.RGBA{R: 30, G: 30, B: 30, A: 255}
 )
 
 var (
@@ -70,6 +72,7 @@ func (m *mainScene) screen() *ui.Element {
 	a.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
 	a.topography.WithAtmosphere(a.atmosphere)
 	a.atmosphere.ShowClouds(atmosphere.AllBodies)
+	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})
 	a.vision.WithViews(render.Show(a.selection.IsSelected))
 	a.cameras.ShowZones(true)
 

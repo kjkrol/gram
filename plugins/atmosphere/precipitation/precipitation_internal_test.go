@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -20,7 +21,7 @@ func TestDrops_FallUnderTheLowCloudsWhereTheyAreBigEnoughToMakeOut(t *testing.T)
 	cam.SetViewport(640, 480)
 	bases := air.Bases(world.Scale{})
 	var weather air.Weather
-	d := NewDrops(func() sky.Sun { return sky.DefaultSun }, func() air.Weather { return weather })
+	d := NewDrops(func() light.Distant { return sky.DefaultSun }, func() air.Weather { return weather })
 	drawn := func() bool {
 		var fr render.Frame
 		fr.Reset(cam)

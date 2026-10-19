@@ -122,6 +122,7 @@ board:
     - {kind: ford, at: [48, 24], way: [1, 1]}
     - {kind: ford, at: [102, 31], way: [1, 0]}
     - {kind: bridge, from: [108, 31], to: [112, 27]}
+    - {kind: lantern, at: [108, 31]}
     - {kind: bridge, from: [121, 31], to: [125, 35]}
     - {kind: ford, at: [123, 32], way: [1, 0]}
     - {kind: bridge, from: [102, 35], to: [105, 32]}

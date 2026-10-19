@@ -73,15 +73,19 @@
 // the frame ([Frame.Image]) to the composer and every Direct alike, through the [Uniforms]. An
 // image whose pixels need the GPU is filled as a draw first reads it ([Image.Defer]). The
 // ground's heights and the sun on it are render's own ([GroundHeights], [Frame.GroundHeights],
-// [GroundShade], [Frame.GroundShade]): whoever draws the ground hands them, a shader reads them
-// with groundHeightAt, and with groundShadeAt and standingShadeAt how much of the sun reaches a
-// point at a height over the ground past the relief's shadows and the blocks'.
+// [GroundShade], [Frame.GroundShade]): whoever draws the ground hands the heights, whoever bakes
+// the shade the shade; a shader reads them with groundHeightAt (groundDrawnAt as the ground is
+// drawn), and with groundShadeAt and standingShadeAt how much of the sun reaches a point at a
+// height over the ground past the relief's shadows and the blocks'. What a drawn thing takes of
+// them is its [Taking], bits ([Illumination] carries it with its light and the sun's share of
+// it; WGSL takes(t, bit)).
 //
 // # Still and Sprites
 //
 // A [Still] is a frame composed once in world units and kept on the GPU, drawn every frame
 // scaled, moved and lit as a camera from above shows it. [Sprites] is a Direct source's sprites
-// drawn as instances, each turning into the frame's Fog colour as far as [Sprites.Fog] says.
+// drawn as instances, each turning into the frame's Fog colour as far as [Sprites.Fog] says and
+// taking the shade the ground holds as [Sprites.Take] and [Sprites.Direct] say.
 // [Paint] paints a frame's sprites once into an image of one's own.
 //
 // # Appearance and Rules

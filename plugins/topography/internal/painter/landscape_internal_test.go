@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/plugins/world"
@@ -46,19 +47,19 @@ func dressed(brd *board.Board, d *Painter, fn lookFn) *look.Renderer {
 }
 
 type testSky struct {
-	sun sky.Sun
+	sun light.Distant
 	air air.Weather
 }
 
-func (s testSky) Sun() sky.Sun     { return s.sun }
-func (s testSky) Air() air.Weather { return s.air }
+func (s testSky) Distant() light.Distant { return s.sun }
+func (s testSky) Air() air.Weather       { return s.air }
 
-func skyOf(s sky.Sun) testSky { return testSky{sun: s} }
+func skyOf(s light.Distant) testSky { return testSky{sun: s} }
 
-type movingSky struct{ sun *sky.Sun }
+type movingSky struct{ sun *light.Distant }
 
-func (s *movingSky) Sun() sky.Sun   { return *s.sun }
-func (*movingSky) Air() air.Weather { return air.Weather{} }
+func (s *movingSky) Distant() light.Distant { return *s.sun }
+func (*movingSky) Air() air.Weather         { return air.Weather{} }
 
 type testMap struct {
 	look look.Look
@@ -519,7 +520,7 @@ func TestTile_AShinyCellShines(t *testing.T) {
 		shine float32
 		lit   [4]float32
 	}
-	shines := func(sun sky.Sun, heights bool) map[cell.ID]shining {
+	shines := func(sun light.Distant, heights bool) map[cell.ID]shining {
 		out := map[cell.ID]shining{}
 		look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) {
 			if s, lit, ok := t.Shine(); ok {
@@ -531,7 +532,7 @@ func TestTile_AShinyCellShines(t *testing.T) {
 		compose(r, cameratest.NewFromSpace(256, 256, 0))
 		return out
 	}
-	day := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3}
+	day := light.Distant{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3}
 	got := shines(day, true)
 	if got[sea] != (shining{0.8, [4]float32{1, 1, 1, 1}}) {
 		t.Errorf("the sea shines %v, want its kind's 0.8, all the sun at every corner", got[sea])
@@ -555,7 +556,7 @@ func TestTile_TheShoreLiesTheWayOfTheNearestCellThatDoesNotShine(t *testing.T) {
 	}
 	shores := map[cell.ID]water.Shores{}
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { shores[t.ID] = t.Shore() })
-	sun := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.6}
+	sun := light.Distant{Dir: [3]float32{0, 0, 1}, Strength: 0.6}
 	d := New(brd, reliefFor(brd), skyOf(sun), true, st)
 	r := dressed(brd, d, look)
 	compose(r, cameratest.NewFromSpace(320, 128, 0))

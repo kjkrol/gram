@@ -14,7 +14,7 @@ import (
 func TestPlugin_ViewsMakeIsometricCameras(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{})
+	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	cams := cameras.NewPlugin(w, cameras.Config{Turn: true, Tilt: true, Cell: 32, Cage: p})
 	isometric := func() camera.Camera {
 		cam := cams.New(cameras.Isometrically, camera.Config{})
@@ -39,7 +39,7 @@ func TestPlugin_ThePickLandsOnTheTopOfAKindStandingOnItsCell(t *testing.T) {
 	for _, perspective := range []bool{false, true} {
 		w := topotest.NewWorld(0)
 		b, grid := topotest.LevelBoard(w)
-		p := topography.NewPlugin(w, b, topography.Config{})
+		p := topography.NewPlugin(w, b, nil, topography.Config{})
 		wall := grid.At(2, 1)
 		b.Board().Set(wall, cell.Kind{Name: cell.Named("wall"), Cost: 1, Height: 30})
 		cam := topotest.Camera(w, cameras.Config{
@@ -70,7 +70,7 @@ func TestPlugin_ThePickLandsOnTheTopOfAKindStandingOnItsCell(t *testing.T) {
 func TestCage_IsFreeOverTheGroundAndWhatStandsOnIt(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, grid := topotest.LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{})
+	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	hill := grid.At(1, 1)
 	topotest.RaiseHills(p.Relief(), grid, hill)
 	wall := grid.At(2, 2)

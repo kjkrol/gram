@@ -8,8 +8,8 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
@@ -300,7 +300,7 @@ func TestVisibility_SeesAsFarAsTheScaleAndTheWeatherSay(t *testing.T) {
 }
 
 func TestWeather_HandsTheFrameTheAirAndTheSkysColours(t *testing.T) {
-	sun := sky.Sun{Dir: [3]float32{0, 0, 1}, Strength: 0.7, Sky: render.Light{0.5, 0.7, 1}}
+	sun := light.Distant{Dir: [3]float32{0, 0, 1}, Strength: 0.7, AmbientColor: render.Light{0.5, 0.7, 1}}
 	w := air.Weather{Wind: [2]float32{3, 4}, Drift: [2]float32{10, 20}, Clouds: 0.6}
 	c := render.NewComposer(source(func(f *render.Frame) { w.Frame(f, sun, 0, 0) }))
 	c.DrawWorld(nil, cameratest.NewFromSpace(64, 64, 0))
@@ -308,11 +308,11 @@ func TestWeather_HandsTheFrameTheAirAndTheSkysColours(t *testing.T) {
 	if got["Wind"][1] != 4 || got["Drift"][0] != 10 || got["Cover"][0] != 0.6 {
 		t.Errorf("the shader is handed wind %v, drift %v, cover %v; want the weather's", got["Wind"], got["Drift"], got["Cover"])
 	}
-	if fog, want := got["Fog"], air.Overcast(sun.Sky, 0.6); fog[0] != want[0] || fog[2] != want[2] {
+	if fog, want := got["Fog"], air.Overcast(sun.AmbientColor, 0.6); fog[0] != want[0] || fog[2] != want[2] {
 		t.Errorf("the fog is %v, want the sky under the clouds %v", fog, want)
 	}
 	overhead, fog := got["SkyOverhead"], got["Fog"]
-	if want := air.Overhead(sun.Sky, 0.6); overhead[0] != want[0] || overhead[2] != want[2] {
+	if want := air.Overhead(sun.AmbientColor, 0.6); overhead[0] != want[0] || overhead[2] != want[2] {
 		t.Errorf("the sky overhead is %v, want %v", overhead, want)
 	}
 	if !(overhead[0] < fog[0] && overhead[1] < fog[1]) {

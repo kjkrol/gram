@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/collision"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -101,7 +102,7 @@ func (t *Types) Define(name string, spec Spec) {
 		}),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Mass: math.Inf(1)}),
-		comp.Const(world.Shadow{Cast: world.Baked}),
+		comp.Const(light.Shadow{Cast: light.Baked}),
 	})
 	if t.specs == nil {
 		t.specs = map[string]Spec{}

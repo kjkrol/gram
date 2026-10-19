@@ -102,7 +102,7 @@ func NewQuasiWorldWith(
 		c = collision.NewPlugin(qw.World, qw.Motion)
 	}
 	qw.Board = board.NewPlugin(qw.Grid, &cell.MultipleOccupancy{}, qw.World).WithMotion(qw.Motion)
-	qw.Topo = topography.NewPlugin(qw.World, qw.Board, topography.Config{})
+	qw.Topo = topography.NewPlugin(qw.World, qw.Board, nil, topography.Config{})
 	qw.Board.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | cell.Air})
 	hillCell := qw.Grid.At(2, 1)
 	qw.Board.Board().Set(hillCell, Hill)
@@ -206,7 +206,7 @@ func LevelBoard(w *world.Plugin) (*board.Plugin, grid.Grid) {
 func IsometricIsland() (*world.Plugin, *board.Plugin, grid.Grid, *topography.Plugin) {
 	w := NewWorld(0)
 	b, grid := LevelBoard(w)
-	p := topography.NewPlugin(w, b, topography.Config{})
+	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	return w, b, grid, p
 }
 

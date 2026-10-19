@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/look"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -155,8 +156,8 @@ func (c *drawsCtx) Looks(func())             { c.looks++ }
 
 type stillSky struct{}
 
-func (stillSky) Sun() sky.Sun     { return sky.DefaultSun }
-func (stillSky) Air() air.Weather { return air.Weather{} }
+func (stillSky) Distant() light.Distant { return sky.DefaultSun }
+func (stillSky) Air() air.Weather       { return air.Weather{} }
 
 func TestPlugin_DrawsItsGroundAndItsHoldsAndDressesTheGroundUnderASky(t *testing.T) {
 	worldPlugin := world.NewPlugin(world.Config{

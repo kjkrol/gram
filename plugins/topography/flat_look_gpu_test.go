@@ -43,7 +43,7 @@ func (s *flatSource) Compose(f *render.Frame, cam camera.Camera) {
 			world.Z{},
 			s.atlas,
 			a,
-			render.Light{1, 1, 1},
+			render.WhiteLight,
 		)
 	}
 	lie := world.Lie{Length: 96, Width: 20, Edged: true}
@@ -62,7 +62,7 @@ func (s *flatSource) Compose(f *render.Frame, cam camera.Camera) {
 			s.atlas,
 			a,
 			2,
-			render.Light{1, 1, 1},
+			render.WhiteLight,
 		)
 	}
 }
@@ -80,7 +80,7 @@ func TestFlatLook_FromAboveDrawsOnTheGPUAsOnTheFrame(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 65536, Height: 65536},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(2048, 2048, 32), &cell.MultipleOccupancy{}, w)
-	p := topography.NewPlugin(w, b, topography.Config{})
+	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	cam := cameras.NewPlugin(w, cameras.Config{
 		Turn:       true,
 		Tilt:       true,

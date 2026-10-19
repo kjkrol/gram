@@ -4,12 +4,12 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
 func TestBackdrop_TheSunHidesBehindAFrontBeforeItReachesTheEye(t *testing.T) {
-	sun := sky.Sun{Dir: eyedF, Strength: 0.7}
+	sun := light.Distant{Dir: eyedF, Strength: 0.7}
 	for _, c := range []struct {
 		name  string
 		side  float32 // along y: the clouds come from y's low side, the sun's, or its high
@@ -28,7 +28,7 @@ func TestBackdrop_TheSunHidesBehindAFrontBeforeItReachesTheEye(t *testing.T) {
 		}, true)
 		weather := air.Weather{Dome: d, Bases: air.Bases(world.Scale{})}
 		b := New(world.SpaceCfg{Width: 200, Height: 200},
-			func() sky.Sun { return sun }, func() air.Weather { return weather })
+			func() light.Distant { return sun }, func() air.Weather { return weather })
 		p := b.plan(raying{height: 30})
 		if (p.SunRadius > 0) != c.shown {
 			t.Errorf("%s: the sun's disc %v wide, want shown %v", c.name, p.SunRadius, c.shown)

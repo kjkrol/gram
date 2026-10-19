@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/topography"
@@ -45,6 +46,7 @@ type arena struct {
 	board      *board.Plugin
 	topography *topography.Plugin
 	atmosphere *atmosphere.Plugin
+	light      *light.Plugin
 	cameras    *cameras.Plugin
 	telemetry  *telemetry.Plugin
 	players    *players.Plugin
@@ -86,9 +88,10 @@ func main() {
 func (a *arena) makePlugins(w *world.Plugin) {
 	a.world = w
 	grid := grid.DefaultGrids{}.Square(GridWidth, GridHeight, CellSize)
+	a.light = light.NewPlugin(a.world, light.Config{})
 	a.board = board.NewPlugin(grid, &cell.SingleOccupancy{}, a.world)
-	a.topography = topography.NewPlugin(a.world, a.board, topography.Config{})
-	a.atmosphere = atmosphere.NewPlugin(a.world, atmosphere.Config{
+	a.topography = topography.NewPlugin(a.world, a.board, a.light, topography.Config{})
+	a.atmosphere = atmosphere.NewPlugin(a.world, a.light, atmosphere.Config{
 		Calendar: calendar.Config{
 			DayRealTime: 90 * time.Second,
 			Start:       17 * time.Hour,
@@ -107,8 +110,9 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		HeightUnit:  1,
 		Cage:        a.topography,
 	})
-	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter())
-	a.players = players.NewPlugin(a.world, a.cameras, a.board, a.atmosphere, a.topography)
+	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter(), a.light.Reporter())
+	a.players = players.NewPlugin(a.world, a.cameras, a.board, a.atmosphere, a.topography,
+		a.light)
 }
 
 func (a *arena) defineFigures() {
@@ -140,6 +144,7 @@ func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
 
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.world.RunPlan(ctx, d)
+	a.light.RunPlan(ctx, d)
 	a.board.RunPlan(ctx, d)
 	a.atmosphere.RunPlan(ctx, d)
 	a.topography.RunPlan(ctx, d)

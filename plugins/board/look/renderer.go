@@ -68,23 +68,25 @@ type Renderer struct {
 	camera  camera.Camera
 	// what a camera sees of the world's sectors, and what the frame's sees: the cells drawn are
 	// those of the sectors seen alone, at their levels
-	sees    func(camera.Camera) *view.View
-	sight   *view.View
-	atlas   render.AtlasSource
-	cellW   float64
-	cellH   float64
-	square  bool
-	state   RenderState
-	shaded  map[cell.Name]render.MaterialID
-	scratch scratch
-	quads   []camera.Quad
-	tile    Tile
-	cells   []cell.ID
-	workers []*tileWorker
-	count   int // 0 as many as there are CPUs, 1 none
-	seen    []uint32
-	stamp   uint32
-	tops    []cellTop
+	sees  func(camera.Camera) *view.View
+	sight *view.View
+	// what lights the tiles, nil for white light
+	lighting func() world.Lighting
+	atlas    render.AtlasSource
+	cellW    float64
+	cellH    float64
+	square   bool
+	state    RenderState
+	shaded   map[cell.Name]render.MaterialID
+	scratch  scratch
+	quads    []camera.Quad
+	tile     Tile
+	cells    []cell.ID
+	workers  []*tileWorker
+	count    int // 0 as many as there are CPUs, 1 none
+	seen     []uint32
+	stamp    uint32
+	tops     []cellTop
 	// the sides of every cell's outline on one of grid.DefaultGrids, nil on another grid
 	rims []rim
 	// gridded[i] is gridStamp where the cell of ordinal i draws its grid this frame
@@ -102,6 +104,7 @@ type Renderer struct {
 	white      bool
 	gridOn     bool // this frame's tiles draw the grid
 	grid       gridLines
+	shade      groundShade
 	ground     GroundDressing // this frame's, nil for none
 }
 
@@ -290,9 +293,9 @@ func (l *Renderer) materials(f *render.Frame) {
 	})
 }
 
-// Draw draws the still through cam in the opaque pass and what a GroundDressing lays over it, and
-// the grid over it after; where the tiles were composed into the frame, only what the dressing
-// lays.
+// Draw draws the still through cam in the opaque pass, under the Lighting the shadows the frame
+// holds and the lamps' light, what a GroundDressing lays over it, and the grid over it after;
+// where the tiles were composed into the frame, only what the dressing lays.
 func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if t.Screen == nil {
 		return
@@ -326,6 +329,9 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 			l.still.Draw(t, cam, u, zoom, sx, sy, l.stillLight)
 		}
 	}
+	if l.lit() != nil {
+		l.shade.draw(t, cam, u, l.board)
+	}
 	if l.ground != nil {
 		l.ground.DressGround(t, cam, u)
 	}
@@ -338,13 +344,45 @@ func (l *Renderer) evenLight(m Map, d Dressing, cam camera.Camera) (render.Light
 	if _, top := cam.Projection().(camera.TopDown); !top {
 		return render.Light{}, false
 	}
-	if d == nil {
-		return render.Light{1, 1, 1}, true
+	even := render.Light{1, 1, 1}
+	if d != nil {
+		e, ok := d.(EvenLit)
+		if !ok {
+			return render.Light{}, false
+		}
+		if even, ok = e.EvenLight(); !ok {
+			return render.Light{}, false
+		}
 	}
-	if e, ok := d.(EvenLit); ok {
-		return e.EvenLight()
+	return l.sunlit(even), true
+}
+
+// sunlit is light under the sun on the ground, as the Lighting has it; the lamps' is the light
+// plugin's own to lay
+func (l *Renderer) sunlit(light render.Light) render.Light {
+	lighting := l.lit()
+	if lighting == nil {
+		return light
 	}
-	return render.Light{}, false
+	lit := lighting.At(0, 0, 0)
+	for k := range light {
+		light[k] *= lit.Light[k] - lit.Lamps[k]
+	}
+	return light
+}
+
+// the Lighting as it stands, nil for none
+func (l *Renderer) lit() world.Lighting {
+	if l.lighting == nil {
+		return nil
+	}
+	return l.lighting()
+}
+
+// WithLighting has the tiles lit as lighting says, the light plugin's.
+func (l *Renderer) WithLighting(lighting func() world.Lighting) *Renderer {
+	l.lighting = lighting
+	return l
 }
 
 func (l *Renderer) composeStill(look Look, d Dressing) {

@@ -1,7 +1,7 @@
 // The shadows of the blocks standing on the ground, baked over the relief's in a min blend that
 // keeps the darkest: an instance a block — its middle and the way it runs, then half its length
 // and width, its bottom and its top — drawn over the part of the strip U.Strip (its world origin
-// and size) its shadow may reach. Red and alpha are how much of the sun reaches the ground past
+// and size) its shadow may reach. Red and alpha are how much of the light reaches the ground past
 // it, blue one less the root of the share of U.ShadeSpan its shadow reaches over the ground.
 
 struct Cast {
@@ -17,9 +17,9 @@ fn vs_main(
     @location(0) at: vec4<f32>,
     @location(1) size: vec4<f32>,
 ) -> Cast {
-    let sun = sunWay();
-    // the lowest ground the block's shadow falls on lies this far from it, away from the sun
-    let far = (size.w - U.Low) / max(sun.z, 1e-3);
+    let sun = lightWay();
+    // the lowest ground the block's shadow falls on lies this far from it, away from the light
+    let far = (size.w - bakedLow()) / max(sun.z, 1e-3);
     let reach = -sun.xy * far;
     let across = vec2<f32>(-at.w, at.z);
     var lo = vec2<f32>(1e30, 1e30);
@@ -31,7 +31,7 @@ fn vs_main(
         lo = min(lo, min(c, c + reach));
         hi = max(hi, max(c, c + reach));
     }
-    let spare = far * shadowSoft + U.Cell;
+    let spare = far * shadowSoft + U.BakeCell;
     lo -= vec2<f32>(spare, spare);
     hi += vec2<f32>(spare, spare);
     var xs = array<f32, 6>(0.0, 1.0, 0.0, 1.0, 1.0, 0.0);
@@ -48,15 +48,15 @@ fn vs_main(
 
 @fragment
 fn fs_main(c: Cast) -> @location(0) vec4<f32> {
-    let sun = sunWay();
-    let p = vec3<f32>(c.world, height(c.world));
+    let sun = lightWay();
+    let p = vec3<f32>(c.world, bakedHeight(c.world));
     let lit = blockedBy(p, sun, c.at, c.size);
     let top = columnTop(p, sun, c.at, c.size);
     return vec4<f32>(lit, 1.0, 1.0 - sqrt(clamp(top / U.ShadeSpan, 0.0, 1.0)), lit);
 }
 
-// blockedBy is how much of the sun, the way sun, reaches p past the block at, size: none where the
-// line to the sun passes through it, fading in over the penumbra as the relief's shadows do — how
+// blockedBy is how much of the light, the way sun, reaches p past the block at, size: none where the
+// line to the light passes through it, fading in over the penumbra as the relief's shadows do — how
 // far the line passes by against how far along it the block lies.
 fn blockedBy(p: vec3<f32>, sun: vec3<f32>, at: vec4<f32>, size: vec4<f32>) -> f32 {
     if sun.z <= 0.0 || p.z >= size.w {
@@ -75,8 +75,8 @@ fn blockedBy(p: vec3<f32>, sun: vec3<f32>, at: vec4<f32>, size: vec4<f32>) -> f3
     return clamp(by / max(0.5 * (near + far) * shadowSoft, 1e-3), 0.0, 1.0);
 }
 
-// columnTop is how high over p the block's shadow reaches: where the line to the sun from p's
-// ground track first comes over the block, down by as far as the sun rises meanwhile; 0 where the
+// columnTop is how high over p the block's shadow reaches: where the line to the light from p's
+// ground track first comes over the block, down by as far as the light rises meanwhile; 0 where the
 // track misses it.
 fn columnTop(p: vec3<f32>, sun: vec3<f32>, at: vec4<f32>, size: vec4<f32>) -> f32 {
     if sun.z <= 0.0 {

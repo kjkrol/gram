@@ -250,7 +250,7 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 			f.Soft(h(1), unit, black, Fade{Top: 3})
 			f.Overlay(&Overlay{Material: tint, World: Box(0, 0, 32, 32), Red: [4]float32{1, 1, 1, 1}})
 		}
-		f.Uniform("Sun", 0, 0, 1)
+		f.Uniform("LightWay", 0, 0, 1)
 		f.Fan(h(2), [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}}, white)
 	}))
 	c.draw = func(*Image, []Vertex, []uint16, *Image) {}
@@ -522,7 +522,7 @@ func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T)
 	set := true
 	c := NewComposer(items(func(f *Frame) {
 		if set {
-			f.Uniform("Sun", 0.6, 0, 0.8)
+			f.Uniform("LightWay", 0.6, 0, 0.8)
 			f.Uniform("Cover", 0.6)
 		}
 		at = f.Time()
@@ -530,7 +530,7 @@ func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T)
 	c.draw = func(*Image, []Vertex, []uint16, *Image) {}
 	c.compose(topDown())
 	c.render(nil)
-	sun, cover := c.uniforms["Sun"], c.uniforms["Cover"]
+	sun, cover := c.uniforms["LightWay"], c.uniforms["Cover"]
 	if len(sun) != 3 || sun[0] != 0.6 || sun[2] != 0.8 || len(cover) != 1 || cover[0] != 0.6 {
 		t.Errorf("the shader is handed Sun %v and Cover %v, want the frame's (0.6, 0, 0.8) and 0.6", sun, cover)
 	}
@@ -551,7 +551,7 @@ func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T)
 	set = false
 	c.compose(topDown())
 	c.render(nil)
-	if sun, cover := c.uniforms["Sun"], c.uniforms["Cover"]; sun[0] != 0 || sun[2] != 0 || cover[0] != 0 {
+	if sun, cover := c.uniforms["LightWay"], c.uniforms["Cover"]; sun[0] != 0 || sun[2] != 0 || cover[0] != 0 {
 		t.Errorf("a frame that set nothing hands the shader Sun %v and Cover %v, want zero", sun, cover)
 	}
 	set = true

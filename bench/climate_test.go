@@ -29,7 +29,7 @@ func Benchmark_Climate_Step(b *testing.B) {
 			})
 			running := atmosphere.AllRunning()
 			running.Wind = !c.still
-			a := atmosphere.NewPlugin(w, atmosphere.Config{
+			a := atmosphere.NewPlugin(w, nil, atmosphere.Config{
 				Climate: climate.Config{Start: weather.Rain, Seed: 7, Patchy: c.patchy},
 				Running: &running,
 			})

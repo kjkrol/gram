@@ -154,7 +154,6 @@ func (w *module) LoadComps() []goke.CompToken {
 		goke.LoadComp[Z](),
 		goke.LoadComp[Eye](),
 		goke.LoadComp[Lie](),
-		goke.LoadComp[Shadow](),
 		goke.LoadComp[tag.Tags[clock.Phase]](),
 		goke.LoadComp[ceremony.Label](),
 		goke.LoadComp[tag.Tags[cond.Roles]](),

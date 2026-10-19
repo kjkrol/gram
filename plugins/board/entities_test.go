@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
 )
@@ -231,17 +232,17 @@ func TestEntities_CastBakedShadowsUnlessTheirKindSaysOtherwise(t *testing.T) {
 		extra []comp.Comp
 		want  int // a Casting, -1 for none carried
 	}{
-		{nil, int(world.Baked)},
-		{[]comp.Comp{comp.Const(world.Shadow{Cast: world.NoShadow})}, int(world.NoShadow)},
-		{[]comp.Comp{comp.Without[world.Shadow]()}, -1},
+		{nil, int(light.Baked)},
+		{[]comp.Comp{comp.Const(light.Shadow{Cast: light.NoShadow})}, int(light.NoShadow)},
+		{[]comp.Comp{comp.Without[light.Shadow]()}, -1},
 	} {
 		s := newStrip(t, grass, effect.Spec{}, c.extra...)
-		var shadow goke.Comp[world.Shadow]
+		var shadow goke.Comp[light.Shadow]
 		var q *goke.Query
 		s.ECS.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			q = si.NewQueryBuilder(&shadow).Build()
 		}})
-		var got []world.Casting
+		var got []light.Casting
 		for q.All(); q.Next(); {
 			for _, sh := range shadow.Slice(q.Cursor()) {
 				got = append(got, sh.Cast)

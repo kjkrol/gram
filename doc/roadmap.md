@@ -43,12 +43,13 @@ What is left to do. Take an item out when it lands.
   the board's rules and not made by `cmd/gramap`.
 - **Roads with a tool** — a player lays a road as a bridge (`control.Tool`, a road's rules beside
   `bridges/site`'s), and takes a bridge down.
-- **Baked shadows over hex prisms** — the terrain over a hex grid bakes no shade, so what casts
-  a Baked shadow (a bridge's deck and its piers) casts none there, and what stands there receives
-  only the clouds'.
-- **Figures from above in the shade** — seen from above the figures are the world's flat
-  sprites (`render.Sprites`), which receive no shade of the relief, the blocks or the clouds.
-- **Shadows by distance** — `topography.ShadowPolicy` is the seam; no game sets one yet.
+- **Baked shadows over hex prisms** — the light bakes no shade over a hex grid's relief, so
+  what casts a Baked shadow (a bridge's deck and its piers) casts none there, and what stands
+  there receives only the clouds'.
+- **The lamps' shadows in relief** — a lamp casts shadows on level ground alone; over a relief
+  its cast would have to follow the ground as the sun's bake does.
+- **Clouds shading themselves** — the cover's own shade is the one look of a cloud's thickness;
+  a cloud lit by the sun from above and dark below is not drawn.
 - **Gamepads** — a trigger vocabulary for pads, so split screen is not only a keyboard's.
 - **Networking** — `plugins/netview` over players; the server is one engine, a remote client a
   player whose translator decodes frames:

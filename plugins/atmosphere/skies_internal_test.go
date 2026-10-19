@@ -36,7 +36,7 @@ func skyStage(t *testing.T, figures func(a *Plugin), effects func(a *Plugin)) *P
 			Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
 			Heights:  true,
 		}).
-		Plugins(func(w *world.Plugin) { a = NewPlugin(w, Config{}) }).
+		Plugins(func(w *world.Plugin) { a = NewPlugin(w, nil, Config{}) }).
 		Figures(func() { figures(a) }).
 		Effects(func() { effects(a) }).
 		Update(func(goke.RunCtx, time.Duration) {})

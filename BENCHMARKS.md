@@ -230,20 +230,19 @@ outline in view, not how much terrain there is or how many pieces it is in.
 
 ## Shadows — `Benchmark_Board_Shadows`
 
-The board's renderer composing the whole of a 96×64 board of hills 4 cells a side and 20 high, from
-above, under a sun low in the west (0.3 up): warm, the shadows kept from the frame before, and after
-the sun has moved, every shadow worked out anew. Measured on 2026-09-26, three runs, after light
-took colour (each corner a red, green and blue light, the sun worked out once a frame as a
-`world.Lamp`).
+The light plugin planning the shade of a 96×64 board of hills 4 cells a side and 20 high under a
+sun low in the west (0.3 up): warm, the sun where it was, and after it has moved, the whole shade
+planned anew. The bake itself is the GPU's (a strip a frame as the sun turns, the whole at a leap)
+and costs the CPU nothing beyond the plan; measured on 2026-10-19 since the bake left the terrain
+for `plugins/light`.
 
-| Shadows | Frame composed |
+| Shadows | Frame planned |
 |:--|--:|
-| kept | 2.04 ms |
-| worked out anew | 4.14 ms |
+| kept | 0.37 µs |
+| planned anew | 0.24 µs |
 
-Before light had colour: 1.59 and 3.78 ms. Coloured, with the sun worked out again at every corner
-as at first, it was 2.35 ms kept; the lamp and taking a corner's light as it is when a piece is not
-split brought most of that back.
+Before the bake went to the GPU (2026-09-26) the board's renderer worked every shadow out on the
+CPU: 2.04 ms kept, 4.14 ms anew.
 
 A corner's shadow is a walk towards the sun a quarter cell at a time over the tops of the cells as
 the frame read them, stopped as soon as the line to the sun is above the highest top within 16

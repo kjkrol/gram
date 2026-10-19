@@ -22,7 +22,7 @@ func isoCamera(width, height uint32, screenW, screenH float32, heights func(geom
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(width/32, height/32, 32), &cell.MultipleOccupancy{}, w)
-	topo := topography.NewPlugin(w, b, topography.Config{})
+	topo := topography.NewPlugin(w, b, nil, topography.Config{})
 	topo.Relief().SetHeights(heights)
 	cam := cameras.NewPlugin(w, cameras.Config{
 		Turn:       true,

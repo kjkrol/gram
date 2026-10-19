@@ -92,6 +92,6 @@ func (p *Plugin) carryOut() {
 	p.changes.Drain(func(command.Issued[ChangeWeather]) { p.climate.Change() })
 	p.sets.Drain(func(i command.Issued[SetWeather]) { p.climate.Set(i.Command.Name) })
 	p.clouds.Drain(func(command.Issued[Clouds]) { p.ShowClouds((p.look + 1) % (ShadowsAlone + 1)) })
-	p.shades.Drain(func(command.Issued[HighShade]) { p.highShade = !p.highShade })
+	p.shades.Drain(func(command.Issued[HighShade]) { p.shadows.High = !p.shadows.High })
 	p.downpours.Drain(func(command.Issued[Downpour]) { p.climate.Set(weather.Rain) })
 }

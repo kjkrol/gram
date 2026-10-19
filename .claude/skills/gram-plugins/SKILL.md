@@ -65,9 +65,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   and a plugin asking made after (make every plugin before defining a kind).
   `kind.Require[T](r, t, by, why)` names what the game must supply (world: `Position` of every
   entity; board: `At`, `Mover` of a unit; navigation, driving: `steering.Steering`),
-  `r.Default(t, comp.Const(v))` what a plugin brings itself (world: `Velocity{}`, effect marks,
-  `Shadow{Patch}` of every entity; motion: `steering.Course` of a unit; board: `Lie{}`,
-  `Shadow{Baked}` of what stands; collision: `Collider{}`, `Physics{}` of a unit; dropped with
+  `r.Default(t, comp.Const(v))` what a plugin brings itself (world: `Velocity{}`, effect marks;
+  light: `Shadow{Patch}` of every entity; motion: `steering.Course` of a unit; board: `Lie{}`,
+  `light.Shadow{Baked}` of what stands; collision: `Collider{}`, `Physics{}` of a unit; dropped with
   `comp.Without[T]()`, a template's
   own taking the place of its parent's); `r.Spec(t, own...)` builds a kind's Spec
   (`board.NewUnits` from the unit's, `Entities.Define` from the standing one's with its shape's `Z`,
@@ -119,6 +119,40 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   entity they put out to `motion.Plugin.Leave(cb, id)`. A plugin reading a steering component in a
   world that may lack motion lists its `LoadComp` itself (the board `Pace`, the topography
   `Course`, `Driven`, `Drift`), so a save loads either way.
+- **`light`** — the light over a world: `light.NewPlugin(world, Config{LampShadows})`, made
+  after motion and before the board and the topography (they draw by it; `w.SetLighting(p)` makes
+  it the world's `Lighting`), run after the world. What shines is an entity with a `light.Source`
+  knob (`Color`, `Strength`, `Ambient`, `Reach`: a lamp reaching from where it stands, from the
+  middle of its `Z.Height`; the sun a distant one of no Reach, its way and strength of the hour
+  written beside it in `light.Shining` by the atmosphere's `shineRun` on its own entity, or once
+  by `Plugin.WithDistant` on the light's own — two panic); `Plugin.Distant()` the working light
+  (`Shining × Source`), `Plugin.Lamps()`, `White` the sun of a world without one. `light.Shadow{Cast,
+  Take}` is every entity's knob (`KindTemplates`: `Patch` taking all; the board's standing
+  template `Baked`): `Casting` `Patch`/`Silhouette`/`Baked`/`NoShadow`, `render.Taking` bits
+  `TakesRelief|TakesBlocks|TakesClouds|TakesLamps` (zero all, `render.Shines` none). The plugin is
+  a `render.Direct`: its `Begin` (called by the world's renderer, `world.Lighting`) hands the
+  frame the distant light's uniforms (`internal/distant`'s `light.wgsl`: `lightWay`, `U.LightWay`,
+  `U.LightStrength`, `U.LightColor`, `U.AmbientColor`, `U.Ambience`) and the `MaxLamps` 8 lamps
+  nearest the camera (`lamps.wgsl`: `lampLightAt(p)`, `U.LampCount`, `Lamp{k}At/Color`); `Of`
+  lights an entity (`render.Illumination{Light, Lamps, Direct, Takes}`) and gathers its live shadow
+  through the `ShadowPolicy` (`WithShadowPolicy`, by the distance from the eye): the sun's
+  (`Sun.ShadowOf`/`SilhouetteOf`, an `Umbra`, the sprite's shape flipped to the side it faces)
+  and on level ground the `Casting()` lamps' (`Lamp.ShadowOf`; `Config.LampShadows` nearest the
+  camera, Shift+L `LampShadows` off and on, `SetLampShadows`); `Compose` plans the bake and
+  `Draw` runs it in the opaque pass before the ground is drawn (`internal/bake`: the relief's
+  shade from the frame's `GroundHeights` over a `Relief` the topography gives with `OverRelief` —
+  `groundDrawnAt`, triangle-split as the mesh is drawn — a strip a frame as the sun turns, the
+  whole at a leap or as the heights or the blocks change, each band fading from its last bake,
+  `shade.wgsl`; then every `Baked` entity a block, `blocks.wgsl`, `Darkest`, a deck's pieces
+  joined, over level ground 256 cells a side under the world's space without a relief — so a flat
+  board gets its towers' and bridges' shadows; `H` `CoarseShadows` half as fine; nothing to bake
+  over a hex relief or without a sun; a bake before the frame holds the heights plans the whole
+  anew), and lays the casts after the ground over its depth (`internal/cast`, `cast.wgsl`, the
+  rect each covers from the relief's extent, `f.ReadGround`, at `OnGround(castLift)` 0.05 under
+  the grid). A ground draws itself in what the frame holds: `render.GroundShade`, `lightWay`,
+  `lampLightAt` (the terrain's `mesh.wgsl`, the hexes', the board's `shade.go` overlay). Tests:
+  `plugin_test.go`, `shadows_test.go`, `internal/bake` (GPU: strips, blocks, level ground, reach,
+  the library's probe). `Reporter()` the panel's "Light:" line. Depends on `world`.
 - **`board`** — optional grid and terrain over `world`, standing only in a world with heights
   (`board.NewPlugin` panics in a flat one; a world without a board — collision, minimal,
   rules/vision, scenes — stays flat); its grids wrap per axis, following the world's `Edges`. The
@@ -259,18 +293,24 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `units:` kept.
   Terrain is never an entity in the space: the board's field (`internal/field`) is collision's
   `collision.Field` (`Solid`, `Overhang`), handed over by `Plugin.WithCollision`, and sight's
-  `ground.Cover` (`Plugin.Cover`); both read the cell entities whenever asked. A flat board takes
-  its light by the hour through `board.Plugin.WithAtmosphere(atmosphere)` (`lit.go`, reading
-  `board.Atmosphere{Sun, Air}`: the board composed once and tinted on the GPU, sprites lit, what
-  sways leaning, the clouds' shadows laid on its ground right after it, `draw.Clouds`), called in a
-  scene before the first frame; without one it is drawn as it is. The
+  `ground.Cover` (`Plugin.Cover`); both read the cell entities whenever asked. A flat board is lit
+  by the light plugin (`look.Renderer.WithLighting(world.Lighting)`: the board composed once and
+  tinted on the GPU in the sun's light on level ground, then `look/shade.go` multiplying the still
+  by the frame's shade and the lamps' glow per pixel, `shaders/shade.wgsl`,
+  `DrawMeshOptions.Multiply`, as each cell's `cell.Kind.Takes` says — a pixel a cell in an image
+  rebuilt as the board changes; the tiles composed into the frame lit by `Lighting.At` instead),
+  and takes the weather through `board.Plugin.WithAtmosphere(atmosphere)` (`lit.go`, reading
+  `board.Atmosphere{Air}`: what sways leaning, the clouds' shadows laid on its ground right after
+  the still, `draw.Clouds`), called in a scene before the first frame; without either it is drawn
+  as it is. The
   board's own Map is the simple map — flat, every kind in its sprite from the game's atlas
   (declared by `ctx.Looks` from the tiles, the sprites the cell's bounds across), the ways as bands
   cut out of their kinds' sprites, a step at its kind's cost; `plugins/topography` is the other.
   Depends on `world`, `motion` and `collision`.
-- **`topography`** — a map in relief: `topography.NewPlugin(world, board, Config{Shaping,
-  Climbing})`, made right after the world and the board (so a world with heights); refuses a
-  wrapping world. It is the cameras' `cameras.Cage` (`Free(x, y, z)`: over the ground, over the
+- **`topography`** — a map in relief: `topography.NewPlugin(world, board, light, Config{Shaping,
+  Climbing})`, made right after the world, the light and the board (so a world with heights);
+  refuses a wrapping world; hands the light its relief (`light.Plugin.OverRelief`) for the
+  shadows to fall on. It is the cameras' `cameras.Cage` (`Free(x, y, z)`: over the ground, over the
   kind on its cell to its `Height`, out of a deck's slab; `Span()` the relief's extent; `Grain`
   near decks — a game hands it as `cameras.Config.Cage`), sets the world's Look
   (`billboards.Look`), the board's Map (`look.Nothing`: the ground is drawn on the GPU) and the
@@ -281,13 +321,12 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Shaping`). The plugin draws the ground, a `render.Direct` in the opaque pass (`ground` or
   `hexes`, the one it has, given `ctx.Draws`): over a square grid `internal/terrain` (the lattice as
   a mesh, a depth prepass, the board painted flat by the painter into albedo and water sheets
-  sampled per pixel, lit by the sun with shadows baked on the GPU as the sun moves — a strip a
-  frame, `shadeStrips`, each band fading from its last bake (`now`/`was`, `render.GroundShade`
-  planned in Compose, run in Draw); the relief first (`shade.wgsl`: red the sun at the ground, green
-  how high the relief's shadow reaches), then every `Baked` entity an instance (`blocks.wgsl`,
-  `DrawMeshOptions.Darkest`: blue how high its shadow reaches, alpha the sun it leaves), no limit; H
-  `CoarseShadows` bakes them half as fine; `WithShadows` on by default — the clouds' cover baked,
-  water on wet cells, the grid in the board's line, fog, a skirt of level ground to the horizon;
+  sampled per pixel, lit per pixel by the sun and the lamps the frame holds (`lightWay`,
+  `lampLightAt`) and shaded as the light baked it (`groundShadeOf`, `render.GroundShade`), each
+  cell as its kind's `Takes` says (the bits in the lattice's green beside the wet flag,
+  `Painted.Takes`, `takesAt`); it hands the frame the lattice as `render.GroundHeights`, which the
+  light's bake reads — the clouds' cover at the corners, water on wet cells, the grid in the
+  board's line, fog, a skirt of level ground to the horizon;
   in a world with sectors the indices laid sector by sector, each whole then coarse — every
   second corner within, the edge ring whole and stitched by fans, `sectors.go` `lattice.coarse`,
   tested crack-free — drawn by the ranges the camera's View sees (`runs`, joined where they
@@ -296,14 +335,12 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   sector the instances laid in runs, a coarse sector's tops alone, `topVertices` 18). The
   entities are billboards on the GPU (`internal/billboards`, standing upright in the world across
   the screen's level right, so as tall on the screen as their `Height` stands there and inside their
-  solid (Shift+X), shorter the steeper the view; tested against the ground's depth; each entity's
-  shadow cast once a frame through `world.ShadowLook`, as its `world.Shadow` says and the
-  `ShadowPolicy` turns it by the distance from the eye (`WithShadowPolicy`, as declared without
-  one): a `Patch` (`sky.Sun.ShadowOf`) or a `Silhouette` (`SilhouetteOf`, the sprite's alpha) draped
-  over the terrain (`terrain.DrawShadows`, twelve floats a cast) or laid over the hex prisms' depth;
-  `Baked` the terrain's, `NoShadow` none; they receive the shade at their height — light's sun share
-  in the instance, `groundShadeAt`/`standingShadeAt` and the clouds in the vertex stage); a bridge's
-  deck and piers are `Baked` (a deck stands on its beam down its `Z.Height`). The views are the
+  solid (Shift+X), shorter the steeper the view; tested against the ground's depth; lit as the
+  world's `Lighting` hands each (`render.Illumination`: the sun's light on a face, `faceLit`, the
+  lamps' at the point, the sun's share and the `Takes` bits in the instance, honoured by
+  `billboard.wgsl`/`lying.wgsl` — `groundShadeAt`/`standingShadeAt`, the clouds' in the vertex
+  stage); their shadows are the light plugin's, laid over the ground's depth); a bridge's deck and
+  piers are `Baked` (a deck stands on its beam down its `Z.Height`). The views are the
   cameras plugin's (its entry); `camera.Rays` of its cameras give `camera.SceneTransform` for every
   GPU source here. Its parts are packages none of which imports the plugin: `relief`, `painter` (the
   board's Dressing in relief, the sheets, `Style`), `water` (the materials: the sea five octaves of
@@ -313,9 +350,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Everything that is the drawing alone — the billboard, the blocks' shading — is private. `world.Z`,
   relief and `Heights` are the world's heights, not the view: sight
   reads them in a top-down game too. **Layering: the world knows its entities and nothing else; the
-  ground is the board's, the sky the atmosphere's, `render` generic.** A relief is lit by the sun of
-  its `topography.Atmosphere` (`WithAtmosphere`; without one `sky.DefaultSun`, which the topography
-  hands the frame itself). Its water reflects the sky's own colours (`skyAt`).
+  ground is the board's, the sky the atmosphere's, `render` generic.** A relief is lit by the
+  light plugin it is made with (without one `light.White`, which the topography hands the
+  frame itself) and stands under its `topography.Atmosphere` for the weather (`WithAtmosphere`).
+  Its water reflects the sky's own colours (`skyAt`).
 - **`atmosphere`** — the time of day, the climate and the weather on the world's clock, over a
   world with heights alone (`NewPlugin` panics in a flat one); its root
   keeps no shaders and draws nothing itself: every part is a package that never imports it.
@@ -329,8 +367,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   the atmosphere's entity: board-topography's blood moon by a rule of `sky.Moonrise` or M;
   `Sky.SetMoon`; `Config.Moon` the one it begins with, `Sky.Moonlight`), the colours blended from
   `Config.Daylight` (rows of `sky.Daylight`; `EarthDaylight()` when none) by the sun's height,
-  the sun's own colour at its height on `Heavens.SunColor`; `sky.Sun`
-  (`Dir`, `Strength`, `Ambient`, colours; `Sun.Light`/`Shaded`, `Sun.Frame`, `Sun.ShadowOf`);
+  the sun's own colour at its height on `Heavens.SunColor`; the sun of the hour is a `light.Distant` (`sky.DefaultSun` the one of a relief under no sky)
+  the atmosphere writes each tick into the `light.Shining` beside the `light.Source` on its own
+  entity (`shineRun`), the light plugin's to shine;
   `Freeze` (P) freezes the light alone, `Later`/`Earlier` (Shift+], Shift+[) move it half an hour,
   not saved. `atmosphere/celestial` (imported by `sky`, never the other way): `Heavens`
   (`Place{Latitude, NoonWay}.HeavensAt`), the sphere turned by the sidereal time, `SunPath`,
@@ -549,8 +588,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   into `air.Tile()`, the frame's image `CloudTile` (2026-10-16), which every cloud shader looks up
   per pixel (`cloudTileAt`); `Weather.Frame` hands the frame the tile, `Fog`, the sky at the
   horizon, `SkyOverhead` and the layers' `CloudBases`). The plugin draws the sky and what falls
-  itself (`ctx.Draws`); its sky hands every frame the sun and the weather; the clouds' shadows are
-  drawn by whoever draws the ground (the board's flat ground, the terrain, the hexes).
+  itself (`ctx.Draws`); its sky writes the sun of the hour into the light plugin and hands every
+  frame the weather; the clouds' shadows are drawn by whoever draws the ground (the board's flat
+  ground, the terrain, the hexes) and by the figures, as `atmosphere.CloudShadows{Ground, Figures,
+  High}` says (`CastClouds`, set in a scene; Shift+S the high ones; uniforms `CloudsShadeGround`,
+  `CloudsShadeFigures`).
   `atmosphere.Running` (`Config.Running`, `Plugin.SetRunning`) switches the day, the weather's
   changes, the wind, the clouds, what falls, the weathering, the stars and the moon, all on by
   default, not saved.
@@ -659,9 +701,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Tilt}` (where one that looks looks from and how wide; `Vertical` the field up and down, 0
   every height; `Tilt` how far the eye is turned up, radians, written by the riding camera;
   `Eye.Level(z)`, `Eye.Within(lo, hi)`; read by vision's cone and the first-person camera
-  alike), `Lie`, `Shadow{Cast}` (a knob: `Patch` the zero, `Silhouette`, `Baked`, `NoShadow`;
-  units get a `Patch`, board entities `Baked`, a kind may declare its own, an effect turn it). A
-  leaf; the world re-exports them as type aliases.
+  alike), `Lie`. A leaf; the world re-exports them as type aliases. How an entity casts and takes
+  its shadow is the light plugin's `light.Shadow`.
 - **`motion/steering`** — `steering.Steering{TurnRate, Reflex, MaxSpeed, Sprint, Accel, Brake,
   V0, Halted}` the knobs, `steering.Course{Want, Pending, Delay, Speed, WantSpeed}` the state
   (given to every unit by the roster and by the system where missing), `steering.Helm{*Steering,

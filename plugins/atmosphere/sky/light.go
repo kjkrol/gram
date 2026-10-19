@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
+	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -56,22 +57,22 @@ func (c Config) daylightAt(height float32) (sky, sun render.Light, ambient float
 }
 
 // SunAt is the sun at ofYear, the part of the year gone, and time of day t, both 0 to 1.
-func (c Config) SunAt(ofYear, t float32) Sun {
+func (c Config) SunAt(ofYear, t float32) light.Distant {
 	c = c.withDefaults()
 	dir := c.place().SunPath(ofYear, t)
 	sky, sun, ambient := c.daylightAt(dir[2])
-	return Sun{
-		Dir:      dir,
-		Strength: sunStrength * celestial.Risen(dir[2]),
-		Ambient:  ambient,
-		Color:    sun,
-		Sky:      sky,
+	return light.Distant{
+		Dir:          dir,
+		Strength:     sunStrength * celestial.Risen(dir[2]),
+		Ambient:      ambient,
+		Color:        sun,
+		AmbientColor: sky,
 	}
 }
 
 // LightAt is what lights the world at ofYear and time of day t: the sun, or once it is well
 // below the horizon the moon m, moon round from new (0 to 1).
-func (c Config) LightAt(ofYear, t, moon float32, m Moon) Sun {
+func (c Config) LightAt(ofYear, t, moon float32, m Moon) light.Distant {
 	c = c.withDefaults()
 	light := c.SunAt(ofYear, t)
 	sunUp := light.Dir[2]

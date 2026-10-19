@@ -13,7 +13,7 @@ fn SeaGlint(p: vec2<f32>, shine: f32, lit: f32, shore: vec4<f32>) -> vec4<f32> {
 fn SeaGlintAt(p: vec2<f32>, shine: f32, lit: f32, shore: vec4<f32>, pixel: f32, toward: vec3<f32>) -> vec4<f32> {
     let w = sea(p, shore, pixel);
     let n = w.normal;
-    let sun = sunWay();
+    let sun = lightWay();
     // a wave's side turned from the light is darker and the side turned to it catches it, whatever
     // the sun: the light from above and towards the sun, its way across the sea
     let toLight = normalize(sun + vec3<f32>(0.0, 0.0, 1.0));
@@ -31,10 +31,10 @@ fn SeaGlintAt(p: vec2<f32>, shine: f32, lit: f32, shore: vec4<f32>, pixel: f32, 
     // the sun thrown back: a broad sheen and the glints on the steepest ripples
     let h = normalize(sun + toward);
     let nh = max(dot(n, h), 0.0);
-    let glint = U.SunStrength * lit * shine * (sheen * pow(nh, sheenSharpness) + seaGlint * pow(nh, seaGlintSharpness));
-    let light = U.Ambience + U.SunColor * (U.SunStrength * lit * max(sun.z, 0.0));
+    let glint = U.LightStrength * lit * shine * (sheen * pow(nh, sheenSharpness) + seaGlint * pow(nh, seaGlintSharpness));
+    let light = U.Ambience + U.LightColor * (U.LightStrength * lit * max(sun.z, 0.0));
     let foam = w.foam;
-    let rgb = sky * mirror * (1.0 - foam) + light * foam + U.SunColor * glint + light * catch * (1.0 - foam);
+    let rgb = sky * mirror * (1.0 - foam) + light * foam + U.LightColor * glint + light * catch * (1.0 - foam);
     return vec4<f32>(rgb, 1.0 - clamp(shade, 0.0, 1.0) * (1.0 - mirror) * (1.0 - foam));
 }
 

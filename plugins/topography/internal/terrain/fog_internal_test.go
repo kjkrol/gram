@@ -40,8 +40,8 @@ func TestTerrain_TurnsTheGroundPastTheSightIntoTheFog(t *testing.T) {
 	view.NewSystem(space, &views, 512, 512).Update(nil, 0)
 	r := New(bumped{}, &grey{}, noAir{}, Config{Seen: func(camera.Camera) *view.View { return v }})
 	screen := render.NewImage(64, 64)
-	u := render.UniformsOf(map[string]any{"Sun": []float32{0.3, 0.2, 1},
-		"SunStrength": []float32{1}, "SunColor": []float32{1, 1, 1},
+	u := render.UniformsOf(map[string]any{"LightWay": []float32{0.3, 0.2, 1},
+		"LightStrength": []float32{1}, "LightColor": []float32{1, 1, 1},
 		"Ambience": []float32{0.2, 0.2, 0.2}, "Fog": []float32{0, 0, 1}})
 	depth := render.NewDepth()
 	screen.ClearDepth(depth)

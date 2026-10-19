@@ -131,7 +131,8 @@ Decisions the user has made; they are not up for revisiting in passing.
   clouds' shadows (with the camera free: riding, Shift+S sprints back), P freezes the light,
   Space jumps in first person, = and - zoom, Shift+= and Shift+- shape the relief, Ctrl+= and
   Ctrl+- the camera's sight (farther, nearer), Ctrl+F the ground's haze, through any camera (off
-  as a game starts); in a world cut into sectors Shift+G the sectors (by band, by what the camera
+  as a game starts), H the shadows' detail (coarse, fine), Shift+L the lamps' shadows (off, on);
+  in a world cut into sectors Shift+G the sectors (by band, by what the camera
   sees, none) and Ctrl+G the bands (off, on); with a minimap Shift+M shows or hides it and Ctrl+M
   turns it with the camera or keeps north up.
   A key held, down or let go leaves the chords with Shift, Ctrl or Alt to these shortcuts unless
@@ -177,6 +178,13 @@ Decisions the user has made; they are not up for revisiting in passing.
   tried and dropped.
 - **Physics, not blocking**, for a unit under gravity: into the water and off an edge as it
   pleases, the rules deciding.
+- **The light plugin gives the instruments, never the sun**: a `light.Distant` light (way,
+  strength, ambient, colours), lamps, and what each thing casts and takes (`light.Shadow`, a
+  cell's `cell.Kind.Takes`); what shines is a `light.Source` on an entity. The sun is the
+  atmosphere's: its sky writes the sun of the hour into the `light.Shining` beside its own
+  entity's Source; a scene without a sky sets a `WithDistant` light. The light bakes the
+  ground's shade and lays the live shadows; a ground draws itself in the frame's light, shade and
+  lamps (`render.GroundShade`, `lightWay`, `lampLightAt`), never working light out of its own.
 - **What is drawn over what is Z's alone**, never a layer, the order of adding or the order a
   plugin registers in: every piece of the world lies at a height (`render.At`; what lies on a
   surface at a small lift over it — a route's goal, a cell held, a bridge in hand — a figure at
@@ -215,8 +223,10 @@ board's, the sky the atmosphere's, `render` generic.**
 
 Built-in plugins (`gram-plugins`): `world` (the foundation: space, entities, the registers,
 the clock), `motion` (steering, movement and the leavers past an open edge, made first and run
-right after the world; whatever steers or pushes takes it), `board` (grid and terrain, cells as
-entities, what stands on the board, bridges, maps as files; `cmd/gramap` makes maps of the
+right after the world; whatever steers or pushes takes it), `light` (a distant light and the
+lamps, the shadows baked and cast; made before the board and the topography, which draw by it),
+`board` (grid and terrain, cells as entities, what stands on the board, bridges, maps as files;
+`cmd/gramap` makes maps of the
 Earth), `topography` (a map in relief, the cameras' cage), `atmosphere` (the time of day, the
 climate, the weather), `collision`, `navigation`, `selection`, `dialog`, `players` (with
 `players/owner`), `cameras`, `driving`, `gravity`, `vision`, `bridges`, `bullet`, `minimap`
