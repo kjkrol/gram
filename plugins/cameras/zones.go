@@ -38,8 +38,12 @@ const zonesLevel = 3
 type zonesView struct{ settings *Settings }
 
 var _ render.Source = (*zonesView)(nil)
+var _ render.Overlying = (*zonesView)(nil)
 
 func (*zonesView) Init(*goke.SysInit) {}
+
+// Overlies: drawn over the figures' ground (render.Overlying).
+func (*zonesView) Overlies() {}
 
 func (v *zonesView) Compose(f *render.Frame, cam camera.Camera) {
 	if !v.settings.Zones || camera.IsCropped(cam) {

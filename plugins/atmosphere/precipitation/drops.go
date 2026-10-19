@@ -13,6 +13,7 @@ import (
 )
 
 var _ render.Direct = (*Drops)(nil)
+var _ render.Overlying = (*Drops)(nil)
 
 //go:embed shaders/*.wgsl
 var shaders embed.FS
@@ -101,6 +102,9 @@ func lookOf(w air.Weather) dropLook {
 }
 
 func (*Drops) Init(*goke.SysInit) {}
+
+// Overlies: drawn over the figures' ground (render.Overlying).
+func (*Drops) Overlies() {}
 
 // Compose has the drops drawn among what is seen through, half way down from the low clouds where
 // the eye looks, while anything falls out of them.

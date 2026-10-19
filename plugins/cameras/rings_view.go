@@ -18,8 +18,12 @@ const ringsLevel = 4
 type ringsView struct{ settings *Settings }
 
 var _ render.Source = (*ringsView)(nil)
+var _ render.Overlying = (*ringsView)(nil)
 
 func (*ringsView) Init(*goke.SysInit) {}
+
+// Overlies: drawn over the figures' ground (render.Overlying).
+func (*ringsView) Overlies() {}
 
 func (v *ringsView) Compose(f *render.Frame, cam camera.Camera) {
 	if !v.settings.ShowRings || !camera.IsCropped(cam) {

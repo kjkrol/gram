@@ -91,9 +91,14 @@ type boxesView struct {
 	footprint []render.Corners
 }
 
+var _ render.Overlying = (*boxesView)(nil)
+
 func (v *boxesView) Init(si *goke.SysInit) {
 	v.q = si.NewQueryBuilder(&v.base).Optional(&v.z).Build()
 }
+
+// Overlies: drawn over the figures' ground (render.Overlying).
+func (*boxesView) Overlies() {}
 
 func (v *boxesView) Compose(f *render.Frame, cam camera.Camera) {
 	shown := v.settings.Boxes
