@@ -328,5 +328,5 @@ func (s persisted) Persisted() []any {
 		}
 		p.saved = append(p.saved, buf.Bytes())
 	}
-	return []any{&p.saved}
+	return append([]any{&p.saved}, p.kept.Persisted()...)
 }

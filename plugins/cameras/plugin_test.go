@@ -135,10 +135,9 @@ func TestCameras_InReliefSavedBeforeTheStickBeginAfresh(t *testing.T) {
 	cam := p.New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(300, 200)
 	bx, by := cam.Project(500, 500, 0)
-	for _, v := range p.Serializable().Persisted() {
-		if err := gob.NewDecoder(&save).Decode(v); err != nil {
-			t.Fatal(err)
-		}
+	// the save holds the cameras alone, from before the Settings were kept after them
+	if err := gob.NewDecoder(&save).Decode(p.Serializable().Persisted()[0]); err != nil {
+		t.Fatal(err)
 	}
 	p.Restore()
 	if ax, ay := cam.Project(500, 500, 0); ax != bx || ay != by {
@@ -170,5 +169,18 @@ func TestNew_ACameraIsDrawnAtTheConfigsResolutionAMinimapsAtAll(t *testing.T) {
 	lowest := least.New(cameras.FromAbove, camera.Config{})
 	if got := camera.ResolutionOf(lowest); got != cameras.LeastResolution {
 		t.Errorf("a Resolution of 0.1 draws at %v, want the least, %v", got, cameras.LeastResolution)
+	}
+}
+
+func TestSettings_AreSavedWithTheCamerasAndAZeroSavedComesBackSo(t *testing.T) {
+	saved := cameras.NewPlugin(newWorld(), cameras.Config{})
+	saved.ShowZones(true)
+	loaded := cameras.NewPlugin(newWorld(), cameras.Config{Adaptive: true})
+	carried(t, saved, loaded)
+	if !loaded.ZonesShown() {
+		t.Error("the zones shown were not saved with the cameras")
+	}
+	if loaded.Adaptive() {
+		t.Error("the resolution follows the budget after a load that saved it still")
 	}
 }
