@@ -3,6 +3,7 @@ package players
 import (
 	"bytes"
 	"encoding/gob"
+	"math"
 	"strings"
 	"testing"
 
@@ -18,7 +19,7 @@ type shade struct{ On bool }
 
 func (shade) Command() {}
 
-// tunable is a handler with one setting, a switch, and its state
+// tunable is a handler with two switches on one state: one of its own, one under Graphics
 type tunable struct {
 	shades command.Queue[shade]
 	on     bool
@@ -28,11 +29,19 @@ func (h *tunable) Name() string                       { return "gram.light" }
 func (h *tunable) Queues() []command.CommandQueue     { return []command.CommandQueue{&h.shades} }
 func (h *tunable) DefaultBindings() []control.Binding { return nil }
 func (h *tunable) Settings() []control.Setting {
-	return []control.Setting{control.Switch{
-		Label: "Shadows",
-		Get:   func() bool { return h.on },
-		Set:   func(on bool) command.Command { return shade{On: on} },
-	}}
+	return []control.Setting{
+		control.Switch{
+			Label: "Lamps",
+			Get:   func() bool { return h.on },
+			Set:   func(on bool) command.Command { return shade{On: on} },
+		},
+		control.Switch{
+			Label:   "Shadows",
+			Section: control.Graphics,
+			Get:     func() bool { return h.on },
+			Set:     func(on bool) command.Command { return shade{On: on} },
+		},
+	}
 }
 
 func settingsRig(t *testing.T) (*Plugin, *tunable, *world.Plugin) {
@@ -104,6 +113,45 @@ func TestSettings_TheScreenListsEveryTunableAndItsControlsIssue(t *testing.T) {
 		t.Fatalf("the checkbox issued %v, want the shadows on", got)
 	}
 	_ = w
+}
+
+func TestSettings_SectionsComeFirstCentredAndAMovedSettingSitsUnderItsSubheading(t *testing.T) {
+	p, _, _ := settingsRig(t)
+	rt, comp := &engineStub{props: game.Props{ScreenWidth: 800, ScreenHeight: 600}}, &composed{}
+	p.settings.Open(rt, comp)
+	s := p.settings.screen
+	s.Drawers()
+	s.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(800, 600)))
+	boxOf := func(name string) geom.AABB {
+		t.Helper()
+		e := s.Element(name)
+		if e == nil {
+			t.Fatalf("no %s on the screen", name)
+		}
+		return e.Box()
+	}
+	picture, players := boxOf("section:Picture"), boxOf("section:Players")
+	if players.TopLeft.X < picture.TopLeft.X ||
+		players.TopLeft.X == picture.TopLeft.X && players.TopLeft.Y <= picture.TopLeft.Y {
+		t.Errorf("Picture at %v, Players at %v; want the shared section first", picture.TopLeft,
+			players.TopLeft)
+	}
+	graphics, shadows := boxOf("section:Picture/Graphics"), boxOf("setting:Shadows")
+	column := boxOf("settings.column.0")
+	if shadows.TopLeft.Y < graphics.BottomRight.Y || !within(graphics, column) ||
+		!within(shadows, column) {
+		t.Errorf("Graphics at %v, Shadows at %v, the first column %v; want the moved setting "+
+			"under its subheading in one column", graphics, shadows, column)
+	}
+	title := boxOf("settings.title")
+	if centre := (title.TopLeft.X + title.BottomRight.X) / 2; math.Abs(centre-400) > 1 {
+		t.Errorf("the title's centre at x %v, want 400", centre)
+	}
+}
+
+func within(a, in geom.AABB) bool {
+	return a.TopLeft.X >= in.TopLeft.X && a.TopLeft.Y >= in.TopLeft.Y &&
+		a.BottomRight.X <= in.BottomRight.X && a.BottomRight.Y <= in.BottomRight.Y
 }
 
 func TestSettings_KeepRunningLetsTheClockGoAndIsSaved(t *testing.T) {
