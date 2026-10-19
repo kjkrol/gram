@@ -230,6 +230,10 @@ outline in view, not how much terrain there is or how many pieces it is in.
 
 ## Shadows — `Benchmark_Board_Shadows`
 
+> Stale since the light plugin (`19174ed0`, 2026-10-19): composing plans the shade and the
+> painting is a GPU pass, so `Benchmark_Board_Shadows` now measures ~0.1 µs a frame either
+> way. The frame's drawing cost is in the demos' `GRAM_FPS_LOG` (below).
+
 The light plugin planning the shade of a 96×64 board of hills 4 cells a side and 20 high under a
 sun low in the west (0.3 up): warm, the sun where it was, and after it has moved, the whole shade
 planned anew. The bake itself is the GPU's (a strip a frame as the sun turns, the whole at a leap)
@@ -251,6 +255,9 @@ cell and ground in the ECS and walked the whole 16 cells: 59.5 ms anew.
 
 ## Shores — `Benchmark_Board_Shores`
 
+> Stale since the light plugin (`19174ed0`, 2026-10-19): ~0.1 µs a frame either way, the
+> painting a GPU pass; see the demos below for a frame's drawing.
+
 The board's renderer composing the whole of a 96×64 board of sea (shine 0.9) round islands 4 cells
 a side every 8 cells, from above — every cell of the sea within 3 of a shore, the worst case: warm,
 the shores kept from the frame before, after a cell has changed, every shore worked out anew, and
@@ -271,6 +278,10 @@ read them, ring by ring outwards until no ring further out can be nearer. Worked
 distances a corner for the way to the shore and each cell's kind sought in the ECS, it took 21 ms.
 
 ## Island — `Benchmark_Board_Island`
+
+> Stale since the light plugin (`19174ed0`, 2026-10-19): composing is planning only, 0.1 µs a
+> frame from above and in isometry, 0.3 µs in perspective (the camera's rays), the terrain
+> painted in a GPU pass; a frame's drawing is in the demos below.
 
 The board's renderer composing the whole of a 96×64 island of cells 32 wide, from above and
 isometric: a sea lying `Under` it, earth, sand and rock blending, and the brooks, streams and
@@ -406,11 +417,167 @@ family carried for good; a state that lasts, on few entities, which a pass wants
 cheaper as a component of its own. That is the rule of gram's markers (`comp.Marks`, described in
 `entity/tag`): effects' `Idle`, navigation's `Entered`, collision's hit.
 
+## Navigation — `Benchmark_Navigation_Tick`
+
+One tick of the world, motion, board, navigation, driving and selection with N walkers under
+orders on a 64×64 board of 16-px cells, median of 5 runs at `51da9307`, 2026-10-19. The walkers
+stand on the left half; "open" sends each to the cell mirroring its own on the right half,
+nothing in the way but each other; "crowded" sends them all through a wall's one-cell gap to one
+cell behind it, where they press, step aside and plan again. Every 300 ticks the orders turn them
+round, so the tick measured holds the orders' A* amortised (one order per walker per 300 ticks).
+
+| Scene | Walkers | Tick | Allocations |
+|:---|---:|---:|---:|
+| open | 100 | 863 µs | 487 / 41 KB |
+| open | 1,000 | 10.8 ms | 15,108 / 898 KB |
+| crowded | 100 | 8.3 ms | 3,189 / 386 KB |
+| crowded | 1,000 | 270 ms | 110,765 / 13.1 MB |
+
+A thousand walkers in the open cost 11 ms a tick, a crowd of them a quarter of a second: the
+profile (below) has the path finder (`pathfind.Finder.leveledFor`) at 55% of the open tick and
+81% of the crowded one, and under it the board's cell lookups (`terrain.Cells.Kind`/`KindAt`,
+`grids.Square.Toward`, `boardLevels.Deck`), through maps. The crowd replans every tick it is
+blocked. This is the number the plan's navigation work starts from.
+
+## Shots — `Benchmark_Bullet_Flight`
+
+One tick of the bullet, world, motion and collision plugins on a 1024-px square with shots
+fired every tick from the left edge, each a second in the air (400 units at 400 a second),
+straight or thrown and coming down at its range, where it is despawned; median of 5 runs at
+`51da9307`, 2026-10-19. `inflight` is how many are in the air at the end.
+
+| Shots a tick | In flight | Tick, straight | Tick, thrown | Allocations |
+|---:|---:|---:|---:|---:|
+| 1 | 61 | 18.3 µs | 18.5 µs | 9 / 368 B |
+| 5 | 305 | 73.5 µs | 72.8 µs | 19 / 2.6 KB |
+| 20 | 1,220 | 363 µs | 356 µs | 38 / 10.9 KB |
+
+About 0.3 µs a shot a tick, thrown as cheap as straight; the allocations grow with the spawns a
+tick, not with the shots in the air.
+
+## Text and a frame with UI — `Benchmark_Text_Panel`, `Benchmark_Frame_UI`
+
+Frames drawn on a headless GPU (`gpu.Headless`; skipped where there is none, `GRAM_GPU=software`
+for the rasteriser) into a 1280×720 screen, median of 5 runs at `51da9307`, 2026-10-19.
+`Benchmark_Text_Panel` is a panel of 20 lines of text changing every frame, as a telemetry
+panel's; `Benchmark_Frame_UI` the world of 5,000 boxes shown through a `ui.Image` of a feed over
+the whole screen, the same panel and a button over it.
+
+| Frame | Time | Allocations |
+|:---|---:|---:|
+| the text panel | 261 µs | 486 / 149 KB |
+| the world, the panel and a button | 508 µs | 703 / 160 KB |
+
+The panel's 261 µs are 28% calls into Vulkan (`runtime.cgocall` under goffi), 28% the glyph
+pieces (`gpu.DrawPieces`, `device.triangles`), 6% the font's glyph index (`sfnt`) and the rest
+the text's own building; its 486 allocations a frame are the `fmt` of the lines and the pieces.
+
+## Climate — `Benchmark_Climate_Step`
+
+One step of the climate over a 6528×3392 world with heights, median of 5 runs at `51da9307`,
+2026-10-19: the wind blowing, a weather forced, the air still, patchy weather.
+
+| Regime | Step | Allocations |
+|:---|---:|---:|
+| wind | 5.3 µs | 5 / 1.0 KB |
+| patchy | 5.6 µs | 5 / 1.0 KB |
+| forced | 83 µs | 6 / 1.3 KB |
+| still | 123 µs | 7 / 1.1 KB |
+
+## Where the time goes — CPU profiles
+
+`go test ./bench -run xxx -bench <name> -benchtime=3s -cpuprofile p.out`, `go tool pprof -top`,
+one run at `51da9307`, 2026-10-19; the share is of the samples, `cum` where a function's
+callees are counted with it. The island, the shadows and the shores are not here: since the
+light plugin, composing them is planning only, the painting a GPU pass (see their sections).
+
+| Benchmark | Where |
+|:---|:---|
+| `World_Tick/5000` (212 µs) | `motion.moveSystem.rebuild` (the copy of every `Base` into `aabbworld.Item`, `Grid.Rebuild`, `remember`) 34% cum; `clampStep` 27% cum, of it `math.archHypot` 20%; `aabbworld.Surface.Translate` 27% cum (`fold` 14%, `move`, `wrap` 6%) |
+| `Collision_Tick/rect=5,fill=20%` (4.1 ms, 917 contacts) | `collide.Solver.Solve` 30% cum (`penetration` 10%); `spatial.pairSweep.visit` 18% cum, `add` 6%, `sort` 2%; `collisionSystem.rest` 19% cum, of it `met` 13% flat; `mark` 5%; motion's `Update` 9% (`rebuild` 3%); `addr.Index.GetUnchecked` (the `Seek` in `moved`) 3% |
+| `Vision_Relief/step=50m` (6.6 ms) | `raycast.castElevated` 99% cum; `relief.Relief.GroundAt` 62% cum (31% flat), `index` 10%, `corner` 12%; `vision.scanner.sunkGround` 74% cum; `raycast.ray.ground` 8% |
+| `Vision_Relief/profile,15Hz` (0.68 ms) | `raycast.castElevated` 93% cum; `relief.Relief.Along` 56% cum (21% flat), `folded` 13%, `cellCorners` 10%; `field.Field.walkSquare` 18% cum; `ray.ground` 9% |
+| `World_Draw/view=100%` (427 µs, 0 allocs) | `renderer.Compose.func1` (the per-entity work) 22% flat; `look.Flat.Sprite` 59% cum, of it `lay` 42% (`render.VisitWrapImages` 36%, `Sprites.Rect` 20%, `piece` 9%); `Frame.At` 9%; map lookups 9% |
+| `Navigation_Tick/open,1000` (8.6 ms) | `navigationSystem.Update` 91% cum; the A* `pathfind.Finder.leveledFor.func1` 55% cum, `Price` 19%; `boardLevels.KindAt` 17% cum, `terrain.Cells.Kind` 13% (9% flat), `KindAt` 14%; `grids.Square.Toward` 8%, `DiagonalNeighbors` 9%, `wrapModI64` 4%; `boardLevels.Deck` 6% |
+| `Navigation_Tick/crowded,1000` (299 ms) | the A* 81% cum, `Price` 27%, `enterable` 17%; `boardLevels.KindAt` 20% cum, `Cells.Kind` 15% (10% flat), `Cells.KindAt` 17%; `grid.Way` 12%; `Square.Toward` 10%; `runtime.mapaccess2` 6% |
+| `Text_Panel` (258 µs) | `runtime.cgocall` 28% (Vulkan through goffi); `render.DrawText` 41% cum, `gpu.DrawPieces` 28%, `device.triangles` 24%; `sfnt` glyph index 6%; `memmove` 5%; `AppendUint32` 4% |
+| `Frame_UI` (508 µs) | `runtime.cgocall` 20%; `world.renderer.each` 29% cum; `gpu.Mesh` 13%; `device.triangles` 15%; `gpu.DrawPieces` 14% |
+
+What they say: the world tick is the copy for the space (a third), `Hypot` (a fifth) and the
+torus arithmetic (a quarter), not the iteration; the collision tick is the solver and the pairs
+sweep, with gram's own resting pairs a seventh; the sight over a relief is the relief's sampling
+under the rays; the entity renderer is the assembling of the sprite instances, three fifths; the
+navigation tick is the path finder and the board's cell lookups under it; text is half the GPU
+calls and half the glyph pieces. No profile has the garbage collector in its first thirty lines.
+
+## The demos — the garbage collector and the frames
+
+Every demo for 60 s in a copy with a probe (`gram-probe` without the tempo change), vsync on at
+60 FPS, `GODEBUG=gctrace=1 GRAM_FPS_LOG=1`; then 35 s with `GRAM_VSYNC=off` for the frame costs
+alone, medians of the per-second lines after 8 s of warm-up, at `51da9307`, 2026-10-19 on the
+machine above (Intel UHD 620, Vulkan). The light demo got Shift+L at the fifth second (the
+lamps' shadows), navigation/square its four player units sent together to the bridge's foot at
+the tenth and fortieth second and west at the twentieth, motion/bullet the soldier firing a
+round every 20 ticks and a grenade every 90. "tick" is a frame's simulation: at 60 FPS a
+120-TPS demo (motion/collision) runs two steps in it. "moved" is the share of the entities
+whose box changed between two ticks, sampled every second.
+
+| Demo | GC cycles | Live heap, peak | Tick | Drawing | Presenting | Moved |
+|:---|---:|---:|---:|---:|---:|---:|
+| board/topography | 0.42/s | 92 MB, 272 MB | 2.14 ms | 0.89 ms | 0.24 ms | 5.5% of 122 |
+| look/light | 0.45/s | 23 MB, 105 MB | 0.14 ms | 0.46 ms | 0.22 ms | 44% of 6 |
+| navigation/square | 0.22/s | 24 MB, 97 MB | 0.45 ms | 0.31 ms | 0.21 ms | 32% of 8 |
+| motion/bullet | 0.17/s | 22 MB, 96 MB | 0.15 ms | 0.23 ms | 0.19 ms | 60% of 7 |
+| motion/expanse | 0.23/s | 84 MB, 400 MB | 3.24 ms | 1.00 ms | 0.28 ms | 4.8% of 100,000 |
+| motion/collision | 0.25/s | 45 MB, 126 MB | 10.5 ms | 1.48 ms | 0.26 ms | 100% of 8,388 |
+| look/animation | 0.30/s | 22 MB, 104 MB | 0.14 ms | 0.35 ms | 0.21 ms | 35% of 5 |
+| rules/dialog | 0.18/s | 22 MB, 96 MB | 0.13 ms | 0.25 ms | 0.20 ms | 0% of 3 |
+
+With vsync off, the frame rate and a frame's costs (the tick is then spread over many frames):
+
+| Demo | FPS | Tick | Drawing | Presenting |
+|:---|---:|---:|---:|---:|
+| board/topography | 198 | 0.67 ms | 0.88 ms | 0.25 ms |
+| look/light | 592 | 0.02 ms | 0.58 ms | 0.37 ms |
+| navigation/square | 640 | 0.05 ms | 0.27 ms | 0.19 ms |
+| motion/bullet | 1,300 | 0.01 ms | 0.14 ms | 0.14 ms |
+| motion/expanse | 596 | 0.32 ms | 0.61 ms | 0.20 ms |
+| motion/collision | 160 | 4.2 ms | 1.53 ms | 0.25 ms |
+| look/animation | 1,196 | 0.01 ms | 0.26 ms | 0.14 ms |
+| rules/dialog | 1,320 | 0.01 ms | 0.16 ms | 0.14 ms |
+
+`GOGC` as an environment variable, the same 60 s with vsync on; a frame's tick and drawing
+did not move by more than the drift in any of them:
+
+| Demo | GOGC=100 | GOGC=200 | GOGC=400 |
+|:---|---:|---:|---:|
+| board/topography | 0.42/s, peak 272 MB | 0.21/s, peak 323 MB | 0.14/s, peak 472 MB |
+| look/light | 0.45/s, peak 105 MB | 0.24/s, peak 136 MB | 0.12/s, peak 156 MB |
+| motion/expanse | 0.23/s, peak 400 MB | 0.21/s, peak 578 MB | 0.11/s, peak 676 MB |
+| motion/bullet | 0.17/s, peak 96 MB | 0.07/s, peak 166 MB | 0.06/s, peak 109 MB |
+
+What they say: the collector runs once every two to six seconds in every demo and gctrace's
+cumulative CPU share stays at 0%; at 60 FPS no demo's frame is bound by it, nor by anything but
+the simulation of motion/collision (two steps of 8,388 boxes a frame) and the ticks of
+board/topography and motion/expanse. Raising `GOGC` halves the cycles and raises the peak heap
+by a third to a half for nothing measurable in the frame, so there is no reason to set it in
+code. The allocations per frame (`plans-gc.md`) are a tidiness, not a cost, until a cycle lands
+on a frame; none did in these minutes. The moved shares are the number behind any change
+tracking per chunk: the board demos move 5% of their entities a tick, the expanse 5% of its
+hundred thousand (the bands), the motion demos all of them.
+
 ## How to benchmark
 
 ```bash
 make bench        # the whole suite once, with allocations
 make bench-save   # 5 repeats, raw output under bench_results/ (ignored by git)
+```
+
+A profile beside a benchmark, for where a tick goes rather than how long it takes:
+
+```bash
+go test ./bench -run xxx -bench 'Benchmark_World_Tick/entities=5000' -benchtime=3s \
+  -cpuprofile p.out -o bench.test && go tool pprof -top -nodecount=30 bench.test p.out
 ```
 
 The benchmarks link Ebitengine but open no window; in CI they run under `xvfb-run` like the
