@@ -86,9 +86,13 @@ type Renderer struct {
 	opts     render.DrawMeshOptions
 	uniforms map[string][]float32 // boxed once in the options
 	masses   air.DomeImage
-	heaps    *render.Image // the clouds as heaps, coarser than the screen
+	heaps    []*render.Image // the clouds as heaps, coarser than the screen, one a size of view
 	heapOpts render.DrawMeshOptions
 }
+
+// the sizes of view the heaps are kept for, as render keeps its depths: a view in rings is drawn
+// at up to four a frame, two such views at eight
+const keptHeaps = 8
 
 type skyPlan struct {
 	None, Flat bool
@@ -275,9 +279,8 @@ func (b *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	look := b.look()
 	b.set("CloudsFlat", flag(!look.Bodies[air.Low]), flag(!look.Bodies[air.High]))
 	if p.Clouds && (look.Bodies[air.Low] || look.Bodies[air.High]) {
-		b.drawHeaps(p, look)
 		b.set("CloudBodies", 1)
-		b.opts.Images[2] = b.heaps
+		b.opts.Images[2] = b.drawHeaps(p, look)
 	}
 	if !p.Clouds {
 		b.set("SkyPieces", 0)
@@ -296,21 +299,33 @@ const skyPiece = 16
 
 // the layers of clouds as heaps into an image of their own, coarser than the view, for the sky to
 // read
-func (b *Renderer) drawHeaps(p skyPlan, look Clouds) {
+func (b *Renderer) drawHeaps(p skyPlan, look Clouds) *render.Image {
 	w, h := int(p.View[0]+heapsCoarse-1)/heapsCoarse, int(p.View[1]+heapsCoarse-1)/heapsCoarse
-	if b.heaps == nil || b.heaps.Bounds().Dx() != w || b.heaps.Bounds().Dy() != h {
-		if b.heaps != nil {
-			b.heaps.Deallocate()
-		}
-		b.heaps = render.NewImage(w, h)
-	}
+	img := b.heapsFor(w, h)
 	b.set("HeapsView", p.View[:]...)
 	b.set("HeapsPixel", heapsCoarse)
 	b.set("HeapsLayers", flag(look.Bodies[air.Low]), flag(look.Bodies[air.High]))
 	b.set("HeapsBefore", flag(look.Before))
 	b.heapOpts.Uniforms, b.heapOpts.Vertices = b.opts.Uniforms, 3
-	b.heaps.Clear()
-	b.heaps.DrawMesh(nil, heaps, &b.heapOpts)
+	img.Clear()
+	img.DrawMesh(nil, heaps, &b.heapOpts)
+	return img
+}
+
+// the heaps' image w by h among the sizes drawn of late, the oldest let go past keptHeaps
+func (b *Renderer) heapsFor(w, h int) *render.Image {
+	for _, img := range b.heaps {
+		if img.Bounds().Dx() == w && img.Bounds().Dy() == h {
+			return img
+		}
+	}
+	if len(b.heaps) == keptHeaps {
+		b.heaps[0].Deallocate()
+		b.heaps = append(b.heaps[:0], b.heaps[1:]...)
+	}
+	img := render.NewImage(w, h)
+	b.heaps = append(b.heaps, img)
+	return img
 }
 
 // the sky's colour where the world left nothing, everywhere without a depth
