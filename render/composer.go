@@ -400,10 +400,17 @@ func (c *Composer) drawTriangles(screen *Image, verts []Vertex, indices []uint16
 	if c.bound != nil {
 		dw.Depth, dw.Test = c.bound.d, c.test
 	}
-	if c.seen {
-		dw.Sight = &c.sight
-	}
+	dw.Sight = c.sightFor(c.test)
 	gpu.Triangles(&dw, verts, indices)
+}
+
+// sightFor is the sight the pieces drawn with test take their depths from: none for the marks,
+// drawn untested over the world, whose depth over the sky no sight can say
+func (c *Composer) sightFor(test gpu.DepthTest) *gpu.Sight {
+	if !c.seen || test == gpu.Untested {
+		return nil
+	}
+	return &c.sight
 }
 
 // a multiple of four under 65536, what 16-bit indices reach

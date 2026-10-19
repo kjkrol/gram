@@ -666,3 +666,18 @@ fn Fragment(dst: vec4<f32>, src: vec2<f32>, color: vec4<f32>, custom: vec4<f32>)
 	}()
 	RegisterMaterials([]byte("fn Late(p: vec2<f32>, red: f32, fraction: f32, custom: vec4<f32>) -> vec4<f32> { return vec4<f32>(0.0); }"), nil, "Late")
 }
+
+func TestComposer_TheMarksTakeNoSight(t *testing.T) {
+	var c Composer
+	c.sight = gpu.Sight{Eye: [3]float32{1, 2, 3}}
+	if c.sightFor(gpu.Tested) != nil {
+		t.Error("a composer that cannot see hands out a sight")
+	}
+	c.seen = true
+	if c.sightFor(gpu.Tested) != &c.sight {
+		t.Error("the world's pieces take no sight")
+	}
+	if c.sightFor(gpu.Untested) != nil {
+		t.Error("a mark takes the sight, which cannot say its depth over the sky")
+	}
+}
