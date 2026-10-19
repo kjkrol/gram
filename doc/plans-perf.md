@@ -1,0 +1,373 @@
+# Plan: wydajność ticku i klatki, skonsolidowany
+
+Zastępuje kolejność z `plans-gc.md`; zadania stamtąd wchodzą tu jako etapy albo ich części i są
+cytowane po numerze (`plans-gc Z4`), bo ich kroki z numerami linii nadal obowiązują. Plik
+roboczy, nie część dokumentacji biblioteki. Odwołania do linii sprawdzone na gram `51da9307`,
+goke `a6b663b` (v3.5.0), aabbworld `4889c6e` (v1.12.0).
+
+Źródła: `BENCHMARKS.md`, profil CPU `Benchmark_World_Tick/entities=5000` z 2026-10-18 (poniżej),
+przegląd systemów i renderera z tej samej sesji, `plans-gc.md`.
+
+## Co wiadomo na starcie
+
+Tick świata przy 5 000 encji, 259 µs na maszynie pomiarowej, 1 alloc, bez śladu GC w profilu:
+
+| Gdzie | Udział |
+|:--|--:|
+| `motion.moveSystem.rebuild`: kopia Base do `aabbworld.Item`, `Grid.Rebuild`, `remember` | 35% |
+| `motion.clampStep`, w tym `math.Hypot` (`math.archHypot` 17% samo) | 26% |
+| `aabbworld.Space.Move`: `Surface.Translate`, `move`, `fold`, `wrap` | 25% |
+| iteracja goke, `Velocity.Delta`, `Position.MaxStep` | ok. 10% |
+
+`Grid.index()` w tym benchmarku nie biegnie ani razu, bo nikt nie pyta przestrzeni; w grze
+odpala je odświeżenie widoku raz na tick, ok. 20 µs (`BENCHMARKS.md`, "Drawing"). Wniosek:
+tick nie jest problemem GC, tylko trzech miejsc CPU. Klatka ma inne centra kosztu
+(`BENCHMARKS.md`: wyspa 1,8-4 ms, cienie i brzegi liczone na nowo 4-5 ms, encje 0,4-0,65 ms)
+i tam liczby per miejsce dopiero trzeba zebrać (etap 0).
+
+Decyzje projektowe przyjęte z góry, żeby nie wracać do nich w etapach:
+- `Position` zostaje autorytatywny na CPU. Jedenaście systemów czyta go losowo do struktur CPU
+  (sektory, zajętość, nawigacja, relief, wzrok, kolizje, renderer), a `plane.AABB` to osiem
+  float64, których WGSL nie ma. GPU dostaje co najwyżej lustro float32.
+- Systemy przeplatane regułami ceremony (`RunWhere` w środku chunka) nie idą na GPU.
+- Nie ma GPU dla samej arytmetyki ruchu: to mikrosekundy, dispatch kosztuje tyle samo.
+
+## Wspólne dla każdego etapu
+
+Obowiązuje sekcja "Wspólne dla każdego zadania" z `plans-gc.md` (skille warstwy, bez commitów,
+dema tylko w kopii, pomiar przed i po naprzemiennie, raport). Do tego:
+- Profil CPU obok benchmarku: `go test ./bench -run xxx -bench <nazwa> -cpuprofile <plik>`,
+  `go tool pprof -top`. Zmiana w gorącej pętli bez profilu przed i po nie jest zmierzona.
+- Moduły: `goke` i `ceremony` są w `/home/karol/CODE/go.work`, `aabbworld` nie jest. Etap
+  dotykający aabbworld dopisuje `./aabbworld` do `go.work` na czas pracy i mówi to w raporcie;
+  tag wydania i podbicie wersji w `gram/go.mod` robi właściciel po przeglądzie, sesja tego nie
+  robi. To samo dla goke: zmiana w rdzeniu kończy się raportem i propozycją wpisu do
+  `CHANGELOG.md`, nie tagiem.
+- Etapy oznaczone "równolegle" mogą iść w osobnych sesjach i worktree naraz; pozostałe czekają
+  na to, co wymienione w "Po".
+
+Kolejność etapów: 0 → 1 (sześć części równolegle) → 2 i 3 (równolegle) → 4 → 5 → 6.
+Etapy 5 i 6 mają bramkę: ruszają tylko, gdy liczby z etapu 0 i z etapów wcześniejszych je
+uzasadnią.
+
+---
+
+## Etap 0. Pomiar: liczby, bez których reszta jest na wiarę
+
+**Skille:** `gram-probe`, `goke`, `gram-game`. To `plans-gc Z6` poszerzone o profile CPU.
+Nic nie optymalizuje.
+
+**Kroki.**
+1. `plans-gc Z6` w całości: gctrace i `GRAM_FPS_LOG` na demach (60 s, w kopiach), brakujące
+   benchmarki (pociski, tekst i telemetria, klatka z UI), wynik `Benchmark_Climate_Step`,
+   `GOGC=200/400` jako sam pomiar. `Benchmark_Navigation_Tick` z `plans-gc Z3` krok 1 powstaje
+   tutaj, w obu reżimach (w drodze; stłoczeni pod murem), żeby etap 2 zaczynał od liczby.
+2. Profile CPU, każdy jako tabela "funkcja, udział" w raporcie, po pięć najcięższych liści:
+   `Benchmark_World_Tick/5000` (punkt odniesienia dla etapu 1), `Benchmark_Collision_Tick`
+   (8 388 pudełek: ile w `Grid.Pairs` i `listItems`, ile w solverze, ile w `rebuild`
+   i `moved`/`seek`), `Benchmark_Vision_Relief` (ile w raycaście, ile w kopiowaniu wyników),
+   `Benchmark_World_Draw` przy kamerze na całości (ile w `rules.Run`, `view.Level`, fog,
+   a ile w `lay`/instancje `Sprites`; to bramka etapu 5), `Benchmark_Board_Island`
+   (ile w cieniach i brzegach "kept", a ile w składaniu kafli).
+3. Z `Benchmark_World_Draw` osobno: ile encji z 5 000 zmienia w typowym ticku `Base`
+   (porusza się), a ile stoi. Do policzenia w benchmarku: porównanie `Pos` przed i po ticku.
+   To liczba, od której zależy sens śledzenia zmian per chunk (etap 4 i 5).
+
+**Wyjście.** Sekcja w `BENCHMARKS.md` z nowymi benchmarkami i metodą; raport z tabelami z 1 i 2
+oraz liczbą z 3; na końcu lista: które części etapu 1 i które etapy 2-6 mają pokrycie w
+liczbach.
+
+---
+
+## Etap 1. Poprawki na godzinę, równolegle, bez zmian architektury
+
+Sześć niezależnych części, każda w osobnej sesji. Żadna nie zmienia kontraktu między
+pluginami ani API biblioteki.
+
+### 1A. Overlay wizji liczony co klatkę
+
+`plans-gc Z1` bez zmian: `Field.Version()`/`Changes()`, sprawdzenie strony `ground`, testy,
+pomiar `GRAM_FPS_LOG` na kopii board/topography z obserwatorem w kadrze. Największy
+pojedynczy zysk per klatka w pięciu demach i w istocie naprawa błędu, więc idzie pierwsze.
+
+### 1B. `clampStep` bez `Hypot` w typowym kroku
+
+**Skille:** `gram-plugin`, `gram-plugins` (motion).
+
+**Problem.** `plugins/motion/move_system.go`, `clampStep` (koniec pliku): `math.Hypot` na
+każdą poruszającą się encję co tick, 26% ticku świata, choć krok prawie nigdy nie przekracza
+limitu. `Hypot` jest wolne (obsługa nadmiaru i NaN), a tu potrzebne jest tylko porównanie.
+
+**Kroki.**
+1. Porównać kwadraty: `sq := x*x + y*y; if sq <= max*max || sq == 0 { return step }`; `Sqrt`
+   dopiero przy skalowaniu, i to raz. Zachowanie identyczne dla skończonych wartości; test
+   z krokiem równym limitowi, większym i zerowym.
+2. Przy okazji sprawdzić `-gcflags=-m`, czy `Velocity.Delta` i `Position.MaxStep` inlinują się
+   w `Update` (profil pokazuje je jako osobne ramki inline, ok. 4%); jeśli nie, dlaczego.
+3. Pomiar: `Benchmark_World_Tick` z profilem przed i po. Oczekiwanie: `archHypot` znika
+   z listy, tick spada o rząd 20%.
+
+### 1C. Szybka ścieżka w `Surface.Translate` (aabbworld)
+
+**Skille:** `goke` (metoda pomiaru), README i `BENCHMARKS.md` aabbworld. Praca w
+`/home/karol/CODE/aabbworld`, `go.work` tymczasowo (patrz "Wspólne").
+
+**Problem.** `internal/plane/surface.go:58` `Translate` woła per oś `move` (:73), a ta
+`fold` (:85) i `wrap` (`vector_math.go:30`). Cztery ramki na oś na każdą poruszającą się
+encję: 25% ticku świata w gram. `wrap` ma już szybki powrót dla wartości w zakresie, ale
+dociera się do niego przez trzy wywołania.
+
+**Kroki.**
+1. W `Translate`, przed `move`: jeśli `lo >= 0 && lo+length <= world`, to nowy `lo`, `hi`,
+   `overhang = 0` bez wywołań, dla każdego rodzaju krawędzi (w granicach wynik jest ten sam
+   dla wrap, open i stop). Dopiero poza granicami stara ścieżka.
+2. Sprawdzić `-gcflags=-m`, czy `move`/`fold`/`wrap` inlinują się do `Translate` po zmianie;
+   jeśli budżet inlinera nie pozwala, zostawić szybką ścieżkę i odnotować.
+3. Testy aabbworld (`engine_wall_test.go`, `space_wrap_test.go`, `edges_test.go`) bez zmian
+   wyniku; dodać przypadek pudełka dotykającego krawędzi dokładnie (`lo+length == world`).
+4. Pomiar: benchmark aabbworld dla `Translate` (dodać, jeśli nie ma) i `Benchmark_World_Tick`
+   w gram z `go.work`. Raport z propozycją wpisu do `CHANGELOG.md` aabbworld; tag robi
+   właściciel.
+
+### 1D. `clock.Simulate` wiązane raz
+
+`plans-gc Z5` punkt 1 bez zmian. Po nim `Benchmark_World_Tick` ma dawać 0 allocs/op; poprawić
+zdanie w `BENCHMARKS.md`, jeśli nadal nie daje.
+
+### 1E. `gpu.Present` i `SetBindGroup` bez alokacji na klatkę
+
+`plans-gc Z4` bez zmian, z naciskiem na krok 1: ustalenie z linią źródła w gogpu/wgpu, czy
+`BeginRenderPass`, `SetBindGroup` i `Submit` kopiują przekazane wycinki. To ustalenie jest
+potrzebne etapowi 5, więc trafia do raportu osobnym akapitem, także gdy sama zmiana okaże się
+mała.
+
+### 1F. Drobne alokacje per klatka i per tick
+
+`plans-gc Z5` punkty 2-5, 7, 8. Punkt 6 (dwa `RemoveCompOne` na pocisk) rozstrzygnięty:
+goke v3.5.0 nie ma zdjęcia kilku komponentów naraz; `orch/scheduler.go:107-127` wykonuje
+każdą komendę osobno przez `mutator.RemoveComp`, więc pocisk przechodzi dwa archetypy.
+Zostaje jak jest; pozycja wraca w etapie 4 jako uwaga dla goke. Punkty bez benchmarku
+wchodzą tylko, gdy etap 0 pokazał je w gctrace albo są oczywiście per klatka (Sprintf nazw
+lamp, boxowanie uniformów przy wypieku cienia).
+
+---
+
+## Etap 2. Nawigacja
+
+`plans-gc Z2`, potem `plans-gc Z3` od kroku 2 (benchmark z kroku 1 zrobił etap 0). Bez
+zmian w treści, z jedną poprawką metody: każdy krok mierzony także profilem CPU, bo
+alokacje w `Neighbors` i closures to jedno, a koszt samego A* przy nieudanych ścieżkach to
+drugie, i decyzja o back-off (Z3 krok 3) ma wynikać z profilu reżimu "pod murem", nie z
+liczby alokacji. Równolegle z etapem 3: inne pliki.
+
+---
+
+## Etap 3. aabbworld czyta kolumny chunków zamiast kopii Item
+
+**Skille:** `goke` (model chunków, `ChunkSnapshot`), `gram-plugin`, `gram-plugins` (world,
+motion, collision). Dwa repozytoria: aabbworld (API) i gram (adaptacja). Po etapie 1B i 1C,
+żeby zysk mierzyć wobec nowego punktu odniesienia.
+
+**Problem.** `motion.moveSystem.rebuild` (`plugins/motion/move_system.go`) kopiuje co tick
+każdy `Base` (104 B) do `aabbworld.Item` (80 B) i woła `remember` per identyfikator: 35%
+ticku. `collision.rebuild` (`collision_system.go:378`) robi to drugi raz, gdy zmienią się
+Caps albo trwa sweep; `world.indexSystem` trzeci, po spawnie. Silnik kolizji pcha pudełka
+w kopii, a `collision.moved` (:686) przepisuje je do `Base` przez `Seek` na każdą pchniętą
+encję. Pozycja żyje dwa razy na tick, a między nimi jest kopiowanie w obie strony.
+
+**Kształt.** `Space.Rebuild` przyjmuje przebiegi zamiast Item: przebieg to `ids []uid.UID64`,
+wskaźnik bazowy kolumny, stride, offset pudełka (`plane.AABB`), offset `Capability`,
+długość. `Grid.index` (`internal/spatial/grid.go:82`) i `Pairs` (:216) czytają pudełko spod
+`base + i*stride + boxOff`, bez funkcji wywoływanych per element (między modułami nie
+zainlinują się). Pozycja `at int32` zostaje płaska przez sumy prefiksowe długości przebiegów;
+`gridCell` dostaje kopię identyfikatora, żeby `Query` (:185) nie szukało przebiegu.
+W gram `Base` ma pudełko pod offsetem 0 i Caps pod 100, więc jeden przebieg na chunk z
+zapytania po `Base`. Dla sweepów (pudełko rozciągnięte, którego nie ma w kolumnie) zostaje
+mała lista Item doklejana za przebiegami; to pociski, dziesiątki.
+
+**Kroki.**
+1. aabbworld: nowe wejście `Rebuild` obok starego (stare zostaje dla testów i dla listy
+   sweepów), `Grid` z przebiegami, `Items()` dla silnika kolizji jako widok po `at`. Silnik
+   (`internal/collide/engine.go:62` `Tick`) pisze pchnięte pudełka wprost pod adres
+   przebiegu, czyli do `Base.Pos`. Testy fazy szerokiej (`broad_phase_test.go`) w obu
+   wejściach muszą dawać te same pary.
+2. Kontrakt do spisania w godoc `Rebuild`: pamięć przebiegów musi stać do ostatniego `Query`
+   lub `Tick` przed następnym `Rebuild`. W gram to oznacza: `Rebuild` po każdym `Sync` goke,
+   bo swap-and-pop przy migracji przenosi encje między slotami. Strażnik: `TableVer` ze
+   `ChunkSnapshot`; przebiegi zbiera się ponownie, gdy wersja którejkolwiek tabeli się zmieniła.
+   Zebranie przebiegów jest liniowe w liczbie chunków, więc po każdym `Sync` jest tanie.
+3. gram motion: `rebuild` zbiera przebiegi z `held` (`Base` bez `sector.Off`), nie Item.
+   gram world: `indexSystem` i `unindexed` (`module.go:202`) znikają albo sprowadzają się do
+   ponownego zebrania przebiegów. gram collision: `rebuild` bez kopii poza sweepami; `moved`
+   bez `Seek`. Weto z `moved` (`response.Worse`: ruch na gorszy grunt odrzucony, `stale`)
+   musi zostać: albo jako sprawdzenie w `Touch` silnika przed pchnięciem, albo jako przejście
+   po `Tick` po liście pchniętych, które cofa pudełko. Wybrać to, co zachowa dzisiejsze testy
+   kolizji i probe mechanisms/platformer bez zmiany zachowania.
+4. Pomiar: `Benchmark_World_Tick` i `Benchmark_Collision_Tick` z profilem przed i po;
+   oczekiwanie: `rebuild` schodzi do ułamka procenta, `seek` znika z profilu kolizji.
+   Probe na kopiach motion/collision, motion/bullet (sweepy), navigation/spawn (spawn i
+   despawn w biegu, czyli `Sync` między ruchem a kolizją).
+
+**Poza zakresem.** Jakakolwiek zmiana w tym, co faza szeroka zwraca. Wersje per chunk
+(etap 4): tu wystarczy `TableVer`.
+
+---
+
+## Etap 4. goke: wersje zmian per chunk
+
+**Skille:** `goke` (`scripts/api.sh`, release flow). Praca w `/home/karol/CODE/goke`.
+Po etapie 3, bo przebiegi z etapu 3 są konsumentem, który pokaże, czy wersje są potrzebne
+poza GPU (zapis gry, sieć).
+
+**Co jest.** `Table.version` (`internal/colstore/table.go`) rośnie tylko przy usunięciu
+i relokacji; `ChunkSnapshot` (`internal/bulk`, `internal/query/matcher.go:212`) niesie
+`ChunkPtr` i `TableVer`; o zapisach danych goke nie wie nic; `Cursor` (`iter/cursor.go`) ma
+`Base`, `Offsets`, `IDs`.
+
+**Kształt.**
+1. `vers []uint32` w `chunk.Pack` (`internal/chunk/pack.go`) równolegle do `chunks`;
+   `AddChunks`, `trimTrailing` (:134), `SwapChunks` (:161) utrzymują. Nie w pamięci chunka:
+   kolumna identyfikatorów zostaje pod offsetem 0 (MassMigrate na tym polega).
+2. `Cursor.Ver *uint32`, ustawiany w `Table.FillCursorNext` (:145) i w `Seek`.
+3. Akcesor `Mut[T]` jak `Comp[T]` (`comp.go:26-29`), którego `Slice`/`At` robią inkrement
+   przez `cur.Ver`. `Comp[T]` zostaje odczytem. Licznik monotoniczny per chunk, bez zegara
+   globalnego; konsument pamięta ostatnią widzianą wartość.
+4. `ChunkSnapshot.Ver`. Reguła dla konsumenta: zmieniła się `TableVer`, to cała tabela od
+   nowa; nie zmieniła się, to porównanie `Ver` per chunk.
+5. Tryb testowy (build tag albo opcja ECS): w `Sync` skrót bajtów chunka porównywany z
+   poprzednim; zmiana bez `Mut` to panika z nazwą archetypu. Go nie ma wycinków tylko do
+   odczytu, więc to jedyna egzekucja kontraktu.
+
+**Koszt do potwierdzenia benchmarkami goke:** jeden zapis wskaźnika na chunk na zapytanie,
+jeden inkrement na `Slice` przez `Mut`, zero w ciele pętli. `bench/` goke przed i po, jak
+w `BENCHMARKS.md` goke.
+
+**Uwaga do CmdBuf (z 1F).** Zdjęcie kilku komponentów jedną komendą to osobna, planowana
+zmiana (zbiorcze operacje strukturalne); tu tylko odnotować w raporcie, nie robić.
+
+**W gram, po wydaniu:** podbicie goke, przejście systemów piszących `Base` na `Mut`
+(motion, collision, navigation, bullet, spawn). Potem liczba z etapu 0 krok 3 wraca: jeśli
+ruch dotyka co tick każdego chunka z `Base` (bo każda encja ma `Vel` w `Base`), wersje
+mówią "wszystko brudne" i nic nie dają rendererowi. Decyzja do podjęcia wtedy, nie teraz:
+tag `Still` nadawany przez velocity, gdy prędkość spada do zera, i wykluczany z zapytania
+ruchu (migracja przy każdym zatrzymaniu i ruszeniu; `BENCHMARKS.md` "Markers" mówi, ile to
+kosztuje), albo rozbicie `Base` tak, by stojąca encja nie miała `Velocity` (duża zmiana,
+`Base` jest w ponad stu plikach). Bez tej decyzji etap 5 nie ma sensu.
+
+---
+
+## Etap 5. Lustro chunków na GPU dla renderera encji. Bramka
+
+**Skille:** `gram-render`, `gram-plugins` (world), `goke`. Po etapach 1E, 3, 4 i po
+decyzji z końca etapu 4.
+
+**Bramka.** Z profilu `Benchmark_World_Draw` (etap 0): jeśli większość klatki encji to
+`rules.Run`, `view.Level` i fog per encja, a nie składanie instancji w `Sprites` (`lay`,
+`Rect`, `Turned`), lustro nic nie da, bo reguły wyglądu (animacje czasem) zmieniają warstwy
+bez zapisu do żadnego komponentu i chunk "czysty" nadal trzeba przejść. Wtedy etap zamyka
+się raportem. Jeśli składanie instancji dominuje, dalej.
+
+**Co już jest.** Ścieżka `DirectLook` w `plugins/world/internal/look/flat.go:40`
+(`Begin`, `DrawSprites`) i `render/sprites.go:119` (`Draw`): sprite'y jednym batchem
+instancjonowanym, rysowanym w kolejności Composera przez `Frame.DrawAt(lowest)`
+(`render/frame.go:99`), projekcja i kopie przy szwach torusa w vertex shaderze (`ViewProj`,
+`Wrap`, `Vertices = 6 * kopie`). Wysyłka przez pierścień staging
+(`render/gpu/staging.go`, cztery w locie). Czyli GPU już projektuje; CPU składa instancje
+per sprite per klatka.
+
+**Kształt.** Instancje trzymane na GPU per chunk w slabach (kilka dużych buforów; chunk to
+offset w slabie), odświeżane tylko dla chunków, których `Ver` lub `TableVer` się zmieniły,
+z konwersją `Base` do float32 przy wysyłce przez ten sam pierścień staging. Rysowanie jak
+dziś, jednym batchem w `DrawAt`. Warstwy i widoczność z reguł wyglądu zostają per klatka,
+ale jako mała kolumna (indeks sprite'a, flaga) obok trwałych instancji, nie jako pełne
+instancje.
+
+**Kroki.**
+1. Projekt na stronie: co jest trwałe (pudełko, kierunek, wysokość), co per klatka (warstwa,
+   flaga, fog), jak batch z trwałymi instancjami wpisuje się w `Frame.DrawAt` i w sort
+   Composera (sprite'y nieprzezroczyste przez test głębi; z alfa w dzisiejszej kolejności).
+2. Lustro jako typ w `render/gpu` albo w `plugins/world`: rejestr chunków po `ChunkPtr`
+   z wersją, alokator offsetów w slabie, wysyłka brudnych przez staging, zwalnianie po
+   zniknięciu chunka. Zero zależności goke od gogpu: wejściem są `ChunkSnapshot` i przebiegi
+   z etapu 3.
+3. Pomiar: `Benchmark_World_Draw` w trzech kadrach, przed i po, z profilem; scena z 5 000
+   encji, z których porusza się 10% (liczba z etapu 0 krok 3 jako wzór). `GRAM_SHOT` z kopii
+   motion/collision i board/topography: obrazy identyczne.
+
+---
+
+## Etap 6. Compute na GPU: wzrok nad reliefem. Bramka
+
+**Skille:** `gram-plugins` (vision, board, topography), `gram-render`, `ceremony`
+(co widzą reguły i kiedy). Po etapie 5 albo zamiast niego, gdy 5 zamknął się na bramce.
+
+**Bramka.** Z etapu 0: `Benchmark_Vision_Relief` w reżimie, w którym gra naprawdę biegnie
+(dziś "profil, 15 razy na sekundę" to 0,81 ms, "co 50 m" 7,28 ms). Jeśli produkcyjny reżim
+mieści się poniżej milisekundy, etap zamyka się raportem. Jeśli nie, dalej.
+
+**Kształt.** Raycast stożków po polu wysokości w compute shaderze gogpu/wgpu (storage
+buffer z reliefem, bufor obserwatorów, bufor wyników: widziani i zarysy), readback do
+pierścienia buforów, wyniki czytane tick później. Reguły o widzeniu (`Sighted`, listy
+widzianych) działają więc z opóźnieniem jednego ticku. To zmiana semantyki i musi być
+nazwana w dokumentacji pluginu, a probe rules/vision i rules/guard muszą pokazać, że
+myśliwy i strażnicy zachowują się tak samo przy 60 TPS.
+
+**Kroki.** Projekt na stronie (układ buforów, kiedy relief wysyłany od nowa: `Version()`
+reliefu), shader obok istniejących w `render/shaders`, system wzroku z dwoma ścieżkami
+(CPU jak dziś; GPU za flagą), pomiar w obu, probe. Faza szeroka kolizji na GPU nie jest
+planowana: pary są potrzebne w tym samym ticku, a solver pyta reguł o każdą parę; wraca
+tylko, jeśli profil z etapu 0 pokaże `Grid.Pairs` jako większość ticku kolizji.
+
+---
+
+## Co nie wchodzi
+
+- Przeniesienie `Position` na GPU jako komponentu rezydentnego (patrz decyzje na początku).
+- GPU dla ruchu, sterowania, grawitacji, wysokości: mikrosekundy.
+- Zmiana `Base` na float32: pół biblioteki i aabbworld; lustro konwertuje przy wysyłce.
+- Jakakolwiek zmiana w tym, co faza szeroka aabbworld zwraca, ani w tym, jak jednostki
+  omijają się w nawigacji.
+
+---
+
+## Etap 0: wynik (2026-10-19, `51da9307`, gałąź `perf/plans-perf`)
+
+**Co powstało.** `bench/navigation_test.go` (`Benchmark_Navigation_Tick`, open i crowded, 100
+i 1 000), `bench/bullet_test.go` (`Benchmark_Bullet_Flight`, straight i thrown, 1, 5, 20 strzałów
+na tick), `bench/text_test.go` (`Benchmark_Text_Panel`, `Benchmark_Frame_UI`, headless GPU).
+W `BENCHMARKS.md` sekcje Navigation, Shots, Text and a frame with UI, Climate, Where the time
+goes (profile jedenastu benchmarków), The demos (gctrace, klatki, GOGC, udział poruszających
+się) i noty "Stale" przy Shadows, Shores i Island. Skrypty pomiaru dem (`run_demo.sh`,
+`gcstats.sh`, `fpsstats.sh`, `medians.py`) i sondy (`probes/`) weszły pod skill `gram-probe`,
+sekcja "Measuring a demo's frames"; profile i logi dem zostały w scratchpadzie sesji.
+
+**Poprawki przesłanek planu.**
+1. Plansza nie jest już kosztem CPU klatki. Od pluginu light (`19174ed0`) `Compose` tylko
+   planuje, malowanie to przebieg GPU; `Benchmark_Board_Shadows/Shores/Island` dają ~0,1 µs.
+   Liczby "wyspa 1,8-4 ms, cienie i brzegi 4-5 ms" z początku planu są nieaktualne. Punkt 3
+   kandydatów ("światło, cienie i brzegi") skreślony; koszt rysowania planszy mierzą dema
+   (topography: drawing 0,88 ms na klatkę).
+2. GC nie jest kosztem klatki w żadnym demie: 0,17-0,45 cyklu na sekundę, skumulowany udział
+   CPU 0%, `GOGC=200/400` bez wpływu na tick i rysowanie, tylko wyższy szczyt sterty. Etap 1F
+   i `plans-gc` Z4/Z5 to porządek, nie wydajność; zostają bez oczekiwania zysku w milisekundach.
+3. Największy koszt na tick to nawigacja: 1 000 jednostek 10,8 ms w otwartym polu i 270 ms w
+   tłoku; A* 55-81%, pod nim odczyty komórek przez mapy (`Cells.Kind`/`KindAt`,
+   `Square.Toward`, `boardLevels.Deck`). Etap 2 ma zacząć od ścieżki A* (`Price`, `KindAt`,
+   `Toward`), nie od alokacji, i idzie przed etapem 3.
+4. Udział poruszających się encji na tick: dema planszy 5%, expanse 5% ze 100 000 (pasma),
+   dema ruchu 100%. Śledzenie zmian per chunk (etap 4 i 5) ma sens w demach z planszą, nie w
+   motion. Scena `World_Draw` ma 100% z konstrukcji.
+5. Bramka etapu 5 otwarta: w `World_Draw` składanie instancji (`Flat.Sprite`/`lay`,
+   `VisitWrapImages`, `Sprites.Rect`) to 59% klatki, praca per encja 22%.
+6. Bramka etapu 6 zamknięta w reżimie produkcyjnym: profil przy 15 Hz to 0,68 ms; "co 50 m"
+   6,6 ms. Etap 6 zostaje warunkowy na gęstsze próbkowanie.
+7. Tekst: panel 261 µs i 486 alokacji; 28% to wywołania Vulkana przez goffi, 28% glify.
+8. Kolizje: solver 30%, przemiatanie par 18%, gram's `rest` 19% (w tym `met` 13% flat), `Seek`
+   w `moved` 3%. Faza szeroka nie dominuje, więc kolizje na GPU zostają wykluczone; nowy, tani
+   kandydat: `collisionSystem.rest` (do etapu 1 albo 3).
+
+**Pokrycie liczbami.** 1A: brak benchmarku overlayu; pomiar przed i po w demie topography
+(drawing 0,88 ms). 1B: tak (`archHypot` 20% ticku). 1C: tak (`Translate` 27%). 1D: tak (1 alloc
+na tick). 1E: tak (`Frame_UI`, `Text_Panel`, `cgocall` 20-28%). 1F: częściowo (telemetria przez
+`Text_Panel`; lampy bez liczby). 2: tak. 3: tak (`rebuild` 34%, `Seek` 3%). 4: tak (udziały
+poruszających się). 5: tak, bramka otwarta. 6: tak, bramka zamknięta.
