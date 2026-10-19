@@ -2,7 +2,8 @@
 # run_demo.sh build <demo dir> <probe.go or a probes/ dir> <work dir>: copies the demo into a
 # module of its own under the work dir, hooks the probe into the copy (no tempo change) and
 # builds <work dir>/bin.
-# run_demo.sh run <work dir> <real seconds> <log file>: runs the binary under timeout, the
+# PROBE_SEED fixes the demo's random seed, PROBE_SED edits the copied demo's .go files (a sed
+# expression). run_demo.sh run <work dir> <real seconds> <log file>: runs the binary under timeout, the
 # environment passed through, the whole output kept in the log file.
 set -e
 R=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
@@ -13,6 +14,7 @@ build)
 	cp -r "$R/$2"/* "$W/demo/"
 	if [ -d "$3" ]; then cp "$3"/*.go "$W/demo/"; else cp "$3" "$W/demo/zz_probe.go"; fi
 	[ -n "$PROBE_SEED" ] && sed -i "s/uint64(time.Now().UnixNano())/$PROBE_SEED/" "$W/demo/demo.go"
+	[ -n "$PROBE_SED" ] && sed -i "$PROBE_SED" "$W"/demo/*.go
 	GOV=$(sed -n 's/^go //p' "$R/go.mod")
 	printf 'module probe\n\ngo %s\n' "$GOV" > "$W/demo/go.mod"
 	{
