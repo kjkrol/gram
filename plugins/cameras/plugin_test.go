@@ -228,7 +228,7 @@ func TestSettings_AreTheZonesAndThePicturesInTheirSectionsEachBuildingItsCommand
 	}
 	for i, want := range []struct{ label, section string }{
 		{"Scroll zones", ""},
-		{"Resolution follows the frame budget", control.PictureResolution},
+		{"Follows the frame budget", control.PictureResolution},
 		{"Resolution", control.PictureResolution},
 		{"Frame budget", control.PictureAdaptive},
 		{"Drawn in rings", control.PictureRings},

@@ -209,7 +209,7 @@ func (p *Plugin) Settings() []control.Setting {
 			Set:   func(on bool) command.Command { return Zones{Shown: on} },
 		},
 		control.Choice{
-			Label:   "Resolution follows the frame budget",
+			Label:   "Follows the frame budget",
 			Section: control.PictureResolution,
 			Options: []string{"no", "the whole picture", "in rings"},
 			Get:     func() int { return int(s.Strategy) },
