@@ -371,3 +371,53 @@ sekcja "Measuring a demo's frames"; profile i logi dem zostały w scratchpadzie 
 na tick). 1E: tak (`Frame_UI`, `Text_Panel`, `cgocall` 20-28%). 1F: częściowo (telemetria przez
 `Text_Panel`; lampy bez liczby). 2: tak. 3: tak (`rebuild` 34%, `Seek` 3%). 4: tak (udziały
 poruszających się). 5: tak, bramka otwarta. 6: tak, bramka zamknięta.
+
+---
+
+## Etap 1: wynik (2026-10-19, gałąź `perf/plans-perf`, HEAD po scaleniach)
+
+Wykonanie równoległe w pięciu worktree, scalenie fast-forward w kolejności W2, W4, W1, W5, W3,
+pomiar po każdym scaleniu naprzemiennie z kopią stanu sprzed. Liczby to mediany z 12 (tick,
+klatki) lub 8 (kolizje) biegów.
+
+| Część | Przed | Po | Uwagi |
+|:--|--:|--:|:--|
+| 1B+1D tick świata 5 000 / 1 000 | 215 / 44,5 µs, 1 alloc | 169 / 35,2 µs, 0 alloc | `archHypot` znika; `clampStep` dopiero teraz inlinuje się (z `Hypot` przekraczał budżet) |
+| 1D kolizje, alokacje | 3 na tick | 0 | dwie closures `Simulate` i method value `RolesOf` w `world.module.tick` |
+| 1G kolizje 8 388 pudełek | 4,06 ms | 3,35 ms | `rest` 20,7% → 5,9%; `contacts/tick` identyczne w sześciu scenach; 10×10 przy 40% 2,95 → 2,64 ms |
+| 1A kopia widoków, ciepła, płaska / relief | 925 µs / 1,57 ms | 16 / 21 ns | `Benchmark_Views_Copy` (nowy, `plugins/vision`); zmiana komórki bez zmian 2,1 / 2,8 ms |
+| 1E+1F panel tekstu | 273 µs, 486 alloc, 149 KB | 240 µs, 452 alloc, 20 KB | reszta alokacji to boxowanie argumentów `vkCmd*` w HAL gogpu (~36 na draw) i `fmt` benchmarku |
+| 1E+1F klatka z UI | 532 µs, 703 alloc, 160 KB | 472 µs, 646 alloc, 28 KB | `World_Draw` bez zmian (0 alloc) |
+| 1E+1F motion/collision, alokacje na klatkę | 152 | 119 | sonda `MemStats`, vsync włączony |
+| 1C aabbworld `Translate` inside, euklides / torus | 13 / 16 ns | 8 / 9 ns | warunek w samym `Translate`, `move` nie inlinuje się (koszt 138 > 80) |
+| 1C tick świata 5 000 / 1 000 z lokalnym aabbworld | 168 / 35,2 µs | 128 / 27,0 µs | łącznie z 215 µs: −40%; `rebuild` ma teraz 54% |
+
+**Pomiar 1A w demie nie zadziałał jako dowód.** Sonda wybierała obserwatora i włączała kamerę
+podążającą (C), ale „drawing” w `GRAM_FPS_LOG` został przy 0,9 ms, a FPS bez vsync dryfował
+±15% między parami. Jednostki gracza w topography są zaznaczone od spawnu, więc overlay był
+rysowany już w etapie 0, a jego koszt leżał poza trzema licznikami klatki. Stąd benchmark
+`Benchmark_Views_Copy`, który mierzy dokładnie usuniętą pracę; zrzuty klatki 600 i 1500 z
+`PROBE_SEED=7` różnią się 65 i 144 pikselami z 786 tys. Demo motion/collision losuje prędkości
+bez ziarna, więc jego zrzuty nie są porównywalne między biegami; porównywalna jest sonda alokacji.
+
+**Kontrakt wgpu v0.34.5 dla etapu 5** (natywny backend): `BeginRenderPass` kopiuje deskryptor,
+`Submit` nie trzyma wycinka, `WriteBuffer` kopiuje; `SetBindGroup` oddaje wycinek offsetów
+backendowi i GLES trzyma go do `Submit`, więc gram ma arenę offsetów resetowaną po `Submit`
+i stały `zeroOffsets` dla Present. Pułapka `presented[k]` (aliasowanie z reużytym buforem)
+rozwiązana własną kopią. Każde wywołanie natywne to jeden `runtime.cgocall` przez goffi plus
+`__errno_location`; HAL Vulkana boxuje argumenty każdego `vkCmd*`, ok. 36 alokacji na draw: to
+dolna granica alokacji klatki z tekstem, poza zasięgiem gram.
+
+**aabbworld.** Zmiany 1C są w staging na gałęzi `perf/translate-inside` w
+`/home/karol/CODE/aabbworld` (commit zablokował klasyfikator trybu auto): `surface.go`,
+`space_translate_test.go`, `bench/plane_test.go` (`across`/`inside`), `BENCHMARKS.md`,
+`CHANGELOG.md` (nagłówek v1.13.0). Właściciel: `git commit -m 'perf(plane): a box inside the
+world is moved without folding it'`, tag v1.13.0, podbicie `gram/go.mod`. `/home/karol/CODE/go.work`
+przywrócony bez aabbworld; gram buduje v1.12.0 z cache (tick 164 µs), zysk 1C wchodzi po podbiciu.
+
+**Pominięte i uwagi.** Cache „raz na klatkę” odczytu tekstu etykiety w ui (4 odczyty na klatkę)
+nie zrobiony, telemetria odświeża tekst co 250 ms, co zeruje ten koszt tam. `DrawImageIn`
+nadal robi własny wycinek uniformów (jedna linia, jeśli chcieć). `cast.go` `set` boxuje wycinek
+przy każdym wywołaniu (24 B). plans-gc Z1, Z4, Z5 zrobione; Z2, Z3 to etap 2; Z6 to etap 0.
+Nowy punkt odniesienia dla etapu 3: tick świata 5 000 encji 169 µs (128 µs z aabbworld v1.13.0),
+z czego kopia Base do Item 54%.

@@ -17,7 +17,9 @@ old and the new tree **alternately**, never one run each; see [How to benchmark]
 All benchmarks live in [`bench/`](bench/) and build their Stage the way a game does — plugins
 installed through a headless `game.Initializer`, entities spawned from kinds — then tick the ECS
 directly, with no window. "0 allocs/op" means a steady tick allocates nothing; the small B/op on
-the larger scenes is the amortised growth of buffers kept between ticks.
+the larger scenes is the amortised growth of buffers kept between ticks. Since etap 1 of
+`doc/plans-perf.md` (2026-10-19) the world and the collision ticks allocate nothing; a frame
+with text, a frame with UI and the navigation tick still do (their sections say how much).
 
 ## World tick — `Benchmark_World_*`
 
@@ -31,6 +33,14 @@ entity's `Base` through a goke query, chunk by chunk. The boxes stand on a 30-un
 |:---|---:|---:|
 | 1,000 boxes, 20×20 each, on a 4000×4000 torus | 40 µs | 2.4 µs |
 | 5,000 boxes, 20×20 each, on the same torus | 199 µs | 12.1 µs |
+
+After etap 1 of `doc/plans-perf.md` (2026-10-19, medians of 12 runs, the tree before and after
+alternately): 1,000 boxes 35 µs and 5,000 boxes 169 µs, 0 allocs/op — `clampStep` compares
+squares instead of calling `Hypot` (and inlines now, which the `Hypot` version did not), and every
+plugin's simulation block is bound once. With aabbworld's `Translate` keeping a box inside the
+world where it is (v1.13.0 once tagged; measured against the local tree): 27 µs and 128 µs, a
+tick 40% shorter than at the start of the day. What is left is the copy of every `Base` into the
+space (54%), the one etap 3 removes.
 
 ### Drawing — `Benchmark_World_Draw`
 
@@ -102,6 +112,12 @@ side, each heading somewhere at random, after 120 ticks so the boxes have spread
 | boxes 8×8, covering 20% | 3,276 | 995 µs | 233 |
 | boxes 5×5, covering 20% | 8,388 | 2.88 ms | 916 |
 
+After etap 1 (2026-10-19, medians of 8 runs alternately, the same contacts a tick in every scene):
+20×20 at 20% 143 µs, at 40% 547 µs; 10×10 at 20% 647 µs, at 40% 2.64 ms; 8×8 1.04 ms; 5×5
+3.35 ms — `rest` finds the pairs met this tick in a set instead of scanning `contacts` for each
+(19% of the 5×5 tick down to 6%), and the tick allocates nothing (it made 3 allocations a tick:
+two simulation closures and a method value in the world's tick, all bound once now).
+
 The cost follows the entity count more than the contact count: at the same coverage, halving
 the box side quadruples the population and roughly quadruples the tick, while doubling the
 coverage at one size quadruples the contacts and the tick alike.
@@ -158,6 +174,25 @@ The profile reads two or three points a cell where a cell's step reads one, and 
 step of a cell misses a crest between its samples. In board-topography at 2560×1440 a tick went
 from 14–95 ms (every 50 m, the engine catching up on several ticks a frame) to 2–3 ms with the
 profile at 15 a second, the frame bound by the GPU.
+
+### The views' copy — `Benchmark_Views_Copy`
+
+One frame's copy of the ground and the cover for the views of the observers (the sight overlay
+drawn for a selected unit), over a 192×96 board of 32-px cells, in `plugins/vision`
+(`go test ./plugins/vision -bench Views_Copy`); medians of 8 runs at `84fde7e1`, 2026-10-19.
+"warm" is a frame in which nothing changed, "changed" a frame after a cell's kind changed.
+
+| Ground | Warm, before | Warm, after | Changed |
+|:---|---:|---:|---:|
+| flat | 925 µs | 16 ns | 2.1 ms |
+| relief | 1.57 ms | 21 ns | 2.8 ms |
+
+Before etap 1 the copy was made anew every frame with an observer on screen, because the board's
+cover kept no count for the cache's key (`plans-gc.md` task 1); the `Field` now reports the
+cells' `Version` and `Changes`, and the copy is kept until a cell or the relief changes. A change
+still costs the whole copy, 18,500 allocations in 2.7 MB: the walk's closures and the encoding.
+The demos' `GRAM_FPS_LOG` does not show it: board/topography's drawing stayed at 0.9 ms with the
+camera following a selected unit, so the overlay's cost was outside the frame's three timers.
 
 ## Ground — `Benchmark_Board_GroundAt`
 
@@ -349,8 +384,8 @@ quads — the tiles, their outlines, the glints and the ways.
 * **Terrain costs what the rays and the units touch.** Collision and sight read the cells in
   place, so a scattered forest costs about what a compact one does, and cutting a tree costs a
   write.
-* **Zero allocations once warm.** Every benchmark reports 0 allocs/op after the first ticks have
-  grown the buffers.
+* **Zero allocations once warm.** The terrain benchmarks report 0 allocs/op after the first ticks
+  have grown the buffers.
 
 ## Behaviour — `Benchmark_Plans_Tick`, `Benchmark_Rules_Moving`, `Benchmark_Effects_Tick`
 
@@ -468,6 +503,13 @@ the whole screen, the same panel and a button over it.
 | the text panel | 261 µs | 486 / 149 KB |
 | the world, the panel and a button | 508 µs | 703 / 160 KB |
 
+After etap 1 (2026-10-19, medians of 12 runs alternately): the panel 240 µs and 452 allocations
+in 20 KB, the frame with UI 472 µs and 646 in 28 KB — the GPU device keeps its passes, submits,
+bind offsets and the present quad, text is drawn without splitting its lines and the pieces are
+kept. The allocations left are mostly gogpu's: its Vulkan HAL boxes every `vkCmd*` argument for
+the FFI call (`hal/vulkan/vk/commands_gen.go`), about 36 a draw, plus the benchmark's own `fmt`
+of the 20 lines; a frame of 4 draws cannot go below about 240 on this backend.
+
 The panel's 261 µs are 28% calls into Vulkan (`runtime.cgocall` under goffi), 28% the glyph
 pieces (`gpu.DrawPieces`, `device.triangles`), 6% the font's glyph index (`sfnt`) and the rest
 the text's own building; its 486 allocations a frame are the `fmt` of the lines and the pieces.
@@ -493,15 +535,15 @@ light plugin, composing them is planning only, the painting a GPU pass (see thei
 
 | Benchmark | Where |
 |:---|:---|
-| `World_Tick/5000` (212 µs) | `motion.moveSystem.rebuild` (the copy of every `Base` into `aabbworld.Item`, `Grid.Rebuild`, `remember`) 34% cum; `clampStep` 27% cum, of it `math.archHypot` 20%; `aabbworld.Surface.Translate` 27% cum (`fold` 14%, `move`, `wrap` 6%) |
-| `Collision_Tick/rect=5,fill=20%` (4.1 ms, 917 contacts) | `collide.Solver.Solve` 30% cum (`penetration` 10%); `spatial.pairSweep.visit` 18% cum, `add` 6%, `sort` 2%; `collisionSystem.rest` 19% cum, of it `met` 13% flat; `mark` 5%; motion's `Update` 9% (`rebuild` 3%); `addr.Index.GetUnchecked` (the `Seek` in `moved`) 3% |
+| `World_Tick/5000` (212 µs; after etap 1 128 µs: `rebuild` 54%, `Translate` 14%, `inside` 6%, `clampStep` 5%) | `motion.moveSystem.rebuild` (the copy of every `Base` into `aabbworld.Item`, `Grid.Rebuild`, `remember`) 34% cum; `clampStep` 27% cum, of it `math.archHypot` 20%; `aabbworld.Surface.Translate` 27% cum (`fold` 14%, `move`, `wrap` 6%) |
+| `Collision_Tick/rect=5,fill=20%` (4.1 ms, 917 contacts; after etap 1 3.35 ms: `Solve` 33%, `visit` 26%, `rest` 6%) | `collide.Solver.Solve` 30% cum (`penetration` 10%); `spatial.pairSweep.visit` 18% cum, `add` 6%, `sort` 2%; `collisionSystem.rest` 19% cum, of it `met` 13% flat; `mark` 5%; motion's `Update` 9% (`rebuild` 3%); `addr.Index.GetUnchecked` (the `Seek` in `moved`) 3% |
 | `Vision_Relief/step=50m` (6.6 ms) | `raycast.castElevated` 99% cum; `relief.Relief.GroundAt` 62% cum (31% flat), `index` 10%, `corner` 12%; `vision.scanner.sunkGround` 74% cum; `raycast.ray.ground` 8% |
 | `Vision_Relief/profile,15Hz` (0.68 ms) | `raycast.castElevated` 93% cum; `relief.Relief.Along` 56% cum (21% flat), `folded` 13%, `cellCorners` 10%; `field.Field.walkSquare` 18% cum; `ray.ground` 9% |
 | `World_Draw/view=100%` (427 µs, 0 allocs) | `renderer.Compose.func1` (the per-entity work) 22% flat; `look.Flat.Sprite` 59% cum, of it `lay` 42% (`render.VisitWrapImages` 36%, `Sprites.Rect` 20%, `piece` 9%); `Frame.At` 9%; map lookups 9% |
 | `Navigation_Tick/open,1000` (8.6 ms) | `navigationSystem.Update` 91% cum; the A* `pathfind.Finder.leveledFor.func1` 55% cum, `Price` 19%; `boardLevels.KindAt` 17% cum, `terrain.Cells.Kind` 13% (9% flat), `KindAt` 14%; `grids.Square.Toward` 8%, `DiagonalNeighbors` 9%, `wrapModI64` 4%; `boardLevels.Deck` 6% |
 | `Navigation_Tick/crowded,1000` (299 ms) | the A* 81% cum, `Price` 27%, `enterable` 17%; `boardLevels.KindAt` 20% cum, `Cells.Kind` 15% (10% flat), `Cells.KindAt` 17%; `grid.Way` 12%; `Square.Toward` 10%; `runtime.mapaccess2` 6% |
-| `Text_Panel` (258 µs) | `runtime.cgocall` 28% (Vulkan through goffi); `render.DrawText` 41% cum, `gpu.DrawPieces` 28%, `device.triangles` 24%; `sfnt` glyph index 6%; `memmove` 5%; `AppendUint32` 4% |
-| `Frame_UI` (508 µs) | `runtime.cgocall` 20%; `world.renderer.each` 29% cum; `gpu.Mesh` 13%; `device.triangles` 15%; `gpu.DrawPieces` 14% |
+| `Text_Panel` (258 µs; after etap 1 252 µs: `cgocall` 28%, `gather` 18%, `sfnt` 7%) | `runtime.cgocall` 28% (Vulkan through goffi); `render.DrawText` 41% cum, `gpu.DrawPieces` 28%, `device.triangles` 24%; `sfnt` glyph index 6%; `memmove` 5%; `AppendUint32` 4% |
+| `Frame_UI` (508 µs; after etap 1 518 µs: `cgocall` 15%, `Mesh` 12%, `Compose` 25% cum) | `runtime.cgocall` 20%; `world.renderer.each` 29% cum; `gpu.Mesh` 13%; `device.triangles` 15%; `gpu.DrawPieces` 14% |
 
 What they say: the world tick is the copy for the space (a third), `Hypot` (a fifth) and the
 torus arithmetic (a quarter), not the iteration; the collision tick is the solver and the pairs
@@ -532,6 +574,11 @@ whose box changed between two ticks, sampled every second.
 | motion/collision | 0.25/s | 45 MB, 126 MB | 10.5 ms | 1.48 ms | 0.26 ms | 100% of 8,388 |
 | look/animation | 0.30/s | 22 MB, 104 MB | 0.14 ms | 0.35 ms | 0.21 ms | 35% of 5 |
 | rules/dialog | 0.18/s | 22 MB, 96 MB | 0.13 ms | 0.25 ms | 0.20 ms | 0% of 3 |
+
+After etap 1 the frame's heap allocations in motion/collision (a probe reading
+`runtime.MemStats` once a second, vsync on) went from 152 to 119 a frame; the pictures of
+board/topography and look/light at frame 120 with a fixed seed are the same before and after
+(65–79 of 400–800 thousand pixels differ, the clouds' and the animations' timing).
 
 With vsync off, the frame rate and a frame's costs (the tick is then spread over many frames):
 

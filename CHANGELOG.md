@@ -19,6 +19,21 @@ entities. Nor those made before motion left the world: `world.Outside` is `motio
 those made before the light became a plugin: `entity.Shadow` is `light.Shadow`, and the
 atmosphere's entity carries a `light.Source` and a `light.Shining`.
 
+**Faster ticks and frames** (2026-10-19, etap 1 of `doc/plans-perf.md`)
+- The world tick at 5,000 boxes from 215 to 169 µs and no allocations: `clampStep` compares
+  squares instead of calling `Hypot`, every plugin's simulation block and the world tick's roles
+  reader are bound once. With aabbworld v1.13.0 (`Translate` keeps a box inside the world where
+  it is) 128 µs.
+- The collision tick at 8,388 boxes from 4.06 to 3.35 ms and no allocations: `rest` finds the
+  pairs met this tick in a set, not a scan of the contacts.
+- The views' ground and cover are copied once, not every frame: the board's cover keeps the
+  cells' `Version` and `Changes`; `Benchmark_Views_Copy`.
+- `render/gpu` keeps its passes, submits, bind offsets (an arena reset after `Submit`, as GLES
+  keeps the slice till then) and the present quad; text is drawn without splitting its lines,
+  the glyph pieces kept; the telemetry panel's text refreshed four times a second; the lamps'
+  uniform names and the bake's strips kept; the input buffer swapped, spawn groups reused.
+- `gram-probe`: `run_demo.sh` takes `PROBE_SEED`.
+
 **The light** (2026-10-19)
 - `plugins/light`: the light over a world as one plugin (`light.NewPlugin(world,
   Config{LampShadows})`, made before the board and the topography). What shines is an entity

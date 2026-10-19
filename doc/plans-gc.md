@@ -29,6 +29,8 @@ więc rusza po tym, jak 2 wejdzie do `main`, albo rebase'uje się na nie. Zadani
 
 ## Zadanie 1. Overlay wizji liczony co klatkę
 
+Zrobione w etapie 1 planu `plans-perf.md` (2026-10-19, `83d06226`): `Field.Version`/`Changes`.
+
 **Skille:** `gram-plugin`, `gram-plugins` (vision, board), `gram-render`.
 
 **Problem.** `plugins/vision/views.go`, `views.copy` (ok. linia 250): cache próbki podłoża
@@ -145,6 +147,10 @@ nawzajem; zasada "nigdy nie widzi innych z wyprzedzeniem" zostaje.
 
 ## Zadanie 4. `gpu.Present` i `SetBindGroup` bez alokacji na klatkę
 
+Zrobione w etapie 1 (2026-10-19, `ec19a56d`, `7590e704`): arena offsetów resetowana po
+`Submit` (GLES trzyma wycinek), deskryptory i bufory komend jako pola, `presented` jako własna
+kopia.
+
 **Skille:** `gram-render`.
 
 **Problem.** `render/gpu/ops.go`: `Present` (linia 132) robi `uniforms := make([]byte,
@@ -175,6 +181,9 @@ jeden mały slice na draw.
 ---
 
 ## Zadanie 5. Drobne alokacje per klatka i per tick
+
+Zrobione w etapie 1 (2026-10-19): 1 `e5581a5a`, 2 `3fd6003c`, 3 `8f5d5916`, 4 `28390e26`,
+5 `0a319825`, 7 i 8 `a6592f2d`; 6 zostaje (goke nie ma zdjęcia kilku komponentów naraz).
 
 **Skille:** `gram-plugin`, `gram-render` (dla fontu), `gram-plugins` (telemetry, world, bullet).
 
