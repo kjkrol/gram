@@ -10,8 +10,11 @@ import (
 )
 
 type perspCamera struct {
-	world        geom.Vec
+	world geom.Vec
+	// camera pixels, the shown ones times res; the field of view fixed, the window is the same
+	// at any resolution
 	viewportSize geom.Vec
+	res          float32
 	// the stick, out of a unit: its foot in the middle of the screen, the eye length along it,
 	// turned by heading and leaning by pitch, lifted lift over what the cage makes solid
 	foot    [3]float32
@@ -74,7 +77,7 @@ func newPerspCamera(
 		cell: o.Cell, headroom: o.Headroom, ground: ground, extent: extent,
 		viewportSize: geom.NewVec(viewport.BottomRight.X-viewport.TopLeft.X,
 			viewport.BottomRight.Y-viewport.TopLeft.Y),
-		heading: heading, pitch: pitch, narrow: 1, length: 4 * o.Cell}
+		heading: heading, pitch: pitch, narrow: 1, length: 4 * o.Cell, res: 1}
 	c.CenterOn((viewport.TopLeft.X+viewport.BottomRight.X)/2,
 		(viewport.TopLeft.Y+viewport.BottomRight.Y)/2, 0)
 	return c
@@ -141,10 +144,10 @@ func (c *perspCamera) out() [3]float32 {
 func (c *perspCamera) bounded(length float32) float32 {
 	shortest, longest := c.cell, float32(math.Hypot(c.world.X, c.world.Y))
 	if c.maxZoom > 0 {
-		shortest = max(shortest, c.focal()/c.maxZoom)
+		shortest = max(shortest, c.focal()/(c.maxZoom*c.res))
 	}
 	if c.minZoomCfg > 0 {
-		longest = min(longest, c.focal()/c.minZoomCfg)
+		longest = min(longest, c.focal()/(c.minZoomCfg*c.res))
 	}
 	return min(max(length, shortest), max(longest, shortest))
 }
@@ -388,9 +391,19 @@ func (c *perspCamera) SetViewport(w, h float32) {
 	if w <= 0 || h <= 0 {
 		return
 	}
-	c.viewportSize = geom.NewVec(float64(w), float64(h))
+	c.viewportSize = geom.NewVec(float64(w*c.res), float64(h*c.res))
 	c.look()
 }
+
+// SetResolution has the camera drawn at s of the pixels it is shown at; its window stays.
+func (c *perspCamera) SetResolution(s float32) {
+	k := float64(s / c.res)
+	c.viewportSize = geom.NewVec(c.viewportSize.X*k, c.viewportSize.Y*k)
+	c.res = s
+	c.look()
+}
+
+func (c *perspCamera) Resolution() float32 { return c.res }
 
 func (c *perspCamera) Project(x, y, z float32) (float32, float32) {
 	sx, sy := c.proj.Project(x, y, z)

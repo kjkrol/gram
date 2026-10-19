@@ -141,13 +141,18 @@ func (p *picture) draw(e *Element, dst *render.Image) {
 	if img == nil {
 		return
 	}
-	x, y := float32(math.Round(box.TopLeft.X)), float32(math.Round(box.TopLeft.Y))
+	op := &render.DrawImageOptions{}
+	w, h := size(box)
+	bw, bh := math.Round(w), math.Round(h)
+	if iw, ih := img.Bounds().Dx(), img.Bounds().Dy(); float64(iw) != bw || float64(ih) != bh {
+		op.GeoM.Scale(bw/float64(iw), bh/float64(ih))
+		op.Filter = render.FilterLinear
+	}
+	op.GeoM.Translate(math.Round(box.TopLeft.X), math.Round(box.TopLeft.Y))
 	if e.mask != nil {
-		dst.DrawImageIn(img, x, y, e.mask.points(box))
+		dst.DrawImageIn(img, op, e.mask.points(box))
 		return
 	}
-	op := &render.DrawImageOptions{}
-	op.GeoM.Translate(float64(x), float64(y))
 	dst.DrawImage(img, op)
 }
 

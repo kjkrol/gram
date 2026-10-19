@@ -36,7 +36,10 @@
 //
 // A [Detailed] camera says how far it sees and how finely ([Detail]): its Sight from its
 // [Viewpoint], the eye or else the point it observes, the last stretch of it in the fog, and the
-// scale below which it draws coarsely; [DetailOf] is any camera's, none for one without.
+// scale below which it draws coarsely; [DetailOf] is any camera's, none for one without. A
+// [Resolved] camera is drawn at a resolution of the pixels it is shown at, its Viewport, Zoom and
+// screen conversions in those camera pixels and its window on the world the same; [ResolutionOf]
+// is any camera's, 1 for one without.
 //
 // # FromScreenRect
 //

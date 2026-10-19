@@ -169,10 +169,15 @@ func (i *Image) CopyFrom(src *Image) {
 		gpu.Copy)
 }
 
-// DrawImageIn lays src over the image, its top-left corner at (x, y), only inside the convex
-// polygon pts, in the image's pixels.
-func (i *Image) DrawImageIn(src *Image, x, y float32, pts [][2]float32) {
-	gpu.DrawImageIn(i.gpu(), src.gpu(), x, y, pts, gpu.SourceOver)
+// DrawImageIn lays src over the image as DrawImage does, only inside the convex polygon pts, in
+// the image's pixels.
+func (i *Image) DrawImageIn(src *Image, op *DrawImageOptions, pts [][2]float32) {
+	var o DrawImageOptions
+	if op != nil {
+		o = *op
+	}
+	gpu.DrawImageIn(i.gpu(), src.gpu(), o.GeoM.affine(), o.Filter == FilterLinear, pts,
+		gpu.SourceOver)
 }
 
 // DrawTrianglesShaderOptions is what a shader draws with: its uniforms by name, each a []float32,

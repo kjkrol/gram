@@ -120,23 +120,40 @@ func DrawPieces(dst, src Image, pieces []Piece, color [4]float32, blend Blend) {
 	}
 }
 
-// DrawImageIn draws src into dst, its top-left corner at (x, y), only inside the convex polygon
-// pts, in dst's pixels.
-func DrawImageIn(dst, src Image, x, y float32, pts [][2]float32, blend Blend) {
-	if len(pts) < 3 {
+// DrawImageIn draws src into dst as DrawImage does, its top-left corner at the origin moved by
+// m, sampled between texels where linear, only inside the convex polygon pts, in dst's pixels.
+func DrawImageIn(dst, src Image, m Affine, linear bool, pts [][2]float32, blend Blend) {
+	back, ok := m.inverse()
+	if len(pts) < 3 || !ok {
 		return
 	}
 	r := src.rect()
-	sx, sy := float32(r.X)-x, float32(r.Y)-y
 	verts := make([]Vertex, len(pts))
 	for k, p := range pts {
-		verts[k] = Vertex{DstX: p[0], DstY: p[1], SrcX: sx + p[0], SrcY: sy + p[1], ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1}
+		x, y := back.Apply(p[0], p[1])
+		verts[k] = Vertex{DstX: p[0], DstY: p[1], SrcX: float32(r.X) + x, SrcY: float32(r.Y) + y,
+			ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1}
 	}
 	indices := make([]uint16, 0, 3*(len(pts)-2))
 	for k := 1; k+1 < len(pts); k++ {
 		indices = append(indices, 0, uint16(k), uint16(k+1))
 	}
-	Triangles(&Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: make([]byte, blitLayout.Size), Blend: blend}, verts, indices)
+	u := make([]byte, blitLayout.Size)
+	if linear {
+		blitLayout.Put(u, "filter", []float32{1})
+	}
+	Triangles(&Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: u,
+		Blend: blend}, verts, indices)
+}
+
+// the affine taking a point back to where m took it from; false for one flattening the plane
+func (m Affine) inverse() (Affine, bool) {
+	det := m.A*m.D - m.B*m.C
+	if det == 0 {
+		return Affine{}, false
+	}
+	a, b, c, d := m.D/det, -m.B/det, -m.C/det, m.A/det
+	return Affine{A: a, B: b, C: c, D: d, TX: -(a*m.TX + c*m.TY), TY: -(b*m.TX + d*m.TY)}, true
 }
 
 // Present draws screen over the window's surface view, w by h pixels of format, into enc, the

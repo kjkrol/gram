@@ -1,6 +1,10 @@
 package render
 
-import "github.com/kjkrol/gram/camera"
+import (
+	"math"
+
+	"github.com/kjkrol/gram/camera"
+)
 
 // Surface is a picture shown at a size whoever shows it gives it.
 type Surface interface {
@@ -10,8 +14,9 @@ type Surface interface {
 	Draw() *Image
 }
 
-// Feed is the world seen through a camera: picture drawn through cam every frame into an image of
-// the size it is shown at. Several feeds may share one picture.
+// Feed is the world seen through a camera: picture drawn through cam every frame, drawn at its
+// camera's resolution and shown at its size, its pixels the shown ones. Several feeds may share one
+// picture.
 type Feed struct {
 	cam     camera.Camera
 	picture Picture
@@ -59,27 +64,48 @@ func (f *Feed) Draw() *Image {
 	if f.w <= 0 || f.h <= 0 {
 		return nil
 	}
-	if f.img == nil || f.img.Bounds().Dx() != f.w || f.img.Bounds().Dy() != f.h {
+	w, h := f.drawn()
+	if f.img == nil || f.img.Bounds().Dx() != w || f.img.Bounds().Dy() != h {
 		if f.img != nil {
 			f.img.Deallocate()
 		}
-		f.img = NewImage(f.w, f.h)
+		f.img = NewImage(w, h)
 	}
 	f.img.Clear()
 	f.picture.DrawWorld(f.img, f.cam)
 	return f.img
 }
 
-// DrawOn draws the world through the camera straight onto dst, the camera's viewport dst's size.
+// the size the picture is drawn at: the camera's pixels
+func (f *Feed) drawn() (w, h int) {
+	vw, vh := f.cam.Viewport()
+	return max(int(math.Round(float64(vw))), 1), max(int(math.Round(float64(vh))), 1)
+}
+
+// DrawOn draws the world through the camera onto dst, shown at dst's size: straight onto it at
+// the resolution of every pixel, else drawn at the camera's and scaled up.
 func (f *Feed) DrawOn(dst *Image) {
 	b := dst.Bounds()
 	f.Resize(b.Dx(), b.Dy())
-	f.picture.DrawWorld(dst, f.cam)
+	if camera.ResolutionOf(f.cam) == 1 {
+		f.picture.DrawWorld(dst, f.cam)
+		return
+	}
+	img := f.Draw()
+	if img == nil {
+		return
+	}
+	op := &DrawImageOptions{Filter: FilterLinear}
+	op.GeoM.Scale(float64(b.Dx())/float64(img.Bounds().Dx()),
+		float64(b.Dy())/float64(img.Bounds().Dy()))
+	dst.DrawImage(img, op)
 }
 
 // ToWorld is the point of the world under the feed's pixel (px, py), false where the camera sees
 // no ground there.
 func (f *Feed) ToWorld(px, py float32) (x, y float32, ok bool) {
+	k := camera.ResolutionOf(f.cam)
+	px, py = px*k, py*k
 	if p, is := f.cam.(camera.Picker); is {
 		x, y, _, ok = p.Pick(px, py)
 		return x, y, ok
@@ -98,5 +124,6 @@ func (f *Feed) ToPixels(x, y, z float32) (px, py, depth float32, visible bool) {
 	if s, is := f.cam.(camera.Scaler); is && s.ScaleAt(x, y, z) <= 0 {
 		visible = false
 	}
-	return px, py, depth, visible
+	k := camera.ResolutionOf(f.cam)
+	return px / k, py / k, depth, visible
 }

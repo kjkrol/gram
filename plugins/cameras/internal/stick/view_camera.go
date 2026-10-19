@@ -51,6 +51,7 @@ var _ contract.Rays = (*viewCamera)(nil)
 var _ contract.Focused = (*viewCamera)(nil)
 var _ contract.Detailed = (*viewCamera)(nil)
 var _ contract.Headed = (*viewCamera)(nil)
+var _ contract.Resolved = (*viewCamera)(nil)
 
 // Detail is how far the camera sees and how finely.
 func (c *viewCamera) Detail() contract.Detail { return c.detail }
@@ -74,7 +75,7 @@ func (c *viewCamera) Rays() (contract.RayField, bool) {
 	_, high := c.ortho.layer()
 	x0, y0 := c.ortho.Unproject(0, 0, high)
 	// a pixel's step taken by the origin: between two far points it loses its last digits
-	p, k := c.ortho.proj, 1/c.ortho.scale
+	p, k := c.ortho.proj, 1/(c.ortho.scale*c.ortho.res)
 	ox, oy := p.Unproject(0, 0, high)
 	x1, y1 := p.Unproject(k, 0, high)
 	x2, y2 := p.Unproject(0, k, high)
@@ -208,12 +209,12 @@ func (c *viewCamera) toPersp() {
 	c.inPersp, c.cur = true, p
 }
 
-// the scale the focal length over the stick's length
+// the scale the focal length over the stick's length, in shown pixels
 func (c *viewCamera) toOrtho() {
 	p, o := c.persp, c.ortho
 	o.turn, o.pitch = float64(p.Heading())+eighth, float64(p.Pitch())
 	o.look()
-	o.scale = o.limited(p.focal() / p.length)
+	o.scale = o.limited(p.focal() / p.length / o.res)
 	c.inPersp, c.cur = false, o
 	o.CenterOn(float64(p.foot[0]), float64(p.foot[1]), float64(p.foot[2]))
 }
@@ -352,6 +353,13 @@ func (c *viewCamera) SetViewport(w, h float32) {
 	c.ortho.SetViewport(w, h)
 	c.persp.SetViewport(w, h)
 }
+
+func (c *viewCamera) SetResolution(s float32) {
+	c.ortho.SetResolution(s)
+	c.persp.SetResolution(s)
+}
+
+func (c *viewCamera) Resolution() float32 { return c.ortho.res }
 
 func (c *viewCamera) SetMinZoom(minZoom float32) {
 	c.ortho.SetMinZoom(minZoom)
