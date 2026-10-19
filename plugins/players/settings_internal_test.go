@@ -3,6 +3,7 @@ package players
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -137,11 +138,20 @@ func TestSettings_SectionsComeFirstCentredAndAMovedSettingSitsUnderItsSubheading
 			players.TopLeft)
 	}
 	graphics, shadows := boxOf("section:Picture/Graphics"), boxOf("setting:Shadows")
-	column := boxOf("settings.column.0")
-	if shadows.TopLeft.Y < graphics.BottomRight.Y || !within(graphics, column) ||
-		!within(shadows, column) {
-		t.Errorf("Graphics at %v, Shadows at %v, the first column %v; want the moved setting "+
-			"under its subheading in one column", graphics, shadows, column)
+	// the column the subheading lies in, whichever the height broke it into
+	var column geom.AABB
+	for i := 0; ; i++ {
+		e := s.Element(fmt.Sprintf("settings.column.%d", i))
+		if e == nil {
+			t.Fatalf("Graphics at %v lies in no column", graphics)
+		}
+		if column = e.Box(); within(graphics, column) {
+			break
+		}
+	}
+	if shadows.TopLeft.Y < graphics.BottomRight.Y || !within(shadows, column) {
+		t.Errorf("Graphics at %v, Shadows at %v, the column %v; want the moved setting under "+
+			"its subheading in one column", graphics, shadows, column)
 	}
 	title := boxOf("settings.title")
 	if centre := (title.TopLeft.X + title.BottomRight.X) / 2; math.Abs(centre-400) > 1 {
