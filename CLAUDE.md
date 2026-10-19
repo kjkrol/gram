@@ -131,7 +131,9 @@ Decisions the user has made; they are not up for revisiting in passing.
   routes, Shift+C the cones, Shift+W the weather, Shift+V the clouds' look, Shift+S the high
   clouds' shadows (with the camera free: riding, Shift+S sprints back), P freezes the light,
   Space jumps in first person, = and - zoom, Shift+= and Shift+- shape the relief, Ctrl+= and
-  Ctrl+- the camera's sight (farther, nearer), Ctrl+F the ground's haze, through any camera (off
+  Ctrl+- the camera's sight (farther, nearer), Alt+= and Alt+- the picture's resolution (finer,
+  coarser), Alt+A its following the frame budget (off, on), Alt+Shift+= and Alt+Shift+- the
+  ground's full care (farther, nearer), Ctrl+F the ground's haze, through any camera (off
   as a game starts), H the shadows' detail (coarse, fine), Shift+L the lamps' shadows (off, on);
   in a world cut into sectors Shift+G the sectors (by band, by what the camera
   sees, none) and Ctrl+G the bands (off, on); with a minimap Shift+M shows or hides it and Ctrl+M

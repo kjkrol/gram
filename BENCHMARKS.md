@@ -613,6 +613,47 @@ on a frame; none did in these minutes. The moved shares are the number behind an
 tracking per chunk: the board demos move 5% of their entities a tick, the expanse 5% of its
 hundred thousand (the bands), the motion demos all of them.
 
+## The island's frame — `Benchmark_Frame_Topography`
+
+The island of `Benchmark_Board_Island` drawn through the composer on a headless GPU into a
+2560×1440 screen and read back every frame (the readback is the wait for the GPU; "readback"
+alone is its cost, taken off below); medians of 4 runs at `b9f2cffe`, 2026-10-19, Intel UHD 620.
+The world of sectors (256 units) is cut only for the care cases.
+
+| Frame | Time less the readback (7.7 ms) |
+|:---|---:|
+| isometric | 8.0 ms |
+| perspective | 11.8 ms |
+| isometric under a distant sun | 7.8 ms |
+| isometric without the water layer | 6.7 ms |
+| isometric at 0.7 of the pixels (1792×1008) | 3.8 ms |
+| isometric, full care everywhere | 7.6 ms |
+| isometric, full care within 2 sectors | 7.6 ms |
+| isometric, full care within 1 sector | 6.8 ms |
+
+What it says: the frame is bound by the pixels; 0.7 of them costs half. The water's detail is
+the island's whole care cost (full care within one sector lands where the water layer is off);
+the ground's shade and the lamps cost nothing measurable here.
+
+The demo, board/topography in a window of 2560×1440 with `PROBE_SEED=7`, `GRAM_VSYNC=off`,
+medians of ten seconds after five of warm-up, the keys pressed at the second second:
+
+| Picture | FPS |
+|:---|---:|
+| all the pixels, care everywhere | 45 |
+| 0.72 of the pixels (Alt+- twice) | 70 |
+| 0.52 of the pixels (Alt+- four times) | 106 |
+| full care within 2 sectors (Alt+Shift+- twice) | 48 |
+| full care within 1 sector (Alt+Shift+- three times) | 53 |
+| 0.72 of the pixels, full care within 2 sectors | 71 |
+| perspective, full care within 1 sector | 51 (46 with care everywhere) |
+
+With vsync on (a 100 Hz screen) and the picture following a frame budget of a sixtieth (Alt+A),
+the demo went from 45 FPS to 57 within three seconds and held there: the band of 0.92–0.98 of
+the budget is where the adapter rests, and every thirty seconds it tries a finer picture and
+backs off (67, 54, 65 FPS in the log). The resolution costs the CPU nothing; the care costs one
+draw call more a ring.
+
 ## How to benchmark
 
 ```bash

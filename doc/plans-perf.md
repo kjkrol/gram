@@ -418,3 +418,62 @@ nadal robi własny wycinek uniformów (jedna linia, jeśli chcieć). `cast.go` `
 przy każdym wywołaniu (24 B). plans-gc Z1, Z4, Z5 zrobione; Z2, Z3 to etap 2; Z6 to etap 0.
 Nowy punkt odniesienia dla etapu 3: tick świata 5 000 encji 169 µs (128 µs z aabbworld v1.13.0),
 z czego kopia Base do Item 54%.
+
+---
+
+## Etap R. Rozdzielczość obrazu świata i staranność cieniowania per pierścień
+
+**Skille:** `gram-render`, `gram-plugin`, `gram-plugins` (cameras, topography), `gram-probe`.
+Dodany 2026-10-19 po pomiarze board/topography na pełnym ekranie 2560×1440: 38–45 FPS
+niezależnie od vsync, liczniki CPU 5,8 ms z 26 ms klatki, reszta GPU; koszt rośnie z liczbą
+pikseli (1024×768: 230 FPS), z `Resizable: false` świat w 1024×768 skalowany przy prezentacji
+daje 146 FPS; board/flat w tej rozdzielczości 94 FPS, więc ~15 ms z 26 to przebiegi reliefu.
+
+**Decyzje.** Rozdzielczość tylko obrazu świata (UI natywne), konfiguracja inicjalizuje zmienną w
+biegu, komenda ją stopniuje (Alt+=/−), adaptacja włączana komendą (Alt+A), domyślnie wyłączona,
+budżet 60 FPS w konfiguracji. Staranność cieniowania terenu per pierścień sektorów od sektora
+pod środkiem ekranu (Alt+Shift+=/−): rzeki i morze zostają, tracą detal; poziom 0 zachowuje
+normalną, traci cień gruntu i lampy; hex poza zakresem. Słowo „Resolution”, bo `camera.Scaler`
+istnieje; krok mnożnikowy 0,85 do 0,4; odległość pierścienia do bliższego z sektora pod
+środkiem i sektora pod okiem; rysowanie od dalekich do bliskich; kamera żyje w pikselach obrazu,
+konwersja tylko na granicy UI (wejście, piny); ręczny krok rozdzielczości wyłącza adaptację.
+
+**Części.** 0: `Benchmark_Frame_Topography` (headless GPU, 1440p, readback jako synchronizacja).
+1: `camera.Resolved` w kamerach topdown, ortho, persp, view; `render.Feed` rysuje w rozdzielczości
+kamery i pokazuje w rozmiarze elementu; `ui.picture` skaluje liniowo, także z maską. 2:
+`control.Context.Resolution`, `Pixels`, `Shown`, `Edges`; gracze skalują kursor, deltę i starty;
+prędkości przewijania i strefy krawędzi w pikselach pokazywanych. 3: `cameras.Config{Resolution,
+Adaptive, FrameBudget}`, komendy `Resolution{Camera, Factor}` i `Adapt{}`, adapter z histerezą
+(0,92–0,98 budżetu, 2 s pod, 5 s nad, wypalenie 30 s po cofnięciu), reporter „Picture”. 4:
+`view.Sectors.Cols`, `runs` z care per sektor, trzy shadery z `const CARE`, `LevelWater` w
+`sea.wgsl`, `topography.Config.Care`, komenda `Care{Step}` po drabince 1, 2, 3, wszystko,
+reporter „Ground”. 5: integracja, pomiar, dokumenty.
+
+## Etap R: wynik (2026-10-19, gałąź `perf/plans-perf`, `b9f2cffe` + dokumenty)
+
+Wykonanie: część 0 przez integratora, WA (części 1–3) i WB (część 4) równolegle w worktree,
+scalenie fast-forward, pomiar na bezczynnej maszynie. Liczby w `BENCHMARKS.md`, sekcja „The
+island's frame”.
+
+| Co | Wynik |
+|:--|--:|
+| Wyspa 1440p, izo, bez readbacku (7,7 ms) | 8,0 ms; bez wody 6,7; 0,7 piksela 3,8; care R=1 6,8 |
+| Demo 2560×1440 bez vsync, baza | 45 FPS |
+| rozdzielczość 0,72 / 0,52 | 70 / 106 FPS |
+| staranność R=2 / R=1 | 48 / 53 FPS |
+| 0,72 + R=2 | 71 FPS |
+| perspektywa, R=1 | 51 wobec 46 |
+| adaptacja, vsync, ekran 100 Hz, budżet 60 | 45 → 57 w 3 s, próbny krok w górę co 30 s |
+
+**Wnioski.** Rozdzielczość jest dźwignią pierwszego rzędu i skaluje się liniowo z pikselami;
+staranność daje 7–18% w zależności od ilości wody w kadrze, najwięcej w perspektywie, i jest
+tańsza wizualnie niż utrata ostrości na całym obrazie. Oba mechanizmy się składają. Zrzuty
+klatki 600 przy 0,52 i w perspektywie przy R=1: układ bez zmian, panel ostry, daleka woda płaska
+bez glintu, rzeki widoczne wszędzie.
+
+**Uwagi.** Adapter spoczywa w paśmie 0,92–0,98 budżetu, więc przy budżecie 60 zadowala go 55–59
+FPS; ostrzejszy próg to jedna stała w `adapt.go`. Benchmark wyspy nie uruchamiał `RunPlan` świata,
+więc z sektorami rysowałby tylko skirt; naprawione w części 4. Rysowanie pierścieni od dalekich do
+bliskich oszczędza tylko pierścień bliski; kolejność od bliskich pozwoliłaby primowi dalszych
+pierścieni odrzucać grunt zasłonięty bliskimi wzgórzami, do zmierzenia w perspektywie (jedna
+linia w `Draw`). `zoneRound` stref krawędzi zostaje w pikselach kamery (kosmetyka). Hex: no-op.

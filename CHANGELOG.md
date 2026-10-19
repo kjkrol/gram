@@ -19,6 +19,17 @@ entities. Nor those made before motion left the world: `world.Outside` is `motio
 those made before the light became a plugin: `entity.Shadow` is `light.Shadow`, and the
 atmosphere's entity carries a `light.Source` and a `light.Shining`.
 
+**The picture's resolution and the ground's care** (2026-10-19, etap R of `doc/plans-perf.md`)
+- A camera draws its picture at a resolution of the pixels it is shown at (`camera.Resolved`,
+  `cameras.Config.Resolution`, 0.4 to all): the world is drawn smaller and shown at the
+  element's size, the UI stays as it is; Alt+= and Alt+- step it, Alt+A has it follow the frame
+  budget (`cameras.Config.FrameBudget`, a sixtieth of a second), the telemetry's "Picture"
+  line shows it. Positions reach the bindings in the camera's pixels (`control.Context.Resolution`).
+- The ground is shaded with less care ring by ring from the sector under the screen's middle
+  (`topography.Config.Care`, Alt+Shift+= and Alt+Shift+-): far water keeps its colour and a level
+  mirror of the sky but no waves, glint or shore, farther still no ground shade or lamps.
+- `Benchmark_Frame_Topography`: the island's frame on a headless GPU at 1440p.
+
 **Faster ticks and frames** (2026-10-19, etap 1 of `doc/plans-perf.md`)
 - The world tick at 5,000 boxes from 215 to 169 µs and no allocations: `clampStep` compares
   squares instead of calling `Hypot`, every plugin's simulation block and the world tick's roles
