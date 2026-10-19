@@ -336,3 +336,50 @@ func TestCenterAt_PutsTheCameraOverThePointUnfastened(t *testing.T) {
 		t.Errorf("the camera is fastened %+v, want to nothing", f)
 	}
 }
+
+func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBudget(t *testing.T) {
+	w, p, start, tick := emptyWorld(t, cameras.Config{Adaptive: true})
+	cam := p.New(cameras.FromAbove, camera.Config{})
+	minimap := p.New(cameras.FromAbove, camera.Config{Whole: true})
+	start()
+	report := func() string {
+		var got string
+		p.Reporter().Report(func(label, value string) { got = label + ": " + value })
+		return got
+	}
+	if got := report(); got != "Picture: 1.00 of the pixels, adaptive" {
+		t.Fatalf("the telemetry says %q, want the one picture at all its pixels, adaptive", got)
+	}
+	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: cameras.ResolutionStep})
+	tick()
+	if got := camera.ResolutionOf(cam); got != cameras.ResolutionStep {
+		t.Errorf("after a coarser step the camera is drawn at %v, want %v", got,
+			cameras.ResolutionStep)
+	}
+	if got := report(); got != "Picture: 0.85 of the pixels" {
+		t.Errorf("the telemetry says %q, want the step and the following stopped", got)
+	}
+	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: 1 / cameras.ResolutionStep})
+	tick()
+	if got := camera.ResolutionOf(cam); math.Abs(float64(got-1)) > 1e-6 {
+		t.Errorf("after a finer step back the camera is drawn at %v, want 1", got)
+	}
+	for range 10 {
+		w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: cameras.ResolutionStep})
+		tick()
+	}
+	if got := camera.ResolutionOf(cam); got != cameras.LeastResolution {
+		t.Errorf("stepped coarser ten times the camera is drawn at %v, want the least, %v", got,
+			cameras.LeastResolution)
+	}
+	w.Carrier().Put(command.Nobody, cameras.Adapt{})
+	tick()
+	if got := report(); got != "Picture: 0.40 of the pixels, adaptive" {
+		t.Errorf("after Adapt the telemetry says %q, want the resolution following the budget", got)
+	}
+	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: minimap, Factor: cameras.ResolutionStep})
+	tick()
+	if got := camera.ResolutionOf(minimap); got != 1 {
+		t.Errorf("a minimap's camera stepped coarser is drawn at %v, want all its pixels", got)
+	}
+}

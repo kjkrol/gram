@@ -150,3 +150,25 @@ func TestCameras_InReliefSavedBeforeTheStickBeginAfresh(t *testing.T) {
 			logged.String())
 	}
 }
+
+func TestNew_ACameraIsDrawnAtTheConfigsResolutionAMinimapsAtAll(t *testing.T) {
+	p := cameras.NewPlugin(newWorld(), cameras.Config{Resolution: 0.7})
+	cam := p.New(cameras.FromAbove, camera.Config{})
+	whole := p.New(cameras.FromAbove, camera.Config{Whole: true})
+	if got := camera.ResolutionOf(cam); got != 0.7 {
+		t.Errorf("the camera is drawn at %v of its pixels, want the Config's 0.7", got)
+	}
+	if got := camera.ResolutionOf(whole); got != 1 {
+		t.Errorf("a camera keeping the whole world in view is drawn at %v, want all its pixels",
+			got)
+	}
+	relief := reliefCameras()
+	if got := camera.ResolutionOf(relief.New(cameras.Isometrically, camera.Config{})); got != 1 {
+		t.Errorf("a camera of a zero Resolution is drawn at %v, want all its pixels", got)
+	}
+	least := cameras.NewPlugin(newWorld(), cameras.Config{Resolution: 0.1})
+	lowest := least.New(cameras.FromAbove, camera.Config{})
+	if got := camera.ResolutionOf(lowest); got != cameras.LeastResolution {
+		t.Errorf("a Resolution of 0.1 draws at %v, want the least, %v", got, cameras.LeastResolution)
+	}
+}

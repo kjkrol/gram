@@ -27,15 +27,19 @@ type Keys struct {
 	CornersTurn bool
 	// Farther and Nearer pressed with Ctrl have the camera see a SightStep farther and nearer.
 	Farther, Nearer control.Key
+	// Finer and Coarser pressed with Alt have the picture drawn at a ResolutionStep more and fewer
+	// of its pixels.
+	Finer, Coarser control.Key
 }
 
 // DefaultKeys are W, S, A and D, = and - to zoom, Ctrl+= and Ctrl+- to see farther and nearer,
-// the wheel, the middle drag and the edge.
+// Alt+= and Alt+- for a finer and a coarser picture, the wheel, the middle drag and the edge.
 func DefaultKeys() Keys {
 	return Keys{
 		Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD,
 		ZoomIn: control.KeyEqual, ZoomOut: control.KeyMinus,
 		Farther: control.KeyEqual, Nearer: control.KeyMinus,
+		Finer: control.KeyEqual, Coarser: control.KeyMinus,
 		Wheel: true, Drag: true, Edge: true,
 	}
 }
@@ -84,6 +88,17 @@ func (k Keys) Bindings() []control.Binding {
 	}
 	see(k.Farther, "See farther", SightStep)
 	see(k.Nearer, "See nearer", 1/SightStep)
+	draw := func(key control.Key, label string, factor float32) {
+		if key != control.KeyUnknown {
+			press := control.KeyPress{Key: key, Mods: control.Mods{Alt: true}}
+			out = append(out, control.Build(press, label,
+				func(c control.Context) (Resolution, bool) {
+					return Resolution{Camera: c.Camera, Factor: factor}, true
+				}))
+		}
+	}
+	draw(k.Finer, "A finer picture", 1/ResolutionStep)
+	draw(k.Coarser, "A coarser picture", ResolutionStep)
 	if k.Wheel {
 		out = append(out, control.Build(control.Wheel{}, "Zoom", func(c control.Context) (Zoom, bool) {
 			if c.Wheel > 0 {

@@ -14,7 +14,10 @@
 // the state of the camera made in its place. The world's sectors are anchored at the point each
 // camera observes (camera.Focused), a minimap's none. Every camera sees as Config.Detail says
 // (camera.Detailed): how far, the fog before it, the scale below which it draws coarsely; [Sight]
-// changes how far, saved with the camera.
+// changes how far, saved with the camera. Every picture but a minimap's is drawn at
+// Config.Resolution of the pixels it is shown at (camera.Resolved; the ui stays sharp),
+// [Resolution] steps it and [Adapt] has it follow Config.FrameBudget: coarser while the frames
+// come slower, finer again while they keep up. The telemetry panel shows it ([Plugin.Reporter]).
 //
 // # Cage
 //
@@ -49,25 +52,29 @@
 // ground at a world point (a click on a minimap), fastened to nothing.
 // In relief [View] switches the projection, [Turn] and [Tilt] move the stick, [Ride] takes it
 // behind and inside the entity it is fastened to, [LookFrom] and [LookAt] place the eye in
-// perspective and [Look] looks round riding, the cursor captured. Each names its camera, taken
-// from the context by its binding, so the plugin never knows the players. The plugin writes only
-// the eye's part of a ridden entity's steering.Driven (Look, Flown, Climb).
+// perspective and [Look] looks round riding, the cursor captured. [Resolution] draws a camera's
+// picture at a factor of its pixels, [Adapt] has every picture's resolution follow the frame
+// budget or stop. Each names its camera, taken from the context by its binding, so the plugin
+// never knows the players. The plugin writes only the eye's part of a ridden entity's
+// steering.Driven (Look, Flown, Climb).
 //
 // # Keys
 //
 // [Keys] are a player's keys to its camera: four keys held scrolling it, the wheel zooming about
 // the cursor, the middle drag panning, the cursor at an edge scrolling and in a corner scrolling
-// slantwise, or turning as Q and E do (Keys.CornersTurn), two with Ctrl seeing farther and nearer.
-// [DefaultKeys] are W, S, A, D, = and -, Ctrl+= and Ctrl+-, with all three;
-// [Plugin.DefaultBindings] are those, the corners turning where the Config turns, Shift+H and the
-// views' keys the Config gives: Q and E turning, R looking down more steeply and F flatter, Tab
-// switching between the orthographic view and the perspective, V riding, the mouse looking round
-// inside an entity.
+// slantwise, or turning as Q and E do (Keys.CornersTurn), two with Ctrl seeing farther and nearer,
+// two with Alt drawing a finer and a coarser picture. [DefaultKeys] are W, S, A, D, = and -,
+// Ctrl+= and Ctrl+-, Alt+= and Alt+-, with all three; [Plugin.DefaultBindings] are those, the
+// corners turning where the Config turns, Shift+H, Alt+A (the resolution following the frame
+// budget) and the views' keys the Config gives: Q and E turning, R looking down more steeply and
+// F flatter, Tab switching between the orthographic view and the perspective, V riding, the mouse
+// looking round inside an entity.
 //
 // # Vocabulary
 //
 // Commands, a player's through its camera: [Pan], [Zoom], [CenterOn], [CenterAt], [View], [Turn],
 // [Tilt],
-// [LookFrom], [LookAt], [Ride], [Look], [Sight]; [Zones] (a look: the scroll zones over every
+// [LookFrom], [LookAt], [Ride], [Look], [Sight], [Resolution]; [Adapt] (every picture's
+// resolution following the frame budget, Alt+A); [Zones] (a look: the scroll zones over every
 // picture, Shift+H); [Follow] (a player's, or an entity's own fastening the camera over itself).
 package cameras

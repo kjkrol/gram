@@ -20,8 +20,40 @@ func TestKeys_ZoomKeysBuildAZoomInAndOut(t *testing.T) {
 			t.Errorf("key %d gives %v (%v), want a Zoom by %v", i, cmd, ok, want)
 		}
 	}
-	if n := len(cameras.DefaultKeys().Bindings()); n != 11 {
-		t.Errorf("the default keys bind %d, want 11: the zoom and the sight keys among them", n)
+	if n := len(cameras.DefaultKeys().Bindings()); n != 13 {
+		t.Errorf("the default keys bind %d, want 13: the zoom, the sight and the resolution keys "+
+			"among them", n)
+	}
+}
+
+func TestKeys_ResolutionKeysWithAltDrawFinerAndCoarser(t *testing.T) {
+	keys := cameras.Keys{Finer: control.KeyEqual, Coarser: control.KeyMinus}.Bindings()
+	if len(keys) != 2 {
+		t.Fatalf("%d bindings, want the two resolution keys", len(keys))
+	}
+	for i, want := range []float32{1 / cameras.ResolutionStep, cameras.ResolutionStep} {
+		press, isPress := keys[i].Trigger.(control.KeyPress)
+		cmd, ok := keys[i].Build(control.Context{})
+		r, isResolution := cmd.(cameras.Resolution)
+		if !isPress || !press.Mods.Alt || press.Mods.Ctrl || !ok || !isResolution ||
+			r.Factor != want {
+			t.Errorf("key %d is %+v giving %v (%v), want Alt held and a Resolution by %v", i,
+				keys[i].Trigger, cmd, ok, want)
+		}
+	}
+	adapts := 0
+	for _, b := range cameras.NewPlugin(reliefWorld(), cameras.Config{}).DefaultBindings() {
+		if b.Trigger != (control.KeyPress{Key: control.KeyA, Mods: control.Mods{Alt: true}}) {
+			continue
+		}
+		if cmd, ok := b.Build(control.Context{}); ok {
+			if _, is := cmd.(cameras.Adapt); is {
+				adapts++
+			}
+		}
+	}
+	if adapts != 1 {
+		t.Errorf("the default bindings give Adapt on Alt+A %d times, want once", adapts)
 	}
 }
 
