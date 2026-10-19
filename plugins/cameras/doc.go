@@ -19,7 +19,10 @@
 // camera.Resolved; the ui stays sharp), [Picture] sets it and [Resolution] steps a camera's, and
 // [Adapt] has it follow Settings.FrameBudget as its [Strategy] says: coarser while the frames
 // come slower, finer again while they keep up, the whole picture's (Uniform) or ring by ring
-// (InRings). Drawn in rings (Config.Rings, [Rings], camera.Ringed) a picture is the whole frame
+// (InRings). A picture drawn whole below all its pixels draws its figures, all that lies over
+// the ground, at every pixel while its ground is drawn at the resolution (camera.Figured;
+// Config.SoftFigures and [SharpFigures] have them follow the ground's resolution instead, to
+// compare). Drawn in rings (Config.Rings, [Rings], camera.Ringed) a picture is the whole frame
 // at Settings.OuterRes of its pixels, its central Settings.Middle at MiddleRes and its central
 // Inner at the Resolution ([RingShares], [RingResolutions]; 0.6, 60% at 0.8, 35% at all to
 // begin with), a step taking one ring at a time: coarser the outermost first, each down to a
@@ -64,9 +67,10 @@
 // picture at a factor of its pixels, a ring at a time in rings. Each names its camera, taken
 // from the context by its binding, so the plugin never knows the players. The picture's
 // commands name none: [Adapt] has every picture's resolution follow the frame budget as its
-// Strategy says or stay, [Picture] draws every one at a resolution, [Rings] in rings or whole,
-// [RingShares] and [RingResolutions] shape the rings, [Budget] sets the frame budget and
-// [ShowRings] outlines the rings. The plugin writes only the eye's part of a ridden entity's
+// Strategy says or stay, [Picture] draws every one at a resolution, [SharpFigures] its figures
+// at every pixel or at the ground's resolution, [Rings] in rings or whole, [RingShares] and
+// [RingResolutions] shape the rings, [Budget] sets the frame budget and [ShowRings] outlines
+// the rings. The plugin writes only the eye's part of a ridden entity's
 // steering.Driven (Look, Flown, Climb).
 //
 // # Keys
@@ -87,11 +91,12 @@
 // [Tilt],
 // [LookFrom], [LookAt], [Ride], [Look], [Sight], [Resolution]; a player's about every picture:
 // [Adapt] (the resolution following the frame budget as a [Strategy] says, Alt+A), [Picture]
-// (the resolution), [Rings] (drawn in rings), [RingShares] and [RingResolutions] (the rings'
-// shares of the frame and resolutions), [Budget] (the frame budget), [ShowRings] (a look: the
-// rings outlined); [Zones] (a look: the scroll zones over every picture, Shift+H); [Follow] (a
-// player's, or an entity's own fastening the camera over itself).
+// (the resolution), [SharpFigures] (the figures at every pixel), [Rings] (drawn in rings),
+// [RingShares] and [RingResolutions] (the rings' shares of the frame and resolutions), [Budget]
+// (the frame budget), [ShowRings] (a look: the rings outlined); [Zones] (a look: the scroll
+// zones over every picture, Shift+H); [Follow] (a player's, or an entity's own fastening the
+// camera over itself).
 // Settings ([Settings], saved with the game, in [Resources]): the zones, the strategy, the
-// resolution, the picture drawn in rings, the rings' shares and resolutions, the frame budget,
-// the rings shown.
+// resolution, the figures at every pixel, the picture drawn in rings, the rings' shares and
+// resolutions, the frame budget, the rings shown.
 package cameras

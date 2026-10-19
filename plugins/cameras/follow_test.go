@@ -351,7 +351,7 @@ func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBu
 		t.Errorf("after a coarser step the camera is drawn at %v, want %v", got,
 			cameras.ResolutionStep)
 	}
-	if got := report(p); got != "Picture: 0.85 of the pixels, still" {
+	if got := report(p); got != "Picture: 0.85 of the pixels, the figures sharp, still" {
 		t.Errorf("the telemetry says %q, want the step and the following stopped", got)
 	}
 	if p.Strategy() != cameras.Still || p.Resolution() != cameras.ResolutionStep {
@@ -373,7 +373,8 @@ func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBu
 	}
 	w.Carrier().Put(command.Nobody, cameras.Adapt{Strategy: cameras.Uniform})
 	tick()
-	if got := report(p); got != "Picture: 0.40 of the pixels, following a budget of 60 FPS" {
+	if got := report(p); got != "Picture: 0.40 of the pixels, the figures sharp, following a "+
+		"budget of 60 FPS" {
 		t.Errorf("after Adapt the telemetry says %q, want the resolution following the budget", got)
 	}
 	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: minimap, Factor: cameras.ResolutionStep})
@@ -511,7 +512,7 @@ func TestPicture_ReachesEveryCameraButAMinimapsAndStopsTheFollowing(t *testing.T
 		t.Errorf("after Picture the strategy is %v at %v, want Still at 0.7", p.Strategy(),
 			p.Resolution())
 	}
-	if got := report(p); got != "Picture: 0.70, 0.70 of the pixels, still" {
+	if got := report(p); got != "Picture: 0.70, 0.70 of the pixels, the figures sharp, still" {
 		t.Errorf("the telemetry says %q, want both pictures at 0.70, still", got)
 	}
 }

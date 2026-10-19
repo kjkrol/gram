@@ -25,6 +25,7 @@ type viewCamera struct {
 	fastening contract.Fastening
 	detail    contract.Detail
 	rings     []contract.Ring
+	sharp     bool
 }
 
 // form names how a stick camera is saved, so a save of another shape is refused at its first
@@ -56,6 +57,7 @@ var _ contract.Headed = (*viewCamera)(nil)
 var _ contract.Resolved = (*viewCamera)(nil)
 var _ contract.Ringed = (*viewCamera)(nil)
 var _ contract.Cropping = (*viewCamera)(nil)
+var _ contract.Figured = (*viewCamera)(nil)
 
 // Detail is how far the camera sees and how finely.
 func (c *viewCamera) Detail() contract.Detail { return c.detail }
@@ -383,6 +385,12 @@ func (c *viewCamera) Frame() (float32, float32) { return c.ortho.Frame() }
 func (c *viewCamera) SetRings(rings []contract.Ring) { c.rings = slices.Clone(rings) }
 
 func (c *viewCamera) Rings() []contract.Ring { return slices.Clone(c.rings) }
+
+// SetSharpFigures has the figures drawn at every shown pixel while the ground is drawn at the
+// resolution, or at the resolution too.
+func (c *viewCamera) SetSharpFigures(on bool) { c.sharp = on }
+
+func (c *viewCamera) SharpFigures() bool { return c.sharp }
 
 func (c *viewCamera) SetMinZoom(minZoom float32) {
 	c.ortho.SetMinZoom(minZoom)

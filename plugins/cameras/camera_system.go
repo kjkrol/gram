@@ -64,6 +64,7 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 	})
 	s.p.adapts.Drain(func(i command.Issued[Adapt]) { s.p.SetStrategy(i.Command.Strategy) })
 	s.p.pictures.Drain(func(i command.Issued[Picture]) { s.p.SetResolution(i.Command.Resolution) })
+	s.p.sharps.Drain(func(i command.Issued[SharpFigures]) { s.p.SetSharpFigures(i.Command.On) })
 	s.p.rings.Drain(func(i command.Issued[Rings]) { s.p.SetRings(i.Command.On) })
 	s.p.ringShares.Drain(func(i command.Issued[RingShares]) {
 		s.p.SetRingShares(i.Command.Inner, i.Command.Middle)

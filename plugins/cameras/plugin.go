@@ -55,6 +55,9 @@ type Config struct {
 	Strategy    Strategy
 	Rings       bool
 	FrameBudget time.Duration
+	// the figures following the ground's resolution from the start (Settings.SoftFigures);
+	// zero, drawn at every pixel
+	SoftFigures bool
 }
 
 // plain is the camera from above that neither turns nor tilts nor sees anything in relief
@@ -96,6 +99,7 @@ type Plugin struct {
 	resolutions command.Queue[Resolution]
 	adapts      command.Queue[Adapt]
 	pictures    command.Queue[Picture]
+	sharps      command.Queue[SharpFigures]
 	rings       command.Queue[Rings]
 	ringShares  command.Queue[RingShares]
 	ringRes     command.Queue[RingResolutions]
@@ -126,12 +130,13 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	p.ringsView = &ringsView{settings: &p.Res.Settings}
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Res.Settings = Settings{
-		Resolution: 1,
-		Rings:      cfg.Rings,
-		Inner:      0.35,
-		Middle:     0.6,
-		OuterRes:   0.6,
-		MiddleRes:  0.8,
+		Resolution:  1,
+		SoftFigures: cfg.SoftFigures,
+		Rings:       cfg.Rings,
+		Inner:       0.35,
+		Middle:      0.6,
+		OuterRes:    0.6,
+		MiddleRes:   0.8,
 	}
 	if cfg.Resolution > 0 {
 		p.Res.Settings.Resolution = clamped(cfg.Resolution)
@@ -288,7 +293,8 @@ func (p *Plugin) apply(cam camera.Camera, factor float32) bool {
 }
 
 // Reporter is the cameras' part of the telemetry panel: the share of its pixels each picture is
-// drawn at, ring by ring in rings with the rings' shares, and the budget it follows, or still.
+// drawn at, ring by ring in rings with the rings' shares, the figures sharp where a coarser
+// picture draws them at every pixel, and the budget it follows, or still.
 func (p *Plugin) Reporter() render.Reporter { return reporter{p} }
 
 type reporter struct{ p *Plugin }
@@ -297,9 +303,11 @@ func (reporter) Init(*goke.SysInit) {}
 
 func (r reporter) Report(line func(label, value string)) {
 	var shares []string
+	coarse := false
 	for _, cam := range r.p.cameras {
 		if _, ok := cam.(camera.Resolved); ok && !fitsWhole(cam) {
 			shares = append(shares, share(cam))
+			coarse = coarse || camera.ResolutionOf(cam) < 1
 		}
 	}
 	if len(shares) == 0 {
@@ -307,8 +315,11 @@ func (r reporter) Report(line func(label, value string)) {
 	}
 	s := r.p.Res.Settings
 	value := strings.Join(shares, ", ") + " of the pixels"
-	if s.Rings {
+	switch {
+	case s.Rings:
 		value += fmt.Sprintf(" in rings at %.0f%% and %.0f%%", s.Middle*100, s.Inner*100)
+	case coarse && r.p.SharpFigures():
+		value += ", the figures sharp"
 	}
 	if s.Strategy == Still {
 		value += ", still"

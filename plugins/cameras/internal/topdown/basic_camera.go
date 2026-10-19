@@ -26,6 +26,7 @@ type basicCamera struct {
 	form      form
 	detail    contract.Detail
 	rings     []contract.Ring
+	sharp     bool
 	// the frame while a part of it is drawn, to come back to
 	cropped *frame
 }
@@ -59,6 +60,7 @@ var _ contract.Detailed = (*basicCamera)(nil)
 var _ contract.Resolved = (*basicCamera)(nil)
 var _ contract.Ringed = (*basicCamera)(nil)
 var _ contract.Cropping = (*basicCamera)(nil)
+var _ contract.Figured = (*basicCamera)(nil)
 
 // Detail is how far the camera sees and how finely.
 func (c *basicCamera) Detail() contract.Detail { return c.detail }
@@ -164,6 +166,12 @@ func (c *basicCamera) Resolution() float32 { return c.res }
 func (c *basicCamera) SetRings(rings []contract.Ring) { c.rings = slices.Clone(rings) }
 
 func (c *basicCamera) Rings() []contract.Ring { return slices.Clone(c.rings) }
+
+// SetSharpFigures has the figures drawn at every shown pixel while the ground is drawn at the
+// resolution, or at the resolution too.
+func (c *basicCamera) SetSharpFigures(on bool) { c.sharp = on }
+
+func (c *basicCamera) SharpFigures() bool { return c.sharp }
 
 // Crop has the camera drawn the central w by h shown pixels of its frame at s of them, the
 // zoom as it is; a camera keeping the whole world in view is drawn whole.
