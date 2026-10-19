@@ -46,9 +46,12 @@ func (k Keys) Bindings() []control.Binding {
 	if speed == 0 {
 		speed = DefaultScrollSpeed
 	}
+	// the speed in the camera's pixels: the same on the screen at any resolution
+	step := func(c control.Context) float32 { return float32(c.Pixels(float64(speed))) }
 	scroll := func(dx, dy float32) func(control.Context) (Pan, bool) {
 		return func(c control.Context) (Pan, bool) {
-			return Pan{Camera: c.Camera, Dx: dx * speed, Dy: dy * speed}, true
+			s := step(c)
+			return Pan{Camera: c.Camera, Dx: dx * s, Dy: dy * s}, true
 		}
 	}
 	var out []control.Binding
@@ -97,7 +100,7 @@ func (k Keys) Bindings() []control.Binding {
 	if k.Edge {
 		out = append(out, control.Build(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {
 			var dx, dy float32
-			side := c.Edges()
+			side, speed := c.Edges(), step(c)
 			if side.Corner != control.NoCorner {
 				sx, sy := side.Corner.Signs()
 				return Pan{Camera: c.Camera, Dx: sx * speed, Dy: sy * speed}, !k.CornersTurn

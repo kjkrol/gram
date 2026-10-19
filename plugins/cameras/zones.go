@@ -46,9 +46,12 @@ func (v *zonesView) Compose(f *render.Frame, cam camera.Camera) {
 		return
 	}
 	w, h := cam.Viewport()
-	thick := float32(control.EdgeMargin)                        // how far in a strip reaches
-	side := float32(control.CornerSide(float64(w), float64(h))) // a corner's square
-	ends := side + zoneGap                                      // where a strip stops, from an edge
+	// the zones in shown pixels, drawn in the camera's: how far in a strip reaches, a corner's
+	// square, where a strip stops from an edge
+	k := camera.ResolutionOf(cam)
+	thick := float32(control.EdgeMargin) * k
+	side := float32(control.CornerSide(float64(w/k), float64(h/k))) * k
+	ends := side + zoneGap*k
 
 	topStrip := zone{left: ends, top: 0, right: w - ends, bottom: thick}
 	bottomStrip := zone{left: ends, top: h - thick, right: w - ends, bottom: h}

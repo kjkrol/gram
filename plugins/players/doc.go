@@ -47,7 +47,8 @@
 // [Plugin.EventHandler] is the layer between the device and the game: it matches each pass's
 // control.InputEvents against every local player's bindings and hands what they build to
 // [Plugin.Issue]. Keys reach every local player, the mouse the one whose picture it is over, in
-// that picture's pixels, so local players split the screen as the scene lays their pictures out.
+// the pixels of that picture's camera, so local players split the screen as the scene lays their
+// pictures out.
 // A control.KeyHeld fires from [Plugin.RunPlan] instead, once a tick while its key is down; call
 // RunPlan last in Update. Nothing is dropped: a command given after its handler's pass waits for
 // the next frame's.

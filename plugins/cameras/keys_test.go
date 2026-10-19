@@ -122,3 +122,34 @@ func TestDefaultBindings_CornersTurnWhereTheConfigTurns(t *testing.T) {
 		t.Error("a Config not turning turns the camera in a corner")
 	}
 }
+
+func TestKeys_AtAResolutionTheScrollAndTheLookAreTheSameOnTheScreen(t *testing.T) {
+	keys := cameras.Keys{Up: control.KeyW, Edge: true}.Bindings()
+	if len(keys) != 2 {
+		t.Fatalf("%d bindings, want the key and the edge", len(keys))
+	}
+	half := control.Context{Resolution: 0.5, Screen: geom.NewVec(500, 400),
+		Cursor: geom.NewVec(495, 200)}
+	cmd, ok := keys[0].Build(half)
+	if pan, isPan := cmd.(cameras.Pan); !ok || !isPan || pan.Dy != -cameras.DefaultScrollSpeed/2 {
+		t.Errorf("W at 0.5 builds %+v (%v), want a Pan up by half the speed: the camera's pixels",
+			cmd, ok)
+	}
+	cmd, ok = keys[1].Build(half)
+	if pan, isPan := cmd.(cameras.Pan); !ok || !isPan || pan.Dx != cameras.DefaultScrollSpeed/2 {
+		t.Errorf("the edge at 0.5 builds %+v (%v), want a Pan right by half the speed", cmd, ok)
+	}
+	p := cameras.NewPlugin(reliefWorld(), cameras.Config{Perspective: true, Cell: 32})
+	for _, b := range p.DefaultBindings() {
+		if b.Trigger != (control.CursorMove{}) {
+			continue
+		}
+		cmd, ok := b.Build(control.Context{Resolution: 0.5, Delta: geom.NewVec(3, 4)})
+		if look, isLook := cmd.(cameras.Look); !ok || !isLook || look.Dx != 6 || look.Dy != 8 {
+			t.Errorf("a move of (3, 4) camera pixels at 0.5 builds %+v (%v), want a Look by (6, 8): "+
+				"the shown ones", cmd, ok)
+		}
+		return
+	}
+	t.Error("no binding on the mouse looks round")
+}

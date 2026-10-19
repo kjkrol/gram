@@ -23,8 +23,18 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 		if under {
 			pl.in.cursor = localPoint(pl, ev.MousePos)
 		}
-		ctx := control.Context{Player: pl.ID, Camera: pl.pic.camera, Cursor: pl.in.cursor, Delta: ev.CursorDelta,
-			Wheel: ev.ScrollDelta, Screen: screenOf(pl), Mods: mods, FillsScreen: ev.WindowFillsScreen}
+		k := camera.ResolutionOf(pl.pic.camera)
+		ctx := control.Context{
+			Player:      pl.ID,
+			Camera:      pl.pic.camera,
+			Cursor:      scaled(pl.in.cursor, k),
+			Delta:       scaled(ev.CursorDelta, k),
+			Wheel:       ev.ScrollDelta,
+			Screen:      screenOf(pl),
+			Resolution:  float64(k),
+			Mods:        mods,
+			FillsScreen: ev.WindowFillsScreen,
+		}
 
 		for _, k := range ev.KeyEvents {
 			switch k.Action {
@@ -60,13 +70,13 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 					continue
 				}
 				pos := localPoint(pl, c.Pos)
-				pl.in.cursor, at.Cursor, at.Start = pos, pos, pos
+				pl.in.cursor, at.Cursor, at.Start = pos, scaled(pos, k), scaled(pos, k)
 				pl.in.press(c.Button, pos)
 				t.fire(pl, control.ButtonPress{Button: c.Button, Mods: mods}, at)
 			case control.ActionRelease:
 				if start, down := pl.in.release(c.Button); down {
 					pos := localPoint(pl, c.Pos)
-					pl.in.cursor, at.Cursor, at.Start = pos, pos, start
+					pl.in.cursor, at.Cursor, at.Start = pos, scaled(pos, k), scaled(start, k)
 					t.fire(pl, control.Drag{Button: c.Button, Mods: mods}, at)
 				}
 			}
@@ -87,7 +97,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 		if ev.CursorDelta.X != 0 || ev.CursorDelta.Y != 0 {
 			for button, start := range pl.in.held {
 				at := ctx
-				at.Start = start
+				at.Start = scaled(start, k)
 				t.fire(pl, control.ButtonHeld{Button: button}, at)
 			}
 			if _, down := pl.in.held[control.MouseButtonMiddle]; ev.MiddleDown && !down {
@@ -133,7 +143,7 @@ func (t eventHandler) hold() {
 }
 
 type input struct {
-	cursor   geom.Vec // in the player's picture's pixels
+	cursor   geom.Vec // in the player's picture's shown pixels
 	held     map[control.MouseButton]geom.Vec
 	keys     []control.Key
 	steering []control.Key
@@ -264,4 +274,9 @@ func covers(pl *Player, at geom.Vec) bool {
 
 func localPoint(pl *Player, at geom.Vec) geom.Vec {
 	return geom.NewVec(at.X-pl.pic.area.TopLeft.X, at.Y-pl.pic.area.TopLeft.Y)
+}
+
+// shown pixels in the camera's, k of them a shown one
+func scaled(v geom.Vec, k float32) geom.Vec {
+	return geom.NewVec(v.X*float64(k), v.Y*float64(k))
 }
