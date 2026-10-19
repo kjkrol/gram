@@ -146,11 +146,15 @@ func (g GeoM) affine() gpu.Affine {
 	return gpu.Affine{A: float32(g.a1 + 1), B: float32(g.b), C: float32(g.c), D: float32(g.d1 + 1), TX: float32(g.tx), TY: float32(g.ty)}
 }
 
-// DrawImageOptions is how DrawImage draws: through GeoM, sampled by Filter.
+// DrawImageOptions is how DrawImage draws: through GeoM, sampled by Filter; with a Fade, the
+// pixels of the target each edge fades out over, sampled between texels whatever the Filter.
 type DrawImageOptions struct {
 	GeoM   GeoM
 	Filter Filter
+	Fade   Fade
 }
+
+var softBlit = NewShaderWith("soft blit", Files(shaderFiles, "shaders/blit_soft.wgsl"), nil)
 
 // DrawImage lays src over the image, its top-left corner at the origin moved by op's GeoM.
 func (i *Image) DrawImage(src *Image, op *DrawImageOptions) {
@@ -158,7 +162,34 @@ func (i *Image) DrawImage(src *Image, op *DrawImageOptions) {
 	if op != nil {
 		o = *op
 	}
+	if o.Fade != (Fade{}) {
+		i.drawSoft(src, o)
+		return
+	}
 	gpu.DrawImage(i.gpu(), src.gpu(), o.GeoM.affine(), [4]float32{1, 1, 1, 1}, o.Filter == FilterLinear, gpu.SourceOver)
+}
+
+func (i *Image) drawSoft(src *Image, o DrawImageOptions) {
+	r := src.rect
+	corners := [4][2]float64{{0, 0}, {float64(r.Dx()), 0}, {0, float64(r.Dy())},
+		{float64(r.Dx()), float64(r.Dy())}}
+	var dst Corners
+	for k, p := range corners {
+		x, y := o.GeoM.Apply(p[0], p[1])
+		dst[k] = [2]float32{float32(x), float32(y)}
+	}
+	customs := fadeCustoms(dst, o.Fade)
+	var verts [4]Vertex
+	for k, p := range corners {
+		sx, sy := float32(r.Min.X)+float32(p[0]), float32(r.Min.Y)+float32(p[1])
+		v := vertex(dst[k][0], dst[k][1], sx, sy, [4]float32{1, 1, 1, 1})
+		v.Custom0, v.Custom1, v.Custom2, v.Custom3 = customs[k][0], customs[k][1], customs[k][2],
+			customs[k][3]
+		verts[k] = v
+	}
+	indices := [6]uint16{0, 1, 2, 1, 2, 3}
+	i.DrawTrianglesShader(verts[:], indices[:], softBlit,
+		&DrawTrianglesShaderOptions{Images: [4]*Image{src}})
 }
 
 // CopyFrom puts src's pixels, alpha and all, in place of the image's, from its top-left corner.
