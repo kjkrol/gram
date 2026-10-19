@@ -268,6 +268,7 @@ type seenSectors struct{ s *sectors }
 var _ view.Sectors = seenSectors{}
 
 func (s seenSectors) Len() int            { return s.s.grid.Len() }
+func (s seenSectors) Cols() int           { return s.s.grid.Cols() }
 func (s seenSectors) Box(i int) geom.AABB { return s.s.grid.Box(i) }
 func (s seenSectors) Of(x, y float64) int { return s.s.grid.Of(x, y) }
 func (s seenSectors) Off(i int) bool      { return s.s.grid.Band(i) == s.s.grid.Beyond() }

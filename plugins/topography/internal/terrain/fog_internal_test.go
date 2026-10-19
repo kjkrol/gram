@@ -21,7 +21,8 @@ func (fogging) Visible(camera.AABB) bool { return true }
 // one sector over the whole world
 type one struct{}
 
-func (one) Len() int { return 1 }
+func (one) Len() int  { return 1 }
+func (one) Cols() int { return 1 }
 func (one) Box(int) geom.AABB {
 	return geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(512, 512))
 }

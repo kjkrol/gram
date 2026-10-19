@@ -19,10 +19,12 @@ const (
 	Fogged
 )
 
-// Sectors is a world's grid of sectors as a View sees it: how many, each one's rectangle, the one
-// a point lies in, and whether one lies beyond every band.
+// Sectors is a world's grid of sectors as a View sees it: how many and how many in a row (the
+// sector i lies at column i % Cols, row i / Cols), each one's rectangle, the one a point lies
+// in, and whether one lies beyond every band.
 type Sectors interface {
 	Len() int
+	Cols() int
 	Box(i int) geom.AABB
 	Of(x, y float64) int
 	Off(i int) bool

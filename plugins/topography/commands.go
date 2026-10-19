@@ -14,13 +14,22 @@ func (Haze) Command() {}
 
 var _ command.Command = Haze{}
 
-// Queues are where the shaping's and the haze's commands land.
+// Care steps how far out from the middle of the screen the ground is shaded with full care
+// ([Plugin.SetCare]): Step 1 farther, a sector, two, three, then every one; -1 nearer.
+type Care struct{ Step int }
+
+func (Care) Command() {}
+
+var _ command.Command = Care{}
+
+// Queues are where the shaping's, the haze's and the care's commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
-	return append(p.shaper.queues(), &p.hazing)
+	return append(p.shaper.queues(), &p.hazing, &p.caring)
 }
 
 // DefaultBindings are Shift+= and Shift+- raising and lowering the ground under the cursor (= and
-// - alone zoom the camera), a left drag with L held levelling it and Ctrl+F the haze.
+// - alone zoom the camera), a left drag with L held levelling it, Ctrl+F the haze, Alt+Shift+=
+// and Alt+Shift+- the full care farther and nearer.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	at := func(c control.Context) geom.Vec { return c.World(c.Cursor) }
 	return append([]control.Binding{},
@@ -37,5 +46,13 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		control.Build(control.KeyPress{Key: control.KeyF, Mods: control.Mods{Ctrl: true}},
 			"The haze over the ground, or clear",
 			func(control.Context) (Haze, bool) { return Haze{}, true }),
+		control.Build(
+			control.KeyPress{Key: control.KeyEqual, Mods: control.Mods{Alt: true, Shift: true}},
+			"Full care farther",
+			func(control.Context) (Care, bool) { return Care{Step: 1}, true }),
+		control.Build(
+			control.KeyPress{Key: control.KeyMinus, Mods: control.Mods{Alt: true, Shift: true}},
+			"Full care nearer",
+			func(control.Context) (Care, bool) { return Care{Step: -1}, true }),
 	)
 }

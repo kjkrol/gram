@@ -44,13 +44,18 @@
 // (board.Surface), and under no atmosphere hands the frame its still sky, giving way to a sky
 // some other source hands it. In a world cut into sectors the
 // ground drawn is that of the sectors a camera sees, a coarser mesh (or, on a hex board, the
-// prisms' tops) where it sees one coarsely, turning into the fog before its sight's end.
+// prisms' tops) where it sees one coarsely, turning into the fog before its sight's end, and
+// shaded with less care ring by ring out from the sector under the middle of the screen
+// ([Config.Care], [Plugin.SetCare], [Care]: the far water a level mirror of the sky, the
+// farthest ground without the baked shade and the lamps). [Plugin.Reporter] is the panel's
+// line on it.
 // [Plugin.Miniature] is the board painted flat as one picture, a minimap's ground. It is a
 // plugin.CommandHandler
-// for the shaping's and the haze's commands ([Plugin.Queues], [Plugin.DefaultBindings]); call
-// [Plugin.RunPlan] after the world has moved and before the cameras' RunPlan.
+// for the shaping's, the haze's and the care's commands ([Plugin.Queues],
+// [Plugin.DefaultBindings]); call [Plugin.RunPlan] after the world has moved and before the
+// cameras' RunPlan.
 //
 // # Vocabulary
 //
-// Commands, a player's: [Raise], [Lower], [Level] (the shaping); [Haze] (a look).
+// Commands, a player's: [Raise], [Lower], [Level] (the shaping); [Haze], [Care] (a look).
 package topography

@@ -22,6 +22,7 @@ import (
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -188,18 +189,25 @@ func Benchmark_Board_Shores(b *testing.B) {
 
 // view is "above", "iso" or "persp"; far shows the whole island on a screen of 576 by 384
 func island(b *testing.B, view string, far bool, workers int) (*headless, *board.Board, render.Source) {
-	return islandWith(b, view, far, workers, true, false)
+	ctx, brd, src, _ := islandWith(b, view, far, workers, true, false, false)
+	return ctx, brd, src
 }
 
-// islandWith is island with the water's shine or without it (no water layer drawn), and under
-// a distant sun with the ground's shade baked, or in no light at all
-func islandWith(b *testing.B, view string, far bool, workers int, shine, lit bool) (*headless, *board.Board, render.Source) {
+// islandWith is island with the water's shine or without it (no water layer drawn), under a
+// distant sun with the ground's shade baked or in no light at all, and cut into sectors of 256
+// or whole; the topography is handed back for its care
+func islandWith(b *testing.B, view string, far bool, workers int, shine, lit, sectored bool) (
+	*headless, *board.Board, render.Source, *topography.Plugin) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
 	cfg := world.Config{
 		Space:    world.SpaceCfg{Width: w * size, Height: h * size},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: size},
 		Heights:  true,
+	}
+	if sectored {
+		// sectors of 256, every one in the band
+		cfg.Sectors = world.SectorsCfg{Buckets: 1, Bands: []sector.Band{{Reach: w * size}}}
 	}
 	ctx.UseWorld(cfg)
 	grid := grid.DefaultGrids{}.Square(w, h, size)
@@ -308,11 +316,12 @@ func islandWith(b *testing.B, view string, far bool, workers int, shine, lit boo
 	ctx.pending = append(ctx.pending, func() []goke.System {
 		return []goke.System{goke.SystemFn{OnInit: picture.Init}}
 	})
-	ecs := ctx.start(b, func(ctx goke.RunCtx, d time.Duration) {
+	ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
+		ctx.world.RunPlan(rc, d)
 		if l != nil {
-			l.RunPlan(ctx, d)
+			l.RunPlan(rc, d)
 		}
-		topo.RunPlan(ctx, d)
+		topo.RunPlan(rc, d)
 	})
 	if view == "persp" {
 		cameratest.Switch(ctx.cam)
@@ -321,7 +330,7 @@ func islandWith(b *testing.B, view string, far bool, workers int, shine, lit boo
 	if far {
 		ctx.cam.ZoomOut(100, w*size/2, h*size/2)
 	}
-	return ctx, p.Board(), drawnAs[*look.Renderer](b, ctx)
+	return ctx, p.Board(), drawnAs[*look.Renderer](b, ctx), topo
 }
 
 // Benchmark_Board_Island composes the island through every view, near, far and on a 1080p

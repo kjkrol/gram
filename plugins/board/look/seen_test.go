@@ -18,7 +18,8 @@ import (
 // the left and the right half of a board 128 wide
 type halves struct{}
 
-func (halves) Len() int { return 2 }
+func (halves) Len() int  { return 2 }
+func (halves) Cols() int { return 2 }
 func (halves) Box(i int) geom.AABB {
 	return geom.NewAABB(geom.NewVec(float64(i)*64, 0), geom.NewVec(float64(i+1)*64, 128))
 }

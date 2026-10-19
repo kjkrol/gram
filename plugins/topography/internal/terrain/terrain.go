@@ -8,6 +8,7 @@
 package terrain
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"math"
@@ -26,18 +27,25 @@ import (
 //go:embed shaders/*.wgsl
 var shaders embed.FS
 
-var shader = render.NewMeshShaderWith("terrain",
-	render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl", "shaders/surface.wgsl", "shaders/grid.wgsl", "shaders/mesh.wgsl"),
-	[]render.Uniform{
+// the ground's shader for each care, mesh.wgsl's CARE
+var byCare = [cares]*render.Shader{caring(leastCare), caring(lessCare), caring(fullCare)}
+
+func caring(care int) *render.Shader {
+	src := render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl",
+		"shaders/surface.wgsl", "shaders/grid.wgsl", "shaders/mesh.wgsl")
+	src = append([]byte(fmt.Sprintf("const CARE: u32 = %du;\n", care)), src...)
+	return render.NewMeshShaderWith(fmt.Sprintf("terrain-care%d", care), src, []render.Uniform{
 		{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
-		{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1}, {Name: "Span", Size: 1},
-		{Name: "ShoreReach", Size: 1}, {Name: "Px", Size: 1}, {Name: "AlbedoSize", Size: 2}, {Name: "WaterPx", Size: 1}, {Name: "FlowSpan", Size: 1},
+		{Name: "Cell", Size: 1}, {Name: "Corners", Size: 2}, {Name: "Low", Size: 1},
+		{Name: "Span", Size: 1}, {Name: "ShoreReach", Size: 1}, {Name: "Px", Size: 1},
+		{Name: "AlbedoSize", Size: 2}, {Name: "WaterPx", Size: 1}, {Name: "FlowSpan", Size: 1},
 		{Name: "Shadows", Size: 1}, {Name: "GridFrom", Size: 1},
 		{Name: "GridLine", Size: 4}, {Name: "GridWidth", Size: 1},
 		{Name: "Skirt", Size: 2}, {Name: "Perspective", Size: 1},
 		{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
 		{Name: "Sight", Size: 4},
 	})
+}
 
 // enough rings for the world's curve to bend the skirt under the horizon smoothly
 const skirtRings = 12
@@ -105,11 +113,14 @@ type Renderer struct {
 	mesh      *render.Indices
 	tris      []uint32
 	// the sectors the triangles are laid by, nil for none, each one's runs, the skirt's, and the
-	// runs a frame draws
+	// runs a frame draws, by care, with how many sectors each care took
 	grid    view.Sectors
 	spans   []sectorSpans
 	skirted span
 	drawn   []span
+	care    int
+	ranges  [cares][]render.IndexRange
+	counts  [cares]int
 	plain   *render.Image
 	painted Painted
 
@@ -127,10 +138,35 @@ func New(ground Ground, surface Surface, sky Sky, cfg Config) *Renderer {
 	return r
 }
 
-// Shader is the ground's shader, for a test to compile.
-func Shader() *render.Shader { return shader }
+// Shader is the ground's shader with full care, for a test to compile; Shaders every care's.
+func Shader() *render.Shader { return byCare[fullCare] }
 
-func (*Renderer) Init(*goke.SysInit) {}
+// Shaders are the ground's shaders from the least care to the full, for a test to compile.
+func Shaders() []*render.Shader { return byCare[:] }
+
+// Init compiles the ground's shaders, so that no ring's first frame waits for its own.
+func (*Renderer) Init(*goke.SysInit) {
+	for _, s := range byCare {
+		if err := s.Compile(); err != nil {
+			panic(fmt.Sprintf("terrain: %v", err))
+		}
+	}
+}
+
+// SetCare has the ground within r sectors of the one under the middle of the screen, and of the
+// one under the eye, shaded with full care, within 2r with less and the rest with the least:
+// far water a level mirror of the sky without waves, glint or foam, the farthest ground
+// without the baked shade and the lamps. Zero, every sector with full care.
+func (r *Renderer) SetCare(rings int) { r.care = max(rings, 0) }
+
+// Care is how many sectors out from the middle of the screen the ground is shaded with full
+// care, 0 every one.
+func (r *Renderer) Care() int { return r.care }
+
+// Cared is how many sectors the last frame shaded with full care, with less and with the least.
+func (r *Renderer) Cared() (full, less, least int) {
+	return r.counts[fullCare], r.counts[lessCare], r.counts[leastCare]
+}
 
 // Compose has the ground drawn Direct, in the opaque pass, and hands the frame its heights
 // (render.GroundHeights).
@@ -145,8 +181,9 @@ func (r *Renderer) Compose(f *render.Frame, _ camera.Camera) {
 		Low: r.low, Span: r.span})
 }
 
-// Draw draws the ground into the target through cam under the frame's uniforms u. It draws
-// nothing through a camera without Rays, or off a square grid.
+// Draw draws the ground into the target through cam under the frame's uniforms u, ring by ring
+// of sectors with the care each takes. It draws nothing through a camera without Rays, or off
+// a square grid.
 func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if t.Screen == nil || t.Depth == nil || !r.prepare(cam, u) {
 		return
@@ -162,11 +199,22 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	r.opts.Images = [4]*render.Image{r.lattice, albedo, r.painted.Water, nil}
 	r.opts.Depth = t.Depth
 	r.drawn = r.runs(cam, r.drawn[:0])
-	r.opts.Ranges = r.opts.Ranges[:0]
-	for _, s := range r.drawn {
-		r.opts.Ranges = append(r.opts.Ranges, render.IndexRange{First: s.first, Count: s.count})
+	for c := range r.ranges {
+		r.ranges[c] = r.ranges[c][:0]
 	}
-	t.Screen.DrawMesh(r.mesh, shader, &r.opts)
+	for _, s := range r.drawn {
+		r.ranges[s.care] = append(r.ranges[s.care],
+			render.IndexRange{First: s.first, Count: s.count})
+	}
+	// each care's ground at one go, from the least care out: every call primes its depth
+	// against what is drawn, so a pixel behind an earlier ring is never shaded
+	for c, ranges := range r.ranges {
+		if len(ranges) == 0 {
+			continue
+		}
+		r.opts.Ranges = ranges
+		t.Screen.DrawMesh(r.mesh, byCare[c], &r.opts)
+	}
 }
 
 func (r *Renderer) prepare(cam camera.Camera, u render.Uniforms) bool {

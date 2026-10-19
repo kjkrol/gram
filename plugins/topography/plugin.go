@@ -1,6 +1,7 @@
 package topography
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -58,10 +59,12 @@ func (s stillFrame) Compose(f *render.Frame, _ camera.Camera) {
 }
 
 // Config is the topography: Shaping zero is a quarter of a cell a step and any slope, Climbing
-// zero relief.DefaultClimbing.
+// zero relief.DefaultClimbing, Care how many sectors out from the middle of the screen the
+// ground is shaded with full care ([Plugin.SetCare]), zero every one.
 type Config struct {
 	Shaping  Shaping
 	Climbing relief.Climbing
+	Care     int
 }
 
 // Plugin is a map in relief over a board: the ground's heights, lit and shaded. It is the board's
@@ -85,6 +88,7 @@ type Plugin struct {
 	hexes  *hexes.Ground
 
 	hazing  command.Queue[Haze]
+	caring  command.Queue[Care]
 	hazed   bool
 	look    billboards.Look
 	taking  []render.Taking // by cell, as the kinds last stood
@@ -129,6 +133,7 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 			Scale: worldPlugin.Scale(),
 			Seen:  worldPlugin.ViewFor,
 		})
+		p.ground.SetCare(cfg.Care)
 	} else {
 		p.hexes = hexes.New(worldPlugin, boardPlugin, p, p.relief, liveSky{p})
 	}
@@ -251,6 +256,59 @@ func (p *Plugin) WithHaze(on bool) *Plugin {
 // Hazes reports whether the air hazes the ground.
 func (p *Plugin) Hazes() bool { return p.hazed }
 
+// SetCare has the ground within rings sectors of the one under the middle of the screen (and of
+// the one under the eye) shaded with full care, within twice as many with less — the water a
+// level mirror of the sky, without waves, glint or foam — and the rest with the least, without
+// the baked shade and the lamps besides; 0, every sector with full care. Nothing on a hex board.
+func (p *Plugin) SetCare(rings int) {
+	if p.ground != nil {
+		p.ground.SetCare(rings)
+	}
+}
+
+// Care is how many sectors out from the middle of the screen the ground is shaded with full
+// care, 0 every one.
+func (p *Plugin) Care() int {
+	if p.ground == nil {
+		return 0
+	}
+	return p.ground.Care()
+}
+
+// the rings of full care a Care command steps through, the last every sector
+var careLadder = []int{1, 2, 3, 0}
+
+func (p *Plugin) stepCare(step int) {
+	at := len(careLadder) - 1
+	if care := p.Care(); care > 0 {
+		for k, r := range careLadder[:at] {
+			if care <= r {
+				at = k
+				break
+			}
+		}
+	}
+	p.SetCare(careLadder[min(max(at+step, 0), len(careLadder)-1)])
+}
+
+// Reporter is the topography's part of the telemetry panel: how far out the ground is shaded
+// with full care and how many sectors took each care in the last frame.
+func (p *Plugin) Reporter() render.Reporter { return reporter{p} }
+
+type reporter struct{ p *Plugin }
+
+func (reporter) Init(*goke.SysInit) {}
+
+func (r reporter) Report(line func(label, value string)) {
+	if r.p.Care() == 0 {
+		line("Ground", "care everywhere")
+		return
+	}
+	full, less, least := r.p.ground.Cared()
+	line("Ground", fmt.Sprintf("care within %d sectors: %d full, %d less, %d least", r.p.Care(),
+		full, less, least))
+}
+
 // Seed sets the ground's heights raised when the Stage starts fresh.
 func (p *Plugin) Seed(heights func(p geom.Vec) float64) {
 	if err := p.worldPlugin.InSection("the ground's heights seeded", section.Spawn); err != nil {
@@ -335,6 +393,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // cameras' RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.hazing.Drain(func(command.Issued[Haze]) { p.WithHaze(!p.Hazes()) })
+	p.caring.Drain(func(c command.Issued[Care]) { p.stepCare(c.Command.Step) })
 	p.module.RunPlan(ctx, d)
 }
 

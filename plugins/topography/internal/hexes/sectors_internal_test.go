@@ -13,7 +13,8 @@ import (
 // four sectors of 512 in a row
 type row struct{}
 
-func (row) Len() int { return 4 }
+func (row) Len() int  { return 4 }
+func (row) Cols() int { return 4 }
 func (row) Box(i int) geom.AABB {
 	return geom.NewAABB(geom.NewVec(float64(i)*512, 0), geom.NewVec(float64(i+1)*512, 512))
 }

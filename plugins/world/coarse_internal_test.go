@@ -18,7 +18,8 @@ import (
 // tenth of that
 type halves struct{}
 
-func (halves) Len() int { return 2 }
+func (halves) Len() int  { return 2 }
+func (halves) Cols() int { return 2 }
 func (halves) Box(i int) geom.AABB {
 	return geom.NewAABB(geom.NewVec(float64(i)*512, 0), geom.NewVec(float64(i+1)*512, 1000))
 }

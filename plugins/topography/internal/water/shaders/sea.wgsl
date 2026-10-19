@@ -38,6 +38,15 @@ fn SeaGlintAt(p: vec2<f32>, shine: f32, lit: f32, shore: vec4<f32>, pixel: f32, 
     return vec4<f32>(rgb, 1.0 - clamp(shade, 0.0, 1.0) * (1.0 - mirror) * (1.0 - foam));
 }
 
+// LevelWater is still water too far off for its waves: a level mirror of the sky, giving back as
+// much of it as SeaGlintAt's Fresnel gives a flat sea the eye lies toward — more the flatter the
+// eye meets it, so a ring of it borders the waves without a step in brightness — shining as
+// shine says, whatever the sun.
+fn LevelWater(shine: f32, toward: vec3<f32>) -> vec4<f32> {
+    let m = shine * (mirrorHead + (1.0 - mirrorHead) * pow(1.0 - max(toward.z, 0.0), 5.0));
+    return vec4<f32>(skyAt(toward.z) * m, m);
+}
+
 // Sea is the sea's surface at a point: the way it faces and how much foam covers it.
 struct Sea {
     normal: vec3<f32>,

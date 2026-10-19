@@ -8,8 +8,16 @@ import (
 	"github.com/kjkrol/gram/plugins/world/view"
 )
 
-// span is a run of the ground's triangles' indices
-type span struct{ first, count int }
+// span is a run of the ground's triangles' indices, shaded with care
+type span struct{ first, count, care int }
+
+// The cares the ground is shaded with (mesh.wgsl's CARE): the least, less, full.
+const (
+	leastCare = iota
+	lessCare
+	fullCare
+	cares
+)
 
 // a sector's triangles whole and coarse
 type sectorSpans struct{ whole, coarse span }
@@ -124,25 +132,28 @@ func (r *Renderer) lay(cols, rows int, cell float32, enc []byte) {
 		for i := range n {
 			from := len(r.tris)
 			r.tris = l.whole(cellsIn(r.grid.Box(i), float64(cell), cols, rows), r.tris)
-			r.spans[i].whole = span{from, len(r.tris) - from}
+			r.spans[i].whole = span{first: from, count: len(r.tris) - from}
 		}
 		for i := range n {
 			from := len(r.tris)
 			r.tris = l.coarse(cellsIn(r.grid.Box(i), float64(cell), cols, rows), r.tris)
-			r.spans[i].coarse = span{from, len(r.tris) - from}
+			r.spans[i].coarse = span{first: from, count: len(r.tris) - from}
 		}
 	}
 	from := len(r.tris)
 	r.tris = skirt(cols, rows, r.tris)
-	r.skirted = span{from, len(r.tris) - from}
+	r.skirted = span{first: from, count: len(r.tris) - from}
 }
 
-// the runs of the ground drawn through cam: the sectors its View sees at their levels, joined
-// where they follow one another, and the skirt; the whole mesh in a world of no sectors
+// the runs of the ground drawn through cam: the sectors its View sees at their levels, each
+// with its ring's care, joined where they follow one another with one care, and the skirt; the
+// whole mesh, with full care, in a world of no sectors
 func (r *Renderer) runs(cam camera.Camera, dst []span) []span {
+	r.counts = [cares]int{}
 	if r.grid == nil {
-		return append(dst, span{0, len(r.tris)})
+		return append(dst, span{0, len(r.tris), fullCare})
 	}
+	careOf := r.careOf(cam)
 	v := r.cfg.Seen(cam)
 	v.Sectors(func(i int, _ geom.AABB, level view.Level) {
 		s := r.spans[i].whole
@@ -152,19 +163,64 @@ func (r *Renderer) runs(cam camera.Camera, dst []span) []span {
 		if s.count == 0 {
 			return
 		}
+		s.care = careOf(i)
+		r.counts[s.care]++
 		dst = append(dst, s)
 	})
-	dst = append(dst, r.skirted)
+	skirt := r.skirted
+	skirt.care = careOf(-1)
+	dst = append(dst, skirt)
 	sortSpans(dst)
 	joined := dst[:0]
 	for _, s := range dst {
-		if n := len(joined); n > 0 && joined[n-1].first+joined[n-1].count == s.first {
+		if n := len(joined); n > 0 && joined[n-1].first+joined[n-1].count == s.first &&
+			joined[n-1].care == s.care {
 			joined[n-1].count += s.count
 			continue
 		}
 		joined = append(joined, s)
 	}
 	return joined
+}
+
+// the care sector i is shaded with through cam, the skirt's for i < 0: full within r.care rings
+// of the sector under the middle of the screen or under the eye, less within twice as many,
+// the least beyond; full everywhere with no care set, or through a camera knowing no middle
+func (r *Renderer) careOf(cam camera.Camera) func(i int) int {
+	full := func(int) int { return fullCare }
+	f, ok := cam.(camera.Focused)
+	if r.care <= 0 || !ok {
+		return full
+	}
+	g := r.grid
+	x, y, _ := f.Focus()
+	middle := g.Of(float64(x), float64(y))
+	eye := middle
+	if e, ok := cam.(camera.Eyed); ok {
+		if x, y, _, ok := e.Eye(); ok {
+			eye = g.Of(float64(x), float64(y))
+		}
+	}
+	cols := g.Cols()
+	return func(i int) int {
+		if i < 0 {
+			return leastCare
+		}
+		d := min(rings(i, middle, cols), rings(i, eye, cols))
+		switch {
+		case d <= r.care:
+			return fullCare
+		case d <= 2*r.care:
+			return lessCare
+		}
+		return leastCare
+	}
+}
+
+// how many rings of sectors out from b sector a lies, on a grid cols wide
+func rings(a, b, cols int) int {
+	dx, dy := a%cols-b%cols, a/cols-b/cols
+	return max(dx, -dx, dy, -dy)
 }
 
 func sortSpans(s []span) {
