@@ -473,7 +473,8 @@ bez glintu, rzeki widoczne wszędzie.
 
 **Uwagi.** Adapter spoczywa w paśmie 0,92–0,98 budżetu, więc przy budżecie 60 zadowala go 55–59
 FPS; ostrzejszy próg to jedna stała w `adapt.go`. Benchmark wyspy nie uruchamiał `RunPlan` świata,
-więc z sektorami rysowałby tylko skirt; naprawione w części 4. Rysowanie pierścieni od dalekich do
-bliskich oszczędza tylko pierścień bliski; kolejność od bliskich pozwoliłaby primowi dalszych
-pierścieni odrzucać grunt zasłonięty bliskimi wzgórzami, do zmierzenia w perspektywie (jedna
-linia w `Draw`). `zoneRound` stref krawędzi zostaje w pikselach kamery (kosmetyka). Hex: no-op.
+więc z sektorami rysowałby tylko skirt; naprawione w części 4. Pierścienie są rysowane od
+bliskich do dalekich (pełna staranność pierwsza), żeby prime dalszych odrzucał grunt zasłonięty
+wzgórzami; zmierzone wobec kolejności odwrotnej w 2560×1440: perspektywa R=1 49/51 → 49/52,
+R=2 47/49 → 48/50, izo bez zmian, czyli w granicach szumu. `zoneRound` stref krawędzi zostaje
+w pikselach kamery (kosmetyka). Hex: no-op.

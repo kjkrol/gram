@@ -206,13 +206,13 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		r.ranges[s.care] = append(r.ranges[s.care],
 			render.IndexRange{First: s.first, Count: s.count})
 	}
-	// each care's ground at one go, from the least care out: every call primes its depth
-	// against what is drawn, so a pixel behind an earlier ring is never shaded
-	for c, ranges := range r.ranges {
-		if len(ranges) == 0 {
+	// each care's ground at one go, the full care first: every call primes its depth against
+	// what is drawn, so the far ground the near hills hide is never shaded
+	for c := cares - 1; c >= 0; c-- {
+		if len(r.ranges[c]) == 0 {
 			continue
 		}
-		r.opts.Ranges = ranges
+		r.opts.Ranges = r.ranges[c]
 		t.Screen.DrawMesh(r.mesh, byCare[c], &r.opts)
 	}
 }
