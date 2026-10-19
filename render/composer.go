@@ -207,8 +207,8 @@ type depths struct {
 	main, ground *Depth
 }
 
-// the sizes a composer keeps buffers for: split screens and a minimap share one
-const keptDepths = 4
+// the sizes a composer keeps buffers for: a view in rings, split screens and a minimap
+const keptDepths = 8
 
 func (c *Composer) depthsFor(screen *Image) *depths {
 	w, h := screen.tex.Size()
