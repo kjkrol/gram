@@ -14,7 +14,9 @@
 //
 // A [Feed] is the world seen through a camera: a Picture drawn through the camera every frame
 // into an image of the size whoever shows it gives it ([Surface]). It turns its pixels into the
-// world and back (ToWorld, ToPixels), so whatever shows it knows nothing of its camera.
+// world and back (ToWorld, ToPixels), so whatever shows it knows nothing of its camera. A camera
+// whose figures are sharp (camera.Figured) has a [Grounded] picture's ground drawn at the camera's
+// resolution and scaled up, and what lies over it drawn at every shown pixel.
 //
 // # Font and DrawText
 //
@@ -49,7 +51,11 @@
 // frame's [Uniforms]; [NewMeshShaderWith] builds such a shader on the composer's library, drawn
 // with [Image.DrawMesh] against a [Depth], whole or by ranges of its indices at one go
 // (DrawMeshOptions.Ranges). [Frame.Branch] and [Frame.Append] let a source gather
-// pieces on several goroutines.
+// pieces on several goroutines. A Composer is [Grounded]: DrawGround draws every source but the
+// [Overlying] ones, which say their pieces lie over the figures (the figures, what falls or
+// floats over them, the marks), into a ground image, keeping the ground's depth; DrawOver draws
+// the Overlying ones onto the screen with the uniforms and images the ground pass set, each
+// tested against that depth spread to the screen's size ([Image.ScaleDepth]).
 //
 // A color.RGBA given to render — a piece, a fill, text, a sprite drawn on a [Canvas] — is
 // straight alpha, as colours are written: {R: 255, G: 220, B: 60, A: 40} is a faint yellow. Go
