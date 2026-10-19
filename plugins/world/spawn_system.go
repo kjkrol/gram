@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/render"
 	"log"
 	"reflect"
+	"slices"
 	"time"
 
 	"github.com/kjkrol/ceremony/comp"
@@ -53,9 +54,6 @@ func (s *spawnSystem) Init(si *goke.SysInit) {
 func (s *spawnSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
 	if s.w.spawns.Empty() {
 		return
-	}
-	for i := range s.groups {
-		s.groups[i].rows, s.groups[i].entries = s.groups[i].rows[:0], s.groups[i].entries[:0]
 	}
 	s.groups, s.accepted = s.groups[:0], 0
 	s.w.spawns.Drain(func(i command.Issued[Spawn]) {
@@ -104,7 +102,10 @@ func (s *spawnSystem) take(e kind.Entry) error {
 			return nil
 		}
 	}
-	s.groups = append(s.groups, spawnGroup{by: by, rows: []any{row}, entries: []kind.Entry{e}})
+	// a slot of a past step keeps its arrays
+	s.groups = slices.Grow(s.groups, 1)[:len(s.groups)+1]
+	g := &s.groups[len(s.groups)-1]
+	g.by, g.rows, g.entries = by, append(g.rows[:0], row), append(g.entries[:0], e)
 	return nil
 }
 

@@ -199,3 +199,32 @@ func TestSpawn_PopulateStillRefusesASizeOutOfBounds(t *testing.T) {
 	}
 	goke.New().Setup(p.module.SetupSystems()...)
 }
+
+func TestSpawn_AStepsGroupsReuseTheArraysOfTheLast(t *testing.T) {
+	p, things, ecs, _, _ := spawnWorld(t, 0, 8)
+	s := newSpawnSystem(p.module)
+	ecs.RegSys(s)
+	batch := func(n int) {
+		for i := range n {
+			p.Spawn(things.Entry(thing{x: 100 + 20*float64(i), y: 100, size: 10}))
+		}
+		s.Update(nil, 0)
+	}
+	batch(3)
+	if len(s.groups) != 1 || len(s.groups[0].rows) != 3 || len(s.groups[0].entries) != 3 {
+		t.Fatalf("one batch of three things made %d groups of %d rows", len(s.groups),
+			len(s.groups[0].rows))
+	}
+	slot, rows, entries := &s.groups[0], &s.groups[0].rows[0], &s.groups[0].entries[0]
+	batch(2)
+	if len(s.groups) != 1 || len(s.groups[0].rows) != 2 || len(s.groups[0].entries) != 2 {
+		t.Fatalf("the second batch made %d groups of %d rows, want one of 2", len(s.groups),
+			len(s.groups[0].rows))
+	}
+	if &s.groups[0] != slot || &s.groups[0].rows[0] != rows || &s.groups[0].entries[0] != entries {
+		t.Error("the second batch's group was made in fresh arrays, want the first batch's reused")
+	}
+	if p.module.spawnedCount != 5 {
+		t.Errorf("spawned %d, want the 5 of both batches", p.module.spawnedCount)
+	}
+}
