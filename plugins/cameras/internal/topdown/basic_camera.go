@@ -3,6 +3,7 @@ package topdown
 import (
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
@@ -24,6 +25,7 @@ type basicCamera struct {
 	fastening contract.Fastening
 	form      form
 	detail    contract.Detail
+	rings     []contract.Ring
 }
 
 // form names how a camera from above is saved, so a save of another shape is refused at its
@@ -47,6 +49,7 @@ var _ contract.Fitting = (*basicCamera)(nil)
 var _ contract.Focused = (*basicCamera)(nil)
 var _ contract.Detailed = (*basicCamera)(nil)
 var _ contract.Resolved = (*basicCamera)(nil)
+var _ contract.Ringed = (*basicCamera)(nil)
 
 // Detail is how far the camera sees and how finely.
 func (c *basicCamera) Detail() contract.Detail { return c.detail }
@@ -147,6 +150,11 @@ func (c *basicCamera) Projection() contract.Projection { return contract.TopDown
 func (c *basicCamera) SetResolution(s float32) { c.res = s }
 
 func (c *basicCamera) Resolution() float32 { return c.res }
+
+// SetRings has the picture drawn in rings, or whole for none or one.
+func (c *basicCamera) SetRings(rings []contract.Ring) { c.rings = slices.Clone(rings) }
+
+func (c *basicCamera) Rings() []contract.Ring { return slices.Clone(c.rings) }
 
 // camera pixels a world unit
 func (c *basicCamera) px() float32 { return c.zoom * c.res }
