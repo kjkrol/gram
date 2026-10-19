@@ -191,8 +191,8 @@ routes and goals of an entity's `MoveOrder`; vision the cone of an entity's `Sig
 `WithShadow`; `WithViews(render.Show(…))` picks whose); selection the outline of the `Selected`
 tag through `world.Look.Footprint` plus the marquee, a player's gesture; bridges the bridge in
 hand, a future entity drawn from its deck's slot; collision the boxes; the board the cells held,
-under a `Lighting` the light's shade and the lamps' glow multiplied over its `Still` right after
-it (`look/shade.go`, 2026-10-19) and, under an atmosphere (`board.WithAtmosphere`), its clouds'
+under a `Lighting` its `Still` drawn as it is and the frame's light multiplied over it right
+after (`look/shade.go`, 2026-10-19) and, under an atmosphere (`board.WithAtmosphere`), its clouds'
 shadows as part of its ground (2026-10-15, stage 4: `look.GroundDressing` drawn after, in the
 opaque pass, `board/internal/draw.Clouds`, the 8-px mesh the atmosphere's `overcast` was; what
 lies over the ground is drawn unshaded, as the relief's terrain shades its own ground).

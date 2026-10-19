@@ -49,6 +49,9 @@ atmosphere's entity carries a `light.Source` and a `light.Shining`.
   `atmosphere.NewPlugin` take it. Madeira: a lantern at a bridge's head, shining warm, casting no
   shadow and taking none. A world without the light plugin is lit white and casts no shadow:
   navigation/square and navigation/hex make one and light it with `sky.DefaultSun` in the scene.
+- `examples/look/light`: a flat board under a sun of the game's own (`sun.go`, `WithDistant`
+  each tick from the clock): a tower Baked, walkers' patches, the hero's Silhouette, a lantern
+  lighting the night and casting their shadows by it, lava taking no shade (`cell.Kind.Takes`).
 
 **The minimap** (2026-10-18)
 - `plugins/minimap`: a small picture round a player's camera (`minimap.Plugin.For(cam, player)`,

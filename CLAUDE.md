@@ -49,6 +49,7 @@ make demo-start-split-screen                                    # two players at
 make demo-look-animation                                        # a gallery of animations from sheets: walking, braking, bored, pulling, a lever swinging
 make demo-look-material                                         # a ward's material pulsing, embers drawn out of their state circling it; G calms, F douses
 make demo-look-sky                                              # a sky of the game's own over a valley: its vault, a big orange moon by day, made-up stars
+make demo-look-light                                            # a flat board under a sun of the game's own circling in a day: a tower's shadow baked, walkers' patches, the hero's silhouette (WSAD), a lantern lighting the night, lava taking no shade; Shift+L the lamps' shadows
 make demo-rules-effect                                          # an ice witch: frost and frozen as effects; J hastens the selected
 make demo-rules-mechanisms                                      # a lever, a plate and a switch driving trapdoors and a gate; one hero on WSAD, the lever pulled by touch (Space)
 make demo-rules-dialog                                          # conversations from YAML: the miller and the smith

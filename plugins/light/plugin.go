@@ -131,7 +131,8 @@ func NewPlugin(w *world.Plugin, cfg Config) *Plugin {
 var White = Distant{Dir: [3]float32{0, 0, 1}, Ambient: 1}
 
 // WithDistant has the plugin's own entity shine the distant light d over the world, a scene's
-// sun where no sky gives one; a sky's beside it panics.
+// sun where no sky gives one: set once by a scene, or each tick before RunPlan by a game whose
+// sun moves. A sky's beside it panics.
 func (p *Plugin) WithDistant(d Distant) *Plugin {
 	p.own = &d
 	return p
@@ -330,6 +331,9 @@ func (p *Plugin) At(x, y, z float32) render.Illumination { return p.on(x, y, z, 
 
 func (p *Plugin) on(x, y, z float32, takes render.Taking) render.Illumination {
 	p.read()
+	if takes == 0 { // shines: drawn as it is
+		return render.Illumination{Light: render.Light{1, 1, 1}}
+	}
 	beam := p.distant.Beam()
 	lit := render.Illumination{Light: beam.Shaded(0, 0, 1, 1), Takes: takes}
 	if sum := lit.Light[0] + lit.Light[1] + lit.Light[2]; sum > 0 {

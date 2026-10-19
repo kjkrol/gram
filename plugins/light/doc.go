@@ -15,7 +15,7 @@
 // where the entity stands, or a [Distant] light, a source of no Reach whose way and strength
 // whoever models it writes beside it each tick ([Shining]) — the atmosphere's own entity shines
 // the sun of the hour; a scene without a sky has the plugin's own shine one it sets
-// ([Plugin.WithDistant]). Two distant lights at once panic. [Plugin.Distant] is the distant light
+// ([Plugin.WithDistant], once, or each tick for a sun of the game's own). Two distant lights at once panic. [Plugin.Distant] is the distant light
 // this tick, [Plugin.Lamps] the lamps; [White] the light of a world without one, everything lit
 // as it is.
 //

@@ -114,8 +114,8 @@
 // # Drawing
 //
 // The board's own Map is the simple map: a flat ground seen from above, every kind in its sprite,
-// the ways as bands, composed once and drawn in the light plugin's sun, the shadows it baked and
-// the lamps' light laid over it where each cell takes them (cell.Kind.Takes). [Plugin.WithMap]
+// the ways as bands, composed once and lit per pixel under the light plugin by its distant light,
+// the shadows it baked and the lamps, as each cell takes them (cell.Kind.Takes). [Plugin.WithMap]
 // puts another in. How a kind looks is its tile's, gathered
 // on the board's [Atlas] once the Stage is set up, every sprite the cell's size across (a game
 // declaring looks by hand closes its own before, [Plugin.NewAtlas]); a state of the

@@ -246,8 +246,8 @@ func TestPlugin_OfTakesWhatTheEntitysShadowSays(t *testing.T) {
 			box := base.Slice(cur)[i].Pos.AABB
 			lit := p.Of(cur, i, box, world.Z{}, render.Appearance{})
 			if box.TopLeft.Y == 520 { // the plain one
-				if lit.Takes != 0 || lit.Lamps != (render.Light{}) || !near(lit.Light[0], 0.5) {
-					t.Errorf("what shines is lit %+v, want the sky's alone, taking nothing", lit)
+				if lit.Takes != 0 || lit.Lamps != (render.Light{}) || lit.Light != (render.Light{1, 1, 1}) {
+					t.Errorf("what shines is lit %+v, want white, taking nothing", lit)
 				}
 			} else if lit.Takes != render.TakesAll || !near(lit.Lamps[0], 1) {
 				t.Errorf("the lantern is lit %+v, want it taking all, the lamp's light on it", lit)

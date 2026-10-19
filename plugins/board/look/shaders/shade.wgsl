@@ -1,11 +1,11 @@
 // The light on the board's still seen from above (board's groundShade), one triangle over the
 // viewport scaling what is drawn there (render.DrawMeshOptions.Multiply): the pixel (x, y) of it
 // looks from U.RayAt + x·U.RayDX + y·U.RayDY along U.RayDir + x·U.RayDDX + y·U.RayDDY
-// (camera.RayField) down to the ground at 0. The still is drawn in the sun's light on level
-// ground; here the shadows the frame holds (render.GroundShade) take the sun's share of it away
-// and the lamps add theirs, as the cell takes them: its bits (render.Taking) in the red of the
-// first image, a pixel a cell of U.Cells cells U.CellSize across, every bit off the board or
-// without the image (U.Cells.x of 0).
+// (camera.RayField) down to the ground at 0. The still is drawn as it is; here it is lit by the
+// ambient light, the distant light on level ground less the shadows the frame holds
+// (render.GroundShade) and the lamps', as the cell takes them: its bits (render.Taking) in the
+// red of the first image, a pixel a cell of U.Cells cells U.CellSize across, every bit off the
+// board or without the image (U.Cells.x of 0); a cell taking none stays as drawn.
 
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
@@ -23,18 +23,19 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     }
     let p = (from + way * (-from.z / min(way.z, -1e-6))).xy;
     let taken = cellTakesAt(p);
-    let sun = lightWay();
-    let sunlit = U.LightColor * max(sun.z, 0.0) * U.LightStrength;
-    let light = U.Ambience + sunlit; // the still's light
-    var k = vec3<f32>(1.0);
+    if u32(taken + 0.5) == 0u {
+        return vec4<f32>(1.0); // as drawn
+    }
+    let way = lightWay();
+    var lit = 1.0;
     if takes(taken, takesRelief) || takes(taken, takesBlocks) {
-        let lit = groundShadeOf(p).r;
-        k *= 1.0 - sunlit / max(light, vec3<f32>(1e-4)) * (1.0 - lit);
+        lit = groundShadeOf(p).r;
     }
+    var light = U.Ambience + U.LightColor * max(way.z, 0.0) * U.LightStrength * lit;
     if takes(taken, takesLamps) {
-        k *= 1.0 + lampLightAt(vec3<f32>(p, 0.0)) / max(light, vec3<f32>(1e-4));
+        light += lampLightAt(vec3<f32>(p, 0.0));
     }
-    return vec4<f32>(k, 1.0);
+    return vec4<f32>(light, 1.0);
 }
 
 // cellTakesAt is the shade the cell at p takes, every bit off the board or without the cells'

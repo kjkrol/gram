@@ -293,9 +293,9 @@ func (l *Renderer) materials(f *render.Frame) {
 	})
 }
 
-// Draw draws the still through cam in the opaque pass, under the Lighting the shadows the frame
-// holds and the lamps' light, what a GroundDressing lays over it, and the grid over it after;
-// where the tiles were composed into the frame, only what the dressing lays.
+// Draw draws the still through cam in the opaque pass, under a Lighting lit per pixel by the
+// frame's light, shade and lamps, what a GroundDressing lays over it, and the grid over it
+// after; where the tiles were composed into the frame, only what the dressing lays.
 func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if t.Screen == nil {
 		return
@@ -329,7 +329,7 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 			l.still.Draw(t, cam, u, zoom, sx, sy, l.stillLight)
 		}
 	}
-	if l.lit() != nil {
+	if l.lit() != nil { // the still is drawn as it is: the light is laid over it per pixel
 		l.shade.draw(t, cam, u, l.board)
 	}
 	if l.ground != nil {
@@ -354,21 +354,7 @@ func (l *Renderer) evenLight(m Map, d Dressing, cam camera.Camera) (render.Light
 			return render.Light{}, false
 		}
 	}
-	return l.sunlit(even), true
-}
-
-// sunlit is light under the sun on the ground, as the Lighting has it; the lamps' is the light
-// plugin's own to lay
-func (l *Renderer) sunlit(light render.Light) render.Light {
-	lighting := l.lit()
-	if lighting == nil {
-		return light
-	}
-	lit := lighting.At(0, 0, 0)
-	for k := range light {
-		light[k] *= lit.Light[k] - lit.Lamps[k]
-	}
-	return light
+	return even, true
 }
 
 // the Lighting as it stands, nil for none

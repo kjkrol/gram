@@ -21,8 +21,8 @@ var shadeShader = render.NewMeshShaderWith(
 	},
 )
 
-// groundShade lays over the still the shadows the frame holds and the lamps' light, as each cell
-// takes them
+// groundShade lights the still, drawn as it is, by the frame's light per pixel: the distant
+// light less the shadows the frame holds, and the lamps', as each cell takes them
 type groundShade struct {
 	opts  render.DrawMeshOptions
 	own   map[string][]float32
@@ -32,11 +32,6 @@ type groundShade struct {
 }
 
 func (g *groundShade) draw(t render.Target, cam camera.Camera, u render.Uniforms, brd Board) {
-	// nothing to lay without a shade or a lamp in the picture: a pass over the screen spared
-	if area, lamps := u.Get("GroundShadeArea"), u.Get("LampCount"); (len(area) < 3 ||
-		area[2] <= 0) && (len(lamps) < 1 || lamps[0] <= 0) {
-		return
-	}
 	rays, ok := cam.(camera.Rays)
 	if !ok {
 		return

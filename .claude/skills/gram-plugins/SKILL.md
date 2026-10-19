@@ -295,10 +295,12 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `collision.Field` (`Solid`, `Overhang`), handed over by `Plugin.WithCollision`, and sight's
   `ground.Cover` (`Plugin.Cover`); both read the cell entities whenever asked. A flat board is lit
   by the light plugin (`look.Renderer.WithLighting(world.Lighting)`: the board composed once and
-  tinted on the GPU in the sun's light on level ground, then `look/shade.go` multiplying the still
-  by the frame's shade and the lamps' glow per pixel, `shaders/shade.wgsl`,
-  `DrawMeshOptions.Multiply`, as each cell's `cell.Kind.Takes` says — a pixel a cell in an image
-  rebuilt as the board changes; the tiles composed into the frame lit by `Lighting.At` instead),
+  drawn as it is, then `look/shade.go` multiplying the still per pixel by the frame's light —
+  the ambient, the distant light on level ground less the shade the frame holds, the lamps' —
+  `shaders/shade.wgsl`, `DrawMeshOptions.Multiply` (a multiply never brightens past the
+  albedo: the source is clamped to 1), as each cell's `cell.Kind.Takes` says, a cell taking
+  none left as drawn — a pixel a cell in an image rebuilt as the board changes; the tiles
+  composed into the frame lit by `Lighting.At` instead),
   and takes the weather through `board.Plugin.WithAtmosphere(atmosphere)` (`lit.go`, reading
   `board.Atmosphere{Air}`: what sways leaning, the clouds' shadows laid on its ground right after
   the still, `draw.Clouds`), called in a scene before the first frame; without either it is drawn
