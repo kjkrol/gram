@@ -13,9 +13,9 @@ type span struct{ first, count, care int }
 
 // The cares the ground is shaded with (mesh.wgsl's CARE): the least, less, full.
 const (
-	leastCare = iota
-	lessCare
-	fullCare
+	LeastCare = iota
+	LessCare
+	FullCare
 	cares
 )
 
@@ -151,9 +151,9 @@ func (r *Renderer) lay(cols, rows int, cell float32, enc []byte) {
 func (r *Renderer) runs(cam camera.Camera, dst []span) []span {
 	r.counts = [cares]int{}
 	if r.grid == nil {
-		return append(dst, span{0, len(r.tris), fullCare})
+		return append(dst, span{0, len(r.tris), FullCare})
 	}
-	careOf := r.careOf(cam)
+	careOf := r.CareOf(cam)
 	v := r.cfg.Seen(cam)
 	v.Sectors(func(i int, _ geom.AABB, level view.Level) {
 		s := r.spans[i].whole
@@ -183,16 +183,20 @@ func (r *Renderer) runs(cam camera.Camera, dst []span) []span {
 	return joined
 }
 
-// the care sector i is shaded with through cam, the skirt's for i < 0: full within r.care rings
-// of the sector under the middle of the screen or under the eye, less within twice as many,
-// the least beyond; full everywhere with no care set, or through a camera knowing no middle
-func (r *Renderer) careOf(cam camera.Camera) func(i int) int {
-	full := func(int) int { return fullCare }
+// CareOf is the care sector i is shaded with through cam, the skirt's for i < 0: full within
+// Care rings of the sector under the middle of the screen or under the eye, less within twice
+// as many, the least beyond; full everywhere with no care set, in a world of no sectors or
+// through a camera knowing no middle.
+func (r *Renderer) CareOf(cam camera.Camera) func(i int) int {
+	full := func(int) int { return FullCare }
 	f, ok := cam.(camera.Focused)
-	if r.care <= 0 || !ok {
+	if r.care <= 0 || !ok || r.cfg.Seen == nil {
 		return full
 	}
-	g := r.grid
+	g := r.cfg.Seen(cam).Grid()
+	if g == nil {
+		return full
+	}
 	x, y, _ := f.Focus()
 	middle := g.Of(float64(x), float64(y))
 	eye := middle
@@ -204,16 +208,16 @@ func (r *Renderer) careOf(cam camera.Camera) func(i int) int {
 	cols := g.Cols()
 	return func(i int) int {
 		if i < 0 {
-			return leastCare
+			return LeastCare
 		}
 		d := min(rings(i, middle, cols), rings(i, eye, cols))
 		switch {
 		case d <= r.care:
-			return fullCare
+			return FullCare
 		case d <= 2*r.care:
-			return lessCare
+			return LessCare
 		}
-		return leastCare
+		return LeastCare
 	}
 }
 

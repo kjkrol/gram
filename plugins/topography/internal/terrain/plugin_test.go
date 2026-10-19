@@ -17,8 +17,9 @@ func TestPlugin_TheGroundOnTheGPUTakesTheTilesPlace(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
 	p := topography.NewPlugin(w, b, nil, topography.Config{})
-	if d := topotest.Drawn(t, p); len(d) != 2 || !drawnOpaque(d[0]) {
-		t.Fatalf("the topography draws %v, want the opaque ground first and its still sky", d)
+	if d := topotest.Drawn(t, p); len(d) != 3 || !drawnOpaque(d[0]) {
+		t.Fatalf("the topography draws %v, want the opaque ground first, the care's view and "+
+			"its still sky", d)
 	}
 	if p.Look() != look.Nothing {
 		t.Error("over a square grid the board's Look still lays tiles")

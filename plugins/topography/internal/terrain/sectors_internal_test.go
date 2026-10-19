@@ -101,9 +101,9 @@ func TestRuns_DrawEachSectorSeenAtItsLevelAndTheSkirt(t *testing.T) {
 	// the left sector whole, then the right one coarse and the skirt, which follow one another,
 	// all with full care as no care is set
 	whole := r.spans[0].whole
-	whole.care = fullCare
+	whole.care = FullCare
 	want := []span{whole, {r.spans[1].coarse.first,
-		r.spans[1].coarse.count + r.skirted.count, fullCare}}
+		r.spans[1].coarse.count + r.skirted.count, FullCare}}
 	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
 		t.Errorf("runs %v, want %v", got, want)
 	}
@@ -150,10 +150,10 @@ func TestRuns_ShadeTheSectorsWithLessCareRingByRingFromTheScreensMiddle(t *testi
 	}{
 		// the eye's sector, the screen's middle's, counts as a middle too: the eye over the
 		// row's last sector leaves no sector two or more rings from either
-		{"the middle alone", -1, []ring{{3, fullCare}, {1, lessCare}, {1, leastCare},
-			{3, fullCare}, {1, lessCare}, {1, leastCare},
-			{3, fullCare}, {1, lessCare}, {1, leastCare}}, 9, 3, 3},
-		{"the middle and the eye", 9, []ring{{15, fullCare}}, 15, 0, 0},
+		{"the middle alone", -1, []ring{{3, FullCare}, {1, LessCare}, {1, LeastCare},
+			{3, FullCare}, {1, LessCare}, {1, LeastCare},
+			{3, FullCare}, {1, LessCare}, {1, LeastCare}}, 9, 3, 3},
+		{"the middle and the eye", 9, []ring{{15, FullCare}}, 15, 0, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cam := centred{seeing{Camera: cameratest.NewFromSpace(2560, 1536, 0)}, tc.eye}
@@ -176,7 +176,7 @@ func TestRuns_ShadeTheSectorsWithLessCareRingByRingFromTheScreensMiddle(t *testi
 				want = append(want, span{r.spans[from].whole.first, count, w.care})
 				from += w.sectors
 			}
-			want = append(want, span{r.skirted.first, r.skirted.count, leastCare})
+			want = append(want, span{r.skirted.first, r.skirted.count, LeastCare})
 			if len(got) != len(want) {
 				t.Fatalf("%d runs %v, want %d %v", len(got), got, len(want), want)
 			}
@@ -185,8 +185,8 @@ func TestRuns_ShadeTheSectorsWithLessCareRingByRingFromTheScreensMiddle(t *testi
 					t.Errorf("run %d is %v, want %v", k, got[k], want[k])
 				}
 			}
-			if full, less, least := r.counts[fullCare], r.counts[lessCare],
-				r.counts[leastCare]; full != tc.full || less != tc.less || least != tc.least {
+			if full, less, least := r.counts[FullCare], r.counts[LessCare],
+				r.counts[LeastCare]; full != tc.full || less != tc.less || least != tc.least {
 				t.Errorf("%d sectors with full care, %d less, %d least; want %d, %d, %d",
 					full, less, least, tc.full, tc.less, tc.least)
 			}

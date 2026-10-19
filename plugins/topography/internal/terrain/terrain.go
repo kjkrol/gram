@@ -28,7 +28,7 @@ import (
 var shaders embed.FS
 
 // the ground's shader for each care, mesh.wgsl's CARE
-var byCare = [cares]*render.Shader{caring(leastCare), caring(lessCare), caring(fullCare)}
+var byCare = [cares]*render.Shader{caring(LeastCare), caring(LessCare), caring(FullCare)}
 
 func caring(care int) *render.Shader {
 	src := render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl",
@@ -139,7 +139,7 @@ func New(ground Ground, surface Surface, sky Sky, cfg Config) *Renderer {
 }
 
 // Shader is the ground's shader with full care, for a test to compile; Shaders every care's.
-func Shader() *render.Shader { return byCare[fullCare] }
+func Shader() *render.Shader { return byCare[FullCare] }
 
 // Shaders are the ground's shaders from the least care to the full, for a test to compile.
 func Shaders() []*render.Shader { return byCare[:] }
@@ -165,7 +165,7 @@ func (r *Renderer) Care() int { return r.care }
 
 // Cared is how many sectors the last frame shaded with full care, with less and with the least.
 func (r *Renderer) Cared() (full, less, least int) {
-	return r.counts[fullCare], r.counts[lessCare], r.counts[leastCare]
+	return r.counts[FullCare], r.counts[LessCare], r.counts[LeastCare]
 }
 
 // Compose has the ground drawn Direct, in the opaque pass, and hands the frame its heights

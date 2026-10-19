@@ -149,7 +149,7 @@ func TestTerrain_KeepsTheWaterWetAndTheLandAlikeWithLessCare(t *testing.T) {
 	var land [cares][]byte
 	// the screen's middle in the sector 0, 2 and 3 rings from the one drawn: full care, less,
 	// the least
-	for care, at := range map[int]int{fullCare: 0, lessCare: 2, leastCare: 3} {
+	for care, at := range map[int]int{FullCare: 0, LessCare: 2, LeastCare: 3} {
 		grid.at = at
 		screen := render.NewImage(64, 64)
 		depth := render.NewDepth()
@@ -168,9 +168,9 @@ func TestTerrain_KeepsTheWaterWetAndTheLandAlikeWithLessCare(t *testing.T) {
 		land[care] = at(5, 5)
 	}
 	for care := range cares - 1 {
-		if string(land[care]) != string(land[fullCare]) {
+		if string(land[care]) != string(land[FullCare]) {
 			t.Errorf("land with care %d shows %v, with full care %v: want alike without a baked "+
-				"shade or a lamp", care, land[care], land[fullCare])
+				"shade or a lamp", care, land[care], land[FullCare])
 		}
 	}
 }
