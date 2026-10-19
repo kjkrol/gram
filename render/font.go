@@ -28,6 +28,7 @@ type Font struct {
 	x, y    int
 	row     int
 	written bool
+	pieces  []gpu.Piece // DrawText's, reused: a font is drawn from one goroutine, the frame's
 }
 
 type glyph struct {
@@ -97,11 +98,20 @@ func (f *Font) LineHeight() float32 { return f.height }
 
 // Measure is how wide the longest line of s is and how high its lines are.
 func (f *Font) Measure(s string) (w, h float32) {
-	lines := strings.Split(s, "\n")
-	for _, line := range lines {
-		w = max(w, f.width(line))
+	for more := true; more; {
+		var line string
+		line, s, more = nextLine(s)
+		w, h = max(w, f.width(line)), h+f.height
 	}
-	return w, f.height * float32(len(lines))
+	return w, h
+}
+
+// nextLine cuts the first line off s at its newline; without one the line is all of s
+func nextLine(s string) (line, rest string, more bool) {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return s[:i], s[i+1:], true
+	}
+	return s, "", false
 }
 
 func (f *Font) width(line string) float32 {
@@ -152,9 +162,11 @@ func (f *Font) Has(r rune) bool { return f.glyph(r).ok }
 // DrawText draws s in f, c its colour, its first line's top-left at (x, y) of dst, a line under
 // another at each newline.
 func DrawText(dst *Image, f *Font, s string, x, y float32, c color.Color) {
-	var pieces []gpu.Piece
+	f.pieces = f.pieces[:0]
 	pen := y + f.ascent
-	for _, line := range strings.Split(s, "\n") {
+	for more := true; more; {
+		var line string
+		line, s, more = nextLine(s)
 		px := x
 		prev := rune(-1)
 		for _, r := range line {
@@ -163,7 +175,7 @@ func DrawText(dst *Image, f *Font, s string, x, y float32, c color.Color) {
 			}
 			g := f.glyph(r)
 			if !g.src.Empty() {
-				pieces = append(pieces, gpu.Piece{
+				f.pieces = append(f.pieces, gpu.Piece{
 					DstX: float32(math.Round(float64(px + g.dx))), DstY: float32(math.Round(float64(pen + g.dy))),
 					SrcX: float32(g.src.Min.X), SrcY: float32(g.src.Min.Y), W: float32(g.src.Dx()), H: float32(g.src.Dy())})
 			}
@@ -172,7 +184,7 @@ func DrawText(dst *Image, f *Font, s string, x, y float32, c color.Color) {
 		}
 		pen += f.height
 	}
-	if len(pieces) == 0 {
+	if len(f.pieces) == 0 {
 		return
 	}
 	if f.sheet == nil {
@@ -183,7 +195,7 @@ func DrawText(dst *Image, f *Font, s string, x, y float32, c color.Color) {
 		f.written = true
 	}
 	cr, cg, cb, ca := rgbaOf(c)
-	gpu.DrawPieces(dst.gpu(), f.sheet.gpu(), pieces, [4]float32{cr, cg, cb, ca}, gpu.SourceOver)
+	gpu.DrawPieces(dst.gpu(), f.sheet.gpu(), f.pieces, [4]float32{cr, cg, cb, ca}, gpu.SourceOver)
 }
 
 func fixedToFloat(v fixed.Int26_6) float32 { return float32(v) / 64 }
