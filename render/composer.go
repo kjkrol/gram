@@ -13,10 +13,15 @@ import (
 // depth, then the world back to front by where its pieces lie (At), each tested against what lies
 // nearer, then the marks on top in the order they came; a run sampling one sheet in one call.
 type Composer struct {
-	sources []Source
-	directs []Direct // by source, nil for one that is no Direct
-	frame   Frame
-	white   whiteSheet
+	sources   []Source
+	directs   []Direct // by source, nil for one that is no Direct
+	overlying []bool   // by source, its pieces lie over the figures (Overlying)
+	frame     Frame
+	white     whiteSheet
+	// the uniforms and images the ground pass set, inherited by the pass over it
+	keptUniforms []uniform
+	keptImages   []frameImage
+	grounded     *depths // the ground pass's buffers, nil without an opaque pass
 	// how the frame's runs meet the depth: none in a frame without a ground; the ground's alone
 	// for what lies over the figures, and the one bound to the run being gathered
 	depth  *Depth
@@ -42,7 +47,10 @@ type Composer struct {
 	inited   bool
 }
 
-var _ Picture = (*Composer)(nil)
+var (
+	_ Picture  = (*Composer)(nil)
+	_ Grounded = (*Composer)(nil)
+)
 
 // NewComposer composes sources into one picture; a nil source is left out.
 func NewComposer(sources ...Source) *Composer {
@@ -57,6 +65,8 @@ func NewComposer(sources ...Source) *Composer {
 		c.sources = append(c.sources, src)
 		d, _ := src.(Direct)
 		c.directs = append(c.directs, d)
+		_, over := src.(Overlying)
+		c.overlying = append(c.overlying, over)
 	}
 	c.draw = c.drawTriangles
 	return c
@@ -75,12 +85,39 @@ func (c *Composer) Init(si *goke.SysInit) {
 
 // DrawWorld composes the frame through cam and draws it; a nil screen only composes.
 func (c *Composer) DrawWorld(screen *Image, cam camera.Camera) {
-	c.compose(cam)
+	c.compose(cam, wholePart)
 	if screen == nil {
 		c.setUniforms()
 		return
 	}
-	c.render(screen)
+	c.render(screen, false)
+}
+
+// DrawGround composes every source but the Overlying ones through cam and draws them into
+// ground, keeping the ground's depth and what the sources set for DrawOver; a nil ground only
+// composes.
+func (c *Composer) DrawGround(ground *Image, cam camera.Camera) {
+	c.compose(cam, groundPart)
+	c.keptUniforms = append(c.keptUniforms[:0], c.frame.uniforms...)
+	c.keptImages = append(c.keptImages[:0], c.frame.images...)
+	if ground == nil {
+		c.grounded = nil
+		c.setUniforms()
+		return
+	}
+	c.render(ground, true)
+}
+
+// DrawOver composes the Overlying sources through cam, with the uniforms and images the last
+// DrawGround set, and draws them onto screen, each tested against the depth of the ground drawn
+// into ground spread to screen's size; a nil screen only composes.
+func (c *Composer) DrawOver(screen, ground *Image, cam camera.Camera) {
+	c.compose(cam, overPart)
+	if screen == nil {
+		c.setUniforms()
+		return
+	}
+	c.renderOver(screen, ground)
 }
 
 // Composed is how many pieces the last frame held.
@@ -89,10 +126,27 @@ func (c *Composer) Composed() int { return c.frame.Len() }
 // Uniforms is what the last frame handed the shader, by name.
 func (c *Composer) Uniforms() map[string][]float32 { return c.uniforms }
 
-func (c *Composer) compose(cam camera.Camera) {
+// part is which sources a frame is composed of: all of them, the ground's alone, or the
+// Overlying ones alone, after what the ground's set
+type part uint8
+
+const (
+	wholePart part = iota
+	groundPart
+	overPart
+)
+
+func (c *Composer) compose(cam camera.Camera, p part) {
 	c.frame.Reset(cam)
 	c.frame.time = float32(c.clock().Seconds())
+	if p == overPart {
+		c.frame.uniforms = append(c.frame.uniforms, c.keptUniforms...)
+		c.frame.images = append(c.frame.images, c.keptImages...)
+	}
 	for i, s := range c.sources {
+		if p != wholePart && c.overlying[i] != (p == overPart) {
+			continue
+		}
 		c.frame.source = int32(i + 1)
 		s.Compose(&c.frame, cam)
 	}
@@ -207,6 +261,12 @@ type depths struct {
 	main, ground *Depth
 }
 
+// fits reports whether the buffers are the size of img's texture
+func (d *depths) fits(img *Image) bool {
+	w, h := img.tex.Size()
+	return w == d.w && h == d.h
+}
+
 // the sizes a composer keeps buffers for: a view in rings, split screens and a minimap
 const keptDepths = 8
 
@@ -226,19 +286,21 @@ func (c *Composer) depthsFor(screen *Image) *depths {
 	return &c.depths[len(c.depths)-1]
 }
 
-func (c *Composer) render(screen *Image) {
+// render draws the composed frame into screen; apart, the ground's alone, its opaque pass into
+// the readable buffer kept for the pass over it
+func (c *Composer) render(screen *Image, apart bool) {
 	c.setUniforms()
 	c.packed = append(c.packed[:0], composer.pack(c.boxed)...)
 	c.frameTex = frameOf(c.boxed)
 	f := &c.frame
 	t := Target{Screen: screen, Pass: Opaque}
-	c.depth, c.ground, c.seen = nil, nil, false
+	c.depth, c.ground, c.seen, c.grounded = nil, nil, false, nil
 	if len(f.opaque) > 0 {
 		var d *depths
 		if screen != nil {
 			d = c.depthsFor(screen)
 			t.Depth = d.main
-			if f.ground {
+			if f.ground || apart {
 				// the ground drawn into it, then copied: the main one is never read
 				t.Depth = d.ground
 			}
@@ -250,16 +312,44 @@ func (c *Composer) render(screen *Image) {
 			}
 		}
 		if d != nil {
-			t.Depth = d.main
 			if f.ground {
 				screen.CopyDepth(d.ground, d.main)
-				t.Ground, c.ground = d.ground, d.ground
+				t.Depth, t.Ground, c.ground = d.main, d.ground, d.ground
 			}
-			c.depth, c.seen = d.main, c.sightOf(f.cam)
+			c.depth, c.seen = t.Depth, c.sightOf(f.cam)
+			if apart {
+				c.grounded = d
+			}
 		}
 	}
 	c.heights = c.seen
 	t.Pass = SeeThrough
+	c.paint(screen, t)
+}
+
+// renderOver draws the frame composed of what lies over the figures onto screen, tested against
+// the last ground pass's depth where ground is the image it was drawn into
+func (c *Composer) renderOver(screen, ground *Image) {
+	c.setUniforms()
+	c.packed = append(c.packed[:0], composer.pack(c.boxed)...)
+	c.frameTex = frameOf(c.boxed)
+	f := &c.frame
+	t := Target{Screen: screen, Pass: SeeThrough}
+	c.depth, c.ground, c.seen = nil, nil, false
+	if g := c.grounded; g != nil && screen != nil && ground != nil && g.fits(ground) {
+		d := c.depthsFor(screen)
+		if d != g {
+			screen.ScaleDepth(g.ground, d.ground)
+		}
+		t.Depth, c.depth = d.ground, d.ground
+		if f.ground {
+			screen.CopyDepth(d.ground, d.main)
+			t.Depth, c.depth = d.main, d.main
+			t.Ground, c.ground = d.ground, d.ground
+		}
+		c.seen = c.sightOf(f.cam)
+	}
+	c.heights = c.seen
 	c.paint(screen, t)
 }
 

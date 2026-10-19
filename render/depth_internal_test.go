@@ -22,7 +22,8 @@ func (*groundSource) Init(*goke.SysInit)                {}
 func (*groundSource) Compose(f *Frame, _ camera.Camera) { f.DrawOpaque() }
 func (g *groundSource) Draw(t Target, cam camera.Camera, u Uniforms) {
 	if t.Pass == Opaque {
-		g.still.Draw(t, cam, u, 1, 0, 0, Light{1, 1, 1})
+		x, y := cam.FromScreen(0, 0)
+		g.still.Draw(t, cam, u, cam.Zoom(), x, y, Light{1, 1, 1})
 	}
 }
 
@@ -80,9 +81,32 @@ func shot(t *testing.T, sources ...Source) func(x, y int) [4]byte {
 	cam.SetViewport(64, 64)
 	screen := NewImage(64, 64)
 	NewComposer(sources...).DrawWorld(screen, cam)
-	pix := make([]byte, 4*64*64)
+	return pixelsOf(screen)
+}
+
+func pixelsOf(screen *Image) func(x, y int) [4]byte {
+	w := screen.Bounds().Dx()
+	pix := make([]byte, 4*w*screen.Bounds().Dy())
 	screen.ReadPixels(pix)
-	return func(x, y int) [4]byte { i := 4 * (y*64 + x); return [4]byte(pix[i : i+4]) }
+	return func(x, y int) [4]byte { i := 4 * (y*w + x); return [4]byte(pix[i : i+4]) }
+}
+
+// the ground drawn through cam at a half of the 64 by 64 screen's pixels, laid over it scaled,
+// and what lies over the figures drawn onto it at every pixel
+func groundShot(t *testing.T, c *Composer, sources ...Source) func(x, y int) [4]byte {
+	t.Helper()
+	cam := cameratest.NewFromSpace(64, 64, 0)
+	cam.SetViewport(64, 64)
+	cam.(camera.Resolved).SetResolution(0.5)
+	ground, screen := NewImage(32, 32), NewImage(64, 64)
+	c.DrawGround(ground, cam)
+	op := DrawImageOptions{Filter: FilterLinear}
+	op.GeoM.Scale(2, 2)
+	screen.DrawImage(ground, &op)
+	cam.(camera.Cropping).Crop(64, 64, 1)
+	c.DrawOver(screen, ground, cam)
+	cam.(camera.Cropping).Uncrop()
+	return pixelsOf(screen)
 }
 
 func TestComposer_TheHigherCoversTheLowerWhateverTheOrderOfTheSources(t *testing.T) {
@@ -163,6 +187,40 @@ func TestComposer_WhatLiesOverTheFiguresIsHiddenByTheGroundAlone(t *testing.T) {
 	at = shot(t, groundOf(a), &figureSource{atlas: a, z: 10, id: 2}, over(-5))
 	if p := at(8, 24); p[1] != 200 || p[2] != 0 {
 		t.Errorf("under the ground it shows %v, want the ground hiding it", p)
+	}
+}
+
+func TestComposer_TheOverPassBindsOverFiguresToTheGroundsDepth(t *testing.T) {
+	needGPU(t)
+	a := atlasOf(t)
+	look := color.RGBA{G: 255, B: 255, A: 255}
+	over := func(z float32) Source {
+		return overlyingSource{items(func(f *Frame) {
+			band := Corners{{4, 20}, {60, 20}, {4, 28}, {60, 28}}
+			f.Quad(f.At(16, 24, z).OverFigures(), band, [4]color.RGBA{look, look, look, look})
+		})}
+	}
+	figure := overlyingDirect{&figureSource{atlas: a, z: 10, id: 2}}
+	c := NewComposer(groundOf(a), figure, over(1))
+	at := groundShot(t, c)
+	if c.ground == nil || c.depth == c.ground {
+		t.Error("over the figures the composer bound what lies over them to the figures' depth, " +
+			"want the ground's apart")
+	}
+	if p := at(24, 24); p != [4]byte{0, 255, 255, 255} {
+		t.Errorf("over a figure standing higher it shows %v, want itself", p)
+	}
+	if p := at(30, 18); p != [4]byte{220, 0, 0, 255} {
+		t.Errorf("beside it the figure shows %v, want it red at every pixel", p)
+	}
+	if p := at(50, 24); p != [4]byte{0, 255, 255, 255} {
+		t.Errorf("beside the ground it shows %v, want itself: nothing hides it there", p)
+	}
+	c = NewComposer(groundOf(a), figure, over(-5))
+	at = groundShot(t, c)
+	if p := at(8, 24); p[1] != 200 || p[2] != 0 {
+		t.Errorf("under the ground it shows %v, want the ground hiding it through its depth "+
+			"spread to the screen", p)
 	}
 }
 
