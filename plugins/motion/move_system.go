@@ -80,10 +80,10 @@ func (s *moveSystem) rebuild() {
 }
 
 func clampStep(step geom.Vec, max float64) geom.Vec {
-	mag := math.Hypot(step.X, step.Y)
-	if mag <= max || mag == 0 {
+	sq := step.X*step.X + step.Y*step.Y
+	if sq <= max*max || sq == 0 {
 		return step
 	}
-	scale := max / mag
+	scale := max / math.Sqrt(sq)
 	return geom.NewVec(step.X*scale, step.Y*scale)
 }
