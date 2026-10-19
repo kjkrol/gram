@@ -61,6 +61,7 @@ type module struct {
 
 	effectCmds         effectCommands
 	effectCmdsRunnable goke.Runnable
+	rolesOf            func(uid.UID64) uint64 // bound once, so a tick allocates no method value
 
 	plans         *plan.Plans
 	plansSys      *cgoke.Plans
@@ -88,6 +89,7 @@ func newModule(cfg Config) *module {
 	w := &module{config: cfg, space: buildSpace(cfg), despawned: make(map[uid.UID64]struct{}),
 		clock: clk}
 	w.step = w.simulate
+	w.rolesOf = w.effectCmds.RolesOf
 	w.moments = moments{clock: clk, tick: w.tick}
 	w.sectors = newSectors(w)
 	return w
@@ -95,7 +97,7 @@ func newModule(cfg Config) *module {
 
 func (w *module) tick(d time.Duration) host.Tick {
 	return host.Tick{Now: time.Now(), Dt: d, Commands: &w.commands, Effects: w.effects,
-		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity(), Roles: w.effectCmds.RolesOf}
+		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity(), Roles: w.rolesOf}
 }
 
 func (w *module) RegSystems(ecs *goke.ECS) {
