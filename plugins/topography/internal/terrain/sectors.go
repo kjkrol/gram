@@ -11,12 +11,18 @@ import (
 // span is a run of the ground's triangles' indices, shaded with care
 type span struct{ first, count, care int }
 
-// The cares the ground is shaded with (mesh.wgsl's CARE): the least, less, full.
+// The cares the ground is shaded with (mesh.wgsl's CARE), the full down to the least, each
+// dropping one more thing:
+//
+//	4  everything
+//	3  the shore: no swell, surf or foam, no water running down the ways, no glint at a mouth
+//	2  the waves and their glint: the still water a level mirror of the sky
+//	1  the baked shade and the lamps: every cell takes every shade
+//	0  the grid, the clouds' shadow and the water's picture: the albedo's flat colour
 const (
-	LeastCare = iota
-	LessCare
-	FullCare
-	cares
+	LeastCare = 0
+	cares     = 5
+	FullCare  = cares - 1
 )
 
 // a sector's triangles whole and coarse
@@ -184,9 +190,9 @@ func (r *Renderer) runs(cam camera.Camera, dst []span) []span {
 }
 
 // CareOf is the care sector i is shaded with through cam, the skirt's for i < 0: full within
-// Care rings of the sector under the middle of the screen or under the eye, less within twice
-// as many, the least beyond; full everywhere with no care set, in a world of no sectors or
-// through a camera knowing no middle.
+// Care rings of the sector under the middle of the screen or under the eye, one less every Care
+// rings farther, down to the least; full everywhere with no care set, in a world of no sectors
+// or through a camera knowing no middle.
 func (r *Renderer) CareOf(cam camera.Camera) func(i int) int {
 	full := func(int) int { return FullCare }
 	f, ok := cam.(camera.Focused)
@@ -211,13 +217,11 @@ func (r *Renderer) CareOf(cam camera.Camera) func(i int) int {
 			return LeastCare
 		}
 		d := min(rings(i, middle, cols), rings(i, eye, cols))
-		switch {
-		case d <= r.care:
-			return FullCare
-		case d <= 2*r.care:
-			return LessCare
+		band := 0
+		if d > 0 {
+			band = (d - 1) / r.care
 		}
-		return LeastCare
+		return max(FullCare-band, 0)
 	}
 }
 

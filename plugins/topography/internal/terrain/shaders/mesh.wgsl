@@ -33,7 +33,7 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> Ground {
     // at the corners alone: a cloud spans many cells, and every pixel cost a frame dearly; none on
     // the skirt, whose cells grow so big out to the horizon that the shadows showed as their
     // triangles
-    if U.Cover > 0.0 && U.CloudsShadeGround > 0.5 && vid < lattice {
+    if CARE >= 1u && U.Cover > 0.0 && U.CloudsShadeGround > 0.5 && vid < lattice {
         g.cloud = cloudsShadeAt(p, U.Cell);
     }
     return g;
@@ -63,10 +63,14 @@ fn fs_prime() -> @location(0) vec4<f32> {
 }
 
 // fs_main is the ground's colour at its point in the sun's light, turned to the Fog as far off
-// as it lies, shaded with the care CARE (terrain.Renderer.SetCare): with full care everything;
-// with less the still water is a level mirror of the sky, without waves, glint or foam, and
-// no water runs or glints at a mouth; with the least the ground takes no baked shade and no
-// lamps besides, its relief lit by the sun as it faces it.
+// as it lies and before the sight's end whatever the care, shaded with the care CARE
+// (terrain.Renderer.SetCare), each dropping one more thing:
+//   4  everything
+//   3  the shore: the waves come in with no swell, surf or foam, no water runs down the ways
+//      and no mouth glints
+//   2  the waves and their glint: the still water a level mirror of the sky
+//   1  the baked shade and the lamps: every cell takes every shade
+//   0  the grid, the clouds' shadow (vs_main) and the water's picture: the albedo's flat colour
 @fragment
 fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     let p = g.world;
@@ -88,18 +92,18 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     }
     let sun = lightWay();
     var taken = f32(takesRelief | takesBlocks | takesClouds | takesLamps);
-    if CARE >= 1u && inside {
+    if CARE >= 2u && inside {
         taken = takesAt(p.xy);
     }
     var lit = 0.0;
     if sun.z > 0.0 {
         lit = 1.0;
-        if CARE >= 1u && inside && (takes(taken, takesRelief) || takes(taken, takesBlocks)) {
+        if CARE >= 2u && inside && (takes(taken, takesRelief) || takes(taken, takesBlocks)) {
             lit = groundShadeOf(p.xy).r;
         }
     }
     var light = U.Ambience + U.LightColor * max(dot(n, sun), 0.0) * lit * U.LightStrength;
-    if CARE >= 1u && takes(taken, takesLamps) {
+    if CARE >= 2u && takes(taken, takesLamps) {
         light += lampLightAt(p);
     }
     var rgb = albedo(p.xy) * light;
@@ -112,19 +116,19 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     var run = vec3<f32>(0.0);
     var still = vec3<f32>(0.0);
     var mouth = vec3<f32>(0.0);
-    if U.WaterPx > 0.0 && wetAt(p.xy) {
+    if CARE >= 1u && U.WaterPx > 0.0 && wetAt(p.xy) {
         still = waterAt(p.xy, vec2<f32>(1.0, 0.0));
-        if CARE >= 2u {
+        if CARE >= 4u {
             run = waterAt(p.xy, vec2<f32>(0.0, 0.0));
             mouth = waterAt(p.xy, vec2<f32>(0.0, 1.0));
         }
     }
     // the sea's glint, the waves turning to the shore and breaking on it near enough; with less
-    // care a level mirror
+    // care the open sea everywhere, with less still a level mirror
     if still.b > 0.004 {
-        if CARE >= 2u {
+        if CARE >= 3u {
             var shore = vec4<f32>(0.0);
-            if span >= 16.0 {
+            if CARE >= 4u && span >= 16.0 {
                 shore = shoreAt(p.xy);
             }
             let sea = SeaGlintAt(p.xy, still.g / still.b, wet, shore, pixel, toward);
@@ -136,16 +140,16 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     if cover > 0.0 {
         rgb *= 1.0 - cloudShade(cover);
     }
-    if U.GridFrom > 0.0 && span >= U.GridFrom && inside {
+    if CARE >= 1u && U.GridFrom > 0.0 && span >= U.GridFrom && inside {
         let e = edge(p.xy, moveX, moveY);
         rgb = rgb * (1.0 - U.GridLine.a * e) + U.GridLine.rgb * e;
     }
     // the water running down the ways and the cells it runs over, and where a way turns into water
-    if CARE >= 2u && run.b > 0.004 && span > 16.0 {
+    if CARE >= 4u && run.b > 0.004 && span > 16.0 {
         let v = (run.rg / run.b * 2.0 - 1.0) * U.FlowSpan;
         rgb = over(RunningWater(p.xy, still.r / run.b * clamp((span - 16.0) / 8.0, 0.0, 1.0), wet, vec4<f32>(v, 0.0, 0.0)) * run.b, rgb);
     }
-    if CARE >= 2u && mouth.g > 0.004 && detail > 0.0 {
+    if CARE >= 4u && mouth.g > 0.004 && detail > 0.0 {
         rgb = over(SeaGlintAt(p.xy, mouth.r / mouth.g * detail, wet, vec4<f32>(0.0), pixel, toward) * mouth.g, rgb);
     }
     if U.Visibility > 0.0 {

@@ -16,9 +16,9 @@ func (Haze) Command() {}
 
 var _ command.Command = Haze{}
 
-// Care has the ground within Rings sectors of the middle of the screen shaded with full care
-// ([Plugin.SetCare], Settings.Care), 0 every one. Alt+Shift+= and Alt+Shift+- by default, a
-// sector, two, three, then every one, and back.
+// Care has the ground within Rings sectors of the middle of the screen shaded with full care and
+// one care less every Rings farther ([Plugin.SetCare], Settings.Care), 0 every one. Alt+Shift+=
+// and Alt+Shift+- by default, a sector, two, three, then every one, and back.
 type Care struct{ Rings int }
 
 func (Care) Command() {}
@@ -26,8 +26,8 @@ func (Care) Command() {}
 var _ command.Command = Care{}
 
 // ShowCare has the care's bands drawn over the ground, or not ([Plugin.ShowCare],
-// Settings.ShowCare): the boundaries between sectors of different care, full care in green,
-// less in yellow. The settings screen alone, no key.
+// Settings.ShowCare): the boundaries between sectors of different care, the full care's green,
+// then yellow-green, yellow and orange. The settings screen alone, no key.
 type ShowCare struct{ Shown bool }
 
 func (ShowCare) Command() {}

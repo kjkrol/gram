@@ -135,7 +135,7 @@ func (c centred) Eye() (x, y, z float32, ok bool) {
 	return float32(c.eye%5)*512 + 256, float32(c.eye/5)*512 + 256, 100, c.eye >= 0
 }
 
-func TestRuns_ShadeTheSectorsWithLessCareRingByRingFromTheScreensMiddle(t *testing.T) {
+func TestRuns_ShadeTheSectorsWithOneCareLessEveryRingFromTheScreensMiddle(t *testing.T) {
 	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 2560, Height: 1536, BucketSize: 128})
 	if err != nil {
 		t.Fatal(err)
@@ -143,17 +143,17 @@ func TestRuns_ShadeTheSectorsWithLessCareRingByRingFromTheScreensMiddle(t *testi
 	_, _, enc := encode(make([]float32, 81*49), nil)
 	type ring struct{ sectors, care int }
 	for _, tc := range []struct {
-		name              string
-		eye               int
-		want              []ring
-		full, less, least int
+		name   string
+		eye    int
+		want   []ring
+		counts [cares]int
 	}{
 		// the eye's sector, the screen's middle's, counts as a middle too: the eye over the
 		// row's last sector leaves no sector two or more rings from either
-		{"the middle alone", -1, []ring{{3, FullCare}, {1, LessCare}, {1, LeastCare},
-			{3, FullCare}, {1, LessCare}, {1, LeastCare},
-			{3, FullCare}, {1, LessCare}, {1, LeastCare}}, 9, 3, 3},
-		{"the middle and the eye", 9, []ring{{15, FullCare}}, 15, 0, 0},
+		{"the middle alone", -1, []ring{{3, FullCare}, {1, FullCare - 1}, {1, FullCare - 2},
+			{3, FullCare}, {1, FullCare - 1}, {1, FullCare - 2},
+			{3, FullCare}, {1, FullCare - 1}, {1, FullCare - 2}}, [cares]int{0, 0, 3, 3, 9}},
+		{"the middle and the eye", 9, []ring{{15, FullCare}}, [cares]int{FullCare: 15}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cam := centred{seeing{Camera: cameratest.NewFromSpace(2560, 1536, 0)}, tc.eye}
@@ -185,10 +185,8 @@ func TestRuns_ShadeTheSectorsWithLessCareRingByRingFromTheScreensMiddle(t *testi
 					t.Errorf("run %d is %v, want %v", k, got[k], want[k])
 				}
 			}
-			if full, less, least := r.counts[FullCare], r.counts[LessCare],
-				r.counts[LeastCare]; full != tc.full || less != tc.less || least != tc.least {
-				t.Errorf("%d sectors with full care, %d less, %d least; want %d, %d, %d",
-					full, less, least, tc.full, tc.less, tc.least)
+			if r.counts != tc.counts {
+				t.Errorf("sectors by care %v, want %v", r.counts, tc.counts)
 			}
 		})
 	}

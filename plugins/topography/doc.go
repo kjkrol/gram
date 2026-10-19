@@ -45,9 +45,13 @@
 // some other source hands it. In a world cut into sectors the
 // ground drawn is that of the sectors a camera sees, a coarser mesh (or, on a hex board, the
 // prisms' tops) where it sees one coarsely, turning into the fog before its sight's end, and
-// shaded with less care ring by ring out from the sector under the middle of the screen
-// ([Config.Care], [Plugin.SetCare], [Care]: the far water a level mirror of the sky, the
-// farthest ground without the baked shade and the lamps); asked to ([Plugin.ShowCare],
+// shaded with one care less every Care sectors out from the sector under the middle of the
+// screen ([Config.Care], [Plugin.SetCare], [Care]), down five cares: full within Care sectors;
+// then without the shore's swell, surf and foam, the water running down the ways and the glint
+// at a mouth; then without the waves and their glint, the still water a level mirror of the sky;
+// then without the baked shade and the lamps; last without the grid, the clouds' shadow and the
+// water's look; the haze and the fog before the sight's end stay at every care. Asked to
+// ([Plugin.ShowCare],
 // [ShowCare]), it lays the care's bands over the ground, the boundaries between sectors of
 // different care. [Plugin.Reporter] is the panel's line on it.
 // [Plugin.Miniature] is the board painted flat as one picture, a minimap's ground. It is a

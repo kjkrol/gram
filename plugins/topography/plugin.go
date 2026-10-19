@@ -2,6 +2,8 @@ package topography
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -60,7 +62,8 @@ func (s stillFrame) Compose(f *render.Frame, _ camera.Camera) {
 
 // Config is the topography: Shaping zero is a quarter of a cell a step and any slope, Climbing
 // zero relief.DefaultClimbing, Care how many sectors out from the middle of the screen the
-// ground is shaded with full care ([Plugin.SetCare]), zero every one.
+// ground is shaded with full care, and one care less every as many farther ([Plugin.SetCare]),
+// zero every one.
 type Config struct {
 	Shaping  Shaping
 	Climbing relief.Climbing
@@ -265,9 +268,9 @@ func (p *Plugin) WithHaze(on bool) *Plugin {
 func (p *Plugin) Hazes() bool { return p.Res.Settings.Haze }
 
 // SetCare has the ground within rings sectors of the one under the middle of the screen (and of
-// the one under the eye) shaded with full care, within twice as many with less — the water a
-// level mirror of the sky, without waves, glint or foam — and the rest with the least, without
-// the baked shade and the lamps besides; 0, every sector with full care. Nothing on a hex board.
+// the one under the eye) shaded with full care and one care less every rings sectors farther,
+// down the five cares (the package's doc, "Drawing and commands"); 0, every sector with full
+// care. Nothing on a hex board.
 func (p *Plugin) SetCare(rings int) {
 	if p.ground != nil {
 		p.ground.SetCare(rings)
@@ -326,9 +329,13 @@ func (r reporter) Report(line func(label, value string)) {
 		line("Ground", "care everywhere")
 		return
 	}
-	full, less, least := r.p.ground.Cared()
-	line("Ground", fmt.Sprintf("care within %d sectors: %d full, %d less, %d least", r.p.Care(),
-		full, less, least))
+	cared := r.p.ground.Cared()
+	counts := make([]string, 0, len(cared))
+	for c := terrain.FullCare; c >= terrain.LeastCare; c-- {
+		counts = append(counts, strconv.Itoa(cared[c]))
+	}
+	line("Ground", fmt.Sprintf("care within %d sectors: %s (full to least)", r.p.Care(),
+		strings.Join(counts, " · ")))
 }
 
 // Seed sets the ground's heights raised when the Stage starts fresh.
