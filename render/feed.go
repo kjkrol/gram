@@ -15,14 +15,19 @@ type Surface interface {
 }
 
 // Feed is the world seen through a camera: picture drawn through cam every frame, drawn at its
-// camera's resolution and shown at its size, its pixels the shown ones. Several feeds may share one
-// picture.
+// camera's resolution and shown at its size, its pixels the shown ones; a camera drawn in rings
+// (camera.Ringed) is drawn once a ring, the frame cropped to each, the widest first and the inner
+// ones laid over with feathered edges. Several feeds may share one picture.
 type Feed struct {
 	cam     camera.Camera
 	picture Picture
 	img     *Image
 	w, h    int
+	layers  []*Image // an image a ring
 }
+
+// the shown pixels an inner ring's edge fades over
+const ringFeather = 20
 
 var _ Surface = (*Feed)(nil)
 
@@ -59,21 +64,102 @@ func (f *Feed) Resize(w, h int) {
 	}
 }
 
-// Draw draws the world through the camera into the feed's image.
+// Draw draws the world through the camera into the feed's image: at the camera's resolution, or
+// in rings at the shown size.
 func (f *Feed) Draw() *Image {
 	if f.w <= 0 || f.h <= 0 {
 		return nil
 	}
-	w, h := f.drawn()
-	if f.img == nil || f.img.Bounds().Dx() != w || f.img.Bounds().Dy() != h {
-		if f.img != nil {
-			f.img.Deallocate()
-		}
-		f.img = NewImage(w, h)
+	rings, cropping := f.rings()
+	if rings == nil {
+		f.freeLayers()
+		w, h := f.drawn()
+		f.img = sized(f.img, w, h)
+		f.img.Clear()
+		f.picture.DrawWorld(f.img, f.cam)
+		return f.img
 	}
+	f.img = sized(f.img, f.w, f.h)
 	f.img.Clear()
-	f.picture.DrawWorld(f.img, f.cam)
+	f.drawRings(f.img, rings, cropping)
 	return f.img
+}
+
+// the rings the camera is drawn in and the camera to crop to each: none for a camera drawn whole
+// or one that cannot be cropped
+func (f *Feed) rings() ([]camera.Ring, camera.Cropping) {
+	c, ok := f.cam.(camera.Cropping)
+	if !ok {
+		return nil, nil
+	}
+	if rings := camera.RingsOf(f.cam); len(rings) > 1 {
+		return rings, c
+	}
+	return nil, nil
+}
+
+// the picture drawn a ring at a time, the camera cropped to each, laid over dst at the ring's
+// place in the frame; a ring of the whole frame at every pixel is drawn straight onto dst
+func (f *Feed) drawRings(dst *Image, rings []camera.Ring, c camera.Cropping) {
+	if len(f.layers) != len(rings) {
+		f.freeLayers()
+		f.layers = make([]*Image, len(rings))
+	}
+	b := dst.Bounds()
+	for i, r := range rings {
+		cw, ch := cropSize(f.w, f.h, r.Share)
+		c.Crop(float32(cw), float32(ch), r.Resolution)
+		if cw == f.w && ch == f.h && r.Resolution == 1 {
+			f.picture.DrawWorld(dst, f.cam)
+			c.Uncrop()
+			continue
+		}
+		lw, lh := f.drawn()
+		f.layers[i] = sized(f.layers[i], lw, lh)
+		f.layers[i].Clear()
+		f.picture.DrawWorld(f.layers[i], f.cam)
+		c.Uncrop()
+		op := DrawImageOptions{Filter: FilterLinear}
+		op.GeoM.Scale(float64(cw)/float64(lw), float64(ch)/float64(lh))
+		op.GeoM.Translate(float64(b.Min.X+(f.w-cw)/2), float64(b.Min.Y+(f.h-ch)/2))
+		if i > 0 {
+			op.Fade = Fade{ringFeather, ringFeather, ringFeather, ringFeather}
+		}
+		dst.DrawImage(f.layers[i], &op)
+	}
+}
+
+// the central part of a w by h frame share of it wide and high, in whole pixels, the frame an
+// even number of pixels wider and higher so the part lies a whole pixel in
+func cropSize(w, h int, share float32) (int, int) {
+	side := func(n int) int {
+		c := int(math.Round(float64(n) * float64(share)))
+		if (n-c)%2 != 0 {
+			c++
+		}
+		return min(max(c, 2), n)
+	}
+	return side(w), side(h)
+}
+
+// img at w by h: itself at that size, else a new image in its place
+func sized(img *Image, w, h int) *Image {
+	if img != nil && img.Bounds().Dx() == w && img.Bounds().Dy() == h {
+		return img
+	}
+	if img != nil {
+		img.Deallocate()
+	}
+	return NewImage(w, h)
+}
+
+func (f *Feed) freeLayers() {
+	for _, l := range f.layers {
+		if l != nil {
+			l.Deallocate()
+		}
+	}
+	f.layers = nil
 }
 
 // the size the picture is drawn at: the camera's pixels
@@ -83,10 +169,16 @@ func (f *Feed) drawn() (w, h int) {
 }
 
 // DrawOn draws the world through the camera onto dst, shown at dst's size: straight onto it at
-// the resolution of every pixel, else drawn at the camera's and scaled up.
+// the resolution of every pixel, else drawn at the camera's and scaled up; in rings, each over
+// the last.
 func (f *Feed) DrawOn(dst *Image) {
 	b := dst.Bounds()
 	f.Resize(b.Dx(), b.Dy())
+	if rings, cropping := f.rings(); rings != nil {
+		f.drawRings(dst, rings, cropping)
+		return
+	}
+	f.freeLayers()
 	if camera.ResolutionOf(f.cam) == 1 {
 		f.picture.DrawWorld(dst, f.cam)
 		return
