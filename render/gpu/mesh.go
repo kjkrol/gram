@@ -258,13 +258,14 @@ func Mesh(dw *MeshDraw) {
 		}
 	}
 	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, [4]float32{}, [4]float32{}, nil)
+	offs := d.offsets(dOff, uOff)
 	pass := d.begin(t, dw.Depth, dw.ClearDepth && dw.Depth != nil)
 	if dw.Primed && dw.Depth != nil {
 		r := dw.Target.rect()
 		pass.SetViewport(gputypes.Viewport{X: float32(r.X), Y: float32(r.Y), Width: float32(r.W), Height: float32(r.H), MaxDepth: 1})
 		pass.SetScissorRect(gputypes.ScissorRect{X: uint32(clip.X), Y: uint32(clip.Y), Width: uint32(clip.W), Height: uint32(clip.H)})
 		pass.SetPipeline(dw.Program.pipeline(d, dw.Blend, t.format, depthPrime))
-		pass.SetBindGroup(0, d.group0, []uint32{uint32(dOff), uint32(uOff)})
+		pass.SetBindGroup(0, d.group0, offs)
 		pass.SetBindGroup(1, group1, nil)
 		pass.SetBindGroup(2, group2, nil)
 		d.bindFrame(pass, group3)
@@ -274,7 +275,7 @@ func Mesh(dw *MeshDraw) {
 		draw(pass, dw.Indices, dw.Ranges, count, instances)
 	}
 	pass.SetPipeline(pipeline)
-	pass.SetBindGroup(0, d.group0, []uint32{uint32(dOff), uint32(uOff)})
+	pass.SetBindGroup(0, d.group0, offs)
 	pass.SetBindGroup(1, group1, nil)
 	pass.SetBindGroup(2, group2, nil)
 	d.bindFrame(pass, group3)
@@ -314,7 +315,7 @@ func CopyDepth(target Image, from, to *Depth) {
 	dOff, uOff := d.drawBlock(t, [4]Image{}, nil, [4]float32{}, [4]float32{}, nil)
 	pass := d.begin(t, to, false)
 	pass.SetPipeline(pipeline)
-	pass.SetBindGroup(0, d.group0, []uint32{uint32(dOff), uint32(uOff)})
+	pass.SetBindGroup(0, d.group0, d.offsets(dOff, uOff))
 	pass.SetBindGroup(1, group1, nil)
 	pass.SetBindGroup(2, group2, nil)
 	d.bindFrame(pass, group3)

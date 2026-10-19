@@ -331,23 +331,12 @@ func (d *device) triangles(t *target, clip Rect, dw *Draw, verts []Vertex, indic
 	group1 := d.images(imgs) // realises the images before the buffers are measured
 	group3 := d.frame(dw.Frame)
 	d.ensure(len(verts), len(indices))
-
-	vOff := uint64(len(d.verts))
-	for _, v := range verts {
-		d.verts = appendVertex(d.verts, v)
-	}
-	iOff := uint64(len(d.indices))
-	for _, i := range indices {
-		d.indices = binary.LittleEndian.AppendUint16(d.indices, i)
-	}
-	for len(d.indices)%4 != 0 {
-		d.indices = append(d.indices, 0)
-	}
+	vOff, iOff := d.gather(verts, indices)
 	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, dw.Place, dw.Tint, dw.Sight)
 
 	pass := d.begin(t, dw.Depth, false)
 	pass.SetPipeline(pipeline) // gogpu's Vulkan binds a group through the pipeline's layout: first
-	pass.SetBindGroup(0, d.group0, []uint32{uint32(dOff), uint32(uOff)})
+	pass.SetBindGroup(0, d.group0, d.offsets(dOff, uOff))
 	pass.SetBindGroup(1, group1, nil)
 	pass.SetBindGroup(2, d.noDepth.readGroup(d), nil)
 	d.bindFrame(pass, group3)
@@ -355,6 +344,22 @@ func (d *device) triangles(t *target, clip Rect, dw *Draw, verts []Vertex, indic
 	pass.SetIndexBuffer(d.ibuf, gputypes.IndexFormatUint16, iOff)
 	pass.SetScissorRect(gputypes.ScissorRect{X: uint32(clip.X), Y: uint32(clip.Y), Width: uint32(clip.W), Height: uint32(clip.H)})
 	pass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: uint32(len(indices)), InstanceCount: 1})
+}
+
+// gather adds verts and indices to the frame's buffers, at the offsets returned
+func (d *device) gather(verts []Vertex, indices []uint16) (vOff, iOff uint64) {
+	vOff = uint64(len(d.verts))
+	for _, v := range verts {
+		d.verts = appendVertex(d.verts, v)
+	}
+	iOff = uint64(len(d.indices))
+	for _, i := range indices {
+		d.indices = binary.LittleEndian.AppendUint16(d.indices, i)
+	}
+	for len(d.indices)%4 != 0 {
+		d.indices = append(d.indices, 0)
+	}
+	return vOff, iOff
 }
 
 // depthMode fits the draw's depth buffer to t, the mode it is drawn in
@@ -400,7 +405,10 @@ func (d *device) drawBlock(
 	if tint == ([4]float32{}) {
 		tint = [4]float32{1, 1, 1, 1}
 	}
-	for _, v := range append(place[:], tint[:]...) {
+	for _, v := range place {
+		d.draws = appendF32(d.draws, v)
+	}
+	for _, v := range tint {
 		d.draws = appendF32(d.draws, v)
 	}
 	d.draws = appendSight(d.draws, sight)
