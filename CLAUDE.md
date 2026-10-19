@@ -132,7 +132,7 @@ Decisions the user has made; they are not up for revisiting in passing.
   clouds' shadows (with the camera free: riding, Shift+S sprints back), P freezes the light,
   Space jumps in first person, = and - zoom, Shift+= and Shift+- shape the relief, Ctrl+= and
   Ctrl+- the camera's sight (farther, nearer), Alt+= and Alt+- the picture's resolution (finer,
-  coarser), Alt+A its following the frame budget (following, in rings, off), Alt+Shift+= and
+  coarser), Alt+A its following the frame budget (still, the whole picture, in rings), Alt+Shift+= and
   Alt+Shift+- the ground's full care (farther, nearer), Ctrl+F the ground's haze, through any
   camera (off as a game starts), H the shadows' detail (coarse, fine), Shift+L the lamps' shadows
   (off, on); in a world cut into sectors Shift+G the sectors (by band, by what the camera
@@ -153,7 +153,8 @@ Decisions the user has made; they are not up for revisiting in passing.
   look, the shadows' detail, the haze, the tempo — is a field of its `Res.Settings`, set by a
   command carrying the value (`Boxes{Shown}`, `Haze{On}`, `Tempo{X}`), announced in `Settings()`
   (`plugin.Tunable`: a `control.Switch`, `Choice` or `Range`, `Get` read every frame, `Set`
-  building the command) and kept whole by `plugin.Keep(&p.Res.Settings)`, never a
+  building the command, a `Section` putting it under a section the plugins share, such as
+  `control.Graphics`) and kept whole by `plugin.Keep(&p.Res.Settings)`, never a
   command that means "the next one": the key's binding builds the next value from the setting.
   Its start is the plugin's Config or a setter in `makePlugins` (`ShowGrid(false)`,
   `ShowCones()`), never the scene's, which is made after a load. F10 opens the players' settings

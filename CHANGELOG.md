@@ -43,6 +43,20 @@ atmosphere's entity carries a `light.Source` and a `light.Shining`.
 - The composer keeps depth buffers for eight target sizes, the clouds' images one a size, so a
   view in rings recreates no texture a frame.
 
+**The settings screen in sections** (2026-10-19, etap S)
+- The settings screen (F10) lists the sections the plugins share first, centred: `control.Picture`
+  with its resolution, the strategies following the frame budget, the ground's care, the areas
+  shown and the graphics (a setting's `Section`), then a section a plugin as before;
+  `ui.Subheading`.
+- The picture's resolution follows the frame budget by a strategy (`cameras.Settings.Strategy`:
+  still, the whole picture, in rings; `Adapt{Strategy}`, Alt+A in turn), every knob of both set
+  by hand while still: the resolution, the frame budget, the rings' shares and resolutions
+  (`Picture`, `Rings`, `RingShares`, `RingResolutions`, `Budget`); `cameras.Config.Adaptive` is
+  `Strategy`. The telemetry's "Picture" line says the strategy and its settings.
+- The ground's full care reaches as far as a slider says, up to every sector; "Show the rings"
+  and "Show the care" outline the rings' layers and the care's bands over the picture.
+- The cameras' settings changed shape: a save from this branch before it loses them.
+
 **Faster ticks and frames** (2026-10-19, etap 1 of `doc/plans-perf.md`)
 - The world tick at 5,000 boxes from 215 to 169 µs and no allocations: `clampStep` compares
   squares instead of calling `Hypot`, every plugin's simulation block and the world tick's roles

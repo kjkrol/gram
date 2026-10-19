@@ -539,3 +539,13 @@ rozmiarów (dwa widoki w pierścieniach w podzielonym ekranie). B6 (dziura w war
 zewnętrznych, 0,71 → 0,505 px) niewykonane: zysk ok. 10 FPS przy presecie, do rozważenia, gdy
 tryb pierścieniowy okaże się używany. Alokacje na klatkę wyspy rosną z 446 do 1037 (trzy
 składania); to boxing gogpu per draw, nie nowe alokacje w gram.
+
+## Etap S (2026-10-19, gałąź `perf/ringed-picture`): ekran ustawień w sekcjach
+
+Nie pomiar, a obsługa etapów R i R2: ekran F10 w sekcjach wspólnych dla pluginów (`Section` na
+ustawieniu, `control.Picture…`, `ui.Subheading`, wycentrowany); strategia obrazu jako dropdown
+(`Settings.Strategy`: still, the whole picture, in rings) z pokrętłami obu strategii (budżet
+klatki; udziały i rozdzielczości pierścieni), wszystkie ręczne, gdy adapter stoi; staranność
+jako suwak do „every sector”; nakładki „Show the rings” (obrys przyciętej warstwy) i „Show the
+care” (granice pasm staranności po kratownicy); telemetria „Picture: … following a budget of 60
+FPS” / „…, still”. Zrzuty w `BENCHMARKS.md` nie; sprawdzone zrzutem demo.
