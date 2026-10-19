@@ -53,7 +53,7 @@ var _ render.Source = (*zonesView)(nil)
 func (*zonesView) Init(*goke.SysInit) {}
 
 func (v *zonesView) Compose(f *render.Frame, cam camera.Camera) {
-	if !v.settings.Zones {
+	if !v.settings.Zones || camera.IsCropped(cam) {
 		return
 	}
 	w, h := cam.Viewport()
