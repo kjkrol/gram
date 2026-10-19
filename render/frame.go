@@ -14,6 +14,11 @@ type Source interface {
 	Compose(f *Frame, cam camera.Camera)
 }
 
+// Overlying is a Source whose pieces lie over the figures' ground: the figures themselves, what
+// falls or floats over them and the marks. A Grounded picture composes and draws it in the pass
+// over the ground, the rest in the ground's.
+type Overlying interface{ Overlies() }
+
 // Corners are a quad's screen corners: top-left, top-right, bottom-left, bottom-right.
 type Corners [4][2]float32
 
