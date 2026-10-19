@@ -25,6 +25,13 @@
 // Context carries the player, its camera, the cursor in the camera's pixels and the point picked
 // in the world through the camera.
 //
+// # Settings
+//
+// A [Setting] is one thing of a plugin's the players adjust on the settings screen: a [Switch]
+// on or off, a [Choice] among options, a [Range] of a number. Each reads its value every frame
+// and builds, from the value chosen, the command that sets it; a key bound to the same command
+// builds the next value instead.
+//
 // # Tools
 //
 // A [Tool] is what a player holds in hand, taken with [Take] and put down with [Drop]. A binding

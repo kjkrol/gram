@@ -102,7 +102,7 @@ func TestSectorsView_LaysASectorAcrossTheSeamOnBothSides(t *testing.T) {
 func TestSectorsView_SwitchesFromTheBandsToHowTheyAreSeenToNothing(t *testing.T) {
 	r := sectorWorld(t, twoBands...)
 	for _, want := range []SectorsShown{SectorBands, SectorsSeen, NoSectors} {
-		r.p.module.commands.Put(command.Nobody, SwitchSectors{})
+		r.p.module.commands.Put(command.Nobody, SwitchSectors{Shown: want})
 		r.run()
 		if got := r.p.SectorsShown(); got != want {
 			t.Errorf("shown %v, want %v", got, want)
@@ -115,7 +115,7 @@ func TestSectorsView_SwitchesFromTheBandsToHowTheyAreSeenToNothing(t *testing.T)
 			built, _ = k.Build(control.Context{})
 		}
 	}
-	if built != (SwitchSectors{}) {
-		t.Errorf("Shift+G builds %v, want SwitchSectors", built)
+	if built != (SwitchSectors{Shown: SectorBands}) {
+		t.Errorf("Shift+G builds %v, want SwitchSectors of the bands, the next after none", built)
 	}
 }

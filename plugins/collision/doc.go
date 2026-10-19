@@ -69,6 +69,7 @@
 //
 // Moments, for a role's rules: [Meeting] (a pair, host.Met; its word [Facing]), [Struck] (one that
 // struck something the tick before). Knobs, for an effect's Alter: [Physics]. Commands: [Boxes]
-// (a player's, Shift+X, a look: every entity's box in red, in turn its base under it, its solid
-// over the figures in a world with heights, and none; [BoxesShown]).
+// (a player's, a look: every entity's box in red, its base under it, its solid over the figures
+// in a world with heights, or none; [BoxesShown]; Shift+X in turn). Settings ([Settings], saved
+// with the game, in [Resources]): the boxes shown.
 package collision

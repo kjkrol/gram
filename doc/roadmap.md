@@ -21,8 +21,10 @@ What is left to do. Take an item out when it lands.
   other players' views outlined; beyond the bands a picture kept of what was last seen in place
   of the live world.
 - **ui, what is left** — `Dialog`, `Toast`, `MenuBar`/`Menu`/`ContextMenu`, `Tabs`, `Scroll`,
-  `List`; `Canvas` (a tech tree), `Tooltip`, drag and drop, focus moved by keys and pads; the
-  UI drawn into one `render.Frame` in place of a draw an element, once a profile asks for it.
+  `List`, `Radio`; `Canvas` (a tech tree), `Tooltip`, drag and drop, focus moved by keys and pads
+  over the controls too; the UI drawn into one `render.Frame` in place of a draw an element, once
+  a profile asks for it. Settings of a player's own (its camera's resolution and sight) on the
+  settings screen, beside the plugins'.
 - **Canals and building on shaped ground** — a cell lowered to the sea turns to water; a preview of
   a shaping drag (lost with the players' marquee); the costs of shaping.
 - **A smooth route** — an opt-in `RouteStyle` drawing the line the unit will follow: arcs of
@@ -109,8 +111,6 @@ What is left to do. Take an item out when it lands.
 - **`motion.Leaving`** — a moment no game uses: motion tells its rules of an entity past an open
   edge and despawns it with none. Should it stay a moment, or should motion simply despawn
   whoever leaves?
-- **The frozen light** freezes the hour alone, and is not saved: should it freeze the date too,
-  and come back after a load (a component on the clock's entity)?
 - **Big groups arriving** still strike each other where the column fans out to its spots.
 
 ## Housekeeping

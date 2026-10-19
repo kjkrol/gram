@@ -4,6 +4,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/uid"
 )
 
 // Button is a label that gives its commands when clicked, in order: the scene's own (Show, Hide,
@@ -30,6 +31,12 @@ func (*button) place(e *Element, box geom.AABB) { e.children[0].lay(box) }
 func (*button) draw(*Element, *render.Image) {}
 
 func (*button) needs(e *Element) (w, h float64) { return e.children[0].needs() }
+
+func (b *button) press(s *Scene, _ *Element, _ geom.Vec, about uid.UID64, pinned bool) {
+	for _, cmd := range b.cmds {
+		s.giveAbout(cmd, about, pinned)
+	}
+}
 
 // Input is whoever takes the input over a picture of the world, told before each pass of input
 // where the picture lies on the screen and what it shows.

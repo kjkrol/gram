@@ -113,6 +113,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter(), a.light.Reporter())
 	a.players = players.NewPlugin(a.world, a.cameras, a.board, a.atmosphere, a.topography,
 		a.light)
+	a.atmosphere.ShowClouds(atmosphere.AllBodies)
+	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})
 }
 
 func (a *arena) defineFigures() {

@@ -285,21 +285,34 @@ func TestPlugin_CommandsSwitchTheShadowsCoarseAndTheLampsOff(t *testing.T) {
 			t.Error("the lamps' shadows switch without Shift")
 		}
 	}
-	if keys[control.KeyH] != (light.CoarseShadows{}) ||
-		keys[control.KeyL] != (light.LampShadows{}) {
-		t.Errorf("the keys build %v, want H CoarseShadows and Shift+L LampShadows", keys)
+	if keys[control.KeyH] != (light.CoarseShadows{On: true}) ||
+		keys[control.KeyL] != (light.LampShadows{Count: 0}) {
+		t.Errorf("the keys build %v, want H CoarseShadows on and Shift+L LampShadows off", keys)
 	}
-	w.Carrier().Put(command.Nobody, light.CoarseShadows{})
-	w.Carrier().Put(command.Nobody, light.LampShadows{})
+	w.Carrier().Put(command.Nobody, keys[control.KeyH])
+	w.Carrier().Put(command.Nobody, keys[control.KeyL])
 	tick()
 	if !p.ShadowsCoarse() || p.LampShadows() != 0 {
 		t.Errorf("switched: coarse %v, lamps casting %d; want coarse, none", p.ShadowsCoarse(),
 			p.LampShadows())
 	}
-	w.Carrier().Put(command.Nobody, light.LampShadows{})
+	lamps := p.Settings()[1].(control.Switch)
+	if lamps.Get() {
+		t.Error("the lamps' setting says on with none casting")
+	}
+	w.Carrier().Put(command.Nobody, lamps.Set(true))
 	tick()
-	if p.LampShadows() != 3 {
+	if p.LampShadows() != 3 || !lamps.Get() {
 		t.Errorf("switched again, %d lamps cast, want the Config's 3", p.LampShadows())
+	}
+	saved := p.Serializable().Persisted()
+	_, q, _ := litWorld(t, light.Config{LampShadows: 3}, nil)
+	loading := q.Serializable().Persisted()
+	*loading[0].(*[]byte) = append([]byte(nil), *saved[0].(*[]byte)...)
+	q.Restore()
+	if !q.ShadowsCoarse() || q.LampShadows() != 3 {
+		t.Errorf("loaded: coarse %v, lamps %d; want what was saved", q.ShadowsCoarse(),
+			q.LampShadows())
 	}
 	var lines []string
 	p.Reporter().Report(func(label, value string) { lines = append(lines, label+": "+value) })

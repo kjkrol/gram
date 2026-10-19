@@ -32,6 +32,23 @@ attribute, never a uniform (vision's views, navigation's routes). `ctx.Use(p)` r
 lets `Persistence.Load` decide fresh-spawn vs. restore before the ECS commits. `ctx.Track(s)`
 registers non-`Plugin` state (a `Composition`, a ui scene) into the same save/load machinery.
 
+**A plugin's settings** (2026-10-19): what a player adjusts of a plugin — a look it draws, how hard
+it works — is a field of an exported `Settings` struct in its `Res` (`Res.Settings`, exported
+fields, the zero value the plugin's default where it can be), written by setters
+(`ShowGrid`, `SetCare`) and by a command carrying the value (`Grid{Shown}`, `Care{Rings}`); a key
+builds the next value in its `control.Build` closure (`Grid{Shown: !p.GridShown()}`), never a
+command that means "the next one". `Settings()` (`plugin.Tunable`, asserted) lists them as
+`control.Switch`/`Choice`/`Range`, `Get` read every frame, `Set` building the command: the
+players' settings screen (F10) is generated from them. `Serializable()` returns
+`plugin.Keep(&p.Res.Settings)` made in `NewPlugin`, whose `Persisted` encodes the struct whole
+into one `[]byte` — gob sends no zero field and zeroes none on decode, so a `false` saved over a
+`true` start would come back `true` through plain pointers — and `Restore()` calls
+`kept.Restore()` then applies what mirrors must (a baker's flag, a renderer's switch). A plugin
+with a `persisted` of its own (cameras) appends the kept's value; `decodeGroup` leaves the
+values an older save lacks as they are. The start value is the Config or a setter in
+`makePlugins`: a Stage's scenes are made after a load (`enterStage`: Init, Load+Restore, Loaded,
+makeScenes), so a setter in `screen()` would clobber the loaded setting.
+
 **A system goes in the world's bands by a policy its plugin chooses** (`sector.Everywhere`,
 `Paced`, `Near`; `gram-plugins`, world): `w.Pace(policy)` is a goke query option
 (`goke.PacedBy` with `Every`/`Never` rules by the bands' marks), held by the system (set by the
@@ -184,8 +201,8 @@ Stage entered afresh.
 `render` (root) — `Renderer`/`AtlasSource`/`Atlas`/`Composer`/`Frame`/`Source`/`At`/
 `CachedRenderer`/`SolidBackground`/`Feed`/`Still`/`Direct`/`Font`, drawing
 with no knowledge of Stages, Scenes or plugins. `plugin` (root) — the extension contract
-(`Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`/`CommandHandler`/`Made`,
-`plugin/section`); imports `render`, `control`, `ceremony/host`, `ceremony/command`. `game`
+(`Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`/`CommandHandler`/`Tunable`/`Keep`/
+`Made`, `plugin/section`); imports `render`, `control`, `ceremony/host`, `ceremony/command`. `game`
 (root) — what a Stage implements and receives, all in one package; imports `plugin` and `render`.
 `internal/engine` — the `Engine` plus the unexported `initializer`/`persistence`/`storage`/
 `stageRuntime`. Dependency direction: `render` ← `plugin` ← `game` ← `internal/engine` ← `gram`.

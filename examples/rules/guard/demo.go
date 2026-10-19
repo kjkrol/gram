@@ -104,6 +104,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
 	a.players = players.NewPlugin(a.world, a.collision,
 		a.cameras, a.board, a.selection, a.nav, a.driving)
+	a.nav.ShowRoutes(true)
 }
 
 func (a *arena) definePlayer() error {

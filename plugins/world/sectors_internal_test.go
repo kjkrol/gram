@@ -218,7 +218,7 @@ func TestSectors_SwitchedOffLiveEverywhereAndOnAgainGoBackPastTheMargin(t *testi
 	r := sectorWorld(t, twoBands...)
 	r.spawn(100, 1200, 2000, 3500)
 	r.run()
-	r.p.module.commands.Put(command.Nobody, SwitchBands{})
+	r.p.module.commands.Put(command.Nobody, SwitchBands{On: false})
 	r.run()
 	r.run()
 	near, second, off := r.bands()
@@ -231,7 +231,7 @@ func TestSectors_SwitchedOffLiveEverywhereAndOnAgainGoBackPastTheMargin(t *testi
 	if got["Sectors"] != "8 · 0, beyond 0, bands off" {
 		t.Errorf("sectors %q, want 8 · 0, beyond 0, bands off", got["Sectors"])
 	}
-	r.p.module.commands.Put(command.Nobody, SwitchBands{})
+	r.p.module.commands.Put(command.Nobody, SwitchBands{On: true})
 	r.run()
 	r.run()
 	// the sector of 2000 lies 1436 off, short of the second band's 1200 and its margin of 256
@@ -252,8 +252,8 @@ func TestSectors_KeysOnlyInAWorldCutIntoSectors(t *testing.T) {
 		}
 		return nil, false
 	}
-	if cmd, ok := ctrlG(sectorWorld(t, twoBands...).p); !ok || cmd != (SwitchBands{}) {
-		t.Errorf("Ctrl+G builds %v (%v), want SwitchBands", cmd, ok)
+	if cmd, ok := ctrlG(sectorWorld(t, twoBands...).p); !ok || cmd != (SwitchBands{On: false}) {
+		t.Errorf("Ctrl+G builds %v (%v), want SwitchBands off, the bands being on", cmd, ok)
 	}
 	if cmd, ok := ctrlG(sectorWorld(t).p); ok {
 		t.Errorf("Ctrl+G builds %v in a world of no sectors, want no such key", cmd)

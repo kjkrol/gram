@@ -50,10 +50,15 @@ type Plugin struct {
 	collision    *collision.Plugin
 	spacing      Spacing
 	handKeeping  handKeeping
+	kept         *plugin.Kept[Settings]
+
+	Res Resources
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.KindTemplater = (*Plugin)(nil)
+var _ plugin.Tunable = (*Plugin)(nil)
+var _ plugin.Restorer = (*Plugin)(nil)
 
 // NewPlugin builds a navigation plugin over a board, its units moved by m; hand it to the players
 // plugin for its MoveTo command and default bindings.
@@ -72,6 +77,7 @@ func NewPlugin(
 		worldPlugin: worldPlugin,
 		selected:    selectionPlugin.Tags().Selected,
 	}
+	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(worldPlugin, p)
 	drivingPlugin.WithKeeping(&p.handKeeping)
 	p.pathRenderer = newPathRenderer(boardPlugin.Board(), DefaultRouteStyle, p.selected).
@@ -142,7 +148,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan takes the orders at once and steers the units in the simulation; call it after the
 // board's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.routes.Drain(func(command.Issued[Routes]) { p.ShowRoutes(!p.RoutesShown()) })
+	p.routes.Drain(func(i command.Issued[Routes]) { p.ShowRoutes(i.Command.Shown) })
 	p.module.RunPlan(ctx, d)
 }
 
@@ -168,8 +174,14 @@ func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
 // EventHandler returns nil.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable returns nil: navigation has nothing to persist.
-func (p *Plugin) Serializable() plugin.Serializable { return nil }
+// Serializable is navigation's Settings, kept whole.
+func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
+
+// Restore takes the Settings loaded and draws as they say.
+func (p *Plugin) Restore() {
+	p.kept.Restore()
+	p.ShowRoutes(p.Res.Settings.Routes)
+}
 
 // WithCrowd sets the rules of Touch the units get on among others by, in place of the plugin's
 // own; none leaves them to navigation's last word alone. Call before Use.
@@ -185,8 +197,11 @@ func (p *Plugin) WithRouteStyle(style RouteStyle) *Plugin {
 	return p
 }
 
-// ShowRoutes has the selected units' routes drawn, or their goals alone.
-func (p *Plugin) ShowRoutes(shown bool) { p.pathRenderer.ShowRoutes(shown) }
+// ShowRoutes has the selected units' routes drawn, or their goals alone (Settings.Routes).
+func (p *Plugin) ShowRoutes(shown bool) {
+	p.Res.Settings.Routes = shown
+	p.pathRenderer.ShowRoutes(shown)
+}
 
 // RoutesShown reports whether the routes are drawn.
-func (p *Plugin) RoutesShown() bool { return p.pathRenderer.RoutesShown() }
+func (p *Plugin) RoutesShown() bool { return p.Res.Settings.Routes }

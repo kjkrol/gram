@@ -498,8 +498,8 @@ func TestPlugin_Contract(t *testing.T) {
 	if r.p.EventHandler() == nil {
 		t.Error("EventHandler is nil — players translate input")
 	}
-	if r.p.Serializable() != nil {
-		t.Error("players save nothing of their own")
+	if r.p.Serializable() == nil {
+		t.Error("players save their Settings")
 	}
 }
 

@@ -26,5 +26,6 @@
 // # Vocabulary
 //
 // Commands: [Switch] shows the minimaps or hides them (Shift+M), [Turn] turns them with their
-// cameras or keeps north up (Ctrl+M). A click on a minimap gives cameras.CenterAt.
+// cameras or keeps north up (Ctrl+M). Settings ([Settings], saved with the game, in
+// [Resources]): both. A click on a minimap gives cameras.CenterAt.
 package minimap

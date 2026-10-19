@@ -131,6 +131,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.minimap = minimap.NewPlugin(a.world, nil, minimap.Config{Reach: scale.Units(9_000)})
 	a.telemetry = telemetry.NewPlugin(a.world)
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.minimap)
+	a.world.ShowSectors(world.SectorBands)
 }
 
 func (a *arena) definePlayer() error {

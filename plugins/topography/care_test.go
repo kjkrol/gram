@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -42,8 +43,17 @@ func TestPlugin_CareStepsFullCareFartherAndNearerRungByRung(t *testing.T) {
 	if caring == nil {
 		t.Fatal("no queue takes a Care command")
 	}
+	keys := map[string]control.Binding{}
+	for _, bd := range qw.Topo.DefaultBindings() {
+		keys[players.Written(bd.Trigger)] = bd
+	}
 	step := func(by int) int {
-		caring.Put(command.Nobody, topography.Care{Step: by})
+		key := keys["Alt+Shift+="]
+		if by < 0 {
+			key = keys["Alt+Shift+-"]
+		}
+		cmd, _ := key.Build(control.Context{})
+		caring.Put(command.Nobody, cmd)
 		qw.ECS.Tick(time.Second / 60)
 		return qw.Topo.Care()
 	}

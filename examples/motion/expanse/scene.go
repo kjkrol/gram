@@ -5,7 +5,6 @@ import (
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
@@ -32,7 +31,6 @@ var (
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 	a.world.WithFog(backgroundColor)
-	a.world.ShowSectors(world.SectorBands)
 	cam := a.cameras.New(cameras.FromAbove, camera.Config{})
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),

@@ -33,8 +33,10 @@ func TestBoxes_TheCommandSwitchesFromTheBasesToTheSolidsToNone(t *testing.T) {
 		if p.BoxesShown() != NoBoxes {
 			t.Fatal("the boxes are shown before anyone asked")
 		}
+		key := p.DefaultBindings()[0]
 		for i, want := range tc.want {
-			tc.w.Carrier().Put(command.Nobody, Boxes{})
+			cmd, _ := key.Build(control.Context{})
+			tc.w.Carrier().Put(command.Nobody, cmd)
 			p.switchBoxes()
 			if p.BoxesShown() != want {
 				t.Errorf("heights %v, Boxes given %d times: %v shown, want %v",
@@ -51,6 +53,32 @@ func TestBoxes_TheCommandSwitchesFromTheBasesToTheSolidsToNone(t *testing.T) {
 	}
 	if len(keys) != 1 || keys[0] != "X" {
 		t.Errorf("Boxes bound to %v, want Shift+X alone", keys)
+	}
+}
+
+func TestBoxes_TheSettingChoosesAndIsSaved(t *testing.T) {
+	w := testWorldPlugin()
+	p := newTestPlugin(w)
+	if err := w.Carry(p); err != nil {
+		t.Fatal(err)
+	}
+	choice := p.Settings()[0].(control.Choice)
+	if len(choice.Options) != 2 || choice.Get() != 0 {
+		t.Fatalf("flat, the choice is %v at %d, want none and bases at none", choice.Options,
+			choice.Get())
+	}
+	w.Carrier().Put(command.Nobody, choice.Set(1))
+	p.switchBoxes()
+	if p.BoxesShown() != Bases || choice.Get() != 1 {
+		t.Fatalf("chose the bases: %v shown, the choice at %d", p.BoxesShown(), choice.Get())
+	}
+	saved := p.Serializable().Persisted()
+	q := newTestPlugin(testWorldPlugin())
+	loading := q.Serializable().Persisted()
+	*loading[0].(*[]byte) = append([]byte(nil), *saved[0].(*[]byte)...)
+	q.Restore()
+	if q.BoxesShown() != Bases {
+		t.Errorf("loaded: %v shown, want the bases saved", q.BoxesShown())
 	}
 }
 

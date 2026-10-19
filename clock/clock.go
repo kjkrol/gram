@@ -1,6 +1,7 @@
 package clock
 
 import (
+	"math"
 	"slices"
 	"time"
 
@@ -178,6 +179,21 @@ func (c *Clock) Faster() { c.shift(1) }
 
 // Slower — see Faster.
 func (c *Clock) Slower() { c.shift(-1) }
+
+// Tempos are the tempos the clock can be set to, the Config's, in order.
+func (c *Clock) Tempos() []float32 { return c.cfg.Tempos }
+
+// SetTempo sets the tempo to the Config's nearest to tempo.
+func (c *Clock) SetTempo(tempo float32) {
+	nearest := c.cfg.Tempos[0]
+	for _, t := range c.cfg.Tempos {
+		if math.Abs(float64(t-tempo)) < math.Abs(float64(nearest-tempo)) {
+			nearest = t
+		}
+	}
+	c.state.Tempo, c.slowed = nearest, false
+	c.tell()
+}
 
 func (c *Clock) shift(by int) {
 	i := slices.Index(c.cfg.Tempos, c.state.Tempo) + by

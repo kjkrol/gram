@@ -115,13 +115,19 @@ func (s *Sky) Shift(by float32) {
 	if !s.frozen {
 		return
 	}
-	s.hour += by
-	for s.hour < 0 {
-		s.hour++
+	s.SetHour(s.hour + by)
+}
+
+// SetHour puts the frozen light at hour, a part of the day round midnight: what Hour says from
+// then on, the light's while frozen.
+func (s *Sky) SetHour(hour float32) {
+	for hour < 0 {
+		hour++
 	}
-	for s.hour >= 1 {
-		s.hour--
+	for hour >= 1 {
+		hour--
 	}
+	s.hour = hour
 }
 
 // HalfHour is half an hour as a part of the day, for Shift.

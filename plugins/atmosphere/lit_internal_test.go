@@ -78,7 +78,7 @@ func TestPlugin_DrawsTheSkyTheCloudsAndWhatFalls(t *testing.T) {
 			t.Errorf("the clouds look %v, seen from above %v, heaped on the sky %v; want %+v", l,
 				above, bodies, want)
 		}
-		a.clouds.Put(command.Nobody, Clouds{})
+		a.clouds.Put(command.Nobody, Clouds{Look: (a.ShownClouds() + 1) % (ShadowsAlone + 1)})
 		a.carryOut()
 	}
 }
@@ -132,7 +132,7 @@ func TestPlugin_ReportsTheMoonOnItsOwnHowTheCloudsLookAndWhoseShadowsFall(t *tes
 		t.Errorf("the clouds look %q, their shadows %q; want the low as bodies, both layers' "+
 			"shadows as the game starts", got["Clouds"], got["Shadows"])
 	}
-	a.shades.Put(command.Nobody, HighShade{})
+	a.shades.Put(command.Nobody, HighShade{On: !a.shadows.High})
 	a.carryOut()
 	a.Reporter().(reporters)[3].Report(func(label, value string) { got[label] = value })
 	if a.Air().HighShade || got["Shadows"] != "the low clouds' on the ground and the figures" {

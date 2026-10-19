@@ -58,4 +58,5 @@
 // # Vocabulary
 //
 // Commands, a player's: [Raise], [Lower], [Level] (the shaping); [Haze], [Care] (a look).
+// Settings ([Settings], saved with the game, in [Resources]): the haze, the care.
 package topography

@@ -34,11 +34,12 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `sector.Anchors` handed to `Plugin.Anchor` (the cameras plugin's, the `camera.Focused` point
   of each camera but a `Whole` one); `Plugin.Sectors()` is a `render.Reporter` ("Sectors",
   "Entities by band", ", bands off" while they are); board/topography and motion/expanse have
-  them. **Bands off** (`SwitchBands`, Ctrl+G; `SetBanded`, `Banded`; not saved): the supervisor
+  them. **Bands off** (`SwitchBands{On}`, Ctrl+G; `SetBanded`, `Banded`; `Res.Settings.Unbanded`,
+  saved): the supervisor
   leaves the anchors out, so `Grid.Place` lays every sector in the first band at once, the
   sleepers wake and the marks go — the whole world as if without bands but for the supervisor's
-  pass; on again, the sectors go back past the margin. **The sectors shown** (`SwitchSectors`,
-  Shift+G through `SectorsShown`: `SectorBands`, `SectorsSeen` — the camera's `view.Level` —
+  pass; on again, the sectors go back past the margin. **The sectors shown** (`SwitchSectors{Shown}`,
+  Shift+G through `SectorsShown`, `Res.Settings.Sectors`: `SectorBands`, `SectorsSeen` — the camera's `view.Level` —
   `NoSectors`; `ShowSectors` from a scene; not saved): the world's `sectorsView`, in a world with
   heights through a camera with `Rays` on the GPU over the ground's depth
   (`internal/sectorview`: a texel a sector a camera, `ReadGround`, `OnGround(0.2)`, nothing past
@@ -138,14 +139,15 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   through the `ShadowPolicy` (`WithShadowPolicy`, by the distance from the eye): the sun's
   (`Sun.ShadowOf`/`SilhouetteOf`, an `Umbra`, the sprite's shape flipped to the side it faces)
   and on level ground the `Casting()` lamps' (`Lamp.ShadowOf`; `Config.LampShadows` nearest the
-  camera, Shift+L `LampShadows` off and on, `SetLampShadows`); `Compose` plans the bake and
+  camera, Shift+L `LampShadows{Count}` off and on, `SetLampShadows`, `Res.Settings.LampShadows`); `Compose` plans the bake and
   `Draw` runs it in the opaque pass before the ground is drawn (`internal/bake`: the relief's
   shade from the frame's `GroundHeights` over a `Relief` the topography gives with `OverRelief` —
   `groundDrawnAt`, triangle-split as the mesh is drawn — a strip a frame as the sun turns, the
   whole at a leap or as the heights or the blocks change, each band fading from its last bake,
   `shade.wgsl`; then every `Baked` entity a block, `blocks.wgsl`, `Darkest`, a deck's pieces
   joined, over level ground 256 cells a side under the world's space without a relief — so a flat
-  board gets its towers' and bridges' shadows; `H` `CoarseShadows` half as fine; nothing to bake
+  board gets its towers' and bridges' shadows; `H` `CoarseShadows{On}` half as fine
+  (`Res.Settings.Coarse`, the baker's flag re-applied in `Restore`); nothing to bake
   over a hex relief or without a sun; a bake before the frame holds the heights plans the whole
   anew), and lays the casts after the ground over its depth (`internal/cast`, `cast.wgsl`, the
   rect each covers from the relief's extent, `f.ReadGround`, at `OnGround(castLift)` 0.05 under
@@ -266,8 +268,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   and has every unit hold the cell it stands on, each on its level (a walker on a deck and one
   under it share a cell); one holding nothing lets go of the cell it was `At`, is `At` the one it
   stands on with `unit.Entered` on; one mid-step holds both and is left to navigation.
-  `board.Holds` (Shift+O, `Plugin.ShowHolds`) outlines every cell held, lying 0.15 over it, in
-  its holder's hue, as wide as the surface says.
+  `board.Holds{Shown}` (Shift+O, `Plugin.ShowHolds`, `HoldsShown`) outlines every cell held, lying 0.15 over it, in
+  its holder's hue, as wide as the surface says. The grid's line and the holds are
+  `Res.Settings{Grid, Holds}`, saved; `Grid{Shown}` (B, `ShowGrid`, `GridShown`).
   **A map is a file**: `board.Plugin.Lay(fsys, path)` in Spawn seeds the board and hands back a
   `board.Level`; `board.Spawn[R](level, board.Sides)` seeds the world with the entities whose
   kind's rows are `R` (`R`'s fields tagged `yaml` are the file's keys), one no Spawn took fails
@@ -372,8 +375,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   the sun's own colour at its height on `Heavens.SunColor`; the sun of the hour is a `light.Distant` (`sky.DefaultSun` the one of a relief under no sky)
   the atmosphere writes each tick into the `light.Shining` beside the `light.Source` on its own
   entity (`shineRun`), the light plugin's to shine;
-  `Freeze` (P) freezes the light alone, `Later`/`Earlier` (Shift+], Shift+[) move it half an hour,
-  not saved. `atmosphere/celestial` (imported by `sky`, never the other way): `Heavens`
+  `Freeze{On}` (P) freezes the light alone, `Hour{At}` (Shift+], Shift+[ half an hour on and
+  back while frozen; a slider on the settings screen) moves it; both `Res.Settings{Frozen,
+  Hour}`, synced from the sky every `carryOut`, saved and re-applied in `Restore`. `atmosphere/celestial` (imported by `sky`, never the other way): `Heavens`
   (`Place{Latitude, NoonWay}.HeavensAt`), the sphere turned by the sidereal time, `SunPath`,
   `MoonAt`, `Phase`, `Stars()` (the Yale Bright Star Catalogue to V 6.0 in `stars.bin`;
   `StarField.Place` takes a catalogue), `MoonFace()` (NASA SVS CGI Moon Kit).
@@ -496,15 +500,16 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   ground's haze: the terrain and the hexes took any `camera.Eyed` for an eye, and a camera from
   above, whose `Eye()` says no, hazed from its field's start (`Transform.Eye` = `f.Origin`), the
   map all fog but its corner. Now `air.Weather.Seen(cam, hazed)` decides for both, hazing only
-  where `topography.Plugin.WithHaze(true)` asks (Ctrl+F, `topography.Haze`; off by default
+  where `topography.Plugin.WithHaze(true)` asks (Ctrl+F, `topography.Haze{On}`,
+  `Res.Settings.Haze`; off by default
   through every camera, the user's choice, 2026-10-18; the billboards' `Hazer` follows it): a
   camera with an eye (riding, or free in perspective) by its eye's distance, one looking from
   above, with none, by the air over the ground up to the high clouds' base along its lines of
   sight (`HazeUp`, `HazeWay`, `hazeDepth` in `mesh.wgsl` and `hexes.wgsl`). The sky's own fog
   (the backdrop's and the clouds' `Visibility`) is not switched. Seen from a valley, clouds behind hills
   lower than the band are hidden: before slopes they stand only where the slopes reach into it.
-  `atmosphere.ShowClouds(look)` from the scene (the demos start `AllBodies`), `Clouds`
-  (Shift+V) goes on to the next `CloudLook` (the user's choice, 2026-10-16, to compare them):
+  `atmosphere.ShowClouds(look)` in `makePlugins` (the demos start `AllBodies`; `Res.Settings.Clouds`,
+  saved), `Clouds{Look}` (Shift+V goes on to the next `CloudLook`; the user's choice, 2026-10-16, to compare them):
   `FlatClouds` (flat sheets on the sky, one flat slice a layer from above), `LowBodies`,
   `AllBodies` (the plugin's start, the user's choice, 2026-10-16), `ShadowsAlone` (nothing
   drawn, the discs not dimmed, the fog as it is). From under them the sky heaps the layers
@@ -519,7 +524,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   iso, paused, UHD 620): the ground's depth read for the clouds from above ~0.6 ms (the opaque
   pass drawn into a readable buffer; replaced by `GroundHeights`), the high layer's shadow on the
   terrain ~0.7 ms (`Weather.HighShade`, on as the game starts at the user's word, Shift+S
-  `HighShade` with the camera free:
+  `HighShade{On}` with the camera free, `Res.Settings.HighShade`:
   WGSL `cloudHighOver` none without `U.CloudsHighShade`), the second pass from above ~0.2 ms.
   At 7c′ (2026-10-17, 2560×1440, against 7c): iso and perspective +0.3 ms (the bands +0.1, the
   depth lay +0.2), a walker's eyes and look/sky looking up +0.7–0.9 ms (the clouds before the
@@ -593,7 +598,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   itself (`ctx.Draws`); its sky writes the sun of the hour into the light plugin and hands every
   frame the weather; the clouds' shadows are drawn by whoever draws the ground (the board's flat
   ground, the terrain, the hexes) and by the figures, as `atmosphere.CloudShadows{Ground, Figures,
-  High}` says (`CastClouds`, set in a scene; Shift+S the high ones; uniforms `CloudsShadeGround`,
+  High}` says (`CastClouds`, set in `makePlugins`; Shift+S the high ones; uniforms `CloudsShadeGround`,
   `CloudsShadeFigures`).
   `atmosphere.Running` (`Config.Running`, `Plugin.SetRunning`) switches the day, the weather's
   changes, the wind, the clouds, what falls, the weathering, the stars and the moon, all on by
@@ -630,7 +635,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `resolve` refines each pair to the segment, `nearest` keeps one contact a step (`Contact.Along`,
   `Sensed`); a swept entity is a sensor, two swept pass through each other; a wrapping world refuses
   it. Counting and logging the contacts is collision's own work (`WithStats(&stats)`, a
-  `collision.ContactStats` with its `Reporter`; `WithLog`). `Boxes` (Shift+X) switches every
+  `collision.ContactStats` with its `Reporter`; `WithLog`). `Boxes{Shown}` (Shift+X in turn; a
+  `Choice` on the settings screen, `Res.Settings.Boxes`, saved) draws every
   entity's box in red, `BoxesShown`: `Bases` (the footprint at its altitude, after its figure in
   the order, under its own sprite where there is a depth), `Solids` (the twelve edges from its
   altitude to its top, `Frame.Edge`, only in a world with heights), `NoBoxes`; the game hands the
@@ -693,7 +699,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   navigation (`handKeeping`); a unit whose `steering.Driven.Steers()` gives its order up in
   navigation's pass; navigation's RunPlan comes before the driving's. The renderer of routes
   (`internal/routes`, made in `NewPlugin`): every selected unit's goals as its outline lying 0.8
-  over the goal's ground and, on `Routes{}` (Shift+R), its routes as thin lines at the ground's
+  over the goal's ground and, on `Routes{Shown}` (Shift+R; `ShowRoutes`, `RoutesShown`,
+  `Res.Settings.Routes`, saved), its routes as thin lines at the ground's
   depth; `WithRouteStyle`.
   Facts told a unit with a tree: `Blocked`, `Arrived`; `MoveOrder.HitUnit` (entity ids start at 0:
   never use 0 as "nobody"). Depends on `board`, `world`, `motion`, `selection`, `driving`.
@@ -801,9 +808,19 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   fastening; Setup refuses a command nobody defines. Local players through pictures of their own
   split the screen (`ui.Columns`); keys reach every local player, the mouse the one under it. The
   Scene hands input to `players.Plugin.Handle(events, runtime, composition)`: the bindings turn it
-  into commands, `ShowShortcuts` (K) is carried out there, the game's own `SceneKeys`
-  (`Plugin.OwnKeys`: a debug toggle, no command) run; `GameBindings()` (K, F5 `game.Save`, F9
-  `game.Load`, Shift+Esc `game.Quit`) give the engine's commands. The list of shortcuts
+  into commands, `ShowShortcuts` (K) and `ShowSettings` (F10) are carried out there (`carry`),
+  the game's own `SceneKeys`
+  (`Plugin.OwnKeys`: a debug toggle, no command) run; `p.GameBindings()` (K, F10, ~, F5 `game.Save`, F9
+  `game.Load`, Shift+Esc `game.Quit`) give the engine's commands. **The settings screen**
+  (`players.SettingsScene`, `settings.go`): opened by F10, built afresh of every
+  `plugin.Tunable` among the handlers given to `NewPlugin`, in their order, a heading a plugin and
+  a line a setting (`control.Switch` a `ui.Checkbox`, `Choice` a `ui.Dropdown`, `Range` a
+  `ui.Slider` with its number beside, each named `setting:<label>`); its commands go through
+  `IssueAs(the first local player)`; it forwards input to its `ui.Scene` and holds the game in
+  the clock's tactical pause (the ECS pause would stop the plugins' `RunPlan` and their queues),
+  unless the players' own `Settings.Running` (`KeepRunning{On}`, a switch on the screen; the
+  telemetry panel another, `telemetry.Panel{Shown}`); Esc (with no dropdown open) or F10 closes
+  it. The players' `Res.Settings` is kept like any plugin's. The list of shortcuts
   (`players.Shortcuts`, a `game.Scenic` scene made in `NewPlugin`, so K works in every game) is a
   `ui.Scene` whose tree `Open` builds afresh (`ui.Scene.Replace`): `Props.Description`, the title,
   the groups — "Game" first (the Controls section and `SceneKeys`), then the plugins' keys by
@@ -875,9 +892,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Tests take a plain camera from `cameras/cameratest` (`NewFromSpace`; `Switch`, `Turn`, `Tilt`
   as a relief camera's keys), which imports
   neither render nor the world, so their own tests use it too: `internal/stick` is arithmetic and
-  a `Keeper` over `stick.Entities`, the plugin's `riding` system reading the ECS for it. `Zones` (Shift+H,
-  `ShowZones`, `ZonesShown`, marks over every other, hidden by default, shown at
-  the start of board/topography) lays the strips and the corner squares over every picture in
+  a `Keeper` over `stick.Entities`, the plugin's `riding` system reading the ECS for it. `Zones{Shown}` (Shift+H,
+  `ShowZones`, `ZonesShown`, `Res.Settings.Zones`, saved beside the cameras' own `persisted`;
+  `Adapt{On}` Alt+A, `SetAdaptive`, `Adaptive`, `Res.Settings.Adaptive` likewise; marks over every other, hidden by default, shown
+  in board/topography's `makePlugins`) lays the strips and the corner squares over every picture in
   translucent yellow, rounded (`render.Frame.Fan`), the strips a gap short of the corners and
   fainter (the user's sketch, 2026-10-14). `CursorAtEdge` fires once an `Engine.Update`, before
   the ticks, not once a tick; a demo
@@ -937,8 +955,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   on what it saw at its last scan (`cond.Other.If(b)` everything in view; its `Subject` the nearest
   seen, so an aimed `steering.Away{}`/`Toward{}` is about that one); words `vision.SeesNobody()`,
   `vision.Closing()`. The views drawn are every observer's unless `WithViews(render.Show(...))`
-  picks some (given in the scene); `Cones{}` (Shift+C) shows and hides them (`ShowCones`,
-  `HideCones`, `ConesShown`; not saved). `WithLog`. Depends on `world`.
+  picks some (given in the scene); `Cones{Shown}` (Shift+C) shows and hides them (`ShowCones`,
+  `HideCones`, `ConesShown`; `Res.Settings.Cones`, saved; the start in `makePlugins`). `WithLog`. Depends on `world`.
 - **`bridges`** — bridges built by one set of rules whoever builds them: `bridges.NewPlugin( world,
   board, Config{Rules site.Rules, Builds})`, `WithShaper(ground.Shaper)` (the topography's
   `Flatten`). `bridges/site.Plan(Ground, Rules, from, to, deck)` is where one may stand, pure:
@@ -977,8 +995,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   focusable; `Show`/`Hide`/`Toggle`/`Shown` on a `game.Composition`. The Stage's
   `World(cfg).Plugins(f)` link makes one where `telemetry.Of(w)` finds none, so every Stage
   with a world has it, hidden; `.Shows(MainScene, telemetry.SceneName)` shows it from the start.
-  Its command `Panel` is carried by players (`GameBindings`, ~, "General"), which
-  toggles it through the Composition in `Handle`. Depends on `world`, `ui`.
+  Its command `Panel{Shown}` is carried by players (`GameBindings`, ~ building the opposite of
+  `Shown(composition)`, "General"; a switch on the settings screen), which
+  shows or hides it through the Composition in `carry`. Depends on `world`, `ui`.
 - **`minimap`** — small pictures round the players' cameras: `minimap.NewPlugin(w, ground,
   Config{Reach, Turning})` after the cameras (a `Reach` past the world's last band panics), in
   the players' handlers, `RunPlan` after the cameras'. `For(cam, issuer) *ui.Element` is a
@@ -996,8 +1015,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   times a second (`paced`), the last picture in between. A press on it is its own
   (`ui.Clicked`): `cameras.CenterAt` with the world point under it as the issuer's; the player's
   picture under it is covered (`ui.Hovered`), so the cursor there neither scrolls nor turns.
-  `Switch` (Shift+M) shows or hides them (`Show`, `Shown`), `Turn` (Ctrl+M) turns them with the
-  camera or keeps north up (`SetTurning`); `SetReach`. Grounds: `board.Plugin.Miniature` (the
+  `Switch{Shown}` (Shift+M) shows or hides them (`Show`, `Shown`), `Turn{On}` (Ctrl+M) turns them with the
+  camera or keeps north up (`SetTurning`, `Turning`); both `Res.Settings{Hidden, Turning}`, saved; `SetReach`. Grounds: `board.Plugin.Miniature` (the
   flat look baked from a `render.Still`, a pixel a unit up to 2048, anew as the board changes),
   `topography.Plugin.Miniature` (the painter's albedo, `px / cell`; the hexes' `top`). Depends on
   `world`, `cameras` (the command), `ui`, `render`.

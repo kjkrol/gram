@@ -29,7 +29,6 @@ var (
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	a.board.ShowGrid(false)
 
 	feed := render.NewFeed(a.cameras.New(cameras.FromAbove, camera.Config{}), a.world.Picture())
 	return ui.Layers(

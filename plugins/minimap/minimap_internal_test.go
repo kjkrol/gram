@@ -92,7 +92,7 @@ func TestMinimap_FollowsItsCameraTurningWithItOnlyWhenAsked(t *testing.T) {
 	if m.lens.scale != 0.25 {
 		t.Errorf("a picture 100 across reaching 200 is %v a unit, want 0.25", m.lens.scale)
 	}
-	w.Carrier().Put(command.Nobody, Turn{})
+	w.Carrier().Put(command.Nobody, Turn{On: true})
 	p.RunPlan(nil, 0)
 	if !p.Turning() || m.lens.ax != 1 || m.lens.ay != 0 {
 		t.Errorf("turning, the lens looks ahead (%v, %v), want east as the camera", m.lens.ax,
@@ -105,7 +105,7 @@ func TestMinimap_SwitchShowsAndHidesItsPicture(t *testing.T) {
 	p := carried(t, w, NewPlugin(w, nil, Config{Reach: 200}))
 	e := p.For(cameratest.NewFromSpace(1000, 1000, 0), command.Nobody).Size(100, 100)
 	for _, want := range []bool{false, true} {
-		w.Carrier().Put(command.Nobody, Switch{})
+		w.Carrier().Put(command.Nobody, Switch{Shown: want})
 		p.RunPlan(nil, 0)
 		if p.Shown() != want {
 			t.Errorf("switched, shown %v, want %v", p.Shown(), want)
@@ -122,7 +122,8 @@ func TestMinimap_SwitchShowsAndHidesItsPicture(t *testing.T) {
 			keys[press.Mods], _ = b.Build(control.Context{})
 		}
 	}
-	if keys[control.Mods{Shift: true}] != (Switch{}) || keys[control.Mods{Ctrl: true}] != (Turn{}) {
+	if keys[control.Mods{Shift: true}] != (Switch{Shown: true}) ||
+		keys[control.Mods{Ctrl: true}] != (Turn{On: true}) {
 		t.Errorf("M builds %v, want Switch with Shift and Turn with Ctrl", keys)
 	}
 }

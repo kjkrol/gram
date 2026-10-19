@@ -30,6 +30,9 @@ type Scene struct {
 	loaded  bool
 	drawing *drawing
 	theme   Theme
+	overlay *Element  // a dropdown's options, over everything, hanging from field
+	field   geom.AABB // the dropdown's box
+	held    *Element  // a slider dragged
 }
 
 var _ game.Scene = (*Scene)(nil)
@@ -78,9 +81,13 @@ func (s *Scene) Focusable() bool { return true }
 // pictures, screen renderers, pinned elements, texts read off components — must not be in it.
 func (s *Scene) Replace(screen *Element) {
 	s.root = screen
+	s.overlay, s.held = nil, nil
 	s.dress()
 	s.note()
 }
+
+// Unfolded reports whether a dropdown's options lie open: Esc closes them before anything else.
+func (s *Scene) Unfolded() bool { return s.overlay != nil }
 
 // Lay lays the scene's elements over screen, as every frame does before drawing.
 func (s *Scene) Lay(screen geom.AABB) {
@@ -88,6 +95,15 @@ func (s *Scene) Lay(screen geom.AABB) {
 		return
 	}
 	s.root.lay(screen)
+	if ov := s.overlay; ov != nil {
+		w, h := ov.needs()
+		fw, _ := size(s.field)
+		at := geom.NewVec(s.field.TopLeft.X, s.field.BottomRight.Y)
+		if at.Y+h > screen.BottomRight.Y {
+			at.Y = s.field.TopLeft.Y - h
+		}
+		ov.lay(geom.NewAABB(at, at.Add(geom.NewVec(max(w, fw), h))))
+	}
 	if d := s.drawing; d != nil && len(d.pins) > 0 {
 		d.find()
 		vs := views(s.root)
@@ -236,6 +252,9 @@ func (d *drawing) Draw(screen *render.Image) {
 	box := geom.NewAABB(geom.NewVec(float64(b.Min.X), float64(b.Min.Y)), geom.NewVec(float64(b.Max.X), float64(b.Max.Y)))
 	d.scene.Lay(box)
 	root.paint(screen)
+	if ov := d.scene.overlay; ov != nil {
+		ov.paint(screen)
+	}
 }
 
 func (d *drawing) find() {

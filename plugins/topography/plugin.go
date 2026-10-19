@@ -72,6 +72,8 @@ type Config struct {
 type Plugin struct {
 	*world.Self
 
+	Res Resources
+
 	cfg         Config
 	worldPlugin *world.Plugin
 	boardPlugin *board.Plugin
@@ -89,7 +91,7 @@ type Plugin struct {
 
 	hazing  command.Queue[Haze]
 	caring  command.Queue[Care]
-	hazed   bool
+	kept    *plugin.Kept[Settings]
 	look    billboards.Look
 	taking  []render.Taking // by cell, as the kinds last stood
 	takesAt uint64
@@ -99,6 +101,8 @@ type Plugin struct {
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
+var _ plugin.Tunable = (*Plugin)(nil)
+var _ plugin.Restorer = (*Plugin)(nil)
 var _ board.Map = (*Plugin)(nil)
 var _ cameras.Cage = (*Plugin)(nil)
 var _ cameras.Grained = (*Plugin)(nil)
@@ -115,6 +119,7 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, light: lightPlugin,
 		sky:      stillSky{sight: air.Sight(worldPlugin.Scale())},
 		climbing: cfg.Climbing}
+	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(worldPlugin, p)
 	if p.climbing == (relief.Climbing{}) {
 		p.climbing = relief.DefaultClimbing
@@ -133,7 +138,7 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 			Scale: worldPlugin.Scale(),
 			Seen:  worldPlugin.ViewFor,
 		})
-		p.ground.SetCare(cfg.Care)
+		p.SetCare(cfg.Care)
 	} else {
 		p.hexes = hexes.New(worldPlugin, boardPlugin, p, p.relief, liveSky{p})
 	}
@@ -242,7 +247,7 @@ func (p *Plugin) StyleOf(name string) painter.Style { return p.painter.StyleOf(n
 // WithHaze has the air haze the ground and what stands on it as thick as the weather makes it,
 // through any camera: far off from an eye, over the ground from above; off by default, all clear.
 func (p *Plugin) WithHaze(on bool) *Plugin {
-	p.hazed = on
+	p.Res.Settings.Haze = on
 	if p.ground != nil {
 		p.ground.Haze(on)
 	}
@@ -254,7 +259,7 @@ func (p *Plugin) WithHaze(on bool) *Plugin {
 }
 
 // Hazes reports whether the air hazes the ground.
-func (p *Plugin) Hazes() bool { return p.hazed }
+func (p *Plugin) Hazes() bool { return p.Res.Settings.Haze }
 
 // SetCare has the ground within rings sectors of the one under the middle of the screen (and of
 // the one under the eye) shaded with full care, within twice as many with less — the water a
@@ -263,6 +268,7 @@ func (p *Plugin) Hazes() bool { return p.hazed }
 func (p *Plugin) SetCare(rings int) {
 	if p.ground != nil {
 		p.ground.SetCare(rings)
+		p.Res.Settings.Care = p.ground.Care()
 	}
 }
 
@@ -272,23 +278,28 @@ func (p *Plugin) Care() int {
 	if p.ground == nil {
 		return 0
 	}
-	return p.ground.Care()
+	return p.Res.Settings.Care
 }
 
-// the rings of full care a Care command steps through, the last every sector
+// the rings of full care the keys step through, the last every sector
 var careLadder = []int{1, 2, 3, 0}
 
-func (p *Plugin) stepCare(step int) {
-	at := len(careLadder) - 1
-	if care := p.Care(); care > 0 {
-		for k, r := range careLadder[:at] {
-			if care <= r {
-				at = k
-				break
-			}
+// careRung is the ladder's rung care stands on, or the next up
+func careRung(care int) int {
+	if care <= 0 {
+		return len(careLadder) - 1
+	}
+	for k, r := range careLadder[:len(careLadder)-1] {
+		if care <= r {
+			return k
 		}
 	}
-	p.SetCare(careLadder[min(max(at+step, 0), len(careLadder)-1)])
+	return len(careLadder) - 1
+}
+
+// careStepped is the care step rungs from the one now, within the ladder
+func (p *Plugin) careStepped(step int) int {
+	return careLadder[min(max(careRung(p.Care())+step, 0), len(careLadder)-1)]
 }
 
 // Reporter is the topography's part of the telemetry panel: how far out the ground is shaded
@@ -392,13 +403,20 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // unit at its altitude in the simulation. Call it after the world has moved and before the
 // cameras' RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.hazing.Drain(func(command.Issued[Haze]) { p.WithHaze(!p.Hazes()) })
-	p.caring.Drain(func(c command.Issued[Care]) { p.stepCare(c.Command.Step) })
+	p.hazing.Drain(func(i command.Issued[Haze]) { p.WithHaze(i.Command.On) })
+	p.caring.Drain(func(i command.Issued[Care]) { p.SetCare(i.Command.Rings) })
 	p.module.RunPlan(ctx, d)
 }
 
 // EventHandler is nil: the topography takes commands, not input.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil: the heights live on the topography's entity.
-func (p *Plugin) Serializable() plugin.Serializable { return nil }
+// Serializable is the topography's Settings, kept whole; the heights live on its entity.
+func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
+
+// Restore takes the Settings loaded and shades as they say.
+func (p *Plugin) Restore() {
+	p.kept.Restore()
+	p.WithHaze(p.Res.Settings.Haze)
+	p.SetCare(p.Res.Settings.Care)
+}

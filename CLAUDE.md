@@ -125,8 +125,8 @@ Decisions the user has made; they are not up for revisiting in passing.
   (`var _ command.Command = MoveTo{}` beside the type). Whatever takes commands takes a
   `command.Command`, never `any`.
 - **The default keys are the same in every game and no demo repeats one**: Shift+P the tactical
-  pause, Shift+Esc quits, K lists the keys, ~ the telemetry panel, F5 saves, F9 loads, F11 full
-  screen, ] and [ the tempo, Shift+X the boxes (collision's: the bases, the solids, none),
+  pause, Shift+Esc quits, K lists the keys, F10 the settings screen, ~ the telemetry panel, F5
+  saves, F9 loads, F11 full screen, ] and [ the tempo, Shift+X the boxes (collision's: the bases, the solids, none),
   Shift+H the scroll zones (cameras'), Shift+O the holds, Shift+B the bridge tool, Shift+R the
   routes, Shift+C the cones, Shift+W the weather, Shift+V the clouds' look, Shift+S the high
   clouds' shadows (with the camera free: riding, Shift+S sprints back), P freezes the light,
@@ -148,9 +148,20 @@ Decisions the user has made; they are not up for revisiting in passing.
 - **The order a game makes its plugins in is the order they are used in**; no list, no `ctx` in
   a game's code. A plugin needing another's logic takes it as a constructor argument.
 - **A thing in its section**: what is defined in another section is refused (`gram-game`).
+- **A plugin's settings are its own, saved with the game**: what a plugin shows or how hard it
+  works at a player's word — the grid, the boxes, the cones, the routes, the zones, the clouds'
+  look, the shadows' detail, the haze, the tempo — is a field of its `Res.Settings`, set by a
+  command carrying the value (`Boxes{Shown}`, `Haze{On}`, `Tempo{X}`), announced in `Settings()`
+  (`plugin.Tunable`: a `control.Switch`, `Choice` or `Range`, `Get` read every frame, `Set`
+  building the command) and kept whole by `plugin.Keep(&p.Res.Settings)`, never a
+  command that means "the next one": the key's binding builds the next value from the setting.
+  Its start is the plugin's Config or a setter in `makePlugins` (`ShowGrid(false)`,
+  `ShowCones()`), never the scene's, which is made after a load. F10 opens the players' settings
+  screen, generated from every `Tunable` the players carry; while it is up the game stands in
+  the tactical pause unless its own setting says it runs.
 - **How things look is the scene's**: the start of `screen()` in a demo's `scene.go` sets how the
-  plugins draw (`WithAtmosphere`, styles, views, what is shown) and nothing else does;
-  `makePlugins` configures what a plugin does. A sprite in a Stage's struct is a leak. A look is
+  plugins draw (`WithAtmosphere`, styles, views) and nothing else does; `makePlugins`
+  configures what a plugin does and what it starts showing. A sprite in a Stage's struct is a leak. A look is
   drawing (`Under`), never an effect's Spec. What a plugin draws about a kind — its outline,
   cone, route — is styled in the figure's `Look` with `Styled` (`selection.Highlight`,
   `vision.Cone`, `navigation.RouteStyle`). What the board draws beyond its tiles — the grid's
@@ -215,7 +226,7 @@ Decisions the user has made; they are not up for revisiting in passing.
 Dependency direction is one-way: `render` ← `plugin` ← `game` ← `internal/engine` ← `gram`.
 `render` draws with no knowledge of Stages, Scenes or plugins; `plugin` is the extension
 contract (`Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`/`CommandHandler`/
-`KindTemplater`/`Made`,
+`KindTemplater`/`Tunable`/`Keep`/`Made`,
 `plugin/section`); `game` is what a Stage implements and receives; `internal/engine` the
 `Engine`. Built-in plugins (`plugins/*`) import `plugin`/`render` directly, as a third-party
 plugin would. gram's core beside them — `ceremony`, `entity` (with `entity/kind`), `clock`,

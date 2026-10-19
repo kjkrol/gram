@@ -47,7 +47,7 @@ func TestClock_ReplaysTheSimulationAsTheTempoSays(t *testing.T) {
 		tempo float32
 		runs  int
 	}{{2, 120}, {4, 240}, {0.5, 30}} {
-		if err := r.c.SetTempo(c.tempo); err != nil {
+		if err := r.c.SetExactTempo(c.tempo); err != nil {
 			t.Fatal(err)
 		}
 		before := r.c.Time()
@@ -60,7 +60,7 @@ func TestClock_ReplaysTheSimulationAsTheTempoSays(t *testing.T) {
 	if got := r.ticks(10); got != 0 || r.c.Time() != before {
 		t.Errorf("paused: %d runs, time moved by %v; want none", got, r.c.Time()-before)
 	}
-	if err := r.c.SetTempo(3); err == nil {
+	if err := r.c.SetExactTempo(3); err == nil {
 		t.Error("a tempo the config does not offer was taken")
 	}
 }
@@ -72,7 +72,7 @@ func TestClock_TheTimeShownRunsOnBetweenTheTicks(t *testing.T) {
 	if got, want := r.c.Shown(), r.c.Time()+step/2; got != want {
 		t.Errorf("at tempo 1, half a step on: shown %v, want %v", got, want)
 	}
-	if err := r.c.SetTempo(0.5); err != nil {
+	if err := r.c.SetExactTempo(0.5); err != nil {
 		t.Fatal(err)
 	}
 	for i := range 4 {
@@ -110,7 +110,7 @@ func TestClock_StepsNumberTheStepsOfTheSimulation(t *testing.T) {
 			}
 		}
 		tick(2)
-		if err := c.SetTempo(4); err != nil {
+		if err := c.SetExactTempo(4); err != nil {
 			t.Fatal(err)
 		}
 		tick(2)
@@ -130,7 +130,7 @@ func TestClock_StepsNumberTheStepsOfTheSimulation(t *testing.T) {
 
 func TestClock_ABiggerStepReplaysOnceOverALongerStep(t *testing.T) {
 	r := newRig(t, clock.Config{BiggerStep: true})
-	if err := r.c.SetTempo(4); err != nil {
+	if err := r.c.SetExactTempo(4); err != nil {
 		t.Fatal(err)
 	}
 	if got := r.ticks(10); got != 10 || r.c.Time() != 40*step {
@@ -165,7 +165,7 @@ func TestClock_CommandsPauseAndShiftTheTempo(t *testing.T) {
 
 func TestClock_FallingBehindBringsTheTempoDown(t *testing.T) {
 	r := newRig(t, clock.Config{})
-	if err := r.c.SetTempo(4); err != nil {
+	if err := r.c.SetExactTempo(4); err != nil {
 		t.Fatal(err)
 	}
 	for range 29 {
@@ -179,7 +179,7 @@ func TestClock_FallingBehindBringsTheTempoDown(t *testing.T) {
 		t.Errorf("tempo %g, written %q; want 2, held back", r.c.Tempo(), r.c.Written())
 	}
 	r.c.Behind(false)
-	if err := r.c.SetTempo(1); err != nil {
+	if err := r.c.SetExactTempo(1); err != nil {
 		t.Fatal(err)
 	}
 	for range 40 {

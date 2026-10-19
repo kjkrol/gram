@@ -48,5 +48,6 @@
 // # Vocabulary
 //
 // Knobs, for an effect's Alter: [Source], what an entity shines with; [Shadow], how it casts and
-// what it takes. Commands, a player's: [CoarseShadows] (H), [LampShadows] (Shift+L).
+// what it takes. Commands, a player's: [CoarseShadows] (H), [LampShadows] (Shift+L). Settings
+// ([Settings], saved with the game, in [Resources]): the shadows coarse, the lamps casting.
 package light

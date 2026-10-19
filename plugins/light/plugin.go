@@ -74,6 +74,8 @@ type Plugin struct {
 	w   *world.Plugin
 	cfg Config
 
+	Res Resources
+
 	own       *Distant // a scene's distant light, shone by the plugin's own entity
 	distant   Distant
 	distantOf uid.UID64
@@ -82,8 +84,8 @@ type Plugin struct {
 	near      []Lamp // the lamps lighting the picture begun, nearest its camera first
 	shadow    goke.OptComp[Shadow]
 
-	lampShadows int
-	policy      ShadowPolicy
+	policy ShadowPolicy
+	kept   *plugin.Kept[Settings]
 
 	sources *goke.Query
 	source  goke.Comp[Source]
@@ -116,6 +118,8 @@ type Plugin struct {
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
+var _ plugin.Tunable = (*Plugin)(nil)
+var _ plugin.Restorer = (*Plugin)(nil)
 var _ plugin.KindTemplater = (*Plugin)(nil)
 var _ world.Lighting = (*Plugin)(nil)
 var _ render.Direct = (*Plugin)(nil)
@@ -123,7 +127,9 @@ var _ render.Direct = (*Plugin)(nil)
 // NewPlugin makes the light over w as cfg says: the world's entities are lit by it from then on.
 // Make it before the board and the topography, which draw by it.
 func NewPlugin(w *world.Plugin, cfg Config) *Plugin {
-	p := &Plugin{w: w, cfg: cfg, lampShadows: cfg.LampShadows, distant: White, baker: bake.New()}
+	p := &Plugin{w: w, cfg: cfg, distant: White, baker: bake.New()}
+	p.Res.Settings.LampShadows = cfg.LampShadows
+	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(w, p, comp.Const(Source{Strength: 1, Ambient: 1}),
 		comp.Const(Shining{}))
 	w.SetLighting(p)
@@ -174,7 +180,15 @@ func (p *Plugin) KindTemplates(r *kind.Roster) {
 
 func (p *Plugin) Name() string                       { return "gram.light" }
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
-func (p *Plugin) Serializable() plugin.Serializable  { return nil }
+
+// Serializable is the light's Settings, kept whole.
+func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
+
+// Restore takes the Settings loaded and bakes as they say.
+func (p *Plugin) Restore() {
+	p.kept.Restore()
+	p.baker.Coarse(p.Res.Settings.Coarse)
+}
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{p: p}
@@ -187,14 +201,8 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // sun; call it after the world's.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
-	p.coarses.Drain(func(command.Issued[CoarseShadows]) { p.baker.Coarse(!p.baker.Coarsened()) })
-	p.lampSwitches.Drain(func(command.Issued[LampShadows]) {
-		if p.lampShadows > 0 {
-			p.lampShadows = 0
-		} else {
-			p.lampShadows = p.cfg.LampShadows
-		}
-	})
+	p.coarses.Drain(func(i command.Issued[CoarseShadows]) { p.SetCoarseShadows(i.Command.On) })
+	p.lampSwitches.Drain(func(i command.Issued[LampShadows]) { p.SetLampShadows(i.Command.Count) })
 	p.fresh = false
 }
 
@@ -314,7 +322,7 @@ func (p *Plugin) Begin(f *render.Frame, cam camera.Camera) {
 
 // Casting are the lamps of the picture begun that cast shadows: the nearest its camera, as many
 // as LampShadows says.
-func (p *Plugin) Casting() []Lamp { return p.near[:min(len(p.near), p.lampShadows)] }
+func (p *Plugin) Casting() []Lamp { return p.near[:min(len(p.near), p.Res.Settings.LampShadows)] }
 
 // Of is the light on the entity i of the chunk at cur, standing in box as z says and drawn as a,
 // taking what its Shadow says; the entity's live shadow is gathered for the picture begun.
@@ -553,17 +561,21 @@ func lying(m, dir geom.Vec, lie world.Lie, bottom, top float32) bake.Block {
 }
 
 // SetCoarseShadows has the shadows baked half as fine a side, a quarter of the GPU's work, or
-// fine again.
-func (p *Plugin) SetCoarseShadows(on bool) { p.baker.Coarse(on) }
+// fine again (Settings.Coarse).
+func (p *Plugin) SetCoarseShadows(on bool) {
+	p.Res.Settings.Coarse = on
+	p.baker.Coarse(on)
+}
 
 // ShadowsCoarse reports whether the shadows are baked coarse.
-func (p *Plugin) ShadowsCoarse() bool { return p.baker.Coarsened() }
+func (p *Plugin) ShadowsCoarse() bool { return p.Res.Settings.Coarse }
 
-// SetLampShadows has the n lamps nearest a picture's camera cast shadows, 0 none; not saved.
-func (p *Plugin) SetLampShadows(n int) { p.lampShadows = n }
+// SetLampShadows has the n lamps nearest a picture's camera cast shadows, 0 none
+// (Settings.LampShadows).
+func (p *Plugin) SetLampShadows(n int) { p.Res.Settings.LampShadows = n }
 
 // LampShadows is how many lamps nearest a picture's camera cast shadows.
-func (p *Plugin) LampShadows() int { return p.lampShadows }
+func (p *Plugin) LampShadows() int { return p.Res.Settings.LampShadows }
 
 // Reporter is the light's part of the telemetry panel: the distant light's strength, the lamps
 // and how many cast shadows.
@@ -576,7 +588,7 @@ func (reporter) Init(*goke.SysInit) {}
 func (r reporter) Report(line func(label, value string)) {
 	r.p.read()
 	line("Light", fmt.Sprintf("sun %.2f · lamps %d, shadows of %d", r.p.distant.Strength,
-		len(r.p.lamps), min(len(r.p.lamps), r.p.lampShadows)))
+		len(r.p.lamps), min(len(r.p.lamps), r.p.Res.Settings.LampShadows)))
 }
 
 func sqrt32(v float32) float32 { return float32(math.Sqrt(float64(v))) }

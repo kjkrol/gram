@@ -13,9 +13,9 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-// SwitchSectors switches what is drawn of the sectors: their bands, how finely the camera sees
-// them, nothing. Shift+G by default, in a world cut into sectors.
-type SwitchSectors struct{}
+// SwitchSectors has Shown drawn of the sectors (Settings.Sectors): their bands, how finely the
+// camera sees them, nothing. Shift+G by default, in turn, in a world cut into sectors.
+type SwitchSectors struct{ Shown SectorsShown }
 
 func (SwitchSectors) Command() {}
 
@@ -34,12 +34,15 @@ const (
 
 func (s SectorsShown) next() SectorsShown { return (s + 1) % 3 }
 
-// ShowSectors has the sectors drawn as shown says: a look for finding out what lives and what is
-// seen where, not saved.
-func (p *Plugin) ShowSectors(shown SectorsShown) { p.module.sectorsShown = shown }
+// ShowSectors has the sectors drawn as shown says (Settings.Sectors): a look for finding out
+// what lives and what is seen where.
+func (p *Plugin) ShowSectors(shown SectorsShown) {
+	p.Res.Settings.Sectors = shown
+	p.module.sectorsShown = shown
+}
 
 // SectorsShown is what is drawn of the sectors.
-func (p *Plugin) SectorsShown() SectorsShown { return p.module.sectorsShown }
+func (p *Plugin) SectorsShown() SectorsShown { return p.Res.Settings.Sectors }
 
 var (
 	// the bands nearest first, then beyond the last
@@ -166,7 +169,7 @@ func (v *sectorsView) Draw(t render.Target, cam camera.Camera, _ render.Uniforms
 }
 
 func (w *module) switchSectors() {
-	w.sectorSwitches.Drain(func(command.Issued[SwitchSectors]) {
-		w.sectorsShown = w.sectorsShown.next()
+	w.sectorSwitches.Drain(func(i command.Issued[SwitchSectors]) {
+		w.p.ShowSectors(i.Command.Shown)
 	})
 }

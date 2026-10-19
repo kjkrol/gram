@@ -182,10 +182,10 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 	events.Modifiers.Shift = true
 	events.AddKeyEvent(control.KeyR, control.ActionPress)
 	pl.EventHandler().HandleEvents(events)
-	n := 0
-	navPlugin.routes.Drain(func(command.Issued[Routes]) { n++ })
-	if n != 1 {
-		t.Errorf("Shift+R issued %d Routes, want one", n)
+	var issued []Routes
+	navPlugin.routes.Drain(func(i command.Issued[Routes]) { issued = append(issued, i.Command) })
+	if len(issued) != 1 || !issued[0].Shown {
+		t.Errorf("Shift+R issued %v, want one Routes shown, the next after hidden", issued)
 	}
 	if navPlugin.RoutesShown() || navPlugin.pathRenderer.RoutesShown() {
 		t.Error("the routes start shown, want hidden until asked for")
@@ -193,6 +193,19 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 	navPlugin.ShowRoutes(true)
 	if !navPlugin.RoutesShown() || !navPlugin.pathRenderer.RoutesShown() {
 		t.Error("ShowRoutes(true) did not reach the renderer")
+	}
+	routes := navPlugin.Settings()[0].(control.Switch)
+	if !routes.Get() || routes.Set(false) != (Routes{Shown: false}) {
+		t.Errorf("the setting says %v and sets %v, want shown and Routes hidden", routes.Get(),
+			routes.Set(false))
+	}
+	saved := append([]byte(nil), *navPlugin.Serializable().Persisted()[0].(*[]byte)...)
+	navPlugin.ShowRoutes(false)
+	loading := navPlugin.Serializable().Persisted()
+	*loading[0].(*[]byte) = saved
+	navPlugin.Restore()
+	if !navPlugin.RoutesShown() || !navPlugin.pathRenderer.RoutesShown() {
+		t.Error("loaded, the routes are hidden, want shown as saved and reaching the renderer")
 	}
 }
 

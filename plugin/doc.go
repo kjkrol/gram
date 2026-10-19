@@ -46,5 +46,7 @@
 // [Serializable] gives Persistence what to encode and decode, [Populator] seeds initial state in
 // a Stage entered afresh, [Restorer] is called right after its state was decoded, [PostLoader]
 // supplies a one-time system run after the entities were restored. A [KindTemplater] writes, in
-// its KindTemplates alone, what it asks of the kinds a game defines (kind.Roster).
+// its KindTemplates alone, what it asks of the kinds a game defines (kind.Roster). A [Tunable]
+// lists its settings, the control.Settings the players adjust on the settings screen; [Keep] has
+// them saved with the game, whole.
 package plugin

@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/atmosphere"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/render"
@@ -31,8 +30,6 @@ func (m *mainScene) screen() *ui.Element {
 		Style(EarthCell, painter.Style{Spread: 0.3}).
 		Style(RockCell, painter.Style{Spread: 0.25})
 	a.topography.WithAtmosphere(a.atmosphere)
-	a.atmosphere.ShowClouds(atmosphere.AllBodies)
-	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})
 
 	cam := a.cameras.New(cameras.Isometrically, camera.Config{})
 	return ui.Layers(

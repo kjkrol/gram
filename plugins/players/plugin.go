@@ -29,14 +29,21 @@ var ErrUnknownCommand = errors.New("players: no plugin listens for this command"
 type Plugin struct {
 	*world.Self
 
+	Res Resources
+
 	worldPlugin *world.Plugin
 	sections    section.Reader
 	handlers    []plugin.CommandHandler
 	origins     map[string]plugin.CommandHandler
 	players     []*Player
 	listings    command.Queue[ShowShortcuts]
+	openings    command.Queue[ShowSettings]
+	runnings    command.Queue[KeepRunning]
 	panels      command.Queue[telemetry.Panel]
 	shortcuts   *Shortcuts
+	settings    *SettingsScene
+	composition game.Composition // the Stage's, as Handle last saw it
+	kept        *plugin.Kept[Settings]
 	now         func() time.Time // the clock KeyReleased measures by
 	owned       *goke.Query
 	ownedBase   goke.Comp[world.Base]
@@ -65,6 +72,8 @@ func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Pl
 	p := &Plugin{worldPlugin: worldPlugin, now: time.Now}
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.shortcuts = newShortcuts(p)
+	p.settings = newSettings(p)
+	p.kept = plugin.Keep(&p.Res.Settings)
 	p.handlers = append([]plugin.CommandHandler{p, worldPlugin}, handlers...)
 	if err := worldPlugin.Carry(p.handlers...); err != nil {
 		panic(fmt.Sprintf("players: %v", err))
@@ -172,17 +181,37 @@ func (p *Plugin) handlerOf(t reflect.Type) plugin.CommandHandler {
 }
 
 // Handle takes a scene's input for the tick: the players' bindings turn it into commands,
-// ShowShortcuts is carried out at once and the game's own keys (OwnKeys) are run.
+// the players' own are carried out at once and the game's own keys (OwnKeys) are run.
 func (p *Plugin) Handle(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
 	p.EventHandler().HandleEvents(events)
+	p.carry(runtime, composition)
+	p.shortcuts.keys.Handle(events, runtime, composition)
+	p.pass++
+}
+
+// carry carries out the players' own commands: the scenes opened, the game held or let run
+// behind the settings, the telemetry panel.
+func (p *Plugin) carry(runtime game.Runtime, composition game.Composition) {
+	p.composition = composition
 	p.listings.Drain(func(command.Issued[ShowShortcuts]) { p.shortcuts.Open(runtime, composition) })
-	p.panels.Drain(func(command.Issued[telemetry.Panel]) {
-		if tp := telemetry.Of(p.worldPlugin); tp != nil {
+	p.openings.Drain(func(command.Issued[ShowSettings]) { p.settings.Open(runtime, composition) })
+	p.runnings.Drain(func(i command.Issued[KeepRunning]) {
+		p.Res.Settings.Running = i.Command.On
+		if p.settings.shown {
+			p.settings.hold(!i.Command.On)
+		}
+	})
+	p.panels.Drain(func(i command.Issued[telemetry.Panel]) {
+		tp := telemetry.Of(p.worldPlugin)
+		if tp != nil && i.Command.Shown != tp.Shown(composition) {
 			tp.Toggle(composition)
 		}
 	})
-	p.shortcuts.keys.Handle(events, runtime, composition)
-	p.pass++
+}
+
+func (p *Plugin) panelShown() bool {
+	tp := telemetry.Of(p.worldPlugin)
+	return tp != nil && p.composition != nil && tp.Shown(p.composition)
 }
 
 func (p *Plugin) tools() {
@@ -220,5 +249,8 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ct
 // EventHandler translates this tick's input through every local player's bindings.
 func (p *Plugin) EventHandler() control.EventHandler { return eventHandler{p} }
 
-// Serializable is nil: players keep no state of their own.
-func (p *Plugin) Serializable() plugin.Serializable { return nil }
+// Serializable is the players' Settings, kept whole.
+func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
+
+// Restore takes the Settings loaded.
+func (p *Plugin) Restore() { p.kept.Restore() }

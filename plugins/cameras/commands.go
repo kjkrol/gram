@@ -109,9 +109,10 @@ type Resolution struct {
 	Factor float32
 }
 
-// Adapt has every picture's resolution follow the frame budget (Config.FrameBudget): coarser while
-// the frames come slower than it, finer again while they keep up; given again, it stops.
-type Adapt struct{}
+// Adapt has every picture's resolution follow the frame budget (Config.FrameBudget,
+// Settings.Adaptive): coarser while the frames come slower than it, finer again while they keep
+// up; or stay. Alt+A by default, in turn.
+type Adapt struct{ On bool }
 
 func (Pan) Command()        {}
 func (Zoom) Command()       {}
@@ -182,9 +183,9 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 	out := append(keys.Bindings(),
 		control.Build(control.KeyPress{Key: control.KeyH, Mods: control.Mods{Shift: true}},
 			"Show the scroll zones at the picture's edges, or hide them",
-			func(control.Context) (Zones, bool) { return Zones{}, true }),
+			func(control.Context) (Zones, bool) { return Zones{Shown: !p.ZonesShown()}, true }),
 		control.Build(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Alt: true}},
 			"The picture's resolution follows the frame budget, or stays",
-			func(control.Context) (Adapt, bool) { return Adapt{}, true }))
+			func(control.Context) (Adapt, bool) { return Adapt{On: !p.Adaptive()}, true }))
 	return append(out, viewBindings(p.cfg)...)
 }

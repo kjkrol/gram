@@ -80,9 +80,19 @@ func (p *Pass) Aim(who uid.UID64) { p.Of = who }
 // Aim tells the command who stands on the goal.
 func (s *Settle) Aim(who uid.UID64) { s.Beside = who }
 
-// Routes is the command showing the routes of the selected units drawn, or hiding them; their
-// goals are drawn always.
-type Routes struct{}
+// Routes is the command showing the routes of the selected units drawn, or hiding them
+// (Settings.Routes); their goals are drawn always. Shift+R by default, in turn.
+type Routes struct{ Shown bool }
+
+// Settings is what navigation lets the players adjust, saved with the game.
+type Settings struct {
+	Routes bool
+}
+
+// Resources is what navigation publishes: its Settings.
+type Resources struct {
+	Settings Settings
+}
 
 func (MoveTo) Command()    {}
 func (LookAt) Command()    {}
@@ -149,6 +159,17 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		control.Build(control.Drag{Button: control.MouseButtonRight}, "Move selected units here", to(false)),
 		control.Build(control.Drag{Button: control.MouseButtonRight, Mods: control.Mods{Shift: true}}, "Add a waypoint", to(true)),
 		control.Build(control.ButtonHeld{Button: control.MouseButtonRight}, "Turn selected units to look at the cursor", turn),
-		control.Build(control.KeyPress{Key: control.KeyR, Mods: control.Mods{Shift: true}}, "Show or hide the routes of selected units", func(control.Context) (Routes, bool) { return Routes{}, true }),
+		control.Build(control.KeyPress{Key: control.KeyR, Mods: control.Mods{Shift: true}},
+			"Show or hide the routes of selected units",
+			func(control.Context) (Routes, bool) { return Routes{Shown: !p.RoutesShown()}, true }),
 	}
+}
+
+// Settings is the one setting, the routes drawn (plugin.Tunable).
+func (p *Plugin) Settings() []control.Setting {
+	return []control.Setting{control.Switch{
+		Label: "Routes of selected units",
+		Get:   p.RoutesShown,
+		Set:   func(on bool) command.Command { return Routes{Shown: on} },
+	}}
 }

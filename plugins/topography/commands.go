@@ -6,21 +6,33 @@ import (
 	"github.com/kjkrol/gram/control"
 )
 
-// Haze switches the air's haze over the ground and what stands on it, through any camera, as
-// thick as the weather makes it.
-type Haze struct{}
+// Haze has the air haze the ground and what stands on it, through any camera, as thick as the
+// weather makes it, or clear (Settings.Haze). Ctrl+F by default, in turn.
+type Haze struct{ On bool }
 
 func (Haze) Command() {}
 
 var _ command.Command = Haze{}
 
-// Care steps how far out from the middle of the screen the ground is shaded with full care
-// ([Plugin.SetCare]): Step 1 farther, a sector, two, three, then every one; -1 nearer.
-type Care struct{ Step int }
+// Care has the ground within Rings sectors of the middle of the screen shaded with full care
+// ([Plugin.SetCare], Settings.Care), 0 every one. Alt+Shift+= and Alt+Shift+- by default, a
+// sector, two, three, then every one, and back.
+type Care struct{ Rings int }
 
 func (Care) Command() {}
 
 var _ command.Command = Care{}
+
+// Settings is what the topography lets the players adjust, saved with the game.
+type Settings struct {
+	Haze bool
+	Care int
+}
+
+// Resources is what the topography publishes: its Settings.
+type Resources struct {
+	Settings Settings
+}
 
 // Queues are where the shaping's, the haze's and the care's commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
@@ -45,14 +57,33 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 			}),
 		control.Build(control.KeyPress{Key: control.KeyF, Mods: control.Mods{Ctrl: true}},
 			"The haze over the ground, or clear",
-			func(control.Context) (Haze, bool) { return Haze{}, true }),
+			func(control.Context) (Haze, bool) { return Haze{On: !p.Hazes()}, true }),
 		control.Build(
 			control.KeyPress{Key: control.KeyEqual, Mods: control.Mods{Alt: true, Shift: true}},
 			"Full care farther",
-			func(control.Context) (Care, bool) { return Care{Step: 1}, true }),
+			func(control.Context) (Care, bool) { return Care{Rings: p.careStepped(1)}, true }),
 		control.Build(
 			control.KeyPress{Key: control.KeyMinus, Mods: control.Mods{Alt: true, Shift: true}},
 			"Full care nearer",
-			func(control.Context) (Care, bool) { return Care{Step: -1}, true }),
+			func(control.Context) (Care, bool) { return Care{Rings: p.careStepped(-1)}, true }),
 	)
+}
+
+// Settings are the haze and, on a square grid, how far out the ground is shaded with full care
+// (plugin.Tunable).
+func (p *Plugin) Settings() []control.Setting {
+	out := []control.Setting{control.Switch{
+		Label: "Haze over the ground",
+		Get:   p.Hazes,
+		Set:   func(on bool) command.Command { return Haze{On: on} },
+	}}
+	if p.ground == nil {
+		return out
+	}
+	return append(out, control.Choice{
+		Label:   "Full care out to",
+		Options: []string{"a sector", "two sectors", "three sectors", "every sector"},
+		Get:     func() int { return careRung(p.Care()) },
+		Set:     func(i int) command.Command { return Care{Rings: careLadder[i]} },
+	})
 }

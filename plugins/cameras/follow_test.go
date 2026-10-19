@@ -372,7 +372,7 @@ func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBu
 		t.Errorf("stepped coarser ten times the camera is drawn at %v, want the least, %v", got,
 			cameras.LeastResolution)
 	}
-	w.Carrier().Put(command.Nobody, cameras.Adapt{})
+	w.Carrier().Put(command.Nobody, cameras.Adapt{On: true})
 	tick()
 	if got := report(); got != "Picture: 0.40 of the pixels, adaptive" {
 		t.Errorf("after Adapt the telemetry says %q, want the resolution following the budget", got)

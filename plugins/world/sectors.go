@@ -24,12 +24,15 @@ func (p *Plugin) Anchor(a sector.Anchors) {
 // band.
 func (p *Plugin) Sectors() render.Reporter { return sectorsReport{p.module} }
 
-// SetBanded switches the sectors' bands on, or off with every sector in the first (SwitchBands);
-// not saved.
-func (p *Plugin) SetBanded(on bool) { p.module.sectors.unbanded = !on }
+// SetBanded switches the sectors' bands on, or off with every sector in the first (SwitchBands,
+// Settings.Unbanded).
+func (p *Plugin) SetBanded(on bool) {
+	p.Res.Settings.Unbanded = !on
+	p.module.sectors.unbanded = !on
+}
 
 // Banded reports whether the sectors' bands are on; true in a world of no sectors.
-func (p *Plugin) Banded() bool { return !p.module.sectors.unbanded }
+func (p *Plugin) Banded() bool { return !p.Res.Settings.Unbanded }
 
 // Seen is the world's part of the telemetry panel about the first camera made: how many sectors
 // it sees at each level.

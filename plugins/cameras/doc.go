@@ -77,4 +77,6 @@
 // [LookFrom], [LookAt], [Ride], [Look], [Sight], [Resolution]; [Adapt] (every picture's
 // resolution following the frame budget, Alt+A); [Zones] (a look: the scroll zones over every
 // picture, Shift+H); [Follow] (a player's, or an entity's own fastening the camera over itself).
+// Settings ([Settings], saved with the game, in [Resources]): the zones, the resolution
+// following the budget.
 package cameras

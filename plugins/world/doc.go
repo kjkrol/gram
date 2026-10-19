@@ -127,6 +127,8 @@
 //
 // Knobs, for an effect's Alter: render.Appearance, the look's.
 // Commands: [Spawn] (a player's or an entity's own); [Despawn] (an entity's own); [Pause],
-// [Faster], [Slower], [SwitchSectors], [SwitchBands] (a player's). The clock's moment and the
-// commands about effects (ceremony.Put, Take, Toggle, Trigger) are carried here too.
+// [Faster], [Slower], [Tempo], [SwitchSectors], [SwitchBands] (a player's). Settings
+// ([Settings], saved with the game, in [Resources]): the sectors drawn, their bands. The clock's
+// moment and the commands about effects (ceremony.Put, Take, Toggle, Trigger) are carried here
+// too.
 package world

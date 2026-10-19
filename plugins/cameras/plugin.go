@@ -96,11 +96,15 @@ type Plugin struct {
 	orders      orders
 	zonesView   *zonesView
 	adapter     adapter
+	kept        *plugin.Kept[Settings]
 	module      *module
+
+	Res Resources
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
+var _ plugin.Tunable = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
 
 // NewPlugin keeps and moves the cameras of worldPlugin's world as cfg says; it makes none itself.
@@ -109,7 +113,9 @@ var _ plugin.Restorer = (*Plugin)(nil)
 func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin, cfg: cfg}
 	p.Self = world.NewSelf(worldPlugin, p)
-	p.zonesView = &zonesView{}
+	p.zonesView = &zonesView{settings: &p.Res.Settings}
+	p.kept = plugin.Keep(&p.Res.Settings)
+	p.Res.Settings.Adaptive = cfg.Adaptive
 	p.adapter = adapter{on: cfg.Adaptive, budget: cfg.FrameBudget}
 	if p.adapter.budget <= 0 {
 		p.adapter.budget = time.Second / 60
@@ -278,12 +284,15 @@ func (r reporter) Report(line func(label, value string)) {
 // EventHandler is nil: a player's bindings issue the commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is every camera's state, its window, zoom and fastening, in the order made.
+// Serializable is every camera's state, its window, zoom and fastening, in the order made, and
+// the Settings.
 func (p *Plugin) Serializable() plugin.Serializable { return persisted{p} }
 
-// Restore gives the cameras made so far the state a Load wrote; those made later take theirs as
-// they are made.
+// Restore gives the cameras made so far the state a Load wrote, those made later take theirs as
+// they are made, and takes the Settings loaded.
 func (p *Plugin) Restore() {
+	p.kept.Restore()
+	p.adapter.on = p.Res.Settings.Adaptive
 	p.loaded = true
 	for at := range p.cameras {
 		if at < len(p.saved) {

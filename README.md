@@ -369,7 +369,8 @@ stage.New(MeadowStage).
 ```
 
 Saving and loading are the engine's: commands like any other (`game.Save`, `game.Load`,
-`game.Enter`, `game.Quit`) bound to keys (F5, F9, Shift+Esc in every game) or to ui buttons, a
+`game.Enter`, `game.Quit`) bound to keys (F5, F9, Shift+Esc in every game, as K lists the keys
+and F10 opens the settings) or to ui buttons, a
 Stage entered from its save from any other, a menu's Continue.
 
 A Scene is one thing a Stage can show. Its screen is a `ui` tree: the world's picture, all its

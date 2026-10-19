@@ -47,8 +47,7 @@ type Plugin struct {
 	light       *light.Plugin
 
 	freezes    command.Queue[Freeze]
-	laters     command.Queue[Later]
-	earliers   command.Queue[Earlier]
+	hours      command.Queue[Hour]
 	changes    command.Queue[ChangeWeather]
 	sets       command.Queue[SetWeather]
 	clouds     command.Queue[Clouds]
@@ -63,12 +62,16 @@ type Plugin struct {
 	skies      []Sky
 	vault      *backdrop.Renderer
 	aloft      *aloft.Renderer // the low clouds: the high ones from above would veil the map
-	look       CloudLook
 	shadows    CloudShadows
+	kept       *plugin.Kept[Settings]
+
+	Res Resources
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
+var _ plugin.Tunable = (*Plugin)(nil)
+var _ plugin.Restorer = (*Plugin)(nil)
 var _ board.Atmosphere = (*Plugin)(nil)
 
 // NewPlugin puts the atmosphere of cfg over worldPlugin, its sun shone through lightPlugin's
@@ -83,8 +86,9 @@ func NewPlugin(worldPlugin *world.Plugin, lightPlugin *light.Plugin, cfg Config)
 	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, light: lightPlugin, calendar: cal,
 		climate: clim, sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
 	p.aloft = aloft.New(p.Air, air.Low)
+	p.kept = plugin.Keep(&p.Res.Settings)
 	p.ShowClouds(AllBodies)
-	p.shadows = CloudShadows{Ground: true, Figures: true, High: true}
+	p.CastClouds(CloudShadows{Ground: true, Figures: true, High: true})
 	p.Self = world.NewSelf(worldPlugin, p, comp.Const(p.sky.Moonlight()),
 		comp.Const(climate.DefaultSpread()), comp.Const(light.Source{Strength: 1, Ambient: 1}),
 		comp.Const(light.Shining{}))
@@ -128,7 +132,13 @@ type CloudShadows struct{ Ground, Figures, High bool }
 // scene sets it as it begins.
 func (p *Plugin) CastClouds(c CloudShadows) *Plugin {
 	p.shadows = c
+	p.Res.Settings.HighShade = c.High
 	return p
+}
+
+func (p *Plugin) shadeHigh(on bool) {
+	p.shadows.High = on
+	p.Res.Settings.HighShade = on
 }
 
 // CloudShadows is whose shadows the clouds cast.
@@ -162,22 +172,22 @@ func (l CloudLook) String() string {
 	return "?"
 }
 
-// ShowClouds has the clouds drawn as look says, AllBodies till then; a scene's say as it starts,
-// Clouds going on to the next look as the game goes.
+// ShowClouds has the clouds drawn as look says (Settings.Clouds), AllBodies till then: a game's
+// say as it is made, the Clouds command's as it goes.
 func (p *Plugin) ShowClouds(look CloudLook) {
-	p.look = look
+	p.Res.Settings.Clouds = look
 	p.aloft.Show(look != ShadowsAlone)
 	p.aloft.Bodies(look == LowBodies || look == AllBodies)
 }
 
 // ShownClouds is how the clouds are drawn.
-func (p *Plugin) ShownClouds() CloudLook { return p.look }
+func (p *Plugin) ShownClouds() CloudLook { return p.Res.Settings.Clouds }
 
 func (p *Plugin) skyClouds() backdrop.Clouds {
-	low := p.look == LowBodies || p.look == AllBodies
+	low := p.Res.Settings.Clouds == LowBodies || p.Res.Settings.Clouds == AllBodies
 	return backdrop.Clouds{
-		Hidden: p.look == ShadowsAlone,
-		Bodies: [2]bool{low, p.look == AllBodies},
+		Hidden: p.Res.Settings.Clouds == ShadowsAlone,
+		Bodies: [2]bool{low, p.Res.Settings.Clouds == AllBodies},
 		Before: low,
 	}
 }
@@ -277,8 +287,19 @@ func (p *Plugin) HUD() render.Renderer { return p.calendar.HUD() }
 // EventHandler is nil: the atmosphere takes commands, not input.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil: the weather and its air masses are entities, saved with the ECS.
-func (p *Plugin) Serializable() plugin.Serializable { return nil }
+// Serializable is the atmosphere's Settings, kept whole; the weather and its air masses are
+// entities, saved with the ECS.
+func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
+
+// Restore takes the Settings loaded: the light frozen at its hour, the clouds and their shadows.
+func (p *Plugin) Restore() {
+	p.kept.Restore()
+	s := p.Res.Settings
+	p.sky.SetFrozen(s.Frozen)
+	p.sky.SetHour(s.Hour)
+	p.ShowClouds(s.Clouds)
+	p.shadeHigh(s.HighShade)
+}
 
 var _ goke.Module = (*module)(nil)
 
@@ -333,7 +354,7 @@ type cloudsReport struct{ p *Plugin }
 func (cloudsReport) Init(*goke.SysInit) {}
 
 func (r cloudsReport) Report(line func(label, value string)) {
-	look := r.p.look.String()
+	look := r.p.Res.Settings.Clouds.String()
 	if w := r.p.Air(); !w.OneLayer && w.Relief[1] > 0 {
 		c := w.Ceilings
 		look += fmt.Sprintf("\nunder the peaks %.0f%%\ncovering %.0f%%, over %.0f%%",

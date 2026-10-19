@@ -28,15 +28,17 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Resources is what the world publishes: its Config and its Telemetry.
+// Resources is what the world publishes: its Config, its Telemetry and its Settings.
 type Resources struct {
 	Config    Config
 	Telemetry *Telemetry
+	Settings  Settings
 }
 
 // Plugin is the world a Stage makes with its World link (ctx.UseWorld); never Use your own.
 type Plugin struct {
 	Res     Resources
+	kept    *plugin.Kept[Settings]
 	module  *module
 	figures []Figure
 	roles   Roles
@@ -61,6 +63,8 @@ var _ plugin.Builtin = (*Plugin)(nil)
 var _ plugin.Populator = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ plugin.KindTemplater = (*Plugin)(nil)
+var _ plugin.Tunable = (*Plugin)(nil)
+var _ plugin.Restorer = (*Plugin)(nil)
 
 // Builtin marks Plugin as installed by the engine itself.
 func (*Plugin) Builtin() {}
@@ -75,7 +79,8 @@ func NewPlugin(cfg Config) *Plugin {
 		look:   flatLook(cfg.Space),
 	}
 	p.roster = kind.NewRoster(p.fillRoster)
-	m.kinds = p.kinds
+	p.kept = plugin.Keep(&p.Res.Settings)
+	m.p, m.kinds = p, p.kinds
 	p.newEffects()
 	p.newPlans()
 	p.carryOwn()
@@ -310,8 +315,15 @@ func (p *Plugin) Styles() *render.Styles { return p.styles }
 // EventHandler is nil: a player's bindings issue the world's commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil: the world's entities are saved with the ECS.
-func (p *Plugin) Serializable() plugin.Serializable { return nil }
+// Serializable is the world's Settings, kept whole; its entities are saved with the ECS.
+func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
+
+// Restore takes the Settings loaded and draws as they say.
+func (p *Plugin) Restore() {
+	p.kept.Restore()
+	p.ShowSectors(p.Res.Settings.Sectors)
+	p.SetBanded(!p.Res.Settings.Unbanded)
+}
 
 // Seed adds entries to the entities spawned when this Stage starts fresh.
 func (p *Plugin) Seed(entries ...kind.Entry) {
