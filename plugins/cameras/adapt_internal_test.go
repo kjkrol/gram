@@ -130,9 +130,10 @@ func TestStepRings_StepsTheOutermostRingCoarserFirstAndTheInnermostFinerFirst(t 
 		}},
 	} {
 		cam := cameratest.NewFromSpace(1000, 800, 0).(camera.Ringed)
+		shares := [3]float32{1, 0.6, 0.35}
 		rings := make([]camera.Ring, 3)
 		for i, s := range c.from {
-			rings[i] = camera.Ring{Share: defaultRings[i].Share, Resolution: s}
+			rings[i] = camera.Ring{Share: shares[i], Resolution: s}
 		}
 		cam.SetRings(rings)
 		for n, want := range c.steps {

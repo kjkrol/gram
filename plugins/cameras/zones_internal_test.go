@@ -75,7 +75,7 @@ func (*drawsCtx) Hosts(...host.Host)         {}
 func (*drawsCtx) ECS() *goke.ECS             { return goke.New() }
 func (c *drawsCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
 
-func TestPlugin_DrawsTheZones(t *testing.T) {
+func TestPlugin_DrawsTheZonesAndTheRings(t *testing.T) {
 	p := NewPlugin(world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
@@ -84,8 +84,9 @@ func TestPlugin_DrawsTheZones(t *testing.T) {
 	if err := p.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(ctx.drawn) != 1 || ctx.drawn[0] != render.Source(p.zonesView) {
-		t.Errorf("the cameras draw %v, want the zones", ctx.drawn)
+	if len(ctx.drawn) != 2 || ctx.drawn[0] != render.Source(p.zonesView) ||
+		ctx.drawn[1] != render.Source(p.ringsView) {
+		t.Errorf("the cameras draw %v, want the zones and the rings", ctx.drawn)
 	}
 }
 

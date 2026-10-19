@@ -68,16 +68,8 @@ func (a *adapter) step(now time.Time, fps float64) float32 {
 // clamped is s between LeastResolution and all the pixels
 func clamped(s float32) float32 { return min(max(s, LeastResolution), 1) }
 
-// the rings a picture drawn in rings starts with, the outermost first, and the least each is
-// stepped down to
-var (
-	defaultRings = []camera.Ring{
-		{Share: 1, Resolution: 0.6},
-		{Share: 0.6, Resolution: 0.8},
-		{Share: 0.35, Resolution: 1},
-	}
-	ringFloors = []float32{LeastResolution, 0.6, 0.7}
-)
+// the least each ring is stepped down to, the outermost first
+var ringFloors = []float32{LeastResolution, 0.6, 0.7}
 
 // stepRings steps one of c's rings by factor, coarser the outermost still over its floor, finer
 // the innermost still under all its pixels, and is the centre's resolution after

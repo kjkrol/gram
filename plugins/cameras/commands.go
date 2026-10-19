@@ -2,6 +2,7 @@ package cameras
 
 import (
 	"math"
+	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
@@ -103,34 +104,62 @@ type Tilt struct {
 }
 
 // Resolution has Camera drawn at Factor times the pixels it is drawn at now, between
-// LeastResolution and all of them, and stops the resolution following the frame budget (Adapt).
+// LeastResolution and all of them, a ring at a time in rings, and stops the following (Still).
 type Resolution struct {
 	Camera camera.Camera
 	Factor float32
 }
 
-// Adapt has every picture's resolution follow the frame budget (Config.FrameBudget,
-// Settings.Adaptive), coarser while the frames come slower than it and finer again while they
-// keep up, or stay; and has every picture drawn in rings (Settings.Rings), the whole frame at
-// 0.6 of its pixels, the central 60% at 0.8 and the central 35% at all, or whole. Alt+A by
-// default, in turn: following, following in rings, still and whole.
-type Adapt struct{ On, Rings bool }
+// Adapt has every picture's resolution follow the frame budget (Settings.FrameBudget) as
+// Strategy says, Uniform the whole picture's, coarser while the frames come slower and finer
+// again while they keep up, InRings drawn in rings and stepped a ring at a time, the outer
+// rings first, or stay as set, Still. Alt+A by default, in turn.
+type Adapt struct{ Strategy Strategy }
 
-func (Pan) Command()        {}
-func (Zoom) Command()       {}
-func (Resolution) Command() {}
-func (Adapt) Command()      {}
-func (Follow) Command()     {}
-func (CenterOn) Command()   {}
-func (CenterAt) Command()   {}
-func (View) Command()       {}
-func (LookFrom) Command()   {}
-func (LookAt) Command()     {}
-func (Look) Command()       {}
-func (Ride) Command()       {}
-func (Turn) Command()       {}
-func (Tilt) Command()       {}
-func (Sight) Command()      {}
+// Picture has every picture but a minimap's drawn at Resolution of its pixels, the centre
+// ring's in rings, LeastResolution up to all of them, and stops the following (Still).
+type Picture struct{ Resolution float32 }
+
+// Rings has every picture but a minimap's drawn in rings (Settings.Rings) or whole; a Strategy
+// saying otherwise stops (Still).
+type Rings struct{ On bool }
+
+// RingShares has the inner ring cover Inner of the frame and the middle ring Middle, at least a
+// tenth over the inner (Settings.Inner, Middle).
+type RingShares struct{ Inner, Middle float32 }
+
+// RingResolutions has the outer ring drawn at Outer of its pixels and the middle ring at Middle
+// (Settings.OuterRes, MiddleRes), and stops the following (Still).
+type RingResolutions struct{ Outer, Middle float32 }
+
+// Budget sets the time a Frame may take, which the resolution follows (Settings.FrameBudget).
+type Budget struct{ Frame time.Duration }
+
+// ShowRings shows the rings' edges over every picture drawn in rings, or hides them
+// (Settings.ShowRings).
+type ShowRings struct{ Shown bool }
+
+func (Pan) Command()             {}
+func (Zoom) Command()            {}
+func (Resolution) Command()      {}
+func (Adapt) Command()           {}
+func (Picture) Command()         {}
+func (Rings) Command()           {}
+func (RingShares) Command()      {}
+func (RingResolutions) Command() {}
+func (Budget) Command()          {}
+func (ShowRings) Command()       {}
+func (Follow) Command()          {}
+func (CenterOn) Command()        {}
+func (CenterAt) Command()        {}
+func (View) Command()            {}
+func (LookFrom) Command()        {}
+func (LookAt) Command()          {}
+func (Look) Command()            {}
+func (Ride) Command()            {}
+func (Turn) Command()            {}
+func (Tilt) Command()            {}
+func (Sight) Command()           {}
 
 var (
 	_ command.Command = Pan{}
@@ -148,6 +177,12 @@ var (
 	_ command.Command = Sight{}
 	_ command.Command = Resolution{}
 	_ command.Command = Adapt{}
+	_ command.Command = Picture{}
+	_ command.Command = Rings{}
+	_ command.Command = RingShares{}
+	_ command.Command = RingResolutions{}
+	_ command.Command = Budget{}
+	_ command.Command = ShowRings{}
 )
 
 // TurnStep is how far Q and E turn the view a tick they are held, in radians, eighteen of them an
@@ -172,13 +207,14 @@ const (
 // Queues are where the cameras' commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
 	return append([]command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.centerOns,
-		&p.centerAts, &p.zones, &p.sights, &p.resolutions, &p.adapts}, p.orders.queues()...)
+		&p.centerAts, &p.zones, &p.sights, &p.resolutions, &p.adapts, &p.pictures, &p.rings,
+		&p.ringShares, &p.ringRes, &p.budgets, &p.showRings}, p.orders.queues()...)
 }
 
 // DefaultBindings are DefaultKeys, their corners turning where the Config turns, Shift+H showing
-// or hiding the scroll zones, Alt+A the picture following the frame budget, in rings, or staying
-// whole, and the views' keys the Config gives: Q and E turning, R and F tilting, Tab switching
-// the projection, V riding and the mouse looking round inside an entity.
+// or hiding the scroll zones, Alt+A the picture's resolution still, following the frame budget
+// or in rings, and the views' keys the Config gives: Q and E turning, R and F tilting, Tab
+// switching the projection, V riding and the mouse looking round inside an entity.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	keys := DefaultKeys()
 	keys.CornersTurn = p.cfg.Turn
@@ -187,18 +223,10 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 			"Show the scroll zones at the picture's edges, or hide them",
 			func(control.Context) (Zones, bool) { return Zones{Shown: !p.ZonesShown()}, true }),
 		control.Build(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Alt: true}},
-			"The picture follows the frame budget, in rings too, or stays whole",
+			"The picture's resolution: still, following the frame budget, in rings",
 			func(control.Context) (Adapt, bool) { return p.nextAdapt(), true }))
 	return append(out, viewBindings(p.cfg)...)
 }
 
-// nextAdapt is the Adapt after the Settings: following, following in rings, still and whole
-func (p *Plugin) nextAdapt() Adapt {
-	switch {
-	case !p.Adaptive():
-		return Adapt{On: true, Rings: p.Rings()}
-	case !p.Rings():
-		return Adapt{On: true, Rings: true}
-	}
-	return Adapt{}
-}
+// nextAdapt is the Adapt after the Settings: still, the whole picture, in rings, in turn
+func (p *Plugin) nextAdapt() Adapt { return Adapt{Strategy: (p.Strategy() + 1) % 3} }

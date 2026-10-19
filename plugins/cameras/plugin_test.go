@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
@@ -177,29 +178,30 @@ func TestNew_ACameraIsDrawnAtTheConfigsResolutionAMinimapsAtAll(t *testing.T) {
 func TestSettings_AreSavedWithTheCamerasAndAZeroSavedComesBackSo(t *testing.T) {
 	saved := cameras.NewPlugin(newWorld(), cameras.Config{})
 	saved.ShowZones(true)
-	loaded := cameras.NewPlugin(newWorld(), cameras.Config{Adaptive: true})
+	loaded := cameras.NewPlugin(newWorld(), cameras.Config{Strategy: cameras.Uniform})
 	carried(t, saved, loaded)
 	if !loaded.ZonesShown() {
 		t.Error("the zones shown were not saved with the cameras")
 	}
-	if loaded.Adaptive() {
+	if loaded.Strategy() != cameras.Still {
 		t.Error("the resolution follows the budget after a load that saved it still")
 	}
 }
 
-var presetRings = []camera.Ring{
+var defaultRings = []camera.Ring{
 	{Share: 1, Resolution: 0.6},
 	{Share: 0.6, Resolution: 0.8},
 	{Share: 0.35, Resolution: 1},
 }
 
-func TestNew_UnderRingsACameraIsDrawnInThePresetsRingsAMinimapsWhole(t *testing.T) {
-	p := cameras.NewPlugin(newWorld(), cameras.Config{Rings: true, Resolution: 0.7})
+func TestNew_UnderRingsACameraIsDrawnInTheDefaultRingsAMinimapsWhole(t *testing.T) {
+	p := cameras.NewPlugin(newWorld(), cameras.Config{Rings: true})
 	cam := p.New(cameras.FromAbove, camera.Config{})
 	whole := p.New(cameras.FromAbove, camera.Config{Whole: true})
-	if got := camera.RingsOf(cam); !slices.Equal(got, presetRings) || camera.ResolutionOf(cam) != 1 {
-		t.Errorf("the camera is drawn in %v at %v, want the preset %v at all its centre's pixels",
-			got, camera.ResolutionOf(cam), presetRings)
+	if got := camera.RingsOf(cam); !slices.Equal(got, defaultRings) ||
+		camera.ResolutionOf(cam) != 1 {
+		t.Errorf("the camera is drawn in %v at %v, want the default %v at all its centre's pixels",
+			got, camera.ResolutionOf(cam), defaultRings)
 	}
 	if got := camera.RingsOf(whole); len(got) != 0 {
 		t.Errorf("a camera keeping the whole world in view is drawn in %v, want whole", got)
@@ -207,45 +209,129 @@ func TestNew_UnderRingsACameraIsDrawnInThePresetsRingsAMinimapsWhole(t *testing.
 	relief := cameras.NewPlugin(newWorld(),
 		cameras.Config{Turn: true, Tilt: true, Cell: 32, Rings: true})
 	if got := camera.RingsOf(relief.New(cameras.Isometrically, camera.Config{})); !slices.Equal(
-		got, presetRings) {
-		t.Errorf("a camera in relief is drawn in %v, want the preset", got)
+		got, defaultRings) {
+		t.Errorf("a camera in relief is drawn in %v, want the default", got)
+	}
+	centre := cameras.NewPlugin(newWorld(), cameras.Config{Rings: true, Resolution: 0.7})
+	cam = centre.New(cameras.FromAbove, camera.Config{})
+	if got := camera.RingsOf(cam); got[2].Resolution != 0.7 || camera.ResolutionOf(cam) != 0.7 {
+		t.Errorf("at a Resolution of 0.7 the camera is drawn in %v at %v, want its centre ring "+
+			"at 0.7", got, camera.ResolutionOf(cam))
 	}
 }
 
-func TestSettings_AreTheZonesTheFollowingAndTheRingsEachBuildingAnAdaptWhole(t *testing.T) {
-	p := cameras.NewPlugin(newWorld(), cameras.Config{Adaptive: true})
+func TestSettings_AreTheZonesAndThePicturesInTheirSectionsEachBuildingItsCommand(t *testing.T) {
+	p := cameras.NewPlugin(newWorld(), cameras.Config{Strategy: cameras.Uniform})
 	settings := p.Settings()
-	if len(settings) != 3 {
-		t.Fatalf("%d settings, want the zones, the following and the rings", len(settings))
+	if len(settings) != 10 {
+		t.Fatalf("%d settings, want the zones and the picture's nine", len(settings))
 	}
-	following, rings := settings[1].(control.Switch), settings[2].(control.Switch)
-	if following.Label != "Resolution follows the frame budget" || !following.Get() ||
-		rings.Label != "Picture drawn in rings" || rings.Get() {
-		t.Errorf("the switches are %q (%v) and %q (%v), want the following on and the rings off",
-			following.Label, following.Get(), rings.Label, rings.Get())
+	for i, want := range []struct{ label, section string }{
+		{"Scroll zones", ""},
+		{"Resolution follows the frame budget", control.PictureResolution},
+		{"Resolution", control.PictureResolution},
+		{"Frame budget", control.PictureAdaptive},
+		{"Drawn in rings", control.PictureRings},
+		{"Inner ring", control.PictureRings},
+		{"Middle ring", control.PictureRings},
+		{"Outer ring resolution", control.PictureRings},
+		{"Middle ring resolution", control.PictureRings},
+		{"Show the rings", control.PictureAreas},
+	} {
+		var label string
+		switch st := settings[i].(type) {
+		case control.Switch:
+			label = st.Label
+		case control.Choice:
+			label = st.Label
+		case control.Range:
+			label = st.Label
+		}
+		if label != want.label || control.SectionOf(settings[i]) != want.section {
+			t.Errorf("setting %d is %q in %q, want %q in %q", i, label,
+				control.SectionOf(settings[i]), want.label, want.section)
+		}
 	}
-	if got := rings.Set(true); got != (cameras.Adapt{On: true, Rings: true}) {
-		t.Errorf("the rings switched on build %v, want Adapt{On: true, Rings: true}", got)
+	strategy := settings[1].(control.Choice)
+	if strategy.Get() != int(cameras.Uniform) || len(strategy.Options) != 3 {
+		t.Errorf("the strategy shows %d of %v, want the whole picture's of three",
+			strategy.Get(), strategy.Options)
 	}
-	if got := following.Set(false); got != (cameras.Adapt{}) {
-		t.Errorf("the following switched off builds %v, want Adapt{}: the picture as it is", got)
+	if got := strategy.Set(2); got != (cameras.Adapt{Strategy: cameras.InRings}) {
+		t.Errorf("the strategy's third choice builds %v, want Adapt{InRings}", got)
+	}
+	resolution := settings[2].(control.Range)
+	if resolution.Min != cameras.LeastResolution || resolution.Max != 1 ||
+		resolution.Get() != 1 || resolution.Shows(0.85) != "0.85" {
+		t.Errorf("the resolution runs %v to %v at %v shown %q, want 0.4 to 1 at 1, 0.85",
+			resolution.Min, resolution.Max, resolution.Get(), resolution.Shows(0.85))
+	}
+	if got := resolution.Set(0.7); got != (cameras.Picture{Resolution: 0.7}) {
+		t.Errorf("the resolution at 0.7 builds %v, want Picture{0.7}", got)
+	}
+	budget := settings[3].(control.Range)
+	if budget.Min != 30 || budget.Max != 120 || budget.Get() != 60 || budget.Shows(60) != "60 FPS" {
+		t.Errorf("the budget runs %v to %v at %v shown %q, want 30 to 120 at 60, \"60 FPS\"",
+			budget.Min, budget.Max, budget.Get(), budget.Shows(60))
+	}
+	if got := budget.Set(30); got != (cameras.Budget{Frame: time.Second / 30}) {
+		t.Errorf("the budget at 30 builds %v, want a frame of a thirtieth of a second", got)
+	}
+	rings := settings[4].(control.Switch)
+	if rings.Get() || rings.Set(true) != (cameras.Rings{On: true}) {
+		t.Errorf("the rings are %v building %v, want off, Rings{On: true}", rings.Get(),
+			rings.Set(true))
+	}
+	inner, middle := settings[5].(control.Range), settings[6].(control.Range)
+	if inner.Get() != 35 || middle.Get() != 60 || inner.Shows(35) != "35%" {
+		t.Errorf("the shares show %v and %v (%q), want 35%% and 60%%", inner.Get(), middle.Get(),
+			inner.Shows(35))
+	}
+	if got := inner.Set(55); got != (cameras.RingShares{Inner: 0.55, Middle: 0.65}) {
+		t.Errorf("the inner ring at 55%% builds %v, want the middle pushed to 65%%", got)
+	}
+	if got := middle.Set(40); got != (cameras.RingShares{Inner: 0.3, Middle: 0.4}) {
+		t.Errorf("the middle ring at 40%% builds %v, want the inner pushed to 30%%", got)
+	}
+	outer, middleRes := settings[7].(control.Range), settings[8].(control.Range)
+	if float32(outer.Get()) != 0.6 || float32(middleRes.Get()) != 0.8 {
+		t.Errorf("the rings' resolutions show %v and %v, want 0.6 and 0.8", outer.Get(),
+			middleRes.Get())
+	}
+	if got := outer.Set(0.5); got != (cameras.RingResolutions{Outer: 0.5, Middle: 0.8}) {
+		t.Errorf("the outer ring at 0.5 builds %v, want RingResolutions{0.5, 0.8}", got)
+	}
+	if got := middleRes.Set(0.9); got != (cameras.RingResolutions{Outer: 0.6, Middle: 0.9}) {
+		t.Errorf("the middle ring at 0.9 builds %v, want RingResolutions{0.6, 0.9}", got)
+	}
+	shown := settings[9].(control.Switch)
+	if shown.Get() || shown.Set(true) != (cameras.ShowRings{Shown: true}) {
+		t.Errorf("the rings shown are %v building %v, want hidden, ShowRings{Shown: true}",
+			shown.Get(), shown.Set(true))
 	}
 }
 
 func TestRestore_DrawsTheCamerasInRingsAsTheSettingsLoadedSay(t *testing.T) {
 	saved := cameras.NewPlugin(newWorld(), cameras.Config{Rings: true})
+	saved.SetRingShares(0.3, 0.5)
+	saved.SetRingResolutions(0.5, 0.7)
 	loaded := cameras.NewPlugin(newWorld(), cameras.Config{})
 	before := loaded.New(cameras.FromAbove, camera.Config{})
 	before.(camera.Resolved).SetResolution(0.7)
 	carried(t, saved, loaded)
-	if got := camera.RingsOf(before); !slices.Equal(got, presetRings) ||
+	want := []camera.Ring{
+		{Share: 1, Resolution: 0.5},
+		{Share: 0.5, Resolution: 0.7},
+		{Share: 0.3, Resolution: 1},
+	}
+	if got := camera.RingsOf(before); !slices.Equal(got, want) ||
 		camera.ResolutionOf(before) != 1 {
-		t.Errorf("after the load the camera made before it is drawn in %v at %v, want the preset "+
-			"at all its centre's pixels", got, camera.ResolutionOf(before))
+		t.Errorf("after the load the camera made before it is drawn in %v at %v, want the rings "+
+			"saved at all its centre's pixels", got, camera.ResolutionOf(before))
 	}
 	after := loaded.New(cameras.FromAbove, camera.Config{})
-	if got := camera.RingsOf(after); !slices.Equal(got, presetRings) {
-		t.Errorf("a camera made after the load is drawn in %v, want the preset", got)
+	if got := camera.RingsOf(after); !slices.Equal(got, want) {
+		t.Errorf("a camera made after the load is drawn in %v, want the rings saved", got)
 	}
 	whole := cameras.NewPlugin(newWorld(), cameras.Config{})
 	ringed := cameras.NewPlugin(newWorld(), cameras.Config{Rings: true})
