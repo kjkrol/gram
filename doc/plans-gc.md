@@ -147,7 +147,7 @@ nawzajem; zasada "nigdy nie widzi innych z wyprzedzeniem" zostaje.
 
 ## Zadanie 4. `gpu.Present` i `SetBindGroup` bez alokacji na klatkę
 
-Zrobione w etapie 1 (2026-10-19, `ec19a56d`, `7590e704`): arena offsetów resetowana po
+Zrobione w etapie 1 (2026-10-19, `1a2b3c89`, `ec0a8228`): arena offsetów resetowana po
 `Submit` (GLES trzyma wycinek), deskryptory i bufory komend jako pola, `presented` jako własna
 kopia.
 
@@ -182,8 +182,8 @@ jeden mały slice na draw.
 
 ## Zadanie 5. Drobne alokacje per klatka i per tick
 
-Zrobione w etapie 1 (2026-10-19): 1 `e5581a5a`, 2 `3fd6003c`, 3 `8f5d5916`, 4 `28390e26`,
-5 `0a319825`, 7 i 8 `a6592f2d`; 6 zostaje (goke nie ma zdjęcia kilku komponentów naraz).
+Zrobione w etapie 1 (2026-10-19): 1 `e5581a5a`, 2 `f14e7759`, 3 `8e1fe910`, 4 `28390e26`,
+5 `0a319825`, 7 i 8 `f1cf2e7c`; 6 zostaje (goke nie ma zdjęcia kilku komponentów naraz).
 
 **Skille:** `gram-plugin`, `gram-render` (dla fontu), `gram-plugins` (telemetry, world, bullet).
 
