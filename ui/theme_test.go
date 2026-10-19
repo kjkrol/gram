@@ -75,3 +75,21 @@ func TestTheme_ATitleMeasuresInTheThemesLargeFont(t *testing.T) {
 		t.Fatalf("the title needs %vx%v against the heading's %vx%v, want larger", tw, th, hw, hh)
 	}
 }
+
+func TestTheme_ASubheadingMeasuresAsALabelInTheRegularFont(t *testing.T) {
+	big, err := render.NewFont(goRegular(), 40)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub, label := Subheading("Graphics"), Label("Graphics")
+	s := NewScene("main", Layers(sub, label))
+	th := DefaultTheme()
+	th.Bold = big
+	s.Theme(th)
+	s.Drawers()
+	sw, sh := sub.needs()
+	lw, lh := label.needs()
+	if sw != lw || sh != lh {
+		t.Fatalf("the subheading needs %vx%v against the label's %vx%v, want the same", sw, sh, lw, lh)
+	}
+}

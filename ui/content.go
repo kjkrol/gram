@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"image/color"
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -24,6 +25,11 @@ func Panel(e *Element) *Element {
 // Label is a line of text, or lines of it, one under another.
 func Label(text string) *Element { return newElement(&label{text: text}) }
 
+// Subheading is a Label in the theme's Accent colour: a section's part.
+func Subheading(text string) *Element {
+	return newElement(&label{text: text, weight: subheading})
+}
+
 // Heading is a Label in the theme's bold font: a section's title.
 func Heading(text string) *Element { return newElement(&label{text: text, weight: heading}) }
 
@@ -34,6 +40,7 @@ type weight int
 
 const (
 	regular weight = iota
+	subheading
 	heading
 	title
 )
@@ -106,7 +113,14 @@ func (l *label) draw(e *Element, dst *render.Image) {
 	if th.Shadow.A > 0 {
 		render.DrawText(dst, l.font(th), text, x+1, y+1, th.Shadow)
 	}
-	render.DrawText(dst, l.font(th), text, x, y, th.Text)
+	render.DrawText(dst, l.font(th), text, x, y, l.colour(th))
+}
+
+func (l *label) colour(th *Theme) color.RGBA {
+	if l.weight == subheading && th.Accent.A > 0 {
+		return th.Accent
+	}
+	return th.Text
 }
 
 func (l *label) needs(e *Element) (w, h float64) {

@@ -26,8 +26,8 @@ type Feed struct {
 	layers  []*Image // an image a ring
 }
 
-// the shown pixels an inner ring's edge fades over
-const ringFeather = 20
+// RingFeather is the shown pixels an inner ring's edge fades over.
+const RingFeather = 20
 
 var _ Surface = (*Feed)(nil)
 
@@ -123,7 +123,7 @@ func (f *Feed) drawRings(dst *Image, rings []camera.Ring, c camera.Cropping) {
 		op.GeoM.Scale(float64(cw)/float64(lw), float64(ch)/float64(lh))
 		op.GeoM.Translate(float64(b.Min.X+(f.w-cw)/2), float64(b.Min.Y+(f.h-ch)/2))
 		if i > 0 {
-			op.Fade = Fade{ringFeather, ringFeather, ringFeather, ringFeather}
+			op.Fade = Fade{RingFeather, RingFeather, RingFeather, RingFeather}
 		}
 		dst.DrawImage(f.layers[i], &op)
 	}
