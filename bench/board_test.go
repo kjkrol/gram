@@ -188,6 +188,12 @@ func Benchmark_Board_Shores(b *testing.B) {
 
 // view is "above", "iso" or "persp"; far shows the whole island on a screen of 576 by 384
 func island(b *testing.B, view string, far bool, workers int) (*headless, *board.Board, render.Source) {
+	return islandWith(b, view, far, workers, true, false)
+}
+
+// islandWith is island with the water's shine or without it (no water layer drawn), and under
+// a distant sun with the ground's shade baked, or in no light at all
+func islandWith(b *testing.B, view string, far bool, workers int, shine, lit bool) (*headless, *board.Board, render.Source) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
 	cfg := world.Config{
@@ -198,7 +204,12 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	ctx.UseWorld(cfg)
 	grid := grid.DefaultGrids{}.Square(w, h, size)
 	p := board.NewPlugin(grid, &cell.MultipleOccupancy{}, ctx.world)
-	topo := topography.NewPlugin(ctx.world, p, nil, topography.Config{})
+	var l *light.Plugin
+	if lit {
+		sun := light.Distant{Dir: [3]float32{-0.8, 0.45, 0.3}, Strength: 0.75, Ambient: 0.3}
+		l = light.NewPlugin(ctx.world, light.Config{}).WithDistant(sun)
+	}
+	topo := topography.NewPlugin(ctx.world, p, l, topography.Config{})
 	var screenW, screenH float32
 	if far {
 		screenW, screenH = 576, 384
@@ -222,14 +233,23 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	kinds.Define("rock", cell.Kind{Cost: 1, Allows: cell.Land})
 	kinds.Define("stream", cell.Kind{Cost: 2, Allows: cell.Land | cell.Water})
 	kinds.Define("estuary", cell.Kind{Cost: 1, Allows: cell.Water})
-	topo.Style("sea", painter.Style{Shine: 0.9, Under: true}).
+	var wet float32
+	if shine {
+		wet = 0.9
+	}
+	topo.Style("sea", painter.Style{Shine: wet, Under: true}).
 		Style("earth", painter.Style{Spread: 0.3}).
 		Style("sand", painter.Style{Spread: 0.35}).
 		Style("rock", painter.Style{Spread: 0.25}).
-		Style("stream", painter.Style{Shine: 0.9, Flow: 60}).
-		Style("estuary", painter.Style{Shine: 0.9, Flow: 45})
+		Style("stream", painter.Style{Shine: wet, Flow: 60}).
+		Style("estuary", painter.Style{Shine: wet, Flow: 45})
 	if err := ctx.Use(p); err != nil {
 		b.Fatal(err)
+	}
+	if l != nil {
+		if err := ctx.Use(l); err != nil {
+			b.Fatal(err)
+		}
 	}
 	if err := ctx.Use(topo); err != nil {
 		b.Fatal(err)
@@ -284,7 +304,16 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 	}
 	atlas.Close()
 	p.WithWorkers(workers).SetAtlas(atlas)
-	ecs := ctx.start(b, func(ctx goke.RunCtx, d time.Duration) { topo.RunPlan(ctx, d) })
+	picture := ctx.world.Picture().(*render.Composer)
+	ctx.pending = append(ctx.pending, func() []goke.System {
+		return []goke.System{goke.SystemFn{OnInit: picture.Init}}
+	})
+	ecs := ctx.start(b, func(ctx goke.RunCtx, d time.Duration) {
+		if l != nil {
+			l.RunPlan(ctx, d)
+		}
+		topo.RunPlan(ctx, d)
+	})
 	if view == "persp" {
 		cameratest.Switch(ctx.cam)
 		ecs.Tick(step)
