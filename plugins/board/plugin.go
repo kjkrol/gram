@@ -163,6 +163,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		cellRules: p.rules.CellSystem(),
 		clock:     p.worldPlugin.Clock(),
 	}
+	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)
 	ctx.Hosts(p.rules.Hosts()...)
 	ctx.Draws(p.renderer, p.holdsView)

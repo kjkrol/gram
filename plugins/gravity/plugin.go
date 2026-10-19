@@ -81,6 +81,7 @@ func (p *Plugin) Name() string { return "gram.gravity" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{p: p}
+	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)
 	ctx.Hosts(&p.landings)
 	return nil

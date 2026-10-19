@@ -133,6 +133,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	}
 
 	p.module = &module{navigationSystem: navSys, moveCommandSystem: moveCommandSystem, clock: p.worldPlugin.Clock()}
+	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)
 	ctx.Draws(p.pathRenderer)
 	return nil

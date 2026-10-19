@@ -239,6 +239,7 @@ func (p *Plugin) Name() string { return "gram.atmosphere" }
 // the world, looking as its Skies say, the clouds seen from above and what falls before it.
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{p: p, sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Clock()}
+	p.module.step = p.module.simulate
 	if p.weathering != nil {
 		p.module.comps = append(p.module.comps, goke.LoadComp[weathering.Wring]())
 	}
@@ -292,6 +293,7 @@ type module struct {
 	climateRun    goke.Runnable
 	p             *Plugin
 	weatheringRun goke.Runnable
+	step          clock.Block // bound once, so a tick allocates no method value
 }
 
 func (m *module) RegSystems(ecs *goke.ECS) {
@@ -308,14 +310,16 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.skyRun, d)
 	ctx.Run(m.shineRun, d)
 	ctx.Sync()
-	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
-		ctx.Run(m.climateRun, step)
-		ctx.Run(m.risesRun, step)
-		if m.weatheringRun != nil {
-			ctx.Run(m.weatheringRun, step)
-		}
-		ctx.Sync()
-	})
+	clock.Simulate(m.clock, ctx, d, m.step)
+}
+
+func (m *module) simulate(ctx goke.RunCtx, step time.Duration) {
+	ctx.Run(m.climateRun, step)
+	ctx.Run(m.risesRun, step)
+	if m.weatheringRun != nil {
+		ctx.Run(m.weatheringRun, step)
+	}
+	ctx.Sync()
 }
 
 func (m *module) SetupSystems() []goke.System { return nil }

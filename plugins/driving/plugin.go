@@ -116,6 +116,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		drive: drive,
 		clock: p.worldPlugin.Clock(),
 	}
+	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)
 	return nil
 }

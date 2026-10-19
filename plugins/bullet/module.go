@@ -14,10 +14,15 @@ type module struct {
 	ecs *goke.ECS
 
 	shoot, flight, burst goke.Runnable
+	step                 clock.Block // bound once, so a tick allocates no method value
 	built                bool
 }
 
-func newModule(p *Plugin, ecs *goke.ECS) *module { return &module{p: p, ecs: ecs} }
+func newModule(p *Plugin, ecs *goke.ECS) *module {
+	m := &module{p: p, ecs: ecs}
+	m.step = m.simulate
+	return m
+}
 
 func (m *module) RegSystems(ecs *goke.ECS) {
 	if m.built {
@@ -36,12 +41,14 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.shoot, d)
 	ctx.Sync()
-	clock.Simulate(m.p.worldPlugin.Clock(), ctx, d, func(ctx goke.RunCtx, step time.Duration) {
-		ctx.Run(m.flight, step)
-		ctx.Sync()
-		ctx.Run(m.burst, step)
-		ctx.Sync()
-	})
+	clock.Simulate(m.p.worldPlugin.Clock(), ctx, d, m.step)
+}
+
+func (m *module) simulate(ctx goke.RunCtx, step time.Duration) {
+	ctx.Run(m.flight, step)
+	ctx.Sync()
+	ctx.Run(m.burst, step)
+	ctx.Sync()
 }
 
 func (m *module) SetupSystems() []goke.System { return nil }

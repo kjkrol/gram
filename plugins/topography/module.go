@@ -17,6 +17,7 @@ type module struct {
 	shaping  goke.System
 	altitude goke.System
 	clock    *clock.Clock // nil: at once
+	step     clock.Block  // bound once, so a tick allocates no method value
 
 	heightsRun, shapingRun, altitudeRun goke.Runnable
 }
@@ -32,10 +33,12 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.heightsRun, d)
 	ctx.Run(m.shapingRun, d)
 	ctx.Sync()
-	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
-		ctx.Run(m.altitudeRun, step)
-		ctx.Sync()
-	})
+	clock.Simulate(m.clock, ctx, d, m.step)
+}
+
+func (m *module) simulate(ctx goke.RunCtx, step time.Duration) {
+	ctx.Run(m.altitudeRun, step)
+	ctx.Sync()
 }
 
 // The heights find or make their entity in their own Init.

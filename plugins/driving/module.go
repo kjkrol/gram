@@ -15,6 +15,7 @@ type module struct {
 	hand  *handSystem
 	drive *driveSystem
 	clock *clock.Clock
+	step  clock.Block // bound once, so a tick allocates no method value
 
 	handRunnable, driveRunnable goke.Runnable
 }
@@ -29,10 +30,12 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.handRunnable, d)
 	ctx.Sync()
-	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
-		ctx.Run(m.driveRunnable, step)
-		ctx.Sync()
-	})
+	clock.Simulate(m.clock, ctx, d, m.step)
+}
+
+func (m *module) simulate(ctx goke.RunCtx, step time.Duration) {
+	ctx.Run(m.driveRunnable, step)
+	ctx.Sync()
 }
 
 func (m *module) SetupSystems() []goke.System { return nil }

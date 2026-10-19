@@ -51,6 +51,7 @@ type module struct {
 	sectorsRunnable goke.Runnable
 
 	clock           *clock.Clock
+	step            clock.Block // bound once, so a tick allocates no method value
 	moments         moments
 	effects         *cgoke.Effects
 	clockRunnable   goke.Runnable
@@ -86,6 +87,7 @@ func newModule(cfg Config) *module {
 	clk := clock.New(cfg.Clock)
 	w := &module{config: cfg, space: buildSpace(cfg), despawned: make(map[uid.UID64]struct{}),
 		clock: clk}
+	w.step = w.simulate
 	w.moments = moments{clock: clk, tick: w.tick}
 	w.sectors = newSectors(w)
 	return w
@@ -127,7 +129,7 @@ func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(w.sectorsRunnable, d)
 	ctx.Run(w.viewRunnable, d)
 	ctx.Sync()
-	w.clock.Simulate(ctx, w.simulate)
+	w.clock.Simulate(ctx, w.step)
 }
 
 func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {

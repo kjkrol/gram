@@ -16,10 +16,12 @@ type module struct {
 	sys      *ScanSystem
 	runnable goke.Runnable
 	clock    *clock.Clock
+	step     clock.Block // bound once, so a tick allocates no method value
 }
 
 func newModule(space *aabbworld.Space, host *host.PairRules[Sighting], heights *heights, coverOf func() ground.Cover, workers int) *module {
 	m := &module{sys: newScanSystem(space, host)}
+	m.step = m.simulate
 	m.sys.coverOf = coverOf
 	m.sys.Workers(workers)
 	if heights != nil {
@@ -45,10 +47,12 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 }
 
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
-		ctx.Run(m.runnable, step)
-		ctx.Sync()
-	})
+	clock.Simulate(m.clock, ctx, d, m.step)
+}
+
+func (m *module) simulate(ctx goke.RunCtx, step time.Duration) {
+	ctx.Run(m.runnable, step)
+	ctx.Sync()
 }
 
 func (m *module) SetupSystems() []goke.System { return nil }

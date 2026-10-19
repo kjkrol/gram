@@ -189,3 +189,27 @@ func TestClock_FallingBehindBringsTheTempoDown(t *testing.T) {
 		t.Errorf("tempo %g, want 1 left alone: nothing below it to come down to", r.c.Tempo())
 	}
 }
+
+func TestClock_SimulateAllocatesNothingForABoundBlock(t *testing.T) {
+	c := clock.New(clock.Config{})
+	runs := 0
+	block := clock.Block(func(goke.RunCtx, time.Duration) { runs++ })
+	ecs := goke.New()
+	var allocs float64
+	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+		c.Simulate(rc, block)
+		c.Replay(rc, d)
+		allocs = testing.AllocsPerRun(100, func() {
+			c.Simulate(rc, block)
+			c.Replay(rc, d)
+		})
+	})
+	ecs.Setup()
+	ecs.Tick(step)
+	if allocs != 0 {
+		t.Errorf("a tick of a block bound once allocates %v times, want none", allocs)
+	}
+	if runs != 102 {
+		t.Errorf("the block ran %d times, want 102: the warm-up, AllocsPerRun's own and 100", runs)
+	}
+}

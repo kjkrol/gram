@@ -319,6 +319,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		altitude: p.relief.AltitudeSystem(),
 		clock:    p.worldPlugin.Clock(),
 	}
+	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)
 	if p.ground != nil {
 		ctx.Draws(p.ground)

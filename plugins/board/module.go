@@ -26,6 +26,7 @@ type module struct {
 	clock     *clock.Clock // nil: run at once
 	roster    *kind.Roster
 	template  *kind.Template
+	step      clock.Block // bound once, so a tick allocates no method value
 
 	cellsRunnable     goke.Runnable
 	builtRunnable     goke.Runnable
@@ -43,14 +44,16 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 }
 
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	clock.Simulate(m.clock, ctx, d, func(ctx goke.RunCtx, step time.Duration) {
-		ctx.Run(m.cellsRunnable, step)
-		ctx.Run(m.builtRunnable, step)
-		ctx.Run(m.standingRunnable, step)
-		ctx.Run(m.keepRunnable, step)
-		ctx.Run(m.cellRulesRunnable, step)
-		ctx.Sync()
-	})
+	clock.Simulate(m.clock, ctx, d, m.step)
+}
+
+func (m *module) simulate(ctx goke.RunCtx, step time.Duration) {
+	ctx.Run(m.cellsRunnable, step)
+	ctx.Run(m.builtRunnable, step)
+	ctx.Run(m.standingRunnable, step)
+	ctx.Run(m.keepRunnable, step)
+	ctx.Run(m.cellRulesRunnable, step)
+	ctx.Sync()
 }
 
 func (m *module) SetupSystems() []goke.System { return nil }
