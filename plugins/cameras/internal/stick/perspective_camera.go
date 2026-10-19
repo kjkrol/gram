@@ -52,9 +52,22 @@ type perspCamera struct {
 	sky        bool // at is no ground point
 	proj       perspective
 	projection contract.Projection // proj boxed once, so asking for it allocates nothing
+	// what part of the frame's width and height the viewport is while a part of it is drawn,
+	// and the frame, to come back to
+	crop    geom.Vec
+	cropped *perspFrame
+}
+
+type perspFrame struct {
+	viewportSize geom.Vec
+	res          float32
+	crop         geom.Vec
+	proj         perspective
+	projection   contract.Projection
 }
 
 var _ contract.Camera = (*perspCamera)(nil)
+var _ contract.Cropping = (*perspCamera)(nil)
 
 // 45° top to bottom; narrowest: how many times the eye inside a unit may narrow it
 const (
@@ -77,19 +90,20 @@ func newPerspCamera(
 		cell: o.Cell, headroom: o.Headroom, ground: ground, extent: extent,
 		viewportSize: geom.NewVec(viewport.BottomRight.X-viewport.TopLeft.X,
 			viewport.BottomRight.Y-viewport.TopLeft.Y),
-		heading: heading, pitch: pitch, narrow: 1, length: 4 * o.Cell, res: 1}
+		heading: heading, pitch: pitch, narrow: 1, length: 4 * o.Cell, res: 1,
+		crop: geom.NewVec(1, 1)}
 	c.CenterOn((viewport.TopLeft.X+viewport.BottomRight.X)/2,
 		(viewport.TopLeft.Y+viewport.BottomRight.Y)/2, 0)
 	return c
 }
 
-// screen units: the screen's height fills the field of view, or inside a unit with an eye its
+// screen units: the frame's height fills the field of view, or inside a unit with an eye its
 // width fills across
 func (c *perspCamera) focal() float32 {
 	if c.inside && c.across > 0 {
-		return float32(c.viewportSize.X) / 2 / float32(math.Tan(float64(c.across)/2))
+		return float32(c.viewportSize.X/c.crop.X) / 2 / float32(math.Tan(float64(c.across)/2))
 	}
-	return float32(c.viewportSize.Y) / 2 / float32(math.Tan(float64(c.fov)/2))
+	return float32(c.viewportSize.Y/c.crop.Y) / 2 / float32(math.Tan(float64(c.fov)/2))
 }
 
 func (c *perspCamera) far() float32 { return 4 * float32(max(c.world.X, c.world.Y)) }
@@ -404,6 +418,35 @@ func (c *perspCamera) SetResolution(s float32) {
 }
 
 func (c *perspCamera) Resolution() float32 { return c.res }
+
+// Crop has the camera drawn the central w by h shown pixels of its frame at s of them, the
+// stick and the field of view as they are.
+func (c *perspCamera) Crop(w, h, s float32) {
+	if w <= 0 || h <= 0 {
+		return
+	}
+	c.Uncrop()
+	c.cropped = &perspFrame{viewportSize: c.viewportSize, res: c.res, crop: c.crop,
+		proj: c.proj, projection: c.projection}
+	c.crop = geom.NewVec(float64(w*c.res)/c.viewportSize.X, float64(h*c.res)/c.viewportSize.Y)
+	c.viewportSize = geom.NewVec(float64(w*s), float64(h*s))
+	c.res = s
+	c.proj.focal = c.focal() * c.narrow
+	c.projection = c.proj
+}
+
+// Uncrop puts the frame back as it was before Crop.
+func (c *perspCamera) Uncrop() {
+	if c.cropped == nil {
+		return
+	}
+	f := c.cropped
+	c.viewportSize, c.res, c.crop = f.viewportSize, f.res, f.crop
+	c.proj, c.projection = f.proj, f.projection
+	c.cropped = nil
+}
+
+func (c *perspCamera) Cropped() bool { return c.crop.X < 1 || c.crop.Y < 1 }
 
 func (c *perspCamera) Project(x, y, z float32) (float32, float32) {
 	sx, sy := c.proj.Project(x, y, z)

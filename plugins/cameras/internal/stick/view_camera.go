@@ -55,6 +55,7 @@ var _ contract.Detailed = (*viewCamera)(nil)
 var _ contract.Headed = (*viewCamera)(nil)
 var _ contract.Resolved = (*viewCamera)(nil)
 var _ contract.Ringed = (*viewCamera)(nil)
+var _ contract.Cropping = (*viewCamera)(nil)
 
 // Detail is how far the camera sees and how finely.
 func (c *viewCamera) Detail() contract.Detail { return c.detail }
@@ -363,6 +364,18 @@ func (c *viewCamera) SetResolution(s float32) {
 }
 
 func (c *viewCamera) Resolution() float32 { return c.ortho.res }
+
+func (c *viewCamera) Crop(w, h, s float32) {
+	c.ortho.Crop(w, h, s)
+	c.persp.Crop(w, h, s)
+}
+
+func (c *viewCamera) Uncrop() {
+	c.ortho.Uncrop()
+	c.persp.Uncrop()
+}
+
+func (c *viewCamera) Cropped() bool { return c.ortho.Cropped() }
 
 // SetRings has the picture drawn in rings, or whole for none or one.
 func (c *viewCamera) SetRings(rings []contract.Ring) { c.rings = slices.Clone(rings) }

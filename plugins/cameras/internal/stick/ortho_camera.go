@@ -38,9 +38,18 @@ type orthoCamera struct {
 	fine func(x, y float32) (step, thin float32)
 	// nil, under ground alone
 	solid func(x, y, z float32) (float32, bool)
+	// the frame while a part of it is drawn, to come back to
+	cropped *orthoFrame
+}
+
+type orthoFrame struct {
+	viewportSize geom.Vec
+	res          float32
+	pan          geom.Vec
 }
 
 var _ contract.Camera = (*orthoCamera)(nil)
+var _ contract.Cropping = (*orthoCamera)(nil)
 
 func newOrthoCamera(
 	o optics,
@@ -157,6 +166,32 @@ func (c *orthoCamera) Viewport() (float32, float32) {
 func (c *orthoCamera) SetResolution(s float32) { c.res = s }
 
 func (c *orthoCamera) Resolution() float32 { return c.res }
+
+// Crop has the camera drawn the central w by h shown pixels of its frame at s of them, the
+// stick and its scale as they are.
+func (c *orthoCamera) Crop(w, h, s float32) {
+	if w <= 0 || h <= 0 {
+		return
+	}
+	c.Uncrop()
+	c.cropped = &orthoFrame{viewportSize: c.viewportSize, res: c.res, pan: c.pan}
+	c.viewportSize = geom.NewVec(float64(w), float64(h))
+	c.res = s
+	c.aim()
+}
+
+// Uncrop puts the frame back as it was before Crop.
+func (c *orthoCamera) Uncrop() {
+	if c.cropped == nil {
+		return
+	}
+	c.viewportSize, c.res, c.pan = c.cropped.viewportSize, c.cropped.res, c.cropped.pan
+	c.cropped = nil
+}
+
+func (c *orthoCamera) Cropped() bool {
+	return c.cropped != nil && c.viewportSize != c.cropped.viewportSize
+}
 
 func (c *orthoCamera) SetViewport(w, h float32) {
 	if w <= 0 || h <= 0 {
