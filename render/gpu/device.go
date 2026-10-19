@@ -62,7 +62,8 @@ type device struct {
 
 	present      [4]*wgpu.Buffer // vertices, indices, the draw, the uniforms
 	presentGroup *wgpu.BindGroup
-	presented    [4][]byte
+	presented    [4][]byte // what the buffers hold, copies of the device's own
+	quad         [4][]byte // where Present builds them, never what presented holds
 
 	stages []*staging
 

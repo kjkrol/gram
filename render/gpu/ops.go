@@ -144,7 +144,7 @@ func Present(
 	}
 	sw, sh := float32(screen.w), float32(screen.h)
 	fw, fh := float32(w), float32(h)
-	var verts []byte
+	verts := d.quad[0][:0]
 	for _, v := range [4][4]float32{{0, 0, 0, 0}, {fw, 0, sw, 0}, {0, fh, 0, sh}, {fw, fh, sw, sh}} {
 		verts = appendVertex(
 			verts,
@@ -160,38 +160,43 @@ func Present(
 			},
 		)
 	}
-	indices := []byte{0, 0, 1, 0, 2, 0, 1, 0, 2, 0, 3, 0}
-	var draw []byte
+	indices := append(d.quad[1][:0], 0, 0, 1, 0, 2, 0, 1, 0, 2, 0, 3, 0)
+	draw := d.quad[2][:0]
 	// the target's size, the image's rectangle, the place and the tint as they come
 	for _, f := range [drawSize / 4]float32{
 		fw, fh, 0, 0, 0, 0, sw, sh, 20: 1, 21: 1, 24: 1, 25: 1, 26: 1, 27: 1,
 	} {
 		draw = appendF32(draw, f)
 	}
-	uniforms := make([]byte, uniformBlock)
+	uniforms := d.quad[3]
+	if cap(uniforms) < uniformBlock {
+		uniforms = make([]byte, uniformBlock)
+	}
+	uniforms = uniforms[:uniformBlock]
+	clear(uniforms)
 	if screen.w != w || screen.h != h {
 		blitLayout.Put(uniforms, "filter", []float32{1})
 	}
-	for k, data := range [][]byte{verts, indices, draw, uniforms} {
-		if bytes.Equal(d.presented[k], data) {
-			continue // written as it is: Queue.WriteBuffer waits for the GPU
+	d.quad = [4][]byte{verts, indices, draw, uniforms}
+	for k, data := range d.quad {
+		if _, err := d.keepPresented(k, data); err != nil {
+			return err
 		}
-		if err := d.queue.WriteBuffer(d.present[k], 0, data); err != nil {
-			return fmt.Errorf("gpu: writing the frame's quad: %w", err)
-		}
-		d.presented[k] = data
 	}
 	pipeline := blitProgram.pipeline(d, Copy, format, noDepth)
 	images := d.images([4]*Texture{screen})
 	frame := d.frame([FrameImages]*Texture{})
-	pass, err := enc.BeginRenderPass(&wgpu.RenderPassDescriptor{Label: "present", ColorAttachments: []wgpu.RenderPassColorAttachment{{
-		View: view, LoadOp: gputypes.LoadOpClear, StoreOp: gputypes.StoreOpStore, ClearValue: gputypes.Color{A: 1},
-	}}})
+	d.passColor[0] = wgpu.RenderPassColorAttachment{
+		View: view, LoadOp: gputypes.LoadOpClear, StoreOp: gputypes.StoreOpStore,
+		ClearValue: gputypes.Color{A: 1},
+	}
+	d.passDesc = wgpu.RenderPassDescriptor{Label: "present", ColorAttachments: d.passColor[:]}
+	pass, err := enc.BeginRenderPass(&d.passDesc)
 	if err != nil {
 		return fmt.Errorf("gpu: the frame's pass: %w", err)
 	}
 	pass.SetPipeline(pipeline)
-	pass.SetBindGroup(0, d.presentGroup, []uint32{0, 0})
+	pass.SetBindGroup(0, d.presentGroup, zeroOffsets)
 	pass.SetBindGroup(1, images, nil)
 	pass.SetBindGroup(2, d.noDepth.readGroup(d), nil)
 	pass.SetBindGroup(3, frame, nil)
@@ -200,6 +205,23 @@ func Present(
 	pass.SetScissorRect(gputypes.ScissorRect{Width: uint32(w), Height: uint32(h)})
 	pass.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: 6, InstanceCount: 1})
 	return pass.End()
+}
+
+// never written: gogpu submits the frame's pass after Present returns, once the draws' offsets
+// are let go, and its GLES backend reads the slice then
+var zeroOffsets = []uint32{0, 0}
+
+// keepPresented writes data into the quad's buffer k unless it holds it already, and keeps a
+// copy of its own to tell by: Queue.WriteBuffer waits for the GPU
+func (d *device) keepPresented(k int, data []byte) (written bool, err error) {
+	if bytes.Equal(d.presented[k], data) {
+		return false, nil
+	}
+	if err := d.queue.WriteBuffer(d.present[k], 0, data); err != nil {
+		return false, fmt.Errorf("gpu: writing the frame's quad: %w", err)
+	}
+	d.presented[k] = append(d.presented[k][:0], data...)
+	return true, nil
 }
 
 func (d *device) presentBuffers() error {

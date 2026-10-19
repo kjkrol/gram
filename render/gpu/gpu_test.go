@@ -1,6 +1,7 @@
 package gpu
 
 import (
+	"bytes"
 	"os"
 	"strings"
 	"testing"
@@ -659,5 +660,31 @@ func TestDevice_ARedrawnFrameAllocatesNothingOfItsOwn(t *testing.T) {
 	}
 	if n := testing.AllocsPerRun(10, frame); n != 0 {
 		t.Errorf("a frame redrawn allocates %v times of its own, want none", n)
+	}
+}
+
+func TestPresented_IsKeptAsItsOwnCopy(t *testing.T) {
+	needGPU(t)
+	d := cur
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err := d.presentBuffers(); err != nil {
+		t.Fatal(err)
+	}
+	const k = 1
+	defer func() { d.presented[k] = nil }()
+	data := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	if written, err := d.keepPresented(k, data); err != nil || !written {
+		t.Fatalf("the quad's first write: written %v, %v", written, err)
+	}
+	data[0] = 9
+	if bytes.Equal(d.presented[k], data) {
+		t.Error("the quad kept is the caller's slice, not a copy of its own")
+	}
+	if written, _ := d.keepPresented(k, data); !written {
+		t.Error("the quad changed was not written again")
+	}
+	if written, _ := d.keepPresented(k, data); written {
+		t.Error("the quad unchanged was written again")
 	}
 }
