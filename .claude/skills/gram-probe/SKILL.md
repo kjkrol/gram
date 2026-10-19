@@ -94,3 +94,24 @@ them too, and a probe left in by an interrupted run is a broken demo.
   are fine: keep a `.keep` copy in the scratchpad and restore it. A demo's file never.
 - A query over `world.Base` alone catches the entities standing on the board too (a bridge's
   decks): add `unit.At` to keep to the units.
+
+## Measuring a demo's frames and its garbage collector
+
+`BENCHMARKS.md`, "The demos", was measured this way (etap 0 of `doc/plans-perf.md`); a change to
+a frame's cost or to allocations is judged on the same demos the same way, before and after.
+
+1. `run_demo.sh build <demo dir> <probe> <work dir>` is `probe.sh` without the tempo change
+   and without running: the copy, the hook, the binary at `<work dir>/bin`. `<probe>` is one
+   `.go` file or a directory of them: `probes/generic` logs every second how many entities
+   moved their box since the tick before (`P:t<tick> moved <m> of <n>`); `probes/light`,
+   `probes/square` and `probes/bullet` add that demo's script (Shift+L; the units sent to the
+   bridge and back; the soldier firing). A new script is `zz_probe_script.go` beside a copy of
+   `zz_probe_common.go`: `play()` runs once a tick.
+2. `run_demo.sh run <work dir> <seconds> <log>` runs it under `timeout` with the environment
+   given: `GODEBUG=gctrace=1 GRAM_FPS_LOG=1` for 60 s at 60 FPS (vsync on) for the collector
+   and a frame's tick, drawing and presenting; `GRAM_FPS_LOG=1 GRAM_VSYNC=off` for 35 s for the
+   frame rate; `GOGC=200` the same for the knob. Exit 124 is the timeout, as meant.
+3. `gcstats.sh <log>` sums the gctrace lines (cycles a second, live and peak heap, the goal,
+   the cumulative CPU share); `fpsstats.sh <log> [skip]` the medians of the per-second lines
+   after the first `skip` (8) of them; `medians.py <go test -bench output>` the medians of
+   `-count=N` runs, the world's log lines between them skipped.
