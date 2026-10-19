@@ -26,6 +26,14 @@ type basicCamera struct {
 	form      form
 	detail    contract.Detail
 	rings     []contract.Ring
+	// the frame while a part of it is drawn, to come back to
+	cropped *frame
+}
+
+type frame struct {
+	viewportSize geom.Vec
+	res          float32
+	effective    plane.AABB
 }
 
 // form names how a camera from above is saved, so a save of another shape is refused at its
@@ -50,6 +58,7 @@ var _ contract.Focused = (*basicCamera)(nil)
 var _ contract.Detailed = (*basicCamera)(nil)
 var _ contract.Resolved = (*basicCamera)(nil)
 var _ contract.Ringed = (*basicCamera)(nil)
+var _ contract.Cropping = (*basicCamera)(nil)
 
 // Detail is how far the camera sees and how finely.
 func (c *basicCamera) Detail() contract.Detail { return c.detail }
@@ -155,6 +164,35 @@ func (c *basicCamera) Resolution() float32 { return c.res }
 func (c *basicCamera) SetRings(rings []contract.Ring) { c.rings = slices.Clone(rings) }
 
 func (c *basicCamera) Rings() []contract.Ring { return slices.Clone(c.rings) }
+
+// Crop has the camera drawn the central w by h shown pixels of its frame at s of them, the
+// zoom as it is; a camera keeping the whole world in view is drawn whole.
+func (c *basicCamera) Crop(w, h, s float32) {
+	if c.whole || w <= 0 || h <= 0 {
+		return
+	}
+	c.Uncrop()
+	c.cropped = &frame{viewportSize: c.viewportSize, res: c.res, effective: c.effective}
+	cx := c.effective.TopLeft.X + c.effective.Size.X/2
+	cy := c.effective.TopLeft.Y + c.effective.Size.Y/2
+	vw, vh := float64(w)/float64(c.zoom), float64(h)/float64(c.zoom)
+	c.viewportSize = geom.NewVec(float64(w), float64(h))
+	c.res = s
+	c.effective = plane.NewAABB(geom.NewVec(cx-vw/2, cy-vh/2), vw, vh)
+}
+
+// Uncrop puts the frame back as it was before Crop.
+func (c *basicCamera) Uncrop() {
+	if c.cropped == nil {
+		return
+	}
+	c.viewportSize, c.res, c.effective = c.cropped.viewportSize, c.cropped.res, c.cropped.effective
+	c.cropped = nil
+}
+
+func (c *basicCamera) Cropped() bool {
+	return c.cropped != nil && c.viewportSize != c.cropped.viewportSize
+}
 
 // camera pixels a world unit
 func (c *basicCamera) px() float32 { return c.zoom * c.res }
