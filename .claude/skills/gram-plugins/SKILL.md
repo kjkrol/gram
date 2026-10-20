@@ -723,7 +723,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Along` only where the bare ground would price a slantwise step otherwise; its solvers have
   room for every step of a node (`astar.WithSuccessorCapacity`: astar drops what append grows)
   and dictionaries indexed by the cell (2026-10-20, etap 2a: a route across 200×200 94 → 18 ms,
-  14,740 → 19 allocations). `TestRoutes_AsPinned` pins every route, step and price on three
+  14,740 → 19 allocations; a crowded tick of 1,000 walkers 306 → 104 ms). `TestRoutes_AsPinned` pins every route, step and price on three
   boards (square with bridges and relief, a torus, hex) to `testdata/routes.golden`: a change
   meant to keep the routes keeps it; one meant to change them rewrites it with `-update-routes`
   and says why. **Clearance**: a unit is no bigger than a cell's side

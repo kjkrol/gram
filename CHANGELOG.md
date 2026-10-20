@@ -15,7 +15,7 @@ part 2a)
   a coordinate off the grid.
 - `Benchmark_Navigation_Path`: a route across a 200×200 board of rocks and walls, 94 ms and
   14,740 allocations → 18 ms and 19. `Benchmark_Navigation_Tick` at fixed counts: open
-  100/1,000 0.88/10.1 → 0.41/6.2 ms, crowded 100/1,000 3.0/702 → 1.1/246 ms.
+  100/1,000 0.80/9.6 → 0.42/6.3 ms, crowded 100/1,000 2.9/306 → 1.2/104 ms.
 
 ## v0.3.0 — 2026-10-20
 

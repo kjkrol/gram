@@ -479,15 +479,15 @@ a table by its ordinal, walks the directions instead of a `Neighbors` list, and 
 room for every step of a node. Measured at a fixed count (`-benchtime=1000x` open 100, `200x`
 open 1,000, `600x` crowded 100, `12x` crowded 1,000): the scene evolves and the ticks right
 after an order cost more, so a tick's mean depends on how many ticks the loop runs, and only
-runs of one count compare (the table above was taken at the default benchtime). Base and tree
-alternately, the minimum of 3 rounds, load 1–2.
+runs of one count compare (the table above was taken at the default benchtime). Base
+(`main` `e797a753`) and tree alternately, the median of 3 rounds, an idle machine (load 0.9–1.4).
 
 | Scene | Walkers | Tick before → after | Allocations before → after |
 |:---|---:|---:|---:|
-| open | 100 | 876 → 415 µs | 479 → 197 |
-| open | 1,000 | 10.1 → 6.2 ms | 13,341 → 5,004 |
-| crowded | 100 | 3.00 → 1.11 ms | 1,239 → 192 |
-| crowded | 1,000 | 702 → 246 ms | 120,736 → 8,372 |
+| open | 100 | 799 → 425 µs | 479 → 197 |
+| open | 1,000 | 9.56 → 6.32 ms | 13,341 → 5,004 |
+| crowded | 100 | 2.85 → 1.16 ms | 1,239 → 192 |
+| crowded | 1,000 | 306 → 104 ms | 120,735 → 8,372 |
 
 What remains in the crowded profile is astar's own dictionary maps (about 12%) and heap (5%),
 `leveledFrom` 62% cumulative, and in the open one `stepAside` (25%, etap 2b).
@@ -495,7 +495,8 @@ What remains in the crowded profile is astar's own dictionary maps (about 12%) a
 ### A route — `Benchmark_Navigation_Path`
 
 One route across a 200×200 board of rocks and walls, the planner alone, `-benchtime=40x`: 94.3 ms
-and 14,740 allocations before etap 2a, 17.9 ms and 19 after. `BenchmarkGrids_Neighbours`
+and 14,740 allocations before etap 2a (the part's own base, the benchmark added to it), 18.4 ms
+and 19 after (median of 3 on an idle machine). `BenchmarkGrids_Neighbours`
 (`plugins/board/internal/grids`): `Toward` over every cell of a square grid 8.0 → 3.3 ms, on a
 torus 15–26 → 3.3 ms; the allocating `Neighbors` list costs 4.1–5.6 ms.
 
