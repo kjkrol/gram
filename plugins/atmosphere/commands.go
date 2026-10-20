@@ -2,6 +2,7 @@ package atmosphere
 
 import (
 	"fmt"
+	"math"
 	"slices"
 
 	"github.com/kjkrol/ceremony/command"
@@ -31,10 +32,32 @@ type SetWeather struct{ Name string }
 // turn: flat, the low ones as bodies, all, their shadows alone, flat again.
 type Clouds struct{ Look CloudLook }
 
-// AdaptClouds has the clouds' look follow the cameras' frame budget, or not
+// GroundShade has the clouds shade the ground, or not (CloudShadows.Ground); FigureShade the
+// figures (CloudShadows.Figures). The settings screen alone.
+type GroundShade struct{ On bool }
+
+type FigureShade struct{ On bool }
+
+func (GroundShade) Command() {}
+func (FigureShade) Command() {}
+
+var (
+	_ command.Command = GroundShade{}
+	_ command.Command = FigureShade{}
+)
+
+// CloudReach has the clouds drawn as bodies out to Share of the camera's sight from where it
+// looks and flat beyond (Settings.CloudReach), 1 everywhere. The settings screen alone.
+type CloudReach struct{ Share float32 }
+
+func (CloudReach) Command() {}
+
+var _ command.Command = CloudReach{}
+
+// AdaptClouds has the clouds' bodies' reach follow the cameras' frame budget, or not
 // (Settings.AdaptiveClouds): the atmosphere is a cameras.Lever (cameras.Config.Levers), the
-// look stepped down from all as bodies to the low as bodies, flat and their shadows alone as
-// the rate falls under the budget, and back up as it stays over. The settings screen alone.
+// reach halved from everywhere down to an eighth of the sight as the rate falls under the
+// budget, and doubled back as it stays over; the look stays as set. The settings screen alone.
 type AdaptClouds struct{ On bool }
 
 func (AdaptClouds) Command() {}
@@ -51,6 +74,7 @@ type Settings struct {
 	Frozen         bool
 	Hour           float32
 	Clouds         CloudLook
+	CloudReach     float32 // of the camera's sight the clouds are bodies out to; zero, all
 	HighShade      bool
 	AdaptiveClouds bool
 }
@@ -84,7 +108,7 @@ var (
 // Queues are where the atmosphere's commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
 	return []command.CommandQueue{&p.freezes, &p.hours, &p.changes, &p.sets, &p.clouds,
-		&p.shades, &p.adapts, &p.downpours}
+		&p.shades, &p.groundShades, &p.figureShades, &p.reaches, &p.adapts, &p.downpours}
 }
 
 // DefaultBindings are P (Freeze), Shift+] and Shift+[ (Hour, half an hour on and back),
@@ -149,10 +173,29 @@ func (p *Plugin) Settings() []control.Setting {
 			Get:     func() int { return int(p.ShownClouds()) },
 			Set:     func(i int) command.Command { return Clouds{Look: CloudLook(i)} },
 		},
+		control.Range{
+			Label: "Clouds as bodies out to",
+			Min:   10,
+			Max:   100,
+			Step:  10,
+			Get:   func() float64 { return math.Round(float64(p.CloudsReach()) * 100) },
+			Set:   func(v float64) command.Command { return CloudReach{Share: float32(v / 100)} },
+			Shows: func(v float64) string { return fmt.Sprintf("%.0f%% of the sight", v) },
+		},
 		control.Switch{
 			Label: "Clouds follow the frame budget",
 			Get:   p.CloudsAdaptive,
 			Set:   func(on bool) command.Command { return AdaptClouds{On: on} },
+		},
+		control.Switch{
+			Label: "Clouds shade the ground",
+			Get:   func() bool { return p.shadows.Ground },
+			Set:   func(on bool) command.Command { return GroundShade{On: on} },
+		},
+		control.Switch{
+			Label: "Clouds shade the figures",
+			Get:   func() bool { return p.shadows.Figures },
+			Set:   func(on bool) command.Command { return FigureShade{On: on} },
 		},
 		control.Switch{
 			Label: "High clouds' shadows",
@@ -181,9 +224,12 @@ func (p *Plugin) carryOut() {
 	p.hours.Drain(func(i command.Issued[Hour]) { p.sky.SetHour(i.Command.At) })
 	p.changes.Drain(func(command.Issued[ChangeWeather]) { p.climate.Change() })
 	p.sets.Drain(func(i command.Issued[SetWeather]) { p.climate.Set(i.Command.Name) })
+	p.reaches.Drain(func(i command.Issued[CloudReach]) { p.ReachClouds(i.Command.Share) })
 	p.adapts.Drain(func(i command.Issued[AdaptClouds]) { p.AdaptClouds(i.Command.On) })
 	p.clouds.Drain(func(i command.Issued[Clouds]) { p.ShowClouds(i.Command.Look) })
 	p.shades.Drain(func(i command.Issued[HighShade]) { p.shadeHigh(i.Command.On) })
+	p.groundShades.Drain(func(i command.Issued[GroundShade]) { p.shadows.Ground = i.Command.On })
+	p.figureShades.Drain(func(i command.Issued[FigureShade]) { p.shadows.Figures = i.Command.On })
 	p.downpours.Drain(func(command.Issued[Downpour]) { p.climate.Set(weather.Rain) })
 	p.Res.Settings.Frozen, p.Res.Settings.Hour = p.sky.Frozen(), p.sky.Hour()
 }

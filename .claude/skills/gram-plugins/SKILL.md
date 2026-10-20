@@ -400,11 +400,15 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Reporter()` lists the daylight, the clouds and their shadows alone: the time, the season,
   the moon and the weather are the widgets' (a game without them adds
   `Calendar().Reporter()` and `Climate().Reporter()`). The settings screen's atmosphere section
-  has the choice "Clouds" (the look) and "High clouds' shadows" beside "Clouds follow the frame
-  budget" (`AdaptClouds{On}`, `Settings.AdaptiveClouds`: the atmosphere a `cameras.Lever`, the
-  look stepped down `cloudLadder` — all as bodies, the low as bodies, flat, shadows alone — as
-  the rate falls under the budget and back up as it stays over) and a choice "Weather" of the
-  climate's weathers by name (`SetWeather{Name}`; `Climate.Now()`
+  has the choice "Clouds" (the look), the slider "Clouds as bodies out to" (`CloudReach{Share}`,
+  `Settings.CloudReach`, a share of the camera's sight from where it looks, `aloft.BodiesTo`:
+  the bodies within it, a sheet beyond, the shader deciding per pixel where the line of sight
+  enters the layer, `AloftBodiesTo`/`AloftMiddle`), "Clouds follow the frame budget"
+  (`AdaptClouds{On}`, `Settings.AdaptiveClouds`: the atmosphere a `cameras.Lever`, the reach
+  halved down `reachLadder` 1, 1/2, 1/4, 1/8 as the rate falls under the budget and doubled back
+  as it stays over, the look as set), the switches "Clouds shade the ground" / "the figures" /
+  "High clouds' shadows" (`GroundShade{On}`, `FigureShade{On}`, `HighShade{On}`) and a choice
+  "Weather" of the climate's weathers by name (`SetWeather{Name}`; `Climate.Now()`
   the weather of the time, lane 0, as the system last set it) where the Config has any; a weather asked
   for while the clock stands (the settings screen's pause) is entered at once, the climate's
   system run with no time passing (`Climate.Asked`).

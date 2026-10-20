@@ -46,25 +46,28 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	light       *light.Plugin
 
-	freezes    command.Queue[Freeze]
-	hours      command.Queue[Hour]
-	changes    command.Queue[ChangeWeather]
-	sets       command.Queue[SetWeather]
-	clouds     command.Queue[Clouds]
-	shades     command.Queue[HighShade]
-	adapts     command.Queue[AdaptClouds]
-	downpours  command.Queue[Downpour]
-	calendar   *calendar.Calendar
-	sky        *sky.Sky
-	climate    *climate.Climate
-	weathering *weathering.Weathering
-	module     *module
-	running    Running
-	skies      []Sky
-	vault      *backdrop.Renderer
-	aloft      *aloft.Renderer // the low clouds: the high ones from above would veil the map
-	shadows    CloudShadows
-	kept       *plugin.Kept[Settings]
+	freezes      command.Queue[Freeze]
+	hours        command.Queue[Hour]
+	changes      command.Queue[ChangeWeather]
+	sets         command.Queue[SetWeather]
+	clouds       command.Queue[Clouds]
+	shades       command.Queue[HighShade]
+	groundShades command.Queue[GroundShade]
+	reaches      command.Queue[CloudReach]
+	figureShades command.Queue[FigureShade]
+	adapts       command.Queue[AdaptClouds]
+	downpours    command.Queue[Downpour]
+	calendar     *calendar.Calendar
+	sky          *sky.Sky
+	climate      *climate.Climate
+	weathering   *weathering.Weathering
+	module       *module
+	running      Running
+	skies        []Sky
+	vault        *backdrop.Renderer
+	aloft        *aloft.Renderer // the low clouds: the high ones from above would veil the map
+	shadows      CloudShadows
+	kept         *plugin.Kept[Settings]
 
 	Res Resources
 }
@@ -191,25 +194,54 @@ func (p *Plugin) AdaptClouds(on bool) { p.Res.Settings.AdaptiveClouds = on }
 // CloudsAdaptive reports whether the clouds' look follows the frame budget.
 func (p *Plugin) CloudsAdaptive() bool { return p.Res.Settings.AdaptiveClouds }
 
-// the clouds' looks from the cheapest up: the budget steps down it and back
-var cloudLadder = []CloudLook{ShadowsAlone, FlatClouds, LowBodies, AllBodies}
+// ReachClouds has the clouds drawn as bodies out to share of the camera's sight from where it
+// looks and flat beyond (Settings.CloudReach); 1 or more, or zero, everywhere.
+func (p *Plugin) ReachClouds(share float32) {
+	if share <= 0 || share > 1 {
+		share = 1
+	}
+	p.Res.Settings.CloudReach = share
+	p.aloft.BodiesTo(share)
+}
 
-// Following is whether the clouds' look follows the frame budget (cameras.Lever).
+// CloudsReach is the share of the camera's sight the clouds are bodies out to, 1 everywhere.
+func (p *Plugin) CloudsReach() float32 {
+	if r := p.Res.Settings.CloudReach; r > 0 {
+		return r
+	}
+	return 1
+}
+
+// the bodies' reaches from the shortest up, shares of the sight: the budget steps down them
+// and back
+var reachLadder = []float32{0.125, 0.25, 0.5, 1}
+
+// Following is whether the clouds' reach follows the frame budget (cameras.Lever).
 func (p *Plugin) Following() bool { return p.CloudsAdaptive() }
 
-// Coarser steps the clouds' look a rung down the ladder, true where it could (cameras.Lever).
-func (p *Plugin) Coarser() bool { return p.stepClouds(-1) }
+// Coarser halves the reach of the clouds' bodies, true where it could (cameras.Lever).
+func (p *Plugin) Coarser() bool { return p.stepReach(-1) }
 
-// Finer steps the clouds' look a rung up, true where it could (cameras.Lever).
-func (p *Plugin) Finer() bool { return p.stepClouds(1) }
+// Finer doubles the reach of the clouds' bodies, true where it could (cameras.Lever).
+func (p *Plugin) Finer() bool { return p.stepReach(1) }
 
-func (p *Plugin) stepClouds(step int) bool {
-	at := slices.Index(cloudLadder, p.ShownClouds())
-	if at < 0 || at+step < 0 || at+step >= len(cloudLadder) {
+func (p *Plugin) stepReach(step int) bool {
+	at := reachRung(p.CloudsReach())
+	if at+step < 0 || at+step >= len(reachLadder) {
 		return false
 	}
-	p.ShowClouds(cloudLadder[at+step])
+	p.ReachClouds(reachLadder[at+step])
 	return true
+}
+
+// reachRung is the ladder's rung reach stands on, or the next up
+func reachRung(reach float32) int {
+	for k, r := range reachLadder {
+		if reach <= r {
+			return k
+		}
+	}
+	return len(reachLadder) - 1
 }
 
 func (p *Plugin) skyClouds() backdrop.Clouds {

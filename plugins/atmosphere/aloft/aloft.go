@@ -27,6 +27,8 @@ var shader = render.NewMeshShaderWith("aloft", render.Files(shaders, "shaders/al
 		{Name: "AloftBase", Size: 1},
 		{Name: "AloftLow", Size: 1},
 		{Name: "AloftBody", Size: 1},
+		{Name: "AloftBodiesTo", Size: 1},
+		{Name: "AloftMiddle", Size: 2},
 		{Name: "AloftShown", Size: 1},
 		{Name: "AloftOrtho", Size: 1},
 		{Name: "AloftSeeing", Size: 1},
@@ -45,10 +47,11 @@ var layShader = render.NewMeshShaderWith("aloft laid", render.Files(shaders, "sh
 // Renderer is a layer of clouds seen from above, a render.Direct over the world at the layer's
 // height, drawn while shown; the low heaps seen from under their top too, before the ground.
 type Renderer struct {
-	layer  air.Layer
-	air    func() air.Weather
-	shown  bool
-	bodies bool
+	layer    air.Layer
+	air      func() air.Weather
+	shown    bool
+	bodies   bool
+	bodiesTo float32 // of the camera's sight the bodies reach
 
 	opts     render.DrawMeshOptions
 	layOpts  render.DrawMeshOptions
@@ -115,6 +118,10 @@ func (r *Renderer) Shown() bool { return r.shown }
 
 // Bodies has the clouds drawn as bodies, slices stacked as thick as they are, or flat, one sheet.
 func (r *Renderer) Bodies(bodies bool) { r.bodies = bodies }
+
+// BodiesTo has the bodies drawn out to share of the camera's sight from where it looks and flat
+// beyond; 1 or more, everywhere; nothing where the camera has no sight.
+func (r *Renderer) BodiesTo(share float32) { r.bodiesTo = share }
 
 func (*Renderer) Init(*goke.SysInit) {}
 
@@ -184,6 +191,9 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	r.set("AloftBase", r.base())
 	r.set("AloftLow", flag(r.layer == air.Low))
 	r.set("AloftBody", flag(r.bodies))
+	r.set("AloftBodiesTo", r.reach(cam))
+	mx, my, _ := camera.Viewpoint(cam)
+	r.set("AloftMiddle", mx, my)
 	r.set("AloftShown", shownAt)
 	r.set("AloftOrtho", flag(f.DDX == ([3]float32{}) && f.DDY == ([3]float32{})))
 	r.set("AloftSeeing", float32(r.air().Visibility(air.Under(cam))))
@@ -242,6 +252,17 @@ func (r *Renderer) set(name string, v ...float32) {
 func flag(on bool) float32 {
 	if on {
 		return 1
+	}
+	return 0
+}
+
+// reach is how far from where cam looks the bodies are drawn, world units; 0 everywhere
+func (r *Renderer) reach(cam camera.Camera) float32 {
+	if r.bodiesTo <= 0 || r.bodiesTo >= 1 {
+		return 0
+	}
+	if sight := camera.DetailOf(cam).Sight; sight > 0 {
+		return float32(sight) * r.bodiesTo
 	}
 	return 0
 }

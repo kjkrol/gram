@@ -235,25 +235,28 @@ func TestMoonIcon_StandsAtTheRightOfABoxWiderThanTall(t *testing.T) {
 	}
 }
 
-func TestPlugin_AsALeverOfTheFrameBudgetStepsTheCloudsLookDownTheLadderAndBack(t *testing.T) {
+func TestPlugin_AsALeverOfTheFrameBudgetHalvesTheCloudsReachAndDoublesItBack(t *testing.T) {
 	a, _, _ := hudStage(t, Config{}, func(a *Plugin) *ui.Element { return a.Bar() })
 	a.ShowClouds(AllBodies)
 	if a.Following() {
 		t.Fatal("not adaptive, the clouds follow the frame budget")
 	}
 	a.AdaptClouds(true)
-	var looks []CloudLook
+	var reaches []float32
 	for a.Coarser() {
-		looks = append(looks, a.ShownClouds())
+		reaches = append(reaches, a.CloudsReach())
 	}
-	if want := []CloudLook{LowBodies, FlatClouds, ShadowsAlone}; !slices.Equal(looks, want) {
-		t.Errorf("coarser from all as bodies the look went %v, want %v then no further", looks, want)
+	if want := []float32{0.5, 0.25, 0.125}; !slices.Equal(reaches, want) {
+		t.Errorf("coarser from everywhere the reach went %v, want %v then no further", reaches, want)
 	}
-	looks = nil
+	if a.ShownClouds() != AllBodies {
+		t.Errorf("the look is %v, want all as bodies still: the reach gives, not the look", a.ShownClouds())
+	}
+	reaches = nil
 	for a.Finer() {
-		looks = append(looks, a.ShownClouds())
+		reaches = append(reaches, a.CloudsReach())
 	}
-	if want := []CloudLook{FlatClouds, LowBodies, AllBodies}; !slices.Equal(looks, want) {
-		t.Errorf("finer from the shadows alone the look went %v, want %v then no further", looks, want)
+	if want := []float32{0.25, 0.5, 1}; !slices.Equal(reaches, want) {
+		t.Errorf("finer from an eighth the reach went %v, want %v then no further", reaches, want)
 	}
 }

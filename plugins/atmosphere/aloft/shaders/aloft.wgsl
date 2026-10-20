@@ -67,8 +67,13 @@ fn aloftSeen(o: Out) -> Seen {
     }
     let ortho = U.AloftOrtho > 0.5;
     let low = U.AloftLow > 0.5;
-    let body = U.AloftBody > 0.5;
+    var body = U.AloftBody > 0.5;
     var span = cloudBodySpan(low);
+    // the bodies reach U.AloftBodiesTo from where the camera looks, a sheet beyond
+    if body && U.AloftBodiesTo > 0.0 {
+        let at = from + way * ((span.y - from.z) / way.z);
+        body = length(at.xy - U.AloftMiddle) < U.AloftBodiesTo;
+    }
     if low && !body {
         span = cloudLowBases();
     }
