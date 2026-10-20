@@ -23,9 +23,30 @@ var lining = render.NewMeshShaderWith("navigation routes", render.Files(shaders,
 type Lines struct {
 	// four vec4s a stretch: its ends, its rectangle of the viewport, its colour, its width
 	stretches []float32
+	from      frame     // the camera's frame the rectangles are in
+	placed    []float32 // the stretches with their rectangles in another frame
 	opts      render.DrawMeshOptions
 	own       map[string][]float32
 }
+
+// frame is where a camera's pixels lie in its shown frame: the part of it drawn, at k of its
+// pixels
+type frame struct {
+	k   float32
+	win camera.Window
+}
+
+func frameOf(cam camera.Camera) frame {
+	k := camera.ResolutionOf(cam)
+	if c, ok := cam.(camera.Cropping); ok {
+		return frame{k, c.Window()}
+	}
+	w, h := cam.Viewport()
+	return frame{k, camera.Window{W: w / k, H: h / k}}
+}
+
+// Reset drops the stretches gathered, for a frame composed anew.
+func (g *Lines) Reset() { g.stretches = g.stretches[:0] }
 
 // New is a Lines with no stretches yet.
 func New() *Lines {
@@ -41,6 +62,7 @@ func (g *Lines) Add(
 	width float32, line color.RGBA,
 ) {
 	w, h := cam.Viewport()
+	g.from = frameOf(cam)
 	x0, y0, x1, y1 := float32(math.Inf(1)), float32(math.Inf(1)), float32(math.Inf(-1)), float32(math.Inf(-1))
 	pieces := 1
 	if length := math.Hypot(b.X-a.X, b.Y-a.Y); step > 0 && length > step {
@@ -78,9 +100,9 @@ func (g *Lines) Add(
 func (g *Lines) Len() int { return len(g.stretches) / 16 }
 
 // Draw lays the gathered stretches over the ground into the target, each in its colour and
-// width, and starts gathering anew.
+// width, through cam: the camera they were gathered through, or one drawing another part of
+// its frame at another resolution, as a picture drawn in layers does.
 func (g *Lines) Draw(t render.Target, cam camera.Camera) {
-	defer func() { g.stretches = g.stretches[:0] }()
 	if t.Screen == nil || t.Ground == nil || len(g.stretches) == 0 {
 		return
 	}
@@ -105,8 +127,27 @@ func (g *Lines) Draw(t render.Target, cam camera.Camera) {
 	g.set("Unproject", unproject[:]...)
 	g.set("ViewSize", vw, vh)
 	g.set("ViewAt", float32(at.X), float32(at.Y))
-	g.opts.Depth, g.opts.ReadDepth, g.opts.Instances = t.Depth, t.Ground, g.stretches
+	g.opts.Depth, g.opts.ReadDepth, g.opts.Instances = t.Depth, t.Ground, g.placedIn(cam)
 	t.Screen.DrawMesh(nil, lining, &g.opts)
+}
+
+// placedIn is the stretches with their rectangles in cam's pixels: the stretches themselves
+// where cam draws the frame they were gathered in
+func (g *Lines) placedIn(cam camera.Camera) []float32 {
+	to := frameOf(cam)
+	if to == g.from {
+		return g.stretches
+	}
+	vw, vh := cam.Viewport()
+	g.placed = append(g.placed[:0], g.stretches...)
+	for i := 4; i < len(g.placed); i += 16 {
+		r := g.placed[i : i+4 : i+4]
+		r[0] = min(max((r[0]/g.from.k+g.from.win.X-to.win.X)*to.k, 0), vw)
+		r[2] = min(max((r[2]/g.from.k+g.from.win.X-to.win.X)*to.k, 0), vw)
+		r[1] = min(max((r[1]/g.from.k+g.from.win.Y-to.win.Y)*to.k, 0), vh)
+		r[3] = min(max((r[3]/g.from.k+g.from.win.Y-to.win.Y)*to.k, 0), vh)
+	}
+	return g.placed
 }
 
 // the uniform's slice is kept between frames, boxed once

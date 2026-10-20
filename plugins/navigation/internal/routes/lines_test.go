@@ -58,8 +58,11 @@ func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
 			t.Errorf("off the stretch at %v red is %d, want none", p, v)
 		}
 	}
-	if len(g.stretches) != 0 {
-		t.Error("the stretches drawn are kept for the next frame")
+	if len(g.stretches) != 16 {
+		t.Error("the stretches drawn are dropped: a picture in layers draws them once a layer")
+	}
+	if g.Reset(); len(g.stretches) != 0 {
+		t.Error("reset, the stretches are kept")
 	}
 }
 
@@ -67,5 +70,28 @@ func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
 		t.Skipf("no GPU: %v", err)
+	}
+}
+
+func TestLines_PlaceTheirRectanglesIntoTheCameraTheyAreDrawnThrough(t *testing.T) {
+	cam := cameratest.NewFromSpace(256, 256, 0)
+	g := New()
+	flat := func(geom.Vec) float32 { return 0 }
+	g.Add(cam, geom.NewVec(40, 100), geom.NewVec(200, 100), flat, 32, 3, color.RGBA{R: 255, A: 255})
+	rect := func(s []float32) [4]float32 { return [4]float32(s[4:8]) }
+	if got := g.placedIn(cam); &got[0] != &g.stretches[0] {
+		t.Error("drawn through the camera they were gathered through, the stretches are copied")
+	}
+	// the left half of the frame at a half of its pixels: the rect follows, clipped to it
+	c := cam.(camera.Cropping)
+	c.Crop(camera.Window{X: 0, Y: 64, W: 128, H: 128}, 0.5)
+	defer c.Uncrop()
+	from, to := rect(g.stretches), rect(g.placedIn(cam))
+	want := [4]float32{from[0] * 0.5, (from[1] - 64) * 0.5, 64, (from[3] - 64) * 0.5}
+	if to != want {
+		t.Errorf("through the crop the rect is %v, want %v from %v", to, want, from)
+	}
+	if from != rect(g.stretches) {
+		t.Error("placing the stretches changed the gathered ones")
 	}
 }
