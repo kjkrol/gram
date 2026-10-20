@@ -94,15 +94,28 @@ func (a *avoiding) avoids(c cell.ID) bool {
 	return c != a.target && slices.Contains(a.known[:a.n], c)
 }
 
+// round the cells learned unless that found nothing within o's Retry, else any route; the first
+// of the two run says whether o waits
 func (a *avoiding) route(f *pathFinder, m member, from cell.ID, o *MoveOrder) (Path, bool) {
-	if o.Avoids > 0 {
+	due := o.Retry == 0
+	if o.Avoids > 0 && due {
 		a.target, a.known, a.n = o.Target, o.Avoid, o.Avoids
 		if p, ok := f.findPathAround(m.id, m.domain, m.body(), from, o.Target, o.Level,
 			a.blocked); ok {
+			o.found()
 			return p, true
 		}
+		o.failed()
 	}
-	return f.findPath(m.id, m.domain, m.body(), from, o.Target, o.Level)
+	p, ok := f.findPath(m.id, m.domain, m.body(), from, o.Target, o.Level)
+	switch {
+	case o.Avoids > 0:
+	case ok:
+		o.found()
+	case due:
+		o.failed()
+	}
+	return p, ok
 }
 
 type cellKeeping struct {
@@ -255,6 +268,7 @@ func (k *cellKeeping) bump(m member, o *MoveOrder) bumpAnswer {
 			return giveUp
 		}
 		o.Target, o.Path, o.Leg = dest, path, Leg{}
+		o.found()
 		return carryOn
 	}
 	o.learn(o.Toward)
@@ -350,6 +364,10 @@ func (k *cellKeeping) detour(m member, o *MoveOrder, other body) bumpAnswer {
 	if c != o.Target && c != m.cell {
 		o.learn(c)
 	}
+	if o.Cornered && o.Retry > 0 {
+		o.Holding = 0
+		return carryOn
+	}
 	path, ok := k.route(m, m.from, o)
 	o.Holding, o.Cornered = 0, !ok || path.Index < path.Length && slices.Contains(path.Steps[path.Index:path.Length], c)
 	if !o.Cornered {
@@ -369,5 +387,6 @@ func (k *cellKeeping) settle(m member, o *MoveOrder, _ body) bool {
 		return false
 	}
 	o.Target, o.Path, o.Leg = dest, path, Leg{}
+	o.found()
 	return true
 }

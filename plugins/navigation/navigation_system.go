@@ -39,6 +39,10 @@ type MoveOrder struct {
 	Path      Path
 	Leg       Leg
 	Waited    time.Duration
+	// Retry is how long more the entity waits before it runs again, from the same cell and round
+	// the same cells, a search for a route that found nothing; Fails is how many did in a row.
+	Retry time.Duration
+	Fails uint8
 	// Bumped says the entity struck someone since the last tick; Cooldown is how long it then
 	// keeps its new route before it would react to a bump again.
 	Bumped   bool
@@ -103,8 +107,19 @@ func (m *MoveOrder) advance() bool {
 	copy(m.Waypoints[:], m.Waypoints[1:m.Queued])
 	m.Queued--
 	m.Path = Path{}
+	m.found()
 	return true
 }
+
+// the wait after the first search in a row that found nothing, the second, the third and on
+var retryAfter = [...]time.Duration{500 * time.Millisecond, time.Second, 2 * time.Second}
+
+func (m *MoveOrder) failed() {
+	m.Fails = min(m.Fails+1, uint8(len(retryAfter)))
+	m.Retry = retryAfter[m.Fails-1]
+}
+
+func (m *MoveOrder) found() { m.Retry, m.Fails = 0, 0 }
 
 // the oldest goes first
 func (m *MoveOrder) meet(id uid.UID64) {
@@ -129,6 +144,7 @@ func (m *MoveOrder) learn(c cell.ID) {
 			return
 		}
 	}
+	m.Retry = 0 // round other cells, another search
 	if int(m.Avoids) < len(m.Avoid) {
 		m.Avoid[m.Avoids] = c
 		m.Avoids++
@@ -397,6 +413,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 					return
 				}
 				cells[i].Cell = c
+				o.Retry = 0 // from another cell, another search
 				if !entered {
 					entered = true
 					s.enter(states, i, id)
@@ -411,6 +428,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 
 			o.Cooldown = max(o.Cooldown-d, 0)
+			o.Retry = max(o.Retry-d, 0)
 			if o.Bumped {
 				o.Bumped = false
 				answer := s.keep.bump(m, o)
@@ -486,7 +504,12 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			target := o.Target
 			if !leg.Active && (p.Length == 0 || p.Index >= p.Length) &&
 				(cells[i].Cell != target || !s.keep.on(m, target, o.Level)) {
-				newPath, found := s.keep.route(m, cells[i].Cell, o)
+				var newPath Path
+				found := false
+				// waiting on a search that found nothing: the same answer till its Retry ends
+				if o.Waited == 0 || o.Retry == 0 {
+					newPath, found = s.keep.route(m, cells[i].Cell, o)
+				}
 				if !found {
 					st.RequestSpeed(0)
 					o.Waited += d
@@ -500,6 +523,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 					}
 					o.Target, target = dest, dest
 					newPath = destPath
+					o.found()
 				}
 				o.Waited = 0
 				*p = newPath
