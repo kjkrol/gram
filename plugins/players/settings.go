@@ -153,7 +153,7 @@ func (s *SettingsScene) listing(w, h int) *ui.Element {
 	width := float64(w) - 2*shortcutsMargin
 	height := float64(h) - 2*shortcutsMargin
 	_, titleHeight := titleFont().Measure("Settings")
-	height -= float64(titleHeight) + shortcutsGap
+	height -= float64(titleHeight) + 2*sectionPadding + shortcutsGap
 
 	blocks := s.tree().blocks("", 0, nil)
 	columns := columned(blocks, height)
@@ -163,7 +163,8 @@ func (s *SettingsScene) listing(w, h int) *ui.Element {
 	return ui.Layers(
 		ui.Blank().Fill(shortcutsDim),
 		ui.TopMiddle(ui.Rows(
-			ui.Fit(ui.TopMiddle(ui.Title("Settings").Named("settings.title"))),
+			ui.Fit(ui.TopMiddle(ui.Panel(ui.Title("Settings").Named("settings.title")).
+				Padding(sectionPadding).Border(settingsTheme().Border, 1))),
 			ui.Fixed(shortcutsGap, ui.Blank()),
 			ui.Fixed(height, ui.Scroll(ui.Columns(spaced(columns)...)).Named("settings.scroll")),
 		)).Padding(shortcutsMargin),

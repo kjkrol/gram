@@ -59,11 +59,7 @@ func (m *mainScene) screen() *ui.Element {
 	return ui.Layers(
 		ui.Image(render.NewFeed(cam, a.world.Picture())).Input(a.players.Through(a.player)),
 		ui.Drawer(a.world.Clock().HUD()),
-		ui.TopMiddle(ui.Rows(
-			ui.Fit(a.atmosphere.Bar()),
-			ui.Fit(ui.Center(ui.HeadingOf(ui.While(paused, "PAUSED")).Padding(6).
-				Fill(pausedColor).Margin(4))),
-		)).Margin(8),
+		ui.TopMiddle(beside(a.atmosphere.Bar(), paused)).Margin(8),
 		ui.TopRight(ui.Layers(
 			ui.Center(a.minimap.For(cam, a.player.ID).Masked(ui.Circle).Border(minimapRim, 2)).
 				Size(220, 220),
@@ -72,4 +68,14 @@ func (m *mainScene) screen() *ui.Element {
 		ui.BottomMiddle(a.bridges.Reason().Padding(6).Fill(reasonColor)).Margin(40),
 		ui.Center(a.bridges.Window()),
 	)
+}
+
+// beside is e with PAUSED on a red panel to its right while is says so: a slot as wide is kept
+// on either side, so e stays centred as the word comes and goes
+func beside(e *ui.Element, is func() bool) *ui.Element {
+	const pad, gap = 6, 8
+	w, _ := ui.DefaultTheme().Bold.Measure("PAUSED")
+	slot := float64(w) + 2*pad + gap
+	word := ui.HeadingOf(ui.While(is, "PAUSED")).Padding(pad).Fill(pausedColor)
+	return ui.Columns(ui.Fixed(slot, ui.Layers()), ui.Fit(e), ui.Fixed(slot, ui.MiddleRight(word)))
 }
