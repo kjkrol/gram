@@ -71,6 +71,23 @@ etap T of `doc/plans-perf.md`)
   lamps, then the grid, the clouds' shadow and the water's mirror. The "Ground" line counts the
   sectors from full to least; "Show the care" colours the bands.
 
+**The HUD: the atmosphere's widgets, the telemetry in two modes, north on the minimap**
+(2026-10-20, etap V of the plan)
+- The atmosphere gives a scene its HUD as elements to place (`TimeOfDay`, `Date` with the
+  moon's phase beside it as an icon while the moon runs, `Weather`, absent without a running
+  climate, and `Bar`, the three on one panel for the top of the screen); the old `HUD()`
+  renderers are gone. `Reporter()` lists the daylight (the sky's line, "Light" before), the
+  clouds and their shadows alone: the time, the season, the moon and the weather are the
+  widgets' (`Calendar().Reporter()`, `Climate().Reporter()` for a game without them).
+- The telemetry panel has two modes, the basics (FPS, TPS, Frame, Entities) and everything
+  (`telemetry.Mode`, `Settings{Extended}` saved with the game, `Panel{Shown, Extended}`); ~
+  cycles hidden, the basics, everything; the settings screen has a switch and a choice for it.
+  Every many-valued line is a value of lines under its label, as Frame's: the light's, the
+  cameras' Picture, the topography's Ground (a care a line), the world's sectors, the
+  calendar's season.
+- The minimap marks north: a red bold "N" within the circle's edge, at the top north up,
+  turned with the picture as the minimap turns.
+
 **The picture by the camera's state: profiles, footed layers, one composition** (2026-10-20,
 etap U of `doc/plans-perf.md`)
 - The picture's rings are layers (`camera.Layer`, `Layered`, `LayersOf`; the cameras' `InLayers`,

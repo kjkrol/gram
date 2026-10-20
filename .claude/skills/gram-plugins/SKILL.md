@@ -385,7 +385,16 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   pictures' resolution as the rate falls under the budget and up after it as it stays over.
 - **`atmosphere`** — the time of day, the climate and the weather on the world's clock, over a
   world with heights alone (`NewPlugin` panics in a flat one); its root
-  keeps no shaders and draws nothing itself: every part is a package that never imports it.
+  keeps no shaders and draws nothing of the world itself: every part is a package that never
+  imports it. Its HUD (2026-10-20, etap V, `hud.go`): `TimeOfDay()`, `Date()` (the season
+  and the date, the moon's phase an icon beside them while `Running().Moon`, drawn from
+  `celestial.MoonFace` with the phase's shade, lit on the right waxing), `Weather()` (the name,
+  the temperature, the wind; absent without a running climate; it reads through a drawer of
+  its own, so it goes in the tree a scene is made with) and `Bar()` (the three on one panel for
+  `ui.TopMiddle`), `*ui.Element`s the scene places; the old `HUD()` renderers are gone.
+  `Reporter()` lists the daylight, the clouds and their shadows alone: the time, the season,
+  the moon and the weather are the widgets' (a game without them adds
+  `Calendar().Reporter()` and `Climate().Reporter()`).
   `atmosphere/calendar`: the clock at a fixed scale — a day every `Config.DayRealTime` from
   `Start` in the middle of `Season`, a `GameYear` of 8 days and a 4-day moon or an `EarthYear`;
   `Calendar.Now()` a `Moment{Date, Time, Year}` (`OfYear`, `Season`, `Moon`, `Hour`, `Written`),
@@ -944,8 +953,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   budget" under `control.Picture`, then each profile's nine knobs under `control.PictureTactical`
   and `PictureTacticalLayers`, `PictureRiding` and `PictureRidingLayers` (20 settings; the two
   profiles are twin sections, laid side by side by the settings screen; an element is named `setting:<section path>/<label>`); the
-  telemetry's Picture line names the lead's profile ("Picture: tactical, 0.70 of the pixels, the
-  figures sharp, following a budget of 60 FPS"); `layersView` outlines a cropped layer) likewise;
+  telemetry's Picture line names the lead's profile, a line a part: `tactical` / `0.70 of the
+  pixels` / `the figures sharp` / `following a budget of 60 FPS`); `layersView` outlines a
+  cropped layer) likewise;
   marks over every other, hidden by default, shown
   in board/topography's `makePlugins`) lays the strips and the corner squares over every picture in
   translucent yellow, rounded (`render.Frame.Fan`), the strips a gap short of the corners and
@@ -1050,12 +1060,21 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   standard lines (FPS, TPS, `Frame` from `render.Spent`, `Entities`, the clock's `Game time`),
   `With(reporters...)` (`render.Reporter`), `Line(label, value)`, `Clear()` — all before the
   scenes are made (later panics); a `game.Scenic` scene `telemetry.SceneName` that is never
-  focusable; `Show`/`Hide`/`Toggle`/`Shown` on a `game.Composition`. The Stage's
-  `World(cfg).Plugins(f)` link makes one where `telemetry.Of(w)` finds none, so every Stage
-  with a world has it, hidden; `.Shows(MainScene, telemetry.SceneName)` shows it from the start.
-  Its command `Panel{Shown}` is carried by players (`GameBindings`, ~ building the opposite of
-  `Shown(composition)`, "General"; a switch on the settings screen), which
-  shows or hides it through the Composition in `carry`. Depends on `world`, `ui`.
+  focusable; `Show`/`Hide`/`Toggle`/`Shown` on a `game.Composition`. Two modes (2026-10-20,
+  etap V): `Basic` shows FPS, TPS, Frame and Entities alone, `Extended` every line (the clock's,
+  `With`, `Line`); `Mode`/`SetMode`, `Res.Settings{Extended}` kept with the game
+  (`plugin.Keep`, `Restorer`). A many-valued line is a value of several lines, each under the
+  label indented as Frame's: the light's `sun 0.71` / `lamps 1` / `shadows of 1`, the sky's
+  `Daylight` (was "Light"), the cameras' `Picture` (the profile, the pixels, the layers or
+  the figures sharp, the following), the topography's `Ground` (the reach, a care a line:
+  `everything 10`…`least 0`), the world's `Sectors`, `Entities by band` (a band a line),
+  `Sectors seen` (`exact` / `coarse` / `fog`), the calendar's `Season` (the season, the date).
+  The Stage's `World(cfg).Plugins(f)` link makes one where `telemetry.Of(w)` finds none, so
+  every Stage with a world has it, hidden; `.Shows(MainScene, telemetry.SceneName)` shows it
+  from the start. Its command `Panel{Shown, Extended}` is carried by players (`GameBindings`, ~
+  cycling hidden → the basics → everything → hidden, "General"; on the settings screen a
+  switch "Telemetry panel" and a choice "Telemetry panel shows"), which sets the mode and shows
+  or hides it through the Composition in `carry`. Depends on `world`, `ui`.
 - **`minimap`** — small pictures round the players' cameras: `minimap.NewPlugin(w, ground,
   Config{Reach, Turning})` after the cameras (a `Reach` past the world's last band panics), in
   the players' handlers, `RunPlan` after the cameras'. `For(cam, issuer) *ui.Element` is a
@@ -1064,12 +1083,15 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `lens` (an inner `camera.Camera` straight down, over `cam`'s `Focus`, turned so `camera.Headed`
   `Ahead` runs up when turning, `min(w, h) / (2·Reach)` pixels a unit, the shorter way round a
   torus; neither in the cameras' list — no anchor, not saved — nor in `ctx.Draws`) and a
-  composer of three sources: the ground (`Ground.Miniature() (img, perUnit)`, drawn opaque with
+  composer of four sources: the ground (`Ground.Miniature() (img, perUnit)`, drawn opaque with
   `GeoM` scale, turn, copies round a torus; none, the element's `Fill` shows), the marks (the
   space's ids in the picture's rectangle, each kind's `Mark{Color, Size}` declared
   `Styled(minimap.Mark{...})` in its figure's `Look`, looked up once a sprite; a square dot
   `OnTop(1)`; a kind without one not drawn) and the outline of `cam`'s screen on the ground
-  (`camera.Picker`, past the horizon cut at twice the reach; `OnTop(2)`). Drawn anew at most 30
+  (`camera.Picker`, past the horizon cut at twice the reach; `OnTop(2)`) and north, a red bold
+  "N" within the circle's edge at 0.86 of the reach (`compassView`, `render.DrawText` on
+  `Target.Screen`; `OnTop(3)`), at the top north up, turned with the picture as the minimap
+  turns (2026-10-20). Drawn anew at most 30
   times a second (`paced`), the last picture in between. A press on it is its own
   (`ui.Clicked`): `cameras.CenterAt` with the world point under it as the issuer's; the player's
   picture under it is covered (`ui.Hovered`), so the cursor there neither scrolls nor turns.
