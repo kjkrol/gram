@@ -1,8 +1,6 @@
 package navigation
 
 import (
-	"slices"
-
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -73,7 +71,7 @@ func (p *pathFinder) stepsOnto(m member, c cell.ID) (deck, ok bool) {
 	if c == m.cell {
 		return p.onDeck(m, c), true
 	}
-	if !slices.Contains(p.grid.Neighbors(m.cell), c) {
+	if _, ok := grid.Way(p.grid, m.cell, c); !ok {
 		return false, true
 	}
 	return p.Steps(m.domain, m.body(), m.cell, c)
