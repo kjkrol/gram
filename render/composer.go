@@ -24,6 +24,7 @@ type Composer struct {
 	apart        bool        // Lay's: the ground's sources alone
 	laid         []laidLayer // the layers drawn since Lay with a ground of their own
 	place        [4]float32  // the pieces scaled by xy and moved by zw into the target; zero none
+	hole         gpu.Window  // DrawLayer's, in the layer's pixels: its ground left out; zero none
 	// how the frame's runs meet the depth: none in a frame without a ground; the ground's alone
 	// for what lies over the figures, and the one bound to the run being gathered
 	depth  *Depth
@@ -115,9 +116,10 @@ func (c *Composer) Lay(cam camera.Camera, apart bool) {
 }
 
 // DrawLayer draws what the last Lay composed into layer through cam cropped to the frame's window
-// at, the pieces scaled and moved from the frame's pixels into the layer's; a nil layer draws
-// nothing.
-func (c *Composer) DrawLayer(layer *Image, cam camera.Camera, at camera.Window) {
+// at, the pieces scaled and moved from the frame's pixels into the layer's, leaving out the
+// frame's window hole where the frame has a ground (a layer drawn after covers it whole; zero,
+// none); a nil layer draws nothing.
+func (c *Composer) DrawLayer(layer *Image, cam camera.Camera, at, hole camera.Window) {
 	c.frame.cam = cam
 	if layer == nil {
 		c.setUniforms()
@@ -126,8 +128,12 @@ func (c *Composer) DrawLayer(layer *Image, cam camera.Camera, at camera.Window) 
 	b := layer.Bounds()
 	sx, sy := float32(b.Dx())/at.W, float32(b.Dy())/at.H
 	c.place = [4]float32{sx, sy, -at.X * sx, -at.Y * sy}
+	if hole.W > 0 && hole.H > 0 {
+		c.hole = gpu.Window{X: (hole.X - at.X) * sx, Y: (hole.Y - at.Y) * sy, W: hole.W * sx,
+			H: hole.H * sy}
+	}
 	ground := c.render(layer, c.apart, len(c.laid))
-	c.place = [4]float32{}
+	c.place, c.hole = [4]float32{}, gpu.Window{}
 	if ground != nil {
 		c.laid = append(c.laid, laidLayer{ground: ground, at: at})
 	}
@@ -337,6 +343,10 @@ func (c *Composer) render(screen *Image, apart bool, layer int) (ground *Depth) 
 				t.Depth = d.ground
 			}
 			screen.ClearDepth(t.Depth)
+			if c.hole.W > 0 && c.hole.H > 0 {
+				// nearest of all: whatever is drawn there after, tested, is hidden
+				gpu.FillDepth(screen.gpu(), t.Depth.d, c.hole, 1)
+			}
 		}
 		for _, i := range f.opaque {
 			if i > 0 && c.directs[i-1] != nil {

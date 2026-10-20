@@ -140,7 +140,7 @@ func (f *Feed) drawSharp(dst *Image, l Laid, c camera.Cropping) {
 	gw, gh := f.drawn()
 	f.ground = sized(f.ground, gw, gh)
 	f.ground.Clear()
-	l.DrawLayer(f.ground, f.cam, f.whole())
+	l.DrawLayer(f.ground, f.cam, f.whole(), camera.Window{})
 	b := dst.Bounds()
 	op := DrawImageOptions{Filter: FilterLinear}
 	op.GeoM.Scale(float64(b.Dx())/float64(gw), float64(b.Dy())/float64(gh))
@@ -174,16 +174,20 @@ func (f *Feed) drawLayers(dst *Image, layers []camera.Layer, c camera.Cropping, 
 	wins := camera.Arrange(camera.LayoutOf(f.cam), layers, f.w, f.h)
 	for i, r := range layers {
 		win := wins[i]
+		var hole camera.Window
+		if i+1 < len(wins) {
+			hole = f.holeOf(wins[i+1], r.Resolution)
+		}
 		c.Crop(win, r.Resolution)
 		if win.W == float32(f.w) && win.H == float32(f.h) && r.Resolution == 1 {
-			f.drawLayer(dst, laid, win)
+			f.drawLayer(dst, laid, win, hole)
 			c.Uncrop()
 			continue
 		}
 		lw, lh := f.drawn()
 		f.imgs[i] = sized(f.imgs[i], lw, lh)
 		f.imgs[i].Clear()
-		f.drawLayer(f.imgs[i], laid, win)
+		f.drawLayer(f.imgs[i], laid, win, hole)
 		c.Uncrop()
 		op := DrawImageOptions{Filter: FilterLinear, Fade: fadeOf(win, f.w, f.h)}
 		op.GeoM.Scale(float64(win.W)/float64(lw), float64(win.H)/float64(lh))
@@ -198,13 +202,32 @@ func (f *Feed) drawLayers(dst *Image, layers []camera.Layer, c camera.Cropping, 
 }
 
 // the picture drawn into img through the camera cropped to the frame's window win: a layer of
-// what Lay composed where the picture is Laid
-func (f *Feed) drawLayer(img *Image, laid Laid, win camera.Window) {
+// what Lay composed where the picture is Laid, its ground leaving out the window hole
+func (f *Feed) drawLayer(img *Image, laid Laid, win, hole camera.Window) {
 	if laid == nil {
 		f.picture.DrawWorld(img, f.cam)
 		return
 	}
-	laid.DrawLayer(img, f.cam, win)
+	laid.DrawLayer(img, f.cam, win, hole)
+}
+
+// the part of the frame's window inner that its layer covers whole when laid over a layer at
+// res: inside the feather of each side that fades, and two of that layer's pixels more, which
+// its filter blends with the next ones when scaled up
+func (f *Feed) holeOf(inner camera.Window, res float32) camera.Window {
+	fade := fadeOf(inner, f.w, f.h)
+	side := func(feather float32) float32 {
+		if feather == 0 {
+			return 0
+		}
+		return feather + 2/res
+	}
+	l, r, t, b := side(fade.Left), side(fade.Right), side(fade.Top), side(fade.Bottom)
+	hole := camera.Window{X: inner.X + l, Y: inner.Y + t, W: inner.W - l - r, H: inner.H - t - b}
+	if hole.W <= 0 || hole.H <= 0 {
+		return camera.Window{}
+	}
+	return hole
 }
 
 // the window of the whole frame
