@@ -9,7 +9,7 @@ import (
 )
 
 // Haze has the air haze the ground and what stands on it, through any camera, as thick as the
-// weather makes it, or clear (Settings.Haze). Ctrl+F by default, in turn.
+// weather makes it, or clear (Settings.Haze). The settings screen alone.
 type Haze struct{ On bool }
 
 func (Haze) Command() {}
@@ -17,8 +17,8 @@ func (Haze) Command() {}
 var _ command.Command = Haze{}
 
 // Care has the ground within Rings sectors of the middle of the screen shaded with full care and
-// one care less every Rings farther ([Plugin.SetCare], Settings.Care), 0 every one. Alt+Shift+=
-// and Alt+Shift+- by default, a sector, two, three, then every one, and back.
+// one care less every Rings farther ([Plugin.SetCare], Settings.Care), 0 every one. The settings
+// screen alone.
 type Care struct{ Rings int }
 
 func (Care) Command() {}
@@ -63,11 +63,10 @@ func (p *Plugin) Queues() []command.CommandQueue {
 }
 
 // DefaultBindings are Shift+= and Shift+- raising and lowering the ground under the cursor (= and
-// - alone zoom the camera), a left drag with L held levelling it, Ctrl+F the haze, Alt+Shift+=
-// and Alt+Shift+- the full care farther and nearer.
+// - alone zoom the camera) and a left drag with L held levelling it.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	at := func(c control.Context) geom.Vec { return c.World(c.Cursor) }
-	return append([]control.Binding{},
+	return []control.Binding{
 		control.Build(control.KeyPress{Key: control.KeyEqual, Mods: control.Mods{Shift: true}},
 			"Raise the ground",
 			func(c control.Context) (Raise, bool) { return Raise{At: at(c)}, true }),
@@ -78,18 +77,7 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 			func(c control.Context) (Level, bool) {
 				return Level{From: c.World(c.Start), To: c.World(c.Cursor)}, true
 			}),
-		control.Build(control.KeyPress{Key: control.KeyF, Mods: control.Mods{Ctrl: true}},
-			"The haze over the ground, or clear",
-			func(control.Context) (Haze, bool) { return Haze{On: !p.Hazes()}, true }),
-		control.Build(
-			control.KeyPress{Key: control.KeyEqual, Mods: control.Mods{Alt: true, Shift: true}},
-			"Full care farther",
-			func(control.Context) (Care, bool) { return Care{Rings: p.careStepped(1)}, true }),
-		control.Build(
-			control.KeyPress{Key: control.KeyMinus, Mods: control.Mods{Alt: true, Shift: true}},
-			"Full care nearer",
-			func(control.Context) (Care, bool) { return Care{Rings: p.careStepped(-1)}, true }),
-	)
+	}
 }
 
 // careMost is the top of the care's slider, every sector
@@ -145,7 +133,7 @@ func (p *Plugin) Settings() []control.Setting {
 		},
 		control.Switch{
 			Label:   "Show the care",
-			Section: control.PictureAreas,
+			Section: control.PictureCare,
 			Get:     p.CareShown,
 			Set:     func(on bool) command.Command { return ShowCare{Shown: on} },
 		})

@@ -343,7 +343,7 @@ func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBu
 	cam := p.New(cameras.FromAbove, camera.Config{})
 	minimap := p.New(cameras.FromAbove, camera.Config{Whole: true})
 	start()
-	if got := report(p); got != "Picture: tactical, 1.00 of the pixels, following a budget of "+
+	if got := report(p); got != "Picture: tactical\n1.00 of the pixels\nfollowing a budget of "+
 		"60 FPS" {
 		t.Fatalf("the telemetry says %q, want the one picture at all its pixels, following", got)
 	}
@@ -353,7 +353,7 @@ func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBu
 		t.Errorf("after a coarser step the camera is drawn at %v, want %v", got,
 			cameras.ResolutionStep)
 	}
-	if got := report(p); got != "Picture: tactical, 0.85 of the pixels, the figures sharp, still" {
+	if got := report(p); got != "Picture: tactical\n0.85 of the pixels\nthe figures sharp\nstill" {
 		t.Errorf("the telemetry says %q, want the step and the following stopped", got)
 	}
 	if p.Strategy(cameras.Tactical) != cameras.Still ||
@@ -377,7 +377,7 @@ func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBu
 	w.Carrier().Put(command.Nobody,
 		cameras.Adapt{Profile: cameras.Tactical, Strategy: cameras.Uniform})
 	tick()
-	if got := report(p); got != "Picture: tactical, 0.40 of the pixels, the figures sharp, "+
+	if got := report(p); got != "Picture: tactical\n0.40 of the pixels\nthe figures sharp\n"+
 		"following a budget of 60 FPS" {
 		t.Errorf("after Adapt the telemetry says %q, want the resolution following the budget", got)
 	}
@@ -395,50 +395,36 @@ func report(p *cameras.Plugin) string {
 	return got
 }
 
-// the command Alt+A builds among the plugin's default bindings
-func altA(t *testing.T, p *cameras.Plugin) command.Command {
-	t.Helper()
-	for _, b := range p.DefaultBindings() {
-		if b.Trigger != (control.KeyPress{Key: control.KeyA, Mods: control.Mods{Alt: true}}) {
-			continue
-		}
-		if cmd, ok := b.Build(control.Context{}); ok {
-			return cmd
-		}
-	}
-	t.Fatal("no default binding on Alt+A builds a command")
-	return nil
-}
-
-func TestAdapt_CyclesStillTheWholePictureAndInLayers(t *testing.T) {
+func TestAdapt_SwitchesStillTheWholePictureAndInLayers(t *testing.T) {
 	w, p, start, tick := emptyWorld(t, cameras.Config{})
 	cam := p.New(cameras.FromAbove, camera.Config{})
 	start()
-	for presses, want := range []struct {
+	for steps, want := range []struct {
 		layers   int
 		strategy cameras.Strategy
 		report   string
 	}{
-		{0, cameras.Still, "Picture: tactical, 1.00 of the pixels, still"},
-		{0, cameras.Uniform, "Picture: tactical, 1.00 of the pixels, following a budget of 60 FPS"},
-		{3, cameras.InLayers, "Picture: tactical, 0.60/0.80/1.00 of the pixels in layers at 60% " +
-			"and 35%, following a budget of 60 FPS"},
-		{3, cameras.Still, "Picture: tactical, 0.60/0.80/1.00 of the pixels in layers at 60% and " +
-			"35%, still"},
-		{0, cameras.Uniform, "Picture: tactical, 1.00 of the pixels, following a budget of 60 FPS"},
+		{0, cameras.Still, "Picture: tactical\n1.00 of the pixels\nstill"},
+		{0, cameras.Uniform, "Picture: tactical\n1.00 of the pixels\nfollowing a budget of 60 FPS"},
+		{3, cameras.InLayers, "Picture: tactical\n0.60/0.80/1.00 of the pixels\nin layers at 60% " +
+			"and 35%\nfollowing a budget of 60 FPS"},
+		{3, cameras.Still, "Picture: tactical\n0.60/0.80/1.00 of the pixels\nin layers at 60% " +
+			"and 35%\nstill"},
+		{0, cameras.Uniform, "Picture: tactical\n1.00 of the pixels\nfollowing a budget of 60 FPS"},
 	} {
-		if presses > 0 {
-			w.Carrier().Put(command.Nobody, altA(t, p))
+		if steps > 0 {
+			w.Carrier().Put(command.Nobody,
+				cameras.Adapt{Profile: cameras.Tactical, Strategy: want.strategy})
 			tick()
 		}
 		layers := len(camera.LayersOf(cam))
 		on, strategy := p.Layers(cameras.Tactical), p.Strategy(cameras.Tactical)
 		if layers != want.layers || on != (want.layers > 0) || strategy != want.strategy {
-			t.Errorf("after %d Alt+A the camera has %d layers, the plugin layers %v, strategy %v; "+
-				"want %d layers and %v", presses, layers, on, strategy, want.layers, want.strategy)
+			t.Errorf("after %d Adapt the camera has %d layers, the plugin layers %v, strategy %v; "+
+				"want %d layers and %v", steps, layers, on, strategy, want.layers, want.strategy)
 		}
 		if got := report(p); got != want.report {
-			t.Errorf("after %d Alt+A the telemetry says %q, want %q", presses, got, want.report)
+			t.Errorf("after %d Adapt the telemetry says %q, want %q", steps, got, want.report)
 		}
 	}
 }
@@ -448,14 +434,14 @@ func TestResolution_InLayersStepsTheOuterRingFirstAndStopsTheFollowing(t *testin
 		cameras.Config{Tactical: cameras.Knobs{Strategy: cameras.InLayers}})
 	cam := p.New(cameras.FromAbove, camera.Config{})
 	start()
-	if got := report(p); got != "Picture: tactical, 0.60/0.80/1.00 of the pixels in layers at "+
-		"60% and 35%, following a budget of 60 FPS" {
+	if got := report(p); got != "Picture: tactical\n0.60/0.80/1.00 of the pixels\nin layers at "+
+		"60% and 35%\nfollowing a budget of 60 FPS" {
 		t.Fatalf("the telemetry says %q, want the default layers following the budget", got)
 	}
 	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: cameras.ResolutionStep})
 	tick()
-	if got := report(p); got != "Picture: tactical, 0.51/0.80/1.00 of the pixels in layers at "+
-		"60% and 35%, still" {
+	if got := report(p); got != "Picture: tactical\n0.51/0.80/1.00 of the pixels\nin layers at "+
+		"60% and 35%\nstill" {
 		t.Errorf("the telemetry says %q, want the outer layer stepped and the following stopped",
 			got)
 	}
@@ -478,16 +464,16 @@ func TestAdapt_FromLayersStillGoesOnFollowingInTheLayersAsTheyAre(t *testing.T) 
 	tick()
 	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: cameras.ResolutionStep})
 	tick()
-	if got := report(p); got != "Picture: tactical, 0.51/0.80/1.00 of the pixels in layers at "+
-		"60% and 35%, still" {
+	if got := report(p); got != "Picture: tactical\n0.51/0.80/1.00 of the pixels\nin layers at "+
+		"60% and 35%\nstill" {
 		t.Fatalf("the telemetry says %q, want the picture still, in layers, the outer one stepped",
 			got)
 	}
 	w.Carrier().Put(command.Nobody,
 		cameras.Adapt{Profile: cameras.Tactical, Strategy: cameras.InLayers})
 	tick()
-	if got := report(p); got != "Picture: tactical, 0.51/0.80/1.00 of the pixels in layers at "+
-		"60% and 35%, following a budget of 60 FPS" {
+	if got := report(p); got != "Picture: tactical\n0.51/0.80/1.00 of the pixels\nin layers at "+
+		"60% and 35%\nfollowing a budget of 60 FPS" {
 		t.Errorf("after Adapt the telemetry says %q, want the following resumed in the layers as "+
 			"they are, not the default again", got)
 	}
@@ -520,7 +506,7 @@ func TestPicture_ReachesEveryCameraButAMinimapsAndStopsTheFollowing(t *testing.T
 		r != 0.7 {
 		t.Errorf("after Picture the strategy is %v at %v, want Still at 0.7", s, r)
 	}
-	if got := report(p); got != "Picture: tactical, 0.70, 0.70 of the pixels, the figures sharp, "+
+	if got := report(p); got != "Picture: tactical\n0.70, 0.70 of the pixels\nthe figures sharp\n"+
 		"still" {
 		t.Errorf("the telemetry says %q, want both pictures at 0.70, still", got)
 	}
@@ -541,8 +527,8 @@ func TestLayerShares_ShapeEveryCamerasLayersAndTheMiddleStaysOverTheInner(t *tes
 				i, layers)
 		}
 	}
-	if got := report(p); got != "Picture: tactical, 0.60/0.80/1.00, 0.60/0.80/1.00 of the pixels "+
-		"in layers at 50% and 30%, still" {
+	if got := report(p); got != "Picture: tactical\n0.60/0.80/1.00, 0.60/0.80/1.00 of the pixels"+
+		"\nin layers at 50% and 30%\nstill" {
 		t.Errorf("the telemetry says %q, want the shares set", got)
 	}
 	w.Carrier().Put(command.Nobody,

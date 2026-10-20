@@ -2,6 +2,7 @@ package world
 
 import (
 	"maps"
+	"reflect"
 	"testing"
 	"time"
 
@@ -206,11 +207,11 @@ func TestSectors_ReportTheSectorsAndEntitiesByBand(t *testing.T) {
 	r.run()
 	got := map[string]string{}
 	r.p.Sectors().Report(func(label, value string) { got[label] = value })
-	if got["Sectors"] != "2 · 1, beyond 5" {
-		t.Errorf("sectors %q, want 2 · 1, beyond 5", got["Sectors"])
+	if want := "first 2\nsecond 1\nbeyond 5"; got["Sectors"] != want {
+		t.Errorf("sectors %q, want %q", got["Sectors"], want)
 	}
-	if got["Entities by band"] != "1 · 1, beyond 2" {
-		t.Errorf("entities %q, want 1 · 1, beyond 2", got["Entities by band"])
+	if want := "first 1\nsecond 1\nbeyond 2"; got["Entities by band"] != want {
+		t.Errorf("entities %q, want %q", got["Entities by band"], want)
 	}
 }
 
@@ -228,8 +229,8 @@ func TestSectors_SwitchedOffLiveEverywhereAndOnAgainGoBackPastTheMargin(t *testi
 	}
 	got := map[string]string{}
 	r.p.Sectors().Report(func(label, value string) { got[label] = value })
-	if got["Sectors"] != "8 · 0, beyond 0, bands off" {
-		t.Errorf("sectors %q, want 8 · 0, beyond 0, bands off", got["Sectors"])
+	if want := "first 8\nsecond 0\nbeyond 0\nbands off"; got["Sectors"] != want {
+		t.Errorf("sectors %q, want %q", got["Sectors"], want)
 	}
 	r.p.module.commands.Put(command.Nobody, SwitchBands{On: true})
 	r.run()
@@ -242,21 +243,27 @@ func TestSectors_SwitchedOffLiveEverywhereAndOnAgainGoBackPastTheMargin(t *testi
 	}
 }
 
-func TestSectors_KeysOnlyInAWorldCutIntoSectors(t *testing.T) {
-	ctrlG := func(p *Plugin) (command.Command, bool) {
-		for _, k := range p.DefaultBindings() {
-			press, ok := k.Trigger.(control.KeyPress)
-			if ok && press.Key == control.KeyG && press.Mods.Ctrl {
-				return k.Build(control.Context{})
+func TestSectors_SettingsOnlyInAWorldCutIntoSectorsAndNoKeys(t *testing.T) {
+	bands := func(p *Plugin) (control.Switch, bool) {
+		for _, s := range p.Settings() {
+			if sw, ok := s.(control.Switch); ok && sw.Label == "Sectors' bands" {
+				return sw, true
 			}
 		}
-		return nil, false
+		return control.Switch{}, false
 	}
-	if cmd, ok := ctrlG(sectorWorld(t, twoBands...).p); !ok || cmd != (SwitchBands{On: false}) {
-		t.Errorf("Ctrl+G builds %v (%v), want SwitchBands off, the bands being on", cmd, ok)
+	p := sectorWorld(t, twoBands...).p
+	if sw, ok := bands(p); !ok || !sw.Get() || sw.Set(false) != (SwitchBands{On: false}) {
+		t.Errorf("the bands' setting found %v, want it on and setting SwitchBands off", ok)
 	}
-	if cmd, ok := ctrlG(sectorWorld(t).p); ok {
-		t.Errorf("Ctrl+G builds %v in a world of no sectors, want no such key", cmd)
+	for _, k := range p.DefaultBindings() {
+		if k.Type() == reflect.TypeFor[SwitchBands]() ||
+			k.Type() == reflect.TypeFor[SwitchSectors]() {
+			t.Errorf("%v is bound to %v, want the settings screen alone", k.Type(), k.Trigger)
+		}
+	}
+	if _, ok := bands(sectorWorld(t).p); ok {
+		t.Error("a world of no sectors has the bands' setting")
 	}
 }
 

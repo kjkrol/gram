@@ -16,7 +16,8 @@ type ticking struct {
 }
 
 func newTicking() *ticking {
-	return &ticking{a: &adapter{on: true, budget: time.Second / 60, sampling: DefaultSampling},
+	return &ticking{a: &adapter{on: true, budget: time.Second / 60, sampling: DefaultSampling,
+		underAt: DefaultUnder, metAt: DefaultMet},
 		now: time.Unix(1000, 0)}
 }
 

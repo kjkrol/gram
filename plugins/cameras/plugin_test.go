@@ -272,12 +272,14 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 		Riding:   cameras.Knobs{Strategy: cameras.InLayers, Resolution: 0.8},
 	})
 	settings := p.Settings()
-	want := []listed{{"Scroll zones", ""}, {"Frame budget", control.Picture},
-		{"Samples the frame rate over", control.Picture}}
+	want := []listed{{"Scroll zones", ""}, {"Show the zones", ""}, {"Edge scroll speed", ""},
+		{"Frame budget", control.Picture},
+		{"Samples the frame rate over", control.Picture}, {"Coarser under", control.Picture},
+		{"Finer over", control.Picture}}
 	want = append(want, knobsListed(control.PictureTactical, control.PictureTacticalLayers)...)
 	want = append(want, knobsListed(control.PictureRiding, control.PictureRidingLayers)...)
 	if len(settings) != len(want) {
-		t.Fatalf("%d settings, want %d: the zones, the budget, the sampling, a profile's nine twice", len(settings), len(want))
+		t.Fatalf("%d settings, want %d: the zones thrice, the budget, the sampling, the thresholds, a profile's nine twice", len(settings), len(want))
 	}
 	for i, want := range want {
 		if got := (listed{labelOf(settings[i]), control.SectionOf(settings[i])}); got != want {
@@ -285,7 +287,7 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 				want.label, want.section)
 		}
 	}
-	budget := settings[1].(control.Range)
+	budget := settings[3].(control.Range)
 	if budget.Min != 30 || budget.Max != 120 || budget.Get() != 60 || budget.Shows(60) != "60 FPS" {
 		t.Errorf("the budget runs %v to %v at %v shown %q, want 30 to 120 at 60, \"60 FPS\"",
 			budget.Min, budget.Max, budget.Get(), budget.Shows(60))
@@ -293,7 +295,7 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 	if got := budget.Set(30); got != (cameras.Budget{Frame: time.Second / 30}) {
 		t.Errorf("the budget at 30 builds %v, want a frame of a thirtieth of a second", got)
 	}
-	sampling := settings[2].(control.Range)
+	sampling := settings[4].(control.Range)
 	if sampling.Min != 1 || sampling.Max != 20 || sampling.Get() != 2 || sampling.Shows(5) != "5 s" ||
 		sampling.Set(5) != (cameras.Sampling{Over: 5 * time.Second}) {
 		t.Errorf("the sampling runs %v to %v at %v shown %q building %v, want 1 to 20 at 2, \"5 s\", "+
@@ -307,8 +309,8 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 		resolution float32
 		layers     bool
 	}{
-		{cameras.Tactical, 3, cameras.Uniform, 1, false},
-		{cameras.Riding, 12, cameras.InLayers, 0.8, true},
+		{cameras.Tactical, 7, cameras.Uniform, 1, false},
+		{cameras.Riding, 16, cameras.InLayers, 0.8, true},
 	} {
 		knobs := settings[c.at:]
 		strategy := knobs[0].(control.Choice)
@@ -375,12 +377,12 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 		}
 	}
 	p.SetResolution(cameras.Riding, 0.5)
-	if tactical, riding := settings[4].(control.Range).Get(),
-		settings[13].(control.Range).Get(); tactical != 1 || riding != 0.5 {
+	if tactical, riding := settings[8].(control.Range).Get(),
+		settings[17].(control.Range).Get(); tactical != 1 || riding != 0.5 {
 		t.Errorf("the riding resolution set to 0.5, the settings show %v tactical and %v riding, "+
 			"want the tactical untouched at 1", tactical, riding)
 	}
-	shown := settings[11].(control.Switch)
+	shown := settings[15].(control.Switch)
 	if shown.Get() || shown.Set(true) != (cameras.ShowLayers{Profile: cameras.Tactical, Shown: true}) {
 		t.Errorf("the layers shown are %v building %v, want hidden, ShowLayers{Tactical, true}",
 			shown.Get(), shown.Set(true))
@@ -449,7 +451,7 @@ func TestSharpFigures_ReachesEveryCameraAndTheTelemetry(t *testing.T) {
 	w, p, start, tick := emptyWorld(t, cameras.Config{Tactical: cameras.Knobs{Resolution: 0.7}})
 	cam := p.New(cameras.FromAbove, camera.Config{})
 	start()
-	if got := report(p); got != "Picture: tactical, 0.70 of the pixels, the figures sharp, still" {
+	if got := report(p); got != "Picture: tactical\n0.70 of the pixels\nthe figures sharp\nstill" {
 		t.Fatalf("the telemetry says %q, want the figures sharp at 0.70", got)
 	}
 	w.Carrier().Put(command.Nobody, cameras.SharpFigures{Profile: cameras.Tactical, On: false})
@@ -458,7 +460,7 @@ func TestSharpFigures_ReachesEveryCameraAndTheTelemetry(t *testing.T) {
 		t.Error("after SharpFigures{On: false} the figures are drawn at every pixel, want the " +
 			"ground's resolution")
 	}
-	if got := report(p); got != "Picture: tactical, 0.70 of the pixels, still" {
+	if got := report(p); got != "Picture: tactical\n0.70 of the pixels\nstill" {
 		t.Errorf("the telemetry says %q, want nothing of the figures", got)
 	}
 	w.Carrier().Put(command.Nobody, cameras.SharpFigures{Profile: cameras.Tactical, On: true})
@@ -469,7 +471,7 @@ func TestSharpFigures_ReachesEveryCameraAndTheTelemetry(t *testing.T) {
 	}
 	w.Carrier().Put(command.Nobody, cameras.Picture{Profile: cameras.Tactical, Resolution: 1})
 	tick()
-	if got := report(p); got != "Picture: tactical, 1.00 of the pixels, still" {
+	if got := report(p); got != "Picture: tactical\n1.00 of the pixels\nstill" {
 		t.Errorf("at all the pixels the telemetry says %q, want nothing of the figures", got)
 	}
 }
@@ -660,14 +662,14 @@ func TestDress_ACameraRidingTakesTheRidingProfileAndComesBackTactical(t *testing
 func TestReporter_SaysTheLeadCamerasProfile(t *testing.T) {
 	p, cam, give := ridden(t, cameras.Knobs{Strategy: cameras.Uniform, Resolution: 0.7},
 		cameras.Knobs{Layers: true})
-	if got := report(p); got != "Picture: tactical, 0.70 of the pixels, the figures sharp, "+
+	if got := report(p); got != "Picture: tactical\n0.70 of the pixels\nthe figures sharp\n"+
 		"following a budget of 60 FPS" {
 		t.Errorf("over the entity the telemetry says %q, want the tactical profile's", got)
 	}
 	give(cameras.Ride{Camera: cam})
 	give(cameras.Ride{Camera: cam})
-	if got := report(p); got != "Picture: riding, 0.60/0.80/1.00 of the pixels in layers at 60% "+
-		"and 35%, still" {
+	if got := report(p); got != "Picture: riding\n0.60/0.80/1.00 of the pixels\nin layers at 60% "+
+		"and 35%\nstill" {
 		t.Errorf("riding in it the telemetry says %q, want the riding profile's", got)
 	}
 }
@@ -715,13 +717,15 @@ func TestLevers_GoCoarserBeforeThePicturesAndFinerAfterThemWhileFollowing(t *tes
 			"picture stepped", d.at, camera.ResolutionOf(cam))
 	}
 	p.Redraw(1 / cameras.ResolutionStep)
-	if d.at != 0 || camera.ResolutionOf(cam) != 1 {
-		t.Fatalf("finer: the dial at %d, the picture at %v; want the picture first, back at every "+
-			"pixel", d.at, camera.ResolutionOf(cam))
+	if d.at != 1 || camera.ResolutionOf(cam) != cameras.ResolutionStep {
+		t.Fatalf("finer: the dial at %d, the picture at %v; want the dial back first, the picture "+
+			"as it was", d.at, camera.ResolutionOf(cam))
 	}
+	d.at = 3
 	p.Redraw(1 / cameras.ResolutionStep)
-	if d.at != 1 {
-		t.Errorf("finer with the picture at every pixel: the dial at %d, want it turned up", d.at)
+	if d.at != 3 || camera.ResolutionOf(cam) != 1 {
+		t.Errorf("finer with the dial at its end: the dial at %d, the picture at %v; want the "+
+			"picture back at every pixel", d.at, camera.ResolutionOf(cam))
 	}
 	d.following, d.turns = false, nil
 	p.Redraw(cameras.ResolutionStep)

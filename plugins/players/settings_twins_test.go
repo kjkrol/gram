@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/ui"
 )
 
 // stubTunable is a handler with the settings given, one of the demo's plugins
@@ -41,7 +42,7 @@ func demoTunables() []plugin.CommandHandler {
 		&stubTunable{"gram.navigation", []control.Setting{sw("Routes of selected units", "")}},
 		&stubTunable{"gram.atmosphere", []control.Setting{sw("Clouds", control.Graphics),
 			sw("High clouds' shadows", control.Graphics), sw("Frozen light", ""),
-			rg("Hour of the frozen light", "")}},
+			rg("Hour", "")}},
 		&stubTunable{"gram.topography", []control.Setting{sw("Haze over the ground", control.Graphics),
 			rg("Full care out to", control.PictureCare), sw("Show the care", control.PictureAreas)}},
 		&stubTunable{"gram.vision", []control.Setting{sw("Cones of sight", "")}},
@@ -188,5 +189,40 @@ func TestSettings_TheListingFollowsTheScreenAsTheWindowGrows(t *testing.T) {
 	if e := s.Element("setting:Clock/Tempo"); e == nil ||
 		!within(e.Box(), geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(2560, 1440))) {
 		t.Error("the last setting is not on the full screen without scrolling")
+	}
+}
+
+func TestSettings_EverySectionIsFramedUnderALargerTitle(t *testing.T) {
+	p := demoRig(t)
+	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1920, ScreenHeight: 1080}}, &composed{}
+	p.settings.Open(rt, comp)
+	s := p.settings.screen
+	s.Drawers()
+	s.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(1920, 1080)))
+	boxOf := func(name string) geom.AABB {
+		t.Helper()
+		e := s.Element(name)
+		if e == nil {
+			t.Fatalf("no %s on the screen", name)
+		}
+		return e.Box()
+	}
+	for _, c := range []struct{ frame, heading, setting string }{
+		{"frame:Picture", "section:Picture", "setting:Picture/Riding/Resolution"},
+		{"frame:Atmosphere", "section:Atmosphere", "setting:Atmosphere/Hour"},
+	} {
+		frame := boxOf(c.frame)
+		inset := geom.NewAABB(frame.TopLeft.Add(geom.NewVec(sectionPadding, sectionPadding)),
+			frame.BottomRight.Sub(geom.NewVec(sectionPadding, sectionPadding)))
+		for _, name := range []string{c.heading, c.setting} {
+			if box := boxOf(name); !within(box, inset) {
+				t.Errorf("%s at %v lies out of its frame %v inset by the padding", name, box, frame)
+			}
+		}
+	}
+	title := boxOf("settings.title")
+	_, large := ui.DefaultTheme().Large.Measure("Settings")
+	if tall := title.BottomRight.Y - title.TopLeft.Y; tall <= float64(large) {
+		t.Errorf("the title is %v tall, want taller than the theme's large font's %v", tall, large)
 	}
 }

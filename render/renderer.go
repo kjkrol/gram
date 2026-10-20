@@ -33,3 +33,10 @@ type Laid interface {
 	DrawLayer(layer *Image, cam camera.Camera, at camera.Window)
 	DrawOver(screen *Image, cam camera.Camera)
 }
+
+// Glass is a Source drawing on the glass over its picture: DrawGlass draws onto dst, the picture
+// as it is shown, in its pixels, after everything the scene lays over the picture, so nothing
+// covers what it draws (the scroll zones).
+type Glass interface {
+	DrawGlass(dst *Image, cam camera.Camera)
+}

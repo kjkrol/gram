@@ -339,7 +339,7 @@ func (p *Plugin) ShowCare(shown bool) { p.Res.Settings.ShowCare = shown }
 // CareShown reports whether the care's bands are drawn.
 func (p *Plugin) CareShown() bool { return p.Res.Settings.ShowCare }
 
-// the rings of full care the keys step through, the last every sector
+// the rings of full care the frame budget steps through, the last every sector
 var careLadder = []int{1, 2, 3, 0}
 
 // careRung is the ladder's rung care stands on, or the next up
@@ -361,8 +361,17 @@ func (p *Plugin) careStepped(step int) int {
 }
 
 // Reporter is the topography's part of the telemetry panel: how far out the ground is shaded
-// with full care and how many sectors took each care in the last frame.
+// with full care and how many sectors took each care in the last frame, a line each.
 func (p *Plugin) Reporter() render.Reporter { return reporter{p} }
+
+// the cares by what they keep, the least first (terrain's ladder)
+var careNames = [terrain.FullCare + 1]string{
+	"least",
+	"no shade",
+	"flat mirror",
+	"no shore",
+	"everything",
+}
 
 type reporter struct{ p *Plugin }
 
@@ -374,12 +383,11 @@ func (r reporter) Report(line func(label, value string)) {
 		return
 	}
 	cared := r.p.ground.Cared()
-	counts := make([]string, 0, len(cared))
+	lines := []string{fmt.Sprintf("care within %d sectors", r.p.Care())}
 	for c := terrain.FullCare; c >= terrain.LeastCare; c-- {
-		counts = append(counts, strconv.Itoa(cared[c]))
+		lines = append(lines, careNames[c]+" "+strconv.Itoa(cared[c]))
 	}
-	line("Ground", fmt.Sprintf("care within %d sectors: %s (full to least)", r.p.Care(),
-		strings.Join(counts, " · ")))
+	line("Ground", strings.Join(lines, "\n"))
 }
 
 // Seed sets the ground's heights raised when the Stage starts fresh.

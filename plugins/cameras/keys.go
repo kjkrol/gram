@@ -27,31 +27,37 @@ type Keys struct {
 	CornersTurn bool
 	// Farther and Nearer pressed with Ctrl have the camera see a SightStep farther and nearer.
 	Farther, Nearer control.Key
-	// Finer and Coarser pressed with Alt have the picture drawn at a ResolutionStep more and fewer
-	// of its pixels.
-	Finer, Coarser control.Key
 }
 
 // DefaultKeys are W, S, A and D, = and - to zoom, Ctrl+= and Ctrl+- to see farther and nearer,
-// Alt+= and Alt+- for a finer and a coarser picture, the wheel, the middle drag and the edge.
+// the wheel, the middle drag and the edge.
 func DefaultKeys() Keys {
 	return Keys{
 		Up: control.KeyW, Down: control.KeyS, Left: control.KeyA, Right: control.KeyD,
 		ZoomIn: control.KeyEqual, ZoomOut: control.KeyMinus,
 		Farther: control.KeyEqual, Nearer: control.KeyMinus,
-		Finer: control.KeyEqual, Coarser: control.KeyMinus,
 		Wheel: true, Drag: true, Edge: true,
 	}
 }
 
 // Bindings are the keys bound to Pan and Zoom of the camera the player looks through.
-func (k Keys) Bindings() []control.Binding {
+func (k Keys) Bindings() []control.Binding { return k.bindings(nil) }
+
+// bindings are the keys' bindings, the edge's as p's settings say where p is given: scrolling
+// or still, at the speed set
+func (k Keys) bindings(p *Plugin) []control.Binding {
 	speed := k.ScrollSpeed
 	if speed == 0 {
 		speed = DefaultScrollSpeed
 	}
 	// the speed in the camera's pixels: the same on the screen at any resolution
 	step := func(c control.Context) float32 { return float32(c.Pixels(float64(speed))) }
+	edgeStep := func(c control.Context) float32 {
+		if p != nil && p.EdgeSpeed() > 0 {
+			return float32(c.Pixels(float64(p.EdgeSpeed())))
+		}
+		return step(c)
+	}
 	scroll := func(dx, dy float32) func(control.Context) (Pan, bool) {
 		return func(c control.Context) (Pan, bool) {
 			s := step(c)
@@ -88,17 +94,6 @@ func (k Keys) Bindings() []control.Binding {
 	}
 	see(k.Farther, "See farther", SightStep)
 	see(k.Nearer, "See nearer", 1/SightStep)
-	draw := func(key control.Key, label string, factor float32) {
-		if key != control.KeyUnknown {
-			press := control.KeyPress{Key: key, Mods: control.Mods{Alt: true}}
-			out = append(out, control.Build(press, label,
-				func(c control.Context) (Resolution, bool) {
-					return Resolution{Camera: c.Camera, Factor: factor}, true
-				}))
-		}
-	}
-	draw(k.Finer, "A finer picture", 1/ResolutionStep)
-	draw(k.Coarser, "A coarser picture", ResolutionStep)
 	if k.Wheel {
 		out = append(out, control.Build(control.Wheel{}, "Zoom", func(c control.Context) (Zoom, bool) {
 			if c.Wheel > 0 {
@@ -114,8 +109,13 @@ func (k Keys) Bindings() []control.Binding {
 	}
 	if k.Edge {
 		out = append(out, control.Build(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {
+			if p != nil && !p.EdgesScroll() {
+				return Pan{}, false
+			}
+			// the deeper in the zone, the faster: a quarter the speed at its inner bound
 			var dx, dy float32
-			side, speed := c.Edges(), step(c)
+			side := c.Edges()
+			speed := edgeStep(c) * float32(0.25+0.75*side.Depth)
 			if side.Corner != control.NoCorner {
 				sx, sy := side.Corner.Signs()
 				return Pan{Camera: c.Camera, Dx: sx * speed, Dy: sy * speed}, !k.CornersTurn
@@ -138,6 +138,9 @@ func (k Keys) Bindings() []control.Binding {
 			out = append(out, control.Build(control.CursorInCorner{},
 				"Turn the world in a corner: anticlockwise on the left, clockwise on the right",
 				func(c control.Context) (Turn, bool) {
+					if p != nil && !p.EdgesScroll() {
+						return Turn{}, false
+					}
 					sx, _ := c.Edges().Corner.Signs()
 					return Turn{Camera: c.Camera, Angle: sx * CornerStep}, sx != 0
 				}).In(camera.Outside))

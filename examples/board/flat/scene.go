@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/minimap"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
@@ -34,6 +35,7 @@ var (
 	railColor   = color.RGBA{R: 70, G: 50, B: 35, A: 255}
 	stoneColor  = color.RGBA{R: 150, G: 145, B: 135, A: 255}
 	reasonColor = color.RGBA{R: 20, G: 20, B: 20, A: 180}
+	pausedColor = color.RGBA{R: 120, G: 30, B: 30, A: 200}
 	minimapRim  = color.RGBA{R: 30, G: 30, B: 30, A: 255}
 )
 
@@ -52,14 +54,28 @@ func (m *mainScene) screen() *ui.Element {
 	a.board.WithAtmosphere(a.atmosphere)
 	a.vision.WithViews(render.Show(a.selection.IsSelected))
 
+	paused := func() bool { return a.world.Clock().State().Paused }
 	cam := a.cameras.New(cameras.FromAbove, camera.Config{})
 	return ui.Layers(
 		ui.Image(render.NewFeed(cam, a.world.Picture())).Input(a.players.Through(a.player)),
 		ui.Drawer(a.world.Clock().HUD()),
-		ui.TopRight(a.minimap.For(cam, a.player.ID).Masked(ui.Circle).Border(minimapRim, 2)).
-			Size(220, 220).
-			Margin(16),
+		ui.TopMiddle(beside(a.atmosphere.Bar(), paused)).Margin(8),
+		ui.TopRight(ui.Layers(
+			ui.Center(a.minimap.For(cam, a.player.ID).Masked(ui.Circle).Border(minimapRim, 2)).
+				Size(220, 220),
+			a.minimap.Compass(cam),
+		)).Size(220+2*minimap.Overhang, 220+2*minimap.Overhang).Margin(16-minimap.Overhang),
 		ui.BottomMiddle(a.bridges.Reason().Padding(6).Fill(reasonColor)).Margin(40),
 		ui.Center(a.bridges.Window()),
 	)
+}
+
+// beside is e with PAUSED on a red panel to its right while is says so: a slot as wide is kept
+// on either side, so e stays centred as the word comes and goes
+func beside(e *ui.Element, is func() bool) *ui.Element {
+	const pad, gap = 6, 8
+	w, _ := ui.DefaultTheme().Bold.Measure("PAUSED")
+	slot := float64(w) + 2*pad + gap
+	word := ui.HeadingOf(ui.While(is, "PAUSED")).Padding(pad).Fill(pausedColor)
+	return ui.Columns(ui.Fixed(slot, ui.Layers()), ui.Fit(e), ui.Fixed(slot, ui.MiddleRight(word)))
 }

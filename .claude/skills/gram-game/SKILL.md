@@ -104,9 +104,11 @@ which named elements are shown (`Persisted`/`Restore`). **The notation says what
 `ui.Share(n, el)`, `ui.Fixed(px, el)` (counted in what its split needs), `ui.Fit(el)`; an anchor
 wraps its element — `ui.BottomMiddle(el).Size(w, h).Margin(px)`, nine of them. Elements: `Panel`,
 `Label` (the theme's `Font`: `render.Font`, Go Regular, glyphs drawn on demand), `Heading` (the
-theme's `Bold`), `Title` (its `Large`, Go Bold at 20), `Image`, `Window`, `LabelOf`/`ButtonOf`/
-`WindowOf` (their words read off a `ui.Text` every frame; `ui.Of[T]` reads a component of the pinned
-entity; a Text saying nothing leaves the element out), `Button(label, cmds...)` (the scene's own
+theme's `Bold`), `Title` (its `Large`, Go Bold at 20), `Image` (a picture; a source with
+`DrawGlass(dst)`, as a `render.Feed` with a `render.Glass` source, draws on it last of all,
+over whatever lies over the picture), `Window`, `LabelOf`/`ButtonOf`/
+`WindowOf`/`HeadingOf` (their words read off a `ui.Text` every frame; `ui.Of[T]` reads a component of the pinned
+entity, `ui.While(on, text)` says text while `on()`; a Text saying nothing leaves the element out), `Button(label, cmds...)` (the scene's own
 `ui.Show`/`Hide`/`Toggle{Name}`, or any command through `Issue`; no callbacks into the game),
 `Blank`, `Drawer(renderer)`, `Scroll(el)` (an element taller than its box, scrolled by its bar or
 the wheel, its content clipped to the box); the controls `Checkbox(label, get, set)`, `Slider(min, max, step,
@@ -131,8 +133,12 @@ in sight (`ui.Owner`: a player's picture shows its own entities and nobody's);
 `cameras.CenterOn`). A pinned element's button gives every `ceremony.Command` for `ui.It` for the
 entity it is shown for (`ceremony.ID(id)`); a plugin's own command that is a `ui.About`
 (`dialog.Choose`) gets the entity the same way. Every demo shows its world through a ui scene: the
-feed through a camera made beside it, a backdrop `Blank`, the telemetry and the clock's HUD as
-`ui.Drawer`s.
+feed through a camera made beside it, a backdrop `Blank`, the clock's HUD as a `ui.Drawer`, and
+under an atmosphere its HUD elements (2026-10-20: `a.atmosphere.Bar()` at an edge, or
+`TimeOfDay()`, `Date()` and `Weather()` apart by the corners; board/topography's `-hud
+bar|widgets` flag beside `-look`). A demo with a big screen may compose it in a subpackage of
+its own (board/topography's `hud`: `hud.Screen(hud.Deps{...})`), `scene.go` keeping the looks
+and the camera; the telemetry panel is the plugin's scene, not the demo's.
 
 ## Figures and tiles
 
@@ -201,25 +207,28 @@ scratchpad and run it from its directory under `timeout 5s`, exit 124 alive, gre
   `HandleEvents` (`players.Handle`) gets the `Composition` (`Show`/`Hide`/`Active`), so a key
   that shows another scene is carried there (K, F10: `p.carry` in `Handle`), and works while
   the engine is paused (input runs before the pause check) but not while another scene is
-  active. A plugin's queue drained in `RunPlan` (board's B, vision's Shift+C) does nothing
+  active. A plugin's queue drained in `RunPlan` (the board's `Grid`, vision's `Cones`) does nothing
   under the engine's pause — which is why the settings screen (`players.SettingsScene`, F10)
   holds the game in the clock's tactical pause instead: `RunPlan` runs, the controls' commands
-  are carried out, the picture redraws. It forwards its input to its `ui.Scene` (the Shortcuts
+  are carried out, the picture redraws. A plugin binds no key to what its settings set (the
+  user's word, 2026-10-20): the screen is where a player sets them; a game may bind a key of
+  its own to the command. It forwards its input to its `ui.Scene` (the Shortcuts
   scene does not) and calls `p.carry` itself, so the players' own commands (`KeepRunning`,
   `telemetry.Panel`) work while it is up.
 - K lists "General" = bindings whose handler is players or nil (`shortcuts.go` `groups`);
   `handlerOf` searches only the handlers given to `players.NewPlugin`: a CommandHandler merely
   `Use`d is still carried (`initializer.go`), but listed under "General" and left out of
-  `Defaults()`. `control.Mods` has `Ctrl` and `Alt` (unused so far; `withMods` writes
-  "Ctrl+"); `SceneKey` compares Shift alone.
+  `Defaults()`. `control.Mods` has `Ctrl` (the cameras' sight) and `Alt` (no default
+  key; `withMods` writes "Ctrl+Alt+Shift+"); `SceneKey` compares Shift alone.
 - Every scene's `Drawers()`, hidden ones included, is built and `Init`ed once on entering the
   Stage (`stage_runtime.go`), the world's picture once however many scenes show it;
   `ui.Scene.Replace` does not re-init drawers. A `ui.LabelOf(Text)`
   reads its words several times a frame (`needs`, `absent`, `draw`): cache per frame.
   `ui.Drawer(renderer)` ignores its box and draws on the whole screen; `render.DebugPrint` starts
   at the corner, which is why the old telemetry sat top-left.
-- Telemetry numbers: `render.ActualFPS/ActualTPS` (set by the engine once a second with one
-  rate for both), `render.Spent()` (where a frame's time went, set beside them),
+- Telemetry numbers (the panel's basic mode shows FPS, TPS, Frame and Entities, the extended
+  one every line; a many-valued line is a value of lines under its label): `render.ActualFPS/
+  ActualTPS` (set by the engine once a second with one rate for both), `render.Spent()` (where a frame's time went, set beside them),
   `game.TPS.Ticks` (`ctx.TPS()`, stale under pause), `world.Res.Telemetry.Count` (spawned
   entities), `view.View.In.Len()` per camera when culled. `render.Reporter` needs
   `Init(*goke.SysInit)` (climate's builds a query), given through a layer's `Init`: the

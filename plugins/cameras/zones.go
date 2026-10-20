@@ -2,7 +2,6 @@ package cameras
 
 import (
 	"image/color"
-	"math"
 
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
@@ -12,93 +11,86 @@ import (
 )
 
 // Zones shows the strips at the picture's edges the cursor scrolls from and the squares at its
-// corners it turns from, a translucent yellow, or hides them (Settings.Zones). Shift+H by
-// default, in turn.
+// corners it turns from, a translucent yellow deepening to the edge as the scroll quickens, or
+// hides them (Settings.Zones). The settings screen alone.
 type Zones struct{ Shown bool }
 
-func (Zones) Command() {}
+// EdgeScroll has the cursor at a picture's edge scroll the camera, or not (Settings.StillEdges).
+// The settings screen alone.
+type EdgeScroll struct{ On bool }
 
-var _ command.Command = Zones{}
+// EdgeSpeed sets how fast the cursor at a picture's edge scrolls, screen pixels a tick at the
+// very edge (Settings.EdgeSpeed); 0, the keys' own. The settings screen alone.
+type EdgeSpeed struct{ Speed float32 }
+
+func (Zones) Command()      {}
+func (EdgeScroll) Command() {}
+func (EdgeSpeed) Command()  {}
 
 var (
-	zoneColor   = color.RGBA{R: 255, G: 220, B: 60, A: 10}
-	cornerColor = color.RGBA{R: 255, G: 220, B: 60, A: 10}
+	_ command.Command = Zones{}
+	_ command.Command = EdgeScroll{}
+	_ command.Command = EdgeSpeed{}
 )
 
-// pixels: the gap between a strip and the corners beside it, and the rounding of every zone
-const (
-	zoneGap   = 6
-	zoneRound = 10
+// a zone's colour at the picture's edge, and clear at its inner bound
+var (
+	zoneColor = color.RGBA{R: 255, G: 220, B: 60, A: 40}
+	zoneClear = color.RGBA{}
 )
 
-// the zones' level among the marks: over every other, the selection's box included
-const zonesLevel = 3
+// pixels: the gap between a strip and the corners beside it
+const zoneGap = 6
 
-// zonesView lays the scroll zones over the picture of the camera being composed.
+// zonesView draws the scroll zones on the glass over every picture but one of the whole world:
+// in shown pixels, over whatever the scene lays over the picture (render.Glass).
 type zonesView struct{ settings *Settings }
 
 var _ render.Source = (*zonesView)(nil)
-var _ render.Overlying = (*zonesView)(nil)
+var _ render.Glass = (*zonesView)(nil)
 
 func (*zonesView) Init(*goke.SysInit) {}
 
-// Overlies: drawn over the figures' ground (render.Overlying).
-func (*zonesView) Overlies() {}
+// Compose composes nothing: the zones go on the glass.
+func (*zonesView) Compose(*render.Frame, camera.Camera) {}
 
-func (v *zonesView) Compose(f *render.Frame, cam camera.Camera) {
-	if !v.settings.Zones || camera.IsCropped(cam) {
+// DrawGlass draws the zones over dst, the picture as shown: the strips control.EdgeMargin wide,
+// the corners control.CornerSide a side, each clear inside and zoneColor at the edge.
+func (v *zonesView) DrawGlass(dst *render.Image, cam camera.Camera) {
+	if !v.settings.Zones || fitsWhole(cam) {
 		return
 	}
-	w, h := cam.Viewport()
-	// the zones in shown pixels, drawn in the camera's: how far in a strip reaches, a corner's
-	// square, where a strip stops from an edge
-	k := camera.ResolutionOf(cam)
-	thick := float32(control.EdgeMargin) * k
-	side := float32(control.CornerSide(float64(w/k), float64(h/k))) * k
-	ends := side + zoneGap*k
-
-	topStrip := zone{left: ends, top: 0, right: w - ends, bottom: thick}
-	bottomStrip := zone{left: ends, top: h - thick, right: w - ends, bottom: h}
-	leftStrip := zone{left: 0, top: ends, right: thick, bottom: h - ends}
-	rightStrip := zone{left: w - thick, top: ends, right: w, bottom: h - ends}
-
-	topLeftCorner := zone{left: 0, top: 0, right: side, bottom: side}
-	topRightCorner := zone{left: w - side, top: 0, right: w, bottom: side}
-	bottomLeftCorner := zone{left: 0, top: h - side, right: side, bottom: h}
-	bottomRightCorner := zone{left: w - side, top: h - side, right: w, bottom: h}
-
-	for _, strip := range []zone{topStrip, bottomStrip, leftStrip, rightStrip} {
-		strip.draw(f, zoneColor)
-	}
-	corners := []zone{topLeftCorner, topRightCorner, bottomLeftCorner, bottomRightCorner}
-	for _, corner := range corners {
-		corner.draw(f, cornerColor)
-	}
-}
-
-// a rectangle of the picture, in its pixels, y down the screen
-type zone struct{ left, top, right, bottom float32 }
-
-// draw fills the zone in c with its corners rounded by zoneRound, a mark on top
-func (z zone) draw(f *render.Frame, c color.RGBA) {
-	x0, y0, x1, y1 := z.left, z.top, z.right, z.bottom
-	if x1 <= x0 || y1 <= y0 {
-		return
-	}
-	rad := min(float32(zoneRound), (x1-x0)/2, (y1-y0)/2)
-	const arc = 20 // segments a corner
-	var pts [][2]float32
-	centres := [4][2]float32{
-		{x1 - rad, y0 + rad}, {x1 - rad, y1 - rad}, {x0 + rad, y1 - rad}, {x0 + rad, y0 + rad},
-	}
-	for k, centre := range centres {
-		for i := 0; i <= arc; i++ {
-			a := (float64(k) + float64(i)/arc - 1) * math.Pi / 2
-			x, y := centre[0]+rad*float32(math.Cos(a)), centre[1]+rad*float32(math.Sin(a))
-			pts = append(pts, [2]float32{x, y})
+	b := dst.Bounds()
+	w, h := float32(b.Dx()), float32(b.Dy())
+	thick := float32(control.EdgeMargin)
+	side := float32(control.CornerSide(float64(w), float64(h)))
+	ends := side + zoneGap
+	// each zone's corners top-left, top-right, bottom-left, bottom-right, coloured where they lie
+	// on the picture's edge
+	zone := func(x0, y0, x1, y1 float32) {
+		if x1 <= x0 || y1 <= y0 {
+			return
 		}
+		at := func(x, y float32) color.RGBA {
+			if x == 0 || x == w || y == 0 || y == h {
+				return zoneColor
+			}
+			return zoneClear
+		}
+		ox, oy := float32(b.Min.X), float32(b.Min.Y)
+		render.FillQuad(dst, render.Corners{{ox + x0, oy + y0}, {ox + x1, oy + y0},
+			{ox + x0, oy + y1}, {ox + x1, oy + y1}},
+			[4]color.RGBA{at(x0, y0), at(x1, y0), at(x0, y1), at(x1, y1)})
 	}
-	f.Fan(render.OnTop(zonesLevel), pts, c)
+	zone(ends, 0, w-ends, thick)
+	zone(ends, h-thick, w-ends, h)
+	zone(0, ends, thick, h-ends)
+	zone(w-thick, ends, w, h-ends)
+
+	zone(0, 0, side, side)
+	zone(w-side, 0, w, side)
+	zone(0, h-side, side, h)
+	zone(w-side, h-side, w, h)
 }
 
 // ShowZones shows the scroll zones over every picture, or hides them (Settings.Zones).
@@ -107,6 +99,22 @@ func (p *Plugin) ShowZones(shown bool) { p.Res.Settings.Zones = shown }
 // ZonesShown reports whether the scroll zones are shown.
 func (p *Plugin) ZonesShown() bool { return p.Res.Settings.Zones }
 
+// ScrollFromEdges has the cursor at a picture's edge scroll the camera, or not
+// (Settings.StillEdges); on from the start.
+func (p *Plugin) ScrollFromEdges(on bool) { p.Res.Settings.StillEdges = !on }
+
+// EdgesScroll reports whether the cursor at a picture's edge scrolls the camera.
+func (p *Plugin) EdgesScroll() bool { return !p.Res.Settings.StillEdges }
+
+// SetEdgeSpeed sets how fast the cursor at the very edge scrolls, screen pixels a tick
+// (Settings.EdgeSpeed); 0 or less, the keys' own.
+func (p *Plugin) SetEdgeSpeed(speed float32) { p.Res.Settings.EdgeSpeed = max(speed, 0) }
+
+// EdgeSpeed is how fast the cursor at the very edge scrolls, 0 for the keys' own.
+func (p *Plugin) EdgeSpeed() float32 { return p.Res.Settings.EdgeSpeed }
+
 func (p *Plugin) switchZones() {
 	p.zones.Drain(func(i command.Issued[Zones]) { p.ShowZones(i.Command.Shown) })
+	p.edgeScrolls.Drain(func(i command.Issued[EdgeScroll]) { p.ScrollFromEdges(i.Command.On) })
+	p.edgeSpeeds.Drain(func(i command.Issued[EdgeSpeed]) { p.SetEdgeSpeed(i.Command.Speed) })
 }

@@ -71,6 +71,56 @@ etap T of `doc/plans-perf.md`)
   lamps, then the grid, the clouds' shadow and the water's mirror. The "Ground" line counts the
   sectors from full to least; "Show the care" colours the bands.
 
+**The HUD: the atmosphere's widgets, the telemetry in two modes, north on the minimap**
+(2026-10-20, etap V of the plan)
+- The atmosphere gives a scene its HUD as elements to place (`TimeOfDay`, `Date` with the
+  moon's phase beside it as an icon while the moon runs, `Weather`, absent without a running
+  climate, and `Bar`, the three on one panel for the top of the screen); the old `HUD()`
+  renderers are gone. `Reporter()` lists the daylight (the sky's line, "Light" before), the
+  clouds and their shadows alone: the time, the season, the moon and the weather are the
+  widgets' (`Calendar().Reporter()`, `Climate().Reporter()` for a game without them).
+- The telemetry panel has two modes, the basics (FPS, TPS, Frame, Entities) and everything
+  (`telemetry.Mode`, `Settings{Extended}` saved with the game, `Panel{Shown, Extended}`); ~
+  cycles hidden, the basics, everything; the settings screen has a switch and a choice for it.
+  Every many-valued line is a value of lines under its label, as Frame's: the light's, the
+  cameras' Picture, the topography's Ground (a care a line), the world's sectors, the
+  calendar's season.
+- The minimap marks north: `Compass(cam)`, a red triangle hung on the circle's edge three
+  quarters out and pointing north, turned round the circle and with it as the minimap turns,
+  laid over the minimap by the scene in a box `minimap.Overhang` bigger on every side.
+- The telemetry panel draws itself: the labels bold, a line too wide wrapped with its rest
+  indented, the plate shrinking back as the mode goes to the basics. The settings screen's
+  atmosphere section chooses the weather by name (`Climate.Now()`), under the pause too; its
+  slider "Hour" shows the day's time as it goes and, moved, freezes the light at that hour
+  (`Hour{At}` freezes; "Frozen light" beside it lets the day go on).
+- The clouds follow the frame budget by their pixels first: "Clouds drawn at" a quarter, a
+  sixth or an eighth of them (`CloudsDrawnAt{Coarse}`, `Settings.CloudCoarse`,
+  `aloft.Renderer.Coarse`), the lever stepping down (4, 1), (6, 1), (8, 1), (8, 0.5) of
+  (pixels, reach) and back, the bodies' reach cut last and never under half the sight, the look
+  never; the demo starts the clouds still. "Show the care" sits under Picture/Care beside the
+  care's following.
+- P pauses too (Shift+P stays; the start demo's panel moved to I); the demos say PAUSED beside
+  the atmosphere's bar or the date, on the right, while the clock stands (`ui.HeadingOf`,
+  `ui.While`). The settings screen's title is larger, on a panel, and every top section is
+  framed; a border is stroked inside its box, so a clip at the edge loses none of it. The
+  scroll zones are twice as wide (`control.EdgeMargin` 60) and drawn as a gradient, clear
+  inside and yellow at the edge, on the glass over the picture (`render.Glass`,
+  `Feed.DrawGlass`, drawn by `ui` after everything laid over the picture, so the HUD never
+  covers them; `render.FillQuad`); the edge scroll starts at a quarter of its speed at the inner
+  bound and reaches it at the edge (`control.Edges.Depth`). The cameras' section has three
+  settings for the zones: "Scroll zones" (scrolling at all, `EdgeScroll{On}`), "Show the
+  zones" (`Zones{Shown}`) and "Edge scroll speed" (`EdgeSpeed{Speed}`, 2 to 24 px a tick).
+- An option on the settings screen has no key any more: Shift+X the boxes, Shift+H the scroll
+  zones, B the grid, Shift+O the cells held, Shift+R the routes, Shift+C the cones, Shift+W the
+  weather and Shift+U the rain, Shift+V the clouds' look, Shift+S the high clouds' shadows, P the
+  frozen light and Shift+] and Shift+[ its hour, Alt+= and Alt+- the picture's resolution, Alt+A
+  its following the frame budget, Alt+Shift+= and Alt+Shift+- the ground's care, Ctrl+F the
+  haze, H the coarse shadows, Shift+L the lamps' shadows, Shift+G the sectors, Ctrl+G their
+  bands, Shift+M the minimap shown and Ctrl+M its turning are gone from the plugins' default
+  bindings (`cameras.Keys` loses `Finer` and `Coarser`). The commands stay, for a game to bind a
+  key of its own; the pause, the tempo, the telemetry panel, the menus, the tools, the views and
+  the motion keep theirs.
+
 **The picture by the camera's state: profiles, footed layers, one composition** (2026-10-20,
 etap U of `doc/plans-perf.md`)
 - The picture's rings are layers (`camera.Layer`, `Layered`, `LayersOf`; the cameras' `InLayers`,
@@ -99,7 +149,19 @@ etap U of `doc/plans-perf.md`)
   (K) too. A menu up (F10, K) lets the cursor go while riding.
 - The frame budget turns levers besides the pictures' resolution (`cameras.Config.Levers`,
   `cameras.Lever{Following, Coarser, Finer}`): coarser the levers first, finer the pictures
-  first. The topography is one: "Full care follows the frame budget" (`AdaptCare{On}`,
+  first; the levers return first too, so the care takes the rate's wavering and the pictures
+  move under a lasting change alone. The thresholds the following steps at are settings,
+  "Coarser under" and "Finer over" (`Thresholds{Under, Met}`, 92% and 98% of the budget by
+  default). The light and the atmosphere are levers too: "Shadows follow the frame budget"
+  (`AdaptShadows{On}`: the lamps' shadows dropped first, the shadows baked coarse next) and
+  "Clouds follow the frame budget" (`AdaptClouds{On}`: the clouds are bodies out to a share of
+  the camera's sight from where it looks and a sheet beyond, "Clouds as bodies out to",
+  `CloudReach{Share}`, the budget halving the reach and doubling it back, the look as set);
+  the clouds' shadows on the ground and the figures are switches too (`GroundShade{On}`,
+  `FigureShade{On}`); the shadows' settings sit under `Picture/Shadows`
+  (`control.PictureShadows`), the clouds' beside the weather in the atmosphere's section.
+  board/topography starts with all three following, in the order care, shadows, clouds. The
+  topography is one: "Full care follows the frame budget" (`AdaptCare{On}`,
   `Settings.AdaptiveCare`) steps the full care's reach down its ladder as the rate falls under
   and back up as it stays over, the slider beside it showing it and setting it by hand. The
   rate the adapter follows is averaged over a window set on the settings screen, "Samples the

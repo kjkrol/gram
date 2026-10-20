@@ -25,10 +25,14 @@
 //
 // # Commands
 //
-// [Freeze] stops the light of the day (P), [Later] and [Earlier] move a frozen light half an hour
-// (Shift+], Shift+[), [ChangeWeather] throws the next weather (Shift+W) and [SetWeather] names
-// one, either over the world within seconds; [Clouds] has the clouds drawn in the next
-// [CloudLook] (Shift+V).
+// [Freeze] stops the light of the day, [Hour] freezes it at an hour, [ChangeWeather]
+// throws the next weather and [SetWeather] names one, either over the world within seconds;
+// [Clouds] has the clouds drawn in a [CloudLook], [CloudsDrawnAt] at a quarter, a sixth or an
+// eighth of the pixels, [CloudReach] as bodies out to a share of the sight; [AdaptClouds] has
+// them follow the cameras' frame budget, a cameras.Lever: drawn at fewer pixels first, as bodies
+// to half the sight last, the look never. None has a key of its own: the settings screen sets
+// the light, the clouds and the weather; its hour shows the day's time and, moved, freezes the
+// light there.
 //
 // # Drawing
 //
@@ -40,8 +44,21 @@
 // the map from above, where they veiled it; and the rain and the snow before it
 // (plugins/atmosphere/precipitation); whoever draws the ground shadows it under the clouds, each
 // layer's along the way to the sun.
-// [Plugin.Reporter] adds the time, the moon, the light, the weather and how the clouds look and
-// share their bands to the telemetry panel, [Plugin.HUD] the calendar to a scene (ui.Drawer).
+// [Plugin.Reporter] adds the daylight, how the clouds look and share their bands and whose
+// shadows they cast to the telemetry panel; a game showing the time, the season, the moon and
+// the weather nowhere else adds the calendar's and the climate's reporters too
+// ([Plugin.Calendar], [Plugin.Climate]).
+//
+// # HUD
+//
+// The atmosphere gives a scene elements to place, each on a see-through panel as the
+// telemetry's: [Plugin.TimeOfDay] the hour of the game's day, [Plugin.Date] the season and the
+// date with the moon's phase beside them while the moon runs, [Plugin.Weather] the weather, the
+// temperature and the wind, left out while none of the climate's workings run, and [Plugin.Bar]
+// the three side by side on one panel, for an edge of the screen (ui.TopMiddle,
+// ui.BottomMiddle). The weather is
+// read through a drawer of its own: it goes in the tree a scene is made with, never one
+// ui.Scene.Replace puts in.
 //
 // # Sky
 //
@@ -55,7 +72,8 @@
 // atmosphere's own entity, once a step), weathering.Overhead (a board's cell, once a second, with
 // WithWeathering). Knobs, for an effect's Alter: sky.Moon and climate.Spread (on the atmosphere's
 // own entity), weathering.Wring (on every cell of the board). Commands, a player's: [Freeze],
-// [Hour], [ChangeWeather], [SetWeather], [Downpour], [Clouds], [HighShade]. Settings
-// ([Settings], saved with the game, in [Resources]): the frozen light and its hour, the clouds'
-// look, the high clouds' shadows.
+// [Hour], [ChangeWeather], [SetWeather], [Downpour], [Clouds], [CloudsDrawnAt], [CloudReach],
+// [AdaptClouds], [GroundShade], [FigureShade], [HighShade]. Settings ([Settings], saved with
+// the game, in [Resources]): the frozen light and its hour, the clouds' look, pixels and reach,
+// their shadows, their following.
 package atmosphere

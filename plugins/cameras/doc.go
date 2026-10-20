@@ -89,27 +89,29 @@
 //
 // [Keys] are a player's keys to its camera: four keys held scrolling it, the wheel zooming about
 // the cursor, the middle drag panning, the cursor at an edge scrolling and in a corner scrolling
-// slantwise, or turning as Q and E do (Keys.CornersTurn), two with Ctrl seeing farther and nearer,
-// two with Alt drawing a finer and a coarser picture. [DefaultKeys] are W, S, A, D, = and -,
-// Ctrl+= and Ctrl+-, Alt+= and Alt+-, with all three; [Plugin.DefaultBindings] are those, the
-// corners turning where the Config turns, Shift+H, Alt+A (the resolution of the camera's
-// profile still, following the frame budget, in layers, in turn) and the views' keys the Config
-// gives: Q and E
-// turning, R looking down more steeply and F flatter, Tab switching between the orthographic
-// view and the perspective, V riding, the mouse looking round inside an entity.
+// slantwise, or turning as Q and E do (Keys.CornersTurn), two with Ctrl seeing farther and
+// nearer. [DefaultKeys] are W, S, A, D, = and -, Ctrl+= and Ctrl+-, with all three;
+// [Plugin.DefaultBindings] are those, the corners turning where the Config turns, and the views'
+// keys the Config gives: Q and E turning, R looking down more steeply and F flatter, Tab
+// switching between the orthographic view and the perspective, V riding, the mouse looking round
+// inside an entity. The scroll zones and the pictures' resolution have no key: the settings
+// screen sets them.
 //
 // # Vocabulary
 //
 // Commands, a player's through its camera: [Pan], [Zoom], [CenterOn], [CenterAt], [View], [Turn],
 // [Tilt],
 // [LookFrom], [LookAt], [Ride], [Look], [Sight], [Resolution]; a player's about a [Profile]'s
-// pictures: [Adapt] (the resolution following the frame budget as a [Strategy] says, Alt+A),
+// pictures: [Adapt] (the resolution following the frame budget as a [Strategy] says),
 // [Picture] (the resolution), [SharpFigures] (the figures at every pixel), [Layers] (drawn in
 // layers), [LayerShares] and [LayerResolutions] (the layers' shares of the frame and
 // resolutions), [ShowLayers] (a look: the layers outlined); about every picture: [Budget] (the
-// frame budget), [Zones] (a look: the scroll zones over every picture, Shift+H); [Follow] (a
-// player's, or an entity's own fastening the camera over itself).
-// Settings ([Settings], saved with the game, in [Resources]): the zones, the frame budget, the
-// layers shown and each profile's [Knobs]: the strategy, the resolution, the figures at every
-// pixel, the picture drawn in layers, the layers' shares and resolutions.
+// frame budget), [Zones] (a look: the scroll zones on the glass over every picture, over
+// whatever a scene lays on it), [EdgeScroll] (the cursor at the edge scrolling, or not),
+// [EdgeSpeed] (how fast at the very edge, a quarter of it at the zone's inner bound); [Follow]
+// (a player's, or an entity's own fastening the camera over itself).
+// Settings ([Settings], saved with the game, in [Resources]): the zones scrolling, shown and
+// their speed, the frame budget, the layers shown and each profile's [Knobs]: the strategy, the
+// resolution, the figures at every pixel, the picture drawn in layers, the layers' shares and
+// resolutions.
 package cameras

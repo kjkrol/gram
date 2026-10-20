@@ -2,11 +2,9 @@ package board_test
 
 import (
 	"image/color"
-	"reflect"
 	"testing"
 
 	"github.com/kjkrol/ceremony/command"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
 	"github.com/kjkrol/gram/plugins/board/look"
@@ -16,11 +14,6 @@ import (
 
 func TestGrid_ShowsAndHidesTheGrid(t *testing.T) {
 	bw, _ := boardtest.SquareWorld(t)
-	keys := bw.Board.DefaultBindings()
-	if len(keys) == 0 || keys[0].Type() != reflect.TypeFor[board.Grid]() ||
-		keys[0].Trigger != control.Trigger(control.KeyPress{Key: control.KeyB}) {
-		t.Fatalf("the board's default keys are %+v, want B for Grid first", keys)
-	}
 	if err := bw.World.Carry(bw.Board); err != nil { // as the engine does for every plugin used
 		t.Fatal(err)
 	}
@@ -39,12 +32,6 @@ func TestGrid_ShowsAndHidesTheGrid(t *testing.T) {
 
 func TestHolds_ShowsAndHidesTheCellsHeld(t *testing.T) {
 	bw, _ := boardtest.SquareWorld(t, boardtest.Mover{})
-	keys := bw.Board.DefaultBindings()
-	shiftO := control.KeyPress{Key: control.KeyO, Mods: control.Mods{Shift: true}}
-	if len(keys) != 2 || keys[1].Type() != reflect.TypeFor[board.Holds]() ||
-		keys[1].Trigger != control.Trigger(shiftO) {
-		t.Fatalf("the board's default keys are %+v, want Shift+O for Holds second", keys)
-	}
 	if err := bw.World.Carry(bw.Board); err != nil {
 		t.Fatal(err)
 	}

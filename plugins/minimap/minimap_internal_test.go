@@ -115,17 +115,6 @@ func TestMinimap_SwitchShowsAndHidesItsPicture(t *testing.T) {
 	if e.Hits(e.Box().TopLeft) {
 		t.Error("hidden, the minimap's picture is hit")
 	}
-	keys := map[control.Mods]command.Command{}
-	for _, b := range p.DefaultBindings() {
-		press := b.Trigger.(control.KeyPress)
-		if press.Key == control.KeyM {
-			keys[press.Mods], _ = b.Build(control.Context{})
-		}
-	}
-	if keys[control.Mods{Shift: true}] != (Switch{Shown: true}) ||
-		keys[control.Mods{Ctrl: true}] != (Turn{On: true}) {
-		t.Errorf("M builds %v, want Switch with Shift and Turn with Ctrl", keys)
-	}
 }
 
 // p with its commands carried by w's carrier, as the players have them
@@ -382,5 +371,42 @@ func TestGround_LiesTurnedAsTheMinimapIs(t *testing.T) {
 			t.Errorf("%s: the red half (%v at (%d, %d)) is not at the %s or the green (%v at "+
 				"(%d, %d)) at the %s", c.upAndRound, r, c.x0, c.y0, c.red, g, c.x1, c.y1, c.green)
 		}
+	}
+}
+
+func TestCompass_HangsOnTheCirclesEdgePointingNorthTurningWithTheMinimap(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	p := NewPlugin(w, nil, Config{Reach: 100, Turning: true})
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	cam.SetViewport(400, 300)
+	p.For(cam, command.Issuer(0))
+	if e := p.Compass(cam); e == nil {
+		t.Fatal("no compass for the camera's minimap")
+	}
+	surface := &compass{m: p.maps[0]}
+	side := 220 + 2*Overhang
+	surface.Resize(side, side)
+	out := 110 + float64(northTall)*(northOut-0.5)
+	mid := float64(side) / 2
+	x, y := surface.at()
+	if dx, dy := float64(x)-mid, float64(y)-mid; math.Abs(dx) > 0.5 || math.Abs(dy+out) > 0.5 {
+		t.Errorf("north up, the triangle's middle is (%.1f, %.1f) from the box's middle, want "+
+			"(0, %.1f): straight up, a quarter of it in", dx, dy, -out)
+	}
+	p.maps[0].of = turned{cam, 1, 0}
+	p.maps[0].follow(true)
+	x, y = surface.at()
+	if dx, dy := float64(x)-mid, float64(y)-mid; math.Abs(dx+out) > 0.5 || math.Abs(dy) > 0.5 {
+		t.Errorf("headed east, the triangle's middle is (%.1f, %.1f) from the box's middle, want "+
+			"(%.1f, 0): on the left", dx, dy, -out)
+	}
+	if pts := surface.points(); pts[0][0] >= float32(mid-out) {
+		t.Errorf("headed east, the tip at %v points %v, want left, past the base", pts[0], pts[1:])
+	}
+	if img := surface.Draw(); img == nil || img.Bounds().Dx() != side {
+		t.Errorf("the compass drew %v, want a picture %d wide", img, side)
 	}
 }

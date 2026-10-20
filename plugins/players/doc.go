@@ -65,11 +65,13 @@
 // plugin for its own; Esc or F10 closes it.
 // While it is up the game stands in the tactical pause, unless the players' own setting says it
 // runs on ([Settings], [KeepRunning]); the players' settings are saved with the game, as every
-// plugin's. Keys that are no command to a plugin are the game's own: [SceneKeys], given to
-// [Plugin.OwnKeys], run by Handle and listed under "Game" with what the Stage binds in its
-// Controls section. [Plugin.GameBindings] are K, F10, ~ (the telemetry panel, telemetry.Panel,
-// carried here: it needs the scene's Composition), F5 game.Save, F9 game.Load and Shift+Esc
-// game.Quit, the same in every game. [Written] is a trigger as the list writes it.
+// plugin's. The players' settings show the telemetry panel or hide it and choose what it shows,
+// the basics or everything. Keys that are no command to a plugin are the game's own:
+// [SceneKeys], given to [Plugin.OwnKeys], run by Handle and listed under "Game" with what the
+// Stage binds in its Controls section. [Plugin.GameBindings] are K, F10, ~ (the telemetry panel,
+// telemetry.Panel, carried here: it needs the scene's Composition; from hidden to the basics, to
+// everything and to hidden again), F5 game.Save, F9 game.Load and Shift+Esc game.Quit, the same
+// in every game. [Written] is a trigger as the list writes it.
 //
 // # Vocabulary
 //

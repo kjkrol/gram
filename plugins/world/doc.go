@@ -64,8 +64,8 @@
 //
 // # Clock and the tick
 //
-// The world keeps the tactical clock ([Plugin.Clock]) and the commands [Pause], [Faster] and
-// [Slower] on it. [Plugin.RunPlan] runs the tick: the clock's commands, the sectors and the views
+// The world keeps the tactical clock ([Plugin.Clock]) and the commands [Pause] (P, Shift+P),
+// [Faster] and [Slower] on it. [Plugin.RunPlan] runs the tick: the clock's commands, the sectors and the views
 // at once; in every step of the simulation the plans, the spawns and the despawns, the commands
 // about effects, the clock's moments and the effects, the space told of every entity after a
 // spawn or a despawn. [Plugin.Carrier] is the Stage's one carrier of commands.
@@ -98,10 +98,10 @@
 // A system adds the pace of its policy ([Plugin.Pace]) to its query and walks it with
 // goke.Query.Paced; the world's plans and effects go Paced. [Plugin.Sectors] lays them on the
 // telemetry panel. A camera's View in such a world is of the sectors it sees, each at a level
-// (view.NewSeen); [Plugin.Seen] lays the first camera's on the panel. [SwitchSectors] (Shift+G)
-// shows the sectors over the ground by their bands or by how the camera sees them
-// ([Plugin.ShowSectors]); [SwitchBands] (Ctrl+G) switches the bands off, every sector in the
-// first, to weigh what they spare ([Plugin.SetBanded]).
+// (view.NewSeen); [Plugin.Seen] lays the first camera's on the panel. [SwitchSectors] shows the
+// sectors over the ground by their bands or by how the camera sees them ([Plugin.ShowSectors]);
+// [SwitchBands] switches the bands off, every sector in the first, to weigh what they spare
+// ([Plugin.SetBanded]); both are the settings screen's alone.
 //
 // # Views
 //

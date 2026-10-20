@@ -9,7 +9,7 @@ import (
 )
 
 // PROBE_KEYS: keys pressed from the second second on, comma separated, one a tick, with the
-// modifiers "Shift+", "Alt+" and "Ctrl+", e.g. "Shift+M,Alt+Minus,Alt+Shift+Minus"
+// modifiers "Shift+", "Alt+" and "Ctrl+", e.g. "Tab,V,Shift+P"
 var keys = map[string]control.Key{
 	"F11": control.KeyF11, "H": control.KeyH, "M": control.KeyM, "G": control.KeyG,
 	"Tab": control.KeyTab, "W": control.KeyW, "P": control.KeyP, "V": control.KeyV,

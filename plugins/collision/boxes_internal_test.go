@@ -12,47 +12,28 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-func TestBoxes_TheCommandSwitchesFromTheBasesToTheSolidsToNone(t *testing.T) {
-	flat := testWorldPlugin()
-	raised := world.NewPlugin(world.Config{
+func TestBoxes_TheCommandShowsTheBasesTheSolidsOrNone(t *testing.T) {
+	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 		Heights:  true,
 	})
-	for _, tc := range []struct {
-		w    *world.Plugin
-		want []BoxesShown
-	}{
-		{raised, []BoxesShown{Bases, Solids, NoBoxes, Bases}},
-		{flat, []BoxesShown{Bases, NoBoxes, Bases}},
-	} {
-		p := newTestPlugin(tc.w)
-		if err := tc.w.Carry(p); err != nil {
-			t.Fatal(err)
-		}
-		if p.BoxesShown() != NoBoxes {
-			t.Fatal("the boxes are shown before anyone asked")
-		}
-		key := p.DefaultBindings()[0]
-		for i, want := range tc.want {
-			cmd, _ := key.Build(control.Context{})
-			tc.w.Carrier().Put(command.Nobody, cmd)
-			p.switchBoxes()
-			if p.BoxesShown() != want {
-				t.Errorf("heights %v, Boxes given %d times: %v shown, want %v",
-					tc.w.HasHeights(), i+1, p.BoxesShown(), want)
-			}
-		}
+	p := newTestPlugin(w)
+	if err := w.Carry(p); err != nil {
+		t.Fatal(err)
 	}
-	p := newTestPlugin(testWorldPlugin())
-	var keys []string
-	for _, b := range p.DefaultBindings() {
-		if b.Type().Name() == "Boxes" {
-			keys = append(keys, b.Trigger.(control.KeyPress).Key.String())
-		}
+	if p.BoxesShown() != NoBoxes {
+		t.Fatal("the boxes are shown before anyone asked")
 	}
-	if len(keys) != 1 || keys[0] != "X" {
-		t.Errorf("Boxes bound to %v, want Shift+X alone", keys)
+	if options := p.Settings()[0].(control.Choice).Options; len(options) != 3 {
+		t.Errorf("with heights the choice is %v, want none, bases and solids", options)
+	}
+	for _, want := range []BoxesShown{Bases, Solids, NoBoxes} {
+		w.Carrier().Put(command.Nobody, Boxes{Shown: want})
+		p.switchBoxes()
+		if p.BoxesShown() != want {
+			t.Errorf("Boxes of %v: %v shown", want, p.BoxesShown())
+		}
 	}
 }
 

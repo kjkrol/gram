@@ -16,6 +16,8 @@ type adapter struct {
 	on       bool
 	budget   time.Duration
 	sampling time.Duration
+	underAt  float64 // of the budget's rate: under it the picture goes coarser
+	metAt    float64 // over it, finer
 	sum      float64 // the window's samples so far, summed
 	samples  int
 	met      int       // windows running that met the budget
@@ -32,11 +34,15 @@ const (
 	DefaultSampling = 2 * time.Second
 )
 
+// DefaultUnder and DefaultMet are the shares of the budget's rate the cameras begin with: under
+// the first the picture goes coarser, over the second finer (Settings.Under, Settings.Met).
+const (
+	DefaultUnder = 0.92
+	DefaultMet   = 0.98
+)
+
 const (
 	sampleEvery = time.Second
-	// of the budget's rate: under the first the picture goes coarser, over the second finer
-	adaptUnder = 0.92
-	adaptMet   = 0.98
 	// a finer step costing the budget within burnFast stops the finer steps for burnFor
 	burnFast = 10 * time.Second
 	burnFor  = 30 * time.Second
@@ -60,13 +66,13 @@ func (a *adapter) step(now time.Time, fps float64) float32 {
 	a.sum, a.samples = 0, 0
 	want := float64(time.Second) / float64(a.budget)
 	switch {
-	case rate < adaptUnder*want:
+	case rate < a.underAt*want:
 		a.met = 0
 		if now.Sub(a.finer) < burnFast {
 			a.burnt = now.Add(burnFor)
 		}
 		return ResolutionStep
-	case rate >= adaptMet*want:
+	case rate >= a.metAt*want:
 		a.met = min(a.met+1, metWindows)
 		if a.met < metWindows || !now.After(a.burnt) {
 			return 1

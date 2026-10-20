@@ -32,45 +32,47 @@ func TestPlugin_ShadesTheGroundWithFullCareAsFarAsTheConfigSays(t *testing.T) {
 	if p.Care() != 2 {
 		t.Errorf("full care within %d sectors, want the Config's 2", p.Care())
 	}
-	bound := map[string]bool{}
 	for _, bd := range p.DefaultBindings() {
-		bound[players.Written(bd.Trigger)] = true
-	}
-	if !bound["Alt+Shift+="] || !bound["Alt+Shift+-"] {
-		t.Errorf("bound %v, want Alt+Shift+= and Alt+Shift+- among them", bound)
+		if bd.Type() == reflect.TypeFor[topography.Care]() ||
+			bd.Type() == reflect.TypeFor[topography.Haze]() {
+			t.Errorf("%v is bound to %v, want the settings screen alone", bd.Type(),
+				players.Written(bd.Trigger))
+		}
 	}
 }
 
-func TestPlugin_CareStepsFullCareFartherAndNearerRungByRung(t *testing.T) {
+func TestReporter_SaysTheReachAndEachCareALine(t *testing.T) {
+	w := topotest.NewWorld(0)
+	b, _ := topotest.LevelBoard(w)
+	p := topography.NewPlugin(w, b, nil, topography.Config{Care: 2})
+	report := func() string {
+		var got string
+		p.Reporter().Report(func(label, value string) { got = label + ": " + value })
+		return got
+	}
+	want := "Ground: care within 2 sectors\neverything 0\nno shore 0\nflat mirror 0\nno shade 0" +
+		"\nleast 0"
+	if got := report(); got != want {
+		t.Errorf("the panel says %q, want %q", got, want)
+	}
+	p.SetCare(0)
+	if got := report(); got != "Ground: care everywhere" {
+		t.Errorf("with full care everywhere the panel says %q", got)
+	}
+}
+
+func TestPlugin_CareSetsTheFullCaresReach(t *testing.T) {
 	qw := topotest.NewQuasiWorld(t, false,
 		func(*board.Units[topotest.Recruit], grid.Grid) []kind.Entry { return nil })
 	caring := queueOf[topography.Care](t, qw.Topo)
-	keys := map[string]control.Binding{}
-	for _, bd := range qw.Topo.DefaultBindings() {
-		keys[players.Written(bd.Trigger)] = bd
-	}
-	step := func(by int) int {
-		key := keys["Alt+Shift+="]
-		if by < 0 {
-			key = keys["Alt+Shift+-"]
-		}
-		cmd, _ := key.Build(control.Context{})
-		caring.Put(command.Nobody, cmd)
-		qw.ECS.Tick(time.Second / 60)
-		return qw.Topo.Care()
-	}
 	if qw.Topo.Care() != 0 {
 		t.Fatalf("full care within %d sectors at first, want everywhere", qw.Topo.Care())
 	}
-	// nearer from everywhere: 3, 2, 1 and no nearer; farther: 2, 3, everywhere and no farther
-	for _, want := range []int{3, 2, 1, 1} {
-		if got := step(-1); got != want {
-			t.Errorf("nearer: full care within %d sectors, want %d", got, want)
-		}
-	}
-	for _, want := range []int{2, 3, 0, 0} {
-		if got := step(1); got != want {
-			t.Errorf("farther: full care within %d sectors, want %d", got, want)
+	for _, want := range []int{3, 1, 0} {
+		caring.Put(command.Nobody, topography.Care{Rings: want})
+		qw.ECS.Tick(time.Second / 60)
+		if got := qw.Topo.Care(); got != want {
+			t.Errorf("Care of %d: full care within %d sectors", want, got)
 		}
 	}
 }
@@ -87,9 +89,9 @@ func TestSettings_TheCaresReachIsASliderToEverySectorAndTheCareShownASwitch(t *t
 	haze, follows, reach, shown := settings[0].(control.Switch), settings[1].(control.Switch),
 		settings[2].(control.Range), settings[3].(control.Switch)
 	if haze.Section != control.Graphics || follows.Section != control.PictureCare ||
-		reach.Section != control.PictureCare || shown.Section != control.PictureAreas {
-		t.Errorf("the sections are %q, %q, %q and %q, want the graphics, the care twice and the "+
-			"areas", haze.Section, follows.Section, reach.Section, shown.Section)
+		reach.Section != control.PictureCare || shown.Section != control.PictureCare {
+		t.Errorf("the sections are %q, %q, %q and %q, want the graphics and the care thrice",
+			haze.Section, follows.Section, reach.Section, shown.Section)
 	}
 	if follows.Label != "Full care follows the frame budget" || follows.Get() ||
 		follows.Set(true) != (topography.AdaptCare{On: true}) {

@@ -145,6 +145,15 @@ func (c *Composer) DrawOver(screen *Image, cam camera.Camera) {
 	c.renderOver(screen)
 }
 
+// DrawGlass has every Glass source draw on the glass over the picture, dst, through cam.
+func (c *Composer) DrawGlass(dst *Image, cam camera.Camera) {
+	for _, s := range c.sources {
+		if g, ok := s.(Glass); ok {
+			g.DrawGlass(dst, cam)
+		}
+	}
+}
+
 // Composed is how many pieces the last frame held.
 func (c *Composer) Composed() int { return c.frame.Len() }
 

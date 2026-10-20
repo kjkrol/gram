@@ -103,7 +103,7 @@ func (g *gameplayArena) defineScenes() []game.Scene {
 		Input(g.players.Handle).
 		Issue(g.players.IssueAs(g.player)).
 		Keys(
-			control.Give(control.KeyPress{Key: control.KeyP}, "Panel",
+			control.Give(control.KeyPress{Key: control.KeyI}, "Panel",
 				ui.Toggle{Name: PanelElement}),
 			control.Give(control.KeyPress{Key: control.KeyM}, "Menu", game.Enter{Stage: MenuStage}),
 		),

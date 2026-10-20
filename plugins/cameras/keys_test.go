@@ -1,8 +1,11 @@
 package cameras_test
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
+	"math"
+	"reflect"
 	"testing"
+
+	"github.com/kjkrol/aabbworld/geom"
 
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/cameras"
@@ -20,40 +23,19 @@ func TestKeys_ZoomKeysBuildAZoomInAndOut(t *testing.T) {
 			t.Errorf("key %d gives %v (%v), want a Zoom by %v", i, cmd, ok, want)
 		}
 	}
-	if n := len(cameras.DefaultKeys().Bindings()); n != 13 {
-		t.Errorf("the default keys bind %d, want 13: the zoom, the sight and the resolution keys "+
-			"among them", n)
+	if n := len(cameras.DefaultKeys().Bindings()); n != 11 {
+		t.Errorf("the default keys bind %d, want 11: the zoom and the sight keys among them", n)
 	}
 }
 
-func TestKeys_ResolutionKeysWithAltDrawFinerAndCoarser(t *testing.T) {
-	keys := cameras.Keys{Finer: control.KeyEqual, Coarser: control.KeyMinus}.Bindings()
-	if len(keys) != 2 {
-		t.Fatalf("%d bindings, want the two resolution keys", len(keys))
-	}
-	for i, want := range []float32{1 / cameras.ResolutionStep, cameras.ResolutionStep} {
-		press, isPress := keys[i].Trigger.(control.KeyPress)
-		cmd, ok := keys[i].Build(control.Context{})
-		r, isResolution := cmd.(cameras.Resolution)
-		if !isPress || !press.Mods.Alt || press.Mods.Ctrl || !ok || !isResolution ||
-			r.Factor != want {
-			t.Errorf("key %d is %+v giving %v (%v), want Alt held and a Resolution by %v", i,
-				keys[i].Trigger, cmd, ok, want)
+func TestDefaultBindings_NoKeySetsWhatTheSettingsScreenSets(t *testing.T) {
+	cfg := cameras.Config{Turn: true, Tilt: true, Perspective: true, Cell: 32}
+	for _, b := range cameras.NewPlugin(reliefWorld(), cfg).DefaultBindings() {
+		switch b.Type() {
+		case reflect.TypeFor[cameras.Zones](), reflect.TypeFor[cameras.Adapt](),
+			reflect.TypeFor[cameras.Picture](), reflect.TypeFor[cameras.Resolution]():
+			t.Errorf("%v is bound to %v, want the settings screen alone", b.Type(), b.Trigger)
 		}
-	}
-	adapts := 0
-	for _, b := range cameras.NewPlugin(reliefWorld(), cameras.Config{}).DefaultBindings() {
-		if b.Trigger != (control.KeyPress{Key: control.KeyA, Mods: control.Mods{Alt: true}}) {
-			continue
-		}
-		if cmd, ok := b.Build(control.Context{}); ok {
-			if _, is := cmd.(cameras.Adapt); is {
-				adapts++
-			}
-		}
-	}
-	if adapts != 1 {
-		t.Errorf("the default bindings give Adapt on Alt+A %d times, want once", adapts)
 	}
 }
 
@@ -184,4 +166,53 @@ func TestKeys_AtAResolutionTheScrollAndTheLookAreTheSameOnTheScreen(t *testing.T
 		return
 	}
 	t.Error("no binding on the mouse looks round")
+}
+
+func TestKeys_TheEdgeScrollsAQuarterAsFastAtTheZonesInnerBoundAsAtTheWindowsEdge(t *testing.T) {
+	keys := cameras.Keys{Edge: true}.Bindings()
+	ctx := control.Context{Screen: geom.NewVec(1000, 800)}
+	speeds := map[float64]float32{}
+	for _, x := range []float64{10, 35, 59} {
+		ctx.Cursor = geom.NewVec(x, 400)
+		cmd, ok := keys[0].Build(ctx)
+		pan, isPan := cmd.(cameras.Pan)
+		if !ok || !isPan || pan.Dx >= 0 || pan.Dy != 0 {
+			t.Fatalf("at x %v the edge builds %+v (%v), want a Pan left", x, cmd, ok)
+		}
+		speeds[x] = -pan.Dx
+	}
+	if speeds[10] != cameras.DefaultScrollSpeed || speeds[35] != cameras.DefaultScrollSpeed*0.625 ||
+		math.Abs(float64(speeds[59]-cameras.DefaultScrollSpeed*0.265)) > 1e-5 {
+		t.Errorf("the speeds by the cursor's x are %v, want the whole at the edge, five eighths "+
+			"halfway in and a shade over a quarter at the inner bound", speeds)
+	}
+}
+
+func TestDefaultBindings_TheEdgeScrollsAsTheSettingsSayAtTheSpeedSet(t *testing.T) {
+	p := cameras.NewPlugin(reliefWorld(), cameras.Config{})
+	var edge control.Binding
+	for _, b := range p.DefaultBindings() {
+		if b.Trigger == (control.CursorAtEdge{}) {
+			edge = b
+		}
+	}
+	if edge.Trigger == nil {
+		t.Fatal("no binding on the edge")
+	}
+	ctx := control.Context{Screen: geom.NewVec(1000, 800), Cursor: geom.NewVec(990, 400)}
+	if cmd, ok := edge.Build(ctx); !ok || cmd.(cameras.Pan).Dx != cameras.DefaultScrollSpeed {
+		t.Errorf("at the edge the default builds %+v (%v), want a Pan right at the default speed",
+			cmd, ok)
+	}
+	p.SetEdgeSpeed(16)
+	if cmd, ok := edge.Build(ctx); !ok || cmd.(cameras.Pan).Dx != 16 {
+		t.Errorf("at a speed of 16 the edge builds %+v (%v), want a Pan right by 16", cmd, ok)
+	}
+	p.ScrollFromEdges(false)
+	if cmd, ok := edge.Build(ctx); ok {
+		t.Errorf("the edges still, the edge builds %+v, want nothing", cmd)
+	}
+	if !p.EdgesScroll() == false || p.EdgeSpeed() != 16 {
+		t.Errorf("the settings say scrolling %v at %v, want still at 16", p.EdgesScroll(), p.EdgeSpeed())
+	}
 }

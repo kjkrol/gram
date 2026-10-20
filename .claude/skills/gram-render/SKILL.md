@@ -54,7 +54,7 @@ minimap's (`plugins/minimap`): its own three sources, none in `ctx.Draws`, throu
 camera of its own, drawn anew at most 30 times a second (a `render.Surface` returning its last
 image in between; `ui.Image` lays it out every frame, so a resize alone forces a redraw).
 `render.StrokePolygon` is one draw however many sides (a round element's border). A demo that makes a plugin
-draws all it draws: selection and routes in bullet, platformer and split-screen, holds (Shift+O)
+draws all it draws: selection and routes in bullet, platformer and split-screen, holds (the board's "Cells held" setting)
 in every demo with a board. **What is drawn over what is Z's alone (2026-10-15), never a layer
 nor the order a plugin registers in**: `render.Tier` is gone. Each
 piece a source hands its `render.Frame` lies at a `render.At`: `f.At(x, y, z)` (a height in the
@@ -74,7 +74,9 @@ drawn, nothing while not), so a collision solid shows through its own billboard 
 it hides it. Goals, holds, a bridge in hand and boxes are no
 marks: they lie in the world. **A source whose pieces lie over the figures says so**
 (2026-10-20, stage T: `render.Overlying{Overlies()}`: the world's figures, aloft's clouds, the
-drops, the selection, collision's boxes, the cameras' zones and layers), and the composer is
+drops, the selection, collision's boxes, the cameras' layers; the cameras' zones are a
+`render.Glass` instead: `DrawGlass(dst, cam)` called by `Feed.DrawGlass` from ui after the whole
+screen is painted, onto the picture's part of it, so the HUD never covers them, 2026-10-20), and the composer is
 `render.Laid` (2026-10-20, stage U, in place of `Grounded`): `Lay(cam, apart)` composes every
 source (the ground's alone when apart) once, in cam's pixels, the feed having cropped the camera
 to the whole frame at every pixel (`Crop(camera.Window{W, H}, 1)`, exact, `Cropped()` false);
@@ -113,7 +115,7 @@ it is drawing; one asking for nothing is not drawn, `Frame.Places` lists the ask
 0.02, board materials 0.05, grid lines 0.1, holds 0.15, sight 0.25, routes 0.75, route goals
 0.8, a bridge in hand 0.9 (over its deck's level), figures `world.FigureLift` 2 (topography's
 `spriteLift` is the same 2), an entity's box `FigureLift`+0.5 over its altitude in the order, its
-base's vertices 0.05 over it and its solid's at its altitude and top (collision's Shift+X: bases,
+base's vertices 0.05 over it and its solid's at its altitude and top (collision's "Entities' boxes" setting: bases,
 solids in a world with heights, none). The figures (`render.Sprites`, the world's flat look) are
 drawn once, among what is seen through, after the opaque ground, at the lowest figure's place, back
 to front among themselves; where the frame has a depth their visible pixels (alpha over half a step)

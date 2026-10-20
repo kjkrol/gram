@@ -72,6 +72,17 @@ func ActualFPS() float64 { return rates.fps }
 func ActualTPS() float64 { return rates.tps }
 
 // FillPolygon lays c over the convex polygon pts, in dst's pixels.
+// FillQuad fills dst's corners in a colour each, blended across, top-left, top-right,
+// bottom-left, bottom-right.
+func FillQuad(dst *Image, corners Corners, c [4]color.RGBA) {
+	verts := make([]gpu.Vertex, 4)
+	for i, p := range corners {
+		cr, cg, cb, ca := rgbaOf(c[i])
+		verts[i] = gpu.Vertex{DstX: p[0], DstY: p[1], ColorR: cr, ColorG: cg, ColorB: cb, ColorA: ca}
+	}
+	gpu.Colored(dst.gpu(), verts, []uint16{0, 1, 2, 1, 2, 3}, gpu.SourceOver)
+}
+
 func FillPolygon(dst *Image, pts [][2]float32, c color.Color) {
 	if len(pts) < 3 {
 		return

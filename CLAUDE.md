@@ -49,7 +49,7 @@ make demo-start-split-screen                                    # two players at
 make demo-look-animation                                        # a gallery of animations from sheets: walking, braking, bored, pulling, a lever swinging
 make demo-look-material                                         # a ward's material pulsing, embers drawn out of their state circling it; G calms, F douses
 make demo-look-sky                                              # a sky of the game's own over a valley: its vault, a big orange moon by day, made-up stars
-make demo-look-light                                            # a flat board under a sun of the game's own circling in a day: a tower's shadow baked, walkers' patches, the hero's silhouette (WSAD), a lantern lighting the night, lava taking no shade; Shift+L the lamps' shadows
+make demo-look-light                                            # a flat board under a sun of the game's own circling in a day: a tower's shadow baked, walkers' patches, the hero's silhouette (WSAD), a lantern lighting the night, lava taking no shade
 make demo-rules-effect                                          # an ice witch: frost and frozen as effects; J hastens the selected
 make demo-rules-mechanisms                                      # a lever, a plate and a switch driving trapdoors and a gate; one hero on WSAD, the lever pulled by touch (Space)
 make demo-rules-dialog                                          # conversations from YAML: the miller and the smith
@@ -59,12 +59,13 @@ make demo-board-atlas                                           # a small flat b
 make demo-board-flat                                            # Madeira on the simple map: a flat board, bands for the ways, bridges and fords
 make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, the camera on a stick (Q/E, R/F, Tab), the weather; the ground textured from photographs
 make demo-board-topography-ghibli                               # the same ground painted, the light in bands (-look ghibli)
+make demo-board-topography-widgets                              # the hour, the date and the weather apart by the corners, not in a bar (-hud widgets)
 go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS
 make demo-navigation-square                                     # units sent round a wall, over a river by a bridge a wagon is too wide for; walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-hex                                        # the same on a hex board
-make demo-navigation-spawn                                      # walkers spawned under the cursor (N) hold their cells; Shift+O shows the cells held
+make demo-navigation-spawn                                      # walkers spawned under the cursor (N) hold their cells, the cells held shown
 make demo-motion-collision                                      # thousands of bouncing boxes of many kinds, a flash on every hit
-make demo-motion-expanse                                        # a hundred thousand boxes on a torus of ~98 km, alive in bands round the camera (Shift+G, Ctrl+G)
+make demo-motion-expanse                                        # a hundred thousand boxes on a torus of ~98 km, alive in bands round the camera
 make demo-motion-bullet                                         # a soldier on WSAD shoots rounds (Space) and throws grenades (Shift held, the longer the further)
 make demo-motion-platformer                                     # a hero in a side view under gravity: A/D walk, W jumps, G turns gravity over
 make bench                                                      # every benchmark once, with allocations
@@ -147,21 +148,18 @@ Decisions the user has made; they are not up for revisiting in passing.
 - **A command is a `command.Command`** by its method `Command()`, confirmed where it is defined
   (`var _ command.Command = MoveTo{}` beside the type). Whatever takes commands takes a
   `command.Command`, never `any`.
-- **The default keys are the same in every game and no demo repeats one**: Shift+P the tactical
-  pause, Shift+Esc quits, K lists the keys, F10 the settings screen, ~ the telemetry panel, F5
-  saves, F9 loads, F11 full screen, ] and [ the tempo, Shift+X the boxes (collision's: the bases, the solids, none),
-  Shift+H the scroll zones (cameras'), Shift+O the holds, Shift+B the bridge tool, Shift+R the
-  routes, Shift+C the cones, Shift+W the weather, Shift+V the clouds' look, Shift+S the high
-  clouds' shadows (with the camera free: riding, Shift+S sprints back), P freezes the light,
-  Space jumps in first person, = and - zoom, Shift+= and Shift+- shape the relief, Ctrl+= and
-  Ctrl+- the camera's sight (farther, nearer), Alt+= and Alt+- the picture's resolution (finer,
-  coarser), Alt+A its following the frame budget (still, the whole picture, in layers; the camera's
-  profile's, tactical or riding), Alt+Shift+= and
-  Alt+Shift+- the ground's full care (farther, nearer), Ctrl+F the ground's haze, through any
-  camera (off as a game starts), H the shadows' detail (coarse, fine), Shift+L the lamps' shadows
-  (off, on); in a world cut into sectors Shift+G the sectors (by band, by what the camera
-  sees, none) and Ctrl+G the bands (off, on); with a minimap Shift+M shows or hides it and Ctrl+M
-  turns it with the camera or keeps north up.
+- **The default keys are the same in every game and no demo repeats one**: P and Shift+P the
+  tactical pause, Shift+Esc quits, K lists the keys, F10 the settings screen, ~ the telemetry panel (the
+  basics, everything, hidden, in turn), F5 saves, F9 loads, F11 full screen, ] and [ the tempo,
+  Shift+B the bridge tool, Space jumps in first person, = and - zoom, Shift+= and Shift+- shape
+  the relief (L and a left drag level it), Ctrl+= and Ctrl+- the camera's sight (farther,
+  nearer). **An option on the settings screen has no key** (the user's word, 2026-10-20): the
+  boxes, the scroll zones, the grid, the cells held, the routes, the cones, the weather, the
+  clouds' look and the high clouds' shadows, the frozen light and its hour, the picture's
+  resolution and its following the frame budget, the ground's care and haze, the shadows'
+  detail and the lamps' shadows, the sectors and their bands, the minimap shown and turning are
+  set on F10 alone; the command stays, for a game to bind a key of its own. The tempo and the
+  telemetry panel keep theirs.
   A key held, down or let go leaves the chords with Shift, Ctrl or Alt to these shortcuts unless
   its binding is `InChords()` (a sprint, a jump while sprinting). A plugin's keys a game sets up
   (`driving.Compass`, `selection.FollowKey`, the cameras' zoom keys) are bound in the
@@ -179,7 +177,8 @@ Decisions the user has made; they are not up for revisiting in passing.
   (`plugin.Tunable`: a `control.Switch`, `Choice` or `Range`, `Get` read every frame, `Set`
   building the command, a `Section` putting it under a section the plugins share, such as
   `control.Graphics`) and kept whole by `plugin.Keep(&p.Res.Settings)`, never a
-  command that means "the next one": the key's binding builds the next value from the setting.
+  command that means "the next one": a game's own key builds the next value from the setting,
+  the plugin binding none to it.
   Its start is the plugin's Config or a setter in `makePlugins` (`ShowGrid(false)`,
   `ShowCones()`), never the scene's, which is made after a load. F10 opens the players' settings
   screen, generated from every `Tunable` the players carry; while it is up the game stands in

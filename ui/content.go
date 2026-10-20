@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"image"
 	"image/color"
 	"math"
 
@@ -53,6 +54,19 @@ type Text interface {
 
 // LabelOf is a Label whose words t says, every frame: a pinned element's for its entity.
 func LabelOf(t Text) *Element { return newElement(&label{src: t}) }
+
+// HeadingOf is a Heading whose words t says, every frame, as LabelOf.
+func HeadingOf(t Text) *Element { return newElement(&label{src: t, weight: heading}) }
+
+// While is a Text saying text while on says so, and nothing else: an element left out till then.
+func While(on func() bool, text string) Text { return while{on: on, text: text} }
+
+type while struct {
+	on   func() bool
+	text string
+}
+
+func (w while) Text(uid.UID64, bool) (string, bool) { return w.text, w.on() }
 
 // Of is a Text read off the component T of the entity an element is pinned to: fn says the
 // words. An entity without T, or an element pinned to none, says nothing.
@@ -136,7 +150,12 @@ func Image(src render.Surface) *Element { return newElement(&picture{src: src}) 
 type picture struct {
 	src   render.Surface
 	input Input
+	glass geom.AABB // where the picture was drawn this frame, for its source's glass
+	drawn bool
 }
+
+// glassed is a picture's source drawing on the glass over it, last of all (render.Feed)
+type glassed interface{ DrawGlass(dst *render.Image) }
 
 func (p *picture) place(e *Element, box geom.AABB) {
 	w, h := size(box)
@@ -147,6 +166,9 @@ type direct interface{ DrawOn(dst *render.Image) }
 
 func (p *picture) draw(e *Element, dst *render.Image) {
 	box := shrink(e.box, e.padding)
+	if _, ok := p.src.(glassed); ok {
+		p.glass, p.drawn = box, true
+	}
 	if d, ok := p.src.(direct); ok && e.mask == nil && fills(box, dst) {
 		d.DrawOn(dst)
 		return
@@ -226,3 +248,15 @@ func (*layered) place(*Element, geom.AABB)            {}
 func (l *layered) draw(_ *Element, dst *render.Image) { l.r.Draw(dst) }
 func (*layered) needs(*Element) (w, h float64)        { return 0, 0 }
 func (*layered) container()                           {} // takes no click
+
+// onGlass has the source draw on the glass over the picture, where it was drawn this frame
+func (p *picture) onGlass(screen *render.Image) {
+	if !p.drawn {
+		return
+	}
+	p.drawn = false
+	box := p.glass
+	dst := screen.SubImage(image.Rect(int(math.Round(box.TopLeft.X)), int(math.Round(box.TopLeft.Y)),
+		int(math.Round(box.BottomRight.X)), int(math.Round(box.BottomRight.Y))))
+	p.src.(glassed).DrawGlass(dst)
+}

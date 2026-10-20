@@ -13,7 +13,7 @@ import (
 )
 
 // Boxes has Shown drawn of every entity's box (Settings.Boxes): a look for finding out why things
-// touch or miss. Shift+X by default, in turn the bases, the solids and none.
+// touch or miss. The settings screen alone.
 type Boxes struct{ Shown BoxesShown }
 
 func (Boxes) Command() {}
@@ -46,14 +46,8 @@ const (
 // Queues are where Boxes lands.
 func (p *Plugin) Queues() []command.CommandQueue { return []command.CommandQueue{&p.boxes} }
 
-// DefaultBindings are Shift+X switching what is drawn of the entities' boxes.
-func (p *Plugin) DefaultBindings() []control.Binding {
-	return []control.Binding{
-		control.Build(control.KeyPress{Key: control.KeyX, Mods: control.Mods{Shift: true}},
-			"Show the entities' boxes: their bases, their solids, none",
-			func(control.Context) (Boxes, bool) { return Boxes{Shown: p.next()}, true }),
-	}
-}
+// DefaultBindings are none: the boxes are the settings screen's.
+func (p *Plugin) DefaultBindings() []control.Binding { return nil }
 
 // Settings is the one setting, what is drawn of the entities' boxes (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
@@ -164,19 +158,6 @@ func (p *Plugin) ShowBoxes(shown BoxesShown) *Plugin {
 
 // BoxesShown is what is drawn of the entities' boxes.
 func (p *Plugin) BoxesShown() BoxesShown { return p.Res.Settings.Boxes }
-
-// next is what Shift+X switches to: the solids only where there are heights to raise them by
-func (p *Plugin) next() BoxesShown {
-	switch p.Res.Settings.Boxes {
-	case NoBoxes:
-		return Bases
-	case Bases:
-		if p.worldPlugin.HasHeights() {
-			return Solids
-		}
-	}
-	return NoBoxes
-}
 
 func (p *Plugin) switchBoxes() {
 	p.boxes.Drain(func(i command.Issued[Boxes]) { p.ShowBoxes(i.Command.Shown) })

@@ -22,6 +22,7 @@ type weatherSystem struct {
 	calendar *calendar.Calendar
 	asked    *[]string
 	running  *Running
+	nameNow  *string // the weather of the time by name, the Climate's
 
 	query   *goke.Query
 	now     goke.Comp[Weather]
@@ -62,8 +63,10 @@ type weatherSystem struct {
 	ceiled   bool
 }
 
-func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, asked *[]string, rules *host.StepRules[Weathering], running *Running) *weatherSystem {
-	return &weatherSystem{cfg: cfg, world: w, calendar: cal, asked: asked, running: running, host: rules, profile: cfg.Zone.Profile()}
+func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, asked *[]string,
+	rules *host.StepRules[Weathering], running *Running, over *string) *weatherSystem {
+	return &weatherSystem{cfg: cfg, world: w, calendar: cal, asked: asked, running: running,
+		host: rules, profile: cfg.Zone.Profile(), nameNow: over}
 }
 
 // what falls from the weather of the state st
@@ -270,6 +273,7 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				}
 			})
 		}
+		*s.nameNow = s.cfg.Weathers[w.Lanes[0].State].Name
 		s.blend(w, dt)
 		s.carry(w, dt)
 		over := s.over(w, dt, m)

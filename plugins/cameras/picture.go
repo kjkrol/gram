@@ -82,8 +82,12 @@ func (k Knobs) filled() Knobs {
 // the frame budget and the Knobs of each Profile.
 type Settings struct {
 	Zones       bool
+	StillEdges  bool    // the cursor at a picture's edge scrolls nothing
+	EdgeSpeed   float32 // screen pixels a tick at the very edge; zero, the keys' own
 	FrameBudget time.Duration
 	Sampling    time.Duration // the frame rate averaged over this before it is followed
+	Under       float32       // of the budget's rate, under which the picture goes coarser
+	Met         float32       // over which it goes finer
 	Tactical    Knobs
 	Riding      Knobs
 }
@@ -195,6 +199,29 @@ func (p *Plugin) SetBudget(d time.Duration) {
 	}
 	p.Res.Settings.FrameBudget = d
 	p.adapter.budget = d
+}
+
+// SetThresholds sets the shares of the budget's rate the following steps at (Settings.Under,
+// Settings.Met): coarser once a window's rate falls under the first, finer once two have met
+// the second, each between a half and the whole, the second never under the first; zero or
+// less, DefaultUnder and DefaultMet.
+func (p *Plugin) SetThresholds(under, met float32) {
+	if under <= 0 {
+		under = DefaultUnder
+	}
+	if met <= 0 {
+		met = DefaultMet
+	}
+	under = min(max(under, 0.5), 1)
+	met = min(max(met, under), 1)
+	p.Res.Settings.Under, p.Res.Settings.Met = under, met
+	p.adapter.underAt, p.adapter.metAt = float64(under), float64(met)
+}
+
+// Thresholds are the shares of the budget's rate the following steps at: coarser under the
+// first, finer over the second.
+func (p *Plugin) Thresholds() (under, met float32) {
+	return p.Res.Settings.Under, p.Res.Settings.Met
 }
 
 // SetSampling sets how long the frame rate is averaged over before the pictures follow it
@@ -325,15 +352,34 @@ func budgetRate(budget time.Duration) float64 {
 	return math.Round(float64(time.Second) / float64(budget))
 }
 
-// Settings are the scroll zones, the frame budget and each profile's knobs (the strategy
-// following the budget, the resolution, the figures at every pixel, the layers and their edges
-// shown) (plugin.Tunable).
+// Settings are the scroll zones (scrolling, shown, their speed), the frame budget and each
+// profile's knobs (the strategy following the budget, the resolution, the figures at every
+// pixel, the layers and their edges shown) (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
 	out := []control.Setting{
 		control.Switch{
 			Label: "Scroll zones",
+			Get:   p.EdgesScroll,
+			Set:   func(on bool) command.Command { return EdgeScroll{On: on} },
+		},
+		control.Switch{
+			Label: "Show the zones",
 			Get:   p.ZonesShown,
 			Set:   func(on bool) command.Command { return Zones{Shown: on} },
+		},
+		control.Range{
+			Label: "Edge scroll speed",
+			Min:   2,
+			Max:   24,
+			Step:  1,
+			Get: func() float64 {
+				if s := p.EdgeSpeed(); s > 0 {
+					return float64(s)
+				}
+				return DefaultScrollSpeed
+			},
+			Set:   func(v float64) command.Command { return EdgeSpeed{Speed: float32(v)} },
+			Shows: func(v float64) string { return fmt.Sprintf("%.0f px a tick", v) },
 		},
 		control.Range{
 			Label:   "Frame budget",
@@ -359,6 +405,30 @@ func (p *Plugin) Settings() []control.Setting {
 			},
 			Shows: func(v float64) string { return fmt.Sprintf("%.0f s", v) },
 		},
+		control.Range{
+			Label:   "Coarser under",
+			Section: control.Picture,
+			Min:     50,
+			Max:     100,
+			Step:    1,
+			Get:     func() float64 { return math.Round(float64(p.Res.Settings.Under) * 100) },
+			Set: func(v float64) command.Command {
+				return Thresholds{Under: float32(v / 100), Met: p.Res.Settings.Met}
+			},
+			Shows: percent,
+		},
+		control.Range{
+			Label:   "Finer over",
+			Section: control.Picture,
+			Min:     50,
+			Max:     100,
+			Step:    1,
+			Get:     func() float64 { return math.Round(float64(p.Res.Settings.Met) * 100) },
+			Set: func(v float64) command.Command {
+				return Thresholds{Under: p.Res.Settings.Under, Met: float32(v / 100)}
+			},
+			Shows: percent,
+		},
 	}
 	out = append(out,
 		p.knobSettings(Tactical, control.PictureTactical, control.PictureTacticalLayers)...)
@@ -370,7 +440,6 @@ func (p *Plugin) Settings() []control.Setting {
 func (p *Plugin) knobSettings(profile Profile, section, layersSection string) []control.Setting {
 	k := p.knobs(profile)
 	hundredths := func(v float64) string { return fmt.Sprintf("%.2f", v) }
-	percent := func(v float64) string { return fmt.Sprintf("%.0f%%", v) }
 	return []control.Setting{
 		control.Choice{
 			Label:   "Follows the frame budget",
@@ -473,3 +542,6 @@ func (p *Plugin) knobSettings(profile Profile, section, layersSection string) []
 		},
 	}
 }
+
+// percent writes v as a whole percentage, "60%"
+func percent(v float64) string { return fmt.Sprintf("%.0f%%", v) }

@@ -1,20 +1,40 @@
 package cameras
 
 import (
+	"os"
 	"testing"
 
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gpu"
 )
 
+func needGPU(t *testing.T) {
+	t.Helper()
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
+	}
+}
+
+// the zones p draws on the glass over a picture 1000 by 800 through cam: the pixels' alpha
+func glassOf(t *testing.T, p *Plugin, cam camera.Camera) func(x, y int) byte {
+	t.Helper()
+	img := render.NewImage(1000, 800)
+	t.Cleanup(img.Deallocate)
+	p.zonesView.DrawGlass(img, cam)
+	pix := make([]byte, 4*1000*800)
+	img.ReadPixels(pix)
+	return func(x, y int) byte { return pix[4*(y*1000+x)+3] }
+}
+
 func TestZones_TheCommandSwitchesTheZonesDrawn(t *testing.T) {
+	needGPU(t)
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 800},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
@@ -27,19 +47,8 @@ func TestZones_TheCommandSwitchesTheZonesDrawn(t *testing.T) {
 		t.Error("the zones start shown")
 	}
 	cam := cameratest.NewFromSpace(1000, 800, 0)
-	pieces := func() int {
-		var f render.Frame
-		f.Reset(cam)
-		p.zonesView.Compose(&f, cam)
-		f.Each(func(at render.At, _ []render.Vertex) {
-			if at != render.OnTop(zonesLevel) {
-				t.Errorf("a zone lies at %v, want a mark over every other", at)
-			}
-		})
-		return f.Len()
-	}
-	if n := pieces(); n != 0 {
-		t.Errorf("hidden, the zones drew %d pieces", n)
+	if a := glassOf(t, p, cam)(999, 400); a != 0 {
+		t.Errorf("hidden, the zones drew the right edge %v opaque", a)
 	}
 	for i, want := range []bool{true, false} {
 		if !w.Carrier().Put(command.Nobody, Zones{Shown: want}) {
@@ -51,17 +60,13 @@ func TestZones_TheCommandSwitchesTheZonesDrawn(t *testing.T) {
 		}
 	}
 	p.ShowZones(true)
-	if n := pieces(); n != 8 {
-		t.Errorf("shown, the zones drew %d pieces, want the four strips and four corners", n)
+	alpha := glassOf(t, p, cam)
+	if alpha(999, 400) == 0 || alpha(500, 799) == 0 || alpha(0, 400) == 0 || alpha(500, 0) == 0 ||
+		alpha(2, 2) == 0 || alpha(997, 797) == 0 {
+		t.Error("shown, the zones leave an edge or a corner bare")
 	}
-	var keys []string
-	for _, b := range p.DefaultBindings() {
-		if b.Type().Name() == "Zones" {
-			keys = append(keys, b.Trigger.(control.KeyPress).Key.String())
-		}
-	}
-	if len(keys) != 1 || keys[0] != "H" {
-		t.Errorf("Zones is bound to %v, want Shift+H", keys)
+	if a := glassOf(t, p, p.New(FromAbove, camera.Config{Whole: true}))(999, 400); a != 0 {
+		t.Errorf("a camera of the whole world got the zones %v opaque", a)
 	}
 }
 
@@ -90,36 +95,24 @@ func TestPlugin_DrawsTheZonesAndTheLayers(t *testing.T) {
 	}
 }
 
-// the camera's viewport a part of a frame 200 pixels wider and higher, inset in it
-type cropped struct{ camera.Camera }
-
-func (cropped) Crop(camera.Window, float32) {}
-func (cropped) Uncrop()                     {}
-func (cropped) Cropped() bool               { return true }
-
-func (c cropped) Frame() (float32, float32) {
-	w, h := c.Camera.Viewport()
-	return w + 200, h + 200
-}
-
-func (c cropped) Window() camera.Window {
-	w, h := c.Camera.Viewport()
-	return camera.Window{X: 100, Y: 100, W: w, H: h}
-}
-
-var _ camera.Cropping = cropped{}
-
-func TestZones_LieOnTheWholeFrameAloneNeverOnAPartOfIt(t *testing.T) {
+func TestZones_FadeFromClearInsideToTheColourAtTheEdge(t *testing.T) {
+	needGPU(t)
 	p := NewPlugin(world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 800},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	}), Config{})
 	p.ShowZones(true)
-	cam := cropped{cameratest.NewFromSpace(1000, 800, 0)}
-	var f render.Frame
-	f.Reset(cam)
-	p.zonesView.Compose(&f, cam)
-	if n := f.Len(); n != 0 {
-		t.Errorf("a camera drawn a part of its frame got %d pieces of the zones, want none", n)
+	alpha := glassOf(t, p, cameratest.NewFromSpace(1000, 800, 0))
+	edge, half, bound := alpha(999, 400), alpha(970, 400), alpha(941, 400)
+	if edge < zoneColor.A-2 || half < edge/3 || half > 2*edge/3 || bound > 3 {
+		t.Errorf("the right strip is %v opaque at the edge, %v halfway in and %v at its inner "+
+			"bound, want the colour's %v fading to clear", edge, half, bound, zoneColor.A)
+	}
+	if a := alpha(900, 400); a != 0 {
+		t.Errorf("past the strip the glass is %v opaque, want bare", a)
+	}
+	if corner, inner := alpha(998, 1), alpha(881, 118); corner < zoneColor.A-2 || inner > 3 {
+		t.Errorf("the top-right corner is %v opaque at the edge and %v at its inner corner, want "+
+			"the colour fading to clear", corner, inner)
 	}
 }
