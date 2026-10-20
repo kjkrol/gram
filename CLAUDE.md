@@ -103,10 +103,12 @@ CI (`.github/workflows/go.yml`) runs
 A stage of several parts (`doc/plans-perf.md` names them) is run as the user asked (2026-10-20):
 the integrator (the session the user talks to) plans the stage, lays the contracts the parts build
 on in a prelude on the stage's branch, then hands each part to an agent of its own (Opus 5.5:
-the Agent tool with `model: opus`) in a worktree of its own on a branch `<stage>/<part>` from the
-prelude's commit. The worktree stands outside `/home/karol/CODE`, which `go.work` governs (one
-under it builds nothing: "directory … does not contain modules listed in go.work"):
-`git worktree add /home/karol/worktrees/gram/<part> -b <stage>/<part>`; there `go.mod`'s tagged
+the Agent tool with `model: opus`) in a worktree of its own on a branch `<letter>/<part>` from
+the prelude's commit, the letter the stage's in `doc/plans-perf.md` (`u/footed`; a branch cannot
+be a prefix of another's name, so the parts are not under the stage's branch). The worktree
+stands outside `/home/karol/CODE`, which `go.work` governs (one under it builds nothing:
+"directory … does not contain modules listed in go.work"):
+`git worktree add /home/karol/worktrees/gram/<part> -b <letter>/<part>`; there `go.mod`'s tagged
 goke and ceremony serve. A part's brief is the plan's section for it: the goal, the files it may
 touch and the seams it may not, the contracts it codes against, the tests to add. A part's agent
 reads the skills of the layers its files are in, keeps to its files, runs the verification
