@@ -262,6 +262,16 @@ func (f *Feed) drawn() (w, h int) {
 	return max(int(math.Round(float64(vw))), 1), max(int(math.Round(float64(vh))), 1)
 }
 
+// DrawGlass has the picture's Glass sources draw on the glass over the feed, dst, as it is
+// shown, through the camera (ui draws it after everything laid over the feed).
+func (f *Feed) DrawGlass(dst *Image) {
+	if g, ok := f.picture.(interface {
+		DrawGlass(dst *Image, cam camera.Camera)
+	}); ok {
+		g.DrawGlass(dst, f.cam)
+	}
+}
+
 // DrawOn draws the world through the camera onto dst, shown at dst's size: straight onto it at
 // the resolution of every pixel, else drawn at the camera's and scaled up; in layers, each over
 // the last; with the figures sharp, the ground scaled up and what lies over it straight onto dst.

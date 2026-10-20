@@ -260,6 +260,11 @@ func (d *drawing) Draw(screen *render.Image) {
 	if ov := d.scene.overlay; ov != nil {
 		ov.paint(screen)
 	}
+	root.walk(func(e *Element) {
+		if p, ok := e.content.(*picture); ok {
+			p.onGlass(screen)
+		}
+	})
 }
 
 func (d *drawing) find() {

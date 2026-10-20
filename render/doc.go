@@ -59,7 +59,9 @@
 // they are as wide in shown pixels in every layer, the ground's depth kept when the Overlying ones
 // were left out; DrawOver draws those onto the screen with the uniforms and images the
 // composition set, each tested against the layers' depths placed in the screen's
-// ([Image.PlaceDepth]).
+// ([Image.PlaceDepth]). A [Glass] source draws on the glass over the picture
+// ([Composer.DrawGlass], [Feed.DrawGlass]): onto the picture as it is shown, after whatever a
+// scene lays over it, so nothing covers what it draws.
 //
 // A color.RGBA given to render — a piece, a fill, text, a sprite drawn on a [Canvas] — is
 // straight alpha, as colours are written: {R: 255, G: 220, B: 60, A: 40} is a faint yellow. Go

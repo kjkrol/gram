@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"image"
 	"image/color"
 	"math"
 
@@ -149,7 +150,12 @@ func Image(src render.Surface) *Element { return newElement(&picture{src: src}) 
 type picture struct {
 	src   render.Surface
 	input Input
+	glass geom.AABB // where the picture was drawn this frame, for its source's glass
+	drawn bool
 }
+
+// glassed is a picture's source drawing on the glass over it, last of all (render.Feed)
+type glassed interface{ DrawGlass(dst *render.Image) }
 
 func (p *picture) place(e *Element, box geom.AABB) {
 	w, h := size(box)
@@ -160,6 +166,9 @@ type direct interface{ DrawOn(dst *render.Image) }
 
 func (p *picture) draw(e *Element, dst *render.Image) {
 	box := shrink(e.box, e.padding)
+	if _, ok := p.src.(glassed); ok {
+		p.glass, p.drawn = box, true
+	}
 	if d, ok := p.src.(direct); ok && e.mask == nil && fills(box, dst) {
 		d.DrawOn(dst)
 		return
@@ -239,3 +248,15 @@ func (*layered) place(*Element, geom.AABB)            {}
 func (l *layered) draw(_ *Element, dst *render.Image) { l.r.Draw(dst) }
 func (*layered) needs(*Element) (w, h float64)        { return 0, 0 }
 func (*layered) container()                           {} // takes no click
+
+// onGlass has the source draw on the glass over the picture, where it was drawn this frame
+func (p *picture) onGlass(screen *render.Image) {
+	if !p.drawn {
+		return
+	}
+	p.drawn = false
+	box := p.glass
+	dst := screen.SubImage(image.Rect(int(math.Round(box.TopLeft.X)), int(math.Round(box.TopLeft.Y)),
+		int(math.Round(box.BottomRight.X)), int(math.Round(box.BottomRight.Y))))
+	p.src.(glassed).DrawGlass(dst)
+}
