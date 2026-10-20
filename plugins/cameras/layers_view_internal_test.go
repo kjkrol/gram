@@ -9,62 +9,78 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-func TestLayers_OutlineLiesOnACroppedPassInsetByTheFeather(t *testing.T) {
-	p := NewPlugin(world.NewPlugin(world.Config{
+func layersPlugin() *Plugin {
+	return NewPlugin(world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 800},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	}), Config{})
-	whole := cameratest.NewFromSpace(1000, 800, 0)
-	part := cropped{whole}
+}
+
+func TestLayers_OutlineEveryInnerLayerInsetByTheFeatherWhateverTheCrop(t *testing.T) {
+	p := layersPlugin()
+	cam := cameratest.NewFromSpace(1000, 800, 0)
 	var f render.Frame
-	pieces := func(cam camera.Camera) int {
+	pieces := func() int {
 		f.Reset(cam)
 		p.layersView.Compose(&f, cam)
 		return f.Len()
 	}
-	if n := pieces(part); n != 0 {
+	p.ShowLayers(true)
+	if n := pieces(); n != 0 {
+		t.Errorf("a camera drawn whole got %d pieces of the layers, want none", n)
+	}
+	layers := []camera.Layer{{Share: 1, Resolution: 0.5}, {Share: 0.5, Resolution: 1}}
+	cam.(camera.Layered).SetLayers(layers, camera.Inset)
+	p.ShowLayers(false)
+	if n := pieces(); n != 0 {
 		t.Errorf("hidden, the layers drew %d pieces", n)
 	}
 	p.ShowLayers(true)
-	if n := pieces(whole); n != 0 {
-		t.Errorf("a camera drawn whole got %d pieces of the layers, want none", n)
+	if n := pieces(); n != 4 {
+		t.Fatalf("a camera drawn in two layers got %d pieces, want the inner one's four sides", n)
 	}
-	if n := pieces(part); n != 4 {
-		t.Fatalf("a camera drawn a part of its frame got %d pieces, want the four sides", n)
-	}
+	// the inner layer's window is (250, 200), 500 by 400; each side the feather in
 	const in = render.LayerFeather
+	onTheInset := func(x, y, k float32) bool {
+		x0, y0, x1, y1 := (250+in)*k, (200+in)*k, (750-in)*k, (600-in)*k
+		// a line's corners lie half its width and its fade out from the side
+		near := func(a, b float32) bool { return a >= b-3*k && a <= b+3*k }
+		return (near(x, x0) || near(x, x1)) && y >= y0-3*k && y <= y1+3*k ||
+			(near(y, y0) || near(y, y1)) && x >= x0-3*k && x <= x1+3*k
+	}
 	f.Each(func(at render.At, verts []render.Vertex) {
 		if at != render.OnTop(layersLevel) {
 			t.Errorf("a side lies at %v, want a mark over the zones", at)
 		}
 		for _, v := range verts {
-			if v.DstX < in-2 || v.DstX > 1000-in+2 || v.DstY < in-2 || v.DstY > 800-in+2 {
-				t.Errorf("a side's corner at (%v, %v), want within the feather, %d pixels in",
-					v.DstX, v.DstY, in)
+			if !onTheInset(v.DstX, v.DstY, 1) {
+				t.Errorf("a side's corner at (%v, %v), want on the inset rectangle", v.DstX, v.DstY)
 			}
-			if v.DstX > in+2 && v.DstX < 1000-in-2 && v.DstY > in+2 && v.DstY < 800-in-2 {
-				t.Errorf("a side's corner at (%v, %v), want on the inset rectangle", v.DstX,
-					v.DstY)
+		}
+	})
+	// composed for the inner layer's own pass, the outline lies in that crop's pixels
+	c := cam.(camera.Cropping)
+	c.Crop(camera.Window{X: 250, Y: 200, W: 500, H: 400}, 0.5)
+	defer c.Uncrop()
+	if n := pieces(); n != 4 {
+		t.Fatalf("cropped to the inner layer the outline has %d pieces, want four", n)
+	}
+	f.Each(func(_ render.At, verts []render.Vertex) {
+		for _, v := range verts {
+			if x, y := v.DstX/0.5+250, v.DstY/0.5+200; !onTheInset(x, y, 1) {
+				t.Errorf("cropped, a side's corner at (%v, %v) of the crop, want the inset "+
+					"rectangle in the crop's pixels", v.DstX, v.DstY)
 			}
 		}
 	})
 }
 
-// a part of its frame centred across and standing on the frame's bottom edge
-type footed struct{ cropped }
-
-func (c footed) Frame() (float32, float32) {
-	w, h := c.Camera.Viewport()
-	return w + 200, h + 100
-}
-
 func TestLayers_OutlineOfAFootedLayerHasNoSideOnTheBottomEdge(t *testing.T) {
-	p := NewPlugin(world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 1000, Height: 800},
-		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
-	}), Config{})
+	p := layersPlugin()
 	p.ShowLayers(true)
-	cam := footed{cropped{cameratest.NewFromSpace(1000, 800, 0)}}
+	cam := cameratest.NewFromSpace(1000, 800, 0)
+	cam.(camera.Layered).SetLayers([]camera.Layer{{Share: 1, Resolution: 0.5},
+		{Share: 0.5, Resolution: 1}}, camera.Footed)
 	var f render.Frame
 	f.Reset(cam)
 	p.layersView.Compose(&f, cam)
@@ -72,12 +88,13 @@ func TestLayers_OutlineOfAFootedLayerHasNoSideOnTheBottomEdge(t *testing.T) {
 		t.Fatalf("a layer on the bottom edge got %d pieces, want three sides: the top and the legs",
 			n)
 	}
+	// the inner layer's window is (250, 400), 500 by 400, flush with the bottom
 	const in = render.LayerFeather
 	var lowest float32
 	f.Each(func(_ render.At, verts []render.Vertex) {
 		top := float32(800)
 		for _, v := range verts {
-			if v.DstX < in-2 || v.DstX > 1000-in+2 || v.DstY < in-2 || v.DstY > 800 {
+			if v.DstX < 250+in-2 || v.DstX > 750-in+2 || v.DstY < 400+in-2 || v.DstY > 800 {
 				t.Errorf("a side's corner at (%v, %v), want the feather in but at the bottom",
 					v.DstX, v.DstY)
 			}
