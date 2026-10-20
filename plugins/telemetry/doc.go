@@ -9,10 +9,19 @@
 // game/stage makes one itself where the game made none ([Of] finds it). [Plugin.With] adds the
 // lines of render.Reporters (the atmosphere's, collision's stats), [Plugin.Line] a line of the
 // game's own, [Plugin.Clear] drops every line, the standard ones too; all before the Stage's
-// scenes are made. [Plugin.Show], [Plugin.Hide], [Plugin.Toggle] and [Plugin.Shown] work on the
-// Stage's Composition, as the players' key does.
+// scenes are made. A value of several lines stands under its label, a part a line.
+// [Plugin.Show], [Plugin.Hide], [Plugin.Toggle] and [Plugin.Shown] work on the Stage's
+// Composition, as the players' key does.
+//
+// # Mode
+//
+// The panel shows the basics ([Basic]: the frame rate, the ticks a second, where a frame's time
+// goes and the entities) or every line ([Extended]: the game time, the reporters' and the game's
+// own too); [Plugin.SetMode] and [Plugin.Mode] set and read it, [Settings] keeps it with the
+// game.
 //
 // # Vocabulary
 //
 // Commands: [Panel] (a player's, carried by the players: it needs the scene's Composition).
+// Settings ([Settings], in [Resources]): the panel showing every line.
 package telemetry

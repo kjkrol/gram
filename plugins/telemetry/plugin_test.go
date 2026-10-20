@@ -1,6 +1,7 @@
 package telemetry_test
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -46,6 +47,7 @@ func TestPlugin_HasTheStandardLinesAndTakesMore(t *testing.T) {
 	if telemetry.Of(w) != p {
 		t.Fatal("Of does not find the plugin made over the world")
 	}
+	p.SetMode(telemetry.Extended)
 	got := text(p)
 	for _, want := range []string{"FPS: ", "TPS: ", "Frame:\n  tick ", "\n  drawing ", "Entities: 0",
 		"Game time: "} {
@@ -73,6 +75,7 @@ func TestPanel_TextIsRefreshedFourTimesASecond(t *testing.T) {
 		reads++
 		return strconv.Itoa(reads)
 	})
+	p.SetMode(telemetry.Extended)
 	if got := text(p); got != "Reads: 1" {
 		t.Fatalf("the panel says %q, want its line read once", got)
 	}
@@ -83,6 +86,51 @@ func TestPanel_TextIsRefreshedFourTimesASecond(t *testing.T) {
 	telemetry.Aged(p, 150*time.Millisecond)
 	if got := text(p); got != "Reads: 2" {
 		t.Errorf("read 250 ms on, the panel says %q, want its line read anew", got)
+	}
+}
+
+func TestPlugin_ShowsTheBasicsAloneUntilExtended(t *testing.T) {
+	w := newWorld()
+	p := telemetry.NewPlugin(w).Line("Mood", func() string { return "fine" }).
+		With(&stubReporter{label: "Weather"})
+	telemetry.Refresh(p, 0)
+	if p.Mode() != telemetry.Basic {
+		t.Fatalf("the panel starts in mode %v, want the basics", p.Mode())
+	}
+	labels := func() []string {
+		var out []string
+		for l := range strings.SplitSeq(text(p), "\n") {
+			if label, _, ok := strings.Cut(l, ":"); ok && !strings.HasPrefix(l, " ") {
+				out = append(out, label)
+			}
+		}
+		return out
+	}
+	basics := []string{"FPS", "TPS", "Frame", "Entities"}
+	if got := labels(); !slices.Equal(got, basics) {
+		t.Errorf("in the basic mode the panel's lines are %q, want %q", got, basics)
+	}
+	p.SetMode(telemetry.Extended)
+	every := append(slices.Clone(basics), "Game time", "Mood", "Weather")
+	if got := labels(); !slices.Equal(got, every) {
+		t.Errorf("in the extended mode the panel's lines are %q, want %q", got, every)
+	}
+	telemetry.Refresh(p, time.Hour)
+	p.SetMode(telemetry.Basic)
+	if got := labels(); !slices.Equal(got, basics) {
+		t.Errorf("the mode set back, the panel's lines are %q, want the basics at once", got)
+	}
+}
+
+func TestPlugin_TheModeIsSavedWithTheGame(t *testing.T) {
+	saved := telemetry.NewPlugin(newWorld())
+	saved.SetMode(telemetry.Extended)
+	loaded := telemetry.NewPlugin(newWorld())
+	from, into := saved.Serializable().Persisted(), loaded.Serializable().Persisted()
+	*into[0].(*[]byte) = append([]byte(nil), *from[0].(*[]byte)...)
+	loaded.Restore()
+	if loaded.Mode() != telemetry.Extended || !loaded.Res.Settings.Extended {
+		t.Errorf("loaded, the panel's mode is %v, want the extended one saved", loaded.Mode())
 	}
 }
 

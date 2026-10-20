@@ -20,27 +20,43 @@ const SceneName = "gram.telemetry"
 type Plugin struct {
 	*world.Self
 
+	Res Resources
+
 	worldPlugin *world.Plugin
 	tps         *game.TPS
 	lines       []line
 	reporters   []render.Reporter
 	panel       *panel
+	kept        *plugin.Kept[Settings]
 	made        bool
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
+var _ plugin.Restorer = (*Plugin)(nil)
 var _ game.Scenic = (*Plugin)(nil)
 
-// NewPlugin makes the panel over worldPlugin's world with the standard lines: the frame rate,
-// the ticks a second, where a frame's time goes, the entities and the game time.
+// Mode is what the panel shows: the basics, the frame rate, the ticks a second, where a frame's
+// time goes and the entities, or every line.
+type Mode int
+
+const (
+	Basic Mode = iota
+	Extended
+)
+
+// NewPlugin makes the panel over worldPlugin's world with the standard lines: the basics, the
+// frame rate, the ticks a second, where a frame's time goes and the entities, and the game time.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin}
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.panel = newPanel(p)
-	p.Line("FPS", func() string { return fmt.Sprintf("%0.1f", render.ActualFPS()) })
-	p.Line("TPS", p.ticks)
-	p.Line("Frame", frameTime)
-	p.Line("Entities", func() string { return fmt.Sprint(worldPlugin.Res.Telemetry.Count) })
+	p.kept = plugin.Keep(&p.Res.Settings)
+	p.lines = []line{
+		{label: "FPS", value: fps, basic: true},
+		{label: "TPS", value: p.ticks, basic: true},
+		{label: "Frame", value: frameTime, basic: true},
+		{label: "Entities", value: p.entities, basic: true},
+	}
 	p.With(worldPlugin.Clock().Reporter())
 	return p
 }
@@ -55,8 +71,8 @@ func Of(worldPlugin *world.Plugin) *Plugin {
 	return nil
 }
 
-// With adds the lines of reporters, in order, under the lines so far; before the Stage's
-// scenes are made.
+// With adds the lines of reporters, in order, under the lines so far, shown in the Extended mode;
+// before the Stage's scenes are made.
 func (p *Plugin) With(reporters ...render.Reporter) *Plugin {
 	p.adding()
 	p.reporters = append(p.reporters, reporters...)
@@ -66,8 +82,9 @@ func (p *Plugin) With(reporters ...render.Reporter) *Plugin {
 	return p
 }
 
-// Line adds a line of the game's own, label: value, value read every frame; a value of several
-// lines stands under its label, each indented. Before the Stage's scenes are made.
+// Line adds a line of the game's own, label: value, value read every frame, shown in the Extended
+// mode; a value of several lines stands under its label, each indented. Before the Stage's scenes
+// are made.
 func (p *Plugin) Line(label string, value func() string) *Plugin {
 	p.adding()
 	p.lines = append(p.lines, line{label: label, value: value})
@@ -106,6 +123,20 @@ func (p *Plugin) Toggle(c game.Composition) {
 // Shown says whether the panel is shown.
 func (p *Plugin) Shown(c game.Composition) bool { return slices.Contains(c.Order(), SceneName) }
 
+// SetMode has the panel show the basics or every line (Settings.Extended).
+func (p *Plugin) SetMode(m Mode) {
+	p.Res.Settings.Extended = m == Extended
+	p.panel.stale()
+}
+
+// Mode is what the panel shows.
+func (p *Plugin) Mode() Mode {
+	if p.Res.Settings.Extended {
+		return Extended
+	}
+	return Basic
+}
+
 // Scenes is the panel's one scene (game.Scenic), hidden until shown.
 func (p *Plugin) Scenes() []game.Scene { return []game.Scene{p.panel} }
 
@@ -115,6 +146,10 @@ func (p *Plugin) ticks() string {
 	}
 	return fmt.Sprint(p.tps.Ticks)
 }
+
+func (p *Plugin) entities() string { return fmt.Sprint(p.worldPlugin.Res.Telemetry.Count) }
+
+func fps() string { return fmt.Sprintf("%0.1f", render.ActualFPS()) }
 
 func frameTime() string {
 	update, draw, present := render.Spent()
@@ -139,5 +174,11 @@ func (p *Plugin) RunPlan(goke.RunCtx, time.Duration) {}
 // EventHandler is nil: the players' key shows and hides the panel.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
-// Serializable is nil: whether the panel is shown is the Composition's.
-func (p *Plugin) Serializable() plugin.Serializable { return nil }
+// Serializable is the panel's Settings, kept whole; whether it is shown is the Composition's.
+func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
+
+// Restore takes the Settings loaded.
+func (p *Plugin) Restore() {
+	p.kept.Restore()
+	p.panel.stale()
+}

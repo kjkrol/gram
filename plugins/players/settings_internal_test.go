@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
 )
 
@@ -209,5 +210,51 @@ func TestSettings_KeepRunningLetsTheClockGoAndIsSaved(t *testing.T) {
 	}
 	if !strings.Contains(lines, "F10") {
 		t.Errorf("the general shortcuts %q, want F10 among them", lines)
+	}
+}
+
+func TestSettings_TheTelemetryPanelShownAndWhatItShows(t *testing.T) {
+	p, _, w := settingsRig(t)
+	tp := telemetry.NewPlugin(w)
+	rt, comp := &engineStub{}, &composed{}
+	p.carry(rt, comp)
+	var shown control.Switch
+	var shows control.Choice
+	for _, s := range p.Settings() {
+		switch s := s.(type) {
+		case control.Switch:
+			if s.Label == "Telemetry panel" {
+				shown = s
+			}
+		case control.Choice:
+			if s.Label == "Telemetry panel shows" {
+				shows = s
+			}
+		}
+	}
+	if shown.Set == nil || shows.Set == nil {
+		t.Fatal("no switch of the telemetry panel and choice of what it shows among the settings")
+	}
+	give := func(cmd command.Command) {
+		t.Helper()
+		if err := p.Issue(nil, cmd); err != nil {
+			t.Fatal(err)
+		}
+		p.carry(rt, comp)
+	}
+	give(shows.Set(1))
+	if tp.Shown(comp) || tp.Mode() != telemetry.Extended || shows.Get() != 1 {
+		t.Errorf("everything chosen: shown %v, mode %v, the choice %d; want hidden, extended, 1",
+			tp.Shown(comp), tp.Mode(), shows.Get())
+	}
+	give(shown.Set(true))
+	if !shown.Get() || tp.Mode() != telemetry.Extended {
+		t.Errorf("switched on: shown %v in mode %v, want shown, still extended", shown.Get(),
+			tp.Mode())
+	}
+	give(shows.Set(0))
+	if !tp.Shown(comp) || tp.Mode() != telemetry.Basic || shows.Get() != 0 {
+		t.Errorf("the basics chosen: shown %v, mode %v, the choice %d; want shown, basic, 0",
+			tp.Shown(comp), tp.Mode(), shows.Get())
 	}
 }

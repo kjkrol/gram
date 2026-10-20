@@ -312,7 +312,7 @@ func (c *composed) Hide(name string) {
 }
 func (c *composed) Order() []string { return c.names }
 
-func TestHandle_TheTildeTogglesTheTelemetryPanelUnderGeneral(t *testing.T) {
+func TestHandle_TheTildeTurnsTheTelemetryPanelBasicExtendedHiddenUnderGeneral(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
 	tp := telemetry.NewPlugin(w)
 	p := NewPlugin(w, cameras.NewPlugin(w, cameras.Config{}))
@@ -335,13 +335,20 @@ func TestHandle_TheTildeTogglesTheTelemetryPanelUnderGeneral(t *testing.T) {
 		events.AddKeyEvent(control.KeyBackquote, control.ActionPress)
 		p.Handle(events, rt, comp)
 	}
-	press()
-	if !tp.Shown(comp) {
-		t.Fatalf("~ showed %v, want the telemetry panel", comp.names)
-	}
-	press()
-	if tp.Shown(comp) {
-		t.Errorf("~ again left %v shown, want the panel hidden", comp.names)
+	for presses, want := range []struct {
+		shown bool
+		mode  telemetry.Mode
+	}{
+		{true, telemetry.Basic},
+		{true, telemetry.Extended},
+		{false, telemetry.Extended},
+		{true, telemetry.Basic},
+	} {
+		press()
+		if tp.Shown(comp) != want.shown || tp.Mode() != want.mode {
+			t.Errorf("after %d presses of ~ the panel is shown %v in mode %v, want shown %v in %v",
+				presses+1, tp.Shown(comp), tp.Mode(), want.shown, want.mode)
+		}
 	}
 }
 
