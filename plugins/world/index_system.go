@@ -10,7 +10,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// indexer gathers the space's runs anew once a spawn, a despawn or a Sync has left them behind
+// indexer gathers the space's runs anew once the chunks they lie in have changed
 type indexer struct {
 	w     *module
 	query *goke.Query
@@ -25,7 +25,7 @@ func heldQuery(si *goke.SysInit, base *goke.Comp[Base]) *goke.Query {
 }
 
 func (x *indexer) settle() {
-	if x.w.unindexed || x.w.moved(x.query) {
+	if x.w.moved(x.query) {
 		x.w.index(x.query, &x.base)
 	}
 }
@@ -48,7 +48,6 @@ func (w *module) index(q *goke.Query, base *goke.Comp[Base]) {
 		w.versions = append(w.versions, q.ChunkSnapshot().TableVer)
 	}
 	w.space.RebuildRuns(w.runs, nil)
-	w.unindexed = false
 }
 
 // moved reports whether a chunk q walks has come, gone, grown or shrunk since the runs were

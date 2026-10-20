@@ -42,9 +42,7 @@ type module struct {
 
 	drawing render.Rules
 
-	// a spawn or a despawn since the space last took every entity
-	unindexed bool
-	indexer   *indexer
+	indexer *indexer
 
 	views        []*view.View
 	viewRunnable goke.Runnable
@@ -208,7 +206,6 @@ func (w *module) despawn(cb *goke.CmdBuf, id uid.UID64) {
 		return
 	}
 	w.despawned[id] = struct{}{}
-	w.unindexed = true
 	cb.RemoveOne(id)
 	w.spawnedCount--
 	w.telemetry.Count--

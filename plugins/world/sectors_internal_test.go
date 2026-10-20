@@ -352,6 +352,26 @@ func TestSectors_LeaveWhatLiesBeyondOutOfTheSpaceAndBringItBack(t *testing.T) {
 	}
 }
 
+// each pass reads the space first, so it answers from cells built before the crossing
+func TestSectors_TheSpaceReadBeforeACrossingLetsGoOfThoseGoneBeyondAndTakesThemBack(t *testing.T) {
+	r := sectorWorld(t, twoBands...)
+	r.spawn(100, 300)
+	r.run()
+	if !r.held(100) || !r.held(300) {
+		t.Fatalf("the space holds %v and %v near the anchor, want both", r.held(100), r.held(300))
+	}
+	r.anchor.at[0] = geom.NewVec(3500, 256)
+	r.run()
+	if r.held(100) || r.held(300) {
+		t.Errorf("the space holds %v and %v gone beyond, want neither", r.held(100), r.held(300))
+	}
+	r.anchor.at[0] = geom.NewVec(100, 256)
+	r.run()
+	if !r.held(100) || !r.held(300) {
+		t.Errorf("the space holds %v and %v woken, want both", r.held(100), r.held(300))
+	}
+}
+
 func TestSectors_AfterALoadLayTheSleepersAnew(t *testing.T) {
 	r := sectorWorld(t, twoBands...)
 	r.spawn(100, 3500)

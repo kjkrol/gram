@@ -65,7 +65,6 @@ func (s *spawnSystem) Update(_ *goke.CmdBuf, _ time.Duration) {
 		s.w.spawnRows(g.by.factory, &g.by.base, &g.by.label, g.by.spawner, g.by.kind, g.rows, g.entries)
 		s.w.spawnedCount += len(g.rows)
 		s.w.telemetry.Count += len(g.rows)
-		s.w.unindexed = true
 	}
 }
 

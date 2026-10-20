@@ -58,3 +58,49 @@ func TestIndex_AMigrationInAStepLeavesTheSpaceFindingEveryEntityWhereItStands(t 
 		t.Errorf("the space finds %v, want each of %v once", everywhere, ids)
 	}
 }
+
+// the chunk keeps its length and its memory: only the table's version tells the slot changed hands
+func TestIndex_ANewcomerTakingTheSlotOfOneGoneInTheSameStepIsFoundWhereItStands(t *testing.T) {
+	p, things, ecs, q, base := spawnWorld(t, 0, 3)
+	wm := p.module
+	p.Spawn(
+		things.Entry(thing{x: 100, y: 100, size: 10}),
+		things.Entry(thing{x: 300, y: 100, size: 10}),
+	)
+	run(ecs, wm, func(*goke.CmdBuf) {})
+	at := map[float64]uid.UID64{}
+	for q.All(); q.Next(); {
+		cursor := q.Cursor()
+		for i, b := range base.Slice(cursor) {
+			at[b.Pos.TopLeft.X] = cursor.IDs[i]
+		}
+	}
+	finds := func(x float64) []uid.UID64 {
+		var found []uid.UID64
+		wm.space.Query(geom.NewAABBAt(geom.NewVec(x, 100), 10, 10), aabbworld.AnyCapability,
+			func(id uid.UID64) { found = append(found, id) })
+		return found
+	}
+	// a query builds the cells, which a later one reads until the space is told of a change
+	if found := finds(300); !slices.Equal(found, []uid.UID64{at[300]}) {
+		t.Fatalf("at 300 the space finds %v, want %v", found, at[300])
+	}
+	p.Spawn(things.Entry(thing{x: 800, y: 100, size: 10}))
+	wm.commands.PutFrom(at[300], Despawn{})
+	run(ecs, wm, func(*goke.CmdBuf) {})
+
+	var newcomer uid.UID64
+	for q.All(); q.Next(); {
+		cursor := q.Cursor()
+		for i, b := range base.Slice(cursor) {
+			if b.Pos.TopLeft.X == 800 {
+				newcomer = cursor.IDs[i]
+			}
+		}
+	}
+	for x, want := range map[float64][]uid.UID64{100: {at[100]}, 300: nil, 800: {newcomer}} {
+		if found := finds(x); !slices.Equal(found, want) {
+			t.Errorf("at %v the space finds %v, want %v", x, found, want)
+		}
+	}
+}

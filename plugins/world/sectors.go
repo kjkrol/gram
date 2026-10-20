@@ -239,20 +239,15 @@ func (s *sectors) restart() {
 	}
 }
 
-// to the band of sector at; across the last band's edge the space is told to index anew
+// to the band of sector at, sleeping in it if that lies beyond the last band
 func (s *sectors) move(cb *goke.CmdBuf, id uid.UID64, from, to, at int) {
 	if from != 0 {
 		cb.RemoveCompOne(id, s.marks[from])
 	}
-	if beyond := s.grid.Beyond(); from == beyond || to == beyond {
-		s.w.unindexed = true
-		if to == beyond {
-			s.sleep[at] = append(s.sleep[at], id)
-		}
-	}
 	switch {
 	case to == 0:
 	case to == s.grid.Beyond():
+		s.sleep[at] = append(s.sleep[at], id)
 		cb.AddOne(id, s.marks[to], sector.Off{})
 	case to == 1:
 		cb.AddOne(id, s.marks[to], sector.Band2{})
