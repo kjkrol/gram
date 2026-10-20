@@ -115,6 +115,7 @@ type cellKeeping struct {
 	holder   uid.UID64
 	holderIn cell.Domain
 	heldBy   func(c cell.ID, deck bool) bool
+	asides   [8]scored
 }
 
 var _ keeping = (*cellKeeping)(nil)
@@ -269,20 +270,21 @@ func (k *cellKeeping) mayStep(m member, ahead cell.ID, deck bool, _ geom.Vec) bo
 
 func (k *cellKeeping) other(id uid.UID64) (body, bool) { return k.index.of(id) }
 
-// across the comer's way first, then behind, a slantwise step last; never ahead of it
-func (k *cellKeeping) aside(m member, from cell.ID, way geom.Vec) []cell.ID {
-	grid, terrain := k.finder.grid, k.finder.terrain
+type scored struct {
+	c     cell.ID
+	score float64
+}
+
+// across the comer's way first, then behind, a slantwise step last; never ahead of it. Whether m
+// may step there is the caller's to ask, in this order.
+func (k *cellKeeping) aside(m member, from cell.ID, way geom.Vec) []scored {
+	grid := k.finder.grid
 	home := m.cell
 	hc := grid.CellCenter(home)
-	type scored struct {
-		c     cell.ID
-		score float64
-	}
-	var out []scored
+	out := k.asides[:0]
 	for i := range grid.Directions() {
 		n, ok := grid.Toward(home, i)
-		if !ok || n == from || !terrain.Kind(n).Admits(m.domain) ||
-			k.finder.climb(home, n, m.domain) > yieldClimb || !k.finder.steps(m, n) {
+		if !ok || n == from {
 			continue
 		}
 		c := grid.CellCenter(n)
@@ -302,11 +304,7 @@ func (k *cellKeeping) aside(m member, from cell.ID, way geom.Vec) []cell.ID {
 		out = append(out, scored{n, score})
 	}
 	slices.SortStableFunc(out, func(a, b scored) int { return cmp.Compare(a.score, b.score) })
-	cells := make([]cell.ID, len(out))
-	for i, s := range out {
-		cells[i] = s.c
-	}
-	return cells
+	return out
 }
 
 func (k *cellKeeping) wayFrom(m member, asker body) (cell.ID, geom.Vec) {
@@ -324,8 +322,13 @@ func (k *cellKeeping) byContact() bool { return false }
 
 func (k *cellKeeping) stepAside(m member, of body) (MoveOrder, bool) {
 	from, way := k.wayFrom(m, of)
-	for _, c := range k.aside(m, from, way) {
-		if deck, _ := k.finder.stepsOnto(m, c); !k.occ.CanEnter(c, deck, m.id, m.domain) {
+	terrain := k.finder.terrain
+	for _, s := range k.aside(m, from, way) {
+		c := s.c
+		if !terrain.Kind(c).Admits(m.domain) || k.finder.climb(m.cell, c, m.domain) > yieldClimb {
+			continue
+		}
+		if deck, ok := k.finder.stepsOnto(m, c); !ok || !k.occ.CanEnter(c, deck, m.id, m.domain) {
 			continue
 		}
 		o := MoveOrder{Target: c, GivingWay: true}
