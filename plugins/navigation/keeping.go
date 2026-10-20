@@ -82,11 +82,39 @@ type member struct {
 
 func (m member) centre() geom.Vec { return m.pos.Center() }
 
+// the cells a route goes round; blocked asks about them, the method value bound once
+type avoiding struct {
+	target  cell.ID
+	known   [4]cell.ID
+	n       uint8
+	blocked func(cell.ID) bool
+}
+
+func (a *avoiding) avoids(c cell.ID) bool {
+	return c != a.target && slices.Contains(a.known[:a.n], c)
+}
+
+func (a *avoiding) route(f *pathFinder, m member, from cell.ID, o *MoveOrder) (Path, bool) {
+	if o.Avoids > 0 {
+		a.target, a.known, a.n = o.Target, o.Avoid, o.Avoids
+		if p, ok := f.findPathAround(m.id, m.domain, m.body(), from, o.Target, o.Level,
+			a.blocked); ok {
+			return p, true
+		}
+	}
+	return f.findPath(m.id, m.domain, m.body(), from, o.Target, o.Level)
+}
+
 type cellKeeping struct {
 	finder *pathFinder
 	occ    cell.Occupancy
 	who    holders // nil: nobody is asked off a cell
 	index  bodyIndex
+	avoid  avoiding
+	// whom held answers for, through the method value bound once
+	holder   uid.UID64
+	holderIn cell.Domain
+	heldBy   func(c cell.ID, deck bool) bool
 }
 
 var _ keeping = (*cellKeeping)(nil)
@@ -94,6 +122,7 @@ var _ keeping = (*cellKeeping)(nil)
 func newCellKeeping(finder *pathFinder, occ cell.Occupancy) *cellKeeping {
 	k := &cellKeeping{finder: finder, occ: occ, index: bodyIndex{grid: finder.grid}}
 	k.who, _ = occ.(holders)
+	k.avoid.blocked, k.heldBy = k.avoid.avoids, k.isHeld
 	return k
 }
 
@@ -154,19 +183,16 @@ func (k *cellKeeping) look(m member, at geom.Vec) MoveOrder {
 func (k *cellKeeping) ready(member, *MoveOrder) {}
 
 func (k *cellKeeping) route(m member, from cell.ID, o *MoveOrder) (Path, bool) {
-	if o.Avoids > 0 {
-		known := o.Avoid[:o.Avoids]
-		blocked := func(c cell.ID) bool { return c != o.Target && slices.Contains(known, c) }
-		if p, ok := k.finder.findPathAround(m.id, m.domain, m.body(), from, o.Target, o.Level,
-			blocked); ok {
-			return p, true
-		}
-	}
-	return k.finder.findPath(m.id, m.domain, m.body(), from, o.Target, o.Level)
+	return k.avoid.route(k.finder, m, from, o)
 }
 
 func (k *cellKeeping) held(m member) func(c cell.ID, deck bool) bool {
-	return func(c cell.ID, deck bool) bool { return !k.occ.CanEnter(c, deck, m.id, m.domain) }
+	k.holder, k.holderIn = m.id, m.domain
+	return k.heldBy
+}
+
+func (k *cellKeeping) isHeld(c cell.ID, deck bool) bool {
+	return !k.occ.CanEnter(c, deck, k.holder, k.holderIn)
 }
 
 func (k *cellKeeping) lost(m member, from cell.ID, o *MoveOrder, waited time.Duration) (cell.ID, Path, bool, bool) {
