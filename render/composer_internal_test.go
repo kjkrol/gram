@@ -120,7 +120,7 @@ func TestFrame_AnEdgesEndsKeepTheirHeightsAndWithNoDepthNone(t *testing.T) {
 		t.Fatalf("%d pieces, want the line and the edge apart", c.frame.Len())
 	}
 	var gotV []Vertex
-	c.draw = func(_ *Image, verts []Vertex, _ []uint16, _ *Image) {
+	c.draw = func(_ *Image, verts []Vertex, _ []uint16, _ *Image, _ [4]float32) {
 		gotV = append(gotV, verts...)
 	}
 	for _, heights := range []bool{true, false} {
@@ -160,8 +160,10 @@ func TestFrame_AtFromAboveIsTheHeightAndThroughAViewThatSortsTheCamerasDepth(t *
 
 func calls(c *Composer) []string {
 	var out []string
-	c.draw = func(_ *Image, _ []Vertex, _ []uint16, _ *Image) { out = append(out, "call") }
-	c.render(nil, false)
+	c.draw = func(_ *Image, _ []Vertex, _ []uint16, _ *Image, _ [4]float32) {
+		out = append(out, "call")
+	}
+	c.render(nil, false, 0)
 	return out
 }
 
@@ -195,8 +197,10 @@ func TestComposer_AColourJoiningARunSamplesItsSheetsWhite(t *testing.T) {
 		f.Line(h(0), 0, 0, 10, 0, 1, white)
 	}))
 	var verts []Vertex
-	c.draw = func(_ *Image, v []Vertex, _ []uint16, _ *Image) { verts = append(verts, v...) }
-	c.render(nil, false)
+	c.draw = func(_ *Image, v []Vertex, _ []uint16, _ *Image, _ [4]float32) {
+		verts = append(verts, v...)
+	}
+	c.render(nil, false, 0)
 	if len(verts) != 8 || verts[4].SrcX != 40 || verts[7].SrcY != 40 {
 		t.Errorf("the line samples (%v, %v), want the sheet's white at (40, 40)", verts[4].SrcX, verts[4].SrcY)
 	}
@@ -211,7 +215,7 @@ func TestComposer_SplitsACallBeforeItsIndicesOverflow(t *testing.T) {
 		}
 	}))
 	var sizes []int
-	c.draw = func(_ *Image, v []Vertex, idx []uint16, _ *Image) {
+	c.draw = func(_ *Image, v []Vertex, idx []uint16, _ *Image, _ [4]float32) {
 		sizes = append(sizes, len(v))
 		for _, i := range idx {
 			if int(i) >= len(v) {
@@ -219,7 +223,7 @@ func TestComposer_SplitsACallBeforeItsIndicesOverflow(t *testing.T) {
 			}
 		}
 	}
-	c.render(nil, false)
+	c.render(nil, false, 0)
 	if len(sizes) != 2 || sizes[0] != chunkVertices || sizes[1] != 20 {
 		t.Errorf("calls of %v vertices, want %d then 20", sizes, chunkVertices)
 	}
@@ -260,13 +264,13 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 			f.Line(OnTop(1), 0, 0, 5, 5, 1, white)
 		}
 	})})
-	c.draw = func(*Image, []Vertex, []uint16, *Image) {}
+	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) {}
 	cam := sorted()
 	c.compose(cam, wholePart)
-	c.render(nil, false)
+	c.render(nil, false, 0)
 	if n := testing.AllocsPerRun(20, func() {
 		c.compose(cam, wholePart)
-		c.render(nil, false)
+		c.render(nil, false, 0)
 	}); n > 0 {
 		t.Errorf("a warm frame allocates %v times, want none", n)
 	}
@@ -274,6 +278,17 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 	if n := testing.AllocsPerRun(20, func() { c.drawApart(cam) }); n > 0 {
 		t.Errorf("a warm frame of the ground and what lies over it allocates %v times, want none",
 			n)
+	}
+	outer, inner, screen := NewImage(32, 32), NewImage(24, 24), NewImage(64, 64)
+	layered := func() {
+		c.Lay(cam, true)
+		c.DrawLayer(outer, cam, camera.Window{W: 64, H: 64})
+		c.DrawLayer(inner, cam, camera.Window{X: 16, Y: 16, W: 32, H: 32})
+		c.DrawOver(screen, cam)
+	}
+	layered()
+	if n := testing.AllocsPerRun(20, layered); n > 0 {
+		t.Errorf("a warm frame laid in two layers allocates %v times, want none", n)
 	}
 }
 
@@ -340,8 +355,10 @@ func TestFrame_AFanIsTrianglesRoundItsFirstPoint(t *testing.T) {
 		f.Fan(h(0), [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}, {-5, 5}}, white)
 	}))
 	var idx []uint16
-	c.draw = func(_ *Image, _ []Vertex, i []uint16, _ *Image) { idx = append(idx, i...) }
-	c.render(nil, false)
+	c.draw = func(_ *Image, _ []Vertex, i []uint16, _ *Image, _ [4]float32) {
+		idx = append(idx, i...)
+	}
+	c.render(nil, false, 0)
 	fanIdx := idx[6:]
 	if len(fanIdx) != 9 || fanIdx[0] != 4 || fanIdx[1] != 5 || fanIdx[8] != 8 {
 		t.Errorf("fan indices %v, want three triangles round vertex 4", fanIdx)
@@ -542,9 +559,9 @@ func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T)
 		}
 		at = f.Time()
 	}))
-	c.draw = func(*Image, []Vertex, []uint16, *Image) {}
+	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) {}
 	c.compose(topDown(), wholePart)
-	c.render(nil, false)
+	c.render(nil, false, 0)
 	sun, cover := c.uniforms["LightWay"], c.uniforms["Cover"]
 	if len(sun) != 3 || sun[0] != 0.6 || sun[2] != 0.8 || len(cover) != 1 || cover[0] != 0.6 {
 		t.Errorf("the shader is handed Sun %v and Cover %v, want the frame's (0.6, 0, 0.8) and 0.6", sun, cover)
@@ -565,17 +582,17 @@ func TestComposer_HandsTheShaderTheFramesUniformsAndZeroesTheStale(t *testing.T)
 	}
 	set = false
 	c.compose(topDown(), wholePart)
-	c.render(nil, false)
+	c.render(nil, false, 0)
 	if sun, cover := c.uniforms["LightWay"], c.uniforms["Cover"]; sun[0] != 0 || sun[2] != 0 || cover[0] != 0 {
 		t.Errorf("a frame that set nothing hands the shader Sun %v and Cover %v, want zero", sun, cover)
 	}
 	set = true
 	cam := topDown()
 	c.compose(cam, wholePart)
-	c.render(nil, false)
+	c.render(nil, false, 0)
 	if n := testing.AllocsPerRun(20, func() {
 		c.compose(cam, wholePart)
-		c.render(nil, false)
+		c.render(nil, false, 0)
 	}); n > 0 {
 		t.Errorf("a warm frame with uniforms allocates %v times, want none", n)
 	}
@@ -623,9 +640,9 @@ func TestComposer_ADirectDrawsWhereItAskedAndOnlyThere(t *testing.T) {
 		f.Sprite(OnTop(0), a, 0, unit, Even(1)) // a mark
 		f.Uniform("Seen", 7)
 	}), nil, views, ground, &direct{at: &sky, after: &calls}, nothing)
-	c.draw = func(*Image, []Vertex, []uint16, *Image) { calls++ }
+	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) { calls++ }
 	c.compose(topDown(), wholePart)
-	c.render(nil, false)
+	c.render(nil, false, 0)
 	if len(c.sources) != 7 || len(c.directs) != 7 {
 		t.Fatalf("%d sources, %d directs, want the nil layer left out", len(c.sources),
 			len(c.directs))
@@ -700,13 +717,14 @@ func TestComposer_TheMarksTakeNoSight(t *testing.T) {
 	}
 }
 
-// drawApart is a frame of the ground and what lies over it drawn with no screen, as the tests
-// draw a whole one through compose and render
+// drawApart is a frame of the ground laid and what lies over it drawn with no screen, as the
+// tests draw a whole one through compose and render
 func (c *Composer) drawApart(cam camera.Camera) {
-	c.DrawGround(nil, cam)
-	c.render(nil, true)
-	c.DrawOver(nil, nil, cam)
-	c.renderOver(nil, nil)
+	c.Lay(cam, true)
+	c.DrawLayer(nil, cam, camera.Window{})
+	c.render(nil, true, 0)
+	c.DrawOver(nil, cam)
+	c.renderOver(nil)
 }
 
 // overlyingSource and overlyingDirect are a source and a Direct whose pieces lie over the figures
@@ -758,14 +776,14 @@ func (s *staged) Draw(t Target, cam camera.Camera, u Uniforms) {
 	s.u = u
 }
 
-func TestComposer_DrawGroundAndDrawOverComposeEachSourceOnceInItsPass(t *testing.T) {
+func TestComposer_LayAndDrawOverComposeEachSourceOnceInItsPart(t *testing.T) {
 	var log []string
 	ground := &staged{name: "ground", opaque: true, log: &log}
 	route := &staged{name: "route", draws: true, at: h(0.75), log: &log}
 	figures := &staged{name: "figures", draws: true, at: h(2), log: &log}
 	rain := &staged{name: "rain", opaque: true, draws: true, at: Nearest, log: &log}
 	c := NewComposer(ground, overlyingDirect{figures}, route, overlyingDirect{rain})
-	c.draw = func(*Image, []Vertex, []uint16, *Image) {}
+	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) {}
 	cam := topDown()
 	c.drawApart(cam)
 	if want := []bool{false, true, false, true}; !slices.Equal(c.overlying, want) {
@@ -794,6 +812,86 @@ func TestComposer_DrawGroundAndDrawOverComposeEachSourceOnceInItsPass(t *testing
 			"seen through: a source over the figures asking for the opaque pass is not heard",
 			figures.passes, rain.passes)
 	}
+	log = log[:0]
+	c.Lay(cam, false)
+	want = []string{"ground composed", "figures composed", "route composed", "rain composed"}
+	if !slices.Equal(log, want) {
+		t.Errorf("laid whole the frame went %v, want %v: every source composed once", log, want)
+	}
+}
+
+func TestComposer_DrawLayerPlacesThePiecesAndDrawsTheDirectsThroughTheCroppedCamera(
+	t *testing.T,
+) {
+	var log []string
+	route := &staged{name: "route", draws: true, at: h(0.75), log: &log}
+	a := &sheet{"a"}
+	c := NewComposer(route, items(func(f *Frame) { f.Sprite(h(1), a, 0, unit, Even(1)) }))
+	var places [][4]float32
+	c.draw = func(_ *Image, _ []Vertex, _ []uint16, _ *Image, place [4]float32) {
+		places = append(places, place)
+	}
+	cam := topDown()
+	cam.SetViewport(64, 48)
+	crop := cam.(camera.Cropping)
+	crop.Crop(64, 48, 1)
+	c.Lay(cam, false)
+	crop.Uncrop()
+	crop.Crop(32, 24, 0.5)
+	c.DrawLayer(NewImage(16, 12), cam, camera.Window{X: 16, Y: 12, W: 32, H: 24})
+	crop.Uncrop()
+	c.DrawWorld(NewImage(64, 48), cam)
+	if want := [][4]float32{{0.5, 0.5, -8, -6}, {}}; !slices.Equal(places, want) {
+		t.Errorf("the pieces were placed %v, want %v: scaled by the layer's half and moved by its "+
+			"window's corner, a whole frame after them not at all", places, want)
+	}
+	if want := [][2]float32{{16, 12}, {64, 48}}; !slices.Equal(route.views, want) {
+		t.Errorf("the Direct drew through viewports %v, want %v: the camera cropped to the layer, "+
+			"then whole", route.views, want)
+	}
+}
+
+func TestComposer_DrawLayerTwiceDrawsEveryDirectTwice(t *testing.T) {
+	needGPU(t)
+	var log []string
+	ground := &staged{name: "ground", opaque: true, log: &log}
+	route := &staged{name: "route", draws: true, at: h(0.75), log: &log}
+	figures := &staged{name: "figures", draws: true, at: h(2), log: &log}
+	c := NewComposer(ground, route, overlyingDirect{figures})
+	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) {}
+	cam := topDown()
+	c.Lay(cam, false)
+	c.DrawLayer(NewImage(32, 32), cam, camera.Window{W: 64, H: 64})
+	c.DrawLayer(NewImage(16, 16), cam, camera.Window{X: 16, Y: 16, W: 32, H: 32})
+	want := []string{"ground composed", "route composed", "figures composed",
+		"ground drawn", "route drawn", "figures drawn", "ground drawn", "route drawn",
+		"figures drawn"}
+	if !slices.Equal(log, want) {
+		t.Errorf("two layers went %v, want %v: composed once, every Direct drawn in each", log,
+			want)
+	}
+	if len(c.laid) != 0 {
+		t.Errorf("laid whole %d layers kept a ground for a pass over them, want none", len(c.laid))
+	}
+}
+
+func TestComposer_TwoLayersOfOneSizeKeepTheirGroundsApart(t *testing.T) {
+	needGPU(t)
+	var log []string
+	c := NewComposer(&staged{name: "ground", opaque: true, log: &log})
+	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) {}
+	cam := topDown()
+	c.Lay(cam, true)
+	c.DrawLayer(NewImage(32, 32), cam, camera.Window{W: 64, H: 64})
+	c.DrawLayer(NewImage(32, 32), cam, camera.Window{X: 16, Y: 16, W: 32, H: 32})
+	if len(c.laid) != 2 || c.laid[0].ground == c.laid[1].ground {
+		t.Errorf("two layers of 32 by 32 laid %d grounds, the same depth %v; want two apart",
+			len(c.laid), len(c.laid) == 2 && c.laid[0].ground == c.laid[1].ground)
+	}
+	c.Lay(cam, true)
+	if len(c.laid) != 0 {
+		t.Errorf("a new Lay keeps %d layers laid before, want none", len(c.laid))
+	}
 }
 
 func TestComposer_TheOverPassInheritsTheGroundPassesUniformsAndImages(t *testing.T) {
@@ -811,7 +909,7 @@ func TestComposer_TheOverPassInheritsTheGroundPassesUniformsAndImages(t *testing
 		}
 	}}
 	c := NewComposer(ground, overlyingDirect{figures})
-	c.draw = func(*Image, []Vertex, []uint16, *Image) {}
+	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) {}
 	cam := topDown()
 	c.drawApart(cam)
 	if !fogged || !imaged {

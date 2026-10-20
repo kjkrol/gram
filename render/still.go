@@ -23,7 +23,7 @@ type stillRun struct {
 func NewStill() *Still {
 	s := &Still{}
 	s.c.heights = true
-	s.c.draw = func(_ *Image, verts []Vertex, indices []uint16, sheet *Image) {
+	s.c.draw = func(_ *Image, verts []Vertex, indices []uint16, sheet *Image, _ [4]float32) {
 		s.runs = append(s.runs, stillRun{sheet: sheet, kept: gpu.NewKept(verts, indices)})
 	}
 	return s

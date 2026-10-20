@@ -15,8 +15,8 @@ type Source interface {
 }
 
 // Overlying is a Source whose pieces lie over the figures' ground: the figures themselves, what
-// falls or floats over them and the marks. A Grounded picture composes and draws it in the pass
-// over the ground, the rest in the ground's.
+// falls or floats over them and the marks. A Laid picture composes and draws it in the pass over
+// the layers of the ground, the rest in the ground's.
 type Overlying interface{ Overlies() }
 
 // Corners are a quad's screen corners: top-left, top-right, bottom-left, bottom-right.
