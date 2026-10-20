@@ -33,6 +33,7 @@ type Scene struct {
 	overlay *Element  // a dropdown's options, over everything, hanging from field
 	field   geom.AABB // the dropdown's box
 	held    *Element  // a slider dragged
+	laid    geom.AABB // the screen the scene was last laid over
 }
 
 var _ game.Scene = (*Scene)(nil)
@@ -89,8 +90,12 @@ func (s *Scene) Replace(screen *Element) {
 // Unfolded reports whether a dropdown's options lie open: Esc closes them before anything else.
 func (s *Scene) Unfolded() bool { return s.overlay != nil }
 
+// Laid is the screen the scene was last laid over: a zero box before the first frame.
+func (s *Scene) Laid() geom.AABB { return s.laid }
+
 // Lay lays the scene's elements over screen, as every frame does before drawing.
 func (s *Scene) Lay(screen geom.AABB) {
+	s.laid = screen
 	if s.root == nil {
 		return
 	}

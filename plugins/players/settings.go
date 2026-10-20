@@ -38,6 +38,7 @@ type SettingsScene struct {
 	screen *ui.Scene
 	shown  bool
 	paused bool // the clock was paused as the screen opened: left so as it closes
+	w, h   int  // the screen the listing was built for
 }
 
 var _ game.Scene = (*SettingsScene)(nil)
@@ -53,7 +54,7 @@ func (s *SettingsScene) Open(runtime game.Runtime, composition game.Composition)
 		issuer = locals[0]
 	}
 	s.screen.Issue(s.p.IssueAs(issuer))
-	s.screen.Replace(s.listing(runtime.Props()))
+	s.build(screenSize(s.screen, runtime.Props()))
 	composition.Show(SettingsName)
 	s.shown = true
 	s.paused = s.p.worldPlugin.Clock().State().Paused
@@ -80,10 +81,14 @@ func (*SettingsScene) Name() string { return SettingsName }
 func (s *SettingsScene) Drawers() []render.Drawer { return s.screen.Drawers() }
 
 // HandleEvents closes the screen on Esc or F10 and hands the rest to the controls; the cursor
-// is let go while the screen is up, a player riding or not.
+// is let go while the screen is up, a player riding or not; a screen of another size, the
+// window resized or full, has the listing built anew for it.
 func (s *SettingsScene) HandleEvents(events *control.InputEvents, runtime game.Runtime,
 	composition game.Composition) {
 	s.p.capture()
+	if w, h := screenSize(s.screen, runtime.Props()); w != s.w || h != s.h {
+		s.build(w, h)
+	}
 	for _, k := range events.KeyEvents {
 		if k.Action != control.ActionPress || events.Modifiers.Shift || events.Modifiers.Ctrl {
 			continue
@@ -106,13 +111,28 @@ const (
 	twinColumn    = 230 // a twin section's column of controls
 )
 
+// build replaces the screen with the listing laid out for a screen w by h
+func (s *SettingsScene) build(w, h int) {
+	s.w, s.h = w, h
+	s.screen.Replace(s.listing(w, h))
+}
+
+// screenSize is the size a menu lays itself out for: the screen the scene was last laid over,
+// the window as it is, else the Props' as the game starts
+func screenSize(scene *ui.Scene, props game.Props) (w, h int) {
+	if box := scene.Laid(); box.BottomRight.X > box.TopLeft.X {
+		return int(box.BottomRight.X - box.TopLeft.X), int(box.BottomRight.Y - box.TopLeft.Y)
+	}
+	return props.ScreenWidth, props.ScreenHeight
+}
+
 // listing is the screen: the title and, centred in as many columns as the screen's width takes,
 // the sections of settings, a heading each and a line a setting, its label and its control;
 // the columns broken by the screen's height where they fit its width, fewer and taller where
 // they do not, scrolled then (ui.Scroll).
-func (s *SettingsScene) listing(props game.Props) *ui.Element {
-	width := float64(props.ScreenWidth) - 2*shortcutsMargin
-	height := float64(props.ScreenHeight) - 2*shortcutsMargin
+func (s *SettingsScene) listing(w, h int) *ui.Element {
+	width := float64(w) - 2*shortcutsMargin
+	height := float64(h) - 2*shortcutsMargin
 	_, titleHeight := ui.DefaultTheme().Large.Measure("Settings")
 	height -= float64(titleHeight) + shortcutsGap
 

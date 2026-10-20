@@ -54,6 +54,7 @@ type Shortcuts struct {
 	screen      *ui.Scene
 	held        bool
 	description string
+	w, h        int // the screen the listing was built for
 }
 
 var _ game.Scene = (*Shortcuts)(nil)
@@ -78,7 +79,7 @@ func (s *Shortcuts) Open(runtime game.Runtime, composition game.Composition) {
 	s.description = runtime.Props().Description
 	s.held = runtime.Paused()
 	runtime.Pause()
-	s.screen.Replace(s.listing(runtime.Props()))
+	s.build(screenSize(s.screen, runtime.Props()))
 	composition.Show(ShortcutsName)
 }
 
@@ -97,6 +98,9 @@ func (s *Shortcuts) Drawers() []render.Drawer { return s.screen.Drawers() }
 // HandleEvents closes the scene on Esc or K.
 func (s *Shortcuts) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
 	s.p.capture()
+	if w, h := screenSize(s.screen, runtime.Props()); w != s.w || h != s.h {
+		s.build(w, h)
+	}
 	for _, k := range events.KeyEvents {
 		if k.Action == control.ActionPress && (k.Key == control.KeyEscape || k.Key == control.KeyK) && !events.Modifiers.Shift {
 			s.Close(runtime, composition)
@@ -284,14 +288,20 @@ const (
 
 var shortcutsDim = color.RGBA{A: 170}
 
+// build replaces the screen with the listing laid out for a screen w by h
+func (s *Shortcuts) build(w, h int) {
+	s.w, s.h = w, h
+	s.screen.Replace(s.listing(w, h))
+}
+
 // listing is the screen: the game's description, a gap, the title, and the groups of keys in
 // columns as wide as their lines, each column as tall as the screen allows.
-func (s *Shortcuts) listing(props game.Props) *ui.Element {
+func (s *Shortcuts) listing(w, h int) *ui.Element {
 	font := ui.DefaultTheme().Font
 	glyph, line := font.Measure("abcdefghij")
 	glyphWidth, lineHeight := float64(glyph)/10, float64(line)
-	width := float64(props.ScreenWidth) - 2*shortcutsMargin
-	height := float64(props.ScreenHeight) - 2*shortcutsMargin
+	width := float64(w) - 2*shortcutsMargin
+	height := float64(h) - 2*shortcutsMargin
 
 	var rows []ui.Part
 	if d := s.description; d != "" {

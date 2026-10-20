@@ -96,7 +96,9 @@ no `render` rule: the world through a camera is a `render.Feed` (`render.NewFeed
 drawn every frame into an image of the size it is shown at; `ToWorld`/`ToPixels`), which
 `ui.Image(feed)` shows. `ui.NewScene(name, screen)` is a `game.Scene`: `Input(players.Handle)`,
 `Issue(players.IssueAs(pl))` for its buttons and keys, `Keys(bindings...)`, `Theme(th)`,
-`Show`/`Hide`/`Toggle`/`Shown` by name, `Replace(screen)`, `Lay(screen)` (tests call it); it saves
+`Show`/`Hide`/`Toggle`/`Shown` by name, `Replace(screen)`, `Lay(screen)` (tests call it),
+`Laid()` (the screen it was last laid over: a menu built for a size rebuilds itself when the
+next tick finds it laid over another, as the players' settings and shortcuts do); it saves
 which named elements are shown (`Persisted`/`Restore`). **The notation says what it does**:
 `ui.Layers(bottom, …, top)` covers, `ui.Columns`/`ui.Rows` split and never cover, each part
 `ui.Share(n, el)`, `ui.Fixed(px, el)` (counted in what its split needs), `ui.Fit(el)`; an anchor
