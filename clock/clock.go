@@ -54,6 +54,19 @@ type Clock struct {
 	slowed  bool
 	system  *system
 	changed func(State)
+	synced  synced
+}
+
+// synced is the RunCtx Replay hands the blocks once OnSync has given it its settle
+type synced struct {
+	goke.RunCtx
+	settle func()
+}
+
+func (s *synced) Sync() error {
+	err := s.RunCtx.Sync()
+	s.settle()
+	return err
 }
 
 // New makes a clock at tempo 1, not paused, of cfg.
@@ -105,7 +118,11 @@ func (c *Clock) Simulate(_ goke.RunCtx, block Block) { c.blocks = append(c.block
 // step, moving game time on with each. A BiggerStep clock runs them once, over step times the
 // tempo.
 func (c *Clock) Replay(ctx goke.RunCtx, step time.Duration) {
-	defer func() { c.blocks = c.blocks[:0] }()
+	defer c.replayed()
+	if c.synced.settle != nil {
+		c.synced.RunCtx = ctx
+		ctx = &c.synced
+	}
 	c.step = step
 	if c.state.Paused {
 		c.carry = 0
@@ -120,6 +137,17 @@ func (c *Clock) Replay(ctx goke.RunCtx, step time.Duration) {
 		c.run(ctx, step)
 	}
 }
+
+func (c *Clock) replayed() {
+	c.blocks = c.blocks[:0]
+	if c.synced.settle != nil {
+		c.synced.settle()
+	}
+}
+
+// OnSync has settle run after every Sync of what Replay runs and as each Replay ends: for what
+// reads goke's memory where it lies, which a Sync may move.
+func (c *Clock) OnSync(settle func()) { c.synced.settle = settle }
 
 func (c *Clock) run(ctx goke.RunCtx, step time.Duration) {
 	for _, b := range c.blocks {
