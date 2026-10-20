@@ -14,7 +14,7 @@ func TestBreadthFirst_VisitsRingByRing(t *testing.T) {
 
 	var order []cell.ID
 	record := func(c cell.ID) bool { order = append(order, c); return false }
-	if _, ok := breadthFirst(start, grid.Neighbors, all, record, 100); ok {
+	if _, ok := new(rings).breadthFirst(start, grid, all, record, 100); ok {
 		t.Fatal("match never accepts, expected no result")
 	}
 	if len(order) != 25 || order[0] != start {
@@ -34,7 +34,8 @@ func TestBreadthFirst_DoesNotCrossRejectedCells(t *testing.T) {
 	beyond := grid.At(3, 0)
 	notWall := func(c cell.ID) bool { return c != wall }
 
-	if _, ok := breadthFirst(start, grid.Neighbors, notWall, func(c cell.ID) bool { return c == beyond }, 100); ok {
+	behind := func(c cell.ID) bool { return c == beyond }
+	if _, ok := new(rings).breadthFirst(start, grid, notWall, behind, 100); ok {
 		t.Error("found a cell behind a rejected one")
 	}
 }
@@ -45,7 +46,8 @@ func TestBreadthFirst_RespectsMaxVisited(t *testing.T) {
 	next := grid.At(1, 0)
 	all := func(cell.ID) bool { return true }
 
-	if _, ok := breadthFirst(start, grid.Neighbors, all, func(c cell.ID) bool { return c == next }, 1); ok {
+	ahead := func(c cell.ID) bool { return c == next }
+	if _, ok := new(rings).breadthFirst(start, grid, all, ahead, 1); ok {
 		t.Error("found a cell beyond maxVisited=1")
 	}
 }

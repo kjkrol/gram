@@ -253,8 +253,9 @@ func (k *cellKeeping) aside(m member, from cell.ID, way geom.Vec) []cell.ID {
 		score float64
 	}
 	var out []scored
-	for _, n := range grid.Neighbors(home) {
-		if n == from || !terrain.Kind(n).Admits(m.domain) ||
+	for i := range grid.Directions() {
+		n, ok := grid.Toward(home, i)
+		if !ok || n == from || !terrain.Kind(n).Admits(m.domain) ||
 			k.finder.climb(home, n, m.domain) > yieldClimb || !k.finder.steps(m, n) {
 			continue
 		}

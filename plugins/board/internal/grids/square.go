@@ -25,8 +25,20 @@ func (g *Square) idAt(x, y uint32) cell.ID {
 	return cell.ID(uint64(y)*uint64(g.Width) + uint64(x))
 }
 
+// a division of 32 bits where the id has no more: several times quicker than one of 64
 func (g *Square) cellXY(c cell.ID) (x, y uint32) {
+	if c <= math.MaxUint32 {
+		return uint32(c) % g.Width, uint32(c) / g.Width
+	}
 	return uint32(uint64(c) % uint64(g.Width)), uint32(uint64(c) / uint64(g.Width))
+}
+
+// x, y as At has them: no folding where both lie on the grid
+func (g *Square) on(x, y int64) (cell.ID, bool) {
+	if x >= 0 && x < int64(g.Width) && y >= 0 && y < int64(g.Height) {
+		return g.idAt(uint32(x), uint32(y)), true
+	}
+	return 0, false
 }
 
 // Fold is the cell at column x, row y, folded across a wrapping seam; false off an axis that does
@@ -47,7 +59,11 @@ func (g *Square) Toward(c cell.ID, i int) (cell.ID, bool) {
 		return 0, false
 	}
 	x, y := g.cellXY(c)
-	return g.Fold(int64(x)+squareDirs[i][0], int64(y)+squareDirs[i][1])
+	nx, ny := int64(x)+squareDirs[i][0], int64(y)+squareDirs[i][1]
+	if n, ok := g.on(nx, ny); ok {
+		return n, true
+	}
+	return g.Fold(nx, ny)
 }
 
 // north, south, west, east, then north-west, north-east, south-west, south-east; y runs down the
@@ -236,8 +252,14 @@ func (g *Square) DiagonalNeighbors(a, b cell.ID) (c1, c2 cell.ID, ok bool) {
 	if dx == 0 || dy == 0 {
 		return 0, 0, false
 	}
-	c1 = g.At(uint32(wrapModI64(int64(ax)+dx, int64(g.Width))), ay)
-	c2 = g.At(ax, uint32(wrapModI64(int64(ay)+dy, int64(g.Height))))
+	x1, y2 := wrapModI64(int64(ax)+dx, int64(g.Width)), wrapModI64(int64(ay)+dy, int64(g.Height))
+	var ok1, ok2 bool
+	if c1, ok1 = g.on(x1, int64(ay)); !ok1 {
+		c1 = g.At(uint32(x1), ay)
+	}
+	if c2, ok2 = g.on(int64(ax), y2); !ok2 {
+		c2 = g.At(ax, uint32(y2))
+	}
 	return c1, c2, true
 }
 
@@ -277,6 +299,9 @@ func wrapDistance1D(a, b, size uint32) uint32 {
 }
 
 func wrapModI64(v, m int64) int64 {
+	if v >= 0 && v < m {
+		return v
+	}
 	v %= m
 	if v < 0 {
 		v += m
