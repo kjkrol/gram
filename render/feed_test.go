@@ -76,6 +76,7 @@ type recording struct {
 	screens []*render.Image
 	ground  *render.Image // the image DrawGround drew into
 	over    *render.Image // the ground DrawOver was handed
+	wins    []camera.Window
 }
 
 // one DrawWorld: the screen's size and the camera's viewport
@@ -96,6 +97,9 @@ func (r *recording) DrawWorld(screen *render.Image, cam camera.Camera) {
 	r.w, r.h, r.cam = screen.Bounds().Dx(), screen.Bounds().Dy(), cam
 	r.calls = append(r.calls, callOf(screen, cam))
 	r.screens = append(r.screens, screen)
+	if c, ok := cam.(camera.Cropping); ok {
+		r.wins = append(r.wins, c.Window())
+	}
 }
 
 func (r *recording) DrawGround(ground *render.Image, cam camera.Camera) {
@@ -204,6 +208,58 @@ func TestFeed_DrawsALayeredCameraALayerARingCoarseToFine(t *testing.T) {
 	if !ok || !visible || math.Abs(float64(px-120)) > 1e-3 || math.Abs(float64(py-80)) > 1e-3 {
 		t.Errorf("under (120, 80) lies (%v, %v) ok %v, back to (%v, %v) visible %v; want (120, 80)",
 			x, y, ok, px, py, visible)
+	}
+}
+
+func TestFeed_DrawsAFootedCameraALayerOnTheBottomEdge(t *testing.T) {
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	cam.(camera.Layered).SetLayers([]camera.Layer{
+		{Share: 1, Resolution: 0.5},
+		{Share: 0.6, Resolution: 0.75},
+		{Share: 0.35, Resolution: 1},
+	}, camera.Footed)
+	picture := &recording{}
+	feed := render.NewFeed(cam, picture)
+	feed.Resize(400, 300)
+	feed.Draw()
+	wins := []camera.Window{
+		{X: 0, Y: 0, W: 400, H: 300},
+		{X: 80, Y: 120, W: 240, H: 180},
+		{X: 130, Y: 195, W: 140, H: 105},
+	}
+	if !slices.Equal(picture.wins, wins) {
+		t.Errorf("the camera was cropped to %v, want %v: each layer centred across, standing on "+
+			"the bottom edge", picture.wins, wins)
+	}
+	want := []call{{200, 150, 200, 150}, {180, 135, 180, 135}, {140, 105, 140, 105}}
+	if !slices.Equal(picture.calls, want) {
+		t.Errorf("the picture was drawn %v, want %v: each window at its layer's resolution",
+			picture.calls, want)
+	}
+	if w, h := cam.Viewport(); w != 400 || h != 300 || camera.IsCropped(cam) {
+		t.Errorf("after the frame the viewport is %vx%v, cropped %v; want 400x300, not cropped",
+			w, h, camera.IsCropped(cam))
+	}
+}
+
+func TestFeed_FadesOnlyTheSidesInsideTheFrame(t *testing.T) {
+	const f = render.LayerFeather
+	all := render.Fade{Left: f, Right: f, Top: f, Bottom: f}
+	for _, c := range []struct {
+		win  camera.Window
+		want render.Fade
+		why  string
+	}{
+		{camera.Window{W: 400, H: 300}, render.Fade{}, "the whole frame"},
+		{camera.Window{X: 80, Y: 60, W: 240, H: 180}, all, "inset"},
+		{camera.Window{X: 80, Y: 120, W: 240, H: 180}, render.Fade{Left: f, Right: f, Top: f},
+			"footed, its bottom on the frame's"},
+		{camera.Window{Y: 50, W: 400, H: 250}, render.Fade{Top: f},
+			"the frame's width, on its bottom edge"},
+	} {
+		if got := render.FadeOf(c.win, 400, 300); got != c.want {
+			t.Errorf("%s: %v fades %v, want %v", c.why, c.win, got, c.want)
+		}
 	}
 }
 

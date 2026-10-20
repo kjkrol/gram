@@ -53,7 +53,7 @@ func TestMarquees_ComposeTheBoxInThePixelsOfEveryLayersPass(t *testing.T) {
 	}
 	// the central 200x150 of the 400x300 frame at a half: the box's corner (100, 100) of the
 	// frame is the crop's corner, 100 shown pixels in are 50 of the crop's
-	cam.(camera.Cropping).Crop(200, 150, 0.5)
+	cam.(camera.Cropping).Crop(camera.Window{X: 100, Y: 75, W: 200, H: 150}, 0.5)
 	f.Reset(cam)
 	m.compose(&f, cam)
 	if x0, y0, x1, y1 := bounds(); !near(x0, 0) || !near(y0, 12.5) || !near(x1, 50) ||

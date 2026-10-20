@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	contract "github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/vec"
 )
 
 func sameBox(a, b contract.AABB) bool {
@@ -128,7 +129,7 @@ func TestOrthoCamera_CroppedItDrawsTheMiddleOfItsFrameAndComesBackExactly(t *tes
 	x1, y1 := cam.Unproject(300, 225, 0)
 	px, py := cam.Unproject(240, 150, 4)
 
-	cam.Crop(200, 150, 0.5)
+	cam.Crop(contract.Window{X: 100, Y: 75, W: 200, H: 150}, 0.5)
 
 	if w, h := cam.Viewport(); w != 100 || h != 75 || !near(cam.Zoom(), zoom/2) || !cam.Cropped() {
 		t.Errorf("cropped to 200 x 150 at 0.5 the viewport is %v x %v at zoom %v, cropped %v; "+
@@ -155,7 +156,7 @@ func TestOrthoCamera_CroppedItDrawsTheMiddleOfItsFrameAndComesBackExactly(t *tes
 			cam.scale, cam.foot, scale, foot)
 	}
 
-	cam.Crop(400, 300, 0.5)
+	cam.Crop(contract.Window{W: 400, H: 300}, 0.5)
 	if w, h := cam.Viewport(); w != 200 || h != 150 || cam.Cropped() {
 		t.Errorf("cropped to the whole frame at 0.5 the viewport is %v x %v, cropped %v; "+
 			"want 200 x 150, not cropped", w, h, cam.Cropped())
@@ -179,7 +180,7 @@ func TestPerspCamera_CroppedTheFocalLengthIsTheFramesAndTheLimitsStay(t *testing
 	px, py := c.Unproject(240, 150, 0)
 	bx, by := c.Project(px, py, 0)
 
-	c.Crop(200, 150, 0.5)
+	c.Crop(contract.Window{X: 100, Y: 75, W: 200, H: 150}, 0.5)
 
 	if w, h := c.Viewport(); w != 100 || h != 75 || !c.Cropped() {
 		t.Errorf("cropped to 200 x 150 at 0.5 the viewport is %v x %v, cropped %v; want 100 x 75, "+
@@ -221,7 +222,7 @@ func TestViewCamera_CroppedInPerspectiveTheMiddleLooksTheSameWay(t *testing.T) {
 	w, h := c.Viewport()
 	dx, dy, dz, _ := c.Ray(w/2, h/2)
 
-	c.Crop(200, 150, 0.5)
+	c.Crop(contract.Window{X: 100, Y: 75, W: 200, H: 150}, 0.5)
 
 	cw, ch := c.Viewport()
 	if cw != 100 || ch != 75 || !contract.IsCropped(c) {
@@ -237,5 +238,143 @@ func TestViewCamera_CroppedInPerspectiveTheMiddleLooksTheSameWay(t *testing.T) {
 	if w, h := c.Viewport(); w != 400 || h != 300 || contract.IsCropped(c) {
 		t.Errorf("uncropped the viewport is %v x %v, cropped %v; want 400 x 300, not cropped",
 			w, h, contract.IsCropped(c))
+	}
+}
+
+// the middle of three layers footed in a 400x300 frame
+var footedWindow = contract.Window{X: 80, Y: 120, W: 240, H: 180}
+
+func TestOrthoCamera_CroppedToAFootedWindowTheFootStaysWhereItWasAndTheCornersSeeTheWindow(
+	t *testing.T,
+) {
+	cam := testCamera(t, 0).(*viewCamera).ortho
+	cam.CenterOn(320, 320, 0)
+	cam.ZoomIn(1.5, 320, 320)
+	viewport, res, pan, zoom := cam.viewportSize, cam.res, cam.pan, cam.Zoom()
+	x0, y0 := cam.Unproject(80, 120, 0)
+	x1, y1 := cam.Unproject(320, 300, 0)
+
+	cam.Crop(footedWindow, 0.5)
+
+	if w, h := cam.Viewport(); w != 120 || h != 90 || !near(cam.Zoom(), zoom/2) || !cam.Cropped() {
+		t.Errorf("cropped to 240 x 180 at 0.5 the viewport is %v x %v at zoom %v, cropped %v; "+
+			"want 120 x 90 at %v, cropped", w, h, cam.Zoom(), cam.Cropped(), zoom/2)
+	}
+	if fw, fh := cam.Frame(); cam.Window() != footedWindow || fw != 400 || fh != 300 {
+		t.Errorf("the window is %v of a frame %v x %v, want %v of 400 x 300", cam.Window(), fw,
+			fh, footedWindow)
+	}
+	f := cam.foot
+	if sx, sy := cam.Project(float32(f[0]), float32(f[1]), float32(f[2])); !near(sx, 60) ||
+		!near(sy, 15) {
+		t.Errorf("the foot is drawn at (%v, %v), want (60, 15): the frame's middle, high in the "+
+			"window", sx, sy)
+	}
+	if x, y := cam.Unproject(0, 0, 0); !near(x, x0) || !near(y, y0) {
+		t.Errorf("the window's corner sees (%v, %v), want (%v, %v): the frame's (80, 120)", x, y,
+			x0, y0)
+	}
+	if x, y := cam.Unproject(120, 90, 0); !near(x, x1) || !near(y, y1) {
+		t.Errorf("the window's far corner sees (%v, %v), want (%v, %v): the frame's (320, 300), "+
+			"on its bottom edge", x, y, x1, y1)
+	}
+
+	cam.Uncrop()
+	if cam.viewportSize != viewport || cam.res != res || cam.pan != pan || cam.Zoom() != zoom ||
+		cam.Cropped() || cam.Window() != (contract.Window{W: 400, H: 300}) {
+		t.Errorf("uncropped the camera is %v at %v panned %v, zoom %v, window %v; want %v at %v "+
+			"panned %v, zoom %v, the whole frame: exactly as before", cam.viewportSize, cam.res,
+			cam.pan, cam.Zoom(), cam.Window(), viewport, res, pan, zoom)
+	}
+}
+
+func TestPerspCamera_CroppedOffCentreTheLineOfSightThroughTheMiddleStays(t *testing.T) {
+	c := testPersp(nil, nil)
+	f0, at, proj := c.focal(), c.at, c.proj
+	dx, dy, dz, _ := c.Ray(200, 150)
+	px, py := c.Unproject(240, 150, 0)
+	x0, y0 := c.Unproject(80, 120, 0)
+	x1, y1 := c.Unproject(320, 300, 0)
+
+	c.Crop(footedWindow, 0.5)
+
+	if w, h := c.Viewport(); w != 120 || h != 90 || !c.Cropped() || c.Window() != footedWindow {
+		t.Errorf("cropped the viewport is %v x %v, cropped %v, the window %v; want 120 x 90, "+
+			"cropped, %v", w, h, c.Cropped(), c.Window(), footedWindow)
+	}
+	if f := c.focal(); !near(f, f0*0.5) {
+		t.Errorf("the focal length is %v, want %v: the frame's at 0.5", f, f0*0.5)
+	}
+	if x, y, z, _ := c.Ray(60, 15); !near(x, dx) || !near(y, dy) || !near(z, dz) {
+		t.Errorf("the frame's middle, (60, 15) of the window, looks along (%v, %v, %v), want "+
+			"(%v, %v, %v) as before the crop", x, y, z, dx, dy, dz)
+	}
+	fw := c.proj.forward
+	if sx, sy, ok := c.Vanish(fw[0], fw[1], fw[2]); !ok || !near(sx, 60) || !near(sy, 15) {
+		t.Errorf("the way looked vanishes at (%v, %v), want (60, 15): the frame's middle", sx, sy)
+	}
+	if m, sky := c.middle(); sky || vec.Norm(vec.Sub(m, at)) > 1e-2 {
+		t.Errorf("the middle sees %v, want %v as before the crop", m, at)
+	}
+	if sx, sy := c.Project(px, py, 0); !near(sx, 80) || !near(sy, 15) {
+		t.Errorf("what the frame's (240, 150) sees is drawn at (%v, %v), want (80, 15)", sx, sy)
+	}
+	if x, y := c.Unproject(0, 0, 0); !near(x, x0) || !near(y, y0) {
+		t.Errorf("the window's corner sees (%v, %v), want (%v, %v): the frame's (80, 120)", x, y,
+			x0, y0)
+	}
+	if x, y := c.Unproject(120, 90, 0); !near(x, x1) || !near(y, y1) {
+		t.Errorf("the window's far corner sees (%v, %v), want (%v, %v): the frame's (320, 300)",
+			x, y, x1, y1)
+	}
+	b := c.Bounds()
+	for _, p := range [][2]float32{{x0, y0}, {x1, y1}} {
+		if float64(p[0]) < b.TopLeft.X-1e-2 || float64(p[0]) > b.BottomRight.X+1e-2 ||
+			float64(p[1]) < b.TopLeft.Y-1e-2 || float64(p[1]) > b.BottomRight.Y+1e-2 {
+			t.Errorf("the window's bounds %v leave out %v, a corner of it on the ground", b, p)
+		}
+	}
+
+	c.Uncrop()
+	if c.focal() != f0 || c.proj != proj || c.Cropped() ||
+		c.Window() != (contract.Window{W: 400, H: 300}) {
+		t.Errorf("uncropped the focal length is %v, cropped %v, the window %v; want %v, not "+
+			"cropped, the whole frame, the projection as before", c.focal(), c.Cropped(),
+			c.Window(), f0)
+	}
+}
+
+func TestViewCamera_CroppedOffCentreUnprojectAndProjectAgreeInBothViews(t *testing.T) {
+	c := testViews(true)
+	c.CenterOn(330, 310, 0)
+	frame := [][2]float32{{80, 120}, {200, 150}, {320, 300}, {130, 250}}
+	for _, persp := range []bool{false, true} {
+		if c.inPersp != persp {
+			c.next()
+		}
+		seen := make([][2]float32, len(frame))
+		for i, p := range frame {
+			seen[i][0], seen[i][1] = c.Unproject(p[0], p[1], 4)
+		}
+
+		c.Crop(footedWindow, 0.5)
+
+		if !contract.IsCropped(c) || c.Window() != footedWindow {
+			t.Errorf("perspective %v: cropped %v to %v, want cropped to %v", persp,
+				contract.IsCropped(c), c.Window(), footedWindow)
+		}
+		for i, p := range frame {
+			sx, sy := (p[0]-footedWindow.X)*0.5, (p[1]-footedWindow.Y)*0.5
+			x, y := c.Unproject(sx, sy, 4)
+			if !near(x, seen[i][0]) || !near(y, seen[i][1]) {
+				t.Errorf("perspective %v: (%v, %v) of the window sees (%v, %v), want (%v, %v): "+
+					"what the frame's %v saw", persp, sx, sy, x, y, seen[i][0], seen[i][1], p)
+			}
+			if bx, by := c.Project(x, y, 4); !near(bx, sx) || !near(by, sy) {
+				t.Errorf("perspective %v: (%v, %v) 4 up is drawn at (%v, %v), want (%v, %v)",
+					persp, x, y, bx, by, sx, sy)
+			}
+		}
+		c.Uncrop()
 	}
 }

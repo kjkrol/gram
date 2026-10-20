@@ -53,8 +53,10 @@ type perspCamera struct {
 	proj       perspective
 	projection contract.Projection // proj boxed once, so asking for it allocates nothing
 	// what part of the frame's width and height the viewport is while a part of it is drawn,
-	// and the frame, to come back to
+	// where the line of sight through the frame's middle meets the viewport then, in camera
+	// pixels, and the frame, to come back to
 	crop    geom.Vec
+	pp      [2]float32
 	cropped *perspFrame
 }
 
@@ -64,6 +66,7 @@ type perspFrame struct {
 	crop         geom.Vec
 	proj         perspective
 	projection   contract.Projection
+	win          contract.Window
 }
 
 var _ contract.Camera = (*perspCamera)(nil)
@@ -129,7 +132,8 @@ func (c *perspCamera) layer() (low, high float32) {
 }
 
 func (c *perspCamera) Ray(sx, sy float32) (float32, float32, float32, bool) {
-	d := c.proj.ray(sx-float32(c.viewportSize.X/2), sy-float32(c.viewportSize.Y/2))
+	cx, cy := c.centre()
+	d := c.proj.ray(sx-cx, sy-cy)
 	n := vec.Norm(d)
 	if n == 0 {
 		return 0, 0, 0, false
@@ -139,7 +143,8 @@ func (c *perspCamera) Ray(sx, sy float32) (float32, float32, float32, bool) {
 
 func (c *perspCamera) Vanish(dx, dy, dz float32) (float32, float32, bool) {
 	sx, sy, ok := c.proj.Vanish(dx, dy, dz)
-	return sx + float32(c.viewportSize.X/2), sy + float32(c.viewportSize.Y/2), ok
+	cx, cy := c.centre()
+	return sx + cx, sy + cy, ok
 }
 
 func (c *perspCamera) target() [3]float32 { return c.at }
@@ -239,7 +244,7 @@ func (c *perspCamera) settle(d time.Duration) {
 }
 
 func (c *perspCamera) middle() ([3]float32, bool) {
-	x, y, _, hit := c.Pick(float32(c.viewportSize.X/2), float32(c.viewportSize.Y/2))
+	x, y, _, hit := c.Pick(c.centre())
 	if !hit {
 		return vec.Add(c.proj.eye, vec.Scale(c.proj.forward, c.far())), true
 	}
@@ -257,7 +262,7 @@ func (c *perspCamera) plant() {
 	if c.inside || c.held || c.lift > 0 || o[2] < 1e-3 {
 		return
 	}
-	_, _, z, hit := c.Pick(float32(c.viewportSize.X/2), float32(c.viewportSize.Y/2))
+	_, _, z, hit := c.Pick(c.centre())
 	if !hit {
 		return
 	}
@@ -281,7 +286,8 @@ func (c *perspCamera) Pick(sx, sy float32) (float32, float32, float32, bool) {
 		return x, y, 0, ok
 	}
 	_, high := c.layer()
-	s := sight{o: c.proj.eye, d: c.proj.ray(sx-float32(c.viewportSize.X/2), sy-float32(c.viewportSize.Y/2)), bend: c.bend}
+	cx, cy := c.centre()
+	s := sight{o: c.proj.eye, d: c.proj.ray(sx-cx, sy-cy), bend: c.bend}
 	return s.pick(solidOf(c.solid, c.ground), c.fine, c.far(), c.cell/2, high)
 }
 
@@ -419,17 +425,20 @@ func (c *perspCamera) SetResolution(s float32) {
 
 func (c *perspCamera) Resolution() float32 { return c.res }
 
-// Crop has the camera drawn the central w by h shown pixels of its frame at s of them, the
-// stick and the field of view as they are.
-func (c *perspCamera) Crop(w, h, s float32) {
-	if w <= 0 || h <= 0 {
+// Crop has the camera drawn the part win of its frame at s of its shown pixels, the stick and the
+// field of view as they are.
+func (c *perspCamera) Crop(win contract.Window, s float32) {
+	if win.W <= 0 || win.H <= 0 {
 		return
 	}
 	c.Uncrop()
 	c.cropped = &perspFrame{viewportSize: c.viewportSize, res: c.res, crop: c.crop,
-		proj: c.proj, projection: c.projection}
-	c.crop = geom.NewVec(float64(w*c.res)/c.viewportSize.X, float64(h*c.res)/c.viewportSize.Y)
-	c.viewportSize = geom.NewVec(float64(w*s), float64(h*s))
+		proj: c.proj, projection: c.projection, win: win}
+	fw, fh := c.Frame()
+	c.crop = geom.NewVec(float64(win.W*c.res)/c.viewportSize.X,
+		float64(win.H*c.res)/c.viewportSize.Y)
+	c.pp = [2]float32{(fw/2 - win.X) * s, (fh/2 - win.Y) * s}
+	c.viewportSize = geom.NewVec(float64(win.W*s), float64(win.H*s))
 	c.res = s
 	c.proj.focal = c.focal() * c.narrow
 	c.projection = c.proj
@@ -456,9 +465,26 @@ func (c *perspCamera) Frame() (float32, float32) {
 	return float32(size.X) / res, float32(size.Y) / res
 }
 
+func (c *perspCamera) Window() contract.Window {
+	if c.cropped != nil {
+		return c.cropped.win
+	}
+	w, h := c.Frame()
+	return contract.Window{W: w, H: h}
+}
+
+// where the line of sight through the frame's middle meets the viewport, in camera pixels
+func (c *perspCamera) centre() (float32, float32) {
+	if c.cropped == nil {
+		return float32(c.viewportSize.X / 2), float32(c.viewportSize.Y / 2)
+	}
+	return c.pp[0], c.pp[1]
+}
+
 func (c *perspCamera) Project(x, y, z float32) (float32, float32) {
 	sx, sy := c.proj.Project(x, y, z)
-	return sx + float32(c.viewportSize.X/2), sy + float32(c.viewportSize.Y/2)
+	cx, cy := c.centre()
+	return sx + cx, sy + cy
 }
 
 func (c *perspCamera) Unproject(sx, sy, z float32) (float32, float32) {
@@ -467,7 +493,8 @@ func (c *perspCamera) Unproject(sx, sy, z float32) (float32, float32) {
 }
 
 func (c *perspCamera) cast(sx, sy, z float32) (float32, float32, bool) {
-	return c.proj.cast(sx-float32(c.viewportSize.X/2), sy-float32(c.viewportSize.Y/2), z)
+	cx, cy := c.centre()
+	return c.proj.cast(sx-cx, sy-cy, z)
 }
 
 func (c *perspCamera) Depth(x, y, z float32) float32 { return c.proj.Depth(x, y, z) }
@@ -530,10 +557,11 @@ func (c *perspCamera) Bounds() contract.AABB {
 		}
 	}
 	w, h := float32(c.viewportSize.X), float32(c.viewportSize.Y)
+	cx, cy := c.centre()
 	corners := [4][2]float32{{0, 0}, {w, 0}, {w, h}, {0, h}}
 	for k, a := range corners {
 		b := corners[(k+1)%4]
-		da, db := c.proj.ray(a[0]-w/2, a[1]-h/2), c.proj.ray(b[0]-w/2, b[1]-h/2)
+		da, db := c.proj.ray(a[0]-cx, a[1]-cy), c.proj.ray(b[0]-cx, b[1]-cy)
 		along(da)
 		for _, z := range [2]float32{low, high} { // the line leaving z just at far
 			if dz := db[2] - da[2]; dz != 0 {
@@ -587,7 +615,7 @@ func (c *perspCamera) Pan(dx, dy float32) {
 	if c.inside {
 		return
 	}
-	mx, my := float32(c.viewportSize.X/2), float32(c.viewportSize.Y/2)
+	mx, my := c.centre()
 	x0, y0, hit0 := c.cast(mx, my, c.foot[2])
 	x1, y1, hit1 := c.cast(mx+dx, my+dy, c.foot[2])
 	if !hit0 || !hit1 {

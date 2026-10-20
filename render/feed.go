@@ -139,23 +139,25 @@ func (f *Feed) drawSharp(dst *Image, g Grounded, c camera.Cropping) {
 	op.GeoM.Scale(float64(b.Dx())/float64(gw), float64(b.Dy())/float64(gh))
 	op.GeoM.Translate(float64(b.Min.X), float64(b.Min.Y))
 	dst.DrawImage(f.ground, &op)
-	c.Crop(float32(f.w), float32(f.h), 1)
+	c.Crop(camera.Window{W: float32(f.w), H: float32(f.h)}, 1)
 	g.DrawOver(dst, f.ground, f.cam)
 	c.Uncrop()
 }
 
-// the picture drawn a layer at a time, the camera cropped to each, laid over dst at the layer's
-// place in the frame; a layer of the whole frame at every pixel is drawn straight onto dst
+// the picture drawn a layer at a time, the camera cropped to each layer's window as the camera's
+// layout lays it, laid over dst there; a layer of the whole frame at every pixel is drawn
+// straight onto dst
 func (f *Feed) drawLayers(dst *Image, layers []camera.Layer, c camera.Cropping) {
 	if len(f.imgs) != len(layers) {
 		f.freeLayers()
 		f.imgs = make([]*Image, len(layers))
 	}
 	b := dst.Bounds()
+	wins := camera.Arrange(camera.LayoutOf(f.cam), layers, f.w, f.h)
 	for i, r := range layers {
-		cw, ch := cropSize(f.w, f.h, r.Share)
-		c.Crop(float32(cw), float32(ch), r.Resolution)
-		if cw == f.w && ch == f.h && r.Resolution == 1 {
+		win := wins[i]
+		c.Crop(win, r.Resolution)
+		if win.W == float32(f.w) && win.H == float32(f.h) && r.Resolution == 1 {
 			f.picture.DrawWorld(dst, f.cam)
 			c.Uncrop()
 			continue
@@ -165,27 +167,30 @@ func (f *Feed) drawLayers(dst *Image, layers []camera.Layer, c camera.Cropping) 
 		f.imgs[i].Clear()
 		f.picture.DrawWorld(f.imgs[i], f.cam)
 		c.Uncrop()
-		op := DrawImageOptions{Filter: FilterLinear}
-		op.GeoM.Scale(float64(cw)/float64(lw), float64(ch)/float64(lh))
-		op.GeoM.Translate(float64(b.Min.X+(f.w-cw)/2), float64(b.Min.Y+(f.h-ch)/2))
-		if i > 0 {
-			op.Fade = Fade{LayerFeather, LayerFeather, LayerFeather, LayerFeather}
-		}
+		op := DrawImageOptions{Filter: FilterLinear, Fade: fadeOf(win, f.w, f.h)}
+		op.GeoM.Scale(float64(win.W)/float64(lw), float64(win.H)/float64(lh))
+		op.GeoM.Translate(float64(b.Min.X)+float64(win.X), float64(b.Min.Y)+float64(win.Y))
 		dst.DrawImage(f.imgs[i], &op)
 	}
 }
 
-// the central part of a w by h frame share of it wide and high, in whole pixels, the frame an
-// even number of pixels wider and higher so the part lies a whole pixel in
-func cropSize(w, h int, share float32) (int, int) {
-	side := func(n int) int {
-		c := int(math.Round(float64(n) * float64(share)))
-		if (n-c)%2 != 0 {
-			c++
-		}
-		return min(max(c, 2), n)
+// how a layer's window in a frame fw by fh fades: over the feather on each side inside the frame,
+// hard on the frame's edges
+func fadeOf(win camera.Window, fw, fh int) Fade {
+	var fade Fade
+	if win.X > 0 {
+		fade.Left = LayerFeather
 	}
-	return side(w), side(h)
+	if win.X+win.W < float32(fw) {
+		fade.Right = LayerFeather
+	}
+	if win.Y > 0 {
+		fade.Top = LayerFeather
+	}
+	if win.Y+win.H < float32(fh) {
+		fade.Bottom = LayerFeather
+	}
+	return fade
 }
 
 // img at w by h: itself at that size, else a new image in its place
