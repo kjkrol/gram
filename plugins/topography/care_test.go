@@ -89,9 +89,9 @@ func TestSettings_TheCaresReachIsASliderToEverySectorAndTheCareShownASwitch(t *t
 	haze, follows, reach, shown := settings[0].(control.Switch), settings[1].(control.Switch),
 		settings[2].(control.Range), settings[3].(control.Switch)
 	if haze.Section != control.Graphics || follows.Section != control.PictureCare ||
-		reach.Section != control.PictureCare || shown.Section != control.PictureAreas {
-		t.Errorf("the sections are %q, %q, %q and %q, want the graphics, the care twice and the "+
-			"areas", haze.Section, follows.Section, reach.Section, shown.Section)
+		reach.Section != control.PictureCare || shown.Section != control.PictureCare {
+		t.Errorf("the sections are %q, %q, %q and %q, want the graphics and the care thrice",
+			haze.Section, follows.Section, reach.Section, shown.Section)
 	}
 	if follows.Label != "Full care follows the frame budget" || follows.Get() ||
 		follows.Set(true) != (topography.AdaptCare{On: true}) {

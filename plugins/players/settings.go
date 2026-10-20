@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
@@ -14,6 +15,7 @@ import (
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 	"github.com/kjkrol/uid"
+	"golang.org/x/image/font/gofont/gobold"
 )
 
 // SettingsName is the name of the settings scene in a game's stack.
@@ -44,8 +46,23 @@ type SettingsScene struct {
 var _ game.Scene = (*SettingsScene)(nil)
 
 func newSettings(p *Plugin) *SettingsScene {
-	return &SettingsScene{p: p, screen: ui.NewScene(SettingsName, nil)}
+	return &SettingsScene{p: p, screen: ui.NewScene(SettingsName, nil).Theme(settingsTheme())}
 }
+
+// settingsTheme is the default with the title in Go Bold at titleSize
+func settingsTheme() ui.Theme {
+	th := ui.DefaultTheme()
+	th.Large = titleFont()
+	return th
+}
+
+var titleFont = sync.OnceValue(func() *render.Font {
+	f, err := render.NewFont(gobold.TTF, titleSize)
+	if err != nil {
+		panic(err)
+	}
+	return f
+})
 
 // Open shows the screen on top, built afresh of the plugins' settings, and holds the game.
 func (s *SettingsScene) Open(runtime game.Runtime, composition game.Composition) {
@@ -106,9 +123,11 @@ func (*SettingsScene) Focusable() bool { return true }
 
 // pixels
 const (
-	settingsRow   = 32
-	settingsLabel = 220
-	twinColumn    = 230 // a twin section's column of controls
+	settingsRow    = 32
+	settingsLabel  = 220
+	twinColumn     = 230 // a twin section's column of controls
+	sectionPadding = 8   // inside a section's frame
+	titleSize      = 28  // the title's font
 )
 
 // build replaces the screen with the listing laid out for a screen w by h
@@ -127,13 +146,13 @@ func screenSize(scene *ui.Scene, props game.Props) (w, h int) {
 }
 
 // listing is the screen: the title and, centred in as many columns as the screen's width takes,
-// the sections of settings, a heading each and a line a setting, its label and its control;
-// the columns broken by the screen's height where they fit its width, fewer and taller where
-// they do not, scrolled then (ui.Scroll).
+// the sections of settings, each framed, a heading and a line a setting, its label and its
+// control; the columns broken by the screen's height where they fit its width, fewer and taller
+// where they do not, scrolled then (ui.Scroll).
 func (s *SettingsScene) listing(w, h int) *ui.Element {
 	width := float64(w) - 2*shortcutsMargin
 	height := float64(h) - 2*shortcutsMargin
-	_, titleHeight := ui.DefaultTheme().Large.Measure("Settings")
+	_, titleHeight := titleFont().Measure("Settings")
 	height -= float64(titleHeight) + shortcutsGap
 
 	blocks := s.tree().blocks("", 0, nil)
@@ -287,8 +306,8 @@ func (n *node) prune() {
 	n.subs = kept
 }
 
-// a block never splits across columns: a heading (a parent's without entries of its own
-// joined to its first child's) and the lines right under it
+// a block never splits across columns: a top section framed whole, or within one a heading (a
+// parent's without entries of its own joined to its first child's) and the lines right under it
 type block struct {
 	parts []ui.Part
 	tall  float64
@@ -301,15 +320,26 @@ func (b *block) add(part ui.Part, tall float64) {
 }
 
 // blocks appends n's blocks to dst: its heading, its settings' lines, then its subsections',
-// twins side by side; the root (level 0) has no heading and a top section's last block ends in
-// a gap.
+// twins side by side; the root (level 0) has no heading and gives a block a top section, its
+// blocks framed as one.
 func (n *node) blocks(path string, level int, dst []block) []block {
-	if level > 0 {
-		if i := len(dst) - 1; i < 0 || !dst[i].bare {
-			dst = append(dst, block{bare: true})
+	if level == 0 {
+		for _, group := range n.grouped() {
+			paths := under(path, group)
+			var inner []block
+			if len(group) > 1 {
+				inner = twinBlocks(paths, 1, group, nil, true)
+			} else {
+				inner = group[0].blocks(paths[0], 1, nil)
+			}
+			dst = append(dst, framed(inner, paths[0]))
 		}
-		dst[len(dst)-1].add(n.heading(path, level), settingsRow)
+		return dst
 	}
+	if i := len(dst) - 1; i < 0 || !dst[i].bare {
+		dst = append(dst, block{bare: true})
+	}
+	dst[len(dst)-1].add(n.heading(path, level), settingsRow)
 	for _, st := range n.settings {
 		last := &dst[len(dst)-1]
 		last.add(ui.Fixed(settingsRow, line(st, path, float64(level)*shortcutsGap/2)), settingsRow)
@@ -322,10 +352,23 @@ func (n *node) blocks(path string, level int, dst []block) []block {
 		}
 		dst = group[0].blocks(under(path, group)[0], level+1, dst)
 	}
-	if level == 1 {
-		dst[len(dst)-1].add(ui.Fixed(shortcutsGap, ui.Blank()), shortcutsGap)
-	}
 	return dst
+}
+
+// framed is blocks as one: their parts in a panel bordered a pixel, named "frame:" and the
+// section's path, a gap under it
+func framed(blocks []block, path string) block {
+	var parts []ui.Part
+	tall := 0.0
+	for _, b := range blocks {
+		parts = append(parts, b.parts...)
+		tall += b.tall
+	}
+	tall += 2 * sectionPadding
+	frame := ui.Panel(ui.Rows(parts...)).Padding(sectionPadding).Named("frame:" + path)
+	frame.Border(settingsTheme().Border, 1)
+	return block{parts: []ui.Part{ui.Fixed(tall, frame), ui.Fixed(shortcutsGap, ui.Blank())},
+		tall: tall + shortcutsGap}
 }
 
 // under is the path of each of subs under path

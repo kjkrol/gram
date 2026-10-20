@@ -133,7 +133,7 @@ func (p *Plugin) Settings() []control.Setting {
 		},
 		control.Switch{
 			Label:   "Show the care",
-			Section: control.PictureAreas,
+			Section: control.PictureCare,
 			Get:     p.CareShown,
 			Set:     func(on bool) command.Command { return ShowCare{Shown: on} },
 		})
