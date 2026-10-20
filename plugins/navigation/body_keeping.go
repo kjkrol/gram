@@ -176,6 +176,7 @@ func (k *bodyKeeping) placeAgain(m member, o *MoveOrder, struck []body) {
 	}
 	if p.cell != o.Target || p.level != o.Level {
 		o.Path, o.Leg = Path{}, Leg{}
+		o.found()
 	}
 	o.Target, o.Spot, o.At, o.Level = p.cell, p.spot, at, p.level
 }
