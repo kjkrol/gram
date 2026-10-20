@@ -74,7 +74,9 @@ drawn, nothing while not), so a collision solid shows through its own billboard 
 it hides it. Goals, holds, a bridge in hand and boxes are no
 marks: they lie in the world. **A source whose pieces lie over the figures says so**
 (2026-10-20, stage T: `render.Overlying{Overlies()}`: the world's figures, aloft's clouds, the
-drops, the selection, collision's boxes, the cameras' zones and layers), and the composer is
+drops, the selection, collision's boxes, the cameras' layers; the cameras' zones are a
+`render.Glass` instead: `DrawGlass(dst, cam)` called by `Feed.DrawGlass` from ui after the whole
+screen is painted, onto the picture's part of it, so the HUD never covers them, 2026-10-20), and the composer is
 `render.Laid` (2026-10-20, stage U, in place of `Grounded`): `Lay(cam, apart)` composes every
 source (the ground's alone when apart) once, in cam's pixels, the feed having cropped the camera
 to the whole frame at every pixel (`Crop(camera.Window{W, H}, 1)`, exact, `Cropped()` false);

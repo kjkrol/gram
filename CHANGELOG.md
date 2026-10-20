@@ -99,12 +99,17 @@ etap T of `doc/plans-perf.md`)
   (pixels, reach) and back, the bodies' reach cut last and never under half the sight, the look
   never; the demo starts the clouds still. "Show the care" sits under Picture/Care beside the
   care's following.
-- P pauses too (Shift+P stays; the start demo's panel moved to I); the demos say PAUSED under
-  the atmosphere's bar or the date
-  while the clock stands (`ui.HeadingOf`, `ui.While`). The settings screen's title is larger
-  and every top section is framed. The scroll zones are twice as wide (`control.EdgeMargin`
-  60) and drawn as a gradient, clear inside and yellow at the edge; the edge scroll starts at a
-  quarter of its speed at the inner bound and reaches it at the edge (`control.Edges.Depth`).
+- P pauses too (Shift+P stays; the start demo's panel moved to I); the demos say PAUSED beside
+  the atmosphere's bar or the date, on the right, while the clock stands (`ui.HeadingOf`,
+  `ui.While`). The settings screen's title is larger, on a panel, and every top section is
+  framed; a border is stroked inside its box, so a clip at the edge loses none of it. The
+  scroll zones are twice as wide (`control.EdgeMargin` 60) and drawn as a gradient, clear
+  inside and yellow at the edge, on the glass over the picture (`render.Glass`,
+  `Feed.DrawGlass`, drawn by `ui` after everything laid over the picture, so the HUD never
+  covers them; `render.FillQuad`); the edge scroll starts at a quarter of its speed at the inner
+  bound and reaches it at the edge (`control.Edges.Depth`). The cameras' section has three
+  settings for the zones: "Scroll zones" (scrolling at all, `EdgeScroll{On}`), "Show the
+  zones" (`Zones{Shown}`) and "Edge scroll speed" (`EdgeSpeed{Speed}`, 2 to 24 px a tick).
 - An option on the settings screen has no key any more: Shift+X the boxes, Shift+H the scroll
   zones, B the grid, Shift+O the cells held, Shift+R the routes, Shift+C the cones, Shift+W the
   weather and Shift+U the rain, Shift+V the clouds' look, Shift+S the high clouds' shadows, P the

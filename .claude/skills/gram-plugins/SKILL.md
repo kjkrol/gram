@@ -989,12 +989,20 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   pixels` / `the figures sharp` / `following a budget of 60 FPS`); `layersView` outlines a
   cropped layer) likewise;
   marks over every other, hidden by default, shown
-  in board/topography's `makePlugins`) lays the strips and the corner squares over every picture in
-  translucent yellow, a `render.Frame.Quad` each, clear at the inner bound and deepest at the
-  picture's edge, the strips a gap short of the corners (the user's sketch, 2026-10-14; the
-  gradient 2026-10-20); the strips `control.EdgeMargin` wide, 60 px, and the edge scroll a
-  quarter the speed at the inner bound rising to `Keys.ScrollSpeed` at the edge
-  (`control.Edges.Depth`, 0.25 + 0.75·Depth in `keys.go`). `CursorAtEdge` fires once an `Engine.Update`, before
+  in board/topography's `makePlugins`) draws the strips and the corner squares on the glass over
+  every picture but one of the whole world (`render.Glass`, `zonesView.DrawGlass`, in shown
+  pixels, after everything the scene lays over the picture: the HUD never covers them; the
+  user's word, 2026-10-20) in translucent yellow, a `render.FillQuad` each, clear at the inner
+  bound and deepest at the picture's edge, the strips a gap short of the corners (the user's
+  sketch, 2026-10-14; the gradient 2026-10-20); the strips `control.EdgeMargin` wide, 60 px, and
+  the edge scroll a quarter the speed at the inner bound rising to the whole at the edge
+  (`control.Edges.Depth`, 0.25 + 0.75·Depth in `keys.go`). The cameras' own settings section:
+  "Scroll zones" (`EdgeScroll{On}`, `Settings.StillEdges` so a zero keeps scrolling,
+  `ScrollFromEdges`/`EdgesScroll`: the edge and the corners' turning build nothing while
+  still), "Show the zones" (`Zones{Shown}`) and "Edge scroll speed" (`EdgeSpeed{Speed}`,
+  `Settings.EdgeSpeed`, 2 to 24 px a tick at the very edge, zero the keys' own); the plugin's
+  `DefaultBindings` read them through `Keys.bindings(p)`, a game's own `Keys.Bindings()` does
+  not. `CursorAtEdge` fires once an `Engine.Update`, before
   the ticks, not once a tick; a demo
   whose WSAD drive binds `cameras.Keys{Wheel, ZoomIn, ZoomOut}` alone. The engine sizes no camera.
   `SharpFigures{Profile, On}` (`SetSharpFigures`, `SharpFigures()`, `Knobs.SoftFigures` — zero for

@@ -104,7 +104,9 @@ which named elements are shown (`Persisted`/`Restore`). **The notation says what
 `ui.Share(n, el)`, `ui.Fixed(px, el)` (counted in what its split needs), `ui.Fit(el)`; an anchor
 wraps its element — `ui.BottomMiddle(el).Size(w, h).Margin(px)`, nine of them. Elements: `Panel`,
 `Label` (the theme's `Font`: `render.Font`, Go Regular, glyphs drawn on demand), `Heading` (the
-theme's `Bold`), `Title` (its `Large`, Go Bold at 20), `Image`, `Window`, `LabelOf`/`ButtonOf`/
+theme's `Bold`), `Title` (its `Large`, Go Bold at 20), `Image` (a picture; a source with
+`DrawGlass(dst)`, as a `render.Feed` with a `render.Glass` source, draws on it last of all,
+over whatever lies over the picture), `Window`, `LabelOf`/`ButtonOf`/
 `WindowOf`/`HeadingOf` (their words read off a `ui.Text` every frame; `ui.Of[T]` reads a component of the pinned
 entity, `ui.While(on, text)` says text while `on()`; a Text saying nothing leaves the element out), `Button(label, cmds...)` (the scene's own
 `ui.Show`/`Hide`/`Toggle{Name}`, or any command through `Issue`; no callbacks into the game),
