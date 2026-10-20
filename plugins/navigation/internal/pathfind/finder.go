@@ -108,7 +108,8 @@ func New(grid grid.Grid, terrain cell.Terrain, slopes Slopes, occupancy cell.Occ
 	p.built, _ = terrain.(built)
 	p.lanes, _ = terrain.(lanes)
 	p.solver = astar.New(func(a, b cell.ID) float64 { return p.least * grid.Distance(a, b) },
-		astar.WithIndexedMapDict(func(c cell.ID) int { return int(c) }))
+		astar.WithIndexedMapDict(func(c cell.ID) int { return int(c) }),
+		astar.WithSuccessorCapacity[cell.ID](grid.Directions()))
 	p.plain = p.plainFrom
 	return p
 }
@@ -116,8 +117,10 @@ func New(grid grid.Grid, terrain cell.Terrain, slopes Slopes, occupancy cell.Occ
 // WithLevels has the Finder plan over the raised floors levels say.
 func (p *Finder) WithLevels(levels Levels) *Finder {
 	p.levels = levels
+	// a step onto either level of every neighbour, and the goal
 	p.leveled = astar.New(func(a, b node) float64 { return p.least * p.grid.Distance(a.c, b.c) },
-		astar.WithIndexedMapDict(func(n node) int { return int(uint64(n.c)<<2 | uint64(n.level)) }))
+		astar.WithIndexedMapDict(func(n node) int { return int(uint64(n.c)<<2 | uint64(n.level)) }),
+		astar.WithSuccessorCapacity[node](2*p.grid.Directions()+1))
 	p.stepped = p.leveledFrom
 	return p
 }
