@@ -384,3 +384,72 @@ func TestGround_LiesTurnedAsTheMinimapIs(t *testing.T) {
 		}
 	}
 }
+
+// a minimap 220 a side reaching 200 round (500, 500), its camera headed east, turning as on says
+func compassed(t *testing.T, on bool) (*minimap, *compassView) {
+	t.Helper()
+	w := flatWorld(nil)
+	p := NewPlugin(w, nil, Config{Reach: 200, Turning: on})
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	cam.SetViewport(200, 200)
+	cam.CenterOn(500, 500, 0)
+	p.For(turned{cam, 1, 0}, command.Nobody)
+	m := p.maps[0]
+	m.lens.SetViewport(220, 220)
+	p.RunPlan(nil, 0)
+	return m, &compassView{m: m}
+}
+
+// where the N stands: 0.86 of the circle's 110 pixels from the middle
+var norths = []struct {
+	turning bool
+	x, y    float32
+	where   string
+}{
+	{false, 110, 15.4, "at the top, north up"},
+	{true, 15.4, 110, "to the left, east up"},
+}
+
+func TestCompass_NorthStandsWithinTheCirclesEdgeTurningWithTheMinimap(t *testing.T) {
+	for _, c := range norths {
+		m, compass := compassed(t, c.turning)
+		var f render.Frame
+		f.Reset(m.lens)
+		compass.Compose(&f, m.lens)
+		var asked []render.At
+		f.Places(func(_ render.Pass, at render.At) { asked = append(asked, at) })
+		if len(asked) != 1 || !asked[0].Top() || !render.OnTop(outlineLevel).Before(asked[0]) {
+			t.Errorf("the compass asks to draw at %v, want once, a mark over the outline", asked)
+		}
+		if x, y := compass.at(); !near(x, c.x) || !near(y, c.y) {
+			t.Errorf("the N stands at (%v, %v), want (%v, %v) %s", x, y, c.x, c.y, c.where)
+		}
+		compass.Draw(render.Target{}, m.lens, render.Uniforms{})
+	}
+}
+
+func TestCompass_DrawsARedNWhereNorthLies(t *testing.T) {
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
+	}
+	screen := render.NewImage(220, 220)
+	pix := make([]byte, 4*220*220)
+	for _, c := range norths {
+		m, compass := compassed(t, c.turning)
+		screen.Fill(color.RGBA{A: 255})
+		compass.Draw(render.Target{Screen: screen}, m.lens, render.Uniforms{})
+		screen.ReadPixels(pix)
+		var n, sx, sy float32
+		for i := 0; i < len(pix); i += 4 {
+			if pix[i] > 150 && pix[i+1] < 100 && pix[i+2] < 100 {
+				n++
+				sx += float32(i / 4 % 220)
+				sy += float32(i / 4 / 220)
+			}
+		}
+		if n == 0 || math.Abs(float64(sx/n-c.x)) > 3 || math.Abs(float64(sy/n-c.y)) > 3 {
+			t.Errorf("%v red pixels round (%v, %v), want an N round (%v, %v) %s", n, sx/n, sy/n,
+				c.x, c.y, c.where)
+		}
+	}
+}

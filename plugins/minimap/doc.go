@@ -14,8 +14,9 @@
 // [Plugin.For] is the minimap of a camera as a picture for a scene: the scene places it and
 // dresses it, ui.TopRight(a.minimap.For(cam, a.player.ID)).Size(220, 220), round with
 // .Masked(ui.Circle). A minimap draws a picture of its own, not the Stage's: the ground's
-// miniature, the marks and the outline, nothing more, cheaply. It is neither an anchor of the
-// world's bands nor saved.
+// miniature, the marks, the outline and north, nothing more, cheaply; north is a red N within the
+// circle's edge, at the top north up, turned with the picture as the minimap turns. It is neither
+// an anchor of the world's bands nor saved.
 //
 // # Ground and marks
 //
@@ -27,5 +28,6 @@
 //
 // Commands: [Switch] shows the minimaps or hides them (Shift+M), [Turn] turns them with their
 // cameras or keeps north up (Ctrl+M). Settings ([Settings], saved with the game, in
-// [Resources]): both. A click on a minimap gives cameras.CenterAt.
+// [Resources]): both. A click on a minimap gives cameras.CenterAt. The red N on a minimap is
+// north.
 package minimap
