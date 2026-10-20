@@ -17,13 +17,18 @@ const frameW, frameH = 2560, 1440
 // layer), at 0.7 of the pixels straight into a screen of that size, and cut into sectors of
 // 256 shaded with full care everywhere, within two of the screen's middle and within one, in
 // layers (the whole frame at 0.5 of the pixels, the central 60% at 0.75, the central 35% at all
-// of them), and through a feed at 0.7 of the pixels scaled up to the screen, the figures at the
-// ground's resolution ("feed", the control) or at every pixel ("sharp"); "readback" alone is
-// the cost of the wait, to take off the others.
+// of them) inset or footed, and through a feed at 0.7 of the pixels scaled up to the screen;
+// in layers and through the feed the figures at the ground's resolution ("feed", the control,
+// and the layered ones) or at every pixel ("sharp"); "readback" alone is the cost of the wait,
+// to take off the others.
 func Benchmark_Frame_Topography(b *testing.B) {
 	headlessGPU(b)
 	layered := []camera.Layer{{Share: 1, Resolution: 0.5}, {Share: 0.6, Resolution: 0.75},
 		{Share: 0.35, Resolution: 1}}
+	const (
+		inset  = camera.Inset
+		footed = camera.Footed
+	)
 	for _, sc := range []struct {
 		name, view string
 		shine, lit bool
@@ -31,23 +36,29 @@ func Benchmark_Frame_Topography(b *testing.B) {
 		sectored   bool
 		care       int
 		layers     []camera.Layer
+		layout     camera.Layout
 		res        float32 // through a feed at this share of the pixels, where set
 		sharp      bool
 	}{
-		{"iso", "iso", true, false, frameW, frameH, false, 0, nil, 0, false},
-		{"persp", "persp", true, false, frameW, frameH, false, 0, nil, 0, false},
-		{"iso,lit", "iso", true, true, frameW, frameH, false, 0, nil, 0, false},
-		{"iso,no-water", "iso", false, false, frameW, frameH, false, 0, nil, 0, false},
-		{"iso,0.7", "iso", true, false, frameW * 0.7, frameH * 0.7, false, 0, nil, 0, false},
-		{"iso,care=all", "iso", true, false, frameW, frameH, true, 0, nil, 0, false},
-		{"iso,care=2", "iso", true, false, frameW, frameH, true, 2, nil, 0, false},
-		{"iso,care=1", "iso", true, false, frameW, frameH, true, 1, nil, 0, false},
-		{"iso,layered", "iso", true, false, frameW, frameH, false, 0, layered, 0, false},
-		{"persp,layered", "persp", true, false, frameW, frameH, false, 0, layered, 0, false},
-		{"iso,0.7,feed", "iso", true, false, frameW, frameH, false, 0, nil, 0.7, false},
-		{"iso,0.7,sharp", "iso", true, false, frameW, frameH, false, 0, nil, 0.7, true},
-		{"persp,0.7", "persp", true, false, frameW, frameH, false, 0, nil, 0.7, false},
-		{"persp,0.7,sharp", "persp", true, false, frameW, frameH, false, 0, nil, 0.7, true},
+		{"iso", "iso", true, false, frameW, frameH, false, 0, nil, inset, 0, false},
+		{"persp", "persp", true, false, frameW, frameH, false, 0, nil, inset, 0, false},
+		{"iso,lit", "iso", true, true, frameW, frameH, false, 0, nil, inset, 0, false},
+		{"iso,no-water", "iso", false, false, frameW, frameH, false, 0, nil, inset, 0, false},
+		{"iso,0.7", "iso", true, false, frameW * 0.7, frameH * 0.7, false, 0, nil, inset, 0, false},
+		{"iso,care=all", "iso", true, false, frameW, frameH, true, 0, nil, inset, 0, false},
+		{"iso,care=2", "iso", true, false, frameW, frameH, true, 2, nil, inset, 0, false},
+		{"iso,care=1", "iso", true, false, frameW, frameH, true, 1, nil, inset, 0, false},
+		{"iso,layered", "iso", true, false, frameW, frameH, false, 0, layered, inset, 0, false},
+		{"persp,layered", "persp", true, false, frameW, frameH, false, 0, layered, inset, 0, false},
+		{"persp,footed", "persp", true, false, frameW, frameH, false, 0, layered, footed, 0, false},
+		{"iso,layered,sharp", "iso", true, false, frameW, frameH, false, 0, layered, inset, 0,
+			true},
+		{"persp,footed,sharp", "persp", true, false, frameW, frameH, false, 0, layered, footed, 0,
+			true},
+		{"iso,0.7,feed", "iso", true, false, frameW, frameH, false, 0, nil, inset, 0.7, false},
+		{"iso,0.7,sharp", "iso", true, false, frameW, frameH, false, 0, nil, inset, 0.7, true},
+		{"persp,0.7", "persp", true, false, frameW, frameH, false, 0, nil, inset, 0.7, false},
+		{"persp,0.7,sharp", "persp", true, false, frameW, frameH, false, 0, nil, inset, 0.7, true},
 	} {
 		b.Run(sc.name, func(b *testing.B) {
 			ctx, _, _, topo := islandWith(b, sc.view, false, 0, sc.shine, sc.lit, sc.sectored)
@@ -61,11 +72,10 @@ func Benchmark_Frame_Topography(b *testing.B) {
 			buf := make([]byte, 4*int(sc.w)*int(sc.h))
 			draw := func() { picture.DrawWorld(screen, cam) }
 			if sc.layers != nil || sc.res > 0 {
-				if sc.layers != nil {
-					cam.(camera.Layered).SetLayers(sc.layers, camera.Inset)
-				} else {
+				cam.(camera.Layered).SetLayers(sc.layers, sc.layout)
+				cam.(camera.Figured).SetSharpFigures(sc.sharp)
+				if sc.res > 0 {
 					cam.(camera.Resolved).SetResolution(sc.res)
-					cam.(camera.Figured).SetSharpFigures(sc.sharp)
 				}
 				feed := render.NewFeed(cam, picture)
 				feed.Resize(frameW, frameH)
