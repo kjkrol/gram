@@ -62,7 +62,7 @@ func Benchmark_Frame_Topography(b *testing.B) {
 			draw := func() { picture.DrawWorld(screen, cam) }
 			if sc.layers != nil || sc.res > 0 {
 				if sc.layers != nil {
-					cam.(camera.Layered).SetLayers(sc.layers)
+					cam.(camera.Layered).SetLayers(sc.layers, camera.Inset)
 				} else {
 					cam.(camera.Resolved).SetResolution(sc.res)
 					cam.(camera.Figured).SetSharpFigures(sc.sharp)

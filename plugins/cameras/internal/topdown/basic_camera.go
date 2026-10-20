@@ -26,6 +26,7 @@ type basicCamera struct {
 	form      form
 	detail    contract.Detail
 	layers    []contract.Layer
+	layout    contract.Layout
 	sharp     bool
 	// the frame while a part of it is drawn, to come back to
 	cropped *frame
@@ -162,8 +163,12 @@ func (c *basicCamera) SetResolution(s float32) { c.res = s }
 
 func (c *basicCamera) Resolution() float32 { return c.res }
 
-// SetLayers has the picture drawn in layers, or whole for none or one.
-func (c *basicCamera) SetLayers(layers []contract.Layer) { c.layers = slices.Clone(layers) }
+// SetLayers has the picture drawn in layers laid out as layout says, or whole for none or one.
+func (c *basicCamera) SetLayers(layers []contract.Layer, layout contract.Layout) {
+	c.layers, c.layout = slices.Clone(layers), layout
+}
+
+func (c *basicCamera) Layout() contract.Layout { return c.layout }
 
 func (c *basicCamera) Layers() []contract.Layer { return slices.Clone(c.layers) }
 

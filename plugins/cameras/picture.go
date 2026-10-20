@@ -173,7 +173,7 @@ func (p *Plugin) dress(cam camera.Camera) {
 				{Share: s.Inner, Resolution: s.Resolution},
 			}
 		}
-		c.SetLayers(layers)
+		c.SetLayers(layers, camera.Inset)
 	}
 	if r, ok := cam.(camera.Resolved); ok {
 		r.SetResolution(s.Resolution)

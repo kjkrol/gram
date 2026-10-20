@@ -135,7 +135,7 @@ func TestStepLayers_StepsTheOutermostRingCoarserFirstAndTheInnermostFinerFirst(t
 		for i, s := range c.from {
 			layers[i] = camera.Layer{Share: shares[i], Resolution: s}
 		}
-		cam.SetLayers(layers)
+		cam.SetLayers(layers, camera.Inset)
 		for n, want := range c.steps {
 			centre := stepLayers(cam, c.factor)
 			var got [3]float32

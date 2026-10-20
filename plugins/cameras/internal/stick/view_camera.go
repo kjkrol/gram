@@ -25,6 +25,7 @@ type viewCamera struct {
 	fastening contract.Fastening
 	detail    contract.Detail
 	layers    []contract.Layer
+	layout    contract.Layout
 	sharp     bool
 }
 
@@ -381,8 +382,12 @@ func (c *viewCamera) Cropped() bool { return c.ortho.Cropped() }
 
 func (c *viewCamera) Frame() (float32, float32) { return c.ortho.Frame() }
 
-// SetLayers has the picture drawn in layers, or whole for none or one.
-func (c *viewCamera) SetLayers(layers []contract.Layer) { c.layers = slices.Clone(layers) }
+// SetLayers has the picture drawn in layers laid out as layout says, or whole for none or one.
+func (c *viewCamera) SetLayers(layers []contract.Layer, layout contract.Layout) {
+	c.layers, c.layout = slices.Clone(layers), layout
+}
+
+func (c *viewCamera) Layout() contract.Layout { return c.layout }
 
 func (c *viewCamera) Layers() []contract.Layer { return slices.Clone(c.layers) }
 

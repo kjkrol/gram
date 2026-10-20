@@ -180,7 +180,7 @@ func TestFeed_DrawsALayeredCameraALayerARingCoarseToFine(t *testing.T) {
 		{Share: 1, Resolution: 0.5},
 		{Share: 0.6, Resolution: 0.75},
 		{Share: 0.35, Resolution: 1},
-	})
+	}, camera.Inset)
 	picture := &recording{}
 	feed := render.NewFeed(cam, picture)
 	feed.Resize(400, 300)
@@ -209,7 +209,7 @@ func TestFeed_DrawsALayeredCameraALayerARingCoarseToFine(t *testing.T) {
 
 func TestFeed_DrawsACameraOfOneRingAsAResolvedOne(t *testing.T) {
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
-	cam.(camera.Layered).SetLayers([]camera.Layer{{Share: 1, Resolution: 0.5}})
+	cam.(camera.Layered).SetLayers([]camera.Layer{{Share: 1, Resolution: 0.5}}, camera.Inset)
 	cam.(camera.Resolved).SetResolution(0.5)
 	picture := &recording{}
 	feed := render.NewFeed(cam, picture)
@@ -226,7 +226,7 @@ func TestFeed_DrawOnDrawsTheWholeFrameAtEveryPixelStraightOntoTheTarget(t *testi
 	cam.(camera.Layered).SetLayers([]camera.Layer{
 		{Share: 1, Resolution: 1},
 		{Share: 0.5, Resolution: 0.5},
-	})
+	}, camera.Inset)
 	picture := &recording{}
 	feed := render.NewFeed(cam, picture)
 	dst := render.NewImage(400, 300)
@@ -291,7 +291,7 @@ func TestFeed_DrawsWholeWithTheFiguresSoftOrEveryPixelDrawn(t *testing.T) {
 
 func TestFeed_DrawsALayeredCameraInLayersWhateverItsFigures(t *testing.T) {
 	cam := newFigured(true)
-	cam.SetLayers([]camera.Layer{{Share: 1, Resolution: 0.5}, {Share: 0.5, Resolution: 0.75}})
+	cam.SetLayers([]camera.Layer{{Share: 1, Resolution: 0.5}, {Share: 0.5, Resolution: 0.75}}, camera.Inset)
 	cam.SetResolution(0.75)
 	picture := &recording{}
 	feed := render.NewFeed(cam, picture)

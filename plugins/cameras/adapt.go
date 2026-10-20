@@ -95,6 +95,6 @@ func stepLayers(c camera.Layered, factor float32) float32 {
 			}
 		}
 	}
-	c.SetLayers(layers)
+	c.SetLayers(layers, c.Layout())
 	return layers[len(layers)-1].Resolution
 }
