@@ -16,6 +16,10 @@ part 2a)
 - `Benchmark_Navigation_Path`: a route across a 200×200 board of rocks and walls, 94 ms and
   14,740 allocations → 18 ms and 19. `Benchmark_Navigation_Tick` at fixed counts: open
   100/1,000 0.80/9.6 → 0.42/6.3 ms, crowded 100/1,000 2.9/306 → 1.2/104 ms.
+- A tick allocates nothing per unit in the bodies' index, a step's ground check, a route round
+  the cells a unit learned or a leg's cells, and a step aside asks the ground only of the cells
+  it tries (etap 2b; `Navigation_Tick` open 1,000 7.2 → 5.1 ms, 5,004 → 2,880 allocations;
+  crowded 1,000 118 → 105 ms, its searches unchanged). No unit moves otherwise.
 
 **The layers leave out what covers them** (2026-10-20, the layer levers after etap U, part R2)
 - In layers each layer but the innermost leaves out the ground under the next one's window,

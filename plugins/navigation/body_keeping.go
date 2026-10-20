@@ -38,12 +38,26 @@ type bodyKeeping struct {
 	space   *aabbworld.Space      // nil: flat and open
 	ground  func() ground.Heights // nil, or giving nil: level
 	index   bodyIndex
+	avoid   avoiding
+	// the one takes asks about and whether every cell so far takes it
+	taker member
+	taken bool
+	take  func(cell.ID) // the method value, bound once
 }
 
 var _ keeping = (*bodyKeeping)(nil)
 
 func newBodyKeeping(finder *pathFinder, space *aabbworld.Space, ground func() ground.Heights) *bodyKeeping {
-	return &bodyKeeping{finder: finder, grid: finder.grid, terrain: finder.terrain, space: space, ground: ground, index: bodyIndex{grid: finder.grid}}
+	k := &bodyKeeping{
+		finder:  finder,
+		grid:    finder.grid,
+		terrain: finder.terrain,
+		space:   space,
+		ground:  ground,
+		index:   bodyIndex{grid: finder.grid},
+	}
+	k.take, k.avoid.blocked = k.takeCell, k.avoid.avoids
+	return k
 }
 
 func (k *bodyKeeping) occupancy() cell.Occupancy { return k.finder.occupancy }
@@ -167,15 +181,7 @@ func (k *bodyKeeping) placeAgain(m member, o *MoveOrder, struck []body) {
 }
 
 func (k *bodyKeeping) route(m member, from cell.ID, o *MoveOrder) (Path, bool) {
-	if o.Avoids > 0 {
-		known := o.Avoid[:o.Avoids]
-		blocked := func(c cell.ID) bool { return c != o.Target && slices.Contains(known, c) }
-		if p, ok := k.finder.findPathAround(m.id, m.domain, m.body(), from, o.Target, o.Level,
-			blocked); ok {
-			return p, true
-		}
-	}
-	return k.finder.findPath(m.id, m.domain, m.body(), from, o.Target, o.Level)
+	return k.avoid.route(k.finder, m, from, o)
 }
 
 func (k *bodyKeeping) lost(m member, from cell.ID, o *MoveOrder, waited time.Duration) (cell.ID, Path, bool, bool) {
@@ -319,17 +325,21 @@ func (k *bodyKeeping) takes(m member, dir geom.Vec) bool {
 	reach := 2*max(h.X, h.Y) + gapFor(h)
 	c := m.centre()
 	at := k.fold(geom.NewVec(c.X+dir.X*reach, c.Y+dir.Y*reach))
-	ok := true
-	k.grid.CellsUnder(boxAt(at, h), func(cell cell.ID) {
-		ok = ok && k.terrain.Kind(cell).Admits(m.domain) &&
-			k.finder.climb(m.cell, cell, m.domain) <= yieldClimb && k.finder.steps(m, cell)
-	})
+	k.taker, k.taken = m, true
+	k.grid.CellsUnder(boxAt(at, h), k.take)
+	ok := k.taken
 	for _, s := range [4][2]float64{{-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
 		if _, in := k.grid.CellAt(k.fold(geom.NewVec(at.X+s[0]*h.X, at.Y+s[1]*h.Y))); !in {
 			ok = false
 		}
 	}
 	return ok
+}
+
+func (k *bodyKeeping) takeCell(c cell.ID) {
+	m := &k.taker
+	k.taken = k.taken && k.terrain.Kind(c).Admits(m.domain) &&
+		k.finder.climb(m.cell, c, m.domain) <= yieldClimb && k.finder.steps(*m, c)
 }
 
 func (k *bodyKeeping) met(o *MoveOrder) []body {
@@ -367,17 +377,21 @@ func (k *bodyKeeping) mayStep(m member, _ cell.ID, _ bool, heading geom.Vec) boo
 	c, h := m.centre(), half(m)
 	feel := gapFor(h) / 4
 	ahead := geom.NewVec(c.X+heading.X*feel, c.Y+heading.Y*feel)
-	open := true
-	k.index.near(boxAt(ahead, geom.NewVec(h.X+k.index.largest, h.Y+k.index.largest)), func(b *body) {
-		if !open || b.id == m.id || b.domain&m.domain == 0 {
-			return
+	for _, i := range k.index.near(boxAt(ahead, k.nearHalf(h))) {
+		b := &k.index.bodies[i]
+		if b.id == m.id || b.domain&m.domain == 0 {
+			continue
 		}
 		d := k.delta(c, b.at)
 		if d.X*heading.X+d.Y*heading.Y > 0 && !apart(k.delta(ahead, b.at), h, b.half, 0) {
-			open = false
+			return false
 		}
-	})
-	return open
+	}
+	return true
+}
+
+func (k *bodyKeeping) nearHalf(h geom.Vec) geom.Vec {
+	return geom.NewVec(h.X+k.index.largest, h.Y+k.index.largest)
 }
 
 func (k *bodyKeeping) other(id uid.UID64) (body, bool) { return k.index.of(id) }
@@ -398,8 +412,7 @@ func (k *bodyKeeping) asides(m member, asker body) [2]geom.Vec {
 	if side < 0 {
 		sign = -1
 	}
-	reach := func(half geom.Vec) float64 { return half.X*math.Abs(across.X) + half.Y*math.Abs(across.Y) }
-	clear := reach(asker.half) + reach(h) + gapFor(h)/4
+	clear := spanAcross(asker.half, across) + spanAcross(h, across) + gapFor(h)/4
 	var out [2]geom.Vec
 	for i, step := range [2]float64{sign * (clear - math.Abs(side)), -sign * (clear + math.Abs(side))} {
 		if math.Abs(step) < gapFor(h)/4 {
@@ -410,6 +423,8 @@ func (k *bodyKeeping) asides(m member, asker body) [2]geom.Vec {
 	return out
 }
 
+func spanAcross(h, a geom.Vec) float64 { return h.X*math.Abs(a.X) + h.Y*math.Abs(a.Y) }
+
 func (k *bodyKeeping) open(m member, p geom.Vec) (ground bool, in uid.UID64, taken bool) {
 	cell, ok := cellOf(k.grid, k.terrain, p, &m.z)
 	if !ok || !k.fits(m, p, m.z, nil) || k.finder.climb(m.cell, cell, m.domain) > yieldClimb ||
@@ -417,12 +432,13 @@ func (k *bodyKeeping) open(m member, p geom.Vec) (ground bool, in uid.UID64, tak
 		return false, 0, false
 	}
 	h := half(m)
-	k.index.near(boxAt(p, geom.NewVec(h.X+k.index.largest, h.Y+k.index.largest)), func(b *body) {
-		if !taken && b.id != m.id && b.domain&m.domain != 0 && !apart(k.delta(p, b.at), h, b.half, 0) {
-			in, taken = b.id, true
+	for _, i := range k.index.near(boxAt(p, k.nearHalf(h))) {
+		b := &k.index.bodies[i]
+		if b.id != m.id && b.domain&m.domain != 0 && !apart(k.delta(p, b.at), h, b.half, 0) {
+			return true, b.id, true
 		}
-	})
-	return true, in, taken
+	}
+	return true, 0, false
 }
 
 func (k *bodyKeeping) stepAside(m member, of body) (MoveOrder, bool) {

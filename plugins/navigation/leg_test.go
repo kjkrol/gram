@@ -251,7 +251,8 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 		id := f.Cursor.IDs[0]
 		at.Slice(&f.Cursor)[0] = unit.At{Cell: from}
 		order.Slice(&f.Cursor)[0] = MoveOrder{Target: to, Leg: leg}
-		for _, c := range leg.cells() {
+		cells, n := leg.cells()
+		for _, c := range cells[:n] {
 			occupancy.Enter(c, false, id, cell.Land)
 		}
 		q = si.NewQueryBuilder(&at, &order).Build()
@@ -307,7 +308,8 @@ func TestModule_Setup_RestoresLegCells(t *testing.T) {
 		m.navigationSystem, // its Init seeds the occupancy
 	)
 
-	for _, c := range leg.cells() {
+	cells, n := leg.cells()
+	for _, c := range cells[:n] {
 		if occupancy.CanEnter(c, false, otherEntity, cell.Land) {
 			t.Errorf("cell %v not held after Setup, want every Leg cell restored", c)
 		}

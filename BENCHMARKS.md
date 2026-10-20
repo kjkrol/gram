@@ -500,6 +500,29 @@ and 19 after (median of 3 on an idle machine). `BenchmarkGrids_Neighbours`
 (`plugins/board/internal/grids`): `Toward` over every cell of a square grid 8.0 → 3.3 ms, on a
 torus 15–26 → 3.3 ms; the allocating `Neighbors` list costs 4.1–5.6 ms.
 
+**After etap 2b** (2026-10-20, `n/bodies`): the keepings' passes allocate nothing per unit (the
+body index, a step's ground check and a route round the cells learned go through method values
+bound once, a leg's cells are arrays) and a step aside asks the ground only of the cells it
+tries. Fixed counts as above, base (`main` `3627cf8f`) and tree alternately, the median of 5
+rounds on a machine shared at times (load 0.9–15.8, every run started at ≥85% idle CPU), so the
+base's spread is wide (crowded 1,000: 105–166 ms).
+
+| Scene | Walkers | Tick before → after | Allocations before → after |
+|:---|---:|---:|---:|
+| open | 100 | 470 → 443 µs | 197 → 81 |
+| open | 1,000 | 7.24 → 5.13 ms | 5,004 → 2,880 |
+| crowded | 100 | 1.16 → 1.18 ms | 192 → 67 |
+| crowded | 1,000 | 118 → 105 ms | 8,372 → 6,078 |
+
+What remains of a crowded tick is the searches the crowd's Detour asks for: `route` is 97% of it,
+85% under `cellKeeping.detour` (a unit refused a held cell is told Detour each tick it is refused
+and plans a whole route round the cells it learned: 280 searches a tick for 1,000 walkers); the
+128 searches a tick that fail cost 2.9 ms of it, so a blocked unit gets no back-off. In the open,
+`stepAside` is 23% of the tick (33% before); most allocations left are ceremony's (a `StepAside`
+given, about 1,250 a tick) and astar's (about 300). A profile of `Benchmark_Navigation_Tick` at
+these counts is mostly the scene's setup (85% of the samples at crowded 1,000): read it with
+`-ignore=benchNavigation`.
+
 ## Shots — `Benchmark_Bullet_Flight`
 
 One tick of the bullet, world, motion and collision plugins on a 1024-px square with shots
