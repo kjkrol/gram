@@ -1,6 +1,6 @@
 // The clouds worked out coarser than the screen (aloft.Renderer, image0) laid over a view
-// U.LayView pixels wide, U.LayCoarse pixels of it a pixel of theirs, a coarse pixel's worth
-// blurred: their steps put off at random a pixel showed as grain. Each lies as deep as the
+// U.LayView pixels wide, U.LayCoarse pixels of it a pixel of theirs each way, a coarse pixel's
+// worth blurred: their steps put off at random a pixel showed as grain. Each lies as deep as the
 // nearest of the coarse pixels round it left in the depth read (depthAt), so what stands nearer
 // hides them.
 
