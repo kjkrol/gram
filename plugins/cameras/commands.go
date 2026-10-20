@@ -104,38 +104,57 @@ type Tilt struct {
 }
 
 // Resolution has Camera drawn at Factor times the pixels it is drawn at now, between
-// LeastResolution and all of them, a layer at a time in layers, and stops the following (Still).
+// LeastResolution and all of them, a layer at a time in layers, and stops the following of its
+// profile (Still).
 type Resolution struct {
 	Camera camera.Camera
 	Factor float32
 }
 
-// Adapt has every picture's resolution follow the frame budget (Settings.FrameBudget) as
-// Strategy says, Uniform the whole picture's, coarser while the frames come slower and finer
+// Adapt has the resolution of Profile's pictures follow the frame budget (Settings.FrameBudget)
+// as Strategy says, Uniform the whole picture's, coarser while the frames come slower and finer
 // again while they keep up, InLayers drawn in layers and stepped a layer at a time, the outer
-// layers first, or stay as set, Still. Alt+A by default, in turn.
-type Adapt struct{ Strategy Strategy }
+// layers first, or stay as set, Still. Alt+A by default, in turn, for the camera's profile.
+type Adapt struct {
+	Profile  Profile
+	Strategy Strategy
+}
 
-// Picture has every picture but a minimap's drawn at Resolution of its pixels, the centre
-// layer's in layers, LeastResolution up to all of them, and stops the following (Still).
-type Picture struct{ Resolution float32 }
+// Picture has Profile's pictures drawn at Resolution of their pixels, the centre layer's in
+// layers, LeastResolution up to all of them, and stops the following (Still).
+type Picture struct {
+	Profile    Profile
+	Resolution float32
+}
 
-// SharpFigures has every picture but a minimap's draw its figures, all that lies over the
-// ground, at every shown pixel while its ground is drawn at the resolution, or at the resolution
-// too (Settings.SoftFigures); a picture drawn in layers is drawn as it is.
-type SharpFigures struct{ On bool }
+// SharpFigures has Profile's pictures draw their figures, all that lies over the ground, at
+// every shown pixel while the ground is drawn at the resolution, or at the resolution too
+// (Knobs.SoftFigures); a picture drawn in layers is drawn as it is.
+type SharpFigures struct {
+	Profile Profile
+	On      bool
+}
 
-// Layers has every picture but a minimap's drawn in layers (Settings.Layers) or whole; a Strategy
-// saying otherwise stops (Still).
-type Layers struct{ On bool }
+// Layers has Profile's pictures drawn in layers (Knobs.Layers) or whole; a Strategy saying
+// otherwise stops (Still).
+type Layers struct {
+	Profile Profile
+	On      bool
+}
 
-// LayerShares has the inner layer cover Inner of the frame and the middle layer Middle, at least a
-// tenth over the inner (Settings.Inner, Middle).
-type LayerShares struct{ Inner, Middle float32 }
+// LayerShares has the inner layer of Profile's pictures cover Inner of the frame and the middle
+// layer Middle, at least a tenth over the inner (Knobs.Inner, Middle).
+type LayerShares struct {
+	Profile       Profile
+	Inner, Middle float32
+}
 
-// LayerResolutions has the outer layer drawn at Outer of its pixels and the middle layer at Middle
-// (Settings.OuterRes, MiddleRes), and stops the following (Still).
-type LayerResolutions struct{ Outer, Middle float32 }
+// LayerResolutions has the outer layer of Profile's pictures drawn at Outer of its pixels and the
+// middle layer at Middle (Knobs.OuterRes, MiddleRes), and stops the following (Still).
+type LayerResolutions struct {
+	Profile       Profile
+	Outer, Middle float32
+}
 
 // Budget sets the time a Frame may take, which the resolution follows (Settings.FrameBudget).
 type Budget struct{ Frame time.Duration }
@@ -219,9 +238,9 @@ func (p *Plugin) Queues() []command.CommandQueue {
 }
 
 // DefaultBindings are DefaultKeys, their corners turning where the Config turns, Shift+H showing
-// or hiding the scroll zones, Alt+A the picture's resolution still, following the frame budget
-// or in layers, and the views' keys the Config gives: Q and E turning, R and F tilting, Tab
-// switching the projection, V riding and the mouse looking round inside an entity.
+// or hiding the scroll zones, Alt+A the resolution of the camera's profile still, following the
+// frame budget or in layers, and the views' keys the Config gives: Q and E turning, R and F
+// tilting, Tab switching the projection, V riding and the mouse looking round inside an entity.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	keys := DefaultKeys()
 	keys.CornersTurn = p.cfg.Turn
@@ -231,9 +250,17 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 			func(control.Context) (Zones, bool) { return Zones{Shown: !p.ZonesShown()}, true }),
 		control.Build(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Alt: true}},
 			"The picture's resolution: still, following the frame budget, in layers",
-			func(control.Context) (Adapt, bool) { return p.nextAdapt(), true }))
+			func(c control.Context) (Adapt, bool) { return p.nextAdapt(c), true }))
 	return append(out, viewBindings(p.cfg)...)
 }
 
-// nextAdapt is the Adapt after the Settings: still, the whole picture, in layers, in turn
-func (p *Plugin) nextAdapt() Adapt { return Adapt{Strategy: (p.Strategy() + 1) % 3} }
+// nextAdapt is the Adapt after the Strategy of the profile of c's camera, or of the lead
+// camera's without one: still, the whole picture, in layers, in turn
+func (p *Plugin) nextAdapt(c control.Context) Adapt {
+	cam := c.Camera
+	if cam == nil {
+		cam = p.lead()
+	}
+	profile := ProfileOf(cam)
+	return Adapt{Profile: profile, Strategy: (p.Strategy(profile) + 1) % 3}
+}

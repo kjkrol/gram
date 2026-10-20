@@ -203,6 +203,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 			Fog:    scale.Units(6_000),
 			Coarse: 0.25,
 		},
+		Tactical: cameras.Knobs{Strategy: cameras.Uniform},
+		Riding:   cameras.Knobs{Strategy: cameras.InLayers, Layers: true},
 	})
 	a.minimap = minimap.NewPlugin(a.world, a.topography, minimap.Config{
 		Reach:   scale.Units(12_000),

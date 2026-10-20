@@ -9,16 +9,18 @@ import "github.com/kjkrol/ceremony/command"
 // plugin's own.
 type Setting interface{ setting() }
 
-// The sections of the settings screen the plugins share: the picture, its resolution and the
-// strategies following the frame budget, the ground's care, the areas shown, the graphics.
+// The sections of the settings screen the plugins share: the picture, how it is drawn in a
+// tactical view and riding in first person and the layers of each, the ground's care, the areas
+// shown, the graphics.
 const (
-	Picture           = "Picture"
-	PictureResolution = "Picture/Resolution"
-	PictureAdaptive   = "Picture/Resolution/Adaptive"
-	PictureLayers     = "Picture/Resolution/Layers"
-	PictureCare       = "Picture/Care"
-	PictureAreas      = "Picture/Areas"
-	Graphics          = "Picture/Graphics"
+	Picture               = "Picture"
+	PictureTactical       = "Picture/Tactical"
+	PictureTacticalLayers = "Picture/Tactical/Layers"
+	PictureRiding         = "Picture/Riding"
+	PictureRidingLayers   = "Picture/Riding/Layers"
+	PictureCare           = "Picture/Care"
+	PictureAreas          = "Picture/Areas"
+	Graphics              = "Picture/Graphics"
 )
 
 // SectionOf is the section s is listed under; empty for the plugin's own.

@@ -57,20 +57,29 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 		}
 	})
 	s.p.resolutions.Drain(func(i command.Issued[Resolution]) {
-		if i.Command.Factor > 0 && s.p.apply(i.Command.Camera, i.Command.Factor) {
-			s.p.still()
-			s.p.note(i.Command.Camera)
+		cam := i.Command.Camera
+		if i.Command.Factor > 0 && s.p.apply(cam, i.Command.Factor) {
+			s.p.still(ProfileOf(cam))
+			s.p.note(cam)
 		}
 	})
-	s.p.adapts.Drain(func(i command.Issued[Adapt]) { s.p.SetStrategy(i.Command.Strategy) })
-	s.p.pictures.Drain(func(i command.Issued[Picture]) { s.p.SetResolution(i.Command.Resolution) })
-	s.p.sharps.Drain(func(i command.Issued[SharpFigures]) { s.p.SetSharpFigures(i.Command.On) })
-	s.p.layers.Drain(func(i command.Issued[Layers]) { s.p.SetLayers(i.Command.On) })
+	s.p.adapts.Drain(func(i command.Issued[Adapt]) {
+		s.p.SetStrategy(i.Command.Profile, i.Command.Strategy)
+	})
+	s.p.pictures.Drain(func(i command.Issued[Picture]) {
+		s.p.SetResolution(i.Command.Profile, i.Command.Resolution)
+	})
+	s.p.sharps.Drain(func(i command.Issued[SharpFigures]) {
+		s.p.SetSharpFigures(i.Command.Profile, i.Command.On)
+	})
+	s.p.layers.Drain(func(i command.Issued[Layers]) {
+		s.p.SetLayers(i.Command.Profile, i.Command.On)
+	})
 	s.p.layerShares.Drain(func(i command.Issued[LayerShares]) {
-		s.p.SetLayerShares(i.Command.Inner, i.Command.Middle)
+		s.p.SetLayerShares(i.Command.Profile, i.Command.Inner, i.Command.Middle)
 	})
 	s.p.layerRes.Drain(func(i command.Issued[LayerResolutions]) {
-		s.p.SetLayerResolutions(i.Command.Outer, i.Command.Middle)
+		s.p.SetLayerResolutions(i.Command.Profile, i.Command.Outer, i.Command.Middle)
 	})
 	s.p.budgets.Drain(func(i command.Issued[Budget]) { s.p.SetBudget(i.Command.Frame) })
 	s.p.showLayers.Drain(func(i command.Issued[ShowLayers]) { s.p.ShowLayers(i.Command.Shown) })

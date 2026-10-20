@@ -147,9 +147,10 @@ type node struct {
 // the sections the plugins share, in the order listed
 var sharedSections = []string{
 	control.Picture,
-	control.PictureResolution,
-	control.PictureAdaptive,
-	control.PictureLayers,
+	control.PictureTactical,
+	control.PictureTacticalLayers,
+	control.PictureRiding,
+	control.PictureRidingLayers,
 	control.PictureCare,
 	control.PictureAreas,
 	control.Graphics,
@@ -235,7 +236,7 @@ func (n *node) blocks(path string, level int, dst []block) []block {
 	}
 	for _, st := range n.settings {
 		last := &dst[len(dst)-1]
-		last.add(ui.Fixed(settingsRow, line(st, float64(level)*shortcutsGap/2)), settingsRow)
+		last.add(ui.Fixed(settingsRow, line(st, path, float64(level)*shortcutsGap/2)), settingsRow)
 		last.bare = false
 	}
 	for _, c := range n.subs {
@@ -265,17 +266,19 @@ func indented(px float64, e *ui.Element) *ui.Element {
 	return ui.Columns(ui.Fixed(px, ui.Blank()), ui.Fit(e))
 }
 
-// line is a setting's label and its control, named "setting:" and the label, indent pixels in: a
-// Switch a checkbox, a Choice a dropdown, a Range a slider with the number beside it.
-func line(st control.Setting, indent float64) *ui.Element {
+// line is a setting's label and its control, named "setting:", the path of its section and the
+// label ("setting:Picture/Graphics/Shadows"), indent pixels in: a Switch a checkbox, a Choice a
+// dropdown, a Range a slider with the number beside it.
+func line(st control.Setting, path string, indent float64) *ui.Element {
 	var label string
 	var ctl *ui.Element
 	switch st := st.(type) {
 	case control.Switch:
 		return indented(indent,
-			ui.MiddleLeft(ui.Checkbox(st.Label, st.Get, st.Set).Named("setting:"+st.Label)))
+			ui.MiddleLeft(ui.Checkbox(st.Label, st.Get, st.Set).Named(settingName(path, st.Label))))
 	case control.Choice:
-		label, ctl = st.Label, ui.Dropdown(st.Options, st.Get, st.Set).Named("setting:"+st.Label)
+		label = st.Label
+		ctl = ui.Dropdown(st.Options, st.Get, st.Set).Named(settingName(path, st.Label))
 	case control.Range:
 		label = st.Label
 		shows := st.Shows
@@ -284,7 +287,7 @@ func line(st control.Setting, indent float64) *ui.Element {
 		}
 		ctl = ui.Columns(
 			ui.Fit(ui.MiddleLeft(ui.Slider(st.Min, st.Max, st.Step, st.Get, st.Set).
-				Named("setting:"+st.Label))),
+				Named(settingName(path, st.Label)))),
 			ui.Fixed(shortcutsGap, ui.Blank()),
 			ui.Fit(ui.MiddleLeft(ui.LabelOf(written{get: st.Get, shows: shows}))),
 		)
@@ -297,6 +300,8 @@ func line(st control.Setting, indent float64) *ui.Element {
 		ui.Fit(ui.MiddleLeft(ctl)),
 	)
 }
+
+func settingName(path, label string) string { return "setting:" + path + "/" + label }
 
 // written is a Range's number as its Shows writes it, read every frame (ui.Text).
 type written struct {
