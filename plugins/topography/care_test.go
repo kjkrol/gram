@@ -41,6 +41,26 @@ func TestPlugin_ShadesTheGroundWithFullCareAsFarAsTheConfigSays(t *testing.T) {
 	}
 }
 
+func TestReporter_SaysTheReachAndEachCareALine(t *testing.T) {
+	w := topotest.NewWorld(0)
+	b, _ := topotest.LevelBoard(w)
+	p := topography.NewPlugin(w, b, nil, topography.Config{Care: 2})
+	report := func() string {
+		var got string
+		p.Reporter().Report(func(label, value string) { got = label + ": " + value })
+		return got
+	}
+	want := "Ground: care within 2 sectors\neverything 0\nno shore 0\nflat mirror 0\nno shade 0" +
+		"\nleast 0"
+	if got := report(); got != want {
+		t.Errorf("the panel says %q, want %q", got, want)
+	}
+	p.SetCare(0)
+	if got := report(); got != "Ground: care everywhere" {
+		t.Errorf("with full care everywhere the panel says %q", got)
+	}
+}
+
 func TestPlugin_CareStepsFullCareFartherAndNearerRungByRung(t *testing.T) {
 	qw := topotest.NewQuasiWorld(t, false,
 		func(*board.Units[topotest.Recruit], grid.Grid) []kind.Entry { return nil })

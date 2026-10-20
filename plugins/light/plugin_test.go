@@ -316,7 +316,7 @@ func TestPlugin_CommandsSwitchTheShadowsCoarseAndTheLampsOff(t *testing.T) {
 	}
 	var lines []string
 	p.Reporter().Report(func(label, value string) { lines = append(lines, label+": "+value) })
-	if len(lines) != 1 || !strings.HasPrefix(lines[0], "Light: sun 0.00 · lamps 0, shadows of 0") {
+	if len(lines) != 1 || lines[0] != "Light: sun 0.00\nlamps 0\nshadows of 0" {
 		t.Errorf("the panel says %v", lines)
 	}
 }

@@ -123,9 +123,9 @@ func TestPlugin_ReportsTheMoonOnItsOwnHowTheCloudsLookAndWhoseShadowsFall(t *tes
 	got := map[string]string{}
 	reporters{a.calendar.Reporter(), a.Reporter().(reporters)[3]}.Report(
 		func(label, value string) { got[label] = value })
-	if got["Moon"] == "" || strings.Count(got["Season"], ",") != 1 {
-		t.Errorf("the season is %q and the moon %q, want the moon on a line of its own",
-			got["Season"], got["Moon"])
+	if got["Moon"] == "" || strings.Count(got["Season"], "\n") != 1 {
+		t.Errorf("the season is %q and the moon %q, want the season and the date two lines, the "+
+			"moon a line of its own", got["Season"], got["Moon"])
 	}
 	if got["Clouds"] != "the low as bodies" ||
 		got["Shadows"] != "both layers' on the ground and the figures" {

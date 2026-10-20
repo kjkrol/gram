@@ -357,7 +357,7 @@ func (r cloudsReport) Report(line func(label, value string)) {
 	look := r.p.Res.Settings.Clouds.String()
 	if w := r.p.Air(); !w.OneLayer && w.Relief[1] > 0 {
 		c := w.Ceilings
-		look += fmt.Sprintf("\nunder the peaks %.0f%%\ncovering %.0f%%, over %.0f%%",
+		look += fmt.Sprintf("\nunder the peaks %.0f%%\ncovering %.0f%%\nover %.0f%%",
 			100*c[0], 100*c[1], 100*c[2])
 	}
 	line("Clouds", look)
