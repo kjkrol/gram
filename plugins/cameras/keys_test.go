@@ -1,6 +1,7 @@
 package cameras_test
 
 import (
+	"math"
 	"reflect"
 	"testing"
 
@@ -165,4 +166,24 @@ func TestKeys_AtAResolutionTheScrollAndTheLookAreTheSameOnTheScreen(t *testing.T
 		return
 	}
 	t.Error("no binding on the mouse looks round")
+}
+
+func TestKeys_TheEdgeScrollsAQuarterAsFastAtTheZonesInnerBoundAsAtTheWindowsEdge(t *testing.T) {
+	keys := cameras.Keys{Edge: true}.Bindings()
+	ctx := control.Context{Screen: geom.NewVec(1000, 800)}
+	speeds := map[float64]float32{}
+	for _, x := range []float64{10, 35, 59} {
+		ctx.Cursor = geom.NewVec(x, 400)
+		cmd, ok := keys[0].Build(ctx)
+		pan, isPan := cmd.(cameras.Pan)
+		if !ok || !isPan || pan.Dx >= 0 || pan.Dy != 0 {
+			t.Fatalf("at x %v the edge builds %+v (%v), want a Pan left", x, cmd, ok)
+		}
+		speeds[x] = -pan.Dx
+	}
+	if speeds[10] != cameras.DefaultScrollSpeed || speeds[35] != cameras.DefaultScrollSpeed*0.625 ||
+		math.Abs(float64(speeds[59]-cameras.DefaultScrollSpeed*0.265)) > 1e-5 {
+		t.Errorf("the speeds by the cursor's x are %v, want the whole at the edge, five eighths "+
+			"halfway in and a shade over a quarter at the inner bound", speeds)
+	}
 }

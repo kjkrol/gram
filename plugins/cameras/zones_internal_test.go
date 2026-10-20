@@ -113,3 +113,32 @@ func TestZones_LieOnTheWholeFrameAloneNeverOnAPartOfIt(t *testing.T) {
 		t.Errorf("a camera drawn a part of its frame got %d pieces of the zones, want none", n)
 	}
 }
+
+func TestZones_FadeFromClearInsideToTheColourAtTheEdge(t *testing.T) {
+	p := NewPlugin(world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 800},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	}), Config{})
+	p.ShowZones(true)
+	cam := cameratest.NewFromSpace(1000, 800, 0)
+	var f render.Frame
+	f.Reset(cam)
+	p.zonesView.Compose(&f, cam)
+	w, h := cam.Viewport()
+	edge := float32(zoneColor.A) / 255
+	f.Each(func(_ render.At, verts []render.Vertex) {
+		if len(verts) != 4 {
+			t.Fatalf("a zone of %d vertices, want a quad", len(verts))
+		}
+		for _, v := range verts {
+			onEdge := v.DstX == 0 || v.DstX == w || v.DstY == 0 || v.DstY == h
+			if onEdge && v.ColorA != edge || !onEdge && v.ColorA != 0 {
+				t.Errorf("the vertex at (%v, %v) is %v opaque, want %v on the edge and clear inside",
+					v.DstX, v.DstY, v.ColorA, edge)
+			}
+		}
+	})
+	if f.Len() != 8 {
+		t.Errorf("%d pieces, want the four strips and four corners", f.Len())
+	}
+}

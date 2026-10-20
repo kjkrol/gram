@@ -183,7 +183,7 @@ func (c Context) WorldBox(a, b geom.Vec) geom.AABB {
 
 const (
 	// EdgeMargin is how close to a window edge, in pixels, the cursor rests at it (CursorAtEdge).
-	EdgeMargin = 30
+	EdgeMargin = 60
 	// EdgeDeadZone is the strip at the very edge that is no edge, unless the window fills the
 	// screen: a cursor parked there by the monitor's edge should not run away.
 	EdgeDeadZone = 10
@@ -222,10 +222,13 @@ func (c Corner) Signs() (x, y float32) {
 	return 0, 0
 }
 
-// Edges are the window edges a cursor rests near, and the corner it rests in.
+// Edges are the window edges a cursor rests near, the corner it rests in, and how Deep in the
+// strip or the corner's square it stands: 0 at the inner bound, 1 at the window's edge (the dead
+// zone's), in a corner the deeper of the two ways.
 type Edges struct {
 	Left, Right, Top, Bottom bool
 	Corner                   Corner
+	Depth                    float64
 }
 
 // Any reports whether the cursor rests near any edge or in a corner.
@@ -262,7 +265,25 @@ func (c Context) Edges() Edges {
 	case nearRight && nearBottom:
 		e.Corner = BottomRight
 	}
+	// how far in from the window's edges, by the nearer each way
+	inX, inY := min(x, c.Screen.X-x), min(y, c.Screen.Y-y)
+	if e.Corner != NoCorner {
+		e.Depth = max(depth(inX, side, dead), depth(inY, side, dead))
+		return e
+	}
+	if e.Left || e.Right {
+		e.Depth = depth(inX, margin, dead)
+	}
+	if e.Top || e.Bottom {
+		e.Depth = max(e.Depth, depth(inY, margin, dead))
+	}
 	return e
+}
+
+// depth is how deep a cursor in pixels from the window's edge stands in a zone reach wide with
+// the dead zone at its edge, 0 to 1
+func depth(in, reach, dead float64) float64 {
+	return min(max((reach-in)/(reach-dead), 0), 1)
 }
 
 // ScreenRect is the screen rectangle between a and b, at least a pixel a side.

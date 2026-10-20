@@ -99,8 +99,10 @@ func (k Keys) Bindings() []control.Binding {
 	}
 	if k.Edge {
 		out = append(out, control.Build(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {
+			// the deeper in the zone, the faster: a quarter the speed at its inner bound
 			var dx, dy float32
-			side, speed := c.Edges(), step(c)
+			side := c.Edges()
+			speed := step(c) * float32(0.25+0.75*side.Depth)
 			if side.Corner != control.NoCorner {
 				sx, sy := side.Corner.Signs()
 				return Pan{Camera: c.Camera, Dx: sx * speed, Dy: sy * speed}, !k.CornersTurn

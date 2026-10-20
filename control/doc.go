@@ -18,7 +18,8 @@
 // [KeyDown], [KeyHeld], [KeyReleased] — let go, [Context].Held how long it was down —
 // [ButtonPress], [Drag], [Wheel], [ButtonHeld], [CursorAtEdge] — the cursor within [EdgeMargin]
 // of the picture's edge, or in a corner's square of [CornerReach] a side, [CornerSide] for a
-// small picture ([Edges], [Corner]), [CursorInCorner] there alone — [CursorMove], [CursorOver])
+// small picture ([Edges], [Corner], [Edges].Depth how deep in, for a scroll quickening to the
+// edge), [CursorInCorner] there alone — [CursorMove], [CursorOver])
 // with exactly its [Mods], the
 // command [Build] makes from a [Context] or [Give] names, and a label for the list of keys; a key
 // held, down or let go fires with Shift, Ctrl or Alt held only [Binding.InChords]. A

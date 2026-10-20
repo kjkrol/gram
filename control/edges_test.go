@@ -1,6 +1,7 @@
 package control_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -56,8 +57,8 @@ func TestEdges_TheMarginsAreInShownPixelsAtAResolution(t *testing.T) {
 		corner control.Corner
 	}{
 		{15, 800, false, control.NoCorner}, // the dead zone, 20 pixels
-		{50, 800, true, control.NoCorner},  // the strip, 60 pixels
-		{70, 800, false, control.NoCorner},
+		{50, 800, true, control.NoCorner},  // the strip, 120 pixels
+		{130, 800, false, control.NoCorner},
 		{230, 230, false, control.TopLeft}, // the corner, 240 a side
 		{250, 230, false, control.NoCorner},
 	} {
@@ -76,5 +77,36 @@ func TestEdges_TheMarginsAreInShownPixelsAtAResolution(t *testing.T) {
 	plain := control.Context{}
 	if plain.Pixels(8) != 8 || plain.Shown(geom.NewVec(6, 8)) != geom.NewVec(6, 8) {
 		t.Error("a Context of no resolution converts as 1")
+	}
+}
+
+func TestEdges_TheDepthGrowsFromTheStripsInnerBoundToTheWindowsEdge(t *testing.T) {
+	ctx := control.Context{Screen: geom.NewVec(1000, 800)}
+	for _, c := range []struct {
+		x, y  float64
+		depth float64
+	}{
+		{60, 400, 0},    // the strip's inner bound, no edge
+		{59, 400, 0.02}, // just in
+		{35, 400, 0.5},
+		{10, 400, 1}, // the dead zone's edge
+		{965, 400, 0.5},
+		{500, 35, 0.5},
+		{500, 765, 0.5},
+		{500, 400, 0},
+		{15, 100, 105.0 / 110}, // the corner: the deeper way, of its square 120 a side
+		{100, 15, 105.0 / 110},
+		{60, 60, 60.0 / 110},
+	} {
+		ctx.Cursor = geom.NewVec(c.x, c.y)
+		if e := ctx.Edges(); math.Abs(e.Depth-c.depth) > 1e-9 {
+			t.Errorf("at (%v, %v) the depth is %v, want %v", c.x, c.y, e.Depth, c.depth)
+		}
+	}
+	ctx.FillsScreen = true
+	ctx.Cursor = geom.NewVec(0, 400)
+	if e := ctx.Edges(); !e.Left || e.Depth != 1 {
+		t.Errorf("filling the screen, at the very edge the edges are %+v, want left at a depth of 1",
+			e)
 	}
 }
