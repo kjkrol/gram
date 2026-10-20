@@ -396,7 +396,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   the moon and the weather are the widgets' (a game without them adds
   `Calendar().Reporter()` and `Climate().Reporter()`). The settings screen's atmosphere section
   has a choice "Weather" of the climate's weathers by name (`SetWeather{Name}`; `Climate.Now()`
-  the one over the world's middle, set by the system) where the Config has any; a weather asked
+  the weather of the time, lane 0, as the system last set it) where the Config has any; a weather asked
   for while the clock stands (the settings screen's pause) is entered at once, the climate's
   system run with no time passing (`Climate.Asked`).
   `atmosphere/calendar`: the clock at a fixed scale — a day every `Config.DayRealTime` from

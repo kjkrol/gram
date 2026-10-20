@@ -24,7 +24,7 @@ type Climate struct {
 	ground   func() (low, peaks float64)
 	land     *air.Land
 	running  Running
-	now      string // the weather over the middle, by name, as the system last saw it
+	now      string // the weather of the time, by name, as the system last set it
 }
 
 // Running is which of the weather's workings go on: one weather following another, the wind,
@@ -58,7 +58,7 @@ func (c *Climate) Config() Config { return c.cfg }
 // Asked reports whether a weather was asked for (Set, Change) and not yet entered.
 func (c *Climate) Asked() bool { return len(c.asked) > 0 }
 
-// Now is the name of the weather over the world's middle, empty before the first step.
+// Now is the name of the weather of the time, the one set or come, empty before the first step.
 func (c *Climate) Now() string { return c.now }
 
 // Air is the weather as the last step of the simulation left it; a calm, clear day before the

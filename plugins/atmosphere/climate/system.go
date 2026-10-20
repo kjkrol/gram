@@ -22,7 +22,7 @@ type weatherSystem struct {
 	calendar *calendar.Calendar
 	asked    *[]string
 	running  *Running
-	overName *string // the weather over the middle by name, the Climate's
+	nameNow  *string // the weather of the time by name, the Climate's
 
 	query   *goke.Query
 	now     goke.Comp[Weather]
@@ -66,7 +66,7 @@ type weatherSystem struct {
 func newWeatherSystem(cfg Config, w *world.Plugin, cal *calendar.Calendar, asked *[]string,
 	rules *host.StepRules[Weathering], running *Running, over *string) *weatherSystem {
 	return &weatherSystem{cfg: cfg, world: w, calendar: cal, asked: asked, running: running,
-		host: rules, profile: cfg.Zone.Profile(), overName: over}
+		host: rules, profile: cfg.Zone.Profile(), nameNow: over}
 }
 
 // what falls from the weather of the state st
@@ -217,7 +217,6 @@ func (s *weatherSystem) begin(w *Weather, m calendar.Moment) {
 		l.Clouds, l.Billow, l.Falls = l.CloudsTo, l.BillowTo, s.cfg.Weathers[at].Falls
 	})
 	w.Blow, w.Over = w.Target, w.Lanes[0].State
-	*s.overName = s.cfg.Weathers[w.Over].Name
 	w.Temperature = s.warmth(s.cfg.Weathers[w.Over], m)
 }
 
@@ -274,6 +273,7 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				}
 			})
 		}
+		*s.nameNow = s.cfg.Weathers[w.Lanes[0].State].Name
 		s.blend(w, dt)
 		s.carry(w, dt)
 		over := s.over(w, dt, m)
@@ -548,7 +548,6 @@ func (s *weatherSystem) partsOf(l *Lane, to bool) []part {
 func (s *weatherSystem) over(w *Weather, dt float32, m calendar.Moment) air.Mass {
 	mass, st := s.dome.At(s.middle[0], s.middle[1])
 	w.Over = int32(st)
-	*s.overName = s.cfg.Weathers[w.Over].Name
 	w.Temperature += (s.warmth(s.cfg.Weathers[w.Over], m) - w.Temperature) * s.share(dt)
 	w.Rain, w.Snow = air.Falling(mass.Falls, w.Temperature)
 	return mass
