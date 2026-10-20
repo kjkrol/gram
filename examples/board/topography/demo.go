@@ -89,23 +89,30 @@ type arena struct {
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
 	look       string
+	hud        string
 }
 
 func main() {
 	look := flag.String("look", NaturalLook,
 		"the ground's look: natural (photographs) or ghibli (painted, the light in bands)")
+	hud := flag.String("hud", BarHUD,
+		"the hour, the date and the weather: bar (one, at the top) or widgets (by the corners)")
 	flag.Parse()
+	if *hud != BarHUD && *hud != WidgetsHUD {
+		log.Fatalf("no HUD is named %q: bar or widgets", *hud)
+	}
 	props := game.Props{
 		Title: "gram board topography",
-		Description: "Madeira in relief, its ground textured as -look says (natural or ghibli). " +
-			"Select a unit, C follows it, V rides it: inside, the " +
-			"mouse looks round, W and S walk, A and D strafe, Shift sprints, Space jumps. The " +
-			"minimap turns with the camera (Ctrl+M keeps north up, Shift+M hides it); a click on " +
-			"it takes the camera there.",
+		Description: "Madeira in relief, its ground textured as -look says (natural or ghibli), " +
+			"the hour, the date and the weather shown as -hud says (bar: one at the top; " +
+			"widgets: apart, by the corners). Select a unit, C follows it, V rides it: inside, " +
+			"the mouse looks round, W and S walk, A and D strafe, Shift sprints, Space jumps. " +
+			"The minimap turns with the camera (Ctrl+M keeps north up, Shift+M hides it); a " +
+			"click on it takes the camera there.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
-	a := &arena{look: *look}
+	a := &arena{look: *look, hud: *hud}
 	mainStage := stage.New(BoardTopographyStage).
 		World(world.Config{
 			Scale: scale,
@@ -220,6 +227,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.atmosphere.ShowClouds(atmosphere.AllBodies)
 	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})
 	a.cameras.ShowZones(true)
+	a.telemetry.SetMode(telemetry.Extended)
 }
 
 func (a *arena) definePlayers() error {

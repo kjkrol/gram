@@ -42,6 +42,9 @@ const (
 
 	NaturalLook = "natural"
 	GhibliLook  = "ghibli"
+
+	BarHUD     = "bar"
+	WidgetsHUD = "widgets"
 )
 
 func snowyCell(kind string) string { return "snowy " + kind }

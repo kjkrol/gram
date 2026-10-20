@@ -59,6 +59,7 @@ make demo-board-atlas                                           # a small flat b
 make demo-board-flat                                            # Madeira on the simple map: a flat board, bands for the ways, bridges and fords
 make demo-board-topography                                      # Madeira in relief: light, water, roads, bridges, the camera on a stick (Q/E, R/F, Tab), the weather; the ground textured from photographs
 make demo-board-topography-ghibli                               # the same ground painted, the light in bands (-look ghibli)
+make demo-board-topography-widgets                              # the hour, the date and the weather apart by the corners, not in a bar (-hud widgets)
 go run ./cmd/gramap -recipe cmd/gramap/madeira.yaml -out <map.yaml> [-flat]   # a map of the Earth from the Terrain Tiles on AWS
 make demo-navigation-square                                     # units sent round a wall, over a river by a bridge a wagon is too wide for; walls cut sight, forests dim it, a hawk flies over
 make demo-navigation-hex                                        # the same on a hex board

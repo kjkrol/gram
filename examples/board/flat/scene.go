@@ -56,6 +56,7 @@ func (m *mainScene) screen() *ui.Element {
 	return ui.Layers(
 		ui.Image(render.NewFeed(cam, a.world.Picture())).Input(a.players.Through(a.player)),
 		ui.Drawer(a.world.Clock().HUD()),
+		ui.TopMiddle(a.atmosphere.Bar()).Margin(8),
 		ui.TopRight(a.minimap.For(cam, a.player.ID).Masked(ui.Circle).Border(minimapRim, 2)).
 			Size(220, 220).
 			Margin(16),

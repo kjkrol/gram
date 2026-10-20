@@ -4,6 +4,7 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/examples/board/topography/hud"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/topography/painter"
@@ -41,8 +42,6 @@ var (
 	pierColor    = color.RGBA{R: 160, G: 150, B: 135, A: 255}
 	lanternGlow  = color.RGBA{R: 255, G: 200, B: 110, A: 255}
 	lanternColor = render.Light{1, 0.75, 0.4}
-	reasonColor  = color.RGBA{R: 20, G: 20, B: 20, A: 180}
-	minimapRim   = color.RGBA{R: 30, G: 30, B: 30, A: 255}
 )
 
 var (
@@ -79,13 +78,14 @@ func (m *mainScene) screen() *ui.Element {
 	a.vision.WithViews(render.Show(a.selection.IsSelected))
 
 	cam := a.cameras.New(cameras.Isometrically, camera.Config{})
-	return ui.Layers(
-		ui.Image(render.NewFeed(cam, a.world.Picture())).Input(a.players.Through(a.player)),
-		ui.Drawer(a.world.Clock().HUD()),
-		ui.TopRight(a.minimap.For(cam, a.player.ID).Masked(ui.Circle).Border(minimapRim, 2)).
-			Size(220, 220).
-			Margin(16),
-		ui.BottomMiddle(a.bridges.Reason().Padding(6).Fill(reasonColor)).Margin(40),
-		ui.Center(a.bridges.Window()),
-	)
+	return hud.Screen(hud.Deps{
+		Feed: ui.Image(render.NewFeed(cam, a.world.Picture())).
+			Input(a.players.Through(a.player)),
+		Minimap:    a.minimap.For(cam, a.player.ID),
+		Clock:      a.world.Clock().HUD(),
+		Atmosphere: a.atmosphere,
+		Reason:     a.bridges.Reason(),
+		Window:     a.bridges.Window(),
+		Widgets:    a.hud == WidgetsHUD,
+	})
 }

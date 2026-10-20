@@ -35,5 +35,6 @@ func (m *mainScene) screen() *ui.Element {
 	return ui.Layers(
 		ui.Image(render.NewFeed(cam, a.world.Picture())).Input(a.players.Through(a.player)),
 		ui.Drawer(a.world.Clock().HUD()),
+		ui.TopMiddle(a.atmosphere.Bar()).Margin(8),
 	)
 }
