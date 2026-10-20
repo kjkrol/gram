@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"unsafe"
 
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
@@ -498,3 +499,19 @@ func alignUp(n, a uint64) uint64 { return (n + a - 1) / a * a }
 func appendF32(b []byte, v float32) []byte {
 	return binary.LittleEndian.AppendUint32(b, math.Float32bits(v))
 }
+
+// appendF32s is appendF32 of every float, copied at once where the CPU lays them as the GPU does
+func appendF32s(b []byte, v []float32) []byte {
+	if len(v) == 0 {
+		return b
+	}
+	if !littleEndian {
+		for _, f := range v {
+			b = appendF32(b, f)
+		}
+		return b
+	}
+	return append(b, unsafe.Slice((*byte)(unsafe.Pointer(&v[0])), 4*len(v))...)
+}
+
+var littleEndian = binary.NativeEndian.Uint16([]byte{1, 0}) == 1

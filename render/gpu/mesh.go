@@ -254,9 +254,7 @@ func Mesh(dw *MeshDraw) {
 	d.ensure((4*len(dw.Instances)+vertexSize-1)/vertexSize, 0)
 	iOff := uint64(len(d.verts))
 	if dw.Program.instance > 0 {
-		for _, f := range dw.Instances[:int(instances)*4*dw.Program.instance] {
-			d.verts = appendF32(d.verts, f)
-		}
+		d.verts = appendF32s(d.verts, dw.Instances[:int(instances)*4*dw.Program.instance])
 	}
 	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, [4]float32{}, [4]float32{}, nil)
 	offs := d.offsets(dOff, uOff)
