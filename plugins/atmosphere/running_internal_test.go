@@ -1,10 +1,8 @@
 package atmosphere
 
 import (
-	"reflect"
 	"testing"
 
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/world"
 )
@@ -31,19 +29,4 @@ func TestPlugin_RunningSwitchesTheAtmospheresWorkings(t *testing.T) {
 	if all := NewPlugin(other, nil, Config{}).Running(); all != AllRunning() {
 		t.Errorf("a Config without Running runs %+v, want all of it", all)
 	}
-}
-
-// riding in a unit, W with Shift sprints
-func TestDefaultBindings_ChangeTheWeatherWithTheCameraFreeOnly(t *testing.T) {
-	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128}, Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true})
-	for _, b := range NewPlugin(w, nil, Config{}).DefaultBindings() {
-		if b.Type() != reflect.TypeFor[ChangeWeather]() {
-			continue
-		}
-		if !b.Holds(camera.Loose) || !b.Holds(camera.Centred) || b.Holds(camera.Inside) {
-			t.Errorf("Shift+W holds free %v, riding %v; want free only", b.Holds(camera.Loose), b.Holds(camera.Inside))
-		}
-		return
-	}
-	t.Error("the atmosphere binds no key to ChangeWeather")
 }

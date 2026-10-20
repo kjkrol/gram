@@ -5,19 +5,17 @@ import (
 	"slices"
 
 	"github.com/kjkrol/ceremony/command"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 )
 
 // Freeze stops the light of the day at the hour it stands (Settings.Frozen), or lets a frozen
-// light go again. Only the light stops; the calendar and the weather go on. P by default, in
-// turn.
+// light go again. Only the light stops; the calendar and the weather go on. The settings screen
+// alone.
 type Freeze struct{ On bool }
 
-// Hour puts a frozen light At a part of the day, 0 to 1 round midnight (Settings.Hour). Shift+]
-// and Shift+[ by default, half an hour on and back, while the light is frozen.
+// Hour puts a frozen light At a part of the day, 0 to 1 round midnight (Settings.Hour). The
+// settings screen alone.
 type Hour struct{ At float32 }
 
 // ChangeWeather has the weather go on to its next state now.
@@ -27,8 +25,8 @@ type ChangeWeather struct{}
 // game's own); a name the climate lacks changes nothing.
 type SetWeather struct{ Name string }
 
-// Clouds has the clouds drawn in the Look (CloudLook, Settings.Clouds). Shift+V by default, in
-// turn: flat, the low ones as bodies, all, their shadows alone, flat again.
+// Clouds has the clouds drawn in the Look (CloudLook, Settings.Clouds). The settings screen
+// alone.
 type Clouds struct{ Look CloudLook }
 
 // AdaptClouds has the clouds' look follow the cameras' frame budget, or not
@@ -42,7 +40,7 @@ func (AdaptClouds) Command() {}
 var _ command.Command = AdaptClouds{}
 
 // HighShade has the high clouds shade the ground too, as the game starts, or no longer: the low
-// ones alone do (Settings.HighShade). Shift+S by default, in turn.
+// ones alone do (Settings.HighShade). The settings screen alone.
 type HighShade struct{ On bool }
 
 // Settings is what the atmosphere lets the players adjust, saved with the game: the frozen
@@ -60,7 +58,7 @@ type Resources struct {
 	Settings Settings
 }
 
-// Downpour has it rain now: SetWeather of weather.Rain, a key to look at the rain with.
+// Downpour has it rain now: SetWeather of weather.Rain.
 type Downpour struct{}
 
 func (Freeze) Command()        {}
@@ -87,39 +85,8 @@ func (p *Plugin) Queues() []command.CommandQueue {
 		&p.shades, &p.adapts, &p.downpours}
 }
 
-// DefaultBindings are P (Freeze), Shift+] and Shift+[ (Hour, half an hour on and back),
-// Shift+V (Clouds) and, with the camera free, Shift+W (ChangeWeather) and Shift+S (HighShade):
-// riding, S with Shift sprints back; Shift+U (Downpour).
-func (p *Plugin) DefaultBindings() []control.Binding {
-	shift := control.Mods{Shift: true}
-	shifted := func(by float32) func(control.Context) (Hour, bool) {
-		return func(control.Context) (Hour, bool) {
-			return Hour{At: p.sky.Hour() + by}, p.sky.Frozen()
-		}
-	}
-	return []control.Binding{
-		control.Build(control.KeyPress{Key: control.KeyP}, "Freeze the light of the day",
-			func(control.Context) (Freeze, bool) { return Freeze{On: !p.sky.Frozen()}, true }),
-		control.Build(control.KeyPress{Key: control.KeyBracketRight, Mods: shift},
-			"Frozen light half an hour later", shifted(sky.HalfHour)),
-		control.Build(control.KeyPress{Key: control.KeyBracketLeft, Mods: shift},
-			"Frozen light half an hour earlier", shifted(-sky.HalfHour)),
-		control.Build(control.KeyPress{Key: control.KeyW, Mods: shift}, "Change the weather",
-			func(control.Context) (ChangeWeather, bool) { return ChangeWeather{}, true },
-		).In(camera.Outside),
-		control.Build(control.KeyPress{Key: control.KeyV, Mods: shift},
-			"Clouds flat, the low as bodies, all, shadows alone",
-			func(control.Context) (Clouds, bool) {
-				return Clouds{Look: (p.ShownClouds() + 1) % (ShadowsAlone + 1)}, true
-			}),
-		control.Build(control.KeyPress{Key: control.KeyS, Mods: shift},
-			"The high clouds' shadows, or the low ones' alone",
-			func(control.Context) (HighShade, bool) { return HighShade{On: !p.shadows.High}, true },
-		).In(camera.Outside),
-		control.Build(control.KeyPress{Key: control.KeyU, Mods: shift}, "Rain now",
-			func(control.Context) (Downpour, bool) { return Downpour{}, true }),
-	}
-}
+// DefaultBindings are none: the light, the clouds and the weather are the settings screen's.
+func (p *Plugin) DefaultBindings() []control.Binding { return nil }
 
 // Settings are the frozen light and its hour, the clouds' look and the high clouds' shadows
 // (plugin.Tunable).

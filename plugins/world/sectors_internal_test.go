@@ -2,6 +2,7 @@ package world
 
 import (
 	"maps"
+	"reflect"
 	"testing"
 	"time"
 
@@ -242,21 +243,27 @@ func TestSectors_SwitchedOffLiveEverywhereAndOnAgainGoBackPastTheMargin(t *testi
 	}
 }
 
-func TestSectors_KeysOnlyInAWorldCutIntoSectors(t *testing.T) {
-	ctrlG := func(p *Plugin) (command.Command, bool) {
-		for _, k := range p.DefaultBindings() {
-			press, ok := k.Trigger.(control.KeyPress)
-			if ok && press.Key == control.KeyG && press.Mods.Ctrl {
-				return k.Build(control.Context{})
+func TestSectors_SettingsOnlyInAWorldCutIntoSectorsAndNoKeys(t *testing.T) {
+	bands := func(p *Plugin) (control.Switch, bool) {
+		for _, s := range p.Settings() {
+			if sw, ok := s.(control.Switch); ok && sw.Label == "Sectors' bands" {
+				return sw, true
 			}
 		}
-		return nil, false
+		return control.Switch{}, false
 	}
-	if cmd, ok := ctrlG(sectorWorld(t, twoBands...).p); !ok || cmd != (SwitchBands{On: false}) {
-		t.Errorf("Ctrl+G builds %v (%v), want SwitchBands off, the bands being on", cmd, ok)
+	p := sectorWorld(t, twoBands...).p
+	if sw, ok := bands(p); !ok || !sw.Get() || sw.Set(false) != (SwitchBands{On: false}) {
+		t.Errorf("the bands' setting found %v, want it on and setting SwitchBands off", ok)
 	}
-	if cmd, ok := ctrlG(sectorWorld(t).p); ok {
-		t.Errorf("Ctrl+G builds %v in a world of no sectors, want no such key", cmd)
+	for _, k := range p.DefaultBindings() {
+		if k.Type() == reflect.TypeFor[SwitchBands]() ||
+			k.Type() == reflect.TypeFor[SwitchSectors]() {
+			t.Errorf("%v is bound to %v, want the settings screen alone", k.Type(), k.Trigger)
+		}
+	}
+	if _, ok := bands(sectorWorld(t).p); ok {
+		t.Error("a world of no sectors has the bands' setting")
 	}
 }
 

@@ -211,7 +211,7 @@ func (p *Plugin) SetAtlas(atlas render.AtlasSource) {
 	p.holdsView.Width(holds)
 }
 
-// ShowGrid draws the grid over the board, or not, as the Grid command (B) switches it
+// ShowGrid draws the grid over the board, or not, as the Grid command switches it
 // (Settings.Grid); shown from the start.
 func (p *Plugin) ShowGrid(shown bool) {
 	p.Res.Settings.Grid = shown

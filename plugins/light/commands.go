@@ -6,11 +6,11 @@ import (
 )
 
 // CoarseShadows has the shadows baked coarse, half as fine a side, or in full detail
-// (Settings.Coarse). H by default, in turn.
+// (Settings.Coarse). The settings screen alone.
 type CoarseShadows struct{ On bool }
 
 // LampShadows has the Count lamps nearest a picture's camera cast shadows, 0 none
-// (Settings.LampShadows). Shift+L by default, off or as many as the Config says.
+// (Settings.LampShadows). The settings screen alone: off or as many as the Config says.
 type LampShadows struct{ Count int }
 
 // AdaptShadows has the shadows follow the cameras' frame budget, or not
@@ -48,29 +48,8 @@ func (p *Plugin) Queues() []command.CommandQueue {
 	return []command.CommandQueue{&p.coarses, &p.lampSwitches, &p.adapts}
 }
 
-// DefaultBindings are H switching the shadows' detail and Shift+L the lamps' shadows.
-func (p *Plugin) DefaultBindings() []control.Binding {
-	return []control.Binding{
-		control.Build(control.KeyPress{Key: control.KeyH},
-			"Coarser shadows, a quarter of the work, or fine again",
-			func(control.Context) (CoarseShadows, bool) {
-				return CoarseShadows{On: !p.Res.Settings.Coarse}, true
-			}),
-		control.Build(control.KeyPress{Key: control.KeyL, Mods: control.Mods{Shift: true}},
-			"The lamps' shadows off, or on again",
-			func(control.Context) (LampShadows, bool) {
-				return LampShadows{Count: p.lampsNext()}, true
-			}),
-	}
-}
-
-// lampsNext is what Shift+L switches to: none, or as many as the Config says
-func (p *Plugin) lampsNext() int {
-	if p.Res.Settings.LampShadows > 0 {
-		return 0
-	}
-	return p.cfg.LampShadows
-}
+// DefaultBindings are none: the shadows are the settings screen's.
+func (p *Plugin) DefaultBindings() []control.Binding { return nil }
 
 // Settings are whether the shadows follow the frame budget, the shadows' detail and, with
 // lamps casting shadows at all (Config.LampShadows), whether they do, under Picture/Shadows

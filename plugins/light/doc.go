@@ -29,11 +29,11 @@
 // topography gives ([Plugin.OverRelief]), level ground without one, and the Baked blocks' on
 // either — is baked on the GPU as the sun moves, a strip a frame, and handed to every frame
 // (render.GroundShade) for whoever draws the ground and what stands on it to read; [CoarseShadows]
-// (H) bakes it half as fine. The live shadows are laid over whatever ground the frame drew, read
+// bakes it half as fine. The live shadows are laid over whatever ground the frame drew, read
 // off its depth, as a [ShadowPolicy] turns them by the distance from the eye
 // ([Plugin.WithShadowPolicy]): the distant light's everywhere, and on level ground the lamps'
 // too, from the
-// lamps nearest the camera, as many as the Config says or none ([LampShadows], Shift+L).
+// lamps nearest the camera, as many as the Config says or none ([LampShadows]).
 //
 // # Light on things
 //
@@ -48,6 +48,7 @@
 // # Vocabulary
 //
 // Knobs, for an effect's Alter: [Source], what an entity shines with; [Shadow], how it casts and
-// what it takes. Commands, a player's: [CoarseShadows] (H), [LampShadows] (Shift+L). Settings
-// ([Settings], saved with the game, in [Resources]): the shadows coarse, the lamps casting.
+// what it takes. Commands, a player's, of the settings screen alone: [CoarseShadows],
+// [LampShadows]. Settings ([Settings], saved with the game, in [Resources]): the shadows coarse,
+// the lamps casting.
 package light

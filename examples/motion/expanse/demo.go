@@ -74,10 +74,10 @@ func main() {
 		Description: "A world of about 98 km a side, a torus, and a hundred thousand boxes " +
 			"bouncing about it. The world lives in bands round the camera: near it everything " +
 			"moves and collides, farther the boxes move four times as seldom and pass through " +
-			"each other, beyond the bands nothing stirs. Shift+G shows the sectors by their " +
-			"bands, by what the camera sees, or not at all; Ctrl+G switches the bands off, the " +
-			"whole world alive, and on again. The minimap shows 9 km round the camera (Shift+M " +
-			"hides it); a click on it takes the camera there. WSAD scroll, = and - zoom, ~ the " +
+			"each other, beyond the bands nothing stirs. The settings screen (F10) shows the " +
+			"sectors by their bands, by what the camera sees, or not at all, and switches the " +
+			"bands off, the whole world alive, and on again. The minimap shows 9 km round the " +
+			"camera; a click on it takes the camera there. WSAD scroll, = and - zoom, ~ the " +
 			"telemetry.",
 		ScreenWidth:  ScreenWidth,
 		ScreenHeight: ScreenHeight,

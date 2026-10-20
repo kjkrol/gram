@@ -31,7 +31,7 @@ type Slower struct{}
 type Tempo struct{ X float32 }
 
 // SwitchBands switches the sectors' bands on, or off with every sector in the first
-// (Settings.Unbanded): a way of weighing what the bands spare. Ctrl+G by default, in turn, in a
+// (Settings.Unbanded): a way of weighing what the bands spare. The settings screen alone, in a
 // world cut into sectors.
 type SwitchBands struct{ On bool }
 
@@ -104,26 +104,12 @@ func (p *Plugin) Settings() []control.Setting {
 		})
 }
 
-// DefaultBindings are the clock's keys — Shift+P pauses, ] goes faster, [ slower — and, in a
-// world cut into sectors, Shift+G switching what is drawn of them and Ctrl+G their bands.
+// DefaultBindings are the clock's keys: Shift+P pauses, ] goes faster, [ slower. The sectors
+// drawn and their bands are the settings screen's.
 func (p *Plugin) DefaultBindings() []control.Binding {
-	keys := []control.Binding{
+	return []control.Binding{
 		control.Build(control.KeyPress{Key: control.KeyP, Mods: control.Mods{Shift: true}}, "Pause the game", func(control.Context) (Pause, bool) { return Pause{}, true }),
 		control.Build(control.KeyPress{Key: control.KeyBracketRight}, "Speed the game up", func(control.Context) (Faster, bool) { return Faster{}, true }),
 		control.Build(control.KeyPress{Key: control.KeyBracketLeft}, "Slow the game down", func(control.Context) (Slower, bool) { return Slower{}, true }),
 	}
-	if p.module.sectors.grid == nil {
-		return keys
-	}
-	return append(keys,
-		control.Build(control.KeyPress{Key: control.KeyG, Mods: control.Mods{Shift: true}},
-			"Show the sectors by their bands, by what the camera sees, or hide them",
-			func(control.Context) (SwitchSectors, bool) {
-				return SwitchSectors{Shown: p.SectorsShown().next()}, true
-			}),
-		control.Build(control.KeyPress{Key: control.KeyG, Mods: control.Mods{Ctrl: true}},
-			"Switch the sectors' bands off, the whole world alive, or on again",
-			func(control.Context) (SwitchBands, bool) {
-				return SwitchBands{On: !p.Banded()}, true
-			}))
 }

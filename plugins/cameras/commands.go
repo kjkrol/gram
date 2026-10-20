@@ -114,7 +114,7 @@ type Resolution struct {
 // Adapt has the resolution of Profile's pictures follow the frame budget (Settings.FrameBudget)
 // as Strategy says, Uniform the whole picture's, coarser while the frames come slower and finer
 // again while they keep up, InLayers drawn in layers and stepped a layer at a time, the outer
-// layers first, or stay as set, Still. Alt+A by default, in turn, for the camera's profile.
+// layers first, or stay as set, Still. The settings screen alone.
 type Adapt struct {
 	Profile  Profile
 	Strategy Strategy
@@ -248,8 +248,8 @@ const (
 // SightStep is the factor Ctrl+= and Ctrl+- see farther and nearer by.
 const SightStep = 1.25
 
-// ResolutionStep is the factor Alt+- draws a coarser picture by and Alt+= a finer one; the
-// adaptive resolution steps by it too. LeastResolution is the coarsest a picture is drawn at.
+// ResolutionStep is the factor the adaptive resolution steps a picture coarser by, and finer by
+// its inverse. LeastResolution is the coarsest a picture is drawn at.
 const (
 	ResolutionStep  = 0.85
 	LeastResolution = 0.4
@@ -262,30 +262,12 @@ func (p *Plugin) Queues() []command.CommandQueue {
 		&p.layers, &p.layerShares, &p.layerRes, &p.budgets, &p.samplings, &p.thresholds, &p.showLayers}, p.orders.queues()...)
 }
 
-// DefaultBindings are DefaultKeys, their corners turning where the Config turns, Shift+H showing
-// or hiding the scroll zones, Alt+A the resolution of the camera's profile still, following the
-// frame budget or in layers, and the views' keys the Config gives: Q and E turning, R and F
-// tilting, Tab switching the projection, V riding and the mouse looking round inside an entity.
+// DefaultBindings are DefaultKeys, their corners turning where the Config turns, and the views'
+// keys the Config gives: Q and E turning, R and F tilting, Tab switching the projection, V riding
+// and the mouse looking round inside an entity. The scroll zones and the pictures' resolution are
+// the settings screen's.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	keys := DefaultKeys()
 	keys.CornersTurn = p.cfg.Turn
-	out := append(keys.Bindings(),
-		control.Build(control.KeyPress{Key: control.KeyH, Mods: control.Mods{Shift: true}},
-			"Show the scroll zones at the picture's edges, or hide them",
-			func(control.Context) (Zones, bool) { return Zones{Shown: !p.ZonesShown()}, true }),
-		control.Build(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Alt: true}},
-			"The picture's resolution: still, following the frame budget, in layers",
-			func(c control.Context) (Adapt, bool) { return p.nextAdapt(c), true }))
-	return append(out, viewBindings(p.cfg)...)
-}
-
-// nextAdapt is the Adapt after the Strategy of the profile of c's camera, or of the lead
-// camera's without one: still, the whole picture, in layers, in turn
-func (p *Plugin) nextAdapt(c control.Context) Adapt {
-	cam := c.Camera
-	if cam == nil {
-		cam = p.lead()
-	}
-	profile := ProfileOf(cam)
-	return Adapt{Profile: profile, Strategy: (p.Strategy(profile) + 1) % 3}
+	return append(keys.Bindings(), viewBindings(p.cfg)...)
 }

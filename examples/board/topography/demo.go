@@ -107,8 +107,7 @@ func main() {
 			"the hour, the date and the weather shown as -hud says (bar: one at the top; " +
 			"widgets: apart, by the corners). Select a unit, C follows it, V rides it: inside, " +
 			"the mouse looks round, W and S walk, A and D strafe, Shift sprints, Space jumps. " +
-			"The minimap turns with the camera (Ctrl+M keeps north up, Shift+M hides it); a " +
-			"click on it takes the camera there.",
+			"The minimap turns with the camera; a click on it takes the camera there.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}

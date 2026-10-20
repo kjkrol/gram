@@ -277,20 +277,8 @@ func TestPlugin_OfTakesWhatTheEntitysShadowSays(t *testing.T) {
 
 func TestPlugin_CommandsSwitchTheShadowsCoarseAndTheLampsOff(t *testing.T) {
 	w, p, tick := litWorld(t, light.Config{LampShadows: 3}, nil)
-	keys := map[control.Key]command.Command{}
-	for _, b := range p.DefaultBindings() {
-		press := b.Trigger.(control.KeyPress)
-		keys[press.Key], _ = b.Build(control.Context{})
-		if press.Key == control.KeyL && !press.Mods.Shift {
-			t.Error("the lamps' shadows switch without Shift")
-		}
-	}
-	if keys[control.KeyH] != (light.CoarseShadows{On: true}) ||
-		keys[control.KeyL] != (light.LampShadows{Count: 0}) {
-		t.Errorf("the keys build %v, want H CoarseShadows on and Shift+L LampShadows off", keys)
-	}
-	w.Carrier().Put(command.Nobody, keys[control.KeyH])
-	w.Carrier().Put(command.Nobody, keys[control.KeyL])
+	w.Carrier().Put(command.Nobody, light.CoarseShadows{On: true})
+	w.Carrier().Put(command.Nobody, light.LampShadows{Count: 0})
 	tick()
 	if !p.ShadowsCoarse() || p.LampShadows() != 0 {
 		t.Errorf("switched: coarse %v, lamps casting %d; want coarse, none", p.ShadowsCoarse(),

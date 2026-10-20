@@ -60,8 +60,8 @@ func main() {
 		Description: "A flat board under a sun of the game's own, circling in a day and a half a " +
 			"minute: a tower's shadow baked into the ground, walkers casting patches, a hero " +
 			"(WSAD) casting its silhouette, a lantern lighting the night and casting their " +
-			"shadows by it, lava that takes no shade. Shift+L the lamps' shadows, H coarser " +
-			"shadows.",
+			"shadows by it, lava that takes no shade. The lamps' shadows and coarser shadows " +
+			"are on the settings screen (F10).",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}

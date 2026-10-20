@@ -7,7 +7,7 @@ import (
 
 // Cones shows every view drawn — the cones of sight and the ground out of sight — or hides them
 // (Settings.Cones). A look at the world, like the camera's turn: at once, in the pause too.
-// Shift+C by default, in turn.
+// The settings screen alone.
 type Cones struct{ Shown bool }
 
 func (Cones) Command() {}
@@ -27,14 +27,8 @@ type Resources struct {
 // Queues are where Cones lands.
 func (p *Plugin) Queues() []command.CommandQueue { return []command.CommandQueue{&p.cones} }
 
-// DefaultBindings show and hide the cones of sight on Shift+C.
-func (p *Plugin) DefaultBindings() []control.Binding {
-	return []control.Binding{
-		control.Build(control.KeyPress{Key: control.KeyC, Mods: control.Mods{Shift: true}},
-			"Show or hide the cones of sight",
-			func(control.Context) (Cones, bool) { return Cones{Shown: !p.ConesShown()}, true }),
-	}
-}
+// DefaultBindings are none: the cones are the settings screen's.
+func (p *Plugin) DefaultBindings() []control.Binding { return nil }
 
 // Settings is the one setting, the views drawn (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {

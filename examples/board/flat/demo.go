@@ -69,8 +69,8 @@ type arena struct {
 func main() {
 	props := game.Props{
 		Title: "gram board",
-		Description: "Madeira on the simple map, a minimap round the camera (Shift+M hides " +
-			"it); a click on it takes the camera there.",
+		Description: "Madeira on the simple map, a minimap round the camera; a click on it " +
+			"takes the camera there.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}

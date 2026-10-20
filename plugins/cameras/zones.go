@@ -12,8 +12,8 @@ import (
 )
 
 // Zones shows the strips at the picture's edges the cursor scrolls from and the squares at its
-// corners it turns from, a translucent yellow, or hides them (Settings.Zones). Shift+H by
-// default, in turn.
+// corners it turns from, a translucent yellow, or hides them (Settings.Zones). The settings
+// screen alone.
 type Zones struct{ Shown bool }
 
 func (Zones) Command() {}

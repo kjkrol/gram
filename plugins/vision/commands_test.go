@@ -7,7 +7,6 @@ import (
 
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/vision"
 )
 
@@ -62,18 +61,5 @@ func TestCones_ShowConesBeforeInstallReachesTheRenderer(t *testing.T) {
 	v.ShowCones()
 	if rendererOf(t, nil, v).Hidden() {
 		t.Error("a renderer built after ShowCones is hidden")
-	}
-}
-
-func TestCones_DefaultBindingIsShiftC(t *testing.T) {
-	b := vision.NewPlugin(testWorldPlugin()).DefaultBindings()
-	if len(b) != 1 {
-		t.Fatalf("%d bindings, want one", len(b))
-	}
-	if _, ok := b[0].Build(control.Context{}); !ok || b[0].Type() != reflect.TypeFor[vision.Cones]() {
-		t.Errorf("the binding issues %v, want Cones", b[0].Type())
-	}
-	if k, ok := b[0].Trigger.(control.KeyPress); !ok || !k.Mods.Shift || k.Key.String() != "C" {
-		t.Errorf("the binding is on %v, want Shift+C", b[0].Trigger)
 	}
 }

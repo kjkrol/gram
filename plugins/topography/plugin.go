@@ -339,7 +339,7 @@ func (p *Plugin) ShowCare(shown bool) { p.Res.Settings.ShowCare = shown }
 // CareShown reports whether the care's bands are drawn.
 func (p *Plugin) CareShown() bool { return p.Res.Settings.ShowCare }
 
-// the rings of full care the keys step through, the last every sector
+// the rings of full care the frame budget steps through, the last every sector
 var careLadder = []int{1, 2, 3, 0}
 
 // careRung is the ladder's rung care stands on, or the next up

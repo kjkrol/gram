@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -160,7 +161,7 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 	}
 }
 
-func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
+func TestPlugin_TheRoutesAreTheSettingsScreensAndSaved(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 5, 10)
 	worldPlugin := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 50, Height: 50},
@@ -171,21 +172,10 @@ func TestPlugin_DefaultBindings_ShiftPTogglesTheRoutes(t *testing.T) {
 	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin).WithMotion(m)
 	sel := selection.NewPlugin(worldPlugin)
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, m, sel, driving.NewPlugin(worldPlugin, m, sel))
-	pl := players.NewPlugin(worldPlugin, navPlugin)
-	local := pl.Local("tester")
-	// as a scene showing it wires it
-	pl.Through(local).Over(geom.AABB{}, render.NewFeed(cameratest.NewFromSpace(50, 50, 0), nil))
-	if err := local.Bind(navPlugin.DefaultBindings()...); err != nil {
-		t.Fatal(err)
-	}
-	events := &control.InputEvents{}
-	events.Modifiers.Shift = true
-	events.AddKeyEvent(control.KeyR, control.ActionPress)
-	pl.EventHandler().HandleEvents(events)
-	var issued []Routes
-	navPlugin.routes.Drain(func(i command.Issued[Routes]) { issued = append(issued, i.Command) })
-	if len(issued) != 1 || !issued[0].Shown {
-		t.Errorf("Shift+R issued %v, want one Routes shown, the next after hidden", issued)
+	for _, b := range navPlugin.DefaultBindings() {
+		if b.Type() == reflect.TypeFor[Routes]() {
+			t.Errorf("Routes is bound to %v, want the settings screen alone", b.Trigger)
+		}
 	}
 	if navPlugin.RoutesShown() || navPlugin.pathRenderer.RoutesShown() {
 		t.Error("the routes start shown, want hidden until asked for")
