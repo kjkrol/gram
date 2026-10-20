@@ -14,7 +14,7 @@ import (
 )
 
 // SwitchSectors has Shown drawn of the sectors (Settings.Sectors): their bands, how finely the
-// camera sees them, nothing. Shift+G by default, in turn, in a world cut into sectors.
+// camera sees them, nothing. The settings screen alone, in a world cut into sectors.
 type SwitchSectors struct{ Shown SectorsShown }
 
 func (SwitchSectors) Command() {}
@@ -31,8 +31,6 @@ const (
 	// SectorsSeen colours each sector by how finely the camera drawing sees it (view.Level).
 	SectorsSeen
 )
-
-func (s SectorsShown) next() SectorsShown { return (s + 1) % 3 }
 
 // ShowSectors has the sectors drawn as shown says (Settings.Sectors): a look for finding out
 // what lives and what is seen where.

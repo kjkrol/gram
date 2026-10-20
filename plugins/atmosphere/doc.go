@@ -25,10 +25,10 @@
 //
 // # Commands
 //
-// [Freeze] stops the light of the day (P), [Later] and [Earlier] move a frozen light half an hour
-// (Shift+], Shift+[), [ChangeWeather] throws the next weather (Shift+W) and [SetWeather] names
-// one, either over the world within seconds; [Clouds] has the clouds drawn in the next
-// [CloudLook] (Shift+V).
+// [Freeze] stops the light of the day, [Hour] puts a frozen light at an hour, [ChangeWeather]
+// throws the next weather and [SetWeather] names one, either over the world within seconds;
+// [Clouds] has the clouds drawn in a [CloudLook]. None has a key of its own: the settings screen
+// sets the light, the clouds and the weather.
 //
 // # Drawing
 //

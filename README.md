@@ -301,7 +301,7 @@ demo opens a window; what it shows is tested in the library's package that does 
 | [`look/animation`](examples/look/animation) | A gallery of animations drawn frame after frame from sheets in game time (Shift+P freezes them), each figure labelled: a walker on a patrol stepping the way it goes in eight directions and braking, an idler bored by stages (blinking, stamping, looking about), a puller's hands on a lever, a lever swinging down and up | `make demo-look-animation` |
 | [`look/material`](examples/look/material) | Materials of the game's own WGSL in place of sprites: a ward pulsing on the clock and four embers circling it, drawn out of their own state, breathing standing and streaming a tail driven (WSAD); G calms the ward and F douses the embers into plain sprites for a while | `make demo-look-material` |
 | [`look/sky`](examples/look/sky) | A sky of the game's own over a valley in relief, a day in a minute and a half: its own WGSL vault, turquoise by day and violet at night with a band shimmering along the stars' equator, the Earth's moon three times as big and orange, showing by day too, made-up stars; Tab turns to the perspective, Q and E turn it, F lays the stick down to the sky | `make demo-look-sky` |
-| [`look/light`](examples/look/light) | A flat board under a sun of the game's own, circling in a day and a half a minute: a tower's shadow baked into the ground and swinging with the sun, walkers casting soft patches, a hero (WSAD) casting the silhouette of its sprite, a lantern lighting the night and casting their shadows by it (Shift+L off and on), lava that takes no shade | `make demo-look-light` |
+| [`look/light`](examples/look/light) | A flat board under a sun of the game's own, circling in a day and a half a minute: a tower's shadow baked into the ground and swinging with the sun, walkers casting soft patches, a hero (WSAD) casting the silhouette of its sprite, a lantern lighting the night and casting their shadows by it (switched on the settings screen, F10), lava that takes no shade | `make demo-look-light` |
 
 ### Rules: states, rules and commands
 
@@ -327,14 +327,14 @@ demo opens a window; what it shows is tested in the library's package that does 
 |:---|:---|:---|
 | [`navigation/square`](examples/navigation/square) | Units sent by a right click round a wall and over a river by a bridge, a wagon too wide for it going round by the ford; sight cones that stop at walls and fade in forests, and a hawk that flies over both | `make demo-navigation-square` |
 | [`navigation/hex`](examples/navigation/hex) | The same on a hex board | `make demo-navigation-hex` |
-| [`navigation/spawn`](examples/navigation/spawn) | Walkers spawned under the cursor (N) hold their cells at once; Shift+O outlines the cells held | `make demo-navigation-spawn` |
+| [`navigation/spawn`](examples/navigation/spawn) | Walkers spawned under the cursor (N) hold their cells at once, the cells held outlined | `make demo-navigation-spawn` |
 
 ### Motion: collisions, shots and gravity
 
 | Demo | Shows | Run |
 |:---|:---|:---|
 | [`motion/collision`](examples/motion/collision) | Thousands of bouncing boxes of many kinds, hit overlays, telemetry, save and load | `make demo-motion-collision` |
-| [`motion/expanse`](examples/motion/expanse) | A hundred thousand boxes on a torus of about 98 km: the world lives in bands round the camera, Shift+G shows the sectors by their bands or by what the camera sees, Ctrl+G switches the bands off to weigh what they spare; a minimap of the boxes round the camera | `make demo-motion-expanse` |
+| [`motion/expanse`](examples/motion/expanse) | A hundred thousand boxes on a torus of about 98 km: the world lives in bands round the camera, the settings screen (F10) shows the sectors by their bands or by what the camera sees and switches the bands off to weigh what they spare; a minimap of the boxes round the camera | `make demo-motion-expanse` |
 | [`motion/bullet`](examples/motion/bullet) | A soldier on WSAD, the camera following him: Space fires a round the way he faces, Shift held and let go throws a grenade the further the longer held, in an arc that lies with a spark and bursts; the shots are the plugin's, the wounds and the fuse rules, effects and a plan | `make demo-motion-bullet` |
 | [`motion/platformer`](examples/motion/platformer) | A hero in a side view under gravity: A and D walk, W jumps, G turns gravity over, a hard landing dazes | `make demo-motion-platformer` |
 

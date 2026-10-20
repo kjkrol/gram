@@ -205,17 +205,19 @@ scratchpad and run it from its directory under `timeout 5s`, exit 124 alive, gre
   `HandleEvents` (`players.Handle`) gets the `Composition` (`Show`/`Hide`/`Active`), so a key
   that shows another scene is carried there (K, F10: `p.carry` in `Handle`), and works while
   the engine is paused (input runs before the pause check) but not while another scene is
-  active. A plugin's queue drained in `RunPlan` (board's B, vision's Shift+C) does nothing
+  active. A plugin's queue drained in `RunPlan` (the board's `Grid`, vision's `Cones`) does nothing
   under the engine's pause — which is why the settings screen (`players.SettingsScene`, F10)
   holds the game in the clock's tactical pause instead: `RunPlan` runs, the controls' commands
-  are carried out, the picture redraws. It forwards its input to its `ui.Scene` (the Shortcuts
+  are carried out, the picture redraws. A plugin binds no key to what its settings set (the
+  user's word, 2026-10-20): the screen is where a player sets them; a game may bind a key of
+  its own to the command. It forwards its input to its `ui.Scene` (the Shortcuts
   scene does not) and calls `p.carry` itself, so the players' own commands (`KeepRunning`,
   `telemetry.Panel`) work while it is up.
 - K lists "General" = bindings whose handler is players or nil (`shortcuts.go` `groups`);
   `handlerOf` searches only the handlers given to `players.NewPlugin`: a CommandHandler merely
   `Use`d is still carried (`initializer.go`), but listed under "General" and left out of
-  `Defaults()`. `control.Mods` has `Ctrl` and `Alt` (unused so far; `withMods` writes
-  "Ctrl+"); `SceneKey` compares Shift alone.
+  `Defaults()`. `control.Mods` has `Ctrl` (the cameras' sight) and `Alt` (no default
+  key; `withMods` writes "Ctrl+Alt+Shift+"); `SceneKey` compares Shift alone.
 - Every scene's `Drawers()`, hidden ones included, is built and `Init`ed once on entering the
   Stage (`stage_runtime.go`), the world's picture once however many scenes show it;
   `ui.Scene.Replace` does not re-init drawers. A `ui.LabelOf(Text)`

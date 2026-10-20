@@ -7,7 +7,6 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
@@ -53,15 +52,6 @@ func TestZones_TheCommandSwitchesTheZonesDrawn(t *testing.T) {
 	p.ShowZones(true)
 	if n := pieces(); n != 8 {
 		t.Errorf("shown, the zones drew %d pieces, want the four strips and four corners", n)
-	}
-	var keys []string
-	for _, b := range p.DefaultBindings() {
-		if b.Type().Name() == "Zones" {
-			keys = append(keys, b.Trigger.(control.KeyPress).Key.String())
-		}
-	}
-	if len(keys) != 1 || keys[0] != "H" {
-		t.Errorf("Zones is bound to %v, want Shift+H", keys)
 	}
 }
 

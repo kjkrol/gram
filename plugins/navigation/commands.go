@@ -81,7 +81,7 @@ func (p *Pass) Aim(who uid.UID64) { p.Of = who }
 func (s *Settle) Aim(who uid.UID64) { s.Beside = who }
 
 // Routes is the command showing the routes of the selected units drawn, or hiding them
-// (Settings.Routes); their goals are drawn always. Shift+R by default, in turn.
+// (Settings.Routes); their goals are drawn always. The settings screen alone.
 type Routes struct{ Shown bool }
 
 // Settings is what navigation lets the players adjust, saved with the game.
@@ -133,7 +133,7 @@ func (p *Plugin) Queues() []command.CommandQueue {
 }
 
 // DefaultBindings is a right click into a MoveTo of the cell and level under the cursor, Shift
-// appending, a right drag into a LookAt at every move, and Shift+R into Routes.
+// appending, and a right drag into a LookAt at every move.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	brd := p.boardPlugin.Board()
 	to := func(appendIt bool) func(c control.Context) (MoveTo, bool) {
@@ -159,9 +159,6 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 		control.Build(control.Drag{Button: control.MouseButtonRight}, "Move selected units here", to(false)),
 		control.Build(control.Drag{Button: control.MouseButtonRight, Mods: control.Mods{Shift: true}}, "Add a waypoint", to(true)),
 		control.Build(control.ButtonHeld{Button: control.MouseButtonRight}, "Turn selected units to look at the cursor", turn),
-		control.Build(control.KeyPress{Key: control.KeyR, Mods: control.Mods{Shift: true}},
-			"Show or hide the routes of selected units",
-			func(control.Context) (Routes, bool) { return Routes{Shown: !p.RoutesShown()}, true }),
 	}
 }
 

@@ -5,11 +5,11 @@ import (
 	"github.com/kjkrol/gram/control"
 )
 
-// Switch shows the minimaps, or hides them (Settings.Hidden). Shift+M by default, in turn.
+// Switch shows the minimaps, or hides them (Settings.Hidden). The settings screen alone.
 type Switch struct{ Shown bool }
 
-// Turn has the minimaps turn with their cameras, or keep north up (Settings.Turning). Ctrl+M by
-// default, in turn.
+// Turn has the minimaps turn with their cameras, or keep north up (Settings.Turning). The
+// settings screen alone.
 type Turn struct{ On bool }
 
 // Settings is what the minimaps let the players adjust, saved with the game.
@@ -36,17 +36,8 @@ func (p *Plugin) Queues() []command.CommandQueue {
 	return []command.CommandQueue{&p.switches, &p.turns}
 }
 
-// DefaultBindings are Shift+M showing or hiding the minimaps and Ctrl+M turning them.
-func (p *Plugin) DefaultBindings() []control.Binding {
-	return []control.Binding{
-		control.Build(control.KeyPress{Key: control.KeyM, Mods: control.Mods{Shift: true}},
-			"Show the minimap or hide it",
-			func(control.Context) (Switch, bool) { return Switch{Shown: !p.Shown()}, true }),
-		control.Build(control.KeyPress{Key: control.KeyM, Mods: control.Mods{Ctrl: true}},
-			"Turn the minimap with the camera, or keep north up",
-			func(control.Context) (Turn, bool) { return Turn{On: !p.Turning()}, true }),
-	}
-}
+// DefaultBindings are none: the minimaps shown and turning are the settings screen's.
+func (p *Plugin) DefaultBindings() []control.Binding { return nil }
 
 // Settings are whether the minimaps are shown and whether they turn (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {

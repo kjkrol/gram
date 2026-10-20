@@ -89,9 +89,9 @@
 //
 // # Commands
 //
-// [Grid] shows or hides the board's grid (B; [Plugin.ShowGrid] from a scene); [Holds] the cells
-// the occupancy holds (Shift+O, [Plugin.ShowHolds], each an outline over its cell). Hand the
-// board to players.NewPlugin for the keys.
+// [Grid] shows or hides the board's grid ([Plugin.ShowGrid] from a scene); [Holds] the cells the
+// occupancy holds ([Plugin.ShowHolds], each an outline over its cell). Neither has a key: hand
+// the board to players.NewPlugin for the settings screen.
 //
 // # Ways
 //

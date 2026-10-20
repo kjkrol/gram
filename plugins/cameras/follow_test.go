@@ -395,26 +395,11 @@ func report(p *cameras.Plugin) string {
 	return got
 }
 
-// the command Alt+A builds among the plugin's default bindings
-func altA(t *testing.T, p *cameras.Plugin) command.Command {
-	t.Helper()
-	for _, b := range p.DefaultBindings() {
-		if b.Trigger != (control.KeyPress{Key: control.KeyA, Mods: control.Mods{Alt: true}}) {
-			continue
-		}
-		if cmd, ok := b.Build(control.Context{}); ok {
-			return cmd
-		}
-	}
-	t.Fatal("no default binding on Alt+A builds a command")
-	return nil
-}
-
-func TestAdapt_CyclesStillTheWholePictureAndInLayers(t *testing.T) {
+func TestAdapt_SwitchesStillTheWholePictureAndInLayers(t *testing.T) {
 	w, p, start, tick := emptyWorld(t, cameras.Config{})
 	cam := p.New(cameras.FromAbove, camera.Config{})
 	start()
-	for presses, want := range []struct {
+	for steps, want := range []struct {
 		layers   int
 		strategy cameras.Strategy
 		report   string
@@ -427,18 +412,19 @@ func TestAdapt_CyclesStillTheWholePictureAndInLayers(t *testing.T) {
 			"and 35%\nstill"},
 		{0, cameras.Uniform, "Picture: tactical\n1.00 of the pixels\nfollowing a budget of 60 FPS"},
 	} {
-		if presses > 0 {
-			w.Carrier().Put(command.Nobody, altA(t, p))
+		if steps > 0 {
+			w.Carrier().Put(command.Nobody,
+				cameras.Adapt{Profile: cameras.Tactical, Strategy: want.strategy})
 			tick()
 		}
 		layers := len(camera.LayersOf(cam))
 		on, strategy := p.Layers(cameras.Tactical), p.Strategy(cameras.Tactical)
 		if layers != want.layers || on != (want.layers > 0) || strategy != want.strategy {
-			t.Errorf("after %d Alt+A the camera has %d layers, the plugin layers %v, strategy %v; "+
-				"want %d layers and %v", presses, layers, on, strategy, want.layers, want.strategy)
+			t.Errorf("after %d Adapt the camera has %d layers, the plugin layers %v, strategy %v; "+
+				"want %d layers and %v", steps, layers, on, strategy, want.layers, want.strategy)
 		}
 		if got := report(p); got != want.report {
-			t.Errorf("after %d Alt+A the telemetry says %q, want %q", presses, got, want.report)
+			t.Errorf("after %d Adapt the telemetry says %q, want %q", steps, got, want.report)
 		}
 	}
 }

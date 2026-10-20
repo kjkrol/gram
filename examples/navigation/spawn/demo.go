@@ -56,7 +56,7 @@ func main() {
 	props := game.Props{
 		Title: "gram navigation spawn demo",
 		Description: "Walkers spawned in the game hold their cells at once: N spawns one " +
-			"under the cursor, Shift+O shows the cells held.",
+			"under the cursor; the settings screen (F10) shows the cells held.",
 		ScreenWidth:  ScreenWidth,
 		ScreenHeight: ScreenHeight,
 		Resizable:    true,

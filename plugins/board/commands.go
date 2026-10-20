@@ -5,11 +5,11 @@ import (
 	"github.com/kjkrol/gram/control"
 )
 
-// Grid shows the board's grid, or hides it (Settings.Grid). B by default, in turn.
+// Grid shows the board's grid, or hides it (Settings.Grid). The settings screen alone.
 type Grid struct{ Shown bool }
 
-// Holds shows the cells the occupancy holds, or hides them (Settings.Holds). Shift+O by default,
-// in turn.
+// Holds shows the cells the occupancy holds, or hides them (Settings.Holds). The settings screen
+// alone.
 type Holds struct{ Shown bool }
 
 // Settings is what the board lets the players adjust, saved with the game: the looks of the
@@ -32,17 +32,8 @@ func (p *Plugin) Queues() []command.CommandQueue {
 	return []command.CommandQueue{&p.grids, &p.holds}
 }
 
-// DefaultBindings show and hide the grid on B and the cells held on Shift+O.
-func (p *Plugin) DefaultBindings() []control.Binding {
-	return []control.Binding{
-		control.Build(control.KeyPress{Key: control.KeyB}, "Show or hide the grid",
-			func(control.Context) (Grid, bool) { return Grid{Shown: !p.GridShown()}, true }),
-		control.Build(control.KeyPress{Key: control.KeyO, Mods: control.Mods{Shift: true}},
-			"Show or hide the cells held", func(control.Context) (Holds, bool) {
-				return Holds{Shown: !p.HoldsShown()}, true
-			}),
-	}
-}
+// DefaultBindings are none: the grid and the cells held are the settings screen's.
+func (p *Plugin) DefaultBindings() []control.Binding { return nil }
 
 // Settings are the grid and the cells held (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {

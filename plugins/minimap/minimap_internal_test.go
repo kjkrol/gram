@@ -115,17 +115,6 @@ func TestMinimap_SwitchShowsAndHidesItsPicture(t *testing.T) {
 	if e.Hits(e.Box().TopLeft) {
 		t.Error("hidden, the minimap's picture is hit")
 	}
-	keys := map[control.Mods]command.Command{}
-	for _, b := range p.DefaultBindings() {
-		press := b.Trigger.(control.KeyPress)
-		if press.Key == control.KeyM {
-			keys[press.Mods], _ = b.Build(control.Context{})
-		}
-	}
-	if keys[control.Mods{Shift: true}] != (Switch{Shown: true}) ||
-		keys[control.Mods{Ctrl: true}] != (Turn{On: true}) {
-		t.Errorf("M builds %v, want Switch with Shift and Turn with Ctrl", keys)
-	}
 }
 
 // p with its commands carried by w's carrier, as the players have them

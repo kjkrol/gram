@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/plugins/world/view"
@@ -107,15 +106,5 @@ func TestSectorsView_SwitchesFromTheBandsToHowTheyAreSeenToNothing(t *testing.T)
 		if got := r.p.SectorsShown(); got != want {
 			t.Errorf("shown %v, want %v", got, want)
 		}
-	}
-	var built command.Command
-	for _, k := range r.p.DefaultBindings() {
-		press, ok := k.Trigger.(control.KeyPress)
-		if ok && press.Key == control.KeyG && press.Mods.Shift {
-			built, _ = k.Build(control.Context{})
-		}
-	}
-	if built != (SwitchSectors{Shown: SectorBands}) {
-		t.Errorf("Shift+G builds %v, want SwitchSectors of the bands, the next after none", built)
 	}
 }

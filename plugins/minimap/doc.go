@@ -28,8 +28,8 @@
 //
 // # Vocabulary
 //
-// Commands: [Switch] shows the minimaps or hides them (Shift+M), [Turn] turns them with their
-// cameras or keeps north up (Ctrl+M). Settings ([Settings], saved with the game, in
+// Commands, of the settings screen alone: [Switch] shows the minimaps or hides them, [Turn] turns
+// them with their cameras or keeps north up. Settings ([Settings], saved with the game, in
 // [Resources]): both. A click on a minimap gives cameras.CenterAt. The red triangle on a minimap's
 // edge points north.
 package minimap
