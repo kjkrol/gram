@@ -104,11 +104,13 @@ a frame's cost or to allocations is judged on the same demos the same way, befor
    and without running: the copy, the hook, the binary at `<work dir>/bin`. `<probe>` is one
    `.go` file or a directory of them: `probes/generic` logs every second how many entities
    moved their box since the tick before (`P:t<tick> moved <m> of <n>`); `probes/light`,
-   `probes/square` and `probes/bullet` add that demo's script (Shift+L; the units sent to the
-   bridge and back; the soldier firing); `probes/keys` presses the keys `PROBE_KEYS` names from
-   the second second on, one a tick, with `Shift+`, `Alt+` and `Ctrl+` (e.g.
-   `PROBE_KEYS="Tab,Alt+Minus,Alt+Shift+Minus"`), the way the picture's resolution and the
-   ground's care were measured. A new script is `zz_probe_script.go` beside a copy of
+   `probes/square` and `probes/bullet` add that demo's script (the lamps' shadows off, the
+   command through the carrier; the units sent to the bridge and back; the soldier firing);
+   `probes/keys` presses the keys `PROBE_KEYS` names from the second second on, one a tick,
+   with `Shift+`, `Alt+` and `Ctrl+` (e.g. `PROBE_KEYS="Tab,V"`). A setting on the settings
+   screen has no key (2026-10-20): a probe sets it by its command through the carrier
+   (`cameras.Picture{Profile, Resolution}`, `topography.Care{Rings}`), the way the picture's
+   resolution and the ground's care are measured now. A new script is `zz_probe_script.go` beside a copy of
    `zz_probe_common.go`: `play()` runs once a tick. `PROBE_SED` edits the copied demo's `.go`
    files (`ScreenWidth  = 2560`), `PROBE_SEED` fixes its seed, `GRAM_FULLSCREEN=1` starts full.
 2. `run_demo.sh run <work dir> <seconds> <log>` runs it under `timeout` with the environment

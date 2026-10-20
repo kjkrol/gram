@@ -36,7 +36,8 @@ registers non-`Plugin` state (a `Composition`, a ui scene) into the same save/lo
 it works — is a field of an exported `Settings` struct in its `Res` (`Res.Settings`, exported
 fields, the zero value the plugin's default where it can be), written by setters
 (`ShowGrid`, `SetCare`) and by a command carrying the value (`Grid{Shown}`, `Care{Rings}`); a key
-builds the next value in its `control.Build` closure (`Grid{Shown: !p.GridShown()}`), never a
+builds the next value in its `control.Build` closure (a game's own key: a setting on the
+settings screen has no default key of the plugin's, 2026-10-20), never a
 command that means "the next one". `Settings()` (`plugin.Tunable`, asserted) lists them as
 `control.Switch`/`Choice`/`Range`, `Get` read every frame, `Set` building the command, a
 `Section` (`control.Picture`, `Graphics` and the rest, a path of levels) putting one under a

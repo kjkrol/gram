@@ -3,24 +3,16 @@ package main
 import (
 	"log"
 
-	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/ceremony/command"
+	"github.com/kjkrol/gram/plugins/light"
 )
 
-// Shift+L at the fifth second: the lamps' shadows
+// the lamps' shadows switched off at the fifth second, the command put through the carrier
+// (a setting on the settings screen has no key)
 func (p *probe) play() {
-	ev := &control.InputEvents{}
-	switch p.tick {
-	case 300:
-		ev.Modifiers.Shift = true
-		ev.AddKeyEvent(control.KeyShift, control.ActionPress)
-		ev.AddKeyEvent(control.KeyL, control.ActionPress)
-	case 302:
-		ev.Modifiers.Shift = true
-		ev.AddKeyEvent(control.KeyL, control.ActionRelease)
-		ev.AddKeyEvent(control.KeyShift, control.ActionRelease)
-	default:
+	if p.tick != 300 {
 		return
 	}
-	p.a.players.EventHandler().HandleEvents(ev)
-	log.Printf("P:t%d Shift+L", p.tick)
+	p.a.world.Carrier().Put(command.Nobody, light.LampShadows{Count: 0})
+	log.Printf("P:t%d LampShadows{0}", p.tick)
 }
