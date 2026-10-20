@@ -175,7 +175,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `unit.DomainAt`, the moment `unit.Standing`, the markers `unit.Entered`, `unit.Airborne`),
   **`board/grid`** (`grid.Grid` — every grid knows its own directions: `Directions`, `Opposite`,
   `Offset`, `Step`, `Corner`, `Flanks`, `Toward`; nobody else writes a table, a bit or a vector
-  of them; bit i of a `cell.Links` is direction i — `grid.DefaultGrids`, `Link`, `Way`,
+  of them; walking `Directions()` with `Toward` allocates nothing and costs less than the
+  `Neighbors` list on both grids (the square divides in 32 bits; `BenchmarkGrids_Neighbours` in
+  `internal/grids`), so a hot loop walks the directions and `Neighbors` stays for the rare
+  callers; bit i of a `cell.Links` is direction i — `grid.DefaultGrids`, `Link`, `Way`,
   `Straight`, `Direction`, `Nearest`, `Exit`, `Rim`, `Shape`/`ShapeOf`), **`board/look`**
   (`look.Look`, `Dressing`, `EvenLit`, `Parallel`, `Tile`, `FlatLook`, `Nothing`, `Map`,
   `Renderer`/`NewRenderer`, `RenderState`, `MinGridCell`), **`board/ground`** (`ground.Heights`,
@@ -712,7 +715,18 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   the order's Target becomes the nearest free reachable cell. The route finder is
   `internal/pathfind` (`Finder`: `Find`, `FindAround`, `NearestFree`), given the unit's
   `pathfind.Body{Feet, Step, Height, Size}` (`member.body()`, its box from `Position.Size`; the
-  route preview passes it too). **Clearance**: a unit is no bigger than a cell's side
+  route preview passes it too). A search reads what it asks of a cell, its kind on the ground
+  priced for the search's domain, its raised deck, its bare ground, once, into a table by the
+  cell's ordinal stamped with the search (`pathfind/reads.go`: nothing may change the board
+  while a search runs; every public method of the `Finder` begins one); it walks `Directions()`
+  with `Toward`, never `Neighbors`, asks `DiagonalNeighbors` only for a `Corner` direction and
+  `Along` only where the bare ground would price a slantwise step otherwise; its solvers have
+  room for every step of a node (`astar.WithSuccessorCapacity`: astar drops what append grows)
+  and dictionaries indexed by the cell (2026-10-20, etap 2a: a route across 200×200 94 → 18 ms,
+  14,740 → 19 allocations). `TestRoutes_AsPinned` pins every route, step and price on three
+  boards (square with bridges and relief, a torus, hex) to `testdata/routes.golden`: a change
+  meant to keep the routes keeps it; one meant to change them rewrites it with `-update-routes`
+  and says why. **Clearance**: a unit is no bigger than a cell's side
   (`board.NewUnits` panics past it), so every step takes it but one along a deck's band: `fits`
   asks the board's `Lane` (the band less its railings keeping the domain, on the step's level; a
   band on the ground counts on the ground's) and refuses a body whose box across the step

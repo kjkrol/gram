@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+**Navigation's A* without maps and allocations** (2026-10-20, etap 2 of `doc/plans-perf.md`,
+part 2a)
+- The route planner reads what it asks of a cell, its kind on the ground priced for the
+  search's domain, its raised deck, its bare ground, once a search, into a table by the cell's
+  ordinal; walks the grid's directions with `Toward` instead of a `Neighbors` list a node; asks
+  `DiagonalNeighbors` once a step and `Along` only where it can change the price; and makes its
+  solvers with room for every step of a node. Every route, step and price is as it was
+  (`TestRoutes_AsPinned`, `plugins/navigation/testdata/routes.golden`). `aside`, the spots round
+  a goal and `NearestFree`'s breadth-first walk walk the directions too.
+- A square grid's `Toward`, `DiagonalNeighbors` and coordinates divide in 32 bits and fold only
+  a coordinate off the grid.
+- `Benchmark_Navigation_Path`: a route across a 200×200 board of rocks and walls, 94 ms and
+  14,740 allocations → 18 ms and 19. `Benchmark_Navigation_Tick` at fixed counts: open
+  100/1,000 0.88/10.1 → 0.41/6.2 ms, crowded 100/1,000 3.0/702 → 1.1/246 ms.
+
+## v0.3.0 — 2026-10-20
+
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new. Nor do saves made on this branch before
 the topography was split into packages: its heights are `relief.Heights` now. Nor before the core
