@@ -56,7 +56,8 @@ func newBodyKeeping(finder *pathFinder, space *aabbworld.Space, ground func() gr
 		ground:  ground,
 		index:   bodyIndex{grid: finder.grid},
 	}
-	k.take, k.avoid.blocked = k.takeCell, k.avoid.avoids
+	k.take = k.takeCell
+	k.avoid.bind(finder)
 	return k
 }
 
