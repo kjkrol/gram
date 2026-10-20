@@ -41,7 +41,17 @@
 // (plugins/atmosphere/precipitation); whoever draws the ground shadows it under the clouds, each
 // layer's along the way to the sun.
 // [Plugin.Reporter] adds the time, the moon, the light, the weather and how the clouds look and
-// share their bands to the telemetry panel, [Plugin.HUD] the calendar to a scene (ui.Drawer).
+// share their bands to the telemetry panel.
+//
+// # HUD
+//
+// The atmosphere gives a scene elements to place, each on a see-through panel as the
+// telemetry's: [Plugin.TimeOfDay] the hour of the game's day, [Plugin.Date] the season and the
+// date with the moon's phase beside them while the moon runs, [Plugin.Weather] the weather, the
+// temperature and the wind, left out while none of the climate's workings run, and [Plugin.Bar]
+// the three side by side on one panel, for the top of the screen (ui.TopMiddle). The weather is
+// read through a drawer of its own: it goes in the tree a scene is made with, never one
+// ui.Scene.Replace puts in.
 //
 // # Sky
 //
