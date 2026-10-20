@@ -84,8 +84,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   wrong row, a full world, a bad size, a box past an open edge) and go by `world.Despawn{}` (an
   entity's own, `act.Do`, carried out in the world's step; `Plugin.Despawn(cb, id)` a plugin's).
   The world's step: the plans, the spawns and despawns, the commands about effects, the clock's
-  moments, a Sync, the space indexed anew if anything spawned or went (`Space.Rebuild`; motion
-  indexes it after moving), the effects' pass. `Query`, `Scan` and collisions read that grid
+  moments, a Sync, the space reading every held entity's box where goke keeps it (runs over the
+  `Base` columns, `world.RunOf`, `Space.RebuildRuns`: motion hands it the runs after moving,
+  collision where Caps change or sweeps stretch, and the world gathers them anew after every
+  Sync the clock replays, `Clock.OnSync`, and as its tick begins, once a chunk came, went, grew
+  or shrank or a table's `TableVer` changed; 2026-10-21, etap 3), the effects' pass. `Query`, `Scan` and collisions read that grid
   until the next rebuild. At the start of the world's tick the `view.System` refreshes every
   `view.View` (`Plugin.View()` the camera's, `ViewFor(cam)` any's); the renderer draws what the
   View contains. The world makes no camera. It hosts rules of a `clock.Moment` (every step, just
@@ -677,8 +680,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   the space when any changed; two colliders touch only where their `world.Layers` meet and, with
   heights, where their `collision.Band`s overlap. The tick is one `collide.Engine.Tick`
   (`github.com/kjkrol/aabbworld/collide`; the system is its `Handler`): the engine pairs whoever
-  may touch within a step, tests the pairs, pushes the overlapping apart and reports each pushed
-  box, written back to `Base.Pos`; one pushed out through an open edge is motion's leaver
+  may touch within a step, tests the pairs, pushes the overlapping apart in `Base` where the
+  boxes lie (aabbworld runs, etap 3: `moved` writes nothing; a push its later passes leave over
+  worse ground, `response.Worse`, goes back to the box the tick found, kept at the entity's
+  first `Touch`); one pushed out through an open edge, already where `Left` says, is motion's leaver
   (`motion.Plugin.Leave`).
   Overlapping boxes touch: the box is the shape. **A pair parted stays met while it touches**:
   the pairs of the tick before that the engine did not push but whose boxes lie within `restGap`,
@@ -739,7 +744,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `cells()`/`held()` are arrays with a count; `aside` only places the cells (a scratch
   `[8]scored`), whose ground `stepAside` asks in that order, stopping at the first open one. A
   crowded tick is the Detour's searches (every unit refused a held cell plans round what it
-  learned, each tick); failed searches are under 3% of it, so a blocked unit has no back-off.
+  learned, each tick). A search that finds nothing waits (`MoveOrder.Retry`, `Fails`): round the
+  cells learned, or for any route when none are, it is not run again from the same cell round the
+  same cells for 0.5 s, 1 s, then 2 s; meanwhile the plain route is taken, or with none the unit
+  waits, its target still given up at `targetWaitTimeout`; a way found, the next goal, a new
+  order or another target start it over, another cell or another cell learnt lets it run at once.
   **Clearance**: a unit is no bigger than a cell's side
   (`board.NewUnits` panics past it), so every step takes it but one along a deck's band: `fits`
   asks the board's `Lane` (the band less its railings keeping the domain, on the step's level; a

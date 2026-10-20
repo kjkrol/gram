@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+Saves made before the back-off of a failed search do not load: `navigation.MoveOrder` has `Retry`
+and `Fails`.
+
+**The space reads every box where goke keeps it** (2026-10-21, etap 3 of `doc/plans-perf.md`)
+- Motion, the world and collision hand the space runs over the `Base` columns (aabbworld v1.14.0
+  `Space.RebuildRuns`, `world.RunOf`, one run a chunk) instead of copying every `Base` into an
+  `Item` each step; the collision engine pushes the boxes in `Base` itself, so `moved` needs no
+  Seek and a leaver's box is already where `Left` says. The world gathers the runs anew after
+  every Sync the clock replays (`Clock.OnSync`, new: a settle after every Sync of the replay and
+  as each Replay ends) once a chunk came, went, grew or shrank or a table's `TableVer` changed.
+  `Benchmark_World_Tick` 1,000 / 5,000 boxes 23.3 / 110.9 → 13.9 / 58.0 µs (the copy was 52% of
+  the tick), the collision ticks 1–10% shorter, the same contacts in every scene.
+
+**A failed search waits before it runs again** (2026-10-21)
+- A unit's search for a route that finds nothing (round the cells it learned, or any route when
+  it learned none) is not run again from the same cell round the same cells for 0.5 s, then 1 s,
+  then 2 s; meanwhile the plain route is taken, or with none the unit waits, its target still
+  given up at the same moment as before. A way found, the next goal, a new order or another
+  target start the waits over; another cell or another cell learnt lets it run at once. The
+  searches round the cells learned that find nothing fall from 26 to 9 a tick in the open with
+  1,000 walkers and from 128 to 95 in a crowd; the demos walk exactly as before.
+
+**An instanced draw's instances copied at once** (2026-10-21)
+- `gpu.Mesh` copies the instances of a draw with one copy, not a float at a time: a tick with a
+  frame of 5,000 sprites over the whole view 9–11% shorter (`Benchmark_World_TickDraw`).
+
 **Navigation's A* without maps and allocations** (2026-10-20, etap 2 of `doc/plans-perf.md`,
 part 2a)
 - The route planner reads what it asks of a cell, its kind on the ground priced for the
@@ -18,8 +44,8 @@ part 2a)
   100/1,000 0.80/9.6 → 0.42/6.3 ms, crowded 100/1,000 2.9/306 → 1.2/104 ms.
 - A tick allocates nothing per unit in the bodies' index, a step's ground check, a route round
   the cells a unit learned or a leg's cells, and a step aside asks the ground only of the cells
-  it tries (etap 2b; `Navigation_Tick` open 1,000 7.2 → 5.1 ms, 5,004 → 2,880 allocations;
-  crowded 1,000 118 → 105 ms, its searches unchanged). No unit moves otherwise.
+  it tries (etap 2b; `Navigation_Tick` open 1,000 5.67 → 4.55 ms, 5,004 → 2,880 allocations;
+  the others as before, a crowd's cost its Detour's searches). No unit moves otherwise.
 
 **The layers leave out what covers them** (2026-10-20, the layer levers after etap U, part R2)
 - In layers each layer but the innermost leaves out the ground under the next one's window,

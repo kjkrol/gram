@@ -42,6 +42,32 @@ world where it is (v1.13.0, gram's go.mod since `perf/plans-perf`): 27 µs and 1
 tick 40% shorter than at the start of the day. What is left is the copy of every `Base` into the
 space (54%), the one etap 3 removes.
 
+After etap 3 (2026-10-21, aabbworld v1.14.0's runs, medians of 6, before and after alternately on
+an idle machine): 1,000 boxes 23.3 → 13.9 µs, 5,000 boxes 110.9 → 58.0 µs, 0 allocs/op. The space
+reads every `Base` where goke keeps it; `moveSystem.rebuild`, 52% of the profile before, is gone
+from it, and what is left is the moving itself (`Space.Move`, `Translate`). The collision ticks
+are 1–6% shorter, the swept ones 2–10%, the same contacts in every scene.
+
+### A tick with a frame — `Benchmark_World_TickDraw`
+
+A tick of the world and a frame of its 5,000 sprites, the camera over all, a quarter or a
+twentieth of a 1000-pixel screen, 0%, 10% or 100% of them moving (`frames=2`: a tick every other
+frame). Medians of 5, an idle machine, 2026-10-21, ms:
+
+| Scene, the whole view | Before | The instances copied at once |
+|:---|---:|---:|
+| none moving | 1.01 | 0.90 |
+| 10% moving | 0.95 | 0.85 |
+| 100% moving | 0.97 | 0.88 |
+| 10% moving, a tick every other frame | 0.88 | 0.78 |
+
+At a quarter and a twentieth of the view the copy is within the noise. Tried and not taken
+(`m/mirror`, goke's per-chunk versions on a local goke): the sprites kept on the GPU chunk by
+chunk, re-sent only where a chunk changed. With 10% moving scattered, every chunk changes every
+tick, and the mirror is slower than today's path (0.90 → 1.07 ms, 100% moving 0.91 → 1.10); it
+wins only where nothing moves (0.95 → 0.60) or the movers have chunks of their own, which no demo
+has (motion/collision and motion/expanse: every chunk in the view changes every tick).
+
 ### Drawing — `Benchmark_World_Draw`
 
 One frame of the entity renderer gathered with no screen (nothing is drawn). The renderer draws
@@ -503,23 +529,30 @@ torus 15–26 → 3.3 ms; the allocating `Neighbors` list costs 4.1–5.6 ms.
 **After etap 2b** (2026-10-20, `n/bodies`): the keepings' passes allocate nothing per unit (the
 body index, a step's ground check and a route round the cells learned go through method values
 bound once, a leg's cells are arrays) and a step aside asks the ground only of the cells it
-tries. Fixed counts as above, base (`main` `3627cf8f`) and tree alternately, the median of 5
-rounds on a machine shared at times (load 0.9–15.8, every run started at ≥85% idle CPU), so the
-base's spread is wide (crowded 1,000: 105–166 ms).
+tries; and (`n/backoff`) a search that found nothing waits 0.5, 1, then 2 s before it runs again
+from the same cell round the same cells. Fixed counts as above, before 2b (`main` `3627cf8f`),
+2b and the back-off alternately, the median of 5 rounds on an idle machine (load 1.0–1.5),
+2026-10-21:
 
-| Scene | Walkers | Tick before → after | Allocations before → after |
-|:---|---:|---:|---:|
-| open | 100 | 470 → 443 µs | 197 → 81 |
-| open | 1,000 | 7.24 → 5.13 ms | 5,004 → 2,880 |
-| crowded | 100 | 1.16 → 1.18 ms | 192 → 67 |
-| crowded | 1,000 | 118 → 105 ms | 8,372 → 6,078 |
+| Scene | Walkers | Before 2b | 2b | With the back-off | Allocations |
+|:---|---:|---:|---:|---:|---:|
+| open | 100 | 388 µs | 386 µs | 374 µs | 197 → 81 → 77 |
+| open | 1,000 | 5.67 ms | 4.55 ms | 4.47 ms | 5,004 → 2,880 → 2,825 |
+| crowded | 100 | 1.05 ms | 1.04 ms | 1.08 ms | 192 → 67 → 64 |
+| crowded | 1,000 | 97.3 ms | 97.2 ms | 97.5 ms | 8,372 → 6,078 → 5,956 |
+
+The back-off is within the noise: it skips searches round the cells learned that would fail
+(26 → 9 a tick in the open, 128 → 95 in the crowd), which are cheap.
 
 What remains of a crowded tick is the searches the crowd's Detour asks for: `route` is 97% of it,
 85% under `cellKeeping.detour` (a unit refused a held cell is told Detour each tick it is refused
 and plans a whole route round the cells it learned: 280 searches a tick for 1,000 walkers); the
 128 searches a tick that fail cost 2.9 ms of it, so a blocked unit gets no back-off. In the open,
 `stepAside` is 23% of the tick (33% before); most allocations left are ceremony's (a `StepAside`
-given, about 1,250 a tick) and astar's (about 300). A profile of `Benchmark_Navigation_Tick` at
+given, about 1,250 a tick) and astar's (about 300). The literal back-off, still waiting after the
+unit moves or learns a cell, cuts the crowd's Detour searches from about 280 to about 10 a tick,
+but units give their orders up sooner (at 21 s 388 of 1,000 still hold one against 642): not
+taken, a decision about the crowd's behaviour. A profile of `Benchmark_Navigation_Tick` at
 these counts is mostly the scene's setup (85% of the samples at crowded 1,000): read it with
 `-ignore=benchNavigation`.
 
