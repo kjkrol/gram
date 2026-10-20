@@ -731,4 +731,9 @@ każde demo z kamerami pod `timeout`, pomiar bazy i drzewa naprzemiennie na bezc
 `CHANGELOG.md`, skille, sekcja „Etap N: wynik” tutaj, `--no-ff` do `main`, worktree usunięte,
 gałęzie części zostawione do przeglądu.
 
-**Stan** (integrator aktualizuje): fala 1 — briefy napisane 2026-10-20, sesje nieotwarte.
+**Stan** (integrator aktualizuje): fala 1 w toku od 2026-10-20 wieczorem: na życzenie
+użytkownika („możesz zaczynać”) pięć części idzie jako agenty Opus 5.5 w worktree
+(`/home/karol/worktrees/{gram/astar,gram/aloft,gram/placed,aabbworld/runs,goke/chunk-versions}`),
+gałęzie `n/astar`, `r/aloft`, `r/placed`, aabbworld `feat/runs`, goke `feat/chunk-versions`;
+gałęzie etapów `perf/navigation`, `perf/chunk-runs`, `perf/chunk-versions`, `perf/layer-levers`
+założone od `main` `e797a753`.
