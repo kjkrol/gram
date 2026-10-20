@@ -149,7 +149,7 @@ var sharedSections = []string{
 	control.Picture,
 	control.PictureResolution,
 	control.PictureAdaptive,
-	control.PictureRings,
+	control.PictureLayers,
 	control.PictureCare,
 	control.PictureAreas,
 	control.Graphics,

@@ -915,7 +915,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   neither render nor the world, so their own tests use it too: `internal/stick` is arithmetic and
   a `Keeper` over `stick.Entities`, the plugin's `riding` system reading the ECS for it. `Zones{Shown}` (Shift+H,
   `ShowZones`, `ZonesShown`, `Res.Settings.Zones`, saved beside the cameras' own `persisted`;
-  `Adapt{Strategy}` Alt+A (`Still`, `Uniform`, `InRings`; `SetStrategy`, `Res.Settings.Strategy`) and the picture's knobs `Picture{Resolution}`, `Rings{On}`, `RingShares{Inner, Middle}`, `RingResolutions{Outer, Middle}`, `Budget{Frame}`, `ShowRings{Shown}` (setters and `Res.Settings` fields likewise, on the settings screen under `control.PictureResolution`, `PictureAdaptive`, `PictureRings`, `PictureAreas`; `ringsView` outlines a cropped ring's layer) likewise; marks over every other, hidden by default, shown
+  `Adapt{Strategy}` Alt+A (`Still`, `Uniform`, `InLayers`; `SetStrategy`, `Res.Settings.Strategy`) and the picture's knobs `Picture{Resolution}`, `Layers{On}`, `LayerShares{Inner, Middle}`, `LayerResolutions{Outer, Middle}`, `Budget{Frame}`, `ShowLayers{Shown}` (setters and `Res.Settings` fields likewise, on the settings screen under `control.PictureResolution`, `PictureAdaptive`, `PictureLayers`, `PictureAreas`; `layersView` outlines a cropped layer) likewise; marks over every other, hidden by default, shown
   in board/topography's `makePlugins`) lays the strips and the corner squares over every picture in
   translucent yellow, rounded (`render.Frame.Fan`), the strips a gap short of the corners and
   fainter (the user's sketch, 2026-10-14). `CursorAtEdge` fires once an `Engine.Update`, before
@@ -924,9 +924,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `SharpFigures{On}` (`SetSharpFigures`, `SharpFigures()`, `Res.Settings.SoftFigures` — zero for
   the figures at every pixel, so a save from before it keeps the feature — `Config.SoftFigures`,
   "Figures at every pixel" under `control.PictureResolution`, no key; 2026-10-20) has every
-  camera but a minimap's `camera.Figured` (`ring` applies it as the camera is made and on
+  camera but a minimap's `camera.Figured` (`dress` applies it as the camera is made and on
   `Restore`): a picture drawn whole below all its pixels draws the `render.Overlying` sources at
-  every pixel over its ground at the resolution, nothing in rings, and the telemetry's Picture
+  every pixel over its ground at the resolution, nothing in layers, and the telemetry's Picture
   line says ", the figures sharp".
   Depends on `world`, `motion/steering`.
 - **`driving`** — units driven by hand, with or without navigation: `driving.NewPlugin(world,

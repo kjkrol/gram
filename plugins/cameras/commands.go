@@ -104,7 +104,7 @@ type Tilt struct {
 }
 
 // Resolution has Camera drawn at Factor times the pixels it is drawn at now, between
-// LeastResolution and all of them, a ring at a time in rings, and stops the following (Still).
+// LeastResolution and all of them, a layer at a time in layers, and stops the following (Still).
 type Resolution struct {
 	Camera camera.Camera
 	Factor float32
@@ -112,60 +112,60 @@ type Resolution struct {
 
 // Adapt has every picture's resolution follow the frame budget (Settings.FrameBudget) as
 // Strategy says, Uniform the whole picture's, coarser while the frames come slower and finer
-// again while they keep up, InRings drawn in rings and stepped a ring at a time, the outer
-// rings first, or stay as set, Still. Alt+A by default, in turn.
+// again while they keep up, InLayers drawn in layers and stepped a layer at a time, the outer
+// layers first, or stay as set, Still. Alt+A by default, in turn.
 type Adapt struct{ Strategy Strategy }
 
 // Picture has every picture but a minimap's drawn at Resolution of its pixels, the centre
-// ring's in rings, LeastResolution up to all of them, and stops the following (Still).
+// layer's in layers, LeastResolution up to all of them, and stops the following (Still).
 type Picture struct{ Resolution float32 }
 
 // SharpFigures has every picture but a minimap's draw its figures, all that lies over the
 // ground, at every shown pixel while its ground is drawn at the resolution, or at the resolution
-// too (Settings.SoftFigures); a picture drawn in rings is drawn as it is.
+// too (Settings.SoftFigures); a picture drawn in layers is drawn as it is.
 type SharpFigures struct{ On bool }
 
-// Rings has every picture but a minimap's drawn in rings (Settings.Rings) or whole; a Strategy
+// Layers has every picture but a minimap's drawn in layers (Settings.Layers) or whole; a Strategy
 // saying otherwise stops (Still).
-type Rings struct{ On bool }
+type Layers struct{ On bool }
 
-// RingShares has the inner ring cover Inner of the frame and the middle ring Middle, at least a
+// LayerShares has the inner layer cover Inner of the frame and the middle layer Middle, at least a
 // tenth over the inner (Settings.Inner, Middle).
-type RingShares struct{ Inner, Middle float32 }
+type LayerShares struct{ Inner, Middle float32 }
 
-// RingResolutions has the outer ring drawn at Outer of its pixels and the middle ring at Middle
+// LayerResolutions has the outer layer drawn at Outer of its pixels and the middle layer at Middle
 // (Settings.OuterRes, MiddleRes), and stops the following (Still).
-type RingResolutions struct{ Outer, Middle float32 }
+type LayerResolutions struct{ Outer, Middle float32 }
 
 // Budget sets the time a Frame may take, which the resolution follows (Settings.FrameBudget).
 type Budget struct{ Frame time.Duration }
 
-// ShowRings shows the rings' edges over every picture drawn in rings, or hides them
-// (Settings.ShowRings).
-type ShowRings struct{ Shown bool }
+// ShowLayers shows the layers' edges over every picture drawn in layers, or hides them
+// (Settings.ShowLayers).
+type ShowLayers struct{ Shown bool }
 
-func (Pan) Command()             {}
-func (Zoom) Command()            {}
-func (Resolution) Command()      {}
-func (Adapt) Command()           {}
-func (Picture) Command()         {}
-func (SharpFigures) Command()    {}
-func (Rings) Command()           {}
-func (RingShares) Command()      {}
-func (RingResolutions) Command() {}
-func (Budget) Command()          {}
-func (ShowRings) Command()       {}
-func (Follow) Command()          {}
-func (CenterOn) Command()        {}
-func (CenterAt) Command()        {}
-func (View) Command()            {}
-func (LookFrom) Command()        {}
-func (LookAt) Command()          {}
-func (Look) Command()            {}
-func (Ride) Command()            {}
-func (Turn) Command()            {}
-func (Tilt) Command()            {}
-func (Sight) Command()           {}
+func (Pan) Command()              {}
+func (Zoom) Command()             {}
+func (Resolution) Command()       {}
+func (Adapt) Command()            {}
+func (Picture) Command()          {}
+func (SharpFigures) Command()     {}
+func (Layers) Command()           {}
+func (LayerShares) Command()      {}
+func (LayerResolutions) Command() {}
+func (Budget) Command()           {}
+func (ShowLayers) Command()       {}
+func (Follow) Command()           {}
+func (CenterOn) Command()         {}
+func (CenterAt) Command()         {}
+func (View) Command()             {}
+func (LookFrom) Command()         {}
+func (LookAt) Command()           {}
+func (Look) Command()             {}
+func (Ride) Command()             {}
+func (Turn) Command()             {}
+func (Tilt) Command()             {}
+func (Sight) Command()            {}
 
 var (
 	_ command.Command = Pan{}
@@ -185,11 +185,11 @@ var (
 	_ command.Command = Adapt{}
 	_ command.Command = Picture{}
 	_ command.Command = SharpFigures{}
-	_ command.Command = Rings{}
-	_ command.Command = RingShares{}
-	_ command.Command = RingResolutions{}
+	_ command.Command = Layers{}
+	_ command.Command = LayerShares{}
+	_ command.Command = LayerResolutions{}
 	_ command.Command = Budget{}
-	_ command.Command = ShowRings{}
+	_ command.Command = ShowLayers{}
 )
 
 // TurnStep is how far Q and E turn the view a tick they are held, in radians, eighteen of them an
@@ -215,12 +215,12 @@ const (
 func (p *Plugin) Queues() []command.CommandQueue {
 	return append([]command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.centerOns,
 		&p.centerAts, &p.zones, &p.sights, &p.resolutions, &p.adapts, &p.pictures, &p.sharps,
-		&p.rings, &p.ringShares, &p.ringRes, &p.budgets, &p.showRings}, p.orders.queues()...)
+		&p.layers, &p.layerShares, &p.layerRes, &p.budgets, &p.showLayers}, p.orders.queues()...)
 }
 
 // DefaultBindings are DefaultKeys, their corners turning where the Config turns, Shift+H showing
 // or hiding the scroll zones, Alt+A the picture's resolution still, following the frame budget
-// or in rings, and the views' keys the Config gives: Q and E turning, R and F tilting, Tab
+// or in layers, and the views' keys the Config gives: Q and E turning, R and F tilting, Tab
 // switching the projection, V riding and the mouse looking round inside an entity.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	keys := DefaultKeys()
@@ -230,10 +230,10 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 			"Show the scroll zones at the picture's edges, or hide them",
 			func(control.Context) (Zones, bool) { return Zones{Shown: !p.ZonesShown()}, true }),
 		control.Build(control.KeyPress{Key: control.KeyA, Mods: control.Mods{Alt: true}},
-			"The picture's resolution: still, following the frame budget, in rings",
+			"The picture's resolution: still, following the frame budget, in layers",
 			func(control.Context) (Adapt, bool) { return p.nextAdapt(), true }))
 	return append(out, viewBindings(p.cfg)...)
 }
 
-// nextAdapt is the Adapt after the Settings: still, the whole picture, in rings, in turn
+// nextAdapt is the Adapt after the Settings: still, the whole picture, in layers, in turn
 func (p *Plugin) nextAdapt() Adapt { return Adapt{Strategy: (p.Strategy() + 1) % 3} }

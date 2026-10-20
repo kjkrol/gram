@@ -24,7 +24,7 @@ type viewCamera struct {
 	tactical  struct{ scale, length float32 }
 	fastening contract.Fastening
 	detail    contract.Detail
-	rings     []contract.Ring
+	layers    []contract.Layer
 	sharp     bool
 }
 
@@ -55,7 +55,7 @@ var _ contract.Focused = (*viewCamera)(nil)
 var _ contract.Detailed = (*viewCamera)(nil)
 var _ contract.Headed = (*viewCamera)(nil)
 var _ contract.Resolved = (*viewCamera)(nil)
-var _ contract.Ringed = (*viewCamera)(nil)
+var _ contract.Layered = (*viewCamera)(nil)
 var _ contract.Cropping = (*viewCamera)(nil)
 var _ contract.Figured = (*viewCamera)(nil)
 
@@ -381,10 +381,10 @@ func (c *viewCamera) Cropped() bool { return c.ortho.Cropped() }
 
 func (c *viewCamera) Frame() (float32, float32) { return c.ortho.Frame() }
 
-// SetRings has the picture drawn in rings, or whole for none or one.
-func (c *viewCamera) SetRings(rings []contract.Ring) { c.rings = slices.Clone(rings) }
+// SetLayers has the picture drawn in layers, or whole for none or one.
+func (c *viewCamera) SetLayers(layers []contract.Layer) { c.layers = slices.Clone(layers) }
 
-func (c *viewCamera) Rings() []contract.Ring { return slices.Clone(c.rings) }
+func (c *viewCamera) Layers() []contract.Layer { return slices.Clone(c.layers) }
 
 // SetSharpFigures has the figures drawn at every shown pixel while the ground is drawn at the
 // resolution, or at the resolution too.

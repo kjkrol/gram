@@ -15,7 +15,7 @@ const (
 	Picture           = "Picture"
 	PictureResolution = "Picture/Resolution"
 	PictureAdaptive   = "Picture/Resolution/Adaptive"
-	PictureRings      = "Picture/Resolution/Rings"
+	PictureLayers     = "Picture/Resolution/Layers"
 	PictureCare       = "Picture/Care"
 	PictureAreas      = "Picture/Areas"
 	Graphics          = "Picture/Graphics"

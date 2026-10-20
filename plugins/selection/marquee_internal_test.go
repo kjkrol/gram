@@ -27,7 +27,7 @@ func TestMarquees_ABoxBelongsToTheCameraItIsDraggedIn(t *testing.T) {
 	}
 }
 
-func TestMarquees_ComposeTheBoxInThePixelsOfEveryRingsPass(t *testing.T) {
+func TestMarquees_ComposeTheBoxInThePixelsOfEveryLayersPass(t *testing.T) {
 	cam := cameratest.NewFromSpace(1000, 800, 0)
 	cam.SetViewport(400, 300)
 	var m marquees
@@ -58,7 +58,7 @@ func TestMarquees_ComposeTheBoxInThePixelsOfEveryRingsPass(t *testing.T) {
 	m.compose(&f, cam)
 	if x0, y0, x1, y1 := bounds(); !near(x0, 0) || !near(y0, 12.5) || !near(x1, 50) ||
 		!near(y1, 62.5) {
-		t.Errorf("drawn a ring, the box spans (%v, %v)-(%v, %v), want (0, 12.5)-(50, 62.5)",
+		t.Errorf("drawn a layer, the box spans (%v, %v)-(%v, %v), want (0, 12.5)-(50, 62.5)",
 			x0, y0, x1, y1)
 	}
 	cam.(camera.Cropping).Uncrop()

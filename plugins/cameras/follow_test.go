@@ -406,30 +406,30 @@ func altA(t *testing.T, p *cameras.Plugin) command.Command {
 	return nil
 }
 
-func TestAdapt_CyclesStillTheWholePictureAndInRings(t *testing.T) {
+func TestAdapt_CyclesStillTheWholePictureAndInLayers(t *testing.T) {
 	w, p, start, tick := emptyWorld(t, cameras.Config{})
 	cam := p.New(cameras.FromAbove, camera.Config{})
 	start()
 	for presses, want := range []struct {
-		rings    int
+		layers   int
 		strategy cameras.Strategy
 		report   string
 	}{
 		{0, cameras.Still, "Picture: 1.00 of the pixels, still"},
 		{0, cameras.Uniform, "Picture: 1.00 of the pixels, following a budget of 60 FPS"},
-		{3, cameras.InRings, "Picture: 0.60/0.80/1.00 of the pixels in rings at 60% and 35%, " +
+		{3, cameras.InLayers, "Picture: 0.60/0.80/1.00 of the pixels in layers at 60% and 35%, " +
 			"following a budget of 60 FPS"},
-		{3, cameras.Still, "Picture: 0.60/0.80/1.00 of the pixels in rings at 60% and 35%, still"},
+		{3, cameras.Still, "Picture: 0.60/0.80/1.00 of the pixels in layers at 60% and 35%, still"},
 		{0, cameras.Uniform, "Picture: 1.00 of the pixels, following a budget of 60 FPS"},
 	} {
 		if presses > 0 {
 			w.Carrier().Put(command.Nobody, altA(t, p))
 			tick()
 		}
-		rings := len(camera.RingsOf(cam))
-		if rings != want.rings || p.Rings() != (want.rings > 0) || p.Strategy() != want.strategy {
-			t.Errorf("after %d Alt+A the camera has %d rings, the plugin rings %v, strategy %v; "+
-				"want %d rings and %v", presses, rings, p.Rings(), p.Strategy(), want.rings,
+		layers := len(camera.LayersOf(cam))
+		if layers != want.layers || p.Layers() != (want.layers > 0) || p.Strategy() != want.strategy {
+			t.Errorf("after %d Alt+A the camera has %d layers, the plugin layers %v, strategy %v; "+
+				"want %d layers and %v", presses, layers, p.Layers(), p.Strategy(), want.layers,
 				want.strategy)
 		}
 		if got := report(p); got != want.report {
@@ -438,57 +438,57 @@ func TestAdapt_CyclesStillTheWholePictureAndInRings(t *testing.T) {
 	}
 }
 
-func TestResolution_InRingsStepsTheOuterRingFirstAndStopsTheFollowing(t *testing.T) {
-	w, p, start, tick := emptyWorld(t, cameras.Config{Strategy: cameras.InRings})
+func TestResolution_InLayersStepsTheOuterRingFirstAndStopsTheFollowing(t *testing.T) {
+	w, p, start, tick := emptyWorld(t, cameras.Config{Strategy: cameras.InLayers})
 	cam := p.New(cameras.FromAbove, camera.Config{})
 	start()
-	if got := report(p); got != "Picture: 0.60/0.80/1.00 of the pixels in rings at 60% and 35%, "+
+	if got := report(p); got != "Picture: 0.60/0.80/1.00 of the pixels in layers at 60% and 35%, "+
 		"following a budget of 60 FPS" {
-		t.Fatalf("the telemetry says %q, want the default rings following the budget", got)
+		t.Fatalf("the telemetry says %q, want the default layers following the budget", got)
 	}
 	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: cameras.ResolutionStep})
 	tick()
-	if got := report(p); got != "Picture: 0.51/0.80/1.00 of the pixels in rings at 60% and 35%, "+
+	if got := report(p); got != "Picture: 0.51/0.80/1.00 of the pixels in layers at 60% and 35%, "+
 		"still" {
-		t.Errorf("the telemetry says %q, want the outer ring stepped and the following stopped",
+		t.Errorf("the telemetry says %q, want the outer layer stepped and the following stopped",
 			got)
 	}
-	rings := camera.RingsOf(cam)
-	if len(rings) != 3 || camera.ResolutionOf(cam) != rings[2].Resolution {
-		t.Errorf("the camera is drawn at %v in the rings %v, want the centre ring's resolution",
-			camera.ResolutionOf(cam), rings)
+	layers := camera.LayersOf(cam)
+	if len(layers) != 3 || camera.ResolutionOf(cam) != layers[2].Resolution {
+		t.Errorf("the camera is drawn at %v in the layers %v, want the centre layer's resolution",
+			camera.ResolutionOf(cam), layers)
 	}
-	if outer, _ := p.RingResolutions(); outer != rings[0].Resolution {
-		t.Errorf("the Settings say the outer ring is at %v, want the camera's %v", outer,
-			rings[0].Resolution)
+	if outer, _ := p.LayerResolutions(); outer != layers[0].Resolution {
+		t.Errorf("the Settings say the outer layer is at %v, want the camera's %v", outer,
+			layers[0].Resolution)
 	}
 }
 
-func TestAdapt_FromRingsStillGoesOnFollowingInTheRingsAsTheyAre(t *testing.T) {
+func TestAdapt_FromLayersStillGoesOnFollowingInTheLayersAsTheyAre(t *testing.T) {
 	w, p, start, tick := emptyWorld(t, cameras.Config{})
 	cam := p.New(cameras.FromAbove, camera.Config{})
 	start()
-	w.Carrier().Put(command.Nobody, cameras.Rings{On: true})
+	w.Carrier().Put(command.Nobody, cameras.Layers{On: true})
 	tick()
 	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: cameras.ResolutionStep})
 	tick()
-	if got := report(p); got != "Picture: 0.51/0.80/1.00 of the pixels in rings at 60% and 35%, "+
+	if got := report(p); got != "Picture: 0.51/0.80/1.00 of the pixels in layers at 60% and 35%, "+
 		"still" {
-		t.Fatalf("the telemetry says %q, want the picture still, in rings, the outer one stepped",
+		t.Fatalf("the telemetry says %q, want the picture still, in layers, the outer one stepped",
 			got)
 	}
-	w.Carrier().Put(command.Nobody, cameras.Adapt{Strategy: cameras.InRings})
+	w.Carrier().Put(command.Nobody, cameras.Adapt{Strategy: cameras.InLayers})
 	tick()
-	if got := report(p); got != "Picture: 0.51/0.80/1.00 of the pixels in rings at 60% and 35%, "+
+	if got := report(p); got != "Picture: 0.51/0.80/1.00 of the pixels in layers at 60% and 35%, "+
 		"following a budget of 60 FPS" {
-		t.Errorf("after Adapt the telemetry says %q, want the following resumed in the rings as "+
+		t.Errorf("after Adapt the telemetry says %q, want the following resumed in the layers as "+
 			"they are, not the default again", got)
 	}
-	w.Carrier().Put(command.Nobody, cameras.Rings{On: false})
+	w.Carrier().Put(command.Nobody, cameras.Layers{On: false})
 	tick()
-	if p.Strategy() != cameras.Still || len(camera.RingsOf(cam)) != 0 {
-		t.Errorf("the rings switched off under InRings leave the strategy %v and %d rings, want "+
-			"Still and none", p.Strategy(), len(camera.RingsOf(cam)))
+	if p.Strategy() != cameras.Still || len(camera.LayersOf(cam)) != 0 {
+		t.Errorf("the layers switched off under InLayers leave the strategy %v and %d layers, want "+
+			"Still and none", p.Strategy(), len(camera.LayersOf(cam)))
 	}
 }
 
@@ -517,55 +517,55 @@ func TestPicture_ReachesEveryCameraButAMinimapsAndStopsTheFollowing(t *testing.T
 	}
 }
 
-func TestRingShares_ShapeEveryCamerasRingsAndTheMiddleStaysOverTheInner(t *testing.T) {
-	w, p, start, tick := emptyWorld(t, cameras.Config{Rings: true})
+func TestLayerShares_ShapeEveryCamerasLayersAndTheMiddleStaysOverTheInner(t *testing.T) {
+	w, p, start, tick := emptyWorld(t, cameras.Config{Layers: true})
 	one := p.New(cameras.FromAbove, camera.Config{})
 	two := p.New(cameras.FromAbove, camera.Config{})
 	start()
-	w.Carrier().Put(command.Nobody, cameras.RingShares{Inner: 0.3, Middle: 0.5})
+	w.Carrier().Put(command.Nobody, cameras.LayerShares{Inner: 0.3, Middle: 0.5})
 	tick()
 	for i, cam := range []camera.Camera{one, two} {
-		rings := camera.RingsOf(cam)
-		if len(rings) != 3 || rings[1].Share != 0.5 || rings[2].Share != 0.3 {
-			t.Errorf("camera %d is drawn in %v, want the middle ring at 50%% and the inner at 30%%",
-				i, rings)
+		layers := camera.LayersOf(cam)
+		if len(layers) != 3 || layers[1].Share != 0.5 || layers[2].Share != 0.3 {
+			t.Errorf("camera %d is drawn in %v, want the middle layer at 50%% and the inner at 30%%",
+				i, layers)
 		}
 	}
-	if got := report(p); got != "Picture: 0.60/0.80/1.00, 0.60/0.80/1.00 of the pixels in rings "+
+	if got := report(p); got != "Picture: 0.60/0.80/1.00, 0.60/0.80/1.00 of the pixels in layers "+
 		"at 50% and 30%, still" {
 		t.Errorf("the telemetry says %q, want the shares set", got)
 	}
-	w.Carrier().Put(command.Nobody, cameras.RingShares{Inner: 0.5, Middle: 0.5})
+	w.Carrier().Put(command.Nobody, cameras.LayerShares{Inner: 0.5, Middle: 0.5})
 	tick()
-	if inner, middle := p.RingShares(); inner != 0.5 || math.Abs(float64(middle-0.6)) > 1e-6 {
+	if inner, middle := p.LayerShares(); inner != 0.5 || math.Abs(float64(middle-0.6)) > 1e-6 {
 		t.Errorf("the shares are %v and %v, want the middle a tenth over the inner, 0.5 and 0.6",
 			inner, middle)
 	}
-	w.Carrier().Put(command.Nobody, cameras.RingResolutions{Outer: 0.5, Middle: 0.7})
+	w.Carrier().Put(command.Nobody, cameras.LayerResolutions{Outer: 0.5, Middle: 0.7})
 	tick()
-	if rings := camera.RingsOf(one); rings[0].Resolution != 0.5 || rings[1].Resolution != 0.7 {
-		t.Errorf("the camera is drawn in %v, want the outer ring at 0.5 and the middle at 0.7",
-			rings)
+	if layers := camera.LayersOf(one); layers[0].Resolution != 0.5 || layers[1].Resolution != 0.7 {
+		t.Errorf("the camera is drawn in %v, want the outer layer at 0.5 and the middle at 0.7",
+			layers)
 	}
 }
 
 func TestRedraw_NotesTheLeadCamerasResolutionsIntoTheSettings(t *testing.T) {
-	_, p, start, _ := emptyWorld(t, cameras.Config{Strategy: cameras.InRings})
+	_, p, start, _ := emptyWorld(t, cameras.Config{Strategy: cameras.InLayers})
 	minimap := p.New(cameras.FromAbove, camera.Config{Whole: true})
 	lead := p.New(cameras.FromAbove, camera.Config{})
 	start()
 	p.Redraw(cameras.ResolutionStep)
-	outer, middle := p.RingResolutions()
+	outer, middle := p.LayerResolutions()
 	if math.Abs(float64(outer-0.51)) > 1e-6 || middle != 0.8 || p.Resolution() != 1 {
 		t.Errorf("after a coarser step the Settings say %v/%v/%v, want 0.51/0.8/1: the lead "+
-			"camera's rings", outer, middle, p.Resolution())
+			"camera's layers", outer, middle, p.Resolution())
 	}
-	if got := camera.RingsOf(minimap); len(got) != 0 || camera.ResolutionOf(minimap) != 1 {
+	if got := camera.LayersOf(minimap); len(got) != 0 || camera.ResolutionOf(minimap) != 1 {
 		t.Errorf("the minimap is drawn in %v at %v, want whole at all its pixels", got,
 			camera.ResolutionOf(minimap))
 	}
-	if got := camera.RingsOf(lead); math.Abs(float64(got[0].Resolution-0.51)) > 1e-6 {
-		t.Errorf("the lead camera is drawn in %v, want its outer ring at 0.51", got)
+	if got := camera.LayersOf(lead); math.Abs(float64(got[0].Resolution-0.51)) > 1e-6 {
+		t.Errorf("the lead camera is drawn in %v, want its outer layer at 0.51", got)
 	}
 	p.SetStrategy(cameras.Uniform)
 	p.Redraw(cameras.ResolutionStep)

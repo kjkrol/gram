@@ -65,15 +65,15 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 	s.p.adapts.Drain(func(i command.Issued[Adapt]) { s.p.SetStrategy(i.Command.Strategy) })
 	s.p.pictures.Drain(func(i command.Issued[Picture]) { s.p.SetResolution(i.Command.Resolution) })
 	s.p.sharps.Drain(func(i command.Issued[SharpFigures]) { s.p.SetSharpFigures(i.Command.On) })
-	s.p.rings.Drain(func(i command.Issued[Rings]) { s.p.SetRings(i.Command.On) })
-	s.p.ringShares.Drain(func(i command.Issued[RingShares]) {
-		s.p.SetRingShares(i.Command.Inner, i.Command.Middle)
+	s.p.layers.Drain(func(i command.Issued[Layers]) { s.p.SetLayers(i.Command.On) })
+	s.p.layerShares.Drain(func(i command.Issued[LayerShares]) {
+		s.p.SetLayerShares(i.Command.Inner, i.Command.Middle)
 	})
-	s.p.ringRes.Drain(func(i command.Issued[RingResolutions]) {
-		s.p.SetRingResolutions(i.Command.Outer, i.Command.Middle)
+	s.p.layerRes.Drain(func(i command.Issued[LayerResolutions]) {
+		s.p.SetLayerResolutions(i.Command.Outer, i.Command.Middle)
 	})
 	s.p.budgets.Drain(func(i command.Issued[Budget]) { s.p.SetBudget(i.Command.Frame) })
-	s.p.showRings.Drain(func(i command.Issued[ShowRings]) { s.p.ShowRings(i.Command.Shown) })
+	s.p.showLayers.Drain(func(i command.Issued[ShowLayers]) { s.p.ShowLayers(i.Command.Shown) })
 	s.p.follows.Drain(func(i command.Issued[Follow]) {
 		cam, ok := i.Command.Camera.(camera.Fastenable)
 		if !ok {

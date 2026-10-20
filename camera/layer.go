@@ -1,15 +1,15 @@
 package camera
 
-// Ring is a layer of a picture drawn in rings: the central Share of the frame (1 the whole)
+// Layer is a layer of a picture drawn in layers: the central Share of the frame (1 the whole)
 // drawn at Resolution of its shown pixels.
-type Ring struct{ Share, Resolution float32 }
+type Layer struct{ Share, Resolution float32 }
 
-// Ringed is a camera whose picture whoever shows it draws in rings, the widest first, each a
+// Layered is a camera whose picture whoever shows it draws in layers, the widest first, each a
 // centred crop over the last; none or one is drawn as a Resolved camera's. The innermost
-// ring's Resolution is the camera's own, so its screen conversions stay the centre's.
-type Ringed interface {
-	Rings() []Ring
-	SetRings(rings []Ring)
+// layer's Resolution is the camera's own, so its screen conversions stay the centre's.
+type Layered interface {
+	Layers() []Layer
+	SetLayers(layers []Layer)
 }
 
 // Cropping is a camera drawn a part at a time: Crop has its Viewport be the central w by h
@@ -36,10 +36,10 @@ func InFrame(cam Camera, sx, sy float32) (x, y float32) {
 	return (sx - (fw-w/k)/2) * k, (sy - (fh-h/k)/2) * k
 }
 
-// RingsOf is the rings cam's picture is drawn in, a copy; nil for a camera without.
-func RingsOf(cam Camera) []Ring {
-	if r, ok := cam.(Ringed); ok {
-		return r.Rings()
+// LayersOf is the layers cam's picture is drawn in, a copy; nil for a camera without.
+func LayersOf(cam Camera) []Layer {
+	if r, ok := cam.(Layered); ok {
+		return r.Layers()
 	}
 	return nil
 }

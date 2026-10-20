@@ -47,13 +47,13 @@ type Config struct {
 	// the world goes, every bit
 	Detail camera.Detail
 	// Resolution is the share of the pixels every picture but a minimap's is drawn at as the
-	// cameras are made, LeastResolution up to 1 (zero, all of them), the centre ring's in rings;
-	// Rings has them drawn in rings from the start (Settings.Rings); Strategy has their
+	// cameras are made, LeastResolution up to 1 (zero, all of them), the centre layer's in layers;
+	// Layers has them drawn in layers from the start (Settings.Layers); Strategy has their
 	// resolution follow the FrameBudget from the start (Adapt), the time a frame may take (zero,
 	// a sixtieth of a second): a rate the vsync caps is met, never exceeded.
 	Resolution  float32
 	Strategy    Strategy
-	Rings       bool
+	Layers      bool
 	FrameBudget time.Duration
 	// the figures following the ground's resolution from the start (Settings.SoftFigures);
 	// zero, drawn at every pixel
@@ -100,14 +100,14 @@ type Plugin struct {
 	adapts      command.Queue[Adapt]
 	pictures    command.Queue[Picture]
 	sharps      command.Queue[SharpFigures]
-	rings       command.Queue[Rings]
-	ringShares  command.Queue[RingShares]
-	ringRes     command.Queue[RingResolutions]
+	layers      command.Queue[Layers]
+	layerShares command.Queue[LayerShares]
+	layerRes    command.Queue[LayerResolutions]
 	budgets     command.Queue[Budget]
-	showRings   command.Queue[ShowRings]
+	showLayers  command.Queue[ShowLayers]
 	orders      orders
 	zonesView   *zonesView
-	ringsView   *ringsView
+	layersView  *layersView
 	adapter     adapter
 	kept        *plugin.Kept[Settings]
 	module      *module
@@ -127,12 +127,12 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin, cfg: cfg}
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.zonesView = &zonesView{settings: &p.Res.Settings}
-	p.ringsView = &ringsView{settings: &p.Res.Settings}
+	p.layersView = &layersView{settings: &p.Res.Settings}
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Res.Settings = Settings{
 		Resolution:  1,
 		SoftFigures: cfg.SoftFigures,
-		Rings:       cfg.Rings,
+		Layers:      cfg.Layers,
 		Inner:       0.35,
 		Middle:      0.6,
 		OuterRes:    0.6,
@@ -192,7 +192,7 @@ func (p *Plugin) New(start Start, cfg camera.Config) camera.Camera {
 		cam = made(space.Width, space.Height, space.Edges, cfg)
 	}
 	cam.(seeing).SetDetail(p.cfg.Detail)
-	p.ring(cam)
+	p.dress(cam)
 	at := len(p.cameras)
 	p.cameras = append(p.cameras, cam)
 	if p.loaded && at < len(p.saved) {
@@ -254,7 +254,7 @@ func (p *Plugin) Name() string { return "gram.cameras" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{p: p}
 	ctx.UseModule(p.module)
-	ctx.Draws(p.zonesView, p.ringsView)
+	ctx.Draws(p.zonesView, p.layersView)
 	return nil
 }
 
@@ -277,15 +277,15 @@ func (p *Plugin) redraw(factor float32) {
 	p.note(p.lead())
 }
 
-// apply has cam's picture drawn at factor times its resolution, a ring at a time where it is
-// drawn in rings, and is false for a minimap's or a camera without one
+// apply has cam's picture drawn at factor times its resolution, a layer at a time where it is
+// drawn in layers, and is false for a minimap's or a camera without one
 func (p *Plugin) apply(cam camera.Camera, factor float32) bool {
 	r, ok := cam.(camera.Resolved)
 	if !ok || fitsWhole(cam) {
 		return false
 	}
-	if c, ok := cam.(camera.Ringed); ok && len(c.Rings()) > 0 {
-		r.SetResolution(stepRings(c, factor))
+	if c, ok := cam.(camera.Layered); ok && len(c.Layers()) > 0 {
+		r.SetResolution(stepLayers(c, factor))
 		return true
 	}
 	r.SetResolution(clamped(r.Resolution() * factor))
@@ -293,7 +293,7 @@ func (p *Plugin) apply(cam camera.Camera, factor float32) bool {
 }
 
 // Reporter is the cameras' part of the telemetry panel: the share of its pixels each picture is
-// drawn at, ring by ring in rings with the rings' shares, the figures sharp where a coarser
+// drawn at, layer by layer in layers with the layers' shares, the figures sharp where a coarser
 // picture draws them at every pixel, and the budget it follows, or still.
 func (p *Plugin) Reporter() render.Reporter { return reporter{p} }
 
@@ -316,8 +316,8 @@ func (r reporter) Report(line func(label, value string)) {
 	s := r.p.Res.Settings
 	value := strings.Join(shares, ", ") + " of the pixels"
 	switch {
-	case s.Rings:
-		value += fmt.Sprintf(" in rings at %.0f%% and %.0f%%", s.Middle*100, s.Inner*100)
+	case s.Layers:
+		value += fmt.Sprintf(" in layers at %.0f%% and %.0f%%", s.Middle*100, s.Inner*100)
 	case coarse && r.p.SharpFigures():
 		value += ", the figures sharp"
 	}
@@ -329,15 +329,15 @@ func (r reporter) Report(line func(label, value string)) {
 	line("Picture", value)
 }
 
-// share is the resolution cam's picture is drawn at, its rings' from the outermost in rings
+// share is the resolution cam's picture is drawn at, its layers' from the outermost in layers
 func share(cam camera.Camera) string {
-	rings := camera.RingsOf(cam)
-	if len(rings) == 0 {
+	layers := camera.LayersOf(cam)
+	if len(layers) == 0 {
 		return fmt.Sprintf("%.2f", camera.ResolutionOf(cam))
 	}
-	parts := make([]string, len(rings))
-	for i, ring := range rings {
-		parts[i] = fmt.Sprintf("%.2f", ring.Resolution)
+	parts := make([]string, len(layers))
+	for i, layer := range layers {
+		parts[i] = fmt.Sprintf("%.2f", layer.Resolution)
 	}
 	return strings.Join(parts, "/")
 }
@@ -359,7 +359,7 @@ func (p *Plugin) Restore() {
 		if at < len(p.saved) {
 			p.restore(at)
 		}
-		p.ring(cam)
+		p.dress(cam)
 	}
 }
 

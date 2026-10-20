@@ -267,7 +267,7 @@ func (d *depths) fits(img *Image) bool {
 	return w == d.w && h == d.h
 }
 
-// the sizes a composer keeps buffers for: a view in rings, split screens and a minimap
+// the sizes a composer keeps buffers for: a view in layers, split screens and a minimap
 const keptDepths = 8
 
 func (c *Composer) depthsFor(screen *Image) *depths {

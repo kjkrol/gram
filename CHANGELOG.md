@@ -30,18 +30,18 @@ atmosphere's entity carries a `light.Source` and a `light.Shining`.
   mirror of the sky but no waves, glint or shore, farther still no ground shade or lamps.
 - `Benchmark_Frame_Topography`: the island's frame on a headless GPU at 1440p.
 
-**The picture in rings** (2026-10-19, etap R2 of `doc/plans-perf.md`)
-- A camera's picture drawn in rings (`camera.Ringed`, `Cropping`): the whole frame at 0.6 of its
+**The picture in layers** (2026-10-19, etap R2 of `doc/plans-perf.md`)
+- A camera's picture drawn in layers (`camera.Layered`, `Cropping`): the whole frame at 0.6 of its
   pixels, the central 60% at 0.8, the central 35% at every one, each a centred crop of the same
   camera (`render.Feed`) laid over the last with a feathered edge (`DrawImageOptions.Fade`).
-  `cameras.Config.Rings` and the setting "Picture drawn in rings" (`Settings.Rings`, saved with
-  the game); `Adapt{On, Rings}` carries both, Alt+A in turn: following the frame budget,
-  following in rings, still and whole. The adapter and Alt+= / Alt+- step the outer ring first,
+  `cameras.Config.Layers` and the setting "Picture drawn in layers" (`Settings.Layers`, saved with
+  the game); `Adapt{On, Layers}` carries both, Alt+A in turn: following the frame budget,
+  following in layers, still and whole. The adapter and Alt+= / Alt+- step the outer layer first,
   then the middle, the centre last, and back in the reverse order; the telemetry's "Picture"
-  line shows the three. `Benchmark_Frame_Topography` has `iso,ringed` and `persp,ringed`.
+  line shows the three. `Benchmark_Frame_Topography` has `iso,layered` and `persp,layered`.
 - The cameras' settings (the zones, the following) are saved with the game: they never were.
 - The composer keeps depth buffers for eight target sizes, the clouds' images one a size, so a
-  view in rings recreates no texture a frame.
+  view in layers recreates no texture a frame.
 
 **The settings screen in sections** (2026-10-19, etap S)
 - The settings screen (F10) lists the sections the plugins share first, centred: `control.Picture`
@@ -49,12 +49,12 @@ atmosphere's entity carries a `light.Source` and a `light.Shining`.
   shown and the graphics (a setting's `Section`), then a section a plugin as before;
   `ui.Subheading`.
 - The picture's resolution follows the frame budget by a strategy (`cameras.Settings.Strategy`:
-  still, the whole picture, in rings; `Adapt{Strategy}`, Alt+A in turn), every knob of both set
-  by hand while still: the resolution, the frame budget, the rings' shares and resolutions
-  (`Picture`, `Rings`, `RingShares`, `RingResolutions`, `Budget`); `cameras.Config.Adaptive` is
+  still, the whole picture, in layers; `Adapt{Strategy}`, Alt+A in turn), every knob of both set
+  by hand while still: the resolution, the frame budget, the layers' shares and resolutions
+  (`Picture`, `Layers`, `LayerShares`, `LayerResolutions`, `Budget`); `cameras.Config.Adaptive` is
   `Strategy`. The telemetry's "Picture" line says the strategy and its settings.
-- The ground's full care reaches as far as a slider says, up to every sector; "Show the rings"
-  and "Show the care" outline the rings' layers and the care's bands over the picture.
+- The ground's full care reaches as far as a slider says, up to every sector; "Show the layers"
+  and "Show the care" outline the layers and the care's bands over the picture.
 - The cameras' settings changed shape: a save from this branch before it loses them.
 
 **The ground at the camera's resolution, the figures at every pixel; five cares** (2026-10-20,
@@ -63,7 +63,7 @@ etap T of `doc/plans-perf.md`)
   what falls or floats over them and the marks at every shown pixel over it, tested against the
   ground's depth spread to the screen's size (`render.Grounded`, `Overlying`, `gpu.ScaleDepth`;
   the sources over the figures say so). The setting "Figures at every pixel" (`cameras.Settings
-  .SoftFigures`, zero sharp; `SharpFigures{On}`, `Config.SoftFigures`) switches it; in rings
+  .SoftFigures`, zero sharp; `SharpFigures{On}`, `Config.SoftFigures`) switches it; in layers
   the picture is drawn as before. The telemetry's "Picture" line says "the figures sharp".
 - The ground is shaded with five cares, one less every R sectors from the sector under the
   screen's middle or the eye (`Full care out to` is R): the shores, the surf, the running water

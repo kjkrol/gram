@@ -16,13 +16,13 @@ const frameW, frameH = 2560, 1440
 // under a distant sun with the ground's shade baked, without the water's shine (no water
 // layer), at 0.7 of the pixels straight into a screen of that size, and cut into sectors of
 // 256 shaded with full care everywhere, within two of the screen's middle and within one, in
-// rings (the whole frame at 0.5 of the pixels, the central 60% at 0.75, the central 35% at all
+// layers (the whole frame at 0.5 of the pixels, the central 60% at 0.75, the central 35% at all
 // of them), and through a feed at 0.7 of the pixels scaled up to the screen, the figures at the
 // ground's resolution ("feed", the control) or at every pixel ("sharp"); "readback" alone is
 // the cost of the wait, to take off the others.
 func Benchmark_Frame_Topography(b *testing.B) {
 	headlessGPU(b)
-	ringed := []camera.Ring{{Share: 1, Resolution: 0.5}, {Share: 0.6, Resolution: 0.75},
+	layered := []camera.Layer{{Share: 1, Resolution: 0.5}, {Share: 0.6, Resolution: 0.75},
 		{Share: 0.35, Resolution: 1}}
 	for _, sc := range []struct {
 		name, view string
@@ -30,7 +30,7 @@ func Benchmark_Frame_Topography(b *testing.B) {
 		w, h       float32
 		sectored   bool
 		care       int
-		rings      []camera.Ring
+		layers     []camera.Layer
 		res        float32 // through a feed at this share of the pixels, where set
 		sharp      bool
 	}{
@@ -42,8 +42,8 @@ func Benchmark_Frame_Topography(b *testing.B) {
 		{"iso,care=all", "iso", true, false, frameW, frameH, true, 0, nil, 0, false},
 		{"iso,care=2", "iso", true, false, frameW, frameH, true, 2, nil, 0, false},
 		{"iso,care=1", "iso", true, false, frameW, frameH, true, 1, nil, 0, false},
-		{"iso,ringed", "iso", true, false, frameW, frameH, false, 0, ringed, 0, false},
-		{"persp,ringed", "persp", true, false, frameW, frameH, false, 0, ringed, 0, false},
+		{"iso,layered", "iso", true, false, frameW, frameH, false, 0, layered, 0, false},
+		{"persp,layered", "persp", true, false, frameW, frameH, false, 0, layered, 0, false},
 		{"iso,0.7,feed", "iso", true, false, frameW, frameH, false, 0, nil, 0.7, false},
 		{"iso,0.7,sharp", "iso", true, false, frameW, frameH, false, 0, nil, 0.7, true},
 		{"persp,0.7", "persp", true, false, frameW, frameH, false, 0, nil, 0.7, false},
@@ -60,9 +60,9 @@ func Benchmark_Frame_Topography(b *testing.B) {
 			screen := render.NewImage(int(sc.w), int(sc.h))
 			buf := make([]byte, 4*int(sc.w)*int(sc.h))
 			draw := func() { picture.DrawWorld(screen, cam) }
-			if sc.rings != nil || sc.res > 0 {
-				if sc.rings != nil {
-					cam.(camera.Ringed).SetRings(sc.rings)
+			if sc.layers != nil || sc.res > 0 {
+				if sc.layers != nil {
+					cam.(camera.Layered).SetLayers(sc.layers)
 				} else {
 					cam.(camera.Resolved).SetResolution(sc.res)
 					cam.(camera.Figured).SetSharpFigures(sc.sharp)

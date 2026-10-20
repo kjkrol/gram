@@ -68,33 +68,33 @@ func (a *adapter) step(now time.Time, fps float64) float32 {
 // clamped is s between LeastResolution and all the pixels
 func clamped(s float32) float32 { return min(max(s, LeastResolution), 1) }
 
-// the least each ring is stepped down to, the outermost first
-var ringFloors = []float32{LeastResolution, 0.6, 0.7}
+// the least each layer is stepped down to, the outermost first
+var layerFloors = []float32{LeastResolution, 0.6, 0.7}
 
-// stepRings steps one of c's rings by factor, coarser the outermost still over its floor, finer
+// stepLayers steps one of c's layers by factor, coarser the outermost still over its floor, finer
 // the innermost still under all its pixels, and is the centre's resolution after
-func stepRings(c camera.Ringed, factor float32) float32 {
-	rings := c.Rings()
+func stepLayers(c camera.Layered, factor float32) float32 {
+	layers := c.Layers()
 	switch {
 	case factor < 1:
-		for i, r := range rings {
+		for i, r := range layers {
 			floor := float32(LeastResolution)
-			if i < len(ringFloors) {
-				floor = ringFloors[i]
+			if i < len(layerFloors) {
+				floor = layerFloors[i]
 			}
 			if r.Resolution > floor {
-				rings[i].Resolution = max(r.Resolution*factor, floor)
+				layers[i].Resolution = max(r.Resolution*factor, floor)
 				break
 			}
 		}
 	case factor > 1:
-		for i := len(rings) - 1; i >= 0; i-- {
-			if r := rings[i].Resolution; r < 1 {
-				rings[i].Resolution = min(r*factor, 1)
+		for i := len(layers) - 1; i >= 0; i-- {
+			if r := layers[i].Resolution; r < 1 {
+				layers[i].Resolution = min(r*factor, 1)
 				break
 			}
 		}
 	}
-	c.SetRings(rings)
-	return rings[len(rings)-1].Resolution
+	c.SetLayers(layers)
+	return layers[len(layers)-1].Resolution
 }

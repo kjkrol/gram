@@ -123,7 +123,7 @@ type figured struct {
 type sharpened interface {
 	camera.Camera
 	camera.Resolved
-	camera.Ringed
+	camera.Layered
 	camera.Cropping
 }
 
@@ -174,9 +174,9 @@ func TestFeed_DrawsAtItsCamerasResolutionAndSpeaksShownPixels(t *testing.T) {
 	}
 }
 
-func TestFeed_DrawsARingedCameraALayerARingCoarseToFine(t *testing.T) {
+func TestFeed_DrawsALayeredCameraALayerARingCoarseToFine(t *testing.T) {
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
-	cam.(camera.Ringed).SetRings([]camera.Ring{
+	cam.(camera.Layered).SetLayers([]camera.Layer{
 		{Share: 1, Resolution: 0.5},
 		{Share: 0.6, Resolution: 0.75},
 		{Share: 0.35, Resolution: 1},
@@ -209,7 +209,7 @@ func TestFeed_DrawsARingedCameraALayerARingCoarseToFine(t *testing.T) {
 
 func TestFeed_DrawsACameraOfOneRingAsAResolvedOne(t *testing.T) {
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
-	cam.(camera.Ringed).SetRings([]camera.Ring{{Share: 1, Resolution: 0.5}})
+	cam.(camera.Layered).SetLayers([]camera.Layer{{Share: 1, Resolution: 0.5}})
 	cam.(camera.Resolved).SetResolution(0.5)
 	picture := &recording{}
 	feed := render.NewFeed(cam, picture)
@@ -223,7 +223,7 @@ func TestFeed_DrawsACameraOfOneRingAsAResolvedOne(t *testing.T) {
 
 func TestFeed_DrawOnDrawsTheWholeFrameAtEveryPixelStraightOntoTheTarget(t *testing.T) {
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
-	cam.(camera.Ringed).SetRings([]camera.Ring{
+	cam.(camera.Layered).SetLayers([]camera.Layer{
 		{Share: 1, Resolution: 1},
 		{Share: 0.5, Resolution: 0.5},
 	})
@@ -289,9 +289,9 @@ func TestFeed_DrawsWholeWithTheFiguresSoftOrEveryPixelDrawn(t *testing.T) {
 	}
 }
 
-func TestFeed_DrawsARingedCameraInRingsWhateverItsFigures(t *testing.T) {
+func TestFeed_DrawsALayeredCameraInLayersWhateverItsFigures(t *testing.T) {
 	cam := newFigured(true)
-	cam.SetRings([]camera.Ring{{Share: 1, Resolution: 0.5}, {Share: 0.5, Resolution: 0.75}})
+	cam.SetLayers([]camera.Layer{{Share: 1, Resolution: 0.5}, {Share: 0.5, Resolution: 0.75}})
 	cam.SetResolution(0.75)
 	picture := &recording{}
 	feed := render.NewFeed(cam, picture)
@@ -299,7 +299,7 @@ func TestFeed_DrawsARingedCameraInRingsWhateverItsFigures(t *testing.T) {
 	feed.Draw()
 	want := []call{{32, 24, 32, 24}, {24, 18, 24, 18}}
 	if !slices.Equal(picture.calls, want) || len(picture.passes) != 0 {
-		t.Errorf("the picture was drawn %v and apart %v, want a ring each %v and never apart",
+		t.Errorf("the picture was drawn %v and apart %v, want a layer each %v and never apart",
 			picture.calls, picture.passes, want)
 	}
 }

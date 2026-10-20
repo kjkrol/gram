@@ -25,7 +25,7 @@ type basicCamera struct {
 	fastening contract.Fastening
 	form      form
 	detail    contract.Detail
-	rings     []contract.Ring
+	layers    []contract.Layer
 	sharp     bool
 	// the frame while a part of it is drawn, to come back to
 	cropped *frame
@@ -58,7 +58,7 @@ var _ contract.Fitting = (*basicCamera)(nil)
 var _ contract.Focused = (*basicCamera)(nil)
 var _ contract.Detailed = (*basicCamera)(nil)
 var _ contract.Resolved = (*basicCamera)(nil)
-var _ contract.Ringed = (*basicCamera)(nil)
+var _ contract.Layered = (*basicCamera)(nil)
 var _ contract.Cropping = (*basicCamera)(nil)
 var _ contract.Figured = (*basicCamera)(nil)
 
@@ -162,10 +162,10 @@ func (c *basicCamera) SetResolution(s float32) { c.res = s }
 
 func (c *basicCamera) Resolution() float32 { return c.res }
 
-// SetRings has the picture drawn in rings, or whole for none or one.
-func (c *basicCamera) SetRings(rings []contract.Ring) { c.rings = slices.Clone(rings) }
+// SetLayers has the picture drawn in layers, or whole for none or one.
+func (c *basicCamera) SetLayers(layers []contract.Layer) { c.layers = slices.Clone(layers) }
 
-func (c *basicCamera) Rings() []contract.Ring { return slices.Clone(c.rings) }
+func (c *basicCamera) Layers() []contract.Layer { return slices.Clone(c.layers) }
 
 // SetSharpFigures has the figures drawn at every shown pixel while the ground is drawn at the
 // resolution, or at the resolution too.

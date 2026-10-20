@@ -18,17 +18,17 @@
 // Settings.Resolution of the pixels it is shown at (Config.Resolution to begin with;
 // camera.Resolved; the ui stays sharp), [Picture] sets it and [Resolution] steps a camera's, and
 // [Adapt] has it follow Settings.FrameBudget as its [Strategy] says: coarser while the frames
-// come slower, finer again while they keep up, the whole picture's (Uniform) or ring by ring
-// (InRings). A picture drawn whole below all its pixels draws its figures, all that lies over
+// come slower, finer again while they keep up, the whole picture's (Uniform) or layer by layer
+// (InLayers). A picture drawn whole below all its pixels draws its figures, all that lies over
 // the ground, at every pixel while its ground is drawn at the resolution (camera.Figured;
 // Config.SoftFigures and [SharpFigures] have them follow the ground's resolution instead, to
-// compare). Drawn in rings (Config.Rings, [Rings], camera.Ringed) a picture is the whole frame
+// compare). Drawn in layers (Config.Layers, [Layers], camera.Layered) a picture is the whole frame
 // at Settings.OuterRes of its pixels, its central Settings.Middle at MiddleRes and its central
-// Inner at the Resolution ([RingShares], [RingResolutions]; 0.6, 60% at 0.8, 35% at all to
-// begin with), a step taking one ring at a time: coarser the outermost first, each down to a
-// floor, finer the innermost first. A hand on the resolution or a ring's stops the following
+// Inner at the Resolution ([LayerShares], [LayerResolutions]; 0.6, 60% at 0.8, 35% at all to
+// begin with), a step taking one layer at a time: coarser the outermost first, each down to a
+// floor, finer the innermost first. A hand on the resolution or a layer's stops the following
 // (Still); the Settings show the first camera's picture, the sliders of the settings screen
-// with them. The telemetry panel shows it ([Plugin.Reporter]), [ShowRings] outlines the rings.
+// with them. The telemetry panel shows it ([Plugin.Reporter]), [ShowLayers] outlines the layers.
 //
 // # Cage
 //
@@ -64,13 +64,13 @@
 // In relief [View] switches the projection, [Turn] and [Tilt] move the stick, [Ride] takes it
 // behind and inside the entity it is fastened to, [LookFrom] and [LookAt] place the eye in
 // perspective and [Look] looks round riding, the cursor captured. [Resolution] draws a camera's
-// picture at a factor of its pixels, a ring at a time in rings. Each names its camera, taken
+// picture at a factor of its pixels, a layer at a time in layers. Each names its camera, taken
 // from the context by its binding, so the plugin never knows the players. The picture's
 // commands name none: [Adapt] has every picture's resolution follow the frame budget as its
 // Strategy says or stay, [Picture] draws every one at a resolution, [SharpFigures] its figures
-// at every pixel or at the ground's resolution, [Rings] in rings or whole, [RingShares] and
-// [RingResolutions] shape the rings, [Budget] sets the frame budget and [ShowRings] outlines
-// the rings. The plugin writes only the eye's part of a ridden entity's
+// at every pixel or at the ground's resolution, [Layers] in layers or whole, [LayerShares] and
+// [LayerResolutions] shape the layers, [Budget] sets the frame budget and [ShowLayers] outlines
+// the layers. The plugin writes only the eye's part of a ridden entity's
 // steering.Driven (Look, Flown, Climb).
 //
 // # Keys
@@ -81,7 +81,7 @@
 // two with Alt drawing a finer and a coarser picture. [DefaultKeys] are W, S, A, D, = and -,
 // Ctrl+= and Ctrl+-, Alt+= and Alt+-, with all three; [Plugin.DefaultBindings] are those, the
 // corners turning where the Config turns, Shift+H, Alt+A (the picture's resolution still,
-// following the frame budget, in rings, in turn) and the views' keys the Config gives: Q and E
+// following the frame budget, in layers, in turn) and the views' keys the Config gives: Q and E
 // turning, R looking down more steeply and F flatter, Tab switching between the orthographic
 // view and the perspective, V riding, the mouse looking round inside an entity.
 //
@@ -91,12 +91,12 @@
 // [Tilt],
 // [LookFrom], [LookAt], [Ride], [Look], [Sight], [Resolution]; a player's about every picture:
 // [Adapt] (the resolution following the frame budget as a [Strategy] says, Alt+A), [Picture]
-// (the resolution), [SharpFigures] (the figures at every pixel), [Rings] (drawn in rings),
-// [RingShares] and [RingResolutions] (the rings' shares of the frame and resolutions), [Budget]
-// (the frame budget), [ShowRings] (a look: the rings outlined); [Zones] (a look: the scroll
+// (the resolution), [SharpFigures] (the figures at every pixel), [Layers] (drawn in layers),
+// [LayerShares] and [LayerResolutions] (the layers' shares of the frame and resolutions), [Budget]
+// (the frame budget), [ShowLayers] (a look: the layers outlined); [Zones] (a look: the scroll
 // zones over every picture, Shift+H); [Follow] (a player's, or an entity's own fastening the
 // camera over itself).
 // Settings ([Settings], saved with the game, in [Resources]): the zones, the strategy, the
-// resolution, the figures at every pixel, the picture drawn in rings, the rings' shares and
-// resolutions, the frame budget, the rings shown.
+// resolution, the figures at every pixel, the picture drawn in layers, the layers' shares and
+// resolutions, the frame budget, the layers shown.
 package cameras

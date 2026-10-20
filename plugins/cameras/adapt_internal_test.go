@@ -114,7 +114,7 @@ func TestClamped_StaysBetweenTheLeastResolutionAndAllThePixels(t *testing.T) {
 	}
 }
 
-func TestStepRings_StepsTheOutermostRingCoarserFirstAndTheInnermostFinerFirst(t *testing.T) {
+func TestStepLayers_StepsTheOutermostRingCoarserFirstAndTheInnermostFinerFirst(t *testing.T) {
 	near := func(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
 	for _, c := range []struct {
 		name   string
@@ -129,27 +129,27 @@ func TestStepRings_StepsTheOutermostRingCoarserFirstAndTheInnermostFinerFirst(t 
 			{0.4, 0.6, 0.8235}, {0.4, 0.6, 0.9689}, {0.4, 0.6, 1}, {0.4, 0.7059, 1},
 		}},
 	} {
-		cam := cameratest.NewFromSpace(1000, 800, 0).(camera.Ringed)
+		cam := cameratest.NewFromSpace(1000, 800, 0).(camera.Layered)
 		shares := [3]float32{1, 0.6, 0.35}
-		rings := make([]camera.Ring, 3)
+		layers := make([]camera.Layer, 3)
 		for i, s := range c.from {
-			rings[i] = camera.Ring{Share: shares[i], Resolution: s}
+			layers[i] = camera.Layer{Share: shares[i], Resolution: s}
 		}
-		cam.SetRings(rings)
+		cam.SetLayers(layers)
 		for n, want := range c.steps {
-			centre := stepRings(cam, c.factor)
+			centre := stepLayers(cam, c.factor)
 			var got [3]float32
-			for i, ring := range cam.Rings() {
-				got[i] = ring.Resolution
+			for i, layer := range cam.Layers() {
+				got[i] = layer.Resolution
 			}
 			for i := range want {
 				if !near(got[i], want[i]) {
-					t.Errorf("%s, step %d: the rings are %.4v, want %.4v", c.name, n+1, got, want)
+					t.Errorf("%s, step %d: the layers are %.4v, want %.4v", c.name, n+1, got, want)
 					break
 				}
 			}
 			if centre != got[2] {
-				t.Errorf("%s, step %d: stepRings gave %v, want the centre's %v", c.name, n+1,
+				t.Errorf("%s, step %d: stepLayers gave %v, want the centre's %v", c.name, n+1,
 					centre, got[2])
 			}
 		}

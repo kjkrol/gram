@@ -11,7 +11,7 @@ import (
 )
 
 // Strategy is how the pictures' resolution follows the frame budget: not at all, the whole
-// picture's, or ring by ring (Settings.Strategy).
+// picture's, or layer by layer (Settings.Strategy).
 type Strategy uint8
 
 const (
@@ -19,27 +19,27 @@ const (
 	Still Strategy = iota
 	// Uniform steps the whole picture's resolution.
 	Uniform
-	// InRings has the picture drawn in rings and steps them, the outer rings first.
-	InRings
+	// InLayers has the picture drawn in layers and steps them, the outer layers first.
+	InLayers
 )
 
 // Settings is what the cameras let the players adjust, saved with the game: the scroll zones,
 // the picture's resolution and the Strategy following the frame budget, the figures drawn at
-// every pixel, the rings it is drawn in and whether their edges are shown.
+// every pixel, the layers it is drawn in and whether their edges are shown.
 type Settings struct {
 	Zones      bool
 	Strategy   Strategy
-	Resolution float32 // of the pixels, the centre ring's in rings
+	Resolution float32 // of the pixels, the centre layer's in layers
 	// the figures at the ground's resolution; zero, at every pixel, as a save from before the
 	// field loads
 	SoftFigures bool
-	Rings       bool
-	Inner       float32 // the inner ring's share of the frame
-	Middle      float32 // the middle ring's
-	OuterRes    float32 // the outer ring's resolution
-	MiddleRes   float32 // the middle ring's
+	Layers      bool
+	Inner       float32 // the inner layer's share of the frame
+	Middle      float32 // the middle layer's
+	OuterRes    float32 // the outer layer's resolution
+	MiddleRes   float32 // the middle layer's
 	FrameBudget time.Duration
-	ShowRings   bool
+	ShowLayers  bool
 }
 
 // Resources is what the cameras publish: their Settings.
@@ -48,80 +48,80 @@ type Resources struct {
 }
 
 // SetStrategy has every picture's resolution follow the frame budget as s says, or stay
-// (Settings.Strategy): the pictures drawn in rings under InRings, whole under Uniform.
+// (Settings.Strategy): the pictures drawn in layers under InLayers, whole under Uniform.
 func (p *Plugin) SetStrategy(s Strategy) {
 	p.Res.Settings.Strategy = s
 	if s != Still {
-		p.Res.Settings.Rings = s == InRings
+		p.Res.Settings.Layers = s == InLayers
 	}
 	p.adapter.on = s != Still
-	p.rering()
+	p.redress()
 }
 
 // Strategy is how the pictures' resolution follows the frame budget.
 func (p *Plugin) Strategy() Strategy { return p.Res.Settings.Strategy }
 
-// SetRings has every picture but a minimap's drawn in rings, or whole (Settings.Rings); a
+// SetLayers has every picture but a minimap's drawn in layers, or whole (Settings.Layers); a
 // Strategy saying otherwise stops (Still).
-func (p *Plugin) SetRings(on bool) {
-	p.Res.Settings.Rings = on
-	if s := p.Res.Settings.Strategy; s == InRings && !on || s == Uniform && on {
+func (p *Plugin) SetLayers(on bool) {
+	p.Res.Settings.Layers = on
+	if s := p.Res.Settings.Strategy; s == InLayers && !on || s == Uniform && on {
 		p.still()
 	}
-	p.rering()
+	p.redress()
 }
 
-// Rings reports whether the pictures are drawn in rings.
-func (p *Plugin) Rings() bool { return p.Res.Settings.Rings }
+// Layers reports whether the pictures are drawn in layers.
+func (p *Plugin) Layers() bool { return p.Res.Settings.Layers }
 
-// SetResolution has every picture but a minimap's drawn at r of its pixels, the centre ring's
-// in rings, LeastResolution up to 1 (Settings.Resolution), and stops the following (Still).
+// SetResolution has every picture but a minimap's drawn at r of its pixels, the centre layer's
+// in layers, LeastResolution up to 1 (Settings.Resolution), and stops the following (Still).
 func (p *Plugin) SetResolution(r float32) {
 	p.Res.Settings.Resolution = clamped(r)
 	p.still()
-	p.rering()
+	p.redress()
 }
 
-// Resolution is the share of its pixels every picture is drawn at, the centre ring's in rings.
+// Resolution is the share of its pixels every picture is drawn at, the centre layer's in layers.
 func (p *Plugin) Resolution() float32 { return p.Res.Settings.Resolution }
 
 // SetSharpFigures has every picture but a minimap's draw its figures, all that lies over the
 // ground, at every shown pixel while its ground is drawn at the resolution, or at the resolution
-// too (Settings.SoftFigures); a picture drawn in rings is drawn as it is.
+// too (Settings.SoftFigures); a picture drawn in layers is drawn as it is.
 func (p *Plugin) SetSharpFigures(on bool) {
 	p.Res.Settings.SoftFigures = !on
-	p.rering()
+	p.redress()
 }
 
 // SharpFigures reports whether the figures are drawn at every pixel.
 func (p *Plugin) SharpFigures() bool { return !p.Res.Settings.SoftFigures }
 
-// SetRingShares has the inner ring cover inner of the frame and the middle ring middle, at
+// SetLayerShares has the inner layer cover inner of the frame and the middle layer middle, at
 // least a tenth over the inner (Settings.Inner, Middle).
-func (p *Plugin) SetRingShares(inner, middle float32) {
+func (p *Plugin) SetLayerShares(inner, middle float32) {
 	inner = min(max(inner, 0.1), 0.8)
 	p.Res.Settings.Inner = inner
 	p.Res.Settings.Middle = min(max(middle, inner+0.1), 0.9)
-	p.rering()
+	p.redress()
 }
 
-// RingShares are the inner and the middle ring's shares of the frame.
-func (p *Plugin) RingShares() (inner, middle float32) {
+// LayerShares are the inner and the middle layer's shares of the frame.
+func (p *Plugin) LayerShares() (inner, middle float32) {
 	return p.Res.Settings.Inner, p.Res.Settings.Middle
 }
 
-// SetRingResolutions has the outer ring drawn at outer of its pixels and the middle ring at
+// SetLayerResolutions has the outer layer drawn at outer of its pixels and the middle layer at
 // middle, LeastResolution up to 1 (Settings.OuterRes, MiddleRes), and stops the following
 // (Still).
-func (p *Plugin) SetRingResolutions(outer, middle float32) {
+func (p *Plugin) SetLayerResolutions(outer, middle float32) {
 	p.Res.Settings.OuterRes = clamped(outer)
 	p.Res.Settings.MiddleRes = clamped(middle)
 	p.still()
-	p.rering()
+	p.redress()
 }
 
-// RingResolutions are the outer and the middle ring's resolutions.
-func (p *Plugin) RingResolutions() (outer, middle float32) {
+// LayerResolutions are the outer and the middle layer's resolutions.
+func (p *Plugin) LayerResolutions() (outer, middle float32) {
 	return p.Res.Settings.OuterRes, p.Res.Settings.MiddleRes
 }
 
@@ -138,12 +138,12 @@ func (p *Plugin) SetBudget(d time.Duration) {
 // Budget is the time a frame may take, which the resolution follows.
 func (p *Plugin) Budget() time.Duration { return p.Res.Settings.FrameBudget }
 
-// ShowRings shows the rings' edges over every picture drawn in rings, or hides them
-// (Settings.ShowRings).
-func (p *Plugin) ShowRings(shown bool) { p.Res.Settings.ShowRings = shown }
+// ShowLayers shows the layers' edges over every picture drawn in layers, or hides them
+// (Settings.ShowLayers).
+func (p *Plugin) ShowLayers(shown bool) { p.Res.Settings.ShowLayers = shown }
 
-// RingsShown reports whether the rings' edges are shown.
-func (p *Plugin) RingsShown() bool { return p.Res.Settings.ShowRings }
+// LayersShown reports whether the layers' edges are shown.
+func (p *Plugin) LayersShown() bool { return p.Res.Settings.ShowLayers }
 
 // still stops the following: a hand on a knob the adapter turns
 func (p *Plugin) still() {
@@ -151,29 +151,29 @@ func (p *Plugin) still() {
 	p.adapter.on = false
 }
 
-func (p *Plugin) rering() {
+func (p *Plugin) redress() {
 	for _, cam := range p.cameras {
-		p.ring(cam)
+		p.dress(cam)
 	}
 }
 
-// ring has cam drawn as the Settings say, in their rings or whole at their resolution, its
+// layer has cam drawn as the Settings say, in their layers or whole at their resolution, its
 // figures at every pixel or not, a minimap's as it is
-func (p *Plugin) ring(cam camera.Camera) {
+func (p *Plugin) dress(cam camera.Camera) {
 	if fitsWhole(cam) {
 		return
 	}
 	s := &p.Res.Settings
-	if c, ok := cam.(camera.Ringed); ok {
-		var rings []camera.Ring
-		if s.Rings {
-			rings = []camera.Ring{
+	if c, ok := cam.(camera.Layered); ok {
+		var layers []camera.Layer
+		if s.Layers {
+			layers = []camera.Layer{
 				{Share: 1, Resolution: s.OuterRes},
 				{Share: s.Middle, Resolution: s.MiddleRes},
 				{Share: s.Inner, Resolution: s.Resolution},
 			}
 		}
-		c.SetRings(rings)
+		c.SetLayers(layers)
 	}
 	if r, ok := cam.(camera.Resolved); ok {
 		r.SetResolution(s.Resolution)
@@ -199,10 +199,10 @@ func (p *Plugin) note(cam camera.Camera) {
 		return
 	}
 	s := &p.Res.Settings
-	if rings := camera.RingsOf(cam); len(rings) == 3 {
-		s.OuterRes = rings[0].Resolution
-		s.MiddleRes = rings[1].Resolution
-		s.Resolution = rings[2].Resolution
+	if layers := camera.LayersOf(cam); len(layers) == 3 {
+		s.OuterRes = layers[0].Resolution
+		s.MiddleRes = layers[1].Resolution
+		s.Resolution = layers[2].Resolution
 		return
 	}
 	s.Resolution = camera.ResolutionOf(cam)
@@ -214,7 +214,7 @@ func budgetRate(budget time.Duration) float64 {
 }
 
 // Settings are the scroll zones and the picture's: the strategy following the frame budget, the
-// resolution, the figures at every pixel, the budget, the rings and their edges shown
+// resolution, the figures at every pixel, the budget, the layers and their edges shown
 // (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
 	s := &p.Res.Settings
@@ -229,7 +229,7 @@ func (p *Plugin) Settings() []control.Setting {
 		control.Choice{
 			Label:   "Follows the frame budget",
 			Section: control.PictureResolution,
-			Options: []string{"no", "the whole picture", "in rings"},
+			Options: []string{"no", "the whole picture", "in layers"},
 			Get:     func() int { return int(s.Strategy) },
 			Set:     func(i int) command.Command { return Adapt{Strategy: Strategy(i)} },
 		},
@@ -262,65 +262,65 @@ func (p *Plugin) Settings() []control.Setting {
 			Shows: func(v float64) string { return fmt.Sprintf("%.0f FPS", v) },
 		},
 		control.Switch{
-			Label:   "Drawn in rings",
-			Section: control.PictureRings,
-			Get:     p.Rings,
-			Set:     func(on bool) command.Command { return Rings{On: on} },
+			Label:   "Drawn in layers",
+			Section: control.PictureLayers,
+			Get:     p.Layers,
+			Set:     func(on bool) command.Command { return Layers{On: on} },
 		},
 		control.Range{
-			Label:   "Inner ring",
-			Section: control.PictureRings,
+			Label:   "Inner layer",
+			Section: control.PictureLayers,
 			Min:     20,
 			Max:     60,
 			Step:    5,
 			Get:     func() float64 { return math.Round(float64(s.Inner) * 100) },
 			Set: func(v float64) command.Command {
 				inner := float32(v / 100)
-				return RingShares{Inner: inner, Middle: max(s.Middle, float32(v/100+0.1))}
+				return LayerShares{Inner: inner, Middle: max(s.Middle, float32(v/100+0.1))}
 			},
 			Shows: percent,
 		},
 		control.Range{
-			Label:   "Middle ring",
-			Section: control.PictureRings,
+			Label:   "Middle layer",
+			Section: control.PictureLayers,
 			Min:     40,
 			Max:     90,
 			Step:    5,
 			Get:     func() float64 { return math.Round(float64(s.Middle) * 100) },
 			Set: func(v float64) command.Command {
-				return RingShares{Inner: min(s.Inner, float32(v/100-0.1)), Middle: float32(v / 100)}
+				return LayerShares{Inner: min(s.Inner, float32(v/100-0.1)), Middle: float32(v / 100)}
 			},
 			Shows: percent,
 		},
 		control.Range{
-			Label:   "Outer ring resolution",
-			Section: control.PictureRings,
+			Label:   "Outer layer resolution",
+			Section: control.PictureLayers,
 			Min:     LeastResolution,
 			Max:     1,
 			Step:    0.05,
 			Get:     func() float64 { return float64(s.OuterRes) },
 			Set: func(v float64) command.Command {
-				return RingResolutions{Outer: float32(v), Middle: s.MiddleRes}
+				return LayerResolutions{Outer: float32(v), Middle: s.MiddleRes}
 			},
 			Shows: hundredths,
 		},
 		control.Range{
-			Label:   "Middle ring resolution",
-			Section: control.PictureRings,
+			Label:   "Middle layer resolution",
+			Section: control.PictureLayers,
 			Min:     LeastResolution,
 			Max:     1,
 			Step:    0.05,
 			Get:     func() float64 { return float64(s.MiddleRes) },
 			Set: func(v float64) command.Command {
-				return RingResolutions{Outer: s.OuterRes, Middle: float32(v)}
+				return LayerResolutions{Outer: s.OuterRes, Middle: float32(v)}
 			},
 			Shows: hundredths,
 		},
 		control.Switch{
-			Label:   "Show the rings",
+			Label:   "Show the layers",
 			Section: control.PictureAreas,
-			Get:     p.RingsShown,
-			Set:     func(on bool) command.Command { return ShowRings{Shown: on} },
+			Get:     p.LayersShown,
+			Set:     func(on bool) command.Command { return ShowLayers{Shown: on} },
 		},
 	}
 }
