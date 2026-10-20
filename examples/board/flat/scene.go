@@ -35,6 +35,7 @@ var (
 	railColor   = color.RGBA{R: 70, G: 50, B: 35, A: 255}
 	stoneColor  = color.RGBA{R: 150, G: 145, B: 135, A: 255}
 	reasonColor = color.RGBA{R: 20, G: 20, B: 20, A: 180}
+	pausedColor = color.RGBA{R: 120, G: 30, B: 30, A: 200}
 	minimapRim  = color.RGBA{R: 30, G: 30, B: 30, A: 255}
 )
 
@@ -53,11 +54,16 @@ func (m *mainScene) screen() *ui.Element {
 	a.board.WithAtmosphere(a.atmosphere)
 	a.vision.WithViews(render.Show(a.selection.IsSelected))
 
+	paused := func() bool { return a.world.Clock().State().Paused }
 	cam := a.cameras.New(cameras.FromAbove, camera.Config{})
 	return ui.Layers(
 		ui.Image(render.NewFeed(cam, a.world.Picture())).Input(a.players.Through(a.player)),
 		ui.Drawer(a.world.Clock().HUD()),
-		ui.TopMiddle(a.atmosphere.Bar()).Margin(8),
+		ui.TopMiddle(ui.Rows(
+			ui.Fit(a.atmosphere.Bar()),
+			ui.Fit(ui.Center(ui.HeadingOf(ui.While(paused, "PAUSED")).Padding(6).
+				Fill(pausedColor).Margin(4))),
+		)).Margin(8),
 		ui.TopRight(ui.Layers(
 			ui.Center(a.minimap.For(cam, a.player.ID).Masked(ui.Circle).Border(minimapRim, 2)).
 				Size(220, 220),

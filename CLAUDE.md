@@ -148,8 +148,8 @@ Decisions the user has made; they are not up for revisiting in passing.
 - **A command is a `command.Command`** by its method `Command()`, confirmed where it is defined
   (`var _ command.Command = MoveTo{}` beside the type). Whatever takes commands takes a
   `command.Command`, never `any`.
-- **The default keys are the same in every game and no demo repeats one**: Shift+P the tactical
-  pause, Shift+Esc quits, K lists the keys, F10 the settings screen, ~ the telemetry panel (the
+- **The default keys are the same in every game and no demo repeats one**: P and Shift+P the
+  tactical pause, Shift+Esc quits, K lists the keys, F10 the settings screen, ~ the telemetry panel (the
   basics, everything, hidden, in turn), F5 saves, F9 loads, F11 full screen, ] and [ the tempo,
   Shift+B the bridge tool, Space jumps in first person, = and - zoom, Shift+= and Shift+- shape
   the relief (L and a left drag level it), Ctrl+= and Ctrl+- the camera's sight (farther,

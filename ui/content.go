@@ -54,6 +54,19 @@ type Text interface {
 // LabelOf is a Label whose words t says, every frame: a pinned element's for its entity.
 func LabelOf(t Text) *Element { return newElement(&label{src: t}) }
 
+// HeadingOf is a Heading whose words t says, every frame, as LabelOf.
+func HeadingOf(t Text) *Element { return newElement(&label{src: t, weight: heading}) }
+
+// While is a Text saying text while on says so, and nothing else: an element left out till then.
+func While(on func() bool, text string) Text { return while{on: on, text: text} }
+
+type while struct {
+	on   func() bool
+	text string
+}
+
+func (w while) Text(uid.UID64, bool) (string, bool) { return w.text, w.on() }
+
 // Of is a Text read off the component T of the entity an element is pinned to: fn says the
 // words. An entity without T, or an element pinned to none, says nothing.
 func Of[T any](fn func(v *T) (string, bool)) Text { return &readOff[T]{fn: fn} }

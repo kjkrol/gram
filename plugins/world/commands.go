@@ -17,8 +17,8 @@ type Despawn struct{}
 // box wholly past an open edge) is logged, never a panic.
 type Spawn struct{ Entry kind.Entry }
 
-// Pause switches the tactical pause: game time stands, the cameras and the picture go on. Shift+P
-// by default.
+// Pause switches the tactical pause: game time stands, the cameras and the picture go on. P and
+// Shift+P by default.
 type Pause struct{}
 
 // Faster raises the tempo of the simulation a notch. ] by default.
@@ -104,11 +104,13 @@ func (p *Plugin) Settings() []control.Setting {
 		})
 }
 
-// DefaultBindings are the clock's keys: Shift+P pauses, ] goes faster, [ slower. The sectors
-// drawn and their bands are the settings screen's.
+// DefaultBindings are the clock's keys: P and Shift+P pause, ] goes faster, [ slower. The
+// sectors drawn and their bands are the settings screen's.
 func (p *Plugin) DefaultBindings() []control.Binding {
+	pause := func(control.Context) (Pause, bool) { return Pause{}, true }
 	return []control.Binding{
-		control.Build(control.KeyPress{Key: control.KeyP, Mods: control.Mods{Shift: true}}, "Pause the game", func(control.Context) (Pause, bool) { return Pause{}, true }),
+		control.Build(control.KeyPress{Key: control.KeyP}, "Pause the game", pause),
+		control.Build(control.KeyPress{Key: control.KeyP, Mods: control.Mods{Shift: true}}, "Pause the game", pause),
 		control.Build(control.KeyPress{Key: control.KeyBracketRight}, "Speed the game up", func(control.Context) (Faster, bool) { return Faster{}, true }),
 		control.Build(control.KeyPress{Key: control.KeyBracketLeft}, "Slow the game down", func(control.Context) (Slower, bool) { return Slower{}, true }),
 	}

@@ -14,6 +14,8 @@ type mainScene struct {
 	arena *arena
 }
 
+var pausedColor = color.RGBA{R: 120, G: 30, B: 30, A: 200}
+
 var cellColors = map[string]color.RGBA{
 	WaterCell:  {R: 40, G: 90, B: 170, A: 255},
 	SandCell:   {R: 215, G: 195, B: 140, A: 255},
@@ -31,10 +33,15 @@ func (m *mainScene) screen() *ui.Element {
 		Style(RockCell, painter.Style{Spread: 0.25})
 	a.topography.WithAtmosphere(a.atmosphere)
 
+	paused := func() bool { return a.world.Clock().State().Paused }
 	cam := a.cameras.New(cameras.Isometrically, camera.Config{})
 	return ui.Layers(
 		ui.Image(render.NewFeed(cam, a.world.Picture())).Input(a.players.Through(a.player)),
 		ui.Drawer(a.world.Clock().HUD()),
-		ui.TopMiddle(a.atmosphere.Bar()).Margin(8),
+		ui.TopMiddle(ui.Rows(
+			ui.Fit(a.atmosphere.Bar()),
+			ui.Fit(ui.Center(ui.HeadingOf(ui.While(paused, "PAUSED")).Padding(6).
+				Fill(pausedColor).Margin(4))),
+		)).Margin(8),
 	)
 }

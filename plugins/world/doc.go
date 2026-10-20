@@ -64,8 +64,8 @@
 //
 // # Clock and the tick
 //
-// The world keeps the tactical clock ([Plugin.Clock]) and the commands [Pause], [Faster] and
-// [Slower] on it. [Plugin.RunPlan] runs the tick: the clock's commands, the sectors and the views
+// The world keeps the tactical clock ([Plugin.Clock]) and the commands [Pause] (P, Shift+P),
+// [Faster] and [Slower] on it. [Plugin.RunPlan] runs the tick: the clock's commands, the sectors and the views
 // at once; in every step of the simulation the plans, the spawns and the despawns, the commands
 // about effects, the clock's moments and the effects, the space told of every entity after a
 // spawn or a despawn. [Plugin.Carrier] is the Stage's one carrier of commands.

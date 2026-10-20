@@ -84,6 +84,7 @@ func (m *mainScene) screen() *ui.Element {
 		Minimap:    a.minimap.For(cam, a.player.ID),
 		Compass:    a.minimap.Compass(cam),
 		Clock:      a.world.Clock().HUD(),
+		Paused:     func() bool { return a.world.Clock().State().Paused },
 		Atmosphere: a.atmosphere,
 		Reason:     a.bridges.Reason(),
 		Window:     a.bridges.Window(),

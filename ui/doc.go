@@ -25,9 +25,9 @@
 // [Element.Modal] makes hold the input while shown; [Blank] a gap; [Drawer] a screen renderer;
 // [Scroll] an element taller than its box, scrolled by its bar or the wheel. Any
 // element takes [Element.Fill], [Element.Border] and [Element.Padding]. [LabelOf], [ButtonOf] and
-// [WindowOf] read their words off a [Text] every frame, for the entity a pinned element is shown
-// for; [Of] is a Text read off a component of that entity. A Text saying nothing leaves its
-// element out.
+// [WindowOf] ([HeadingOf] too) read their words off a [Text] every frame, for the entity a pinned
+// element is shown for; [Of] is a Text read off a component of that entity, [While] one saying
+// its words while a function says so. A Text saying nothing leaves its element out.
 //
 // # Controls
 //
