@@ -118,8 +118,18 @@ session trailer (no `Co-Authored-By`), and touches no docs, skills, `BENCHMARKS.
 `CHANGELOG.md` or `go.mod`: those are the integrator's. The integrator merges the parts into the
 stage's branch in the order the plan says, resolves the seams, runs the whole sequence and every
 demo, measures (the stage's base and the tree alternately, an idle machine), writes the docs and
-the stage's result in `doc/plans-perf.md`, and removes the worktrees; the user reviews and merges
-the stage's branch into `main`.
+the stage's result in `doc/plans-perf.md`, and removes the worktrees, then merges the stage's
+branch into `main` with `git merge --no-ff` (the user's word, 2026-10-20: in this repository
+alone; goke, ceremony and aabbworld are merged, tagged and bumped in `go.mod` by the user, and
+`main`'s tags and pushes are the user's everywhere).
+
+A stage may also run in sessions instead of agents (2026-10-20): the integrator writes a brief
+a part in `doc/briefs/` (the goal, the plan's section, the repository, branch and worktree, the
+files it may touch and the seams it may not, the skills to read, the steps, the tests, the
+measurement, the verification and the report), the user opens a Claude Code session on it, the
+session works and commits as a part's agent does, and the integrator (any later session, Fable
+or Opus, starting from `doc/plans-perf.md` "Wykonanie w sesjach" and the briefs) merges,
+measures and documents as above.
 
 ## Rules of the house
 

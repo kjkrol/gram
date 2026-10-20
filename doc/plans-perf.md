@@ -686,3 +686,49 @@ tańsza: jedno składanie, głębie są już per warstwa), Directy rysowane raz 
 umieszczane jak kawałki (wymaga `Place` w `DrawMesh`). Adapter w warstwach nadal nie mierzony
 (demo spoczywa w paśmie budżetu). Worktree części usunięte po scaleniu; gałęzie `u/*` zostają
 do przeglądu.
+
+## Wykonanie w sesjach: etapy 2–6 i dźwignie po U (plan 2026-10-20, `main` `21e9e106`)
+
+Reguła: `CLAUDE.md` „A stage in parts”, wariant w sesjach. Integrator (ta albo dowolna
+późniejsza sesja, Fable albo Opus, uruchomiona w `/home/karol/CODE/goke`, gdzie leży pamięć
+projektu) pisze briefy w `doc/briefs/`, użytkownik otwiera na każdy brief osobną sesję Claude
+Code, sesja pracuje i commituje na swojej gałęzi, integrator scala do gałęzi etapu, mierzy,
+pisze dokumenty i scala etap do `main` (`--no-ff`). W goke i aabbworld scala, taguje i podbija
+`gram/go.mod` użytkownik; to ścieżka krytyczna fali 2.
+
+**Co odpada.** „Operacje strukturalne hurtem przez CmdBuf” w goke są zrobione (3.x: `Editor`,
+`ValueEditor`, `Remover` jako odroczone partie przez `Query.BeginMigrate`/`Commit`, kompaktowanie
+po zebraniu); zostaje tylko uwaga z etapu 4 (`RemoveComp` wielu komponentów jednym poleceniem
+poza `Editor`), do raportu, nie do roboty.
+
+**Podział na sesje** (litera gałęzi: `n` nawigacja, `c` przebiegi chunków, `v` wersje,
+`r` dźwignie obrazu, `m` lustro; gałąź części `<litera>/<część>`, worktree gram pod
+`/home/karol/worktrees/gram/<część>`; goke i aabbworld na własnych gałęziach w swoich repo):
+
+| Fala | Brief | Repo, gałąź | Zależy od | Etap, gałąź etapu w gram |
+|:--|:--|:--|:--|:--|
+| 1 | `2a-nav-astar` | gram `n/astar` | — | 2, `perf/navigation` |
+| 1 | `3a-aabbworld-runs` | aabbworld `feat/runs` | — | 3, `perf/chunk-runs` |
+| 1 | `4a-goke-versions` | goke `feat/chunk-versions` | — | 4, `perf/chunk-versions` |
+| 1 | `r1-aloft-over` | gram `r/aloft` | — | R, `perf/layer-levers` |
+| 1 | `r2-layers-placed` | gram `r/placed` | — (szew z r1 w `composer.go`) | R, `perf/layer-levers` |
+| 2 | `2b-nav-bodies` | gram `n/bodies` | 2a scalone do `perf/navigation` | 2 |
+| 2 | `3b-gram-runs` | gram `c/runs` | aabbworld wydane, `go.mod` podbity | 3 |
+| 2 | `4b-gram-mut` | gram `v/mut` | goke wydane; po 3b (te same pliki motion/collision) | 4 |
+| 3 | decyzja `Still` (integrator, po pomiarze 4b) → `5-sprite-mirror` | gram `m/mirror` | 3b, 4b, decyzja | 5, `perf/sprite-mirror` |
+| — | etap 6 | — | bramka zamknięta (etap 0, pkt 6) | tylko gdy wzrok zgęstnieje |
+
+Kolejność uzasadniona: fala 1 to pięć niezależnych zbiorów plików w trzech repozytoriach
+(nawigacja; aabbworld; goke; aloft z przebiegiem górnym; feed/composer/gpu), więc idą naraz;
+3a i 4a najwcześniej, bo ich wydania blokują falę 2; 2b po 2a (te same pliki nawigacji);
+4b po 3b, bo oba przepisują `rebuild`/`moved` w motion i collision; 5 dopiero po decyzji o
+znaczniku `Still` (etap 4, akapit „W gram, po wydaniu”), bez której wersje per chunk mówią
+„wszystko brudne”.
+
+**Integracja po każdej fali** (integrator): scalenie części na gałąź etapu, pełna sekwencja,
+każde demo z kamerami pod `timeout`, pomiar bazy i drzewa naprzemiennie na bezczynnej maszynie
+(`gram-probe` § Checking a change; benchmarki nazwane w briefach), `BENCHMARKS.md`,
+`CHANGELOG.md`, skille, sekcja „Etap N: wynik” tutaj, `--no-ff` do `main`, worktree usunięte,
+gałęzie części zostawione do przeglądu.
+
+**Stan** (integrator aktualizuje): fala 1 — briefy napisane 2026-10-20, sesje nieotwarte.
