@@ -29,6 +29,9 @@ type Target struct {
 	Depth  *Depth
 	Ground *Depth
 	Pass   Pass
+	// Coarse is how many of the screen's pixels each way a pixel of the ground under the pass
+	// spans, its coarsest layer's, over grounds laid apart (Laid.DrawOver); 0, as 1, elsewhere.
+	Coarse float32
 }
 
 // Uniforms is the composer's shader's uniforms this frame, by name, for a Direct source.

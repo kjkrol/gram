@@ -376,6 +376,9 @@ func (c *Composer) renderOver(screen *Image) {
 			if l.ground != d.ground {
 				screen.PlaceDepth(l.ground, d.ground, l.at)
 			}
+			if w, h := l.ground.Size(); w > 0 && h > 0 {
+				t.Coarse = max(t.Coarse, l.at.W/float32(w), l.at.H/float32(h))
+			}
 		}
 		t.Depth, c.depth = d.ground, d.ground
 		if f.ground {
