@@ -339,7 +339,8 @@ func (c *Composer) renderOver(screen, ground *Image) {
 	if g := c.grounded; g != nil && screen != nil && ground != nil && g.fits(ground) {
 		d := c.depthsFor(screen)
 		if d != g {
-			screen.ScaleDepth(g.ground, d.ground)
+			w, h := screen.tex.Size()
+			screen.PlaceDepth(g.ground, d.ground, camera.Window{W: float32(w), H: float32(h)})
 		}
 		t.Depth, c.depth = d.ground, d.ground
 		if f.ground {
