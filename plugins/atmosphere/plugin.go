@@ -329,6 +329,11 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.shineRun, d)
 	ctx.Sync()
 	clock.Simulate(m.clock, ctx, d, m.step)
+	// a weather asked for while the clock stands is entered at once, no time passing
+	if m.clock.State().Paused && m.p.climate.Asked() {
+		ctx.Run(m.climateRun, 0)
+		ctx.Sync()
+	}
 }
 
 func (m *module) simulate(ctx goke.RunCtx, step time.Duration) {

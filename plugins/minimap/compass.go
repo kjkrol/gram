@@ -4,8 +4,6 @@ import (
 	"image/color"
 	"math"
 
-	"golang.org/x/image/font/gofont/gobold"
-
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
@@ -17,21 +15,17 @@ var northColor = color.RGBA{R: 230, G: 40, B: 40, A: 255}
 // the box it lays the compass over on every side.
 const Overhang = 20
 
-// how much of the letter stands over the circle's edge
-const northOut = 0.75
+// the triangle's height and width, and how much of its height stands over the circle's edge
+const (
+	northTall = 18
+	northWide = 16
+	northOut  = 0.75
+)
 
-var northFont = func() *render.Font {
-	f, err := render.NewFont(gobold.TTF, 28)
-	if err != nil {
-		panic("minimap: the compass's font: " + err.Error())
-	}
-	return f
-}()
-
-// Compass is a red bold "N" hung on the edge of cam's minimap where north lies, three quarters
-// of it over the edge, turned round the circle as the minimap turns: a picture for the scene to
-// lay over the minimap in a box Overhang pixels bigger than the minimap's on every side
-// (ui.Layers of the minimap centred at its size and the compass), transparent elsewhere.
+// Compass is a red triangle hung on the edge of cam's minimap pointing north, three quarters
+// of it over the edge, turned round the circle and with it as the minimap turns: a picture for
+// the scene to lay over the minimap in a box Overhang pixels bigger than the minimap's on every
+// side (ui.Layers of the minimap centred at its size and the compass), transparent elsewhere.
 // Nothing for a camera without a minimap of the plugin's.
 func (p *Plugin) Compass(cam camera.Camera) *ui.Element {
 	for _, m := range p.maps {
@@ -42,7 +36,7 @@ func (p *Plugin) Compass(cam camera.Camera) *ui.Element {
 	return ui.Blank()
 }
 
-// compass draws the letter over a transparent picture of the box's size
+// compass draws the triangle over a transparent picture of the box's size
 type compass struct {
 	m    *minimap
 	w, h int
@@ -64,26 +58,37 @@ func (c *compass) Draw() *render.Image {
 		c.img = render.NewImage(c.w, c.h)
 	}
 	c.img.Clear()
-	x, y := c.at()
-	w, h := northFont.Measure("N")
-	render.DrawText(c.img, northFont, "N", x-w/2, y-h/2, northColor)
+	render.FillPolygon(c.img, c.points(), northColor)
 	return c.img
 }
 
-// at is the letter's middle in the box: on the way north from the box's middle, the circle's
-// radius and the letter's quarter out
-func (c *compass) at() (float32, float32) {
+// north is the way north runs on the picture, a unit vector: (0, -1) in the world, on a
+// picture whose up is the lens's ahead (ax, ay), right ahead turned a quarter clockwise
+func (c *compass) north() (float64, float64) {
 	l := c.m.lens
-	// north, (0, -1) in the world, on the picture whose up is the lens's ahead (ax, ay): right
-	// is ahead turned a quarter clockwise, as the lens projects
 	dx, dy := -float64(l.ax), float64(l.ay)
 	if n := math.Hypot(dx, dy); n > 0 {
-		dx, dy = dx/n, dy/n
-	} else {
-		dx, dy = 0, -1
+		return dx / n, dy / n
 	}
-	_, h := northFont.Measure("N")
+	return 0, -1
+}
+
+// at is the triangle's middle in the box: on the way north from the box's middle, the circle's
+// radius and the triangle's quarter out
+func (c *compass) at() (float32, float32) {
+	dx, dy := c.north()
 	radius := float64(min(c.w, c.h))/2 - Overhang
-	d := radius + float64(h)*(northOut-0.5)
+	d := radius + northTall*(northOut-0.5)
 	return float32(float64(c.w)/2 + dx*d), float32(float64(c.h)/2 + dy*d)
+}
+
+// points is the triangle: its tip north of its middle, its base across
+func (c *compass) points() [][2]float32 {
+	dx, dy := c.north()
+	mx, my := c.at()
+	tip := [2]float32{mx + float32(dx*northTall/2), my + float32(dy*northTall/2)}
+	bx, by := mx-float32(dx*northTall/2), my-float32(dy*northTall/2)
+	// across is north turned a quarter
+	ax, ay := float32(-dy*northWide/2), float32(dx*northWide/2)
+	return [][2]float32{tip, {bx + ax, by + ay}, {bx - ax, by - ay}}
 }

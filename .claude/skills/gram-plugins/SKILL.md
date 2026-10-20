@@ -396,7 +396,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   the moon and the weather are the widgets' (a game without them adds
   `Calendar().Reporter()` and `Climate().Reporter()`). The settings screen's atmosphere section
   has a choice "Weather" of the climate's weathers by name (`SetWeather{Name}`; `Climate.Now()`
-  the one over the world's middle, set by the system) where the Config has any.
+  the one over the world's middle, set by the system) where the Config has any; a weather asked
+  for while the clock stands (the settings screen's pause) is entered at once, the climate's
+  system run with no time passing (`Climate.Asked`).
   `atmosphere/calendar`: the clock at a fixed scale — a day every `Config.DayRealTime` from
   `Start` in the middle of `Season`, a `GameYear` of 8 days and a 4-day moon or an `EarthYear`;
   `Calendar.Now()` a `Moment{Date, Time, Year}` (`OfYear`, `Season`, `Moon`, `Hour`, `Written`),
@@ -1094,8 +1096,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Styled(minimap.Mark{...})` in its figure's `Look`, looked up once a sprite; a square dot
   `OnTop(1)`; a kind without one not drawn) and the outline of `cam`'s screen on the ground
   (`camera.Picker`, past the horizon cut at twice the reach; `OnTop(2)`). North is a second
-  element, `Compass(cam) *ui.Element` (2026-10-20): a red bold "N" (Go Bold 28) hung on the
-  circle's edge three quarters out, turned round it as the minimap turns, a transparent picture
+  element, `Compass(cam) *ui.Element` (2026-10-20): a red triangle (18 by 16 px) hung on the
+  circle's edge three quarters out, pointing north, turned round the circle and with it as the
+  minimap turns, a transparent picture
   the scene lays over the minimap in a box `minimap.Overhang` (20) bigger on every side
   (`ui.Layers(ui.Center(minimap).Size(220, 220), compass)` sized 260). Drawn anew at most 30
   times a second (`paced`), the last picture in between. A press on it is its own

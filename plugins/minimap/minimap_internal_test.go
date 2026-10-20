@@ -385,7 +385,7 @@ func TestGround_LiesTurnedAsTheMinimapIs(t *testing.T) {
 	}
 }
 
-func TestCompass_HangsOnTheCirclesEdgeWhereNorthLiesTurningWithTheMinimap(t *testing.T) {
+func TestCompass_HangsOnTheCirclesEdgePointingNorthTurningWithTheMinimap(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
@@ -400,20 +400,22 @@ func TestCompass_HangsOnTheCirclesEdgeWhereNorthLiesTurningWithTheMinimap(t *tes
 	surface := &compass{m: p.maps[0]}
 	side := 220 + 2*Overhang
 	surface.Resize(side, side)
-	_, h := northFont.Measure("N")
-	out := 110 + float64(h)*(northOut-0.5)
+	out := 110 + float64(northTall)*(northOut-0.5)
 	mid := float64(side) / 2
 	x, y := surface.at()
 	if dx, dy := float64(x)-mid, float64(y)-mid; math.Abs(dx) > 0.5 || math.Abs(dy+out) > 0.5 {
-		t.Errorf("north up, the N's middle is (%.1f, %.1f) from the box's middle, want (0, %.1f): "+
-			"straight up, a quarter of the letter in", dx, dy, -out)
+		t.Errorf("north up, the triangle's middle is (%.1f, %.1f) from the box's middle, want "+
+			"(0, %.1f): straight up, a quarter of it in", dx, dy, -out)
 	}
 	p.maps[0].of = turned{cam, 1, 0}
 	p.maps[0].follow(true)
 	x, y = surface.at()
 	if dx, dy := float64(x)-mid, float64(y)-mid; math.Abs(dx+out) > 0.5 || math.Abs(dy) > 0.5 {
-		t.Errorf("headed east, the N's middle is (%.1f, %.1f) from the box's middle, want (%.1f, "+
-			"0): on the left", dx, dy, -out)
+		t.Errorf("headed east, the triangle's middle is (%.1f, %.1f) from the box's middle, want "+
+			"(%.1f, 0): on the left", dx, dy, -out)
+	}
+	if pts := surface.points(); pts[0][0] >= float32(mid-out) {
+		t.Errorf("headed east, the tip at %v points %v, want left, past the base", pts[0], pts[1:])
 	}
 	if img := surface.Draw(); img == nil || img.Bounds().Dx() != side {
 		t.Errorf("the compass drew %v, want a picture %d wide", img, side)

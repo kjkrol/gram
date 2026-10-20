@@ -55,6 +55,9 @@ func New(w *world.Plugin, cal *calendar.Calendar, cfg Config) *Climate {
 // Config is the climate's, with its defaults filled in.
 func (c *Climate) Config() Config { return c.cfg }
 
+// Asked reports whether a weather was asked for (Set, Change) and not yet entered.
+func (c *Climate) Asked() bool { return len(c.asked) > 0 }
+
 // Now is the name of the weather over the world's middle, empty before the first step.
 func (c *Climate) Now() string { return c.now }
 

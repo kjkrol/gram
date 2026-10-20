@@ -47,18 +47,17 @@ func Screen(d Deps) *ui.Element {
 			d.Compass,
 		)).Size(minimapBox, minimapBox).Margin(16-minimap.Overhang),
 		timeAndWeather(d),
-		// over the bar
-		ui.BottomMiddle(d.Reason.Padding(6).Fill(reasonColor)).Margin(48),
+		ui.BottomMiddle(d.Reason.Padding(6).Fill(reasonColor)).Margin(40),
 		ui.Center(d.Window),
 	)
 }
 
-// the bar at the bottom, clear of the telemetry panel growing down the left, or apart: the hour
-// over the clock, the date at the top, the weather under the minimap
+// the bar at the top, or apart: the hour over the clock, the date at the top, the weather
+// under the minimap
 func timeAndWeather(d Deps) *ui.Element {
 	a := d.Atmosphere
 	if !d.Widgets {
-		return ui.BottomMiddle(a.Bar()).Margin(8)
+		return ui.TopMiddle(a.Bar()).Margin(8)
 	}
 	return ui.Layers(
 		// the clock's line is 20 pixels over the bottom
