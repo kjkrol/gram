@@ -253,7 +253,8 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 		mt.Leg = Leg{From: previous, To: expected, C1: c1, C2: c2, Diagonal: true, Active: true}
 		order.Slice(&f.Cursor)[0] = mt
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		for _, c := range mt.Leg.cells() {
+		cells, n := mt.Leg.cells()
+		for _, c := range cells[:n] {
 			occupancy.Enter(c, false, id, cell.Land)
 		}
 

@@ -154,19 +154,26 @@ type spot struct {
 	deck bool
 }
 
-func (l Leg) cells() []cell.ID {
+// the first n
+func (l Leg) cells() (cells [4]cell.ID, n int) {
 	if l.Diagonal {
-		return []cell.ID{l.From, l.To, l.C1, l.C2}
+		return [4]cell.ID{l.From, l.To, l.C1, l.C2}, 4
 	}
-	return []cell.ID{l.From, l.To}
+	return [4]cell.ID{l.From, l.To}, 2
 }
 
-func (l Leg) held() []spot {
-	held := []spot{{l.From, l.FromDeck}, {l.To, l.ToDeck}}
+func (l Leg) covers(c cell.ID) bool {
+	cells, n := l.cells()
+	return slices.Contains(cells[:n], c)
+}
+
+// the first n
+func (l Leg) held() (held [4]spot, n int) {
+	held = [4]spot{{l.From, l.FromDeck}, {l.To, l.ToDeck}, {l.C1, false}, {l.C2, false}}
 	if l.Diagonal && !l.Decked {
-		held = append(held, spot{l.C1, false}, spot{l.C2, false})
+		return held, 4
 	}
-	return held
+	return held, 2
 }
 
 type navigationSystem struct {
@@ -177,7 +184,8 @@ type navigationSystem struct {
 	space      *aabbworld.Space
 	pathFinder *pathFinder
 	keep       keeping
-	bodies     []body
+	gathering  func([]body) []body // the method value, bound once
+	finished   []uid.UID64         // a chunk's ids whose order is over
 	// who came at each unit last tick and this tick, swapped at the tick's end, so two coming at
 	// each other's cells know it whatever order the chunks come in
 	wanted, wanting map[uid.UID64]uid.UID64
@@ -239,7 +247,15 @@ const bumpInterval = 500 * time.Millisecond
 const arrivalEpsilon = 2.0
 
 func newNavigationSystem(pathFinder *pathFinder, grid grid.Grid, terrain cell.Terrain, occupancy cell.Occupancy) *navigationSystem {
-	return &navigationSystem{grid: grid, terrain: terrain, occupancy: occupancy, pathFinder: pathFinder, keep: newCellKeeping(pathFinder, occupancy)}
+	s := &navigationSystem{
+		grid:       grid,
+		terrain:    terrain,
+		occupancy:  occupancy,
+		pathFinder: pathFinder,
+		keep:       newCellKeeping(pathFinder, occupancy),
+	}
+	s.gathering = s.gather
+	return s
 }
 
 func (s *navigationSystem) withKeeping(k keeping) *navigationSystem {
@@ -281,7 +297,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	if v, ok := s.terrain.(interface{ Version() uint64 }); ok && v.Version() != s.terrainSeen {
 		s.terrainSeen, changed = v.Version(), true
 	}
-	s.keep.begin(s.gather)
+	s.keep.begin(s.gathering)
 	s.bump()
 	s.touched = s.touched[:0]
 	if s.felt == nil {
@@ -312,7 +328,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		bases := s.base.Slice(cursor)
 		states := s.states.Slice(cursor)
 
-		var arrivedIDs []uid.UID64
+		arrivedIDs := s.finished[:0]
 
 		steers, courses := s.steer.Slice(cursor), s.course.Slice(cursor)
 		movers := s.mover.Slice(cursor)
@@ -427,7 +443,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				*leg = Leg{}
 				p.Length = 0
 				st.RequestSpeed(0)
-			case leg.Active && !slices.Contains(leg.cells(), actual):
+			case leg.Active && !leg.covers(actual):
 				s.releaseLeg(*leg, id)
 				s.occupancy.Enter(actual, onDeck, id, domain)
 				moveTo(actual)
@@ -663,6 +679,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			}
 			buf.Commit(s.arrivedEditor)
 		}
+		s.finished = arrivedIDs
 		for _, id := range s.lacking { // after the chunk's own changes: it moves the entity
 			cb.AddOne(id, s.statesID, tag.Tags[unit.States](0).With(unit.Entered))
 		}
@@ -1085,7 +1102,8 @@ func (s *navigationSystem) reserveLeg(from, to spot, id uid.UID64,
 	if c1, c2, diag := s.grid.DiagonalNeighbors(from.c, to.c); diag {
 		leg.C1, leg.C2, leg.Diagonal, leg.Decked = c1, c2, true, s.decked(from.c, to.c)
 	}
-	for _, h := range leg.held()[1:] {
+	held, n := leg.held()
+	for _, h := range held[1:n] {
 		if !s.terrain.Kind(h.c).Admits(domain) {
 			return Leg{}, refusal{cell: h.c, deck: h.deck}
 		}
@@ -1093,7 +1111,7 @@ func (s *navigationSystem) reserveLeg(from, to spot, id uid.UID64,
 			return Leg{}, refusal{cell: h.c, deck: h.deck, held: true, corner: h.c != to.c}
 		}
 	}
-	for _, h := range leg.held() {
+	for _, h := range held[:n] {
 		s.occupancy.Enter(h.c, h.deck, id, domain)
 	}
 	return leg, refusal{}
@@ -1138,7 +1156,8 @@ func (s *navigationSystem) admitsAll(cells []cell.ID, domain cell.Domain) bool {
 }
 
 func (s *navigationSystem) admitsLeg(leg Leg, domain cell.Domain) bool {
-	for _, h := range leg.held()[1:] {
+	held, n := leg.held()
+	for _, h := range held[1:n] {
 		if !s.terrain.Kind(h.c).Admits(domain) {
 			return false
 		}
@@ -1147,7 +1166,8 @@ func (s *navigationSystem) admitsLeg(leg Leg, domain cell.Domain) bool {
 }
 
 func (s *navigationSystem) releaseLeg(leg Leg, id uid.UID64) {
-	for _, h := range leg.held() {
+	held, n := leg.held()
+	for _, h := range held[:n] {
 		s.occupancy.Leave(h.c, id)
 	}
 }
@@ -1188,7 +1208,8 @@ func (s *navigationSystem) seedLegs() {
 		}
 		for i, id := range cursor.IDs {
 			if orders[i].Leg.Active {
-				for _, h := range orders[i].Leg.held() {
+				held, n := orders[i].Leg.held()
+				for _, h := range held[:n] {
 					s.occupancy.Enter(h.c, h.deck, id, unit.DomainAt(movers, i))
 				}
 			}

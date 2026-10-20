@@ -123,7 +123,8 @@ func TestNavigation_PassesAWaypointByProjectionNotDistance(t *testing.T) {
 		mt.Leg = Leg{From: at(1), To: at(2), Active: true}
 		order.Slice(&f.Cursor)[0] = mt
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		for _, c := range mt.Leg.cells() {
+		cells, n := mt.Leg.cells()
+		for _, c := range cells[:n] {
 			occupancy.Enter(c, false, id, cell.Land)
 		}
 		q = si.NewQueryBuilder(&here, &order).Build()
@@ -289,7 +290,8 @@ func TestNavigation_QueuedGoalIsPassedByProjection(t *testing.T) {
 		mt.Enqueue(Goal{Cell: at(5)})
 		order.Slice(&f.Cursor)[0] = mt
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		for _, c := range mt.Leg.cells() {
+		cells, n := mt.Leg.cells()
+		for _, c := range cells[:n] {
 			occupancy.Enter(c, false, id, cell.Land)
 		}
 		q = si.NewQueryBuilder(&here, &order).Build()
@@ -408,7 +410,8 @@ func TestNavigation_ALegIsTurnedRoundWhenTheRouteGoesBack(t *testing.T) {
 		mt.Path.Steps[0], mt.Path.Steps[1], mt.Path.Length = at(1), at(0), 2 // the route back home
 		order.Slice(&f.Cursor)[0] = mt
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		for _, c := range mt.Leg.cells() {
+		cells, n := mt.Leg.cells()
+		for _, c := range cells[:n] {
 			occupancy.Enter(c, false, id, cell.Land)
 		}
 		q = si.NewQueryBuilder(&here, &order).Build()

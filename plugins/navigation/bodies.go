@@ -50,6 +50,10 @@ type bodyIndex struct {
 	seen    []uint32
 	stamp   uint32
 	largest float64
+	adding  int32
+	found   []int32
+	// the method values, bound once
+	add, find func(cell.ID)
 }
 
 func (x *bodyIndex) build(bodies []body) {
@@ -63,21 +67,27 @@ func (x *bodyIndex) build(bodies []body) {
 	if x.byID == nil {
 		x.byID = map[uid.UID64]int{}
 	}
+	if x.add == nil {
+		x.add, x.find = x.addCell, x.findCell
+	}
 	clear(x.byID)
 	x.bodies, x.largest = bodies, 0
 	for i, b := range x.bodies {
 		x.byID[b.id] = i
 		x.largest = max(x.largest, b.half.X, b.half.Y)
-		x.grid.CellsUnder(boxAt(b.at, b.half), func(c cell.ID) {
-			if o, ok := x.grid.Ordinal(c); ok {
-				if len(x.boxes[o]) == 0 {
-					x.touched = append(x.touched, o)
-				}
-				x.boxes[o] = append(x.boxes[o], int32(i))
-			}
-		})
+		x.adding = int32(i)
+		x.grid.CellsUnder(boxAt(b.at, b.half), x.add)
 	}
 	x.seen = append(x.seen[:0], make([]uint32, len(bodies))...)
+}
+
+func (x *bodyIndex) addCell(c cell.ID) {
+	if o, ok := x.grid.Ordinal(c); ok {
+		if len(x.boxes[o]) == 0 {
+			x.touched = append(x.touched, o)
+		}
+		x.boxes[o] = append(x.boxes[o], x.adding)
+	}
 }
 
 func (x *bodyIndex) of(id uid.UID64) (body, bool) {
@@ -88,25 +98,31 @@ func (x *bodyIndex) of(id uid.UID64) (body, bool) {
 	return x.bodies[i], true
 }
 
-func (x *bodyIndex) near(box geom.AABB, fn func(b *body)) {
+// near is the bodies whose box touches a cell box touches, each once, by their index in bodies;
+// valid till the next call
+func (x *bodyIndex) near(box geom.AABB) []int32 {
+	x.found = x.found[:0]
 	if len(x.boxes) == 0 {
-		return
+		return x.found
 	}
 	x.stamp++
 	if x.stamp == 0 {
 		clear(x.seen)
 		x.stamp = 1
 	}
-	x.grid.CellsUnder(box, func(c cell.ID) {
-		if o, ok := x.grid.Ordinal(c); ok {
-			for _, i := range x.boxes[o] {
-				if x.seen[i] != x.stamp {
-					x.seen[i] = x.stamp
-					fn(&x.bodies[i])
-				}
+	x.grid.CellsUnder(box, x.find)
+	return x.found
+}
+
+func (x *bodyIndex) findCell(c cell.ID) {
+	if o, ok := x.grid.Ordinal(c); ok {
+		for _, i := range x.boxes[o] {
+			if x.seen[i] != x.stamp {
+				x.seen[i] = x.stamp
+				x.found = append(x.found, i)
 			}
 		}
-	})
+	}
 }
 
 func boxAt(c, half geom.Vec) geom.AABB {
