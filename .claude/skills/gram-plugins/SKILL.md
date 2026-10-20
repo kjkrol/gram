@@ -837,9 +837,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `plugin.Tunable` among the handlers given to `NewPlugin`, in their order, a heading a plugin and
   a line a setting (`control.Switch` a `ui.Checkbox`, `Choice` a `ui.Dropdown`, `Range` a
   `ui.Slider` with its number beside, each named `setting:<section path>/<label>`; twin sections,
-  the same settings under each as the cameras' profiles, side by side with a control a twin; the
-  columns the width does not take on the pages after, PgDn and PgUp, "Page 1 of 2" at the foot);
-  its commands go through
+  the same settings under each as the cameras' profiles, side by side with a control a twin; as
+  many columns as the width takes, fewer and taller otherwise, in a `ui.Scroll`; the cursor let
+  go while it or the shortcuts are up, a player riding or not); its commands
+  go through
   `IssueAs(the first local player)`; it forwards input to its `ui.Scene` and holds the game in
   the clock's tactical pause (the ECS pause would stop the plugins' `RunPlan` and their queues),
   unless the players' own `Settings.Running` (`KeepRunning{On}`, a switch on the screen; the

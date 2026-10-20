@@ -20,8 +20,8 @@ What is left to do. Take an item out when it lands.
 - **The minimap, further** — marks picked by what a player's units see (`vision.Seen`), the
   other players' views outlined; beyond the bands a picture kept of what was last seen in place
   of the live world.
-- **ui, what is left** — `Dialog`, `Toast`, `MenuBar`/`Menu`/`ContextMenu`, `Tabs`, `Scroll`,
-  `List`, `Radio`; `Canvas` (a tech tree), `Tooltip`, drag and drop, focus moved by keys and pads
+- **ui, what is left** — `Dialog`, `Toast`, `MenuBar`/`Menu`/`ContextMenu`, `Tabs`, `List`,
+  `Radio`; `Canvas` (a tech tree), `Tooltip`, drag and drop, focus moved by keys and pads
   over the controls too; the UI drawn into one `render.Frame` in place of a draw an element, once
   a profile asks for it. Settings of a player's own (its camera's resolution and sight) on the
   settings screen, beside the plugins'.

@@ -148,8 +148,7 @@ Decisions the user has made; they are not up for revisiting in passing.
   (`var _ command.Command = MoveTo{}` beside the type). Whatever takes commands takes a
   `command.Command`, never `any`.
 - **The default keys are the same in every game and no demo repeats one**: Shift+P the tactical
-  pause, Shift+Esc quits, K lists the keys, F10 the settings screen (PgDn and PgUp its pages),
-  ~ the telemetry panel, F5
+  pause, Shift+Esc quits, K lists the keys, F10 the settings screen, ~ the telemetry panel, F5
   saves, F9 loads, F11 full screen, ] and [ the tempo, Shift+X the boxes (collision's: the bases, the solids, none),
   Shift+H the scroll zones (cameras'), Shift+O the holds, Shift+B the bridge tool, Shift+R the
   routes, Shift+C the cones, Shift+W the weather, Shift+V the clouds' look, Shift+S the high

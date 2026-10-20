@@ -37,9 +37,7 @@ type SettingsScene struct {
 	p      *Plugin
 	screen *ui.Scene
 	shown  bool
-	paused bool            // the clock was paused as the screen opened: left so as it closes
-	pages  [][]*ui.Element // the columns a page, as many as the screen's width takes
-	page   int
+	paused bool // the clock was paused as the screen opened: left so as it closes
 }
 
 var _ game.Scene = (*SettingsScene)(nil)
@@ -55,7 +53,6 @@ func (s *SettingsScene) Open(runtime game.Runtime, composition game.Composition)
 		issuer = locals[0]
 	}
 	s.screen.Issue(s.p.IssueAs(issuer))
-	s.page = 0
 	s.screen.Replace(s.listing(runtime.Props()))
 	composition.Show(SettingsName)
 	s.shown = true
@@ -82,10 +79,11 @@ func (*SettingsScene) Name() string { return SettingsName }
 
 func (s *SettingsScene) Drawers() []render.Drawer { return s.screen.Drawers() }
 
-// HandleEvents closes the screen on Esc or F10, turns its pages on PgDn and PgUp and hands the
-// rest to the controls.
+// HandleEvents closes the screen on Esc or F10 and hands the rest to the controls; the cursor
+// is let go while the screen is up, a player riding or not.
 func (s *SettingsScene) HandleEvents(events *control.InputEvents, runtime game.Runtime,
 	composition game.Composition) {
+	s.p.capture()
 	for _, k := range events.KeyEvents {
 		if k.Action != control.ActionPress || events.Modifiers.Shift || events.Modifiers.Ctrl {
 			continue
@@ -93,14 +91,6 @@ func (s *SettingsScene) HandleEvents(events *control.InputEvents, runtime game.R
 		if k.Key == control.KeyF10 || k.Key == control.KeyEscape && !s.screen.Unfolded() {
 			s.Close(runtime, composition)
 			return
-		}
-		if n := len(s.pages); n > 1 && (k.Key == control.KeyPageDown || k.Key == control.KeyPageUp) {
-			if k.Key == control.KeyPageDown {
-				s.page = (s.page + 1) % n
-			} else {
-				s.page = (s.page + n - 1) % n
-			}
-			s.screen.Replace(s.pageScreen())
 		}
 	}
 	s.screen.HandleEvents(events, runtime, composition)
@@ -116,18 +106,37 @@ const (
 	twinColumn    = 230 // a twin section's column of controls
 )
 
-// listing is the screen: the title and, centred in columns as tall as the screen allows, the
-// sections of settings, a heading each and a line a setting, its label and its control; the
-// columns the screen's width does not take go to the pages after, PgDn and PgUp turning them.
+// listing is the screen: the title and, centred in as many columns as the screen's width takes,
+// the sections of settings, a heading each and a line a setting, its label and its control;
+// the columns broken by the screen's height where they fit its width, fewer and taller where
+// they do not, scrolled then (ui.Scroll).
 func (s *SettingsScene) listing(props game.Props) *ui.Element {
+	width := float64(props.ScreenWidth) - 2*shortcutsMargin
 	height := float64(props.ScreenHeight) - 2*shortcutsMargin
 	_, titleHeight := ui.DefaultTheme().Large.Measure("Settings")
 	height -= float64(titleHeight) + shortcutsGap
 
+	blocks := s.tree().blocks("", 0, nil)
+	columns := columned(blocks, height)
+	for n := len(columns) - 1; n >= 1 && widthOf(columns, width, height) > width; n-- {
+		columns = columned(blocks, tallEnough(blocks, n))
+	}
+	return ui.Layers(
+		ui.Blank().Fill(shortcutsDim),
+		ui.TopMiddle(ui.Rows(
+			ui.Fit(ui.TopMiddle(ui.Title("Settings").Named("settings.title"))),
+			ui.Fixed(shortcutsGap, ui.Blank()),
+			ui.Fixed(height, ui.Scroll(ui.Columns(spaced(columns)...)).Named("settings.scroll")),
+		)).Padding(shortcutsMargin),
+	)
+}
+
+// columned is the blocks in columns at most height tall, a block never split
+func columned(blocks []block, height float64) []*ui.Element {
 	var columns []*ui.Element
 	var column []ui.Part
 	used := 0.0
-	for _, b := range s.tree().blocks("", 0, nil) {
+	for _, b := range blocks {
 		if used > 0 && used+b.tall > height {
 			columns = append(columns, ui.Rows(column...))
 			column, used = nil, 0
@@ -138,34 +147,34 @@ func (s *SettingsScene) listing(props game.Props) *ui.Element {
 	if len(column) > 0 {
 		columns = append(columns, ui.Rows(column...))
 	}
-	s.pages = paged(columns, float64(props.ScreenWidth)-2*shortcutsMargin, height)
-	s.page = min(s.page, len(s.pages)-1)
-	return s.pageScreen()
+	return columns
 }
 
-// paged is the columns grouped into pages as wide as width takes, a page at least a column,
-// their widths measured laid out once
-func paged(columns []*ui.Element, width, height float64) [][]*ui.Element {
+// tallEnough is the least height that holds the blocks in n columns
+func tallEnough(blocks []block, n int) float64 {
+	total, tallest := 0.0, 0.0
+	for _, b := range blocks {
+		total += b.tall
+		tallest = max(tallest, b.tall)
+	}
+	height := max(total/float64(n), tallest)
+	for len(columned(blocks, height)) > n {
+		height += settingsRow
+	}
+	return height
+}
+
+// widthOf is the columns' width with the gaps between them, measured laid out once
+func widthOf(columns []*ui.Element, width, height float64) float64 {
 	probe := ui.NewScene("", ui.Columns(spaced(columns)...))
 	probe.Drawers()
 	probe.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(width, height)))
-	var pages [][]*ui.Element
-	var page []*ui.Element
-	used := 0.0
-	for i, c := range columns {
+	w := 0.0
+	for i := range columns {
 		box := probe.Element(settingsColumn(i)).Box()
-		w := box.BottomRight.X - box.TopLeft.X
-		if len(page) > 0 && used+shortcutsGap*2+w > width {
-			pages = append(pages, page)
-			page, used = nil, 0
-		}
-		if len(page) > 0 {
-			used += shortcutsGap * 2
-		}
-		page = append(page, c)
-		used += w
+		w += box.BottomRight.X - box.TopLeft.X
 	}
-	return append(pages, page)
+	return w + float64(len(columns)-1)*shortcutsGap*2
 }
 
 // spaced is the columns as parts, named by their place, a gap between them
@@ -178,26 +187,6 @@ func spaced(columns []*ui.Element) []ui.Part {
 		parts = append(parts, ui.Fit(c.Named(settingsColumn(i))))
 	}
 	return parts
-}
-
-// pageScreen is the page shown: the title, the page's columns and, where there are more pages,
-// which this is and the keys turning them
-func (s *SettingsScene) pageScreen() *ui.Element {
-	rows := []ui.Part{
-		ui.Fit(ui.TopMiddle(ui.Title("Settings").Named("settings.title"))),
-		ui.Fixed(shortcutsGap, ui.Blank()),
-		ui.Fit(ui.Columns(spaced(s.pages[s.page])...)),
-	}
-	if n := len(s.pages); n > 1 {
-		rows = append(rows,
-			ui.Fixed(shortcutsGap, ui.Blank()),
-			ui.Fit(ui.TopMiddle(ui.Label(fmt.Sprintf("Page %d of %d: PgDn, PgUp", s.page+1, n)).
-				Named("settings.page"))))
-	}
-	return ui.Layers(
-		ui.Blank().Fill(shortcutsDim),
-		ui.TopMiddle(ui.Rows(rows...)).Padding(shortcutsMargin),
-	)
 }
 
 func settingsColumn(i int) string { return fmt.Sprintf("settings.column.%d", i) }
@@ -307,7 +296,7 @@ func (n *node) blocks(path string, level int, dst []block) []block {
 	}
 	for _, group := range n.grouped() {
 		if len(group) > 1 {
-			dst = twinBlocks(under(path, group), level+1, group, dst)
+			dst = twinBlocks(under(path, group), level+1, group, dst, true)
 			continue
 		}
 		dst = group[0].blocks(under(path, group)[0], level+1, dst)
@@ -360,19 +349,21 @@ func (n *node) grouped() [][]*node {
 }
 
 // twinBlocks appends the twins' blocks to dst laid side by side: a row of their names over a
-// column each, a line a setting with its label once and a control a twin, their subsections
-// the same under a subheading
-func twinBlocks(paths []string, level int, twins []*node, dst []block) []block {
+// column each where named, a line a setting with its label once and a control a twin, their
+// subsections the same under one subheading
+func twinBlocks(paths []string, level int, twins []*node, dst []block, named bool) []block {
 	if i := len(dst) - 1; i < 0 || !dst[i].bare {
 		dst = append(dst, block{bare: true})
 	}
 	indent := float64(level-1) * shortcutsGap / 2
-	names := []ui.Part{ui.Fixed(indent, ui.Blank()), ui.Fixed(settingsLabel, ui.Blank())}
-	for i, c := range twins {
-		names = append(names, ui.Fixed(twinColumn,
-			ui.MiddleLeft(ui.Subheading(c.name).Named("section:"+paths[i]))))
+	if named {
+		names := []ui.Part{ui.Fixed(indent, ui.Blank()), ui.Fixed(settingsLabel, ui.Blank())}
+		for i, c := range twins {
+			names = append(names, ui.Fixed(twinColumn,
+				ui.MiddleLeft(ui.Subheading(c.name).Named("section:"+paths[i]))))
+		}
+		dst[len(dst)-1].add(ui.Fixed(settingsRow, ui.Columns(names...)), settingsRow)
 	}
-	dst[len(dst)-1].add(ui.Fixed(settingsRow, ui.Columns(names...)), settingsRow)
 	for k, st := range twins[0].settings {
 		row := []ui.Part{ui.Fixed(indent, ui.Blank()),
 			ui.Fixed(settingsLabel, ui.MiddleLeft(ui.Label(labelOf(st))))}
@@ -396,7 +387,7 @@ func twinBlocks(paths []string, level int, twins []*node, dst []block) []block {
 		for i, c := range subs {
 			subPaths[i] = paths[i] + "/" + c.name
 		}
-		dst = twinBlocks(subPaths, level+1, subs, dst)
+		dst = twinBlocks(subPaths, level+1, subs, dst, false)
 	}
 	return dst
 }

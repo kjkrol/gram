@@ -92,9 +92,10 @@ etap U of `doc/plans-perf.md`)
   board/topography starts tactical following the budget with the figures sharp, riding in
   layers.
 - The settings screen lays twin sections (the same settings under each, as the profiles) side
-  by side, a line a setting with a control a twin, and the columns its width does not take go
-  to the pages after, PgDn and PgUp turning them, "Page 1 of 2" at the foot: every setting is
-  on a page whatever the screen's size.
+  by side, a line a setting with a control a twin, in as many columns as the screen's width
+  takes, fewer and taller where it takes none, scrolled then by a bar or the wheel
+  (`ui.Scroll`: an element taller than its box, its content clipped to it): every setting is
+  reached whatever the screen's size. A menu up (F10, K) lets the cursor go while riding.
 - A picture in layers is composed once, in the frame's pixels, and drawn a layer at a time
   with the pieces placed into each (`render.Laid{Lay, DrawLayer, DrawOver}` in place of
   `Grounded`; `gpu.Draw.Place`), the Directs drawing through the cropped camera (the sprites

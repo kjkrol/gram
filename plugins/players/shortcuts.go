@@ -96,6 +96,7 @@ func (s *Shortcuts) Drawers() []render.Drawer { return s.screen.Drawers() }
 
 // HandleEvents closes the scene on Esc or K.
 func (s *Shortcuts) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {
+	s.p.capture()
 	for _, k := range events.KeyEvents {
 		if k.Action == control.ActionPress && (k.Key == control.KeyEscape || k.Key == control.KeyK) && !events.Modifiers.Shift {
 			s.Close(runtime, composition)

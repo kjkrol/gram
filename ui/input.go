@@ -37,7 +37,7 @@ func (s *Scene) HandleEvents(events *control.InputEvents, runtime game.Runtime, 
 			case s.held != nil:
 				// a drag ends wherever the button is let go
 				if c.Action == control.ActionRelease {
-					s.held.content.(*slider).drag(s, s.held, c.Pos)
+					s.held.content.(dragged).drag(s, s.held, c.Pos)
 					s.drop()
 				}
 			case s.overlay != nil:
@@ -47,7 +47,7 @@ func (s *Scene) HandleEvents(events *control.InputEvents, runtime game.Runtime, 
 			}
 		}
 		if s.held != nil {
-			s.held.content.(*slider).drag(s, s.held, events.MousePos)
+			s.held.content.(dragged).drag(s, s.held, events.MousePos)
 		}
 		if s.overlay != nil || !s.through(modal, events.MousePos) {
 			s.passed.ScrollDelta = 0
@@ -169,8 +169,15 @@ func (s *Scene) clickOverlay(c control.ClickEvent) {
 	t.pressed.content.(pressable).press(s, t.pressed, c.Pos, t.about, t.pinned)
 }
 
+// dragged is a content a press takes hold of (Scene.held) till the button is let go: a slider's
+// knob, a scroll's thumb
+type dragged interface {
+	drag(s *Scene, e *Element, at geom.Vec)
+	drop()
+}
+
 func (s *Scene) drop() {
-	s.held.content.(*slider).drop()
+	s.held.content.(dragged).drop()
 	s.held = nil
 }
 
@@ -182,8 +189,32 @@ func (s *Scene) wheel(modal *Element, p geom.Vec, delta float64) {
 	if t := topmost(within, p, nil); t.pressed != nil {
 		if sl, ok := t.pressed.content.(*slider); ok {
 			sl.wheel(s, t.pressed, delta)
+			return
 		}
 	}
+	if e := scrollAt(within, p); e != nil {
+		e.content.(*scroll).wheel(s, e, delta)
+	}
+}
+
+// scrollAt is the innermost Scroll under p, nil for none
+func scrollAt(e *Element, p geom.Vec) *Element {
+	if e.hidden || e.absent() {
+		return nil
+	}
+	var found *Element
+	if _, ok := e.content.(*scroll); ok {
+		if !inside(e.box, p) {
+			return nil
+		}
+		found = e
+	}
+	for _, c := range e.children {
+		if in := scrollAt(c, p); in != nil {
+			found = in
+		}
+	}
+	return found
 }
 
 func (s *Scene) press(events *control.InputEvents) {
@@ -283,6 +314,9 @@ func topmost(e *Element, p geom.Vec, in *Element) target {
 
 func topmostHere(e *Element, p geom.Vec, in *Element) target {
 	if e.absent() {
+		return target{}
+	}
+	if _, ok := e.content.(clipping); ok && !inside(e.box, p) {
 		return target{}
 	}
 	if _, ok := e.content.(pressable); ok {

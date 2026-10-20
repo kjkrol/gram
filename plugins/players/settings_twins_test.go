@@ -100,45 +100,59 @@ func TestSettings_TwinSectionsLieSideBySideALineASetting(t *testing.T) {
 	}
 }
 
-func TestSettings_EveryControlLiesOnAPageOfTheScreenHoweverSmall(t *testing.T) {
+// columnsAt is how many columns the settings screen lays at a screen of w by h
+func columnsAt(t *testing.T, p *Plugin, w, h int) int {
+	t.Helper()
+	rt, comp := &engineStub{props: game.Props{ScreenWidth: w, ScreenHeight: h}}, &composed{}
+	p.settings.Open(rt, comp)
+	s := p.settings.screen
+	s.Drawers()
+	s.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(float64(w), float64(h))))
+	n := 0
+	for s.Element(settingsColumn(n)) != nil {
+		n++
+	}
+	return n
+}
+
+func TestSettings_FewerColumnsWhereTheWidthIsShortTheRestScrolledIn(t *testing.T) {
 	p := demoRig(t)
+	wide, narrow := columnsAt(t, p, 1920, 1080), columnsAt(t, p, 1024, 768)
+	if wide < 2 || narrow >= wide {
+		t.Fatalf("%d columns at 1920 by 1080, %d at 1024 by 768; want several, then fewer", wide,
+			narrow)
+	}
 	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1024, ScreenHeight: 768}}, &composed{}
 	p.settings.Open(rt, comp)
 	s := p.settings.screen
+	s.Drawers()
 	screen := geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(1024, 768))
-	if n := len(p.settings.pages); n < 2 {
-		t.Fatalf("at 1024 by 768 the settings fill %d page, want more: the columns past the "+
-			"width go to the next", n)
+	s.Lay(screen)
+	if s.Element("settings.scroll") == nil {
+		t.Fatal("no scroll on the screen")
 	}
-	for _, name := range []string{
-		"setting:Picture/Tactical/Layers/Show the layers",
-		"setting:Picture/Riding/Layers/Show the layers",
-		"setting:Picture/Areas/Show the care",
-		"setting:World/Sectors drawn",
-		"setting:Minimap/Minimap",
-		"setting:Clock/Tempo",
-		"settings.page",
-	} {
-		found := false
-		for i := range p.settings.pages {
-			p.settings.page = i
-			s.Replace(p.settings.pageScreen())
-			s.Drawers()
-			s.Lay(screen)
+	left := map[string]bool{
+		"setting:Picture/Tactical/Layers/Show the layers": true,
+		"setting:Picture/Riding/Layers/Show the layers":   true,
+		"setting:Picture/Areas/Show the care":             true,
+		"setting:World/Sectors drawn":                     true,
+		"setting:Minimap/Minimap":                         true,
+		"setting:Clock/Tempo":                             true,
+	}
+	wheel := &control.InputEvents{MousePos: geom.NewVec(180, 400), ScrollDelta: -1}
+	for range 80 {
+		for name := range left {
 			if e := s.Element(name); e != nil && within(e.Box(), screen) {
-				found = true
-				break
+				delete(left, name)
 			}
 		}
-		if !found {
-			t.Errorf("%s lies on no page of the screen", name)
+		if len(left) == 0 {
+			break
 		}
+		p.settings.HandleEvents(wheel, rt, comp)
+		s.Lay(screen)
 	}
-	keys := &control.InputEvents{KeyEvents: []control.KeyEvent{{Key: control.KeyPageDown,
-		Action: control.ActionPress}}}
-	p.settings.page = 0
-	p.settings.HandleEvents(keys, rt, comp)
-	if p.settings.page != 1 {
-		t.Errorf("PgDn turned to page %d, want 1", p.settings.page)
+	for name := range left {
+		t.Errorf("%s never scrolled into the screen", name)
 	}
 }
