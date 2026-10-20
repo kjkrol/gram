@@ -105,8 +105,8 @@ which named elements are shown (`Persisted`/`Restore`). **The notation says what
 wraps its element — `ui.BottomMiddle(el).Size(w, h).Margin(px)`, nine of them. Elements: `Panel`,
 `Label` (the theme's `Font`: `render.Font`, Go Regular, glyphs drawn on demand), `Heading` (the
 theme's `Bold`), `Title` (its `Large`, Go Bold at 20), `Image`, `Window`, `LabelOf`/`ButtonOf`/
-`WindowOf` (their words read off a `ui.Text` every frame; `ui.Of[T]` reads a component of the pinned
-entity; a Text saying nothing leaves the element out), `Button(label, cmds...)` (the scene's own
+`WindowOf`/`HeadingOf` (their words read off a `ui.Text` every frame; `ui.Of[T]` reads a component of the pinned
+entity, `ui.While(on, text)` says text while `on()`; a Text saying nothing leaves the element out), `Button(label, cmds...)` (the scene's own
 `ui.Show`/`Hide`/`Toggle{Name}`, or any command through `Issue`; no callbacks into the game),
 `Blank`, `Drawer(renderer)`, `Scroll(el)` (an element taller than its box, scrolled by its bar or
 the wheel, its content clipped to the box); the controls `Checkbox(label, get, set)`, `Slider(min, max, step,

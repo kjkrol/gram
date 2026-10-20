@@ -89,8 +89,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   until the next rebuild. At the start of the world's tick the `view.System` refreshes every
   `view.View` (`Plugin.View()` the camera's, `ViewFor(cam)` any's); the renderer draws what the
   View contains. The world makes no camera. It hosts rules of a `clock.Moment` (every step, just
-  before the effects' pass) and handles the commands about effects, `Pause` (Shift+P), `Faster`
-  (]) and `Slower` ([).
+  before the effects' pass) and handles the commands about effects, `Pause` (P and Shift+P),
+  `Faster` (]) and `Slower` ([).
   `Figures(f...)` notes kinds of entity in one piece (`world.Figure`: `Define(w)`, `Look(a, w)`;
   `Stateful`, `Ruled`), `FiguresIn(part)` runs their parts as the Stage reaches Effects, Rules and
   Kinds; `ctx.Looks` declares their looks on the atlas once the Stage is set up. `Picture()` is the
@@ -401,13 +401,20 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Reporter()` lists the daylight, the clouds and their shadows alone: the time, the season,
   the moon and the weather are the widgets' (a game without them adds
   `Calendar().Reporter()` and `Climate().Reporter()`). The settings screen's atmosphere section
-  has the choice "Clouds" (the look), the slider "Clouds as bodies out to" (`CloudReach{Share}`,
+  has the switch "Frozen light" and the slider "Hour" (the day's time as it goes, the frozen
+  light's while frozen; moved, `Hour{At}` freezes the light at that hour, so the slider takes the
+  time and the switch lets it go), the choice "Clouds" (the look), the slider "Clouds as bodies out to" (`CloudReach{Share}`,
   `Settings.CloudReach`, a share of the camera's sight from where it looks, `aloft.BodiesTo`:
   the bodies within it, a sheet beyond, the shader deciding per pixel where the line of sight
-  enters the layer, `AloftBodiesTo`/`AloftMiddle`), "Clouds follow the frame budget"
-  (`AdaptClouds{On}`, `Settings.AdaptiveClouds`: the atmosphere a `cameras.Lever`, the reach
-  halved down `reachLadder` 1, 1/2, 1/4, 1/8 as the rate falls under the budget and doubled back
-  as it stays over, the look as set), the switches "Clouds shade the ground" / "the figures" /
+  enters the layer, `AloftBodiesTo`/`AloftMiddle`), the choice "Clouds drawn at" (a quarter, a
+  sixth or an eighth of the pixels each way: `CloudsDrawnAt{Coarse}`, `Settings.CloudCoarse`,
+  `DrawCloudsAt`/`CloudsDrawnAt`, `aloft.Renderer.Coarse`, a coarse image a size and coarse,
+  `LayCoarse` from it), "Clouds follow the frame budget" (`AdaptClouds{On}`,
+  `Settings.AdaptiveClouds`: the atmosphere a `cameras.Lever` down the `ladder` of rungs
+  (coarse, reach) (4, 1), (6, 1), (8, 1), (8, 0.5) as the rate falls under the budget and back
+  up as it stays over: the pixels first, the bodies' reach last and never under half the sight,
+  the look never; the user's word, 2026-10-20: the clouds stand high and far, so dimming them to
+  shadows or cutting the bodies near the camera showed too much), the switches "Clouds shade the ground" / "the figures" /
   "High clouds' shadows" (`GroundShade{On}`, `FigureShade{On}`, `HighShade{On}`) and a choice
   "Weather" of the climate's weathers by name (`SetWeather{Name}`; `Climate.Now()`
   the weather of the time, lane 0, as the system last set it) where the Config has any; a weather asked
@@ -786,7 +793,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   line "Sectors seen" of the first camera's View.
 - **`clock`** (core) — the tactical clock, made and run by the world (`world.Plugin.Clock()`):
   game time is the sum of the simulation's steps, `clock.State{Time, Tempo, Paused}` on the
-  clock's own entity, saved. Shift+P the tactical pause, ] and [ the tempo (`Config.Tempos`;
+  clock's own entity, saved. P and Shift+P the tactical pause, ] and [ the tempo (`Config.Tempos`;
   sub-steps of one length, or one longer step with `Config.BiggerStep`). A plugin's `RunPlan` is
   the interface part of its tick; what simulates it hands to `clock.Simulate(c, ctx, d, block)`,
   and the engine's plan wrapper replays every block after the game's `Update` as many times as the
@@ -868,7 +875,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `plugin.Tunable` among the handlers given to `NewPlugin`, in their order, a heading a plugin and
   a line a setting (`control.Switch` a `ui.Checkbox`, `Choice` a `ui.Dropdown`, `Range` a
   `ui.Slider` with its number beside, each named `setting:<section path>/<label>`; twin sections,
-  the same settings under each as the cameras' profiles, side by side with a control a twin; as
+  the same settings under each as the cameras' profiles, side by side with a control a twin;
+  every top section framed whole (`framed`, a `ui.Panel` bordered a pixel named
+  `frame:<section>`, a block the columns never split), the title in Go Bold at 28 (the scene's
+  own `ui.Theme`, `settingsTheme`); as
   many columns as the width takes, fewer and taller otherwise, in a `ui.Scroll`; the cursor let
   go while it or the shortcuts are up, a player riding or not); its commands
   go through
@@ -980,8 +990,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   cropped layer) likewise;
   marks over every other, hidden by default, shown
   in board/topography's `makePlugins`) lays the strips and the corner squares over every picture in
-  translucent yellow, rounded (`render.Frame.Fan`), the strips a gap short of the corners and
-  fainter (the user's sketch, 2026-10-14). `CursorAtEdge` fires once an `Engine.Update`, before
+  translucent yellow, a `render.Frame.Quad` each, clear at the inner bound and deepest at the
+  picture's edge, the strips a gap short of the corners (the user's sketch, 2026-10-14; the
+  gradient 2026-10-20); the strips `control.EdgeMargin` wide, 60 px, and the edge scroll a
+  quarter the speed at the inner bound rising to `Keys.ScrollSpeed` at the edge
+  (`control.Edges.Depth`, 0.25 + 0.75·Depth in `keys.go`). `CursorAtEdge` fires once an `Engine.Update`, before
   the ticks, not once a tick; a demo
   whose WSAD drive binds `cameras.Keys{Wheel, ZoomIn, ZoomOut}` alone. The engine sizes no camera.
   `SharpFigures{Profile, On}` (`SetSharpFigures`, `SharpFigures()`, `Knobs.SoftFigures` — zero for

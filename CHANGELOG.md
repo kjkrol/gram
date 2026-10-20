@@ -90,7 +90,21 @@ etap T of `doc/plans-perf.md`)
   laid over the minimap by the scene in a box `minimap.Overhang` bigger on every side.
 - The telemetry panel draws itself: the labels bold, a line too wide wrapped with its rest
   indented, the plate shrinking back as the mode goes to the basics. The settings screen's
-  atmosphere section chooses the weather by name (`Climate.Now()`), under the pause too.
+  atmosphere section chooses the weather by name (`Climate.Now()`), under the pause too; its
+  slider "Hour" shows the day's time as it goes and, moved, freezes the light at that hour
+  (`Hour{At}` freezes; "Frozen light" beside it lets the day go on).
+- The clouds follow the frame budget by their pixels first: "Clouds drawn at" a quarter, a
+  sixth or an eighth of them (`CloudsDrawnAt{Coarse}`, `Settings.CloudCoarse`,
+  `aloft.Renderer.Coarse`), the lever stepping down (4, 1), (6, 1), (8, 1), (8, 0.5) of
+  (pixels, reach) and back, the bodies' reach cut last and never under half the sight, the look
+  never; the demo starts the clouds still. "Show the care" sits under Picture/Care beside the
+  care's following.
+- P pauses too (Shift+P stays; the start demo's panel moved to I); the demos say PAUSED under
+  the atmosphere's bar or the date
+  while the clock stands (`ui.HeadingOf`, `ui.While`). The settings screen's title is larger
+  and every top section is framed. The scroll zones are twice as wide (`control.EdgeMargin`
+  60) and drawn as a gradient, clear inside and yellow at the edge; the edge scroll starts at a
+  quarter of its speed at the inner bound and reaches it at the edge (`control.Edges.Depth`).
 - An option on the settings screen has no key any more: Shift+X the boxes, Shift+H the scroll
   zones, B the grid, Shift+O the cells held, Shift+R the routes, Shift+C the cones, Shift+W the
   weather and Shift+U the rain, Shift+V the clouds' look, Shift+S the high clouds' shadows, P the
