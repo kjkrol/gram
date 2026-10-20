@@ -24,6 +24,7 @@ type Climate struct {
 	ground   func() (low, peaks float64)
 	land     *air.Land
 	running  Running
+	now      string // the weather over the middle, by name, as the system last saw it
 }
 
 // Running is which of the weather's workings go on: one weather following another, the wind,
@@ -54,6 +55,9 @@ func New(w *world.Plugin, cal *calendar.Calendar, cfg Config) *Climate {
 // Config is the climate's, with its defaults filled in.
 func (c *Climate) Config() Config { return c.cfg }
 
+// Now is the name of the weather over the world's middle, empty before the first step.
+func (c *Climate) Now() string { return c.now }
+
 // Air is the weather as the last step of the simulation left it; a calm, clear day before the
 // first.
 func (c *Climate) Air() air.Weather {
@@ -68,7 +72,7 @@ func (c *Climate) Zone() Zone { return c.cfg.Zone }
 
 // System is the weather's system, to run in every step of the simulation. Call it once.
 func (c *Climate) System() goke.System {
-	c.sys = newWeatherSystem(c.cfg, c.world, c.calendar, &c.asked, &c.rules, &c.running)
+	c.sys = newWeatherSystem(c.cfg, c.world, c.calendar, &c.asked, &c.rules, &c.running, &c.now)
 	c.sys.about, c.sys.ground, c.sys.land = c.about, c.ground, c.land
 	return c.sys
 }

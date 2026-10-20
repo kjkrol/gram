@@ -20,13 +20,10 @@ import (
 
 var outlineColor = color.RGBA{R: 240, G: 240, B: 240, A: 230}
 
-var northColor = color.RGBA{R: 230, G: 40, B: 40, A: 255}
-
-// the marks under the outline of the camera's view, north over both
+// the marks under the outline of the camera's view
 const (
 	marksLevel   = 1
 	outlineLevel = 2
-	compassLevel = 3
 	outlineWidth = 1.5
 )
 
@@ -84,10 +81,9 @@ func (p *paced) Draw() *render.Image {
 	return p.last
 }
 
-// the minimap's own picture: the ground, the marks, the outline of the camera's view and north
+// the minimap's own picture: the ground, the marks and the outline of the camera's view
 func (m *minimap) picture() *render.Composer {
-	return render.NewComposer(&groundView{m: m}, &marksView{m: m}, &outlineView{m: m},
-		&compassView{m: m})
+	return render.NewComposer(&groundView{m: m}, &marksView{m: m}, &outlineView{m: m})
 }
 
 // groundView lays the ground's miniature under the minimap, a copy a world away round a torus
@@ -222,34 +218,6 @@ func (o *outlineView) Compose(f *render.Frame, _ camera.Camera) {
 		a, b := o.corners[k], o.corners[(k+1)%len(o.corners)]
 		f.Line(render.OnTop(outlineLevel), a[0], a[1], b[0], b[1], outlineWidth, outlineColor)
 	}
-}
-
-// compassView marks north on the minimap: a red N within its circle's edge, turned with it
-type compassView struct{ m *minimap }
-
-var _ render.Direct = (*compassView)(nil)
-
-func (c *compassView) Init(*goke.SysInit) {}
-
-func (c *compassView) Compose(f *render.Frame, _ camera.Camera) {
-	f.DrawAt(render.OnTop(compassLevel))
-}
-
-func (c *compassView) Draw(t render.Target, _ camera.Camera, _ render.Uniforms) {
-	if t.Screen == nil || c.m.lens.scale == 0 {
-		return
-	}
-	font := render.DefaultBoldFont()
-	w, h := font.Measure("N")
-	x, y := c.at()
-	render.DrawText(t.Screen, font, "N", x-w/2, y-h/2, northColor)
-}
-
-// at is the N's middle on the picture; world y runs south, and the picture's circle is reach
-// round its middle, so 0.86 of it keeps the letter within the circle the scene masks it to
-func (c *compassView) at() (float32, float32) {
-	l := c.m.lens
-	return l.Project(l.cx, l.cy-float32(0.86*l.reach), 0)
 }
 
 // ground is the world point the camera's screen point (sx, sy) sees on the ground; one past the

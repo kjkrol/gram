@@ -5,15 +5,18 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/plugins/atmosphere"
+	"github.com/kjkrol/gram/plugins/minimap"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
 
 // Deps is what the screen is made of.
 type Deps struct {
-	// Feed is the world through the player's camera, Minimap the minimap round the same camera.
+	// Feed is the world through the player's camera, Minimap the minimap round the same camera
+	// and Compass its north, hung on its edge.
 	Feed       *ui.Element
 	Minimap    *ui.Element
+	Compass    *ui.Element
 	Clock      render.Renderer
 	Atmosphere *atmosphere.Plugin
 	// Reason says why a bridge cannot stand where it is aimed, Window asks to build it.
@@ -28,7 +31,10 @@ var (
 	minimapRim  = color.RGBA{R: 30, G: 30, B: 30, A: 255}
 )
 
-const minimapSide = 220
+const (
+	minimapSide = 220
+	minimapBox  = minimapSide + 2*minimap.Overhang // the compass hangs past the circle
+)
 
 // Screen is the feed under the clock, the minimap top-right, the atmosphere's hour, date and
 // weather, and the bridges' words over all; the top-left corner is the telemetry panel's.
@@ -36,9 +42,10 @@ func Screen(d Deps) *ui.Element {
 	return ui.Layers(
 		d.Feed,
 		ui.Drawer(d.Clock),
-		ui.TopRight(d.Minimap.Masked(ui.Circle).Border(minimapRim, 2)).
-			Size(minimapSide, minimapSide).
-			Margin(16),
+		ui.TopRight(ui.Layers(
+			ui.Center(d.Minimap.Masked(ui.Circle).Border(minimapRim, 2)).Size(minimapSide, minimapSide),
+			d.Compass,
+		)).Size(minimapBox, minimapBox).Margin(16-minimap.Overhang),
 		timeAndWeather(d),
 		// over the bar
 		ui.BottomMiddle(d.Reason.Padding(6).Fill(reasonColor)).Margin(48),
@@ -47,7 +54,7 @@ func Screen(d Deps) *ui.Element {
 }
 
 // the bar at the bottom, clear of the telemetry panel growing down the left, or apart: the hour
-// over the clock, the weather under the minimap, the date in the corner below
+// over the clock, the date at the top, the weather under the minimap
 func timeAndWeather(d Deps) *ui.Element {
 	a := d.Atmosphere
 	if !d.Widgets {
@@ -56,8 +63,8 @@ func timeAndWeather(d Deps) *ui.Element {
 	return ui.Layers(
 		// the clock's line is 20 pixels over the bottom
 		ui.BottomLeft(ui.Rows(ui.Fit(a.TimeOfDay()), room(20))).Margin(8),
+		ui.TopMiddle(a.Date()).Margin(8),
 		ui.TopRight(ui.Rows(room(minimapSide+8), ui.Fit(a.Weather()))).Margin(16),
-		ui.BottomRight(a.Date()).Margin(16),
 	)
 }
 

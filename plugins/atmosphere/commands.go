@@ -2,6 +2,7 @@ package atmosphere
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
@@ -116,7 +117,7 @@ func (p *Plugin) Settings() []control.Setting {
 	for l := range looks {
 		looks[l] = CloudLook(l).String()
 	}
-	return []control.Setting{
+	out := []control.Setting{
 		control.Switch{
 			Label: "Frozen light",
 			Get:   p.sky.Frozen,
@@ -145,6 +146,20 @@ func (p *Plugin) Settings() []control.Setting {
 			Set:     func(on bool) command.Command { return HighShade{On: on} },
 		},
 	}
+	weathers := p.climate.Config().Weathers
+	if len(weathers) == 0 {
+		return out
+	}
+	names := make([]string, len(weathers))
+	for i, w := range weathers {
+		names[i] = w.Name
+	}
+	return append(out, control.Choice{
+		Label:   "Weather",
+		Options: names,
+		Get:     func() int { return max(slices.Index(names, p.climate.Now()), 0) },
+		Set:     func(i int) command.Command { return SetWeather{Name: names[i]} },
+	})
 }
 
 func (p *Plugin) carryOut() {

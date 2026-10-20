@@ -5,6 +5,7 @@ import (
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/minimap"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
@@ -57,9 +58,11 @@ func (m *mainScene) screen() *ui.Element {
 		ui.Image(render.NewFeed(cam, a.world.Picture())).Input(a.players.Through(a.player)),
 		ui.Drawer(a.world.Clock().HUD()),
 		ui.TopMiddle(a.atmosphere.Bar()).Margin(8),
-		ui.TopRight(a.minimap.For(cam, a.player.ID).Masked(ui.Circle).Border(minimapRim, 2)).
-			Size(220, 220).
-			Margin(16),
+		ui.TopRight(ui.Layers(
+			ui.Center(a.minimap.For(cam, a.player.ID).Masked(ui.Circle).Border(minimapRim, 2)).
+				Size(220, 220),
+			a.minimap.Compass(cam),
+		)).Size(220+2*minimap.Overhang, 220+2*minimap.Overhang).Margin(16-minimap.Overhang),
 		ui.BottomMiddle(a.bridges.Reason().Padding(6).Fill(reasonColor)).Margin(40),
 		ui.Center(a.bridges.Window()),
 	)

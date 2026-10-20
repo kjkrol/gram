@@ -82,6 +82,7 @@ func (m *mainScene) screen() *ui.Element {
 		Feed: ui.Image(render.NewFeed(cam, a.world.Picture())).
 			Input(a.players.Through(a.player)),
 		Minimap:    a.minimap.For(cam, a.player.ID),
+		Compass:    a.minimap.Compass(cam),
 		Clock:      a.world.Clock().HUD(),
 		Atmosphere: a.atmosphere,
 		Reason:     a.bridges.Reason(),
