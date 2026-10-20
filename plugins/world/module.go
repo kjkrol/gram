@@ -35,15 +35,16 @@ type module struct {
 	telemetry    Telemetry
 
 	despawned map[uid.UID64]struct{}
-	items     []aabbworld.Item
+	runs      []aabbworld.Run
+	versions  []uint32 // each run's table version as it was gathered
 
 	kinds *Kinds
 
 	drawing render.Rules
 
 	// a spawn or a despawn since the space last took every entity
-	unindexed     bool
-	indexRunnable goke.Runnable
+	unindexed bool
+	indexer   *indexer
 
 	views        []*view.View
 	viewRunnable goke.Runnable
@@ -112,7 +113,9 @@ func (w *module) RegSystems(ecs *goke.ECS) {
 	w.effectCmdsRunnable = ecs.RegSys(w.effectCmds.system())
 	w.spawnRunnable = ecs.RegSys(newSpawnSystem(w))
 	w.despawnRunnable = ecs.RegSys(newDespawnSystem(w))
-	w.indexRunnable = ecs.RegSys(newIndexSystem(w))
+	w.indexer = &indexer{w: w}
+	ecs.RegSys(goke.SystemFn{OnInit: w.indexer.init})
+	w.clock.OnSync(w.indexer.settle)
 	w.viewRunnable = ecs.RegSys(view.NewSystem(w.space, &w.views, w.config.Space.Width, w.config.Space.Height))
 	w.sectorsRunnable = ecs.RegSys(w.sectors)
 	w.clockRunnable = ecs.RegSys(w.clock.System())
@@ -130,8 +133,11 @@ func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	w.switchSectors()
 	ctx.Run(w.clockRunnable, d)
 	ctx.Run(w.sectorsRunnable, d)
+	// a plugin run before the world may have synced since the last tick
+	w.indexer.settle()
 	ctx.Run(w.viewRunnable, d)
 	ctx.Sync()
+	w.indexer.settle()
 	w.clock.Simulate(ctx, w.step)
 }
 
@@ -143,9 +149,8 @@ func (w *module) simulate(ctx goke.RunCtx, step time.Duration) {
 	ctx.Run(w.despawnRunnable, step)
 	ctx.Run(w.effectCmdsRunnable, step)
 	ctx.Run(w.momentsRunnable, step)
-	// lands the despawns, so the space is indexed without them
+	// lands the spawns and despawns, the clock settling the space after it
 	ctx.Sync()
-	ctx.Run(w.indexRunnable, step)
 	w.effects.Module().RunPlan(ctx, step)
 }
 
@@ -185,7 +190,7 @@ func (w *module) PostLoad() goke.System {
 
 func (w *module) reindex(si *goke.SysInit) {
 	var base goke.Comp[Base]
-	w.items = rebuild(w.space, heldQuery(si, &base), &base, w.items)
+	w.index(heldQuery(si, &base), &base)
 }
 
 func (w *module) count(si *goke.SysInit) int {
