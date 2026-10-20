@@ -49,10 +49,11 @@ type collisionSystem struct {
 	struckAt func(i int) Struck
 	hitAt    func(i int) bool
 
-	all      *goke.Query
-	allBase  goke.Comp[world.Base]
-	allSweep goke.OptComp[Sweep]
-	items    []aabbworld.Item
+	all       *goke.Query
+	allBase   goke.Comp[world.Base]
+	allSweep  goke.OptComp[Sweep]
+	runs      []aabbworld.Run
+	stretches [][]aabbworld.Item // a swept chunk's stretched boxes, in the chunk's place
 
 	lookup         *goke.Query
 	lookupBase     goke.Comp[world.Base]
@@ -87,8 +88,22 @@ type collisionSystem struct {
 	sweeping bool
 	wraps    bool
 
+	// the boxes as the tick found them, by entity index: the engine pushes them where they lie
+	priors  []prior
+	ticks   uint32
+	keeping bool
+
 	tick  host.Tick
 	stale bool
+}
+
+// an entity's box as the tick found it, kept the first time the engine asks of the entity,
+// which it does before any push of it; moved takes a push back through base
+type prior struct {
+	box    plane.AABB
+	base   *world.Base
+	layers world.Layers
+	tick   uint32
 }
 
 type handler collisionSystem
@@ -289,11 +304,10 @@ func (d *collisionSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 
 	d.pending = d.pending[:0]
 	d.lookupHot, d.stale = false, false
+	d.ticks++
+	d.keeping = d.field.field != nil || d.sweeping
 	d.engine.Tick()
 	for _, l := range d.engine.Left() {
-		if d.seek(l.ID) {
-			d.lookupBase.At(d.lookup.Cursor()).Pos.AABB = l.Box
-		}
 		d.leave(cb, l.ID)
 	}
 	if d.sweeping {
@@ -377,22 +391,36 @@ func (d *collisionSystem) still(bases []world.Base, colliders []Collider) bool {
 	return changed
 }
 
+// the space reads the boxes where they lie, a run a chunk; a swept one's stretched boxes are
+// copies, which the engine never pushes: a swept entity is a sensor
 func (d *collisionSystem) rebuild(stretch bool) {
-	d.items = d.items[:0]
-	d.all.All()
-	for d.all.Next() {
+	d.runs = d.runs[:0]
+	swept := 0
+	for d.all.All(); d.all.Next(); {
 		cursor := d.all.Cursor()
-		sweeps := d.allSweep.Slice(cursor)
-		for i, b := range d.allBase.Slice(cursor) {
-			box := b.Pos.AABB
-			if stretch && sweeps != nil {
-				box = stretched(sweeps[i].From, b.Pos)
-			}
-			d.items = append(d.items, aabbworld.Item{ID: cursor.IDs[i], Box: box, Caps: b.Caps})
+		bases, sweeps := d.allBase.Slice(cursor), d.allSweep.Slice(cursor)
+		if !stretch || sweeps == nil {
+			d.runs = append(d.runs, world.RunOf(cursor.IDs, bases))
+			continue
 		}
+		if swept == len(d.stretches) {
+			d.stretches = append(d.stretches, nil)
+		}
+		items := d.stretches[swept][:0]
+		for i, b := range bases {
+			box := stretched(sweeps[i].From, b.Pos)
+			items = append(items, aabbworld.Item{ID: cursor.IDs[i], Box: box, Caps: b.Caps})
+		}
+		d.stretches[swept] = items
+		swept++
+		d.runs = append(d.runs, aabbworld.RunOf(cursor.IDs, items, itemBox, itemCaps))
 	}
-	d.space.Rebuild(d.items)
+	d.space.RebuildRuns(d.runs, nil)
 }
+
+func itemBox(it *aabbworld.Item) *plane.AABB { return &it.Box }
+
+func itemCaps(it *aabbworld.Item) *aabbworld.Capability { return &it.Caps }
 
 func stretched(from geom.Vec, pos world.Position) plane.AABB {
 	half := halfOf(pos)
@@ -552,7 +580,8 @@ func (d *collisionSystem) resolve(a, b uid.UID64, pen geom.Vec) (geom.Vec, bool)
 	if mover.Sweep.Ignoring && mover.Sweep.Ignore == other.Entity {
 		return pen, false
 	}
-	along, normal, hit := response.Sweep(mover.Sweep.From, mover.Base.Pos.Center(), halfOf(mover.Base.Pos), other.Base.Pos.AABB.AABB)
+	along, normal, hit := response.Sweep(mover.Sweep.From, mover.Base.Pos.Center(),
+		halfOf(mover.Base.Pos), d.before(other.Entity))
 	if !hit {
 		return pen, false
 	}
@@ -568,7 +597,9 @@ func (d *collisionSystem) footing(pen geom.Vec) geom.Vec {
 	if d.field.field == nil || p.detectOnly() {
 		return pen
 	}
-	pen, p.holdA, p.holdB = response.Footing(d.field.field, p.A.body(), p.B.body(), pen)
+	a, b := p.A.body(), p.B.body()
+	a.Box, b.Box = d.before(p.A.Entity), d.before(p.B.Entity)
+	pen, p.holdA, p.holdB = response.Footing(d.field.field, a, b, pen)
 	return pen
 }
 
@@ -591,8 +622,24 @@ func (d *collisionSystem) side(id uid.UID64) (contactSide, host.Marks, bool) {
 	if s.Sweep = d.lookupSweep.At(cur); s.Sweep != nil {
 		s.Physics = nil
 	}
+	if d.keeping {
+		d.keep(id, s.Base, s.Layers)
+	}
 	return s, d.between.Read(sought, d.seekCols.Row(cur), int(cur.Slot)), true
 }
+
+func (d *collisionSystem) keep(id uid.UID64, base *world.Base, layers world.Layers) {
+	i := int(id.Index())
+	if i >= len(d.priors) {
+		d.priors = append(d.priors, make([]prior, i+1-len(d.priors))...)
+	}
+	if p := &d.priors[i]; p.tick != d.ticks {
+		*p = prior{box: base.Pos.AABB, base: base, layers: layers, tick: d.ticks}
+	}
+}
+
+// the box the entity stood in as the tick began; it was kept, the engine having asked of it
+func (d *collisionSystem) before(id uid.UID64) geom.AABB { return d.priors[id.Index()].box.AABB }
 
 func (d *collisionSystem) seek(id uid.UID64) bool {
 	ok := d.lookupHot && d.lookup.SeekH(id)
@@ -686,19 +733,16 @@ func (d *collisionSystem) record() {
 	}
 }
 
-// the engine's later passes ask no handler: a box they left further over ground that does not
-// take it stays, and the space is built again after the tick
+// the engine pushed the box where it lies; its later passes ask no handler, so a box they left
+// further over ground that does not take it goes back where it stood
 func (d *collisionSystem) moved(id uid.UID64, box plane.AABB) {
-	if !d.seek(id) {
+	if d.field.field == nil {
 		return
 	}
-	cur := d.lookup.Cursor()
-	base := d.lookupBase.At(cur)
-	if d.field.field != nil && response.Worse(d.field.field, world.LayersOf(d.lookupLayers.At(cur)), base.Pos.AABB.AABB, box.AABB) {
-		d.stale = true
-		return
+	p := &d.priors[id.Index()]
+	if p.tick == d.ticks && response.Worse(d.field.field, p.layers, p.box.AABB, box.AABB) {
+		p.base.Pos.AABB = p.box
 	}
-	base.Pos.AABB = box
 }
 
 func bounce(a, b contactSide, normal geom.Vec) float64 {

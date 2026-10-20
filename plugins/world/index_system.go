@@ -1,53 +1,70 @@
 package world
 
 import (
-	"time"
+	"unsafe"
 
 	"github.com/kjkrol/aabbworld"
+	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/world/sector"
+	"github.com/kjkrol/uid"
 )
 
-var _ goke.System = (*indexSystem)(nil)
-
-// indexSystem hands the space every entity after a spawn or a despawn; one moved is indexed
-// again by whoever moved it
-type indexSystem struct {
+// indexer gathers the space's runs anew once a spawn, a despawn or a Sync has left them behind
+type indexer struct {
 	w     *module
 	query *goke.Query
 	base  goke.Comp[Base]
 }
 
-func newIndexSystem(w *module) *indexSystem { return &indexSystem{w: w} }
-
-func (s *indexSystem) Init(si *goke.SysInit) { s.query = heldQuery(si, &s.base) }
+func (x *indexer) init(si *goke.SysInit) { x.query = heldQuery(si, &x.base) }
 
 // what the space holds: every entity but those beyond the last band of the sectors
 func heldQuery(si *goke.SysInit, base *goke.Comp[Base]) *goke.Query {
 	return si.NewQueryBuilder(base).Exclude(goke.Exclude[sector.Off]()).Build()
 }
 
-func (s *indexSystem) Update(*goke.CmdBuf, time.Duration) {
-	if s.w.unindexed {
-		s.w.items = rebuild(s.w.space, s.query, &s.base, s.w.items)
-		s.w.unindexed = false
+func (x *indexer) settle() {
+	if x.w.unindexed || x.w.moved(x.query) {
+		x.w.index(x.query, &x.base)
 	}
 }
 
-func rebuild(
-	space *aabbworld.Space,
-	q *goke.Query,
-	base *goke.Comp[Base],
-	items []aabbworld.Item,
-) []aabbworld.Item {
-	items = items[:0]
-	q.All()
-	for q.Next() {
+// RunOf is the space's run over bases, a chunk's Base column named by ids: the space reads the
+// boxes and their Caps where they lie and pushes the boxes in place.
+func RunOf(ids []uid.UID64, bases []Base) aabbworld.Run {
+	return aabbworld.RunOf(ids, bases, boxOf, capsOf)
+}
+
+func boxOf(b *Base) *plane.AABB { return &b.Pos.AABB }
+
+func capsOf(b *Base) *aabbworld.Capability { return &b.Caps }
+
+func (w *module) index(q *goke.Query, base *goke.Comp[Base]) {
+	w.runs, w.versions = w.runs[:0], w.versions[:0]
+	for q.All(); q.Next(); {
 		cursor := q.Cursor()
-		for i, b := range base.Slice(cursor) {
-			items = append(items, aabbworld.Item{ID: cursor.IDs[i], Box: b.Pos.AABB, Caps: b.Caps})
+		w.runs = append(w.runs, RunOf(cursor.IDs, base.Slice(cursor)))
+		w.versions = append(w.versions, q.ChunkSnapshot().TableVer)
+	}
+	w.space.RebuildRuns(w.runs, nil)
+	w.unindexed = false
+}
+
+// moved reports whether a chunk q walks has come, gone, grown or shrunk since the runs were
+// gathered, or goke has moved entities of its table between slots
+func (w *module) moved(q *goke.Query) bool {
+	k := 0
+	for q.All(); q.Next(); k++ {
+		cursor := q.Cursor()
+		if k == len(w.runs) {
+			return true
+		}
+		ids := w.runs[k].IDs
+		if len(ids) != len(cursor.IDs) || unsafe.SliceData(ids) != unsafe.SliceData(cursor.IDs) ||
+			w.versions[k] != q.ChunkSnapshot().TableVer {
+			return true
 		}
 	}
-	space.Rebuild(items)
-	return items
+	return k != len(w.runs)
 }

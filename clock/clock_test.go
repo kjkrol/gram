@@ -1,6 +1,7 @@
 package clock_test
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -211,5 +212,47 @@ func TestClock_SimulateAllocatesNothingForABoundBlock(t *testing.T) {
 	}
 	if runs != 102 {
 		t.Errorf("the block ran %d times, want 102: the warm-up, AllocsPerRun's own and 100", runs)
+	}
+}
+
+func TestClock_OnSyncSettlesAfterEverySyncOfTheSimulationAndAsAReplayEnds(t *testing.T) {
+	c := clock.New(clock.Config{})
+	// room for every replay below, so that what the test notes allocates nothing
+	heard := make([]string, 0, 64)
+	c.OnSync(func() { heard = append(heard, "settle") })
+	block := clock.Block(func(ctx goke.RunCtx, _ time.Duration) {
+		heard = append(heard, "block")
+		ctx.Sync()
+		ctx.Sync()
+	})
+	ecs := goke.New()
+	var allocs float64
+	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+		c.Simulate(rc, block)
+		c.Replay(rc, d)
+		allocs = testing.AllocsPerRun(10, func() {
+			c.Simulate(rc, block)
+			c.Replay(rc, d)
+		})
+	})
+	ecs.Setup()
+	ecs.Tick(step)
+	if allocs != 0 {
+		t.Errorf("a replay settling after its Syncs allocates %v times, want none", allocs)
+	}
+	if want := []string{"block", "settle", "settle", "settle"}; !slices.Equal(heard[:4], want) {
+		t.Errorf("heard %v in a replay, want %v", heard[:4], want)
+	}
+
+	c.SetPaused(true)
+	heard = heard[:0]
+	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+		c.Simulate(rc, block)
+		c.Replay(rc, d)
+	})
+	ecs.Tick(step)
+	if want := []string{"settle"}; !slices.Equal(heard, want) {
+		t.Errorf("heard %v in the pause, want %v: what synced before the replay settled", heard,
+			want)
 	}
 }
