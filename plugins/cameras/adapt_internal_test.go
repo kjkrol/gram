@@ -16,7 +16,8 @@ type ticking struct {
 }
 
 func newTicking() *ticking {
-	return &ticking{a: &adapter{on: true, budget: time.Second / 60}, now: time.Unix(1000, 0)}
+	return &ticking{a: &adapter{on: true, budget: time.Second / 60, sampling: DefaultSampling},
+		now: time.Unix(1000, 0)}
 }
 
 func (k *ticking) steps(fps float64, n int) (factors []float32) {
@@ -39,42 +40,45 @@ func only(factors []float32, want float32, at int) bool {
 
 func none(factors []float32) bool { return only(factors, 1, -1) }
 
-func TestAdapter_TwoSecondsUnderTheBudgetStepCoarser(t *testing.T) {
+func TestAdapter_AWindowUnderTheBudgetStepsCoarser(t *testing.T) {
 	k := newTicking()
 	if got := k.steps(50, 3); !only(got, ResolutionStep, 1) {
-		t.Errorf("at 50 of 60 frames the steps are %v, want the coarser one at the second", got)
+		t.Errorf("at 50 of 60 frames the steps are %v, want the coarser one as the window ends", got)
 	}
 	k = newTicking()
 	if got := k.steps(50, 1); got[0] != 1 {
-		t.Fatalf("one second under the budget stepped by %v, want nothing yet", got[0])
+		t.Fatalf("one second under the budget stepped by %v, want nothing: the window runs", got[0])
 	}
-	if got := k.steps(59, 1); got[0] != 1 {
-		t.Fatalf("a second meeting the budget stepped by %v, want nothing", got[0])
+	if got := k.steps(62, 1); got[0] != 1 {
+		t.Errorf("a second well over the budget after one under stepped by %v, want nothing: the "+
+			"window's rate meets it", got[0])
 	}
-	if got := k.steps(50, 1); got[0] != 1 {
-		t.Errorf("one second under again stepped by %v, want nothing: the count began anew", got[0])
+	k.a.sampling = 4 * time.Second
+	if got := k.steps(50, 4); !only(got, ResolutionStep, 3) {
+		t.Errorf("sampled over four seconds the steps are %v, want the coarser one at the fourth",
+			got)
 	}
 }
 
-func TestAdapter_FiveSecondsMeetingTheBudgetStepFinerTentatively(t *testing.T) {
+func TestAdapter_TwoWindowsMeetingTheBudgetStepFinerTentatively(t *testing.T) {
 	k := newTicking()
-	if got := k.steps(60, 6); !only(got, 1/ResolutionStep, 4) {
-		t.Errorf("at 60 frames the steps are %v, want the finer one at the fifth", got)
+	if got := k.steps(60, 5); !only(got, 1/ResolutionStep, 3) {
+		t.Errorf("at 60 frames the steps are %v, want the finer one at the fourth", got)
 	}
 	k = newTicking()
-	k.steps(60, 4)
-	if got := k.steps(57, 1); got[0] != 1 {
-		t.Fatalf("a second between stepped by %v, want nothing", got[0])
+	k.steps(60, 2)
+	if got := k.steps(57, 2); !none(got) {
+		t.Fatalf("a window between stepped by %v, want nothing", got)
 	}
-	if got := k.steps(60, 4); !none(got) {
-		t.Errorf("four seconds meeting the budget after one between stepped %v, want nothing: "+
+	if got := k.steps(60, 2); !none(got) {
+		t.Errorf("a window meeting the budget after one between stepped %v, want nothing: "+
 			"the count began anew", got)
 	}
 }
 
 func TestAdapter_AFinerStepCostingTheBudgetBurnsTheFinerStepsForAWhile(t *testing.T) {
 	k := newTicking()
-	k.steps(60, 5)
+	k.steps(60, 4)
 	if got := k.steps(50, 2); got[1] != ResolutionStep {
 		t.Fatalf("under the budget right after a finer step the steps are %v, want coarser", got)
 	}
@@ -82,23 +86,23 @@ func TestAdapter_AFinerStepCostingTheBudgetBurnsTheFinerStepsForAWhile(t *testin
 		t.Errorf("meeting the budget within the burn stepped %v, want nothing for thirty seconds",
 			got)
 	}
-	if got := k.steps(60, 1); got[0] != 1/ResolutionStep {
-		t.Errorf("the burn over, the step is %v, want finer", got[0])
+	if got := k.steps(60, 2); got[1] != 1/ResolutionStep {
+		t.Errorf("the burn over, the steps are %v, want finer as the window ends", got)
 	}
 }
 
-func TestAdapter_EvaluatesOnceASecondAndNeverHeadlessOrOff(t *testing.T) {
+func TestAdapter_SamplesOnceASecondAndNeverHeadlessOrOff(t *testing.T) {
 	k := newTicking()
 	for range 10 {
 		k.now = k.now.Add(100 * time.Millisecond)
 		k.a.step(k.now, 50)
 	}
-	if k.a.under != 1 {
-		t.Errorf("ten passes under the budget within a second counted %d, want 1", k.a.under)
+	if k.a.samples != 1 {
+		t.Errorf("ten passes within a second took %d samples, want 1", k.a.samples)
 	}
-	if got := k.steps(0, 5); !none(got) || k.a.under != 1 {
-		t.Errorf("without frames the steps are %v and the count %d, want nothing and 1 still",
-			got, k.a.under)
+	if got := k.steps(0, 5); !none(got) || k.a.samples != 1 {
+		t.Errorf("without frames the steps are %v and the samples %d, want nothing and 1 still",
+			got, k.a.samples)
 	}
 	k.a.on = false
 	if got := k.steps(50, 5); !none(got) {
@@ -114,7 +118,7 @@ func TestClamped_StaysBetweenTheLeastResolutionAndAllThePixels(t *testing.T) {
 	}
 }
 
-func TestStepRings_StepsTheOutermostRingCoarserFirstAndTheInnermostFinerFirst(t *testing.T) {
+func TestStepLayers_StepsTheOutermostRingCoarserFirstAndTheInnermostFinerFirst(t *testing.T) {
 	near := func(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
 	for _, c := range []struct {
 		name   string
@@ -129,27 +133,27 @@ func TestStepRings_StepsTheOutermostRingCoarserFirstAndTheInnermostFinerFirst(t 
 			{0.4, 0.6, 0.8235}, {0.4, 0.6, 0.9689}, {0.4, 0.6, 1}, {0.4, 0.7059, 1},
 		}},
 	} {
-		cam := cameratest.NewFromSpace(1000, 800, 0).(camera.Ringed)
+		cam := cameratest.NewFromSpace(1000, 800, 0).(camera.Layered)
 		shares := [3]float32{1, 0.6, 0.35}
-		rings := make([]camera.Ring, 3)
+		layers := make([]camera.Layer, 3)
 		for i, s := range c.from {
-			rings[i] = camera.Ring{Share: shares[i], Resolution: s}
+			layers[i] = camera.Layer{Share: shares[i], Resolution: s}
 		}
-		cam.SetRings(rings)
+		cam.SetLayers(layers, camera.Inset)
 		for n, want := range c.steps {
-			centre := stepRings(cam, c.factor)
+			centre := stepLayers(cam, c.factor)
 			var got [3]float32
-			for i, ring := range cam.Rings() {
-				got[i] = ring.Resolution
+			for i, layer := range cam.Layers() {
+				got[i] = layer.Resolution
 			}
 			for i := range want {
 				if !near(got[i], want[i]) {
-					t.Errorf("%s, step %d: the rings are %.4v, want %.4v", c.name, n+1, got, want)
+					t.Errorf("%s, step %d: the layers are %.4v, want %.4v", c.name, n+1, got, want)
 					break
 				}
 			}
 			if centre != got[2] {
-				t.Errorf("%s, step %d: stepRings gave %v, want the centre's %v", c.name, n+1,
+				t.Errorf("%s, step %d: stepLayers gave %v, want the centre's %v", c.name, n+1,
 					centre, got[2])
 			}
 		}

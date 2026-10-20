@@ -12,7 +12,7 @@ import (
 var MarqueeColor = color.RGBA{R: 255, G: 140, B: 0, A: 255}
 
 // marquees are the boxes being dragged, one a camera, in the shown pixels of its frame: a
-// camera drawn in rings composes its picture once a ring, in another part of the frame at
+// camera drawn in layers composes its picture once a layer, in another part of the frame at
 // another resolution each time.
 type marquees struct{ boxes map[camera.Camera]geom.AABB }
 

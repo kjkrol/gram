@@ -45,6 +45,12 @@ type content interface {
 
 type container interface{ container() }
 
+// clipping is a content drawing its children into a part of dst alone, a Scroll's box; what lies
+// outside it is neither seen nor hit
+type clipping interface {
+	clip(e *Element, dst *render.Image) *render.Image
+}
+
 type leaving interface{ absent(e *Element) bool }
 
 func (e *Element) absent() bool {
@@ -225,8 +231,12 @@ func (e *Element) paintHere(dst *render.Image) {
 	}
 	e.background(dst)
 	e.content.draw(e, dst)
+	inner := dst
+	if c, ok := e.content.(clipping); ok {
+		inner = c.clip(e, dst)
+	}
 	for _, c := range e.children {
-		c.paint(dst)
+		c.paint(inner)
 	}
 	e.edge(dst)
 }

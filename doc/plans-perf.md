@@ -608,3 +608,81 @@ ostrych figur (przełącznik nie działa w pierścieniach). Checkout użytkownik
 miał niezacommitowaną pracę nad detalem gruntu w `mesh.wgsl`, `terrain.go`, `plugin.go`:
 integracja poszła w osobnym worktree, scalenie tych dwóch linii da drobne konflikty w tych
 plikach.
+
+## Etap U. Obraz po stanie kamery: profile taktyczny/jazda, warstwy per widok, jedno składanie
+
+**Skille:** `gram-render`, `gram-plugin`, `gram-plugins` (cameras), `gram-game` (ekran
+ustawień), `gram-probe`. Dodany 2026-10-20 jako „następny etap” zapowiedziany w T: wątek z
+19.10 (20:47–21:34) o tym, że pierścienie (foveacja) mają sens w pierwszej osobie, a w
+widokach taktycznych oko skanuje cały kadr, więc tam lepszy jest podział grunt/figury, a
+„daleko” w perspektywie to pas pod horyzontem. Pierwszy etap robiony w częściach przez osobne
+agenty (CLAUDE.md „A stage in parts”).
+
+**Decyzje.** Nazwy: pierścienie obrazu to warstwy (`camera.Layer`, `Layered`, `InLayers`,
+`Layers{On}`, `LayerShares`, `LayerResolutions`, `ShowLayers`, `LayerFeather`); pierścienie
+staranności sektorów zostają. Układ warstw (`camera.Layout`): `Inset` (każda w środku kadru,
+wcięta z czterech stron) w izometrii, z góry i w jeździe; `Footed` (każda `Share` kadru wszerz
+i wzwyż, wyśrodkowana w poziomie, stojąca na dolnej krawędzi; grubsza warstwa widać wokół jak
+stół: blat u góry i dwie nogi) w perspektywie taktycznej, z decyzji użytkownika; `Arrange` daje
+oknom całe piksele, parzyste marginesy wciętych. Przycięcie poza środkiem: `Cropping.Crop(win
+Window, s)`, `Window()`; perspektywa trzyma punkt główny zamiast `viewportSize/2`, orto
+przesuwa `pan`, z góry `effective`; `TransformOf` idzie za `RayField`, więc Directy nic nie
+wiedzą. Profile: `Settings{Zones, FrameBudget, ShowLayers, Tactical, Riding Knobs}`, `Knobs{
+Strategy, Resolution, SoftFigures, Layers, Inner, Middle, OuterRes, MiddleRes}`, profil kamery
+po jej stanie (`ProfileOf`: jazda gdy `camera.HowOf == Inside`), układ Footed gdy taktyczny i
+w perspektywie (`Eyed`); plugin ubiera kamerę (`dress`) przy zmianie stanu po `module.RunPlan`;
+komendy niosą `Profile`; adapter kroczy każdą kamerą po strategii jej profilu; `Knobs.filled()`
+strzeże zerowych floatów per pole (gob zeruje całą strukturę ze starego zapisu). Ekran F10:
+sekcje `Picture/Tactical`, `…/Layers`, `Picture/Riding`, `…/Layers`, nazwy elementów ze
+ścieżką. Jedno składanie: `render.Laid{Lay(cam, apart); DrawLayer(layer, cam, at Window);
+DrawOver(screen, cam)}` zamiast `Grounded`; kawałki składane raz w pikselach całego kadru i
+rysowane w każdej warstwie z `gpu.Draw.Place` (skala i przesunięcie okna; `quad.wgsl` liczy
+głębię po umieszczeniu, z sight przyciętej kamery), Directy rysują przez przyciętą kamerę;
+`gpu.PlaceDepth` (dawny `ScaleDepth` z przesunięciem w `place.zw` i nożycami) składa głębie
+warstw w głębię ekranu dla przebiegu górnego, więc ostre figury działają także nad warstwami;
+`Sprites.Draw` bez `Reset` (reset w `Begin`), by druga warstwa miała figury. Start dema
+board/topography: taktyczny `Uniform` (figury ostre, grunt za budżetem), jazda `InLayers`.
+
+**Części.** Preludium (integrator, gałąź `perf/picture-profiles`): scalenie T (konflikt w
+`mesh.wgsl`: ziarno i kołysanie przy `CARE >= 1u`), zmiana nazw, kontrakt `Layout`/`Window`/
+`Arrange`. A (`u/profiles`): plugin kamer, `control`, ekran ustawień, demo. B (`u/footed`):
+`camera.Cropping` z oknem, trzy kamery, okna i pióro feed, obrys warstw po gaszonych bokach.
+C (`u/laid`): `PlaceDepth`, composer `Laid`, `Sprites`/`Flat`, ścieżki feed, bench
+`persp,footed`, `iso,layered,sharp`, `persp,footed,sharp`. Integracja B, C, A; obrys warstw
+bez bramki `IsCropped` (składany z `Arrange`); pomiar; dokumenty.
+
+## Etap U: wynik (2026-10-20, gałąź `perf/picture-profiles`, baza `b6ecc82c`)
+
+Wykonanie: preludium przez integratora (scalenie T z konfliktem w `mesh.wgsl`, zmiana nazw,
+kontrakt `Layout`/`Window`/`Arrange`), części A (`u/profiles`), B (`u/footed`) i C (`u/laid`)
+przez trzy agenty Opus 5.5 równolegle w worktree poza `go.work`, scalenie B, A, C na gałąź
+etapu (konflikty tylko w `render/feed.go` i dwóch testach: okna B pod ścieżkami C), obrys
+warstw bez bramki `IsCropped` i poprawka tras nawigacji (C wykrył: `routes.Lines` zrzucał
+odcinki przy pierwszym rysowaniu i trzymał prostokąty w pikselach kamery składającej, więc
+warstwy wewnętrzne nie miały tras) przez integratora, pomiar na bezczynnej maszynie. Liczby w
+`BENCHMARKS.md`, „The island's frame”, akapit „The picture in layers from one composition…”.
+
+| Co | Wynik |
+|:--|--:|
+| Wyspa 1440p bez readbacku, izo w warstwach: trzy składania / jedno | 8,0 / 7,0 ms |
+| perspektywa w warstwach wciętych: baza / drzewo | 10,4 / 9,4 ms |
+| perspektywa w warstwach footed | 8,9 ms |
+| izo / perspektywa footed, ostre figury nad warstwami | 10,2 / 11,6 ms |
+| izo, persp, 0,7 przez feed (miękkie i ostre) | w granicach dryfu bazy |
+| Demo 2560×1440 bez vsync, cały obraz: baza / drzewo | 63 / 63 FPS |
+| warstwy presetu, figury miękkie: baza / drzewo (drawing 2,0 / 1,7 ms) | 70 / 70 FPS |
+| warstwy presetu, figury ostre (drzewo) | 64 FPS |
+
+**Wnioski.** Jedno składanie zdejmuje ok. 1 ms z klatki wyspy w warstwach i 0,3 ms z „drawing”
+dema (Directy nadal rysują per warstwa), czego demo związane GPU nie zamienia na klatki;
+footed w perspektywie jest o pół milisekundy tańszy od wciętego (mniej kadru rysowanego dwa
+razy). Ostre figury nad warstwami kosztują 2,7–3,1 ms na wyspie (przebieg górny w każdym
+pikselu i trzy głębie umieszczane) i 6 FPS w demie. Reszta w granicach dryfu. Profile działają
+w demie: start taktyczny `Uniform` z ostrymi figurami, jazda (V) w pierścieniach `InLayers`.
+
+**Uwagi.** Następne kroki tego levera: chmury aloft w przebiegu górnym w rozmiarze gruntu
+(stały koszt przebiegu), dziura w zewnętrznych warstwach pod wewnętrznymi (B6 z R2, teraz
+tańsza: jedno składanie, głębie są już per warstwa), Directy rysowane raz w pikselach kadru i
+umieszczane jak kawałki (wymaga `Place` w `DrawMesh`). Adapter w warstwach nadal nie mierzony
+(demo spoczywa w paśmie budżetu). Worktree części usunięte po scaleniu; gałęzie `u/*` zostają
+do przeglądu.

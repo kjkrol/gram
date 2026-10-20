@@ -75,7 +75,7 @@ func (*drawsCtx) Hosts(...host.Host)         {}
 func (*drawsCtx) ECS() *goke.ECS             { return goke.New() }
 func (c *drawsCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
 
-func TestPlugin_DrawsTheZonesAndTheRings(t *testing.T) {
+func TestPlugin_DrawsTheZonesAndTheLayers(t *testing.T) {
 	p := NewPlugin(world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 100, Height: 100},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
@@ -85,18 +85,27 @@ func TestPlugin_DrawsTheZonesAndTheRings(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(ctx.drawn) != 2 || ctx.drawn[0] != render.Source(p.zonesView) ||
-		ctx.drawn[1] != render.Source(p.ringsView) {
-		t.Errorf("the cameras draw %v, want the zones and the rings", ctx.drawn)
+		ctx.drawn[1] != render.Source(p.layersView) {
+		t.Errorf("the cameras draw %v, want the zones and the layers", ctx.drawn)
 	}
 }
 
+// the camera's viewport a part of a frame 200 pixels wider and higher, inset in it
 type cropped struct{ camera.Camera }
 
-func (cropped) Crop(w, h, s float32) {}
-func (cropped) Uncrop()              {}
-func (cropped) Cropped() bool        { return true }
+func (cropped) Crop(camera.Window, float32) {}
+func (cropped) Uncrop()                     {}
+func (cropped) Cropped() bool               { return true }
 
-func (c cropped) Frame() (float32, float32) { return c.Camera.Viewport() }
+func (c cropped) Frame() (float32, float32) {
+	w, h := c.Camera.Viewport()
+	return w + 200, h + 200
+}
+
+func (c cropped) Window() camera.Window {
+	w, h := c.Camera.Viewport()
+	return camera.Window{X: 100, Y: 100, W: w, H: h}
+}
 
 var _ camera.Cropping = cropped{}
 

@@ -61,7 +61,7 @@ func settingsRig(t *testing.T) (*Plugin, *tunable, *world.Plugin) {
 
 func TestSettings_F10OpensTheScreenHoldingTheClockAndEscClosesIt(t *testing.T) {
 	p, _, w := settingsRig(t)
-	rt, comp := &engineStub{props: game.Props{ScreenWidth: 800, ScreenHeight: 600}}, &composed{}
+	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1920, ScreenHeight: 1080}}, &composed{}
 	events := &control.InputEvents{}
 	events.AddKeyEvent(control.KeyF10, control.ActionPress)
 	p.Handle(events, rt, comp)
@@ -84,7 +84,7 @@ func TestSettings_F10OpensTheScreenHoldingTheClockAndEscClosesIt(t *testing.T) {
 func TestSettings_AClockPausedBeforeStaysPaused(t *testing.T) {
 	p, _, w := settingsRig(t)
 	w.Clock().TogglePause()
-	rt, comp := &engineStub{props: game.Props{ScreenWidth: 800, ScreenHeight: 600}}, &composed{}
+	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1920, ScreenHeight: 1080}}, &composed{}
 	p.settings.Open(rt, comp)
 	p.settings.Close(rt, comp)
 	if !w.Clock().State().Paused {
@@ -94,15 +94,23 @@ func TestSettings_AClockPausedBeforeStaysPaused(t *testing.T) {
 
 func TestSettings_TheScreenListsEveryTunableAndItsControlsIssue(t *testing.T) {
 	p, h, w := settingsRig(t)
-	rt, comp := &engineStub{props: game.Props{ScreenWidth: 800, ScreenHeight: 600}}, &composed{}
+	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1920, ScreenHeight: 1080}}, &composed{}
 	p.settings.Open(rt, comp)
-	screen := geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(800, 600))
+	screen := geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(1920, 1080))
 	s := p.settings.screen
 	s.Drawers()
 	s.Lay(screen)
-	box := s.Element("setting:Shadows")
+	box := s.Element("setting:Picture/Graphics/Shadows")
 	if box == nil {
 		t.Fatal("no checkbox for the light's Shadows on the screen")
+	}
+	for _, name := range []string{
+		"setting:Picture/Tactical/Resolution",
+		"setting:Picture/Riding/Resolution",
+	} {
+		if s.Element(name) == nil {
+			t.Errorf("no %s on the screen: a label in two sections is two settings", name)
+		}
 	}
 	at := box.Box().TopLeft.Add(geom.NewVec(4, 4))
 	events := &control.InputEvents{MousePos: at, ClickQueue: []control.ClickEvent{
@@ -118,11 +126,11 @@ func TestSettings_TheScreenListsEveryTunableAndItsControlsIssue(t *testing.T) {
 
 func TestSettings_SectionsComeFirstCentredAndAMovedSettingSitsUnderItsSubheading(t *testing.T) {
 	p, _, _ := settingsRig(t)
-	rt, comp := &engineStub{props: game.Props{ScreenWidth: 800, ScreenHeight: 600}}, &composed{}
+	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1920, ScreenHeight: 1080}}, &composed{}
 	p.settings.Open(rt, comp)
 	s := p.settings.screen
 	s.Drawers()
-	s.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(800, 600)))
+	s.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(1920, 1080)))
 	boxOf := func(name string) geom.AABB {
 		t.Helper()
 		e := s.Element(name)
@@ -137,7 +145,8 @@ func TestSettings_SectionsComeFirstCentredAndAMovedSettingSitsUnderItsSubheading
 		t.Errorf("Picture at %v, Players at %v; want the shared section first", picture.TopLeft,
 			players.TopLeft)
 	}
-	graphics, shadows := boxOf("section:Picture/Graphics"), boxOf("setting:Shadows")
+	graphics := boxOf("section:Picture/Graphics")
+	shadows := boxOf("setting:Picture/Graphics/Shadows")
 	// the column the subheading lies in, whichever the height broke it into
 	var column geom.AABB
 	for i := 0; ; i++ {
@@ -154,8 +163,8 @@ func TestSettings_SectionsComeFirstCentredAndAMovedSettingSitsUnderItsSubheading
 			"its subheading in one column", graphics, shadows, column)
 	}
 	title := boxOf("settings.title")
-	if centre := (title.TopLeft.X + title.BottomRight.X) / 2; math.Abs(centre-400) > 1 {
-		t.Errorf("the title's centre at x %v, want 400", centre)
+	if centre := (title.TopLeft.X + title.BottomRight.X) / 2; math.Abs(centre-960) > 1 {
+		t.Errorf("the title's centre at x %v, want 960", centre)
 	}
 }
 
@@ -166,7 +175,7 @@ func within(a, in geom.AABB) bool {
 
 func TestSettings_KeepRunningLetsTheClockGoAndIsSaved(t *testing.T) {
 	p, _, w := settingsRig(t)
-	rt, comp := &engineStub{props: game.Props{ScreenWidth: 800, ScreenHeight: 600}}, &composed{}
+	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1920, ScreenHeight: 1080}}, &composed{}
 	p.settings.Open(rt, comp)
 	if err := p.Issue(nil, KeepRunning{On: true}); err != nil {
 		t.Fatal(err)

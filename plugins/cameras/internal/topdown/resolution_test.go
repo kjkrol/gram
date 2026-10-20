@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	contract "github.com/kjkrol/gram/camera"
 )
 
 func TestBasicCamera_AtAResolutionItsPixelsAreTheShownOnesTimesIt(t *testing.T) {
@@ -53,7 +54,7 @@ func TestBasicCamera_CroppedItDrawsTheMiddleOfItsFrameAndComesBackExactly(t *tes
 	viewport, res, effective, zoom := c.viewportSize, c.res, c.effective, c.Zoom()
 	rays, _ := c.Rays()
 
-	c.Crop(200, 150, 0.5)
+	c.Crop(contract.Window{X: 100, Y: 75, W: 200, H: 150}, 0.5)
 
 	if w, h := c.Viewport(); w != 100 || h != 75 || c.Zoom() != 1 || !c.Cropped() {
 		t.Errorf("cropped to 200 x 150 at 0.5 the viewport is %v x %v at zoom %v, cropped %v; "+
@@ -70,7 +71,7 @@ func TestBasicCamera_CroppedItDrawsTheMiddleOfItsFrameAndComesBackExactly(t *tes
 			2*rays.DX[0])
 	}
 
-	c.Crop(400, 300, 0.5)
+	c.Crop(contract.Window{W: 400, H: 300}, 0.5)
 	if w, h := c.Viewport(); w != 200 || h != 150 || c.Cropped() {
 		t.Errorf("cropped to the whole frame at 0.5 the viewport is %v x %v, cropped %v; "+
 			"want 200 x 150, not cropped", w, h, c.Cropped())
@@ -82,5 +83,48 @@ func TestBasicCamera_CroppedItDrawsTheMiddleOfItsFrameAndComesBackExactly(t *tes
 		t.Errorf("uncropped the camera is %v at %v over %v, zoom %v; want %v at %v over %v, "+
 			"zoom %v: exactly as before", c.viewportSize, c.res, c.effective.AABB, c.Zoom(),
 			viewport, res, effective.AABB, zoom)
+	}
+}
+
+func TestBasicCamera_CroppedToAWindowItDrawsThatPartOfItsFrameAndComesBackExactly(t *testing.T) {
+	c := newBasicCamera(geom.NewVec(1000, 1000), testViewport(100, 100, 400, 300), 0)
+	c.ZoomIn(2, 300, 250)
+	viewport, res, effective, zoom := c.viewportSize, c.res, c.effective, c.Zoom()
+	// the middle of three layers footed in the 400x300 frame
+	win := contract.Window{X: 80, Y: 120, W: 240, H: 180}
+	x0, y0 := c.FromScreen(80, 120)
+	mx, my := c.FromScreen(200, 150)
+
+	c.Crop(win, 0.5)
+
+	if w, h := c.Viewport(); w != 120 || h != 90 || c.Zoom() != 1 || !c.Cropped() {
+		t.Errorf("cropped to 240 x 180 at 0.5 the viewport is %v x %v at zoom %v, cropped %v; "+
+			"want 120 x 90 at 1, cropped", w, h, c.Zoom(), c.Cropped())
+	}
+	if fw, fh := c.Frame(); c.Window() != win || fw != 400 || fh != 300 {
+		t.Errorf("the window is %v of a frame %v x %v, want %v of 400 x 300", c.Window(), fw, fh,
+			win)
+	}
+	if got, want := c.Bounds(), geom.NewAABBAt(geom.NewVec(240, 235), 120, 90); got != want {
+		t.Errorf("the window on the world is %v, want %v: the frame's from (80, 120) of it", got,
+			want)
+	}
+	if sx, sy := c.Project(x0, y0, 0); sx != 0 || sy != 0 {
+		t.Errorf("what the frame's (80, 120) shows is drawn at (%v, %v), want (0, 0)", sx, sy)
+	}
+	if sx, sy := c.Project(mx, my, 0); sx != 60 || sy != 15 {
+		t.Errorf("the frame's middle is drawn at (%v, %v), want (60, 15)", sx, sy)
+	}
+	if r, _ := c.Rays(); r.Origin[0] != x0 || r.Origin[1] != y0 {
+		t.Errorf("the rays start over (%v, %v), want (%v, %v): the window's corner", r.Origin[0],
+			r.Origin[1], x0, y0)
+	}
+
+	c.Uncrop()
+	if c.viewportSize != viewport || c.res != res || c.effective != effective ||
+		c.Zoom() != zoom || c.Cropped() || c.Window() != (contract.Window{W: 400, H: 300}) {
+		t.Errorf("uncropped the camera is %v at %v over %v, zoom %v, window %v; want %v at %v "+
+			"over %v, zoom %v, the whole frame: exactly as before", c.viewportSize, c.res,
+			c.effective.AABB, c.Zoom(), c.Window(), viewport, res, effective.AABB, zoom)
 	}
 }

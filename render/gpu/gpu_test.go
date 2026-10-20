@@ -491,7 +491,7 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> {
 	}
 }
 
-func TestScaleDepth_SpreadsASmallDepthOverALargerTarget(t *testing.T) {
+func TestPlaceDepth_LaysASmallDepthIntoAWindowOfALargerTarget(t *testing.T) {
 	needGPU(t)
 	reader := NewMesh("test depth reader", "", `
 struct Out { @builtin(position) clip: vec4<f32> }
@@ -518,23 +518,32 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> {
 		x, y := float32(i%2), float32(i/2)
 		depthRect(small, from, Written, x, y, x+1, y+1, z, red)
 	}
-	ScaleDepth(Image{Texture: big}, from, to)
+	ClearDepth(Image{Texture: big}, to)
+	depthRect(big, to, Written, 0, 0, 8, 8, 0.9, red)
+	PlaceDepth(Image{Texture: big}, from, to, Window{X: 2, Y: 2, W: 4, H: 4})
 	Mesh(&MeshDraw{Target: Image{Texture: big}, ReadDepth: to, Program: reader, Vertices: 4,
 		Indices: NewIndices([]uint32{0, 1, 2, 1, 2, 3}), Blend: Copy})
 	pix := make([]byte, 4*8*8)
 	big.ReadPixels(pix)
 	for i, want := range []int{51, 102, 153, 204} {
-		x, y := 1+4*(i%2), 1+4*(i/2)
-		if p := pixel(pix, 8, x, y); int(p[0]) < want-1 || int(p[0]) > want+1 {
-			t.Errorf("at (%d, %d) the scaled depth reads %v, want %d: the small one's pixel it "+
-				"maps to", x, y, p, want)
+		for _, d := range []int{0, 1} {
+			x, y := 2+2*(i%2)+d, 2+2*(i/2)+d
+			if p := pixel(pix, 8, x, y); int(p[0]) < want-1 || int(p[0]) > want+1 {
+				t.Errorf("at (%d, %d) the placed depth reads %v, want %d: the small one's pixel "+
+					"it maps to in the window", x, y, p, want)
+			}
+		}
+	}
+	for _, at := range [][2]int{{1, 1}, {6, 6}, {0, 7}, {7, 3}, {3, 1}, {1, 4}} {
+		if p := pixel(pix, 8, at[0], at[1]); p[0] < 229 || p[0] > 230 {
+			t.Errorf("at %v outside the window the depth reads %v, want the 0.9 it held", at, p)
 		}
 	}
 	if w, h := from.Size(); w != 2 || h != 2 {
-		t.Errorf("scaled over an 8 by 8 target the depth is %d by %d, want 2 by 2 as drawn", w, h)
+		t.Errorf("placed in an 8 by 8 target the depth is %d by %d, want 2 by 2 as drawn", w, h)
 	}
 	if w, h := to.Size(); w != 8 || h != 8 {
-		t.Errorf("the depth scaled into is %d by %d, want the target's 8 by 8", w, h)
+		t.Errorf("the depth placed into is %d by %d, want the target's 8 by 8", w, h)
 	}
 }
 

@@ -30,18 +30,18 @@ atmosphere's entity carries a `light.Source` and a `light.Shining`.
   mirror of the sky but no waves, glint or shore, farther still no ground shade or lamps.
 - `Benchmark_Frame_Topography`: the island's frame on a headless GPU at 1440p.
 
-**The picture in rings** (2026-10-19, etap R2 of `doc/plans-perf.md`)
-- A camera's picture drawn in rings (`camera.Ringed`, `Cropping`): the whole frame at 0.6 of its
+**The picture in layers** (2026-10-19, etap R2 of `doc/plans-perf.md`)
+- A camera's picture drawn in layers (`camera.Layered`, `Cropping`): the whole frame at 0.6 of its
   pixels, the central 60% at 0.8, the central 35% at every one, each a centred crop of the same
   camera (`render.Feed`) laid over the last with a feathered edge (`DrawImageOptions.Fade`).
-  `cameras.Config.Rings` and the setting "Picture drawn in rings" (`Settings.Rings`, saved with
-  the game); `Adapt{On, Rings}` carries both, Alt+A in turn: following the frame budget,
-  following in rings, still and whole. The adapter and Alt+= / Alt+- step the outer ring first,
+  `cameras.Config.Layers` and the setting "Picture drawn in layers" (`Settings.Layers`, saved with
+  the game); `Adapt{On, Layers}` carries both, Alt+A in turn: following the frame budget,
+  following in layers, still and whole. The adapter and Alt+= / Alt+- step the outer layer first,
   then the middle, the centre last, and back in the reverse order; the telemetry's "Picture"
-  line shows the three. `Benchmark_Frame_Topography` has `iso,ringed` and `persp,ringed`.
+  line shows the three. `Benchmark_Frame_Topography` has `iso,layered` and `persp,layered`.
 - The cameras' settings (the zones, the following) are saved with the game: they never were.
 - The composer keeps depth buffers for eight target sizes, the clouds' images one a size, so a
-  view in rings recreates no texture a frame.
+  view in layers recreates no texture a frame.
 
 **The settings screen in sections** (2026-10-19, etap S)
 - The settings screen (F10) lists the sections the plugins share first, centred: `control.Picture`
@@ -49,12 +49,12 @@ atmosphere's entity carries a `light.Source` and a `light.Shining`.
   shown and the graphics (a setting's `Section`), then a section a plugin as before;
   `ui.Subheading`.
 - The picture's resolution follows the frame budget by a strategy (`cameras.Settings.Strategy`:
-  still, the whole picture, in rings; `Adapt{Strategy}`, Alt+A in turn), every knob of both set
-  by hand while still: the resolution, the frame budget, the rings' shares and resolutions
-  (`Picture`, `Rings`, `RingShares`, `RingResolutions`, `Budget`); `cameras.Config.Adaptive` is
+  still, the whole picture, in layers; `Adapt{Strategy}`, Alt+A in turn), every knob of both set
+  by hand while still: the resolution, the frame budget, the layers' shares and resolutions
+  (`Picture`, `Layers`, `LayerShares`, `LayerResolutions`, `Budget`); `cameras.Config.Adaptive` is
   `Strategy`. The telemetry's "Picture" line says the strategy and its settings.
-- The ground's full care reaches as far as a slider says, up to every sector; "Show the rings"
-  and "Show the care" outline the rings' layers and the care's bands over the picture.
+- The ground's full care reaches as far as a slider says, up to every sector; "Show the layers"
+  and "Show the care" outline the layers and the care's bands over the picture.
 - The cameras' settings changed shape: a save from this branch before it loses them.
 
 **The ground at the camera's resolution, the figures at every pixel; five cares** (2026-10-20,
@@ -63,13 +63,57 @@ etap T of `doc/plans-perf.md`)
   what falls or floats over them and the marks at every shown pixel over it, tested against the
   ground's depth spread to the screen's size (`render.Grounded`, `Overlying`, `gpu.ScaleDepth`;
   the sources over the figures say so). The setting "Figures at every pixel" (`cameras.Settings
-  .SoftFigures`, zero sharp; `SharpFigures{On}`, `Config.SoftFigures`) switches it; in rings
+  .SoftFigures`, zero sharp; `SharpFigures{On}`, `Config.SoftFigures`) switches it; in layers
   the picture is drawn as before. The telemetry's "Picture" line says "the figures sharp".
 - The ground is shaded with five cares, one less every R sectors from the sector under the
   screen's middle or the eye (`Full care out to` is R): the shores, the surf, the running water
   and the mouths' glint go first, then the waves and their glint, then the baked shade and the
   lamps, then the grid, the clouds' shadow and the water's mirror. The "Ground" line counts the
   sectors from full to least; "Show the care" colours the bands.
+
+**The picture by the camera's state: profiles, footed layers, one composition** (2026-10-20,
+etap U of `doc/plans-perf.md`)
+- The picture's rings are layers (`camera.Layer`, `Layered`, `LayersOf`; the cameras' `InLayers`,
+  `Layers{On}`, `LayerShares`, `LayerResolutions`, `ShowLayers`, "Drawn in layers"; the feed's
+  `LayerFeather`): a layer's `Share` of the frame lies as the picture's `camera.Layout` says,
+  `Inset` in the middle or `Footed` standing on the frame's bottom edge, centred across, the
+  coarser layer round it like a table, a top and two legs; `camera.Arrange` gives each its
+  `Window`. A camera is cropped to any window of its frame (`Cropping.Crop(win, s)`, `Window()`;
+  the perspective keeps its principal point); a footed layer fades on the sides inside the
+  frame alone.
+- The cameras' picture settings are a profile each, tactical and riding (`cameras.Settings
+  {Zones, FrameBudget, ShowLayers, Tactical, Riding}`, `Knobs`, `Config{Tactical, Riding}`;
+  `ProfileOf`): a camera inside an entity wears the riding profile, any other the tactical one,
+  dressed anew as its state changes; in a tactical perspective its layers stand footed. The
+  commands carry the profile (`Adapt{Profile, Strategy}` and kin; Alt+A the key's camera's);
+  the settings screen has a section a profile under Picture, each with its layers and its
+  "Show the layers" (`ShowLayers{Profile, Shown}`, `Knobs.ShowLayers`), the two laid side by
+  side; the telemetry's Picture line names the lead's profile. A save from before loads the defaults.
+  board/topography starts both profiles following the budget in layers, the figures sharp.
+- The settings screen lays twin sections (the same settings under each, as the profiles) side
+  by side, a line a setting with a control a twin, in as many columns as the screen's width
+  takes, fewer and taller where it takes none, scrolled then by a bar or the wheel
+  (`ui.Scroll`: an element taller than its box, its content clipped to it): every setting is
+  reached whatever the screen's size, and the listing is built anew for the screen the scene
+  is laid over (`ui.Scene.Laid`) as the window is resized or goes full screen, the shortcuts'
+  (K) too. A menu up (F10, K) lets the cursor go while riding.
+- The frame budget turns levers besides the pictures' resolution (`cameras.Config.Levers`,
+  `cameras.Lever{Following, Coarser, Finer}`): coarser the levers first, finer the pictures
+  first. The topography is one: "Full care follows the frame budget" (`AdaptCare{On}`,
+  `Settings.AdaptiveCare`) steps the full care's reach down its ladder as the rate falls under
+  and back up as it stays over, the slider beside it showing it and setting it by hand. The
+  rate the adapter follows is averaged over a window set on the settings screen, "Samples the
+  frame rate over" (`Sampling{Over}`, `Settings.Sampling`, 1 to 20 s, 2 by default): coarser
+  once a window falls under the budget, finer once two meet it. board/topography starts both
+  profiles in layers.
+- A picture in layers is composed once, in the frame's pixels, and drawn a layer at a time
+  with the pieces placed into each (`render.Laid{Lay, DrawLayer, DrawOver}` in place of
+  `Grounded`; `gpu.Draw.Place`), the Directs drawing through the cropped camera (the sprites
+  and the routes gather once a composition), so the three composes of a frame in layers are
+  one; the figures at every pixel are drawn over layers too, tested against the layers' depths
+  placed into the screen's (`Image.PlaceDepth`, `gpu.PlaceDepth` in place of `ScaleDepth`);
+  "Show the layers" outlines every inner layer whatever the pass. `Benchmark_Frame_Topography`
+  has `persp,footed`, `iso,layered,sharp` and `persp,footed,sharp`.
 
 **Faster ticks and frames** (2026-10-19, etap 1 of `doc/plans-perf.md`)
 - The world tick at 5,000 boxes from 215 to 169 µs and no allocations: `clampStep` compares

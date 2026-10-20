@@ -281,7 +281,7 @@ func TestShortcuts_TheListingLaysTheDescriptionOverTheTitleAndTheColumnsApart(t 
 	s := p.OwnKeys(keys).shortcuts
 	s.description = "A game of many keys, described in a line that wraps."
 	screen := geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(800, 400))
-	s.screen.Replace(s.listing(game.Props{ScreenWidth: 800, ScreenHeight: 400}))
+	s.screen.Replace(s.listing(800, 400))
 	s.screen.Lay(screen)
 	about := s.screen.Element("shortcuts.about").Box()
 	title := s.screen.Element("shortcuts.title").Box()

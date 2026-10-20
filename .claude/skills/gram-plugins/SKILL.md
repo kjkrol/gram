@@ -379,7 +379,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   ground is the board's, the sky the atmosphere's, `render` generic.** A relief is lit by the
   light plugin it is made with (without one `light.White`, which the topography hands the
   frame itself) and stands under its `topography.Atmosphere` for the weather (`WithAtmosphere`).
-  Its water reflects the sky's own colours (`skyAt`).
+  Its water reflects the sky's own colours (`skyAt`). "Full care follows the frame budget"
+  (`AdaptCare{On}`, `Settings.AdaptiveCare`, 2026-10-20): the plugin is a `cameras.Lever` given
+  in `cameras.Config.Levers`, its care's reach stepped down the ladder (`careLadder`) before the
+  pictures' resolution as the rate falls under the budget and up after it as it stays over.
 - **`atmosphere`** — the time of day, the climate and the weather on the world's clock, over a
   world with heights alone (`NewPlugin` panics in a flat one); its root
   keeps no shaders and draws nothing itself: every part is a package that never imports it.
@@ -836,7 +839,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`players.SettingsScene`, `settings.go`): opened by F10, built afresh of every
   `plugin.Tunable` among the handlers given to `NewPlugin`, in their order, a heading a plugin and
   a line a setting (`control.Switch` a `ui.Checkbox`, `Choice` a `ui.Dropdown`, `Range` a
-  `ui.Slider` with its number beside, each named `setting:<label>`); its commands go through
+  `ui.Slider` with its number beside, each named `setting:<section path>/<label>`; twin sections,
+  the same settings under each as the cameras' profiles, side by side with a control a twin; as
+  many columns as the width takes, fewer and taller otherwise, in a `ui.Scroll`; the cursor let
+  go while it or the shortcuts are up, a player riding or not); its commands
+  go through
   `IssueAs(the first local player)`; it forwards input to its `ui.Scene` and holds the game in
   the clock's tactical pause (the ECS pause would stop the plugins' `RunPlan` and their queues),
   unless the players' own `Settings.Running` (`KeepRunning{On}`, a switch on the screen; the
@@ -915,19 +922,42 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   neither render nor the world, so their own tests use it too: `internal/stick` is arithmetic and
   a `Keeper` over `stick.Entities`, the plugin's `riding` system reading the ECS for it. `Zones{Shown}` (Shift+H,
   `ShowZones`, `ZonesShown`, `Res.Settings.Zones`, saved beside the cameras' own `persisted`;
-  `Adapt{Strategy}` Alt+A (`Still`, `Uniform`, `InRings`; `SetStrategy`, `Res.Settings.Strategy`) and the picture's knobs `Picture{Resolution}`, `Rings{On}`, `RingShares{Inner, Middle}`, `RingResolutions{Outer, Middle}`, `Budget{Frame}`, `ShowRings{Shown}` (setters and `Res.Settings` fields likewise, on the settings screen under `control.PictureResolution`, `PictureAdaptive`, `PictureRings`, `PictureAreas`; `ringsView` outlines a cropped ring's layer) likewise; marks over every other, hidden by default, shown
+  the picture's knobs a profile each (2026-10-20, etap U: `Res.Settings{Zones, FrameBudget,
+  Tactical, Riding Knobs}`, `Knobs{Strategy, Resolution, SoftFigures, Layers, Inner,
+  Middle, OuterRes, MiddleRes, ShowLayers}`, `Config{Tactical, Riding, FrameBudget}`; `ProfileOf(cam)` is
+  `Riding` inside an entity, `camera.HowOf == Inside`, else `Tactical`; `dress(cam)` puts the
+  profile's knobs on the camera, the layout `camera.Footed` in a tactical perspective (`Eyed`)
+  and `Inset` elsewhere, as the camera is made, on `Restore` and in `RunPlan` after the views'
+  system wherever a camera's profile or perspective changed; `Knobs.filled()` gives a zero
+  float its default, so an old save, which gob decodes to zero, loads the defaults): the
+  commands carry the profile, `Adapt{Profile, Strategy}` Alt+A (`Still`, `Uniform`, `InLayers`
+  of the key's camera's profile, else the lead's), `Picture{Profile, Resolution}`,
+  `SharpFigures{Profile, On}`, `Layers{Profile, On}`, `LayerShares{Profile, Inner, Middle}`,
+  `LayerResolutions{Profile, Outer, Middle}`, `ShowLayers{Profile, Shown}` (the layers' edges, a
+  tick a profile); `Budget{Frame}`, `Sampling{Over}` (the window the rate is averaged over before it is
+  followed, 1–20 s, 2 by default: coarser once a window falls under, finer once two meet) and
+  `Resolution{Camera, Factor}` (Alt+=/−, the camera's own profile) carry none; `Config.Levers`
+  (`cameras.Lever{Following, Coarser, Finer}`) are turned coarser before the pictures and finer
+  after them, the topography's care one; the setters take
+  the profile first (`SetStrategy(profile, s)`); the adapter steps every camera by its profile's
+  strategy, `note` writes the lead's back into its profile; the settings screen lists "Frame
+  budget" under `control.Picture`, then each profile's nine knobs under `control.PictureTactical`
+  and `PictureTacticalLayers`, `PictureRiding` and `PictureRidingLayers` (20 settings; the two
+  profiles are twin sections, laid side by side by the settings screen; an element is named `setting:<section path>/<label>`); the
+  telemetry's Picture line names the lead's profile ("Picture: tactical, 0.70 of the pixels, the
+  figures sharp, following a budget of 60 FPS"); `layersView` outlines a cropped layer) likewise;
+  marks over every other, hidden by default, shown
   in board/topography's `makePlugins`) lays the strips and the corner squares over every picture in
   translucent yellow, rounded (`render.Frame.Fan`), the strips a gap short of the corners and
   fainter (the user's sketch, 2026-10-14). `CursorAtEdge` fires once an `Engine.Update`, before
   the ticks, not once a tick; a demo
   whose WSAD drive binds `cameras.Keys{Wheel, ZoomIn, ZoomOut}` alone. The engine sizes no camera.
-  `SharpFigures{On}` (`SetSharpFigures`, `SharpFigures()`, `Res.Settings.SoftFigures` — zero for
-  the figures at every pixel, so a save from before it keeps the feature — `Config.SoftFigures`,
-  "Figures at every pixel" under `control.PictureResolution`, no key; 2026-10-20) has every
-  camera but a minimap's `camera.Figured` (`ring` applies it as the camera is made and on
-  `Restore`): a picture drawn whole below all its pixels draws the `render.Overlying` sources at
-  every pixel over its ground at the resolution, nothing in rings, and the telemetry's Picture
-  line says ", the figures sharp".
+  `SharpFigures{Profile, On}` (`SetSharpFigures`, `SharpFigures()`, `Knobs.SoftFigures` — zero for
+  the figures at every pixel, so a save from before it keeps the feature — "Figures at every
+  pixel" under the profile's section, no key; 2026-10-20) has every camera but a minimap's
+  `camera.Figured` (`dress` applies it): a picture drawn below all its pixels draws the
+  `render.Overlying` sources at every pixel over its ground at the resolution, whole or in
+  layers, and the telemetry's Picture line says ", the figures sharp".
   Depends on `world`, `motion/steering`.
 - **`driving`** — units driven by hand, with or without navigation: `driving.NewPlugin(world,
   motion, selection).WithGround(board)`. Its commands `Ahead{Camera, Sprint}`, `Back`, `Turn{Way}`,

@@ -39,10 +39,12 @@
 // scale below which it draws coarsely; [DetailOf] is any camera's, none for one without. A
 // [Resolved] camera is drawn at a resolution of the pixels it is shown at, its Viewport, Zoom and
 // screen conversions in those camera pixels and its window on the world the same; [ResolutionOf]
-// is any camera's, 1 for one without. A [Ringed] camera has its picture drawn in rings ([Ring]),
-// the widest first, each a centred crop of the frame at a resolution of its own, by a camera
-// that is [Cropping]: Crop has its Viewport be the central part of its frame until Uncrop;
-// [RingsOf] and [IsCropped] are any camera's.
+// is any camera's, 1 for one without. A [Layered] camera has its picture drawn in layers ([Layer]),
+// the widest first, each a crop of the frame at a resolution of its own laid out as its [Layout]
+// says ([Inset] in the middle, [Footed] on the bottom edge; [Arrange] gives each layer its
+// [Window]), by a camera that is [Cropping]: Crop has its Viewport be a window of its frame,
+// anywhere in it, until Uncrop, and [InFrame] is where a pixel of the frame lies in the window;
+// [LayersOf], [LayoutOf] and [IsCropped] are any camera's.
 //
 // # FromScreenRect
 //

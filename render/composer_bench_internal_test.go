@@ -21,13 +21,16 @@ func Benchmark_Composer_Render(b *testing.B) {
 			}
 		}))
 		calls, verts := 0, 0
-		c.draw = func(_ *Image, v []Vertex, _ []uint16, _ *Image) { calls++; verts += len(v) }
+		c.draw = func(_ *Image, v []Vertex, _ []uint16, _ *Image, _ [4]float32) {
+			calls++
+			verts += len(v)
+		}
 		c.compose(sorted(), wholePart)
 		b.Run(fmt.Sprintf("pieces=%d", c.Composed()), func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
 				calls, verts = 0, 0
-				c.render(nil, false)
+				c.render(nil, false, 0)
 			}
 			b.ReportMetric(float64(calls), "calls")
 			b.ReportMetric(float64(verts), "verts")

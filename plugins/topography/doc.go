@@ -67,7 +67,9 @@
 //
 // # Vocabulary
 //
-// Commands, a player's: [Raise], [Lower], [Level] (the shaping); [Haze], [Care], [ShowCare] (a
+// Commands, a player's: [Raise], [Lower], [Level] (the shaping); [Haze], [Care], [AdaptCare]
+// (the full care's reach following the cameras' frame budget: the plugin is a cameras.Lever,
+// stepped down the care's ladder before the pictures' resolution and up after it), [ShowCare] (a
 // look). Settings ([Settings], saved with the game, in [Resources]): the haze, the care, the
 // care shown. A game's looks: painter.Style and painter.Detail by kind ([Plugin.Style]),
 // painter.Shading ([Plugin.WithShading]).

@@ -3,6 +3,7 @@ package gpu
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 
 	"github.com/gogpu/gputypes"
 	"github.com/gogpu/wgpu"
@@ -304,13 +305,16 @@ func CopyDepth(target Image, from, to *Depth) {
 			dp.fit(t.w, t.h)
 		}
 	}
-	d.copyDepth(t, from, to, [4]float32{})
+	d.copyDepth(t, from, to, [4]float32{}, Rect{0, 0, t.w, t.h})
 }
 
-// ScaleDepth puts what from holds, kept at the size it was drawn at, in place of what to holds,
-// fitted to target's texture: each pixel takes the depth of the one it maps to. From must be
-// Readable; one never drawn clears to.
-func ScaleDepth(target Image, from, to *Depth) {
+// Window is a part of a texture in its pixels: its top-left corner and its size.
+type Window struct{ X, Y, W, H float32 }
+
+// PlaceDepth puts what from holds, kept at the size it was drawn at, in place of what to holds
+// within the window at of target's texture, to fitted to it: each pixel there takes the depth of
+// the one it maps to, the rest is kept. From must be Readable; one never drawn places nothing.
+func PlaceDepth(target Image, from, to *Depth, at Window) {
 	d := must()
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -318,16 +322,19 @@ func ScaleDepth(target Image, from, to *Depth) {
 	if to.w != t.w || to.h != t.h {
 		to.fit(t.w, t.h)
 	}
-	if from.w == 0 || from.h == 0 {
-		d.begin(t, to, true)
+	x0, y0 := int(math.Round(float64(at.X))), int(math.Round(float64(at.Y)))
+	x1, y1 := int(math.Round(float64(at.X+at.W))), int(math.Round(float64(at.Y+at.H)))
+	clip := Rect{x0, y0, x1 - x0, y1 - y0}.intersect(target.rect()).intersect(Rect{0, 0, t.w, t.h})
+	if from.w == 0 || from.h == 0 || clip.W <= 0 || clip.H <= 0 {
 		return
 	}
-	place := [4]float32{float32(from.w) / float32(t.w), float32(from.h) / float32(t.h), 0, 0}
-	d.copyDepth(t, from, to, place)
+	sx, sy := float32(from.w)/at.W, float32(from.h)/at.H
+	d.copyDepth(t, from, to, [4]float32{sx, sy, -at.X * sx, -at.Y * sy}, clip)
 }
 
-// copyDepth draws from into to over t, each pixel reading from at its place scaled by place
-func (d *device) copyDepth(t *target, from, to *Depth, place [4]float32) {
+// copyDepth draws from into to over the part clip of t, each pixel reading from at its place
+// scaled and moved by place
+func (d *device) copyDepth(t *target, from, to *Depth, place [4]float32, clip Rect) {
 	if !from.readable {
 		panic("gpu: a depth copied from is not Readable")
 	}
@@ -344,7 +351,8 @@ func (d *device) copyDepth(t *target, from, to *Depth, place [4]float32) {
 	pass.SetBindGroup(2, group2, nil)
 	d.bindFrame(pass, group3)
 	pass.SetViewport(gputypes.Viewport{Width: float32(t.w), Height: float32(t.h), MaxDepth: 1})
-	pass.SetScissorRect(gputypes.ScissorRect{Width: uint32(t.w), Height: uint32(t.h)})
+	pass.SetScissorRect(gputypes.ScissorRect{X: uint32(clip.X), Y: uint32(clip.Y),
+		Width: uint32(clip.W), Height: uint32(clip.H)})
 	pass.Draw(gputypes.DrawArgs{VertexCount: 3, InstanceCount: 1})
 }
 

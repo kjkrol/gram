@@ -142,6 +142,7 @@ func (r *pathRenderer) Init(si *goke.SysInit) {
 
 func (r *pathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 	r.frame, r.camera = f, cam
+	r.gpu.Reset()
 	r.ground, r.step = nil, 0
 	if r.heights != nil {
 		if r.ground = r.heights(); r.ground != nil {

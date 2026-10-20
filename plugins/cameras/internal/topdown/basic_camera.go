@@ -25,7 +25,8 @@ type basicCamera struct {
 	fastening contract.Fastening
 	form      form
 	detail    contract.Detail
-	rings     []contract.Ring
+	layers    []contract.Layer
+	layout    contract.Layout
 	sharp     bool
 	// the frame while a part of it is drawn, to come back to
 	cropped *frame
@@ -35,6 +36,7 @@ type frame struct {
 	viewportSize geom.Vec
 	res          float32
 	effective    plane.AABB
+	win          contract.Window
 }
 
 // form names how a camera from above is saved, so a save of another shape is refused at its
@@ -58,7 +60,7 @@ var _ contract.Fitting = (*basicCamera)(nil)
 var _ contract.Focused = (*basicCamera)(nil)
 var _ contract.Detailed = (*basicCamera)(nil)
 var _ contract.Resolved = (*basicCamera)(nil)
-var _ contract.Ringed = (*basicCamera)(nil)
+var _ contract.Layered = (*basicCamera)(nil)
 var _ contract.Cropping = (*basicCamera)(nil)
 var _ contract.Figured = (*basicCamera)(nil)
 
@@ -162,10 +164,14 @@ func (c *basicCamera) SetResolution(s float32) { c.res = s }
 
 func (c *basicCamera) Resolution() float32 { return c.res }
 
-// SetRings has the picture drawn in rings, or whole for none or one.
-func (c *basicCamera) SetRings(rings []contract.Ring) { c.rings = slices.Clone(rings) }
+// SetLayers has the picture drawn in layers laid out as layout says, or whole for none or one.
+func (c *basicCamera) SetLayers(layers []contract.Layer, layout contract.Layout) {
+	c.layers, c.layout = slices.Clone(layers), layout
+}
 
-func (c *basicCamera) Rings() []contract.Ring { return slices.Clone(c.rings) }
+func (c *basicCamera) Layout() contract.Layout { return c.layout }
+
+func (c *basicCamera) Layers() []contract.Layer { return slices.Clone(c.layers) }
 
 // SetSharpFigures has the figures drawn at every shown pixel while the ground is drawn at the
 // resolution, or at the resolution too.
@@ -173,20 +179,20 @@ func (c *basicCamera) SetSharpFigures(on bool) { c.sharp = on }
 
 func (c *basicCamera) SharpFigures() bool { return c.sharp }
 
-// Crop has the camera drawn the central w by h shown pixels of its frame at s of them, the
-// zoom as it is; a camera keeping the whole world in view is drawn whole.
-func (c *basicCamera) Crop(w, h, s float32) {
-	if c.whole || w <= 0 || h <= 0 {
+// Crop has the camera drawn the part win of its frame at s of its shown pixels, the zoom as it
+// is; a camera keeping the whole world in view is drawn whole.
+func (c *basicCamera) Crop(win contract.Window, s float32) {
+	if c.whole || win.W <= 0 || win.H <= 0 {
 		return
 	}
 	c.Uncrop()
-	c.cropped = &frame{viewportSize: c.viewportSize, res: c.res, effective: c.effective}
-	cx := c.effective.TopLeft.X + c.effective.Size.X/2
-	cy := c.effective.TopLeft.Y + c.effective.Size.Y/2
-	vw, vh := float64(w)/float64(c.zoom), float64(h)/float64(c.zoom)
-	c.viewportSize = geom.NewVec(float64(w), float64(h))
+	c.cropped = &frame{viewportSize: c.viewportSize, res: c.res, effective: c.effective, win: win}
+	zoom := float64(c.zoom)
+	at := geom.NewVec(c.effective.TopLeft.X+float64(win.X)/zoom,
+		c.effective.TopLeft.Y+float64(win.Y)/zoom)
+	c.viewportSize = geom.NewVec(float64(win.W), float64(win.H))
 	c.res = s
-	c.effective = plane.NewAABB(geom.NewVec(cx-vw/2, cy-vh/2), vw, vh)
+	c.effective = plane.NewAABB(at, float64(win.W)/zoom, float64(win.H)/zoom)
 }
 
 // Uncrop puts the frame back as it was before Crop.
@@ -208,6 +214,13 @@ func (c *basicCamera) Frame() (float32, float32) {
 		size = c.cropped.viewportSize
 	}
 	return float32(size.X), float32(size.Y)
+}
+
+func (c *basicCamera) Window() contract.Window {
+	if c.cropped != nil {
+		return c.cropped.win
+	}
+	return contract.Window{W: float32(c.viewportSize.X), H: float32(c.viewportSize.Y)}
 }
 
 // camera pixels a world unit

@@ -93,15 +93,16 @@ type Plugin struct {
 	careView *careView
 	hexes    *hexes.Ground
 
-	hazing  command.Queue[Haze]
-	caring  command.Queue[Care]
-	showing command.Queue[ShowCare]
-	kept    *plugin.Kept[Settings]
-	look    billboards.Look
-	taking  []render.Taking // by cell, as the kinds last stood
-	swaying []float32
-	takesAt uint64
-	module  *module
+	hazing   command.Queue[Haze]
+	caring   command.Queue[Care]
+	adapting command.Queue[AdaptCare]
+	showing  command.Queue[ShowCare]
+	kept     *plugin.Kept[Settings]
+	look     billboards.Look
+	taking   []render.Taking // by cell, as the kinds last stood
+	swaying  []float32
+	takesAt  uint64
+	module   *module
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -302,6 +303,34 @@ func (p *Plugin) Care() int {
 	return p.Res.Settings.Care
 }
 
+// AdaptCare has the full care's reach follow the cameras' frame budget, or not
+// (Settings.AdaptiveCare): the topography is a cameras.Lever, stepped down the care's ladder
+// as the rate falls under the budget and back up as it stays over.
+func (p *Plugin) AdaptCare(on bool) { p.Res.Settings.AdaptiveCare = on }
+
+// CareAdaptive reports whether the full care's reach follows the frame budget.
+func (p *Plugin) CareAdaptive() bool { return p.Res.Settings.AdaptiveCare }
+
+// Following is whether the care follows the frame budget (cameras.Lever).
+func (p *Plugin) Following() bool { return p.CareAdaptive() }
+
+// Coarser steps the full care's reach a rung down the ladder, true where it could
+// (cameras.Lever).
+func (p *Plugin) Coarser() bool { return p.stepCare(-1) }
+
+// Finer steps the full care's reach a rung up the ladder, every sector the last, true where it
+// could (cameras.Lever).
+func (p *Plugin) Finer() bool { return p.stepCare(1) }
+
+func (p *Plugin) stepCare(step int) bool {
+	if p.ground == nil {
+		return false
+	}
+	before := p.Care()
+	p.SetCare(p.careStepped(step))
+	return p.Care() != before
+}
+
 // ShowCare has the care's bands drawn over the ground, or not, as the ShowCare command switches
 // it (Settings.ShowCare): the boundaries between sectors of different care. Nothing on a hex
 // board, nor with every sector shaded with full care.
@@ -438,6 +467,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.hazing.Drain(func(i command.Issued[Haze]) { p.WithHaze(i.Command.On) })
 	p.caring.Drain(func(i command.Issued[Care]) { p.SetCare(i.Command.Rings) })
+	p.adapting.Drain(func(i command.Issued[AdaptCare]) { p.AdaptCare(i.Command.On) })
 	p.showing.Drain(func(i command.Issued[ShowCare]) { p.ShowCare(i.Command.Shown) })
 	p.module.RunPlan(ctx, d)
 }

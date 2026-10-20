@@ -2,6 +2,7 @@ package render
 
 import (
 	"math"
+	"slices"
 
 	"github.com/kjkrol/gram/camera"
 )
@@ -15,22 +16,22 @@ type Surface interface {
 }
 
 // Feed is the world seen through a camera: picture drawn through cam every frame, drawn at its
-// camera's resolution and shown at its size, its pixels the shown ones; a camera drawn in rings
-// (camera.Ringed) is drawn once a ring, the frame cropped to each, the widest first and the inner
-// ones laid over with feathered edges; one whose figures are sharp (camera.Figured) has a
-// Grounded picture's ground drawn at its resolution and what lies over it at every shown pixel.
-// Several feeds may share one picture.
+// camera's resolution and shown at its size, its pixels the shown ones; a camera drawn in layers
+// (camera.Layered) is drawn once a layer, the frame cropped to each, the widest first and the inner
+// ones laid over with feathered edges, a Laid picture composed once for them all; one whose
+// figures are sharp (camera.Figured) has a Laid picture's ground drawn so, or whole at its
+// resolution, and what lies over it at every shown pixel. Several feeds may share one picture.
 type Feed struct {
 	cam     camera.Camera
 	picture Picture
 	img     *Image
 	ground  *Image // the ground drawn apart, at the camera's resolution
 	w, h    int
-	layers  []*Image // an image a ring
+	imgs    []*Image // an image a layer
 }
 
-// RingFeather is the shown pixels an inner ring's edge fades over.
-const RingFeather = 20
+// LayerFeather is the shown pixels an inner layer's edge fades over.
+const LayerFeather = 20
 
 var _ Surface = (*Feed)(nil)
 
@@ -68,24 +69,24 @@ func (f *Feed) Resize(w, h int) {
 }
 
 // Draw draws the world through the camera into the feed's image: at the camera's resolution, or
-// at the shown size in rings or with the figures sharp.
+// at the shown size in layers or with the figures sharp.
 func (f *Feed) Draw() *Image {
 	if f.w <= 0 || f.h <= 0 {
 		return nil
 	}
-	rings, cropping := f.rings()
-	grounded, crop := f.sharp()
+	layers, cropping := f.layers()
+	sharp, crop := f.sharp(layers)
 	switch {
-	case rings != nil:
+	case layers != nil:
 		f.freeGround()
 		f.img = sized(f.img, f.w, f.h)
 		f.img.Clear()
-		f.drawRings(f.img, rings, cropping)
-	case grounded != nil:
+		f.drawLayers(f.img, layers, cropping, sharp != nil)
+	case sharp != nil:
 		f.freeLayers()
 		f.img = sized(f.img, f.w, f.h)
 		f.img.Clear()
-		f.drawSharp(f.img, grounded, crop)
+		f.drawSharp(f.img, sharp, crop)
 	default:
 		f.freeLayers()
 		f.freeGround()
@@ -97,95 +98,135 @@ func (f *Feed) Draw() *Image {
 	return f.img
 }
 
-// the rings the camera is drawn in and the camera to crop to each: none for a camera drawn whole
+// the layers the camera is drawn in and the camera to crop to each: none for a camera drawn whole
 // or one that cannot be cropped
-func (f *Feed) rings() ([]camera.Ring, camera.Cropping) {
+func (f *Feed) layers() ([]camera.Layer, camera.Cropping) {
 	c, ok := f.cam.(camera.Cropping)
 	if !ok {
 		return nil, nil
 	}
-	if rings := camera.RingsOf(f.cam); len(rings) > 1 {
-		return rings, c
+	if layers := camera.LayersOf(f.cam); len(layers) > 1 {
+		return layers, c
 	}
 	return nil, nil
 }
 
 // the picture and the camera to crop for a feed drawing the figures at every pixel: a camera
-// that says so, drawn under every pixel and whole, before a picture drawing its ground apart
-func (f *Feed) sharp() (Grounded, camera.Cropping) {
-	if !camera.SharpFiguresOf(f.cam) || camera.ResolutionOf(f.cam) >= 1 {
+// that says so, drawn under every pixel in one of its layers or whole, before a Laid picture; in
+// layers the camera's resolution is the innermost one's, often every pixel
+func (f *Feed) sharp(layers []camera.Layer) (Laid, camera.Cropping) {
+	coarse := camera.ResolutionOf(f.cam) < 1
+	if layers != nil {
+		coarse = slices.ContainsFunc(layers, func(l camera.Layer) bool { return l.Resolution < 1 })
+	}
+	if !camera.SharpFiguresOf(f.cam) || !coarse {
 		return nil, nil
 	}
-	if rings, _ := f.rings(); rings != nil {
-		return nil, nil
-	}
-	g, grounded := f.picture.(Grounded)
+	l, laid := f.picture.(Laid)
 	c, crops := f.cam.(camera.Cropping)
-	if !grounded || !crops {
+	if !laid || !crops {
 		return nil, nil
 	}
-	return g, c
+	return l, c
 }
 
-// the ground drawn at the camera's resolution and laid over dst scaled, then what lies over the
-// figures drawn straight onto dst, the camera cropped to the whole frame at every pixel
-func (f *Feed) drawSharp(dst *Image, g Grounded, c camera.Cropping) {
+// the ground composed once and drawn at the camera's resolution, laid over dst scaled, then what
+// lies over the figures drawn straight onto dst, both composed through the camera cropped to the
+// whole frame at every pixel
+func (f *Feed) drawSharp(dst *Image, l Laid, c camera.Cropping) {
+	f.cropWhole(c)
+	l.Lay(f.cam, true)
+	c.Uncrop()
 	gw, gh := f.drawn()
 	f.ground = sized(f.ground, gw, gh)
 	f.ground.Clear()
-	g.DrawGround(f.ground, f.cam)
+	l.DrawLayer(f.ground, f.cam, f.whole())
 	b := dst.Bounds()
 	op := DrawImageOptions{Filter: FilterLinear}
 	op.GeoM.Scale(float64(b.Dx())/float64(gw), float64(b.Dy())/float64(gh))
 	op.GeoM.Translate(float64(b.Min.X), float64(b.Min.Y))
 	dst.DrawImage(f.ground, &op)
-	c.Crop(float32(f.w), float32(f.h), 1)
-	g.DrawOver(dst, f.ground, f.cam)
+	f.cropWhole(c)
+	l.DrawOver(dst, f.cam)
 	c.Uncrop()
 }
 
-// the picture drawn a ring at a time, the camera cropped to each, laid over dst at the ring's
-// place in the frame; a ring of the whole frame at every pixel is drawn straight onto dst
-func (f *Feed) drawRings(dst *Image, rings []camera.Ring, c camera.Cropping) {
-	if len(f.layers) != len(rings) {
+// the camera cropped to the whole frame at every shown pixel, the pixels a Laid picture is
+// composed in
+func (f *Feed) cropWhole(c camera.Cropping) { c.Crop(f.whole(), 1) }
+
+// the picture drawn a layer at a time, the camera cropped to each layer's window as the camera's
+// layout lays it, laid over dst there, a Laid picture composed once for them all and, with the
+// figures sharp, what lies over them drawn straight onto dst; a layer of the whole frame at every
+// pixel is drawn straight onto dst
+func (f *Feed) drawLayers(dst *Image, layers []camera.Layer, c camera.Cropping, sharp bool) {
+	if len(f.imgs) != len(layers) {
 		f.freeLayers()
-		f.layers = make([]*Image, len(rings))
+		f.imgs = make([]*Image, len(layers))
+	}
+	laid, _ := f.picture.(Laid)
+	if laid != nil {
+		f.cropWhole(c)
+		laid.Lay(f.cam, sharp)
+		c.Uncrop()
 	}
 	b := dst.Bounds()
-	for i, r := range rings {
-		cw, ch := cropSize(f.w, f.h, r.Share)
-		c.Crop(float32(cw), float32(ch), r.Resolution)
-		if cw == f.w && ch == f.h && r.Resolution == 1 {
-			f.picture.DrawWorld(dst, f.cam)
+	wins := camera.Arrange(camera.LayoutOf(f.cam), layers, f.w, f.h)
+	for i, r := range layers {
+		win := wins[i]
+		c.Crop(win, r.Resolution)
+		if win.W == float32(f.w) && win.H == float32(f.h) && r.Resolution == 1 {
+			f.drawLayer(dst, laid, win)
 			c.Uncrop()
 			continue
 		}
 		lw, lh := f.drawn()
-		f.layers[i] = sized(f.layers[i], lw, lh)
-		f.layers[i].Clear()
-		f.picture.DrawWorld(f.layers[i], f.cam)
+		f.imgs[i] = sized(f.imgs[i], lw, lh)
+		f.imgs[i].Clear()
+		f.drawLayer(f.imgs[i], laid, win)
 		c.Uncrop()
-		op := DrawImageOptions{Filter: FilterLinear}
-		op.GeoM.Scale(float64(cw)/float64(lw), float64(ch)/float64(lh))
-		op.GeoM.Translate(float64(b.Min.X+(f.w-cw)/2), float64(b.Min.Y+(f.h-ch)/2))
-		if i > 0 {
-			op.Fade = Fade{RingFeather, RingFeather, RingFeather, RingFeather}
-		}
-		dst.DrawImage(f.layers[i], &op)
+		op := DrawImageOptions{Filter: FilterLinear, Fade: fadeOf(win, f.w, f.h)}
+		op.GeoM.Scale(float64(win.W)/float64(lw), float64(win.H)/float64(lh))
+		op.GeoM.Translate(float64(b.Min.X)+float64(win.X), float64(b.Min.Y)+float64(win.Y))
+		dst.DrawImage(f.imgs[i], &op)
+	}
+	if sharp {
+		f.cropWhole(c)
+		laid.DrawOver(dst, f.cam)
+		c.Uncrop()
 	}
 }
 
-// the central part of a w by h frame share of it wide and high, in whole pixels, the frame an
-// even number of pixels wider and higher so the part lies a whole pixel in
-func cropSize(w, h int, share float32) (int, int) {
-	side := func(n int) int {
-		c := int(math.Round(float64(n) * float64(share)))
-		if (n-c)%2 != 0 {
-			c++
-		}
-		return min(max(c, 2), n)
+// the picture drawn into img through the camera cropped to the frame's window win: a layer of
+// what Lay composed where the picture is Laid
+func (f *Feed) drawLayer(img *Image, laid Laid, win camera.Window) {
+	if laid == nil {
+		f.picture.DrawWorld(img, f.cam)
+		return
 	}
-	return side(w), side(h)
+	laid.DrawLayer(img, f.cam, win)
+}
+
+// the window of the whole frame
+func (f *Feed) whole() camera.Window { return camera.Window{W: float32(f.w), H: float32(f.h)} }
+
+// how a layer's window in a frame fw by fh fades: over the feather on each side inside the frame,
+// hard on the frame's edges
+func fadeOf(win camera.Window, fw, fh int) Fade {
+	var fade Fade
+	if win.X > 0 {
+		fade.Left = LayerFeather
+	}
+	if win.X+win.W < float32(fw) {
+		fade.Right = LayerFeather
+	}
+	if win.Y > 0 {
+		fade.Top = LayerFeather
+	}
+	if win.Y+win.H < float32(fh) {
+		fade.Bottom = LayerFeather
+	}
+	return fade
 }
 
 // img at w by h: itself at that size, else a new image in its place
@@ -200,12 +241,12 @@ func sized(img *Image, w, h int) *Image {
 }
 
 func (f *Feed) freeLayers() {
-	for _, l := range f.layers {
+	for _, l := range f.imgs {
 		if l != nil {
 			l.Deallocate()
 		}
 	}
-	f.layers = nil
+	f.imgs = nil
 }
 
 func (f *Feed) freeGround() {
@@ -222,19 +263,21 @@ func (f *Feed) drawn() (w, h int) {
 }
 
 // DrawOn draws the world through the camera onto dst, shown at dst's size: straight onto it at
-// the resolution of every pixel, else drawn at the camera's and scaled up; in rings, each over
+// the resolution of every pixel, else drawn at the camera's and scaled up; in layers, each over
 // the last; with the figures sharp, the ground scaled up and what lies over it straight onto dst.
 func (f *Feed) DrawOn(dst *Image) {
 	b := dst.Bounds()
 	f.Resize(b.Dx(), b.Dy())
-	if rings, cropping := f.rings(); rings != nil {
+	layers, cropping := f.layers()
+	sharp, crop := f.sharp(layers)
+	if layers != nil {
 		f.freeGround()
-		f.drawRings(dst, rings, cropping)
+		f.drawLayers(dst, layers, cropping, sharp != nil)
 		return
 	}
 	f.freeLayers()
-	if g, c := f.sharp(); g != nil {
-		f.drawSharp(dst, g, c)
+	if sharp != nil {
+		f.drawSharp(dst, sharp, crop)
 		return
 	}
 	f.freeGround()

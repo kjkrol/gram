@@ -654,7 +654,7 @@ the budget is where the adapter rests, and every thirty seconds it tries a finer
 backs off (67, 54, 65 FPS in the log). The resolution costs the CPU nothing; the care costs one
 draw call more a ring.
 
-**In rings** (etap R2 of `doc/plans-perf.md`, `76c18e9b`, 2026-10-19): the picture drawn in three
+**In layers** (etap R2 of `doc/plans-perf.md`, `76c18e9b`, 2026-10-19): the picture drawn in three
 layers, the whole frame at a coarse resolution, the central 60% finer, the central 35% at every
 pixel, each a centred crop of the same camera laid over the last with a feathered edge. The
 layers overlap, so the preset 0.6 / 0.8 / 1.0 draws 0.71 of the frame's pixels and the ladder's
@@ -664,9 +664,9 @@ off:
 | Frame | Time less the readback |
 |:---|---:|
 | isometric | 7.3 ms |
-| isometric in rings (0.5, 0.75, 1: 0.575 of the pixels) | 5.9 ms |
+| isometric in layers (0.5, 0.75, 1: 0.575 of the pixels) | 5.9 ms |
 | perspective | 11.1 ms |
-| perspective in rings | 7.9 ms |
+| perspective in layers | 7.9 ms |
 
 The demo as above, the baseline `a25a4af2` and this tree run alternately (the machine's
 baseline that day was 58 FPS, not 45):
@@ -675,19 +675,19 @@ baseline that day was 58 FPS, not 45):
 |:---|---:|
 | all the pixels, baseline / this tree | 58 / 58 |
 | 0.85 of the pixels (0.72 of them drawn) | 70 |
-| in rings, the preset (0.71 drawn) | 67 |
+| in layers, the preset (0.71 drawn) | 67 |
 | 0.72 of the pixels (0.52 drawn) | 88 |
-| in rings, the outer ring at 0.4 (0.51 drawn) | 85 |
+| in layers, the outer layer at 0.4 (0.51 drawn) | 85 |
 | perspective, 0.85 of the pixels | 67 |
-| perspective, in rings, the preset | 64 |
+| perspective, in layers, the preset | 64 |
 | perspective, 0.72 of the pixels | 83 |
-| perspective, in rings, the outer ring at 0.4 | 80 |
+| perspective, in layers, the outer layer at 0.4 | 80 |
 
-What it says: at the same pixels drawn the rings cost 3 FPS (4%), the three composes on the CPU
+What it says: at the same pixels drawn the layers cost 3 FPS (4%), the three composes on the CPU
 ("drawing" 1.2 → 2.1 ms in isometry, 1.3 → 2.1 ms in perspective) and the two blits, and buy the
-centre at every pixel. The rings do not beat a uniform picture on frames; they spend the same
+centre at every pixel. The layers do not beat a uniform picture on frames; they spend the same
 budget where the eye is. Shots of frame 600 in both views: no seam at the 60% and 35% edges,
-the water's glint differing a little inside the 20-pixel feather. The adapter in rings was not
+the water's glint differing a little inside the 20-pixel feather. The adapter in layers was not
 timed: the baseline's 58 FPS lies inside its rest band (55–59 of a budget of 60).
 
 **The ground at the camera's resolution, the figures at every pixel** (etap T of
@@ -720,6 +720,45 @@ resolution (the clouds are drawn at the screen's size there, the figures and the
 pixels), so at 0.52 of the pixels the picture runs at 108 FPS with the units' edges crisp
 against 128 with them blurred and 57 at every pixel. The five cares cost 0.4 ms more than the
 three at R = 1 (two more draws a frame); the far water goes flat two sectors sooner.
+
+**The picture in layers from one composition, footed in a perspective, the figures sharp over
+it** (etap U of `doc/plans-perf.md`, 2026-10-20, the base `b6ecc82c`, etap T merged): a picture
+in layers composed once in the frame's pixels and drawn a layer at a time with the pieces placed
+into each; in a tactical perspective the inner layers stand on the frame's bottom edge (footed);
+the figures at every pixel drawn over layers too, tested against the layers' depths placed into
+the screen's. Medians of 4 runs, the readback (7.8 ms) taken off; the base and the tree run
+alternately. The preset's layers: 0.6 of the pixels whole, the middle 60% at 0.8, 35% at all.
+
+| Frame | Time less the readback |
+|:---|---:|
+| isometric (base / tree) | 10.0 / 10.6 ms |
+| perspective (base / tree) | 14.1 / 12.8 ms |
+| isometric in layers: three composes (base) / one (tree) | 8.0 / 7.0 ms |
+| perspective in layers, inset: base / tree | 10.4 / 9.4 ms |
+| perspective in layers, footed | 8.9 ms |
+| isometric in layers, the figures at every pixel | 10.2 ms |
+| perspective in layers, footed, the figures at every pixel | 11.6 ms |
+| isometric at 0.7 through a feed: soft / sharp (base) | 6.0 / 8.2 ms |
+| isometric at 0.7 through a feed: soft / sharp (tree) | 5.2 / 7.5 ms |
+| perspective at 0.7 through a feed: soft / sharp (base) | 8.2 / 10.8 ms |
+| perspective at 0.7 through a feed: soft / sharp (tree) | 7.5 / 10.1 ms |
+
+The demo at 2560×1440 without vsync, 35 s a run, the medians after 8 s, the base and the tree
+alternately, both profiles still (no adapter):
+
+| Picture | FPS | drawing |
+|:---|---:|---:|
+| all the pixels: base / tree | 63 / 63 | 1.1 / 1.1 ms |
+| the preset's layers, the figures soft: base / tree | 70 / 70 | 2.0 / 1.7 ms |
+| the preset's layers, the figures at every pixel (tree) | 64 | 1.6 ms |
+
+What it says: one composition takes a millisecond off a frame in layers on the island (8.0 →
+7.0 ms, 10.4 → 9.4) and 0.3 ms off the demo's drawing (2.0 → 1.7 ms; the Directs still draw a
+layer each), which the GPU-bound demo does not turn into frames; a footed layout in perspective
+is half a millisecond cheaper than inset (less of the frame drawn twice). The figures at every
+pixel over layers cost 2.7–3.1 ms on the island (the over pass at every pixel, three depths
+placed) and 6 FPS in the demo. The whole picture and the 0.7 cases are within the machine's
+drift of the base.
 
 ## How to benchmark
 
