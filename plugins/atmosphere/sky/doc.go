@@ -22,7 +22,7 @@
 // [Moonrise] is the moment the moon comes over the horizon, told to the rules of the roles the
 // atmosphere plays ([Sky.Rules], [Sky.RiseSystem]); its word [FullMoon] picks a full moon.
 //
-// [Sky.Reporter] adds the light to the telemetry panel.
+// [Sky.Reporter] adds the daylight, the hour's or frozen, to the telemetry panel.
 //
 // # Vocabulary
 //

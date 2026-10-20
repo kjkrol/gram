@@ -203,7 +203,15 @@ func (p *Plugin) carry(runtime game.Runtime, composition game.Composition) {
 	})
 	p.panels.Drain(func(i command.Issued[telemetry.Panel]) {
 		tp := telemetry.Of(p.worldPlugin)
-		if tp != nil && i.Command.Shown != tp.Shown(composition) {
+		if tp == nil {
+			return
+		}
+		if i.Command.Extended {
+			tp.SetMode(telemetry.Extended)
+		} else {
+			tp.SetMode(telemetry.Basic)
+		}
+		if i.Command.Shown != tp.Shown(composition) {
 			tp.Toggle(composition)
 		}
 	})
@@ -212,6 +220,22 @@ func (p *Plugin) carry(runtime game.Runtime, composition game.Composition) {
 func (p *Plugin) panelShown() bool {
 	tp := telemetry.Of(p.worldPlugin)
 	return tp != nil && p.composition != nil && tp.Shown(p.composition)
+}
+
+func (p *Plugin) panelExtended() bool {
+	tp := telemetry.Of(p.worldPlugin)
+	return tp != nil && tp.Mode() == telemetry.Extended
+}
+
+// the panel the ~ key turns to: from hidden to the basics, to everything and to hidden again
+func (p *Plugin) nextPanel() telemetry.Panel {
+	switch {
+	case !p.panelShown():
+		return telemetry.Panel{Shown: true}
+	case !p.panelExtended():
+		return telemetry.Panel{Shown: true, Extended: true}
+	}
+	return telemetry.Panel{Extended: true}
 }
 
 func (p *Plugin) tools() {

@@ -492,7 +492,7 @@ func (w written) Text(uid.UID64, bool) (string, bool) {
 }
 
 // Settings are the players' own: whether the game runs on behind the settings screen, and the
-// telemetry panel.
+// telemetry panel, shown or not, the basics or everything.
 func (p *Plugin) Settings() []control.Setting {
 	out := []control.Setting{control.Switch{
 		Label: "The game runs on behind this screen",
@@ -500,11 +500,22 @@ func (p *Plugin) Settings() []control.Setting {
 		Set:   func(on bool) command.Command { return KeepRunning{On: on} },
 	}}
 	if tp := telemetry.Of(p.worldPlugin); tp != nil {
-		out = append(out, control.Switch{
-			Label: "Telemetry panel",
-			Get:   p.panelShown,
-			Set:   func(on bool) command.Command { return telemetry.Panel{Shown: on} },
-		})
+		out = append(out,
+			control.Switch{
+				Label: "Telemetry panel",
+				Get:   p.panelShown,
+				Set: func(on bool) command.Command {
+					return telemetry.Panel{Shown: on, Extended: p.panelExtended()}
+				},
+			},
+			control.Choice{
+				Label:   "Telemetry panel shows",
+				Options: []string{"the basics", "everything"},
+				Get:     func() int { return int(tp.Mode()) },
+				Set: func(i int) command.Command {
+					return telemetry.Panel{Shown: p.panelShown(), Extended: i == 1}
+				},
+			})
 	}
 	return out
 }

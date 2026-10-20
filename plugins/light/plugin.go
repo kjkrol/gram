@@ -587,7 +587,7 @@ func (reporter) Init(*goke.SysInit) {}
 
 func (r reporter) Report(line func(label, value string)) {
 	r.p.read()
-	line("Light", fmt.Sprintf("sun %.2f · lamps %d, shadows of %d", r.p.distant.Strength,
+	line("Light", fmt.Sprintf("sun %.2f\nlamps %d\nshadows of %d", r.p.distant.Strength,
 		len(r.p.lamps), min(len(r.p.lamps), r.p.Res.Settings.LampShadows)))
 }
 

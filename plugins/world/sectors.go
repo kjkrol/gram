@@ -286,7 +286,7 @@ func (r seenReport) Report(line func(label, value string)) {
 	}
 	var n [4]int
 	r.w.views[0].Sectors(func(_ int, _ geom.AABB, l view.Level) { n[l]++ })
-	line("Sectors seen", fmt.Sprintf("exact %d · coarse %d · fog %d", n[view.Exact],
+	line("Sectors seen", fmt.Sprintf("exact %d\ncoarse %d\nfog %d", n[view.Exact],
 		n[view.Coarse], n[view.Fogged]))
 }
 
@@ -301,7 +301,7 @@ func (r sectorsReport) Report(line func(label, value string)) {
 	}
 	in := s.grid.Count(nil)
 	if s.unbanded {
-		line("Sectors", bandsOf(in)+", bands off")
+		line("Sectors", bandsOf(in)+"\nbands off")
 	} else {
 		line("Sectors", bandsOf(in))
 	}
@@ -314,15 +314,14 @@ func (r sectorsReport) Report(line func(label, value string)) {
 	line("Entities by band", bandsOf(counts))
 }
 
-// the bands' numbers nearest first, beyond the last apart
+// the bands' numbers a line each, nearest first, beyond the last
 func bandsOf(n []int) string {
 	var b strings.Builder
 	for k, v := range n[:len(n)-1] {
-		if k > 0 {
-			b.WriteString(" · ")
-		}
-		fmt.Fprint(&b, v)
+		fmt.Fprintf(&b, "%s %d\n", bandNames[k], v)
 	}
-	fmt.Fprintf(&b, ", beyond %d", n[len(n)-1])
+	fmt.Fprintf(&b, "beyond %d", n[len(n)-1])
 	return b.String()
 }
+
+var bandNames = [sector.MaxBands]string{"first", "second", "third", "fourth", "fifth"}

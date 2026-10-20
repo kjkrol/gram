@@ -41,8 +41,8 @@ func TestSeen_LaysTheSectorsAtTheirLevelsWithinTheSight(t *testing.T) {
 	}
 	reported := map[string]string{}
 	r.p.Seen().Report(func(label, value string) { reported[label] = value })
-	if got := reported["Sectors seen"]; got != "exact 3 · coarse 0 · fog 1" {
-		t.Errorf("the panel says %q, want exact 3 · coarse 0 · fog 1", got)
+	if got, want := reported["Sectors seen"], "exact 3\ncoarse 0\nfog 1"; got != want {
+		t.Errorf("the panel says %q, want %q", got, want)
 	}
 	r2 := sectorWorld(t, twoBands...)
 	_, coarse := seeing(t, r2, camera.Detail{Sight: 1000, Fog: 300, Coarse: 2})

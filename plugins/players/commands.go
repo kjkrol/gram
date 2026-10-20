@@ -45,8 +45,9 @@ func (p *Plugin) Queues() []command.CommandQueue {
 func (p *Plugin) DefaultBindings() []control.Binding { return p.GameBindings() }
 
 // GameBindings are the keys every game has: K for the list of shortcuts, F10 for the settings,
-// ~ for the telemetry panel, F5 to save, F9 to load, Shift+Esc to quit. A game that binds its
-// own keys in place of the Defaults binds these beside them.
+// ~ for the telemetry panel (the basics, everything, hidden, in turn), F5 to save, F9 to load,
+// Shift+Esc to quit. A game that binds its own keys in place of the Defaults binds these beside
+// them.
 func (p *Plugin) GameBindings() []control.Binding {
 	shift := control.Mods{Shift: true}
 	return []control.Binding{
@@ -55,10 +56,8 @@ func (p *Plugin) GameBindings() []control.Binding {
 		control.Give(control.KeyPress{Key: control.KeyF10}, "Settings; Esc closes them",
 			ShowSettings{}),
 		control.Build(control.KeyPress{Key: control.KeyBackquote},
-			"Show or hide the telemetry panel",
-			func(control.Context) (telemetry.Panel, bool) {
-				return telemetry.Panel{Shown: !p.panelShown()}, true
-			}),
+			"The telemetry panel: the basics, everything, hidden",
+			func(control.Context) (telemetry.Panel, bool) { return p.nextPanel(), true }),
 		control.Give(control.KeyPress{Key: control.KeyF5}, "Save the game", game.Save{}),
 		control.Give(control.KeyPress{Key: control.KeyF9}, "Load the game saved", game.Load{}),
 		control.Give(control.KeyPress{Key: control.KeyEscape, Mods: shift}, "Quit", game.Quit{}),

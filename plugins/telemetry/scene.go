@@ -18,11 +18,13 @@ const panelMargin = 8
 // the theme's panel colour, more see-through
 var panelFill = color.RGBA{R: 20, G: 22, B: 28, A: 150}
 
-// a line of the panel: the game's own, label and value, or a reporter's
+// a line of the panel: the game's own, label and value, or a reporter's; a basic one shown in
+// both modes
 type line struct {
 	label    string
 	value    func() string
 	reporter render.Reporter
+	basic    bool
 }
 
 // a value of several lines goes under its label, each indented, as the shortcuts list its groups
@@ -72,18 +74,24 @@ func newPanel(p *Plugin) *panel {
 	return s
 }
 
-// Text is the panel's lines, read several times a frame (ui.Text): built anew four times a
-// second.
+// Text is the panel's lines of its mode, read several times a frame (ui.Text): built anew four
+// times a second.
 func (s *panel) Text(uid.UID64, bool) (string, bool) {
 	if now := time.Now(); now.Sub(s.at) >= s.every {
+		extended := s.p.Res.Settings.Extended
 		var sb strings.Builder
 		for _, l := range s.p.lines {
-			l.write(&sb)
+			if l.basic || extended {
+				l.write(&sb)
+			}
 		}
 		s.text, s.at = sb.String(), now
 	}
 	return s.text, len(s.text) > 0
 }
+
+// stale has the text built anew at the next read
+func (s *panel) stale() { s.at = time.Time{} }
 
 func (s *panel) Name() string { return SceneName }
 

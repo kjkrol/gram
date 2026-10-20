@@ -449,7 +449,7 @@ func TestSharpFigures_ReachesEveryCameraAndTheTelemetry(t *testing.T) {
 	w, p, start, tick := emptyWorld(t, cameras.Config{Tactical: cameras.Knobs{Resolution: 0.7}})
 	cam := p.New(cameras.FromAbove, camera.Config{})
 	start()
-	if got := report(p); got != "Picture: tactical, 0.70 of the pixels, the figures sharp, still" {
+	if got := report(p); got != "Picture: tactical\n0.70 of the pixels\nthe figures sharp\nstill" {
 		t.Fatalf("the telemetry says %q, want the figures sharp at 0.70", got)
 	}
 	w.Carrier().Put(command.Nobody, cameras.SharpFigures{Profile: cameras.Tactical, On: false})
@@ -458,7 +458,7 @@ func TestSharpFigures_ReachesEveryCameraAndTheTelemetry(t *testing.T) {
 		t.Error("after SharpFigures{On: false} the figures are drawn at every pixel, want the " +
 			"ground's resolution")
 	}
-	if got := report(p); got != "Picture: tactical, 0.70 of the pixels, still" {
+	if got := report(p); got != "Picture: tactical\n0.70 of the pixels\nstill" {
 		t.Errorf("the telemetry says %q, want nothing of the figures", got)
 	}
 	w.Carrier().Put(command.Nobody, cameras.SharpFigures{Profile: cameras.Tactical, On: true})
@@ -469,7 +469,7 @@ func TestSharpFigures_ReachesEveryCameraAndTheTelemetry(t *testing.T) {
 	}
 	w.Carrier().Put(command.Nobody, cameras.Picture{Profile: cameras.Tactical, Resolution: 1})
 	tick()
-	if got := report(p); got != "Picture: tactical, 1.00 of the pixels, still" {
+	if got := report(p); got != "Picture: tactical\n1.00 of the pixels\nstill" {
 		t.Errorf("at all the pixels the telemetry says %q, want nothing of the figures", got)
 	}
 }
@@ -660,14 +660,14 @@ func TestDress_ACameraRidingTakesTheRidingProfileAndComesBackTactical(t *testing
 func TestReporter_SaysTheLeadCamerasProfile(t *testing.T) {
 	p, cam, give := ridden(t, cameras.Knobs{Strategy: cameras.Uniform, Resolution: 0.7},
 		cameras.Knobs{Layers: true})
-	if got := report(p); got != "Picture: tactical, 0.70 of the pixels, the figures sharp, "+
+	if got := report(p); got != "Picture: tactical\n0.70 of the pixels\nthe figures sharp\n"+
 		"following a budget of 60 FPS" {
 		t.Errorf("over the entity the telemetry says %q, want the tactical profile's", got)
 	}
 	give(cameras.Ride{Camera: cam})
 	give(cameras.Ride{Camera: cam})
-	if got := report(p); got != "Picture: riding, 0.60/0.80/1.00 of the pixels in layers at 60% "+
-		"and 35%, still" {
+	if got := report(p); got != "Picture: riding\n0.60/0.80/1.00 of the pixels\nin layers at 60% "+
+		"and 35%\nstill" {
 		t.Errorf("riding in it the telemetry says %q, want the riding profile's", got)
 	}
 }

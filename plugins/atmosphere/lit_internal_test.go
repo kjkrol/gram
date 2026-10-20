@@ -2,6 +2,7 @@ package atmosphere
 
 import (
 	"github.com/kjkrol/ceremony/command"
+	"slices"
 	"strings"
 	"testing"
 
@@ -112,7 +113,7 @@ func TestPlugin_TheSkyHandsTheFrameTheSunAndTheWeatherOfItsDaylight(t *testing.T
 	}
 }
 
-func TestPlugin_ReportsTheMoonOnItsOwnHowTheCloudsLookAndWhoseShadowsFall(t *testing.T) {
+func TestPlugin_ReportsTheDaylightHowTheCloudsLookAndWhoseShadowsFall(t *testing.T) {
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 128, Height: 128},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20},
@@ -120,12 +121,20 @@ func TestPlugin_ReportsTheMoonOnItsOwnHowTheCloudsLookAndWhoseShadowsFall(t *tes
 	})
 	a := NewPlugin(w, nil, Config{})
 	a.ShowClouds(LowBodies)
+	var labels []string
 	got := map[string]string{}
-	reporters{a.calendar.Reporter(), a.Reporter().(reporters)[3]}.Report(
-		func(label, value string) { got[label] = value })
-	if got["Moon"] == "" || strings.Count(got["Season"], ",") != 1 {
-		t.Errorf("the season is %q and the moon %q, want the moon on a line of its own",
-			got["Season"], got["Moon"])
+	a.Reporter().Report(func(label, value string) {
+		labels = append(labels, label)
+		got[label] = value
+	})
+	if want := []string{"Daylight", "Clouds", "Shadows"}; !slices.Equal(labels, want) {
+		t.Errorf("the atmosphere's lines are %q, want %q: the calendar's and the weather's "+
+			"are their own", labels, want)
+	}
+	a.Calendar().Reporter().Report(func(label, value string) { got[label] = value })
+	if got["Moon"] == "" || strings.Count(got["Season"], "\n") != 1 {
+		t.Errorf("the season is %q and the moon %q, want the season and the date two lines, the "+
+			"moon a line of its own", got["Season"], got["Moon"])
 	}
 	if got["Clouds"] != "the low as bodies" ||
 		got["Shadows"] != "both layers' on the ground and the figures" {
@@ -134,7 +143,7 @@ func TestPlugin_ReportsTheMoonOnItsOwnHowTheCloudsLookAndWhoseShadowsFall(t *tes
 	}
 	a.shades.Put(command.Nobody, HighShade{On: !a.shadows.High})
 	a.carryOut()
-	a.Reporter().(reporters)[3].Report(func(label, value string) { got[label] = value })
+	a.Reporter().Report(func(label, value string) { got[label] = value })
 	if a.Air().HighShade || got["Shadows"] != "the low clouds' on the ground and the figures" {
 		t.Errorf("after HighShade the weather's HighShade is %v, the shadows %q; want the low "+
 			"clouds' alone", a.Air().HighShade, got["Shadows"])

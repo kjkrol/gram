@@ -160,13 +160,13 @@ func TestReport_SaysWhetherTheLightIsFrozen(t *testing.T) {
 	r := skyOf(t, Config{}, calendar.Config{})
 	var got string
 	r.sky.Reporter().Report(func(label, value string) { got = label + ": " + value })
-	if got != "Light: the hour's" {
+	if got != "Daylight: the hour's" {
 		t.Errorf("the report says %q, want the hour's light", got)
 	}
 	r.sky.SetFrozen(true)
 	r.sky.Shift(14.0/24 - r.sky.Hour())
 	r.sky.Reporter().Report(func(label, value string) { got = label + ": " + value })
-	if got != "Light: frozen at 14:00" {
+	if got != "Daylight: frozen at 14:00" {
 		t.Errorf("the report says %q, want the light frozen at 14:00", got)
 	}
 }
