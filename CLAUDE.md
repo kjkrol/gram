@@ -120,8 +120,9 @@ stage's branch in the order the plan says, resolves the seams, runs the whole se
 demo, measures (the stage's base and the tree alternately, an idle machine), writes the docs and
 the stage's result in `doc/plans-perf.md`, and removes the worktrees, then merges the stage's
 branch into `main` with `git merge --no-ff` (the user's word, 2026-10-20: in this repository
-alone; goke, ceremony and aabbworld are merged, tagged and bumped in `go.mod` by the user, and
-`main`'s tags and pushes are the user's everywhere).
+alone; goke, ceremony and aabbworld are merged and tagged by the user, and `main`'s tags and
+pushes are the user's everywhere; once the user has tagged a sibling's release, the integrator
+bumps it in `go.mod` on `main` at once, verified, without asking).
 
 A stage may also run in sessions instead of agents (2026-10-20): the integrator writes a brief
 a part in `doc/briefs/` (the goal, the plan's section, the repository, branch and worktree, the

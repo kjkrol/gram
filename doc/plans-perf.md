@@ -737,7 +737,7 @@ scalone do `main` (`aecf9f9c`, `9b90af6d`); 3a i 4a zweryfikowane na swoich gał
 na przegląd, scalenie i wydanie użytkownika (aabbworld `feat/runs` → v1.14.0, goke
 `feat/chunk-versions` → v3.6.0, oba z podbiciem `gram/go.mod`); drugi commit R2 (`444c40a7`,
 Directy umieszczane) nie scalony, decyzja niżej. Następne: 2b (od `main`, w toku),
-3b po podbiciu aabbworld v1.14.0 w `go.mod` (wydane 2026-10-20, podbicie użytkownika). Goke PR #55
+3b od `main` z aabbworld v1.14.0 (podbite przez integratora 2026-10-20 po tagu użytkownika). Goke PR #55
 niescalony z decyzji użytkownika: 4b i 5 idą razem lokalnie na goke `feat/chunk-versions`
 (brief `45-mirror-local`, gałąź `m/mirror`); goke v3.6.0 tylko, jeśli lustro pokaże zysk. Gałęzie części zostają do przeglądu,
 worktree gram usunięte.
