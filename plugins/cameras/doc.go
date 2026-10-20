@@ -79,7 +79,10 @@
 // follow the frame budget as its Strategy says or stay, [Picture] draws them at a resolution,
 // [SharpFigures] their figures at every pixel or at the ground's resolution, [Layers] in layers
 // or whole, [LayerShares] and [LayerResolutions] shape the layers, [ShowLayers] outlines them, a
-// profile each; [Budget] sets the frame budget for both. The plugin writes only the eye's part
+// profile each; [Budget] sets the frame budget for both and [Sampling] how long the rate is
+// averaged over before it is followed. What else follows the budget is a [Lever] given in
+// [Config.Levers], the topography's care: turned coarser before the pictures' resolution and
+// finer after it. The plugin writes only the eye's part
 // of a ridden entity's steering.Driven (Look, Flown, Climb).
 //
 // # Keys

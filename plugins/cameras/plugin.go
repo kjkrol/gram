@@ -53,6 +53,9 @@ type Config struct {
 	Tactical    Knobs
 	Riding      Knobs
 	FrameBudget time.Duration
+	// Levers is what else the frame budget turns, coarser before the pictures' resolution and
+	// finer after it, in order: the topography's care.
+	Levers []Lever
 }
 
 // plain is the camera from above that neither turns nor tilts nor sees anything in relief
@@ -99,6 +102,8 @@ type Plugin struct {
 	layerShares command.Queue[LayerShares]
 	layerRes    command.Queue[LayerResolutions]
 	budgets     command.Queue[Budget]
+	samplings   command.Queue[Sampling]
+	levers      []Lever
 	showLayers  command.Queue[ShowLayers]
 	orders      orders
 	zonesView   *zonesView
@@ -125,8 +130,10 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	p.zonesView = &zonesView{settings: &p.Res.Settings}
 	p.layersView = &layersView{settings: &p.Res.Settings}
 	p.kept = plugin.Keep(&p.Res.Settings)
+	p.levers = cfg.Levers
 	p.Res.Settings = Settings{Tactical: cfg.Tactical.filled(), Riding: cfg.Riding.filled()}
 	p.SetBudget(cfg.FrameBudget)
+	p.SetSampling(DefaultSampling)
 	p.SetStrategy(Tactical, cfg.Tactical.Strategy)
 	p.SetStrategy(Riding, cfg.Riding.Strategy)
 	worldPlugin.Anchor(anchors{p})
@@ -249,6 +256,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // entities.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.switchZones()
+	p.adapter.on = p.following()
 	if f := p.adapter.step(time.Now(), render.ActualFPS()); f != 1 {
 		p.redraw(f)
 	}
@@ -256,30 +264,70 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.redressChanged()
 }
 
-// redraw has every picture but a minimap's whose profile follows the frame budget drawn at
-// factor times its resolution, the Settings showing the lead camera's
+// following reports whether anything follows the frame budget: a profile's pictures or a lever
+func (p *Plugin) following() bool {
+	if p.anyFollowing() {
+		return true
+	}
+	for _, l := range p.levers {
+		if l.Following() {
+			return true
+		}
+	}
+	return false
+}
+
+// redraw turns what follows the frame budget a step coarser (factor under 1) or finer: coarser
+// the levers first, in order, then the pictures; finer the pictures first, then the levers, the
+// last first; a step taken ends it
 func (p *Plugin) redraw(factor float32) {
+	if factor < 1 {
+		for _, l := range p.levers {
+			if l.Following() && l.Coarser() {
+				return
+			}
+		}
+		p.step(factor)
+		return
+	}
+	if p.step(factor) {
+		return
+	}
+	for i := len(p.levers) - 1; i >= 0; i-- {
+		if l := p.levers[i]; l.Following() && l.Finer() {
+			return
+		}
+	}
+}
+
+// step has every picture but a minimap's whose profile follows the frame budget drawn at
+// factor times its resolution, the Settings showing the lead camera's; true where one changed
+func (p *Plugin) step(factor float32) bool {
+	changed := false
 	for _, cam := range p.cameras {
-		if p.Strategy(ProfileOf(cam)) != Still {
-			p.apply(cam, factor)
+		if p.Strategy(ProfileOf(cam)) != Still && p.apply(cam, factor) {
+			changed = true
 		}
 	}
 	p.note(p.lead())
+	return changed
 }
 
 // apply has cam's picture drawn at factor times its resolution, a layer at a time where it is
-// drawn in layers, and is false for a minimap's or a camera without one
+// drawn in layers, and is true where the resolutions changed: not for a minimap's, a camera
+// without one or one at the end of its range
 func (p *Plugin) apply(cam camera.Camera, factor float32) bool {
 	r, ok := cam.(camera.Resolved)
 	if !ok || fitsWhole(cam) {
 		return false
 	}
+	before := resolutionsOf(cam)
 	if c, ok := cam.(camera.Layered); ok && len(c.Layers()) > 0 {
 		r.SetResolution(stepLayers(c, factor))
-		return true
+	} else {
+		r.SetResolution(clamped(r.Resolution() * factor))
 	}
-	r.SetResolution(clamped(r.Resolution() * factor))
-	return true
+	return !sameResolutions(before, resolutionsOf(cam))
 }
 
 // Reporter is the cameras' part of the telemetry panel: the lead camera's profile, the share of
@@ -350,8 +398,9 @@ func (p *Plugin) Restore() {
 	s := &p.Res.Settings
 	s.Tactical = s.Tactical.filled()
 	s.Riding = s.Riding.filled()
-	p.adapter = adapter{on: p.anyFollowing()}
+	p.adapter = adapter{}
 	p.SetBudget(s.FrameBudget)
+	p.SetSampling(s.Sampling)
 	p.loaded = true
 	for at := range min(len(p.cameras), len(p.saved)) {
 		p.restore(at)

@@ -2,6 +2,7 @@ package topography_test
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/players"
@@ -78,15 +80,21 @@ func TestSettings_TheCaresReachIsASliderToEverySectorAndTheCareShownASwitch(t *t
 	b, _ := topotest.LevelBoard(w)
 	p := topography.NewPlugin(w, b, nil, topography.Config{Care: 2})
 	settings := p.Settings()
-	if len(settings) != 3 {
-		t.Fatalf("%d settings, want the haze, the care's reach and the care shown", len(settings))
+	if len(settings) != 4 {
+		t.Fatalf("%d settings, want the haze, the care following, the care's reach and the care "+
+			"shown", len(settings))
 	}
-	haze, reach, shown := settings[0].(control.Switch), settings[1].(control.Range),
-		settings[2].(control.Switch)
-	if haze.Section != control.Graphics || reach.Section != control.PictureCare ||
-		shown.Section != control.PictureAreas {
-		t.Errorf("the sections are %q, %q and %q, want the graphics, the care and the areas",
-			haze.Section, reach.Section, shown.Section)
+	haze, follows, reach, shown := settings[0].(control.Switch), settings[1].(control.Switch),
+		settings[2].(control.Range), settings[3].(control.Switch)
+	if haze.Section != control.Graphics || follows.Section != control.PictureCare ||
+		reach.Section != control.PictureCare || shown.Section != control.PictureAreas {
+		t.Errorf("the sections are %q, %q, %q and %q, want the graphics, the care twice and the "+
+			"areas", haze.Section, follows.Section, reach.Section, shown.Section)
+	}
+	if follows.Label != "Full care follows the frame budget" || follows.Get() ||
+		follows.Set(true) != (topography.AdaptCare{On: true}) {
+		t.Errorf("the following is %q (%v) building %v, want \"Full care follows the frame "+
+			"budget\" off, AdaptCare{On: true}", follows.Label, follows.Get(), follows.Set(true))
 	}
 	if reach.Label != "Full care out to" || reach.Min != 1 || reach.Max != 8 || reach.Step != 1 {
 		t.Errorf("the reach is %q from %v to %v by %v, want \"Full care out to\" 1 to 8 by 1",
@@ -239,4 +247,33 @@ func TestCareView_DrawsTheBoundariesBetweenTheCaresBandsOverTheGround(t *testing
 			}
 		})
 	}
+}
+
+func TestPlugin_AsALeverOfTheFrameBudgetStepsTheCareDownTheLadderAndBackWhileAdaptive(
+	t *testing.T) {
+	w := topotest.NewWorld(0)
+	b, _ := topotest.LevelBoard(w)
+	p := topography.NewPlugin(w, b, nil, topography.Config{})
+	if p.Following() {
+		t.Fatal("not adaptive, the care follows the frame budget")
+	}
+	p.AdaptCare(true)
+	if !p.Following() {
+		t.Fatal("adaptive, the care does not follow")
+	}
+	var cares []int
+	for p.Coarser() {
+		cares = append(cares, p.Care())
+	}
+	if want := []int{3, 2, 1}; !slices.Equal(cares, want) {
+		t.Errorf("coarser from every sector the care went %v, want %v then no further", cares, want)
+	}
+	cares = nil
+	for p.Finer() {
+		cares = append(cares, p.Care())
+	}
+	if want := []int{2, 3, 0}; !slices.Equal(cares, want) {
+		t.Errorf("finer from a sector the care went %v, want %v then no further", cares, want)
+	}
+	var _ cameras.Lever = p
 }

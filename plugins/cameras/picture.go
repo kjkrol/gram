@@ -83,6 +83,7 @@ func (k Knobs) filled() Knobs {
 type Settings struct {
 	Zones       bool
 	FrameBudget time.Duration
+	Sampling    time.Duration // the frame rate averaged over this before it is followed
 	Tactical    Knobs
 	Riding      Knobs
 }
@@ -110,7 +111,6 @@ func (p *Plugin) SetStrategy(profile Profile, s Strategy) {
 	if s != Still {
 		k.Layers = s == InLayers
 	}
-	p.adapter.on = p.anyFollowing()
 	p.redress()
 }
 
@@ -197,6 +197,20 @@ func (p *Plugin) SetBudget(d time.Duration) {
 	p.adapter.budget = d
 }
 
+// SetSampling sets how long the frame rate is averaged over before the pictures follow it
+// (Settings.Sampling), LeastSampling up to MostSampling; zero or less, DefaultSampling.
+func (p *Plugin) SetSampling(d time.Duration) {
+	if d <= 0 {
+		d = DefaultSampling
+	}
+	d = min(max(d, LeastSampling), MostSampling)
+	p.Res.Settings.Sampling = d
+	p.adapter.sampling = d
+}
+
+// Sampling is how long the frame rate is averaged over before the pictures follow it.
+func (p *Plugin) Sampling() time.Duration { return p.Res.Settings.Sampling }
+
 // Budget is the time a frame may take, which the resolution follows.
 func (p *Plugin) Budget() time.Duration { return p.Res.Settings.FrameBudget }
 
@@ -210,7 +224,6 @@ func (p *Plugin) LayersShown(profile Profile) bool { return p.knobs(profile).Sho
 // still stops profile's following: a hand on a knob the adapter turns
 func (p *Plugin) still(profile Profile) {
 	p.knobs(profile).Strategy = Still
-	p.adapter.on = p.anyFollowing()
 }
 
 func (p *Plugin) anyFollowing() bool {
@@ -333,6 +346,18 @@ func (p *Plugin) Settings() []control.Setting {
 				return Budget{Frame: time.Second / time.Duration(v)}
 			},
 			Shows: func(v float64) string { return fmt.Sprintf("%.0f FPS", v) },
+		},
+		control.Range{
+			Label:   "Samples the frame rate over",
+			Section: control.Picture,
+			Min:     LeastSampling.Seconds(),
+			Max:     MostSampling.Seconds(),
+			Step:    1,
+			Get:     func() float64 { return p.Res.Settings.Sampling.Seconds() },
+			Set: func(v float64) command.Command {
+				return Sampling{Over: time.Duration(v * float64(time.Second))}
+			},
+			Shows: func(v float64) string { return fmt.Sprintf("%.0f s", v) },
 		},
 	}
 	out = append(out,

@@ -159,6 +159,20 @@ type LayerResolutions struct {
 // Budget sets the time a Frame may take, which the resolution follows (Settings.FrameBudget).
 type Budget struct{ Frame time.Duration }
 
+// Sampling sets how long the frame rate is averaged Over before the resolution follows it
+// (Settings.Sampling), LeastSampling up to MostSampling.
+type Sampling struct{ Over time.Duration }
+
+// Lever is what else the frame budget turns, given the cameras in Config.Levers: a step coarser
+// as the rate falls under the budget, before the pictures' resolution, Coarser taking it and
+// saying whether it could; a step finer as the rate stays over, after the pictures', Finer the
+// same; one not Following is left alone.
+type Lever interface {
+	Following() bool
+	Coarser() bool
+	Finer() bool
+}
+
 // ShowLayers shows the layers' edges over every picture a Profile draws in layers, or hides
 // them (Knobs.ShowLayers).
 type ShowLayers struct {
@@ -176,6 +190,7 @@ func (Layers) Command()           {}
 func (LayerShares) Command()      {}
 func (LayerResolutions) Command() {}
 func (Budget) Command()           {}
+func (Sampling) Command()         {}
 func (ShowLayers) Command()       {}
 func (Follow) Command()           {}
 func (CenterOn) Command()         {}
@@ -211,6 +226,7 @@ var (
 	_ command.Command = LayerShares{}
 	_ command.Command = LayerResolutions{}
 	_ command.Command = Budget{}
+	_ command.Command = Sampling{}
 	_ command.Command = ShowLayers{}
 )
 
@@ -237,7 +253,7 @@ const (
 func (p *Plugin) Queues() []command.CommandQueue {
 	return append([]command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.centerOns,
 		&p.centerAts, &p.zones, &p.sights, &p.resolutions, &p.adapts, &p.pictures, &p.sharps,
-		&p.layers, &p.layerShares, &p.layerRes, &p.budgets, &p.showLayers}, p.orders.queues()...)
+		&p.layers, &p.layerShares, &p.layerRes, &p.budgets, &p.samplings, &p.showLayers}, p.orders.queues()...)
 }
 
 // DefaultBindings are DefaultKeys, their corners turning where the Config turns, Shift+H showing

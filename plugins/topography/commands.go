@@ -25,6 +25,16 @@ func (Care) Command() {}
 
 var _ command.Command = Care{}
 
+// AdaptCare has the full care's reach follow the frame budget, or not ([Plugin.AdaptCare],
+// Settings.AdaptiveCare): the cameras' frame budget (cameras.Config.Levers) steps it down the
+// care's ladder before the pictures' resolution as the rate falls under, and back up after it
+// as the rate stays over. The settings screen alone, no key.
+type AdaptCare struct{ On bool }
+
+func (AdaptCare) Command() {}
+
+var _ command.Command = AdaptCare{}
+
 // ShowCare has the care's bands drawn over the ground, or not ([Plugin.ShowCare],
 // Settings.ShowCare): the boundaries between sectors of different care, the full care's green,
 // then yellow-green, yellow and orange. The settings screen alone, no key.
@@ -36,9 +46,10 @@ var _ command.Command = ShowCare{}
 
 // Settings is what the topography lets the players adjust, saved with the game.
 type Settings struct {
-	Haze     bool
-	Care     int
-	ShowCare bool
+	Haze         bool
+	Care         int
+	AdaptiveCare bool
+	ShowCare     bool
 }
 
 // Resources is what the topography publishes: its Settings.
@@ -48,7 +59,7 @@ type Resources struct {
 
 // Queues are where the shaping's, the haze's and the care's commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
-	return append(p.shaper.queues(), &p.hazing, &p.caring, &p.showing)
+	return append(p.shaper.queues(), &p.hazing, &p.caring, &p.adapting, &p.showing)
 }
 
 // DefaultBindings are Shift+= and Shift+- raising and lowering the ground under the cursor (= and
@@ -84,9 +95,9 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 // careMost is the top of the care's slider, every sector
 const careMost = 8
 
-// Settings are the haze and, on a square grid, how far out the ground is shaded with full care
-// (a sector to careMost, the top every one) and whether the care's bands are shown
-// (plugin.Tunable).
+// Settings are the haze and, on a square grid, whether the full care's reach follows the frame
+// budget, how far out the ground is shaded with full care (a sector to careMost, the top every
+// one) and whether the care's bands are shown (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
 	out := []control.Setting{control.Switch{
 		Label:   "Haze over the ground",
@@ -98,6 +109,12 @@ func (p *Plugin) Settings() []control.Setting {
 		return out
 	}
 	return append(out,
+		control.Switch{
+			Label:   "Full care follows the frame budget",
+			Section: control.PictureCare,
+			Get:     p.CareAdaptive,
+			Set:     func(on bool) command.Command { return AdaptCare{On: on} },
+		},
 		control.Range{
 			Label:   "Full care out to",
 			Section: control.PictureCare,

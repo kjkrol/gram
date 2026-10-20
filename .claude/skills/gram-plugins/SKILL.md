@@ -379,7 +379,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   ground is the board's, the sky the atmosphere's, `render` generic.** A relief is lit by the
   light plugin it is made with (without one `light.White`, which the topography hands the
   frame itself) and stands under its `topography.Atmosphere` for the weather (`WithAtmosphere`).
-  Its water reflects the sky's own colours (`skyAt`).
+  Its water reflects the sky's own colours (`skyAt`). "Full care follows the frame budget"
+  (`AdaptCare{On}`, `Settings.AdaptiveCare`, 2026-10-20): the plugin is a `cameras.Lever` given
+  in `cameras.Config.Levers`, its care's reach stepped down the ladder (`careLadder`) before the
+  pictures' resolution as the rate falls under the budget and up after it as it stays over.
 - **`atmosphere`** — the time of day, the climate and the weather on the world's clock, over a
   world with heights alone (`NewPlugin` panics in a flat one); its root
   keeps no shaders and draws nothing itself: every part is a package that never imports it.
@@ -931,8 +934,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   of the key's camera's profile, else the lead's), `Picture{Profile, Resolution}`,
   `SharpFigures{Profile, On}`, `Layers{Profile, On}`, `LayerShares{Profile, Inner, Middle}`,
   `LayerResolutions{Profile, Outer, Middle}`, `ShowLayers{Profile, Shown}` (the layers' edges, a
-  tick a profile); `Budget{Frame}` and `Resolution{Camera, Factor}` (Alt+=/−, the camera's own
-  profile) carry none; the setters take
+  tick a profile); `Budget{Frame}`, `Sampling{Over}` (the window the rate is averaged over before it is
+  followed, 1–20 s, 2 by default: coarser once a window falls under, finer once two meet) and
+  `Resolution{Camera, Factor}` (Alt+=/−, the camera's own profile) carry none; `Config.Levers`
+  (`cameras.Lever{Following, Coarser, Finer}`) are turned coarser before the pictures and finer
+  after them, the topography's care one; the setters take
   the profile first (`SetStrategy(profile, s)`); the adapter steps every camera by its profile's
   strategy, `note` writes the lead's back into its profile; the settings screen lists "Frame
   budget" under `control.Picture`, then each profile's nine knobs under `control.PictureTactical`

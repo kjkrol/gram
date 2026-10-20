@@ -89,8 +89,7 @@ etap U of `doc/plans-perf.md`)
   the settings screen has a section a profile under Picture, each with its layers and its
   "Show the layers" (`ShowLayers{Profile, Shown}`, `Knobs.ShowLayers`), the two laid side by
   side; the telemetry's Picture line names the lead's profile. A save from before loads the defaults.
-  board/topography starts tactical following the budget with the figures sharp, riding in
-  layers.
+  board/topography starts both profiles following the budget in layers, the figures sharp.
 - The settings screen lays twin sections (the same settings under each, as the profiles) side
   by side, a line a setting with a control a twin, in as many columns as the screen's width
   takes, fewer and taller where it takes none, scrolled then by a bar or the wheel
@@ -98,6 +97,15 @@ etap U of `doc/plans-perf.md`)
   reached whatever the screen's size, and the listing is built anew for the screen the scene
   is laid over (`ui.Scene.Laid`) as the window is resized or goes full screen, the shortcuts'
   (K) too. A menu up (F10, K) lets the cursor go while riding.
+- The frame budget turns levers besides the pictures' resolution (`cameras.Config.Levers`,
+  `cameras.Lever{Following, Coarser, Finer}`): coarser the levers first, finer the pictures
+  first. The topography is one: "Full care follows the frame budget" (`AdaptCare{On}`,
+  `Settings.AdaptiveCare`) steps the full care's reach down its ladder as the rate falls under
+  and back up as it stays over, the slider beside it showing it and setting it by hand. The
+  rate the adapter follows is averaged over a window set on the settings screen, "Samples the
+  frame rate over" (`Sampling{Over}`, `Settings.Sampling`, 1 to 20 s, 2 by default): coarser
+  once a window falls under the budget, finer once two meet it. board/topography starts both
+  profiles in layers.
 - A picture in layers is composed once, in the frame's pixels, and drawn a layer at a time
   with the pieces placed into each (`render.Laid{Lay, DrawLayer, DrawOver}` in place of
   `Grounded`; `gpu.Draw.Place`), the Directs drawing through the cropped camera (the sprites
