@@ -41,13 +41,23 @@ func DefaultKeys() Keys {
 }
 
 // Bindings are the keys bound to Pan and Zoom of the camera the player looks through.
-func (k Keys) Bindings() []control.Binding {
+func (k Keys) Bindings() []control.Binding { return k.bindings(nil) }
+
+// bindings are the keys' bindings, the edge's as p's settings say where p is given: scrolling
+// or still, at the speed set
+func (k Keys) bindings(p *Plugin) []control.Binding {
 	speed := k.ScrollSpeed
 	if speed == 0 {
 		speed = DefaultScrollSpeed
 	}
 	// the speed in the camera's pixels: the same on the screen at any resolution
 	step := func(c control.Context) float32 { return float32(c.Pixels(float64(speed))) }
+	edgeStep := func(c control.Context) float32 {
+		if p != nil && p.EdgeSpeed() > 0 {
+			return float32(c.Pixels(float64(p.EdgeSpeed())))
+		}
+		return step(c)
+	}
 	scroll := func(dx, dy float32) func(control.Context) (Pan, bool) {
 		return func(c control.Context) (Pan, bool) {
 			s := step(c)
@@ -99,10 +109,13 @@ func (k Keys) Bindings() []control.Binding {
 	}
 	if k.Edge {
 		out = append(out, control.Build(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {
+			if p != nil && !p.EdgesScroll() {
+				return Pan{}, false
+			}
 			// the deeper in the zone, the faster: a quarter the speed at its inner bound
 			var dx, dy float32
 			side := c.Edges()
-			speed := step(c) * float32(0.25+0.75*side.Depth)
+			speed := edgeStep(c) * float32(0.25+0.75*side.Depth)
 			if side.Corner != control.NoCorner {
 				sx, sy := side.Corner.Signs()
 				return Pan{Camera: c.Camera, Dx: sx * speed, Dy: sy * speed}, !k.CornersTurn
@@ -125,6 +138,9 @@ func (k Keys) Bindings() []control.Binding {
 			out = append(out, control.Build(control.CursorInCorner{},
 				"Turn the world in a corner: anticlockwise on the left, clockwise on the right",
 				func(c control.Context) (Turn, bool) {
+					if p != nil && !p.EdgesScroll() {
+						return Turn{}, false
+					}
 					sx, _ := c.Edges().Corner.Signs()
 					return Turn{Camera: c.Camera, Angle: sx * CornerStep}, sx != 0
 				}).In(camera.Outside))

@@ -258,16 +258,17 @@ const (
 // Queues are where the cameras' commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
 	return append([]command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.centerOns,
-		&p.centerAts, &p.zones, &p.sights, &p.resolutions, &p.adapts, &p.pictures, &p.sharps,
+		&p.centerAts, &p.zones, &p.edgeScrolls, &p.edgeSpeeds, &p.sights, &p.resolutions, &p.adapts, &p.pictures, &p.sharps,
 		&p.layers, &p.layerShares, &p.layerRes, &p.budgets, &p.samplings, &p.thresholds, &p.showLayers}, p.orders.queues()...)
 }
 
-// DefaultBindings are DefaultKeys, their corners turning where the Config turns, and the views'
+// DefaultBindings are DefaultKeys, their corners turning where the Config turns and their edge
+// as the settings say (EdgesScroll, EdgeSpeed), and the views'
 // keys the Config gives: Q and E turning, R and F tilting, Tab switching the projection, V riding
 // and the mouse looking round inside an entity. The scroll zones and the pictures' resolution are
 // the settings screen's.
 func (p *Plugin) DefaultBindings() []control.Binding {
 	keys := DefaultKeys()
 	keys.CornersTurn = p.cfg.Turn
-	return append(keys.Bindings(), viewBindings(p.cfg)...)
+	return append(keys.bindings(p), viewBindings(p.cfg)...)
 }

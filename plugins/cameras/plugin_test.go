@@ -272,13 +272,14 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 		Riding:   cameras.Knobs{Strategy: cameras.InLayers, Resolution: 0.8},
 	})
 	settings := p.Settings()
-	want := []listed{{"Scroll zones", ""}, {"Frame budget", control.Picture},
+	want := []listed{{"Scroll zones", ""}, {"Show the zones", ""}, {"Edge scroll speed", ""},
+		{"Frame budget", control.Picture},
 		{"Samples the frame rate over", control.Picture}, {"Coarser under", control.Picture},
 		{"Finer over", control.Picture}}
 	want = append(want, knobsListed(control.PictureTactical, control.PictureTacticalLayers)...)
 	want = append(want, knobsListed(control.PictureRiding, control.PictureRidingLayers)...)
 	if len(settings) != len(want) {
-		t.Fatalf("%d settings, want %d: the zones, the budget, the sampling, the thresholds, a profile's nine twice", len(settings), len(want))
+		t.Fatalf("%d settings, want %d: the zones thrice, the budget, the sampling, the thresholds, a profile's nine twice", len(settings), len(want))
 	}
 	for i, want := range want {
 		if got := (listed{labelOf(settings[i]), control.SectionOf(settings[i])}); got != want {
@@ -286,7 +287,7 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 				want.label, want.section)
 		}
 	}
-	budget := settings[1].(control.Range)
+	budget := settings[3].(control.Range)
 	if budget.Min != 30 || budget.Max != 120 || budget.Get() != 60 || budget.Shows(60) != "60 FPS" {
 		t.Errorf("the budget runs %v to %v at %v shown %q, want 30 to 120 at 60, \"60 FPS\"",
 			budget.Min, budget.Max, budget.Get(), budget.Shows(60))
@@ -294,7 +295,7 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 	if got := budget.Set(30); got != (cameras.Budget{Frame: time.Second / 30}) {
 		t.Errorf("the budget at 30 builds %v, want a frame of a thirtieth of a second", got)
 	}
-	sampling := settings[2].(control.Range)
+	sampling := settings[4].(control.Range)
 	if sampling.Min != 1 || sampling.Max != 20 || sampling.Get() != 2 || sampling.Shows(5) != "5 s" ||
 		sampling.Set(5) != (cameras.Sampling{Over: 5 * time.Second}) {
 		t.Errorf("the sampling runs %v to %v at %v shown %q building %v, want 1 to 20 at 2, \"5 s\", "+
@@ -308,8 +309,8 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 		resolution float32
 		layers     bool
 	}{
-		{cameras.Tactical, 5, cameras.Uniform, 1, false},
-		{cameras.Riding, 14, cameras.InLayers, 0.8, true},
+		{cameras.Tactical, 7, cameras.Uniform, 1, false},
+		{cameras.Riding, 16, cameras.InLayers, 0.8, true},
 	} {
 		knobs := settings[c.at:]
 		strategy := knobs[0].(control.Choice)
@@ -376,12 +377,12 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 		}
 	}
 	p.SetResolution(cameras.Riding, 0.5)
-	if tactical, riding := settings[6].(control.Range).Get(),
-		settings[15].(control.Range).Get(); tactical != 1 || riding != 0.5 {
+	if tactical, riding := settings[8].(control.Range).Get(),
+		settings[17].(control.Range).Get(); tactical != 1 || riding != 0.5 {
 		t.Errorf("the riding resolution set to 0.5, the settings show %v tactical and %v riding, "+
 			"want the tactical untouched at 1", tactical, riding)
 	}
-	shown := settings[13].(control.Switch)
+	shown := settings[15].(control.Switch)
 	if shown.Get() || shown.Set(true) != (cameras.ShowLayers{Profile: cameras.Tactical, Shown: true}) {
 		t.Errorf("the layers shown are %v building %v, want hidden, ShowLayers{Tactical, true}",
 			shown.Get(), shown.Set(true))

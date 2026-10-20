@@ -15,9 +15,23 @@ import (
 // hides them (Settings.Zones). The settings screen alone.
 type Zones struct{ Shown bool }
 
-func (Zones) Command() {}
+// EdgeScroll has the cursor at a picture's edge scroll the camera, or not (Settings.StillEdges).
+// The settings screen alone.
+type EdgeScroll struct{ On bool }
 
-var _ command.Command = Zones{}
+// EdgeSpeed sets how fast the cursor at a picture's edge scrolls, screen pixels a tick at the
+// very edge (Settings.EdgeSpeed); 0, the keys' own. The settings screen alone.
+type EdgeSpeed struct{ Speed float32 }
+
+func (Zones) Command()      {}
+func (EdgeScroll) Command() {}
+func (EdgeSpeed) Command()  {}
+
+var (
+	_ command.Command = Zones{}
+	_ command.Command = EdgeScroll{}
+	_ command.Command = EdgeSpeed{}
+)
 
 // a zone's colour at the picture's edge, and clear at its inner bound
 var (
@@ -28,32 +42,29 @@ var (
 // pixels: the gap between a strip and the corners beside it
 const zoneGap = 6
 
-// the zones' level among the marks: over every other, the selection's box included
-const zonesLevel = 3
-
-// zonesView lays the scroll zones over the picture of the camera being composed.
+// zonesView draws the scroll zones on the glass over every picture but one of the whole world:
+// in shown pixels, over whatever the scene lays over the picture (render.Glass).
 type zonesView struct{ settings *Settings }
 
 var _ render.Source = (*zonesView)(nil)
-var _ render.Overlying = (*zonesView)(nil)
+var _ render.Glass = (*zonesView)(nil)
 
 func (*zonesView) Init(*goke.SysInit) {}
 
-// Overlies: drawn over the figures' ground (render.Overlying).
-func (*zonesView) Overlies() {}
+// Compose composes nothing: the zones go on the glass.
+func (*zonesView) Compose(*render.Frame, camera.Camera) {}
 
-func (v *zonesView) Compose(f *render.Frame, cam camera.Camera) {
-	if !v.settings.Zones || camera.IsCropped(cam) {
+// DrawGlass draws the zones over dst, the picture as shown: the strips control.EdgeMargin wide,
+// the corners control.CornerSide a side, each clear inside and zoneColor at the edge.
+func (v *zonesView) DrawGlass(dst *render.Image, cam camera.Camera) {
+	if !v.settings.Zones || fitsWhole(cam) {
 		return
 	}
-	w, h := cam.Viewport()
-	// the zones in shown pixels, drawn in the camera's: how far in a strip reaches, a corner's
-	// square, where a strip stops from an edge
-	k := camera.ResolutionOf(cam)
-	thick := float32(control.EdgeMargin) * k
-	side := float32(control.CornerSide(float64(w/k), float64(h/k))) * k
-	ends := side + zoneGap*k
-
+	b := dst.Bounds()
+	w, h := float32(b.Dx()), float32(b.Dy())
+	thick := float32(control.EdgeMargin)
+	side := float32(control.CornerSide(float64(w), float64(h)))
+	ends := side + zoneGap
 	// each zone's corners top-left, top-right, bottom-left, bottom-right, coloured where they lie
 	// on the picture's edge
 	zone := func(x0, y0, x1, y1 float32) {
@@ -66,7 +77,9 @@ func (v *zonesView) Compose(f *render.Frame, cam camera.Camera) {
 			}
 			return zoneClear
 		}
-		f.Quad(render.OnTop(zonesLevel), render.Corners{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}},
+		ox, oy := float32(b.Min.X), float32(b.Min.Y)
+		render.FillQuad(dst, render.Corners{{ox + x0, oy + y0}, {ox + x1, oy + y0},
+			{ox + x0, oy + y1}, {ox + x1, oy + y1}},
 			[4]color.RGBA{at(x0, y0), at(x1, y0), at(x0, y1), at(x1, y1)})
 	}
 	zone(ends, 0, w-ends, thick)
@@ -86,6 +99,22 @@ func (p *Plugin) ShowZones(shown bool) { p.Res.Settings.Zones = shown }
 // ZonesShown reports whether the scroll zones are shown.
 func (p *Plugin) ZonesShown() bool { return p.Res.Settings.Zones }
 
+// ScrollFromEdges has the cursor at a picture's edge scroll the camera, or not
+// (Settings.StillEdges); on from the start.
+func (p *Plugin) ScrollFromEdges(on bool) { p.Res.Settings.StillEdges = !on }
+
+// EdgesScroll reports whether the cursor at a picture's edge scrolls the camera.
+func (p *Plugin) EdgesScroll() bool { return !p.Res.Settings.StillEdges }
+
+// SetEdgeSpeed sets how fast the cursor at the very edge scrolls, screen pixels a tick
+// (Settings.EdgeSpeed); 0 or less, the keys' own.
+func (p *Plugin) SetEdgeSpeed(speed float32) { p.Res.Settings.EdgeSpeed = max(speed, 0) }
+
+// EdgeSpeed is how fast the cursor at the very edge scrolls, 0 for the keys' own.
+func (p *Plugin) EdgeSpeed() float32 { return p.Res.Settings.EdgeSpeed }
+
 func (p *Plugin) switchZones() {
 	p.zones.Drain(func(i command.Issued[Zones]) { p.ShowZones(i.Command.Shown) })
+	p.edgeScrolls.Drain(func(i command.Issued[EdgeScroll]) { p.ScrollFromEdges(i.Command.On) })
+	p.edgeSpeeds.Drain(func(i command.Issued[EdgeSpeed]) { p.SetEdgeSpeed(i.Command.Speed) })
 }

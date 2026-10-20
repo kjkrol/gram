@@ -106,9 +106,12 @@
 // [Picture] (the resolution), [SharpFigures] (the figures at every pixel), [Layers] (drawn in
 // layers), [LayerShares] and [LayerResolutions] (the layers' shares of the frame and
 // resolutions), [ShowLayers] (a look: the layers outlined); about every picture: [Budget] (the
-// frame budget), [Zones] (a look: the scroll zones over every picture); [Follow] (a
-// player's, or an entity's own fastening the camera over itself).
-// Settings ([Settings], saved with the game, in [Resources]): the zones, the frame budget, the
-// layers shown and each profile's [Knobs]: the strategy, the resolution, the figures at every
-// pixel, the picture drawn in layers, the layers' shares and resolutions.
+// frame budget), [Zones] (a look: the scroll zones on the glass over every picture, over
+// whatever a scene lays on it), [EdgeScroll] (the cursor at the edge scrolling, or not),
+// [EdgeSpeed] (how fast at the very edge, a quarter of it at the zone's inner bound); [Follow]
+// (a player's, or an entity's own fastening the camera over itself).
+// Settings ([Settings], saved with the game, in [Resources]): the zones scrolling, shown and
+// their speed, the frame budget, the layers shown and each profile's [Knobs]: the strategy, the
+// resolution, the figures at every pixel, the picture drawn in layers, the layers' shares and
+// resolutions.
 package cameras

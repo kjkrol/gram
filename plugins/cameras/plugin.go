@@ -93,6 +93,8 @@ type Plugin struct {
 	centerOns   command.Queue[CenterOn]
 	centerAts   command.Queue[CenterAt]
 	zones       command.Queue[Zones]
+	edgeScrolls command.Queue[EdgeScroll]
+	edgeSpeeds  command.Queue[EdgeSpeed]
 	sights      command.Queue[Sight]
 	resolutions command.Queue[Resolution]
 	adapts      command.Queue[Adapt]

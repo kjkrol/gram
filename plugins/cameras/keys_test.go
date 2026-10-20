@@ -187,3 +187,32 @@ func TestKeys_TheEdgeScrollsAQuarterAsFastAtTheZonesInnerBoundAsAtTheWindowsEdge
 			"halfway in and a shade over a quarter at the inner bound", speeds)
 	}
 }
+
+func TestDefaultBindings_TheEdgeScrollsAsTheSettingsSayAtTheSpeedSet(t *testing.T) {
+	p := cameras.NewPlugin(reliefWorld(), cameras.Config{})
+	var edge control.Binding
+	for _, b := range p.DefaultBindings() {
+		if b.Trigger == (control.CursorAtEdge{}) {
+			edge = b
+		}
+	}
+	if edge.Trigger == nil {
+		t.Fatal("no binding on the edge")
+	}
+	ctx := control.Context{Screen: geom.NewVec(1000, 800), Cursor: geom.NewVec(990, 400)}
+	if cmd, ok := edge.Build(ctx); !ok || cmd.(cameras.Pan).Dx != cameras.DefaultScrollSpeed {
+		t.Errorf("at the edge the default builds %+v (%v), want a Pan right at the default speed",
+			cmd, ok)
+	}
+	p.SetEdgeSpeed(16)
+	if cmd, ok := edge.Build(ctx); !ok || cmd.(cameras.Pan).Dx != 16 {
+		t.Errorf("at a speed of 16 the edge builds %+v (%v), want a Pan right by 16", cmd, ok)
+	}
+	p.ScrollFromEdges(false)
+	if cmd, ok := edge.Build(ctx); ok {
+		t.Errorf("the edges still, the edge builds %+v, want nothing", cmd)
+	}
+	if !p.EdgesScroll() == false || p.EdgeSpeed() != 16 {
+		t.Errorf("the settings say scrolling %v at %v, want still at 16", p.EdgesScroll(), p.EdgeSpeed())
+	}
+}

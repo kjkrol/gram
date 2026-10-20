@@ -82,6 +82,8 @@ func (k Knobs) filled() Knobs {
 // the frame budget and the Knobs of each Profile.
 type Settings struct {
 	Zones       bool
+	StillEdges  bool    // the cursor at a picture's edge scrolls nothing
+	EdgeSpeed   float32 // screen pixels a tick at the very edge; zero, the keys' own
 	FrameBudget time.Duration
 	Sampling    time.Duration // the frame rate averaged over this before it is followed
 	Under       float32       // of the budget's rate, under which the picture goes coarser
@@ -350,15 +352,34 @@ func budgetRate(budget time.Duration) float64 {
 	return math.Round(float64(time.Second) / float64(budget))
 }
 
-// Settings are the scroll zones, the frame budget and each profile's knobs (the strategy
-// following the budget, the resolution, the figures at every pixel, the layers and their edges
-// shown) (plugin.Tunable).
+// Settings are the scroll zones (scrolling, shown, their speed), the frame budget and each
+// profile's knobs (the strategy following the budget, the resolution, the figures at every
+// pixel, the layers and their edges shown) (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
 	out := []control.Setting{
 		control.Switch{
 			Label: "Scroll zones",
+			Get:   p.EdgesScroll,
+			Set:   func(on bool) command.Command { return EdgeScroll{On: on} },
+		},
+		control.Switch{
+			Label: "Show the zones",
 			Get:   p.ZonesShown,
 			Set:   func(on bool) command.Command { return Zones{Shown: on} },
+		},
+		control.Range{
+			Label: "Edge scroll speed",
+			Min:   2,
+			Max:   24,
+			Step:  1,
+			Get: func() float64 {
+				if s := p.EdgeSpeed(); s > 0 {
+					return float64(s)
+				}
+				return DefaultScrollSpeed
+			},
+			Set:   func(v float64) command.Command { return EdgeSpeed{Speed: float32(v)} },
+			Shows: func(v float64) string { return fmt.Sprintf("%.0f px a tick", v) },
 		},
 		control.Range{
 			Label:   "Frame budget",
