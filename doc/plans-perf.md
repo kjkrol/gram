@@ -736,8 +736,10 @@ w worktree (na życzenie użytkownika „możesz zaczynać”, zamiast sesji). 2
 scalone do `main` (`aecf9f9c`, `9b90af6d`); 3a i 4a zweryfikowane na swoich gałęziach i czekają
 na przegląd, scalenie i wydanie użytkownika (aabbworld `feat/runs` → v1.14.0, goke
 `feat/chunk-versions` → v3.6.0, oba z podbiciem `gram/go.mod`); drugi commit R2 (`444c40a7`,
-Directy umieszczane) nie scalony, decyzja niżej. Następne: 2b (od `main`, gotowe do startu),
-3b po wydaniu aabbworld, 4b po 3b i wydaniu goke. Gałęzie części zostają do przeglądu,
+Directy umieszczane) nie scalony, decyzja niżej. Następne: 2b (od `main`, w toku),
+3b po podbiciu aabbworld v1.14.0 w `go.mod` (wydane 2026-10-20, podbicie użytkownika). Goke PR #55
+niescalony z decyzji użytkownika: 4b i 5 idą razem lokalnie na goke `feat/chunk-versions`
+(brief `45-mirror-local`, gałąź `m/mirror`); goke v3.6.0 tylko, jeśli lustro pokaże zysk. Gałęzie części zostają do przeglądu,
 worktree gram usunięte.
 
 ## Fala 1: wynik (2026-10-20)
