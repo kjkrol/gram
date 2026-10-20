@@ -38,12 +38,12 @@ struct Laid {
 }
 
 @fragment
-fn fs_main(@builtin(position) frag: vec4<f32>, s: Shade) -> Laid {
-    let depth = depthAt(frag.xy);
+fn fs_main(s: Shade) -> Laid {
+    let depth = depthAt(s.clip.xy);
     if depth <= 0.0 {
         discard; // nothing drawn there
     }
-    let px = frag.xy - U.ViewAt;
+    let px = s.clip.xy - U.ViewAt;
     let w = U.Unproject * vec4<f32>(px.x / U.ViewSize.x * 2.0 - 1.0, 1.0 - px.y / U.ViewSize.y * 2.0, depth, 1.0);
     let rel = w.xy / w.w - s.at.xy;
     let local = vec2<f32>(dot(rel, s.at.zw), dot(rel, vec2<f32>(-s.at.w, s.at.z)));

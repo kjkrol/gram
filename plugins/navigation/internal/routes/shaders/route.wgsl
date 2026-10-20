@@ -31,9 +31,9 @@ struct Laid {
 }
 
 @fragment
-fn fs_main(@builtin(position) frag: vec4<f32>, s: Stretch) -> Laid {
-    let depth = depthAt(frag.xy);
-    let px = frag.xy - U.ViewAt;
+fn fs_main(s: Stretch) -> Laid {
+    let depth = depthAt(s.clip.xy);
+    let px = s.clip.xy - U.ViewAt;
     let w = U.Unproject * vec4<f32>(px.x / U.ViewSize.x * 2.0 - 1.0, 1.0 - px.y / U.ViewSize.y * 2.0, depth, 1.0);
     let p = w.xy / w.w;
     let ab = s.ends.zw - s.ends.xy;

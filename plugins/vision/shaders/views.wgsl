@@ -36,11 +36,11 @@ struct Laid {
 }
 
 @fragment
-fn fs_main(@builtin(position) frag: vec4<f32>, v: View) -> Laid {
-    let px = frag.xy - U.ViewAt;
+fn fs_main(v: View) -> Laid {
+    let px = v.clip.xy - U.ViewAt;
     let ndc = vec2<f32>(px.x / U.ViewSize.x * 2.0 - 1.0, 1.0 - px.y / U.ViewSize.y * 2.0);
     var p: vec3<f32>;
-    var lies = frag.z;
+    var lies = v.clip.z;
     if U.FlatGround > 0.5 {
         // the line of sight through two depths, down to the ground at 0
         let far = U.Unproject * vec4<f32>(ndc, 0.25, 1.0);
@@ -52,7 +52,7 @@ fn fs_main(@builtin(position) frag: vec4<f32>, v: View) -> Laid {
         }
         p = mix(a, b, a.z / (a.z - b.z));
     } else {
-        let depth = depthAt(frag.xy);
+        let depth = depthAt(v.clip.xy);
         if depth <= 0.0 {
             discard; // nothing drawn there: the sky
         }
