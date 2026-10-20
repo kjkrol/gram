@@ -61,7 +61,7 @@ func settingsRig(t *testing.T) (*Plugin, *tunable, *world.Plugin) {
 
 func TestSettings_F10OpensTheScreenHoldingTheClockAndEscClosesIt(t *testing.T) {
 	p, _, w := settingsRig(t)
-	rt, comp := &engineStub{props: game.Props{ScreenWidth: 800, ScreenHeight: 600}}, &composed{}
+	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1920, ScreenHeight: 1080}}, &composed{}
 	events := &control.InputEvents{}
 	events.AddKeyEvent(control.KeyF10, control.ActionPress)
 	p.Handle(events, rt, comp)
@@ -84,7 +84,7 @@ func TestSettings_F10OpensTheScreenHoldingTheClockAndEscClosesIt(t *testing.T) {
 func TestSettings_AClockPausedBeforeStaysPaused(t *testing.T) {
 	p, _, w := settingsRig(t)
 	w.Clock().TogglePause()
-	rt, comp := &engineStub{props: game.Props{ScreenWidth: 800, ScreenHeight: 600}}, &composed{}
+	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1920, ScreenHeight: 1080}}, &composed{}
 	p.settings.Open(rt, comp)
 	p.settings.Close(rt, comp)
 	if !w.Clock().State().Paused {
@@ -94,9 +94,9 @@ func TestSettings_AClockPausedBeforeStaysPaused(t *testing.T) {
 
 func TestSettings_TheScreenListsEveryTunableAndItsControlsIssue(t *testing.T) {
 	p, h, w := settingsRig(t)
-	rt, comp := &engineStub{props: game.Props{ScreenWidth: 800, ScreenHeight: 600}}, &composed{}
+	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1920, ScreenHeight: 1080}}, &composed{}
 	p.settings.Open(rt, comp)
-	screen := geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(800, 600))
+	screen := geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(1920, 1080))
 	s := p.settings.screen
 	s.Drawers()
 	s.Lay(screen)
@@ -126,11 +126,11 @@ func TestSettings_TheScreenListsEveryTunableAndItsControlsIssue(t *testing.T) {
 
 func TestSettings_SectionsComeFirstCentredAndAMovedSettingSitsUnderItsSubheading(t *testing.T) {
 	p, _, _ := settingsRig(t)
-	rt, comp := &engineStub{props: game.Props{ScreenWidth: 800, ScreenHeight: 600}}, &composed{}
+	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1920, ScreenHeight: 1080}}, &composed{}
 	p.settings.Open(rt, comp)
 	s := p.settings.screen
 	s.Drawers()
-	s.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(800, 600)))
+	s.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(1920, 1080)))
 	boxOf := func(name string) geom.AABB {
 		t.Helper()
 		e := s.Element(name)
@@ -163,8 +163,8 @@ func TestSettings_SectionsComeFirstCentredAndAMovedSettingSitsUnderItsSubheading
 			"its subheading in one column", graphics, shadows, column)
 	}
 	title := boxOf("settings.title")
-	if centre := (title.TopLeft.X + title.BottomRight.X) / 2; math.Abs(centre-400) > 1 {
-		t.Errorf("the title's centre at x %v, want 400", centre)
+	if centre := (title.TopLeft.X + title.BottomRight.X) / 2; math.Abs(centre-960) > 1 {
+		t.Errorf("the title's centre at x %v, want 960", centre)
 	}
 }
 
@@ -175,7 +175,7 @@ func within(a, in geom.AABB) bool {
 
 func TestSettings_KeepRunningLetsTheClockGoAndIsSaved(t *testing.T) {
 	p, _, w := settingsRig(t)
-	rt, comp := &engineStub{props: game.Props{ScreenWidth: 800, ScreenHeight: 600}}, &composed{}
+	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1920, ScreenHeight: 1080}}, &composed{}
 	p.settings.Open(rt, comp)
 	if err := p.Issue(nil, KeepRunning{On: true}); err != nil {
 		t.Fatal(err)

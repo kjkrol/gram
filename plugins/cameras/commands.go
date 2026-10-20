@@ -159,9 +159,12 @@ type LayerResolutions struct {
 // Budget sets the time a Frame may take, which the resolution follows (Settings.FrameBudget).
 type Budget struct{ Frame time.Duration }
 
-// ShowLayers shows the layers' edges over every picture drawn in layers, or hides them
-// (Settings.ShowLayers).
-type ShowLayers struct{ Shown bool }
+// ShowLayers shows the layers' edges over every picture a Profile draws in layers, or hides
+// them (Knobs.ShowLayers).
+type ShowLayers struct {
+	Profile Profile
+	Shown   bool
+}
 
 func (Pan) Command()              {}
 func (Zoom) Command()             {}

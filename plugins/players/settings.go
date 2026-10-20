@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
@@ -36,7 +37,9 @@ type SettingsScene struct {
 	p      *Plugin
 	screen *ui.Scene
 	shown  bool
-	paused bool // the clock was paused as the screen opened: left so as it closes
+	paused bool            // the clock was paused as the screen opened: left so as it closes
+	pages  [][]*ui.Element // the columns a page, as many as the screen's width takes
+	page   int
 }
 
 var _ game.Scene = (*SettingsScene)(nil)
@@ -52,6 +55,7 @@ func (s *SettingsScene) Open(runtime game.Runtime, composition game.Composition)
 		issuer = locals[0]
 	}
 	s.screen.Issue(s.p.IssueAs(issuer))
+	s.page = 0
 	s.screen.Replace(s.listing(runtime.Props()))
 	composition.Show(SettingsName)
 	s.shown = true
@@ -78,7 +82,8 @@ func (*SettingsScene) Name() string { return SettingsName }
 
 func (s *SettingsScene) Drawers() []render.Drawer { return s.screen.Drawers() }
 
-// HandleEvents closes the screen on Esc or F10 and hands the rest to the controls.
+// HandleEvents closes the screen on Esc or F10, turns its pages on PgDn and PgUp and hands the
+// rest to the controls.
 func (s *SettingsScene) HandleEvents(events *control.InputEvents, runtime game.Runtime,
 	composition game.Composition) {
 	for _, k := range events.KeyEvents {
@@ -88,6 +93,14 @@ func (s *SettingsScene) HandleEvents(events *control.InputEvents, runtime game.R
 		if k.Key == control.KeyF10 || k.Key == control.KeyEscape && !s.screen.Unfolded() {
 			s.Close(runtime, composition)
 			return
+		}
+		if n := len(s.pages); n > 1 && (k.Key == control.KeyPageDown || k.Key == control.KeyPageUp) {
+			if k.Key == control.KeyPageDown {
+				s.page = (s.page + 1) % n
+			} else {
+				s.page = (s.page + n - 1) % n
+			}
+			s.screen.Replace(s.pageScreen())
 		}
 	}
 	s.screen.HandleEvents(events, runtime, composition)
@@ -100,42 +113,94 @@ func (*SettingsScene) Focusable() bool { return true }
 const (
 	settingsRow   = 32
 	settingsLabel = 220
+	twinColumn    = 230 // a twin section's column of controls
 )
 
 // listing is the screen: the title and, centred in columns as tall as the screen allows, the
-// sections of settings, a heading each and a line a setting, its label and its control.
+// sections of settings, a heading each and a line a setting, its label and its control; the
+// columns the screen's width does not take go to the pages after, PgDn and PgUp turning them.
 func (s *SettingsScene) listing(props game.Props) *ui.Element {
 	height := float64(props.ScreenHeight) - 2*shortcutsMargin
 	_, titleHeight := ui.DefaultTheme().Large.Measure("Settings")
 	height -= float64(titleHeight) + shortcutsGap
 
-	var columns []ui.Part
+	var columns []*ui.Element
 	var column []ui.Part
 	used := 0.0
 	for _, b := range s.tree().blocks("", 0, nil) {
 		if used > 0 && used+b.tall > height {
-			columns = append(columns,
-				ui.Fit(ui.Rows(column...).Named(settingsColumn(len(columns)))),
-				ui.Fixed(shortcutsGap*2, ui.Blank()))
+			columns = append(columns, ui.Rows(column...))
 			column, used = nil, 0
 		}
 		column = append(column, b.parts...)
 		used += b.tall
 	}
 	if len(column) > 0 {
-		columns = append(columns, ui.Fit(ui.Rows(column...).Named(settingsColumn(len(columns)))))
+		columns = append(columns, ui.Rows(column...))
+	}
+	s.pages = paged(columns, float64(props.ScreenWidth)-2*shortcutsMargin, height)
+	s.page = min(s.page, len(s.pages)-1)
+	return s.pageScreen()
+}
+
+// paged is the columns grouped into pages as wide as width takes, a page at least a column,
+// their widths measured laid out once
+func paged(columns []*ui.Element, width, height float64) [][]*ui.Element {
+	probe := ui.NewScene("", ui.Columns(spaced(columns)...))
+	probe.Drawers()
+	probe.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(width, height)))
+	var pages [][]*ui.Element
+	var page []*ui.Element
+	used := 0.0
+	for i, c := range columns {
+		box := probe.Element(settingsColumn(i)).Box()
+		w := box.BottomRight.X - box.TopLeft.X
+		if len(page) > 0 && used+shortcutsGap*2+w > width {
+			pages = append(pages, page)
+			page, used = nil, 0
+		}
+		if len(page) > 0 {
+			used += shortcutsGap * 2
+		}
+		page = append(page, c)
+		used += w
+	}
+	return append(pages, page)
+}
+
+// spaced is the columns as parts, named by their place, a gap between them
+func spaced(columns []*ui.Element) []ui.Part {
+	parts := make([]ui.Part, 0, 2*len(columns))
+	for i, c := range columns {
+		if i > 0 {
+			parts = append(parts, ui.Fixed(shortcutsGap*2, ui.Blank()))
+		}
+		parts = append(parts, ui.Fit(c.Named(settingsColumn(i))))
+	}
+	return parts
+}
+
+// pageScreen is the page shown: the title, the page's columns and, where there are more pages,
+// which this is and the keys turning them
+func (s *SettingsScene) pageScreen() *ui.Element {
+	rows := []ui.Part{
+		ui.Fit(ui.TopMiddle(ui.Title("Settings").Named("settings.title"))),
+		ui.Fixed(shortcutsGap, ui.Blank()),
+		ui.Fit(ui.Columns(spaced(s.pages[s.page])...)),
+	}
+	if n := len(s.pages); n > 1 {
+		rows = append(rows,
+			ui.Fixed(shortcutsGap, ui.Blank()),
+			ui.Fit(ui.TopMiddle(ui.Label(fmt.Sprintf("Page %d of %d: PgDn, PgUp", s.page+1, n)).
+				Named("settings.page"))))
 	}
 	return ui.Layers(
 		ui.Blank().Fill(shortcutsDim),
-		ui.TopMiddle(ui.Rows(
-			ui.Fit(ui.TopMiddle(ui.Title("Settings").Named("settings.title"))),
-			ui.Fixed(shortcutsGap, ui.Blank()),
-			ui.Fit(ui.Columns(columns...)),
-		)).Padding(shortcutsMargin),
+		ui.TopMiddle(ui.Rows(rows...)).Padding(shortcutsMargin),
 	)
 }
 
-func settingsColumn(i int) string { return fmt.Sprintf("settings.column.%d", i/2) }
+func settingsColumn(i int) string { return fmt.Sprintf("settings.column.%d", i) }
 
 // a section of the screen: its name, the settings right under it and its subsections
 type node struct {
@@ -225,8 +290,9 @@ func (b *block) add(part ui.Part, tall float64) {
 	b.tall += tall
 }
 
-// blocks appends n's blocks to dst: its heading, its settings' lines, then its subsections';
-// the root (level 0) has no heading and a top section's last block ends in a gap.
+// blocks appends n's blocks to dst: its heading, its settings' lines, then its subsections',
+// twins side by side; the root (level 0) has no heading and a top section's last block ends in
+// a gap.
 func (n *node) blocks(path string, level int, dst []block) []block {
 	if level > 0 {
 		if i := len(dst) - 1; i < 0 || !dst[i].bare {
@@ -239,15 +305,98 @@ func (n *node) blocks(path string, level int, dst []block) []block {
 		last.add(ui.Fixed(settingsRow, line(st, path, float64(level)*shortcutsGap/2)), settingsRow)
 		last.bare = false
 	}
-	for _, c := range n.subs {
-		under := c.name
-		if path != "" {
-			under = path + "/" + c.name
+	for _, group := range n.grouped() {
+		if len(group) > 1 {
+			dst = twinBlocks(under(path, group), level+1, group, dst)
+			continue
 		}
-		dst = c.blocks(under, level+1, dst)
+		dst = group[0].blocks(under(path, group)[0], level+1, dst)
 	}
 	if level == 1 {
 		dst[len(dst)-1].add(ui.Fixed(shortcutsGap, ui.Blank()), shortcutsGap)
+	}
+	return dst
+}
+
+// under is the path of each of subs under path
+func under(path string, subs []*node) []string {
+	paths := make([]string, len(subs))
+	for i, c := range subs {
+		paths[i] = c.name
+		if path != "" {
+			paths[i] = path + "/" + c.name
+		}
+	}
+	return paths
+}
+
+// shape is what a section looks like: its settings' labels and kinds and its subsections'
+// names and shapes; sections of one shape are twins, laid side by side
+func (n *node) shape() string {
+	var b strings.Builder
+	for _, st := range n.settings {
+		fmt.Fprintf(&b, "%T %s;", st, labelOf(st))
+	}
+	for _, c := range n.subs {
+		fmt.Fprintf(&b, "%s{%s}", c.name, c.shape())
+	}
+	return b.String()
+}
+
+// grouped is n's subs in order, twins of one shape together in the first's place
+func (n *node) grouped() [][]*node {
+	var groups [][]*node
+	at := map[string]int{}
+	for _, c := range n.subs {
+		shape := c.shape()
+		if i, ok := at[shape]; ok && shape != "" {
+			groups[i] = append(groups[i], c)
+			continue
+		}
+		at[shape] = len(groups)
+		groups = append(groups, []*node{c})
+	}
+	return groups
+}
+
+// twinBlocks appends the twins' blocks to dst laid side by side: a row of their names over a
+// column each, a line a setting with its label once and a control a twin, their subsections
+// the same under a subheading
+func twinBlocks(paths []string, level int, twins []*node, dst []block) []block {
+	if i := len(dst) - 1; i < 0 || !dst[i].bare {
+		dst = append(dst, block{bare: true})
+	}
+	indent := float64(level-1) * shortcutsGap / 2
+	names := []ui.Part{ui.Fixed(indent, ui.Blank()), ui.Fixed(settingsLabel, ui.Blank())}
+	for i, c := range twins {
+		names = append(names, ui.Fixed(twinColumn,
+			ui.MiddleLeft(ui.Subheading(c.name).Named("section:"+paths[i]))))
+	}
+	dst[len(dst)-1].add(ui.Fixed(settingsRow, ui.Columns(names...)), settingsRow)
+	for k, st := range twins[0].settings {
+		row := []ui.Part{ui.Fixed(indent, ui.Blank()),
+			ui.Fixed(settingsLabel, ui.MiddleLeft(ui.Label(labelOf(st))))}
+		for i, c := range twins {
+			row = append(row, ui.Fixed(twinColumn, ui.MiddleLeft(controlOf(c.settings[k], paths[i]))))
+		}
+		last := &dst[len(dst)-1]
+		last.add(ui.Fixed(settingsRow, ui.Columns(row...)), settingsRow)
+		last.bare = false
+	}
+	for k := range twins[0].subs {
+		subs := make([]*node, len(twins))
+		for i, c := range twins {
+			subs[i] = c.subs[k]
+		}
+		dst = append(dst, block{bare: true})
+		sub := ui.MiddleLeft(ui.Subheading(subs[0].name).
+			Named("section:" + paths[0] + "/" + subs[0].name))
+		dst[len(dst)-1].add(ui.Fixed(settingsRow, indented(indent+shortcutsGap/2, sub)), settingsRow)
+		subPaths := make([]string, len(subs))
+		for i, c := range subs {
+			subPaths[i] = paths[i] + "/" + c.name
+		}
+		dst = twinBlocks(subPaths, level+1, subs, dst)
 	}
 	return dst
 }
@@ -270,35 +419,49 @@ func indented(px float64, e *ui.Element) *ui.Element {
 // label ("setting:Picture/Graphics/Shadows"), indent pixels in: a Switch a checkbox, a Choice a
 // dropdown, a Range a slider with the number beside it.
 func line(st control.Setting, path string, indent float64) *ui.Element {
-	var label string
-	var ctl *ui.Element
-	switch st := st.(type) {
-	case control.Switch:
+	if st, ok := st.(control.Switch); ok {
 		return indented(indent,
 			ui.MiddleLeft(ui.Checkbox(st.Label, st.Get, st.Set).Named(settingName(path, st.Label))))
+	}
+	return ui.Columns(
+		ui.Fixed(indent, ui.Blank()),
+		ui.Fixed(settingsLabel, ui.MiddleLeft(ui.Label(labelOf(st)))),
+		ui.Fit(ui.MiddleLeft(controlOf(st, path))),
+	)
+}
+
+// controlOf is a setting's control alone, without its label, named as line names it
+func controlOf(st control.Setting, path string) *ui.Element {
+	switch st := st.(type) {
+	case control.Switch:
+		return ui.Checkbox("", st.Get, st.Set).Named(settingName(path, st.Label))
 	case control.Choice:
-		label = st.Label
-		ctl = ui.Dropdown(st.Options, st.Get, st.Set).Named(settingName(path, st.Label))
+		return ui.Dropdown(st.Options, st.Get, st.Set).Named(settingName(path, st.Label))
 	case control.Range:
-		label = st.Label
 		shows := st.Shows
 		if shows == nil {
 			shows = func(v float64) string { return fmt.Sprintf("%g", v) }
 		}
-		ctl = ui.Columns(
+		return ui.Columns(
 			ui.Fit(ui.MiddleLeft(ui.Slider(st.Min, st.Max, st.Step, st.Get, st.Set).
 				Named(settingName(path, st.Label)))),
 			ui.Fixed(shortcutsGap, ui.Blank()),
 			ui.Fit(ui.MiddleLeft(ui.LabelOf(written{get: st.Get, shows: shows}))),
 		)
-	default:
-		return ui.Blank()
 	}
-	return ui.Columns(
-		ui.Fixed(indent, ui.Blank()),
-		ui.Fixed(settingsLabel, ui.MiddleLeft(ui.Label(label))),
-		ui.Fit(ui.MiddleLeft(ctl)),
-	)
+	return ui.Blank()
+}
+
+func labelOf(st control.Setting) string {
+	switch st := st.(type) {
+	case control.Switch:
+		return st.Label
+	case control.Choice:
+		return st.Label
+	case control.Range:
+		return st.Label
+	}
+	return ""
 }
 
 func settingName(path, label string) string { return "setting:" + path + "/" + label }

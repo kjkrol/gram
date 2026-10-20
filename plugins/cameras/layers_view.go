@@ -30,7 +30,7 @@ func (*layersView) Overlies() {}
 func (v *layersView) Compose(f *render.Frame, cam camera.Camera) {
 	layers := camera.LayersOf(cam)
 	c, crops := cam.(camera.Cropping)
-	if !v.settings.ShowLayers || len(layers) < 2 || !crops {
+	if !v.settings.knobs(ProfileOf(cam)).ShowLayers || len(layers) < 2 || !crops {
 		return
 	}
 	fw, fh := c.Frame()

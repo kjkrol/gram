@@ -86,10 +86,15 @@ etap U of `doc/plans-perf.md`)
   `ProfileOf`): a camera inside an entity wears the riding profile, any other the tactical one,
   dressed anew as its state changes; in a tactical perspective its layers stand footed. The
   commands carry the profile (`Adapt{Profile, Strategy}` and kin; Alt+A the key's camera's);
-  the settings screen has a section a profile under Picture, each with its layers; the
-  telemetry's Picture line names the lead's profile. A save from before loads the defaults.
+  the settings screen has a section a profile under Picture, each with its layers and its
+  "Show the layers" (`ShowLayers{Profile, Shown}`, `Knobs.ShowLayers`), the two laid side by
+  side; the telemetry's Picture line names the lead's profile. A save from before loads the defaults.
   board/topography starts tactical following the budget with the figures sharp, riding in
   layers.
+- The settings screen lays twin sections (the same settings under each, as the profiles) side
+  by side, a line a setting with a control a twin, and the columns its width does not take go
+  to the pages after, PgDn and PgUp turning them, "Page 1 of 2" at the foot: every setting is
+  on a page whatever the screen's size.
 - A picture in layers is composed once, in the frame's pixels, and drawn a layer at a time
   with the pieces placed into each (`render.Laid{Lay, DrawLayer, DrawOver}` in place of
   `Grounded`; `gpu.Draw.Place`), the Directs drawing through the cropped camera (the sprites

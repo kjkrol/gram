@@ -36,8 +36,8 @@
 // layer at a time: coarser the outermost first, each down to a floor, finer the innermost first.
 // A hand on the resolution or a layer's stops its profile's following (Still); the Settings show
 // the first camera's picture in its profile's knobs, the settings screen a section a profile. The
-// telemetry panel shows it, naming the profile ([Plugin.Reporter]); [ShowLayers] outlines the
-// layers.
+// telemetry panel shows it, naming the profile ([Plugin.Reporter]); [ShowLayers] outlines a
+// profile's layers.
 //
 // # Cage
 //
@@ -78,8 +78,8 @@
 // commands name a [Profile] and no camera: [Adapt] has the resolution of the profile's pictures
 // follow the frame budget as its Strategy says or stay, [Picture] draws them at a resolution,
 // [SharpFigures] their figures at every pixel or at the ground's resolution, [Layers] in layers
-// or whole, [LayerShares] and [LayerResolutions] shape the layers; [Budget] sets the frame budget
-// and [ShowLayers] outlines the layers, for every profile. The plugin writes only the eye's part
+// or whole, [LayerShares] and [LayerResolutions] shape the layers, [ShowLayers] outlines them, a
+// profile each; [Budget] sets the frame budget for both. The plugin writes only the eye's part
 // of a ridden entity's steering.Driven (Look, Flown, Climb).
 //
 // # Keys
@@ -103,8 +103,8 @@
 // pictures: [Adapt] (the resolution following the frame budget as a [Strategy] says, Alt+A),
 // [Picture] (the resolution), [SharpFigures] (the figures at every pixel), [Layers] (drawn in
 // layers), [LayerShares] and [LayerResolutions] (the layers' shares of the frame and
-// resolutions); about every picture: [Budget] (the frame budget), [ShowLayers] (a look: the
-// layers outlined), [Zones] (a look: the scroll zones over every picture, Shift+H); [Follow] (a
+// resolutions), [ShowLayers] (a look: the layers outlined); about every picture: [Budget] (the
+// frame budget), [Zones] (a look: the scroll zones over every picture, Shift+H); [Follow] (a
 // player's, or an entity's own fastening the camera over itself).
 // Settings ([Settings], saved with the game, in [Resources]): the zones, the frame budget, the
 // layers shown and each profile's [Knobs]: the strategy, the resolution, the figures at every

@@ -261,6 +261,7 @@ func knobsListed(section, layers string) []listed {
 		{"Middle layer", layers},
 		{"Outer layer resolution", layers},
 		{"Middle layer resolution", layers},
+		{"Show the layers", layers},
 	}
 }
 
@@ -274,10 +275,8 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 	want := []listed{{"Scroll zones", ""}, {"Frame budget", control.Picture}}
 	want = append(want, knobsListed(control.PictureTactical, control.PictureTacticalLayers)...)
 	want = append(want, knobsListed(control.PictureRiding, control.PictureRidingLayers)...)
-	want = append(want, listed{"Show the layers", control.PictureAreas})
 	if len(settings) != len(want) {
-		t.Fatalf("%d settings, want %d: the zones, the budget, a profile's eight twice and the "+
-			"layers shown", len(settings), len(want))
+		t.Fatalf("%d settings, want %d: the zones, the budget, a profile's nine twice", len(settings), len(want))
 	}
 	for i, want := range want {
 		if got := (listed{labelOf(settings[i]), control.SectionOf(settings[i])}); got != want {
@@ -301,7 +300,7 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 		layers     bool
 	}{
 		{cameras.Tactical, 2, cameras.Uniform, 1, false},
-		{cameras.Riding, 10, cameras.InLayers, 0.8, true},
+		{cameras.Riding, 11, cameras.InLayers, 0.8, true},
 	} {
 		knobs := settings[c.at:]
 		strategy := knobs[0].(control.Choice)
@@ -369,13 +368,13 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 	}
 	p.SetResolution(cameras.Riding, 0.5)
 	if tactical, riding := settings[3].(control.Range).Get(),
-		settings[11].(control.Range).Get(); tactical != 1 || riding != 0.5 {
+		settings[12].(control.Range).Get(); tactical != 1 || riding != 0.5 {
 		t.Errorf("the riding resolution set to 0.5, the settings show %v tactical and %v riding, "+
 			"want the tactical untouched at 1", tactical, riding)
 	}
-	shown := settings[18].(control.Switch)
-	if shown.Get() || shown.Set(true) != (cameras.ShowLayers{Shown: true}) {
-		t.Errorf("the layers shown are %v building %v, want hidden, ShowLayers{Shown: true}",
+	shown := settings[10].(control.Switch)
+	if shown.Get() || shown.Set(true) != (cameras.ShowLayers{Profile: cameras.Tactical, Shown: true}) {
+		t.Errorf("the layers shown are %v building %v, want hidden, ShowLayers{Tactical, true}",
 			shown.Get(), shown.Set(true))
 	}
 }
@@ -557,10 +556,9 @@ func TestKnobs_FilledGivesAZeroSaveTheDefaults(t *testing.T) {
 	})
 	cam := p.New(cameras.FromAbove, camera.Config{})
 	carried(t, old, p)
-	if !p.ZonesShown() || !p.LayersShown() || p.Budget() != time.Second/30 {
-		t.Errorf("an old save loaded shows the zones %v and the layers %v at a budget of %v, want "+
-			"both shown at a thirtieth of a second, as saved", p.ZonesShown(), p.LayersShown(),
-			p.Budget())
+	if !p.ZonesShown() || p.Budget() != time.Second/30 {
+		t.Errorf("an old save loaded shows the zones %v at a budget of %v, want them shown at a "+
+			"thirtieth of a second, as saved", p.ZonesShown(), p.Budget())
 	}
 	for _, profile := range []cameras.Profile{cameras.Tactical, cameras.Riding} {
 		inner, middle := p.LayerShares(profile)

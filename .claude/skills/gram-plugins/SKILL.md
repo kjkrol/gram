@@ -836,7 +836,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`players.SettingsScene`, `settings.go`): opened by F10, built afresh of every
   `plugin.Tunable` among the handlers given to `NewPlugin`, in their order, a heading a plugin and
   a line a setting (`control.Switch` a `ui.Checkbox`, `Choice` a `ui.Dropdown`, `Range` a
-  `ui.Slider` with its number beside, each named `setting:<label>`); its commands go through
+  `ui.Slider` with its number beside, each named `setting:<section path>/<label>`; twin sections,
+  the same settings under each as the cameras' profiles, side by side with a control a twin; the
+  columns the width does not take on the pages after, PgDn and PgUp, "Page 1 of 2" at the foot);
+  its commands go through
   `IssueAs(the first local player)`; it forwards input to its `ui.Scene` and holds the game in
   the clock's tactical pause (the ECS pause would stop the plugins' `RunPlan` and their queues),
   unless the players' own `Settings.Running` (`KeepRunning{On}`, a switch on the screen; the
@@ -916,8 +919,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   a `Keeper` over `stick.Entities`, the plugin's `riding` system reading the ECS for it. `Zones{Shown}` (Shift+H,
   `ShowZones`, `ZonesShown`, `Res.Settings.Zones`, saved beside the cameras' own `persisted`;
   the picture's knobs a profile each (2026-10-20, etap U: `Res.Settings{Zones, FrameBudget,
-  ShowLayers, Tactical, Riding Knobs}`, `Knobs{Strategy, Resolution, SoftFigures, Layers, Inner,
-  Middle, OuterRes, MiddleRes}`, `Config{Tactical, Riding, FrameBudget}`; `ProfileOf(cam)` is
+  Tactical, Riding Knobs}`, `Knobs{Strategy, Resolution, SoftFigures, Layers, Inner,
+  Middle, OuterRes, MiddleRes, ShowLayers}`, `Config{Tactical, Riding, FrameBudget}`; `ProfileOf(cam)` is
   `Riding` inside an entity, `camera.HowOf == Inside`, else `Tactical`; `dress(cam)` puts the
   profile's knobs on the camera, the layout `camera.Footed` in a tactical perspective (`Eyed`)
   and `Inset` elsewhere, as the camera is made, on `Restore` and in `RunPlan` after the views'
@@ -926,13 +929,14 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   commands carry the profile, `Adapt{Profile, Strategy}` Alt+A (`Still`, `Uniform`, `InLayers`
   of the key's camera's profile, else the lead's), `Picture{Profile, Resolution}`,
   `SharpFigures{Profile, On}`, `Layers{Profile, On}`, `LayerShares{Profile, Inner, Middle}`,
-  `LayerResolutions{Profile, Outer, Middle}`; `Budget{Frame}`, `ShowLayers{Shown}` and
-  `Resolution{Camera, Factor}` (Alt+=/−, the camera's own profile) carry none; the setters take
+  `LayerResolutions{Profile, Outer, Middle}`, `ShowLayers{Profile, Shown}` (the layers' edges, a
+  tick a profile); `Budget{Frame}` and `Resolution{Camera, Factor}` (Alt+=/−, the camera's own
+  profile) carry none; the setters take
   the profile first (`SetStrategy(profile, s)`); the adapter steps every camera by its profile's
   strategy, `note` writes the lead's back into its profile; the settings screen lists "Frame
-  budget" under `control.Picture`, then each profile's eight knobs under `control.PictureTactical`
-  and `PictureTacticalLayers`, `PictureRiding` and `PictureRidingLayers`, "Show the layers" under
-  `PictureAreas` (19 settings; an element is named `setting:<section path>/<label>`); the
+  budget" under `control.Picture`, then each profile's nine knobs under `control.PictureTactical`
+  and `PictureTacticalLayers`, `PictureRiding` and `PictureRidingLayers` (20 settings; the two
+  profiles are twin sections, laid side by side by the settings screen; an element is named `setting:<section path>/<label>`); the
   telemetry's Picture line names the lead's profile ("Picture: tactical, 0.70 of the pixels, the
   figures sharp, following a budget of 60 FPS"); `layersView` outlines a cropped layer) likewise;
   marks over every other, hidden by default, shown

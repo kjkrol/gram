@@ -63,6 +63,8 @@ type Knobs struct {
 	Middle    float32
 	OuterRes  float32
 	MiddleRes float32
+	// the layers' edges outlined over the picture
+	ShowLayers bool
 }
 
 // filled is k with the defaults in its zero floats, which a save from before the profiles leaves
@@ -77,13 +79,20 @@ func (k Knobs) filled() Knobs {
 }
 
 // Settings is what the cameras let the players adjust, saved with the game: the scroll zones,
-// the frame budget, the layers' edges shown and the Knobs of each Profile.
+// the frame budget and the Knobs of each Profile.
 type Settings struct {
 	Zones       bool
 	FrameBudget time.Duration
-	ShowLayers  bool
 	Tactical    Knobs
 	Riding      Knobs
+}
+
+// knobs are profile's.
+func (s *Settings) knobs(profile Profile) *Knobs {
+	if profile == Riding {
+		return &s.Riding
+	}
+	return &s.Tactical
 }
 
 // Resources is what the cameras publish: their Settings.
@@ -91,12 +100,7 @@ type Resources struct {
 	Settings Settings
 }
 
-func (p *Plugin) knobs(profile Profile) *Knobs {
-	if profile == Riding {
-		return &p.Res.Settings.Riding
-	}
-	return &p.Res.Settings.Tactical
-}
+func (p *Plugin) knobs(profile Profile) *Knobs { return p.Res.Settings.knobs(profile) }
 
 // SetStrategy has the resolution of profile's pictures follow the frame budget as s says, or
 // stay (Knobs.Strategy): the pictures drawn in layers under InLayers, whole under Uniform.
@@ -196,12 +200,12 @@ func (p *Plugin) SetBudget(d time.Duration) {
 // Budget is the time a frame may take, which the resolution follows.
 func (p *Plugin) Budget() time.Duration { return p.Res.Settings.FrameBudget }
 
-// ShowLayers shows the layers' edges over every picture drawn in layers, or hides them
-// (Settings.ShowLayers).
-func (p *Plugin) ShowLayers(shown bool) { p.Res.Settings.ShowLayers = shown }
+// ShowLayers shows the layers' edges over every picture drawn in layers by profile, or hides
+// them (Knobs.ShowLayers).
+func (p *Plugin) ShowLayers(profile Profile, shown bool) { p.knobs(profile).ShowLayers = shown }
 
-// LayersShown reports whether the layers' edges are shown.
-func (p *Plugin) LayersShown() bool { return p.Res.Settings.ShowLayers }
+// LayersShown reports whether profile's layers' edges are shown.
+func (p *Plugin) LayersShown(profile Profile) bool { return p.knobs(profile).ShowLayers }
 
 // still stops profile's following: a hand on a knob the adapter turns
 func (p *Plugin) still(profile Profile) {
@@ -308,9 +312,9 @@ func budgetRate(budget time.Duration) float64 {
 	return math.Round(float64(time.Second) / float64(budget))
 }
 
-// Settings are the scroll zones, the frame budget, each profile's knobs (the strategy following
-// the budget, the resolution, the figures at every pixel, the layers) and the layers' edges
-// shown (plugin.Tunable).
+// Settings are the scroll zones, the frame budget and each profile's knobs (the strategy
+// following the budget, the resolution, the figures at every pixel, the layers and their edges
+// shown) (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
 	out := []control.Setting{
 		control.Switch{
@@ -333,14 +337,8 @@ func (p *Plugin) Settings() []control.Setting {
 	}
 	out = append(out,
 		p.knobSettings(Tactical, control.PictureTactical, control.PictureTacticalLayers)...)
-	out = append(out,
+	return append(out,
 		p.knobSettings(Riding, control.PictureRiding, control.PictureRidingLayers)...)
-	return append(out, control.Switch{
-		Label:   "Show the layers",
-		Section: control.PictureAreas,
-		Get:     p.LayersShown,
-		Set:     func(on bool) command.Command { return ShowLayers{Shown: on} },
-	})
 }
 
 // knobSettings are profile's knobs, the layers' under layersSection, the rest under section
@@ -439,6 +437,14 @@ func (p *Plugin) knobSettings(profile Profile, section, layersSection string) []
 				return LayerResolutions{Profile: profile, Outer: k.OuterRes, Middle: float32(v)}
 			},
 			Shows: hundredths,
+		},
+		control.Switch{
+			Label:   "Show the layers",
+			Section: layersSection,
+			Get:     func() bool { return k.ShowLayers },
+			Set: func(on bool) command.Command {
+				return ShowLayers{Profile: profile, Shown: on}
+			},
 		},
 	}
 }
