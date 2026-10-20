@@ -134,14 +134,15 @@ func NewQuasiWorldWith(
 	}
 	ctx.ecs.Setup(ctx.Systems()...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
-		qw.World.RunPlan(rc, d)
-		qw.Motion.RunPlan(rc, d)
+		settling := qw.World.Clock().Settling(rc)
+		qw.World.RunPlan(settling, d)
+		qw.Motion.RunPlan(settling, d)
 		if c != nil {
-			c.RunPlan(rc, d)
+			c.RunPlan(settling, d)
 		}
-		qw.Board.RunPlan(rc, d)
-		qw.Topo.RunPlan(rc, d)
-		rc.Sync()
+		qw.Board.RunPlan(settling, d)
+		qw.Topo.RunPlan(settling, d)
+		settling.Sync()
 		qw.World.Clock().Replay(rc, d)
 	})
 	qw.ECS = ctx.ecs

@@ -104,12 +104,13 @@ func (w *chart) check(data []byte) (err error) {
 	}()
 	ctx.ecs.Setup(ctx.systems()...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
-		wp.RunPlan(rc, d)
-		b.RunPlan(rc, d)
+		settling := wp.Clock().Settling(rc)
+		wp.RunPlan(settling, d)
+		b.RunPlan(settling, d)
 		if topo != nil {
-			topo.RunPlan(rc, d)
+			topo.RunPlan(settling, d)
 		}
-		rc.Sync()
+		settling.Sync()
 		wp.Clock().Replay(rc, d)
 	})
 	ctx.ecs.Tick(time.Second / 60)
