@@ -52,6 +52,7 @@ type Plugin struct {
 	sets       command.Queue[SetWeather]
 	clouds     command.Queue[Clouds]
 	shades     command.Queue[HighShade]
+	adapts     command.Queue[AdaptClouds]
 	downpours  command.Queue[Downpour]
 	calendar   *calendar.Calendar
 	sky        *sky.Sky
@@ -182,6 +183,34 @@ func (p *Plugin) ShowClouds(look CloudLook) {
 
 // ShownClouds is how the clouds are drawn.
 func (p *Plugin) ShownClouds() CloudLook { return p.Res.Settings.Clouds }
+
+// AdaptClouds has the clouds' look follow the cameras' frame budget, or not
+// (Settings.AdaptiveClouds).
+func (p *Plugin) AdaptClouds(on bool) { p.Res.Settings.AdaptiveClouds = on }
+
+// CloudsAdaptive reports whether the clouds' look follows the frame budget.
+func (p *Plugin) CloudsAdaptive() bool { return p.Res.Settings.AdaptiveClouds }
+
+// the clouds' looks from the cheapest up: the budget steps down it and back
+var cloudLadder = []CloudLook{ShadowsAlone, FlatClouds, LowBodies, AllBodies}
+
+// Following is whether the clouds' look follows the frame budget (cameras.Lever).
+func (p *Plugin) Following() bool { return p.CloudsAdaptive() }
+
+// Coarser steps the clouds' look a rung down the ladder, true where it could (cameras.Lever).
+func (p *Plugin) Coarser() bool { return p.stepClouds(-1) }
+
+// Finer steps the clouds' look a rung up, true where it could (cameras.Lever).
+func (p *Plugin) Finer() bool { return p.stepClouds(1) }
+
+func (p *Plugin) stepClouds(step int) bool {
+	at := slices.Index(cloudLadder, p.ShownClouds())
+	if at < 0 || at+step < 0 || at+step >= len(cloudLadder) {
+		return false
+	}
+	p.ShowClouds(cloudLadder[at+step])
+	return true
+}
 
 func (p *Plugin) skyClouds() backdrop.Clouds {
 	low := p.Res.Settings.Clouds == LowBodies || p.Res.Settings.Clouds == AllBodies

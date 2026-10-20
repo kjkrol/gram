@@ -19,6 +19,7 @@ const (
 	PictureRiding         = "Picture/Riding"
 	PictureRidingLayers   = "Picture/Riding/Layers"
 	PictureCare           = "Picture/Care"
+	PictureShadows        = "Picture/Shadows"
 	PictureAreas          = "Picture/Areas"
 	Graphics              = "Picture/Graphics"
 )

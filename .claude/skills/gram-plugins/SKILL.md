@@ -155,6 +155,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `lampLightAt` (the terrain's `mesh.wgsl`, the hexes', the board's `shade.go` overlay). Tests:
   `plugin_test.go`, `shadows_test.go`, `internal/bake` (GPU: strips, blocks, level ground, reach,
   the library's probe). `Reporter()` the panel's "Light:" line. Depends on `world`.
+  The shadows' settings sit under `control.PictureShadows` (2026-10-20): "Shadows follow the
+  frame budget" (`AdaptShadows{On}`, `Settings.AdaptiveShadows`: the light a `cameras.Lever`,
+  the lamps' shadows dropped first and the shadows baked coarse next as the rate falls under the
+  budget, back the other way as it stays over), "Coarse shadows" (H) and "Lamps' shadows"
+  (Shift+L).
 - **`board`** — optional grid and terrain over `world`, standing only in a world with heights
   (`board.NewPlugin` panics in a flat one; a world without a board — collision, minimal,
   rules/vision, scenes — stays flat); its grids wrap per axis, following the world's `Edges`. The
@@ -395,7 +400,11 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Reporter()` lists the daylight, the clouds and their shadows alone: the time, the season,
   the moon and the weather are the widgets' (a game without them adds
   `Calendar().Reporter()` and `Climate().Reporter()`). The settings screen's atmosphere section
-  has a choice "Weather" of the climate's weathers by name (`SetWeather{Name}`; `Climate.Now()`
+  has the choice "Clouds" (the look) and "High clouds' shadows" beside "Clouds follow the frame
+  budget" (`AdaptClouds{On}`, `Settings.AdaptiveClouds`: the atmosphere a `cameras.Lever`, the
+  look stepped down `cloudLadder` — all as bodies, the low as bodies, flat, shadows alone — as
+  the rate falls under the budget and back up as it stays over) and a choice "Weather" of the
+  climate's weathers by name (`SetWeather{Name}`; `Climate.Now()`
   the weather of the time, lane 0, as the system last set it) where the Config has any; a weather asked
   for while the clock stands (the settings screen's pause) is entered at once, the climate's
   system run with no time passing (`Climate.Asked`).

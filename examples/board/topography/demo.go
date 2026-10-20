@@ -205,7 +205,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Cell:        CellSize,
 		HeightUnit:  1,
 		Cage:        a.topography,
-		Levers:      []cameras.Lever{a.topography},
+		Levers:      []cameras.Lever{a.topography, a.light, a.atmosphere},
 		Detail: camera.Detail{
 			Sight:  scale.Units(30_000),
 			Fog:    scale.Units(6_000),
@@ -225,6 +225,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		a.nav, a.driving,
 		a.atmosphere, a.topography, a.vision, a.bridges, a.minimap, a.light)
 	a.topography.AdaptCare(true)
+	a.light.AdaptShadows(true)
+	a.atmosphere.AdaptClouds(true)
 	a.atmosphere.ShowClouds(atmosphere.AllBodies)
 	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})
 	a.cameras.ShowZones(true)

@@ -123,7 +123,13 @@ etap U of `doc/plans-perf.md`)
   first; the levers return first too, so the care takes the rate's wavering and the pictures
   move under a lasting change alone. The thresholds the following steps at are settings,
   "Coarser under" and "Finer over" (`Thresholds{Under, Met}`, 92% and 98% of the budget by
-  default). The topography is one: "Full care follows the frame budget" (`AdaptCare{On}`,
+  default). The light and the atmosphere are levers too: "Shadows follow the frame budget"
+  (`AdaptShadows{On}`: the lamps' shadows dropped first, the shadows baked coarse next) and
+  "Clouds follow the frame budget" (`AdaptClouds{On}`: the look stepped down from all as
+  bodies to their shadows alone); the shadows' settings sit under `Picture/Shadows`
+  (`control.PictureShadows`), the clouds' beside the weather in the atmosphere's section.
+  board/topography starts with all three following, in the order care, shadows, clouds. The
+  topography is one: "Full care follows the frame budget" (`AdaptCare{On}`,
   `Settings.AdaptiveCare`) steps the full care's reach down its ladder as the rate falls under
   and back up as it stays over, the slider beside it showing it and setting it by hand. The
   rate the adapter follows is averaged over a window set on the settings screen, "Samples the

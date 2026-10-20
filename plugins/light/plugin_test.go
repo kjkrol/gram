@@ -296,7 +296,7 @@ func TestPlugin_CommandsSwitchTheShadowsCoarseAndTheLampsOff(t *testing.T) {
 		t.Errorf("switched: coarse %v, lamps casting %d; want coarse, none", p.ShadowsCoarse(),
 			p.LampShadows())
 	}
-	lamps := p.Settings()[1].(control.Switch)
+	lamps := p.Settings()[2].(control.Switch)
 	if lamps.Get() {
 		t.Error("the lamps' setting says on with none casting")
 	}
@@ -332,5 +332,30 @@ func TestPlugin_AsksEveryKindToCastAPatchUnlessItSays(t *testing.T) {
 	}
 	if len(got) != 1 || got[0] != (light.Shadow{Cast: light.Patch}) {
 		t.Errorf("an entity's spec carries the shadows %v, want a Patch taking all", got)
+	}
+}
+
+func TestPlugin_AsALeverOfTheFrameBudgetDropsTheLampsShadowsThenBakesCoarseAndBack(t *testing.T) {
+	w, p, _ := litWorld(t, light.Config{LampShadows: 3}, nil)
+	_ = w
+	if p.Following() {
+		t.Fatal("not adaptive, the shadows follow the frame budget")
+	}
+	p.AdaptShadows(true)
+	if !p.Following() || !p.Coarser() || p.LampShadows() != 0 || p.ShadowsCoarse() {
+		t.Fatalf("coarser once: lamps %d, coarse %v; want the lamps' shadows gone first",
+			p.LampShadows(), p.ShadowsCoarse())
+	}
+	if !p.Coarser() || !p.ShadowsCoarse() || p.Coarser() {
+		t.Fatalf("coarser twice: coarse %v; want the shadows coarse, then no further",
+			p.ShadowsCoarse())
+	}
+	if !p.Finer() || p.ShadowsCoarse() || p.LampShadows() != 0 {
+		t.Fatalf("finer once: coarse %v, lamps %d; want the shadows fine first", p.ShadowsCoarse(),
+			p.LampShadows())
+	}
+	if !p.Finer() || p.LampShadows() != 3 || p.Finer() {
+		t.Errorf("finer twice: lamps %d; want the Config's 3 back, then no further",
+			p.LampShadows())
 	}
 }

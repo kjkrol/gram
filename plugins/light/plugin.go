@@ -112,6 +112,7 @@ type Plugin struct {
 	casts []float32
 
 	coarses      command.Queue[CoarseShadows]
+	adapts       command.Queue[AdaptShadows]
 	lampSwitches command.Queue[LampShadows]
 	module       *module
 }
@@ -203,6 +204,7 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 	p.coarses.Drain(func(i command.Issued[CoarseShadows]) { p.SetCoarseShadows(i.Command.On) })
 	p.lampSwitches.Drain(func(i command.Issued[LampShadows]) { p.SetLampShadows(i.Command.Count) })
+	p.adapts.Drain(func(i command.Issued[AdaptShadows]) { p.AdaptShadows(i.Command.On) })
 	p.fresh = false
 }
 
@@ -569,6 +571,44 @@ func (p *Plugin) SetCoarseShadows(on bool) {
 
 // ShadowsCoarse reports whether the shadows are baked coarse.
 func (p *Plugin) ShadowsCoarse() bool { return p.Res.Settings.Coarse }
+
+// AdaptShadows has the shadows follow the cameras' frame budget, or not
+// (Settings.AdaptiveShadows).
+func (p *Plugin) AdaptShadows(on bool) { p.Res.Settings.AdaptiveShadows = on }
+
+// ShadowsAdaptive reports whether the shadows follow the frame budget.
+func (p *Plugin) ShadowsAdaptive() bool { return p.Res.Settings.AdaptiveShadows }
+
+// Following is whether the shadows follow the frame budget (cameras.Lever).
+func (p *Plugin) Following() bool { return p.ShadowsAdaptive() }
+
+// Coarser drops the lamps' shadows, or bakes the shadows coarse once they are gone, true where
+// it could (cameras.Lever).
+func (p *Plugin) Coarser() bool {
+	switch {
+	case p.Res.Settings.LampShadows > 0:
+		p.SetLampShadows(0)
+	case !p.ShadowsCoarse():
+		p.SetCoarseShadows(true)
+	default:
+		return false
+	}
+	return true
+}
+
+// Finer bakes the shadows fine, or brings the lamps' shadows back once they are, as many as the
+// Config says, true where it could (cameras.Lever).
+func (p *Plugin) Finer() bool {
+	switch {
+	case p.ShadowsCoarse():
+		p.SetCoarseShadows(false)
+	case p.Res.Settings.LampShadows < p.cfg.LampShadows:
+		p.SetLampShadows(p.cfg.LampShadows)
+	default:
+		return false
+	}
+	return true
+}
 
 // SetLampShadows has the n lamps nearest a picture's camera cast shadows, 0 none
 // (Settings.LampShadows).

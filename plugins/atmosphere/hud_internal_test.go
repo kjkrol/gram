@@ -3,6 +3,7 @@ package atmosphere
 import (
 	"math"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -231,5 +232,28 @@ func TestMoonIcon_StandsAtTheRightOfABoxWiderThanTall(t *testing.T) {
 		if a := alpha(x, b.Dy()/2); a != 0 {
 			t.Fatalf("at %v, left of the disc, the icon is %v opaque, want bare", x, a)
 		}
+	}
+}
+
+func TestPlugin_AsALeverOfTheFrameBudgetStepsTheCloudsLookDownTheLadderAndBack(t *testing.T) {
+	a, _, _ := hudStage(t, Config{}, func(a *Plugin) *ui.Element { return a.Bar() })
+	a.ShowClouds(AllBodies)
+	if a.Following() {
+		t.Fatal("not adaptive, the clouds follow the frame budget")
+	}
+	a.AdaptClouds(true)
+	var looks []CloudLook
+	for a.Coarser() {
+		looks = append(looks, a.ShownClouds())
+	}
+	if want := []CloudLook{LowBodies, FlatClouds, ShadowsAlone}; !slices.Equal(looks, want) {
+		t.Errorf("coarser from all as bodies the look went %v, want %v then no further", looks, want)
+	}
+	looks = nil
+	for a.Finer() {
+		looks = append(looks, a.ShownClouds())
+	}
+	if want := []CloudLook{FlatClouds, LowBodies, AllBodies}; !slices.Equal(looks, want) {
+		t.Errorf("finer from the shadows alone the look went %v, want %v then no further", looks, want)
 	}
 }

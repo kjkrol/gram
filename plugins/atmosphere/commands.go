@@ -31,6 +31,16 @@ type SetWeather struct{ Name string }
 // turn: flat, the low ones as bodies, all, their shadows alone, flat again.
 type Clouds struct{ Look CloudLook }
 
+// AdaptClouds has the clouds' look follow the cameras' frame budget, or not
+// (Settings.AdaptiveClouds): the atmosphere is a cameras.Lever (cameras.Config.Levers), the
+// look stepped down from all as bodies to the low as bodies, flat and their shadows alone as
+// the rate falls under the budget, and back up as it stays over. The settings screen alone.
+type AdaptClouds struct{ On bool }
+
+func (AdaptClouds) Command() {}
+
+var _ command.Command = AdaptClouds{}
+
 // HighShade has the high clouds shade the ground too, as the game starts, or no longer: the low
 // ones alone do (Settings.HighShade). Shift+S by default, in turn.
 type HighShade struct{ On bool }
@@ -38,10 +48,11 @@ type HighShade struct{ On bool }
 // Settings is what the atmosphere lets the players adjust, saved with the game: the frozen
 // light and its hour, the clouds' look, the high clouds' shadows.
 type Settings struct {
-	Frozen    bool
-	Hour      float32
-	Clouds    CloudLook
-	HighShade bool
+	Frozen         bool
+	Hour           float32
+	Clouds         CloudLook
+	HighShade      bool
+	AdaptiveClouds bool
 }
 
 // Resources is what the atmosphere publishes: its Settings.
@@ -73,7 +84,7 @@ var (
 // Queues are where the atmosphere's commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
 	return []command.CommandQueue{&p.freezes, &p.hours, &p.changes, &p.sets, &p.clouds,
-		&p.shades, &p.downpours}
+		&p.shades, &p.adapts, &p.downpours}
 }
 
 // DefaultBindings are P (Freeze), Shift+] and Shift+[ (Hour, half an hour on and back),
@@ -134,16 +145,19 @@ func (p *Plugin) Settings() []control.Setting {
 		},
 		control.Choice{
 			Label:   "Clouds",
-			Section: control.Graphics,
 			Options: looks,
 			Get:     func() int { return int(p.ShownClouds()) },
 			Set:     func(i int) command.Command { return Clouds{Look: CloudLook(i)} },
 		},
 		control.Switch{
-			Label:   "High clouds' shadows",
-			Section: control.Graphics,
-			Get:     func() bool { return p.shadows.High },
-			Set:     func(on bool) command.Command { return HighShade{On: on} },
+			Label: "Clouds follow the frame budget",
+			Get:   p.CloudsAdaptive,
+			Set:   func(on bool) command.Command { return AdaptClouds{On: on} },
+		},
+		control.Switch{
+			Label: "High clouds' shadows",
+			Get:   func() bool { return p.shadows.High },
+			Set:   func(on bool) command.Command { return HighShade{On: on} },
 		},
 	}
 	weathers := p.climate.Config().Weathers
@@ -167,6 +181,7 @@ func (p *Plugin) carryOut() {
 	p.hours.Drain(func(i command.Issued[Hour]) { p.sky.SetHour(i.Command.At) })
 	p.changes.Drain(func(command.Issued[ChangeWeather]) { p.climate.Change() })
 	p.sets.Drain(func(i command.Issued[SetWeather]) { p.climate.Set(i.Command.Name) })
+	p.adapts.Drain(func(i command.Issued[AdaptClouds]) { p.AdaptClouds(i.Command.On) })
 	p.clouds.Drain(func(i command.Issued[Clouds]) { p.ShowClouds(i.Command.Look) })
 	p.shades.Drain(func(i command.Issued[HighShade]) { p.shadeHigh(i.Command.On) })
 	p.downpours.Drain(func(command.Issued[Downpour]) { p.climate.Set(weather.Rain) })
