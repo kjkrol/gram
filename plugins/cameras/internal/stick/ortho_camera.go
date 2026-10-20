@@ -46,6 +46,7 @@ type orthoFrame struct {
 	viewportSize geom.Vec
 	res          float32
 	pan          geom.Vec
+	win          contract.Window
 }
 
 var _ contract.Camera = (*orthoCamera)(nil)
@@ -167,17 +168,17 @@ func (c *orthoCamera) SetResolution(s float32) { c.res = s }
 
 func (c *orthoCamera) Resolution() float32 { return c.res }
 
-// Crop has the camera drawn the central w by h shown pixels of its frame at s of them, the
-// stick and its scale as they are.
-func (c *orthoCamera) Crop(w, h, s float32) {
-	if w <= 0 || h <= 0 {
+// Crop has the camera drawn the part win of its frame at s of its shown pixels, the stick and its
+// scale as they are.
+func (c *orthoCamera) Crop(win contract.Window, s float32) {
+	if win.W <= 0 || win.H <= 0 {
 		return
 	}
 	c.Uncrop()
-	c.cropped = &orthoFrame{viewportSize: c.viewportSize, res: c.res, pan: c.pan}
-	c.viewportSize = geom.NewVec(float64(w), float64(h))
+	c.cropped = &orthoFrame{viewportSize: c.viewportSize, res: c.res, pan: c.pan, win: win}
+	c.viewportSize = geom.NewVec(float64(win.W), float64(win.H))
 	c.res = s
-	c.aim()
+	c.pan = geom.NewVec(c.pan.X-float64(win.X), c.pan.Y-float64(win.Y))
 }
 
 // Uncrop puts the frame back as it was before Crop.
@@ -199,6 +200,13 @@ func (c *orthoCamera) Frame() (float32, float32) {
 		size = c.cropped.viewportSize
 	}
 	return float32(size.X), float32(size.Y)
+}
+
+func (c *orthoCamera) Window() contract.Window {
+	if c.cropped != nil {
+		return c.cropped.win
+	}
+	return contract.Window{W: float32(c.viewportSize.X), H: float32(c.viewportSize.Y)}
 }
 
 func (c *orthoCamera) SetViewport(w, h float32) {

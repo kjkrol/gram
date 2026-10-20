@@ -42,8 +42,9 @@
 // is any camera's, 1 for one without. A [Layered] camera has its picture drawn in layers ([Layer]),
 // the widest first, each a crop of the frame at a resolution of its own laid out as its [Layout]
 // says ([Inset] in the middle, [Footed] on the bottom edge; [Arrange] gives each layer its
-// [Window]), by a camera that is [Cropping]: Crop has its Viewport be the central part of its
-// frame until Uncrop; [LayersOf], [LayoutOf] and [IsCropped] are any camera's.
+// [Window]), by a camera that is [Cropping]: Crop has its Viewport be a window of its frame,
+// anywhere in it, until Uncrop, and [InFrame] is where a pixel of the frame lies in the window;
+// [LayersOf], [LayoutOf] and [IsCropped] are any camera's.
 //
 // # FromScreenRect
 //

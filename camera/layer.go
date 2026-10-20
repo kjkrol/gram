@@ -52,28 +52,27 @@ func part(n int, share float32, centred bool) int {
 	return c
 }
 
-// Cropping is a camera drawn a part at a time: Crop has its Viewport be the central w by h
-// shown pixels of its frame at s of them, its window on the world and its zoom as they are,
-// until Uncrop puts the frame back exactly; Cropped is true for a part of the frame; Frame is
-// the shown size of the whole frame, cropped or not.
+// Cropping is a camera drawn a part at a time: Crop has its Viewport be the part win of its frame
+// at s of its shown pixels, the camera and its zoom staying where they are, until Uncrop puts the
+// frame back exactly. Cropped is true for a part of the frame, Frame is the whole frame's shown
+// size and Window the part drawn, the whole frame uncropped.
 type Cropping interface {
-	Crop(w, h, s float32)
+	Crop(win Window, s float32)
 	Uncrop()
 	Cropped() bool
 	Frame() (w, h float32)
+	Window() Window
 }
 
 // InFrame is where the frame's shown pixel (sx, sy) lies in cam's pixels as it is drawn now:
 // outside them when a cropped camera's part of the frame leaves it out.
 func InFrame(cam Camera, sx, sy float32) (x, y float32) {
-	k := ResolutionOf(cam)
-	c, ok := cam.(Cropping)
-	if !ok || !c.Cropped() {
-		return sx * k, sy * k
+	if c, ok := cam.(Cropping); ok {
+		win := c.Window()
+		sx, sy = sx-win.X, sy-win.Y
 	}
-	fw, fh := c.Frame()
-	w, h := cam.Viewport()
-	return (sx - (fw-w/k)/2) * k, (sy - (fh-h/k)/2) * k
+	k := ResolutionOf(cam)
+	return sx * k, sy * k
 }
 
 // LayersOf is the layers cam's picture is drawn in, a copy; nil for a camera without.

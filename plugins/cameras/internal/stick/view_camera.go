@@ -73,10 +73,10 @@ func (c *viewCamera) See(factor float64) { c.detail = c.detail.Widened(factor) }
 func (c *viewCamera) Rays() (contract.RayField, bool) {
 	if c.inPersp {
 		p := c.persp.proj
-		w, h := c.persp.Viewport()
+		cx, cy := c.persp.centre()
 		f := contract.RayField{Origin: p.eye, Bend: p.bend}
 		f.DDX, f.DDY = vec.Scale(p.right, 1/p.focal), vec.Scale(p.up, -1/p.focal)
-		f.Dir = vec.Add(p.forward, vec.Add(vec.Scale(f.DDX, -w/2), vec.Scale(f.DDY, -h/2)))
+		f.Dir = vec.Add(p.forward, vec.Add(vec.Scale(f.DDX, -cx), vec.Scale(f.DDY, -cy)))
 		return f, true
 	}
 	_, high := c.ortho.layer()
@@ -368,9 +368,9 @@ func (c *viewCamera) SetResolution(s float32) {
 
 func (c *viewCamera) Resolution() float32 { return c.ortho.res }
 
-func (c *viewCamera) Crop(w, h, s float32) {
-	c.ortho.Crop(w, h, s)
-	c.persp.Crop(w, h, s)
+func (c *viewCamera) Crop(win contract.Window, s float32) {
+	c.ortho.Crop(win, s)
+	c.persp.Crop(win, s)
 }
 
 func (c *viewCamera) Uncrop() {
@@ -381,6 +381,8 @@ func (c *viewCamera) Uncrop() {
 func (c *viewCamera) Cropped() bool { return c.ortho.Cropped() }
 
 func (c *viewCamera) Frame() (float32, float32) { return c.ortho.Frame() }
+
+func (c *viewCamera) Window() contract.Window { return c.ortho.Window() }
 
 // SetLayers has the picture drawn in layers laid out as layout says, or whole for none or one.
 func (c *viewCamera) SetLayers(layers []contract.Layer, layout contract.Layout) {

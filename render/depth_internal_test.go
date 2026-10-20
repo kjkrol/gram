@@ -103,7 +103,7 @@ func groundShot(t *testing.T, c *Composer, sources ...Source) func(x, y int) [4]
 	op := DrawImageOptions{Filter: FilterLinear}
 	op.GeoM.Scale(2, 2)
 	screen.DrawImage(ground, &op)
-	cam.(camera.Cropping).Crop(64, 64, 1)
+	cam.(camera.Cropping).Crop(camera.Window{W: 64, H: 64}, 1)
 	c.DrawOver(screen, ground, cam)
 	cam.(camera.Cropping).Uncrop()
 	return pixelsOf(screen)
@@ -365,5 +365,51 @@ func TestFeed_DrawsAFigureAtEveryPixelOverAHalfResolutionGround(t *testing.T) {
 	if rows, _ := shown(false); rows < 2 {
 		t.Errorf("with the figures soft the line covers %d rows, want 2 or more: drawn at a "+
 			"half and scaled up", rows)
+	}
+}
+
+// a picture filling its screen with the next of its colours each time it is drawn
+type painting struct{ colors []color.RGBA }
+
+func (*painting) Init(*goke.SysInit) {}
+
+func (p *painting) DrawWorld(screen *Image, _ camera.Camera) {
+	screen.Fill(p.colors[0])
+	p.colors = p.colors[1:]
+}
+
+func TestFeed_LaysAFootedLayerFlushOnTheBottomEdgeFeatheredOnTheOtherSides(t *testing.T) {
+	needGPU(t)
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	cam.(camera.Layered).SetLayers([]camera.Layer{
+		{Share: 1, Resolution: 0.5},
+		{Share: 0.6, Resolution: 0.75},
+	}, camera.Footed)
+	feed := NewFeed(cam, &painting{[]color.RGBA{groundGreen, figureRed}})
+	feed.Resize(400, 300)
+	at := pixelsOf(feed.Draw())
+	// the inner layer lies at (80, 120), 240 by 180, its sides inside the frame fading over 20
+	for _, c := range []struct {
+		x, y int
+		want color.RGBA
+		why  string
+	}{
+		{200, 299, figureRed, "the inner layer's bottom row, on the frame's edge: hard"},
+		{110, 299, figureRed, "past the left fade, on the bottom edge"},
+		{200, 160, figureRed, "past the top fade"},
+		{200, 110, groundGreen, "over the inner layer"},
+		{60, 299, groundGreen, "left of the inner layer"},
+		{340, 299, groundGreen, "right of the inner layer"},
+	} {
+		got, want := at(c.x, c.y), [4]byte{c.want.R, c.want.G, c.want.B, c.want.A}
+		for k := range 4 {
+			if d := int(got[k]) - int(want[k]); d < -2 || d > 2 {
+				t.Errorf("at (%d, %d) the pixel is %v, want %v: %s", c.x, c.y, got, want, c.why)
+				break
+			}
+		}
+	}
+	if got := at(80, 200); got[0] > 20 {
+		t.Errorf("at the inner layer's left edge the pixel is %v, want its red faded out", got)
 	}
 }
