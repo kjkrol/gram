@@ -108,10 +108,30 @@ func New(grid grid.Grid, terrain cell.Terrain, slopes Slopes, occupancy cell.Occ
 	p.built, _ = terrain.(built)
 	p.lanes, _ = terrain.(lanes)
 	p.solver = astar.New(func(a, b cell.ID) float64 { return p.least * grid.Distance(a, b) },
-		astar.WithIndexedMapDict(func(c cell.ID) int { return int(c) }),
+		astar.WithIndexedSliceDict(grid.CellCount()+1, p.slot),
 		astar.WithSuccessorCapacity[cell.ID](grid.Directions()))
 	p.plain = p.plainFrom
 	return p
+}
+
+// a cell's slot in a solver's dictionaries; a start off the grid, the one cell of a search
+// without an ordinal, takes the slot past the last cell
+func (p *Finder) slot(c cell.ID) int {
+	if o, ok := p.grid.Ordinal(c); ok {
+		return o
+	}
+	return p.grid.CellCount()
+}
+
+// a node's slot: the levels of a cell side by side, then the goal, then a start off the grid
+func (p *Finder) nodeSlot(n node) int {
+	if n.level == goal {
+		return 2 * p.grid.CellCount()
+	}
+	if o, ok := p.grid.Ordinal(n.c); ok {
+		return 2*o + int(n.level)
+	}
+	return 2*p.grid.CellCount() + 1
 }
 
 // WithLevels has the Finder plan over the raised floors levels say.
@@ -119,7 +139,7 @@ func (p *Finder) WithLevels(levels Levels) *Finder {
 	p.levels = levels
 	// a step onto either level of every neighbour, and the goal
 	p.leveled = astar.New(func(a, b node) float64 { return p.least * p.grid.Distance(a.c, b.c) },
-		astar.WithIndexedMapDict(func(n node) int { return int(uint64(n.c)<<2 | uint64(n.level)) }),
+		astar.WithIndexedSliceDict(2*p.grid.CellCount()+2, p.nodeSlot),
 		astar.WithSuccessorCapacity[node](2*p.grid.Directions()+1))
 	p.stepped = p.leveledFrom
 	return p
