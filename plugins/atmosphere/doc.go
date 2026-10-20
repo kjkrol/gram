@@ -43,7 +43,17 @@
 // [Plugin.Reporter] adds the daylight, how the clouds look and share their bands and whose
 // shadows they cast to the telemetry panel; a game showing the time, the season, the moon and
 // the weather nowhere else adds the calendar's and the climate's reporters too
-// ([Plugin.Calendar], [Plugin.Climate]). [Plugin.HUD] adds the calendar to a scene (ui.Drawer).
+// ([Plugin.Calendar], [Plugin.Climate]).
+//
+// # HUD
+//
+// The atmosphere gives a scene elements to place, each on a see-through panel as the
+// telemetry's: [Plugin.TimeOfDay] the hour of the game's day, [Plugin.Date] the season and the
+// date with the moon's phase beside them while the moon runs, [Plugin.Weather] the weather, the
+// temperature and the wind, left out while none of the climate's workings run, and [Plugin.Bar]
+// the three side by side on one panel, for the top of the screen (ui.TopMiddle). The weather is
+// read through a drawer of its own: it goes in the tree a scene is made with, never one
+// ui.Scene.Replace puts in.
 //
 // # Sky
 //

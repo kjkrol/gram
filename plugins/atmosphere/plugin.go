@@ -281,9 +281,6 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 // Calendar and Climate.
 func (p *Plugin) Reporter() render.Reporter { return reporters{p.sky.Reporter(), cloudsReport{p}} }
 
-// HUD is the calendar's screen renderer: the hour, the date and the moon, for a ui.Drawer.
-func (p *Plugin) HUD() render.Renderer { return p.calendar.HUD() }
-
 // EventHandler is nil: the atmosphere takes commands, not input.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
