@@ -72,7 +72,22 @@ selection's outline 1, its box being dragged 2, the cameras' scroll zones 3 (eac
 reads the ground for it: a copy of the depth and a switch of buffer, some 0.15 ms a frame while
 drawn, nothing while not), so a collision solid shows through its own billboard and a hill before
 it hides it. Goals, holds, a bridge in hand and boxes are no
-marks: they lie in the world. `Frame.Edge` is a line whose ends carry heights of their own
+marks: they lie in the world. **A source whose pieces lie over the figures says so**
+(2026-10-20, stage T: `render.Overlying{Overlies()}`: the world's figures, aloft's clouds, the
+drops, the selection, collision's boxes, the cameras' zones and rings), and the composer is
+`render.Grounded`: `DrawGround(ground, cam)` composes and draws the rest into `ground`, its
+opaque pass into the Readable depth kept as the ground's, and `DrawOver(screen, ground, cam)`
+composes and draws the Overlying ones onto the screen tested against that depth spread to the
+screen's size (`Image.ScaleDepth`, `gpu.ScaleDepth`: `depth.wgsl` reads `depthAt(p.xy *
+place.xy)`, a copy's place {1, 1}), the figures writing into a copy and `OverFigures` bound to
+the spread one; the over pass inherits the uniforms and images the ground pass set (the sun,
+the weather, `Fog`, `GroundHeights`, `GroundShade`), put back on the frame before the Overlying
+sources compose, so `Uniformed` sees them and every Direct is handed them; one asking
+`DrawOpaque` there is not heard. A `Feed` of a `camera.Figured` camera at a resolution under 1,
+whole (not in rings), before a Grounded picture draws so: the ground at the camera's resolution
+scaled up, what lies over it at every shown pixel, the camera cropped to the whole frame at 1
+for the over pass (`Crop(w, h, 1)`/`Uncrop`, exact, `Cropped()` false). `Frame.Edge` is a line
+whose ends carry heights of their own
 (`item.own`; the composer zeroes them where the frame has no depth, as a z outside 0..1 would be
 clipped). A frame with no opaque ground (a world without heights) has no depth at all, as before,
 the order alone deciding. Equal Z: the later wins (GreaterEqual for everyone); among the figures the

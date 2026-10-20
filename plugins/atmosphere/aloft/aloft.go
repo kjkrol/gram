@@ -10,6 +10,7 @@ import (
 )
 
 var _ render.Direct = (*Renderer)(nil)
+var _ render.Overlying = (*Renderer)(nil)
 
 //go:embed shaders/*.wgsl
 var shaders embed.FS
@@ -116,6 +117,9 @@ func (r *Renderer) Shown() bool { return r.shown }
 func (r *Renderer) Bodies(bodies bool) { r.bodies = bodies }
 
 func (*Renderer) Init(*goke.SysInit) {}
+
+// Overlies: drawn over the figures' ground (render.Overlying).
+func (*Renderer) Overlies() {}
 
 // Compose has the clouds drawn among what is seen through, at the layer's height over the middle
 // of the view.

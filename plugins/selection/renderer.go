@@ -63,6 +63,7 @@ type Renderer struct {
 }
 
 var _ render.Source = (*Renderer)(nil)
+var _ render.Overlying = (*Renderer)(nil)
 
 // NewRenderer builds a Renderer outlining what look draws, each kind as the Highlight styles
 // hold for it, DefaultHighlight without; styles may give nil.
@@ -75,6 +76,9 @@ func NewRenderer(
 func (r *Renderer) Init(si *goke.SysInit) {
 	r.query = si.NewQueryBuilder(&r.base, &r.marks).Optional(&r.app).Optional(&r.z).Build()
 }
+
+// Overlies: drawn over the figures' ground (render.Overlying).
+func (*Renderer) Overlies() {}
 
 // Compose outlines the Selected entities through cam, and the box being dragged in it, marks on
 // top.

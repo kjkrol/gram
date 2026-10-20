@@ -18,10 +18,14 @@ const (
 	careWidth = 2
 )
 
-var (
-	fullCareColor = color.RGBA{70, 200, 90, 255}
-	lessCareColor = color.RGBA{235, 200, 60, 255}
-)
+// a colour a care, the least none: orange, yellow, yellow-green and green for the full
+var careColors = [terrain.FullCare + 1]color.RGBA{
+	{},
+	{235, 140, 60, 255},
+	{235, 200, 60, 255},
+	{160, 210, 70, 255},
+	{70, 200, 90, 255},
+}
 
 // careView lays the care's bands over the ground: the boundaries between sectors of different
 // care, each in the colour of the greater.
@@ -55,10 +59,7 @@ func (v *careView) Compose(f *render.Frame, cam camera.Camera) {
 		if c == terrain.LeastCare {
 			return
 		}
-		colour := lessCareColor
-		if c == terrain.FullCare {
-			colour = fullCareColor
-		}
+		colour := careColors[c]
 		x0, y0 := min(float32(box.TopLeft.X), wide), min(float32(box.TopLeft.Y), high)
 		x1, y1 := min(float32(box.BottomRight.X), wide), min(float32(box.BottomRight.Y), high)
 		if x1 <= x0 || y1 <= y0 {

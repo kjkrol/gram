@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugins/cameras"
@@ -223,13 +224,14 @@ func TestNew_UnderRingsACameraIsDrawnInTheDefaultRingsAMinimapsWhole(t *testing.
 func TestSettings_AreTheZonesAndThePicturesInTheirSectionsEachBuildingItsCommand(t *testing.T) {
 	p := cameras.NewPlugin(newWorld(), cameras.Config{Strategy: cameras.Uniform})
 	settings := p.Settings()
-	if len(settings) != 10 {
-		t.Fatalf("%d settings, want the zones and the picture's nine", len(settings))
+	if len(settings) != 11 {
+		t.Fatalf("%d settings, want the zones and the picture's ten", len(settings))
 	}
 	for i, want := range []struct{ label, section string }{
 		{"Scroll zones", ""},
 		{"Follows the frame budget", control.PictureResolution},
 		{"Resolution", control.PictureResolution},
+		{"Figures at every pixel", control.PictureResolution},
 		{"Frame budget", control.PictureAdaptive},
 		{"Drawn in rings", control.PictureRings},
 		{"Inner ring", control.PictureRings},
@@ -269,7 +271,12 @@ func TestSettings_AreTheZonesAndThePicturesInTheirSectionsEachBuildingItsCommand
 	if got := resolution.Set(0.7); got != (cameras.Picture{Resolution: 0.7}) {
 		t.Errorf("the resolution at 0.7 builds %v, want Picture{0.7}", got)
 	}
-	budget := settings[3].(control.Range)
+	sharp := settings[3].(control.Switch)
+	if !sharp.Get() || sharp.Set(false) != (cameras.SharpFigures{On: false}) {
+		t.Errorf("the figures at every pixel are %v building %v, want on, SharpFigures{On: false}",
+			sharp.Get(), sharp.Set(false))
+	}
+	budget := settings[4].(control.Range)
 	if budget.Min != 30 || budget.Max != 120 || budget.Get() != 60 || budget.Shows(60) != "60 FPS" {
 		t.Errorf("the budget runs %v to %v at %v shown %q, want 30 to 120 at 60, \"60 FPS\"",
 			budget.Min, budget.Max, budget.Get(), budget.Shows(60))
@@ -277,12 +284,12 @@ func TestSettings_AreTheZonesAndThePicturesInTheirSectionsEachBuildingItsCommand
 	if got := budget.Set(30); got != (cameras.Budget{Frame: time.Second / 30}) {
 		t.Errorf("the budget at 30 builds %v, want a frame of a thirtieth of a second", got)
 	}
-	rings := settings[4].(control.Switch)
+	rings := settings[5].(control.Switch)
 	if rings.Get() || rings.Set(true) != (cameras.Rings{On: true}) {
 		t.Errorf("the rings are %v building %v, want off, Rings{On: true}", rings.Get(),
 			rings.Set(true))
 	}
-	inner, middle := settings[5].(control.Range), settings[6].(control.Range)
+	inner, middle := settings[6].(control.Range), settings[7].(control.Range)
 	if inner.Get() != 35 || middle.Get() != 60 || inner.Shows(35) != "35%" {
 		t.Errorf("the shares show %v and %v (%q), want 35%% and 60%%", inner.Get(), middle.Get(),
 			inner.Shows(35))
@@ -293,7 +300,7 @@ func TestSettings_AreTheZonesAndThePicturesInTheirSectionsEachBuildingItsCommand
 	if got := middle.Set(40); got != (cameras.RingShares{Inner: 0.3, Middle: 0.4}) {
 		t.Errorf("the middle ring at 40%% builds %v, want the inner pushed to 30%%", got)
 	}
-	outer, middleRes := settings[7].(control.Range), settings[8].(control.Range)
+	outer, middleRes := settings[8].(control.Range), settings[9].(control.Range)
 	if float32(outer.Get()) != 0.6 || float32(middleRes.Get()) != 0.8 {
 		t.Errorf("the rings' resolutions show %v and %v, want 0.6 and 0.8", outer.Get(),
 			middleRes.Get())
@@ -304,7 +311,7 @@ func TestSettings_AreTheZonesAndThePicturesInTheirSectionsEachBuildingItsCommand
 	if got := middleRes.Set(0.9); got != (cameras.RingResolutions{Outer: 0.6, Middle: 0.9}) {
 		t.Errorf("the middle ring at 0.9 builds %v, want RingResolutions{0.6, 0.9}", got)
 	}
-	shown := settings[9].(control.Switch)
+	shown := settings[10].(control.Switch)
 	if shown.Get() || shown.Set(true) != (cameras.ShowRings{Shown: true}) {
 		t.Errorf("the rings shown are %v building %v, want hidden, ShowRings{Shown: true}",
 			shown.Get(), shown.Set(true))
@@ -339,5 +346,78 @@ func TestRestore_DrawsTheCamerasInRingsAsTheSettingsLoadedSay(t *testing.T) {
 	carried(t, whole, ringed)
 	if got := camera.RingsOf(cam); len(got) != 0 || ringed.Rings() {
 		t.Errorf("after a load saved whole the camera is drawn in %v, want whole", got)
+	}
+}
+
+func TestNew_ACameraDrawsItsFiguresAtEveryPixelUnlessTheConfigSaysSoft(t *testing.T) {
+	p := cameras.NewPlugin(newWorld(), cameras.Config{})
+	if cam := p.New(cameras.FromAbove, camera.Config{}); !camera.SharpFiguresOf(cam) ||
+		!p.SharpFigures() {
+		t.Error("a camera of the zero Config draws its figures at the ground's resolution, want " +
+			"at every pixel")
+	}
+	soft := cameras.NewPlugin(newWorld(), cameras.Config{SoftFigures: true})
+	if cam := soft.New(cameras.FromAbove, camera.Config{}); camera.SharpFiguresOf(cam) ||
+		soft.SharpFigures() {
+		t.Error("under Config.SoftFigures a camera draws its figures at every pixel, want the " +
+			"ground's resolution")
+	}
+	relief := cameras.NewPlugin(newWorld(),
+		cameras.Config{Turn: true, Tilt: true, Cell: 32, SoftFigures: true})
+	if cam := relief.New(cameras.Isometrically, camera.Config{}); camera.SharpFiguresOf(cam) {
+		t.Error("under Config.SoftFigures a camera in relief draws its figures at every pixel, " +
+			"want the ground's resolution")
+	}
+}
+
+func TestSharpFigures_ReachesEveryCameraAndTheTelemetry(t *testing.T) {
+	w, p, start, tick := emptyWorld(t, cameras.Config{Resolution: 0.7})
+	cam := p.New(cameras.FromAbove, camera.Config{})
+	start()
+	if got := report(p); got != "Picture: 0.70 of the pixels, the figures sharp, still" {
+		t.Fatalf("the telemetry says %q, want the figures sharp at 0.70", got)
+	}
+	w.Carrier().Put(command.Nobody, cameras.SharpFigures{On: false})
+	tick()
+	if camera.SharpFiguresOf(cam) || p.SharpFigures() {
+		t.Error("after SharpFigures{On: false} the figures are drawn at every pixel, want the " +
+			"ground's resolution")
+	}
+	if got := report(p); got != "Picture: 0.70 of the pixels, still" {
+		t.Errorf("the telemetry says %q, want nothing of the figures", got)
+	}
+	w.Carrier().Put(command.Nobody, cameras.SharpFigures{On: true})
+	tick()
+	if !camera.SharpFiguresOf(cam) || !p.SharpFigures() {
+		t.Error("after SharpFigures{On: true} the figures are drawn at the ground's resolution, " +
+			"want every pixel")
+	}
+	w.Carrier().Put(command.Nobody, cameras.Picture{Resolution: 1})
+	tick()
+	if got := report(p); got != "Picture: 1.00 of the pixels, still" {
+		t.Errorf("at all the pixels the telemetry says %q, want nothing of the figures", got)
+	}
+}
+
+func TestRestore_DrawsTheFiguresSoftAsTheSettingsLoadedSay(t *testing.T) {
+	saved := cameras.NewPlugin(newWorld(), cameras.Config{})
+	saved.SetSharpFigures(false)
+	loaded := cameras.NewPlugin(newWorld(), cameras.Config{})
+	before := loaded.New(cameras.FromAbove, camera.Config{})
+	carried(t, saved, loaded)
+	after := loaded.New(cameras.FromAbove, camera.Config{})
+	if loaded.SharpFigures() || camera.SharpFiguresOf(before) || camera.SharpFiguresOf(after) {
+		t.Errorf("after a load saved soft the figures are drawn at every pixel: the plugin %v, "+
+			"the camera made before the load %v, after it %v; want none", loaded.SharpFigures(),
+			camera.SharpFiguresOf(before), camera.SharpFiguresOf(after))
+	}
+	// a save of sharp figures holds no field for them, as a save from before the setting
+	sharp := cameras.NewPlugin(newWorld(), cameras.Config{})
+	soft := cameras.NewPlugin(newWorld(), cameras.Config{SoftFigures: true})
+	cam := soft.New(cameras.FromAbove, camera.Config{})
+	carried(t, sharp, soft)
+	if !soft.SharpFigures() || !camera.SharpFiguresOf(cam) {
+		t.Error("after a load saved sharp the figures stay at the ground's resolution, want " +
+			"every pixel")
 	}
 }

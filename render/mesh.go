@@ -23,6 +23,11 @@ func (d *Depth) Readable() *Depth {
 // from must be Readable.
 func (i *Image) CopyDepth(from, to *Depth) { gpu.CopyDepth(i.gpu(), from.d, to.d) }
 
+// ScaleDepth puts what from holds, kept at the size it was drawn at, in place of what to holds,
+// fitted to the image's texture, each pixel taking the depth of the one it maps to; from must be
+// Readable.
+func (i *Image) ScaleDepth(from, to *Depth) { gpu.ScaleDepth(i.gpu(), from.d, to.d) }
+
 // Size is the buffer's width and height, those of the texture it was last drawn with.
 func (d *Depth) Size() (w, h int) { return d.d.Size() }
 

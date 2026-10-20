@@ -152,74 +152,91 @@ type anchored struct{ x, y float32 }
 func (a anchored) Anchors(at func(x, y float32)) { at(a.x, a.y) }
 
 func TestCareView_DrawsTheBoundariesBetweenTheCaresBandsOverTheGround(t *testing.T) {
-	// a 512 x 512 world of 4 x 4 sectors 128 a side (entities 4 across make buckets of 32),
-	// all in one band round the middle, over a board covering it
-	w := world.NewPlugin(world.Config{
-		Space:    world.SpaceCfg{Width: 512, Height: 512},
-		Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 4, MaxSize: 4},
-		Heights:  true,
-		Sectors:  world.SectorsCfg{Buckets: 4, Bands: []sector.Band{{Reach: 1000}}},
-	})
-	w.Anchor(anchored{256, 256})
-	m := motion.NewPlugin(w)
-	b := board.NewPlugin(grid.DefaultGrids{}.Square(16, 16, 32), &cell.MultipleOccupancy{}, w).
-		WithMotion(m)
-	b.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
-	p := topography.NewPlugin(w, b, nil, topography.Config{Care: 1})
-	ctx := topotest.NewInstallCtx()
-	for _, plugin := range []interface {
-		Install(plugin.Installer) error
-	}{w, m, b, p} {
-		if err := plugin.Install(ctx); err != nil {
-			t.Fatal(err)
-		}
-	}
-	sources := ctx.Sources()
-	if len(sources) < 2 {
-		t.Fatalf("the topography draws %v, want the ground and the care's view", sources)
-	}
-	careView := sources[len(sources)-2]
-	ecs := ctx.ECS()
-	ecs.Setup(ctx.Systems()...)
-	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
-		w.RunPlan(rc, d)
-		m.RunPlan(rc, d)
-		b.RunPlan(rc, d)
-		p.RunPlan(rc, d)
-		rc.Sync()
-		w.Clock().Replay(rc, d)
-	})
-	// the middle of the screen over the sector (2, 2): full care a ring round it, less in the
-	// first row and column; the view sees every sector once the bands are laid
-	cam := cameratest.NewFromSpace(512, 512, 0)
-	w.ViewFor(cam)
-	ecs.Tick(time.Second / 60)
-	ecs.Tick(time.Second / 60)
-	drawn := func() (pieces int, onTop bool) {
-		var f render.Frame
-		f.Reset(cam)
-		careView.Compose(&f, cam)
-		f.Each(func(at render.At, _ []render.Vertex) {
-			pieces++
-			onTop = onTop || at.Top()
+	for _, tc := range []struct {
+		name    string
+		sectors int
+		pieces  int
+	}{
+		// the middle of the screen over the sector (2, 2): full care a ring round it, one less
+		// in the first row and column; the boundary between them 3 sectors' edges of 4 cells on
+		// each of two sides
+		{"two bands", 4, 24},
+		// over the sector (3, 3): full care a ring round it, one less a ring round that, two
+		// less in the first row and column; the full band's four sides of 3 sectors, the next
+		// band's two of 5
+		{"three bands", 6, 48 + 40},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// a world of sectors 128 a side (entities 4 across make buckets of 32), all in one
+			// band round the middle, over a board covering it
+			size := uint32(tc.sectors * 128)
+			w := world.NewPlugin(world.Config{
+				Space:    world.SpaceCfg{Width: size, Height: size},
+				Entities: world.EntitiesCfg{MaxCount: 8, MinSize: 4, MaxSize: 4},
+				Heights:  true,
+				Sectors:  world.SectorsCfg{Buckets: 4, Bands: []sector.Band{{Reach: 1000}}},
+			})
+			w.Anchor(anchored{float32(size) / 2, float32(size) / 2})
+			m := motion.NewPlugin(w)
+			cells := uint32(tc.sectors * 4)
+			b := board.NewPlugin(grid.DefaultGrids{}.Square(cells, cells, 32),
+				&cell.MultipleOccupancy{}, w).WithMotion(m)
+			b.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+			p := topography.NewPlugin(w, b, nil, topography.Config{Care: 1})
+			ctx := topotest.NewInstallCtx()
+			for _, plugin := range []interface {
+				Install(plugin.Installer) error
+			}{w, m, b, p} {
+				if err := plugin.Install(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+			sources := ctx.Sources()
+			if len(sources) < 2 {
+				t.Fatalf("the topography draws %v, want the ground and the care's view", sources)
+			}
+			careView := sources[len(sources)-2]
+			ecs := ctx.ECS()
+			ecs.Setup(ctx.Systems()...)
+			ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+				w.RunPlan(rc, d)
+				m.RunPlan(rc, d)
+				b.RunPlan(rc, d)
+				p.RunPlan(rc, d)
+				rc.Sync()
+				w.Clock().Replay(rc, d)
+			})
+			// the view sees every sector once the bands are laid
+			cam := cameratest.NewFromSpace(size, size, 0)
+			w.ViewFor(cam)
+			ecs.Tick(time.Second / 60)
+			ecs.Tick(time.Second / 60)
+			drawn := func() (pieces int, onTop bool) {
+				var f render.Frame
+				f.Reset(cam)
+				careView.Compose(&f, cam)
+				f.Each(func(at render.At, _ []render.Vertex) {
+					pieces++
+					onTop = onTop || at.Top()
+				})
+				return pieces, onTop
+			}
+			if pieces, _ := drawn(); pieces != 0 {
+				t.Errorf("%d pieces with the care not shown, want none", pieces)
+			}
+			p.ShowCare(true)
+			pieces, onTop := drawn()
+			if pieces != tc.pieces {
+				t.Errorf("%d pieces with the care shown, want %d: the boundaries' segments a "+
+					"cell each", pieces, tc.pieces)
+			}
+			if onTop {
+				t.Error("a boundary's segment lies on top of the world, want it in the world")
+			}
+			p.SetCare(0)
+			if pieces, _ := drawn(); pieces != 0 {
+				t.Errorf("%d pieces with every sector shaded with full care, want none", pieces)
+			}
 		})
-		return pieces, onTop
-	}
-	if pieces, _ := drawn(); pieces != 0 {
-		t.Errorf("%d pieces with the care not shown, want none", pieces)
-	}
-	p.ShowCare(true)
-	pieces, onTop := drawn()
-	// the boundary between the full and the less: 3 sectors' edges of 4 cells on each side
-	if pieces != 24 {
-		t.Errorf("%d pieces with the care shown, want 24: the boundary's segments a cell each",
-			pieces)
-	}
-	if onTop {
-		t.Error("a boundary's segment lies on top of the world, want it in the world")
-	}
-	p.SetCare(0)
-	if pieces, _ := drawn(); pieces != 0 {
-		t.Errorf("%d pieces with every sector shaded with full care, want none", pieces)
 	}
 }

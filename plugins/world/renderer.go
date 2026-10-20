@@ -15,6 +15,7 @@ import (
 )
 
 var _ render.Direct = (*renderer)(nil)
+var _ render.Overlying = (*renderer)(nil)
 
 type renderer struct {
 	renderQuery *goke.Query
@@ -84,6 +85,8 @@ func (s *renderer) Clock() (time.Duration, bool) {
 
 // Compose hands f every drawn entity in sight of cam as the world's Look lays it, lit as the
 // Lighting says, in white light without one: the Look knows the wind, the world its entities.
+func (*renderer) Overlies() {}
+
 func (s *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if s.atlas == nil {
 		return

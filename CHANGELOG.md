@@ -57,6 +57,20 @@ atmosphere's entity carries a `light.Source` and a `light.Shining`.
   and "Show the care" outline the rings' layers and the care's bands over the picture.
 - The cameras' settings changed shape: a save from this branch before it loses them.
 
+**The ground at the camera's resolution, the figures at every pixel; five cares** (2026-10-20,
+etap T of `doc/plans-perf.md`)
+- A picture drawn below every pixel draws its ground alone at that resolution and the figures,
+  what falls or floats over them and the marks at every shown pixel over it, tested against the
+  ground's depth spread to the screen's size (`render.Grounded`, `Overlying`, `gpu.ScaleDepth`;
+  the sources over the figures say so). The setting "Figures at every pixel" (`cameras.Settings
+  .SoftFigures`, zero sharp; `SharpFigures{On}`, `Config.SoftFigures`) switches it; in rings
+  the picture is drawn as before. The telemetry's "Picture" line says "the figures sharp".
+- The ground is shaded with five cares, one less every R sectors from the sector under the
+  screen's middle or the eye (`Full care out to` is R): the shores, the surf, the running water
+  and the mouths' glint go first, then the waves and their glint, then the baked shade and the
+  lamps, then the grid, the clouds' shadow and the water's mirror. The "Ground" line counts the
+  sectors from full to least; "Show the care" colours the bands.
+
 **Faster ticks and frames** (2026-10-19, etap 1 of `doc/plans-perf.md`)
 - The world tick at 5,000 boxes from 215 to 169 µs and no allocations: `clampStep` compares
   squares instead of calling `Hypot`, every plugin's simulation block and the world tick's roles

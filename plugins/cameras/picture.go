@@ -24,12 +24,15 @@ const (
 )
 
 // Settings is what the cameras let the players adjust, saved with the game: the scroll zones,
-// the picture's resolution and the Strategy following the frame budget, the rings it is drawn
-// in and whether their edges are shown.
+// the picture's resolution and the Strategy following the frame budget, the figures drawn at
+// every pixel, the rings it is drawn in and whether their edges are shown.
 type Settings struct {
-	Zones       bool
-	Strategy    Strategy
-	Resolution  float32 // of the pixels, the centre ring's in rings
+	Zones      bool
+	Strategy   Strategy
+	Resolution float32 // of the pixels, the centre ring's in rings
+	// the figures at the ground's resolution; zero, at every pixel, as a save from before the
+	// field loads
+	SoftFigures bool
 	Rings       bool
 	Inner       float32 // the inner ring's share of the frame
 	Middle      float32 // the middle ring's
@@ -81,6 +84,17 @@ func (p *Plugin) SetResolution(r float32) {
 
 // Resolution is the share of its pixels every picture is drawn at, the centre ring's in rings.
 func (p *Plugin) Resolution() float32 { return p.Res.Settings.Resolution }
+
+// SetSharpFigures has every picture but a minimap's draw its figures, all that lies over the
+// ground, at every shown pixel while its ground is drawn at the resolution, or at the resolution
+// too (Settings.SoftFigures); a picture drawn in rings is drawn as it is.
+func (p *Plugin) SetSharpFigures(on bool) {
+	p.Res.Settings.SoftFigures = !on
+	p.rering()
+}
+
+// SharpFigures reports whether the figures are drawn at every pixel.
+func (p *Plugin) SharpFigures() bool { return !p.Res.Settings.SoftFigures }
 
 // SetRingShares has the inner ring cover inner of the frame and the middle ring middle, at
 // least a tenth over the inner (Settings.Inner, Middle).
@@ -143,8 +157,8 @@ func (p *Plugin) rering() {
 	}
 }
 
-// ring has cam drawn as the Settings say, in their rings or whole at their resolution, a
-// minimap's as it is
+// ring has cam drawn as the Settings say, in their rings or whole at their resolution, its
+// figures at every pixel or not, a minimap's as it is
 func (p *Plugin) ring(cam camera.Camera) {
 	if fitsWhole(cam) {
 		return
@@ -163,6 +177,9 @@ func (p *Plugin) ring(cam camera.Camera) {
 	}
 	if r, ok := cam.(camera.Resolved); ok {
 		r.SetResolution(s.Resolution)
+	}
+	if f, ok := cam.(camera.Figured); ok {
+		f.SetSharpFigures(!s.SoftFigures)
 	}
 }
 
@@ -197,7 +214,8 @@ func budgetRate(budget time.Duration) float64 {
 }
 
 // Settings are the scroll zones and the picture's: the strategy following the frame budget, the
-// resolution, the budget, the rings and their edges shown (plugin.Tunable).
+// resolution, the figures at every pixel, the budget, the rings and their edges shown
+// (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
 	s := &p.Res.Settings
 	hundredths := func(v float64) string { return fmt.Sprintf("%.2f", v) }
@@ -224,6 +242,12 @@ func (p *Plugin) Settings() []control.Setting {
 			Get:     func() float64 { return float64(s.Resolution) },
 			Set:     func(v float64) command.Command { return Picture{Resolution: float32(v)} },
 			Shows:   hundredths,
+		},
+		control.Switch{
+			Label:   "Figures at every pixel",
+			Section: control.PictureResolution,
+			Get:     p.SharpFigures,
+			Set:     func(on bool) command.Command { return SharpFigures{On: on} },
 		},
 		control.Range{
 			Label:   "Frame budget",

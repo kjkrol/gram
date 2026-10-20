@@ -298,21 +298,45 @@ func CopyDepth(target Image, from, to *Depth) {
 	d := must()
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if !from.readable {
-		panic("gpu: a depth copied from is not Readable")
-	}
 	t := target.Texture.gpuTarget(d)
 	for _, dp := range []*Depth{from, to} {
 		if dp.w != t.w || dp.h != t.h {
 			dp.fit(t.w, t.h)
 		}
 	}
+	d.copyDepth(t, from, to, [4]float32{})
+}
+
+// ScaleDepth puts what from holds, kept at the size it was drawn at, in place of what to holds,
+// fitted to target's texture: each pixel takes the depth of the one it maps to. From must be
+// Readable; one never drawn clears to.
+func ScaleDepth(target Image, from, to *Depth) {
+	d := must()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	t := target.Texture.gpuTarget(d)
+	if to.w != t.w || to.h != t.h {
+		to.fit(t.w, t.h)
+	}
+	if from.w == 0 || from.h == 0 {
+		d.begin(t, to, true)
+		return
+	}
+	place := [4]float32{float32(from.w) / float32(t.w), float32(from.h) / float32(t.h), 0, 0}
+	d.copyDepth(t, from, to, place)
+}
+
+// copyDepth draws from into to over t, each pixel reading from at its place scaled by place
+func (d *device) copyDepth(t *target, from, to *Depth, place [4]float32) {
+	if !from.readable {
+		panic("gpu: a depth copied from is not Readable")
+	}
 	pipeline := copyProgram.pipeline(d, Copy, t.format, depthCopy)
 	group1 := d.images([4]*Texture{})
 	group2 := from.readGroup(d)
 	group3 := d.frame([FrameImages]*Texture{})
 	d.ensure(0, 0)
-	dOff, uOff := d.drawBlock(t, [4]Image{}, nil, [4]float32{}, [4]float32{}, nil)
+	dOff, uOff := d.drawBlock(t, [4]Image{}, nil, place, [4]float32{}, nil)
 	pass := d.begin(t, to, false)
 	pass.SetPipeline(pipeline)
 	pass.SetBindGroup(0, d.group0, d.offsets(dOff, uOff))

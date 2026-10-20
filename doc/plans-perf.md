@@ -549,3 +549,62 @@ klatki; udziały i rozdzielczości pierścieni), wszystkie ręczne, gdy adapter 
 jako suwak do „every sector”; nakładki „Show the rings” (obrys przyciętej warstwy) i „Show the
 care” (granice pasm staranności po kratownicy); telemetria „Picture: … following a budget of 60
 FPS” / „…, still”. Zrzuty w `BENCHMARKS.md` nie; sprawdzone zrzutem demo.
+
+## Etap T. Grunt w rozdzielczości kamery, figury w każdym pikselu; pięć poziomów staranności
+
+**Skille:** `gram-render`, `gram-plugin`, `gram-plugins` (cameras, topography), `gram-probe`.
+Dodany 2026-10-20 po rozmowie o leverach: to figury, obrysy i znaczniki zdradzają rozmycie, nie
+grunt, więc obniżona rozdzielczość może dotyczyć samego gruntu; staranność może spadać dłuższą
+drabinką.
+
+**Decyzje.** Dwa przebiegi na klatkę, każde źródło składane raz w swoim: grunt z kamerą w jej
+rozdzielczości do mniejszego obrazu z głębią Readable, potem to, co nad figurami (figury,
+chmury, deszcz, obrysy, pudła, strefy, pierścienie: źródła deklarują `render.Overlying`) z
+kamerą przyciętą do całego kadru w 1 wprost na cel, testowane głębią gruntu rozciągniętą przez
+`gpu.ScaleDepth` (wspólny shader z `CopyDepth`, skala w `place`); przebieg górny dziedziczy
+uniformy i obrazy gruntu. `render.Grounded{DrawGround, DrawOver}` opcjonalne na composerze.
+Przełącznik `Settings.SoftFigures` (zero = ostre, stare zapisy nie wyłączają), „Figures at every
+pixel”, `SharpFigures{On}`, `camera.Figured`; w pierścieniach bez zmian (następny etap: jedno
+składanie, warstwy per widok). Drabinka: `cares = 5`, `care = max(4 − (d−1)/R, 0)`; 4 wszystko,
+3 bez brzegu, piany, wody płynącej i glintu ujścia, 2 płaskie lustro, 1 bez cienia gruntu i
+lamp, 0 bez siatki, cienia chmur i lustra; mgła zawsze. Reporter „9 · 3 · 2 · 1 · 0 (full to
+least)”, widok staranności kolor per poziom, suwak i klawisze bez zmian (R).
+
+**Części.** A: topografia (drabinka, reporter, widok). B1: `gpu.ScaleDepth`, composer w dwóch
+przebiegach, Feed `drawSharp`. B2: plugin kamer (ustawienie, komenda, `camera.Figured` w
+kamerach), `Overlies()` w siedmiu źródłach, bench `iso,0.7,feed`, `iso,0.7,sharp`,
+`persp,0.7`, `persp,0.7,sharp`. Integracja, pomiar, dokumenty.
+
+## Etap T: wynik (2026-10-20, gałąź `perf/sharp-figures`, baza `e5ec6dbc`)
+
+Wykonanie: interfejsy przez integratora, A (topografia), B1 (gpu, render) i B2 (plugin kamer,
+źródła, bench) równolegle w worktree, cherry-pick, pomiar na bezczynnej maszynie (pierwszy
+pomiar był skażony równoległym pomiarem innej sesji: baza raz 15, raz 24 ms). Liczby w
+`BENCHMARKS.md`, „The island's frame”, akapit „The ground at the camera's resolution…”.
+
+| Co | Wynik |
+|:--|--:|
+| Wyspa 1440p, izo / persp, pełna rozdzielczość, baza i drzewo | 7,9 / 11,6 ms bez zmian |
+| izo 0,7 przez Feed: figury miękkie / ostre | 4,7 / 6,4 ms |
+| persp 0,7 przez Feed: miękkie / ostre | 6,7 / 8,5 ms |
+| care R=1: trzy / pięć poziomów | 6,9 / 7,3 ms |
+| Demo 2560×1440, wszystkie piksele, baza / drzewo | 57 / 57 FPS |
+| 0,72: baza / ostre / miękkie | 86 / 76 / 86 |
+| 0,52: baza / ostre / miękkie | 128 / 108 / 128 |
+| perspektywa 0,72: baza / ostre / miękkie | 82 / 73 / 82 |
+
+**Wnioski.** Przebieg nad gruntem kosztuje stałe 1,5–1,8 ms na klatkę niezależnie od
+rozdzielczości gruntu: chmury aloft rysują się w rozmiarze ekranu (znane ryzyko), reszta to
+niewiele pikseli. Przy 0,52 obraz biegnie 108 FPS z ostrymi krawędziami jednostek wobec 128 z
+rozmytymi i 57 w pełnej rozdzielczości: lever działa, a adapter może schodzić niżej. Zrzuty
+klatki 600 przy 0,52: miara krawędzi w wycinku z jednostkami 9,9 (ostre) wobec 8,8 (miękkie),
+grunt rozmyty tak samo. Pięć poziomów staranności: +0,4 ms przy R=1 (dwa draw calle więcej),
+telemetria w perspektywie „care within 1 sectors: 10 · 9 · 8 · 3 · 0”, daleka woda płaska dwa
+sektory wcześniej.
+
+**Uwagi.** Następny krok dla tego levera: chmury w przebiegu górnym w rozmiarze gruntu
+(wskazówka `Target.Coarse`) zdjęłyby większość stałego kosztu. Pierścienie w tym etapie bez
+ostrych figur (przełącznik nie działa w pierścieniach). Checkout użytkownika w czasie etapu
+miał niezacommitowaną pracę nad detalem gruntu w `mesh.wgsl`, `terrain.go`, `plugin.go`:
+integracja poszła w osobnym worktree, scalenie tych dwóch linii da drobne konflikty w tych
+plikach.

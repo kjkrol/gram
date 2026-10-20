@@ -120,6 +120,11 @@ type Adapt struct{ Strategy Strategy }
 // ring's in rings, LeastResolution up to all of them, and stops the following (Still).
 type Picture struct{ Resolution float32 }
 
+// SharpFigures has every picture but a minimap's draw its figures, all that lies over the
+// ground, at every shown pixel while its ground is drawn at the resolution, or at the resolution
+// too (Settings.SoftFigures); a picture drawn in rings is drawn as it is.
+type SharpFigures struct{ On bool }
+
 // Rings has every picture but a minimap's drawn in rings (Settings.Rings) or whole; a Strategy
 // saying otherwise stops (Still).
 type Rings struct{ On bool }
@@ -144,6 +149,7 @@ func (Zoom) Command()            {}
 func (Resolution) Command()      {}
 func (Adapt) Command()           {}
 func (Picture) Command()         {}
+func (SharpFigures) Command()    {}
 func (Rings) Command()           {}
 func (RingShares) Command()      {}
 func (RingResolutions) Command() {}
@@ -178,6 +184,7 @@ var (
 	_ command.Command = Resolution{}
 	_ command.Command = Adapt{}
 	_ command.Command = Picture{}
+	_ command.Command = SharpFigures{}
 	_ command.Command = Rings{}
 	_ command.Command = RingShares{}
 	_ command.Command = RingResolutions{}
@@ -207,8 +214,8 @@ const (
 // Queues are where the cameras' commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
 	return append([]command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.centerOns,
-		&p.centerAts, &p.zones, &p.sights, &p.resolutions, &p.adapts, &p.pictures, &p.rings,
-		&p.ringShares, &p.ringRes, &p.budgets, &p.showRings}, p.orders.queues()...)
+		&p.centerAts, &p.zones, &p.sights, &p.resolutions, &p.adapts, &p.pictures, &p.sharps,
+		&p.rings, &p.ringShares, &p.ringRes, &p.budgets, &p.showRings}, p.orders.queues()...)
 }
 
 // DefaultBindings are DefaultKeys, their corners turning where the Config turns, Shift+H showing

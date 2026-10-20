@@ -1,5 +1,5 @@
-// A depth buffer drawn into another (gpu.CopyDepth): a triangle over the whole target, every
-// pixel's depth the one read there, no colour.
+// A depth buffer drawn into another (gpu.CopyDepth, gpu.ScaleDepth): a triangle over the whole
+// target, every pixel's depth the one read at its place scaled by D.place, no colour.
 
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
@@ -14,5 +14,5 @@ struct Copied {
 
 @fragment
 fn fs_main(@builtin(position) p: vec4<f32>) -> Copied {
-    return Copied(vec4<f32>(0.0), depthAt(p.xy));
+    return Copied(vec4<f32>(0.0), depthAt(p.xy * D.place.xy));
 }

@@ -74,6 +74,9 @@ func TestTerrain_DrawsTheLevelEvenlyAndABumpWhereItStands(t *testing.T) {
 
 func TestTerrainShaders_Compile(t *testing.T) {
 	needGPU(t)
+	if len(Shaders()) != cares {
+		t.Fatalf("%d shaders, want one a care, %d", len(Shaders()), cares)
+	}
 	for care, s := range Shaders() {
 		if err := s.Compile(); err != nil {
 			t.Errorf("care %d: %v", care, err)
@@ -127,7 +130,7 @@ type middled struct{ downward }
 
 func (middled) Focus() (x, y, z float32) { return 256, 256, 0 }
 
-func TestTerrain_KeepsTheWaterWetAndTheLandAlikeWithLessCare(t *testing.T) {
+func TestTerrain_KeepsTheWaterWetAndTheLandAlikeWithEveryCare(t *testing.T) {
 	needGPU(t)
 	cam := middled{downward{cameratest.NewFromSpace(64, 64, 0)}}
 	grid := &farOff{}
@@ -147,9 +150,9 @@ func TestTerrain_KeepsTheWaterWetAndTheLandAlikeWithLessCare(t *testing.T) {
 		"SkyOverhead": []float32{0.2, 0.4, 0.9}, "Toward": []float32{0, 0, 1},
 		"Pixel": []float32{8}})
 	var land [cares][]byte
-	// the screen's middle in the sector 0, 2 and 3 rings from the one drawn: full care, less,
-	// the least
-	for care, at := range map[int]int{FullCare: 0, LessCare: 2, LeastCare: 3} {
+	// the screen's middle in the sector 0, 2, 3, 4 and 5 rings from the one drawn (the grid 4
+	// wide: 16 and 20 lie 4 and 5 rows down): the full care down to the least
+	for care, at := range map[int]int{FullCare: 0, 3: 2, 2: 3, 1: 16, 0: 20} {
 		grid.at = at
 		screen := render.NewImage(64, 64)
 		depth := render.NewDepth()

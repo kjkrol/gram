@@ -31,7 +31,13 @@ var shaders embed.FS
 func init() { render.RegisterImage("GroundDetail") }
 
 // the ground's shader for each care, mesh.wgsl's CARE
-var byCare = [cares]*render.Shader{caring(LeastCare), caring(LessCare), caring(FullCare)}
+var byCare [cares]*render.Shader
+
+func init() {
+	for c := range byCare {
+		byCare[c] = caring(c)
+	}
+}
 
 func caring(care int) *render.Shader {
 	src := render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl",
@@ -169,20 +175,17 @@ func (*Renderer) Init(*goke.SysInit) {
 	}
 }
 
-// SetCare has the ground within r sectors of the one under the middle of the screen, and of the
-// one under the eye, shaded with full care, within 2r with less and the rest with the least:
-// far water a level mirror of the sky without waves, glint or foam, the farthest ground
-// without the baked shade and the lamps. Zero, every sector with full care.
+// SetCare has the ground within rings sectors of the one under the middle of the screen, and of
+// the one under the eye, shaded with full care, and one care less every rings sectors farther
+// (the cares, sectors.go), down to the least. Zero, every sector with full care.
 func (r *Renderer) SetCare(rings int) { r.care = max(rings, 0) }
 
 // Care is how many sectors out from the middle of the screen the ground is shaded with full
 // care, 0 every one.
 func (r *Renderer) Care() int { return r.care }
 
-// Cared is how many sectors the last frame shaded with full care, with less and with the least.
-func (r *Renderer) Cared() (full, less, least int) {
-	return r.counts[FullCare], r.counts[LessCare], r.counts[LeastCare]
-}
+// Cared is how many sectors the last frame shaded with each care, the least first.
+func (r *Renderer) Cared() [cares]int { return r.counts }
 
 // Compose has the ground drawn Direct, in the opaque pass, and hands the frame its heights
 // (render.GroundHeights).

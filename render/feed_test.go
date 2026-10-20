@@ -72,7 +72,10 @@ type recording struct {
 	w, h    int
 	cam     camera.Camera
 	calls   []call
+	passes  []pass
 	screens []*render.Image
+	ground  *render.Image // the image DrawGround drew into
+	over    *render.Image // the ground DrawOver was handed
 }
 
 // one DrawWorld: the screen's size and the camera's viewport
@@ -81,14 +84,55 @@ type call struct {
 	vw, vh float32
 }
 
+// one DrawGround or DrawOver: which, the target's size and the camera's viewport
+type pass struct {
+	name string
+	call
+}
+
 func (*recording) Init(*goke.SysInit) {}
 
 func (r *recording) DrawWorld(screen *render.Image, cam camera.Camera) {
 	r.w, r.h, r.cam = screen.Bounds().Dx(), screen.Bounds().Dy(), cam
-	vw, vh := cam.Viewport()
-	r.calls = append(r.calls, call{r.w, r.h, vw, vh})
+	r.calls = append(r.calls, callOf(screen, cam))
 	r.screens = append(r.screens, screen)
 }
+
+func (r *recording) DrawGround(ground *render.Image, cam camera.Camera) {
+	r.ground = ground
+	r.passes = append(r.passes, pass{"ground", callOf(ground, cam)})
+}
+
+func (r *recording) DrawOver(screen, ground *render.Image, cam camera.Camera) {
+	r.over = ground
+	r.passes = append(r.passes, pass{"over", callOf(screen, cam)})
+	r.screens = append(r.screens, screen)
+}
+
+func callOf(screen *render.Image, cam camera.Camera) call {
+	vw, vh := cam.Viewport()
+	return call{screen.Bounds().Dx(), screen.Bounds().Dy(), vw, vh}
+}
+
+// a camera from above with the figures at every pixel at its word
+type figured struct {
+	sharpened
+	sharp bool
+}
+
+type sharpened interface {
+	camera.Camera
+	camera.Resolved
+	camera.Ringed
+	camera.Cropping
+}
+
+func newFigured(sharp bool) *figured {
+	return &figured{cameratest.NewFromSpace(1000, 1000, 0).(sharpened), sharp}
+}
+
+func (f *figured) SetSharpFigures(on bool) { f.sharp = on }
+func (f *figured) SharpFigures() bool      { return f.sharp }
 
 func TestFeed_DrawsItsPictureThroughItsCameraAtItsSize(t *testing.T) {
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
@@ -194,6 +238,87 @@ func TestFeed_DrawOnDrawsTheWholeFrameAtEveryPixelStraightOntoTheTarget(t *testi
 	}
 	if w, h := cam.Viewport(); w != 400 || h != 300 || camera.IsCropped(cam) {
 		t.Errorf("after the frame the viewport is %vx%v, cropped %v; want 400x300, not cropped",
+			w, h, camera.IsCropped(cam))
+	}
+}
+
+func TestFeed_DrawsTheGroundAtItsResolutionAndTheFiguresAtEveryPixel(t *testing.T) {
+	cam := newFigured(true)
+	cam.SetResolution(0.5)
+	picture := &recording{}
+	feed := render.NewFeed(cam, picture)
+	feed.Resize(64, 48)
+	img := feed.Draw()
+	want := []pass{{"ground", call{32, 24, 32, 24}}, {"over", call{64, 48, 64, 48}}}
+	if !slices.Equal(picture.passes, want) || len(picture.calls) != 0 {
+		t.Errorf("the picture was drawn %v and whole %v, want %v and never whole: the ground at a "+
+			"half, what lies over it at every pixel", picture.passes, picture.calls, want)
+	}
+	if picture.over == nil || picture.over != picture.ground {
+		t.Error("what lies over the figures was drawn over another ground than the one drawn")
+	}
+	if img == nil || img.Bounds().Dx() != 64 || img.Bounds().Dy() != 48 {
+		t.Fatalf("the feed's image is %v, want 64x48: the shown size", img.Bounds())
+	}
+	if w, h := cam.Viewport(); w != 32 || h != 24 || camera.IsCropped(cam) {
+		t.Errorf("after the frame the viewport is %vx%v, cropped %v; want 32x24, not cropped",
+			w, h, camera.IsCropped(cam))
+	}
+}
+
+func TestFeed_DrawsWholeWithTheFiguresSoftOrEveryPixelDrawn(t *testing.T) {
+	cam := newFigured(false)
+	cam.SetResolution(0.5)
+	picture := &recording{}
+	feed := render.NewFeed(cam, picture)
+	feed.Resize(64, 48)
+	feed.Draw()
+	if want := []call{{32, 24, 32, 24}}; !slices.Equal(picture.calls, want) ||
+		len(picture.passes) != 0 {
+		t.Errorf("with the figures soft the picture was drawn whole %v and apart %v, want whole "+
+			"%v once", picture.calls, picture.passes, want)
+	}
+	cam.SetSharpFigures(true)
+	cam.SetResolution(1)
+	picture.calls = nil
+	feed.Draw()
+	if want := []call{{64, 48, 64, 48}}; !slices.Equal(picture.calls, want) ||
+		len(picture.passes) != 0 {
+		t.Errorf("at every pixel the picture was drawn whole %v and apart %v, want whole %v once",
+			picture.calls, picture.passes, want)
+	}
+}
+
+func TestFeed_DrawsARingedCameraInRingsWhateverItsFigures(t *testing.T) {
+	cam := newFigured(true)
+	cam.SetRings([]camera.Ring{{Share: 1, Resolution: 0.5}, {Share: 0.5, Resolution: 0.75}})
+	cam.SetResolution(0.75)
+	picture := &recording{}
+	feed := render.NewFeed(cam, picture)
+	feed.Resize(64, 48)
+	feed.Draw()
+	want := []call{{32, 24, 32, 24}, {24, 18, 24, 18}}
+	if !slices.Equal(picture.calls, want) || len(picture.passes) != 0 {
+		t.Errorf("the picture was drawn %v and apart %v, want a ring each %v and never apart",
+			picture.calls, picture.passes, want)
+	}
+}
+
+func TestFeed_DrawOnDrawsWhatLiesOverTheFiguresStraightOntoTheTarget(t *testing.T) {
+	cam := newFigured(true)
+	cam.SetResolution(0.5)
+	picture := &recording{}
+	feed := render.NewFeed(cam, picture)
+	dst := render.NewImage(64, 48)
+	feed.DrawOn(dst)
+	want := []pass{{"ground", call{32, 24, 32, 24}}, {"over", call{64, 48, 64, 48}}}
+	if !slices.Equal(picture.passes, want) || len(picture.screens) != 1 ||
+		picture.screens[0] != dst {
+		t.Errorf("the picture was drawn %v, over the figures onto the target %v; want %v, onto "+
+			"it", picture.passes, len(picture.screens) == 1 && picture.screens[0] == dst, want)
+	}
+	if w, h := cam.Viewport(); w != 32 || h != 24 || camera.IsCropped(cam) {
+		t.Errorf("after the frame the viewport is %vx%v, cropped %v; want 32x24, not cropped",
 			w, h, camera.IsCropped(cam))
 	}
 }
