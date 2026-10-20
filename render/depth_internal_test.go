@@ -39,6 +39,7 @@ type figureSource struct {
 
 func (*figureSource) Init(*goke.SysInit) {}
 func (s *figureSource) Compose(f *Frame, _ camera.Camera) {
+	s.sprites.Reset()
 	at := f.Lifted(24, 24, s.z, 2)
 	s.sprites.Layer(at, s.lying)
 	s.sprites.Fog(s.fog)
@@ -91,21 +92,25 @@ func pixelsOf(screen *Image) func(x, y int) [4]byte {
 	return func(x, y int) [4]byte { i := 4 * (y*w + x); return [4]byte(pix[i : i+4]) }
 }
 
-// the ground drawn through cam at a half of the 64 by 64 screen's pixels, laid over it scaled,
-// and what lies over the figures drawn onto it at every pixel
+// the ground laid through cam at every pixel and drawn at a half of the 64 by 64 screen's
+// pixels, laid over it scaled, and what lies over the figures drawn onto it at every pixel
 func groundShot(t *testing.T, c *Composer, sources ...Source) func(x, y int) [4]byte {
 	t.Helper()
 	cam := cameratest.NewFromSpace(64, 64, 0)
 	cam.SetViewport(64, 64)
 	cam.(camera.Resolved).SetResolution(0.5)
+	crop := cam.(camera.Cropping)
+	crop.Crop(camera.Window{W: 64, H: 64}, 1)
+	c.Lay(cam, true)
+	crop.Uncrop()
 	ground, screen := NewImage(32, 32), NewImage(64, 64)
-	c.DrawGround(ground, cam)
+	c.DrawLayer(ground, cam, camera.Window{W: 64, H: 64})
 	op := DrawImageOptions{Filter: FilterLinear}
 	op.GeoM.Scale(2, 2)
 	screen.DrawImage(ground, &op)
-	cam.(camera.Cropping).Crop(camera.Window{W: 64, H: 64}, 1)
-	c.DrawOver(screen, ground, cam)
-	cam.(camera.Cropping).Uncrop()
+	crop.Crop(camera.Window{W: 64, H: 64}, 1)
+	c.DrawOver(screen, cam)
+	crop.Uncrop()
 	return pixelsOf(screen)
 }
 
@@ -241,6 +246,7 @@ type twoFigures struct {
 
 func (*twoFigures) Init(*goke.SysInit) {}
 func (s *twoFigures) Compose(f *Frame, _ camera.Camera) {
+	s.sprites.Reset()
 	at := f.Lifted(24, 24, 3, 2)
 	s.sprites.Layer(at, false)
 	s.sprites.Rect(s.atlas, 2, 16, 16, 32, 32, 0, 0, 1, 1, Light{1, 1, 1})
@@ -299,6 +305,7 @@ type figured struct {
 type sharpened interface {
 	camera.Camera
 	camera.Resolved
+	camera.Layered
 	camera.Cropping
 	camera.Rays
 }
@@ -411,5 +418,52 @@ func TestFeed_LaysAFootedLayerFlushOnTheBottomEdgeFeatheredOnTheOtherSides(t *te
 	}
 	if got := at(80, 200); got[0] > 20 {
 		t.Errorf("at the inner layer's left edge the pixel is %v, want its red faded out", got)
+	}
+}
+
+// the ground at 0 over the 64 by 64 world with a ridge across it two units wide at x 31 to 33,
+// 32 high
+func ridgedGround(a *Atlas) *groundSource {
+	s := NewStill()
+	s.Compose(64, 64, func(f *Frame, _ camera.Camera) {
+		f.SpriteRect(f.At(32, 32, 0), a, 1, 0, 0, 64, 64, Even(1))
+		f.SpriteRect(f.At(32, 32, 32), a, 3, 31, 0, 33, 64, Even(1))
+	})
+	return &groundSource{still: s}
+}
+
+func TestLaid_AFigureBehindAHillIsHiddenThroughAnInnerLayersDepth(t *testing.T) {
+	needGPU(t)
+	a := atlasOf(t)
+	figure := overlyingSource{items(func(f *Frame) {
+		corners := ProjectCorners(f.Camera(), 20, 20, 44, 44, 10)
+		f.Sprite(f.At(32, 32, 10), a, 2, corners, Even(1))
+	})}
+	picture := NewComposer(ridgedGround(a), figure)
+	cam := &figured{cameratest.NewFromSpace(64, 64, 0).(sharpened), true}
+	shown := func() func(x, y int) [4]byte {
+		screen := NewImage(64, 64)
+		NewFeed(cam, picture).DrawOn(screen)
+		return pixelsOf(screen)
+	}
+	// at a quarter of the pixels the middles of the ground's pixels lie either side of the ridge
+	cam.SetResolution(0.25)
+	if p := shown()(32, 30); p != [4]byte{220, 0, 0, 255} {
+		t.Fatalf("over a ground at a quarter of the pixels the figure shows %v on the ridge, "+
+			"want it red: the ridge missed", p)
+	}
+	cam.SetLayers([]camera.Layer{{Share: 1, Resolution: 0.25}, {Share: 0.5, Resolution: 1}},
+		camera.Inset)
+	at := shown()
+	for _, x := range []int{31, 32} {
+		if p := at(x, 30); p[0] > 100 {
+			t.Errorf("behind the ridge at (%d, 30) the figure shows %v, want the ridge hiding it "+
+				"through the inner layer's depth", x, p)
+		}
+	}
+	for _, x := range []int{24, 40} {
+		if p := at(x, 30); p != [4]byte{220, 0, 0, 255} {
+			t.Errorf("beside the ridge at (%d, 30) the figure shows %v, want it red", x, p)
+		}
 	}
 }

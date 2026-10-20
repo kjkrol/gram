@@ -42,12 +42,11 @@ func (l *Flat) Begin(*render.Frame, camera.Camera) {
 	l.direct = true
 }
 
-// DrawSprites draws the sprites gathered since Begin.
+// DrawSprites draws the sprites gathered since Begin, as often as a frame laid in layers asks.
 func (l *Flat) DrawSprites(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if l.direct {
 		l.sprites.Draw(t, cam, u)
 	}
-	l.direct = false
 }
 
 func (l *Flat) Sprite(f *render.Frame, cam camera.Camera, box plane.AABB, z entity.Z,

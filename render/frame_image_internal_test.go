@@ -57,16 +57,16 @@ func TestFrame_HandsADirectItsImageAsAUniformAndNothingOnceItIsNotSet(t *testing
 	img := NewImage(1, 1)
 	p := &probing{img: img}
 	c := NewComposer(p)
-	c.draw = func(*Image, []Vertex, []uint16, *Image) {}
+	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) {}
 	c.compose(topDown(), wholePart)
-	c.render(nil, false)
+	c.render(nil, false, 0)
 	if p.seen != img || c.frameTex[0] != img.tex {
 		t.Errorf("a Direct is handed %v and the composer binds %v, want the frame's image", p.seen,
 			c.frameTex[0])
 	}
 	p.img = nil
 	c.compose(topDown(), wholePart)
-	c.render(nil, false)
+	c.render(nil, false, 0)
 	if seen, _ := p.seen.(*Image); seen != nil || c.frameTex[0] != nil {
 		t.Errorf("a frame that set no image hands %v and binds %v, want none", p.seen,
 			c.frameTex[0])

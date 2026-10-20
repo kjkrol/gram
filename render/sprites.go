@@ -122,11 +122,10 @@ func (s *Sprites) Reset() {
 }
 
 // Draw draws the gathered sprites into the target's screen, a viewport cam's size, as cam lays
-// them under the frame's uniforms u, and starts gathering anew; into the target's depth, where it
-// has one, each at its height, what shows of it written. A camera that cannot say its lines of
-// sight draws none.
+// them under the frame's uniforms u, keeping them for another draw till Reset; into the target's
+// depth, where it has one, each at its height, what shows of it written. A camera that cannot
+// say its lines of sight draws none.
 func (s *Sprites) Draw(t Target, cam camera.Camera, u Uniforms) {
-	defer s.Reset()
 	if t.Screen == nil || len(s.runs) == 0 {
 		return
 	}

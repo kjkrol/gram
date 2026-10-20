@@ -22,11 +22,14 @@ type Picture interface {
 	DrawWorld(screen *Image, cam camera.Camera)
 }
 
-// Grounded is a Picture drawing its ground apart from what lies over it: DrawGround draws every
-// source but the Overlying ones through cam into ground, keeping the ground's depth; DrawOver
-// draws the Overlying ones through cam onto screen, ground laid over it already, each tested
-// against that depth spread to screen's size.
-type Grounded interface {
-	DrawGround(ground *Image, cam camera.Camera)
-	DrawOver(screen, ground *Image, cam camera.Camera)
+// Laid is a Picture drawn in layers from one composition: Lay composes every source (the
+// ground's alone when apart) through cam once, in cam's pixels; DrawLayer draws what was
+// composed into layer, cam cropped to the frame's window at, the pieces placed by the window's
+// scale and offset, the Directs drawing through cam; DrawOver composes the Overlying sources and
+// draws them onto screen over the layers laid since Lay, tested against their depths placed at
+// screen's size, the last laid over the first. A nil layer or screen only composes.
+type Laid interface {
+	Lay(cam camera.Camera, apart bool)
+	DrawLayer(layer *Image, cam camera.Camera, at camera.Window)
+	DrawOver(screen *Image, cam camera.Camera)
 }

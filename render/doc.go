@@ -15,8 +15,9 @@
 // A [Feed] is the world seen through a camera: a Picture drawn through the camera every frame
 // into an image of the size whoever shows it gives it ([Surface]). It turns its pixels into the
 // world and back (ToWorld, ToPixels), so whatever shows it knows nothing of its camera. A camera
-// whose figures are sharp (camera.Figured) has a [Grounded] picture's ground drawn at the camera's
-// resolution and scaled up, and what lies over it drawn at every shown pixel.
+// drawn in layers (camera.Layered) has a [Laid] picture composed once and drawn a layer at a time,
+// each scaled up into its place; one whose figures are sharp (camera.Figured) has its ground drawn
+// so, or whole at the camera's resolution, and what lies over it drawn at every shown pixel.
 //
 // # Font and DrawText
 //
@@ -51,11 +52,14 @@
 // frame's [Uniforms]; [NewMeshShaderWith] builds such a shader on the composer's library, drawn
 // with [Image.DrawMesh] against a [Depth], whole or by ranges of its indices at one go
 // (DrawMeshOptions.Ranges). [Frame.Branch] and [Frame.Append] let a source gather
-// pieces on several goroutines. A Composer is [Grounded]: DrawGround draws every source but the
-// [Overlying] ones, which say their pieces lie over the figures (the figures, what falls or
-// floats over them, the marks), into a ground image, keeping the ground's depth; DrawOver draws
-// the Overlying ones onto the screen with the uniforms and images the ground pass set, each
-// tested against that depth spread to the screen's size ([Image.ScaleDepth]).
+// pieces on several goroutines. A Composer is [Laid]: Lay composes every source once, or all but
+// the [Overlying] ones, which say their pieces lie over the figures (the figures, what falls or
+// floats over them, the marks); DrawLayer draws the composition into a layer's image through the
+// camera cropped to the layer's window, its pieces placed by the window's scale and offset, so
+// they are as wide in shown pixels in every layer, the ground's depth kept when the Overlying ones
+// were left out; DrawOver draws those onto the screen with the uniforms and images the
+// composition set, each tested against the layers' depths placed in the screen's
+// ([Image.PlaceDepth]).
 //
 // A color.RGBA given to render — a piece, a fill, text, a sprite drawn on a [Canvas] — is
 // straight alpha, as colours are written: {R: 255, G: 220, B: 60, A: 40} is a faint yellow. Go
