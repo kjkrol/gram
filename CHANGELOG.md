@@ -71,6 +71,34 @@ etap T of `doc/plans-perf.md`)
   lamps, then the grid, the clouds' shadow and the water's mirror. The "Ground" line counts the
   sectors from full to least; "Show the care" colours the bands.
 
+**The picture by the camera's state: profiles, footed layers, one composition** (2026-10-20,
+etap U of `doc/plans-perf.md`)
+- The picture's rings are layers (`camera.Layer`, `Layered`, `LayersOf`; the cameras' `InLayers`,
+  `Layers{On}`, `LayerShares`, `LayerResolutions`, `ShowLayers`, "Drawn in layers"; the feed's
+  `LayerFeather`): a layer's `Share` of the frame lies as the picture's `camera.Layout` says,
+  `Inset` in the middle or `Footed` standing on the frame's bottom edge, centred across, the
+  coarser layer round it like a table, a top and two legs; `camera.Arrange` gives each its
+  `Window`. A camera is cropped to any window of its frame (`Cropping.Crop(win, s)`, `Window()`;
+  the perspective keeps its principal point); a footed layer fades on the sides inside the
+  frame alone.
+- The cameras' picture settings are a profile each, tactical and riding (`cameras.Settings
+  {Zones, FrameBudget, ShowLayers, Tactical, Riding}`, `Knobs`, `Config{Tactical, Riding}`;
+  `ProfileOf`): a camera inside an entity wears the riding profile, any other the tactical one,
+  dressed anew as its state changes; in a tactical perspective its layers stand footed. The
+  commands carry the profile (`Adapt{Profile, Strategy}` and kin; Alt+A the key's camera's);
+  the settings screen has a section a profile under Picture, each with its layers; the
+  telemetry's Picture line names the lead's profile. A save from before loads the defaults.
+  board/topography starts tactical following the budget with the figures sharp, riding in
+  layers.
+- A picture in layers is composed once, in the frame's pixels, and drawn a layer at a time
+  with the pieces placed into each (`render.Laid{Lay, DrawLayer, DrawOver}` in place of
+  `Grounded`; `gpu.Draw.Place`), the Directs drawing through the cropped camera (the sprites
+  and the routes gather once a composition), so the three composes of a frame in layers are
+  one; the figures at every pixel are drawn over layers too, tested against the layers' depths
+  placed into the screen's (`Image.PlaceDepth`, `gpu.PlaceDepth` in place of `ScaleDepth`);
+  "Show the layers" outlines every inner layer whatever the pass. `Benchmark_Frame_Topography`
+  has `persp,footed`, `iso,layered,sharp` and `persp,footed,sharp`.
+
 **Faster ticks and frames** (2026-10-19, etap 1 of `doc/plans-perf.md`)
 - The world tick at 5,000 boxes from 215 to 169 µs and no allocations: `clampStep` compares
   squares instead of calling `Hypot`, every plugin's simulation block and the world tick's roles

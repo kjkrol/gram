@@ -75,18 +75,27 @@ it hides it. Goals, holds, a bridge in hand and boxes are no
 marks: they lie in the world. **A source whose pieces lie over the figures says so**
 (2026-10-20, stage T: `render.Overlying{Overlies()}`: the world's figures, aloft's clouds, the
 drops, the selection, collision's boxes, the cameras' zones and layers), and the composer is
-`render.Grounded`: `DrawGround(ground, cam)` composes and draws the rest into `ground`, its
-opaque pass into the Readable depth kept as the ground's, and `DrawOver(screen, ground, cam)`
-composes and draws the Overlying ones onto the screen tested against that depth spread to the
-screen's size (`Image.ScaleDepth`, `gpu.ScaleDepth`: `depth.wgsl` reads `depthAt(p.xy *
-place.xy)`, a copy's place {1, 1}), the figures writing into a copy and `OverFigures` bound to
-the spread one; the over pass inherits the uniforms and images the ground pass set (the sun,
-the weather, `Fog`, `GroundHeights`, `GroundShade`), put back on the frame before the Overlying
-sources compose, so `Uniformed` sees them and every Direct is handed them; one asking
-`DrawOpaque` there is not heard. A `Feed` of a `camera.Figured` camera at a resolution under 1,
-whole (not in layers), before a Grounded picture draws so: the ground at the camera's resolution
-scaled up, what lies over it at every shown pixel, the camera cropped to the whole frame at 1
-for the over pass (`Crop(w, h, 1)`/`Uncrop`, exact, `Cropped()` false). `Frame.Edge` is a line
+`render.Laid` (2026-10-20, stage U, in place of `Grounded`): `Lay(cam, apart)` composes every
+source (the ground's alone when apart) once, in cam's pixels, the feed having cropped the camera
+to the whole frame at every pixel (`Crop(camera.Window{W, H}, 1)`, exact, `Cropped()` false);
+`DrawLayer(layer, cam, at)` draws what was composed into `layer`, the camera cropped to the
+frame's window `at`, the pieces placed by the window's scale and offset (`gpu.Draw.Place`, which
+`quad.wgsl` applies before `heightDepth`, so a placed vertex takes its depth from the layer
+camera's sight read at render time) and the Directs drawing through the cropped camera (so a
+Direct gathering at Compose draws as often as there are layers: `Sprites.Draw` resets no more,
+`Begin` does; the routes reset at Compose and place their rectangles into the drawing camera's
+frame); its opaque pass goes into a Readable depth kept a layer (`keptDepths` 12, by size and
+layer index: two layers of one size keep their grounds apart); `DrawOver(screen, cam)` places
+every laid depth into the screen's (`Image.PlaceDepth`, `gpu.PlaceDepth(target, from, to, at)`:
+`depth.wgsl` reads `depthAt(p.xy * place.xy + place.zw)` under a scissor of the window, the last
+laid over the first) and composes and draws the Overlying ones onto the screen tested against
+it, the figures writing into a copy and `OverFigures` bound to the placed one; the over pass
+inherits the uniforms and images the ground pass set (the sun, the weather, `Fog`,
+`GroundHeights`, `GroundShade`), put back on the frame before the Overlying sources compose, so
+`Uniformed` sees them and every Direct is handed them; one asking `DrawOpaque` there is not
+heard. A `Feed` draws a `camera.Figured` camera so whenever its picture is coarse somewhere —
+whole at a resolution under 1, or in layers one of which is — and soft layers from one `Lay`
+too; a picture that is not Laid is drawn whole a layer. `Frame.Edge` is a line
 whose ends carry heights of their own
 (`item.own`; the composer zeroes them where the frame has no depth, as a z outside 0..1 would be
 clipped). A frame with no opaque ground (a world without heights) has no depth at all, as before,

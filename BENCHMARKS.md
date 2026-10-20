@@ -721,6 +721,45 @@ pixels), so at 0.52 of the pixels the picture runs at 108 FPS with the units' ed
 against 128 with them blurred and 57 at every pixel. The five cares cost 0.4 ms more than the
 three at R = 1 (two more draws a frame); the far water goes flat two sectors sooner.
 
+**The picture in layers from one composition, footed in a perspective, the figures sharp over
+it** (etap U of `doc/plans-perf.md`, 2026-10-20, the base `b6ecc82c`, etap T merged): a picture
+in layers composed once in the frame's pixels and drawn a layer at a time with the pieces placed
+into each; in a tactical perspective the inner layers stand on the frame's bottom edge (footed);
+the figures at every pixel drawn over layers too, tested against the layers' depths placed into
+the screen's. Medians of 4 runs, the readback (7.8 ms) taken off; the base and the tree run
+alternately. The preset's layers: 0.6 of the pixels whole, the middle 60% at 0.8, 35% at all.
+
+| Frame | Time less the readback |
+|:---|---:|
+| isometric (base / tree) | 10.0 / 10.6 ms |
+| perspective (base / tree) | 14.1 / 12.8 ms |
+| isometric in layers: three composes (base) / one (tree) | 8.0 / 7.0 ms |
+| perspective in layers, inset: base / tree | 10.4 / 9.4 ms |
+| perspective in layers, footed | 8.9 ms |
+| isometric in layers, the figures at every pixel | 10.2 ms |
+| perspective in layers, footed, the figures at every pixel | 11.6 ms |
+| isometric at 0.7 through a feed: soft / sharp (base) | 6.0 / 8.2 ms |
+| isometric at 0.7 through a feed: soft / sharp (tree) | 5.2 / 7.5 ms |
+| perspective at 0.7 through a feed: soft / sharp (base) | 8.2 / 10.8 ms |
+| perspective at 0.7 through a feed: soft / sharp (tree) | 7.5 / 10.1 ms |
+
+The demo at 2560×1440 without vsync, 35 s a run, the medians after 8 s, the base and the tree
+alternately, both profiles still (no adapter):
+
+| Picture | FPS | drawing |
+|:---|---:|---:|
+| all the pixels: base / tree | 63 / 63 | 1.1 / 1.1 ms |
+| the preset's layers, the figures soft: base / tree | 70 / 70 | 2.0 / 1.7 ms |
+| the preset's layers, the figures at every pixel (tree) | 64 | 1.6 ms |
+
+What it says: one composition takes a millisecond off a frame in layers on the island (8.0 →
+7.0 ms, 10.4 → 9.4) and 0.3 ms off the demo's drawing (2.0 → 1.7 ms; the Directs still draw a
+layer each), which the GPU-bound demo does not turn into frames; a footed layout in perspective
+is half a millisecond cheaper than inset (less of the frame drawn twice). The figures at every
+pixel over layers cost 2.7–3.1 ms on the island (the over pass at every pixel, three depths
+placed) and 6 FPS in the demo. The whole picture and the 0.7 cases are within the machine's
+drift of the base.
+
 ## How to benchmark
 
 ```bash
