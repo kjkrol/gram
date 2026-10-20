@@ -252,7 +252,11 @@ func (k *bodyKeeping) tilesRound(target cell.ID, dom, costs cell.Domain) []cell.
 		}
 		done[r.c] = true
 		out = append(out, r.c)
-		for _, nb := range k.grid.Neighbors(r.c) {
+		for i := range k.grid.Directions() {
+			nb, ok := k.grid.Toward(r.c, i)
+			if !ok {
+				continue
+			}
 			kind := k.terrain.Kind(nb)
 			if done[nb] || !kind.Admits(dom) {
 				continue
