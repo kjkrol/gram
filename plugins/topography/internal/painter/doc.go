@@ -34,6 +34,14 @@
 // way's Fade has it show the less the further it has faded. Water lies over a way as over the
 // grounds round a coast, so a way shows only where the land does.
 //
+// # Details
+//
+// A kind with a Detail is textured where its cells are seen near: [Painter.Details] bakes every
+// detail into one sheet, a tile each, its tone scaled to a mean grey and its hue toned down, and
+// [Painter.Kinds] is the board painted as the albedo is but each pixel its kind's detail, edged
+// hard where the albedo fades; the ground's shader blends the details between the pixels and
+// multiplies the albedo by them, so the kind's colour stays and the detail gives the grain.
+//
 // # Painted once
 //
 // Nothing of this is worked out per frame: a cell's read is kept while the board says it is

@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"flag"
 	"log"
 	"time"
 
@@ -87,19 +88,24 @@ type arena struct {
 	rival      *players.Player
 	vision     *vision.Plugin
 	atmosphere *atmosphere.Plugin
+	look       string
 }
 
 func main() {
+	look := flag.String("look", NaturalLook,
+		"the ground's look: natural (photographs) or ghibli (painted, the light in bands)")
+	flag.Parse()
 	props := game.Props{
 		Title: "gram board topography",
-		Description: "Madeira in relief. Select a unit, C follows it, V rides it: inside, the " +
+		Description: "Madeira in relief, its ground textured as -look says (natural or ghibli). " +
+			"Select a unit, C follows it, V rides it: inside, the " +
 			"mouse looks round, W and S walk, A and D strafe, Shift sprints, Space jumps. The " +
 			"minimap turns with the camera (Ctrl+M keeps north up, Shift+M hides it); a click on " +
 			"it takes the camera there.",
 		ScreenWidth: ScreenWidth, ScreenHeight: ScreenHeight, Resizable: true,
 		TargetTPS: TPS,
 	}
-	a := &arena{}
+	a := &arena{look: *look}
 	mainStage := stage.New(BoardTopographyStage).
 		World(world.Config{
 			Scale: scale,

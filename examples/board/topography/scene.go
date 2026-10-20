@@ -57,16 +57,22 @@ var (
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
+	d := details(a.look)
 	a.topography.
 		Style(WaterCell, painter.Style{Under: true, Shine: 0.9}).
-		Style(EarthCell, painter.Style{Spread: 0.3}).
-		Style(SandCell, painter.Style{Spread: 0.35}).
-		Style(RockCell, painter.Style{Spread: 0.25}).
+		Style(EarthCell, painter.Style{Spread: 0.3, Detail: d[EarthCell]}).
+		Style(SandCell, painter.Style{Spread: 0.35, Detail: d[SandCell]}).
+		Style(RockCell, painter.Style{Spread: 0.25, Detail: d[RockCell]}).
+		Style(ForestCell, painter.Style{Detail: d[ForestCell]}).
+		Style(RoadCell, painter.Style{Detail: d[RoadCell]}).
 		Style(BrookCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
 		Style(StreamCell, painter.Style{Shine: 0.9, Flow: 30, MixWith: WaterCell}).
-		Style(RiverCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell})
+		Style(RiverCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell}).
+		WithShading(shading(a.look))
 	for _, name := range snowable() {
-		a.topography.Style(snowyCell(name), a.topography.StyleOf(name))
+		s := a.topography.StyleOf(name)
+		s.Detail = d[snowyCell(name)]
+		a.topography.Style(snowyCell(name), s)
 	}
 	a.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
 	a.topography.WithAtmosphere(a.atmosphere)

@@ -115,7 +115,10 @@ then: shoot a baseline tree and the working one and compare (the telemetry panel
 or scenes are noise).
 
 **Frame images** (2026-10-16, stage 6): what every shader of a frame reads that is too big for
-uniforms — 4096 bytes a draw in all (`gpu/device.go` `uniformBlock`), the shared set ~600 of it
+uniforms — 4096 bytes a draw in all (`gpu/device.go` `uniformBlock`), the shared set ~600 of it;
+**the terrain's block is at the edge of what an Intel GPU pushes in registers**: four vec4
+uniforms more cost it 1.5 ms a frame, 184 to 144 FPS (2026-10-20), so a small table goes into
+a texel the shader loads (the details' header row), never into uniforms
 (no shader holds a big array any more: the terrain's blocks are instances) — is an image the frame
 hands like a uniform. `render.RegisterImage
 (name)` in a package's init (panics once a shader is built, twice, past `gpu.FrameImages` = 8) has
@@ -127,7 +130,8 @@ untouched, `Shader.pack` skips it and `DrawMesh`/`DrawTrianglesShader` bind it (
 gpu side is `Draw.Frame`/`MeshDraw.Frame`, one cached group a set of textures. An image whose
 pixels need the GPU — baked, or written from the CPU — is `img.Defer(fill)`: filled the next time
 a draw reads it (frame image or image slot), so a Compose without a device (tests) never touches
-the GPU. Uses: `CloudTile` (`air.Tile()`, baked once, read by the sky and the terrain through
+the GPU. Uses: `GroundDetail` (the terrain's details sheet, `painter.Details`, handed in its own
+`opts.Uniforms` by name, as a Direct may hand an image of its own to its draw alone), `CloudTile` (`air.Tile()`, baked once, read by the sky and the terrain through
 `cloudTileAt`); `AirMasses` (`air.DomeImage.Of(dome)`, held by the sky's renderer, each level's
 cells in order so one filtered sample reads a point, a level written as its window moves or a
 patch of it changes, read by `airAt(p)` in every cloud shader: the clouds' cover and billow are

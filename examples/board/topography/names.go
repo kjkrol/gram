@@ -39,6 +39,9 @@ const (
 
 	BoardTopographyStage = "board-topography"
 	MainScene            = "main"
+
+	NaturalLook = "natural"
+	GhibliLook  = "ghibli"
 )
 
 func snowyCell(kind string) string { return "snowy " + kind }

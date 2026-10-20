@@ -96,6 +96,7 @@ type Plugin struct {
 	kept    *plugin.Kept[Settings]
 	look    billboards.Look
 	taking  []render.Taking // by cell, as the kinds last stood
+	swaying []float32
 	takesAt uint64
 	module  *module
 }
@@ -162,32 +163,37 @@ func (s boardSurface) Surface() terrain.Painted {
 		out.Albedo, out.Water, out.Px, out.WaterPx = d.Surface(atlas)
 		if out.Albedo != nil {
 			out.Wet, out.Wetness = d.Wet()
+			out.Kinds = d.Kinds()
+			out.Details, _ = d.Details()
+			out.CellDetails, out.CellDetailsAt = d.CellDetails()
 		}
 	}
 	out.Shores, out.Reach, out.Coast = d.Coast()
-	out.Takes, out.Kinds = s.p.takes()
+	out.Takes, out.Sway, out.Styled = s.p.takes()
 	if line, width, shown := s.p.boardPlugin.Res.Render.Grid(); shown {
 		out.Grid, out.GridLine, out.GridWidth = look.MinGridCell, line, width
 	}
 	return out
 }
 
-// the shade every cell takes, by cell row by row, read anew as the kinds change, with the
-// board's count of those changes
-func (p *Plugin) takes() ([]render.Taking, uint64) {
+// the shade every cell takes and how much it sways, by cell row by row, read anew as the kinds
+// change, with the board's count of those changes
+func (p *Plugin) takes() ([]render.Taking, []float32, uint64) {
 	brd := p.boardPlugin.Board()
 	if v := brd.Version() + 1; p.takesAt != v {
 		p.takesAt = v
-		p.taking = p.taking[:0]
+		p.taking, p.swaying = p.taking[:0], p.swaying[:0]
 		if shape, ok := brd.Shape(); ok && !shape.Hex {
 			for y := range shape.Rows {
 				for x := range shape.Cols {
-					p.taking = append(p.taking, brd.Kind(brd.At(x, y)).Takes)
+					k := brd.Kind(brd.At(x, y))
+					p.taking = append(p.taking, k.Takes)
+					p.swaying = append(p.swaying, float32(k.Sway))
 				}
 			}
 		}
 	}
-	return p.taking, brd.Version()
+	return p.taking, p.swaying, brd.Version()
 }
 
 // the sun the light plugin shines, and the weather the atmosphere gives, as they stand
@@ -246,6 +252,15 @@ func (p *Plugin) Style(name string, s painter.Style) *Plugin {
 
 // StyleOf is how the kind named name looks, as Style set it.
 func (p *Plugin) StyleOf(name string) painter.Style { return p.painter.StyleOf(name) }
+
+// WithShading styles the light on the relief as s says: the sun's light in bands, the shade
+// tinted, the sun warmed. Nothing on a hex board.
+func (p *Plugin) WithShading(s painter.Shading) *Plugin {
+	if p.ground != nil {
+		p.ground.SetShading(s)
+	}
+	return p
+}
 
 // WithHaze has the air haze the ground and what stands on it as thick as the weather makes it,
 // through any camera: far off from an eye, over the ground from above; off by default, all clear.

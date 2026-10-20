@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
+	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -216,9 +217,11 @@ func TestSkirt_RingsTheLatticeFromItsEdge(t *testing.T) {
 	}
 }
 
-func TestFlags_MarkTheCellsWaterMayLieOnAndTheShadeTheyTake(t *testing.T) {
+func TestFlags_MarkTheCellsWaterMayLieOnTheShadeTheyTakeAndTheirSway(t *testing.T) {
 	takes := []render.Taking{0, render.Shines, render.TakesLamps, 0}
-	buf := flags(3, 3, []bool{true, false, false, true}, false, takes, nil)
+	sway := []float32{0, 1, 0.5, 0}
+	kinds := []byte{1, 0, painter.Dressed, 2}
+	buf := flags(3, 3, []bool{true, false, false, true}, false, takes, sway, kinds, nil)
 	for i, want := range []byte{255, 0, 0, 0, 255, 0, 0, 0, 0} {
 		if buf[4*i] != want {
 			t.Errorf("corner %d holds %d, want %d", i, buf[4*i], want)
@@ -230,10 +233,22 @@ func TestFlags_MarkTheCellsWaterMayLieOnAndTheShadeTheyTake(t *testing.T) {
 			t.Errorf("corner %d takes %v, want %v", i, got, want)
 		}
 	}
-	all := flags(3, 3, nil, true, nil, nil)
+	for i, want := range []byte{0, 255, 0, 128, 0, 0, 0, 0, 0} {
+		if buf[4*i+2] != want {
+			t.Errorf("corner %d sways %d, want %d", i, buf[4*i+2], want)
+		}
+	}
+	for i, want := range []byte{1, 0, 255, 255, 2, 255, 255, 255, 255} {
+		if buf[4*i+3] != want {
+			t.Errorf("corner %d carries detail %d, want %d", i, buf[4*i+3], want)
+		}
+	}
+	all := flags(3, 3, nil, true, nil, nil, nil, nil)
 	for i := range 9 {
-		if all[4*i] != 255 || render.Taking(all[4*i+1]) != render.TakesAll {
-			t.Fatalf("with no flags known corner %d holds %v, want wet, taking all", i, all[4*i:4*i+2])
+		if all[4*i] != 255 || render.Taking(all[4*i+1]) != render.TakesAll || all[4*i+2] != 0 ||
+			all[4*i+3] != painter.Dressed {
+			t.Fatalf("with no flags known corner %d holds %v, want wet, taking all, still, dressed",
+				i, all[4*i:4*i+4])
 		}
 	}
 }

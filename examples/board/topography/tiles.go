@@ -27,7 +27,7 @@ var grounds = []ground{
 	{name: WaterCell, kind: cell.Kind{Cost: 1, Allows: wet}},
 	{
 		name:     EarthCell,
-		kind:     cell.Kind{Cost: 2.5, Allows: dry}.Costing(cell.Air, 1),
+		kind:     cell.Kind{Cost: 2.5, Allows: dry, Sway: 0.35}.Costing(cell.Air, 1),
 		snowable: true,
 		upland:   true,
 	},
@@ -49,6 +49,7 @@ var grounds = []ground{
 			Allows: dry,
 			Veil:   0.6,
 			Height: scale.Units(20),
+			Sway:   0.6,
 		}.Costing(cell.Air, 1),
 		snowable: true,
 		upland:   true,

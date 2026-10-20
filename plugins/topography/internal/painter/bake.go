@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
+	public "github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -19,10 +20,20 @@ type groundSheet struct {
 	water   *render.Image
 	wpx     int
 	wcanvas [water.Layers]render.Frame
+	// nil but for the board's own sheet: the detail each pixel's kind carries, in red
+	kinds   *render.Image
+	kcanvas render.Frame
 	painted []uint64
 	dressed []bool
+	// by cell, the detail of its kind, or Dressed where its pixels hold more than one
+	cells   []byte
+	cellsAt uint64
 	seen    uint64
+	styled  uint64
 }
+
+// Dressed marks a cell whose pixels hold more than one kind in CellDetails.
+const Dressed = public.Dressed
 
 var _ render.AtlasSource = (*groundSheet)(nil)
 
@@ -120,14 +131,18 @@ func (l *Painter) newSheet(atlas render.AtlasSource, based bool) *groundSheet {
 	if wpx := min(px, maxSheet/(2*cols), maxSheet/(2*rows)); based && wpx >= minBakePx {
 		s.water, s.wpx = render.NewImage(2*cols*wpx, 2*rows*wpx), wpx
 	}
+	if based {
+		s.kinds = render.NewImage(cols*px, rows*px)
+	}
 	return s
 }
 
 func (l *Painter) paint(s *groundSheet) {
-	if s.seen == l.board.Changes()+1 {
+	if s.seen == l.board.Changes()+1 && s.styled == l.styleVersion {
 		return
 	}
-	s.seen = l.board.Changes() + 1
+	restyled := s.styled != l.styleVersion
+	s.seen, s.styled = l.board.Changes()+1, l.styleVersion
 	n := l.board.CellCount()
 	if len(l.newest) != n {
 		l.newest = make([]uint64, n)
@@ -145,13 +160,29 @@ func (l *Painter) paint(s *groundSheet) {
 			l.unpainted = append(l.unpainted, i)
 		}
 	}
-	if len(l.unpainted) > n/8 {
+	if restyled || len(l.unpainted) > n/8 {
 		l.paintAll(s)
-		return
+	} else {
+		for _, i := range l.unpainted {
+			l.paintCell(s, i)
+		}
 	}
-	for _, i := range l.unpainted {
-		l.paintCell(s, i)
+	l.noteCells(s)
+}
+
+func (l *Painter) noteCells(s *groundSheet) {
+	n := l.board.CellCount()
+	if len(s.cells) != n {
+		s.cells = make([]byte, n)
 	}
+	cols := int(l.sq.Cols)
+	for i := range n {
+		s.cells[i] = Dressed
+		if c, ok := l.cellAt(int64(i%cols), int64(i/cols)); ok && !s.dressed[i] {
+			s.cells[i] = l.detailOf(l.base(c).sprite)
+		}
+	}
+	s.cellsAt++
 }
 
 func (l *Painter) around8(i int, fn func(j int)) {
@@ -211,6 +242,18 @@ func (l *Painter) paintAll(s *groundSheet) {
 			render.Paint(s.water.SubImage(s.waterLayer(q)), &s.wcanvas[q])
 		}
 	}
+	if s.kinds != nil {
+		s.kinds.Clear()
+		s.kcanvas.Reset(nil)
+		for i := range n {
+			l.layKindBase(s, i)
+			l.layKinds(s, i, l.bakes[i].blends, nil)
+		}
+		for i := range n {
+			l.layKinds(s, i, nil, l.bakes[i].ways)
+		}
+		render.Paint(s.kinds, &s.kcanvas)
+	}
 }
 
 func (l *Painter) paintCell(s *groundSheet, i int) {
@@ -241,6 +284,15 @@ func (l *Painter) paintCell(s *groundSheet, i int) {
 			part.Clear()
 			render.Paint(part, &s.wcanvas[q])
 		}
+	}
+	if s.kinds != nil {
+		s.kcanvas.Reset(nil)
+		l.layKindBase(s, i)
+		l.layKinds(s, i, b.blends, nil)
+		l.around8(i, func(j int) { l.layKinds(s, j, nil, l.bakes[j].ways) })
+		part := s.kinds.SubImage(s.cell(uint32(i%cols), uint32(i/cols)))
+		part.Clear()
+		render.Paint(part, &s.kcanvas)
 	}
 }
 

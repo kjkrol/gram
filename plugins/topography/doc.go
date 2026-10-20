@@ -35,7 +35,12 @@
 // ([Plugin.WithAtmosphere]; still, clear air given none): its weather leans what sways and lays
 // the clouds' shadows; its air hazes the ground and what stands on it only when asked
 // ([Plugin.WithHaze], [Haze]): far off from an eye, over the ground from above, all clear by
-// default. How a kind looks beyond its sprite is its painter.Style ([Plugin.Style]).
+// default. How a kind looks beyond its sprite is its painter.Style ([Plugin.Style]): its
+// shine, its flow, how it spreads, and its painter.Detail, a texture laid over its cells seen
+// near as a grain round the kind's own colour, fading out as a cell shrinks on the screen; what
+// sways on a cell (cell.Kind.Sway) leans its grain with the weather's wind, the gusts going over
+// the ground as a wave. How the light is styled is a painter.Shading ([Plugin.WithShading]):
+// the sun's light in bands, the shade tinted, the sun warmed.
 //
 // # Drawing and commands
 //
@@ -60,5 +65,6 @@
 //
 // Commands, a player's: [Raise], [Lower], [Level] (the shaping); [Haze], [Care], [ShowCare] (a
 // look). Settings ([Settings], saved with the game, in [Resources]): the haze, the care, the
-// care shown.
+// care shown. A game's looks: painter.Style and painter.Detail by kind ([Plugin.Style]),
+// painter.Shading ([Plugin.WithShading]).
 package topography

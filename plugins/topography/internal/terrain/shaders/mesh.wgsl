@@ -8,6 +8,7 @@ struct Ground {
     @builtin(position) @invariant clip: vec4<f32>,
     @location(0) world: vec3<f32>,
     @location(1) cloud: f32, // how much of the sun the clouds take, blended between the corners
+    @location(2) sway: vec2<f32>, // how much what stands here sways, the wind's wave over it
 }
 
 // vs_main stands the lattice corner vid, counted row by row, at its height, under as much of the
@@ -29,12 +30,16 @@ fn vs_main(@builtin(vertex_index) vid: u32) -> Ground {
     }
     let p = vec3<f32>(xy, corner(i));
     let off = p.xy - U.Eye.xy;
-    var g = Ground(U.ViewProj * vec4<f32>(p.xy, p.z - U.Bend * dot(off, off), 1.0), p, 0.0);
+    var g = Ground(U.ViewProj * vec4<f32>(p.xy, p.z - U.Bend * dot(off, off), 1.0), p, 0.0,
+        vec2<f32>(0.0));
     // at the corners alone: a cloud spans many cells, and every pixel cost a frame dearly; none on
     // the skirt, whose cells grow so big out to the horizon that the shadows showed as their
     // triangles
     if U.Cover > 0.0 && U.CloudsShadeGround > 0.5 && vid < lattice {
         g.cloud = cloudsShadeAt(p, U.Cell);
+    }
+    if U.DetailPx > 0.0 && vid < lattice {
+        g.sway = vec2<f32>(swayAmountAt(i), swayWave(p.xy));
     }
     return g;
 }
@@ -87,9 +92,13 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
         n = normal(p.xy);
     }
     let sun = lightWay();
+    var flags = vec4<f32>(1.0, 1.0, 0.0, 1.0);
+    if inside {
+        flags = flagsAt(p.xy);
+    }
     var taken = f32(takesRelief | takesBlocks | takesClouds | takesLamps);
     if CARE >= 1u && inside {
-        taken = takesAt(p.xy);
+        taken = takesOf(flags);
     }
     var lit = 0.0;
     if sun.z > 0.0 {
@@ -98,11 +107,28 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
             lit = groundShadeOf(p.xy).r;
         }
     }
-    var light = U.Ambience + U.LightColor * max(dot(n, sun), 0.0) * lit * U.LightStrength;
+    var diffuse = max(dot(n, sun), 0.0);
+    if U.Bands > 0.5 {
+        diffuse = banded(diffuse, U.Bands);
+    }
+    var sunColor = U.LightColor;
+    if U.Warmth > 0.0 {
+        sunColor = mix(U.LightColor, U.LightColor * vec3<f32>(1.08, 0.92, 0.7), U.Warmth);
+    }
+    let shade = 1.0 - diffuse * lit;
+    var light = U.Ambience * mix(vec3<f32>(1.0), U.ShadowTint, shade);
+    light += sunColor * diffuse * lit * U.LightStrength;
     if CARE >= 1u && takes(taken, takesLamps) {
         light += lampLightAt(p);
     }
-    var rgb = albedo(p.xy) * light;
+    var ground = albedo(p.xy);
+    if U.DetailPx > 0.0 && inside {
+        let show = detailShow(span);
+        if show > 0.0 {
+            ground *= mix(vec3<f32>(1.0), grain(p.xy, g.sway, cellDetailAt(flags)), show);
+        }
+    }
+    var rgb = ground * light;
     var cover = g.cloud;
     if !takes(taken, takesClouds) {
         cover = 0.0;
@@ -157,6 +183,33 @@ fn fs_main(g: Ground) -> @location(0) vec4<f32> {
     }
     return vec4<f32>(rgb, 1.0);
 }
+
+// banded is the light d quantised into bands steps, each edge softened a little.
+fn banded(d: f32, bands: f32) -> f32 {
+    let b = d * bands;
+    let k = floor(b);
+    return (k + smoothstep(0.42, 0.58, b - k)) / bands;
+}
+
+// grain is what the details make of the ground's colour at p: their tone doubled, so a tile of
+// mean tone leaves the colour as it is; where what stands sways (sway: how much, the wave over
+// it), the grain leans with the wind (swayShift of a cell at a full lean) and the wave lightens
+// its crests and darkens its troughs, in bands as the light is.
+fn grain(p: vec2<f32>, sway: vec2<f32>, own: f32) -> vec3<f32> {
+    var q = p;
+    var sheen = 0.0;
+    if sway.x > 0.0 {
+        q += swayLean(sway.x, sway.y) * U.Cell * swayShift;
+        sheen = sway.y * swayStrength() * sway.x * swaySheen;
+        if U.Bands > 0.5 {
+            sheen = (step(0.3, sway.y) - step(0.3, -sway.y)) * sway.x * swaySheen;
+        }
+    }
+    return detailAt(q, own) * 2.0 * (1.0 + sheen);
+}
+
+const swayShift = 0.3;
+const swaySheen = 0.12;
 
 // hazeDepth is how much air lies between the eye and the ground point p, world units: its
 // distance from U.Eye, or seen from above (U.HazeUp) the air over p up to that height, along the

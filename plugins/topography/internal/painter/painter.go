@@ -39,18 +39,21 @@ type Painter struct {
 	tops   []cellTop
 	bakes  []cellBake
 	// by corner of a square grid, good while the stamp is shoreStamp
-	shores     []cornerShore
-	shoreStamp uint32
-	shoreFor   uint64
-	wet        []bool
-	wetAt      uint64
-	albedo     *groundSheet
-	newest     []uint64
-	unpainted  []int
-	canvas     render.Frame
-	scratch    look.Tile
-	bakeTile   tile
-	coast      coast
+	shores       []cornerShore
+	shoreStamp   uint32
+	shoreFor     uint64
+	wet          []bool
+	wetAt        uint64
+	albedo       *groundSheet
+	details      *detailSheet
+	detailsBaked uint64
+	styleVersion uint64
+	newest       []uint64
+	unpainted    []int
+	canvas       render.Frame
+	scratch      look.Tile
+	bakeTile     tile
+	coast        coast
 }
 
 var _ look.Dressing = (*Painter)(nil)
@@ -78,7 +81,10 @@ func (l *Painter) WithKinds(kinds cell.Kinds) *Painter {
 }
 
 // Style sets how the kind named name looks in relief beyond its sprite.
-func (l *Painter) Style(name string, s Style) { l.styles[cell.Named(name)] = s }
+func (l *Painter) Style(name string, s Style) {
+	l.styles[cell.Named(name)] = s
+	l.styleVersion++
+}
 
 // StyleOf is how the kind named name looks, as Style set it.
 func (l *Painter) StyleOf(name string) Style { return l.styles[cell.Named(name)] }

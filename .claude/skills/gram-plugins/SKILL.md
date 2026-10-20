@@ -329,7 +329,28 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   sampled per pixel, lit per pixel by the sun and the lamps the frame holds (`lightWay`,
   `lampLightAt`) and shaded as the light baked it (`groundShadeOf`, `render.GroundShade`), each
   cell as its kind's `Takes` says (the bits in the lattice's green beside the wet flag,
-  `Painted.Takes`, `takesAt`); it hands the frame the lattice as `render.GroundHeights`, which the
+  `Painted.Takes`, `takesAt`; how much it sways in the blue, `Painted.Sway`, `swayAmountAt`); a
+  kind's `painter.Style.Detail` (2026-10-20) is a texture over its cells: the painter bakes every
+  detail into one sheet (`Painter.Details`, `painter.DetailPx` a tile, `painter.MaxDetails` 16
+  of them, each tile's `Across` in the uniforms `DetailAcross0..3`, bordered for a seamless
+  wrap, its mean scaled to grey and its hue toned down)
+  and paints the board's kinds beside the albedo (`Painter.Kinds`, each pixel its kind's detail
+  in red, edged hard; the fourth draw image), and the shader (`detail.wgsl`, `grain` in
+  `mesh.wgsl`) takes a uniform cell's detail from the flags' alpha (`Painter.CellDetails`,
+  `painter.Dressed` where the cell's pixels differ: coasts, roads — the kinds sheet is as big as
+  the albedo and reading it every pixel cost ~1.2 ms a frame on an Intel UHD 620), there reads
+  the kinds once blended — four alike blend to their own number — and blends the four pixels'
+  details only where kinds meet (frame image `GroundDetail`, `U.DetailPx` 0 none) into a tone
+  that multiplies the albedo, fading out below `detailNear` pixels a cell (no mipmaps; the
+  details cost 1.7 ms a frame on an Intel UHD 620 at 40 px a cell, 265 to 182 FPS, 2026-10-20:
+  ~0.4 of it the tile sampled minified, the rest the reads — the flags, the kinds where a cell
+  is dressed, the tile; mipmaps in `render/gpu` are the next step, for the far look as much);
+  where a cell sways (`sway.wgsl`, `air.Weather.Sway` ported, gust fronts of `noise`, the
+  amount and the wave worked out at the lattice's corners in `vs_main` and blended) the grain
+  leans with `U.Wind`
+  and the wave lightens its crests; a `painter.Shading`
+  (`WithShading`: `Bands`, `ShadowTint`, `Warmth`, uniforms of the same names) bands the sun's
+  light, tints the shade and warms the sun; it hands the frame the lattice as `render.GroundHeights`, which the
   light's bake reads — the clouds' cover at the corners, water on wet cells, the grid in the
   board's line, fog, a skirt of level ground to the horizon;
   in a world with sectors the indices laid sector by sector, each whole then coarse — every

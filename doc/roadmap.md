@@ -90,6 +90,11 @@ What is left to do. Take an item out when it lands.
 - **The surf follows the cells** — the line of breaking waves (`water.Shore`) runs along the
   cells' edges, not the rounded coast.
 - **Roads in the isometric view** — dark and thin, covered by the routes: their colour and width.
+- **Mipmaps for the ground's details** — `gpu.Texture` holds one level, so a kind's
+  `painter.Detail` fades out below 40 px a cell instead of growing coarse, and sampled minified
+  it costs ~0.4 ms a frame on an Intel UHD 620; levels baked once (a blit a level) and
+  `textureSampleGrad` by the derivatives before `fract` would let it show at every distance and
+  under a low camera.
 - **Two mouths side by side** — two rivers reaching the sea next to each other look like a "U" at
   the water: the drainage joins them by the shore.
 - **Forests come back** — with a plugin for plants; the `forest` kind stays for it. The trees are

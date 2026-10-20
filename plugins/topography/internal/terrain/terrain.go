@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
+	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
@@ -27,12 +28,15 @@ import (
 //go:embed shaders/*.wgsl
 var shaders embed.FS
 
+func init() { render.RegisterImage("GroundDetail") }
+
 // the ground's shader for each care, mesh.wgsl's CARE
 var byCare = [cares]*render.Shader{caring(LeastCare), caring(LessCare), caring(FullCare)}
 
 func caring(care int) *render.Shader {
 	src := render.Files(shaders, "shaders/lattice.wgsl", "shaders/light.wgsl",
-		"shaders/surface.wgsl", "shaders/grid.wgsl", "shaders/mesh.wgsl")
+		"shaders/surface.wgsl", "shaders/detail.wgsl", "shaders/sway.wgsl", "shaders/grid.wgsl",
+		"shaders/mesh.wgsl")
 	src = append([]byte(fmt.Sprintf("const CARE: u32 = %du;\n", care)), src...)
 	return render.NewMeshShaderWith(fmt.Sprintf("terrain-care%d", care), src, []render.Uniform{
 		{Name: "ViewProj", Size: 16}, {Name: "Eye", Size: 3}, {Name: "Bend", Size: 1},
@@ -43,7 +47,8 @@ func caring(care int) *render.Shader {
 		{Name: "GridLine", Size: 4}, {Name: "GridWidth", Size: 1},
 		{Name: "Skirt", Size: 2}, {Name: "Perspective", Size: 1},
 		{Name: "HazeUp", Size: 1}, {Name: "HazeWay", Size: 3},
-		{Name: "Sight", Size: 4},
+		{Name: "Sight", Size: 4}, {Name: "DetailPx", Size: 1},
+		{Name: "Bands", Size: 1}, {Name: "ShadowTint", Size: 3}, {Name: "Warmth", Size: 1},
 	})
 }
 
@@ -65,22 +70,32 @@ type Surface interface {
 
 // Painted is the ground's look: the board painted flat, its water in quadrants of water.Layers,
 // the way to the shore from every lattice corner, the grid and where water may lie. A nil Albedo
-// is plain grey, a nil Water none, a Grid of 0 none, a Wetness of 0 water anywhere.
+// is plain grey, a nil Water none, a Grid of 0 none, a Wetness of 0 water anywhere, a nil
+// Details no detail.
 type Painted struct {
 	Albedo, Water *render.Image
 	Px, WaterPx   int // pixels a cell
-	Shores        []water.Shore
-	Reach         float32    // the farthest a shore is seen from
-	Coast         uint64     // counts the shores' changes
-	Grid          float32    // screen pixels a cell spans from which the grid is drawn
-	GridLine      [4]float32 // premultiplied
-	GridWidth     float32    // screen pixels
-	Wet           []bool
-	Wetness       uint64 // counts the changes of Wet
-	// Takes is, by cell row by row, the shade the cell takes (render.Taking), nil for all;
-	// Kinds counts its changes
-	Takes []render.Taking
-	Kinds uint64
+	// Kinds is the detail each pixel's kind carries, Px pixels a cell as the Albedo; Details
+	// the kinds' details baked (painter.DetailPx pixels a tile), nil without one; CellDetails
+	// by cell the detail of its kind, or Dressed where Kinds must be read, CellDetailsAt
+	// counting its changes
+	Kinds, Details *render.Image
+	CellDetails    []byte
+	CellDetailsAt  uint64
+	Shores         []water.Shore
+	Reach          float32    // the farthest a shore is seen from
+	Coast          uint64     // counts the shores' changes
+	Grid           float32    // screen pixels a cell spans from which the grid is drawn
+	GridLine       [4]float32 // premultiplied
+	GridWidth      float32    // screen pixels
+	Wet            []bool
+	Wetness        uint64 // counts the changes of Wet
+	// Takes is, by cell row by row, the shade the cell takes (render.Taking), nil for all, and
+	// Sway how much what stands on it bends in the wind, nil for none; Styled counts their
+	// changes
+	Takes  []render.Taking
+	Sway   []float32
+	Styled uint64
 }
 
 // Sky is the air over the ground, for how far one sees through it.
@@ -102,12 +117,13 @@ type Renderer struct {
 	sky     Sky
 	cfg     Config
 	hazed   bool
+	shading painter.Shading
 
 	// quadrants: heights, normals, wet cells, shores
 	lattice   *render.Image
 	heightsAt uint64 // one more than the ground's version the heights hold; 0 none
 	coastAt   uint64
-	wetAt     [2]uint64
+	wetAt     [3]uint64
 	low, span float32
 	buf       []byte
 	mesh      *render.Indices
@@ -196,7 +212,7 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		}
 		albedo = r.plain
 	}
-	r.opts.Images = [4]*render.Image{r.lattice, albedo, r.painted.Water, nil}
+	r.opts.Images = [4]*render.Image{r.lattice, albedo, r.painted.Water, r.painted.Kinds}
 	r.opts.Depth = t.Depth
 	r.drawn = r.runs(cam, r.drawn[:0])
 	for c := range r.ranges {
@@ -232,6 +248,11 @@ func (r *Renderer) prepare(cam camera.Camera, u render.Uniforms) bool {
 		return false
 	}
 	u.Into(r.opts.Uniforms)
+	if r.painted.Details != nil {
+		r.opts.Uniforms["GroundDetail"] = r.painted.Details
+	} else {
+		delete(r.opts.Uniforms, "GroundDetail")
+	}
 	r.setUniforms(t, cam)
 	r.set("Perspective", flag(perspective(field)))
 	return true
@@ -255,7 +276,7 @@ func (r *Renderer) refresh(cam camera.Camera) bool {
 	}
 	if r.lattice == nil || r.lattice.Bounds().Dx() != 2*cols || r.lattice.Bounds().Dy() != 2*rows {
 		r.lattice = render.NewImage(2*cols, 2*rows)
-		r.heightsAt, r.coastAt, r.wetAt = 0, 0, [2]uint64{}
+		r.heightsAt, r.coastAt, r.wetAt = 0, 0, [3]uint64{}
 	}
 	if v := r.ground.Version() + 1; r.heightsAt != v {
 		r.heightsAt = v
@@ -275,10 +296,11 @@ func (r *Renderer) refresh(cam camera.Camera) bool {
 		r.buf = shores(cols, rows, r.painted.Shores, r.painted.Reach, r.buf[:0])
 		r.write(cols, rows, cols, rows)
 	}
-	if v := [2]uint64{r.painted.Wetness + 1, r.painted.Kinds + 1}; r.wetAt != v {
+	v := [3]uint64{r.painted.Wetness + 1, r.painted.Styled + 1, r.painted.CellDetailsAt + 1}
+	if r.wetAt != v {
 		r.wetAt = v
 		r.buf = flags(cols, rows, r.painted.Wet, r.painted.Wetness == 0, r.painted.Takes,
-			r.buf[:0])
+			r.painted.Sway, r.painted.CellDetails, r.buf[:0])
 		r.write(0, rows, cols, rows)
 	}
 	return true
@@ -298,20 +320,31 @@ func (r *Renderer) relay(cam camera.Camera, cols, rows int, cell float32) {
 }
 
 // a cell's flags at its top-left corner: whether water may lie on it in red, the shade it takes
-// in green
-func flags(cols, rows int, wet []bool, all bool, takes []render.Taking, dst []byte) []byte {
+// in green, how much what stands on it sways in blue, the detail of its kind in alpha
+// (painter.Dressed where its pixels differ, as they do where no kinds are given)
+func flags(cols, rows int, wet []bool, all bool, takes []render.Taking, sway []float32,
+	kinds []byte, dst []byte) []byte {
 	for y := range rows {
 		for x := range cols {
 			i := y*(cols-1) + x
+			inside := x < cols-1 && y < rows-1
 			v := byte(0)
-			if all || x < cols-1 && y < rows-1 && i < len(wet) && wet[i] {
+			if all || inside && i < len(wet) && wet[i] {
 				v = 255
 			}
 			t := render.TakesAll
-			if i < len(takes) && x < cols-1 && y < rows-1 {
+			if inside && i < len(takes) {
 				t = takesOf(takes[i])
 			}
-			dst = append(dst, v, byte(t), 0, 255)
+			s := byte(0)
+			if inside && i < len(sway) {
+				s = byte(min(max(sway[i], 0), 1)*255 + 0.5)
+			}
+			k := byte(painter.Dressed)
+			if inside && i < len(kinds) {
+				k = kinds[i]
+			}
+			dst = append(dst, v, byte(t), s, k)
 		}
 	}
 	return dst
@@ -444,6 +477,9 @@ func decode(hi, lo byte, low, span float32) float32 {
 // Haze says whether the air hazes the ground through any camera; off, it is drawn clear.
 func (r *Renderer) Haze(on bool) { r.hazed = on }
 
+// SetShading styles the light on the ground as s says.
+func (r *Renderer) SetShading(s painter.Shading) { r.shading = s }
+
 func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	cols, rows, cell, _, _ := r.ground.Lattice()
 	r.set("ViewProj", t.M[:]...)
@@ -486,6 +522,18 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	r.set("Visibility", seeing)
 	r.set("HazeUp", up)
 	r.set("HazeWay", way[:]...)
+	detail := float32(0)
+	if r.painted.Details != nil && r.painted.Kinds != nil {
+		detail = painter.DetailPx
+	}
+	r.set("DetailPx", detail)
+	r.set("Bands", float32(r.shading.Bands))
+	tint := [3]float32{1, 1, 1}
+	if c := r.shading.ShadowTint; c != (color.RGBA{}) {
+		tint = [3]float32{float32(c.R) / 255, float32(c.G) / 255, float32(c.B) / 255}
+	}
+	r.set("ShadowTint", tint[:]...)
+	r.set("Warmth", r.shading.Warmth)
 }
 
 // times farther from the world's middle than its edge: to the horizon seen from under the

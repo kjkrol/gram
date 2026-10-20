@@ -1,7 +1,8 @@
 // What lies on the ground: the board painted flat, the second image, U.Px pixels a cell and
 // U.AlbedoSize in all; its water, the third, U.WaterPx pixels a cell in quadrants of the cells'
 // size (terrain.WaterLayers), the flows over U.FlowSpan, none where U.WaterPx is 0; the way to
-// the shore from the lattice's bottom-right quadrant, the distance over U.ShoreReach.
+// the shore from the lattice's bottom-right quadrant, the distance over U.ShoreReach; the kinds'
+// details, the fourth image and GroundDetail, in detail.wgsl.
 
 // albedo is the board's colour at the world point p: blended between the four pixels of the
 // board painted flat round it, one picture over the whole board, so a way runs on across the
@@ -25,11 +26,17 @@ fn wetAt(p: vec2<f32>) -> bool {
     return imageSrc0At(imageSrc0Origin() + vec2<f32>(0.0, U.Corners.y) + i + 0.5).r > 0.5;
 }
 
-// takesAt is the shade the cell at p takes, its bits (render.Taking) in the green of the
-// lattice's bottom-left quadrant.
-fn takesAt(p: vec2<f32>) -> f32 {
+// flagsAt is the flags of the cell at p, from the lattice's bottom-left quadrant: whether water
+// may lie on it in red, the shade it takes in green (render.Taking, takesOf), how much what
+// stands on it sways in blue, its kind's detail in alpha (cellDetailAt).
+fn flagsAt(p: vec2<f32>) -> vec4<f32> {
     let i = clamp(floor(p / U.Cell), vec2<f32>(0.0), U.Corners - 2.0);
-    return imageSrc0At(imageSrc0Origin() + vec2<f32>(0.0, U.Corners.y) + i + 0.5).g * 255.0;
+    return imageSrc0At(imageSrc0Origin() + vec2<f32>(0.0, U.Corners.y) + i + 0.5);
+}
+
+// takesOf is the shade a cell with the flags flags takes, its bits (render.Taking).
+fn takesOf(flags: vec4<f32>) -> f32 {
+    return flags.g * 255.0;
 }
 
 // waterAt is the water's layer q (its quadrant, 0 or 1 across and down) at p, blended between the
