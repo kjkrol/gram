@@ -731,9 +731,55 @@ każde demo z kamerami pod `timeout`, pomiar bazy i drzewa naprzemiennie na bezc
 `CHANGELOG.md`, skille, sekcja „Etap N: wynik” tutaj, `--no-ff` do `main`, worktree usunięte,
 gałęzie części zostawione do przeglądu.
 
-**Stan** (integrator aktualizuje): fala 1 w toku od 2026-10-20 wieczorem: na życzenie
-użytkownika („możesz zaczynać”) pięć części idzie jako agenty Opus 5.5 w worktree
-(`/home/karol/worktrees/{gram/astar,gram/aloft,gram/placed,aabbworld/runs,goke/chunk-versions}`),
-gałęzie `n/astar`, `r/aloft`, `r/placed`, aabbworld `feat/runs`, goke `feat/chunk-versions`;
-gałęzie etapów `perf/navigation`, `perf/chunk-runs`, `perf/chunk-versions`, `perf/layer-levers`
-założone od `main` `e797a753`.
+**Stan** (integrator aktualizuje, 2026-10-20 22:00): fala 1 zrobiona przez pięć agentów Opus 5.5
+w worktree (na życzenie użytkownika „możesz zaczynać”, zamiast sesji). 2a i R1 + dziura z R2
+scalone do `main` (`aecf9f9c`, `9b90af6d`); 3a i 4a zweryfikowane na swoich gałęziach i czekają
+na przegląd, scalenie i wydanie użytkownika (aabbworld `feat/runs` → v1.14.0, goke
+`feat/chunk-versions` → v3.6.0, oba z podbiciem `gram/go.mod`); drugi commit R2 (`444c40a7`,
+Directy umieszczane) nie scalony, decyzja niżej. Następne: 2b (od `main`, gotowe do startu),
+3b po wydaniu aabbworld, 4b po 3b i wydaniu goke. Gałęzie części zostają do przeglądu,
+worktree gram usunięte.
+
+## Fala 1: wynik (2026-10-20)
+
+Pomiar integratora szeregowo na bezczynnej maszynie (load 0,9–2,2), baza = `main` `e797a753`
+(aabbworld `main` v1.13.0, goke `main` v3.5.0) i drzewo na przemian; liczby agentów brane pod
+obciążeniem 4–34 tylko orientacyjnie.
+
+| Część | Co | Baza | Drzewo |
+|:--|:--|--:|--:|
+| 2a | `Navigation_Tick` open 100 / 1 000 | 799 µs / 9,56 ms | 425 µs / 6,32 ms |
+| 2a | `Navigation_Tick` crowded 100 / 1 000 | 2,85 / 306 ms | 1,16 / 104 ms |
+| 2a | `Navigation_Path` 200×200 (baza agenta) | 94 ms, 14 740 alok. | 18,4 ms, 19 alok. |
+| R2 dziura | wyspa izo / footed w warstwach | 15,6 / 17,1 ms | 13,9 / 15,4 ms |
+| R2 dziura | to samo z ostrymi figurami | 18,2 / 19,3 ms | 16,6 / 17,9 ms |
+| R1 | chmury w przebiegu górnym, 1440p, grunt 0,6 (agent, w procesie) | 6,1 ms | 3,7 ms |
+| 3a | `Column_RebuildQueryTick` bez ticku: items / runs | 248 µs | 204 µs |
+| 3a | to samo z tickiem kolizji, spread / crowd | 1,29 / 4,31 ms | 1,24 / 4,11 ms |
+| 3a | stare wejście: `BroadPhase` tick, minima | 1,78–8,37 ms | +1–3% |
+| 4a | `Mut` wobec `Comp`: przejście 65 536 / `SeekH` 512 | 40,0 µs / 2,5 µs | 40,8 µs / 2,9 µs |
+| 4a | `Matcher_*` (bez `Mut`) | — | ±3% |
+
+**Wnioski.** Nawigacja: 2,9× w tłoku, 1,5× w otwartym polu, trasy identyczne (golden). Dziura:
+1,3–1,8 ms z każdej klatki w warstwach, obraz bez zmian. Przebiegi aabbworld zdejmują kopię
+(−18% w samym przebudowaniu), ale z tickiem kolizji zysk w aabbworld to 4–5%: prawdziwa liczba
+przyjdzie z 3b (`World_Tick`, gdzie kopia `Base` → `Item` to 54%). Stare wejście aabbworld kosztuje
+1–3% więcej (wskaźnik w `Entry`), mediany pod szumem do +13%. Wersje goke: zero w ciele pętli,
++2% na przejściu przez `Mut`, +16% na `SeekH` z `Mut.At`; `WithMutCheck` 7,9 ns na encję na `Sync`.
+
+**Decyzja: Directy umieszczane (R2, drugi commit) nie wchodzą.** Dają 0,25–0,4 ms CPU w demie,
+ale na wyspie kosztują 0,1–0,4 ms GPU (warstwy wewnętrzne rysują sektory całego kadru), wnoszą
+~670 linii mechanizmu (nagrywanie i odtwarzanie rysowań, `gpu.Record`) z kryterium opartym na
+skanie tekstu WGSL (`Program.ReadsPosition`), a dla ośmiu Directów i tak zostaje rysowanie per
+warstwa. Wariant „bez przebiegu nieprzezroczystego” dał w demie −0,06/−0,13 ms. Zysk nie
+równoważy złożoności (zob. pamięć: „uproszczenie ma zmniejszać ślad”); commit zostaje na
+`r/placed` do decyzji użytkownika.
+
+**Co zastano i do zgłoszenia.** aabbworld: `internal/raycast` `TestProfile_SeesWhatAFineStepSees`
+pada 1–2 razy na 40 biegów także na `main`; `Scan` w świecie zawijanym alokuje 3 razy na wywołanie
+(`raycast.splitAxis`). goke: zapisy przez `Column`, `OptColumn`, `OptComp` nie są liczone (ceremony
+pisze efekty przez `OptColumn`: brief 4b), równoległe zapisy przez `Mut` jednego archetypu
+ścigają się na liczniku chunka (gram i ceremony nie używają `RunParallel`); `RemoveCompOne` k razy
+na jednej encji to k migracji przez archetypy pośrednie (luka poza `Editor`, nie robiona). astar:
+słowniki na mapach to ~12% ticku w tłoku, a `expandCurrent` gubi bufor, który `append` urósł
+(obejście `WithSuccessorCapacity`); propozycje dla właściciela astar.

@@ -19,6 +19,26 @@ Wolno: `plugins/motion/move_system.go` (+ testy), `plugins/world/module.go` (ind
 testy tych pakietów, `bench/world_test.go`, `bench/collision_test.go`. Nie wolno: aabbworld
 (wydane), goke, `Base` jako typ (ponad sto plików), ceremony, `examples/`.
 
+## Co wiadomo z 3a (aabbworld v1.14.0)
+
+- API: `aabbworld.Run{IDs, Base, Stride, BoxOff, CapsOff}`, `RunOf(ids, rows, box, caps)` (liczy
+  offsety, długość to `len(IDs)`), `Space.RebuildRuns(runs, items)`; `Rebuild(items)` to
+  `RebuildRuns(nil, items)`; pozycje płaskie: najpierw przebiegi, potem items (sweepy).
+- `Moved` i `Left` podają pudełko, które już leży w pamięci przebiegu: zapis `...Pos.AABB = l.Box`
+  dla wychodzących przez otwartą krawędź jest zbędny.
+- Dopisanie encji do tabeli nie zmienia `TableVer`: flaga `unindexed` w world zostaje, a przebiegi
+  zbiera się od nowa po każdym `Sync`, który mógł przenieść trzymaną encję (motion przebudowuje
+  przed swoim `Sync`, w którym ląduje `Outside`, więc collision i każdy czytający space po `Sync`
+  zbiera sam: `RunOf(cur.IDs, base.Slice(cur), …)` na chunk, O(chunków)).
+- `Capability` w `Entry` jest wartością czytaną raz na Rebuild: nie może się zmienić między
+  Rebuild (zapis `side()` w środku ticku nie zmienia tego, co widzi bieżący Tick, jak dziś).
+- Weto w `moved`: pchnięcie jest już zapisane, gdy przychodzi `Moved`. Każde pchnięcie
+  poprzedza `Touch`/`TouchField` tej pary albo komórki, więc handler może przy pierwszym `Touch`
+  encji w ticku odłożyć jej pudełko sprzed ticku i przy `response.Worse` przywrócić je do
+  `Base.Pos`; grid przeindeksuje się z pamięci. Encja spoza `lookup`: pchnięcie też już jest w
+  `Base`, cofnąć, jeśli ma go nie być.
+- Mapa id → pozycja jest leniwa: pierwszy `Scan` po Rebuild ją płaci.
+
 ## Kroki
 
 1. Pomiar przed: `Benchmark_World_Tick` (1 000, 5 000) i `Benchmark_Collision_Tick` z
