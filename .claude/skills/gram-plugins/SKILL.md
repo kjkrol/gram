@@ -394,7 +394,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `ui.TopMiddle`), `*ui.Element`s the scene places; the old `HUD()` renderers are gone.
   `Reporter()` lists the daylight, the clouds and their shadows alone: the time, the season,
   the moon and the weather are the widgets' (a game without them adds
-  `Calendar().Reporter()` and `Climate().Reporter()`).
+  `Calendar().Reporter()` and `Climate().Reporter()`). The settings screen's atmosphere section
+  has a choice "Weather" of the climate's weathers by name (`SetWeather{Name}`; `Climate.Now()`
+  the one over the world's middle, set by the system) where the Config has any.
   `atmosphere/calendar`: the clock at a fixed scale — a day every `Config.DayRealTime` from
   `Start` in the middle of `Season`, a `GameYear` of 8 days and a 4-day moon or an `EarthYear`;
   `Calendar.Now()` a `Moment{Date, Time, Year}` (`OfYear`, `Season`, `Moon`, `Hour`, `Written`),
@@ -1063,7 +1065,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   focusable; `Show`/`Hide`/`Toggle`/`Shown` on a `game.Composition`. Two modes (2026-10-20,
   etap V): `Basic` shows FPS, TPS, Frame and Entities alone, `Extended` every line (the clock's,
   `With`, `Line`); `Mode`/`SetMode`, `Res.Settings{Extended}` kept with the game
-  (`plugin.Keep`, `Restorer`). A many-valued line is a value of several lines, each under the
+  (`plugin.Keep`, `Restorer`). The panel draws itself (a `ui.Drawer` of the scene, top-left):
+  the labels bold, a value beside its label or under it indented, a line wider than
+  `panelWrap` (260 px) wrapped with its rest indented, the plate as wide as the lines have run
+  since the mode changed (`stale` on `SetMode`), so a panel back to the basics shrinks. A many-valued line is a value of several lines, each under the
   label indented as Frame's: the light's `sun 0.71` / `lamps 1` / `shadows of 1`, the sky's
   `Daylight` (was "Light"), the cameras' `Picture` (the profile, the pixels, the layers or
   the figures sharp, the following), the topography's `Ground` (the reach, a care a line:
@@ -1083,15 +1088,16 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `lens` (an inner `camera.Camera` straight down, over `cam`'s `Focus`, turned so `camera.Headed`
   `Ahead` runs up when turning, `min(w, h) / (2·Reach)` pixels a unit, the shorter way round a
   torus; neither in the cameras' list — no anchor, not saved — nor in `ctx.Draws`) and a
-  composer of four sources: the ground (`Ground.Miniature() (img, perUnit)`, drawn opaque with
+  composer of three sources: the ground (`Ground.Miniature() (img, perUnit)`, drawn opaque with
   `GeoM` scale, turn, copies round a torus; none, the element's `Fill` shows), the marks (the
   space's ids in the picture's rectangle, each kind's `Mark{Color, Size}` declared
   `Styled(minimap.Mark{...})` in its figure's `Look`, looked up once a sprite; a square dot
   `OnTop(1)`; a kind without one not drawn) and the outline of `cam`'s screen on the ground
-  (`camera.Picker`, past the horizon cut at twice the reach; `OnTop(2)`) and north, a red bold
-  "N" within the circle's edge at 0.86 of the reach (`compassView`, `render.DrawText` on
-  `Target.Screen`; `OnTop(3)`), at the top north up, turned with the picture as the minimap
-  turns (2026-10-20). Drawn anew at most 30
+  (`camera.Picker`, past the horizon cut at twice the reach; `OnTop(2)`). North is a second
+  element, `Compass(cam) *ui.Element` (2026-10-20): a red bold "N" (Go Bold 28) hung on the
+  circle's edge three quarters out, turned round it as the minimap turns, a transparent picture
+  the scene lays over the minimap in a box `minimap.Overhang` (20) bigger on every side
+  (`ui.Layers(ui.Center(minimap).Size(220, 220), compass)` sized 260). Drawn anew at most 30
   times a second (`paced`), the last picture in between. A press on it is its own
   (`ui.Clicked`): `cameras.CenterAt` with the world point under it as the issuer's; the player's
   picture under it is covered (`ui.Hovered`), so the cursor there neither scrolls nor turns.

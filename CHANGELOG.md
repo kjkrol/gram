@@ -85,8 +85,12 @@ etap T of `doc/plans-perf.md`)
   Every many-valued line is a value of lines under its label, as Frame's: the light's, the
   cameras' Picture, the topography's Ground (a care a line), the world's sectors, the
   calendar's season.
-- The minimap marks north: a red bold "N" within the circle's edge, at the top north up,
-  turned with the picture as the minimap turns.
+- The minimap marks north: `Compass(cam)`, a red bold "N" hung on the circle's edge three
+  quarters out, turned round it as the minimap turns, laid over the minimap by the scene in a
+  box `minimap.Overhang` bigger on every side.
+- The telemetry panel draws itself: the labels bold, a line too wide wrapped with its rest
+  indented, the plate shrinking back as the mode goes to the basics. The settings screen's
+  atmosphere section chooses the weather by name (`Climate.Now()`).
 
 **The picture by the camera's state: profiles, footed layers, one composition** (2026-10-20,
 etap U of `doc/plans-perf.md`)
