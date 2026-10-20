@@ -100,9 +100,17 @@ func TestSettings_TheScreenListsEveryTunableAndItsControlsIssue(t *testing.T) {
 	s := p.settings.screen
 	s.Drawers()
 	s.Lay(screen)
-	box := s.Element("setting:Shadows")
+	box := s.Element("setting:Picture/Graphics/Shadows")
 	if box == nil {
 		t.Fatal("no checkbox for the light's Shadows on the screen")
+	}
+	for _, name := range []string{
+		"setting:Picture/Tactical/Resolution",
+		"setting:Picture/Riding/Resolution",
+	} {
+		if s.Element(name) == nil {
+			t.Errorf("no %s on the screen: a label in two sections is two settings", name)
+		}
 	}
 	at := box.Box().TopLeft.Add(geom.NewVec(4, 4))
 	events := &control.InputEvents{MousePos: at, ClickQueue: []control.ClickEvent{
@@ -137,7 +145,8 @@ func TestSettings_SectionsComeFirstCentredAndAMovedSettingSitsUnderItsSubheading
 		t.Errorf("Picture at %v, Players at %v; want the shared section first", picture.TopLeft,
 			players.TopLeft)
 	}
-	graphics, shadows := boxOf("section:Picture/Graphics"), boxOf("setting:Shadows")
+	graphics := boxOf("section:Picture/Graphics")
+	shadows := boxOf("setting:Picture/Graphics/Shadows")
 	// the column the subheading lies in, whichever the height broke it into
 	var column geom.AABB
 	for i := 0; ; i++ {

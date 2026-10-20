@@ -46,18 +46,13 @@ type Config struct {
 	// how far every camera sees and how finely as it is made (Sight changes it); zero, as far as
 	// the world goes, every bit
 	Detail camera.Detail
-	// Resolution is the share of the pixels every picture but a minimap's is drawn at as the
-	// cameras are made, LeastResolution up to 1 (zero, all of them), the centre layer's in layers;
-	// Layers has them drawn in layers from the start (Settings.Layers); Strategy has their
-	// resolution follow the FrameBudget from the start (Adapt), the time a frame may take (zero,
-	// a sixtieth of a second): a rate the vsync caps is met, never exceeded.
-	Resolution  float32
-	Strategy    Strategy
-	Layers      bool
+	// how every picture but a minimap's is drawn from the start (Settings.Tactical, Riding): a
+	// camera's free, over or behind an entity by Tactical, one's inside an entity by Riding, the
+	// resolution following the FrameBudget where the Strategy says, the time a frame may take
+	// (zero, a sixtieth of a second): a rate the vsync caps is met, never exceeded
+	Tactical    Knobs
+	Riding      Knobs
 	FrameBudget time.Duration
-	// the figures following the ground's resolution from the start (Settings.SoftFigures);
-	// zero, drawn at every pixel
-	SoftFigures bool
 }
 
 // plain is the camera from above that neither turns nor tilts nor sees anything in relief
@@ -109,6 +104,7 @@ type Plugin struct {
 	zonesView   *zonesView
 	layersView  *layersView
 	adapter     adapter
+	worn        map[camera.Camera]dressed
 	kept        *plugin.Kept[Settings]
 	module      *module
 
@@ -124,25 +120,15 @@ var _ plugin.Restorer = (*Plugin)(nil)
 // A Config seeing in relief (any but the plain one) panics without a Cell or over a world that
 // wraps.
 func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
-	p := &Plugin{worldPlugin: worldPlugin, cfg: cfg}
+	p := &Plugin{worldPlugin: worldPlugin, cfg: cfg, worn: map[camera.Camera]dressed{}}
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.zonesView = &zonesView{settings: &p.Res.Settings}
 	p.layersView = &layersView{settings: &p.Res.Settings}
 	p.kept = plugin.Keep(&p.Res.Settings)
-	p.Res.Settings = Settings{
-		Resolution:  1,
-		SoftFigures: cfg.SoftFigures,
-		Layers:      cfg.Layers,
-		Inner:       0.35,
-		Middle:      0.6,
-		OuterRes:    0.6,
-		MiddleRes:   0.8,
-	}
-	if cfg.Resolution > 0 {
-		p.Res.Settings.Resolution = clamped(cfg.Resolution)
-	}
+	p.Res.Settings = Settings{Tactical: cfg.Tactical.filled(), Riding: cfg.Riding.filled()}
 	p.SetBudget(cfg.FrameBudget)
-	p.SetStrategy(cfg.Strategy)
+	p.SetStrategy(Tactical, cfg.Tactical.Strategy)
+	p.SetStrategy(Riding, cfg.Riding.Strategy)
 	worldPlugin.Anchor(anchors{p})
 	if !cfg.plain() {
 		if edges := worldPlugin.Res.Config.Space.Edges; edges.WrapsX() || edges.WrapsY() {
@@ -192,20 +178,20 @@ func (p *Plugin) New(start Start, cfg camera.Config) camera.Camera {
 		cam = made(space.Width, space.Height, space.Edges, cfg)
 	}
 	cam.(seeing).SetDetail(p.cfg.Detail)
-	p.dress(cam)
 	at := len(p.cameras)
 	p.cameras = append(p.cameras, cam)
-	if p.loaded && at < len(p.saved) {
+	switch {
+	case p.loaded && at < len(p.saved):
 		p.restore(at)
-		return cam
-	}
-	if cfg.Follow != "" {
+	case cfg.Follow != "":
 		f, ok := cam.(camera.Fastenable)
 		if !ok {
-			panic(fmt.Sprintf("cameras: a %T cannot be fastened, so cannot follow %q", cam, cfg.Follow))
+			panic(fmt.Sprintf("cameras: a %T cannot be fastened, so cannot follow %q", cam,
+				cfg.Follow))
 		}
 		p.starts = append(p.starts, starting{cam: f, whom: ceremony.Named(cfg.Follow)})
 	}
+	p.dress(cam)
 	return cam
 }
 
@@ -259,20 +245,24 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 }
 
 // RunPlan carries out the cameras' commands and keeps every camera fastened to its entity, at
-// once, in the tactical pause too; call it after whatever moves the entities.
+// once, in the tactical pause too, each dressed by its profile; call it after whatever moves the
+// entities.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.switchZones()
 	if f := p.adapter.step(time.Now(), render.ActualFPS()); f != 1 {
 		p.redraw(f)
 	}
 	p.module.RunPlan(ctx, d)
+	p.redressChanged()
 }
 
-// redraw has every picture but a minimap's drawn at factor times its resolution, the Settings
-// showing the lead camera's
+// redraw has every picture but a minimap's whose profile follows the frame budget drawn at
+// factor times its resolution, the Settings showing the lead camera's
 func (p *Plugin) redraw(factor float32) {
 	for _, cam := range p.cameras {
-		p.apply(cam, factor)
+		if p.Strategy(ProfileOf(cam)) != Still {
+			p.apply(cam, factor)
+		}
 	}
 	p.note(p.lead())
 }
@@ -292,9 +282,10 @@ func (p *Plugin) apply(cam camera.Camera, factor float32) bool {
 	return true
 }
 
-// Reporter is the cameras' part of the telemetry panel: the share of its pixels each picture is
-// drawn at, layer by layer in layers with the layers' shares, the figures sharp where a coarser
-// picture draws them at every pixel, and the budget it follows, or still.
+// Reporter is the cameras' part of the telemetry panel: the lead camera's profile, the share of
+// its pixels each picture is drawn at, layer by layer in layers with the layers' shares, the
+// figures sharp where a coarser picture draws them at every pixel, and the budget it follows, or
+// still, as the lead camera's profile says.
 func (p *Plugin) Reporter() render.Reporter { return reporter{p} }
 
 type reporter struct{ p *Plugin }
@@ -302,6 +293,10 @@ type reporter struct{ p *Plugin }
 func (reporter) Init(*goke.SysInit) {}
 
 func (r reporter) Report(line func(label, value string)) {
+	lead := r.p.lead()
+	if lead == nil {
+		return
+	}
 	var shares []string
 	coarse := false
 	for _, cam := range r.p.cameras {
@@ -310,21 +305,20 @@ func (r reporter) Report(line func(label, value string)) {
 			coarse = coarse || camera.ResolutionOf(cam) < 1
 		}
 	}
-	if len(shares) == 0 {
-		return
-	}
-	s := r.p.Res.Settings
-	value := strings.Join(shares, ", ") + " of the pixels"
+	profile := ProfileOf(lead)
+	k := r.p.knobs(profile)
+	value := profile.String() + ", " + strings.Join(shares, ", ") + " of the pixels"
 	switch {
-	case s.Layers:
-		value += fmt.Sprintf(" in layers at %.0f%% and %.0f%%", s.Middle*100, s.Inner*100)
-	case coarse && r.p.SharpFigures():
+	case k.Layers:
+		value += fmt.Sprintf(" in layers at %.0f%% and %.0f%%", k.Middle*100, k.Inner*100)
+	case coarse && !k.SoftFigures:
 		value += ", the figures sharp"
 	}
-	if s.Strategy == Still {
+	if k.Strategy == Still {
 		value += ", still"
 	} else {
-		value += fmt.Sprintf(", following a budget of %.0f FPS", budgetRate(s.FrameBudget))
+		budget := budgetRate(r.p.Res.Settings.FrameBudget)
+		value += fmt.Sprintf(", following a budget of %.0f FPS", budget)
 	}
 	line("Picture", value)
 }
@@ -353,14 +347,16 @@ func (p *Plugin) Serializable() plugin.Serializable { return persisted{p} }
 // they are made, and takes the Settings loaded, the pictures drawn as they say.
 func (p *Plugin) Restore() {
 	p.kept.Restore()
-	p.adapter = adapter{on: p.Res.Settings.Strategy != Still, budget: p.Res.Settings.FrameBudget}
+	s := &p.Res.Settings
+	s.Tactical = s.Tactical.filled()
+	s.Riding = s.Riding.filled()
+	p.adapter = adapter{on: p.anyFollowing()}
+	p.SetBudget(s.FrameBudget)
 	p.loaded = true
-	for at, cam := range p.cameras {
-		if at < len(p.saved) {
-			p.restore(at)
-		}
-		p.dress(cam)
+	for at := range min(len(p.cameras), len(p.saved)) {
+		p.restore(at)
 	}
+	p.redress()
 }
 
 func (p *Plugin) restore(at int) {
