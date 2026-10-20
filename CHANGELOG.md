@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+**The layers leave out what covers them** (2026-10-20, the layer levers after etap U, part R2)
+- In layers each layer but the innermost leaves out the ground under the next one's window,
+  inside its feather (`render.Laid.DrawLayer` takes the window a later layer covers,
+  `gpu.FillDepth` fills it with the nearest depth before the ground): the preset's layers draw
+  about 0.52 of the frame's pixels, not 0.71; the island's layered frame is 1.3–1.8 ms faster
+  (iso in layers 15.6 → 13.9 ms, footed 17.1 → 15.4, sharp 18.2 → 16.6 and 19.3 → 17.9), the
+  pictures the same.
+
 **The clouds over a coarse ground** (2026-10-20, the layer levers after etap U, part R1)
 - With the figures at every pixel over a ground drawn coarser (a resolution under 1, or in
   layers), aloft works its clouds out at a quarter of the ground's pixels each way, not the
