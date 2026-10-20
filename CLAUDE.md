@@ -98,6 +98,26 @@ change.
 CI (`.github/workflows/go.yml`) runs
 `xvfb-run -a go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...` on Go 1.27.0.
 
+## A stage in parts
+
+A stage of several parts (`doc/plans-perf.md` names them) is run as the user asked (2026-10-20):
+the integrator (the session the user talks to) plans the stage, lays the contracts the parts build
+on in a prelude on the stage's branch, then hands each part to an agent of its own (Opus 5.5:
+the Agent tool with `model: opus`) in a worktree of its own on a branch `<stage>/<part>` from the
+prelude's commit. The worktree stands outside `/home/karol/CODE`, which `go.work` governs (one
+under it builds nothing: "directory … does not contain modules listed in go.work"):
+`git worktree add /home/karol/worktrees/gram/<part> -b <stage>/<part>`; there `go.mod`'s tagged
+goke and ceremony serve. A part's brief is the plan's section for it: the goal, the files it may
+touch and the seams it may not, the contracts it codes against, the tests to add. A part's agent
+reads the skills of the layers its files are in, keeps to its files, runs the verification
+sequence before every commit, commits on its branch with the conventional prefixes and the
+session trailer (no `Co-Authored-By`), and touches no docs, skills, `BENCHMARKS.md`,
+`CHANGELOG.md` or `go.mod`: those are the integrator's. The integrator merges the parts into the
+stage's branch in the order the plan says, resolves the seams, runs the whole sequence and every
+demo, measures (the stage's base and the tree alternately, an idle machine), writes the docs and
+the stage's result in `doc/plans-perf.md`, and removes the worktrees; the user reviews and merges
+the stage's branch into `main`.
+
 ## Rules of the house
 
 Decisions the user has made; they are not up for revisiting in passing.
