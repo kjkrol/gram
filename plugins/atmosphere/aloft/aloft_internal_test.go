@@ -72,6 +72,11 @@ func (s sunk) Rays() (camera.RayField, bool) {
 func framed(t *testing.T, w *world.Plugin, cam camera.Camera, weather func() air.Weather,
 	r *Renderer, more ...render.Source) render.Uniforms {
 	t.Helper()
+	return render.UniformsOf(framedBy(w, cam, weather, r, more...))
+}
+
+func framedBy(w *world.Plugin, cam camera.Camera, weather func() air.Weather, r *Renderer,
+	more ...render.Source) map[string]any {
 	sun := func() light.Distant { return sky.DefaultSun }
 	sources := append([]render.Source{backdrop.New(w.Res.Config.Space, sun, weather), r}, more...)
 	c := render.NewComposer(sources...)
@@ -90,7 +95,7 @@ func framed(t *testing.T, w *world.Plugin, cam camera.Camera, weather func() air
 		u["AirMasses"] = masses.Of(d)
 	}
 	u["CloudTile"] = air.Tile()
-	return render.UniformsOf(u)
+	return u
 }
 
 // how much of the columns x0 to x1 of a view 640 by 480 the clouds r draws through cam cover
@@ -324,18 +329,96 @@ func TestRenderer_DrawsTheLowCloudsBeforeTheSlopesFromUnderThem(t *testing.T) {
 	}
 }
 
-func TestRenderer_DrawsTheCloudsAtACoarseOfThePixels(t *testing.T) {
+func TestRenderer_DrawsTheCloudsAtACoarseOfTheGroundsPixels(t *testing.T) {
 	needGPU(t)
 	r := New(func() air.Weather { return air.Weather{} }, air.Low)
-	for _, c := range []struct{ coarse, w, h int }{{4, 160, 120}, {8, 80, 60}, {6, 107, 80}} {
+	for _, c := range []struct {
+		coarse, sw, sh int
+		ground         float32
+		w, h           int
+	}{
+		{4, 640, 480, 0, 160, 120},
+		{8, 640, 480, 0, 80, 60},
+		{6, 640, 480, 0, 107, 80},
+		{4, 640, 480, 2, 80, 60},
+		{4, 2560, 1440, 2560.0 / 1536, 384, 216},
+	} {
 		r.Coarse(c.coarse)
-		b := r.sizeFor(640, 480).coarse.Bounds()
+		b := r.sizeFor(c.sw, c.sh, c.ground).coarse.Bounds()
 		if b.Dx() != c.w || b.Dy() != c.h {
-			t.Errorf("at a coarse of %v the clouds of a screen 640 by 480 are %v by %v, want %v by %v",
-				c.coarse, b.Dx(), b.Dy(), c.w, c.h)
+			t.Errorf("at a coarse of %v the clouds of a screen %v by %v over a ground of %v of "+
+				"its pixels a pixel are %v by %v, want %v by %v", c.coarse, c.sw, c.sh, c.ground,
+				b.Dx(), b.Dy(), c.w, c.h)
 		}
 	}
-	if len(r.sizes) != 3 {
-		t.Errorf("%v sizes kept, want one a coarse", len(r.sizes))
+	if len(r.sizes) != 4 {
+		t.Errorf("%v sizes kept, want 4: one a size of the clouds on a screen, at a coarse of 8 "+
+			"and over a ground at half the pixels at 4 the same", len(r.sizes))
+	}
+}
+
+// a ground handing the frame the uniforms and images u, opaque and drawn nowhere, so what lies
+// over it meets the furthest depth
+type handed map[string]any
+
+func (handed) Init(*goke.SysInit)                                 {}
+func (handed) Draw(render.Target, camera.Camera, render.Uniforms) {}
+func (h handed) Compose(f *render.Frame, _ camera.Camera) {
+	f.DrawOpaque()
+	for name, v := range h {
+		switch v := v.(type) {
+		case []float32:
+			if name != "Toward" && name != "Clock" && name != "Pixel" {
+				f.Uniform(name, v...)
+			}
+		case *render.Image:
+			f.Image(name, v)
+		}
+	}
+}
+
+func TestRenderer_OverAGroundAtHalfThePixelsDrawsTheCloudsAtItsPixelsOnceAFrame(t *testing.T) {
+	needGPU(t)
+	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
+	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
+	cam.SetViewport(640, 480)
+	weather := westCloudy()
+	weatherNow := func() air.Weather { return weather }
+	r := New(weatherNow, air.Low)
+	r.Show(true)
+	r.Bodies(true)
+	u := framedBy(w, cam, weatherNow, r)
+	cam.(camera.Resolved).SetResolution(0.5)
+	cam.(camera.Figured).SetSharpFigures(true)
+	feed := render.NewFeed(cam, render.NewComposer(handed(u), r))
+	screen := render.NewImage(640, 480)
+	defer screen.Deallocate()
+	for range 2 {
+		screen.Clear()
+		feed.DrawOn(screen)
+	}
+	if len(r.sizes) != 1 || r.sizes[0].cw != 80 || r.sizes[0].ch != 60 {
+		var drawn [][2]int
+		for _, s := range r.sizes {
+			drawn = append(drawn, [2]int{s.cw, s.ch})
+		}
+		t.Errorf("over a ground at half the pixels of a screen 640 by 480 the clouds were drawn "+
+			"at %v, want once at 80 by 60: a quarter of the ground's pixels each way", drawn)
+	}
+	pix := make([]byte, 4*640*480)
+	screen.ReadPixels(pix)
+	cover := func(x0, x1 int) float64 {
+		sum := 0.0
+		for y := range 480 {
+			for x := x0; x < x1; x++ {
+				sum += float64(pix[4*(y*640+x)+3])
+			}
+		}
+		return sum / float64(255*480*(x1-x0))
+	}
+	if west, east := cover(0, 280), cover(360, 640); west < 0.1 || east > 0.01 {
+		t.Errorf("laid over the screen the clouds cover %.2f of the west and %.2f of the east, "+
+			"want the west alone", west, east)
 	}
 }

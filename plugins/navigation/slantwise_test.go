@@ -361,14 +361,14 @@ func TestNavigation_KeptACellEachUnderAWalkerOnADeck(t *testing.T) {
 
 func TestLeg_AlongADeckPassesOverItsCornersHoldingNone(t *testing.T) {
 	leg := Leg{From: 1, To: 2, C1: 3, C2: 4, Diagonal: true, Decked: true, Active: true}
-	if got := leg.cells(); len(got) != 4 {
-		t.Errorf("a decked leg passes over %v, want its corners too", got)
+	if got, n := leg.cells(); n != 4 {
+		t.Errorf("a decked leg passes over %v, want its corners too", got[:n])
 	}
-	if got := leg.held(); len(got) != 2 {
-		t.Errorf("a decked leg holds %v, want From and To alone", got)
+	if got, n := leg.held(); n != 2 {
+		t.Errorf("a decked leg holds %v, want From and To alone", got[:n])
 	}
 	leg.Decked = false
-	if got := leg.held(); len(got) != 4 {
-		t.Errorf("a leg cutting a corner over the ground holds %v, want its corners too", got)
+	if got, n := leg.held(); n != 4 {
+		t.Errorf("a leg cutting a corner over the ground holds %v, want its corners too", got[:n])
 	}
 }

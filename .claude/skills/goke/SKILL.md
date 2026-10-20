@@ -69,6 +69,10 @@ of the checkout; read it instead of grepping.
 
 ## Pitfalls met
 
+- Memory read through a chunk's columns (aabbworld runs over `Base`) holds the same entities only
+  until a Sync moves one of the table's entities (`ChunkSnapshot.TableVer`); an append changes
+  the count, not the version: gather again after every Sync that may move a held entity.
+
 - `go doc -short Type | grep -v '^type'` hides the methods: use `scripts/api.sh Type`.
 - In zsh `echo ==` fails (`=cmd` expansion): write `echo '--'`.
 - A chunk's `Cursor.Offsets` belong to that chunk; never keep a `Cursor` across `Next`.

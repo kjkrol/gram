@@ -2,6 +2,7 @@ package aloft
 
 import (
 	"embed"
+	"math"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
@@ -41,7 +42,7 @@ var shader = render.NewMeshShaderWith("aloft", render.Files(shaders, "shaders/al
 var layShader = render.NewMeshShaderWith("aloft laid", render.Files(shaders, "shaders/lay.wgsl"),
 	[]render.Uniform{
 		{Name: "LayView", Size: 2},
-		{Name: "LayCoarse", Size: 1},
+		{Name: "LayCoarse", Size: 2},
 	})
 
 // Renderer is a layer of clouds seen from above, a render.Direct over the world at the layer's
@@ -52,7 +53,7 @@ type Renderer struct {
 	shown    bool
 	bodies   bool
 	bodiesTo float32 // of the camera's sight the bodies reach
-	coarse   int     // of the screen's pixels each way a pixel of the clouds spans
+	coarse   int     // of the ground's pixels each way a pixel of the clouds spans
 
 	opts     render.DrawMeshOptions
 	layOpts  render.DrawMeshOptions
@@ -60,11 +61,11 @@ type Renderer struct {
 	sizes    []size               // the screens drawn on of late, by size
 }
 
-// what the clouds are drawn with on a screen of one size: the clouds coarser than it by at,
-// how deep they lie there, and a depth to lay them against on a screen without one
+// what the clouds are drawn with on a screen w by h: their image cw by ch, how deep they lie
+// there, and a depth to lay them against on a screen without one
 type size struct {
 	w, h   int
-	at     int
+	cw, ch int
 	coarse *render.Image
 	depth  *render.Depth
 	alone  *render.Depth
@@ -82,19 +83,25 @@ func New(weather func() air.Weather, layer air.Layer) *Renderer {
 	return r
 }
 
-func (r *Renderer) sizeFor(w, h int) *size {
+// ground: of the screen's pixels each way a pixel of the ground under the clouds spans
+func (r *Renderer) sizeFor(w, h int, ground float32) *size {
+	gw, gh := w, h
+	if ground > 1 {
+		gw = max(int(math.Round(float64(float32(w)/ground))), 1)
+		gh = max(int(math.Round(float64(float32(h)/ground))), 1)
+	}
+	c := r.coarse
+	cw, ch := (gw+c-1)/c, (gh+c-1)/c
 	for i := range r.sizes {
-		if r.sizes[i].w == w && r.sizes[i].h == h && r.sizes[i].at == r.coarse {
-			return &r.sizes[i]
+		if s := &r.sizes[i]; s.w == w && s.h == h && s.cw == cw && s.ch == ch {
+			return s
 		}
 	}
 	if len(r.sizes) == keptSizes {
 		r.sizes[0].free()
 		r.sizes = append(r.sizes[:0], r.sizes[1:]...)
 	}
-	c := r.coarse
-	lw, lh := (w+c-1)/c, (h+c-1)/c
-	r.sizes = append(r.sizes, size{w: w, h: h, at: c, coarse: render.NewImage(lw, lh),
+	r.sizes = append(r.sizes, size{w: w, h: h, cw: cw, ch: ch, coarse: render.NewImage(cw, ch),
 		depth: render.NewDepth().Readable()})
 	return &r.sizes[len(r.sizes)-1]
 }
@@ -107,7 +114,7 @@ func (s *size) free() {
 	}
 }
 
-// how much of what is behind the thickest cloud it hides; how many pixels of the screen a pixel of
+// how much of what is behind the thickest cloud it hides; how many pixels of the ground a pixel of
 // the clouds spans each way to start: they are soft, worked out a sixteenth as often and laid over
 // enlarged
 const (
@@ -115,8 +122,8 @@ const (
 	DefaultCoarse = 4
 )
 
-// Coarse has a pixel of the clouds span n of the screen's each way, DefaultCoarse to start; under
-// 1, 1.
+// Coarse has a pixel of the clouds span n of the ground's each way, of the screen's over a ground
+// drawn at every pixel, DefaultCoarse to start; under 1, 1.
 func (r *Renderer) Coarse(n int) { r.coarse = max(n, 1) }
 
 // Show has the clouds drawn from above, or none: only their shadows on the ground.
@@ -178,7 +185,8 @@ func (r *Renderer) field(cam camera.Camera) (f camera.RayField, under, ok bool) 
 }
 
 // Draw draws the clouds into the target's screen through cam, hidden inside the ground as the
-// frame's render.GroundHeights have it and behind what stands nearer.
+// frame's render.GroundHeights have it and behind what stands nearer, a pixel of theirs a Coarse
+// of the ground's under them (render.Target.Coarse).
 func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	f, under, ok := r.field(cam)
 	if t.Screen == nil || !ok || under && !r.standsUp(u) {
@@ -211,8 +219,8 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	r.set("AloftEye", tr.Eye[:]...)
 	r.set("AloftBend", tr.Bend)
 	b := t.Screen.Bounds()
-	s := r.sizeFor(b.Dx(), b.Dy())
-	lw, lh := s.coarse.Bounds().Dx(), s.coarse.Bounds().Dy()
+	s := r.sizeFor(b.Dx(), b.Dy(), t.Coarse)
+	lw, lh := s.cw, s.ch
 	r.opts.Vertices = 3
 	s.coarse.Clear()
 	r.opts.Depth, r.opts.ClearDepth, r.opts.WriteDepth = s.depth, true, true
@@ -226,7 +234,7 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		return
 	}
 	r.set("LayView", float32(b.Dx()), float32(b.Dy()))
-	r.set("LayCoarse", float32(s.at))
+	r.set("LayCoarse", float32(b.Dx())/float32(lw), float32(b.Dy())/float32(lh))
 	r.layOpts.Uniforms, r.layOpts.Vertices = r.opts.Uniforms, 3
 	r.layOpts.Images[0] = s.coarse
 	r.layOpts.Depth, r.layOpts.ReadDepth, r.layOpts.ClearDepth = t.Depth, s.depth, false

@@ -20,7 +20,7 @@ type moveSystem struct {
 	drift     goke.OptComp[Drift]
 	outside   goke.OptComp[Outside]
 	outsideID goke.CompID
-	items     []aabbworld.Item
+	runs      []aabbworld.Run
 	pace      goke.Opt
 	// what the space holds: all but those beyond the last band
 	held     *goke.Query
@@ -66,17 +66,14 @@ func (s *moveSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	s.rebuild()
 }
 
-// the space holds the items handed it, so motion keeps its own
+// the space reads the boxes where they lie: a run a chunk, gathered anew after every move
 func (s *moveSystem) rebuild() {
-	s.items = s.items[:0]
+	s.runs = s.runs[:0]
 	for s.held.All(); s.held.Next(); {
 		cursor := s.held.Cursor()
-		for i, b := range s.heldBase.Slice(cursor) {
-			item := aabbworld.Item{ID: cursor.IDs[i], Box: b.Pos.AABB, Caps: b.Caps}
-			s.items = append(s.items, item)
-		}
+		s.runs = append(s.runs, world.RunOf(cursor.IDs, s.heldBase.Slice(cursor)))
 	}
-	s.space.Rebuild(s.items)
+	s.space.RebuildRuns(s.runs, nil)
 }
 
 func clampStep(step geom.Vec, max float64) geom.Vec {

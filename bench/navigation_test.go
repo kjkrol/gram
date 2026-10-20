@@ -1,12 +1,14 @@
 package bench_test
 
 import (
+	"math/rand/v2"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -171,5 +173,113 @@ func Benchmark_Navigation_Tick(b *testing.B) {
 				}
 			})
 		}
+	}
+}
+
+// the route's scene: a 200x200 board of 16-px cells, a sixth of them rock, walls every 40 columns
+// with three gaps each, one walker in the north-west corner
+const (
+	pathSide = 200
+	pathCell = 16
+)
+
+// Benchmark_Navigation_Path is a route across the board planned a tick: the walker is sent to the
+// far corner and the next tick to the other, each order planned whole by the A* round the rocks
+// and through the walls' gaps.
+func Benchmark_Navigation_Path(b *testing.B) {
+	ctx := newHeadless()
+	w := ctx.UseWorld(world.Config{
+		Space:    world.SpaceCfg{Width: pathSide * pathCell, Height: pathSide * pathCell},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: pathCell},
+		Heights:  true,
+	})
+	g := grid.DefaultGrids{}.Square(pathSide, pathSide, pathCell)
+	m := motion.NewPlugin(w)
+	if err := ctx.Use(m); err != nil {
+		b.Fatal(err)
+	}
+	p := board.NewPlugin(g, &cell.SingleOccupancy{}, w).WithMotion(m)
+	sel := selection.NewPlugin(w)
+	drv := driving.NewPlugin(w, m, sel).WithGround(p)
+	nav := navigation.NewPlugin(p, w, m, sel, drv)
+	for _, pl := range []plugin.Plugin{p, sel, drv, nav} {
+		if err := ctx.Use(pl); err != nil {
+			b.Fatal(err)
+		}
+	}
+	if err := w.Carry(sel, drv, nav); err != nil {
+		b.Fatal(err)
+	}
+	start, goals := g.At(2, 2), [2]cell.ID{g.At(pathSide-3, pathSide-3), g.At(2, pathSide-3)}
+	rng := rand.New(rand.NewPCG(7, 9))
+	brd := p.Board()
+	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	rock := cell.Kind{Cost: 1, Solid: true}
+	var clear []cell.ID
+	for y := range uint32(pathSide) {
+		for x := range uint32(pathSide) {
+			wall := x%40 == 20
+			switch {
+			case wall && y%67 == 33:
+				clear = append(clear, g.At(x, y))
+			case wall || rng.IntN(6) == 0:
+				brd.Set(g.At(x, y), rock)
+			}
+		}
+	}
+	for _, c := range append(clear, append(goals[:], start)...) {
+		x, y, _ := g.Coords(c)
+		for dy := range uint32(5) {
+			for dx := range uint32(5) {
+				brd.Set(g.At(x+dx-2, y+dy-2), cell.Kind{Cost: 1, Allows: cell.Land})
+			}
+		}
+	}
+	walkers := board.NewUnits(p, board.Shape{Size: 12},
+		func(r navRow) geom.Vec { return g.CellCenter(r.At) })
+	walkers.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{
+		MaxSpeed: 4 * pathCell, Accel: 8 * pathCell, Brake: 16 * pathCell, V0: 2 * pathCell,
+		TurnRate: 0.15,
+	})
+	w.Seed(walkers.Named("walker").Entry(navRow{At: start}))
+	var orders goke.Comp[navigation.MoveOrder]
+	var base goke.Comp[world.Base]
+	var ordered, units *goke.Query
+	ctx.pending = append(ctx.pending, func() []goke.System {
+		return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
+			ordered = si.NewQueryBuilder(&orders).Build()
+			units = si.NewQueryBuilder(&base).Build()
+		}}}
+	})
+	ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
+		w.RunPlan(rc, d)
+		m.RunPlan(rc, d)
+		p.RunPlan(rc, d)
+		nav.RunPlan(rc, d)
+		drv.RunPlan(rc, d)
+		sel.RunPlan(rc, d)
+	})
+	ecs.Tick(step)
+	var walker uid.UID64
+	for units.All(); units.Next(); {
+		walker = units.Cursor().IDs[0]
+	}
+	w.Carrier().PutFrom(walker, navigation.MoveTo{Cell: goals[0]})
+	ecs.Tick(step)
+	planned := false
+	for ordered.All(); ordered.Next(); {
+		for _, o := range orders.Slice(ordered.Cursor()) {
+			planned = o.Path.Length > 0
+		}
+	}
+	if !planned {
+		b.Fatal("no route across the board")
+	}
+	k := 1
+	b.ReportAllocs()
+	for b.Loop() {
+		w.Carrier().PutFrom(walker, navigation.MoveTo{Cell: goals[k%2]})
+		k++
+		ecs.Tick(step)
 	}
 }

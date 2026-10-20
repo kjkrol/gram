@@ -749,3 +749,17 @@ func TestPresented_IsKeptAsItsOwnCopy(t *testing.T) {
 		t.Error("the quad unchanged was written again")
 	}
 }
+
+func TestAppendF32s_LaysEveryFloatAsAppendF32Does(t *testing.T) {
+	floats := []float32{0, 1, -2.5, 3e-7, 65504, -0.0}
+	var want []byte
+	for _, f := range floats {
+		want = appendF32(want, f)
+	}
+	if got := appendF32s([]byte{9}, floats); !bytes.Equal(got[1:], want) || got[0] != 9 {
+		t.Errorf("appendF32s laid %v, want 9 and then %v", got, want)
+	}
+	if got := appendF32s(nil, nil); len(got) != 0 {
+		t.Errorf("appendF32s of none laid %v", got)
+	}
+}

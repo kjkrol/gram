@@ -731,4 +731,96 @@ każde demo z kamerami pod `timeout`, pomiar bazy i drzewa naprzemiennie na bezc
 `CHANGELOG.md`, skille, sekcja „Etap N: wynik” tutaj, `--no-ff` do `main`, worktree usunięte,
 gałęzie części zostawione do przeglądu.
 
-**Stan** (integrator aktualizuje): fala 1 — briefy napisane 2026-10-20, sesje nieotwarte.
+**Stan** (integrator aktualizuje, 2026-10-21 00:30): fale 1 i 2 zrobione, w `main`: 2a, 2b, odstęp
+po nieudanym wyszukiwaniu, 3b, R1, dziura z R2, kopia instancji jednym ruchem. Etapy 4 i 5
+zamknięte pomiarem (niżej, „Fala 2: wynik”); gram `m/mirror` zostaje jako ślad. aabbworld v1.14.1 (PR #19, wyścig w
+leniwej mapie id z v1.14.0) wydane i podbite w `go.mod`, `-race` wzroku czysty; goke PR #55 i gałąź
+`feat/chunk-versions` usunięte. Otwarte: decyzja użytkownika o „dosłownym” odstępie (Detour w
+tłoku), etap 6 za zamkniętą bramką.
+
+## Fala 1: wynik (2026-10-20)
+
+Pomiar integratora szeregowo na bezczynnej maszynie (load 0,9–2,2), baza = `main` `e797a753`
+(aabbworld `main` v1.13.0, goke `main` v3.5.0) i drzewo na przemian; liczby agentów brane pod
+obciążeniem 4–34 tylko orientacyjnie.
+
+| Część | Co | Baza | Drzewo |
+|:--|:--|--:|--:|
+| 2a | `Navigation_Tick` open 100 / 1 000 | 799 µs / 9,56 ms | 425 µs / 6,32 ms |
+| 2a | `Navigation_Tick` crowded 100 / 1 000 | 2,85 / 306 ms | 1,16 / 104 ms |
+| 2a | `Navigation_Path` 200×200 (baza agenta) | 94 ms, 14 740 alok. | 18,4 ms, 19 alok. |
+| R2 dziura | wyspa izo / footed w warstwach | 15,6 / 17,1 ms | 13,9 / 15,4 ms |
+| R2 dziura | to samo z ostrymi figurami | 18,2 / 19,3 ms | 16,6 / 17,9 ms |
+| R1 | chmury w przebiegu górnym, 1440p, grunt 0,6 (agent, w procesie) | 6,1 ms | 3,7 ms |
+| 3a | `Column_RebuildQueryTick` bez ticku: items / runs | 248 µs | 204 µs |
+| 3a | to samo z tickiem kolizji, spread / crowd | 1,29 / 4,31 ms | 1,24 / 4,11 ms |
+| 3a | stare wejście: `BroadPhase` tick, minima | 1,78–8,37 ms | +1–3% |
+| 4a | `Mut` wobec `Comp`: przejście 65 536 / `SeekH` 512 | 40,0 µs / 2,5 µs | 40,8 µs / 2,9 µs |
+| 4a | `Matcher_*` (bez `Mut`) | — | ±3% |
+
+**Wnioski.** Nawigacja: 2,9× w tłoku, 1,5× w otwartym polu, trasy identyczne (golden). Dziura:
+1,3–1,8 ms z każdej klatki w warstwach, obraz bez zmian. Przebiegi aabbworld zdejmują kopię
+(−18% w samym przebudowaniu), ale z tickiem kolizji zysk w aabbworld to 4–5%: prawdziwa liczba
+przyjdzie z 3b (`World_Tick`, gdzie kopia `Base` → `Item` to 54%). Stare wejście aabbworld kosztuje
+1–3% więcej (wskaźnik w `Entry`), mediany pod szumem do +13%. Wersje goke: zero w ciele pętli,
++2% na przejściu przez `Mut`, +16% na `SeekH` z `Mut.At`; `WithMutCheck` 7,9 ns na encję na `Sync`.
+
+**Decyzja: Directy umieszczane (R2, drugi commit) nie wchodzą.** Dają 0,25–0,4 ms CPU w demie,
+ale na wyspie kosztują 0,1–0,4 ms GPU (warstwy wewnętrzne rysują sektory całego kadru), wnoszą
+~670 linii mechanizmu (nagrywanie i odtwarzanie rysowań, `gpu.Record`) z kryterium opartym na
+skanie tekstu WGSL (`Program.ReadsPosition`), a dla ośmiu Directów i tak zostaje rysowanie per
+warstwa. Wariant „bez przebiegu nieprzezroczystego” dał w demie −0,06/−0,13 ms. Zysk nie
+równoważy złożoności (zob. pamięć: „uproszczenie ma zmniejszać ślad”); commit zostaje na
+`r/placed` do decyzji użytkownika.
+
+**Co zastano i do zgłoszenia.** aabbworld: `internal/raycast` `TestProfile_SeesWhatAFineStepSees`
+pada 1–2 razy na 40 biegów także na `main`; `Scan` w świecie zawijanym alokuje 3 razy na wywołanie
+(`raycast.splitAxis`). goke: zapisy przez `Column`, `OptColumn`, `OptComp` nie są liczone (ceremony
+pisze efekty przez `OptColumn`: brief 4b), równoległe zapisy przez `Mut` jednego archetypu
+ścigają się na liczniku chunka (gram i ceremony nie używają `RunParallel`); `RemoveCompOne` k razy
+na jednej encji to k migracji przez archetypy pośrednie (luka poza `Editor`, nie robiona). astar:
+słowniki na mapach to ~12% ticku w tłoku, a `expandCurrent` gubi bufor, który `append` urósł
+(obejście `WithSuccessorCapacity`); propozycje dla właściciela astar.
+
+## Fala 2: wynik (2026-10-21)
+
+Części 2b, odstęp, 3b i 4b+5 (lustro) przez agenty Opus 5.5; od połowy fali agenty nie mierzą
+(decyzja użytkownika: pomiar równoległy jest bezcelowy), integrator mierzy wszystko po kolei na
+bezczynnej maszynie (load 1,0–1,5), baza i drzewo naprzemiennie, mediany z 5–6.
+
+| Część | Co | Przed | Po |
+|:--|:--|--:|--:|
+| 2b | `Navigation_Tick` open 1 000 | 5,67 ms | 4,55 ms |
+| 2b | pozostałe trzy reżimy | — | w szumie; alokacje 2,5–3× mniej |
+| odstęp | wszystkie reżimy wobec 2b | — | w szumie (±4%) |
+| 3b | `World_Tick` 1 000 / 5 000 | 23,3 / 110,9 µs | 13,9 / 58,0 µs |
+| 3b | `Collision_Tick`, `Collision_Swept` | — | −1% do −10% |
+| kopia instancji | `World_TickDraw`, cały kadr | 0,95–1,01 ms | 0,85–0,90 ms |
+| lustro (4b+5) | `World_TickDraw`, 10% / 100% w ruchu, cały kadr | 0,90 / 0,91 ms | 1,07 / 1,10 ms |
+| lustro | nikt się nie rusza | 0,95 ms | 0,60 ms |
+
+**Wnioski.** 3b to największy zysk ticku: kopia `Base` do `Item` (52% profilu) znika, tick świata
+prawie o połowę krótszy. 2b daje −20% tylko w otwartym polu z 1 000 jednostek; tłok to udane
+wyszukiwania Detour (85%), których 2b nie dotyka. Odstęp jest neutralny dla czasu i dla tego, co
+widzi gracz (logi i zrzuty identyczne), zmienia kształt zapisu.
+
+**Etapy 4 i 5 zamknięte.** Wersje per chunk w goke dają zysk tylko przez lustro sprite'ów, a lustro
+wygrywa jedynie tam, gdzie chunki stoją czyste. W realnych scenach brudzi się każdy chunk w kadrze
+co tick (motion/collision, motion/expanse, 10% w ruchu rozrzuconych: 100% chunków), więc lustro jest
+o ok. 20% wolniejsze od dzisiejszej ścieżki; na planszy (board/topography) w ogóle nie działa, bo
+figury to billboardy. Znacznik `Still` nie pomógłby: w demach, gdzie lustro działa, ruszają się
+wszyscy w kadrze. Koszt, którego zysk nie broni: ok. 520 linii lustra, ok. 140 linii liczników w
+ośmiu systemach, obowiązek liczenia dla każdego przyszłego pisarza `Base`, `WithMutCheck`
+niewłączalny w testach ze światem (zegar i ceremony piszą przez `Comp`/`OptColumn`). Wzięta jest
+tylko niezależna od goke kopia instancji jednym ruchem (`fa2fc440`, z `m/mirror` `e1fb48b9`).
+Uwagi agenta do API goke, gdyby wersje kiedyś wróciły: `Mut` bez odczytu bez liczenia
+(`Mut.Read`), check per kolumna zamiast hashu całego chunka, `ChunkSnapshot.ArchID` typu z
+pakietu internal.
+
+**Znalezione.** aabbworld v1.14.0 zostawił mapę id i listę wpisów pierwszemu `Scan`; wzrok gram
+skanuje po jednym `Query` na kilku gorutynach, więc `go test -race ./plugins/vision/` pada na
+`main` od podbicia (16 wyścigów). Poprawka w aabbworld PR #19 (mapa budowana z komórkami przy
+pierwszym `Query`, test łapie 20 wyścigów bez niej), do wydania jako v1.14.1. 3b zostawia lukę:
+czytelnik w niesymulowanym `RunPlan` po cudzym niesymulowanym `Sync` (np. selekcja po `MoveTo`
+nawigacji) może widzieć nieświeże przebiegi do następnego przebudowania; pełna naprawa to
+opakowanie `rc` w `internal/engine/stage_runtime.go` jak w `Clock.Replay`.

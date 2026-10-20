@@ -22,6 +22,24 @@ zamiana akcesora i to, co z niej wynika), testy, `bench/world_test.go` (benchmar
 chunki na tick” na scenie 5 000 encji z 10% w ruchu), sonda w kopii dem. Nie wolno: typ `Base`,
 goke, aabbworld, ceremony, `examples/`.
 
+## Co wiadomo z 4a (goke v3.6.0)
+
+- API: `goke.Mut[T]` (`Slice`, `At`, `Index`; przechodzi tam, gdzie `&Comp[T]`), `Cursor.Ver()`
+  (metoda nad `Cursor.VerOffset`, licznik w pamięci chunka za ostatnią kolumną),
+  `ChunkSnapshot.Ver`, `goke.WithMutCheck()`. Reguła konsumenta: zmieniona `TableVer` to cała
+  tabela od nowa; ta sama i inna `Ver` to ten chunk; klucz `(ArchID, ChunkPtr)`, wszystko
+  zapomnieć przy `ECS.Reset`/`Load`.
+- goke liczy też swoje zapisy: dopisanie encji, `AddOne` nad istniejącym komponentem,
+  `ValueEditor` w miejscu.
+- **Zapisy przez `Column`, `OptColumn`, `OptComp` nie są liczone**: trzeba dopisać
+  `*cur.Ver()++`. Ceremony pisze efekty przez `OptColumn`, więc `WithMutCheck` w testach gram
+  spanikuje na nich, dopóki ceremony nie zacznie liczyć: albo zmiana w ceremony (osobna, mała;
+  raport ma ją nazwać i zaproponować), albo `WithMutCheck` tylko w testach pakietów, które
+  ceremony nie dotyka.
+- Koszt (pomiar integratora): +2% na przejściu przez `Mut`, +16% na `SeekH` z `Mut.At`; wziąć
+  wycinek `Mut` chunka przed wycinkami `Comp` (inaczej tamte tracą eliminację sprawdzania granic,
+  +26%). `WithMutCheck` ~8 ns na encję na `Sync`: tylko testy.
+
 ## Kroki
 
 1. `grep` wszystkich zapisów do `Base` (również przez wskaźnik ze `Seek`), lista w raporcie.

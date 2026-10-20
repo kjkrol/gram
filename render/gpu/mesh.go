@@ -254,9 +254,7 @@ func Mesh(dw *MeshDraw) {
 	d.ensure((4*len(dw.Instances)+vertexSize-1)/vertexSize, 0)
 	iOff := uint64(len(d.verts))
 	if dw.Program.instance > 0 {
-		for _, f := range dw.Instances[:int(instances)*4*dw.Program.instance] {
-			d.verts = appendF32(d.verts, f)
-		}
+		d.verts = appendF32s(d.verts, dw.Instances[:int(instances)*4*dw.Program.instance])
 	}
 	dOff, uOff := d.drawBlock(t, dw.Images, dw.Uniforms, [4]float32{}, [4]float32{}, nil)
 	offs := d.offsets(dOff, uOff)
@@ -332,13 +330,40 @@ func PlaceDepth(target Image, from, to *Depth, at Window) {
 	d.copyDepth(t, from, to, [4]float32{sx, sy, -at.X * sx, -at.Y * sy}, clip)
 }
 
+var depthFillProgram = NewMesh("depth fill", "", shader("depth_fill"))
+
+// FillDepth puts depth in place of what dp holds at the pixels of target's texture wholly within
+// the window at, dp fitted to it, the rest kept.
+func FillDepth(target Image, dp *Depth, at Window, depth float32) {
+	d := must()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	t := target.Texture.gpuTarget(d)
+	if dp.w != t.w || dp.h != t.h {
+		dp.fit(t.w, t.h)
+	}
+	x0, y0 := int(math.Ceil(float64(at.X))), int(math.Ceil(float64(at.Y)))
+	x1, y1 := int(math.Floor(float64(at.X+at.W))), int(math.Floor(float64(at.Y+at.H)))
+	clip := Rect{x0, y0, x1 - x0, y1 - y0}.intersect(target.rect()).intersect(Rect{0, 0, t.w, t.h})
+	if clip.W <= 0 || clip.H <= 0 {
+		return
+	}
+	// y never 0, so the place is never taken for none
+	d.depthPass(t, depthFillProgram, d.noDepth, dp, [4]float32{depth, 1}, clip)
+}
+
 // copyDepth draws from into to over the part clip of t, each pixel reading from at its place
 // scaled and moved by place
 func (d *device) copyDepth(t *target, from, to *Depth, place [4]float32, clip Rect) {
 	if !from.readable {
 		panic("gpu: a depth copied from is not Readable")
 	}
-	pipeline := copyProgram.pipeline(d, Copy, t.format, depthCopy)
+	d.depthPass(t, copyProgram, from, to, place, clip)
+}
+
+// depthPass draws p, writing depths alone, into to over the part clip of t, from bound to be read
+func (d *device) depthPass(t *target, p *Program, from, to *Depth, place [4]float32, clip Rect) {
+	pipeline := p.pipeline(d, Copy, t.format, depthCopy)
 	group1 := d.images([4]*Texture{})
 	group2 := from.readGroup(d)
 	group3 := d.frame([FrameImages]*Texture{})

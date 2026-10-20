@@ -42,6 +42,32 @@ world where it is (v1.13.0, gram's go.mod since `perf/plans-perf`): 27 µs and 1
 tick 40% shorter than at the start of the day. What is left is the copy of every `Base` into the
 space (54%), the one etap 3 removes.
 
+After etap 3 (2026-10-21, aabbworld v1.14.0's runs, medians of 6, before and after alternately on
+an idle machine): 1,000 boxes 23.3 → 13.9 µs, 5,000 boxes 110.9 → 58.0 µs, 0 allocs/op. The space
+reads every `Base` where goke keeps it; `moveSystem.rebuild`, 52% of the profile before, is gone
+from it, and what is left is the moving itself (`Space.Move`, `Translate`). The collision ticks
+are 1–6% shorter, the swept ones 2–10%, the same contacts in every scene.
+
+### A tick with a frame — `Benchmark_World_TickDraw`
+
+A tick of the world and a frame of its 5,000 sprites, the camera over all, a quarter or a
+twentieth of a 1000-pixel screen, 0%, 10% or 100% of them moving (`frames=2`: a tick every other
+frame). Medians of 5, an idle machine, 2026-10-21, ms:
+
+| Scene, the whole view | Before | The instances copied at once |
+|:---|---:|---:|
+| none moving | 1.01 | 0.90 |
+| 10% moving | 0.95 | 0.85 |
+| 100% moving | 0.97 | 0.88 |
+| 10% moving, a tick every other frame | 0.88 | 0.78 |
+
+At a quarter and a twentieth of the view the copy is within the noise. Tried and not taken
+(`m/mirror`, goke's per-chunk versions on a local goke): the sprites kept on the GPU chunk by
+chunk, re-sent only where a chunk changed. With 10% moving scattered, every chunk changes every
+tick, and the mirror is slower than today's path (0.90 → 1.07 ms, 100% moving 0.91 → 1.10); it
+wins only where nothing moves (0.95 → 0.60) or the movers have chunks of their own, which no demo
+has (motion/collision and motion/expanse: every chunk in the view changes every tick).
+
 ### Drawing — `Benchmark_World_Draw`
 
 One frame of the entity renderer gathered with no screen (nothing is drawn). The renderer draws
@@ -474,6 +500,62 @@ profile (below) has the path finder (`pathfind.Finder.leveledFor`) at 55% of the
 `grids.Square.Toward`, `boardLevels.Deck`), through maps. The crowd replans every tick it is
 blocked. This is the number the plan's navigation work starts from.
 
+**After etap 2a** (2026-10-20, `perf/navigation`): the planner reads a cell once a search into
+a table by its ordinal, walks the directions instead of a `Neighbors` list, and its solvers keep
+room for every step of a node. Measured at a fixed count (`-benchtime=1000x` open 100, `200x`
+open 1,000, `600x` crowded 100, `12x` crowded 1,000): the scene evolves and the ticks right
+after an order cost more, so a tick's mean depends on how many ticks the loop runs, and only
+runs of one count compare (the table above was taken at the default benchtime). Base
+(`main` `e797a753`) and tree alternately, the median of 3 rounds, an idle machine (load 0.9–1.4).
+
+| Scene | Walkers | Tick before → after | Allocations before → after |
+|:---|---:|---:|---:|
+| open | 100 | 799 → 425 µs | 479 → 197 |
+| open | 1,000 | 9.56 → 6.32 ms | 13,341 → 5,004 |
+| crowded | 100 | 2.85 → 1.16 ms | 1,239 → 192 |
+| crowded | 1,000 | 306 → 104 ms | 120,735 → 8,372 |
+
+What remains in the crowded profile is astar's own dictionary maps (about 12%) and heap (5%),
+`leveledFrom` 62% cumulative, and in the open one `stepAside` (25%, etap 2b).
+
+### A route — `Benchmark_Navigation_Path`
+
+One route across a 200×200 board of rocks and walls, the planner alone, `-benchtime=40x`: 94.3 ms
+and 14,740 allocations before etap 2a (the part's own base, the benchmark added to it), 18.4 ms
+and 19 after (median of 3 on an idle machine). `BenchmarkGrids_Neighbours`
+(`plugins/board/internal/grids`): `Toward` over every cell of a square grid 8.0 → 3.3 ms, on a
+torus 15–26 → 3.3 ms; the allocating `Neighbors` list costs 4.1–5.6 ms.
+
+**After etap 2b** (2026-10-20, `n/bodies`): the keepings' passes allocate nothing per unit (the
+body index, a step's ground check and a route round the cells learned go through method values
+bound once, a leg's cells are arrays) and a step aside asks the ground only of the cells it
+tries; and (`n/backoff`) a search that found nothing waits 0.5, 1, then 2 s before it runs again
+from the same cell round the same cells. Fixed counts as above, before 2b (`main` `3627cf8f`),
+2b and the back-off alternately, the median of 5 rounds on an idle machine (load 1.0–1.5),
+2026-10-21:
+
+| Scene | Walkers | Before 2b | 2b | With the back-off | Allocations |
+|:---|---:|---:|---:|---:|---:|
+| open | 100 | 388 µs | 386 µs | 374 µs | 197 → 81 → 77 |
+| open | 1,000 | 5.67 ms | 4.55 ms | 4.47 ms | 5,004 → 2,880 → 2,825 |
+| crowded | 100 | 1.05 ms | 1.04 ms | 1.08 ms | 192 → 67 → 64 |
+| crowded | 1,000 | 97.3 ms | 97.2 ms | 97.5 ms | 8,372 → 6,078 → 5,956 |
+
+The back-off is within the noise: it skips searches round the cells learned that would fail
+(26 → 9 a tick in the open, 128 → 95 in the crowd), which are cheap.
+
+What remains of a crowded tick is the searches the crowd's Detour asks for: `route` is 97% of it,
+85% under `cellKeeping.detour` (a unit refused a held cell is told Detour each tick it is refused
+and plans a whole route round the cells it learned: 280 searches a tick for 1,000 walkers); the
+128 searches a tick that fail cost 2.9 ms of it, so a blocked unit gets no back-off. In the open,
+`stepAside` is 23% of the tick (33% before); most allocations left are ceremony's (a `StepAside`
+given, about 1,250 a tick) and astar's (about 300). The literal back-off, still waiting after the
+unit moves or learns a cell, cuts the crowd's Detour searches from about 280 to about 10 a tick,
+but units give their orders up sooner (at 21 s 388 of 1,000 still hold one against 642): not
+taken, a decision about the crowd's behaviour. A profile of `Benchmark_Navigation_Tick` at
+these counts is mostly the scene's setup (85% of the samples at crowded 1,000): read it with
+`-ignore=benchNavigation`.
+
 ## Shots — `Benchmark_Bullet_Flight`
 
 One tick of the bullet, world, motion and collision plugins on a 1024-px square with shots
@@ -759,6 +841,28 @@ is half a millisecond cheaper than inset (less of the frame drawn twice). The fi
 pixel over layers cost 2.7–3.1 ms on the island (the over pass at every pixel, three depths
 placed) and 6 FPS in the demo. The whole picture and the 0.7 cases are within the machine's
 drift of the base.
+
+**The layers leave out what covers them; the clouds over a coarse ground** (2026-10-20, the
+layer levers R1 and R2, branch `perf/layer-levers`, base `main` `e797a753`). Each layer but the
+innermost fills the next one's window, inside its feather, with the nearest depth before its
+ground (`gpu.FillDepth`), so the preset's layers draw about 0.52 of the frame's pixels, not 0.71;
+aloft works its clouds out in the pass over the figures at the coarsest laid ground's pixels
+(`render.Target.Coarse`). Median of 5, base and tree alternately, an idle machine (load
+1.0–1.6), the whole frame with the readback:
+
+| Frame | Base | Tree |
+|:---|---:|---:|
+| isometric in layers | 15.6 ms | 13.9 ms |
+| isometric in layers, the figures at every pixel | 18.2 ms | 16.6 ms |
+| perspective in layers, footed | 17.1 ms | 15.4 ms |
+| perspective in layers, footed, the figures at every pixel | 19.3 ms | 17.9 ms |
+| isometric at 0.7 through a feed: soft / sharp | 13.1 / 14.9 ms | 13.2 / 15.2 ms |
+
+The island has no clouds, so R1 does not show here: measured by the part in one process,
+1440p, full cover from above, the clouds in the over pass cost 6.1 ms worked out at the
+screen's pixels and 3.7 ms at a ground of 0.6 (the march falls with the ground's pixels; the
+lay, a full screen's fill, stays at ~1.45 ms). The hole costs two depth fills a frame (about 79
+allocations, gogpu's boxing a draw) and gives back 1.3–1.8 ms; the pictures do not change.
 
 ## How to benchmark
 

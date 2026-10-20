@@ -104,7 +104,7 @@ func groundShot(t *testing.T, c *Composer, sources ...Source) func(x, y int) [4]
 	c.Lay(cam, true)
 	crop.Uncrop()
 	ground, screen := NewImage(32, 32), NewImage(64, 64)
-	c.DrawLayer(ground, cam, camera.Window{W: 64, H: 64})
+	c.DrawLayer(ground, cam, camera.Window{W: 64, H: 64}, camera.Window{})
 	op := DrawImageOptions{Filter: FilterLinear}
 	op.GeoM.Scale(2, 2)
 	screen.DrawImage(ground, &op)

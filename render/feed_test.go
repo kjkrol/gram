@@ -76,6 +76,7 @@ type recording struct {
 	screens []*render.Image
 	layers  []*render.Image // the images DrawLayer drew into
 	wins    []camera.Window // the windows DrawWorld was cropped to
+	holes   []camera.Window // the windows DrawLayer left out
 }
 
 // one DrawWorld: the screen's size and the camera's viewport
@@ -112,9 +113,10 @@ func (r *recording) Lay(cam camera.Camera, apart bool) {
 	r.passes = append(r.passes, pass{name: name, call: call{vw: vw, vh: vh}})
 }
 
-func (r *recording) DrawLayer(layer *render.Image, cam camera.Camera, at camera.Window) {
+func (r *recording) DrawLayer(layer *render.Image, cam camera.Camera, at, hole camera.Window) {
 	r.layers = append(r.layers, layer)
 	r.passes = append(r.passes, pass{"layer", callOf(layer, cam), at})
+	r.holes = append(r.holes, hole)
 }
 
 func (r *recording) DrawOver(screen *render.Image, cam camera.Camera) {
@@ -252,6 +254,44 @@ func TestFeed_DrawsAFootedCameraALayerOnTheBottomEdge(t *testing.T) {
 	if w, h := cam.Viewport(); w != 400 || h != 300 || camera.IsCropped(cam) {
 		t.Errorf("after the frame the viewport is %vx%v, cropped %v; want 400x300, not cropped",
 			w, h, camera.IsCropped(cam))
+	}
+}
+
+func TestFeed_LeavesOutOfEachLayerTheNextOnesWindowInsideItsFeather(t *testing.T) {
+	const f = render.LayerFeather
+	layers := []camera.Layer{
+		{Share: 1, Resolution: 0.5},
+		{Share: 0.6, Resolution: 0.75},
+		{Share: 0.35, Resolution: 1},
+	}
+	// two of the outer layer's pixels past the feather, which its filter blends scaled up
+	outer, middle := f+2/float32(0.5), f+2/float32(0.75)
+	for _, tc := range []struct {
+		layout camera.Layout
+		want   []camera.Window
+	}{
+		{camera.Inset, []camera.Window{
+			{X: 80 + outer, Y: 60 + outer, W: 240 - outer - outer, H: 180 - outer - outer},
+			{X: 130 + middle, Y: 97 + middle, W: 140 - middle - middle, H: 106 - middle - middle},
+			{},
+		}},
+		{camera.Footed, []camera.Window{
+			{X: 80 + outer, Y: 120 + outer, W: 240 - outer - outer, H: 180 - outer},
+			{X: 130 + middle, Y: 195 + middle, W: 140 - middle - middle, H: 105 - middle},
+			{},
+		}},
+	} {
+		cam := cameratest.NewFromSpace(1000, 1000, 0)
+		cam.(camera.Layered).SetLayers(layers, tc.layout)
+		picture := &recording{}
+		feed := render.NewFeed(cam, picture)
+		feed.Resize(400, 300)
+		feed.Draw()
+		if !slices.Equal(picture.holes, tc.want) {
+			t.Errorf("%v: the layers left out %v, want %v: each the next one's window inside its "+
+				"feather, hard on the frame's edge, the innermost nothing", tc.layout,
+				picture.holes, tc.want)
+		}
 	}
 }
 

@@ -14,9 +14,11 @@ sesjach”. Zasady wspólne każdej sesji:
   (testy GPU w gram: `GRAM_GPU=software` headless; test staranności wody może pod nim nie
   przejść, to znane). Dema tylko w kopii (`gram-probe` § Checking a change), nigdy w
   `examples/`.
-- Zmiana wydajnościowa jest mierzona przed i po, naprzemiennie, na kopii drzewa sprzed
-  zmiany i na drzewie roboczym, na bezczynnej maszynie (sprawdzić obciążenie przed pomiarem),
-  z profilem CPU przy zmianie w gorącej pętli (`-cpuprofile`, `go tool pprof -top`).
+- Sesja ani agent części nie mierzy czasu (decyzja użytkownika 2026-10-20: części idą naraz i
+  psują sobie liczby). Kod, testy, sekwencja i sprawdzenia deterministyczne (logi, liczniki,
+  zrzuty porównane piksel w piksel); w raporcie dokładne polecenia benchmarków i profili (pakiet,
+  `-bench`, `-benchtime`/`-count`, zmienne, jak wybrać ścieżkę). Integrator puszcza pomiary
+  wszystkich części po kolei na bezczynnej maszynie, baza i drzewo naprzemiennie.
 - Commity na własnej gałęzi: prefiksy konwencjonalne, bez `Co-Authored-By`, trailer
   `Claude-Session: <adres sesji>`; linie do 100 kolumn; komentarze tylko kontraktu.
 - Raport na końcu (w ostatniej wiadomości sesji): commity; co zmierzono przed i po, w jakim
