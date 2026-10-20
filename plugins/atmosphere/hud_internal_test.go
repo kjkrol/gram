@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/internal/engine"
@@ -235,28 +237,66 @@ func TestMoonIcon_StandsAtTheRightOfABoxWiderThanTall(t *testing.T) {
 	}
 }
 
-func TestPlugin_AsALeverOfTheFrameBudgetHalvesTheCloudsReachAndDoublesItBack(t *testing.T) {
+func TestPlugin_AsALeverOfTheFrameBudgetDrawsTheCloudsCoarserAndCutsTheirReachLast(t *testing.T) {
 	a, _, _ := hudStage(t, Config{}, func(a *Plugin) *ui.Element { return a.Bar() })
 	a.ShowClouds(AllBodies)
 	if a.Following() {
 		t.Fatal("not adaptive, the clouds follow the frame budget")
 	}
 	a.AdaptClouds(true)
-	var reaches []float32
+	var rungs []rung
 	for a.Coarser() {
-		reaches = append(reaches, a.CloudsReach())
+		rungs = append(rungs, rung{a.CloudsDrawnAt(), a.CloudsReach()})
 	}
-	if want := []float32{0.5, 0.25, 0.125}; !slices.Equal(reaches, want) {
-		t.Errorf("coarser from everywhere the reach went %v, want %v then no further", reaches, want)
+	if want := []rung{{6, 1}, {8, 1}, {8, 0.5}}; !slices.Equal(rungs, want) {
+		t.Errorf("coarser from a quarter of the pixels the clouds went %v, want %v then no further",
+			rungs, want)
 	}
 	if a.ShownClouds() != AllBodies {
-		t.Errorf("the look is %v, want all as bodies still: the reach gives, not the look", a.ShownClouds())
+		t.Errorf("the look is %v, want all as bodies still: the pixels give, not the look",
+			a.ShownClouds())
 	}
-	reaches = nil
+	rungs = nil
 	for a.Finer() {
-		reaches = append(reaches, a.CloudsReach())
+		rungs = append(rungs, rung{a.CloudsDrawnAt(), a.CloudsReach()})
 	}
-	if want := []float32{0.25, 0.5, 1}; !slices.Equal(reaches, want) {
-		t.Errorf("finer from an eighth the reach went %v, want %v then no further", reaches, want)
+	if want := []rung{{8, 1}, {6, 1}, {4, 1}}; !slices.Equal(rungs, want) {
+		t.Errorf("finer from half the sight the clouds went %v, want %v then no further", rungs,
+			want)
+	}
+}
+
+func TestSettings_TheHourShowsTheDaysTimeAndSetsItFrozen(t *testing.T) {
+	a, _, tick := hudStage(t, Config{}, func(a *Plugin) *ui.Element { return a.Bar() })
+	tick(600)
+	hour := func() control.Range {
+		for _, s := range a.Settings() {
+			if r, ok := s.(control.Range); ok && r.Label == "Hour" {
+				return r
+			}
+		}
+		t.Fatal("no setting Hour")
+		return control.Range{}
+	}
+	if a.sky.Frozen() {
+		t.Fatal("the light starts frozen")
+	}
+	if got, want := hour().Get(), float64(a.calendar.Now().Time)*24; got != want || want == 0 {
+		t.Errorf("the hour shows %v, want the calendar's %v", got, want)
+	}
+	a.hours.Put(command.Nobody, hour().Set(18).(Hour))
+	a.carryOut()
+	if !a.sky.Frozen() || a.sky.Hour() != 0.75 || hour().Get() != 18 || !a.Res.Settings.Frozen {
+		t.Errorf("the hour set to 18: frozen %v at %v, shown %v, saved frozen %v; want frozen at "+
+			"0.75, shown 18", a.sky.Frozen(), a.sky.Hour(), hour().Get(), a.Res.Settings.Frozen)
+	}
+	tick(600)
+	if hour().Get() != 18 {
+		t.Errorf("frozen, the hour shows %v after a while, want 18 still", hour().Get())
+	}
+	a.freezes.Put(command.Nobody, Freeze{On: false})
+	a.carryOut()
+	if got, want := hour().Get(), float64(a.calendar.Now().Time)*24; got != want {
+		t.Errorf("let go, the hour shows %v, want the calendar's %v", got, want)
 	}
 }

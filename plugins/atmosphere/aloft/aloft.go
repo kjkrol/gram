@@ -52,6 +52,7 @@ type Renderer struct {
 	shown    bool
 	bodies   bool
 	bodiesTo float32 // of the camera's sight the bodies reach
+	coarse   int     // of the screen's pixels each way a pixel of the clouds spans
 
 	opts     render.DrawMeshOptions
 	layOpts  render.DrawMeshOptions
@@ -59,10 +60,11 @@ type Renderer struct {
 	sizes    []size               // the screens drawn on of late, by size
 }
 
-// what the clouds are drawn with on a screen of one size: the clouds coarser than it, how deep
-// they lie there, and a depth to lay them against on a screen without one
+// what the clouds are drawn with on a screen of one size: the clouds coarser than it by at,
+// how deep they lie there, and a depth to lay them against on a screen without one
 type size struct {
 	w, h   int
+	at     int
 	coarse *render.Image
 	depth  *render.Depth
 	alone  *render.Depth
@@ -74,14 +76,15 @@ const keptSizes = 8
 
 // New is the layer of clouds of the weather air gives, seen from above.
 func New(weather func() air.Weather, layer air.Layer) *Renderer {
-	r := &Renderer{layer: layer, air: weather, uniforms: map[string][]float32{}}
+	r := &Renderer{layer: layer, air: weather, uniforms: map[string][]float32{},
+		coarse: DefaultCoarse}
 	r.opts.Uniforms = map[string]any{}
 	return r
 }
 
 func (r *Renderer) sizeFor(w, h int) *size {
 	for i := range r.sizes {
-		if r.sizes[i].w == w && r.sizes[i].h == h {
+		if r.sizes[i].w == w && r.sizes[i].h == h && r.sizes[i].at == r.coarse {
 			return &r.sizes[i]
 		}
 	}
@@ -89,8 +92,9 @@ func (r *Renderer) sizeFor(w, h int) *size {
 		r.sizes[0].free()
 		r.sizes = append(r.sizes[:0], r.sizes[1:]...)
 	}
-	lw, lh := (w+coarse-1)/coarse, (h+coarse-1)/coarse
-	r.sizes = append(r.sizes, size{w: w, h: h, coarse: render.NewImage(lw, lh),
+	c := r.coarse
+	lw, lh := (w+c-1)/c, (h+c-1)/c
+	r.sizes = append(r.sizes, size{w: w, h: h, at: c, coarse: render.NewImage(lw, lh),
 		depth: render.NewDepth().Readable()})
 	return &r.sizes[len(r.sizes)-1]
 }
@@ -104,11 +108,16 @@ func (s *size) free() {
 }
 
 // how much of what is behind the thickest cloud it hides; how many pixels of the screen a pixel of
-// the clouds spans each way: they are soft, worked out a sixteenth as often and laid over enlarged
+// the clouds spans each way to start: they are soft, worked out a sixteenth as often and laid over
+// enlarged
 const (
-	shownAt = 0.75
-	coarse  = 4
+	shownAt       = 0.75
+	DefaultCoarse = 4
 )
+
+// Coarse has a pixel of the clouds span n of the screen's each way, DefaultCoarse to start; under
+// 1, 1.
+func (r *Renderer) Coarse(n int) { r.coarse = max(n, 1) }
 
 // Show has the clouds drawn from above, or none: only their shadows on the ground.
 func (r *Renderer) Show(shown bool) { r.shown = shown }
@@ -217,7 +226,7 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		return
 	}
 	r.set("LayView", float32(b.Dx()), float32(b.Dy()))
-	r.set("LayCoarse", coarse)
+	r.set("LayCoarse", float32(s.at))
 	r.layOpts.Uniforms, r.layOpts.Vertices = r.opts.Uniforms, 3
 	r.layOpts.Images[0] = s.coarse
 	r.layOpts.Depth, r.layOpts.ReadDepth, r.layOpts.ClearDepth = t.Depth, s.depth, false

@@ -25,10 +25,14 @@
 //
 // # Commands
 //
-// [Freeze] stops the light of the day, [Hour] puts a frozen light at an hour, [ChangeWeather]
+// [Freeze] stops the light of the day, [Hour] freezes it at an hour, [ChangeWeather]
 // throws the next weather and [SetWeather] names one, either over the world within seconds;
-// [Clouds] has the clouds drawn in a [CloudLook]. None has a key of its own: the settings screen
-// sets the light, the clouds and the weather.
+// [Clouds] has the clouds drawn in a [CloudLook], [CloudsDrawnAt] at a quarter, a sixth or an
+// eighth of the pixels, [CloudReach] as bodies out to a share of the sight; [AdaptClouds] has
+// them follow the cameras' frame budget, a cameras.Lever: drawn at fewer pixels first, as bodies
+// to half the sight last, the look never. None has a key of its own: the settings screen sets
+// the light, the clouds and the weather; its hour shows the day's time and, moved, freezes the
+// light there.
 //
 // # Drawing
 //
@@ -68,7 +72,8 @@
 // atmosphere's own entity, once a step), weathering.Overhead (a board's cell, once a second, with
 // WithWeathering). Knobs, for an effect's Alter: sky.Moon and climate.Spread (on the atmosphere's
 // own entity), weathering.Wring (on every cell of the board). Commands, a player's: [Freeze],
-// [Hour], [ChangeWeather], [SetWeather], [Downpour], [Clouds], [HighShade]. Settings
-// ([Settings], saved with the game, in [Resources]): the frozen light and its hour, the clouds'
-// look, the high clouds' shadows.
+// [Hour], [ChangeWeather], [SetWeather], [Downpour], [Clouds], [CloudsDrawnAt], [CloudReach],
+// [AdaptClouds], [GroundShade], [FigureShade], [HighShade]. Settings ([Settings], saved with
+// the game, in [Resources]): the frozen light and its hour, the clouds' look, pixels and reach,
+// their shadows, their following.
 package atmosphere

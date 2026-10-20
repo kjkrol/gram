@@ -15,8 +15,9 @@ import (
 // alone.
 type Freeze struct{ On bool }
 
-// Hour puts a frozen light At a part of the day, 0 to 1 round midnight (Settings.Hour). The
-// settings screen alone.
+// Hour freezes the light At a part of the day, 0 to 1 round midnight (Settings.Frozen,
+// Settings.Hour): the hour taken, Freeze{On: false} lets the day go on from there. The settings
+// screen alone.
 type Hour struct{ At float32 }
 
 // ChangeWeather has the weather go on to its next state now.
@@ -52,10 +53,19 @@ func (CloudReach) Command() {}
 
 var _ command.Command = CloudReach{}
 
-// AdaptClouds has the clouds' bodies' reach follow the cameras' frame budget, or not
-// (Settings.AdaptiveClouds): the atmosphere is a cameras.Lever (cameras.Config.Levers), the
-// reach halved from everywhere down to an eighth of the sight as the rate falls under the
-// budget, and doubled back as it stays over; the look stays as set. The settings screen alone.
+// CloudsDrawnAt has the clouds drawn at a Coarse of the pixels each way, 4, 6 or 8
+// (Settings.CloudCoarse): they are soft, so a quarter of them loses nothing to the eye, a
+// sixth or an eighth little, for a frame the cheaper. The settings screen alone.
+type CloudsDrawnAt struct{ Coarse int }
+
+func (CloudsDrawnAt) Command() {}
+
+var _ command.Command = CloudsDrawnAt{}
+
+// AdaptClouds has the clouds follow the cameras' frame budget, or not (Settings.AdaptiveClouds):
+// the atmosphere is a cameras.Lever (cameras.Config.Levers), the clouds drawn at a sixth of
+// the pixels, then an eighth, then as bodies to half the sight alone as the rate falls under the
+// budget, and back up as it stays over; the look stays as set. The settings screen alone.
 type AdaptClouds struct{ On bool }
 
 func (AdaptClouds) Command() {}
@@ -73,6 +83,7 @@ type Settings struct {
 	Hour           float32
 	Clouds         CloudLook
 	CloudReach     float32 // of the camera's sight the clouds are bodies out to; zero, all
+	CloudCoarse    int     // of the pixels each way the clouds are drawn at; zero, 4
 	HighShade      bool
 	AdaptiveClouds bool
 }
@@ -106,14 +117,15 @@ var (
 // Queues are where the atmosphere's commands land.
 func (p *Plugin) Queues() []command.CommandQueue {
 	return []command.CommandQueue{&p.freezes, &p.hours, &p.changes, &p.sets, &p.clouds,
-		&p.shades, &p.groundShades, &p.figureShades, &p.reaches, &p.adapts, &p.downpours}
+		&p.shades, &p.groundShades, &p.figureShades, &p.reaches, &p.coarses, &p.adapts,
+		&p.downpours}
 }
 
 // DefaultBindings are none: the light, the clouds and the weather are the settings screen's.
 func (p *Plugin) DefaultBindings() []control.Binding { return nil }
 
-// Settings are the frozen light and its hour, the clouds' look and the high clouds' shadows
-// (plugin.Tunable).
+// Settings are the frozen light and the hour, the clouds' look, pixels, reach and shadows, and
+// the weather (plugin.Tunable). The hour shows the day's time, and sets it frozen.
 func (p *Plugin) Settings() []control.Setting {
 	looks := make([]string, ShadowsAlone+1)
 	for l := range looks {
@@ -126,11 +138,11 @@ func (p *Plugin) Settings() []control.Setting {
 			Set:   func(on bool) command.Command { return Freeze{On: on} },
 		},
 		control.Range{
-			Label: "Hour of the frozen light",
+			Label: "Hour",
 			Min:   0,
 			Max:   23.5,
 			Step:  0.5,
-			Get:   func() float64 { return float64(p.sky.Hour()) * 24 },
+			Get:   func() float64 { return float64(p.lightsHour()) * 24 },
 			Set:   func(v float64) command.Command { return Hour{At: float32(v / 24)} },
 			Shows: func(v float64) string { return fmt.Sprintf("%02d:%02d", int(v), int(v*60)%60) },
 		},
@@ -139,6 +151,12 @@ func (p *Plugin) Settings() []control.Setting {
 			Options: looks,
 			Get:     func() int { return int(p.ShownClouds()) },
 			Set:     func(i int) command.Command { return Clouds{Look: CloudLook(i)} },
+		},
+		control.Choice{
+			Label:   "Clouds drawn at",
+			Options: []string{"a quarter of the pixels", "a sixth", "an eighth"},
+			Get:     func() int { return coarseRung(p.CloudsDrawnAt()) },
+			Set:     func(i int) command.Command { return CloudsDrawnAt{Coarse: coarses[i]} },
 		},
 		control.Range{
 			Label: "Clouds as bodies out to",
@@ -188,10 +206,14 @@ func (p *Plugin) Settings() []control.Setting {
 
 func (p *Plugin) carryOut() {
 	p.freezes.Drain(func(i command.Issued[Freeze]) { p.sky.SetFrozen(i.Command.On) })
-	p.hours.Drain(func(i command.Issued[Hour]) { p.sky.SetHour(i.Command.At) })
+	p.hours.Drain(func(i command.Issued[Hour]) {
+		p.sky.SetFrozen(true)
+		p.sky.SetHour(i.Command.At)
+	})
 	p.changes.Drain(func(command.Issued[ChangeWeather]) { p.climate.Change() })
 	p.sets.Drain(func(i command.Issued[SetWeather]) { p.climate.Set(i.Command.Name) })
 	p.reaches.Drain(func(i command.Issued[CloudReach]) { p.ReachClouds(i.Command.Share) })
+	p.coarses.Drain(func(i command.Issued[CloudsDrawnAt]) { p.DrawCloudsAt(i.Command.Coarse) })
 	p.adapts.Drain(func(i command.Issued[AdaptClouds]) { p.AdaptClouds(i.Command.On) })
 	p.clouds.Drain(func(i command.Issued[Clouds]) { p.ShowClouds(i.Command.Look) })
 	p.shades.Drain(func(i command.Issued[HighShade]) { p.shadeHigh(i.Command.On) })
@@ -199,4 +221,12 @@ func (p *Plugin) carryOut() {
 	p.figureShades.Drain(func(i command.Issued[FigureShade]) { p.shadows.Figures = i.Command.On })
 	p.downpours.Drain(func(command.Issued[Downpour]) { p.climate.Set(weather.Rain) })
 	p.Res.Settings.Frozen, p.Res.Settings.Hour = p.sky.Frozen(), p.sky.Hour()
+}
+
+// lightsHour is the time of day the light stands at: the frozen light's, else the calendar's
+func (p *Plugin) lightsHour() float32 {
+	if p.sky.Frozen() {
+		return p.sky.Hour()
+	}
+	return p.calendar.Now().Time
 }

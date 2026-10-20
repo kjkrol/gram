@@ -225,7 +225,6 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		a.atmosphere, a.topography, a.vision, a.bridges, a.minimap, a.light)
 	a.topography.AdaptCare(true)
 	a.light.AdaptShadows(true)
-	a.atmosphere.AdaptClouds(true)
 	a.atmosphere.ShowClouds(atmosphere.AllBodies)
 	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})
 	a.cameras.ShowZones(true)

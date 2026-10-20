@@ -323,3 +323,19 @@ func TestRenderer_DrawsTheLowCloudsBeforeTheSlopesFromUnderThem(t *testing.T) {
 		t.Errorf("behind what stands nearest everywhere the clouds still show, %v of alpha", hidden)
 	}
 }
+
+func TestRenderer_DrawsTheCloudsAtACoarseOfThePixels(t *testing.T) {
+	needGPU(t)
+	r := New(func() air.Weather { return air.Weather{} }, air.Low)
+	for _, c := range []struct{ coarse, w, h int }{{4, 160, 120}, {8, 80, 60}, {6, 107, 80}} {
+		r.Coarse(c.coarse)
+		b := r.sizeFor(640, 480).coarse.Bounds()
+		if b.Dx() != c.w || b.Dy() != c.h {
+			t.Errorf("at a coarse of %v the clouds of a screen 640 by 480 are %v by %v, want %v by %v",
+				c.coarse, b.Dx(), b.Dy(), c.w, c.h)
+		}
+	}
+	if len(r.sizes) != 3 {
+		t.Errorf("%v sizes kept, want one a coarse", len(r.sizes))
+	}
+}
