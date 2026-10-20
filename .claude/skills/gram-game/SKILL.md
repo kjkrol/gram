@@ -131,8 +131,12 @@ in sight (`ui.Owner`: a player's picture shows its own entities and nobody's);
 `cameras.CenterOn`). A pinned element's button gives every `ceremony.Command` for `ui.It` for the
 entity it is shown for (`ceremony.ID(id)`); a plugin's own command that is a `ui.About`
 (`dialog.Choose`) gets the entity the same way. Every demo shows its world through a ui scene: the
-feed through a camera made beside it, a backdrop `Blank`, the telemetry and the clock's HUD as
-`ui.Drawer`s.
+feed through a camera made beside it, a backdrop `Blank`, the clock's HUD as a `ui.Drawer`, and
+under an atmosphere its HUD elements (2026-10-20: `a.atmosphere.Bar()` at an edge, or
+`TimeOfDay()`, `Date()` and `Weather()` apart by the corners; board/topography's `-hud
+bar|widgets` flag beside `-look`). A demo with a big screen may compose it in a subpackage of
+its own (board/topography's `hud`: `hud.Screen(hud.Deps{...})`), `scene.go` keeping the looks
+and the camera; the telemetry panel is the plugin's scene, not the demo's.
 
 ## Figures and tiles
 
