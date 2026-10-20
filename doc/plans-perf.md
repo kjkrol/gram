@@ -733,10 +733,10 @@ gałęzie części zostawione do przeglądu.
 
 **Stan** (integrator aktualizuje, 2026-10-21 00:30): fale 1 i 2 zrobione, w `main`: 2a, 2b, odstęp
 po nieudanym wyszukiwaniu, 3b, R1, dziura z R2, kopia instancji jednym ruchem. Etapy 4 i 5
-zamknięte pomiarem (niżej, „Fala 2: wynik”): goke PR #55 do zamknięcia, gałąź goke
-`feat/chunk-versions` i gram `m/mirror` zostają jako ślad. Otwarte: aabbworld PR #19 (wyścig w
-leniwej mapie id od v1.14.0, `-race` wzroku pada na `main`; po tagu v1.14.1 podbicie w `go.mod`),
-decyzja użytkownika o „dosłownym” odstępie (Detour w tłoku), etap 6 za zamkniętą bramką.
+zamknięte pomiarem (niżej, „Fala 2: wynik”); gram `m/mirror` zostaje jako ślad. aabbworld v1.14.1 (PR #19, wyścig w
+leniwej mapie id z v1.14.0) wydane i podbite w `go.mod`, `-race` wzroku czysty; goke PR #55 i gałąź
+`feat/chunk-versions` usunięte. Otwarte: decyzja użytkownika o „dosłownym” odstępie (Detour w
+tłoku), etap 6 za zamkniętą bramką.
 
 ## Fala 1: wynik (2026-10-20)
 

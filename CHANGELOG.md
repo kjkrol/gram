@@ -6,7 +6,7 @@ Saves made before the back-off of a failed search do not load: `navigation.MoveO
 and `Fails`.
 
 **The space reads every box where goke keeps it** (2026-10-21, etap 3 of `doc/plans-perf.md`)
-- Motion, the world and collision hand the space runs over the `Base` columns (aabbworld v1.14.0
+- Motion, the world and collision hand the space runs over the `Base` columns (aabbworld v1.14.1
   `Space.RebuildRuns`, `world.RunOf`, one run a chunk) instead of copying every `Base` into an
   `Item` each step; the collision engine pushes the boxes in `Base` itself, so `moved` needs no
   Seek and a leaver's box is already where `Left` says. The world gathers the runs anew after
