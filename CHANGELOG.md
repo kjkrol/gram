@@ -17,6 +17,22 @@ part 2a)
   14,740 allocations → 18 ms and 19. `Benchmark_Navigation_Tick` at fixed counts: open
   100/1,000 0.80/9.6 → 0.42/6.3 ms, crowded 100/1,000 2.9/306 → 1.2/104 ms.
 
+**The layers leave out what covers them** (2026-10-20, the layer levers after etap U, part R2)
+- In layers each layer but the innermost leaves out the ground under the next one's window,
+  inside its feather (`render.Laid.DrawLayer` takes the window a later layer covers,
+  `gpu.FillDepth` fills it with the nearest depth before the ground): the preset's layers draw
+  about 0.52 of the frame's pixels, not 0.71; the island's layered frame is 1.3–1.8 ms faster
+  (iso in layers 15.6 → 13.9 ms, footed 17.1 → 15.4, sharp 18.2 → 16.6 and 19.3 → 17.9), the
+  pictures the same.
+
+**The clouds over a coarse ground** (2026-10-20, the layer levers after etap U, part R1)
+- With the figures at every pixel over a ground drawn coarser (a resolution under 1, or in
+  layers), aloft works its clouds out at a quarter of the ground's pixels each way, not the
+  screen's, and lays them over the screen against its depth: their march costs as many pixels
+  as the ground (1440p, the ground at 0.6: 6.1 → 3.7 ms in the worst case, full cover from
+  above) and the pictures show no seam. `render.Target.Coarse` tells a Direct in
+  `Laid.DrawOver` how many of the screen's pixels a pixel of the coarsest laid ground spans.
+
 ## v0.3.0 — 2026-10-20
 
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's

@@ -80,8 +80,14 @@ screen is painted, onto the picture's part of it, so the HUD never covers them, 
 `render.Laid` (2026-10-20, stage U, in place of `Grounded`): `Lay(cam, apart)` composes every
 source (the ground's alone when apart) once, in cam's pixels, the feed having cropped the camera
 to the whole frame at every pixel (`Crop(camera.Window{W, H}, 1)`, exact, `Cropped()` false);
-`DrawLayer(layer, cam, at)` draws what was composed into `layer`, the camera cropped to the
-frame's window `at`, the pieces placed by the window's scale and offset (`gpu.Draw.Place`, which
+`DrawLayer(layer, cam, at, hole)` draws what was composed into `layer`, the camera cropped to the
+frame's window `at`, leaving out the frame's window `hole` where the frame has a ground (R2,
+2026-10-20: a layer but the innermost is handed the next one's window inset by `LayerFeather`
+plus two of its own pixels on the fading sides, `Feed.holeOf`, and `gpu.FillDepth`,
+`depth_fill.wgsl`, writes the nearest depth over it right after the layer's depth is cleared, so
+nothing depth-tested is drawn where the layer over it covers it whole: the preset's layers draw
+about 0.52 of the frame's pixels, not 0.71; zero, no hole), the pieces placed by the window's
+scale and offset (`gpu.Draw.Place`, which
 `quad.wgsl` applies before `heightDepth`, so a placed vertex takes its depth from the layer
 camera's sight read at render time) and the Directs drawing through the cropped camera (so a
 Direct gathering at Compose draws as often as there are layers: `Sprites.Draw` resets no more,
@@ -93,7 +99,10 @@ every laid depth into the screen's (`Image.PlaceDepth`, `gpu.PlaceDepth(target, 
 laid over the first) and composes and draws the Overlying ones onto the screen tested against
 it, the figures writing into a copy and `OverFigures` bound to the placed one; the over pass
 inherits the uniforms and images the ground pass set (the sun, the weather, `Fog`,
-`GroundHeights`, `GroundShade`), put back on the frame before the Overlying sources compose, so
+`GroundHeights`, `GroundShade`), put back on the frame before the Overlying sources compose (the
+over pass hands its Directs `Target.Coarse`: the most of the screen's pixels each way a pixel of
+a laid ground spans, `max(at.W/w, at.H/h)` over the layers laid, 0 in every other pass, so a soft
+Direct works itself out at the ground's pixels: aloft, 2026-10-20, R1), so
 `Uniformed` sees them and every Direct is handed them; one asking `DrawOpaque` there is not
 heard. A `Feed` draws a `camera.Figured` camera so whenever its picture is coarse somewhere —
 whole at a resolution under 1, or in layers one of which is — and soft layers from one `Lay`

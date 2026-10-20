@@ -786,6 +786,28 @@ pixel over layers cost 2.7–3.1 ms on the island (the over pass at every pixel,
 placed) and 6 FPS in the demo. The whole picture and the 0.7 cases are within the machine's
 drift of the base.
 
+**The layers leave out what covers them; the clouds over a coarse ground** (2026-10-20, the
+layer levers R1 and R2, branch `perf/layer-levers`, base `main` `e797a753`). Each layer but the
+innermost fills the next one's window, inside its feather, with the nearest depth before its
+ground (`gpu.FillDepth`), so the preset's layers draw about 0.52 of the frame's pixels, not 0.71;
+aloft works its clouds out in the pass over the figures at the coarsest laid ground's pixels
+(`render.Target.Coarse`). Median of 5, base and tree alternately, an idle machine (load
+1.0–1.6), the whole frame with the readback:
+
+| Frame | Base | Tree |
+|:---|---:|---:|
+| isometric in layers | 15.6 ms | 13.9 ms |
+| isometric in layers, the figures at every pixel | 18.2 ms | 16.6 ms |
+| perspective in layers, footed | 17.1 ms | 15.4 ms |
+| perspective in layers, footed, the figures at every pixel | 19.3 ms | 17.9 ms |
+| isometric at 0.7 through a feed: soft / sharp | 13.1 / 14.9 ms | 13.2 / 15.2 ms |
+
+The island has no clouds, so R1 does not show here: measured by the part in one process,
+1440p, full cover from above, the clouds in the over pass cost 6.1 ms worked out at the
+screen's pixels and 3.7 ms at a ground of 0.6 (the march falls with the ground's pixels; the
+lay, a full screen's fill, stays at ~1.45 ms). The hole costs two depth fills a frame (about 79
+allocations, gogpu's boxing a draw) and gives back 1.3–1.8 ms; the pictures do not change.
+
 ## How to benchmark
 
 ```bash
