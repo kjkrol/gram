@@ -276,10 +276,10 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
 }
 
-// Reporter is the atmosphere's lines for the telemetry panel.
-func (p *Plugin) Reporter() render.Reporter {
-	return reporters{p.calendar.Reporter(), p.sky.Reporter(), p.climate.Reporter(), cloudsReport{p}}
-}
+// Reporter is the atmosphere's lines for the telemetry panel: the daylight, how the clouds look
+// and whose shadows they cast; the time, the season and the weather are the reporters of
+// Calendar and Climate.
+func (p *Plugin) Reporter() render.Reporter { return reporters{p.sky.Reporter(), cloudsReport{p}} }
 
 // HUD is the calendar's screen renderer: the hour, the date and the moon, for a ui.Drawer.
 func (p *Plugin) HUD() render.Renderer { return p.calendar.HUD() }
