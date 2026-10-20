@@ -824,3 +824,17 @@ pierwszym `Query`, test łapie 20 wyścigów bez niej), do wydania jako v1.14.1.
 czytelnik w niesymulowanym `RunPlan` po cudzym niesymulowanym `Sync` (np. selekcja po `MoveTo`
 nawigacji) może widzieć nieświeże przebiegi do następnego przebudowania; pełna naprawa to
 opakowanie `rc` w `internal/engine/stage_runtime.go` jak w `Clock.Replay`.
+
+## Fala 3 (plan 2026-10-21, gałąź `perf/wave-3`)
+
+Dziewięć części naraz (agenty Opus 5.5, bez pomiarów czasu), briefy w `doc/briefs/w3.md`: A
+Detour bez zmiany zachowania, B odstęp „dosłowny” (alternatywa A, wejdzie lepsza), C osiadanie
+po `Sync` poza symulacją (poprawność), D słowniki astar, E alokacje kroków ceremony, F `Scan` bez
+alokacji i niestabilny test w aabbworld, G tańszy ruch (aabbworld + gram), H bez `unindexed`
+(porządek), I shadery bez podwójnego `@builtin(position)` (Metal). Integrator po kolei: C, I, H,
+A wobec B, D, E, F, G; pomiar szeregowy na bezczynnej maszynie, baza = `perf/wave-3` przed
+częścią; ulepszenie przyjęte, gdy mediana ≥3% lepsza w reżimie celu i zakresy biegów się nie
+nakładają, a żaden inny reżim nie gorszy; porządek i poprawność na testach. astar, ceremony,
+aabbworld: gałęzie `perf/wave-3`, PR-y integratora bez scalania; użytkownik scala, taguje i
+podbija w gram; do tego czasu `/home/karol/CODE/go.work` używa lokalnych `./astar` i
+`./aabbworld` (przed falą: tylko `./ceremony`, `./goke`, `./gram`).
