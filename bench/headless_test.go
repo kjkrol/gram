@@ -92,10 +92,14 @@ func (c *headless) start(tb testing.TB, plan func(goke.RunCtx, time.Duration)) *
 		}
 	}
 	c.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
-		plan(rc, d)
-		if c.world != nil {
-			c.world.Clock().Replay(rc, d) // as the engine does after the game's Update
+		if c.world == nil {
+			plan(rc, d)
+			return
 		}
+		// as the engine runs the game's Update and the clock's replay after it
+		clk := c.world.Clock()
+		plan(clk.Settling(rc), d)
+		clk.Replay(rc, d)
 	})
 	var systems []goke.System
 	for _, produce := range c.pending {

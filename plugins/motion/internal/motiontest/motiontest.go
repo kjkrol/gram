@@ -73,9 +73,10 @@ func Start(
 // Step is a step as a game takes it: the world, motion, the clock's replay.
 func Step(w *world.Plugin, m *motion.Plugin) func(goke.RunCtx, time.Duration) {
 	return func(rc goke.RunCtx, d time.Duration) {
-		w.RunPlan(rc, d)
-		m.RunPlan(rc, d)
-		rc.Sync()
+		settling := w.Clock().Settling(rc)
+		w.RunPlan(settling, d)
+		m.RunPlan(settling, d)
+		settling.Sync()
 		w.Clock().Replay(rc, d)
 	}
 }

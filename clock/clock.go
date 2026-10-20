@@ -57,7 +57,7 @@ type Clock struct {
 	synced  synced
 }
 
-// synced is the RunCtx Replay hands the blocks once OnSync has given it its settle
+// synced is the RunCtx Settling hands out once OnSync has given it its settle
 type synced struct {
 	goke.RunCtx
 	settle func()
@@ -119,10 +119,7 @@ func (c *Clock) Simulate(_ goke.RunCtx, block Block) { c.blocks = append(c.block
 // tempo.
 func (c *Clock) Replay(ctx goke.RunCtx, step time.Duration) {
 	defer c.replayed()
-	if c.synced.settle != nil {
-		c.synced.RunCtx = ctx
-		ctx = &c.synced
-	}
+	ctx = c.Settling(ctx)
 	c.step = step
 	if c.state.Paused {
 		c.carry = 0
@@ -145,9 +142,19 @@ func (c *Clock) replayed() {
 	}
 }
 
-// OnSync has settle run after every Sync of what Replay runs and as each Replay ends: for what
-// reads goke's memory where it lies, which a Sync may move.
+// OnSync has settle run after every Sync of what Replay runs or Settling hands, and as each
+// Replay ends: for what reads goke's memory where it lies, which a Sync may move.
 func (c *Clock) OnSync(settle func()) { c.synced.settle = settle }
+
+// Settling is ctx running OnSync's settle after every Sync, for a plan to hand what it runs
+// outside Replay; ctx itself where OnSync gave none or ctx already settles.
+func (c *Clock) Settling(ctx goke.RunCtx) goke.RunCtx {
+	if c.synced.settle == nil || ctx == &c.synced {
+		return ctx
+	}
+	c.synced.RunCtx = ctx
+	return &c.synced
+}
 
 func (c *Clock) run(ctx goke.RunCtx, step time.Duration) {
 	for _, b := range c.blocks {

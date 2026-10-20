@@ -256,3 +256,38 @@ func TestClock_OnSyncSettlesAfterEverySyncOfTheSimulationAndAsAReplayEnds(t *tes
 			want)
 	}
 }
+
+func TestClock_SettlingSettlesAfterEverySyncOutsideReplayToo(t *testing.T) {
+	c := clock.New(clock.Config{})
+	heard := make([]string, 0, 64)
+	block := clock.Block(func(ctx goke.RunCtx, _ time.Duration) {
+		heard = append(heard, "block")
+		ctx.Sync()
+	})
+	ecs := goke.New()
+	var allocs float64
+	ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
+		if got := c.Settling(rc); got != rc {
+			t.Errorf("without an OnSync Settling hands %T, want the plan's own ctx", got)
+		}
+		c.OnSync(func() { heard = append(heard, "settle") })
+		ctx := c.Settling(rc)
+		if again := c.Settling(ctx); again != ctx {
+			t.Error("Settling wraps what already settles")
+		}
+		heard = append(heard, "update")
+		ctx.Sync()
+		c.Simulate(ctx, block)
+		c.Replay(ctx, d)
+		allocs = testing.AllocsPerRun(10, func() { c.Settling(rc).Sync() })
+	})
+	ecs.Setup()
+	ecs.Tick(step)
+	want := []string{"update", "settle", "block", "settle", "settle"}
+	if !slices.Equal(heard[:5], want) {
+		t.Errorf("heard %v, want %v", heard[:5], want)
+	}
+	if allocs != 0 {
+		t.Errorf("a Sync through Settling allocates %v times, want none", allocs)
+	}
+}
