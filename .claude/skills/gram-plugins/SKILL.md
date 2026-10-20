@@ -548,7 +548,13 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   stays under `groundHighest()`, stopping where it goes under the ground; the sky's cumulus draws
   those past the highest ground, `backdrop.Clouds.Before`, so neither doubles nor leaves a gap;
   not drawn at all while the frame's ground, `GroundSpan`, stays under the lowest base); a
-  quarter resolution each way. The low clouds lie as deep as their first dense sample: the coarse
+  `Coarse` (4) of the ground's pixels each way: over a coarse ground in the pass over the
+  figures (`render.Target.Coarse`) the image is `ceil(round(screen/Coarse)/coarse)`, kept by the
+  screen's size and its own, one a frame; `lay.wgsl` maps the screen onto it exactly each way
+  (`LayCoarse` a pair) and lays it at every pixel against the screen's depth (measured
+  2026-10-20, R1, 1440p, full cover from above: 6.1 → 3.7 ms over a ground at 0.6; the march
+  falls with the ground's pixels, the lay stays at ~1.45 ms, a full screen's fill). The low
+  clouds lie as deep as their first dense sample: the coarse
   pass writes `frag_depth` (through the scene's transform, `AloftViewProj`, as the drops) into a
   Readable depth of its own, the lay (`lay.wgsl`) reads it (`depthAt`) and writes `frag_depth`
   tested against the world's (`t.Depth`): the ground or anything nearer hides them, they hide

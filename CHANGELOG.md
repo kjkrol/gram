@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+**The clouds over a coarse ground** (2026-10-20, the layer levers after etap U, part R1)
+- With the figures at every pixel over a ground drawn coarser (a resolution under 1, or in
+  layers), aloft works its clouds out at a quarter of the ground's pixels each way, not the
+  screen's, and lays them over the screen against its depth: their march costs as many pixels
+  as the ground (1440p, the ground at 0.6: 6.1 → 3.7 ms in the worst case, full cover from
+  above) and the pictures show no seam. `render.Target.Coarse` tells a Direct in
+  `Laid.DrawOver` how many of the screen's pixels a pixel of the coarsest laid ground spans.
+
+## v0.3.0 — 2026-10-20
+
 Saves written by v0.2.0 do not load: `Base` and the marker components changed shape, the sky's
 and the climate's entities are gone, the clock's is new. Nor do saves made on this branch before
 the topography was split into packages: its heights are `relief.Heights` now. Nor before the core

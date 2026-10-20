@@ -93,7 +93,10 @@ every laid depth into the screen's (`Image.PlaceDepth`, `gpu.PlaceDepth(target, 
 laid over the first) and composes and draws the Overlying ones onto the screen tested against
 it, the figures writing into a copy and `OverFigures` bound to the placed one; the over pass
 inherits the uniforms and images the ground pass set (the sun, the weather, `Fog`,
-`GroundHeights`, `GroundShade`), put back on the frame before the Overlying sources compose, so
+`GroundHeights`, `GroundShade`), put back on the frame before the Overlying sources compose (the
+over pass hands its Directs `Target.Coarse`: the most of the screen's pixels each way a pixel of
+a laid ground spans, `max(at.W/w, at.H/h)` over the layers laid, 0 in every other pass, so a soft
+Direct works itself out at the ground's pixels: aloft, 2026-10-20, R1), so
 `Uniformed` sees them and every Direct is handed them; one asking `DrawOpaque` there is not
 heard. A `Feed` draws a `camera.Figured` camera so whenever its picture is coarse somewhere —
 whole at a resolution under 1, or in layers one of which is — and soft layers from one `Lay`
