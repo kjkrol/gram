@@ -731,16 +731,12 @@ każde demo z kamerami pod `timeout`, pomiar bazy i drzewa naprzemiennie na bezc
 `CHANGELOG.md`, skille, sekcja „Etap N: wynik” tutaj, `--no-ff` do `main`, worktree usunięte,
 gałęzie części zostawione do przeglądu.
 
-**Stan** (integrator aktualizuje, 2026-10-20 22:00): fala 1 zrobiona przez pięć agentów Opus 5.5
-w worktree (na życzenie użytkownika „możesz zaczynać”, zamiast sesji). 2a i R1 + dziura z R2
-scalone do `main` (`aecf9f9c`, `9b90af6d`); 3a i 4a zweryfikowane na swoich gałęziach i czekają
-na przegląd, scalenie i wydanie użytkownika (aabbworld `feat/runs` → v1.14.0, goke
-`feat/chunk-versions` → v3.6.0, oba z podbiciem `gram/go.mod`); drugi commit R2 (`444c40a7`,
-Directy umieszczane) nie scalony, decyzja niżej. Następne: 2b (od `main`, w toku),
-3b od `main` z aabbworld v1.14.0 (podbite przez integratora 2026-10-20 po tagu użytkownika). Goke PR #55
-niescalony z decyzji użytkownika: 4b i 5 idą razem lokalnie na goke `feat/chunk-versions`
-(brief `45-mirror-local`, gałąź `m/mirror`); goke v3.6.0 tylko, jeśli lustro pokaże zysk. Gałęzie części zostają do przeglądu,
-worktree gram usunięte.
+**Stan** (integrator aktualizuje, 2026-10-21 00:30): fale 1 i 2 zrobione, w `main`: 2a, 2b, odstęp
+po nieudanym wyszukiwaniu, 3b, R1, dziura z R2, kopia instancji jednym ruchem. Etapy 4 i 5
+zamknięte pomiarem (niżej, „Fala 2: wynik”): goke PR #55 do zamknięcia, gałąź goke
+`feat/chunk-versions` i gram `m/mirror` zostają jako ślad. Otwarte: aabbworld PR #19 (wyścig w
+leniwej mapie id od v1.14.0, `-race` wzroku pada na `main`; po tagu v1.14.1 podbicie w `go.mod`),
+decyzja użytkownika o „dosłownym” odstępie (Detour w tłoku), etap 6 za zamkniętą bramką.
 
 ## Fala 1: wynik (2026-10-20)
 
@@ -785,3 +781,46 @@ pisze efekty przez `OptColumn`: brief 4b), równoległe zapisy przez `Mut` jedne
 na jednej encji to k migracji przez archetypy pośrednie (luka poza `Editor`, nie robiona). astar:
 słowniki na mapach to ~12% ticku w tłoku, a `expandCurrent` gubi bufor, który `append` urósł
 (obejście `WithSuccessorCapacity`); propozycje dla właściciela astar.
+
+## Fala 2: wynik (2026-10-21)
+
+Części 2b, odstęp, 3b i 4b+5 (lustro) przez agenty Opus 5.5; od połowy fali agenty nie mierzą
+(decyzja użytkownika: pomiar równoległy jest bezcelowy), integrator mierzy wszystko po kolei na
+bezczynnej maszynie (load 1,0–1,5), baza i drzewo naprzemiennie, mediany z 5–6.
+
+| Część | Co | Przed | Po |
+|:--|:--|--:|--:|
+| 2b | `Navigation_Tick` open 1 000 | 5,67 ms | 4,55 ms |
+| 2b | pozostałe trzy reżimy | — | w szumie; alokacje 2,5–3× mniej |
+| odstęp | wszystkie reżimy wobec 2b | — | w szumie (±4%) |
+| 3b | `World_Tick` 1 000 / 5 000 | 23,3 / 110,9 µs | 13,9 / 58,0 µs |
+| 3b | `Collision_Tick`, `Collision_Swept` | — | −1% do −10% |
+| kopia instancji | `World_TickDraw`, cały kadr | 0,95–1,01 ms | 0,85–0,90 ms |
+| lustro (4b+5) | `World_TickDraw`, 10% / 100% w ruchu, cały kadr | 0,90 / 0,91 ms | 1,07 / 1,10 ms |
+| lustro | nikt się nie rusza | 0,95 ms | 0,60 ms |
+
+**Wnioski.** 3b to największy zysk ticku: kopia `Base` do `Item` (52% profilu) znika, tick świata
+prawie o połowę krótszy. 2b daje −20% tylko w otwartym polu z 1 000 jednostek; tłok to udane
+wyszukiwania Detour (85%), których 2b nie dotyka. Odstęp jest neutralny dla czasu i dla tego, co
+widzi gracz (logi i zrzuty identyczne), zmienia kształt zapisu.
+
+**Etapy 4 i 5 zamknięte.** Wersje per chunk w goke dają zysk tylko przez lustro sprite'ów, a lustro
+wygrywa jedynie tam, gdzie chunki stoją czyste. W realnych scenach brudzi się każdy chunk w kadrze
+co tick (motion/collision, motion/expanse, 10% w ruchu rozrzuconych: 100% chunków), więc lustro jest
+o ok. 20% wolniejsze od dzisiejszej ścieżki; na planszy (board/topography) w ogóle nie działa, bo
+figury to billboardy. Znacznik `Still` nie pomógłby: w demach, gdzie lustro działa, ruszają się
+wszyscy w kadrze. Koszt, którego zysk nie broni: ok. 520 linii lustra, ok. 140 linii liczników w
+ośmiu systemach, obowiązek liczenia dla każdego przyszłego pisarza `Base`, `WithMutCheck`
+niewłączalny w testach ze światem (zegar i ceremony piszą przez `Comp`/`OptColumn`). Wzięta jest
+tylko niezależna od goke kopia instancji jednym ruchem (`fa2fc440`, z `m/mirror` `e1fb48b9`).
+Uwagi agenta do API goke, gdyby wersje kiedyś wróciły: `Mut` bez odczytu bez liczenia
+(`Mut.Read`), check per kolumna zamiast hashu całego chunka, `ChunkSnapshot.ArchID` typu z
+pakietu internal.
+
+**Znalezione.** aabbworld v1.14.0 zostawił mapę id i listę wpisów pierwszemu `Scan`; wzrok gram
+skanuje po jednym `Query` na kilku gorutynach, więc `go test -race ./plugins/vision/` pada na
+`main` od podbicia (16 wyścigów). Poprawka w aabbworld PR #19 (mapa budowana z komórkami przy
+pierwszym `Query`, test łapie 20 wyścigów bez niej), do wydania jako v1.14.1. 3b zostawia lukę:
+czytelnik w niesymulowanym `RunPlan` po cudzym niesymulowanym `Sync` (np. selekcja po `MoveTo`
+nawigacji) może widzieć nieświeże przebiegi do następnego przebudowania; pełna naprawa to
+opakowanie `rc` w `internal/engine/stage_runtime.go` jak w `Clock.Replay`.
