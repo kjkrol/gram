@@ -115,7 +115,11 @@ touch and the seams it may not, the contracts it codes against, the tests to add
 reads the skills of the layers its files are in, keeps to its files, runs the verification
 sequence before every commit, commits on its branch with the conventional prefixes and the
 session trailer (no `Co-Authored-By`), and touches no docs, skills, `BENCHMARKS.md`,
-`CHANGELOG.md` or `go.mod`: those are the integrator's. The integrator merges the parts into the
+`CHANGELOG.md` or `go.mod`: those are the integrator's. **Parts running at once time nothing**
+(the user's word, 2026-10-20: measuring in parallel is pointless, they spoil each other's
+numbers): a part writes the code, the tests and the deterministic checks (logs, counts, shots
+compared pixel by pixel) and hands over the exact benchmark commands; the integrator runs every
+part's measurements one after another on an idle machine. The integrator merges the parts into the
 stage's branch in the order the plan says, resolves the seams, runs the whole sequence and every
 demo, measures (the stage's base and the tree alternately, an idle machine), writes the docs and
 the stage's result in `doc/plans-perf.md`, and removes the worktrees, then merges the stage's
