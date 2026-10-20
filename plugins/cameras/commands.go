@@ -163,6 +163,10 @@ type Budget struct{ Frame time.Duration }
 // (Settings.Sampling), LeastSampling up to MostSampling.
 type Sampling struct{ Over time.Duration }
 
+// Thresholds sets the shares of the budget's rate the following steps at: coarser Under the
+// first, finer over the second (Settings.Under, Settings.Met).
+type Thresholds struct{ Under, Met float32 }
+
 // Lever is what else the frame budget turns, given the cameras in Config.Levers: a step coarser
 // as the rate falls under the budget, before the pictures' resolution, Coarser taking it and
 // saying whether it could; a step finer as the rate stays over, after the pictures', Finer the
@@ -191,6 +195,7 @@ func (LayerShares) Command()      {}
 func (LayerResolutions) Command() {}
 func (Budget) Command()           {}
 func (Sampling) Command()         {}
+func (Thresholds) Command()       {}
 func (ShowLayers) Command()       {}
 func (Follow) Command()           {}
 func (CenterOn) Command()         {}
@@ -227,6 +232,7 @@ var (
 	_ command.Command = LayerResolutions{}
 	_ command.Command = Budget{}
 	_ command.Command = Sampling{}
+	_ command.Command = Thresholds{}
 	_ command.Command = ShowLayers{}
 )
 
@@ -253,7 +259,7 @@ const (
 func (p *Plugin) Queues() []command.CommandQueue {
 	return append([]command.CommandQueue{&p.pans, &p.zooms, &p.follows, &p.centerOns,
 		&p.centerAts, &p.zones, &p.sights, &p.resolutions, &p.adapts, &p.pictures, &p.sharps,
-		&p.layers, &p.layerShares, &p.layerRes, &p.budgets, &p.samplings, &p.showLayers}, p.orders.queues()...)
+		&p.layers, &p.layerShares, &p.layerRes, &p.budgets, &p.samplings, &p.thresholds, &p.showLayers}, p.orders.queues()...)
 }
 
 // DefaultBindings are DefaultKeys, their corners turning where the Config turns, Shift+H showing

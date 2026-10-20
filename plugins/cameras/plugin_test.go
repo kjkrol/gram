@@ -273,11 +273,12 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 	})
 	settings := p.Settings()
 	want := []listed{{"Scroll zones", ""}, {"Frame budget", control.Picture},
-		{"Samples the frame rate over", control.Picture}}
+		{"Samples the frame rate over", control.Picture}, {"Coarser under", control.Picture},
+		{"Finer over", control.Picture}}
 	want = append(want, knobsListed(control.PictureTactical, control.PictureTacticalLayers)...)
 	want = append(want, knobsListed(control.PictureRiding, control.PictureRidingLayers)...)
 	if len(settings) != len(want) {
-		t.Fatalf("%d settings, want %d: the zones, the budget, the sampling, a profile's nine twice", len(settings), len(want))
+		t.Fatalf("%d settings, want %d: the zones, the budget, the sampling, the thresholds, a profile's nine twice", len(settings), len(want))
 	}
 	for i, want := range want {
 		if got := (listed{labelOf(settings[i]), control.SectionOf(settings[i])}); got != want {
@@ -307,8 +308,8 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 		resolution float32
 		layers     bool
 	}{
-		{cameras.Tactical, 3, cameras.Uniform, 1, false},
-		{cameras.Riding, 12, cameras.InLayers, 0.8, true},
+		{cameras.Tactical, 5, cameras.Uniform, 1, false},
+		{cameras.Riding, 14, cameras.InLayers, 0.8, true},
 	} {
 		knobs := settings[c.at:]
 		strategy := knobs[0].(control.Choice)
@@ -375,12 +376,12 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 		}
 	}
 	p.SetResolution(cameras.Riding, 0.5)
-	if tactical, riding := settings[4].(control.Range).Get(),
-		settings[13].(control.Range).Get(); tactical != 1 || riding != 0.5 {
+	if tactical, riding := settings[6].(control.Range).Get(),
+		settings[15].(control.Range).Get(); tactical != 1 || riding != 0.5 {
 		t.Errorf("the riding resolution set to 0.5, the settings show %v tactical and %v riding, "+
 			"want the tactical untouched at 1", tactical, riding)
 	}
-	shown := settings[11].(control.Switch)
+	shown := settings[13].(control.Switch)
 	if shown.Get() || shown.Set(true) != (cameras.ShowLayers{Profile: cameras.Tactical, Shown: true}) {
 		t.Errorf("the layers shown are %v building %v, want hidden, ShowLayers{Tactical, true}",
 			shown.Get(), shown.Set(true))
@@ -715,13 +716,15 @@ func TestLevers_GoCoarserBeforeThePicturesAndFinerAfterThemWhileFollowing(t *tes
 			"picture stepped", d.at, camera.ResolutionOf(cam))
 	}
 	p.Redraw(1 / cameras.ResolutionStep)
-	if d.at != 0 || camera.ResolutionOf(cam) != 1 {
-		t.Fatalf("finer: the dial at %d, the picture at %v; want the picture first, back at every "+
-			"pixel", d.at, camera.ResolutionOf(cam))
+	if d.at != 1 || camera.ResolutionOf(cam) != cameras.ResolutionStep {
+		t.Fatalf("finer: the dial at %d, the picture at %v; want the dial back first, the picture "+
+			"as it was", d.at, camera.ResolutionOf(cam))
 	}
+	d.at = 3
 	p.Redraw(1 / cameras.ResolutionStep)
-	if d.at != 1 {
-		t.Errorf("finer with the picture at every pixel: the dial at %d, want it turned up", d.at)
+	if d.at != 3 || camera.ResolutionOf(cam) != 1 {
+		t.Errorf("finer with the dial at its end: the dial at %d, the picture at %v; want the "+
+			"picture back at every pixel", d.at, camera.ResolutionOf(cam))
 	}
 	d.following, d.turns = false, nil
 	p.Redraw(cameras.ResolutionStep)

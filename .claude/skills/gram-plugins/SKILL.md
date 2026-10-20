@@ -949,9 +949,12 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `LayerResolutions{Profile, Outer, Middle}`, `ShowLayers{Profile, Shown}` (the layers' edges, a
   tick a profile); `Budget{Frame}`, `Sampling{Over}` (the window the rate is averaged over before it is
   followed, 1–20 s, 2 by default: coarser once a window falls under, finer once two meet) and
-  `Resolution{Camera, Factor}` (Alt+=/−, the camera's own profile) carry none; `Config.Levers`
-  (`cameras.Lever{Following, Coarser, Finer}`) are turned coarser before the pictures and finer
-  after them, the topography's care one; the setters take
+  `Resolution{Camera, Factor}` (Alt+=/−, the camera's own profile) carry none; `Thresholds{Under, Met}` (the shares of
+  the budget's rate the following steps at, 92% and 98% by default, "Coarser under" and "Finer
+  over" on the settings screen) carry none; `Config.Levers` (`cameras.Lever{Following,
+  Coarser, Finer}`) are turned before the pictures both ways — the first first going coarser,
+  the last first coming back — so the cheapest to the eye takes the rate's wavering and the
+  pictures move under a lasting change alone; the topography's care is one; the setters take
   the profile first (`SetStrategy(profile, s)`); the adapter steps every camera by its profile's
   strategy, `note` writes the lead's back into its profile; the settings screen lists "Frame
   budget" under `control.Picture`, then each profile's nine knobs under `control.PictureTactical`

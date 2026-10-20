@@ -103,6 +103,7 @@ type Plugin struct {
 	layerRes    command.Queue[LayerResolutions]
 	budgets     command.Queue[Budget]
 	samplings   command.Queue[Sampling]
+	thresholds  command.Queue[Thresholds]
 	levers      []Lever
 	showLayers  command.Queue[ShowLayers]
 	orders      orders
@@ -134,6 +135,7 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	p.Res.Settings = Settings{Tactical: cfg.Tactical.filled(), Riding: cfg.Riding.filled()}
 	p.SetBudget(cfg.FrameBudget)
 	p.SetSampling(DefaultSampling)
+	p.SetThresholds(DefaultUnder, DefaultMet)
 	p.SetStrategy(Tactical, cfg.Tactical.Strategy)
 	p.SetStrategy(Riding, cfg.Riding.Strategy)
 	worldPlugin.Anchor(anchors{p})
@@ -277,9 +279,10 @@ func (p *Plugin) following() bool {
 	return false
 }
 
-// redraw turns what follows the frame budget a step coarser (factor under 1) or finer: coarser
-// the levers first, in order, then the pictures; finer the pictures first, then the levers, the
-// last first; a step taken ends it
+// redraw turns what follows the frame budget a step coarser (factor under 1) or finer: the
+// levers first either way, the first first going coarser and the last first coming back, then
+// the pictures; a step taken ends it. The levers give first and return first: the cheapest
+// to the eye takes the rate's wavering, the pictures move under a lasting change alone.
 func (p *Plugin) redraw(factor float32) {
 	if factor < 1 {
 		for _, l := range p.levers {
@@ -290,14 +293,12 @@ func (p *Plugin) redraw(factor float32) {
 		p.step(factor)
 		return
 	}
-	if p.step(factor) {
-		return
-	}
 	for i := len(p.levers) - 1; i >= 0; i-- {
 		if l := p.levers[i]; l.Following() && l.Finer() {
 			return
 		}
 	}
+	p.step(factor)
 }
 
 // step has every picture but a minimap's whose profile follows the frame budget drawn at
@@ -402,6 +403,7 @@ func (p *Plugin) Restore() {
 	p.adapter = adapter{}
 	p.SetBudget(s.FrameBudget)
 	p.SetSampling(s.Sampling)
+	p.SetThresholds(s.Under, s.Met)
 	p.loaded = true
 	for at := range min(len(p.cameras), len(p.saved)) {
 		p.restore(at)
