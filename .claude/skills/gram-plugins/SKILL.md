@@ -732,7 +732,15 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   14,740 → 19 allocations; a crowded tick of 1,000 walkers 306 → 104 ms). `TestRoutes_AsPinned` pins every route, step and price on three
   boards (square with bridges and relief, a torus, hex) to `testdata/routes.golden`: a change
   meant to keep the routes keeps it; one meant to change them rewrites it with `-update-routes`
-  and says why. **Clearance**: a unit is no bigger than a cell's side
+  and says why. The keepings' passes allocate nothing per unit (2026-10-20, etap 2b): the body
+  index walks the cells under a box through method values bound once (`bodyIndex.near` hands the
+  bodies back as indices, valid till the next call); `takes`, a route round `Avoid` (`avoiding`)
+  and `cellKeeping.held` keep their state in fields a method value bound once reads; a `Leg`'s
+  `cells()`/`held()` are arrays with a count; `aside` only places the cells (a scratch
+  `[8]scored`), whose ground `stepAside` asks in that order, stopping at the first open one. A
+  crowded tick is the Detour's searches (every unit refused a held cell plans round what it
+  learned, each tick); failed searches are under 3% of it, so a blocked unit has no back-off.
+  **Clearance**: a unit is no bigger than a cell's side
   (`board.NewUnits` panics past it), so every step takes it but one along a deck's band: `fits`
   asks the board's `Lane` (the band less its railings keeping the domain, on the step's level; a
   band on the ground counts on the ground's) and refuses a body whose box across the step
