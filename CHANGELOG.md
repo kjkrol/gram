@@ -91,6 +91,16 @@ etap T of `doc/plans-perf.md`)
 - The telemetry panel draws itself: the labels bold, a line too wide wrapped with its rest
   indented, the plate shrinking back as the mode goes to the basics. The settings screen's
   atmosphere section chooses the weather by name (`Climate.Now()`), under the pause too.
+- An option on the settings screen has no key any more: Shift+X the boxes, Shift+H the scroll
+  zones, B the grid, Shift+O the cells held, Shift+R the routes, Shift+C the cones, Shift+W the
+  weather and Shift+U the rain, Shift+V the clouds' look, Shift+S the high clouds' shadows, P the
+  frozen light and Shift+] and Shift+[ its hour, Alt+= and Alt+- the picture's resolution, Alt+A
+  its following the frame budget, Alt+Shift+= and Alt+Shift+- the ground's care, Ctrl+F the
+  haze, H the coarse shadows, Shift+L the lamps' shadows, Shift+G the sectors, Ctrl+G their
+  bands, Shift+M the minimap shown and Ctrl+M its turning are gone from the plugins' default
+  bindings (`cameras.Keys` loses `Finer` and `Coarser`). The commands stay, for a game to bind a
+  key of its own; the pause, the tempo, the telemetry panel, the menus, the tools, the views and
+  the motion keep theirs.
 
 **The picture by the camera's state: profiles, footed layers, one composition** (2026-10-20,
 etap U of `doc/plans-perf.md`)
