@@ -282,8 +282,8 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 	outer, inner, screen := NewImage(32, 32), NewImage(24, 24), NewImage(64, 64)
 	layered := func() {
 		c.Lay(cam, true)
-		c.DrawLayer(outer, cam, camera.Window{W: 64, H: 64})
-		c.DrawLayer(inner, cam, camera.Window{X: 16, Y: 16, W: 32, H: 32})
+		c.DrawLayer(outer, cam, camera.Window{W: 64, H: 64}, camera.Window{})
+		c.DrawLayer(inner, cam, camera.Window{X: 16, Y: 16, W: 32, H: 32}, camera.Window{})
 		c.DrawOver(screen, cam)
 	}
 	layered()
@@ -721,7 +721,7 @@ func TestComposer_TheMarksTakeNoSight(t *testing.T) {
 // tests draw a whole one through compose and render
 func (c *Composer) drawApart(cam camera.Camera) {
 	c.Lay(cam, true)
-	c.DrawLayer(nil, cam, camera.Window{})
+	c.DrawLayer(nil, cam, camera.Window{}, camera.Window{})
 	c.render(nil, true, 0)
 	c.DrawOver(nil, cam)
 	c.renderOver(nil)
@@ -838,7 +838,7 @@ func TestComposer_DrawLayerPlacesThePiecesAndDrawsTheDirectsThroughTheCroppedCam
 	c.Lay(cam, false)
 	crop.Uncrop()
 	crop.Crop(camera.Window{X: 16, Y: 12, W: 32, H: 24}, 0.5)
-	c.DrawLayer(NewImage(16, 12), cam, camera.Window{X: 16, Y: 12, W: 32, H: 24})
+	c.DrawLayer(NewImage(16, 12), cam, camera.Window{X: 16, Y: 12, W: 32, H: 24}, camera.Window{})
 	crop.Uncrop()
 	c.DrawWorld(NewImage(64, 48), cam)
 	if want := [][4]float32{{0.5, 0.5, -8, -6}, {}}; !slices.Equal(places, want) {
@@ -848,6 +848,39 @@ func TestComposer_DrawLayerPlacesThePiecesAndDrawsTheDirectsThroughTheCroppedCam
 	if want := [][2]float32{{16, 12}, {64, 48}}; !slices.Equal(route.views, want) {
 		t.Errorf("the Direct drew through viewports %v, want %v: the camera cropped to the layer, "+
 			"then whole", route.views, want)
+	}
+}
+
+func TestComposer_ALayerLeavesOutTheGroundUnderTheHole(t *testing.T) {
+	needGPU(t)
+	a := atlasOf(t)
+	c := NewComposer(groundOf(a), skySource{}, &figureSource{atlas: a, z: 10, id: 2})
+	cam := cameratest.NewFromSpace(64, 64, 0)
+	cam.SetViewport(64, 64)
+	crop := cam.(camera.Cropping)
+	whole := camera.Window{W: 64, H: 64}
+	crop.Crop(whole, 1)
+	c.Lay(cam, false)
+	crop.Uncrop()
+	crop.Crop(whole, 0.5)
+	layer := NewImage(32, 32)
+	// the layer's pixels 12 to 24 across, 8 to 24 down: over half the figure, the ground and sky
+	c.DrawLayer(layer, cam, whole, camera.Window{X: 24, Y: 16, W: 24, H: 32})
+	crop.Uncrop()
+	at := pixelsOf(layer)
+	for _, p := range [][2]int{{13, 12}, {13, 20}, {20, 20}, {23, 23}} {
+		if px := at(p[0], p[1]); px != [4]byte{} {
+			t.Errorf("under the hole (%d, %d) shows %v, want nothing drawn", p[0], p[1], px)
+		}
+	}
+	if px := at(3, 3); px != [4]byte{0, 200, 0, 255} {
+		t.Errorf("beside the hole the ground shows %v, want green", px)
+	}
+	if px := at(28, 4); px != [4]byte{0, 0, 230, 255} {
+		t.Errorf("beside the hole the sky shows %v, want blue", px)
+	}
+	if px := at(10, 12); px != [4]byte{220, 0, 0, 255} {
+		t.Errorf("the figure beside the hole shows %v, want red", px)
 	}
 }
 
@@ -861,8 +894,8 @@ func TestComposer_DrawLayerTwiceDrawsEveryDirectTwice(t *testing.T) {
 	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) {}
 	cam := topDown()
 	c.Lay(cam, false)
-	c.DrawLayer(NewImage(32, 32), cam, camera.Window{W: 64, H: 64})
-	c.DrawLayer(NewImage(16, 16), cam, camera.Window{X: 16, Y: 16, W: 32, H: 32})
+	c.DrawLayer(NewImage(32, 32), cam, camera.Window{W: 64, H: 64}, camera.Window{})
+	c.DrawLayer(NewImage(16, 16), cam, camera.Window{X: 16, Y: 16, W: 32, H: 32}, camera.Window{})
 	want := []string{"ground composed", "route composed", "figures composed",
 		"ground drawn", "route drawn", "figures drawn", "ground drawn", "route drawn",
 		"figures drawn"}
@@ -882,8 +915,8 @@ func TestComposer_TwoLayersOfOneSizeKeepTheirGroundsApart(t *testing.T) {
 	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) {}
 	cam := topDown()
 	c.Lay(cam, true)
-	c.DrawLayer(NewImage(32, 32), cam, camera.Window{W: 64, H: 64})
-	c.DrawLayer(NewImage(32, 32), cam, camera.Window{X: 16, Y: 16, W: 32, H: 32})
+	c.DrawLayer(NewImage(32, 32), cam, camera.Window{W: 64, H: 64}, camera.Window{})
+	c.DrawLayer(NewImage(32, 32), cam, camera.Window{X: 16, Y: 16, W: 32, H: 32}, camera.Window{})
 	if len(c.laid) != 2 || c.laid[0].ground == c.laid[1].ground {
 		t.Errorf("two layers of 32 by 32 laid %d grounds, the same depth %v; want two apart",
 			len(c.laid), len(c.laid) == 2 && c.laid[0].ground == c.laid[1].ground)
