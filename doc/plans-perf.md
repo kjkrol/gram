@@ -889,3 +889,71 @@ Wszystkie trzy przyjęte, w tych samych PR-ach.
 Uwaga: `render/gpu` `TestDevice_ARedrawnFrameAllocatesNothingOfItsOwn` padł raz w pełnym `go test
 ./...` (8 alokacji), a 10 powtórzeń osobno na bazie, na K i po scaleniu oraz dwa kolejne pełne
 przebiegi przeszły: test liczy alokacje całego procesu, więc pod obciążeniem bywa niestabilny.
+
+## Fala 5 (plan 2026-10-21, ta sama gałąź `perf/wave-3`): równoległa nawigacja
+
+**Cel.** Wyszukiwania tras nawigacji na kilku rdzeniach, bez zmiany zachowania: trasy, rozkazy i
+pozycje tick w tick jak dziś.
+
+**Gdzie pula.** W gram, nie w astar. Jednostką pracy jest `Finder.Find`/`FindAround` (dwa
+solvery, poziomy, `least`, `body`, potem `decks`), nie `Solver.Solve`; astar zostaje solverem
+sekwencyjnym, jeden na gorutynę. Pula idzie na `internal/parallel` jak vision
+(`plugins/vision/scan_system.go`: scanner i zapytanie `lookup` na wykonawcę, `settle` przed
+paczką, wyniki po kolei).
+
+**Wstępne wypełnienie, nie wyjęcie wyszukiwań z pętli.** W pętli `navigationSystem.Update`
+(`plugins/navigation/navigation_system.go:335`) wyszukiwanie encji przeplata się z zapisami
+zależnymi od kolejności: `moveTo` zmienia `from`, zajętość dostaje `Enter`/`Leave`,
+`bump`/`ready`/`carryOut` zmieniają cel. Pętla w trzech fazach (zbierz, policz, nałóż) zmieniłaby
+zachowanie: encja j nie widziałaby rezerwacji encji i z tego samego ticku. Pamięć odpowiedzi z
+fali 3 (`avoiding.kept`, `plugins/navigation/keeping.go:87-175`) już zakłada, że odpowiedź zależy
+tylko od pytania i wersji planszy (`Finder` na `openOccupancy` nie czyta zajętości). Dlatego:
+przed pętlą przebieg seryjny zbiera pytania wyszukiwań należnych w tym ticku, wykonawcy liczą je
+równolegle, odpowiedzi trafiają do pamięci w kolejności pytań, a pętla zostaje bez zmian. Pytanie
+nieprzewidziane liczy pętla po kolei, jak dziś. Zachowanie identyczne z definicji, zysk zależy od
+trafności przewidywania.
+
+**Przewidywanie** (stan z początku ticku): encja bez aktywnego `Leg`, trasa pusta albo
+wyczerpana, nie na celu, `Waited == 0 || Retry == 0` (`navigation_system.go:505-511`); pytanie
+`asked` z `cells[i].Cell`, `o.Target`, `o.Level`, domeny i `body`, a gdy `Avoids > 0 && Retry ==
+0` także wariant `around` z `o.Avoid` (`keeping.go:179-198`).
+
+**Zagrożenia z przeglądu kodu.**
+- Odczyty terenu: `store.groundOf`/`wayOf`/`builtOf` (`plugins/board/internal/terrain/store.go`)
+  robią `SeekH`/`Seek` na jednym `*goke.Query` na komponent i czytają spod jego kursora; `Seek`
+  pisze kursor, a w nowym archetypie podmienia `seekBakes` (goke
+  `internal/query/matcher.go:173-208`). Dwa wątki na jednym zapytaniu czytają cudze komórki.
+- Wspólne bufory planszy: `Cells.rails` (`Fenced`), `Cells.decks` (`LevelFor`, `KindFor`),
+  `Board.decks` (`DecksOver`, z `boardLevels.Over`).
+- `topography.Plugin.Top` czyta `Board().Kind` (droga z `boardLevels.Deck`).
+- Stan `Finder` (`least`, `body`, `entity`, `goal`, `domain`, `search`, `reads`, `rings`,
+  `path`, `route`) oraz `avoiding.target/known/n` z domknięciem `blocked`: na wykonawcę.
+
+**Etapy** (po kolei; po każdym raport i decyzja użytkownika):
+0. Pomiar przed budową, bez zmian w repozytoriach: udział `Finder.Find`/`FindAround` w
+   `Navigation_Tick` (profil, 4 reżimy) i trafność przewidywania (licznik na łacie poza
+   repozytorium: ile pytań zadanych w pętli było znanych na starcie ticku). Użytkownik decyduje,
+   czy budować.
+1. goke `Query.SeekTo(entID, c *Cursor) bool` (nazwa do ustalenia; gałąź `perf/seek-to` od
+   `main`, PR bez scalania): ustawia kursor wołającego (`Offsets`, `OptOffsets`, `OptPresent` z
+   wypieku archetypu, `Set(chunk, slot)`) i nie pisze nic w Matcherze. `seekBakes` wypiekane od
+   razu: przy budowie Matchera i w `Catalog.OnArchetypeCreated` (seryjnie, przy opróżnianiu
+   `CmdBuf`); `Seek` korzysta z tego samego wypieku. Odczyt po ID zostaje tak samo szybki: te
+   same operacje na innym kursorze. Testy: `SeekTo` z kilku gorutyn pod `-race`, wynik równy
+   `Seek`; benchmark `SeekTo` wobec `Seek`/`SeekH` i koszt powstania archetypu bez regresji.
+2. gram, odczyt planszy przez kursor wykonawcy: magazyn czyta przez `SeekTo`, czytnik planszy ma
+   własne kursory i bufory, metody odczytu `Cells`/`Board` (`Kind`, `KindAt`, `Bare`, `Along`,
+   `Reaches`, `Fenced`, `Lane`, `DecksOver`, `Built`) idą przez czytnik, `Top` mapy przez czytnik
+   wykonawcy. Bez regresji `Navigation_Tick`, `Navigation_Path`, `Frame_Topography`.
+3. gram, wstępne wypełnienie: `Finder.Fork()` (ten sam świat przez czytnik wykonawcy, własne
+   solvery i bufory), `avoiding` na wykonawcę, w `internal/parallel` wariant `Run` z licznikiem
+   atomowym (wyszukiwania mają bardzo różny koszt), przebieg przed pętlą. Sprawdzenia: test
+   `-race` z N wykonawcami, logi sond spawn i square identyczne, `TestRoutes_AsPinned`,
+   `Navigation_Tick` wg reguły akceptacji.
+4. Dokumenty: `BENCHMARKS.md`, `CHANGELOG.md`, „Fala 5: wynik”, opisy PR-ów (gram #31: wymagane
+   nowe wersje astar, goke, aabbworld, ceremony).
+
+**Gałęzie i praca.** gram: części od `perf/wave-3` i do niej po akceptacji, bez kolejnych gałęzi
+konsolidujących (z `perf/wave-3` wychodzi PR #31). goke: `perf/seek-to`, PR integratora; scala i
+taguje użytkownik, do tego czasu `/home/karol/CODE/go.work` używa `./goke`. Integrator pracuje
+sam, etapy po kolei, pomiary szeregowo na bezczynnej maszynie.
