@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/motion/steering"
+	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
 	"github.com/kjkrol/gram/plugins/players/owner"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
@@ -88,10 +89,89 @@ type avoiding struct {
 	known   [4]cell.ID
 	n       uint8
 	blocked func(cell.ID) bool
+	kept    answers
+}
+
+// a search blind to the others reads nothing but the board, so over a board counting its
+// changes its answer is kept till the next one
+func (a *avoiding) bind(f *pathFinder) {
+	a.blocked = a.avoids
+	if _, blind := f.occupancy.(openOccupancy); blind {
+		a.kept.board, _ = f.terrain.(interface{ Version() uint64 })
+	}
 }
 
 func (a *avoiding) avoids(c cell.ID) bool {
 	return c != a.target && slices.Contains(a.known[:a.n], c)
+}
+
+// what a search for a route reads besides the board: round, the cells it goes round, sorted,
+// the target left out
+type asked struct {
+	from, to cell.ID
+	end      Level
+	domain   cell.Domain
+	body     pathfind.Body
+	round    [4]cell.ID
+	n        uint8
+	around   bool
+}
+
+type answer struct {
+	path Path
+	ok   bool
+}
+
+// the answers given since the board last changed, at most keptAnswers, all let go at once
+type answers struct {
+	board   interface{ Version() uint64 } // nil: none kept
+	version uint64
+	index   map[asked]int32
+	given   []answer
+}
+
+const keptAnswers = 4096
+
+// a search asked again over the board as it stands gets the answer it gave, unrun
+func (a *avoiding) find(f *pathFinder, m member, from cell.ID, o *MoveOrder,
+	around bool) (Path, bool) {
+	q := asked{from: from, to: o.Target, end: o.Level, domain: m.domain, body: m.body(),
+		around: around}
+	if around {
+		for _, c := range o.Avoid[:o.Avoids] {
+			if c != o.Target {
+				q.round[q.n] = c
+				q.n++
+			}
+		}
+		slices.Sort(q.round[:q.n])
+	}
+	k := &a.kept
+	if k.board != nil {
+		if v := k.board.Version(); v != k.version || len(k.given) == keptAnswers {
+			k.version, k.given = v, k.given[:0]
+			clear(k.index)
+		}
+		if i, ok := k.index[q]; ok {
+			return k.given[i].path, k.given[i].ok
+		}
+	}
+	var p Path
+	var ok bool
+	if around {
+		a.target, a.known, a.n = o.Target, o.Avoid, o.Avoids
+		p, ok = f.findPathAround(m.id, m.domain, q.body, from, o.Target, o.Level, a.blocked)
+	} else {
+		p, ok = f.findPath(m.id, m.domain, q.body, from, o.Target, o.Level)
+	}
+	if k.board != nil {
+		if k.index == nil {
+			k.index = map[asked]int32{}
+		}
+		k.index[q] = int32(len(k.given))
+		k.given = append(k.given, answer{p, ok})
+	}
+	return p, ok
 }
 
 // round the cells learned unless that found nothing within o's Retry, else any route; the first
@@ -99,15 +179,13 @@ func (a *avoiding) avoids(c cell.ID) bool {
 func (a *avoiding) route(f *pathFinder, m member, from cell.ID, o *MoveOrder) (Path, bool) {
 	due := o.Retry == 0
 	if o.Avoids > 0 && due {
-		a.target, a.known, a.n = o.Target, o.Avoid, o.Avoids
-		if p, ok := f.findPathAround(m.id, m.domain, m.body(), from, o.Target, o.Level,
-			a.blocked); ok {
+		if p, ok := a.find(f, m, from, o, true); ok {
 			o.found()
 			return p, true
 		}
 		o.failed()
 	}
-	p, ok := f.findPath(m.id, m.domain, m.body(), from, o.Target, o.Level)
+	p, ok := a.find(f, m, from, o, false)
 	switch {
 	case o.Avoids > 0:
 	case ok:
@@ -136,7 +214,8 @@ var _ keeping = (*cellKeeping)(nil)
 func newCellKeeping(finder *pathFinder, occ cell.Occupancy) *cellKeeping {
 	k := &cellKeeping{finder: finder, occ: occ, index: bodyIndex{grid: finder.grid}}
 	k.who, _ = occ.(holders)
-	k.avoid.blocked, k.heldBy = k.avoid.avoids, k.isHeld
+	k.avoid.bind(finder)
+	k.heldBy = k.isHeld
 	return k
 }
 
