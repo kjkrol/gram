@@ -867,3 +867,10 @@ alokacyjna F przyjęte.
 **Stan.** Gałęzie `perf/wave-3`: gram (C, I, H, A, D, G), astar (D), aabbworld (G, F), ceremony (E). PR-y integratora bez scalania; użytkownik scala, taguje i podbija w
 gram. Do tego czasu `/home/karol/CODE/go.work` używa `./astar` i `./aabbworld` (przed falą:
 `./ceremony`, `./goke`, `./gram`). Gałąź odrzucona zostaje: `n/detour-wait`.
+
+## Fala 4 (plan 2026-10-21, ta sama gałąź `perf/wave-3`)
+
+Na życzenie użytkownika: pozostałe pomysły alokacyjne, brief `doc/briefs/w4.md`: E2 trzy kroki
+ceremony, D2 ścieżka astar do bufora (astar + gram), K boksowanie uniformów i `DrawImageIn` w
+gram. Ta sama procedura; reguła akceptacji rozszerzona decyzją użytkownika: mniej alokacji przy
+czasie nie gorszym to ulepszenie. Przyjęte części wchodzą do tych samych PR-ów (`perf/wave-3`).
