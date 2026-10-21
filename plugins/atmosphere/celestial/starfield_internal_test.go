@@ -2,9 +2,12 @@ package celestial
 
 import (
 	"math"
+	"os"
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gpu"
 )
 
 type pinhole struct {
@@ -71,5 +74,26 @@ func TestStarField_ColoursAndBrightness(t *testing.T) {
 	}
 	if starLight(-1.46) <= starLight(2) || starLight(6) >= starLight(2) || starLight(2) != 1 {
 		t.Errorf("Sirius shows %v, magnitude 2 %v, magnitude 6 %v", starLight(-1.46), starLight(2), starLight(6))
+	}
+}
+
+func needGPU(t *testing.T) {
+	t.Helper()
+	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
+		t.Skipf("no GPU: %v", err)
+	}
+}
+
+func TestStarField_DrawsInTheViewItWasLastPlacedIn(t *testing.T) {
+	needGPU(t)
+	h := Place{NoonWay: South, Latitude: 45}.HeavensAt(0.3, 0.95, 0.4)
+	var f StarField
+	for _, side := range []float32{100, 60} {
+		screen := render.NewImage(int(side), int(side))
+		f.Place(looking(h.Pole), side, side, h, Stars(), 1)
+		f.Draw(render.Target{Screen: screen})
+		if v := f.opts.Uniforms["StarView"].([]float32); v[0] != side || v[1] != side {
+			t.Errorf("placed %v a side, the stars are drawn in a view %v", side, v)
+		}
 	}
 }

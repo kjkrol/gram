@@ -422,3 +422,14 @@ func TestRenderer_OverAGroundAtHalfThePixelsDrawsTheCloudsAtItsPixelsOnceAFrame(
 			"want the west alone", west, east)
 	}
 }
+
+func TestRenderer_SetPutsItsOwnOverTheFramesWithoutAllocating(t *testing.T) {
+	r := Renderer{uniforms: map[string]any{}}
+	r.opts.Uniforms = map[string]any{}
+	r.set("AloftView", 1, 2)
+	r.opts.Uniforms["AloftView"] = []float32{9, 9}
+	n := testing.AllocsPerRun(10, func() { r.set("AloftView", 3, 4) })
+	if got := r.opts.Uniforms["AloftView"].([]float32); n != 0 || got[0] != 3 || got[1] != 4 {
+		t.Errorf("AloftView set over another: %v allocations, %v; want none and [3 4]", n, got)
+	}
+}

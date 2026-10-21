@@ -85,7 +85,7 @@ func TestValues_SetOnlyWhatThePartReads(t *testing.T) {
 	b := New(world.SpaceCfg{Width: 100, Height: 100}, nil, nil)
 	b.Dress(Dome{Vault: vault(red, "Glow")})
 	b.values[0].Set("Glow", 0.5)
-	if got := b.uniforms["Glow"]; len(got) != 1 || got[0] != 0.5 {
+	if got, _ := b.uniforms["Glow"].([]float32); len(got) != 1 || got[0] != 0.5 {
 		t.Errorf("the vault set Glow to 0.5, the sky holds %v", got)
 	}
 	panics(t, "backdrop: the vault sets Shine, which it does not read", func() {

@@ -75,19 +75,31 @@ func DrawImage(dst, src Image, m Affine, color [4]float32, linear bool, blend Bl
 		dx, dy := m.Apply(x, y)
 		return Vertex{DstX: dx, DstY: dy, SrcX: sx + x, SrcY: sy + y, ColorR: color[0], ColorG: color[1], ColorB: color[2], ColorA: color[3]}
 	}
-	u := make([]byte, blitLayout.Size)
-	if linear {
-		blitLayout.Put(u, "filter", []float32{1})
-	}
-	Triangles(&Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: u, Blend: blend},
-		[]Vertex{v(0, 0), v(w, 0), v(0, h), v(w, h)}, []uint16{0, 1, 2, 1, 2, 3})
+	dw := Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: blitOf(linear),
+		Blend: blend}
+	Triangles(&dw, []Vertex{v(0, 0), v(w, 0), v(0, h), v(w, h)}, []uint16{0, 1, 2, 1, 2, 3})
 }
 
 // Piece is a W by H rectangle of a source image, at SrcX, SrcY in it, drawn at DstX, DstY.
 type Piece struct{ DstX, DstY, SrcX, SrcY, W, H float32 }
 
 // never written: a draw copies its uniforms into the frame's buffer
-var blitZero = make([]byte, blitLayout.Size)
+var (
+	blitZero   = make([]byte, blitLayout.Size)
+	blitLinear = func() []byte {
+		u := make([]byte, blitLayout.Size)
+		blitLayout.Put(u, "filter", []float32{1})
+		return u
+	}()
+)
+
+// blitOf is the blit's uniforms, sampling between texels where linear
+func blitOf(linear bool) []byte {
+	if linear {
+		return blitLinear
+	}
+	return blitZero
+}
 
 // DrawPieces draws pieces of src into dst, their colours times color (premultiplied).
 func DrawPieces(dst, src Image, pieces []Piece, color [4]float32, blend Blend) {
@@ -127,23 +139,23 @@ func DrawImageIn(dst, src Image, m Affine, linear bool, pts [][2]float32, blend 
 	if len(pts) < 3 || !ok {
 		return
 	}
+	d := must()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	r := src.rect()
-	verts := make([]Vertex, len(pts))
-	for k, p := range pts {
+	verts, indices := d.pieceVerts[:0], d.pieceIndices[:0]
+	for _, p := range pts {
 		x, y := back.Apply(p[0], p[1])
-		verts[k] = Vertex{DstX: p[0], DstY: p[1], SrcX: float32(r.X) + x, SrcY: float32(r.Y) + y,
-			ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1}
+		verts = append(verts, Vertex{DstX: p[0], DstY: p[1], SrcX: float32(r.X) + x,
+			SrcY: float32(r.Y) + y, ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1})
 	}
-	indices := make([]uint16, 0, 3*(len(pts)-2))
 	for k := 1; k+1 < len(pts); k++ {
 		indices = append(indices, 0, uint16(k), uint16(k+1))
 	}
-	u := make([]byte, blitLayout.Size)
-	if linear {
-		blitLayout.Put(u, "filter", []float32{1})
-	}
-	Triangles(&Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: u,
-		Blend: blend}, verts, indices)
+	d.pieceVerts, d.pieceIndices = verts, indices
+	dw := Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: blitOf(linear),
+		Blend: blend}
+	d.triangles(dst.Texture.gpuTarget(d), dst.rect(), &dw, verts, indices)
 }
 
 // the affine taking a point back to where m took it from; false for one flattening the plane
@@ -281,11 +293,8 @@ func (d *device) presentBuffers() error {
 // Sprites draws the triangles of verts, their Src in src's texture pixels, sampled between texels
 // where linear.
 func Sprites(dst, src Image, verts []Vertex, indices []uint16, linear bool, blend Blend) {
-	u := make([]byte, blitLayout.Size)
-	if linear {
-		blitLayout.Put(u, "filter", []float32{1})
-	}
-	Triangles(&Draw{Target: dst, Program: blitProgram, Images: [4]Image{src}, Uniforms: u, Blend: blend}, verts, indices)
+	Triangles(&Draw{Target: dst, Program: blitProgram, Images: [4]Image{src},
+		Uniforms: blitOf(linear), Blend: blend}, verts, indices)
 }
 
 // Colored draws the triangles of verts in their colours, premultiplied.

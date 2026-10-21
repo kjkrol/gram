@@ -39,3 +39,14 @@ func TestGround_OutlinesThePrismsInTheBoardsGridLine(t *testing.T) {
 		t.Errorf("the board's grid hidden, the prisms outlined %v pixels wide, want none", width)
 	}
 }
+
+func TestGround_SetPutsItsOwnOverTheFramesWithoutAllocating(t *testing.T) {
+	h := Ground{own: map[string]any{}}
+	h.opts.Uniforms = map[string]any{}
+	h.set("Eye", 1, 2, 3)
+	h.opts.Uniforms["Eye"] = []float32{9, 9, 9}
+	n := testing.AllocsPerRun(10, func() { h.set("Eye", 4, 5, 6) })
+	if got := h.opts.Uniforms["Eye"].([]float32); n != 0 || got[0] != 4 || got[2] != 6 {
+		t.Errorf("Eye set over another: %v allocations, %v; want none and [4 5 6]", n, got)
+	}
+}

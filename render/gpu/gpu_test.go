@@ -82,6 +82,63 @@ func TestDrawImage_LaysItOverWhatIsThere(t *testing.T) {
 	}
 }
 
+func TestDrawImageIn_DrawsAsDrawImageInsideThePolygonAlone(t *testing.T) {
+	needGPU(t)
+	src := NewTexture(2, 1)
+	src.WritePixels(0, 0, 2, 1, []byte{255, 0, 0, 255, 0, 0, 255, 255})
+	scaled := Affine{A: 8, D: 8}
+	left := [][2]float32{{0, 0}, {8, 0}, {8, 8}, {0, 8}}
+	whole, in := make([]byte, 4*16*8), make([]byte, 4*16*8)
+	for _, linear := range []bool{false, true} {
+		a, b := NewTexture(16, 8), NewTexture(16, 8)
+		DrawImage(Image{Texture: a}, Image{Texture: src}, scaled, [4]float32{1, 1, 1, 1}, linear,
+			Copy)
+		DrawImageIn(Image{Texture: b}, Image{Texture: src}, scaled, linear, left, Copy)
+		a.ReadPixels(whole)
+		b.ReadPixels(in)
+		// left of the middle: the red texel alone sampled nearest, blended with the blue between
+		if p := pixel(whole, 16, 7, 4); (p[2] > 0) != linear {
+			t.Errorf("linear %v: left of the middle %v", linear, p)
+		}
+	pixels:
+		for y := range 8 {
+			for x := range 16 {
+				want := pixel(whole, 16, x, y)
+				if x >= 8 {
+					want = [4]byte{}
+				}
+				if got := pixel(in, 16, x, y); got != want {
+					t.Errorf("linear %v: (%d, %d) is %v, want %v", linear, x, y, got, want)
+					break pixels
+				}
+			}
+		}
+	}
+}
+
+// gogpu's pass calls allocate of their own, so DrawImageIn is held to a draw of its triangles
+func TestDrawImageIn_AllocatesNoMoreThanItsDraw(t *testing.T) {
+	needGPU(t)
+	dst, src := NewTexture(64, 64), NewTexture(4, 4)
+	src.WritePixels(0, 0, 4, 4, make([]byte, 64))
+	pts := [][2]float32{{0, 0}, {32, 0}, {40, 20}, {32, 40}, {0, 40}}
+	verts := make([]Vertex, len(pts))
+	indices := []uint16{0, 1, 2, 0, 2, 3, 0, 3, 4}
+	dw := &Draw{Target: Image{Texture: dst}, Program: blitProgram,
+		Images: [4]Image{{Texture: src}}, Uniforms: blitLinear, Blend: SourceOver}
+	Submit()
+	drawn := testing.AllocsPerRun(20, func() { Triangles(dw, verts, indices) })
+	Submit()
+	in := testing.AllocsPerRun(20, func() {
+		DrawImageIn(Image{Texture: dst}, Image{Texture: src}, Affine{A: 2, D: 2}, true, pts,
+			SourceOver)
+	})
+	Submit()
+	if in > drawn {
+		t.Errorf("DrawImageIn allocates %v times, a draw of its triangles %v", in, drawn)
+	}
+}
+
 func TestLayout_FollowsWGSL(t *testing.T) {
 	l := NewLayout([]Uniform{{"A", 1}, {"B", 3}, {"C", 1}, {"D", 2}})
 	if l.offsets["A"] != 0 || l.offsets["B"] != 16 || l.offsets["C"] != 28 || l.offsets["D"] != 32 || l.Size != 48 {

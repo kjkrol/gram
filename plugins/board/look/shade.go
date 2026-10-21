@@ -25,7 +25,7 @@ var shadeShader = render.NewMeshShaderWith(
 // light less the shadows the frame holds, and the lamps', as each cell takes them
 type groundShade struct {
 	opts  render.DrawMeshOptions
-	own   map[string][]float32
+	own   map[string]any
 	cells *render.Image // a pixel a cell of a square board, red its Taking; nil for every bit
 	at    uint64        // one more than the board's count of changes the cells hold; 0 none
 	buf   []byte
@@ -41,7 +41,7 @@ func (g *groundShade) draw(t render.Target, cam camera.Camera, u render.Uniforms
 		return
 	}
 	if g.own == nil {
-		g.own, g.opts.Uniforms = map[string][]float32{}, map[string]any{}
+		g.own, g.opts.Uniforms = map[string]any{}, map[string]any{}
 		g.opts.Multiply, g.opts.Vertices = true, 3
 	}
 	u.Into(g.opts.Uniforms)
@@ -100,10 +100,10 @@ func takesOf(t render.Taking) render.Taking {
 // kept between frames and boxed once
 func (g *groundShade) set(name string, v ...float32) {
 	u, ok := g.own[name]
-	if !ok || len(u) != len(v) {
+	if s, _ := u.([]float32); !ok || len(s) != len(v) {
 		u = make([]float32, len(v))
 		g.own[name] = u
 	}
-	copy(u, v)
+	copy(u.([]float32), v)
 	g.opts.Uniforms[name] = u
 }

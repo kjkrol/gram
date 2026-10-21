@@ -74,8 +74,9 @@ type Ground struct {
 	sectors view.Sectors
 	runs    []run
 	opts    render.DrawMeshOptions
-	own     map[string][]float32
+	own     map[string]any
 	uv      map[string]any
+	pixel   any // the top's Pixel, a []float32 of one
 }
 
 // New is the ground of b's hex board in the relief r over w, the cells standing as m says,
@@ -83,7 +84,7 @@ type Ground struct {
 func New(w *world.Plugin, b *board.Plugin, m board.Map, r *relief.Relief, sky Sky) *Ground {
 	brd := b.Board()
 	h := &Ground{world: w, board: b, m: m, relief: r, sky: sky, grid: brd.Grid, size: float32(brd.CellSpan()),
-		own: map[string][]float32{}, uv: map[string]any{}}
+		own: map[string]any{}, uv: map[string]any{}, pixel: []float32{0}}
 	h.opts = render.DrawMeshOptions{WriteDepth: true, Vertices: prismVertices, Uniforms: map[string]any{}}
 	return h
 }
@@ -119,7 +120,8 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		h.lay()
 	}
 	u.Into(h.uv)
-	h.uv["Pixel"] = []float32{1 / h.px}
+	h.pixel.([]float32)[0] = 1 / h.px
+	h.uv["Pixel"] = h.pixel
 	h.top.Fill(color.Transparent)
 	top := render.Target{Screen: h.top}
 	h.still.Draw(top, nil, render.UniformsOf(h.uv), h.px, 0, 0, render.Light{1, 1, 1})
@@ -283,13 +285,13 @@ func (h *Ground) gridOf(cam camera.Camera) (line [4]float32, width float32) {
 }
 
 func (h *Ground) set(name string, v ...float32) {
-	s, ok := h.own[name]
-	if !ok || len(s) != len(v) {
-		s = make([]float32, len(v))
-		h.own[name] = s
+	u, ok := h.own[name]
+	if s, _ := u.([]float32); !ok || len(s) != len(v) {
+		u = make([]float32, len(v))
+		h.own[name] = u
 	}
-	copy(s, v)
-	h.opts.Uniforms[name] = s
+	copy(u.([]float32), v)
+	h.opts.Uniforms[name] = u
 }
 
 type fromAbove struct{ board.Map }

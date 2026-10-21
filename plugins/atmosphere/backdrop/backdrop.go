@@ -84,7 +84,7 @@ type Renderer struct {
 	moon     *render.Image
 	stars    celestial.StarField
 	opts     render.DrawMeshOptions
-	uniforms map[string][]float32 // boxed once in the options
+	uniforms map[string]any // boxed once in the options
 	masses   air.DomeImage
 	heaps    []*render.Image // the clouds as heaps, coarser than the screen, one a size of view
 	heapOpts render.DrawMeshOptions
@@ -119,7 +119,7 @@ type skyPlan struct {
 
 // New is the Earth's sky behind a world of space, under sun and the weather air give.
 func New(space world.SpaceCfg, sun func() light.Distant, weather func() air.Weather) *Renderer {
-	b := &Renderer{space: space, sun: sun, air: weather, uniforms: map[string][]float32{}}
+	b := &Renderer{space: space, sun: sun, air: weather, uniforms: map[string]any{}}
 	b.opts.Uniforms = map[string]any{}
 	b.Dress(Earth())
 	return b
@@ -338,13 +338,13 @@ func fillBehind(t render.Target, c color.Color) {
 }
 
 func (b *Renderer) set(name string, v ...float32) {
-	s, ok := b.uniforms[name]
-	if !ok || len(s) != len(v) {
-		s = make([]float32, len(v))
-		b.uniforms[name] = s
+	u, ok := b.uniforms[name]
+	if s, _ := u.([]float32); !ok || len(s) != len(v) {
+		u = make([]float32, len(v))
+		b.uniforms[name] = u
 	}
-	copy(s, v)
-	b.opts.Uniforms[name] = s
+	copy(u.([]float32), v)
+	b.opts.Uniforms[name] = u
 }
 
 func flag(on bool) float32 {

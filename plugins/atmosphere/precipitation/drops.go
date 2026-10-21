@@ -46,12 +46,12 @@ type Drops struct {
 	air func() air.Weather
 
 	opts     render.DrawMeshOptions
-	uniforms map[string][]float32 // boxed once in the options
+	uniforms map[string]any // boxed once in the options
 }
 
 // NewDrops is what falls out of the weather air gives, drop by drop, under sun.
 func NewDrops(sun func() light.Distant, weather func() air.Weather) *Drops {
-	d := &Drops{sun: sun, air: weather, uniforms: map[string][]float32{}}
+	d := &Drops{sun: sun, air: weather, uniforms: map[string]any{}}
 	d.opts.Uniforms = map[string]any{}
 	return d
 }
@@ -237,13 +237,13 @@ func (d *Drops) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 }
 
 func (d *Drops) set(name string, v ...float32) {
-	s, ok := d.uniforms[name]
-	if !ok || len(s) != len(v) {
-		s = make([]float32, len(v))
-		d.uniforms[name] = s
+	u, ok := d.uniforms[name]
+	if s, _ := u.([]float32); !ok || len(s) != len(v) {
+		u = make([]float32, len(v))
+		d.uniforms[name] = u
 	}
-	copy(s, v)
-	d.opts.Uniforms[name] = s
+	copy(u.([]float32), v)
+	d.opts.Uniforms[name] = u
 }
 
 // premultiplied, 0 to 1 a channel
