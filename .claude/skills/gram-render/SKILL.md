@@ -248,7 +248,12 @@ already on the frame (`Frame.Uniformed`). The light by the sun's height is `sky.
 (vault, sun, moon, stars) assembled into one shader with the clouds; a game's `atmosphere.Sky`
 sets the parts it draws its own way, the Earth's in the rest. The vault is handed `s.air`, the
 air's colour the fog and the water share: a vault far from it at the horizon shows a seam with
-the ground's fog, and the water reflects the air, never the vault. gogpu's compiler (naga
+the ground's fog, and the water reflects the air, never the vault. An entry point takes each
+builtin once: a fragment shader reading the pixel takes it as its input struct's
+`@builtin(position)` field (`s.clip.xy`), never also as a parameter; WGSL forbids it, naga and
+Vulkan let it by, Metal refuses the MSL (2026-10-21, every demo on an M1 Max); `wgsl_test.go`
+guards it. On Metal gogpu ignores `@invariant` (it sets no preserveInvariance), and a shader
+writing `frag_depth` should draw with a depth buffer. gogpu's compiler (naga
 v0.19.0 and v0.19.1) leaves a WGSL `var` without an initialiser undefined (garbage, not zero: a
 `var c: CloudOver;` returned early by a branch came out as stray full shadows in single pixels,
 2026-10-16; write `var c = CloudOver(...)`) and

@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+Needs aabbworld with `Space.MoveRun` and astar with the stamped slice dictionary (their
+`perf/wave-3` PRs); till they are tagged, `/home/karol/CODE/go.work` uses the local `./aabbworld`
+and `./astar`.
+
+**Wave 3** (2026-10-21, `doc/plans-perf.md` "Fala 3")
+- A route search asked again over the same board is answered as before, unrun: a search blind to
+  the others reads only the board and its question (start, target and level, domain, body, the
+  cells gone round), so its answer is kept till the board's `Version` changes (at most 4,096).
+  The crowd's Detour comes back to sets of learned cells it asked a few ticks before:
+  `Navigation_Tick` crowded 1,000 94.9 → 40.3 ms, crowded 100 −24%, open 1,000 −24%, open 100
+  −7%, every box the same tick by tick.
+- Navigation's A* on astar's slice dictionaries by the cell's ordinal, reset by a stamp
+  (`astar.WithIndexedSliceDict`): crowded 1,000 40.5 → 37.6 ms, a route across 200×200 −5%.
+- Motion moves a chunk's boxes in one call (aabbworld `Space.MoveRun`), exactly as box by box:
+  `World_Tick` 1,000 / 5,000 15.5 / 67.1 → 11.9 / 49.6 µs.
+- `clock.Clock.Settling(ctx)`: the engine hands the Stage's `Update` the clock's settling
+  context, so a Sync in a plugin's `RunPlan` outside the clock (navigation's `MoveTo`, driving's
+  hand, bullet's shoot) settles the space at once and a reader later in the tick (selection by
+  box) no longer finds a phantom id 0, misses a migrated entity or reads another's box.
+- Metal (Apple GPUs): every demo panicked at its first frame with the lamps' casts, the routes or
+  the cones ("declaration with attribute 'position' already specified"): their fragment shaders
+  took `@builtin(position)` both as a parameter and as a field of their input struct, which WGSL
+  forbids and only Vulkan let by. They read the field now; `TestWGSL_EntryPointsTakeEachBuiltinOnce`
+  walks every `.wgsl` file and every Go literal holding an entry point and fails on a builtin or
+  a location taken or given twice.
+- world: the `unindexed` flag is gone; the indexer's chunk check (lengths, addresses, `TableVer`)
+  alone decides when the space gathers its runs.
+
 Saves made before the back-off of a failed search do not load: `navigation.MoveOrder` has `Retry`
 and `Fails`.
 

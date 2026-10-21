@@ -48,6 +48,12 @@ reads every `Base` where goke keeps it; `moveSystem.rebuild`, 52% of the profile
 from it, and what is left is the moving itself (`Space.Move`, `Translate`). The collision ticks
 are 1–6% shorter, the swept ones 2–10%, the same contacts in every scene.
 
+Wave 3 (2026-10-21, medians of 5, alternately): a chunk's boxes moved in one call (aabbworld
+`Space.MoveRun`: a box that stays inside written in place, the others through the edge rules),
+1,000 boxes 15.5 → 11.9 µs, 5,000 boxes 67.1 → 49.6 µs, the positions bit for bit as box by box
+(digests over 600 ticks of motion/collision, motion/expanse, motion/bullet, navigation/spawn);
+the collision ticks within the noise.
+
 ### A tick with a frame — `Benchmark_World_TickDraw`
 
 A tick of the world and a frame of its 5,000 sprites, the camera over all, a quarter or a
@@ -517,6 +523,24 @@ runs of one count compare (the table above was taken at the default benchtime). 
 
 What remains in the crowded profile is astar's own dictionary maps (about 12%) and heap (5%),
 `leveledFrom` 62% cumulative, and in the open one `stepAside` (25%, etap 2b).
+
+**Wave 3** (2026-10-21, base `perf/wave-3` before each part, medians of 5, alternately, an idle
+machine). A route search asked again is answered as before, unrun (the crowd's Detour asks the
+same sets of learned cells again a few ticks later): searches a tick in the crowd 172 → 43, every
+box the same tick by tick. Then astar's slice dictionaries reset by a stamp:
+
+| Scene | Walkers | Before | Answers kept | Slice dictionaries |
+|:---|---:|---:|---:|---:|
+| open | 100 | 399 µs | 369 µs | 353 µs |
+| open | 1,000 | 4.78 ms | 3.64 ms | 3.67 ms |
+| crowded | 100 | 1.05 ms | 794 µs | 751 µs |
+| crowded | 1,000 | 94.9 ms | 40.3 ms | 37.6 ms |
+
+Measured and not taken: the literal back-off (`n/detour-wait`, the wait not cleared by a step or
+a learned cell) is 17.5 ms in the crowd alone and 10.4 ms on top of the kept answers, but units
+give their goals up sooner (at 21 s 247 of 1,000 still toward the goal against 539), a decision
+about the crowd's behaviour; ceremony's steps giving commands without allocating
+(`perf/step-allocs`: 2,599 → 90 allocations a tick in the open) is within the noise in time.
 
 ### A route — `Benchmark_Navigation_Path`
 

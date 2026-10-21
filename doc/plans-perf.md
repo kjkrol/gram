@@ -838,3 +838,30 @@ nakładają, a żaden inny reżim nie gorszy; porządek i poprawność na testac
 aabbworld: gałęzie `perf/wave-3`, PR-y integratora bez scalania; użytkownik scala, taguje i
 podbija w gram; do tego czasu `/home/karol/CODE/go.work` używa lokalnych `./astar` i
 `./aabbworld` (przed falą: tylko `./ceremony`, `./goke`, `./gram`).
+
+## Fala 3: wynik (2026-10-21)
+
+Dziewięć części naraz bez pomiarów czasu (agenty Opus 5.5; w połowie wstrzymane dema i sondy,
+bo obciążenie doszło do 60), potem integrator po kolei: weryfikacja, pomiar szeregowo na
+bezczynnej maszynie (5 rund, baza = gałąź integracji przed częścią), sprawdzenia deterministyczne
+(sondy, zrzuty), scalenie albo odrzucenie. Reguła: ulepszenie przyjęte, gdy mediana ≥3% lepsza w
+reżimie celu i zakresy biegów się nie nakładają, a żaden reżim nie gorszy; poprawność i porządek
+na testach.
+
+| Część | Wynik | Liczby |
+|:--|:--|:--|
+| C osiadanie po `Sync` poza zegarem | przyjęta (poprawność) | test odtwarza lukę; C+H+I: tick świata i nawigacji w szumie (open 1 000 +2,8%, pod progiem) |
+| I shadery na Metal | przyjęta (poprawność) | test pada na bazie na trzech plikach; zrzuty 4 scen 0 pikseli różnicy, próby kontrolne różne |
+| H bez `unindexed` | przyjęta (porządek) | logi sond spawn i bullet identyczne, x1 i x4 |
+| A odpowiedzi wyszukiwań trzymane | przyjęta | tłok 1 000 94,9 → 40,3 ms, tłok 100 −24%, open 1 000 −24%, open 100 −7%; sondy square i spawn identyczne tick w tick, zrzuty 0 pikseli |
+| B odstęp „dosłowny” | odrzucona (zmiana zachowania) | tłok 1 000 17,5 ms sama, 10,4 ms na A; po 21 s 247 jednostek do celu zamiast 539: decyzja użytkownika |
+| D słowniki astar ze znacznikiem | przyjęta | nawigacja −5 do −7%, trasa −4,6%; w benchmarku astar długie wyszukiwania na słowniku tablicowym +4–10%, krótkie −20 do −54% |
+| E kroki ceremony bez alokacji | odrzucona (w szumie) | alokacje open 1 000 2 599 → 90 na tick, czas ±2% |
+| F `Scan` bez alokacji, niestabilny test | test przyjęty (poprawność), alokacje odrzucone | torus 3 → 0 alokacji, czas −2%; test 40 razy bez porażki |
+| G ruch przebiegu jednym wywołaniem | przyjęta | `World_Tick` 1 000 / 5 000 −24 / −26%; skróty pozycji w 4 demach identyczne |
+
+**Stan.** Gałęzie `perf/wave-3`: gram (C, I, H, A, D, G), astar (D), aabbworld (G, test z F);
+ceremony bez przyjętej części. PR-y integratora bez scalania; użytkownik scala, taguje i podbija w
+gram. Do tego czasu `/home/karol/CODE/go.work` używa `./astar` i `./aabbworld` (przed falą:
+`./ceremony`, `./goke`, `./gram`). Gałęzie odrzucone zostają: `n/detour-wait`, ceremony
+`perf/step-allocs`, aabbworld `perf/scan-allocs` (`2ec9e56`).
