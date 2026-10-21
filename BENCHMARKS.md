@@ -539,8 +539,9 @@ box the same tick by tick. Then astar's slice dictionaries reset by a stamp:
 Measured and not taken: the literal back-off (`n/detour-wait`, the wait not cleared by a step or
 a learned cell) is 17.5 ms in the crowd alone and 10.4 ms on top of the kept answers, but units
 give their goals up sooner (at 21 s 247 of 1,000 still toward the goal against 539), a decision
-about the crowd's behaviour; ceremony's steps giving commands without allocating
-(`perf/step-allocs`: 2,599 → 90 allocations a tick in the open) is within the noise in time.
+about the crowd's behaviour. Ceremony's steps give their commands without allocating (2,599 →
+90 allocations a tick in the open, 3,946 → 1,406 in the crowd), the time within the noise: taken
+by the user's rule, fewer allocations at a time not worse.
 
 ### A route — `Benchmark_Navigation_Path`
 

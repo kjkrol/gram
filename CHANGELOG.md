@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-Needs aabbworld with `Space.MoveRun` and astar with the stamped slice dictionary (their
-`perf/wave-3` PRs); till they are tagged, `/home/karol/CODE/go.work` uses the local `./aabbworld`
-and `./astar`.
+Needs aabbworld with `Space.MoveRun`, astar with the stamped slice dictionary and ceremony with
+`Carrier.PutFromOf` (their `perf/wave-3` PRs); till they are tagged, `/home/karol/CODE/go.work`
+uses the local `./aabbworld`, `./astar` and `./ceremony`.
 
 **Wave 3** (2026-10-21, `doc/plans-perf.md` "Fala 3")
 - A route search asked again over the same board is answered as before, unrun: a search blind to
@@ -27,6 +27,9 @@ and `./astar`.
   forbids and only Vulkan let by. They read the field now; `TestWGSL_EntryPointsTakeEachBuiltinOnce`
   walks every `.wgsl` file and every Go literal holding an entry point and fails on a builtin or
   a location taken or given twice.
+- Fewer allocations, time not worse: ceremony's steps give their commands without allocating
+  (`Navigation_Tick` open 1,000 2,599 → 90 allocations a tick, crowded 1,000 3,946 → 1,406), and a
+  warm aabbworld `Scan` in a wrapping world allocates nothing (3 → 0 a scan across a torus's seam).
 - world: the `unindexed` flag is gone; the indexer's chunk check (lengths, addresses, `TableVer`)
   alone decides when the space gathers its runs.
 

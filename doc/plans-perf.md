@@ -856,12 +856,14 @@ na testach.
 | A odpowiedzi wyszukiwań trzymane | przyjęta | tłok 1 000 94,9 → 40,3 ms, tłok 100 −24%, open 1 000 −24%, open 100 −7%; sondy square i spawn identyczne tick w tick, zrzuty 0 pikseli |
 | B odstęp „dosłowny” | odrzucona (zmiana zachowania) | tłok 1 000 17,5 ms sama, 10,4 ms na A; po 21 s 247 jednostek do celu zamiast 539: decyzja użytkownika |
 | D słowniki astar ze znacznikiem | przyjęta | nawigacja −5 do −7%, trasa −4,6%; w benchmarku astar długie wyszukiwania na słowniku tablicowym +4–10%, krótkie −20 do −54% |
-| E kroki ceremony bez alokacji | odrzucona (w szumie) | alokacje open 1 000 2 599 → 90 na tick, czas ±2% |
-| F `Scan` bez alokacji, niestabilny test | test przyjęty (poprawność), alokacje odrzucone | torus 3 → 0 alokacji, czas −2%; test 40 razy bez porażki |
+| E kroki ceremony bez alokacji | przyjęta (po decyzji użytkownika) | alokacje open 1 000 2 599 → 90 na tick, czas ±2%; sondy guard, dialog, spawn identyczne |
+| F `Scan` bez alokacji, niestabilny test | przyjęta (po decyzji użytkownika) | torus 3 → 0 alokacji, czas −2%; test 40 razy bez porażki |
 | G ruch przebiegu jednym wywołaniem | przyjęta | `World_Tick` 1 000 / 5 000 −24 / −26%; skróty pozycji w 4 demach identyczne |
 
-**Stan.** Gałęzie `perf/wave-3`: gram (C, I, H, A, D, G), astar (D), aabbworld (G, test z F);
-ceremony bez przyjętej części. PR-y integratora bez scalania; użytkownik scala, taguje i podbija w
+**Decyzja użytkownika (2026-10-21, po przeglądzie):** mniej alokacji przy czasie nie gorszym to
+też ulepszenie („pewnie oddadzą nam ten czas z nawiązką później, gdy włączy się GC”); E i część
+alokacyjna F przyjęte.
+
+**Stan.** Gałęzie `perf/wave-3`: gram (C, I, H, A, D, G), astar (D), aabbworld (G, F), ceremony (E). PR-y integratora bez scalania; użytkownik scala, taguje i podbija w
 gram. Do tego czasu `/home/karol/CODE/go.work` używa `./astar` i `./aabbworld` (przed falą:
-`./ceremony`, `./goke`, `./gram`). Gałęzie odrzucone zostają: `n/detour-wait`, ceremony
-`perf/step-allocs`, aabbworld `perf/scan-allocs` (`2ec9e56`).
+`./ceremony`, `./goke`, `./gram`). Gałąź odrzucona zostaje: `n/detour-wait`.
