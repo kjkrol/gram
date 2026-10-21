@@ -2,6 +2,7 @@ package motion
 
 import (
 	"math"
+	"slices"
 	"time"
 
 	"github.com/kjkrol/aabbworld"
@@ -9,6 +10,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
+	"github.com/kjkrol/uid"
 )
 
 var _ goke.System = (*moveSystem)(nil)
@@ -21,6 +23,8 @@ type moveSystem struct {
 	outside   goke.OptComp[Outside]
 	outsideID goke.CompID
 	runs      []aabbworld.Run
+	steps     []geom.Vec
+	left      []uid.UID64
 	pace      goke.Opt
 	// what the space holds: all but those beyond the last band
 	held     *goke.Query
@@ -47,20 +51,22 @@ func (s *moveSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		// a longer step reaches as many steps' worth
 		dt, reach := step.Seconds(), float64(max(step/d, 1))
 		bases, drifts := s.base.Slice(cursor), s.drift.Slice(cursor)
-		marked := s.outside.Present(cursor)
-		for i, id := range cursor.IDs {
+		s.steps = slices.Grow(s.steps[:0], len(bases))
+		by := s.steps[:len(bases)]
+		for i := range bases {
 			rate := bases[i].Vel.Delta()
 			if drifts != nil {
 				rate.X += drifts[i].X
 				rate.Y += drifts[i].Y
 			}
-			by := clampStep(geom.NewVec(rate.X*dt, rate.Y*dt), bases[i].Pos.MaxStep()*reach)
-			if by.X == 0 && by.Y == 0 {
-				continue
-			}
-			if inside := s.space.Move(&bases[i].Pos.AABB, by); !inside && !marked {
-				cb.AddOne(id, s.outsideID, Outside{})
-			}
+			by[i] = clampStep(geom.NewVec(rate.X*dt, rate.Y*dt), bases[i].Pos.MaxStep()*reach)
+		}
+		s.left = s.space.MoveRun(world.RunOf(cursor.IDs, bases), by, s.left[:0])
+		if s.outside.Present(cursor) {
+			continue
+		}
+		for _, id := range s.left {
+			cb.AddOne(id, s.outsideID, Outside{})
 		}
 	}
 	s.rebuild()
