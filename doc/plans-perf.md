@@ -874,3 +874,18 @@ Na życzenie użytkownika: pozostałe pomysły alokacyjne, brief `doc/briefs/w4.
 ceremony, D2 ścieżka astar do bufora (astar + gram), K boksowanie uniformów i `DrawImageIn` w
 gram. Ta sama procedura; reguła akceptacji rozszerzona decyzją użytkownika: mniej alokacji przy
 czasie nie gorszym to ulepszenie. Przyjęte części wchodzą do tych samych PR-ów (`perf/wave-3`).
+
+## Fala 4: wynik (2026-10-21)
+
+Trzy części, ta sama procedura, reguła: czas nie gorszy i mniej alokacji, albo czas lepszy.
+Wszystkie trzy przyjęte, w tych samych PR-ach.
+
+| Część | Czas | Alokacje | Sprawdzenia |
+|:--|:--|:--|:--|
+| D2 ścieżka astar do bufora (`SolveInto`) | nawigacja i trasa w szumie | tłok 1 000 1 406 → 13 na tick, open 1 000 90 → 8, trasa 16 → 4; astar `Solve` 11–18 → 1–4 | golden tras, `-race` |
+| E2 kroki ceremony na drugiej encji, na miejscach, warunek drugiej | benchmarki reguł, planów, efektów w szumie (te kroki odpalają tylko dema) | 2 → 0 na odpalenie | sonda effect: log i zrzut identyczne; bullet z ziarnem: skróty identyczne |
+| K uniformy pakowane raz, blity bez bufora | klatka wyspy, UI, tekst, `World_Draw`, cienie w szumie | wyspa −1 na klatkę; niebo −28, aloft −22, krople −15, plansza −23 (licznik agenta) | zrzuty light (różni tylko tekst czasu w telemetrii) i hex identyczne; sky i flat w szumie bazy |
+
+Uwaga: `render/gpu` `TestDevice_ARedrawnFrameAllocatesNothingOfItsOwn` padł raz w pełnym `go test
+./...` (8 alokacji), a 10 powtórzeń osobno na bazie, na K i po scaleniu oraz dwa kolejne pełne
+przebiegi przeszły: test liczy alokacje całego procesu, więc pod obciążeniem bywa niestabilny.

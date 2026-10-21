@@ -161,6 +161,11 @@ the library declare `@group(3) @binding(k) var <name>: texture_2d<f32>;`; WGSL r
 through `linear` (clamped) or `wrapped` (group 3's sampler, repeating: a ring buffer's seam). A
 source's Compose hands it, `f.Image(name, img)`; the composer boxes it with the uniforms
 (`c.boxed`, nil where a frame set none), so every Direct gets it through `u.Into(opts.Uniforms)`
+(putting a `[]float32` into a `map[string]any` boxes its header anew, one allocation a call: a
+Direct keeps its own uniforms boxed, `own map[string]any`, made and boxed once a name and length,
+and puts the same value into `opts.Uniforms` after `u.Into` every frame; a value drawn in place,
+`StarView` over `f.view`, is boxed once where the options are made; a blit's uniforms are
+`gpu.blitOf(linear)`, shared and never written, since a draw copies them; wave 4)
 untouched, `Shader.pack` skips it and `DrawMesh`/`DrawTrianglesShader` bind it (`frameOf`); the
 gpu side is `Draw.Frame`/`MeshDraw.Frame`, one cached group a set of textures. An image whose
 pixels need the GPU — baked, or written from the CPU — is `img.Defer(fill)`: filled the next time

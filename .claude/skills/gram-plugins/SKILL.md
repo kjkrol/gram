@@ -739,7 +739,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   room for every step of a node (`astar.WithSuccessorCapacity`) and slice dictionaries by the
   cell's ordinal (`astar.WithIndexedSliceDict`: the plain solver `CellCount()+1` slots, the
   leveled `2·CellCount()+2`, a cell's two levels side by side, then the goal, then a start off
-  the grid; astar resets them in O(1) by a stamp) (2026-10-20, etap 2a: a route across 200×200
+  the grid; astar resets them in O(1) by a stamp); each solver writes its route into a buffer
+  the `Finder` keeps (`astar.SolveInto`), copied into the caller's `dst`, so a search allocates
+  nothing once they have grown: a route leaves the Finder only through `dst` (a `Path` holds its
+  steps in its own array, the kept answers keep Paths by value) (2026-10-20, etap 2a: a route across 200×200
   94 → 18 ms, 14,740 → 19 allocations; a crowded tick of 1,000 walkers 306 → 104 ms). A route
   search asked again is answered as before, unrun (`avoiding.find`, wave 3): the answer kept by
   its question (start, target and level, domain, `pathfind.Body`, the cells gone round as a set

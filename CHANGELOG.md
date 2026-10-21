@@ -30,6 +30,14 @@ uses the local `./aabbworld`, `./astar` and `./ceremony`.
 - Fewer allocations, time not worse: ceremony's steps give their commands without allocating
   (`Navigation_Tick` open 1,000 2,599 → 90 allocations a tick, crowded 1,000 3,946 → 1,406), and a
   warm aabbworld `Scan` in a wrapping world allocates nothing (3 → 0 a scan across a torus's seam).
+- Wave 4, fewer allocations at a time not worse: the route finder writes its routes into buffers
+  it keeps (astar `SolveInto`; `Navigation_Tick` crowded 1,000 1,406 → 13 allocations a tick, a
+  route across 200×200 16 → 4); ceremony's steps on the other of a pair, on places and a clause
+  of the other run without allocating (2 → 0 a firing); every Direct boxes its own uniforms once
+  (the sky 28 fewer a frame, aloft 22 a layer, the drops 15, a lit and gridded flat board 23, the
+  clouds' shadows 8, the billboards 6, the casts 3) and the blits (`gpu.DrawImage`, `Sprites`,
+  `DrawImageIn`) share their uniform blocks, `DrawImageIn` gathering its triangles in the
+  device's buffers. The pictures unchanged.
 - world: the `unindexed` flag is gone; the indexer's chunk check (lengths, addresses, `TableVer`)
   alone decides when the space gathers its runs.
 
