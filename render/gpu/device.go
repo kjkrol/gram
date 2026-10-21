@@ -51,7 +51,7 @@ type device struct {
 	// the draws' dynamic offsets, two a draw, let go after Submit: gogpu's GLES backend keeps the
 	// slice handed to SetBindGroup in a deferred command replayed at Submit
 	offs []uint32
-	// DrawPieces' triangles, gathered into the frame's buffers before it returns
+	// DrawPieces' and DrawImageIn's triangles, gathered into the frame's buffers before they return
 	pieceVerts   []Vertex
 	pieceIndices []uint16
 
