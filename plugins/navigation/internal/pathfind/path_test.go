@@ -139,3 +139,35 @@ func (flat) Deck(cell.ID) (top, under float64, carries cell.Domain, ok bool) {
 func (flat) Ground(geom.Vec) float64              { return 0 }
 func (flat) Over(geom.Vec) (float64, bool)        { return 0, false }
 func (f flat) KindAt(c cell.ID, _ bool) cell.Kind { return f.terrain.Kind(c) }
+
+func TestFinder_FindAllocatesNothingOnceItsRoutesFit(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(32, 32, 10)
+	terrain := openTerrain()
+	for y := range uint32(31) {
+		terrain.Set(g.At(16, y), cell.Kind{Cost: 1, Solid: true})
+	}
+	v := newValley()
+	for name, tc := range map[string]struct {
+		f        *Finder
+		body     Body
+		from, to cell.ID
+	}{
+		"plain": {f: New(g, terrain, nil, &cell.MultipleOccupancy{}),
+			from: g.At(0, 0), to: g.At(31, 0)},
+		"by levels": {f: New(v.g, v.terrain, nil, &cell.MultipleOccupancy{}).WithLevels(v),
+			body: Body{Feet: 10, Step: 1, Height: 2}, from: v.g.At(0, 2), to: v.g.At(4, 2)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var dst [64]cell.ID
+			find := func() {
+				if _, ok := tc.f.Find(1, cell.Land, tc.body, tc.from, tc.to, Either, dst[:]); !ok {
+					t.Fatalf("no route from %v to %v", tc.from, tc.to)
+				}
+			}
+			find()
+			if allocs := testing.AllocsPerRun(10, find); allocs != 0 {
+				t.Errorf("a route found again allocates %v times; want none", allocs)
+			}
+		})
+	}
+}

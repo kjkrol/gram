@@ -37,6 +37,9 @@ type Finder struct {
 	reads     []read // by ordinal
 	search    uint32
 	rings     rings
+	// the solvers' last results, written over by the next search
+	path  []cell.ID
+	route []node
 }
 
 // Level is which level of its goal cell a route ends on; a goal of one level takes any.
@@ -192,18 +195,19 @@ func (p *Finder) Find(
 	p.decks, p.body, p.entity = 0, body, entity
 	p.begin(domain)
 	if p.levels == nil {
-		full := p.solver.Solve(from, to, p.plain)
-		if len(full) < 2 {
+		p.path = p.solver.SolveInto(p.path, from, to, p.plain)
+		if len(p.path) < 2 {
 			return 0, false
 		}
-		return copy(dst, full[1:]), true
+		return copy(dst, p.path[1:]), true
 	}
 	p.goal, p.end = to, end
 	if len(p.levelsOf(p.at(to))) == 1 {
 		p.end = Either
 	}
 	start := node{from, p.levelOf(p.at(from), body)}
-	full := p.leveled.Solve(start, node{to, goal}, p.stepped)
+	p.route = p.leveled.SolveInto(p.route, start, node{to, goal}, p.stepped)
+	full := p.route
 	if len(full) < 3 {
 		return 0, false
 	}
