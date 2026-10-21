@@ -45,7 +45,7 @@ type sprites struct {
 	hazed   bool
 	fog     float32 // how far into the fog before the camera's sight what is laid next lies
 	opts    render.DrawMeshOptions
-	own     map[string][]float32
+	own     map[string]any
 }
 
 type spriteBatch struct {
@@ -54,7 +54,7 @@ type spriteBatch struct {
 }
 
 func newSprites(sky Sky, r *relief.Relief) *sprites {
-	s := &sprites{sky: sky, relief: r, own: map[string][]float32{}}
+	s := &sprites{sky: sky, relief: r, own: map[string]any{}}
 	s.opts = render.DrawMeshOptions{WriteDepth: true, Vertices: 6, Uniforms: map[string]any{}}
 	return s
 }
@@ -217,13 +217,13 @@ func (s *sprites) drawAll(t render.Target, shader *render.Shader, batches []spri
 
 // kept between frames and boxed once
 func (s *sprites) set(name string, v ...float32) {
-	o, ok := s.own[name]
-	if !ok || len(o) != len(v) {
-		o = make([]float32, len(v))
-		s.own[name] = o
+	u, ok := s.own[name]
+	if o, _ := u.([]float32); !ok || len(o) != len(v) {
+		u = make([]float32, len(v))
+		s.own[name] = u
 	}
-	copy(o, v)
-	s.opts.Uniforms[name] = o
+	copy(u.([]float32), v)
+	s.opts.Uniforms[name] = u
 }
 
 // the air's haze at the point, at least the fog before the camera's sight

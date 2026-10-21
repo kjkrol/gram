@@ -28,7 +28,7 @@ var cloudsShader = render.NewMeshShaderWith("clouds' shadows",
 // over each pixel take of the sun.
 type Clouds struct {
 	opts render.DrawMeshOptions
-	own  map[string][]float32 // boxed once in the options
+	own  map[string]any // boxed once in the options
 }
 
 // cloudPiece in pixels; shaders/clouds.wgsl has the same
@@ -50,7 +50,7 @@ func (c *Clouds) Draw(t render.Target, cam camera.Camera, u render.Uniforms, clo
 		return
 	}
 	if c.own == nil {
-		c.own, c.opts.Uniforms = map[string][]float32{}, map[string]any{}
+		c.own, c.opts.Uniforms = map[string]any{}, map[string]any{}
 	}
 	u.Into(c.opts.Uniforms)
 	w, h := cam.Viewport()
@@ -71,11 +71,11 @@ func (c *Clouds) Draw(t render.Target, cam camera.Camera, u render.Uniforms, clo
 }
 
 func (c *Clouds) set(name string, v ...float32) {
-	s, ok := c.own[name]
-	if !ok || len(s) != len(v) {
-		s = make([]float32, len(v))
-		c.own[name] = s
+	u, ok := c.own[name]
+	if s, _ := u.([]float32); !ok || len(s) != len(v) {
+		u = make([]float32, len(v))
+		c.own[name] = u
 	}
-	copy(s, v)
-	c.opts.Uniforms[name] = s
+	copy(u.([]float32), v)
+	c.opts.Uniforms[name] = u
 }

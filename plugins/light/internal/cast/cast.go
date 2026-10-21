@@ -33,7 +33,7 @@ const headroom = 64
 // Caster draws casts over the ground's depth.
 type Caster struct {
 	opts      render.DrawMeshOptions
-	own       map[string][]float32
+	own       map[string]any
 	instances []float32
 }
 
@@ -77,7 +77,7 @@ func (c *Caster) Draw(
 		return
 	}
 	if c.own == nil {
-		c.own, c.opts.Uniforms = map[string][]float32{}, map[string]any{}
+		c.own, c.opts.Uniforms = map[string]any{}, map[string]any{}
 	}
 	at := t.Screen.Bounds().Min
 	c.set("Unproject", unproject[:]...)
@@ -117,10 +117,10 @@ func covers(tr camera.Transform, x, y, ux, uy, along, wide, low, high, w, h floa
 // kept between frames and boxed once
 func (c *Caster) set(name string, v ...float32) {
 	u, ok := c.own[name]
-	if !ok || len(u) != len(v) {
+	if s, _ := u.([]float32); !ok || len(s) != len(v) {
 		u = make([]float32, len(v))
 		c.own[name] = u
 	}
-	copy(u, v)
+	copy(u.([]float32), v)
 	c.opts.Uniforms[name] = u
 }

@@ -57,3 +57,14 @@ func needGPU(t *testing.T) {
 		t.Skipf("no GPU: %v", err)
 	}
 }
+
+func TestDrops_SetPutsItsOwnOverTheFramesWithoutAllocating(t *testing.T) {
+	d := Drops{uniforms: map[string]any{}}
+	d.opts.Uniforms = map[string]any{}
+	d.set("DropView", 1, 2)
+	d.opts.Uniforms["DropView"] = []float32{9, 9}
+	n := testing.AllocsPerRun(10, func() { d.set("DropView", 3, 4) })
+	if got := d.opts.Uniforms["DropView"].([]float32); n != 0 || got[0] != 3 || got[1] != 4 {
+		t.Errorf("DropView set over another: %v allocations, %v; want none and [3 4]", n, got)
+	}
+}

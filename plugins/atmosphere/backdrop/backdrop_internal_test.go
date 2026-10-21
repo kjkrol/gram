@@ -56,3 +56,14 @@ func framed(b *Renderer, cam camera.Camera) render.Uniforms {
 	}
 	return render.UniformsOf(u)
 }
+
+func TestRenderer_SetPutsItsOwnOverTheFramesWithoutAllocating(t *testing.T) {
+	b := Renderer{uniforms: map[string]any{}}
+	b.opts.Uniforms = map[string]any{}
+	b.set("SkyView", 1, 2)
+	b.opts.Uniforms["SkyView"] = []float32{9, 9}
+	n := testing.AllocsPerRun(10, func() { b.set("SkyView", 3, 4) })
+	if got := b.opts.Uniforms["SkyView"].([]float32); n != 0 || got[0] != 3 || got[1] != 4 {
+		t.Errorf("SkyView set over another: %v allocations, %v; want none and [3 4]", n, got)
+	}
+}
