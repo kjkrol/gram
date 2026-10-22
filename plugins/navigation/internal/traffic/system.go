@@ -1,4 +1,4 @@
-package navigation
+package traffic
 
 import (
 	cgoke "github.com/kjkrol/ceremony/goke"
@@ -24,8 +24,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-type navigationSystem struct {
-	pace       goke.Opt
+type System struct {
+	Pace       goke.Opt
 	grid       grid.Grid
 	terrain    cell.Terrain
 	occupancy  cell.Occupancy
@@ -44,7 +44,7 @@ type navigationSystem struct {
 	base    goke.Comp[world.Base]
 	steer   goke.Comp[steering.Steering]
 	course  goke.Comp[steering.Course]
-	order   goke.OptComp[MoveOrder]
+	order   goke.OptComp[order.MoveOrder]
 	mover   goke.OptComp[unit.Mover]
 	z       goke.OptComp[world.Z]
 	coll    goke.OptComp[collision.Collider]
@@ -52,28 +52,28 @@ type navigationSystem struct {
 	route   []geom.Vec
 
 	owners      goke.OptComp[tag.Tags[owner.Family]]
-	lastOrder   goke.OptComp[LastOrder]
+	lastOrder   goke.OptComp[order.LastOrder]
 	lastOrderID goke.CompID
-	lastLacking []LastOrder
+	lastLacking []order.LastOrder
 	lastIDs     []uid.UID64
 	mind        goke.OptComp[store.Mind]
-	blocked     goke.OptComp[Blocked]
-	arrived     goke.OptComp[Arrived]
+	blocked     goke.OptComp[order.Blocked]
+	arrived     goke.OptComp[order.Arrived]
 	blockedID   goke.CompID
 	arrivedID   goke.CompID
-	blocking    map[uid.UID64]Blocked
+	blocking    map[uid.UID64]order.Blocked
 	arrivals    []arrival
 
-	given     *givenQueues
+	Given     *GivenQueues
 	told      map[uid.UID64]told
 	touched   []touching
 	felt      map[[2]uid.UID64]bool // the pairs touching this tick, each once; refused, one way
-	touches   *host.PairRules[Touch]
+	Touches   *host.PairRules[order.Touch]
 	marksCols *cgoke.Columns
-	bumps     bumps
+	Bumps     Bumps
 	marks     *goke.Query
 	markCell  goke.Comp[unit.At]
-	tick      host.TickSource
+	Tick      host.TickSource
 
 	orderID goke.CompID
 
@@ -86,12 +86,12 @@ type navigationSystem struct {
 	terrainSeen uint64
 }
 
-var _ goke.System = (*navigationSystem)(nil)
+var _ goke.System = (*System)(nil)
 
 const bumpInterval = 500 * time.Millisecond
 
-func newNavigationSystem(pathFinder *spacing.Finder, grid grid.Grid, terrain cell.Terrain, occupancy cell.Occupancy) *navigationSystem {
-	s := &navigationSystem{
+func NewSystem(pathFinder *spacing.Finder, grid grid.Grid, terrain cell.Terrain, occupancy cell.Occupancy) *System {
+	s := &System{
 		grid:       grid,
 		terrain:    terrain,
 		occupancy:  occupancy,
@@ -102,14 +102,14 @@ func newNavigationSystem(pathFinder *spacing.Finder, grid grid.Grid, terrain cel
 	return s
 }
 
-func (s *navigationSystem) withKeeping(k spacing.Keeping) *navigationSystem {
+func (s *System) WithKeeping(k spacing.Keeping) *System {
 	s.keep, s.occupancy = k, k.Occupancy()
 	return s
 }
 
-func (s *navigationSystem) BindSpace(space *aabbworld.Space) { s.space = space }
+func (s *System) BindSpace(space *aabbworld.Space) { s.space = space }
 
-func (s *navigationSystem) Init(si *goke.SysInit) {
+func (s *System) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&s.cell, &s.base, &s.steer, &s.course).
 		Optional(&s.order).
 		Optional(&s.mover).
@@ -119,25 +119,25 @@ func (s *navigationSystem) Init(si *goke.SysInit) {
 		Optional(&s.owners, &s.lastOrder).
 		Optional(&s.mind, &s.blocked, &s.arrived).
 		Optional(&s.states)
-	if s.pace != nil {
-		qb.With(s.pace)
+	if s.Pace != nil {
+		qb.With(s.Pace)
 	}
 	s.query = qb.Build()
 	s.outside = s.query.Fork()
-	s.orderID = si.RegComp[MoveOrder]()
-	s.blockedID, s.arrivedID, s.lastOrderID = si.RegComp[Blocked](), si.RegComp[Arrived](), si.RegComp[LastOrder]()
-	s.arrivedEditor = s.query.NewEditorBuilder().Remove(goke.Remove[MoveOrder]()).Build()
+	s.orderID = si.RegComp[order.MoveOrder]()
+	s.blockedID, s.arrivedID, s.lastOrderID = si.RegComp[order.Blocked](), si.RegComp[order.Arrived](), si.RegComp[order.LastOrder]()
+	s.arrivedEditor = s.query.NewEditorBuilder().Remove(goke.Remove[order.MoveOrder]()).Build()
 	s.statesID = si.RegComp[tag.Tags[unit.States]]()
 	s.seedLegs()
-	if s.touches != nil {
+	if s.Touches != nil {
 		marks := si.NewQueryBuilder(&s.markCell)
 		s.marksCols = cgoke.NewColumns(marks)
-		s.touches.Bind(s.marksCols)
+		s.Touches.Bind(s.marksCols)
 		s.marks = marks.Build()
 	}
 }
 
-func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
+func (s *System) Update(cb *goke.CmdBuf, d time.Duration) {
 	changed := false
 	if v, ok := s.terrain.(interface{ Version() uint64 }); ok && v.Version() != s.terrainSeen {
 		s.terrainSeen, changed = v.Version(), true
@@ -154,11 +154,11 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		s.touch(cb, d)
 		s.touched = s.touched[:0]
 	}
-	if s.given != nil {
+	if s.Given != nil {
 		if s.told == nil {
 			s.told = map[uid.UID64]told{}
 		}
-		s.given.drain(s.told)
+		s.Given.drain(s.told)
 	}
 
 	for s.query.Paced(d); s.query.Next(); {
@@ -229,7 +229,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				case lasts != nil:
 					lasts[i].Group = o.Group
 				default:
-					s.lastIDs, s.lastLacking = append(s.lastIDs, id), append(s.lastLacking, LastOrder{Group: o.Group})
+					s.lastIDs, s.lastLacking = append(s.lastIDs, id), append(s.lastLacking, order.LastOrder{Group: o.Group})
 				}
 				if minds != nil {
 					s.arrivals = append(s.arrivals, arrival{id: id, cell: cells[i].Cell})
@@ -276,7 +276,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 						s.occupancy.Enter(actual, onDeck, id, domain)
 					}
 					moveTo(actual)
-					*leg = Leg{}
+					*leg = order.Leg{}
 					p.Length = 0
 					st.RequestSpeed(0)
 					continue
@@ -287,14 +287,14 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			case leg.Active && actual == leg.From && !s.admitsLeg(*leg, domain):
 				s.releaseLeg(*leg, id)
 				s.occupancy.Enter(actual, onDeck, id, domain)
-				*leg = Leg{}
+				*leg = order.Leg{}
 				p.Length = 0
 				st.RequestSpeed(0)
 			case leg.Active && !order.Covers(*leg, actual):
 				s.releaseLeg(*leg, id)
 				s.occupancy.Enter(actual, onDeck, id, domain)
 				moveTo(actual)
-				*leg = Leg{}
+				*leg = order.Leg{}
 				p.Length = 0
 			case leg.Active && (actual == leg.From || actual == leg.To):
 				moveTo(actual)
@@ -320,7 +320,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 					s.releaseLeg(*leg, id)
 					s.occupancy.Enter(actual, onDeck, id, domain)
 					moveTo(actual)
-					*leg = Leg{}
+					*leg = order.Leg{}
 				}
 				arrive()
 				continue
@@ -333,7 +333,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			target := o.Target
 			if !leg.Active && (p.Length == 0 || p.Index >= p.Length) &&
 				(cells[i].Cell != target || !s.keep.On(m, target, o.Level)) {
-				var newPath Path
+				var newPath order.Path
 				found := false
 				// waiting on a search that found nothing: the same answer till its Retry ends
 				if o.Waited == 0 || o.Retry == 0 {
@@ -423,7 +423,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 					s.releaseLeg(*leg, id)
 					s.occupancy.Enter(leg.To, leg.ToDeck, id, domain)
 					moveTo(leg.To)
-					*leg = Leg{}
+					*leg = order.Leg{}
 				}
 				if o.Linger = max(o.Linger-d, 0); o.Linger > 0 {
 					continue
@@ -450,7 +450,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 					s.releaseLeg(*leg, id)
 					s.occupancy.Enter(leg.To, leg.ToDeck, id, domain)
 					moveTo(leg.To)
-					*leg = Leg{}
+					*leg = order.Leg{}
 				}
 				order.Advance(o)
 				s.route = append(s.route[:0], s.unwrap(have, s.goal(o.Target, o.Spot)))
@@ -478,7 +478,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 					s.releaseLeg(*leg, id)
 					s.occupancy.Enter(leg.To, leg.ToDeck, id, domain)
 					moveTo(leg.To)
-					*leg = Leg{}
+					*leg = order.Leg{}
 				}
 				if p.Index < p.Length && p.Steps[p.Index] == waypoint {
 					p.Index++
@@ -510,7 +510,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				s.releaseLeg(*leg, id)
 				s.occupancy.Enter(leg.To, leg.ToDeck, id, domain)
 				moveTo(leg.To)
-				*leg = Leg{}
+				*leg = order.Leg{}
 			}
 			if at, deck, ok := spacing.LevelOf(s.grid, s.terrain, want, &m.Z); ok && at != cells[i].Cell {
 				s.occupancy.Leave(cells[i].Cell, id)
@@ -545,7 +545,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	s.touch(cb, d)
 	s.tell(cb, d)
 	for _, a := range s.arrivals {
-		cb.AddOne(a.id, s.arrivedID, Arrived{Cell: a.cell})
+		cb.AddOne(a.id, s.arrivedID, order.Arrived{Cell: a.cell})
 	}
 	s.arrivals = s.arrivals[:0]
 	clear(s.told)
@@ -559,7 +559,7 @@ type arrival struct {
 }
 
 // a unit vector, the short way round
-func (s *navigationSystem) wayBetween(a, b cell.ID) geom.Vec {
+func (s *System) wayBetween(a, b cell.ID) geom.Vec {
 	from := s.grid.CellCenter(a)
 	to := s.unwrap(from, s.grid.CellCenter(b))
 	d := geom.NewVec(to.X-from.X, to.Y-from.Y)
@@ -569,7 +569,7 @@ func (s *navigationSystem) wayBetween(a, b cell.ID) geom.Vec {
 	return d
 }
 
-func (s *navigationSystem) standing(cb *goke.CmdBuf, cursor *goke.Cursor) {
+func (s *System) standing(cb *goke.CmdBuf, cursor *goke.Cursor) {
 	if len(s.told) == 0 || s.hand.Slice(cursor) != nil {
 		return
 	}
@@ -605,7 +605,7 @@ type touching struct {
 }
 
 // each pair once: collision records a contact on the one that struck, or on both
-func (s *navigationSystem) feel() {
+func (s *System) feel() {
 	clear(s.felt)
 	for s.query.All(); s.query.Next(); {
 		cursor := s.query.Cursor()
@@ -629,9 +629,9 @@ func (s *navigationSystem) feel() {
 	}
 }
 
-func (s *navigationSystem) touch(cb *goke.CmdBuf, d time.Duration) {
-	hosted := s.touches != nil && !s.touches.Empty()
-	tick := s.tick.Of(d)
+func (s *System) touch(cb *goke.CmdBuf, d time.Duration) {
+	hosted := s.Touches != nil && !s.Touches.Empty()
+	tick := s.Tick.Of(d)
 	clear(s.felt)
 	for _, t := range s.touched {
 		if t.refused {
@@ -654,8 +654,8 @@ func (s *navigationSystem) touch(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-func (s *navigationSystem) fire(tick host.Tick, hosted bool, self, other bodies.Body, way geom.Vec, cell cell.ID, head bool) {
-	t := Touch{Self: self.ID, Other: other.ID, Way: way, Moving: self.Moving, OtherMoving: other.Moving,
+func (s *System) fire(tick host.Tick, hosted bool, self, other bodies.Body, way geom.Vec, cell cell.ID, head bool) {
+	t := order.Touch{Self: self.ID, Other: other.ID, Way: way, Moving: self.Moving, OtherMoving: other.Moving,
 		GivingWay: self.GivingWay, OtherGivingWay: other.GivingWay, LastGoal: self.LastGoal,
 		Ally: owner.Allies(self.Owners, other.Owners), Groupmate: self.Group != 0 && self.Group == other.Group,
 		HeadOn: head && self.Moving && other.Moving, WaitedOut: self.WaitedOut, Cornered: self.Cornered}
@@ -666,21 +666,21 @@ func (s *navigationSystem) fire(tick host.Tick, hosted bool, self, other bodies.
 		}
 		if self.Minded {
 			if s.blocking == nil {
-				s.blocking = map[uid.UID64]Blocked{}
+				s.blocking = map[uid.UID64]order.Blocked{}
 			}
 			s.blocking[self.ID] = blockedOf(t, cell)
 		}
 	}
 	if hosted {
-		s.touches.Dispatch(tick, s.marksOf(self.ID), s.marksOf(other.ID), t)
+		s.Touches.Dispatch(tick, s.marksOf(self.ID), s.marksOf(other.ID), t)
 	}
 }
 
-func (s *navigationSystem) marksOf(id uid.UID64) host.Marks {
+func (s *System) marksOf(id uid.UID64) host.Marks {
 	if !s.marks.Seek(id) {
 		return host.Marks{}
 	}
-	return s.touches.Read(0, s.marksCols.Row(s.marks.Cursor()), int(s.marks.Cursor().Slot))
+	return s.Touches.Read(0, s.marksCols.Row(s.marks.Cursor()), int(s.marks.Cursor().Slot))
 }
 
 // way is the way a leaves b
@@ -692,7 +692,7 @@ func headOn(a, b bodies.Body, way geom.Vec) bool {
 	return a.Moving && b.Moving && towards(a.Vel, geom.NewVec(-way.X, -way.Y)) && towards(b.Vel, way)
 }
 
-func (s *navigationSystem) tell(cb *goke.CmdBuf, d time.Duration) {
+func (s *System) tell(cb *goke.CmdBuf, d time.Duration) {
 	for s.query.All(); s.query.Next(); {
 		cursor := s.query.Cursor()
 		if s.mind.Slice(cursor) == nil {
@@ -717,7 +717,7 @@ func (s *navigationSystem) tell(cb *goke.CmdBuf, d time.Duration) {
 	clear(s.blocking)
 }
 
-func (s *navigationSystem) carryOut(m bodies.Member, o *MoveOrder, st steering.Helm, d time.Duration) (stop, held bool) {
+func (s *System) carryOut(m bodies.Member, o *order.MoveOrder, st steering.Helm, d time.Duration) (stop, held bool) {
 	if t, ok := s.told[m.ID]; ok {
 		switch {
 		case t.stop:
@@ -760,7 +760,7 @@ func (s *navigationSystem) carryOut(m bodies.Member, o *MoveOrder, st steering.H
 	return false, true
 }
 
-func (s *navigationSystem) stepAside(m bodies.Member, o *MoveOrder, of uid.UID64) {
+func (s *System) stepAside(m bodies.Member, o *order.MoveOrder, of uid.UID64) {
 	other, ok := s.keep.Other(of)
 	if !ok {
 		return
@@ -770,7 +770,7 @@ func (s *navigationSystem) stepAside(m bodies.Member, o *MoveOrder, of uid.UID64
 		return
 	}
 	aside.Linger, aside.Face, aside.Group = spacing.YieldLinger, o.Face, o.Group
-	aside.Enqueue(Goal{Cell: o.Target, Spot: o.Spot, At: o.At})
+	aside.Enqueue(order.Goal{Cell: o.Target, Spot: o.Spot, At: o.At})
 	for _, g := range o.Waypoints[:o.Queued] {
 		aside.Enqueue(g)
 	}
@@ -781,7 +781,7 @@ func (s *navigationSystem) stepAside(m bodies.Member, o *MoveOrder, of uid.UID64
 }
 
 // a unit vector
-func (s *navigationSystem) wayTo(m bodies.Member, c cell.ID) geom.Vec {
+func (s *System) wayTo(m bodies.Member, c cell.ID) geom.Vec {
 	have := m.Centre()
 	to := s.unwrap(have, s.grid.CellCenter(c))
 	d := geom.NewVec(to.X-have.X, to.Y-have.Y)
@@ -791,7 +791,7 @@ func (s *navigationSystem) wayTo(m bodies.Member, c cell.ID) geom.Vec {
 	return d
 }
 
-func (s *navigationSystem) gather(dst []bodies.Body) []bodies.Body {
+func (s *System) gather(dst []bodies.Body) []bodies.Body {
 	for s.query.Paced(0); s.query.Next(); {
 		cursor := s.query.Cursor()
 		bases, orders, movers := s.base.Slice(cursor), s.order.Slice(cursor), s.mover.Slice(cursor)
@@ -827,7 +827,7 @@ func (s *navigationSystem) gather(dst []bodies.Body) []bodies.Body {
 	return dst
 }
 
-func (s *navigationSystem) goal(c cell.ID, spot geom.Vec) geom.Vec {
+func (s *System) goal(c cell.ID, spot geom.Vec) geom.Vec {
 	if spot == (geom.Vec{}) {
 		return s.grid.CellCenter(c)
 	}
@@ -835,7 +835,7 @@ func (s *navigationSystem) goal(c cell.ID, spot geom.Vec) geom.Vec {
 }
 
 // the short way round on a wrapping axis
-func (s *navigationSystem) unwrap(have, to geom.Vec) geom.Vec {
+func (s *System) unwrap(have, to geom.Vec) geom.Vec {
 	if s.space == nil {
 		return to
 	}
@@ -845,7 +845,7 @@ func (s *navigationSystem) unwrap(have, to geom.Vec) geom.Vec {
 	)
 }
 
-func (s *navigationSystem) ahead(have, want geom.Vec, p *Path, waypoint, target cell.ID, end geom.Vec) []geom.Vec {
+func (s *System) ahead(have, want geom.Vec, p *order.Path, waypoint, target cell.ID, end geom.Vec) []geom.Vec {
 	s.route = append(s.route[:0], want)
 	if waypoint == target && !order.Through(p, waypoint) {
 		return s.route
@@ -868,7 +868,7 @@ func (s *navigationSystem) ahead(have, want geom.Vec, p *Path, waypoint, target 
 
 const maxAhead = 8
 
-func (s *navigationSystem) drive(m bodies.Member, st steering.Helm, heading, have geom.Vec, route []geom.Vec, reach, speed float64) {
+func (s *System) drive(m bodies.Member, st steering.Helm, heading, have geom.Vec, route []geom.Vec, reach, speed float64) {
 	at := lookahead(have, route, reach)
 	if at == have {
 		s.keep.Steer(m, st, geom.Vec{}, speed)
@@ -886,15 +886,15 @@ func lookaheadReach(st steering.Helm, dt float64) float64 {
 	return math.Abs(st.Speed) * dt / st.TurnRate
 }
 
-// the share of speed kept through the sharpest turn
-const turnCrawl = 0.2
+// TurnCrawl is the share of speed kept through the sharpest turn.
+const TurnCrawl = 0.2
 
 func turnFactor(heading, dir geom.Vec) float64 {
 	h, d := math.Hypot(heading.X, heading.Y), math.Hypot(dir.X, dir.Y)
 	if h == 0 || d == 0 {
 		return 1
 	}
-	return min(max((heading.X*dir.X+heading.Y*dir.Y)/(h*d), turnCrawl), 1)
+	return min(max((heading.X*dir.X+heading.Y*dir.Y)/(h*d), TurnCrawl), 1)
 }
 
 // the point reach along the polyline have → route[0] → route[1] …, or its end
@@ -949,19 +949,19 @@ type refusal struct {
 }
 
 // every cell of the step is claimed, or none: an inactive Leg and why
-func (s *navigationSystem) reserveLeg(from, to order.Spot, id uid.UID64,
-	domain cell.Domain) (Leg, refusal) {
-	leg := Leg{From: from.C, To: to.C, FromDeck: from.Deck, ToDeck: to.Deck, Active: true}
+func (s *System) reserveLeg(from, to order.Spot, id uid.UID64,
+	domain cell.Domain) (order.Leg, refusal) {
+	leg := order.Leg{From: from.C, To: to.C, FromDeck: from.Deck, ToDeck: to.Deck, Active: true}
 	if c1, c2, diag := s.grid.DiagonalNeighbors(from.C, to.C); diag {
 		leg.C1, leg.C2, leg.Diagonal, leg.Decked = c1, c2, true, s.decked(from.C, to.C)
 	}
 	held, n := order.Held(leg)
 	for _, h := range held[1:n] {
 		if !s.terrain.Kind(h.C).Admits(domain) {
-			return Leg{}, refusal{cell: h.C, deck: h.Deck}
+			return order.Leg{}, refusal{cell: h.C, deck: h.Deck}
 		}
 		if !s.occupancy.CanEnter(h.C, h.Deck, id, domain) {
-			return Leg{}, refusal{cell: h.C, deck: h.Deck, held: true, corner: h.C != to.C}
+			return order.Leg{}, refusal{cell: h.C, deck: h.Deck, held: true, corner: h.C != to.C}
 		}
 	}
 	for _, h := range held[:n] {
@@ -970,12 +970,12 @@ func (s *navigationSystem) reserveLeg(from, to order.Spot, id uid.UID64,
 	return leg, refusal{}
 }
 
-func (s *navigationSystem) decked(from, to cell.ID) bool {
+func (s *System) decked(from, to cell.ID) bool {
 	r, ok := s.terrain.(interface{ Reaches(c, n cell.ID) bool })
 	return ok && (r.Reaches(from, to) || r.Reaches(to, from))
 }
 
-func (s *navigationSystem) admitsAll(cells []cell.ID, domain cell.Domain) bool {
+func (s *System) admitsAll(cells []cell.ID, domain cell.Domain) bool {
 	for _, c := range cells {
 		if !s.terrain.Kind(c).Admits(domain) {
 			return false
@@ -984,7 +984,7 @@ func (s *navigationSystem) admitsAll(cells []cell.ID, domain cell.Domain) bool {
 	return true
 }
 
-func (s *navigationSystem) admitsLeg(leg Leg, domain cell.Domain) bool {
+func (s *System) admitsLeg(leg order.Leg, domain cell.Domain) bool {
 	held, n := order.Held(leg)
 	for _, h := range held[1:n] {
 		if !s.terrain.Kind(h.C).Admits(domain) {
@@ -994,14 +994,14 @@ func (s *navigationSystem) admitsLeg(leg Leg, domain cell.Domain) bool {
 	return true
 }
 
-func (s *navigationSystem) releaseLeg(leg Leg, id uid.UID64) {
+func (s *System) releaseLeg(leg order.Leg, id uid.UID64) {
 	held, n := order.Held(leg)
 	for _, h := range held[:n] {
 		s.occupancy.Leave(h.C, id)
 	}
 }
 
-func (s *navigationSystem) enter(states []tag.Tags[unit.States], i int, id uid.UID64) {
+func (s *System) enter(states []tag.Tags[unit.States], i int, id uid.UID64) {
 	if states != nil {
 		states[i] = states[i].With(unit.Entered)
 	} else {
@@ -1009,12 +1009,12 @@ func (s *navigationSystem) enter(states []tag.Tags[unit.States], i int, id uid.U
 	}
 }
 
-func (s *navigationSystem) ordered(id uid.UID64) bool {
+func (s *System) ordered(id uid.UID64) bool {
 	return s.outside.Seek(id) && s.order.At(s.outside.Cursor()) != nil
 }
 
 // after a Populate as after a Load; the cells the units stand on the board holds itself
-func (s *navigationSystem) seedLegs() {
+func (s *System) seedLegs() {
 	for s.query.All(); s.query.Next(); {
 		cursor := s.query.Cursor()
 		orders, movers := s.order.Slice(cursor), s.mover.Slice(cursor)

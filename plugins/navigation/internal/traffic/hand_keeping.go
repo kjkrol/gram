@@ -1,4 +1,4 @@
-package navigation
+package traffic
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
@@ -10,21 +10,21 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-var _ driving.Keeping = (*handKeeping)(nil)
+var _ driving.Keeping = (*HandKeeping)(nil)
 
-type handKeeping struct {
-	keep spacing.Keeping   // set at Install
-	nav  *navigationSystem // set at Install
+type HandKeeping struct {
+	Keep spacing.Keeping // set at Install
+	Nav  *System         // set at Install
 	near bodies.Nearby
 }
 
-func (k *handKeeping) MayStep(id uid.UID64, pos world.Position, at, ahead cell.ID, deck bool,
+func (k *HandKeeping) MayStep(id uid.UID64, pos world.Position, at, ahead cell.ID, deck bool,
 	domain cell.Domain, heading geom.Vec) bool {
-	if k.keep == nil {
+	if k.Keep == nil {
 		return true
 	}
 	m := bodies.Member{ID: id, Cell: at, From: at, Domain: domain, Pos: pos}
-	return k.keep.MayStep(m, ahead, deck, heading, &k.near)
+	return k.Keep.MayStep(m, ahead, deck, heading, &k.near)
 }
 
-func (k *handKeeping) Ordered(id uid.UID64) bool { return k.nav != nil && k.nav.ordered(id) }
+func (k *HandKeeping) Ordered(id uid.UID64) bool { return k.Nav != nil && k.Nav.ordered(id) }

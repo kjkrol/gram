@@ -37,7 +37,7 @@ func dragged(c control.Context) bool {
 // Queues are the queues of every command the plugin carries out, for the players plugin.
 func (p *Plugin) Queues() []command.CommandQueue {
 	queues := []command.CommandQueue{&p.moves, &p.looks, &p.routes, &p.onwards}
-	return append(queues, p.given.all()...)
+	return append(queues, p.given.All()...)
 }
 
 // DefaultBindings is a right click into a MoveTo of the cell and level under the cursor, Shift

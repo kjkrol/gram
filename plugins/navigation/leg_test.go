@@ -4,6 +4,7 @@ import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"testing"
 	"time"
 
@@ -287,7 +288,7 @@ func TestModule_Setup_RestoresLegCells(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
-	m := &module{navigationSystem: newNavigationSystem(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)}
+	m := &module{navigationSystem: traffic.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)}
 
 	from := grid.At(0, 0)
 	to := grid.At(1, 1)

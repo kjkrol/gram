@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"time"
 
 	"github.com/kjkrol/ceremony/act"
@@ -41,7 +42,7 @@ type Plugin struct {
 	looks   command.Queue[LookAt]
 	routes  command.Queue[Routes]
 	onwards command.Queue[Onward]
-	given   givenQueues
+	given   traffic.GivenQueues
 	finder  *spacing.Finder
 
 	touches  host.PairRules[Touch]
@@ -51,7 +52,7 @@ type Plugin struct {
 	pathRenderer *pathRenderer
 	collision    *collision.Plugin
 	spacing      Spacing
-	handKeeping  handKeeping
+	handKeeping  traffic.HandKeeping
 	read         Read
 	write        Write
 	kept         *plugin.Kept[Settings]
@@ -130,18 +131,18 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		}
 	}
 	ctx.Hosts(&p.touches)
-	navSys := newNavigationSystem(finder, brd, brd, finder.Occupancy).withKeeping(keep)
+	navSys := traffic.NewSystem(finder, brd, brd, finder.Occupancy).WithKeeping(keep)
 	navSys.BindSpace(p.worldPlugin.Write().Space())
-	navSys.given, navSys.touches, navSys.tick = &p.given, &p.touches, p.worldPlugin.Read(0).Tick
-	navSys.pace = p.worldPlugin.Pace(sector.Everywhere)
+	navSys.Given, navSys.Touches, navSys.Tick = &p.given, &p.touches, p.worldPlugin.Read(0).Tick
+	navSys.Pace = p.worldPlugin.Pace(sector.Everywhere)
 
 	moveCommandSystem := routing.NewSystem(finder, &p.moves, &p.looks, p.selected).WithKeeping(keep)
 	moveCommandSystem.Onwards = &p.onwards
-	p.handKeeping.keep, p.handKeeping.nav = keep, navSys
+	p.handKeeping.Keep, p.handKeeping.Nav = keep, navSys
 	if p.collision != nil {
-		navSys.bumps = anyBump
+		navSys.Bumps = traffic.AnyBump
 		if p.spacing == BodySpacing {
-			navSys.bumps = groundBump
+			navSys.Bumps = traffic.GroundBump
 		}
 	}
 
