@@ -277,9 +277,8 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	if mt.Leg != leg {
 		t.Errorf("Leg = %+v, want the in-progress step %+v carried over", mt.Leg, leg)
 	}
-	next := grid.At(2, 0)
-	if mt.Path.Length == 0 || mt.Path.Steps[0] != next {
-		t.Errorf("Path = %+v, want it to continue from Leg.To (first step %v)", mt.Path, next)
+	if mt.Path.Length != 0 {
+		t.Errorf("Path = %+v, want none: the routing plans it from Leg.To", mt.Path)
 	}
 }
 

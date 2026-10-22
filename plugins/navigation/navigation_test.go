@@ -3,7 +3,6 @@ package navigation
 import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
-	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"math"
 	"testing"
 	"time"
@@ -62,7 +61,7 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
-	steer := traffic.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
+	steer := routed(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
 		occupancy)
 	pusher := &pushOnce{grid: grid, size: 8}
 
@@ -169,7 +168,7 @@ func TestNavigationSystem_Update_MovedOffItsRouteByAnotherRepaths(t *testing.T) 
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	finder := spacing.NewFinder(grid, terrain, nil, spacing.OpenOccupancy{})
-	steer := traffic.NewSystem(finder, grid, terrain, occupancy)
+	steer := routed(finder, grid, terrain, occupancy)
 	start := grid.At(0, 1)
 	target := grid.At(4, 1)
 	held := grid.At(1, 1)
@@ -229,7 +228,7 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
-	steer := traffic.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
+	steer := routed(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
 		occupancy)
 
 	previous := grid.At(0, 1)
@@ -290,7 +289,7 @@ func TestNavigationSystem_Update_ArrivalStopsEntity(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
-	steer := traffic.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
+	steer := routed(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
 		occupancy)
 
 	start := grid.At(2, 0)
@@ -351,7 +350,7 @@ func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
-	steer := traffic.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
+	steer := routed(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
 		occupancy)
 	space := testSpace(t)
 	steer.BindSpace(space)

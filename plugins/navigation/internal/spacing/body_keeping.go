@@ -112,15 +112,9 @@ func (k *BodyKeeping) Orders(members []bodies.Member, cmd order.MoveTo, issue fu
 	if at == (geom.Vec{}) {
 		at = k.grid.CellCenter(cmd.Cell)
 	}
-	var group []bodies.Member
-	for _, m := range members {
-		if cmd.Append && m.Order != nil || m.From == cmd.Cell || k.reaches(m, cmd.Cell) {
-			group = append(group, m)
-		}
-	}
-	spots, _ := k.place(group, at, cmd.Cell, cmd.Level)
+	spots, _ := k.place(members, at, cmd.Cell, cmd.Level)
 	for i, p := range spots {
-		m := group[i]
+		m := members[i]
 		if !p.ok {
 			continue
 		}
@@ -128,24 +122,12 @@ func (k *BodyKeeping) Orders(members []bodies.Member, cmd order.MoveTo, issue fu
 			m.Order.Enqueue(order.Goal{Cell: p.cell, Spot: p.spot, At: at, Level: p.level})
 			continue
 		}
-		path, ok := order.Path{}, m.From == p.cell && k.finder.on(m, p.cell, p.level)
-		if !ok {
-			path, ok = k.finder.FindPath(m.ID, m.Domain, m.Body(), m.From, p.cell, p.level)
-		}
-		if ok {
-			issue(m, order.MoveOrder{Target: p.cell, Level: p.level, Spot: p.spot, At: at, Path: path,
-				Leg: m.Leg})
-		}
+		issue(m, order.MoveOrder{Target: p.cell, Level: p.level, Spot: p.spot, At: at, Leg: m.Leg})
 	}
 }
 
 func (k *BodyKeeping) On(m bodies.Member, c cell.ID, level order.Level) bool {
 	return k.finder.on(m, c, level)
-}
-
-func (k *BodyKeeping) reaches(m bodies.Member, c cell.ID) bool {
-	_, ok := k.finder.FindPath(m.ID, m.Domain, m.Body(), m.From, c, order.EitherLevel)
-	return ok
 }
 
 func (k *BodyKeeping) Look(m bodies.Member, at geom.Vec) order.MoveOrder {
@@ -197,7 +179,7 @@ func (k *BodyKeeping) Lost(m bodies.Member, from cell.ID, o *order.MoveOrder, wa
 	if waited < TargetWaitTimeout {
 		return 0, order.Path{}, true, false
 	}
-	for _, c := range k.tilesRound(o.Target, m.Domain, m.Domain) {
+	for _, c := range k.finder.tilesRound(o.Target, m.Domain, m.Domain) {
 		if c == from {
 			o.Level = order.EitherLevel
 			return c, order.Path{}, false, true

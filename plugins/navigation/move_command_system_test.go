@@ -91,10 +91,9 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	if got[selectedID].Target != newTarget {
 		t.Errorf("selected entity's MoveOrder.Target = %v, want %v", got[selectedID].Target, newTarget)
 	}
-	if got[selectedID].Path.Length != 8 {
-		t.Errorf("selected entity's Path.Length = %d, want 8 (freshly computed by CommandSystem, straight 8-cell line to newTarget)", got[selectedID].Path.Length)
-	} else if got[selectedID].Path.Steps[7] != newTarget {
-		t.Errorf("selected entity's last path step = %v, want newTarget %v", got[selectedID].Path.Steps[7], newTarget)
+	if got[selectedID].Path.Length != 0 {
+		t.Errorf("selected entity's Path.Length = %d, want 0 (routed as the unit moves)",
+			got[selectedID].Path.Length)
 	}
 
 	if got[otherID].Target != oldTarget {
@@ -188,10 +187,9 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 	if gotMoveTo.Target != newTarget {
 		t.Errorf("idle entity's MoveOrder.Target = %v, want %v", gotMoveTo.Target, newTarget)
 	}
-	if gotMoveTo.Path.Length != 8 {
-		t.Errorf("idle entity's Path.Length = %d, want 8 (freshly computed by CommandSystem, straight 8-cell line to newTarget)", gotMoveTo.Path.Length)
-	} else if gotMoveTo.Path.Steps[7] != newTarget {
-		t.Errorf("idle entity's last path step = %v, want newTarget %v", gotMoveTo.Path.Steps[7], newTarget)
+	if gotMoveTo.Path.Length != 0 {
+		t.Errorf("idle entity's Path.Length = %d, want 0 (routed as the unit moves)",
+			gotMoveTo.Path.Length)
 	}
 }
 

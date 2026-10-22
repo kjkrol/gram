@@ -9,6 +9,8 @@ import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
 	"github.com/kjkrol/uid"
+	"iter"
+	"slices"
 )
 
 // Finder searches the board for a unit's route, over its terrain, slopes and occupancy.
@@ -83,6 +85,67 @@ func (p *Finder) stepsOnto(m bodies.Member, c cell.ID) (deck, ok bool) {
 
 func (p *Finder) onDeck(m bodies.Member, c cell.ID) bool {
 	return p.Level(m.Domain, m.Body(), c) == pathfind.Deck
+}
+
+// rings are the cells round target dom crosses, the nearest first, priced for costs as a route
+// is
+func (p *Finder) rings(target cell.ID, dom, costs cell.Domain) iter.Seq[cell.ID] {
+	return func(yield func(cell.ID) bool) {
+		type reach struct {
+			c    cell.ID
+			cost float64
+		}
+		best := map[cell.ID]float64{target: 0}
+		done := map[cell.ID]bool{}
+		frontier := []reach{{target, 0}}
+		for len(frontier) > 0 {
+			n := 0
+			for i := range frontier {
+				if frontier[i].cost < frontier[n].cost {
+					n = i
+				}
+			}
+			r := frontier[n]
+			frontier = slices.Delete(frontier, n, n+1)
+			if done[r.c] {
+				continue
+			}
+			done[r.c] = true
+			if !yield(r.c) {
+				return
+			}
+			for i := range p.grid.Directions() {
+				nb, ok := p.grid.Toward(r.c, i)
+				if !ok {
+					continue
+				}
+				kind := p.Terrain.Kind(nb)
+				if done[nb] || !kind.Admits(dom) {
+					continue
+				}
+				step, ok := p.price(r.c, nb, kind, costs)
+				if !ok {
+					continue
+				}
+				cost := r.cost + step
+				if b, seen := best[nb]; !seen || cost < b {
+					best[nb] = cost
+					frontier = append(frontier, reach{nb, cost})
+				}
+			}
+		}
+	}
+}
+
+// tilesRound are the first placeCells of the rings
+func (p *Finder) tilesRound(target cell.ID, dom, costs cell.Domain) []cell.ID {
+	var out []cell.ID
+	for c := range p.rings(target, dom, costs) {
+		if out = append(out, c); len(out) == placeCells {
+			break
+		}
+	}
+	return out
 }
 
 // BoardLevels are the board's decks and its ground as the search reads them.

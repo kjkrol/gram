@@ -4,7 +4,6 @@ import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
-	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"slices"
 	"testing"
 	"time"
@@ -108,7 +107,7 @@ func TestRetry_AnOrderWithNoWaySearchesOnceTillItGivesItsTargetUp(t *testing.T) 
 	at := func(x uint32) cell.ID { return at1(x, 0) }
 	occupancy := &cell.SingleOccupancy{}
 	asked := &askedOccupancy{}
-	nav := traffic.NewSystem(spacing.NewFinder(g, terrain, nil, asked), g, terrain, occupancy)
+	nav := routed(spacing.NewFinder(g, terrain, nil, asked), g, terrain, occupancy)
 
 	var here goke.Comp[unit.At]
 	var base goke.Comp[world.Base]
