@@ -32,6 +32,9 @@ type ScanSystem struct {
 
 	scanners []*scanner
 	count    int
+	pool     *parallel.Pool
+	scanPart func(w, i int) // scanParted, bound once
+	n, parts int
 
 	every float64
 	steps uint64
@@ -124,6 +127,7 @@ func newScanSystem(space *aabbworld.Space, host *host.PairRules[Sighting]) *Scan
 	s.scanner.bind(space)
 	s.sightingOf = s.sighting
 	s.due = s.isDue
+	s.scanPart = s.scanParted
 	return s
 }
 
@@ -133,9 +137,12 @@ func (c *scanner) bind(space *aabbworld.Space) {
 	c.elev = c.elevation
 }
 
-// Workers sets how many goroutines at most share a scan: 0 as many as there are CPUs, 1 none.
-// Call it before Init.
+// Workers sets how many goroutines of the pool at most share a scan: 0 all, 1 none. Call it
+// before Init.
 func (s *ScanSystem) Workers(n int) { s.count = max(n, 0) }
+
+// Pool sets the goroutines a scan is shared among; nil, one. Call it before Init.
+func (s *ScanSystem) Pool(p *parallel.Pool) { s.pool = p }
 
 // Every has each observer scanned perSecond times a second, 0 every step. Call it before Init.
 func (s *ScanSystem) Every(perSecond float64) { s.every = max(perSecond, 0) }
@@ -155,7 +162,10 @@ func (s *ScanSystem) Init(si *goke.SysInit) {
 	s.query, s.lookup = walk.Build(), seek.Build()
 	s.sightedID = si.RegComp[Sighted]()
 	s.scanners = append(s.scanners[:0], &s.scanner)
-	for range parallel.Workers(1<<30, 1, s.count) - 1 {
+	if s.count == 1 {
+		return
+	}
+	for range s.pool.Size() - 1 {
 		w := &scanner{heights: s.heights, step: s.step, bend: s.bend}
 		w.profiling.bend = s.bend
 		w.bind(s.space)
@@ -285,18 +295,13 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	if s.heights {
 		least = elevatedPerWorker
 	}
-	k := parallel.Workers(due, least, len(s.scanners))
+	k := s.pool.Parts(due, least, s.count)
 	if k > 1 {
 		s.settle(s.jobs[0].bases[0].Pos.AABB.AABB)
-		parallel.Run(k, n, func(w, from, to int) {
-			for _, j := range s.jobs {
-				for i := max(from, j.first); i < min(to, j.first+len(j.ids)); i++ {
-					if s.due(j.ids[i-j.first]) {
-						j.scan(s.scanners[w], i-j.first)
-					}
-				}
-			}
-		})
+		s.n, s.parts = n, k
+		b := s.pool.Begin(s.scanPart, nil)
+		b.Add(k)
+		b.Wait()
 	}
 
 	for s.query.Paced(d); s.query.Next(); {
@@ -317,6 +322,18 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				s.observer = Sighting{Self: id, Base: &j.bases[i], Sight: sight}
 				s.gather(&j.seens[i])
 				s.host.DispatchGrouped(t, s.host.Read(walked, s.walkCols.Row(cursor), i), s.seenTags, s.sightingOf)
+			}
+		}
+	}
+}
+
+// scanParted scans the due observers of a part on worker w's scanner
+func (s *ScanSystem) scanParted(w, part int) {
+	from, to := parallel.Part(s.n, s.parts, part)
+	for _, j := range s.jobs {
+		for i := max(from, j.first); i < min(to, j.first+len(j.ids)); i++ {
+			if s.due(j.ids[i-j.first]) {
+				j.scan(s.scanners[w], i-j.first)
 			}
 		}
 	}

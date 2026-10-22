@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -153,6 +154,7 @@ func (*drawsCtx) UseModule(goke.Module)      {}
 func (*drawsCtx) Hosts(...host.Host)         {}
 func (c *drawsCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
 func (c *drawsCtx) Looks(func())             { c.looks++ }
+func (*drawsCtx) Pool() *parallel.Pool       { return nil }
 
 type stillSky struct{}
 

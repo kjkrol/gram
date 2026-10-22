@@ -17,6 +17,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
@@ -576,5 +577,6 @@ func TestEffects_AnEffectThatShowsChangesTheEntityAsItBeginsAndEnds(t *testing.T
 func (c *fxInstallCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
 func (c *fxInstallCtx) Draws(...render.Source) {}
 func (c *fxInstallCtx) Looks(func())           {}
+func (*fxInstallCtx) Pool() *parallel.Pool     { return nil }
 
 func (c *fxInstallCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

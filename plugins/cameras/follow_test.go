@@ -2,6 +2,7 @@ package cameras_test
 
 import (
 	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/ui"
 	"math"
 	"testing"
@@ -43,6 +44,7 @@ func (c *installCtx) ECS() *goke.ECS                                  { return c
 func (c *installCtx) Hosts(...host.Host)                              {}
 func (c *installCtx) Draws(...render.Source)                          {}
 func (c *installCtx) Looks(func())                                    {}
+func (*installCtx) Pool() *parallel.Pool                              { return nil }
 
 type camp struct {
 	t        *testing.T

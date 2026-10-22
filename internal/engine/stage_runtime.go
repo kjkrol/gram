@@ -23,7 +23,8 @@ type stageRuntime struct {
 func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, error) {
 	host := newECSHost()
 
-	ctx := &initializer{host: host, tps: e.tps, handlers: []plugin.CommandHandler{&e.commands}}
+	ctx := &initializer{host: host, tps: e.tps, pool: e.pool,
+		handlers: []plugin.CommandHandler{&e.commands}}
 	if err := stage.Init(ctx); err != nil {
 		return nil, err
 	}

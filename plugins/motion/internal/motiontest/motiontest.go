@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -40,6 +41,7 @@ func (c *InstallCtx) ECS() *goke.ECS { return c.ecs }
 func (c *InstallCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
 func (c *InstallCtx) Draws(...render.Source) {}
 func (c *InstallCtx) Looks(func())           {}
+func (*InstallCtx) Pool() *parallel.Pool     { return nil }
 
 // Start installs w and m on a new ECS, hands rules to the hosts of their moments, sets up their
 // systems and after, and plans Step. Seed and populate before it.

@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -37,6 +38,7 @@ func (c *installer) ECS() *goke.ECS                                  { return c.
 func (c *installer) Hosts(...host.Host)                              {}
 func (c *installer) Draws(...render.Source)                          {}
 func (c *installer) Looks(func())                                    {}
+func (*installer) Pool() *parallel.Pool                              { return nil }
 
 func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 	w := world.NewPlugin(world.Config{

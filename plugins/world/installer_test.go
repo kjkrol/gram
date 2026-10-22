@@ -5,6 +5,7 @@ import (
 	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -29,5 +30,6 @@ func (c *installCtx) ECS() *goke.ECS                                  { return c
 func (c *installCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
 func (c *installCtx) Draws(...render.Source) {}
 func (c *installCtx) Looks(func())           {}
+func (*installCtx) Pool() *parallel.Pool     { return nil }
 
 func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

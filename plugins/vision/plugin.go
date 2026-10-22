@@ -65,6 +65,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		h = &heights{groundOf: p.groundOf, step: p.groundStep, bend: p.worldPlugin.Scale().Bend()}
 	}
 	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.coverOf, p.workers)
+	p.module.sys.Pool(ctx.Pool())
 	p.module.sys.Paced(p.worldPlugin.Pace(sector.Near))
 	p.module.sys.Every(p.frequency)
 	p.module.clock = p.worldPlugin.Clock()
@@ -181,8 +182,8 @@ func (p *Plugin) WithFrequency(perSecond float64) *Plugin {
 	return p
 }
 
-// WithWorkers sets how many goroutines at most share a scan: 0 (as it starts) as many as there
-// are CPUs, 1 none. Call before Use.
+// WithWorkers sets how many goroutines of the game's pool at most share a scan: 0 (as it starts)
+// all, 1 none. Call before Use.
 func (p *Plugin) WithWorkers(n int) *Plugin {
 	p.workers = n
 	return p
