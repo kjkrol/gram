@@ -29,7 +29,7 @@ func TestCoordinator_AsksOnAPoolGetTheRoutesOfOneGoroutine(t *testing.T) {
 		occ := &cell.SingleOccupancy{}
 		answers := &spacing.Answers{}
 		coord := routing.NewCoordinator(pool, nil)
-		for range 4 {
+		for range 6 {
 			f := spacing.NewFinder(g, terrain, nil, spacing.OpenOccupancy{})
 			coord.Router(f, spacing.NewCellKeeping(f, occ).WithAnswers(answers))
 		}

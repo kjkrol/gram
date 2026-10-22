@@ -25,8 +25,11 @@ type Coordinator struct {
 	start   int         // the router the first goroutine takes, one on every Update
 	asks    []uid.UID64 // the units that asked
 	next    atomic.Int64
+	lanes   int          // the routers the asks are shared among, the others idle
+	idled   atomic.Int64 // the idle routers taken
 	d       time.Duration
-	task    func(w, i int) // the method value, bound once
+	task    func(w, i int) // the method values, bound once
+	idle    func(w int)
 
 	query *goke.Query
 	forks []*goke.Query // by goroutine, query the first
@@ -63,7 +66,7 @@ func (c *Coordinator) Init(si *goke.SysInit) {
 	for range c.pool.Size() - 1 {
 		c.forks = append(c.forks, c.query.Fork())
 	}
-	c.task = c.route
+	c.task, c.idle = c.route, c.wipe
 }
 
 func (c *Coordinator) Update(_ *goke.CmdBuf, d time.Duration) {
@@ -82,12 +85,14 @@ func (c *Coordinator) Update(_ *goke.CmdBuf, d time.Duration) {
 	}
 	c.d = d
 	c.next.Store(0)
-	lanes := min(len(c.routers), len(c.asks), c.pool.Size())
+	c.lanes = min(len(c.routers), len(c.asks), c.pool.Size())
+	c.idled.Store(int64(c.lanes))
 	if c.pool == nil {
 		c.route(0, 0)
+		c.wipe(0)
 	} else {
-		b := c.pool.Begin(c.task, nil)
-		b.Add(lanes)
+		b := c.pool.Begin(c.task, c.idle)
+		b.Add(c.lanes)
 		b.Wait()
 	}
 	c.start = (c.start + 1) % len(c.routers)
@@ -124,6 +129,21 @@ func (c *Coordinator) route(w, i int) {
 			m.Domain, m.Lift = mv.Domain, mv.Lift
 		}
 		answer(r.keep, m, o, c.d)
+	}
+}
+
+// wipeWithin is how few searches a router is left before its stamps wrap when an idle goroutine
+// wipes them
+const wipeWithin = 64
+
+// wipe wipes the stamps of the routers idle this Update near their wrap, on w with nothing to do
+func (c *Coordinator) wipe(int) {
+	for {
+		j := int(c.idled.Add(1) - 1)
+		if j >= len(c.routers) {
+			return
+		}
+		c.routers[(c.start+j)%len(c.routers)].finder.Wipe(wipeWithin)
 	}
 }
 

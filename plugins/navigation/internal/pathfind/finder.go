@@ -126,6 +126,15 @@ func (p *Finder) Reads(terrain cell.Terrain, slopes Slopes, levels Levels) {
 	p.lanes, _ = terrain.(lanes)
 }
 
+// Wipe wipes the solvers' memory of their searches now, between two, where fewer than within
+// searches are left before one would.
+func (p *Finder) Wipe(within int) {
+	p.solver.Wipe(within)
+	if p.leveled != nil {
+		p.leveled.Wipe(within)
+	}
+}
+
 // a cell's slot in a solver's dictionaries; a start off the grid, the one cell of a search
 // without an ordinal, takes the slot past the last cell
 func (p *Finder) slot(c cell.ID) int {
