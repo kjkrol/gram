@@ -26,6 +26,13 @@ func NewFinder(grid grid.Grid, terrain cell.Terrain, slopes pathfind.Slopes, occ
 	return &Finder{Finder: pathfind.New(grid, terrain, slopes, occupancy), grid: grid, Terrain: terrain, Occupancy: occupancy}
 }
 
+// Read has p, made over a board's read and WithLevels its BoardLevels, search through r: the
+// board's read on another goroutine.
+func (p *Finder) Read(r *board.Read) {
+	p.Terrain = r.Board()
+	p.Reads(r.Board(), r, BoardLevels{Read: r})
+}
+
 // FindPath is the route from from to to, ending on level end, for a body of domain.
 func (p *Finder) FindPath(
 	entity uid.UID64, domain cell.Domain, body pathfind.Body, from, to cell.ID, end order.Level,

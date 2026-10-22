@@ -12,6 +12,6 @@ import (
 // own over f, as the plugin's
 func routed(f *spacing.Finder, g grid.Grid, terrain cell.Terrain, occ cell.Occupancy) *traffic.System {
 	s := traffic.NewSystem(f, g, terrain, occ)
-	s.Routing = routing.NewCoordinator(spacing.NewCellKeeping(f, occ))
+	s.Routing = routing.NewCoordinator(nil, nil).Router(f, spacing.NewCellKeeping(f, occ))
 	return s
 }

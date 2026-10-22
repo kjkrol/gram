@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"math"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -72,15 +73,15 @@ type avoiding struct {
 	known   [4]cell.ID
 	n       uint8
 	blocked func(cell.ID) bool
-	kept    answers
+	kept    *Answers
 }
 
 // a search blind to the others reads nothing but the board, so over a board counting its
-// changes its answer is kept till the next one
-func (a *avoiding) bind(f *Finder) {
-	a.blocked = a.avoids
-	if _, blind := f.Occupancy.(OpenOccupancy); blind {
-		a.kept.board, _ = f.Terrain.(interface{ Version() uint64 })
+// changes its answer is kept, in kept, till the next one
+func (a *avoiding) bind(f *Finder, kept *Answers) {
+	a.blocked, a.kept = a.avoids, kept
+	if _, blind := f.Occupancy.(OpenOccupancy); blind && kept.board == nil {
+		kept.board, _ = f.Terrain.(interface{ Version() uint64 })
 	}
 }
 
@@ -103,14 +104,20 @@ type asked struct {
 type answer struct {
 	path order.Path
 	ok   bool
+	done bool // false: being worked out
 }
 
-// the answers given since the board last changed, at most keptAnswers, all let go at once
-type answers struct {
+// Answers are the searches' answers given since the board last changed, at most keptAnswers,
+// all let go at once. Keepings on several goroutines may share them: one asking what another
+// works out waits for its answer. The zero value is ready.
+type Answers struct {
+	mu      sync.Mutex
+	worked  sync.Cond                     // an answer worked out
 	board   interface{ Version() uint64 } // nil: none kept
 	version uint64
 	index   map[asked]int32
 	given   []answer
+	working int // the answers being worked out
 }
 
 const keptAnswers = 4096
@@ -129,32 +136,63 @@ func (a *avoiding) find(f *Finder, m bodies.Member, from cell.ID, o *order.MoveO
 		}
 		slices.Sort(q.round[:q.n])
 	}
-	k := &a.kept
-	if k.board != nil {
-		if v := k.board.Version(); v != k.version || len(k.given) == keptAnswers {
-			k.version, k.given = v, k.given[:0]
-			clear(k.index)
-		}
-		if i, ok := k.index[q]; ok {
-			return k.given[i].path, k.given[i].ok
-		}
+	slot, p, ok, known := a.kept.take(q)
+	if known {
+		return p, ok
 	}
-	var p order.Path
-	var ok bool
 	if around {
 		a.target, a.known, a.n = o.Target, o.Avoid, o.Avoids
 		p, ok = f.findPathAround(m.ID, m.Domain, q.body, from, o.Target, o.Level, a.blocked)
 	} else {
 		p, ok = f.FindPath(m.ID, m.Domain, q.body, from, o.Target, o.Level)
 	}
-	if k.board != nil {
-		if k.index == nil {
-			k.index = map[asked]int32{}
-		}
-		k.index[q] = int32(len(k.given))
-		k.given = append(k.given, answer{p, ok})
-	}
+	a.kept.give(slot, p, ok)
 	return p, ok
+}
+
+// take is q's answer, known where it is kept; else the slot of q's answer, which the caller
+// works out and gives, -1 where none is kept
+func (k *Answers) take(q asked) (slot int32, p order.Path, ok, known bool) {
+	if k.board == nil {
+		return -1, p, false, false
+	}
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if v := k.board.Version(); k.working == 0 && (v != k.version || len(k.given) >= keptAnswers) {
+		k.version, k.given = v, k.given[:0]
+		clear(k.index)
+	}
+	for {
+		i, seen := k.index[q]
+		if !seen {
+			break
+		}
+		if g := &k.given[i]; g.done {
+			return 0, g.path, g.ok, true
+		}
+		if k.worked.L == nil {
+			k.worked.L = &k.mu
+		}
+		k.worked.Wait()
+	}
+	if k.index == nil {
+		k.index = map[asked]int32{}
+	}
+	k.index[q] = int32(len(k.given))
+	k.given = append(k.given, answer{})
+	k.working++
+	return int32(len(k.given) - 1), p, false, false
+}
+
+func (k *Answers) give(slot int32, p order.Path, ok bool) {
+	if slot < 0 {
+		return
+	}
+	k.mu.Lock()
+	k.given[slot] = answer{path: p, ok: ok, done: true}
+	k.working--
+	k.mu.Unlock()
+	k.worked.Broadcast()
 }
 
 // round the cells learned unless that found nothing within o's Retry, else any route; the first
@@ -200,8 +238,14 @@ var _ Keeping = (*CellKeeping)(nil)
 func NewCellKeeping(finder *Finder, occ cell.Occupancy) *CellKeeping {
 	k := &CellKeeping{finder: finder, occ: occ, index: bodies.NewIndex(finder.grid)}
 	k.who, _ = occ.(holders)
-	k.avoid.bind(finder)
+	k.avoid.bind(finder, &Answers{})
 	k.heldBy = k.isHeld
+	return k
+}
+
+// WithAnswers has k keep its searches' answers in a, which other keepings may share.
+func (k *CellKeeping) WithAnswers(a *Answers) *CellKeeping {
+	k.avoid.bind(k.finder, a)
 	return k
 }
 

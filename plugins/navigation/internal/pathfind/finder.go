@@ -117,6 +117,15 @@ func New(grid grid.Grid, terrain cell.Terrain, slopes Slopes, occupancy cell.Occ
 	return p
 }
 
+// Reads has p search through terrain, slopes and, made WithLevels, levels from now on: the same
+// board read on another goroutine.
+func (p *Finder) Reads(terrain cell.Terrain, slopes Slopes, levels Levels) {
+	p.terrain, p.slopes, p.levels = terrain, slopes, levels
+	p.ways, _ = terrain.(ways)
+	p.built, _ = terrain.(built)
+	p.lanes, _ = terrain.(lanes)
+}
+
 // a cell's slot in a solver's dictionaries; a start off the grid, the one cell of a search
 // without an ordinal, takes the slot past the last cell
 func (p *Finder) slot(c cell.ID) int {

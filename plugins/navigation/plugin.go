@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"cmp"
 	"fmt"
 	"github.com/kjkrol/gram/plugins/navigation/internal/routes"
 	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
@@ -53,6 +54,7 @@ type Plugin struct {
 	pathRenderer *routes.Renderer
 	collision    *collision.Plugin
 	spacing      Spacing
+	routers      int
 	handKeeping  traffic.HandKeeping
 	read         Read
 	write        Write
@@ -113,17 +115,29 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.spacing = p.spacing.resolve(float64(p.worldPlugin.Res.Config.Entities.MaxSize), min(w, h))
 	// routes are planned blind to the others: the keeping answers what a route runs into; the
 	// routing plans the routes, the traffic searches but round a unit, each with its own
-	keeping := func() (*spacing.Finder, spacing.Keeping) {
+	keeping := func(answers *spacing.Answers) (*spacing.Finder, spacing.Keeping) {
 		finder := spacing.NewFinder(brd, brd, read, spacing.OpenOccupancy{})
 		finder.WithLevels(spacing.BoardLevels{Read: read})
 		if p.spacing == BodySpacing {
-			space := p.worldPlugin.Write().Space()
-			return finder, spacing.NewBodyKeeping(finder, space, read.Heights)
+			k := spacing.NewBodyKeeping(finder, p.worldPlugin.Write().Space(), read.Heights)
+			if answers != nil {
+				k.WithAnswers(answers)
+			}
+			return finder, k
 		}
-		return finder, spacing.NewCellKeeping(finder, p.boardPlugin.Write().Occupancy())
+		k := spacing.NewCellKeeping(finder, p.boardPlugin.Write().Occupancy())
+		if answers != nil {
+			k.WithAnswers(answers)
+		}
+		return finder, k
 	}
-	routeFinder, routeKeep := keeping()
-	finder, keep := keeping()
+	routeFinder, routeKeep := keeping(nil)
+	finder, keep := keeping(nil)
+	coordinator := routing.NewCoordinator(ctx.Pool(), p.boardPlugin.Read)
+	answers := &spacing.Answers{}
+	for range cmp.Or(p.routers, DefaultRouters) {
+		coordinator.Router(keeping(answers))
+	}
 	p.finder = finder
 	p.pathRenderer.Finder = finder
 	rules := p.crowd
@@ -140,7 +154,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	navSys.BindSpace(p.worldPlugin.Write().Space())
 	navSys.Given, navSys.Touches, navSys.Tick = &p.given, &p.touches, p.worldPlugin.Read(0).Tick
 	navSys.Pace = p.worldPlugin.Pace(sector.Everywhere)
-	navSys.Routing = routing.NewCoordinator(routeKeep)
+	navSys.Routing = coordinator
 
 	moveCommandSystem := routing.NewSystem(routeFinder, &p.moves, &p.looks, p.selected).
 		WithKeeping(routeKeep)
@@ -171,6 +185,16 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 // Use.
 func (p *Plugin) WithSpacing(s Spacing) *Plugin {
 	p.spacing = s
+	return p
+}
+
+// DefaultRouters is how many routers search the units' routes side by side.
+const DefaultRouters = 4
+
+// WithRouters sets how many routers search the units' routes side by side, each with a search's
+// memory of its own on the board; 0, DefaultRouters. Call before Use.
+func (p *Plugin) WithRouters(k int) *Plugin {
+	p.routers = max(k, 0)
 	return p
 }
 

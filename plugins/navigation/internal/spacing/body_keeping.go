@@ -63,7 +63,13 @@ func NewBodyKeeping(finder *Finder, space *aabbworld.Space, ground func() ground
 		index:   bodies.NewIndex(finder.grid),
 	}
 	k.take = k.takeCell
-	k.avoid.bind(finder)
+	k.avoid.bind(finder, &Answers{})
+	return k
+}
+
+// WithAnswers has k keep its searches' answers in a, which other keepings may share.
+func (k *BodyKeeping) WithAnswers(a *Answers) *BodyKeeping {
+	k.avoid.bind(k.finder, a)
 	return k
 }
 
