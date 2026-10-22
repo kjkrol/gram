@@ -53,8 +53,8 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 	// the speed in the camera's pixels: the same on the screen at any resolution
 	step := func(c control.Context) float32 { return float32(c.Pixels(float64(speed))) }
 	edgeStep := func(c control.Context) float32 {
-		if p != nil && p.EdgeSpeed() > 0 {
-			return float32(c.Pixels(float64(p.EdgeSpeed())))
+		if p != nil && p.read.EdgeSpeed() > 0 {
+			return float32(c.Pixels(float64(p.read.EdgeSpeed())))
 		}
 		return step(c)
 	}
@@ -109,7 +109,7 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 	}
 	if k.Edge {
 		out = append(out, control.Build(control.CursorAtEdge{}, "Scroll", func(c control.Context) (Pan, bool) {
-			if p != nil && !p.EdgesScroll() {
+			if p != nil && !p.read.EdgesScroll() {
 				return Pan{}, false
 			}
 			// the deeper in the zone, the faster: a quarter the speed at its inner bound
@@ -138,7 +138,7 @@ func (k Keys) bindings(p *Plugin) []control.Binding {
 			out = append(out, control.Build(control.CursorInCorner{},
 				"Turn the world in a corner: anticlockwise on the left, clockwise on the right",
 				func(c control.Context) (Turn, bool) {
-					if p != nil && !p.EdgesScroll() {
+					if p != nil && !p.read.EdgesScroll() {
 						return Turn{}, false
 					}
 					sx, _ := c.Edges().Corner.Signs()

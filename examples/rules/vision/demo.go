@@ -96,7 +96,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
 	a.telemetry = telemetry.NewPlugin(a.world)
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.vision)
-	a.vision.ShowCones()
+	a.vision.Write().ShowCones()
 }
 
 func (a *arena) definePlayer() error {

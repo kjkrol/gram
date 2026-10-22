@@ -152,7 +152,7 @@ var (
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	view := render.NewFeed(a.cameras.New(cameras.FromAbove, camera.Config{}),
+	view := render.NewFeed(a.cameras.Write().New(cameras.FromAbove, camera.Config{}),
 		a.world.Read(0).Picture())
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),

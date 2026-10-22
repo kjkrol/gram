@@ -37,6 +37,6 @@ func (m *mainScene) screen() *ui.Element {
 	a.light.WithDistant(sky.DefaultSun)
 
 	return ui.Image(render.NewFeed(
-		a.cameras.New(cameras.FromAbove, camera.Config{}),
+		a.cameras.Write().New(cameras.FromAbove, camera.Config{}),
 		a.world.Read(0).Picture())).Input(a.players.Through(a.player))
 }

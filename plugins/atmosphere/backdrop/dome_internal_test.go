@@ -149,7 +149,7 @@ func TestDome_DrawsOnlyThePartsItHasOnTheGPU(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	top := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
+	top := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
 	sun := light.Distant{Dir: eyedF, Strength: 0.7, AmbientColor: render.Light{0.5, 0.7, 1}}
 	b := New(w.Res.Config.Space, func() light.Distant { return sun },
 		func() air.Weather { return air.Weather{} })

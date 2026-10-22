@@ -32,7 +32,7 @@ var (
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 	a.world.WithFog(backgroundColor)
-	cam := a.cameras.New(cameras.FromAbove, camera.Config{})
+	cam := a.cameras.Write().New(cameras.FromAbove, camera.Config{})
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
 		ui.Image(render.NewFeed(cam, a.world.Read(0).Picture())).Input(a.players.Through(a.player)),

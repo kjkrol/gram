@@ -152,7 +152,7 @@ func (a *arena) spawn() error {
 		return err
 	}
 	a.topography.Write().Seed(level.Heights())
-	if err := a.bridges.Spawn(level); err != nil {
+	if err := a.bridges.Write().Spawn(level); err != nil {
 		return err
 	}
 	return board.Spawn[unitRow](level, board.Sides{

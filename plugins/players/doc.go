@@ -7,7 +7,7 @@
 // [NewPlugin] takes the world and every plugin.CommandHandler the game uses: the world carries
 // their queues and the players gather their default bindings ([Plugin.Defaults]). The plugins
 // never know players; they know plugin.CommandHandler and the vocabulary in package control.
-// [Plugin.Issue] is how a command comes in, from a binding, an AI or a network; a type no handler
+// [Write.Issue] is how a command comes in, from a binding, an AI or a network; a type no handler
 // defines is [ErrUnknownCommand].
 //
 // # Owners
@@ -46,7 +46,7 @@
 //
 // [Plugin.EventHandler] is the layer between the device and the game: it matches each pass's
 // control.InputEvents against every local player's bindings and hands what they build to
-// [Plugin.Issue]. Keys reach every local player, the mouse the one whose picture it is over, in
+// [Write.Issue]. Keys reach every local player, the mouse the one whose picture it is over, in
 // the pixels of that picture's camera, so local players split the screen as the scene lays their
 // pictures out.
 // A control.KeyHeld fires from [Plugin.RunPlan] instead, once a tick while its key is down; call

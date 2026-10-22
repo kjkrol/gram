@@ -168,7 +168,7 @@ func TestExit_AnEntityLeftByAnotherPluginIsMotionsLeaver(t *testing.T) {
 				r.base.Slice(r.all.Cursor())[0].Pos.AABB = plane.NewAABB(geom.NewVec(1500, 500),
 					10, 10)
 			}
-			r.m.Leave(cb, ids[0])
+			r.m.Write().Leave(cb, ids[0])
 		},
 	})
 	step := motiontest.Step(r.w, r.m)

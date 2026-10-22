@@ -67,7 +67,7 @@ var titleFont = sync.OnceValue(func() *render.Font {
 // Open shows the screen on top, built afresh of the plugins' settings, and holds the game.
 func (s *SettingsScene) Open(runtime game.Runtime, composition game.Composition) {
 	var issuer *Player
-	if locals := s.p.Locals(); len(locals) > 0 {
+	if locals := s.p.read.Locals(); len(locals) > 0 {
 		issuer = locals[0]
 	}
 	s.screen.Issue(s.p.IssueAs(issuer))
@@ -556,7 +556,7 @@ func (p *Plugin) Settings() []control.Setting {
 			control.Choice{
 				Label:   "Telemetry panel shows",
 				Options: []string{"the basics", "everything"},
-				Get:     func() int { return int(tp.Mode()) },
+				Get:     func() int { return int(tp.Read(0).Mode()) },
 				Set: func(i int) command.Command {
 					return telemetry.Panel{Shown: p.panelShown(), Extended: i == 1}
 				},

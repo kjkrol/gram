@@ -46,8 +46,8 @@
 // [ConePoint]s in a [ConeStyle] ([Plugin.WithStyle]). Which views are drawn is the scene's,
 // through render.Show rules ([Plugin.WithViews]); none, every one.
 //
-// The views start hidden: the settings screen ([Cones]) shows and hides them, [Plugin.ShowCones],
-// [Plugin.HideCones] and [Plugin.ConesShown] do the same from code. A look, not saved; the scan
+// The views start hidden: the settings screen ([Cones]) shows and hides them, [Write.ShowCones],
+// [Write.HideCones] and [Read.ConesShown] do the same from code. A look, not saved; the scan
 // goes on either way.
 //
 // # Vocabulary

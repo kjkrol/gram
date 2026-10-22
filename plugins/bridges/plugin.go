@@ -52,6 +52,7 @@ type Plugin struct {
 	marks   command.Queue[Mark]
 	builds  command.Queue[Build]
 	cancels command.Queue[Cancel]
+	write   Write
 }
 
 var (
@@ -66,6 +67,7 @@ func NewPlugin(w *world.Plugin, brd *board.Plugin, cfg Config) *Plugin {
 		cfg.Rules.Longest = 3
 	}
 	p := &Plugin{worldPlugin: w, board: brd, cfg: cfg, hands: map[command.Issuer]*hand{}}
+	p.write.p = p
 	p.types = &Types{p: p}
 	p.renderer = &renderer{p: p}
 	p.Self = world.NewSelf(w, p)
@@ -81,28 +83,6 @@ func (p *Plugin) WithShaper(s ground.Shaper) *Plugin {
 
 // Types is the plugin's register of the kinds of bridges.
 func (p *Plugin) Types() *Types { return p.types }
-
-// Spawn builds every bridge a level's file has, a line `{kind: <a kind of bridge>, from: [x, y],
-// to: [x, y]}`, its deck at its first head's level. One the Rules refuse fails Populate with its
-// line.
-func (p *Plugin) Spawn(level *board.Level) error {
-	g := newGround(p.board.Read(0).Board(), level.Heights(), 0)
-	gr := g.Grid()
-	return board.Each(level, func(name string, r Row, at string) error {
-		t := p.types.Named(name)
-		way, spans, err := site.Line(gr, r.From, r.To, p.cfg.Rules.Longest)
-		if err != nil {
-			return err
-		}
-		b := site.Bridge{From: r.From, To: r.To, Way: way, Deck: g.level(r.From), Spans: spans}
-		if level.Heights() != nil {
-			b.Piers = site.Piers(gr, spans)
-		}
-		p.laid = append(p.laid, laid{t: t, plan: b, at: at, heights: level.Heights()})
-		p.worldPlugin.Write().Seed(p.parts(t, b, g)...)
-		return nil
-	})
-}
 
 // Populate holds the bridges a level's file laid to the Rules; one that may not stand fails with
 // its line.

@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
@@ -29,6 +28,8 @@ type Plugin struct {
 	panel       *panel
 	kept        *plugin.Kept[Settings]
 	made        bool
+	read        Read
+	write       Write
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -48,6 +49,7 @@ const (
 // frame rate, the ticks a second, where a frame's time goes and the entities, and the game time.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin}
+	p.read.p, p.write.p = p, p
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.panel = newPanel(p)
 	p.kept = plugin.Keep(&p.Res.Settings)
@@ -103,38 +105,6 @@ func (p *Plugin) adding() {
 	if p.made {
 		panic("telemetry: a line added after the scene was made")
 	}
-}
-
-// Show shows the panel on top of the scenes shown.
-func (p *Plugin) Show(c game.Composition) { c.Show(SceneName) }
-
-// Hide hides the panel.
-func (p *Plugin) Hide(c game.Composition) { c.Hide(SceneName) }
-
-// Toggle shows the panel, or hides it when shown.
-func (p *Plugin) Toggle(c game.Composition) {
-	if p.Shown(c) {
-		p.Hide(c)
-	} else {
-		p.Show(c)
-	}
-}
-
-// Shown says whether the panel is shown.
-func (p *Plugin) Shown(c game.Composition) bool { return slices.Contains(c.Order(), SceneName) }
-
-// SetMode has the panel show the basics or every line (Settings.Extended).
-func (p *Plugin) SetMode(m Mode) {
-	p.Res.Settings.Extended = m == Extended
-	p.panel.stale()
-}
-
-// Mode is what the panel shows.
-func (p *Plugin) Mode() Mode {
-	if p.Res.Settings.Extended {
-		return Extended
-	}
-	return Basic
 }
 
 // Scenes is the panel's one scene (game.Scenic), hidden until shown.

@@ -69,7 +69,7 @@ func newHill(t *testing.T) aHill {
 		Cell:       32,
 		HeightUnit: 1,
 		Cage:       p.Read(0),
-	}).New(cameras.Isometrically, camera.Config{})
+	}).Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(320, 240)
 	cam.MoveTo(0, 0)
 	cam.CenterOn(128, 128, 0)

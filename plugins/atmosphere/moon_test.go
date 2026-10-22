@@ -59,7 +59,7 @@ func TestMoon_AGamesOwnLightsTheNightFromTheStart(t *testing.T) {
 	for range 3 {
 		n.ecs.Tick(tick)
 	}
-	if got := n.a.Sun().Color; got != red {
+	if got := n.a.Read(0).Sun().Color; got != red {
 		t.Errorf("under the game's own moon the night is lit %v, want %v", got, red)
 	}
 }
@@ -74,7 +74,7 @@ func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 		blood = n.w.Write().Effects().Named("blood moon")
 	}, nil)
 	n.ecs.Tick(tick)
-	pale := n.a.Sun().Color
+	pale := n.a.Read(0).Sun().Color
 	if pale != sky.DefaultMoon().Color {
 		t.Fatalf("the night is lit %v, want the moon's own %v", pale, sky.DefaultMoon().Color)
 	}
@@ -88,11 +88,11 @@ func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 		}
 	}
 	give(ceremony.Put(blood).On(n.a))
-	if got := n.a.Sun().Color; got != red {
+	if got := n.a.Read(0).Sun().Color; got != red {
 		t.Errorf("under the blood moon the night is lit %v, want %v", got, red)
 	}
 	give(ceremony.Take(blood).On(n.a))
-	if got := n.a.Sun().Color; got != pale {
+	if got := n.a.Read(0).Sun().Color; got != pale {
 		t.Errorf("the blood moon lifted, the night is lit %v, want the %v it was", got, pale)
 	}
 }

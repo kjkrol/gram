@@ -53,7 +53,7 @@ func TestDefaultBindings_RidingKeysHoldInsideOnly(t *testing.T) {
 			t.Errorf("loose, %s is not bound", key)
 		}
 	}
-	cam := p.New(cameras.Isometrically, camera.Config{})
+	cam := p.Write().New(cameras.Isometrically, camera.Config{})
 	if bd, ok := riding["mouse"]; !ok {
 		t.Error("riding, there is no binding of the mouse")
 	} else if cmd, _ := bd.Build(control.Context{Camera: cam, Delta: geom.NewVec(3, -2)}); cmd !=
@@ -129,7 +129,8 @@ func TestDefaultBindings_RLooksDownMoreSteeplyAndFFlatter(t *testing.T) {
 
 func TestNew_FromAboveInReliefIsTheMapsCamera(t *testing.T) {
 	p := cameras.NewPlugin(reliefWorld(), cameras.Config{Turn: true, Tilt: true, Cell: 32})
-	stick, plain := p.New(cameras.FromAbove, camera.Config{}), cameratest.NewFromSpace(256, 256, 0)
+	stick, plain := p.Write().New(cameras.FromAbove, camera.Config{}), cameratest.NewFromSpace(256,
+		256, 0)
 	same := func(when string) {
 		t.Helper()
 		if stick.Zoom() != plain.Zoom() {
@@ -173,12 +174,12 @@ func TestNew_FromAboveInReliefIsTheMapsCamera(t *testing.T) {
 
 func TestNew_IsometricallyTheZoomIsWhatTheDiamondSpans(t *testing.T) {
 	p := cameras.NewPlugin(reliefWorld(), cameras.Config{Turn: true, Cell: 32})
-	cam := p.New(cameras.Isometrically, camera.Config{})
+	cam := p.Write().New(cameras.Isometrically, camera.Config{})
 	if want := float32(64 / (math.Sqrt2 * 32)); math.Abs(float64(cam.Zoom()-want)) > 1e-6 {
 		t.Errorf("a 64-wide diamond of a 32 cell begins at zoom %v, want %v: screen pixels a "+
 			"world unit", cam.Zoom(), want)
 	}
-	if cam := p.New(cameras.Isometrically, camera.Config{Zoom: 3}); cam.Zoom() != 3 {
+	if cam := p.Write().New(cameras.Isometrically, camera.Config{Zoom: 3}); cam.Zoom() != 3 {
 		t.Errorf("camera.Config.Zoom 3 begins at zoom %v, want 3", cam.Zoom())
 	}
 }

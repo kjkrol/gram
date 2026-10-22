@@ -25,17 +25,17 @@ func TestLayers_OutlineEveryInnerLayerInsetByTheFeatherWhateverTheCrop(t *testin
 		p.layersView.Compose(&f, cam)
 		return f.Len()
 	}
-	p.ShowLayers(Tactical, true)
+	p.write.ShowLayers(Tactical, true)
 	if n := pieces(); n != 0 {
 		t.Errorf("a camera drawn whole got %d pieces of the layers, want none", n)
 	}
 	layers := []camera.Layer{{Share: 1, Resolution: 0.5}, {Share: 0.5, Resolution: 1}}
 	cam.(camera.Layered).SetLayers(layers, camera.Inset)
-	p.ShowLayers(Tactical, false)
+	p.write.ShowLayers(Tactical, false)
 	if n := pieces(); n != 0 {
 		t.Errorf("hidden, the layers drew %d pieces", n)
 	}
-	p.ShowLayers(Tactical, true)
+	p.write.ShowLayers(Tactical, true)
 	if n := pieces(); n != 4 {
 		t.Fatalf("a camera drawn in two layers got %d pieces, want the inner one's four sides", n)
 	}
@@ -77,7 +77,7 @@ func TestLayers_OutlineEveryInnerLayerInsetByTheFeatherWhateverTheCrop(t *testin
 
 func TestLayers_OutlineOfAFootedLayerHasNoSideOnTheBottomEdge(t *testing.T) {
 	p := layersPlugin()
-	p.ShowLayers(Tactical, true)
+	p.write.ShowLayers(Tactical, true)
 	cam := cameratest.NewFromSpace(1000, 800, 0)
 	cam.(camera.Layered).SetLayers([]camera.Layer{{Share: 1, Resolution: 0.5},
 		{Share: 0.5, Resolution: 1}}, camera.Footed)

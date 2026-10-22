@@ -133,7 +133,7 @@ func (s *squad) start(soldiers []soldier, bindings ...control.Binding) {
 
 func (s *squad) issue(cmd command.Command) {
 	s.t.Helper()
-	if err := s.players.Issue(s.me, cmd); err != nil {
+	if err := s.players.Write().Issue(s.me, cmd); err != nil {
 		s.t.Fatal(err)
 	}
 	s.tick()

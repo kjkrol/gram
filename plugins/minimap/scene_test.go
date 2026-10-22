@@ -57,7 +57,7 @@ func minimapScene(t *testing.T) (scene *ui.Scene, cam camera.Camera, tick func()
 	if err := pl.Bind(cams.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
-	cam = cams.New(cameras.FromAbove, camera.Config{})
+	cam = cams.Write().New(cameras.FromAbove, camera.Config{})
 	scene = ui.NewScene("main", ui.Layers(
 		ui.Image(render.NewFeed(cam, nil)).Input(ps.Through(pl)),
 		ui.TopRight(mini.For(cam, pl.ID)).Size(200, 200),

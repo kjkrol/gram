@@ -42,7 +42,7 @@ func isometricIsland() (*world.Plugin, *topography.Plugin, camera.Camera) {
 		Cell:       32,
 		HeightUnit: 1,
 		Cage:       p.Read(0),
-	}).New(cameras.Isometrically, camera.Config{})
+	}).Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(128, 64)
 	cam.MoveTo(0, 0)
 	return w, p, cam
@@ -144,7 +144,7 @@ func TestBillboards_HazeFarOffOnlyWhenAsked(t *testing.T) {
 		Perspective: true,
 		Cell:        32,
 		Cage:        p.Read(0),
-	}).New(cameras.Isometrically, camera.Config{})
+	}).Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(320, 240)
 	cam.CenterOn(2048, 2048, 0)
 	cameratest.Switch(cam)

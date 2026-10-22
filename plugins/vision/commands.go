@@ -34,7 +34,7 @@ func (p *Plugin) DefaultBindings() []control.Binding { return nil }
 func (p *Plugin) Settings() []control.Setting {
 	return []control.Setting{control.Switch{
 		Label: "Cones of sight",
-		Get:   p.ConesShown,
+		Get:   p.read.ConesShown,
 		Set:   func(on bool) command.Command { return Cones{Shown: on} },
 	}}
 }

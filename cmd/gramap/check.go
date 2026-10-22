@@ -79,7 +79,7 @@ func (w *chart) check(data []byte) (err error) {
 	if err := board.Spawn[fordRow](level, nil); err != nil {
 		return err
 	}
-	if err := br.Spawn(level); err != nil {
+	if err := br.Write().Spawn(level); err != nil {
 		return err
 	}
 	if topo != nil {

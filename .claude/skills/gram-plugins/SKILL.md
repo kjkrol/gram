@@ -966,7 +966,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   a tick), no ceiling and no narrowing but inside a unit; picking where the cage is not free)
   and refuses a wrapping world and a missing `Cell`. A relief camera's save begins with its
   form, `"stick 2"`: one saved otherwise begins afresh, logged. **Each camera is made where a scene
-  shows it**, beside the picture in the Scenes section, `render.NewFeed(s.cameras.New(start,
+  shows it**, beside the picture in the Scenes section, `render.NewFeed(s.cameras.Write().New(start,
   camera.Config{...}), picture)` with `cameras.FromAbove` or `cameras.Isometrically` (a plain
   Config has none). `camera.Config` has no pixels (`render.Feed.Resize` every frame): `Zoom`,
   `Whole` (refused in relief), `Follow` (the name of the entity it starts fastened `Centred` over),

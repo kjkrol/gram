@@ -127,7 +127,7 @@ func (s *Shortcuts) groups() []group {
 	byHandler := map[plugin.CommandHandler]*group{}
 	seen := map[string]bool{}
 	own, general := &group{name: "Game"}, &group{name: "General"}
-	for _, pl := range s.p.Locals() {
+	for _, pl := range s.p.read.Locals() {
 		how := camera.HowOf(pl.pic.camera)
 		for i, b := range pl.Bindings() {
 			if !pl.fires(b, how) {
@@ -169,7 +169,7 @@ func (s *Shortcuts) groups() []group {
 }
 
 func (s *Shortcuts) title() string {
-	for _, pl := range s.p.Locals() {
+	for _, pl := range s.p.read.Locals() {
 		if camera.HowOf(pl.pic.camera) == camera.Inside {
 			return "Shortcuts: first person, riding in the unit"
 		}

@@ -204,7 +204,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Cell:        CellSize,
 		HeightUnit:  1,
 		Cage:        a.topography.Read(0),
-		Levers:      []cameras.Lever{a.topography.Write(), a.light.Write(), a.atmosphere},
+		Levers:      []cameras.Lever{a.topography.Write(), a.light.Write(), a.atmosphere.Write()},
 		Detail: camera.Detail{
 			Sight:  scale.Units(30_000),
 			Fog:    scale.Units(6_000),
@@ -218,17 +218,17 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Turning: true,
 	})
 	a.telemetry = telemetry.NewPlugin(a.world).
-		With(a.atmosphere.Reporter(), a.light.Read(0).Reporter(), a.topography.Read(0).Reporter(),
-			a.cameras.Reporter(), a.world.Read(0).Sectors(), a.world.Read(0).Seen())
+		With(a.atmosphere.Read(0).Reporter(), a.light.Read(0).Reporter(), a.topography.Read(0).Reporter(),
+			a.cameras.Read(0).Reporter(), a.world.Read(0).Sectors(), a.world.Read(0).Seen())
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection,
 		a.nav, a.driving,
 		a.atmosphere, a.topography, a.vision, a.bridges, a.minimap, a.light)
 	a.topography.Write().AdaptCare(true)
 	a.light.Write().AdaptShadows(true)
-	a.atmosphere.ShowClouds(atmosphere.AllBodies)
+	a.atmosphere.Write().ShowClouds(atmosphere.AllBodies)
 	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})
-	a.cameras.ShowZones(true)
-	a.telemetry.SetMode(telemetry.Extended)
+	a.cameras.Write().ShowZones(true)
+	a.telemetry.Write().SetMode(telemetry.Extended)
 }
 
 func (a *arena) definePlayers() error {
@@ -238,7 +238,7 @@ func (a *arena) definePlayers() error {
 }
 
 func (a *arena) defineEffects() {
-	night := a.atmosphere.Calendar().Config().DayRealTime / 2
+	night := a.atmosphere.Read(0).Calendar().Config().DayRealTime / 2
 	a.world.Write().Effects().Define(BloodMoonEf, effect.Spec{effect.Lasts(night),
 		effect.Alter(func(m *sky.Moon) {
 			m.Color, m.Face = render.Light{1, 0.25, 0.2}, render.Light{1, 0.3, 0.25}
@@ -334,7 +334,7 @@ func (a *arena) spawn() error {
 	if err := board.Spawn[lanternRow](level, nil); err != nil {
 		return err
 	}
-	if err := a.bridges.Spawn(level); err != nil {
+	if err := a.bridges.Write().Spawn(level); err != nil {
 		return err
 	}
 	return board.Spawn[unitRow](level, board.Sides{

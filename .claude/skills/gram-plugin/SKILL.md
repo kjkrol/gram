@@ -12,7 +12,7 @@ description: How a gram plugin is built and how to write one — the plugin cont
 `Install`** (2026-10-15; `Renderer()` is gone): `render.Source`s made in `NewPlugin` or
 `Install`, existing from then on even where what they draw comes later (the world's and the
 board's renderers get their atlas in `SetAtlas`; a typed nil passes `Draws`' nil check, so a
-plugin with one of two renderers names the one it has). `world.Plugin.Picture()` is one composer
+plugin with one of two renderers names the one it has). `world.Read.Picture()` is one composer
 of everything the Stage's plugins drew, read from the Installer the world keeps (an assertion
 for `Drawn()`, as telemetry reads `TPS`); a `Draws` after it panics. `ctx.Looks(declare)` has
 the looks declared and the atlases closed by the engine once the Stage's Init returns and the
@@ -75,7 +75,7 @@ never a system per behaviour — handed a `host.Tick`.
 
 **What gram keeps** is the store's side and the perceiving:
 
-- The world's registers: `world.Effects()` (`Define(name, Spec{Lasts, Stacking, Then, Grant,
+- The world's registers: `world.Write().Effects()` (`Define(name, Spec{Lasts, Stacking, Then, Grant,
   Alter})`, `Named`, `Cast`, `Has`; the register and the `effect.Runtime` the world's
   `*cgoke.Effects` is), `world.Roles()` (`Define(name, rules...)`, `Named` a `*ceremony.Part`
   over a tag of `cond.Roles` from `Kinds.DefineTag`, 64 a Stage, noted with `Kinds.Play` for the

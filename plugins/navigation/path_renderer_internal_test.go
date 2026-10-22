@@ -168,7 +168,7 @@ func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
 		Cell:       32,
 		HeightUnit: 1,
 		Cage:       p.Read(0),
-	}).New(cameras.Isometrically, cfg)
+	}).Write().New(cameras.Isometrically, cfg)
 }
 
 func TestPathRenderer_OutlinesEachKindsGoalInItsRouteStyle(t *testing.T) {

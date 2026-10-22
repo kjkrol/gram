@@ -63,7 +63,7 @@ func (CloudsDrawnAt) Command() {}
 var _ command.Command = CloudsDrawnAt{}
 
 // AdaptClouds has the clouds follow the cameras' frame budget, or not (Settings.AdaptiveClouds):
-// the atmosphere is a cameras.Lever (cameras.Config.Levers), the clouds drawn at a sixth of
+// the atmosphere's Write is a cameras.Lever (cameras.Config.Levers), the clouds drawn at a sixth of
 // the pixels, then an eighth, then as bodies to half the sight alone as the rate falls under the
 // budget, and back up as it stays over; the look stays as set. The settings screen alone.
 type AdaptClouds struct{ On bool }
@@ -149,13 +149,13 @@ func (p *Plugin) Settings() []control.Setting {
 		control.Choice{
 			Label:   "Clouds",
 			Options: looks,
-			Get:     func() int { return int(p.ShownClouds()) },
+			Get:     func() int { return int(p.read.ShownClouds()) },
 			Set:     func(i int) command.Command { return Clouds{Look: CloudLook(i)} },
 		},
 		control.Choice{
 			Label:   "Clouds drawn at",
 			Options: []string{"a quarter of the pixels", "a sixth", "an eighth"},
-			Get:     func() int { return coarseRung(p.CloudsDrawnAt()) },
+			Get:     func() int { return coarseRung(p.read.CloudsDrawnAt()) },
 			Set:     func(i int) command.Command { return CloudsDrawnAt{Coarse: coarses[i]} },
 		},
 		control.Range{
@@ -163,13 +163,13 @@ func (p *Plugin) Settings() []control.Setting {
 			Min:   10,
 			Max:   100,
 			Step:  10,
-			Get:   func() float64 { return math.Round(float64(p.CloudsReach()) * 100) },
+			Get:   func() float64 { return math.Round(float64(p.read.CloudsReach()) * 100) },
 			Set:   func(v float64) command.Command { return CloudReach{Share: float32(v / 100)} },
 			Shows: func(v float64) string { return fmt.Sprintf("%.0f%% of the sight", v) },
 		},
 		control.Switch{
 			Label: "Clouds follow the frame budget",
-			Get:   p.CloudsAdaptive,
+			Get:   p.read.CloudsAdaptive,
 			Set:   func(on bool) command.Command { return AdaptClouds{On: on} },
 		},
 		control.Switch{
@@ -212,10 +212,10 @@ func (p *Plugin) carryOut() {
 	})
 	p.changes.Drain(func(command.Issued[ChangeWeather]) { p.climate.Change() })
 	p.sets.Drain(func(i command.Issued[SetWeather]) { p.climate.Set(i.Command.Name) })
-	p.reaches.Drain(func(i command.Issued[CloudReach]) { p.ReachClouds(i.Command.Share) })
-	p.coarses.Drain(func(i command.Issued[CloudsDrawnAt]) { p.DrawCloudsAt(i.Command.Coarse) })
-	p.adapts.Drain(func(i command.Issued[AdaptClouds]) { p.AdaptClouds(i.Command.On) })
-	p.clouds.Drain(func(i command.Issued[Clouds]) { p.ShowClouds(i.Command.Look) })
+	p.reaches.Drain(func(i command.Issued[CloudReach]) { p.write.ReachClouds(i.Command.Share) })
+	p.coarses.Drain(func(i command.Issued[CloudsDrawnAt]) { p.write.DrawCloudsAt(i.Command.Coarse) })
+	p.adapts.Drain(func(i command.Issued[AdaptClouds]) { p.write.AdaptClouds(i.Command.On) })
+	p.clouds.Drain(func(i command.Issued[Clouds]) { p.write.ShowClouds(i.Command.Look) })
 	p.shades.Drain(func(i command.Issued[HighShade]) { p.shadeHigh(i.Command.On) })
 	p.groundShades.Drain(func(i command.Issued[GroundShade]) { p.shadows.Ground = i.Command.On })
 	p.figureShades.Drain(func(i command.Issued[FigureShade]) { p.shadows.Figures = i.Command.On })

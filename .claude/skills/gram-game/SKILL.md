@@ -23,7 +23,7 @@ plugins. Its `Init` gets a `game.Initializer` (`Use`, `UseWorld`, `Track`, `TPS`
 
 Within one active `Stage`, a `game.Scene` is `Name`, `Drawers() []render.Drawer` (built once on
 entering the Stage; a picture or a source listed straight in a scene is refused — the world is
-shown through a `ui.Image` of a `render.Feed` of `world.Picture()`), `HandleEvents`,
+shown through a `ui.Image` of a `render.Feed` of `world.Read(0).Picture()`), `HandleEvents`,
 `Focusable`. `Stage.Stack()` is the
 `Name()`-keyed registry of every `Scene` it can show (`game.NewStack(scenes...)`);
 `Stack.Composition()` the live state — which scenes are visible, in what order, which is
@@ -77,7 +77,7 @@ options (`vision.WithViews`, `board.ShowGrid(false)`, `WithAtmosphere`,
 where there is no sky (a sun of the game's own moves by `WithDistant` in `update` before
 `a.light.RunPlan`, look/light's `sun.go`), `world.WithFog` where there is no atmosphere, the painter's styles,
 `ShowHolds`, `ShowRoutes`, `ShowZones`), then the ui tree, the world shown as
-`feed := render.NewFeed(cam, a.world.Picture())` (2026-10-15: no `picture()`, no composer named
+`feed := render.NewFeed(cam, a.world.Read(0).Picture())` (2026-10-15: no `picture()`, no composer named
 in a demo; every plugin made draws what it gave `ctx.Draws`, the atlases closed by the Stage
 before the scenes) — and `defineScenes` only makes it. A minimap is the one picture of its own:
 `ui.TopRight(a.minimap.For(cam, a.player.ID).Masked(ui.Circle).Border(rim, 2)).Size(220, 220)`

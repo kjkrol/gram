@@ -5,12 +5,12 @@
 //
 // [NewPlugin] takes a world with heights and a [Config]: the calendar's
 // (plugins/atmosphere/calendar), the sky's (plugins/atmosphere/sky), the climate's
-// (plugins/atmosphere/climate) and which of its workings go on ([Running]; [Plugin.SetRunning]
+// (plugins/atmosphere/climate) and which of its workings go on ([Running]; [Write.SetRunning]
 // switches them as the game goes). The light runs once a tick, in the tactical pause too; the
 // weather in every step of the simulation, carried over the world by the wind: a new one is born
 // at the horizon it blows from and comes in over the world, and rain and snow fall only under
 // their clouds.
-// [Plugin.Sun] and [Plugin.Air] are what a board takes to light and shade itself
+// [Read.Sun] and [Read.Air] are what a board takes to light and shade itself
 // (board.Plugin.WithAtmosphere, topography.Plugin.WithAtmosphere).
 //
 // [Plugin.Over], as the plugin is made, has the low clouds hang over a board's ground, their bands
@@ -29,25 +29,25 @@
 // throws the next weather and [SetWeather] names one, either over the world within seconds;
 // [Clouds] has the clouds drawn in a [CloudLook], [CloudsDrawnAt] at a quarter, a sixth or an
 // eighth of the pixels, [CloudReach] as bodies out to a share of the sight; [AdaptClouds] has
-// them follow the cameras' frame budget, a cameras.Lever: drawn at fewer pixels first, as bodies
-// to half the sight last, the look never. None has a key of its own: the settings screen sets
-// the light, the clouds and the weather; its hour shows the day's time and, moved, freezes the
-// light there.
+// them follow the cameras' frame budget, the Write a cameras.Lever: drawn at fewer pixels first,
+// as bodies to half the sight last, the look never. None has a key of its own: the settings
+// screen sets the light, the clouds and the weather; its hour shows the day's time and, moved,
+// freezes the light there.
 //
 // # Drawing
 //
 // The plugin draws the sky behind the world (plugins/atmosphere/backdrop), which hands every frame
 // the sun and the weather; the clouds in two layers, low heaps and high shreds, flat or as bodies
-// as a scene shows them ([Plugin.ShowClouds]): heaped on the sky from under them, the low ones
+// as a scene shows them ([Write.ShowClouds]): heaped on the sky from under them, the low ones
 // half see-through over the world from above and before the slopes from under them
 // (plugins/atmosphere/aloft), hiding and hidden by what stands nearer — the high ones never over
 // the map from above, where they veiled it; and the rain and the snow before it
 // (plugins/atmosphere/precipitation); whoever draws the ground shadows it under the clouds, each
 // layer's along the way to the sun.
-// [Plugin.Reporter] adds the daylight, how the clouds look and share their bands and whose
+// [Read.Reporter] adds the daylight, how the clouds look and share their bands and whose
 // shadows they cast to the telemetry panel; a game showing the time, the season, the moon and
 // the weather nowhere else adds the calendar's and the climate's reporters too
-// ([Plugin.Calendar], [Plugin.Climate]).
+// ([Read.Calendar], [Write.Climate]).
 //
 // # HUD
 //

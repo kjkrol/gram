@@ -18,7 +18,7 @@ func (t eventHandler) HandleEvents(ev *control.InputEvents) {
 	mods := control.Mods{Shift: ev.Modifiers.Shift, Ctrl: ev.Modifiers.Ctrl, Alt: ev.Modifiers.Alt}
 	// the pass the cursor is caught or let go it jumps: no move is taken from it
 	settled := t.p.capture()
-	for _, pl := range t.p.Locals() {
+	for _, pl := range t.p.read.Locals() {
 		under := covers(pl, ev.MousePos) && !pl.pic.covered
 		if under {
 			pl.in.cursor = localPoint(pl, ev.MousePos)
@@ -122,7 +122,7 @@ func (t eventHandler) fire(pl *Player, trigger control.Trigger, ctx control.Cont
 			continue
 		}
 		if cmd, ok := b.Build(ctx); ok {
-			if err := t.p.Issue(pl, cmd); err != nil {
+			if err := t.p.write.Issue(pl, cmd); err != nil {
 				panic(err)
 			}
 			fired = true
@@ -132,7 +132,7 @@ func (t eventHandler) fire(pl *Player, trigger control.Trigger, ctx control.Cont
 }
 
 func (t eventHandler) hold() {
-	for _, pl := range t.p.Locals() {
+	for _, pl := range t.p.read.Locals() {
 		for _, key := range pl.in.steering {
 			t.fire(pl, control.KeyHeld{Key: key}, pl.in.last)
 		}

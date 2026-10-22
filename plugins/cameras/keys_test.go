@@ -204,15 +204,16 @@ func TestDefaultBindings_TheEdgeScrollsAsTheSettingsSayAtTheSpeedSet(t *testing.
 		t.Errorf("at the edge the default builds %+v (%v), want a Pan right at the default speed",
 			cmd, ok)
 	}
-	p.SetEdgeSpeed(16)
+	p.Write().SetEdgeSpeed(16)
 	if cmd, ok := edge.Build(ctx); !ok || cmd.(cameras.Pan).Dx != 16 {
 		t.Errorf("at a speed of 16 the edge builds %+v (%v), want a Pan right by 16", cmd, ok)
 	}
-	p.ScrollFromEdges(false)
+	p.Write().ScrollFromEdges(false)
 	if cmd, ok := edge.Build(ctx); ok {
 		t.Errorf("the edges still, the edge builds %+v, want nothing", cmd)
 	}
-	if !p.EdgesScroll() == false || p.EdgeSpeed() != 16 {
-		t.Errorf("the settings say scrolling %v at %v, want still at 16", p.EdgesScroll(), p.EdgeSpeed())
+	if !p.Read(0).EdgesScroll() == false || p.Read(0).EdgeSpeed() != 16 {
+		t.Errorf("the settings say scrolling %v at %v, want still at 16", p.Read(0).EdgesScroll(),
+			p.Read(0).EdgeSpeed())
 	}
 }

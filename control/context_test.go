@@ -30,7 +30,7 @@ func isoCamera(width, height uint32, screenW, screenH float32, heights func(geom
 		Cell:       32,
 		HeightUnit: 2,
 		Cage:       topo.Read(0),
-	}).New(cameras.Isometrically, camera.Config{})
+	}).Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(screenW, screenH)
 	cam.MoveTo(0, 0)
 	return cam

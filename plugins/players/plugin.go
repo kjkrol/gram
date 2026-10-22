@@ -55,6 +55,8 @@ type Plugin struct {
 	module      *module
 	captured    bool
 	setCapture  func(on bool)
+	read        Read
+	write       Write
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -70,6 +72,7 @@ func NewPlugin(worldPlugin *world.Plugin, handlers ...plugin.CommandHandler) *Pl
 		}
 	}
 	p := &Plugin{worldPlugin: worldPlugin, now: time.Now}
+	p.read.p, p.write.p = p, p
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.shortcuts = newShortcuts(p)
 	p.settings = newSettings(p)
@@ -106,28 +109,6 @@ func (p *Plugin) Add(name string) *Player {
 	return pl
 }
 
-// Players lists every player, in the order added.
-func (p *Plugin) Players() []*Player { return p.players }
-
-// Locals lists the players at this keyboard.
-func (p *Plugin) Locals() []*Player {
-	var out []*Player
-	for _, pl := range p.players {
-		if pl.local {
-			out = append(out, pl)
-		}
-	}
-	return out
-}
-
-// ByID is the player with id, or nil — for Nobody too.
-func (p *Plugin) ByID(id command.Issuer) *Player {
-	if id == command.Nobody || int(id) > len(p.players) {
-		return nil
-	}
-	return p.players[id-1]
-}
-
 // Defaults is every handler's default bindings in one list to bind.
 func (p *Plugin) Defaults() []control.Binding {
 	var out []control.Binding
@@ -154,19 +135,6 @@ func (p *Plugin) originOf(b control.Binding) plugin.CommandHandler {
 		return h
 	}
 	return p.handlerOf(b.Type())
-}
-
-// Issue gives cmd as player (nil for Nobody); ErrUnknownCommand when no handler defines its
-// type.
-func (p *Plugin) Issue(player *Player, cmd command.Command) error {
-	id := command.Nobody
-	if player != nil {
-		id = player.ID
-	}
-	if !p.worldPlugin.Write().Carrier().Put(id, cmd) {
-		return fmt.Errorf("%w: %T", ErrUnknownCommand, cmd)
-	}
-	return nil
 }
 
 func (p *Plugin) handlerOf(t reflect.Type) plugin.CommandHandler {
@@ -207,24 +175,24 @@ func (p *Plugin) carry(runtime game.Runtime, composition game.Composition) {
 			return
 		}
 		if i.Command.Extended {
-			tp.SetMode(telemetry.Extended)
+			tp.Write().SetMode(telemetry.Extended)
 		} else {
-			tp.SetMode(telemetry.Basic)
+			tp.Write().SetMode(telemetry.Basic)
 		}
-		if i.Command.Shown != tp.Shown(composition) {
-			tp.Toggle(composition)
+		if i.Command.Shown != tp.Read(0).Shown(composition) {
+			tp.Write().Toggle(composition)
 		}
 	})
 }
 
 func (p *Plugin) panelShown() bool {
 	tp := telemetry.Of(p.worldPlugin)
-	return tp != nil && p.composition != nil && tp.Shown(p.composition)
+	return tp != nil && p.composition != nil && tp.Read(0).Shown(p.composition)
 }
 
 func (p *Plugin) panelExtended() bool {
 	tp := telemetry.Of(p.worldPlugin)
-	return tp != nil && tp.Mode() == telemetry.Extended
+	return tp != nil && tp.Read(0).Mode() == telemetry.Extended
 }
 
 // the panel the ~ key turns to: from hidden to the basics, to everything and to hidden again
@@ -240,12 +208,12 @@ func (p *Plugin) nextPanel() telemetry.Panel {
 
 func (p *Plugin) tools() {
 	p.takes.Drain(func(i command.Issued[control.Take]) {
-		if pl := p.ByID(i.Issuer); pl != nil {
+		if pl := p.read.ByID(i.Issuer); pl != nil {
 			pl.tool = i.Command.Tool
 		}
 	})
 	p.drops.Drain(func(i command.Issued[control.Drop]) {
-		if pl := p.ByID(i.Issuer); pl != nil {
+		if pl := p.read.ByID(i.Issuer); pl != nil {
 			pl.tool = ""
 		}
 	})

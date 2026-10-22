@@ -51,7 +51,7 @@ func (t *through) LookAt(entity uid.UID64) {
 	if t.cam == nil {
 		return
 	}
-	if err := t.p.Issue(t.pl, cameras.CenterOn{Camera: t.cam, Entity: entity}); err != nil {
+	if err := t.p.write.Issue(t.pl, cameras.CenterOn{Camera: t.cam, Entity: entity}); err != nil {
 		log.Printf("players: %v", err)
 	}
 }
@@ -77,5 +77,5 @@ func (owning) Update(*goke.CmdBuf, time.Duration) {}
 
 // IssueAs is Issue for pl: how a scene's buttons and keys give their commands (ui.Scene.Issue).
 func (p *Plugin) IssueAs(pl *Player) func(cmd command.Command) error {
-	return func(cmd command.Command) error { return p.Issue(pl, cmd) }
+	return func(cmd command.Command) error { return p.write.Issue(pl, cmd) }
 }

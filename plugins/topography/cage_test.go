@@ -17,7 +17,7 @@ func TestPlugin_ViewsMakeIsometricCameras(t *testing.T) {
 	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	cams := cameras.NewPlugin(w, cameras.Config{Turn: true, Tilt: true, Cell: 32, Cage: p.Read(0)})
 	isometric := func() camera.Camera {
-		cam := cams.New(cameras.Isometrically, camera.Config{})
+		cam := cams.Write().New(cameras.Isometrically, camera.Config{})
 		cam.SetViewport(128, 64)
 		cam.MoveTo(0, 0)
 		return cam

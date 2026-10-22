@@ -43,7 +43,7 @@ func TestZones_TheCommandSwitchesTheZonesDrawn(t *testing.T) {
 	if err := w.Carry(p); err != nil {
 		t.Fatal(err)
 	}
-	if p.ZonesShown() {
+	if p.read.ZonesShown() {
 		t.Error("the zones start shown")
 	}
 	cam := cameratest.NewFromSpace(1000, 800, 0)
@@ -55,17 +55,17 @@ func TestZones_TheCommandSwitchesTheZonesDrawn(t *testing.T) {
 			t.Fatal("the world carries no cameras.Zones")
 		}
 		p.switchZones()
-		if p.ZonesShown() != want {
-			t.Errorf("after %d Zones commands shown is %v, want %v", i+1, p.ZonesShown(), want)
+		if p.read.ZonesShown() != want {
+			t.Errorf("after %d Zones commands shown is %v, want %v", i+1, p.read.ZonesShown(), want)
 		}
 	}
-	p.ShowZones(true)
+	p.write.ShowZones(true)
 	alpha := glassOf(t, p, cam)
 	if alpha(999, 400) == 0 || alpha(500, 799) == 0 || alpha(0, 400) == 0 || alpha(500, 0) == 0 ||
 		alpha(2, 2) == 0 || alpha(997, 797) == 0 {
 		t.Error("shown, the zones leave an edge or a corner bare")
 	}
-	if a := glassOf(t, p, p.New(FromAbove, camera.Config{Whole: true}))(999, 400); a != 0 {
+	if a := glassOf(t, p, p.write.New(FromAbove, camera.Config{Whole: true}))(999, 400); a != 0 {
 		t.Errorf("a camera of the whole world got the zones %v opaque", a)
 	}
 }
@@ -101,7 +101,7 @@ func TestZones_FadeFromClearInsideToTheColourAtTheEdge(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 1000, Height: 800},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	}), Config{})
-	p.ShowZones(true)
+	p.write.ShowZones(true)
 	alpha := glassOf(t, p, cameratest.NewFromSpace(1000, 800, 0))
 	edge, half, bound := alpha(999, 400), alpha(970, 400), alpha(941, 400)
 	if edge < zoneColor.A-2 || half < edge/3 || half > 2*edge/3 || bound > 3 {

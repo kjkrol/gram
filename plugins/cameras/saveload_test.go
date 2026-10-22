@@ -25,7 +25,7 @@ func (g *savedStage) Init(ctx game.Initializer) error {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	}), cameras.Config{})
-	g.cam = g.cams.New(cameras.FromAbove, camera.Config{})
+	g.cam = g.cams.Write().New(cameras.FromAbove, camera.Config{})
 	return ctx.Use(g.cams)
 }
 func (g *savedStage) Loaded() error                     { return nil }

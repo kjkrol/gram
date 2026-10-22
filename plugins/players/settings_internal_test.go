@@ -178,7 +178,7 @@ func TestSettings_KeepRunningLetsTheClockGoAndIsSaved(t *testing.T) {
 	p, _, w := settingsRig(t)
 	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1920, ScreenHeight: 1080}}, &composed{}
 	p.settings.Open(rt, comp)
-	if err := p.Issue(nil, KeepRunning{On: true}); err != nil {
+	if err := p.write.Issue(nil, KeepRunning{On: true}); err != nil {
 		t.Fatal(err)
 	}
 	p.carry(rt, comp)
@@ -238,24 +238,24 @@ func TestSettings_TheTelemetryPanelShownAndWhatItShows(t *testing.T) {
 	}
 	give := func(cmd command.Command) {
 		t.Helper()
-		if err := p.Issue(nil, cmd); err != nil {
+		if err := p.write.Issue(nil, cmd); err != nil {
 			t.Fatal(err)
 		}
 		p.carry(rt, comp)
 	}
 	give(shows.Set(1))
-	if tp.Shown(comp) || tp.Mode() != telemetry.Extended || shows.Get() != 1 {
+	if tp.Read(0).Shown(comp) || tp.Read(0).Mode() != telemetry.Extended || shows.Get() != 1 {
 		t.Errorf("everything chosen: shown %v, mode %v, the choice %d; want hidden, extended, 1",
-			tp.Shown(comp), tp.Mode(), shows.Get())
+			tp.Read(0).Shown(comp), tp.Read(0).Mode(), shows.Get())
 	}
 	give(shown.Set(true))
-	if !shown.Get() || tp.Mode() != telemetry.Extended {
+	if !shown.Get() || tp.Read(0).Mode() != telemetry.Extended {
 		t.Errorf("switched on: shown %v in mode %v, want shown, still extended", shown.Get(),
-			tp.Mode())
+			tp.Read(0).Mode())
 	}
 	give(shows.Set(0))
-	if !tp.Shown(comp) || tp.Mode() != telemetry.Basic || shows.Get() != 0 {
+	if !tp.Read(0).Shown(comp) || tp.Read(0).Mode() != telemetry.Basic || shows.Get() != 0 {
 		t.Errorf("the basics chosen: shown %v, mode %v, the choice %d; want shown, basic, 0",
-			tp.Shown(comp), tp.Mode(), shows.Get())
+			tp.Read(0).Shown(comp), tp.Read(0).Mode(), shows.Get())
 	}
 }
