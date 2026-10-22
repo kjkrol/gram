@@ -80,7 +80,7 @@ func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing
 	var pos goke.Comp[world.Base]
 	var mover goke.Comp[unit.Mover]
 	var selected goke.Comp[tag.Tags[selection.Family]]
-	var order goke.OptComp[MoveOrder]
+	var orderComp goke.OptComp[MoveOrder]
 	var readQuery *goke.Query
 
 	ecs := goke.New()
@@ -92,7 +92,7 @@ func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing
 		at.Slice(&f.Cursor)[0] = unit.At{Cell: start}
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: cellBox(grid, start, 8)}
 		mover.Slice(&f.Cursor)[0] = unit.Mover{Domain: cell.Land}
-		readQuery = si.NewQueryBuilder().Optional(&order).Build()
+		readQuery = si.NewQueryBuilder().Optional(&orderComp).Build()
 		cmds.Init(si)
 	}})
 	handle := ecs.RegSys(cmds)
@@ -105,7 +105,7 @@ func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing
 	ecs.Tick(time.Second)
 
 	for readQuery.All(); readQuery.Next(); {
-		if order.Present(readQuery.Cursor()) {
+		if orderComp.Present(readQuery.Cursor()) {
 			t.Fatal("a land unit was ordered onto water")
 		}
 	}

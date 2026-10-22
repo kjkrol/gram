@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"math"
 	"slices"
 	"time"
@@ -177,7 +178,7 @@ func (k *bodyKeeping) placeAgain(m member, o *MoveOrder, struck []body) {
 	}
 	if p.cell != o.Target || p.level != o.Level {
 		o.Path, o.Leg = Path{}, Leg{}
-		o.found()
+		order.Found(o)
 	}
 	o.Target, o.Spot, o.At, o.Level = p.cell, p.spot, at, p.level
 }
@@ -269,9 +270,9 @@ func (k *bodyKeeping) detour(m member, o *MoveOrder, other body) bumpAnswer {
 				return giveUp
 			}
 		}
-		o.meet(other.id)
+		order.Meet(o, other.id)
 		if c, ok := k.grid.CellAt(other.at); ok && c != o.Target && c != m.cell {
-			o.learn(c)
+			order.Learn(o, c)
 			if o.Path.Index < o.Path.Length && slices.Contains(o.Path.Steps[o.Path.Index:o.Path.Length], c) || o.Leg.Active && o.Leg.To == c {
 				o.Path, o.Leg = Path{}, Leg{}
 			}

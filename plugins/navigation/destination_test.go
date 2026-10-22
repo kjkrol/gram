@@ -43,7 +43,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 
 	var here goke.Comp[unit.At]
 	var selected goke.Comp[tag.Tags[selection.Family]]
-	var order goke.OptComp[MoveOrder]
+	var orderComp goke.OptComp[MoveOrder]
 	var q *goke.Query
 	var nearest uid.UID64
 
@@ -62,7 +62,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 				nearest = id
 			}
 		}
-		q = si.NewQueryBuilder(&here).Optional(&order).Build()
+		q = si.NewQueryBuilder(&here).Optional(&orderComp).Build()
 		cmds.Init(si)
 	}})
 	cmdHandle := ecs.RegSys(cmds)
@@ -78,7 +78,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 	q.All()
 	for q.Next() {
 		cur := q.Cursor()
-		orders := order.Slice(cur)
+		orders := orderComp.Slice(cur)
 		if orders == nil {
 			t.Fatal("expected every selected entity to get a MoveOrder")
 		}

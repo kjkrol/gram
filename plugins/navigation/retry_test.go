@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"slices"
 	"testing"
 	"time"
@@ -108,21 +109,21 @@ func TestRetry_AnOrderWithNoWaySearchesOnceTillItGivesItsTargetUp(t *testing.T) 
 
 	var here goke.Comp[unit.At]
 	var base goke.Comp[world.Base]
-	var order goke.Comp[MoveOrder]
+	var orderComp goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
 	var course goke.Comp[steering.Course]
 	var q *goke.Query
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&here, &base, &order, &profile, &course)
+		f := si.NewFactory(&here, &base, &orderComp, &profile, &course)
 		f.Create(1)
 		f.Next()
 		here.Slice(&f.Cursor)[0] = unit.At{Cell: at(0)}
 		base.Slice(&f.Cursor)[0].Pos = posAt(g, at(0))
-		order.Slice(&f.Cursor)[0] = MoveOrder{Target: at(4)}
+		orderComp.Slice(&f.Cursor)[0] = MoveOrder{Target: at(4)}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
 		occupancy.Enter(at(0), false, f.Cursor.IDs[0], cell.Land)
-		q = si.NewQueryBuilder(&here, &order).Build()
+		q = si.NewQueryBuilder(&here, &orderComp).Build()
 	}})
 	navHandle := ecs.RegSys(nav)
 	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) { ctx.Run(navHandle, d); ctx.Sync() })
@@ -133,7 +134,7 @@ func TestRetry_AnOrderWithNoWaySearchesOnceTillItGivesItsTargetUp(t *testing.T) 
 	tick := 0
 	for ; tick < 2*60 && ordered(); tick++ {
 		if tick == reordered {
-			order.Slice(q.Cursor())[0] = MoveOrder{Target: at(4)}
+			orderComp.Slice(q.Cursor())[0] = MoveOrder{Target: at(4)}
 		}
 		before := asked.asked
 		ecs.Tick(retryTick)
@@ -163,7 +164,7 @@ func TestRetry_TheNextGoalOrAnotherCellLearntSearchesAtOnce(t *testing.T) {
 		name string
 		next func(o *MoveOrder)
 	}{
-		{"the next goal", func(o *MoveOrder) { o.advance() }},
+		{"the next goal", func(o *MoveOrder) { order.Advance(o) }},
 		{"another cell learnt", func(o *MoveOrder) { o.Toward = at(2) }},
 	} {
 		o := MoveOrder{Target: at(4), Toward: at(1)}

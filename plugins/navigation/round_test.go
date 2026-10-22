@@ -28,7 +28,7 @@ func TestOnward_SendsTheUnitRoundItsOwnRound(t *testing.T) {
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
 	var round goke.Comp[Round]
-	var order goke.OptComp[MoveOrder]
+	var orderComp goke.OptComp[MoveOrder]
 	var orders *goke.Query
 	var walker, plain uid.UID64
 	ecs := goke.New()
@@ -46,7 +46,7 @@ func TestOnward_SendsTheUnitRoundItsOwnRound(t *testing.T) {
 		plain = g.Cursor.IDs[0]
 		at.Slice(&g.Cursor)[0] = unit.At{Cell: start}
 		pos.Slice(&g.Cursor)[0].Pos = world.Position{AABB: cellBox(grid, start, 8)}
-		orders = si.NewQueryBuilder(&at).Optional(&order).Build()
+		orders = si.NewQueryBuilder(&at).Optional(&orderComp).Build()
 		cmds.Init(si)
 	}})
 	h := ecs.RegSys(cmds)
@@ -58,7 +58,7 @@ func TestOnward_SendsTheUnitRoundItsOwnRound(t *testing.T) {
 		if !orders.Seek(id) {
 			t.Fatal("entity gone")
 		}
-		o := order.At(orders.Cursor())
+		o := orderComp.At(orders.Cursor())
 		if o == nil {
 			return 0, false
 		}
@@ -107,7 +107,7 @@ func TestMoveTo_ByNameGoesToTheNamedCellOrUnit(t *testing.T) {
 	var pos goke.Comp[world.Base]
 	var label goke.Comp[ceremony.Label]
 	var plot goke.Comp[cell.Plot]
-	var order goke.OptComp[MoveOrder]
+	var orderComp goke.OptComp[MoveOrder]
 	var orders *goke.Query
 	var walker uid.UID64
 	ecs := goke.New()
@@ -129,7 +129,7 @@ func TestMoveTo_ByNameGoesToTheNamedCellOrUnit(t *testing.T) {
 		at.Slice(&friend.Cursor)[0] = unit.At{Cell: mate}
 		pos.Slice(&friend.Cursor)[0].Pos = world.Position{AABB: cellBox(grid, mate, 8)}
 		label.Slice(&friend.Cursor)[0] = ceremony.LabelOf("mate", "")
-		orders = si.NewQueryBuilder(&at).Optional(&order).Build()
+		orders = si.NewQueryBuilder(&at).Optional(&orderComp).Build()
 		cmds.Init(si)
 	}})
 	h := ecs.RegSys(cmds)
@@ -141,7 +141,7 @@ func TestMoveTo_ByNameGoesToTheNamedCellOrUnit(t *testing.T) {
 		if !orders.Seek(walker) {
 			t.Fatal("entity gone")
 		}
-		o := order.At(orders.Cursor())
+		o := orderComp.At(orders.Cursor())
 		if o == nil {
 			return 0, false
 		}
@@ -153,7 +153,7 @@ func TestMoveTo_ByNameGoesToTheNamedCellOrUnit(t *testing.T) {
 		sent bool
 	}{{"post", post, true}, {"mate", mate, true}, {"nobody", 0, false}} {
 		if orders.Seek(walker) {
-			if o := order.At(orders.Cursor()); o != nil {
+			if o := orderComp.At(orders.Cursor()); o != nil {
 				*o = MoveOrder{Target: start}
 			}
 		}

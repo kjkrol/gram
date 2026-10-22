@@ -31,15 +31,15 @@ type unitRow struct {
 }
 
 type turnaroundWorld struct {
-	t     *testing.T
-	grid  grid.Grid
-	ecs   *goke.ECS
-	nav   *Plugin
-	cell  goke.Comp[unit.At]
-	base  goke.Comp[world.Base]
-	order goke.OptComp[MoveOrder]
-	q     *goke.Query
-	blue  uid.UID64
+	t         *testing.T
+	grid      grid.Grid
+	ecs       *goke.ECS
+	nav       *Plugin
+	cell      goke.Comp[unit.At]
+	base      goke.Comp[world.Base]
+	orderComp goke.OptComp[MoveOrder]
+	q         *goke.Query
+	blue      uid.UID64
 }
 
 func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
@@ -116,7 +116,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 		systems = append(systems, produce()...)
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		tw.q = si.NewQueryBuilder(&tw.cell, &tw.base).Optional(&tw.order).Build()
+		tw.q = si.NewQueryBuilder(&tw.cell, &tw.base).Optional(&tw.orderComp).Build()
 		for tw.q.All(); tw.q.Next(); { // the units hold the cells they start in
 			cur := tw.q.Cursor()
 			for i, id := range cur.IDs {
@@ -139,7 +139,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	for tw.q.All(); tw.q.Next(); {
 		cur := tw.q.Cursor()
 		for i, id := range cur.IDs {
-			if tw.order.Slice(cur) != nil && tw.base.Slice(cur)[i].TypeID == blue.ID() {
+			if tw.orderComp.Slice(cur) != nil && tw.base.Slice(cur)[i].TypeID == blue.ID() {
 				tw.blue = id
 			}
 		}
@@ -157,7 +157,7 @@ func (tw *turnaroundWorld) blueState() (cell cell.ID, mt *MoveOrder) {
 				continue
 			}
 			cell = tw.cell.Slice(cur)[i].Cell
-			if orders := tw.order.Slice(cur); orders != nil {
+			if orders := tw.orderComp.Slice(cur); orders != nil {
 				o := orders[i]
 				mt = &o
 			}

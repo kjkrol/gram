@@ -1,4 +1,4 @@
-package navigation
+package order
 
 import "github.com/kjkrol/gram/plugins/board/cell"
 
@@ -15,16 +15,19 @@ type Path struct {
 	Index  uint16
 }
 
-func (p *Path) at() cell.ID {
+// At is the cell p's route stands at: the last step taken, or From.
+func At(p *Path) cell.ID {
 	if p.Index == 0 {
 		return p.From
 	}
 	return p.Steps[p.Index-1]
 }
 
-func (p *Path) deck(k uint16) bool { return k < 64 && p.Decks>>k&1 != 0 }
+// Deck reports whether p's step k lies on a raised deck.
+func Deck(p *Path, k uint16) bool { return k < 64 && p.Decks>>k&1 != 0 }
 
-// a route to the ground under a deck may cross the deck over its goal first
-func (p *Path) through(c cell.ID) bool {
+// Through reports whether p's route goes on through c, its next step: a route to the ground
+// under a deck may cross the deck over its goal first.
+func Through(p *Path, c cell.ID) bool {
 	return p.Index+1 < p.Length && p.Steps[p.Index] == c
 }

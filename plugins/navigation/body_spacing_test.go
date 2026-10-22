@@ -43,16 +43,16 @@ func (fw *fieldWorld) standAt(p geom.Vec) *MoveOrder {
 }
 
 type fieldWorld struct {
-	t     *testing.T
-	grid  grid.Grid
-	ecs   *goke.ECS
-	nav   *Plugin
-	base  goke.Comp[world.Base]
-	cell  goke.Comp[unit.At]
-	order goke.OptComp[MoveOrder]
-	coll  goke.OptComp[collision.Collider]
-	q     *goke.Query
-	ids   []uid.UID64 // in the order given
+	t         *testing.T
+	grid      grid.Grid
+	ecs       *goke.ECS
+	nav       *Plugin
+	base      goke.Comp[world.Base]
+	cell      goke.Comp[unit.At]
+	orderComp goke.OptComp[MoveOrder]
+	coll      goke.OptComp[collision.Collider]
+	q         *goke.Query
+	ids       []uid.UID64 // in the order given
 }
 
 const fieldCell = 32
@@ -151,7 +151,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 		systems = append(systems, produce()...)
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		fw.q = si.NewQueryBuilder(&fw.base, &fw.cell).Optional(&fw.order).Optional(&fw.coll).Build()
+		fw.q = si.NewQueryBuilder(&fw.base, &fw.cell).Optional(&fw.orderComp).Optional(&fw.coll).Build()
 	}})
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
@@ -181,7 +181,7 @@ func (fw *fieldWorld) at(x, y uint32) cell.ID { c := fw.grid.At(x, y); return c 
 func (fw *fieldWorld) each(fn func(id uid.UID64, b *world.Base, cell cell.ID, o *MoveOrder, c *collision.Collider)) {
 	for fw.q.All(); fw.q.Next(); {
 		cur := fw.q.Cursor()
-		bases, cells, orders, colls := fw.base.Slice(cur), fw.cell.Slice(cur), fw.order.Slice(cur), fw.coll.Slice(cur)
+		bases, cells, orders, colls := fw.base.Slice(cur), fw.cell.Slice(cur), fw.orderComp.Slice(cur), fw.coll.Slice(cur)
 		for i, id := range cur.IDs {
 			var o *MoveOrder
 			if orders != nil {

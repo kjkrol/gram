@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"math"
 	"testing"
 	"time"
@@ -69,24 +70,24 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var order goke.Comp[MoveOrder]
+	var orderComp goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
 	var course goke.Comp[steering.Course]
 	var q *goke.Query
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&at, &pos, &order, &profile, &course)
+		f := si.NewFactory(&at, &pos, &orderComp, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
 		at.Slice(&f.Cursor)[0] = unit.At{Cell: start}
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: cellBox(grid, start, 8)}
-		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
+		orderComp.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
 		occupancy.Enter(start, false, id, cell.Land)
 
-		q = si.NewQueryBuilder(&at, &order).Build()
+		q = si.NewQueryBuilder(&at, &orderComp).Build()
 	}})
 
 	pusherHandle := ecs.RegSys(pusher)
@@ -101,7 +102,7 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 
 	ecs.Tick(time.Second)
 
-	c, mt := readCellAndMoveOrder(t, q, &at, &order)
+	c, mt := readCellAndMoveOrder(t, q, &at, &orderComp)
 	if mt.Path.Length == 0 {
 		t.Fatal("expected a path to have been computed on the first tick")
 	}
@@ -116,7 +117,7 @@ func TestNavigationSystem_Update_DeviationTriggersRepath(t *testing.T) {
 	pusher.armed = true
 	ecs.Tick(time.Second)
 
-	c, mt = readCellAndMoveOrder(t, q, &at, &order)
+	c, mt = readCellAndMoveOrder(t, q, &at, &orderComp)
 	if c.Cell != pushed {
 		t.Errorf("At.Cell = %v, want %v (deviation should resync bookkeeping to the actual cell)", c.Cell, pushed)
 	}
@@ -174,24 +175,24 @@ func TestNavigationSystem_Update_MovedOffItsRouteByAnotherRepaths(t *testing.T) 
 
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var order goke.Comp[MoveOrder]
+	var orderComp goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
 	var course goke.Comp[steering.Course]
 	var q *goke.Query
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&at, &pos, &order, &profile, &course)
+		f := si.NewFactory(&at, &pos, &orderComp, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
 		at.Slice(&f.Cursor)[0] = unit.At{Cell: start}
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: cellBox(grid, start, 8)}
-		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
+		orderComp.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
 		occupancy.Enter(start, false, id, cell.Land)
 
-		q = si.NewQueryBuilder(&at, &order).Build()
+		q = si.NewQueryBuilder(&at, &orderComp).Build()
 	}})
 
 	followerHandle := ecs.RegSys(follower)
@@ -203,14 +204,14 @@ func TestNavigationSystem_Update_MovedOffItsRouteByAnotherRepaths(t *testing.T) 
 	})
 
 	ecs.Tick(time.Second / 60)
-	_, mt := readCellAndMoveOrder(t, q, &at, &order)
+	_, mt := readCellAndMoveOrder(t, q, &at, &orderComp)
 	if mt.Leg.Active || mt.Path.Length == 0 || mt.Path.Steps[mt.Path.Index] != held {
 		t.Fatalf("the unit should wait on its route for the cell held ahead: %+v", mt.Leg)
 	}
 
 	follower.armed = true
 	ecs.Tick(time.Second / 60)
-	_, mt = readCellAndMoveOrder(t, q, &at, &order)
+	_, mt = readCellAndMoveOrder(t, q, &at, &orderComp)
 	if mt.Path.Length == 0 {
 		t.Fatal("expected a route planned again")
 	}
@@ -232,14 +233,14 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var order goke.Comp[MoveOrder]
+	var orderComp goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
 	var course goke.Comp[steering.Course]
 	var q *goke.Query
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&at, &pos, &order, &profile, &course)
+		f := si.NewFactory(&at, &pos, &orderComp, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
@@ -251,14 +252,14 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 		mt.Path.Length = 1
 		c1, c2, _ := grid.DiagonalNeighbors(previous, expected)
 		mt.Leg = Leg{From: previous, To: expected, C1: c1, C2: c2, Diagonal: true, Active: true}
-		order.Slice(&f.Cursor)[0] = mt
+		orderComp.Slice(&f.Cursor)[0] = mt
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		cells, n := mt.Leg.cells()
+		cells, n := order.Cells(mt.Leg)
 		for _, c := range cells[:n] {
 			occupancy.Enter(c, false, id, cell.Land)
 		}
 
-		q = si.NewQueryBuilder(&at, &order).Build()
+		q = si.NewQueryBuilder(&at, &orderComp).Build()
 	}})
 
 	steerHandle := ecs.RegSys(steer)
@@ -271,7 +272,7 @@ func TestNavigationSystem_Update_TransientFlankerCellDoesNotInvalidatePath(t *te
 
 	ecs.Tick(time.Second)
 
-	c, mt := readCellAndMoveOrder(t, q, &at, &order)
+	c, mt := readCellAndMoveOrder(t, q, &at, &orderComp)
 	if c.Cell != previous {
 		t.Fatalf("At.Cell = %v, want %v (bookkeeping should ignore a transient flanker read, not just tolerate it)", c.Cell, previous)
 	}
@@ -292,21 +293,21 @@ func TestNavigationSystem_Update_ArrivalStopsEntity(t *testing.T) {
 
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var order goke.Comp[MoveOrder]
+	var orderComp goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
 	var course goke.Comp[steering.Course]
 	var q *goke.Query
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&at, &pos, &order, &profile, &course)
+		f := si.NewFactory(&at, &pos, &orderComp, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
 		at.Slice(&f.Cursor)[0] = unit.At{Cell: start}
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: cellBox(grid, start, 8)}
 		pos.Slice(&f.Cursor)[0].Vel = world.Velocity{Dir: geom.NewVec(1, 0), Value: 50}
-		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
+		orderComp.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
 		occupancy.Enter(start, false, id, cell.Land)
 
@@ -354,20 +355,20 @@ func TestNavigationSystem_Update_ArrivalSnapsToCellCenter(t *testing.T) {
 
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var order goke.Comp[MoveOrder]
+	var orderComp goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
 	var course goke.Comp[steering.Course]
 	var q *goke.Query
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&at, &pos, &order, &profile, &course)
+		f := si.NewFactory(&at, &pos, &orderComp, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
 		at.Slice(&f.Cursor)[0] = unit.At{Cell: target}
 		pos.Slice(&f.Cursor)[0].Pos = offCenter
-		order.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
+		orderComp.Slice(&f.Cursor)[0] = MoveOrder{Target: target}
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
 		occupancy.Enter(target, false, id, cell.Land)
 
@@ -466,11 +467,11 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var order goke.Comp[MoveOrder]
+	var orderComp goke.Comp[MoveOrder]
 	var q *goke.Query
 	nw := newNavWorld(t, gridWidth, gridHeight, cellSize, []navUnit{{
 		box: cellBox(grid, start, entitySize), at: start, profile: &steering.Steering{MaxSpeed: speed}, order: &MoveOrder{Target: target},
-	}}, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&at, &pos, &order).Build() }})
+	}}, goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&at, &pos, &orderComp).Build() }})
 	terrain, ecs := nw.board, nw.ecs
 	for y := uint32(2); y < gridHeight; y++ {
 		c := grid.At(wallCol, y)
@@ -491,7 +492,7 @@ func TestNavigationSystem_Update_ReproducesBoardDemoWallScenario(t *testing.T) {
 			cur := q.Cursor()
 			cells := at.Slice(cur)
 			positions := pos.Slice(cur)
-			orders := order.Slice(cur)
+			orders := orderComp.Slice(cur)
 			for i := range cur.IDs {
 				if !terrain.Kind(cells[i].Cell).Admits(cell.Land) {
 					t.Fatalf("tick %d: entity's logical Cell is inside impassable terrain: %v", tick, cells[i].Cell)

@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"cmp"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"math"
 	"slices"
 	"time"
@@ -181,18 +182,18 @@ func (a *avoiding) route(f *pathFinder, m member, from cell.ID, o *MoveOrder) (P
 	due := o.Retry == 0
 	if o.Avoids > 0 && due {
 		if p, ok := a.find(f, m, from, o, true); ok {
-			o.found()
+			order.Found(o)
 			return p, true
 		}
-		o.failed()
+		order.Failed(o)
 	}
 	p, ok := a.find(f, m, from, o, false)
 	switch {
 	case o.Avoids > 0:
 	case ok:
-		o.found()
+		order.Found(o)
 	case due:
-		o.failed()
+		order.Failed(o)
 	}
 	return p, ok
 }
@@ -348,10 +349,10 @@ func (k *cellKeeping) bump(m member, o *MoveOrder) bumpAnswer {
 			return giveUp
 		}
 		o.Target, o.Path, o.Leg = dest, path, Leg{}
-		o.found()
+		order.Found(o)
 		return carryOn
 	}
-	o.learn(o.Toward)
+	order.Learn(o, o.Toward)
 	o.Path, o.Leg = Path{}, Leg{}
 	return carryOn
 }
@@ -442,7 +443,7 @@ func (k *cellKeeping) detour(m member, o *MoveOrder, other body) bumpAnswer {
 	}
 	c := o.Toward
 	if c != o.Target && c != m.cell {
-		o.learn(c)
+		order.Learn(o, c)
 	}
 	if o.Cornered && o.Retry > 0 {
 		o.Holding = 0
@@ -467,6 +468,6 @@ func (k *cellKeeping) settle(m member, o *MoveOrder, _ body) bool {
 		return false
 	}
 	o.Target, o.Path, o.Leg = dest, path, Leg{}
-	o.found()
+	order.Found(o)
 	return true
 }

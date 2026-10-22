@@ -45,20 +45,20 @@ type roadUnit struct {
 }
 
 type roadWorld struct {
-	t       *testing.T
-	grid    grid.Grid
-	w       *world.Plugin
-	ecs     *goke.ECS
-	nav     *Plugin
-	driving *driving.Plugin
-	players *players.Plugin
-	cams    []camera.Camera // each player's, by id − 1
-	cell    goke.Comp[unit.At]
-	base    goke.Comp[world.Base]
-	order   goke.OptComp[MoveOrder]
-	q       *goke.Query
-	kinds   map[uid.UID64]kind.ID
-	byRow   map[int]uid.UID64 // row index → entity
+	t         *testing.T
+	grid      grid.Grid
+	w         *world.Plugin
+	ecs       *goke.ECS
+	nav       *Plugin
+	driving   *driving.Plugin
+	players   *players.Plugin
+	cams      []camera.Camera // each player's, by id − 1
+	cell      goke.Comp[unit.At]
+	base      goke.Comp[world.Base]
+	orderComp goke.OptComp[MoveOrder]
+	q         *goke.Query
+	kinds     map[uid.UID64]kind.ID
+	byRow     map[int]uid.UID64 // row index → entity
 }
 
 const roadCell = 32
@@ -172,7 +172,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		systems = append(systems, produce()...)
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		rw.q = si.NewQueryBuilder(&rw.cell, &rw.base).Optional(&rw.order).Build()
+		rw.q = si.NewQueryBuilder(&rw.cell, &rw.base).Optional(&rw.orderComp).Build()
 	}})
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
@@ -210,7 +210,7 @@ func (rw *roadWorld) state(id uid.UID64) (cell cell.ID, order *MoveOrder) {
 				continue
 			}
 			cell = rw.cell.Slice(cur)[i].Cell
-			if orders := rw.order.Slice(cur); orders != nil {
+			if orders := rw.orderComp.Slice(cur); orders != nil {
 				o := orders[i]
 				order = &o
 			}

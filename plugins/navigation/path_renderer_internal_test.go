@@ -186,13 +186,13 @@ func TestPathRenderer_OutlinesEachKindsGoalInItsRouteStyle(t *testing.T) {
 	r.BindSpace(space)
 	var base goke.Comp[world.Base]
 	var at goke.Comp[unit.At]
-	var order goke.Comp[MoveOrder]
+	var orderComp goke.Comp[MoveOrder]
 	var marks goke.Comp[tag.Tags[selection.Family]]
 	var app goke.Comp[render.Appearance]
 	ecs := goke.New()
 	ecs.Setup(
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
-			f := si.NewFactory(&base, &at, &order, &marks, &app)
+			f := si.NewFactory(&base, &at, &orderComp, &marks, &app)
 			f.Create(2)
 			for f.Next() {
 				for i := range f.Cursor.IDs {
@@ -200,7 +200,7 @@ func TestPathRenderer_OutlinesEachKindsGoalInItsRouteStyle(t *testing.T) {
 					box := plane.NewAABB(g.CellCenter(c), 10, 10)
 					base.Slice(&f.Cursor)[i].Pos = world.Position{AABB: box}
 					at.Slice(&f.Cursor)[i] = unit.At{Cell: c}
-					order.Slice(&f.Cursor)[i] = MoveOrder{Target: g.At(uint32(i), 3)}
+					orderComp.Slice(&f.Cursor)[i] = MoveOrder{Target: g.At(uint32(i), 3)}
 					marks.Slice(&f.Cursor)[i] = tag.Tags[selection.Family](0).With(selected)
 					app.Slice(&f.Cursor)[i] = render.Appearance{SpriteID: render.SpriteID(6 + i)}
 				}
