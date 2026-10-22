@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
+// Finder searches the board for a unit's route, over its terrain, slopes and occupancy.
 type Finder struct {
 	*pathfind.Finder
 	grid      grid.Grid
@@ -18,10 +19,12 @@ type Finder struct {
 	Occupancy cell.Occupancy
 }
 
+// NewFinder searches grid's terrain, its slopes and occupancy.
 func NewFinder(grid grid.Grid, terrain cell.Terrain, slopes pathfind.Slopes, occupancy cell.Occupancy) *Finder {
 	return &Finder{Finder: pathfind.New(grid, terrain, slopes, occupancy), grid: grid, Terrain: terrain, Occupancy: occupancy}
 }
 
+// FindPath is the route from from to to, ending on level end, for a body of domain.
 func (p *Finder) FindPath(
 	entity uid.UID64, domain cell.Domain, body pathfind.Body, from, to cell.ID, end order.Level,
 ) (order.Path, bool) {
@@ -82,6 +85,7 @@ func (p *Finder) onDeck(m bodies.Member, c cell.ID) bool {
 	return p.Level(m.Domain, m.Body(), c) == pathfind.Deck
 }
 
+// BoardLevels are the board's decks and its ground as the search reads them.
 type BoardLevels struct{ Read *board.Read }
 
 func (l BoardLevels) Deck(c cell.ID) (top, under float64, carries cell.Domain, ok bool) {

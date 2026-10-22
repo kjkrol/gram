@@ -94,7 +94,8 @@ func TestCellSpacing_OneStandingStepsAsideOffTheWay(t *testing.T) {
 	occ := &cell.SingleOccupancy{}
 	k := spacing.NewCellKeeping(spacing.NewFinder(grid, terrain, nil, spacing.OpenOccupancy{}), occ)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	m := bodies.Member{ID: 7, Cell: at(1, 1), From: at(1, 1), Domain: cell.Land, Pos: posAt(grid, at(1, 1))}
+	m := bodies.Member{ID: 7, Cell: at(1, 1), From: at(1, 1), Domain: cell.Land,
+		Pos: posAt(grid, at(1, 1))}
 	coming := bodies.Body{ID: 3, At: grid.CellCenter(at(0, 1)), Cell: at(0, 1), Moving: true}
 	o, ok := k.StepAside(m, coming)
 	if !ok || !o.GivingWay || o.Target != at(1, 0) && o.Target != at(1, 2) || o.Queued != 0 {

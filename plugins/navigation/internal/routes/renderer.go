@@ -63,6 +63,7 @@ var DefaultRouteStyle = RouteStyle{Line: color.RGBA{R: 255, G: 140, B: 0, A: 220
 // the selection's width
 const goalWidth = 2
 
+// Renderer draws the selected units' routes and every unit's goal.
 type Renderer struct {
 	grid    grid.Grid
 	Style   RouteStyle // the kinds' default
@@ -101,6 +102,7 @@ type Renderer struct {
 
 var _ render.Direct = (*Renderer)(nil)
 
+// NewRenderer draws over grid in style the routes of the units marked selected.
 func NewRenderer(grid grid.Grid, style RouteStyle, selected tag.Tag[selection.Family]) *Renderer {
 	if style == (RouteStyle{}) {
 		style = DefaultRouteStyle
@@ -114,6 +116,7 @@ func (r *Renderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
 	}
 }
 
+// WithStyles reads the route style of a unit's kind off styles, the world's.
 func (r *Renderer) WithStyles(styles func() *render.Styles) *Renderer {
 	r.styles = styles
 	return r

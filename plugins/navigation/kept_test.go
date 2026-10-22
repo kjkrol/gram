@@ -30,7 +30,8 @@ func TestKept_ADetourAskedAgainIsAnsweredAsBeforeUnsearched(t *testing.T) {
 	board := cell.NewTerrainMap()
 	board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	read := &readTerrain{TerrainMap: board}
-	kept := spacing.NewCellKeeping(spacing.NewFinder(g, read, nil, spacing.OpenOccupancy{}), &cell.SingleOccupancy{})
+	kept := spacing.NewCellKeeping(spacing.NewFinder(g, read, nil, spacing.OpenOccupancy{}),
+		&cell.SingleOccupancy{})
 	fresh := spacing.NewCellKeeping(spacing.NewFinder(g, board, nil, &cell.MultipleOccupancy{}),
 		&cell.SingleOccupancy{})
 	stand := func(c cell.ID, size uint32) bodies.Member {
@@ -60,7 +61,8 @@ func TestKept_ADetourAskedAgainIsAnsweredAsBeforeUnsearched(t *testing.T) {
 			}
 		}, true},
 		{"asked again", nil, false},
-		{"no way round a cell learnt", func(_ *bodies.Member, o *MoveOrder) { o.Toward = at(3, 1) }, true},
+		{"no way round a cell learnt", func(_ *bodies.Member, o *MoveOrder) { o.Toward = at(3, 1) },
+			true},
 		{"cornered, waiting", nil, false},
 		{"its wait over, asked again", func(_ *bodies.Member, o *MoveOrder) { o.Retry = 0 }, false},
 	} {

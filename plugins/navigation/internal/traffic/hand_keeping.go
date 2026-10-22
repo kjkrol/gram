@@ -12,6 +12,7 @@ import (
 
 var _ driving.Keeping = (*HandKeeping)(nil)
 
+// HandKeeping answers the driving whether a unit driven by hand may step on (driving.Keeping).
 type HandKeeping struct {
 	Keep spacing.Keeping // set at Install
 	Nav  *System         // set at Install

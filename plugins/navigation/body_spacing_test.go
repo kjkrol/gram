@@ -559,7 +559,8 @@ func TestBodySpacing_StrikingSomeoneByTheShoreItStepsRoundByLand(t *testing.T) {
 	if wet > 0 {
 		t.Errorf("the unit stood over the water for %d ticks", wet)
 	}
-	if at, o := fw.centre(0); o != nil || math.Hypot(at.X-goal.X, at.Y-goal.Y) > 6*(1+spacing.SpacingGap) {
+	if at, o := fw.centre(0); o != nil ||
+		math.Hypot(at.X-goal.X, at.Y-goal.Y) > 6*(1+spacing.SpacingGap) {
 		t.Errorf("the unit stands at %v with order %v, want by the goal %v", at, o, goal)
 	}
 }

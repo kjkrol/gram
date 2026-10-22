@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/plugins/collision"
 )
 
+// Bumps is which of the units' strikes the system reacts to: none, any, or the ground's alone.
 type Bumps uint8
 
 const (

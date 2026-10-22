@@ -15,6 +15,8 @@ import (
 	"github.com/kjkrol/uid"
 )
 
+// Keeping is how units keep out of each other's way under a Spacing: their orders, their steps
+// and what they do on meeting.
 type Keeping interface {
 	Occupancy() cell.Occupancy
 	Begin(gather func([]bodies.Body) []bodies.Body)
@@ -30,8 +32,8 @@ type Keeping interface {
 	Steer(m bodies.Member, st steering.Helm, dir geom.Vec, speed float64)
 	Watch(m bodies.Member, o *order.MoveOrder, toward cell.ID, want geom.Vec, d time.Duration)
 	Bump(m bodies.Member, o *order.MoveOrder) BumpAnswer
-	Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, deck bool, d time.Duration) (holder uid.UID64,
-		known bool)
+	Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, deck bool,
+		d time.Duration) (holder uid.UID64, known bool)
 	Within(m bodies.Member) float64
 	On(m bodies.Member, c cell.ID, level order.Level) bool
 	// near is the caller's scratch for the bodies near, nil for the keeping's own
@@ -55,6 +57,7 @@ type holders interface {
 	Holder(c cell.ID, deck bool, d cell.Domain) (uid.UID64, bool)
 }
 
+// BumpAnswer is what a unit does after it struck someone: stop and plan, carry on or give up.
 type BumpAnswer uint8
 
 const (
@@ -156,7 +159,8 @@ func (a *avoiding) find(f *Finder, m bodies.Member, from cell.ID, o *order.MoveO
 
 // round the cells learned unless that found nothing within o's Retry, else any route; the first
 // of the two run says whether o waits
-func (a *avoiding) route(f *Finder, m bodies.Member, from cell.ID, o *order.MoveOrder) (order.Path, bool) {
+func (a *avoiding) route(f *Finder, m bodies.Member, from cell.ID, o *order.MoveOrder) (order.Path,
+	bool) {
 	due := o.Retry == 0
 	if o.Avoids > 0 && due {
 		if p, ok := a.find(f, m, from, o, true); ok {
@@ -176,6 +180,7 @@ func (a *avoiding) route(f *Finder, m bodies.Member, from cell.ID, o *order.Move
 	return p, ok
 }
 
+// CellKeeping gives a unit a cell to itself in each domain, as the occupancy says (CellSpacing).
 type CellKeeping struct {
 	finder *Finder
 	occ    cell.Occupancy
@@ -191,6 +196,7 @@ type CellKeeping struct {
 
 var _ Keeping = (*CellKeeping)(nil)
 
+// NewCellKeeping keeps the units in cells of their own over finder's board and occ.
 func NewCellKeeping(finder *Finder, occ cell.Occupancy) *CellKeeping {
 	k := &CellKeeping{finder: finder, occ: occ, index: bodies.NewIndex(finder.grid)}
 	k.who, _ = occ.(holders)
@@ -205,7 +211,8 @@ func (k *CellKeeping) Begin(gather func([]bodies.Body) []bodies.Body) {
 	k.index.Build(gather(k.index.Bodies[:0]))
 }
 
-func (k *CellKeeping) Orders(members []bodies.Member, cmd order.MoveTo, issue func(bodies.Member, order.MoveOrder)) {
+func (k *CellKeeping) Orders(members []bodies.Member, cmd order.MoveTo, issue func(bodies.Member,
+	order.MoveOrder)) {
 	target := cmd.Cell
 	var moves []bodies.Member
 	for _, m := range members {
@@ -288,7 +295,8 @@ func (k *CellKeeping) Steer(_ bodies.Member, st steering.Helm, dir geom.Vec, spe
 	st.RequestSpeed(speed)
 }
 
-func (k *CellKeeping) Watch(m bodies.Member, o *order.MoveOrder, _ cell.ID, _ geom.Vec, _ time.Duration) {
+func (k *CellKeeping) Watch(m bodies.Member, o *order.MoveOrder, _ cell.ID, _ geom.Vec,
+	_ time.Duration) {
 	o.Stalled = 0
 	if m.Cell == o.Toward {
 		o.Stalls = 0
@@ -337,7 +345,8 @@ func (k *CellKeeping) Bump(m bodies.Member, o *order.MoveOrder) BumpAnswer {
 
 func (k *CellKeeping) Within(bodies.Member) float64 { return ArrivalEpsilon }
 
-func (k *CellKeeping) MayStep(m bodies.Member, ahead cell.ID, deck bool, _ geom.Vec, _ *bodies.Nearby) bool {
+func (k *CellKeeping) MayStep(m bodies.Member, ahead cell.ID, deck bool, _ geom.Vec,
+	_ *bodies.Nearby) bool {
 	return ahead == m.Cell || k.occ.CanEnter(ahead, deck, m.ID, m.Domain)
 }
 

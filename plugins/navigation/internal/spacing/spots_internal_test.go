@@ -118,7 +118,8 @@ func TestPlace_UnitsNearlyACellLargeSpreadOverTheNeighboursAndTwoShareACellAtIts
 	}
 	checkApart(t, big, 28)
 
-	two, _ := r.keep.place(r.units(2, 12), geom.NewVec(centre.X-11, centre.Y), target, order.EitherLevel)
+	two, _ := r.keep.place(r.units(2, 12), geom.NewVec(centre.X-11, centre.Y), target,
+		order.EitherLevel)
 	for _, p := range two {
 		if p.cell != target {
 			t.Fatalf("spots %v, want both on the target: a 12 box each side of the cell, over its edges", two)

@@ -24,6 +24,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
+// System moves the units along their orders' routes, step by step, among the others.
 type System struct {
 	Pace       goke.Opt
 	grid       grid.Grid
@@ -90,6 +91,7 @@ var _ goke.System = (*System)(nil)
 
 const bumpInterval = 500 * time.Millisecond
 
+// NewSystem moves the units over grid's terrain, holding their steps in occupancy.
 func NewSystem(pathFinder *spacing.Finder, grid grid.Grid, terrain cell.Terrain, occupancy cell.Occupancy) *System {
 	s := &System{
 		grid:       grid,
@@ -102,11 +104,13 @@ func NewSystem(pathFinder *spacing.Finder, grid grid.Grid, terrain cell.Terrain,
 	return s
 }
 
+// WithKeeping has k keep the units apart.
 func (s *System) WithKeeping(k spacing.Keeping) *System {
 	s.keep, s.occupancy = k, k.Occupancy()
 	return s
 }
 
+// BindSpace has the units found in space.
 func (s *System) BindSpace(space *aabbworld.Space) { s.space = space }
 
 func (s *System) Init(si *goke.SysInit) {

@@ -345,7 +345,8 @@ func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 			coming := bodies.Body{ID: 3, At: grid.CellCenter(at(1, 2)), Half: geom.NewVec(3, 3), Cell: at(1, 2), Moving: true, Domain: cell.Land}
 
 			cells := spacing.NewCellKeeping(finder, &cell.SingleOccupancy{})
-			m := bodies.Member{ID: 7, Cell: at(2, 2), From: at(2, 2), Domain: cell.Land, Pos: posAt(grid, at(2, 2))}
+			m := bodies.Member{ID: 7, Cell: at(2, 2), From: at(2, 2), Domain: cell.Land,
+				Pos: posAt(grid, at(2, 2))}
 			if o, ok := cells.StepAside(m, coming); ok != open || open && o.Target != at(2, 3) {
 				t.Errorf("cells, %s on every side but open %v: stepped aside %v to %v, want only to the open (2,3)", name, open, ok, o.Target)
 			}

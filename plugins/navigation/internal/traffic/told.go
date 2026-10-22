@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
+// GivenQueues are the commands the units give themselves among others.
 type GivenQueues struct {
 	asides  command.Queue[order.StepAside]
 	detours command.Queue[order.Detour]
@@ -15,6 +16,7 @@ type GivenQueues struct {
 	stops   command.Queue[order.Stop]
 }
 
+// All are the queues, for the carrier.
 func (q *GivenQueues) All() []command.CommandQueue {
 	return []command.CommandQueue{&q.asides, &q.detours, &q.passes, &q.holds, &q.settles, &q.stops}
 }

@@ -109,8 +109,8 @@ func (k *BodyKeeping) place(units []bodies.Member, at geom.Vec, target cell.ID,
 	return k.placeClearOf(units, at, target, level, nil)
 }
 
-func (k *BodyKeeping) placeClearOf(units []bodies.Member, at geom.Vec, target cell.ID, level order.Level,
-	struck []bodies.Body) (out []placed, way geom.Vec) {
+func (k *BodyKeeping) placeClearOf(units []bodies.Member, at geom.Vec, target cell.ID,
+	level order.Level, struck []bodies.Body) (out []placed, way geom.Vec) {
 	out = make([]placed, len(units))
 	if len(units) == 0 {
 		return out, way
@@ -173,7 +173,8 @@ func (k *BodyKeeping) wayOf(units []bodies.Member, at geom.Vec) geom.Vec {
 
 // the units furthest on along way take the deepest row, keeping their order across it, so none
 // passes one standing already nor crosses another's way
-func (k *BodyKeeping) deepFirst(units []bodies.Member, order []int, out []placed, at, way geom.Vec) {
+func (k *BodyKeeping) deepFirst(units []bodies.Member, order []int, out []placed,
+	at, way geom.Vec) {
 	if way == (geom.Vec{}) {
 		return
 	}

@@ -33,10 +33,13 @@ func goRound() act.Rule {
 		Name: "navigation.go round",
 		When: cond.Self.If(cond.Always),
 		Then: act.OneOf(
-			act.Branch[order.Touch]{When: cond.Self.If(order.GoalTaken()), Then: act.Self.Do(order.Settle{})},
+			act.Branch[order.Touch]{When: cond.Self.If(order.GoalTaken()),
+				Then: act.Self.Do(order.Settle{})},
 			act.Branch[order.Touch]{When: cond.Self.If(order.WaitsFirst()), Then: act.Self.Do(order.Hold{})},
-			act.Branch[order.Touch]{When: cond.Self.If(order.NoWayRound()), Then: act.Self.Do(order.StepAside{})},
-			act.Branch[order.Touch]{When: cond.Self.If(order.ClearsTheWay()), Then: act.Self.Do(order.Pass{})},
+			act.Branch[order.Touch]{When: cond.Self.If(order.NoWayRound()),
+				Then: act.Self.Do(order.StepAside{})},
+			act.Branch[order.Touch]{When: cond.Self.If(order.ClearsTheWay()),
+				Then: act.Self.Do(order.Pass{})},
 			act.Branch[order.Touch]{When: cond.Self.If(order.Blocks()), Then: act.Self.Do(order.Detour{})},
 		),
 	}

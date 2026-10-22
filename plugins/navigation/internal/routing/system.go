@@ -20,6 +20,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
+// System carries out the MoveTo, LookAt and Onward commands: an order for each unit sent.
 type System struct {
 	keep     spacing.Keeping
 	moves    *command.Queue[order.MoveTo]
@@ -70,10 +71,12 @@ func issuedBy[C command.Command](i command.Issued[C]) issuer {
 
 var _ goke.System = (*System)(nil)
 
+// NewSystem carries out moves and looks for the units marked selected, routing over pathFinder.
 func NewSystem(pathFinder *spacing.Finder, moves *command.Queue[order.MoveTo], looks *command.Queue[order.LookAt], selected tag.Tag[selection.Family]) *System {
 	return &System{keep: spacing.NewCellKeeping(pathFinder, pathFinder.Occupancy), moves: moves, looks: looks, selected: selected, kind: pathFinder.Terrain.Kind}
 }
 
+// WithKeeping has k place the units a command sends.
 func (s *System) WithKeeping(k spacing.Keeping) *System {
 	s.keep = k
 	return s
@@ -185,7 +188,8 @@ func (s *System) selectedMembers(by command.Issuer, fn func(bodies.Member)) {
 			if !marks[i].Has(s.selected) || !owner.Obeys(owned, by) {
 				continue
 			}
-			m := bodies.Member{ID: id, Cell: cells[i].Cell, From: cells[i].Cell, Domain: unit.DomainAt(movers, i)}
+			m := bodies.Member{ID: id, Cell: cells[i].Cell, From: cells[i].Cell,
+				Domain: unit.DomainAt(movers, i)}
 			if orders != nil {
 				m.Order = &orders[i]
 				if leg := orders[i].Leg; leg.Active {

@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/uid"
 )
 
+// StallAfter is how long a unit comes no nearer its next cell before it counts as held.
 const StallAfter = time.Second
 
 const maxStalls = 5
@@ -25,6 +26,7 @@ const asideTime = 400 * time.Millisecond
 // how much of the way to its goal a unit keeps while it steps round someone
 const asideGoal = 0.5
 
+// OpenOccupancy holds no cell for anyone: a search blind to the others.
 type OpenOccupancy struct{}
 
 func (OpenOccupancy) CanEnter(cell.ID, bool, uid.UID64, cell.Domain) bool { return true }
@@ -33,6 +35,7 @@ func (OpenOccupancy) Leave(cell.ID, uid.UID64)                            {}
 func (OpenOccupancy) Holders(cell.ID, func(uid.UID64, cell.Domain, bool)) {}
 func (OpenOccupancy) Release(func(uid.UID64) bool)                        {}
 
+// BodyKeeping keeps units apart by their boxes, several standing in one cell (BodySpacing).
 type BodyKeeping struct {
 	finder  *Finder
 	grid    grid.Grid
@@ -49,6 +52,7 @@ type BodyKeeping struct {
 
 var _ Keeping = (*BodyKeeping)(nil)
 
+// NewBodyKeeping keeps the bodies apart over finder's board and space, on ground's heights.
 func NewBodyKeeping(finder *Finder, space *aabbworld.Space, ground func() ground.Heights) *BodyKeeping {
 	k := &BodyKeeping{
 		finder:  finder,
@@ -102,7 +106,8 @@ func wrapAxis(v, size float64) float64 {
 
 func half(m bodies.Member) geom.Vec { return geom.NewVec(m.Pos.Size.X/2, m.Pos.Size.Y/2) }
 
-func (k *BodyKeeping) Orders(members []bodies.Member, cmd order.MoveTo, issue func(bodies.Member, order.MoveOrder)) {
+func (k *BodyKeeping) Orders(members []bodies.Member, cmd order.MoveTo, issue func(bodies.Member,
+	order.MoveOrder)) {
 	at := cmd.At
 	if at == (geom.Vec{}) {
 		at = k.grid.CellCenter(cmd.Cell)
@@ -363,11 +368,12 @@ func (k *BodyKeeping) goalOf(o *order.MoveOrder) geom.Vec {
 	return k.grid.CellCenter(o.Target)
 }
 
+// YieldLinger is how long a unit stands where it stepped aside before it goes on.
 const YieldLinger = time.Second
 
 // never called: the open occupancy refuses nobody
-func (k *BodyKeeping) Blocked(bodies.Member, *order.MoveOrder, cell.ID, bool, time.Duration) (uid.UID64,
-	bool) {
+func (k *BodyKeeping) Blocked(bodies.Member, *order.MoveOrder, cell.ID, bool,
+	time.Duration) (uid.UID64, bool) {
 	return 0, false
 }
 
@@ -377,7 +383,8 @@ func (k *BodyKeeping) Within(m bodies.Member) float64 {
 	return min(ArrivalEpsilon, min(m.Pos.Size.X, m.Pos.Size.Y)/4)
 }
 
-func (k *BodyKeeping) MayStep(m bodies.Member, _ cell.ID, _ bool, heading geom.Vec, near *bodies.Nearby) bool {
+func (k *BodyKeeping) MayStep(m bodies.Member, _ cell.ID, _ bool, heading geom.Vec,
+	near *bodies.Nearby) bool {
 	if near == nil {
 		near = &k.index.Own
 	}

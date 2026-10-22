@@ -155,6 +155,7 @@ type Leg struct {
 	Active           bool
 }
 
+// Spot is a cell held on one of its levels, its raised deck or its ground.
 type Spot struct {
 	C    cell.ID
 	Deck bool
