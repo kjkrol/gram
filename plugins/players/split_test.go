@@ -33,7 +33,7 @@ func splitRig(t *testing.T) (*rig, *players.Player, *players.Player, *goke.ECS) 
 	ecs := r.start()
 	r.wire.Over(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(400, 600)), render.NewFeed(r.cam, nil))
 	r.p.Through(right).Over(geom.NewAABB(geom.NewVec(400, 0), geom.NewVec(800, 600)),
-		render.NewFeed(r.cams.New(cameras.FromAbove, camera.Config{}), nil))
+		render.NewFeed(r.cams.Write().New(cameras.FromAbove, camera.Config{}), nil))
 	return r, left, right, ecs
 }
 
@@ -95,7 +95,7 @@ func TestCursorOver_FiresEveryTickForThePlayerWhosePictureTheCursorLiesOver(t *t
 	ecs := r.start()
 	r.wire.Over(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(400, 600)), render.NewFeed(r.cam, nil))
 	r.p.Through(right).Over(geom.NewAABB(geom.NewVec(400, 0), geom.NewVec(800, 600)),
-		render.NewFeed(r.cams.New(cameras.FromAbove, camera.Config{}), nil))
+		render.NewFeed(r.cams.Write().New(cameras.FromAbove, camera.Config{}), nil))
 	r.handle(&control.InputEvents{MousePos: geom.NewVec(100, 300)})
 	for range 3 { // the cursor still, no input pass between the ticks: once a tick
 		ecs.Tick(time.Second / 60)

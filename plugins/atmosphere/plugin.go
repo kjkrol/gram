@@ -15,7 +15,6 @@ import (
 	"github.com/kjkrol/gram/plugins/atmosphere/aloft"
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
-	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/atmosphere/precipitation"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -70,14 +69,15 @@ type Plugin struct {
 	shadows      CloudShadows
 	kept         *plugin.Kept[Settings]
 
-	Res Resources
+	Res   Resources
+	read  Read
+	write Write
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
 var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ plugin.Tunable = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
-var _ board.Atmosphere = (*Plugin)(nil)
 
 // NewPlugin puts the atmosphere of cfg over worldPlugin, its sun shone through lightPlugin's
 // mechanism: the atmosphere's own entity carries the sun's Source and its Shining of the hour.
@@ -90,9 +90,10 @@ func NewPlugin(worldPlugin *world.Plugin, lightPlugin *light.Plugin, cfg Config)
 	clim := climate.New(worldPlugin, cal, cfg.Climate)
 	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, light: lightPlugin, calendar: cal,
 		climate: clim, sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
-	p.aloft = aloft.New(p.Air, air.Low)
+	p.read.p, p.write.p = p, p
+	p.aloft = aloft.New(p.read.Air, air.Low)
 	p.kept = plugin.Keep(&p.Res.Settings)
-	p.ShowClouds(AllBodies)
+	p.write.ShowClouds(AllBodies)
 	p.CastClouds(CloudShadows{Ground: true, Figures: true, High: true})
 	p.Self = world.NewSelf(worldPlugin, p, comp.Const(p.sky.Moonlight()),
 		comp.Const(climate.DefaultSpread()), comp.Const(light.Source{Strength: 1, Ambient: 1}),
@@ -103,29 +104,8 @@ func NewPlugin(worldPlugin *world.Plugin, lightPlugin *light.Plugin, cfg Config)
 		r = *cfg.Running
 	}
 	r.Day = r.Day && !cfg.Sky.Frozen // a light the sky's Config freezes stays frozen
-	p.SetRunning(r)
+	p.write.SetRunning(r)
 	return p
-}
-
-// Sun is the light of the day as it stands: the light plugin's, the sky's of the hour as its
-// Source scales it; the sky's own without a light plugin.
-func (p *Plugin) Sun() light.Distant {
-	if p.light == nil {
-		return p.sky.Sun()
-	}
-	return p.light.Read(0).Distant()
-}
-
-// Heavens is where the sun, the moon and the stars stand at the hour of the light.
-func (p *Plugin) Heavens() celestial.Heavens { return p.sky.Heavens() }
-
-// Air is the weather as the last step of the simulation left it, its clouds shading as
-// CloudShadows say.
-func (p *Plugin) Air() air.Weather {
-	w := p.climate.Air()
-	w.HighShade, w.ShadeGround, w.ShadeFigures = p.shadows.High, p.shadows.Ground,
-		p.shadows.Figures
-	return w
 }
 
 // CloudShadows is whose shadows the clouds cast: on the Ground, on the Figures standing on it,
@@ -145,9 +125,6 @@ func (p *Plugin) shadeHigh(on bool) {
 	p.shadows.High = on
 	p.Res.Settings.HighShade = on
 }
-
-// CloudShadows is whose shadows the clouds cast.
-func (p *Plugin) CloudShadows() CloudShadows { return p.shadows }
 
 // CloudLook is how the clouds are drawn: FlatClouds as flat sheets on the sky and the low ones
 // from above, LowBodies the low ones as bodies, heaped from under them and half see-through from
@@ -177,44 +154,8 @@ func (l CloudLook) String() string {
 	return "?"
 }
 
-// ShowClouds has the clouds drawn as look says (Settings.Clouds), AllBodies till then: a game's
-// say as it is made, the Clouds command's as it goes.
-func (p *Plugin) ShowClouds(look CloudLook) {
-	p.Res.Settings.Clouds = look
-	p.aloft.Show(look != ShadowsAlone)
-	p.aloft.Bodies(look == LowBodies || look == AllBodies)
-}
-
-// ShownClouds is how the clouds are drawn.
-func (p *Plugin) ShownClouds() CloudLook { return p.Res.Settings.Clouds }
-
-// AdaptClouds has the clouds follow the cameras' frame budget, or not (Settings.AdaptiveClouds):
-// drawn at fewer of the pixels first, as bodies to half the sight last.
-func (p *Plugin) AdaptClouds(on bool) { p.Res.Settings.AdaptiveClouds = on }
-
-// CloudsAdaptive reports whether the clouds follow the frame budget.
-func (p *Plugin) CloudsAdaptive() bool { return p.Res.Settings.AdaptiveClouds }
-
 // the pixels each way the clouds may be drawn at, from the most
 var coarses = []int{4, 6, 8}
-
-// DrawCloudsAt has the clouds drawn at a coarse of the pixels each way, 4, 6 or 8
-// (Settings.CloudCoarse); any other, 4.
-func (p *Plugin) DrawCloudsAt(coarse int) {
-	if !slices.Contains(coarses, coarse) {
-		coarse = coarses[0]
-	}
-	p.Res.Settings.CloudCoarse = coarse
-	p.aloft.Coarse(coarse)
-}
-
-// CloudsDrawnAt is the coarse of the pixels each way the clouds are drawn at, 4 to start.
-func (p *Plugin) CloudsDrawnAt() int {
-	if c := p.Res.Settings.CloudCoarse; c > 0 {
-		return c
-	}
-	return coarses[0]
-}
 
 // coarseRung is the rung of coarses coarse stands on, or the next down
 func coarseRung(coarse int) int {
@@ -224,24 +165,6 @@ func coarseRung(coarse int) int {
 		}
 	}
 	return len(coarses) - 1
-}
-
-// ReachClouds has the clouds drawn as bodies out to share of the camera's sight from where it
-// looks and flat beyond (Settings.CloudReach); 1 or more, or zero, everywhere.
-func (p *Plugin) ReachClouds(share float32) {
-	if share <= 0 || share > 1 {
-		share = 1
-	}
-	p.Res.Settings.CloudReach = share
-	p.aloft.BodiesTo(share)
-}
-
-// CloudsReach is the share of the camera's sight the clouds are bodies out to, 1 everywhere.
-func (p *Plugin) CloudsReach() float32 {
-	if r := p.Res.Settings.CloudReach; r > 0 {
-		return r
-	}
-	return 1
 }
 
 // a rung of the budget's ladder: the pixels the clouds are drawn at and the bodies' reach
@@ -254,32 +177,21 @@ type rung struct {
 // last and never under half the sight, the look never
 var ladder = []rung{{4, 1}, {6, 1}, {8, 1}, {8, 0.5}}
 
-// Following is whether the clouds follow the frame budget (cameras.Lever).
-func (p *Plugin) Following() bool { return p.CloudsAdaptive() }
-
-// Coarser draws the clouds at fewer of the pixels, or at the fewest as bodies to half the sight,
-// true where it could (cameras.Lever).
-func (p *Plugin) Coarser() bool { return p.step(1) }
-
-// Finer brings the clouds' bodies back to the whole sight, or draws them at more of the pixels,
-// true where it could (cameras.Lever).
-func (p *Plugin) Finer() bool { return p.step(-1) }
-
 func (p *Plugin) step(by int) bool {
 	at := p.rung() + by
 	if at < 0 || at >= len(ladder) {
 		return false
 	}
-	p.DrawCloudsAt(ladder[at].coarse)
-	p.ReachClouds(ladder[at].reach)
+	p.write.DrawCloudsAt(ladder[at].coarse)
+	p.write.ReachClouds(ladder[at].reach)
 	return true
 }
 
 // rung is the ladder's rung the clouds stand on: by their pixels, the last with the reach cut
 func (p *Plugin) rung() int {
-	coarse := p.CloudsDrawnAt()
+	coarse := p.read.CloudsDrawnAt()
 	last := len(ladder) - 1
-	if coarse == ladder[last].coarse && p.CloudsReach() < 1 {
+	if coarse == ladder[last].coarse && p.read.CloudsReach() < 1 {
 		return last
 	}
 	for k, r := range ladder {
@@ -328,7 +240,7 @@ func reliefOf(h ground.Heights, b *board.BoardRead) (low, peaks float64) {
 // weather first touches it.
 func (p *Plugin) WithWeathering(brd *board.Plugin, cfg weathering.Config) *Plugin {
 	p.Over(brd)
-	w, err := weathering.New(brd, p.Air, p.worldPlugin.Write().Effects(), p.calendar, cfg)
+	w, err := weathering.New(brd, p.read.Air, p.worldPlugin.Write().Effects(), p.calendar, cfg)
 	if err != nil {
 		panic(err)
 	}
@@ -337,18 +249,6 @@ func (p *Plugin) WithWeathering(brd *board.Plugin, cfg weathering.Config) *Plugi
 	p.climate.OnLand(w.Land())
 	return p
 }
-
-// Calendar is the day, the season and the moon of the world's clock.
-func (p *Plugin) Calendar() *calendar.Calendar { return p.calendar }
-
-// Sky is the light of the day, to freeze and move by hand.
-func (p *Plugin) Sky() *sky.Sky { return p.sky }
-
-// Climate is the climate and its weather.
-func (p *Plugin) Climate() *climate.Climate { return p.climate }
-
-// Weathering is what the weather does to the board, nil without WithWeathering.
-func (p *Plugin) Weathering() *weathering.Weathering { return p.weathering }
 
 func (p *Plugin) Name() string { return "gram.atmosphere" }
 
@@ -367,12 +267,13 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		ctx.Hosts(p.weathering.Rules())
 	}
 	shown := func() (stars, moon bool) {
-		r := p.Running()
+		r := p.read.Running()
 		return r.Stars, r.Moon
 	}
-	p.vault = backdrop.New(p.worldPlugin.Res.Config.Space, p.Sun, p.Air).WithHeavens(p.Heavens).
+	p.vault = backdrop.New(p.worldPlugin.Res.Config.Space, p.read.Sun, p.read.Air).
+		WithHeavens(p.read.Heavens).
 		WithShown(shown).WithClouds(p.skyClouds)
-	ctx.Draws(p.vault, p.aloft, precipitation.NewDrops(p.Sun, p.Air))
+	ctx.Draws(p.vault, p.aloft, precipitation.NewDrops(p.read.Sun, p.read.Air))
 	ctx.Looks(p.dress)
 	return nil
 }
@@ -382,11 +283,6 @@ func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.carryOut()
 	p.module.RunPlan(ctx, d)
 }
-
-// Reporter is the atmosphere's lines for the telemetry panel: the daylight, how the clouds look
-// and whose shadows they cast; the time, the season and the weather are the reporters of
-// Calendar and Climate.
-func (p *Plugin) Reporter() render.Reporter { return reporters{p.sky.Reporter(), cloudsReport{p}} }
 
 // EventHandler is nil: the atmosphere takes commands, not input.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
@@ -401,9 +297,9 @@ func (p *Plugin) Restore() {
 	s := p.Res.Settings
 	p.sky.SetFrozen(s.Frozen)
 	p.sky.SetHour(s.Hour)
-	p.ShowClouds(s.Clouds)
-	p.DrawCloudsAt(s.CloudCoarse)
-	p.ReachClouds(s.CloudReach)
+	p.write.ShowClouds(s.Clouds)
+	p.write.DrawCloudsAt(s.CloudCoarse)
+	p.write.ReachClouds(s.CloudReach)
 	p.shadeHigh(s.HighShade)
 }
 
@@ -466,7 +362,7 @@ func (cloudsReport) Init(*goke.SysInit) {}
 
 func (r cloudsReport) Report(line func(label, value string)) {
 	look := r.p.Res.Settings.Clouds.String()
-	if w := r.p.Air(); !w.OneLayer && w.Relief[1] > 0 {
+	if w := r.p.read.Air(); !w.OneLayer && w.Relief[1] > 0 {
 		c := w.Ceilings
 		look += fmt.Sprintf("\nunder the peaks %.0f%%\ncovering %.0f%%\nover %.0f%%",
 			100*c[0], 100*c[1], 100*c[2])

@@ -16,7 +16,7 @@
 // # A level's bridges
 //
 // A line of a level's file `{kind: bridge, from: [x, y], to: [x, y]}` is a bridge from head to
-// head: [Plugin.Spawn] builds every one in the Spawn section and fails with the line of one that
+// head: [Write.Spawn] builds every one in the Spawn section and fails with the line of one that
 // may not stand.
 //
 // # A bridge in a player's hand

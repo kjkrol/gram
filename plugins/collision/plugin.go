@@ -35,6 +35,8 @@ type Plugin struct {
 	boxes     command.Queue[Boxes]
 	boxesView *boxesView
 	kept      *plugin.Kept[Settings]
+	read      Read
+	write     Write
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -46,6 +48,7 @@ var _ plugin.Restorer = (*Plugin)(nil)
 // NewPlugin builds the collision plugin over worldPlugin's space, its leavers motion's.
 func NewPlugin(worldPlugin *world.Plugin, m *motion.Plugin) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin, motion: m}
+	p.read.p, p.write.p = p, p
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.boxesView = &boxesView{w: worldPlugin, settings: &p.Res.Settings}
 	p.kept = plugin.Keep(&p.Res.Settings)
@@ -68,7 +71,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module.stats, p.module.log = p.stats, p.log
 	p.module.tick = p.worldPlugin.Read(0).Tick
 	p.module.pace = p.worldPlugin.Pace(sector.Near)
-	p.module.leave = p.motion.Leave
+	p.module.leave = p.motion.Write().Leave
 	ctx.UseModule(p.module)
 	ctx.Hosts(&p.pairs, &p.entities)
 	ctx.Draws(p.boxesView)

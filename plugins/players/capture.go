@@ -11,7 +11,7 @@ import (
 // it go for the hand
 func (p *Plugin) capture() bool {
 	riding := false
-	for _, pl := range p.Locals() {
+	for _, pl := range p.read.Locals() {
 		riding = riding || camera.HowOf(pl.pic.camera) == camera.Inside
 	}
 	riding = riding && !p.menuUp()

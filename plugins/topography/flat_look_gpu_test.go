@@ -88,7 +88,7 @@ func TestFlatLook_FromAboveDrawsOnTheGPUAsOnTheFrame(t *testing.T) {
 		TileW:      64,
 		HeightUnit: 1,
 		Cage:       p.Read(0),
-	}).New(cameras.FromAbove, camera.Config{})
+	}).Write().New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(320, 240)
 	cam.ZoomIn(2.5, 160, 120)
 	cam.CenterOn(40030, 30010, 0)

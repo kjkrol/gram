@@ -84,7 +84,7 @@ func newHarnessViewed(t *testing.T, cfg world.Config, cam camera.Config, view fu
 	cams := cameras.NewPlugin(w, cameras.Config{})
 	pl := players.NewPlugin(w, cams, sel)
 	local := pl.Local("tester")
-	camera := cams.New(cameras.FromAbove, cam)
+	camera := cams.Write().New(cameras.FromAbove, cam)
 	pl.Through(local).Over(geom.AABB{}, render.NewFeed(camera, nil))
 	if err := local.Bind(sel.DefaultBindings()...); err != nil {
 		t.Fatal(err)
@@ -440,7 +440,7 @@ func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
 
 func (h *harness) hoverAt(x, y float64) {
 	at := geom.NewVec(x, y)
-	if err := h.players.Issue(h.local, Hover{At: at, Screen: control.ScreenRect(at, at), Camera: h.cam}); err != nil {
+	if err := h.players.Write().Issue(h.local, Hover{At: at, Screen: control.ScreenRect(at, at), Camera: h.cam}); err != nil {
 		h.t.Fatal(err)
 	}
 	h.ecs.Tick(time.Second)

@@ -169,7 +169,7 @@ func TestWeathering_ARuleOfACellWringsRainOutOfTheAirOverIt(t *testing.T) {
 	if !u.w.Read(0).Effects().Has(id, u.shower) {
 		t.Fatal("under low clouds 0.9 the hill's shower is not on")
 	}
-	if rain, _ := u.a.Air().FallsAt(320, 240); rain < 0.5 {
+	if rain, _ := u.a.Read(0).Air().FallsAt(320, 240); rain < 0.5 {
 		t.Errorf("a hill wringing all of the low clouds over it: it rains %v there, want most of "+
 			"them", rain)
 	}
@@ -209,13 +209,13 @@ func TestSpread_AnEffectTurnsHowMuchOfTheWorldTheRainTakes(t *testing.T) {
 	tick(time.Second / 10)
 	w.Write().Effects().Cast(a.Entity(), wide)
 	tick(time.Second / 10)
-	a.Climate().Set(weather.Rain)
+	a.Write().Climate().Set(weather.Rain)
 	tick(12 * time.Second)
 	raining, n := 0, 0
 	for x := float32(25); x < 6400; x += 50 {
 		for y := float32(25); y < 3200; y += 50 {
 			n++
-			if a.Air().At(x, y).Falls > 0.3 {
+			if a.Read(0).Air().At(x, y).Falls > 0.3 {
 				raining++
 			}
 		}

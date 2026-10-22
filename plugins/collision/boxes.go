@@ -150,15 +150,6 @@ func (v *boxesView) solid(f *render.Frame, cam camera.Camera, at render.At, box 
 	}
 }
 
-// ShowBoxes has the entities' boxes drawn as shown says (Settings.Boxes), as the game starts.
-func (p *Plugin) ShowBoxes(shown BoxesShown) *Plugin {
-	p.Res.Settings.Boxes = shown
-	return p
-}
-
-// BoxesShown is what is drawn of the entities' boxes.
-func (p *Plugin) BoxesShown() BoxesShown { return p.Res.Settings.Boxes }
-
 func (p *Plugin) switchBoxes() {
-	p.boxes.Drain(func(i command.Issued[Boxes]) { p.ShowBoxes(i.Command.Shown) })
+	p.boxes.Drain(func(i command.Issued[Boxes]) { p.write.ShowBoxes(i.Command.Shown) })
 }

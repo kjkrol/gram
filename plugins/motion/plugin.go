@@ -11,7 +11,6 @@ import (
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/uid"
 )
 
 // Plugin moves the world's entities: it steers them, moves each by its velocity and deals with
@@ -22,6 +21,7 @@ type Plugin struct {
 	module  *module
 	movers  host.Rules[Moving]
 	leavers host.Rules[Leaving]
+	write   Write
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -31,6 +31,7 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 // NewPlugin builds motion over the entities of the world w.
 func NewPlugin(w *world.Plugin) *Plugin {
 	p := &Plugin{}
+	p.write.p = p
 	p.module = newModule(w, &p.movers, &p.leavers)
 	p.Self = world.NewSelf(w, p)
 	return p
@@ -53,10 +54,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan steers and moves the entities and deals with the leavers; call it right after the
 // world's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) { p.module.RunPlan(ctx, d) }
-
-// Leave marks the entity id as gone past an open edge, a leaver from the next step on; a plugin
-// moving entities itself calls it.
-func (p *Plugin) Leave(cb *goke.CmdBuf, id uid.UID64) { p.module.leave(cb, id) }
 
 // EventHandler is nil: motion reads no input.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }

@@ -326,7 +326,7 @@ func TestSpawn_ALevelsBridges(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = d.bridges.Spawn(level)
+			err = d.bridges.Write().Spawn(level)
 			if err == nil {
 				d.topo.Write().Seed(level.Heights())
 				if err = d.board.Populate(); err == nil {

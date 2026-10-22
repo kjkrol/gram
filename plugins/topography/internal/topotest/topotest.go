@@ -190,7 +190,7 @@ func NewWorld(edges aabbworld.Edges) *world.Plugin {
 // Camera is the main camera of a cameras plugin over w as cfg says, 128 x 64, beginning
 // isometrically.
 func Camera(w *world.Plugin, cfg cameras.Config) camera.Camera {
-	cam := cameras.NewPlugin(w, cfg).New(cameras.Isometrically, camera.Config{})
+	cam := cameras.NewPlugin(w, cfg).Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(128, 64)
 	cam.MoveTo(0, 0)
 	return cam

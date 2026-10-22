@@ -44,12 +44,12 @@ func (p *Plugin) Settings() []control.Setting {
 	return []control.Setting{
 		control.Switch{
 			Label: "Minimap",
-			Get:   p.Shown,
+			Get:   p.read.Shown,
 			Set:   func(on bool) command.Command { return Switch{Shown: on} },
 		},
 		control.Switch{
 			Label: "Minimap turns with the camera",
-			Get:   p.Turning,
+			Get:   p.read.Turning,
 			Set:   func(on bool) command.Command { return Turn{On: on} },
 		},
 	}

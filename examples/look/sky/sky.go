@@ -21,7 +21,7 @@ func (dusk) Look(d *backdrop.Dome, p *atmosphere.Plugin) {
 		Reads:  []render.Uniform{{Name: VaultNightUniform, Size: 3}},
 		Feed: func(v *backdrop.Values) {
 			// the night's violet the brighter the fuller the moon
-			full := p.Heavens().Full
+			full := p.Read(0).Heavens().Full
 			v.Set(VaultNightUniform, 0.1+0.06*full, 0.04+0.03*full, 0.22+0.1*full)
 		},
 	}

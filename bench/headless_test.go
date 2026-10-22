@@ -78,7 +78,7 @@ func (c *headless) camera(cfg cameras.Config, start cameras.Start, w, h float32)
 		space := c.world.Res.Config.Space
 		w, h = float32(space.Width), float32(space.Height)
 	}
-	cam := cameras.NewPlugin(c.world, cfg).New(start, camera.Config{})
+	cam := cameras.NewPlugin(c.world, cfg).Write().New(start, camera.Config{})
 	cam.SetViewport(w, h)
 	cam.MoveTo(0, 0)
 	return cam

@@ -33,7 +33,7 @@ func TestPlugin_TheStickLeansFromAboveToIsometric(t *testing.T) {
 		TileW:      64,
 		HeightUnit: 1,
 		Cage:       p.Read(0),
-	}).New(cameras.FromAbove, camera.Config{})
+	}).Write().New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(128, 64)
 	cam.MoveTo(0, 0)
 	if cam.Projection().Sorts() {
@@ -90,8 +90,8 @@ func TestViews_EveryCameraBeginsAsItsStartSays(t *testing.T) {
 	b, _ := topotest.LevelBoard(w)
 	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	cams := cameras.NewPlugin(w, cameras.Config{Turn: true, Tilt: true, Cell: 32, Cage: p.Read(0)})
-	above := cams.New(cameras.FromAbove, camera.Config{})
-	iso := cams.New(cameras.Isometrically, camera.Config{})
+	above := cams.Write().New(cameras.FromAbove, camera.Config{})
+	iso := cams.Write().New(cameras.Isometrically, camera.Config{})
 	if above.Projection().Sorts() {
 		t.Error("the camera begun FromAbove looks isometrically")
 	}

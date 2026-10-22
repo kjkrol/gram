@@ -74,13 +74,13 @@ them too, and a probe left in by an interrupted run is a broken demo.
   the players' bindings, contexts and cameras are the real ones; `KeyHeld` fires on the ticks
   between press and release.
 - Commands bypassing keys: `p.a.world.Write().Carrier().Put(p.a.player.ID, cmd)` (a `selection.Select`
-  with `Camera: p.a.cameras.Cameras()[0]`, a `ceremony.Command` from `Commands().Named`),
+  with `Camera: p.a.cameras.Read(0).Cameras()[0]`, a `ceremony.Command` from `Commands().Named`),
   `PutFrom(entity, cmd)` for an entity's own.
 - Direct state for a setup: move a unit by writing its `Base.Pos.AABB`, set `Vel.Dir`, write
   `steering.Course.Want`; cast an effect with `p.a.world.Write().Effects().CastFor(id, e, d)`; remove a
   `MoveOrder` through a tiny system's `cb.RemoveCompOne`. A demo's walkers may carry orders or
   plans that walk them away: remove or watch for it.
-- Cameras: `p.a.cameras.Cameras()[0].(camera.Fastenable).Fastening()` says `How` and `Entity`.
+- Cameras: `p.a.cameras.Read(0).Cameras()[0].(camera.Fastenable).Fastening()` says `How` and `Entity`.
 
 ## Traps
 

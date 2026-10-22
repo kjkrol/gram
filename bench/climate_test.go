@@ -45,7 +45,7 @@ func Benchmark_Climate_Step(b *testing.B) {
 			for b.Loop() {
 				// a weather set now settles in for a minute, the dome every quarter of a second
 				if c.forced && n%3000 == 0 {
-					a.Climate().Set(weather.Storm)
+					a.Write().Climate().Set(weather.Storm)
 				}
 				n++
 				ecs.Tick(step)

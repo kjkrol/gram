@@ -1,7 +1,5 @@
 package atmosphere
 
-import "github.com/kjkrol/gram/plugins/atmosphere/climate"
-
 // Running is which of the atmosphere's workings go on, each to switch off to see the rest without
 // it. None of it is saved.
 type Running struct {
@@ -26,22 +24,4 @@ type Running struct {
 // AllRunning is Running with all of it going on, the default.
 func AllRunning() Running {
 	return Running{Day: true, Weather: true, Wind: true, Clouds: true, Falls: true, Weathering: true, Stars: true, Moon: true}
-}
-
-// SetRunning has the atmosphere's workings go on as r says, at once.
-func (p *Plugin) SetRunning(r Running) {
-	p.running = r
-	p.sky.SetFrozen(!r.Day)
-	p.sky.SetMoon(r.Moon)
-	p.climate.SetRunning(climate.Running{Changes: r.Weather, Wind: r.Wind, Clouds: r.Clouds, Falls: r.Falls})
-	if p.weathering != nil {
-		p.weathering.SetRunning(r.Weathering)
-	}
-}
-
-// Running is which of the atmosphere's workings go on now.
-func (p *Plugin) Running() Running {
-	r := p.running
-	r.Day = !p.sky.Frozen()
-	return r
 }

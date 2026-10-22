@@ -93,7 +93,7 @@ type dateWords struct {
 
 // the icon is shown or hidden here, its words read before it is laid
 func (d *dateWords) Text(uid.UID64, bool) (string, bool) {
-	if d.p.Running().Moon {
+	if d.p.read.Running().Moon {
 		d.icon.Show()
 	} else {
 		d.icon.Hide()

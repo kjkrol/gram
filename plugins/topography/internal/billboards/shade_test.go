@@ -87,7 +87,7 @@ func TestSprites_StandDarkerInTheReliefsShadow(t *testing.T) {
 		Cell:       32,
 		HeightUnit: 1,
 		Cage:       p.Read(0),
-	}).New(cameras.Isometrically, camera.Config{})
+	}).Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(320, 240)
 	cam.MoveTo(0, 0)
 	cam.ZoomOut(2.5, 160, 120)

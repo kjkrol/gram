@@ -63,7 +63,7 @@ func TestPlugin_DrawsTheSkyTheCloudsAndWhatFalls(t *testing.T) {
 		t.Errorf("the atmosphere draws %T last, want what falls drop by drop", ctx.drawn[2])
 	}
 	look := func() (CloudLook, bool, [2]bool) {
-		return a.ShownClouds(), a.aloft.Shown(), a.skyClouds().Bodies
+		return a.read.ShownClouds(), a.aloft.Shown(), a.skyClouds().Bodies
 	}
 	for _, want := range []struct {
 		look   CloudLook
@@ -81,7 +81,7 @@ func TestPlugin_DrawsTheSkyTheCloudsAndWhatFalls(t *testing.T) {
 			t.Errorf("the clouds look %v, seen from above %v, heaped on the sky %v; want %+v", l,
 				above, bodies, want)
 		}
-		a.clouds.Put(command.Nobody, Clouds{Look: (a.ShownClouds() + 1) % (ShadowsAlone + 1)})
+		a.clouds.Put(command.Nobody, Clouds{Look: (a.read.ShownClouds() + 1) % (ShadowsAlone + 1)})
 		a.carryOut()
 	}
 }
@@ -122,10 +122,10 @@ func TestPlugin_ReportsTheDaylightHowTheCloudsLookAndWhoseShadowsFall(t *testing
 		Heights:  true,
 	})
 	a := NewPlugin(w, nil, Config{})
-	a.ShowClouds(LowBodies)
+	a.write.ShowClouds(LowBodies)
 	var labels []string
 	got := map[string]string{}
-	a.Reporter().Report(func(label, value string) {
+	a.read.Reporter().Report(func(label, value string) {
 		labels = append(labels, label)
 		got[label] = value
 	})
@@ -133,7 +133,7 @@ func TestPlugin_ReportsTheDaylightHowTheCloudsLookAndWhoseShadowsFall(t *testing
 		t.Errorf("the atmosphere's lines are %q, want %q: the calendar's and the weather's "+
 			"are their own", labels, want)
 	}
-	a.Calendar().Reporter().Report(func(label, value string) { got[label] = value })
+	a.read.Calendar().Reporter().Report(func(label, value string) { got[label] = value })
 	if got["Moon"] == "" || strings.Count(got["Season"], "\n") != 1 {
 		t.Errorf("the season is %q and the moon %q, want the season and the date two lines, the "+
 			"moon a line of its own", got["Season"], got["Moon"])
@@ -145,9 +145,9 @@ func TestPlugin_ReportsTheDaylightHowTheCloudsLookAndWhoseShadowsFall(t *testing
 	}
 	a.shades.Put(command.Nobody, HighShade{On: !a.shadows.High})
 	a.carryOut()
-	a.Reporter().Report(func(label, value string) { got[label] = value })
-	if a.Air().HighShade || got["Shadows"] != "the low clouds' on the ground and the figures" {
+	a.read.Reporter().Report(func(label, value string) { got[label] = value })
+	if a.read.Air().HighShade || got["Shadows"] != "the low clouds' on the ground and the figures" {
 		t.Errorf("after HighShade the weather's HighShade is %v, the shadows %q; want the low "+
-			"clouds' alone", a.Air().HighShade, got["Shadows"])
+			"clouds' alone", a.read.Air().HighShade, got["Shadows"])
 	}
 }

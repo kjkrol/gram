@@ -39,26 +39,26 @@ func TestCones_ToggleTheViewsDrawn(t *testing.T) {
 	if len(queues) != 1 || queues[0].Accepts() != reflect.TypeFor[vision.Cones]() {
 		t.Fatalf("Queues = %v, want the one for Cones", queues)
 	}
-	if v.ConesShown() || !r.Hidden() {
+	if v.Read(0).ConesShown() || !r.Hidden() {
 		t.Fatal("the views start shown, want hidden until asked for")
 	}
 	queues[0].Put(command.Nobody, vision.Cones{Shown: true})
 	ctx.ecs.Tick(time.Second / 60)
-	if !v.ConesShown() || r.Hidden() {
+	if !v.Read(0).ConesShown() || r.Hidden() {
 		t.Errorf("after Cones the plugin shows %v and the renderer hides %v, want both shown",
-			v.ConesShown(), r.Hidden())
+			v.Read(0).ConesShown(), r.Hidden())
 	}
 	queues[0].Put(command.Nobody, vision.Cones{Shown: false})
 	ctx.ecs.Tick(time.Second / 60)
-	if v.ConesShown() || !r.Hidden() {
+	if v.Read(0).ConesShown() || !r.Hidden() {
 		t.Errorf("after a second Cones the plugin shows %v and the renderer hides %v, "+
-			"want both hidden", v.ConesShown(), r.Hidden())
+			"want both hidden", v.Read(0).ConesShown(), r.Hidden())
 	}
 }
 
 func TestCones_ShowConesBeforeInstallReachesTheRenderer(t *testing.T) {
 	v := vision.NewPlugin(testWorldPlugin())
-	v.ShowCones()
+	v.Write().ShowCones()
 	if rendererOf(t, nil, v).Hidden() {
 		t.Error("a renderer built after ShowCones is hidden")
 	}

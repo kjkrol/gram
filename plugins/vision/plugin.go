@@ -37,7 +37,9 @@ type Plugin struct {
 	drawing   render.Rules
 	kept      *plugin.Kept[Settings]
 
-	Res Resources
+	Res   Resources
+	read  Read
+	write Write
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -48,6 +50,7 @@ var _ plugin.Restorer = (*Plugin)(nil)
 // NewPlugin builds the vision plugin over worldPlugin's space; the views drawn start hidden.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin}
+	p.read.p, p.write.p = p, p
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.renderer = NewRenderer(worldPlugin.Read(0).Space()).WithGround(p.groundOf).WithCover(p.coverOf).
@@ -102,15 +105,6 @@ func (p *Plugin) WithViews(rules ...render.Rule) *Plugin {
 	}
 	return p
 }
-
-// ShowCones shows every view drawn, as the Cones command does (Settings.Cones).
-func (p *Plugin) ShowCones() { p.setHidden(false) }
-
-// HideCones hides every view drawn; the scan goes on.
-func (p *Plugin) HideCones() { p.setHidden(true) }
-
-// ConesShown reports whether the views drawn are shown.
-func (p *Plugin) ConesShown() bool { return p.Res.Settings.Cones }
 
 func (p *Plugin) setHidden(hidden bool) {
 	p.Res.Settings.Cones = !hidden

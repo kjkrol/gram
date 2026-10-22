@@ -95,7 +95,7 @@ func TestMinimap_FollowsItsCameraTurningWithItOnlyWhenAsked(t *testing.T) {
 	}
 	w.Write().Carrier().Put(command.Nobody, Turn{On: true})
 	p.RunPlan(nil, 0)
-	if !p.Turning() || m.lens.ax != 1 || m.lens.ay != 0 {
+	if !p.read.Turning() || m.lens.ax != 1 || m.lens.ay != 0 {
 		t.Errorf("turning, the lens looks ahead (%v, %v), want east as the camera", m.lens.ax,
 			m.lens.ay)
 	}
@@ -108,11 +108,11 @@ func TestMinimap_SwitchShowsAndHidesItsPicture(t *testing.T) {
 	for _, want := range []bool{false, true} {
 		w.Write().Carrier().Put(command.Nobody, Switch{Shown: want})
 		p.RunPlan(nil, 0)
-		if p.Shown() != want {
-			t.Errorf("switched, shown %v, want %v", p.Shown(), want)
+		if p.read.Shown() != want {
+			t.Errorf("switched, shown %v, want %v", p.read.Shown(), want)
 		}
 	}
-	p.Show(false)
+	p.write.Show(false)
 	if e.Hits(e.Box().TopLeft) {
 		t.Error("hidden, the minimap's picture is hit")
 	}

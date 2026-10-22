@@ -65,7 +65,7 @@ func TestAtmosphere_TheCloudsShadowsLieOnTheBoardsGroundUnderWhatLiesOnIt(t *tes
 	tiles.Close()
 	p.Write().SetAtlas(tiles)
 	p.Write().ShowGrid(false)
-	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(512, 384)
 	weather := air.Weather{Clouds: 0.7, Drift: [2]float32{130, -40},
 		Bases: air.Bases(world.Scale{}), HighShade: true, ShadeGround: true}

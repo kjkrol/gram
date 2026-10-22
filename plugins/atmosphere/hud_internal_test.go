@@ -102,9 +102,9 @@ func TestDate_ShowsTheMoonBesideTheWordsWhileTheMoonRuns(t *testing.T) {
 	scene := ui.NewScene("hud", ui.TopLeft(date))
 	scene.Lay(hudScreen)
 	with := width(date)
-	r := a.Running()
+	r := a.read.Running()
 	r.Moon = false
-	a.SetRunning(r)
+	a.write.SetRunning(r)
 	scene.Lay(hudScreen)
 	line := float64(render.DefaultFont().LineHeight())
 	if without := width(date); with-without != line+6 {
@@ -125,12 +125,12 @@ func TestWeather_NamesTheWeatherSetAndIsLeftOutWithoutAClimate(t *testing.T) {
 		!strings.Contains(got, "°C · wind ") {
 		t.Errorf("the weather begun clear says %q", got)
 	}
-	a.Climate().Set(weather.Rain)
+	a.write.Climate().Set(weather.Rain)
 	tick(1)
 	if got, _ := words.Text(0, false); !strings.HasPrefix(got, "rain") {
 		t.Errorf("the weather set to rain says %q", got)
 	}
-	a.SetRunning(Running{Day: true, Stars: true, Moon: true})
+	a.write.SetRunning(Running{Day: true, Stars: true, Moon: true})
 	if got, ok := words.Text(0, false); ok {
 		t.Errorf("with none of the climate's workings running the weather says %q, want nothing",
 			got)
@@ -150,7 +150,7 @@ func TestBar_IsAsWideAsTheWidgetsItHoldsSideBySide(t *testing.T) {
 		t.Errorf("the bar is %v wide, the hour, the date and the weather %v, %v and %v",
 			width(bar), width(hour), width(date), width(weather))
 	}
-	a.SetRunning(Running{Day: true, Stars: true, Moon: true})
+	a.write.SetRunning(Running{Day: true, Stars: true, Moon: true})
 	scene.Lay(hudScreen)
 	if two := width(hour) + width(date); width(weather) != 0 || width(bar) != two {
 		t.Errorf("without a climate the bar is %v wide, the hour and the date %v and %v, the "+
@@ -239,26 +239,26 @@ func TestMoonIcon_StandsAtTheRightOfABoxWiderThanTall(t *testing.T) {
 
 func TestPlugin_AsALeverOfTheFrameBudgetDrawsTheCloudsCoarserAndCutsTheirReachLast(t *testing.T) {
 	a, _, _ := hudStage(t, Config{}, func(a *Plugin) *ui.Element { return a.Bar() })
-	a.ShowClouds(AllBodies)
-	if a.Following() {
+	a.write.ShowClouds(AllBodies)
+	if a.write.Following() {
 		t.Fatal("not adaptive, the clouds follow the frame budget")
 	}
-	a.AdaptClouds(true)
+	a.write.AdaptClouds(true)
 	var rungs []rung
-	for a.Coarser() {
-		rungs = append(rungs, rung{a.CloudsDrawnAt(), a.CloudsReach()})
+	for a.write.Coarser() {
+		rungs = append(rungs, rung{a.read.CloudsDrawnAt(), a.read.CloudsReach()})
 	}
 	if want := []rung{{6, 1}, {8, 1}, {8, 0.5}}; !slices.Equal(rungs, want) {
 		t.Errorf("coarser from a quarter of the pixels the clouds went %v, want %v then no further",
 			rungs, want)
 	}
-	if a.ShownClouds() != AllBodies {
+	if a.read.ShownClouds() != AllBodies {
 		t.Errorf("the look is %v, want all as bodies still: the pixels give, not the look",
-			a.ShownClouds())
+			a.read.ShownClouds())
 	}
 	rungs = nil
-	for a.Finer() {
-		rungs = append(rungs, rung{a.CloudsDrawnAt(), a.CloudsReach()})
+	for a.write.Finer() {
+		rungs = append(rungs, rung{a.read.CloudsDrawnAt(), a.read.CloudsReach()})
 	}
 	if want := []rung{{8, 1}, {6, 1}, {4, 1}}; !slices.Equal(rungs, want) {
 		t.Errorf("finer from half the sight the clouds went %v, want %v then no further", rungs,
