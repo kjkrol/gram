@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
@@ -116,6 +117,10 @@ func entities(n int) string { return fmt.Sprintf("entities=%d", n) }
 func (c *headless) Hosts(h ...host.Host)     { c.hosts = append(c.hosts, h...) }
 func (c *headless) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
 func (c *headless) Looks(func())             {}
+func (*headless) Pool() *parallel.Pool       { return pool }
+
+// the game's pool, every CPU, as the engine hands it to the plugins
+var pool = parallel.New(0)
 
 // Drawn is what the installed plugins draw, for the world's picture.
 func (c *headless) Drawn() []render.Source { return c.drawn }

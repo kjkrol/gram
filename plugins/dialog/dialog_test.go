@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/dialog"
 	"github.com/kjkrol/gram/plugins/players/owner"
@@ -44,6 +45,7 @@ func (c *installer) ECS() *goke.ECS                                  { return c.
 func (c *installer) Hosts(...host.Host)                              {}
 func (c *installer) Draws(...render.Source)                          {}
 func (c *installer) Looks(func())                                    {}
+func (*installer) Pool() *parallel.Pool                              { return nil }
 
 const hosts = `
 greet:

@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
@@ -45,6 +46,7 @@ func (c *installCtx) ECS() *goke.ECS         { return c.ecs }
 func (c *installCtx) Hosts(...host.Host)     {}
 func (c *installCtx) Draws(...render.Source) {}
 func (c *installCtx) Looks(func())           {}
+func (*installCtx) Pool() *parallel.Pool     { return nil }
 
 type spot struct{ x, y float64 }
 

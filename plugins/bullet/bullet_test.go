@@ -3,6 +3,7 @@ package bullet_test
 import (
 	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"math"
 	"testing"
@@ -758,6 +759,7 @@ func TestSaveLoad_AFlightGoesOnAfterALoad(t *testing.T) {
 func (c *installCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
 func (c *installCtx) Draws(...render.Source) {}
 func (c *installCtx) Looks(func())           {}
+func (*installCtx) Pool() *parallel.Pool     { return nil }
 
 func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }
 

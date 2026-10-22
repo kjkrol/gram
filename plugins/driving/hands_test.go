@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -50,6 +51,7 @@ func (c *installCtx) ECS() *goke.ECS                                  { return c
 func (c *installCtx) Hosts(...host.Host)                              {}
 func (c *installCtx) Draws(...render.Source)                          {}
 func (c *installCtx) Looks(func())                                    {}
+func (*installCtx) Pool() *parallel.Pool                              { return nil }
 
 type walker struct {
 	start    cell.ID

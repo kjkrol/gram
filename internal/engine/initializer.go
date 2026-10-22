@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/world"
@@ -18,6 +19,7 @@ type initializer struct {
 	host     *ecsHost
 	world    *world.Plugin
 	tps      *game.TPS
+	pool     *parallel.Pool
 	handlers []plugin.CommandHandler // used before the world, or by a Stage without one
 	hosts    []host.Host
 	part     section.Part
@@ -110,6 +112,8 @@ func (c *initializer) Drawn() []render.Source {
 }
 
 func (c *initializer) Looks(declare func()) { c.looks = append(c.looks, declare) }
+
+func (c *initializer) Pool() *parallel.Pool { return c.pool }
 
 func (c *initializer) look() {
 	for _, declare := range c.looks {

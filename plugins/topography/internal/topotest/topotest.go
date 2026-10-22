@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -227,7 +228,8 @@ func Drawn(t testing.TB, p plugin.Plugin) []render.Source {
 	}
 	return ctx.drawn
 }
-func (c *InstallCtx) Looks(func()) {}
+func (c *InstallCtx) Looks(func())       {}
+func (*InstallCtx) Pool() *parallel.Pool { return nil }
 
 // Deliver hands rules to the hosts of their moments, as the engine does once a Stage's Init
 // returns.

@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
@@ -110,6 +111,7 @@ func Step(w *world.Plugin, m *motion.Plugin, c *collision.Plugin) func(goke.RunC
 func (c *InstallCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
 func (c *InstallCtx) Draws(...render.Source) {}
 func (c *InstallCtx) Looks(func())           {}
+func (*InstallCtx) Pool() *parallel.Pool     { return nil }
 
 // Deliver hands rules to the hosts of their moments, as the engine does.
 func (c *InstallCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

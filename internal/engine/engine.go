@@ -11,6 +11,7 @@ import (
 	"github.com/gogpu/gogpu"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
 )
@@ -31,6 +32,7 @@ type Engine struct {
 	props       game.Props
 	inputs      *control.InputEvents
 	tps         *game.TPS
+	pool        *parallel.Pool
 	controller  *DefaultController
 	adapter     *DesktopAdapter
 	app         *gogpu.App // the window, once Run opened it
@@ -72,6 +74,7 @@ func NewEngine(g game.Game) *Engine {
 		props:             props,
 		inputs:            inputs,
 		tps:               tps,
+		pool:              parallel.New(props.Workers),
 		step:              time.Second / time.Duration(targetTPS),
 		timeTracker:       newTracker(),
 		controller:        controller,

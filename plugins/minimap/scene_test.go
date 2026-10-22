@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/minimap"
@@ -39,6 +40,7 @@ func (c *installCtx) ECS() *goke.ECS         { return c.ecs }
 func (c *installCtx) Hosts(...host.Host)     {}
 func (c *installCtx) Draws(...render.Source) {}
 func (c *installCtx) Looks(func())           {}
+func (*installCtx) Pool() *parallel.Pool     { return nil }
 
 // a scene of a player's picture of a world 4000 a side and its minimap 200 a side top-right, on a
 // screen 1200 by 800, the plugins installed and stepped as a game steps them

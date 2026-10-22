@@ -64,7 +64,7 @@ type Plugin struct {
 	motion      *motion.Plugin
 	module      *module
 	rules       *moments.Rules
-	workers     int // 0 all the CPUs, 1 none
+	workers     int // 0 all of the pool, 1 none
 	grids       command.Queue[Grid]
 	holds       command.Queue[Holds]
 	holdsView   *occupancy.View
@@ -169,6 +169,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	ctx.Hosts(p.rules.Hosts()...)
 	ctx.Draws(p.renderer, p.holdsView)
 	ctx.Looks(p.dress)
+	p.renderer.UsePool(ctx.Pool())
 	return nil
 }
 
@@ -279,8 +280,8 @@ func (p *Plugin) keepBridges() {
 	})
 }
 
-// WithWorkers sets how many goroutines at most share a frame's tiles under a Parallel Dressing:
-// 0 as many as there are CPUs, 1 none.
+// WithWorkers sets how many goroutines of the game's pool at most share a frame's tiles under a
+// Parallel Dressing: 0 all, 1 none.
 func (p *Plugin) WithWorkers(n int) *Plugin {
 	p.workers = n
 	p.renderer.Workers(n)

@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -142,6 +143,7 @@ func (c *installer) ECS() *goke.ECS { return c.ecs }
 func (c *installer) Hosts(...host.Host)     {}
 func (c *installer) Draws(...render.Source) {}
 func (c *installer) Looks(func())           {}
+func (*installer) Pool() *parallel.Pool     { return nil }
 
 func (c *installer) systems() []goke.System {
 	var out []goke.System

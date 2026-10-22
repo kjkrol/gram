@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -70,11 +71,11 @@ func TestRenderer_Compose_WorkersDrawWhatOneGoroutineDoes(t *testing.T) {
 	serial := newRenderer(brd, flatAtlas{}, gridOf(black, 1),
 		stripedMap{lookMap{look.FlatLook()}, one})
 	serial.Workers(1)
-	parallel := newRenderer(brd, flatAtlas{}, gridOf(black, 1),
+	several := newRenderer(brd, flatAtlas{}, gridOf(black, 1),
 		stripedMap{lookMap{look.FlatLook()}, many})
-	parallel.Workers(4)
+	several.UsePool(parallel.New(4))
 	want, wantN := piecesOf(serial, cam)
-	got, gotN := piecesOf(parallel, cam)
+	got, gotN := piecesOf(several, cam)
 	if many.warmed.Load() != 256 || many.readied != 1 || many.workers < 2 || one.warmed.Load() != 0 {
 		t.Fatalf("%d tiles warmed, readied %d times, for %d workers; %d warmed drawing on one goroutine; want all 256 once for several, none for one", many.warmed.Load(), many.readied, many.workers, one.warmed.Load())
 	}
