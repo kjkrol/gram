@@ -167,7 +167,7 @@ func isoCamera(width, height uint32, cfg camera.Config) camera.Camera {
 		Tilt:       true,
 		Cell:       32,
 		HeightUnit: 1,
-		Cage:       p,
+		Cage:       p.Read(0),
 	}).New(cameras.Isometrically, cfg)
 }
 

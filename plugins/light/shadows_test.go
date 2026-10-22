@@ -76,12 +76,12 @@ func castKind(w *world.Plugin, name string, cast light.Casting, src ...light.Sou
 // every entity as the world's renderer asks it
 func gathered(p *light.Plugin, q *goke.Query, base goke.Comp[world.Base],
 	cam camera.Camera) ([]light.Umbra, []bool) {
-	p.Begin(&render.Frame{}, cam)
+	p.Write().Begin(&render.Frame{}, cam)
 	for q.All(); q.Next(); {
 		cur := q.Cursor()
 		for i := range cur.IDs {
 			box := base.Slice(cur)[i].Pos.AABB
-			p.Of(cur, i, box, world.Z{Height: 4}, render.Appearance{SpriteID: 1})
+			p.Write().Of(cur, i, box, world.Z{Height: 4}, render.Appearance{SpriteID: 1})
 		}
 	}
 	return light.Casts(p), light.Shaped(p)
@@ -93,7 +93,7 @@ func TestPlugin_GathersTheShadowsOfWhatItLightsAsTheirKindsAndThePolicySay(t *te
 	var p *light.Plugin
 	joined := goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		qb := si.NewQueryBuilder(&base)
-		p.Join(qb)
+		light.Lighting(p).Join(qb)
 		q = qb.Build()
 	}}
 	var torch kind.Of[spot]
@@ -140,11 +140,11 @@ func TestPlugin_GathersTheShadowsOfWhatItLightsAsTheirKindsAndThePolicySay(t *te
 		t.Fatalf("with a torch %v are cast, want the sun's two and the torch's two, the walker's "+
 			"east and longer than the sun's", casts)
 	}
-	p.SetLampShadows(0)
+	p.Write().SetLampShadows(0)
 	if casts, _ := gathered(p, q, base, cam); len(casts) != 2 {
 		t.Errorf("the lamps' shadows off, %d are cast, want the sun's two", len(casts))
 	}
-	p.SetLampShadows(1)
+	p.Write().SetLampShadows(1)
 	p.OverRelief(level{})
 	if casts, _ := gathered(p, q, base, cam); len(casts) != 2 {
 		t.Errorf("on a relief %d are cast, want the sun's two: the lamps cast on level ground "+
@@ -158,7 +158,7 @@ func TestPlugin_ComposeBakesTheBlocksOnLevelGroundAndLaysTheCastsOverIt(t *testi
 	var p *light.Plugin
 	joined := goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		qb := si.NewQueryBuilder(&base)
-		p.Join(qb)
+		light.Lighting(p).Join(qb)
 		q = qb.Build()
 	}}
 	_, _, tick := litWorld(t, light.Config{}, func(w *world.Plugin, pl *light.Plugin) {
@@ -219,12 +219,12 @@ func TestPlugin_SaysTheSunsShareOfTheLight(t *testing.T) {
 	})
 	p.WithDistant(light.Distant{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3})
 	tick()
-	p.Begin(&render.Frame{}, cameratest.NewFromSpace(1000, 1000, 0))
-	if lit := p.At(10, 10, 0); !near(lit.Direct, 0.6/0.9) {
+	p.Write().Begin(&render.Frame{}, cameratest.NewFromSpace(1000, 1000, 0))
+	if lit := p.Read(0).At(10, 10, 0); !near(lit.Direct, 0.6/0.9) {
 		t.Errorf("far from the torch the sun's share is %v, want two thirds", lit.Light)
 	}
 	// at the torch its 1 joins the sun's 0.6 and the sky's 0.3
-	if lit := p.At(500, 500, 0); !near(lit.Direct, 0.6/1.9) {
+	if lit := p.Read(0).At(500, 500, 0); !near(lit.Direct, 0.6/1.9) {
 		t.Errorf("at the torch the sun's share is %v, want 0.6 of 1.9", lit.Light)
 	}
 	if lit := render.WhiteLight; lit.Direct != 0 {

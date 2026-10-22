@@ -50,6 +50,8 @@ type Plugin struct {
 	collision    *collision.Plugin
 	spacing      Spacing
 	handKeeping  handKeeping
+	read         Read
+	write        Write
 	kept         *plugin.Kept[Settings]
 
 	Res Resources
@@ -77,6 +79,7 @@ func NewPlugin(
 		worldPlugin: worldPlugin,
 		selected:    selectionPlugin.Tags().Selected,
 	}
+	p.read.p, p.write.p = p, p
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(worldPlugin, p)
 	drivingPlugin.WithKeeping(&p.handKeeping)
@@ -150,7 +153,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan takes the orders at once and steers the units in the simulation; call it after the
 // board's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.routes.Drain(func(i command.Issued[Routes]) { p.ShowRoutes(i.Command.Shown) })
+	p.routes.Drain(func(i command.Issued[Routes]) { p.write.ShowRoutes(i.Command.Shown) })
 	p.module.RunPlan(ctx, d)
 }
 
@@ -160,9 +163,6 @@ func (p *Plugin) WithSpacing(s Spacing) *Plugin {
 	p.spacing = s
 	return p
 }
-
-// Spacing is how units keep out of each other's way: as asked until Use, then as decided.
-func (p *Plugin) Spacing() Spacing { return p.spacing }
 
 // WithCollision has navigation learn what the units strike. Call before Use.
 func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
@@ -182,7 +182,7 @@ func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
 // Restore takes the Settings loaded and draws as they say.
 func (p *Plugin) Restore() {
 	p.kept.Restore()
-	p.ShowRoutes(p.Res.Settings.Routes)
+	p.write.ShowRoutes(p.Res.Settings.Routes)
 }
 
 // WithCrowd sets the rules of Touch the units get on among others by, in place of the plugin's
@@ -198,12 +198,3 @@ func (p *Plugin) WithRouteStyle(style RouteStyle) *Plugin {
 	p.pathRenderer.style, p.pathRenderer.current = style, style
 	return p
 }
-
-// ShowRoutes has the selected units' routes drawn, or their goals alone (Settings.Routes).
-func (p *Plugin) ShowRoutes(shown bool) {
-	p.Res.Settings.Routes = shown
-	p.pathRenderer.ShowRoutes(shown)
-}
-
-// RoutesShown reports whether the routes are drawn.
-func (p *Plugin) RoutesShown() bool { return p.Res.Settings.Routes }

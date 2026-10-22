@@ -91,7 +91,7 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 	for _, c := range site.wet {
 		brd.Write().Board().Set(c, cell.Kind{Cost: 1, Allows: cell.Water})
 	}
-	topo.Relief().SetHeights(site.heights)
+	topo.Write().Relief().SetHeights(site.heights)
 	x0, y0, _ := g.Coords(site.from)
 	x1, y1, _ := g.Coords(site.to)
 	dx, dy := cmp.Compare(x1, x0), cmp.Compare(y1, y0)
@@ -108,7 +108,7 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 		}
 		return cell.Floor{
 			Allows:    cell.Land,
-			Height:    10 - topo.Relief().Altitude(r.At),
+			Height:    10 - topo.Write().Relief().Altitude(r.At),
 			Thickness: 0.5,
 			Cost:      1,
 			Graded:    true,

@@ -43,7 +43,6 @@ type Relief struct {
 	version   uint64
 	touched   func(c cell.ID)
 	low, high float32
-	extentAt  uint64 // one more than the version low and high are of; 0 not read yet
 }
 
 // New is level ground at 0 over g; every change to a cell's corners is counted by touched, if
@@ -88,15 +87,16 @@ func (r *Relief) Sloped() bool { return r.square }
 func (r *Relief) Version() uint64 { return r.version }
 
 // Extent is the relief's lowest ground, sea level at most, and its highest.
-func (r *Relief) Extent() (low, high float64) {
-	if r.extentAt != r.version+1 {
-		lo, hi := float32(0), float32(0)
-		for _, v := range r.values {
-			lo, hi = min(lo, v), max(hi, v)
-		}
-		r.low, r.high, r.extentAt = lo, hi, r.version+1
+func (r *Relief) Extent() (low, high float64) { return float64(r.low), float64(r.high) }
+
+// changed counts a change to the heights and takes their extent anew
+func (r *Relief) changed() {
+	r.version++
+	lo, hi := float32(0), float32(0)
+	for _, v := range r.values {
+		lo, hi = min(lo, v), max(hi, v)
 	}
-	return float64(r.low), float64(r.high)
+	r.low, r.high = lo, hi
 }
 
 // Highest is the relief's highest ground.
@@ -130,7 +130,7 @@ func (r *Relief) adopt(runs []Heights) bool {
 	for _, h := range runs {
 		copy(r.values[h.First:], h.Values[:h.Count])
 	}
-	r.version++
+	r.changed()
 	return true
 }
 
@@ -204,7 +204,7 @@ func (r *Relief) SetCorners(c cell.ID, k Corners) {
 		changed = r.setValue(vs[i], k[i]) || changed
 	}
 	if changed {
-		r.version++
+		r.changed()
 	}
 }
 
@@ -242,7 +242,7 @@ func (r *Relief) SetHeights(heights func(p geom.Vec) float64) {
 		})
 	}
 	if changed {
-		r.version++
+		r.changed()
 	}
 }
 

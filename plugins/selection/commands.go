@@ -145,7 +145,7 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 // (Chosen), or letting it go: a cameras.Follow.
 func (p *Plugin) FollowKey(key control.Key) control.Binding {
 	return control.Build(control.KeyPress{Key: key}, "Follow the selected unit, or stop", func(c control.Context) (cameras.Follow, bool) {
-		id, ok := p.Chosen(c.Player)
+		id, ok := p.read.Chosen(c.Player)
 		return cameras.Follow{Camera: c.Camera, Entity: id, On: ok}, true
 	})
 }

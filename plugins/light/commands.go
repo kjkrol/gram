@@ -14,9 +14,9 @@ type CoarseShadows struct{ On bool }
 type LampShadows struct{ Count int }
 
 // AdaptShadows has the shadows follow the cameras' frame budget, or not
-// (Settings.AdaptiveShadows): the light is a cameras.Lever (cameras.Config.Levers), the lamps'
-// shadows dropped first and the shadows baked coarse next as the rate falls under the budget,
-// back the other way as it stays over. The settings screen alone.
+// (Settings.AdaptiveShadows): the light's Write is a cameras.Lever (cameras.Config.Levers), the
+// lamps' shadows dropped first and the shadows baked coarse next as the rate falls under the
+// budget, back the other way as it stays over. The settings screen alone.
 type AdaptShadows struct{ On bool }
 
 func (AdaptShadows) Command() {}
@@ -58,7 +58,7 @@ func (p *Plugin) Settings() []control.Setting {
 	out := []control.Setting{control.Switch{
 		Label:   "Shadows follow the frame budget",
 		Section: control.PictureShadows,
-		Get:     p.ShadowsAdaptive,
+		Get:     p.read.ShadowsAdaptive,
 		Set:     func(on bool) command.Command { return AdaptShadows{On: on} },
 	}, control.Switch{
 		Label:   "Coarse shadows",

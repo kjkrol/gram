@@ -178,11 +178,11 @@ func TestPlugin_TheRoutesAreTheSettingsScreensAndSaved(t *testing.T) {
 			t.Errorf("Routes is bound to %v, want the settings screen alone", b.Trigger)
 		}
 	}
-	if navPlugin.RoutesShown() || navPlugin.pathRenderer.RoutesShown() {
+	if navPlugin.read.RoutesShown() || navPlugin.pathRenderer.RoutesShown() {
 		t.Error("the routes start shown, want hidden until asked for")
 	}
-	navPlugin.ShowRoutes(true)
-	if !navPlugin.RoutesShown() || !navPlugin.pathRenderer.RoutesShown() {
+	navPlugin.write.ShowRoutes(true)
+	if !navPlugin.read.RoutesShown() || !navPlugin.pathRenderer.RoutesShown() {
 		t.Error("ShowRoutes(true) did not reach the renderer")
 	}
 	routes := navPlugin.Settings()[0].(control.Switch)
@@ -191,11 +191,11 @@ func TestPlugin_TheRoutesAreTheSettingsScreensAndSaved(t *testing.T) {
 			routes.Set(false))
 	}
 	saved := append([]byte(nil), *navPlugin.Serializable().Persisted()[0].(*[]byte)...)
-	navPlugin.ShowRoutes(false)
+	navPlugin.write.ShowRoutes(false)
 	loading := navPlugin.Serializable().Persisted()
 	*loading[0].(*[]byte) = saved
 	navPlugin.Restore()
-	if !navPlugin.RoutesShown() || !navPlugin.pathRenderer.RoutesShown() {
+	if !navPlugin.read.RoutesShown() || !navPlugin.pathRenderer.RoutesShown() {
 		t.Error("loaded, the routes are hidden, want shown as saved and reaching the renderer")
 	}
 }

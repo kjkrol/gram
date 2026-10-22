@@ -55,7 +55,7 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	}
 	brdW := p.Write().Board()
 	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	relief := topo.Relief()
+	relief := topo.Write().Relief()
 	relief.SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 12
@@ -98,14 +98,14 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	}
 	brdW := p.Write().Board()
 	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	topo.Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
+	topo.Write().Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 20
 		}
 		return 0
 	}))
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
-	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo},
+	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo.Read(0)},
 		cameras.FromAbove, 0, 0)
 	var f render.Frame
 	for _, sc := range []struct {
@@ -162,7 +162,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 	p.Write().SetAtlas(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 	src := drawnAs[*look.Renderer](b, ctx)
-	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo},
+	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo.Read(0)},
 		cameras.FromAbove, 0, 0)
 	var f render.Frame
 	far := grid.At(6, 6)
@@ -232,7 +232,7 @@ func islandWith(b *testing.B, view string, far bool, workers int, shine, lit, se
 		Perspective: view == "persp",
 		Cell:        size,
 		HeightUnit:  1,
-		Cage:        topo,
+		Cage:        topo.Read(0),
 	}, start, screenW, screenH)
 	kinds := p.Read(0).CellKinds()
 	kinds.Define("sea", cell.Kind{Cost: 1, Allows: cell.Water})
@@ -289,7 +289,7 @@ func islandWith(b *testing.B, view string, far bool, workers int, shine, lit, se
 		b.Fatal(err)
 	}
 	layout := board.Layout{Default: "sea"}
-	topo.Seed(rivers.Carved(heights))
+	topo.Write().Seed(rivers.Carved(heights))
 	grid.EachCell(func(c cell.ID) {
 		if land[c] {
 			at := grid.CellCenter(c)

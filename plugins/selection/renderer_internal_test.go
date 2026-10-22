@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
@@ -120,6 +121,7 @@ type drawsCtx struct {
 }
 
 func (*drawsCtx) UseModule(goke.Module)      {}
+func (*drawsCtx) Pool() *parallel.Pool       { return nil }
 func (*drawsCtx) Hosts(...host.Host)         {}
 func (*drawsCtx) ECS() *goke.ECS             { return goke.New() }
 func (c *drawsCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }

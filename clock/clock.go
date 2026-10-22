@@ -55,6 +55,7 @@ type Clock struct {
 	system  *system
 	changed func(State)
 	synced  synced
+	after   []func()
 	read    Read
 	forks   []*Read
 }
@@ -164,7 +165,14 @@ func (c *Clock) replayed() {
 	if c.synced.settle != nil {
 		c.synced.settle()
 	}
+	for _, f := range c.after {
+		f()
+	}
 }
+
+// Replayed has f run as each Replay ends, after OnSync's settle, in the order given: for what
+// takes the simulation's state once a tick, on the game's goroutine.
+func (c *Clock) Replayed(f func()) { c.after = append(c.after, f) }
 
 // OnSync has settle run after every Sync of what Replay runs or Settling hands, and as each
 // Replay ends: for what reads goke's memory where it lies, which a Sync may move.

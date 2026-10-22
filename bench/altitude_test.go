@@ -68,7 +68,7 @@ func standing(b *testing.B, bodies, bands bool) {
 				extra = append(extra, comp.Const(gravity.Body{}))
 			}
 			p.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-			topo.Relief().SetHeights(ground.MeanOfCells(g, func(c cell.ID) float64 {
+			topo.Write().Relief().SetHeights(ground.MeanOfCells(g, func(c cell.ID) float64 {
 				if x, y, _ := g.Coords(c); (x/4+y/4)%2 == 0 {
 					return 12
 				}
@@ -87,7 +87,7 @@ func standing(b *testing.B, bodies, bands bool) {
 				deck = comp.Load(func(r walkerRow) cell.Floor {
 					return cell.Floor{
 						Allows: cell.Land,
-						Height: 32 - topo.Relief().Altitude(r.At),
+						Height: 32 - topo.Write().Relief().Altitude(r.At),
 						Links:  1<<west | 1<<east,
 						Width:  size / 2,
 					}

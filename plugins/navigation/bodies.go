@@ -47,13 +47,20 @@ type bodyIndex struct {
 	byID    map[uid.UID64]int
 	boxes   [][]int32 // per cell ordinal, the bodies whose box touches the cell
 	touched []int
-	seen    []uint32
-	stamp   uint32
 	largest float64
 	adding  int32
-	found   []int32
-	// the method values, bound once
-	add, find func(cell.ID)
+	own     nearby
+	add     func(cell.ID) // the method value, bound once
+}
+
+// nearby gathers the bodies of an index near a box in scratch of its own, for one caller at a
+// time
+type nearby struct {
+	x     *bodyIndex
+	found []int32
+	seen  []uint32
+	stamp uint32
+	find  func(cell.ID) // the method value, bound once
 }
 
 func (x *bodyIndex) build(bodies []body) {
@@ -68,7 +75,7 @@ func (x *bodyIndex) build(bodies []body) {
 		x.byID = map[uid.UID64]int{}
 	}
 	if x.add == nil {
-		x.add, x.find = x.addCell, x.findCell
+		x.add = x.addCell
 	}
 	clear(x.byID)
 	x.bodies, x.largest = bodies, 0
@@ -78,7 +85,6 @@ func (x *bodyIndex) build(bodies []body) {
 		x.adding = int32(i)
 		x.grid.CellsUnder(boxAt(b.at, b.half), x.add)
 	}
-	x.seen = append(x.seen[:0], make([]uint32, len(bodies))...)
 }
 
 func (x *bodyIndex) addCell(c cell.ID) {
@@ -100,26 +106,36 @@ func (x *bodyIndex) of(id uid.UID64) (body, bool) {
 
 // near is the bodies whose box touches a cell box touches, each once, by their index in bodies;
 // valid till the next call
-func (x *bodyIndex) near(box geom.AABB) []int32 {
-	x.found = x.found[:0]
+func (x *bodyIndex) near(box geom.AABB) []int32 { return x.own.near(x, box) }
+
+// near is x's near in n's scratch
+func (n *nearby) near(x *bodyIndex, box geom.AABB) []int32 {
+	n.x, n.found = x, n.found[:0]
 	if len(x.boxes) == 0 {
-		return x.found
+		return n.found
 	}
-	x.stamp++
-	if x.stamp == 0 {
-		clear(x.seen)
-		x.stamp = 1
+	if len(n.seen) < len(x.bodies) {
+		n.seen = append(n.seen, make([]uint32, len(x.bodies)-len(n.seen))...)
 	}
-	x.grid.CellsUnder(box, x.find)
-	return x.found
+	n.stamp++
+	if n.stamp == 0 {
+		clear(n.seen)
+		n.stamp = 1
+	}
+	if n.find == nil {
+		n.find = n.findCell
+	}
+	x.grid.CellsUnder(box, n.find)
+	return n.found
 }
 
-func (x *bodyIndex) findCell(c cell.ID) {
+func (n *nearby) findCell(c cell.ID) {
+	x := n.x
 	if o, ok := x.grid.Ordinal(c); ok {
 		for _, i := range x.boxes[o] {
-			if x.seen[i] != x.stamp {
-				x.seen[i] = x.stamp
-				x.found = append(x.found, i)
+			if n.seen[i] != n.stamp {
+				n.seen[i] = n.stamp
+				n.found = append(n.found, i)
 			}
 		}
 	}

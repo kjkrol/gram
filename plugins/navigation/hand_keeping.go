@@ -13,6 +13,7 @@ var _ driving.Keeping = (*handKeeping)(nil)
 type handKeeping struct {
 	keep keeping           // set at Install
 	nav  *navigationSystem // set at Install
+	near nearby
 }
 
 func (k *handKeeping) MayStep(id uid.UID64, pos world.Position, at, ahead cell.ID, deck bool,
@@ -21,7 +22,7 @@ func (k *handKeeping) MayStep(id uid.UID64, pos world.Position, at, ahead cell.I
 		return true
 	}
 	m := member{id: id, cell: at, from: at, domain: domain, pos: pos}
-	return k.keep.mayStep(m, ahead, deck, heading)
+	return k.keep.mayStep(m, ahead, deck, heading, &k.near)
 }
 
 func (k *handKeeping) Ordered(id uid.UID64) bool { return k.nav != nil && k.nav.ordered(id) }

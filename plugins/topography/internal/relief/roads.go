@@ -61,5 +61,5 @@ func (r *Relief) restore(values []float32) {
 		}
 		r.setValue(v, h)
 	}
-	r.version++
+	r.changed()
 }

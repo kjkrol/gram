@@ -69,13 +69,13 @@ func (m *mainScene) screen() *ui.Element {
 		Style(RiverCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell}).
 		WithShading(shading(a.look))
 	for _, name := range snowable() {
-		s := a.topography.StyleOf(name)
+		s := a.topography.Read(0).StyleOf(name)
 		s.Detail = d[snowyCell(name)]
 		a.topography.Style(snowyCell(name), s)
 	}
 	a.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
 	a.topography.WithAtmosphere(a.atmosphere)
-	a.vision.WithViews(render.Show(a.selection.IsSelected))
+	a.vision.WithViews(render.Show(a.selection.Read(0).IsSelected))
 
 	cam := a.cameras.New(cameras.Isometrically, camera.Config{})
 	return hud.Screen(hud.Deps{

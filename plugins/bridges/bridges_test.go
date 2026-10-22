@@ -89,7 +89,8 @@ func newDale(t *testing.T) *dale {
 		WithMotion(d.m).
 		WithCollision(d.col)
 	d.topo = topography.NewPlugin(d.w, d.board, nil, topography.Config{})
-	d.bridges = bridges.NewPlugin(d.w, d.board, bridges.Config{Rules: rules}).WithShaper(d.topo)
+	d.bridges = bridges.NewPlugin(d.w, d.board,
+		bridges.Config{Rules: rules}).WithShaper(d.topo.Write())
 	d.board.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	d.bridges.Types().Define("bridge", bridges.Spec{
 		Allows:    cell.Land,
@@ -114,7 +115,7 @@ func valley(p geom.Vec) float64 {
 
 func (d *dale) start(heights func(geom.Vec) float64) {
 	d.t.Helper()
-	d.topo.Seed(heights)
+	d.topo.Write().Seed(heights)
 	ctx := &installer{ecs: goke.New()}
 	for _, p := range []plugin.Plugin{d.w, d.m, d.col, d.board, d.topo, d.bridges} {
 		if err := p.Install(ctx); err != nil {
@@ -229,7 +230,7 @@ func TestTool_APlayerLaysABridgeOutAndBuildsIt(t *testing.T) {
 	if len(piers) != 2 || piers[0].Y != 35 || math.Abs(piers[0].X+piers[1].X-90) > 1e-9 {
 		t.Errorf("piers stand at %v, want at (40, 35) and (50, 35)", piers)
 	}
-	if h := d.topo.Relief().At(geom.NewVec(70, 30)); h != 20 {
+	if h := d.topo.Write().Relief().At(geom.NewVec(70, 30)); h != 20 {
 		t.Errorf("the far head's corner stands at %v, want levelled at the deck, 20", h)
 	}
 	n := 0
@@ -327,7 +328,7 @@ func TestSpawn_ALevelsBridges(t *testing.T) {
 			}
 			err = d.bridges.Spawn(level)
 			if err == nil {
-				d.topo.Seed(level.Heights())
+				d.topo.Write().Seed(level.Heights())
 				if err = d.board.Populate(); err == nil {
 					err = d.bridges.Populate()
 				}

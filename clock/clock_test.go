@@ -291,3 +291,16 @@ func TestClock_SettlingSettlesAfterEverySyncOutsideReplayToo(t *testing.T) {
 		t.Errorf("a Sync through Settling allocates %v times, want none", allocs)
 	}
 }
+
+func TestReplayed_RunsOnceAReplayAfterTheSimulationPausedOrNot(t *testing.T) {
+	r := newRig(t, clock.Config{})
+	var after []int
+	r.c.Replayed(func() { after = append(after, r.runs) })
+	r.c.SetExactTempo(4)
+	r.ticks(2)
+	r.c.SetPaused(true)
+	r.ticks(1)
+	if want := []int{4, 8, 0}; !slices.Equal(after, want) {
+		t.Errorf("after each Replay the simulation had run %v times, want %v", after, want)
+	}
+}

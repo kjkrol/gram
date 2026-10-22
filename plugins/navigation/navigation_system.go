@@ -206,17 +206,18 @@ type navigationSystem struct {
 	// each other's cells know it whatever order the chunks come in
 	wanted, wanting map[uid.UID64]uid.UID64
 
-	query  *goke.Query
-	cell   goke.Comp[unit.At]
-	base   goke.Comp[world.Base]
-	steer  goke.Comp[steering.Steering]
-	course goke.Comp[steering.Course]
-	order  goke.OptComp[MoveOrder]
-	mover  goke.OptComp[unit.Mover]
-	z      goke.OptComp[world.Z]
-	coll   goke.OptComp[collision.Collider]
-	hand   goke.OptComp[steering.Driven]
-	route  []geom.Vec
+	query   *goke.Query
+	outside *goke.Query // a fork of query, for what is asked between the system's Updates
+	cell    goke.Comp[unit.At]
+	base    goke.Comp[world.Base]
+	steer   goke.Comp[steering.Steering]
+	course  goke.Comp[steering.Course]
+	order   goke.OptComp[MoveOrder]
+	mover   goke.OptComp[unit.Mover]
+	z       goke.OptComp[world.Z]
+	coll    goke.OptComp[collision.Collider]
+	hand    goke.OptComp[steering.Driven]
+	route   []geom.Vec
 
 	owners      goke.OptComp[tag.Tags[owner.Family]]
 	lastOrder   goke.OptComp[LastOrder]
@@ -295,6 +296,7 @@ func (s *navigationSystem) Init(si *goke.SysInit) {
 		qb.With(s.pace)
 	}
 	s.query = qb.Build()
+	s.outside = s.query.Fork()
 	s.orderID = si.RegComp[MoveOrder]()
 	s.blockedID, s.arrivedID, s.lastOrderID = si.RegComp[Blocked](), si.RegComp[Arrived](), si.RegComp[LastOrder]()
 	s.arrivedEditor = s.query.NewEditorBuilder().Remove(goke.Remove[MoveOrder]()).Build()
@@ -920,7 +922,7 @@ func (s *navigationSystem) carryOut(m member, o *MoveOrder, st steering.Helm, d 
 	if o.Path.Index < o.Path.Length {
 		next, aloft = o.Path.Steps[o.Path.Index], o.Path.deck(o.Path.Index)
 	}
-	if s.keep.mayStep(m, next, aloft, s.wayTo(m, next)) {
+	if s.keep.mayStep(m, next, aloft, s.wayTo(m, next), nil) {
 		o.Holding = 0
 		return false, false
 	}
@@ -1219,7 +1221,7 @@ func (s *navigationSystem) enter(states []tag.Tags[unit.States], i int, id uid.U
 }
 
 func (s *navigationSystem) ordered(id uid.UID64) bool {
-	return s.query.Seek(id) && s.order.At(s.query.Cursor()) != nil
+	return s.outside.Seek(id) && s.order.At(s.outside.Cursor()) != nil
 }
 
 // after a Populate as after a Load; the cells the units stand on the board holds itself

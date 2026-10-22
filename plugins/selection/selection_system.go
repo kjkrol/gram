@@ -278,21 +278,6 @@ func (s *SelectionSystem) applySelection(hit map[uid.UID64]struct{}, additive bo
 	}
 }
 
-func (s *SelectionSystem) chosen(by command.Issuer) (uid.UID64, bool) {
-	var one uid.UID64
-	n := 0
-	for s.query.All(); s.query.Next(); {
-		cur := s.query.Cursor()
-		owners := s.owners.Slice(cur)
-		for i, m := range s.marks.Slice(cur) {
-			if m.Has(s.tags.Selected) && owner.Obeys(ownersAt(owners, i), by) {
-				one, n = cur.IDs[i], n+1
-			}
-		}
-	}
-	return one, n == 1
-}
-
 func ownersAt(owners []tag.Tags[owner.Family], i int) tag.Tags[owner.Family] {
 	if owners == nil {
 		return 0

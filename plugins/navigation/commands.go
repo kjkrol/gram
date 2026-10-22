@@ -166,7 +166,7 @@ func (p *Plugin) DefaultBindings() []control.Binding {
 func (p *Plugin) Settings() []control.Setting {
 	return []control.Setting{control.Switch{
 		Label: "Routes of selected units",
-		Get:   p.RoutesShown,
+		Get:   p.read.RoutesShown,
 		Set:   func(on bool) command.Command { return Routes{Shown: on} },
 	}}
 }

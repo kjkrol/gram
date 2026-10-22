@@ -34,13 +34,13 @@ func TestCover_SpansTheCellsBandAndFollowsItsGround(t *testing.T) {
 	brdW := qw.Board.Write().Board()
 	wallCell := qw.Grid.At(3, 3)
 	brdW.Set(wallCell, cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true, Veil: 1, Height: 10})
-	qw.Topo.Relief().(*irelief.Relief).SetCorners(wallCell, irelief.Corners{12, 12, 12, 12})
+	qw.Topo.Write().Relief().(*irelief.Relief).SetCorners(wallCell, irelief.Corners{12, 12, 12, 12})
 	qw.ECS.Tick(time.Second / 60)
 
 	if got := coverAcross(qw); len(got) != 1 || got[0] != [5]float64{95, 126, 12, 22, 0} {
 		t.Errorf("cover along the row %v, want the wall from 95 on, 12 to 22, opaque", got)
 	}
-	qw.Topo.Relief().(*irelief.Relief).SetCorners(wallCell, irelief.Corners{20, 20, 20, 20})
+	qw.Topo.Write().Relief().(*irelief.Relief).SetCorners(wallCell, irelief.Corners{20, 20, 20, 20})
 	if got := coverAcross(qw); len(got) != 1 || got[0][2] != 20 || got[0][3] != 30 {
 		t.Errorf("cover after lifting the wall %v, want it from 20 to 30", got)
 	}

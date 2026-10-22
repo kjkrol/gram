@@ -83,7 +83,7 @@ func (w *chart) check(data []byte) (err error) {
 		return err
 	}
 	if topo != nil {
-		topo.Seed(level.Heights())
+		topo.Write().Seed(level.Heights())
 	}
 	ctx := &installer{ecs: goke.New()}
 	for _, p := range plugins {

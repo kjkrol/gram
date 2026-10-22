@@ -41,7 +41,7 @@ func isometricIsland() (*world.Plugin, *topography.Plugin, camera.Camera) {
 		Tilt:       true,
 		Cell:       32,
 		HeightUnit: 1,
-		Cage:       p,
+		Cage:       p.Read(0),
 	}).New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(128, 64)
 	cam.MoveTo(0, 0)
@@ -143,7 +143,7 @@ func TestBillboards_HazeFarOffOnlyWhenAsked(t *testing.T) {
 	cam := cameras.NewPlugin(w, cameras.Config{
 		Perspective: true,
 		Cell:        32,
-		Cage:        p,
+		Cage:        p.Read(0),
 	}).New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(320, 240)
 	cam.CenterOn(2048, 2048, 0)
@@ -160,7 +160,7 @@ func TestBillboards_HazeFarOffOnlyWhenAsked(t *testing.T) {
 	if got := haze(); len(got) != 1 || got[0] != 0 {
 		t.Errorf("in perspective in thick air a billboard is hazed %v, want clear: not asked", got)
 	}
-	p.WithHaze(true)
+	p.Write().SetHaze(true)
 	if got := haze(); len(got) != 1 || got[0] <= 0 {
 		t.Errorf("asked, in thick air a billboard is hazed %v, want some", got)
 	}
