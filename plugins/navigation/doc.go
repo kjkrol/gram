@@ -70,7 +70,7 @@
 //
 // The plugin draws the routes: for every selected entity its goals, the entity's outline lying
 // where it will stand, always, and its routes as thin lines over the ground while [Routes] shows
-// them ([Plugin.ShowRoutes], [Plugin.RoutesShown]); [RouteStyle]
+// them ([Write.ShowRoutes], [Read.RoutesShown]); [RouteStyle]
 // ([Plugin.WithRouteStyle], [DefaultRouteStyle]) is the lines' colour and width and the goals'
 // colour.
 //

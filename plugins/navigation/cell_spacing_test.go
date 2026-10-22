@@ -18,7 +18,7 @@ func TestCellSpacing_RoutesAreBlindToOthers(t *testing.T) {
 		{start: rw.at(5, 1)},
 	}
 	rw = newRoadWorld(t, 10, units)
-	if got := rw.nav.Spacing(); got != CellSpacing {
+	if got := rw.nav.read.Spacing(); got != CellSpacing {
 		t.Fatalf("units 22 a side on cells 32 keep apart by %v, want cells", got)
 	}
 	rw.ecs.Tick(time.Second / 60)

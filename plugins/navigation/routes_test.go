@@ -221,7 +221,7 @@ func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 	nav := NewPlugin(brd, w, m, sel, drive).WithSpacing(CellSpacing)
 	rb.lay(boardOf(brd), rand.New(rand.NewPCG(11, 17)))
 	if topo != nil {
-		topo.Relief().SetHeights(rb.heights)
+		topo.Write().Relief().SetHeights(rb.heights)
 	}
 	if rb.bridges != nil {
 		g := rb.grid
@@ -238,7 +238,7 @@ func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 			}
 			return cell.Floor{
 				Allows:    cell.Land,
-				Height:    10 - topo.Relief().Altitude(r.At),
+				Height:    10 - topo.Write().Relief().Altitude(r.At),
 				Thickness: 0.5,
 				Cost:      1,
 				Graded:    true,
@@ -381,7 +381,7 @@ func (r *routeRig) record(out *strings.Builder, pairs int) {
 		}
 		var feet float64
 		if r.topo != nil {
-			feet = r.topo.Relief().Altitude(from)
+			feet = r.topo.Write().Relief().Altitude(from)
 		}
 		if top, _, _, ok := r.levels.Deck(from); ok && rng.IntN(2) == 0 {
 			feet = top

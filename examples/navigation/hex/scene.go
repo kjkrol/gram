@@ -33,7 +33,7 @@ var (
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	a.vision.WithViews(render.Show(a.selection.IsSelected))
+	a.vision.WithViews(render.Show(a.selection.Read(0).IsSelected))
 	a.light.WithDistant(sky.DefaultSun)
 
 	return ui.Image(render.NewFeed(

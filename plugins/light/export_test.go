@@ -1,5 +1,10 @@
 package light
 
+import "github.com/kjkrol/gram/plugins/world"
+
+// Lighting is the light as the world lights its entities by it.
+func Lighting(p *Plugin) world.Lighting { return lighting{p} }
+
 // Casts is every live shadow gathered for the picture begun, Umbra by Umbra.
 func Casts(p *Plugin) []Umbra {
 	var out []Umbra

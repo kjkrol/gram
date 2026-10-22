@@ -107,7 +107,7 @@ func NewQuasiWorldWith(
 	qw.Board.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | cell.Air})
 	hillCell := qw.Grid.At(2, 1)
 	qw.Board.Write().Board().Set(hillCell, Hill)
-	RaiseHills(qw.Topo.Relief(), qw.Grid, hillCell)
+	RaiseHills(qw.Topo.Write().Relief(), qw.Grid, hillCell)
 	units := board.NewUnits[Recruit](qw.Board, board.Shape{Size: 20, Height: 2}, func(r Recruit) geom.Vec { return qw.Grid.CellCenter(r.Start) })
 	entries := define(qw, units)
 
@@ -229,7 +229,10 @@ func Drawn(t testing.TB, p plugin.Plugin) []render.Source {
 	return ctx.drawn
 }
 func (c *InstallCtx) Looks(func())       {}
-func (*InstallCtx) Pool() *parallel.Pool { return nil }
+func (*InstallCtx) Pool() *parallel.Pool { return Pool }
+
+// Pool is the game's pool the plugins installed by an InstallCtx share their reads with.
+var Pool = parallel.New(4)
 
 // Deliver hands rules to the hosts of their moments, as the engine does once a Stage's Init
 // returns.

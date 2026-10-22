@@ -57,13 +57,13 @@ func TestMiniature_IsTheBoardPaintedWhereTheGroundIs(t *testing.T) {
 	grass, _ := b.Read(0).CellKinds().Get("grass")
 	b.Write().Board().SetAll(grass)
 	p := NewPlugin(w, b, nil, Config{})
-	if img, _ := p.Miniature(); img != nil {
+	if img, _ := p.write.Miniature(); img != nil {
 		t.Error("a miniature before the board's atlas is closed")
 	}
 	a := b.NewAtlas(32)
 	a.Add("grass", render.Solid(color.RGBA{G: 160, A: 255}))
 	a.Close()
-	img, perUnit := p.Miniature()
+	img, perUnit := p.write.Miniature()
 	if img == nil || perUnit <= 0 {
 		t.Fatalf("the miniature is %v at %v a unit, want the painter's", img, perUnit)
 	}

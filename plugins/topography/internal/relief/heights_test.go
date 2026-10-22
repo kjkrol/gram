@@ -28,7 +28,7 @@ func TestHeights_LiveOnTheTopographysEntities(t *testing.T) {
 		t.Fatalf("runs %d, the first from %d of %d; want one of 25: a 4x4 grid's 5x5 corners", len(runs), runs[0].First, runs[0].Count)
 	}
 	c := qw.Grid.At(0, 0)
-	qw.Topo.Relief().(*irelief.Relief).SetCorners(c, irelief.Corners{7, 7, 7, 7})
+	qw.Topo.Write().Relief().(*irelief.Relief).SetCorners(c, irelief.Corners{7, 7, 7, 7})
 	qw.ECS.Tick(time.Second / 60)
 	if got := runsOf(qw)[0].Values[0]; got != 7 {
 		t.Errorf("after the ground was shaped the run holds %v at the first corner, want 7", got)

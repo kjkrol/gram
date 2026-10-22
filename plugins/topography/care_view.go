@@ -37,7 +37,7 @@ func (*careView) Init(*goke.SysInit) {}
 
 func (v *careView) Compose(f *render.Frame, cam camera.Camera) {
 	p := v.p
-	if !p.CareShown() || p.ground == nil || p.Care() <= 0 {
+	if !p.read.CareShown() || p.ground == nil || p.read.Care() <= 0 {
 		return
 	}
 	cols, rows, cell, _, ok := p.relief.Lattice()

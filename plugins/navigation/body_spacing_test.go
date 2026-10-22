@@ -276,11 +276,11 @@ func (fw *fieldWorld) overlaps() []string {
 
 func TestBodySpacing_AutoPicksBodiesForUnitsSmallAgainstTheCells(t *testing.T) {
 	small := newFieldWorld(t, 4, 1, AutoSpacing, nil, []fieldUnit{{at: geom.NewVec(16, 16), side: 4}})
-	if got := small.nav.Spacing(); got != BodySpacing {
+	if got := small.nav.read.Spacing(); got != BodySpacing {
 		t.Errorf("units 4 a side on cells 32 keep apart by %v, want bodies", got)
 	}
 	large := newFieldWorld(t, 4, 1, AutoSpacing, nil, []fieldUnit{{at: geom.NewVec(16, 16), side: 22}})
-	if got := large.nav.Spacing(); got != CellSpacing {
+	if got := large.nav.read.Spacing(); got != CellSpacing {
 		t.Errorf("units 22 a side on cells 32 keep apart by %v, want cells", got)
 	}
 }

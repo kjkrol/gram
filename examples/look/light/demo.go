@@ -96,7 +96,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving).
 		WithCollision(a.collision)
 	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
-	a.telemetry = telemetry.NewPlugin(a.world).With(a.light.Reporter())
+	a.telemetry = telemetry.NewPlugin(a.world).With(a.light.Read(0).Reporter())
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection, a.nav,
 		a.driving, a.light)
 	a.board.Write().ShowGrid(false)

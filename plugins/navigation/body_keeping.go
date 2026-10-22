@@ -375,11 +375,14 @@ func (k *bodyKeeping) within(m member) float64 {
 	return min(arrivalEpsilon, min(m.pos.Size.X, m.pos.Size.Y)/4)
 }
 
-func (k *bodyKeeping) mayStep(m member, _ cell.ID, _ bool, heading geom.Vec) bool {
+func (k *bodyKeeping) mayStep(m member, _ cell.ID, _ bool, heading geom.Vec, near *nearby) bool {
+	if near == nil {
+		near = &k.index.own
+	}
 	c, h := m.centre(), half(m)
 	feel := gapFor(h) / 4
 	ahead := geom.NewVec(c.X+heading.X*feel, c.Y+heading.Y*feel)
-	for _, i := range k.index.near(boxAt(ahead, k.nearHalf(h))) {
+	for _, i := range near.near(&k.index, boxAt(ahead, k.nearHalf(h))) {
 		b := &k.index.bodies[i]
 		if b.id == m.id || b.domain&m.domain == 0 {
 			continue

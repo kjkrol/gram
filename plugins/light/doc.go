@@ -8,6 +8,9 @@
 // shadows). A game makes it after motion and before the board and the topography, which draw
 // by it, and runs it after the world ([Plugin.RunPlan]). From then on the world's entities are
 // lit by it (world.Lighting), the ground's shade is its to bake and the live shadows its to lay.
+// Its state is read through [Plugin.Read], the same on every goroutine: the sources as the
+// clock's Replay left them, taken as each Replay ends (clock.Clock.Replayed). It is changed
+// through [Plugin.Write], the game's goroutine's, which readies it for each picture too.
 //
 // # Sources
 //
@@ -15,8 +18,8 @@
 // where the entity stands, or a [Distant] light, a source of no Reach whose way and strength
 // whoever models it writes beside it each tick ([Shining]) — the atmosphere's own entity shines
 // the sun of the hour; a scene without a sky has the plugin's own shine one it sets
-// ([Plugin.WithDistant], once, or each tick for a sun of the game's own). Two distant lights at once panic. [Plugin.Distant] is the distant light
-// this tick, [Plugin.Lamps] the lamps; [White] the light of a world without one, everything lit
+// ([Plugin.WithDistant], once, or each tick for a sun of the game's own). Two distant lights at once panic. [Read.Distant] is the distant light
+// this tick, [Read.Lamps] the lamps; [White] the light of a world without one, everything lit
 // as it is.
 //
 // # Shadows
@@ -42,7 +45,7 @@
 // [Distant.ShadowOf] and [Distant.SilhouetteOf] where a shadow lies, an [Umbra]); [Lamp] a lamp
 // in the world ([Lamp.ShadowOf]). The lamps
 // nearest a camera, [MaxLamps] at most, light its picture: the entities through the world's
-// renderer, the ground through the shaders' lampLightAt. [Plugin.Reporter] is the light's line on
+// renderer, the ground through the shaders' lampLightAt. [Read.Reporter] is the light's line on
 // the telemetry panel.
 //
 // # Vocabulary

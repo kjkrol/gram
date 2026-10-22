@@ -52,7 +52,7 @@ var (
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 	a.board.WithAtmosphere(a.atmosphere)
-	a.vision.WithViews(render.Show(a.selection.IsSelected))
+	a.vision.WithViews(render.Show(a.selection.Read(0).IsSelected))
 
 	paused := func() bool { return a.world.Read(0).Clock().State().Paused }
 	cam := a.cameras.New(cameras.FromAbove, camera.Config{})

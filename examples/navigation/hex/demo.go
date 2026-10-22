@@ -107,7 +107,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Turn: true,
 		Tilt: true,
 		Cell: HexSize,
-		Cage: a.topography,
+		Cage: a.topography.Read(0),
 	})
 	a.players = players.NewPlugin(
 		a.world,
@@ -151,7 +151,7 @@ func (a *arena) spawn() error {
 	if err != nil {
 		return err
 	}
-	a.topography.Seed(level.Heights())
+	a.topography.Write().Seed(level.Heights())
 	if err := a.bridges.Spawn(level); err != nil {
 		return err
 	}

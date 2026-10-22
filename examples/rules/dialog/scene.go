@@ -25,7 +25,7 @@ func (m *mainScene) screen() *ui.Element {
 		ui.Image(feed).Input(a.players.Through(a.player)),
 		a.dialog.Window().Above().Offset(0, -6),
 		ui.LabelOf(ui.Of(func(r *Regard) (string, bool) {
-			chosen, ok := a.selection.Chosen(a.player.ID)
+			chosen, ok := a.selection.Read(0).Chosen(a.player.ID)
 			return r.Stance(chosen), ok
 		})).Where(ui.Tagged(a.selection.Tags().Hovered)).Below().Offset(0, 4),
 	)

@@ -8,7 +8,7 @@
 // marks an entity the player may select, told [Allow] as it is made (kind.Entry.Told) or later and
 // taken back by [Forbid]; Selected one the player has selected; Hovered the one the cursor points
 // at, given by a [Hover] every tick the cursor lies over the world. [Plugin.Tags] is for the
-// plugins reading them; a drawing rule asks [Plugin.IsSelected]. A [Select] names entities by id
+// plugins reading them; a drawing rule asks [Read.IsSelected]. A [Select] names entities by id
 // or by a box, additive or not, and with a Camera the screen rectangle the player drew picks them
 // where that camera draws them; [SelectionSystem] carries it out.
 //
@@ -17,7 +17,7 @@
 // A player selects its own units alone (owner.Obeys), so one Selected tag serves every player;
 // only a Select nobody gave reaches the units nobody owns. [Plugin.FollowKey] (C by default)
 // fastens the camera the player looks through over the one unit it has selected
-// ([Plugin.Chosen]).
+// ([Read.Chosen]).
 //
 // # Selected and Pointed
 //

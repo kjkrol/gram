@@ -15,7 +15,7 @@ func TestPlugin_ViewsMakeIsometricCameras(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
 	p := topography.NewPlugin(w, b, nil, topography.Config{})
-	cams := cameras.NewPlugin(w, cameras.Config{Turn: true, Tilt: true, Cell: 32, Cage: p})
+	cams := cameras.NewPlugin(w, cameras.Config{Turn: true, Tilt: true, Cell: 32, Cage: p.Read(0)})
 	isometric := func() camera.Camera {
 		cam := cams.New(cameras.Isometrically, camera.Config{})
 		cam.SetViewport(128, 64)
@@ -48,7 +48,7 @@ func TestPlugin_ThePickLandsOnTheTopOfAKindStandingOnItsCell(t *testing.T) {
 			Perspective: perspective,
 			Cell:        32,
 			HeightUnit:  1,
-			Cage:        p,
+			Cage:        p.Read(0),
 		})
 		picker, ok := cam.(camera.Picker)
 		if !ok {
@@ -72,10 +72,10 @@ func TestCage_IsFreeOverTheGroundAndWhatStandsOnIt(t *testing.T) {
 	b, grid := topotest.LevelBoard(w)
 	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	hill := grid.At(1, 1)
-	topotest.RaiseHills(p.Relief(), grid, hill)
+	topotest.RaiseHills(p.Write().Relief(), grid, hill)
 	wall := grid.At(2, 2)
 	b.Write().Board().Set(wall, cell.Kind{Name: cell.Named("wall"), Cost: 1, Height: 30})
-	top := float32(p.Relief().At(grid.CellCenter(hill)))
+	top := float32(p.Write().Relief().At(grid.CellCenter(hill)))
 	if top <= 0 {
 		t.Fatalf("the hill stands %v high, want it raised", top)
 	}
@@ -84,19 +84,19 @@ func TestCage_IsFreeOverTheGroundAndWhatStandsOnIt(t *testing.T) {
 		return float32(centre.X), float32(centre.Y)
 	}
 	hx, hy := at(hill)
-	if p.Free(hx, hy, top-1) || !p.Free(hx, hy, top+1) {
+	if p.Read(0).Free(hx, hy, top-1) || !p.Read(0).Free(hx, hy, top+1) {
 		t.Errorf("over the hill %v high: free under %v, over %v; want solid under, free over",
-			top, p.Free(hx, hy, top-1), p.Free(hx, hy, top+1))
+			top, p.Read(0).Free(hx, hy, top-1), p.Read(0).Free(hx, hy, top+1))
 	}
 	wx, wy := at(wall)
-	if p.Free(wx, wy, 29) || !p.Free(wx, wy, 31) {
+	if p.Read(0).Free(wx, wy, 29) || !p.Read(0).Free(wx, wy, 31) {
 		t.Errorf("by the wall 30 tall: free at 29 %v, at 31 %v; want solid, then free",
-			p.Free(wx, wy, 29), p.Free(wx, wy, 31))
+			p.Read(0).Free(wx, wy, 29), p.Read(0).Free(wx, wy, 31))
 	}
-	if low, high := p.Span(); low > 0 || high < top {
+	if low, high := p.Read(0).Span(); low > 0 || high < top {
 		t.Errorf("the span is %v to %v, want the hill's %v within it", low, high, top)
 	}
-	if step, thin := p.Grain(hx, hy); step != 0 || thin != 0 {
+	if step, thin := p.Read(0).Grain(hx, hy); step != 0 || thin != 0 {
 		t.Errorf("away from any deck the grain is %v, %v, want none", step, thin)
 	}
 }

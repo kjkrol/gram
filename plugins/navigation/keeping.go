@@ -35,7 +35,8 @@ type keeping interface {
 		known bool)
 	within(m member) float64
 	on(m member, c cell.ID, level Level) bool
-	mayStep(m member, ahead cell.ID, deck bool, heading geom.Vec) bool
+	// near is the caller's scratch for the bodies near, nil for the keeping's own
+	mayStep(m member, ahead cell.ID, deck bool, heading geom.Vec, near *nearby) bool
 	// true: by their boxes striking; false: by a step into a held cell refused
 	byContact() bool
 
@@ -357,7 +358,7 @@ func (k *cellKeeping) bump(m member, o *MoveOrder) bumpAnswer {
 
 func (k *cellKeeping) within(member) float64 { return arrivalEpsilon }
 
-func (k *cellKeeping) mayStep(m member, ahead cell.ID, deck bool, _ geom.Vec) bool {
+func (k *cellKeeping) mayStep(m member, ahead cell.ID, deck bool, _ geom.Vec, _ *nearby) bool {
 	return ahead == m.cell || k.occ.CanEnter(ahead, deck, m.id, m.domain)
 }
 

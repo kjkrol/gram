@@ -69,7 +69,7 @@ func Benchmark_Vision_Relief(b *testing.B) {
 				b.Fatal(err)
 			}
 			p.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-			topo.Relief().SetHeights(func(q geom.Vec) float64 {
+			topo.Write().Relief().SetHeights(func(q geom.Vec) float64 {
 				return scale.Units(600 + 500*math.Sin(q.X/150)*math.Cos(q.Y/110))
 			})
 			units := board.NewUnits(p, board.Shape{Size: 3, Height: 9},

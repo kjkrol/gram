@@ -113,7 +113,7 @@ func (p *Plugin) Sun() light.Distant {
 	if p.light == nil {
 		return p.sky.Sun()
 	}
-	return p.light.Distant()
+	return p.light.Read(0).Distant()
 }
 
 // Heavens is where the sun, the moon and the stars stand at the hour of the light.
