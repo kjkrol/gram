@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"time"
 
 	"github.com/kjkrol/ceremony/act"
@@ -40,7 +41,7 @@ type Plugin struct {
 	routes  command.Queue[Routes]
 	onwards command.Queue[Onward]
 	given   givenQueues
-	finder  *pathFinder
+	finder  *spacing.Finder
 
 	touches  host.PairRules[Touch]
 	crowd    []act.Rule
@@ -108,13 +109,13 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	w, h := brd.CellBounds()
 	p.spacing = p.spacing.resolve(float64(p.worldPlugin.Res.Config.Entities.MaxSize), min(w, h))
 	// routes are planned blind to the others: the keeping answers what a route runs into
-	finder := newPathFinder(brd, brd, read, openOccupancy{})
-	finder.WithLevels(boardLevels{read})
-	var keep keeping
+	finder := spacing.NewFinder(brd, brd, read, spacing.OpenOccupancy{})
+	finder.WithLevels(spacing.BoardLevels{Read: read})
+	var keep spacing.Keeping
 	if p.spacing == BodySpacing {
-		keep = newBodyKeeping(finder, p.worldPlugin.Write().Space(), read.Heights)
+		keep = spacing.NewBodyKeeping(finder, p.worldPlugin.Write().Space(), read.Heights)
 	} else {
-		keep = newCellKeeping(finder, p.boardPlugin.Write().Occupancy())
+		keep = spacing.NewCellKeeping(finder, p.boardPlugin.Write().Occupancy())
 	}
 	p.finder = finder
 	p.pathRenderer.finder = finder
@@ -128,7 +129,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		}
 	}
 	ctx.Hosts(&p.touches)
-	navSys := newNavigationSystem(finder, brd, brd, finder.occupancy).withKeeping(keep)
+	navSys := newNavigationSystem(finder, brd, brd, finder.Occupancy).withKeeping(keep)
 	navSys.BindSpace(p.worldPlugin.Write().Space())
 	navSys.given, navSys.touches, navSys.tick = &p.given, &p.touches, p.worldPlugin.Read(0).Tick
 	navSys.pace = p.worldPlugin.Pace(sector.Everywhere)

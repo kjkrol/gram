@@ -1,4 +1,4 @@
-package navigation
+package spacing
 
 import (
 	"cmp"
@@ -15,51 +15,52 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-type keeping interface {
-	occupancy() cell.Occupancy
-	begin(gather func([]bodies.Body) []bodies.Body)
+type Keeping interface {
+	Occupancy() cell.Occupancy
+	Begin(gather func([]bodies.Body) []bodies.Body)
 	// an appended goal is queued on the member's own order, not issued
-	orders(members []bodies.Member, cmd MoveTo, issue func(bodies.Member, MoveOrder))
-	look(m bodies.Member, at geom.Vec) MoveOrder
-	// ready may move o's Target and Spot
-	ready(m bodies.Member, o *MoveOrder)
-	route(m bodies.Member, from cell.ID, o *MoveOrder) (Path, bool)
-	// lost: wait on, or settle on dest along path, or with neither give up
-	lost(m bodies.Member, from cell.ID, o *MoveOrder, waited time.Duration) (dest cell.ID, path Path, wait, ok bool)
+	Orders(members []bodies.Member, cmd order.MoveTo, issue func(bodies.Member, order.MoveOrder))
+	Look(m bodies.Member, at geom.Vec) order.MoveOrder
+	// Ready may move o's Target and Spot
+	Ready(m bodies.Member, o *order.MoveOrder)
+	Route(m bodies.Member, from cell.ID, o *order.MoveOrder) (order.Path, bool)
+	// Lost: wait on, or settle on dest along path, or with neither give up
+	Lost(m bodies.Member, from cell.ID, o *order.MoveOrder, waited time.Duration) (dest cell.ID, path order.Path, wait, ok bool)
 	// a zero dir keeps the heading m has
-	steer(m bodies.Member, st steering.Helm, dir geom.Vec, speed float64)
-	watch(m bodies.Member, o *MoveOrder, toward cell.ID, want geom.Vec, d time.Duration)
-	bump(m bodies.Member, o *MoveOrder) bumpAnswer
-	blocked(m bodies.Member, o *MoveOrder, c cell.ID, deck bool, d time.Duration) (holder uid.UID64,
+	Steer(m bodies.Member, st steering.Helm, dir geom.Vec, speed float64)
+	Watch(m bodies.Member, o *order.MoveOrder, toward cell.ID, want geom.Vec, d time.Duration)
+	Bump(m bodies.Member, o *order.MoveOrder) BumpAnswer
+	Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, deck bool, d time.Duration) (holder uid.UID64,
 		known bool)
-	within(m bodies.Member) float64
-	on(m bodies.Member, c cell.ID, level Level) bool
+	Within(m bodies.Member) float64
+	On(m bodies.Member, c cell.ID, level order.Level) bool
 	// near is the caller's scratch for the bodies near, nil for the keeping's own
-	mayStep(m bodies.Member, ahead cell.ID, deck bool, heading geom.Vec, near *bodies.Nearby) bool
+	MayStep(m bodies.Member, ahead cell.ID, deck bool, heading geom.Vec, near *bodies.Nearby) bool
 	// true: by their boxes striking; false: by a step into a held cell refused
-	byContact() bool
+	ByContact() bool
 
-	other(id uid.UID64) (bodies.Body, bool)
-	onGoal(self, other bodies.Body) bool
-	stepAside(m bodies.Member, of bodies.Body) (MoveOrder, bool)
-	detour(m bodies.Member, o *MoveOrder, other bodies.Body) bumpAnswer
-	pass(m bodies.Member, o *MoveOrder, other bodies.Body)
-	settle(m bodies.Member, o *MoveOrder, other bodies.Body) bool
+	Other(id uid.UID64) (bodies.Body, bool)
+	OnGoal(self, other bodies.Body) bool
+	StepAside(m bodies.Member, of bodies.Body) (order.MoveOrder, bool)
+	Detour(m bodies.Member, o *order.MoveOrder, other bodies.Body) BumpAnswer
+	Pass(m bodies.Member, o *order.MoveOrder, other bodies.Body)
+	Settle(m bodies.Member, o *order.MoveOrder, other bodies.Body) bool
 }
 
-// times as long as on the level a step aside may take at most (board.Map.Climb)
-const yieldClimb = 3
+// YieldClimb is how many times as long as on the level a step aside may take at most
+// (board.Map.Climb).
+const YieldClimb = 3
 
 type holders interface {
 	Holder(c cell.ID, deck bool, d cell.Domain) (uid.UID64, bool)
 }
 
-type bumpAnswer uint8
+type BumpAnswer uint8
 
 const (
-	stopAndPlan bumpAnswer = iota
-	carryOn
-	giveUp
+	StopAndPlan BumpAnswer = iota
+	CarryOn
+	GiveUp
 )
 
 // the cells a route goes round; blocked asks about them, the method value bound once
@@ -73,10 +74,10 @@ type avoiding struct {
 
 // a search blind to the others reads nothing but the board, so over a board counting its
 // changes its answer is kept till the next one
-func (a *avoiding) bind(f *pathFinder) {
+func (a *avoiding) bind(f *Finder) {
 	a.blocked = a.avoids
-	if _, blind := f.occupancy.(openOccupancy); blind {
-		a.kept.board, _ = f.terrain.(interface{ Version() uint64 })
+	if _, blind := f.Occupancy.(OpenOccupancy); blind {
+		a.kept.board, _ = f.Terrain.(interface{ Version() uint64 })
 	}
 }
 
@@ -88,7 +89,7 @@ func (a *avoiding) avoids(c cell.ID) bool {
 // the target left out
 type asked struct {
 	from, to cell.ID
-	end      Level
+	end      order.Level
 	domain   cell.Domain
 	body     pathfind.Body
 	round    [4]cell.ID
@@ -97,7 +98,7 @@ type asked struct {
 }
 
 type answer struct {
-	path Path
+	path order.Path
 	ok   bool
 }
 
@@ -112,8 +113,8 @@ type answers struct {
 const keptAnswers = 4096
 
 // a search asked again over the board as it stands gets the answer it gave, unrun
-func (a *avoiding) find(f *pathFinder, m bodies.Member, from cell.ID, o *MoveOrder,
-	around bool) (Path, bool) {
+func (a *avoiding) find(f *Finder, m bodies.Member, from cell.ID, o *order.MoveOrder,
+	around bool) (order.Path, bool) {
 	q := asked{from: from, to: o.Target, end: o.Level, domain: m.Domain, body: m.Body(),
 		around: around}
 	if around {
@@ -135,13 +136,13 @@ func (a *avoiding) find(f *pathFinder, m bodies.Member, from cell.ID, o *MoveOrd
 			return k.given[i].path, k.given[i].ok
 		}
 	}
-	var p Path
+	var p order.Path
 	var ok bool
 	if around {
 		a.target, a.known, a.n = o.Target, o.Avoid, o.Avoids
 		p, ok = f.findPathAround(m.ID, m.Domain, q.body, from, o.Target, o.Level, a.blocked)
 	} else {
-		p, ok = f.findPath(m.ID, m.Domain, q.body, from, o.Target, o.Level)
+		p, ok = f.FindPath(m.ID, m.Domain, q.body, from, o.Target, o.Level)
 	}
 	if k.board != nil {
 		if k.index == nil {
@@ -155,7 +156,7 @@ func (a *avoiding) find(f *pathFinder, m bodies.Member, from cell.ID, o *MoveOrd
 
 // round the cells learned unless that found nothing within o's Retry, else any route; the first
 // of the two run says whether o waits
-func (a *avoiding) route(f *pathFinder, m bodies.Member, from cell.ID, o *MoveOrder) (Path, bool) {
+func (a *avoiding) route(f *Finder, m bodies.Member, from cell.ID, o *order.MoveOrder) (order.Path, bool) {
 	due := o.Retry == 0
 	if o.Avoids > 0 && due {
 		if p, ok := a.find(f, m, from, o, true); ok {
@@ -175,8 +176,8 @@ func (a *avoiding) route(f *pathFinder, m bodies.Member, from cell.ID, o *MoveOr
 	return p, ok
 }
 
-type cellKeeping struct {
-	finder *pathFinder
+type CellKeeping struct {
+	finder *Finder
 	occ    cell.Occupancy
 	who    holders // nil: nobody is asked off a cell
 	index  bodies.Index
@@ -188,34 +189,34 @@ type cellKeeping struct {
 	asides   [8]scored
 }
 
-var _ keeping = (*cellKeeping)(nil)
+var _ Keeping = (*CellKeeping)(nil)
 
-func newCellKeeping(finder *pathFinder, occ cell.Occupancy) *cellKeeping {
-	k := &cellKeeping{finder: finder, occ: occ, index: bodies.NewIndex(finder.grid)}
+func NewCellKeeping(finder *Finder, occ cell.Occupancy) *CellKeeping {
+	k := &CellKeeping{finder: finder, occ: occ, index: bodies.NewIndex(finder.grid)}
 	k.who, _ = occ.(holders)
 	k.avoid.bind(finder)
 	k.heldBy = k.isHeld
 	return k
 }
 
-func (k *cellKeeping) occupancy() cell.Occupancy { return k.occ }
+func (k *CellKeeping) Occupancy() cell.Occupancy { return k.occ }
 
-func (k *cellKeeping) begin(gather func([]bodies.Body) []bodies.Body) {
+func (k *CellKeeping) Begin(gather func([]bodies.Body) []bodies.Body) {
 	k.index.Build(gather(k.index.Bodies[:0]))
 }
 
-func (k *cellKeeping) orders(members []bodies.Member, cmd MoveTo, issue func(bodies.Member, MoveOrder)) {
+func (k *CellKeeping) Orders(members []bodies.Member, cmd order.MoveTo, issue func(bodies.Member, order.MoveOrder)) {
 	target := cmd.Cell
 	var moves []bodies.Member
 	for _, m := range members {
 		if cmd.Append && m.Order != nil {
-			m.Order.Enqueue(Goal{Cell: target, At: cmd.At, Level: cmd.Level})
+			m.Order.Enqueue(order.Goal{Cell: target, At: cmd.At, Level: cmd.Level})
 			continue
 		}
 		standing := m.Order == nil || !m.Order.Leg.Active
 		if !cmd.Append && standing && m.Cell == target && cmd.At != (geom.Vec{}) &&
 			k.finder.on(m, target, cmd.Level) {
-			issue(m, MoveOrder{Target: target, Face: cmd.At})
+			issue(m, order.MoveOrder{Target: target, Face: cmd.At})
 			continue
 		}
 		moves = append(moves, m)
@@ -227,10 +228,10 @@ func (k *cellKeeping) orders(members []bodies.Member, cmd MoveTo, issue func(bod
 	taken := make(map[cell.ID]bool)
 	for n, m := range moves {
 		dest := target
-		var path Path
+		var path order.Path
 		ok := false
 		if n == 0 {
-			path, ok = pf.findPath(m.ID, m.Domain, m.Body(), m.From, target, cmd.Level)
+			path, ok = pf.FindPath(m.ID, m.Domain, m.Body(), m.From, target, cmd.Level)
 		}
 		if !ok {
 			dest, path, ok = pf.nearestFree(m.ID, m.Domain, m.Body(), m.From, target, cmd.Level,
@@ -240,54 +241,54 @@ func (k *cellKeeping) orders(members []bodies.Member, cmd MoveTo, issue func(bod
 			continue
 		}
 		taken[dest] = true
-		issue(m, MoveOrder{Target: dest, Level: cmd.Level, Path: path, Leg: m.Leg})
+		issue(m, order.MoveOrder{Target: dest, Level: cmd.Level, Path: path, Leg: m.Leg})
 	}
 }
 
-func (k *cellKeeping) look(m bodies.Member, at geom.Vec) MoveOrder {
-	order := MoveOrder{Target: m.Cell, Face: at}
+func (k *CellKeeping) Look(m bodies.Member, at geom.Vec) order.MoveOrder {
+	order := order.MoveOrder{Target: m.Cell, Face: at}
 	if m.Leg.Active {
 		order.Target, order.Leg = m.Leg.To, m.Leg
 	}
 	return order
 }
 
-func (k *cellKeeping) ready(bodies.Member, *MoveOrder) {}
+func (k *CellKeeping) Ready(bodies.Member, *order.MoveOrder) {}
 
-func (k *cellKeeping) route(m bodies.Member, from cell.ID, o *MoveOrder) (Path, bool) {
+func (k *CellKeeping) Route(m bodies.Member, from cell.ID, o *order.MoveOrder) (order.Path, bool) {
 	return k.avoid.route(k.finder, m, from, o)
 }
 
-func (k *cellKeeping) held(m bodies.Member) func(c cell.ID, deck bool) bool {
+func (k *CellKeeping) held(m bodies.Member) func(c cell.ID, deck bool) bool {
 	k.holder, k.holderIn = m.ID, m.Domain
 	return k.heldBy
 }
 
-func (k *cellKeeping) isHeld(c cell.ID, deck bool) bool {
+func (k *CellKeeping) isHeld(c cell.ID, deck bool) bool {
 	return !k.occ.CanEnter(c, deck, k.holder, k.holderIn)
 }
 
-func (k *cellKeeping) lost(m bodies.Member, from cell.ID, o *MoveOrder, waited time.Duration) (cell.ID, Path, bool, bool) {
-	if waited < targetWaitTimeout {
-		return 0, Path{}, true, false
+func (k *CellKeeping) Lost(m bodies.Member, from cell.ID, o *order.MoveOrder, waited time.Duration) (cell.ID, order.Path, bool, bool) {
+	if waited < TargetWaitTimeout {
+		return 0, order.Path{}, true, false
 	}
 	dest, path, ok := k.finder.nearestFree(m.ID, m.Domain, m.Body(), from, o.Target, o.Level,
 		k.held(m))
 	return dest, path, false, ok
 }
 
-func (k *cellKeeping) on(m bodies.Member, c cell.ID, level Level) bool {
+func (k *CellKeeping) On(m bodies.Member, c cell.ID, level order.Level) bool {
 	return k.finder.on(m, c, level)
 }
 
-func (k *cellKeeping) steer(_ bodies.Member, st steering.Helm, dir geom.Vec, speed float64) {
+func (k *CellKeeping) Steer(_ bodies.Member, st steering.Helm, dir geom.Vec, speed float64) {
 	if dir != (geom.Vec{}) {
 		st.Request(dir)
 	}
 	st.RequestSpeed(speed)
 }
 
-func (k *cellKeeping) watch(m bodies.Member, o *MoveOrder, _ cell.ID, _ geom.Vec, _ time.Duration) {
+func (k *CellKeeping) Watch(m bodies.Member, o *order.MoveOrder, _ cell.ID, _ geom.Vec, _ time.Duration) {
 	o.Stalled = 0
 	if m.Cell == o.Toward {
 		o.Stalls = 0
@@ -295,7 +296,7 @@ func (k *cellKeeping) watch(m bodies.Member, o *MoveOrder, _ cell.ID, _ geom.Vec
 }
 
 // Held after stallAfter is the last word against rules that never move the unit
-func (k *cellKeeping) blocked(m bodies.Member, o *MoveOrder, c cell.ID, deck bool,
+func (k *CellKeeping) Blocked(m bodies.Member, o *order.MoveOrder, c cell.ID, deck bool,
 	d time.Duration) (uid.UID64, bool) {
 	if o.Toward != c {
 		o.Toward, o.Stalled = c, 0
@@ -305,42 +306,42 @@ func (k *cellKeeping) blocked(m bodies.Member, o *MoveOrder, c cell.ID, deck boo
 	if k.who != nil {
 		holder, known = k.who.Holder(c, deck, m.Domain)
 	}
-	if o.Stalled += d; o.Stalled >= stallAfter {
+	if o.Stalled += d; o.Stalled >= StallAfter {
 		o.Bumped, o.Held, o.Hit, o.HitUnit, o.Stalled = true, true, holder, known, 0
 	}
 	return holder, known
 }
 
-func (k *cellKeeping) bump(m bodies.Member, o *MoveOrder) bumpAnswer {
+func (k *CellKeeping) Bump(m bodies.Member, o *order.MoveOrder) BumpAnswer {
 	if !o.Held {
-		return stopAndPlan
+		return StopAndPlan
 	}
 	o.Held, o.Hit, o.HitUnit = false, 0, false
 	if o.Stalls++; o.Stalls > maxStalls {
-		return giveUp
+		return GiveUp
 	}
 	if o.Toward == o.Target {
 		dest, path, ok := k.finder.nearestFree(m.ID, m.Domain, m.Body(), m.From, o.Target, o.Level,
 			k.held(m))
 		if !ok {
-			return giveUp
+			return GiveUp
 		}
-		o.Target, o.Path, o.Leg = dest, path, Leg{}
+		o.Target, o.Path, o.Leg = dest, path, order.Leg{}
 		order.Found(o)
-		return carryOn
+		return CarryOn
 	}
 	order.Learn(o, o.Toward)
-	o.Path, o.Leg = Path{}, Leg{}
-	return carryOn
+	o.Path, o.Leg = order.Path{}, order.Leg{}
+	return CarryOn
 }
 
-func (k *cellKeeping) within(bodies.Member) float64 { return arrivalEpsilon }
+func (k *CellKeeping) Within(bodies.Member) float64 { return ArrivalEpsilon }
 
-func (k *cellKeeping) mayStep(m bodies.Member, ahead cell.ID, deck bool, _ geom.Vec, _ *bodies.Nearby) bool {
+func (k *CellKeeping) MayStep(m bodies.Member, ahead cell.ID, deck bool, _ geom.Vec, _ *bodies.Nearby) bool {
 	return ahead == m.Cell || k.occ.CanEnter(ahead, deck, m.ID, m.Domain)
 }
 
-func (k *cellKeeping) other(id uid.UID64) (bodies.Body, bool) { return k.index.Of(id) }
+func (k *CellKeeping) Other(id uid.UID64) (bodies.Body, bool) { return k.index.Of(id) }
 
 type scored struct {
 	c     cell.ID
@@ -349,7 +350,7 @@ type scored struct {
 
 // across the comer's way first, then behind, a slantwise step last; never ahead of it. Whether m
 // may step there is the caller's to ask, in this order.
-func (k *cellKeeping) aside(m bodies.Member, from cell.ID, way geom.Vec) []scored {
+func (k *CellKeeping) aside(m bodies.Member, from cell.ID, way geom.Vec) []scored {
 	grid := k.finder.grid
 	home := m.Cell
 	hc := grid.CellCenter(home)
@@ -379,7 +380,7 @@ func (k *cellKeeping) aside(m bodies.Member, from cell.ID, way geom.Vec) []score
 	return out
 }
 
-func (k *cellKeeping) wayFrom(m bodies.Member, asker bodies.Body) (cell.ID, geom.Vec) {
+func (k *CellKeeping) wayFrom(m bodies.Member, asker bodies.Body) (cell.ID, geom.Vec) {
 	grid := k.finder.grid
 	from, _ := grid.CellAt(asker.At)
 	a, b := grid.CellCenter(from), grid.CellCenter(m.Cell)
@@ -390,33 +391,33 @@ func (k *cellKeeping) wayFrom(m bodies.Member, asker bodies.Body) (cell.ID, geom
 	return from, d
 }
 
-func (k *cellKeeping) byContact() bool { return false }
+func (k *CellKeeping) ByContact() bool { return false }
 
-func (k *cellKeeping) stepAside(m bodies.Member, of bodies.Body) (MoveOrder, bool) {
+func (k *CellKeeping) StepAside(m bodies.Member, of bodies.Body) (order.MoveOrder, bool) {
 	from, way := k.wayFrom(m, of)
-	terrain := k.finder.terrain
+	terrain := k.finder.Terrain
 	for _, s := range k.aside(m, from, way) {
 		c := s.c
-		if !terrain.Kind(c).Admits(m.Domain) || k.finder.climb(m.Cell, c, m.Domain) > yieldClimb {
+		if !terrain.Kind(c).Admits(m.Domain) || k.finder.climb(m.Cell, c, m.Domain) > YieldClimb {
 			continue
 		}
 		if deck, ok := k.finder.stepsOnto(m, c); !ok || !k.occ.CanEnter(c, deck, m.ID, m.Domain) {
 			continue
 		}
-		o := MoveOrder{Target: c, GivingWay: true}
+		o := order.MoveOrder{Target: c, GivingWay: true}
 		if m.Facing != (geom.Vec{}) {
 			c := m.Centre()
 			o.Face = geom.NewVec(c.X+m.Facing.X*16, c.Y+m.Facing.Y*16)
 		}
 		return o, true
 	}
-	return MoveOrder{}, false
+	return order.MoveOrder{}, false
 }
 
 // nothing to go round once m steps on, nor round other giving way: it is leaving the cell
-func (k *cellKeeping) detour(m bodies.Member, o *MoveOrder, other bodies.Body) bumpAnswer {
+func (k *CellKeeping) Detour(m bodies.Member, o *order.MoveOrder, other bodies.Body) BumpAnswer {
 	if o.Leg.Active || other.GivingWay {
-		return carryOn
+		return CarryOn
 	}
 	c := o.Toward
 	if c != o.Target && c != m.Cell {
@@ -424,27 +425,27 @@ func (k *cellKeeping) detour(m bodies.Member, o *MoveOrder, other bodies.Body) b
 	}
 	if o.Cornered && o.Retry > 0 {
 		o.Holding = 0
-		return carryOn
+		return CarryOn
 	}
-	path, ok := k.route(m, m.From, o)
+	path, ok := k.Route(m, m.From, o)
 	o.Holding, o.Cornered = 0, !ok || path.Index < path.Length && slices.Contains(path.Steps[path.Index:path.Length], c)
 	if !o.Cornered {
 		o.Path = path
 	}
-	return carryOn
+	return CarryOn
 }
 
-func (k *cellKeeping) pass(bodies.Member, *MoveOrder, bodies.Body) {}
+func (k *CellKeeping) Pass(bodies.Member, *order.MoveOrder, bodies.Body) {}
 
-func (k *cellKeeping) onGoal(self, other bodies.Body) bool { return other.Cell == self.Goal }
+func (k *CellKeeping) OnGoal(self, other bodies.Body) bool { return other.Cell == self.Goal }
 
-func (k *cellKeeping) settle(m bodies.Member, o *MoveOrder, _ bodies.Body) bool {
+func (k *CellKeeping) Settle(m bodies.Member, o *order.MoveOrder, _ bodies.Body) bool {
 	dest, path, ok := k.finder.nearestFree(m.ID, m.Domain, m.Body(), m.From, o.Target, o.Level,
 		k.held(m))
 	if !ok {
 		return false
 	}
-	o.Target, o.Path, o.Leg = dest, path, Leg{}
+	o.Target, o.Path, o.Leg = dest, path, order.Leg{}
 	order.Found(o)
 	return true
 }

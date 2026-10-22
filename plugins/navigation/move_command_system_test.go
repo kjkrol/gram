@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
 
@@ -26,7 +27,7 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	newTarget := grid.At(8, 0)
 
 	moves := &command.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := newMoveCommandSystem(spacing.NewFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
 	selects := &command.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
@@ -113,7 +114,7 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 	newTarget := grid.At(8, 0)
 
 	moves := &command.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := newMoveCommandSystem(spacing.NewFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
 	selects := &command.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
@@ -205,7 +206,7 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 	terrain.Set(wall, cell.Kind{Cost: 1, Solid: true})
 
 	moves := &command.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := newMoveCommandSystem(spacing.NewFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
 	selects := &command.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 

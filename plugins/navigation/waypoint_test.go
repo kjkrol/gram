@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func newCommandWorld(t *testing.T) *commandWorld {
 	cw := &commandWorld{grid: grid.DefaultGrids{}.Square(10, 1, 10), moves: &command.Queue[MoveTo]{}}
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	cmds := newMoveCommandSystem(newPathFinder(cw.grid, terrain, nil, &cell.SingleOccupancy{}), cw.moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := newMoveCommandSystem(spacing.NewFinder(cw.grid, terrain, nil, &cell.SingleOccupancy{}), cw.moves, &command.Queue[LookAt]{}, selTags.Selected)
 	cw.oldTarget = cw.cellAt(3)
 
 	cw.ecs = goke.New()

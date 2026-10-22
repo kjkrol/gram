@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
 
@@ -36,7 +37,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(10, 10, legCellSize)
 	occupancy := &cell.SingleOccupancy{}
 	moves := &command.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, openTerrain(), nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := newMoveCommandSystem(spacing.NewFinder(grid, openTerrain(), nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	target := at(5, 5)
 	starts := []cell.ID{at(5, 0), at(5, 4), at(5, 2)}
@@ -107,7 +108,7 @@ func TestNavigation_OccupiedTarget_WaitsThenSettlesNextToIt(t *testing.T) {
 		legUnit{start: target, owner: 2}, // a stranger: it makes no way
 	)
 
-	waitTicks := int(targetWaitTimeout / (time.Second / 60))
+	waitTicks := int(spacing.TargetWaitTimeout / (time.Second / 60))
 	for range waitTicks - 1 {
 		if st := lw.tick()[lw.ids[0]]; !st.hasOrder || st.order.Target != target {
 			t.Fatalf("before the wait timeout: order = %+v (has %v), want it still aimed at %v", st.order, st.hasOrder, target)
@@ -135,7 +136,7 @@ func TestNavigation_OccupiedUnreachableTarget_GivesUp(t *testing.T) {
 	)
 	lw.walls(at(1))
 
-	waitTicks := int(targetWaitTimeout / (time.Second / 60))
+	waitTicks := int(spacing.TargetWaitTimeout / (time.Second / 60))
 	var st legState
 	for range waitTicks + 5 {
 		st = lw.tick()[lw.ids[0]]

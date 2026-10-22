@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -14,7 +15,7 @@ func TestPathRenderer_PreviewsTheRouteToEachQueuedGoal(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
-	r := &pathRenderer{grid: grid, finder: newPathFinder(grid, terrain, nil, &cell.SingleOccupancy{})}
+	r := &pathRenderer{grid: grid, finder: spacing.NewFinder(grid, terrain, nil, &cell.SingleOccupancy{})}
 
 	mt := MoveOrder{Target: at(2)}
 	mt.Enqueue(Goal{Cell: at(5)})

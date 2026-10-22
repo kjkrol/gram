@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"image/color"
 	"math"
 
@@ -79,7 +80,7 @@ type pathRenderer struct {
 	routes bool
 
 	// nil: the goals alone, no routes between them
-	finder   *pathFinder
+	finder   *spacing.Finder
 	previews map[uid.UID64]*preview
 
 	selected tag.Tag[selection.Family]
@@ -266,8 +267,8 @@ func (r *pathRenderer) drawRoute(cells []cell.ID, from, to geom.Vec) {
 // the depth of its middle, so the line runs straight through any camera
 func (r *pathRenderer) line(a, b geom.Vec) {
 	if r.space != nil && r.space.Edges != 0 {
-		dx := shortestAxisDelta(a.X, b.X, r.space.Width, r.space.Edges.WrapsX())
-		dy := shortestAxisDelta(a.Y, b.Y, r.space.Height, r.space.Edges.WrapsY())
+		dx := spacing.ShortestAxisDelta(a.X, b.X, r.space.Width, r.space.Edges.WrapsX())
+		dy := spacing.ShortestAxisDelta(a.Y, b.Y, r.space.Height, r.space.Edges.WrapsY())
 		x0, y0 := r.camera.ToScreen(float32(a.X), float32(a.Y))
 		x1, y1 := r.camera.ToScreen(float32(a.X+dx), float32(a.Y+dy))
 		mid := geom.NewVec(a.X+dx/2, a.Y+dy/2)
@@ -357,7 +358,7 @@ func (r *pathRenderer) queued(id uid.UID64, domain cell.Domain, body pathfind.Bo
 		from, to := goals[k], goals[k+1]
 		route := []cell.ID{from}
 		if r.finder != nil {
-			if path, ok := r.finder.findPath(id, domain, body, from, to, levels[k+1]); ok {
+			if path, ok := r.finder.FindPath(id, domain, body, from, to, levels[k+1]); ok {
 				for _, step := range path.Steps[:path.Length] {
 					route = append(route, step)
 				}
@@ -376,7 +377,7 @@ func (r *pathRenderer) queued(id uid.UID64, domain cell.Domain, body pathfind.Bo
 }
 
 func hasPassedCenter(cellCenter, entityCenter, travel geom.Vec, width, height uint32, edges aabbworld.Edges) bool {
-	ex := shortestAxisDelta(cellCenter.X, entityCenter.X, width, edges.WrapsX())
-	ey := shortestAxisDelta(cellCenter.Y, entityCenter.Y, height, edges.WrapsY())
+	ex := spacing.ShortestAxisDelta(cellCenter.X, entityCenter.X, width, edges.WrapsX())
+	ey := spacing.ShortestAxisDelta(cellCenter.Y, entityCenter.Y, height, edges.WrapsY())
 	return ex*travel.X+ey*travel.Y > 0
 }

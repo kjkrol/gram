@@ -1,7 +1,8 @@
-package navigation
+package spacing
 
 import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -16,20 +17,20 @@ import (
 type placeRig struct {
 	grid    grid.Grid
 	terrain *cell.TerrainMap
-	keep    *bodyKeeping
+	keep    *BodyKeeping
 	heights func(p geom.Vec) float64
 }
 
 func newPlaceRig() *placeRig {
 	r := &placeRig{grid: grid.DefaultGrids{}.Square(7, 5, 32), terrain: cell.NewTerrainMap()}
 	r.terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	r.keep = newBodyKeeping(newPathFinder(r.grid, r.terrain, nil, openOccupancy{}), nil, func() ground.Heights {
+	r.keep = NewBodyKeeping(NewFinder(r.grid, r.terrain, nil, OpenOccupancy{}), nil, func() ground.Heights {
 		if r.heights == nil {
 			return nil
 		}
 		return groundFunc(r.heights)
 	})
-	r.keep.begin(func(b []bodies.Body) []bodies.Body { return b })
+	r.keep.Begin(func(b []bodies.Body) []bodies.Body { return b })
 	return r
 }
 
@@ -72,7 +73,7 @@ func TestPlace_TheGroupFillsTheTargetRoundThePointThenTheCheapestNeighbour(t *te
 	r.terrain.Set(r.at(2, 2), cell.Kind{Cost: 1, Allows: cell.Land}) // the cheap way west
 	at := r.grid.CellCenter(target)
 	units := r.units(12, 6) // 12 apart with the gap: 3 x 3 in a 32 cell round its middle
-	got, _ := r.keep.place(units, at, target, EitherLevel)
+	got, _ := r.keep.place(units, at, target, order.EitherLevel)
 	inTarget, west := 0, 0
 	for i, p := range got {
 		if !p.ok {
@@ -105,7 +106,7 @@ func TestPlace_UnitsNearlyACellLargeSpreadOverTheNeighboursAndTwoShareACellAtIts
 	target := r.at(3, 2)
 	centre := r.grid.CellCenter(target)
 	cells := map[cell.ID]bool{}
-	big, _ := r.keep.place(r.units(3, 28), centre, target, EitherLevel)
+	big, _ := r.keep.place(r.units(3, 28), centre, target, order.EitherLevel)
 	for _, p := range big {
 		if !p.ok {
 			t.Fatal("a large unit found no spot")
@@ -117,7 +118,7 @@ func TestPlace_UnitsNearlyACellLargeSpreadOverTheNeighboursAndTwoShareACellAtIts
 	}
 	checkApart(t, big, 28)
 
-	two, _ := r.keep.place(r.units(2, 12), geom.NewVec(centre.X-11, centre.Y), target, EitherLevel)
+	two, _ := r.keep.place(r.units(2, 12), geom.NewVec(centre.X-11, centre.Y), target, order.EitherLevel)
 	for _, p := range two {
 		if p.cell != target {
 			t.Fatalf("spots %v, want both on the target: a 12 box each side of the cell, over its edges", two)
@@ -134,7 +135,7 @@ func TestPlace_NoSpotOverGroundTheUnitCannotTakeOrOnAStep(t *testing.T) {
 	centre := r.grid.CellCenter(target)
 	r.heights = func(geom.Vec) float64 { return 0 }
 	corner := geom.NewVec(centre.X+14, centre.Y-14) // the north-east corner, by the water and the rock
-	got, _ := r.keep.place(r.units(6, 8), corner, target, EitherLevel)
+	got, _ := r.keep.place(r.units(6, 8), corner, target, order.EitherLevel)
 	for _, p := range got {
 		if !p.ok {
 			t.Fatal("a unit found no spot")
@@ -161,13 +162,13 @@ func TestPlace_KnowsOnlyWhoeverItStruck(t *testing.T) {
 	centre := r.grid.CellCenter(target)
 	h := geom.NewVec(5, 5)
 	standing := bodies.Body{ID: 100, At: centre, Half: h, Domain: cell.Land}
-	r.keep.begin(func(b []bodies.Body) []bodies.Body { return append(b, standing) })
-	spots, _ := r.keep.place(r.units(1, 10), centre, target, EitherLevel)
+	r.keep.Begin(func(b []bodies.Body) []bodies.Body { return append(b, standing) })
+	spots, _ := r.keep.place(r.units(1, 10), centre, target, order.EitherLevel)
 	if spots[0].spot != centre {
 		t.Errorf("the unit stands at %v, want the point %v: nobody told it of the one standing there", spots[0].spot, centre)
 	}
 	flyer := bodies.Body{ID: 101, At: geom.NewVec(centre.X-20, centre.Y), Half: h, Domain: cell.Air}
-	spots, _ = r.keep.placeClearOf(r.units(1, 10), centre, target, EitherLevel,
+	spots, _ = r.keep.placeClearOf(r.units(1, 10), centre, target, order.EitherLevel,
 		[]bodies.Body{standing, flyer})
 	got := spots[0]
 	if !got.ok || got.spot == centre {
@@ -175,19 +176,5 @@ func TestPlace_KnowsOnlyWhoeverItStruck(t *testing.T) {
 	}
 	if got.spot != geom.NewVec(centre.X-20, centre.Y) && got.spot != geom.NewVec(centre.X+20, centre.Y) && got.spot != geom.NewVec(centre.X, centre.Y-20) && got.spot != geom.NewVec(centre.X, centre.Y+20) {
 		t.Errorf("the unit stands at %v, want the next lattice point round the point, the flyer's too", got.spot)
-	}
-}
-
-func TestSpacing_AutoKeepsBodiesApartForUnitsAThirdOfACellOrLess(t *testing.T) {
-	for _, c := range []struct {
-		largest, cell float64
-		want          Spacing
-	}{{3, 32, BodySpacing}, {10, 32, BodySpacing}, {22, 32, CellSpacing}, {24, 48, CellSpacing}, {0, 32, CellSpacing}} {
-		if got := AutoSpacing.resolve(c.largest, c.cell); got != c.want {
-			t.Errorf("units %v on cells %v keep apart by %v, want %v", c.largest, c.cell, got, c.want)
-		}
-	}
-	if got := CellSpacing.resolve(3, 32); got != CellSpacing {
-		t.Errorf("asked for cells, small units keep apart by %v", got)
 	}
 }

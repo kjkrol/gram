@@ -3,6 +3,7 @@ package navigation
 import (
 	"flag"
 	"fmt"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"math"
 	"math/rand/v2"
 	"os"
@@ -62,9 +63,9 @@ func span(g grid.Grid, x, y uint32, dx, dy, n int) []routeSpan {
 
 type routeRig struct {
 	board  routeBoard
-	finder *pathFinder
+	finder *spacing.Finder
 	brd    *board.BoardRead
-	levels boardLevels
+	levels spacing.BoardLevels
 	topo   *topography.Plugin
 }
 
@@ -295,7 +296,7 @@ func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 	for range 3 {
 		ctx.ecs.Tick(time.Second / 60)
 	}
-	return &routeRig{board: rb, finder: nav.finder, brd: brd.Read(0).Board(), levels: boardLevels{brd.Read(0)},
+	return &routeRig{board: rb, finder: nav.finder, brd: brd.Read(0).Board(), levels: spacing.BoardLevels{Read: brd.Read(0)},
 		topo: topo}
 }
 

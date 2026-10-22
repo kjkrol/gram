@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
 
@@ -30,10 +31,10 @@ func riverBoard() (grid.Grid, *cell.TerrainMap) {
 
 func TestFindPath_KeepsEachDomainToItsOwnGround(t *testing.T) {
 	grid, terrain := riverBoard()
-	pf := newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{})
+	pf := spacing.NewFinder(grid, terrain, nil, &cell.MultipleOccupancy{})
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 
-	path, ok := pf.findPath(uid.UID64(1), cell.Land, pathfind.Body{},
+	path, ok := pf.FindPath(uid.UID64(1), cell.Land, pathfind.Body{},
 		at(0, 0), at(0, 2), EitherLevel)
 	if !ok {
 		t.Fatal("a land unit found no way round the river")
@@ -47,18 +48,18 @@ func TestFindPath_KeepsEachDomainToItsOwnGround(t *testing.T) {
 		t.Errorf("route of %d steps, want the detour through the ford", path.Length)
 	}
 
-	boat, ok := pf.findPath(uid.UID64(2), cell.Water, pathfind.Body{},
+	boat, ok := pf.FindPath(uid.UID64(2), cell.Water, pathfind.Body{},
 		at(0, 1), at(3, 1), EitherLevel)
 	if !ok || boat.Length != 3 {
 		t.Fatalf("a boat along the river: ok=%v, %d steps, want 3 straight", ok, boat.Length)
 	}
-	_, ok = pf.findPath(uid.UID64(2), cell.Water, pathfind.Body{}, at(0, 1), at(0, 0), EitherLevel)
+	_, ok = pf.FindPath(uid.UID64(2), cell.Water, pathfind.Body{}, at(0, 1), at(0, 0), EitherLevel)
 	if ok {
 		t.Error("a boat found a route onto grass")
 	}
 
 	amphibious := cell.Land | cell.Water
-	direct, ok := pf.findPath(uid.UID64(3), amphibious, pathfind.Body{},
+	direct, ok := pf.FindPath(uid.UID64(3), amphibious, pathfind.Body{},
 		at(0, 0), at(0, 2), EitherLevel)
 	if !ok || direct.Length != 2 {
 		t.Errorf("an amphibious unit: ok=%v, %d steps, want 2 straight across", ok, direct.Length)
@@ -74,7 +75,7 @@ func TestCommandSystem_Update_IgnoresATargetTheUnitsDomainMayNotEnter(t *testing
 	terrain.Set(lake, cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water})
 
 	moves := &command.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &cell.SingleOccupancy{}), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := newMoveCommandSystem(spacing.NewFinder(grid, terrain, nil, &cell.SingleOccupancy{}), moves, &command.Queue[LookAt]{}, selTags.Selected)
 
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
@@ -121,16 +122,16 @@ func TestFindPath_PricesTheRouteForTheUnitsDomain(t *testing.T) {
 	for x := range uint32(3) {
 		terrain.Set(at(x, 1), cell.Kind{Name: cell.Named("snow"), Cost: 5, Allows: cell.Land | frost}.Costing(frost, 0.2))
 	}
-	pf := newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{})
+	pf := spacing.NewFinder(grid, terrain, nil, &cell.MultipleOccupancy{})
 
-	walker, _ := pf.findPath(uid.UID64(1), cell.Land, pathfind.Body{},
+	walker, _ := pf.FindPath(uid.UID64(1), cell.Land, pathfind.Body{},
 		at(0, 0), at(2, 0), EitherLevel)
 	for _, step := range walker.Steps[:walker.Length] {
 		if terrain.Kind(step).Name.String() == "snow" {
 			t.Fatalf("a walker's route dips into the snow at %v", step)
 		}
 	}
-	witch, _ := pf.findPath(uid.UID64(2), cell.Land|frost, pathfind.Body{}, at(0, 0), at(2, 0),
+	witch, _ := pf.FindPath(uid.UID64(2), cell.Land|frost, pathfind.Body{}, at(0, 0), at(2, 0),
 		EitherLevel)
 	onSnow := 0
 	for _, step := range witch.Steps[:witch.Length] {

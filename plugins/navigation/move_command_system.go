@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -19,7 +20,7 @@ import (
 )
 
 type moveCommandSystem struct {
-	keep     keeping
+	keep     spacing.Keeping
 	moves    *command.Queue[MoveTo]
 	looks    *command.Queue[LookAt]
 	onwards  *command.Queue[Onward]
@@ -68,11 +69,11 @@ func issuedBy[C command.Command](i command.Issued[C]) issuer {
 
 var _ goke.System = (*moveCommandSystem)(nil)
 
-func newMoveCommandSystem(pathFinder *pathFinder, moves *command.Queue[MoveTo], looks *command.Queue[LookAt], selected tag.Tag[selection.Family]) *moveCommandSystem {
-	return &moveCommandSystem{keep: newCellKeeping(pathFinder, pathFinder.occupancy), moves: moves, looks: looks, selected: selected, kind: pathFinder.terrain.Kind}
+func newMoveCommandSystem(pathFinder *spacing.Finder, moves *command.Queue[MoveTo], looks *command.Queue[LookAt], selected tag.Tag[selection.Family]) *moveCommandSystem {
+	return &moveCommandSystem{keep: spacing.NewCellKeeping(pathFinder, pathFinder.Occupancy), moves: moves, looks: looks, selected: selected, kind: pathFinder.Terrain.Kind}
 }
 
-func (s *moveCommandSystem) withKeeping(k keeping) *moveCommandSystem {
+func (s *moveCommandSystem) withKeeping(k spacing.Keeping) *moveCommandSystem {
 	s.keep = k
 	return s
 }
@@ -208,7 +209,7 @@ func (s *moveCommandSystem) selectedMembers(by command.Issuer, fn func(bodies.Me
 }
 
 func (s *moveCommandSystem) look(cb *goke.CmdBuf, at geom.Vec, by issuer) {
-	s.members(by, func(m bodies.Member) { cb.AddOne(m.ID, s.orderID, s.keep.look(m, at)) })
+	s.members(by, func(m bodies.Member) { cb.AddOne(m.ID, s.orderID, s.keep.Look(m, at)) })
 }
 
 func (s *moveCommandSystem) carryOut(cb *goke.CmdBuf, cmd MoveTo, by issuer) {
@@ -227,7 +228,7 @@ func (s *moveCommandSystem) carryOut(cb *goke.CmdBuf, cmd MoveTo, by issuer) {
 		}
 	})
 	group := s.nextGroup()
-	s.keep.orders(members, cmd, func(m bodies.Member, o MoveOrder) {
+	s.keep.Orders(members, cmd, func(m bodies.Member, o MoveOrder) {
 		o.Group = group
 		cb.AddOne(m.ID, s.orderID, o)
 	})

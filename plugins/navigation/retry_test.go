@@ -3,6 +3,7 @@ package navigation
 import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"slices"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ import (
 
 // a board nobody holds, counting what the searches ask of it
 type askedOccupancy struct {
-	openOccupancy
+	spacing.OpenOccupancy
 	asked int
 }
 
@@ -47,7 +48,7 @@ func TestRetry_ADetourFindingNoWayIsSearchedAgainHalfASecondOneAndTwoSecondsLate
 	g, terrain, at3 := walled(3)
 	at := func(x uint32) cell.ID { return at3(x, 1) }
 	occ := &askedOccupancy{}
-	k := newCellKeeping(newPathFinder(g, terrain, nil, occ), occ)
+	k := spacing.NewCellKeeping(spacing.NewFinder(g, terrain, nil, occ), occ)
 	m := bodies.Member{ID: 7, Cell: at(0), From: at(0), Domain: cell.Land, Pos: posAt(g, at(0))}
 	o := MoveOrder{Target: at(4), Toward: at(1)}
 	other := bodies.Body{ID: 3, Cell: at(1)}
@@ -55,7 +56,7 @@ func TestRetry_ADetourFindingNoWayIsSearchedAgainHalfASecondOneAndTwoSecondsLate
 	detour := func(tick int) {
 		o.Retry = max(o.Retry-retryTick, 0) // as the system's pass does, every order a tick
 		asked := occ.asked
-		k.detour(m, &o, other)
+		k.Detour(m, &o, other)
 		if occ.asked > asked {
 			searched = append(searched, time.Duration(tick)*retryTick)
 		}
@@ -106,7 +107,7 @@ func TestRetry_AnOrderWithNoWaySearchesOnceTillItGivesItsTargetUp(t *testing.T) 
 	at := func(x uint32) cell.ID { return at1(x, 0) }
 	occupancy := &cell.SingleOccupancy{}
 	asked := &askedOccupancy{}
-	nav := newNavigationSystem(newPathFinder(g, terrain, nil, asked), g, terrain, occupancy)
+	nav := newNavigationSystem(spacing.NewFinder(g, terrain, nil, asked), g, terrain, occupancy)
 
 	var here goke.Comp[unit.At]
 	var base goke.Comp[world.Base]
@@ -143,10 +144,10 @@ func TestRetry_AnOrderWithNoWaySearchesOnceTillItGivesItsTargetUp(t *testing.T) 
 			searched = append(searched, tick)
 		}
 	}
-	waits := reordered + int(targetWaitTimeout/retryTick)
+	waits := reordered + int(spacing.TargetWaitTimeout/retryTick)
 	if ordered() || tick < waits || tick > waits+2 {
 		t.Fatalf("the order lasted %d ticks, want it given up %v after the new one, about %d",
-			tick, targetWaitTimeout, waits)
+			tick, spacing.TargetWaitTimeout, waits)
 	}
 	if want := []int{0, reordered, tick - 1}; !slices.Equal(searched, want) {
 		t.Errorf("searched on ticks %v, want %v: as ordered, as ordered anew, as it gives up",
@@ -158,7 +159,7 @@ func TestRetry_TheNextGoalOrAnotherCellLearntSearchesAtOnce(t *testing.T) {
 	g, terrain, at1 := walled(1)
 	at := func(x uint32) cell.ID { return at1(x, 0) }
 	occ := &askedOccupancy{}
-	k := newCellKeeping(newPathFinder(g, terrain, nil, occ), occ)
+	k := spacing.NewCellKeeping(spacing.NewFinder(g, terrain, nil, occ), occ)
 	m := bodies.Member{ID: 7, Cell: at(0), From: at(0), Domain: cell.Land, Pos: posAt(g, at(0))}
 	other := bodies.Body{ID: 3, Cell: at(1)}
 	for _, c := range []struct {
@@ -172,7 +173,7 @@ func TestRetry_TheNextGoalOrAnotherCellLearntSearchesAtOnce(t *testing.T) {
 		o.Enqueue(Goal{Cell: at(4)})
 		searches := func() bool {
 			asked := occ.asked
-			k.detour(m, &o, other)
+			k.Detour(m, &o, other)
 			return occ.asked > asked
 		}
 		searches()

@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"math"
 	"testing"
 	"time"
@@ -381,14 +382,14 @@ func TestBodySpacing_CrowdsStandRoundThePointWithoutPushing(t *testing.T) {
 		for _, layout := range []string{"column from the west", "block from the south", "scattered", "from the north-east"} {
 			for _, side := range []float64{3, 6, 10} {
 				settled, longest, overlaps, spread := sendCrowd(t, n, layout, side)
-				spacing := side * (1 + spacingGap)
+				apart := side * (1 + spacing.SpacingGap)
 				if !settled || overlaps > 0 {
 					t.Errorf("%d units %v a side, %s: settled %v, %d pairs overlapping", n, side, layout, settled, overlaps)
 				}
-				if limit := spacing * (2 + math.Sqrt(float64(n))) * 1.5; spread > limit {
+				if limit := apart * (2 + math.Sqrt(float64(n))) * 1.5; spread > limit {
 					t.Errorf("%d units %v a side, %s: one stands %.0f off the point, want within %.0f", n, side, layout, spread, limit)
 				}
-				if limit := int(stallAfter / (time.Second / 60)); longest >= limit {
+				if limit := int(spacing.StallAfter / (time.Second / 60)); longest >= limit {
 					t.Errorf("%d units %v a side, %s: two touched for %d ticks on end, want under %d: in passing", n, side, layout, longest, limit)
 				}
 			}
@@ -451,7 +452,7 @@ func TestBodySpacing_ASpotTakenMeanwhileGivesAnother(t *testing.T) {
 		switch d := math.Hypot(at.X-goal.X, at.Y-goal.Y); {
 		case d <= 3:
 			onPoint++
-		case d <= 3*6*(1+spacingGap):
+		case d <= 3*6*(1+spacing.SpacingGap):
 			beside++
 		}
 	}
@@ -558,7 +559,7 @@ func TestBodySpacing_StrikingSomeoneByTheShoreItStepsRoundByLand(t *testing.T) {
 	if wet > 0 {
 		t.Errorf("the unit stood over the water for %d ticks", wet)
 	}
-	if at, o := fw.centre(0); o != nil || math.Hypot(at.X-goal.X, at.Y-goal.Y) > 6*(1+spacingGap) {
+	if at, o := fw.centre(0); o != nil || math.Hypot(at.X-goal.X, at.Y-goal.Y) > 6*(1+spacing.SpacingGap) {
 		t.Errorf("the unit stands at %v with order %v, want by the goal %v", at, o, goal)
 	}
 }

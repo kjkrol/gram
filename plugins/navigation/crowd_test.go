@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"math"
 	"testing"
 	"time"
@@ -55,8 +56,8 @@ func TestCrowd_AStrangerStandingIsGoneRoundAtOnce(t *testing.T) {
 		} else {
 			stood = 0
 		}
-		if stood > int(stallAfter/(time.Second/60)) {
-			t.Fatalf("the traveller stood at %v for %v: it waited on the stranger, want it gone round at once", c, stallAfter)
+		if stood > int(spacing.StallAfter/(time.Second/60)) {
+			t.Fatalf("the traveller stood at %v for %v: it waited on the stranger, want it gone round at once", c, spacing.StallAfter)
 		}
 		last = c
 		return o == nil && c == rw.at(9, 1)
@@ -309,7 +310,7 @@ type cliffs map[cell.ID]bool
 
 func (c cliffs) Climb(_, to cell.ID, _ cell.Domain) float64 {
 	if c[to] {
-		return 2 * yieldClimb
+		return 2 * spacing.YieldClimb
 	}
 	return 1
 }
@@ -340,21 +341,21 @@ func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 					steep[c] = true
 				}
 			}
-			finder := newPathFinder(grid, terrain, steep, openOccupancy{})
+			finder := spacing.NewFinder(grid, terrain, steep, spacing.OpenOccupancy{})
 			coming := bodies.Body{ID: 3, At: grid.CellCenter(at(1, 2)), Half: geom.NewVec(3, 3), Cell: at(1, 2), Moving: true, Domain: cell.Land}
 
-			cells := newCellKeeping(finder, &cell.SingleOccupancy{})
+			cells := spacing.NewCellKeeping(finder, &cell.SingleOccupancy{})
 			m := bodies.Member{ID: 7, Cell: at(2, 2), From: at(2, 2), Domain: cell.Land, Pos: posAt(grid, at(2, 2))}
-			if o, ok := cells.stepAside(m, coming); ok != open || open && o.Target != at(2, 3) {
+			if o, ok := cells.StepAside(m, coming); ok != open || open && o.Target != at(2, 3) {
 				t.Errorf("cells, %s on every side but open %v: stepped aside %v to %v, want only to the open (2,3)", name, open, ok, o.Target)
 			}
 
-			keep := newBodyKeeping(finder, nil, nil)
-			keep.begin(func(dst []bodies.Body) []bodies.Body { return dst })
+			keep := spacing.NewBodyKeeping(finder, nil, nil)
+			keep.Begin(func(dst []bodies.Body) []bodies.Body { return dst })
 			c := grid.CellCenter(at(2, 2))
 			m = bodies.Member{ID: 7, Cell: at(2, 2), From: at(2, 2), Domain: cell.Land,
 				Pos: world.Position{AABB: plane.NewAABB(geom.NewVec(c.X-14, c.Y-14), 28, 28)}}
-			o, ok := keep.stepAside(m, coming)
+			o, ok := keep.StepAside(m, coming)
 			if ok != open {
 				t.Errorf("bodies, %s on every side but open %v: stepped aside %v, to %v", name, open, ok, o.Spot)
 				continue

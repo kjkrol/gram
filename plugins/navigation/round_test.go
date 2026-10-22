@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
 
@@ -21,7 +22,7 @@ func TestOnward_SendsTheUnitRoundItsOwnRound(t *testing.T) {
 	start, east, west := grid.At(0, 0), grid.At(8, 0), grid.At(1, 0)
 
 	onwards := &command.Queue[Onward]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &cell.SingleOccupancy{}),
+	cmds := newMoveCommandSystem(spacing.NewFinder(grid, terrain, nil, &cell.SingleOccupancy{}),
 		&command.Queue[MoveTo]{}, &command.Queue[LookAt]{}, selTags.Selected)
 	cmds.onwards = onwards
 
@@ -100,7 +101,7 @@ func TestMoveTo_ByNameGoesToTheNamedCellOrUnit(t *testing.T) {
 	start, post, mate := grid.At(0, 0), grid.At(7, 0), grid.At(4, 0)
 
 	moves := &command.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{}),
+	cmds := newMoveCommandSystem(spacing.NewFinder(grid, terrain, nil, &cell.MultipleOccupancy{}),
 		moves, &command.Queue[LookAt]{}, selTags.Selected)
 
 	var at goke.Comp[unit.At]

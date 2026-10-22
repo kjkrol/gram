@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -29,8 +30,8 @@ func TestKept_ADetourAskedAgainIsAnsweredAsBeforeUnsearched(t *testing.T) {
 	board := cell.NewTerrainMap()
 	board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	read := &readTerrain{TerrainMap: board}
-	kept := newCellKeeping(newPathFinder(g, read, nil, openOccupancy{}), &cell.SingleOccupancy{})
-	fresh := newCellKeeping(newPathFinder(g, board, nil, &cell.MultipleOccupancy{}),
+	kept := spacing.NewCellKeeping(spacing.NewFinder(g, read, nil, spacing.OpenOccupancy{}), &cell.SingleOccupancy{})
+	fresh := spacing.NewCellKeeping(spacing.NewFinder(g, board, nil, &cell.MultipleOccupancy{}),
 		&cell.SingleOccupancy{})
 	stand := func(c cell.ID, size uint32) bodies.Member {
 		return bodies.Member{ID: 7, Cell: c, From: c, Domain: cell.Land,
@@ -68,8 +69,8 @@ func TestKept_ADetourAskedAgainIsAnsweredAsBeforeUnsearched(t *testing.T) {
 			step.change(&mf, &of)
 		}
 		before := read.read
-		kept.detour(m, &o, other)
-		fresh.detour(mf, &of, other)
+		kept.Detour(m, &o, other)
+		fresh.Detour(mf, &of, other)
 		if searched := read.read > before; searched != step.searched {
 			t.Errorf("%s: searched %v, want %v", step.name, searched, step.searched)
 		}
@@ -88,13 +89,13 @@ func TestKept_AFinderSeeingTheOthersKeepsNoAnswer(t *testing.T) {
 	read := &readTerrain{TerrainMap: cell.NewTerrainMap()}
 	read.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occ := &cell.SingleOccupancy{}
-	k := newCellKeeping(newPathFinder(g, read, nil, occ), occ)
+	k := spacing.NewCellKeeping(spacing.NewFinder(g, read, nil, occ), occ)
 	m := bodies.Member{ID: 7, Cell: g.At(0, 1), From: g.At(0, 1), Domain: cell.Land,
 		Pos: world.Position{AABB: cellBox(g, g.At(0, 1), 8)}}
 	o := MoveOrder{Target: g.At(5, 1), Toward: g.At(1, 1)}
 	for i := range 2 {
 		before := read.read
-		if k.detour(m, &o, bodies.Body{ID: 3, Cell: g.At(1, 1)}); read.read == before {
+		if k.Detour(m, &o, bodies.Body{ID: 3, Cell: g.At(1, 1)}); read.read == before {
 			t.Errorf("detour %d searched nothing, want every one searched: the cells held "+
 				"change", i)
 		}

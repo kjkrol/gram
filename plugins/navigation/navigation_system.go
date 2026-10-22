@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/ceremony/store"
 	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"math"
 	"time"
 
@@ -29,8 +30,8 @@ type navigationSystem struct {
 	terrain    cell.Terrain
 	occupancy  cell.Occupancy
 	space      *aabbworld.Space
-	pathFinder *pathFinder
-	keep       keeping
+	pathFinder *spacing.Finder
+	keep       spacing.Keeping
 	gathering  func([]bodies.Body) []bodies.Body // the method value, bound once
 	finished   []uid.UID64                       // a chunk's ids whose order is over
 	// who came at each unit last tick and this tick, swapped at the tick's end, so two coming at
@@ -87,27 +88,22 @@ type navigationSystem struct {
 
 var _ goke.System = (*navigationSystem)(nil)
 
-const targetWaitTimeout = 500 * time.Millisecond
-
 const bumpInterval = 500 * time.Millisecond
 
-// world units
-const arrivalEpsilon = 2.0
-
-func newNavigationSystem(pathFinder *pathFinder, grid grid.Grid, terrain cell.Terrain, occupancy cell.Occupancy) *navigationSystem {
+func newNavigationSystem(pathFinder *spacing.Finder, grid grid.Grid, terrain cell.Terrain, occupancy cell.Occupancy) *navigationSystem {
 	s := &navigationSystem{
 		grid:       grid,
 		terrain:    terrain,
 		occupancy:  occupancy,
 		pathFinder: pathFinder,
-		keep:       newCellKeeping(pathFinder, occupancy),
+		keep:       spacing.NewCellKeeping(pathFinder, occupancy),
 	}
 	s.gathering = s.gather
 	return s
 }
 
-func (s *navigationSystem) withKeeping(k keeping) *navigationSystem {
-	s.keep, s.occupancy = k, k.occupancy()
+func (s *navigationSystem) withKeeping(k spacing.Keeping) *navigationSystem {
+	s.keep, s.occupancy = k, k.Occupancy()
 	return s
 }
 
@@ -146,13 +142,13 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	if v, ok := s.terrain.(interface{ Version() uint64 }); ok && v.Version() != s.terrainSeen {
 		s.terrainSeen, changed = v.Version(), true
 	}
-	s.keep.begin(s.gathering)
+	s.keep.Begin(s.gathering)
 	s.bump()
 	s.touched = s.touched[:0]
 	if s.felt == nil {
 		s.felt = map[[2]uid.UID64]bool{}
 	}
-	if s.keep.byContact() {
+	if s.keep.ByContact() {
 		// the rules' commands for the boxes that met are carried out this very tick
 		s.feel()
 		s.touch(cb, d)
@@ -196,7 +192,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			if zs != nil {
 				z = &zs[i]
 			}
-			actual, onDeck, ok := levelOf(s.grid, s.terrain, bases[i].Pos.Center(), z)
+			actual, onDeck, ok := spacing.LevelOf(s.grid, s.terrain, bases[i].Pos.Center(), z)
 			if !ok {
 				actual = current
 			}
@@ -264,13 +260,13 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			o.Retry = max(o.Retry-d, 0)
 			if o.Bumped {
 				o.Bumped = false
-				answer := s.keep.bump(m, o)
-				if answer == giveUp {
+				answer := s.keep.Bump(m, o)
+				if answer == spacing.GiveUp {
 					st.RequestSpeed(0)
 					arrive()
 					continue
 				}
-				if answer == stopAndPlan {
+				if answer == spacing.StopAndPlan {
 					o.Cooldown = bumpInterval
 					if leg.Active {
 						s.releaseLeg(*leg, id)
@@ -333,20 +329,20 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				continue
 			}
 
-			s.keep.ready(m, o)
+			s.keep.Ready(m, o)
 			target := o.Target
 			if !leg.Active && (p.Length == 0 || p.Index >= p.Length) &&
-				(cells[i].Cell != target || !s.keep.on(m, target, o.Level)) {
+				(cells[i].Cell != target || !s.keep.On(m, target, o.Level)) {
 				var newPath Path
 				found := false
 				// waiting on a search that found nothing: the same answer till its Retry ends
 				if o.Waited == 0 || o.Retry == 0 {
-					newPath, found = s.keep.route(m, cells[i].Cell, o)
+					newPath, found = s.keep.Route(m, cells[i].Cell, o)
 				}
 				if !found {
 					st.RequestSpeed(0)
 					o.Waited += d
-					dest, destPath, wait, ok := s.keep.lost(m, cells[i].Cell, o, o.Waited)
+					dest, destPath, wait, ok := s.keep.Lost(m, cells[i].Cell, o, o.Waited)
 					if wait {
 						continue
 					}
@@ -389,7 +385,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 						order.Learn(o, why.cell)
 						p.Length = 0
 					default:
-						if holder, known := s.keep.blocked(m, o, why.cell, why.deck, d); known {
+						if holder, known := s.keep.Blocked(m, o, why.cell, why.deck, d); known {
 							s.touched = append(s.touched, touching{self: id, other: holder, way: s.wayBetween(why.cell, cells[i].Cell),
 								cell: why.cell, from: cells[i].Cell, headOn: m.Pressed && m.PressedBy == holder, refused: true})
 							if s.wanting == nil {
@@ -412,14 +408,14 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 			if final {
 				want = s.unwrap(have, end)
 			}
-			s.keep.watch(m, o, waypoint, want, d)
+			s.keep.Watch(m, o, waypoint, want, d)
 
 			reach := lookaheadReach(st, dt)
 			if final && o.Queued > 0 && o.Linger > 0 {
 				dx, dy := want.X-have.X, want.Y-have.Y
-				if dist, within := math.Hypot(dx, dy), s.keep.within(m); dist > within {
+				if dist, within := math.Hypot(dx, dy), s.keep.Within(m); dist > within {
 					dir := geom.NewVec(dx, dy)
-					s.keep.steer(m, st, dir, approach(st, dist, within)*turnFactor(bases[i].Vel.Dir, dir))
+					s.keep.Steer(m, st, dir, approach(st, dist, within)*turnFactor(bases[i].Vel.Dir, dir))
 					continue
 				}
 				st.RequestSpeed(0)
@@ -494,9 +490,9 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 
 			dx, dy := want.X-have.X, want.Y-have.Y
 			dist := math.Hypot(dx, dy)
-			if within := s.keep.within(m); dist > within {
+			if within := s.keep.Within(m); dist > within {
 				dir := geom.NewVec(dx, dy)
-				s.keep.steer(m, st, dir, approach(st, dist, within)*turnFactor(bases[i].Vel.Dir, dir))
+				s.keep.Steer(m, st, dir, approach(st, dist, within)*turnFactor(bases[i].Vel.Dir, dir))
 				continue
 			}
 
@@ -516,7 +512,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				moveTo(leg.To)
 				*leg = Leg{}
 			}
-			if at, deck, ok := levelOf(s.grid, s.terrain, want, &m.Z); ok && at != cells[i].Cell {
+			if at, deck, ok := spacing.LevelOf(s.grid, s.terrain, want, &m.Z); ok && at != cells[i].Cell {
 				s.occupancy.Leave(cells[i].Cell, id)
 				s.occupancy.Enter(at, deck, id, domain)
 				moveTo(at)
@@ -583,7 +579,7 @@ func (s *navigationSystem) standing(cb *goke.CmdBuf, cursor *goke.Cursor) {
 		if !ok || !t.aside {
 			continue
 		}
-		of, ok := s.keep.other(t.asideOf)
+		of, ok := s.keep.Other(t.asideOf)
 		if !ok {
 			continue
 		}
@@ -594,7 +590,7 @@ func (s *navigationSystem) standing(cb *goke.CmdBuf, cursor *goke.Cursor) {
 		if movers != nil {
 			m.Lift = movers[i].Lift
 		}
-		if order, ok := s.keep.stepAside(m, of); ok {
+		if order, ok := s.keep.StepAside(m, of); ok {
 			cb.AddOne(id, s.orderID, order)
 		}
 	}
@@ -643,8 +639,8 @@ func (s *navigationSystem) touch(cb *goke.CmdBuf, d time.Duration) {
 		}
 	}
 	for _, t := range s.touched {
-		self, ok := s.keep.other(t.self)
-		other, found := s.keep.other(t.other)
+		self, ok := s.keep.Other(t.self)
+		other, found := s.keep.Other(t.other)
 		if !ok || !found || self.Domain&other.Domain == 0 {
 			continue
 		}
@@ -664,9 +660,9 @@ func (s *navigationSystem) fire(tick host.Tick, hosted bool, self, other bodies.
 		Ally: owner.Allies(self.Owners, other.Owners), Groupmate: self.Group != 0 && self.Group == other.Group,
 		HeadOn: head && self.Moving && other.Moving, WaitedOut: self.WaitedOut, Cornered: self.Cornered}
 	if self.Moving {
-		t.OnMyGoal = s.keep.onGoal(self, other)
+		t.OnMyGoal = s.keep.OnGoal(self, other)
 		if !other.Moving {
-			_, t.Room = s.keep.stepAside(other.Member(), self)
+			_, t.Room = s.keep.StepAside(other.Member(), self)
 		}
 		if self.Minded {
 			if s.blocking == nil {
@@ -729,20 +725,20 @@ func (s *navigationSystem) carryOut(m bodies.Member, o *MoveOrder, st steering.H
 		case t.aside:
 			s.stepAside(m, o, t.asideOf)
 		case t.detour:
-			if other, ok := s.keep.other(t.detourOf); ok && s.keep.detour(m, o, other) == giveUp {
+			if other, ok := s.keep.Other(t.detourOf); ok && s.keep.Detour(m, o, other) == spacing.GiveUp {
 				return true, false
 			}
 		case t.pass:
-			if other, ok := s.keep.other(t.passOf); ok {
-				s.keep.pass(m, o, other)
+			if other, ok := s.keep.Other(t.passOf); ok {
+				s.keep.Pass(m, o, other)
 			}
 		case t.hold:
 			if o.Holding <= 0 && !o.WaitedOut {
-				o.Holding = stallAfter
+				o.Holding = spacing.StallAfter
 			}
 		case t.settle:
-			if other, ok := s.keep.other(t.settleBeside); ok {
-				s.keep.settle(m, o, other)
+			if other, ok := s.keep.Other(t.settleBeside); ok {
+				s.keep.Settle(m, o, other)
 			}
 		}
 	}
@@ -753,7 +749,7 @@ func (s *navigationSystem) carryOut(m bodies.Member, o *MoveOrder, st steering.H
 	if o.Path.Index < o.Path.Length {
 		next, aloft = o.Path.Steps[o.Path.Index], order.Deck(&o.Path, o.Path.Index)
 	}
-	if s.keep.mayStep(m, next, aloft, s.wayTo(m, next), nil) {
+	if s.keep.MayStep(m, next, aloft, s.wayTo(m, next), nil) {
 		o.Holding = 0
 		return false, false
 	}
@@ -765,15 +761,15 @@ func (s *navigationSystem) carryOut(m bodies.Member, o *MoveOrder, st steering.H
 }
 
 func (s *navigationSystem) stepAside(m bodies.Member, o *MoveOrder, of uid.UID64) {
-	other, ok := s.keep.other(of)
+	other, ok := s.keep.Other(of)
 	if !ok {
 		return
 	}
-	aside, ok := s.keep.stepAside(m, other)
+	aside, ok := s.keep.StepAside(m, other)
 	if !ok {
 		return
 	}
-	aside.Linger, aside.Face, aside.Group = yieldLinger, o.Face, o.Group
+	aside.Linger, aside.Face, aside.Group = spacing.YieldLinger, o.Face, o.Group
 	aside.Enqueue(Goal{Cell: o.Target, Spot: o.Spot, At: o.At})
 	for _, g := range o.Waypoints[:o.Queued] {
 		aside.Enqueue(g)
@@ -844,8 +840,8 @@ func (s *navigationSystem) unwrap(have, to geom.Vec) geom.Vec {
 		return to
 	}
 	return geom.NewVec(
-		have.X+shortestAxisDelta(have.X, to.X, s.space.Width, s.space.Edges.WrapsX()),
-		have.Y+shortestAxisDelta(have.Y, to.Y, s.space.Height, s.space.Edges.WrapsY()),
+		have.X+spacing.ShortestAxisDelta(have.X, to.X, s.space.Width, s.space.Edges.WrapsX()),
+		have.Y+spacing.ShortestAxisDelta(have.Y, to.Y, s.space.Height, s.space.Edges.WrapsY()),
 	)
 }
 
@@ -875,11 +871,11 @@ const maxAhead = 8
 func (s *navigationSystem) drive(m bodies.Member, st steering.Helm, heading, have geom.Vec, route []geom.Vec, reach, speed float64) {
 	at := lookahead(have, route, reach)
 	if at == have {
-		s.keep.steer(m, st, geom.Vec{}, speed)
+		s.keep.Steer(m, st, geom.Vec{}, speed)
 		return
 	}
 	dir := geom.NewVec(at.X-have.X, at.Y-have.Y)
-	s.keep.steer(m, st, dir, speed*turnFactor(heading, dir))
+	s.keep.Steer(m, st, dir, speed*turnFactor(heading, dir))
 }
 
 // the turning radius at the current speed
@@ -927,7 +923,7 @@ func lookahead(have geom.Vec, route []geom.Vec, reach float64) geom.Vec {
 
 // beyond the plane through w perpendicular to from → w, or within reach of w
 func passed(have, w, from geom.Vec, reach float64) bool {
-	if math.Hypot(have.X-w.X, have.Y-w.Y) <= max(reach, arrivalEpsilon) {
+	if math.Hypot(have.X-w.X, have.Y-w.Y) <= max(reach, spacing.ArrivalEpsilon) {
 		return true
 	}
 	ax, ay := w.X-from.X, w.Y-from.Y
@@ -974,30 +970,6 @@ func (s *navigationSystem) reserveLeg(from, to order.Spot, id uid.UID64,
 	return leg, refusal{}
 }
 
-type footing interface {
-	CellFor(p geom.Vec, feet, reach float64) (cell.ID, bool)
-	LevelFor(p geom.Vec, feet, reach float64) (c cell.ID, deck, ok bool)
-	KindFor(c cell.ID, p geom.Vec, feet, reach float64) cell.Kind
-}
-
-// nil z: the ground's
-func cellOf(g grid.Grid, t cell.Terrain, p geom.Vec, z *world.Z) (cell.ID, bool) {
-	c, _, ok := levelOf(g, t, p, z)
-	return c, ok
-}
-
-func levelOf(g grid.Grid, t cell.Terrain, p geom.Vec, z *world.Z) (c cell.ID, deck, ok bool) {
-	f, known := t.(footing)
-	if !known {
-		c, ok = g.CellAt(p)
-		return c, false, ok
-	}
-	if z == nil {
-		return f.LevelFor(p, math.Inf(-1), 0)
-	}
-	return f.LevelFor(p, z.Altitude, z.Reach())
-}
-
 func (s *navigationSystem) decked(from, to cell.ID) bool {
 	r, ok := s.terrain.(interface{ Reaches(c, n cell.ID) bool })
 	return ok && (r.Reaches(from, to) || r.Reaches(to, from))
@@ -1027,20 +999,6 @@ func (s *navigationSystem) releaseLeg(leg Leg, id uid.UID64) {
 	for _, h := range held[:n] {
 		s.occupancy.Leave(h.C, id)
 	}
-}
-
-func shortestAxisDelta(have, want float64, size uint32, wraps bool) float64 {
-	d := want - have
-	if !wraps || size == 0 {
-		return d
-	}
-	s := float64(size)
-	if d > s/2 {
-		d -= s
-	} else if d < -s/2 {
-		d += s
-	}
-	return d
 }
 
 func (s *navigationSystem) enter(states []tag.Tags[unit.States], i int, id uid.UID64) {
