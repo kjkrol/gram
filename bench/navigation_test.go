@@ -81,11 +81,11 @@ func benchNavigation(b *testing.B, n int, crowded bool) *navScene {
 	if err := s.w.Carry(sel, drv, nav); err != nil {
 		b.Fatal(err)
 	}
-	p.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	p.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	if crowded {
 		for y := range uint32(navSide) {
 			if y != navGapY {
-				p.Board().Set(s.g.At(navWallX, y), cell.Kind{Cost: 1, Solid: true})
+				p.Write().Board().Set(s.g.At(navWallX, y), cell.Kind{Cost: 1, Solid: true})
 			}
 		}
 	}
@@ -212,8 +212,8 @@ func Benchmark_Navigation_Path(b *testing.B) {
 	}
 	start, goals := g.At(2, 2), [2]cell.ID{g.At(pathSide-3, pathSide-3), g.At(2, pathSide-3)}
 	rng := rand.New(rand.NewPCG(7, 9))
-	brd := p.Board()
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brdW := p.Write().Board()
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	rock := cell.Kind{Cost: 1, Solid: true}
 	var clear []cell.ID
 	for y := range uint32(pathSide) {
@@ -223,7 +223,7 @@ func Benchmark_Navigation_Path(b *testing.B) {
 			case wall && y%67 == 33:
 				clear = append(clear, g.At(x, y))
 			case wall || rng.IntN(6) == 0:
-				brd.Set(g.At(x, y), rock)
+				brdW.Set(g.At(x, y), rock)
 			}
 		}
 	}
@@ -231,7 +231,7 @@ func Benchmark_Navigation_Path(b *testing.B) {
 		x, y, _ := g.Coords(c)
 		for dy := range uint32(5) {
 			for dx := range uint32(5) {
-				brd.Set(g.At(x+dx-2, y+dy-2), cell.Kind{Cost: 1, Allows: cell.Land})
+				brdW.Set(g.At(x+dx-2, y+dy-2), cell.Kind{Cost: 1, Allows: cell.Land})
 			}
 		}
 	}

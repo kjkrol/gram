@@ -6,16 +6,21 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-// Occupancy tracks who holds each cell, on which of its levels and in which domains.
-type Occupancy interface {
+// OccupancyRead is who holds each cell, on which of its levels and in which domains, read.
+type OccupancyRead interface {
 	// CanEnter reports whether entity, moving in domain, may hold c on the deck over it or on
 	// its ground.
 	CanEnter(c ID, deck bool, entity uid.UID64, domain Domain) bool
+	// Holders hands visit every hold of c.
+	Holders(c ID, visit func(entity uid.UID64, domain Domain, deck bool))
+}
+
+// Occupancy tracks who holds each cell, on which of its levels and in which domains.
+type Occupancy interface {
+	OccupancyRead
 	// Enter has entity hold c on a level in domain, in place of the hold of c it had.
 	Enter(c ID, deck bool, entity uid.UID64, domain Domain)
 	Leave(c ID, entity uid.UID64)
-	// Holders hands visit every hold of c.
-	Holders(c ID, visit func(entity uid.UID64, domain Domain, deck bool))
 	// Release lets go of every hold of an entity gone says is no more.
 	Release(gone func(uid.UID64) bool)
 }

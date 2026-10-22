@@ -40,12 +40,12 @@ func (p *Plugin) Settings() []control.Setting {
 	return []control.Setting{
 		control.Switch{
 			Label: "Grid",
-			Get:   p.GridShown,
+			Get:   p.read.GridShown,
 			Set:   func(on bool) command.Command { return Grid{Shown: on} },
 		},
 		control.Switch{
 			Label: "Cells held",
-			Get:   p.HoldsShown,
+			Get:   p.read.HoldsShown,
 			Set:   func(on bool) command.Command { return Holds{Shown: on} },
 		},
 	}

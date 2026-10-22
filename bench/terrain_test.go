@@ -52,7 +52,7 @@ func roughCells(grid grid.Grid, scattered bool) []cell.ID {
 	return out
 }
 
-func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []cell.ID) {
+func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.BoardWrite, []cell.ID) {
 	b.Helper()
 	const side = terrainSide * terrainCell
 	ctx := newHeadless()
@@ -78,8 +78,9 @@ func benchTerrain(b *testing.B, scattered bool) (*goke.ECS, *board.Board, []cell
 	if err := ctx.Use(v); err != nil {
 		b.Fatal(err)
 	}
-	terrain := brd.Board()
-	terrain.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+	terrain := brd.Write().Board()
+	terrainW := brd.Write().Board()
+	terrainW.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 	rough := [2]cell.Kind{
 		{Name: cell.Named("forest"), Cost: 1, Allows: cell.Land, Veil: 0.6},
 		{Name: cell.Named("rock"), Cost: 1, Solid: true, Veil: 1},

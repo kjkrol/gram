@@ -34,7 +34,7 @@ func isometricIsland() (*world.Plugin, *topography.Plugin, camera.Camera) {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, w)
-	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	cam := cameras.NewPlugin(w, cameras.Config{
 		Turn:       true,
@@ -137,7 +137,7 @@ func TestBillboards_HazeFarOffOnlyWhenAsked(t *testing.T) {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(128, 128, 32), &cell.MultipleOccupancy{}, w)
-	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	p.WithAtmosphere(fixedSky{sun: sky.DefaultSun, air: air.Weather{Sight: 300}})
 	cam := cameras.NewPlugin(w, cameras.Config{

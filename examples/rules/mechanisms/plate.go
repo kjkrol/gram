@@ -24,7 +24,7 @@ var (
 
 // stood on, a plate triggers: the command naming it says what that opens
 func (plate) Rules(b *board.Plugin) {
-	b.World().Roles().Define(PlateRole, act.Branch[collision.Meeting]{
+	b.Read(0).World().Roles().Define(PlateRole, act.Branch[collision.Meeting]{
 		Name: "press",
 		When: cond.Self.If(cond.Always),
 		Then: act.Self.Do(ceremony.Trigger{}),
@@ -34,7 +34,7 @@ func (plate) Rules(b *board.Plugin) {
 func (plate) Define(b *board.Plugin) {
 	board.NewEntities(b, board.Shape{Size: plateSize}, standingAt).Define(PlateKind,
 		comp.Const(collision.Collider{}),
-		ceremony.Plays(b.World().Roles().Named(PlateRole)))
+		ceremony.Plays(b.Read(0).World().Roles().Named(PlateRole)))
 }
 
 func (plate) Look(a *world.Atlas, w *world.Plugin) {

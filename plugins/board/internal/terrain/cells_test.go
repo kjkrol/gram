@@ -47,7 +47,7 @@ func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
 	cw.brd = board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	cw.grass = cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land}
 	cw.snow = cell.Kind{Name: cell.Named("snow"), Cost: 3, Allows: cell.Land}
-	cw.brd.Board().SetAll(cw.grass)
+	cw.brd.Write().Board().SetAll(cw.grass)
 	snow := cw.snow
 	cw.fx.Define("frost", effect.Spec{effect.Lasts(2 * cellTick), effect.Alter(func(g *cell.Ground) { g.Kind = snow })})
 	cw.frost = cw.fx.Named("frost")
@@ -84,12 +84,14 @@ func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
 }
 
 func (cw *cellWorld) castFrost() uid.UID64 {
-	id, _ := cw.brd.CellEntity(cw.target)
+	id, _ := cw.brd.Read(0).Board().CellEntity(cw.target)
 	cw.casting = func(cb *goke.CmdBuf) { cw.fx.Cast(id, cw.frost) }
 	return id
 }
 
-func (cw *cellWorld) board() *board.Board { return cw.brd.Board() }
+func (cw *cellWorld) board() *board.BoardRead { return cw.brd.Read(0).Board() }
+
+func (cw *cellWorld) write() *board.BoardWrite { return cw.brd.Write().Board() }
 
 func (cw *cellWorld) kind() cell.Kind { return cw.board().Kind(cw.target) }
 
@@ -113,7 +115,7 @@ func TestCells_EveryCellIsAnEntityForGood(t *testing.T) {
 	}
 	seen := map[uid.UID64]cell.ID{}
 	cw.board().EachCell(func(c cell.ID) {
-		id, ok := cw.brd.CellEntity(c)
+		id, ok := cw.brd.Read(0).Board().CellEntity(c)
 		if !ok {
 			t.Errorf("cell %d has no entity", c)
 		}
@@ -130,7 +132,7 @@ func TestCells_EveryCellIsAnEntityForGood(t *testing.T) {
 func TestCells_SetWritesTheEntityAtOnceAndCountsAChange(t *testing.T) {
 	cw := newCellWorld(t, false)
 	before := cw.board().Version()
-	cw.board().Set(cw.target, cw.snow)
+	cw.write().Set(cw.target, cw.snow)
 	if got := cw.kind(); got != cw.snow {
 		t.Errorf("terrain is %q right after Set, want snow", got.Name)
 	}
@@ -138,7 +140,7 @@ func TestCells_SetWritesTheEntityAtOnceAndCountsAChange(t *testing.T) {
 		t.Error("Set left the Version as it was")
 	}
 	at := cw.board().Version()
-	cw.board().Set(cw.target, cw.snow)
+	cw.write().Set(cw.target, cw.snow)
 	cw.ecs.Tick(cellTick)
 	if cw.board().Version() != at {
 		t.Error("setting what is there already, then a quiet tick, moved the Version")
@@ -169,7 +171,7 @@ func TestCells_AnEffectOnTheEntityChangesTheTerrainAndIsCounted(t *testing.T) {
 			if cw.board().Version() == v1 {
 				t.Error("the frost ending left the Version as it was")
 			}
-			if again, _ := cw.brd.CellEntity(cw.target); again != first {
+			if again, _ := cw.brd.Read(0).Board().CellEntity(cw.target); again != first {
 				t.Errorf("the cell entity changed from %d to %d; it is the cell's for good", first, again)
 			}
 			if n, changed := cw.cells(); n != 16 || changed != 0 {
@@ -181,7 +183,7 @@ func TestCells_AnEffectOnTheEntityChangesTheTerrainAndIsCounted(t *testing.T) {
 
 func TestBoard_CellVersionCountsTheChangesToOneCell(t *testing.T) {
 	cw := newCellWorld(t, false)
-	brd := cw.board()
+	brd, write := cw.board(), cw.write()
 	far := brd.At(0, 0)
 	v, other := brd.CellVersion(cw.target), brd.CellVersion(far)
 	step := func(what string, change func()) {
@@ -193,10 +195,10 @@ func TestBoard_CellVersionCountsTheChangesToOneCell(t *testing.T) {
 			v = now
 		}
 	}
-	step("kind", func() { brd.Set(cw.target, cw.snow) })
-	step("way", func() { brd.SetWay(cw.target, cell.Way{Kind: cw.grass, Width: 3, Links: 1}) })
-	step("heights, shaped beyond the board", func() { brd.Touch(cw.target) })
-	brd.Set(cw.target, cw.grass)
+	step("kind", func() { write.Set(cw.target, cw.snow) })
+	step("way", func() { write.SetWay(cw.target, cell.Way{Kind: cw.grass, Width: 3, Links: 1}) })
+	step("heights, shaped beyond the board", func() { write.Touch(cw.target) })
+	write.Set(cw.target, cw.grass)
 	v = brd.CellVersion(cw.target)
 	step("effect", func() {
 		cw.castFrost()

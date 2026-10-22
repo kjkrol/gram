@@ -37,9 +37,9 @@ var grounds = []ground{
 }
 
 func (g ground) Define(b *board.Plugin) {
-	b.CellKinds().Define(g.name, g.kind)
+	b.Read(0).CellKinds().Define(g.name, g.kind)
 	if g.snowable {
-		b.CellKinds().Define(snowyCell(g.name), g.kind)
+		b.Read(0).CellKinds().Define(snowyCell(g.name), g.kind)
 	}
 }
 
@@ -56,7 +56,7 @@ type ice struct{}
 var _ board.Tile = ice{}
 
 func (ice) Define(b *board.Plugin) {
-	b.CellKinds().Define(IceCell, cell.Kind{Cost: 5, Allows: dry}.Costing(cell.Air, 1))
+	b.Read(0).CellKinds().Define(IceCell, cell.Kind{Cost: 5, Allows: dry}.Costing(cell.Air, 1))
 }
 
 func (ice) Look(a *board.Atlas, _ *board.Plugin) { a.Add(IceCell, render.Solid(iceColor)) }

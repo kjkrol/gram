@@ -95,10 +95,10 @@ func TestFindPath_TakesTheRoadRoundWhereTheGroundCostsMore(t *testing.T) {
 	}
 }
 
-func roadOver(brd *board.Board, road cell.Kind, cells ...cell.ID) {
+func roadOver(brd *board.BoardRead, brdW *board.BoardWrite, road cell.Kind, cells ...cell.ID) {
 	for i := range cells {
 		if w := brd.Way(cells[i]); !w.Runs() {
-			brd.SetWay(cells[i], cell.Way{Kind: road, Width: 4})
+			brdW.SetWay(cells[i], cell.Way{Kind: road, Width: 4})
 		}
 		if i == 0 {
 			continue
@@ -108,7 +108,7 @@ func roadOver(brd *board.Board, road cell.Kind, cells ...cell.ID) {
 			if bit, ok := grid.Link(brd.Grid, l[0], l[1]); ok {
 				w := brd.Way(l[0])
 				w.Links |= bit
-				brd.SetWay(l[0], w)
+				brdW.SetWay(l[0], w)
 			}
 		}
 	}
@@ -117,8 +117,8 @@ func roadOver(brd *board.Board, road cell.Kind, cells ...cell.ID) {
 func TestFindPath_FollowsARoadRoundItsBendRatherThanCuttingTheCorner(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(7, 5, 10)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land})
 	road := cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land}
 	var cells []cell.ID
 	for x := range uint32(5) {
@@ -127,7 +127,7 @@ func TestFindPath_FollowsARoadRoundItsBendRatherThanCuttingTheCorner(t *testing.
 	for y := uint32(1); y < 5; y++ {
 		cells = append(cells, at(4, y))
 	}
-	roadOver(brd, road, cells...)
+	roadOver(brd, brdW, road, cells...)
 	pf := newPathFinder(grid, brd, nil, &cell.MultipleOccupancy{})
 	if got, _ := pf.price(at(3, 0), at(4, 1), brd.Kind(at(4, 1)), cell.Land); math.Abs(got-2*math.Sqrt2) > 1e-9 {
 		t.Errorf("the diagonal across the bend costs %v, want the grass's 2√2", got)
@@ -150,17 +150,17 @@ func TestFindPath_TakesADiagonalRoadAlongItsLinks(t *testing.T) {
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	road := cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land}
 	for _, linked := range []bool{true, false} {
-		brd := board.NewBoard(grid)
-		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land})
+		brd, brdW := board.NewBoard(grid)
+		brdW.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 2, Allows: cell.Land})
 		var cells []cell.ID
 		for i := range uint32(5) {
 			cells = append(cells, at(i, i))
 		}
 		if linked {
-			roadOver(brd, road, cells...)
+			roadOver(brd, brdW, road, cells...)
 		} else {
 			for _, c := range cells {
-				brd.SetWay(c, cell.Way{Kind: road, Width: 4})
+				brdW.SetWay(c, cell.Way{Kind: road, Width: 4})
 			}
 		}
 		pf := newPathFinder(grid, brd, nil, &cell.MultipleOccupancy{})

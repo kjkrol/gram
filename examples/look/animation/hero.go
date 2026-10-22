@@ -133,9 +133,9 @@ func wakeUp(fx *cgoke.Effects) act.Step {
 }
 
 func (h hero) Define(b *board.Plugin) {
-	w := b.World()
+	w := b.Read(0).World()
 	units := board.NewUnits[unitRow](b, board.Shape{Size: heroHeight, Width: heroWidth},
-		func(u unitRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+		func(u unitRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
 	profile := steering.Steering{
 		MaxSpeed: heroSpeed,
 		Accel:    heroSpeed * 2,

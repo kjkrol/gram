@@ -99,11 +99,11 @@ func uplandsFrom(t *testing.T, covered float32, shower effect.Spec, load bool) *
 				})
 		}).
 		Kinds(func() {
-			u.b.CellKinds().Define("hill", cell.Kind{Cost: 1, Allows: cell.Land},
+			u.b.Read(0).CellKinds().Define("hill", cell.Kind{Cost: 1, Allows: cell.Land},
 				u.w.Roles().Named("hill"))
 		}).
 		Spawn(func() error {
-			u.b.Seed(board.Layout{Default: "hill"})
+			u.b.Write().Seed(board.Layout{Default: "hill"})
 			return u.b.Populate()
 		}).
 		Update(func(ctx goke.RunCtx, d time.Duration) {
@@ -158,14 +158,14 @@ func TestWeathering_ARuleOfACellWringsRainOutOfTheAirOverIt(t *testing.T) {
 	u := newUplands(t, 0.5, effect.Spec{effect.Lasts(2 * time.Second),
 		effect.Alter(func(w *weathering.Wring) { w.Falls = 1 })})
 	u.run(time.Second / 60)
-	changes := u.b.Board().Changes()
+	changes := u.b.Read(0).Board().Changes()
 	u.run(6 * time.Second)
-	if got := u.b.Board().Changes(); got != changes {
+	if got := u.b.Read(0).Board().Changes(); got != changes {
 		t.Errorf("the hills' showers changed the board %d times, want none: they turn the air's "+
 			"knob alone", got-changes)
 	}
-	c, _ := u.b.Board().CellAt(geom.NewVec(320, 240))
-	id, _ := u.b.CellEntity(c)
+	c, _ := u.b.Read(0).Board().CellAt(geom.NewVec(320, 240))
+	id, _ := u.b.Read(0).Board().CellEntity(c)
 	if !u.w.Effects().Has(id, u.shower) {
 		t.Fatal("under low clouds 0.9 the hill's shower is not on")
 	}

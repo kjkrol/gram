@@ -31,7 +31,7 @@ var _ board.Figure = hero{}
 
 func (hero) Define(b *board.Plugin) {
 	units := board.NewUnits[heroRow](b, board.Shape{Size: heroPx, Height: heroHeight},
-		func(u heroRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+		func(u heroRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
 	profile := steering.Steering{
 		MaxSpeed: heroSpeed,
 		Accel:    heroSpeed * 4,

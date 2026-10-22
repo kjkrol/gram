@@ -38,7 +38,7 @@ type routeBoard struct {
 	edges   aabbworld.Edges
 	span    uint32
 	heights func(geom.Vec) float64
-	lay     func(b *board.Board, rng *rand.Rand)
+	lay     func(b testBoard, rng *rand.Rand)
 	bridges []routeSpan
 }
 
@@ -63,7 +63,7 @@ func span(g grid.Grid, x, y uint32, dx, dy, n int) []routeSpan {
 type routeRig struct {
 	board  routeBoard
 	finder *pathFinder
-	brd    *board.Board
+	brd    *board.BoardRead
 	levels boardLevels
 	topo   *topography.Plugin
 }
@@ -78,7 +78,7 @@ var (
 	road = cell.Kind{Name: cell.Named("road"), Cost: 0.8, Allows: cell.Land, Graded: true}
 )
 
-func scatter(b *board.Board, rng *rand.Rand) {
+func scatter(b testBoard, rng *rand.Rand) {
 	b.SetAll(grass)
 	b.EachCell(func(c cell.ID) {
 		switch r := rng.IntN(100); {
@@ -93,7 +93,7 @@ func scatter(b *board.Board, rng *rand.Rand) {
 }
 
 // a road of cells from a, n steps in direction i, linked cell to cell
-func lay(b *board.Board, a cell.ID, i, n int) {
+func lay(b testBoard, a cell.ID, i, n int) {
 	g := b.Grid
 	back := g.Opposite(i)
 	for k, c := 0, a; k <= n; k++ {
@@ -135,7 +135,7 @@ func squareRoutes() routeBoard {
 			}
 			return 10
 		},
-		lay: func(b *board.Board, rng *rand.Rand) {
+		lay: func(b testBoard, rng *rand.Rand) {
 			scatter(b, rng)
 			for y := range uint32(28) {
 				for x := range uint32(36) {
@@ -166,7 +166,7 @@ func torusRoutes() routeBoard {
 		grid:  grid.DefaultGrids{}.Square(24, 20, 32),
 		edges: aabbworld.Torus,
 		span:  32,
-		lay: func(b *board.Board, rng *rand.Rand) {
+		lay: func(b testBoard, rng *rand.Rand) {
 			scatter(b, rng)
 			lay(b, b.Grid.At(20, 4), 3, 10)
 			lay(b, b.Grid.At(3, 17), 5, 7)
@@ -183,7 +183,7 @@ func hexRoutes() routeBoard {
 		heights: func(p geom.Vec) float64 {
 			return 24 * math.Sin(p.X/60) * math.Cos(p.Y/50)
 		},
-		lay: func(b *board.Board, rng *rand.Rand) {
+		lay: func(b testBoard, rng *rand.Rand) {
 			scatter(b, rng)
 			for r := uint32(0); r < 24; r++ {
 				b.Set(g.At(14, r), water)
@@ -219,7 +219,7 @@ func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 	sel := selection.NewPlugin(w)
 	drive := driving.NewPlugin(w, m, sel).WithGround(brd)
 	nav := NewPlugin(brd, w, m, sel, drive).WithSpacing(CellSpacing)
-	rb.lay(brd.Board(), rand.New(rand.NewPCG(11, 17)))
+	rb.lay(boardOf(brd), rand.New(rand.NewPCG(11, 17)))
 	if topo != nil {
 		topo.Relief().SetHeights(rb.heights)
 	}
@@ -295,7 +295,7 @@ func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 	for range 3 {
 		ctx.ecs.Tick(time.Second / 60)
 	}
-	return &routeRig{board: rb, finder: nav.finder, brd: brd.Board(), levels: boardLevels{brd},
+	return &routeRig{board: rb, finder: nav.finder, brd: brd.Read(0).Board(), levels: boardLevels{brd.Read(0)},
 		topo: topo}
 }
 

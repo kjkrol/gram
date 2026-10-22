@@ -80,6 +80,7 @@ type Plugin struct {
 	cfg         Config
 	worldPlugin *world.Plugin
 	boardPlugin *board.Plugin
+	board       *board.BoardRead // the board's main read
 	light       *light.Plugin
 	relief      *irelief.Relief
 	painter     *ipainter.Painter
@@ -122,8 +123,9 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 	if edges := worldPlugin.Res.Config.Space.Edges; edges.WrapsX() || edges.WrapsY() {
 		panic("topography: a world that wraps cannot be seen in relief")
 	}
-	brd := boardPlugin.Board()
-	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, light: lightPlugin,
+	brd := boardPlugin.Read(0).Board()
+	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, board: brd,
+		light:    lightPlugin,
 		sky:      stillSky{sight: air.Sight(worldPlugin.Scale())},
 		climbing: cfg.Climbing}
 	p.kept = plugin.Keep(&p.Res.Settings)
@@ -136,9 +138,9 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 		w, h := brd.CellBounds()
 		shaping.Step = min(w, h) / 4
 	}
-	p.relief = irelief.New(brd)
+	p.relief = irelief.New(brd, boardPlugin.Write().Board().Touch)
 	p.shaper = &shaper{relief: p.relief, cfg: shaping}
-	p.painter = ipainter.New(brd, p.relief, liveSky{p}, true, map[cell.Name]painter.Style{}).WithKinds(boardPlugin.CellKinds())
+	p.painter = ipainter.New(brd, p.relief, liveSky{p}, true, map[cell.Name]painter.Style{}).WithKinds(boardPlugin.Read(0).CellKinds())
 	boardPlugin.WithMap(p)
 	if _, _, _, _, square := p.relief.Lattice(); square {
 		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{
@@ -148,7 +150,7 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 		p.careView = &careView{p}
 		p.SetCare(cfg.Care)
 	} else {
-		p.hexes = hexes.New(worldPlugin, boardPlugin, p, p.relief, liveSky{p})
+		p.hexes = hexes.New(worldPlugin, boardPlugin, brd.Map(), p.relief, liveSky{p})
 	}
 	p.look = billboards.New(worldPlugin.FlatLook(), liveSky{p}, p.relief)
 	worldPlugin.SetLook(p.look)
@@ -163,7 +165,7 @@ type boardSurface struct{ p *Plugin }
 func (s boardSurface) Surface() terrain.Painted {
 	var out terrain.Painted
 	d := s.p.painter
-	if atlas := s.p.boardPlugin.Atlas(); atlas != nil {
+	if atlas := s.p.boardPlugin.Read(0).Atlas(); atlas != nil {
 		out.Albedo, out.Water, out.Px, out.WaterPx = d.Surface(atlas)
 		if out.Albedo != nil {
 			out.Wet, out.Wetness = d.Wet()
@@ -183,7 +185,7 @@ func (s boardSurface) Surface() terrain.Painted {
 // the shade every cell takes and how much it sways, by cell row by row, read anew as the kinds
 // change, with the board's count of those changes
 func (p *Plugin) takes() ([]render.Taking, []float32, uint64) {
-	brd := p.boardPlugin.Board()
+	brd := p.board
 	if v := brd.Version() + 1; p.takesAt != v {
 		p.takesAt = v
 		p.taking, p.swaying = p.taking[:0], p.swaying[:0]
@@ -220,7 +222,7 @@ func (p *Plugin) WithAtmosphere(a Atmosphere) *Plugin {
 
 func (p *Plugin) topAt(at geom.Vec) float64 {
 	top := p.relief.GroundAt(at)
-	brd := p.boardPlugin.Board()
+	brd := p.board
 	if c, ok := brd.CellAt(at); ok {
 		top += brd.Kind(c).Height
 	}
@@ -417,9 +419,9 @@ func (p *Plugin) Dressing() look.Dressing { return p.painter }
 // Heights is the relief: the ground's height at any point, for sight and navigation.
 func (p *Plugin) Heights() ground.Heights { return p.relief }
 
-// Top is c's corners with its kind's Height standing on them, and its ground level.
-func (p *Plugin) Top(c cell.ID) (corners [4]float32, level float32) {
-	return p.relief.Top(c, p.boardPlugin.Board().Kind(c).Height)
+// Top is c's corners with height standing on them, and its ground level.
+func (p *Plugin) Top(c cell.ID, height float64) (corners [4]float32, level float32) {
+	return p.relief.Top(c, height)
 }
 
 // Climb is how many times as long the step from one cell to its neighbour takes whoever moves
@@ -455,7 +457,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
 		heights:  p.relief.HeightsSystem(),
 		shaping:  p.shaper.system(),
-		altitude: p.relief.AltitudeSystem(),
+		altitude: p.relief.AltitudeSystem(p.boardPlugin.Read(0).Footing()),
 		clock:    p.worldPlugin.Clock(),
 	}
 	p.module.step = p.module.simulate

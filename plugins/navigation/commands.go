@@ -135,7 +135,7 @@ func (p *Plugin) Queues() []command.CommandQueue {
 // DefaultBindings is a right click into a MoveTo of the cell and level under the cursor, Shift
 // appending, and a right drag into a LookAt at every move.
 func (p *Plugin) DefaultBindings() []control.Binding {
-	brd := p.boardPlugin.Board()
+	brd := p.boardPlugin.Read(0).Board()
 	to := func(appendIt bool) func(c control.Context) (MoveTo, bool) {
 		return func(c control.Context) (MoveTo, bool) {
 			if dragged(c) {

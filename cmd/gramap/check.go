@@ -48,7 +48,7 @@ func (w *chart) check(data []byte) (err error) {
 	}
 	k := w.r.Kinds
 	ground := cell.Land | cell.Air
-	kinds := b.CellKinds()
+	kinds := b.Read(0).CellKinds()
 	kinds.Define(k.Sea, cell.Kind{Cost: 1, Allows: cell.Water | cell.Air})
 	for _, name := range []string{k.Earth, k.Sand, k.Rock, k.Forest} {
 		kinds.Define(name, cell.Kind{Cost: 1, Allows: ground})

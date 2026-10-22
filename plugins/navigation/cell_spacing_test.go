@@ -66,8 +66,8 @@ func TestCellSpacing_NoRoomToGiveWayAndNoWayRoundTheMoverGivesUp(t *testing.T) {
 	rw = newRoadWorld(t, 10, units)
 	wall := cell.Kind{Cost: 1, Solid: true}
 	for _, x := range []uint32{4, 5, 6} {
-		rw.nav.board.Set(rw.at(x, 0), wall)
-		rw.nav.board.Set(rw.at(x, 2), wall)
+		rw.nav.boardPlugin.Write().Board().Set(rw.at(x, 0), wall)
+		rw.nav.boardPlugin.Write().Board().Set(rw.at(x, 2), wall)
 	}
 	mover, stander := rw.byRow[0], rw.byRow[1]
 	for range 60 * 12 {

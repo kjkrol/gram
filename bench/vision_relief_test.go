@@ -57,7 +57,7 @@ func Benchmark_Vision_Relief(b *testing.B) {
 			v := vision.NewPlugin(w).WithBoard(p).WithFrequency(c.every)
 			if c.step > 0 {
 				v.WithGroundStep(scale.Units(c.step)).
-					WithHeights(func() ground.Heights { return sampled{p.Heights()} })
+					WithHeights(func() ground.Heights { return sampled{p.Read(0).Heights()} })
 			}
 			if err := ctx.Use(p); err != nil {
 				b.Fatal(err)
@@ -68,7 +68,7 @@ func Benchmark_Vision_Relief(b *testing.B) {
 			if err := ctx.Use(v); err != nil {
 				b.Fatal(err)
 			}
-			p.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+			p.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 			topo.Relief().SetHeights(func(q geom.Vec) float64 {
 				return scale.Units(600 + 500*math.Sin(q.X/150)*math.Cos(q.Y/110))
 			})

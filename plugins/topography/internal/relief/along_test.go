@@ -6,13 +6,12 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/grid"
 )
 
 func TestRelief_AlongIsTheGroundAlongARay(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(12, 9, 32)
-	r := New(board.NewBoard(g))
+	r := onBoard(g)
 	rnd := rand.New(rand.NewPCG(3, 5))
 	r.SetHeights(func(geom.Vec) float64 { return 40 * rnd.Float64() })
 	for trial := range 200 {

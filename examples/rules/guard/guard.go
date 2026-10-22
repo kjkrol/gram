@@ -29,7 +29,7 @@ type guard struct{}
 var _ board.Figure = guard{}
 
 func (guard) Define(b *board.Plugin) {
-	w := b.World()
+	w := b.Read(0).World()
 	duty := plan.New(GuardPlan, plan.OneOf(
 		plan.Loop[any]{
 			Name:    "to the gate",
@@ -57,7 +57,7 @@ func (guard) Define(b *board.Plugin) {
 		plan.Loop[any]{Name: "idle", When: cond.Self.If(cond.Always), Then: plan.Self.Idle()},
 	))
 	guards := board.NewUnits[guardRow](b, board.Shape{Size: unitSize},
-		func(g guardRow) geom.Vec { return b.Board().CellCenter(g.Start) })
+		func(g guardRow) geom.Vec { return b.Read(0).Board().CellCenter(g.Start) })
 	guards.Define(GuardKind, unit.Mover{Domain: cell.Land}, profile, duty,
 		comp.Load(func(g guardRow) navigation.Round {
 			return navigation.NewRound(g.Round[:]...)

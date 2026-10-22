@@ -47,7 +47,7 @@ type ScanSystem struct {
 	grounded bool
 	bend     float64
 
-	coverOf func() ground.Cover
+	coverOf func(w int) ground.Cover // worker w's
 	covered bool
 
 	query     *goke.Query
@@ -234,9 +234,8 @@ func (s *ScanSystem) cover() {
 	if s.coverOf == nil {
 		return
 	}
-	cover := s.coverOf()
-	for _, c := range s.scanners {
-		c.covering.cover = cover
+	for w, c := range s.scanners {
+		c.covering.cover = s.coverOf(w)
 	}
 }
 
@@ -379,12 +378,9 @@ func (j *job) scan(c *scanner, i int) {
 	c.scan(j.ids[i], &j.sights[i], &j.seens[i], &j.bases[i], j.eyes[i], z, outline)
 }
 
-// the space's index and the cover read the world as first asked: once here, not on every goroutine
+// the space's index reads the world as first asked: once here, not on every goroutine
 func (s *ScanSystem) settle(box geom.AABB) {
 	s.space.Query(box, aabbworld.AnyCapability, func(uid.UID64) {})
-	if r, ok := s.covering.cover.(ground.Readied); ok {
-		r.Ready()
-	}
 }
 
 func (c *scanner) scan(id uid.UID64, s *Sight, seen *Sighted, base *world.Base, eye world.Eye, z world.Z, outline *SightOutline) {

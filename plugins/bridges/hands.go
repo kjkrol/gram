@@ -49,7 +49,7 @@ func (p *Plugin) carryOut() {
 	p.marks.Drain(func(i command.Issued[Mark]) {
 		h := p.handOf(i.Issuer)
 		h.seen = p.tick
-		c, ok := p.board.Board().CellAt(i.Command.At)
+		c, ok := p.board.Read(0).Board().CellAt(i.Command.At)
 		switch {
 		case !ok || h.asked:
 		case !h.marked:
@@ -93,7 +93,7 @@ func (p *Plugin) plan(h *hand) {
 }
 
 func (p *Plugin) endAt(from cell.ID, at geom.Vec) (cell.ID, bool) {
-	g := p.board.Board().Grid
+	g := p.board.Read(0).Board().Grid
 	m := g.CellCenter(from)
 	off := geom.NewVec(at.X-m.X, at.Y-m.Y)
 	best, steps, along := -1, 0, -math.MaxFloat64

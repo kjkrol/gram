@@ -12,7 +12,6 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/cond"
 	"github.com/kjkrol/ceremony/plan"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/world"
@@ -23,7 +22,7 @@ var wall = cell.Kind{Cost: 1, Solid: true}
 // xy are x, y pairs
 func (rw *roadWorld) walls(xy ...uint32) {
 	for i := 0; i+1 < len(xy); i += 2 {
-		rw.nav.board.Set(rw.at(xy[i], xy[i+1]), wall)
+		rw.nav.boardPlugin.Write().Board().Set(rw.at(xy[i], xy[i+1]), wall)
 	}
 }
 
@@ -460,7 +459,7 @@ func TestCrowd_WithNoRulesTheOrderStillEnds(t *testing.T) {
 
 func TestCrowd_NobodyIsPushedOverTheWater(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(10, 5, fieldCell)}
-	lay := func(b *board.Board, at func(x, y uint32) cell.ID) {
+	lay := func(b testBoard, at func(x, y uint32) cell.ID) {
 		for x := uint32(0); x < 10; x++ {
 			b.Set(at(x, 3), cell.Kind{Cost: 1, Allows: cell.Water})
 			b.Set(at(x, 4), cell.Kind{Cost: 1, Allows: cell.Water})

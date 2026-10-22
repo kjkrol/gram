@@ -42,8 +42,8 @@ func (sighted) ScaleAt(x, _, _ float32) float32 {
 // the tiles a 4 by 4 board of cells 32 wide hands its look through a camera seeing as d says
 func tilesSeen(t *testing.T, d camera.Detail) []look.Tile {
 	t.Helper()
-	brd := board.NewBoard(grid.DefaultGrids{}.Square(4, 4, 32))
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid.DefaultGrids{}.Square(4, 4, 32))
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	cam := sighted{Camera: cameratest.NewFromSpace(128, 128, 0), d: d}
 	v := view.NewSeen(cam, halves{})
 	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 128, Height: 128, BucketSize: 32})

@@ -164,9 +164,9 @@ func TestNavigation_CrossesABridgeRunningSlantwise(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 5, 32)
 	start, goal := g.At(0, 0), g.At(4, 4)
 	prepare := func(w *world.Plugin, brd *board.Plugin) {
-		brd.Board().SetAll(water)
-		brd.Board().Set(start, cell.Kind{Cost: 1, Allows: cell.Land})
-		brd.Board().Set(goal, cell.Kind{Cost: 1, Allows: cell.Land})
+		brd.Write().Board().SetAll(water)
+		brd.Write().Board().Set(start, cell.Kind{Cost: 1, Allows: cell.Land})
+		brd.Write().Board().Set(goal, cell.Kind{Cost: 1, Allows: cell.Land})
 		nw, _ := grid.Direction(g, -1, -1)
 		se, _ := grid.Direction(g, 1, 1)
 		decks := board.NewEntities(brd, board.Shape{Size: 10},

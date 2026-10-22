@@ -168,11 +168,11 @@ func newRig(t *testing.T, sc scene) *rig {
 	r.c = collision.NewPlugin(w, r.m)
 	g := grid.DefaultGrids{}.Square(4, 4, 10)
 	r.brd = board.NewPlugin(g, &cell.MultipleOccupancy{}, w).WithMotion(r.m)
-	r.brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	r.brd.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	for y, line := range sc.level {
 		for x, c := range line {
 			if c == '#' {
-				r.brd.Board().Set(g.At(uint32(x), uint32(y)), cell.Kind{Solid: true})
+				r.brd.Write().Board().Set(g.At(uint32(x), uint32(y)), cell.Kind{Solid: true})
 			}
 		}
 	}
@@ -181,10 +181,10 @@ func newRig(t *testing.T, sc scene) *rig {
 	}
 	if sc.water {
 		for y := range uint32(4) {
-			r.brd.Board().Set(g.At(2, y), cell.Kind{Cost: 1, Allows: cell.Water})
+			r.brd.Write().Board().Set(g.At(2, y), cell.Kind{Cost: 1, Allows: cell.Water})
 		}
 		if sc.deck { // the deck runs over water too
-			r.brd.Board().Set(g.At(1, 1), cell.Kind{Cost: 1, Allows: cell.Water})
+			r.brd.Write().Board().Set(g.At(1, 1), cell.Kind{Cost: 1, Allows: cell.Water})
 		}
 	}
 	if sc.fence {

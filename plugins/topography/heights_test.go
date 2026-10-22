@@ -17,7 +17,7 @@ import (
 
 func coverAcross(qw *topotest.QuasiWorld) [][5]float64 {
 	var out [][5]float64
-	qw.Board.Cover().Walk(geom.NewVec(1, 3*32+16), geom.NewVec(1, 0), 126, 0, func(near, far, bottom, top, tau float64) bool {
+	qw.Board.Read(0).Cover().Walk(geom.NewVec(1, 3*32+16), geom.NewVec(1, 0), 126, 0, func(near, far, bottom, top, tau float64) bool {
 		out = append(out, [5]float64{near, far, bottom, top, tau})
 		return true
 	})
@@ -31,9 +31,9 @@ func TestCover_SpansTheCellsBandAndFollowsItsGround(t *testing.T) {
 		start := grid.At(0, 3)
 		return []kind.Entry{k.Entry(topotest.Recruit{Start: start})}
 	})
-	brd := qw.Board.Board()
+	brdW := qw.Board.Write().Board()
 	wallCell := qw.Grid.At(3, 3)
-	brd.Set(wallCell, cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true, Veil: 1, Height: 10})
+	brdW.Set(wallCell, cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true, Veil: 1, Height: 10})
 	qw.Topo.Relief().(*irelief.Relief).SetCorners(wallCell, irelief.Corners{12, 12, 12, 12})
 	qw.ECS.Tick(time.Second / 60)
 

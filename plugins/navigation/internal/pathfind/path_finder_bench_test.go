@@ -17,12 +17,12 @@ func BenchmarkPathFinder_Terrain(b *testing.B) {
 	grid := grid.DefaultGrids{}.Square(side, side, size)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	from, to := at(0, 0), at(side-1, side-1)
-	lay := func(brd *board.Board) {
+	lay := func(brd *board.BoardRead, brdW *board.BoardWrite) {
 		rng := rand.New(rand.NewPCG(3, 5))
-		brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+		brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 		brd.EachCell(func(c cell.ID) {
 			if c != from && c != to && rng.IntN(4) == 0 {
-				brd.Set(c, cell.Kind{Cost: 1, Solid: true})
+				brdW.Set(c, cell.Kind{Cost: 1, Solid: true})
 			}
 		})
 	}
@@ -37,8 +37,8 @@ func BenchmarkPathFinder_Terrain(b *testing.B) {
 	}
 
 	b.Run("map", func(b *testing.B) {
-		brd := board.NewBoard(grid) // no ECS: the board reads its seed
-		lay(brd)
+		brd, brdW := board.NewBoard(grid) // no ECS: the board reads its seed
+		lay(brd, brdW)
 		run(b, brd)
 	})
 	b.Run("cells", func(b *testing.B) {
@@ -48,7 +48,7 @@ func BenchmarkPathFinder_Terrain(b *testing.B) {
 			Heights:  true,
 		})
 		brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-		lay(brd.Board())
+		lay(brd.Read(0).Board(), brd.Write().Board())
 		ctx := &stubInstallCtx{ecs: goke.New()}
 		if err := w.Install(ctx); err != nil {
 			b.Fatal(err)
@@ -61,9 +61,9 @@ func BenchmarkPathFinder_Terrain(b *testing.B) {
 			systems = append(systems, produce()...)
 		}
 		ctx.ecs.Setup(systems...)
-		if _, ok := brd.CellEntity(from); !ok {
+		if _, ok := brd.Read(0).Board().CellEntity(from); !ok {
 			b.Fatal("the board has no cell entities")
 		}
-		run(b, brd.Board())
+		run(b, brd.Read(0).Board())
 	})
 }

@@ -191,7 +191,7 @@ func TestCareView_DrawsTheBoundariesBetweenTheCaresBandsOverTheGround(t *testing
 			cells := uint32(tc.sectors * 4)
 			b := board.NewPlugin(grid.DefaultGrids{}.Square(cells, cells, 32),
 				&cell.MultipleOccupancy{}, w).WithMotion(m)
-			b.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+			b.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 			p := topography.NewPlugin(w, b, nil, topography.Config{Care: 1})
 			ctx := topotest.NewInstallCtx()
 			for _, plugin := range []interface {

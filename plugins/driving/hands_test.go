@@ -91,7 +91,7 @@ func newFencedField(t *testing.T, fences []cell.ID, walkers ...walker) *field {
 	m := motion.NewPlugin(f.w)
 	col := collision.NewPlugin(f.w, m)
 	brd := board.NewPlugin(f.grid, &cell.SingleOccupancy{}, f.w).WithMotion(m).WithCollision(col)
-	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(f.w)
 	drv := driving.NewPlugin(f.w, m, sel).WithGround(brd).WithTap(rigTap)
 	if err := f.w.Carry(drv); err != nil { // as the engine does with Use

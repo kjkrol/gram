@@ -86,7 +86,7 @@ func (p *Plugin) Types() *Types { return p.types }
 // to: [x, y]}`, its deck at its first head's level. One the Rules refuse fails Populate with its
 // line.
 func (p *Plugin) Spawn(level *board.Level) error {
-	g := newGround(p.board.Board(), level.Heights(), 0)
+	g := newGround(p.board.Read(0).Board(), level.Heights(), 0)
 	gr := g.Grid()
 	return board.Each(level, func(name string, r Row, at string) error {
 		t := p.types.Named(name)
@@ -111,10 +111,10 @@ func (p *Plugin) Populate() error {
 	p.laid = nil
 	var g *boardGround
 	rules := p.cfg.Rules
-	rules.Reshape = 1e-3 * float64(p.board.Board().Grid.CellSpan())
+	rules.Reshape = 1e-3 * float64(p.board.Read(0).Board().Grid.CellSpan())
 	for _, l := range laid {
 		if g == nil {
-			g = newGround(p.board.Board(), l.heights, 0)
+			g = newGround(p.board.Read(0).Board(), l.heights, 0)
 			rules.Heights = l.heights != nil
 		}
 		g.allows = l.t.spec.Allows
@@ -159,9 +159,9 @@ func (p *Plugin) parts(t Type, b site.Bridge, g *boardGround) []kind.Entry {
 
 func (p *Plugin) rules() site.Rules {
 	r := p.cfg.Rules
-	r.Heights = p.board.Heights() != nil
+	r.Heights = p.board.Read(0).Heights() != nil
 	if p.shaper == nil {
-		r.Reshape = 1e-3 * float64(p.board.Board().Grid.CellSpan())
+		r.Reshape = 1e-3 * float64(p.board.Read(0).Board().Grid.CellSpan())
 	}
 	return r
 }
@@ -178,10 +178,10 @@ func (p *Plugin) building() Type {
 
 func (p *Plugin) ground(t Type) *boardGround {
 	var at func(geom.Vec) float64
-	if h := p.board.Heights(); h != nil {
+	if h := p.board.Read(0).Heights(); h != nil {
 		at = h.At
 	}
-	return newGround(p.board.Board(), at, t.spec.Allows)
+	return newGround(p.board.Read(0).Board(), at, t.spec.Allows)
 }
 
 func (p *Plugin) build(b pending) {

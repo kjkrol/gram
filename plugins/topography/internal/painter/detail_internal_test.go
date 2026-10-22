@@ -7,7 +7,6 @@ import (
 
 	"github.com/kjkrol/ceremony"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/render"
@@ -69,7 +68,7 @@ func TestPainter_BakesTheDetailsOnceAndPaintsEachPixelsKind(t *testing.T) {
 	st := map[cell.Name]Style{}
 	kinds := testKinds{}
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid)
+	brd, brdW := newBoard(grid)
 	grass := solidImage(200, 8)
 	land := styled(st, cell.Kind{Name: cell.Named("k50"), Allows: cell.Land, SpriteID: 1},
 		Style{Spread: 0.3, Detail: Detail{Image: grass, Across: 2}})
@@ -79,13 +78,13 @@ func TestPainter_BakesTheDetailsOnceAndPaintsEachPixelsKind(t *testing.T) {
 	kinds.Define("k50", land)
 	kinds.Define("k51", sand)
 	kinds.Define("k52", bare)
-	brd.SetAll(land)
+	brdW.SetAll(land)
 	at := func(x, y uint32) cell.ID { return grid.At(x, y) }
 	for y := range uint32(4) {
-		brd.Set(at(3, y), sand)
+		brdW.Set(at(3, y), sand)
 	}
-	brd.Set(at(2, 0), sand)
-	brd.Set(at(0, 3), bare)
+	brdW.Set(at(2, 0), sand)
+	brdW.Set(at(0, 3), bare)
 	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st).WithKinds(kinds)
 	sheet, baked := d.Details()
 	if sheet == nil || baked != 1 || sheet.Bounds().Dx() != 2*DetailPitch ||

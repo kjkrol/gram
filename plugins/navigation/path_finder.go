@@ -88,27 +88,27 @@ func bodyOf(z world.Z, size geom.Vec) pathfind.Body {
 
 func (m member) body() pathfind.Body { return bodyOf(m.z, m.pos.Size) }
 
-type boardLevels struct{ brd *board.Plugin }
+type boardLevels struct{ read *board.Read }
 
 func (l boardLevels) Deck(c cell.ID) (top, under float64, carries cell.Domain, ok bool) {
-	f := l.brd.Board().Built(c).Floor
+	f := l.read.Board().Built(c).Floor
 	if f.Height <= 0 {
 		return 0, 0, 0, false
 	}
-	_, level := l.brd.Board().Map().Top(c)
+	_, level := l.read.Board().Map().Top(c)
 	top = float64(level) + f.Height
 	return top, top - f.Thickness, f.Allows, true
 }
 
 func (l boardLevels) Ground(p geom.Vec) float64 {
-	if h := l.brd.Heights(); h != nil {
+	if h := l.read.Heights(); h != nil {
 		return h.At(p)
 	}
 	return 0
 }
 
 func (l boardLevels) Over(p geom.Vec) (under float64, ok bool) {
-	brd := l.brd.Board()
+	brd := l.read.Board()
 	brd.DecksOver(p, func(c cell.ID, f cell.Floor) {
 		if f.Height <= 0 {
 			return
@@ -122,5 +122,5 @@ func (l boardLevels) Over(p geom.Vec) (under float64, ok bool) {
 }
 
 func (l boardLevels) KindAt(c cell.ID, deck bool) cell.Kind {
-	return l.brd.Board().KindAt(c, deck)
+	return l.read.Board().KindAt(c, deck)
 }

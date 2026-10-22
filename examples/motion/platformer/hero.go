@@ -45,27 +45,27 @@ var (
 )
 
 func (hero) Effects(b *board.Plugin) {
-	b.World().Effects().Define(DazedEf, effect.Spec{
+	b.Read(0).World().Effects().Define(DazedEf, effect.Spec{
 		effect.Lasts(dazeLasts),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed /= 4 }),
 	})
 }
 
 func (hero) Rules(b *board.Plugin) {
-	b.World().Roles().Define(HeroRole, act.Branch[gravity.Landing]{
+	b.Read(0).World().Roles().Define(HeroRole, act.Branch[gravity.Landing]{
 		Name: "daze",
 		When: cond.Self.If(gravity.HarderThan(hardLanding)),
-		Then: act.Self.Put(b.World().Effects().Named(DazedEf)),
+		Then: act.Self.Put(b.Read(0).World().Effects().Named(DazedEf)),
 	})
 }
 
 func (hero) Define(b *board.Plugin) {
 	units := board.NewUnits[heroRow](b, board.Shape{Size: heroSize},
-		func(u heroRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+		func(u heroRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
 	units.Define(HeroKind,
 		unit.Mover{Domain: cell.Land},
 		steering.Steering{MaxSpeed: heroSpeed, Accel: heroSpeed * 8, Brake: heroSpeed * 8},
-		ceremony.Plays(b.World().Roles().Named(HeroRole)),
+		ceremony.Plays(b.Read(0).World().Roles().Named(HeroRole)),
 		comp.Const(gravity.Body{Leap: leap}),
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Mass: 1}),

@@ -32,7 +32,7 @@ var _ board.Figure = block{}
 
 func (bk block) Define(b *board.Plugin) {
 	units := board.NewUnits[blockRow](b, board.Shape{Size: blockSize},
-		func(r blockRow) geom.Vec { return b.Board().CellCenter(r.Start) })
+		func(r blockRow) geom.Vec { return b.Read(0).Board().CellCenter(r.Start) })
 	profile := steering.Steering{
 		MaxSpeed: blockSpeed,
 		Accel:    blockSpeed * 3,

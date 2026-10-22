@@ -51,7 +51,7 @@ func (r *Rules) around(moment any, rings int, each func(uid.UID64)) {
 		return
 	}
 	r.ringsRound(seed, rings, func(c cell.ID) {
-		if id, ok := r.cells.Entity(c); ok {
+		if id, ok := r.cells.Read().Entity(c); ok {
 			each(id)
 		}
 		r.cells.Standing(c, each)
@@ -70,7 +70,7 @@ func (r *Rules) ahead(moment any, n int, each func(uid.UID64)) {
 		if c, ok = r.grid.Toward(c, way); !ok {
 			return
 		}
-		if id, ok := r.cells.Entity(c); ok {
+		if id, ok := r.cells.Read().Entity(c); ok {
 			each(id)
 		}
 		r.cells.Standing(c, each)

@@ -20,7 +20,7 @@ var (
 
 func (trapdoor) Effects(b *board.Plugin) {
 	open := effect.Alter(func(f *cell.Floor) { f.Allows = 0 })
-	b.World().Effects().Define(OpenEf, effect.Spec{open})
+	b.Read(0).World().Effects().Define(OpenEf, effect.Spec{open})
 }
 
 func (trapdoor) Define(b *board.Plugin) {

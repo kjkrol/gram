@@ -51,9 +51,9 @@ type driveRig struct {
 func newDriveRig(t *testing.T, mover ...unit.Mover) *driveRig {
 	t.Helper()
 	r := &driveRig{t: t, ecs: goke.New(), grid: grid.DefaultGrids{}.Square(10, 1, 10), occupancy: &cell.SingleOccupancy{}}
-	brd := board.NewBoard(r.grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	brd.Set(r.grid.At(6, 0), cell.Kind{Cost: 1, Allows: cell.Water})
+	brd, brdW := board.NewBoard(r.grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brdW.Set(r.grid.At(6, 0), cell.Kind{Cost: 1, Allows: cell.Water})
 	r.kept = &cellKept{occupancy: r.occupancy}
 	sys := &driveSystem{board: brd, occupancy: r.occupancy, keeping: r.kept, units: &units{}}
 

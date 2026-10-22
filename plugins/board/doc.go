@@ -16,8 +16,15 @@
 // [Plugin], built over a grid.Grid, a cell.Occupancy and the world plugin, seeds its terrain from
 // a [Layout] when the Stage starts fresh. Every cell is an entity carrying cell.Plot, cell.Ground,
 // cell.Way and cell.Built, saved with the game, so an effect on it is an effect on the terrain.
-// Kinds are defined through [Plugin.CellKinds]; [Board] is the one place to read and write the
-// terrain.
+// Kinds are defined through [Read.CellKinds].
+//
+// # Read and Write
+//
+// The board's state is read through [Plugin.Read] and changed through [Plugin.Write]: Read(w) is
+// worker w's of the game's pool (0 the game's own goroutine), each with queries and scratch of its
+// own, so the workers read the board at once; Write is the game's goroutine's. Read(w).Board()
+// reads the grid and the terrain ([BoardRead]), Write().Board() writes the terrain
+// ([BoardWrite]). [NewBoard] is a board with no plugin, for a test.
 //
 // # Rules
 //
@@ -34,15 +41,15 @@
 // A lever, a trapdoor, a gate, a plate is an entity standing still on a cell: [NewEntities] binds a
 // game's rows of them and [Entities.Define] makes a kind, carrying cell.On and whatever the game
 // gives besides, a cell.Floor, a cell.Wall, a cell.Rail, the roles it plays. The board gathers them
-// on the cells' entities every step (cell.Built), and [Board.Kind] and [Board.Bare] are the cells
-// with them. What each kind carries beyond what it is given is its [StandingTemplate]'s
-// (world.Plugin.Roster): standing still, its shadow Baked into the ground's shade (light.Shadow);
-// a unit's is a live patch. Every cell carries what its [CellTemplate] asks besides the board's own. A Floor with a
-// Height is a deck, and the cell has two levels ([Board.KindAt], [Board.KindFor], [Board.CellFor],
-// [Board.LevelFor]); one with a Width and Links is a band ([Board.DecksOver], [Board.Reaches]), its
-// railings never stepped across ([Board.Fenced]); a step along it takes a body no wider than its
-// [Board.Lane]. A unit is no bigger than a cell's side ([NewUnits] panics past it), so any other
-// step takes it.
+// on the cells' entities every step (cell.Built), and [BoardRead.Kind] and [BoardRead.Bare] are the
+// cells with them. What each kind carries beyond what it is given is its [StandingTemplate]'s
+// (world.Plugin.Roster): standing still, its shadow Baked into the ground's shade (light.Shadow); a
+// unit's is a live patch. Every cell carries what its [CellTemplate] asks besides the board's own.
+// A Floor with a Height is a deck, and the cell has two levels ([BoardRead.KindAt],
+// [BoardRead.KindFor], [BoardRead.CellFor], [BoardRead.LevelFor]); one with a Width and Links is a
+// band ([BoardRead.DecksOver], [BoardRead.Reaches]), its railings never stepped across
+// ([BoardRead.Fenced]); a step along it takes a body no wider than its [BoardRead.Lane]. A unit is
+// no bigger than a cell's side ([NewUnits] panics past it), so any other step takes it.
 //
 // # Bridges
 //
@@ -89,24 +96,24 @@
 //
 // # Commands
 //
-// [Grid] shows or hides the board's grid ([Plugin.ShowGrid] from a scene); [Holds] the cells the
-// occupancy holds ([Plugin.ShowHolds], each an outline over its cell). Neither has a key: hand
+// [Grid] shows or hides the board's grid ([Write.ShowGrid] from a scene); [Holds] the cells the
+// occupancy holds ([Write.ShowHolds], each an outline over its cell). Neither has a key: hand
 // the board to players.NewPlugin for the settings screen.
 //
 // # Ways
 //
-// A cell.Way is what runs across a cell over its ground, a band Width wide from the cell's
-// middle out towards each neighbour its Links name. [Board.Way] and [Board.SetWay] read and write
-// them, [Board.Along] tells a step along a way from one over the ground beside it, [Board.Bare]
-// is that ground. [Board.CellVersion] and [Board.Changes] count the changes, so whoever keeps
-// something worked out of a cell knows when it is stale; [Board.Touch] counts one made beyond
-// the board.
+// A cell.Way is what runs across a cell over its ground, a band Width wide from the cell's middle
+// out towards each neighbour its Links name. [BoardRead.Way] and [BoardWrite.SetWay] read and write
+// them, [BoardRead.Along] tells a step along a way from one over the ground beside it,
+// [BoardRead.Bare] is that ground. [BoardRead.CellVersion] and [BoardRead.Changes] count the
+// changes, so whoever keeps something worked out of a cell knows when it is stale;
+// [BoardWrite.Touch] counts one made beyond the board.
 //
 // # Heights, ground and occupancy
 //
 // The board is flat: what is high or steep is its [Map]'s (plugins/topography), which prices
 // every slope ([Map.Climb], [Map.Least], [Map.Slope]). The board is the ground the other plugins
-// meet: [Plugin.Heights], [Plugin.Footing], [Plugin.Cover] for sight, and its Solid cells the
+// meet: [Read.Heights], [Read.Footing], [Read.Cover] for sight, and its Solid cells the
 // solid ground collision pushes colliders out of ([Plugin.WithCollision]). Its cell.Occupancy
 // tracks who holds each cell; the board has every unit hold the cell it stands on and lets go of
 // the holds of whoever left the world.
@@ -122,7 +129,7 @@
 // ground is an effect on its cells, shown as a cover ([Plugin.Covering], [Slot.Under]). In a world
 // cut into sectors the cells drawn are those of the sectors a camera sees: plainly, undressed and
 // with no grid where it sees them coarsely (look.Tile.Coarse), fading into the fog before its
-// sight's end (look.Tile.Fog). [Plugin.Miniature] is the board flat from above as one picture, a
+// sight's end (look.Tile.Fog). [Write.Miniature] is the board flat from above as one picture, a
 // minimap's ground.
 //
 // # Tiles and figures

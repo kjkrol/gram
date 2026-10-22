@@ -61,13 +61,13 @@ func standing(b *testing.B, bodies, bands bool) {
 			var fall *gravity.Plugin
 			var extra []comp.Comp
 			if bodies {
-				fall = gravity.NewPlugin(ctx.world, m, gravity.Config{}).WithSurfaces(p.Footing)
+				fall = gravity.NewPlugin(ctx.world, m, gravity.Config{}).WithSurfaces(p.Read(0).Footing)
 				if err := ctx.Use(fall); err != nil {
 					b.Fatal(err)
 				}
 				extra = append(extra, comp.Const(gravity.Body{}))
 			}
-			p.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+			p.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 			topo.Relief().SetHeights(ground.MeanOfCells(g, func(c cell.ID) float64 {
 				if x, y, _ := g.Coords(c); (x/4+y/4)%2 == 0 {
 					return 12

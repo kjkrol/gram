@@ -7,7 +7,6 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -30,7 +29,7 @@ type legUnit struct {
 
 type legWorld struct {
 	grid      grid.Grid
-	terrain   *board.Board
+	terrain   testBoard
 	occupancy *cell.SingleOccupancy
 	ecs       *goke.ECS
 	ids       []uid.UID64

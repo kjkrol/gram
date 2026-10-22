@@ -30,12 +30,6 @@ type Profile interface {
 	Along(origin, dir geom.Vec, length float64, visit func(d, alt float64) bool)
 }
 
-// Readied is a Cover that can read the board all at once, for whoever walks it from several
-// goroutines at a time: Ready on their goroutine before they do.
-type Readied interface {
-	Ready()
-}
-
 // Surfaces is where whoever moves in d with its feet at feet stands at p: the highest of the
 // ground and a deck carrying d no higher than feet+step (floor), and the underside of a deck over
 // its feet (ceiling, +Inf for none).

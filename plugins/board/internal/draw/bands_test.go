@@ -26,12 +26,12 @@ func TestBands_AWayIsThePartOfItsKindsSpriteUnderIt(t *testing.T) {
 	red := color.RGBA{R: 220, G: 40, B: 40, A: 255}
 	blue := color.RGBA{R: 40, G: 60, B: 220, A: 255}
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
-	brd := board.NewBoard(g)
-	brd.SetAll(grass)
+	brd, brdW := board.NewBoard(g)
+	brdW.SetAll(grass)
 	for y := range uint32(8) {
 		up, _ := grid.Link(g, g.At(3, y), g.At(3, (y+7)%8))
 		down, _ := grid.Link(g, g.At(3, y), g.At(3, (y+1)%8))
-		brd.SetWay(g.At(3, y), cell.Way{Kind: road, Width: 8, Links: up | down})
+		brdW.SetWay(g.At(3, y), cell.Way{Kind: road, Width: 8, Links: up | down})
 	}
 	atlas := render.NewAtlas()
 	atlas.Add(grass.SpriteID, 32, render.Solid(green))

@@ -68,7 +68,7 @@ func TestSprites_StandDarkerInTheReliefsShadow(t *testing.T) {
 	})
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	b := board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
-	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	l := light.NewPlugin(w, light.Config{}).WithDistant(westSun)
 	p := topography.NewPlugin(w, b, l, topography.Config{}).
 		WithAtmosphere(westSky{})

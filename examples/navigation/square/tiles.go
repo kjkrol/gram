@@ -48,7 +48,7 @@ var grounds = []ground{
 	},
 }
 
-func (g ground) Define(b *board.Plugin) { b.CellKinds().Define(g.name, g.kind) }
+func (g ground) Define(b *board.Plugin) { b.Read(0).CellKinds().Define(g.name, g.kind) }
 
 func (g ground) Look(a *board.Atlas, _ *board.Plugin) { a.Add(g.name, render.Solid(g.color)) }
 

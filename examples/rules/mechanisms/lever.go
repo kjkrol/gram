@@ -30,7 +30,7 @@ var (
 
 // the lever's positions: pulled down for good, and the swings each way, the pull ending down
 func (lever) Effects(b *board.Plugin) {
-	fx := b.World().Effects()
+	fx := b.Read(0).World().Effects()
 	fx.Define(LeverPulledEf, effect.Spec{})
 	fx.Define(LeverPullingEf, effect.Spec{
 		effect.Lasts(leverSwing),
@@ -39,13 +39,13 @@ func (lever) Effects(b *board.Plugin) {
 	fx.Define(LeverPushingEf, effect.Spec{effect.Lasts(leverSwing)})
 }
 
-func (lever) Rules(b *board.Plugin) { b.World().Roles().Define(LeverRole) }
+func (lever) Rules(b *board.Plugin) { b.Read(0).World().Roles().Define(LeverRole) }
 
 func (lever) Define(b *board.Plugin) {
 	board.NewEntities(b, board.Shape{Size: leverSize}, standingAt).Define(LeverKind,
 		comp.Const(collision.Collider{}),
 		comp.Const(collision.Physics{Mass: math.Inf(1)}), // a post: the hero walks up to it
-		ceremony.Plays(b.World().Roles().Named(LeverRole)))
+		ceremony.Plays(b.Read(0).World().Roles().Named(LeverRole)))
 }
 
 func (lever) Look(a *world.Atlas, w *world.Plugin) {

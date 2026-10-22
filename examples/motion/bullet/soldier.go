@@ -21,7 +21,7 @@ var _ board.Figure = soldier{}
 
 func (soldier) Define(b *board.Plugin) {
 	units(b).Define(SoldierKind, unit.Mover{Domain: cell.Land}, walking(),
-		ceremony.Plays(b.World().Roles().Named(MortalRole)),
+		ceremony.Plays(b.Read(0).World().Roles().Named(MortalRole)),
 		comp.Const(world.Velocity{Dir: geom.NewVec(1, 0)}),
 		comp.Const(world.Eye{Height: 16}))
 }
