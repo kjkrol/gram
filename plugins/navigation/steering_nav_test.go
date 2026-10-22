@@ -100,7 +100,7 @@ func TestNavigation_PassesAWaypointByProjectionNotDistance(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
-	nav := traffic.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
+	nav := routed(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
 		occupancy)
 	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 
@@ -250,7 +250,7 @@ func TestNavigation_QueuedGoalIsPassedByProjection(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
-	nav := traffic.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
+	nav := routed(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
 		occupancy)
 	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 
@@ -342,7 +342,7 @@ func TestNavigation_ALegIsTurnedRoundWhenTheRouteGoesBack(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
-	nav := traffic.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
+	nav := routed(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
 		occupancy)
 	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 

@@ -136,7 +136,7 @@ func (k *BodyKeeping) placeClearOf(units []bodies.Member, at geom.Vec, target ce
 	}
 	s := &spotSearch{k: k, at: at, z: z, level: level,
 		step:  geom.NewVec(2*half.X+gap, 2*half.Y+gap),
-		tiles: k.tilesRound(target, dom, units[byDistance[0]].Domain)}
+		tiles: k.finder.tilesRound(target, dom, units[byDistance[0]].Domain)}
 	used := map[int]bool{}
 	for _, ui := range byDistance {
 		for ci := 0; ; ci++ {
@@ -229,53 +229,6 @@ func (k *BodyKeeping) deepFirst(units []bodies.Member, order []int, out []placed
 			from = to
 		}
 	}
-}
-
-// priced for costs as a route is
-func (k *BodyKeeping) tilesRound(target cell.ID, dom, costs cell.Domain) []cell.ID {
-	type reach struct {
-		c    cell.ID
-		cost float64
-	}
-	best := map[cell.ID]float64{target: 0}
-	done := map[cell.ID]bool{}
-	frontier := []reach{{target, 0}}
-	var out []cell.ID
-	for len(frontier) > 0 && len(out) < placeCells {
-		n := 0
-		for i := range frontier {
-			if frontier[i].cost < frontier[n].cost {
-				n = i
-			}
-		}
-		r := frontier[n]
-		frontier = slices.Delete(frontier, n, n+1)
-		if done[r.c] {
-			continue
-		}
-		done[r.c] = true
-		out = append(out, r.c)
-		for i := range k.grid.Directions() {
-			nb, ok := k.grid.Toward(r.c, i)
-			if !ok {
-				continue
-			}
-			kind := k.terrain.Kind(nb)
-			if done[nb] || !kind.Admits(dom) {
-				continue
-			}
-			step, ok := k.finder.price(r.c, nb, kind, costs)
-			if !ok {
-				continue
-			}
-			cost := r.cost + step
-			if b, seen := best[nb]; !seen || cost < b {
-				best[nb] = cost
-				frontier = append(frontier, reach{nb, cost})
-			}
-		}
-	}
-	return out
 }
 
 func (k *BodyKeeping) fits(u bodies.Member, p geom.Vec, z world.Z, struck []bodies.Body) bool {

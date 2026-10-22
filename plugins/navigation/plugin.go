@@ -111,15 +111,19 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 
 	w, h := brd.CellBounds()
 	p.spacing = p.spacing.resolve(float64(p.worldPlugin.Res.Config.Entities.MaxSize), min(w, h))
-	// routes are planned blind to the others: the keeping answers what a route runs into
-	finder := spacing.NewFinder(brd, brd, read, spacing.OpenOccupancy{})
-	finder.WithLevels(spacing.BoardLevels{Read: read})
-	var keep spacing.Keeping
-	if p.spacing == BodySpacing {
-		keep = spacing.NewBodyKeeping(finder, p.worldPlugin.Write().Space(), read.Heights)
-	} else {
-		keep = spacing.NewCellKeeping(finder, p.boardPlugin.Write().Occupancy())
+	// routes are planned blind to the others: the keeping answers what a route runs into; the
+	// routing plans the routes, the traffic searches but round a unit, each with its own
+	keeping := func() (*spacing.Finder, spacing.Keeping) {
+		finder := spacing.NewFinder(brd, brd, read, spacing.OpenOccupancy{})
+		finder.WithLevels(spacing.BoardLevels{Read: read})
+		if p.spacing == BodySpacing {
+			space := p.worldPlugin.Write().Space()
+			return finder, spacing.NewBodyKeeping(finder, space, read.Heights)
+		}
+		return finder, spacing.NewCellKeeping(finder, p.boardPlugin.Write().Occupancy())
 	}
+	routeFinder, routeKeep := keeping()
+	finder, keep := keeping()
 	p.finder = finder
 	p.pathRenderer.Finder = finder
 	rules := p.crowd
@@ -136,8 +140,10 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	navSys.BindSpace(p.worldPlugin.Write().Space())
 	navSys.Given, navSys.Touches, navSys.Tick = &p.given, &p.touches, p.worldPlugin.Read(0).Tick
 	navSys.Pace = p.worldPlugin.Pace(sector.Everywhere)
+	navSys.Routing = routing.NewCoordinator(routeKeep)
 
-	moveCommandSystem := routing.NewSystem(finder, &p.moves, &p.looks, p.selected).WithKeeping(keep)
+	moveCommandSystem := routing.NewSystem(routeFinder, &p.moves, &p.looks, p.selected).
+		WithKeeping(routeKeep)
 	moveCommandSystem.Onwards = &p.onwards
 	p.handKeeping.Keep, p.handKeeping.Nav = keep, navSys
 	if p.collision != nil {

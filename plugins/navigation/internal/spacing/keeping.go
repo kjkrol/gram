@@ -232,23 +232,29 @@ func (k *CellKeeping) Orders(members []bodies.Member, cmd order.MoveTo, issue fu
 	slices.SortStableFunc(moves, func(a, b bodies.Member) int {
 		return cmp.Compare(pf.grid.Distance(a.From, target), pf.grid.Distance(b.From, target))
 	})
-	taken := make(map[cell.ID]bool)
-	for n, m := range moves {
-		dest := target
-		var path order.Path
-		ok := false
-		if n == 0 {
-			path, ok = pf.FindPath(m.ID, m.Domain, m.Body(), m.From, target, cmd.Level)
-		}
-		if !ok {
-			dest, path, ok = pf.nearestFree(m.ID, m.Domain, m.Body(), m.From, target, cmd.Level,
-				func(c cell.ID, _ bool) bool { return taken[c] })
-		}
-		if !ok {
+	if len(moves) == 0 {
+		return
+	}
+	var dom cell.Domain
+	for _, m := range moves {
+		dom |= m.Domain
+	}
+	waiting := moves
+	for c := range pf.rings(target, dom, moves[0].Domain) {
+		kind := pf.Terrain.Kind(c)
+		i := slices.IndexFunc(waiting, func(m bodies.Member) bool { return kind.Admits(m.Domain) })
+		if i < 0 {
 			continue
 		}
-		taken[dest] = true
-		issue(m, order.MoveOrder{Target: dest, Level: cmd.Level, Path: path, Leg: m.Leg})
+		issue(waiting[i], order.MoveOrder{Target: c, Level: cmd.Level, Leg: waiting[i].Leg})
+		if i == 0 {
+			waiting = waiting[1:]
+		} else {
+			waiting = slices.Delete(waiting, i, i+1)
+		}
+		if len(waiting) == 0 {
+			break
+		}
 	}
 }
 

@@ -25,7 +25,9 @@ type MoveOrder struct {
 	Queued    uint8
 	Path      Path
 	Leg       Leg
-	Waited    time.Duration
+	// Ask is what the order asks of the routing for its Path, or what the routing answered.
+	Ask    Ask
+	Waited time.Duration
 	// Retry is how long more the entity waits before it runs again, from the same cell and round
 	// the same cells, a search for a route that found nothing; Fails is how many did in a row.
 	Retry time.Duration
@@ -66,6 +68,18 @@ type MoveOrder struct {
 	// Group is the MoveTo that gave the order, one number to every unit it sent; zero, none.
 	Group uint32
 }
+
+// Ask is a MoveOrder's request to the routing, which answers it the step it is made, or its
+// answer.
+type Ask uint8
+
+const (
+	AskNone    Ask = iota
+	AskRoute       // a route to the Target
+	AskNearest     // the nearest free cell round the Target, with a route there
+	NoRoute        // the routing found no route to the Target
+	NoPlace        // the routing found no free cell round the Target
+)
 
 // Goal is a goal queued behind a MoveOrder's Target: its Cell, where in it the entity stops (Spot,
 // zero the centre), the point it was given for and the level it lies on.
