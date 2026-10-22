@@ -143,3 +143,22 @@ func TestOccupancy_HoldersHandsEveryHoldOfACell(t *testing.T) {
 		})
 	}
 }
+
+// a unit stepping onto cells others have left takes their slices: a step allocates nothing
+func TestOccupancy_AStepAllocatesNothing(t *testing.T) {
+	for _, o := range []cell.Occupancy{&cell.SingleOccupancy{}, &cell.MultipleOccupancy{}} {
+		gone := func(uid.UID64) bool { return false }
+		at := cell.ID(0)
+		step := func() {
+			o.Enter(at+1, false, 1, cell.Land)
+			o.Leave(at, 1)
+			o.Release(gone)
+			at++
+		}
+		step()
+		step()
+		if n := testing.AllocsPerRun(100, step); n != 0 {
+			t.Errorf("%T: %v allocations a step, want none", o, n)
+		}
+	}
+}
