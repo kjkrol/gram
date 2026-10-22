@@ -1,6 +1,8 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
 
@@ -25,30 +27,30 @@ func TestMoveTo_SendsThePlayersOwnSelectedUnitsAlone(t *testing.T) {
 	newTarget := grid.At(8, 0)
 
 	moves := &command.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, &cell.MultipleOccupancy{}), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := routing.NewSystem(spacing.NewFinder(grid, terrain, nil, &cell.MultipleOccupancy{}), moves, &command.Queue[LookAt]{}, selTags.Selected)
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var order goke.Comp[MoveOrder]
+	var orderComp goke.Comp[MoveOrder]
 	var marks goke.Comp[tag.Tags[selection.Family]]
 	var owners goke.Comp[tag.Tags[owner.Family]]
 	var read *goke.Query
 	var ids []uid.UID64
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&at, &pos, &order, &marks, &owners)
+		f := si.NewFactory(&at, &pos, &orderComp, &marks, &owners)
 		f.Create(3)
 		f.Next()
 		ids = append(ids, f.Cursor.IDs...)
 		for i, by := range []command.Issuer{1, 2, command.Nobody} {
 			at.Slice(&f.Cursor)[i] = unit.At{Cell: start}
 			pos.Slice(&f.Cursor)[i].Pos = world.Position{AABB: cellBox(grid, start, 8)}
-			order.Slice(&f.Cursor)[i] = MoveOrder{Target: oldTarget, Path: Path{Length: 1}}
+			orderComp.Slice(&f.Cursor)[i] = MoveOrder{Target: oldTarget, Path: Path{Length: 1}}
 			marks.Slice(&f.Cursor)[i] = selectedMarks
 			if by != command.Nobody {
 				owners.Slice(&f.Cursor)[i] = tag.Tags[owner.Family](0).With(owner.Of(by))
 			}
 		}
-		read = si.NewQueryBuilder(&order).Build()
+		read = si.NewQueryBuilder(&orderComp).Build()
 		cmds.Init(si)
 	}})
 	run := ecs.RegSys(cmds)
@@ -61,7 +63,7 @@ func TestMoveTo_SendsThePlayersOwnSelectedUnitsAlone(t *testing.T) {
 	read.All()
 	for read.Next() {
 		for i, id := range read.Cursor().IDs {
-			got[id] = order.Slice(read.Cursor())[i].Target
+			got[id] = orderComp.Slice(read.Cursor())[i].Target
 		}
 	}
 	if got[ids[0]] != newTarget || got[ids[1]] != oldTarget || got[ids[2]] != oldTarget {

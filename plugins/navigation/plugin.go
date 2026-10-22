@@ -2,6 +2,10 @@ package navigation
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routes"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"time"
 
 	"github.com/kjkrol/ceremony/act"
@@ -39,17 +43,17 @@ type Plugin struct {
 	looks   command.Queue[LookAt]
 	routes  command.Queue[Routes]
 	onwards command.Queue[Onward]
-	given   givenQueues
-	finder  *pathFinder
+	given   traffic.GivenQueues
+	finder  *spacing.Finder
 
 	touches  host.PairRules[Touch]
 	crowd    []act.Rule
 	crowdSet bool
 
-	pathRenderer *pathRenderer
+	pathRenderer *routes.Renderer
 	collision    *collision.Plugin
 	spacing      Spacing
-	handKeeping  handKeeping
+	handKeeping  traffic.HandKeeping
 	read         Read
 	write        Write
 	kept         *plugin.Kept[Settings]
@@ -83,7 +87,7 @@ func NewPlugin(
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(worldPlugin, p)
 	drivingPlugin.WithKeeping(&p.handKeeping)
-	p.pathRenderer = newPathRenderer(boardPlugin.Read(0).Board(), DefaultRouteStyle, p.selected).
+	p.pathRenderer = routes.NewRenderer(boardPlugin.Read(0).Board(), DefaultRouteStyle, p.selected).
 		WithHeights(boardPlugin.Read(0).Heights).WithLook(worldPlugin.Read(0).Look).
 		WithStyles(worldPlugin.Read(0).Styles)
 	p.pathRenderer.BindSpace(worldPlugin.Write().Space())
@@ -108,16 +112,16 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	w, h := brd.CellBounds()
 	p.spacing = p.spacing.resolve(float64(p.worldPlugin.Res.Config.Entities.MaxSize), min(w, h))
 	// routes are planned blind to the others: the keeping answers what a route runs into
-	finder := newPathFinder(brd, brd, read, openOccupancy{})
-	finder.WithLevels(boardLevels{read})
-	var keep keeping
+	finder := spacing.NewFinder(brd, brd, read, spacing.OpenOccupancy{})
+	finder.WithLevels(spacing.BoardLevels{Read: read})
+	var keep spacing.Keeping
 	if p.spacing == BodySpacing {
-		keep = newBodyKeeping(finder, p.worldPlugin.Write().Space(), read.Heights)
+		keep = spacing.NewBodyKeeping(finder, p.worldPlugin.Write().Space(), read.Heights)
 	} else {
-		keep = newCellKeeping(finder, p.boardPlugin.Write().Occupancy())
+		keep = spacing.NewCellKeeping(finder, p.boardPlugin.Write().Occupancy())
 	}
 	p.finder = finder
-	p.pathRenderer.finder = finder
+	p.pathRenderer.Finder = finder
 	rules := p.crowd
 	if !p.crowdSet {
 		rules = crowd()
@@ -128,18 +132,18 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		}
 	}
 	ctx.Hosts(&p.touches)
-	navSys := newNavigationSystem(finder, brd, brd, finder.occupancy).withKeeping(keep)
+	navSys := traffic.NewSystem(finder, brd, brd, finder.Occupancy).WithKeeping(keep)
 	navSys.BindSpace(p.worldPlugin.Write().Space())
-	navSys.given, navSys.touches, navSys.tick = &p.given, &p.touches, p.worldPlugin.Read(0).Tick
-	navSys.pace = p.worldPlugin.Pace(sector.Everywhere)
+	navSys.Given, navSys.Touches, navSys.Tick = &p.given, &p.touches, p.worldPlugin.Read(0).Tick
+	navSys.Pace = p.worldPlugin.Pace(sector.Everywhere)
 
-	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected).withKeeping(keep)
-	moveCommandSystem.onwards = &p.onwards
-	p.handKeeping.keep, p.handKeeping.nav = keep, navSys
+	moveCommandSystem := routing.NewSystem(finder, &p.moves, &p.looks, p.selected).WithKeeping(keep)
+	moveCommandSystem.Onwards = &p.onwards
+	p.handKeeping.Keep, p.handKeeping.Nav = keep, navSys
 	if p.collision != nil {
-		navSys.bumps = anyBump
+		navSys.Bumps = traffic.AnyBump
 		if p.spacing == BodySpacing {
-			navSys.bumps = groundBump
+			navSys.Bumps = traffic.GroundBump
 		}
 	}
 
@@ -195,6 +199,6 @@ func (p *Plugin) WithCrowd(rules ...act.Rule) *Plugin {
 // WithRouteStyle sets how the routes and goals of the kinds without a RouteStyle of their own
 // are drawn, in place of DefaultRouteStyle.
 func (p *Plugin) WithRouteStyle(style RouteStyle) *Plugin {
-	p.pathRenderer.style, p.pathRenderer.current = style, style
+	p.pathRenderer.Style, p.pathRenderer.Current = style, style
 	return p
 }

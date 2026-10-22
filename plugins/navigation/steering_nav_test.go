@@ -1,6 +1,9 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"math"
 	"testing"
 	"time"
@@ -17,14 +20,14 @@ import (
 )
 
 type profiledWorld struct {
-	grid    grid.Grid
-	terrain testBoard
-	ecs     *goke.ECS
-	id      uid.UID64
-	pos     goke.Comp[world.Base]
-	order   goke.OptComp[MoveOrder]
-	course  goke.OptComp[steering.Course]
-	q       *goke.Query
+	grid      grid.Grid
+	terrain   testBoard
+	ecs       *goke.ECS
+	id        uid.UID64
+	pos       goke.Comp[world.Base]
+	orderComp goke.OptComp[MoveOrder]
+	course    goke.OptComp[steering.Course]
+	q         *goke.Query
 }
 
 func newProfiledWorld(t *testing.T, w, h uint32, start cell.ID, mt MoveOrder, profile steering.Steering, withSteering bool) *profiledWorld {
@@ -35,7 +38,7 @@ func newProfiledWorld(t *testing.T, w, h uint32, start cell.ID, mt MoveOrder, pr
 		u.profile = &profile
 	}
 	nw := newNavWorld(t, w, h, legCellSize, []navUnit{u}, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		pw.q = si.NewQueryBuilder(&pw.pos).Optional(&pw.order).Optional(&pw.course).Build()
+		pw.q = si.NewQueryBuilder(&pw.pos).Optional(&pw.orderComp).Optional(&pw.course).Build()
 	}})
 	pw.grid, pw.terrain, pw.ecs, pw.id = nw.grid, nw.board, nw.ecs, nw.ids[0]
 	return pw
@@ -47,7 +50,7 @@ func (pw *profiledWorld) tick() (vel world.Velocity, centre geom.Vec, ordered bo
 	for pw.q.Next() {
 		cur := pw.q.Cursor()
 		b := pw.pos.Slice(cur)[0]
-		return b.Vel, b.Pos.Center(), pw.order.Slice(cur) != nil
+		return b.Vel, b.Pos.Center(), pw.orderComp.Slice(cur) != nil
 	}
 	return
 }
@@ -97,18 +100,19 @@ func TestNavigation_PassesAWaypointByProjectionNotDistance(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
-	nav := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
+	nav := traffic.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
+		occupancy)
 	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 
 	var here goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var order goke.Comp[MoveOrder]
+	var orderComp goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
 	var course goke.Comp[steering.Course]
 	var q *goke.Query
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&here, &pos, &order, &profile, &course)
+		f := si.NewFactory(&here, &pos, &orderComp, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
@@ -120,20 +124,20 @@ func TestNavigation_PassesAWaypointByProjectionNotDistance(t *testing.T) {
 		mt.Path.Steps[0], mt.Path.Steps[1] = at(2), at(3)
 		mt.Path.Length = 2
 		mt.Leg = Leg{From: at(1), To: at(2), Active: true}
-		order.Slice(&f.Cursor)[0] = mt
+		orderComp.Slice(&f.Cursor)[0] = mt
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		cells, n := mt.Leg.cells()
+		cells, n := order.Cells(mt.Leg)
 		for _, c := range cells[:n] {
 			occupancy.Enter(c, false, id, cell.Land)
 		}
-		q = si.NewQueryBuilder(&here, &order).Build()
+		q = si.NewQueryBuilder(&here, &orderComp).Build()
 	}})
 	navHandle := ecs.RegSys(nav)
 	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) { ctx.Run(navHandle, d); ctx.Sync() })
 
 	ecs.Tick(time.Second / 60)
 
-	c, mt := readCellAndMoveOrder(t, q, &here, &order)
+	c, mt := readCellAndMoveOrder(t, q, &here, &orderComp)
 	if mt.Path.Index != 1 {
 		t.Errorf("Path.Index = %d, want 1: the waypoint behind the plane counts as passed", mt.Path.Index)
 	}
@@ -197,27 +201,6 @@ func TestNavigation_LeavesAloneAnEntityWithoutSteering(t *testing.T) {
 	}
 }
 
-func TestLookahead(t *testing.T) {
-	have := geom.NewVec(0, 0)
-	route := []geom.Vec{geom.NewVec(10, 0), geom.NewVec(10, 10)}
-	for name, tc := range map[string]struct {
-		reach float64
-		want  geom.Vec
-	}{
-		"no reach aims at the first waypoint":     {0, geom.NewVec(10, 0)},
-		"within the first segment":                {4, geom.NewVec(4, 0)},
-		"past the bend":                           {14, geom.NewVec(10, 4)},
-		"beyond the route ends at its last point": {40, geom.NewVec(10, 10)},
-	} {
-		if got := lookahead(have, route, tc.reach); got != tc.want {
-			t.Errorf("%s: lookahead(reach %v) = %v, want %v", name, tc.reach, got, tc.want)
-		}
-	}
-	if got := lookahead(have, nil, 5); got != have {
-		t.Errorf("an empty route gave %v, want the position itself", got)
-	}
-}
-
 func geomBox(cx, cy, size float64) plane.AABB {
 	return plane.NewAABB(geom.NewVec(cx-size/2, cy-size/2), size, size)
 }
@@ -267,18 +250,19 @@ func TestNavigation_QueuedGoalIsPassedByProjection(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
-	nav := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
+	nav := traffic.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
+		occupancy)
 	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 
 	var here goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var order goke.Comp[MoveOrder]
+	var orderComp goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
 	var course goke.Comp[steering.Course]
 	var q *goke.Query
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&here, &pos, &order, &profile, &course)
+		f := si.NewFactory(&here, &pos, &orderComp, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
@@ -287,20 +271,20 @@ func TestNavigation_QueuedGoalIsPassedByProjection(t *testing.T) {
 		mt := MoveOrder{Target: at(2), Leg: Leg{From: at(1), To: at(2), Active: true}}
 		mt.Path.Steps[0], mt.Path.Length = at(2), 1
 		mt.Enqueue(Goal{Cell: at(5)})
-		order.Slice(&f.Cursor)[0] = mt
+		orderComp.Slice(&f.Cursor)[0] = mt
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		cells, n := mt.Leg.cells()
+		cells, n := order.Cells(mt.Leg)
 		for _, c := range cells[:n] {
 			occupancy.Enter(c, false, id, cell.Land)
 		}
-		q = si.NewQueryBuilder(&here, &order).Build()
+		q = si.NewQueryBuilder(&here, &orderComp).Build()
 	}})
 	h := ecs.RegSys(nav)
 	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) { ctx.Run(h, d); ctx.Sync() })
 
 	ecs.Tick(time.Second / 60)
 
-	_, mt := readCellAndMoveOrder(t, q, &here, &order)
+	_, mt := readCellAndMoveOrder(t, q, &here, &orderComp)
 	if mt.Target != at(5) || mt.Queued != 0 {
 		t.Errorf("order = target %v, queued %d; want the queued goal promoted and the queue empty", mt.Target, mt.Queued)
 	}
@@ -345,41 +329,11 @@ func TestNavigation_ASharpTurnSlowsTheUnit(t *testing.T) {
 			recovered = true
 		}
 	}
-	if slowest > 64*turnCrawl*1.5 {
-		t.Errorf("slowest speed through the U-turn was %v, want it down near the crawl (%v)", slowest, 64*turnCrawl)
+	if slowest > 64*traffic.TurnCrawl*1.5 {
+		t.Errorf("slowest speed through the U-turn was %v, want it down near the crawl (%v)", slowest, 64*traffic.TurnCrawl)
 	}
 	if !recovered {
 		t.Error("the unit never got back to full speed once it faced its goal")
-	}
-}
-
-func TestTurnFactor(t *testing.T) {
-	east, west, north := geom.NewVec(1, 0), geom.NewVec(-1, 0), geom.NewVec(0, 1)
-	for name, tc := range map[string]struct {
-		heading, dir geom.Vec
-		want         float64
-	}{
-		"straight on keeps full speed": {east, east, 1},
-		"a right angle crawls":         {east, north, turnCrawl},
-		"a U-turn crawls":              {east, west, turnCrawl},
-		"no heading yet keeps full":    {geom.Vec{}, east, 1},
-	} {
-		if got := turnFactor(tc.heading, tc.dir); got != tc.want {
-			t.Errorf("%s: turnFactor = %v, want %v", name, got, tc.want)
-		}
-	}
-}
-
-func TestPassed_WithinTheLookaheadCountsAsPassed(t *testing.T) {
-	from, w := geom.NewVec(0, 0), geom.NewVec(10, 0)
-	if passed(geom.NewVec(7, 0), w, from, 0) {
-		t.Error("3 short of the plane with no reach counts as passed")
-	}
-	if !passed(geom.NewVec(7, 0), w, from, 4) {
-		t.Error("3 short of the plane but within a reach of 4 does not count as passed")
-	}
-	if !passed(geom.NewVec(12, 3), w, from, 0) {
-		t.Error("beyond the plane does not count as passed")
 	}
 }
 
@@ -388,18 +342,19 @@ func TestNavigation_ALegIsTurnedRoundWhenTheRouteGoesBack(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
-	nav := newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)
+	nav := traffic.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain,
+		occupancy)
 	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 
 	var here goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var order goke.Comp[MoveOrder]
+	var orderComp goke.Comp[MoveOrder]
 	var profile goke.Comp[steering.Steering]
 	var course goke.Comp[steering.Course]
 	var q *goke.Query
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&here, &pos, &order, &profile, &course)
+		f := si.NewFactory(&here, &pos, &orderComp, &profile, &course)
 		f.Create(1)
 		f.Next()
 		id := f.Cursor.IDs[0]
@@ -407,20 +362,20 @@ func TestNavigation_ALegIsTurnedRoundWhenTheRouteGoesBack(t *testing.T) {
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: geomBox(27, 5, 4)} // just into cell 2, on a leg from 1
 		mt := MoveOrder{Target: at(0), Leg: Leg{From: at(1), To: at(2), Active: true}}
 		mt.Path.Steps[0], mt.Path.Steps[1], mt.Path.Length = at(1), at(0), 2 // the route back home
-		order.Slice(&f.Cursor)[0] = mt
+		orderComp.Slice(&f.Cursor)[0] = mt
 		profile.Slice(&f.Cursor)[0] = steering.Steering{MaxSpeed: 20}
-		cells, n := mt.Leg.cells()
+		cells, n := order.Cells(mt.Leg)
 		for _, c := range cells[:n] {
 			occupancy.Enter(c, false, id, cell.Land)
 		}
-		q = si.NewQueryBuilder(&here, &order).Build()
+		q = si.NewQueryBuilder(&here, &orderComp).Build()
 	}})
 	h := ecs.RegSys(nav)
 	ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) { ctx.Run(h, d); ctx.Sync() })
 
 	ecs.Tick(time.Second / 60)
 
-	_, mt := readCellAndMoveOrder(t, q, &here, &order)
+	_, mt := readCellAndMoveOrder(t, q, &here, &orderComp)
 	if !mt.Leg.Active || mt.Leg.From != at(2) || mt.Leg.To != at(1) {
 		t.Errorf("Leg = %+v, want it turned round to 2 -> 1 so the unit goes straight back", mt.Leg)
 	}

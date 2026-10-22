@@ -121,7 +121,7 @@ func (pw *profiledWorld) state() (world.Base, *MoveOrder) {
 	}
 	cur := pw.q.Cursor()
 	b := pw.pos.Slice(cur)[0]
-	if orders := pw.order.Slice(cur); orders != nil {
+	if orders := pw.orderComp.Slice(cur); orders != nil {
 		o := orders[0]
 		return b, &o
 	}
@@ -179,7 +179,7 @@ func TestNavigation_CrossesABridgeRunningSlantwise(t *testing.T) {
 		}
 	}
 	var at goke.Comp[unit.At]
-	var order goke.OptComp[MoveOrder]
+	var orderComp goke.OptComp[MoveOrder]
 	var q *goke.Query
 	nw := newNavWorldWith(t, 5, 5, 32, []navUnit{{
 		box:     cellBox(g, start, 10),
@@ -187,7 +187,7 @@ func TestNavigation_CrossesABridgeRunningSlantwise(t *testing.T) {
 		profile: &steering.Steering{MaxSpeed: 64},
 		order:   &MoveOrder{Target: goal},
 	}}, prepare, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		q = si.NewQueryBuilder(&at).Optional(&order).Build()
+		q = si.NewQueryBuilder(&at).Optional(&orderComp).Build()
 	}})
 	var here cell.ID
 	for tick := range 60 * 5 {

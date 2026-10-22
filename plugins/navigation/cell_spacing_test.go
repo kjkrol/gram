@@ -1,6 +1,8 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"slices"
 	"testing"
 	"time"
@@ -86,24 +88,22 @@ func TestCellSpacing_NoRoomToGiveWayAndNoWayRoundTheMoverGivesUp(t *testing.T) {
 }
 
 func TestCellSpacing_OneStandingStepsAsideOffTheWay(t *testing.T) {
-	if (Touch{OtherMoving: true, OtherGivingWay: true, Ally: true}).pushedByAlly() {
-		t.Error("made way for one giving way")
-	}
 	grid := grid.DefaultGrids{}.Square(3, 3, 32)
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occ := &cell.SingleOccupancy{}
-	k := newCellKeeping(newPathFinder(grid, terrain, nil, openOccupancy{}), occ)
+	k := spacing.NewCellKeeping(spacing.NewFinder(grid, terrain, nil, spacing.OpenOccupancy{}), occ)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	m := member{id: 7, cell: at(1, 1), from: at(1, 1), domain: cell.Land, pos: posAt(grid, at(1, 1))}
-	coming := body{id: 3, at: grid.CellCenter(at(0, 1)), cell: at(0, 1), moving: true}
-	o, ok := k.stepAside(m, coming)
+	m := bodies.Member{ID: 7, Cell: at(1, 1), From: at(1, 1), Domain: cell.Land,
+		Pos: posAt(grid, at(1, 1))}
+	coming := bodies.Body{ID: 3, At: grid.CellCenter(at(0, 1)), Cell: at(0, 1), Moving: true}
+	o, ok := k.StepAside(m, coming)
 	if !ok || !o.GivingWay || o.Target != at(1, 0) && o.Target != at(1, 2) || o.Queued != 0 {
 		t.Errorf("stepped aside with %+v %v, want an order square off the way, (1,0) or (1,2), and nothing after", o, ok)
 	}
 	occ.Enter(at(1, 0), false, uid.UID64(4), cell.Land)
 	occ.Enter(at(1, 2), false, uid.UID64(5), cell.Land)
-	if o, ok := k.stepAside(m, coming); !ok || o.Target != at(0, 0) && o.Target != at(0, 2) {
+	if o, ok := k.StepAside(m, coming); !ok || o.Target != at(0, 0) && o.Target != at(0, 2) {
 		t.Errorf("with the cells across held it stepped aside to %v %v, want slantwise beside the one coming, never ahead of it", o.Target, ok)
 	}
 }

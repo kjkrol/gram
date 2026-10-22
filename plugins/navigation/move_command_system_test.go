@@ -1,6 +1,8 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
 
@@ -26,20 +28,20 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	newTarget := grid.At(8, 0)
 
 	moves := &command.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := routing.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
 	selects := &command.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
 	var cell goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var order goke.Comp[MoveOrder]
+	var orderComp goke.Comp[MoveOrder]
 	var selectable goke.Comp[tag.Tags[selection.Family]]
 	var readQuery *goke.Query
 	var selectedID, otherID uid.UID64
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&cell, &pos, &order, &selectable)
+		f := si.NewFactory(&cell, &pos, &orderComp, &selectable)
 		f.Create(2)
 		f.Next()
 		for i := range f.Cursor.IDs {
@@ -50,14 +52,14 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 
 		cells := cell.Slice(&f.Cursor)
 		positions := pos.Slice(&f.Cursor)
-		orders := order.Slice(&f.Cursor)
+		orders := orderComp.Slice(&f.Cursor)
 		for i := range ids {
 			cells[i] = unit.At{Cell: start}
 			positions[i].Pos = world.Position{AABB: cellBox(grid, start, 8)}
 			orders[i] = MoveOrder{Target: oldTarget, Path: Path{Length: 1}}
 		}
 
-		readQuery = si.NewQueryBuilder(&order).Build()
+		readQuery = si.NewQueryBuilder(&orderComp).Build()
 		selSys.Init(si)
 		cmds.Init(si)
 	}})
@@ -80,7 +82,7 @@ func TestCommandSystem_Update_RetargetsOnlySelectedEntities(t *testing.T) {
 	readQuery.All()
 	for readQuery.Next() {
 		cur := readQuery.Cursor()
-		orders := order.Slice(cur)
+		orders := orderComp.Slice(cur)
 		for i, id := range cur.IDs {
 			got[id] = orders[i]
 		}
@@ -113,13 +115,13 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 	newTarget := grid.At(8, 0)
 
 	moves := &command.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := routing.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
 	selects := &command.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
 	var cell goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var order goke.OptComp[MoveOrder]
+	var orderComp goke.OptComp[MoveOrder]
 	var readQuery *goke.Query
 	var idleID uid.UID64
 
@@ -137,7 +139,7 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 		cells[0] = unit.At{Cell: start}
 		positions[0].Pos = world.Position{AABB: cellBox(grid, start, 8)}
 
-		readQuery = si.NewQueryBuilder().Optional(&order).Build()
+		readQuery = si.NewQueryBuilder().Optional(&orderComp).Build()
 		selSys.Init(si)
 		cmds.Init(si)
 	}})
@@ -156,7 +158,7 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 	readQuery.All()
 	for readQuery.Next() {
 		cur := readQuery.Cursor()
-		if order.Present(cur) {
+		if orderComp.Present(cur) {
 			t.Fatal("sanity check failed: expected the idle entity to start without MoveOrder")
 		}
 	}
@@ -169,10 +171,10 @@ func TestCommandSystem_Update_AssignsFreshOrderToIdleSelectedEntity(t *testing.T
 	readQuery.All()
 	for readQuery.Next() {
 		cur := readQuery.Cursor()
-		if !order.Present(cur) {
+		if !orderComp.Present(cur) {
 			continue
 		}
-		orders := order.Slice(cur)
+		orders := orderComp.Slice(cur)
 		for i, id := range cur.IDs {
 			if id == idleID {
 				gotMoveTo, found = orders[i], true
@@ -205,20 +207,20 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 	terrain.Set(wall, cell.Kind{Cost: 1, Solid: true})
 
 	moves := &command.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := routing.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
 	selects := &command.Queue[selection.Select]{}
 	selSys := selection.NewSelectionSystem(selects, nil, selTags, nil)
 
 	var cell goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
-	var order goke.Comp[MoveOrder]
+	var orderComp goke.Comp[MoveOrder]
 	var readQuery *goke.Query
 	var movingID uid.UID64
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		var selectable goke.Comp[tag.Tags[selection.Family]]
-		f := si.NewFactory(&cell, &pos, &order, &selectable)
+		f := si.NewFactory(&cell, &pos, &orderComp, &selectable)
 		f.Create(1)
 		f.Next()
 		selectable.Slice(&f.Cursor)[0] = selectableMarks
@@ -226,12 +228,12 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 
 		cells := cell.Slice(&f.Cursor)
 		positions := pos.Slice(&f.Cursor)
-		orders := order.Slice(&f.Cursor)
+		orders := orderComp.Slice(&f.Cursor)
 		cells[0] = unit.At{Cell: start}
 		positions[0].Pos = world.Position{AABB: cellBox(grid, start, 8)}
 		orders[0] = MoveOrder{Target: oldTarget, Path: Path{Length: 1}}
 
-		readQuery = si.NewQueryBuilder(&order).Build()
+		readQuery = si.NewQueryBuilder(&orderComp).Build()
 		selSys.Init(si)
 		cmds.Init(si)
 	}})
@@ -254,7 +256,7 @@ func TestCommandSystem_Update_UnreachableTargetLeavesInFlightEntityUntouched(t *
 	found := false
 	for readQuery.Next() {
 		cur := readQuery.Cursor()
-		orders := order.Slice(cur)
+		orders := orderComp.Slice(cur)
 		for i, id := range cur.IDs {
 			if id != movingID {
 				continue

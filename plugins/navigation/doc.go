@@ -1,6 +1,11 @@
 // Package navigation moves entities along a MoveOrder's path across a board, re-pathing when the
 // ground along the route changes, and carries out MoveTo commands for Selected entities.
 //
+// Its machinery is in plugins/navigation/internal: the order and its commands (order), the units
+// of a tick (bodies), how they keep apart (spacing), the commands planning their routes
+// (routing), their moves along them (traffic), the search (pathfind) and the routes drawn
+// (routes); the types a game names are this package's by alias.
+//
 // # MoveOrder and Path
 //
 // A [MoveOrder] on an entity sends it to a Target cell and then through up to [MaxWaypoints]

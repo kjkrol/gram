@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"cmp"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"math"
 	"slices"
 	"testing"
@@ -362,14 +363,14 @@ func TestNavigation_KeptACellEachUnderAWalkerOnADeck(t *testing.T) {
 
 func TestLeg_AlongADeckPassesOverItsCornersHoldingNone(t *testing.T) {
 	leg := Leg{From: 1, To: 2, C1: 3, C2: 4, Diagonal: true, Decked: true, Active: true}
-	if got, n := leg.cells(); n != 4 {
+	if got, n := order.Cells(leg); n != 4 {
 		t.Errorf("a decked leg passes over %v, want its corners too", got[:n])
 	}
-	if got, n := leg.held(); n != 2 {
+	if got, n := order.Held(leg); n != 2 {
 		t.Errorf("a decked leg holds %v, want From and To alone", got[:n])
 	}
 	leg.Decked = false
-	if got, n := leg.held(); n != 4 {
+	if got, n := order.Held(leg); n != 4 {
 		t.Errorf("a leg cutting a corner over the ground holds %v, want its corners too", got[:n])
 	}
 }

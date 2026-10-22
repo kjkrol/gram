@@ -1,4 +1,4 @@
-package navigation_test
+package routes_test
 
 import (
 	"testing"
@@ -6,7 +6,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
-	"github.com/kjkrol/gram/plugins/navigation"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routes"
 )
 
 func TestPathCells_NoPathYet_StraightToTarget(t *testing.T) {
@@ -14,7 +15,7 @@ func TestPathCells_NoPathYet_StraightToTarget(t *testing.T) {
 	start := grid.At(0, 0)
 	target := grid.At(4, 0)
 
-	cells := navigation.PathCells(unit.At{Cell: start}, navigation.MoveOrder{Target: target})
+	cells := routes.PathCells(unit.At{Cell: start}, order.MoveOrder{Target: target})
 
 	assertCells(t, cells, []cell.ID{start, target})
 }
@@ -26,14 +27,14 @@ func TestPathCells_PartiallyConsumedPath_SkipsPassedSteps(t *testing.T) {
 	c2 := grid.At(2, 0)
 	target := grid.At(3, 0)
 
-	var p navigation.Path
+	var p order.Path
 	p.Steps[0] = c1
 	p.Steps[1] = c2
 	p.Steps[2] = target
 	p.Length = 3
 	p.Index = 1
 
-	cells := navigation.PathCells(unit.At{Cell: start}, navigation.MoveOrder{Target: target, Path: p})
+	cells := routes.PathCells(unit.At{Cell: start}, order.MoveOrder{Target: target, Path: p})
 
 	assertCells(t, cells, []cell.ID{start, c2, target})
 }
@@ -43,12 +44,12 @@ func TestPathCells_LastCellAlwaysTarget(t *testing.T) {
 	start := grid.At(0, 0)
 	target := grid.At(2, 0)
 
-	var p navigation.Path
+	var p order.Path
 	p.Steps[0] = target
 	p.Length = 1
 	p.Index = 0
 
-	cells := navigation.PathCells(unit.At{Cell: start}, navigation.MoveOrder{Target: target, Path: p})
+	cells := routes.PathCells(unit.At{Cell: start}, order.MoveOrder{Target: target, Path: p})
 
 	if last := cells[len(cells)-1]; last != target {
 		t.Errorf("last cell = %v, want %v (Target)", last, target)
@@ -60,13 +61,13 @@ func TestPathCells_AtIntermediateWaypoint_DoesNotDuplicateIt(t *testing.T) {
 	mid := grid.At(1, 0)
 	target := grid.At(2, 0)
 
-	var p navigation.Path
+	var p order.Path
 	p.Steps[0] = mid
 	p.Steps[1] = target
 	p.Length = 2
 	p.Index = 0
 
-	cells := navigation.PathCells(unit.At{Cell: mid}, navigation.MoveOrder{Target: target, Path: p})
+	cells := routes.PathCells(unit.At{Cell: mid}, order.MoveOrder{Target: target, Path: p})
 
 	assertCells(t, cells, []cell.ID{mid, target})
 }
@@ -75,7 +76,7 @@ func TestPathCells_AtTarget_DoesNotDuplicateIt(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(5, 1, 10)
 	target := grid.At(2, 0)
 
-	cells := navigation.PathCells(unit.At{Cell: target}, navigation.MoveOrder{Target: target})
+	cells := routes.PathCells(unit.At{Cell: target}, order.MoveOrder{Target: target})
 
 	assertCells(t, cells, []cell.ID{target})
 }

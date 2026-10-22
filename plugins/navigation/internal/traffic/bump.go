@@ -1,22 +1,24 @@
-package navigation
+package traffic
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/collision"
 )
 
-type bumps uint8
+// Bumps is which of the units' strikes the system reacts to: none, any, or the ground's alone.
+type Bumps uint8
 
 const (
-	noBumps bumps = iota
-	anyBump
-	groundBump
+	noBumps Bumps = iota
+	AnyBump
+	GroundBump
 )
 
-func (s *navigationSystem) bump() {
-	if s.bumps == noBumps {
+func (s *System) bump() {
+	if s.Bumps == noBumps {
 		return
 	}
 	for s.query.All(); s.query.Next(); {
@@ -31,7 +33,7 @@ func (s *navigationSystem) bump() {
 				continue
 			}
 			o := &orders[i]
-			if s.bumps == anyBump {
+			if s.Bumps == AnyBump {
 				if o.Cooldown == 0 && struckSomething(contacts) {
 					o.Bumped = true
 				}
@@ -42,7 +44,7 @@ func (s *navigationSystem) bump() {
 	}
 }
 
-func struck(o *MoveOrder, contacts []collision.Contact) {
+func struck(o *order.MoveOrder, contacts []collision.Contact) {
 	var n geom.Vec
 	for _, c := range contacts {
 		if c.Terrain {

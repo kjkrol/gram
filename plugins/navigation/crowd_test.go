@@ -1,6 +1,8 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"math"
 	"testing"
 	"time"
@@ -54,8 +56,8 @@ func TestCrowd_AStrangerStandingIsGoneRoundAtOnce(t *testing.T) {
 		} else {
 			stood = 0
 		}
-		if stood > int(stallAfter/(time.Second/60)) {
-			t.Fatalf("the traveller stood at %v for %v: it waited on the stranger, want it gone round at once", c, stallAfter)
+		if stood > int(spacing.StallAfter/(time.Second/60)) {
+			t.Fatalf("the traveller stood at %v for %v: it waited on the stranger, want it gone round at once", c, spacing.StallAfter)
 		}
 		last = c
 		return o == nil && c == rw.at(9, 1)
@@ -308,7 +310,7 @@ type cliffs map[cell.ID]bool
 
 func (c cliffs) Climb(_, to cell.ID, _ cell.Domain) float64 {
 	if c[to] {
-		return 2 * yieldClimb
+		return 2 * spacing.YieldClimb
 	}
 	return 1
 }
@@ -339,21 +341,22 @@ func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 					steep[c] = true
 				}
 			}
-			finder := newPathFinder(grid, terrain, steep, openOccupancy{})
-			coming := body{id: 3, at: grid.CellCenter(at(1, 2)), half: geom.NewVec(3, 3), cell: at(1, 2), moving: true, domain: cell.Land}
+			finder := spacing.NewFinder(grid, terrain, steep, spacing.OpenOccupancy{})
+			coming := bodies.Body{ID: 3, At: grid.CellCenter(at(1, 2)), Half: geom.NewVec(3, 3), Cell: at(1, 2), Moving: true, Domain: cell.Land}
 
-			cells := newCellKeeping(finder, &cell.SingleOccupancy{})
-			m := member{id: 7, cell: at(2, 2), from: at(2, 2), domain: cell.Land, pos: posAt(grid, at(2, 2))}
-			if o, ok := cells.stepAside(m, coming); ok != open || open && o.Target != at(2, 3) {
+			cells := spacing.NewCellKeeping(finder, &cell.SingleOccupancy{})
+			m := bodies.Member{ID: 7, Cell: at(2, 2), From: at(2, 2), Domain: cell.Land,
+				Pos: posAt(grid, at(2, 2))}
+			if o, ok := cells.StepAside(m, coming); ok != open || open && o.Target != at(2, 3) {
 				t.Errorf("cells, %s on every side but open %v: stepped aside %v to %v, want only to the open (2,3)", name, open, ok, o.Target)
 			}
 
-			bodies := newBodyKeeping(finder, nil, nil)
-			bodies.begin(func(dst []body) []body { return dst })
+			keep := spacing.NewBodyKeeping(finder, nil, nil)
+			keep.Begin(func(dst []bodies.Body) []bodies.Body { return dst })
 			c := grid.CellCenter(at(2, 2))
-			m = member{id: 7, cell: at(2, 2), from: at(2, 2), domain: cell.Land,
-				pos: world.Position{AABB: plane.NewAABB(geom.NewVec(c.X-14, c.Y-14), 28, 28)}}
-			o, ok := bodies.stepAside(m, coming)
+			m = bodies.Member{ID: 7, Cell: at(2, 2), From: at(2, 2), Domain: cell.Land,
+				Pos: world.Position{AABB: plane.NewAABB(geom.NewVec(c.X-14, c.Y-14), 28, 28)}}
+			o, ok := keep.StepAside(m, coming)
 			if ok != open {
 				t.Errorf("bodies, %s on every side but open %v: stepped aside %v, to %v", name, open, ok, o.Spot)
 				continue
@@ -363,45 +366,6 @@ func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 			}
 		}
 	}
-}
-
-func TestTouch_TheRulesOfTheCrowd(t *testing.T) {
-	moving := Touch{Moving: true, LastGoal: true}
-	for _, c := range []struct {
-		name                                       string
-		touch                                      Touch
-		pushed, reached, clears, blocks, goalTaken bool
-	}{
-		{"an idle ally pushed", Touch{OtherMoving: true, Ally: true}, true, false, false, false, false},
-		{"an idle stranger pushed", Touch{OtherMoving: true}, false, false, false, false, false},
-		{"one of the group arrived, pushed by its own", Touch{OtherMoving: true, Ally: true, Groupmate: true}, false, false, false, false, false},
-		{"pushed by one giving way", Touch{OtherMoving: true, OtherGivingWay: true, Ally: true}, false, false, false, false, false},
-		{"on the move at one of its group arrived", with(moving, func(t *Touch) { t.Ally, t.Groupmate = true, true }), false, true, false, false, false},
-		{"on the move, not at its last goal, at one of its group", with(moving, func(t *Touch) { t.Ally, t.Groupmate, t.LastGoal = true, true, false }), false, false, false, true, false},
-		{"on the move at an idle ally with room", with(moving, func(t *Touch) { t.Ally, t.Room = true, true }), false, false, true, false, false},
-		{"on the move at an idle ally with no room", with(moving, func(t *Touch) { t.Ally = true }), false, false, false, true, false},
-		{"on the move at an idle ally with no room on its goal", with(moving, func(t *Touch) { t.Ally, t.OnMyGoal = true, true }), false, false, false, true, true},
-		{"on the move at an idle ally with room on its goal", with(moving, func(t *Touch) { t.Ally, t.OnMyGoal, t.Room = true, true, true }), false, false, true, false, false},
-		{"on the move at a stranger on its goal", with(moving, func(t *Touch) { t.OnMyGoal = true }), false, false, false, true, true},
-		{"on the move at one on the move", with(moving, func(t *Touch) { t.OtherMoving, t.Ally = true, true }), false, false, false, true, false},
-	} {
-		got := [5]bool{c.touch.pushedByAlly(), c.touch.reachedTheGroup(), c.touch.clearsTheWay(), c.touch.blocks(), c.touch.goalTaken()}
-		if want := [5]bool{c.pushed, c.reached, c.clears, c.blocks, c.goalTaken}; got != want {
-			t.Errorf("%s: pushed, reached, clears, blocks, goal taken %v, want %v", c.name, got, want)
-		}
-	}
-	head := Touch{Self: 1, Other: 2, Moving: true, OtherMoving: true, HeadOn: true}
-	if !head.waitsFirst() || (Touch{Self: 2, Other: 1, Moving: true, OtherMoving: true, HeadOn: true}).waitsFirst() {
-		t.Error("of two head on the lower id does not wait first, or the other does too")
-	}
-	if head.WaitedOut = true; head.waitsFirst() {
-		t.Error("the first waits on after its Hold ran out")
-	}
-}
-
-func with(t Touch, fn func(*Touch)) Touch {
-	fn(&t)
-	return t
 }
 
 func TestCrowd_AGameGivesItsOwnRules(t *testing.T) {

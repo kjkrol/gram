@@ -1,4 +1,4 @@
-package navigation
+package order
 
 import (
 	"github.com/kjkrol/ceremony/fact"
@@ -61,14 +61,6 @@ func StrangerOnGoal() cond.Word[Blocked] {
 	return cond.NewWord("stranger on goal",
 		func(b Blocked) bool { return b.Stranger && !b.Moving && b.OnMyGoal })
 }
-
-func blockedOf(t Touch, cell cell.ID) Blocked {
-	return Blocked{By: t.Other, Cell: cell, Stranger: !t.Ally, Groupmate: t.Groupmate, Moving: t.OtherMoving,
-		OnMyGoal: t.OnMyGoal, WaitedOut: t.WaitedOut, Cornered: t.Cornered, Lasts: blockedLasts}
-}
-
-// contacts come and go
-const blockedLasts = 400 * time.Millisecond
 
 // Arrived is the fact told a unit with a plan once its order is over, until the next: it stands
 // on Cell, its goal or as near as it could come.

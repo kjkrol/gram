@@ -1,6 +1,8 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -28,47 +30,49 @@ func TestKept_ADetourAskedAgainIsAnsweredAsBeforeUnsearched(t *testing.T) {
 	board := cell.NewTerrainMap()
 	board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	read := &readTerrain{TerrainMap: board}
-	kept := newCellKeeping(newPathFinder(g, read, nil, openOccupancy{}), &cell.SingleOccupancy{})
-	fresh := newCellKeeping(newPathFinder(g, board, nil, &cell.MultipleOccupancy{}),
+	kept := spacing.NewCellKeeping(spacing.NewFinder(g, read, nil, spacing.OpenOccupancy{}),
 		&cell.SingleOccupancy{})
-	stand := func(c cell.ID, size uint32) member {
-		return member{id: 7, cell: c, from: c, domain: cell.Land,
-			pos: world.Position{AABB: cellBox(g, c, size)}}
+	fresh := spacing.NewCellKeeping(spacing.NewFinder(g, board, nil, &cell.MultipleOccupancy{}),
+		&cell.SingleOccupancy{})
+	stand := func(c cell.ID, size uint32) bodies.Member {
+		return bodies.Member{ID: 7, Cell: c, From: c, Domain: cell.Land,
+			Pos: world.Position{AABB: cellBox(g, c, size)}}
 	}
 	m := stand(at(0, 1), 8)
 	o := MoveOrder{Target: at(5, 1), Toward: at(1, 1)}
 	mf, of := m, o
-	other := body{id: 3, cell: at(1, 1)}
+	other := bodies.Body{ID: 3, Cell: at(1, 1)}
 	for _, step := range []struct {
 		name     string
-		change   func(m *member, o *MoveOrder)
+		change   func(m *bodies.Member, o *MoveOrder)
 		searched bool
 	}{
 		{"asked first", nil, true},
 		{"asked again", nil, false},
-		{"another cell learnt", func(_ *member, o *MoveOrder) { o.Toward = at(1, 0) }, true},
+		{"another cell learnt", func(_ *bodies.Member, o *MoveOrder) { o.Toward = at(1, 0) }, true},
 		{"asked again", nil, false},
-		{"from another cell", func(m *member, _ *MoveOrder) { *m = stand(at(0, 0), 8) }, true},
-		{"to another target", func(_ *member, o *MoveOrder) { o.Target = at(5, 2) }, true},
-		{"to another level", func(_ *member, o *MoveOrder) { o.Level = OnGround }, true},
-		{"a body of another size", func(m *member, _ *MoveOrder) { *m = stand(m.cell, 9) }, true},
-		{"the board changed", func(*member, *MoveOrder) {
+		{"from another cell", func(m *bodies.Member, _ *MoveOrder) { *m = stand(at(0, 0), 8) }, true},
+		{"to another target", func(_ *bodies.Member, o *MoveOrder) { o.Target = at(5, 2) }, true},
+		{"to another level", func(_ *bodies.Member, o *MoveOrder) { o.Level = OnGround }, true},
+		{"a body of another size", func(m *bodies.Member, _ *MoveOrder) { *m = stand(m.Cell, 9) }, true},
+		{"the board changed", func(*bodies.Member, *MoveOrder) {
 			for _, y := range []uint32{0, 2} {
 				board.Set(at(3, y), wall)
 			}
 		}, true},
 		{"asked again", nil, false},
-		{"no way round a cell learnt", func(_ *member, o *MoveOrder) { o.Toward = at(3, 1) }, true},
+		{"no way round a cell learnt", func(_ *bodies.Member, o *MoveOrder) { o.Toward = at(3, 1) },
+			true},
 		{"cornered, waiting", nil, false},
-		{"its wait over, asked again", func(_ *member, o *MoveOrder) { o.Retry = 0 }, false},
+		{"its wait over, asked again", func(_ *bodies.Member, o *MoveOrder) { o.Retry = 0 }, false},
 	} {
 		if step.change != nil {
 			step.change(&m, &o)
 			step.change(&mf, &of)
 		}
 		before := read.read
-		kept.detour(m, &o, other)
-		fresh.detour(mf, &of, other)
+		kept.Detour(m, &o, other)
+		fresh.Detour(mf, &of, other)
 		if searched := read.read > before; searched != step.searched {
 			t.Errorf("%s: searched %v, want %v", step.name, searched, step.searched)
 		}
@@ -87,13 +91,13 @@ func TestKept_AFinderSeeingTheOthersKeepsNoAnswer(t *testing.T) {
 	read := &readTerrain{TerrainMap: cell.NewTerrainMap()}
 	read.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occ := &cell.SingleOccupancy{}
-	k := newCellKeeping(newPathFinder(g, read, nil, occ), occ)
-	m := member{id: 7, cell: g.At(0, 1), from: g.At(0, 1), domain: cell.Land,
-		pos: world.Position{AABB: cellBox(g, g.At(0, 1), 8)}}
+	k := spacing.NewCellKeeping(spacing.NewFinder(g, read, nil, occ), occ)
+	m := bodies.Member{ID: 7, Cell: g.At(0, 1), From: g.At(0, 1), Domain: cell.Land,
+		Pos: world.Position{AABB: cellBox(g, g.At(0, 1), 8)}}
 	o := MoveOrder{Target: g.At(5, 1), Toward: g.At(1, 1)}
 	for i := range 2 {
 		before := read.read
-		if k.detour(m, &o, body{id: 3, cell: g.At(1, 1)}); read.read == before {
+		if k.Detour(m, &o, bodies.Body{ID: 3, Cell: g.At(1, 1)}); read.read == before {
 			t.Errorf("detour %d searched nothing, want every one searched: the cells held "+
 				"change", i)
 		}

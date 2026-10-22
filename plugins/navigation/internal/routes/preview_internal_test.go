@@ -1,6 +1,8 @@
-package navigation
+package routes
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -14,11 +16,11 @@ func TestPathRenderer_PreviewsTheRouteToEachQueuedGoal(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
-	r := &pathRenderer{grid: grid, finder: newPathFinder(grid, terrain, nil, &cell.SingleOccupancy{})}
+	r := &Renderer{grid: grid, Finder: spacing.NewFinder(grid, terrain, nil, &cell.SingleOccupancy{})}
 
-	mt := MoveOrder{Target: at(2)}
-	mt.Enqueue(Goal{Cell: at(5)})
-	mt.Enqueue(Goal{Cell: at(7)})
+	mt := order.MoveOrder{Target: at(2)}
+	mt.Enqueue(order.Goal{Cell: at(5)})
+	mt.Enqueue(order.Goal{Cell: at(7)})
 	routes := r.queued(uid.UID64(1), cell.Land, pathfind.Body{}, &mt)
 
 	if len(routes) != 2 {
@@ -40,11 +42,11 @@ func TestPathRenderer_PreviewsTheRouteToEachQueuedGoal(t *testing.T) {
 	if &again[0][0] != &routes[0][0] {
 		t.Error("unchanged goals were planned again instead of reusing the kept routes")
 	}
-	mt.Enqueue(Goal{Cell: at(9)})
+	mt.Enqueue(order.Goal{Cell: at(9)})
 	if fresh := r.queued(uid.UID64(1), cell.Land, pathfind.Body{}, &mt); len(fresh) != 3 {
 		t.Errorf("after another goal got %d routes, want 3", len(fresh))
 	}
-	mt = MoveOrder{Target: at(2)}
+	mt = order.MoveOrder{Target: at(2)}
 	if left := r.queued(uid.UID64(1), cell.Land, pathfind.Body{}, &mt); left != nil {
 		t.Errorf("an order with nothing queued previews %v, want nothing", left)
 	}
