@@ -310,10 +310,11 @@ func (r *Relief) Step() float64 {
 // Top is c's corners with height standing on them, and its level.
 func (r *Relief) Top(c cell.ID, height float64) (corners [4]float32, level float32) {
 	k := r.Corners(c)
+	level = float32(k.Level())
 	for i := range k {
 		k[i] += float32(height)
 	}
-	return k, float32(r.Altitude(c))
+	return k, level
 }
 
 // k is the index of v among the cell's corners, -1 for a hex cell

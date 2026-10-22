@@ -189,7 +189,7 @@ func (r *BoardRead) Version() uint64 { return r.cells.Version() }
 func (r *BoardRead) Map() MapRead { return readMap{r} }
 
 func (r *BoardRead) altitude(c cell.ID) float64 {
-	_, level := r.Map().Top(c)
+	_, level := r.b.mapping.Top(c, 0) // the ground's level, whatever stands on it
 	return float64(level)
 }
 

@@ -54,9 +54,11 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 		for i := range cursor.IDs {
 			m := &movers[i]
 			at := bases[i].Pos.Center()
-			ground := s.relief.GroundAt(at)
+			var ground float64
 			if s.surfaces != nil {
 				ground, _ = s.surfaces.Surface(at, m.Domain, zs[i].Altitude-m.Lift, zs[i].Reach())
+			} else {
+				ground = s.relief.GroundAt(at)
 			}
 			alt := ground + m.Lift
 			flown := m.Domain&cell.Air != 0 && drivens != nil && drivens[i].Flown
