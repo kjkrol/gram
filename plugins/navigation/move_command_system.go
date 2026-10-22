@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"time"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -135,7 +136,7 @@ func (s *moveCommandSystem) find(to ceremony.Whom) (cell.ID, bool) {
 	return found, n == 1
 }
 
-func (s *moveCommandSystem) members(by issuer, fn func(member)) {
+func (s *moveCommandSystem) members(by issuer, fn func(bodies.Member)) {
 	if !by.self {
 		s.selectedMembers(by.player, fn)
 		return
@@ -145,29 +146,29 @@ func (s *moveCommandSystem) members(by issuer, fn func(member)) {
 	}
 	cur := s.self.Cursor()
 	c := s.selfCell.At(cur)
-	m := member{id: by.entity, cell: c.Cell, from: c.Cell, domain: unit.DomainAt(nil, 0)}
+	m := bodies.Member{ID: by.entity, Cell: c.Cell, From: c.Cell, Domain: unit.DomainAt(nil, 0)}
 	if o := s.selfOrder.At(cur); o != nil {
-		m.order = o
+		m.Order = o
 		if o.Leg.Active {
-			m.leg, m.from = o.Leg, o.Leg.To
+			m.Leg, m.From = o.Leg, o.Leg.To
 		}
 	}
 	if mv := s.selfMover.At(cur); mv != nil {
-		m.domain, m.lift = mv.Domain, mv.Lift
+		m.Domain, m.Lift = mv.Domain, mv.Lift
 	}
 	if b := s.selfBase.At(cur); b != nil {
-		m.pos, m.vel, m.facing = b.Pos, b.Vel.Delta(), b.Vel.Dir
+		m.Pos, m.Vel, m.Facing = b.Pos, b.Vel.Delta(), b.Vel.Dir
 	}
 	if z := s.selfZ.At(cur); z != nil {
-		m.z = *z
+		m.Z = *z
 	}
 	if st := s.selfSteer.At(cur); st != nil {
-		m.brake = st.Braking()
+		m.Brake = st.Braking()
 	}
 	fn(m)
 }
 
-func (s *moveCommandSystem) selectedMembers(by command.Issuer, fn func(member)) {
+func (s *moveCommandSystem) selectedMembers(by command.Issuer, fn func(bodies.Member)) {
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
@@ -182,24 +183,24 @@ func (s *moveCommandSystem) selectedMembers(by command.Issuer, fn func(member)) 
 			if !marks[i].Has(s.selected) || !owner.Obeys(owned, by) {
 				continue
 			}
-			m := member{id: id, cell: cells[i].Cell, from: cells[i].Cell, domain: unit.DomainAt(movers, i)}
+			m := bodies.Member{ID: id, Cell: cells[i].Cell, From: cells[i].Cell, Domain: unit.DomainAt(movers, i)}
 			if orders != nil {
-				m.order = &orders[i]
+				m.Order = &orders[i]
 				if leg := orders[i].Leg; leg.Active {
-					m.leg, m.from = leg, leg.To
+					m.Leg, m.From = leg, leg.To
 				}
 			}
 			if bases != nil {
-				m.pos, m.vel, m.facing = bases[i].Pos, bases[i].Vel.Delta(), bases[i].Vel.Dir
+				m.Pos, m.Vel, m.Facing = bases[i].Pos, bases[i].Vel.Delta(), bases[i].Vel.Dir
 			}
 			if zs != nil {
-				m.z = zs[i]
+				m.Z = zs[i]
 			}
 			if movers != nil {
-				m.lift = movers[i].Lift
+				m.Lift = movers[i].Lift
 			}
 			if steers != nil {
-				m.brake = steers[i].Braking()
+				m.Brake = steers[i].Braking()
 			}
 			fn(m)
 		}
@@ -207,7 +208,7 @@ func (s *moveCommandSystem) selectedMembers(by command.Issuer, fn func(member)) 
 }
 
 func (s *moveCommandSystem) look(cb *goke.CmdBuf, at geom.Vec, by issuer) {
-	s.members(by, func(m member) { cb.AddOne(m.id, s.orderID, s.keep.look(m, at)) })
+	s.members(by, func(m bodies.Member) { cb.AddOne(m.ID, s.orderID, s.keep.look(m, at)) })
 }
 
 func (s *moveCommandSystem) carryOut(cb *goke.CmdBuf, cmd MoveTo, by issuer) {
@@ -219,16 +220,16 @@ func (s *moveCommandSystem) carryOut(cb *goke.CmdBuf, cmd MoveTo, by issuer) {
 		cmd.Cell, cmd.To = c, ceremony.Whom{}
 	}
 	at := s.kind(cmd.Cell)
-	var members []member
-	s.members(by, func(m member) {
-		if at.Admits(m.domain) {
+	var members []bodies.Member
+	s.members(by, func(m bodies.Member) {
+		if at.Admits(m.Domain) {
 			members = append(members, m)
 		}
 	})
 	group := s.nextGroup()
-	s.keep.orders(members, cmd, func(m member, o MoveOrder) {
+	s.keep.orders(members, cmd, func(m bodies.Member, o MoveOrder) {
 		o.Group = group
-		cb.AddOne(m.id, s.orderID, o)
+		cb.AddOne(m.ID, s.orderID, o)
 	})
 }
 

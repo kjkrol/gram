@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -28,7 +29,7 @@ func newPlaceRig() *placeRig {
 		}
 		return groundFunc(r.heights)
 	})
-	r.keep.begin(func(b []body) []body { return b })
+	r.keep.begin(func(b []bodies.Body) []bodies.Body { return b })
 	return r
 }
 
@@ -40,12 +41,12 @@ func (g groundFunc) Step() float64         { return 1 }
 func (r *placeRig) at(x, y uint32) cell.ID { c := r.grid.At(x, y); return c }
 
 // the i-th stands in the cell (0, i % 5), 20 nearer the point than the one before
-func (r *placeRig) units(n int, side float64) []member {
-	var out []member
+func (r *placeRig) units(n int, side float64) []bodies.Member {
+	var out []bodies.Member
 	for i := range n {
 		c := r.grid.CellCenter(r.at(0, uint32(i%5)))
 		pos := world.Position{AABB: plane.NewAABB(geom.NewVec(c.X-side/2+float64(i%3), c.Y-side/2), side, side)}
-		out = append(out, member{id: uid.UID64(i + 1), cell: r.at(0, uint32(i%5)), from: r.at(0, uint32(i%5)), domain: cell.Land, pos: pos, z: world.Z{Height: 6}})
+		out = append(out, bodies.Member{ID: uid.UID64(i + 1), Cell: r.at(0, uint32(i%5)), From: r.at(0, uint32(i%5)), Domain: cell.Land, Pos: pos, Z: world.Z{Height: 6}})
 	}
 	return out
 }
@@ -55,7 +56,7 @@ func checkApart(t *testing.T, got []placed, side float64) {
 	for i := range got {
 		for j := i + 1; j < len(got); j++ {
 			d := geom.NewVec(got[j].spot.X-got[i].spot.X, got[j].spot.Y-got[i].spot.Y)
-			if !apart(d, geom.NewVec(side/2, side/2), geom.NewVec(side/2, side/2), 0) {
+			if !bodies.Apart(d, geom.NewVec(side/2, side/2), geom.NewVec(side/2, side/2), 0) {
 				t.Errorf("spots %v and %v overlap", got[i].spot, got[j].spot)
 			}
 		}
@@ -138,7 +139,7 @@ func TestPlace_NoSpotOverGroundTheUnitCannotTakeOrOnAStep(t *testing.T) {
 		if !p.ok {
 			t.Fatal("a unit found no spot")
 		}
-		box := boxAt(p.spot, geom.NewVec(4*0.999, 4*0.999))
+		box := bodies.BoxAt(p.spot, geom.NewVec(4*0.999, 4*0.999))
 		rock, off := false, false
 		r.grid.CellsUnder(box, func(c cell.ID) {
 			if c == r.at(4, 2) {
@@ -159,15 +160,15 @@ func TestPlace_KnowsOnlyWhoeverItStruck(t *testing.T) {
 	target := r.at(3, 2)
 	centre := r.grid.CellCenter(target)
 	h := geom.NewVec(5, 5)
-	standing := body{id: 100, at: centre, half: h, domain: cell.Land}
-	r.keep.begin(func(b []body) []body { return append(b, standing) })
+	standing := bodies.Body{ID: 100, At: centre, Half: h, Domain: cell.Land}
+	r.keep.begin(func(b []bodies.Body) []bodies.Body { return append(b, standing) })
 	spots, _ := r.keep.place(r.units(1, 10), centre, target, EitherLevel)
 	if spots[0].spot != centre {
 		t.Errorf("the unit stands at %v, want the point %v: nobody told it of the one standing there", spots[0].spot, centre)
 	}
-	flyer := body{id: 101, at: geom.NewVec(centre.X-20, centre.Y), half: h, domain: cell.Air}
+	flyer := bodies.Body{ID: 101, At: geom.NewVec(centre.X-20, centre.Y), Half: h, Domain: cell.Air}
 	spots, _ = r.keep.placeClearOf(r.units(1, 10), centre, target, EitherLevel,
-		[]body{standing, flyer})
+		[]bodies.Body{standing, flyer})
 	got := spots[0]
 	if !got.ok || got.spot == centre {
 		t.Fatalf("placed again clear of the one struck the unit stands at %v %v, want off the point", got.spot, got.ok)

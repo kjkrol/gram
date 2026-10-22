@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"math"
 	"testing"
 	"time"
@@ -340,20 +341,20 @@ func TestCrowd_NeverStepsAsideIntoWaterAHoleOffACliffOrIntoAWall(t *testing.T) {
 				}
 			}
 			finder := newPathFinder(grid, terrain, steep, openOccupancy{})
-			coming := body{id: 3, at: grid.CellCenter(at(1, 2)), half: geom.NewVec(3, 3), cell: at(1, 2), moving: true, domain: cell.Land}
+			coming := bodies.Body{ID: 3, At: grid.CellCenter(at(1, 2)), Half: geom.NewVec(3, 3), Cell: at(1, 2), Moving: true, Domain: cell.Land}
 
 			cells := newCellKeeping(finder, &cell.SingleOccupancy{})
-			m := member{id: 7, cell: at(2, 2), from: at(2, 2), domain: cell.Land, pos: posAt(grid, at(2, 2))}
+			m := bodies.Member{ID: 7, Cell: at(2, 2), From: at(2, 2), Domain: cell.Land, Pos: posAt(grid, at(2, 2))}
 			if o, ok := cells.stepAside(m, coming); ok != open || open && o.Target != at(2, 3) {
 				t.Errorf("cells, %s on every side but open %v: stepped aside %v to %v, want only to the open (2,3)", name, open, ok, o.Target)
 			}
 
-			bodies := newBodyKeeping(finder, nil, nil)
-			bodies.begin(func(dst []body) []body { return dst })
+			keep := newBodyKeeping(finder, nil, nil)
+			keep.begin(func(dst []bodies.Body) []bodies.Body { return dst })
 			c := grid.CellCenter(at(2, 2))
-			m = member{id: 7, cell: at(2, 2), from: at(2, 2), domain: cell.Land,
-				pos: world.Position{AABB: plane.NewAABB(geom.NewVec(c.X-14, c.Y-14), 28, 28)}}
-			o, ok := bodies.stepAside(m, coming)
+			m = bodies.Member{ID: 7, Cell: at(2, 2), From: at(2, 2), Domain: cell.Land,
+				Pos: world.Position{AABB: plane.NewAABB(geom.NewVec(c.X-14, c.Y-14), 28, 28)}}
+			o, ok := keep.stepAside(m, coming)
 			if ok != open {
 				t.Errorf("bodies, %s on every side but open %v: stepped aside %v, to %v", name, open, ok, o.Spot)
 				continue

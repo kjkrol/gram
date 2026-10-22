@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"slices"
 	"testing"
@@ -47,9 +48,9 @@ func TestRetry_ADetourFindingNoWayIsSearchedAgainHalfASecondOneAndTwoSecondsLate
 	at := func(x uint32) cell.ID { return at3(x, 1) }
 	occ := &askedOccupancy{}
 	k := newCellKeeping(newPathFinder(g, terrain, nil, occ), occ)
-	m := member{id: 7, cell: at(0), from: at(0), domain: cell.Land, pos: posAt(g, at(0))}
+	m := bodies.Member{ID: 7, Cell: at(0), From: at(0), Domain: cell.Land, Pos: posAt(g, at(0))}
 	o := MoveOrder{Target: at(4), Toward: at(1)}
-	other := body{id: 3, cell: at(1)}
+	other := bodies.Body{ID: 3, Cell: at(1)}
 	var searched []time.Duration
 	detour := func(tick int) {
 		o.Retry = max(o.Retry-retryTick, 0) // as the system's pass does, every order a tick
@@ -158,8 +159,8 @@ func TestRetry_TheNextGoalOrAnotherCellLearntSearchesAtOnce(t *testing.T) {
 	at := func(x uint32) cell.ID { return at1(x, 0) }
 	occ := &askedOccupancy{}
 	k := newCellKeeping(newPathFinder(g, terrain, nil, occ), occ)
-	m := member{id: 7, cell: at(0), from: at(0), domain: cell.Land, pos: posAt(g, at(0))}
-	other := body{id: 3, cell: at(1)}
+	m := bodies.Member{ID: 7, Cell: at(0), From: at(0), Domain: cell.Land, Pos: posAt(g, at(0))}
+	other := bodies.Body{ID: 3, Cell: at(1)}
 	for _, c := range []struct {
 		name string
 		next func(o *MoveOrder)

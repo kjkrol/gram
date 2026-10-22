@@ -5,8 +5,8 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
 
@@ -52,8 +52,8 @@ func (p *pathFinder) nearestFree(
 	return dest, path, ok
 }
 
-func (p *pathFinder) on(m member, c cell.ID, level Level) bool {
-	return p.On(m.domain, m.body(), c, pathfind.Level(level))
+func (p *pathFinder) on(m bodies.Member, c cell.ID, level Level) bool {
+	return p.On(m.Domain, m.Body(), c, pathfind.Level(level))
 }
 
 func (p *pathFinder) climb(from, to cell.ID, d cell.Domain) float64 { return p.Climb(from, to, d) }
@@ -62,31 +62,24 @@ func (p *pathFinder) price(from, to cell.ID, kind cell.Kind, d cell.Domain) (flo
 	return p.Price(from, to, kind, d)
 }
 
-func (p *pathFinder) steps(m member, c cell.ID) bool {
+func (p *pathFinder) steps(m bodies.Member, c cell.ID) bool {
 	_, ok := p.stepsOnto(m, c)
 	return ok
 }
 
-func (p *pathFinder) stepsOnto(m member, c cell.ID) (deck, ok bool) {
-	if c == m.cell {
+func (p *pathFinder) stepsOnto(m bodies.Member, c cell.ID) (deck, ok bool) {
+	if c == m.Cell {
 		return p.onDeck(m, c), true
 	}
-	if _, ok := grid.Way(p.grid, m.cell, c); !ok {
+	if _, ok := grid.Way(p.grid, m.Cell, c); !ok {
 		return false, true
 	}
-	return p.Steps(m.domain, m.body(), m.cell, c)
+	return p.Steps(m.Domain, m.Body(), m.Cell, c)
 }
 
-func (p *pathFinder) onDeck(m member, c cell.ID) bool {
-	return p.Level(m.domain, m.body(), c) == pathfind.Deck
+func (p *pathFinder) onDeck(m bodies.Member, c cell.ID) bool {
+	return p.Level(m.Domain, m.Body(), c) == pathfind.Deck
 }
-
-// size is the box on the ground, zero fitting any lane
-func bodyOf(z world.Z, size geom.Vec) pathfind.Body {
-	return pathfind.Body{Feet: z.Altitude, Step: z.Reach(), Height: z.Height, Size: size}
-}
-
-func (m member) body() pathfind.Body { return bodyOf(m.z, m.pos.Size) }
 
 type boardLevels struct{ read *board.Read }
 

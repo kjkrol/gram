@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"slices"
 	"testing"
 	"time"
@@ -92,8 +93,8 @@ func TestCellSpacing_OneStandingStepsAsideOffTheWay(t *testing.T) {
 	occ := &cell.SingleOccupancy{}
 	k := newCellKeeping(newPathFinder(grid, terrain, nil, openOccupancy{}), occ)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	m := member{id: 7, cell: at(1, 1), from: at(1, 1), domain: cell.Land, pos: posAt(grid, at(1, 1))}
-	coming := body{id: 3, at: grid.CellCenter(at(0, 1)), cell: at(0, 1), moving: true}
+	m := bodies.Member{ID: 7, Cell: at(1, 1), From: at(1, 1), Domain: cell.Land, Pos: posAt(grid, at(1, 1))}
+	coming := bodies.Body{ID: 3, At: grid.CellCenter(at(0, 1)), Cell: at(0, 1), Moving: true}
 	o, ok := k.stepAside(m, coming)
 	if !ok || !o.GivingWay || o.Target != at(1, 0) && o.Target != at(1, 2) || o.Queued != 0 {
 		t.Errorf("stepped aside with %+v %v, want an order square off the way, (1,0) or (1,2), and nothing after", o, ok)

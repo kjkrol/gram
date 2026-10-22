@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"image/color"
 	"math"
 
@@ -185,7 +186,7 @@ func (r *pathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 			center := bases[i].Pos.Center()
 			r.drawPath(center, bases[i].Vel.Dir, pathCells(cells[i], *o), r.point(o.Target, o.Spot))
 			from := r.point(o.Target, o.Spot)
-			body := bodyOf(world.Z{}, bases[i].Pos.Size)
+			body := bodies.BodyOf(world.Z{}, bases[i].Pos.Size)
 			for k, route := range r.queued(cursor.IDs[i], unit.DomainAt(movers, i), body, o) {
 				to := r.point(o.Waypoints[k].Cell, o.Waypoints[k].Spot)
 				r.drawRoute(route, from, to)

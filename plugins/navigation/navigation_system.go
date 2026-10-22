@@ -4,6 +4,7 @@ import (
 	cgoke "github.com/kjkrol/ceremony/goke"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/ceremony/store"
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"math"
 	"time"
@@ -30,8 +31,8 @@ type navigationSystem struct {
 	space      *aabbworld.Space
 	pathFinder *pathFinder
 	keep       keeping
-	gathering  func([]body) []body // the method value, bound once
-	finished   []uid.UID64         // a chunk's ids whose order is over
+	gathering  func([]bodies.Body) []bodies.Body // the method value, bound once
+	finished   []uid.UID64                       // a chunk's ids whose order is over
 	// who came at each unit last tick and this tick, swapped at the tick's end, so two coming at
 	// each other's cells know it whatever order the chunks come in
 	wanted, wanting map[uid.UID64]uid.UID64
@@ -208,19 +209,19 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				continue
 			}
 			st := steering.Helm{Steering: &steers[i], Course: &courses[i]}
-			m := member{id: id, cell: current, from: current, leg: *leg, domain: domain, pos: bases[i].Pos, vel: bases[i].Vel.Delta(), facing: bases[i].Vel.Dir, order: o}
+			m := bodies.Member{ID: id, Cell: current, From: current, Leg: *leg, Domain: domain, Pos: bases[i].Pos, Vel: bases[i].Vel.Delta(), Facing: bases[i].Vel.Dir, Order: o}
 			if zs != nil {
-				m.z = zs[i]
+				m.Z = zs[i]
 			}
 			if movers != nil {
-				m.lift = movers[i].Lift
+				m.Lift = movers[i].Lift
 			}
-			m.brake = st.Braking()
+			m.Brake = st.Braking()
 			if by, ok := s.wanted[id]; ok {
-				m.pressedBy, m.pressed = by, true
+				m.PressedBy, m.Pressed = by, true
 			}
 			if owned != nil {
-				m.owners = owned[i]
+				m.Owners = owned[i]
 			}
 			if arrived != nil {
 				cb.RemoveCompOne(id, s.arrivedID)
@@ -307,7 +308,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				moveTo(actual)
 				p.Length = 0
 			}
-			m.cell, m.from, m.leg = cells[i].Cell, cells[i].Cell, *leg
+			m.Cell, m.From, m.Leg = cells[i].Cell, cells[i].Cell, *leg
 
 			if !leg.Active && !s.terrain.Kind(cells[i].Cell).Admits(domain) {
 				// frozen in, say: the order waits for the ground to change
@@ -390,7 +391,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 					default:
 						if holder, known := s.keep.blocked(m, o, why.cell, why.deck, d); known {
 							s.touched = append(s.touched, touching{self: id, other: holder, way: s.wayBetween(why.cell, cells[i].Cell),
-								cell: why.cell, from: cells[i].Cell, headOn: m.pressed && m.pressedBy == holder, refused: true})
+								cell: why.cell, from: cells[i].Cell, headOn: m.Pressed && m.PressedBy == holder, refused: true})
 							if s.wanting == nil {
 								s.wanting = map[uid.UID64]uid.UID64{}
 							}
@@ -515,7 +516,7 @@ func (s *navigationSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 				moveTo(leg.To)
 				*leg = Leg{}
 			}
-			if at, deck, ok := levelOf(s.grid, s.terrain, want, &m.z); ok && at != cells[i].Cell {
+			if at, deck, ok := levelOf(s.grid, s.terrain, want, &m.Z); ok && at != cells[i].Cell {
 				s.occupancy.Leave(cells[i].Cell, id)
 				s.occupancy.Enter(at, deck, id, domain)
 				moveTo(at)
@@ -586,12 +587,12 @@ func (s *navigationSystem) standing(cb *goke.CmdBuf, cursor *goke.Cursor) {
 		if !ok {
 			continue
 		}
-		m := member{id: id, cell: cells[i].Cell, from: cells[i].Cell, domain: unit.DomainAt(movers, i), pos: bases[i].Pos, vel: bases[i].Vel.Delta(), facing: bases[i].Vel.Dir}
+		m := bodies.Member{ID: id, Cell: cells[i].Cell, From: cells[i].Cell, Domain: unit.DomainAt(movers, i), Pos: bases[i].Pos, Vel: bases[i].Vel.Delta(), Facing: bases[i].Vel.Dir}
 		if zs != nil {
-			m.z = zs[i]
+			m.Z = zs[i]
 		}
 		if movers != nil {
-			m.lift = movers[i].Lift
+			m.Lift = movers[i].Lift
 		}
 		if order, ok := s.keep.stepAside(m, of); ok {
 			cb.AddOne(id, s.orderID, order)
@@ -644,10 +645,10 @@ func (s *navigationSystem) touch(cb *goke.CmdBuf, d time.Duration) {
 	for _, t := range s.touched {
 		self, ok := s.keep.other(t.self)
 		other, found := s.keep.other(t.other)
-		if !ok || !found || self.domain&other.domain == 0 {
+		if !ok || !found || self.Domain&other.Domain == 0 {
 			continue
 		}
-		cell, from := other.cell, self.cell
+		cell, from := other.Cell, self.Cell
 		if t.refused {
 			cell, from = t.cell, t.from
 		}
@@ -657,25 +658,25 @@ func (s *navigationSystem) touch(cb *goke.CmdBuf, d time.Duration) {
 	}
 }
 
-func (s *navigationSystem) fire(tick host.Tick, hosted bool, self, other body, way geom.Vec, cell cell.ID, head bool) {
-	t := Touch{Self: self.id, Other: other.id, Way: way, Moving: self.moving, OtherMoving: other.moving,
-		GivingWay: self.givingWay, OtherGivingWay: other.givingWay, LastGoal: self.lastGoal,
-		Ally: owner.Allies(self.owners, other.owners), Groupmate: self.group != 0 && self.group == other.group,
-		HeadOn: head && self.moving && other.moving, WaitedOut: self.waitedOut, Cornered: self.cornered}
-	if self.moving {
+func (s *navigationSystem) fire(tick host.Tick, hosted bool, self, other bodies.Body, way geom.Vec, cell cell.ID, head bool) {
+	t := Touch{Self: self.ID, Other: other.ID, Way: way, Moving: self.Moving, OtherMoving: other.Moving,
+		GivingWay: self.GivingWay, OtherGivingWay: other.GivingWay, LastGoal: self.LastGoal,
+		Ally: owner.Allies(self.Owners, other.Owners), Groupmate: self.Group != 0 && self.Group == other.Group,
+		HeadOn: head && self.Moving && other.Moving, WaitedOut: self.WaitedOut, Cornered: self.Cornered}
+	if self.Moving {
 		t.OnMyGoal = s.keep.onGoal(self, other)
-		if !other.moving {
-			_, t.Room = s.keep.stepAside(other.member(), self)
+		if !other.Moving {
+			_, t.Room = s.keep.stepAside(other.Member(), self)
 		}
-		if self.minded {
+		if self.Minded {
 			if s.blocking == nil {
 				s.blocking = map[uid.UID64]Blocked{}
 			}
-			s.blocking[self.id] = blockedOf(t, cell)
+			s.blocking[self.ID] = blockedOf(t, cell)
 		}
 	}
 	if hosted {
-		s.touches.Dispatch(tick, s.marksOf(self.id), s.marksOf(other.id), t)
+		s.touches.Dispatch(tick, s.marksOf(self.ID), s.marksOf(other.ID), t)
 	}
 }
 
@@ -687,12 +688,12 @@ func (s *navigationSystem) marksOf(id uid.UID64) host.Marks {
 }
 
 // way is the way a leaves b
-func headOn(a, b body, way geom.Vec) bool {
+func headOn(a, b bodies.Body, way geom.Vec) bool {
 	towards := func(v, dir geom.Vec) bool {
 		l := math.Hypot(v.X, v.Y)
 		return l > 1e-9 && (v.X*dir.X+v.Y*dir.Y)/l > 0.5
 	}
-	return a.moving && b.moving && towards(a.vel, geom.NewVec(-way.X, -way.Y)) && towards(b.vel, way)
+	return a.Moving && b.Moving && towards(a.Vel, geom.NewVec(-way.X, -way.Y)) && towards(b.Vel, way)
 }
 
 func (s *navigationSystem) tell(cb *goke.CmdBuf, d time.Duration) {
@@ -720,8 +721,8 @@ func (s *navigationSystem) tell(cb *goke.CmdBuf, d time.Duration) {
 	clear(s.blocking)
 }
 
-func (s *navigationSystem) carryOut(m member, o *MoveOrder, st steering.Helm, d time.Duration) (stop, held bool) {
-	if t, ok := s.told[m.id]; ok {
+func (s *navigationSystem) carryOut(m bodies.Member, o *MoveOrder, st steering.Helm, d time.Duration) (stop, held bool) {
+	if t, ok := s.told[m.ID]; ok {
 		switch {
 		case t.stop:
 			return true, false
@@ -763,7 +764,7 @@ func (s *navigationSystem) carryOut(m member, o *MoveOrder, st steering.Helm, d 
 	return false, true
 }
 
-func (s *navigationSystem) stepAside(m member, o *MoveOrder, of uid.UID64) {
+func (s *navigationSystem) stepAside(m bodies.Member, o *MoveOrder, of uid.UID64) {
 	other, ok := s.keep.other(of)
 	if !ok {
 		return
@@ -784,8 +785,8 @@ func (s *navigationSystem) stepAside(m member, o *MoveOrder, of uid.UID64) {
 }
 
 // a unit vector
-func (s *navigationSystem) wayTo(m member, c cell.ID) geom.Vec {
-	have := m.centre()
+func (s *navigationSystem) wayTo(m bodies.Member, c cell.ID) geom.Vec {
+	have := m.Centre()
 	to := s.unwrap(have, s.grid.CellCenter(c))
 	d := geom.NewVec(to.X-have.X, to.Y-have.Y)
 	if l := math.Hypot(d.X, d.Y); l > 0 {
@@ -794,7 +795,7 @@ func (s *navigationSystem) wayTo(m member, c cell.ID) geom.Vec {
 	return d
 }
 
-func (s *navigationSystem) gather(dst []body) []body {
+func (s *navigationSystem) gather(dst []bodies.Body) []bodies.Body {
 	for s.query.Paced(0); s.query.Next(); {
 		cursor := s.query.Cursor()
 		bases, orders, movers := s.base.Slice(cursor), s.order.Slice(cursor), s.mover.Slice(cursor)
@@ -802,27 +803,27 @@ func (s *navigationSystem) gather(dst []body) []body {
 		zs, minded := s.z.Slice(cursor), s.mind.Slice(cursor) != nil
 		for i, id := range cursor.IDs {
 			pos := bases[i].Pos
-			b := body{id: id, at: pos.Center(), half: geom.NewVec(pos.Size.X/2, pos.Size.Y/2), vel: bases[i].Vel.Delta(), domain: unit.DomainAt(movers, i),
-				moving: orders != nil, cell: cells[i].Cell, minded: minded, facing: bases[i].Vel.Dir}
+			b := bodies.Body{ID: id, At: pos.Center(), Half: geom.NewVec(pos.Size.X/2, pos.Size.Y/2), Vel: bases[i].Vel.Delta(), Domain: unit.DomainAt(movers, i),
+				Moving: orders != nil, Cell: cells[i].Cell, Minded: minded, Facing: bases[i].Vel.Dir}
 			if zs != nil {
-				b.z = zs[i]
+				b.Z = zs[i]
 			}
 			if movers != nil {
-				b.lift = movers[i].Lift
+				b.Lift = movers[i].Lift
 			}
 			if lasts != nil {
-				b.group = lasts[i].Group
+				b.Group = lasts[i].Group
 			}
 			if orders != nil {
 				o := &orders[i]
-				b.givingWay, b.goal, b.spot, b.lastGoal = o.GivingWay, o.Target, s.goal(o.Target, o.Spot), o.Queued == 0
-				b.waitedOut, b.cornered = o.WaitedOut, o.Cornered
+				b.GivingWay, b.Goal, b.Spot, b.LastGoal = o.GivingWay, o.Target, s.goal(o.Target, o.Spot), o.Queued == 0
+				b.WaitedOut, b.Cornered = o.WaitedOut, o.Cornered
 				if o.Group != 0 {
-					b.group = o.Group
+					b.Group = o.Group
 				}
 			}
 			if owned != nil {
-				b.owners = owned[i]
+				b.Owners = owned[i]
 			}
 			dst = append(dst, b)
 		}
@@ -871,7 +872,7 @@ func (s *navigationSystem) ahead(have, want geom.Vec, p *Path, waypoint, target 
 
 const maxAhead = 8
 
-func (s *navigationSystem) drive(m member, st steering.Helm, heading, have geom.Vec, route []geom.Vec, reach, speed float64) {
+func (s *navigationSystem) drive(m bodies.Member, st steering.Helm, heading, have geom.Vec, route []geom.Vec, reach, speed float64) {
 	at := lookahead(have, route, reach)
 	if at == have {
 		s.keep.steer(m, st, geom.Vec{}, speed)

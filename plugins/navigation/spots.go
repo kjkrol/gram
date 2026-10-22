@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"cmp"
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"math"
 	"slices"
 
@@ -102,13 +103,13 @@ func (s *spotSearch) on(p geom.Vec) (cell.ID, Level) {
 
 // only the ground and the group count: whoever finds its spot taken learns it by striking the one
 // there
-func (k *bodyKeeping) place(units []member, at geom.Vec, target cell.ID,
+func (k *bodyKeeping) place(units []bodies.Member, at geom.Vec, target cell.ID,
 	level Level) (out []placed, way geom.Vec) {
 	return k.placeClearOf(units, at, target, level, nil)
 }
 
-func (k *bodyKeeping) placeClearOf(units []member, at geom.Vec, target cell.ID, level Level,
-	struck []body) (out []placed, way geom.Vec) {
+func (k *bodyKeeping) placeClearOf(units []bodies.Member, at geom.Vec, target cell.ID, level Level,
+	struck []bodies.Body) (out []placed, way geom.Vec) {
 	out = make([]placed, len(units))
 	if len(units) == 0 {
 		return out, way
@@ -116,8 +117,8 @@ func (k *bodyKeeping) placeClearOf(units []member, at geom.Vec, target cell.ID, 
 	var half geom.Vec
 	var dom cell.Domain
 	for _, u := range units {
-		half = geom.NewVec(max(half.X, u.pos.Size.X/2), max(half.Y, u.pos.Size.Y/2))
-		dom |= u.domain
+		half = geom.NewVec(max(half.X, u.Pos.Size.X/2), max(half.Y, u.Pos.Size.Y/2))
+		dom |= u.Domain
 	}
 	gap := gapFor(half)
 	order := make([]int, len(units))
@@ -125,7 +126,7 @@ func (k *bodyKeeping) placeClearOf(units []member, at geom.Vec, target cell.ID, 
 		order[i] = i
 	}
 	slices.SortStableFunc(order, func(a, b int) int {
-		da, db := k.delta(at, units[a].centre()), k.delta(at, units[b].centre())
+		da, db := k.delta(at, units[a].Centre()), k.delta(at, units[b].Centre())
 		return cmp.Compare(math.Hypot(da.X, da.Y), math.Hypot(db.X, db.Y))
 	})
 	z := aloft
@@ -134,7 +135,7 @@ func (k *bodyKeeping) placeClearOf(units []member, at geom.Vec, target cell.ID, 
 	}
 	s := &spotSearch{k: k, at: at, z: z, level: level,
 		step:  geom.NewVec(2*half.X+gap, 2*half.Y+gap),
-		tiles: k.tilesRound(target, dom, units[order[0]].domain)}
+		tiles: k.tilesRound(target, dom, units[order[0]].Domain)}
 	used := map[int]bool{}
 	for _, ui := range order {
 		for ci := 0; ; ci++ {
@@ -156,10 +157,10 @@ func (k *bodyKeeping) placeClearOf(units []member, at geom.Vec, target cell.ID, 
 }
 
 // zero from on it
-func (k *bodyKeeping) wayOf(units []member, at geom.Vec) geom.Vec {
+func (k *bodyKeeping) wayOf(units []bodies.Member, at geom.Vec) geom.Vec {
 	var from geom.Vec
 	for _, u := range units {
-		d := k.delta(at, u.centre())
+		d := k.delta(at, u.Centre())
 		from = geom.NewVec(from.X+d.X, from.Y+d.Y)
 	}
 	n := math.Hypot(from.X, from.Y)
@@ -171,7 +172,7 @@ func (k *bodyKeeping) wayOf(units []member, at geom.Vec) geom.Vec {
 
 // the units furthest on along way take the deepest row, keeping their order across it, so none
 // passes one standing already nor crosses another's way
-func (k *bodyKeeping) deepFirst(units []member, order []int, out []placed, at, way geom.Vec) {
+func (k *bodyKeeping) deepFirst(units []bodies.Member, order []int, out []placed, at, way geom.Vec) {
 	if way == (geom.Vec{}) {
 		return
 	}
@@ -193,7 +194,7 @@ func (k *bodyKeeping) deepFirst(units []member, order []int, out []placed, at, w
 			continue
 		}
 		u := units[ui]
-		key := alike{u.pos.Size, u.domain, u.lift, u.z.Height}
+		key := alike{u.Pos.Size, u.Domain, u.Lift, u.Z.Height}
 		if _, seen := classes[key]; !seen {
 			keys = append(keys, key)
 		}
@@ -208,7 +209,7 @@ func (k *bodyKeeping) deepFirst(units []member, order []int, out []placed, at, w
 		row := 2 * max(key.size.X, key.size.Y) / 2 * (1 + spacingGap) / 2 // half a spacing
 		slices.SortStableFunc(spots, func(a, b placed) int { return cmp.Compare(along(b.spot, way), along(a.spot, way)) })
 		slices.SortStableFunc(members, func(a, b int) int {
-			return cmp.Compare(along(units[b].centre(), way), along(units[a].centre(), way))
+			return cmp.Compare(along(units[b].Centre(), way), along(units[a].Centre(), way))
 		})
 		for from := 0; from < len(spots); {
 			to := from + 1
@@ -218,7 +219,7 @@ func (k *bodyKeeping) deepFirst(units []member, order []int, out []placed, at, w
 			rowSpots, rowUnits := spots[from:to], slices.Clone(members[from:to])
 			slices.SortStableFunc(rowSpots, func(a, b placed) int { return cmp.Compare(along(a.spot, across), along(b.spot, across)) })
 			slices.SortStableFunc(rowUnits, func(a, b int) int {
-				return cmp.Compare(along(units[a].centre(), across), along(units[b].centre(), across))
+				return cmp.Compare(along(units[a].Centre(), across), along(units[b].Centre(), across))
 			})
 			for i, ui := range rowUnits {
 				out[ui] = rowSpots[i]
@@ -275,8 +276,8 @@ func (k *bodyKeeping) tilesRound(target cell.ID, dom, costs cell.Domain) []cell.
 	return out
 }
 
-func (k *bodyKeeping) fits(u member, p geom.Vec, z world.Z, struck []body) bool {
-	half := geom.NewVec(u.pos.Size.X/2, u.pos.Size.Y/2)
+func (k *bodyKeeping) fits(u bodies.Member, p geom.Vec, z world.Z, struck []bodies.Body) bool {
+	half := geom.NewVec(u.Pos.Size.X/2, u.Pos.Size.Y/2)
 	in := geom.NewVec(half.X*0.999, half.Y*0.999)
 	for _, s := range [4][2]float64{{-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
 		if _, ok := k.grid.CellAt(k.fold(geom.NewVec(p.X+s[0]*in.X, p.Y+s[1]*in.Y))); !ok {
@@ -290,11 +291,11 @@ func (k *bodyKeeping) fits(u member, p geom.Vec, z world.Z, struck []body) bool 
 		} {
 			q := k.fold(geom.NewVec(p.X+s[0]*in.X, p.Y+s[1]*in.Y))
 			c, _ := k.grid.CellAt(q)
-			admitted = admitted && f.KindFor(c, q, z.Altitude, z.Reach()).Admits(u.domain)
+			admitted = admitted && f.KindFor(c, q, z.Altitude, z.Reach()).Admits(u.Domain)
 		}
 	} else {
-		k.grid.CellsUnder(boxAt(p, in), func(c cell.ID) {
-			admitted = admitted && k.terrain.Kind(c).Admits(u.domain)
+		k.grid.CellsUnder(bodies.BoxAt(p, in), func(c cell.ID) {
+			admitted = admitted && k.terrain.Kind(c).Admits(u.Domain)
 		})
 	}
 	if !admitted || !k.level(u, p, in, z) {
@@ -302,7 +303,7 @@ func (k *bodyKeeping) fits(u member, p geom.Vec, z world.Z, struck []body) bool 
 	}
 	gap := gapFor(half)
 	for _, b := range struck {
-		if b.domain&u.domain != 0 && !apart(k.delta(p, b.at), half, b.half, gap) {
+		if b.Domain&u.Domain != 0 && !bodies.Apart(k.delta(p, b.At), half, b.Half, gap) {
 			return false
 		}
 	}
@@ -316,8 +317,8 @@ var (
 )
 
 // on no step: the top under every corner within half u's height of the top under p
-func (k *bodyKeeping) level(u member, p, in geom.Vec, z world.Z) bool {
-	if u.lift > 0 || u.z.Height <= 0 || k.ground == nil {
+func (k *bodyKeeping) level(u bodies.Member, p, in geom.Vec, z world.Z) bool {
+	if u.Lift > 0 || u.Z.Height <= 0 || k.ground == nil {
 		return true
 	}
 	g := k.ground()
@@ -331,14 +332,14 @@ func (k *bodyKeeping) level(u member, p, in geom.Vec, z world.Z) bool {
 			t += k.terrain.Kind(c).Height
 		}
 		if surfaces != nil {
-			floor, _ := surfaces.Surface(q, u.domain, z.Altitude, z.Reach())
+			floor, _ := surfaces.Surface(q, u.Domain, z.Altitude, z.Reach())
 			t = max(t, floor)
 		}
 		return t
 	}
 	mid := top(p)
 	for _, s := range [4][2]float64{{-1, -1}, {1, -1}, {-1, 1}, {1, 1}} {
-		if math.Abs(top(k.fold(geom.NewVec(p.X+s[0]*in.X, p.Y+s[1]*in.Y)))-mid) > u.z.Height/2 {
+		if math.Abs(top(k.fold(geom.NewVec(p.X+s[0]*in.X, p.Y+s[1]*in.Y)))-mid) > u.Z.Height/2 {
 			return false
 		}
 	}

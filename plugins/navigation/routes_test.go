@@ -386,8 +386,8 @@ func (r *routeRig) record(out *strings.Builder, pairs int) {
 		if top, _, _, ok := r.levels.Deck(from); ok && rng.IntN(2) == 0 {
 			feet = top
 		}
-		bodies := routeBodies(feet)
-		body := bodies[rng.IntN(len(bodies))]
+		shapes := routeBodies(feet)
+		body := shapes[rng.IntN(len(shapes))]
 		end := pathfind.Level(rng.IntN(3))
 		fmt.Fprintf(out, "%s %d %s->%s %v,%v,%v,%v end=%d\n", r.board.name, i, r.at(from),
 			r.at(to), body.Feet, body.Step, body.Height, body.Size, end)

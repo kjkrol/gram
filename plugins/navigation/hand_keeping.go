@@ -4,6 +4,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/driving"
+	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/uid"
 )
@@ -13,7 +14,7 @@ var _ driving.Keeping = (*handKeeping)(nil)
 type handKeeping struct {
 	keep keeping           // set at Install
 	nav  *navigationSystem // set at Install
-	near nearby
+	near bodies.Nearby
 }
 
 func (k *handKeeping) MayStep(id uid.UID64, pos world.Position, at, ahead cell.ID, deck bool,
@@ -21,7 +22,7 @@ func (k *handKeeping) MayStep(id uid.UID64, pos world.Position, at, ahead cell.I
 	if k.keep == nil {
 		return true
 	}
-	m := member{id: id, cell: at, from: at, domain: domain, pos: pos}
+	m := bodies.Member{ID: id, Cell: at, From: at, Domain: domain, Pos: pos}
 	return k.keep.mayStep(m, ahead, deck, heading, &k.near)
 }
 
