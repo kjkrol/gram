@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routes"
 	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
@@ -49,7 +50,7 @@ type Plugin struct {
 	crowd    []act.Rule
 	crowdSet bool
 
-	pathRenderer *pathRenderer
+	pathRenderer *routes.Renderer
 	collision    *collision.Plugin
 	spacing      Spacing
 	handKeeping  traffic.HandKeeping
@@ -86,7 +87,7 @@ func NewPlugin(
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(worldPlugin, p)
 	drivingPlugin.WithKeeping(&p.handKeeping)
-	p.pathRenderer = newPathRenderer(boardPlugin.Read(0).Board(), DefaultRouteStyle, p.selected).
+	p.pathRenderer = routes.NewRenderer(boardPlugin.Read(0).Board(), DefaultRouteStyle, p.selected).
 		WithHeights(boardPlugin.Read(0).Heights).WithLook(worldPlugin.Read(0).Look).
 		WithStyles(worldPlugin.Read(0).Styles)
 	p.pathRenderer.BindSpace(worldPlugin.Write().Space())
@@ -120,7 +121,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		keep = spacing.NewCellKeeping(finder, p.boardPlugin.Write().Occupancy())
 	}
 	p.finder = finder
-	p.pathRenderer.finder = finder
+	p.pathRenderer.Finder = finder
 	rules := p.crowd
 	if !p.crowdSet {
 		rules = crowd()
@@ -198,6 +199,6 @@ func (p *Plugin) WithCrowd(rules ...act.Rule) *Plugin {
 // WithRouteStyle sets how the routes and goals of the kinds without a RouteStyle of their own
 // are drawn, in place of DefaultRouteStyle.
 func (p *Plugin) WithRouteStyle(style RouteStyle) *Plugin {
-	p.pathRenderer.style, p.pathRenderer.current = style, style
+	p.pathRenderer.Style, p.pathRenderer.Current = style, style
 	return p
 }

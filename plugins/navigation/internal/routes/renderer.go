@@ -1,7 +1,8 @@
-package navigation
+package routes
 
 import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"image/color"
 	"math"
@@ -16,14 +17,13 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/navigation/internal/pathfind"
-	"github.com/kjkrol/gram/plugins/navigation/internal/routes"
 	"github.com/kjkrol/gram/plugins/selection"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
 
-func pathCells(at unit.At, mt MoveOrder) []cell.ID {
+func pathCells(at unit.At, mt order.MoveOrder) []cell.ID {
 	cells := []cell.ID{at.Cell}
 	next := mt.Target
 	if mt.Path.Index < mt.Path.Length {
@@ -63,10 +63,10 @@ var DefaultRouteStyle = RouteStyle{Line: color.RGBA{R: 255, G: 140, B: 0, A: 220
 // the selection's width
 const goalWidth = 2
 
-type pathRenderer struct {
+type Renderer struct {
 	grid    grid.Grid
-	style   RouteStyle // the kinds' default
-	current RouteStyle // the unit's being drawn
+	Style   RouteStyle // the kinds' default
+	Current RouteStyle // the unit's being drawn
 	styles  func() *render.Styles
 	frame   *render.Frame // the one being composed
 	camera  camera.Camera // the one of the frame being composed
@@ -80,7 +80,7 @@ type pathRenderer struct {
 	routes bool
 
 	// nil: the goals alone, no routes between them
-	finder   *spacing.Finder
+	Finder   *spacing.Finder
 	previews map[uid.UID64]*preview
 
 	selected tag.Tag[selection.Family]
@@ -88,61 +88,61 @@ type pathRenderer struct {
 	query *goke.Query
 	base  goke.Comp[world.Base]
 	cell  goke.Comp[unit.At]
-	order goke.Comp[MoveOrder]
+	order goke.Comp[order.MoveOrder]
 	marks goke.Comp[tag.Tags[selection.Family]]
 	app   goke.OptComp[render.Appearance]
 	mover goke.OptComp[unit.Mover]
 
 	footprint []render.Corners
 
-	gpu   *routes.Lines
+	gpu   *Lines
 	onGPU bool // this frame's
 }
 
-var _ render.Direct = (*pathRenderer)(nil)
+var _ render.Direct = (*Renderer)(nil)
 
-func newPathRenderer(grid grid.Grid, style RouteStyle, selected tag.Tag[selection.Family]) *pathRenderer {
+func NewRenderer(grid grid.Grid, style RouteStyle, selected tag.Tag[selection.Family]) *Renderer {
 	if style == (RouteStyle{}) {
 		style = DefaultRouteStyle
 	}
-	return &pathRenderer{grid: grid, style: style, current: style, selected: selected, gpu: routes.New()}
+	return &Renderer{grid: grid, Style: style, Current: style, selected: selected, gpu: New()}
 }
 
-func (r *pathRenderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
+func (r *Renderer) Draw(t render.Target, cam camera.Camera, _ render.Uniforms) {
 	if r.onGPU {
 		r.gpu.Draw(t, cam)
 	}
 }
 
-func (r *pathRenderer) WithStyles(styles func() *render.Styles) *pathRenderer {
+func (r *Renderer) WithStyles(styles func() *render.Styles) *Renderer {
 	r.styles = styles
 	return r
 }
 
-func (r *pathRenderer) WithHeights(heights func() ground.Heights) *pathRenderer {
+func (r *Renderer) WithHeights(heights func() ground.Heights) *Renderer {
 	r.heights = heights
 	return r
 }
 
-func (r *pathRenderer) WithLook(look func() world.Look) *pathRenderer {
+func (r *Renderer) WithLook(look func() world.Look) *Renderer {
 	r.look = look
 	return r
 }
 
-func (r *pathRenderer) ShowRoutes(shown bool) { r.routes = shown }
+func (r *Renderer) ShowRoutes(shown bool) { r.routes = shown }
 
-func (r *pathRenderer) RoutesShown() bool { return r.routes }
+func (r *Renderer) RoutesShown() bool { return r.routes }
 
-func (r *pathRenderer) BindSpace(space *aabbworld.Space) { r.space = space }
+func (r *Renderer) BindSpace(space *aabbworld.Space) { r.space = space }
 
-func (r *pathRenderer) Init(si *goke.SysInit) {
+func (r *Renderer) Init(si *goke.SysInit) {
 	r.query = si.NewQueryBuilder(&r.base, &r.cell, &r.order, &r.marks).
 		Optional(&r.app).
 		Optional(&r.mover).
 		Build()
 }
 
-func (r *pathRenderer) Compose(f *render.Frame, cam camera.Camera) {
+func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	r.frame, r.camera = f, cam
 	r.gpu.Reset()
 	r.ground, r.step = nil, 0
@@ -173,10 +173,10 @@ func (r *pathRenderer) Compose(f *render.Frame, cam camera.Camera) {
 			if !marks[i].Has(r.selected) {
 				continue
 			}
-			r.current = r.style
+			r.Current = r.Style
 			if apps != nil {
 				if st, ok := render.StyleOf[RouteStyle](styles, apps[i].SpriteID); ok {
-					r.current = st
+					r.Current = st
 				}
 			}
 			o := &orders[i]
@@ -209,7 +209,7 @@ const (
 )
 
 // a step aside is no goal
-func (r *pathRenderer) goals(size geom.Vec, domain cell.Domain, o *MoveOrder) {
+func (r *Renderer) goals(size geom.Vec, domain cell.Domain, o *order.MoveOrder) {
 	if !o.GivingWay {
 		r.goal(size, o.Target, o.Spot, r.standing(r.point(o.Target, o.Spot), domain, o.Level))
 	}
@@ -219,22 +219,22 @@ func (r *pathRenderer) goals(size geom.Vec, domain cell.Domain, o *MoveOrder) {
 	}
 }
 
-func (r *pathRenderer) standing(p geom.Vec, domain cell.Domain, level Level) float32 {
-	if s, ok := r.ground.(ground.Surfaces); ok && level != OnGround {
+func (r *Renderer) standing(p geom.Vec, domain cell.Domain, level order.Level) float32 {
+	if s, ok := r.ground.(ground.Surfaces); ok && level != order.OnGround {
 		top, _ := s.Surface(p, domain, math.Inf(1), 0)
 		return float32(top)
 	}
 	return r.groundAt(p)
 }
 
-func (r *pathRenderer) point(c cell.ID, spot geom.Vec) geom.Vec {
+func (r *Renderer) point(c cell.ID, spot geom.Vec) geom.Vec {
 	if spot != (geom.Vec{}) {
 		return spot
 	}
 	return r.grid.CellCenter(c)
 }
 
-func (r *pathRenderer) drawPath(entityCenter, travel geom.Vec, cells []cell.ID, end geom.Vec) {
+func (r *Renderer) drawPath(entityCenter, travel geom.Vec, cells []cell.ID, end geom.Vec) {
 	from := entityCenter
 	for i, c := range cells {
 		to := r.grid.CellCenter(c)
@@ -249,7 +249,7 @@ func (r *pathRenderer) drawPath(entityCenter, travel geom.Vec, cells []cell.ID, 
 	}
 }
 
-func (r *pathRenderer) drawRoute(cells []cell.ID, from, to geom.Vec) {
+func (r *Renderer) drawRoute(cells []cell.ID, from, to geom.Vec) {
 	if len(cells) < 2 {
 		r.line(from, to)
 		return
@@ -265,7 +265,7 @@ func (r *pathRenderer) drawRoute(cells []cell.ID, from, to geom.Vec) {
 
 // on a wrapping world flat, the short way round; else in pieces of the ground's step, each at
 // the depth of its middle, so the line runs straight through any camera
-func (r *pathRenderer) line(a, b geom.Vec) {
+func (r *Renderer) line(a, b geom.Vec) {
 	if r.space != nil && r.space.Edges != 0 {
 		dx := spacing.ShortestAxisDelta(a.X, b.X, r.space.Width, r.space.Edges.WrapsX())
 		dy := spacing.ShortestAxisDelta(a.Y, b.Y, r.space.Height, r.space.Edges.WrapsY())
@@ -273,11 +273,11 @@ func (r *pathRenderer) line(a, b geom.Vec) {
 		x1, y1 := r.camera.ToScreen(float32(a.X+dx), float32(a.Y+dy))
 		mid := geom.NewVec(a.X+dx/2, a.Y+dy/2)
 		at := r.frame.Lifted(float32(mid.X), float32(mid.Y), 0, routeLift)
-		r.frame.Line(at, x0, y0, x1, y1, r.current.Width, r.current.Line)
+		r.frame.Line(at, x0, y0, x1, y1, r.Current.Width, r.Current.Line)
 		return
 	}
 	if r.onGPU {
-		r.gpu.Add(r.camera, a, b, r.groundAt, r.step, r.current.Width, r.current.Line)
+		r.gpu.Add(r.camera, a, b, r.groundAt, r.step, r.Current.Width, r.Current.Line)
 		return
 	}
 	length := math.Hypot(b.X-a.X, b.Y-a.Y)
@@ -292,23 +292,23 @@ func (r *pathRenderer) line(a, b geom.Vec) {
 		x1, y1 := r.on(p)
 		mid := geom.NewVec(a.X+(b.X-a.X)*(t-0.5/float64(pieces)), a.Y+(b.Y-a.Y)*(t-0.5/float64(pieces)))
 		at := r.frame.Lifted(float32(mid.X), float32(mid.Y), r.groundAt(mid), routeLift)
-		r.frame.Line(at, x0, y0, x1, y1, r.current.Width, r.current.Line)
+		r.frame.Line(at, x0, y0, x1, y1, r.Current.Width, r.Current.Line)
 		x0, y0 = x1, y1
 	}
 }
 
-func (r *pathRenderer) groundAt(p geom.Vec) float32 {
+func (r *Renderer) groundAt(p geom.Vec) float32 {
 	if r.ground == nil {
 		return 0
 	}
 	return float32(r.ground.At(p))
 }
 
-func (r *pathRenderer) on(p geom.Vec) (float32, float32) {
+func (r *Renderer) on(p geom.Vec) (float32, float32) {
 	return r.camera.Project(float32(p.X), float32(p.Y), r.groundAt(p))
 }
 
-func (r *pathRenderer) goal(size geom.Vec, c cell.ID, spot geom.Vec, alt float32) {
+func (r *Renderer) goal(size geom.Vec, c cell.ID, spot geom.Vec, alt float32) {
 	at := r.point(c, spot)
 	box := geom.NewAABBAt(geom.NewVec(at.X-size.X/2, at.Y-size.Y/2), size.X, size.Y)
 	r.footprint = r.footprint[:0]
@@ -326,26 +326,26 @@ func (r *pathRenderer) goal(size geom.Vec, c cell.ID, spot geom.Vec, alt float32
 		pts := [4][2]float32{q[0], q[1], q[3], q[2]}
 		for i, p := range pts {
 			n := pts[(i+1)%len(pts)]
-			r.frame.Line(lies, p[0], p[1], n[0], n[1], goalWidth, r.current.Goal)
+			r.frame.Line(lies, p[0], p[1], n[0], n[1], goalWidth, r.Current.Goal)
 		}
 	}
 }
 
 type preview struct {
-	goals  [MaxWaypoints + 1]cell.ID
+	goals  [order.MaxWaypoints + 1]cell.ID
 	queued uint8
 	routes [][]cell.ID
 }
 
 // planned once per change of the goals; a goal no route reaches is drawn on its own
-func (r *pathRenderer) queued(id uid.UID64, domain cell.Domain, body pathfind.Body,
-	mt *MoveOrder) [][]cell.ID {
+func (r *Renderer) queued(id uid.UID64, domain cell.Domain, body pathfind.Body,
+	mt *order.MoveOrder) [][]cell.ID {
 	if mt.Queued == 0 {
 		delete(r.previews, id)
 		return nil
 	}
-	var goals [MaxWaypoints + 1]cell.ID
-	var levels [MaxWaypoints + 1]Level
+	var goals [order.MaxWaypoints + 1]cell.ID
+	var levels [order.MaxWaypoints + 1]order.Level
 	goals[0], levels[0] = mt.Target, mt.Level
 	for k, g := range mt.Waypoints[:mt.Queued] {
 		goals[k+1], levels[k+1] = g.Cell, g.Level
@@ -357,8 +357,8 @@ func (r *pathRenderer) queued(id uid.UID64, domain cell.Domain, body pathfind.Bo
 	for k := 0; k < int(mt.Queued); k++ {
 		from, to := goals[k], goals[k+1]
 		route := []cell.ID{from}
-		if r.finder != nil {
-			if path, ok := r.finder.FindPath(id, domain, body, from, to, levels[k+1]); ok {
+		if r.Finder != nil {
+			if path, ok := r.Finder.FindPath(id, domain, body, from, to, levels[k+1]); ok {
 				for _, step := range path.Steps[:path.Length] {
 					route = append(route, step)
 				}

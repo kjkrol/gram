@@ -1,4 +1,4 @@
-package navigation
+package routes
 
 import (
 	"github.com/kjkrol/aabbworld"
@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board/unit"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/selection"
 	"image/color"
 	"math"
@@ -50,7 +51,7 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 	})}
 	cam := isoCamera(128, 128, camera.Config{})
 	a, b := geom.NewVec(48, 48), geom.NewVec(112, 48)
-	drawn := func(r *pathRenderer) (pieces [][]render.Vertex, lies []render.At) {
+	drawn := func(r *Renderer) (pieces [][]render.Vertex, lies []render.At) {
 		var f render.Frame
 		f.Reset(cam)
 		r.Compose(&f, cam) // reads the ground; nothing to draw without a space
@@ -63,7 +64,7 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 		})
 		return
 	}
-	r := newPathRenderer(brd, RouteStyle{}, 0).WithHeights(func() ground.Heights { return land })
+	r := NewRenderer(brd, RouteStyle{}, 0).WithHeights(func() ground.Heights { return land })
 	pieces, lies := drawn(r)
 	want := int(math.Ceil(64 / land.Step()))
 	if len(pieces) != want {
@@ -83,7 +84,7 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 		t.Errorf("the last piece lies at %v, want just over the ground under its middle, %v",
 			at.Z(), want)
 	}
-	flat := newPathRenderer(brd, RouteStyle{}, 0)
+	flat := NewRenderer(brd, RouteStyle{}, 0)
 	pieces, _ = drawn(flat)
 	_, _, ex, ey = ends(pieces[0])
 	if bx, by := cam.Project(112, 48, 0); len(pieces) != 1 || !near32(ex, bx) || !near32(ey, by) {
@@ -94,7 +95,7 @@ func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) 
 func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	cam := isoCamera(128, 128, camera.Config{})
-	r := newPathRenderer(grid, RouteStyle{}, 0)
+	r := NewRenderer(grid, RouteStyle{}, 0)
 	c := grid.At(2, 1)
 	for _, tc := range []struct {
 		spot   geom.Vec
@@ -133,15 +134,15 @@ func TestPathRenderer_OutlinesTheGoalWhereTheEntityWillStand(t *testing.T) {
 func TestPathRenderer_OutlinesNoStepAside(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	cam := isoCamera(128, 128, camera.Config{})
-	r := newPathRenderer(grid, RouteStyle{}, 0)
+	r := NewRenderer(grid, RouteStyle{}, 0)
 	a := grid.At(2, 1)
 	b := grid.At(3, 3)
 	for _, tc := range []struct {
 		givingWay bool
 		lines     int
 	}{{false, 8}, {true, 4}} {
-		o := MoveOrder{Target: a, GivingWay: tc.givingWay}
-		o.Enqueue(Goal{Cell: b})
+		o := order.MoveOrder{Target: a, GivingWay: tc.givingWay}
+		o.Enqueue(order.Goal{Cell: b})
 		var f render.Frame
 		f.Reset(cam)
 		r.Compose(&f, cam)
@@ -181,12 +182,12 @@ func TestPathRenderer_OutlinesEachKindsGoalInItsRouteStyle(t *testing.T) {
 	var styles render.Styles
 	azure := color.RGBA{B: 255, A: 255}
 	styles.Set(7, RouteStyle{Line: azure, Goal: azure, Width: 1})
-	r := newPathRenderer(g, RouteStyle{}, selected).
+	r := NewRenderer(g, RouteStyle{}, selected).
 		WithStyles(func() *render.Styles { return &styles })
 	r.BindSpace(space)
 	var base goke.Comp[world.Base]
 	var at goke.Comp[unit.At]
-	var orderComp goke.Comp[MoveOrder]
+	var orderComp goke.Comp[order.MoveOrder]
 	var marks goke.Comp[tag.Tags[selection.Family]]
 	var app goke.Comp[render.Appearance]
 	ecs := goke.New()
@@ -200,7 +201,7 @@ func TestPathRenderer_OutlinesEachKindsGoalInItsRouteStyle(t *testing.T) {
 					box := plane.NewAABB(g.CellCenter(c), 10, 10)
 					base.Slice(&f.Cursor)[i].Pos = world.Position{AABB: box}
 					at.Slice(&f.Cursor)[i] = unit.At{Cell: c}
-					orderComp.Slice(&f.Cursor)[i] = MoveOrder{Target: g.At(uint32(i), 3)}
+					orderComp.Slice(&f.Cursor)[i] = order.MoveOrder{Target: g.At(uint32(i), 3)}
 					marks.Slice(&f.Cursor)[i] = tag.Tags[selection.Family](0).With(selected)
 					app.Slice(&f.Cursor)[i] = render.Appearance{SpriteID: render.SpriteID(6 + i)}
 				}

@@ -1,3 +1,3 @@
-package navigation
+package routes
 
 var PathCells = pathCells
