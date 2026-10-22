@@ -7,25 +7,21 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/kjkrol/aabbworld"
-	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/effect"
-	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/ceremony/plan"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/clock"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 	ilook "github.com/kjkrol/gram/plugins/world/internal/look"
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/uid"
 )
 
 // Resources is what the world publishes: its Config, its Telemetry and its Settings.
@@ -56,6 +52,9 @@ type Plugin struct {
 	styles   *render.Styles
 	ctx      plugin.Installer
 	picture  *render.Composer
+	read     Read
+	reads    parallel.Reads[*Read]
+	write    Write
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -84,13 +83,22 @@ func NewPlugin(cfg Config) *Plugin {
 	p.newEffects()
 	p.newPlans()
 	p.carryOwn()
+	p.read, p.write = Read{p: p, clock: m.clock.Read(), effects: m.effects.Read()}, Write{p: p}
+	p.reads = parallel.Reads[*Read]{&p.read}
 	// the clock's entity is the world's own
-	p.Self = newSelf(p, p.Name(), comp.Const(m.clock.State()))
-	p.renderer = newRenderer(nil, p.ViewFor, &m.drawing, p.Look)
+	p.Self = newSelf(p, p.Name(), comp.Const(m.clock.Read().State()))
+	p.renderer = newRenderer(nil, p.read.ViewFor, &m.drawing, p.read.Look)
 	p.sectors = newSectorsView(p)
-	p.renderer.clock = m.clock.Shown
+	p.renderer.clock = m.clock.Read().Shown
 	return p
 }
+
+// Read reads the world's state on worker w of the game's pool, 0 the game's own goroutine; the
+// other workers' reads come with Install.
+func (p *Plugin) Read(w int) *Read { return p.reads[w] }
+
+// Write changes the world's state, on the game's goroutine.
+func (p *Plugin) Write() *Write { return &p.write }
 
 // KindTemplates is what the world asks of the kinds a game defines: of every one it spawns,
 // where it stands, its velocity and its effects' markers.
@@ -127,9 +135,9 @@ func (p *Plugin) newEffects() {
 // newPlans makes the commands about effects and the plans, which play the roles they say
 func (p *Plugin) newPlans() {
 	m := p.module
-	m.effectCmds.effects, m.effectCmds.world, m.effectCmds.commands = m.effects, m.clock.Entity,
+	m.effectCmds.effects, m.effectCmds.world, m.effectCmds.commands = m.effects, m.clock.Read().Entity,
 		&m.commands
-	m.plans = plan.NewPlans(m.clock.Time, p.Res.Config.Seed, m.effects, &m.commands)
+	m.plans = plan.NewPlans(m.clock.Read().Time, p.Res.Config.Seed, m.effects, &m.commands)
 	m.plansSys = cgoke.NewPlans(m.plans, p.Pace(sector.Paced))
 	m.plans.Roles(m.effectCmds.RolesOf)
 	p.kinds.plans = m.plans
@@ -166,18 +174,6 @@ func (p *Plugin) Roles() *Roles { return &p.roles }
 // Roster is what this world's plugins ask of the kinds a game defines.
 func (p *Plugin) Roster() *kind.Roster { return p.roster }
 
-// Clock is the world's tactical clock, which everything that simulates goes by.
-func (p *Plugin) Clock() *clock.Clock { return p.module.clock }
-
-// Effects is this Stage's register of effects, which last in the clock's time.
-func (p *Plugin) Effects() *cgoke.Effects { return p.module.effects }
-
-// Tick is the Tick a plugin hands the rules it hosts for a pass over d of the simulation.
-func (p *Plugin) Tick(d time.Duration) host.Tick { return p.module.tick(d) }
-
-// HasHeights reports whether this world has heights.
-func (p *Plugin) HasHeights() bool { return p.Res.Config.Heights }
-
 // WithFog has what lies far off fade into c where nothing else, the atmosphere, gives the fog's
 // colour; a scene sets it as it begins.
 func (p *Plugin) WithFog(c color.RGBA) *Plugin {
@@ -185,48 +181,9 @@ func (p *Plugin) WithFog(c color.RGBA) *Plugin {
 	return p
 }
 
-// Scale is how many metres a world unit spans.
-func (p *Plugin) Scale() Scale { return p.Res.Config.Scale }
-
-// SetLook has the world's entities drawn, picked and outlined by look, a view plugin's.
-func (p *Plugin) SetLook(look Look) { p.look = look }
-
-// SetLighting has the world's entities lit by l, the light plugin's; without one they are drawn
-// in white light. Before Install.
-func (p *Plugin) SetLighting(l Lighting) { p.renderer.lighting = l }
-
-// Lighting is what lights the world's entities, nil for white light.
-func (p *Plugin) Lighting() Lighting { return p.renderer.lighting }
-
-// Look is how the world's entities lie on the screen.
-func (p *Plugin) Look() Look { return p.look }
-
-// FlatLook is the world's own Look, seen from above.
-func (p *Plugin) FlatLook() Look {
-	return flatLook(p.Res.Config.Space)
-}
-
 func flatLook(space SpaceCfg) *ilook.Flat {
 	return ilook.NewFlat(float32(space.Width), float32(space.Height), space.Edges.WrapsX(),
 		space.Edges.WrapsY())
-}
-
-// ViewFor is the View of what cam sees, made at the first call and kept current from the next
-// tick on.
-func (p *Plugin) ViewFor(cam camera.Camera) *view.View {
-	if v, ok := p.views[cam]; ok {
-		return v
-	}
-	if p.views == nil {
-		p.views = map[camera.Camera]*view.View{}
-	}
-	v := view.New(cam.Bounds)
-	if p.module.sectors.grid != nil {
-		v = view.NewSeen(cam, seenSectors{p.module.sectors})
-	}
-	p.module.views = append(p.module.views, v)
-	p.views[cam] = v
-	return v
 }
 
 func (p *Plugin) Name() string { return "gram.world" }
@@ -239,27 +196,21 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	ctx.Hosts(&p.module.moments.host)
 	ctx.Draws(p.renderer, p.sectors)
 	ctx.Looks(p.dress)
+	p.reads = parallel.NewReads(&p.read, ctx.Pool())
 	return nil
 }
 
-// Picture is everything the Stage's plugins draw, one picture for every scene showing the world.
-func (p *Plugin) Picture() render.Picture {
-	if p.picture == nil {
-		d, ok := p.ctx.(interface{ Drawn() []render.Source })
-		if !ok {
-			panic("world: a picture is made of what the Stage's plugins draw, and none was told")
-		}
-		p.picture = render.NewComposer(d.Drawn()...)
-	}
-	return p.picture
-}
-
 // dress declares the figures' looks on the world's atlas and closes it, unless a game closed its
-// own
+// own, and makes the picture of what the Stage's plugins draw
 func (p *Plugin) dress() {
 	if !p.looked {
 		p.NewAtlas().Looks().Close()
 	}
+	d, ok := p.ctx.(interface{ Drawn() []render.Source })
+	if !ok {
+		panic("world: a picture is made of what the Stage's plugins draw, and none was told")
+	}
+	p.picture = render.NewComposer(d.Drawn()...)
 }
 
 // RunPlan runs the world's tick. Call it from Stage.Update before whatever reads the world's
@@ -278,40 +229,6 @@ func (p *Plugin) Carry(handlers ...plugin.CommandHandler) error {
 	return nil
 }
 
-// Carrier is the Stage's one carrier of commands, taking each to its handler's queue.
-func (p *Plugin) Carrier() *command.Carrier { return &p.module.commands }
-
-// Atlas is the world's looks as SetAtlas took them, nil before.
-func (p *Plugin) Atlas() render.AtlasSource { return p.renderer.atlas }
-
-// SetAtlas takes atlas as the world's looks for the entity renderer, applying what a *Atlas
-// declared; its Close calls it. A foreign render.AtlasSource is given by hand.
-func (p *Plugin) SetAtlas(atlas render.AtlasSource) {
-	if !p.looked {
-		p.looked = true
-		if wa, ok := atlas.(*Atlas); ok {
-			if err := p.module.drawing.Add(wa.swaps()...); err != nil {
-				panic(err)
-			}
-			if err := p.module.drawing.Add(wa.rules(p.module.clock.Shown)...); err != nil {
-				panic(err)
-			}
-		}
-	}
-	p.renderer.atlas = atlas
-	p.renderer.shade(nil, nil)
-	p.renderer.lie(nil, nil, nil)
-	if wa, ok := atlas.(*Atlas); ok {
-		p.renderer.shade(wa.shaded, wa.phased)
-		p.renderer.lie(wa.lain(), wa.edged(), wa.stood())
-		p.styles = &wa.styles
-	}
-}
-
-// Styles are the styles the figures declared on the world's atlas (Slot.Styled), for the
-// plugins drawing about a kind; none before the atlas is closed.
-func (p *Plugin) Styles() *render.Styles { return p.styles }
-
 // EventHandler is nil: a player's bindings issue the world's commands.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
@@ -321,14 +238,8 @@ func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
 // Restore takes the Settings loaded and draws as they say.
 func (p *Plugin) Restore() {
 	p.kept.Restore()
-	p.ShowSectors(p.Res.Settings.Sectors)
-	p.SetBanded(!p.Res.Settings.Unbanded)
-}
-
-// Seed adds entries to the entities spawned when this Stage starts fresh.
-func (p *Plugin) Seed(entries ...kind.Entry) {
-	p.must("units seeded", section.Spawn)
-	p.seeded = append(p.seeded, entries...)
+	p.write.ShowSectors(p.Res.Settings.Sectors)
+	p.write.SetBanded(!p.Res.Settings.Unbanded)
 }
 
 // Populate spawns every seeded entity, or none with an error on an unknown kind or a wrong row.
@@ -360,20 +271,6 @@ func (p *Plugin) Populate() error {
 	p.seeded = nil
 	return nil
 }
-
-// Spawn gives the command [Spawn] for each entry as command.Nobody.
-func (p *Plugin) Spawn(entries ...kind.Entry) {
-	for _, e := range entries {
-		p.module.spawns.Add(command.Nobody, Spawn{Entry: e})
-	}
-}
-
-// Despawn takes an entity out of the ECS at the end of the tick.
-func (p *Plugin) Despawn(cb *goke.CmdBuf, id uid.UID64) { p.module.despawn(cb, id) }
-
-// Space is the world's shared spatial index of its entities, indexed again as they spawn, go and
-// move.
-func (p *Plugin) Space() *aabbworld.Space { return p.module.space }
 
 // Kinds is this Stage's register of entity kinds, which kind.Define registers with.
 func (p *Plugin) Kinds() *Kinds { return p.kinds }

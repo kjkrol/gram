@@ -175,7 +175,7 @@ func TestNavigation_CrossesABridgeRunningSlantwise(t *testing.T) {
 			comp.Const(cell.Floor{Allows: cell.Land, Links: 1<<nw | 1<<se, Width: 24}),
 			comp.Const(cell.Rail{Keeps: cell.Land}))
 		for _, c := range []cell.ID{g.At(1, 1), g.At(2, 2), g.At(3, 3)} {
-			w.Seed(decks.Named("deck").Entry(slantRow{At: c}))
+			w.Write().Seed(decks.Named("deck").Entry(slantRow{At: c}))
 		}
 	}
 	var at goke.Comp[unit.At]

@@ -33,7 +33,7 @@ func (guard) Define(b *board.Plugin) {
 	duty := plan.New(GuardPlan, plan.OneOf(
 		plan.Loop[any]{
 			Name:    "to the gate",
-			When:    cond.On(w).If(w.Effects().Named(AlarmEf)),
+			When:    cond.On(w).If(w.Write().Effects().Named(AlarmEf)),
 			Then:    plan.Self.Do(navigation.MoveTo{To: ceremony.Named(GateName)}),
 			Until:   cond.Self.If(navigation.Arrived{}),
 			Timeout: 20 * time.Second,

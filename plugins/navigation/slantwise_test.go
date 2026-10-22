@@ -118,7 +118,8 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 	}), comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
 	for x, y := int(x0), int(y0); ; x, y = x+dx, y+dy {
 		at := g.At(uint32(x), uint32(y))
-		w.Seed(spans.Named("bridge").Entry(spanRow{At: at, Head: at == site.from || at == site.to}))
+		w.Write().Seed(spans.Named("bridge").Entry(spanRow{At: at,
+			Head: at == site.from || at == site.to}))
 		if at == site.to {
 			break
 		}
@@ -130,9 +131,9 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 		comp.Load(func(r walkerRow) MoveOrder {
 			return MoveOrder{Target: r.Target, Level: r.Level}
 		}))
-	w.Seed(units.Named("walker").Entry(walkerRow{At: at, Target: target, Level: level}))
+	w.Write().Seed(units.Named("walker").Entry(walkerRow{At: at, Target: target, Level: level}))
 	for _, r := range site.others {
-		w.Seed(units.Named("walker").Entry(r))
+		w.Write().Seed(units.Named("walker").Entry(r))
 	}
 	if err := w.Carry(nav); err != nil {
 		t.Fatal(err)
@@ -175,7 +176,7 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 		nav.RunPlan(rc, d)
 		drive.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	return ctx.ecs, q, &base, w
 }
@@ -298,7 +299,7 @@ func TestNavigation_FromABridgeDownUnderIt(t *testing.T) {
 				at, tc.stand)
 		}
 		order := MoveTo{Cell: tc.goal, At: g.CellCenter(tc.goal), Level: OnGround}
-		if !w.Carrier().PutFrom(id, order) {
+		if !w.Write().Carrier().PutFrom(id, order) {
 			t.Fatal("nobody takes MoveTo")
 		}
 		for range 60 * 40 {

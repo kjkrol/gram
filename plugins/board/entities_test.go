@@ -41,11 +41,11 @@ func newStrip(t *testing.T, ground cell.Kind, spec effect.Spec, extra ...comp.Co
 	prepare := func(w *world.Plugin, brd *board.Plugin) []act.Rule {
 		brd.Write().Board().SetAll(grass)
 		brd.Write().Board().Set(s.middle, ground)
-		w.Effects().Define("open", spec)
-		s.open = w.Effects().Named("open")
+		w.Write().Effects().Define("open", spec)
+		s.open = w.Write().Effects().Named("open")
 		things := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize}, itself)
 		things.Define("thing", extra...)
-		w.Seed(things.Named("thing").Entry(s.middle).Named("it"))
+		w.Write().Seed(things.Named("thing").Entry(s.middle).Named("it"))
 		return nil
 	}
 	s.World = boardtest.NewWorldWith(t, g, 5*boardtest.CellSize, boardtest.CellSize, prepare, nil)
@@ -55,7 +55,8 @@ func newStrip(t *testing.T, ground cell.Kind, spec effect.Spec, extra ...comp.Co
 
 func (s *strip) cast(t *testing.T) {
 	t.Helper()
-	if !s.World.World.Carrier().Put(command.Nobody, ceremony.Put(s.open).On(ceremony.Named("it"))) {
+	if !s.World.World.Write().Carrier().Put(command.Nobody,
+		ceremony.Put(s.open).On(ceremony.Named("it"))) {
 		t.Fatal("the world carries no command about an effect")
 	}
 	s.Tick()
@@ -120,8 +121,8 @@ func TestAround_VisitsTheEntitiesStandingOnTheCellsNotTheUnits(t *testing.T) {
 		if err := brd.Populate(); err != nil {
 			t.Fatal(err)
 		}
-		w.Effects().Define("open", effect.Spec{})
-		open = w.Effects().Named("open")
+		w.Write().Effects().Define("open", effect.Spec{})
+		open = w.Write().Effects().Named("open")
 		w.Roles().Define("lever")
 		lever := w.Roles().Named("lever")
 		w.Roles().Define("walker", act.Branch[unit.Standing]{
@@ -133,13 +134,13 @@ func TestAround_VisitsTheEntitiesStandingOnTheCellsNotTheUnits(t *testing.T) {
 
 		levers := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize}, itself)
 		levers.Define("lever", ceremony.Plays(lever))
-		w.Seed(levers.Named("lever").Entry(g.At(2, 0)).Named("lever"))
+		w.Write().Seed(levers.Named("lever").Entry(g.At(2, 0)).Named("lever"))
 		units := board.NewUnits(brd, board.Shape{Size: boardtest.UnitSize}, g.CellCenter)
 		walks := unit.Mover{Domain: cell.Land}
 		units.Define("walker", walks, steering.Steering{}, ceremony.Plays(walker))
 		units.Define("decoy", walks, steering.Steering{}, ceremony.Plays(lever))
-		w.Seed(units.Named("walker").Entry(g.At(1, 0)))
-		w.Seed(units.Named("decoy").Entry(g.At(0, 0)).Named("decoy"))
+		w.Write().Seed(units.Named("walker").Entry(g.At(1, 0)))
+		w.Write().Seed(units.Named("decoy").Entry(g.At(0, 0)).Named("decoy"))
 
 		w.Commands().Define("open the doors",
 			ceremony.Put(open).On(ceremony.Group("doors")).By(ceremony.Named("lever")))

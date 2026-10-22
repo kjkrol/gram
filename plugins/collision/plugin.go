@@ -62,11 +62,11 @@ func (p *Plugin) KindTemplates(r *kind.Roster) {
 func (p *Plugin) Name() string { return "gram.collision" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	p.module = newModule(p.worldPlugin.Space(), ctx.ECS(), &p.pairs, &p.entities)
-	p.module.fieldOf, p.module.clock = func() Field { return p.field }, p.worldPlugin.Clock()
-	p.module.heights = p.worldPlugin.HasHeights()
+	p.module = newModule(p.worldPlugin.Write().Space(), ctx.ECS(), &p.pairs, &p.entities)
+	p.module.fieldOf, p.module.clock = func() Field { return p.field }, p.worldPlugin.Write().Clock()
+	p.module.heights = p.worldPlugin.Read(0).HasHeights()
 	p.module.stats, p.module.log = p.stats, p.log
-	p.module.tick = p.worldPlugin.Tick
+	p.module.tick = p.worldPlugin.Read(0).Tick
 	p.module.pace = p.worldPlugin.Pace(sector.Near)
 	p.module.leave = p.motion.Leave
 	ctx.UseModule(p.module)

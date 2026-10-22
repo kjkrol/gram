@@ -52,7 +52,7 @@ func (p *Plugin) DefaultBindings() []control.Binding { return nil }
 // Settings is the one setting, what is drawn of the entities' boxes (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
 	options := []string{"none", "bases"}
-	if p.worldPlugin.HasHeights() {
+	if p.worldPlugin.Read(0).HasHeights() {
 		options = append(options, "solids")
 	}
 	return []control.Setting{control.Choice{
@@ -99,8 +99,8 @@ func (v *boxesView) Compose(f *render.Frame, cam camera.Camera) {
 	if shown == NoBoxes {
 		return
 	}
-	in := v.w.ViewFor(cam)
-	look := v.w.Look()
+	in := v.w.Read(0).ViewFor(cam)
+	look := v.w.Read(0).Look()
 	for v.q.All(); v.q.Next(); {
 		cur := v.q.Cursor()
 		bases, zs := v.base.Slice(cur), v.z.Slice(cur)

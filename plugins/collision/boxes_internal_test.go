@@ -29,7 +29,7 @@ func TestBoxes_TheCommandShowsTheBasesTheSolidsOrNone(t *testing.T) {
 		t.Errorf("with heights the choice is %v, want none, bases and solids", options)
 	}
 	for _, want := range []BoxesShown{Bases, Solids, NoBoxes} {
-		w.Carrier().Put(command.Nobody, Boxes{Shown: want})
+		w.Write().Carrier().Put(command.Nobody, Boxes{Shown: want})
 		p.switchBoxes()
 		if p.BoxesShown() != want {
 			t.Errorf("Boxes of %v: %v shown", want, p.BoxesShown())
@@ -48,7 +48,7 @@ func TestBoxes_TheSettingChoosesAndIsSaved(t *testing.T) {
 		t.Fatalf("flat, the choice is %v at %d, want none and bases at none", choice.Options,
 			choice.Get())
 	}
-	w.Carrier().Put(command.Nobody, choice.Set(1))
+	w.Write().Carrier().Put(command.Nobody, choice.Set(1))
 	p.switchBoxes()
 	if p.BoxesShown() != Bases || choice.Get() != 1 {
 		t.Fatalf("chose the bases: %v shown, the choice at %d", p.BoxesShown(), choice.Get())

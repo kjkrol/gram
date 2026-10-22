@@ -37,7 +37,8 @@ var shapes = [entityShapes]func(color.RGBA) render.SpriteDrawer{
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	feed := render.NewFeed(a.cameras.New(cameras.FromAbove, camera.Config{}), a.world.Picture())
+	feed := render.NewFeed(a.cameras.New(cameras.FromAbove, camera.Config{}),
+		a.world.Read(0).Picture())
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
 		ui.Image(feed).Input(a.players.Through(a.player)),

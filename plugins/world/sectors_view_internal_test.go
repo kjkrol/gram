@@ -40,10 +40,10 @@ func TestSectorsView_LaysTheSectorsInSightInTheColoursOfTheirBandsOrOfHowTheyAre
 	cam := cameratest.NewFromSpace(4096, 512, 0)
 	cam.SetViewport(1600, 512)
 	cam.MoveTo(0, 0)
-	r.p.ViewFor(cam)
+	r.p.write.NewView(cam)
 	r.run()
 	r.run()
-	r.p.ShowSectors(SectorBands)
+	r.p.write.ShowSectors(SectorBands)
 	// round the anchor at 100: two sectors in the first band, one in the second, the rest beyond
 	beyond := bandColors[sector.MaxBands]
 	want := map[int]color.RGBA{0: bandColors[0], 512: bandColors[0], 1024: bandColors[1],
@@ -51,13 +51,13 @@ func TestSectorsView_LaysTheSectorsInSightInTheColoursOfTheirBandsOrOfHowTheyAre
 	if got := insides(t, r.p, cam); len(got) != len(want) || !sameColors(got, want) {
 		t.Errorf("by band %v, want %v", got, want)
 	}
-	r.p.ShowSectors(SectorsSeen)
+	r.p.write.ShowSectors(SectorsSeen)
 	exact, hidden := levelColors[view.Exact], levelColors[view.Hidden]
 	want = map[int]color.RGBA{0: exact, 512: exact, 1024: exact, 1536: hidden}
 	if got := insides(t, r.p, cam); len(got) != len(want) || !sameColors(got, want) {
 		t.Errorf("as seen %v, want %v", got, want)
 	}
-	r.p.ShowSectors(NoSectors)
+	r.p.write.ShowSectors(NoSectors)
 	var f render.Frame
 	f.Reset(cam)
 	if r.p.sectors.Compose(&f, cam); f.Len() != 0 {
@@ -89,7 +89,7 @@ func TestSectorsView_LaysASectorAcrossTheSeamOnBothSides(t *testing.T) {
 	cam := cameratest.NewFromSpace(4096, 512, aabbworld.Torus)
 	cam.SetViewport(600, 512)
 	cam.MoveTo(3800, 0)
-	p.ShowSectors(SectorBands)
+	p.write.ShowSectors(SectorBands)
 	// the last sector from 3584 shows from -216 on the screen, the first from 4096, at 296
 	got := insides(t, p, cam)
 	if _, ok := got[296]; !ok || len(got) != 2 {
@@ -103,7 +103,7 @@ func TestSectorsView_SwitchesFromTheBandsToHowTheyAreSeenToNothing(t *testing.T)
 	for _, want := range []SectorsShown{SectorBands, SectorsSeen, NoSectors} {
 		r.p.module.commands.Put(command.Nobody, SwitchSectors{Shown: want})
 		r.run()
-		if got := r.p.SectorsShown(); got != want {
+		if got := r.p.read.SectorsShown(); got != want {
 			t.Errorf("shown %v, want %v", got, want)
 		}
 	}

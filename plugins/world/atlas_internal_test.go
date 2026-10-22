@@ -61,9 +61,9 @@ func TestAtlas_ALookUnderAnEffectFacesEveryWayAndRunsItsFrames(t *testing.T) {
 		Space:    SpaceCfg{Width: 100, Height: 100},
 		Entities: EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
-	w.Effects().Define("pulling", effect.Spec{effect.Lasts(time.Second)})
-	w.Effects().Define("bored", effect.Spec{})
-	pulling, bored := w.Effects().Named("pulling"), w.Effects().Named("bored")
+	w.write.Effects().Define("pulling", effect.Spec{effect.Lasts(time.Second)})
+	w.write.Effects().Define("bored", effect.Spec{})
+	pulling, bored := w.write.Effects().Named("pulling"), w.write.Effects().Named("bored")
 	hero := w.Kinds().NewSprite()
 	blank := func(float64, int) render.SpriteDrawer { return render.Solid(color.RGBA{}) }
 	a := w.NewAtlas()
@@ -115,9 +115,9 @@ func TestAtlas_UnderTwoEffectsTheLookDeclaredLaterIsDrawn(t *testing.T) {
 		Space:    SpaceCfg{Width: 100, Height: 100},
 		Entities: EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
-	w.Effects().Define("blinking", effect.Spec{})
-	w.Effects().Define("stamp", effect.Spec{})
-	blinking, stamp := w.Effects().Named("blinking"), w.Effects().Named("stamp")
+	w.write.Effects().Define("blinking", effect.Spec{})
+	w.write.Effects().Define("stamp", effect.Spec{})
+	blinking, stamp := w.write.Effects().Named("blinking"), w.write.Effects().Named("stamp")
 	hero := w.Kinds().NewSprite()
 	blank := render.Solid(color.RGBA{})
 	a := w.NewAtlas()
@@ -178,11 +178,11 @@ func TestAtlas_StyledIsReadOffTheWorldsStylesOnceTheRendererIsMade(t *testing.T)
 	a := p.NewAtlas()
 	id := p.Kinds().NewSprite()
 	slot := a.Add(id, 4, render.Solid(color.RGBA{})).Styled(outlined{width: 3})
-	if p.Styles() != nil {
+	if p.read.Styles() != nil {
 		t.Error("the world has styles before its renderer is made")
 	}
 	a.Close()
-	if got, ok := render.StyleOf[outlined](p.Styles(), id); !ok || got.width != 3 {
+	if got, ok := render.StyleOf[outlined](p.read.Styles(), id); !ok || got.width != 3 {
 		t.Errorf("the style of sprite %d is %v, %v; want width 3", id, got, ok)
 	}
 	defer func() {

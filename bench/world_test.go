@@ -49,9 +49,8 @@ func benchWorldViewed(b *testing.B, ctx *headless, n int, spacing int, view uint
 	for i := range n {
 		entries = append(entries, movers.Entry(mover{float64(10 + (i%side)*spacing), float64(10 + (i/side)*spacing)}))
 	}
-	w.Seed(entries...)
+	w.Write().Seed(entries...)
 	ctx.cam = ctx.camera(cameras.Config{}, cameras.FromAbove, float32(view), float32(view))
-	w.ViewFor(ctx.cam) // its View kept from the first tick
 	if arrange != nil {
 		arrange(w, movers)
 	}
@@ -75,8 +74,9 @@ func Benchmark_World_Draw(b *testing.B) {
 				atlas := render.NewAtlas()
 				atlas.Add(movers.SpriteID(), 20, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 				atlas.Close()
-				w.SetAtlas(atlas)
-				r = w.Picture().(*render.Composer)
+				w.Write().SetAtlas(atlas)
+				ctx.look()
+				r = w.Read(0).Picture().(*render.Composer)
 				ctx.pending = append(ctx.pending, func() []goke.System {
 					return []goke.System{goke.SystemFn{OnInit: r.Init}}
 				})

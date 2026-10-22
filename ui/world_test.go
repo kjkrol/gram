@@ -45,8 +45,8 @@ func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
-	w.Effects().Define("frozen", effect.Spec{effect.Lasts(time.Second)})
-	frozen := w.Effects().Named("frozen")
+	w.Write().Effects().Define("frozen", effect.Spec{effect.Lasts(time.Second)})
+	frozen := w.Write().Effects().Named("frozen")
 	kind.Define[float64](w.Kinds(), "unit", kind.Spec{
 		comp.Load(func(x float64) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
@@ -54,7 +54,7 @@ func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 		comp.Const(world.Velocity{}),
 	})
 	unit := kind.Named[float64](w.Kinds(), "unit")
-	w.Seed(unit.Entry(100).Named("bob"), unit.Entry(300))
+	w.Write().Seed(unit.Entry(100).Named("bob"), unit.Entry(300))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 	ecs.Setup(append(systems, goke.SystemFn{OnInit: d.Init})...)
 	ecs.SetPlan(func(rc goke.RunCtx, dt time.Duration) {
 		w.RunPlan(rc, dt)
-		w.Clock().Replay(rc, dt)
+		w.Write().Clock().Replay(rc, dt)
 		rc.Sync()
 	})
 	tick := func(n int) {
@@ -83,7 +83,7 @@ func TestPin_UnderAnEffectFollowsTheEntitiesItIsOn(t *testing.T) {
 	}
 
 	tick(1)
-	w.Carrier().Put(command.Nobody, ceremony.Put(frozen).On(ceremony.Named("bob")))
+	w.Write().Carrier().Put(command.Nobody, ceremony.Put(frozen).On(ceremony.Named("bob")))
 	tick(2)
 	d.find()
 	spots := d.spots[label]
@@ -118,7 +118,7 @@ func TestPin_WhereTaggedFollowsTheEntitiesCarryingTheTag(t *testing.T) {
 		}),
 	})
 	unit := kind.Named[float64](w.Kinds(), "unit")
-	w.Seed(unit.Entry(100), unit.Entry(300))
+	w.Write().Seed(unit.Entry(100), unit.Entry(300))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestText_OfReadsTheComponentOfTheEntityPinned(t *testing.T) {
 	})
 	kind.Define[struct{}](w.Kinds(), "plain", kind.Spec{at(900), comp.Const(world.Velocity{})})
 	scored, plain := kind.Named[int8](w.Kinds(), "scored"), kind.Named[struct{}](w.Kinds(), "plain")
-	w.Seed(scored.Entry(1), scored.Entry(2), plain.Entry(struct{}{}))
+	w.Write().Seed(scored.Entry(1), scored.Entry(2), plain.Entry(struct{}{}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}

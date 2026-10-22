@@ -22,7 +22,7 @@ var (
 )
 
 func (witch) Rules(b *board.Plugin) {
-	roles, fx := b.Read(0).World().Roles(), b.Read(0).World().Effects()
+	roles, fx := b.Read(0).World().Roles(), b.Read(0).World().Write().Effects()
 	roles.Define(WitchRole, act.Branch[unit.Standing]{
 		Name: "freeze",
 		When: cond.Self.If(cond.Always),
@@ -47,6 +47,6 @@ func (witch) Define(b *board.Plugin) {
 
 func (witch) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[unitRow](w.Kinds(), WitchKind), unitSize, render.Diamond(witchColor)).
-		Under(w.Effects().Named(FrozenEf), render.Diamond(witchFrozenColor)).
-		Under(w.Effects().Named(HasteEf), render.Diamond(witchHasteColor))
+		Under(w.Write().Effects().Named(FrozenEf), render.Diamond(witchFrozenColor)).
+		Under(w.Write().Effects().Named(HasteEf), render.Diamond(witchHasteColor))
 }

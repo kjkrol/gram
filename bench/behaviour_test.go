@@ -57,7 +57,7 @@ func newBehaviour(b *testing.B, n int, define func(bh *behaviour) kind.Spec) *be
 	if err := bh.ctx.Use(bh.m); err != nil {
 		b.Fatal(err)
 	}
-	fx := bh.w.Effects()
+	fx := bh.w.Write().Effects()
 	lit := bh.w.Kinds().DefineTag[glowing]("lit")
 	fx.Define("glow", effect.Spec{
 		effect.Lasts(3 * step),
@@ -87,7 +87,7 @@ func newBehaviour(b *testing.B, n int, define func(bh *behaviour) kind.Spec) *be
 	for i := range n {
 		entries = append(entries, movers.Entry(mover{float64(10 + (i%side)*30), float64(10 + (i/side)*30)}))
 	}
-	bh.w.Seed(entries...)
+	bh.w.Write().Seed(entries...)
 	if err := bh.ctx.Deliver(bh.w.Kinds().Played()...); err != nil {
 		b.Fatal(err)
 	}
@@ -210,7 +210,7 @@ func Benchmark_Effects_Tick(b *testing.B) {
 			})
 			bh.first = func(cb *goke.CmdBuf) {
 				for i, id := range bh.ids {
-					bh.w.Effects().CastFor(id, bh.glow, time.Duration(1+i%3)*step)
+					bh.w.Write().Effects().CastFor(id, bh.glow, time.Duration(1+i%3)*step)
 				}
 			}
 			bh.loop(b)

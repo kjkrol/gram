@@ -110,7 +110,7 @@ func sweptRun(t *testing.T, edges aabbworld.Edges, field collision.Field, ticks 
 		}
 		kind.Define[piece](w.Kinds(), "piece"+string(rune('a'+i)), spec)
 		kinds[i] = kind.Named[piece](w.Kinds(), "piece"+string(rune('a'+i)))
-		w.Seed(kinds[i].Entry(b))
+		w.Write().Seed(kinds[i].Entry(b))
 	}
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
@@ -139,7 +139,7 @@ func sweptRun(t *testing.T, edges aabbworld.Edges, field collision.Field, ticks 
 		m.RunPlan(rc, d)
 		c.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	for range ticks {
 		ecs.Tick(time.Second / 60)
@@ -204,7 +204,7 @@ func TestSweep_TheSpaceHoldsOnlyTheRealBoxAfterTheTick(t *testing.T) {
 		comp.Const(flight{Dir: east, Step: 60}),
 	})
 	shots := kind.Named[piece](w.Kinds(), "shot")
-	w.Seed(shots.Entry(piece{x: 100, y: 500, size: 4}))
+	w.Write().Seed(shots.Entry(piece{x: 100, y: 500, size: 4}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -228,10 +228,12 @@ func TestSweep_TheSpaceHoldsOnlyTheRealBoxAfterTheTick(t *testing.T) {
 		m.RunPlan(rc, d)
 		c.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	ecs.Tick(time.Second / 60)
-	count := func(box geom.AABB) int { return w.Space().Query(box, aabbworld.AnyCapability, func(uid.UID64) {}) }
+	count := func(box geom.AABB) int {
+		return w.Read(0).Space().Query(box, aabbworld.AnyCapability, func(uid.UID64) {})
+	}
 	if n := count(geom.NewAABBAt(geom.NewVec(110, 495), 40, 10)); n != 0 {
 		t.Errorf("the space finds %d pieces on the shot's path after the tick, want none", n)
 	}

@@ -101,7 +101,7 @@ func (p triggerProbe) SetupSystems() []goke.System {
 func (g *triggerStage) Loaded() error { return nil }
 func (g *triggerStage) Spawn() error {
 	for _, s := range g.spots {
-		g.world.Seed(g.unit.Entry(s))
+		g.world.Write().Seed(g.unit.Entry(s))
 	}
 	return nil
 }
@@ -152,8 +152,8 @@ func TestRule_PlayingNarrowsToTheRolesPlayers(t *testing.T) {
 	var marked effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 500, vx: 60}}}
 	g.hook = func(g *triggerStage) error {
-		g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
-		marked = g.world.Effects().Named("marked")
+		g.world.Write().Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
+		marked = g.world.Write().Effects().Named("marked")
 		return g.obey(act.Branch[motion.Moving]{
 			Name: "mark the bullet",
 			When: cond.Self.If(g.bullet),
@@ -172,8 +172,8 @@ func TestRule_OnOtherActsOnWhomTheEntityMet(t *testing.T) {
 	var marked effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 125}}}
 	g.hook = func(g *triggerStage) error {
-		g.world.Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
-		marked = g.world.Effects().Named("marked")
+		g.world.Write().Effects().Define("marked", effect.Spec{effect.Lasts(time.Hour)})
+		marked = g.world.Write().Effects().Named("marked")
 		return g.obey(act.Branch[collision.Meeting]{
 			Name: "mark the target",
 			When: cond.Self.If(g.bullet).
@@ -193,10 +193,10 @@ func TestRule_AnEffectIsItsMemory(t *testing.T) {
 	var mark, tallying effect.Effect
 	g := &triggerStage{spots: []spot{{x: 100, vx: 1}}}
 	g.hook = func(g *triggerStage) error {
-		g.world.Effects().Define("mark", effect.Spec{effect.Lasts(400 * time.Millisecond)})
-		mark = g.world.Effects().Named("mark")
-		g.world.Effects().Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
-		tallying = g.world.Effects().Named("tally")
+		g.world.Write().Effects().Define("mark", effect.Spec{effect.Lasts(400 * time.Millisecond)})
+		mark = g.world.Write().Effects().Named("mark")
+		g.world.Write().Effects().Define("tally", effect.Spec{effect.Lasts(time.Hour), effect.Stacking(), counting})
+		tallying = g.world.Write().Effects().Named("tally")
 		return g.obey(act.Branch[motion.Moving]{
 			Name: "once a while",
 			When: cond.Self.If(cond.Not(mark)),
@@ -236,8 +236,8 @@ func TestRule_AnEffectsMarkerFiltersInAnotherPlugin(t *testing.T) {
 		var burning effect.Effect
 		g := &triggerStage{spots: []spot{{x: 100, vx: 60, bullet: true}, {x: 125}}}
 		g.hook = func(g *triggerStage) error {
-			g.world.Effects().Define("burning", effect.Spec{effect.Lasts(time.Hour)})
-			burning = g.world.Effects().Named("burning")
+			g.world.Write().Effects().Define("burning", effect.Spec{effect.Lasts(time.Hour)})
+			burning = g.world.Write().Effects().Named("burning")
 			if ignite {
 				if err := g.obey(act.Branch[motion.Moving]{
 					Name: "the bullet ignites",

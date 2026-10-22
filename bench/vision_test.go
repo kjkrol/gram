@@ -52,7 +52,7 @@ func benchVision(b *testing.B, n int, outlines bool, workers int) *goke.ECS {
 	for i := range n {
 		entries = append(entries, watchers.Entry(watcher{float64(100 + (i%side)*120), float64(100 + (i/side)*120)}))
 	}
-	w.Seed(entries...)
+	w.Write().Seed(entries...)
 	return ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
 		m.RunPlan(rc, d)

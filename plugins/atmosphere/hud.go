@@ -70,7 +70,7 @@ type framed struct {
 }
 
 func (f *framed) of(p *Plugin, say func() string) string {
-	if t := p.worldPlugin.Clock().Time(); !f.read || t != f.at {
+	if t := p.worldPlugin.Read(0).Clock().Time(); !f.read || t != f.at {
 		f.text, f.at, f.read = say(), t, true
 	}
 	return f.text

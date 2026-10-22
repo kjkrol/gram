@@ -16,6 +16,14 @@
 // refuses a Z. The world knows its entities and nothing else: the ground is the board's, the sky
 // the atmosphere's.
 //
+// # Read and Write
+//
+// The world's state is read through [Plugin.Read] and changed through [Plugin.Write]: Read(w) is
+// worker w's of the game's pool, 0 the game's own goroutine, each with queries of its own, so the
+// workers read the world at once; Write is the game's goroutine's. Read(w).Space() queries the
+// spatial index, Read(w).Clock() reads the clock and Read(w).Effects() which effects the entities
+// are under; Write() spawns, writes the space, drives the clock and casts the effects.
+//
 // # Base, Position and Velocity
 //
 // [Base] is the one component every entity carries: its [Position], its [Velocity] (a unit
@@ -34,7 +42,7 @@
 //
 // [Plugin.Kinds] is the register kind.Define registers with; [Kinds.DefineTag] hands out the
 // bits of a tag family by name and [Kinds.NewSprite] atlas slots no kind owns. A Stage's Spawn
-// puts entities on the roster with [Plugin.Seed]; the engine calls [Plugin.Populate] only for a
+// puts entities on the roster with [Write.Seed]; the engine calls [Plugin.Populate] only for a
 // Stage entered afresh. [Plugin.Roster] is what the plugins ask of the kinds of each template
 // ([EntityTemplate] and those a plugin brings: motion.UnitTemplate, the board's), the world and
 // every plugin made writing theirs in their KindTemplates as it is first read.
@@ -42,7 +50,7 @@
 // # Roles and Commands
 //
 // What a game defines is its Stage's, by name: [Roles] ([Plugin.Roles]) and [Commands]
-// ([Plugin.Commands]), beside the effects ([Plugin.Effects]) and the kinds. Define registers and
+// ([Plugin.Commands]), beside the effects ([Write.Effects]) and the kinds. Define registers and
 // hands nothing back; Named is the thing; a name defined twice or asked for unknown panics. A
 // role is a tag of the family cond.Roles, saved by name. The world plays roles itself
 // ([Plugin.Plays]): the rules of a clock.Moment they obey fire every step.
@@ -57,56 +65,57 @@
 // # Spawn and Despawn
 //
 // The command [Spawn] adds an entity of a kind to the running world at the next step of the
-// simulation ([Plugin.Spawn] gives it as the game's own); one refused is logged, never a panic.
+// simulation ([Write.Spawn] gives it as the game's own); one refused is logged, never a panic.
 // An entity gives itself [Despawn] to go. The world carries out the commands about effects
 // (ceremony.Put, Take, Toggle) for the entities named or grouped by their ceremony.Label and for the
 // world itself, netting a step's commands of one effect on one entity.
 //
 // # Clock and the tick
 //
-// The world keeps the tactical clock ([Plugin.Clock]) and the commands [Pause] (P, Shift+P),
+// The world keeps the tactical clock ([Write.Clock]) and the commands [Pause] (P, Shift+P),
 // [Faster] and [Slower] on it. [Plugin.RunPlan] runs the tick: the clock's commands, the sectors and the views
 // at once; in every step of the simulation the plans, the spawns and the despawns, the commands
 // about effects, the clock's moments and the effects, the space told of every entity after a
-// spawn or a despawn. [Plugin.Carrier] is the Stage's one carrier of commands.
+// spawn or a despawn. [Write.Carrier] is the Stage's one carrier of commands.
 //
 // # Drawing and Look
 //
 // How entities are drawn is declared on the world's [Atlas] by the figures' Looks, gathered once
 // the Stage is set up, before its scenes: a kind's look, its look Under an effect, Turning,
 // Facing, Animated, Lying, Upright, Edges, and Styled: how another plugin draws about the kind
-// (an outline, a cone, a route), a render.Style of that plugin's, read off [Plugin.Styles].
-// Closing the atlas hands it to the world ([Plugin.SetAtlas]), which gives it the entity renderer
+// (an outline, a cone, a route), a render.Style of that plugin's, read off [Read.Styles].
+// Closing the atlas hands it to the world ([Write.SetAtlas]), which gives it the entity renderer
 // and applies what was declared; a game declaring looks by hand closes its own
 // ([Plugin.NewAtlas]) before. Each
-// entity is laid on the screen by the world's [Look] ([Plugin.Look], [Plugin.SetLook]), flat
+// entity is laid on the screen by the world's [Look] ([Read.Look], [Write.SetLook]), flat
 // from above unless a view plugin sets its own; a [DirectLook] draws the sprites itself on the
 // GPU, a [LyingLook] lays some flat, an [UprightLook] stands some true, a [FoggyLook] fades one
 // into the fog before a camera's sight. Each is lit as the [Lighting] says, the light plugin's
-// ([Plugin.SetLighting]), in white light without one. In a sector a camera sees coarsely an entity
+// ([Write.SetLighting]), in white light without one. In a sector a camera sees coarsely an entity
 // is drawn plainly: no edges, flat where it would stand. [Plugin.WithFog] is the fog's colour in a
 // world without an atmosphere.
 //
-// [Plugin.Picture] is everything the Stage's plugins draw (plugin.Installer.Draws), one picture
+// [Read.Picture] is everything the Stage's plugins draw (plugin.Installer.Draws), one picture
 // for every scene; a scene shows it through a camera, ui.Image(render.NewFeed(camera, it)).
 //
 // # Sectors
 //
 // Config.Sectors cuts the world into sectors in bands of pace round the anchors, the points the
-// players observe ([Plugin.Anchor]; the cameras plugin gives its cameras'), and marks each entity
+// players observe ([Write.Anchor]; the cameras plugin gives its cameras'), and marks each entity
 // with its sector's band (package sector); what lies beyond the last band is out of the space.
 // A system adds the pace of its policy ([Plugin.Pace]) to its query and walks it with
-// goke.Query.Paced; the world's plans and effects go Paced. [Plugin.Sectors] lays them on the
+// goke.Query.Paced; the world's plans and effects go Paced. [Read.Sectors] lays them on the
 // telemetry panel. A camera's View in such a world is of the sectors it sees, each at a level
-// (view.NewSeen); [Plugin.Seen] lays the first camera's on the panel. [SwitchSectors] shows the
-// sectors over the ground by their bands or by how the camera sees them ([Plugin.ShowSectors]);
+// (view.NewSeen); [Read.Seen] lays the first camera's on the panel. [SwitchSectors] shows the
+// sectors over the ground by their bands or by how the camera sees them ([Write.ShowSectors]);
 // [SwitchBands] switches the bands off, every sector in the first, to weigh what they spare
-// ([Plugin.SetBanded]); both are the settings screen's alone.
+// ([Write.SetBanded]); both are the settings screen's alone.
 //
 // # Views
 //
-// [Plugin.ViewFor] is the view.View of a camera, refreshed once a tick after movement; the
-// renderer draws only what the camera's View contains.
+// [Write.NewView] makes the view.View of a camera, as the cameras plugin makes the camera, and
+// [Read.ViewFor] reads it; refreshed once a tick after movement, the renderer draws only what
+// the camera's View contains.
 //
 // # Telemetry
 //

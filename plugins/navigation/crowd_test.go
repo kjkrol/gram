@@ -229,7 +229,7 @@ func TestPlan_APatrolOrdersTheUnitAloneAndGoesOnOnceArrived(t *testing.T) {
 func TestPlan_AnAlarmTakesOverThePatrolAndGivesItBack(t *testing.T) {
 	rw := newRoadWorld(t, 10, []roadUnit{{start: 0, ordered: true}})
 	east, west, gate := rw.at(8, 1), rw.at(1, 1), rw.at(4, 0)
-	alarm := rw.w.Effects().Named("alarm")
+	alarm := rw.w.Write().Effects().Named("alarm")
 	guard := &writtenPlan{plan.New("navigation test guard", plan.OneOf(
 		plan.Loop[any]{
 			Name:  "alarm",
@@ -247,15 +247,15 @@ func TestPlan_AnAlarmTakesOverThePatrolAndGivesItBack(t *testing.T) {
 	rw = newRoadWorld(t, 10, []roadUnit{
 		{start: rw.at(0, 1), owner: 1, plan: guard, round: []cell.ID{east, west}},
 	})
-	alarm = rw.w.Effects().Named("alarm")
+	alarm = rw.w.Write().Effects().Named("alarm")
 	walker := rw.byRow[0]
 	rw.watch(10*time.Second, func(int) bool { c, _ := rw.state(walker); return c == rw.at(3, 1) })
-	rw.w.Carrier().Put(1, ceremony.Put(alarm).On(ceremony.World))
+	rw.w.Write().Carrier().Put(1, ceremony.Put(alarm).On(ceremony.World))
 	if !rw.watch(10*time.Second, func(int) bool { c, _ := rw.state(walker); return c == gate }) {
 		c, _ := rw.state(walker)
 		t.Fatalf("under the alarm the guard stands at %v, want it at the gate %v", c, gate)
 	}
-	rw.w.Carrier().Put(1, ceremony.Take(alarm).On(ceremony.World))
+	rw.w.Write().Carrier().Put(1, ceremony.Take(alarm).On(ceremony.World))
 	if !rw.watch(20*time.Second, func(int) bool { c, _ := rw.state(walker); return c == east }) {
 		c, _ := rw.state(walker)
 		t.Errorf("the alarm lifted, the guard stands at %v, want it back on patrol at %v", c, east)

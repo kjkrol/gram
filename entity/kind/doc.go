@@ -6,7 +6,7 @@
 // # Define, Named and Of
 //
 // [Define] registers a Spec under a name with a [Registry], a world's; [Named] is the kind as
-// [Of], typed by its row: Entry builds one [Entry] for world.Plugin.Seed with the row checked by
+// [Of], typed by its row: Entry builds one [Entry] for world.Write.Seed with the row checked by
 // the compiler, ID is the [ID] every entity of the kind carries, SpriteID the atlas slot its
 // entities are drawn from. A world.Position and a world.Velocity must each appear once in a
 // Spec, or Define panics by name; so does a Load over a row type other than the kind's.

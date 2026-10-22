@@ -22,6 +22,6 @@ func (walker) Define(b *board.Plugin) {
 
 func (walker) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[unitRow](w.Kinds(), WalkerKind), unitSize, render.Solid(walkerColor)).
-		Under(w.Effects().Named(FrozenEf), render.Solid(walkerFrozenColor)).
-		Under(w.Effects().Named(HasteEf), render.Solid(walkerHasteColor))
+		Under(w.Write().Effects().Named(FrozenEf), render.Solid(walkerFrozenColor)).
+		Under(w.Write().Effects().Named(HasteEf), render.Solid(walkerHasteColor))
 }

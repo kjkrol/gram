@@ -98,12 +98,12 @@ func StartObeying(
 // Step is a step as a game takes it: the world, motion, the collision, the clock's replay.
 func Step(w *world.Plugin, m *motion.Plugin, c *collision.Plugin) func(goke.RunCtx, time.Duration) {
 	return func(rc goke.RunCtx, d time.Duration) {
-		settling := w.Clock().Settling(rc)
+		settling := w.Write().Clock().Settling(rc)
 		w.RunPlan(settling, d)
 		m.RunPlan(settling, d)
 		c.RunPlan(settling, d)
 		settling.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	}
 }
 

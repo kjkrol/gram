@@ -159,7 +159,7 @@ func (s *shootSystem) fire(cmd Shoot, sh shooter) {
 		down := geom.NewVec(from.X+dir.X*shot.Range, from.Y+dir.Y*shot.Range)
 		shot.Climb = body.Gravity*t/2 + (groundAt(s.groundOf, down)-shot.Altitude)/t
 	}
-	s.w.Spawn(cmd.Ammo.Entry(shot))
+	s.w.Write().Spawn(cmd.Ammo.Entry(shot))
 }
 
 func groundAt(groundOf func() ground.Heights, p geom.Vec) float64 {

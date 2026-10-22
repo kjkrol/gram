@@ -32,16 +32,6 @@ const (
 	SectorsSeen
 )
 
-// ShowSectors has the sectors drawn as shown says (Settings.Sectors): a look for finding out
-// what lives and what is seen where.
-func (p *Plugin) ShowSectors(shown SectorsShown) {
-	p.Res.Settings.Sectors = shown
-	p.module.sectorsShown = shown
-}
-
-// SectorsShown is what is drawn of the sectors.
-func (p *Plugin) SectorsShown() SectorsShown { return p.Res.Settings.Sectors }
-
 var (
 	// the bands nearest first, then beyond the last
 	bandColors = [sector.MaxBands + 1]color.RGBA{
@@ -114,12 +104,12 @@ func (v *sectorsView) Compose(f *render.Frame, cam camera.Camera) {
 		}
 	} else {
 		v.levels = append(v.levels[:0], make([]view.Level, g.Len())...)
-		v.p.ViewFor(cam).Sectors(func(i int, _ geom.AABB, l view.Level) { v.levels[i] = l })
+		v.p.read.ViewFor(cam).Sectors(func(i int, _ geom.AABB, l view.Level) { v.levels[i] = l })
 		for _, l := range v.levels {
 			v.colors = append(v.colors, levelColors[l])
 		}
 	}
-	if _, rays := cam.(camera.Rays); rays && v.p.HasHeights() {
+	if _, rays := cam.(camera.Rays); rays && v.p.read.HasHeights() {
 		v.onGPU = true
 		v.gpu.Paint(cam, v.colors)
 		f.ReadGround() // the sectors find the ground under them
@@ -127,7 +117,7 @@ func (v *sectorsView) Compose(f *render.Frame, cam camera.Camera) {
 		return
 	}
 	w, h := cam.Viewport()
-	look := v.p.Look()
+	look := v.p.read.Look()
 	for i, c := range v.colors {
 		box := g.Box(i)
 		midX := (box.TopLeft.X + box.BottomRight.X) / 2
@@ -168,6 +158,6 @@ func (v *sectorsView) Draw(t render.Target, cam camera.Camera, _ render.Uniforms
 
 func (w *module) switchSectors() {
 	w.sectorSwitches.Drain(func(i command.Issued[SwitchSectors]) {
-		w.p.ShowSectors(i.Command.Shown)
+		w.p.write.ShowSectors(i.Command.Shown)
 	})
 }

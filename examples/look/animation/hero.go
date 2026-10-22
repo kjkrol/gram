@@ -84,7 +84,7 @@ var _ board.Figure = hero{}
 
 // the heroes' states and their role, shared by the three kinds
 func (a *arena) defineEffects() {
-	fx := a.world.Effects()
+	fx := a.world.Write().Effects()
 	fx.Define(PullingEf, effect.Spec{effect.Lasts(leverSwing)})
 	fx.Define(BrakingEf, effect.Spec{})
 	fx.Define(StillEf, effect.Spec{})
@@ -98,7 +98,7 @@ func (a *arena) defineEffects() {
 
 // standing he gets bored, moving he wakes, braking he braces
 func (a *arena) defineRules() {
-	fx := a.world.Effects()
+	fx := a.world.Write().Effects()
 	a.world.Roles().Define(HeroRole,
 		act.Branch[motion.Moving]{
 			Name: "stands still",
@@ -160,7 +160,7 @@ func (h hero) Define(b *board.Plugin) {
 }
 
 func (h hero) Look(a *world.Atlas, w *world.Plugin) {
-	fx := w.Effects()
+	fx := w.Write().Effects()
 	a.Add(kind.Named[unitRow](w.Kinds(), h.kind), heroHeight, standing(0)).
 		Facing(heroWays, standing).
 		Animated(heroWalkFrames, 120*time.Millisecond, pose(heroWalk)).WhileMoving().
@@ -191,7 +191,7 @@ func patrol() plan.Planned {
 
 // the hands on a lever for a swing, every pullEvery
 func pulls(w *world.Plugin) plan.Planned {
-	pulling := w.Effects().Named(PullingEf)
+	pulling := w.Write().Effects().Named(PullingEf)
 	return plan.New(PullsPlan, plan.Loop[any]{
 		Name: "pull",
 		When: cond.Self.If(cond.Always),
@@ -202,7 +202,7 @@ func pulls(w *world.Plugin) plan.Planned {
 // still for a while he is bored, and bored he goes round the stages — blinks, stamps a foot now
 // and then, turns to look about twice, each 4 seconds or, on a coin, 10 — until he moves
 func boredom(w *world.Plugin) plan.Planned {
-	fx := w.Effects()
+	fx := w.Write().Effects()
 	still, bored, long := fx.Named(StillEf), fx.Named(BoredEf), fx.Named(LookingLongEf)
 	always, coin := cond.Self.If(cond.Always), cond.Self.If(cond.Chance(0.5))
 	stage := func(e effect.Effect, parts ...plan.Part) plan.Part {

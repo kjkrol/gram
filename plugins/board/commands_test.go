@@ -40,8 +40,8 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 	}
 	m.World = boardtest.NewWorldWith(t, g, 6*boardtest.CellSize, 6*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []act.Rule {
 		brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
-		w.Effects().Define("open", effect.Spec{effect.Lasts(3 * time.Second / 60)})
-		m.open = w.Effects().Named("open")
+		w.Write().Effects().Define("open", effect.Spec{effect.Lasts(3 * time.Second / 60)})
+		m.open = w.Write().Effects().Named("open")
 		w.Roles().Define("plate", act.Branch[collision.Meeting]{
 			Name: "press",
 			When: cond.Self.If(cond.Always),
@@ -50,7 +50,7 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 		plate := w.Roles().Named("plate")
 		plates := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize}, itself)
 		plates.Define("plate", comp.Const(collision.Collider{}), ceremony.Plays(plate))
-		w.Seed(plates.Named("plate").Entry(m.plate).Named("plate"))
+		w.Write().Seed(plates.Named("plate").Entry(m.plate).Named("plate"))
 		cells := []cell.Entry{{Cell: m.lever, Name: "lever"}, {Cell: m.post, Name: "post"}}
 		for _, c := range m.west {
 			cells = append(cells, cell.Entry{Cell: c, Group: "west doors"})
@@ -75,7 +75,7 @@ func newMeadow(t *testing.T, standing ...cell.ID) *meadow {
 
 func (m *meadow) give(t *testing.T, cmd command.Command) {
 	t.Helper()
-	if !m.World.World.Carrier().Put(command.Nobody, cmd) {
+	if !m.World.World.Write().Carrier().Put(command.Nobody, cmd) {
 		t.Fatalf("the world carries no %T", cmd)
 	}
 	m.Tick()
@@ -140,7 +140,7 @@ func TestToggle_SwitchesThoseItNames(t *testing.T) {
 	if n := m.under(m.lever, m.post); n != 0 {
 		t.Fatalf("flipped off: %d of the two named under it, want none", n)
 	}
-	m.World.World.Carrier().Put(command.Nobody, m.flip)
+	m.World.World.Write().Carrier().Put(command.Nobody, m.flip)
 	m.give(t, m.flip)
 	if n := m.under(m.lever, m.post); n != 0 {
 		t.Errorf("flipped twice in a step: %d under it, want them as they were, off", n)
@@ -193,8 +193,8 @@ func TestCommands_RefuseANameNobodyBearsAndOneTwoBear(t *testing.T) {
 				if err := brd.Populate(); err != nil {
 					t.Fatal(err)
 				}
-				w.Effects().Define("open", effect.Spec{})
-				w.Commands().Define("open", tc.cmd(w.Effects().Named("open")))
+				w.Write().Effects().Define("open", effect.Spec{})
+				w.Commands().Define("open", tc.cmd(w.Write().Effects().Named("open")))
 				return nil
 			}, nil)
 			defer func() {

@@ -46,7 +46,7 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	}
 	p := &Plugin{worldPlugin: worldPlugin, tags: tags}
 	p.Self = world.NewSelf(worldPlugin, p)
-	p.renderer = NewRenderer(tags.Selected, worldPlugin.Look, worldPlugin.Styles)
+	p.renderer = NewRenderer(tags.Selected, worldPlugin.Read(0).Look, worldPlugin.Read(0).Styles)
 	p.renderer.marquees = &p.marquees
 	return p
 }
@@ -75,9 +75,10 @@ func (p *Plugin) IsSelected(marks tag.Tags[Family]) bool { return marks.Has(p.ta
 func (p *Plugin) Name() string { return "gram.selection" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.tags, p.worldPlugin.Look)
+	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Write().Space(), p.tags,
+		p.worldPlugin.Read(0).Look)
 	sys.marqueeQueue, sys.marquees = &p.marqueeQueue, &p.marquees
-	sys.effectCmds, sys.effects = &p.effectCmds, p.worldPlugin.Effects()
+	sys.effectCmds, sys.effects = &p.effectCmds, p.worldPlugin.Write().Effects()
 	sys.hovers = &p.hovers
 	sys.allows, sys.forbids = &p.allows, &p.forbids
 	p.module = &module{sys: sys}

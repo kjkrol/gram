@@ -64,7 +64,7 @@ type flightSystem struct {
 }
 
 func newFlightSystem(w *world.Plugin, landings *host.Rules[Landing], restings *host.Rules[Resting], groundOf func() ground.Heights) *flightSystem {
-	s := &flightSystem{w: w, space: w.Space(), landings: landings, restings: restings, groundOf: groundOf, tickOf: w.Tick}
+	s := &flightSystem{w: w, space: w.Write().Space(), landings: landings, restings: restings, groundOf: groundOf, tickOf: w.Read(0).Tick}
 	s.landingAt, s.landsAt, s.restingAt, s.restsAt = s.landing, s.lands, s.rest, s.rests
 	return s
 }
@@ -101,7 +101,7 @@ func (s *flightSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 			f := &flights[i]
 			if f.Landed && !bodies[i].Lands {
 				s.walking.ends = append(s.walking.ends, false)
-				s.w.Despawn(cb, id) // it lay a step for the effects its landing cast
+				s.w.Write().Despawn(cb, id) // it lay a step for the effects its landing cast
 				continue
 			}
 			var sw *collision.Sweep

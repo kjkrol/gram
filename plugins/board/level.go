@@ -136,7 +136,7 @@ func Spawn[R any](level *Level, sides Sides) error {
 	for _, w := range taken {
 		w.spawned = true
 	}
-	l.p.worldPlugin.Seed(entries...)
+	l.p.worldPlugin.Write().Seed(entries...)
 	return nil
 }
 
@@ -684,7 +684,7 @@ func (l *leveler) numbers(n *yaml.Node, cols, rows int) ([]float64, error) {
 	if len(lns) != rows {
 		return nil, l.errorf(n, "the relief has %d rows, want %d", len(lns), rows)
 	}
-	scale := l.p.worldPlugin.Scale()
+	scale := l.p.worldPlugin.Read(0).Scale()
 	values := make([]float64, 0, cols*rows)
 	for y, ln := range lns {
 		at := &yaml.Node{Line: first + y}

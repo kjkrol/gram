@@ -42,7 +42,7 @@ func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *pl
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 8, MaxSize: 8},
 		Heights:  true,
 	})
-	pw.w, pw.fx = w, w.Effects()
+	pw.w, pw.fx = w, w.Write().Effects()
 	pw.fx.Define("scorched", effect.Spec{})
 	pw.scorched = pw.fx.Named("scorched")
 	pw.brd = board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
@@ -59,7 +59,7 @@ func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *pl
 			comp.Const(unit.Mover{Domain: cell.Land}),
 		})
 		k := kind.Named[struct{}](w.Kinds(), "unit")
-		w.Seed(k.Entry(struct{}{}))
+		w.Write().Seed(k.Entry(struct{}{}))
 		if err := w.Populate(); err != nil {
 			t.Fatal(err)
 		}
@@ -87,7 +87,7 @@ func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *pl
 		rc.Sync()
 		w.RunPlan(rc, d)
 		pw.brd.RunPlan(rc, d)
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 		rc.Sync()
 	})
 	pw.ecs = ctx.ECS()

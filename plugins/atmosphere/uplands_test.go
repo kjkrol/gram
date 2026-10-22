@@ -79,8 +79,8 @@ func uplandsFrom(t *testing.T, covered float32, shower effect.Spec, load bool) *
 		Effects(func(ctx game.Initializer) {
 			u.ecs = ctx.ECS()
 			ctx.Setup(u)
-			u.w.Effects().Define("shower", shower)
-			u.shower = u.w.Effects().Named("shower")
+			u.w.Write().Effects().Define("shower", shower)
+			u.shower = u.w.Write().Effects().Named("shower")
 		}).
 		Rules(func() {
 			u.w.Roles().Define("hill",
@@ -166,7 +166,7 @@ func TestWeathering_ARuleOfACellWringsRainOutOfTheAirOverIt(t *testing.T) {
 	}
 	c, _ := u.b.Read(0).Board().CellAt(geom.NewVec(320, 240))
 	id, _ := u.b.Read(0).Board().CellEntity(c)
-	if !u.w.Effects().Has(id, u.shower) {
+	if !u.w.Read(0).Effects().Has(id, u.shower) {
 		t.Fatal("under low clouds 0.9 the hill's shower is not on")
 	}
 	if rain, _ := u.a.Air().FallsAt(320, 240); rain < 0.5 {
@@ -190,9 +190,9 @@ func TestSpread_AnEffectTurnsHowMuchOfTheWorldTheRainTakes(t *testing.T) {
 		}).
 		Effects(func(ctx game.Initializer) {
 			ecs = ctx.ECS()
-			w.Effects().Define("wide rain", effect.Spec{
+			w.Write().Effects().Define("wide rain", effect.Spec{
 				effect.Alter(func(s *climate.Spread) { s.Rain = 0.5 })})
-			wide = w.Effects().Named("wide rain")
+			wide = w.Write().Effects().Named("wide rain")
 		}).
 		Update(func(ctx goke.RunCtx, d time.Duration) {
 			w.RunPlan(ctx, d)
@@ -207,7 +207,7 @@ func TestSpread_AnEffectTurnsHowMuchOfTheWorldTheRainTakes(t *testing.T) {
 		}
 	}
 	tick(time.Second / 10)
-	w.Effects().Cast(a.Entity(), wide)
+	w.Write().Effects().Cast(a.Entity(), wide)
 	tick(time.Second / 10)
 	a.Climate().Set(weather.Rain)
 	tick(12 * time.Second)

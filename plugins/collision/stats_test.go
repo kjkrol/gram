@@ -50,7 +50,7 @@ func colliding(t *testing.T, elastic bool, ticks int, with func(*collision.Plugi
 	kind.Define[slider](w.Kinds(), "slider", spec)
 	k := kind.Named[slider](w.Kinds(), "slider")
 	for _, r := range rows {
-		w.Seed(k.Entry(r))
+		w.Write().Seed(k.Entry(r))
 	}
 	if err := w.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)

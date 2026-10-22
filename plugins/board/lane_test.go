@@ -102,7 +102,7 @@ func banded(t *testing.T, g grid.Grid, height float64, keeps cell.Domain) *board
 	decks := board.NewEntities(p, board.Shape{Size: 10}, func(c cell.ID) cell.ID { return c })
 	decks.Define("deck", comp.Const(floor), comp.Const(cell.Rail{Keeps: keeps, Height: 1}))
 	for x := range uint32(5) {
-		wd.Seed(decks.Named("deck").Entry(g.At(x, 1)))
+		wd.Write().Seed(decks.Named("deck").Entry(g.At(x, 1)))
 	}
 	ctx := boardtest.NewInstallCtx()
 	if err := wd.Install(ctx); err != nil {
@@ -119,7 +119,7 @@ func banded(t *testing.T, g grid.Grid, height float64, keeps cell.Domain) *board
 		wd.RunPlan(rc, d)
 		p.RunPlan(rc, d)
 		rc.Sync()
-		wd.Clock().Replay(rc, d)
+		wd.Write().Clock().Replay(rc, d)
 	})
 	ctx.ECS().Tick(time.Second / 60)
 	return p.Read(0).Board()

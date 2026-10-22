@@ -88,7 +88,7 @@ var _ plugin.KindTemplater = (*Plugin)(nil)
 // NewPlugin builds a board over g with the given occupancy, slowing worldPlugin's entities; a
 // world without heights panics.
 func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin) *Plugin {
-	if !worldPlugin.HasHeights() {
+	if !worldPlugin.Read(0).HasHeights() {
 		panic("board: a board stands in a world with heights; set world.Config.Heights")
 	}
 	p := &Plugin{
@@ -114,7 +114,7 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 		ws.SetWrap(edges.WrapsX(), edges.WrapsY())
 	}
 	slope := func(at, dir geom.Vec, d cell.Domain) float64 { return brd.mapping.Slope(at, dir, d) }
-	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Tick, slope, brd.read.altitude)
+	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Read(0).Tick, slope, brd.read.altitude)
 	if t := worldPlugin.Kinds().DefineTag[unit.States](unit.EnteredName); t != unit.Entered {
 		panic(fmt.Sprintf("board: the units' markers have tags of their own before %q",
 			unit.EnteredName))
@@ -125,8 +125,8 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	}
 	p.keepBridges()
 	p.renderer = look.NewRenderer(&brd.read, nil, brd.read.Map(), worldPlugin.Res.Config.Space).
-		WithSeen(worldPlugin.ViewFor).
-		WithLighting(worldPlugin.Lighting)
+		WithSeen(worldPlugin.Read(0).ViewFor).
+		WithLighting(worldPlugin.Read(0).Lighting)
 	p.renderer.Reads(p.boardOf)
 	p.holdsView = p.newHoldsView()
 	return p
@@ -155,13 +155,13 @@ func (p *Plugin) Name() string { return "gram.board" }
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
 		cells:     p.board.cells.System(p.worldPlugin.Roster(), CellTemplate, p.mattering),
-		built:     p.board.cells.BuiltSystem(p.worldPlugin.Space),
+		built:     p.board.cells.BuiltSystem(p.worldPlugin.Write().Space),
 		roster:    p.worldPlugin.Roster(),
 		template:  CellTemplate,
 		keep:      occupancy.KeepSystem(p.occupancy, p.board.read.footing),
 		standing:  p.rules.StandingSystem(),
 		cellRules: p.rules.CellSystem(),
-		clock:     p.worldPlugin.Clock(),
+		clock:     p.worldPlugin.Write().Clock(),
 	}
 	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)
@@ -276,7 +276,7 @@ func (p *Plugin) WithMap(m Map) *Plugin {
 // the marks of the effects the terrain changes under: those its cells show, those granting tags
 // and those turning a knob of its own; not those turning only another's, as the air's
 func (p *Plugin) mattering() tag.Tags[effect.States] {
-	fx := p.worldPlugin.Effects()
+	fx := p.worldPlugin.Write().Effects()
 	var matters tag.Tags[effect.States]
 	for k := range fx.Count() {
 		d := fx.Definition(uint8(k))

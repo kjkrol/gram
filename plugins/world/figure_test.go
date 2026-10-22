@@ -20,7 +20,7 @@ type box struct {
 
 func (b *box) Effects(w *world.Plugin) {
 	b.ran = append(b.ran, "effects")
-	w.Effects().Define("boxed", effect.Spec{})
+	w.Write().Effects().Define("boxed", effect.Spec{})
 }
 
 func (b *box) Rules(w *world.Plugin) {

@@ -33,7 +33,7 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Run(m.hands, d)
-	clock.Simulate(m.p.worldPlugin.Clock(), ctx, d, m.step)
+	clock.Simulate(m.p.worldPlugin.Write().Clock(), ctx, d, m.step)
 }
 
 func (m *module) simulate(ctx goke.RunCtx, step time.Duration) { ctx.Run(m.done, step) }

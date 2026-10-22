@@ -45,7 +45,7 @@ var (
 )
 
 func (hero) Effects(b *board.Plugin) {
-	b.Read(0).World().Effects().Define(DazedEf, effect.Spec{
+	b.Read(0).World().Write().Effects().Define(DazedEf, effect.Spec{
 		effect.Lasts(dazeLasts),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed /= 4 }),
 	})
@@ -55,7 +55,7 @@ func (hero) Rules(b *board.Plugin) {
 	b.Read(0).World().Roles().Define(HeroRole, act.Branch[gravity.Landing]{
 		Name: "daze",
 		When: cond.Self.If(gravity.HarderThan(hardLanding)),
-		Then: act.Self.Put(b.Read(0).World().Effects().Named(DazedEf)),
+		Then: act.Self.Put(b.Read(0).World().Write().Effects().Named(DazedEf)),
 	})
 }
 
@@ -74,7 +74,7 @@ func (hero) Define(b *board.Plugin) {
 
 func (hero) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[heroRow](w.Kinds(), HeroKind), heroSize, eyed(heroColor)).
-		Under(w.Effects().Named(DazedEf), eyed(dazedColor))
+		Under(w.Write().Effects().Named(DazedEf), eyed(dazedColor))
 }
 
 func eyed(body color.RGBA) render.SpriteDrawer {

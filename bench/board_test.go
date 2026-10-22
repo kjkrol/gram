@@ -312,7 +312,8 @@ func islandWith(b *testing.B, view string, far bool, workers int, shine, lit, se
 	}
 	atlas.Close()
 	p.WithWorkers(workers).Write().SetAtlas(atlas)
-	picture := ctx.world.Picture().(*render.Composer)
+	ctx.look()
+	picture := ctx.world.Read(0).Picture().(*render.Composer)
 	ctx.pending = append(ctx.pending, func() []goke.System {
 		return []goke.System{goke.SystemFn{OnInit: picture.Init}}
 	})

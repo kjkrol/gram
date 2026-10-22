@@ -103,7 +103,7 @@ func standing(b *testing.B, bodies, bands bool) {
 			for x := range uint32(side) {
 				entries = append(entries, decks.Named("deck").Entry(walkerRow{At: g.At(x, 3)}))
 			}
-			ctx.world.Seed(entries...)
+			ctx.world.Write().Seed(entries...)
 			ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
 				ctx.world.RunPlan(rc, d)
 				m.RunPlan(rc, d)

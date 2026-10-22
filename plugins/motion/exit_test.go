@@ -81,7 +81,7 @@ func TestExit_AnEntityLeavingByAnOpenEdgeIsDespawnedByDefault(t *testing.T) {
 	if got := len(living(er.all)); got != 0 {
 		t.Errorf("%d entities alive once it has wholly left, want 0", got)
 	}
-	if got := everywhere(er.w.Space()); got != 0 {
+	if got := everywhere(er.w.Write().Space()); got != 0 {
 		t.Errorf("the index still holds %d entities", got)
 	}
 }
@@ -147,7 +147,7 @@ func TestExit_AClosedEdgeStopsTheEntityWhole(t *testing.T) {
 	if got := len(living(er.all)); got != 1 {
 		t.Fatalf("%d entities alive, want 1", got)
 	}
-	if got := everywhere(er.w.Space()); got != 1 {
+	if got := everywhere(er.w.Write().Space()); got != 1 {
 		t.Errorf("the index holds %d entities, want the one resting against the edge", got)
 	}
 }

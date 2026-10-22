@@ -247,7 +247,7 @@ func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 			}
 		}), comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
 		for _, r := range rb.bridges {
-			w.Seed(spans.Named("bridge").Entry(r))
+			w.Write().Seed(spans.Named("bridge").Entry(r))
 		}
 	}
 	if err := w.Carry(nav); err != nil {
@@ -290,7 +290,7 @@ func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 		nav.RunPlan(rc, d)
 		drive.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	for range 3 {
 		ctx.ecs.Tick(time.Second / 60)

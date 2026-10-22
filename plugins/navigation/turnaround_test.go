@@ -106,7 +106,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	red := kind.Named[unitRow](w.Kinds(), "red")
 	kind.Define[unitRow](w.Kinds(), "blue", spec(true))
 	blue := kind.Named[unitRow](w.Kinds(), "blue")
-	w.Seed(red.Entry(unitRow{start: tw.at(1, 2)}), blue.Entry(unitRow{start: tw.at(1, 1), target: tw.at(1, 3), ordered: true}))
+	w.Write().Seed(red.Entry(unitRow{start: tw.at(1, 2)}), blue.Entry(unitRow{start: tw.at(1, 1), target: tw.at(1, 3), ordered: true}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 		}
 		tw.nav.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	tw.ecs = ctx.ecs
 	for tw.q.All(); tw.q.Next(); {

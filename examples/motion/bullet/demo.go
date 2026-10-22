@@ -143,7 +143,7 @@ func (a *arena) definePlayers() error {
 }
 
 func (a *arena) defineEffects() {
-	a.world.Effects().Define(WoundedEf, effect.Spec{
+	a.world.Write().Effects().Define(WoundedEf, effect.Spec{
 		effect.Lasts(woundLasts),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed /= 2 }),
 	})

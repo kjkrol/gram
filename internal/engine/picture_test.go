@@ -42,7 +42,7 @@ func TestWorld_PictureIsWhatTheStagesPluginsDrawReadiedOnceForEveryScene(t *test
 			w.Made().Add(&drawing{src: src})
 		}).
 		Scenes(func() []game.Scene {
-			pictures = append(pictures, w.Picture(), w.Picture())
+			pictures = append(pictures, w.Read(0).Picture(), w.Read(0).Picture())
 			return []game.Scene{
 				ui.NewScene("main", ui.Image(render.NewFeed(cam, pictures[0]))),
 				ui.NewScene("minimap", ui.Image(render.NewFeed(cam, pictures[1]))),

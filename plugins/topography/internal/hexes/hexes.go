@@ -115,7 +115,7 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if !ok || !h.refresh() {
 		return
 	}
-	if g := h.world.ViewFor(cam).Grid(); g != h.sectors {
+	if g := h.world.Read(0).ViewFor(cam).Grid(); g != h.sectors {
 		h.sectors = g
 		h.lay()
 	}
@@ -139,7 +139,7 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	h.set("Visibility", seeing)
 	h.set("HazeUp", up)
 	h.set("HazeWay", way[:]...)
-	seen := h.world.ViewFor(cam)
+	seen := h.world.Read(0).ViewFor(cam)
 	fog := seen.Fogging()
 	h.set("Sight", fog[:]...)
 	h.opts.Depth, h.opts.Images = t.Depth, [4]*render.Image{h.top, nil, nil, nil}

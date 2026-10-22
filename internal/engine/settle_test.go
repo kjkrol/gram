@@ -114,13 +114,13 @@ func TestStage_ASyncOutsideTheClockLeavesTheSpaceRightForWhatReadsItNext(t *test
 		Spawn(func() {
 			things := kind.Named[geom.Vec](w.Kinds(), "thing")
 			for _, at := range []float64{100, 300, 500} {
-				w.Seed(things.Entry(geom.NewVec(at, at)))
+				w.Write().Seed(things.Entry(geom.NewVec(at, at)))
 			}
 		}).
 		Update(func(ctx goke.RunCtx, d time.Duration) {
 			w.RunPlan(ctx, d)
 			m.RunPlan(ctx, d)
-			errs = m.misread(w.Space())
+			errs = m.misread(w.Write().Space())
 		})
 	eng := NewEngine(oneStageGame{stage: st})
 	if err := eng.Init(); err != nil {

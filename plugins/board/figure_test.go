@@ -21,7 +21,7 @@ type post struct{ ran []string }
 
 func (p *post) Effects(b *board.Plugin) {
 	p.ran = append(p.ran, "effects")
-	b.Read(0).World().Effects().Define("posted", effect.Spec{})
+	b.Read(0).World().Write().Effects().Define("posted", effect.Spec{})
 }
 
 func (p *post) Define(b *board.Plugin) {

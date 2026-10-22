@@ -81,8 +81,9 @@ func NewPlugin(
 	p.Self = world.NewSelf(worldPlugin, p)
 	drivingPlugin.WithKeeping(&p.handKeeping)
 	p.pathRenderer = newPathRenderer(boardPlugin.Read(0).Board(), DefaultRouteStyle, p.selected).
-		WithHeights(boardPlugin.Read(0).Heights).WithLook(worldPlugin.Look).WithStyles(worldPlugin.Styles)
-	p.pathRenderer.BindSpace(worldPlugin.Space())
+		WithHeights(boardPlugin.Read(0).Heights).WithLook(worldPlugin.Read(0).Look).
+		WithStyles(worldPlugin.Read(0).Styles)
+	p.pathRenderer.BindSpace(worldPlugin.Write().Space())
 	return p
 }
 
@@ -108,7 +109,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	finder.WithLevels(boardLevels{read})
 	var keep keeping
 	if p.spacing == BodySpacing {
-		keep = newBodyKeeping(finder, p.worldPlugin.Space(), read.Heights)
+		keep = newBodyKeeping(finder, p.worldPlugin.Write().Space(), read.Heights)
 	} else {
 		keep = newCellKeeping(finder, p.boardPlugin.Write().Occupancy())
 	}
@@ -125,8 +126,8 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	}
 	ctx.Hosts(&p.touches)
 	navSys := newNavigationSystem(finder, brd, brd, finder.occupancy).withKeeping(keep)
-	navSys.BindSpace(p.worldPlugin.Space())
-	navSys.given, navSys.touches, navSys.tick = &p.given, &p.touches, p.worldPlugin.Tick
+	navSys.BindSpace(p.worldPlugin.Write().Space())
+	navSys.given, navSys.touches, navSys.tick = &p.given, &p.touches, p.worldPlugin.Read(0).Tick
 	navSys.pace = p.worldPlugin.Pace(sector.Everywhere)
 
 	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected).withKeeping(keep)
@@ -139,7 +140,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		}
 	}
 
-	p.module = &module{navigationSystem: navSys, moveCommandSystem: moveCommandSystem, clock: p.worldPlugin.Clock()}
+	p.module = &module{navigationSystem: navSys, moveCommandSystem: moveCommandSystem, clock: p.worldPlugin.Write().Clock()}
 	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)
 	ctx.Draws(p.pathRenderer)

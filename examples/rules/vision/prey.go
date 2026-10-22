@@ -23,7 +23,7 @@ var (
 )
 
 func (prey) Rules(w *world.Plugin) {
-	roles, fleeing := w.Roles(), w.Effects().Named(FleeingEf)
+	roles, fleeing := w.Roles(), w.Write().Effects().Named(FleeingEf)
 	roles.Define(SkittishRole,
 		act.Branch[vision.Sighting]{
 			Name: "flee the hunter",

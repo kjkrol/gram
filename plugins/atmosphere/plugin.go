@@ -83,10 +83,10 @@ var _ board.Atmosphere = (*Plugin)(nil)
 // mechanism: the atmosphere's own entity carries the sun's Source and its Shining of the hour.
 // A world without heights panics.
 func NewPlugin(worldPlugin *world.Plugin, lightPlugin *light.Plugin, cfg Config) *Plugin {
-	if !worldPlugin.HasHeights() {
+	if !worldPlugin.Read(0).HasHeights() {
 		panic("atmosphere: an atmosphere stands over a world with heights; set world.Config.Heights")
 	}
-	cal := calendar.New(worldPlugin.Clock(), cfg.Calendar)
+	cal := calendar.New(worldPlugin.Write().Clock(), cfg.Calendar)
 	clim := climate.New(worldPlugin, cal, cfg.Climate)
 	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, light: lightPlugin, calendar: cal,
 		climate: clim, sky: sky.New(cal, cfg.Sky, clim.Zone().Latitude)}
@@ -328,7 +328,7 @@ func reliefOf(h ground.Heights, b *board.BoardRead) (low, peaks float64) {
 // weather first touches it.
 func (p *Plugin) WithWeathering(brd *board.Plugin, cfg weathering.Config) *Plugin {
 	p.Over(brd)
-	w, err := weathering.New(brd, p.Air, p.worldPlugin.Effects(), p.calendar, cfg)
+	w, err := weathering.New(brd, p.Air, p.worldPlugin.Write().Effects(), p.calendar, cfg)
 	if err != nil {
 		panic(err)
 	}
@@ -355,13 +355,13 @@ func (p *Plugin) Name() string { return "gram.atmosphere" }
 // Install wires the sky's, the weather's and the weathering's systems, and draws the sky behind
 // the world, looking as its Skies say, the clouds seen from above and what falls before it.
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	p.module = &module{p: p, sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Clock()}
+	p.module = &module{p: p, sky: p.sky.System(), climate: p.climate.System(), comps: p.climate.LoadComps(), clock: p.worldPlugin.Write().Clock()}
 	p.module.step = p.module.simulate
 	if p.weathering != nil {
 		p.module.comps = append(p.module.comps, goke.LoadComp[weathering.Wring]())
 	}
 	ctx.UseModule(p.module)
-	p.module.rises = p.sky.RiseSystem(p.worldPlugin.Tick, p.Entity)
+	p.module.rises = p.sky.RiseSystem(p.worldPlugin.Read(0).Tick, p.Entity)
 	ctx.Hosts(p.climate.Rules(), p.sky.Rules())
 	if p.weathering != nil {
 		ctx.Hosts(p.weathering.Rules())
@@ -429,7 +429,7 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	m.climateRun = ecs.RegSys(m.climate)
 	m.risesRun = ecs.RegSys(m.rises)
 	if w := m.p.weathering; w != nil {
-		m.weatheringRun = ecs.RegSys(w.System(m.clock, m.p.worldPlugin.Tick))
+		m.weatheringRun = ecs.RegSys(w.System(m.clock, m.p.worldPlugin.Read(0).Tick))
 	}
 }
 
@@ -439,7 +439,7 @@ func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ctx.Sync()
 	clock.Simulate(m.clock, ctx, d, m.step)
 	// a weather asked for while the clock stands is entered at once, no time passing
-	if m.clock.State().Paused && m.p.climate.Asked() {
+	if m.clock.Read().State().Paused && m.p.climate.Asked() {
 		ctx.Run(m.climateRun, 0)
 		ctx.Sync()
 	}

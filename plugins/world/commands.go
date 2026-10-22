@@ -73,7 +73,7 @@ func (p *Plugin) Queues() []command.CommandQueue {
 // what is drawn of them and whether their bands are on (plugin.Tunable).
 func (p *Plugin) Settings() []control.Setting {
 	var out []control.Setting
-	if tempos := p.module.clock.Tempos(); len(tempos) > 1 {
+	if tempos := p.module.clock.Read().Tempos(); len(tempos) > 1 {
 		options := make([]string, len(tempos))
 		for i, t := range tempos {
 			options[i] = fmt.Sprintf("%gx", t)
@@ -82,7 +82,7 @@ func (p *Plugin) Settings() []control.Setting {
 			Label:   "Tempo",
 			Options: options,
 			Get: func() int {
-				return max(0, slices.Index(tempos, p.module.clock.State().Tempo))
+				return max(0, slices.Index(tempos, p.module.clock.Read().State().Tempo))
 			},
 			Set: func(i int) command.Command { return Tempo{X: tempos[i]} },
 		})
@@ -99,7 +99,7 @@ func (p *Plugin) Settings() []control.Setting {
 		},
 		control.Switch{
 			Label: "Sectors' bands",
-			Get:   p.Banded,
+			Get:   p.read.Banded,
 			Set:   func(on bool) command.Command { return SwitchBands{On: on} },
 		})
 }

@@ -186,7 +186,7 @@ func TestCareView_DrawsTheBoundariesBetweenTheCaresBandsOverTheGround(t *testing
 				Heights:  true,
 				Sectors:  world.SectorsCfg{Buckets: 4, Bands: []sector.Band{{Reach: 1000}}},
 			})
-			w.Anchor(anchored{float32(size) / 2, float32(size) / 2})
+			w.Write().Anchor(anchored{float32(size) / 2, float32(size) / 2})
 			m := motion.NewPlugin(w)
 			cells := uint32(tc.sectors * 4)
 			b := board.NewPlugin(grid.DefaultGrids{}.Square(cells, cells, 32),
@@ -214,11 +214,11 @@ func TestCareView_DrawsTheBoundariesBetweenTheCaresBandsOverTheGround(t *testing
 				b.RunPlan(rc, d)
 				p.RunPlan(rc, d)
 				rc.Sync()
-				w.Clock().Replay(rc, d)
+				w.Write().Clock().Replay(rc, d)
 			})
 			// the view sees every sector once the bands are laid
 			cam := cameratest.NewFromSpace(size, size, 0)
-			w.ViewFor(cam)
+			w.Write().NewView(cam)
 			ecs.Tick(time.Second / 60)
 			ecs.Tick(time.Second / 60)
 			drawn := func() (pieces int, onTop bool) {

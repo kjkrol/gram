@@ -131,7 +131,7 @@ func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID
 			}
 		}
 		kind.Define[spawn](w.Kinds(), kindName(i), spec)
-		w.Seed(kind.Named[spawn](w.Kinds(), kindName(i)).Entry(s))
+		w.Write().Seed(kind.Named[spawn](w.Kinds(), kindName(i)).Entry(s))
 	}
 	if err := w.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)
@@ -152,7 +152,7 @@ func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
 		v.RunPlan(rc, d)
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	ctx.ecs.Tick(time.Second / 60)
 

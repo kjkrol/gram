@@ -74,7 +74,7 @@ func (s *SettingsScene) Open(runtime game.Runtime, composition game.Composition)
 	s.build(screenSize(s.screen, runtime.Props()))
 	composition.Show(SettingsName)
 	s.shown = true
-	s.paused = s.p.worldPlugin.Clock().State().Paused
+	s.paused = s.p.worldPlugin.Read(0).Clock().State().Paused
 	s.hold(!s.p.Res.Settings.Running)
 }
 
@@ -87,8 +87,8 @@ func (s *SettingsScene) Close(runtime game.Runtime, composition game.Composition
 
 // hold has the clock stand while on, as it stood before the screen opened otherwise.
 func (s *SettingsScene) hold(on bool) {
-	clk := s.p.worldPlugin.Clock()
-	if want := on || s.paused; clk.State().Paused != want {
+	clk := s.p.worldPlugin.Write().Clock()
+	if want := on || s.paused; clk.Read().State().Paused != want {
 		clk.TogglePause()
 	}
 }

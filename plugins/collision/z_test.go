@@ -42,7 +42,7 @@ func zRun(t *testing.T, a, b raised) (met bool, gap float64) {
 		kind.Define[raised](w.Kinds(), name, own)
 		return kind.Named[raised](w.Kinds(), name)
 	}
-	w.Seed(define("a", a).Entry(a), define("b", b).Entry(b))
+	w.Write().Seed(define("a", a).Entry(a), define("b", b).Entry(b))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}

@@ -95,7 +95,7 @@ func newHill(t *testing.T) aHill {
 	depth := render.NewDepth()
 	pix := make([]byte, 4*int(vw)*int(vh))
 	u := render.UniformsOf(map[string]any{"LightWay": []float32{0.4, 0.3, 0.8}, "LightStrength": []float32{1}, "LightColor": []float32{1, 1, 1}, "Ambience": []float32{0.3, 0.3, 0.3}})
-	look := w.Look().(world.DirectLook)
+	look := w.Read(0).Look().(world.DirectLook)
 	h := aHill{relief: p.Relief(), look: look, cam: cam}
 	h.slope, h.behind = seen[len(seen)/2][0], seen[len(seen)/2][1]
 	h.draw = func(lay func(f *render.Frame)) []byte {

@@ -29,11 +29,11 @@ var (
 )
 
 func (grenade) Effects(p *bullet.Plugin) {
-	p.World().Effects().Define(FuseEf, effect.Spec{effect.Lasts(fuseLength)})
+	p.World().Write().Effects().Define(FuseEf, effect.Spec{effect.Lasts(fuseLength)})
 }
 
 func (grenade) Rules(p *bullet.Plugin) {
-	roles, wounded := p.World().Roles(), p.World().Effects().Named(WoundedEf)
+	roles, wounded := p.World().Roles(), p.World().Write().Effects().Named(WoundedEf)
 	roles.Define(GrenadeRole, act.Branch[bullet.Blast]{
 		Name: "blast",
 		When: cond.Other.If(roles.Named(MortalRole)),
@@ -53,7 +53,7 @@ func (grenade) Define(p *bullet.Plugin) {
 			Name: "lit",
 			When: cond.Self.If(bullet.Lying()),
 			Then: plan.Steps(
-				plan.Self.Put(p.World().Effects().Named(FuseEf)),
+				plan.Self.Put(p.World().Write().Effects().Named(FuseEf)),
 				plan.Self.Wait(fuseLength),
 			),
 		},
@@ -70,7 +70,7 @@ func (grenade) Define(p *bullet.Plugin) {
 
 func (grenade) Look(a *world.Atlas, p *bullet.Plugin) {
 	a.Add(p.Shots().Named(GrenadeKind), 8, render.Dot(3, grenadeColor)).
-		Under(p.World().Effects().Named(FuseEf), lit)
+		Under(p.World().Write().Effects().Named(FuseEf), lit)
 }
 
 func lit(dst *render.Canvas, size int) {

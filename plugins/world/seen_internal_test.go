@@ -19,7 +19,7 @@ func seeing(t *testing.T, r *sectorRig, d camera.Detail) (camera.Camera, *view.V
 	cam.MoveTo(0, 0)
 	cam.(interface{ SetDetail(camera.Detail) }).SetDetail(d)
 	r.anchor.at[0] = geom.NewVec(800, 256)
-	v := r.p.ViewFor(cam)
+	v := r.p.write.NewView(cam)
 	r.run()
 	return cam, v
 }
@@ -40,7 +40,7 @@ func TestSeen_LaysTheSectorsAtTheirLevelsWithinTheSight(t *testing.T) {
 		t.Errorf("levels %v, want %v", got, want)
 	}
 	reported := map[string]string{}
-	r.p.Seen().Report(func(label, value string) { reported[label] = value })
+	r.p.read.Seen().Report(func(label, value string) { reported[label] = value })
 	if got, want := reported["Sectors seen"], "exact 3\ncoarse 0\nfog 1"; got != want {
 		t.Errorf("the panel says %q, want %q", got, want)
 	}
@@ -95,7 +95,7 @@ func TestSeen_HoldsTheEntitiesAcrossTheSeamOfATorus(t *testing.T) {
 	cam.SetViewport(600, 512)
 	cam.MoveTo(3800, 0)
 	r.anchor.at[0] = geom.NewVec(4000, 256)
-	v := r.p.ViewFor(cam)
+	v := r.p.write.NewView(cam)
 	r.run()
 	seen := map[float64]bool{}
 	for r.all.All(); r.all.Next(); {

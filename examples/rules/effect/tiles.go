@@ -18,7 +18,7 @@ var (
 )
 
 func (grass) Effects(b *board.Plugin) {
-	b.Read(0).World().Effects().Define(FrostEf, effect.Spec{
+	b.Read(0).World().Write().Effects().Define(FrostEf, effect.Spec{
 		effect.Described("Land under snow: slower, and the witch's own ground."),
 		effect.Lasts(5 * time.Second),
 		effect.Alter(func(g *cell.Ground) {
@@ -35,7 +35,7 @@ func (grass) Define(b *board.Plugin) {
 
 func (grass) Look(a *board.Atlas, b *board.Plugin) {
 	a.Add(GrassCell, render.Solid(grassColor)).
-		Under(b.Read(0).World().Effects().Named(FrostEf), render.Solid(snowColor))
+		Under(b.Read(0).World().Write().Effects().Named(FrostEf), render.Solid(snowColor))
 }
 
 // water is sailed; the cells of the lake play the lake's role (the map's legend) and freeze over
@@ -48,7 +48,7 @@ var (
 )
 
 func (water) Effects(b *board.Plugin) {
-	b.Read(0).World().Effects().Define(IcedEf, effect.Spec{
+	b.Read(0).World().Write().Effects().Define(IcedEf, effect.Spec{
 		effect.Described("Water under ice: walked over, not sailed."),
 		effect.Lasts(5 * time.Second),
 		effect.Alter(func(g *cell.Ground) {
@@ -67,5 +67,5 @@ func (water) Define(b *board.Plugin) {
 
 func (water) Look(a *board.Atlas, b *board.Plugin) {
 	a.Add(WaterCell, render.Solid(waterColor)).
-		Under(b.Read(0).World().Effects().Named(IcedEf), render.Solid(iceColor))
+		Under(b.Read(0).World().Write().Effects().Named(IcedEf), render.Solid(iceColor))
 }

@@ -73,12 +73,12 @@ func (p *probe) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	ev := &control.InputEvents{}
 	if f := p.script[p.tick]; f != nil {
 		f(ev)
-		log.Printf("P:t%d %.2fs script", p.tick, p.a.world.Clock().Time().Seconds())
+		log.Printf("P:t%d %.2fs script", p.tick, p.a.world.Read(0).Clock().Time().Seconds())
 	}
 	p.a.players.EventHandler().HandleEvents(ev)
 
 	heroID, _, _, _ := p.a.world.Kinds().Lookup(HeroKind) // the kind watched
-	fx := p.a.world.Effects()
+	fx := p.a.world.Write().Effects()
 	under := func(ac *cgoke.Active, name string) bool {
 		if ac == nil {
 			return false
@@ -110,7 +110,7 @@ func (p *probe) RunPlan(ctx goke.RunCtx, d time.Duration) {
 		}
 	}
 	if line != p.last { // a line only when something changed
-		log.Printf("P:t%d %.2fs %s", p.tick, p.a.world.Clock().Time().Seconds(), line)
+		log.Printf("P:t%d %.2fs %s", p.tick, p.a.world.Read(0).Clock().Time().Seconds(), line)
 		p.last = line
 	}
 }

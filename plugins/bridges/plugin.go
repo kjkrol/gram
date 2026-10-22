@@ -99,7 +99,7 @@ func (p *Plugin) Spawn(level *board.Level) error {
 			b.Piers = site.Piers(gr, spans)
 		}
 		p.laid = append(p.laid, laid{t: t, plan: b, at: at, heights: level.Heights()})
-		p.worldPlugin.Seed(p.parts(t, b, g)...)
+		p.worldPlugin.Write().Seed(p.parts(t, b, g)...)
 		return nil
 	})
 }
@@ -202,7 +202,7 @@ func (p *Plugin) build(b pending) {
 			}
 		}
 	}
-	p.worldPlugin.Spawn(p.parts(b.t, plan, g)...)
+	p.worldPlugin.Write().Spawn(p.parts(b.t, plan, g)...)
 }
 
 // Window is the window asking a player whether to build the bridge it marked out, shown while it

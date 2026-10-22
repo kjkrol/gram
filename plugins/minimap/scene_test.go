@@ -76,7 +76,7 @@ func minimapScene(t *testing.T) (scene *ui.Scene, cam camera.Camera, tick func()
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 		rc.Sync()
 		cams.RunPlan(rc, d)
 		mini.RunPlan(rc, d)

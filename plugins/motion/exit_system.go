@@ -49,14 +49,14 @@ func (s *exitSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		cursor, dt := s.query.Cursor(), s.query.Dt()
 		s.ids, s.bases = cursor.IDs, s.base.Slice(cursor)
 		if !leavers.Empty() {
-			leavers.Run(w.Tick(dt), s.cols.Row(cursor), len(cursor.IDs), s.at)
+			leavers.Run(w.Read(0).Tick(dt), s.cols.Row(cursor), len(cursor.IDs), s.at)
 		}
 		for i, id := range s.ids {
 			switch {
-			case inside(w.Space(), s.bases[i].Pos.AABB.AABB):
+			case inside(w.Write().Space(), s.bases[i].Pos.AABB.AABB):
 				cb.RemoveCompOne(id, s.outside)
 			case leavers.Empty():
-				w.Despawn(cb, id)
+				w.Write().Despawn(cb, id)
 			}
 		}
 	}

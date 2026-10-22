@@ -56,7 +56,7 @@ func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, erro
 	// the clock replays what simulates as many times as its tempo says, none in the pause, and
 	// settles what reads goke's memory after every Sync of the Stage's own Update too
 	if ctx.world != nil {
-		clk := ctx.world.Clock()
+		clk := ctx.world.Write().Clock()
 		host.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 			stage.Update(clk.Settling(rc), d)
 			clk.Replay(rc, d)

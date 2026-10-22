@@ -44,7 +44,7 @@ func (v *careView) Compose(f *render.Frame, cam camera.Camera) {
 	if !ok || cell <= 0 {
 		return
 	}
-	seen := p.worldPlugin.ViewFor(cam)
+	seen := p.worldPlugin.Read(0).ViewFor(cam)
 	g := seen.Grid()
 	if g == nil {
 		return

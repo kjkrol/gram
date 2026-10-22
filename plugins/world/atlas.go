@@ -143,9 +143,9 @@ func (s Slot) Under[L render.Look](e effect.Effect, look L) Slot {
 	switch l := any(look).(type) {
 	case render.MaterialID:
 		s.a.shaded[twin] = l
-		s.a.phased[twin] = phase{effect: e, lasts: s.a.p.Effects().Lasts(e)}
+		s.a.phased[twin] = phase{effect: e, lasts: s.a.p.write.Effects().Lasts(e)}
 	case render.Phases:
-		lasts := s.a.p.Effects().Lasts(e)
+		lasts := s.a.p.write.Effects().Lasts(e)
 		if lasts == effect.Forever {
 			panic(fmt.Sprintf("world: sprite %d phased under effect %d, which never runs out",
 				s.id, e.Mark()))
@@ -320,7 +320,7 @@ func (s Slot) Facing(n int, draw func(angleDeg float64) render.SpriteDrawer) Slo
 // after the last look.
 func (a *Atlas) Close() {
 	a.atlas.Close()
-	a.p.SetAtlas(a)
+	a.p.write.SetAtlas(a)
 }
 
 // Atlas is the baked sheet.

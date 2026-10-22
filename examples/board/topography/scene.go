@@ -79,12 +79,12 @@ func (m *mainScene) screen() *ui.Element {
 
 	cam := a.cameras.New(cameras.Isometrically, camera.Config{})
 	return hud.Screen(hud.Deps{
-		Feed: ui.Image(render.NewFeed(cam, a.world.Picture())).
+		Feed: ui.Image(render.NewFeed(cam, a.world.Read(0).Picture())).
 			Input(a.players.Through(a.player)),
 		Minimap:    a.minimap.For(cam, a.player.ID),
 		Compass:    a.minimap.Compass(cam),
-		Clock:      a.world.Clock().HUD(),
-		Paused:     func() bool { return a.world.Clock().State().Paused },
+		Clock:      a.world.Read(0).Clock().HUD(),
+		Paused:     func() bool { return a.world.Read(0).Clock().State().Paused },
 		Atmosphere: a.atmosphere,
 		Reason:     a.bridges.Reason(),
 		Window:     a.bridges.Window(),

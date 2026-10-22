@@ -34,7 +34,7 @@ func TestCollision_FarOffBoxesRestUntilTheBandComesNear(t *testing.T) {
 		},
 	})
 	at := &anchor{x: 100, y: 256}
-	w.Anchor(at)
+	w.Write().Anchor(at)
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m)
 	kind.Define[placed](w.Kinds(), "collider", kind.Spec{
@@ -44,7 +44,7 @@ func TestCollision_FarOffBoxesRestUntilTheBandComesNear(t *testing.T) {
 	})
 	colliders := kind.Named[placed](w.Kinds(), "collider")
 	for _, x := range []float64{100, 105, 1200, 1205} {
-		w.Seed(colliders.Entry(placed{x: x, y: 250}))
+		w.Write().Seed(colliders.Entry(placed{x: x, y: 250}))
 	}
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)

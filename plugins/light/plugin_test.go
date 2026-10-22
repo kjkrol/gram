@@ -85,7 +85,7 @@ func litWorld(t *testing.T, cfg light.Config, define func(w *world.Plugin, p *li
 		w.RunPlan(rc, d)
 		p.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	return w, p, func() { ctx.ecs.Tick(time.Second / 60) }
 }
@@ -117,16 +117,16 @@ func TestPlugin_WithoutASunLightsEverythingWhiteAndCastsNoShadow(t *testing.T) {
 func TestPlugin_ShinesTheScenesSunAndAnEffectOnItTurnsItsSource(t *testing.T) {
 	var eclipse effect.Effect
 	w, p, tick := litWorld(t, light.Config{}, func(w *world.Plugin, p *light.Plugin) {
-		w.Effects().Define("eclipse", effect.Spec{effect.Lasts(time.Hour),
+		w.Write().Effects().Define("eclipse", effect.Spec{effect.Lasts(time.Hour),
 			effect.Alter(func(s *light.Source) { s.Strength = 0.1 })})
-		eclipse = w.Effects().Named("eclipse")
+		eclipse = w.Write().Effects().Named("eclipse")
 	})
 	p.WithDistant(light.Distant{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3})
 	tick()
 	if got := p.At(10, 10, 0).Light[0]; !near(got, 0.9) {
 		t.Errorf("under the scene's sun the ground is lit %v, want 0.9", got)
 	}
-	if !w.Carrier().Put(command.Nobody, ceremony.Put(eclipse).On(p)) {
+	if !w.Write().Carrier().Put(command.Nobody, ceremony.Put(eclipse).On(p)) {
 		t.Fatal("the world carries no command for the light plugin")
 	}
 	tick()
@@ -134,7 +134,7 @@ func TestPlugin_ShinesTheScenesSunAndAnEffectOnItTurnsItsSource(t *testing.T) {
 	if got := p.Distant().Strength; !near(got, 0.06) {
 		t.Errorf("under the eclipse the sun is %v strong, want a tenth of 0.6", got)
 	}
-	w.Carrier().Put(command.Nobody, ceremony.Take(eclipse).On(p))
+	w.Write().Carrier().Put(command.Nobody, ceremony.Take(eclipse).On(p))
 	tick()
 	tick()
 	if got := p.Distant().Strength; !near(got, 0.6) {
@@ -152,7 +152,7 @@ func TestPlugin_RefusesTwoDistantLights(t *testing.T) {
 			comp.Const(light.Source{Strength: 1, Ambient: 1}),
 			comp.Const(light.Shining{Light: sky.DefaultSun}),
 		})
-		w.Seed(kind.Named[spot](w.Kinds(), "star").Entry(spot{100, 100}))
+		w.Write().Seed(kind.Named[spot](w.Kinds(), "star").Entry(spot{100, 100}))
 	})
 	p.WithDistant(sky.DefaultSun)
 	tick()
@@ -168,7 +168,7 @@ func TestPlugin_LampsLightWhatLiesInTheirReachFadingWithTheDistance(t *testing.T
 	_, p, tick := litWorld(t, light.Config{}, func(w *world.Plugin, p *light.Plugin) {
 		torch := lampKind(w, "torch", light.Source{Color: render.Light{1, 0.5, 0}, Strength: 2,
 			Reach: 100})
-		w.Seed(torch.Entry(spot{500, 500}))
+		w.Write().Seed(torch.Entry(spot{500, 500}))
 	})
 	p.WithDistant(light.Distant{Dir: [3]float32{0, 0, 1}, Ambient: 0.5})
 	tick()
@@ -209,7 +209,7 @@ func TestPlugin_BeginPicksTheLampsNearestTheCameraAndHandsTheFrameThem(t *testin
 		for i := range 10 {
 			entries = append(entries, torch.Entry(spot{float64(50 + 90*i), 500}))
 		}
-		w.Seed(entries...)
+		w.Write().Seed(entries...)
 	})
 	tick()
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
@@ -251,7 +251,7 @@ func TestPlugin_OfTakesWhatTheEntitysShadowSays(t *testing.T) {
 			comp.Const(light.Shadow{Cast: light.NoShadow, Take: render.Shines}),
 		})
 		plain = kind.Named[spot](w.Kinds(), "plain")
-		w.Seed(lantern.Entry(spot{500, 500}), plain.Entry(spot{500, 520}))
+		w.Write().Seed(lantern.Entry(spot{500, 500}), plain.Entry(spot{500, 520}))
 	}, joined)
 	p.WithDistant(light.Distant{Dir: [3]float32{0, 0, 1}, Ambient: 0.5})
 	tick()
@@ -279,8 +279,8 @@ func TestPlugin_OfTakesWhatTheEntitysShadowSays(t *testing.T) {
 
 func TestPlugin_CommandsSwitchTheShadowsCoarseAndTheLampsOff(t *testing.T) {
 	w, p, tick := litWorld(t, light.Config{LampShadows: 3}, nil)
-	w.Carrier().Put(command.Nobody, light.CoarseShadows{On: true})
-	w.Carrier().Put(command.Nobody, light.LampShadows{Count: 0})
+	w.Write().Carrier().Put(command.Nobody, light.CoarseShadows{On: true})
+	w.Write().Carrier().Put(command.Nobody, light.LampShadows{Count: 0})
 	tick()
 	if !p.ShadowsCoarse() || p.LampShadows() != 0 {
 		t.Errorf("switched: coarse %v, lamps casting %d; want coarse, none", p.ShadowsCoarse(),
@@ -290,7 +290,7 @@ func TestPlugin_CommandsSwitchTheShadowsCoarseAndTheLampsOff(t *testing.T) {
 	if lamps.Get() {
 		t.Error("the lamps' setting says on with none casting")
 	}
-	w.Carrier().Put(command.Nobody, lamps.Set(true))
+	w.Write().Carrier().Put(command.Nobody, lamps.Set(true))
 	tick()
 	if p.LampShadows() != 3 || !lamps.Get() {
 		t.Errorf("switched again, %d lamps cast, want the Config's 3", p.LampShadows())

@@ -38,7 +38,7 @@ func TestBoxes_ABaseLiesUnderItsFigureAndASolidStandsFromItsAltitudeToItsTop(t *
 		comp.Const(world.Velocity{}),
 		comp.Const(world.Z{Altitude: 4, Height: 20}),
 	})
-	w.Seed(kind.Named[struct{}](w.Kinds(), "block").Entry(struct{}{}))
+	w.Write().Seed(kind.Named[struct{}](w.Kinds(), "block").Entry(struct{}{}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}

@@ -55,7 +55,7 @@ func pushedOutWorld(t *testing.T, hooked bool) (*goke.ECS, *heards, *goke.Query,
 		}),
 	})
 	boxes := kind.Named[pushedOut](w.Kinds(), "box")
-	w.Seed(boxes.Entry(pushedOut{x: 0, wall: true}), boxes.Entry(pushedOut{x: -9}))
+	w.Write().Seed(boxes.Entry(pushedOut{x: 0, wall: true}), boxes.Entry(pushedOut{x: -9}))
 	if err := w.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)
 	}

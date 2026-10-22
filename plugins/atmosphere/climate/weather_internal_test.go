@@ -230,7 +230,7 @@ func TestWeather_TellsItsRulesEveryStep(t *testing.T) {
 	r.tick(time.Millisecond)
 	var told []uid.UID64
 	r.winter.Drain(func(i command.Issued[winterNow]) { told = append(told, i.Entity) })
-	if len(told) != 2 || told[0] != r.w.Clock().Entity() {
+	if len(told) != 2 || told[0] != r.w.Read(0).Clock().Entity() {
 		t.Errorf("the rule told %v, want the world's entity twice, of its weather in the winter", told)
 	}
 }

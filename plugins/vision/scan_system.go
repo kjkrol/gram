@@ -73,7 +73,7 @@ type ScanSystem struct {
 }
 
 type scanner struct {
-	space *aabbworld.Space
+	space *aabbworld.SpaceRead
 	view  aabbworld.View
 
 	shadows []aabbworld.Shadow
@@ -111,7 +111,7 @@ const (
 	sought
 )
 
-func NewScanSystem(space *aabbworld.Space) *ScanSystem {
+func NewScanSystem(space *aabbworld.SpaceRead) *ScanSystem {
 	return newScanSystem(space, &host.PairRules[Sighting]{})
 }
 
@@ -122,7 +122,7 @@ func (s *ScanSystem) Paced(pace goke.Opt) *ScanSystem {
 	return s
 }
 
-func newScanSystem(space *aabbworld.Space, host *host.PairRules[Sighting]) *ScanSystem {
+func newScanSystem(space *aabbworld.SpaceRead, host *host.PairRules[Sighting]) *ScanSystem {
 	s := &ScanSystem{host: host}
 	s.scanner.bind(space)
 	s.sightingOf = s.sighting
@@ -131,7 +131,7 @@ func newScanSystem(space *aabbworld.Space, host *host.PairRules[Sighting]) *Scan
 	return s
 }
 
-func (c *scanner) bind(space *aabbworld.Space) {
+func (c *scanner) bind(space *aabbworld.SpaceRead) {
 	c.space = space
 	c.tau = c.transparency
 	c.elev = c.elevation
@@ -296,7 +296,7 @@ func (s *ScanSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 	}
 	k := s.pool.Parts(due, least, s.count)
 	if k > 1 {
-		s.settle(s.jobs[0].bases[0].Pos.AABB.AABB)
+		s.space.Ready()
 		s.n, s.parts = n, k
 		b := s.pool.Begin(s.scanPart, nil)
 		b.Add(k)
@@ -376,11 +376,6 @@ func (j *job) scan(c *scanner, i int) {
 		outline = &j.outlines[i]
 	}
 	c.scan(j.ids[i], &j.sights[i], &j.seens[i], &j.bases[i], j.eyes[i], z, outline)
-}
-
-// the space's index reads the world as first asked: once here, not on every goroutine
-func (s *ScanSystem) settle(box geom.AABB) {
-	s.space.Query(box, aabbworld.AnyCapability, func(uid.UID64) {})
 }
 
 func (c *scanner) scan(id uid.UID64, s *Sight, seen *Sighted, base *world.Base, eye world.Eye, z world.Z, outline *SightOutline) {
