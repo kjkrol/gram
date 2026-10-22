@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
@@ -26,7 +27,7 @@ func TestMoveTo_SendsThePlayersOwnSelectedUnitsAlone(t *testing.T) {
 	newTarget := grid.At(8, 0)
 
 	moves := &command.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(spacing.NewFinder(grid, terrain, nil, &cell.MultipleOccupancy{}), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := routing.NewSystem(spacing.NewFinder(grid, terrain, nil, &cell.MultipleOccupancy{}), moves, &command.Queue[LookAt]{}, selTags.Selected)
 	var at goke.Comp[unit.At]
 	var pos goke.Comp[world.Base]
 	var orderComp goke.Comp[MoveOrder]

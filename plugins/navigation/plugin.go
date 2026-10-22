@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"time"
 
@@ -134,8 +135,8 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	navSys.given, navSys.touches, navSys.tick = &p.given, &p.touches, p.worldPlugin.Read(0).Tick
 	navSys.pace = p.worldPlugin.Pace(sector.Everywhere)
 
-	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected).withKeeping(keep)
-	moveCommandSystem.onwards = &p.onwards
+	moveCommandSystem := routing.NewSystem(finder, &p.moves, &p.looks, p.selected).WithKeeping(keep)
+	moveCommandSystem.Onwards = &p.onwards
 	p.handKeeping.keep, p.handKeeping.nav = keep, navSys
 	if p.collision != nil {
 		navSys.bumps = anyBump

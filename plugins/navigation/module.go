@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
@@ -10,7 +11,7 @@ import (
 
 type module struct {
 	navigationSystem  *navigationSystem
-	moveCommandSystem *moveCommandSystem
+	moveCommandSystem *routing.System
 	clock             *clock.Clock
 	step              clock.Block // bound once, so a tick allocates no method value
 

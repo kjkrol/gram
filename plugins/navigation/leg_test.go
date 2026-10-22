@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/order"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
@@ -231,7 +232,7 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	moves := &command.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(spacing.NewFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := routing.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
 
 	from := grid.At(0, 0)
 	to := grid.At(1, 0)

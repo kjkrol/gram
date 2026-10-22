@@ -1,7 +1,8 @@
-package navigation
+package routing
 
 import (
 	"github.com/kjkrol/gram/plugins/navigation/internal/bodies"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"time"
 
@@ -19,11 +20,11 @@ import (
 	"github.com/kjkrol/uid"
 )
 
-type moveCommandSystem struct {
+type System struct {
 	keep     spacing.Keeping
-	moves    *command.Queue[MoveTo]
-	looks    *command.Queue[LookAt]
-	onwards  *command.Queue[Onward]
+	moves    *command.Queue[order.MoveTo]
+	looks    *command.Queue[order.LookAt]
+	Onwards  *command.Queue[order.Onward]
 	selected tag.Tag[selection.Family]
 	kind     func(cell.ID) cell.Kind
 
@@ -34,7 +35,7 @@ type moveCommandSystem struct {
 	cell    goke.Comp[unit.At]
 	marks   goke.Comp[tag.Tags[selection.Family]]
 	owners  goke.OptComp[tag.Tags[owner.Family]]
-	order   goke.OptComp[MoveOrder]
+	order   goke.OptComp[order.MoveOrder]
 	mover   goke.OptComp[unit.Mover]
 	base    goke.OptComp[world.Base]
 	z       goke.OptComp[world.Z]
@@ -43,13 +44,13 @@ type moveCommandSystem struct {
 
 	self      *goke.Query
 	selfCell  goke.Comp[unit.At]
-	selfOrder goke.OptComp[MoveOrder]
+	selfOrder goke.OptComp[order.MoveOrder]
 	selfMover goke.OptComp[unit.Mover]
 	selfBase  goke.OptComp[world.Base]
 	selfZ     goke.OptComp[world.Z]
 	selfSteer goke.OptComp[steering.Steering]
-	selfLast  goke.OptComp[LastOrder]
-	selfRound goke.OptComp[Round]
+	selfLast  goke.OptComp[order.LastOrder]
+	selfRound goke.OptComp[order.Round]
 
 	named *goke.Query
 	label goke.Comp[ceremony.Label]
@@ -67,31 +68,31 @@ func issuedBy[C command.Command](i command.Issued[C]) issuer {
 	return issuer{player: i.Issuer, entity: i.Entity, self: i.ByEntity}
 }
 
-var _ goke.System = (*moveCommandSystem)(nil)
+var _ goke.System = (*System)(nil)
 
-func newMoveCommandSystem(pathFinder *spacing.Finder, moves *command.Queue[MoveTo], looks *command.Queue[LookAt], selected tag.Tag[selection.Family]) *moveCommandSystem {
-	return &moveCommandSystem{keep: spacing.NewCellKeeping(pathFinder, pathFinder.Occupancy), moves: moves, looks: looks, selected: selected, kind: pathFinder.Terrain.Kind}
+func NewSystem(pathFinder *spacing.Finder, moves *command.Queue[order.MoveTo], looks *command.Queue[order.LookAt], selected tag.Tag[selection.Family]) *System {
+	return &System{keep: spacing.NewCellKeeping(pathFinder, pathFinder.Occupancy), moves: moves, looks: looks, selected: selected, kind: pathFinder.Terrain.Kind}
 }
 
-func (s *moveCommandSystem) withKeeping(k spacing.Keeping) *moveCommandSystem {
+func (s *System) WithKeeping(k spacing.Keeping) *System {
 	s.keep = k
 	return s
 }
 
-func (s *moveCommandSystem) Init(si *goke.SysInit) {
+func (s *System) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.cell, &s.marks).Optional(&s.order).Optional(&s.mover).Optional(&s.base).Optional(&s.z).Optional(&s.steer).Optional(&s.owners).Build()
-	s.orderID = si.RegComp[MoveOrder]()
+	s.orderID = si.RegComp[order.MoveOrder]()
 	s.self = si.NewQueryBuilder(&s.selfCell).
 		Optional(&s.selfOrder).Optional(&s.selfMover).Optional(&s.selfBase).Optional(&s.selfZ).
 		Optional(&s.selfSteer).Optional(&s.selfLast).Optional(&s.selfRound).Build()
 	s.named = si.NewQueryBuilder(&s.label).Optional(&s.plot).Optional(&s.at).Build()
 }
 
-func (s *moveCommandSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
-	s.moves.Drain(func(i command.Issued[MoveTo]) { s.carryOut(cb, i.Command, issuedBy(i)) })
-	s.looks.Drain(func(i command.Issued[LookAt]) { s.look(cb, i.Command.At, issuedBy(i)) })
-	if s.onwards != nil {
-		s.onwards.Drain(func(i command.Issued[Onward]) {
+func (s *System) Update(cb *goke.CmdBuf, _ time.Duration) {
+	s.moves.Drain(func(i command.Issued[order.MoveTo]) { s.carryOut(cb, i.Command, issuedBy(i)) })
+	s.looks.Drain(func(i command.Issued[order.LookAt]) { s.look(cb, i.Command.At, issuedBy(i)) })
+	if s.Onwards != nil {
+		s.Onwards.Drain(func(i command.Issued[order.Onward]) {
 			if i.ByEntity {
 				s.onward(cb, i.Entity)
 			}
@@ -99,7 +100,7 @@ func (s *moveCommandSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 	}
 }
 
-func (s *moveCommandSystem) onward(cb *goke.CmdBuf, id uid.UID64) {
+func (s *System) onward(cb *goke.CmdBuf, id uid.UID64) {
 	if !s.self.Seek(id) {
 		return
 	}
@@ -109,11 +110,11 @@ func (s *moveCommandSystem) onward(cb *goke.CmdBuf, id uid.UID64) {
 	}
 	next := r.Cells[r.Next%r.Count]
 	r.Next = (r.Next + 1) % r.Count
-	s.carryOut(cb, MoveTo{Cell: next}, issuer{entity: id, self: true})
+	s.carryOut(cb, order.MoveTo{Cell: next}, issuer{entity: id, self: true})
 }
 
 // the cell of the one entity bearing a name To gives: a cell's own, or the one a unit is at
-func (s *moveCommandSystem) find(to ceremony.Whom) (cell.ID, bool) {
+func (s *System) find(to ceremony.Whom) (cell.ID, bool) {
 	var found cell.ID
 	n := 0
 	for s.named.All(); s.named.Next(); {
@@ -137,7 +138,7 @@ func (s *moveCommandSystem) find(to ceremony.Whom) (cell.ID, bool) {
 	return found, n == 1
 }
 
-func (s *moveCommandSystem) members(by issuer, fn func(bodies.Member)) {
+func (s *System) members(by issuer, fn func(bodies.Member)) {
 	if !by.self {
 		s.selectedMembers(by.player, fn)
 		return
@@ -169,7 +170,7 @@ func (s *moveCommandSystem) members(by issuer, fn func(bodies.Member)) {
 	fn(m)
 }
 
-func (s *moveCommandSystem) selectedMembers(by command.Issuer, fn func(bodies.Member)) {
+func (s *System) selectedMembers(by command.Issuer, fn func(bodies.Member)) {
 	s.query.All()
 	for s.query.Next() {
 		cursor := s.query.Cursor()
@@ -208,11 +209,11 @@ func (s *moveCommandSystem) selectedMembers(by command.Issuer, fn func(bodies.Me
 	}
 }
 
-func (s *moveCommandSystem) look(cb *goke.CmdBuf, at geom.Vec, by issuer) {
+func (s *System) look(cb *goke.CmdBuf, at geom.Vec, by issuer) {
 	s.members(by, func(m bodies.Member) { cb.AddOne(m.ID, s.orderID, s.keep.Look(m, at)) })
 }
 
-func (s *moveCommandSystem) carryOut(cb *goke.CmdBuf, cmd MoveTo, by issuer) {
+func (s *System) carryOut(cb *goke.CmdBuf, cmd order.MoveTo, by issuer) {
 	if !cmd.To.Nobody() {
 		c, ok := s.find(cmd.To)
 		if !ok {
@@ -228,14 +229,14 @@ func (s *moveCommandSystem) carryOut(cb *goke.CmdBuf, cmd MoveTo, by issuer) {
 		}
 	})
 	group := s.nextGroup()
-	s.keep.Orders(members, cmd, func(m bodies.Member, o MoveOrder) {
+	s.keep.Orders(members, cmd, func(m bodies.Member, o order.MoveOrder) {
 		o.Group = group
 		cb.AddOne(m.ID, s.orderID, o)
 	})
 }
 
 // one past the highest group in the orders and LastOrders at the first: a loaded game's too
-func (s *moveCommandSystem) nextGroup() uint32 {
+func (s *System) nextGroup() uint32 {
 	if !s.grouped {
 		for s.self.All(); s.self.Next(); {
 			cursor := s.self.Cursor()

@@ -1,6 +1,7 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
 	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
@@ -37,7 +38,7 @@ func TestCommandSystem_Update_SpreadsGroupOverDistinctFreeCells(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(10, 10, legCellSize)
 	occupancy := &cell.SingleOccupancy{}
 	moves := &command.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(spacing.NewFinder(grid, openTerrain(), nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := routing.NewSystem(spacing.NewFinder(grid, openTerrain(), nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
 	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	target := at(5, 5)
 	starts := []cell.ID{at(5, 0), at(5, 4), at(5, 2)}
