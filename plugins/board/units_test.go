@@ -34,7 +34,7 @@ func unitsWorld(t *testing.T, define func(units *board.Units[recruit]) kind.Of[r
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m)
 	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).WithMotion(m).WithCollision(c)
-	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land | cell.Water})
+	brd.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land | cell.Water})
 	units := board.NewUnits[recruit](brd, board.Shape{Size: 20}, func(r recruit) geom.Vec { return grid.CellCenter(r.start) })
 	k := define(units)
 

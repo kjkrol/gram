@@ -14,7 +14,7 @@ type grass struct{}
 var _ board.Tile = grass{}
 
 func (grass) Define(b *board.Plugin) {
-	b.CellKinds().Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
+	b.Read(0).CellKinds().Define(GrassCell, cell.Kind{Cost: 2, Allows: cell.Land})
 }
 
 func (grass) Look(a *board.Atlas, _ *board.Plugin) {
@@ -43,7 +43,7 @@ type water struct{}
 var _ board.Tile = water{}
 
 func (water) Define(b *board.Plugin) {
-	b.CellKinds().Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water})
+	b.Read(0).CellKinds().Define(WaterCell, cell.Kind{Cost: 1, Allows: cell.Water})
 }
 
 func (water) Look(a *board.Atlas, _ *board.Plugin) { a.Add(WaterCell, shimmerMaterial) }
@@ -53,7 +53,7 @@ type road struct{}
 var _ board.Tile = road{}
 
 func (road) Define(b *board.Plugin) {
-	b.CellKinds().Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Read(0).CellKinds().Define(RoadCell, cell.Kind{Cost: 1, Allows: cell.Land})
 }
 
 func (road) Look(a *board.Atlas, _ *board.Plugin) {
@@ -81,7 +81,7 @@ type wood struct{}
 var _ board.Tile = wood{}
 
 func (wood) Define(b *board.Plugin) {
-	b.CellKinds().Define(WoodCell, cell.Kind{Cost: 4, Allows: cell.Land, Veil: 0.6})
+	b.Read(0).CellKinds().Define(WoodCell, cell.Kind{Cost: 4, Allows: cell.Land, Veil: 0.6})
 }
 
 func (wood) Look(a *board.Atlas, _ *board.Plugin) {

@@ -16,22 +16,23 @@ func TestMiniature_IsTheBoardFlatFromAbove(t *testing.T) {
 		t.Skipf("no GPU: %v", err)
 	}
 	bw, wall := boardtest.SquareWorld(t)
-	if img, _ := bw.Board.Miniature(); img != nil {
+	if img, _ := bw.Board.Write().Miniature(); img != nil {
 		t.Error("a miniature before the board's atlas is closed")
 	}
 	green := color.RGBA{G: 200, A: 255}
 	grey := color.RGBA{R: 90, G: 90, B: 90, A: 255}
-	kinds := bw.Board.CellKinds()
+	kinds := bw.Board.Read(0).CellKinds()
 	kinds.Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
 	kinds.Define("wall", boardtest.Wall)
-	brd := bw.Board.Board()
-	brd.SetAll(kinds.Named("grass").Kind())
-	brd.Set(wall, kinds.Named("wall").Kind())
+	brd := bw.Board.Read(0).Board()
+	brdW := bw.Board.Write().Board()
+	brdW.SetAll(kinds.Named("grass").Kind())
+	brdW.Set(wall, kinds.Named("wall").Kind())
 	a := bw.Board.NewAtlas(boardtest.CellSize)
 	a.Add("grass", render.Solid(green))
 	a.Add("wall", render.Solid(grey))
 	a.Close()
-	img, perUnit := bw.Board.Miniature()
+	img, perUnit := bw.Board.Write().Miniature()
 	if img == nil || perUnit != 1 {
 		t.Fatalf("the miniature is %v at %v a unit, want one at 1", img, perUnit)
 	}

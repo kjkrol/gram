@@ -34,7 +34,7 @@ func TestGround_OutlinesThePrismsInTheBoardsGridLine(t *testing.T) {
 		t.Errorf("cells a pixel across outlined %v pixels wide, want none", width)
 	}
 	cam = cameratest.NewFromSpace(256, 256, 0)
-	b.ShowGrid(false)
+	b.Write().ShowGrid(false)
 	if _, width := h.gridOf(cam); width != 0 {
 		t.Errorf("the board's grid hidden, the prisms outlined %v pixels wide, want none", width)
 	}

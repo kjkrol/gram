@@ -40,8 +40,8 @@ func (s sampled) Step() float64         { return s.step }
 
 func TestPathRenderer_LaysTheRouteOnTheGroundInPiecesAtTheirDepth(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	land := sampled{step: 32, at: ground.MeanOfCells(grid, func(c cell.ID) float64 { // a ridge down the right half
 		if x, _, _ := grid.Coords(c); x >= 2 {
 			return 10

@@ -21,9 +21,9 @@ func TestBoardSurface_DrawsTheGridInTheBoardsLine(t *testing.T) {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, w)
-	b.CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
-	grass, _ := b.CellKinds().Get("grass")
-	b.Board().SetAll(grass)
+	b.Read(0).CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
+	grass, _ := b.Read(0).CellKinds().Get("grass")
+	b.Write().Board().SetAll(grass)
 	p := NewPlugin(w, b, nil, Config{})
 	a := b.NewAtlas(32)
 	a.Add("grass", render.Solid(color.RGBA{G: 160, A: 255}))
@@ -36,7 +36,7 @@ func TestBoardSurface_DrawsTheGridInTheBoardsLine(t *testing.T) {
 		t.Errorf("the ground's grid from %v pixels a cell in %v, %v wide; want from %v in the "+
 			"board's red, 3", out.Grid, out.GridLine, out.GridWidth, look.MinGridCell)
 	}
-	b.ShowGrid(false)
+	b.Write().ShowGrid(false)
 	if out := (boardSurface{p}).Surface(); out.Grid != 0 || out.GridWidth != 0 {
 		t.Errorf("the board's grid hidden, the ground's is from %v pixels a cell, %v wide; want "+
 			"none", out.Grid, out.GridWidth)
@@ -53,9 +53,9 @@ func TestMiniature_IsTheBoardPaintedWhereTheGroundIs(t *testing.T) {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, w)
-	b.CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
-	grass, _ := b.CellKinds().Get("grass")
-	b.Board().SetAll(grass)
+	b.Read(0).CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
+	grass, _ := b.Read(0).CellKinds().Get("grass")
+	b.Write().Board().SetAll(grass)
 	p := NewPlugin(w, b, nil, Config{})
 	if img, _ := p.Miniature(); img != nil {
 		t.Error("a miniature before the board's atlas is closed")

@@ -22,7 +22,7 @@ var (
 )
 
 func (witch) Rules(b *board.Plugin) {
-	roles, fx := b.World().Roles(), b.World().Effects()
+	roles, fx := b.Read(0).World().Roles(), b.Read(0).World().Effects()
 	roles.Define(WitchRole, act.Branch[unit.Standing]{
 		Name: "freeze",
 		When: cond.Self.If(cond.Always),
@@ -37,7 +37,7 @@ func (witch) Rules(b *board.Plugin) {
 }
 
 func (witch) Define(b *board.Plugin) {
-	roles := b.World().Roles()
+	roles := b.Read(0).World().Roles()
 	units(b).Define(WitchKind,
 		unit.Mover{Domain: cell.Land | cell.Water | Frost},
 		profile(unitSpeed*4),

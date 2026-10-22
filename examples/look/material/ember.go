@@ -45,7 +45,7 @@ var (
 )
 
 func (ember) Effects(b *board.Plugin) {
-	b.World().Effects().Define(DousedEf, effect.Spec{
+	b.Read(0).World().Effects().Define(DousedEf, effect.Spec{
 		effect.Described("Doused: the flame put out — soot until it rekindles."),
 		effect.Lasts(3 * time.Second),
 	})
@@ -53,7 +53,7 @@ func (ember) Effects(b *board.Plugin) {
 
 func (ember) Define(b *board.Plugin) {
 	units := board.NewUnits[unitRow](b, board.Shape{Size: emberPx},
-		func(u unitRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+		func(u unitRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
 	profile := steering.Steering{
 		MaxSpeed: emberSpeed,
 		Accel:    emberSpeed * 2,

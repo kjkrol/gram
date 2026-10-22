@@ -68,17 +68,17 @@ func TestHolds_ShowsAndHidesTheCellsHeld(t *testing.T) {
 
 func TestShowGrid_HoldsThroughTheAtlasClosing(t *testing.T) {
 	bw, _ := boardtest.SquareWorld(t)
-	if !bw.Board.GridShown() {
+	if !bw.Board.Read(0).GridShown() {
 		t.Error("the grid starts hidden, want shown")
 	}
-	bw.Board.ShowGrid(false)
+	bw.Board.Write().ShowGrid(false)
 	a := bw.Board.NewAtlas(boardtest.CellSize)
 	a.Grid(board.Line{Color: color.RGBA{R: 255, A: 255}, Width: 2})
 	a.Close()
-	if bw.Board.GridShown() || bw.Board.Res.Render.ShowGridLines {
+	if bw.Board.Read(0).GridShown() || bw.Board.Res.Render.ShowGridLines {
 		t.Error("the grid hidden before the atlas closed is drawn after it")
 	}
-	bw.Board.ShowGrid(true)
+	bw.Board.Write().ShowGrid(true)
 	if _, width, shown := bw.Board.Res.Render.Grid(); !shown || width != 2 {
 		t.Errorf("ShowGrid(true) after the atlas closed draws the grid %v, %v pixels wide; want "+
 			"it in the atlas's line, 2", shown, width)

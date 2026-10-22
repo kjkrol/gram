@@ -35,7 +35,7 @@ type navUnit struct {
 
 type navWorld struct {
 	grid      grid.Grid
-	board     *board.Board
+	board     testBoard
 	occupancy *cell.SingleOccupancy
 	nav       *Plugin
 	ecs       *goke.ECS
@@ -44,6 +44,16 @@ type navWorld struct {
 }
 
 // after are set up last, to build what a test reads
+
+// testBoard is a board as the tests lay and read it at once
+type testBoard struct {
+	*board.BoardRead
+	*board.BoardWrite
+}
+
+// the board of p as the tests lay and read it
+func boardOf(p *board.Plugin) testBoard { return testBoard{p.Read(0).Board(), p.Write().Board()} }
+
 func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, after ...goke.System) *navWorld {
 	t.Helper()
 	return newNavWorldWith(t, cols, rows, cellSize, units, nil, after...)
@@ -70,7 +80,7 @@ func newNavWorldIn(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 	})
 	m := motion.NewPlugin(w)
 	brd := board.NewPlugin(nw.grid, nw.occupancy, w).WithMotion(m)
-	nw.board = brd.Board()
+	nw.board = testBoard{brd.Read(0).Board(), brd.Write().Board()}
 	nw.board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(w)
 	nw.nav = NewPlugin(brd, w, m, sel, driving.NewPlugin(w, m, sel)).WithSpacing(CellSpacing)

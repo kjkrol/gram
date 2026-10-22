@@ -15,6 +15,12 @@ import (
 
 var hill = cell.Kind{Name: cell.Named("hill"), Cost: 1, Allows: cell.Land | cell.Air}
 
+// a relief over a board of g, counting its changes on the board
+func onBoard(g grid.Grid) *Relief {
+	brd, write := board.NewBoard(g)
+	return New(brd, write.Touch)
+}
+
 func raiseHills(r *Relief, grid grid.Grid, hills ...cell.ID) {
 	r.SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		for _, h := range hills {
@@ -32,8 +38,8 @@ func TestRelief_GroundAtReadsTheReliefAndFollowsIt(t *testing.T) {
 		"hex":    grid.DefaultGrids{}.Hex(4, 4, 16),
 	} {
 		t.Run(name, func(t *testing.T) {
-			brd := board.NewBoard(grid)
-			r := New(brd)
+			brd, write := board.NewBoard(grid)
+			r := New(brd, write.Touch)
 			c := grid.At(2, 1)
 			raiseHills(r, grid, c)
 
@@ -72,7 +78,7 @@ func TestRelief_GroundAtReadsTheReliefAndFollowsIt(t *testing.T) {
 
 func TestRelief_GroundSlopesBetweenCellsOnASquareGrid(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(6, 6, 32)
-	r := New(board.NewBoard(grid))
+	r := onBoard(grid)
 	var hills []cell.ID
 	for y := uint32(2); y <= 4; y++ {
 		for x := uint32(2); x <= 4; x++ {
@@ -108,7 +114,7 @@ func TestRelief_GroundSlopesBetweenCellsOnASquareGrid(t *testing.T) {
 func TestRelief_FoldsWhereTheBoardWraps(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	grid.(interface{ SetWrap(x, y bool) }).SetWrap(true, false)
-	r := New(board.NewBoard(grid))
+	r := onBoard(grid)
 	west := grid.At(0, 1)
 	east := grid.At(3, 1)
 	r.SetCorners(west, Corners{5, 0, 5, 0})
@@ -138,7 +144,7 @@ func TestHeights_ARunGoesThroughASave(t *testing.T) {
 
 func TestRelief_CutsItsHeightsIntoRunsAndTakesThemBack(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(40, 40, 32)
-	r := New(board.NewBoard(grid))
+	r := onBoard(grid)
 	c := grid.At(39, 39)
 	r.SetCorners(c, Corners{1, 2, 3, 4})
 	runs := make([]Heights, r.Runs())
@@ -149,7 +155,7 @@ func TestRelief_CutsItsHeightsIntoRunsAndTakesThemBack(t *testing.T) {
 	if len(runs) != 2 || runs[0].Count != HeightsRun || runs[1].Count != 41*41-HeightsRun {
 		t.Fatalf("%d runs of %d and %d, want two: 1024 and the other %d of 1681 corners", len(runs), runs[0].Count, runs[1].Count, 41*41-HeightsRun)
 	}
-	back := New(board.NewBoard(grid))
+	back := onBoard(grid)
 	if back.adopt(runs[:1]) {
 		t.Error("the ground took back one run of two")
 	}
@@ -163,7 +169,7 @@ func TestRelief_CutsItsHeightsIntoRunsAndTakesThemBack(t *testing.T) {
 
 func TestRelief_TheGroundIsTheGroundDrawn(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(2, 2, 32)
-	r := New(board.NewBoard(grid))
+	r := onBoard(grid)
 	c := grid.At(0, 0)
 	// corners 0, 20, 24 and 2: the 0 and the 2 stand nearer, so the top is split along 0–3
 	r.SetCorners(c, Corners{0, 20, 24, 2})

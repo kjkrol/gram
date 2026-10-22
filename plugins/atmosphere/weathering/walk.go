@@ -78,9 +78,9 @@ func (s *system) Update(cb *goke.CmdBuf, d time.Duration) {
 // as many of the board's cells as d's share of a second of game time: their rules of an
 // Overhead heard, and noted on the land, which turns them in once all are walked
 func (s *system) walk(d time.Duration) {
-	brd := s.w.board.Board()
+	brd := s.w.board.Read(0).Board()
 	n := int(math.Ceil(float64(brd.CellCount()) * d.Seconds()))
-	heights := s.w.board.Heights()
+	heights := s.w.board.Read(0).Heights()
 	rules := !s.w.overheads.Empty()
 	s.air = s.w.air()
 	if rules {
@@ -127,7 +127,7 @@ func (s *system) walk(d time.Duration) {
 // the moment of the i-th cell of the block walked now
 func (s *system) overhead(i int) Overhead {
 	c := s.plots[i].Cell
-	p := s.w.board.Board().CellCenter(c)
+	p := s.w.board.Read(0).Board().CellCenter(c)
 	m := s.air.At(float32(p.X), float32(p.Y))
 	o := Overhead{ID: s.ids[i], Cell: c, Air: m, Low: s.air.Share(m, air.Low).Cover, Hour: s.hour}
 	if k := s.at + i - s.from; s.bases[k] > 0 {

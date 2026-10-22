@@ -154,7 +154,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		WithMotion(a.motion).
 		WithCollision(a.collision).
 		WithLog(log.Default())
-	a.gravity = gravity.NewPlugin(a.world, a.motion, gravity.Config{}).WithSurfaces(a.board.Footing)
+	a.gravity = gravity.NewPlugin(a.world, a.motion, gravity.Config{}).WithSurfaces(a.board.Read(0).Footing)
 	a.topography = topography.NewPlugin(a.world, a.board, a.light, topography.Config{
 		Shaping: topography.Shaping{
 			Step:    scale.Units(40),

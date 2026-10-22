@@ -51,7 +51,7 @@ func (s scout) Look(a *world.Atlas, w *world.Plugin) {
 
 func units(b *board.Plugin) *board.Units[unitRow] {
 	return board.NewUnits[unitRow](b, board.Shape{Size: scoutPx, Height: 2},
-		func(u unitRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+		func(u unitRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
 }
 
 func ordered() comp.Comp {

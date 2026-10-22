@@ -33,11 +33,11 @@ func Benchmark_Views_Copy(b *testing.B) {
 		}
 		plain := cell.Kind{Cost: 1, Allows: cell.Land}
 		forest := cell.Kind{Cost: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land}
-		brd.Board().SetAll(plain)
+		brd.Write().Board().SetAll(plain)
 		for x := range uint32(cols) {
-			brd.Board().Set(g.At(x, 40), forest)
+			brd.Write().Board().Set(g.At(x, 40), forest)
 		}
-		cover := brd.Cover()
+		cover := brd.Read(0).Cover()
 		far := g.At(10, 10)
 		for _, changed := range []bool{false, true} {
 			name := sc.name + ",warm"
@@ -51,9 +51,9 @@ func Benchmark_Views_Copy(b *testing.B) {
 				for i := 0; b.Loop(); i++ {
 					if changed {
 						if i%2 == 0 {
-							brd.Board().Set(far, forest)
+							brd.Write().Board().Set(far, forest)
 						} else {
-							brd.Board().Set(far, plain)
+							brd.Write().Board().Set(far, plain)
 						}
 					}
 					v.copy(heights, cover, cols*size, rows*size, size, [2]bool{})

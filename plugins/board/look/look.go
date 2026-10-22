@@ -81,6 +81,7 @@ type Tile struct {
 
 	r     *Renderer
 	dress Dressing
+	board Board // what the tile's goroutine reads the board through
 }
 
 // Sprite is the sprite of the cell's kind.
@@ -96,7 +97,7 @@ func (t *Tile) Base() render.SpriteID {
 }
 
 // Kind is the cell's kind as whoever crosses it meets it.
-func (t *Tile) Kind() cell.Kind { return t.r.board.Kind(t.ID) }
+func (t *Tile) Kind() cell.Kind { return t.board.Kind(t.ID) }
 
 // Light is the light on the tile's top at its corners: the Dressing's, even without one, under
 // the sun as the renderer's Lighting has it.

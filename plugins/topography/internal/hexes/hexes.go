@@ -58,7 +58,7 @@ var _ render.Direct = (*Ground)(nil)
 type Ground struct {
 	world  *world.Plugin
 	board  *board.Plugin
-	m      board.Map
+	m      board.MapRead
 	relief *relief.Relief
 	sky    Sky
 	grid   grid.Grid
@@ -81,8 +81,8 @@ type Ground struct {
 
 // New is the ground of b's hex board in the relief r over w, the cells standing as m says,
 // under sky.
-func New(w *world.Plugin, b *board.Plugin, m board.Map, r *relief.Relief, sky Sky) *Ground {
-	brd := b.Board()
+func New(w *world.Plugin, b *board.Plugin, m board.MapRead, r *relief.Relief, sky Sky) *Ground {
+	brd := b.Read(0).Board()
 	h := &Ground{world: w, board: b, m: m, relief: r, sky: sky, grid: brd.Grid, size: float32(brd.CellSpan()),
 		own: map[string]any{}, uv: map[string]any{}, pixel: []float32{0}}
 	h.opts = render.DrawMeshOptions{WriteDepth: true, Vertices: prismVertices, Uniforms: map[string]any{}}
@@ -196,11 +196,11 @@ func (h *Ground) Miniature() (*render.Image, float32) {
 
 // false while the board has no atlas to draw from
 func (h *Ground) refresh() bool {
-	atlas := h.board.Atlas()
+	atlas := h.board.Read(0).Atlas()
 	if atlas == nil {
 		return false
 	}
-	brd := h.board.Board()
+	brd := h.board.Read(0).Board()
 	at := [2]uint64{brd.Changes() + 1, h.relief.Version() + 1}
 	if h.still != nil && at == h.at {
 		return true
@@ -228,7 +228,7 @@ func (h *Ground) lay() {
 		centre := h.grid.CellCenter(c)
 		top, _ := h.m.Top(c)
 		h.cells = append(h.cells, float32(centre.X), float32(centre.Y), top[0],
-			float32(takesOf(h.board.Board().Kind(c).Takes)))
+			float32(takesOf(h.board.Read(0).Board().Kind(c).Takes)))
 		for _, i := range across {
 			n, ok := h.grid.Toward(c, i)
 			lowest := float32(min(low, 0))
@@ -294,7 +294,7 @@ func (h *Ground) set(name string, v ...float32) {
 	h.opts.Uniforms[name] = u
 }
 
-type fromAbove struct{ board.Map }
+type fromAbove struct{ board.MapRead }
 
 func (m fromAbove) Look() look.Look { return look.FlatLook() }
 

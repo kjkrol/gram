@@ -17,7 +17,7 @@ func bandWorld(t *testing.T, height float64, level func(cell.ID) float64) (*Fiel
 	t.Helper()
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
-	f := New(grid, cells, level)
+	f := newField(grid, cells, level)
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	cellAt := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 	wall := cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true, Height: height}
@@ -80,7 +80,7 @@ func TestBand_ASolidCellStandsFromBelowUpToItsHeight(t *testing.T) {
 func TestBand_ASideIsOpenTowardsANeighbourUnderTheEntity(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
-	f := New(grid, cells, func(cell.ID) float64 { return 0 })
+	f := newField(grid, cells, func(cell.ID) float64 { return 0 })
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	cellAt := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 	cells.Set(cellAt(3), cell.Kind{Name: cell.Named("low"), Cost: 1, Solid: true, Height: 10})
@@ -102,7 +102,7 @@ func TestBand_ASideIsOpenTowardsANeighbourUnderTheEntity(t *testing.T) {
 func TestBand_AFlatWorldHasEveryCellEverywhere(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
-	f := New(grid, cells, func(cell.ID) float64 { return 0 })
+	f := newField(grid, cells, func(cell.ID) float64 { return 0 })
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	cellAt := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
 	cells.Set(cellAt(3), cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true})

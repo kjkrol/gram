@@ -126,14 +126,14 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		},
 	).WithWeathering(a.board, a.defineClimate())
 	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
-	a.minimap = minimap.NewPlugin(a.world, a.board, minimap.Config{Reach: 40 * CellSize})
+	a.minimap = minimap.NewPlugin(a.world, a.board.Write(), minimap.Config{Reach: 40 * CellSize})
 	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter(), a.light.Reporter())
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection,
 		a.nav, a.driving,
 		a.atmosphere, a.vision, a.bridges, a.minimap, a.light)
 	a.atmosphere.ShowClouds(atmosphere.AllBodies)
 	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})
-	a.board.ShowGrid(false)
+	a.board.Write().ShowGrid(false)
 }
 
 func (a *arena) definePlayer() error {

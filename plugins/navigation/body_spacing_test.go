@@ -57,12 +57,12 @@ type fieldWorld struct {
 
 const fieldCell = 32
 
-func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b *board.Board, at func(x, y uint32) cell.ID), units []fieldUnit) *fieldWorld {
+func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b testBoard, at func(x, y uint32) cell.ID), units []fieldUnit) *fieldWorld {
 	t.Helper()
 	return newFieldWorldWith(t, cols, rows, spacing, lay, units, nil)
 }
 
-func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b *board.Board, at func(x, y uint32) cell.ID), units []fieldUnit, configure func(*Plugin)) *fieldWorld {
+func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b testBoard, at func(x, y uint32) cell.ID), units []fieldUnit, configure func(*Plugin)) *fieldWorld {
 	t.Helper()
 	fw := &fieldWorld{t: t, grid: grid.DefaultGrids{}.Square(cols, rows, fieldCell)}
 	largest := uint32(1)
@@ -77,9 +77,9 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m)
 	brd := board.NewPlugin(fw.grid, &cell.SingleOccupancy{}, w).WithMotion(m).WithCollision(c)
-	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	if lay != nil {
-		lay(brd.Board(), fw.at)
+		lay(boardOf(brd), fw.at)
 	}
 	sel := selection.NewPlugin(w)
 	drv := driving.NewPlugin(w, m, sel).WithGround(brd)
@@ -398,7 +398,7 @@ func TestBodySpacing_CrowdsStandRoundThePointWithoutPushing(t *testing.T) {
 
 func TestBodySpacing_OneStandingInTheWayIsGoneRoundAndWithNoWayRoundTheUnitStands(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(9, 3, fieldCell)}
-	road := func(b *board.Board, at func(x, y uint32) cell.ID) {
+	road := func(b testBoard, at func(x, y uint32) cell.ID) {
 		for x := uint32(0); x < 9; x++ {
 			b.Set(at(x, 0), cell.Kind{Cost: 3, Allows: cell.Land})
 			b.Set(at(x, 2), cell.Kind{Cost: 1, Allows: cell.Water})
@@ -537,7 +537,7 @@ func TestBodySpacing_ByHandAUnitStopsShortOfAnother(t *testing.T) {
 }
 
 func TestBodySpacing_StrikingSomeoneByTheShoreItStepsRoundByLand(t *testing.T) {
-	shore := func(b *board.Board, at func(x, y uint32) cell.ID) {
+	shore := func(b testBoard, at func(x, y uint32) cell.ID) {
 		for x := uint32(0); x < 10; x++ {
 			b.Set(at(x, 0), cell.Kind{Cost: 1, Allows: cell.Water})
 		}

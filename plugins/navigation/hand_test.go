@@ -33,7 +33,7 @@ func TestHand_EndsTheOrderOfTheUnitItIsOn(t *testing.T) {
 	if o != nil {
 		t.Fatalf("the unit keeps its order %+v under a hand, want it given up", o)
 	}
-	occupancy := rw.nav.boardPlugin.Occupancy()
+	occupancy := rw.nav.boardPlugin.Write().Occupancy()
 	stranger := uid.UID64(1 << 20)
 	if ahead != now && !occupancy.CanEnter(ahead, false, stranger, cell.Land) {
 		t.Error("the cell the order's step was heading into is still held")

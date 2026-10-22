@@ -27,7 +27,7 @@ type Plugin struct {
 	renderer    *Renderer
 	groundStep  float64
 	heights     func() ground.Heights
-	cover       func() ground.Cover
+	covers      func(w int) ground.Cover // worker w's
 	workers     int
 	frequency   float64
 	log         *log.Logger
@@ -64,7 +64,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	if p.worldPlugin.HasHeights() {
 		h = &heights{groundOf: p.groundOf, step: p.groundStep, bend: p.worldPlugin.Scale().Bend()}
 	}
-	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.coverOf, p.workers)
+	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.coverOn, p.workers)
 	p.module.sys.Pool(ctx.Pool())
 	p.module.sys.Paced(p.worldPlugin.Pace(sector.Near))
 	p.module.sys.Every(p.frequency)
@@ -132,7 +132,8 @@ func (p *Plugin) WithShadow(shadow Shadow) *Plugin {
 
 // WithBoard has sight follow brd's ground and be held back by its cover; call before Use.
 func (p *Plugin) WithBoard(brd *board.Plugin) *Plugin {
-	return p.WithHeights(brd.Heights).WithCover(brd.Cover)
+	p.covers = func(w int) ground.Cover { return brd.Read(w).Cover() }
+	return p.WithHeights(brd.Read(0).Heights)
 }
 
 // WithHeights has sight follow the ground heights gives when a scan starts; nil, flat.
@@ -141,9 +142,13 @@ func (p *Plugin) WithHeights(heights func() ground.Heights) *Plugin {
 	return p
 }
 
-// WithCover has sight held back by the cover cover gives when a scan starts; nil, nothing.
+// WithCover has sight held back by the cover cover gives when a scan starts, on every goroutine
+// the scan is shared among; nil, nothing.
 func (p *Plugin) WithCover(cover func() ground.Cover) *Plugin {
-	p.cover = cover
+	p.covers = nil
+	if cover != nil {
+		p.covers = func(int) ground.Cover { return cover() }
+	}
 	return p
 }
 
@@ -154,11 +159,14 @@ func (p *Plugin) groundOf() ground.Heights {
 	return p.heights()
 }
 
-func (p *Plugin) coverOf() ground.Cover {
-	if p.cover == nil {
+func (p *Plugin) coverOf() ground.Cover { return p.coverOn(0) }
+
+// the cover worker w of the game's pool reads
+func (p *Plugin) coverOn(w int) ground.Cover {
+	if p.covers == nil {
 		return nil
 	}
-	return p.cover()
+	return p.covers(w)
 }
 
 // WithGroundStep sets how far apart a scan with heights samples a ground without a

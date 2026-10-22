@@ -39,8 +39,8 @@ func newStrip(t *testing.T, ground cell.Kind, spec effect.Spec, extra ...comp.Co
 	g := grid.DefaultGrids{}.Square(5, 1, boardtest.CellSize)
 	s := &strip{middle: g.At(2, 0)}
 	prepare := func(w *world.Plugin, brd *board.Plugin) []act.Rule {
-		brd.Board().SetAll(grass)
-		brd.Board().Set(s.middle, ground)
+		brd.Write().Board().SetAll(grass)
+		brd.Write().Board().Set(s.middle, ground)
 		w.Effects().Define("open", spec)
 		s.open = w.Effects().Named("open")
 		things := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize}, itself)
@@ -65,7 +65,7 @@ func (s *strip) cast(t *testing.T) {
 func TestFloor_CarriesItsDomainsOverThePitUntilOpened(t *testing.T) {
 	opens := effect.Spec{effect.Alter(func(f *cell.Floor) { f.Allows = 0 })}
 	s := newStrip(t, pit, opens, comp.Const(cell.Floor{Allows: cell.Land}))
-	brd := s.Board.Board()
+	brd := s.Board.Read(0).Board()
 	if k := brd.Kind(s.middle); !k.Admits(cell.Land) || !k.Admits(cell.Air) {
 		t.Fatalf("a shut trapdoor over a pit admits %v, want Land and Air", k.Allows)
 	}
@@ -88,7 +88,7 @@ func TestFloor_CarriesItsDomainsOverThePitUntilOpened(t *testing.T) {
 func TestWall_KeepsItsDomainsOffTheCell(t *testing.T) {
 	opens := effect.Spec{effect.Alter(func(w *cell.Wall) { w.Keeps = 0 })}
 	s := newStrip(t, grass, opens, comp.Const(cell.Wall{Keeps: cell.Land}))
-	brd := s.Board.Board()
+	brd := s.Board.Read(0).Board()
 	if k := brd.Kind(s.middle); k.Admits(cell.Land) || !k.Admits(cell.Air) || !k.Solid {
 		t.Fatalf("a shut gate: Allows %v Solid %v, want Air alone, solid", k.Allows, k.Solid)
 	}
@@ -112,8 +112,8 @@ func TestAround_VisitsTheEntitiesStandingOnTheCellsNotTheUnits(t *testing.T) {
 	doors, decoys := g.At(4, 0), g.At(3, 0)
 	var open effect.Effect
 	prepare := func(w *world.Plugin, brd *board.Plugin) []act.Rule {
-		brd.Board().SetAll(grass)
-		brd.Seed(board.Layout{Cells: []cell.Entry{
+		brd.Write().Board().SetAll(grass)
+		brd.Write().Seed(board.Layout{Cells: []cell.Entry{
 			{Cell: doors, Group: "doors"},
 			{Cell: decoys, Group: "decoys"},
 		}})
@@ -151,7 +151,7 @@ func TestAround_VisitsTheEntitiesStandingOnTheCellsNotTheUnits(t *testing.T) {
 	for range 4 {
 		bw.Tick()
 	}
-	brd := bw.Board.Board()
+	brd := bw.Board.Read(0).Board()
 	if !brd.States(doors).Has(open.Mark()) {
 		t.Error("the walker beside the lever did not pull it: the doors are shut")
 	}
@@ -164,7 +164,7 @@ func TestFloor_CostsWhatItSaysAndSparesTheSlope(t *testing.T) {
 	river := cell.Kind{Name: cell.Named("river"), Cost: 1, Allows: cell.Water}
 	ford := newStrip(t, river, effect.Spec{},
 		comp.Const(cell.Floor{Allows: cell.Land, Cost: 6.25}))
-	k := ford.Board.Board().Kind(ford.middle)
+	k := ford.Board.Read(0).Board().Kind(ford.middle)
 	if !k.Admits(cell.Land) || k.CostFor(cell.Land) != 6.25 || k.CostFor(cell.Water) != 1 {
 		t.Errorf("a ford: Land at %v, Water at %v, want 6.25 and the river's 1",
 			k.CostFor(cell.Land), k.CostFor(cell.Water))
@@ -174,7 +174,7 @@ func TestFloor_CostsWhatItSaysAndSparesTheSlope(t *testing.T) {
 	}
 	bridge := newStrip(t, river, effect.Spec{},
 		comp.Const(cell.Floor{Allows: cell.Land, Cost: 1, Graded: true}))
-	if k := bridge.Board.Board().Kind(bridge.middle); !k.Graded || k.CostFor(cell.Land) != 1 {
+	if k := bridge.Board.Read(0).Board().Kind(bridge.middle); !k.Graded || k.CostFor(cell.Land) != 1 {
 		t.Errorf("a bridge: graded %v at %v, want graded at 1", k.Graded, k.CostFor(cell.Land))
 	}
 }
@@ -202,11 +202,11 @@ func TestBare_LeavesABridgeOutAndATrapdoorIn(t *testing.T) {
 	river := cell.Kind{Name: cell.Named("river"), Cost: 1, Allows: cell.Water}
 	bridge := newStrip(t, river, effect.Spec{},
 		comp.Const(cell.Floor{Allows: cell.Land, Cost: 1, Graded: true}))
-	if bridge.Board.Board().Bare(bridge.middle).Admits(cell.Land) {
+	if bridge.Board.Read(0).Board().Bare(bridge.middle).Admits(cell.Land) {
 		t.Error("the ground beside a bridge takes a walker")
 	}
 	trapdoor := newStrip(t, pit, effect.Spec{}, comp.Const(cell.Floor{Allows: cell.Land}))
-	if !trapdoor.Board.Board().Bare(trapdoor.middle).Admits(cell.Land) {
+	if !trapdoor.Board.Read(0).Board().Bare(trapdoor.middle).Admits(cell.Land) {
 		t.Error("a shut trapdoor is no ground to cut across")
 	}
 }
@@ -217,7 +217,7 @@ func TestRail_AnEffectTakesTheRailingsDown(t *testing.T) {
 	s := newStrip(t, grass, opens,
 		comp.Const(cell.Floor{Allows: cell.Land, Links: 1<<2 | 1<<3, Width: 4}),
 		comp.Const(cell.Rail{Keeps: cell.Land}))
-	brd := s.Board.Board()
+	brd := s.Board.Read(0).Board()
 	if b := brd.Built(s.middle); b.Rail.Keeps != cell.Land {
 		t.Fatalf("built: %+v, want a Rail keeping Land", b)
 	}

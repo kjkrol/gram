@@ -1,182 +1,234 @@
 package board
 
 import (
+	"math"
+
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/internal/field"
-	"github.com/kjkrol/gram/plugins/board/internal/grids"
 	"github.com/kjkrol/gram/plugins/board/internal/terrain"
 	"github.com/kjkrol/uid"
 )
 
-// Board is a Grid and its terrain, the one place to read and write it. Not safe for concurrent
-// use.
-type Board struct {
+// board is a Grid and its terrain, written through its BoardWrite on the game's goroutine and read
+// through a BoardRead on any, a BoardRead to a goroutine
+type board struct {
 	grid.Grid
 
 	cells   *terrain.Cells
-	field   *field.Field
-	square  *grids.Square // nil unless the grid is square
+	field   *field.Field // the main read's
 	mapping Map
-	decks   []terrain.Deck
+	read    BoardRead
+	write   BoardWrite
 }
 
-var _ cell.Terrain = (*Board)(nil)
+// NewBoard is a board over g with no plugin, every cell of the zero kind until it is set: what
+// reads it and what writes it.
+func NewBoard(g grid.Grid) (*BoardRead, *BoardWrite) {
+	b := newBoard(g)
+	return &b.read, &b.write
+}
 
-// NewBoard is a board over g, every cell of the zero kind until it is set.
-func NewBoard(g grid.Grid) *Board {
-	sq, _ := g.(*grids.Square)
-	b := &Board{Grid: g, cells: terrain.New(g), square: sq}
-	b.field = field.New(g, b.cells, b.altitude)
+func newBoard(g grid.Grid) *board {
+	b := &board{Grid: g, cells: terrain.New(g)}
+	b.read = BoardRead{Grid: g, b: b, cells: b.cells.Read()}
+	b.write.b = b
+	b.mapping = newSimpleMap(&b.read)
+	b.field = field.New(g, b.read.cells, b.read.altitude)
+	b.read.cover = b.field
+	b.cells.Notify(b.field.Veil, b.field.Veils)
 	return b
 }
 
+// BoardRead reads a board, its grid and its terrain, on one goroutine at a time: the main one's
+// through the board's own queries, a Fork's through queries of its own.
+type BoardRead struct {
+	grid.Grid
+
+	b     *board
+	cells *terrain.Read
+	cover *field.Field
+}
+
+var _ cell.Terrain = (*BoardRead)(nil)
+
+// Fork reads the same board through queries and scratch of its own, for another goroutine.
+func (r *BoardRead) Fork() *BoardRead {
+	f := &BoardRead{Grid: r.Grid, b: r.b, cells: r.cells.Fork()}
+	f.cover = r.b.field.Fork(f.cells, f.altitude)
+	return f
+}
+
 // Shape is the board's grid's shape when it is one of grid.DefaultGrids; false for any other.
-func (b *Board) Shape() (grid.Shape, bool) { return grid.ShapeOf(b.Grid) }
+func (r *BoardRead) Shape() (grid.Shape, bool) { return grid.ShapeOf(r.Grid) }
 
 // Ordinal is c's slot in a table of one per cell.
-func (b *Board) Ordinal(c cell.ID) (int, bool) { return b.cells.Ordinal(c) }
+func (r *BoardRead) Ordinal(c cell.ID) (int, bool) { return r.cells.Ordinal(c) }
 
 // CellEntity is the entity of cell c; false off the board or before the ECS is set up.
-func (b *Board) CellEntity(c cell.ID) (uid.UID64, bool) { return b.cells.Entity(c) }
+func (r *BoardRead) CellEntity(c cell.ID) (uid.UID64, bool) { return r.cells.Entity(c) }
 
 // Kind is c's terrain kind as whoever crosses it meets it, its Way and what is built over it
 // included; off the board, the zero kind admitting nobody.
-func (b *Board) Kind(c cell.ID) cell.Kind { return b.cells.Kind(c) }
+func (r *BoardRead) Kind(c cell.ID) cell.Kind { return r.cells.Kind(c) }
 
 // KindAt is c's kind on the deck over it or on the ground under; Kind on a cell of one level.
-func (b *Board) KindAt(c cell.ID, deck bool) cell.Kind { return b.cells.KindAt(c, deck) }
+func (r *BoardRead) KindAt(c cell.ID, deck bool) cell.Kind { return r.cells.KindAt(c, deck) }
 
 // KindFor is c's kind at p, a point in c, on the level of whoever has its feet at feet and steps
 // reach high: a deck over p within reach, else what lies under.
-func (b *Board) KindFor(c cell.ID, p geom.Vec, feet, reach float64) cell.Kind {
-	return b.cells.KindFor(c, p, feet, reach, b.altitude)
+func (r *BoardRead) KindFor(c cell.ID, p geom.Vec, feet, reach float64) cell.Kind {
+	return r.cells.KindFor(c, p, feet, reach, r.altitude)
 }
 
 // CellFor is the cell whoever stands at p with its feet at feet and steps reach high is on: the
 // cell of the highest deck over p within reach, else the cell under p. Feet at +Inf stand on any
 // deck.
-func (b *Board) CellFor(p geom.Vec, feet, reach float64) (cell.ID, bool) {
-	return b.cells.CellFor(p, feet, reach, b.altitude)
+func (r *BoardRead) CellFor(p geom.Vec, feet, reach float64) (cell.ID, bool) {
+	return r.cells.CellFor(p, feet, reach, r.altitude)
 }
 
 // LevelFor is CellFor and whether whoever stands there stands on a raised deck.
-func (b *Board) LevelFor(p geom.Vec, feet, reach float64) (c cell.ID, deck, ok bool) {
-	return b.cells.LevelFor(p, feet, reach, b.altitude)
+func (r *BoardRead) LevelFor(p geom.Vec, feet, reach float64) (c cell.ID, deck, ok bool) {
+	return r.cells.LevelFor(p, feet, reach, r.altitude)
 }
 
-func (b *Board) footing(p geom.Vec, feet, reach float64) (c cell.ID, deck, raised, ok bool) {
-	if c, deck, ok = b.LevelFor(p, feet, reach); !ok {
+func (r *BoardRead) footing(p geom.Vec, feet, reach float64) (c cell.ID, deck, raised, ok bool) {
+	if c, deck, ok = r.LevelFor(p, feet, reach); !ok {
 		return c, false, false, false
 	}
-	return c, deck, b.Built(c).Floor.Height > 0, true
+	return c, deck, r.Built(c).Floor.Height > 0, true
 }
 
 // DecksOver calls visit with every Floor over p and the cell it is built on, a neighbour's band
 // reaching over p too.
-func (b *Board) DecksOver(p geom.Vec, visit func(c cell.ID, f cell.Floor)) {
-	c, ok := b.CellAt(p)
+func (r *BoardRead) DecksOver(p geom.Vec, visit func(c cell.ID, f cell.Floor)) {
+	c, ok := r.CellAt(p)
 	if !ok {
 		return
 	}
-	b.decks = b.cells.DecksOver(c, p, b.decks[:0])
-	for _, d := range b.decks {
+	r.cells.DecksOver(c, p, func(d terrain.Deck) bool {
 		visit(d.Cell, d.Built.Floor)
-	}
+		return true
+	})
 }
 
 // NearDeck reports whether a Floor lies over any of the cell under p.
-func (b *Board) NearDeck(p geom.Vec) bool {
-	c, ok := b.CellAt(p)
-	return ok && b.cells.NearDeck(c)
+func (r *BoardRead) NearDeck(p geom.Vec) bool {
+	c, ok := r.CellAt(p)
+	return ok && r.cells.NearDeck(c)
 }
 
 // NarrowestDeck is how wide the narrowest Floor running as a band is; 0 for none.
-func (b *Board) NarrowestDeck() float64 { return b.cells.Narrowest() }
+func (r *BoardRead) NarrowestDeck() float64 { return r.cells.Narrowest() }
 
 // ThinnestDeck is how thick the thinnest raised band's slab is; 0 for none.
-func (b *Board) ThinnestDeck() float64 { return b.cells.Thinnest() }
+func (r *BoardRead) ThinnestDeck() float64 { return r.cells.Thinnest() }
 
 // Reaches reports whether c's Floor runs out towards its neighbour n; through a corner only
 // along a link.
-func (b *Board) Reaches(c, n cell.ID) bool { return b.cells.Reaches(c, n) }
+func (r *BoardRead) Reaches(c, n cell.ID) bool { return r.cells.Reaches(c, n) }
 
 // Lane is how wide a body may be across the step from from to its neighbour to in d where a
 // deck's band runs along it, on the decks' level when deck, else the ground's; +Inf where no band
 // narrows the step. The railings keeping d off are taken off the band's width.
-func (b *Board) Lane(from, to cell.ID, d cell.Domain, deck bool) float64 {
-	return b.cells.Lane(from, to, d, deck)
+func (r *BoardRead) Lane(from, to cell.ID, d cell.Domain, deck bool) float64 {
+	return r.cells.Lane(from, to, d, deck)
 }
 
 // Fenced reports whether a railing keeping d off stands across the step from from to its
 // neighbour to, on the decks' level when deck, else on the ground's.
-func (b *Board) Fenced(from, to cell.ID, d cell.Domain, deck bool) bool {
-	return b.cells.Fenced(from, to, d, deck)
+func (r *BoardRead) Fenced(from, to cell.ID, d cell.Domain, deck bool) bool {
+	return r.cells.Fenced(from, to, d, deck)
 }
 
 // Built is what the entities standing on c build over it as of the board's last step; none off
 // the board.
-func (b *Board) Built(c cell.ID) cell.Built { return b.cells.Built(c) }
+func (r *BoardRead) Built(c cell.ID) cell.Built { return r.cells.Built(c) }
 
 // Bare is c's kind bare of what runs across it, a way or a bridge: the ground a step beside them
 // crosses; off the board, the zero kind.
-func (b *Board) Bare(c cell.ID) cell.Kind { return b.cells.Bare(c) }
-
-// Set assigns c's terrain kind, taking effect immediately.
-func (b *Board) Set(c cell.ID, kind cell.Kind) { b.cells.Set(c, kind) }
-
-// SetAll resets every cell's terrain kind to kind.
-func (b *Board) SetAll(kind cell.Kind) { b.cells.SetAll(kind) }
+func (r *BoardRead) Bare(c cell.ID) cell.Kind { return r.cells.Bare(c) }
 
 // States are the markers of the effects on c now.
-func (b *Board) States(c cell.ID) tag.Tags[effect.States] { return b.cells.States(c) }
+func (r *BoardRead) States(c cell.ID) tag.Tags[effect.States] { return r.cells.States(c) }
 
 // Way is what runs across c; the zero Way off the board or where nothing does.
-func (b *Board) Way(c cell.ID) cell.Way { return b.cells.Way(c) }
-
-// SetWay lays w across c, the zero Way taking what ran there away; it takes effect immediately.
-func (b *Board) SetWay(c cell.ID, w cell.Way) { b.cells.SetWay(c, w) }
+func (r *BoardRead) Way(c cell.ID) cell.Way { return r.cells.Way(c) }
 
 // Along reports whether a way or a Floor's band runs from from to its neighbour to, so a step
 // between them goes along it rather than over the ground beside it.
-func (b *Board) Along(from, to cell.ID) bool {
-	out, ok := grid.Link(b.Grid, from, to)
+func (r *BoardRead) Along(from, to cell.ID) bool {
+	out, ok := grid.Link(r.Grid, from, to)
 	if !ok {
 		return false
 	}
-	back, _ := grid.Link(b.Grid, to, from)
-	if b.Way(from).Links&out != 0 || b.Way(to).Links&back != 0 {
+	back, _ := grid.Link(r.Grid, to, from)
+	if r.Way(from).Links&out != 0 || r.Way(to).Links&back != 0 {
 		return true
 	}
-	f, t := b.Built(from).Floor, b.Built(to).Floor
+	f, t := r.Built(from).Floor, r.Built(to).Floor
 	return f.Allows != 0 && f.Links&out != 0 || t.Allows != 0 && t.Links&back != 0
 }
 
 // CellVersion counts the changes to c alone; it only grows.
-func (b *Board) CellVersion(c cell.ID) uint64 { return b.cells.CellVersion(c) }
+func (r *BoardRead) CellVersion(c cell.ID) uint64 { return r.cells.CellVersion(c) }
 
 // Changes counts the changes to the board's cells: while it stays as it was, no cell has changed.
-func (b *Board) Changes() uint64 { return b.cells.Changes() }
+func (r *BoardRead) Changes() uint64 { return r.cells.Changes() }
 
 // Version counts the changes to the terrain; it starts over with a load.
-func (b *Board) Version() uint64 { return b.cells.Version() }
+func (r *BoardRead) Version() uint64 { return r.cells.Version() }
 
-// Touch counts a change to c made beyond the board, its heights shaped by a topography.
-func (b *Board) Touch(c cell.ID) { b.cells.Touch(c) }
+// Map is what the board is drawn and priced by, its cells' kinds read through r: the plugin's,
+// or the simple map on a board no plugin runs.
+func (r *BoardRead) Map() MapRead { return readMap{r} }
 
-// Map is what the board is drawn and priced by: the plugin's, or the simple map on a board no
-// plugin runs.
-func (b *Board) Map() Map {
-	if b.mapping == nil {
-		b.mapping = newSimpleMap(b)
-	}
-	return b.mapping
-}
-
-func (b *Board) altitude(c cell.ID) float64 {
-	_, level := b.Map().Top(c)
+func (r *BoardRead) altitude(c cell.ID) float64 {
+	_, level := r.Map().Top(c)
 	return float64(level)
 }
+
+// surfaces is where whoever moves over the board stands, the ground or a deck, read through r
+type surfaces struct{ r *BoardRead }
+
+var _ ground.Surfaces = surfaces{}
+
+func (s surfaces) Surface(p geom.Vec, d cell.Domain, feet, step float64) (floor, ceiling float64) {
+	if h := s.r.b.mapping.Heights(); h != nil {
+		floor = h.At(p)
+	}
+	ceiling = math.Inf(1)
+	if d == 0 {
+		d = cell.Land
+	}
+	s.r.DecksOver(p, func(c cell.ID, f cell.Floor) {
+		deck := s.r.altitude(c) + f.Height
+		if f.Allows&d != 0 && deck <= feet+step {
+			floor = max(floor, deck)
+		}
+		if under := deck - f.Thickness; f.Thickness > 0 && under > feet {
+			ceiling = min(ceiling, under)
+		}
+	})
+	return floor, ceiling
+}
+
+// BoardWrite writes a board's terrain, on the game's goroutine.
+type BoardWrite struct{ b *board }
+
+// Set assigns c's terrain kind, taking effect immediately.
+func (w *BoardWrite) Set(c cell.ID, kind cell.Kind) { w.b.cells.Set(c, kind) }
+
+// SetAll resets every cell's terrain kind to kind.
+func (w *BoardWrite) SetAll(kind cell.Kind) { w.b.cells.SetAll(kind) }
+
+// SetWay lays w across c, the zero Way taking what ran there away; it takes effect immediately.
+func (w *BoardWrite) SetWay(c cell.ID, way cell.Way) { w.b.cells.SetWay(c, way) }
+
+// Touch counts a change to c made beyond the board, its heights shaped by a topography.
+func (w *BoardWrite) Touch(c cell.ID) { w.b.cells.Touch(c) }

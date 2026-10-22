@@ -60,7 +60,7 @@ func (p *Plugin) Lay(fsys fs.FS, path string) (*Level, error) {
 	if err := dec.Decode(&file); err != nil {
 		return nil, fmt.Errorf("board: %s: %w", path, err)
 	}
-	shape, ok := grid.ShapeOf(p.Board().Grid)
+	shape, ok := grid.ShapeOf(p.board.Grid)
 	if !ok {
 		return nil, fmt.Errorf("board: %s: a level lays a board of grid.DefaultGrids only", path)
 	}
@@ -90,7 +90,7 @@ func (p *Plugin) Lay(fsys fs.FS, path string) (*Level, error) {
 		level.waiting = append(level.waiting, w)
 	}
 	if file.Board != nil || file.Ways.given() {
-		p.Seed(layout)
+		p.write.Seed(layout)
 	}
 	p.level = level
 	return level, nil
@@ -249,7 +249,7 @@ func (l *leveler) terrain(b *levelBoard) (Layout, error) {
 		err := l.errorf(&b.Cells, "the drawing has %d rows, the board %d", len(rows), l.shape.Rows)
 		return layout, err
 	}
-	brd := l.p.Board()
+	brd := &l.p.board.read
 	for y, row := range rows {
 		x := 0
 		for _, r := range row {
@@ -354,7 +354,7 @@ func (l *leveler) keys(n *yaml.Node, allowed ...string) (map[string]*yaml.Node, 
 }
 
 func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) float64) error {
-	brd := l.p.Board()
+	brd := &l.p.board.read
 	roads, rivers := network.New(brd), network.New(brd)
 	laidBy := map[cell.ID]*yaml.Node{}
 	for _, name := range slices.Sorted(maps.Keys(w.Roads)) {
@@ -414,7 +414,7 @@ func (l *leveler) ways(w *levelWays, layout *Layout, heights func(geom.Vec) floa
 // a graded road lies as Transport Tycoon lays it
 func (l *leveler) graded(roads *network.Network, laidBy map[cell.ID]*yaml.Node,
 	heights func(geom.Vec) float64) error {
-	brd := l.p.Board()
+	brd := &l.p.board.read
 	run := l.shape.Cell
 	for _, c := range roads.Cells() {
 		node, _ := roads.Node(c)
@@ -611,7 +611,7 @@ func (l *leveler) points(n *yaml.Node, point func(*yaml.Node) (*yaml.Node, error
 
 // among the grid's equally short ways, the one nearest the straight line
 func (l *leveler) route(from, to cell.ID) ([]cell.ID, bool) {
-	brd := l.p.Board()
+	brd := &l.p.board.read
 	a, b := brd.CellCenter(from), brd.CellCenter(to)
 	off := func(c cell.ID) float64 {
 		p := brd.CellCenter(c)
@@ -635,7 +635,7 @@ func (l *leveler) cell(n *yaml.Node) (cell.ID, error) {
 		return 0, l.errorf(n, "[%d, %d] is off the board of %d x %d",
 			xy[0], xy[1], l.shape.Cols, l.shape.Rows)
 	}
-	return l.p.Board().At(uint32(xy[0]), uint32(xy[1])), nil
+	return (&l.p.board.read).At(uint32(xy[0]), uint32(xy[1])), nil
 }
 
 func (l *leveler) relief(r *levelRelief) (func(p geom.Vec) float64, error) {
@@ -660,7 +660,7 @@ func (l *leveler) relief(r *levelRelief) (func(p geom.Vec) float64, error) {
 	if err != nil {
 		return nil, err
 	}
-	brd := l.p.Board()
+	brd := &l.p.board.read
 	if cells {
 		return ground.MeanOfCells(brd, func(c cell.ID) float64 {
 			x, y, _ := brd.Coords(c)

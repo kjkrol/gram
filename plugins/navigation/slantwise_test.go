@@ -87,9 +87,9 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 	sel := selection.NewPlugin(w)
 	drive := driving.NewPlugin(w, m, sel).WithGround(brd)
 	nav := NewPlugin(brd, w, m, sel, drive).WithCollision(c).WithSpacing(spacing)
-	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	for _, c := range site.wet {
-		brd.Board().Set(c, cell.Kind{Cost: 1, Allows: cell.Water})
+		brd.Write().Board().Set(c, cell.Kind{Cost: 1, Allows: cell.Water})
 	}
 	topo.Relief().SetHeights(site.heights)
 	x0, y0, _ := g.Coords(site.from)

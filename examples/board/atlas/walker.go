@@ -30,7 +30,7 @@ var _ board.Figure = walker{}
 
 func (walker) Define(b *board.Plugin) {
 	units := board.NewUnits[unitRow](b, board.Shape{Size: walkerPx},
-		func(u unitRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+		func(u unitRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
 	profile := steering.Steering{
 		MaxSpeed: walkerSpeed,
 		Accel:    walkerSpeed * 2,

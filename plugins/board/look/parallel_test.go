@@ -64,8 +64,8 @@ func piecesOf(r *look.Renderer, cam camera.Camera) (out [][]render.Vertex, n int
 
 func TestRenderer_Compose_WorkersDrawWhatOneGoroutineDoes(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(16, 16, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	cam := cameratest.NewFromSpace(512, 512, 0)
 	one, many := &stripes{}, &stripes{}
 	serial := newRenderer(brd, flatAtlas{}, gridOf(black, 1),
@@ -96,8 +96,8 @@ func TestRenderer_Compose_WorkersDrawWhatOneGoroutineDoes(t *testing.T) {
 
 func TestRenderer_Compose_APlainLookKeepsOneGoroutine(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(16, 16, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	d := &stripes{}
 	seen := 0
 	lk := lookFn(func(f *render.Frame, cam camera.Camera, tile *look.Tile) {
@@ -114,8 +114,8 @@ func TestRenderer_Compose_APlainLookKeepsOneGoroutine(t *testing.T) {
 
 func TestRenderer_Compose_NothingLaysNoTile(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	d := &stripes{}
 	r := newRenderer(brd, flatAtlas{}, gridOf(black, 1), stripedMap{lookMap{look.Nothing}, d})
 	cam := cameratest.NewFromSpace(128, 128, 0)

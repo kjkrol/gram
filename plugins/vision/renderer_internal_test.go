@@ -548,7 +548,7 @@ func TestRenderer_TheBoardsCoverKeepsACount(t *testing.T) {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(8, 8, 32), &cell.MultipleOccupancy{}, w)
-	if versionOf(b.Cover()) == 0 {
+	if versionOf(b.Read(0).Cover()) == 0 {
 		t.Error("the board's cover keeps no count: the views copy it anew every frame")
 	}
 }

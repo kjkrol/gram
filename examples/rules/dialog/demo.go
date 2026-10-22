@@ -152,7 +152,7 @@ type unitRow struct {
 
 func units(b *board.Plugin) *board.Units[unitRow] {
 	return board.NewUnits[unitRow](b, board.Shape{Size: unitSize},
-		func(u unitRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+		func(u unitRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
 }
 
 var walks = steering.Steering{

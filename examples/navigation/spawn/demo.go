@@ -99,7 +99,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
 	a.players = players.NewPlugin(a.world, a.collision,
 		a.cameras, a.board, a.selection, a.nav, a.driving)
-	a.board.ShowHolds(true)
+	a.board.Write().ShowHolds(true)
 }
 
 func (a *arena) definePlayer() error {
@@ -122,13 +122,13 @@ func (a *arena) bindKeys() error {
 }
 
 func (a *arena) spawnUnderCursor(c control.Context) (world.Spawn, bool) {
-	brd := a.board.Board()
+	brd := a.board.Read(0).Board()
 	at, ok := brd.CellAt(c.World(c.Cursor))
 	if !ok || !brd.Kind(at).Admits(cell.Land) {
 		return world.Spawn{}, false
 	}
 	held := false
-	a.board.Occupancy().Holders(at, func(uid.UID64, cell.Domain, bool) { held = true })
+	a.board.Write().Occupancy().Holders(at, func(uid.UID64, cell.Domain, bool) { held = true })
 	if held {
 		return world.Spawn{}, false
 	}

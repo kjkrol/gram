@@ -14,7 +14,7 @@ func (p *Plugin) Miniature() (img *render.Image, perUnit float32) {
 	if p.hexes != nil {
 		return p.hexes.Miniature()
 	}
-	atlas := p.boardPlugin.Atlas()
+	atlas := p.boardPlugin.Read(0).Atlas()
 	if atlas == nil {
 		return nil, 0
 	}

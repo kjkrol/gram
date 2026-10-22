@@ -29,7 +29,7 @@ func NewEntities[P any](brd *Plugin, shape Shape, at func(row P) cell.ID) *Entit
 // besides, in place of what the roster's Standing template gives and of a Z as tall as its shape;
 // one standing off the board panics as it is spawned.
 func (e *Entities[P]) Define(name string, extra ...comp.Comp) {
-	brd := e.brd.Board()
+	brd := &e.brd.board.read
 	own := []comp.Comp{
 		comp.Load(func(row P) world.Position {
 			c := e.at(row)

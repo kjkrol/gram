@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -19,7 +18,7 @@ import (
 
 type profiledWorld struct {
 	grid    grid.Grid
-	terrain *board.Board
+	terrain testBoard
 	ecs     *goke.ECS
 	id      uid.UID64
 	pos     goke.Comp[world.Base]

@@ -51,7 +51,7 @@ func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 	if got := zs[hawk.ID()]; len(got) != 1 || got[0].Altitude != hillGround+40 || got[0].Height != 2 {
 		t.Errorf("hawk's Z = %v, want altitude %v (the hill plus its lift) and height 2", got, hillGround+40)
 	}
-	if qw.Board.Heights() != qw.Topo.Relief() {
+	if qw.Board.Read(0).Heights() != qw.Topo.Relief() {
 		t.Error("the board's heights are not the topography's relief")
 	}
 }
@@ -138,7 +138,7 @@ func TestAltitude_ADeckIsSteppedOntoWithinAStep(t *testing.T) {
 func TestStanding_UnderADeckOverWaterHasFallenIn(t *testing.T) {
 	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {
 		river := qw.Grid.At(1, 2)
-		qw.Board.Board().Set(river, cell.Kind{Name: cell.Named("river"), Cost: 1,
+		qw.Board.Write().Board().Set(river, cell.Kind{Name: cell.Named("river"), Cost: 1,
 			Allows: cell.Water})
 		units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
 		standing := board.NewEntities(qw.Board, board.Shape{Size: 20, Height: 1},
@@ -322,7 +322,7 @@ func TestSurface_ASlantwiseDeckCarriesOverTheCornerItCuts(t *testing.T) {
 	}
 	qw := topotest.NewQuasiWorldWith(t, false, define)
 	qw.ECS.Tick(time.Second / 60)
-	surfaces := qw.Board.Footing()
+	surfaces := qw.Board.Read(0).Footing()
 	ground := qw.Topo.Relief()
 	for _, c := range []struct {
 		name string

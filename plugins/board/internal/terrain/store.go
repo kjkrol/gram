@@ -62,6 +62,14 @@ func (s *store) setAll(kind cell.Kind) {
 	}
 }
 
+// fork is s reading the same cells through queries of its own
+func (s *store) fork() *store {
+	f := *s
+	f.plots, f.grounds, f.ways = s.plots.Fork(), s.grounds.Fork(), s.ways.Fork()
+	f.builts, f.stated = s.builts.Fork(), s.stated.Fork()
+	return &f
+}
+
 func (s *store) seek(q *goke.Query, i int) {
 	if !q.SeekH(s.ids[i]) && !q.Seek(s.ids[i]) {
 		panic(fmt.Sprintf("board: the entity %d of a cell is gone", s.ids[i]))

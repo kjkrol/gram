@@ -43,7 +43,7 @@ func newKeptBoard(t *testing.T, seeded ...[2]uint32) *keptBoard {
 	})
 	m := motion.NewPlugin(k.w)
 	p := board.NewPlugin(k.g, k.occupancy, k.w).WithMotion(m)
-	p.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	p.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	west, _ := grid.Direction(k.g, -1, 0)
 	east, _ := grid.Direction(k.g, 1, 0)
 	decks := board.NewEntities(p, board.Shape{Size: 10}, func(c cell.ID) cell.ID { return c })

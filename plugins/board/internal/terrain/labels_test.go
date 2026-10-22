@@ -76,7 +76,7 @@ func installCells(t *testing.T, g grid.Grid, prepare func(w *world.Plugin, brd *
 		Heights:  true,
 	})
 	brd := board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
-	brd.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+	brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 	prepare(w, brd)
 	if err := brd.Populate(); err != nil {
 		t.Fatal(err)
@@ -117,11 +117,11 @@ func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
 				w.Roles().Define("plate")
 				trapdoor, plate = w.Roles().Named("trapdoor"), w.Roles().Named("plate")
 				land := func() cell.Kind { return cell.Kind{Cost: 1, Allows: cell.Land} }
-				brd.CellKinds().Define("door", land(), trapdoor)
-				brd.CellKinds().Define("plate", land(), plate)
-				brd.CellKinds().Define("both", land(), trapdoor, plate)
-				brd.Board().Set(e, snow)
-				brd.Seed(board.Layout{Cells: []cell.Entry{
+				brd.Read(0).CellKinds().Define("door", land(), trapdoor)
+				brd.Read(0).CellKinds().Define("plate", land(), plate)
+				brd.Read(0).CellKinds().Define("both", land(), trapdoor, plate)
+				brd.Write().Board().Set(e, snow)
+				brd.Write().Seed(board.Layout{Cells: []cell.Entry{
 					{Kind: "door", Cell: a, Group: "west"},
 					{Kind: "plate", Cell: b, Name: "plate", Group: "west"},
 					{Kind: "both", Cell: c, Group: "east"},
@@ -149,14 +149,14 @@ func TestCells_RolesAndLabelsReachTheCellEntities(t *testing.T) {
 				if st != w {
 					t.Errorf("cell %d carries %+v, want %+v", at, st, w)
 				}
-				if id, _ := brd.CellEntity(at); id != st.id {
+				if id, _ := brd.Read(0).Board().CellEntity(at); id != st.id {
 					t.Errorf("cell %d's entity is %d, the one holding its Plot %d", at, id, st.id)
 				}
 			}
-			if k := brd.Board().Kind(e); k != snow {
+			if k := brd.Read(0).Board().Kind(e); k != snow {
 				t.Errorf("labelled cell %d is %q, want the snow the seed gave it", e, k.Name)
 			}
-			if k := brd.Board().Kind(a); k.Name.String() != "door" {
+			if k := brd.Read(0).Board().Kind(a); k.Name.String() != "door" {
 				t.Errorf("labelled cell %d is %q, want the door the Layout laid", a, k.Name)
 			}
 		})

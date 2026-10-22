@@ -18,11 +18,11 @@ var (
 	_ board.Ruled  = traveller{}
 )
 
-func (traveller) Rules(b *board.Plugin) { b.World().Roles().Define(TravellerRole) }
+func (traveller) Rules(b *board.Plugin) { b.Read(0).World().Roles().Define(TravellerRole) }
 
 func (traveller) Define(b *board.Plugin) {
 	units(b).Define(TravellerKind, unit.Mover{Domain: cell.Land}, walks,
-		ceremony.Plays(b.World().Roles().Named(TravellerRole)))
+		ceremony.Plays(b.Read(0).World().Roles().Named(TravellerRole)))
 }
 
 func (traveller) Look(a *world.Atlas, w *world.Plugin) {

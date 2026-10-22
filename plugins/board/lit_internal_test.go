@@ -58,13 +58,13 @@ func TestAtmosphere_TheCloudsShadowsLieOnTheBoardsGroundUnderWhatLiesOnIt(t *tes
 		Heights:  true,
 	})
 	p := NewPlugin(grid.DefaultGrids{}.Square(128, 128, 32), &cell.SingleOccupancy{}, w)
-	p.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
+	p.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
 	grey := color.RGBA{R: 200, G: 200, B: 200, A: 255}
 	tiles := render.NewAtlas()
 	tiles.Add(render.SpriteID(1), 8, render.Solid(grey))
 	tiles.Close()
-	p.SetAtlas(tiles)
-	p.ShowGrid(false)
+	p.Write().SetAtlas(tiles)
+	p.Write().ShowGrid(false)
 	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(512, 384)
 	weather := air.Weather{Clouds: 0.7, Drift: [2]float32{130, -40},

@@ -17,10 +17,10 @@ var bridge = cell.Kind{Name: cell.Named("bridge"), Cost: 1, Allows: cell.Land | 
 func TestBoard_AlongFollowsTheLinksOfWays(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(3, 3, 10)
 	at := func(x, y uint32) cell.ID { c := g.At(x, y); return c }
-	brd := board.NewBoard(g)
-	brd.SetAll(earth)
+	brd, brdW := board.NewBoard(g)
+	brdW.SetAll(earth)
 	east, _ := grid.Link(g, at(1, 1), at(2, 1))
-	brd.SetWay(at(1, 1), cell.Way{Kind: river, Width: 4, Links: east})
+	brdW.SetWay(at(1, 1), cell.Way{Kind: river, Width: 4, Links: east})
 	for _, c := range []struct {
 		from, to cell.ID
 		want     bool

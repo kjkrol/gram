@@ -92,7 +92,7 @@ func (w *Weathering) Running() bool { return !w.still }
 // unknown name panics then.
 func New(brd *board.Plugin, weather func() air.Weather, fx *cgoke.Effects, cal *calendar.Calendar, cfg Config) (*Weathering, error) {
 	cfg = cfg.withDefaults()
-	space := brd.World().Res.Config.Space
+	space := brd.Read(0).World().Res.Config.Space
 	ww := &Weathering{cfg: cfg, board: brd, air: weather, effects: fx, calendar: cal, dice: cfg.Seed,
 		water: cell.Named(cfg.Water), swaying: map[cell.Name]bool{},
 		land: air.NewLand(float32(space.Width), float32(space.Height))}
@@ -123,7 +123,7 @@ func (w *Weathering) ready() {
 	if w.snowy != nil {
 		return
 	}
-	kinds := w.board.CellKinds()
+	kinds := w.board.Read(0).CellKinds()
 	snowy := map[cell.Name]cell.Kind{}
 	for name, under := range w.cfg.Snowy {
 		k, ok := kinds.Get(under)
@@ -199,7 +199,7 @@ func (w *Weathering) roll() float32 {
 
 func (w *Weathering) pick() cell.ID {
 	if w.cells == nil {
-		brd := w.board.Board()
+		brd := w.board.Read(0).Board()
 		w.cells = make([]cell.ID, 0, brd.CellCount())
 		brd.EachCell(func(c cell.ID) { w.cells = append(w.cells, c) })
 	}
@@ -207,26 +207,26 @@ func (w *Weathering) pick() cell.ID {
 }
 
 func (w *Weathering) scatter(cb *goke.CmdBuf, share float32, fx effect.Effect, may func(c cell.ID) bool) {
-	for range int(share*float32(w.board.Board().CellCount()) + w.roll()) {
+	for range int(share*float32(w.board.Read(0).Board().CellCount()) + w.roll()) {
 		c := w.pick()
-		if id, ok := w.board.CellEntity(c); ok && may(c) {
+		if id, ok := w.board.Read(0).Board().CellEntity(c); ok && may(c) {
 			w.effects.Cast(id, fx)
 		}
 	}
 }
 
 func (w *Weathering) clear(share float32, fx effect.Effect, may func(c cell.ID) bool) {
-	for range int(share*float32(w.board.Board().CellCount()) + w.roll()) {
+	for range int(share*float32(w.board.Read(0).Board().CellCount()) + w.roll()) {
 		c := w.pick()
-		if id, ok := w.board.CellEntity(c); ok && w.effects.Has(id, fx) && may(c) {
+		if id, ok := w.board.Read(0).Board().CellEntity(c); ok && w.effects.Has(id, fx) && may(c) {
 			w.effects.Dispel(id, fx)
 		}
 	}
 }
 
 func (w *Weathering) winter(cb *goke.CmdBuf) {
-	w.board.Board().EachCell(func(c cell.ID) {
-		id, ok := w.board.CellEntity(c)
+	w.board.Read(0).Board().EachCell(func(c cell.ID) {
+		id, ok := w.board.Read(0).Board().CellEntity(c)
 		if !ok {
 			return
 		}
@@ -241,14 +241,14 @@ func (w *Weathering) winter(cb *goke.CmdBuf) {
 
 // how much snow falls on the cell c, out of the clouds over it
 func (w *Weathering) snowing(air air.Weather, c cell.ID) float32 {
-	p := w.board.Board().CellCenter(c)
+	p := w.board.Read(0).Board().CellCenter(c)
 	_, snow := air.FallsAt(float32(p.X), float32(p.Y))
 	return snow
 }
 
 func (w *Weathering) takesSnow(c cell.ID) bool {
 	w.ready()
-	_, ok := w.snowy[w.board.Board().Kind(c).Name]
+	_, ok := w.snowy[w.board.Read(0).Board().Kind(c).Name]
 	return ok
 }
 
@@ -262,10 +262,10 @@ func (w *Weathering) snowLies(c cell.ID) bool {
 
 // the lonelier the snow and the later it lay, the likelier it melts: patches shrink whole
 func (w *Weathering) snowEdge(c cell.ID) bool {
-	neighbours := w.board.Board().Neighbors(c)
+	neighbours := w.board.Read(0).Board().Neighbors(c)
 	under := 0
 	for _, n := range neighbours {
-		if id, ok := w.board.CellEntity(n); ok && w.effects.Has(id, w.snow) {
+		if id, ok := w.board.Read(0).Board().CellEntity(n); ok && w.effects.Has(id, w.snow) {
 			under++
 		}
 	}
@@ -274,8 +274,8 @@ func (w *Weathering) snowEdge(c cell.ID) bool {
 }
 
 func (w *Weathering) nextTo(c cell.ID) bool {
-	for _, n := range w.board.Board().Neighbors(c) {
-		if id, ok := w.board.CellEntity(n); ok && w.effects.Has(id, w.snow) {
+	for _, n := range w.board.Read(0).Board().Neighbors(c) {
+		if id, ok := w.board.Read(0).Board().CellEntity(n); ok && w.effects.Has(id, w.snow) {
 			return true
 		}
 	}
@@ -284,7 +284,7 @@ func (w *Weathering) nextTo(c cell.ID) bool {
 
 // 0 to 1; where it is low, snow lies first and longest
 func (w *Weathering) drift(c cell.ID) float32 {
-	x, y, _ := w.board.Board().Coords(c)
+	x, y, _ := w.board.Read(0).Board().Coords(c)
 	fx, fy := float64(x)/driftSize, float64(y)/driftSize
 	ix, iy := math.Floor(fx), math.Floor(fy)
 	u, v := smooth(fx-ix), smooth(fy-iy)
@@ -304,7 +304,7 @@ func cellHash(x, y int) float64 {
 
 // water next to land or ice: the ice grows from the shore out
 func (w *Weathering) freezes(c cell.ID) bool {
-	brd := w.board.Board()
+	brd := w.board.Read(0).Board()
 	if brd.Kind(c).Name != w.water {
 		return false
 	}
@@ -320,12 +320,12 @@ func (w *Weathering) blow(cb *goke.CmdBuf, wind float32) {
 	if len(w.swaying) == 0 || wind > swayBelow && wind < swayAbove {
 		return
 	}
-	brd := w.board.Board()
+	brd := w.board.Read(0).Board()
 	brd.EachCell(func(c cell.ID) {
 		if !w.swaying[brd.Kind(c).Name] {
 			return
 		}
-		id, ok := w.board.CellEntity(c)
+		id, ok := w.board.Read(0).Board().CellEntity(c)
 		if !ok {
 			return
 		}

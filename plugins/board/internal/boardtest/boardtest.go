@@ -78,10 +78,10 @@ type World struct {
 
 // NewWorld is a World over g, width x height, its terrain laid by terrain, units spawned as their
 // rows say and rules handed to the hosts of their moments.
-func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*board.Board), units []Mover, rules ...act.Rule) *World {
+func NewWorld(t *testing.T, g grid.Grid, width, height uint32, terrain func(*board.BoardWrite), units []Mover, rules ...act.Rule) *World {
 	t.Helper()
 	return NewWorldWith(t, g, width, height, func(_ *world.Plugin, brd *board.Plugin) []act.Rule {
-		terrain(brd.Board())
+		terrain(brd.Write().Board())
 		return rules
 	}, units)
 }
@@ -209,7 +209,7 @@ func (bw *World) Snapshot() []geom.AABB {
 func (bw *World) Solid(layers world.Layers) []geom.AABB {
 	var out []geom.AABB
 	w, h := bw.World.Res.Config.Space.Width, bw.World.Res.Config.Space.Height
-	bw.Board.Cover().(collision.Field).Solid(layers, collision.Everywhere, geom.NewAABBAt(geom.NewVec(0, 0), float64(w), float64(h)), func(fb collision.FieldBox) bool {
+	bw.Board.Read(0).Cover().(collision.Field).Solid(layers, collision.Everywhere, geom.NewAABBAt(geom.NewVec(0, 0), float64(w), float64(h)), func(fb collision.FieldBox) bool {
 		out = append(out, fb.Box)
 		return true
 	})
@@ -282,7 +282,7 @@ func SquareWorldWith(t *testing.T, hooked act.Rule, units ...Mover) (*World, cel
 	if hooked != nil {
 		rules = append(rules, hooked)
 	}
-	bw := NewWorld(t, grid, 6*CellSize, 16*CellSize, func(brd *board.Board) {
+	bw := NewWorld(t, grid, 6*CellSize, 16*CellSize, func(brd *board.BoardWrite) {
 		brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 		for y := uint32(1); y <= 14; y++ {
 			brd.Set(cellAt(3, y), Wall)
@@ -293,6 +293,9 @@ func SquareWorldWith(t *testing.T, hooked act.Rule, units ...Mover) (*World, cel
 
 // Wall is a solid kind that also cuts sight.
 var Wall = cell.Kind{Name: cell.Named("wall"), Cost: 1, Solid: true, Veil: 1}
+
+// Pool is the game's pool as the tests' InstallCtx hands it to the plugins: 4 goroutines.
+var Pool = parallel.New(4)
 
 // NewInstallCtx is an InstallCtx over a new ECS.
 func NewInstallCtx() *InstallCtx { return &InstallCtx{ecs: goke.New()} }
@@ -329,7 +332,7 @@ func (g OneStageGame) Stages() (map[string]game.Stage, string) {
 func (c *InstallCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
 func (c *InstallCtx) Draws(...render.Source) {}
 func (c *InstallCtx) Looks(func())           {}
-func (*InstallCtx) Pool() *parallel.Pool     { return nil }
+func (*InstallCtx) Pool() *parallel.Pool     { return Pool }
 
 // Deliver hands rules to the hosts of their moments, as the engine does once a Stage's Init
 // returns.

@@ -55,9 +55,9 @@ func TestRenderer_ShadesTheStillAsTheFrameSaysWhereTheCellsTakeIt(t *testing.T) 
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
 	lava := cell.Kind{SpriteID: 2, Cost: 1, Allows: cell.Land, Takes: render.Shines}
 	grid := grid.DefaultGrids{}.Square(8, 8, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(grass)
-	brd.Set(grid.At(6, 6), lava)
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(grass)
+	brdW.Set(grid.At(6, 6), lava)
 	atlas := render.NewAtlas()
 	atlas.Add(grass.SpriteID, 4, render.Solid(color.RGBA{R: 200, G: 200, B: 200, A: 255}))
 	atlas.Add(lava.SpriteID, 4, render.Solid(color.RGBA{R: 200, G: 200, B: 200, A: 255}))

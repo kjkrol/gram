@@ -11,15 +11,15 @@ import (
 
 func TestRelief_KeepRoadsTakesBackWhatBreaksARoad(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 3, 32)
-	brd := board.NewBoard(g)
-	brd.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(g)
+	brdW.SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 	road := cell.Kind{Name: cell.Named("road"), Cost: 1, Allows: cell.Land, Graded: true}
 	east, _ := grid.Link(g, g.At(0, 1), g.At(1, 1))
 	west, _ := grid.Link(g, g.At(1, 1), g.At(0, 1))
 	for x := range uint32(3) {
-		brd.SetWay(g.At(x, 1), cell.Way{Kind: road, Width: 6, Links: east | west})
+		brdW.SetWay(g.At(x, 1), cell.Way{Kind: road, Width: 6, Links: east | west})
 	}
-	r := New(brd)
+	r := New(brd, brdW.Touch)
 	lift := func(x, y float64) {
 		r.KeepRoads(func() { r.Lift(geom.NewVec(x*32, y*32), 5, 0) })
 	}

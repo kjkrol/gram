@@ -19,7 +19,8 @@ type module struct {
 	step     clock.Block // bound once, so a tick allocates no method value
 }
 
-func newModule(space *aabbworld.Space, host *host.PairRules[Sighting], heights *heights, coverOf func() ground.Cover, workers int) *module {
+func newModule(space *aabbworld.Space, host *host.PairRules[Sighting], heights *heights,
+	coverOf func(w int) ground.Cover, workers int) *module {
 	m := &module{sys: newScanSystem(space, host)}
 	m.step = m.simulate
 	m.sys.coverOf = coverOf

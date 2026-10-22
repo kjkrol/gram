@@ -90,7 +90,7 @@ func newDale(t *testing.T) *dale {
 		WithCollision(d.col)
 	d.topo = topography.NewPlugin(d.w, d.board, nil, topography.Config{})
 	d.bridges = bridges.NewPlugin(d.w, d.board, bridges.Config{Rules: rules}).WithShaper(d.topo)
-	d.board.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	d.board.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	d.bridges.Types().Define("bridge", bridges.Spec{
 		Allows:    cell.Land,
 		Width:     6,
@@ -320,7 +320,7 @@ func TestSpawn_ALevelsBridges(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			d := newDale(t)
-			d.board.CellKinds().Define("earth", cell.Kind{Cost: 1, Allows: cell.Land})
+			d.board.Read(0).CellKinds().Define("earth", cell.Kind{Cost: 1, Allows: cell.Land})
 			level, err := d.board.Lay(file(tc.entity), "map.yaml")
 			if err != nil {
 				t.Fatal(err)

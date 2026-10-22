@@ -63,10 +63,10 @@ func (t *Types) Define(name string, spec Spec) {
 		panic(fmt.Sprintf("bridges: bridge %q is defined twice", name))
 	}
 	w, brd := t.p.worldPlugin, t.p.board
-	span := float64(brd.Board().Grid.CellSpan())
+	span := float64(brd.Read(0).Board().Grid.CellSpan())
 	kind.Define[Row](w.Kinds(), name, kind.Spec{
 		comp.Load(func(r Row) world.Position {
-			m := brd.Board().CellCenter(r.From)
+			m := brd.Read(0).Board().CellCenter(r.From)
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(m.X-span/2, m.Y-span/2), span,
 				span)}
 		}),

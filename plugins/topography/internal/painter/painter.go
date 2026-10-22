@@ -16,7 +16,7 @@ import (
 // Painter is the board's Dressing in relief: the light on the tiles and what lies on them, and
 // the board painted flat for the ground drawn on the GPU.
 type Painter struct {
-	board   *board.Board
+	board   *board.BoardRead
 	relief  *relief.Relief
 	sky     Sky
 	styles  map[cell.Name]Style
@@ -67,7 +67,7 @@ type Sky interface {
 
 // New is the painter of b over ground under the sky, the kinds looking as styles has them.
 // heights says whether the ground stands in relief.
-func New(b *board.Board, ground *relief.Relief, sky Sky, heights bool, styles map[cell.Name]Style) *Painter {
+func New(b *board.BoardRead, ground *relief.Relief, sky Sky, heights bool, styles map[cell.Name]Style) *Painter {
 	w, h := b.CellBounds()
 	sq, square := b.Shape()
 	square = square && !sq.Hex

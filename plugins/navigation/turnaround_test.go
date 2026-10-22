@@ -54,9 +54,9 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	occupancy := &cell.SingleOccupancy{}
 	m := motion.NewPlugin(w)
 	brd := board.NewPlugin(tw.grid, occupancy, w).WithMotion(m)
-	brd.Board().SetAll(cell.Kind{Cost: 2, Allows: cell.Land}) // grass, as in the demo
+	brd.Write().Board().SetAll(cell.Kind{Cost: 2, Allows: cell.Land}) // grass, as in the demo
 	for y := uint32(0); y < 4; y++ {
-		brd.Board().Set(tw.at(0, y), cell.Kind{Cost: 1, Solid: true})
+		brd.Write().Board().Set(tw.at(0, y), cell.Kind{Cost: 1, Solid: true})
 	}
 	sel := selection.NewPlugin(w)
 	tw.nav = NewPlugin(brd, w, m, sel, driving.NewPlugin(w, m, sel))

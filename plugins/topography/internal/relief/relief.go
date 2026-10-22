@@ -34,7 +34,7 @@ type Heights struct {
 // neighbouring cells share, on any other a level per cell. Not safe for concurrent use.
 type Relief struct {
 	grid      grid.Grid
-	board     *board.Board // nil where the grid is no board's
+	board     *board.BoardRead // nil where the grid is no board's
 	sq        grid.Shape
 	square    bool
 	cols      int // corners along x on a square grid
@@ -46,14 +46,13 @@ type Relief struct {
 	extentAt  uint64 // one more than the version low and high are of; 0 not read yet
 }
 
-// New is level ground at 0 over g. Over a board, every change to a cell's corners is counted on
-// the board too (board.Board.Touch).
-func New(g grid.Grid) *Relief {
-	r := &Relief{grid: g}
-	if b, ok := g.(*board.Board); ok {
+// New is level ground at 0 over g; every change to a cell's corners is counted by touched, if
+// given: over a board, the board's (board.BoardWrite.Touch).
+func New(g grid.Grid, touched func(c cell.ID)) *Relief {
+	r := &Relief{grid: g, touched: touched}
+	if b, ok := g.(*board.BoardRead); ok {
 		r.board = b
 		r.sq, r.square = b.Shape()
-		r.touched = b.Touch
 	} else {
 		r.sq, r.square = grid.ShapeOf(g)
 	}
@@ -223,29 +222,6 @@ func (r *Relief) setValue(v vertex, h float32) bool {
 
 // Altitude is c's ground level, the mean of its corners.
 func (r *Relief) Altitude(c cell.ID) float64 { return r.Corners(c).Level() }
-
-// Surface is where whoever moves in d (none: Land) with its feet at feet stands at p: the
-// highest of the ground and the decks carrying d within step of its feet, and the lowest
-// underside of a deck over its feet, +Inf for none.
-func (r *Relief) Surface(p geom.Vec, d cell.Domain, feet, step float64) (floor, ceiling float64) {
-	floor, ceiling = r.GroundAt(p), math.Inf(1)
-	if r.board == nil {
-		return floor, ceiling
-	}
-	if d == 0 {
-		d = cell.Land
-	}
-	r.board.DecksOver(p, func(c cell.ID, f cell.Floor) {
-		deck := r.Altitude(c) + f.Height
-		if f.Allows&d != 0 && deck <= feet+step {
-			floor = max(floor, deck)
-		}
-		if under := deck - f.Thickness; f.Thickness > 0 && under > feet {
-			ceiling = min(ceiling, under)
-		}
-	})
-	return floor, ceiling
-}
 
 // SetHeights sets the ground to heights, sampled at every corner on a square grid and at every
 // cell's centre on any other.

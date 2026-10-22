@@ -35,15 +35,18 @@ type Cells struct {
 	reached   []bool // by ordinal: a neighbour's band reaches into the cell
 	bridges   Bridges
 	fresh     bool // made afresh, not found after a load
-	decks     []Deck
-	rails     []Railing
 	outline   []geom.Vec
 	standing  *builtSystem
+	read      Read
+	forks     []*Read
+	changed   func(c cell.ID) // after c changed
+	all       func()          // after every cell changed
 }
 
 // New is the terrain of g's cells, every one of the zero kind until it is set.
 func New(g grid.Grid) *Cells {
 	t := &Cells{grid: g, seed: cell.NewTerrainMap(), stamps: make([]uint64, g.CellCount())}
+	t.read.t = t
 	if sq, ok := g.(*grids.Square); ok {
 		t.square = uint64(sq.Width) * uint64(sq.Height)
 	}
@@ -57,6 +60,9 @@ func (t *Cells) System(roster *kind.Roster, template *kind.Template,
 	return &entitySystem{cells: t, roster: roster, template: template, mattering: mattering}
 }
 
+// Notify has changed called after a cell changes, all after every cell does at once.
+func (t *Cells) Notify(changed func(c cell.ID), all func()) { t.changed, t.all = changed, all }
+
 // Made reports whether the cells are entities yet.
 func (t *Cells) Made() bool { return t.store != nil }
 
@@ -69,27 +75,29 @@ func (t *Cells) Ordinal(c cell.ID) (int, bool) {
 }
 
 // Entity is c's entity; false off the board or before the cells are made.
-func (t *Cells) Entity(c cell.ID) (uid.UID64, bool) {
+func (r *Read) Entity(c cell.ID) (uid.UID64, bool) {
+	t := r.t
 	i, ok := t.Ordinal(c)
-	if !ok || t.store == nil {
+	if !ok || r.store == nil {
 		return 0, false
 	}
-	return t.store.ids[i], true
+	return r.store.ids[i], true
 }
 
 // Kind is c's kind as whoever crosses it meets it: the ground's under its Way and what is built
 // over it; off the board, the zero kind.
-func (t *Cells) Kind(c cell.ID) cell.Kind {
-	if t.store == nil {
+func (r *Read) Kind(c cell.ID) cell.Kind {
+	t := r.t
+	if r.store == nil {
 		return t.seed.Ways[c].Over(t.seed.Kind(c))
 	}
 	i, ok := t.Ordinal(c)
 	if !ok {
 		return cell.Kind{}
 	}
-	k := t.store.wayOf(i).Over(t.store.groundOf(i).Kind)
+	k := r.store.wayOf(i).Over(r.store.groundOf(i).Kind)
 	if t.built > 0 {
-		if b := t.store.builtOf(i); b != nil {
+		if b := r.store.builtOf(i); b != nil {
 			k = b.Over(k)
 		}
 	}
@@ -98,81 +106,84 @@ func (t *Cells) Kind(c cell.ID) cell.Kind {
 
 // KindAt is c's kind on its deck or under it where a raised Floor gives it two levels; on a cell
 // of one level, Kind.
-func (t *Cells) KindAt(c cell.ID, deck bool) cell.Kind {
-	b := t.Built(c)
+func (r *Read) KindAt(c cell.ID, deck bool) cell.Kind {
+	t := r.t
+	b := r.Built(c)
 	if b.Floor.Height <= 0 {
-		return t.Kind(c)
+		return r.Kind(c)
 	}
 	i, _ := t.Ordinal(c)
-	return level(t.store.wayOf(i).Over(t.store.groundOf(i).Kind), b, deck)
+	return level(r.store.wayOf(i).Over(r.store.groundOf(i).Kind), b, deck)
 }
 
 // KindFor is c's kind at p for whoever stands with its feet at feet and steps reach high: a Floor
 // over p within its reach, else the ground under the decks. ground gives a cell's level.
-func (t *Cells) KindFor(c cell.ID, p geom.Vec, feet, reach float64,
+func (r *Read) KindFor(c cell.ID, p geom.Vec, feet, reach float64,
 	ground func(cell.ID) float64) cell.Kind {
-	if t.store == nil {
+	t := r.t
+	if r.store == nil {
 		return t.seed.Ways[c].Over(t.seed.Kind(c))
 	}
 	i, ok := t.Ordinal(c)
 	if !ok {
 		return cell.Kind{}
 	}
-	k := t.store.wayOf(i).Over(t.store.groundOf(i).Kind)
+	k := r.store.wayOf(i).Over(r.store.groundOf(i).Kind)
 	if t.built == 0 {
 		return k
 	}
-	b := t.store.builtOf(i)
+	b := r.store.builtOf(i)
 	switch {
 	case b == nil:
 		return k
 	case b.Floor.Allows == 0 && (t.bands == 0 || !t.reached[i]):
 		return b.Over(k)
 	}
-	t.decks = t.DecksOver(c, p, t.decks[:0])
-	for _, d := range t.decks {
+	kind := level(k, *b, false)
+	r.DecksOver(c, p, func(d Deck) bool {
 		f := d.Built.Floor
 		raised := f.Height > 0 && ground != nil
 		if raised && feet < ground(d.Cell)+f.Height-reach {
-			continue
+			return true
 		}
-		on := cell.Built{Floor: f, Wall: b.Wall}
-		if raised {
-			return level(k, on, true)
+		if on := (cell.Built{Floor: f, Wall: b.Wall}); raised {
+			kind = level(k, on, true)
+		} else {
+			kind = on.Over(k)
 		}
-		return on.Over(k)
-	}
-	return level(k, *b, false)
+		return false
+	})
+	return kind
 }
 
 // CellFor is the cell whoever stands at p with its feet at feet and steps reach high is on: the
 // highest Floor over p within its reach, else the cell under p. ground gives a cell's level.
-func (t *Cells) CellFor(p geom.Vec, feet, reach float64,
+func (r *Read) CellFor(p geom.Vec, feet, reach float64,
 	ground func(cell.ID) float64) (cell.ID, bool) {
-	c, _, ok := t.LevelFor(p, feet, reach, ground)
+	c, _, ok := r.LevelFor(p, feet, reach, ground)
 	return c, ok
 }
 
 // LevelFor is CellFor and whether whoever stands there stands on a raised deck.
-func (t *Cells) LevelFor(p geom.Vec, feet, reach float64,
+func (r *Read) LevelFor(p geom.Vec, feet, reach float64,
 	ground func(cell.ID) float64) (cell.ID, bool, bool) {
+	t := r.t
 	c, ok := t.grid.CellAt(p)
-	if !ok || t.built == 0 || t.store == nil {
+	if !ok || t.built == 0 || r.store == nil {
 		return c, false, ok
 	}
-	t.decks = t.DecksOver(c, p, t.decks[:0])
 	best, top, raised := c, math.Inf(-1), false
-	for _, d := range t.decks {
+	r.DecksOver(c, p, func(d Deck) bool {
 		f := d.Built.Floor
 		h := f.Height
 		if ground != nil {
 			h += ground(d.Cell)
 		}
-		if f.Height > 0 && ground != nil && feet < h-reach || h <= top {
-			continue
+		if !(f.Height > 0 && ground != nil && feet < h-reach || h <= top) {
+			best, top, raised = d.Cell, h, f.Height > 0
 		}
-		best, top, raised = d.Cell, h, f.Height > 0
-	}
+		return true
+	})
 	return best, raised, true
 }
 
@@ -199,15 +210,16 @@ func (t *Cells) Standing(c cell.ID, each func(uid.UID64)) {
 
 // Built is what the entities standing on c build over it; none off the board or before the cells
 // are made.
-func (t *Cells) Built(c cell.ID) cell.Built {
-	if t.built == 0 || t.store == nil {
+func (r *Read) Built(c cell.ID) cell.Built {
+	t := r.t
+	if t.built == 0 || r.store == nil {
 		return cell.Built{}
 	}
 	i, ok := t.Ordinal(c)
 	if !ok {
 		return cell.Built{}
 	}
-	if b := t.store.builtOf(i); b != nil {
+	if b := r.store.builtOf(i); b != nil {
 		return *b
 	}
 	return cell.Built{}
@@ -215,12 +227,12 @@ func (t *Cells) Built(c cell.ID) cell.Built {
 
 // Bare is c's ground kind, bare of what runs across it — a way, a bridge — with what else is built
 // over it; off the board, the zero kind.
-func (t *Cells) Bare(c cell.ID) cell.Kind {
-	k := t.KindOf(c)
+func (r *Read) Bare(c cell.ID) cell.Kind {
+	k := r.KindOf(c)
 	if k == nil {
 		return cell.Kind{}
 	}
-	b := t.Built(c)
+	b := r.Built(c)
 	if b.Floor.Graded {
 		b.Floor = cell.Floor{} // a bridge runs across as a way does, the ground beside it bare
 	}
@@ -228,8 +240,9 @@ func (t *Cells) Bare(c cell.ID) cell.Kind {
 }
 
 // KindOf is c's ground kind without the copy, nil off the board; good until the cells change.
-func (t *Cells) KindOf(c cell.ID) *cell.Kind {
-	if t.store == nil {
+func (r *Read) KindOf(c cell.ID) *cell.Kind {
+	t := r.t
+	if r.store == nil {
 		k := t.seed.Kind(c)
 		return &k
 	}
@@ -237,7 +250,7 @@ func (t *Cells) KindOf(c cell.ID) *cell.Kind {
 	if !ok {
 		return nil
 	}
-	return &t.store.groundOf(i).Kind
+	return &r.store.groundOf(i).Kind
 }
 
 // Set assigns c's ground kind.
@@ -263,25 +276,26 @@ func (t *Cells) Set(c cell.ID, kind cell.Kind) {
 
 // SetAll assigns kind to every cell's ground.
 func (t *Cells) SetAll(kind cell.Kind) {
-	t.touchAll()
 	if t.store == nil {
 		t.seed.SetAll(kind)
-		return
+	} else {
+		t.store.setAll(kind)
+		t.version++
 	}
-	t.store.setAll(kind)
-	t.version++
+	t.touchAll()
 }
 
 // Way is what runs across c; the zero Way off the board or where nothing does.
-func (t *Cells) Way(c cell.ID) cell.Way {
-	if t.store == nil {
+func (r *Read) Way(c cell.ID) cell.Way {
+	t := r.t
+	if r.store == nil {
 		return t.seed.Ways[c]
 	}
 	i, ok := t.Ordinal(c)
 	if !ok {
 		return cell.Way{}
 	}
-	return *t.store.wayOf(i)
+	return *r.store.wayOf(i)
 }
 
 // SetWay lays w across c, the zero Way taking what ran there away.
@@ -306,15 +320,16 @@ func (t *Cells) SetWay(c cell.ID, w cell.Way) {
 }
 
 // States are the markers of the effects on c now; none before the cells are made.
-func (t *Cells) States(c cell.ID) tag.Tags[effect.States] {
-	if t.store == nil {
+func (r *Read) States(c cell.ID) tag.Tags[effect.States] {
+	t := r.t
+	if r.store == nil {
 		return 0
 	}
 	i, ok := t.Ordinal(c)
 	if !ok {
 		return 0
 	}
-	return t.store.statesOf(i)
+	return r.store.statesOf(i)
 }
 
 // Cast has c play roles for good; only the seed takes them, before the cells are made.
@@ -363,16 +378,25 @@ func (t *Cells) touch(c cell.ID) {
 	if i, ok := t.Ordinal(c); ok && i < len(t.stamps) {
 		t.changes++
 		t.stamps[i] = t.changes
+		if t.changed != nil {
+			t.changed(c)
+		}
 	}
 }
 
 func (t *Cells) touchAll() {
 	t.changes++
 	t.everyone = t.changes
+	if t.all != nil {
+		t.all()
+	}
 }
 
 func (t *Cells) made(st *store) {
 	t.version += t.seed.Version()
-	t.store, t.seed = st, nil
+	t.store, t.seed, t.read.store = st, nil, st
+	for _, f := range t.forks {
+		f.store = st.fork()
+	}
 	t.touchAll()
 }

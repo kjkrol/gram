@@ -32,7 +32,7 @@ func (wagon) Define(b *board.Plugin) {
 		TurnRate: 0.1,
 	}
 	units := board.NewUnits[unitRow](b, board.Shape{Size: wagonPx, Height: 2},
-		func(u unitRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+		func(u unitRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
 	units.Define(WagonKind, unit.Mover{Domain: cell.Land}, profile, ordered())
 }
 

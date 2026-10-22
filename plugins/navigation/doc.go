@@ -51,7 +51,7 @@
 // a route goes by the unit's Z: onto the deck within its step, along it, off it only onto a surface
 // within the step, under it only where the unit fits; a step across a railing is never planned. A
 // step along a deck's band is planned only for a unit no wider across it than the band's lane
-// (board.Board.Lane).
+// (board.BoardRead.Lane).
 //
 // A route once planned is followed: it is planned again when it breaks (the ground under it turns
 // against the unit, a step is refused, the unit is pushed off it or strikes someone), not when a

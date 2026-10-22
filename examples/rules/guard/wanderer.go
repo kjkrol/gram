@@ -38,7 +38,7 @@ func (wanderer) Define(b *board.Plugin) {
 			Then: plan.Self.Wait(3 * time.Second)},
 	))
 	wanderers := board.NewUnits[wandererRow](b, board.Shape{Size: unitSize},
-		func(w wandererRow) geom.Vec { return b.Board().CellCenter(w.Start) })
+		func(w wandererRow) geom.Vec { return b.Read(0).Board().CellCenter(w.Start) })
 	wanderers.Define(WandererKind, unit.Mover{Domain: cell.Land}, profile, patrol,
 		comp.Load(func(w wandererRow) navigation.Round {
 			return navigation.NewRound(w.To, w.Start)

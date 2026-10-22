@@ -47,7 +47,7 @@ type Map interface {
 	Top(c cell.ID) (corners [4]float32, level float32)
 }
 
-// Board is what a Renderer reads of a board; a board.Board is one.
+// Board is what a Renderer reads of a board; a board.BoardRead is one.
 type Board interface {
 	grid.Grid
 	// Shape is the grid's shape when it is one of grid.DefaultGrids.
@@ -88,6 +88,7 @@ type Renderer struct {
 	count    int // 0 all of the pool, 1 none
 	pool     *parallel.Pool
 	drawPart func(w, i int) // drawParted, bound once
+	reads    func(w int) Board
 	seen     []uint32
 	stamp    uint32
 	tops     []cellTop
@@ -179,7 +180,7 @@ func NewRenderer(b Board, atlas render.AtlasSource, m Map, space world.SpaceCfg)
 		mapping: m,
 		space:   space,
 	}
-	r.tile.r, r.tile.Atlas = r, atlas
+	r.tile.r, r.tile.Atlas, r.tile.board = r, atlas, b
 	r.drawPart = r.drawParted
 	if ok && b.CellCount() > 0 {
 		r.rims = rimsOf(b, b.At(0, 0), nil)
@@ -229,6 +230,10 @@ func (l *Renderer) Workers(n int) { l.count = max(n, 0) }
 
 // UsePool sets the goroutines a frame's tiles are shared among; nil, one.
 func (l *Renderer) UsePool(p *parallel.Pool) { l.pool = p }
+
+// Reads has the pool's worker w read the board through of(w) as it lays tiles; without, through
+// the board the renderer was made with.
+func (l *Renderer) Reads(of func(w int) Board) { l.reads = of }
 
 // Compose hands the Map's Look every cell under cam, and the grid when it is on; nothing before
 // the renderer has an atlas.
@@ -454,7 +459,10 @@ func (l *Renderer) compose(f *render.Frame, look Look, d Dressing) {
 	for w, tw := range l.workers[:n] {
 		tw.dress = par.Worker(w)
 		tw.look = pl.Worker(w, tw.dress)
-		tw.tile.Atlas, tw.tile.dress = sheet, tw.dress
+		tw.tile.Atlas, tw.tile.dress, tw.tile.board = sheet, tw.dress, l.board
+		if l.reads != nil {
+			tw.tile.board = l.reads(w)
+		}
 	}
 	for len(l.parts) < k {
 		l.parts = append(l.parts, tilePart{})
@@ -501,7 +509,7 @@ func (l *Renderer) cell(f, over *render.Frame, look Look, t *Tile, c cell.ID, s 
 		t.Coarse = l.sight.Level(middle.X, middle.Y) != view.Exact
 		t.Fog = l.sight.Fog(middle.X, middle.Y)
 	}
-	if _, ok := l.shaded[l.board.Kind(c).Name]; !ok {
+	if _, ok := l.shaded[t.board.Kind(c).Name]; !ok {
 		l.place(t, c)
 		look.Cell(f, l.camera, t)
 		if t.dress != nil && !t.Coarse {

@@ -45,7 +45,7 @@ var (
 
 // pulled down for good, and the swings each way, the pull ending down
 func (lever) Effects(b *board.Plugin) {
-	fx := b.World().Effects()
+	fx := b.Read(0).World().Effects()
 	fx.Define(LeverPulledEf, effect.Spec{})
 	fx.Define(LeverPullingEf, effect.Spec{
 		effect.Lasts(leverSwing),
@@ -55,7 +55,7 @@ func (lever) Effects(b *board.Plugin) {
 }
 
 func (lever) Define(b *board.Plugin) {
-	fx := b.World().Effects()
+	fx := b.Read(0).World().Effects()
 	swings := plan.New(SwingsPlan, plan.Loop[any]{
 		Name: "swing",
 		When: cond.Self.If(cond.Always),

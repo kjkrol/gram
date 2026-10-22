@@ -104,9 +104,9 @@ func NewQuasiWorldWith(
 	}
 	qw.Board = board.NewPlugin(qw.Grid, &cell.MultipleOccupancy{}, qw.World).WithMotion(qw.Motion)
 	qw.Topo = topography.NewPlugin(qw.World, qw.Board, nil, topography.Config{})
-	qw.Board.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | cell.Air})
+	qw.Board.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | cell.Air})
 	hillCell := qw.Grid.At(2, 1)
-	qw.Board.Board().Set(hillCell, Hill)
+	qw.Board.Write().Board().Set(hillCell, Hill)
 	RaiseHills(qw.Topo.Relief(), qw.Grid, hillCell)
 	units := board.NewUnits[Recruit](qw.Board, board.Shape{Size: 20, Height: 2}, func(r Recruit) geom.Vec { return qw.Grid.CellCenter(r.Start) })
 	entries := define(qw, units)
@@ -200,7 +200,7 @@ func Camera(w *world.Plugin, cfg cameras.Config) camera.Camera {
 func LevelBoard(w *world.Plugin) (*board.Plugin, grid.Grid) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	return b, grid
 }
 

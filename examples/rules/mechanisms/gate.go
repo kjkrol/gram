@@ -20,7 +20,7 @@ var (
 
 func (gate) Effects(b *board.Plugin) {
 	ajar := effect.Alter(func(w *cell.Wall) { w.Keeps = 0 })
-	b.World().Effects().Define(AjarEf, effect.Spec{ajar})
+	b.Read(0).World().Effects().Define(AjarEf, effect.Spec{ajar})
 }
 
 func (gate) Define(b *board.Plugin) {

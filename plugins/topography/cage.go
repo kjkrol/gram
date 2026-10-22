@@ -13,7 +13,7 @@ func (p *Plugin) Free(x, y, z float32) bool {
 		return false
 	}
 	free := true
-	p.boardPlugin.Board().DecksOver(at, func(c cell.ID, f cell.Floor) {
+	p.board.DecksOver(at, func(c cell.ID, f cell.Floor) {
 		deck := float32(p.relief.Altitude(c) + f.Height)
 		if f.Height > 0 && z < deck && z >= deck-max(float32(f.Thickness), 1e-3) {
 			free = false
@@ -31,7 +31,7 @@ func (p *Plugin) Span() (low, high float32) {
 // Grain is how far a line of sight may step near a deck and how thin the thinnest one is; zero
 // away from the decks.
 func (p *Plugin) Grain(x, y float32) (step, thin float32) {
-	brd := p.boardPlugin.Board()
+	brd := p.board
 	if !brd.NearDeck(geom.NewVec(float64(x), float64(y))) {
 		return 0, 0
 	}

@@ -32,7 +32,7 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	selected    tag.Tag[selection.Family]
 
-	board  *board.Board
+	board  *board.BoardRead
 	module *module
 
 	moves   command.Queue[MoveTo]
@@ -80,8 +80,8 @@ func NewPlugin(
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(worldPlugin, p)
 	drivingPlugin.WithKeeping(&p.handKeeping)
-	p.pathRenderer = newPathRenderer(boardPlugin.Board(), DefaultRouteStyle, p.selected).
-		WithHeights(boardPlugin.Heights).WithLook(worldPlugin.Look).WithStyles(worldPlugin.Styles)
+	p.pathRenderer = newPathRenderer(boardPlugin.Read(0).Board(), DefaultRouteStyle, p.selected).
+		WithHeights(boardPlugin.Read(0).Heights).WithLook(worldPlugin.Look).WithStyles(worldPlugin.Styles)
 	p.pathRenderer.BindSpace(worldPlugin.Space())
 	return p
 }
@@ -97,19 +97,20 @@ func (p *Plugin) KindTemplates(r *kind.Roster) {
 func (p *Plugin) Name() string { return "gram.navigation" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	brd := p.boardPlugin.Board()
+	read := p.boardPlugin.Read(0)
+	brd := read.Board()
 	p.board = brd
 
 	w, h := brd.CellBounds()
 	p.spacing = p.spacing.resolve(float64(p.worldPlugin.Res.Config.Entities.MaxSize), min(w, h))
 	// routes are planned blind to the others: the keeping answers what a route runs into
-	finder := newPathFinder(brd, brd, p.boardPlugin, openOccupancy{})
-	finder.WithLevels(boardLevels{p.boardPlugin})
+	finder := newPathFinder(brd, brd, read, openOccupancy{})
+	finder.WithLevels(boardLevels{read})
 	var keep keeping
 	if p.spacing == BodySpacing {
-		keep = newBodyKeeping(finder, p.worldPlugin.Space(), p.boardPlugin.Heights)
+		keep = newBodyKeeping(finder, p.worldPlugin.Space(), read.Heights)
 	} else {
-		keep = newCellKeeping(finder, p.boardPlugin.Occupancy())
+		keep = newCellKeeping(finder, p.boardPlugin.Write().Occupancy())
 	}
 	p.finder = finder
 	p.pathRenderer.finder = finder

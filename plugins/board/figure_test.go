@@ -21,7 +21,7 @@ type post struct{ ran []string }
 
 func (p *post) Effects(b *board.Plugin) {
 	p.ran = append(p.ran, "effects")
-	b.World().Effects().Define("posted", effect.Spec{})
+	b.Read(0).World().Effects().Define("posted", effect.Spec{})
 }
 
 func (p *post) Define(b *board.Plugin) {
@@ -38,12 +38,12 @@ type mud struct{ ran []string }
 
 func (m *mud) Rules(b *board.Plugin) {
 	m.ran = append(m.ran, "rules")
-	b.World().Roles().Define("muddy")
+	b.Read(0).World().Roles().Define("muddy")
 }
 
 func (m *mud) Define(b *board.Plugin) {
 	m.ran = append(m.ran, "define")
-	b.CellKinds().Define("mud", cell.Kind{Cost: 3, Allows: cell.Land}, b.World().Roles().Named("muddy"))
+	b.Read(0).CellKinds().Define("mud", cell.Kind{Cost: 3, Allows: cell.Land}, b.Read(0).World().Roles().Named("muddy"))
 }
 
 func (m *mud) Look(a *board.Atlas, _ *board.Plugin) {
@@ -74,7 +74,7 @@ func TestFiguresAndTiles_RunTheirPartsOverTheBoardAndLookOnTheirAtlases(t *testi
 	if _, _, _, ok := w.Kinds().Lookup("post"); !ok {
 		t.Error("the figure's kind is not the world's")
 	}
-	b.CellKinds().Named("mud") // the tile's kind is the board's: unknown, it panics by name
+	b.Read(0).CellKinds().Named("mud") // the tile's kind is the board's: unknown, it panics by name
 	w.NewAtlas().Looks()
 	if f.ran[len(f.ran)-1] != "look" || tile.ran[len(tile.ran)-1] == "look" {
 		t.Errorf("the world's Looks: figure %v, tile %v; want the figure looked, not the tile", f.ran, tile.ran)

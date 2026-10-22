@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/board/cell"
+	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/unit"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/motion/steering"
@@ -16,7 +17,8 @@ var _ goke.System = (*altitudeSystem)(nil)
 
 // one carried at a motion.Drift is gravity's, which writes its height itself
 type altitudeSystem struct {
-	relief *Relief
+	relief   *Relief
+	surfaces ground.Surfaces
 
 	query  *goke.Query
 	base   goke.Comp[world.Base]
@@ -30,9 +32,12 @@ type altitudeSystem struct {
 	floor    goke.OptComp[cell.Floor]
 }
 
-// AltitudeSystem is the goke.System keeping the movers on r at their heights. Run it in every
-// step of the simulation, after movement and collisions.
-func (r *Relief) AltitudeSystem() goke.System { return &altitudeSystem{relief: r} }
+// AltitudeSystem is the goke.System keeping the movers on r at their heights, standing on what
+// surfaces says, or on r's ground where it is nil. Run it in every step of the simulation, after
+// movement and collisions.
+func (r *Relief) AltitudeSystem(surfaces ground.Surfaces) goke.System {
+	return &altitudeSystem{relief: r, surfaces: surfaces}
+}
 
 func (s *altitudeSystem) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.base, &s.z, &s.mover).Optional(&s.driven).Optional(&s.course).
@@ -49,7 +54,10 @@ func (s *altitudeSystem) Update(_ *goke.CmdBuf, d time.Duration) {
 		for i := range cursor.IDs {
 			m := &movers[i]
 			at := bases[i].Pos.Center()
-			ground, _ := s.relief.Surface(at, m.Domain, zs[i].Altitude-m.Lift, zs[i].Reach())
+			ground := s.relief.GroundAt(at)
+			if s.surfaces != nil {
+				ground, _ = s.surfaces.Surface(at, m.Domain, zs[i].Altitude-m.Lift, zs[i].Reach())
+			}
 			alt := ground + m.Lift
 			flown := m.Domain&cell.Air != 0 && drivens != nil && drivens[i].Flown
 			if flown {

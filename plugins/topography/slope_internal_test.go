@@ -32,7 +32,7 @@ func TestSlope_SlowsAClimbAndASteepDescent(t *testing.T) {
 			t.Errorf("at x %v going %v in %v: ×%v as long, want ×%v", c.x, c.dir, c.d, got, c.want)
 		}
 	}
-	if got := b.Map().Slope(geom.NewVec(15, 5), east, cell.Land); math.Abs(got-3) > 1e-6 {
+	if got := b.Read(0).Board().Map().Slope(geom.NewVec(15, 5), east, cell.Land); math.Abs(got-3) > 1e-6 {
 		t.Errorf("the board's map prices the climb ×%v, want the topography's ×3", got)
 	}
 }

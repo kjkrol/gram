@@ -17,7 +17,7 @@ var _ board.Figure = boat{}
 
 func (boat) Define(b *board.Plugin) {
 	units(b).Define(BoatKind, unit.Mover{Domain: cell.Water}, profile(unitSpeed/4), ordered(),
-		ceremony.Plays(b.World().Roles().Named(MortalRole)))
+		ceremony.Plays(b.Read(0).World().Roles().Named(MortalRole)))
 }
 
 func (boat) Look(a *world.Atlas, w *world.Plugin) {
