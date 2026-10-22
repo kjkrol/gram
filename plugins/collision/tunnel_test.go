@@ -36,7 +36,7 @@ func TestWorldAndCollisions_MixedSizes_NeverTunnel(t *testing.T) {
 	})
 	runners := kind.Named[runner](w.Kinds(), "runner")
 	small, big := runner{x: 1000, side: 2, heading: 1}, runner{x: 1600, side: 100, heading: -1}
-	w.Seed(runners.Entry(small), runners.Entry(big))
+	w.Write().Seed(runners.Entry(small), runners.Entry(big))
 	if err := w.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)
 	}

@@ -110,11 +110,11 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		hand: &handSystem{
 			hands:    &p.hands,
 			selected: p.selected,
-			carrier:  p.worldPlugin.Carrier(),
+			carrier:  p.worldPlugin.Write().Carrier(),
 			units:    shared,
 		},
 		drive: drive,
-		clock: p.worldPlugin.Clock(),
+		clock: p.worldPlugin.Write().Clock(),
 	}
 	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)

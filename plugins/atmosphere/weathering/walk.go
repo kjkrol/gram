@@ -59,9 +59,9 @@ func (s *system) Init(si *goke.SysInit) {
 }
 
 func (s *system) Update(cb *goke.CmdBuf, d time.Duration) {
-	now := s.clk.Time() + d
+	now := s.clk.Read().Time() + d
 	if !s.begun {
-		s.last, s.begun = s.clk.Time(), true
+		s.last, s.begun = s.clk.Read().Time(), true
 	}
 	if s.second.Holds(clock.Moment{Last: s.last, Now: now}) {
 		s.w.second(cb)

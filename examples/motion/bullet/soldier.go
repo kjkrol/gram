@@ -28,7 +28,7 @@ func (soldier) Define(b *board.Plugin) {
 
 func (soldier) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[unitRow](w.Kinds(), SoldierKind), unitSize, armed(soldierColor)).
-		Under(w.Effects().Named(WoundedEf), armed(paleColor)).
+		Under(w.Write().Effects().Named(WoundedEf), armed(paleColor)).
 		Turning()
 }
 

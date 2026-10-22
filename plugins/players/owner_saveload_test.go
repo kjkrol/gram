@@ -55,7 +55,7 @@ func (s *ownerStage) Init(ctx game.Initializer) error {
 func (s *ownerStage) Loaded() error { return nil }
 
 func (s *ownerStage) Spawn() error {
-	s.world.Seed(s.unit.Entry(struct{}{}))
+	s.world.Write().Seed(s.unit.Entry(struct{}{}))
 	return nil
 }
 

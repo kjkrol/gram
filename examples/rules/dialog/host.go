@@ -28,7 +28,7 @@ var (
 )
 
 func (host) Rules(b *board.Plugin) {
-	roles, fx := b.Read(0).World().Roles(), b.Read(0).World().Effects()
+	roles, fx := b.Read(0).World().Roles(), b.Read(0).World().Write().Effects()
 	talking, talked := fx.Named(dialog.TalkingEf), fx.Named(dialog.TalkedEf)
 	roles.Define(HostRole,
 		act.Branch[vision.Sighting]{

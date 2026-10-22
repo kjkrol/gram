@@ -78,7 +78,7 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 	})
 	r.m = motion.NewPlugin(r.w)
 	r.angry = r.w.Kinds().DefineTag[fxMoods]("angry")
-	r.fx = r.w.Effects()
+	r.fx = r.w.Write().Effects()
 	define(r)
 
 	ctx := &fxInstallCtx{ecs: goke.New()}
@@ -103,7 +103,7 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 	spec = append(spec, r.comps...)
 	kind.Define[struct{}](r.w.Kinds(), "unit", spec)
 	unit := kind.Named[struct{}](r.w.Kinds(), "unit")
-	r.w.Seed(unit.Entry(struct{}{}))
+	r.w.Write().Seed(unit.Entry(struct{}{}))
 	if err := r.w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func newRig(t *testing.T, withFamily bool, define func(r *rig)) *rig {
 		rc.Sync()
 		r.w.RunPlan(rc, d)
 		r.m.RunPlan(rc, d)
-		r.w.Clock().Replay(rc, d)
+		r.w.Write().Clock().Replay(rc, d)
 		rc.Sync()
 	})
 	r.ecs = ctx.ecs
@@ -491,7 +491,7 @@ func TestEffects_DefineRefusesOneEffectTooManyByName(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 400, Height: 400},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 	})
-	fx := w.Effects()
+	fx := w.Write().Effects()
 	for i := range tag.MaxTagsPerFamily - 1 {
 		fx.Define(fmt.Sprint("e", i), effect.Spec{})
 	}

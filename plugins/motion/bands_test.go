@@ -35,14 +35,14 @@ func TestMove_InAFartherBandGoesAsFarInAsLongAndNotAtAllBeyond(t *testing.T) {
 			},
 		},
 	})
-	w.Anchor(anchor{x: 100, y: 256})
+	w.Write().Anchor(anchor{x: 100, y: 256})
 	m := motion.NewPlugin(w)
 	kind.Define[walker](w.Kinds(), "walker", kind.Spec{
 		comp.Load(func(r walker) world.Position { return box(r.x, 250, 10) }),
 		comp.Const(world.Velocity{Dir: geom.NewVec(1, 0), Value: 30}),
 	})
 	walkers := kind.Named[walker](w.Kinds(), "walker")
-	w.Seed(walkers.Entry(walker{x: 100}), walkers.Entry(walker{x: 1200}),
+	w.Write().Seed(walkers.Entry(walker{x: 100}), walkers.Entry(walker{x: 1200}),
 		walkers.Entry(walker{x: 2000}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)

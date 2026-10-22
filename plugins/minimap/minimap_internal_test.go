@@ -93,7 +93,7 @@ func TestMinimap_FollowsItsCameraTurningWithItOnlyWhenAsked(t *testing.T) {
 	if m.lens.scale != 0.25 {
 		t.Errorf("a picture 100 across reaching 200 is %v a unit, want 0.25", m.lens.scale)
 	}
-	w.Carrier().Put(command.Nobody, Turn{On: true})
+	w.Write().Carrier().Put(command.Nobody, Turn{On: true})
 	p.RunPlan(nil, 0)
 	if !p.Turning() || m.lens.ax != 1 || m.lens.ay != 0 {
 		t.Errorf("turning, the lens looks ahead (%v, %v), want east as the camera", m.lens.ax,
@@ -106,7 +106,7 @@ func TestMinimap_SwitchShowsAndHidesItsPicture(t *testing.T) {
 	p := carried(t, w, NewPlugin(w, nil, Config{Reach: 200}))
 	e := p.For(cameratest.NewFromSpace(1000, 1000, 0), command.Nobody).Size(100, 100)
 	for _, want := range []bool{false, true} {
-		w.Carrier().Put(command.Nobody, Switch{Shown: want})
+		w.Write().Carrier().Put(command.Nobody, Switch{Shown: want})
 		p.RunPlan(nil, 0)
 		if p.Shown() != want {
 			t.Errorf("switched, shown %v, want %v", p.Shown(), want)
@@ -249,7 +249,8 @@ func TestMarks_ADotForEveryEntityRoundWhoseKindHasAMark(t *testing.T) {
 	}
 	marked := kind.Named[spot](w.Kinds(), "marked")
 	plain := kind.Named[spot](w.Kinds(), "plain")
-	w.Seed(marked.Entry(spot{450, 500}), marked.Entry(spot{550, 500}), plain.Entry(spot{500, 500}),
+	w.Write().Seed(marked.Entry(spot{450, 500}), marked.Entry(spot{550, 500}), plain.Entry(spot{500,
+		500}),
 		marked.Entry(spot{900, 900}))
 	a := w.NewAtlas()
 	a.Add(marked, 4, render.Solid(markRed)).Styled(Mark{Color: markRed, Size: 6})
@@ -329,7 +330,7 @@ func start(t *testing.T, w *world.Plugin, after ...goke.System) *goke.ECS {
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	return ctx.ecs
 }

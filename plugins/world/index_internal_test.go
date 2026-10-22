@@ -63,7 +63,7 @@ func TestIndex_AMigrationInAStepLeavesTheSpaceFindingEveryEntityWhereItStands(t 
 func TestIndex_ANewcomerTakingTheSlotOfOneGoneInTheSameStepIsFoundWhereItStands(t *testing.T) {
 	p, things, ecs, q, base := spawnWorld(t, 0, 3)
 	wm := p.module
-	p.Spawn(
+	p.write.Spawn(
 		things.Entry(thing{x: 100, y: 100, size: 10}),
 		things.Entry(thing{x: 300, y: 100, size: 10}),
 	)
@@ -85,7 +85,7 @@ func TestIndex_ANewcomerTakingTheSlotOfOneGoneInTheSameStepIsFoundWhereItStands(
 	if found := finds(300); !slices.Equal(found, []uid.UID64{at[300]}) {
 		t.Fatalf("at 300 the space finds %v, want %v", found, at[300])
 	}
-	p.Spawn(things.Entry(thing{x: 800, y: 100, size: 10}))
+	p.write.Spawn(things.Entry(thing{x: 800, y: 100, size: 10}))
 	wm.commands.PutFrom(at[300], Despawn{})
 	run(ecs, wm, func(*goke.CmdBuf) {})
 

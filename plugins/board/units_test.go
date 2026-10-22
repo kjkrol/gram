@@ -52,7 +52,7 @@ func unitsWorld(t *testing.T, define func(units *board.Units[recruit]) kind.Of[r
 		t.Fatal(err)
 	}
 	start := grid.At(2, 1)
-	w.Seed(k.Entry(recruit{start: start}))
+	w.Write().Seed(k.Entry(recruit{start: start}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestUnits_AUnitOffTheBoardPanicsWhenSpawned(t *testing.T) {
 	if err := brd.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	w.Seed(k.Entry(recruit{}))
+	w.Write().Seed(k.Entry(recruit{}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}

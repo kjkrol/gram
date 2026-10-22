@@ -152,7 +152,7 @@ func (c *initializer) TPS() *game.TPS { return c.tps }
 
 func (c *initializer) carrier() (*command.Carrier, error) {
 	if c.world != nil {
-		return c.world.Carrier(), nil
+		return c.world.Write().Carrier(), nil
 	}
 	own := &command.Carrier{}
 	for _, h := range c.handlers {

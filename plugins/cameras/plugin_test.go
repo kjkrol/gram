@@ -454,7 +454,7 @@ func TestSharpFigures_ReachesEveryCameraAndTheTelemetry(t *testing.T) {
 	if got := report(p); got != "Picture: tactical\n0.70 of the pixels\nthe figures sharp\nstill" {
 		t.Fatalf("the telemetry says %q, want the figures sharp at 0.70", got)
 	}
-	w.Carrier().Put(command.Nobody, cameras.SharpFigures{Profile: cameras.Tactical, On: false})
+	w.Write().Carrier().Put(command.Nobody, cameras.SharpFigures{Profile: cameras.Tactical, On: false})
 	tick()
 	if camera.SharpFiguresOf(cam) || p.SharpFigures(cameras.Tactical) {
 		t.Error("after SharpFigures{On: false} the figures are drawn at every pixel, want the " +
@@ -463,13 +463,13 @@ func TestSharpFigures_ReachesEveryCameraAndTheTelemetry(t *testing.T) {
 	if got := report(p); got != "Picture: tactical\n0.70 of the pixels\nstill" {
 		t.Errorf("the telemetry says %q, want nothing of the figures", got)
 	}
-	w.Carrier().Put(command.Nobody, cameras.SharpFigures{Profile: cameras.Tactical, On: true})
+	w.Write().Carrier().Put(command.Nobody, cameras.SharpFigures{Profile: cameras.Tactical, On: true})
 	tick()
 	if !camera.SharpFiguresOf(cam) || !p.SharpFigures(cameras.Tactical) {
 		t.Error("after SharpFigures{On: true} the figures are drawn at the ground's resolution, " +
 			"want every pixel")
 	}
-	w.Carrier().Put(command.Nobody, cameras.Picture{Profile: cameras.Tactical, Resolution: 1})
+	w.Write().Carrier().Put(command.Nobody, cameras.Picture{Profile: cameras.Tactical, Resolution: 1})
 	tick()
 	if got := report(p); got != "Picture: tactical\n1.00 of the pixels\nstill" {
 		t.Errorf("at all the pixels the telemetry says %q, want nothing of the figures", got)
@@ -611,7 +611,7 @@ func ridden(t *testing.T, tactical, riding cameras.Knobs) (p *cameras.Plugin, ca
 		comp.Const(world.Velocity{}),
 	})
 	rider := kind.Named[float64](w.Kinds(), "rider")
-	w.Seed(rider.Entry(500).Told(cameras.Follow{Camera: cam}))
+	w.Write().Seed(rider.Entry(500).Told(cameras.Follow{Camera: cam}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -621,7 +621,7 @@ func ridden(t *testing.T, tactical, riding cameras.Knobs) (p *cameras.Plugin, ca
 		t.Fatalf("the camera is fastened %v, want Centred over the entity", how)
 	}
 	return p, cam, func(cmd command.Command) {
-		w.Carrier().Put(command.Nobody, cmd)
+		w.Write().Carrier().Put(command.Nobody, cmd)
 		tick()
 	}
 }

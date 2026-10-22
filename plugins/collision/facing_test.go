@@ -46,7 +46,7 @@ func TestMeeting_FacingIsTheWordOfTheOneTurnedTowardsTheOther(t *testing.T) {
 		comp.Const(collision.Collider{}),
 	})
 	thing := kind.Named[facer](w.Kinds(), "thing")
-	w.Seed(thing.Entry(facer{x: 100}), thing.Entry(facer{x: 96, dir: geom.NewVec(1, 0)}),
+	w.Write().Seed(thing.Entry(facer{x: 100}), thing.Entry(facer{x: 96, dir: geom.NewVec(1, 0)}),
 		thing.Entry(facer{x: 104, dir: geom.NewVec(1, 0)}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)

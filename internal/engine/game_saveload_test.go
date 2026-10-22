@@ -65,7 +65,7 @@ func (g *saveLoadTestGame) Name() string { return "stage" }
 func (g *saveLoadTestGame) Init(ctx game.Initializer) error {
 	g.world = ctx.UseWorld(testWorldConfig())
 	if g.define != nil {
-		g.world.Seed(g.define(g.world.Kinds())...)
+		g.world.Write().Seed(g.define(g.world.Kinds())...)
 	}
 	for _, s := range g.tracked {
 		if err := ctx.Track(s); err != nil {

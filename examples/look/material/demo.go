@@ -127,9 +127,9 @@ func (a *arena) definePlayer() error {
 
 func (a *arena) defineCommands() {
 	a.world.Commands().Define(CalmCmd,
-		ceremony.Put(a.world.Effects().Named(CalmEf)).On(ceremony.Named(WardName)))
+		ceremony.Put(a.world.Write().Effects().Named(CalmEf)).On(ceremony.Named(WardName)))
 	a.world.Commands().Define(DouseCmd,
-		ceremony.Put(a.world.Effects().Named(DousedEf)).On(a.selection.Selected()))
+		ceremony.Put(a.world.Write().Effects().Named(DousedEf)).On(a.selection.Selected()))
 }
 
 func (a *arena) defineFigures() {

@@ -51,7 +51,7 @@ func isometricIsland() (*world.Plugin, *topography.Plugin, camera.Camera) {
 func TestBillboards_StandEntitiesUprightOnTheirCentre(t *testing.T) {
 	w, _, cam := isometricIsland()
 	cam.CenterOn(64, 64, 0)
-	look := w.Look()
+	look := w.Read(0).Look()
 	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
 	stand := func(z world.Z) [][6]float32 {
 		var f render.Frame
@@ -95,7 +95,7 @@ func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 	cam.CenterOn(48, 48, 0)
 	p.WithAtmosphere(fixedSky{sun: sky.DefaultSun, air: air.Weather{Wind: [2]float32{40, 0}}})
 
-	look := w.Look()
+	look := w.Read(0).Look()
 	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
 	lean := func(sway float32) float32 {
 		var f render.Frame
@@ -112,7 +112,7 @@ func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 func TestBillboards_LayADeckOnItsBeam(t *testing.T) {
 	w, _, cam := isometricIsland()
 	cam.CenterOn(64, 64, 0)
-	look := w.Look()
+	look := w.Read(0).Look()
 	var f render.Frame
 	f.Reset(cam)
 	look.(world.DirectLook).Begin(&render.Frame{}, cam)
@@ -148,7 +148,7 @@ func TestBillboards_HazeFarOffOnlyWhenAsked(t *testing.T) {
 	cam.SetViewport(320, 240)
 	cam.CenterOn(2048, 2048, 0)
 	cameratest.Switch(cam)
-	look := w.Look()
+	look := w.Read(0).Look()
 	haze := func() []float32 {
 		var f render.Frame
 		f.Reset(cam)

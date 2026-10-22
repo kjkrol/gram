@@ -94,7 +94,7 @@ func (g *gameplayArena) spawnUnits() {
 	for i := range entries {
 		entries[i] = moverKind.Entry(placement.Place(i, EntityCount))
 	}
-	g.world.Seed(entries...)
+	g.world.Write().Seed(entries...)
 }
 
 func (g *gameplayArena) defineScenes() []game.Scene {

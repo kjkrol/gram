@@ -162,7 +162,7 @@ func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(
 		}
 		name := string(rune('a' + i))
 		kind.Define[Mover](bw.World.Kinds(), name, spec)
-		bw.World.Seed(kind.Named[Mover](bw.World.Kinds(), name).Entry(u))
+		bw.World.Write().Seed(kind.Named[Mover](bw.World.Kinds(), name).Entry(u))
 	}
 	if err := bw.World.Populate(); err != nil {
 		t.Fatal(err)
@@ -173,14 +173,14 @@ func NewWorldWith(t *testing.T, g grid.Grid, width, height uint32, prepare func(
 	}})
 	ctx.ECS().Setup(systems...)
 	ctx.ECS().SetPlan(func(rc goke.RunCtx, d time.Duration) {
-		settling := bw.World.Clock().Settling(rc)
+		settling := bw.World.Write().Clock().Settling(rc)
 		bw.World.RunPlan(settling, d)
 		bw.Motion.RunPlan(settling, d)
 		c.RunPlan(settling, d)
 		bw.Board.RunPlan(settling, d)
 		v.RunPlan(settling, d)
 		settling.Sync()
-		bw.World.Clock().Replay(rc, d)
+		bw.World.Write().Clock().Replay(rc, d)
 	})
 	bw.ECS = ctx.ECS()
 	return bw

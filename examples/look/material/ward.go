@@ -36,7 +36,7 @@ var (
 )
 
 func (ward) Effects(b *board.Plugin) {
-	b.Read(0).World().Effects().Define(CalmEf, effect.Spec{
+	b.Read(0).World().Write().Effects().Define(CalmEf, effect.Spec{
 		effect.Described("Calmed: the ward's glow put out for a while."),
 		effect.Lasts(2 * time.Second),
 	})
@@ -55,5 +55,5 @@ func (ward) Define(b *board.Plugin) {
 
 func (ward) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[wardRow](w.Kinds(), WardKind), wardPx, wardMaterial).
-		Under(w.Effects().Named(CalmEf), render.Dot(8, ashColor))
+		Under(w.Write().Effects().Named(CalmEf), render.Dot(8, ashColor))
 }

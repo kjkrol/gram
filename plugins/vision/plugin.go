@@ -50,9 +50,9 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin}
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(worldPlugin, p)
-	p.renderer = NewRenderer(worldPlugin.Space()).WithGround(p.groundOf).WithCover(p.coverOf).
-		WithScale(worldPlugin.Scale()).WithDrawing(&p.drawing).WithStyles(worldPlugin.Styles).
-		WithSeen(worldPlugin.ViewFor)
+	p.renderer = NewRenderer(worldPlugin.Read(0).Space()).WithGround(p.groundOf).WithCover(p.coverOf).
+		WithScale(worldPlugin.Read(0).Scale()).WithDrawing(&p.drawing).
+		WithStyles(worldPlugin.Read(0).Styles).WithSeen(worldPlugin.Read(0).ViewFor)
 	p.renderer.Hide(true)
 	return p
 }
@@ -61,15 +61,15 @@ func (p *Plugin) Name() string { return "gram.vision" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	var h *heights
-	if p.worldPlugin.HasHeights() {
-		h = &heights{groundOf: p.groundOf, step: p.groundStep, bend: p.worldPlugin.Scale().Bend()}
+	if p.worldPlugin.Read(0).HasHeights() {
+		h = &heights{groundOf: p.groundOf, step: p.groundStep, bend: p.worldPlugin.Read(0).Scale().Bend()}
 	}
-	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.coverOn, p.workers)
+	p.module = newModule(p.worldPlugin.Read(0).Space(), &p.sightings, h, p.coverOn, p.workers)
 	p.module.sys.Pool(ctx.Pool())
 	p.module.sys.Paced(p.worldPlugin.Pace(sector.Near))
 	p.module.sys.Every(p.frequency)
-	p.module.clock = p.worldPlugin.Clock()
-	p.module.sys.tick, p.module.sys.log = p.worldPlugin.Tick, p.log
+	p.module.clock = p.worldPlugin.Write().Clock()
+	p.module.sys.tick, p.module.sys.log = p.worldPlugin.Read(0).Tick, p.log
 	ctx.UseModule(p.module)
 	ctx.Hosts(&p.sightings)
 	ctx.Draws(p.renderer)

@@ -30,7 +30,7 @@ func TestRenderer_Init_QueryMatchesOnlySelectedEntity(t *testing.T) {
 		t.Fatal("sanity check failed: expected the other entity to remain unselected")
 	}
 
-	r := NewRenderer(h.tags.Selected, h.world.Look, nil)
+	r := NewRenderer(h.tags.Selected, h.world.Read(0).Look, nil)
 	h.ecs.RegSys(goke.SystemFn{OnInit: func(si *goke.SysInit) { r.Init(si) }})
 
 	r.query.All()
@@ -75,7 +75,7 @@ func TestRenderer_OutlinesEachKindInItsHighlight(t *testing.T) {
 	selected := tag.Tag[Family](1)
 	var styles render.Styles
 	styles.Set(7, Highlight{Line: color.RGBA{B: 255, A: 255}, Width: 4})
-	r := NewRenderer(selected, w.Look, func() *render.Styles { return &styles })
+	r := NewRenderer(selected, w.Read(0).Look, func() *render.Styles { return &styles })
 	var base goke.Comp[world.Base]
 	var marks goke.Comp[tag.Tags[Family]]
 	var app goke.Comp[render.Appearance]

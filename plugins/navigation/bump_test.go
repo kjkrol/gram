@@ -72,7 +72,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		Heights:  true,
 	})
 	rw.w = w
-	w.Effects().Define("alarm", effect.Spec{})
+	w.Write().Effects().Define("alarm", effect.Spec{})
 	occupancy := &cell.SingleOccupancy{}
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m)
@@ -161,7 +161,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		kind.Define[roadUnit](w.Kinds(), string(rune('a'+i)), spec(u.ordered, u.domain, u.wide, u.selected, u))
 		k := kind.Named[roadUnit](w.Kinds(), string(rune('a'+i)))
 		kindIDs[i] = k.ID()
-		w.Seed(k.Entry(u))
+		w.Write().Seed(k.Entry(u))
 	}
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
@@ -183,7 +183,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		rw.nav.RunPlan(rc, d)
 		rw.driving.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 		rw.players.RunPlan(rc, d)
 	})
 	rw.ecs = ctx.ecs

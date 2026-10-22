@@ -19,7 +19,7 @@ var (
 )
 
 func (round) Rules(p *bullet.Plugin) {
-	roles, wounded := p.World().Roles(), p.World().Effects().Named(WoundedEf)
+	roles, wounded := p.World().Roles(), p.World().Write().Effects().Named(WoundedEf)
 	roles.Define(RoundRole, act.Branch[collision.Meeting]{
 		Name: "shot",
 		When: cond.Other.If(roles.Named(MortalRole)),

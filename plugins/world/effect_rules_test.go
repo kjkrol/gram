@@ -174,11 +174,11 @@ func TestDuring_RunsWhileTheWorldIsUnderTheEffect(t *testing.T) {
 		if r.fx.Has(r.id, open) {
 			t.Fatalf("planned %v: open before the lever was pulled", planned)
 		}
-		r.w.Carrier().Put(1, ceremony.Put(lever).On(ceremony.World))
+		r.w.Write().Carrier().Put(1, ceremony.Put(lever).On(ceremony.World))
 		r.fxTick()
 		r.fxTick()
-		if !r.fx.Has(r.id, open) || !r.fx.Has(r.w.Clock().Entity(), lever) {
-			t.Fatalf("planned %v: lever on the world %v, open %v; want both", planned, r.fx.Has(r.w.Clock().Entity(), lever), r.fx.Has(r.id, open))
+		if !r.fx.Has(r.id, open) || !r.fx.Has(r.w.Read(0).Clock().Entity(), lever) {
+			t.Fatalf("planned %v: lever on the world %v, open %v; want both", planned, r.fx.Has(r.w.Read(0).Clock().Entity(), lever), r.fx.Has(r.id, open))
 		}
 		for range 6 {
 			r.fxTick()

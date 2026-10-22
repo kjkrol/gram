@@ -155,7 +155,7 @@ func New(clk *clock.Clock, cfg Config) *Calendar {
 func (c *Calendar) Config() Config { return c.cfg }
 
 // Now is the moment the clock stands at.
-func (c *Calendar) Now() Moment { return c.At(c.clock.Time()) }
+func (c *Calendar) Now() Moment { return c.At(c.clock.Read().Time()) }
 
 // At is the moment the clock stands at when it reads t.
 func (c *Calendar) At(t time.Duration) Moment {

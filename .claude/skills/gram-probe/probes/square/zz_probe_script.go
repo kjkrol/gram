@@ -32,7 +32,7 @@ func (p *probe) play() {
 		cur := p.q.Cursor()
 		for i, b := range p.base.Slice(cur) {
 			if kinds[b.TypeID] {
-				p.a.world.Carrier().PutFrom(cur.IDs[i], navigation.MoveTo{Cell: to})
+				p.a.world.Write().Carrier().PutFrom(cur.IDs[i], navigation.MoveTo{Cell: to})
 				n++
 			}
 		}

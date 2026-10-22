@@ -53,8 +53,9 @@ func newDecked(t *testing.T, g grid.Grid, w, h uint32, bridges board.Bridges,
 	})
 	d.p = board.NewPlugin(g, &cell.MultipleOccupancy{}, d.w).WithBridges(bridges)
 	d.p.Write().Board().SetAll(water)
-	d.w.Effects().Define("sag", effect.Spec{effect.Alter(func(f *cell.Floor) { f.Height += 5 })})
-	d.sag = d.w.Effects().Named("sag")
+	d.w.Write().Effects().Define("sag",
+		effect.Spec{effect.Alter(func(f *cell.Floor) { f.Height += 5 })})
+	d.sag = d.w.Write().Effects().Named("sag")
 	decks := board.NewEntities(d.p, board.Shape{Size: 1}, func(r deckRow) cell.ID { return r.At })
 	decks.Define("deck",
 		comp.Load(func(r deckRow) cell.Floor { return r.Floor }),
@@ -64,7 +65,7 @@ func newDecked(t *testing.T, g grid.Grid, w, h uint32, bridges board.Bridges,
 		if i == 0 {
 			e = e.Named("first")
 		}
-		d.w.Seed(e)
+		d.w.Write().Seed(e)
 	}
 	ctx := boardtest.NewInstallCtx()
 	if err := d.w.Install(ctx); err != nil {
@@ -82,7 +83,7 @@ func newDecked(t *testing.T, g grid.Grid, w, h uint32, bridges board.Bridges,
 		d.w.RunPlan(rc, dt)
 		d.p.RunPlan(rc, dt)
 		rc.Sync()
-		d.w.Clock().Replay(rc, dt)
+		d.w.Write().Clock().Replay(rc, dt)
 	})
 	return d
 }
@@ -428,7 +429,7 @@ func TestBridges_BrokenInTheGameIsNotBuilt(t *testing.T) {
 	if got := d.over(middle); len(got) != 1 {
 		t.Fatalf("before: decks of %v over the bridge's middle, want one", got)
 	}
-	carrier := d.w.Carrier()
+	carrier := d.w.Write().Carrier()
 	if !carrier.Put(command.Nobody, ceremony.Put(d.sag).On(ceremony.Named("first"))) {
 		t.Fatal("the world carries no command about an effect")
 	}
@@ -460,7 +461,7 @@ func TestRailings_AWalkerSlidesAlongASlantwiseOne(t *testing.T) {
 			comp.Load(func(r deckRow) cell.Rail { return r.Rail }))
 		for _, r := range band(g, [2]int{1, 1}, 44, 0,
 			g.At(1, 1), g.At(2, 2), g.At(3, 3), g.At(4, 4)) {
-			w.Seed(decks.Named("deck").Entry(r))
+			w.Write().Seed(decks.Named("deck").Entry(r))
 		}
 		return nil
 	}

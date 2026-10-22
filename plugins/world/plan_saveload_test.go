@@ -62,7 +62,7 @@ func (g *treeStage) Init(ctx game.Initializer) error {
 func (g *treeStage) Loaded() error { return nil }
 
 func (g *treeStage) Spawn() error {
-	g.world.Seed(g.unit.Entry(struct{}{}))
+	g.world.Write().Seed(g.unit.Entry(struct{}{}))
 	return nil
 }
 

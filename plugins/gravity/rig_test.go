@@ -159,7 +159,7 @@ func newRig(t *testing.T, sc scene) *rig {
 		Heights:  true,
 		Sectors:  sc.sectors,
 	})
-	w.Anchor(anchor(sc.anchor))
+	w.Write().Anchor(anchor(sc.anchor))
 	r := &rig{t: t, w: w}
 	if err := w.Carry(&r.heard); err != nil {
 		t.Fatal(err)
@@ -196,7 +196,7 @@ func newRig(t *testing.T, sc scene) *rig {
 		fences.Define("fence",
 			comp.Const(cell.Floor{Allows: cell.Land, Links: 1<<north | 1<<south, Width: 10}),
 			comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
-		w.Seed(fences.Named("fence").Entry(g.At(1, 1)))
+		w.Write().Seed(fences.Named("fence").Entry(g.At(1, 1)))
 	}
 	if sc.deck {
 		r.brd.WithCollision(r.c)
@@ -208,7 +208,7 @@ func newRig(t *testing.T, sc scene) *rig {
 			comp.Const(cell.Floor{Allows: cell.Land, Links: 1<<north | 1<<south, Width: 10,
 				Height: 10, Thickness: 1}),
 			comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
-		w.Seed(decks.Named("deck").Entry(g.At(1, 1)))
+		w.Write().Seed(decks.Named("deck").Entry(g.At(1, 1)))
 	}
 	pull := gravity.Pull{Z: -10}
 	if sc.level != nil {
@@ -235,7 +235,7 @@ func newRig(t *testing.T, sc scene) *rig {
 		comp.Const(collision.Physics{Mass: 1}),
 		comp.Load(func(b body) world.Velocity { return world.Velocity{Dir: b.facing} }))
 	for _, b := range sc.bodies {
-		w.Seed(units.Named("body").Entry(b))
+		w.Write().Seed(units.Named("body").Entry(b))
 	}
 	r.start(sc)
 	return r
@@ -270,7 +270,7 @@ func (r *rig) start(sc scene) {
 		r.g.RunPlan(rc, d)
 		r.brd.RunPlan(rc, d)
 		rc.Sync()
-		r.w.Clock().Replay(rc, d)
+		r.w.Write().Clock().Replay(rc, d)
 	})
 	r.ids = make([]uid.UID64, len(sc.bodies))
 	for r.q.All(); r.q.Next(); {
@@ -291,7 +291,7 @@ func (r *rig) start(sc scene) {
 
 func (r *rig) tick() { r.ecs.Tick(time.Second / tps) }
 
-func (r *rig) leap(k int) { r.w.Carrier().PutFrom(r.ids[k], gravity.Leap{}) }
+func (r *rig) leap(k int) { r.w.Write().Carrier().PutFrom(r.ids[k], gravity.Leap{}) }
 
 func (r *rig) walk(k int, speed float64) {
 	r.t.Helper()

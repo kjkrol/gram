@@ -57,7 +57,7 @@ func TestResting_APairPartedStillMeetsWhileItTouches(t *testing.T) {
 		comp.Load(func(r walkerRow) collision.Physics { return collision.Physics{Mass: r.mass} }),
 	})
 	thing := kind.Named[walkerRow](w.Kinds(), "thing")
-	w.Seed(thing.Entry(walkerRow{x: 100, mass: 1, vel: 120}), thing.Entry(walkerRow{x: 116, mass: math.Inf(1)}))
+	w.Write().Seed(thing.Entry(walkerRow{x: 100, mass: 1, vel: 120}), thing.Entry(walkerRow{x: 116, mass: math.Inf(1)}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestResting_APairRecordedThisTickIsNotRestedAgain(t *testing.T) {
 		comp.Load(func(r walkerRow) collision.Physics { return collision.Physics{Mass: r.mass} }),
 	})
 	thing := kind.Named[walkerRow](w.Kinds(), "thing")
-	w.Seed(
+	w.Write().Seed(
 		thing.Entry(walkerRow{x: 100, mass: 1, vel: 120}),
 		thing.Entry(walkerRow{x: 116, mass: math.Inf(1)}),
 	)

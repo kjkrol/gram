@@ -44,7 +44,7 @@ func newRig(
 	r.m = motion.NewPlugin(r.w)
 	spec := append(kind.Spec{comp.Const(pos), comp.Const(vel)}, own...)
 	kind.Define[thing](r.w.Kinds(), "thing", spec)
-	r.w.Seed(kind.Named[thing](r.w.Kinds(), "thing").Entry(thing{}))
+	r.w.Write().Seed(kind.Named[thing](r.w.Kinds(), "thing").Entry(thing{}))
 	if err := r.w.Populate(); err != nil {
 		t.Fatal(err)
 	}

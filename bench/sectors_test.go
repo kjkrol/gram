@@ -40,8 +40,8 @@ func benchExpanse(b *testing.B, banded bool) *goke.ECS {
 			{Reach: 2000, Pace: 4},
 		}},
 	})
-	w.Anchor(anchor{x: expanseSide / 2, y: expanseSide / 2})
-	w.SetBanded(banded)
+	w.Write().Anchor(anchor{x: expanseSide / 2, y: expanseSide / 2})
+	w.Write().SetBanded(banded)
 	m := motion.NewPlugin(w)
 	if err := ctx.Use(m); err != nil {
 		b.Fatal(err)
@@ -63,7 +63,7 @@ func benchExpanse(b *testing.B, banded bool) *goke.ECS {
 		entries[i] = boxes.Entry(body{pos: placement.Place(i, expanseBoxes),
 			vel: randomVelocity(rng)})
 	}
-	w.Seed(entries...)
+	w.Write().Seed(entries...)
 	ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
 		m.RunPlan(rc, d)

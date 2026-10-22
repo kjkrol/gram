@@ -60,7 +60,7 @@ func (s *talkSystem) Update(cb *goke.CmdBuf, _ time.Duration) {
 }
 
 func (s *talkSystem) watch() {
-	effects := s.p.w.Effects()
+	effects := s.p.w.Write().Effects()
 	for s.talks.All(); s.talks.Next(); {
 		cur := s.talks.Cursor()
 		talks := s.talk.Slice(cur)
@@ -106,7 +106,7 @@ func (s *talkSystem) begin(i command.Issued[Begin]) {
 		return
 	}
 	*s.talkOf(speaker) = Talk{Node: start, With: listener}
-	s.p.w.Effects().CastFor(speaker, s.p.talking, effect.Forever)
+	s.p.w.Write().Effects().CastFor(speaker, s.p.talking, effect.Forever)
 }
 
 func (s *talkSystem) busy(id uid.UID64) bool {
@@ -150,7 +150,7 @@ func (s *talkSystem) choose(i command.Issued[Choose]) {
 		if cmd.Whom == ui.It {
 			cmd.Whom = ceremony.ID(c.Speaker)
 		}
-		s.p.w.Carrier().Put(i.Issuer, cmd)
+		s.p.w.Write().Carrier().Put(i.Issuer, cmd)
 	}
 	if ch.next == "" {
 		s.end(c.Speaker, t, true)
@@ -175,7 +175,7 @@ func (s *talkSystem) feel(i command.Issued[Feel]) {
 }
 
 func (s *talkSystem) end(speaker uid.UID64, t *Talk, toTheEnd bool) {
-	effects := s.p.w.Effects()
+	effects := s.p.w.Write().Effects()
 	effects.Dispel(speaker, s.p.talking)
 	if toTheEnd {
 		effects.Cast(speaker, s.p.talked)
@@ -217,7 +217,7 @@ func (s *talkSystem) holds(c condition, speaker, listener uid.UID64) bool {
 	case c.game != nil:
 		yes = c.game.holds(speaker, listener)
 	case c.isEffect:
-		yes = s.p.w.Effects().Has(speaker, c.effect)
+		yes = s.p.w.Read(0).Effects().Has(speaker, c.effect)
 	}
 	return yes != c.not
 }

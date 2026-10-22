@@ -77,11 +77,11 @@ func TestSaveLoadCycle(t *testing.T) {
 		}
 		return entries
 	}
-	wp.Seed(defineKinds(wp)...)
+	wp.Write().Seed(defineKinds(wp)...)
 	if err := wp.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)
 	}
-	cm := collision.New(wp.Space(), ecs)
+	cm := collision.New(wp.Write().Space(), ecs)
 
 	ctx := collisiontest.NewInstallCtx(ecs)
 	if err := wp.Install(ctx); err != nil {
@@ -119,7 +119,7 @@ func TestSaveLoadCycle(t *testing.T) {
 
 	ecs.SetPlan(cm.RunPlan)
 	ecs.Tick(time.Millisecond)
-	if got := countCollidable(wp.Space()); got != count {
+	if got := countCollidable(wp.Write().Space()); got != count {
 		t.Errorf("%d of %d spawned entities can collide after a tick — the broad phase did not tell the index", got, count)
 	}
 
@@ -132,7 +132,7 @@ func TestSaveLoadCycle(t *testing.T) {
 	ecs2 := goke.New()
 	plugin2 := world.NewPlugin(cfg)
 	defineKinds(plugin2)
-	cm2 := collision.New(plugin2.Space(), ecs2)
+	cm2 := collision.New(plugin2.Write().Space(), ecs2)
 
 	ctx2 := collisiontest.NewInstallCtx(ecs2)
 	if err := plugin2.Install(ctx2); err != nil {
@@ -183,7 +183,7 @@ func TestSaveLoadCycle(t *testing.T) {
 
 	ecs2.SetPlan(cm2.RunPlan)
 	ecs2.Tick(time.Millisecond)
-	if got := countCollidable(plugin2.Space()); got != count {
+	if got := countCollidable(plugin2.Write().Space()); got != count {
 		t.Errorf("%d of %d loaded entities can collide after a tick — PostLoad left them marked as already indexed", got, count)
 	}
 }

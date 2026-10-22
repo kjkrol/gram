@@ -140,7 +140,7 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	p.SetThresholds(DefaultUnder, DefaultMet)
 	p.SetStrategy(Tactical, cfg.Tactical.Strategy)
 	p.SetStrategy(Riding, cfg.Riding.Strategy)
-	worldPlugin.Anchor(anchors{p})
+	worldPlugin.Write().Anchor(anchors{p})
 	if !cfg.plain() {
 		if edges := worldPlugin.Res.Config.Space.Edges; edges.WrapsX() || edges.WrapsY() {
 			panic("cameras: a world that wraps cannot be seen in relief")
@@ -184,11 +184,12 @@ func (p *Plugin) New(start Start, cfg camera.Config) camera.Camera {
 		if start == Isometrically {
 			from = stick.Isometrically
 		}
-		bend := float32(p.worldPlugin.Scale().Bend())
+		bend := float32(p.worldPlugin.Read(0).Scale().Bend())
 		made := p.views.Maker(p.viewCfg, from, p.ground, p.extent, bend)
 		cam = made(space.Width, space.Height, space.Edges, cfg)
 	}
 	cam.(seeing).SetDetail(p.cfg.Detail)
+	p.worldPlugin.Write().NewView(cam)
 	at := len(p.cameras)
 	p.cameras = append(p.cameras, cam)
 	switch {

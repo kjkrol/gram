@@ -51,7 +51,7 @@ func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid
 		comp.Load(func(m boardtest.Mover) unit.At { return unit.At{Cell: m.Here} }),
 		comp.Const(unit.Mover{Domain: cell.Land}),
 	})
-	w.Seed(kind.Named[boardtest.Mover](w.Kinds(), "unit").Entry(boardtest.Mover{Here: start}))
+	w.Write().Seed(kind.Named[boardtest.Mover](w.Kinds(), "unit").Entry(boardtest.Mover{Here: start}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func installWorldAndBoard(t *testing.T, w *world.Plugin, brd *board.Plugin, grid
 		w.RunPlan(rc, d)
 		brd.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	return ctx.ECS()
 }

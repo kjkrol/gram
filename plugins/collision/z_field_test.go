@@ -65,7 +65,7 @@ func TestZ_TheGroundStopsOnlyWhatStandsInItsBand(t *testing.T) {
 				comp.Const(tc.z),
 			})
 			runner := kind.Named[raised](w.Kinds(), "runner")
-			w.Seed(runner.Entry(raised{x: 180}))
+			w.Write().Seed(runner.Entry(raised{x: 180}))
 			if err := w.Populate(); err != nil {
 				t.Fatal(err)
 			}

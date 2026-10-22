@@ -138,7 +138,7 @@ func (a *arena) defineRoles() {
 }
 
 func (a *arena) defineCommands() {
-	fx, cmds := a.world.Effects(), a.world.Commands()
+	fx, cmds := a.world.Write().Effects(), a.world.Commands()
 	// the lever pulled opens them, pushed back shuts them: one Toggle serves both
 	cmds.Define(
 		SwitchWestCmd,

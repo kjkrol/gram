@@ -104,7 +104,7 @@ func TestFlatLook_FromAboveDrawsOnTheGPUAsOnTheFrame(t *testing.T) {
 	atlas.Close()
 	pix := func(direct, slant bool) []byte {
 		screen := render.NewImage(320, 240)
-		src := &flatSource{look: w.FlatLook(), direct: direct, slant: slant, atlas: atlas}
+		src := &flatSource{look: w.Read(0).FlatLook(), direct: direct, slant: slant, atlas: atlas}
 		render.NewComposer(src).DrawWorld(screen, cam)
 		out := make([]byte, 4*320*240)
 		screen.ReadPixels(out)

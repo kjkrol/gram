@@ -113,12 +113,12 @@ func (a *arena) definePlayer() error {
 }
 
 func (a *arena) defineEffects() {
-	a.world.Effects().Define(AlarmEf, effect.Spec{})
+	a.world.Write().Effects().Define(AlarmEf, effect.Spec{})
 }
 
 func (a *arena) defineCommands() {
 	a.world.Commands().Define(AlarmCmd,
-		ceremony.Toggle(a.world.Effects().Named(AlarmEf)).On(ceremony.World))
+		ceremony.Toggle(a.world.Write().Effects().Named(AlarmEf)).On(ceremony.World))
 }
 
 var profile = steering.Steering{

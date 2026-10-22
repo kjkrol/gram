@@ -133,7 +133,7 @@ func NewPlugin(w *world.Plugin, cfg Config) *Plugin {
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(w, p, comp.Const(Source{Strength: 1, Ambient: 1}),
 		comp.Const(Shining{}))
-	w.SetLighting(p)
+	w.Write().SetLighting(p)
 	return p
 }
 
@@ -406,7 +406,7 @@ func (p *Plugin) cast(box geom.AABB, z world.Z, a render.Appearance, declared Ca
 // sprite faces: its left on the left of the eye's way across
 func (p *Plugin) gather(u Umbra, a render.Appearance, shape bool) {
 	var u0, v0, u1, v1 float32
-	if atlas := p.w.Atlas(); shape && atlas != nil {
+	if atlas := p.w.Read(0).Atlas(); shape && atlas != nil {
 		u0, v0, u1, v1 = atlas.UV(a.SpriteID)
 		if -u.UY*p.right[0]+u.UX*p.right[1] < 0 {
 			u0, u1 = u1, u0
@@ -465,7 +465,7 @@ func (p *Plugin) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	case render.Opaque:
 		p.baker.Bake(u)
 	case render.SeeThrough:
-		p.caster.Draw(t, cam, p.w.Atlas(), p.casts, p.lat.Low, p.lat.Low+p.lat.Span)
+		p.caster.Draw(t, cam, p.w.Read(0).Atlas(), p.casts, p.lat.Low, p.lat.Low+p.lat.Span)
 	}
 }
 

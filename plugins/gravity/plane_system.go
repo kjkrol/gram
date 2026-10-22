@@ -49,7 +49,7 @@ type planeSystem struct {
 }
 
 func newPlaneSystem(p *Plugin) *planeSystem {
-	s := &planeSystem{p: p, tickOf: p.worldPlugin.Tick, landings: &p.landings}
+	s := &planeSystem{p: p, tickOf: p.worldPlugin.Read(0).Tick, landings: &p.landings}
 	s.landingAt = func(i int) Landing {
 		return Landing{ID: s.walking.ids[i], Speed: s.walking.speeds[i]}
 	}

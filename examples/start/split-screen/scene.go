@@ -22,7 +22,7 @@ type mainScene struct{ arena *arena }
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 
-	picture := a.world.Picture()
+	picture := a.world.Read(0).Picture()
 	red := render.NewFeed(
 		a.cameras.New(cameras.FromAbove, camera.Config{Follow: RedBlock}),
 		picture,

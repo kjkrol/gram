@@ -101,8 +101,8 @@ func define(file string) (*world.Plugin, *dialog.Plugin, error) {
 	})
 	d := dialog.NewPlugin(w, dialog.Config{})
 	d.DefineEffects()
-	w.Effects().Define("blush", effect.Spec{effect.Lasts(time.Minute)})
-	w.Commands().Define("blush", ceremony.Put(w.Effects().Named("blush")).On(ui.It))
+	w.Write().Effects().Define("blush", effect.Spec{effect.Lasts(time.Minute)})
+	w.Commands().Define("blush", ceremony.Put(w.Write().Effects().Named("blush")).On(ui.It))
 	d.Changes().Define("warm", dialog.Alter(func(l *liking, _ uid.UID64) { l.N += 40 }))
 	d.Changes().Define("offend", dialog.Alter(func(l *liking, _ uid.UID64) { l.N -= 80 }))
 	d.Changes().Define("flour", dialog.AlterListener(func(s *sacks, _ uid.UID64) { s.N++ }))
@@ -132,7 +132,8 @@ func newRig(t *testing.T) *rig {
 		comp.Const(sacks{}),
 	})
 	body := kind.Named[who](w.Kinds(), "body")
-	w.Seed(body.Entry(who{x: 100}), body.Entry(who{x: 300, by: 1}), body.Entry(who{x: 500, by: 2}))
+	w.Write().Seed(body.Entry(who{x: 100}), body.Entry(who{x: 300, by: 1}), body.Entry(who{x: 500,
+		by: 2}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +147,7 @@ func newRig(t *testing.T) *rig {
 		t.Fatal(err)
 	}
 	r := &rig{t: t, w: w, d: d, ecs: ctx.ecs,
-		talking: w.Effects().Named(dialog.TalkingEf), talked: w.Effects().Named(dialog.TalkedEf), blush: w.Effects().Named("blush")}
+		talking: w.Write().Effects().Named(dialog.TalkingEf), talked: w.Write().Effects().Named(dialog.TalkedEf), blush: w.Write().Effects().Named("blush")}
 	var base goke.Comp[world.Base]
 	var q *goke.Query
 	var systems []goke.System
@@ -161,7 +162,7 @@ func newRig(t *testing.T) *rig {
 	r.ecs.SetPlan(func(rc goke.RunCtx, dt time.Duration) {
 		w.RunPlan(rc, dt)
 		d.RunPlan(rc, dt)
-		w.Clock().Replay(rc, dt)
+		w.Write().Clock().Replay(rc, dt)
 		rc.Sync()
 	})
 	byX := map[float64]uid.UID64{}
@@ -184,12 +185,12 @@ func (r *rig) tick(n int) {
 func (r *rig) begin(speaker, listener uid.UID64) {
 	b := dialog.Begin{}
 	b.Aim(listener)
-	r.w.Carrier().PutFrom(speaker, b)
+	r.w.Write().Carrier().PutFrom(speaker, b)
 	r.tick(2)
 }
 
 func (r *rig) choose(by command.Issuer, speaker uid.UID64, index int) {
-	r.w.Carrier().Put(by, dialog.Choose{Index: index, Speaker: speaker})
+	r.w.Write().Carrier().Put(by, dialog.Choose{Index: index, Speaker: speaker})
 	r.tick(2)
 }
 
@@ -220,8 +221,9 @@ func (r *rig) held(id uid.UID64) (liking, sacks) {
 func TestConversation_BeginsIsAnsweredAndChangesTheGame(t *testing.T) {
 	r := newRig(t)
 	r.begin(r.host, r.guest)
-	if got := r.line(r.host); got != "Hello, traveller!" || !r.w.Effects().Has(r.host, r.talking) {
-		t.Fatalf("the host says %q, talking %v; want the greeting", got, r.w.Effects().Has(r.host, r.talking))
+	if got := r.line(r.host); got != "Hello, traveller!" || !r.w.Read(0).Effects().Has(r.host,
+		r.talking) {
+		t.Fatalf("the host says %q, talking %v; want the greeting", got, r.w.Read(0).Effects().Has(r.host, r.talking))
 	}
 	if got := strings.Join(r.offered(r.host), "|"); got != "Hello to you too!|Out of my way." {
 		t.Fatalf("offered %q, want the answers that need no friend", got)
@@ -234,13 +236,13 @@ func TestConversation_BeginsIsAnsweredAndChangesTheGame(t *testing.T) {
 		t.Fatalf("the host's liking is %d, want 40: warm changed the speaker", l.N)
 	}
 	r.choose(1, r.host, 0) // Bye
-	if r.line(r.host) != "" || r.w.Effects().Has(r.host, r.talking) || !r.w.Effects().Has(r.host, r.talked) {
-		t.Fatalf("after Bye: says %q, talking %v, talked %v; want it over and talked", r.line(r.host), r.w.Effects().Has(r.host, r.talking), r.w.Effects().Has(r.host, r.talked))
+	if r.line(r.host) != "" || r.w.Read(0).Effects().Has(r.host, r.talking) || !r.w.Read(0).Effects().Has(r.host, r.talked) {
+		t.Fatalf("after Bye: says %q, talking %v, talked %v; want it over and talked", r.line(r.host), r.w.Read(0).Effects().Has(r.host, r.talking), r.w.Read(0).Effects().Has(r.host, r.talked))
 	}
 	if _, s := r.held(r.guest); s.N != 1 {
 		t.Errorf("the guest holds %d sacks, want 1: flour changed the listener", s.N)
 	}
-	if !r.w.Effects().Has(r.host, r.blush) {
+	if !r.w.Read(0).Effects().Has(r.host, r.blush) {
 		t.Error("Bye's command for ui.It did not reach the host")
 	}
 	r.begin(r.host, r.guest)
@@ -261,10 +263,10 @@ func TestConversation_OnlyAPlayerTheListenerObeysAnswers(t *testing.T) {
 func TestConversation_TakingTalkingOffEndsItWithoutTalked(t *testing.T) {
 	r := newRig(t)
 	r.begin(r.host, r.guest)
-	r.w.Carrier().Put(command.Nobody, ceremony.Take(r.talking).On(ceremony.ID(r.host)))
+	r.w.Write().Carrier().Put(command.Nobody, ceremony.Take(r.talking).On(ceremony.ID(r.host)))
 	r.tick(2)
-	if r.line(r.host) != "" || r.w.Effects().Has(r.host, r.talked) {
-		t.Errorf("with talking taken off: says %q, talked %v; want it over, not talked", r.line(r.host), r.w.Effects().Has(r.host, r.talked))
+	if r.line(r.host) != "" || r.w.Read(0).Effects().Has(r.host, r.talked) {
+		t.Errorf("with talking taken off: says %q, talked %v; want it over, not talked", r.line(r.host), r.w.Read(0).Effects().Has(r.host, r.talked))
 	}
 }
 
@@ -272,7 +274,7 @@ func TestConversation_OneTalksWithOneAtATime(t *testing.T) {
 	r := newRig(t)
 	r.begin(r.host, r.guest)
 	r.begin(r.stranger, r.guest)
-	if r.w.Effects().Has(r.stranger, r.talking) || r.line(r.stranger) != "" {
+	if r.w.Read(0).Effects().Has(r.stranger, r.talking) || r.line(r.stranger) != "" {
 		t.Error("the stranger began to talk with a guest talking with the host")
 	}
 	r.begin(r.host, r.stranger)
@@ -285,7 +287,7 @@ func TestFeel_MakesTheGamesChangeTowardsWhomItIsAbout(t *testing.T) {
 	r := newRig(t)
 	f := dialog.Feel{Change: "offend"}
 	f.Aim(r.guest)
-	r.w.Carrier().PutFrom(r.host, f)
+	r.w.Write().Carrier().PutFrom(r.host, f)
 	r.tick(2)
 	if l, _ := r.held(r.host); l.N != -80 {
 		t.Errorf("the host's liking is %d, want -80", l.N)

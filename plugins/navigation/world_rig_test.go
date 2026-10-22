@@ -123,7 +123,7 @@ func newNavWorldIn(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 		kind.Define[navUnit](w.Kinds(), fmt.Sprintf("u%d", i), s)
 		k := kind.Named[navUnit](w.Kinds(), fmt.Sprintf("u%d", i))
 		kinds[i] = k.ID()
-		w.Seed(k.Entry(u))
+		w.Write().Seed(k.Entry(u))
 	}
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
@@ -156,7 +156,7 @@ func newNavWorldIn(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 		brd.RunPlan(rc, d)
 		nw.nav.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	}
 	ctx.ecs.SetPlan(nw.step)
 	nw.ecs = ctx.ecs

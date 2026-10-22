@@ -38,8 +38,8 @@ func (g *guardStage) Init(ctx game.Initializer) error {
 	cfg.Entities.MaxCount = 3
 	g.world, g.ecs = ctx.UseWorld(cfg), ctx.ECS()
 	ctx.Setup(g)
-	g.world.Effects().Define("alert", effect.Spec{effect.Lasts(time.Hour)})
-	g.alert = g.world.Effects().Named("alert")
+	g.world.Write().Effects().Define("alert", effect.Spec{effect.Lasts(time.Hour)})
+	g.alert = g.world.Write().Effects().Named("alert")
 	kind.Define[float64](g.world.Kinds(), "unit", kind.Spec{
 		comp.Load(func(x float64) world.Position {
 			return world.Position{AABB: plane.NewAABB(geom.NewVec(x, 100), 10, 10)}
@@ -59,7 +59,7 @@ func (g *guardStage) SetupSystems() []goke.System {
 func (g *guardStage) Loaded() error { return nil }
 
 func (g *guardStage) Spawn() error {
-	g.world.Seed(
+	g.world.Write().Seed(
 		g.unit.Entry(100).Named("captain").InGroup("guards"),
 		g.unit.Entry(200).InGroup("guards"),
 		g.unit.Entry(300),
@@ -78,7 +78,7 @@ func (g *guardStage) Stack() game.Scenes {
 
 func (g *guardStage) give(t *testing.T, cmd command.Command) {
 	t.Helper()
-	if !g.world.Carrier().Put(command.Nobody, cmd) {
+	if !g.world.Write().Carrier().Put(command.Nobody, cmd) {
 		t.Fatalf("the world carries no %T", cmd)
 	}
 	for range 2 {
@@ -91,7 +91,7 @@ func (g *guardStage) alerted() map[float64]bool {
 	for g.query.All(); g.query.Next(); {
 		cur := g.query.Cursor()
 		for i, id := range cur.IDs {
-			if g.world.Effects().Has(uid.UID64(id), g.alert) {
+			if g.world.Read(0).Effects().Has(uid.UID64(id), g.alert) {
 				on[g.base.Slice(cur)[i].Pos.TopLeft.X] = true
 			}
 		}
@@ -114,8 +114,10 @@ func TestCommand_ReachesThoseNamedGroupedAndTheWorld(t *testing.T) {
 	}
 	g.give(t, ceremony.Take(g.alert).On(ceremony.Group("guards")))
 	g.give(t, ceremony.Put(g.alert).On(ceremony.World))
-	if on := g.alerted(); len(on) != 0 || !g.world.Effects().Has(g.world.Clock().Entity(), g.alert) {
-		t.Errorf("alert the world: units at %v alerted, the world %v; want the world alone", on, g.world.Effects().Has(g.world.Clock().Entity(), g.alert))
+	read := g.world.Read(0)
+	if on := g.alerted(); len(on) != 0 || !read.Effects().Has(read.Clock().Entity(), g.alert) {
+		t.Errorf("alert the world: units at %v alerted, the world %v; want the world alone", on,
+			read.Effects().Has(read.Clock().Entity(), g.alert))
 	}
 }
 
@@ -152,8 +154,8 @@ func TestCommand_NamesSurviveASaveAndALoad(t *testing.T) {
 
 func TestCommands_AreDefinedOnceAndFoundByName(t *testing.T) {
 	w := world.NewPlugin(testWorldConfig())
-	w.Effects().Define("alert", effect.Spec{})
-	alert := w.Effects().Named("alert")
+	w.Write().Effects().Define("alert", effect.Spec{})
+	alert := w.Write().Effects().Named("alert")
 	w.Commands().Define("alarm", ceremony.Put(alert).On(ceremony.World).For(time.Minute))
 	if got := w.Commands().Named("alarm"); got.Effect != alert || got.Lasts != time.Minute || !got.Whom.(ceremony.Whom).IsWorld() {
 		t.Errorf("the command found is %+v, want the one defined", got)

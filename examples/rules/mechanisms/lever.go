@@ -30,7 +30,7 @@ var (
 
 // the lever's positions: pulled down for good, and the swings each way, the pull ending down
 func (lever) Effects(b *board.Plugin) {
-	fx := b.Read(0).World().Effects()
+	fx := b.Read(0).World().Write().Effects()
 	fx.Define(LeverPulledEf, effect.Spec{})
 	fx.Define(LeverPullingEf, effect.Spec{
 		effect.Lasts(leverSwing),
@@ -49,7 +49,7 @@ func (lever) Define(b *board.Plugin) {
 }
 
 func (lever) Look(a *world.Atlas, w *world.Plugin) {
-	fx := w.Effects()
+	fx := w.Write().Effects()
 	a.Add(kind.Named[standingRow](w.Kinds(), LeverKind), leverSize, render.Solid(leverUpColor)).
 		Under(fx.Named(LeverPulledEf), render.Solid(leverDownColor)).
 		Under(fx.Named(LeverPullingEf), render.Solid(leverSwingColor)).

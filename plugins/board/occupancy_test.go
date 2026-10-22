@@ -59,10 +59,10 @@ func newKeptBoard(t *testing.T, seeded ...[2]uint32) *keptBoard {
 	units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
 	k.walker = units.Named("walker")
 	for x := range uint32(3) {
-		k.w.Seed(decks.Named("deck").Entry(k.g.At(x+1, 1)))
+		k.w.Write().Seed(decks.Named("deck").Entry(k.g.At(x+1, 1)))
 	}
 	for _, at := range seeded {
-		k.w.Seed(k.walker.Entry(k.g.At(at[0], at[1])))
+		k.w.Write().Seed(k.walker.Entry(k.g.At(at[0], at[1])))
 	}
 	ctx := boardtest.NewInstallCtx()
 	if err := k.w.Install(ctx); err != nil {
@@ -86,7 +86,7 @@ func newKeptBoard(t *testing.T, seeded ...[2]uint32) *keptBoard {
 		m.RunPlan(rc, d)
 		p.RunPlan(rc, d)
 		rc.Sync()
-		k.w.Clock().Replay(rc, d)
+		k.w.Write().Clock().Replay(rc, d)
 	})
 	return k
 }
@@ -137,7 +137,7 @@ func TestOccupancy_HoldsTheCellOfAUnitSpawnedInTheGame(t *testing.T) {
 	k := newKeptBoard(t)
 	k.tick()
 	c := k.g.At(2, 0)
-	k.w.Spawn(k.walker.Entry(c))
+	k.w.Write().Spawn(k.walker.Entry(c))
 	k.tick()
 	if got := k.holders(c); len(got) != 1 {
 		t.Fatalf("the cell a unit was spawned on is held by %v, want the unit alone", got)

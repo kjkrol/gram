@@ -127,13 +127,13 @@ func (a *arena) definePlayers() error {
 }
 
 func (a *arena) defineEffects() {
-	a.world.Effects().Define(FlippedEf, effect.Spec{
+	a.world.Write().Effects().Define(FlippedEf, effect.Spec{
 		effect.Alter(func(p *gravity.Pull) { p.Y = -p.Y }),
 	})
 }
 
 func (a *arena) defineCommands() {
-	flip := ceremony.Toggle(a.world.Effects().Named(FlippedEf)).On(a.gravity)
+	flip := ceremony.Toggle(a.world.Write().Effects().Named(FlippedEf)).On(a.gravity)
 	a.world.Commands().Define(FlipCmd, flip)
 }
 

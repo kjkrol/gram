@@ -57,7 +57,7 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 		{label: "Frame", value: frameTime, basic: true},
 		{label: "Entities", value: p.entities, basic: true},
 	}
-	p.With(worldPlugin.Clock().Reporter())
+	p.With(worldPlugin.Read(0).Clock().Reporter())
 	return p
 }
 

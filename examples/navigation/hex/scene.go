@@ -38,5 +38,5 @@ func (m *mainScene) screen() *ui.Element {
 
 	return ui.Image(render.NewFeed(
 		a.cameras.New(cameras.FromAbove, camera.Config{}),
-		a.world.Picture())).Input(a.players.Through(a.player))
+		a.world.Read(0).Picture())).Input(a.players.Through(a.player))
 }

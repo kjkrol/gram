@@ -131,7 +131,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.minimap = minimap.NewPlugin(a.world, nil, minimap.Config{Reach: scale.Units(9_000)})
 	a.telemetry = telemetry.NewPlugin(a.world)
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.minimap)
-	a.world.ShowSectors(world.SectorBands)
+	a.world.Write().ShowSectors(world.SectorBands)
 }
 
 func (a *arena) definePlayer() error {
@@ -140,14 +140,14 @@ func (a *arena) definePlayer() error {
 }
 
 func (a *arena) defineEffects() {
-	a.world.Effects().Define(HitEf, effect.Spec{effect.Lasts(hitDuration)})
+	a.world.Write().Effects().Define(HitEf, effect.Spec{effect.Lasts(hitDuration)})
 }
 
 func (a *arena) defineRules() {
 	a.world.Roles().Define(BodyRole, act.Branch[collision.Struck]{
 		Name: "hit",
 		When: cond.Self.If(cond.Always),
-		Then: act.Self.Put(a.world.Effects().Named(HitEf)),
+		Then: act.Self.Put(a.world.Write().Effects().Named(HitEf)),
 	})
 }
 
@@ -168,7 +168,7 @@ func (b box) Define(w *world.Plugin) {
 
 func (b box) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[body](w.Kinds(), bodyKind(b.color)), BoxSize, render.Solid(palette[b.color])).
-		Under(w.Effects().Named(HitEf), render.Solid(hitColor)).
+		Under(w.Write().Effects().Named(HitEf), render.Solid(hitColor)).
 		Styled(minimap.Mark{Color: palette[b.color], Size: 2})
 }
 
@@ -189,13 +189,13 @@ func (a *arena) spawnBoxes() {
 		entries[i] = of.Entry(body{pos: placement.Place(i, EntityCount),
 			vel: motion.initialVelocity(i)})
 	}
-	a.world.Seed(entries...)
+	a.world.Write().Seed(entries...)
 }
 
 func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
 	m := &mainScene{arena: a}
-	a.telemetry.With(a.collisionStats.Reporter(&ctx.TPS().Ticks), a.world.Sectors(),
-		a.world.Seen())
+	a.telemetry.With(a.collisionStats.Reporter(&ctx.TPS().Ticks), a.world.Read(0).Sectors(),
+		a.world.Read(0).Seen())
 	return []game.Scene{ui.NewScene(MainScene, m.screen()).Input(a.players.Handle)}
 }
 

@@ -66,9 +66,9 @@ func TestSettings_F10OpensTheScreenHoldingTheClockAndEscClosesIt(t *testing.T) {
 	events := &control.InputEvents{}
 	events.AddKeyEvent(control.KeyF10, control.ActionPress)
 	p.Handle(events, rt, comp)
-	if len(comp.names) != 1 || comp.names[0] != SettingsName || !w.Clock().State().Paused {
+	if len(comp.names) != 1 || comp.names[0] != SettingsName || !w.Read(0).Clock().State().Paused {
 		t.Fatalf("F10 showed %v, clock paused %v; want the settings shown and the clock held",
-			comp.names, w.Clock().State().Paused)
+			comp.names, w.Read(0).Clock().State().Paused)
 	}
 	if rt.paused {
 		t.Error("the settings paused the engine, want the clock alone: the plugins carry on")
@@ -76,19 +76,19 @@ func TestSettings_F10OpensTheScreenHoldingTheClockAndEscClosesIt(t *testing.T) {
 	events = &control.InputEvents{}
 	events.AddKeyEvent(control.KeyEscape, control.ActionPress)
 	p.settings.HandleEvents(events, rt, comp)
-	if len(comp.names) != 0 || w.Clock().State().Paused {
+	if len(comp.names) != 0 || w.Read(0).Clock().State().Paused {
 		t.Errorf("Esc left %v shown, clock paused %v; want the settings hidden and the clock going",
-			comp.names, w.Clock().State().Paused)
+			comp.names, w.Read(0).Clock().State().Paused)
 	}
 }
 
 func TestSettings_AClockPausedBeforeStaysPaused(t *testing.T) {
 	p, _, w := settingsRig(t)
-	w.Clock().TogglePause()
+	w.Write().Clock().TogglePause()
 	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1920, ScreenHeight: 1080}}, &composed{}
 	p.settings.Open(rt, comp)
 	p.settings.Close(rt, comp)
-	if !w.Clock().State().Paused {
+	if !w.Read(0).Clock().State().Paused {
 		t.Error("closing the settings let a clock go that was paused before them")
 	}
 }
@@ -182,8 +182,9 @@ func TestSettings_KeepRunningLetsTheClockGoAndIsSaved(t *testing.T) {
 		t.Fatal(err)
 	}
 	p.carry(rt, comp)
-	if w.Clock().State().Paused || !p.Res.Settings.Running {
-		t.Fatalf("running behind the settings: clock paused %v, Running %v", w.Clock().State().Paused,
+	if w.Read(0).Clock().State().Paused || !p.Res.Settings.Running {
+		t.Fatalf("running behind the settings: clock paused %v, Running %v",
+			w.Read(0).Clock().State().Paused,
 			p.Res.Settings.Running)
 	}
 	var buf bytes.Buffer

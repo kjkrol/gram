@@ -154,7 +154,7 @@ func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
 
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.world.RunPlan(ctx, d)
-	a.light.WithDistant(sunAt(a.world.Clock().Time())) // the game's own sun, of the moment
+	a.light.WithDistant(sunAt(a.world.Read(0).Clock().Time())) // the game's own sun, of the moment
 	a.light.RunPlan(ctx, d)
 	a.motion.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)

@@ -91,7 +91,7 @@ var _ render.Direct = (*Renderer)(nil)
 type Renderer struct {
 	camera camera.Camera
 	frame  *render.Frame
-	space  *aabbworld.Space
+	space  *aabbworld.SpaceRead
 	style  ConeStyle
 	styles func() *render.Styles
 	shadow Shadow
@@ -131,7 +131,7 @@ type Renderer struct {
 }
 
 // NewRenderer builds a Renderer drawing every kind in DefaultCone and DefaultShadow over space.
-func NewRenderer(space *aabbworld.Space) *Renderer {
+func NewRenderer(space *aabbworld.SpaceRead) *Renderer {
 	w, h, edges := space.Bounds()
 	return &Renderer{
 		space: space, style: DefaultCone, shadow: DefaultShadow,

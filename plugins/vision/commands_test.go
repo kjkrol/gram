@@ -32,7 +32,7 @@ func TestCones_ToggleTheViewsDrawn(t *testing.T) {
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
 		v.RunPlan(rc, d)
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 
 	queues := v.Queues()

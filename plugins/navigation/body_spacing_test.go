@@ -141,7 +141,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 		kind.Define[fieldUnit](w.Kinds(), fmt.Sprintf("u%d", i), s)
 		k := kind.Named[fieldUnit](w.Kinds(), fmt.Sprintf("u%d", i))
 		kinds[i] = k.ID()
-		w.Seed(k.Entry(u))
+		w.Write().Seed(k.Entry(u))
 	}
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
@@ -162,7 +162,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 		fw.nav.RunPlan(rc, d)
 		drv.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	fw.ecs = ctx.ecs
 	fw.ids = make([]uid.UID64, len(units))

@@ -59,9 +59,9 @@ func TestFrequency_ObserversTakeTurnsAndTheRulesGoOnEveryStep(t *testing.T) {
 	kind.Define[spawn](w.Kinds(), "target", kind.Spec{comp.Load(at), comp.Const(world.Velocity{})})
 	for i := range observers {
 		row := spawn{x: 100, y: 100 + 50*float64(i)}
-		w.Seed(kind.Named[spawn](w.Kinds(), "observer").Entry(row))
+		w.Write().Seed(kind.Named[spawn](w.Kinds(), "observer").Entry(row))
 	}
-	w.Seed(kind.Named[spawn](w.Kinds(), "target").Entry(spawn{x: 400, y: 100, size: 400}))
+	w.Write().Seed(kind.Named[spawn](w.Kinds(), "target").Entry(spawn{x: 400, y: 100, size: 400}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestFrequency_ObserversTakeTurnsAndTheRulesGoOnEveryStep(t *testing.T) {
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
 		v.RunPlan(rc, d)
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	seeing := func() int {
 		n := 0

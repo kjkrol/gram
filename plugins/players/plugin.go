@@ -163,7 +163,7 @@ func (p *Plugin) Issue(player *Player, cmd command.Command) error {
 	if player != nil {
 		id = player.ID
 	}
-	if !p.worldPlugin.Carrier().Put(id, cmd) {
+	if !p.worldPlugin.Write().Carrier().Put(id, cmd) {
 		return fmt.Errorf("%w: %T", ErrUnknownCommand, cmd)
 	}
 	return nil

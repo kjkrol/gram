@@ -45,7 +45,7 @@ var (
 )
 
 func (ember) Effects(b *board.Plugin) {
-	b.Read(0).World().Effects().Define(DousedEf, effect.Spec{
+	b.Read(0).World().Write().Effects().Define(DousedEf, effect.Spec{
 		effect.Described("Doused: the flame put out — soot until it rekindles."),
 		effect.Lasts(3 * time.Second),
 	})
@@ -79,5 +79,5 @@ func (ember) Define(b *board.Plugin) {
 
 func (ember) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[unitRow](w.Kinds(), EmberKind), emberPx, emberMaterial).
-		Under(w.Effects().Named(DousedEf), render.Dot(5, sootColor))
+		Under(w.Write().Effects().Named(DousedEf), render.Dot(5, sootColor))
 }

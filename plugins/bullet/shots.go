@@ -107,7 +107,7 @@ func (s *Shots) Define(name string, body Body, extra ...comp.Comp) {
 		}),
 		comp.Load(func(r Shot) tag.Tags[owner.Family] { return r.Owners }),
 	}
-	if s.w.HasHeights() {
+	if s.w.Read(0).HasHeights() {
 		spec = append(spec, comp.Load(func(r Shot) world.Z { return world.Z{Altitude: r.Altitude, Height: body.Size} }))
 	}
 	spec = append(spec, extra...)

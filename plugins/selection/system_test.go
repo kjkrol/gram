@@ -90,7 +90,7 @@ func newHarnessViewed(t *testing.T, cfg world.Config, cam camera.Config, view fu
 		t.Fatal(err)
 	}
 	tags := Tags{Selectable: 0, Selected: 1, Hovered: 2}
-	sys := NewSelectionSystem(&sel.selects, space, tags, w.Look)
+	sys := NewSelectionSystem(&sel.selects, space, tags, w.Read(0).Look)
 	sys.marqueeQueue, sys.marquees = &sel.marqueeQueue, &sel.marquees
 	sys.hovers = &sel.hovers
 
@@ -413,7 +413,7 @@ func TestSystem_Update_ClickPicksWhereTheLookDrawsTheEntity(t *testing.T) {
 		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 		Heights:  true,
-	}, camera.Config{}, func(w *world.Plugin) { w.SetLook(standing{}) })
+	}, camera.Config{}, func(w *world.Plugin) { w.Write().SetLook(standing{}) })
 	hawk := h.seedHigh(500, 500, 10, 40)
 	walker := h.seed(560, 560, 10)
 	h.start()

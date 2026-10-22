@@ -46,7 +46,7 @@ func floored(t *testing.T, g grid.Grid, width, height uint32, ground cell.Kind, 
 		comp.Const(floor),
 		comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
 	for _, c := range cells {
-		wd.Seed(bridges.Named("bridge").Entry(c))
+		wd.Write().Seed(bridges.Named("bridge").Entry(c))
 	}
 	ctx := boardtest.NewInstallCtx()
 	if err := wd.Install(ctx); err != nil {
@@ -63,7 +63,7 @@ func floored(t *testing.T, g grid.Grid, width, height uint32, ground cell.Kind, 
 		wd.RunPlan(rc, d)
 		p.RunPlan(rc, d)
 		rc.Sync()
-		wd.Clock().Replay(rc, d)
+		wd.Write().Clock().Replay(rc, d)
 	})
 	ctx.ECS().Tick(time.Second / 60)
 	return p.Read(0).Cover().(collision.Field)

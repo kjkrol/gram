@@ -60,10 +60,10 @@ func newSquad(t *testing.T) *squad {
 	s.me, s.rival = s.players.Local("me"), s.players.Add("rival")
 	s.players.Through(s.me).
 		Over(geom.AABB{}, render.NewFeed(cameratest.NewFromSpace(1000, 1000, 0), nil))
-	w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
-	s.haste = w.Effects().Named("haste")
-	w.Effects().Define("rally", effect.Spec{effect.Lasts(time.Hour)})
-	s.rally = w.Effects().Named("rally")
+	w.Write().Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
+	s.haste = w.Write().Effects().Named("haste")
+	w.Write().Effects().Define("rally", effect.Spec{effect.Lasts(time.Hour)})
+	s.rally = w.Write().Effects().Named("rally")
 	s.names = map[effect.Effect]string{s.haste: "haste", s.rally: "rally"}
 	w.Roles().Define("mortal")
 	w.Roles().Define("hasty")
@@ -104,7 +104,7 @@ func (s *squad) start(soldiers []soldier, bindings ...control.Binding) {
 	}
 	s.soldiers = soldiers
 	for _, so := range soldiers {
-		s.w.Seed(s.kinds[so.kind].Entry(so))
+		s.w.Write().Seed(s.kinds[so.kind].Entry(so))
 	}
 	if err := s.w.Populate(); err != nil {
 		s.t.Fatal(err)
@@ -125,7 +125,7 @@ func (s *squad) start(soldiers []soldier, bindings ...control.Binding) {
 	s.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		s.sel.RunPlan(rc, d)
 		s.w.RunPlan(rc, d)
-		s.w.Clock().Replay(rc, d)
+		s.w.Write().Clock().Replay(rc, d)
 		rc.Sync()
 		s.players.RunPlan(rc, d)
 	})
@@ -166,7 +166,7 @@ func (s *squad) under(e effect.Effect) map[string]bool {
 		if !ok {
 			s.t.Fatalf("soldier %s was not spawned", so.name)
 		}
-		if s.w.Effects().Has(id, e) {
+		if s.w.Read(0).Effects().Has(id, e) {
 			on[so.name] = true
 		}
 	}

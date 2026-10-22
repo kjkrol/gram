@@ -43,7 +43,7 @@ func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: boardtest.UnitSize, MaxSize: boardtest.UnitSize},
 		Heights:  true,
 	})
-	cw.fx = w.Effects()
+	cw.fx = w.Write().Effects()
 	cw.brd = board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	cw.grass = cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land}
 	cw.snow = cell.Kind{Name: cell.Named("snow"), Cost: 3, Allows: cell.Land}
@@ -76,7 +76,7 @@ func newCellWorld(t *testing.T, boardFirst bool) *cellWorld {
 		rc.Sync()
 		w.RunPlan(rc, d) // the effects run with the world, the board after them
 		cw.brd.RunPlan(rc, d)
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 		rc.Sync()
 	})
 	cw.ecs = ctx.ECS()

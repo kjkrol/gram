@@ -10,33 +10,8 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/plugins/world/view"
-	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/uid"
 )
-
-// Anchor has the world live round the points a gives: the sectors' bands (Config.Sectors) are
-// taken from the nearest of them.
-func (p *Plugin) Anchor(a sector.Anchors) {
-	p.module.sectors.anchors = append(p.module.sectors.anchors, a)
-}
-
-// Sectors is the world's part of the telemetry panel: how many sectors and entities lie in each
-// band.
-func (p *Plugin) Sectors() render.Reporter { return sectorsReport{p.module} }
-
-// SetBanded switches the sectors' bands on, or off with every sector in the first (SwitchBands,
-// Settings.Unbanded).
-func (p *Plugin) SetBanded(on bool) {
-	p.Res.Settings.Unbanded = !on
-	p.module.sectors.unbanded = !on
-}
-
-// Banded reports whether the sectors' bands are on; true in a world of no sectors.
-func (p *Plugin) Banded() bool { return !p.Res.Settings.Unbanded }
-
-// Seen is the world's part of the telemetry panel about the first camera made: how many sectors
-// it sees at each level.
-func (p *Plugin) Seen() render.Reporter { return seenReport{p.module} }
 
 const defaultSectorBuckets = 4
 

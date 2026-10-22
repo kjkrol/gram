@@ -84,7 +84,7 @@ func Benchmark_Vision_Relief(b *testing.B) {
 					At: g.At(uint32(20+(i%8)*20), uint32(10+(i/8)*18)),
 				}))
 			}
-			w.Seed(entries...)
+			w.Write().Seed(entries...)
 			ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
 				w.RunPlan(rc, d)
 				m.RunPlan(rc, d)

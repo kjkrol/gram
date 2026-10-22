@@ -219,7 +219,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	})
 	a.telemetry = telemetry.NewPlugin(a.world).
 		With(a.atmosphere.Reporter(), a.light.Reporter(), a.topography.Reporter(),
-			a.cameras.Reporter(), a.world.Sectors(), a.world.Seen())
+			a.cameras.Reporter(), a.world.Read(0).Sectors(), a.world.Read(0).Seen())
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection,
 		a.nav, a.driving,
 		a.atmosphere, a.topography, a.vision, a.bridges, a.minimap, a.light)
@@ -239,16 +239,16 @@ func (a *arena) definePlayers() error {
 
 func (a *arena) defineEffects() {
 	night := a.atmosphere.Calendar().Config().DayRealTime / 2
-	a.world.Effects().Define(BloodMoonEf, effect.Spec{effect.Lasts(night),
+	a.world.Write().Effects().Define(BloodMoonEf, effect.Spec{effect.Lasts(night),
 		effect.Alter(func(m *sky.Moon) {
 			m.Color, m.Face = render.Light{1, 0.25, 0.2}, render.Light{1, 0.3, 0.25}
 			m.Strength *= 2
 		})})
-	a.world.Effects().Define(WindwardRainEf, effect.Spec{effect.Lasts(2 * time.Second),
+	a.world.Write().Effects().Define(WindwardRainEf, effect.Spec{effect.Lasts(2 * time.Second),
 		effect.Alter(func(w *weathering.Wring) { w.Falls = 0.8 })})
-	a.world.Effects().Define(GatheringEf, effect.Spec{effect.Lasts(2 * time.Second),
+	a.world.Write().Effects().Define(GatheringEf, effect.Spec{effect.Lasts(2 * time.Second),
 		effect.Alter(func(w *weathering.Wring) { w.Gathers = 0.05 })})
-	a.world.Effects().Define(SilhouetteEf, effect.Spec{
+	a.world.Write().Effects().Define(SilhouetteEf, effect.Spec{
 		effect.Alter(func(s *light.Shadow) { s.Cast = light.Silhouette })})
 }
 
@@ -261,28 +261,29 @@ func (a *arena) defineRules() {
 	a.world.Roles().Define(LunarRole, act.Branch[sky.Moonrise]{
 		Name: "a blood moon rises",
 		When: cond.Self.If(sky.FullMoon()),
-		Then: act.Self.Put(a.world.Effects().Named(BloodMoonEf)),
+		Then: act.Self.Put(a.world.Write().Effects().Named(BloodMoonEf)),
 	})
 	a.atmosphere.Plays(a.world.Roles().Named(LunarRole))
 	a.world.Roles().Define(UplandRole,
 		act.Branch[weathering.Overhead]{
 			Name: "rain on the windward slopes",
 			When: cond.Self.If(weathering.Reaches(0.9)).And(cond.Self.If(weathering.Clouded(0.6))),
-			Then: act.Self.Put(a.world.Effects().Named(WindwardRainEf)),
+			Then: act.Self.Put(a.world.Write().Effects().Named(WindwardRainEf)),
 		},
 		act.Branch[weathering.Overhead]{
 			Name: "clouds over the hills of an afternoon",
 			When: cond.Self.If(weathering.Hours(12*time.Hour, 17*time.Hour)).
 				And(cond.Self.If(weathering.Damp(0.3))).
 				And(cond.Self.If(weathering.Reaches(0.7))),
-			Then: act.Self.Put(a.world.Effects().Named(GatheringEf)),
+			Then: act.Self.Put(a.world.Write().Effects().Named(GatheringEf)),
 		})
 }
 
 func (a *arena) defineCommands() {
-	bleed := ceremony.Toggle(a.world.Effects().Named(BloodMoonEf)).On(a.atmosphere)
+	bleed := ceremony.Toggle(a.world.Write().Effects().Named(BloodMoonEf)).On(a.atmosphere)
 	a.world.Commands().Define(BleedCmd, bleed)
-	outline := ceremony.Toggle(a.world.Effects().Named(SilhouetteEf)).On(a.selection.Selected())
+	outline := ceremony.Toggle(a.world.Write().Effects().Named(SilhouetteEf)).
+		On(a.selection.Selected())
 	a.world.Commands().Define(SilhouetteCmd, outline)
 }
 

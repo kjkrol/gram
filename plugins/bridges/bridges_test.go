@@ -153,14 +153,14 @@ func (d *dale) start(heights func(geom.Vec) float64) {
 		d.board.RunPlan(rc, dt)
 		d.topo.RunPlan(rc, dt)
 		rc.Sync()
-		d.w.Clock().Replay(rc, dt)
+		d.w.Write().Clock().Replay(rc, dt)
 	})
 	d.ecs = ctx.ecs
 }
 
 func (d *dale) give(cmd command.Command) {
 	d.t.Helper()
-	if !d.w.Carrier().Put(1, cmd) {
+	if !d.w.Write().Carrier().Put(1, cmd) {
 		d.t.Fatalf("nobody takes %T", cmd)
 	}
 	d.ecs.Tick(time.Second / 60)

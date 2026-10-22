@@ -140,14 +140,14 @@ func (v *marksView) Init(si *goke.SysInit) {
 }
 
 func (v *marksView) Compose(f *render.Frame, _ camera.Camera) {
-	styles := v.m.p.w.Styles()
+	styles := v.m.p.w.Read(0).Styles()
 	if styles == nil {
 		return
 	}
 	v.found.Clear()
 	v.ids = v.ids[:0]
 	// a box across a seam is met once a piece
-	v.m.p.w.Space().Query(v.m.lens.covered(), aabbworld.AnyCapability, func(id uid.UID64) {
+	v.m.p.w.Read(0).Space().Query(v.m.lens.covered(), aabbworld.AnyCapability, func(id uid.UID64) {
 		if !v.found.Has(id) {
 			v.found.Add(id)
 			v.ids = append(v.ids, id)
@@ -250,7 +250,7 @@ func (c *clicks) Over(geom.AABB, render.Surface) {}
 func (c *clicks) Click(at geom.Vec) {
 	l := c.m.lens
 	x, y := l.FromScreen(float32(at.X), float32(at.Y))
-	c.m.p.w.Carrier().Put(c.m.issuer, cameras.CenterAt{
+	c.m.p.w.Write().Carrier().Put(c.m.issuer, cameras.CenterAt{
 		Camera: c.m.of,
 		X:      wrapped(float64(x), l.world.X, l.wrapX),
 		Y:      wrapped(float64(y), l.world.Y, l.wrapY),

@@ -59,7 +59,7 @@ func (p *Plugin) Name() string { return "gram.bullet" }
 
 // Install refuses a wrapping world: a shot's step must not cross a seam.
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	if _, _, edges := p.worldPlugin.Space().Bounds(); edges.WrapsX() || edges.WrapsY() {
+	if _, _, edges := p.worldPlugin.Read(0).Space().Bounds(); edges.WrapsX() || edges.WrapsY() {
 		return errors.New("bullet: a wrapping world is refused — a shot's step must not cross a seam")
 	}
 	p.module = newModule(p, ctx.ECS())

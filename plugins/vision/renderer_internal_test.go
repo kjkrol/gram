@@ -49,7 +49,7 @@ func testSpace(t *testing.T, w, h uint32, toroidal bool) *aabbworld.Space {
 
 func testRenderer(t *testing.T, w, h uint32, toroidal bool, view camera.AABB) *Renderer {
 	t.Helper()
-	r := NewRenderer(testSpace(t, w, h, toroidal))
+	r := NewRenderer(testSpace(t, w, h, toroidal).Read())
 	r.camera = cameratest.NewFromSpace(w, h, torusIf(toroidal), view)
 	r.frame = new(render.Frame)
 	r.frame.Reset(r.camera)
@@ -343,7 +343,7 @@ func (slope) Step() float64         { return 10 }
 
 func isoRenderer(t *testing.T) *Renderer {
 	t.Helper()
-	r := NewRenderer(testSpace(t, 1000, 1000, false)).WithGround(func() ground.Heights { return slope{} })
+	r := NewRenderer(testSpace(t, 1000, 1000, false).Read()).WithGround(func() ground.Heights { return slope{} })
 	r.camera = isoCamera(1000, 1000, 800, 600)
 	r.camera.MoveTo(0, 0)
 	r.ground, r.step, r.grounded = slope{}, 10, true

@@ -49,7 +49,7 @@ type fallSystem struct {
 }
 
 func newFallSystem(p *Plugin) *fallSystem {
-	s := &fallSystem{p: p, tickOf: p.worldPlugin.Tick, landings: &p.landings}
+	s := &fallSystem{p: p, tickOf: p.worldPlugin.Read(0).Tick, landings: &p.landings}
 	s.landingAt = func(i int) Landing {
 		return Landing{ID: s.walking.ids[i], Speed: s.walking.speeds[i]}
 	}

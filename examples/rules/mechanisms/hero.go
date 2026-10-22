@@ -42,7 +42,7 @@ var (
 )
 
 func (hero) Effects(b *board.Plugin) {
-	fx := b.Read(0).World().Effects()
+	fx := b.Read(0).World().Write().Effects()
 	fx.Define(ReachingEf, effect.Spec{effect.Lasts(reachFor)})
 	fx.Define(PullingEf, effect.Spec{effect.Lasts(leverSwing)})
 	fx.Define(InReachEf, effect.Spec{})
@@ -50,7 +50,7 @@ func (hero) Effects(b *board.Plugin) {
 
 // handy, he uses the lever he touches facing it; Mortal is everyone's, the arena's
 func (hero) Rules(b *board.Plugin) {
-	roles, fx := b.Read(0).World().Roles(), b.Read(0).World().Effects()
+	roles, fx := b.Read(0).World().Roles(), b.Read(0).World().Write().Effects()
 	atHand := cond.Other.If(roles.Named(LeverRole)).And(cond.Self.If(collision.Facing(math.Pi / 4)))
 	// a lever swinging is not pulled again: the hands stay on it as long as the swing
 	leverStill := cond.Other.If(cond.Not(fx.Named(LeverPullingEf))).

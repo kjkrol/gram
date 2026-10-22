@@ -16,7 +16,7 @@
 // moments the plugin catches. Install only queues; the engine flushes every plugin's wiring in
 // one ecs.Setup after the Stage's Init. What a plugin needs of another it takes in its
 // constructor. What a plugin draws it gives Draws, render.Sources of the Stage's one picture
-// (world.Plugin.Picture), ordered there by height; Looks has its looks declared and its atlases
+// (world.Read.Picture), ordered there by height; Looks has its looks declared and its atlases
 // closed once the Stage is set up, before its scenes are made.
 //
 // # Rules

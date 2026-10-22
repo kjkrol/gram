@@ -44,5 +44,5 @@ func (wanderer) Define(b *board.Plugin) {
 
 func (wanderer) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[unitRow](w.Kinds(), WandererKind), unitSize, render.Solid(wandererColor)).
-		Under(w.Effects().Named(WoundedEf), render.Solid(paleColor))
+		Under(w.Write().Effects().Named(WoundedEf), render.Solid(paleColor))
 }

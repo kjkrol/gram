@@ -126,7 +126,7 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 	brd := boardPlugin.Read(0).Board()
 	p := &Plugin{cfg: cfg, worldPlugin: worldPlugin, boardPlugin: boardPlugin, board: brd,
 		light:    lightPlugin,
-		sky:      stillSky{sight: air.Sight(worldPlugin.Scale())},
+		sky:      stillSky{sight: air.Sight(worldPlugin.Read(0).Scale())},
 		climbing: cfg.Climbing}
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(worldPlugin, p)
@@ -144,16 +144,16 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 	boardPlugin.WithMap(p)
 	if _, _, _, _, square := p.relief.Lattice(); square {
 		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{
-			Scale: worldPlugin.Scale(),
-			Seen:  worldPlugin.ViewFor,
+			Scale: worldPlugin.Read(0).Scale(),
+			Seen:  worldPlugin.Read(0).ViewFor,
 		})
 		p.careView = &careView{p}
 		p.SetCare(cfg.Care)
 	} else {
 		p.hexes = hexes.New(worldPlugin, boardPlugin, brd.Map(), p.relief, liveSky{p})
 	}
-	p.look = billboards.New(worldPlugin.FlatLook(), liveSky{p}, p.relief)
-	worldPlugin.SetLook(p.look)
+	p.look = billboards.New(worldPlugin.Read(0).FlatLook(), liveSky{p}, p.relief)
+	worldPlugin.Write().SetLook(p.look)
 	if lightPlugin != nil {
 		lightPlugin.OverRelief(p.relief)
 	}
@@ -458,7 +458,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		heights:  p.relief.HeightsSystem(),
 		shaping:  p.shaper.system(),
 		altitude: p.relief.AltitudeSystem(p.boardPlugin.Read(0).Footing()),
-		clock:    p.worldPlugin.Clock(),
+		clock:    p.worldPlugin.Write().Clock(),
 	}
 	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)

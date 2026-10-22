@@ -29,6 +29,7 @@ type headless struct {
 	pending []func() []goke.System
 	tps     game.TPS
 	drawn   []render.Source
+	looks   []func()
 }
 
 var _ game.Initializer = (*headless)(nil)
@@ -83,8 +84,17 @@ func (c *headless) camera(cfg cameras.Config, start cameras.Start, w, h float32)
 	return cam
 }
 
+// look declares the installed plugins' looks, as the engine does once they are all installed
+func (c *headless) look() {
+	for _, f := range c.looks {
+		f()
+	}
+	c.looks = nil
+}
+
 func (c *headless) start(tb testing.TB, plan func(goke.RunCtx, time.Duration)) *goke.ECS {
 	tb.Helper()
+	c.look()
 	for _, v := range c.tracked {
 		if p, ok := v.(plugin.Populator); ok {
 			if err := p.Populate(); err != nil {
@@ -98,7 +108,7 @@ func (c *headless) start(tb testing.TB, plan func(goke.RunCtx, time.Duration)) *
 			return
 		}
 		// as the engine runs the game's Update and the clock's replay after it
-		clk := c.world.Clock()
+		clk := c.world.Write().Clock()
 		plan(clk.Settling(rc), d)
 		clk.Replay(rc, d)
 	})
@@ -116,7 +126,7 @@ func entities(n int) string { return fmt.Sprintf("entities=%d", n) }
 
 func (c *headless) Hosts(h ...host.Host)     { c.hosts = append(c.hosts, h...) }
 func (c *headless) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
-func (c *headless) Looks(func())             {}
+func (c *headless) Looks(f func())           { c.looks = append(c.looks, f) }
 func (*headless) Pool() *parallel.Pool       { return pool }
 
 // the game's pool, every CPU, as the engine hands it to the plugins

@@ -58,7 +58,7 @@ func (s *talkerStage) Init(ctx game.Initializer) error {
 func (s *talkerStage) Loaded() error { return nil }
 
 func (s *talkerStage) Spawn() error {
-	s.world.Seed(s.talker.Entry(struct{}{}))
+	s.world.Write().Seed(s.talker.Entry(struct{}{}))
 	return nil
 }
 

@@ -46,7 +46,7 @@ func TestStruck_ComesOnlyToWhoStruckSomething(t *testing.T) {
 		comp.Const(collision.Collider{}),
 	})
 	town := kind.Named[float64](w.Kinds(), "town")
-	w.Seed(town.Entry(100), town.Entry(105), town.Entry(500))
+	w.Write().Seed(town.Entry(100), town.Entry(105), town.Entry(500))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}

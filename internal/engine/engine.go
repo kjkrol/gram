@@ -278,8 +278,8 @@ func (e *Engine) Update() error {
 		e.ticks++
 	}
 	if e.current.world != nil {
-		e.current.world.Clock().Behind(steps == maxStepsAFrame)
-		e.current.world.Clock().Pending(e.timeTracker.accumulator)
+		e.current.world.Write().Clock().Behind(steps == maxStepsAFrame)
+		e.current.world.Write().Clock().Pending(e.timeTracker.accumulator)
 	}
 
 	if e.timeTracker.processStatsInterval() {

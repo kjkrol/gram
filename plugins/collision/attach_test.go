@@ -31,7 +31,7 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 		comp.Const(collision.Collider{}),
 	})
 	town := kind.Named[float64](w.Kinds(), "town")
-	w.Seed(town.Entry(100), town.Entry(105))
+	w.Write().Seed(town.Entry(100), town.Entry(105))
 	if err := w.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)
 	}
@@ -60,7 +60,7 @@ func TestCollider_AttachedAndDetachedMidGame(t *testing.T) {
 	})
 
 	collidable := func() int {
-		return w.Space().Query(geom.NewAABBAt(geom.NewVec(90, 90), 40, 40), aabbworld.CanCollide, func(uid.UID64) {})
+		return w.Read(0).Space().Query(geom.NewAABBAt(geom.NewVec(90, 90), 40, 40), aabbworld.CanCollide, func(uid.UID64) {})
 	}
 	tick := func() int {
 		stats.Counter = 0

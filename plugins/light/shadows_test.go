@@ -101,12 +101,12 @@ func TestPlugin_GathersTheShadowsOfWhatItLightsAsTheirKindsAndThePolicySay(t *te
 	w, _, tick := litWorld(t, cfg, func(w *world.Plugin, pl *light.Plugin) {
 		p = pl
 		torch = castKind(w, "torch", light.NoShadow, light.Source{Strength: 1, Reach: 40})
-		w.Seed(castKind(w, "walker", light.Patch).Entry(spot{500, 500}),
+		w.Write().Seed(castKind(w, "walker", light.Patch).Entry(spot{500, 500}),
 			castKind(w, "hero", light.Silhouette).Entry(spot{520, 500}),
 			castKind(w, "ghost", light.NoShadow).Entry(spot{540, 500}),
 			castKind(w, "tower", light.Baked).Entry(spot{560, 500}))
 	}, joined)
-	w.SetAtlas(sheet{})
+	w.Write().SetAtlas(sheet{})
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	tick()
 	if casts, _ := gathered(p, q, base, cam); len(casts) != 0 {
@@ -132,7 +132,7 @@ func TestPlugin_GathersTheShadowsOfWhatItLightsAsTheirKindsAndThePolicySay(t *te
 	p.WithShadowPolicy(nil)
 
 	// a torch west of the walker, 10 up, reaching the hero too: their shadows fall east of it
-	w.Spawn(torch.Entry(spot{490, 500}))
+	w.Write().Spawn(torch.Entry(spot{490, 500}))
 	tick()
 	tick()
 	casts, _ = gathered(p, q, base, cam)
@@ -163,7 +163,7 @@ func TestPlugin_ComposeBakesTheBlocksOnLevelGroundAndLaysTheCastsOverIt(t *testi
 	}}
 	_, _, tick := litWorld(t, light.Config{}, func(w *world.Plugin, pl *light.Plugin) {
 		p = pl
-		w.Seed(castKind(w, "walker", light.Patch).Entry(spot{500, 500}))
+		w.Write().Seed(castKind(w, "walker", light.Patch).Entry(spot{500, 500}))
 	}, joined)
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	places := func() (opaque, over int) {
@@ -198,7 +198,7 @@ func TestPlugin_ComposeBakesTheBlocksOnLevelGroundAndLaysTheCastsOverIt(t *testi
 
 func TestPlugin_ComposePlansTheBakeOfATowerOnLevelGround(t *testing.T) {
 	_, p, tick := litWorld(t, light.Config{}, func(w *world.Plugin, pl *light.Plugin) {
-		w.Seed(castKind(w, "tower", light.Baked).Entry(spot{500, 500}))
+		w.Write().Seed(castKind(w, "tower", light.Baked).Entry(spot{500, 500}))
 	})
 	p.WithDistant(light.Distant{Dir: [3]float32{-1, 0, 1}, Strength: 1})
 	tick()
@@ -215,7 +215,7 @@ func TestPlugin_ComposePlansTheBakeOfATowerOnLevelGround(t *testing.T) {
 
 func TestPlugin_SaysTheSunsShareOfTheLight(t *testing.T) {
 	_, p, tick := litWorld(t, light.Config{}, func(w *world.Plugin, p *light.Plugin) {
-		w.Seed(lampKind(w, "torch", light.Source{Strength: 1, Reach: 100}).Entry(spot{500, 500}))
+		w.Write().Seed(lampKind(w, "torch", light.Source{Strength: 1, Reach: 100}).Entry(spot{500, 500}))
 	})
 	p.WithDistant(light.Distant{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3})
 	tick()

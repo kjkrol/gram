@@ -92,7 +92,7 @@ func (s *shotWorld) fire(n int) {
 			From: from, Dir: geom.NewVec(1, 0), Range: shotRange, Climb: s.climb,
 		}))
 	}
-	s.w.Spawn(entries...)
+	s.w.Write().Spawn(entries...)
 }
 
 // inFlight counts the shots in the air.

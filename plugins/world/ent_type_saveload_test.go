@@ -59,7 +59,7 @@ func (g *typeStage) Loaded() error { return nil }
 
 func (g *typeStage) Spawn() error {
 	if g.spawn != "" {
-		g.world.Seed(g.kinds[g.spawn].Entry(struct{}{}))
+		g.world.Write().Seed(g.kinds[g.spawn].Entry(struct{}{}))
 	}
 	return nil
 }
