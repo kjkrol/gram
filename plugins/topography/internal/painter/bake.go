@@ -4,7 +4,6 @@ import (
 	"image"
 
 	"github.com/kjkrol/gram/plugins/board/cell"
-	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	public "github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/render"
@@ -202,10 +201,10 @@ func (l *Painter) around8(i int, fn func(j int)) {
 
 func (l *Painter) cellTile(c cell.ID) *tile {
 	center := l.board.CellCenter(c)
-	l.scratch = look.Tile{ID: c,
+	l.scratch = box{ID: c,
 		X0: float32(center.X - l.cellW/2), Y0: float32(center.Y - l.cellH/2),
 		X1: float32(center.X + l.cellW/2), Y1: float32(center.Y + l.cellH/2)}
-	l.bakeTile = tile{Tile: &l.scratch, r: l, id: c}
+	l.bakeTile = tile{box: &l.scratch, r: l, id: c}
 	return &l.bakeTile
 }
 

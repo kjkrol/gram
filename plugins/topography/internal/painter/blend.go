@@ -2,7 +2,6 @@ package painter
 
 import (
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/render"
 )
@@ -175,18 +174,4 @@ func contains(ids []render.SpriteID, id render.SpriteID) bool {
 		}
 	}
 	return false
-}
-
-// DrawBlends draws the neighbours' grounds running into the tile, lying at at.
-func (t *tile) DrawBlends(f *render.Frame, cam camera.Camera, at render.At) {
-	for _, p := range t.Blends() {
-		if !t.r.inFront(cam, p.World, p.Z) {
-			continue // beside or behind the eye, it would be thrown across the screen
-		}
-		var c render.Corners
-		for k, at := range p.World {
-			c[k][0], c[k][1] = cam.Project(at[0], at[1], p.Z[k])
-		}
-		f.SpriteBlend(at, t.Atlas, p.Sprite, c, p.Light, p.Weight, p.Soft)
-	}
 }

@@ -32,32 +32,16 @@ type windyMap struct {
 	clouds *draw.Clouds
 }
 
-func (m *windyMap) Look() look.Look { return windyCells{Look: m.Map.Look(), sky: m.sky} }
+// Look leans what sways on a flat board with the wind.
+func (m *windyMap) Look() look.Look {
+	if l := m.Map.Look(); l != look.Flat {
+		return l
+	}
+	return look.Swaying
+}
 
 func (m *windyMap) Dressing() look.Dressing {
 	return &cloudyDressing{Dressing: m.Map.Dressing(), sky: m.sky, clouds: m.clouds}
-}
-
-type windyCells struct {
-	look.Look
-	sky Atmosphere
-}
-
-var _ look.Swaying = windyCells{}
-
-// Sways is true: what stands on a cell leans with the wind.
-func (windyCells) Sways() bool { return true }
-
-func (l windyCells) Cell(f *render.Frame, cam camera.Camera, t *look.Tile) {
-	if amount, rise := t.Sway(); amount > 0 {
-		leaning := *t
-		lx, ly := l.sky.Air().Sway(f.Time(), (t.X0+t.X1)/2, (t.Y0+t.Y1)/2, amount)
-		leaning.X0, leaning.X1 = t.X0+lx*rise, t.X1+lx*rise
-		leaning.Y0, leaning.Y1 = t.Y0+ly*rise, t.Y1+ly*rise
-		l.Look.Cell(f, cam, &leaning)
-		return
-	}
-	l.Look.Cell(f, cam, t)
 }
 
 // cloudyDressing lays the clouds' shadows on the ground, the dressing under it dressing the rest
@@ -104,23 +88,6 @@ func (d *cloudyDressing) DressGround(t render.Target, cam camera.Camera, u rende
 	}
 }
 
-func (d *cloudyDressing) Light(t *look.Tile) render.Shade {
-	if d.Dressing == nil {
-		return render.Even(1)
-	}
-	return d.Dressing.Light(t)
-}
-
-func (d *cloudyDressing) EvenLight() (render.Light, bool) {
-	if d.Dressing == nil {
-		return render.Light{1, 1, 1}, true
-	}
-	if e, ok := d.Dressing.(look.EvenLit); ok {
-		return e.EvenLight()
-	}
-	return render.Light{}, false
-}
-
 func (d *cloudyDressing) Sheet(atlas render.AtlasSource) render.AtlasSource {
 	if d.Dressing == nil {
 		return atlas
@@ -128,32 +95,11 @@ func (d *cloudyDressing) Sheet(atlas render.AtlasSource) render.AtlasSource {
 	return d.Dressing.Sheet(atlas)
 }
 
-func (d *cloudyDressing) Base(t *look.Tile) render.SpriteID {
+func (d *cloudyDressing) Base(c cell.ID, own render.SpriteID) render.SpriteID {
 	if d.Dressing == nil {
-		return t.Sprite()
+		return own
 	}
-	return d.Dressing.Base(t)
-}
-
-func (d *cloudyDressing) FaceLight(t *look.Tile, dx, dy int) render.Light {
-	if d.Dressing == nil {
-		return render.Light{1, 1, 1}
-	}
-	return d.Dressing.FaceLight(t, dx, dy)
-}
-
-func (d *cloudyDressing) Dress(
-	f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1 float32, at render.At,
-) {
-	if d.Dressing != nil {
-		d.Dressing.Dress(f, cam, t, x0, y0, x1, y1, at)
-	}
-}
-
-func (d *cloudyDressing) Across(f *render.Frame, cam camera.Camera, t *look.Tile) {
-	if d.Dressing != nil {
-		d.Dressing.Across(f, cam, t)
-	}
+	return d.Dressing.Base(c, own)
 }
 
 // windyLook leans the swaying sprites with the wind, the Look under it drawing them

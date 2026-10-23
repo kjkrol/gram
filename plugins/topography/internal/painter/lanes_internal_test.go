@@ -17,9 +17,9 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-// a hex board's tops from above, laid on the GPU, as the CPU composed them: the tiles, the still
-// water glinting, the ways curving, fading, turning into the water and running into it
-func TestPainter_DrawsAHexBoardsTopsAsTheCPUComposedThem(t *testing.T) {
+// a hex board's tops from above, laid on the GPU: the tiles, the still water glinting, the ways
+// over them, fading and the river turning into the sea
+func TestPainter_DrawsAHexBoardsTopsOnTheGPU(t *testing.T) {
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
 		t.Skipf("no GPU: %v", err)
 	}
@@ -63,10 +63,10 @@ func TestPainter_DrawsAHexBoardsTopsAsTheCPUComposedThem(t *testing.T) {
 	}
 	brdW.SetWay(g.At(4, 3), cell.Way{Kind: road, Width: 5, Links: east | west | southEast})
 	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - p.Y/8 })
+	colours := map[render.SpriteID]color.RGBA{1: {90, 150, 70, 255}, 2: {150, 170, 80, 255},
+		3: {40, 80, 170, 255}, 4: {60, 110, 190, 255}, 5: {150, 110, 70, 255}}
 	atlas := render.NewAtlas()
-	for id, c := range map[render.SpriteID]color.RGBA{1: {90, 150, 70, 255},
-		2: {150, 170, 80, 255}, 3: {40, 80, 170, 255}, 4: {60, 110, 190, 255},
-		5: {150, 110, 70, 255}} {
+	for id, c := range colours {
 		atlas.Add(id, 28, render.Hexagon(c))
 	}
 	atlas.Close()
@@ -77,46 +77,58 @@ func TestPainter_DrawsAHexBoardsTopsAsTheCPUComposedThem(t *testing.T) {
 		"Toward": []float32{0, 0, 1}})
 	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
 	d.kinds = kindsOf{land, meadow, sea, river, road}
-	mp := testMap{look: look.FlatLook(), d: d}
-
-	cpu := render.NewImage(w, h)
-	still := render.NewStill()
-	still.Compose(float32(space.Width), float32(space.Height),
-		look.NewRenderer(brd, atlas, mp, world.SpaceCfg{}).Compose)
-	still.Draw(render.Target{Screen: cpu}, nil, u, px, 0, 0, render.Light{1, 1, 1})
-
-	laid := render.NewImage(w, h)
+	top := render.NewImage(w, h)
 	d.Above()
-	look.NewRenderer(brd, atlas, mp, space).Whole(laid, px, render.Light{1, 1, 1}, u)
-	d.DrawWays(laid, atlas, px, u)
+	look.NewRenderer(brd, atlas, testMap{look: look.Flat, d: d}, space).
+		Whole(top, px, render.Light{1, 1, 1}, u)
+	d.DrawWays(top, atlas, px, u)
 	if !d.WaysMoving() {
 		t.Error("the river's water neither runs nor glints")
 	}
-
-	a, b := make([]byte, 4*w*h), make([]byte, 4*w*h)
-	laid.ReadPixels(a)
-	cpu.ReadPixels(b)
-	off, most := 0, 0
-	for i := 0; i < len(a); i += 4 {
-		worst := 0
-		for k := range 4 {
-			worst = max(worst, int(a[i+k])-int(b[i+k]), int(b[i+k])-int(a[i+k]))
-		}
-		most = max(most, worst)
-		if worst > 24 {
-			off++
-		}
-	}
-	t.Logf("%d pixels differ by over 24, %d at most", off, most)
+	pix := make([]byte, 4*w*h)
+	top.ReadPixels(pix)
 	if dir := os.Getenv("GRAM_TILES_PNG"); dir != "" {
-		for name, pix := range map[string][]byte{"gpu": a, "cpu": b} {
-			f, _ := os.Create(dir + "/" + t.Name() + "-" + name + ".png")
-			_ = png.Encode(f, &image.RGBA{Pix: pix, Stride: 4 * w, Rect: image.Rect(0, 0, w, h)})
-			f.Close()
+		f, _ := os.Create(dir + "/" + t.Name() + ".png")
+		_ = png.Encode(f, &image.RGBA{Pix: pix, Stride: 4 * w, Rect: image.Rect(0, 0, w, h)})
+		f.Close()
+	}
+	at := func(q, r uint32) color.RGBA {
+		mid := brd.CellCenter(g.At(q, r))
+		i := 4 * (int(mid.Y*px)*w + int(mid.X*px))
+		return color.RGBA{pix[i], pix[i+1], pix[i+2], pix[i+3]}
+	}
+	close := func(a, b color.RGBA, d int) bool {
+		for _, p := range [][2]uint8{{a.R, b.R}, {a.G, b.G}, {a.B, b.B}} {
+			if k := int(p[0]) - int(p[1]); k > d || k < -d {
+				return false
+			}
+		}
+		return true
+	}
+	for _, c := range []struct {
+		q, r uint32
+		want color.RGBA
+		what string
+	}{
+		{6, 4, colours[1], "a cell of land"}, {6, 3, colours[2], "a meadow"},
+		{5, 1, colours[5], "the road across the land"},
+	} {
+		if got := at(c.q, c.r); !close(got, c.want, 2) {
+			t.Errorf("the middle of %s is %v, want %v", c.what, got, c.want)
 		}
 	}
-	if off > w*h/200 {
-		t.Errorf("%d pixels differ from the tops composed on the CPU by over 24, %d at most; want "+
-			"at most half a percent of them", off, most)
+	if got := at(7, 1); close(got, colours[5], 10) || close(got, colours[1], 10) {
+		t.Errorf("the road fading out is %v, want it between the road's %v and the land's %v", got,
+			colours[5], colours[1])
+	}
+	if got := at(2, 4); got.B < got.R+60 {
+		t.Errorf("the river is %v, want its water blue", got)
+	}
+	glints := false
+	for q := range uint32(8) {
+		glints = glints || !close(at(q, 7), colours[3], 10)
+	}
+	if !glints {
+		t.Errorf("the sea is drawn as its sprite alone, %v, want it glinting", colours[3])
 	}
 }

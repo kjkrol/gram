@@ -1,10 +1,7 @@
 package look_test
 
 import (
-	"image"
 	"image/color"
-	"image/png"
-	"os"
 	"testing"
 	"time"
 
@@ -40,7 +37,7 @@ func (m marked) States(c cell.ID) tag.Tags[effect.States] {
 	return 0
 }
 
-// dressed is a flat map of l dressed by d
+// dressed is a flat map laid as l says, dressed by d
 type dressed struct {
 	l look.Look
 	d look.Dressing
@@ -51,26 +48,6 @@ func (dressed) Heights() ground.Heights                         { return nil }
 func (m dressed) Dressing() look.Dressing                       { return m.d }
 func (dressed) Top(cell.ID) (corners [4]float32, level float32) { return corners, 0 }
 
-// windy leans what sways with a wind of its own, as the board's atmosphere does
-type windy struct {
-	look.Look
-	w air.Weather
-}
-
-func (windy) Sways() bool { return true }
-
-func (l windy) Cell(f *render.Frame, cam camera.Camera, t *look.Tile) {
-	if amount, rise := t.Sway(); amount > 0 {
-		leaning := *t
-		lx, ly := l.w.Sway(f.Time(), (t.X0+t.X1)/2, (t.Y0+t.Y1)/2, amount)
-		leaning.X0, leaning.X1 = t.X0+lx*rise, t.X1+lx*rise
-		leaning.Y0, leaning.Y1 = t.Y0+ly*rise, t.Y1+ly*rise
-		l.Look.Cell(f, cam, &leaning)
-		return
-	}
-	l.Look.Cell(f, cam, t)
-}
-
 // weather is a source holding the frame's time and wind still
 type weather struct{ wind [2]float32 }
 
@@ -78,51 +55,20 @@ func (weather) Init(*goke.SysInit)                         {}
 func (weather) Clock() (time.Duration, bool)               { return 1300 * time.Millisecond, true }
 func (w weather) Compose(f *render.Frame, _ camera.Camera) { f.Uniform("Wind", w.wind[0], w.wind[1]) }
 
-// drawnApart draws r laid on the GPU and its twin composed on the CPU through cam (a renderer of
-// no world composes its tiles into the frame), with the other sources, and reports the largest difference of a channel and how many pixels differ by
-// over 24 in any channel
-func drawnApart(t *testing.T, laid, cpu *look.Renderer, cam camera.Camera, w, h int,
-	others ...render.Source) (most, off int) {
-	t.Helper()
-	a, b := make([]byte, 4*w*h), make([]byte, 4*w*h)
-	for _, x := range []struct {
-		r   *look.Renderer
-		pix []byte
-	}{{laid, a}, {cpu, b}} {
-		screen := render.NewImage(w, h)
-		screen.Fill(color.RGBA{A: 255})
-		render.NewComposer(append([]render.Source{x.r}, others...)...).DrawWorld(screen, cam)
-		screen.ReadPixels(x.pix)
-	}
-	if !look.Tiled(laid) {
-		t.Fatal("the board's tiles were not laid on the GPU")
-	}
-	for i := 0; i < len(a); i += 4 {
-		worst := 0
-		for k := range 4 {
-			worst = max(worst, int(a[i+k])-int(b[i+k]), int(b[i+k])-int(a[i+k]))
-		}
-		most = max(most, worst)
-		if worst > 24 {
-			off++
-		}
-	}
-	t.Logf("%d pixels differ by over 24, %d at most", off, most)
-	if dir := os.Getenv("GRAM_TILES_PNG"); dir != "" {
-		for _, x := range []struct {
-			name string
-			pix  []byte
-		}{{"gpu", a}, {"cpu", b}} {
-			img := &image.RGBA{Pix: x.pix, Stride: 4 * w, Rect: image.Rect(0, 0, w, h)}
-			f, _ := os.Create(dir + "/" + t.Name() + "-" + x.name + ".png")
-			_ = png.Encode(f, img)
-			f.Close()
-		}
-	}
-	return most, off
+var (
+	green = color.RGBA{R: 60, G: 160, B: 60, A: 255}
+	snow  = color.RGBA{R: 240, G: 240, B: 250, A: 200}
+	brown = color.RGBA{R: 150, G: 110, B: 70, A: 255}
+)
+
+// over is c with the cover snow laid over it
+func over(c color.RGBA) color.RGBA {
+	a := float32(snow.A) / 255
+	mix := func(s, d uint8) uint8 { return uint8(float32(s)*a + float32(d)*(1-a) + 0.5) }
+	return color.RGBA{mix(snow.R, c.R), mix(snow.G, c.G), mix(snow.B, c.B), 255}
 }
 
-func TestTiles_LayTheCoversAndTheWaysAsTheCPUComposesThem(t *testing.T) {
+func TestTiles_LayTheCoversAndTheWaysOverTheTiles(t *testing.T) {
 	needGPU(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
 	road := cell.Kind{SpriteID: 3, Cost: 1, Allows: cell.Land}
@@ -139,34 +85,56 @@ func TestTiles_LayTheCoversAndTheWaysAsTheCPUComposesThem(t *testing.T) {
 		brdW.SetWay(g.At(6, i), cell.Way{Kind: road, Width: 6, Links: 0x03, Fade: 0.4})
 	}
 	atlas := render.NewAtlas()
-	atlas.Add(render.SpriteID(1), 32, render.Solid(color.RGBA{R: 60, G: 160, B: 60, A: 255}))
-	atlas.Add(render.SpriteID(2), 32, render.Solid(color.RGBA{R: 240, G: 240, B: 250, A: 255}))
-	atlas.Add(render.SpriteID(3), 32, render.Solid(color.RGBA{R: 150, G: 110, B: 70, A: 255}))
+	atlas.Add(render.SpriteID(1), 32, render.Solid(green))
+	atlas.Add(render.SpriteID(2), 32, render.Solid(snow))
+	atlas.Add(render.SpriteID(3), 32, render.Solid(brown))
 	atlas.Close()
 	d := draw.NewBands(m)
 	d.Cover(mark, 2)
 	space := world.SpaceCfg{Width: 256, Height: 256}
-	mp := dressed{look.FlatLook(), d}
-	laid := look.NewRenderer(brd, atlas, mp, space)
-	cpu := look.NewRenderer(brd, atlas, mp, world.SpaceCfg{})
+	r := look.NewRenderer(brd, atlas, dressed{look.Flat, d}, space)
 	cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
 	cam.SetViewport(256, 256)
-	if most, off := drawnApart(t, laid, cpu, cam, 256, 256); off > 256*256/100 {
-		t.Errorf("%d pixels differ from the tiles composed on the CPU by over 24, %d at most; "+
-			"want at most 1%% of them, where the edges of the bands fall", off, most)
+	at := shot(cam, 256, 256, r)
+	for _, c := range []struct {
+		x, y float32
+		want color.RGBA
+		what string
+	}{
+		{3*32 + 16, 2*32 + 16, over(green), "a covered cell's middle"},
+		{1*32 + 16, 5*32 + 16, green, "a bare cell's middle, away from the covers"},
+		{3*32 + 30, 2*32 + 2, green, "the covered block's outer corner, the line cutting it"},
+		{3 * 32, 2*32 + 16, over(green), "between two covered cells, unbroken"},
+		{4*32 + 16, 4*32 + 16, brown, "the way across a covered cell, over its cover"},
+		{1*32 + 16, 1*32 + 16, brown, "the way across a bare cell"},
+	} {
+		if got := at(c.x, c.y); !near(got, c.want, 3) {
+			t.Errorf("%s is %v, want %v", c.what, got, c.want)
+		}
+	}
+	// the way fading out, as far as it shows
+	if got := at(6*32+16, 1*32+16); near(got, brown, 6) || near(got, green, 6) {
+		t.Errorf("a way faded by 0.4 is %v, want it between the way's %v and the grass's %v", got,
+			brown, green)
 	}
 }
 
-// a hex's box reaches over its neighbours': each cell's tile and the covers on it lie over the
-// cells before it and under those after it, the ways over them all
-func TestTiles_LayAHexBoardAsTheCPUComposesIt(t *testing.T) {
+// a hex's box reaches over its neighbours': each cell's tile and the cover on it lie over the
+// cells laid before it, row by row, and under those after it
+func TestTiles_LayAHexBoardsTilesInTheOrderOfItsCells(t *testing.T) {
 	needGPU(t)
 	const mark tag.Tag[effect.States] = 3
 	g := grid.DefaultGrids{}.Hex(8, 8, 16)
 	brd, brdW := board.NewBoard(g)
-	kinds := []cell.Kind{{SpriteID: 1, Cost: 1, Allows: cell.Land},
-		{SpriteID: 2, Cost: 1, Allows: cell.Land}, {SpriteID: 3, Cost: 1, Allows: cell.Land}}
-	road := cell.Kind{SpriteID: 5, Cost: 1, Allows: cell.Land}
+	colours := []color.RGBA{green, {R: 40, G: 80, B: 200, A: 255}, {R: 200, G: 180, B: 90, A: 255}}
+	kinds := make([]cell.Kind, len(colours))
+	atlas := render.NewAtlas()
+	for i, c := range colours {
+		kinds[i] = cell.Kind{SpriteID: render.SpriteID(i + 1), Cost: 1, Allows: cell.Land}
+		atlas.Add(kinds[i].SpriteID, 28, render.Solid(c))
+	}
+	atlas.Add(render.SpriteID(4), 28, render.Solid(snow))
+	atlas.Close()
 	m := marked{BoardRead: brd, mark: mark, cells: map[cell.ID]bool{}}
 	for r := range uint32(8) {
 		for q := range uint32(8) {
@@ -175,67 +143,107 @@ func TestTiles_LayAHexBoardAsTheCPUComposesIt(t *testing.T) {
 				m.cells[g.At(q, r)] = true
 			}
 		}
-		brdW.SetWay(g.At(3, r), cell.Way{Kind: road, Width: 7, Links: 0x3f})
 	}
-	atlas := render.NewAtlas()
-	atlas.Add(render.SpriteID(1), 28, render.Hexagon(color.RGBA{R: 60, G: 160, B: 60, A: 255}))
-	atlas.Add(render.SpriteID(2), 28, render.Hexagon(color.RGBA{R: 40, G: 80, B: 200, A: 255}))
-	atlas.Add(render.SpriteID(3), 28, render.Solid(color.RGBA{R: 200, G: 180, B: 90, A: 255}))
-	atlas.Add(render.SpriteID(4), 28, render.Solid(color.RGBA{R: 240, G: 240, B: 250, A: 200}))
-	atlas.Add(render.SpriteID(5), 28, render.Solid(color.RGBA{R: 150, G: 110, B: 70, A: 255}))
-	atlas.Close()
 	d := draw.NewBands(m)
 	d.Cover(mark, 4)
-	mp := dressed{look.FlatLook(), d}
 	space := world.SpaceCfg{Width: 400, Height: 300}
-	laid := look.NewRenderer(brd, atlas, mp, space)
-	cpu := look.NewRenderer(brd, atlas, mp, world.SpaceCfg{})
+	r := look.NewRenderer(brd, atlas, dressed{look.Flat, d}, space)
 	cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
 	cam.SetViewport(320, 240)
-	if most, off := drawnApart(t, laid, cpu, cam, 320, 240); off > 320*240/100 {
-		t.Errorf("%d pixels differ from the hexes composed on the CPU by over 24, %d at most; want "+
-			"at most 1%% of them, along the hexes' rims", off, most)
+	at := shot(cam, 320, 240, r)
+	w, h := brd.CellBounds()
+	checked := 0
+	for sy := float32(1); sy < 240; sy += 3 {
+	pixels:
+		for sx := float32(1); sx < 320; sx += 3 {
+			x, y := cam.FromScreen(sx+0.5, sy+0.5)
+			// the last cell, row by row, whose box holds the point, away from every box's edge
+			top := -1
+			for i := range brd.CellCount() {
+				mid := brd.CellCenter(brd.At(uint32(i%8), uint32(i/8)))
+				dx, dy := float64(x)-mid.X, float64(y)-mid.Y
+				ex, ey := w/2-max(dx, -dx), h/2-max(dy, -dy)
+				if ex > -1 && ey > -1 && (ex < 1 || ey < 1) {
+					continue pixels
+				}
+				if ex > 0 && ey > 0 {
+					top = i
+				}
+			}
+			if top < 0 {
+				continue
+			}
+			c := brd.At(uint32(top%8), uint32(top/8))
+			want := colours[(top%8+2*(top/8))%3]
+			if m.cells[c] {
+				want = over(want)
+			}
+			if got := at(sx, sy); !near(got, want, 3) {
+				t.Fatalf("the pixel (%v, %v) is %v, want %v of the cell %d laid last over it",
+					sx, sy, got, want, top)
+			}
+			checked++
+		}
+	}
+	if checked < 1000 {
+		t.Errorf("only %d pixels checked, want the board in view", checked)
 	}
 }
 
-func TestTiles_LeanWhatSwaysAsTheCPUComposesIt(t *testing.T) {
+// what sways leans with the wind, its tile and the cover on it: over the cells laid before it,
+// under those after it
+func TestTiles_LeanWhatSwaysWithTheWind(t *testing.T) {
 	needGPU(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
 	reeds := cell.Kind{SpriteID: 2, Cost: 1, Allows: cell.Land, Sway: 1, Height: 20}
+	yellow := color.RGBA{R: 200, G: 190, B: 80, A: 255}
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	brd, brdW := board.NewBoard(g)
 	brdW.SetAll(grass)
-	for _, at := range [][2]uint32{{2, 2}, {3, 2}, {5, 4}, {1, 6}, {6, 6}} {
-		brdW.Set(g.At(at[0], at[1]), reeds)
-	}
-	// covers on what sways and beside it: each lies over its own tile and under the next one's
+	brdW.Set(g.At(5, 3), reeds)
+	brdW.Set(g.At(6, 5), reeds)
 	const mark tag.Tag[effect.States] = 3
-	m := marked{BoardRead: brd, mark: mark, cells: map[cell.ID]bool{}}
-	for _, at := range [][2]uint32{{2, 2}, {4, 2}, {2, 3}, {5, 5}, {6, 6}, {0, 0}} {
-		m.cells[g.At(at[0], at[1])] = true
-	}
+	m := marked{BoardRead: brd, mark: mark, cells: map[cell.ID]bool{g.At(6, 5): true}}
 	atlas := render.NewAtlas()
-	atlas.Add(render.SpriteID(1), 32, render.Solid(color.RGBA{R: 60, G: 160, B: 60, A: 255}))
-	atlas.Add(render.SpriteID(2), 32, render.Solid(color.RGBA{R: 200, G: 190, B: 80, A: 255}))
-	atlas.Add(render.SpriteID(4), 32, render.Solid(color.RGBA{R: 240, G: 240, B: 250, A: 200}))
+	atlas.Add(render.SpriteID(1), 32, render.Solid(green))
+	atlas.Add(render.SpriteID(2), 32, render.Solid(yellow))
+	atlas.Add(render.SpriteID(4), 32, render.Solid(snow))
 	atlas.Close()
 	d := draw.NewBands(m)
 	d.Cover(mark, 4)
-	wind := [2]float32{30, 12}
-	mp := dressed{windy{look.FlatLook(), air.Weather{Wind: wind}}, d}
+	wind := [2]float32{-50, -20} // to the north-west, over the cells before
 	space := world.SpaceCfg{Width: 256, Height: 256}
-	laid := look.NewRenderer(brd, atlas, mp, space)
-	cpu := look.NewRenderer(brd, atlas, mp, world.SpaceCfg{})
+	r := look.NewRenderer(brd, atlas, dressed{look.Swaying, d}, space)
 	cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
 	cam.SetViewport(256, 256)
-	if most, off := drawnApart(t, laid, cpu, cam, 256, 256, weather{wind}); off > 256*256/100 {
-		t.Errorf("%d pixels differ from the leaning tiles composed on the CPU by over 24, %d at "+
-			"most; want at most 1%% of them", off, most)
+	at := shot(cam, 256, 256, weather{wind}, r)
+	for _, c := range []struct {
+		x, y    uint32
+		covered bool
+	}{{5, 3, false}, {6, 5, true}} {
+		mx, my := float32(c.x)*32+16, float32(c.y)*32+16
+		lx, ly := air.Weather{Wind: wind}.Sway(1.3, mx, my, 1)
+		lx, ly = lx*20, ly*20
+		if lx > -4 {
+			t.Fatalf("the reeds at %d, %d lean %v, %v; want a lean to test", c.x, c.y, lx, ly)
+		}
+		// past the cell's west edge, inside the leant tile: the reeds, and the cover fading in
+		// over them where it lies
+		got := at(mx-16+lx/2, my)
+		if covered := got.B > yellow.B+20; !near(got, yellow, 3) && !covered ||
+			covered != c.covered || got.R < yellow.R-3 {
+			t.Errorf("past the reeds' west edge at %d, %d the screen is %v, want them leant over "+
+				"it, %v, covered %v", c.x, c.y, got, yellow, c.covered)
+		}
+		// inside the cell's box by its east edge, left behind
+		if got := at(mx+16+lx/2, my); got.R >= yellow.R-3 {
+			t.Errorf("by the reeds' east edge at %d, %d the screen is %v, want them leant away",
+				c.x, c.y, got)
+		}
 	}
 }
 
-// the tiles composed on the CPU lie only as a camera from above lays rectangles: under a camera
-// turned and tilted, every pixel is the cell under it
+// under a camera turned and tilted every pixel is the cell under it
 func TestTiles_LayTheBoardUnderATurnedAndTiltedCamera(t *testing.T) {
 	needGPU(t)
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
@@ -328,7 +336,7 @@ func laidSeen(t *testing.T, d camera.Detail) func(x, y int) color.RGBA {
 	}
 	views := []*view.View{v}
 	view.NewSystem(space, &views, 128, 128).Update(nil, 0)
-	r := look.NewRenderer(brd, atlas, dressed{look.FlatLook(), bands},
+	r := look.NewRenderer(brd, atlas, dressed{look.Flat, bands},
 		world.SpaceCfg{Width: 128, Height: 128}).
 		WithSeen(func(camera.Camera) *view.View { return v })
 	screen := render.NewImage(128, 128)
@@ -377,8 +385,8 @@ func TestTiles_LayTheCellsOfTheSectorsSeenAtTheirLevels(t *testing.T) {
 	}
 }
 
-// the whole board from above, as the minimap shows it, laid as the CPU composed it once
-func TestTiles_LayTheWholeBoardFromAboveAsTheCPUComposesIt(t *testing.T) {
+// the whole board from above, as the minimap shows it, is the board a camera from above shows
+func TestTiles_LayTheWholeBoardFromAboveAsACameraShowsIt(t *testing.T) {
 	needGPU(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
 	road := cell.Kind{SpriteID: 3, Cost: 1, Allows: cell.Land}
@@ -394,40 +402,37 @@ func TestTiles_LayTheWholeBoardFromAboveAsTheCPUComposesIt(t *testing.T) {
 		brdW.SetWay(g.At(i, i), cell.Way{Kind: road, Width: 9, Links: 0xff})
 	}
 	atlas := render.NewAtlas()
-	atlas.Add(render.SpriteID(1), 32, render.Solid(color.RGBA{R: 60, G: 160, B: 60, A: 255}))
-	atlas.Add(render.SpriteID(2), 32, render.Solid(color.RGBA{R: 240, G: 240, B: 250, A: 255}))
-	atlas.Add(render.SpriteID(3), 32, render.Solid(color.RGBA{R: 150, G: 110, B: 70, A: 255}))
+	atlas.Add(render.SpriteID(1), 32, render.Solid(green))
+	atlas.Add(render.SpriteID(2), 32, render.Solid(snow))
+	atlas.Add(render.SpriteID(3), 32, render.Solid(brown))
 	atlas.Close()
 	d := draw.NewBands(m)
 	d.Cover(mark, 2)
-	mp := dressed{look.FlatLook(), d}
-	light := render.Light{0.8, 0.9, 1}
+	space := world.SpaceCfg{Width: 256, Height: 256}
+	mp := dressed{look.Flat, d}
 	for _, px := range []float32{1, 0.5} {
 		n := int(256 * px)
 		u := render.UniformsOf(map[string]any{"Pixel": []float32{1 / px}})
-		a, b := make([]byte, 4*n*n), make([]byte, 4*n*n)
-		gpuImg := render.NewImage(n, n)
-		look.NewRenderer(brd, atlas, mp, world.SpaceCfg{Width: 256, Height: 256}).
-			Whole(gpuImg, px, light, u)
-		gpuImg.ReadPixels(a)
-		cpuImg := render.NewImage(n, n)
-		still := render.NewStill()
-		still.Compose(256, 256, look.NewRenderer(brd, atlas, mp, world.SpaceCfg{}).Compose)
-		still.Draw(render.Target{Screen: cpuImg}, nil, u, px, 0, 0, light)
-		cpuImg.ReadPixels(b)
-		off := 0
-		for i := 0; i < len(a); i += 4 {
-			for k := range 4 {
-				if d := int(a[i+k]) - int(b[i+k]); d > 24 || d < -24 {
-					off++
-					break
+		whole := render.NewImage(n, n)
+		whole.Fill(black)
+		look.NewRenderer(brd, atlas, mp, space).Whole(whole, px, render.Light{1, 1, 1}, u)
+		a := make([]byte, 4*n*n)
+		whole.ReadPixels(a)
+		cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
+		cam.SetViewport(float32(n), float32(n))
+		if px < 1 {
+			cam.ZoomOut(1/px, 0, 0)
+		}
+		at := shot(cam, n, n, look.NewRenderer(brd, atlas, mp, space))
+		for y := range n {
+			for x := range n {
+				i := 4 * (y*n + x)
+				want := at(float32(x), float32(y))
+				if got := (color.RGBA{a[i], a[i+1], a[i+2], a[i+3]}); !near(got, want, 1) {
+					t.Fatalf("at %v a unit the pixel (%d, %d) is %v, want %v as the camera shows "+
+						"it", px, x, y, got, want)
 				}
 			}
-		}
-		t.Logf("at %v a unit %d pixels differ by over 24", px, off)
-		if off > n*n/100 {
-			t.Errorf("at %v a unit %d pixels differ from the board composed on the CPU, want at "+
-				"most 1%% of them, where the edges of the bands fall", px, off)
 		}
 	}
 }

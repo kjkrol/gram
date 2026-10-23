@@ -15,17 +15,60 @@ var (
 	skyBlue     = color.RGBA{B: 230, A: 255}
 )
 
-// the left half of a 64 by 64 world, opaque at height 0
-type groundSource struct{ still *Still }
+// quads over the world, each flat at its height, in its colour, written into the depth
+var groundShader = NewMeshShaderWith("test ground", []byte(`
+struct Out {
+    @builtin(position) clip: vec4<f32>,
+    @location(0) @interpolate(flat) colour: vec4<f32>,
+}
+@vertex
+fn vs_main(@builtin(vertex_index) vid: u32, @location(0) box: vec4<f32>,
+    @location(1) look: vec4<f32>) -> Out {
+    var k = vid % 6u;
+    if k >= 3u {
+        k -= 2u;
+    }
+    let at = vec2<f32>(select(box.x, box.z, k % 2u == 1u), select(box.y, box.w, k / 2u == 1u));
+    var o: Out;
+    o.clip = U.GroundViewProj * vec4<f32>(at, look.w, 1.0);
+    o.colour = vec4<f32>(look.rgb, 1.0);
+    return o;
+}
+@fragment
+fn fs_main(o: Out) -> @location(0) vec4<f32> {
+    return o.colour;
+}
+`), []Uniform{{Name: "GroundViewProj", Size: 16}}).Instanced(2)
+
+// an opaque ground of quads, two vec4s each: x0, y0, x1, y1, then its colour and its height
+type groundSource struct{ quads []float32 }
 
 func (*groundSource) Init(*goke.SysInit)                {}
 func (*groundSource) Compose(f *Frame, _ camera.Camera) { f.DrawOpaque() }
 func (g *groundSource) Draw(t Target, cam camera.Camera, u Uniforms) {
-	if t.Pass == Opaque {
-		x, y := cam.FromScreen(0, 0)
-		g.still.Draw(t, cam, u, cam.Zoom(), x, y, Light{1, 1, 1})
+	if t.Pass != Opaque {
+		return
 	}
+	f, _ := cam.(camera.Rays).Rays()
+	w, h := cam.Viewport()
+	tr, ok := camera.SceneTransform(f, w, h)
+	if !ok {
+		return
+	}
+	opts := DrawMeshOptions{Uniforms: map[string]any{"GroundViewProj": tr.M[:]},
+		Instances: g.quads, Vertices: 6, Depth: t.Depth, WriteDepth: t.Depth != nil}
+	u.Into(opts.Uniforms)
+	t.Screen.DrawMesh(nil, groundShader, &opts)
 }
+
+// quad lays the box from (x0, y0) to (x1, y1) at height z in c
+func (g *groundSource) quad(x0, y0, x1, y1, z float32, c color.RGBA) *groundSource {
+	g.quads = append(g.quads, x0, y0, x1, y1,
+		float32(c.R)/255, float32(c.G)/255, float32(c.B)/255, z)
+	return g
+}
+
+var groundGrey = color.RGBA{R: 30, G: 30, B: 30, A: 255}
 
 // a figure over the world box (16, 16)-(32, 32) at height z, standing or lying
 type figureSource struct {
@@ -63,18 +106,13 @@ func atlasOf(t *testing.T) *Atlas {
 	a := NewAtlas()
 	a.Add(SpriteID(1), 8, Solid(groundGreen))
 	a.Add(SpriteID(2), 8, Solid(figureRed))
-	a.Add(SpriteID(3), 8, Solid(color.RGBA{R: 30, G: 30, B: 30, A: 255}))
+	a.Add(SpriteID(3), 8, Solid(groundGrey))
 	a.Close()
 	return a
 }
 
-func groundOf(a *Atlas) *groundSource {
-	s := NewStill()
-	s.Compose(64, 64, func(f *Frame, _ camera.Camera) {
-		f.SpriteRect(f.At(16, 32, 0), a, 1, 0, 0, 32, 64, Even(1))
-	})
-	return &groundSource{still: s}
-}
+// the left half of a 64 by 64 world, opaque at height 0
+func groundOf(*Atlas) *groundSource { return new(groundSource).quad(0, 0, 32, 64, 0, groundGreen) }
 
 func shot(t *testing.T, sources ...Source) func(x, y int) [4]byte {
 	t.Helper()
@@ -315,18 +353,18 @@ func (f *figured) SharpFigures() bool      { return f.sharp }
 
 // a checker of two world units at 0 over the 64 by 64 world, and a block 32 high over its left
 // half
-func checkeredGround(a *Atlas) *groundSource {
-	s := NewStill()
-	s.Compose(64, 64, func(f *Frame, _ camera.Camera) {
-		for y := float32(0); y < 64; y += 2 {
-			for x := float32(0); x < 64; x += 2 {
-				id := SpriteID(1 + 2*(int(x/2+y/2)%2))
-				f.SpriteRect(f.At(x, y, 0), a, id, x, y, x+2, y+2, Even(1))
+func checkeredGround(*Atlas) *groundSource {
+	g := new(groundSource)
+	for y := float32(0); y < 64; y += 2 {
+		for x := float32(0); x < 64; x += 2 {
+			c := groundGreen
+			if int(x/2+y/2)%2 == 1 {
+				c = groundGrey
 			}
+			g.quad(x, y, x+2, y+2, 0, c)
 		}
-		f.SpriteRect(f.At(16, 32, 32), a, 3, 0, 0, 32, 64, Even(1))
-	})
-	return &groundSource{still: s}
+	}
+	return g.quad(0, 0, 32, 64, 32, groundGrey)
 }
 
 func TestFeed_DrawsAFigureAtEveryPixelOverAHalfResolutionGround(t *testing.T) {
@@ -423,13 +461,8 @@ func TestFeed_LaysAFootedLayerFlushOnTheBottomEdgeFeatheredOnTheOtherSides(t *te
 
 // the ground at 0 over the 64 by 64 world with a ridge across it two units wide at x 31 to 33,
 // 32 high
-func ridgedGround(a *Atlas) *groundSource {
-	s := NewStill()
-	s.Compose(64, 64, func(f *Frame, _ camera.Camera) {
-		f.SpriteRect(f.At(32, 32, 0), a, 1, 0, 0, 64, 64, Even(1))
-		f.SpriteRect(f.At(32, 32, 32), a, 3, 31, 0, 33, 64, Even(1))
-	})
-	return &groundSource{still: s}
+func ridgedGround(*Atlas) *groundSource {
+	return new(groundSource).quad(0, 0, 64, 64, 0, groundGreen).quad(31, 0, 33, 64, 32, groundGrey)
 }
 
 func TestLaid_AFigureBehindAHillIsHiddenThroughAnInnerLayersDepth(t *testing.T) {

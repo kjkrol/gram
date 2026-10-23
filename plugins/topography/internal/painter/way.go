@@ -4,7 +4,6 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/render"
@@ -289,56 +288,12 @@ type wayOut struct {
 // rise over run under which water lies level
 const stillFall = 0.01
 
-// DrawWay draws what runs across the tile over it. A piece reaching across a corner lies where the
-// nearest of the four cells meeting there does, so none of them covers it.
-func (t *tile) DrawWay(f *render.Frame, cam camera.Camera) {
-	t.drawLane(f, cam, t.Way())
-}
-
-func (t *tile) drawLane(f *render.Frame, cam camera.Camera, pieces []WayPiece) {
-	w, h := (t.X1-t.X0)/2, (t.Y1-t.Y0)/2
-	for _, p := range pieces {
-		if !t.r.inFront(cam, p.World, p.Z) {
-			continue // beside or behind the eye, it would be thrown across the screen
-		}
-		var corners render.Corners
-		var cx, cy float32
-		for k, at := range p.World {
-			corners[k][0], corners[k][1] = cam.Project(at[0], at[1], p.Z[k])
-			cx, cy = cx+at[0]/4, cy+at[1]/4
-		}
-		at := f.At(cx, cy, max(p.Z[0], p.Z[1], p.Z[2], p.Z[3]))
-		if p.Across {
-			for _, o := range [4][2]float32{{-w, -h}, {w, -h}, {-w, h}, {w, h}} {
-				x, y := p.Corner[0]+o[0], p.Corner[1]+o[1]
-				ground := float32(t.r.relief.GroundAt(geom.NewVec(float64(x), float64(y))))
-				if near := f.At(x, y, ground); at.Before(near) {
-					at = near
-				}
-			}
-		}
-		p.draw(f, at, t.Atlas, corners, p.Light)
-		lit := p.Lit
-		var runs, glints [4]float32
-		for k, m := range p.Mix {
-			if !p.Mixes {
-				m = 0
-			}
-			runs[k], glints[k] = p.Shine*(1-m), p.MixShine*m
-		}
-		if p.Shine > 0 && max(runs[0], runs[1], runs[2], runs[3]) > 0 {
-			water.Stream(f, p.World, runs, lit, p.Flow)
-		}
-		if !p.Faded && max(glints[0], glints[1], glints[2], glints[3]) > 0 {
-			water.Glint(f, p.World, glints, lit, water.Shores{})
-		}
-	}
-}
-
+// draw draws the piece over corners in f, lying at at, out of atlas: its sprite, blended where
+// it fades, and turned into its mix sprite as far as it mixes
 func (p *WayPiece) draw(
 	f *render.Frame, at render.At, atlas render.AtlasSource, corners render.Corners,
 	shade render.Shade,
-) render.Mark {
+) {
 	mixes := p.Mixes && max(p.Mix[0], p.Mix[1], p.Mix[2], p.Mix[3]) > 0
 	if p.Faded {
 		soft := p.Soft
@@ -346,18 +301,15 @@ func (p *WayPiece) draw(
 			soft = 0.5
 		}
 		f.SpriteBlend(at, atlas, p.Sprite, corners, shade, p.Weight, soft)
-		drawn := f.Last()
 		if mixes {
 			f.GlazeBlend(at, atlas, p.MixSprite, corners, shade, p.Weight, soft, p.Mix)
 		}
-		return drawn
+		return
 	}
 	f.Sprite(at, atlas, p.Sprite, corners, shade)
-	drawn := f.Last()
 	if mixes {
 		f.Glaze(at, atlas, p.MixSprite, corners, shade, p.Mix)
 	}
-	return drawn
 }
 
 func mixLight(s render.Shade, u, v float32) render.Light {

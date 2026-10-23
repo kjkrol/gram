@@ -66,7 +66,7 @@ type simpleMap struct {
 }
 
 func newSimpleMap(r *BoardRead) *simpleMap {
-	return &simpleMap{look: look.FlatLook(), dressing: draw.NewBands(r)}
+	return &simpleMap{look: look.Flat, dressing: draw.NewBands(r)}
 }
 
 func (m *simpleMap) Look() look.Look                                        { return m.look }

@@ -1,7 +1,6 @@
 package painter
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
@@ -52,7 +51,7 @@ type Painter struct {
 	newest       []uint64
 	unpainted    []int
 	canvas       render.Frame
-	scratch      look.Tile
+	scratch      box
 	bakeTile     tile
 	coast        coast
 	lanes        lanes
@@ -96,19 +95,14 @@ func (l *Painter) StyleOf(name string) Style { return l.styles[cell.Named(name)]
 
 func (l *Painter) version() uint64 { return l.board.Version() + l.relief.Version() }
 
-// sea level 0 off the board
-func (l *Painter) beside(t *look.Tile, dx, dy int) [4]float32 {
-	w, h := t.X1-t.X0, t.Y1-t.Y0
-	x, y := (t.X0+t.X1)/2+float32(dx)*w, (t.Y0+t.Y1)/2+float32(dy)*h
-	c, ok := l.board.CellAt(geom.NewVec(float64(x), float64(y)))
-	if !ok {
-		return [4]float32{}
-	}
-	return l.topOf(c).z
+// box is a cell's tile over its box in the world
+type box struct {
+	ID             cell.ID
+	X0, Y0, X1, Y1 float32
 }
 
 type tile struct {
-	*look.Tile
+	*box
 	r          *Painter
 	id         cell.ID
 	memo       tileMemo
@@ -131,18 +125,6 @@ func (t *tile) px() float32 {
 		}
 	}
 	return t.pixels
-}
-
-func (l *Painter) inFront(cam camera.Camera, w render.World, z [4]float32) bool {
-	if !l.varies {
-		return true
-	}
-	for k, p := range w {
-		if camera.ScaleAt(cam, p[0], p[1], z[k]) == 0 {
-			return false
-		}
-	}
-	return true
 }
 
 type cellTop struct {
@@ -203,37 +185,9 @@ func (l *Painter) tables() {
 	}
 }
 
-// Base is the sprite t's top is drawn in first: its own kind's, or the kind Under it round it.
-func (l *Painter) Base(t *look.Tile) render.SpriteID { return l.tileOf(t).baseTop().sprite }
-
-// Light is the light on t's top at its corners.
-func (l *Painter) Light(t *look.Tile) render.Shade { return l.tileOf(t).Light() }
-
-// FaceLight is the light on t's upright face looking dx, dy cells away.
-func (l *Painter) FaceLight(t *look.Tile, dx, dy int) render.Light {
-	return l.tileOf(t).FaceLight(dx, dy)
-}
-
-// Dress lays over t's top, drawn over the box x0..x1, y0..y1 lying at at, what lies on it: its
-// water and the grounds round it running in.
-func (l *Painter) Dress(
-	f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1 float32, at render.At,
-) {
-	d := l.tileOf(t)
-	d.DrawSurface(f, x0, y0, x1, y1)
-	d.DrawBlends(f, cam, at)
-}
-
-// Across lays the way across t.
-func (l *Painter) Across(f *render.Frame, cam camera.Camera, t *look.Tile) {
-	l.tileOf(t).DrawWay(f, cam)
-}
-
-func (l *Painter) tileOf(t *look.Tile) *tile {
-	if l.tile.Tile != t || l.tile.id != t.ID {
-		l.tile = tile{Tile: t, r: l, id: t.ID}
-	}
-	return &l.tile
+// Base is the sprite c's top is drawn in: its own kind's, or the kind Under it round it.
+func (l *Painter) Base(c cell.ID, _ render.SpriteID) render.SpriteID {
+	return l.cellTile(c).baseTop().sprite
 }
 
 func (l *Painter) topOf(c cell.ID) *cellTop {

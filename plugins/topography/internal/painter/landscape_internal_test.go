@@ -20,30 +20,21 @@ import (
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-type flatAtlas struct{}
-
-func (flatAtlas) Atlas() *render.Image                            { return nil }
-func (flatAtlas) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 1, 1 }
-func (flatAtlas) White() (u, v float32)                           { return 0, 0 }
-
 type lookFn func(f *render.Frame, cam camera.Camera, t *tile)
 
-type dressedLook struct {
-	d  *Painter
-	fn lookFn
+// dressing is d dressing brd's tiles, each handed to fn as a frame through a camera visits it
+type dressing struct {
+	brd *board.BoardRead
+	d   *Painter
+	fn  lookFn
 }
 
-func (l dressedLook) Cell(f *render.Frame, cam camera.Camera, t *look.Tile) {
-	l.fn(f, cam, l.d.tileOf(t))
-}
-
-func dressed(brd *board.BoardRead, d *Painter, fn lookFn) *look.Renderer {
-	return look.NewRenderer(brd, flatAtlas{}, testMap{look: dressedLook{d, fn}, d: d}, world.SpaceCfg{})
+func dressed(brd *board.BoardRead, d *Painter, fn lookFn) *dressing {
+	return &dressing{brd: brd, d: d, fn: fn}
 }
 
 type testSky struct {
@@ -99,10 +90,12 @@ func reliefFor(brd *board.BoardRead) *relief.Relief {
 	return r
 }
 
-func compose(r *look.Renderer, cam camera.Camera) {
+// compose readies the painter for a frame through cam and hands every tile under it to fn
+func compose(r *dressing, cam camera.Camera) {
 	var f render.Frame
 	f.Reset(cam)
-	r.Compose(&f, cam)
+	r.d.Begin(&f, cam)
+	r.brd.CellsUnder(cam.Bounds(), func(c cell.ID) { r.fn(&f, cam, r.d.cellTile(c)) })
 }
 
 func styled(st map[cell.Name]Style, k cell.Kind, s Style) cell.Kind {
@@ -360,7 +353,7 @@ func TestTile_ByTheSeaTheLandIsLaidOverTheSeaUnderIt(t *testing.T) {
 	brdW.Set(at(0, 1), sea)
 	bases, blends := map[cell.ID]render.SpriteID{}, map[cell.ID][]BlendPiece{}
 	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) {
-		bases[t.ID], blends[t.ID] = t.Base(), append([]BlendPiece(nil), t.Blends()...)
+		bases[t.ID], blends[t.ID] = t.baseTop().sprite, append([]BlendPiece(nil), t.Blends()...)
 	})
 	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
 	r := dressed(brd, d, look)
@@ -478,43 +471,32 @@ func TestWater_TheShaderCompilesWithTheBoardsMaterials(t *testing.T) {
 	}
 }
 
-func TestTile_DrawSurfaceLaysTheWatersMaterial(t *testing.T) {
+// off a square grid a still water's top glints, as the hexes' tops lay it; a square grid's the
+// terrain paints
+func TestPainter_OverlaysTheStillWaterGlintingOnAHexBoard(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(3, 3, 32)
-	brd, brdW := newBoard(grid)
-	brdW.SetAll(styled(st, cell.Kind{Name: cell.Named("k12"), Allows: cell.Water, SpriteID: 1}, Style{Shine: 1}))
-	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 30 - p.X/10 })
-	c := grid.At(1, 1)
-	marks := map[bool]float32{}
-	for _, running := range []bool{false, true} {
-		if running {
-			brdW.SetAll(styled(st, cell.Kind{Name: cell.Named("k13"), Allows: cell.Water, SpriteID: 1}, Style{Shine: 1, Flow: 20}))
-		}
-		var f render.Frame
-		cam := cameratest.NewFromSpace(96, 96, 0)
-		look := lookFn(func(f *render.Frame, _ camera.Camera, t *tile) {
-			if t.ID == c {
-				unit := render.Corners{{0, 0}, {1, 0}, {0, 1}, {1, 1}}
-				f.Sprite(render.At{}, flatAtlas{}, 0, unit, render.Even(1))
-				t.DrawSurface(f, t.X0, t.Y0, t.X1, t.Y1)
-			}
-		})
+	sea := styled(st, cell.Kind{Name: cell.Named("k12"), Allows: cell.Water, SpriteID: 1},
+		Style{Shine: 0.8})
+	land := cell.Kind{Name: cell.Named("k14"), Allows: cell.Land, SpriteID: 2}
+	for _, g := range []grid.Grid{grid.DefaultGrids{}.Hex(3, 3, 16),
+		grid.DefaultGrids{}.Square(3, 3, 32)} {
+		brd, brdW := newBoard(g)
+		brdW.SetAll(sea)
+		brdW.Set(g.At(0, 0), land)
 		d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
-		r := dressed(brd, d, look)
-		f.Reset(cam)
-		r.Compose(&f, cam)
-		f.Each(func(_ render.At, v []render.Vertex) {
-			if v[0].ColorA > 1.5 { // an overlay
-				marks[running] = v[0].ColorA
-			}
-		})
-	}
-	sea, run := float32(2+2*water.SeaGlint()), float32(2+2*water.RunningWater())
-	if m := marks[false]; m < sea || m > sea+1 {
-		t.Errorf("a still sea's overlay is marked %v, want the sea's glint, %v and the sun above it", m, sea)
-	}
-	if m := marks[true]; m < run || m > run+1 {
-		t.Errorf("running water's overlay is marked %v, want the running water's, %v and the sun above it", m, run)
+		d.Above()
+		m, red, ok := d.Overlay(g.At(1, 1))
+		shape, _ := brd.Shape()
+		if shape.Hex && (!ok || m != water.SeaGlint() || red < 0.79 || red > 0.81) {
+			t.Errorf("a hex of still sea is overlaid %v, %v, %v; want the sea's glint at 0.8", m,
+				red, ok)
+		}
+		if !shape.Hex && ok {
+			t.Errorf("a square of sea is overlaid %v; want none, the terrain painting it", m)
+		}
+		if _, _, ok := d.Overlay(g.At(0, 0)); ok {
+			t.Error("a cell of land is overlaid, want none")
+		}
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"math"
 
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
-	"github.com/kjkrol/gram/render"
 )
 
 // Shine is how shiny the tile's top is and how much of the sun reaches each of its corners.
@@ -73,19 +72,3 @@ const (
 	nearCell  = 12
 	shoreCell = 16
 )
-
-// DrawSurface lays the tile's water, running or still, over its top just drawn in the box
-// x0..x1, y0..y1.
-func (t *tile) DrawSurface(f *render.Frame, x0, y0, x1, y1 float32) {
-	box := render.Box(x0, y0, x1, y1)
-	shine, lit, ok := t.Shine()
-	if !ok {
-		return
-	}
-	even := [4]float32{shine, shine, shine, shine}
-	if flow, ok := t.Flow(); ok {
-		water.Stream(f, box, even, lit, flow)
-	} else {
-		water.Glint(f, box, even, lit, t.Shore())
-	}
-}

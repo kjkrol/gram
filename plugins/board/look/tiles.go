@@ -231,9 +231,12 @@ func (g *tiles) fill(l *Renderer, c cell.ID, i int) {
 		b[blockFlags] |= flagShaded
 		b[blockMaterial] = byte(m)
 	} else {
-		l.place(&l.tile, c)
-		g.sprite(blockSprite, l.tile.Base())
-		if o, ok := l.tile.dress.(Overlaid); ok {
+		base := l.topOf(c).sprite
+		if l.dress != nil {
+			base = l.dress.Base(c, base)
+		}
+		g.sprite(blockSprite, base)
+		if o, ok := l.dress.(Overlaid); ok {
 			if m, red, ok := o.Overlay(c); ok {
 				b[blockFlags] |= flagOverlaid
 				b[blockMaterial], b[blockOverlay] = byte(m), unit255(red)
@@ -340,7 +343,7 @@ func unit255(v float32) byte { return byte(min(max(v, 0), 1)*255 + 0.5) }
 type laid struct{ d Laid }
 
 func laidOf(l *Renderer) laid {
-	d, _ := l.tile.dress.(Laid)
+	d, _ := l.dress.(Laid)
 	return laid{d}
 }
 
