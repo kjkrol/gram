@@ -4,8 +4,8 @@
 // it runs into) over the whole cell, then the grounds round it running in — over each quarter
 // of the cell a ground's whole sprite, shown where the share of the cells meeting at the
 // quarter's corners it lies on comes over a half, fading in over its spread. The kinds' layer
-// lays each one's detail instead, edged hard; the water's lay the water of a top that shines,
-// running or still, and the grounds running in darken it.
+// lays each one's detail instead, edged hard; the flow's and the shine's lay the water of a top
+// that shines, running or still, and the grounds running in darken it.
 
 struct Cell {
     @builtin(position) clip: vec4<f32>,
@@ -56,7 +56,7 @@ fn fs_main(in: Cell) -> @location(0) vec4<f32> {
         }
     }
     var laid = baseOf(base, in.at, uv);
-    if layer() == layerMouth || (mine.flags & flagRaised) != 0u ||
+    if (mine.flags & flagRaised) != 0u ||
         ((mine.flags & flagUnder) == 0u && mine.spread <= 0.0) {
         return laid;
     }
@@ -117,7 +117,7 @@ fn baseOf(base: Top, at: vec2<f32>, uv: vec2<f32>) -> vec4<f32> {
     if l == layerKinds {
         return vec4<f32>(f32(base.detail) / 255.0, 0.0, 0.0, 1.0);
     }
-    if l == layerMouth || base.shine <= 0.0 {
+    if base.shine <= 0.0 {
         return vec4<f32>(0.0);
     }
     if base.flow <= 0.0 {

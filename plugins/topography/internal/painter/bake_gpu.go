@@ -103,7 +103,8 @@ func (l *Painter) toPaint(whole bool) []float32 {
 }
 
 // bake paints the cells at anew into the sheet s out of atlas: the albedo, the kinds' details
-// and the water's layers where s has them, each the cell's ground, then the ways across it
+// and the water's layers where s has them, each the cell's ground, then the ways across it; the
+// mouths' layer the ways alone
 func (l *Painter) bake(s *groundSheet, atlas render.AtlasSource, at []float32) {
 	if len(at) == 0 {
 		return
@@ -127,8 +128,10 @@ func (l *Painter) bake(s *groundSheet, atlas render.AtlasSource, at []float32) {
 		l.paintSet(dst, layer, origin, float32(px), float32(px)/float32(l.sq.Cell), 1, !whole)
 		b := &l.baking
 		b.opts.Images = [4]*render.Image{atlas.Atlas(), l.cells.rects, l.cells.img, b.mask}
-		b.opts.Instances, b.opts.Vertices = at, 6
-		dst.DrawMesh(nil, groundShader, &b.opts)
+		if layer != layerWater+water.MouthLayer {
+			b.opts.Instances, b.opts.Vertices = at, 6
+			dst.DrawMesh(nil, groundShader, &b.opts)
+		}
 		if len(b.ways) > 0 {
 			b.opts.Instances, b.opts.Vertices = b.ways, wayVertices
 			dst.DrawMesh(nil, waysShader, &b.opts)
