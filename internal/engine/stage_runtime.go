@@ -69,6 +69,11 @@ func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, erro
 		host.ecs.SetPlan(stage.Update)
 	}
 
+	for _, s := range ctx.draws {
+		if b, ok := s.(plugin.Bound); ok {
+			host.registerBound(b)
+		}
+	}
 	sceneDrawers := make(map[string][]render.Drawer)
 	var drawn []any // the scenes' drawers in their order
 	for _, sc := range stage.Stack().All() {
@@ -77,7 +82,7 @@ func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, erro
 			return nil, err
 		}
 		for _, l := range drawers {
-			host.registerDrawer(l)
+			host.registerBound(l)
 			drawn = append(drawn, l)
 		}
 		sceneDrawers[sc.Name()] = drawers

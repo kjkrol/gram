@@ -55,23 +55,13 @@ func (s *Scene) Name() string { return s.name }
 
 // Drawers is the one drawer drawing the screen.
 func (s *Scene) Drawers() []render.Drawer {
-	var pictures []render.Picture
-	if s.root != nil {
-		s.root.walk(func(e *Element) {
-			if p, ok := e.content.(*picture); ok {
-				if f, ok := p.src.(interface{ Picture() render.Picture }); ok && f.Picture() != nil {
-					pictures = append(pictures, f.Picture())
-				}
-			}
-		})
-	}
 	s.dress()
 	if s.loaded {
 		s.reveal()
 	} else {
 		s.note()
 	}
-	s.drawing = &drawing{scene: s, pictures: pictures}
+	s.drawing = &drawing{scene: s}
 	return []render.Drawer{s.drawing}
 }
 
@@ -202,9 +192,8 @@ func (s *Scene) each(name string, fn func(*Element)) {
 }
 
 type drawing struct {
-	scene    *Scene
-	pictures []render.Picture
-	pins     []*Element
+	scene *Scene
+	pins  []*Element
 
 	query  *goke.Query
 	states goke.Comp[tag.Tags[effect.States]]
@@ -215,13 +204,6 @@ type drawing struct {
 }
 
 func (d *drawing) Init(si *goke.SysInit) {
-	seen := map[render.Picture]bool{}
-	for _, p := range d.pictures {
-		if !seen[p] {
-			seen[p] = true
-			p.Init(si)
-		}
-	}
 	if d.scene.root != nil {
 		d.scene.root.walk(func(e *Element) {
 			if e.pin != nil {

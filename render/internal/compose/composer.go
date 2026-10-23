@@ -46,7 +46,6 @@ type Composer struct {
 	depths   []depths // a pair for each size of target and layer drawn into, the latest last
 	start    time.Time
 	draw     func(screen *Image, verts []Vertex, indices []uint16, sheet *Image, place [4]float32)
-	inited   bool
 }
 
 // a layer drawn apart since Lay: the depth its ground was drawn into and its window in the frame
@@ -75,16 +74,7 @@ func NewComposer(sources ...Source) *Composer {
 	return c
 }
 
-// Init readies the sources once, however many scenes show the picture.
-func (c *Composer) Init(si *goke.SysInit) {
-	if c.inited {
-		return
-	}
-	c.inited = true
-	for _, s := range c.sources {
-		s.Init(si)
-	}
-}
+func (c *Composer) Init(*goke.SysInit) {}
 
 // DrawWorld composes the frame through cam and draws it; a nil screen only composes.
 func (c *Composer) DrawWorld(screen *Image, cam camera.Camera) {

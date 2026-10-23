@@ -74,8 +74,11 @@ func checkReach(w *world.Plugin, reach float64) {
 	}
 }
 
-func (p *Plugin) Name() string                       { return "gram.minimap" }
-func (p *Plugin) Install(plugin.Installer) error     { return nil }
+func (p *Plugin) Name() string { return "gram.minimap" }
+func (p *Plugin) Install(ctx plugin.Installer) error {
+	ctx.Setup(marksSetup{p})
+	return nil
+}
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
 
 // Serializable is the minimaps' Settings, kept whole.

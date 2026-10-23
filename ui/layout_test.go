@@ -1,12 +1,11 @@
 package ui
 
 import (
-	"github.com/kjkrol/uid"
 	"testing"
 
+	"github.com/kjkrol/uid"
+
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -161,22 +160,6 @@ func TestScene_ShowsHidesAndTogglesByName(t *testing.T) {
 	s.Toggle("panel")
 	if panel.hidden {
 		t.Fatal("Toggle left it hidden")
-	}
-}
-
-type counting struct{ inits int }
-
-func (c *counting) Init(*goke.SysInit)                   { c.inits++ }
-func (*counting) DrawWorld(*render.Image, camera.Camera) {}
-
-func TestScene_InitialisesAPictureOnceHoweverManyFeedsShowIt(t *testing.T) {
-	p := &counting{}
-	s := NewScene("main", Layers(Image(render.NewFeed(nil, p)), Image(render.NewFeed(nil, p))))
-	for _, l := range s.Drawers() {
-		l.Init(nil)
-	}
-	if p.inits != 1 {
-		t.Fatalf("picture initialised %d times, want once", p.inits)
 	}
 }
 

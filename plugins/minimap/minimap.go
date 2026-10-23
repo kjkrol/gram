@@ -34,6 +34,7 @@ type minimap struct {
 	issuer  command.Issuer
 	lens    *lens
 	element *ui.Element
+	marks   *marksView
 }
 
 // follow puts the lens over the camera's middle, turned as it looks where turning
@@ -83,7 +84,19 @@ func (p *paced) Draw() *render.Image {
 
 // the minimap's own picture: the ground, the marks and the outline of the camera's view
 func (m *minimap) picture() *render.Composer {
-	return render.NewComposer(&groundView{m: m}, &marksView{m: m}, &outlineView{m: m})
+	m.marks = &marksView{m: m}
+	return render.NewComposer(&groundView{m: m}, m.marks, &outlineView{m: m})
+}
+
+// marksSetup readies the marks of every minimap, made with the Stage's scenes, at its Setup
+type marksSetup struct{ p *Plugin }
+
+func (s marksSetup) SetupSystems() []goke.System {
+	var out []goke.System
+	for _, m := range s.p.maps {
+		out = append(out, goke.SystemFn{OnInit: m.marks.Init})
+	}
+	return out
 }
 
 // groundView lays the ground's miniature under the minimap, a copy a world away round a torus

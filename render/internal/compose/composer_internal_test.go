@@ -231,23 +231,6 @@ func TestComposer_SplitsACallBeforeItsIndicesOverflow(t *testing.T) {
 	}
 }
 
-type counted struct {
-	items
-	inits int
-}
-
-func (c *counted) Init(*goke.SysInit) { c.inits++ }
-
-func TestComposer_InitsItsSourcesOnceHoweverManyScenesShowIt(t *testing.T) {
-	src := &counted{}
-	c := NewComposer(src)
-	c.Init(nil)
-	c.Init(nil)
-	if src.inits != 1 {
-		t.Errorf("the source was readied %d times, want once", src.inits)
-	}
-}
-
 func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 	a := &sheet{"a"}
 	c := NewComposer(items(func(f *Frame) {
