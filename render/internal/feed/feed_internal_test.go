@@ -1,4 +1,4 @@
-package render_test
+package feed
 
 import (
 	"math"
@@ -8,12 +8,12 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
-	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/internal/gfx"
 )
 
 func TestFeed_ResizeGivesTheCameraItsViewport(t *testing.T) {
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
-	feed := render.NewFeed(cam, nil)
+	feed := NewFeed(cam, nil)
 	feed.Resize(320, 200)
 	if w, h := cam.Viewport(); w != 320 || h != 200 {
 		t.Fatalf("viewport %vx%v, want 320x200", w, h)
@@ -21,7 +21,7 @@ func TestFeed_ResizeGivesTheCameraItsViewport(t *testing.T) {
 }
 
 func TestFeed_DrawsNothingWithoutASize(t *testing.T) {
-	feed := render.NewFeed(cameratest.NewFromSpace(1000, 1000, 0), nil)
+	feed := NewFeed(cameratest.NewFromSpace(1000, 1000, 0), nil)
 	if img := feed.Draw(); img != nil {
 		t.Fatalf("a feed of no size drew %v", img.Bounds())
 	}
@@ -29,7 +29,7 @@ func TestFeed_DrawsNothingWithoutASize(t *testing.T) {
 
 func TestFeed_ToWorldAndToPixelsAreEachOthersInverse(t *testing.T) {
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
-	feed := render.NewFeed(cam, nil)
+	feed := NewFeed(cam, nil)
 	feed.Resize(400, 300)
 	cam.ZoomIn(2, 0, 0)
 	cam.CenterOn(500, 500, 0)
@@ -46,7 +46,7 @@ func TestFeed_ToWorldAndToPixelsAreEachOthersInverse(t *testing.T) {
 
 func TestFeed_APointOutsideIsNotVisible(t *testing.T) {
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
-	feed := render.NewFeed(cam, nil)
+	feed := NewFeed(cam, nil)
 	feed.Resize(100, 100)
 	cam.MoveTo(0, 0)
 	if _, _, _, visible := feed.ToPixels(900, 900, 0); visible {
@@ -61,7 +61,7 @@ func (picking) Pick(sx, sy float32) (float32, float32, float32, bool) {
 }
 
 func TestFeed_ToWorldAsksAPickerFirst(t *testing.T) {
-	feed := render.NewFeed(picking{cameratest.NewFromSpace(1000, 1000, 0)}, nil)
+	feed := NewFeed(picking{cameratest.NewFromSpace(1000, 1000, 0)}, nil)
 	x, y, ok := feed.ToWorld(5, 6)
 	if x != 1005 || y != 1006 || ok {
 		t.Fatalf("got (%v, %v, %v), want the picker's (1005, 1006, false)", x, y, ok)
@@ -73,8 +73,8 @@ type recording struct {
 	cam     camera.Camera
 	calls   []call
 	passes  []pass
-	screens []*render.Image
-	layers  []*render.Image // the images DrawLayer drew into
+	screens []*gfx.Image
+	layers  []*gfx.Image    // the images DrawLayer drew into
 	wins    []camera.Window // the windows DrawWorld was cropped to
 	holes   []camera.Window // the windows DrawLayer left out
 }
@@ -95,7 +95,7 @@ type pass struct {
 
 func (*recording) Init(*goke.SysInit) {}
 
-func (r *recording) DrawWorld(screen *render.Image, cam camera.Camera) {
+func (r *recording) DrawWorld(screen *gfx.Image, cam camera.Camera) {
 	r.w, r.h, r.cam = screen.Bounds().Dx(), screen.Bounds().Dy(), cam
 	r.calls = append(r.calls, callOf(screen, cam))
 	r.screens = append(r.screens, screen)
@@ -113,21 +113,21 @@ func (r *recording) Lay(cam camera.Camera, apart bool) {
 	r.passes = append(r.passes, pass{name: name, call: call{vw: vw, vh: vh}})
 }
 
-func (r *recording) DrawLayer(layer *render.Image, cam camera.Camera, at, hole camera.Window) {
+func (r *recording) DrawLayer(layer *gfx.Image, cam camera.Camera, at, hole camera.Window) {
 	r.layers = append(r.layers, layer)
 	r.passes = append(r.passes, pass{"layer", callOf(layer, cam), at})
 	r.holes = append(r.holes, hole)
 }
 
-func (r *recording) DrawOver(screen *render.Image, cam camera.Camera) {
+func (r *recording) DrawOver(screen *gfx.Image, cam camera.Camera) {
 	r.passes = append(r.passes, pass{name: "over", call: callOf(screen, cam)})
 	r.screens = append(r.screens, screen)
 }
 
 // plain is a picture drawn whole only, never Laid
-type plain struct{ render.Picture }
+type plain struct{ Picture }
 
-func callOf(screen *render.Image, cam camera.Camera) call {
+func callOf(screen *gfx.Image, cam camera.Camera) call {
 	vw, vh := cam.Viewport()
 	return call{screen.Bounds().Dx(), screen.Bounds().Dy(), vw, vh}
 }
@@ -155,7 +155,7 @@ func (f *figured) SharpFigures() bool      { return f.sharp }
 func TestFeed_DrawsItsPictureThroughItsCameraAtItsSize(t *testing.T) {
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	picture := &recording{}
-	feed := render.NewFeed(cam, picture)
+	feed := NewFeed(cam, picture)
 	feed.Resize(64, 48)
 	img := feed.Draw()
 	if img == nil || picture.w != 64 || picture.h != 48 || picture.cam != cam {
@@ -171,7 +171,7 @@ func TestFeed_DrawsAtItsCamerasResolutionAndSpeaksShownPixels(t *testing.T) {
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	cam.(camera.Resolved).SetResolution(0.5)
 	picture := &recording{}
-	feed := render.NewFeed(cam, picture)
+	feed := NewFeed(cam, picture)
 	feed.Resize(400, 300)
 	img := feed.Draw()
 	if img == nil || img.Bounds().Dx() != 200 || img.Bounds().Dy() != 150 || picture.w != 200 ||
@@ -200,7 +200,7 @@ func TestFeed_DrawsALayeredCameraALayerARingCoarseToFine(t *testing.T) {
 		{Share: 0.35, Resolution: 1},
 	}, camera.Inset)
 	picture := &recording{}
-	feed := render.NewFeed(cam, plain{picture})
+	feed := NewFeed(cam, plain{picture})
 	feed.Resize(400, 300)
 	img := feed.Draw()
 	want := []call{{200, 150, 200, 150}, {180, 135, 180, 135}, {140, 106, 140, 106}}
@@ -234,7 +234,7 @@ func TestFeed_DrawsAFootedCameraALayerOnTheBottomEdge(t *testing.T) {
 		{Share: 0.35, Resolution: 1},
 	}, camera.Footed)
 	picture := &recording{}
-	feed := render.NewFeed(cam, plain{picture})
+	feed := NewFeed(cam, plain{picture})
 	feed.Resize(400, 300)
 	feed.Draw()
 	wins := []camera.Window{
@@ -258,7 +258,7 @@ func TestFeed_DrawsAFootedCameraALayerOnTheBottomEdge(t *testing.T) {
 }
 
 func TestFeed_LeavesOutOfEachLayerTheNextOnesWindowInsideItsFeather(t *testing.T) {
-	const f = render.LayerFeather
+	const f = LayerFeather
 	layers := []camera.Layer{
 		{Share: 1, Resolution: 0.5},
 		{Share: 0.6, Resolution: 0.75},
@@ -284,7 +284,7 @@ func TestFeed_LeavesOutOfEachLayerTheNextOnesWindowInsideItsFeather(t *testing.T
 		cam := cameratest.NewFromSpace(1000, 1000, 0)
 		cam.(camera.Layered).SetLayers(layers, tc.layout)
 		picture := &recording{}
-		feed := render.NewFeed(cam, picture)
+		feed := NewFeed(cam, picture)
 		feed.Resize(400, 300)
 		feed.Draw()
 		if !slices.Equal(picture.holes, tc.want) {
@@ -296,21 +296,21 @@ func TestFeed_LeavesOutOfEachLayerTheNextOnesWindowInsideItsFeather(t *testing.T
 }
 
 func TestFeed_FadesOnlyTheSidesInsideTheFrame(t *testing.T) {
-	const f = render.LayerFeather
-	all := render.Fade{Left: f, Right: f, Top: f, Bottom: f}
+	const f = LayerFeather
+	all := gfx.Fade{Left: f, Right: f, Top: f, Bottom: f}
 	for _, c := range []struct {
 		win  camera.Window
-		want render.Fade
+		want gfx.Fade
 		why  string
 	}{
-		{camera.Window{W: 400, H: 300}, render.Fade{}, "the whole frame"},
+		{camera.Window{W: 400, H: 300}, gfx.Fade{}, "the whole frame"},
 		{camera.Window{X: 80, Y: 60, W: 240, H: 180}, all, "inset"},
-		{camera.Window{X: 80, Y: 120, W: 240, H: 180}, render.Fade{Left: f, Right: f, Top: f},
+		{camera.Window{X: 80, Y: 120, W: 240, H: 180}, gfx.Fade{Left: f, Right: f, Top: f},
 			"footed, its bottom on the frame's"},
-		{camera.Window{Y: 50, W: 400, H: 250}, render.Fade{Top: f},
+		{camera.Window{Y: 50, W: 400, H: 250}, gfx.Fade{Top: f},
 			"the frame's width, on its bottom edge"},
 	} {
-		if got := render.FadeOf(c.win, 400, 300); got != c.want {
+		if got := fadeOf(c.win, 400, 300); got != c.want {
 			t.Errorf("%s: %v fades %v, want %v", c.why, c.win, got, c.want)
 		}
 	}
@@ -321,7 +321,7 @@ func TestFeed_DrawsACameraOfOneRingAsAResolvedOne(t *testing.T) {
 	cam.(camera.Layered).SetLayers([]camera.Layer{{Share: 1, Resolution: 0.5}}, camera.Inset)
 	cam.(camera.Resolved).SetResolution(0.5)
 	picture := &recording{}
-	feed := render.NewFeed(cam, picture)
+	feed := NewFeed(cam, picture)
 	feed.Resize(400, 300)
 	feed.Draw()
 	if want := []call{{200, 150, 200, 150}}; !slices.Equal(picture.calls, want) {
@@ -337,8 +337,8 @@ func TestFeed_DrawOnDrawsTheWholeFrameAtEveryPixelStraightOntoTheTarget(t *testi
 		{Share: 0.5, Resolution: 0.5},
 	}, camera.Inset)
 	picture := &recording{}
-	feed := render.NewFeed(cam, picture)
-	dst := render.NewImage(400, 300)
+	feed := NewFeed(cam, picture)
+	dst := gfx.NewImage(400, 300)
 	feed.DrawOn(dst)
 	want := []pass{
 		{"lay", call{0, 0, 400, 300}, camera.Window{}},
@@ -359,7 +359,7 @@ func TestFeed_DrawsTheGroundAtItsResolutionAndTheFiguresAtEveryPixel(t *testing.
 	cam := newFigured(true)
 	cam.SetResolution(0.5)
 	picture := &recording{}
-	feed := render.NewFeed(cam, picture)
+	feed := NewFeed(cam, picture)
 	feed.Resize(64, 48)
 	img := feed.Draw()
 	want := []pass{
@@ -388,7 +388,7 @@ func TestFeed_DrawsWholeWithTheFiguresSoftOrEveryPixelDrawn(t *testing.T) {
 	cam := newFigured(false)
 	cam.SetResolution(0.5)
 	picture := &recording{}
-	feed := render.NewFeed(cam, picture)
+	feed := NewFeed(cam, picture)
 	feed.Resize(64, 48)
 	feed.Draw()
 	if want := []call{{32, 24, 32, 24}}; !slices.Equal(picture.calls, want) ||
@@ -414,7 +414,7 @@ func layered(cam *figured) *recording {
 		camera.Inset)
 	cam.SetResolution(0.75)
 	picture := &recording{}
-	feed := render.NewFeed(cam, picture)
+	feed := NewFeed(cam, picture)
 	feed.Resize(64, 48)
 	feed.Draw()
 	return picture
@@ -456,7 +456,7 @@ func TestFeed_DrawsALayeredCameraSoftFromOneComposition(t *testing.T) {
 	cam.SetLayers([]camera.Layer{{Share: 1, Resolution: 1}, {Share: 0.5, Resolution: 1}},
 		camera.Inset)
 	picture = &recording{}
-	feed := render.NewFeed(cam, picture)
+	feed := NewFeed(cam, picture)
 	feed.Resize(64, 48)
 	feed.Draw()
 	if n := len(picture.passes); n != 3 || picture.passes[0].name != "lay" {
@@ -469,8 +469,8 @@ func TestFeed_DrawOnDrawsWhatLiesOverTheFiguresStraightOntoTheTarget(t *testing.
 	cam := newFigured(true)
 	cam.SetResolution(0.5)
 	picture := &recording{}
-	feed := render.NewFeed(cam, picture)
-	dst := render.NewImage(64, 48)
+	feed := NewFeed(cam, picture)
+	dst := gfx.NewImage(64, 48)
 	feed.DrawOn(dst)
 	want := []pass{
 		{"lay apart", call{0, 0, 64, 48}, camera.Window{}},
