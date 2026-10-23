@@ -78,8 +78,8 @@ func (weather) Init(*goke.SysInit)                         {}
 func (weather) Clock() (time.Duration, bool)               { return 1300 * time.Millisecond, true }
 func (w weather) Compose(f *render.Frame, _ camera.Camera) { f.Uniform("Wind", w.wind[0], w.wind[1]) }
 
-// drawnApart draws r laid on the GPU and its twin composed on the CPU through cam, with the
-// other sources, and reports the largest difference of a channel and how many pixels differ by
+// drawnApart draws r laid on the GPU and its twin composed on the CPU through cam (a renderer of
+// no world composes its tiles into the frame), with the other sources, and reports the largest difference of a channel and how many pixels differ by
 // over 24 in any channel
 func drawnApart(t *testing.T, laid, cpu *look.Renderer, cam camera.Camera, w, h int,
 	others ...render.Source) (most, off int) {
@@ -148,7 +148,7 @@ func TestTiles_LayTheCoversAndTheWaysAsTheCPUComposesThem(t *testing.T) {
 	space := world.SpaceCfg{Width: 256, Height: 256}
 	mp := dressed{look.FlatLook(), d}
 	laid := look.NewRenderer(brd, atlas, mp, space)
-	cpu := look.OnCPU(look.NewRenderer(brd, atlas, mp, space))
+	cpu := look.NewRenderer(brd, atlas, mp, world.SpaceCfg{})
 	cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
 	cam.SetViewport(256, 256)
 	if most, off := drawnApart(t, laid, cpu, cam, 256, 256); off > 256*256/100 {
@@ -175,7 +175,7 @@ func TestTiles_LayAHexBoardAsTheCPUComposesIt(t *testing.T) {
 	atlas.Close()
 	space := world.SpaceCfg{Width: 400, Height: 300}
 	laid := look.NewRenderer(brd, atlas, brd.Map(), space)
-	cpu := look.OnCPU(look.NewRenderer(brd, atlas, brd.Map(), space))
+	cpu := look.NewRenderer(brd, atlas, brd.Map(), world.SpaceCfg{})
 	cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
 	cam.SetViewport(320, 240)
 	if most, off := drawnApart(t, laid, cpu, cam, 320, 240); off > 320*240/100 {
@@ -202,8 +202,7 @@ func TestTiles_LeanWhatSwaysAsTheCPUComposesIt(t *testing.T) {
 	mp := dressed{windy{look.FlatLook(), air.Weather{Wind: wind}}, brd.Map().Dressing()}
 	space := world.SpaceCfg{Width: 256, Height: 256}
 	laid := look.NewRenderer(brd, atlas, mp, space)
-	// composed every frame, as it leans now: composed once, it leant as it stood then
-	cpu := look.OnCPU(look.NewRenderer(brd, atlas, mp, world.SpaceCfg{}))
+	cpu := look.NewRenderer(brd, atlas, mp, world.SpaceCfg{})
 	cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
 	cam.SetViewport(256, 256)
 	if most, off := drawnApart(t, laid, cpu, cam, 256, 256, weather{wind}); off > 256*256/100 {

@@ -92,22 +92,15 @@ type Renderer struct {
 	// scaleVaries: a perspective draws a world unit larger in some places than others
 	scaleVaries bool
 
-	over       render.Frame   // what runs across the board, laid after every tile
-	space      world.SpaceCfg // zero for none: the tiles composed every frame
-	still      *render.Still
-	stillAt    uint64
-	stillOn    bool
-	stillLight render.Light
-	white      bool
-	gridOn     bool // this frame's tiles draw the grid
-	grid       gridLines
-	shade      groundShade
-	ground     GroundDressing // this frame's, nil for none
-	tiles      tiles
-	sectors    seenSectors  // the sectors the frame's camera sees, as the shaders read them
-	tiled      bool         // this frame's tiles are laid on the GPU
-	tint       render.Light // the light every tile is lit in this frame
-	cpu        bool         // the tiles are composed on the CPU whatever the map
+	over    render.Frame   // what runs across the board, laid after every tile
+	space   world.SpaceCfg // zero for none: the tiles composed into the frame every frame
+	gridOn  bool           // this frame's tiles draw the grid
+	grid    gridLines
+	ground  GroundDressing // this frame's, nil for none
+	tiles   tiles
+	sectors seenSectors  // the sectors the frame's camera sees, as the shaders read them
+	tiled   bool         // this frame's tiles are laid on the GPU
+	tint    render.Light // the light every tile is lit in this frame
 }
 
 type cellTop struct {
@@ -184,7 +177,6 @@ func rimsOf(g grid.Grid, c cell.ID, out []rim) []rim {
 // SetAtlas has the cells drawn from atlas from the next frame on.
 func (l *Renderer) SetAtlas(atlas render.AtlasSource) {
 	l.atlas, l.tile.Atlas = atlas, atlas
-	l.stillAt = 0
 	l.tops = l.tops[:0]
 }
 
@@ -243,16 +235,6 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		l.materials(f)
 		return
 	}
-	if l.stillLight, l.stillOn = l.evenLight(m, d, cam); l.stillOn {
-		l.composeStill(look, d)
-		l.camera = cam
-		f.DrawOpaque()
-		if l.gridDrawn(cam) {
-			f.DrawAt(f.OnGround(gridLift))
-		}
-		l.materials(f)
-		return
-	}
 	l.compose(f, look, d)
 	if l.ground != nil && m.Heights() == nil && !cam.Projection().Sorts() {
 		f.DrawAt(f.OnGround(groundLift))
@@ -295,9 +277,9 @@ func (l *Renderer) materials(f *render.Frame) {
 	})
 }
 
-// Draw draws the still through cam in the opaque pass, under a Lighting lit per pixel by the
-// frame's light, shade and lamps, what a GroundDressing lays over it, and the grid over it
-// after; where the tiles were composed into the frame, only what the dressing lays.
+// Draw lays the tiles on the GPU through cam in the opaque pass, under a Lighting lit per pixel by
+// the frame's light, shade and lamps, what a GroundDressing lays over them, and the grid over
+// them after; where the tiles were composed into the frame, only what the dressing lays.
 func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if t.Screen == nil {
 		return
@@ -316,39 +298,7 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		}
 		return
 	}
-	if !l.stillOn {
-		if t.Pass == render.SeeThrough && l.ground != nil {
-			l.ground.DressGround(t, cam, u)
-		}
-		return
-	}
-	if t.Pass == render.SeeThrough {
-		if l.gridDrawn(cam) {
-			l.grid.draw(t, cam, u, l.board, &l.state, l.space.Edges.WrapsX(),
-				l.space.Edges.WrapsY(), &seenSectors{})
-		}
-		return
-	}
-	zoom := cam.Zoom()
-	x, y := cam.FromScreen(0, 0)
-	w, h := cam.Viewport()
-	ww, wh := float32(l.space.Width), float32(l.space.Height)
-	xs, ys := []float32{x}, []float32{y}
-	if l.space.Edges.WrapsX() && x+w/zoom > ww {
-		xs = append(xs, x-ww)
-	}
-	if l.space.Edges.WrapsY() && y+h/zoom > wh {
-		ys = append(ys, y-wh)
-	}
-	for _, sy := range ys {
-		for _, sx := range xs {
-			l.still.Draw(t, cam, u, zoom, sx, sy, l.stillLight)
-		}
-	}
-	if l.lit() != nil { // the still is drawn as it is: the light is laid over it per pixel
-		l.shade.draw(t, cam, u, l.board)
-	}
-	if l.ground != nil {
+	if t.Pass == render.SeeThrough && l.ground != nil {
 		l.ground.DressGround(t, cam, u)
 	}
 }
@@ -357,30 +307,10 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 // a flat map over a world, seen through a camera with lines of sight, its Dressing lighting every
 // tile alike
 func (l *Renderer) tiledBy(m Map, d Dressing, cam camera.Camera) (render.Light, bool) {
-	if l.cpu || l.space.Width == 0 || l.space.Height == 0 || m.Heights() != nil {
-		return render.Light{}, false
-	}
-	if _, ok := cam.(camera.Rays); !ok {
-		return render.Light{}, false
-	}
-	even := render.Light{1, 1, 1}
-	if d != nil {
-		e, ok := d.(EvenLit)
-		if !ok {
-			return render.Light{}, false
-		}
-		if even, ok = e.EvenLight(); !ok {
-			return render.Light{}, false
-		}
-	}
-	return even, true
-}
-
-func (l *Renderer) evenLight(m Map, d Dressing, cam camera.Camera) (render.Light, bool) {
 	if l.space.Width == 0 || l.space.Height == 0 || m.Heights() != nil {
 		return render.Light{}, false
 	}
-	if _, top := cam.Projection().(camera.TopDown); !top {
+	if _, ok := cam.(camera.Rays); !ok {
 		return render.Light{}, false
 	}
 	even := render.Light{1, 1, 1}
@@ -410,22 +340,6 @@ func (l *Renderer) WithLighting(lighting func() world.Lighting) *Renderer {
 	return l
 }
 
-func (l *Renderer) composeStill(look Look, d Dressing) {
-	if l.still == nil {
-		l.still = render.NewStill()
-	}
-	if l.stillAt == l.board.Changes()+1 {
-		return
-	}
-	l.white = true
-	l.still.Compose(float32(l.space.Width), float32(l.space.Height), func(f *render.Frame, cam camera.Camera) {
-		l.camera = cam
-		l.compose(f, look, d)
-	})
-	l.white = false
-	l.stillAt = l.board.Changes() + 1
-}
-
 func (l *Renderer) compose(f *render.Frame, look Look, d Dressing) {
 	cam := l.camera
 	sheet := l.atlas
@@ -440,7 +354,7 @@ func (l *Renderer) compose(f *render.Frame, look Look, d Dressing) {
 	top := camera.ScaleAt(cam, x0, y0, 0)
 	l.scaleVaries = top != camera.ScaleAt(cam, x1, y1, 0) || top != cam.Zoom()
 	_, _, shown := l.state.Grid()
-	if l.gridOn = shown && !l.white; l.gridOn { // a still's grid is drawn over it on the GPU
+	if l.gridOn = shown; l.gridOn {
 		l.nextGrid()
 	}
 	l.cells = l.cells[:0]
@@ -471,7 +385,7 @@ func (l *Renderer) place(t *Tile, c cell.ID) geom.Vec {
 // has only its grid drawn
 func (l *Renderer) cell(f, over *render.Frame, look Look, t *Tile, c cell.ID, s *scratch) {
 	t.Coarse, t.Fog = false, 0
-	if l.sight != nil && !l.white {
+	if l.sight != nil {
 		middle := l.board.CellCenter(c)
 		t.Coarse = l.sight.Level(middle.X, middle.Y) != view.Exact
 		t.Fog = l.sight.Fog(middle.X, middle.Y)
@@ -598,7 +512,7 @@ const offScreen = 48
 // sector its middle lies in
 func (l *Renderer) eachVisible(fn func(c cell.ID)) {
 	bounds := l.camera.Bounds()
-	if l.sight == nil || l.white {
+	if l.sight == nil {
 		l.eachIn(bounds, fn)
 		return
 	}
@@ -664,6 +578,36 @@ func (l *Renderer) eachIn(bounds geom.AABB, fn func(c cell.ID)) {
 }
 
 func (l *Renderer) dressing() Dressing { return l.mapping.Dressing() }
+
+// the axial steps to a hex's neighbours, row by row as they are laid, and the steps round a
+// square's cell
+var (
+	hexRound    = [6][2]int{{0, -1}, {1, -1}, {-1, 0}, {1, 0}, {-1, 1}, {0, 1}}
+	squareRound = [8][2]int{{-1, -1}, {0, -1}, {1, -1}, {-1, 0}, {1, 0}, {-1, 1}, {0, 1}, {1, 1}}
+)
+
+// eachRound calls fn with each cell round c as the tiles shader reads them, false where there is
+// none
+func (l *Renderer) eachRound(c cell.ID, fn func(n cell.ID, ok bool)) {
+	steps := squareRound[:]
+	if !l.square {
+		steps = hexRound[:]
+	}
+	for _, s := range steps {
+		n, ok := l.step(c, s[0], s[1])
+		fn(n, ok)
+	}
+}
+
+// step is the cell da across and db down from c, as the grid's directions go
+func (l *Renderer) step(c cell.ID, da, db int) (cell.ID, bool) {
+	for d := range l.board.Directions() {
+		if a, b := l.board.Offset(d); a == da && b == db {
+			return l.board.Toward(c, d)
+		}
+	}
+	return 0, false
+}
 
 func abs32(v float32) float32 {
 	if v < 0 {

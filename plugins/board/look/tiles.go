@@ -2,44 +2,59 @@ package look
 
 import (
 	"image"
+	"math"
 
 	"github.com/kjkrol/gram/camera"
-	_ "github.com/kjkrol/gram/plugins/atmosphere/air" // the Wind the shader leans the tiles in
+	_ "github.com/kjkrol/gram/plugins/atmosphere/air" // the Wind the shaders lean the tiles in
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/render"
 )
 
-var tilesShader = render.NewMeshShaderWith(
-	"board tiles",
-	render.Files(shaders, "shaders/tiles.wgsl"),
-	[]render.Uniform{
-		{Name: "ViewAt", Size: 2},
-		{Name: "RayAt", Size: 3},
-		{Name: "RayDX", Size: 3},
-		{Name: "RayDY", Size: 3},
-		{Name: "RayDir", Size: 3},
-		{Name: "RayDDX", Size: 3},
-		{Name: "RayDDY", Size: 3},
-		{Name: "TileViewProj", Size: 16},
-		{Name: "TileDeep", Size: 1},
-		{Name: "TileHex", Size: 1},
-		{Name: "TileBox", Size: 2},
-		{Name: "TileSide", Size: 1},
-		{Name: "TileCells", Size: 2},
-		{Name: "TileWrap", Size: 2},
-		{Name: "TileLit", Size: 1},
-		{Name: "TileTint", Size: 3},
-		{Name: "TileWays", Size: 1},
-		{Name: "TileSways", Size: 1},
-		{Name: "TileShaded", Size: 1},
-		{Name: "TileCoverCount", Size: 1},
-		{Name: "TileCovers", Size: 4},
-		{Name: "TileCoversOn", Size: 4},
-		{Name: "TileSeen", Size: 1},
-		{Name: "TileSectors", Size: 4},
-		{Name: "TileFogging", Size: 4},
-	},
+// the passes laying the tiles: pixel by pixel the plain cells, those something sways on or beside
+// and every hex (the full pass) and the cells drawn by their material; the covers and the ways an
+// instance a cell
+var (
+	plainShader    = screenShader("board tiles, plain", "shaders/tiles_plain.wgsl")
+	fullShader     = screenShader("board tiles", "shaders/tiles.wgsl")
+	materialShader = screenShader("board tiles' materials", "shaders/tiles_material.wgsl")
+	coversShader   = render.NewMeshShaderWith("board covers",
+		render.Files(shaders, "shaders/tiles_common.wgsl", "shaders/tiles_covers.wgsl"),
+		tilesUniforms).Instanced(1)
+	waysShader = render.NewMeshShaderWith("board ways",
+		render.Files(shaders, "shaders/tiles_common.wgsl", "shaders/tiles_ways.wgsl"),
+		tilesUniforms).Instanced(1)
 )
+
+func screenShader(label, file string) *render.Shader {
+	return render.NewMeshShaderWith(label, render.Files(shaders, "shaders/tiles_common.wgsl",
+		"shaders/tiles_screen.wgsl", file), tilesUniforms)
+}
+
+var tilesUniforms = []render.Uniform{
+	{Name: "ViewAt", Size: 2},
+	{Name: "RayAt", Size: 3},
+	{Name: "RayDX", Size: 3},
+	{Name: "RayDY", Size: 3},
+	{Name: "RayDir", Size: 3},
+	{Name: "RayDDX", Size: 3},
+	{Name: "RayDDY", Size: 3},
+	{Name: "TileViewProj", Size: 16},
+	{Name: "TileDeep", Size: 1},
+	{Name: "TileShift", Size: 2},
+	{Name: "TileHex", Size: 1},
+	{Name: "TileBox", Size: 2},
+	{Name: "TileSide", Size: 1},
+	{Name: "TileCells", Size: 2},
+	{Name: "TileWrap", Size: 2},
+	{Name: "TileLit", Size: 1},
+	{Name: "TileTint", Size: 3},
+	{Name: "TileSways", Size: 1},
+	{Name: "TileCovers", Size: 4},
+	{Name: "TileCoversOn", Size: 4},
+	{Name: "TileSeen", Size: 1},
+	{Name: "TileSectors", Size: 4},
+	{Name: "TileFogging", Size: 4},
+}
 
 // the bytes of a cell's block of 2×2 pixels in the cells' image, the top pair's then the bottom
 // pair's: its base sprite (low, high), the shade it takes (render.Taking), its flags; its way's
@@ -61,19 +76,29 @@ const (
 	blockBytes     = 16
 )
 
-// a cell's flags
+// a cell's flags: of itself, then of it or a neighbour, so a pixel far from any reads no more
 const (
-	flagShaded = 1 // drawn by its material, no sprite
-	flagWay    = 2 // a way runs across it
-	flagSways  = 4 // what stands on it sways
+	flagShaded    = 1 // drawn by its material, no sprite
+	flagWay       = 2 // a way runs across it
+	flagSways     = 4 // what stands on it sways
+	flagNearCover = 8
+	flagNearSway  = 16
 )
 
 // sprites a row of the rectangles' image holds, two pixels each
 const rectsPerRow = 256
 
+// the vertices of an instance: a cell's covers' four quarters, two triangles each; a cell's way's
+// eight bands, two triangles each, and its hub, an octagon fanned in six
+const (
+	coverVertices = 24
+	wayVertices   = 66
+)
+
 // tiles lays a flat board's tiles on the GPU: what each cell shows is kept in an image, a block of
-// 2×2 pixels a cell, the sheet's rectangles in another, and a shader finds every pixel's cell
-// through the camera's rays and samples the sheet there
+// 2×2 pixels a cell, the sheet's rectangles in another, and the passes find every pixel's cell
+// through the camera's rays and sample the sheet there, the covers and the ways laid an instance
+// a cell they lie on
 type tiles struct {
 	opts  render.DrawMeshOptions
 	own   map[string]any
@@ -87,10 +112,18 @@ type tiles struct {
 	block  [blockBytes]byte
 	buf    []byte
 	rect   [8]byte
-	// each cell's flags as the image holds them, by ordinal, and how many cells hold each
-	flags                 []byte
-	ways, swaying, shaded int
-	covers                []render.SpriteID
+	// each cell's flags and covers as the image holds them, by ordinal, and how many cells hold
+	// what sways and what is drawn by its material
+	flags, covered  []byte
+	swaying, shaded int
+	covers          []render.SpriteID
+	// the instances of the cells a way runs across and of a cell and a cover lying on it or a
+	// neighbour: column, row, cover, a vec4 each
+	wayAt, coverAt []float32
+	// the cells to write anew this frame: stamp where a cell is among them, by ordinal
+	marks   []uint32
+	stamp   uint32
+	changed []int
 }
 
 // refresh brings the cells' image up to the board as l reads it, the sheet sheet: every cell
@@ -110,8 +143,9 @@ func (g *tiles) refresh(l *Renderer, sheet render.AtlasSource) {
 		g.cells, all = render.NewImage(2*cols, 2*rows), true
 	}
 	if len(g.vers) != n {
-		g.vers, g.flags = make([]uint64, n), make([]byte, n)
-		g.ways, g.swaying, g.shaded = 0, 0, 0
+		g.vers, g.marks = make([]uint64, n), make([]uint32, n)
+		g.flags, g.covered = make([]byte, n), make([]byte, n)
+		g.swaying, g.shaded, g.stamp = 0, 0, 0
 	}
 	if !all && g.at == l.board.Changes()+1 {
 		return
@@ -124,22 +158,40 @@ func (g *tiles) refresh(l *Renderer, sheet render.AtlasSource) {
 		}
 	}
 	l.nextTops()
+	defer g.instances(l, cols)
 	if all {
 		g.writeAll(l, cols, rows)
 		return
 	}
-	var changed []int
-	for i := range n {
-		c := l.board.At(uint32(i%cols), uint32(i/cols))
-		if v := l.board.CellVersion(c) + 1; v != g.vers[i] {
-			changed = append(changed, i)
-			if len(changed) > n/8 {
-				g.writeAll(l, cols, rows)
-				return
-			}
+	// a cell changed and its neighbours, whose flags of what lies near may have
+	if g.stamp++; g.stamp == 0 {
+		clear(g.marks)
+		g.stamp = 1
+	}
+	g.changed = g.changed[:0]
+	mark := func(c cell.ID) {
+		if i, ok := l.board.Ordinal(c); ok && g.marks[i] != g.stamp {
+			g.marks[i] = g.stamp
+			g.changed = append(g.changed, i)
 		}
 	}
-	for _, i := range changed {
+	for i := range n {
+		c := l.board.At(uint32(i%cols), uint32(i/cols))
+		if v := l.board.CellVersion(c) + 1; v == g.vers[i] {
+			continue
+		}
+		mark(c)
+		for d := range l.board.Directions() {
+			if nb, ok := l.board.Toward(c, d); ok {
+				mark(nb)
+			}
+		}
+		if len(g.changed) > n/8 {
+			g.writeAll(l, cols, rows)
+			return
+		}
+	}
+	for _, i := range g.changed {
 		x, y := i%cols, i/cols
 		g.fill(l, l.board.At(uint32(x), uint32(y)), i)
 		b := &g.block
@@ -184,32 +236,86 @@ func (g *tiles) fill(l *Renderer, c cell.ID, i int) {
 	if w := laid.way(c); w.Runs() {
 		b[blockFlags] |= flagWay
 		g.sprite(blockWaySprite, w.Kind.SpriteID)
-		b[blockLinks] = byte(w.Links)
+		var links cell.Links // towards a neighbour there is
+		for d := range l.board.Directions() {
+			if _, ok := l.board.Toward(c, d); ok && w.Links.Has(d) {
+				links |= 1 << d
+			}
+		}
+		b[blockLinks] = byte(links)
 		put16(b[blockWidth:], w.Width*64)
 		b[blockFade] = unit255(w.Fade)
 	}
 	b[blockCovers] = laid.covered(c)
+	g.covered[i] = b[blockCovers]
 	if top := l.topOf(c); top.sway > 0 && top.height > 0 {
 		b[blockFlags] |= flagSways
 		b[blockSway] = unit255(top.sway)
 		put16(b[blockHeight:], top.height*64)
 	}
+	b[blockFlags] |= g.near(l, laid, c)
 	g.count(i, b[blockFlags])
+}
+
+// near is the flags of what lies on c or a neighbour of it: a cover, what sways
+func (g *tiles) near(l *Renderer, laid laid, c cell.ID) byte {
+	var f byte
+	of := func(n cell.ID) {
+		if laid.covered(n) != 0 {
+			f |= flagNearCover
+		}
+		if top := l.topOf(n); top.sway > 0 && top.height > 0 {
+			f |= flagNearSway
+		}
+	}
+	of(c)
+	for d := range l.board.Directions() {
+		if nb, ok := l.board.Toward(c, d); ok {
+			of(nb)
+		}
+	}
+	return f
 }
 
 // count keeps the counts of the cells flagged as the image holds them, cell i now flagged f
 func (g *tiles) count(i int, f byte) {
 	was := g.flags[i]
 	g.flags[i] = f
-	for _, k := range []struct {
+	for _, k := range [2]struct {
 		bit byte
 		n   *int
-	}{{flagWay, &g.ways}, {flagSways, &g.swaying}, {flagShaded, &g.shaded}} {
+	}{{flagSways, &g.swaying}, {flagShaded, &g.shaded}} {
 		switch {
 		case was&k.bit == 0 && f&k.bit != 0:
 			*k.n++
 		case was&k.bit != 0 && f&k.bit == 0:
 			*k.n--
+		}
+	}
+}
+
+// instances are the cells a way runs across and, for each cover, the cells it lies on or beside,
+// in the order the cells are laid
+func (g *tiles) instances(l *Renderer, cols int) {
+	g.wayAt, g.coverAt = g.wayAt[:0], g.coverAt[:0]
+	for i, f := range g.flags {
+		x, y := float32(i%cols), float32(i/cols)
+		if f&flagWay != 0 {
+			g.wayAt = append(g.wayAt, x, y, 0, 0)
+		}
+		if f&flagNearCover == 0 {
+			continue
+		}
+		bits := g.covered[i]
+		l.eachRound(l.board.At(uint32(i%cols), uint32(i/cols)), func(n cell.ID, ok bool) {
+			if k, on := l.board.Ordinal(n); ok && on {
+				bits |= g.covered[k]
+			}
+		})
+		for k := range g.covers {
+			if bits&(1<<k) != 0 {
+				g.coverAt = append(g.coverAt, x, y, float32(k), 0)
+			}
 		}
 	}
 }
@@ -331,7 +437,6 @@ func (g *tiles) draw(t render.Target, cam camera.Camera, u render.Uniforms, l *R
 	}
 	if g.own == nil {
 		g.own, g.opts.Uniforms = map[string]any{}, map[string]any{}
-		g.opts.Vertices = 3
 	}
 	u.Into(g.opts.Uniforms)
 	at := t.Screen.Bounds().Min
@@ -342,18 +447,10 @@ func (g *tiles) draw(t render.Target, cam camera.Camera, u render.Uniforms, l *R
 	g.set("RayDir", f.Dir[:]...)
 	g.set("RayDDX", f.DDX[:]...)
 	g.set("RayDDY", f.DDY[:]...)
-	deep := false
-	if t.Depth != nil {
-		w, h := cam.Viewport()
-		if tr, ok := camera.SceneTransform(f, w, h); ok {
-			g.set("TileViewProj", tr.M[:]...)
-			deep = true
-		}
-	}
-	g.opts.Depth, g.opts.WriteDepth = nil, false
-	if deep {
-		g.opts.Depth, g.opts.WriteDepth = t.Depth, true
-	}
+	w, h := cam.Viewport()
+	tr, placed := camera.SceneTransform(f, w, h)
+	g.set("TileViewProj", tr.M[:]...)
+	deep := t.Depth != nil && placed
 	g.set("TileDeep", flag(deep))
 	shape, _ := l.board.Shape()
 	g.set("TileHex", flag(shape.Hex))
@@ -363,20 +460,76 @@ func (g *tiles) draw(t render.Target, cam camera.Camera, u render.Uniforms, l *R
 	g.set("TileWrap", flag(l.space.Edges.WrapsX()), flag(l.space.Edges.WrapsY()))
 	g.set("TileLit", flag(lit))
 	g.set("TileTint", tint[:]...)
-	g.set("TileWays", flag(g.ways > 0))
 	_, sways := l.mapping.Look().(Swaying)
 	g.set("TileSways", flag(sways && g.swaying > 0))
-	g.set("TileShaded", flag(g.shaded > 0))
 	var covers [8]float32
 	for i, id := range g.covers {
 		covers[i] = float32(id)
 	}
-	g.set("TileCoverCount", float32(len(g.covers)))
 	g.set("TileCovers", covers[:4]...)
 	g.set("TileCoversOn", covers[4:]...)
+	g.set("TileShift", 0, 0)
 	g.opts.Images = [4]*render.Image{g.sheet.Atlas(), g.rects, g.cells,
 		seen.uniforms(g.set, "Tile")}
-	t.Screen.DrawMesh(nil, tilesShader, &g.opts)
+	// pixel by pixel, the ground's depth with it
+	g.opts.Vertices, g.opts.Instances = 3, nil
+	g.opts.Depth, g.opts.WriteDepth = nil, false
+	if deep {
+		g.opts.Depth, g.opts.WriteDepth = t.Depth, true
+	}
+	if !shape.Hex {
+		t.Screen.DrawMesh(nil, plainShader, &g.opts)
+	}
+	if shape.Hex || sways && g.swaying > 0 {
+		t.Screen.DrawMesh(nil, fullShader, &g.opts)
+	}
+	// over them the covers, then the ways, a copy across each seam the view takes in
+	g.opts.Depth, g.opts.WriteDepth = nil, false
+	if placed && (len(g.coverAt) > 0 || len(g.wayAt) > 0) {
+		x0, x1, y0, y1 := l.copies(cam)
+		for y := y0; y <= y1; y++ {
+			for x := x0; x <= x1; x++ {
+				g.set("TileShift", float32(x)*float32(l.space.Width),
+					float32(y)*float32(l.space.Height))
+				g.instanced(t, coversShader, g.coverAt, coverVertices)
+				g.instanced(t, waysShader, g.wayAt, wayVertices)
+			}
+		}
+		g.set("TileShift", 0, 0)
+	}
+	g.opts.Vertices, g.opts.Instances = 3, nil
+	if g.shaded > 0 {
+		t.Screen.DrawMesh(nil, materialShader, &g.opts)
+	}
+}
+
+func (g *tiles) instanced(t render.Target, s *render.Shader, at []float32, vertices int) {
+	if len(at) == 0 {
+		return
+	}
+	g.opts.Instances, g.opts.Vertices = at, vertices
+	t.Screen.DrawMesh(nil, s, &g.opts)
+}
+
+// copies is the world's copies a camera from above sees, a world apart along an axis that wraps:
+// from the x0-th to the x1-th across, y0-th to y1-th down; only the world itself through another
+func (l *Renderer) copies(cam camera.Camera) (x0, x1, y0, y1 int) {
+	if _, top := cam.Projection().(camera.TopDown); !top {
+		return 0, 0, 0, 0
+	}
+	w, h := cam.Viewport()
+	left, top := cam.FromScreen(0, 0)
+	right, bottom := cam.FromScreen(w, h)
+	along := func(lo, hi float32, size uint32, wraps bool) (int, int) {
+		if !wraps || size == 0 {
+			return 0, 0
+		}
+		s := float64(size)
+		return int(math.Floor(float64(lo) / s)), int(math.Floor(float64(hi) / s))
+	}
+	x0, x1 = along(left, right, l.space.Width, l.space.Edges.WrapsX())
+	y0, y1 = along(top, bottom, l.space.Height, l.space.Edges.WrapsY())
+	return x0, x1, y0, y1
 }
 
 func (g *tiles) set(name string, v ...float32) {
@@ -387,4 +540,15 @@ func (g *tiles) set(name string, v ...float32) {
 	}
 	copy(u.([]float32), v)
 	g.opts.Uniforms[name] = u
+}
+
+// the shade a cell takes, every bit for a kind saying none, no bit for one that Shines
+func takesOf(t render.Taking) render.Taking {
+	switch {
+	case t == 0:
+		return render.TakesAll
+	case t&render.Shines != 0:
+		return 0
+	}
+	return t
 }

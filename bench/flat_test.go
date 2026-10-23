@@ -51,6 +51,10 @@ func Benchmark_Frame_Flat(b *testing.B) {
 			screen := render.NewImage(frameW, frameH)
 			buf := make([]byte, 4*frameW*frameH)
 			composer := render.NewComposer(r)
+			// the first frame builds the shaders and lays the board, as a game's first does
+			composer.DrawWorld(screen, cam)
+			gpu.Submit()
+			screen.ReadPixels(buf)
 			k := 0
 			b.ReportAllocs()
 			for b.Loop() {

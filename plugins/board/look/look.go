@@ -99,9 +99,6 @@ func (t *Tile) Kind() cell.Kind { return t.r.board.Kind(t.ID) }
 // Light is the light on the tile's top at its corners: the Dressing's, even without one, under
 // the sun as the renderer's Lighting has it.
 func (t *Tile) Light() render.Shade {
-	if t.r.white {
-		return render.Even(1) // composed once, lit on the GPU
-	}
 	shade := render.Even(1)
 	if d := t.dress; d != nil {
 		shade = d.Light(t)
