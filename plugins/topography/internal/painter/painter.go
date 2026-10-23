@@ -56,6 +56,7 @@ type Painter struct {
 	coast        coast
 	lanes        lanes
 	cells        cells
+	baking       baking
 }
 
 var (
