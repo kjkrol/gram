@@ -3,11 +3,12 @@ package render
 import (
 	"testing"
 
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 )
 
 func TestSprites_TurnIntoTheFogsColourAsFarAsTheirFog(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	a := atlasOf(t)
 	blue := items(func(f *Frame) { f.Uniform("Fog", 0, 0, 1) })
 	all := shot(t, groundOf(a), &figureSource{atlas: a, z: 10, id: 2, fog: 1}, blue)

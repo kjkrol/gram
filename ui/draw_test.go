@@ -2,22 +2,14 @@ package ui
 
 import (
 	"image/color"
-	"os"
 	"testing"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
-
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}
 
 type still struct{ img *render.Image }
 
@@ -36,7 +28,7 @@ func pixel(img *render.Image, x, y int) [4]byte {
 }
 
 func TestImage_MaskedByACircleLeavesTheCornersOfItsBoxBare(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	dst := render.NewImage(64, 64)
 	dst.Clear()
 	e := Image(&still{}).Masked(Circle)
@@ -59,7 +51,7 @@ func (filling) DrawWorld(screen *render.Image, _ camera.Camera) {
 }
 
 func TestImage_AFeedAtAResolutionFillsItsBox(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	cam.(camera.Resolved).SetResolution(0.5)
 	feed := render.NewFeed(cam, filling{})

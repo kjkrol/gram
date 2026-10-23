@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -12,7 +14,6 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 // the flat board's frames: 96x64 cells of 32, as the island
@@ -23,7 +24,7 @@ const flatCols, flatRows, flatCell = 96, 64, 32
 // the GPU is waited for: from above, from above with a cell changed every frame, and in
 // isometry.
 func Benchmark_Frame_Flat(b *testing.B) {
-	headlessGPU(b)
+	gputest.Need(b)
 	for _, sc := range []struct {
 		name    string
 		iso     bool

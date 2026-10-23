@@ -3,19 +3,11 @@ package bake
 import (
 	"image"
 	"math"
-	"os"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
-
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}
 
 // a ground of 17 by 17 corners 32 apart, its heights as a test raises them
 type ground struct {
@@ -111,7 +103,7 @@ func pixelAt(b *Baker, x, y float32) [4]byte {
 var eastAt45 = [3]float32{0.7071, 0, 0.7071}
 
 func TestBaker_BakesTheShadeInStripsAsTheSunTurns(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	// low in the east or the west
 	sun := func(x float32) [3]float32 { return [3]float32{x, 0.1, 0.3} }
 	// half a degree on: turned, not leapt
@@ -158,7 +150,7 @@ func TestBaker_BakesTheShadeInStripsAsTheSunTurns(t *testing.T) {
 }
 
 func TestBaker_WaitsForTheReliefsHeights(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	b, g := New(), wall()
 	sun := [3]float32{0.9487, 0, 0.3162}
 	if _, shown := b.Plan(g.lattice(), sun, nil); shown {
@@ -178,7 +170,7 @@ func TestBaker_WaitsForTheReliefsHeights(t *testing.T) {
 }
 
 func TestBaker_BakesTheShadowsOfTheBlocks(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	b, g := New(), level()
 	// a deck 64 along x either side of (256, y), 16 across, from 40 up to 50, in two pieces
 	deck := func(y float32) []Block {
@@ -216,7 +208,7 @@ func TestBaker_BakesTheShadowsOfTheBlocks(t *testing.T) {
 }
 
 func TestBaker_BakesTheBlocksOnLevelGroundWithoutHeights(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	b := New()
 	flat := Lattice{Cols: 17, Rows: 17, Cell: 32}
 	post := Block{X: 256, Y: 256, UX: 1, Along: 8, Wide: 8, Top: 40}
@@ -235,7 +227,7 @@ func TestBaker_BakesTheBlocksOnLevelGroundWithoutHeights(t *testing.T) {
 }
 
 func TestBaker_BakesTheShadowsOfAsManyBlocksAsStand(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	var posts []Block
 	for i := range 200 {
 		x, y := 40+float32(i%20)*24, 40+float32(i/20)*48
@@ -251,7 +243,7 @@ func TestBaker_BakesTheShadowsOfAsManyBlocksAsStand(t *testing.T) {
 }
 
 func TestBaker_BakesOverlappingShadowsAsTheDarkerOfThem(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	a := Block{X: 256, Y: 250, UX: 1, Along: 30, Wide: 8, Top: 40}
 	c := Block{X: 270, Y: 262, UX: 1, Along: 30, Wide: 8, Top: 60}
 	ra, rb := bakedOver(t, level(), eastAt45, a), bakedOver(t, level(), eastAt45, c)
@@ -268,7 +260,7 @@ func TestBaker_BakesOverlappingShadowsAsTheDarkerOfThem(t *testing.T) {
 }
 
 func TestBaker_BakesHowHighTheReliefsShadowReaches(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	// low in the east: the line to the sun rises 1 for 3 across
 	b := bakedOver(t, wall(), [3]float32{0.9487, 0, 0.3162})
 	reach := func(x float32) float32 {
@@ -289,7 +281,7 @@ func TestBaker_BakesHowHighTheReliefsShadowReaches(t *testing.T) {
 }
 
 func TestBaker_BakesHowHighABlocksShadowReaches(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	// a deck 128 along x round (256, 256), 32 across, from 40 up to 50
 	deck := Block{X: 256, Y: 256, UX: 1, Along: 64, Wide: 16, Bottom: 40, Top: 50}
 	b := bakedOver(t, level(), eastAt45, deck)
@@ -345,7 +337,7 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> {
 })
 
 func TestGroundShade_TellsWhatStandsInAShadowAtItsHeight(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	// low in the east: rising 1 for 3 across
 	b := bakedOver(t, wall(), [3]float32{0.9487, 0, 0.3162},
 		Block{X: 96, Y: 256, UX: 1, Along: 32, Wide: 16, Bottom: 16, Top: 20})

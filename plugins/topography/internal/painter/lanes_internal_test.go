@@ -8,20 +8,18 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 // a hex board's tops from above, laid on the GPU: the tiles, the still water glinting, the ways
 // over them, fading and the river turning into the sea
 func TestPainter_DrawsAHexBoardsTopsOnTheGPU(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Hex(8, 8, 16)
 	brd, brdW := newBoard(g)
@@ -135,7 +133,7 @@ func TestPainter_DrawsAHexBoardsTopsOnTheGPU(t *testing.T) {
 // the ways laid in as many pieces as the most any of them lays, every piece there: as laid in as
 // many as any way could, a stem through eight with six joining it, all running into water
 func TestPainter_LaysEveryPieceOfTheWays(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	for _, g := range []grid.Grid{grid.DefaultGrids{}.Square(16, 12, 32),
 		grid.DefaultGrids{}.Hex(10, 8, 16)} {
 		d, _, atlas := wayBoard(t, g)

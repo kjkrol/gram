@@ -3,16 +3,16 @@ package bench_test
 import (
 	"fmt"
 	"image/color"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 	"github.com/kjkrol/gram/ui"
 	"github.com/kjkrol/uid"
 )
@@ -32,14 +32,6 @@ func (l *lines) Text(uid.UID64, bool) (string, bool) {
 		fmt.Fprintf(&sb, "line %d: %d\n", i, l.frame*7+i)
 	}
 	return sb.String(), true
-}
-
-// headlessGPU opens the GPU without a window, or skips the benchmark where there is none.
-func headlessGPU(b *testing.B) {
-	b.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		b.Skipf("no GPU: %v", err)
-	}
 }
 
 // drawersOf has the scene's drawers set up with the ECS and hands them back.
@@ -66,7 +58,7 @@ func drawFrame(screen *render.Image, drawers []render.Drawer) {
 // Benchmark_Text_Panel is one frame of a panel of 20 lines of text changing every frame, as a
 // telemetry panel's, drawn into a 1280x720 screen on a headless GPU.
 func Benchmark_Text_Panel(b *testing.B) {
-	headlessGPU(b)
+	gputest.Need(b)
 	ctx := newHeadless()
 	l := &lines{n: 20}
 	panel := ui.TopLeft(ui.Panel(ui.LabelOf(l)).Fill(color.RGBA{A: 160}).Steady()).Margin(8)
@@ -84,7 +76,7 @@ func Benchmark_Text_Panel(b *testing.B) {
 // a ui.Image of a feed over the whole 1280x720 screen, a panel of 20 lines of text and a button
 // over it, on a headless GPU.
 func Benchmark_Frame_UI(b *testing.B) {
-	headlessGPU(b)
+	gputest.Need(b)
 	ctx := newHeadless()
 	l := &lines{n: 20}
 	var drawers []render.Drawer

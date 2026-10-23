@@ -3,6 +3,8 @@ package render
 import (
 	"image/color"
 	"testing"
+
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 )
 
 // two triangles, vertices 0 to 2 over the left half of the target, 3 to 5 over the right
@@ -25,7 +27,7 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> {
 `), []Uniform{{Name: "Paint", Size: 4}})
 
 func TestImage_DrawMeshDrawsTheRangesOfItsIndicesAlone(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	indices := NewIndices([]uint32{0, 1, 2, 3, 4, 5})
 	defer indices.Release()
 	for _, c := range []struct {

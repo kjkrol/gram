@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 )
 
 // a Direct over the figures noting how coarse the ground under each of its draws was
@@ -19,7 +20,7 @@ func (n *coarseNoted) Draw(t Target, _ camera.Camera, _ Uniforms) {
 }
 
 func TestComposer_TheOverPassSaysHowCoarseTheGroundUnderItIs(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	var log []string
 	over := &coarseNoted{}
 	c := NewComposer(&staged{name: "ground", opaque: true, log: &log}, over)

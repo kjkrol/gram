@@ -7,6 +7,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 )
 
 // the ground's height along a line of world points U.Step apart, as 16 bits in red and green over
@@ -46,7 +47,7 @@ func (h heighted) Compose(f *Frame, _ camera.Camera) {
 }
 
 func TestGroundHeights_ShadersReadTheGroundBlendedBetweenItsCorners(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	// a ridge across x on a lattice 4 by 3, 10 world units a cell, its heights 100 up to 500,
 	// laid from (2, 1) in a bigger picture
 	heights := [4]float32{100, 500, 300, 100}

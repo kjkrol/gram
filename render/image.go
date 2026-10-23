@@ -6,7 +6,7 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/kjkrol/gram/render/gpu"
+	"github.com/kjkrol/gram/internal/gpu"
 )
 
 // Vertex is one corner of a triangle drawn: where in the target (Dst) and in the first image (Src),

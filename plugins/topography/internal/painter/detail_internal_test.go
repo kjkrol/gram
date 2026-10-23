@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/render"
@@ -63,7 +64,7 @@ func TestBakeTile_ScalesTheToneToAMeanOfAHalfAndBordersTheTileWithItsFarSide(t *
 }
 
 func TestPainter_BakesTheDetailsOnceAndPaintsEachPixelsKind(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	kinds := testKinds{}
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)

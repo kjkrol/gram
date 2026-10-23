@@ -374,7 +374,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   that multiplies the albedo, fading out below `detailNear` pixels a cell (no mipmaps; the
   details cost 1.7 ms a frame on an Intel UHD 620 at 40 px a cell, 265 to 182 FPS, 2026-10-20:
   ~0.4 of it the tile sampled minified, the rest the reads — the flags, the kinds where a cell
-  is dressed, the tile; mipmaps in `render/gpu` are the next step, for the far look as much);
+  is dressed, the tile; mipmaps in `internal/gpu` are the next step, for the far look as much);
   where a cell sways (`sway.wgsl`, `air.Weather.Sway` ported, gust fronts of `noise`, the
   amount and the wave worked out at the lattice's corners in `vs_main` and blended) the grain
   leans with `U.Wind`

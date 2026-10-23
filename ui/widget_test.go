@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -101,7 +102,7 @@ func TestDropdown_OpensItsOptionsOverAllAndTheOneClickedIsChosen(t *testing.T) {
 }
 
 func TestWidgets_DrawTheirMarksInTheAccent(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	th := DefaultTheme()
 	th.Accent = color.RGBA{G: 255, A: 255}
 	th.Border = color.RGBA{R: 255, A: 255}

@@ -2,24 +2,16 @@ package water_test
 
 import (
 	"image/color"
-	"os"
 	"testing"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	_ "github.com/kjkrol/gram/plugins/atmosphere/air" // the clouds' functions the water calls
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
-
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}
 
 type sea struct {
 	atlas           *render.Atlas
@@ -37,7 +29,7 @@ func (s *sea) Compose(f *render.Frame, _ camera.Camera) {
 }
 
 func TestGlint_TheSeaReflectsTheSkysOwnColours(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	atlas := render.NewAtlas()
 	atlas.Add(render.SpriteID(1), 8, render.Solid(color.RGBA{A: 255}))
 	atlas.Close()

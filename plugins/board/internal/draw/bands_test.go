@@ -2,9 +2,9 @@ package draw_test
 
 import (
 	"image/color"
-	"os"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -13,13 +13,10 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 func TestBands_AWayIsThePartOfItsKindsSpriteUnderIt(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	gputest.Need(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
 	road := cell.Kind{SpriteID: 2, Cost: 1, Allows: cell.Land}
 	green := color.RGBA{R: 60, G: 160, B: 60, A: 255}

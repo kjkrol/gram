@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -69,7 +70,7 @@ func over(c color.RGBA) color.RGBA {
 }
 
 func TestTiles_LayTheCoversAndTheWaysOverTheTiles(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
 	road := cell.Kind{SpriteID: 3, Cost: 1, Allows: cell.Land}
 	const mark tag.Tag[effect.States] = 3
@@ -122,7 +123,7 @@ func TestTiles_LayTheCoversAndTheWaysOverTheTiles(t *testing.T) {
 // a hex's box reaches over its neighbours': each cell's tile and the cover on it lie over the
 // cells laid before it, row by row, and under those after it
 func TestTiles_LayAHexBoardsTilesInTheOrderOfItsCells(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	const mark tag.Tag[effect.States] = 3
 	g := grid.DefaultGrids{}.Hex(8, 8, 16)
 	brd, brdW := board.NewBoard(g)
@@ -193,7 +194,7 @@ func TestTiles_LayAHexBoardsTilesInTheOrderOfItsCells(t *testing.T) {
 // what sways leans with the wind, its tile and the cover on it: over the cells laid before it,
 // under those after it
 func TestTiles_LeanWhatSwaysWithTheWind(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
 	reeds := cell.Kind{SpriteID: 2, Cost: 1, Allows: cell.Land, Sway: 1, Height: 20}
 	yellow := color.RGBA{R: 200, G: 190, B: 80, A: 255}
@@ -245,7 +246,7 @@ func TestTiles_LeanWhatSwaysWithTheWind(t *testing.T) {
 
 // under a camera turned and tilted every pixel is the cell under it
 func TestTiles_LayTheBoardUnderATurnedAndTiltedCamera(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	brd, brdW := board.NewBoard(g)
 	kinds := []cell.Kind{{SpriteID: 1, Cost: 1, Allows: cell.Land},
@@ -354,7 +355,7 @@ func laidSeen(t *testing.T, d camera.Detail) func(x, y int) color.RGBA {
 }
 
 func TestTiles_LayTheCellsOfTheSectorsSeenAtTheirLevels(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	grass := color.RGBA{R: 60, G: 160, B: 60, A: 255}
 	road := color.RGBA{R: 150, G: 110, B: 70, A: 255}
 	snow := color.RGBA{R: 240, G: 240, B: 250, A: 255}
@@ -387,7 +388,7 @@ func TestTiles_LayTheCellsOfTheSectorsSeenAtTheirLevels(t *testing.T) {
 
 // the whole board from above, as the minimap shows it, is the board a camera from above shows
 func TestTiles_LayTheWholeBoardFromAboveAsACameraShowsIt(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
 	road := cell.Kind{SpriteID: 3, Cost: 1, Allows: cell.Land}
 	const mark tag.Tag[effect.States] = 3

@@ -3,12 +3,12 @@ package painter
 import (
 	"image/color"
 	"math"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -17,7 +17,6 @@ import (
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 type testMap struct {
@@ -136,7 +135,7 @@ func styled(st map[cell.Name]Style, k cell.Kind, s Style) cell.Kind {
 }
 
 func TestBake_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(3, 3, 32)
 	brd, brdW := newBoard(g)
@@ -166,7 +165,7 @@ func TestBake_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
 }
 
 func TestBake_AWayStraightAcrossIsOneBandFromSideToSide(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(3, 3, 32)
 	brd, brdW := newBoard(g)
@@ -196,7 +195,7 @@ func TestBake_AWayStraightAcrossIsOneBandFromSideToSide(t *testing.T) {
 }
 
 func TestBake_AWayTurningCurvesRoundTheMiddle(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	g := grid.DefaultGrids{}.Square(3, 3, 32)
 	brd, brdW := newBoard(g)
 	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
@@ -218,7 +217,7 @@ func TestBake_AWayTurningCurvesRoundTheMiddle(t *testing.T) {
 }
 
 func TestBake_AWayFadingOutShowsLessAndRunsOnTheWayItFades(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(4, 1, 32)
 	brd, brdW := newBoard(g)
@@ -249,7 +248,7 @@ func TestBake_AWayFadingOutShowsLessAndRunsOnTheWayItFades(t *testing.T) {
 }
 
 func TestBake_AWayRunsSlantwiseToTheCornerAndEndsSquareAcrossItself(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	g := grid.DefaultGrids{}.Square(3, 3, 32)
 	brd, brdW := newBoard(g)
 	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
@@ -270,7 +269,7 @@ func TestBake_AWayRunsSlantwiseToTheCornerAndEndsSquareAcrossItself(t *testing.T
 }
 
 func TestBake_BlendsWeighTheNeighboursGroundsAtTheTilesPoints(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(3, 3, 32)
 	brd, brdW := newBoard(g)
@@ -297,7 +296,7 @@ func TestBake_BlendsWeighTheNeighboursGroundsAtTheTilesPoints(t *testing.T) {
 }
 
 func TestBake_ByTheSeaTheLandIsLaidOverTheSeaUnderIt(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(3, 3, 32)
 	brd, brdW := newBoard(g)
@@ -328,7 +327,7 @@ func TestBake_ByTheSeaTheLandIsLaidOverTheSeaUnderIt(t *testing.T) {
 }
 
 func TestWater_TheShaderCompilesWithTheBoardsMaterials(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	if err := render.Compile(); err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +388,7 @@ func TestTile_AShinyCellShines(t *testing.T) {
 }
 
 func TestShores_LieTheWayOfTheNearestCellThatDoesNotShine(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(10, 4, 32)
 	brd, brdW := newBoard(g)
@@ -451,7 +450,7 @@ func (k kindsOf) Get(name string) (cell.Kind, bool) {
 }
 
 func TestBake_AWayTurnsIntoTheKindItMixesWith(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(3, 3, 32)
 	brd, brdW := newBoard(g)
@@ -480,7 +479,7 @@ func TestBake_AWayTurnsIntoTheKindItMixesWith(t *testing.T) {
 }
 
 func TestBake_AWayRunsOnUnderTheWaterItRunsInto(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(3, 3, 32)
 	brd, brdW := newBoard(g)
@@ -510,7 +509,7 @@ func TestBake_AWayRunsOnUnderTheWaterItRunsInto(t *testing.T) {
 }
 
 func TestPainter_TheAlbedoIsPaintedAnewOnlyAsTheBoardChanges(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := newBoard(g)
@@ -552,7 +551,7 @@ func TestPainter_TheAlbedoIsPaintedAnewOnlyAsTheBoardChanges(t *testing.T) {
 }
 
 func TestPainter_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := newBoard(g)
@@ -592,7 +591,7 @@ func TestPainter_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
 }
 
 func TestPainter_TheWetCellsAreTheWaterAndTheCellsBesideIt(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	grid := grid.DefaultGrids{}.Square(8, 6, 32)
 	brd, brdW := newBoard(grid)
@@ -628,7 +627,7 @@ func TestPainter_TheWetCellsAreTheWaterAndTheCellsBesideIt(t *testing.T) {
 }
 
 func TestShores_FollowTheShineNotTheRelief(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(10, 8, 32)
 	brd, brdW := newBoard(g)
@@ -664,10 +663,3 @@ func TestShores_FollowTheShineNotTheRelief(t *testing.T) {
 }
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
-
-func needGPU(t testing.TB) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}

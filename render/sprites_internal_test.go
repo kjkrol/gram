@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 )
 
@@ -35,7 +36,7 @@ func TestSprites_DrawsTheLowerFirstAndAtOneHeightTheLyingFirst(t *testing.T) {
 }
 
 func TestSprites_DrawTwiceDrawsTheSameSpritesUntilReset(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	atlas := NewAtlas()
 	atlas.Add(SpriteID(1), 8, Solid(white))
 	atlas.Close()

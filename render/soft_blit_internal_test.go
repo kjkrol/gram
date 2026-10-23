@@ -4,10 +4,12 @@ import (
 	"image/color"
 	"math"
 	"testing"
+
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 )
 
 func TestImage_DrawImageWithAFadeFeathersEachEdge(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	src := NewImage(64, 64)
 	src.Fill(color.RGBA{R: 255, G: 255, B: 255, A: 255})
 	dst := NewImage(64, 64)

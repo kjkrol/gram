@@ -2,11 +2,11 @@ package look_test
 
 import (
 	"image/color"
-	"os"
 	"testing"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -14,7 +14,6 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 type flatAtlas struct{}
@@ -29,13 +28,6 @@ func gridOf(line color.RGBA, width float32) look.RenderState {
 }
 
 var black = color.RGBA{A: 255}
-
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}
 
 // shot draws the sources through cam into a screen w by h, black first, and hands back its pixels
 // by screen point
@@ -65,7 +57,7 @@ func near(a, b color.RGBA, d int) bool {
 }
 
 func TestRenderer_LaysAFlatBoardOnTheGPUAndEachCellAsItChanges(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
 	water := cell.Kind{SpriteID: 2, Cost: 1, Allows: cell.Water}
 	road := cell.Kind{SpriteID: 3, Cost: 1, Allows: cell.Land}
@@ -132,7 +124,7 @@ func TestRenderer_LaysAFlatBoardOnTheGPUAndEachCellAsItChanges(t *testing.T) {
 }
 
 func TestRenderer_DrawsTheGridOverTheTilesLaidOnTheGPU(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	green := color.RGBA{R: 60, G: 160, B: 60, A: 255}
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
 	atlas := render.NewAtlas()
@@ -217,7 +209,7 @@ type dressedMap struct {
 func (m dressedMap) Dressing() look.Dressing { return m.d }
 
 func TestRenderer_DressesTheGroundOnceAFrameRightAfterIt(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := board.NewBoard(grid)
 	brdW.SetAll(cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land})

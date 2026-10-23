@@ -1,11 +1,11 @@
 package aloft
 
 import (
-	"os"
 	"testing"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -13,15 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
-
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}
 
 // half heaped clouds over the west half of a world 640 by 480, the east clear, a heap drifted
 // over the west's middle: they lie a heap's cell apart, wider than the world
@@ -117,7 +109,7 @@ func covering(r *Renderer, t render.Target, cam camera.Camera, u render.Uniforms
 }
 
 func TestRenderer_DrawsTheCloudsFromAboveOverTheirMassAlone(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
@@ -204,7 +196,7 @@ func westRaised() heights {
 }
 
 func TestRenderer_HidesTheCloudsInsideTheGround(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
@@ -280,7 +272,7 @@ fn fs_main(o: Out) -> Laid { return Laid(vec4<f32>(0.0), 1.0); }
 `), nil)
 
 func TestRenderer_DrawsTheLowCloudsBeforeTheSlopesFromUnderThem(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
@@ -330,7 +322,7 @@ func TestRenderer_DrawsTheLowCloudsBeforeTheSlopesFromUnderThem(t *testing.T) {
 }
 
 func TestRenderer_DrawsTheCloudsAtACoarseOfTheGroundsPixels(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	r := New(func() air.Weather { return air.Weather{} }, air.Low)
 	for _, c := range []struct {
 		coarse, sw, sh int
@@ -378,7 +370,7 @@ func (h handed) Compose(f *render.Frame, _ camera.Camera) {
 }
 
 func TestRenderer_OverAGroundAtHalfThePixelsDrawsTheCloudsAtItsPixelsOnceAFrame(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})

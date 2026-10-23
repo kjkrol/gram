@@ -4,6 +4,8 @@ import (
 	"image"
 	"image/color"
 	"testing"
+
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 )
 
 // a colour of its uniform Paint over all the target
@@ -34,7 +36,7 @@ func pixelOf(t *testing.T, img *Image) [4]byte {
 }
 
 func TestImage_DrawMeshDarkestKeepsTheLesserOfEachChannel(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	img := NewImage(1, 1)
 	img.Fill(color.RGBA{R: 200, G: 40, B: 120, A: 255})
 	img.DrawMesh(nil, paintShader, &DrawMeshOptions{
@@ -53,7 +55,7 @@ func TestImage_DrawMeshDarkestKeepsTheLesserOfEachChannel(t *testing.T) {
 }
 
 func TestImage_CopyFromPutsAlphaAndAllInPlace(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	src := NewImage(2, 1)
 	src.WritePixels([]byte{10, 20, 30, 40, 200, 100, 50, 250})
 	dst := NewImage(2, 1)
@@ -67,7 +69,7 @@ func TestImage_CopyFromPutsAlphaAndAllInPlace(t *testing.T) {
 }
 
 func TestImage_CopyFromCopiesAPartIntoAPart(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	src := NewImage(1, 3)
 	src.WritePixels([]byte{1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3})
 	dst := NewImage(1, 3)

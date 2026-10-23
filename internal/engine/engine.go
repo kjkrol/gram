@@ -11,9 +11,9 @@ import (
 	"github.com/gogpu/gogpu"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/gpu"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 const (

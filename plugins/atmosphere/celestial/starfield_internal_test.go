@@ -2,12 +2,11 @@ package celestial
 
 import (
 	"math"
-	"os"
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 type pinhole struct {
@@ -77,15 +76,8 @@ func TestStarField_ColoursAndBrightness(t *testing.T) {
 	}
 }
 
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}
-
 func TestStarField_DrawsInTheViewItWasLastPlacedIn(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	h := Place{NoonWay: South, Latitude: 45}.HeavensAt(0.3, 0.95, 0.4)
 	var f StarField
 	for _, side := range []float32{100, 60} {

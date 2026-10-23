@@ -6,6 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 )
 
@@ -153,7 +154,7 @@ func groundShot(t *testing.T, c *Composer, sources ...Source) func(x, y int) [4]
 }
 
 func TestComposer_TheHigherCoversTheLowerWhateverTheOrderOfTheSources(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	a := atlasOf(t)
 	veil := color.RGBA{B: 255, A: 128}
 	decal := items(func(f *Frame) {
@@ -214,7 +215,7 @@ func TestComposer_TheHigherCoversTheLowerWhateverTheOrderOfTheSources(t *testing
 }
 
 func TestComposer_WhatLiesOverTheFiguresIsHiddenByTheGroundAlone(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	a := atlasOf(t)
 	look := color.RGBA{G: 255, B: 255, A: 255}
 	over := func(z float32) Source {
@@ -234,7 +235,7 @@ func TestComposer_WhatLiesOverTheFiguresIsHiddenByTheGroundAlone(t *testing.T) {
 }
 
 func TestComposer_TheOverPassBindsOverFiguresToTheGroundsDepth(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	a := atlasOf(t)
 	look := color.RGBA{G: 255, B: 255, A: 255}
 	over := func(z float32) Source {
@@ -268,7 +269,7 @@ func TestComposer_TheOverPassBindsOverFiguresToTheGroundsDepth(t *testing.T) {
 }
 
 func TestComposer_AtOneHeightTheStandingCoversTheLying(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	a := atlasOf(t)
 	at := shot(t, groundOf(a), &twoFigures{atlas: a})
 	if p := at(24, 24); p != [4]byte{220, 0, 0, 255} {
@@ -317,7 +318,7 @@ func (p *peek) Draw(t Target, _ camera.Camera, _ Uniforms) {
 }
 
 func TestComposer_ADepthOnlyUnderAGroundAndTheGroundsOnlyForOneReadingIt(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	for _, tc := range []struct {
 		opaque, reads, depth, ground bool
 	}{
@@ -368,7 +369,7 @@ func checkeredGround(*Atlas) *groundSource {
 }
 
 func TestFeed_DrawsAFigureAtEveryPixelOverAHalfResolutionGround(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	a := atlasOf(t)
 	line := overlyingSource{items(func(f *Frame) {
 		x0, y0 := f.cam.Project(4, 16.5, 0)
@@ -424,7 +425,7 @@ func (p *painting) DrawWorld(screen *Image, _ camera.Camera) {
 }
 
 func TestFeed_LaysAFootedLayerFlushOnTheBottomEdgeFeatheredOnTheOtherSides(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	cam.(camera.Layered).SetLayers([]camera.Layer{
 		{Share: 1, Resolution: 0.5},
@@ -466,7 +467,7 @@ func ridgedGround(*Atlas) *groundSource {
 }
 
 func TestLaid_AFigureBehindAHillIsHiddenThroughAnInnerLayersDepth(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	a := atlasOf(t)
 	figure := overlyingSource{items(func(f *Frame) {
 		corners := ProjectCorners(f.cam, 20, 20, 44, 44, 10)

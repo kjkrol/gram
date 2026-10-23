@@ -1,6 +1,6 @@
 // Package render is the drawing side of gram: primitives that know nothing of Stages, Scenes or
 // plugins. What a Scene and a plugin draw are made of these. Everything is drawn on the GPU
-// through WebGPU (render/gpu), in WGSL shaders.
+// through WebGPU (internal/gpu), in WGSL shaders.
 //
 // # Drawers: Renderer and Picture
 //

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/render"
@@ -12,7 +13,7 @@ import (
 
 // the cells' blocks as the bake's shaders read them, laid whole and then a changed cell alone
 func TestCells_HoldWhatTheBakeReadsOfEachCell(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(3, 3, 32)
 	brd, brdW := newBoard(g)

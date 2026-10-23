@@ -4,7 +4,7 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/kjkrol/gram/render/gpu"
+	"github.com/kjkrol/gram/internal/gpu"
 )
 
 // FillRect lays c over the rectangle x, y, w by h of dst, in its pixels.

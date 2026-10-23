@@ -6,7 +6,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/render/gpu"
+	"github.com/kjkrol/gram/internal/gpu"
 )
 
 // Composer is a Picture drawing its Sources as one picture: the opaque ground first, writing the

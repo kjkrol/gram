@@ -2,14 +2,13 @@ package sectorview_test
 
 import (
 	"image/color"
-	"os"
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world/internal/sectorview"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 // level ground 256 wide and 192 down, black, its depth written; the sky below it
@@ -27,7 +26,7 @@ fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(0.0, 0.0, 0.0, 1.0); }
 `), []render.Uniform{{Name: "ViewProj", Size: 16}})
 
 func TestGround_LaysEachSectorInItsColourOverTheGroundAlone(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	cam := cameratest.NewFromSpace(256, 256, 0)
 	screen := render.NewImage(256, 256)
 	depth := render.NewDepth()
@@ -80,7 +79,7 @@ func TestGround_LaysEachSectorInItsColourOverTheGroundAlone(t *testing.T) {
 }
 
 func TestGround_LaysTheColoursPaintedLast(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	cam := cameratest.NewFromSpace(256, 256, 0)
 	screen := render.NewImage(256, 256)
 	depth := render.NewDepth()
@@ -106,12 +105,5 @@ func TestGround_LaysTheColoursPaintedLast(t *testing.T) {
 		if got := [2]byte{pix[4*(64*256+64)], pix[4*(64*256+64)+1]}; got != [2]byte{c.R, c.G} {
 			t.Errorf("painted %v, the ground shows red and green %v", c, got)
 		}
-	}
-}
-
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
 	}
 }

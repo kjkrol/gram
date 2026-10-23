@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/kjkrol/gram/render/gpu"
+	"github.com/kjkrol/gram/internal/gpu"
 )
 
 //go:embed shaders/*.wgsl

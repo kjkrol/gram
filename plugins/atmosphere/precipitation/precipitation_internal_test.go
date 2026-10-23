@@ -1,7 +1,6 @@
 package precipitation
 
 import (
-	"os"
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
@@ -11,7 +10,6 @@ import (
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 func TestDrops_FallUnderTheLowCloudsWhereTheyAreBigEnoughToMakeOut(t *testing.T) {
@@ -48,13 +46,6 @@ func TestDrops_FallUnderTheLowCloudsWhereTheyAreBigEnoughToMakeOut(t *testing.T)
 		if drawn() {
 			t.Errorf("%+v: drops are drawn, want none", dry)
 		}
-	}
-}
-
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
 	}
 }
 

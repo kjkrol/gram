@@ -66,6 +66,8 @@
   `Composer.Composed`, `GeoM.Reset`, `Sprites.Len`, `gpu.Ready`, `gpu.Device`, `Layout.Has`;
   `render.SetRates` takes the frames alone; `Clocked`, `FromImage`, `NewSheet`, `GlyphWidth`
   and `LineHeight` are render's own.
+- Breaking: `render/gpu` is `internal/gpu`, the engine's and render's alone; a test that draws
+  readies the GPU with `gputest.Need(t)` (`internal/gpu/gputest`), skipped without one.
 
 ## v0.4.0 — 2026-10-23
 

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
 	"github.com/kjkrol/gram/plugins/cameras"
@@ -126,7 +127,7 @@ func TestDome_ADiscWithoutWGSLShowsNoneAndSizeScalesIt(t *testing.T) {
 }
 
 func TestDome_CompilesTheEarthsAndAGamesSkies(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	dots := Earth()
 	dots.Stars.Dots = ScatteredStars()
 	own := Dome{Vault: Part{
@@ -146,7 +147,7 @@ func TestDome_CompilesTheEarthsAndAGamesSkies(t *testing.T) {
 }
 
 func TestDome_DrawsOnlyThePartsItHasOnTheGPU(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	top := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})

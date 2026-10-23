@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -136,7 +137,7 @@ func painted(img *render.Image) bool {
 }
 
 func TestPainter_PaintsTheGroundAnewRoundACellAsWhole(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	d, brdW, atlas, g := bakedBoard(t)
 	if off := bakedApart(t, d, atlas); off != [3]int{} {
 		t.Errorf("%v pixels of the albedo, the kinds and the water differ painted twice, want "+
@@ -227,7 +228,7 @@ func wayBoard(t *testing.T, g grid.Grid) (*Painter, *board.BoardWrite, render.At
 }
 
 func TestPainter_PaintsTheWaysAnewRoundACellAsWhole(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	g := grid.DefaultGrids{}.Square(16, 12, 32)
 	d, brdW, atlas := wayBoard(t, g)
 	if off := bakedApart(t, d, atlas); off != [3]int{} {
@@ -244,7 +245,7 @@ func TestPainter_PaintsTheWaysAnewRoundACellAsWhole(t *testing.T) {
 // a cell holds its kind's detail where nothing else may lie on it, Dressed by a way or a ground
 // running in
 func TestPainter_TellsTheCellsTheirDetails(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	g := grid.DefaultGrids{}.Square(16, 12, 32)
 	d, _, atlas := wayBoard(t, g)
 	d.Surface(atlas)
@@ -343,7 +344,7 @@ func island(tb testing.TB) (*Painter, *board.BoardWrite, render.AtlasSource, gri
 // Benchmark_Painter_Bake paints the island anew and waits for the GPU: whole, a Style changed
 // every time, and round a cell changed every time.
 func Benchmark_Painter_Bake(b *testing.B) {
-	needGPU(b)
+	gputest.Need(b)
 	d, brdW, atlas, g := island(b)
 	d.Surface(atlas)
 	one, px := render.NewImage(1, 1), make([]byte, 4)

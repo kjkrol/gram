@@ -4,6 +4,7 @@ import (
 	"image/color"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 )
 
@@ -24,7 +25,7 @@ func darkGround(span float32) map[string]any {
 }
 
 func TestSprites_TakeTheShadeTheGroundHoldsAsTheirBitsSay(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	atlas := NewAtlas()
 	atlas.Add(SpriteID(1), 8, Solid(white))
 	atlas.Close()

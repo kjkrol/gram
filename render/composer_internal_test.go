@@ -3,7 +3,6 @@ package render
 import (
 	"image/color"
 	"math"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -11,8 +10,9 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 type sheet struct{ name string }
@@ -394,15 +394,8 @@ fn TestTint(p: vec2<f32>, red: f32, fraction: f32, custom: vec4<f32>) -> vec4<f3
 }
 `), nil, "TestTint")[0]
 
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}
-
 func TestComposer_ItsShaderCompilesWithTheMaterialsRegistered(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	if err := Compile(); err != nil {
 		t.Fatal(err)
 	}
@@ -626,7 +619,7 @@ func TestComposer_ADirectDrawsWhereItAskedAndOnlyThere(t *testing.T) {
 }
 
 func TestNewShaderWith_BuildsOnTheLibraryAndSealsTheMaterials(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	s := NewShaderWith("test", []byte(`
 fn Fragment(dst: vec4<f32>, src: vec2<f32>, color: vec4<f32>, custom: vec4<f32>) -> vec4<f32> {
     return TestTint(vec2<f32>(0.0), U.Shade, noise(src), vec4<f32>(U.Clock));
@@ -800,7 +793,7 @@ func TestComposer_DrawLayerPlacesThePiecesAndDrawsTheDirectsThroughTheCroppedCam
 }
 
 func TestComposer_ALayerLeavesOutTheGroundUnderTheHole(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	a := atlasOf(t)
 	c := NewComposer(groundOf(a), skySource{}, &figureSource{atlas: a, z: 10, id: 2})
 	cam := cameratest.NewFromSpace(64, 64, 0)
@@ -833,7 +826,7 @@ func TestComposer_ALayerLeavesOutTheGroundUnderTheHole(t *testing.T) {
 }
 
 func TestComposer_DrawLayerTwiceDrawsEveryDirectTwice(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	var log []string
 	ground := &staged{name: "ground", opaque: true, log: &log}
 	route := &staged{name: "route", draws: true, at: h(0.75), log: &log}
@@ -857,7 +850,7 @@ func TestComposer_DrawLayerTwiceDrawsEveryDirectTwice(t *testing.T) {
 }
 
 func TestComposer_TwoLayersOfOneSizeKeepTheirGroundsApart(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	var log []string
 	c := NewComposer(&staged{name: "ground", opaque: true, log: &log})
 	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) {}

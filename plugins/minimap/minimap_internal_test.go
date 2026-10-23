@@ -3,7 +3,6 @@ package minimap
 import (
 	"image/color"
 	"math"
-	"os"
 	"testing"
 	"time"
 
@@ -16,13 +15,13 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
@@ -341,9 +340,7 @@ type halves struct{ img *render.Image }
 func (h halves) Miniature() (*render.Image, float32) { return h.img, 0.002 }
 
 func TestGround_LiesTurnedAsTheMinimapIs(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	gputest.Need(t)
 	img := render.NewImage(2, 2)
 	img.WritePixels([]byte{
 		255, 0, 0, 255, 0, 255, 0, 255,

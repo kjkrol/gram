@@ -7,6 +7,7 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 )
 
 // registered before any shader is built, as a package's init would
@@ -74,7 +75,7 @@ func TestFrame_HandsADirectItsImageAsAUniformAndNothingOnceItIsNotSet(t *testing
 }
 
 func TestFrame_AShaderReadsTheFramesImageByName(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	red := NewImage(1, 1)
 	red.Fill(color.RGBA{R: 255, A: 255})
 	screen := NewImage(4, 4)

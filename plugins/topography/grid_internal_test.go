@@ -2,16 +2,15 @@ package topography
 
 import (
 	"image/color"
-	"os"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 func TestBoardSurface_DrawsTheGridInTheBoardsLine(t *testing.T) {
@@ -44,9 +43,7 @@ func TestBoardSurface_DrawsTheGridInTheBoardsLine(t *testing.T) {
 }
 
 func TestMiniature_IsTheBoardPaintedWhereTheGroundIs(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	gputest.Need(t)
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 128, Height: 128},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 4},

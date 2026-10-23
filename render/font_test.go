@@ -2,11 +2,10 @@ package render_test
 
 import (
 	"image/color"
-	"os"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 func TestFont_MeasureGrowsWithTheTextAndItsLines(t *testing.T) {
@@ -38,9 +37,7 @@ func TestFont_TheDefaultHasThePolishLetters(t *testing.T) {
 }
 
 func TestDrawText_DrawsInsideTheBoxItMeasures(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	gputest.Need(t)
 	f := render.DefaultFont()
 	const x, y = 10, 10
 	s := "Źdźbło"

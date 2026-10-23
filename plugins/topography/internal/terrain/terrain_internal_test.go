@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/light"
@@ -163,7 +164,7 @@ func (e eye) Project(x, y, z float32) (float32, float32) {
 }
 
 func TestRenderer_RefreshesTheLatticeWhenTheGroundOrTheCoastChanges(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	g := &hill{}
 	f := &flat{}
 	r := New(g, f, stillSky{}, Config{})
@@ -253,7 +254,7 @@ func TestFlags_MarkTheCellsWaterMayLieOnTheShadeTheyTakeAndTheirSway(t *testing.
 }
 
 func TestRenderer_PreparesTheFramesUniformsWithItsOwnOver(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	f := &flat{grid: 6, line: [4]float32{0.5, 0, 0, 0.5}, width: 3}
 	r := New(hill{}, f, stillSky{}, Config{})
 	cam := eye{Camera: cameratest.NewFromSpace(512, 512, 0), at: [3]float32{100, 256, 4}}

@@ -4,8 +4,9 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 // the screen the island's frames are drawn into: a 1440p display
@@ -22,7 +23,7 @@ const frameW, frameH = 2560, 1440
 // and the layered ones) or at every pixel ("sharp"); "readback" alone is the cost of the wait,
 // to take off the others.
 func Benchmark_Frame_Topography(b *testing.B) {
-	headlessGPU(b)
+	gputest.Need(b)
 	layered := []camera.Layer{{Share: 1, Resolution: 0.5}, {Share: 0.6, Resolution: 0.75},
 		{Share: 0.35, Resolution: 1}}
 	const (

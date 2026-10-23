@@ -9,6 +9,7 @@ import (
 
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/tag"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -18,7 +19,6 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 type under struct {
@@ -42,9 +42,7 @@ func (m covered) Dressing() look.Dressing                       { return m.d }
 func (covered) Top(cell.ID) (corners [4]float32, level float32) { return corners, 0 }
 
 func TestCover_LiesAlongALineOfItsOwn(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	gputest.Need(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
 	green := color.RGBA{R: 60, G: 160, B: 60, A: 255}
 	snow := color.RGBA{R: 240, G: 240, B: 250, A: 255}
