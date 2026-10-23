@@ -1,12 +1,11 @@
 // Package painter is the topography's painter: the board's Dressing in relief and the board
 // painted flat for the ground drawn on the GPU.
 //
-// A [Painter] ([New]) dresses the board's tiles as look.Dressing asks and paints them once into
-// sheets ([Painter.Surface]): the board's albedo and its water in layers beside it; over a hex
-// grid it hands the tiles drawn from above their still water glinting ([Painter.Overlay]) and
-// draws the ways across them on the GPU ([Painter.DrawWays]);
-// [Painter.Wet] is where water may lie, [Painter.Coast] the way to the shore from every corner
-// of a square grid.
+// A [Painter] ([New]) dresses the board's tiles as look.Dressing asks and paints them on the GPU
+// into sheets ([Painter.Surface]): the board's albedo, its water in layers beside it and each
+// pixel's kind; over a hex grid it hands the tiles drawn from above their still water glinting
+// ([Painter.Overlay]) and draws the ways across them ([Painter.DrawWays]). [Painter.Wet] is where
+// water may lie, [Painter.Shores] the way to the shore from every corner of a square grid.
 //
 // # Styles
 //
@@ -46,8 +45,10 @@
 //
 // # Painted once
 //
-// Nothing of this is worked out per frame: a cell's read is kept while the board says it is
-// as it was, a tile's blends and way while the cells round it are. Over a square grid the whole
-// board is painted flat, a cell anew when it or a cell round it changes; over a hex grid the ways'
-// pieces are laid anew as the board changes.
+// Nothing of this is worked out per frame: what the shaders read of a cell — its kind's sprite
+// and Style, its way, the ground at its corners — is laid into an image, anew as the cell
+// changes, and the GPU works out the shapes from it. Over a square grid the whole board is
+// painted flat, the cells within two of a changed one anew, all of them when many changed, and
+// the shores worked out anew as a cell comes to shine or stops; over a hex grid the tops are
+// drawn anew, the ways with them, as the board changes or while water runs on a way.
 package painter

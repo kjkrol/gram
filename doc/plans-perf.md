@@ -992,5 +992,42 @@ navigation/hex i rules/effect identyczne, board/atlas i look/light różnią si�
 telemetrii. Pomiar raz, naprzemiennie z `7142fcc2`: z góry +0,7 ms, izo +0,7 ms, zmiana komórki
 bez różnicy.
 
-Otwarte: wypiek malarza na planszy kwadratowej (`bake.go`, `render.Paint`) nadal składa kawałki
-na CPU raz na zmianę (decyzja: nie teraz).
+Wypiek malarza na planszy kwadratowej (`bake.go`, `render.Paint`) przeszedł na GPU w części C
+niżej.
+
+### Wypiek malarza na GPU (część C, 2026-10-23)
+
+Wariant (b): CPU zapisuje tylko dane komórek, kształty liczą shadery.
+
+| Etap | Zmiana | Commit |
+|:--|:--|:--|
+| C1 | komórki z nakładką materiału nigdy „proste”: bierze je pełny przebieg (uniform `TileFull`), `overlayOf` zniknął z przebiegu prostego | `1ceec73e` |
+| C2 | mapa komórek malarza (`painter/cells.go`): blok 4×2 piksele na komórkę (sprite, flagi, `Spread`, połysk, przepływ, detal, droga, wysokości rogów), obraz prostokątów sprite'ów; zapis zmienionych komórek albo całości | `3fc31b88` |
+| C3 | albedo bez dróg na GPU (`paint_ground.wgsl`): baza, przejścia ćwiartkami z wagami po dwóch trójkątach | `4c9cf2d2` |
+| C4 | drogi na GPU (`paint_ways.wgsl`): kawałki budowane w shaderze wierzchołków (pień, dołączenia, łuki 6/4/2, zanik, mieszanie, wejście pod wodę, maska lądu, prędkość wody), do 46 kawałków; wierzchy heksów też z niego | `932aad8c` |
+| C5 | warstwy wody (przepływ, połysk, ujście) i detale rodzajów na GPU, jeden `bake` maluje wszystkie | `53e14c7f` |
+| C6 | brzegi na GPU (`paint_coast.wgsl`, `Painter.Shores`), teren kopiuje obraz do ćwiartki siatki; `Wet` i `CellDetails` z reguły | `b623c0d0` |
+| C7 | usunięty wypiek CPU (kawałki, płótna, `render.Paint` w malarzu, szukanie brzegów, niebo malarza); testy sprawdzają piksele wypieczonych obrazów | `1e573806` |
+| — | `Benchmark_Frame_Topography` czeka na GPU po pierwszej klatce | `6ee8d4f4` |
+| C8 | dokumenty | — |
+
+Zgodność sprawdzona, póki wypiek CPU istniał: albedo, woda, detale i brzegi planszy z morzem,
+rzekami, drogami i detalami co do piksela, całość i po zmianie; drogi na wierzchach heksów 11
+pikseli na 208 000. Bilans części C: −740 linii Go, +950 WGSL, +150 testów.
+
+Pomiar (Intel UHD 620, bardzo słabe GPU — na typowym przeniesienie na GPU wypada lepiej; decyzja
+użytkownika: zostaje). `Benchmark_Frame_Flat` po C1 naprzemiennie z `a255183f`: z góry
+15,3 → 14,0 ms, zmiana komórki 15,5 → 14,2, izo 15,2 → 14,1. `Benchmark_Frame_Topography`
+(poprawiony, 2 rundy naprzemiennie z `a255183f`): izo bez zmian (16,3/16,1 → 16,3/16,0 ms),
+perspektywa 20,4/20,2 → 20,4/21,3, izo pod słońcem 18,0/17,9 → 19,8/18,2 — w rozrzucie maszyny.
+Sam wypiek (sonda, mediany, CPU w `b623c0d0`): zmiana komórki +8,5 → +6 ms, cały wypiek
+(pierwsza klatka, zmiana stylu, ponad 1/8 komórek do przemalowania) +25 → +110 ms.
+
+Uwagi: naga źle kompilowała `counts[k] += 1` na tablicy lokalnej i funkcję zwracającą strukturę
+w poszukiwaniu brzegu — oba miejsca przepisane bez tego. `CellDetails` i `Wet` liczone z reguły
+są zachowawcze (kilka komórek więcej „ubranych”). Dema po C7: navigation/square i navigation/hex
+identyczne z C6, board/topography i look/sky ta sama scena.
+
+Otwarte: `look.Dressing.Sheet` we wszystkich implementacjach zwraca już sam atlas (kandydat do
+B1); cały wypiek na słabym GPU kosztuje ~110 ms (do przyspieszenia, jeśli będzie trzeba:
+przebieg gruntu po 5 warstwach albo 276 wierzchołków dróg na instancję).

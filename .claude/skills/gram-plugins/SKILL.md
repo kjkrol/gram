@@ -203,7 +203,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Spread` (blending between kinds). Slopes cost through the board's Map (`relief.Climbing{Up,
   Down, Ease, Steep, Free}`, `Map.Slope`/`Climb`/`Least`), so steep is the relief, never a kind.
   A `cell.Way` is a second layer on every cell entity, a band through the cell's middle whose kind
-  decides who may cross it (`Way.Over`), drawn by the painter's pieces; ways curve round the cell's
+  decides who may cross it (`Way.Over`), laid by the painter on the GPU; ways curve round the cell's
   middle, a way's `Fade` has it fade out (a river into the sea). Every cell is an entity for good,
   without a `world.Base`: `Plot`, `Ground` (kept apart so an effect ending restores the kind
   alone), `Way`, `Built`, made at Setup out of the seed or found after a load; `Version` and
@@ -350,8 +350,12 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Plugin.Seed(heights)` at Populate, shaped by `Raise`/`Lower`/`Level` — Shift+=, Shift+-, L-drag —
   `Shaping`). The plugin draws the ground, a `render.Direct` in the opaque pass (`ground` or
   `hexes`, the one it has, given `ctx.Draws`): over a square grid `internal/terrain` (the lattice as
-  a mesh, a depth prepass, the board painted flat by the painter into albedo and water sheets
-  sampled per pixel, lit per pixel by the sun and the lamps the frame holds (`lightWay`,
+  a mesh, a depth prepass, the board painted flat by the painter on the GPU into albedo and water
+  sheets sampled per pixel (`Painter.Surface`: what the shaders read of each cell laid into an
+  image, `cells.go`, anew as the cell changes; `paint_ground.wgsl` the grounds running in,
+  `paint_ways.wgsl` the ways' pieces in its vertex stage; the cells within two of a changed one
+  painted anew, all of them past an eighth; the shores worked out by `paint_coast.wgsl`,
+  `Painter.Shores`, and copied into the lattice on the GPU), lit per pixel by the sun and the lamps the frame holds (`lightWay`,
   `lampLightAt`) and shaded as the light baked it (`groundShadeOf`, `render.GroundShade`), each
   cell as its kind's `Takes` says (the bits in the lattice's green beside the wet flag,
   `Painted.Takes`, `takesAt`; how much it sways in the blue, `Painted.Sway`, `swayAmountAt`); a
@@ -362,7 +366,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   and paints the board's kinds beside the albedo (`Painter.Kinds`, each pixel its kind's detail
   in red, edged hard; the fourth draw image), and the shader (`detail.wgsl`, `grain` in
   `mesh.wgsl`) takes a uniform cell's detail from the flags' alpha (`Painter.CellDetails`,
-  `painter.Dressed` where the cell's pixels differ: coasts, roads — the kinds sheet is as big as
+  `painter.Dressed` where the cell's pixels may differ, by rule: a way on it or beside it, a
+  ground running in — the kinds sheet is as big as
   the albedo and reading it every pixel cost ~1.2 ms a frame on an Intel UHD 620), there reads
   the kinds once blended — four alike blend to their own number — and blends the four pixels'
   details only where kinds meet (frame image `GroundDetail`, `U.DetailPx` 0 none) into a tone
@@ -384,7 +389,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   follow, the skirt last) and fogged per pixel past `Sight − Fog` from `View.Fogging()`),
   over a hex grid `internal/hexes` (every cell a prism, its top from the board's tiles drawn
   whole from above, `look.Renderer.Whole`, and the painter's ways over them, `Painter.DrawWays`,
-  `lanes.wgsl`, anew as the board changes or every frame while water runs or glints; by
+  `paint_ways.wgsl`/`ways_tops.wgsl`, anew as the board changes or every frame while water runs or glints; by
   sector the instances laid in runs, a coarse sector's tops alone, `topVertices` 18). The
   entities are billboards on the GPU (`internal/billboards`, standing upright in the world across
   the screen's level right, so as tall on the screen as their `Height` stands there and inside their

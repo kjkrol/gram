@@ -828,6 +828,32 @@ baseline that day was 58 FPS, not 45):
 | perspective, 0.72 of the pixels | 83 |
 | perspective, in layers, the outer layer at 0.4 | 80 |
 
+**The ground painted on the GPU** (part C of `doc/plans-perf.md` "Płaska plansza na GPU",
+2026-10-23): the painter paints the board flat on the GPU instead of laying pieces on the CPU.
+The benchmark draws its first frame and now waits for it (`6ee8d4f4`): the board painted at it
+had landed in the first frame measured, +0.7 ms a frame isometric and +2.4 perspective at the
+default benchtime. Two rounds alternating, `a255183f` (painted on the CPU) against `6ee8d4f4`,
+the readback ~7.1 ms left in:
+
+| Frame | On the CPU | On the GPU |
+|:---|---:|---:|
+| isometric | 16.3 / 16.1 ms | 16.3 / 16.0 ms |
+| perspective | 20.4 / 20.2 ms | 20.4 / 21.3 ms |
+| isometric under a distant sun | 18.0 / 17.9 ms | 19.8 / 18.2 ms |
+
+The painting itself, a frame drawn and read back at a time, medians, the CPU's at `b623c0d0`:
+
+| Frame (isometric / perspective) | On the CPU | On the GPU |
+|:---|---:|---:|
+| the first, the board painted whole | 36 / 45 ms | 98 / 139 ms |
+| as it was | 15.6 / 19.2 ms | 15.6 / 20.2 ms |
+| a cell changed, the 25 round it painted anew | +8.6 / +8.4 ms | +5.5 / +6.7 ms |
+| a Style changed, the board painted whole | +26 / +24 ms | +105 / +114 ms |
+
+A cell's change costs less; the whole board, painted at the first frame, as a Style changes or as
+over an eighth of the cells are to be painted anew, four times as much on this GPU — a weak one,
+on which work moved onto the GPU measures at its worst.
+
 What it says: at the same pixels drawn the layers cost 3 FPS (4%), the three composes on the CPU
 ("drawing" 1.2 → 2.1 ms in isometry, 1.3 → 2.1 ms in perspective) and the two blits, and buy the
 centre at every pixel. The layers do not beat a uniform picture on frames; they spend the same
@@ -946,6 +972,10 @@ Measured back to back the same day, the board as it is laid once nothing is comp
 (`a255183f`: the overlay in the plain pass, the covers in order in the full one) against the
 tile map above (`7142fcc2`): from above 15.1 against 14.4 ms, a cell changed 15.4 against 15.3,
 isometric 15.3 against 14.6 — this machine ran slower that hour, so only the differences count.
+With the cells of a material out of the plain pass (`1ceec73e`, the full pass lays them), back to
+back against `a255183f`: from above 15.3 → 14.0 ms, a cell changed 15.5 → 14.2, isometric
+15.2 → 14.1; two rounds alternating later that day, `a255183f` against the topography's ground
+painted on the GPU (`1e573806`): 14.3 → 13.2, 14.7 → 13.5, 14.3 → 13.2.
 
 From above the CPU composed the board once into a picture kept on the GPU and drew it as it was;
 the tile map works every pixel's cell out anew, ~2 ms a frame more. In exchange a changed cell
