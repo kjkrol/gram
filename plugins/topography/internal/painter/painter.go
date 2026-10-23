@@ -55,6 +55,7 @@ type Painter struct {
 	bakeTile     tile
 	coast        coast
 	lanes        lanes
+	cells        cells
 }
 
 var (
