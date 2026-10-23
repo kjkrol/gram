@@ -1,27 +1,23 @@
-// Package look is how a board is drawn. A [Map] says how the cells lie on the screen ([Look]),
-// what lies over them beyond their sprites ([Dressing]) and how high they stand; the [Renderer]
-// reads the board as a [Board] and hands the Look every visible cell as a [Tile], which the Look
-// lays on the ground: from above its sprite over its box ([FlatLook], the simple map's), or as
-// the Map has it. A Map drawing its ground some other way has the Look [Nothing].
+// Package look is how a board is drawn. A [Map] says how the cells lie ([Look]: [Flat],
+// [Swaying] or [Nothing], for a Map drawing its ground some other way), what lies over them
+// beyond their sprites ([Dressing]) and how high they stand; the [Renderer] reads the board as a
+// [Board] and lays its tiles on the GPU every frame out of an image of its cells, a cell written
+// anew only when it changes: its sprite over its box, leant with the wind where the Look is
+// [Swaying], lit per pixel as it takes the frame's light, faded into the fog of the sectors seen;
+// a board of no world, or seen through a camera without lines of sight, draws nothing.
+// [Renderer.Whole] draws the whole board from above into an image.
 //
 // # Dressing
 //
-// The Map's Dressing lays what lies on the tiles beyond their sprites: the sheet they are drawn
-// from, their [Tile.Base], their light ([Tile.Light], [Tile.FaceLight]) and whatever lies on
-// them ([Tile.Dress]). A flat map seen from above whose Dressing lights every tile alike
-// ([EvenLit]) is composed once and kept on the GPU, composed anew only when a cell changes. A
+// The Map's Dressing picks the sheet the tiles are drawn from and each cell's base sprite; a
+// [Laid] one hands the ways and the covers, an [Overlaid] one a material over some tiles, and a
 // [GroundDressing] lays on the ground itself, right after it, what is part of it: the clouds'
-// shadows.
+// shadows. Where tiles overlap, each one and what lies on it lie over the cells before it, row by
+// row, the ways over all of them.
 //
 // # The grid
 //
 // [RenderState] holds the renderer's live toggles, the grid among them, and the line the grid is
 // drawn in ([RenderState.Grid]). It is left out where a cell spans fewer than [MinGridCell]
 // pixels on screen.
-//
-// # Parallel
-//
-// A Dressing that is [Parallel], under a Look that is a [ParallelLook], dresses the tiles on
-// several goroutines at once ([Renderer.Workers]), each drawing its run into a frame of its own
-// appended in order, so the picture is the one goroutine would draw.
 package look

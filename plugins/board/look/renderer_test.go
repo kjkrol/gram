@@ -2,15 +2,14 @@ package look_test
 
 import (
 	"image/color"
-	"math"
 	"testing"
 
-	"github.com/kjkrol/aabbworld/geom"
+	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
@@ -19,45 +18,9 @@ import (
 
 type flatAtlas struct{}
 
-func (flatAtlas) Atlas() *render.Image { return nil }
-
+func (flatAtlas) Atlas() *render.Image                            { return nil }
 func (flatAtlas) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 1, 1 }
-
-func (flatAtlas) White() (u, v float32) { return 0, 0 }
-
-type lookMap struct{ l look.Look }
-
-func (m lookMap) Look() look.Look                               { return m.l }
-func (lookMap) Dressing() look.Dressing                         { return nil }
-func (lookMap) Top(cell.ID) (corners [4]float32, level float32) { return corners, 0 }
-func (lookMap) Climb(cell.ID, cell.ID, cell.Domain) float64     { return 1 }
-func (lookMap) Least(cell.Domain) float64                       { return 1 }
-func (lookMap) Heights() ground.Heights                         { return nil }
-func (lookMap) Slope(geom.Vec, geom.Vec, cell.Domain) float64   { return 1 }
-
-func mapOf(l look.Look) look.Map { return lookMap{l} }
-
-func newRenderer(
-	b look.Board, atlas render.AtlasSource, state look.RenderState, m look.Map,
-) *look.Renderer {
-	r := look.NewRenderer(b, atlas, m, world.SpaceCfg{})
-	*r.State() = state
-	return r
-}
-
-func flatRenderer(brd *board.BoardRead, state look.RenderState) *look.Renderer {
-	return newRenderer(brd, flatAtlas{}, state, mapOf(look.FlatLook()))
-}
-
-// how many pieces lie at each height
-func compose(r *look.Renderer, cam camera.Camera) map[float32]int {
-	var f render.Frame
-	f.Reset(cam)
-	r.Compose(&f, cam)
-	out := map[float32]int{}
-	f.Each(func(at render.At, _ []render.Vertex) { out[at.Z()]++ })
-	return out
-}
+func (flatAtlas) White() (u, v float32)                           { return 0, 0 }
 
 // the grid on in a line width pixels wide
 func gridOf(line color.RGBA, width float32) look.RenderState {
@@ -66,217 +29,216 @@ func gridOf(line color.RGBA, width float32) look.RenderState {
 
 var black = color.RGBA{A: 255}
 
-// the lines of the grid composed through cam
-func gridLinesOf(r *look.Renderer, cam camera.Camera) [][]render.Vertex {
-	var f render.Frame
-	f.Reset(cam)
-	r.Compose(&f, cam)
-	var out [][]render.Vertex
-	f.Each(func(at render.At, v []render.Vertex) {
-		if at.Z() == look.GridLift {
-			out = append(out, append([]render.Vertex(nil), v...))
+// shot draws the sources through cam into a screen w by h, black first, and hands back its pixels
+// by screen point
+func shot(cam camera.Camera, w, h int, sources ...render.Source) func(x, y float32) color.RGBA {
+	screen := render.NewImage(w, h)
+	screen.Fill(black)
+	render.NewComposer(sources...).DrawWorld(screen, cam)
+	pix := make([]byte, 4*w*h)
+	screen.ReadPixels(pix)
+	return func(x, y float32) color.RGBA {
+		if x < 0 || y < 0 || int(x) >= w || int(y) >= h {
+			return color.RGBA{} // off the screen
 		}
-	})
-	return out
-}
-
-func TestRenderer_Compose_FlatLaysEveryVisibleCellOverItsBox(t *testing.T) {
-	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd, brdW := board.NewBoard(grid)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, Height: 0})
-	got := compose(flatRenderer(brd, look.RenderState{}), cameratest.NewFromSpace(128, 128, 0))
-	if len(got) != 1 || got[0] != 16 {
-		t.Errorf("composed %v, want the 16 cells on the ground and nothing else", got)
+		i := 4 * (int(y)*w + int(x))
+		return color.RGBA{pix[i], pix[i+1], pix[i+2], pix[i+3]}
 	}
 }
 
-func TestRenderer_Compose_DrawsEverySideOfASquareGridOnceWhereCellsAreLargeEnough(t *testing.T) {
-	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd, brdW := board.NewBoard(grid)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	r := flatRenderer(brd, gridOf(black, 1))
-	cam := cameratest.NewFromSpace(128, 128, 0)
-	if got := compose(r, cam); got[0] != 16 || got[look.GridLift] != 40 {
-		t.Errorf("composed %v, want the 16 tiles and the 40 sides of their cells", got)
-	}
-	cam.SetViewport(20, 20) // the whole board on 20 pixels: a cell is 5 across
-	cam.ZoomOut(32, 0, 0)
-	if n := len(gridLinesOf(r, cam)); n != 0 {
-		t.Errorf("%d lines drawn with cells a few pixels wide, want none", n)
-	}
-}
-
-func TestRenderer_Compose_DrawsEverySideOfAHexGridOnce(t *testing.T) {
-	grid := grid.DefaultGrids{}.Hex(3, 3, 32)
-	brd, brdW := board.NewBoard(grid)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	got := compose(flatRenderer(brd, gridOf(black, 1)), cameratest.NewFromSpace(256, 256, 0))
-	if got[0] != 9 || got[look.GridLift] != 38 {
-		t.Errorf("composed %v, want the nine hexes and the 38 sides of their cells", got)
-	}
-}
-
-func TestRenderer_Compose_DrawsTheGridInItsLine(t *testing.T) {
-	grid := grid.DefaultGrids{}.Square(2, 2, 32)
-	brd, brdW := board.NewBoard(grid)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	red := color.RGBA{R: 200, A: 128}
-	lines := gridLinesOf(flatRenderer(brd, gridOf(red, 3)), cameratest.NewFromSpace(64, 64, 0))
-	if len(lines) != 12 {
-		t.Fatalf("%d lines, want the 12 sides of four cells", len(lines))
-	}
-	for _, v := range lines {
-		across := float32(math.Hypot(float64(v[0].DstX-v[2].DstX), float64(v[0].DstY-v[2].DstY)))
-		r, a := float64(v[0].ColorR), float64(v[0].ColorA)
-		if math.Abs(r-200.0/255*128/255) > 1e-6 || math.Abs(a-128.0/255) > 1e-6 || across != 4 {
-			t.Fatalf("a line in %v %v %v %v, %v pixels across; want the red premultiplied, 3 "+
-				"pixels and its fading ones", v[0].ColorR, v[0].ColorG, v[0].ColorB, v[0].ColorA,
-				across)
+// near reports whether a and b differ by at most d in every channel
+func near(a, b color.RGBA, d int) bool {
+	for _, p := range [][2]uint8{{a.R, b.R}, {a.G, b.G}, {a.B, b.B}, {a.A, b.A}} {
+		if k := int(p[0]) - int(p[1]); k > d || k < -d {
+			return false
 		}
 	}
-	none := flatRenderer(brd, gridOf(red, 0))
-	if n := len(gridLinesOf(none, cameratest.NewFromSpace(64, 64, 0))); n != 0 {
-		t.Errorf("%d lines in a line no pixel wide, want none", n)
-	}
+	return true
 }
 
-func TestRenderer_Compose_AMaterialsCellKeepsItsGrid(t *testing.T) {
-	grid := grid.DefaultGrids{}.Square(2, 2, 32)
-	brd, brdW := board.NewBoard(grid)
-	brdW.SetAll(cell.Kind{Name: cell.Named("lava"), Cost: 1, Allows: cell.Land})
-	r := flatRenderer(brd, gridOf(black, 1))
-	r.Shade(map[cell.Name]render.MaterialID{cell.Named("lava"): 1})
-	got := compose(r, cameratest.NewFromSpace(64, 64, 0))
-	if got[0] != 0 || got[look.GridLift] != 12 {
-		t.Errorf("composed %v, want no tile but the 12 sides of the four cells", got)
-	}
-}
-
-func TestRenderer_Compose_DrawsEachSideOfAPartlySeenHexBoardOnce(t *testing.T) {
-	g := grid.DefaultGrids{}.Hex(8, 8, 20)
+func TestRenderer_LaysAFlatBoardOnTheGPUAndEachCellAsItChanges(t *testing.T) {
+	gputest.Need(t)
+	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
+	water := cell.Kind{SpriteID: 2, Cost: 1, Allows: cell.Water}
+	road := cell.Kind{SpriteID: 3, Cost: 1, Allows: cell.Land}
+	green := color.RGBA{R: 60, G: 160, B: 60, A: 255}
+	blue := color.RGBA{R: 40, G: 80, B: 200, A: 255}
+	brown := color.RGBA{R: 150, G: 120, B: 80, A: 255}
+	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	brd, brdW := board.NewBoard(g)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	var seen []cell.ID
-	lk := lookFn(func(_ *render.Frame, _ camera.Camera, t *look.Tile) { seen = append(seen, t.ID) })
-	r := newRenderer(brd, flatAtlas{}, gridOf(black, 1), mapOf(lk))
-	cam := cameratest.NewFromSpace(400, 400, 0)
-	cam.SetViewport(150, 110)
-	cam.MoveTo(70, 50)
-	type side [4]int32
-	sideOf := func(ax, ay, bx, by float64) side {
-		a := [2]int32{int32(math.Round(ax * 10)), int32(math.Round(ay * 10))}
-		b := [2]int32{int32(math.Round(bx * 10)), int32(math.Round(by * 10))}
-		if a[0] > b[0] || a[0] == b[0] && a[1] > b[1] {
-			a, b = b, a
-		}
-		return side{a[0], a[1], b[0], b[1]}
+	brdW.SetAll(grass)
+	for i := uint32(0); i < 8; i++ {
+		brdW.Set(g.At(i, 3), water)
+		brdW.SetWay(g.At(5, i), cell.Way{Kind: road, Width: 8, Links: 0xff})
 	}
-	drawn := map[side]int{}
-	ox, oy := cam.FromScreen(0, 0)
-	for _, v := range gridLinesOf(r, cam) {
-		// a line's ends are the middles of its quad's short sides, on screen from (ox, oy)
-		ax, ay := (v[0].DstX+v[2].DstX)/2+ox, (v[0].DstY+v[2].DstY)/2+oy
-		bx, by := (v[1].DstX+v[3].DstX)/2+ox, (v[1].DstY+v[3].DstY)/2+oy
-		drawn[sideOf(float64(ax), float64(ay), float64(bx), float64(by))]++
+	atlas := render.NewAtlas()
+	atlas.Add(grass.SpriteID, 4, render.Solid(green))
+	atlas.Add(water.SpriteID, 4, render.Solid(blue))
+	atlas.Add(road.SpriteID, 4, render.Solid(brown))
+	atlas.Close()
+	space := world.SpaceCfg{Width: 256, Height: 256}
+	r := look.NewRenderer(brd, atlas, brd.Map(), space)
+	cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
+	cam.SetViewport(200, 150)
+	cam.ZoomIn(1.5, 0, 0)
+	cam.MoveTo(100, 20)
+	middle := func(at func(x, y float32) color.RGBA, x, y uint32) color.RGBA {
+		return at(cam.Project(float32(x)*32+16, float32(y)*32+16, 0))
 	}
-	want := map[side]bool{}
-	for _, c := range seen {
-		o := g.CellOutline(c, nil)
-		for i, p := range o {
-			q := o[(i+1)%len(o)]
-			want[sideOf(p.X, p.Y, q.X, q.Y)] = true
-		}
+	at := shot(cam, 200, 150, r)
+	if !look.Tiled(r) {
+		t.Fatal("the board's tiles were not laid on the GPU")
 	}
-	if len(seen) == 0 || len(seen) == 64 {
-		t.Fatalf("%d of the 64 cells seen, want some of them", len(seen))
-	}
-	for s, n := range drawn {
-		if n != 1 || !want[s] {
-			t.Errorf("the side %v drawn %d times, want once, and only a seen cell's", s, n)
+	for _, c := range []struct {
+		x, y uint32
+		want color.RGBA
+		what string
+	}{{4, 1, green, "grass"}, {4, 3, blue, "water"}, {5, 1, brown, "the road across grass"},
+		{5, 3, brown, "the road across water"}, {6, 2, green, "grass beside the road"}} {
+		if got := middle(at, c.x, c.y); !near(got, c.want, 1) {
+			t.Errorf("the middle of cell %d, %d is %v, want %s's %v", c.x, c.y, got, c.what, c.want)
 		}
 	}
-	if len(drawn) != len(want) {
-		t.Errorf("%d sides drawn, want the %d of the %d cells seen", len(drawn), len(want),
-			len(seen))
+	brdW.Set(g.At(6, 2), water)
+	at = shot(cam, 200, 150, r)
+	if got := middle(at, 6, 2); !near(got, blue, 1) {
+		t.Errorf("a cell turned to water shows %v, want %v", got, blue)
+	}
+	if got := middle(at, 4, 1); !near(got, green, 1) {
+		t.Errorf("a cell left as it was shows %v, want %v", got, green)
+	}
+	// over a wrapping world's seam
+	space.Edges = aabbworld.Torus
+	r = look.NewRenderer(brd, atlas, brd.Map(), space)
+	cam = cameratest.NewFromSpace(space.Width, space.Height, aabbworld.Torus)
+	cam.SetViewport(200, 150)
+	cam.ZoomIn(1.5, 0, 0)
+	cam.MoveTo(190, 20)
+	at = shot(cam, 200, 150, r)
+	if c := at(150, 130); c != blue {
+		t.Errorf("past the seam, over the second column's water, the screen is %v, want %v", c, blue)
+	}
+	if c := at(150, 30); c != green {
+		t.Errorf("past the seam, over the second column's grass, the screen is %v, want %v", c, green)
 	}
 }
 
-func TestRenderer_Compose_HandsTheLookEveryCell(t *testing.T) {
+func TestRenderer_DrawsTheGridOverTheTilesLaidOnTheGPU(t *testing.T) {
+	gputest.Need(t)
+	green := color.RGBA{R: 60, G: 160, B: 60, A: 255}
+	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
+	atlas := render.NewAtlas()
+	atlas.Add(render.SpriteID(1), 4, render.Solid(green))
+	atlas.Close()
+	red := color.RGBA{R: 220, G: 30, B: 30, A: 200}
+	for _, c := range []struct {
+		name  string
+		grid  grid.Grid
+		state look.RenderState
+	}{
+		{"square", grid.DefaultGrids{}.Square(8, 8, 32), gridOf(red, 1)},
+		{"hex", grid.DefaultGrids{}.Hex(8, 8, 20), gridOf(red, 1)},
+		{"square, 3 pixels", grid.DefaultGrids{}.Square(8, 8, 32), gridOf(red, 3)},
+		{"hex, 3 pixels", grid.DefaultGrids{}.Hex(8, 8, 20), gridOf(red, 3)},
+	} {
+		brd, brdW := board.NewBoard(c.grid)
+		brdW.SetAll(grass)
+		space := world.SpaceCfg{Width: 400, Height: 300}
+		r := look.NewRenderer(brd, atlas, brd.Map(), space)
+		*r.State() = c.state
+		cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
+		cam.SetViewport(200, 150)
+		cam.ZoomIn(1.3, 0, 0)
+		cam.MoveTo(10, 10)
+		at := shot(cam, 200, 150, r)
+		cell := c.grid.At(2, 2)
+		middle := c.grid.CellCenter(cell)
+		outline := c.grid.CellOutline(cell, nil)
+		side := [2]float32{float32(outline[0].X+outline[1].X) / 2,
+			float32(outline[0].Y+outline[1].Y) / 2}
+		if got := at(cam.Project(float32(middle.X), float32(middle.Y), 0)); !near(got, green, 1) {
+			t.Errorf("%s: the middle of a cell is %v, want its grass %v", c.name, got, green)
+		}
+		if got := at(cam.Project(side[0], side[1], 0)); got.R < 150 || got.G > 80 {
+			t.Errorf("%s: the middle of a cell's side is %v, want the grid's red over it", c.name,
+				got)
+		}
+	}
+}
+
+func TestRenderer_LaysTheTilesInTheOpaquePassAndTheGridOverThem(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := board.NewBoard(grid)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	wood := grid.At(1, 1)
-	brdW.Set(wood, cell.Kind{Cost: 1, Allows: cell.Land, Height: 8, Sway: 1})
-	var seen int
-	var amount, rise float32
-	lk := lookFn(func(_ *render.Frame, _ camera.Camera, t *look.Tile) {
-		seen++
-		if t.ID == wood {
-			amount, rise = t.Sway()
-		}
-	})
-	r := newRenderer(brd, flatAtlas{}, look.RenderState{}, mapOf(lk))
-	compose(r, cameratest.NewFromSpace(128, 128, 0))
-	if seen != 16 || amount != 1 || rise != 8 {
-		t.Errorf("look saw %d cells, the wood swaying %v and standing %v high; want 16, 1 and the kind's 8", seen, amount, rise)
-	}
-}
-
-type lookFn func(f *render.Frame, cam camera.Camera, t *look.Tile)
-
-func (fn lookFn) Cell(f *render.Frame, cam camera.Camera, t *look.Tile) { fn(f, cam, t) }
-
-func TestTile_AFlatWorldIsDrawnAsItsSpritesAre(t *testing.T) {
-	grid := grid.DefaultGrids{}.Square(2, 2, 32)
-	brd, brdW := board.NewBoard(grid)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	var got render.Shade
-	lk := lookFn(func(_ *render.Frame, _ camera.Camera, t *look.Tile) { got = t.Light() })
-	r := newRenderer(brd, flatAtlas{}, look.RenderState{}, mapOf(lk))
-	compose(r, cameratest.NewFromSpace(64, 64, 0))
-	if got != render.Even(1) {
-		t.Errorf("a flat world's tile is lit %v, want as drawn", got)
-	}
-}
-
-func TestRenderer_Compose_FlatTilesAreDrawnAsTheyAre(t *testing.T) {
-	grid := grid.DefaultGrids{}.Square(2, 2, 32)
-	brd, brdW := board.NewBoard(grid)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	r := newRenderer(brd, flatAtlas{}, look.RenderState{}, mapOf(look.FlatLook()))
+	brdW.SetAll(cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land})
+	space := world.SpaceCfg{Width: 128, Height: 128}
+	r := look.NewRenderer(brd, &flatAtlas{}, brd.Map(), space)
+	*r.State() = gridOf(black, 1)
+	cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
 	var f render.Frame
-	cam := cameratest.NewFromSpace(64, 64, 0)
 	f.Reset(cam)
 	r.Compose(&f, cam)
-	var v render.Vertex
-	f.Each(func(_ render.At, verts []render.Vertex) { v = verts[0] })
-	if v.ColorR != 1 || v.ColorG != 1 || v.ColorB != 1 {
-		t.Errorf("a flat world's tile is lit %v %v %v, want as it is", v.ColorR, v.ColorG, v.ColorB)
+	var opaque int
+	var through []render.At
+	f.Places(func(p render.Pass, at render.At) {
+		if p == render.Opaque {
+			opaque++
+		} else {
+			through = append(through, at)
+		}
+	})
+	if opaque != 1 || len(through) != 1 || through[0].Z() != look.GridLift {
+		t.Errorf("%d opaque places and the grid at %v, want the ground once and its grid at %v",
+			opaque, through, look.GridLift)
 	}
 }
 
-type scaledCam struct{ camera.Camera }
-
-func (scaledCam) ScaleAt(_, y, _ float32) float32 {
-	if y < 64 {
-		return 1
-	}
-	return 0.1
+type dressedGround struct {
+	look.Dressing
+	passes []render.Pass
 }
 
-func TestRenderer_Compose_DrawsEachCellsGridAsLargeAsItIsDrawn(t *testing.T) {
+func (d *dressedGround) DressGround(t render.Target, _ camera.Camera, _ render.Uniforms) {
+	d.passes = append(d.passes, t.Pass)
+}
+
+type dressedMap struct {
+	look.Map
+	d *dressedGround
+}
+
+func (m dressedMap) Dressing() look.Dressing { return m.d }
+
+func TestRenderer_DressesTheGroundOnceAFrameRightAfterIt(t *testing.T) {
+	gputest.Need(t)
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := board.NewBoard(grid)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	r := flatRenderer(brd, gridOf(black, 1))
-	lines := gridLinesOf(r, scaledCam{cameratest.NewFromSpace(128, 128, 0)})
-	for _, v := range lines {
-		if v[0].DstY > 66 && v[1].DstY > 66 {
-			t.Fatalf("a line at %v down the screen, want none past the two nearer rows", v[0].DstY)
-		}
+	brdW.SetAll(cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land})
+	space := world.SpaceCfg{Width: 128, Height: 128, Edges: aabbworld.Torus}
+	d := &dressedGround{Dressing: brd.Map().Dressing()}
+	atlas := render.NewAtlas()
+	atlas.Add(render.SpriteID(1), 8, render.Solid(color.RGBA{G: 200, A: 255}))
+	atlas.Close()
+	r := look.NewRenderer(brd, atlas, dressedMap{brd.Map(), d}, space)
+	cam := cameratest.NewFromSpace(space.Width, space.Height, aabbworld.Torus)
+	cam.MoveTo(64, 64) // across both seams: the board drawn four times
+	render.NewComposer(r).DrawWorld(render.NewImage(128, 128), cam)
+	if len(d.passes) != 1 || d.passes[0] != render.Opaque {
+		t.Errorf("the ground was dressed in %v, want once, in the opaque pass", d.passes)
 	}
-	if len(lines) != 22 {
-		t.Errorf("%d lines, want the 22 sides of the 8 cells in the nearer rows: 32 pixels a "+
-			"cell there, 3 further", len(lines))
+}
+
+func TestRenderer_DrawsNothingOfABoardOfNoWorld(t *testing.T) {
+	grid := grid.DefaultGrids{}.Square(4, 4, 32)
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land})
+	r := look.NewRenderer(brd, &flatAtlas{}, brd.Map(), world.SpaceCfg{})
+	cam := cameratest.NewFromSpace(128, 128, 0)
+	var f render.Frame
+	f.Reset(cam)
+	r.Compose(&f, cam)
+	places := 0
+	f.Places(func(render.Pass, render.At) { places++ })
+	if places != 0 || look.Tiled(r) {
+		t.Errorf("a board of no world asks for %d places, want none", places)
 	}
 }

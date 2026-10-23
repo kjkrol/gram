@@ -159,7 +159,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   anew), and lays the casts after the ground over its depth (`internal/cast`, `cast.wgsl`, the
   rect each covers from the relief's extent, `f.ReadGround`, at `OnGround(castLift)` 0.05 under
   the grid). A ground draws itself in what the frame holds: `render.GroundShade`, `lightWay`,
-  `lampLightAt` (the terrain's `mesh.wgsl`, the hexes', the board's `shade.go` overlay). Tests:
+  `lampLightAt` (the terrain's `mesh.wgsl`, the hexes', the board's tiles, `look/tiles.go`). Tests:
   `plugin_test.go`, `shadows_test.go`, `internal/bake` (GPU: strips, blocks, level ground, reach,
   the library's probe). `Reporter()` the panel's "Light:" line. Depends on `world`.
   The shadows' settings sit under `control.PictureShadows` (2026-10-20): "Shadows follow the
@@ -187,7 +187,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `internal/grids`), so a hot loop walks the directions and `Neighbors` stays for the rare
   callers; bit i of a `cell.Links` is direction i — `grid.DefaultGrids`, `Link`, `Way`,
   `Straight`, `Direction`, `Nearest`, `Exit`, `Rim`, `Shape`/`ShapeOf`), **`board/look`**
-  (`look.Look`, `Dressing`, `EvenLit`, `Parallel`, `Tile`, `FlatLook`, `Nothing`, `Map`,
+  (`look.Look`: `Flat`, `Swaying`, `Nothing`; `Dressing`, `Laid`, `Overlaid`, `Map`,
   `Renderer`/`NewRenderer`, `RenderState`, `MinGridCell`), **`board/ground`** (`ground.Heights`,
   `Profile`, `Cover`, `Readied`, `Surfaces`, `MeanOfCells`, `Shaper`, `RoadFits`, `RoadJoins`,
   `RoadSlope`), **`board/water`** (brooks, streams, rivers and fords out of a relief:
@@ -203,7 +203,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Spread` (blending between kinds). Slopes cost through the board's Map (`relief.Climbing{Up,
   Down, Ease, Steep, Free}`, `Map.Slope`/`Climb`/`Least`), so steep is the relief, never a kind.
   A `cell.Way` is a second layer on every cell entity, a band through the cell's middle whose kind
-  decides who may cross it (`Way.Over`), drawn by `Tile.DrawWay`; ways curve round the cell's
+  decides who may cross it (`Way.Over`), laid by the painter on the GPU; ways curve round the cell's
   middle, a way's `Fade` has it fade out (a river into the sea). Every cell is an entity for good,
   without a `world.Base`: `Plot`, `Ground` (kept apart so an effect ending restores the kind
   alone), `Way`, `Built`, made at Setup out of the seed or found after a load; `Version` and
@@ -313,16 +313,25 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Terrain is never an entity in the space: the board's field (`internal/field`) is collision's
   `collision.Field` (`Solid`, `Overhang`), handed over by `Plugin.WithCollision`, and sight's
   `ground.Cover` (`Plugin.Cover`); both read the cell entities whenever asked. A flat board is lit
-  by the light plugin (`look.Renderer.WithLighting(world.Lighting)`: the board composed once and
-  drawn as it is, then `look/shade.go` multiplying the still per pixel by the frame's light —
-  the ambient, the distant light on level ground less the shade the frame holds, the lamps' —
-  `shaders/shade.wgsl`, `DrawMeshOptions.Multiply` (a multiply never brightens past the
-  albedo: the source is clamped to 1), as each cell's `cell.Kind.Takes` says, a cell taking
-  none left as drawn — a pixel a cell in an image rebuilt as the board changes; the tiles
-  composed into the frame lit by `Lighting.At` instead),
+  by the light plugin (`look.Renderer.WithLighting(world.Lighting)`) and drawn on the GPU out of
+  its tile map (`look/tiles.go`, 2026-10-23): an image of its cells, a 2×2 block a cell (sprite,
+  shade taken, flags, the way's sprite and links, covers, width, fade, sway, height, material),
+  and one of the sheet's rectangles; a changed cell (`CellVersion`) rewritten with its
+  neighbours, all of them past an eighth. Per pixel through the camera's rays the plain pass
+  (`tiles_plain.wgsl`: square cells nothing sways on or beside), the full one (`tiles.wgsl`:
+  every hex and the cells near what sways, the 3×3 round in the order the cells are laid, each
+  tile with the material over it, `look.Overlaid`, and its covers right after it), then the
+  covers of the plain cells and the ways as instances a cell (`tiles_covers.wgsl`,
+  `tiles_ways.wgsl`: the quarters, the bands and the hub's fan built in the vertex shader, a copy
+  across each seam in view), the clouds' shadows and the cells of a material last
+  (`tiles_material.wgsl`); lit per pixel by the frame's light — the ambient, the distant light on
+  level ground less the shade the frame holds, the lamps', clamped to 1 — as each cell's
+  `cell.Kind.Takes` says, a cell taking none left as drawn; the sectors seen at their levels
+  (`seen.go`). Nothing is composed on the CPU: a camera without rays or a board of no world
+  draws nothing; `Renderer.Whole` draws the whole board from above into an image),
   and takes the weather through `board.Plugin.WithAtmosphere(atmosphere)` (`lit.go`, reading
   `board.Atmosphere{Air}`: what sways leaning, the clouds' shadows laid on its ground right after
-  the still, `draw.Clouds`), called in a scene before the first frame; without either it is drawn
+  the tiles, `draw.Clouds`), called in a scene before the first frame; without either it is drawn
   as it is. The
   board's own Map is the simple map — flat, every kind in its sprite from the game's atlas
   (declared by `ctx.Looks` from the tiles, the sprites the cell's bounds across), the ways as bands
@@ -341,8 +350,12 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Plugin.Seed(heights)` at Populate, shaped by `Raise`/`Lower`/`Level` — Shift+=, Shift+-, L-drag —
   `Shaping`). The plugin draws the ground, a `render.Direct` in the opaque pass (`ground` or
   `hexes`, the one it has, given `ctx.Draws`): over a square grid `internal/terrain` (the lattice as
-  a mesh, a depth prepass, the board painted flat by the painter into albedo and water sheets
-  sampled per pixel, lit per pixel by the sun and the lamps the frame holds (`lightWay`,
+  a mesh, a depth prepass, the board painted flat by the painter on the GPU into albedo and water
+  sheets sampled per pixel (`Painter.Surface`: what the shaders read of each cell laid into an
+  image, `cells.go`, anew as the cell changes; `paint_ground.wgsl` the grounds running in,
+  `paint_ways.wgsl` the ways' pieces in its vertex stage; the cells within two of a changed one
+  painted anew, all of them past an eighth; the shores worked out by `paint_coast.wgsl`,
+  `Painter.Shores`, and copied into the lattice on the GPU), lit per pixel by the sun and the lamps the frame holds (`lightWay`,
   `lampLightAt`) and shaded as the light baked it (`groundShadeOf`, `render.GroundShade`), each
   cell as its kind's `Takes` says (the bits in the lattice's green beside the wet flag,
   `Painted.Takes`, `takesAt`; how much it sways in the blue, `Painted.Sway`, `swayAmountAt`); a
@@ -353,14 +366,15 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   and paints the board's kinds beside the albedo (`Painter.Kinds`, each pixel its kind's detail
   in red, edged hard; the fourth draw image), and the shader (`detail.wgsl`, `grain` in
   `mesh.wgsl`) takes a uniform cell's detail from the flags' alpha (`Painter.CellDetails`,
-  `painter.Dressed` where the cell's pixels differ: coasts, roads — the kinds sheet is as big as
+  `painter.Dressed` where the cell's pixels may differ, by rule: a way on it or beside it, a
+  ground running in — the kinds sheet is as big as
   the albedo and reading it every pixel cost ~1.2 ms a frame on an Intel UHD 620), there reads
   the kinds once blended — four alike blend to their own number — and blends the four pixels'
   details only where kinds meet (frame image `GroundDetail`, `U.DetailPx` 0 none) into a tone
   that multiplies the albedo, fading out below `detailNear` pixels a cell (no mipmaps; the
   details cost 1.7 ms a frame on an Intel UHD 620 at 40 px a cell, 265 to 182 FPS, 2026-10-20:
   ~0.4 of it the tile sampled minified, the rest the reads — the flags, the kinds where a cell
-  is dressed, the tile; mipmaps in `render/gpu` are the next step, for the far look as much);
+  is dressed, the tile; mipmaps in `internal/gpu` are the next step, for the far look as much);
   where a cell sways (`sway.wgsl`, `air.Weather.Sway` ported, gust fronts of `noise`, the
   amount and the wave worked out at the lattice's corners in `vs_main` and blended) the grain
   leans with `U.Wind`
@@ -373,7 +387,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   second corner within, the edge ring whole and stitched by fans, `sectors.go` `lattice.coarse`,
   tested crack-free — drawn by the ranges the camera's View sees (`runs`, joined where they
   follow, the skirt last) and fogged per pixel past `Sight − Fog` from `View.Fogging()`),
-  over a hex grid `internal/hexes` (every cell a prism from tiles composed once from above; by
+  over a hex grid `internal/hexes` (every cell a prism, its top from the board's tiles drawn
+  whole from above, `look.Renderer.Whole`, and the painter's ways over them, `Painter.DrawWays`,
+  `paint_ways.wgsl`/`ways_tops.wgsl`, anew as the board changes or every frame while water runs or glints; by
   sector the instances laid in runs, a coarse sector's tops alone, `topVertices` 18). The
   entities are billboards on the GPU (`internal/billboards`, standing upright in the world across
   the screen's level right, so as tall on the screen as their `Height` stands there and inside their
@@ -1046,7 +1062,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   in board/topography's `makePlugins`) draws the strips and the corner squares on the glass over
   every picture but one of the whole world (`render.Glass`, `zonesView.DrawGlass`, in shown
   pixels, after everything the scene lays over the picture: the HUD never covers them; the
-  user's word, 2026-10-20) in translucent yellow, a `render.FillQuad` each, clear at the inner
+  user's word, 2026-10-20) in translucent yellow, an `Image.FillQuad` each, clear at the inner
   bound and deepest at the picture's edge, the strips a gap short of the corners (the user's
   sketch, 2026-10-14; the gradient 2026-10-20); the strips `control.EdgeMargin` wide, 60 px, and
   the edge scroll a quarter the speed at the inner bound rising to the whole at the edge
@@ -1200,7 +1216,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Switch{Shown}` shows or hides them (`Show`, `Shown`), `Turn{On}` turns them with the
   camera or keeps north up (`SetTurning`, `Turning`); both `Res.Settings{Hidden, Turning}`, saved,
   the settings screen's, no key; `SetReach`. Grounds: `board.Plugin.Miniature` (the
-  flat look baked from a `render.Still`, a pixel a unit up to 2048, anew as the board changes),
+  board drawn whole from above by its tile map, `look.Renderer.Whole`, a pixel a unit up to
+  2048, anew as the board changes),
   `topography.Plugin.Miniature` (the painter's albedo, `px / cell`; the hexes' `top`). Depends on
   `world`, `cameras` (the command), `ui`, `render`.
 - **`bullet`** — shots as entities: `Plugin.Shots()` — `Shots.Define(name, Body{Size, Speed,

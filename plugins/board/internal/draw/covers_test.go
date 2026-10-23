@@ -9,6 +9,7 @@ import (
 
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/tag"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -18,37 +19,7 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
-
-func TestWeigh_IsTheShareOfTheCellsMeetingAtEachPoint(t *testing.T) {
-	alone := draw.Weigh([3][3]bool{{}, {false, true, false}, {}})
-	if want := [3][3]float32{{0.25, 0.5, 0.25}, {0.5, 1, 0.5}, {0.25, 0.5, 0.25}}; alone != want {
-		t.Errorf("a cell alone weighs %v, want %v", alone, want)
-	}
-	all := [3][3]bool{{true, true, true}, {true, true, true}, {true, true, true}}
-	if w := draw.Weigh(all); w[0][0] != 1 || w[1][1] != 1 || w[2][2] != 1 {
-		t.Errorf("a cell among others weighs %v, want one everywhere", w)
-	}
-	beside := draw.Weigh([3][3]bool{{true, false, false}, {true, false, false}, {true, false, false}})
-	if want := [3][3]float32{{0.5, 0, 0}, {0.5, 0, 0}, {0.5, 0, 0}}; beside != want {
-		t.Errorf("a cell beside a column weighs %v, want %v", beside, want)
-	}
-}
-
-func TestQuarters_LeaveOutWhereTheCoverShowsNowhere(t *testing.T) {
-	if q := draw.Quarters([3][3]float32{}, 0.2); len(q) != 0 {
-		t.Errorf("a tile nobody weighs has %d quarters, want none", len(q))
-	}
-	corner := [3][3]float32{{0.75, 0.5, 0.25}, {0.5, 0, 0}, {0.25, 0, 0}}
-	q := draw.Quarters(corner, 0.2)
-	if len(q) != 3 {
-		t.Fatalf("a tile weighed at one corner has %d quarters, want the three its weight reaches", len(q))
-	}
-	if q[0].Part != [4]float32{0, 0, 0.5, 0.5} || q[0].Weight != [4]float32{0.75, 0.5, 0.5, 0} {
-		t.Errorf("the first quarter is %+v, want the top-left weighed 0.75, 0.5, 0.5, 0", q[0])
-	}
-}
 
 type under struct {
 	*board.BoardRead
@@ -65,15 +36,13 @@ func (u under) States(c cell.ID) tag.Tags[effect.States] {
 
 type covered struct{ d *draw.Bands }
 
-func (m covered) Look() look.Look                               { return look.FlatLook() }
+func (m covered) Look() look.Look                               { return look.Flat }
 func (covered) Heights() ground.Heights                         { return nil }
 func (m covered) Dressing() look.Dressing                       { return m.d }
 func (covered) Top(cell.ID) (corners [4]float32, level float32) { return corners, 0 }
 
 func TestCover_LiesAlongALineOfItsOwn(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	gputest.Need(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
 	green := color.RGBA{R: 60, G: 160, B: 60, A: 255}
 	snow := color.RGBA{R: 240, G: 240, B: 250, A: 255}

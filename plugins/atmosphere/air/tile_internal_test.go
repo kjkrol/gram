@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -34,7 +35,7 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> {
 // the heaps' cores rise steeply at their edges, a pixel of the tile 49 world units wide: a wrap
 // read without its neighbour showed as a seam across the clouds
 func TestTile_ReadsOnAcrossItsWrap(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	const w = 400
 	for _, c := range []struct {
 		from, level float32

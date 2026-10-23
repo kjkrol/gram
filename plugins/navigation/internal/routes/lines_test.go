@@ -2,14 +2,13 @@ package routes
 
 import (
 	"image/color"
-	"os"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 // the level ground over the world, 256 a side, black, its depth written
@@ -24,7 +23,7 @@ fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(0.0, 0.0, 0.0, 1.0); }
 `), []render.Uniform{{Name: "ViewProj", Size: 16}})
 
 func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	cam := cameratest.NewFromSpace(256, 256, 0)
 	screen, depth, ground := render.NewImage(256, 256), render.NewDepth(), render.NewDepth().
 		Readable()
@@ -63,13 +62,6 @@ func TestRoutes_LayAStretchOverTheGround(t *testing.T) {
 	}
 	if g.Reset(); len(g.stretches) != 0 {
 		t.Error("reset, the stretches are kept")
-	}
-}
-
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
 	}
 }
 

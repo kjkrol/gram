@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -50,8 +51,8 @@ func (d *darkening) Compose(f *render.Frame, _ camera.Camera) {
 			1, 1, 1}})
 }
 
-func TestRenderer_ShadesTheStillAsTheFrameSaysWhereTheCellsTakeIt(t *testing.T) {
-	needGPU(t)
+func TestRenderer_ShadesTheTilesAsTheFrameSaysWhereTheCellsTakeIt(t *testing.T) {
+	gputest.Need(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
 	lava := cell.Kind{SpriteID: 2, Cost: 1, Allows: cell.Land, Takes: render.Shines}
 	grid := grid.DefaultGrids{}.Square(8, 8, 32)

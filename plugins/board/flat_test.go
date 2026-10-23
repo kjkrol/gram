@@ -36,7 +36,7 @@ func TestSimpleMap_IsFlatAndPricesNothingBeyondTheKinds(t *testing.T) {
 	if m.Climb(a, b, cell.Land) != 1 || m.Least(cell.Land) != 1 || m.Slope(geom.NewVec(16, 16), geom.NewVec(1, 0), cell.Land) != 1 {
 		t.Error("a simple map prices a step or the speed beyond the kind's cost")
 	}
-	if m.Look() != look.FlatLook() || m.Dressing() == nil {
+	if m.Look() != look.Flat || m.Dressing() == nil {
 		t.Error("a simple map is not seen flat from above with its bands over the tiles")
 	}
 }

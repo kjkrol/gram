@@ -3,18 +3,17 @@ package terrain
 import (
 	"image"
 	"image/color"
-	"os"
 	"testing"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 type bumped struct{}
@@ -50,7 +49,7 @@ func (downward) Rays() (camera.RayField, bool) {
 }
 
 func TestTerrain_DrawsTheLevelEvenlyAndABumpWhereItStands(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	r := New(bumped{}, &grey{}, noAir{}, Config{})
 	screen := render.NewImage(64, 64)
 	u := render.UniformsOf(map[string]any{"LightWay": []float32{0.3, 0.2, 1}, "LightStrength": []float32{1}, "LightColor": []float32{1, 1, 1}, "Ambience": []float32{0.2, 0.2, 0.2}})
@@ -73,7 +72,7 @@ func TestTerrain_DrawsTheLevelEvenlyAndABumpWhereItStands(t *testing.T) {
 }
 
 func TestTerrainShaders_Compile(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	if len(Shaders()) != cares {
 		t.Fatalf("%d shaders, want one a care, %d", len(Shaders()), cares)
 	}
@@ -131,7 +130,7 @@ type middled struct{ downward }
 func (middled) Focus() (x, y, z float32) { return 256, 256, 0 }
 
 func TestTerrain_KeepsTheWaterWetAndTheLandAlikeWithEveryCare(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	cam := middled{downward{cameratest.NewFromSpace(64, 64, 0)}}
 	grid := &farOff{}
 	v := view.NewSeen(cam, grid)
@@ -175,12 +174,5 @@ func TestTerrain_KeepsTheWaterWetAndTheLandAlikeWithEveryCare(t *testing.T) {
 			t.Errorf("land with care %d shows %v, with full care %v: want alike without a baked "+
 				"shade or a lamp", care, land[care], land[FullCare])
 		}
-	}
-}
-
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
 	}
 }

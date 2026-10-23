@@ -1,28 +1,20 @@
 package backdrop
 
 import (
-	"os"
 	"testing"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}
-
 func TestBackdrop_DrawsTheSkyOnTheGPU(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
 	sun := light.Distant{Dir: eyedF, Strength: 0.7, AmbientColor: render.Light{0.5, 0.7, 1}}
@@ -49,7 +41,7 @@ func TestBackdrop_DrawsTheSkyOnTheGPU(t *testing.T) {
 }
 
 func TestBackdrop_DrawsTheLayersFlatOrHeapedOrNone(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
@@ -118,7 +110,7 @@ func (standing) Init(*goke.SysInit)                         {}
 func (s standing) Compose(f *render.Frame, _ camera.Camera) { f.GroundHeights(s.GroundHeights) }
 
 func TestBackdrop_LeavesTheHeapsBeforeTheGroundToAnother(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
 	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})

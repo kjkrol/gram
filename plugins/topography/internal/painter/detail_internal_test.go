@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/ceremony"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/render"
@@ -64,7 +64,7 @@ func TestBakeTile_ScalesTheToneToAMeanOfAHalfAndBordersTheTileWithItsFarSide(t *
 }
 
 func TestPainter_BakesTheDetailsOnceAndPaintsEachPixelsKind(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	st := map[cell.Name]Style{}
 	kinds := testKinds{}
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
@@ -85,7 +85,7 @@ func TestPainter_BakesTheDetailsOnceAndPaintsEachPixelsKind(t *testing.T) {
 	}
 	brdW.Set(at(2, 0), sand)
 	brdW.Set(at(0, 3), bare)
-	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st).WithKinds(kinds)
+	d := New(brd, reliefFor(brd), false, st).WithKinds(kinds)
 	sheet, baked := d.Details()
 	if sheet == nil || baked != 1 || sheet.Bounds().Dx() != 2*DetailPitch ||
 		sheet.Bounds().Dy() != 1+DetailPitch {

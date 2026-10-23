@@ -1,0 +1,103 @@
+package text
+
+import (
+	"image"
+	"image/color"
+
+	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/render/internal/gfx"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/math/fixed"
+)
+
+// Debug text is printed in basicfont 7x13, glyphs six pixels apart, lines sixteen, white over a
+// black shadow a pixel down and right.
+const (
+	glyphWidth = 6
+	lineHeight = 16
+)
+
+var glyphs struct {
+	sheet *gfx.Image
+	cell  map[rune]int
+}
+
+const glyphCell = 7
+
+// basicfont has ASCII alone: '#' a lit pixel from a cell's top-left
+var handGlyphs = map[rune][]string{
+	'°': {"", "", "", "  ##", " #  #", " #  #", "  ##"},
+}
+
+func glyphSheet() *gfx.Image {
+	if glyphs.sheet != nil {
+		return glyphs.sheet
+	}
+	var runes []rune
+	for r := rune(0x20); r <= 0xff; r++ {
+		if r < 0x7f || r >= 0xa1 {
+			runes = append(runes, r)
+		}
+	}
+	img := image.NewRGBA(image.Rect(0, 0, glyphCell*len(runes), lineHeight))
+	d := font.Drawer{Dst: img, Src: image.NewUniform(color.White), Face: basicfont.Face7x13}
+	glyphs.cell = map[rune]int{}
+	for i, r := range runes {
+		glyphs.cell[r] = i
+		if rows, ok := handGlyphs[r]; ok {
+			for y, row := range rows {
+				for x, px := range row {
+					if px == '#' {
+						img.Set(i*glyphCell+x, y, color.White)
+					}
+				}
+			}
+			continue
+		}
+		d.Dot = fixed.P(i*glyphCell, 12)
+		d.DrawString(string(r))
+	}
+	glyphs.sheet = gfx.NewImage(img.Bounds().Dx(), img.Bounds().Dy())
+	glyphs.sheet.WritePixels(img.Pix)
+	return glyphs.sheet
+}
+
+// DebugPrintAt prints s with its top-left corner at (x, y), a line of it under another at each
+// newline.
+func DebugPrintAt(dst *gfx.Image, s string, x, y int) {
+	sheet := glyphSheet()
+	var verts []gpu.Vertex
+	var indices []uint16
+	for _, shade := range [2]struct {
+		dx, dy int
+		c      float32
+	}{{1, 1, 0}, {0, 0, 1}} {
+		col, line := 0, 0
+		for _, r := range s {
+			if r == '\n' {
+				col, line = 0, line+1
+				continue
+			}
+			i, ok := glyphs.cell[r]
+			if !ok {
+				i = glyphs.cell['?']
+			}
+			x0 := float32(x + col*glyphWidth + shade.dx)
+			y0 := float32(y + line*lineHeight + shade.dy)
+			u0 := float32(i * glyphCell)
+			v := func(dx, dy, su, sv float32) gpu.Vertex {
+				return gpu.Vertex{DstX: x0 + dx, DstY: y0 + dy, SrcX: u0 + su, SrcY: sv, ColorR: shade.c, ColorG: shade.c, ColorB: shade.c, ColorA: 1}
+			}
+			base := uint16(len(verts))
+			verts = append(verts, v(0, 0, 0, 0), v(glyphCell, 0, glyphCell, 0), v(0, lineHeight, 0, lineHeight), v(glyphCell, lineHeight, glyphCell, lineHeight))
+			indices = append(indices, base, base+1, base+2, base+1, base+2, base+3)
+			col++
+			if len(verts) > 65000 {
+				gpu.Sprites(gfx.GPU(dst), gfx.GPU(sheet), verts, indices, false, gpu.SourceOver)
+				verts, indices = verts[:0], indices[:0]
+			}
+		}
+	}
+	gpu.Sprites(gfx.GPU(dst), gfx.GPU(sheet), verts, indices, false, gpu.SourceOver)
+}

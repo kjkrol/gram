@@ -2,11 +2,11 @@ package board
 
 import (
 	"image/color"
-	"os"
 	"testing"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -14,15 +14,7 @@ import (
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
-
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}
 
 type heldSky struct {
 	sun     light.Distant
@@ -51,7 +43,7 @@ func (s skyAndStrip) Compose(f *render.Frame, cam camera.Camera) {
 }
 
 func TestAtmosphere_TheCloudsShadowsLieOnTheBoardsGroundUnderWhatLiesOnIt(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 4096, Height: 4096},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8},

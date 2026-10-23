@@ -86,7 +86,7 @@ cgo. Without a GPU the tests that draw skip themselves.
 | **Minimap** | `plugins/minimap` | A small picture round a player's camera, turning with it or north up: the ground in miniature, a dot for each kind its figure marks, the camera's view outlined; a click on it takes the camera there |
 | **Telemetry** | `plugins/telemetry` | The panel in the corner saying how the game runs — the frame rate, the ticks, where a frame's time goes, the entities, the game time, the plugins' and the game's own lines — in every Stage with a world, shown and hidden with ~ |
 | **Persistence** | `game.Persistence` | Save, load and list the active Stage's ECS and every tracked value by name |
-| **Rendering** | `render`, `camera` | Everything drawn on the GPU (WebGPU, WGSL): sources drawn over one another by height in a shared depth buffer, the ground first and the marks last, `Direct` sources with shaders of their own, a picture kept on the GPU (`Still`), an atlas baked at `Close` |
+| **Rendering** | `render`, `camera` | Everything drawn on the GPU (WebGPU, WGSL): sources drawn over one another by height in a shared depth buffer, the ground first and the marks last, `Direct` sources with shaders of their own, an atlas baked at `Close` |
 
 <a id="example"></a>
 # Example
@@ -567,7 +567,7 @@ has a `doc.go` describing what it brings. What is left to do is in
 |:---|:---|
 | [`camera`](camera/doc.go) | The contract of a view onto a world: screen conversion, culling, move and zoom, projections, fastening over an entity |
 | [`control`](control/doc.go) | The input vocabulary: `Binding`, the triggers, `Context`, `Keys`, a player's `Tool`; the commands a binding builds are `ceremony/command`'s |
-| [`render`](render/doc.go) | Drawing: `Renderer`, the `Composer` over `Source`s and its `Frame`, `Direct` sources, `Feed`, `Still`, `Atlas`, `Font`, the drawing rules a renderer runs every frame |
+| [`render`](render/doc.go) | Drawing: `Renderer`, the `Composer` over `Source`s and its `Frame`, `Direct` sources, `Feed`, `Atlas`, `Font`, the drawing rules a renderer runs every frame |
 | [`plugin`](plugin/doc.go) | The extension contract: `Plugin`, `Installer` (with `Hosts`, the hosts of a plugin's moments), `CommandHandler`, `Serializable`, `PostLoader`, `Populator`, `Made`; `plugin/section` the parts of a Stage |
 | [`entity`](entity/doc.go) | What every entity carries: `Base`, `Position`, `Velocity`, `Z`, `Layers`, `Eye`, `Lie`; `entity/kind` what an entity is (`Spec`, `Define`, `Of`, the roster) |
 | [`clock`](clock/doc.go) | The tactical clock: game time as the sum of the simulation's steps, the pause (Shift+P), the tempo (] and [), the `Moment` of a step with `At` and `Every` |

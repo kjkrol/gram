@@ -141,7 +141,7 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 	}
 	p.relief = irelief.New(brd, boardPlugin.Write().Board().Touch)
 	p.shaper = &shaper{relief: p.relief, cfg: shaping}
-	p.painter = ipainter.New(brd, p.relief, liveSky{p}, true, map[cell.Name]painter.Style{}).WithKinds(boardPlugin.Read(0).CellKinds())
+	p.painter = ipainter.New(brd, p.relief, true, map[cell.Name]painter.Style{}).WithKinds(boardPlugin.Read(0).CellKinds())
 	boardPlugin.WithMap(p)
 	if _, _, _, _, square := p.relief.Lattice(); square {
 		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{
@@ -151,7 +151,7 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 		p.careView = &careView{p}
 		p.write.SetCare(cfg.Care)
 	} else {
-		p.hexes = hexes.New(worldPlugin, boardPlugin, brd.Map(), p.relief, liveSky{p})
+		p.hexes = hexes.New(worldPlugin, boardPlugin, brd.Map(), p.relief, liveSky{p}, p.painter)
 	}
 	p.look = billboards.New(worldPlugin.Read(0).FlatLook(), liveSky{p}, p.relief)
 	worldPlugin.Write().SetLook(p.look)
@@ -175,7 +175,7 @@ func (s boardSurface) Surface() terrain.Painted {
 			out.CellDetails, out.CellDetailsAt = d.CellDetails()
 		}
 	}
-	out.Shores, out.Reach, out.Coast = d.Coast()
+	out.Shores, out.Reach, out.Coast = d.Shores(s.p.boardPlugin.Read(0).Atlas())
 	out.Takes, out.Sway, out.Styled = s.p.takes()
 	if line, width, shown := s.p.boardPlugin.Res.Render.Grid(); shown {
 		out.Grid, out.GridLine, out.GridWidth = look.MinGridCell, line, width

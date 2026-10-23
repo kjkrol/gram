@@ -6,26 +6,98 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 )
 
+// the composer's tests' sources, out here with the sprites a figure is drawn with
+type items func(f *Frame)
+
+func (items) Init(*goke.SysInit)                  {}
+func (s items) Compose(f *Frame, _ camera.Camera) { s(f) }
+
+type viewed func(f *Frame, cam camera.Camera)
+
+func (viewed) Init(*goke.SysInit)                    {}
+func (s viewed) Compose(f *Frame, cam camera.Camera) { s(f, cam) }
+
+type overlyingSource struct{ Source }
+
+func (overlyingSource) Overlies() {}
+
+type overlyingDirect struct{ Direct }
+
+func (overlyingDirect) Overlies() {}
+
+// an Overlying Direct noting the depths the pass over the figures hands it
+type overPeek struct{ depth, ground *Depth }
+
+func (*overPeek) Init(*goke.SysInit)                           {}
+func (*overPeek) Overlies()                                    {}
+func (*overPeek) Compose(f *Frame, _ camera.Camera)            { f.DrawAt(Nearest) }
+func (p *overPeek) Draw(t Target, _ camera.Camera, _ Uniforms) { p.depth, p.ground = t.Depth, t.Ground }
+
 var (
+	white       = color.RGBA{255, 255, 255, 255}
 	groundGreen = color.RGBA{G: 200, A: 255}
 	figureRed   = color.RGBA{R: 220, A: 255}
 	skyBlue     = color.RGBA{B: 230, A: 255}
 )
 
-// the left half of a 64 by 64 world, opaque at height 0
-type groundSource struct{ still *Still }
+// quads over the world, each flat at its height, in its colour, written into the depth
+var groundShader = NewMeshShaderWith("test ground", []byte(`
+struct Out {
+    @builtin(position) clip: vec4<f32>,
+    @location(0) @interpolate(flat) colour: vec4<f32>,
+}
+@vertex
+fn vs_main(@builtin(vertex_index) vid: u32, @location(0) box: vec4<f32>,
+    @location(1) look: vec4<f32>) -> Out {
+    var k = vid % 6u;
+    if k >= 3u {
+        k -= 2u;
+    }
+    let at = vec2<f32>(select(box.x, box.z, k % 2u == 1u), select(box.y, box.w, k / 2u == 1u));
+    var o: Out;
+    o.clip = U.GroundViewProj * vec4<f32>(at, look.w, 1.0);
+    o.colour = vec4<f32>(look.rgb, 1.0);
+    return o;
+}
+@fragment
+fn fs_main(o: Out) -> @location(0) vec4<f32> {
+    return o.colour;
+}
+`), []Uniform{{Name: "GroundViewProj", Size: 16}}).Instanced(2)
+
+// an opaque ground of quads, two vec4s each: x0, y0, x1, y1, then its colour and its height
+type groundSource struct{ quads []float32 }
 
 func (*groundSource) Init(*goke.SysInit)                {}
 func (*groundSource) Compose(f *Frame, _ camera.Camera) { f.DrawOpaque() }
 func (g *groundSource) Draw(t Target, cam camera.Camera, u Uniforms) {
-	if t.Pass == Opaque {
-		x, y := cam.FromScreen(0, 0)
-		g.still.Draw(t, cam, u, cam.Zoom(), x, y, Light{1, 1, 1})
+	if t.Pass != Opaque {
+		return
 	}
+	f, _ := cam.(camera.Rays).Rays()
+	w, h := cam.Viewport()
+	tr, ok := camera.SceneTransform(f, w, h)
+	if !ok {
+		return
+	}
+	opts := DrawMeshOptions{Uniforms: map[string]any{"GroundViewProj": tr.M[:]},
+		Instances: g.quads, Vertices: 6, Depth: t.Depth, WriteDepth: t.Depth != nil}
+	u.Into(opts.Uniforms)
+	t.Screen.DrawMesh(nil, groundShader, &opts)
 }
+
+// quad lays the box from (x0, y0) to (x1, y1) at height z in c
+func (g *groundSource) quad(x0, y0, x1, y1, z float32, c color.RGBA) *groundSource {
+	g.quads = append(g.quads, x0, y0, x1, y1,
+		float32(c.R)/255, float32(c.G)/255, float32(c.B)/255, z)
+	return g
+}
+
+var groundGrey = color.RGBA{R: 30, G: 30, B: 30, A: 255}
 
 // a figure over the world box (16, 16)-(32, 32) at height z, standing or lying
 type figureSource struct {
@@ -63,18 +135,13 @@ func atlasOf(t *testing.T) *Atlas {
 	a := NewAtlas()
 	a.Add(SpriteID(1), 8, Solid(groundGreen))
 	a.Add(SpriteID(2), 8, Solid(figureRed))
-	a.Add(SpriteID(3), 8, Solid(color.RGBA{R: 30, G: 30, B: 30, A: 255}))
+	a.Add(SpriteID(3), 8, Solid(groundGrey))
 	a.Close()
 	return a
 }
 
-func groundOf(a *Atlas) *groundSource {
-	s := NewStill()
-	s.Compose(64, 64, func(f *Frame, _ camera.Camera) {
-		f.SpriteRect(f.At(16, 32, 0), a, 1, 0, 0, 32, 64, Even(1))
-	})
-	return &groundSource{still: s}
-}
+// the left half of a 64 by 64 world, opaque at height 0
+func groundOf(*Atlas) *groundSource { return new(groundSource).quad(0, 0, 32, 64, 0, groundGreen) }
 
 func shot(t *testing.T, sources ...Source) func(x, y int) [4]byte {
 	t.Helper()
@@ -115,7 +182,7 @@ func groundShot(t *testing.T, c *Composer, sources ...Source) func(x, y int) [4]
 }
 
 func TestComposer_TheHigherCoversTheLowerWhateverTheOrderOfTheSources(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	a := atlasOf(t)
 	veil := color.RGBA{B: 255, A: 128}
 	decal := items(func(f *Frame) {
@@ -176,7 +243,7 @@ func TestComposer_TheHigherCoversTheLowerWhateverTheOrderOfTheSources(t *testing
 }
 
 func TestComposer_WhatLiesOverTheFiguresIsHiddenByTheGroundAlone(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	a := atlasOf(t)
 	look := color.RGBA{G: 255, B: 255, A: 255}
 	over := func(z float32) Source {
@@ -196,7 +263,7 @@ func TestComposer_WhatLiesOverTheFiguresIsHiddenByTheGroundAlone(t *testing.T) {
 }
 
 func TestComposer_TheOverPassBindsOverFiguresToTheGroundsDepth(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	a := atlasOf(t)
 	look := color.RGBA{G: 255, B: 255, A: 255}
 	over := func(z float32) Source {
@@ -206,9 +273,10 @@ func TestComposer_TheOverPassBindsOverFiguresToTheGroundsDepth(t *testing.T) {
 		})}
 	}
 	figure := overlyingDirect{&figureSource{atlas: a, z: 10, id: 2}}
-	c := NewComposer(groundOf(a), figure, over(1))
+	peek := &overPeek{}
+	c := NewComposer(groundOf(a), figure, over(1), peek)
 	at := groundShot(t, c)
-	if c.ground == nil || c.depth == c.ground {
+	if peek.ground == nil || peek.depth == peek.ground {
 		t.Error("over the figures the composer bound what lies over them to the figures' depth, " +
 			"want the ground's apart")
 	}
@@ -230,7 +298,7 @@ func TestComposer_TheOverPassBindsOverFiguresToTheGroundsDepth(t *testing.T) {
 }
 
 func TestComposer_AtOneHeightTheStandingCoversTheLying(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	a := atlasOf(t)
 	at := shot(t, groundOf(a), &twoFigures{atlas: a})
 	if p := at(24, 24); p != [4]byte{220, 0, 0, 255} {
@@ -279,7 +347,7 @@ func (p *peek) Draw(t Target, _ camera.Camera, _ Uniforms) {
 }
 
 func TestComposer_ADepthOnlyUnderAGroundAndTheGroundsOnlyForOneReadingIt(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	for _, tc := range []struct {
 		opaque, reads, depth, ground bool
 	}{
@@ -315,30 +383,30 @@ func (f *figured) SharpFigures() bool      { return f.sharp }
 
 // a checker of two world units at 0 over the 64 by 64 world, and a block 32 high over its left
 // half
-func checkeredGround(a *Atlas) *groundSource {
-	s := NewStill()
-	s.Compose(64, 64, func(f *Frame, _ camera.Camera) {
-		for y := float32(0); y < 64; y += 2 {
-			for x := float32(0); x < 64; x += 2 {
-				id := SpriteID(1 + 2*(int(x/2+y/2)%2))
-				f.SpriteRect(f.At(x, y, 0), a, id, x, y, x+2, y+2, Even(1))
+func checkeredGround(*Atlas) *groundSource {
+	g := new(groundSource)
+	for y := float32(0); y < 64; y += 2 {
+		for x := float32(0); x < 64; x += 2 {
+			c := groundGreen
+			if int(x/2+y/2)%2 == 1 {
+				c = groundGrey
 			}
+			g.quad(x, y, x+2, y+2, 0, c)
 		}
-		f.SpriteRect(f.At(16, 32, 32), a, 3, 0, 0, 32, 64, Even(1))
-	})
-	return &groundSource{still: s}
+	}
+	return g.quad(0, 0, 32, 64, 32, groundGrey)
 }
 
 func TestFeed_DrawsAFigureAtEveryPixelOverAHalfResolutionGround(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	a := atlasOf(t)
-	line := overlyingSource{items(func(f *Frame) {
-		x0, y0 := f.Camera().Project(4, 16.5, 0)
-		x1, _ := f.Camera().Project(60, 16.5, 0)
+	line := overlyingSource{viewed(func(f *Frame, cam camera.Camera) {
+		x0, y0 := cam.Project(4, 16.5, 0)
+		x1, _ := cam.Project(60, 16.5, 0)
 		f.Line(OnTop(0), x0, y0, x1, y0, 1, white)
 	})}
-	figure := overlyingSource{items(func(f *Frame) {
-		corners := ProjectCorners(f.Camera(), 16, 40, 48, 56, 10)
+	figure := overlyingSource{viewed(func(f *Frame, cam camera.Camera) {
+		corners := ProjectCorners(cam, 16, 40, 48, 56, 10)
 		f.Sprite(f.At(32, 48, 10), a, 2, corners, Even(1))
 	})}
 	picture := NewComposer(checkeredGround(a), figure, line)
@@ -386,7 +454,7 @@ func (p *painting) DrawWorld(screen *Image, _ camera.Camera) {
 }
 
 func TestFeed_LaysAFootedLayerFlushOnTheBottomEdgeFeatheredOnTheOtherSides(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	cam.(camera.Layered).SetLayers([]camera.Layer{
 		{Share: 1, Resolution: 0.5},
@@ -423,20 +491,15 @@ func TestFeed_LaysAFootedLayerFlushOnTheBottomEdgeFeatheredOnTheOtherSides(t *te
 
 // the ground at 0 over the 64 by 64 world with a ridge across it two units wide at x 31 to 33,
 // 32 high
-func ridgedGround(a *Atlas) *groundSource {
-	s := NewStill()
-	s.Compose(64, 64, func(f *Frame, _ camera.Camera) {
-		f.SpriteRect(f.At(32, 32, 0), a, 1, 0, 0, 64, 64, Even(1))
-		f.SpriteRect(f.At(32, 32, 32), a, 3, 31, 0, 33, 64, Even(1))
-	})
-	return &groundSource{still: s}
+func ridgedGround(*Atlas) *groundSource {
+	return new(groundSource).quad(0, 0, 64, 64, 0, groundGreen).quad(31, 0, 33, 64, 32, groundGrey)
 }
 
 func TestLaid_AFigureBehindAHillIsHiddenThroughAnInnerLayersDepth(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	a := atlasOf(t)
-	figure := overlyingSource{items(func(f *Frame) {
-		corners := ProjectCorners(f.Camera(), 20, 20, 44, 44, 10)
+	figure := overlyingSource{viewed(func(f *Frame, cam camera.Camera) {
+		corners := ProjectCorners(cam, 20, 20, 44, 44, 10)
 		f.Sprite(f.At(32, 32, 10), a, 2, corners, Even(1))
 	})}
 	picture := NewComposer(ridgedGround(a), figure)
@@ -465,5 +528,56 @@ func TestLaid_AFigureBehindAHillIsHiddenThroughAnInnerLayersDepth(t *testing.T) 
 		if p := at(x, 30); p != [4]byte{220, 0, 0, 255} {
 			t.Errorf("beside the ridge at (%d, 30) the figure shows %v, want it red", x, p)
 		}
+	}
+}
+
+func TestComposer_ALayerLeavesOutTheGroundUnderTheHole(t *testing.T) {
+	gputest.Need(t)
+	a := atlasOf(t)
+	c := NewComposer(groundOf(a), skySource{}, &figureSource{atlas: a, z: 10, id: 2})
+	cam := cameratest.NewFromSpace(64, 64, 0)
+	cam.SetViewport(64, 64)
+	crop := cam.(camera.Cropping)
+	whole := camera.Window{W: 64, H: 64}
+	crop.Crop(whole, 1)
+	c.Lay(cam, false)
+	crop.Uncrop()
+	crop.Crop(whole, 0.5)
+	layer := NewImage(32, 32)
+	// the layer's pixels 12 to 24 across, 8 to 24 down: over half the figure, the ground and sky
+	c.DrawLayer(layer, cam, whole, camera.Window{X: 24, Y: 16, W: 24, H: 32})
+	crop.Uncrop()
+	at := pixelsOf(layer)
+	for _, p := range [][2]int{{13, 12}, {13, 20}, {20, 20}, {23, 23}} {
+		if px := at(p[0], p[1]); px != [4]byte{} {
+			t.Errorf("under the hole (%d, %d) shows %v, want nothing drawn", p[0], p[1], px)
+		}
+	}
+	if px := at(3, 3); px != [4]byte{0, 200, 0, 255} {
+		t.Errorf("beside the hole the ground shows %v, want green", px)
+	}
+	if px := at(28, 4); px != [4]byte{0, 0, 230, 255} {
+		t.Errorf("beside the hole the sky shows %v, want blue", px)
+	}
+	if px := at(10, 12); px != [4]byte{220, 0, 0, 255} {
+		t.Errorf("the figure beside the hole shows %v, want red", px)
+	}
+}
+
+func TestSprites_TurnIntoTheFogsColourAsFarAsTheirFog(t *testing.T) {
+	gputest.Need(t)
+	a := atlasOf(t)
+	blue := items(func(f *Frame) { f.Uniform("Fog", 0, 0, 1) })
+	all := shot(t, groundOf(a), &figureSource{atlas: a, z: 10, id: 2, fog: 1}, blue)
+	if got := all(24, 24); got != [4]byte{0, 0, 255, 255} {
+		t.Errorf("all in the fog the figure shows %v, want the fog's blue", got)
+	}
+	half := shot(t, groundOf(a), &figureSource{atlas: a, z: 10, id: 2, fog: 0.5}, blue)
+	if got := half(24, 24); got[0] < 100 || got[0] > 120 || got[2] < 120 || got[2] > 135 {
+		t.Errorf("half in the fog the figure shows %v, want half its red, half the blue", got)
+	}
+	clear := shot(t, groundOf(a), &figureSource{atlas: a, z: 10, id: 2}, blue)
+	if got := clear(24, 24); got != [4]byte{220, 0, 0, 255} {
+		t.Errorf("out of the fog the figure shows %v, want it red", got)
 	}
 }

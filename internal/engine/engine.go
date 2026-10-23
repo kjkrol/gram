@@ -11,9 +11,9 @@ import (
 	"github.com/gogpu/gogpu"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/gpu"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 const (
@@ -218,7 +218,7 @@ func (e *Engine) frame(dc *gogpu.Context) {
 	e.spent.present += time.Since(drawn)
 	if since := time.Since(e.counted); since >= time.Second {
 		rate := float64(e.frames) / since.Seconds()
-		render.SetRates(rate, rate)
+		render.SetRates(rate)
 		n := time.Duration(e.frames)
 		render.SetSpent(e.spent.update/n, e.spent.draw/n, e.spent.present/n)
 		if logRates {

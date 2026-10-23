@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
@@ -30,7 +31,7 @@ func (one) Of(float64, float64) int { return 0 }
 func (one) Off(int) bool            { return false }
 
 func TestTerrain_TurnsTheGroundPastTheSightIntoTheFog(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	cam := fogging{downward{cameratest.NewFromSpace(64, 64, 0)}}
 	v := view.NewSeen(cam, one{})
 	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 512, Height: 512, BucketSize: 128})

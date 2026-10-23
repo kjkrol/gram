@@ -2,12 +2,11 @@ package air
 
 import (
 	"math"
-	"os"
 	"reflect"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 var (
@@ -155,13 +154,6 @@ func TestPatch_IsAComponentOfFixedSizeWithoutPointers(t *testing.T) {
 	check(reflect.TypeFor[Patch](), "Patch")
 }
 
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}
-
 var airProbe = render.NewMeshShaderWith("air probe", []byte(`
 struct Out { @builtin(position) clip: vec4<f32>, @location(0) px: vec2<f32> }
 @vertex
@@ -183,7 +175,7 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> {
 `), []render.Uniform{{Name: "Pixels", Size: 2}, {Name: "From", Size: 2}, {Name: "Step", Size: 2}})
 
 func TestDome_TheShadersReadTheDomeAsTheCPUDoes(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	d := laidDome(640, 480, 6000, clearMass)
 	drift := [2]float32{}
 	carry := func(masses ...Mass) {

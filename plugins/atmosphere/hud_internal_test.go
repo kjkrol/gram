@@ -2,7 +2,6 @@ package atmosphere
 
 import (
 	"math"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -15,12 +14,12 @@ import (
 	"github.com/kjkrol/gram/game"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/internal/engine"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/calendar"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate"
 	"github.com/kjkrol/gram/plugins/atmosphere/climate/weather"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 	"github.com/kjkrol/gram/ui"
 )
 
@@ -158,13 +157,6 @@ func TestBar_IsAsWideAsTheWidgetsItHoldsSideBySide(t *testing.T) {
 	}
 }
 
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}
-
 // the mean red of the left and the right of the moon drawn in a square box, the rim and the
 // terminator at the quarters left out
 func halves(t *testing.T, moon float32) (left, right float64) {
@@ -196,7 +188,7 @@ func halves(t *testing.T, moon float32) (left, right float64) {
 }
 
 func TestMoonIcon_LightsTheSideOfItsPhaseAsTheNorthSeesIt(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	darkLeft, darkRight := halves(t, 0)
 	for _, c := range []struct {
 		moon        float32
@@ -219,7 +211,7 @@ func TestMoonIcon_LightsTheSideOfItsPhaseAsTheNorthSeesIt(t *testing.T) {
 }
 
 func TestMoonIcon_StandsAtTheRightOfABoxWiderThanTall(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	icon := &moonIcon{moon: func() float32 { return 0.5 }}
 	icon.Resize(40, 32)
 	img := icon.Draw()

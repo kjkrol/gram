@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
@@ -32,7 +33,7 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> {
 	{Name: "Ground", Size: 1}})
 
 func TestShade_TheShadersShadeAsTheCPUDoes(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	const w = 2000
 	sun := [3]float32{0.48, -0.36, 0.8}
 	for _, c := range []struct {
@@ -139,7 +140,7 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> {
 	{Name: "Span", Size: 1}})
 
 func TestLowBand_TheShadersHangTheLowCloudsAsTheCPUDoes(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	const w = 2000
 	for _, ceilings := range [][3]float32{{0.3, 0.15, 0.55}, {0, 1, 0}, {0.5, 0, 0.5}} {
 		weather := banded(Weather{Drift: [2]float32{5000, 1200}}, 1860, ceilings)

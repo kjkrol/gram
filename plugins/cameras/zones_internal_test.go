@@ -1,26 +1,18 @@
 package cameras
 
 import (
-	"os"
 	"testing"
 
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
-
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}
 
 // the zones p draws on the glass over a picture 1000 by 800 through cam: the pixels' alpha
 func glassOf(t *testing.T, p *Plugin, cam camera.Camera) func(x, y int) byte {
@@ -34,7 +26,7 @@ func glassOf(t *testing.T, p *Plugin, cam camera.Camera) func(x, y int) byte {
 }
 
 func TestZones_TheCommandSwitchesTheZonesDrawn(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	w := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 800},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
@@ -96,7 +88,7 @@ func TestPlugin_DrawsTheZonesAndTheLayers(t *testing.T) {
 }
 
 func TestZones_FadeFromClearInsideToTheColourAtTheEdge(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	p := NewPlugin(world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 1000, Height: 800},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},

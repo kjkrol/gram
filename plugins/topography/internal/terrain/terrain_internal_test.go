@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/light"
-	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/plugins/topography/painter"
 	"github.com/kjkrol/gram/render"
 )
@@ -52,7 +52,7 @@ func (h hill) Version() uint64 { return h.version }
 
 type flat struct {
 	img    *render.Image
-	shores []water.Shore
+	shores *render.Image
 	coast  uint64
 	grid   float32
 	line   [4]float32
@@ -164,7 +164,7 @@ func (e eye) Project(x, y, z float32) (float32, float32) {
 }
 
 func TestRenderer_RefreshesTheLatticeWhenTheGroundOrTheCoastChanges(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	g := &hill{}
 	f := &flat{}
 	r := New(g, f, stillSky{}, Config{})
@@ -253,32 +253,8 @@ func TestFlags_MarkTheCellsWaterMayLieOnTheShadeTheyTakeAndTheirSway(t *testing.
 	}
 }
 
-func TestShores_HoldTheWayAndHowFar(t *testing.T) {
-	reach := float32(96)
-	from := []water.Shore{{X: 0.6, Y: -0.8, Dist: 30, Near: 1 - 30/reach}, {}, {X: -1, Y: 0, Dist: 0, Near: 1}}
-	buf := shores(2, 2, from, reach, nil)
-	decode := func(i int) (x, y, d float32) {
-		return float32(buf[4*i])/255*2 - 1, float32(buf[4*i+1])/255*2 - 1, float32(buf[4*i+2]) / 255 * reach
-	}
-	near := func(a, b, tol float32) bool { return math.Abs(float64(a-b)) <= float64(tol) }
-	if x, y, d := decode(0); !near(x, 0.6, 1.0/127) || !near(y, -0.8, 1.0/127) || !near(d, 30, reach/255) {
-		t.Errorf("a shore 30 off to the south-east decodes to (%v, %v) %v off", x, y, d)
-	}
-	if x, y, d := decode(3); math.Hypot(float64(x), float64(y)) > 0.01 || !near(d, reach, reach/255) {
-		t.Errorf("a corner with no shore given decodes to (%v, %v) %v off, want no way, open water", x, y, d)
-	}
-	if x, _, d := decode(2); !near(x, -1, 1.0/127) || d != 0 {
-		t.Errorf("a corner on the shore decodes to x %v, %v off; want west, on it", x, d)
-	}
-	for i := 3; i < len(buf); i += 4 {
-		if buf[i] != 255 {
-			t.Fatalf("corner %d is not opaque", i/4)
-		}
-	}
-}
-
 func TestRenderer_PreparesTheFramesUniformsWithItsOwnOver(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	f := &flat{grid: 6, line: [4]float32{0.5, 0, 0, 0.5}, width: 3}
 	r := New(hill{}, f, stillSky{}, Config{})
 	cam := eye{Camera: cameratest.NewFromSpace(512, 512, 0), at: [3]float32{100, 256, 4}}

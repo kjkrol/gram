@@ -2,7 +2,6 @@ package look
 
 import (
 	"image/color"
-	"os"
 	"testing"
 
 	"github.com/kjkrol/aabbworld"
@@ -11,9 +10,9 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 type lookSource struct {
@@ -38,7 +37,7 @@ func (s *lookSource) Draw(t render.Target, cam camera.Camera, u render.Uniforms)
 }
 
 func TestFlatLook_DrawsOnTheGPUAsOnTheFrame(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	atlas := render.NewAtlas()
 	atlas.Add(render.SpriteID(1), 8, func(dst *render.Canvas, size int) {
 		dst.FillRect(0, 0, float32(size), float32(size), color.RGBA{R: 200, G: 40, B: 40, A: 255})
@@ -80,15 +79,8 @@ func TestFlatLook_DrawsOnTheGPUAsOnTheFrame(t *testing.T) {
 	}
 }
 
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}
-
 func TestFlatLook_TurnedFromAboveDrawsOnTheGPUAsOnTheFrame(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	atlas := render.NewAtlas()
 	atlas.Add(render.SpriteID(1), 8, func(dst *render.Canvas, size int) {
 		dst.FillRect(0, 0, float32(size), float32(size), color.RGBA{R: 200, G: 40, B: 40, A: 255})

@@ -2,13 +2,13 @@ package topography_test
 
 import (
 	"image/color"
-	"os"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -16,7 +16,6 @@ import (
 	"github.com/kjkrol/gram/plugins/topography"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 type flatSource struct {
@@ -74,9 +73,7 @@ func (s *flatSource) Draw(t render.Target, cam camera.Camera, u render.Uniforms)
 }
 
 func TestFlatLook_FromAboveDrawsOnTheGPUAsOnTheFrame(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	gputest.Need(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 65536, Height: 65536},
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 1, MaxSize: 20}, Heights: true})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(2048, 2048, 32), &cell.MultipleOccupancy{}, w)

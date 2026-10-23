@@ -2,18 +2,17 @@ package light_test
 
 import (
 	"math"
-	"os"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
@@ -112,15 +111,8 @@ func TestDistant_LaysAShadowAwayFromItPushedOffByHowHighTheEntityStands(t *testi
 }
 
 func TestDistant_ItsShaderCompiles(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	if err := render.Compile(); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
 	}
 }

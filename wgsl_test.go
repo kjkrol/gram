@@ -43,7 +43,7 @@ func TestWGSL_EntryPointsTakeEachBuiltinOnce(t *testing.T) {
 }
 
 // the directories whose WGSL is composed into other packages' shaders
-var wgslLibraries = map[string]bool{"render/shaders": true, "render/gpu/shaders": true}
+var wgslLibraries = map[string]bool{"render/internal/wgsl": true, "internal/gpu/shaders": true}
 
 type wgslUnit struct {
 	name, dir string // dir is "" for a Go literal

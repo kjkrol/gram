@@ -359,17 +359,18 @@ The board's renderer composing the whole of a 96×64 island of cells 32 wide, fr
 isometric: a sea lying `Under` it, earth, sand and rock blending, and the brooks, streams and
 rivers `water.Drain` works out of its heights laid across it as curving ways, running out to sea —
 warm, and after a cell ashore has changed; and the isometric and the perspective island through a
-1080p screen, as a player sees it. The tiles are dressed on every CPU (`board.Plugin.WithWorkers`);
-`serial` is one goroutine. Measured on 2026-09-29, the better of two runs of 100 frames.
+1080p screen, as a player sees it. The tiles are dressed on one goroutine. Measured on
+2026-09-29, the better of two runs of 100 frames; "on every CPU" is the parallel dressing
+(`board.Plugin.WithWorkers`), gone on 2026-10-23 with no game using it.
 
-| View | Warm | A cell changed | Warm, serial | A cell changed, serial |
+| View | Warm | A cell changed | Warm, on every CPU | A cell changed, on every CPU |
 |:--|--:|--:|--:|--:|
-| from above | 2.57 ms | 2.55 ms | 4.30 ms | 4.43 ms |
-| isometric | 1.80 ms | 1.80 ms | 2.71 ms | 2.72 ms |
-| isometric, 1080p | 0.73 ms | 0.73 ms | 0.91 ms | 0.90 ms |
-| perspective, 1080p | 3.95 ms | 3.94 ms | 6.83 ms | 6.83 ms |
-| from above, far | 1.57 ms | 1.57 ms | 2.49 ms | 2.52 ms |
-| isometric, far | 1.72 ms | 1.73 ms | 2.70 ms | 2.73 ms |
+| from above | 4.30 ms | 4.43 ms | 2.57 ms | 2.55 ms |
+| isometric | 2.71 ms | 2.72 ms | 1.80 ms | 1.80 ms |
+| isometric, 1080p | 0.91 ms | 0.90 ms | 0.73 ms | 0.73 ms |
+| perspective, 1080p | 6.83 ms | 6.83 ms | 3.95 ms | 3.94 ms |
+| from above, far | 2.49 ms | 2.52 ms | 1.57 ms | 1.57 ms |
+| isometric, far | 2.70 ms | 2.73 ms | 1.72 ms | 1.73 ms |
 
 Far — the whole island on a screen of 576 by 384, a cell 6 pixels across — a tile's water lays no
 overlay (the landscape's detail), and its shore is not worked out. There the tiles are dressed from
@@ -379,9 +380,9 @@ much again, which the sheet saves too: in the island demos at 1024 by 768, fully
 frame took 10.5 ms of the CPU isometric and 5.0 ms from above before the sheet, 8.9 and 3.1 ms
 after it (2026-09-26).
 
-On eight threads the tiles take a half to two thirds of the time they took on one: what stays on
-the frame's goroutine is culling the cells under the camera (`onScreen`, every cell of the board
-in perspective), painting the ground sheet when the board changed, warming the shores, and
+On eight threads the tiles took a half to two thirds of the time they took on one: what stayed
+on the frame's goroutine was culling the cells under the camera (`onScreen`, every cell of the
+board in perspective), painting the ground sheet when the board changed, warming the shores, and
 appending every worker's vertices to the frame once more (`render.Frame.Append`).
 
 The composer's own share of handing a frame to Ebitengine — `Benchmark_Composer_Render`, the
@@ -925,6 +926,72 @@ The island has no clouds, so R1 does not show here: measured by the part in one 
 screen's pixels and 3.7 ms at a ground of 0.6 (the march falls with the ground's pixels; the
 lay, a full screen's fill, stays at ~1.45 ms). The hole costs two depth fills a frame (about 79
 allocations, gogpu's boxing a draw) and gives back 1.3–1.8 ms; the pictures do not change.
+
+**The ground painted on the GPU** (part C of `doc/plans-perf.md` "Płaska plansza na GPU",
+2026-10-23): the painter paints the board flat on the GPU instead of laying pieces on the CPU.
+The benchmark draws its first frame and now waits for it (`6ee8d4f4`): the board painted at it
+had landed in the first frame measured, +0.7 ms a frame isometric and +2.4 perspective at the
+default benchtime. Two rounds alternating, `a255183f` (painted on the CPU) against `6ee8d4f4`,
+the readback ~7.1 ms left in:
+
+| Frame | On the CPU | On the GPU |
+|:---|---:|---:|
+| isometric | 16.3 / 16.1 ms | 16.3 / 16.0 ms |
+| perspective | 20.4 / 20.2 ms | 20.4 / 21.3 ms |
+| isometric under a distant sun | 18.0 / 17.9 ms | 19.8 / 18.2 ms |
+
+The painting itself, a frame drawn and read back at a time, medians, the CPU's at `b623c0d0`:
+
+| Frame (isometric / perspective) | On the CPU | On the GPU |
+|:---|---:|---:|
+| the first, the board painted whole | 36 / 45 ms | 98 / 139 ms |
+| as it was | 15.6 / 19.2 ms | 15.6 / 20.2 ms |
+| a cell changed, the 25 round it painted anew | +8.6 / +8.4 ms | +5.5 / +6.7 ms |
+| a Style changed, the board painted whole | +26 / +24 ms | +105 / +114 ms |
+
+A cell's change costs less; the whole board, painted at the first frame, as a Style changes or as
+over an eighth of the cells are to be painted anew, four times as much on this GPU — a weak one,
+on which work moved onto the GPU measures at its worst.
+
+`Benchmark_Painter_Bake` (the island painted anew and waited for: whole, a Style changed every
+time; round a cell changed every time) splits the whole bake: the ground's pass ~19 ms a layer
+of five, the ways' ~1.3 ms, the CPU's part ~2 ms. With the ground's cells worked out once a
+cell instead of a pixel, the mouths' layer and the kinds' (no kind with a Detail) left to what
+they hold and the ways drawn in as many pieces as the most of them lays (`70133303`…`88c65be2`,
+the board baked the same to the pixel), two rounds alternating with `9939c39a`: whole
+111 / 153 → 22.8 / 24.8 ms, a cell 6.5 / 9.4 → 7.1 / 6.4 ms (the CPU's part and the small
+passes; the machine at a load of ~2 when measured, the base's rounds far apart).
+
+## The flat board's frame — `Benchmark_Frame_Flat`
+
+A flat board of 96×64 cells 32 wide (grass, sand round lakes of water, roads every 12 cells both
+ways, the grid over them) drawn through the board's own renderer on a headless GPU into a
+2560×1440 screen and read back every frame (the readback alone ~10.5 ms), after a first frame
+that builds the shaders: from above, from above with a cell changed every frame, and isometric.
+One run each, 2026-10-23, Intel UHD 620; the board composed on the CPU at `af067e6a`, laid on
+the GPU out of its tile map at `7142fcc2`.
+
+| Frame | Composed on the CPU | The tile map |
+|:---|---:|---:|
+| from above | 11.5 ms | 13.4 ms |
+| from above, a cell changed every frame | 17.1 ms (4.8 MB a frame) | 13.7 ms (55 KB) |
+| isometric | 17.6 ms | 13.8 ms |
+
+Measured back to back the same day, the board as it is laid once nothing is composed on the CPU
+(`a255183f`: the overlay in the plain pass, the covers in order in the full one) against the
+tile map above (`7142fcc2`): from above 15.1 against 14.4 ms, a cell changed 15.4 against 15.3,
+isometric 15.3 against 14.6 — this machine ran slower that hour, so only the differences count.
+With the cells of a material out of the plain pass (`1ceec73e`, the full pass lays them), back to
+back against `a255183f`: from above 15.3 → 14.0 ms, a cell changed 15.5 → 14.2, isometric
+15.2 → 14.1; two rounds alternating later that day, `a255183f` against the topography's ground
+painted on the GPU (`1e573806`): 14.3 → 13.2, 14.7 → 13.5, 14.3 → 13.2.
+
+From above the CPU composed the board once into a picture kept on the GPU and drew it as it was;
+the tile map works every pixel's cell out anew, ~2 ms a frame more. In exchange a changed cell
+writes its block and its neighbours' instead of the whole board composed again, and a view that
+is not from above no longer composes its visible tiles every frame. Laying the ways pixel by
+pixel, every pixel searching the bands round it, cost ~15 ms a frame more on this GPU; as
+instances, a cell's bands and hub built in the vertex shader, they are within the 13.4 ms above.
 
 ## How to benchmark
 

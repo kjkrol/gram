@@ -125,9 +125,9 @@ func (l *label) draw(e *Element, dst *render.Image) {
 	th := e.look()
 	x, y := float32(math.Round(box.TopLeft.X)), float32(math.Round(box.TopLeft.Y))
 	if th.Shadow.A > 0 {
-		render.DrawText(dst, l.font(th), text, x+1, y+1, th.Shadow)
+		l.font(th).Draw(dst, text, x+1, y+1, th.Shadow)
 	}
-	render.DrawText(dst, l.font(th), text, x, y, l.colour(th))
+	l.font(th).Draw(dst, text, x, y, l.colour(th))
 }
 
 func (l *label) colour(th *Theme) color.RGBA {

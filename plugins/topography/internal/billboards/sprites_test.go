@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -126,7 +127,7 @@ func purples(pix []byte) (n int) {
 }
 
 func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	h := newHill(t)
 	atlas := &magenta{}
 	stand := func(at geom.Vec) func(f *render.Frame) {
@@ -145,7 +146,7 @@ func TestSprites_TheHillHidesWhatStandsBehindIt(t *testing.T) {
 }
 
 func TestSprites_ALyingSpriteLiesOnTheGround(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	h := newHill(t)
 	atlas := &magenta{}
 	lie := func(at geom.Vec, alt float64) func(f *render.Frame) {

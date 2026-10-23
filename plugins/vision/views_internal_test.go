@@ -3,16 +3,15 @@ package vision
 import (
 	"image/color"
 	"math"
-	"os"
 	"testing"
 
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 type ridge struct{}
@@ -37,7 +36,7 @@ fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(1.0); }
 `), []render.Uniform{{Name: "ViewProj", Size: 16}})
 
 func TestViews_VeilTheGroundOutOfSightOnTheGPU(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	cam := cameratest.NewFromSpace(256, 256, 0)
 	v := newViews()
 	screen, depth, ground := render.NewImage(256, 256), render.NewDepth(), render.NewDepth().
@@ -97,7 +96,7 @@ func (wall) Walk(
 func (wall) Version() uint64 { return 3 }
 
 func TestViews_OverAFlatWorldOnTheGPU(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	cam := cameratest.NewFromSpace(256, 256, aabbworld.Torus)
 	v := newViews()
 	screen, depth := render.NewImage(256, 256), render.NewDepth()
@@ -127,15 +126,8 @@ func TestViews_OverAFlatWorldOnTheGPU(t *testing.T) {
 	}
 }
 
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
-}
-
 func TestViews_AnEyeLookingUpVeilsNoGround(t *testing.T) {
-	needGPU(t)
+	gputest.Need(t)
 	cam := cameratest.NewFromSpace(256, 256, 0)
 	v := newViews()
 	screen, depth, ground := render.NewImage(256, 256), render.NewDepth(), render.NewDepth().

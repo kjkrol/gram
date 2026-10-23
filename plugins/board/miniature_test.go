@@ -2,19 +2,16 @@ package board_test
 
 import (
 	"image/color"
-	"os"
 	"testing"
 
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/internal/boardtest"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 func TestMiniature_IsTheBoardFlatFromAbove(t *testing.T) {
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
-	}
+	gputest.Need(t)
 	bw, wall := boardtest.SquareWorld(t)
 	if img, _ := bw.Board.Write().Miniature(); img != nil {
 		t.Error("a miniature before the board's atlas is closed")

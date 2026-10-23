@@ -201,8 +201,8 @@ Stage entered afresh.
 
 ## Package layout
 
-`render` (root) — `Renderer`/`AtlasSource`/`Atlas`/`Composer`/`Frame`/`Source`/`At`/
-`CachedRenderer`/`SolidBackground`/`Feed`/`Still`/`Direct`/`Font`, drawing
+`render` (root, a facade over `render/internal/*`) — `Renderer`/`AtlasSource`/`Atlas`/`Composer`/`Frame`/`Source`/`At`/
+`SolidBackground`/`Feed`/`Direct`/`Font`, drawing
 with no knowledge of Stages, Scenes or plugins. `plugin` (root) — the extension contract
 (`Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`/`CommandHandler`/`Tunable`/`Keep`/
 `Made`, `plugin/section`); imports `render`, `control`, `ceremony/host`, `ceremony/command`. `game`

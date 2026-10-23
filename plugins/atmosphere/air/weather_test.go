@@ -2,17 +2,16 @@ package air_test
 
 import (
 	"math"
-	"os"
 	"testing"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/gram/render/gpu"
 )
 
 type sheet struct{}
@@ -318,15 +317,8 @@ func TestWeather_HandsTheFrameTheAirAndTheSkysColours(t *testing.T) {
 	if !(overhead[0] < fog[0] && overhead[1] < fog[1]) {
 		t.Errorf("overhead %v, at the horizon %v: want the sky deeper overhead", overhead, fog)
 	}
-	needGPU(t)
+	gputest.Need(t)
 	if err := render.Compile(); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func needGPU(t *testing.T) {
-	t.Helper()
-	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
-		t.Skipf("no GPU: %v", err)
 	}
 }

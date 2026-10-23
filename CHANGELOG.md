@@ -1,5 +1,83 @@
 # Changelog
 
+## Unreleased
+
+**The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
+- No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an
+  image of its cells (`look/tiles.go`): the sprites, the ways, the covers, what sways, the cells
+  of a material, the light per pixel as each cell takes it, the sectors seen at their levels; a
+  changed cell writes its block and its neighbours' alone. The minimap's board and a hex
+  topography's tops are drawn by it whole from above (`look.Renderer.Whole`), the painter's ways
+  over the hexes' tops as GPU instances (`Painter.DrawWays`, the curves, the glaze into the mix,
+  the water running and glinting as before). `Benchmark_Frame_Flat` (new, 1440p, read back),
+  before → after, measured apart: from above 11.5 → 13.4 ms, a cell changed every frame
+  17.1 → 13.7 ms (4.8 MB → 55 KB a frame), isometric 17.6 → 13.8 ms. The cells of a material
+  are no longer the plain pass's: it lays the others alone, the full pass the overlaid ones, which
+  took back the ~0.7 ms the later stages had cost (measured back to back: from above
+  15.3 → 14.0 ms, a cell changed 15.5 → 14.2, isometric 15.2 → 14.1).
+- Where tiles overlap, on a hex board and round what sways, each tile and its covers lie over
+  the cells before it, row by row, in every view; the ways over them all, the cells of a
+  material after the clouds' shadows. The cells of a material, composed on the CPU every frame
+  besides the GPU's pass, are drawn once.
+- New: `look.Laid` (a Dressing's ways and covers), `look.Overlaid` (a material laid over some
+  tiles), `look.Renderer.Whole`, `look.Renderer.Animated`, `Painter.Above`, `Painter.Overlay`,
+  `Painter.DrawWays`.
+- Breaking: `look.Look` is how the cells lie (`look.Flat`, `look.Swaying`, `look.Nothing`), no
+  interface; a `look.Dressing` is `Begin` and `Base(c, own)`. Gone: `look.Tile`, `look.FlatLook`,
+  `look.EvenLit`, the Dressing's `Light`, `FaceLight`, `Dress`, `Across` and `Sheet` (every
+  Dressing handed back the atlas it was given), `render.Still`, `gpu.Kept`, `draw.Weigh`,
+  `draw.Quarters`; a board of no world, or seen through a camera without lines of sight, draws
+  nothing. The board's parallel compose is gone, no game used it: `look.Parallel`,
+  `look.ParallelLook`, `Renderer.Workers`, `Renderer.UsePool`, `Renderer.Reads`,
+  `board.Plugin.WithWorkers`.
+- What looks different: what sways moves every frame from above (the still held it till a cell
+  changed), the clouds' shadows lie on a flat board in isometry too, the light is worked out per
+  cell on a hex board and across a wrapped world's seams, and nothing past the board's edge is
+  darkened.
+
+**The topography's ground painted on the GPU** (2026-10-23, branch `perf/flat-gpu`)
+- A square topography's board is painted flat on the GPU: the painter lays what its shaders read
+  of each cell into an image (its kind's sprite and Style, its way, the ground at its corners),
+  anew as the cell changes, and the shaders work out the grounds running into each other, the
+  ways' pieces (in the vertex stage: the curves, the stem and the joins, the fading, the mix, the
+  water running down them), the water's layers and each pixel's kind; the cells within two of a
+  changed one are painted anew, all of them past an eighth. The shores (the way to the nearest
+  cell that does not shine from every corner of the lattice) are worked out there too and copied
+  into the terrain's lattice on the GPU. The painter's bake on the CPU is gone: 740 lines of Go
+  fewer, 950 of WGSL more.
+- What looks the same: a board with seas, rivers, roads and details bakes to the pixel as the CPU
+  painted it, whole and after a change; a hex board's ways within 11 pixels of 208,000. Where a
+  cell may hold more than its kind's detail and where water may lie is worked out by rule, not out
+  of the pieces: a few more cells read the kinds' sheet.
+- What it costs on an Intel UHD 620 (a weak GPU; most are far faster): a frame the same; a cell
+  changed 8.5 → 6 ms a frame; the board painted whole (the first frame, a Style changed, many
+  cells changed at once) ~25 ms a frame on the CPU, ~110 ms on the GPU at first, ~23 ms
+  (`Benchmark_Painter_Bake`, new) once the ground's cells are worked out once a cell, not a pixel,
+  the mouths' layer and the kinds' (no kind with a Detail) are left to what they hold and the
+  ways are drawn in as many pieces as the most of them lays. `Benchmark_Frame_Topography` waits
+  for its first frame, so the board painted at it no longer lands in the frames measured.
+
+**The render package taken apart** (2026-10-23, branch `perf/flat-gpu`)
+- `render` is a facade: the machinery is `render/internal`'s, `wgsl` (the shaders' library, the
+  materials and the frame's images), `gfx` (images, depths, meshes, shaders), `atlas`, `text`,
+  `feed`, `compose` (the composer and its frame) and `instanced` (sprites as instances), each
+  type named in `render` by alias; the composer's shader compiles from the same source, byte for
+  byte, and the demos draw as before.
+- Breaking, what nothing used: `render.CachedRenderer`, `render.Paint`, `render.DebugPrint`
+  (`DebugPrintAt` stays), `render.TextWidth`, `render.ActualTPS`, `render.Looped`, `render.Slot`
+  (`Atlas.Add` hands nothing back), `Frame.Fold`, `Frame.Fan`, `Frame.Last`, `Frame.OverlayOn`,
+  `Frame.Mark`, `Frame.Camera`, `Frame.Branch`, `Frame.Append`, `Frame.GlazeBlend`,
+  `Frame.SpriteBlendPart`, `Overlay.Under`, `GroundHeights.At`, `DrawMeshOptions.Multiply` (and
+  `gpu.Multiply`), `Composer.Composed`, `GeoM.Reset`, `Sprites.Len`, `gpu.Ready`, `gpu.Device`,
+  `Layout.Has`; `render.SetRates` takes the frames alone; `Clocked`, `FromImage`, `NewSheet`,
+  `GlyphWidth` and `LineHeight` are render's own.
+- Breaking: the 2D fills are the image's: `dst.FillRect(…)`, `StrokeRect`, `StrokeLine`,
+  `FillCircle`, `FillQuad`, `FillPolygon`, `StrokePolygon` in place of `render.FillRect(dst, …)`;
+  `Image.PlaceDepth` is render's own. Text is the font's to draw: `f.Draw(dst, s, x, y, c)` in
+  place of `render.DrawText(dst, f, s, x, y, c)`.
+- Breaking: `render/gpu` is `internal/gpu`, the engine's and render's alone; a test that draws
+  readies the GPU with `gputest.Need(t)` (`internal/gpu/gputest`), skipped without one.
+
 ## v0.4.0 — 2026-10-23
 
 Needs aabbworld v1.15.0, astar v1.1.3, ceremony v0.3.1 and goke v3.6.0.

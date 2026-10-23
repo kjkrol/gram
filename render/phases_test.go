@@ -1,7 +1,6 @@
 package render_test
 
 import (
-	stdimage "image"
 	"image/color"
 	"testing"
 	"time"
@@ -48,18 +47,4 @@ func TestLoops_FrameGoesRoundByPeriodOrToABeat(t *testing.T) {
 		}
 	}()
 	render.Timed([]render.Beat{{Frame: 0, Span: time.Second}, {Frame: 1}}, nil)
-}
-
-func TestFromImage_ScalesPixelForPixelWithoutSmoothing(t *testing.T) {
-	src := stdimage.NewRGBA(stdimage.Rect(0, 0, 2, 2))
-	red := color.RGBA{R: 255, A: 255}
-	src.SetRGBA(0, 0, red)
-	dst := &render.Canvas{RGBA: stdimage.NewRGBA(stdimage.Rect(0, 0, 4, 4))}
-	render.FromImage(src)(dst, 4)
-	if got := dst.RGBAAt(1, 1); got != red {
-		t.Errorf("the red pixel scaled twice over: (1,1) is %v, want red", got)
-	}
-	if got := dst.RGBAAt(2, 1); got.A != 0 {
-		t.Errorf("past the red pixel: (2,1) is %v, want clear, no smoothing", got)
-	}
 }

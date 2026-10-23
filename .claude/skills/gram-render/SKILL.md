@@ -1,9 +1,25 @@
 ---
 name: gram-render
-description: How gram draws — the Stage's picture (world.Picture, ctx.Draws, ctx.Looks), the Composer, order by Z and the depth buffer (At, passes, places, mark levels), Direct sources with their own WGSL, Still, Feed, the world's and the board's atlases and looks (Add, Under, Turning, Facing, Animated, WhileMoving, Phased, Looped, Lying, Upright, Edges, Sheet, materials), the plugins' Look seams, telemetry. Use when touching render/, an atlas or a look in a plugin or a demo's scene.go, a shader, a renderer, or when something is drawn wrong.
+description: How gram draws — the Stage's picture (world.Picture, ctx.Draws, ctx.Looks), the Composer, order by Z and the depth buffer (At, passes, places, mark levels), Direct sources with their own WGSL, Feed, the world's and the board's atlases and looks (Add, Under, Turning, Facing, Animated, WhileMoving, Phased, Loops, Lying, Upright, Edges, Sheet, materials), the plugins' Look seams, telemetry. Use when touching render/, an atlas or a look in a plugin or a demo's scene.go, a shader, a renderer, or when something is drawn wrong.
 ---
 
 # gram-render
+
+## The package
+
+`render` is a facade: the machinery is `render/internal`'s — `wgsl` (the shaders' library, the
+materials and the frame's images registered, sealed at the first shader), `gfx` (`Image`,
+`Depth`, `Indices`, `Shader`, the 2D fills as the image's methods, the soft blit, `SpriteID`,
+`AtlasSource`), `atlas` (`Atlas`, `Canvas`), `text` (`Font`, `f.Draw(dst, s, x, y, c)`, the debug
+text), `feed` (`Feed`, `Picture`, `Laid`), `compose` (`Frame`, `At`, `Source`, `Direct`, `Target`,
+the light and shade, `Composer`, `compose.wgsl`) and `instanced` (`Sprites`). A type an internal
+package needs is defined there and named in `render` by an alias with a one-line comment; `render`
+defines the rest (`Drawer`, `Renderer`, `Reporter`, `Surface`, `Illumination`, `Even`, `Lit`,
+`Box`, `ProjectCorners`, the looks, `Appearance` and its rules, the frame's statistics). The
+internal packages reach into each other through exported functions, never methods
+(`gfx.GPU(img)`, `gfx.Program(s)`, `gfx.PlaceDepth`), so no alias shows them; their tests never
+import `render` (a cycle) and keep the few helpers they need (`even`, `solid`) as their own. The
+device is `internal/gpu`; a test that draws readies it with `gputest.Need(t)`.
 
 ## Atlases and looks
 
@@ -20,7 +36,7 @@ quad in the box; `Custom` = {middle, half a side, heading in radians}, `Red` = s
 a second up to 1, `World` the box), or `render.Phases`/`Loops` — `.Under(effect, look)` the look
 while the effect's marker is on (a twin slot swapped in by `render.Swap(twins, mark.In)`;
 `render.Phased(n, draw)`: n frames along the effect's course, never for an effect without `Lasts`;
-`render.Looped(n, period, draw)`: frames by the clock; a material under an effect reads how far it
+`render.Loops{N, Period, Draw}`: frames by the clock; a material under an effect reads how far it
 has run as its `fraction`; on one entity under two effects the look declared later wins),
 `.Turning()` the sprite turned the way its entity is headed (`Appearance.Angle` from `Vel.Dir`;
 degrees, 0 east, against the clock with y down, `render.Arrow`'s convention; a square box whose
@@ -31,8 +47,8 @@ and the frame), `.WhileMoving()` (standing it is drawn as it faces),
 `Altitude` (a deck, a ford; `world.LyingLook`; an entity carrying a `world.Lie{Length, Width, Edged,
 Edge}` is laid over that rectangle headed its `Vel.Dir`, `.Edges(draw)` the sprite standing along
 its long sides while `Edged`), `.Upright()` a sprite standing true in relief (`world.UprightLook`: a
-pier). Frames come off a `render.Sheet` (`NewSheet(img, w, h)`, `DecodeSheet(name, png, w, h)`,
-`At(col, row)`, through `render.FromImage`; a frame no square is drawn true in a box of its shape,
+pier). Frames come off a `render.Sheet` (`DecodeSheet(name, png, w, h)`, `At(col, row)`, scaled
+pixel for pixel; a frame no square is drawn true in a box of its shape,
 `board.Shape{Size, Width}`). The board's `Covering(e)` is the cover laid over cells under an effect,
 `Slot.Under(effect, draw)` on the board's atlas.
 
@@ -53,7 +69,7 @@ The world of a Stage is one `render.Composer`, `world.Plugin.Picture()`, over th
 minimap's (`plugins/minimap`): its own three sources, none in `ctx.Draws`, through an inner
 camera of its own, drawn anew at most 30 times a second (a `render.Surface` returning its last
 image in between; `ui.Image` lays it out every frame, so a resize alone forces a redraw).
-`render.StrokePolygon` is one draw however many sides (a round element's border). A demo that makes a plugin
+`Image.StrokePolygon` is one draw however many sides (a round element's border). A demo that makes a plugin
 draws all it draws: selection and routes in bullet, platformer and split-screen, holds (the board's "Cells held" setting)
 in every demo with a board. **What is drawn over what is Z's alone (2026-10-15), never a layer
 nor the order a plugin registers in**: `render.Tier` is gone. Each
@@ -62,7 +78,7 @@ world; the key back to front is z from above, `cam.Depth` in a view that sorts),
 z, lift)` (what lies on a surface, ordered among what lies there by its lift), `f.OnGround(lift)`
 (the view's middle, for a Direct over the whole ground), `render.OnTop(level)` (a mark at its
 level), `Furthest` (the sky), `Nearest` (the rain). The passes: the **opaque** ground first (the
-board's `Still`, the terrain, the hex prisms: depth tested and written, any order), then the world
+board's tiles, the terrain, the hex prisms: depth tested and written, any order), then the world
 **seen through**, back to front by key, every piece tested against the depth (its depth worked out
 on the GPU from its height: `gpu.Vertex.DstZ`, `gpu.Sight` from the camera's rays and
 `SceneTransform`), then the **marks** by level, at one level in the order added, untested: the
@@ -94,7 +110,7 @@ Direct gathering at Compose draws as often as there are layers: `Sprites.Draw` r
 `Begin` does; the routes reset at Compose and place their rectangles into the drawing camera's
 frame); its opaque pass goes into a Readable depth kept a layer (`keptDepths` 12, by size and
 layer index: two layers of one size keep their grounds apart); `DrawOver(screen, cam)` places
-every laid depth into the screen's (`Image.PlaceDepth`, `gpu.PlaceDepth(target, from, to, at)`:
+every laid depth into the screen's (`gfx.PlaceDepth`, `gpu.PlaceDepth(target, from, to, at)`:
 `depth.wgsl` reads `depthAt(p.xy * place.xy + place.zw)` under a scissor of the window, the last
 laid over the first) and composes and draws the Overlying ones onto the screen tested against
 it, the figures writing into a copy and `OverFigures` bound to the placed one; the over pass
@@ -135,14 +151,11 @@ rectangles on the GPU (the camera's `SceneTransform` matrix, the box
 round the projected corners like `ToScreenQuads`, over a wrapping world the copy `windowed` nearest
 the window and one past each seam, six vertices a copy in one call): no per-figure projection, wrap
 splitting or `Visible` on the CPU any more (`Benchmark_World_Draw` −35…−50%). One WGSL shader
-(`render/shaders/compose.wgsl` over the library and every material registered with
+(`render/internal/compose/compose.wgsl` over the library and every material registered with
 `render.RegisterMaterials`) draws every piece; `Frame.Line`/ `Soft` fade their edges; a piece
-across cells takes the place of its nearest end. A
-`render.Still` is a picture composed once in world units **in the order its pieces come** (no sort:
-the board composes tiles and what lies on them, then `Dressing.Across`, the bands and the ways, in a
-second round), kept on the GPU (`gpu.Kept`, its vertices holding their heights), drawn every frame
-scaled, moved and lit (`gpu.Draw.Place`/ `Tint`), into the depth where the target has one.
-`render.Frame.Time` is the clock's `Shown` (`render.Clocked`), so animations move every frame. A
+across cells takes the place of its nearest end.
+`render.Frame.Time` is the clock's `Shown` (a Source's `Clock() (time.Duration, bool)`), so
+animations move every frame. A
 plugin adds telemetry lines through a `render.Reporter`
 (`telemetry.NewPlugin(w).With(p.Reporter())`, the telemetry panel). `GRAM_SHOT=<file.png>` (and
 `GRAM_SHOT_FRAME`, 120) has a game save that frame and quit, the world taking one step a frame till
@@ -235,8 +248,8 @@ routes and goals of an entity's `MoveOrder`; vision the cone of an entity's `Sig
 `WithShadow`; `WithViews(render.Show(…))` picks whose); selection the outline of the `Selected`
 tag through `world.Look.Footprint` plus the marquee, a player's gesture; bridges the bridge in
 hand, a future entity drawn from its deck's slot; collision the boxes; the board the cells held,
-under a `Lighting` its `Still` drawn as it is and the frame's light multiplied over it right
-after (`look/shade.go`, 2026-10-19) and, under an atmosphere (`board.WithAtmosphere`), its clouds'
+its flat ground laid on the GPU out of an image of its cells and lit per pixel by the frame's
+light as each cell takes it (`look/tiles.go`, 2026-10-23) and, under an atmosphere (`board.WithAtmosphere`), its clouds'
 shadows as part of its ground (2026-10-15, stage 4: `look.GroundDressing` drawn after, in the
 opaque pass, `board/internal/draw.Clouds`, the 8-px mesh the atmosphere's `overcast` was; what
 lies over the ground is drawn unshaded, as the relief's terrain shades its own ground).
@@ -288,7 +301,7 @@ to the GPU without the conversion glows; any new path from a colour to floats mu
 R, G, B by A.
 
 How things lie on the screen is a plugin's `Look`, swappable: `world.Look` (an entity's sprite,
-where it is picked, its footprint) and `look.Look` (a cell as a `look.Tile`), both flat from above
-by default; the topography sets both for relief. The renderers keep their data and ask the Look
+where it is picked, its footprint) and `look.Look` (how the cells lie: `Flat`, `Swaying`,
+`Nothing`), both flat from above by default; the topography sets both for relief. The renderers keep their data and ask the Look
 for geometry only. Pieces carry a `render.Shade` (a `render.Light` per corner; `render.Even`,
 `render.Lit`).

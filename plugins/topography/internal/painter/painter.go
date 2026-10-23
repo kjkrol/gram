@@ -1,15 +1,13 @@
 package painter
 
 import (
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/look"
-	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
+	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -18,60 +16,48 @@ import (
 type Painter struct {
 	board   *board.BoardRead
 	relief  *relief.Relief
-	sky     Sky
 	styles  map[cell.Name]Style
 	kinds   cell.Kinds
 	heights bool
 	square  bool
 	sq      grid.Shape
 
-	lighted light.Distant
-	weather air.Weather
-	camera  camera.Camera
-	cellW   float64
-	cellH   float64
-	cellPx  float32
-	varies  bool // a perspective draws a world unit larger near than far
-	tile    tile
+	camera camera.Camera
+	cellW  float64
+	cellH  float64
+	cellPx float32
+	varies bool // a perspective draws a world unit larger near than far
+	tile   tile
 
-	ways   []WayPiece
-	blends []BlendPiece
-	tops   []cellTop
-	bakes  []cellBake
-	// by corner of a square grid, good while the stamp is shoreStamp
-	shores       []cornerShore
-	shoreStamp   uint32
-	shoreFor     uint64
+	tops         []cellTop
 	wet          []bool
 	wetAt        uint64
 	albedo       *groundSheet
 	details      *detailSheet
 	detailsBaked uint64
 	styleVersion uint64
-	newest       []uint64
-	unpainted    []int
-	canvas       render.Frame
-	scratch      look.Tile
+	scratch      box
 	bakeTile     tile
-	coast        coast
+	lanes        lanes
+	cells        cells
+	baking       baking
+	shoreMap     shoreMap
 }
 
-var _ look.Dressing = (*Painter)(nil)
+var (
+	_ look.Dressing = (*Painter)(nil)
+	_ look.Overlaid = (*Painter)(nil)
+)
 
-// Sky is the sky over the board as the painter reads it: the sun that lights the tiles and the
-// weather.
-type Sky interface {
-	Distant() light.Distant
-	Air() air.Weather
-}
-
-// New is the painter of b over ground under the sky, the kinds looking as styles has them.
-// heights says whether the ground stands in relief.
-func New(b *board.BoardRead, ground *relief.Relief, sky Sky, heights bool, styles map[cell.Name]Style) *Painter {
+// New is the painter of b over ground, the kinds looking as styles has them. heights says
+// whether the ground stands in relief.
+func New(b *board.BoardRead, ground *relief.Relief, heights bool,
+	styles map[cell.Name]Style) *Painter {
 	w, h := b.CellBounds()
 	sq, square := b.Shape()
 	square = square && !sq.Hex
-	return &Painter{board: b, relief: ground, sky: sky, styles: styles, heights: heights, square: square, sq: sq, cellW: w, cellH: h}
+	return &Painter{board: b, relief: ground, styles: styles, heights: heights, square: square,
+		sq: sq, cellW: w, cellH: h}
 }
 
 // WithKinds has the painter find the kinds its Styles name in kinds.
@@ -89,24 +75,17 @@ func (l *Painter) Style(name string, s Style) {
 // StyleOf is how the kind named name looks, as Style set it.
 func (l *Painter) StyleOf(name string) Style { return l.styles[cell.Named(name)] }
 
-func (l *Painter) version() uint64 { return l.board.Version() + l.relief.Version() }
-
-// sea level 0 off the board
-func (l *Painter) beside(t *look.Tile, dx, dy int) [4]float32 {
-	w, h := t.X1-t.X0, t.Y1-t.Y0
-	x, y := (t.X0+t.X1)/2+float32(dx)*w, (t.Y0+t.Y1)/2+float32(dy)*h
-	c, ok := l.board.CellAt(geom.NewVec(float64(x), float64(y)))
-	if !ok {
-		return [4]float32{}
-	}
-	return l.topOf(c).z
+// box is a cell's tile over its box in the world
+type box struct {
+	ID             cell.ID
+	X0, Y0, X1, Y1 float32
 }
 
 type tile struct {
-	*look.Tile
+	*box
 	r          *Painter
 	id         cell.ID
-	memo       tileMemo
+	base       *cellTop
 	pixels     float32
 	pixelsRead bool
 }
@@ -128,18 +107,6 @@ func (t *tile) px() float32 {
 	return t.pixels
 }
 
-func (l *Painter) inFront(cam camera.Camera, w render.World, z [4]float32) bool {
-	if !l.varies {
-		return true
-	}
-	for k, p := range w {
-		if camera.ScaleAt(cam, p[0], p[1], z[k]) == 0 {
-			return false
-		}
-	}
-	return true
-}
-
 type cellTop struct {
 	z      [4]float32 // the ground's corners with the kind's Height on them
 	ground [4]float32
@@ -158,7 +125,6 @@ type cellTop struct {
 // Begin readies the Painter for a frame through cam.
 func (l *Painter) Begin(f *render.Frame, cam camera.Camera) {
 	l.camera, l.tile = cam, tile{}
-	l.lighted, l.weather = l.sky.Distant(), l.sky.Air()
 	l.tables()
 	l.cellPx = float32(min(l.cellW, l.cellH)) * cam.Zoom()
 	w, h := cam.Viewport()
@@ -166,46 +132,38 @@ func (l *Painter) Begin(f *render.Frame, cam camera.Camera) {
 	far := camera.ScaleAt(cam, x, y, 0)
 	x, y = cam.Unproject(w/2, h, 0)
 	l.varies = far != camera.ScaleAt(cam, x, y, 0) || far != cam.Zoom()
-	l.nextShores()
+}
+
+// Above readies the Painter for the board drawn whole from above, a world unit a pixel, as Begin
+// readies it for a frame through a camera.
+func (l *Painter) Above() {
+	l.camera, l.tile = nil, tile{}
+	l.tables()
+	l.cellPx, l.varies = float32(min(l.cellW, l.cellH)), false
+}
+
+// Overlay is the still water glinting over c's top where its kind shines, off a square grid,
+// whose water neither runs nor meets a shore; a square grid's the terrain paints.
+func (l *Painter) Overlay(c cell.ID) (render.MaterialID, float32, bool) {
+	if l.square {
+		return 0, 0, false
+	}
+	shine, ok := l.cellTile(c).Shine()
+	if !ok {
+		return 0, 0, false
+	}
+	return water.SeaGlint(), shine, true
 }
 
 func (l *Painter) tables() {
 	if n := l.board.CellCount(); len(l.tops) != n {
-		l.tops, l.bakes = make([]cellTop, n), make([]cellBake, n)
+		l.tops = make([]cellTop, n)
 	}
 }
 
-// Base is the sprite t's top is drawn in first: its own kind's, or the kind Under it round it.
-func (l *Painter) Base(t *look.Tile) render.SpriteID { return l.tileOf(t).baseTop().sprite }
-
-// Light is the light on t's top at its corners.
-func (l *Painter) Light(t *look.Tile) render.Shade { return l.tileOf(t).Light() }
-
-// FaceLight is the light on t's upright face looking dx, dy cells away.
-func (l *Painter) FaceLight(t *look.Tile, dx, dy int) render.Light {
-	return l.tileOf(t).FaceLight(dx, dy)
-}
-
-// Dress lays over t's top, drawn over the box x0..x1, y0..y1 lying at at, what lies on it: its
-// water and the grounds round it running in.
-func (l *Painter) Dress(
-	f *render.Frame, cam camera.Camera, t *look.Tile, x0, y0, x1, y1 float32, at render.At,
-) {
-	d := l.tileOf(t)
-	d.DrawSurface(f, x0, y0, x1, y1)
-	d.DrawBlends(f, cam, at)
-}
-
-// Across lays the way across t.
-func (l *Painter) Across(f *render.Frame, cam camera.Camera, t *look.Tile) {
-	l.tileOf(t).DrawWay(f, cam)
-}
-
-func (l *Painter) tileOf(t *look.Tile) *tile {
-	if l.tile.Tile != t || l.tile.id != t.ID {
-		l.tile = tile{Tile: t, r: l, id: t.ID}
-	}
-	return &l.tile
+// Base is the sprite c's top is drawn in: its own kind's, or the kind Under it round it.
+func (l *Painter) Base(c cell.ID, _ render.SpriteID) render.SpriteID {
+	return l.cellTile(c).baseTop().sprite
 }
 
 func (l *Painter) topOf(c cell.ID) *cellTop {
@@ -257,11 +215,6 @@ func (l *Painter) laneOf(w cell.Way) lane {
 }
 
 func (l *Painter) ordinal(c cell.ID) (int, bool) { return l.board.Ordinal(c) }
-
-func (l *Painter) xy(c cell.ID) (x, y uint32) {
-	x, y, _ = l.board.Coords(c)
-	return x, y
-}
 
 func (l *Painter) cellAt(x, y int64) (cell.ID, bool) {
 	fx, okX := fold(x, int64(l.sq.Cols), l.sq.WrapX)

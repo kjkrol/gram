@@ -216,7 +216,7 @@ func (s *panel) Draw(screen *render.Image) {
 	s.width = max(s.width, width)
 	b := screen.Bounds()
 	x0, y0 := float32(b.Min.X+panelMargin), float32(b.Min.Y+panelMargin)
-	render.FillRect(screen, x0, y0, s.width+2*panelPadding, float32(rows)*lh+2*panelPadding,
+	screen.FillRect(x0, y0, s.width+2*panelPadding, float32(rows)*lh+2*panelPadding,
 		panelFill)
 	x, y := x0+panelPadding, y0+panelPadding
 	for _, e := range s.entries {
@@ -234,6 +234,6 @@ func (s *panel) Draw(screen *render.Image) {
 }
 
 func (s *panel) write(dst *render.Image, f *render.Font, text string, x, y float32) {
-	render.DrawText(dst, f, text, x+1, y+1, textShade)
-	render.DrawText(dst, f, text, x, y, panelText)
+	f.Draw(dst, text, x+1, y+1, textShade)
+	f.Draw(dst, text, x, y, panelText)
 }
