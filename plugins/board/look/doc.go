@@ -18,10 +18,4 @@
 // [RenderState] holds the renderer's live toggles, the grid among them, and the line the grid is
 // drawn in ([RenderState.Grid]). It is left out where a cell spans fewer than [MinGridCell]
 // pixels on screen.
-//
-// # Parallel
-//
-// A Dressing that is [Parallel], under a Look that is a [ParallelLook], dresses the tiles on
-// several goroutines at once ([Renderer.Workers]), each drawing its run into a frame of its own
-// appended in order, so the picture is the one goroutine would draw.
 package look

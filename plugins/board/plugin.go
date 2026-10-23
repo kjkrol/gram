@@ -63,7 +63,6 @@ type Plugin struct {
 	motion      *motion.Plugin
 	module      *module
 	rules       *moments.Rules
-	workers     int // 0 all of the pool, 1 none
 	grids       command.Queue[Grid]
 	holds       command.Queue[Holds]
 	holdsView   *occupancy.View
@@ -127,7 +126,6 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 	p.renderer = look.NewRenderer(&brd.read, nil, brd.read.Map(), worldPlugin.Res.Config.Space).
 		WithSeen(worldPlugin.Read(0).ViewFor).
 		WithLighting(worldPlugin.Read(0).Lighting)
-	p.renderer.Reads(p.boardOf)
 	p.holdsView = p.newHoldsView()
 	return p
 }
@@ -169,7 +167,6 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	ctx.Draws(p.renderer, p.holdsView)
 	ctx.Looks(p.dress)
 	p.reads = parallel.NewReads(&p.read, ctx.Pool())
-	p.renderer.UsePool(ctx.Pool())
 	return nil
 }
 
@@ -179,9 +176,6 @@ func (p *Plugin) Read(w int) *Read { return p.reads[w] }
 
 // Write changes the board's state, on the game's goroutine.
 func (p *Plugin) Write() *Write { return &p.write }
-
-// the look.Board of worker w, the renderer's
-func (p *Plugin) boardOf(w int) look.Board { return p.reads[w].board }
 
 // dress declares the tiles' looks on the board's atlas, every sprite the cell's size across, and
 // closes it, unless a game closed its own
@@ -243,14 +237,6 @@ func (p *Plugin) keepBridges() {
 			log.Printf(format, args...)
 		},
 	})
-}
-
-// WithWorkers sets how many goroutines of the game's pool at most share a frame's tiles under a
-// Parallel Dressing: 0 all, 1 none.
-func (p *Plugin) WithWorkers(n int) *Plugin {
-	p.workers = n
-	p.renderer.Workers(n)
-	return p
 }
 
 // EventHandler is nil: the board handles no input of its own.

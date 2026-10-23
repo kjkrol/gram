@@ -48,27 +48,6 @@ type EvenLit interface {
 	EvenLight() (render.Light, bool)
 }
 
-// Parallel is a Dressing that dresses tiles on several goroutines at once.
-type Parallel interface {
-	Dressing
-	// Warm works out, on the frame's goroutine, what dressing t reads that is shared between
-	// tiles, so no Worker writes what another reads.
-	Warm(t *Tile)
-	// Ready readies the Workers once every visible tile is Warmed, on the frame's goroutine.
-	Ready()
-	// Worker is the k-th Dressing for one goroutine of the frame, with scratch of its own. Called
-	// on the frame's goroutine, after Ready.
-	Worker(k int) Dressing
-}
-
-// ParallelLook is a Look that lays tiles on several goroutines at once, a Worker of it each.
-type ParallelLook interface {
-	Look
-	// Worker is the k-th Look for one goroutine of the frame, drawing by the Parallel Dressing's
-	// k-th Worker d. Called on the frame's goroutine.
-	Worker(k int, d Dressing) Look
-}
-
 // Tile is one visible cell as the board's renderer hands it to a Look, good for that call.
 type Tile struct {
 	ID             cell.ID
@@ -81,7 +60,6 @@ type Tile struct {
 
 	r     *Renderer
 	dress Dressing
-	board Board // what the tile's goroutine reads the board through
 }
 
 // Sprite is the sprite of the cell's kind.
@@ -97,7 +75,7 @@ func (t *Tile) Base() render.SpriteID {
 }
 
 // Kind is the cell's kind as whoever crosses it meets it.
-func (t *Tile) Kind() cell.Kind { return t.board.Kind(t.ID) }
+func (t *Tile) Kind() cell.Kind { return t.r.board.Kind(t.ID) }
 
 // Light is the light on the tile's top at its corners: the Dressing's, even without one, under
 // the sun as the renderer's Lighting has it.
@@ -161,11 +139,6 @@ type flatLook struct{}
 // FlatLook is the board seen from above, the simple map's Look: each cell's sprite over its box,
 // in the Dressing's light and dressed by it.
 func FlatLook() Look { return flatLook{} }
-
-var _ ParallelLook = flatLook{}
-
-// Worker is the flat look itself: it keeps nothing between tiles.
-func (l flatLook) Worker(int, Dressing) Look { return l }
 
 func (flatLook) Cell(f *render.Frame, cam camera.Camera, t *Tile) {
 	x0, y0, x1, y1 := t.X0, t.Y0, t.X1, t.Y1

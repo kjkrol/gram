@@ -7,7 +7,6 @@ import (
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
@@ -82,13 +81,6 @@ type Renderer struct {
 	quads    []camera.Quad
 	tile     Tile
 	cells    []cell.ID
-	workers  []*tileWorker
-	parts    []tilePart
-	shares   int // the parts of this frame
-	count    int // 0 all of the pool, 1 none
-	pool     *parallel.Pool
-	drawPart func(w, i int) // drawParted, bound once
-	reads    func(w int) Board
 	seen     []uint32
 	stamp    uint32
 	tops     []cellTop
@@ -137,20 +129,7 @@ const (
 	groundLift = 0.02
 )
 
-type tileWorker struct {
-	tile    Tile
-	scratch scratch
-	dress   Dressing
-	look    Look
-}
-
-// what a part of a frame's tiles draws, appended in the parts' order whoever drew it
-type tilePart struct {
-	frame render.Frame
-	over  render.Frame
-}
-
-// what a goroutine drawing tiles keeps from one to the next
+// what drawing tiles keeps from one to the next
 type scratch struct {
 	outline []geom.Vec
 	rims    []rim
@@ -162,9 +141,6 @@ type rim struct {
 	dir, a, b int
 	owns      bool
 }
-
-// tilesPerWorker is the fewest tiles worth a goroutine of their own.
-const tilesPerWorker = 64
 
 // NewRenderer is a renderer of b's cells drawn from atlas by m, over the world space; a zero
 // space composes the tiles every frame.
@@ -180,8 +156,7 @@ func NewRenderer(b Board, atlas render.AtlasSource, m Map, space world.SpaceCfg)
 		mapping: m,
 		space:   space,
 	}
-	r.tile.r, r.tile.Atlas, r.tile.board = r, atlas, b
-	r.drawPart = r.drawParted
+	r.tile.r, r.tile.Atlas = r, atlas
 	if ok && b.CellCount() > 0 {
 		r.rims = rimsOf(b, b.At(0, 0), nil)
 	}
@@ -223,17 +198,6 @@ func (l *Renderer) WithSeen(seen func(camera.Camera) *view.View) *Renderer {
 	l.sees = seen
 	return l
 }
-
-// Workers sets how many goroutines of the pool at most share a frame's tiles under a Parallel
-// Dressing: 0 all, 1 none.
-func (l *Renderer) Workers(n int) { l.count = max(n, 0) }
-
-// UsePool sets the goroutines a frame's tiles are shared among; nil, one.
-func (l *Renderer) UsePool(p *parallel.Pool) { l.pool = p }
-
-// Reads has the pool's worker w read the board through of(w) as it lays tiles; without, through
-// the board the renderer was made with.
-func (l *Renderer) Reads(of func(w int) Board) { l.reads = of }
 
 // Compose hands the Map's Look every cell under cam, and the grid when it is on; nothing before
 // the renderer has an atlas.
@@ -417,9 +381,6 @@ func (l *Renderer) compose(f *render.Frame, look Look, d Dressing) {
 	x1, y1 := cam.Unproject(w/2, h, 0)
 	top := camera.ScaleAt(cam, x0, y0, 0)
 	l.scaleVaries = top != camera.ScaleAt(cam, x1, y1, 0) || top != cam.Zoom()
-	par, ok := d.(Parallel)
-	pl, okLook := look.(ParallelLook)
-	split := ok && okLook && l.count != 1 && l.pool.Size() > 1
 	_, _, shown := l.state.Grid()
 	if l.gridOn = shown && !l.white; l.gridOn { // a still's grid is drawn over it on the GPU
 		l.nextGrid()
@@ -431,65 +392,13 @@ func (l *Renderer) compose(f *render.Frame, look Look, d Dressing) {
 			i, _ := l.board.Ordinal(c)
 			l.gridded[i] = l.gridStamp
 		}
-		if split {
-			l.place(&l.tile, c)
-			par.Warm(&l.tile)
-		}
 		l.cells = append(l.cells, c)
 	})
-	k := 1
-	if split {
-		k = l.pool.Parts(len(l.cells), tilesPerWorker, l.count)
+	f.Branch(&l.over)
+	for _, c := range l.cells {
+		l.cell(f, &l.over, look, &l.tile, c, &l.scratch)
 	}
-	if k < 2 {
-		f.Branch(&l.over)
-		for _, c := range l.cells {
-			l.cell(f, &l.over, look, &l.tile, c, &l.scratch)
-		}
-		f.Append(&l.over)
-		return
-	}
-	par.Ready()
-	n := l.pool.Size()
-	for len(l.workers) < n {
-		tw := &tileWorker{}
-		tw.tile.r = l
-		l.workers = append(l.workers, tw)
-	}
-	for w, tw := range l.workers[:n] {
-		tw.dress = par.Worker(w)
-		tw.look = pl.Worker(w, tw.dress)
-		tw.tile.Atlas, tw.tile.dress, tw.tile.board = sheet, tw.dress, l.board
-		if l.reads != nil {
-			tw.tile.board = l.reads(w)
-		}
-	}
-	for len(l.parts) < k {
-		l.parts = append(l.parts, tilePart{})
-	}
-	for i := range l.parts[:k] {
-		f.Branch(&l.parts[i].frame)
-		f.Branch(&l.parts[i].over)
-	}
-	l.shares = k
-	b := l.pool.Begin(l.drawPart, nil)
-	b.Add(k)
-	b.Wait()
-	for i := range l.parts[:k] {
-		f.Append(&l.parts[i].frame)
-	}
-	for i := range l.parts[:k] {
-		f.Append(&l.parts[i].over)
-	}
-}
-
-// drawParted lays part i of the visible tiles on worker w
-func (l *Renderer) drawParted(w, i int) {
-	tw, p := l.workers[w], &l.parts[i]
-	from, to := parallel.Part(len(l.cells), l.shares, i)
-	for _, c := range l.cells[from:to] {
-		l.cell(&p.frame, &p.over, tw.look, &tw.tile, c, &tw.scratch)
-	}
+	f.Append(&l.over)
 }
 
 func (l *Renderer) place(t *Tile, c cell.ID) geom.Vec {
@@ -509,7 +418,7 @@ func (l *Renderer) cell(f, over *render.Frame, look Look, t *Tile, c cell.ID, s 
 		t.Coarse = l.sight.Level(middle.X, middle.Y) != view.Exact
 		t.Fog = l.sight.Fog(middle.X, middle.Y)
 	}
-	if _, ok := l.shaded[t.board.Kind(c).Name]; !ok {
+	if _, ok := l.shaded[l.board.Kind(c).Name]; !ok {
 		l.place(t, c)
 		look.Cell(f, l.camera, t)
 		if t.dress != nil && !t.Coarse {

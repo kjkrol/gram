@@ -188,15 +188,15 @@ func Benchmark_Board_Shores(b *testing.B) {
 }
 
 // view is "above", "iso" or "persp"; far shows the whole island on a screen of 576 by 384
-func island(b *testing.B, view string, far bool, workers int) (*headless, *board.Plugin, render.Source) {
-	ctx, brd, src, _ := islandWith(b, view, far, workers, true, false, false)
+func island(b *testing.B, view string, far bool) (*headless, *board.Plugin, render.Source) {
+	ctx, brd, src, _ := islandWith(b, view, far, true, false, false)
 	return ctx, brd, src
 }
 
 // islandWith is island with the water's shine or without it (no water layer drawn), under a
 // distant sun with the ground's shade baked or in no light at all, and cut into sectors of 256
 // or whole; the topography is handed back for its care
-func islandWith(b *testing.B, view string, far bool, workers int, shine, lit, sectored bool) (
+func islandWith(b *testing.B, view string, far bool, shine, lit, sectored bool) (
 	*headless, *board.Plugin, render.Source, *topography.Plugin) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
@@ -311,7 +311,7 @@ func islandWith(b *testing.B, view string, far bool, workers int, shine, lit, se
 		atlas.Add(k.SpriteID, 8, render.Solid(color.RGBA{R: 100, G: 150, B: 80, A: 255}))
 	}
 	atlas.Close()
-	p.WithWorkers(workers).Write().SetAtlas(atlas)
+	p.Write().SetAtlas(atlas)
 	ctx.look()
 	picture := ctx.world.Read(0).Picture().(*render.Composer)
 	ctx.pending = append(ctx.pending, func() []goke.System {
@@ -335,15 +335,14 @@ func islandWith(b *testing.B, view string, far bool, workers int, shine, lit, se
 }
 
 // Benchmark_Board_Island composes the island through every view, near, far and on a 1080p
-// screen, warm and after a cell ashore has changed, on every CPU and (serial) on one.
+// screen, warm and after a cell ashore has changed.
 func Benchmark_Board_Island(b *testing.B) {
 	for _, v := range []struct {
 		view        string
 		far, screen bool
-		workers     int
-	}{{"above", false, false, 0}, {"iso", false, false, 0}, {"iso", false, true, 0}, {"persp", false, true, 0}, {"above", true, false, 0}, {"iso", true, false, 0},
-		{"above", false, false, 1}, {"iso", false, false, 1}, {"iso", false, true, 1}, {"persp", false, true, 1}, {"above", true, false, 1}, {"iso", true, false, 1}} {
-		ctx, p, src := island(b, v.view, v.far, v.workers)
+	}{{"above", false, false}, {"iso", false, false}, {"iso", false, true}, {"persp", false, true},
+		{"above", true, false}, {"iso", true, false}} {
+		ctx, p, src := island(b, v.view, v.far)
 		brd, write := p.Read(0).Board(), p.Write().Board()
 		cam := ctx.cam
 		if v.screen {
@@ -358,9 +357,6 @@ func Benchmark_Board_Island(b *testing.B) {
 		}
 		if v.screen {
 			view += ",screen"
-		}
-		if v.workers == 1 {
-			view += ",serial"
 		}
 		var f render.Frame
 		for _, changed := range []bool{false, true} {

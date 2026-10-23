@@ -61,7 +61,7 @@ func Benchmark_Frame_Topography(b *testing.B) {
 		{"persp,0.7,sharp", "persp", true, false, frameW, frameH, false, 0, nil, inset, 0.7, true},
 	} {
 		b.Run(sc.name, func(b *testing.B) {
-			ctx, _, _, topo := islandWith(b, sc.view, false, 0, sc.shine, sc.lit, sc.sectored)
+			ctx, _, _, topo := islandWith(b, sc.view, false, sc.shine, sc.lit, sc.sectored)
 			topo.Write().SetCare(sc.care)
 			cam := ctx.cam
 			cam.SetViewport(sc.w, sc.h)
