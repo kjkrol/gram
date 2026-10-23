@@ -530,34 +530,6 @@ func inset(sx0, sy0, sx1, sy1 float32) (float32, float32, float32, float32) {
 	return sx0 + 0.5, sy0 + 0.5, sx1 - 0.5, sy1 - 0.5
 }
 
-// Branch readies dst to gather a part of f's picture on another goroutine, for Append to take
-// back.
-func (f *Frame) Branch(dst *Frame) {
-	dst.Reset(f.cam)
-	dst.time = f.time
-}
-
-// Append takes into f all that o holds, after what f holds already, in o's order.
-func (f *Frame) Append(o *Frame) {
-	base := int32(len(f.verts))
-	f.verts = append(f.verts, o.verts...)
-	for _, it := range o.items {
-		it.first += base
-		f.items = append(f.items, it)
-	}
-	f.count, f.overs = f.count+o.count, f.overs+o.overs
-	f.ground = f.ground || o.ground
-	f.opaque = append(f.opaque, o.opaque...)
-	for _, u := range o.uniforms {
-		f.Uniform(u.name, u.v[:u.n]...)
-	}
-	if o.count > 0 {
-		f.lastFirst, f.lastRect, f.lastAt = o.lastFirst+int(base), o.lastRect, o.lastAt
-		f.lastAtlas = o.lastAtlas
-		f.quads = append(f.quads[:0], o.quads...)
-	}
-}
-
 // spritePieces lays sprite id of atlas, its part u0..u1, v0..v1, over the world rectangle
 // (x0, y0)-(x1, y1) through cam, a piece where it crosses a wrap seam
 func spritePieces(

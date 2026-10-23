@@ -64,13 +64,13 @@
   type named in `render` by alias; the composer's shader compiles from the same source, byte for
   byte, and the demos draw as before.
 - Breaking, what nothing used: `render.CachedRenderer`, `render.Paint`, `render.DebugPrint`
-  (`DebugPrintAt` stays), `render.TextWidth`, `render.ActualTPS`, `render.Looped`,
-  `render.Slot` (`Atlas.Add` hands nothing back), `Frame.Fold`, `Frame.Fan`, `Frame.Last`,
-  `Frame.OverlayOn`, `Frame.Mark`, `Frame.Camera`, `Frame.GlazeBlend`, `Frame.SpriteBlendPart`,
-  `Overlay.Under`, `GroundHeights.At`, `DrawMeshOptions.Multiply` (and `gpu.Multiply`),
-  `Composer.Composed`, `GeoM.Reset`, `Sprites.Len`, `gpu.Ready`, `gpu.Device`, `Layout.Has`;
-  `render.SetRates` takes the frames alone; `Clocked`, `FromImage`, `NewSheet`, `GlyphWidth`
-  and `LineHeight` are render's own.
+  (`DebugPrintAt` stays), `render.TextWidth`, `render.ActualTPS`, `render.Looped`, `render.Slot`
+  (`Atlas.Add` hands nothing back), `Frame.Fold`, `Frame.Fan`, `Frame.Last`, `Frame.OverlayOn`,
+  `Frame.Mark`, `Frame.Camera`, `Frame.Branch`, `Frame.Append`, `Frame.GlazeBlend`,
+  `Frame.SpriteBlendPart`, `Overlay.Under`, `GroundHeights.At`, `DrawMeshOptions.Multiply` (and
+  `gpu.Multiply`), `Composer.Composed`, `GeoM.Reset`, `Sprites.Len`, `gpu.Ready`, `gpu.Device`,
+  `Layout.Has`; `render.SetRates` takes the frames alone; `Clocked`, `FromImage`, `NewSheet`,
+  `GlyphWidth` and `LineHeight` are render's own.
 - Breaking: the 2D fills are the image's: `dst.FillRect(…)`, `StrokeRect`, `StrokeLine`,
   `FillCircle`, `FillQuad`, `FillPolygon`, `StrokePolygon` in place of `render.FillRect(dst, …)`;
   `Image.PlaceDepth` is render's own. Text is the font's to draw: `f.Draw(dst, s, x, y, c)` in
