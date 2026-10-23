@@ -187,7 +187,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `internal/grids`), so a hot loop walks the directions and `Neighbors` stays for the rare
   callers; bit i of a `cell.Links` is direction i — `grid.DefaultGrids`, `Link`, `Way`,
   `Straight`, `Direction`, `Nearest`, `Exit`, `Rim`, `Shape`/`ShapeOf`), **`board/look`**
-  (`look.Look`, `Dressing`, `EvenLit`, `Laid`, `Swaying`, `Tile`, `FlatLook`, `Nothing`, `Map`,
+  (`look.Look`: `Flat`, `Swaying`, `Nothing`; `Dressing`, `Laid`, `Overlaid`, `Map`,
   `Renderer`/`NewRenderer`, `RenderState`, `MinGridCell`), **`board/ground`** (`ground.Heights`,
   `Profile`, `Cover`, `Readied`, `Surfaces`, `MeanOfCells`, `Shaper`, `RoadFits`, `RoadJoins`,
   `RoadSlope`), **`board/water`** (brooks, streams, rivers and fords out of a relief:
@@ -203,7 +203,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Spread` (blending between kinds). Slopes cost through the board's Map (`relief.Climbing{Up,
   Down, Ease, Steep, Free}`, `Map.Slope`/`Climb`/`Least`), so steep is the relief, never a kind.
   A `cell.Way` is a second layer on every cell entity, a band through the cell's middle whose kind
-  decides who may cross it (`Way.Over`), drawn by `Tile.DrawWay`; ways curve round the cell's
+  decides who may cross it (`Way.Over`), drawn by the painter's pieces; ways curve round the cell's
   middle, a way's `Fade` has it fade out (a river into the sea). Every cell is an entity for good,
   without a `world.Base`: `Plot`, `Ground` (kept apart so an effect ending restores the kind
   alone), `Way`, `Built`, made at Setup out of the seed or found after a load; `Version` and
@@ -319,14 +319,16 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   and one of the sheet's rectangles; a changed cell (`CellVersion`) rewritten with its
   neighbours, all of them past an eighth. Per pixel through the camera's rays the plain pass
   (`tiles_plain.wgsl`: square cells nothing sways on or beside), the full one (`tiles.wgsl`:
-  every hex and the cells near what sways, the 3×3 round in the order the cells are laid), then
-  the covers and the ways as instances a cell (`tiles_covers.wgsl`, `tiles_ways.wgsl`: the
-  quarters, the bands and the hub's fan built in the vertex shader, a copy across each seam in
-  view) and the cells of a material last (`tiles_material.wgsl`); lit per pixel by the frame's
-  light — the ambient, the distant light on level ground less the shade the frame holds, the
-  lamps', clamped to 1 — as each cell's `cell.Kind.Takes` says, a cell taking none left as
-  drawn; the sectors seen at their levels (`seen.go`). A camera without rays or a Dressing not
-  `EvenLit` gets the tiles composed on the CPU every frame, lit by `Lighting.At`),
+  every hex and the cells near what sways, the 3×3 round in the order the cells are laid, each
+  tile with the material over it, `look.Overlaid`, and its covers right after it), then the
+  covers of the plain cells and the ways as instances a cell (`tiles_covers.wgsl`,
+  `tiles_ways.wgsl`: the quarters, the bands and the hub's fan built in the vertex shader, a copy
+  across each seam in view), the clouds' shadows and the cells of a material last
+  (`tiles_material.wgsl`); lit per pixel by the frame's light — the ambient, the distant light on
+  level ground less the shade the frame holds, the lamps', clamped to 1 — as each cell's
+  `cell.Kind.Takes` says, a cell taking none left as drawn; the sectors seen at their levels
+  (`seen.go`). Nothing is composed on the CPU: a camera without rays or a board of no world
+  draws nothing; `Renderer.Whole` draws the whole board from above into an image),
   and takes the weather through `board.Plugin.WithAtmosphere(atmosphere)` (`lit.go`, reading
   `board.Atmosphere{Air}`: what sways leaning, the clouds' shadows laid on its ground right after
   the tiles, `draw.Clouds`), called in a scene before the first frame; without either it is drawn
@@ -380,7 +382,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   second corner within, the edge ring whole and stitched by fans, `sectors.go` `lattice.coarse`,
   tested crack-free — drawn by the ranges the camera's View sees (`runs`, joined where they
   follow, the skirt last) and fogged per pixel past `Sight − Fog` from `View.Fogging()`),
-  over a hex grid `internal/hexes` (every cell a prism from tiles composed once from above; by
+  over a hex grid `internal/hexes` (every cell a prism, its top from the board's tiles drawn
+  whole from above, `look.Renderer.Whole`, and the painter's ways over them, `Painter.DrawWays`,
+  `lanes.wgsl`, anew as the board changes or every frame while water runs or glints; by
   sector the instances laid in runs, a coarse sector's tops alone, `topVertices` 18). The
   entities are billboards on the GPU (`internal/billboards`, standing upright in the world across
   the screen's level right, so as tall on the screen as their `Height` stands there and inside their
@@ -1207,7 +1211,8 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `Switch{Shown}` shows or hides them (`Show`, `Shown`), `Turn{On}` turns them with the
   camera or keeps north up (`SetTurning`, `Turning`); both `Res.Settings{Hidden, Turning}`, saved,
   the settings screen's, no key; `SetReach`. Grounds: `board.Plugin.Miniature` (the
-  flat look baked from a `render.Still`, a pixel a unit up to 2048, anew as the board changes),
+  board drawn whole from above by its tile map, `look.Renderer.Whole`, a pixel a unit up to
+  2048, anew as the board changes),
   `topography.Plugin.Miniature` (the painter's albedo, `px / cell`; the hexes' `top`). Depends on
   `world`, `cameras` (the command), `ui`, `render`.
 - **`bullet`** — shots as entities: `Plugin.Shots()` — `Shots.Define(name, Body{Size, Speed,

@@ -3,20 +3,31 @@
 ## Unreleased
 
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
-- A flat board seen through a camera of rays (from above, isometric, in perspective) whose
-  Dressing lights every tile alike is laid on the GPU every frame out of an image of its cells
-  (`look/tiles.go`): the sprites, the ways, the covers, what sways, the cells of a material, the
-  light per pixel as each cell takes it, the sectors seen at their levels; a changed cell writes
-  its block and its neighbours' alone. The still the CPU composed anew on every change is gone
-  with the shade pass over it (`look/shade.go`); the CPU compose stays for the minimap's ground,
-  the topography's hex tops and a camera without rays. `Benchmark_Frame_Flat` (new, 1440p, read
-  back): from above 11.5 → 13.4 ms, a cell changed every frame 17.1 → 13.7 ms (4.8 MB → 55 KB a
-  frame), isometric 17.6 → 13.8 ms.
-- New: `look.Laid` (a Dressing's ways and covers, for the GPU to lay), `look.Swaying` (a Look
-  whose tiles sway).
-- Breaking: the board's parallel compose is gone, no game used it: `look.Parallel`,
-  `look.ParallelLook`, `Renderer.Workers`, `Renderer.UsePool`, `Renderer.Reads`,
-  `board.Plugin.WithWorkers`; the board's renderer no longer lays its tiles on the pool.
+- No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an
+  image of its cells (`look/tiles.go`): the sprites, the ways, the covers, what sways, the cells
+  of a material, the light per pixel as each cell takes it, the sectors seen at their levels; a
+  changed cell writes its block and its neighbours' alone. The minimap's board and a hex
+  topography's tops are drawn by it whole from above (`look.Renderer.Whole`), the painter's ways
+  over the hexes' tops as GPU instances (`Painter.DrawWays`, the curves, the glaze into the mix,
+  the water running and glinting as before). `Benchmark_Frame_Flat` (new, 1440p, read back),
+  before → after, measured apart: from above 11.5 → 13.4 ms, a cell changed every frame
+  17.1 → 13.7 ms (4.8 MB → 55 KB a frame), isometric 17.6 → 13.8 ms; the last stages (the
+  overlay, the covers in order) cost another ~0.7 ms from above and isometric, measured back to
+  back.
+- Where tiles overlap, on a hex board and round what sways, each tile and its covers lie over
+  the cells before it, row by row, in every view; the ways over them all, the cells of a
+  material after the clouds' shadows. The cells of a material, composed on the CPU every frame
+  besides the GPU's pass, are drawn once.
+- New: `look.Laid` (a Dressing's ways and covers), `look.Overlaid` (a material laid over some
+  tiles), `look.Renderer.Whole`, `look.Renderer.Animated`, `Painter.Above`, `Painter.Overlay`,
+  `Painter.DrawWays`.
+- Breaking: `look.Look` is how the cells lie (`look.Flat`, `look.Swaying`, `look.Nothing`), no
+  interface; a `look.Dressing` is `Begin`, `Sheet` and `Base(c, own)`. Gone: `look.Tile`,
+  `look.FlatLook`, `look.EvenLit`, the Dressing's `Light`, `FaceLight`, `Dress` and `Across`,
+  `render.Still`, `gpu.Kept`, `draw.Weigh`, `draw.Quarters`; a board of no world, or seen
+  through a camera without lines of sight, draws nothing. The board's parallel compose is gone,
+  no game used it: `look.Parallel`, `look.ParallelLook`, `Renderer.Workers`, `Renderer.UsePool`,
+  `Renderer.Reads`, `board.Plugin.WithWorkers`.
 - What looks different: what sways moves every frame from above (the still held it till a cell
   changed), the clouds' shadows lie on a flat board in isometry too, the light is worked out per
   cell on a hex board and across a wrapped world's seams, and nothing past the board's edge is

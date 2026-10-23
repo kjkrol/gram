@@ -942,6 +942,11 @@ the GPU out of its tile map at `7142fcc2`.
 | from above, a cell changed every frame | 17.1 ms (4.8 MB a frame) | 13.7 ms (55 KB) |
 | isometric | 17.6 ms | 13.8 ms |
 
+Measured back to back the same day, the board as it is laid once nothing is composed on the CPU
+(`a255183f`: the overlay in the plain pass, the covers in order in the full one) against the
+tile map above (`7142fcc2`): from above 15.1 against 14.4 ms, a cell changed 15.4 against 15.3,
+isometric 15.3 against 14.6 — this machine ran slower that hour, so only the differences count.
+
 From above the CPU composed the board once into a picture kept on the GPU and drew it as it was;
 the tile map works every pixel's cell out anew, ~2 ms a frame more. In exchange a changed cell
 writes its block and its neighbours' instead of the whole board composed again, and a view that

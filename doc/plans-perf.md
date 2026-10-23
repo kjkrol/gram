@@ -974,3 +974,23 @@ Odstępstwa od planu: składanie CPU zostaje dla minimapy planszy (`render.Still
 topografii (`FlatLook` + `Still`, malarz bez odpowiednika na GPU) i kamer bez promieni, więc
 `render.Still`, `look.FlatLook` i `draw.Bands`/`Covers` zostają. Na heksach kolejność nakładania
 okryć i kołysania na sąsiadów jest przybliżona (24 piksele różnicy na planszy testowej).
+
+### Płaska plansza na GPU: dokończenie (część A, 2026-10-23)
+
+| Etap | Zmiana | Commit |
+|:--|:--|:--|
+| A1 | materiały rysowane raz (bez kawałków CPU co klatkę), okrycia każdej komórki zaraz po jej kaflu w pełnym przebiegu (heksy, kołysanie) | `126f2b7e` |
+| A2 | `look.Renderer.Whole`: cała plansza z góry do obrazu; minimapa planszy przez nią zamiast `Still` | `a40c0fba` |
+| A3 | wierzchy heksów topografii: kafle przez `Whole`, połysk stojącej wody (`look.Overlaid`), drogi malarza jako instancje GPU (`lanes.wgsl`) | `a71b4c94` |
+| A4 | usunięte składanie kafli na CPU: `compose`, `look.Tile`, `FlatLook`, `EvenLit`, metody CPU Dressingu, `render.Still`, `gpu.Kept`, `draw.Weigh/Quarters`; testy porównawcze zamienione na sprawdzanie kolorów w punktach | `a255183f` |
+| A5 | dokumenty | — |
+
+Zgodność sprawdzona póki droga CPU istniała: heksy z okryciami i drogami co do piksela poza
+krawędzią widoku (tam CPU gubił komórkę), kołysanie z okryciami 0 pikseli, `Whole` wobec `Still`
+0 pikseli, wierzchy heksów malarza 3 piksele na krawędzi pudełka. Dema (przyspieszone, raz):
+navigation/hex i rules/effect identyczne, board/atlas i look/light różnią się tylko panelem
+telemetrii. Pomiar raz, naprzemiennie z `7142fcc2`: z góry +0,7 ms, izo +0,7 ms, zmiana komórki
+bez różnicy.
+
+Otwarte: wypiek malarza na planszy kwadratowej (`bake.go`, `render.Paint`) nadal składa kawałki
+na CPU raz na zmianę (decyzja: nie teraz).

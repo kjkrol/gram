@@ -2,7 +2,9 @@
 // painted flat for the ground drawn on the GPU.
 //
 // A [Painter] ([New]) dresses the board's tiles as look.Dressing asks and paints them once into
-// sheets ([Painter.Surface]): the board's albedo and its water in layers beside it;
+// sheets ([Painter.Surface]): the board's albedo and its water in layers beside it; over a hex
+// grid it hands the tiles drawn from above their still water glinting ([Painter.Overlay]) and
+// draws the ways across them on the GPU ([Painter.DrawWays]);
 // [Painter.Wet] is where water may lie, [Painter.Coast] the way to the shore from every corner
 // of a square grid.
 //
@@ -46,6 +48,6 @@
 //
 // Nothing of this is worked out per frame: a cell's read is kept while the board says it is
 // as it was, a tile's blends and way while the cells round it are. Over a square grid the whole
-// board is painted flat, a cell anew when it or a cell round it changes; over a hex grid the
-// tiles are composed once from above (render.Still).
+// board is painted flat, a cell anew when it or a cell round it changes; over a hex grid the ways'
+// pieces are laid anew as the board changes.
 package painter

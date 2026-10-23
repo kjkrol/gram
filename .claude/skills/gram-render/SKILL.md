@@ -137,11 +137,7 @@ the window and one past each seam, six vertices a copy in one call): no per-figu
 splitting or `Visible` on the CPU any more (`Benchmark_World_Draw` −35…−50%). One WGSL shader
 (`render/shaders/compose.wgsl` over the library and every material registered with
 `render.RegisterMaterials`) draws every piece; `Frame.Line`/ `Soft` fade their edges; a piece
-across cells takes the place of its nearest end. A
-`render.Still` is a picture composed once in world units **in the order its pieces come** (no sort:
-the board composes tiles and what lies on them, then `Dressing.Across`, the bands and the ways, in a
-second round), kept on the GPU (`gpu.Kept`, its vertices holding their heights), drawn every frame
-scaled, moved and lit (`gpu.Draw.Place`/ `Tint`), into the depth where the target has one.
+across cells takes the place of its nearest end.
 `render.Frame.Time` is the clock's `Shown` (`render.Clocked`), so animations move every frame. A
 plugin adds telemetry lines through a `render.Reporter`
 (`telemetry.NewPlugin(w).With(p.Reporter())`, the telemetry panel). `GRAM_SHOT=<file.png>` (and
@@ -288,7 +284,7 @@ to the GPU without the conversion glows; any new path from a colour to floats mu
 R, G, B by A.
 
 How things lie on the screen is a plugin's `Look`, swappable: `world.Look` (an entity's sprite,
-where it is picked, its footprint) and `look.Look` (a cell as a `look.Tile`), both flat from above
-by default; the topography sets both for relief. The renderers keep their data and ask the Look
+where it is picked, its footprint) and `look.Look` (how the cells lie: `Flat`, `Swaying`,
+`Nothing`), both flat from above by default; the topography sets both for relief. The renderers keep their data and ask the Look
 for geometry only. Pieces carry a `render.Shade` (a `render.Light` per corner; `render.Even`,
 `render.Lit`).

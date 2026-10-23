@@ -92,10 +92,9 @@
 // them is its [Taking], bits ([Illumination] carries it with its light and the sun's share of
 // it; WGSL takes(t, bit)).
 //
-// # Still and Sprites
+// # Sprites
 //
-// A [Still] is a frame composed once in world units and kept on the GPU, drawn every frame
-// scaled, moved and lit as a camera from above shows it. [Sprites] is a Direct source's sprites
+// [Sprites] is a Direct source's sprites
 // drawn as instances, each turning into the frame's Fog colour as far as [Sprites.Fog] says and
 // taking the shade the ground holds as [Sprites.Take] and [Sprites.Direct] say.
 // [Paint] paints a frame's sprites once into an image of one's own.

@@ -128,9 +128,8 @@
 // declaring looks by hand closes its own before, [Plugin.NewAtlas]); a state of the
 // ground is an effect on its cells, shown as a cover ([Plugin.Covering], [Slot.Under]). In a world
 // cut into sectors the cells drawn are those of the sectors a camera sees: plainly, undressed and
-// with no grid where it sees them coarsely (look.Tile.Coarse), fading into the fog before its
-// sight's end (look.Tile.Fog). [Write.Miniature] is the board flat from above as one picture, a
-// minimap's ground.
+// with no grid where it sees them coarsely, fading into the fog before its sight's end.
+// [Write.Miniature] is the board flat from above as one picture, a minimap's ground.
 //
 // # Tiles and figures
 //
