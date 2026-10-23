@@ -19,7 +19,7 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>) -> Part 
     let b = at.xy;
     let i = u32(at.z + 0.5);
     let flags = byteOf(b, 0.0, 0.0, 3);
-    if levelOf(b) != 1u || (U.TileSways > 0.5 && !plainly(flags)) {
+    if levelOf(b) != 1u || (U.TileFull > 0.5 && !plainly(flags)) {
         return out; // out of sight, or the full pass's
     }
     // the quarter, and its corner: two triangles of top-left, top-right, bottom-left, then

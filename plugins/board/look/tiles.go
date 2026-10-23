@@ -11,8 +11,8 @@ import (
 )
 
 // the passes laying the tiles: pixel by pixel the plain cells, those something sways on or beside
-// and every hex (the full pass) and the cells drawn by their material; the covers and the ways an
-// instance a cell
+// or a material lies over and every hex (the full pass) and the cells drawn by their material;
+// the covers and the ways an instance a cell
 var (
 	plainShader    = screenShader("board tiles, plain", "shaders/tiles_plain.wgsl")
 	fullShader     = screenShader("board tiles", "shaders/tiles.wgsl")
@@ -49,6 +49,7 @@ var tilesUniforms = []render.Uniform{
 	{Name: "TileLit", Size: 1},
 	{Name: "TileTint", Size: 3},
 	{Name: "TileSways", Size: 1},
+	{Name: "TileFull", Size: 1},
 	{Name: "TileCovers", Size: 4},
 	{Name: "TileCoversOn", Size: 4},
 	{Name: "TileSeen", Size: 1},
@@ -475,7 +476,9 @@ func (g *tiles) draw(t render.Target, v seeing, u render.Uniforms, l *Renderer, 
 	g.set("TileLit", flag(lit))
 	g.set("TileTint", tint[:]...)
 	sways := v.sways && g.swaying > 0
+	full := shape.Hex || sways || g.overlaid > 0
 	g.set("TileSways", flag(sways))
+	g.set("TileFull", flag(full))
 	var covers [8]float32
 	for i, id := range g.covers {
 		covers[i] = float32(id)
@@ -495,7 +498,7 @@ func (g *tiles) draw(t render.Target, v seeing, u render.Uniforms, l *Renderer, 
 	if !shape.Hex {
 		t.Screen.DrawMesh(nil, plainShader, &g.opts)
 	}
-	if shape.Hex || sways {
+	if full {
 		t.Screen.DrawMesh(nil, fullShader, &g.opts)
 	}
 	// over them the covers, then the ways, a copy across each seam the view takes in

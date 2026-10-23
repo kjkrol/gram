@@ -254,10 +254,10 @@ fn sampled(r: vec4<f32>, uv: vec2<f32>) -> vec4<f32> {
     return imageSrc0At(r.xy + 0.5 + uv * (r.zw - r.xy - 1.0));
 }
 
-// plainly reports whether the plain pass lays the cell flagged so: drawn by its sprite, nothing
-// swaying on or beside it where the tiles sway.
+// plainly reports whether the plain pass lays the cell flagged so: drawn by its sprite, no
+// material over it, nothing swaying on or beside it where the tiles sway.
 fn plainly(flags: u32) -> bool {
-    var mask = flagShaded;
+    var mask = flagShaded | flagOverlaid;
     if U.TileSways > 0.5 {
         mask |= flagNearSway;
     }

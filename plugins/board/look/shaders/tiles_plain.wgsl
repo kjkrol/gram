@@ -1,5 +1,5 @@
 // The tiles' plain pass (tiles_screen.wgsl): each cell of a square board nothing sways on or
-// beside, drawn by its sprite over its own box, faded into U.Fog as far into the fog before the
+// beside and no material lies over, drawn by its sprite over its own box, faded into U.Fog as far into the fog before the
 // sight's end as its middle lies (U.TileFogging: from where, where it begins and ends); nothing of
 // a cell whose middle lies in a sector hidden.
 
@@ -26,7 +26,6 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> Laid {
         laid = vec4<f32>(mix(laid.rgb, U.Fog * laid.a, fogOf(b.xy)), laid.a);
     }
     laid = vec4<f32>(laid.rgb * U.TileTint * lightAt(f32(byteIn(t0, 2)), p), laid.a);
-    laid = over(overlayOf(b.xy, byteIn(t0, 3), lo, hi, p), laid);
     if laid.a <= 0.0 {
         discard;
     }
