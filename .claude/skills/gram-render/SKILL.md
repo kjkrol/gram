@@ -1,9 +1,25 @@
 ---
 name: gram-render
-description: How gram draws — the Stage's picture (world.Picture, ctx.Draws, ctx.Looks), the Composer, order by Z and the depth buffer (At, passes, places, mark levels), Direct sources with their own WGSL, Still, Feed, the world's and the board's atlases and looks (Add, Under, Turning, Facing, Animated, WhileMoving, Phased, Looped, Lying, Upright, Edges, Sheet, materials), the plugins' Look seams, telemetry. Use when touching render/, an atlas or a look in a plugin or a demo's scene.go, a shader, a renderer, or when something is drawn wrong.
+description: How gram draws — the Stage's picture (world.Picture, ctx.Draws, ctx.Looks), the Composer, order by Z and the depth buffer (At, passes, places, mark levels), Direct sources with their own WGSL, Feed, the world's and the board's atlases and looks (Add, Under, Turning, Facing, Animated, WhileMoving, Phased, Loops, Lying, Upright, Edges, Sheet, materials), the plugins' Look seams, telemetry. Use when touching render/, an atlas or a look in a plugin or a demo's scene.go, a shader, a renderer, or when something is drawn wrong.
 ---
 
 # gram-render
+
+## The package
+
+`render` is a facade: the machinery is `render/internal`'s — `wgsl` (the shaders' library, the
+materials and the frame's images registered, sealed at the first shader), `gfx` (`Image`,
+`Depth`, `Indices`, `Shader`, the 2D fills as the image's methods, the soft blit, `SpriteID`,
+`AtlasSource`), `atlas` (`Atlas`, `Canvas`), `text` (`Font`, `f.Draw(dst, s, x, y, c)`, the debug
+text), `feed` (`Feed`, `Picture`, `Laid`), `compose` (`Frame`, `At`, `Source`, `Direct`, `Target`,
+the light and shade, `Composer`, `compose.wgsl`) and `instanced` (`Sprites`). A type an internal
+package needs is defined there and named in `render` by an alias with a one-line comment; `render`
+defines the rest (`Drawer`, `Renderer`, `Reporter`, `Surface`, `Illumination`, `Even`, `Lit`,
+`Box`, `ProjectCorners`, the looks, `Appearance` and its rules, the frame's statistics). The
+internal packages reach into each other through exported functions, never methods
+(`gfx.GPU(img)`, `gfx.Program(s)`, `gfx.PlaceDepth`), so no alias shows them; their tests never
+import `render` (a cycle) and keep the few helpers they need (`even`, `solid`) as their own. The
+device is `internal/gpu`; a test that draws readies it with `gputest.Need(t)`.
 
 ## Atlases and looks
 
@@ -135,10 +151,11 @@ rectangles on the GPU (the camera's `SceneTransform` matrix, the box
 round the projected corners like `ToScreenQuads`, over a wrapping world the copy `windowed` nearest
 the window and one past each seam, six vertices a copy in one call): no per-figure projection, wrap
 splitting or `Visible` on the CPU any more (`Benchmark_World_Draw` −35…−50%). One WGSL shader
-(`render/shaders/compose.wgsl` over the library and every material registered with
+(`render/internal/compose/compose.wgsl` over the library and every material registered with
 `render.RegisterMaterials`) draws every piece; `Frame.Line`/ `Soft` fade their edges; a piece
 across cells takes the place of its nearest end.
-`render.Frame.Time` is the clock's `Shown` (`render.Clocked`), so animations move every frame. A
+`render.Frame.Time` is the clock's `Shown` (a Source's `Clock() (time.Duration, bool)`), so
+animations move every frame. A
 plugin adds telemetry lines through a `render.Reporter`
 (`telemetry.NewPlugin(w).With(p.Reporter())`, the telemetry panel). `GRAM_SHOT=<file.png>` (and
 `GRAM_SHOT_FRAME`, 120) has a game save that frame and quit, the world taking one step a frame till

@@ -201,7 +201,7 @@ Stage entered afresh.
 
 ## Package layout
 
-`render` (root) — `Renderer`/`AtlasSource`/`Atlas`/`Composer`/`Frame`/`Source`/`At`/
+`render` (root, a facade over `render/internal/*`) — `Renderer`/`AtlasSource`/`Atlas`/`Composer`/`Frame`/`Source`/`At`/
 `SolidBackground`/`Feed`/`Direct`/`Font`, drawing
 with no knowledge of Stages, Scenes or plugins. `plugin` (root) — the extension contract
 (`Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`/`CommandHandler`/`Tunable`/`Keep`/

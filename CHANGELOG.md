@@ -58,6 +58,11 @@
   for its first frame, so the board painted at it no longer lands in the frames measured.
 
 **The render package taken apart** (2026-10-23, branch `perf/flat-gpu`)
+- `render` is a facade: the machinery is `render/internal`'s, `wgsl` (the shaders' library, the
+  materials and the frame's images), `gfx` (images, depths, meshes, shaders), `atlas`, `text`,
+  `feed`, `compose` (the composer and its frame) and `instanced` (sprites as instances), each
+  type named in `render` by alias; the composer's shader compiles from the same source, byte for
+  byte, and the demos draw as before.
 - Breaking, what nothing used: `render.CachedRenderer`, `render.Paint`, `render.DebugPrint`
   (`DebugPrintAt` stays), `render.TextWidth`, `render.ActualTPS`, `render.Looped`,
   `render.Slot` (`Atlas.Add` hands nothing back), `Frame.Fold`, `Frame.Fan`, `Frame.Last`,

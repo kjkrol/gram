@@ -27,13 +27,6 @@ func Files(fs embed.FS, names ...string) []byte {
 // out with.
 type MaterialID = wgsl.MaterialID
 
-// Look is the ways a look is painted: drawn once into the sheet (a SpriteDrawer), worked out
-// per pixel every frame (a MaterialID), frames along an effect's course (Phases) or frames
-// round and round by the clock (Loops).
-type Look interface {
-	~func(dst *Canvas, size int) | MaterialID | Phases | Loops
-}
-
 // RegisterMaterials adds to the composer's shader the materials of source, WGSL with the uniforms
 // it reads (U.Name), one material for each of entries, the function an Overlay of it is handed to:
 //

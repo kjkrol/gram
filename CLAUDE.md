@@ -158,9 +158,11 @@ Decisions the user has made; they are not up for revisiting in passing.
   function named alike (`pullCmd(lever)`); a name a package already gives is used from there
   (`weather.Clear`).
 - **What a plugin gives is in its root package** (`commands.go`: its commands, `Queues()`,
-  `DefaultBindings()`), as **real types, never aliases** — an alias gets no godoc. The one
-  exception is the entity re-exports (`world.Base = entity.Base` and kin), where the component
-  must be one type for goke and the saves.
+  `DefaultBindings()`), as **real types, never aliases** — an alias gets no godoc. The
+  exceptions are the entity re-exports (`world.Base = entity.Base` and kin), where the component
+  must be one type for goke and the saves, and `render`, a facade over `render/internal/*`: a
+  type an internal package needs is defined there and named in `render` by alias, a one-line
+  comment on each (`gram-render`).
 - **A command is a `command.Command`** by its method `Command()`, confirmed where it is defined
   (`var _ command.Command = MoveTo{}` beside the type). Whatever takes commands takes a
   `command.Command`, never `any`.
@@ -264,16 +266,16 @@ Decisions the user has made; they are not up for revisiting in passing.
 ## The map
 
 Dependency direction is one-way: `render` ← `plugin` ← `game` ← `internal/engine` ← `gram`.
-`render` draws with no knowledge of Stages, Scenes or plugins; `plugin` is the extension
-contract (`Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`/`CommandHandler`/
-`KindTemplater`/`Tunable`/`Keep`/`Made`,
-`plugin/section`); `game` is what a Stage implements and receives; `internal/engine` the
-`Engine`. Built-in plugins (`plugins/*`) import `plugin`/`render` directly, as a third-party
-plugin would. gram's core beside them — `ceremony`, `entity` (with `entity/kind`), `clock`,
-`control`, `camera` — imports no plugin; the world makes and runs their systems. A plugin's root
-holds its entries, its public subpackages the vocabulary and contracts, `internal` the machinery
-(`gram-plugin`). **Layering: the world knows its entities and nothing else; the ground is the
-board's, the sky the atmosphere's, `render` generic.**
+`render` draws with no knowledge of Stages, Scenes or plugins, its machinery in `render/internal`
+over the device (`internal/gpu`); `plugin` is the extension contract
+(`Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`/`CommandHandler`/
+`KindTemplater`/`Tunable`/`Keep`/`Made`, `plugin/section`); `game` is what a Stage implements and
+receives; `internal/engine` the `Engine`. Built-in plugins (`plugins/*`) import `plugin`/`render`
+directly, as a third-party plugin would. gram's core beside them — `ceremony`, `entity` (with
+`entity/kind`), `clock`, `control`, `camera` — imports no plugin; the world makes and runs their
+systems. A plugin's root holds its entries, its public subpackages the vocabulary and contracts,
+`internal` the machinery (`gram-plugin`). **Layering: the world knows its entities and nothing
+else; the ground is the board's, the sky the atmosphere's, `render` generic.**
 
 Built-in plugins (`gram-plugins`): `world` (the foundation: space, entities, the registers,
 the clock), `motion` (steering, movement and the leavers past an open edge, made first and run
