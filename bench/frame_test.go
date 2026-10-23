@@ -82,8 +82,10 @@ func Benchmark_Frame_Topography(b *testing.B) {
 				draw = func() { feed.DrawOn(screen) }
 			}
 			// the camera's view is made at the first frame and sees its sectors from the next
-			// tick on
+			// tick on; the first frame paints the ground, waited for, as a game's first does
 			draw()
+			gpu.Submit()
+			screen.ReadPixels(buf)
 			ctx.ecs.Tick(step)
 			b.ReportAllocs()
 			for b.Loop() {
