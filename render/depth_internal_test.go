@@ -563,3 +563,21 @@ func TestComposer_ALayerLeavesOutTheGroundUnderTheHole(t *testing.T) {
 		t.Errorf("the figure beside the hole shows %v, want red", px)
 	}
 }
+
+func TestSprites_TurnIntoTheFogsColourAsFarAsTheirFog(t *testing.T) {
+	gputest.Need(t)
+	a := atlasOf(t)
+	blue := items(func(f *Frame) { f.Uniform("Fog", 0, 0, 1) })
+	all := shot(t, groundOf(a), &figureSource{atlas: a, z: 10, id: 2, fog: 1}, blue)
+	if got := all(24, 24); got != [4]byte{0, 0, 255, 255} {
+		t.Errorf("all in the fog the figure shows %v, want the fog's blue", got)
+	}
+	half := shot(t, groundOf(a), &figureSource{atlas: a, z: 10, id: 2, fog: 0.5}, blue)
+	if got := half(24, 24); got[0] < 100 || got[0] > 120 || got[2] < 120 || got[2] > 135 {
+		t.Errorf("half in the fog the figure shows %v, want half its red, half the blue", got)
+	}
+	clear := shot(t, groundOf(a), &figureSource{atlas: a, z: 10, id: 2}, blue)
+	if got := clear(24, 24); got != [4]byte{220, 0, 0, 255} {
+		t.Errorf("out of the fog the figure shows %v, want it red", got)
+	}
+}

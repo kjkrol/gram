@@ -9,9 +9,6 @@ import (
 	"github.com/kjkrol/gram/render/internal/wgsl"
 )
 
-//go:embed shaders/*.wgsl
-var shaderFiles embed.FS
-
 // Files joins the named files of fs, in order, into one WGSL source.
 func Files(fs embed.FS, names ...string) []byte {
 	var b strings.Builder

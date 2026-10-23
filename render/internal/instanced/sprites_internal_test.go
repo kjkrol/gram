@@ -1,4 +1,4 @@
-package render
+package instanced
 
 import (
 	"slices"
@@ -6,11 +6,14 @@ import (
 
 	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/render/internal/atlas"
+	"github.com/kjkrol/gram/render/internal/compose"
+	"github.com/kjkrol/gram/render/internal/gfx"
 )
 
 func TestSprites_DrawsTheLowerFirstAndAtOneHeightTheLyingFirst(t *testing.T) {
 	var s Sprites
-	var f Frame // through no camera: a point's height its key
+	var f compose.Frame // through no camera: a point's height its key
 	add := func(mark, z float32, under bool) {
 		s.Layer(f.At(0, 0, z), under)
 		s.piece(nil)
@@ -38,15 +41,15 @@ func TestSprites_DrawsTheLowerFirstAndAtOneHeightTheLyingFirst(t *testing.T) {
 
 func TestSprites_DrawTwiceDrawsTheSameSpritesUntilReset(t *testing.T) {
 	gputest.Need(t)
-	atlas := NewAtlas()
-	atlas.Add(SpriteID(1), 8, Solid(white))
-	atlas.Close()
+	sheet := atlas.NewAtlas()
+	sheet.Add(SpriteID(1), 8, solid(white))
+	sheet.Close()
 	cam := cameratest.NewFromSpace(64, 64, 0)
 	cam.SetViewport(64, 64)
 	var s Sprites
-	s.Rect(atlas, 1, 16, 16, 48, 48, 0, 0, 1, 1, Light{1, 1, 1})
+	s.Rect(sheet, 1, 16, 16, 48, 48, 0, 0, 1, 1, Light{1, 1, 1})
 	middle := func() [4]byte {
-		screen := NewImage(64, 64)
+		screen := gfx.NewImage(64, 64)
 		s.Draw(Target{Screen: screen}, cam, Uniforms{})
 		return pixelsOf(screen)(32, 32)
 	}
@@ -58,23 +61,5 @@ func TestSprites_DrawTwiceDrawsTheSameSpritesUntilReset(t *testing.T) {
 	s.Reset()
 	if p := middle(); p[3] != 0 {
 		t.Errorf("after Reset the sprite still shows %v, want nothing drawn", p)
-	}
-}
-
-func TestSprites_TurnIntoTheFogsColourAsFarAsTheirFog(t *testing.T) {
-	gputest.Need(t)
-	a := atlasOf(t)
-	blue := items(func(f *Frame) { f.Uniform("Fog", 0, 0, 1) })
-	all := shot(t, groundOf(a), &figureSource{atlas: a, z: 10, id: 2, fog: 1}, blue)
-	if got := all(24, 24); got != [4]byte{0, 0, 255, 255} {
-		t.Errorf("all in the fog the figure shows %v, want the fog's blue", got)
-	}
-	half := shot(t, groundOf(a), &figureSource{atlas: a, z: 10, id: 2, fog: 0.5}, blue)
-	if got := half(24, 24); got[0] < 100 || got[0] > 120 || got[2] < 120 || got[2] > 135 {
-		t.Errorf("half in the fog the figure shows %v, want half its red, half the blue", got)
-	}
-	clear := shot(t, groundOf(a), &figureSource{atlas: a, z: 10, id: 2}, blue)
-	if got := clear(24, 24); got != [4]byte{220, 0, 0, 255} {
-		t.Errorf("out of the fog the figure shows %v, want it red", got)
 	}
 }
