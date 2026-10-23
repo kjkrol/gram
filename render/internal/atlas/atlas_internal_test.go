@@ -1,9 +1,13 @@
-package render
+package atlas
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/kjkrol/gram/render/internal/gfx"
 )
+
+type SpriteID = gfx.SpriteID
 
 func panicOf(t *testing.T, f func()) (msg string) {
 	t.Helper()
