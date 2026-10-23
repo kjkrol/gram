@@ -2,9 +2,37 @@
 
 ## Unreleased
 
-Needs aabbworld with `Space.MoveRun`, astar with the stamped slice dictionary and ceremony with
-`Carrier.PutFromOf` (their `perf/wave-3` PRs); till they are tagged, `/home/karol/CODE/go.work`
-uses the local `./aabbworld`, `./astar` and `./ceremony`.
+Needs aabbworld v1.15.0, astar v1.1.3, ceremony v0.3.1 and goke v3.6.0.
+
+**Wave 5** (2026-10-22/23, `doc/plans-perf.md` "Fala 5")
+- One pool of goroutines for the whole game (`internal/parallel`: `New`, `Begin(task, idle)`,
+  `Batch.Add`, `Batch.Wait`; tasks taken by an atomic counter, none allocating), sized by
+  `game.Props.Workers` (0 every CPU, 1 none) and handed to the plugins by
+  `plugin.Installer.Pool`. Vision scans and the board's renderer lays its tiles on it;
+  `parallel.Workers` and `parallel.Run`, which made goroutines on every call, are gone.
+  `Vision_Scan` 9 → 0 allocations a tick, with outlines 100 observers −7.7%.
+- Breaking: a plugin hands its state out through `Read(w)`, safe on goroutine `w` of the pool (0
+  the game's), and `Write()`, on the game's goroutine; configuration, registers and lifecycle
+  stay on the plugin. The board: `Read(w).Board()` a `BoardRead` (the grid, the terrain),
+  `Write().Board()` a `BoardWrite` (`Set`, `SetAll`, `SetWay`, `Touch`), `board.NewBoard` a
+  board with no plugin; a `Map`'s `Top(c, height)`; the cover kept cell by cell as cells change
+  (`ground.Readied` gone). The world: `Read(w)` with `Space` (aabbworld `SpaceRead`), `Clock`
+  (`clock.Read`), `Effects` (ceremony `EffectsRead`), `Write()` with `Space`, `Clock`, `Effects`,
+  `Carrier`, `Spawn`, `Despawn`, `NewView` and the setters. Light, topography, selection,
+  navigation, atmosphere, cameras, telemetry, players, minimap, vision, collision, motion and
+  bridges likewise, their switches, levers and setters on `Write`; `clock.Clock.Replayed`.
+- Navigation in internal packages (`order`, `bodies`, `spacing`, `routing`, `traffic`,
+  `pathfind`, `routes`), the public names by alias.
+- A unit without a route asks for one in its order (`MoveOrder.Ask`) and the routing answers it
+  the same step, the traffic moving the units that asked after the answers. The routing's
+  searches are shared on the pool among `WithRouters(k)` routers (`DefaultRouters`, 4), each a
+  finder of its own, sharing one memory of answers: a search one goroutine works out another
+  waits for instead of running it again. An idle goroutine wipes the stamps of the routers idle
+  that tick near their wrap (astar `Solver.Wipe`). A `MoveTo` no longer searches: a group's
+  targets are the cells round its goal, nearest first, one to a unit under cell spacing however
+  many they are. The crowd moves differently from the first group order on.
+- A step onto a cell allocates nothing: the occupancies hand the slice of a cell `Release`
+  emptied to the next cell entered (open 1,000 20 → 14 allocations a tick).
 
 **Wave 3** (2026-10-21, `doc/plans-perf.md` "Fala 3")
 - A route search asked again over the same board is answered as before, unrun: a search blind to
@@ -43,6 +71,10 @@ uses the local `./aabbworld`, `./astar` and `./ceremony`.
 
 Saves made before the back-off of a failed search do not load: `navigation.MoveOrder` has `Retry`
 and `Fails`.
+
+Saves made before wave 5 do not load: the navigation's components are saved as `order.MoveOrder`,
+`order.LastOrder`, `order.Blocked`, `order.Arrived` and `order.Round` (were `navigation.…`), and
+`MoveOrder` has `Ask`.
 
 **The space reads every box where goke keeps it** (2026-10-21, etap 3 of `doc/plans-perf.md`)
 - Motion, the world and collision hand the space runs over the `Base` columns (aabbworld v1.14.1

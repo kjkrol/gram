@@ -188,6 +188,11 @@ that: what stays on one goroutine is walking the ECS's chunks and, with triggers
 Before 2026-09-29 the harness did not replay the world's clock, so these benchmarks had measured
 an empty tick since the clock came; the numbers before that agree with today's serial ones.
 
+**Wave 5** (2026-10-22): the scan runs on the game's pool of goroutines, kept for the whole game,
+a scanner to each, instead of goroutines made every tick: 100 / 500 observers 76.9 / 286.8 →
+76.9 / 278.0 µs and 9 → 0 allocations a tick, with outlines 100 observers 138.6 → 128.0 µs
+(medians of 5, alternately); the serial variants within the noise.
+
 ### Over a relief — `Benchmark_Vision_Relief`
 
 37 observers on a 192×96 board of rolling hills in relief, cells 333 m, each looking 30 cells
@@ -543,6 +548,17 @@ about the crowd's behaviour. Ceremony's steps give their commands without alloca
 90 allocations a tick in the open, 3,946 → 1,406 in the crowd), the time within the noise: taken
 by the user's rule, fewer allocations at a time not worse.
 
+**Wave 5** (2026-10-22/23). Navigation is the routing, which plans the routes, and the traffic,
+which moves the units along them: a unit without a route asks for one in its order and the
+routing answers it the same step, on the game's pool, 4 routers sharing one memory of answers. A
+`MoveTo` no longer searches: a group's targets are the cells round its goal, nearest first. The
+crowd moves differently from the first group order on, so the scenes compared differ: crowded
+1,000 at `12x` 38.2 → 8.3 ms, those twelve ticks catching the base at a peak; over 600 ticks,
+one run each, 12.8 → 8.7 ms on average. A step onto a cell no longer allocates: open 1,000 at
+`400x` 20 → 14 allocations a tick, the time unchanged. The routing on the pool against the
+routing on one goroutine, crowded 1,000: 8.27 → 8.45 ms, one run; the twelve ticks hold few
+asks, so no benchmark shows yet what the pool gains.
+
 ### A route — `Benchmark_Navigation_Path`
 
 One route across a 200×200 board of rocks and walls, the planner alone, `-benchtime=40x`: 94.3 ms
@@ -550,6 +566,10 @@ and 14,740 allocations before etap 2a (the part's own base, the benchmark added 
 and 19 after (median of 3 on an idle machine). `BenchmarkGrids_Neighbours`
 (`plugins/board/internal/grids`): `Toward` over every cell of a square grid 8.0 → 3.3 ms, on a
 torus 15–26 → 3.3 ms; the allocating `Neighbors` list costs 4.1–5.6 ms.
+
+Since wave 5 the benchmark no longer measures the A*: a `MoveTo` does not search, the routing
+answers through its memory of answers, and the walker is sent between the same two goals, so
+after the first two ticks every route is a kept answer: 14.9 → 0.7 ms.
 
 **After etap 2b** (2026-10-20, `n/bodies`): the keepings' passes allocate nothing per unit (the
 body index, a step's ground check and a route round the cells learned go through method values
