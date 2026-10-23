@@ -944,6 +944,6 @@ po jednym przebiegu.
   `Routing_Routes`, każde wyszukiwanie od nowa): A* trasy przez planszę 200×200 15,2 ms, tyle co
   `Navigation_Path` przed falą 5; 32 trasy naraz 256 ms na jednym wątku, 77,8 ms na puli (4
   routery, 3,3×). Tablice routera powstają przy jego pierwszym wyszukiwaniu, potem 0 alokacji.
-- `Navigation_Path` w `bench` mierzy pamięć odpowiedzi; do decyzji, czy go zostawić.
+- `Navigation_Path` w `bench` zostaje: mierzy cały tick z pamięcią odpowiedzi, A* mierzy `Routing_Path`.
 - Na później: wielu piszących do `Space` (wkład na wątek, sklejenie przez koordynatora, jedno
   `RebuildRuns`); płaska plansza drogą GPU topografii (bez składania kafli w rendererze planszy).
