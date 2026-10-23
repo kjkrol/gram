@@ -25,7 +25,8 @@ var paintUniforms = []render.Uniform{
 	{Name: "PaintHex", Size: 1}, {Name: "PaintCell", Size: 1}, {Name: "PaintLow", Size: 1},
 	{Name: "PaintSpan", Size: 1}, {Name: "PaintFine", Size: 1}, {Name: "PaintDetail", Size: 1},
 	{Name: "PaintHeights", Size: 1}, {Name: "PaintScale", Size: 1}, {Name: "PaintMasked", Size: 1},
-	{Name: "PaintFlowSpan", Size: 1}, {Name: "LaneGlint", Size: 1}, {Name: "LaneStream", Size: 1},
+	{Name: "PaintFlowSpan", Size: 1}, {Name: "PaintCoast", Size: 1}, {Name: "LaneGlint", Size: 1},
+	{Name: "LaneStream", Size: 1},
 }
 
 // the layers the bake paints (paint_common.wgsl): the albedo, the kinds' details, then the
@@ -220,6 +221,7 @@ func (l *Painter) paintSet(dst *render.Image, layer int, origin image.Point, px,
 	b.set("PaintScale", scale)
 	b.set("PaintMasked", flag(masked))
 	b.set("PaintFlowSpan", water.FlowSpan)
+	b.set("PaintCoast", shoreReach)
 	b.set("LaneGlint", float32(water.SeaGlint()))
 	b.set("LaneStream", float32(water.RunningWater()))
 }

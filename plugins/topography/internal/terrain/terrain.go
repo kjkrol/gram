@@ -88,14 +88,17 @@ type Painted struct {
 	Kinds, Details *render.Image
 	CellDetails    []byte
 	CellDetailsAt  uint64
-	Shores         []water.Shore
-	Reach          float32    // the farthest a shore is seen from
-	Coast          uint64     // counts the shores' changes
-	Grid           float32    // screen pixels a cell spans from which the grid is drawn
-	GridLine       [4]float32 // premultiplied
-	GridWidth      float32    // screen pixels
-	Wet            []bool
-	Wetness        uint64 // counts the changes of Wet
+	// Shores is the way to the shore from every corner of the lattice as the lattice holds it
+	// ((way + 1) / 2 in red and green, the distance over Reach in blue), nil for open water;
+	// Reach the farthest a shore is seen from
+	Shores    *render.Image
+	Reach     float32
+	Coast     uint64     // counts the shores' changes
+	Grid      float32    // screen pixels a cell spans from which the grid is drawn
+	GridLine  [4]float32 // premultiplied
+	GridWidth float32    // screen pixels
+	Wet       []bool
+	Wetness   uint64 // counts the changes of Wet
 	// Takes is, by cell row by row, the shade the cell takes (render.Taking), nil for all, and
 	// Sway how much what stands on it bends in the wind, nil for none; Styled counts their
 	// changes
@@ -296,8 +299,12 @@ func (r *Renderer) refresh(cam camera.Camera) bool {
 	r.painted = r.surface.Surface()
 	if v := r.painted.Coast + 1; r.coastAt != v {
 		r.coastAt = v
-		r.buf = shores(cols, rows, r.painted.Shores, r.painted.Reach, r.buf[:0])
-		r.write(cols, rows, cols, rows)
+		if s := r.painted.Shores; s != nil {
+			r.lattice.SubImage(image.Rect(cols, rows, 2*cols, 2*rows)).CopyFrom(s)
+		} else {
+			r.buf = openWater(cols, rows, r.buf[:0])
+			r.write(cols, rows, cols, rows)
+		}
 	}
 	v := [3]uint64{r.painted.Wetness + 1, r.painted.Styled + 1, r.painted.CellDetailsAt + 1}
 	if r.wetAt != v {
@@ -405,19 +412,10 @@ func (r *Renderer) write(x, y, w, h int) {
 	r.lattice.SubImage(image.Rect(x, y, x+w, y+h)).WritePixels(r.buf)
 }
 
-// (dir+1)/2 in red and green, the distance over reach in blue; open water where none is given
-func shores(cols, rows int, from []water.Shore, reach float32, dst []byte) []byte {
-	unit := func(v float32) byte { return byte(min(max(v, 0), 1)*255 + 0.5) }
-	for i := range cols * rows {
-		s := water.Shore{Dist: reach}
-		if i < len(from) {
-			s = from[i]
-		}
-		far := float32(1)
-		if reach > 0 {
-			far = s.Dist / reach
-		}
-		dst = append(dst, unit((s.X+1)/2), unit((s.Y+1)/2), unit(far), 255)
+// open water at every corner: no way to a shore, the whole reach off, as Shores holds it
+func openWater(cols, rows int, dst []byte) []byte {
+	for range cols * rows {
+		dst = append(dst, 128, 128, 255, 255)
 	}
 	return dst
 }

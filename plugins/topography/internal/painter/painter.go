@@ -57,6 +57,7 @@ type Painter struct {
 	lanes        lanes
 	cells        cells
 	baking       baking
+	shoreMap     shoreMap
 }
 
 var (

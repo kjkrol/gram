@@ -89,7 +89,7 @@ func (l *Painter) Wet() ([]bool, uint64) {
 		if !ok {
 			continue
 		}
-		own[i] = l.base(c).shine > 0 || wets(l.bakes[i].ways)
+		own[i] = l.base(c).shine > 0 || l.wets(c)
 	}
 	l.wet = make([]bool, n)
 	for i := range n {
@@ -99,13 +99,10 @@ func (l *Painter) Wet() ([]bool, uint64) {
 	return l.wet, l.wetAt
 }
 
-func wets(ways []WayPiece) bool {
-	for _, p := range ways {
-		if p.Shine > 0 || p.MixShine > 0 {
-			return true
-		}
-	}
-	return false
+// wets reports whether water lies on the way across c: it shines, or turns into a kind that does
+func (l *Painter) wets(c cell.ID) bool {
+	w := l.topOf(c).way
+	return w.Runs() && l.heights && (w.shine > 0 || w.mixShine > 0)
 }
 
 func (l *Painter) newSheet(atlas render.AtlasSource, based bool) *groundSheet {
@@ -177,11 +174,33 @@ func (l *Painter) noteCells(s *groundSheet) {
 	cols := int(l.sq.Cols)
 	for i := range n {
 		s.cells[i] = Dressed
-		if c, ok := l.cellAt(int64(i%cols), int64(i/cols)); ok && !s.dressed[i] {
+		if c, ok := l.cellAt(int64(i%cols), int64(i/cols)); ok && !l.dressed(c) {
 			s.cells[i] = l.detailOf(l.base(c).sprite)
 		}
 	}
 	s.cellsAt++
+}
+
+// dressed reports whether more than c's own kind may lie on its top: the grounds round it
+// running in, where it runs into them and a neighbour is of another sprite or lies otherwise
+// under the rest, or a way across it or a cell beside it, which may reach in
+func (l *Painter) dressed(c cell.ID) bool {
+	mine := l.topOf(c)
+	if mine.way.Runs() {
+		return true
+	}
+	blends := !mine.raised && (mine.under || mine.spread > 0)
+	for d := range l.board.Directions() {
+		n, ok := l.board.Toward(c, d)
+		if !ok {
+			continue
+		}
+		t := l.topOf(n)
+		if t.way.Runs() || blends && (t.sprite != mine.sprite || t.under != mine.under) {
+			return true
+		}
+	}
+	return false
 }
 
 func (l *Painter) around8(i int, fn func(j int)) {

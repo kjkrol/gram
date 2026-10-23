@@ -242,3 +242,45 @@ func TestPainter_BakesTheWaysOnTheGPUAsOnTheCPU(t *testing.T) {
 			"CPU's, want none", off)
 	}
 }
+
+// the way to the shore from every corner worked out on the GPU as the CPU works it out; the cells
+// whose kind alone lies on them as the CPU's pieces say, more of them dressed at most
+func TestPainter_WorksTheShoresAndTheCellsOutAsTheCPUDoes(t *testing.T) {
+	needGPU(t)
+	g := grid.DefaultGrids{}.Square(16, 12, 32)
+	d, _, atlas := wayBoard(t, g)
+	d.Surface(atlas)
+	shores, reach, _ := d.Coast()
+	img, gpuReach, _ := d.Shores(atlas)
+	if gpuReach != reach {
+		t.Fatalf("the shores are seen %v off, want the CPU's %v", gpuReach, reach)
+	}
+	w, h := img.Bounds().Dx(), img.Bounds().Dy()
+	if w*h != len(shores) {
+		t.Fatalf("%d by %d corners, want the CPU's %d", w, h, len(shores))
+	}
+	pix := make([]byte, 4*w*h)
+	img.ReadPixels(pix)
+	unit := func(v float32) int { return int(min(max(v, 0), 1)*255 + 0.5) }
+	off := 0
+	for i, s := range shores {
+		want := [3]int{unit((s.X + 1) / 2), unit((s.Y + 1) / 2), unit(s.Dist / reach)}
+		for k := range 3 {
+			if d := int(pix[4*i+k]) - want[k]; d > 2 || d < -2 {
+				off++
+				t.Logf("corner %d, %d holds %v, want %v", i%w, i/w, pix[4*i:4*i+3], want)
+				break
+			}
+		}
+	}
+	if off > 0 {
+		t.Errorf("%d corners' shores differ from the CPU's, want none", off)
+	}
+	cells, _ := d.CellDetails()
+	for i, k := range cells {
+		if want := d.albedo.dressed[i]; want && k != Dressed {
+			t.Errorf("cell %d, %d holds detail %d, want it dressed as the CPU's pieces lie", i%16,
+				i/16, k)
+		}
+	}
+}

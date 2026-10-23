@@ -175,7 +175,7 @@ func (s boardSurface) Surface() terrain.Painted {
 			out.CellDetails, out.CellDetailsAt = d.CellDetails()
 		}
 	}
-	out.Shores, out.Reach, out.Coast = d.Coast()
+	out.Shores, out.Reach, out.Coast = d.Shores(s.p.boardPlugin.Read(0).Atlas())
 	out.Takes, out.Sway, out.Styled = s.p.takes()
 	if line, width, shown := s.p.boardPlugin.Res.Render.Grid(); shown {
 		out.Grid, out.GridLine, out.GridWidth = look.MinGridCell, line, width

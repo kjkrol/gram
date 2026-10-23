@@ -176,10 +176,11 @@ func put16(b []byte, v float32) {
 func unit255(v float32) byte { return byte(min(max(v, 0), 1)*255 + 0.5) }
 
 // sprite lays id at the block's byte at, low then high, and its rectangle into the rectangles
+// where there is a sheet
 func (g *cells) sprite(at int, id render.SpriteID) {
 	g.block[at], g.block[at+1] = byte(id), byte(id>>8)
 	k := int(id)
-	if k < len(g.rected) && g.rected[k] {
+	if g.atlas == nil || k < len(g.rected) && g.rected[k] {
 		return
 	}
 	if rows := k/rectsPerRow + 1; g.rects == nil || g.rects.Bounds().Dy() < rows {
