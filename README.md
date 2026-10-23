@@ -414,7 +414,7 @@ by its kind: a `plan.Loop` is a branch with an end — `Until` the *fact* a plug
 that hold for a while and give *commands* for their entity (`plan.Self.Do(navigation.MoveTo{…})`),
 the same a player gives. An effect turns the *knobs* a plugin gives, components it only reads, like
 `steering.Steering` or a cell's `cell.Ground`. A rule holds no Go code but its words; how
-entities are drawn is the one place rules are Go (`render.Rule`), declared on the world's atlas
+entities are drawn is the one place rules are Go (`world.Rule`), declared on the world's atlas
 in a scene, where a kind's look under an effect is declared too (`Slot.Under(effect, look)`).
 A plugin ships no ready-made reactions: it gives moments and their words, and the game says
 what follows. The language is ceremony's [doc/ceremony.md](https://github.com/kjkrol/ceremony/blob/main/doc/ceremony.md);

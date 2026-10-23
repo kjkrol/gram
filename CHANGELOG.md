@@ -17,6 +17,16 @@
   folder keeps it there): naga no longer translates every shader at every start, nor wgpu
   parses its WGSL again. Readying board/topography 899 → 574 ms the first time, 323 ms after
   (the shaders 601 → 34 ms), look/sky 744 → 426 / 200 ms, on an Intel UHD 620.
+- What is drawn can be published once a frame, after its ticks, and swapped before it is drawn
+  (`plugin.Publisher`, `render.Buffered`; the engine finds publishers among what it tracks, what
+  is drawn and the scenes' drawers, and its `Frame` updates and publishes, for tests).
+- Breaking: the looks' rules are the world's: `world.Rule`, `world.Rules`, `world.Own`,
+  `world.Over`, `world.As`, `world.Swap`, `world.With`, `world.Show` (were `render`'s).
+- Breaking: render no longer depends on goke (a test keeps it so). `render.Drawer` is gone and
+  no drawing type has `Init`: a `Renderer` draws, a `Reporter` reports, a Source composes, a
+  Picture draws its world, and the Composer readies nothing. What reads the world is a
+  `plugin.Bound`, readied once by the engine; `game.Scene.Drawers` returns `[]render.Renderer`,
+  so a picture or a source listed in a scene no longer compiles (the engine's check is gone).
 
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an
