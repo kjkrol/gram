@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/render/internal/wgsl"
 )
 
 // Source is what draws a part of the world by handing its pieces to a Frame.
@@ -137,7 +138,7 @@ func (f *Frame) Uniform(name string, v ...float32) {
 // Image hands every shader drawing this frame the image registered as name (RegisterImage); a
 // name not registered panics.
 func (f *Frame) Image(name string, img *Image) {
-	if !slices.Contains(images, name) {
+	if !slices.Contains(wgsl.Images(), name) {
 		panic("render: no image is registered as " + name)
 	}
 	for i := range f.images {

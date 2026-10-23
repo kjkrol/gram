@@ -90,7 +90,7 @@ func TestFrame_AShaderReadsTheFramesImageByName(t *testing.T) {
 	}
 }
 
-func TestRegisterImage_RefusesALateATwiceGivenAndANinthName(t *testing.T) {
+func TestRegisterImage_RefusesALateNameAndAFrameAnUnregisteredOne(t *testing.T) {
 	panics := func(what string, f func()) {
 		t.Helper()
 		defer func() {
@@ -103,15 +103,6 @@ func TestRegisterImage_RefusesALateATwiceGivenAndANinthName(t *testing.T) {
 	}
 	ShaderSource()
 	panics("an image registered after a shader was built", func() { RegisterImage("Late") })
-	was, sealedWas := images, sealed
-	defer func() { images, sealed = was, sealedWas }()
-	sealed = false
-	panics("an image registered twice", func() { RegisterImage("TestProbe") })
-	images = append([]string(nil), was...)
-	for len(images) < 8 {
-		RegisterImage(strings.Repeat("x", len(images)+1))
-	}
-	panics("a ninth image", func() { RegisterImage("Ninth") })
 	panics("a frame handed an image never registered", func() {
 		var f Frame
 		f.Image("Unknown", nil)

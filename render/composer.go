@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/render/internal/wgsl"
 )
 
 // Composer is a Picture drawing its Sources as one picture: the opaque ground first, writing the
@@ -272,7 +273,7 @@ func (c *Composer) setUniforms() {
 	for _, u := range f.uniforms {
 		copy(c.uniform(u.name, int(u.n)), u.v[:u.n])
 	}
-	for _, name := range images {
+	for _, name := range wgsl.Images() {
 		c.boxed[name] = (*Image)(nil)
 	}
 	for _, im := range f.images {
