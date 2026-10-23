@@ -17,7 +17,7 @@ import (
 	"github.com/kjkrol/gram/render/gpu"
 )
 
-func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
+func TestRenderer_LaysAFlatBoardOnTheGPUAsComposedEveryFrame(t *testing.T) {
 	needGPU(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
 	water := cell.Kind{SpriteID: 2, Cost: 1, Allows: cell.Water}
@@ -54,8 +54,8 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 	check := func(when string) {
 		draw(every, a, cam)
 		draw(once, b, cam)
-		if !look.ComposedOnce(once) {
-			t.Fatalf("%s: the board was not composed once", when)
+		if !look.Tiled(once) {
+			t.Fatalf("%s: the board's tiles were not laid on the GPU", when)
 		}
 		for i := 0; i < len(a); i += 4 {
 			for k := range 4 {
@@ -86,7 +86,7 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 	}
 }
 
-func TestRenderer_DrawsTheGridOverABoardComposedOnce(t *testing.T) {
+func TestRenderer_DrawsTheGridOverTheTilesLaidOnTheGPU(t *testing.T) {
 	needGPU(t)
 	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
 	atlas := render.NewAtlas()
@@ -128,8 +128,8 @@ func TestRenderer_DrawsTheGridOverABoardComposedOnce(t *testing.T) {
 			render.NewComposer(x.r).DrawWorld(screen, cam)
 			screen.ReadPixels(x.pix)
 		}
-		if !look.ComposedOnce(once) {
-			t.Fatalf("%s: the board was not composed once", c.name)
+		if !look.Tiled(once) {
+			t.Fatalf("%s: the board's tiles were not laid on the GPU", c.name)
 		}
 		most, sum := 0, 0
 		for i := range a {
@@ -151,7 +151,7 @@ func needGPU(t *testing.T) {
 	}
 }
 
-func TestRenderer_DrawsTheBoardComposedOnceInTheOpaquePassAndItsGridOverIt(t *testing.T) {
+func TestRenderer_LaysTheTilesInTheOpaquePassAndTheGridOverThem(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	brd, brdW := board.NewBoard(grid)
 	brdW.SetAll(cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land})

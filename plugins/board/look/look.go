@@ -40,6 +40,25 @@ type GroundDressing interface {
 	DressGround(t render.Target, cam camera.Camera, u render.Uniforms)
 }
 
+// Laid is a Dressing whose tiles the GPU lays: what runs across each cell, laid as bands from its
+// middle towards the neighbours its Links name, cut out of the way kind's sprite, and the covers
+// on it, each faded in over its neighbours as far as they are covered too.
+type Laid interface {
+	// Way is what runs across c.
+	Way(c cell.ID) cell.Way
+	// Covers are the covers' sprites in the order they are laid; Covered which lie on c, bit i the
+	// i-th's.
+	Covers() []render.SpriteID
+	Covered(c cell.ID) uint8
+}
+
+// Swaying is a Look that leans the tile of a kind that sways (cell.Kind.Sway) and stands at a
+// Height with the frame's wind, as air.Weather.Sway leans a unit of height.
+type Swaying interface {
+	Look
+	Sways() bool
+}
+
 // EvenLit is a Dressing that lights every tile of a flat map alike, so the map is composed once
 // and drawn in EvenLight every frame.
 type EvenLit interface {

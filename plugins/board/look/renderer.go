@@ -103,6 +103,10 @@ type Renderer struct {
 	grid       gridLines
 	shade      groundShade
 	ground     GroundDressing // this frame's, nil for none
+	tiles      tiles
+	tiled      bool         // this frame's tiles are laid on the GPU
+	tint       render.Light // the light every tile is lit in this frame
+	cpu        bool         // the tiles are composed on the CPU whatever the map
 }
 
 type cellTop struct {
@@ -222,6 +226,21 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	if look == Nothing {
 		return // the dressing is readied for the frame, no more
 	}
+	if l.tint, l.tiled = l.tiledBy(m, d, cam); l.tiled {
+		sheet := l.atlas
+		if d != nil {
+			sheet = d.Sheet(l.atlas)
+		}
+		l.tile.Atlas, l.tile.dress = sheet, d
+		l.nextTops()
+		l.tiles.refresh(l, sheet)
+		f.DrawOpaque()
+		if l.gridDrawn(cam) {
+			f.DrawAt(f.OnGround(gridLift))
+		}
+		l.materials(f)
+		return
+	}
 	if l.stillLight, l.stillOn = l.evenLight(m, d, cam); l.stillOn {
 		l.composeStill(look, d)
 		l.camera = cam
@@ -281,6 +300,20 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if t.Screen == nil {
 		return
 	}
+	if l.tiled {
+		if t.Pass == render.SeeThrough {
+			if l.gridDrawn(cam) {
+				l.grid.draw(t, cam, u, l.board, &l.state, l.space.Edges.WrapsX(),
+					l.space.Edges.WrapsY())
+			}
+			return
+		}
+		l.tiles.draw(t, cam, u, l, l.tint, l.lit() != nil)
+		if l.ground != nil {
+			l.ground.DressGround(t, cam, u)
+		}
+		return
+	}
 	if !l.stillOn {
 		if t.Pass == render.SeeThrough && l.ground != nil {
 			l.ground.DressGround(t, cam, u)
@@ -316,6 +349,29 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if l.ground != nil {
 		l.ground.DressGround(t, cam, u)
 	}
+}
+
+// tiledBy reports whether the tiles are laid on the GPU this frame through cam, and in what light:
+// a flat map over a world, seen through a camera with lines of sight, its Dressing lighting every
+// tile alike
+func (l *Renderer) tiledBy(m Map, d Dressing, cam camera.Camera) (render.Light, bool) {
+	if l.cpu || l.space.Width == 0 || l.space.Height == 0 || m.Heights() != nil {
+		return render.Light{}, false
+	}
+	if _, ok := cam.(camera.Rays); !ok {
+		return render.Light{}, false
+	}
+	even := render.Light{1, 1, 1}
+	if d != nil {
+		e, ok := d.(EvenLit)
+		if !ok {
+			return render.Light{}, false
+		}
+		if even, ok = e.EvenLight(); !ok {
+			return render.Light{}, false
+		}
+	}
+	return even, true
 }
 
 func (l *Renderer) evenLight(m Map, d Dressing, cam camera.Camera) (render.Light, bool) {
