@@ -1029,5 +1029,24 @@ są zachowawcze (kilka komórek więcej „ubranych”). Dema po C7: navigation/
 identyczne z C6, board/topography i look/sky ta sama scena.
 
 Otwarte: `look.Dressing.Sheet` we wszystkich implementacjach zwraca już sam atlas (kandydat do
-B1); cały wypiek na słabym GPU kosztuje ~110 ms (do przyspieszenia, jeśli będzie trzeba:
-przebieg gruntu po 5 warstwach albo 276 wierzchołków dróg na instancję).
+B1).
+
+### Szybszy cały wypiek (B0, 2026-10-23)
+
+Sonda (czas każdego przebiegu, wyspa 96×64, UHD 620): przebieg gruntu ~19 ms na warstwę × 5
+(także ujścia, gdzie nic nie kładzie, i rodzajów bez detali), drogi ~1,3 ms na warstwę, CPU ~2 ms.
+
+| Dźwignia | Zmiana | Commit |
+|:--|:--|:--|
+| — | `Benchmark_Painter_Bake` (wyspa jak w `bench/`: cały wypiek, komórka) | `9939c39a` |
+| L1 | warstwa ujść bez przebiegu gruntu | `70133303` |
+| L2 | warstwa rodzajów tylko, gdy jakiś rodzaj ma `Detail` | `e7a91e6a` |
+| L3 | komórki 3×3, baza, „top”, maska przejść i przepływ w rogach liczone w wierzchołkach (raz na komórkę), piksele tylko wagi ćwiartek i sprite'y: warstwa 19 → 4 ms | `2faab01e` |
+| L4 | drogi rysowane w `6 × najwięcej kawałków` wierzchołkach (`piecesOf`, reguła `pieceOf`) zamiast 276: 1,3 → 0,6 ms na warstwę | `88c65be2` |
+
+Każda dźwignia sprawdzona na obrazach wypieku (wyspa, plansza z detalami, plansza dróg; całość i
+po zmianie): 0 pikseli różnicy; drogi z liczbą z Go = drogi w 46 kawałkach (test). Pomiar 2
+rundy naprzemiennie z `9939c39a`: cały wypiek 111 / 153 → 22,8 / 24,8 ms, komórka
+6,5 / 9,4 → 7,1 / 6,4 ms (tu rządzi część CPU i małe przebiegi). Demo board/topography: ta sama
+scena. Niezrobione z L4: wczesne wyjście wierzchołka z nadmiarowym kawałkiem w shaderze (drogi to
+już ~10% wypieku, zysk ≲1 ms).

@@ -828,32 +828,6 @@ baseline that day was 58 FPS, not 45):
 | perspective, 0.72 of the pixels | 83 |
 | perspective, in layers, the outer layer at 0.4 | 80 |
 
-**The ground painted on the GPU** (part C of `doc/plans-perf.md` "Płaska plansza na GPU",
-2026-10-23): the painter paints the board flat on the GPU instead of laying pieces on the CPU.
-The benchmark draws its first frame and now waits for it (`6ee8d4f4`): the board painted at it
-had landed in the first frame measured, +0.7 ms a frame isometric and +2.4 perspective at the
-default benchtime. Two rounds alternating, `a255183f` (painted on the CPU) against `6ee8d4f4`,
-the readback ~7.1 ms left in:
-
-| Frame | On the CPU | On the GPU |
-|:---|---:|---:|
-| isometric | 16.3 / 16.1 ms | 16.3 / 16.0 ms |
-| perspective | 20.4 / 20.2 ms | 20.4 / 21.3 ms |
-| isometric under a distant sun | 18.0 / 17.9 ms | 19.8 / 18.2 ms |
-
-The painting itself, a frame drawn and read back at a time, medians, the CPU's at `b623c0d0`:
-
-| Frame (isometric / perspective) | On the CPU | On the GPU |
-|:---|---:|---:|
-| the first, the board painted whole | 36 / 45 ms | 98 / 139 ms |
-| as it was | 15.6 / 19.2 ms | 15.6 / 20.2 ms |
-| a cell changed, the 25 round it painted anew | +8.6 / +8.4 ms | +5.5 / +6.7 ms |
-| a Style changed, the board painted whole | +26 / +24 ms | +105 / +114 ms |
-
-A cell's change costs less; the whole board, painted at the first frame, as a Style changes or as
-over an eighth of the cells are to be painted anew, four times as much on this GPU — a weak one,
-on which work moved onto the GPU measures at its worst.
-
 What it says: at the same pixels drawn the layers cost 3 FPS (4%), the three composes on the CPU
 ("drawing" 1.2 → 2.1 ms in isometry, 1.3 → 2.1 ms in perspective) and the two blits, and buy the
 centre at every pixel. The layers do not beat a uniform picture on frames; they spend the same
@@ -952,6 +926,41 @@ The island has no clouds, so R1 does not show here: measured by the part in one 
 screen's pixels and 3.7 ms at a ground of 0.6 (the march falls with the ground's pixels; the
 lay, a full screen's fill, stays at ~1.45 ms). The hole costs two depth fills a frame (about 79
 allocations, gogpu's boxing a draw) and gives back 1.3–1.8 ms; the pictures do not change.
+
+**The ground painted on the GPU** (part C of `doc/plans-perf.md` "Płaska plansza na GPU",
+2026-10-23): the painter paints the board flat on the GPU instead of laying pieces on the CPU.
+The benchmark draws its first frame and now waits for it (`6ee8d4f4`): the board painted at it
+had landed in the first frame measured, +0.7 ms a frame isometric and +2.4 perspective at the
+default benchtime. Two rounds alternating, `a255183f` (painted on the CPU) against `6ee8d4f4`,
+the readback ~7.1 ms left in:
+
+| Frame | On the CPU | On the GPU |
+|:---|---:|---:|
+| isometric | 16.3 / 16.1 ms | 16.3 / 16.0 ms |
+| perspective | 20.4 / 20.2 ms | 20.4 / 21.3 ms |
+| isometric under a distant sun | 18.0 / 17.9 ms | 19.8 / 18.2 ms |
+
+The painting itself, a frame drawn and read back at a time, medians, the CPU's at `b623c0d0`:
+
+| Frame (isometric / perspective) | On the CPU | On the GPU |
+|:---|---:|---:|
+| the first, the board painted whole | 36 / 45 ms | 98 / 139 ms |
+| as it was | 15.6 / 19.2 ms | 15.6 / 20.2 ms |
+| a cell changed, the 25 round it painted anew | +8.6 / +8.4 ms | +5.5 / +6.7 ms |
+| a Style changed, the board painted whole | +26 / +24 ms | +105 / +114 ms |
+
+A cell's change costs less; the whole board, painted at the first frame, as a Style changes or as
+over an eighth of the cells are to be painted anew, four times as much on this GPU — a weak one,
+on which work moved onto the GPU measures at its worst.
+
+`Benchmark_Painter_Bake` (the island painted anew and waited for: whole, a Style changed every
+time; round a cell changed every time) splits the whole bake: the ground's pass ~19 ms a layer
+of five, the ways' ~1.3 ms, the CPU's part ~2 ms. With the ground's cells worked out once a
+cell instead of a pixel, the mouths' layer and the kinds' (no kind with a Detail) left to what
+they hold and the ways drawn in as many pieces as the most of them lays (`70133303`…`88c65be2`,
+the board baked the same to the pixel), two rounds alternating with `9939c39a`: whole
+111 / 153 → 22.8 / 24.8 ms, a cell 6.5 / 9.4 → 7.1 / 6.4 ms (the CPU's part and the small
+passes; the machine at a load of ~2 when measured, the base's rounds far apart).
 
 ## The flat board's frame — `Benchmark_Frame_Flat`
 

@@ -49,9 +49,12 @@
   cell may hold more than its kind's detail and where water may lie is worked out by rule, not out
   of the pieces: a few more cells read the kinds' sheet.
 - What it costs on an Intel UHD 620 (a weak GPU; most are far faster): a frame the same; a cell
-  changed 8.5 → 6 ms; the board painted whole (the first frame, a Style changed, many cells
-  changed at once) 25 → 110 ms. `Benchmark_Frame_Topography` waits for its first frame, so the
-  board painted at it no longer lands in the frames measured.
+  changed 8.5 → 6 ms a frame; the board painted whole (the first frame, a Style changed, many
+  cells changed at once) ~25 ms a frame on the CPU, ~110 ms on the GPU at first, ~23 ms
+  (`Benchmark_Painter_Bake`, new) once the ground's cells are worked out once a cell, not a pixel,
+  the mouths' layer and the kinds' (no kind with a Detail) are left to what they hold and the
+  ways are drawn in as many pieces as the most of them lays. `Benchmark_Frame_Topography` waits
+  for its first frame, so the board painted at it no longer lands in the frames measured.
 
 ## v0.4.0 — 2026-10-23
 
