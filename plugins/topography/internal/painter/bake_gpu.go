@@ -103,8 +103,8 @@ func (l *Painter) toPaint(whole bool) []float32 {
 }
 
 // bake paints the cells at anew into the sheet s out of atlas: the albedo, the kinds' details
-// and the water's layers where s has them, each the cell's ground, then the ways across it; the
-// mouths' layer the ways alone
+// where some kind has one and the water's layers where s has them, each the cell's ground, then
+// the ways across it; the mouths' layer the ways alone
 func (l *Painter) bake(s *groundSheet, atlas render.AtlasSource, at []float32) {
 	if len(at) == 0 {
 		return
@@ -138,7 +138,7 @@ func (l *Painter) bake(s *groundSheet, atlas render.AtlasSource, at []float32) {
 		}
 	}
 	layer(s.img, layerAlbedo, image.Pt(0, s.top), s.px)
-	if s.kinds != nil {
+	if sheet, _ := l.Details(); s.kinds != nil && sheet != nil {
 		layer(s.kinds, layerKinds, image.Point{}, s.px)
 	}
 	if s.water != nil {

@@ -156,7 +156,8 @@ func bakeTile(pix []byte, stride, x0, y0 int, src image.Image) {
 }
 
 // Kinds is the board's own sheet of the detail each pixel's kind carries (in red, the sheet
-// Details bakes), as many pixels a cell as the albedo; nil before Surface painted one.
+// Details bakes), as many pixels a cell as the albedo, painted while Details has a sheet; nil
+// before Surface.
 func (l *Painter) Kinds() *render.Image {
 	if l.albedo == nil {
 		return nil
