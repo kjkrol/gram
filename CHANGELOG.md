@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.0 — 2026-10-23
 
 Needs aabbworld v1.15.0, astar v1.1.3, ceremony v0.3.1 and goke v3.6.0.
 
