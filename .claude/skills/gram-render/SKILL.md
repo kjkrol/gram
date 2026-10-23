@@ -25,7 +25,10 @@ device is `render/internal/gpu`, the engine reaching it through `render.UseDevic
 they import nothing more of gram than they do now. A stage is readied before its first frame
 (`Engine.prepare`: `render.Prepare` compiles every shader made, does the deferred fills and puts
 textures written before the device on it; then a frame drawn and thrown away), so nothing is
-compiled or baked in a frame shown; `GRAM_FPS_LOG=1` logs it.
+compiled or baked in a frame shown; `GRAM_FPS_LOG=1` logs it. A program's SPIR-V is kept on
+disk (`render/internal/gpu/spirv.go`, `os.UserCacheDir()/gram/shaders`, named by the WGSL and
+naga's version, `GRAM_SHADER_CACHE`) and handed to wgpu instead of the WGSL, which spares naga's
+translation and wgpu's second parse of it.
 
 ## Atlases and looks
 

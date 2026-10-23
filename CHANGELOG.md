@@ -12,6 +12,11 @@
   starts after it, so the first frame no longer catches up five ticks. `GRAM_FPS_LOG=1` logs the
   readying and the first three frames. The window's device is promised before the first stage's
   Init, so a draw from an Init is an error rather than a device of its own.
+- A shader's SPIR-V is kept on disk and read back the next time (`os.UserCacheDir()`'s
+  `gram/shaders`, named by the WGSL and naga's version; `GRAM_SHADER_CACHE=off` keeps none, a
+  folder keeps it there): naga no longer translates every shader at every start, nor wgpu
+  parses its WGSL again. Readying board/topography 899 → 574 ms the first time, 323 ms after
+  (the shaders 601 → 34 ms), look/sky 744 → 426 / 200 ms, on an Intel UHD 620.
 
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an

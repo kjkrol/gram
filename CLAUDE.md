@@ -77,8 +77,9 @@ gputypes); plugins see `render` and `control`. Tests that draw ready a headless 
 (`gputest.Need(t)`, `render/gputest`; `GRAM_GPU=software` for the software rasteriser, which draws
 wrong) and skip without a GPU. A running game logs its frame rate and where a frame's time goes
 every second with `GRAM_FPS_LOG=1`, starts fullscreen with `GRAM_FULLSCREEN=1` (F11 switches) and
-runs unpaced with `GRAM_VSYNC=off`; headless probes of a demo's frame include about 10 ms of the
-GPU's readback at 2560x1440, so compare them with each other, not with a frame rate.
+runs unpaced with `GRAM_VSYNC=off`, keeps its shaders' SPIR-V in `~/.cache/gram/shaders`
+(`GRAM_SHADER_CACHE=off` none, a folder there); headless probes of a demo's frame include about 10
+ms of the GPU's readback at 2560x1440, so compare them with each other, not with a frame rate.
 `GRAM_SHOT=<file.png>` saves frame `GRAM_SHOT_FRAME` (120) and quits, the world taking one step a
 frame till then: shots of a baseline tree and of the working one compare a change's pictures (the
 telemetry panel, random weather and random scenes are noise).
