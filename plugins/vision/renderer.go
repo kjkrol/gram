@@ -112,7 +112,7 @@ type Renderer struct {
 	app        goke.OptComp[render.Appearance]
 	out        goke.OptComp[SightOutline]
 	z          goke.OptComp[world.Z]
-	drawing    *render.Rules
+	drawing    *world.Rules
 	shown      []bool
 	groundStep float32 // world units; 0 the ground's own
 
@@ -199,9 +199,9 @@ func (r *Renderer) WithGroundStep(step float64) *Renderer {
 	return r
 }
 
-// WithDrawing has only the views of the observers a render.Show rule picks drawn; with none,
+// WithDrawing has only the views of the observers a world.Show rule picks drawn; with none,
 // every one is.
-func (r *Renderer) WithDrawing(rules *render.Rules) *Renderer {
+func (r *Renderer) WithDrawing(rules *world.Rules) *Renderer {
 	r.drawing = rules
 	return r
 }
@@ -210,12 +210,12 @@ func (r *Renderer) Init(si *goke.SysInit) {
 	qb := si.NewQueryBuilder(&r.base, &r.sight, &r.eye).
 		Optional(&r.app).Optional(&r.out).Optional(&r.z)
 	if r.drawing != nil {
-		render.Own(r.drawing, &r.base)
-		render.Own(r.drawing, &r.sight)
-		render.Own(r.drawing, &r.eye)
-		render.Own(r.drawing, &r.app)
-		render.Own(r.drawing, &r.out)
-		render.Own(r.drawing, &r.z)
+		world.Own(r.drawing, &r.base)
+		world.Own(r.drawing, &r.sight)
+		world.Own(r.drawing, &r.eye)
+		world.Own(r.drawing, &r.app)
+		world.Own(r.drawing, &r.out)
+		world.Own(r.drawing, &r.z)
 		r.drawing.Bind(qb)
 	}
 	r.query = qb.Build()

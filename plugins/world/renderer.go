@@ -25,7 +25,7 @@ type renderer struct {
 	lies        goke.OptComp[Lie]
 	active      goke.OptComp[cgoke.Active]
 	lighting    Lighting
-	rules       *render.Rules
+	rules       *Rules
 	layers      [][]render.Appearance
 	shown       []bool
 	atlas       render.AtlasSource
@@ -46,7 +46,7 @@ type renderer struct {
 	quads   []camera.Quad
 }
 
-func newRenderer(atlas render.AtlasSource, views func(camera.Camera) *view.View, rules *render.Rules, look func() Look) *renderer {
+func newRenderer(atlas render.AtlasSource, views func(camera.Camera) *view.View, rules *Rules, look func() Look) *renderer {
 	return &renderer{atlas: atlas, views: views, rules: rules, look: look}
 }
 
@@ -67,10 +67,10 @@ func (s *renderer) Init(si *goke.SysInit) {
 	if s.lighting != nil {
 		s.lighting.Join(qb)
 	}
-	render.Own(s.rules, &s.base)
-	render.Own(s.rules, &s.appearance)
-	render.Own(s.rules, &s.z)
-	render.Own(s.rules, &s.active)
+	Own(s.rules, &s.base)
+	Own(s.rules, &s.appearance)
+	Own(s.rules, &s.z)
+	Own(s.rules, &s.active)
 	s.rules.Bind(qb)
 	s.renderQuery = qb.Build()
 }

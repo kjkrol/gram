@@ -6,6 +6,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/cameras"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
@@ -33,7 +34,7 @@ var (
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	a.vision.WithViews(render.Show(a.selection.Read(0).IsSelected))
+	a.vision.WithViews(world.Show(a.selection.Read(0).IsSelected))
 	a.light.WithDistant(sky.DefaultSun)
 
 	return ui.Image(render.NewFeed(

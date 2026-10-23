@@ -14,7 +14,6 @@ import (
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
-	"github.com/kjkrol/gram/render"
 )
 
 // Plugin wires vision into a Stage over the world's space. It publishes what entities can see;
@@ -34,7 +33,7 @@ type Plugin struct {
 	cones       command.Queue[Cones]
 
 	sightings host.PairRules[Sighting]
-	drawing   render.Rules
+	drawing   world.Rules
 	kept      *plugin.Kept[Settings]
 
 	Res   Resources
@@ -97,9 +96,9 @@ func (p *Plugin) Restore() {
 	p.setHidden(!p.Res.Settings.Cones)
 }
 
-// WithViews has only the views of the observers a render.Show rule picks drawn; with none, every
+// WithViews has only the views of the observers a world.Show rule picks drawn; with none, every
 // one is. Call it in the scene, before the first frame.
-func (p *Plugin) WithViews(rules ...render.Rule) *Plugin {
+func (p *Plugin) WithViews(rules ...world.Rule) *Plugin {
 	if err := p.drawing.Add(rules...); err != nil {
 		panic(fmt.Errorf("%w in %s", err, p.Name()))
 	}

@@ -44,7 +44,7 @@
 // ([Plugin.WithShadow]). Otherwise an observer carrying [SightOutline] has its view's shape
 // computed ([Band]s of hidden ground per angle in a world with heights) and drawn as a ring of
 // [ConePoint]s in a [ConeStyle] ([Plugin.WithStyle]). Which views are drawn is the scene's,
-// through render.Show rules ([Plugin.WithViews]); none, every one.
+// through world.Show rules ([Plugin.WithViews]); none, every one.
 //
 // The views start hidden: the settings screen ([Cones]) shows and hides them, [Write.ShowCones],
 // [Write.HideCones] and [Read.ConesShown] do the same from code. A look, not saved; the scan

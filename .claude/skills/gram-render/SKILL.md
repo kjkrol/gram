@@ -43,7 +43,7 @@ is a
 SpriteDrawer drawn once, or a `MaterialID` worked out per pixel every frame (one `Frame.Material`
 quad in the box; `Custom` = {middle, half a side, heading in radians}, `Red` = speed in own lengths
 a second up to 1, `World` the box), or `render.Phases`/`Loops` — `.Under(effect, look)` the look
-while the effect's marker is on (a twin slot swapped in by `render.Swap(twins, mark.In)`;
+while the effect's marker is on (a twin slot swapped in by `world.Swap(twins, mark.In)`;
 `render.Phased(n, draw)`: n frames along the effect's course, never for an effect without `Lasts`;
 `render.Loops{N, Period, Draw}`: frames by the clock; a material under an effect reads how far it
 has run as its `fraction`; on one entity under two effects the look declared later wins),
@@ -254,7 +254,7 @@ draw `rgb·(1 − a·e) + line·e`, e a line `Width` pixels wide fading over a p
 
 What each renderer draws is a look of an entity under a state, not of the plugin: navigation the
 routes and goals of an entity's `MoveOrder`; vision the cone of an entity's `Sight` (`WithStyle`,
-`WithShadow`; `WithViews(render.Show(…))` picks whose); selection the outline of the `Selected`
+`WithShadow`; `WithViews(world.Show(…))` picks whose); selection the outline of the `Selected`
 tag through `world.Look.Footprint` plus the marquee, a player's gesture; bridges the bridge in
 hand, a future entity drawn from its deck's slot; collision the boxes; the board the cells held,
 its flat ground laid on the GPU out of an image of its cells and lit per pixel by the frame's

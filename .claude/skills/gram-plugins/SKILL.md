@@ -1135,7 +1135,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   (`WithWorkers`). It hosts rules of a `Sighting` inside the scan's pass, once a step per observer
   on what it saw at its last scan (`cond.Other.If(b)` everything in view; its `Subject` the nearest
   seen, so an aimed `steering.Away{}`/`Toward{}` is about that one); words `vision.SeesNobody()`,
-  `vision.Closing()`. The views drawn are every observer's unless `WithViews(render.Show(...))`
+  `vision.Closing()`. The views drawn are every observer's unless `WithViews(world.Show(...))`
   picks some (given in the scene); `Cones{Shown}` (the settings screen's, no key) shows and
   hides them (`ShowCones`, `HideCones`, `ConesShown`; `Res.Settings.Cones`, saved; the start in `makePlugins`). `WithLog`. Depends on `world`.
 - **`bridges`** — bridges built by one set of rules whoever builds them: `bridges.NewPlugin( world,

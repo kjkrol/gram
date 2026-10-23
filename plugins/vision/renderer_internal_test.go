@@ -92,8 +92,8 @@ func TestRenderer_ComposesTheOutlinedViewsTheShowRulesShow(t *testing.T) {
 	every := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
 	tagged := testRenderer(t, 2000, 2000, false, wholeWorld(2000, 2000))
 	shown := tag.Tag[viewers](3)
-	var rules render.Rules
-	if err := rules.Add(render.Show(shown.In)); err != nil {
+	var rules world.Rules
+	if err := rules.Add(world.Show(shown.In)); err != nil {
 		t.Fatal(err)
 	}
 	tagged.WithDrawing(&rules)

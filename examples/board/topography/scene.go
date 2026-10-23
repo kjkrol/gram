@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/players"
 	"github.com/kjkrol/gram/plugins/topography/painter"
+	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 )
@@ -75,7 +76,7 @@ func (m *mainScene) screen() *ui.Element {
 	}
 	a.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
 	a.topography.WithAtmosphere(a.atmosphere.Read(0))
-	a.vision.WithViews(render.Show(a.selection.Read(0).IsSelected))
+	a.vision.WithViews(world.Show(a.selection.Read(0).IsSelected))
 
 	cam := a.cameras.Write().New(cameras.Isometrically, camera.Config{})
 	return hud.Screen(hud.Deps{

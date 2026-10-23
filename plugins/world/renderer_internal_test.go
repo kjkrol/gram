@@ -62,22 +62,22 @@ func (flatAtlas) Atlas() *render.Image                            { return nil }
 func (flatAtlas) UV(render.SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 1, 1 }
 func (flatAtlas) White() (u, v float32)                           { return 0, 0 }
 
-func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *counting {
+func drawThrough(t *testing.T, pick func(ids []uid.UID64, v *view.View), rules []Rule, dir geom.Vec, at ...geom.Vec) *counting {
 	return drawShaded(t, nil, pick, rules, dir, at...)
 }
 
-func drawShaded(t *testing.T, shaded map[render.SpriteID]render.MaterialID, pick func(ids []uid.UID64, v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *counting {
+func drawShaded(t *testing.T, shaded map[render.SpriteID]render.MaterialID, pick func(ids []uid.UID64, v *view.View), rules []Rule, dir geom.Vec, at ...geom.Vec) *counting {
 	look := &counting{Look: ilook.NewFlat(1000, 1000, false, false)}
 	drawAs(t, look, func(r *renderer) { r.shade(shaded, nil) }, pick, rules, dir, at...)
 	return look
 }
 
 func drawAs(t *testing.T, look Look, ready func(*renderer), pick func(ids []uid.UID64,
-	v *view.View), rules []render.Rule, dir geom.Vec, at ...geom.Vec) *render.Frame {
+	v *view.View), rules []Rule, dir geom.Vec, at ...geom.Vec) *render.Frame {
 	t.Helper()
 	v := &view.View{}
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
-	var drawing render.Rules
+	var drawing Rules
 	if err := drawing.Add(rules...); err != nil {
 		t.Fatal(err)
 	}
@@ -137,10 +137,10 @@ func TestRenderer_Compose_DrawsOnlyWhatTheViewContains(t *testing.T) {
 
 func TestRenderer_Compose_DrawsAsTheRulesSay(t *testing.T) {
 	const east, crown render.SpriteID = 5, 9
-	rules := []render.Rule{
-		render.With(func(a render.Appearance, b Base) render.Appearance { a.SpriteID = east; return a }),
-		render.Over[render.Appearance](render.Appearance{SpriteID: crown}),
-		render.Show(func(b Base) bool { return b.Pos.AABB.TopLeft.X < 500 }),
+	rules := []Rule{
+		With(func(a render.Appearance, b Base) render.Appearance { a.SpriteID = east; return a }),
+		Over[render.Appearance](render.Appearance{SpriteID: crown}),
+		Show(func(b Base) bool { return b.Pos.AABB.TopLeft.X < 500 }),
 	}
 	drawn := drawThrough(t, nil, rules, geom.NewVec(1, 0), quarters...).sprites
 	if len(drawn) != 4 {
@@ -245,14 +245,14 @@ func TestRenderer_Compose_ALyingSpriteLiesWhereTheLookLaysIt(t *testing.T) {
 		lying:  map[render.SpriteID]bool{deck: true},
 		unders: map[render.SpriteID][]render.SpriteID{deck: {wet}},
 	}
-	under := render.With(func(ap render.Appearance, b Base) render.Appearance {
+	under := With(func(ap render.Appearance, b Base) render.Appearance {
 		if b.Pos.AABB.TopLeft.X > 500 {
 			ap.SpriteID = wet
 		}
 		return ap
 	})
 	lies := &lyingCounting{counting: &counting{Look: ilook.NewFlat(1000, 1000, false, false)}}
-	drawAs(t, lies, func(r *renderer) { r.lie(a.lain(), nil, nil) }, nil, []render.Rule{under},
+	drawAs(t, lies, func(r *renderer) { r.lie(a.lain(), nil, nil) }, nil, []Rule{under},
 		geom.Vec{},
 		quarters[0], quarters[1])
 	if len(lies.lain) != 2 || len(lies.sprites) != 0 {
@@ -299,7 +299,7 @@ func TestRenderer_Compose_AnEntityWithALieIsLaidAlongIt(t *testing.T) {
 	look := &lyingCounting{counting: &counting{Look: ilook.NewFlat(1000, 1000, false, false)}}
 	v := &view.View{}
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
-	var drawing render.Rules
+	var drawing Rules
 	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, &drawing,
 		func() Look { return look })
 	r.lie(lain, edges, nil)
@@ -357,7 +357,7 @@ func ptr[T any](v T) *T { return &v }
 func TestRenderer_Compose_DrawsNothingBeyondEveryBandEvenUnculled(t *testing.T) {
 	look := &counting{Look: ilook.NewFlat(1000, 1000, false, false)}
 	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return &view.View{} },
-		&render.Rules{}, func() Look { return look })
+		&Rules{}, func() Look { return look })
 	r.shade(nil, nil)
 	var base goke.Comp[Base]
 	var appearance goke.Comp[render.Appearance]

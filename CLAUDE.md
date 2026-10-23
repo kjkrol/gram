@@ -145,7 +145,7 @@ Decisions the user has made; they are not up for revisiting in passing.
   (moments, facts, words, knobs) and carries commands out; what to do when is rules and plans; a
   rule holds no Go code of its own. What a plugin does of its own — a pace, a log, a count, the
   weather — is its own pass's work, never a rule. The one place rules are Go is drawing
-  (`render.Rule`). A step a rule cannot say is a missing moment, step or knob.
+  (`world.Rule`). A step a rule cannot say is a missing moment, step or knob.
 - **No hooking.** No `ctx.Hook`, no `Plugin.Hook`, no side entrance by another name: a rule is a
   role's, a role is played, the engine delivers the rules to the hosts. Tests of a plugin's own
   package may keep a `Hook` in `export_test.go`.
