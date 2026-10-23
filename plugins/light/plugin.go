@@ -257,7 +257,6 @@ func shone(sun Distant, s Source) Distant {
 }
 
 // Init is nothing: the plugin's queries are its module's.
-func (p *Plugin) Init(*goke.SysInit) {}
 
 // Begin readies the light for a picture through cam: the distant light's uniforms, and the
 // lamps nearest the camera, MaxLamps at most, theirs.

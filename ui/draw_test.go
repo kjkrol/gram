@@ -4,7 +4,6 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render"
@@ -43,8 +42,6 @@ func TestImage_MaskedByACircleLeavesTheCornersOfItsBoxBare(t *testing.T) {
 }
 
 type filling struct{}
-
-func (filling) Init(*goke.SysInit) {}
 
 func (filling) DrawWorld(screen *render.Image, _ camera.Camera) {
 	screen.Fill(color.RGBA{R: 255, A: 255})

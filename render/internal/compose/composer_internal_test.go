@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render/gputest"
@@ -25,7 +24,6 @@ func (sheet) White() (u, v float32)                    { return 40, 40 }
 
 type items func(f *Frame)
 
-func (items) Init(*goke.SysInit)                  {}
 func (s items) Compose(f *Frame, _ camera.Camera) { s(f) }
 
 var (
@@ -534,7 +532,6 @@ type direct struct {
 	sun    []float32
 }
 
-func (*direct) Init(*goke.SysInit) {}
 func (d *direct) Compose(f *Frame, _ camera.Camera) {
 	if d.opaque {
 		f.DrawOpaque()
@@ -677,7 +674,6 @@ type staged struct {
 	u        Uniforms
 }
 
-func (*staged) Init(*goke.SysInit) {}
 func (s *staged) Compose(f *Frame, _ camera.Camera) {
 	s.composed++
 	*s.log = append(*s.log, s.name+" composed")

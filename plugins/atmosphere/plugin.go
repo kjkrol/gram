@@ -358,8 +358,6 @@ type reporters []render.Reporter
 
 type cloudsReport struct{ p *Plugin }
 
-func (cloudsReport) Init(*goke.SysInit) {}
-
 func (r cloudsReport) Report(line func(label, value string)) {
 	look := r.p.Res.Settings.Clouds.String()
 	if w := r.p.read.Air(); !w.OneLayer && w.Relief[1] > 0 {
@@ -406,7 +404,9 @@ func (s *shining) Update(*goke.CmdBuf, time.Duration) {
 
 func (rs reporters) Init(si *goke.SysInit) {
 	for _, r := range rs {
-		r.Init(si)
+		if b, ok := r.(plugin.Bound); ok {
+			b.Init(si)
+		}
 	}
 }
 

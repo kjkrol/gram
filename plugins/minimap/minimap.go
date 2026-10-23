@@ -104,8 +104,6 @@ type groundView struct{ m *minimap }
 
 var _ render.Direct = (*groundView)(nil)
 
-func (g *groundView) Init(*goke.SysInit) {}
-
 func (g *groundView) Compose(f *render.Frame, _ camera.Camera) {
 	if g.m.p.ground != nil {
 		f.DrawOpaque()
@@ -215,8 +213,6 @@ type outlineView struct {
 	m       *minimap
 	corners [4][2]float32
 }
-
-func (o *outlineView) Init(*goke.SysInit) {}
 
 func (o *outlineView) Compose(f *render.Frame, _ camera.Camera) {
 	w, h := o.m.of.Viewport()

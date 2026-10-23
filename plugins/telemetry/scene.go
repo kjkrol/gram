@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/ui"
 	"github.com/kjkrol/uid"
@@ -175,7 +176,7 @@ func (s *panel) Name() string { return SceneName }
 
 // Drawers is the screen's drawer, which draws the panel and readies the reporters; after it
 // nothing is added.
-func (s *panel) Drawers() []render.Drawer {
+func (s *panel) Drawers() []render.Renderer {
 	s.p.made = true
 	return s.screen.Drawers()
 }
@@ -188,7 +189,9 @@ func (*panel) Focusable() bool { return false }
 // Init readies the reporters, whose lines the panel draws.
 func (s *panel) Init(si *goke.SysInit) {
 	for _, r := range s.p.reporters {
-		r.Init(si)
+		if b, ok := r.(plugin.Bound); ok {
+			b.Init(si)
+		}
 	}
 }
 

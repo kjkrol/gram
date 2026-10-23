@@ -93,7 +93,7 @@ func (s *Shortcuts) Close(runtime game.Runtime, composition game.Composition) {
 
 func (*Shortcuts) Name() string { return ShortcutsName }
 
-func (s *Shortcuts) Drawers() []render.Drawer { return s.screen.Drawers() }
+func (s *Shortcuts) Drawers() []render.Renderer { return s.screen.Drawers() }
 
 // HandleEvents closes the scene on Esc or K.
 func (s *Shortcuts) HandleEvents(events *control.InputEvents, runtime game.Runtime, composition game.Composition) {

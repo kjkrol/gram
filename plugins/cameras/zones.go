@@ -4,7 +4,6 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/ceremony/command"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/render"
@@ -48,8 +47,6 @@ type zonesView struct{ settings *Settings }
 
 var _ render.Source = (*zonesView)(nil)
 var _ render.Glass = (*zonesView)(nil)
-
-func (*zonesView) Init(*goke.SysInit) {}
 
 // Compose composes nothing: the zones go on the glass.
 func (*zonesView) Compose(*render.Frame, camera.Camera) {}

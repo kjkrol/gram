@@ -95,7 +95,7 @@ func (s *SettingsScene) hold(on bool) {
 
 func (*SettingsScene) Name() string { return SettingsName }
 
-func (s *SettingsScene) Drawers() []render.Drawer { return s.screen.Drawers() }
+func (s *SettingsScene) Drawers() []render.Renderer { return s.screen.Drawers() }
 
 // HandleEvents closes the screen on Esc or F10 and hands the rest to the controls; the cursor
 // is let go while the screen is up, a player riding or not; a screen of another size, the

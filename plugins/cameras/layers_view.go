@@ -4,7 +4,6 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render"
 )
@@ -21,8 +20,6 @@ type layersView struct{ settings *Settings }
 
 var _ render.Source = (*layersView)(nil)
 var _ render.Overlying = (*layersView)(nil)
-
-func (*layersView) Init(*goke.SysInit) {}
 
 // Overlies: drawn over the figures' ground (render.Overlying).
 func (*layersView) Overlies() {}

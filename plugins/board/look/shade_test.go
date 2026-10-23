@@ -35,7 +35,6 @@ type darkening struct {
 	lamp bool
 }
 
-func (*darkening) Init(*goke.SysInit) {}
 func (d *darkening) Compose(f *render.Frame, _ camera.Camera) {
 	f.Uniform("LightWay", 0, 0, 1)
 	f.Uniform("LightStrength", 1)

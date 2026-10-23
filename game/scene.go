@@ -13,7 +13,7 @@ type Scene interface {
 	// Drawers returns what draws this scene, bottom to top: render.Renderers drawn on the screen,
 	// the world among them through a ui.Image of a render.Feed. It is called once, as the Stage is
 	// entered.
-	Drawers() []render.Drawer
+	Drawers() []render.Renderer
 
 	// HandleEvents handles this tick's input, while this scene is active.
 	HandleEvents(events *control.InputEvents, runtime Runtime, composition Composition)

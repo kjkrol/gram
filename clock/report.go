@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -13,8 +12,6 @@ import (
 func (r *Read) Reporter() render.Reporter { return reporter{r.c} }
 
 type reporter struct{ c *Clock }
-
-func (reporter) Init(*goke.SysInit) {}
 
 func (r reporter) Report(line func(label, value string)) { line("Game time", r.c.written()) }
 
@@ -36,8 +33,6 @@ func (c *Clock) written() string {
 func (r *Read) HUD() render.Renderer { return &hud{c: r.c} }
 
 type hud struct{ c *Clock }
-
-func (*hud) Init(*goke.SysInit) {}
 
 func (h *hud) Draw(screen *render.Image) {
 	b := screen.Bounds()

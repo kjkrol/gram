@@ -5,7 +5,6 @@ import (
 	"math"
 	"testing"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render/gputest"
 	"github.com/kjkrol/gram/render/internal/gfx"
@@ -40,7 +39,6 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> {
 
 type heighted struct{ g *GroundHeights }
 
-func (heighted) Init(*goke.SysInit) {}
 func (h heighted) Compose(f *Frame, _ camera.Camera) {
 	if h.g != nil {
 		f.GroundHeights(*h.g)

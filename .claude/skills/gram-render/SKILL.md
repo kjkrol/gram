@@ -14,7 +14,7 @@ materials and the frame's images registered, sealed at the first shader), `gfx` 
 text), `feed` (`Feed`, `Picture`, `Laid`), `compose` (`Frame`, `At`, `Source`, `Direct`, `Target`,
 the light and shade, `Composer`, `compose.wgsl`) and `instanced` (`Sprites`). A type an internal
 package needs is defined there and named in `render` by an alias with a one-line comment; `render`
-defines the rest (`Drawer`, `Renderer`, `Reporter`, `Surface`, `Illumination`, `Even`, `Lit`,
+defines the rest (`Renderer`, `Reporter`, `Surface`, `Illumination`, `Even`, `Lit`,
 `Box`, `ProjectCorners`, the looks, `Appearance` and its rules, the frame's statistics). The
 internal packages reach into each other through exported functions, never methods
 (`gfx.GPU(img)`, `gfx.Program(s)`, `gfx.PlaceDepth`), so no alias shows them; their tests never
@@ -73,9 +73,9 @@ effect among them — `Kinds().NewSprite()` and the board's panic past that (a b
 
 The world of a Stage is one `render.Composer`, `world.Plugin.Picture()`, over the
 `render.Source`s its plugins gave `ctx.Draws` (2026-10-15, stage 3: no `Renderer()`, no
-`picture()` in a demo, `Composer.Init` once however many scenes show it; `render.Layer` is
-`render.Drawer`, `Scene.Layers` `Drawers`, `ui.Layer` `ui.Drawer`). The one other composer is a
-minimap's (`plugins/minimap`): its own three sources, none in `ctx.Draws`, through an inner
+`picture()` in a demo; the engine readies each source drawn that is a `plugin.Bound`, once,
+however many scenes show it). The one other composer is a minimap's (`plugins/minimap`): its own
+three sources, none in `ctx.Draws`, its marks readied through a Setup provider, through an inner
 camera of its own, drawn anew at most 30 times a second (a `render.Surface` returning its last
 image in between; `ui.Image` lays it out every frame, so a resize alone forces a redraw).
 `Image.StrokePolygon` is one draw however many sides (a round element's border). A demo that makes a plugin

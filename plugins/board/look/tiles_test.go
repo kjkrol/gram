@@ -8,7 +8,6 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/tag"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
@@ -52,7 +51,6 @@ func (dressed) Top(cell.ID) (corners [4]float32, level float32) { return corners
 // weather is a source holding the frame's time and wind still
 type weather struct{ wind [2]float32 }
 
-func (weather) Init(*goke.SysInit)                         {}
 func (weather) Clock() (time.Duration, bool)               { return 1300 * time.Millisecond, true }
 func (w weather) Compose(f *render.Frame, _ camera.Camera) { f.Uniform("Wind", w.wind[0], w.wind[1]) }
 

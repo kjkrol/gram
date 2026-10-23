@@ -132,6 +132,17 @@ func (*headless) Pool() *parallel.Pool       { return pool }
 // the game's pool, every CPU, as the engine hands it to the plugins
 var pool = parallel.New(0)
 
+// bound readies the sources drawn that read the world, as the engine does.
+func (c *headless) bound() []goke.System {
+	var out []goke.System
+	for _, s := range c.drawn {
+		if b, ok := s.(plugin.Bound); ok {
+			out = append(out, goke.SystemFn{OnInit: b.Init})
+		}
+	}
+	return out
+}
+
 // Drawn is what the installed plugins draw, for the world's picture.
 func (c *headless) Drawn() []render.Source { return c.drawn }
 

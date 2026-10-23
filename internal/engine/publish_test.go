@@ -21,7 +21,6 @@ type publishing struct {
 	drawn render.Buffered[int]
 }
 
-func (*publishing) Init(*goke.SysInit)                   {}
 func (*publishing) Compose(*render.Frame, camera.Camera) {}
 func (p *publishing) Publish() {
 	p.calls = append(p.calls, "publish")

@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/telemetry"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -142,7 +143,9 @@ func TestPlugin_TheLayersInitialiseTheReportersAndCloseTheLines(t *testing.T) {
 	ecs := goke.New()
 	systems := make([]goke.System, 0, len(layers))
 	for _, l := range layers {
-		systems = append(systems, goke.SystemFn{OnInit: l.Init})
+		if b, ok := l.(plugin.Bound); ok {
+			systems = append(systems, goke.SystemFn{OnInit: b.Init})
+		}
 	}
 	ecs.Setup(systems...)
 	if !r.inited {
@@ -182,6 +185,6 @@ func TestPlugin_ToggleShowsAndHidesThePanelWithoutTakingTheInput(t *testing.T) {
 type plain struct{}
 
 func (plain) Name() string                                                      { return "main" }
-func (plain) Drawers() []render.Drawer                                          { return nil }
+func (plain) Drawers() []render.Renderer                                        { return nil }
 func (plain) HandleEvents(*control.InputEvents, game.Runtime, game.Composition) {}
 func (plain) Focusable() bool                                                   { return true }

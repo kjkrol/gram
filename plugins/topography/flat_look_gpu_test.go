@@ -6,7 +6,6 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -25,8 +24,6 @@ type flatSource struct {
 	slant bool
 	atlas render.AtlasSource
 }
-
-func (*flatSource) Init(*goke.SysInit) {}
 
 func (s *flatSource) Compose(f *render.Frame, cam camera.Camera) {
 	if s.direct {

@@ -5,7 +5,6 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/render"
@@ -28,8 +27,6 @@ type renderer struct {
 const handLift = 0.9
 
 var _ render.Source = (*renderer)(nil)
-
-func (r *renderer) Init(*goke.SysInit) {}
 
 func (r *renderer) Compose(f *render.Frame, cam camera.Camera) {
 	for _, h := range r.p.hands {

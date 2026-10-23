@@ -46,8 +46,6 @@ func (s stillSky) Air() air.Weather { return air.Weather{Sight: s.sight} }
 // way to what some other source has put on the frame, whichever composes first
 type stillFrame struct{ p *Plugin }
 
-func (stillFrame) Init(*goke.SysInit) {}
-
 func (s stillFrame) Compose(f *render.Frame, _ camera.Camera) {
 	if _, still := s.p.sky.(stillSky); !still || f.Uniformed("LightWay") {
 		return
@@ -276,8 +274,6 @@ var careNames = [terrain.FullCare + 1]string{
 }
 
 type reporter struct{ p *Plugin }
-
-func (reporter) Init(*goke.SysInit) {}
 
 func (r reporter) Report(line func(label, value string)) {
 	if r.p.read.Care() == 0 {

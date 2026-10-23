@@ -77,9 +77,7 @@ func Benchmark_World_Draw(b *testing.B) {
 				w.Write().SetAtlas(atlas)
 				ctx.look()
 				r = w.Read(0).Picture().(*render.Composer)
-				ctx.pending = append(ctx.pending, func() []goke.System {
-					return []goke.System{goke.SystemFn{OnInit: r.Init}}
-				})
+				ctx.pending = append(ctx.pending, ctx.bound)
 			})
 			ecs.Tick(step)
 			cam := ctx.cam

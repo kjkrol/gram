@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/collision"
 	"github.com/kjkrol/gram/plugins/collision/internal/collisiontest"
@@ -43,7 +44,7 @@ func TestBoxes_ABaseLiesUnderItsFigureAndASolidStandsFromItsAltitudeToItsTop(t *
 		t.Fatal(err)
 	}
 	boxes := c.BoxesView()
-	ecs := collisiontest.Start(t, w, m, c, goke.SystemFn{OnInit: boxes.Init})
+	ecs := collisiontest.Start(t, w, m, c, goke.SystemFn{OnInit: boxes.(plugin.Bound).Init})
 	cam := raising{cameratest.NewFromSpace(1000, 1000, 0)}
 	drawn := func(shown collision.BoxesShown) (ats []render.At, heights []float32) {
 		c.Write().ShowBoxes(shown)

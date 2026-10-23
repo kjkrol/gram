@@ -3,7 +3,6 @@ package topography_test
 import (
 	"testing"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
@@ -21,7 +20,6 @@ func (s ownSky) Air() air.Weather       { return air.Weather{} }
 // a sky some other source puts on the frame
 type framing struct{ sun light.Distant }
 
-func (framing) Init(*goke.SysInit) {}
 func (s framing) Compose(f *render.Frame, _ camera.Camera) {
 	s.sun.Frame(f)
 	air.Weather{}.Frame(f, s.sun, 0, 0)

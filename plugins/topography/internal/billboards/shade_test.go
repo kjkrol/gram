@@ -5,7 +5,6 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
@@ -32,7 +31,6 @@ func (westSky) Air() air.Weather       { return air.Weather{} }
 // hands the frame the west sun before the ground composes
 type sunning struct{}
 
-func (sunning) Init(*goke.SysInit) {}
 func (sunning) Compose(f *render.Frame, _ camera.Camera) {
 	westSun.Frame(f)
 	air.Weather{}.Frame(f, westSun, 0, 0)
@@ -48,7 +46,6 @@ type standing struct {
 	lit    render.Illumination
 }
 
-func (*standing) Init(*goke.SysInit) {}
 func (s *standing) Compose(f *render.Frame, cam camera.Camera) {
 	s.look.Begin(f, cam)
 	box := plane.NewAABB(geom.NewVec(s.at.X-3, s.at.Y-3), 6, 6)

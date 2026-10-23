@@ -54,7 +54,7 @@ func (s *Scene) Input(fn func(*control.InputEvents, game.Runtime, game.Compositi
 func (s *Scene) Name() string { return s.name }
 
 // Drawers is the one drawer drawing the screen.
-func (s *Scene) Drawers() []render.Drawer {
+func (s *Scene) Drawers() []render.Renderer {
 	s.dress()
 	if s.loaded {
 		s.reveal()
@@ -62,7 +62,7 @@ func (s *Scene) Drawers() []render.Drawer {
 		s.note()
 	}
 	s.drawing = &drawing{scene: s}
-	return []render.Drawer{s.drawing}
+	return []render.Renderer{s.drawing}
 }
 
 func (s *Scene) Focusable() bool { return true }
@@ -210,7 +210,9 @@ func (d *drawing) Init(si *goke.SysInit) {
 				d.pins = append(d.pins, e)
 			}
 			if l, ok := e.content.(*layered); ok {
-				l.r.Init(si)
+				if b, ok := l.r.(plugin.Bound); ok {
+					b.Init(si)
+				}
 			}
 			if l, ok := e.content.(*label); ok {
 				if b, ok := l.src.(bound); ok {

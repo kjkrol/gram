@@ -5,7 +5,6 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony/command"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/world/internal/sectorview"
 	"github.com/kjkrol/gram/plugins/world/sector"
@@ -84,8 +83,6 @@ func newSectorsView(p *Plugin) *sectorsView {
 	})
 	return v
 }
-
-func (v *sectorsView) Init(*goke.SysInit) {}
 
 func (v *sectorsView) Compose(f *render.Frame, cam camera.Camera) {
 	v.onGPU = false

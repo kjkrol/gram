@@ -5,7 +5,6 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/topography/internal/terrain"
 	"github.com/kjkrol/gram/plugins/world/view"
@@ -32,8 +31,6 @@ var careColors = [terrain.FullCare + 1]color.RGBA{
 type careView struct{ p *Plugin }
 
 var _ render.Source = (*careView)(nil)
-
-func (*careView) Init(*goke.SysInit) {}
 
 func (v *careView) Compose(f *render.Frame, cam camera.Camera) {
 	p := v.p

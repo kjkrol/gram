@@ -6,7 +6,6 @@ import (
 	"math"
 	"sync"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/celestial"
@@ -178,8 +177,6 @@ func (b *Renderer) look() Clouds {
 	}
 	return b.clouds()
 }
-
-func (*Renderer) Init(*goke.SysInit) {}
 
 // Compose hands the frame the sun, the weather over cam's eye and the air masses, and has the
 // sky drawn Direct, behind the whole world.

@@ -5,7 +5,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render/internal/gfx"
@@ -92,8 +91,6 @@ type pass struct {
 	call
 	at camera.Window
 }
-
-func (*recording) Init(*goke.SysInit) {}
 
 func (r *recording) DrawWorld(screen *gfx.Image, cam camera.Camera) {
 	r.w, r.h, r.cam = screen.Bounds().Dx(), screen.Bounds().Dy(), cam

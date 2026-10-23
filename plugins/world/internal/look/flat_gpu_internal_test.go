@@ -7,7 +7,6 @@ import (
 	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/aabbworld/plane"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
@@ -22,7 +21,6 @@ type lookSource struct {
 	atlas  render.AtlasSource
 }
 
-func (*lookSource) Init(*goke.SysInit) {}
 func (s *lookSource) Compose(f *render.Frame, cam camera.Camera) {
 	if s.direct {
 		s.look.Begin(f, cam)

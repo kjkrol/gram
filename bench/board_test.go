@@ -313,10 +313,7 @@ func islandWith(b *testing.B, view string, far bool, shine, lit, sectored bool) 
 	atlas.Close()
 	p.Write().SetAtlas(atlas)
 	ctx.look()
-	picture := ctx.world.Read(0).Picture().(*render.Composer)
-	ctx.pending = append(ctx.pending, func() []goke.System {
-		return []goke.System{goke.SystemFn{OnInit: picture.Init}}
-	})
+	ctx.pending = append(ctx.pending, ctx.bound)
 	ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
 		ctx.world.RunPlan(rc, d)
 		if l != nil {

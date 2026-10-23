@@ -4,14 +4,12 @@ import (
 	"math"
 	"slices"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render/internal/gfx"
 )
 
 // Picture is what is in the world before a camera, drawn through the camera it is handed.
 type Picture interface {
-	Init(*goke.SysInit)
 	DrawWorld(screen *gfx.Image, cam camera.Camera)
 }
 

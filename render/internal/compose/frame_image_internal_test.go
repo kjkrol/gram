@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render/gputest"
 	"github.com/kjkrol/gram/render/internal/gfx"
@@ -21,7 +20,6 @@ type probing struct {
 	seen any
 }
 
-func (*probing) Init(*goke.SysInit) {}
 func (p *probing) Compose(f *Frame, _ camera.Camera) {
 	if p.img != nil {
 		f.Image("TestProbe", p.img)

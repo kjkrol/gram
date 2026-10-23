@@ -21,9 +21,10 @@ sits idle until the player starts the game. A `Stage` is never a `plugin.Plugin`
 plugins. Its `Init` gets a `game.Initializer` (`Use`, `UseWorld`, `Track`, `TPS`, the embedded
 `plugin.Installer`, `Commands`). **A `Stage` has no `HandleEvents`**: input is a `Scene`'s.
 
-Within one active `Stage`, a `game.Scene` is `Name`, `Drawers() []render.Drawer` (built once on
-entering the Stage; a picture or a source listed straight in a scene is refused — the world is
-shown through a `ui.Image` of a `render.Feed` of `world.Read(0).Picture()`), `HandleEvents`,
+Within one active `Stage`, a `game.Scene` is `Name`, `Drawers() []render.Renderer` (built once on
+entering the Stage; a picture or a source is no Renderer — the world is shown through a
+`ui.Image` of a `render.Feed` of `world.Read(0).Picture()`; a drawer that reads the world is a
+`plugin.Bound`, readied once by the engine), `HandleEvents`,
 `Focusable`. `Stage.Stack()` is the
 `Name()`-keyed registry of every `Scene` it can show (`game.NewStack(scenes...)`);
 `Stack.Composition()` the live state — which scenes are visible, in what order, which is
@@ -230,9 +231,9 @@ scratchpad and run it from its directory under `timeout 5s`, exit 124 alive, gre
   one every line; a many-valued line is a value of lines under its label): `render.ActualFPS`
   (set by the engine once a second), `render.Spent()` (where a frame's time went, set beside them),
   `game.TPS.Ticks` (`ctx.TPS()`, stale under pause), `world.Res.Telemetry.Count` (spawned
-  entities), `view.View.In.Len()` per camera when culled. `render.Reporter` needs
-  `Init(*goke.SysInit)` (climate's builds a query), given through a layer's `Init`: the
-  telemetry panel's scene returns such a layer. A demo's screen has no telemetry layer: the
+  entities), `view.View.In.Len()` per camera when culled. A `render.Reporter` that reads
+  the world is a `plugin.Bound` too (climate's builds a query), readied through the telemetry
+  panel's scene. A demo's screen has no telemetry layer: the
   panel is the plugin's scene, shown with `.Shows(MainScene, telemetry.SceneName)`; reporters
   are added in `makePlugins` or the Scenes section (`s.telemetry.With(...)`).
 - The one place to attach a plugin to every Stage with a world is the `World(cfg).Plugins(f)`

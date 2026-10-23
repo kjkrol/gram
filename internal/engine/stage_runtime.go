@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"reflect"
 	"time"
 
@@ -18,7 +17,7 @@ type stageRuntime struct {
 	stage        game.Stage
 	world        *world.Plugin
 	carrier      *command.Carrier
-	sceneDrawers map[string][]render.Drawer
+	sceneDrawers map[string][]render.Renderer
 	publishers   []plugin.Publisher
 	prepared     bool // its first frame readied (Engine.prepare)
 	firsts       int  // its first frames logged
@@ -74,15 +73,14 @@ func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, erro
 			host.registerBound(b)
 		}
 	}
-	sceneDrawers := make(map[string][]render.Drawer)
+	sceneDrawers := make(map[string][]render.Renderer)
 	var drawn []any // the scenes' drawers in their order
 	for _, sc := range stage.Stack().All() {
 		drawers := sc.Drawers()
-		if err := checkDrawers(sc, drawers); err != nil {
-			return nil, err
-		}
 		for _, l := range drawers {
-			host.registerBound(l)
+			if b, ok := l.(plugin.Bound); ok {
+				host.registerBound(b)
+			}
 			drawn = append(drawn, l)
 		}
 		sceneDrawers[sc.Name()] = drawers
@@ -136,27 +134,8 @@ func (r *stageRuntime) publish() {
 	}
 }
 
-func checkDrawers(sc game.Scene, drawers []render.Drawer) error {
-	for _, l := range drawers {
-		if _, ok := l.(render.Renderer); ok {
-			continue
-		}
-		if _, ok := l.(render.Picture); ok {
-			return fmt.Errorf("gram: scene %q: %T is a world picture; show it through a "+
-				"ui.Image(render.NewFeed(camera, it))", sc.Name(), l)
-		}
-		if _, ok := l.(render.Source); ok {
-			return fmt.Errorf("gram: scene %q: %T is a render.Source; its plugin draws it "+
-				"(ctx.Draws), a ui.Image(render.NewFeed(camera, world.Picture())) shows it",
-				sc.Name(), l)
-		}
-		return fmt.Errorf("gram: scene %q: %T is no Renderer", sc.Name(), l)
-	}
-	return nil
-}
-
 func (r *stageRuntime) drawScene(screen *render.Image, sc game.Scene) {
 	for _, l := range r.sceneDrawers[sc.Name()] {
-		l.(render.Renderer).Draw(screen)
+		l.Draw(screen)
 	}
 }

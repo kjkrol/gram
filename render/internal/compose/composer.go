@@ -4,7 +4,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render/internal/gfx"
 	"github.com/kjkrol/gram/render/internal/gpu"
@@ -73,8 +72,6 @@ func NewComposer(sources ...Source) *Composer {
 	c.draw = c.drawTriangles
 	return c
 }
-
-func (c *Composer) Init(*goke.SysInit) {}
 
 // DrawWorld composes the frame through cam and draws it; a nil screen only composes.
 func (c *Composer) DrawWorld(screen *Image, cam camera.Camera) {

@@ -4,7 +4,6 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -31,7 +30,6 @@ type skyAndStrip struct {
 	grey color.RGBA
 }
 
-func (skyAndStrip) Init(*goke.SysInit) {}
 func (s skyAndStrip) Compose(f *render.Frame, cam camera.Camera) {
 	s.sun.Frame(f)
 	s.weather.Frame(f, s.sun, 0, 0)

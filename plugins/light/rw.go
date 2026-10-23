@@ -44,8 +44,6 @@ func (r *Read) Reporter() render.Reporter { return reporter{r.p} }
 
 type reporter struct{ p *Plugin }
 
-func (reporter) Init(*goke.SysInit) {}
-
 func (r reporter) Report(line func(label, value string)) {
 	line("Light", fmt.Sprintf("sun %.2f\nlamps %d\nshadows of %d", r.p.distant.Strength,
 		len(r.p.lamps), min(len(r.p.lamps), r.p.Res.Settings.LampShadows)))

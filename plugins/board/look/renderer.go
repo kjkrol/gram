@@ -3,7 +3,6 @@ package look
 import (
 	"image/color"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -120,8 +119,6 @@ func (l *Renderer) SetAtlas(atlas render.AtlasSource) {
 
 // State is the renderer's live toggles.
 func (l *Renderer) State() *RenderState { return &l.state }
-
-func (l *Renderer) Init(*goke.SysInit) {}
 
 // Shade is the per-pixel looks the board's Atlas declared, by the kind's name. A shaded kind
 // takes no part in blending.

@@ -5,7 +5,6 @@ import (
 	"math"
 	"slices"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render/internal/gfx"
 	"github.com/kjkrol/gram/render/internal/wgsl"
@@ -13,7 +12,6 @@ import (
 
 // Source is what draws a part of the world by handing its pieces to a Frame.
 type Source interface {
-	Init(*goke.SysInit)
 	Compose(f *Frame, cam camera.Camera)
 }
 

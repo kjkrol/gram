@@ -2,7 +2,7 @@
 // a Scene and a plugin draw with. Everything is drawn on the GPU (internal/gpu), in WGSL; the
 // engine hands render its window's device ([UseDevice], [Present]).
 //
-// A Scene's parts are [Drawer]s. A [Renderer] draws on the screen once a frame; a [Picture] is
+// A Scene's parts are [Renderer]s, drawing on the screen once a frame; a [Picture] is
 // what is in the world before a camera, drawn through the camera it is handed and shown by a
 // [Feed] at a size ([Surface]): whole, in layers or with its figures sharp. A [Reporter] adds
 // lines to the telemetry panel.

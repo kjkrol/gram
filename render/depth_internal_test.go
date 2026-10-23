@@ -4,7 +4,6 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/render/gputest"
@@ -13,12 +12,10 @@ import (
 // the composer's tests' sources, out here with the sprites a figure is drawn with
 type items func(f *Frame)
 
-func (items) Init(*goke.SysInit)                  {}
 func (s items) Compose(f *Frame, _ camera.Camera) { s(f) }
 
 type viewed func(f *Frame, cam camera.Camera)
 
-func (viewed) Init(*goke.SysInit)                    {}
 func (s viewed) Compose(f *Frame, cam camera.Camera) { s(f, cam) }
 
 type overlyingSource struct{ Source }
@@ -32,7 +29,6 @@ func (overlyingDirect) Overlies() {}
 // an Overlying Direct noting the depths the pass over the figures hands it
 type overPeek struct{ depth, ground *Depth }
 
-func (*overPeek) Init(*goke.SysInit)                           {}
 func (*overPeek) Overlies()                                    {}
 func (*overPeek) Compose(f *Frame, _ camera.Camera)            { f.DrawAt(Nearest) }
 func (p *overPeek) Draw(t Target, _ camera.Camera, _ Uniforms) { p.depth, p.ground = t.Depth, t.Ground }
@@ -72,7 +68,6 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> {
 // an opaque ground of quads, two vec4s each: x0, y0, x1, y1, then its colour and its height
 type groundSource struct{ quads []float32 }
 
-func (*groundSource) Init(*goke.SysInit)                {}
 func (*groundSource) Compose(f *Frame, _ camera.Camera) { f.DrawOpaque() }
 func (g *groundSource) Draw(t Target, cam camera.Camera, u Uniforms) {
 	if t.Pass != Opaque {
@@ -109,7 +104,6 @@ type figureSource struct {
 	fog     float32
 }
 
-func (*figureSource) Init(*goke.SysInit) {}
 func (s *figureSource) Compose(f *Frame, _ camera.Camera) {
 	s.sprites.Reset()
 	at := f.Lifted(24, 24, s.z, 2)
@@ -122,7 +116,6 @@ func (s *figureSource) Draw(t Target, cam camera.Camera, u Uniforms) { s.sprites
 
 type skySource struct{}
 
-func (skySource) Init(*goke.SysInit)                {}
 func (skySource) Compose(f *Frame, _ camera.Camera) { f.DrawAt(Furthest) }
 func (skySource) Draw(t Target, _ camera.Camera, _ Uniforms) {
 	if t.Depth != nil {
@@ -312,7 +305,6 @@ type twoFigures struct {
 	atlas   AtlasSource
 }
 
-func (*twoFigures) Init(*goke.SysInit) {}
 func (s *twoFigures) Compose(f *Frame, _ camera.Camera) {
 	s.sprites.Reset()
 	at := f.Lifted(24, 24, 3, 2)
@@ -330,7 +322,6 @@ type peek struct {
 	depth, ground bool
 }
 
-func (*peek) Init(*goke.SysInit) {}
 func (p *peek) Compose(f *Frame, _ camera.Camera) {
 	if p.opaque {
 		f.DrawOpaque()
@@ -445,8 +436,6 @@ func TestFeed_DrawsAFigureAtEveryPixelOverAHalfResolutionGround(t *testing.T) {
 
 // a picture filling its screen with the next of its colours each time it is drawn
 type painting struct{ colors []color.RGBA }
-
-func (*painting) Init(*goke.SysInit) {}
 
 func (p *painting) DrawWorld(screen *Image, _ camera.Camera) {
 	screen.Fill(p.colors[0])

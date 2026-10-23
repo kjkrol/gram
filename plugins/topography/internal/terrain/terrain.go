@@ -13,7 +13,6 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
@@ -168,8 +167,6 @@ func Shader() *render.Shader { return byCare[FullCare] }
 
 // Shaders are the ground's shaders from the least care to the full, for a test to compile.
 func Shaders() []*render.Shader { return byCare[:] }
-
-func (*Renderer) Init(*goke.SysInit) {}
 
 // SetCare has the ground within rings sectors of the one under the middle of the screen, and of
 // the one under the eye, shaded with full care, and one care less every rings sectors farther

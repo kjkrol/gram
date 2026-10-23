@@ -296,8 +296,6 @@ func (p *Plugin) apply(cam camera.Camera, factor float32) bool {
 
 type reporter struct{ p *Plugin }
 
-func (reporter) Init(*goke.SysInit) {}
-
 func (r reporter) Report(line func(label, value string)) {
 	lead := r.p.lead()
 	if lead == nil {

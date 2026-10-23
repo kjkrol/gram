@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
@@ -77,7 +76,6 @@ func TestDistant_ColoursItsLightAndTheSkysAndHandsTheFrameThem(t *testing.T) {
 
 type source func(f *render.Frame)
 
-func (source) Init(*goke.SysInit)                         {}
 func (s source) Compose(f *render.Frame, _ camera.Camera) { s(f) }
 
 func shadowsOf(z world.Z, sun light.Distant) (middles []geom.Vec) {

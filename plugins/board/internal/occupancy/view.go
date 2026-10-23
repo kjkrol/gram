@@ -5,7 +5,6 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -59,8 +58,6 @@ func (v *View) Show(shown bool) { v.shown = shown }
 
 // Shown reports whether the holds are shown.
 func (v *View) Shown() bool { return v.shown }
-
-func (v *View) Init(*goke.SysInit) {}
 
 func (v *View) Compose(f *render.Frame, cam camera.Camera) {
 	if !v.shown || v.occupancy == nil {

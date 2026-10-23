@@ -3,7 +3,6 @@ package aloft
 import (
 	"testing"
 
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
@@ -173,7 +172,6 @@ func TestRenderer_InOneLayerDrawsTheLowOnesHighAlone(t *testing.T) {
 // the ground's heights handed to the frame
 type heights struct{ render.GroundHeights }
 
-func (heights) Init(*goke.SysInit)                         {}
 func (h heights) Compose(f *render.Frame, _ camera.Camera) { f.GroundHeights(h.GroundHeights) }
 
 // a world 640 by 480 whose west half stands 2000 up, over the low clouds' heaps, the east at 0
@@ -353,7 +351,6 @@ func TestRenderer_DrawsTheCloudsAtACoarseOfTheGroundsPixels(t *testing.T) {
 // over it meets the furthest depth
 type handed map[string]any
 
-func (handed) Init(*goke.SysInit)                                 {}
 func (handed) Draw(render.Target, camera.Camera, render.Uniforms) {}
 func (h handed) Compose(f *render.Frame, _ camera.Camera) {
 	f.DrawOpaque()

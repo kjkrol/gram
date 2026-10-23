@@ -6,7 +6,6 @@ import (
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/board"
@@ -92,8 +91,6 @@ func New(w *world.Plugin, b *board.Plugin, m board.MapRead, r *relief.Relief, sk
 	h.opts = render.DrawMeshOptions{WriteDepth: true, Vertices: prismVertices, Uniforms: map[string]any{}}
 	return h
 }
-
-func (*Ground) Init(*goke.SysInit) {}
 
 // Compose has the ground drawn Direct, in the opaque pass.
 func (*Ground) Compose(f *render.Frame, _ camera.Camera) { f.DrawOpaque() }
