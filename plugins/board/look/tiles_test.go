@@ -157,25 +157,39 @@ func TestTiles_LayTheCoversAndTheWaysAsTheCPUComposesThem(t *testing.T) {
 	}
 }
 
+// a hex's box reaches over its neighbours': each cell's tile and the covers on it lie over the
+// cells before it and under those after it, the ways over them all
 func TestTiles_LayAHexBoardAsTheCPUComposesIt(t *testing.T) {
 	needGPU(t)
+	const mark tag.Tag[effect.States] = 3
 	g := grid.DefaultGrids{}.Hex(8, 8, 16)
 	brd, brdW := board.NewBoard(g)
 	kinds := []cell.Kind{{SpriteID: 1, Cost: 1, Allows: cell.Land},
 		{SpriteID: 2, Cost: 1, Allows: cell.Land}, {SpriteID: 3, Cost: 1, Allows: cell.Land}}
+	road := cell.Kind{SpriteID: 5, Cost: 1, Allows: cell.Land}
+	m := marked{BoardRead: brd, mark: mark, cells: map[cell.ID]bool{}}
 	for r := range uint32(8) {
 		for q := range uint32(8) {
 			brdW.Set(g.At(q, r), kinds[(q+2*r)%3])
+			if (q+r)%4 == 1 {
+				m.cells[g.At(q, r)] = true
+			}
 		}
+		brdW.SetWay(g.At(3, r), cell.Way{Kind: road, Width: 7, Links: 0x3f})
 	}
 	atlas := render.NewAtlas()
 	atlas.Add(render.SpriteID(1), 28, render.Hexagon(color.RGBA{R: 60, G: 160, B: 60, A: 255}))
 	atlas.Add(render.SpriteID(2), 28, render.Hexagon(color.RGBA{R: 40, G: 80, B: 200, A: 255}))
 	atlas.Add(render.SpriteID(3), 28, render.Solid(color.RGBA{R: 200, G: 180, B: 90, A: 255}))
+	atlas.Add(render.SpriteID(4), 28, render.Solid(color.RGBA{R: 240, G: 240, B: 250, A: 200}))
+	atlas.Add(render.SpriteID(5), 28, render.Solid(color.RGBA{R: 150, G: 110, B: 70, A: 255}))
 	atlas.Close()
+	d := draw.NewBands(m)
+	d.Cover(mark, 4)
+	mp := dressed{look.FlatLook(), d}
 	space := world.SpaceCfg{Width: 400, Height: 300}
-	laid := look.NewRenderer(brd, atlas, brd.Map(), space)
-	cpu := look.NewRenderer(brd, atlas, brd.Map(), world.SpaceCfg{})
+	laid := look.NewRenderer(brd, atlas, mp, space)
+	cpu := look.NewRenderer(brd, atlas, mp, world.SpaceCfg{})
 	cam := cameratest.NewFromSpace(space.Width, space.Height, 0)
 	cam.SetViewport(320, 240)
 	if most, off := drawnApart(t, laid, cpu, cam, 320, 240); off > 320*240/100 {
@@ -194,12 +208,21 @@ func TestTiles_LeanWhatSwaysAsTheCPUComposesIt(t *testing.T) {
 	for _, at := range [][2]uint32{{2, 2}, {3, 2}, {5, 4}, {1, 6}, {6, 6}} {
 		brdW.Set(g.At(at[0], at[1]), reeds)
 	}
+	// covers on what sways and beside it: each lies over its own tile and under the next one's
+	const mark tag.Tag[effect.States] = 3
+	m := marked{BoardRead: brd, mark: mark, cells: map[cell.ID]bool{}}
+	for _, at := range [][2]uint32{{2, 2}, {4, 2}, {2, 3}, {5, 5}, {6, 6}, {0, 0}} {
+		m.cells[g.At(at[0], at[1])] = true
+	}
 	atlas := render.NewAtlas()
 	atlas.Add(render.SpriteID(1), 32, render.Solid(color.RGBA{R: 60, G: 160, B: 60, A: 255}))
 	atlas.Add(render.SpriteID(2), 32, render.Solid(color.RGBA{R: 200, G: 190, B: 80, A: 255}))
+	atlas.Add(render.SpriteID(4), 32, render.Solid(color.RGBA{R: 240, G: 240, B: 250, A: 200}))
 	atlas.Close()
+	d := draw.NewBands(m)
+	d.Cover(mark, 4)
 	wind := [2]float32{30, 12}
-	mp := dressed{windy{look.FlatLook(), air.Weather{Wind: wind}}, brd.Map().Dressing()}
+	mp := dressed{windy{look.FlatLook(), air.Weather{Wind: wind}}, d}
 	space := world.SpaceCfg{Width: 256, Height: 256}
 	laid := look.NewRenderer(brd, atlas, mp, space)
 	cpu := look.NewRenderer(brd, atlas, mp, world.SpaceCfg{})

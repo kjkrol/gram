@@ -3,6 +3,7 @@ package look
 import (
 	"image/color"
 	"math"
+	"slices"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/goke/v3"
@@ -83,6 +84,7 @@ type Renderer struct {
 	cells    []cell.ID
 	seen     []uint32
 	stamp    uint32
+	order    []int
 	tops     []cellTop
 	// the sides of every cell's outline on one of grid.DefaultGrids, nil on another grid
 	rims []rim
@@ -232,7 +234,6 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		if l.gridDrawn(cam) {
 			f.DrawAt(f.OnGround(gridLift))
 		}
-		l.materials(f)
 		return
 	}
 	l.compose(f, look, d)
@@ -296,6 +297,7 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		if l.ground != nil {
 			l.ground.DressGround(t, cam, u)
 		}
+		l.tiles.materials(t)
 		return
 	}
 	if t.Pass == render.SeeThrough && l.ground != nil {
@@ -561,6 +563,7 @@ func (l *Renderer) eachIn(bounds geom.AABB, fn func(c cell.ID)) {
 		clear(l.seen)
 		l.stamp = 1
 	}
+	l.order = l.order[:0]
 	for y := bounds.TopLeft.Y; y < bounds.BottomRight.Y+step; y += step {
 		for x := bounds.TopLeft.X; x < bounds.BottomRight.X+step; x += step {
 			c, ok := l.board.CellAt(geom.NewVec(x, y))
@@ -572,8 +575,14 @@ func (l *Renderer) eachIn(bounds geom.AABB, fn func(c cell.ID)) {
 				continue
 			}
 			l.seen[i] = l.stamp
-			fn(c)
+			l.order = append(l.order, i)
 		}
+	}
+	// in the order the cells are laid, row by row
+	slices.Sort(l.order)
+	shape, _ := l.board.Shape()
+	for _, i := range l.order {
+		fn(l.board.At(uint32(i)%shape.Cols, uint32(i)/shape.Cols))
 	}
 }
 

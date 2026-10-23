@@ -35,13 +35,3 @@ fn laidAt(laid: vec4<f32>, p: vec2<f32>) -> Laid {
     }
     return out;
 }
-
-// plainly reports whether the plain pass lays the cell flagged so: drawn by its sprite, nothing
-// swaying on or beside it where the tiles sway.
-fn plainly(flags: u32) -> bool {
-    var mask = flagShaded;
-    if U.TileSways > 0.5 {
-        mask |= flagNearSway;
-    }
-    return (flags & mask) == 0u;
-}

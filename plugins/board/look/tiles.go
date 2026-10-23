@@ -124,6 +124,7 @@ type tiles struct {
 	marks   []uint32
 	stamp   uint32
 	changed []int
+	laid    bool // whether draw laid the tiles this frame, its uniforms set
 }
 
 // refresh brings the cells' image up to the board as l reads it, the sheet sheet: every cell
@@ -424,6 +425,7 @@ func (g *tiles) writeRect(k int) {
 // at their levels; their ground's depth into t's depth where it has one
 func (g *tiles) draw(t render.Target, cam camera.Camera, u render.Uniforms, l *Renderer,
 	tint render.Light, lit bool, seen *seenSectors) {
+	g.laid = false
 	if g.cells == nil || g.sheet == nil {
 		return
 	}
@@ -469,6 +471,7 @@ func (g *tiles) draw(t render.Target, cam camera.Camera, u render.Uniforms, l *R
 	g.set("TileCovers", covers[:4]...)
 	g.set("TileCoversOn", covers[4:]...)
 	g.set("TileShift", 0, 0)
+	g.laid = true
 	g.opts.Images = [4]*render.Image{g.sheet.Atlas(), g.rects, g.cells,
 		seen.uniforms(g.set, "Tile")}
 	// pixel by pixel, the ground's depth with it
@@ -491,16 +494,24 @@ func (g *tiles) draw(t render.Target, cam camera.Camera, u render.Uniforms, l *R
 			for x := x0; x <= x1; x++ {
 				g.set("TileShift", float32(x)*float32(l.space.Width),
 					float32(y)*float32(l.space.Height))
-				g.instanced(t, coversShader, g.coverAt, coverVertices)
+				if !shape.Hex {
+					g.instanced(t, coversShader, g.coverAt, coverVertices)
+				}
 				g.instanced(t, waysShader, g.wayAt, wayVertices)
 			}
 		}
 		g.set("TileShift", 0, 0)
 	}
-	g.opts.Vertices, g.opts.Instances = 3, nil
-	if g.shaded > 0 {
-		t.Screen.DrawMesh(nil, materialShader, &g.opts)
+}
+
+// materials lays the cells drawn by their material over what draw laid, with its uniforms
+func (g *tiles) materials(t render.Target) {
+	if g.shaded == 0 || !g.laid {
+		return
 	}
+	g.opts.Vertices, g.opts.Instances = 3, nil
+	g.opts.Depth, g.opts.WriteDepth = nil, false
+	t.Screen.DrawMesh(nil, materialShader, &g.opts)
 }
 
 func (g *tiles) instanced(t render.Target, s *render.Shader, at []float32, vertices int) {

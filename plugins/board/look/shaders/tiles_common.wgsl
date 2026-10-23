@@ -12,6 +12,7 @@
 // a cell's flags (look's tiles.go)
 const flagShaded: u32 = 1u;
 const flagSways: u32 = 4u;
+const flagNearCover: u32 = 8u;
 const flagNearSway: u32 = 16u;
 
 // the share of a cover's weight it fades in over (draw.coverSoft)
@@ -250,6 +251,91 @@ fn litAt(c: vec4<f32>, p: vec2<f32>) -> vec4<f32> {
 // it: half a texel in from the rectangle's edges.
 fn sampled(r: vec4<f32>, uv: vec2<f32>) -> vec4<f32> {
     return imageSrc0At(r.xy + 0.5 + uv * (r.zw - r.xy - 1.0));
+}
+
+// plainly reports whether the plain pass lays the cell flagged so: drawn by its sprite, nothing
+// swaying on or beside it where the tiles sway.
+fn plainly(flags: u32) -> bool {
+    var mask = flagShaded;
+    if U.TileSways > 0.5 {
+        mask |= flagNearSway;
+    }
+    return (flags & mask) == 0u;
+}
+
+// coversAt is what the covers lying on the board's cell b or round it, flagged flags, lay at p
+// over its tile, the box from lo U.TileBox large, in the order they come: each over a quarter of
+// the box, weighed at the quarter's corners (weightAt) and between them as two triangles from the
+// top-left and the bottom-right corner are, as the instanced pass lays them.
+fn coversAt(b: vec2<f32>, flags: u32, lo: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
+    let uv = (p - lo) / U.TileBox;
+    if (flags & flagNearCover) == 0u || uv.x < 0.0 || uv.y < 0.0 || uv.x >= 1.0 || uv.y >= 1.0 {
+        return vec4<f32>(0.0);
+    }
+    var bits = byteOf(b, 1.0, 0.0, 3);
+    if U.TileHex < 0.5 {
+        for (var k = 0; k < 9; k++) {
+            let c = folded(near(b, k).xy);
+            if c.z > 0.5 {
+                bits |= byteOf(c.xy, 1.0, 0.0, 3);
+            }
+        }
+    }
+    let g = uv * 2.0;
+    let q = min(floor(g), vec2<f32>(1.0));
+    let s = g - q;
+    var laid = vec4<f32>(0.0);
+    for (var i = 0u; i < 8u; i++) {
+        if ((bits >> i) & 1u) == 0u {
+            continue;
+        }
+        var w: f32;
+        if s.x + s.y <= 1.0 {
+            let tl = weightAt(b, i, q);
+            w = tl + s.x * (weightAt(b, i, q + vec2<f32>(1.0, 0.0)) - tl) +
+                s.y * (weightAt(b, i, q + vec2<f32>(0.0, 1.0)) - tl);
+        } else {
+            let br = weightAt(b, i, q + 1.0);
+            w = br + (1.0 - s.x) * (weightAt(b, i, q + vec2<f32>(0.0, 1.0)) - br) +
+                (1.0 - s.y) * (weightAt(b, i, q + vec2<f32>(1.0, 0.0)) - br);
+        }
+        let a = smoothstep(0.5 - coverSoft, 0.5 + coverSoft, w);
+        laid = over(sampled(rectOf(coverOf(i)), uv) * a, laid);
+    }
+    return laid;
+}
+
+// weightAt is the share of the cells meeting at the point (x, y) of the board's cell b's tile (0
+// its left or top edge, 1 its middle, 2 its right or bottom edge) the i-th cover lies on: of a hex
+// board's, b's own; past the board's edge, b's own in place of the cell there.
+fn weightAt(b: vec2<f32>, i: u32, point: vec2<f32>) -> f32 {
+    let mine = select(0.0, 1.0, coveredAt(b, i));
+    if U.TileHex > 0.5 {
+        return mine;
+    }
+    let x0 = select(0.0, -1.0, point.x < 0.5);
+    let x1 = select(0.0, 1.0, point.x > 1.5);
+    let y0 = select(0.0, -1.0, point.y < 0.5);
+    let y1 = select(0.0, 1.0, point.y > 1.5);
+    var n = 0.0;
+    var all = 0.0;
+    for (var dy = y0; dy <= y1; dy += 1.0) {
+        for (var dx = x0; dx <= x1; dx += 1.0) {
+            var on = mine;
+            let c = folded(b + vec2<f32>(dx, dy));
+            if c.z > 0.5 {
+                on = select(0.0, 1.0, coveredAt(c.xy, i));
+            }
+            n += on;
+            all += 1.0;
+        }
+    }
+    return n / all;
+}
+
+// coveredAt reports whether the i-th cover lies on the board's cell b.
+fn coveredAt(b: vec2<f32>, i: u32) -> bool {
+    return ((byteOf(b, 1.0, 0.0, 3) >> i) & 1u) != 0u;
 }
 
 // coverOf is the sprite of the i-th cover.

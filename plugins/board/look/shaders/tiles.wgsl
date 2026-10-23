@@ -2,7 +2,7 @@
 // those of the cells something sways on or beside, where the tiles sway; the plain pass has the
 // rest. Every cell whose box covers the point is laid there in the order the cells are, its sprite
 // stretched over its box leant with the wind (U.Wind) as air.Weather.Sway leans what stands on it,
-// faded into the fog as the plain pass fades it.
+// faded into the fog as the plain pass fades it, and the covers on it over it.
 
 @fragment
 fn fs_main(@builtin(position) frag: vec4<f32>) -> Laid {
@@ -33,8 +33,9 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> Laid {
     return laidAt(laid, p);
 }
 
-// tileAt is what the tile of the cell c lays at p, nothing where its box, leant with the wind,
-// does not reach, where its material draws it or where it lies out of sight.
+// tileAt is what the tile of the cell c lays at p and the covers on it over it: the tile nothing
+// where its box, leant with the wind, does not reach, where its material draws it or where it lies
+// out of sight; the covers only where it is seen exactly.
 fn tileAt(c: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
     let b = folded(c);
     if b.z < 0.5 {
@@ -42,7 +43,8 @@ fn tileAt(c: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
     }
     let t0 = texelOf(b.xy, 0.0, 0.0);
     let flags = byteIn(t0, 3);
-    if (flags & flagShaded) != 0u || levelOf(b.xy) == 0u {
+    let level = levelOf(b.xy);
+    if level == 0u {
         return vec4<f32>(0.0);
     }
     let base = centreOf(c);
@@ -52,12 +54,15 @@ fn tileAt(c: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
     }
     let lo = mid - U.TileBox * 0.5;
     let hi = mid + U.TileBox * 0.5;
-    if p.x < lo.x || p.y < lo.y || p.x >= hi.x || p.y >= hi.y {
-        return vec4<f32>(0.0);
+    var laid = vec4<f32>(0.0);
+    if (flags & flagShaded) == 0u && p.x >= lo.x && p.y >= lo.y && p.x < hi.x && p.y < hi.y {
+        laid = spriteAt(byteIn(t0, 0) | (byteIn(t0, 1) << 8u), lo, hi, p);
+        if U.TileSeen > 0.5 {
+            laid = vec4<f32>(mix(laid.rgb, U.Fog * laid.a, fogOf(b.xy)), laid.a);
+        }
     }
-    var laid = spriteAt(byteIn(t0, 0) | (byteIn(t0, 1) << 8u), lo, hi, p);
-    if U.TileSeen > 0.5 {
-        laid = vec4<f32>(mix(laid.rgb, U.Fog * laid.a, fogOf(b.xy)), laid.a);
+    if level == 1u {
+        laid = over(coversAt(b.xy, flags, lo, p), laid);
     }
     return laid;
 }
