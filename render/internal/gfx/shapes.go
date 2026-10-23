@@ -1,4 +1,4 @@
-package render
+package gfx
 
 import (
 	"image/color"
@@ -7,34 +7,34 @@ import (
 	"github.com/kjkrol/gram/internal/gpu"
 )
 
-// FillRect lays c over the rectangle x, y, w by h of dst, in its pixels.
-func FillRect(dst *Image, x, y, w, h float32, c color.Color) {
-	fillQuad(dst, [4][2]float32{{x, y}, {x + w, y}, {x, y + h}, {x + w, y + h}}, c)
+// FillRect lays c over the rectangle x, y, w by h of the image, in its pixels.
+func (i *Image) FillRect(x, y, w, h float32, c color.Color) {
+	i.fillQuad([4][2]float32{{x, y}, {x + w, y}, {x, y + h}, {x + w, y + h}}, c)
 }
 
 // StrokeRect lays c over the outline of the rectangle x, y, w by h, width wide, centred on it.
-func StrokeRect(dst *Image, x, y, w, h, width float32, c color.Color) {
+func (i *Image) StrokeRect(x, y, w, h, width float32, c color.Color) {
 	o := width / 2
-	FillRect(dst, x-o, y-o, w+width, width, c)
-	FillRect(dst, x-o, y+h-o, w+width, width, c)
-	FillRect(dst, x-o, y+o, width, h-width, c)
-	FillRect(dst, x+w-o, y+o, width, h-width, c)
+	i.FillRect(x-o, y-o, w+width, width, c)
+	i.FillRect(x-o, y+h-o, w+width, width, c)
+	i.FillRect(x-o, y+o, width, h-width, c)
+	i.FillRect(x+w-o, y+o, width, h-width, c)
 }
 
 // StrokeLine lays c over the line from (x0, y0) to (x1, y1), width wide.
-func StrokeLine(dst *Image, x0, y0, x1, y1, width float32, c color.Color) {
+func (i *Image) StrokeLine(x0, y0, x1, y1, width float32, c color.Color) {
 	dx, dy := x1-x0, y1-y0
 	n := float32(math.Hypot(float64(dx), float64(dy)))
 	if n == 0 {
 		return
 	}
 	nx, ny := -dy/n*width/2, dx/n*width/2
-	fillQuad(dst, [4][2]float32{{x0 + nx, y0 + ny}, {x1 + nx, y1 + ny}, {x0 - nx, y0 - ny}, {x1 - nx, y1 - ny}}, c)
+	i.fillQuad([4][2]float32{{x0 + nx, y0 + ny}, {x1 + nx, y1 + ny}, {x0 - nx, y0 - ny}, {x1 - nx, y1 - ny}}, c)
 }
 
 // FillCircle lays c over the disc round (cx, cy), radius r.
-func FillCircle(dst *Image, cx, cy, r float32, c color.Color) {
-	cr, cg, cb, ca := rgbaOf(c)
+func (i *Image) FillCircle(cx, cy, r float32, c color.Color) {
+	cr, cg, cb, ca := Premultiply(c)
 	v := func(x, y float32) gpu.Vertex {
 		return gpu.Vertex{DstX: x, DstY: y, ColorR: cr, ColorG: cg, ColorB: cb, ColorA: ca}
 	}
@@ -48,43 +48,35 @@ func FillCircle(dst *Image, cx, cy, r float32, c color.Color) {
 			indices = append(indices, 0, uint16(k), uint16(k+1))
 		}
 	}
-	gpu.Colored(dst.gpu(), verts, indices, gpu.SourceOver)
+	gpu.Colored(i.gpu(), verts, indices, gpu.SourceOver)
 }
 
-func fillQuad(dst *Image, q [4][2]float32, c color.Color) {
-	cr, cg, cb, ca := rgbaOf(c)
+func (i *Image) fillQuad(q [4][2]float32, c color.Color) {
+	cr, cg, cb, ca := Premultiply(c)
 	var verts [4]gpu.Vertex
 	for k, p := range q {
 		verts[k] = gpu.Vertex{DstX: p[0], DstY: p[1], ColorR: cr, ColorG: cg, ColorB: cb, ColorA: ca}
 	}
-	gpu.Colored(dst.gpu(), verts[:], []uint16{0, 1, 2, 1, 2, 3}, gpu.SourceOver)
+	gpu.Colored(i.gpu(), verts[:], []uint16{0, 1, 2, 1, 2, 3}, gpu.SourceOver)
 }
 
-var rates struct{ fps float64 }
-
-// SetRates notes the frames the engine drew in the last second.
-func SetRates(fps float64) { rates.fps = fps }
-
-// ActualFPS is how many frames the engine drew in the last second.
-func ActualFPS() float64 { return rates.fps }
-
-// FillQuad fills dst's corners in a colour each, blended across, top-left, top-right,
+// FillQuad fills the image's corners in a colour each, blended across, top-left, top-right,
 // bottom-left, bottom-right.
-func FillQuad(dst *Image, corners Corners, c [4]color.RGBA) {
+func (i *Image) FillQuad(corners Corners, c [4]color.RGBA) {
 	verts := make([]gpu.Vertex, 4)
-	for i, p := range corners {
-		cr, cg, cb, ca := rgbaOf(c[i])
-		verts[i] = gpu.Vertex{DstX: p[0], DstY: p[1], ColorR: cr, ColorG: cg, ColorB: cb, ColorA: ca}
+	for k, p := range corners {
+		cr, cg, cb, ca := Premultiply(c[k])
+		verts[k] = gpu.Vertex{DstX: p[0], DstY: p[1], ColorR: cr, ColorG: cg, ColorB: cb, ColorA: ca}
 	}
-	gpu.Colored(dst.gpu(), verts, []uint16{0, 1, 2, 1, 2, 3}, gpu.SourceOver)
+	gpu.Colored(i.gpu(), verts, []uint16{0, 1, 2, 1, 2, 3}, gpu.SourceOver)
 }
 
-// FillPolygon lays c over the convex polygon pts, in dst's pixels.
-func FillPolygon(dst *Image, pts [][2]float32, c color.Color) {
+// FillPolygon lays c over the convex polygon pts, in the image's pixels.
+func (i *Image) FillPolygon(pts [][2]float32, c color.Color) {
 	if len(pts) < 3 {
 		return
 	}
-	cr, cg, cb, ca := rgbaOf(c)
+	cr, cg, cb, ca := Premultiply(c)
 	verts := make([]gpu.Vertex, len(pts))
 	for k, p := range pts {
 		verts[k] = gpu.Vertex{DstX: p[0], DstY: p[1], ColorR: cr, ColorG: cg, ColorB: cb, ColorA: ca}
@@ -93,12 +85,12 @@ func FillPolygon(dst *Image, pts [][2]float32, c color.Color) {
 	for k := 1; k+1 < len(pts); k++ {
 		indices = append(indices, 0, uint16(k), uint16(k+1))
 	}
-	gpu.Colored(dst.gpu(), verts, indices, gpu.SourceOver)
+	gpu.Colored(i.gpu(), verts, indices, gpu.SourceOver)
 }
 
 // StrokePolygon lays c over the outline of the closed polygon pts, width wide, at one draw.
-func StrokePolygon(dst *Image, pts [][2]float32, width float32, c color.Color) {
-	cr, cg, cb, ca := rgbaOf(c)
+func (i *Image) StrokePolygon(pts [][2]float32, width float32, c color.Color) {
+	cr, cg, cb, ca := Premultiply(c)
 	verts := make([]gpu.Vertex, 0, 4*len(pts))
 	indices := make([]uint16, 0, 6*len(pts))
 	for k, p := range pts {
@@ -118,6 +110,6 @@ func StrokePolygon(dst *Image, pts [][2]float32, width float32, c color.Color) {
 		indices = append(indices, at, at+1, at+2, at+1, at+2, at+3)
 	}
 	if len(indices) > 0 {
-		gpu.Colored(dst.gpu(), verts, indices, gpu.SourceOver)
+		gpu.Colored(i.gpu(), verts, indices, gpu.SourceOver)
 	}
 }

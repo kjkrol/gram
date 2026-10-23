@@ -1062,7 +1062,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   in board/topography's `makePlugins`) draws the strips and the corner squares on the glass over
   every picture but one of the whole world (`render.Glass`, `zonesView.DrawGlass`, in shown
   pixels, after everything the scene lays over the picture: the HUD never covers them; the
-  user's word, 2026-10-20) in translucent yellow, a `render.FillQuad` each, clear at the inner
+  user's word, 2026-10-20) in translucent yellow, an `Image.FillQuad` each, clear at the inner
   bound and deepest at the picture's edge, the strips a gap short of the corners (the user's
   sketch, 2026-10-14; the gradient 2026-10-20); the strips `control.EdgeMargin` wide, 60 px, and
   the edge scroll a quarter the speed at the inner bound rising to the whole at the edge

@@ -47,10 +47,10 @@ func (c *checkbox) draw(e *Element, dst *render.Image) {
 	s := float32(side)
 	th := e.look()
 	// half a pixel in: a one-pixel stroke on whole pixels
-	render.StrokeRect(dst, x+0.5, y+0.5, s-1, s-1, 1, th.Border)
+	dst.StrokeRect(x+0.5, y+0.5, s-1, s-1, 1, th.Border)
 	if c.get() {
-		render.StrokeLine(dst, x+s*0.2, y+s*0.5, x+s*0.45, y+s*0.8, 2, th.Accent)
-		render.StrokeLine(dst, x+s*0.45, y+s*0.8, x+s*0.85, y+s*0.2, 2, th.Accent)
+		dst.StrokeLine(x+s*0.2, y+s*0.5, x+s*0.45, y+s*0.8, 2, th.Accent)
+		dst.StrokeLine(x+s*0.45, y+s*0.8, x+s*0.85, y+s*0.2, 2, th.Accent)
 	}
 }
 
@@ -129,9 +129,9 @@ func (sl *slider) draw(e *Element, dst *render.Image) {
 	left, right := float32(box.TopLeft.X+h/2), float32(box.TopLeft.X+w-h/2)
 	mid := float32(box.TopLeft.Y + h/2)
 	knob := sl.at(box, sl.shown())
-	render.StrokeLine(dst, left, mid, right, mid, 2, th.Border)
-	render.StrokeLine(dst, left, mid, knob, mid, 2, th.Accent)
-	render.FillCircle(dst, knob, mid, float32(h/2), th.Accent)
+	dst.StrokeLine(left, mid, right, mid, 2, th.Border)
+	dst.StrokeLine(left, mid, knob, mid, 2, th.Accent)
+	dst.FillCircle(knob, mid, float32(h/2), th.Accent)
 }
 
 func (sl *slider) press(s *Scene, e *Element, at geom.Vec, about uid.UID64, pinned bool) {
@@ -200,7 +200,7 @@ func (d *dropdown) draw(e *Element, dst *render.Image) {
 	box := shrink(e.box, e.padding)
 	_, h := size(box)
 	x, y := float32(box.BottomRight.X-arrowRoom+3), float32(box.TopLeft.Y+h/2-3)
-	render.FillPolygon(dst, [][2]float32{{x, y}, {x + 10, y}, {x + 5, y + 6}}, e.look().Text)
+	dst.FillPolygon([][2]float32{{x, y}, {x + 10, y}, {x + 5, y + 6}}, e.look().Text)
 }
 
 func (d *dropdown) needs(e *Element) (w, h float64) {

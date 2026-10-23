@@ -223,12 +223,12 @@ func drawMoon(dst, face *render.Image, moon float32) {
 	bulge := float32(math.Cos(2 * math.Pi * float64(moon)))
 	dst.DrawImageIn(face, &op, lune(cx, cy, r, 1, 1))
 	if bulge > 0 {
-		render.FillPolygon(dst, lune(cx, cy, r, -lit, bulge), moonShade)
+		dst.FillPolygon(lune(cx, cy, r, -lit, bulge), moonShade)
 	} else {
-		render.FillPolygon(dst, lune(cx, cy, r, 1, 1), moonShade)
+		dst.FillPolygon(lune(cx, cy, r, 1, 1), moonShade)
 		dst.DrawImageIn(face, &op, lune(cx, cy, r, lit, -bulge))
 	}
-	render.StrokePolygon(dst, lune(cx, cy, r, 1, 1), 2, moonRim)
+	dst.StrokePolygon(lune(cx, cy, r, 1, 1), 2, moonRim)
 }
 
 // lune is the disc's half on side (1 the right, -1 the left) with the half of an ellipse, bulge

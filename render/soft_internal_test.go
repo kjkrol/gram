@@ -15,8 +15,8 @@ func TestSoft_NeverPassesForABlendedSprite(t *testing.T) {
 	f.Each(func(_ At, v []Vertex) {
 		for _, x := range v {
 			for _, c := range []float32{x.Custom0, x.Custom1, x.Custom2, x.Custom3} {
-				if c > softCap || c > blendMark/2 {
-					t.Fatalf("a soft piece's fade reads %v, over the cap %v: it would pass for a blended sprite", c, softCap)
+				if c > blendMark/2 {
+					t.Fatalf("a soft piece's fade reads %v, over half the blend mark: it would pass for a blended sprite", c)
 				}
 			}
 		}

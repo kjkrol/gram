@@ -5,6 +5,7 @@ import (
 	"image/color"
 
 	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/render/internal/gfx"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
@@ -93,10 +94,10 @@ func DebugPrintAt(dst *Image, s string, x, y int) {
 			indices = append(indices, base, base+1, base+2, base+1, base+2, base+3)
 			col++
 			if len(verts) > 65000 {
-				gpu.Sprites(dst.gpu(), sheet.gpu(), verts, indices, false, gpu.SourceOver)
+				gpu.Sprites(gfx.GPU(dst), gfx.GPU(sheet), verts, indices, false, gpu.SourceOver)
 				verts, indices = verts[:0], indices[:0]
 			}
 		}
 	}
-	gpu.Sprites(dst.gpu(), sheet.gpu(), verts, indices, false, gpu.SourceOver)
+	gpu.Sprites(gfx.GPU(dst), gfx.GPU(sheet), verts, indices, false, gpu.SourceOver)
 }

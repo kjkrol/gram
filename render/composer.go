@@ -7,6 +7,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/render/internal/gfx"
 	"github.com/kjkrol/gram/render/internal/wgsl"
 )
 
@@ -294,7 +295,7 @@ type depths struct {
 const keptDepths = 12
 
 func (c *Composer) depthsFor(screen *Image, layer int) *depths {
-	w, h := screen.tex.Size()
+	w, h := gfx.GPU(screen).Texture.Size()
 	for i := range c.depths {
 		if d := &c.depths[i]; d.w == w && d.h == h && d.layer == layer {
 			return d
@@ -315,8 +316,8 @@ func (c *Composer) depthsFor(screen *Image, layer int) *depths {
 // over it, nil without one
 func (c *Composer) render(screen *Image, apart bool, layer int) (ground *Depth) {
 	c.setUniforms()
-	c.packed = append(c.packed[:0], composer.pack(c.boxed)...)
-	c.frameTex = frameOf(c.boxed)
+	c.packed = append(c.packed[:0], gfx.Pack(composer, c.boxed)...)
+	c.frameTex = gfx.FrameOf(c.boxed)
 	f := &c.frame
 	t := Target{Screen: screen, Pass: Opaque}
 	c.depth, c.ground, c.seen = nil, nil, false
@@ -332,7 +333,7 @@ func (c *Composer) render(screen *Image, apart bool, layer int) (ground *Depth) 
 			screen.ClearDepth(t.Depth)
 			if c.hole.W > 0 && c.hole.H > 0 {
 				// nearest of all: whatever is drawn there after, tested, is hidden
-				gpu.FillDepth(screen.gpu(), t.Depth.d, c.hole, 1)
+				gpu.FillDepth(gfx.GPU(screen), gfx.DepthOf(t.Depth), c.hole, 1)
 			}
 		}
 		for _, i := range f.opaque {
@@ -360,8 +361,8 @@ func (c *Composer) render(screen *Image, apart bool, layer int) (ground *Depth) 
 // the grounds laid since Lay placed in its buffer, the last laid over the first
 func (c *Composer) renderOver(screen *Image) {
 	c.setUniforms()
-	c.packed = append(c.packed[:0], composer.pack(c.boxed)...)
-	c.frameTex = frameOf(c.boxed)
+	c.packed = append(c.packed[:0], gfx.Pack(composer, c.boxed)...)
+	c.frameTex = gfx.FrameOf(c.boxed)
 	f := &c.frame
 	t := Target{Screen: screen, Pass: SeeThrough}
 	c.depth, c.ground, c.seen = nil, nil, false
@@ -370,7 +371,7 @@ func (c *Composer) renderOver(screen *Image) {
 		for _, l := range c.laid {
 			// a layer drawn straight onto screen left its ground there already
 			if l.ground != d.ground {
-				screen.PlaceDepth(l.ground, d.ground, l.at)
+				gfx.PlaceDepth(screen, l.ground, d.ground, l.at)
 			}
 			if w, h := l.ground.Size(); w > 0 && h > 0 {
 				t.Coarse = max(t.Coarse, l.at.W/float32(w), l.at.H/float32(h))
@@ -516,16 +517,16 @@ func (c *Composer) drawTriangles(
 	screen *Image, verts []Vertex, indices []uint16, sheet *Image, place [4]float32,
 ) {
 	dw := gpu.Draw{
-		Target:   screen.gpu(),
-		Program:  composer.program(),
-		Images:   [4]gpu.Image{sheet.gpu()},
+		Target:   gfx.GPU(screen),
+		Program:  gfx.Program(composer),
+		Images:   [4]gpu.Image{gfx.GPU(sheet)},
 		Frame:    c.frameTex,
 		Uniforms: c.packed,
 		Place:    place,
 		Blend:    gpu.SourceOver,
 	}
 	if c.bound != nil {
-		dw.Depth, dw.Test = c.bound.d, c.test
+		dw.Depth, dw.Test = gfx.DepthOf(c.bound), c.test
 	}
 	dw.Sight = c.sightFor(c.test)
 	gpu.Triangles(&dw, verts, indices)

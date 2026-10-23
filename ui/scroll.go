@@ -64,9 +64,9 @@ func (sc *scroll) draw(e *Element, dst *render.Image) {
 	}
 	th := e.look()
 	x := float32(box.BottomRight.X - scrollBar/2)
-	render.StrokeLine(dst, x, float32(box.TopLeft.Y), x, float32(box.BottomRight.Y), 2, th.Border)
+	dst.StrokeLine(x, float32(box.TopLeft.Y), x, float32(box.BottomRight.Y), 2, th.Border)
 	y0, y1 := sc.thumb(box)
-	render.StrokeLine(dst, x, float32(y0), x, float32(y1), scrollBar-4, th.Accent)
+	dst.StrokeLine(x, float32(y0), x, float32(y1), scrollBar-4, th.Accent)
 }
 
 // thumb is where the bar's thumb lies: its share of the bar the box's of the content

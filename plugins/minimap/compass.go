@@ -58,7 +58,7 @@ func (c *compass) Draw() *render.Image {
 		c.img = render.NewImage(c.w, c.h)
 	}
 	c.img.Clear()
-	render.FillPolygon(c.img, c.points(), northColor)
+	c.img.FillPolygon(c.points(), northColor)
 	return c.img
 }
 

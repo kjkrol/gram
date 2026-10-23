@@ -15,6 +15,7 @@ import (
 	"golang.org/x/image/math/fixed"
 
 	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/render/internal/gfx"
 )
 
 // Font is a typeface at a size, its glyphs drawn on demand into a sheet of its own.
@@ -194,8 +195,8 @@ func DrawText(dst *Image, f *Font, s string, x, y float32, c color.Color) {
 		f.sheet.WritePixels(f.pix.Pix)
 		f.written = true
 	}
-	cr, cg, cb, ca := rgbaOf(c)
-	gpu.DrawPieces(dst.gpu(), f.sheet.gpu(), f.pieces, [4]float32{cr, cg, cb, ca}, gpu.SourceOver)
+	cr, cg, cb, ca := gfx.Premultiply(c)
+	gpu.DrawPieces(gfx.GPU(dst), gfx.GPU(f.sheet), f.pieces, [4]float32{cr, cg, cb, ca}, gpu.SourceOver)
 }
 
 func fixedToFloat(v fixed.Int26_6) float32 { return float32(v) / 64 }

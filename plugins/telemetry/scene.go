@@ -216,7 +216,7 @@ func (s *panel) Draw(screen *render.Image) {
 	s.width = max(s.width, width)
 	b := screen.Bounds()
 	x0, y0 := float32(b.Min.X+panelMargin), float32(b.Min.Y+panelMargin)
-	render.FillRect(screen, x0, y0, s.width+2*panelPadding, float32(rows)*lh+2*panelPadding,
+	screen.FillRect(x0, y0, s.width+2*panelPadding, float32(rows)*lh+2*panelPadding,
 		panelFill)
 	x, y := x0+panelPadding, y0+panelPadding
 	for _, e := range s.entries {

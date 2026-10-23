@@ -78,7 +78,7 @@ func (v *zonesView) DrawGlass(dst *render.Image, cam camera.Camera) {
 			return zoneClear
 		}
 		ox, oy := float32(b.Min.X), float32(b.Min.Y)
-		render.FillQuad(dst, render.Corners{{ox + x0, oy + y0}, {ox + x1, oy + y0},
+		dst.FillQuad(render.Corners{{ox + x0, oy + y0}, {ox + x1, oy + y0},
 			{ox + x0, oy + y1}, {ox + x1, oy + y1}},
 			[4]color.RGBA{at(x0, y0), at(x1, y0), at(x0, y1), at(x1, y1)})
 	}

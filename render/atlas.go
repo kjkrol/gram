@@ -6,19 +6,8 @@ import (
 	"image/draw"
 )
 
-// SpriteID identifies a sprite in an Atlas.
-type SpriteID uint16
-
 // SpriteDrawer paints one sprite's size x size pixels into dst.
 type SpriteDrawer func(dst *Canvas, size int)
-
-// AtlasSource supplies the sprite sheet a Frame draws from: each sprite's rectangle on it, and a
-// white texel plain colours sample.
-type AtlasSource interface {
-	Atlas() *Image
-	UV(id SpriteID) (sx0, sy0, sx1, sy1 float32)
-	White() (u, v float32)
-}
 
 // what a GPU accepts as one texture
 const maxAtlasWidth = 4096
@@ -47,9 +36,6 @@ func NewAtlas() *Atlas { return &Atlas{} }
 // Sprited is whoever is drawn from one slot of the sheet: a kind's handle, or a bare SpriteID,
 // which stands for itself.
 type Sprited interface{ SpriteID() SpriteID }
-
-// SpriteID is the slot itself.
-func (id SpriteID) SpriteID() SpriteID { return id }
 
 // Add takes draw on as a size x size sprite in of's slot. It panics after Close or if the slot
 // is taken.

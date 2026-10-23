@@ -1,4 +1,4 @@
-package render
+package gfx
 
 import (
 	"github.com/kjkrol/gram/camera"
@@ -27,11 +27,14 @@ func (d *Depth) Readable() *Depth {
 func (i *Image) CopyDepth(from, to *Depth) { gpu.CopyDepth(i.gpu(), from.d, to.d) }
 
 // PlaceDepth puts what from holds, kept at the size it was drawn at, in place of what to holds
-// within the window at of the image's texture, to fitted to it, each pixel there taking the depth
-// of the one it maps to; from must be Readable.
-func (i *Image) PlaceDepth(from, to *Depth, at camera.Window) {
-	gpu.PlaceDepth(i.gpu(), from.d, to.d, gpu.Window{X: at.X, Y: at.Y, W: at.W, H: at.H})
+// within the window at of dst's texture, to fitted to it, each pixel there taking the depth of
+// the one it maps to; from must be Readable.
+func PlaceDepth(dst *Image, from, to *Depth, at camera.Window) {
+	gpu.PlaceDepth(dst.gpu(), from.d, to.d, gpu.Window{X: at.X, Y: at.Y, W: at.W, H: at.H})
 }
+
+// DepthOf is the buffer as the GPU draws against it.
+func DepthOf(d *Depth) *gpu.Depth { return d.d }
 
 // Size is the buffer's width and height, those of the texture it was last drawn with.
 func (d *Depth) Size() (w, h int) { return d.d.Size() }
@@ -134,7 +137,7 @@ func (i *Image) DrawMesh(idx *Indices, s *Shader, op *DrawMeshOptions) {
 		Untested:   op.Untested,
 		Program:    s.program(),
 		Images:     imgs,
-		Frame:      frameOf(op.Uniforms),
+		Frame:      FrameOf(op.Uniforms),
 		Uniforms:   s.pack(op.Uniforms),
 		Indices:    indices,
 		Ranges:     ranges,

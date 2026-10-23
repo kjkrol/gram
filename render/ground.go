@@ -10,8 +10,6 @@ type GroundHeights struct {
 	Low, Span float32
 }
 
-func init() { RegisterImage("GroundHeights") }
-
 // GroundHeights hands every shader drawing this frame the ground's heights g, as whoever draws
 // the ground has them; a frame without them has no ground's heights.
 func (f *Frame) GroundHeights(g GroundHeights) {
@@ -36,11 +34,6 @@ type GroundShade struct {
 	Span     float32
 	Band     float32
 	Mix      [ShadeBands]float32
-}
-
-func init() {
-	RegisterImage("GroundShade")
-	RegisterImage("GroundShadeWas")
 }
 
 var shadeMixes = [ShadeBands / 4]string{

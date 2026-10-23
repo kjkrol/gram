@@ -38,8 +38,9 @@ var (
 	sources  [][]byte
 	uniforms = append([]gpu.Uniform(nil), libraryUniforms...)
 	entries  []string // by MaterialID
-	images   []string // the frame's, by their binding
-	sealed   bool     // a shader has been built on the materials: no more may come
+	// the frame's, by their binding: the library's own first, the ground's heights and shade
+	images = []string{"GroundHeights", "GroundShade", "GroundShadeWas"}
+	sealed bool // a shader has been built on the materials: no more may come
 )
 
 // RegisterMaterials adds the materials of source, WGSL with the uniforms it reads (U.Name), one

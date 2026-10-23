@@ -2,9 +2,9 @@ package render
 
 import (
 	"errors"
-	"github.com/kjkrol/ceremony/effect"
 	"reflect"
 
+	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/goke/v3"
 )
 

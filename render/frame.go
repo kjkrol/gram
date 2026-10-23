@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/render/internal/gfx"
 	"github.com/kjkrol/gram/render/internal/wgsl"
 )
 
@@ -19,15 +20,6 @@ type Source interface {
 // falls or floats over them and the marks. A Laid picture composes and draws it in the pass over
 // the layers of the ground, the rest in the ground's.
 type Overlying interface{ Overlies() }
-
-// Corners are a quad's screen corners: top-left, top-right, bottom-left, bottom-right.
-type Corners [4][2]float32
-
-// Fade is how many pixels each side of a Soft quad takes to fade out; 0 leaves a side hard.
-type Fade struct{ Left, Right, Top, Bottom float32 }
-
-// A vertex's Custom0..3 hold, per edge (left, right, top, bottom), 1 plus its distance to that
-// edge in units of the edge's fade; 0 leaves the edge alone.
 
 type shape uint8
 
@@ -306,12 +298,9 @@ func (f *Frame) SpriteBlend(
 	}
 }
 
-// a blended sprite's last custom starts at blendMark, a fade stays under softCap: the shaders tell
-// them apart at half the mark
-const (
-	blendMark = 100000
-	softCap   = 10000
-)
+// a blended sprite's last custom starts at blendMark, a fade stays under gfx's cap: the shaders
+// tell them apart at half the mark
+const blendMark = 100000
 
 // SpriteRect draws sprite id over the world rectangle (x0, y0)-(x1, y1) through the frame's
 // camera, split where it crosses a wrap seam.
@@ -547,36 +536,13 @@ func (f *Frame) Quad(at At, dst Corners, c [4]color.RGBA) {
 // Soft fills the quad dst in c, fading towards each side over the pixels fade gives it.
 func (f *Frame) Soft(at At, dst Corners, c color.RGBA, fade Fade) {
 	col := premultiplied(c)
-	customs := fadeCustoms(dst, fade)
+	customs := gfx.FadeCustoms(dst, fade)
 	for i, p := range dst {
 		v := vertex(p[0], p[1], 0, 0, col)
 		v.Custom0, v.Custom1, v.Custom2, v.Custom3 = customs[i][0], customs[i][1], customs[i][2], customs[i][3]
 		f.verts = append(f.verts, v)
 	}
 	f.add(at, nil, quad, 4)
-}
-
-func fadeCustoms(dst Corners, fade Fade) [4][4]float32 {
-	across := func(a, b [2]float32) float32 {
-		return float32(math.Hypot(float64(b[0]-a[0]), float64(b[1]-a[1])))
-	}
-	width := [4]float32{across(dst[0], dst[1]), across(dst[0], dst[1]), across(dst[2], dst[3]), across(dst[2], dst[3])}
-	height := [4]float32{across(dst[0], dst[2]), across(dst[1], dst[3]), across(dst[0], dst[2]), across(dst[1], dst[3])}
-	side := func(w, dist float32, near bool) float32 {
-		switch {
-		case w <= 0:
-			return 0
-		case near:
-			return 1
-		}
-		return min(1+dist/w, softCap)
-	}
-	var out [4][4]float32
-	for i := range dst {
-		left, top := i%2 == 0, i < 2
-		out[i] = [4]float32{side(fade.Left, width[i], left), side(fade.Right, width[i], !left), side(fade.Top, height[i], top), side(fade.Bottom, height[i], !top)}
-	}
-	return out
 }
 
 // ProjectCorners is the four corners of the world box (x0, y0)-(x1, y1) at height z through cam.

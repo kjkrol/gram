@@ -53,7 +53,7 @@ The world of a Stage is one `render.Composer`, `world.Plugin.Picture()`, over th
 minimap's (`plugins/minimap`): its own three sources, none in `ctx.Draws`, through an inner
 camera of its own, drawn anew at most 30 times a second (a `render.Surface` returning its last
 image in between; `ui.Image` lays it out every frame, so a resize alone forces a redraw).
-`render.StrokePolygon` is one draw however many sides (a round element's border). A demo that makes a plugin
+`Image.StrokePolygon` is one draw however many sides (a round element's border). A demo that makes a plugin
 draws all it draws: selection and routes in bullet, platformer and split-screen, holds (the board's "Cells held" setting)
 in every demo with a board. **What is drawn over what is Z's alone (2026-10-15), never a layer
 nor the order a plugin registers in**: `render.Tier` is gone. Each
@@ -94,7 +94,7 @@ Direct gathering at Compose draws as often as there are layers: `Sprites.Draw` r
 `Begin` does; the routes reset at Compose and place their rectangles into the drawing camera's
 frame); its opaque pass goes into a Readable depth kept a layer (`keptDepths` 12, by size and
 layer index: two layers of one size keep their grounds apart); `DrawOver(screen, cam)` places
-every laid depth into the screen's (`Image.PlaceDepth`, `gpu.PlaceDepth(target, from, to, at)`:
+every laid depth into the screen's (`gfx.PlaceDepth`, `gpu.PlaceDepth(target, from, to, at)`:
 `depth.wgsl` reads `depthAt(p.xy * place.xy + place.zw)` under a scissor of the window, the last
 laid over the first) and composes and draws the Overlying ones onto the screen tested against
 it, the figures writing into a copy and `OverFigures` bound to the placed one; the over pass

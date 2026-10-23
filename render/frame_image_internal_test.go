@@ -2,12 +2,15 @@ package render
 
 import (
 	"image/color"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/gpu/gputest"
+	"github.com/kjkrol/gram/render/internal/gfx"
+	"github.com/kjkrol/gram/render/internal/wgsl"
 )
 
 // registered before any shader is built, as a package's init would
@@ -61,16 +64,17 @@ func TestFrame_HandsADirectItsImageAsAUniformAndNothingOnceItIsNotSet(t *testing
 	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) {}
 	c.compose(topDown(), wholePart)
 	c.render(nil, false, 0)
-	if p.seen != img || c.frameTex[0] != img.tex {
+	at := slices.Index(wgsl.Images(), "TestProbe")
+	if p.seen != img || c.frameTex[at] != gfx.GPU(img).Texture {
 		t.Errorf("a Direct is handed %v and the composer binds %v, want the frame's image", p.seen,
-			c.frameTex[0])
+			c.frameTex[at])
 	}
 	p.img = nil
 	c.compose(topDown(), wholePart)
 	c.render(nil, false, 0)
-	if seen, _ := p.seen.(*Image); seen != nil || c.frameTex[0] != nil {
+	if seen, _ := p.seen.(*Image); seen != nil || c.frameTex[at] != nil {
 		t.Errorf("a frame that set no image hands %v and binds %v, want none", p.seen,
-			c.frameTex[0])
+			c.frameTex[at])
 	}
 }
 

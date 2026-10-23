@@ -1,12 +1,14 @@
-package render
+package gfx
 
 import (
+	_ "embed"
 	"fmt"
 	"image"
 	"image/color"
 	"math"
 
 	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/render/internal/wgsl"
 )
 
 // Vertex is one corner of a triangle drawn: where in the target (Dst) and in the first image (Src),
@@ -55,15 +57,29 @@ func (i *Image) gpu() gpu.Image {
 	return gpu.Image{Texture: i.tex, Rect: gpu.Rect{X: r.Min.X, Y: r.Min.Y, W: r.Dx(), H: r.Dy()}}
 }
 
+// GPU is the image as the GPU draws into it and reads it.
+func GPU(i *Image) gpu.Image { return i.gpu() }
+
+// FrameOf are the textures of the frame's images the uniforms u hold, by their binding, ready
+// to be read.
+func FrameOf(u map[string]any) (f [gpu.FrameImages]*gpu.Texture) {
+	for i, name := range wgsl.Images() {
+		if img, _ := u[name].(*Image); img != nil {
+			f[i] = img.ready().tex
+		}
+	}
+	return f
+}
+
 // Fill puts c in place of every pixel of the image.
 func (i *Image) Fill(c color.Color) {
-	r, g, b, a := rgbaOf(c)
+	r, g, b, a := Premultiply(c)
 	gpu.Fill(i.gpu(), r, g, b, a)
 }
 
 // FillBehind puts c where nothing was drawn into d: behind the whole world.
 func (i *Image) FillBehind(c color.Color, d *Depth) {
-	r, g, b, a := rgbaOf(c)
+	r, g, b, a := Premultiply(c)
 	gpu.FillBehind(i.gpu(), d.d, r, g, b, a)
 }
 
@@ -151,7 +167,10 @@ type DrawImageOptions struct {
 	Fade   Fade
 }
 
-var softBlit = NewShaderWith("soft blit", Files(shaderFiles, "shaders/blit_soft.wgsl"), nil)
+//go:embed blit_soft.wgsl
+var blitSoft string
+
+var softBlit = NewShaderWith("soft blit", []byte(blitSoft+"\n"), nil)
 
 // DrawImage lays src over the image, its top-left corner at the origin moved by op's GeoM.
 func (i *Image) DrawImage(src *Image, op *DrawImageOptions) {
@@ -175,11 +194,12 @@ func (i *Image) drawSoft(src *Image, o DrawImageOptions) {
 		x, y := o.GeoM.Apply(p[0], p[1])
 		dst[k] = [2]float32{float32(x), float32(y)}
 	}
-	customs := fadeCustoms(dst, o.Fade)
+	customs := FadeCustoms(dst, o.Fade)
 	var verts [4]Vertex
 	for k, p := range corners {
 		sx, sy := float32(r.Min.X)+float32(p[0]), float32(r.Min.Y)+float32(p[1])
-		v := vertex(dst[k][0], dst[k][1], sx, sy, [4]float32{1, 1, 1, 1})
+		v := Vertex{DstX: dst[k][0], DstY: dst[k][1], SrcX: sx, SrcY: sy, ColorR: 1, ColorG: 1,
+			ColorB: 1, ColorA: 1}
 		v.Custom0, v.Custom1, v.Custom2, v.Custom3 = customs[k][0], customs[k][1], customs[k][2],
 			customs[k][3]
 		verts[k] = v
@@ -227,12 +247,12 @@ func (i *Image) DrawTrianglesShader(verts []Vertex, indices []uint16, s *Shader,
 		}
 		u = op.Uniforms
 	}
-	gpu.Triangles(&gpu.Draw{Target: i.gpu(), Program: s.program(), Images: imgs, Frame: frameOf(u),
+	gpu.Triangles(&gpu.Draw{Target: i.gpu(), Program: s.program(), Images: imgs, Frame: FrameOf(u),
 		Uniforms: s.pack(u), Blend: gpu.SourceOver}, verts, indices)
 }
 
-// a colour as gram takes it, straight alpha, premultiplied for the GPU, 0 to 1
-func rgbaOf(c color.Color) (r, g, b, a float32) {
+// Premultiply is a colour as gram takes it, straight alpha, premultiplied for the GPU, 0 to 1.
+func Premultiply(c color.Color) (r, g, b, a float32) {
 	if s, ok := c.(color.RGBA); ok {
 		a = float32(s.A) / 0xff
 		return float32(s.R) / 0xff * a, float32(s.G) / 0xff * a, float32(s.B) / 0xff * a, a
@@ -264,6 +284,19 @@ func (s *Shader) program() *gpu.Program {
 	}
 	return s.prog
 }
+
+// NewShaderWith is a shader on the library and every material registered, with fragment's own
+// uniforms and fragment after them. No material may be registered once it has been built.
+func NewShaderWith(label string, fragment []byte, own []Uniform) *Shader {
+	return &Shader{label: label, source: func() string { return wgsl.SourceWith(fragment) },
+		layout: func() *gpu.Layout { return wgsl.Layout(own) }}
+}
+
+// Program is the shader's program, built on the materials the first time it is asked for.
+func Program(s *Shader) *gpu.Program { return s.program() }
+
+// Pack is the uniforms u as the shader's program takes them, a frame's images left out.
+func Pack(s *Shader, u map[string]any) []byte { return s.pack(u) }
 
 // Compile compiles the shader now, rather than at its first draw.
 func (s *Shader) Compile() error { return s.program().Compile() }

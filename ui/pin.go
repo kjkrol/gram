@@ -372,5 +372,5 @@ func paintArrow(dst *render.Image, in *instance, color color.RGBA) {
 	for k, v := range in.arrow {
 		pts[k] = [2]float32{float32(v.X), float32(v.Y)}
 	}
-	render.FillPolygon(dst, pts, color)
+	dst.FillPolygon(pts, color)
 }

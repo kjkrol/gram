@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kjkrol/gram/internal/gpu"
 	"github.com/kjkrol/gram/render/internal/wgsl"
 )
 
@@ -37,9 +36,7 @@ type Look interface {
 	~func(dst *Canvas, size int) | MaterialID | Phases | Loops
 }
 
-var composer = &Shader{label: "composer", source: func() string {
-	return wgsl.SourceWith(Files(shaderFiles, "shaders/compose.wgsl"))
-}, layout: func() *gpu.Layout { return wgsl.Layout(nil) }}
+var composer = NewShaderWith("composer", Files(shaderFiles, "shaders/compose.wgsl"), nil)
 
 // RegisterMaterials adds to the composer's shader the materials of source, WGSL with the uniforms
 // it reads (U.Name), one material for each of entries, the function an Overlay of it is handed to:
@@ -56,30 +53,12 @@ func RegisterMaterials(source []byte, reads []Uniform, entry ...string) []Materi
 // built, for a name given twice and past gpu.FrameImages names.
 func RegisterImage(name string) { wgsl.RegisterImage(name) }
 
-// the textures of the frame's images the uniforms u hold, by their binding, ready to be read
-func frameOf(u map[string]any) (f [gpu.FrameImages]*gpu.Texture) {
-	for i, name := range wgsl.Images() {
-		if img, _ := u[name].(*Image); img != nil {
-			f[i] = img.ready().tex
-		}
-	}
-	return f
-}
-
 // SharedUniforms are the uniforms every shader built on the materials has: the library's and those
 // the registered materials read, for a shader of one's own to keep its names apart.
 func SharedUniforms() []Uniform { return wgsl.Uniforms() }
 
 // ShaderSource is the composer's shader as it compiles.
 func ShaderSource() string { return composer.Source() }
-
-// NewShaderWith is a shader on the composer's library and every material registered, with
-// fragment's own uniforms and Fragment after them. No material may be registered once it has
-// been built.
-func NewShaderWith(label string, fragment []byte, own []Uniform) *Shader {
-	return &Shader{label: label, source: func() string { return wgsl.SourceWith(fragment) },
-		layout: func() *gpu.Layout { return wgsl.Layout(own) }}
-}
 
 // Compile compiles the composer's shader now rather than at its first draw.
 func Compile() error {

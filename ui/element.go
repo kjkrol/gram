@@ -243,14 +243,14 @@ func (e *Element) paintHere(dst *render.Image) {
 
 func (e *Element) background(dst *render.Image) {
 	if fill := e.fillColor(); fill.A > 0 {
-		render.FillPolygon(dst, outline(e.box, e.mask), fill)
+		dst.FillPolygon(outline(e.box, e.mask), fill)
 	}
 }
 
 // edge strokes the border inside the box: none of it is lost to a clip at the box's edge
 func (e *Element) edge(dst *render.Image) {
 	if border := e.borderColor(); border.A > 0 && e.stroke > 0 {
-		render.StrokePolygon(dst, outline(shrink(e.box, e.stroke/2), e.mask), float32(e.stroke),
+		dst.StrokePolygon(outline(shrink(e.box, e.stroke/2), e.mask), float32(e.stroke),
 			border)
 	}
 }
