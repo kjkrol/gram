@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+**The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
+- A flat board seen through a camera of rays (from above, isometric, in perspective) whose
+  Dressing lights every tile alike is laid on the GPU every frame out of an image of its cells
+  (`look/tiles.go`): the sprites, the ways, the covers, what sways, the cells of a material, the
+  light per pixel as each cell takes it, the sectors seen at their levels; a changed cell writes
+  its block and its neighbours' alone. The still the CPU composed anew on every change is gone
+  with the shade pass over it (`look/shade.go`); the CPU compose stays for the minimap's ground,
+  the topography's hex tops and a camera without rays. `Benchmark_Frame_Flat` (new, 1440p, read
+  back): from above 11.5 → 13.4 ms, a cell changed every frame 17.1 → 13.7 ms (4.8 MB → 55 KB a
+  frame), isometric 17.6 → 13.8 ms.
+- New: `look.Laid` (a Dressing's ways and covers, for the GPU to lay), `look.Swaying` (a Look
+  whose tiles sway).
+- Breaking: the board's parallel compose is gone, no game used it: `look.Parallel`,
+  `look.ParallelLook`, `Renderer.Workers`, `Renderer.UsePool`, `Renderer.Reads`,
+  `board.Plugin.WithWorkers`; the board's renderer no longer lays its tiles on the pool.
+- What looks different: what sways moves every frame from above (the still held it till a cell
+  changed), the clouds' shadows lie on a flat board in isometry too, the light is worked out per
+  cell on a hex board and across a wrapped world's seams, and nothing past the board's edge is
+  darkened.
+
 ## v0.4.0 — 2026-10-23
 
 Needs aabbworld v1.15.0, astar v1.1.3, ceremony v0.3.1 and goke v3.6.0.

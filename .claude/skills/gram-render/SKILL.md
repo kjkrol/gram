@@ -62,7 +62,7 @@ world; the key back to front is z from above, `cam.Depth` in a view that sorts),
 z, lift)` (what lies on a surface, ordered among what lies there by its lift), `f.OnGround(lift)`
 (the view's middle, for a Direct over the whole ground), `render.OnTop(level)` (a mark at its
 level), `Furthest` (the sky), `Nearest` (the rain). The passes: the **opaque** ground first (the
-board's `Still`, the terrain, the hex prisms: depth tested and written, any order), then the world
+board's tiles, the terrain, the hex prisms: depth tested and written, any order), then the world
 **seen through**, back to front by key, every piece tested against the depth (its depth worked out
 on the GPU from its height: `gpu.Vertex.DstZ`, `gpu.Sight` from the camera's rays and
 `SceneTransform`), then the **marks** by level, at one level in the order added, untested: the
@@ -235,8 +235,8 @@ routes and goals of an entity's `MoveOrder`; vision the cone of an entity's `Sig
 `WithShadow`; `WithViews(render.Show(…))` picks whose); selection the outline of the `Selected`
 tag through `world.Look.Footprint` plus the marquee, a player's gesture; bridges the bridge in
 hand, a future entity drawn from its deck's slot; collision the boxes; the board the cells held,
-under a `Lighting` its `Still` drawn as it is and the frame's light multiplied over it right
-after (`look/shade.go`, 2026-10-19) and, under an atmosphere (`board.WithAtmosphere`), its clouds'
+its flat ground laid on the GPU out of an image of its cells and lit per pixel by the frame's
+light as each cell takes it (`look/tiles.go`, 2026-10-23) and, under an atmosphere (`board.WithAtmosphere`), its clouds'
 shadows as part of its ground (2026-10-15, stage 4: `look.GroundDressing` drawn after, in the
 opaque pass, `board/internal/draw.Clouds`, the 8-px mesh the atmosphere's `overcast` was; what
 lies over the ground is drawn unshaded, as the relief's terrain shades its own ground).

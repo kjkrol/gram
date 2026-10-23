@@ -947,3 +947,30 @@ po jednym przebiegu.
 - `Navigation_Path` w `bench` zostaje: mierzy cały tick z pamięcią odpowiedzi, A* mierzy `Routing_Path`.
 - Na później: wielu piszących do `Space` (wkład na wątek, sklejenie przez koordynatora, jedno
   `RebuildRuns`); płaska plansza drogą GPU topografii (bez składania kafli w rendererze planszy).
+
+## Płaska plansza na GPU (2026-10-23, gałąź `perf/flat-gpu`)
+
+Rozpoznanie: droga „płaska plansza przez topografię z zerową rzeźbą” odrzucona (sprite'y pieczone
+najwyżej 16 px na komórkę, bez materiałów i okryć, panika na zawijanym świecie, hex słabszym
+potokiem, niezerowe `Heights` zmienia footing, mosty, światło i A*). Zamiast niej mapa kafli w
+shaderze renderera planszy: CPU trzyma obraz komórek (blok 2×2 piksele na komórkę) i tablicę
+prostokątów atlasu, przy zmianie komórki przepisuje jej blok i sąsiadów.
+
+| Etap | Zmiana | Commit |
+|:--|:--|:--|
+| 0 | `Benchmark_Frame_Flat` (1440p, odczyt co klatkę), zrzuty wzorcowe 5 dem | `af067e6a` |
+| 1 | usunięta martwa ścieżka równoległa (`look.Parallel`, `ParallelLook`, `Workers`, `UsePool`, `Reads`, `board.WithWorkers`) | `af067e6a` |
+| 2–3 | mapa kafli: sprite'y, światło per piksel, mgła, głębia ziemi, drogi, okrycia, kołysanie, materiały (`look.Laid`, `look.Swaying`) | `212ba395` |
+| 4 | sektory widoku na ich poziomach, także siatka | `6d3a02ad` |
+| 5 | renderer rysuje tylko mapą kafli; usunięte `Still` planszy, `evenLight`, `look/shade.go`; drogi i okrycia jako instancje | `7142fcc2` |
+| 6 | dokumenty | — |
+
+Pomiar (jeden przebieg, z odczytem ~10,5 ms): z góry 11,5 → 13,4 ms, z góry ze zmianą komórki co
+klatkę 17,1 → 13,7 ms (4,8 MB → 55 KB na klatkę), izo 17,6 → 13,8 ms. Drogi liczone per piksel
+(każdy piksel szuka pasów wokół) kosztowały ~15 ms więcej; jako instancje mieszczą się w liczbach
+wyżej.
+
+Odstępstwa od planu: składanie CPU zostaje dla minimapy planszy (`render.Still`), wierzchów heksów
+topografii (`FlatLook` + `Still`, malarz bez odpowiednika na GPU) i kamer bez promieni, więc
+`render.Still`, `look.FlatLook` i `draw.Bands`/`Covers` zostają. Na heksach kolejność nakładania
+okryć i kołysania na sąsiadów jest przybliżona (24 piksele różnicy na planszy testowej).

@@ -159,7 +159,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   anew), and lays the casts after the ground over its depth (`internal/cast`, `cast.wgsl`, the
   rect each covers from the relief's extent, `f.ReadGround`, at `OnGround(castLift)` 0.05 under
   the grid). A ground draws itself in what the frame holds: `render.GroundShade`, `lightWay`,
-  `lampLightAt` (the terrain's `mesh.wgsl`, the hexes', the board's `shade.go` overlay). Tests:
+  `lampLightAt` (the terrain's `mesh.wgsl`, the hexes', the board's tiles, `look/tiles.go`). Tests:
   `plugin_test.go`, `shadows_test.go`, `internal/bake` (GPU: strips, blocks, level ground, reach,
   the library's probe). `Reporter()` the panel's "Light:" line. Depends on `world`.
   The shadows' settings sit under `control.PictureShadows` (2026-10-20): "Shadows follow the
@@ -187,7 +187,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   `internal/grids`), so a hot loop walks the directions and `Neighbors` stays for the rare
   callers; bit i of a `cell.Links` is direction i — `grid.DefaultGrids`, `Link`, `Way`,
   `Straight`, `Direction`, `Nearest`, `Exit`, `Rim`, `Shape`/`ShapeOf`), **`board/look`**
-  (`look.Look`, `Dressing`, `EvenLit`, `Parallel`, `Tile`, `FlatLook`, `Nothing`, `Map`,
+  (`look.Look`, `Dressing`, `EvenLit`, `Laid`, `Swaying`, `Tile`, `FlatLook`, `Nothing`, `Map`,
   `Renderer`/`NewRenderer`, `RenderState`, `MinGridCell`), **`board/ground`** (`ground.Heights`,
   `Profile`, `Cover`, `Readied`, `Surfaces`, `MeanOfCells`, `Shaper`, `RoadFits`, `RoadJoins`,
   `RoadSlope`), **`board/water`** (brooks, streams, rivers and fords out of a relief:
@@ -313,16 +313,23 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Terrain is never an entity in the space: the board's field (`internal/field`) is collision's
   `collision.Field` (`Solid`, `Overhang`), handed over by `Plugin.WithCollision`, and sight's
   `ground.Cover` (`Plugin.Cover`); both read the cell entities whenever asked. A flat board is lit
-  by the light plugin (`look.Renderer.WithLighting(world.Lighting)`: the board composed once and
-  drawn as it is, then `look/shade.go` multiplying the still per pixel by the frame's light —
-  the ambient, the distant light on level ground less the shade the frame holds, the lamps' —
-  `shaders/shade.wgsl`, `DrawMeshOptions.Multiply` (a multiply never brightens past the
-  albedo: the source is clamped to 1), as each cell's `cell.Kind.Takes` says, a cell taking
-  none left as drawn — a pixel a cell in an image rebuilt as the board changes; the tiles
-  composed into the frame lit by `Lighting.At` instead),
+  by the light plugin (`look.Renderer.WithLighting(world.Lighting)`) and drawn on the GPU out of
+  its tile map (`look/tiles.go`, 2026-10-23): an image of its cells, a 2×2 block a cell (sprite,
+  shade taken, flags, the way's sprite and links, covers, width, fade, sway, height, material),
+  and one of the sheet's rectangles; a changed cell (`CellVersion`) rewritten with its
+  neighbours, all of them past an eighth. Per pixel through the camera's rays the plain pass
+  (`tiles_plain.wgsl`: square cells nothing sways on or beside), the full one (`tiles.wgsl`:
+  every hex and the cells near what sways, the 3×3 round in the order the cells are laid), then
+  the covers and the ways as instances a cell (`tiles_covers.wgsl`, `tiles_ways.wgsl`: the
+  quarters, the bands and the hub's fan built in the vertex shader, a copy across each seam in
+  view) and the cells of a material last (`tiles_material.wgsl`); lit per pixel by the frame's
+  light — the ambient, the distant light on level ground less the shade the frame holds, the
+  lamps', clamped to 1 — as each cell's `cell.Kind.Takes` says, a cell taking none left as
+  drawn; the sectors seen at their levels (`seen.go`). A camera without rays or a Dressing not
+  `EvenLit` gets the tiles composed on the CPU every frame, lit by `Lighting.At`),
   and takes the weather through `board.Plugin.WithAtmosphere(atmosphere)` (`lit.go`, reading
   `board.Atmosphere{Air}`: what sways leaning, the clouds' shadows laid on its ground right after
-  the still, `draw.Clouds`), called in a scene before the first frame; without either it is drawn
+  the tiles, `draw.Clouds`), called in a scene before the first frame; without either it is drawn
   as it is. The
   board's own Map is the simple map — flat, every kind in its sprite from the game's atlas
   (declared by `ctx.Looks` from the tiles, the sprites the cell's bounds across), the ways as bands

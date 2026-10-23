@@ -8,8 +8,11 @@
 //
 // The Map's Dressing lays what lies on the tiles beyond their sprites: the sheet they are drawn
 // from, their [Tile.Base], their light ([Tile.Light], [Tile.FaceLight]) and whatever lies on
-// them ([Tile.Dress]). A flat map seen from above whose Dressing lights every tile alike
-// ([EvenLit]) is composed once and kept on the GPU, composed anew only when a cell changes. A
+// them ([Tile.Dress]). A flat map seen through a camera of rays whose Dressing lights every tile
+// alike ([EvenLit]) is laid on the GPU every frame out of an image of its cells, a cell written
+// anew only when it changes: its sprite, its way and its covers where the Dressing is [Laid],
+// what stands on it leant with the wind where the Look is [Swaying], lit per pixel as it takes
+// the frame's light. Any other is composed on the CPU, its visible tiles every frame. A
 // [GroundDressing] lays on the ground itself, right after it, what is part of it: the clouds'
 // shadows.
 //
