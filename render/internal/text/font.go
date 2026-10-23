@@ -1,4 +1,4 @@
-package render
+package text
 
 import (
 	"fmt"
@@ -24,12 +24,12 @@ type Font struct {
 	ascent  float32
 	height  float32
 	glyphs  map[rune]glyph
-	sheet   *Image
+	sheet   *gfx.Image
 	pix     *image.RGBA // white with the coverage as alpha
 	x, y    int
 	row     int
 	written bool
-	pieces  []gpu.Piece // DrawText's, reused: a font is drawn from one goroutine, the frame's
+	pieces  []gpu.Piece // Draw's, reused: a font is drawn from one goroutine, the frame's
 }
 
 type glyph struct {
@@ -160,9 +160,9 @@ func (f *Font) glyph(r rune) glyph {
 // Has reports whether the face has a glyph for r.
 func (f *Font) Has(r rune) bool { return f.glyph(r).ok }
 
-// DrawText draws s in f, c its colour, its first line's top-left at (x, y) of dst, a line under
-// another at each newline.
-func DrawText(dst *Image, f *Font, s string, x, y float32, c color.Color) {
+// Draw draws s in the font, c its colour, its first line's top-left at (x, y) of dst, a line
+// under another at each newline.
+func (f *Font) Draw(dst *gfx.Image, s string, x, y float32, c color.Color) {
 	f.pieces = f.pieces[:0]
 	pen := y + f.ascent
 	for more := true; more; {
@@ -189,7 +189,7 @@ func DrawText(dst *Image, f *Font, s string, x, y float32, c color.Color) {
 		return
 	}
 	if f.sheet == nil {
-		f.sheet = NewImage(sheetSide, sheetSide)
+		f.sheet = gfx.NewImage(sheetSide, sheetSide)
 	}
 	if !f.written {
 		f.sheet.WritePixels(f.pix.Pix)

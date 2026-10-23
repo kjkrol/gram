@@ -234,6 +234,6 @@ func (s *panel) Draw(screen *render.Image) {
 }
 
 func (s *panel) write(dst *render.Image, f *render.Font, text string, x, y float32) {
-	render.DrawText(dst, f, text, x+1, y+1, textShade)
-	render.DrawText(dst, f, text, x, y, panelText)
+	f.Draw(dst, text, x+1, y+1, textShade)
+	f.Draw(dst, text, x, y, panelText)
 }

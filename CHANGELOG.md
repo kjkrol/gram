@@ -68,7 +68,8 @@
   and `LineHeight` are render's own.
 - Breaking: the 2D fills are the image's: `dst.FillRect(…)`, `StrokeRect`, `StrokeLine`,
   `FillCircle`, `FillQuad`, `FillPolygon`, `StrokePolygon` in place of `render.FillRect(dst, …)`;
-  `Image.PlaceDepth` is render's own.
+  `Image.PlaceDepth` is render's own. Text is the font's to draw: `f.Draw(dst, s, x, y, c)` in
+  place of `render.DrawText(dst, f, s, x, y, c)`.
 - Breaking: `render/gpu` is `internal/gpu`, the engine's and render's alone; a test that draws
   readies the GPU with `gputest.Need(t)` (`internal/gpu/gputest`), skipped without one.
 

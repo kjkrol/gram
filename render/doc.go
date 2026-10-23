@@ -19,10 +19,10 @@
 // each scaled up into its place; one whose figures are sharp (camera.Figured) has its ground drawn
 // so, or whole at the camera's resolution, and what lies over it drawn at every shown pixel.
 //
-// # Font and DrawText
+// # Font
 //
 // A [Font] is a TrueType or OpenType face at a size ([NewFont]); [DefaultFont] is Go Regular at
-// 14 pixels. [DrawText] draws a string in a colour, [Font.Measure] is how much room it takes.
+// 14 pixels. [Font.Draw] draws a string in a colour, [Font.Measure] is how much room it takes.
 // [DebugPrintAt] is the fixed debug text of the telemetry.
 //
 // # Atlas and AtlasSource

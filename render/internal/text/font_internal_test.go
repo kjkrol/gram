@@ -1,15 +1,15 @@
-package render_test
+package text
 
 import (
 	"image/color"
 	"testing"
 
 	"github.com/kjkrol/gram/internal/gpu/gputest"
-	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/internal/gfx"
 )
 
 func TestFont_MeasureGrowsWithTheTextAndItsLines(t *testing.T) {
-	f := render.DefaultFont()
+	f := DefaultFont()
 	w1, h1 := f.Measure("Cześć")
 	w2, _ := f.Measure("Cześć, wędrowcze!")
 	_, h3 := f.Measure("Cześć\nwędrowcze")
@@ -19,7 +19,7 @@ func TestFont_MeasureGrowsWithTheTextAndItsLines(t *testing.T) {
 }
 
 func TestFont_MeasureAllocatesNothing(t *testing.T) {
-	f := render.DefaultFont()
+	f := DefaultFont()
 	s := "FPS: 60.0\nFrame:\n  tick 1.0 ms\n  drawing 2.0 ms\nGame time: 12:34"
 	f.Measure(s)
 	if n := testing.AllocsPerRun(10, func() { f.Measure(s) }); n != 0 {
@@ -28,7 +28,7 @@ func TestFont_MeasureAllocatesNothing(t *testing.T) {
 }
 
 func TestFont_TheDefaultHasThePolishLetters(t *testing.T) {
-	f := render.DefaultFont()
+	f := DefaultFont()
 	for _, r := range "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ" {
 		if !f.Has(r) {
 			t.Errorf("no glyph for %q", r)
@@ -36,15 +36,15 @@ func TestFont_TheDefaultHasThePolishLetters(t *testing.T) {
 	}
 }
 
-func TestDrawText_DrawsInsideTheBoxItMeasures(t *testing.T) {
+func TestFont_DrawsInsideTheBoxItMeasures(t *testing.T) {
 	gputest.Need(t)
-	f := render.DefaultFont()
+	f := DefaultFont()
 	const x, y = 10, 10
 	s := "Źdźbło"
 	w, h := f.Measure(s)
-	dst := render.NewImage(200, 60)
+	dst := gfx.NewImage(200, 60)
 	dst.Clear()
-	render.DrawText(dst, f, s, x, y, color.White)
+	f.Draw(dst, s, x, y, color.White)
 	pix := make([]byte, 4*200*60)
 	dst.ReadPixels(pix)
 	inside, outside := 0, 0
