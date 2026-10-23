@@ -23,12 +23,13 @@
   tiles), `look.Renderer.Whole`, `look.Renderer.Animated`, `Painter.Above`, `Painter.Overlay`,
   `Painter.DrawWays`.
 - Breaking: `look.Look` is how the cells lie (`look.Flat`, `look.Swaying`, `look.Nothing`), no
-  interface; a `look.Dressing` is `Begin`, `Sheet` and `Base(c, own)`. Gone: `look.Tile`,
-  `look.FlatLook`, `look.EvenLit`, the Dressing's `Light`, `FaceLight`, `Dress` and `Across`,
-  `render.Still`, `gpu.Kept`, `draw.Weigh`, `draw.Quarters`; a board of no world, or seen
-  through a camera without lines of sight, draws nothing. The board's parallel compose is gone,
-  no game used it: `look.Parallel`, `look.ParallelLook`, `Renderer.Workers`, `Renderer.UsePool`,
-  `Renderer.Reads`, `board.Plugin.WithWorkers`.
+  interface; a `look.Dressing` is `Begin` and `Base(c, own)`. Gone: `look.Tile`, `look.FlatLook`,
+  `look.EvenLit`, the Dressing's `Light`, `FaceLight`, `Dress`, `Across` and `Sheet` (every
+  Dressing handed back the atlas it was given), `render.Still`, `gpu.Kept`, `draw.Weigh`,
+  `draw.Quarters`; a board of no world, or seen through a camera without lines of sight, draws
+  nothing. The board's parallel compose is gone, no game used it: `look.Parallel`,
+  `look.ParallelLook`, `Renderer.Workers`, `Renderer.UsePool`, `Renderer.Reads`,
+  `board.Plugin.WithWorkers`.
 - What looks different: what sways moves every frame from above (the still held it till a cell
   changed), the clouds' shadows lie on a flat board in isometry too, the light is worked out per
   cell on a hex board and across a wrapped world's seams, and nothing past the board's edge is
@@ -55,6 +56,16 @@
   the mouths' layer and the kinds' (no kind with a Detail) are left to what they hold and the
   ways are drawn in as many pieces as the most of them lays. `Benchmark_Frame_Topography` waits
   for its first frame, so the board painted at it no longer lands in the frames measured.
+
+**The render package taken apart** (2026-10-23, branch `perf/flat-gpu`)
+- Breaking, what nothing used: `render.CachedRenderer`, `render.Paint`, `render.DebugPrint`
+  (`DebugPrintAt` stays), `render.TextWidth`, `render.ActualTPS`, `render.Looped`,
+  `render.Slot` (`Atlas.Add` hands nothing back), `Frame.Fold`, `Frame.Fan`, `Frame.Last`,
+  `Frame.OverlayOn`, `Frame.Mark`, `Frame.Camera`, `Frame.GlazeBlend`, `Frame.SpriteBlendPart`,
+  `Overlay.Under`, `GroundHeights.At`, `DrawMeshOptions.Multiply` (and `gpu.Multiply`),
+  `Composer.Composed`, `GeoM.Reset`, `Sprites.Len`, `gpu.Ready`, `gpu.Device`, `Layout.Has`;
+  `render.SetRates` takes the frames alone; `Clocked`, `FromImage`, `NewSheet`, `GlyphWidth`
+  and `LineHeight` are render's own.
 
 ## v0.4.0 — 2026-10-23
 

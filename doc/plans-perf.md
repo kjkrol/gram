@@ -1028,8 +1028,7 @@ w poszukiwaniu brzegu — oba miejsca przepisane bez tego. `CellDetails` i `Wet`
 są zachowawcze (kilka komórek więcej „ubranych”). Dema po C7: navigation/square i navigation/hex
 identyczne z C6, board/topography i look/sky ta sama scena.
 
-Otwarte: `look.Dressing.Sheet` we wszystkich implementacjach zwraca już sam atlas (kandydat do
-B1).
+`look.Dressing.Sheet`, który we wszystkich implementacjach zwracał już sam atlas, usunięty w B1.
 
 ### Szybszy cały wypiek (B0, 2026-10-23)
 

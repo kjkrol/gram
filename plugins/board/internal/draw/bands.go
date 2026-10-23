@@ -31,7 +31,6 @@ var _ look.Laid = (*Bands)(nil)
 func NewBands(b Ways) *Bands { return &Bands{board: b} }
 
 func (*Bands) Begin(*render.Frame, camera.Camera)                  {}
-func (*Bands) Sheet(atlas render.AtlasSource) render.AtlasSource   { return atlas }
 func (*Bands) Base(_ cell.ID, own render.SpriteID) render.SpriteID { return own }
 
 // Way is what runs across c.

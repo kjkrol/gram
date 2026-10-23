@@ -92,9 +92,6 @@ type DrawMeshOptions struct {
 	// Darkest keeps the lesser of what is drawn and what is there, channel by channel, in place of
 	// laying it over.
 	Darkest bool
-	// Multiply scales what is there by what is drawn, channel by channel, in place of laying it
-	// over: a shade or a glow over a picture drawn.
-	Multiply bool
 }
 
 // DrawMesh draws the triangles of idx with s, a mesh's shader, into the image; idx nil,
@@ -141,16 +138,13 @@ func (i *Image) DrawMesh(idx *Indices, s *Shader, op *DrawMeshOptions) {
 		Uniforms:   s.pack(op.Uniforms),
 		Indices:    indices,
 		Ranges:     ranges,
-		Blend:      blendOf(op.Darkest, op.Multiply),
+		Blend:      blendOf(op.Darkest),
 	})
 }
 
-func blendOf(darkest, multiply bool) gpu.Blend {
-	switch {
-	case darkest:
+func blendOf(darkest bool) gpu.Blend {
+	if darkest {
 		return gpu.Darkest
-	case multiply:
-		return gpu.Multiply
 	}
 	return gpu.SourceOver
 }

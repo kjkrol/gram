@@ -61,9 +61,6 @@ func NewLayout(us []Uniform) *Layout {
 	return l
 }
 
-// Has reports whether the layout holds the uniform name.
-func (l *Layout) Has(name string) bool { _, ok := l.offsets[name]; return ok }
-
 // Put writes v, as many floats as the uniform name holds at most, into dst, the layout's bytes;
 // a name the layout lacks is ignored.
 func (l *Layout) Put(dst []byte, name string, v []float32) {

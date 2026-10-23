@@ -59,8 +59,8 @@ func TestGroundHeights_ShadersReadTheGroundBlendedBetweenItsCorners(t *testing.T
 		}
 	}
 	pic.SubImage(image.Rect(2, 1, 6, 4)).WritePixels(pix)
-	g := &GroundHeights{Image: pic, At: image.Pt(2, 1), Corners: [2]int{4, 3}, Cell: 10, Low: 100,
-		Span: 400}
+	g := &GroundHeights{Image: pic.SubImage(image.Rect(2, 1, 6, 4)), Corners: [2]int{4, 3}, Cell: 10,
+		Low: 100, Span: 400}
 	const w = 40
 	read := func(g *GroundHeights) []byte {
 		c := NewComposer(heighted{g})

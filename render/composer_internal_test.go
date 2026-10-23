@@ -125,7 +125,7 @@ func TestFrame_AnEdgesEndsKeepTheirHeightsAndWithNoDepthNone(t *testing.T) {
 	}
 	for _, heights := range []bool{true, false} {
 		gotV = gotV[:0]
-		c.heights = heights
+		c.seen = heights
 		c.paint(nil, Target{})
 		want := [8]float32{5, 5, 5, 5, 2, 8, 2, 8}
 		if !heights {
@@ -257,7 +257,7 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 		}
 		f.Uniform("LightWay", 0, 0, 1)
 		f.Image("TestProbe", nil)
-		f.Fan(h(2), [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}}, white)
+		f.SpriteFan(h(2), a, 0, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}}, [4]float32{0, 0, 5, 5}, 1)
 	}), overlyingSource{items(func(f *Frame) {
 		for i := range 50 {
 			f.Sprite(h(float32(2+i%3)), a, 0, unit, Even(1))
@@ -352,7 +352,7 @@ func TestFrame_AFanIsTrianglesRoundItsFirstPoint(t *testing.T) {
 	a := &sheet{}
 	c, _ := drawn(topDown(), items(func(f *Frame) {
 		f.Sprite(h(0), a, 0, unit, Even(1))
-		f.Fan(h(0), [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}, {-5, 5}}, white)
+		f.SpriteFan(h(0), a, 0, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}, {-5, 5}}, [4]float32{-5, 0, 5, 5}, 1)
 	}))
 	var idx []uint16
 	c.draw = func(_ *Image, _ []Vertex, i []uint16, _ *Image, _ [4]float32) {
@@ -455,23 +455,6 @@ func TestFrame_AnOverlayFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
 	}
 }
 
-func TestFrame_ATopFoldsAlongTheDiagonalOfTheNearerHeights(t *testing.T) {
-	var f Frame
-	f.Reset(topDown())
-	dst := Corners{{0, 0}, {10, 0}, {0, 10}, {10, 10}}
-	f.Sprite(h(0), sheet{}, 0, dst, Even(1))
-	f.Fold([4]float32{0, 0, 0, 0})
-	f.Sprite(h(0), sheet{}, 0, dst, Even(1))
-	f.Fold([4]float32{5, 0, 5, 5}) // the top-right corner stands apart
-	f.Overlay(&Overlay{World: Box(0, 0, 10, 10)})
-	if len(f.items) != 2 || f.items[0].shape != quad || f.items[0].count != 4 || f.items[1].shape != folded || f.items[1].count != 8 {
-		t.Fatalf("items %+v, want the level top as it is, the other and its overlay folded", f.items)
-	}
-	if got := appendQuad(nil, 0, folded); got[0] != 0 || got[2] != 3 || got[3] != 0 || got[5] != 3 {
-		t.Errorf("a folded quad's triangles are %v, want both meeting along 0 to 3", got)
-	}
-}
-
 func TestFrame_AGlazeShowsAsMuchAsItsOpacity(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
@@ -495,37 +478,6 @@ func TestFrame_APartOfASheetSamplesThePixelsAskedFor(t *testing.T) {
 	}
 }
 
-func TestFrame_AnOverlayOnAnEarlierSpriteLiesOverIt(t *testing.T) {
-	var f Frame
-	f.Reset(topDown())
-	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
-	f.Sprite(h(3), sheet{}, 0, dst, Even(1))
-	top := f.Last()
-	f.Sprite(h(7), sheet{}, 0, Corners{{50, 50}, {60, 50}, {50, 60}, {60, 60}}, Even(1))
-	f.OverlayOn(top, &Overlay{Material: 1, World: Box(0, 0, 10, 20)})
-	last := f.items[len(f.items)-1]
-	if last.at != h(3) {
-		t.Errorf("the overlay lies at %v, want the tile's height 3", last.at)
-	}
-	for k, v := range f.verts[8:] {
-		if v.DstX != dst[k][0] || v.DstY != dst[k][1] {
-			t.Errorf("overlay corner %d lies at %v,%v; want the tile's %v", k, v.DstX, v.DstY, dst[k])
-		}
-	}
-
-	cam := cameratest.NewFromSpace(1024, 1024, aabbworld.Torus)
-	cam.Translate(1000, 0)
-	f.Reset(cam)
-	f.SpriteRect(h(0), sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
-	split := f.Last()
-	f.SpriteRect(h(0), sheet{}, 0, 0, 100, 10, 110, Even(1))
-	f.OverlayOn(split, &Overlay{World: Box(992, 0, 1008, 10)})
-	if v := f.verts; len(v) != 20 || v[12].DstX != v[0].DstX || v[16].DstX != v[4].DstX {
-		t.Fatalf("%d vertices, the overlays at x %v and %v; want 20, over the split rect's pieces at %v and %v",
-			len(v), v[12].DstX, v[16].DstX, v[0].DstX, v[4].DstX)
-	}
-}
-
 func TestFrame_AnOverlayTakesWhatItShouldOfTheSpriteUnderIt(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
@@ -533,17 +485,13 @@ func TestFrame_AnOverlayTakesWhatItShouldOfTheSpriteUnderIt(t *testing.T) {
 	band := World{{10, 0}, {14, 4}, {0, 10}, {4, 14}}
 	weight := [4]float32{0, 0.5, 0.25, 1}
 	f.SpriteBlend(h(0), sheet{}, 0, dst, Even(1), weight, 0.2)
-	f.Overlay(&Overlay{Material: 1, World: band, Under: true})
 	f.Overlay(&Overlay{Material: 2, World: band, Custom: [4][4]float32{{3}, {3}, {3}, {3}}, Blended: true})
 	v := f.verts
 	for k, w := range weight {
-		if s := v[4+k]; s.ColorR != w || s.Custom3 != v[k].Custom3 {
-			t.Errorf("under corner %d: red %v, mark %v; want the sprite's weight %v and mark %v", k, s.ColorR, s.Custom3, w, v[k].Custom3)
-		}
-		if s := v[8+k]; s.Custom0 != 3 || s.Custom2 != w || s.Custom3 != v[k].Custom3 {
+		if s := v[4+k]; s.Custom0 != 3 || s.Custom2 != w || s.Custom3 != v[k].Custom3 {
 			t.Errorf("blended corner %d: customs %v %v %v; want its own 3, the sprite's weight %v and mark", k, s.Custom0, s.Custom2, s.Custom3, w)
 		}
-		if got := [2]float32{v[8+k].ColorG, v[8+k].ColorB}; got != band[k] {
+		if got := [2]float32{v[4+k].ColorG, v[4+k].ColorB}; got != band[k] {
 			t.Errorf("corner %d lies at %v, want %v", k, got, band[k])
 		}
 	}

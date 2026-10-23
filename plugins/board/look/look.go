@@ -24,9 +24,6 @@ const (
 type Dressing interface {
 	// Begin readies the dressing for a frame through cam.
 	Begin(f *render.Frame, cam camera.Camera)
-	// Sheet is what the tiles are drawn from, the board's atlas given: it, or a sheet of the
-	// dressing's with the atlas's sprites on it.
-	Sheet(atlas render.AtlasSource) render.AtlasSource
 	// Base is the sprite c's tile is drawn in, own its kind's.
 	Base(c cell.ID, own render.SpriteID) render.SpriteID
 }

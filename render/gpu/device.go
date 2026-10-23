@@ -123,17 +123,6 @@ func Headless(software bool) error {
 	return nil
 }
 
-// Ready reports whether there is a device to draw on.
-func Ready() bool { return cur != nil }
-
-// Device is the device drawn on, nil before there is one: for a program of the engine's own.
-func Device() *wgpu.Device {
-	if cur == nil {
-		return nil
-	}
-	return cur.dev
-}
-
 var errNoDevice = errors.New("gpu: drawn before the window's GPU is up: draw from a frame, not from a stage's Init")
 
 // a draw before the window's device is an error, not a reason to make one without a window

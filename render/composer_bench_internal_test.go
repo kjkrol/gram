@@ -26,7 +26,7 @@ func Benchmark_Composer_Render(b *testing.B) {
 			verts += len(v)
 		}
 		c.compose(sorted(), wholePart)
-		b.Run(fmt.Sprintf("pieces=%d", c.Composed()), func(b *testing.B) {
+		b.Run(fmt.Sprintf("pieces=%d", c.frame.Len()), func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
 				calls, verts = 0, 0

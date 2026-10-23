@@ -111,9 +111,6 @@ type GeoM struct {
 	a1, b, c, d1, tx, ty float64 // the diagonal minus one, so the zero is the identity
 }
 
-// Reset makes g the identity.
-func (g *GeoM) Reset() { *g = GeoM{} }
-
 // Translate moves by (tx, ty) after g.
 func (g *GeoM) Translate(tx, ty float64) { g.tx += tx; g.ty += ty }
 

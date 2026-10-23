@@ -227,8 +227,8 @@ scratchpad and run it from its directory under `timeout 5s`, exit 124 alive, gre
   `ui.Drawer(renderer)` ignores its box and draws on the whole screen; `render.DebugPrint` starts
   at the corner, which is why the old telemetry sat top-left.
 - Telemetry numbers (the panel's basic mode shows FPS, TPS, Frame and Entities, the extended
-  one every line; a many-valued line is a value of lines under its label): `render.ActualFPS/
-  ActualTPS` (set by the engine once a second with one rate for both), `render.Spent()` (where a frame's time went, set beside them),
+  one every line; a many-valued line is a value of lines under its label): `render.ActualFPS`
+  (set by the engine once a second), `render.Spent()` (where a frame's time went, set beside them),
   `game.TPS.Ticks` (`ctx.TPS()`, stale under pause), `world.Res.Telemetry.Count` (spawned
   entities), `view.View.In.Len()` per camera when culled. `render.Reporter` needs
   `Init(*goke.SysInit)` (climate's builds a query), given through a layer's `Init`: the

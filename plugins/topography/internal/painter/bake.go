@@ -34,9 +34,6 @@ const (
 	maxSheet  = 4096
 )
 
-// Sheet is the atlas itself: the bake reads the sprites from it.
-func (l *Painter) Sheet(atlas render.AtlasSource) render.AtlasSource { return atlas }
-
 // Surface is the whole board painted flat out of atlas, px pixels a cell, and its water, wpx
 // pixels a cell, brought up to date with the board on the GPU: the cells round those that
 // changed painted anew, all of them when many did. It is nil off a square grid, where a cell

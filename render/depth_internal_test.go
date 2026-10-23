@@ -371,12 +371,12 @@ func TestFeed_DrawsAFigureAtEveryPixelOverAHalfResolutionGround(t *testing.T) {
 	needGPU(t)
 	a := atlasOf(t)
 	line := overlyingSource{items(func(f *Frame) {
-		x0, y0 := f.Camera().Project(4, 16.5, 0)
-		x1, _ := f.Camera().Project(60, 16.5, 0)
+		x0, y0 := f.cam.Project(4, 16.5, 0)
+		x1, _ := f.cam.Project(60, 16.5, 0)
 		f.Line(OnTop(0), x0, y0, x1, y0, 1, white)
 	})}
 	figure := overlyingSource{items(func(f *Frame) {
-		corners := ProjectCorners(f.Camera(), 16, 40, 48, 56, 10)
+		corners := ProjectCorners(f.cam, 16, 40, 48, 56, 10)
 		f.Sprite(f.At(32, 48, 10), a, 2, corners, Even(1))
 	})}
 	picture := NewComposer(checkeredGround(a), figure, line)
@@ -469,7 +469,7 @@ func TestLaid_AFigureBehindAHillIsHiddenThroughAnInnerLayersDepth(t *testing.T) 
 	needGPU(t)
 	a := atlasOf(t)
 	figure := overlyingSource{items(func(f *Frame) {
-		corners := ProjectCorners(f.Camera(), 20, 20, 44, 44, 10)
+		corners := ProjectCorners(f.cam, 20, 20, 44, 44, 10)
 		f.Sprite(f.At(32, 32, 10), a, 2, corners, Even(1))
 	})}
 	picture := NewComposer(ridgedGround(a), figure)

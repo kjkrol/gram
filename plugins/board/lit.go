@@ -88,13 +88,6 @@ func (d *cloudyDressing) DressGround(t render.Target, cam camera.Camera, u rende
 	}
 }
 
-func (d *cloudyDressing) Sheet(atlas render.AtlasSource) render.AtlasSource {
-	if d.Dressing == nil {
-		return atlas
-	}
-	return d.Dressing.Sheet(atlas)
-}
-
 func (d *cloudyDressing) Base(c cell.ID, own render.SpriteID) render.SpriteID {
 	if d.Dressing == nil {
 		return own

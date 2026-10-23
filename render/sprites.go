@@ -109,9 +109,6 @@ func (s *Sprites) Turned(
 		light[0], light[1], light[2], angle, s.layer.at.z, s.fog, float32(s.takes), s.sun)
 }
 
-// Len is how many pieces are gathered.
-func (s *Sprites) Len() int { return len(s.instances) / spriteFloats }
-
 const spriteFloats = 16
 
 // Reset drops what was gathered.

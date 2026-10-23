@@ -31,9 +31,8 @@ type Fade struct{ Left, Right, Top, Bottom float32 }
 type shape uint8
 
 const (
-	quad   shape = iota // four corners, two triangles meeting along top-right to bottom-left
-	fan                 // a fan round the first vertex
-	folded              // a quad whose triangles meet along top-left to bottom-right
+	quad shape = iota // four corners, two triangles meeting along top-right to bottom-left
+	fan               // a fan round the first vertex
 )
 
 type item struct {
@@ -61,7 +60,6 @@ type Frame struct {
 	lastRect  bool
 	lastAt    At
 	lastAtlas AtlasSource
-	lastShape shape
 
 	uniforms []uniform
 	images   []frameImage
@@ -82,9 +80,6 @@ type frameImage struct {
 	name string
 	img  *Image
 }
-
-// Camera is the camera the frame is drawn through.
-func (f *Frame) Camera() camera.Camera { return f.cam }
 
 // Len is how many pieces the frame holds: quads and fans.
 func (f *Frame) Len() int { return f.count }
@@ -264,7 +259,7 @@ func lit(l Light) [4]float32 { return [4]float32{l[0], l[1], l[2], 1} }
 // Sprite draws sprite id of atlas over the screen corners dst, as bright as shade says.
 func (f *Frame) Sprite(at At, atlas AtlasSource, id SpriteID, dst Corners, shade Shade) {
 	f.lastFirst, f.lastRect, f.lastAt = len(f.verts), false, at
-	f.lastAtlas, f.lastShape = atlas, quad
+	f.lastAtlas = atlas
 	u0, v0, u1, v1 := inset(atlas.UV(id))
 	f.verts = append(f.verts,
 		vertex(dst[0][0], dst[0][1], u0, v0, lit(shade[0])), vertex(dst[1][0], dst[1][1], u1, v0, lit(shade[1])),
@@ -285,36 +280,11 @@ func (f *Frame) Glaze(
 	}
 }
 
-// Fold has the last sprite added, its corners standing at heights z, meet its two triangles along
-// the diagonal whose corners stand nearer in height. What is laid over it later folds with it.
-func (f *Frame) Fold(z [4]float32) {
-	n := len(f.items)
-	if n == 0 || f.lastRect || f.lastShape != quad || abs32(z[0]-z[3]) >= abs32(z[1]-z[2]) {
-		return
-	}
-	last := &f.items[n-1]
-	if last.shape != quad || int(last.first+last.count) != f.lastFirst+4 {
-		return
-	}
-	last.count -= 4
-	if last.count == 0 {
-		f.items = f.items[:n-1]
-	}
-	f.items = append(f.items, item{
-		at:    f.lastAt,
-		atlas: f.lastAtlas,
-		first: int32(f.lastFirst),
-		count: 4,
-		shape: folded,
-	})
-	f.lastShape = folded
-}
-
 // SpritePart is Sprite drawing the part src (x0, y0, x1, y1 in the sheet's pixels) of atlas's
 // sheet rather than a sprite of it.
 func (f *Frame) SpritePart(at At, atlas AtlasSource, src [4]float32, dst Corners, shade Shade) {
 	f.lastFirst, f.lastRect, f.lastAt = len(f.verts), false, at
-	f.lastAtlas, f.lastShape = atlas, quad
+	f.lastAtlas = atlas
 	u0, v0, u1, v1 := src[0], src[1], src[2], src[3]
 	f.verts = append(f.verts,
 		vertex(dst[0][0], dst[0][1], u0, v0, lit(shade[0])), vertex(dst[1][0], dst[1][1], u1, v0, lit(shade[1])),
@@ -332,33 +302,6 @@ func (f *Frame) SpriteBlend(
 	v := f.verts[len(f.verts)-4:]
 	for i := range v {
 		v[i].ColorA, v[i].Custom3 = weight[i], blendMark+min(max(soft, 0.01), 0.5)
-	}
-}
-
-// SpriteBlendPart is SpriteBlend of a part of sprite id, part its left, top, right and bottom as
-// shares of the sprite, 0 to 1.
-func (f *Frame) SpriteBlendPart(
-	at At, atlas AtlasSource, id SpriteID, part [4]float32, dst Corners, shade Shade,
-	weight [4]float32, soft float32,
-) {
-	u0, v0, u1, v1 := inset(atlas.UV(id))
-	src := [4]float32{u0 + (u1-u0)*part[0], v0 + (v1-v0)*part[1], u0 + (u1-u0)*part[2], v0 + (v1-v0)*part[3]}
-	f.SpritePart(at, atlas, src, dst, shade)
-	v := f.verts[len(f.verts)-4:]
-	for i := range v {
-		v[i].ColorA, v[i].Custom3 = weight[i], blendMark+min(max(soft, 0.01), 0.5)
-	}
-}
-
-// GlazeBlend is Glaze drawn blended as SpriteBlend is.
-func (f *Frame) GlazeBlend(
-	at At, atlas AtlasSource, id SpriteID, dst Corners, shade Shade, weight [4]float32,
-	soft float32, opacity [4]float32,
-) {
-	f.SpriteBlend(at, atlas, id, dst, shade, weight, soft)
-	v := f.verts[len(f.verts)-4:]
-	for i := range v {
-		v[i].Custom2 = 1 + min(max(opacity[i], 0), 1)
 	}
 }
 
@@ -382,7 +325,7 @@ func (f *Frame) SpriteRectUV(
 	at At, atlas AtlasSource, id SpriteID, x0, y0, x1, y1, u0, v0, u1, v1 float32, shade Shade,
 ) {
 	f.lastFirst, f.lastRect, f.lastAt = len(f.verts), true, at
-	f.lastAtlas, f.lastShape = atlas, quad
+	f.lastAtlas = atlas
 	f.quads = spritePieces(f.cam, atlas, id, x0, y0, x1, y1, u0, v0, u1, v1, f.quads[:0], func(q camera.Quad, a0, b0, a1, b1 float32) {
 		f.verts = append(f.verts,
 			vertex(q.X0, q.Y0, a0, b0, lit(shade.at(q.T0X, q.T0Y))), vertex(q.X1, q.Y0, a1, b0, lit(shade.at(q.T1X, q.T0Y))),
@@ -406,8 +349,6 @@ type Overlay struct {
 	Red      [4]float32
 	Fraction [4]float32 // 0 to 1
 	Custom   [4][4]float32
-	// Under takes how faint the sprite under it is into Red and how it fades or blends into Custom.
-	Under bool
 	// Blended, over a SpriteBlend, takes the sprite's weight and mark into Custom's third and
 	// fourth.
 	Blended bool
@@ -415,42 +356,10 @@ type Overlay struct {
 
 // Overlay lays o over the last sprite added, every piece of a SpriteRect's.
 func (f *Frame) Overlay(o *Overlay) {
-	f.overlay(Mark{first: f.lastFirst, rect: f.lastRect,
-		at: f.lastAt, atlas: f.lastAtlas, shape: f.lastShape, quads: f.quads}, o)
-}
-
-// Mark is a sprite already in a frame, for an overlay laid over it later.
-type Mark struct {
-	first int
-	rect  bool
-	at    At
-	atlas AtlasSource
-	shape shape
-	quads []camera.Quad // a SpriteRect's pieces; none when whole
-}
-
-// Last is the last sprite added, for OverlayOn.
-func (f *Frame) Last() Mark {
-	m := Mark{first: f.lastFirst, rect: f.lastRect,
-		at: f.lastAt, atlas: f.lastAtlas, shape: f.lastShape}
-	if f.lastRect && !whole(f.quads) {
-		m.quads = slices.Clone(f.quads)
-	}
-	return m
-}
-
-// OverlayOn is Overlay laid over the sprite m, where it lies.
-func (f *Frame) OverlayOn(m Mark, o *Overlay) { f.overlay(m, o) }
-
-func whole(quads []camera.Quad) bool {
-	return len(quads) == 0 || len(quads) == 1 && quads[0].T0X == 0 && quads[0].T0Y == 0 && quads[0].T1X == 1 && quads[0].T1Y == 1
-}
-
-func (f *Frame) overlay(m Mark, o *Overlay) {
-	if m.atlas == nil {
+	if f.lastAtlas == nil {
 		return
 	}
-	wu, wv := m.atlas.White()
+	wu, wv := f.lastAtlas.White()
 	w := o.World
 	xs, ys := [4]float32{w[0][0], w[1][0], w[2][0], w[3][0]}, [4]float32{w[0][1], w[1][1], w[2][1], w[3][1]}
 	mark := [4]float32{}
@@ -466,37 +375,34 @@ func (f *Frame) overlay(m Mark, o *Overlay) {
 			vx := Vertex{DstX: f.verts[first+k].DstX, DstY: f.verts[first+k].DstY, SrcX: wu, SrcY: wv,
 				ColorR: blend(o.Red, u, v), ColorG: blend(xs, u, v), ColorB: blend(ys, u, v), ColorA: blend(mark, u, v),
 				Custom0: custom(0, u, v), Custom1: custom(1, u, v), Custom2: custom(2, u, v), Custom3: custom(3, u, v)}
-			s := f.verts[first+k]
-			if o.Under {
-				vx.ColorR, vx.Custom0, vx.Custom1, vx.Custom2, vx.Custom3 = s.ColorA, s.Custom0, s.Custom1, s.Custom2, s.Custom3
-			}
-			if o.Blended && s.Custom3 > blendMark/2 {
+			if s := f.verts[first+k]; o.Blended && s.Custom3 > blendMark/2 {
 				vx.Custom2, vx.Custom3 = s.ColorA, s.Custom3
 			}
 			f.verts = append(f.verts, vx)
 		}
-		f.add(m.at, m.atlas, m.shape, 4)
+		f.add(f.lastAt, f.lastAtlas, quad, 4)
 	}
-	if !m.rect || whole(m.quads) {
+	if !f.lastRect || whole(f.quads) {
 		for k := range 4 {
-			s := f.verts[m.first+k]
+			s := f.verts[f.lastFirst+k]
 			c := o.Custom[k]
 			vx := Vertex{DstX: s.DstX, DstY: s.DstY, SrcX: wu, SrcY: wv, ColorR: o.Red[k], ColorG: w[k][0], ColorB: w[k][1],
 				ColorA: mark[k], Custom0: c[0], Custom1: c[1], Custom2: c[2], Custom3: c[3]}
-			if o.Under {
-				vx.ColorR, vx.Custom0, vx.Custom1, vx.Custom2, vx.Custom3 = s.ColorA, s.Custom0, s.Custom1, s.Custom2, s.Custom3
-			}
 			if o.Blended && s.Custom3 > blendMark/2 {
 				vx.Custom2, vx.Custom3 = s.ColorA, s.Custom3
 			}
 			f.verts = append(f.verts, vx)
 		}
-		f.add(m.at, m.atlas, m.shape, 4)
+		f.add(f.lastAt, f.lastAtlas, quad, 4)
 		return
 	}
-	for k, q := range m.quads {
-		piece(m.first+4*k, q.T0X, q.T0Y, q.T1X, q.T1Y)
+	for k, q := range f.quads {
+		piece(f.lastFirst+4*k, q.T0X, q.T0Y, q.T1X, q.T1Y)
 	}
+}
+
+func whole(quads []camera.Quad) bool {
+	return len(quads) == 0 || len(quads) == 1 && quads[0].T0X == 0 && quads[0].T0Y == 0 && quads[0].T1X == 1 && quads[0].T1Y == 1
 }
 
 // an overlay's alpha: overlayMark + twice its material + its fraction, over any colour's 1
@@ -566,18 +472,6 @@ func (f *Frame) line(x0, y0, x1, y1, width float32, c color.RGBA) bool {
 		f.verts = append(f.verts, v)
 	}
 	return true
-}
-
-// Fan fills in c the polygon pts, which every point of sees whole from pts[0].
-func (f *Frame) Fan(at At, pts [][2]float32, c color.RGBA) {
-	if len(pts) < 3 {
-		return
-	}
-	col := premultiplied(c)
-	for _, p := range pts {
-		f.verts = append(f.verts, vertex(p[0], p[1], 0, 0, col))
-	}
-	f.add(at, nil, fan, len(pts))
 }
 
 // SpriteFan fills the polygon pts, which every point of sees whole from pts[0], with the part of
@@ -721,7 +615,7 @@ func (f *Frame) Append(o *Frame) {
 	}
 	if o.count > 0 {
 		f.lastFirst, f.lastRect, f.lastAt = o.lastFirst+int(base), o.lastRect, o.lastAt
-		f.lastAtlas, f.lastShape = o.lastAtlas, o.lastShape
+		f.lastAtlas = o.lastAtlas
 		f.quads = append(f.quads[:0], o.quads...)
 	}
 }

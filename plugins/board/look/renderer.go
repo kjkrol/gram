@@ -198,13 +198,9 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 
 // ready brings the tile map up to the board as the Dressing d draws it
 func (l *Renderer) ready(d Dressing) {
-	sheet := l.atlas
-	if d != nil {
-		sheet = d.Sheet(l.atlas)
-	}
 	l.dress = d
 	l.nextTops()
-	l.tiles.refresh(l, sheet)
+	l.tiles.refresh(l, l.atlas)
 }
 
 // seeingOf is how cam sees the tiles; false for a camera without lines of sight

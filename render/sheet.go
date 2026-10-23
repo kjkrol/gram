@@ -15,8 +15,8 @@ type Sheet struct {
 	w, h int
 }
 
-// NewSheet is img as a sheet of frames w by h pixels.
-func NewSheet(img image.Image, w, h int) Sheet {
+// newSheet is img as a sheet of frames w by h pixels.
+func newSheet(img image.Image, w, h int) Sheet {
 	if img == nil || w <= 0 || h <= 0 {
 		panic(fmt.Sprintf("render: a sheet of %v in cells of %d by %d", img, w, h))
 	}
@@ -30,7 +30,7 @@ func DecodeSheet(name string, data []byte, w, h int) Sheet {
 	if err != nil {
 		panic(fmt.Sprintf("render: %s: %v", name, err))
 	}
-	return NewSheet(img, w, h)
+	return newSheet(img, w, h)
 }
 
 // At is the drawer of the frame in column col and row row, counted from zero.
@@ -45,5 +45,5 @@ func (s Sheet) At(col, row int) SpriteDrawer {
 	if !ok {
 		panic(fmt.Sprintf("render: a sheet of %T cuts no frames", s.img))
 	}
-	return FromImage(sub.SubImage(r))
+	return fromImage(sub.SubImage(r))
 }

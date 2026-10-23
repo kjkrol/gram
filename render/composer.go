@@ -32,10 +32,7 @@ type Composer struct {
 	bound  *Depth
 	test   gpu.DepthTest
 	sight  gpu.Sight
-	seen   bool // the sight holds the camera's
-	// the pieces' vertices carry their heights, for a sight to make depths of: a frame's with a
-	// ground, a still's always
-	heights bool
+	seen   bool // the sight holds the camera's: the pieces' vertices carry their heights
 
 	verts   []Vertex
 	indices []uint16
@@ -160,9 +157,6 @@ func (c *Composer) DrawGlass(dst *Image, cam camera.Camera) {
 	}
 }
 
-// Composed is how many pieces the last frame held.
-func (c *Composer) Composed() int { return c.frame.Len() }
-
 // Uniforms is what the last frame handed the shader, by name.
 func (c *Composer) Uniforms() map[string][]float32 { return c.uniforms }
 
@@ -194,15 +188,15 @@ func (c *Composer) compose(cam camera.Camera, p part) {
 	c.sort()
 }
 
-// Clocked is a Source that keeps a game time for the frame's animations to go by instead of the
+// clocked is a Source that keeps a game time for the frame's animations to go by instead of the
 // composer's own clock; false while it has none.
-type Clocked interface {
+type clocked interface {
 	Clock() (time.Duration, bool)
 }
 
 func (c *Composer) clock() time.Duration {
 	for _, s := range c.sources {
-		if k, ok := s.(Clocked); ok {
+		if k, ok := s.(clocked); ok {
 			if t, has := k.Clock(); has {
 				return t
 			}
@@ -249,14 +243,6 @@ func (c *Composer) sort() {
 		if !slices.IsSortedFunc(run, cmp) {
 			slices.SortStableFunc(run, cmp)
 		}
-	}
-}
-
-// inOrder has the frame drawn in the order its pieces came
-func (c *Composer) inOrder() {
-	f := &c.frame
-	for i := range f.items {
-		f.order = append(f.order, int32(i))
 	}
 }
 
@@ -364,7 +350,6 @@ func (c *Composer) render(screen *Image, apart bool, layer int) (ground *Depth) 
 			}
 		}
 	}
-	c.heights = c.seen
 	t.Pass = SeeThrough
 	c.paint(screen, t)
 	return ground
@@ -398,7 +383,6 @@ func (c *Composer) renderOver(screen *Image) {
 		}
 		c.seen = c.sightOf(f.cam)
 	}
-	c.heights = c.seen
 	c.paint(screen, t)
 }
 
@@ -469,7 +453,7 @@ func (c *Composer) paint(screen *Image, target Target) {
 			base := uint16(len(c.verts))
 			c.append(f.verts[it.first:it.first+it.count], it, sheet)
 			for k := int32(0); k < it.count; k += 4 {
-				c.indices = appendQuad(c.indices, base+uint16(k), it.shape)
+				c.indices = appendQuad(c.indices, base+uint16(k))
 			}
 			continue
 		}
@@ -479,7 +463,7 @@ func (c *Composer) paint(screen *Image, target Target) {
 			}
 			base := uint16(len(c.verts))
 			c.append(f.verts[k:k+4], it, sheet)
-			c.indices = appendQuad(c.indices, base, it.shape)
+			c.indices = appendQuad(c.indices, base)
 		}
 	}
 	c.flush(screen, sheet)
@@ -501,11 +485,11 @@ func (c *Composer) append(verts []Vertex, it *item, sheet AtlasSource) {
 	from := len(c.verts)
 	c.verts = append(c.verts, verts...)
 	switch {
-	case c.heights && !it.own:
+	case c.seen && !it.own:
 		for k := from; k < len(c.verts); k++ {
 			c.verts[k].DstZ = it.at.z
 		}
-	case !c.heights && it.own:
+	case !c.seen && it.own:
 		// with no depth to meet the vertex's z is the depth itself: one at a height falls outside
 		for k := from; k < len(c.verts); k++ {
 			c.verts[k].DstZ = 0
@@ -573,9 +557,6 @@ var white9 = []byte{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 
 func (w *whiteSheet) UV(SpriteID) (sx0, sy0, sx1, sy1 float32) { return 0, 0, 3, 3 }
 func (w *whiteSheet) White() (u, v float32)                    { return 1.5, 1.5 }
 
-func appendQuad(indices []uint16, base uint16, s shape) []uint16 {
-	if s == folded {
-		return append(indices, base, base+1, base+3, base, base+2, base+3)
-	}
+func appendQuad(indices []uint16, base uint16) []uint16 {
 	return append(indices, base, base+1, base+2, base+1, base+2, base+3)
 }

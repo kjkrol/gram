@@ -13,8 +13,8 @@ import (
 // Debug text is printed in basicfont 7x13, glyphs six pixels apart, lines sixteen, white over a
 // black shadow a pixel down and right.
 const (
-	GlyphWidth = 6
-	LineHeight = 16
+	glyphWidth = 6
+	lineHeight = 16
 )
 
 var glyphs struct {
@@ -39,7 +39,7 @@ func glyphSheet() *Image {
 			runes = append(runes, r)
 		}
 	}
-	img := image.NewRGBA(image.Rect(0, 0, glyphCell*len(runes), LineHeight))
+	img := image.NewRGBA(image.Rect(0, 0, glyphCell*len(runes), lineHeight))
 	d := font.Drawer{Dst: img, Src: image.NewUniform(color.White), Face: basicfont.Face7x13}
 	glyphs.cell = map[rune]int{}
 	for i, r := range runes {
@@ -62,11 +62,6 @@ func glyphSheet() *Image {
 	return glyphs.sheet
 }
 
-// DebugPrint prints s at the image's top-left corner.
-func DebugPrint(dst *Image, s string) {
-	DebugPrintAt(dst, s, dst.Bounds().Min.X, dst.Bounds().Min.Y)
-}
-
 // DebugPrintAt prints s with its top-left corner at (x, y), a line of it under another at each
 // newline.
 func DebugPrintAt(dst *Image, s string, x, y int) {
@@ -87,14 +82,14 @@ func DebugPrintAt(dst *Image, s string, x, y int) {
 			if !ok {
 				i = glyphs.cell['?']
 			}
-			x0 := float32(x + col*GlyphWidth + shade.dx)
-			y0 := float32(y + line*LineHeight + shade.dy)
+			x0 := float32(x + col*glyphWidth + shade.dx)
+			y0 := float32(y + line*lineHeight + shade.dy)
 			u0 := float32(i * glyphCell)
 			v := func(dx, dy, su, sv float32) gpu.Vertex {
 				return gpu.Vertex{DstX: x0 + dx, DstY: y0 + dy, SrcX: u0 + su, SrcY: sv, ColorR: shade.c, ColorG: shade.c, ColorB: shade.c, ColorA: 1}
 			}
 			base := uint16(len(verts))
-			verts = append(verts, v(0, 0, 0, 0), v(glyphCell, 0, glyphCell, 0), v(0, LineHeight, 0, LineHeight), v(glyphCell, LineHeight, glyphCell, LineHeight))
+			verts = append(verts, v(0, 0, 0, 0), v(glyphCell, 0, glyphCell, 0), v(0, lineHeight, 0, lineHeight), v(glyphCell, lineHeight, glyphCell, lineHeight))
 			indices = append(indices, base, base+1, base+2, base+1, base+2, base+3)
 			col++
 			if len(verts) > 65000 {
@@ -104,18 +99,4 @@ func DebugPrintAt(dst *Image, s string, x, y int) {
 		}
 	}
 	gpu.Sprites(dst.gpu(), sheet.gpu(), verts, indices, false, gpu.SourceOver)
-}
-
-// TextWidth is how many pixels wide the longest line of s is printed.
-func TextWidth(s string) int {
-	longest, n := 0, 0
-	for _, r := range s {
-		if r == '\n' {
-			n = 0
-			continue
-		}
-		n++
-		longest = max(longest, n)
-	}
-	return longest * GlyphWidth
 }

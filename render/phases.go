@@ -93,15 +93,8 @@ func (l Loops) Frame(now time.Duration) int {
 	return l.Beat[len(l.Beat)-1].Frame
 }
 
-// Looped is the look of n frames round and round, each shown period, drawn by draw.
-func Looped(n int, period time.Duration, draw func(frame int) SpriteDrawer) Loops {
-	if n <= 0 || period <= 0 || draw == nil {
-		panic(fmt.Sprintf("render: a look looped over %d frames of %v", n, period))
-	}
-	return Loops{N: n, Period: period, Draw: draw}
-}
-
-// LoopedFacing is Looped for a sprite that faces n ways: draw draws each frame at each angle.
+// LoopedFacing is the look of n frames round and round, each shown period, of a sprite that
+// faces every way: draw draws each frame at each angle.
 func LoopedFacing(n int, period time.Duration,
 	draw func(angleDeg float64, frame int) SpriteDrawer) Loops {
 	if n <= 0 || period <= 0 || draw == nil {
@@ -115,9 +108,9 @@ func (p Phases) Frame(progress float32) int {
 	return min(max(int(progress*float32(p.N)), 0), p.N-1)
 }
 
-// FromImage is a SpriteDrawer laying img over the whole sprite, scaled pixel for pixel without
+// fromImage is a SpriteDrawer laying img over the whole sprite, scaled pixel for pixel without
 // smoothing: a frame cut out of a sheet keeps its pixels.
-func FromImage(img image.Image) SpriteDrawer {
+func fromImage(img image.Image) SpriteDrawer {
 	return func(dst *Canvas, size int) {
 		xdraw.NearestNeighbor.Scale(dst.RGBA, image.Rect(0, 0, size, size), img, img.Bounds(),
 			xdraw.Over, nil)

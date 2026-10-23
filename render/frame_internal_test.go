@@ -27,7 +27,8 @@ func TestFrame_AppendTakesBackWhatABranchGatheredInOrder(t *testing.T) {
 			x := float32(i)
 			f.Soft(h(x), quad(x), color.RGBA{A: 255}, Fade{})
 			f.Line(h(x), x, 0, x+1, 1, 1, color.RGBA{R: 255, A: 255})
-			f.Fan(OnTop(0), [][2]float32{{x, 0}, {x + 1, 0}, {x + 1, 1}}, color.RGBA{A: 255})
+			f.SpriteFan(OnTop(0), sheet{}, 0, [][2]float32{{x, 0}, {x + 1, 0}, {x + 1, 1}},
+				[4]float32{x, 0, x + 1, 1}, 1)
 			f.Uniform("Seen", x)
 		}
 	}
@@ -42,7 +43,7 @@ func TestFrame_AppendTakesBackWhatABranchGatheredInOrder(t *testing.T) {
 	draw(&main, 0, 2)
 	main.Branch(&a)
 	main.Branch(&b)
-	if a.Time() != 3 || a.Camera() != cam {
+	if a.Time() != 3 || a.cam != cam {
 		t.Fatal("a branch does not run at the frame's time through its camera")
 	}
 	draw(&a, 2, 5)

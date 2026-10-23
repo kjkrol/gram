@@ -20,7 +20,7 @@ quad in the box; `Custom` = {middle, half a side, heading in radians}, `Red` = s
 a second up to 1, `World` the box), or `render.Phases`/`Loops` — `.Under(effect, look)` the look
 while the effect's marker is on (a twin slot swapped in by `render.Swap(twins, mark.In)`;
 `render.Phased(n, draw)`: n frames along the effect's course, never for an effect without `Lasts`;
-`render.Looped(n, period, draw)`: frames by the clock; a material under an effect reads how far it
+`render.Loops{N, Period, Draw}`: frames by the clock; a material under an effect reads how far it
 has run as its `fraction`; on one entity under two effects the look declared later wins),
 `.Turning()` the sprite turned the way its entity is headed (`Appearance.Angle` from `Vel.Dir`;
 degrees, 0 east, against the clock with y down, `render.Arrow`'s convention; a square box whose
@@ -31,8 +31,8 @@ and the frame), `.WhileMoving()` (standing it is drawn as it faces),
 `Altitude` (a deck, a ford; `world.LyingLook`; an entity carrying a `world.Lie{Length, Width, Edged,
 Edge}` is laid over that rectangle headed its `Vel.Dir`, `.Edges(draw)` the sprite standing along
 its long sides while `Edged`), `.Upright()` a sprite standing true in relief (`world.UprightLook`: a
-pier). Frames come off a `render.Sheet` (`NewSheet(img, w, h)`, `DecodeSheet(name, png, w, h)`,
-`At(col, row)`, through `render.FromImage`; a frame no square is drawn true in a box of its shape,
+pier). Frames come off a `render.Sheet` (`DecodeSheet(name, png, w, h)`, `At(col, row)`, scaled
+pixel for pixel; a frame no square is drawn true in a box of its shape,
 `board.Shape{Size, Width}`). The board's `Covering(e)` is the cover laid over cells under an effect,
 `Slot.Under(effect, draw)` on the board's atlas.
 

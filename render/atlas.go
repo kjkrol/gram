@@ -51,9 +51,9 @@ type Sprited interface{ SpriteID() SpriteID }
 // SpriteID is the slot itself.
 func (id SpriteID) SpriteID() SpriteID { return id }
 
-// Add takes draw on as a size x size sprite in of's slot and hands it back as a Slot. It panics
-// after Close or if the slot is taken.
-func (a *Atlas) Add(of Sprited, size int, draw SpriteDrawer) Slot {
+// Add takes draw on as a size x size sprite in of's slot. It panics after Close or if the slot
+// is taken.
+func (a *Atlas) Add(of Sprited, size int, draw SpriteDrawer) {
 	id := of.SpriteID()
 	if a.closed {
 		panic("gram: Atlas.Add after Close")
@@ -68,14 +68,6 @@ func (a *Atlas) Add(of Sprited, size int, draw SpriteDrawer) Slot {
 		panic(fmt.Sprintf("gram: Atlas sprite %d added twice", id))
 	}
 	a.slots[id] = slot{size: size, draw: draw}
-	return Slot{a: a, id: id, size: size}
-}
-
-// Slot is one sprite added to an Atlas.
-type Slot struct {
-	a    *Atlas
-	id   SpriteID
-	size int
 }
 
 // Close lays the sprites added out on one sheet and bakes them.

@@ -60,18 +60,14 @@ func fillQuad(dst *Image, q [4][2]float32, c color.Color) {
 	gpu.Colored(dst.gpu(), verts[:], []uint16{0, 1, 2, 1, 2, 3}, gpu.SourceOver)
 }
 
-var rates struct{ fps, tps float64 }
+var rates struct{ fps float64 }
 
-// SetRates notes the frames and the ticks the engine ran in the last second.
-func SetRates(fps, tps float64) { rates.fps, rates.tps = fps, tps }
+// SetRates notes the frames the engine drew in the last second.
+func SetRates(fps float64) { rates.fps = fps }
 
 // ActualFPS is how many frames the engine drew in the last second.
 func ActualFPS() float64 { return rates.fps }
 
-// ActualTPS is how many times a second the engine updated in the last second.
-func ActualTPS() float64 { return rates.tps }
-
-// FillPolygon lays c over the convex polygon pts, in dst's pixels.
 // FillQuad fills dst's corners in a colour each, blended across, top-left, top-right,
 // bottom-left, bottom-right.
 func FillQuad(dst *Image, corners Corners, c [4]color.RGBA) {
@@ -83,6 +79,7 @@ func FillQuad(dst *Image, corners Corners, c [4]color.RGBA) {
 	gpu.Colored(dst.gpu(), verts, []uint16{0, 1, 2, 1, 2, 3}, gpu.SourceOver)
 }
 
+// FillPolygon lays c over the convex polygon pts, in dst's pixels.
 func FillPolygon(dst *Image, pts [][2]float32, c color.Color) {
 	if len(pts) < 3 {
 		return

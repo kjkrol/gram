@@ -7,8 +7,8 @@
 // A Scene's parts are [Drawer]s. A [Renderer] draws on the screen once a frame, in screen pixels;
 // a [Picture] is what is in the world before a camera, drawn through the camera it is handed, so
 // one picture serves a player's view, the halves of a split screen and a minimap alike.
-// [SolidBackground] and [CachedRenderer] are ready-made renderers; a [Reporter] adds lines to
-// the telemetry panel (plugins/telemetry).
+// [SolidBackground] is a ready-made renderer; a [Reporter] adds lines to the telemetry panel
+// (plugins/telemetry).
 //
 // # Feed and Surface
 //
@@ -23,16 +23,14 @@
 //
 // A [Font] is a TrueType or OpenType face at a size ([NewFont]); [DefaultFont] is Go Regular at
 // 14 pixels. [DrawText] draws a string in a colour, [Font.Measure] is how much room it takes.
-// [DebugPrint] is the fixed debug text of the telemetry.
+// [DebugPrintAt] is the fixed debug text of the telemetry.
 //
 // # Atlas and AtlasSource
 //
-// An [Atlas] is a sprite sheet built lazily: Add records a [SpriteDrawer] in a [Sprited]'s slot
-// at a texture size of its own, and Close lays the sheet out and bakes it. Add hands the sprite
-// back as a [Slot]; [Slot.Under] is the look drawn in its place while a [Dresser]'s state holds.
-// [Solid], [Border], [Diamond], [Cross], [Hexagon], [Dot] and [Arrow] are ready-made drawers.
-// [AtlasSource] is what a Frame draws from: the sheet, each [SpriteID]'s rectangle and a white
-// texel for plain colours.
+// An [Atlas] is a sprite sheet built lazily: Add records a [SpriteDrawer] in a [Sprited]'s slot at
+// a texture size of its own, and Close lays the sheet out and bakes it. [Solid], [Border],
+// [Diamond], [Cross], [Hexagon], [Dot] and [Arrow] are ready-made drawers. [AtlasSource] is what a
+// Frame draws from: the sheet, each [SpriteID]'s rectangle and a white texel for plain colours.
 //
 // # Composer, Frame and Source
 //
@@ -97,7 +95,6 @@
 // [Sprites] is a Direct source's sprites
 // drawn as instances, each turning into the frame's Fog colour as far as [Sprites.Fog] says and
 // taking the shade the ground holds as [Sprites.Take] and [Sprites.Direct] say.
-// [Paint] paints a frame's sprites once into an image of one's own.
 //
 // # Appearance and Rules
 //
