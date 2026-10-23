@@ -184,7 +184,7 @@ func (e *Engine) frame(dc *gogpu.Context) {
 		log.Fatal(err)
 	}
 	began := time.Now()
-	if err := e.Update(); err != nil {
+	if err := e.Frame(); err != nil {
 		if errors.Is(err, Termination) {
 			e.app.Quit()
 			return
@@ -263,6 +263,19 @@ func (e *Engine) prepare() {
 }
 
 type spent struct{ update, draw, present time.Duration }
+
+// Frame runs a frame's Update and hands the renderer what it draws: every Publisher of the stage
+// publishes, then swaps; not while a stage switch is pending. It returns Termination once the
+// game has quit.
+func (e *Engine) Frame() error {
+	if err := e.Update(); err != nil {
+		return err
+	}
+	if e.pendingSwitch == "" {
+		e.current.publish()
+	}
+	return nil
+}
 
 // Update runs a tick: the input, a switch of stage, the world stepped as many times as the time
 // gone says. It returns Termination once the game has quit.

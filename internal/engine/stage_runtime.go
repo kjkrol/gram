@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/kjkrol/ceremony/command"
@@ -18,6 +19,7 @@ type stageRuntime struct {
 	world        *world.Plugin
 	carrier      *command.Carrier
 	sceneDrawers map[string][]render.Drawer
+	publishers   []plugin.Publisher
 	prepared     bool // its first frame readied (Engine.prepare)
 	firsts       int  // its first frames logged
 }
@@ -68,6 +70,7 @@ func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, erro
 	}
 
 	sceneDrawers := make(map[string][]render.Drawer)
+	var drawn []any // the scenes' drawers in their order
 	for _, sc := range stage.Stack().All() {
 		drawers := sc.Drawers()
 		if err := checkDrawers(sc, drawers); err != nil {
@@ -75,6 +78,7 @@ func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, erro
 		}
 		for _, l := range drawers {
 			host.registerDrawer(l)
+			drawn = append(drawn, l)
 		}
 		sceneDrawers[sc.Name()] = drawers
 	}
@@ -87,7 +91,44 @@ func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, erro
 		world:        ctx.world,
 		carrier:      carrier,
 		sceneDrawers: sceneDrawers,
+		publishers:   publishersOf(host.tracked, ctx.draws, drawn),
 	}, nil
+}
+
+// publishersOf are the Publishers among the tracked values, the sources drawn and the scenes'
+// drawers, each once, in that order
+func publishersOf(tracked []any, sources []render.Source, drawers []any) []plugin.Publisher {
+	all := append([]any(nil), tracked...)
+	for _, s := range sources {
+		all = append(all, s)
+	}
+	all = append(all, drawers...)
+	var out []plugin.Publisher
+	seen := map[any]bool{}
+	for _, v := range all {
+		p, ok := v.(plugin.Publisher)
+		if !ok {
+			continue
+		}
+		if reflect.TypeOf(v).Comparable() {
+			if seen[v] {
+				continue
+			}
+			seen[v] = true
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+// publish has every Publisher publish, then swap
+func (r *stageRuntime) publish() {
+	for _, p := range r.publishers {
+		p.Publish()
+	}
+	for _, p := range r.publishers {
+		p.Swap()
+	}
 }
 
 func checkDrawers(sc game.Scene, drawers []render.Drawer) error {
