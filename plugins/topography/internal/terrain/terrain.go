@@ -169,14 +169,7 @@ func Shader() *render.Shader { return byCare[FullCare] }
 // Shaders are the ground's shaders from the least care to the full, for a test to compile.
 func Shaders() []*render.Shader { return byCare[:] }
 
-// Init compiles the ground's shaders, so that no ring's first frame waits for its own.
-func (*Renderer) Init(*goke.SysInit) {
-	for _, s := range byCare {
-		if err := s.Compile(); err != nil {
-			panic(fmt.Sprintf("terrain: %v", err))
-		}
-	}
-}
+func (*Renderer) Init(*goke.SysInit) {}
 
 // SetCare has the ground within rings sectors of the one under the middle of the screen, and of
 // the one under the eye, shaded with full care, and one care less every rings sectors farther

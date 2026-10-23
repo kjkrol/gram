@@ -6,6 +6,12 @@
 - Breaking: the device is render's own, `render/internal/gpu`; the engine reaches it through
   `render.UseDevice`, `render.Windowed`, `render.Present` and `render.Submit`, a test that draws
   readies it with `gputest.Need(t)` from `render/gputest`. `Image.Texture` is gone.
+- A stage is readied before its first frame (`render.Prepare`): every shader made is compiled,
+  every deferred fill done, every texture written before the device put on it, and a frame drawn
+  and thrown away, for what is baked, laid out or built as it is first drawn; the world's time
+  starts after it, so the first frame no longer catches up five ticks. `GRAM_FPS_LOG=1` logs the
+  readying and the first three frames. The window's device is promised before the first stage's
+  Init, so a draw from an Init is an error rather than a device of its own.
 
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an

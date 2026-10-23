@@ -148,10 +148,10 @@ func (e *Engine) Init() error {
 // Run calls Init, then opens the window and runs the game in it, a tick and a picture a frame,
 // until it quits.
 func (e *Engine) Run() {
+	render.Windowed()
 	if err := e.Init(); err != nil {
 		log.Fatal(err)
 	}
-	render.Windowed()
 	e.shot = shotFromEnv()
 	// paced by the swapchain alone: on Wayland gogpu otherwise waits for the compositor's word
 	// after every frame, drawing each only once the last is on the screen
@@ -168,6 +168,7 @@ func (e *Engine) Run() {
 	control.SetCursorCapture(e.adapter.capture)
 	e.app.OnUpdate(func(float64) { e.adapter.Collect() })
 	e.app.OnDraw(e.frame)
+	e.timeTracker.restart()
 	if err := e.app.Run(); err != nil {
 		log.Fatal(err)
 	}
@@ -198,6 +199,10 @@ func (e *Engine) frame(dc *gogpu.Context) {
 		}
 		e.window = render.NewImage(w, h)
 	}
+	if !e.current.prepared && e.pendingSwitch == "" {
+		e.prepare()
+		began, updated = time.Now(), time.Now()
+	}
 	e.window.Clear()
 	e.Draw(e.window)
 	if e.shot != nil && e.shot.take(e.window) {
@@ -210,6 +215,11 @@ func (e *Engine) frame(dc *gogpu.Context) {
 		if err := render.Present(enc, view, p.SurfaceFormat(), fw, fh, e.window); err != nil {
 			log.Printf("gram: a frame not shown: %v", err)
 		}
+	}
+	if logRates && e.current.firsts < 3 {
+		e.current.firsts++
+		log.Printf("gram: the stage's frame %d in %v", e.current.firsts,
+			time.Since(began).Round(10*time.Microsecond))
 	}
 	e.frames++
 	e.spent.update += updated.Sub(began)
@@ -229,6 +239,28 @@ func (e *Engine) frame(dc *gogpu.Context) {
 }
 
 var logRates = os.Getenv("GRAM_FPS_LOG") != ""
+
+// prepare readies a stage entered for its first frame: every shader compiled, what waits on the
+// CPU on the GPU, and a frame drawn and thrown away, for all that is baked, laid out or built as
+// it is first drawn. The time it takes is not the world's.
+func (e *Engine) prepare() {
+	began := time.Now()
+	if err := render.Prepare(); err != nil {
+		log.Fatal(err)
+	}
+	compiled := time.Now()
+	e.window.Clear()
+	e.Draw(e.window)
+	render.Submit()
+	e.current.prepared = true
+	e.timeTracker.restart()
+	if logRates {
+		log.Printf("gram: the stage readied in %v: shaders and uploads %v, a first frame %v",
+			time.Since(began).Round(10*time.Microsecond),
+			compiled.Sub(began).Round(10*time.Microsecond),
+			time.Since(compiled).Round(10*time.Microsecond))
+	}
+}
 
 type spent struct{ update, draw, present time.Duration }
 

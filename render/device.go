@@ -20,5 +20,9 @@ func Present(enc *wgpu.CommandEncoder, view *wgpu.TextureView, format gputypes.T
 	return gpu.Present(enc, view, format, w, h, gfx.GPU(screen).Texture)
 }
 
+// Prepare compiles every shader, fills every image deferred and puts on the GPU every texture
+// whose pixels wait on the CPU: what a stage's first frame would do on its own, done before it.
+func Prepare() error { return gfx.Prepare() }
+
 // Submit sends every draw gathered so far to the GPU.
 func Submit() { gpu.Submit() }

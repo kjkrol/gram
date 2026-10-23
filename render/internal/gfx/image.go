@@ -42,11 +42,36 @@ func (i *Image) SubImage(r image.Rectangle) *Image {
 
 // Defer has fill make the image's pixels as a draw next reads it, when there surely is a GPU: a
 // picture baked or written the first time it is needed. A later Defer before then replaces it.
-func (i *Image) Defer(fill func(dst *Image)) { i.fill = fill }
+func (i *Image) Defer(fill func(dst *Image)) {
+	i.fill = fill
+	deferred[i] = true
+}
+
+// the images whose fills wait and the shaders made, for Prepare
+var (
+	deferred = map[*Image]bool{}
+	shaders  []*Shader
+)
+
+// Prepare compiles every shader made, fills every image deferred and puts on the GPU every
+// texture whose pixels wait on the CPU.
+func Prepare() error {
+	for _, s := range shaders {
+		if err := s.Compile(); err != nil {
+			return fmt.Errorf("render: the %s shader: %w", s.label, err)
+		}
+	}
+	for i := range deferred {
+		i.ready()
+	}
+	gpu.RealizeAll()
+	return nil
+}
 
 func (i *Image) ready() *Image {
 	if fill := i.fill; fill != nil {
 		i.fill = nil
+		delete(deferred, i)
 		fill(i)
 	}
 	return i
@@ -288,8 +313,10 @@ func (s *Shader) program() *gpu.Program {
 // NewShaderWith is a shader on the library and every material registered, with fragment's own
 // uniforms and fragment after them. No material may be registered once it has been built.
 func NewShaderWith(label string, fragment []byte, own []Uniform) *Shader {
-	return &Shader{label: label, source: func() string { return wgsl.SourceWith(fragment) },
+	s := &Shader{label: label, source: func() string { return wgsl.SourceWith(fragment) },
 		layout: func() *gpu.Layout { return wgsl.Layout(own) }}
+	shaders = append(shaders, s)
+	return s
 }
 
 // Program is the shader's program, built on the materials the first time it is asked for.

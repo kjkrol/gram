@@ -22,7 +22,10 @@ import `render` (a cycle) and keep the few helpers they need (`even`, `solid`) a
 device is `render/internal/gpu`, the engine reaching it through `render.UseDevice`, `Windowed`,
 `Present` and `Submit`; a test that draws readies it with `gputest.Need(t)` (`render/gputest`).
 `render` and `ui` are meant to leave gram one day as a module of their own (`kjkrol/uxgpu`):
-they import nothing more of gram than they do now.
+they import nothing more of gram than they do now. A stage is readied before its first frame
+(`Engine.prepare`: `render.Prepare` compiles every shader made, does the deferred fills and puts
+textures written before the device on it; then a frame drawn and thrown away), so nothing is
+compiled or baked in a frame shown; `GRAM_FPS_LOG=1` logs it.
 
 ## Atlases and looks
 

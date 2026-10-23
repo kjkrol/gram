@@ -18,6 +18,8 @@ type stageRuntime struct {
 	world        *world.Plugin
 	carrier      *command.Carrier
 	sceneDrawers map[string][]render.Drawer
+	prepared     bool // its first frame readied (Engine.prepare)
+	firsts       int  // its first frames logged
 }
 
 func (e *Engine) enterStage(stage game.Stage, load *string) (*stageRuntime, error) {
