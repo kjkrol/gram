@@ -222,13 +222,7 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		return // the dressing is readied for the frame, no more
 	}
 	if l.tint, l.tiled = l.tiledBy(m, d, cam); l.tiled {
-		sheet := l.atlas
-		if d != nil {
-			sheet = d.Sheet(l.atlas)
-		}
-		l.tile.Atlas, l.tile.dress = sheet, d
-		l.nextTops()
-		l.tiles.refresh(l, sheet)
+		l.ready(d)
 		l.sectors.see(l.sight)
 		f.DrawOpaque()
 		if l.gridDrawn(cam) {
@@ -293,7 +287,9 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 			}
 			return
 		}
-		l.tiles.draw(t, cam, u, l, l.tint, l.lit() != nil, &l.sectors)
+		if v, ok := l.seeingOf(cam); ok {
+			l.tiles.draw(t, v, u, l, l.tint, l.lit() != nil, &l.sectors)
+		}
 		if l.ground != nil {
 			l.ground.DressGround(t, cam, u)
 		}
@@ -304,6 +300,62 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		l.ground.DressGround(t, cam, u)
 	}
 }
+
+// ready brings the tile map up to the board as the Dressing d draws it
+func (l *Renderer) ready(d Dressing) {
+	sheet := l.atlas
+	if d != nil {
+		sheet = d.Sheet(l.atlas)
+	}
+	l.tile.Atlas, l.tile.dress = sheet, d
+	l.nextTops()
+	l.tiles.refresh(l, sheet)
+}
+
+// seeingOf is how cam sees the tiles; false for a camera without lines of sight
+func (l *Renderer) seeingOf(cam camera.Camera) (seeing, bool) {
+	rays, ok := cam.(camera.Rays)
+	if !ok {
+		return seeing{}, false
+	}
+	f, ok := rays.Rays()
+	if !ok {
+		return seeing{}, false
+	}
+	v := seeing{rays: f}
+	v.w, v.h = cam.Viewport()
+	v.x0, v.x1, v.y0, v.y1 = l.copies(cam)
+	_, v.sways = l.mapping.Look().(Swaying)
+	return v, true
+}
+
+// Whole draws the whole board from above into dst, px pixels a world unit, in light and under the
+// uniforms u, none of it swaying; nothing of a board of no world.
+func (l *Renderer) Whole(dst *render.Image, px float32, light render.Light, u render.Uniforms) {
+	if l.space.Width == 0 || l.space.Height == 0 || px <= 0 {
+		return
+	}
+	d := l.dressing()
+	l.ready(d)
+	if e, ok := d.(EvenLit); ok {
+		if even, ok := e.EvenLight(); ok {
+			for k := range light {
+				light[k] *= even[k]
+			}
+		}
+	}
+	b := dst.Bounds()
+	v := seeing{w: float32(b.Dx()), h: float32(b.Dy()), rays: camera.RayField{
+		Origin: [3]float32{0, 0, wholeEye}, DX: [3]float32{1 / px, 0, 0},
+		DY: [3]float32{0, 1 / px, 0}, Dir: [3]float32{0, 0, -1}}}
+	var none seenSectors
+	t := render.Target{Screen: dst}
+	l.tiles.draw(t, v, u, l, light, false, &none)
+	l.tiles.materials(t)
+}
+
+// how high over the board Whole looks down from
+const wholeEye = 1 << 16
 
 // tiledBy reports whether the tiles are laid on the GPU this frame through cam, and in what light:
 // a flat map over a world, seen through a camera with lines of sight, its Dressing lighting every

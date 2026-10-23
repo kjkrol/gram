@@ -421,22 +421,24 @@ func (g *tiles) writeRect(k int) {
 	g.rects.SubImage(image.Rect(x, y, x+2, y+1)).WritePixels(r[:])
 }
 
-// draw lays the tiles through cam into t's screen, lit as lit says, in tint, of the sectors seen
-// at their levels; their ground's depth into t's depth where it has one
-func (g *tiles) draw(t render.Target, cam camera.Camera, u render.Uniforms, l *Renderer,
-	tint render.Light, lit bool, seen *seenSectors) {
+// seeing is how the tiles are seen: the lines of sight across a viewport w by h, the world's copies
+// from the x0-th to the x1-th across and the y0-th to the y1-th down, and whether they sway
+type seeing struct {
+	rays           camera.RayField
+	w, h           float32
+	x0, x1, y0, y1 int
+	sways          bool
+}
+
+// draw lays the tiles as v sees them into t's screen, lit as lit says, in tint, of the sectors
+// seen at their levels; their ground's depth into t's depth where it has one
+func (g *tiles) draw(t render.Target, v seeing, u render.Uniforms, l *Renderer, tint render.Light,
+	lit bool, seen *seenSectors) {
 	g.laid = false
 	if g.cells == nil || g.sheet == nil {
 		return
 	}
-	rays, ok := cam.(camera.Rays)
-	if !ok {
-		return
-	}
-	f, ok := rays.Rays()
-	if !ok {
-		return
-	}
+	f := v.rays
 	if g.own == nil {
 		g.own, g.opts.Uniforms = map[string]any{}, map[string]any{}
 	}
@@ -449,8 +451,7 @@ func (g *tiles) draw(t render.Target, cam camera.Camera, u render.Uniforms, l *R
 	g.set("RayDir", f.Dir[:]...)
 	g.set("RayDDX", f.DDX[:]...)
 	g.set("RayDDY", f.DDY[:]...)
-	w, h := cam.Viewport()
-	tr, placed := camera.SceneTransform(f, w, h)
+	tr, placed := camera.SceneTransform(f, v.w, v.h)
 	g.set("TileViewProj", tr.M[:]...)
 	deep := t.Depth != nil && placed
 	g.set("TileDeep", flag(deep))
@@ -462,8 +463,8 @@ func (g *tiles) draw(t render.Target, cam camera.Camera, u render.Uniforms, l *R
 	g.set("TileWrap", flag(l.space.Edges.WrapsX()), flag(l.space.Edges.WrapsY()))
 	g.set("TileLit", flag(lit))
 	g.set("TileTint", tint[:]...)
-	_, sways := l.mapping.Look().(Swaying)
-	g.set("TileSways", flag(sways && g.swaying > 0))
+	sways := v.sways && g.swaying > 0
+	g.set("TileSways", flag(sways))
 	var covers [8]float32
 	for i, id := range g.covers {
 		covers[i] = float32(id)
@@ -483,15 +484,14 @@ func (g *tiles) draw(t render.Target, cam camera.Camera, u render.Uniforms, l *R
 	if !shape.Hex {
 		t.Screen.DrawMesh(nil, plainShader, &g.opts)
 	}
-	if shape.Hex || sways && g.swaying > 0 {
+	if shape.Hex || sways {
 		t.Screen.DrawMesh(nil, fullShader, &g.opts)
 	}
 	// over them the covers, then the ways, a copy across each seam the view takes in
 	g.opts.Depth, g.opts.WriteDepth = nil, false
 	if placed && (len(g.coverAt) > 0 || len(g.wayAt) > 0) {
-		x0, x1, y0, y1 := l.copies(cam)
-		for y := y0; y <= y1; y++ {
-			for x := x0; x <= x1; x++ {
+		for y := v.y0; y <= v.y1; y++ {
+			for x := v.x0; x <= v.x1; x++ {
 				g.set("TileShift", float32(x)*float32(l.space.Width),
 					float32(y)*float32(l.space.Height))
 				if !shape.Hex {

@@ -376,3 +376,58 @@ func TestTiles_LayTheCellsOfTheSectorsSeenAtTheirLevels(t *testing.T) {
 			"farther more", near, far)
 	}
 }
+
+// the whole board from above, as the minimap shows it, laid as the CPU composed it once
+func TestTiles_LayTheWholeBoardFromAboveAsTheCPUComposesIt(t *testing.T) {
+	needGPU(t)
+	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
+	road := cell.Kind{SpriteID: 3, Cost: 1, Allows: cell.Land}
+	const mark tag.Tag[effect.States] = 3
+	g := grid.DefaultGrids{}.Square(8, 8, 32)
+	brd, brdW := board.NewBoard(g)
+	brdW.SetAll(grass)
+	m := marked{BoardRead: brd, mark: mark, cells: map[cell.ID]bool{}}
+	for _, at := range [][2]uint32{{2, 2}, {3, 2}, {2, 3}, {5, 5}} {
+		m.cells[g.At(at[0], at[1])] = true
+	}
+	for i := range uint32(8) {
+		brdW.SetWay(g.At(i, i), cell.Way{Kind: road, Width: 9, Links: 0xff})
+	}
+	atlas := render.NewAtlas()
+	atlas.Add(render.SpriteID(1), 32, render.Solid(color.RGBA{R: 60, G: 160, B: 60, A: 255}))
+	atlas.Add(render.SpriteID(2), 32, render.Solid(color.RGBA{R: 240, G: 240, B: 250, A: 255}))
+	atlas.Add(render.SpriteID(3), 32, render.Solid(color.RGBA{R: 150, G: 110, B: 70, A: 255}))
+	atlas.Close()
+	d := draw.NewBands(m)
+	d.Cover(mark, 2)
+	mp := dressed{look.FlatLook(), d}
+	light := render.Light{0.8, 0.9, 1}
+	for _, px := range []float32{1, 0.5} {
+		n := int(256 * px)
+		u := render.UniformsOf(map[string]any{"Pixel": []float32{1 / px}})
+		a, b := make([]byte, 4*n*n), make([]byte, 4*n*n)
+		gpuImg := render.NewImage(n, n)
+		look.NewRenderer(brd, atlas, mp, world.SpaceCfg{Width: 256, Height: 256}).
+			Whole(gpuImg, px, light, u)
+		gpuImg.ReadPixels(a)
+		cpuImg := render.NewImage(n, n)
+		still := render.NewStill()
+		still.Compose(256, 256, look.NewRenderer(brd, atlas, mp, world.SpaceCfg{}).Compose)
+		still.Draw(render.Target{Screen: cpuImg}, nil, u, px, 0, 0, light)
+		cpuImg.ReadPixels(b)
+		off := 0
+		for i := 0; i < len(a); i += 4 {
+			for k := range 4 {
+				if d := int(a[i+k]) - int(b[i+k]); d > 24 || d < -24 {
+					off++
+					break
+				}
+			}
+		}
+		t.Logf("at %v a unit %d pixels differ by over 24", px, off)
+		if off > n*n/100 {
+			t.Errorf("at %v a unit %d pixels differ from the board composed on the CPU, want at "+
+				"most 1%% of them, where the edges of the bands fall", px, off)
+		}
+	}
+}
