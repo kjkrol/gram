@@ -63,8 +63,7 @@ func drawStanding(t *testing.T, d camera.Detail, stands bool, rules ...Rule) *st
 	if err := drawing.Add(rules...); err != nil {
 		t.Fatal(err)
 	}
-	r := newRenderer(flatAtlas{}, func(camera.Camera) *view.View { return v }, &drawing,
-		func() Look { return look })
+	r := newRenderer(flatAtlas{}, seenBy(cam, v), &drawing, func() Look { return look })
 	r.shade(nil, nil)
 	r.lie(nil, nil, map[render.SpriteID]bool{1: stands})
 	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 1024, Height: 1000, BucketSize: 128})
@@ -94,9 +93,7 @@ func drawStanding(t *testing.T, d camera.Detail, stands bool, rules ...Rule) *st
 	}})
 	views := []*view.View{v}
 	view.NewSystem(space, &views, 1024, 1000).Update(nil, 0)
-	var f render.Frame
-	f.Reset(cam)
-	r.Compose(&f, cam)
+	composed(r, cam)
 	return look
 }
 

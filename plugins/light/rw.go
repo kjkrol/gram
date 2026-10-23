@@ -102,9 +102,18 @@ func (l lighting) Join(qb *goke.QueryBuilder) { qb.Optional(&l.p.shadow) }
 
 func (l lighting) Begin(f *render.Frame, cam camera.Camera) { l.p.write.Begin(f, cam) }
 
-func (l lighting) Of(cur *goke.Cursor, i int, box plane.AABB, z world.Z,
+// Mark is the entity's Shadow, its Cast in the low byte and its Take in the high; a Patch taking
+// all, 0, for none.
+func (l lighting) Mark(cur *goke.Cursor, i int) uint16 {
+	if s := l.p.shadow.Slice(cur); s != nil {
+		return uint16(s[i].Cast) | uint16(s[i].Take)<<8
+	}
+	return 0
+}
+
+func (l lighting) Of(mark uint16, box plane.AABB, z world.Z,
 	a render.Appearance) render.Illumination {
-	return l.p.write.Of(cur, i, box, z, a)
+	return l.p.write.Of(mark, box, z, a)
 }
 
 func (l lighting) At(x, y, z float32) render.Illumination { return l.p.read.At(x, y, z) }

@@ -93,7 +93,9 @@
 // into the fog before a camera's sight. Each is lit as the [Lighting] says, the light plugin's
 // ([Write.SetLighting]), in white light without one. In a sector a camera sees coarsely an entity
 // is drawn plainly: no edges, flat where it would stand. [Plugin.WithFog] is the fog's colour in a
-// world without an atmosphere.
+// world without an atmosphere. The entities are published once a frame, after its ticks: the
+// looks' rules settle every one some camera sees, the Lighting marks it, each camera's view is
+// copied, and the frame is drawn of that alone.
 //
 // [Read.Picture] is everything the Stage's plugins draw (plugin.Installer.Draws), one picture
 // for every scene; a scene shows it through a camera, ui.Image(render.NewFeed(camera, it)).

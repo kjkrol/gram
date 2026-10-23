@@ -97,6 +97,7 @@ func Benchmark_Frame_UI(b *testing.B) {
 		drawers = drawersOf(ctx, ui.NewScene("main", screen))
 	})
 	ecs.Tick(step)
+	ctx.publish()
 	screen := render.NewImage(screenW, screenH)
 	b.ReportAllocs()
 	for b.Loop() {

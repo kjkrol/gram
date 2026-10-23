@@ -133,6 +133,9 @@ func (r *Rules) Bind(qb *goke.QueryBuilder) {
 	}
 }
 
+// ruled reports whether any rule is given: without one every entity is drawn as it is.
+func (r *Rules) ruled() bool { return len(r.rules) > 0 }
+
 // Run settles the chunk under cur: layers[i] begins as its i-th entity's render.Appearance and ends as
 // what it is drawn with, shown[i] whether it is drawn; either may be nil.
 func (r *Rules) Run(cur *goke.Cursor, layers [][]render.Appearance, shown []bool) {

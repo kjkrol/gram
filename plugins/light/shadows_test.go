@@ -81,7 +81,8 @@ func gathered(p *light.Plugin, q *goke.Query, base goke.Comp[world.Base],
 		cur := q.Cursor()
 		for i := range cur.IDs {
 			box := base.Slice(cur)[i].Pos.AABB
-			p.Write().Of(cur, i, box, world.Z{Height: 4}, render.Appearance{SpriteID: 1})
+			p.Write().Of(light.Lighting(p).Mark(cur, i), box, world.Z{Height: 4},
+				render.Appearance{SpriteID: 1})
 		}
 	}
 	return light.Casts(p), light.Shaped(p)

@@ -67,6 +67,7 @@ func Benchmark_Frame_Topography(b *testing.B) {
 			cam.SetViewport(sc.w, sc.h)
 			cam.CenterOn(96*32/2, 64*32/2, 0)
 			ctx.ecs.Tick(step)
+			ctx.publish()
 			picture := ctx.world.Read(0).Picture()
 			screen := render.NewImage(int(sc.w), int(sc.h))
 			buf := make([]byte, 4*int(sc.w)*int(sc.h))
@@ -87,6 +88,7 @@ func Benchmark_Frame_Topography(b *testing.B) {
 			render.Submit()
 			screen.ReadPixels(buf)
 			ctx.ecs.Tick(step)
+			ctx.publish()
 			b.ReportAllocs()
 			for b.Loop() {
 				screen.Clear()

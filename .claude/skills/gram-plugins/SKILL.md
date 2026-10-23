@@ -141,8 +141,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   a `render.Direct`: its `Begin` (called by the world's renderer, `world.Lighting`) hands the
   frame the distant light's uniforms (`internal/distant`'s `light.wgsl`: `lightWay`, `U.LightWay`,
   `U.LightStrength`, `U.LightColor`, `U.AmbientColor`, `U.Ambience`) and the `MaxLamps` 8 lamps
-  nearest the camera (`lamps.wgsl`: `lampLightAt(p)`, `U.LampCount`, `Lamp{k}At/Color`); `Of`
-  lights an entity (`render.Illumination{Light, Lamps, Direct, Takes}`) and gathers its live shadow
+  nearest the camera (`lamps.wgsl`: `lampLightAt(p)`, `U.LampCount`, `Lamp{k}At/Color`); `Mark`
+  keeps an entity's `Shadow` as it is published (`Cast` low byte, `Take` high), `Of(mark, …)`
+  lights it (`render.Illumination{Light, Lamps, Direct, Takes}`) and gathers its live shadow
   through the `ShadowPolicy` (`WithShadowPolicy`, by the distance from the eye): the sun's
   (`Sun.ShadowOf`/`SilhouetteOf`, an `Umbra`, the sprite's shape flipped to the side it faces)
   and on level ground the `Casting()` lamps' (`Lamp.ShadowOf`; `Config.LampShadows` nearest the

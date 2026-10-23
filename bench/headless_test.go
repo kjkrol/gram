@@ -25,6 +25,7 @@ type headless struct {
 	ecs     *goke.ECS
 	world   *world.Plugin
 	cam     camera.Camera
+	cameras *cameras.Plugin
 	tracked []any
 	pending []func() []goke.System
 	tps     game.TPS
@@ -72,13 +73,16 @@ func (c *headless) UseWorld(cfg world.Config) *world.Plugin {
 	return c.world
 }
 
-// w, h 0: the whole world
+// w, h 0: the whole world; cfg the first camera's, for every one
 func (c *headless) camera(cfg cameras.Config, start cameras.Start, w, h float32) camera.Camera {
 	if w == 0 {
 		space := c.world.Res.Config.Space
 		w, h = float32(space.Width), float32(space.Height)
 	}
-	cam := cameras.NewPlugin(c.world, cfg).Write().New(start, camera.Config{})
+	if c.cameras == nil {
+		c.cameras = cameras.NewPlugin(c.world, cfg)
+	}
+	cam := c.cameras.Write().New(start, camera.Config{})
 	cam.SetViewport(w, h)
 	cam.MoveTo(0, 0)
 	return cam
@@ -141,6 +145,20 @@ func (c *headless) bound() []goke.System {
 		}
 	}
 	return out
+}
+
+// publish has the sources drawn publish, then swap, as the engine does once a frame.
+func (c *headless) publish() {
+	for _, s := range c.drawn {
+		if p, ok := s.(plugin.Publisher); ok {
+			p.Publish()
+		}
+	}
+	for _, s := range c.drawn {
+		if p, ok := s.(plugin.Publisher); ok {
+			p.Swap()
+		}
+	}
 }
 
 // Drawn is what the installed plugins draw, for the world's picture.

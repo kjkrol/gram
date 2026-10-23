@@ -74,7 +74,10 @@ effect among them — `Kinds().NewSprite()` and the board's panic past that (a b
 The world of a Stage is one `render.Composer`, `world.Plugin.Picture()`, over the
 `render.Source`s its plugins gave `ctx.Draws` (2026-10-15, stage 3: no `Renderer()`, no
 `picture()` in a demo; the engine readies each source drawn that is a `plugin.Bound`, once,
-however many scenes show it). The one other composer is a minimap's (`plugins/minimap`): its own
+however many scenes show it; a source that is a `plugin.Publisher` publishes once a frame after
+its ticks and swaps a `render.Buffered` before the frame is drawn: the world's entities are, the
+rules run once for every camera's sight together, each camera's `view.View` copied
+(`CopyInto`), the drawing reading the front alone, 2026-10-23). The one other composer is a minimap's (`plugins/minimap`): its own
 three sources, none in `ctx.Draws`, its marks readied through a Setup provider, through an inner
 camera of its own, drawn anew at most 30 times a second (a `render.Surface` returning its last
 image in between; `ui.Image` lays it out every frame, so a resize alone forces a redraw).

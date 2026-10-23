@@ -231,8 +231,11 @@ func (e *Engine) frame(dc *gogpu.Context) {
 		n := time.Duration(e.frames)
 		render.SetSpent(e.spent.update/n, e.spent.draw/n, e.spent.present/n)
 		if logRates {
-			log.Printf("gram: %.1f FPS at %dx%d: a frame's tick %v, drawing %v, presenting %v", rate, fw, fh,
-				(e.spent.update / n).Round(10*time.Microsecond), (e.spent.draw / n).Round(10*time.Microsecond), (e.spent.present / n).Round(10*time.Microsecond))
+			log.Printf("gram: %.1f FPS at %dx%d: a frame's tick %v (publishing %v), drawing %v, "+
+				"presenting %v", rate, fw, fh, (e.spent.update / n).Round(10*time.Microsecond),
+				(e.spent.publish / n).Round(10*time.Microsecond),
+				(e.spent.draw / n).Round(10*time.Microsecond),
+				(e.spent.present / n).Round(10*time.Microsecond))
 		}
 		e.frames, e.counted, e.spent = 0, time.Now(), spent{}
 	}
@@ -262,7 +265,7 @@ func (e *Engine) prepare() {
 	}
 }
 
-type spent struct{ update, draw, present time.Duration }
+type spent struct{ update, publish, draw, present time.Duration }
 
 // Frame runs a frame's Update and hands the renderer what it draws: every Publisher of the stage
 // publishes, then swaps; not while a stage switch is pending. It returns Termination once the
@@ -272,7 +275,9 @@ func (e *Engine) Frame() error {
 		return err
 	}
 	if e.pendingSwitch == "" {
+		began := time.Now()
 		e.current.publish()
+		e.spent.publish += time.Since(began)
 	}
 	return nil
 }

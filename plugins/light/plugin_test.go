@@ -261,7 +261,7 @@ func TestPlugin_OfTakesWhatTheEntitysShadowSays(t *testing.T) {
 		cur := q.Cursor()
 		for i := range cur.IDs {
 			box := base.Slice(cur)[i].Pos.AABB
-			lit := p.Write().Of(cur, i, box, world.Z{}, render.Appearance{})
+			lit := p.Write().Of(light.Lighting(p).Mark(cur, i), box, world.Z{}, render.Appearance{})
 			if box.TopLeft.Y == 520 { // the plain one
 				if lit.Takes != 0 || lit.Lamps != (render.Light{}) || lit.Light != (render.Light{1, 1, 1}) {
 					t.Errorf("what shines is lit %+v, want white, taking nothing", lit)

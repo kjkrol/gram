@@ -21,10 +21,10 @@ import (
 type whiteLighting struct{}
 
 func (whiteLighting) Join(*goke.QueryBuilder)                {}
+func (whiteLighting) Mark(*goke.Cursor, int) uint16          { return 0 }
 func (whiteLighting) Begin(*render.Frame, camera.Camera)     {}
 func (whiteLighting) At(x, y, z float32) render.Illumination { return render.WhiteLight }
-func (whiteLighting) Of(*goke.Cursor, int, plane.AABB, world.Z,
-	render.Appearance) render.Illumination {
+func (whiteLighting) Of(uint16, plane.AABB, world.Z, render.Appearance) render.Illumination {
 	return render.WhiteLight
 }
 

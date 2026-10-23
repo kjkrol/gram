@@ -87,7 +87,8 @@ func NewPlugin(cfg Config) *Plugin {
 	p.reads = parallel.Reads[*Read]{&p.read}
 	// the clock's entity is the world's own
 	p.Self = newSelf(p, p.Name(), comp.Const(m.clock.Read().State()))
-	p.renderer = newRenderer(nil, p.read.ViewFor, &m.drawing, p.read.Look)
+	p.renderer = newRenderer(nil, func() map[camera.Camera]*view.View { return p.views }, &m.drawing,
+		p.read.Look)
 	p.sectors = newSectorsView(p)
 	p.renderer.clock = m.clock.Read().Shown
 	return p

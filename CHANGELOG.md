@@ -27,6 +27,18 @@
   Picture draws its world, and the Composer readies nothing. What reads the world is a
   `plugin.Bound`, readied once by the engine; `game.Scene.Drawers` returns `[]render.Renderer`,
   so a picture or a source listed in a scene no longer compiles (the engine's check is gone).
+- The world's entities are published once a frame and drawn from what was published: the looks'
+  rules run once for every camera's sight together, not once a camera (none where a scene has
+  no rule), and each entity some camera sees is kept in 80 bytes (its box, heading, speed and Z
+  in float32, its layers and how far their materials have run, a Lie apart, the light's mark);
+  each camera draws through a copy of its view (`view.View.CopyInto`). `GRAM_FPS_LOG` shows the
+  publishing apart. 5,000 boxes (`Benchmark_World_Draw`, new `Benchmark_World_Publish` and
+  `Benchmark_World_Frame`), before → drawing + publishing: in full view 445 → 467 + 70 µs, a
+  quarter 125 → 120 + 27, a twentieth 30 → 24 + 12, two cameras a quarter each 242 → 239 + 45;
+  motion/collision 1.45 ms → 1.24 + 0.42. Done one after the other the copy is a price, meant to
+  be paid on the ticks' side once the frame is drawn beside them.
+- Breaking: `world.Lighting` marks an entity as it is published (`Mark(cur, i) uint16`) and lights
+  it by the mark (`Of(mark, box, z, a)`); `light.Write.Of` takes the mark.
 
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an

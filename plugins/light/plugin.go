@@ -315,15 +315,12 @@ func (r *Read) Casting() []Lamp {
 	return r.p.near[:min(len(r.p.near), r.p.Res.Settings.LampShadows)]
 }
 
-// Of is the light on the entity i of the chunk at cur, standing in box as z says and drawn as a,
-// taking what its Shadow says; the entity's live shadow is gathered for the picture begun.
-func (w *Write) Of(cur *goke.Cursor, i int, box plane.AABB, z world.Z,
+// Of is the light on the entity of the mark its Shadow left (world.Lighting), standing in box as
+// z says and drawn as a; the entity's live shadow is gathered for the picture begun.
+func (w *Write) Of(mark uint16, box plane.AABB, z world.Z,
 	a render.Appearance) render.Illumination {
 	p := w.p
-	takes, casting := render.TakesAll, Patch
-	if s := p.shadow.Slice(cur); s != nil {
-		takes, casting = taken(s[i].Take), s[i].Cast
-	}
+	takes, casting := taken(render.Taking(mark>>8)), Casting(mark)
 	p.cast(box.AABB, z, a, casting)
 	return p.on(float32(box.TopLeft.X+box.Size.X/2), float32(box.TopLeft.Y+box.Size.Y/2),
 		float32(z.Altitude), takes)

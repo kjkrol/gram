@@ -53,14 +53,15 @@ type UprightLook interface {
 		a render.Appearance, lit render.Illumination)
 }
 
-// Lighting is what lights the world's entities, a plugin's (Plugin.SetLighting): it joins its
-// columns to the renderer's query, is readied for each frame through a camera, and says the
-// light on every entity drawn, the row i of the chunk at cur standing in box as z says, its
-// first layer settled as a.
+// Lighting is what lights the world's entities, a plugin's (Plugin.SetLighting). As they are
+// published it joins its columns to the renderer's query and marks the row i of the chunk at
+// cur; as they are drawn it is readied for each frame through a camera and says the light on
+// each by its mark, standing in box as z says, its first layer settled as a.
 type Lighting interface {
 	Join(qb *goke.QueryBuilder)
+	Mark(cur *goke.Cursor, i int) uint16
 	Begin(f *render.Frame, cam camera.Camera)
-	Of(cur *goke.Cursor, i int, box plane.AABB, z Z, a render.Appearance) render.Illumination
+	Of(mark uint16, box plane.AABB, z Z, a render.Appearance) render.Illumination
 	// At is the light on the ground at the world point, taking every shade.
 	At(x, y, z float32) render.Illumination
 }
