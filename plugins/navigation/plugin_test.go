@@ -29,6 +29,7 @@ type stubInstallCtx struct {
 	ecs     *goke.ECS
 	pending []func() []goke.System
 	drawn   []render.Source
+	pool    *parallel.Pool // nil: one goroutine
 }
 
 func (c *stubInstallCtx) UseModule(m goke.Module) {
@@ -203,7 +204,7 @@ func TestPlugin_TheRoutesAreTheSettingsScreensAndSaved(t *testing.T) {
 func (c *stubInstallCtx) Hosts(h ...host.Host)     { c.hosts = append(c.hosts, h...) }
 func (c *stubInstallCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
 func (c *stubInstallCtx) Looks(func())             {}
-func (*stubInstallCtx) Pool() *parallel.Pool       { return nil }
+func (c *stubInstallCtx) Pool() *parallel.Pool     { return c.pool }
 
 // as the engine does with the roles played once a Stage's Init returns
 func (c *stubInstallCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

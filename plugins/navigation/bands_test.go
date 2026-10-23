@@ -31,7 +31,7 @@ func TestNavigation_GoesOnInAFartherBandAndStandsBeyondTheLast(t *testing.T) {
 	units := []navUnit{walker(2, 8), walker(40, 46), walker(70, 76)}
 	var base goke.Comp[world.Base]
 	var q *goke.Query
-	nw := newNavWorldIn(t, cols, rows, legCellSize, units, world.SectorsCfg{
+	nw := newNavWorldIn(t, nil, cols, rows, legCellSize, units, world.SectorsCfg{
 		Buckets: 2,
 		Bands: []sector.Band{
 			{Reach: 600},

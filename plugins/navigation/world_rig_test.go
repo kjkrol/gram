@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -63,11 +64,11 @@ func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, aft
 func newNavWorldWith(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 	prepare func(*world.Plugin, *board.Plugin), after ...goke.System) *navWorld {
 	t.Helper()
-	return newNavWorldIn(t, cols, rows, cellSize, units, world.SectorsCfg{}, prepare, after...)
+	return newNavWorldIn(t, nil, cols, rows, cellSize, units, world.SectorsCfg{}, prepare, after...)
 }
 
-// the world cut into sectors as given
-func newNavWorldIn(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
+// the world cut into sectors as given, the plugins working on pool
+func newNavWorldIn(t testing.TB, pool *parallel.Pool, cols, rows, cellSize uint32, units []navUnit,
 	sectors world.SectorsCfg, prepare func(*world.Plugin, *board.Plugin),
 	after ...goke.System) *navWorld {
 	t.Helper()
@@ -90,7 +91,7 @@ func newNavWorldIn(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 	if err := w.Carry(nw.nav); err != nil { // as the engine does with Use
 		t.Fatal(err)
 	}
-	ctx := &stubInstallCtx{ecs: goke.New()}
+	ctx := &stubInstallCtx{ecs: goke.New(), pool: pool}
 	for _, install := range []func() error{
 		func() error { return w.Install(ctx) },
 		func() error { return m.Install(ctx) },

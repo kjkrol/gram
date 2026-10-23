@@ -571,6 +571,23 @@ Since wave 5 the benchmark no longer measures the A*: a `MoveTo` does not search
 answers through its memory of answers, and the walker is sent between the same two goals, so
 after the first two ticks every route is a kept answer: 14.9 → 0.7 ms.
 
+### The routing alone — `Benchmark_Routing_Path`, `Benchmark_Routing_Routes`
+
+In `plugins/navigation`, the same board laid through the board and navigation plugins: every
+iteration each unit asks for its route anew, the board touched so that nothing kept answers it,
+and only the routing's `Coordinator.Update` is timed. One run each, an idle machine, 2026-10-23.
+
+| Benchmark | Routes | A tick | Allocations |
+|:---|---:|---:|---:|
+| `Routing_Path` (one route, the A*) | 1 | 15.2 ms | 0 |
+| `Routing_Routes/workers=1` | 32 | 256 ms | — |
+| `Routing_Routes/workers=all` (4 routers) | 32 | 77.8 ms | 0 |
+
+The A* of a route across the board costs what `Navigation_Path` measured before wave 5. On the
+pool the 4 routers plan 32 routes 3.3 times as fast as one goroutine, 4 the most they could. A
+router's tables (a read of each cell, 64 bytes, and astar's dictionaries) are made at its first
+search: over a few iterations they show as allocations (2 a search at 20, 0 at 200).
+
 **After etap 2b** (2026-10-20, `n/bodies`): the keepings' passes allocate nothing per unit (the
 body index, a step's ground check and a route round the cells learned go through method values
 bound once, a leg's cells are arrays) and a step aside asks the ground only of the cells it

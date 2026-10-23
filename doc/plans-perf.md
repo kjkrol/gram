@@ -940,9 +940,10 @@ po jednym przebiegu.
 | 5 | czyszczenie znaczników | crowded 1000 8,78 → 9,00 ms, maszyna obciążona, w szumie |
 
 **Otwarte.**
-- Żaden benchmark nie ma jeszcze w mierzonym oknie wielu jednoczesnych próśb o trasę, więc zysk z
-  puli w routingu nie jest zmierzony.
-- `Navigation_Path` mierzy pamięć odpowiedzi; jeśli ma znowu mierzyć A*, trzeba go przebudować
-  (decyzja użytkownika).
+- Zmierzone 2026-10-23 samym routingiem (`plugins/navigation`, `Routing_Path`,
+  `Routing_Routes`, każde wyszukiwanie od nowa): A* trasy przez planszę 200×200 15,2 ms, tyle co
+  `Navigation_Path` przed falą 5; 32 trasy naraz 256 ms na jednym wątku, 77,8 ms na puli (4
+  routery, 3,3×). Tablice routera powstają przy jego pierwszym wyszukiwaniu, potem 0 alokacji.
+- `Navigation_Path` w `bench` mierzy pamięć odpowiedzi; do decyzji, czy go zostawić.
 - Na później: wielu piszących do `Space` (wkład na wątek, sklejenie przez koordynatora, jedno
   `RebuildRuns`); płaska plansza drogą GPU topografii (bez składania kafli w rendererze planszy).
