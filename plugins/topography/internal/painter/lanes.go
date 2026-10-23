@@ -2,6 +2,7 @@ package painter
 
 import (
 	"embed"
+	"image"
 
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/render"
@@ -91,7 +92,7 @@ func (l *Painter) DrawWays(dst *render.Image, atlas render.AtlasSource, px float
 	}
 	u.Into(b.opts.Uniforms)
 	detail := min(max((l.cellPx-farCell)/(nearCell-farCell), 0), 1)
-	l.paintSet(dst, 0, px, detail, false)
+	l.paintSet(dst, layerAlbedo, image.Point{}, 0, px, detail, false)
 	b.opts.Images = [4]*render.Image{atlas.Atlas(), l.cells.rects, l.cells.img, nil}
 	b.opts.Instances, b.opts.Vertices = b.ways, wayVertices
 	dst.DrawMesh(nil, topsShader, &b.opts)

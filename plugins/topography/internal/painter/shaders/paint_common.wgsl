@@ -34,12 +34,15 @@ fn byteIn(t: vec4<f32>, k: i32) -> u32 {
 }
 
 // Top is what the bake reads of a cell to lay its ground: its kind's sprite, its flags, its
-// spread (0 to a half) and its shine.
+// spread (0 to a half), its shine, how fast its water runs down a slope of 1 in 1 and its kind's
+// detail.
 struct Top {
     sprite: u32,
     flags: u32,
     spread: f32,
     shine: f32,
+    flow: f32,
+    detail: u32,
 }
 
 // topOf is the cell b's Top.
@@ -51,7 +54,39 @@ fn topOf(b: vec2<f32>) -> Top {
     out.flags = byteIn(t0, 2);
     out.spread = f32(byteIn(t0, 3)) / 510.0;
     out.shine = f32(byteIn(t1, 0)) / 255.0;
+    out.flow = f32(byteIn(t1, 1) | (byteIn(t1, 2) << 8u)) / 16.0;
+    out.detail = byteIn(t1, 3);
     return out;
+}
+
+// groundOf is the ground at the cell b's corners: top-left, top-right, bottom-left,
+// bottom-right, U.PaintLow plus U.PaintSpan at most.
+fn groundOf(b: vec2<f32>) -> vec4<f32> {
+    let a = texelOf(b, 2.0, 1.0);
+    let c = texelOf(b, 3.0, 1.0);
+    let v = vec4<f32>(f32(byteIn(a, 0) | (byteIn(a, 1) << 8u)),
+        f32(byteIn(a, 2) | (byteIn(a, 3) << 8u)), f32(byteIn(c, 0) | (byteIn(c, 1) << 8u)),
+        f32(byteIn(c, 2) | (byteIn(c, 3) << 8u)));
+    return U.PaintLow + v / 65535.0 * U.PaintSpan;
+}
+
+// the layers the bake paints (U.PaintLayer): the albedo, the detail of each pixel's kind in red,
+// and the water's: how it flows, how it shines, how its mouths glint (water.FlowLayer…)
+const layerAlbedo: i32 = 0;
+const layerKinds: i32 = 1;
+const layerFlow: i32 = 2;
+const layerShine: i32 = 3;
+const layerMouth: i32 = 4;
+
+// layer is the layer this pass paints.
+fn layer() -> i32 {
+    return i32(U.PaintLayer + 0.5);
+}
+
+// flowOf is a speed v as the water's layers hold it: over twice U.PaintFlowSpan
+// (water.FlowSpan), a half for none.
+fn flowOf(v: f32) -> f32 {
+    return clamp(v / (2.0 * U.PaintFlowSpan) + 0.5, 0.0, 1.0);
 }
 
 // land reports whether a cell of top runs into the cells round it: no lying under them, a

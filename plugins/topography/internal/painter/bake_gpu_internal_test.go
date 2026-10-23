@@ -35,10 +35,13 @@ func bakedBoard(t *testing.T) (*Painter, *board.BoardWrite, render.AtlasSource, 
 	st := map[cell.Name]Style{}
 	g := grid.DefaultGrids{}.Square(16, 12, 32)
 	brd, brdW := newBoard(g)
+	grain := image.NewRGBA(image.Rect(0, 0, 8, 8))
 	grass := styled(st, cell.Kind{Name: cell.Named("b1"), Allows: cell.Land, SpriteID: 1},
-		Style{Spread: 0.3})
+		Style{Spread: 0.3, Detail: Detail{Image: grain}})
 	sand := styled(st, cell.Kind{Name: cell.Named("b2"), Allows: cell.Land, SpriteID: 2},
-		Style{Spread: 0.2})
+		Style{Spread: 0.2, Detail: Detail{Image: grain, Across: 2}})
+	brook := styled(st, cell.Kind{Name: cell.Named("b5"), Allows: cell.Water, SpriteID: 4},
+		Style{Shine: 0.7, Flow: 30})
 	rock := cell.Kind{Name: cell.Named("b3"), Allows: cell.Land, SpriteID: 3, Height: 10}
 	sea := styled(st, cell.Kind{Name: cell.Named("b4"), Allows: cell.Water, SpriteID: 4},
 		Style{Under: true, Shine: 0.8})
@@ -56,7 +59,10 @@ func bakedBoard(t *testing.T) (*Painter, *board.BoardWrite, render.AtlasSource, 
 	}
 	brdW.Set(g.At(1, 1), rock)
 	brdW.Set(g.At(2, 6), sand)
-	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 20 + p.X/16 - p.Y/32 })
+	for y := uint32(5); y < 10; y++ {
+		brdW.Set(g.At(12, y), brook) // running down the slope
+	}
+	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 20 + p.X/16 - p.Y/8 })
 	atlas := render.NewAtlas()
 	for id, c := range map[render.SpriteID]color.RGBA{1: {90, 160, 70, 255},
 		2: {210, 190, 120, 255}, 3: {120, 120, 130, 255}, 4: {40, 80, 170, 255}} {
@@ -64,7 +70,7 @@ func bakedBoard(t *testing.T) (*Painter, *board.BoardWrite, render.AtlasSource, 
 	}
 	atlas.Close()
 	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
-	d.kinds = kindsOf{grass, sand, rock, sea}
+	d.kinds = kindsOf{grass, sand, rock, sea, brook}
 	return d, brdW, atlas, g
 }
 
@@ -95,27 +101,57 @@ func differ(t *testing.T, a, b *render.Image) int {
 	return off
 }
 
-func TestPainter_BakesTheAlbedoOnTheGPUAsOnTheCPU(t *testing.T) {
+// bakedApart bakes the board on the GPU into a sheet of its own as the CPU paints its Surface,
+// and counts the pixels of each layer apart: the albedo, the kinds' details, the water
+func bakedApart(t *testing.T, d *Painter, atlas render.AtlasSource, laid *groundSheet) [3]int {
+	t.Helper()
+	d.Surface(atlas)
+	cpu := d.albedo
+	d.refresh(atlas)
+	d.bake(laid, atlas, d.toPaint())
+	var off [3]int
+	for k, x := range [3][2]*render.Image{{laid.img, cpu.img}, {laid.kinds, cpu.kinds},
+		{laid.water, cpu.water}} {
+		t.Run([]string{"albedo", "kinds", "water"}[k], func(t *testing.T) {
+			off[k] = differ(t, x[0], x[1])
+			if !painted(x[1]) {
+				t.Error("the CPU painted nothing into it, want a layer to compare")
+			}
+		})
+	}
+	return off
+}
+
+// painted reports whether img holds a pixel of any colour
+func painted(img *render.Image) bool {
+	pix := make([]byte, 4*img.Bounds().Dx()*img.Bounds().Dy())
+	img.ReadPixels(pix)
+	for i := 0; i < len(pix); i += 4 {
+		if pix[i] != 0 || pix[i+1] != 0 || pix[i+2] != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func TestPainter_BakesTheGroundOnTheGPUAsOnTheCPU(t *testing.T) {
 	needGPU(t)
 	d, brdW, atlas, g := bakedBoard(t)
-	cpu, _, px, _ := d.Surface(atlas)
-	laid := render.NewImage(cpu.Bounds().Dx(), cpu.Bounds().Dy())
-	d.refresh(atlas)
-	d.bakeAlbedo(laid, atlas, px, d.toPaint())
-	if off := differ(t, laid, cpu); off > 0 {
-		t.Errorf("%d pixels of the albedo differ from the CPU's, want none", off)
+	laid := d.newSheet(atlas, true)
+	if off := bakedApart(t, d, atlas, laid); off != [3]int{} {
+		t.Errorf("%v pixels of the albedo, the kinds and the water differ from the CPU's, want "+
+			"none", off)
 	}
 	// a cell changed, painted anew round it alone
 	brdW.Set(g.At(8, 1), d.kinds.(kindsOf)[3])
-	cpu, _, _, _ = d.Surface(atlas)
 	d.refresh(atlas)
 	if at := d.toPaint(); len(at) != 4*20 {
 		t.Errorf("one cell by the edge changed, %d cells painted anew, want the 20 within two "+
 			"on the board", len(at)/4)
 	}
-	d.bakeAlbedo(laid, atlas, px, d.toPaint())
-	if off := differ(t, laid, cpu); off > 0 {
-		t.Errorf("a cell changed, %d pixels of the albedo differ from the CPU's, want none", off)
+	if off := bakedApart(t, d, atlas, laid); off != [3]int{} {
+		t.Errorf("a cell changed, %v pixels of the albedo, the kinds and the water differ from "+
+			"the CPU's, want none", off)
 	}
 }
 
@@ -125,12 +161,13 @@ func wayBoard(t *testing.T, g grid.Grid) (*Painter, *board.BoardWrite, render.At
 	t.Helper()
 	st := map[cell.Name]Style{}
 	brd, brdW := newBoard(g)
+	grain := image.NewRGBA(image.Rect(0, 0, 8, 8))
 	grass := styled(st, cell.Kind{Name: cell.Named("w1"), Allows: cell.Land, SpriteID: 1},
-		Style{Spread: 0.3})
+		Style{Spread: 0.3, Detail: Detail{Image: grain}})
 	sea := styled(st, cell.Kind{Name: cell.Named("w2"), Allows: cell.Water, SpriteID: 2},
 		Style{Under: true, Shine: 0.8})
 	road := styled(st, cell.Kind{Name: cell.Named("w3"), Allows: cell.Land, SpriteID: 3},
-		Style{})
+		Style{Detail: Detail{Image: grain, Across: 3}})
 	river := styled(st, cell.Kind{Name: cell.Named("w4"), Allows: cell.Land | cell.Water,
 		SpriteID: 4}, Style{Shine: 0.9, Flow: 22, MixWith: "w2"})
 	brdW.SetAll(grass)
@@ -194,22 +231,14 @@ func TestPainter_BakesTheWaysOnTheGPUAsOnTheCPU(t *testing.T) {
 	needGPU(t)
 	g := grid.DefaultGrids{}.Square(16, 12, 32)
 	d, brdW, atlas := wayBoard(t, g)
-	cpu, _, px, _ := d.Surface(atlas)
-	laid := render.NewImage(cpu.Bounds().Dx(), cpu.Bounds().Dy())
-	bake := func() {
-		d.refresh(atlas)
-		at := d.toPaint()
-		d.bakeAlbedo(laid, atlas, px, at)
-		d.bakeWays(laid, atlas, px, at)
-	}
-	bake()
-	if off := differ(t, laid, cpu); off > 0 {
-		t.Errorf("%d pixels of the albedo with its ways differ from the CPU's, want none", off)
+	laid := d.newSheet(atlas, true)
+	if off := bakedApart(t, d, atlas, laid); off != [3]int{} {
+		t.Errorf("%v pixels of the albedo, the kinds and the water with the ways differ from the "+
+			"CPU's, want none", off)
 	}
 	brdW.SetWay(g.At(8, 4), cell.Way{Kind: d.kinds.(kindsOf)[2], Width: 7, Links: 0x0f})
-	cpu, _, _, _ = d.Surface(atlas)
-	bake()
-	if off := differ(t, laid, cpu); off > 0 {
-		t.Errorf("a way laid, %d pixels of the albedo differ from the CPU's, want none", off)
+	if off := bakedApart(t, d, atlas, laid); off != [3]int{} {
+		t.Errorf("a way laid, %v pixels of the albedo, the kinds and the water differ from the "+
+			"CPU's, want none", off)
 	}
 }

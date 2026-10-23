@@ -137,17 +137,6 @@ fn cellAt(p: vec2<f32>) -> vec2<f32> {
     return floor(p / s);
 }
 
-// groundOf is the ground at the cell b's corners: top-left, top-right, bottom-left,
-// bottom-right.
-fn groundOf(b: vec2<f32>) -> vec4<f32> {
-    let a = texelOf(b, 2.0, 1.0);
-    let c = texelOf(b, 3.0, 1.0);
-    let v = vec4<f32>(f32(byteIn(a, 0) | (byteIn(a, 1) << 8u)),
-        f32(byteIn(a, 2) | (byteIn(a, 3) << 8u)), f32(byteIn(c, 0) | (byteIn(c, 1) << 8u)),
-        f32(byteIn(c, 2) | (byteIn(c, 3) << 8u)));
-    return U.PaintLow + v / 65535.0 * U.PaintSpan;
-}
-
 // groundAt is the ground at p as the relief has it (relief.GroundAt): over a square cell its two
 // triangles split along the diagonal whose corners stand nearer in height; a hex cell's level; 0
 // off the board.
@@ -519,7 +508,7 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>) -> Lane 
     if !p.faded && mixShine * max(mix.x, mix.y) > 0.0 {
         bits |= laneGlints;
     }
-    let px = corner * U.PaintScale;
+    let px = corner * U.PaintScale + U.PaintOrigin;
     out.clip = vec4<f32>(px.x / U.PaintTarget.x * 2.0 - 1.0, 1.0 - px.y / U.PaintTarget.y * 2.0,
         0.0, 1.0);
     out.world = corner;
@@ -537,6 +526,6 @@ fn masked(frag: vec2<f32>) -> bool {
     if U.PaintMasked < 0.5 {
         return false;
     }
-    let c = floor(frag / U.PaintPx);
+    let c = floor((frag - U.PaintOrigin) / U.PaintPx);
     return imageSrc3At(imageSrc3Origin() + c + 0.5).r < 0.5;
 }
