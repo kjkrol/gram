@@ -92,9 +92,10 @@ func Benchmark_Frame_UI(b *testing.B) {
 		atlas := render.NewAtlas()
 		atlas.Add(movers.SpriteID(), 20, render.Solid(color.RGBA{R: 90, G: 200, B: 110, A: 255}))
 		atlas.Close()
-		w.SetAtlas(atlas)
+		w.Write().SetAtlas(atlas)
+		ctx.look()
 		screen := ui.Layers(
-			ui.Image(render.NewFeed(ctx.cam, w.Picture())),
+			ui.Image(render.NewFeed(ctx.cam, w.Read(0).Picture())),
 			ui.TopLeft(ui.Panel(ui.LabelOf(l)).Fill(color.RGBA{A: 160}).Steady()).Margin(8),
 			ui.BottomRight(ui.Button("Quit")).Margin(8),
 		)

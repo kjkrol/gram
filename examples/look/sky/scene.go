@@ -31,13 +31,13 @@ func (m *mainScene) screen() *ui.Element {
 		Style(SandCell, painter.Style{Spread: 0.35}).
 		Style(EarthCell, painter.Style{Spread: 0.3}).
 		Style(RockCell, painter.Style{Spread: 0.25})
-	a.topography.WithAtmosphere(a.atmosphere)
+	a.topography.WithAtmosphere(a.atmosphere.Read(0))
 
-	paused := func() bool { return a.world.Clock().State().Paused }
-	cam := a.cameras.New(cameras.Isometrically, camera.Config{})
+	paused := func() bool { return a.world.Read(0).Clock().State().Paused }
+	cam := a.cameras.Write().New(cameras.Isometrically, camera.Config{})
 	return ui.Layers(
-		ui.Image(render.NewFeed(cam, a.world.Picture())).Input(a.players.Through(a.player)),
-		ui.Drawer(a.world.Clock().HUD()),
+		ui.Image(render.NewFeed(cam, a.world.Read(0).Picture())).Input(a.players.Through(a.player)),
+		ui.Drawer(a.world.Read(0).Clock().HUD()),
 		ui.TopMiddle(beside(a.atmosphere.Bar(), paused)).Margin(8),
 	)
 }

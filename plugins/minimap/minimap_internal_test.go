@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
@@ -92,9 +93,9 @@ func TestMinimap_FollowsItsCameraTurningWithItOnlyWhenAsked(t *testing.T) {
 	if m.lens.scale != 0.25 {
 		t.Errorf("a picture 100 across reaching 200 is %v a unit, want 0.25", m.lens.scale)
 	}
-	w.Carrier().Put(command.Nobody, Turn{On: true})
+	w.Write().Carrier().Put(command.Nobody, Turn{On: true})
 	p.RunPlan(nil, 0)
-	if !p.Turning() || m.lens.ax != 1 || m.lens.ay != 0 {
+	if !p.read.Turning() || m.lens.ax != 1 || m.lens.ay != 0 {
 		t.Errorf("turning, the lens looks ahead (%v, %v), want east as the camera", m.lens.ax,
 			m.lens.ay)
 	}
@@ -105,13 +106,13 @@ func TestMinimap_SwitchShowsAndHidesItsPicture(t *testing.T) {
 	p := carried(t, w, NewPlugin(w, nil, Config{Reach: 200}))
 	e := p.For(cameratest.NewFromSpace(1000, 1000, 0), command.Nobody).Size(100, 100)
 	for _, want := range []bool{false, true} {
-		w.Carrier().Put(command.Nobody, Switch{Shown: want})
+		w.Write().Carrier().Put(command.Nobody, Switch{Shown: want})
 		p.RunPlan(nil, 0)
-		if p.Shown() != want {
-			t.Errorf("switched, shown %v, want %v", p.Shown(), want)
+		if p.read.Shown() != want {
+			t.Errorf("switched, shown %v, want %v", p.read.Shown(), want)
 		}
 	}
-	p.Show(false)
+	p.write.Show(false)
 	if e.Hits(e.Box().TopLeft) {
 		t.Error("hidden, the minimap's picture is hit")
 	}
@@ -248,7 +249,8 @@ func TestMarks_ADotForEveryEntityRoundWhoseKindHasAMark(t *testing.T) {
 	}
 	marked := kind.Named[spot](w.Kinds(), "marked")
 	plain := kind.Named[spot](w.Kinds(), "plain")
-	w.Seed(marked.Entry(spot{450, 500}), marked.Entry(spot{550, 500}), plain.Entry(spot{500, 500}),
+	w.Write().Seed(marked.Entry(spot{450, 500}), marked.Entry(spot{550, 500}), plain.Entry(spot{500,
+		500}),
 		marked.Entry(spot{900, 900}))
 	a := w.NewAtlas()
 	a.Add(marked, 4, render.Solid(markRed)).Styled(Mark{Color: markRed, Size: 6})
@@ -311,6 +313,7 @@ func (c *installCtx) ECS() *goke.ECS         { return c.ecs }
 func (c *installCtx) Hosts(...host.Host)     {}
 func (c *installCtx) Draws(...render.Source) {}
 func (c *installCtx) Looks(func())           {}
+func (*installCtx) Pool() *parallel.Pool     { return nil }
 
 // the world installed on an ECS of its own, after set up after it, stepped as a game steps it
 func start(t *testing.T, w *world.Plugin, after ...goke.System) *goke.ECS {
@@ -327,7 +330,7 @@ func start(t *testing.T, w *world.Plugin, after ...goke.System) *goke.ECS {
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	return ctx.ecs
 }

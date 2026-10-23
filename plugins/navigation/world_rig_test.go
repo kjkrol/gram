@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -35,7 +36,7 @@ type navUnit struct {
 
 type navWorld struct {
 	grid      grid.Grid
-	board     *board.Board
+	board     testBoard
 	occupancy *cell.SingleOccupancy
 	nav       *Plugin
 	ecs       *goke.ECS
@@ -44,6 +45,16 @@ type navWorld struct {
 }
 
 // after are set up last, to build what a test reads
+
+// testBoard is a board as the tests lay and read it at once
+type testBoard struct {
+	*board.BoardRead
+	*board.BoardWrite
+}
+
+// the board of p as the tests lay and read it
+func boardOf(p *board.Plugin) testBoard { return testBoard{p.Read(0).Board(), p.Write().Board()} }
+
 func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, after ...goke.System) *navWorld {
 	t.Helper()
 	return newNavWorldWith(t, cols, rows, cellSize, units, nil, after...)
@@ -53,11 +64,11 @@ func newNavWorld(t *testing.T, cols, rows, cellSize uint32, units []navUnit, aft
 func newNavWorldWith(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 	prepare func(*world.Plugin, *board.Plugin), after ...goke.System) *navWorld {
 	t.Helper()
-	return newNavWorldIn(t, cols, rows, cellSize, units, world.SectorsCfg{}, prepare, after...)
+	return newNavWorldIn(t, nil, cols, rows, cellSize, units, world.SectorsCfg{}, prepare, after...)
 }
 
-// the world cut into sectors as given
-func newNavWorldIn(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
+// the world cut into sectors as given, the plugins working on pool
+func newNavWorldIn(t testing.TB, pool *parallel.Pool, cols, rows, cellSize uint32, units []navUnit,
 	sectors world.SectorsCfg, prepare func(*world.Plugin, *board.Plugin),
 	after ...goke.System) *navWorld {
 	t.Helper()
@@ -70,7 +81,7 @@ func newNavWorldIn(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 	})
 	m := motion.NewPlugin(w)
 	brd := board.NewPlugin(nw.grid, nw.occupancy, w).WithMotion(m)
-	nw.board = brd.Board()
+	nw.board = testBoard{brd.Read(0).Board(), brd.Write().Board()}
 	nw.board.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(w)
 	nw.nav = NewPlugin(brd, w, m, sel, driving.NewPlugin(w, m, sel)).WithSpacing(CellSpacing)
@@ -80,7 +91,7 @@ func newNavWorldIn(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 	if err := w.Carry(nw.nav); err != nil { // as the engine does with Use
 		t.Fatal(err)
 	}
-	ctx := &stubInstallCtx{ecs: goke.New()}
+	ctx := &stubInstallCtx{ecs: goke.New(), pool: pool}
 	for _, install := range []func() error{
 		func() error { return w.Install(ctx) },
 		func() error { return m.Install(ctx) },
@@ -113,7 +124,7 @@ func newNavWorldIn(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 		kind.Define[navUnit](w.Kinds(), fmt.Sprintf("u%d", i), s)
 		k := kind.Named[navUnit](w.Kinds(), fmt.Sprintf("u%d", i))
 		kinds[i] = k.ID()
-		w.Seed(k.Entry(u))
+		w.Write().Seed(k.Entry(u))
 	}
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
@@ -146,7 +157,7 @@ func newNavWorldIn(t *testing.T, cols, rows, cellSize uint32, units []navUnit,
 		brd.RunPlan(rc, d)
 		nw.nav.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	}
 	ctx.ecs.SetPlan(nw.step)
 	nw.ecs = ctx.ecs

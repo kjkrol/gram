@@ -16,11 +16,11 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugin/section"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
-	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/internal/moments"
 	"github.com/kjkrol/gram/plugins/board/internal/occupancy"
 	"github.com/kjkrol/gram/plugins/board/internal/terrain"
@@ -32,14 +32,10 @@ import (
 	"github.com/kjkrol/gram/plugins/motion/steering"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
-	"github.com/kjkrol/uid"
 )
 
 // Resources is board's published state; Render is nil until the atlas is closed.
 type Resources struct {
-	Logic struct {
-		Board *Board
-	}
 	Render   *look.RenderState
 	Settings Settings
 }
@@ -50,13 +46,16 @@ type Plugin struct {
 
 	Res Resources
 
+	board     *board
+	reads     parallel.Reads[*Read]
+	read      Read
+	write     Write
 	occupancy cell.Occupancy
 	renderer  *look.Renderer
 	atlas     render.AtlasSource
 	kinds     *terrain.Kinds
 	seeded    *Layout
 	level     *Level
-	mapping   Map
 	simple    *simpleMap
 	covers    map[tag.Tag[effect.States]]render.SpriteID
 
@@ -64,7 +63,7 @@ type Plugin struct {
 	motion      *motion.Plugin
 	module      *module
 	rules       *moments.Rules
-	workers     int // 0 all the CPUs, 1 none
+	workers     int // 0 all of the pool, 1 none
 	grids       command.Queue[Grid]
 	holds       command.Queue[Holds]
 	holdsView   *occupancy.View
@@ -89,7 +88,7 @@ var _ plugin.KindTemplater = (*Plugin)(nil)
 // NewPlugin builds a board over g with the given occupancy, slowing worldPlugin's entities; a
 // world without heights panics.
 func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin) *Plugin {
-	if !worldPlugin.HasHeights() {
+	if !worldPlugin.Read(0).HasHeights() {
 		panic("board: a board stands in a world with heights; set world.Config.Heights")
 	}
 	p := &Plugin{
@@ -106,17 +105,16 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 		}
 	}
 	p.kinds.Played = worldPlugin.Kinds().Play
-	brd := NewBoard(g)
-	p.Res.Logic.Board = brd
-	p.simple = newSimpleMap(brd)
-	p.mapping = p.simple
-	brd.mapping = p.mapping
-	if ws, ok := p.Board().Grid.(interface{ SetWrap(x, y bool) }); ok {
+	brd := newBoard(g)
+	p.board, p.simple = brd, brd.mapping.(*simpleMap)
+	p.read, p.write = Read{p: p, board: &brd.read}, Write{p: p}
+	p.reads = parallel.Reads[*Read]{&p.read}
+	if ws, ok := brd.Grid.(interface{ SetWrap(x, y bool) }); ok {
 		edges := worldPlugin.Res.Config.Space.Edges
 		ws.SetWrap(edges.WrapsX(), edges.WrapsY())
 	}
-	slope := func(at, dir geom.Vec, d cell.Domain) float64 { return brd.Map().Slope(at, dir, d) }
-	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Tick, slope, brd.altitude)
+	slope := func(at, dir geom.Vec, d cell.Domain) float64 { return brd.mapping.Slope(at, dir, d) }
+	p.rules = moments.New(brd.Grid, brd.cells, worldPlugin.Read(0).Tick, slope, brd.read.altitude)
 	if t := worldPlugin.Kinds().DefineTag[unit.States](unit.EnteredName); t != unit.Entered {
 		panic(fmt.Sprintf("board: the units' markers have tags of their own before %q",
 			unit.EnteredName))
@@ -126,9 +124,10 @@ func NewPlugin(g grid.Grid, occupancy cell.Occupancy, worldPlugin *world.Plugin)
 			unit.AirborneName))
 	}
 	p.keepBridges()
-	p.renderer = look.NewRenderer(brd, nil, mapRef{p}, worldPlugin.Res.Config.Space).
-		WithSeen(worldPlugin.ViewFor).
-		WithLighting(worldPlugin.Lighting)
+	p.renderer = look.NewRenderer(&brd.read, nil, brd.read.Map(), worldPlugin.Res.Config.Space).
+		WithSeen(worldPlugin.Read(0).ViewFor).
+		WithLighting(worldPlugin.Read(0).Lighting)
+	p.renderer.Reads(p.boardOf)
 	p.holdsView = p.newHoldsView()
 	return p
 }
@@ -146,7 +145,7 @@ func (p *Plugin) KindTemplates(r *kind.Roster) {
 }
 
 func (p *Plugin) newHoldsView() *occupancy.View {
-	v := occupancy.NewView(p.Board().Grid, p.occupancy, p.holdAt)
+	v := occupancy.NewView(p.board.Grid, p.occupancy, p.holdAt)
 	v.Width(DefaultHoldWidth)
 	return v
 }
@@ -155,89 +154,56 @@ func (p *Plugin) Name() string { return "gram.board" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{
-		cells:     p.Board().cells.System(p.worldPlugin.Roster(), CellTemplate, p.mattering),
-		built:     p.Board().cells.BuiltSystem(p.worldPlugin.Space),
+		cells:     p.board.cells.System(p.worldPlugin.Roster(), CellTemplate, p.mattering),
+		built:     p.board.cells.BuiltSystem(p.worldPlugin.Write().Space),
 		roster:    p.worldPlugin.Roster(),
 		template:  CellTemplate,
-		keep:      occupancy.KeepSystem(p.occupancy, p.Board().footing),
+		keep:      occupancy.KeepSystem(p.occupancy, p.board.read.footing),
 		standing:  p.rules.StandingSystem(),
 		cellRules: p.rules.CellSystem(),
-		clock:     p.worldPlugin.Clock(),
+		clock:     p.worldPlugin.Write().Clock(),
 	}
 	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)
 	ctx.Hosts(p.rules.Hosts()...)
 	ctx.Draws(p.renderer, p.holdsView)
 	ctx.Looks(p.dress)
+	p.reads = parallel.NewReads(&p.read, ctx.Pool())
+	p.renderer.UsePool(ctx.Pool())
 	return nil
 }
+
+// Read reads the board's state on worker w of the game's pool, 0 the game's own goroutine; the
+// other workers' reads come with Use.
+func (p *Plugin) Read(w int) *Read { return p.reads[w] }
+
+// Write changes the board's state, on the game's goroutine.
+func (p *Plugin) Write() *Write { return &p.write }
+
+// the look.Board of worker w, the renderer's
+func (p *Plugin) boardOf(w int) look.Board { return p.reads[w].board }
 
 // dress declares the tiles' looks on the board's atlas, every sprite the cell's size across, and
 // closes it, unless a game closed its own
 func (p *Plugin) dress() {
 	if p.atlas == nil {
-		w, h := p.Board().Grid.CellBounds()
+		w, h := p.board.Grid.CellBounds()
 		p.NewAtlas(int(math.Ceil(max(w, h)))).Looks().Close()
 	}
 }
 
 // RunPlan runs the board's step; call it after collision's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.grids.Drain(func(i command.Issued[Grid]) { p.ShowGrid(i.Command.Shown) })
-	p.holds.Drain(func(i command.Issued[Holds]) { p.ShowHolds(i.Command.Shown) })
+	p.grids.Drain(func(i command.Issued[Grid]) { p.write.ShowGrid(i.Command.Shown) })
+	p.holds.Drain(func(i command.Issued[Holds]) { p.write.ShowHolds(i.Command.Shown) })
 	p.module.RunPlan(ctx, d)
 }
 
-// SetAtlas takes atlas as the board's looks for the board's renderer; a *Atlas's Close calls it,
-// a foreign render.AtlasSource is given by hand. nil panics.
-func (p *Plugin) SetAtlas(atlas render.AtlasSource) {
-	if atlas == nil {
-		panic("board: SetAtlas needs the game's atlas of the cell kinds (board.Plugin.NewAtlas)")
-	}
-	p.atlas = atlas
-	p.renderer.SetAtlas(atlas)
-	p.renderer.Shade(nil)
-	if ba, ok := atlas.(*Atlas); ok {
-		p.renderer.Shade(ba.shaded)
-	}
-	line, holds := DefaultGridLine(p.Board().Grid), float32(DefaultHoldWidth)
-	if ba, ok := atlas.(*Atlas); ok {
-		line, holds = ba.grid, ba.holds
-	}
-	p.Res.Render = p.renderer.State()
-	p.Res.Render.ShowGridLines = p.Res.Settings.Grid
-	p.Res.Render.GridLine = line.Color
-	p.Res.Render.GridWidth = line.Width
-	p.holdsView.Width(holds)
-}
-
-// ShowGrid draws the grid over the board, or not, as the Grid command switches it
-// (Settings.Grid); shown from the start.
-func (p *Plugin) ShowGrid(shown bool) {
-	p.Res.Settings.Grid = shown
-	if p.Res.Render != nil {
-		p.Res.Render.ShowGridLines = shown
-	}
-}
-
-// GridShown reports whether the grid is drawn.
-func (p *Plugin) GridShown() bool { return p.Res.Settings.Grid }
-
-// ShowHolds shows the cells the occupancy holds, each an outline in its holder's colour, or
-// hides them (Settings.Holds).
-func (p *Plugin) ShowHolds(shown bool) {
-	p.Res.Settings.Holds = shown
-	p.holdsView.Show(shown)
-}
-
-// HoldsShown reports whether the cells held are drawn.
-func (p *Plugin) HoldsShown() bool { return p.Res.Settings.Holds }
-
 func (p *Plugin) holdAt(c cell.ID, at geom.Vec, deck bool) float64 {
 	if deck {
-		return p.Board().altitude(c) + p.Board().Built(c).Floor.Height
+		return p.board.read.altitude(c) + p.board.read.Built(c).Floor.Height
 	}
-	if h := p.Heights(); h != nil {
+	if h := p.board.mapping.Heights(); h != nil {
 		return h.At(at)
 	}
 	return 0
@@ -258,12 +224,12 @@ func (p *Plugin) WithBridges(b Bridges) *Plugin {
 }
 
 func (p *Plugin) keepBridges() {
-	brd := p.Board()
+	brd := p.board
 	brd.cells.SetBridges(terrain.Bridges{
 		Clearance: p.bridges.Clearance,
-		Level:     brd.altitude,
+		Level:     brd.read.altitude,
 		Ground: func(at geom.Vec) float64 {
-			if h := p.Heights(); h != nil {
+			if h := brd.mapping.Heights(); h != nil {
 				return h.At(at)
 			}
 			return 0
@@ -279,16 +245,13 @@ func (p *Plugin) keepBridges() {
 	})
 }
 
-// WithWorkers sets how many goroutines at most share a frame's tiles under a Parallel Dressing:
-// 0 as many as there are CPUs, 1 none.
+// WithWorkers sets how many goroutines of the game's pool at most share a frame's tiles under a
+// Parallel Dressing: 0 all, 1 none.
 func (p *Plugin) WithWorkers(n int) *Plugin {
 	p.workers = n
 	p.renderer.Workers(n)
 	return p
 }
-
-// Atlas is the sprite sheet the board's renderer draws the cells from; nil before it is closed.
-func (p *Plugin) Atlas() render.AtlasSource { return p.atlas }
 
 // EventHandler is nil: the board handles no input of its own.
 func (p *Plugin) EventHandler() control.EventHandler { return nil }
@@ -300,37 +263,20 @@ func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
 // Restore takes the Settings loaded and shows what they say.
 func (p *Plugin) Restore() {
 	p.kept.Restore()
-	p.ShowGrid(p.Res.Settings.Grid)
-	p.ShowHolds(p.Res.Settings.Holds)
+	p.write.ShowGrid(p.Res.Settings.Grid)
+	p.write.ShowHolds(p.Res.Settings.Holds)
 }
 
 // WithMap has the board drawn and priced by m in place of the simple map. Call before Use.
 func (p *Plugin) WithMap(m Map) *Plugin {
-	p.mapping = m
-	p.Board().mapping = m
+	p.board.mapping = m
 	return p
 }
-
-// Map is what the board is drawn and priced by: the simple map unless WithMap set another.
-func (p *Plugin) Map() Map { return p.mapping }
-
-// Climb is the Map's Climb.
-func (p *Plugin) Climb(from, to cell.ID, d cell.Domain) float64 { return p.mapping.Climb(from, to, d) }
-
-// Least is the Map's Least.
-func (p *Plugin) Least(d cell.Domain) float64 { return p.mapping.Least(d) }
-
-// CellEntity is cell c's own entity, so an effect cast on it is an effect on the cell's
-// terrain; false off the board or before Setup.
-func (p *Plugin) CellEntity(c cell.ID) (uid.UID64, bool) { return p.Board().CellEntity(c) }
-
-// Occupancy is the occupancy the plugin was built with.
-func (p *Plugin) Occupancy() cell.Occupancy { return p.occupancy }
 
 // the marks of the effects the terrain changes under: those its cells show, those granting tags
 // and those turning a knob of its own; not those turning only another's, as the air's
 func (p *Plugin) mattering() tag.Tags[effect.States] {
-	fx := p.worldPlugin.Effects()
+	fx := p.worldPlugin.Write().Effects()
 	var matters tag.Tags[effect.States]
 	for k := range fx.Count() {
 		d := fx.Definition(uint8(k))
@@ -374,23 +320,6 @@ func (p *Plugin) Covering(e effect.Effect) render.SpriteID {
 	p.simple.dressing.Cover(e.Mark(), id)
 	e.Shows()
 	return id
-}
-
-// Board is the board: its terrain, read and written.
-func (p *Plugin) Board() *Board { return p.Res.Logic.Board }
-
-// World is the world the board lies over: its registers, for a figure defined over the board.
-func (p *Plugin) World() *world.Plugin { return p.worldPlugin }
-
-// CellKinds are this Plugin's registered kinds of cells.
-func (p *Plugin) CellKinds() cell.Kinds { return p.kinds }
-
-// Seed sets the terrain applied when the Stage starts fresh.
-func (p *Plugin) Seed(layout Layout) {
-	if err := p.worldPlugin.InSection("the board's layout seeded", section.Spawn); err != nil {
-		panic("board: " + err.Error())
-	}
-	p.seeded = &layout
 }
 
 // Populate applies the seeded Layout; an unknown kind name, or an entity of the level laid that
@@ -442,13 +371,13 @@ func (p *Plugin) Populate() error {
 		ways[i] = cell.Way{Kind: kind, Width: e.Width, Links: e.Links, Fade: e.Fade, Mix: e.Mix}
 	}
 
-	brd := p.Board()
+	brd := p.board
 	if p.seeded.Default != "" {
-		brd.SetAll(def)
+		brd.write.SetAll(def)
 	}
 	for i, e := range p.seeded.Cells {
 		if e.Kind != "" {
-			brd.Set(e.Cell, cells[i])
+			brd.write.Set(e.Cell, cells[i])
 		}
 		if e.Name != "" || e.Group != "" {
 			brd.cells.Label(e.Cell, ceremony.LabelOf(e.Name, e.Group))
@@ -456,14 +385,14 @@ func (p *Plugin) Populate() error {
 	}
 	p.cast()
 	for i, e := range p.seeded.Ways {
-		brd.SetWay(e.Cell, ways[i])
+		brd.write.SetWay(e.Cell, ways[i])
 	}
 	p.seeded = nil
 	return nil
 }
 
 func (p *Plugin) cast() {
-	brd := p.Board()
+	brd := p.board
 	def := p.kinds.Plays(p.seeded.Default)
 	if def != 0 {
 		brd.Grid.EachCell(func(c cell.ID) { brd.cells.Cast(c, def) })
@@ -480,19 +409,6 @@ func (p *Plugin) cast() {
 	}
 }
 
-// Heights is the board's ground heights, its Map's; nil on a flat map.
-func (p *Plugin) Heights() ground.Heights { return p.mapping.Heights() }
-
-// Footing is where whoever moves over the board stands, the ground or a deck; nil on a flat
-// map.
-func (p *Plugin) Footing() ground.Surfaces {
-	s, _ := p.mapping.Heights().(ground.Surfaces)
-	return s
-}
-
-// Cover is what stands on the board and holds sight back; it is a ground.Readied too.
-func (p *Plugin) Cover() ground.Cover { return p.Board().field }
-
 // WithMotion has m move the board's units; a board without it has none. Call before Use.
 func (p *Plugin) WithMotion(m *motion.Plugin) *Plugin {
 	p.motion = m
@@ -502,6 +418,6 @@ func (p *Plugin) WithMotion(m *motion.Plugin) *Plugin {
 // WithCollision makes the board's Solid cells the solid ground c pushes colliders out of; call
 // before Use.
 func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
-	c.WithField(p.Board().field)
+	c.WithField(p.board.field)
 	return p
 }

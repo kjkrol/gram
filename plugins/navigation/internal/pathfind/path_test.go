@@ -1,8 +1,10 @@
 package pathfind
 
 import (
+	"slices"
 	"testing"
 
+	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/uid"
@@ -103,5 +105,69 @@ func TestPathFinder_NearestFree_SkipsOccupiedTakenAndUnreachableCells(t *testing
 
 	if _, _, ok := pf.nearestFree(mover, cell.Land, at(0), at(4), taken); ok {
 		t.Error("expected no result: every free cell near the target is behind the wall")
+	}
+}
+
+// a start off the grid has no ordinal: its slot in the solvers' dictionaries is one of its own
+func TestPathFinder_Find_StartsOffTheGrid(t *testing.T) {
+	g := grid.DefaultGrids{}.Hex(5, 5, 10)
+	terrain := openTerrain()
+	below, to := cell.ID(5), g.At(0, 0) // below: axial (0, 5), the row past the last
+	if _, ok := g.Ordinal(below); ok {
+		t.Fatalf("%v lies on the grid", below)
+	}
+	finders := map[string]*Finder{
+		"plain":   New(g, terrain, nil, &cell.MultipleOccupancy{}),
+		"leveled": New(g, terrain, nil, &cell.MultipleOccupancy{}).WithLevels(flat{terrain}),
+	}
+	for name, f := range finders {
+		var steps [8]cell.ID
+		n, ok := f.Find(uid.UID64(1), cell.Land, Body{}, below, to, Either, steps[:])
+		if !ok || n != 5 || steps[n-1] != to || !slices.Contains(g.Neighbors(below), steps[0]) {
+			t.Errorf("%s: Find = %v, %v; want 5 steps from a neighbour of %v to %v",
+				name, steps[:n], ok, below, to)
+		}
+	}
+}
+
+// one level everywhere
+type flat struct{ terrain cell.Terrain }
+
+func (flat) Deck(cell.ID) (top, under float64, carries cell.Domain, ok bool) {
+	return 0, 0, 0, false
+}
+func (flat) Ground(geom.Vec) float64              { return 0 }
+func (flat) Over(geom.Vec) (float64, bool)        { return 0, false }
+func (f flat) KindAt(c cell.ID, _ bool) cell.Kind { return f.terrain.Kind(c) }
+
+func TestFinder_FindAllocatesNothingOnceItsRoutesFit(t *testing.T) {
+	g := grid.DefaultGrids{}.Square(32, 32, 10)
+	terrain := openTerrain()
+	for y := range uint32(31) {
+		terrain.Set(g.At(16, y), cell.Kind{Cost: 1, Solid: true})
+	}
+	v := newValley()
+	for name, tc := range map[string]struct {
+		f        *Finder
+		body     Body
+		from, to cell.ID
+	}{
+		"plain": {f: New(g, terrain, nil, &cell.MultipleOccupancy{}),
+			from: g.At(0, 0), to: g.At(31, 0)},
+		"by levels": {f: New(v.g, v.terrain, nil, &cell.MultipleOccupancy{}).WithLevels(v),
+			body: Body{Feet: 10, Step: 1, Height: 2}, from: v.g.At(0, 2), to: v.g.At(4, 2)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var dst [64]cell.ID
+			find := func() {
+				if _, ok := tc.f.Find(1, cell.Land, tc.body, tc.from, tc.to, Either, dst[:]); !ok {
+					t.Fatalf("no route from %v to %v", tc.from, tc.to)
+				}
+			}
+			find()
+			if allocs := testing.AllocsPerRun(10, find); allocs != 0 {
+				t.Errorf("a route found again allocates %v times; want none", allocs)
+			}
+		})
 	}
 }

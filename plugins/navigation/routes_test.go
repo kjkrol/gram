@@ -3,6 +3,7 @@ package navigation
 import (
 	"flag"
 	"fmt"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"math"
 	"math/rand/v2"
 	"os"
@@ -38,7 +39,7 @@ type routeBoard struct {
 	edges   aabbworld.Edges
 	span    uint32
 	heights func(geom.Vec) float64
-	lay     func(b *board.Board, rng *rand.Rand)
+	lay     func(b testBoard, rng *rand.Rand)
 	bridges []routeSpan
 }
 
@@ -62,9 +63,9 @@ func span(g grid.Grid, x, y uint32, dx, dy, n int) []routeSpan {
 
 type routeRig struct {
 	board  routeBoard
-	finder *pathFinder
-	brd    *board.Board
-	levels boardLevels
+	finder *spacing.Finder
+	brd    *board.BoardRead
+	levels spacing.BoardLevels
 	topo   *topography.Plugin
 }
 
@@ -78,7 +79,7 @@ var (
 	road = cell.Kind{Name: cell.Named("road"), Cost: 0.8, Allows: cell.Land, Graded: true}
 )
 
-func scatter(b *board.Board, rng *rand.Rand) {
+func scatter(b testBoard, rng *rand.Rand) {
 	b.SetAll(grass)
 	b.EachCell(func(c cell.ID) {
 		switch r := rng.IntN(100); {
@@ -93,7 +94,7 @@ func scatter(b *board.Board, rng *rand.Rand) {
 }
 
 // a road of cells from a, n steps in direction i, linked cell to cell
-func lay(b *board.Board, a cell.ID, i, n int) {
+func lay(b testBoard, a cell.ID, i, n int) {
 	g := b.Grid
 	back := g.Opposite(i)
 	for k, c := 0, a; k <= n; k++ {
@@ -135,7 +136,7 @@ func squareRoutes() routeBoard {
 			}
 			return 10
 		},
-		lay: func(b *board.Board, rng *rand.Rand) {
+		lay: func(b testBoard, rng *rand.Rand) {
 			scatter(b, rng)
 			for y := range uint32(28) {
 				for x := range uint32(36) {
@@ -166,7 +167,7 @@ func torusRoutes() routeBoard {
 		grid:  grid.DefaultGrids{}.Square(24, 20, 32),
 		edges: aabbworld.Torus,
 		span:  32,
-		lay: func(b *board.Board, rng *rand.Rand) {
+		lay: func(b testBoard, rng *rand.Rand) {
 			scatter(b, rng)
 			lay(b, b.Grid.At(20, 4), 3, 10)
 			lay(b, b.Grid.At(3, 17), 5, 7)
@@ -183,7 +184,7 @@ func hexRoutes() routeBoard {
 		heights: func(p geom.Vec) float64 {
 			return 24 * math.Sin(p.X/60) * math.Cos(p.Y/50)
 		},
-		lay: func(b *board.Board, rng *rand.Rand) {
+		lay: func(b testBoard, rng *rand.Rand) {
 			scatter(b, rng)
 			for r := uint32(0); r < 24; r++ {
 				b.Set(g.At(14, r), water)
@@ -219,9 +220,9 @@ func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 	sel := selection.NewPlugin(w)
 	drive := driving.NewPlugin(w, m, sel).WithGround(brd)
 	nav := NewPlugin(brd, w, m, sel, drive).WithSpacing(CellSpacing)
-	rb.lay(brd.Board(), rand.New(rand.NewPCG(11, 17)))
+	rb.lay(boardOf(brd), rand.New(rand.NewPCG(11, 17)))
 	if topo != nil {
-		topo.Relief().SetHeights(rb.heights)
+		topo.Write().Relief().SetHeights(rb.heights)
 	}
 	if rb.bridges != nil {
 		g := rb.grid
@@ -238,7 +239,7 @@ func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 			}
 			return cell.Floor{
 				Allows:    cell.Land,
-				Height:    10 - topo.Relief().Altitude(r.At),
+				Height:    10 - topo.Write().Relief().Altitude(r.At),
 				Thickness: 0.5,
 				Cost:      1,
 				Graded:    true,
@@ -247,7 +248,7 @@ func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 			}
 		}), comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
 		for _, r := range rb.bridges {
-			w.Seed(spans.Named("bridge").Entry(r))
+			w.Write().Seed(spans.Named("bridge").Entry(r))
 		}
 	}
 	if err := w.Carry(nav); err != nil {
@@ -290,12 +291,12 @@ func newRouteRig(t *testing.T, rb routeBoard) *routeRig {
 		nav.RunPlan(rc, d)
 		drive.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	for range 3 {
 		ctx.ecs.Tick(time.Second / 60)
 	}
-	return &routeRig{board: rb, finder: nav.finder, brd: brd.Board(), levels: boardLevels{brd},
+	return &routeRig{board: rb, finder: nav.finder, brd: brd.Read(0).Board(), levels: spacing.BoardLevels{Read: brd.Read(0)},
 		topo: topo}
 }
 
@@ -381,13 +382,13 @@ func (r *routeRig) record(out *strings.Builder, pairs int) {
 		}
 		var feet float64
 		if r.topo != nil {
-			feet = r.topo.Relief().Altitude(from)
+			feet = r.topo.Write().Relief().Altitude(from)
 		}
 		if top, _, _, ok := r.levels.Deck(from); ok && rng.IntN(2) == 0 {
 			feet = top
 		}
-		bodies := routeBodies(feet)
-		body := bodies[rng.IntN(len(bodies))]
+		shapes := routeBodies(feet)
+		body := shapes[rng.IntN(len(shapes))]
 		end := pathfind.Level(rng.IntN(3))
 		fmt.Fprintf(out, "%s %d %s->%s %v,%v,%v,%v end=%d\n", r.board.name, i, r.at(from),
 			r.at(to), body.Feet, body.Step, body.Height, body.Size, end)

@@ -19,7 +19,7 @@ type State struct {
 }
 
 // Phase is the family of the clock's tags, which effects cast on the clock switch on and off for
-// a rule to run only while one holds (Clock.In). A game defines its phases with
+// a rule to run only while one holds (Read.In). A game defines its phases with
 // world.Kinds.DefineTag[clock.Phase].
 type Phase struct{}
 
@@ -55,9 +55,12 @@ type Clock struct {
 	system  *system
 	changed func(State)
 	synced  synced
+	after   []func()
+	read    Read
+	forks   []*Read
 }
 
-// synced is the RunCtx Replay hands the blocks once OnSync has given it its settle
+// synced is the RunCtx Settling hands out once OnSync has given it its settle
 type synced struct {
 	goke.RunCtx
 	settle func()
@@ -79,36 +82,58 @@ func New(cfg Config) *Clock {
 	}
 	c := &Clock{cfg: cfg, state: State{Tempo: 1}}
 	c.system = &system{c: c}
+	c.read.c = c
 	return c
 }
 
+// Read reads the clock on the game's goroutine.
+func (c *Clock) Read() *Read { return &c.read }
+
+// Read reads the clock on one goroutine at a time: the clock's own through its system's query, a
+// Fork's through a query of its own.
+type Read struct {
+	c     *Clock
+	query *goke.Query // nil until the clock's system is set up
+}
+
+// Fork reads the same clock through a query of its own, for another goroutine; made before the
+// clock's system is set up, it gets it then.
+func (r *Read) Fork() *Read {
+	f := &Read{c: r.c}
+	if r.c.read.query != nil {
+		f.query = r.c.read.query.Fork()
+	}
+	r.c.forks = append(r.c.forks, f)
+	return f
+}
+
 // State is the clock as it stands: what its entity carries.
-func (c *Clock) State() State { return c.state }
+func (r *Read) State() State { return r.c.state }
 
 // Time is the game time gone by.
-func (c *Clock) Time() time.Duration { return c.state.Time }
+func (r *Read) Time() time.Duration { return r.c.state.Time }
 
 // Steps is how many steps of the simulation have gone by: in a step, its number from 0. What
 // goes every so many steps counts by it; it is not saved.
-func (c *Clock) Steps() uint64 { return c.steps }
+func (r *Read) Steps() uint64 { return r.c.steps }
 
 // In reports whether the clock is in phase: its entity carries the tag, as of this step of the
 // simulation — an effect granting it in one step is seen in the next.
-func (c *Clock) In(phase tag.Tag[Phase]) bool {
-	s := c.system
-	if s.query == nil {
+func (r *Read) In(phase tag.Tag[Phase]) bool {
+	q := r.query
+	if q == nil {
 		return false
 	}
-	for s.query.All(); s.query.Next(); {
-		cursor := s.query.Cursor()
-		return s.tags.Present(cursor) && s.tags.Slice(cursor)[0].Has(phase)
+	for q.All(); q.Next(); {
+		cursor, tags := q.Cursor(), &r.c.system.tags
+		return tags.Present(cursor) && tags.Slice(cursor)[0].Has(phase)
 	}
 	return false
 }
 
 // Entity is the clock's entity — what a Phase is granted to, by an effect cast on it; 0 before the
 // game is set up.
-func (c *Clock) Entity() uid.UID64 { return c.entity }
+func (r *Read) Entity() uid.UID64 { return r.c.entity }
 
 // Simulate hands the clock a piece of the simulation for this tick: block runs at Replay, as many
 // times as the tempo says, in the order the pieces came.
@@ -119,10 +144,7 @@ func (c *Clock) Simulate(_ goke.RunCtx, block Block) { c.blocks = append(c.block
 // tempo.
 func (c *Clock) Replay(ctx goke.RunCtx, step time.Duration) {
 	defer c.replayed()
-	if c.synced.settle != nil {
-		c.synced.RunCtx = ctx
-		ctx = &c.synced
-	}
+	ctx = c.Settling(ctx)
 	c.step = step
 	if c.state.Paused {
 		c.carry = 0
@@ -143,11 +165,28 @@ func (c *Clock) replayed() {
 	if c.synced.settle != nil {
 		c.synced.settle()
 	}
+	for _, f := range c.after {
+		f()
+	}
 }
 
-// OnSync has settle run after every Sync of what Replay runs and as each Replay ends: for what
-// reads goke's memory where it lies, which a Sync may move.
+// Replayed has f run as each Replay ends, after OnSync's settle, in the order given: for what
+// takes the simulation's state once a tick, on the game's goroutine.
+func (c *Clock) Replayed(f func()) { c.after = append(c.after, f) }
+
+// OnSync has settle run after every Sync of what Replay runs or Settling hands, and as each
+// Replay ends: for what reads goke's memory where it lies, which a Sync may move.
 func (c *Clock) OnSync(settle func()) { c.synced.settle = settle }
+
+// Settling is ctx running OnSync's settle after every Sync, for a plan to hand what it runs
+// outside Replay; ctx itself where OnSync gave none or ctx already settles.
+func (c *Clock) Settling(ctx goke.RunCtx) goke.RunCtx {
+	if c.synced.settle == nil || ctx == &c.synced {
+		return ctx
+	}
+	c.synced.RunCtx = ctx
+	return &c.synced
+}
 
 func (c *Clock) run(ctx goke.RunCtx, step time.Duration) {
 	for _, b := range c.blocks {
@@ -180,7 +219,8 @@ func (c *Clock) Pending(d time.Duration) { c.pending = d }
 
 // Shown is the game time what is drawn goes by: Time run on by the real time held toward the
 // next tick at the tempo, so it moves every frame.
-func (c *Clock) Shown() time.Duration {
+func (r *Read) Shown() time.Duration {
+	c := r.c
 	if c.state.Paused {
 		return c.state.Time
 	}
@@ -209,7 +249,7 @@ func (c *Clock) Faster() { c.shift(1) }
 func (c *Clock) Slower() { c.shift(-1) }
 
 // Tempos are the tempos the clock can be set to, the Config's, in order.
-func (c *Clock) Tempos() []float32 { return c.cfg.Tempos }
+func (r *Read) Tempos() []float32 { return r.c.cfg.Tempos }
 
 // SetTempo sets the tempo to the Config's nearest to tempo.
 func (c *Clock) SetTempo(tempo float32) {
@@ -246,6 +286,10 @@ type system struct {
 
 func (s *system) Init(si *goke.SysInit) {
 	s.query = si.NewQueryBuilder(&s.state).Optional(&s.tags).Build()
+	s.c.read.query = s.query
+	for _, f := range s.c.forks {
+		f.query = s.query.Fork()
+	}
 	for s.query.All(); s.query.Next(); {
 		cursor := s.query.Cursor()
 		s.c.state, s.c.entity = s.state.Slice(cursor)[0], cursor.IDs[0] // a loaded game brought its clock

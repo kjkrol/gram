@@ -41,7 +41,7 @@ func NewUnits[P any](brd *Plugin, shape Shape, at func(row P) geom.Vec) *Units[P
 	if brd.motion == nil {
 		panic("board: units move by motion, and the board was given none (WithMotion)")
 	}
-	if box, side := shape.Box(geom.Vec{}), float64(brd.Board().CellSpan()); max(box.Size.X,
+	if box, side := shape.Box(geom.Vec{}), float64(brd.board.read.CellSpan()); max(box.Size.X,
 		box.Size.Y) > side {
 		panic(fmt.Sprintf("board: units %v across and %v down, bigger than a cell's side, %v",
 			box.Size.X, box.Size.Y, side))
@@ -52,7 +52,7 @@ func NewUnits[P any](brd *Plugin, shape Shape, at func(row P) geom.Vec) *Units[P
 // Define registers one kind of unit: how it moves, its steering profile and whatever else the
 // game gives its entities. A unit standing off the board panics when spawned.
 func (u *Units[P]) Define(name string, mover unit.Mover, steering steering.Steering, extra ...comp.Comp) {
-	brd := u.brd.Board()
+	brd := &u.brd.board.read
 	own := []comp.Comp{
 		comp.Load(func(row P) world.Position {
 			return world.Position{AABB: u.shape.Box(u.at(row))}

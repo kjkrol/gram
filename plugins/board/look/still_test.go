@@ -25,13 +25,13 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 	green := color.RGBA{R: 60, G: 160, B: 60, A: 255}
 	blue := color.RGBA{R: 40, G: 80, B: 200, A: 255}
 	grid := grid.DefaultGrids{}.Square(8, 8, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(grass)
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(grass)
 	for i := uint32(0); i < 8; i++ {
 		c := grid.At(i, 3)
-		brd.Set(c, water)
+		brdW.Set(c, water)
 		c = grid.At(5, i)
-		brd.SetWay(c, cell.Way{Kind: road, Width: 8, Links: 0xff})
+		brdW.SetWay(c, cell.Way{Kind: road, Width: 8, Links: 0xff})
 	}
 	atlas := render.NewAtlas()
 	atlas.Add(grass.SpriteID, 4, render.Solid(green))
@@ -67,7 +67,7 @@ func TestRenderer_DrawsAFlatBoardComposedOnceAsEveryFrame(t *testing.T) {
 	}
 	check("at first")
 	c := grid.At(6, 6)
-	brd.Set(c, water)
+	brdW.Set(c, water)
 	check("after a cell changed")
 	// over a wrapping world's seam
 	space.Edges = aabbworld.Torus
@@ -108,8 +108,8 @@ func TestRenderer_DrawsTheGridOverABoardComposedOnce(t *testing.T) {
 		{"square in red, 3 pixels", square, gridOf(red, 3), 40, 10},
 		{"hex in red, 3 pixels", hex, gridOf(red, 3), 180, 150},
 	} {
-		brd := board.NewBoard(c.grid)
-		brd.SetAll(grass)
+		brd, brdW := board.NewBoard(c.grid)
+		brdW.SetAll(grass)
 		space := world.SpaceCfg{Width: 400, Height: 300}
 		every := newRenderer(brd, atlas, c.state, brd.Map())
 		once := look.NewRenderer(brd, atlas, brd.Map(), space)
@@ -153,8 +153,8 @@ func needGPU(t *testing.T) {
 
 func TestRenderer_DrawsTheBoardComposedOnceInTheOpaquePassAndItsGridOverIt(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land})
 	space := world.SpaceCfg{Width: 128, Height: 128}
 	r := look.NewRenderer(brd, &flatAtlas{}, brd.Map(), space)
 	*r.State() = gridOf(black, 1)
@@ -199,8 +199,8 @@ func (m dressedMap) Dressing() look.Dressing { return m.d }
 func TestRenderer_DressesTheGroundOnceAFrameRightAfterIt(t *testing.T) {
 	needGPU(t)
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land})
 	space := world.SpaceCfg{Width: 128, Height: 128, Edges: aabbworld.Torus}
 	d := &dressedGround{Dressing: brd.Map().Dressing(), even: true}
 	atlas := render.NewAtlas()

@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -46,6 +47,7 @@ func (c *installer) ECS() *goke.ECS                            { return c.ecs }
 func (c *installer) Hosts(...host.Host)                        {}
 func (c *installer) Draws(s ...render.Source)                  { c.drawn = append(c.drawn, s...) }
 func (c *installer) Looks(func())                              {}
+func (*installer) Pool() *parallel.Pool                        { return nil }
 
 // dale is a board 10 x 6 of cells 10 wide, the ground 20 up but for a valley at 0 from x 30 to
 // 60.
@@ -87,8 +89,9 @@ func newDale(t *testing.T) *dale {
 		WithMotion(d.m).
 		WithCollision(d.col)
 	d.topo = topography.NewPlugin(d.w, d.board, nil, topography.Config{})
-	d.bridges = bridges.NewPlugin(d.w, d.board, bridges.Config{Rules: rules}).WithShaper(d.topo)
-	d.board.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	d.bridges = bridges.NewPlugin(d.w, d.board,
+		bridges.Config{Rules: rules}).WithShaper(d.topo.Write())
+	d.board.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	d.bridges.Types().Define("bridge", bridges.Spec{
 		Allows:    cell.Land,
 		Width:     6,
@@ -112,7 +115,7 @@ func valley(p geom.Vec) float64 {
 
 func (d *dale) start(heights func(geom.Vec) float64) {
 	d.t.Helper()
-	d.topo.Seed(heights)
+	d.topo.Write().Seed(heights)
 	ctx := &installer{ecs: goke.New()}
 	for _, p := range []plugin.Plugin{d.w, d.m, d.col, d.board, d.topo, d.bridges} {
 		if err := p.Install(ctx); err != nil {
@@ -151,14 +154,14 @@ func (d *dale) start(heights func(geom.Vec) float64) {
 		d.board.RunPlan(rc, dt)
 		d.topo.RunPlan(rc, dt)
 		rc.Sync()
-		d.w.Clock().Replay(rc, dt)
+		d.w.Write().Clock().Replay(rc, dt)
 	})
 	d.ecs = ctx.ecs
 }
 
 func (d *dale) give(cmd command.Command) {
 	d.t.Helper()
-	if !d.w.Carrier().Put(1, cmd) {
+	if !d.w.Write().Carrier().Put(1, cmd) {
 		d.t.Fatalf("nobody takes %T", cmd)
 	}
 	d.ecs.Tick(time.Second / 60)
@@ -227,7 +230,7 @@ func TestTool_APlayerLaysABridgeOutAndBuildsIt(t *testing.T) {
 	if len(piers) != 2 || piers[0].Y != 35 || math.Abs(piers[0].X+piers[1].X-90) > 1e-9 {
 		t.Errorf("piers stand at %v, want at (40, 35) and (50, 35)", piers)
 	}
-	if h := d.topo.Relief().At(geom.NewVec(70, 30)); h != 20 {
+	if h := d.topo.Write().Relief().At(geom.NewVec(70, 30)); h != 20 {
 		t.Errorf("the far head's corner stands at %v, want levelled at the deck, 20", h)
 	}
 	n := 0
@@ -318,14 +321,14 @@ func TestSpawn_ALevelsBridges(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			d := newDale(t)
-			d.board.CellKinds().Define("earth", cell.Kind{Cost: 1, Allows: cell.Land})
+			d.board.Read(0).CellKinds().Define("earth", cell.Kind{Cost: 1, Allows: cell.Land})
 			level, err := d.board.Lay(file(tc.entity), "map.yaml")
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = d.bridges.Spawn(level)
+			err = d.bridges.Write().Spawn(level)
 			if err == nil {
-				d.topo.Seed(level.Heights())
+				d.topo.Write().Seed(level.Heights())
 				if err = d.board.Populate(); err == nil {
 					err = d.bridges.Populate()
 				}

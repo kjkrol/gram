@@ -34,7 +34,7 @@ func unitsWorld(t *testing.T, define func(units *board.Units[recruit]) kind.Of[r
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m)
 	brd := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w).WithMotion(m).WithCollision(c)
-	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land | cell.Water})
+	brd.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land | cell.Water})
 	units := board.NewUnits[recruit](brd, board.Shape{Size: 20}, func(r recruit) geom.Vec { return grid.CellCenter(r.start) })
 	k := define(units)
 
@@ -52,7 +52,7 @@ func unitsWorld(t *testing.T, define func(units *board.Units[recruit]) kind.Of[r
 		t.Fatal(err)
 	}
 	start := grid.At(2, 1)
-	w.Seed(k.Entry(recruit{start: start}))
+	w.Write().Seed(k.Entry(recruit{start: start}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestUnits_AUnitOffTheBoardPanicsWhenSpawned(t *testing.T) {
 	if err := brd.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	w.Seed(k.Entry(recruit{}))
+	w.Write().Seed(k.Entry(recruit{}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}

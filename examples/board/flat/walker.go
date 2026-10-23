@@ -40,7 +40,7 @@ var (
 )
 
 func (walker) Rules(b *board.Plugin) {
-	b.World().Roles().Define(MortalRole, act.Branch[unit.Standing]{
+	b.Read(0).World().Roles().Define(MortalRole, act.Branch[unit.Standing]{
 		Name: "drown",
 		When: cond.Self.If(unit.Fallen()),
 		Then: act.Self.Do(world.Despawn{}),
@@ -49,7 +49,7 @@ func (walker) Rules(b *board.Plugin) {
 
 func (walker) Define(b *board.Plugin) {
 	units := board.NewUnits[unitRow](b, board.Shape{Size: walkerPx},
-		func(u unitRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+		func(u unitRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
 	profile := steering.Steering{
 		MaxSpeed: walkerSpeed,
 		Accel:    walkerSpeed * 2,
@@ -65,7 +65,7 @@ func (walker) Define(b *board.Plugin) {
 		comp.Const(vision.Sight{Facing: geom.NewVec(1, 0), Radius: 7 * CellSize, Ahead: true}),
 		comp.Const(world.Eye{Angle: 2 * math.Pi / 5}),
 		comp.Const(vision.SightOutline{}),
-		ceremony.Plays(b.World().Roles().Named(MortalRole)))
+		ceremony.Plays(b.Read(0).World().Roles().Named(MortalRole)))
 }
 
 func (walker) Look(a *world.Atlas, w *world.Plugin) {

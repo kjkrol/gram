@@ -48,6 +48,12 @@ reads every `Base` where goke keeps it; `moveSystem.rebuild`, 52% of the profile
 from it, and what is left is the moving itself (`Space.Move`, `Translate`). The collision ticks
 are 1–6% shorter, the swept ones 2–10%, the same contacts in every scene.
 
+Wave 3 (2026-10-21, medians of 5, alternately): a chunk's boxes moved in one call (aabbworld
+`Space.MoveRun`: a box that stays inside written in place, the others through the edge rules),
+1,000 boxes 15.5 → 11.9 µs, 5,000 boxes 67.1 → 49.6 µs, the positions bit for bit as box by box
+(digests over 600 ticks of motion/collision, motion/expanse, motion/bullet, navigation/spawn);
+the collision ticks within the noise.
+
 ### A tick with a frame — `Benchmark_World_TickDraw`
 
 A tick of the world and a frame of its 5,000 sprites, the camera over all, a quarter or a
@@ -181,6 +187,11 @@ its view; both scale linearly with the observers. On eight threads a tick is a h
 that: what stays on one goroutine is walking the ECS's chunks and, with triggers, running them.
 Before 2026-09-29 the harness did not replay the world's clock, so these benchmarks had measured
 an empty tick since the clock came; the numbers before that agree with today's serial ones.
+
+**Wave 5** (2026-10-22): the scan runs on the game's pool of goroutines, kept for the whole game,
+a scanner to each, instead of goroutines made every tick: 100 / 500 observers 76.9 / 286.8 →
+76.9 / 278.0 µs and 9 → 0 allocations a tick, with outlines 100 observers 138.6 → 128.0 µs
+(medians of 5, alternately); the serial variants within the noise.
 
 ### Over a relief — `Benchmark_Vision_Relief`
 
@@ -518,6 +529,36 @@ runs of one count compare (the table above was taken at the default benchtime). 
 What remains in the crowded profile is astar's own dictionary maps (about 12%) and heap (5%),
 `leveledFrom` 62% cumulative, and in the open one `stepAside` (25%, etap 2b).
 
+**Wave 3** (2026-10-21, base `perf/wave-3` before each part, medians of 5, alternately, an idle
+machine). A route search asked again is answered as before, unrun (the crowd's Detour asks the
+same sets of learned cells again a few ticks later): searches a tick in the crowd 172 → 43, every
+box the same tick by tick. Then astar's slice dictionaries reset by a stamp:
+
+| Scene | Walkers | Before | Answers kept | Slice dictionaries |
+|:---|---:|---:|---:|---:|
+| open | 100 | 399 µs | 369 µs | 353 µs |
+| open | 1,000 | 4.78 ms | 3.64 ms | 3.67 ms |
+| crowded | 100 | 1.05 ms | 794 µs | 751 µs |
+| crowded | 1,000 | 94.9 ms | 40.3 ms | 37.6 ms |
+
+Measured and not taken: the literal back-off (`n/detour-wait`, the wait not cleared by a step or
+a learned cell) is 17.5 ms in the crowd alone and 10.4 ms on top of the kept answers, but units
+give their goals up sooner (at 21 s 247 of 1,000 still toward the goal against 539), a decision
+about the crowd's behaviour. Ceremony's steps give their commands without allocating (2,599 →
+90 allocations a tick in the open, 3,946 → 1,406 in the crowd), the time within the noise: taken
+by the user's rule, fewer allocations at a time not worse.
+
+**Wave 5** (2026-10-22/23). Navigation is the routing, which plans the routes, and the traffic,
+which moves the units along them: a unit without a route asks for one in its order and the
+routing answers it the same step, on the game's pool, 4 routers sharing one memory of answers. A
+`MoveTo` no longer searches: a group's targets are the cells round its goal, nearest first. The
+crowd moves differently from the first group order on, so the scenes compared differ: crowded
+1,000 at `12x` 38.2 → 8.3 ms, those twelve ticks catching the base at a peak; over 600 ticks,
+one run each, 12.8 → 8.7 ms on average. A step onto a cell no longer allocates: open 1,000 at
+`400x` 20 → 14 allocations a tick, the time unchanged. The routing on the pool against the
+routing on one goroutine, crowded 1,000: 8.27 → 8.45 ms, one run; the twelve ticks hold few
+asks, so no benchmark shows yet what the pool gains.
+
 ### A route — `Benchmark_Navigation_Path`
 
 One route across a 200×200 board of rocks and walls, the planner alone, `-benchtime=40x`: 94.3 ms
@@ -525,6 +566,27 @@ and 14,740 allocations before etap 2a (the part's own base, the benchmark added 
 and 19 after (median of 3 on an idle machine). `BenchmarkGrids_Neighbours`
 (`plugins/board/internal/grids`): `Toward` over every cell of a square grid 8.0 → 3.3 ms, on a
 torus 15–26 → 3.3 ms; the allocating `Neighbors` list costs 4.1–5.6 ms.
+
+Since wave 5 the benchmark no longer measures the A*: a `MoveTo` does not search, the routing
+answers through its memory of answers, and the walker is sent between the same two goals, so
+after the first two ticks every route is a kept answer: 14.9 → 0.7 ms.
+
+### The routing alone — `Benchmark_Routing_Path`, `Benchmark_Routing_Routes`
+
+In `plugins/navigation`, the same board laid through the board and navigation plugins: every
+iteration each unit asks for its route anew, the board touched so that nothing kept answers it,
+and only the routing's `Coordinator.Update` is timed. One run each, an idle machine, 2026-10-23.
+
+| Benchmark | Routes | A tick | Allocations |
+|:---|---:|---:|---:|
+| `Routing_Path` (one route, the A*) | 1 | 15.2 ms | 0 |
+| `Routing_Routes/workers=1` | 32 | 256 ms | — |
+| `Routing_Routes/workers=all` (4 routers) | 32 | 77.8 ms | 0 |
+
+The A* of a route across the board costs what `Navigation_Path` measured before wave 5. On the
+pool the 4 routers plan 32 routes 3.3 times as fast as one goroutine, 4 the most they could. A
+router's tables (a read of each cell, 64 bytes, and astar's dictionaries) are made at its first
+search: over a few iterations they show as allocations (2 a search at 20, 0 at 200).
 
 **After etap 2b** (2026-10-20, `n/bodies`): the keepings' passes allocate nothing per unit (the
 body index, a step's ground check and a route round the cells learned go through method values

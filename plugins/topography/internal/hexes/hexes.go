@@ -58,7 +58,7 @@ var _ render.Direct = (*Ground)(nil)
 type Ground struct {
 	world  *world.Plugin
 	board  *board.Plugin
-	m      board.Map
+	m      board.MapRead
 	relief *relief.Relief
 	sky    Sky
 	grid   grid.Grid
@@ -74,16 +74,17 @@ type Ground struct {
 	sectors view.Sectors
 	runs    []run
 	opts    render.DrawMeshOptions
-	own     map[string][]float32
+	own     map[string]any
 	uv      map[string]any
+	pixel   any // the top's Pixel, a []float32 of one
 }
 
 // New is the ground of b's hex board in the relief r over w, the cells standing as m says,
 // under sky.
-func New(w *world.Plugin, b *board.Plugin, m board.Map, r *relief.Relief, sky Sky) *Ground {
-	brd := b.Board()
+func New(w *world.Plugin, b *board.Plugin, m board.MapRead, r *relief.Relief, sky Sky) *Ground {
+	brd := b.Read(0).Board()
 	h := &Ground{world: w, board: b, m: m, relief: r, sky: sky, grid: brd.Grid, size: float32(brd.CellSpan()),
-		own: map[string][]float32{}, uv: map[string]any{}}
+		own: map[string]any{}, uv: map[string]any{}, pixel: []float32{0}}
 	h.opts = render.DrawMeshOptions{WriteDepth: true, Vertices: prismVertices, Uniforms: map[string]any{}}
 	return h
 }
@@ -114,12 +115,13 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if !ok || !h.refresh() {
 		return
 	}
-	if g := h.world.ViewFor(cam).Grid(); g != h.sectors {
+	if g := h.world.Read(0).ViewFor(cam).Grid(); g != h.sectors {
 		h.sectors = g
 		h.lay()
 	}
 	u.Into(h.uv)
-	h.uv["Pixel"] = []float32{1 / h.px}
+	h.pixel.([]float32)[0] = 1 / h.px
+	h.uv["Pixel"] = h.pixel
 	h.top.Fill(color.Transparent)
 	top := render.Target{Screen: h.top}
 	h.still.Draw(top, nil, render.UniformsOf(h.uv), h.px, 0, 0, render.Light{1, 1, 1})
@@ -137,7 +139,7 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	h.set("Visibility", seeing)
 	h.set("HazeUp", up)
 	h.set("HazeWay", way[:]...)
-	seen := h.world.ViewFor(cam)
+	seen := h.world.Read(0).ViewFor(cam)
 	fog := seen.Fogging()
 	h.set("Sight", fog[:]...)
 	h.opts.Depth, h.opts.Images = t.Depth, [4]*render.Image{h.top, nil, nil, nil}
@@ -194,11 +196,11 @@ func (h *Ground) Miniature() (*render.Image, float32) {
 
 // false while the board has no atlas to draw from
 func (h *Ground) refresh() bool {
-	atlas := h.board.Atlas()
+	atlas := h.board.Read(0).Atlas()
 	if atlas == nil {
 		return false
 	}
-	brd := h.board.Board()
+	brd := h.board.Read(0).Board()
 	at := [2]uint64{brd.Changes() + 1, h.relief.Version() + 1}
 	if h.still != nil && at == h.at {
 		return true
@@ -226,7 +228,7 @@ func (h *Ground) lay() {
 		centre := h.grid.CellCenter(c)
 		top, _ := h.m.Top(c)
 		h.cells = append(h.cells, float32(centre.X), float32(centre.Y), top[0],
-			float32(takesOf(h.board.Board().Kind(c).Takes)))
+			float32(takesOf(h.board.Read(0).Board().Kind(c).Takes)))
 		for _, i := range across {
 			n, ok := h.grid.Toward(c, i)
 			lowest := float32(min(low, 0))
@@ -283,16 +285,16 @@ func (h *Ground) gridOf(cam camera.Camera) (line [4]float32, width float32) {
 }
 
 func (h *Ground) set(name string, v ...float32) {
-	s, ok := h.own[name]
-	if !ok || len(s) != len(v) {
-		s = make([]float32, len(v))
-		h.own[name] = s
+	u, ok := h.own[name]
+	if s, _ := u.([]float32); !ok || len(s) != len(v) {
+		u = make([]float32, len(v))
+		h.own[name] = u
 	}
-	copy(s, v)
-	h.opts.Uniforms[name] = s
+	copy(u.([]float32), v)
+	h.opts.Uniforms[name] = u
 }
 
-type fromAbove struct{ board.Map }
+type fromAbove struct{ board.MapRead }
 
 func (m fromAbove) Look() look.Look { return look.FlatLook() }
 

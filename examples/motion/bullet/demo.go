@@ -106,7 +106,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		WithTap(tapFor)
 	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving).
 		WithCollision(a.collision)
-	a.bullet = bullet.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board.Heights)
+	a.bullet = bullet.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board.Read(0).Heights)
 	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
 	a.players = players.NewPlugin(
 		a.world,
@@ -143,7 +143,7 @@ func (a *arena) definePlayers() error {
 }
 
 func (a *arena) defineEffects() {
-	a.world.Effects().Define(WoundedEf, effect.Spec{
+	a.world.Write().Effects().Define(WoundedEf, effect.Spec{
 		effect.Lasts(woundLasts),
 		effect.Alter(func(st *steering.Steering) { st.MaxSpeed /= 2 }),
 	})
@@ -160,7 +160,7 @@ type unitRow struct {
 
 func units(b *board.Plugin) *board.Units[unitRow] {
 	return board.NewUnits[unitRow](b, board.Shape{Size: unitSize, Height: unitSize},
-		func(u unitRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+		func(u unitRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
 }
 
 func walking() steering.Steering {

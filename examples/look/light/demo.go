@@ -96,10 +96,10 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving).
 		WithCollision(a.collision)
 	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
-	a.telemetry = telemetry.NewPlugin(a.world).With(a.light.Reporter())
+	a.telemetry = telemetry.NewPlugin(a.world).With(a.light.Read(0).Reporter())
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection, a.nav,
 		a.driving, a.light)
-	a.board.ShowGrid(false)
+	a.board.Write().ShowGrid(false)
 }
 
 func (a *arena) definePlayer() error {
@@ -154,7 +154,7 @@ func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
 
 func (a *arena) update(ctx goke.RunCtx, d time.Duration) {
 	a.world.RunPlan(ctx, d)
-	a.light.WithDistant(sunAt(a.world.Clock().Time())) // the game's own sun, of the moment
+	a.light.WithDistant(sunAt(a.world.Read(0).Clock().Time())) // the game's own sun, of the moment
 	a.light.RunPlan(ctx, d)
 	a.motion.RunPlan(ctx, d)
 	a.collision.RunPlan(ctx, d)

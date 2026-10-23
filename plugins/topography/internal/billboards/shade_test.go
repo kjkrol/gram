@@ -68,14 +68,14 @@ func TestSprites_StandDarkerInTheReliefsShadow(t *testing.T) {
 	})
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
 	b := board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
-	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	l := light.NewPlugin(w, light.Config{}).WithDistant(westSun)
 	p := topography.NewPlugin(w, b, l, topography.Config{}).
 		WithAtmosphere(westSky{})
 	drawn := append(topotest.Drawn(t, l), topotest.Drawn(t, p)...)
 	// a wall 120 high west of x 96: its shadow reaches 69 east over the level ground, towards the
 	// eye, which looks from the south-east
-	p.Relief().SetHeights(ground.MeanOfCells(g, func(c cell.ID) float64 {
+	p.Write().Relief().SetHeights(ground.MeanOfCells(g, func(c cell.ID) float64 {
 		if x, _, _ := g.Coords(c); x <= 2 {
 			return 120
 		}
@@ -86,14 +86,14 @@ func TestSprites_StandDarkerInTheReliefsShadow(t *testing.T) {
 		Tilt:       true,
 		Cell:       32,
 		HeightUnit: 1,
-		Cage:       p,
-	}).New(cameras.Isometrically, camera.Config{})
+		Cage:       p.Read(0),
+	}).Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(320, 240)
 	cam.MoveTo(0, 0)
 	cam.ZoomOut(2.5, 160, 120)
 	cam.CenterOn(160, 140, 0)
 	shine := func(at geom.Vec, takes render.Taking) (lit, n int) {
-		fig := &standing{look: w.Look().(world.DirectLook), relief: p.Relief(), at: at,
+		fig := &standing{look: w.Read(0).Look().(world.DirectLook), relief: p.Write().Relief(), at: at,
 			atlas: &magenta{}, lit: render.Illumination{Light: render.Light{1, 1, 1}, Takes: takes}}
 		c := render.NewComposer(append([]render.Source{sunning{}}, append(drawn, fig)...)...)
 		screen := render.NewImage(320, 240)

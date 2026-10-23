@@ -824,3 +824,126 @@ pierwszym `Query`, test łapie 20 wyścigów bez niej), do wydania jako v1.14.1.
 czytelnik w niesymulowanym `RunPlan` po cudzym niesymulowanym `Sync` (np. selekcja po `MoveTo`
 nawigacji) może widzieć nieświeże przebiegi do następnego przebudowania; pełna naprawa to
 opakowanie `rc` w `internal/engine/stage_runtime.go` jak w `Clock.Replay`.
+
+## Fala 3 (plan 2026-10-21, gałąź `perf/wave-3`)
+
+Dziewięć części naraz (agenty Opus 5.5, bez pomiarów czasu), briefy w `doc/briefs/w3.md`: A
+Detour bez zmiany zachowania, B odstęp „dosłowny” (alternatywa A, wejdzie lepsza), C osiadanie
+po `Sync` poza symulacją (poprawność), D słowniki astar, E alokacje kroków ceremony, F `Scan` bez
+alokacji i niestabilny test w aabbworld, G tańszy ruch (aabbworld + gram), H bez `unindexed`
+(porządek), I shadery bez podwójnego `@builtin(position)` (Metal). Integrator po kolei: C, I, H,
+A wobec B, D, E, F, G; pomiar szeregowy na bezczynnej maszynie, baza = `perf/wave-3` przed
+częścią; ulepszenie przyjęte, gdy mediana ≥3% lepsza w reżimie celu i zakresy biegów się nie
+nakładają, a żaden inny reżim nie gorszy; porządek i poprawność na testach. astar, ceremony,
+aabbworld: gałęzie `perf/wave-3`, PR-y integratora bez scalania; użytkownik scala, taguje i
+podbija w gram; do tego czasu `/home/karol/CODE/go.work` używa lokalnych `./astar` i
+`./aabbworld` (przed falą: tylko `./ceremony`, `./goke`, `./gram`).
+
+## Fala 3: wynik (2026-10-21)
+
+Dziewięć części naraz bez pomiarów czasu (agenty Opus 5.5; w połowie wstrzymane dema i sondy,
+bo obciążenie doszło do 60), potem integrator po kolei: weryfikacja, pomiar szeregowo na
+bezczynnej maszynie (5 rund, baza = gałąź integracji przed częścią), sprawdzenia deterministyczne
+(sondy, zrzuty), scalenie albo odrzucenie. Reguła: ulepszenie przyjęte, gdy mediana ≥3% lepsza w
+reżimie celu i zakresy biegów się nie nakładają, a żaden reżim nie gorszy; poprawność i porządek
+na testach.
+
+| Część | Wynik | Liczby |
+|:--|:--|:--|
+| C osiadanie po `Sync` poza zegarem | przyjęta (poprawność) | test odtwarza lukę; C+H+I: tick świata i nawigacji w szumie (open 1 000 +2,8%, pod progiem) |
+| I shadery na Metal | przyjęta (poprawność) | test pada na bazie na trzech plikach; zrzuty 4 scen 0 pikseli różnicy, próby kontrolne różne |
+| H bez `unindexed` | przyjęta (porządek) | logi sond spawn i bullet identyczne, x1 i x4 |
+| A odpowiedzi wyszukiwań trzymane | przyjęta | tłok 1 000 94,9 → 40,3 ms, tłok 100 −24%, open 1 000 −24%, open 100 −7%; sondy square i spawn identyczne tick w tick, zrzuty 0 pikseli |
+| B odstęp „dosłowny” | odrzucona (zmiana zachowania) | tłok 1 000 17,5 ms sama, 10,4 ms na A; po 21 s 247 jednostek do celu zamiast 539: decyzja użytkownika |
+| D słowniki astar ze znacznikiem | przyjęta | nawigacja −5 do −7%, trasa −4,6%. Po przeglądzie PR astar znacznik to bajt w osobnej tablicy: 9 B na slot zamiast 16 B (`{node, uint32}` przez wyrównanie); astar wobec `main` waga 0,1 −1 do −59%, wagi 1,0 i 0,5 −4 do +5%, żaden przypadek gorszy wg reguły (16 B: do +10%); gram `Navigation_Tick` i `Navigation_Path` jak przy 16 B (szum) |
+| E kroki ceremony bez alokacji | przyjęta (po decyzji użytkownika) | alokacje open 1 000 2 599 → 90 na tick, czas ±2%; sondy guard, dialog, spawn identyczne |
+| F `Scan` bez alokacji, niestabilny test | przyjęta (po decyzji użytkownika) | torus 3 → 0 alokacji, czas −2%; test 40 razy bez porażki |
+| G ruch przebiegu jednym wywołaniem | przyjęta | `World_Tick` 1 000 / 5 000 −24 / −26%; skróty pozycji w 4 demach identyczne |
+
+**Decyzja użytkownika (2026-10-21, po przeglądzie):** mniej alokacji przy czasie nie gorszym to
+też ulepszenie („pewnie oddadzą nam ten czas z nawiązką później, gdy włączy się GC”); E i część
+alokacyjna F przyjęte.
+
+**Stan.** Gałęzie `perf/wave-3`: gram (C, I, H, A, D, G), astar (D), aabbworld (G, F), ceremony (E). PR-y integratora bez scalania; użytkownik scala, taguje i podbija w
+gram. Do tego czasu `/home/karol/CODE/go.work` używa `./astar` i `./aabbworld` (przed falą:
+`./ceremony`, `./goke`, `./gram`). Gałąź odrzucona zostaje: `n/detour-wait`.
+
+## Fala 4 (plan 2026-10-21, ta sama gałąź `perf/wave-3`)
+
+Na życzenie użytkownika: pozostałe pomysły alokacyjne, brief `doc/briefs/w4.md`: E2 trzy kroki
+ceremony, D2 ścieżka astar do bufora (astar + gram), K boksowanie uniformów i `DrawImageIn` w
+gram. Ta sama procedura; reguła akceptacji rozszerzona decyzją użytkownika: mniej alokacji przy
+czasie nie gorszym to ulepszenie. Przyjęte części wchodzą do tych samych PR-ów (`perf/wave-3`).
+
+## Fala 4: wynik (2026-10-21)
+
+Trzy części, ta sama procedura, reguła: czas nie gorszy i mniej alokacji, albo czas lepszy.
+Wszystkie trzy przyjęte, w tych samych PR-ach.
+
+| Część | Czas | Alokacje | Sprawdzenia |
+|:--|:--|:--|:--|
+| D2 ścieżka astar do bufora (`SolveInto`) | nawigacja i trasa w szumie | tłok 1 000 1 406 → 13 na tick, open 1 000 90 → 8, trasa 16 → 4; astar `Solve` 11–18 → 1–4 | golden tras, `-race` |
+| E2 kroki ceremony na drugiej encji, na miejscach, warunek drugiej | benchmarki reguł, planów, efektów w szumie (te kroki odpalają tylko dema) | 2 → 0 na odpalenie | sonda effect: log i zrzut identyczne; bullet z ziarnem: skróty identyczne |
+| K uniformy pakowane raz, blity bez bufora | klatka wyspy, UI, tekst, `World_Draw`, cienie w szumie | wyspa −1 na klatkę; niebo −28, aloft −22, krople −15, plansza −23 (licznik agenta) | zrzuty light (różni tylko tekst czasu w telemetrii) i hex identyczne; sky i flat w szumie bazy |
+
+Uwaga: `render/gpu` `TestDevice_ARedrawnFrameAllocatesNothingOfItsOwn` padł raz w pełnym `go test
+./...` (8 alokacji), a 10 powtórzeń osobno na bazie, na K i po scaleniu oraz dwa kolejne pełne
+przebiegi przeszły: test liczy alokacje całego procesu, więc pod obciążeniem bywa niestabilny.
+
+## Fala 5 (plan 2026-10-22, ta sama gałąź `perf/wave-3`): pula wątków, Read/Write, routing i traffic
+
+**Cel.** Wyszukiwania tras na kilku rdzeniach. Pierwszy szkic (wstępne wypełnianie pamięci
+Detour przed pętlą i `SeekTo` w goke) odrzucony 2026-10-22; z niego zostało `Query.Fork` (goke
+v3.6.0).
+
+**Układ.**
+- Pula (`internal/parallel`): stałe gorutyny przez całą grę, wołający jako wątek 0; `Begin(task,
+  idle)`, `Add(n)`, `Wait`; zadania z licznika atomowego, bez alokacji; `idle(w)` raz na wątku,
+  który nie znajduje zadania. Rozmiar z `game.Props.Workers`, pluginom przez
+  `plugin.Installer.Pool`.
+- Każdy plugin wydaje swój stan przez `Read(w)`, bezpieczny na wątku `w` (forki zapytań, bufory
+  na wątek, żadnych leniwych zapisów przy odczycie), i `Write()` na wątku gry.
+- Nawigacja to `routing` (polecenia, prośby o trasę, liczone na puli) i `traffic` (jazda po
+  trasie, zajętość, tłum, szeregowo).
+
+**Etapy** (po każdym raport i akceptacja użytkownika):
+1. Pula; vision i renderer planszy na niej.
+2. `Read`/`Write`: 2a plansza, 2b świat (aabbworld `SpaceRead`, ceremony `EffectsRead`), 2c
+   pozostałe pluginy.
+3. 3a: podział nawigacji na pakiety, zachowanie identyczne. 3b: prośby o trasę w `MoveOrder`
+   (`Ask`), odpowiadane w tym samym kroku (przebieg 1 `traffic` zbiera prośby, routing odpowiada,
+   przebieg 2 kończy krok tych jednostek); cele grupy z pierścieni od celu, bez A*; osobne
+   `Finder`y routingu i traffic.
+4. Routing na puli: K routerów (`WithRouters`, domyślnie 4), każdy z własnym `Finder`em;
+   paczka ma min(K, prośby, P) pasów, pierwszy router przesuwa się co tick; pas na wątku `w`
+   czyta planszę przez `Read(w)` i zapisuje wynik przez fork zapytania tego wątku; wspólna
+   pamięć odpowiedzi ze stanem „w toku” (`spacing.Answers`).
+5. astar `Solver.Wipe` (v1.1.3): wątek bez zadań czyści znaczniki routerów nieużytych w ticku,
+   gdy zostało im mniej niż 64 wyszukiwania do zawinięcia.
+6. Dokumenty.
+
+## Fala 5: wynik
+
+Pomiary naprzemiennie, baza to `perf/wave-3` przed etapem; etapy 1–3a po 5 albo 2 rundy, od 3b
+po jednym przebiegu.
+
+| Etap | Zmiana | Wynik |
+|:--|:--|:--|
+| 1 | pula | `Vision_Scan` 9 → 0 alokacji na tick, `Vision_ScanWithOutlines` 100 −7,7%, reszta w szumie |
+| 2a | plansza | w szumie; regresja `Board_Altitude` (+9–11%, grunt liczony dwa razy na encję) usunięta przed scaleniem |
+| 2b | świat, aabbworld, ceremony | w szumie: indeks przestrzeni budowany przed paczką vision (`SpaceRead.Ready`, bez tego `Vision_Scan` 500 +78%), `ready()` w aabbworld inline'owane |
+| 2c | pozostałe pluginy | w szumie |
+| 3a | pakiety nawigacji | open 1000 −3,3%, reszta w szumie; logi sond identyczne |
+| 3b | prośby w tym samym kroku, cele grupy bez A* | zachowanie inne od pierwszego rozkazu grupy; crowded 1000 przy `12x` 38,2 → 8,3 ms (okno trafia na szczyt bazy), na 600 tickach 12,8 → 8,7 ms; `Navigation_Path` 14,9 → 0,7 ms, bo mierzy już pamięć odpowiedzi, nie A* |
+| — | zajętość bez alokacji na krok | open 1000 (`400x`) 20 → 14 alokacji na tick, czas bez zmian |
+| 4 | routing na puli | logi sond identyczne z routingiem szeregowym; crowded 1000 8,27 → 8,45 ms (w oknie mało próśb) |
+| 5 | czyszczenie znaczników | crowded 1000 8,78 → 9,00 ms, maszyna obciążona, w szumie |
+
+**Otwarte.**
+- Zmierzone 2026-10-23 samym routingiem (`plugins/navigation`, `Routing_Path`,
+  `Routing_Routes`, każde wyszukiwanie od nowa): A* trasy przez planszę 200×200 15,2 ms, tyle co
+  `Navigation_Path` przed falą 5; 32 trasy naraz 256 ms na jednym wątku, 77,8 ms na puli (4
+  routery, 3,3×). Tablice routera powstają przy jego pierwszym wyszukiwaniu, potem 0 alokacji.
+- `Navigation_Path` w `bench` zostaje: mierzy cały tick z pamięcią odpowiedzi, A* mierzy `Routing_Path`.
+- Na później: wielu piszących do `Space` (wkład na wątek, sklejenie przez koordynatora, jedno
+  `RebuildRuns`); płaska plansza drogą GPU topografii (bez składania kafli w rendererze planszy).

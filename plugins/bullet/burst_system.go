@@ -31,7 +31,8 @@ type burstSystem struct {
 }
 
 func newBurstSystem(w *world.Plugin, bursts *command.Queue[Burst], blasts *host.PairRules[Blast]) *burstSystem {
-	return &burstSystem{w: w, space: w.Space(), bursts: bursts, blasts: blasts, tickOf: w.Tick}
+	return &burstSystem{w: w, space: w.Write().Space(), bursts: bursts, blasts: blasts,
+		tickOf: w.Read(0).Tick}
 }
 
 const sought = 0
@@ -72,7 +73,7 @@ func (s *burstSystem) Update(cb *goke.CmdBuf, dt time.Duration) {
 			}
 			s.blasts.Dispatch(t, self, s.blasts.Read(sought, s.cols.Row(other), int(other.Slot)), Blast{Self: i.Entity, Other: id, Distance: d})
 		}
-		s.w.Despawn(cb, i.Entity)
+		s.w.Write().Despawn(cb, i.Entity)
 	})
 }
 

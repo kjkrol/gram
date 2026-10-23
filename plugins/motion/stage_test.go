@@ -84,7 +84,7 @@ func (g *motionStage) SetupSystems() []goke.System {
 func (g *motionStage) Loaded() error { return nil }
 
 func (g *motionStage) Spawn() error {
-	g.world.Seed(kind.Named[struct{}](g.world.Kinds(), thingKind).Entry(struct{}{}))
+	g.world.Write().Seed(kind.Named[struct{}](g.world.Kinds(), thingKind).Entry(struct{}{}))
 	return nil
 }
 
@@ -192,7 +192,7 @@ func TestMotion_AnEffectOnTheSteeringTellsTheStepItBegins(t *testing.T) {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	m := motion.NewPlugin(w)
-	fx := w.Effects()
+	fx := w.Write().Effects()
 	fx.Define("held", effect.Spec{
 		effect.Lasts(time.Second),
 		effect.Alter(func(s *steering.Steering) { s.Halted = true }),
@@ -203,7 +203,7 @@ func TestMotion_AnEffectOnTheSteeringTellsTheStepItBegins(t *testing.T) {
 		comp.Const(steering.Steering{MaxSpeed: 100}),
 		comp.Const(steering.Course{Want: east, Speed: 100, WantSpeed: 100}),
 	})
-	w.Seed(kind.Named[thing](w.Kinds(), thingKind).Entry(thing{}))
+	w.Write().Seed(kind.Named[thing](w.Kinds(), thingKind).Entry(thing{}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}

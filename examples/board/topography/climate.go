@@ -82,7 +82,7 @@ func (a *arena) defineClimate() weathering.Config {
 	for _, name := range snowable() {
 		snowy[name] = snowyCell(name)
 	}
-	ground := a.topography.Relief()
+	ground := a.topography.Write().Relief()
 	return weathering.Config{
 		Snowy: snowy,
 		Ice:   IceCell,

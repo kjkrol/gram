@@ -22,16 +22,17 @@ type mainScene struct{ arena *arena }
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
 
-	picture := a.world.Picture()
+	picture := a.world.Read(0).Picture()
 	red := render.NewFeed(
-		a.cameras.New(cameras.FromAbove, camera.Config{Follow: RedBlock}),
+		a.cameras.Write().New(cameras.FromAbove, camera.Config{Follow: RedBlock}),
 		picture,
 	)
 	blue := render.NewFeed(
-		a.cameras.New(cameras.FromAbove, camera.Config{Follow: BlueBlock}),
+		a.cameras.Write().New(cameras.FromAbove, camera.Config{Follow: BlueBlock}),
 		picture,
 	)
-	minimap := render.NewFeed(a.cameras.New(cameras.FromAbove, camera.Config{Whole: true}), picture)
+	minimap := render.NewFeed(a.cameras.Write().New(cameras.FromAbove, camera.Config{Whole: true}),
+		picture)
 	return ui.Layers(
 		ui.Columns(
 			ui.Share(1, ui.Image(red).Input(a.players.Through(a.redPlayer))),

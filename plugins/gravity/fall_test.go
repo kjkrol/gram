@@ -113,8 +113,8 @@ func TestFall_OneLeapIsOneLeapAtAnyTempo(t *testing.T) {
 		name  string
 		shift func(r *rig)
 	}{
-		{"at ½", func(r *rig) { r.w.Clock().Slower() }},
-		{"at 2", func(r *rig) { r.w.Clock().Faster() }},
+		{"at ½", func(r *rig) { r.w.Write().Clock().Slower() }},
+		{"at 2", func(r *rig) { r.w.Write().Clock().Faster() }},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			r := newRig(t, scene{leap: 3, bodies: []body{{x: 15, y: 15}},
@@ -141,7 +141,7 @@ func TestFall_AwayThrowsItOffFromAnother(t *testing.T) {
 	r := newRig(t, scene{bodies: []body{{x: 15, y: 15}, {x: 25, y: 15}}})
 	r.tick()
 	away := awayFrom(r.ids[0], 5, 1)
-	r.w.Carrier().PutFrom(r.ids[1], away)
+	r.w.Write().Carrier().PutFrom(r.ids[1], away)
 	r.tick()
 	if s := r.of(1); !s.airborne || s.drift.X <= 0 {
 		t.Fatalf("thrown: %+v, want it in the air going east, away from the other", s)

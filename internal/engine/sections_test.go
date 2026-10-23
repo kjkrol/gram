@@ -67,7 +67,7 @@ func TestStage_RunsItsSectionsInOrder(t *testing.T) {
 		Effects(func() error { s.note("effects"); return nil }).
 		Rules(func(game.Initializer) error { s.note("rules"); return nil }).
 		Kinds(func() { s.note("cells") }, s.defineUnit).
-		Spawn(func() { s.note("ground") }, func() { s.note("units"); s.world.Seed(s.unit.Entry(struct{}{})) }).
+		Spawn(func() { s.note("ground") }, func() { s.note("units"); s.world.Write().Seed(s.unit.Entry(struct{}{})) }).
 		Scenes(func() []game.Scene { s.note("scenes"); return []game.Scene{&scene{name: "main"}, &scene{name: "help"}} }).
 		Update(s.update)
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
@@ -239,14 +239,14 @@ func TestStage_RefusesAThingOutOfItsSection(t *testing.T) {
 		return nil
 	}
 	effectDefined := func(s *sectioned, _ game.Initializer) error {
-		s.world.Effects().Define("glow", effect.Spec{})
+		s.world.Write().Effects().Define("glow", effect.Spec{})
 		return nil
 	}
 	kindDefined := func(s *sectioned, _ game.Initializer) error { s.defineUnit(); return nil }
 	commands := func(s *sectioned, _ game.Initializer) error {
-		s.world.Effects().Define("lit", effect.Spec{})
+		s.world.Write().Effects().Define("lit", effect.Spec{})
 		s.world.Commands().Define("light",
-			ceremony.Put(s.world.Effects().Named("lit")).On(ceremony.World))
+			ceremony.Put(s.world.Write().Effects().Named("lit")).On(ceremony.World))
 		return nil
 	}
 	for name, tc := range map[string]struct {
@@ -316,7 +316,7 @@ func TestStage_SeedsInTheirSections(t *testing.T) {
 					err = fmt.Errorf("panic: %v", r)
 				}
 			}()
-			s.world.Seed(s.unit.Entry(struct{}{}))
+			s.world.Write().Seed(s.unit.Entry(struct{}{}))
 			return nil
 		}).Update(s.update)
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err == nil || !strings.Contains(err.Error(), "it belongs in Spawn") {
@@ -330,7 +330,7 @@ func TestStage_SeedsInTheirSections(t *testing.T) {
 	st = stage.New("meadow").
 		World(testWorldConfig()).Plugins(func(w *world.Plugin) { s.makeWorld(w); w.Made().Add(spy) }).
 		Kinds(s.defineUnit).
-		Spawn(func() { s.world.Seed(s.unit.Entry(struct{}{})) }).Update(s.update)
+		Spawn(func() { s.world.Write().Seed(s.unit.Entry(struct{}{})) }).Update(s.update)
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
 		t.Errorf("units seeded in Spawn: Init = %v", err)
 	}
@@ -360,8 +360,8 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 		in    func(b *built) error // done in Effects, a wrong place
 		wants string
 	}{
-		"a kind of cell defined": {func(b *built) error { b.board.CellKinds().Define("grass", grass); return nil }, "Kinds"},
-		"the board seeded":       {func(b *built) error { b.board.Seed(board.Layout{}); return nil }, "Spawn"},
+		"a kind of cell defined": {func(b *built) error { b.board.Read(0).CellKinds().Define("grass", grass); return nil }, "Kinds"},
+		"the board seeded":       {func(b *built) error { b.board.Write().Seed(board.Layout{}); return nil }, "Spawn"},
 		"a player added":         {func(b *built) error { b.players.Add("late"); return nil }, "Players"},
 		"keys bound":             {func(b *built) error { return b.player.Bind() }, "Players"},
 	} {
@@ -387,9 +387,9 @@ func TestStage_ThePluginsRefuseTheirsOutOfItsSection(t *testing.T) {
 	b := &built{}
 	st := stage.New("meadow").World(cfg).Plugins(plugins(b)).
 		Players(func() { b.player = b.players.Add("ai") }).
-		Kinds(func() { b.board.CellKinds().Define("grass", grass) }).
+		Kinds(func() { b.board.Read(0).CellKinds().Define("grass", grass) }).
 		Controls(func() error { return b.player.Bind() }).
-		Spawn(func() { b.board.Seed(board.Layout{Default: "grass"}) }).
+		Spawn(func() { b.board.Write().Seed(board.Layout{Default: "grass"}) }).
 		Update(b.update)
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {
 		t.Errorf("each in its section: Init = %v", err)
@@ -549,7 +549,7 @@ func TestStage_LeadsItsFiguresThroughTheSectionsAfterTheGamesOwn(t *testing.T) {
 		Effects(func() { s.note("effects") }).
 		Rules(func() { s.note("rules") }).
 		Kinds(func() { s.note("cells") }, s.defineUnit).
-		Spawn(func() { s.world.Seed(s.unit.Entry(struct{}{})) }).
+		Spawn(func() { s.world.Write().Seed(s.unit.Entry(struct{}{})) }).
 		Scenes(func() []game.Scene { return []game.Scene{&scene{name: "main"}} }).
 		Update(s.update)
 	if err := NewEngine(oneStageGame{stage: st}).Init(); err != nil {

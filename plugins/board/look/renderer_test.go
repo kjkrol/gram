@@ -45,7 +45,7 @@ func newRenderer(
 	return r
 }
 
-func flatRenderer(brd *board.Board, state look.RenderState) *look.Renderer {
+func flatRenderer(brd *board.BoardRead, state look.RenderState) *look.Renderer {
 	return newRenderer(brd, flatAtlas{}, state, mapOf(look.FlatLook()))
 }
 
@@ -82,8 +82,8 @@ func gridLinesOf(r *look.Renderer, cam camera.Camera) [][]render.Vertex {
 
 func TestRenderer_Compose_FlatLaysEveryVisibleCellOverItsBox(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, Height: 0})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, Height: 0})
 	got := compose(flatRenderer(brd, look.RenderState{}), cameratest.NewFromSpace(128, 128, 0))
 	if len(got) != 1 || got[0] != 16 {
 		t.Errorf("composed %v, want the 16 cells on the ground and nothing else", got)
@@ -92,8 +92,8 @@ func TestRenderer_Compose_FlatLaysEveryVisibleCellOverItsBox(t *testing.T) {
 
 func TestRenderer_Compose_DrawsEverySideOfASquareGridOnceWhereCellsAreLargeEnough(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	r := flatRenderer(brd, gridOf(black, 1))
 	cam := cameratest.NewFromSpace(128, 128, 0)
 	if got := compose(r, cam); got[0] != 16 || got[look.GridLift] != 40 {
@@ -108,8 +108,8 @@ func TestRenderer_Compose_DrawsEverySideOfASquareGridOnceWhereCellsAreLargeEnoug
 
 func TestRenderer_Compose_DrawsEverySideOfAHexGridOnce(t *testing.T) {
 	grid := grid.DefaultGrids{}.Hex(3, 3, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	got := compose(flatRenderer(brd, gridOf(black, 1)), cameratest.NewFromSpace(256, 256, 0))
 	if got[0] != 9 || got[look.GridLift] != 38 {
 		t.Errorf("composed %v, want the nine hexes and the 38 sides of their cells", got)
@@ -118,8 +118,8 @@ func TestRenderer_Compose_DrawsEverySideOfAHexGridOnce(t *testing.T) {
 
 func TestRenderer_Compose_DrawsTheGridInItsLine(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(2, 2, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	red := color.RGBA{R: 200, A: 128}
 	lines := gridLinesOf(flatRenderer(brd, gridOf(red, 3)), cameratest.NewFromSpace(64, 64, 0))
 	if len(lines) != 12 {
@@ -142,8 +142,8 @@ func TestRenderer_Compose_DrawsTheGridInItsLine(t *testing.T) {
 
 func TestRenderer_Compose_AMaterialsCellKeepsItsGrid(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(2, 2, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Name: cell.Named("lava"), Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Name: cell.Named("lava"), Cost: 1, Allows: cell.Land})
 	r := flatRenderer(brd, gridOf(black, 1))
 	r.Shade(map[cell.Name]render.MaterialID{cell.Named("lava"): 1})
 	got := compose(r, cameratest.NewFromSpace(64, 64, 0))
@@ -154,8 +154,8 @@ func TestRenderer_Compose_AMaterialsCellKeepsItsGrid(t *testing.T) {
 
 func TestRenderer_Compose_DrawsEachSideOfAPartlySeenHexBoardOnce(t *testing.T) {
 	g := grid.DefaultGrids{}.Hex(8, 8, 20)
-	brd := board.NewBoard(g)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(g)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	var seen []cell.ID
 	lk := lookFn(func(_ *render.Frame, _ camera.Camera, t *look.Tile) { seen = append(seen, t.ID) })
 	r := newRenderer(brd, flatAtlas{}, gridOf(black, 1), mapOf(lk))
@@ -203,10 +203,10 @@ func TestRenderer_Compose_DrawsEachSideOfAPartlySeenHexBoardOnce(t *testing.T) {
 
 func TestRenderer_Compose_HandsTheLookEveryCell(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	wood := grid.At(1, 1)
-	brd.Set(wood, cell.Kind{Cost: 1, Allows: cell.Land, Height: 8, Sway: 1})
+	brdW.Set(wood, cell.Kind{Cost: 1, Allows: cell.Land, Height: 8, Sway: 1})
 	var seen int
 	var amount, rise float32
 	lk := lookFn(func(_ *render.Frame, _ camera.Camera, t *look.Tile) {
@@ -228,8 +228,8 @@ func (fn lookFn) Cell(f *render.Frame, cam camera.Camera, t *look.Tile) { fn(f, 
 
 func TestTile_AFlatWorldIsDrawnAsItsSpritesAre(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(2, 2, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	var got render.Shade
 	lk := lookFn(func(_ *render.Frame, _ camera.Camera, t *look.Tile) { got = t.Light() })
 	r := newRenderer(brd, flatAtlas{}, look.RenderState{}, mapOf(lk))
@@ -241,8 +241,8 @@ func TestTile_AFlatWorldIsDrawnAsItsSpritesAre(t *testing.T) {
 
 func TestRenderer_Compose_FlatTilesAreDrawnAsTheyAre(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(2, 2, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	r := newRenderer(brd, flatAtlas{}, look.RenderState{}, mapOf(look.FlatLook()))
 	var f render.Frame
 	cam := cameratest.NewFromSpace(64, 64, 0)
@@ -266,8 +266,8 @@ func (scaledCam) ScaleAt(_, y, _ float32) float32 {
 
 func TestRenderer_Compose_DrawsEachCellsGridAsLargeAsItIsDrawn(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	r := flatRenderer(brd, gridOf(black, 1))
 	lines := gridLinesOf(r, scaledCam{cameratest.NewFromSpace(128, 128, 0)})
 	for _, v := range lines {

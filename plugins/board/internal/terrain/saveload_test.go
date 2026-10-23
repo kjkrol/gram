@@ -62,10 +62,10 @@ func TestPlugin_SaveLoad_TerrainRoundTripsAsCellEntities(t *testing.T) {
 	if err := eng.Init(); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	stage.boardPlugin.Board().Set(here, wall)
+	stage.boardPlugin.Write().Board().Set(here, wall)
 	way := cell.Way{Kind: cell.Kind{Name: cell.Named("stream"), Cost: 2, Allows: cell.Land}, Width: 5, Links: 1 << 3}
-	stage.boardPlugin.Board().SetWay(here, way)
-	id, _ := stage.boardPlugin.CellEntity(here)
+	stage.boardPlugin.Write().Board().SetWay(here, way)
+	id, _ := stage.boardPlugin.Read(0).Board().CellEntity(here)
 
 	if err := eng.Save(""); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -80,13 +80,13 @@ func TestPlugin_SaveLoad_TerrainRoundTripsAsCellEntities(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 
-	if got := game2.boardPlugin.Board().Kind(here); got != way.Over(wall) {
+	if got := game2.boardPlugin.Read(0).Board().Kind(here); got != way.Over(wall) {
 		t.Errorf("Board().Kind(cell) after Load = %+v, want %+v", got, way.Over(wall))
 	}
-	if got := game2.boardPlugin.Board().Way(here); got != way {
+	if got := game2.boardPlugin.Read(0).Board().Way(here); got != way {
 		t.Errorf("Way(cell) after Load = %+v, want %+v", got, way)
 	}
-	if got, _ := game2.boardPlugin.CellEntity(here); got != id {
+	if got, _ := game2.boardPlugin.Read(0).Board().CellEntity(here); got != id {
 		t.Errorf("the cell's entity after Load is %d, want %d, the one saved — none spawned anew", got, id)
 	}
 }

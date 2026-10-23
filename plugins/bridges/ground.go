@@ -12,7 +12,7 @@ import (
 )
 
 type boardGround struct {
-	brd     *board.Board
+	brd     *board.BoardRead
 	heights func(p geom.Vec) float64 // nil: flat at 0
 	allows  cell.Domain
 	hex     bool
@@ -22,7 +22,7 @@ type boardGround struct {
 
 var _ site.Ground = (*boardGround)(nil)
 
-func newGround(brd *board.Board, heights func(p geom.Vec) float64,
+func newGround(brd *board.BoardRead, heights func(p geom.Vec) float64,
 	allows cell.Domain) *boardGround {
 	shape, _ := grid.ShapeOf(brd.Grid)
 	return &boardGround{brd: brd, heights: heights, allows: allows, hex: shape.Hex}

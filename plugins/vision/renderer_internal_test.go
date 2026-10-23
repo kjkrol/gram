@@ -49,7 +49,7 @@ func testSpace(t *testing.T, w, h uint32, toroidal bool) *aabbworld.Space {
 
 func testRenderer(t *testing.T, w, h uint32, toroidal bool, view camera.AABB) *Renderer {
 	t.Helper()
-	r := NewRenderer(testSpace(t, w, h, toroidal))
+	r := NewRenderer(testSpace(t, w, h, toroidal).Read())
 	r.camera = cameratest.NewFromSpace(w, h, torusIf(toroidal), view)
 	r.frame = new(render.Frame)
 	r.frame.Reset(r.camera)
@@ -343,7 +343,7 @@ func (slope) Step() float64         { return 10 }
 
 func isoRenderer(t *testing.T) *Renderer {
 	t.Helper()
-	r := NewRenderer(testSpace(t, 1000, 1000, false)).WithGround(func() ground.Heights { return slope{} })
+	r := NewRenderer(testSpace(t, 1000, 1000, false).Read()).WithGround(func() ground.Heights { return slope{} })
 	r.camera = isoCamera(1000, 1000, 800, 600)
 	r.camera.MoveTo(0, 0)
 	r.ground, r.step, r.grounded = slope{}, 10, true
@@ -431,8 +431,8 @@ func isoCamera(width, height uint32, screenW, screenH float32) camera.Camera {
 		Tilt:       true,
 		Cell:       32,
 		HeightUnit: 1,
-		Cage:       p,
-	}).New(cameras.Isometrically, camera.Config{})
+		Cage:       p.Read(0),
+	}).Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(screenW, screenH)
 	cam.MoveTo(0, 0)
 	return cam
@@ -548,7 +548,7 @@ func TestRenderer_TheBoardsCoverKeepsACount(t *testing.T) {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(8, 8, 32), &cell.MultipleOccupancy{}, w)
-	if versionOf(b.Cover()) == 0 {
+	if versionOf(b.Read(0).Cover()) == 0 {
 		t.Error("the board's cover keeps no count: the views copy it anew every frame")
 	}
 }

@@ -52,9 +52,10 @@ func newDecked(t *testing.T, g grid.Grid, w, h uint32, bridges board.Bridges,
 		Heights:  true,
 	})
 	d.p = board.NewPlugin(g, &cell.MultipleOccupancy{}, d.w).WithBridges(bridges)
-	d.p.Board().SetAll(water)
-	d.w.Effects().Define("sag", effect.Spec{effect.Alter(func(f *cell.Floor) { f.Height += 5 })})
-	d.sag = d.w.Effects().Named("sag")
+	d.p.Write().Board().SetAll(water)
+	d.w.Write().Effects().Define("sag",
+		effect.Spec{effect.Alter(func(f *cell.Floor) { f.Height += 5 })})
+	d.sag = d.w.Write().Effects().Named("sag")
 	decks := board.NewEntities(d.p, board.Shape{Size: 1}, func(r deckRow) cell.ID { return r.At })
 	decks.Define("deck",
 		comp.Load(func(r deckRow) cell.Floor { return r.Floor }),
@@ -64,7 +65,7 @@ func newDecked(t *testing.T, g grid.Grid, w, h uint32, bridges board.Bridges,
 		if i == 0 {
 			e = e.Named("first")
 		}
-		d.w.Seed(e)
+		d.w.Write().Seed(e)
 	}
 	ctx := boardtest.NewInstallCtx()
 	if err := d.w.Install(ctx); err != nil {
@@ -82,7 +83,7 @@ func newDecked(t *testing.T, g grid.Grid, w, h uint32, bridges board.Bridges,
 		d.w.RunPlan(rc, dt)
 		d.p.RunPlan(rc, dt)
 		rc.Sync()
-		d.w.Clock().Replay(rc, dt)
+		d.w.Write().Clock().Replay(rc, dt)
 	})
 	return d
 }
@@ -91,7 +92,7 @@ func (d *decked) tick() { d.ecs.Tick(time.Second / 60) }
 
 func (d *decked) over(p geom.Vec) []cell.ID {
 	var out []cell.ID
-	d.p.Board().DecksOver(p, func(c cell.ID, _ cell.Floor) { out = append(out, c) })
+	d.p.Read(0).Board().DecksOver(p, func(c cell.ID, _ cell.Floor) { out = append(out, c) })
 	return out
 }
 
@@ -126,7 +127,7 @@ func TestDecks_ABandSlantwiseCutsTheCorners(t *testing.T) {
 	d := newDecked(t, g, 50, 50, board.Bridges{},
 		band(g, [2]int{1, 1}, 4, 0, g.At(1, 1), g.At(2, 2), g.At(3, 3))...)
 	d.tick()
-	brd := d.p.Board()
+	brd := d.p.Read(0).Board()
 	for _, c := range []struct {
 		name string
 		at   geom.Vec
@@ -224,7 +225,7 @@ func TestDecks_ABandOnAHexRunsFromEdgeToEdge(t *testing.T) {
 	d := newDecked(t, g, 130, 90, board.Bridges{},
 		band(g, [2]int{0, 1}, 6, 0, g.At(2, 1), g.At(2, 2), g.At(2, 3))...)
 	d.tick()
-	brd := d.p.Board()
+	brd := d.p.Read(0).Board()
 	se, _ := grid.Direction(g, 0, 1)
 	s := g.Step(se)
 	l := math.Hypot(s.X, s.Y)
@@ -257,7 +258,7 @@ func TestRailings_OnAHexRunAlongTheBand(t *testing.T) {
 	l := math.Hypot(s.X, s.Y)
 	m := g.CellCenter(g.At(2, 2))
 	var walls []collide.FieldWall
-	d.p.Cover().(collision.Field).Walls(world.Layers(cell.Land), collision.Everywhere,
+	d.p.Read(0).Cover().(collision.Field).Walls(world.Layers(cell.Land), collision.Everywhere,
 		geom.NewAABB(geom.NewVec(m.X-2, m.Y-2), geom.NewVec(m.X+2, m.Y+2)),
 		func(w collide.FieldWall) bool {
 			walls = append(walls, w)
@@ -335,7 +336,7 @@ func TestDecks_AHeadIsAHalfBand(t *testing.T) {
 	d := newDecked(t, g, 60, 50, board.Bridges{},
 		bridgeRows(g, [2]int{1, 0}, 4, 0, g.At(1, 2), g.At(2, 2), g.At(3, 2))...)
 	d.tick()
-	brd := d.p.Board()
+	brd := d.p.Read(0).Board()
 	for _, c := range []struct {
 		name string
 		at   geom.Vec
@@ -391,7 +392,7 @@ board:
     - {kind: bridge, at: [2, 0], way: [1, 1]}
 `)}}
 	prepare := func(w *world.Plugin, brd *board.Plugin) []act.Rule {
-		brd.CellKinds().Define("water", water)
+		brd.Read(0).CellKinds().Define("water", water)
 		spans := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize},
 			func(r spanRow) cell.ID { return r.At })
 		spans.Define("bridge", comp.Load(func(r spanRow) cell.Floor {
@@ -428,7 +429,7 @@ func TestBridges_BrokenInTheGameIsNotBuilt(t *testing.T) {
 	if got := d.over(middle); len(got) != 1 {
 		t.Fatalf("before: decks of %v over the bridge's middle, want one", got)
 	}
-	carrier := d.w.Carrier()
+	carrier := d.w.Write().Carrier()
 	if !carrier.Put(command.Nobody, ceremony.Put(d.sag).On(ceremony.Named("first"))) {
 		t.Fatal("the world carries no command about an effect")
 	}
@@ -452,7 +453,7 @@ func TestRailings_AWalkerSlidesAlongASlantwiseOne(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(6, 6, 48)
 	start := g.At(2, 2)
 	prepare := func(w *world.Plugin, brd *board.Plugin) []act.Rule {
-		brd.Board().SetAll(grass)
+		brd.Write().Board().SetAll(grass)
 		decks := board.NewEntities(brd, board.Shape{Size: boardtest.UnitSize},
 			func(r deckRow) cell.ID { return r.At })
 		decks.Define("deck",
@@ -460,7 +461,7 @@ func TestRailings_AWalkerSlidesAlongASlantwiseOne(t *testing.T) {
 			comp.Load(func(r deckRow) cell.Rail { return r.Rail }))
 		for _, r := range band(g, [2]int{1, 1}, 44, 0,
 			g.At(1, 1), g.At(2, 2), g.At(3, 3), g.At(4, 4)) {
-			w.Seed(decks.Named("deck").Entry(r))
+			w.Write().Seed(decks.Named("deck").Entry(r))
 		}
 		return nil
 	}

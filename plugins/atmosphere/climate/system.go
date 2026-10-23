@@ -86,7 +86,7 @@ func (s *weatherSystem) hang() {
 	if s.ground != nil {
 		low, peaks = s.ground()
 	}
-	scale := s.world.Scale()
+	scale := s.world.Read(0).Scale()
 	s.relief = air.ReliefOf(scale, low, peaks)
 	s.bases = air.BasesOver(scale, s.relief)
 }
@@ -128,7 +128,7 @@ func (s *weatherSystem) Init(si *goke.SysInit) {
 	space := s.world.Res.Config.Space
 	width, height := float32(space.Width), float32(space.Height)
 	s.middle = [2]float32{width / 2, height / 2}
-	scale := s.world.Scale()
+	scale := s.world.Read(0).Scale()
 	s.dome = air.NewDome(width, height, float32(scale.Units(s.cfg.Horizon)))
 	s.lanesOf(scale)
 	s.query = si.NewQueryBuilder(&s.now).Build()
@@ -279,7 +279,7 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		over := s.over(w, dt, m)
 		s.hang()
 		s.ceil(w, dt)
-		now := w.air(s.world.Scale(), *s.running, s.dome, over)
+		now := w.air(s.world.Read(0).Scale(), *s.running, s.dome, over)
 		now.Bases, now.Relief, now.Ceilings = s.bases, s.relief, s.ceilings
 		now.OneLayer = s.cfg.OneLayer
 		s.lifted, s.lifts = s.lifted+dt, (s.lifts+1)%liftParts
@@ -289,7 +289,7 @@ func (s *weatherSystem) Update(cb *goke.CmdBuf, d time.Duration) {
 		}
 		s.current = now
 		if !s.host.Empty() {
-			t := s.world.Tick(d)
+			t := s.world.Read(0).Tick(d)
 			about := t.World
 			if s.about != nil {
 				about = s.about()

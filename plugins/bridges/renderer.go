@@ -47,7 +47,7 @@ func (r *renderer) Compose(f *render.Frame, cam camera.Camera) {
 			continue
 		}
 		r.cell(f, cam, h.to, deck, line)
-		a, b := r.p.board.Board().CellCenter(h.from), r.p.board.Board().CellCenter(h.to)
+		a, b := r.p.board.Read(0).Board().CellCenter(h.from), r.p.board.Read(0).Board().CellCenter(h.to)
 		d := geom.NewVec(b.X-a.X, b.Y-a.Y)
 		length := math.Hypot(d.X, d.Y)
 		if length == 0 {
@@ -72,8 +72,8 @@ func (r *renderer) Compose(f *render.Frame, cam camera.Camera) {
 
 func (r *renderer) cell(f *render.Frame, cam camera.Camera, c cell.ID, deck float32,
 	line color.RGBA) {
-	r.outline = r.p.board.Board().CellOutline(c, r.outline[:0])
-	mid := r.p.board.Board().CellCenter(c)
+	r.outline = r.p.board.Read(0).Board().CellOutline(c, r.outline[:0])
+	mid := r.p.board.Read(0).Board().CellCenter(c)
 	at := f.Lifted(float32(mid.X), float32(mid.Y), deck, handLift)
 	for i, p := range r.outline {
 		n := r.outline[(i+1)%len(r.outline)]

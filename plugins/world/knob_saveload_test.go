@@ -60,10 +60,10 @@ func newDyedPost() (*engine.Engine, *dyedPost) {
 		Effects(func(ctx game.Initializer) {
 			d.ecs = ctx.ECS()
 			ctx.Setup(d)
-			d.w.Effects().Define("dyed", effect.Spec{
+			d.w.Write().Effects().Define("dyed", effect.Spec{
 				effect.Lasts(time.Second),
 				effect.Alter(func(t *tint) { t.V = 5 })})
-			d.dyed = d.w.Effects().Named("dyed")
+			d.dyed = d.w.Write().Effects().Named("dyed")
 		}).
 		Kinds(func() {
 			kind.Define[struct{}](d.w.Kinds(), "post", kind.Spec{
@@ -73,7 +73,7 @@ func newDyedPost() (*engine.Engine, *dyedPost) {
 			})
 		}).
 		Spawn(func() error {
-			d.w.Seed(kind.Named[struct{}](d.w.Kinds(), "post").Entry(struct{}{}))
+			d.w.Write().Seed(kind.Named[struct{}](d.w.Kinds(), "post").Entry(struct{}{}))
 			return nil
 		}).
 		Update(func(ctx goke.RunCtx, dt time.Duration) { d.w.RunPlan(ctx, dt) })
@@ -88,7 +88,7 @@ func TestKnob_AnEffectsTurnOutlastsASaveAndEndsAfterTheLoad(t *testing.T) {
 	}
 	was.run(2)
 	id, _ := was.post()
-	was.w.Effects().Cast(id, was.dyed)
+	was.w.Write().Effects().Cast(id, was.dyed)
 	was.run(30)
 	if _, v := was.post(); v != 5 {
 		t.Fatalf("the post is tinted %d under the effect, want 5", v)

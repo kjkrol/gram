@@ -3,6 +3,7 @@ package plugin
 import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -21,4 +22,7 @@ type Installer interface {
 	// Looks has declare run once the Stage is set up, before its scenes are made: the plugin's
 	// looks declared and its atlases closed.
 	Looks(declare func())
+
+	// Pool is the goroutines the game shares the work a plugin splits among; nil, one.
+	Pool() *parallel.Pool
 }

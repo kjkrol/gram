@@ -20,7 +20,7 @@ func TestMattering_IsTheEffectsTheTerrainChangesUnder(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 128, Height: 128},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}, Heights: true})
 	p := NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, w)
-	fx := w.Effects()
+	fx := w.Write().Effects()
 	fx.Define("snowed", effect.Spec{effect.Alter(func(g *cell.Ground) { g.Kind.Cost = 9 })})
 	fx.Define("lit", effect.Spec{effect.Alter(func(l *lantern) { l.Lit = 1 })})
 	fx.Define("marked", effect.Spec{})

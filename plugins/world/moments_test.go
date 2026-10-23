@@ -32,7 +32,7 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 			Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 10, MaxSize: 10},
 		})
 		night := w.Kinds().DefineTag[clock.Phase]("night")
-		fx := w.Effects()
+		fx := w.Write().Effects()
 		fx.Define("dusk", effect.Spec{effect.Lasts(2 * tick), effect.Grant(night)})
 		dusk := fx.Named("dusk")
 		var orders heards
@@ -80,15 +80,15 @@ func TestMoments_TriggersFireOnTheClocksTimeAtAnyTempo(t *testing.T) {
 		ctx.ecs.Setup(systems...)
 		ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 			w.RunPlan(rc, d)
-			w.Clock().Simulate(rc, func(_ goke.RunCtx, step time.Duration) {
-				inNight = append(inNight, w.Clock().In(night))
-				now := w.Clock().Time() + step // the step's end, the Moment's Now
+			w.Write().Clock().Simulate(rc, func(_ goke.RunCtx, step time.Duration) {
+				inNight = append(inNight, w.Read(0).Clock().In(night))
+				now := w.Read(0).Clock().Time() + step // the step's end, the Moment's Now
 				orders.Drain(func(i command.Issued[heard]) { fired[i.Command.Rule] = append(fired[i.Command.Rule], now) })
 			})
-			w.Clock().Replay(rc, d)
+			w.Write().Clock().Replay(rc, d)
 		})
 		for _, cmd := range map[float32][]command.Command{4: {world.Faster{}, world.Faster{}}, 0.5: {world.Slower{}}}[tempo] {
-			if !w.Carrier().Put(1, cmd) {
+			if !w.Write().Carrier().Put(1, cmd) {
 				t.Fatalf("the world carries no %T", cmd)
 			}
 		}

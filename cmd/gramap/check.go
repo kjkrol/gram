@@ -8,6 +8,7 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -47,7 +48,7 @@ func (w *chart) check(data []byte) (err error) {
 	}
 	k := w.r.Kinds
 	ground := cell.Land | cell.Air
-	kinds := b.CellKinds()
+	kinds := b.Read(0).CellKinds()
 	kinds.Define(k.Sea, cell.Kind{Cost: 1, Allows: cell.Water | cell.Air})
 	for _, name := range []string{k.Earth, k.Sand, k.Rock, k.Forest} {
 		kinds.Define(name, cell.Kind{Cost: 1, Allows: ground})
@@ -78,11 +79,11 @@ func (w *chart) check(data []byte) (err error) {
 	if err := board.Spawn[fordRow](level, nil); err != nil {
 		return err
 	}
-	if err := br.Spawn(level); err != nil {
+	if err := br.Write().Spawn(level); err != nil {
 		return err
 	}
 	if topo != nil {
-		topo.Seed(level.Heights())
+		topo.Write().Seed(level.Heights())
 	}
 	ctx := &installer{ecs: goke.New()}
 	for _, p := range plugins {
@@ -104,13 +105,14 @@ func (w *chart) check(data []byte) (err error) {
 	}()
 	ctx.ecs.Setup(ctx.systems()...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
-		wp.RunPlan(rc, d)
-		b.RunPlan(rc, d)
+		settling := wp.Write().Clock().Settling(rc)
+		wp.RunPlan(settling, d)
+		b.RunPlan(settling, d)
 		if topo != nil {
-			topo.RunPlan(rc, d)
+			topo.RunPlan(settling, d)
 		}
-		rc.Sync()
-		wp.Clock().Replay(rc, d)
+		settling.Sync()
+		wp.Write().Clock().Replay(rc, d)
 	})
 	ctx.ecs.Tick(time.Second / 60)
 	return nil
@@ -141,6 +143,7 @@ func (c *installer) ECS() *goke.ECS { return c.ecs }
 func (c *installer) Hosts(...host.Host)     {}
 func (c *installer) Draws(...render.Source) {}
 func (c *installer) Looks(func())           {}
+func (*installer) Pool() *parallel.Pool     { return nil }
 
 func (c *installer) systems() []goke.System {
 	var out []goke.System

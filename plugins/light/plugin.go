@@ -92,7 +92,6 @@ type Plugin struct {
 	shining goke.OptComp[Shining]
 	base    goke.OptComp[world.Base]
 	z       goke.OptComp[world.Z]
-	fresh   bool // the sources read this tick
 
 	relief    Relief
 	reliefAt  uint64 // one more than the relief's version the lattice holds; 0 none
@@ -115,6 +114,8 @@ type Plugin struct {
 	adapts       command.Queue[AdaptShadows]
 	lampSwitches command.Queue[LampShadows]
 	module       *module
+	read         Read
+	write        Write
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -122,18 +123,19 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ plugin.Tunable = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
 var _ plugin.KindTemplater = (*Plugin)(nil)
-var _ world.Lighting = (*Plugin)(nil)
+var _ world.Lighting = lighting{}
 var _ render.Direct = (*Plugin)(nil)
 
 // NewPlugin makes the light over w as cfg says: the world's entities are lit by it from then on.
 // Make it before the board and the topography, which draw by it.
 func NewPlugin(w *world.Plugin, cfg Config) *Plugin {
 	p := &Plugin{w: w, cfg: cfg, distant: White, baker: bake.New()}
+	p.read.p, p.write.p = p, p
 	p.Res.Settings.LampShadows = cfg.LampShadows
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(w, p, comp.Const(Source{Strength: 1, Ambient: 1}),
 		comp.Const(Shining{}))
-	w.SetLighting(p)
+	w.Write().SetLighting(lighting{p})
 	return p
 }
 
@@ -145,6 +147,9 @@ var White = Distant{Dir: [3]float32{0, 0, 1}, Ambient: 1}
 // sun moves. A sky's beside it panics.
 func (p *Plugin) WithDistant(d Distant) *Plugin {
 	p.own = &d
+	if p.sources == nil {
+		p.distant, p.lit = d, true
+	}
 	return p
 }
 
@@ -159,18 +164,6 @@ func (p *Plugin) OverRelief(r Relief) *Plugin {
 func (p *Plugin) WithShadowPolicy(policy ShadowPolicy) *Plugin {
 	p.policy = policy
 	return p
-}
-
-// Distant is the distant light this tick, the sun's; White without one.
-func (p *Plugin) Distant() Distant {
-	p.read()
-	return p.distant
-}
-
-// Lamps are the lamps shining this tick.
-func (p *Plugin) Lamps() []Lamp {
-	p.read()
-	return p.lamps
 }
 
 // KindTemplates is what the light asks of the kinds a game defines: of every entity, how it
@@ -195,6 +188,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	p.module = &module{p: p}
 	ctx.UseModule(p.module)
 	ctx.Draws(p)
+	p.w.Write().Clock().Replayed(p.refresh)
 	return nil
 }
 
@@ -202,25 +196,22 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // sun; call it after the world's.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	p.module.RunPlan(ctx, d)
-	p.coarses.Drain(func(i command.Issued[CoarseShadows]) { p.SetCoarseShadows(i.Command.On) })
-	p.lampSwitches.Drain(func(i command.Issued[LampShadows]) { p.SetLampShadows(i.Command.Count) })
-	p.adapts.Drain(func(i command.Issued[AdaptShadows]) { p.AdaptShadows(i.Command.On) })
-	p.fresh = false
+	p.coarses.Drain(func(i command.Issued[CoarseShadows]) { p.write.SetCoarseShadows(i.Command.On) })
+	p.lampSwitches.Drain(func(i command.Issued[LampShadows]) {
+		p.write.SetLampShadows(i.Command.Count)
+	})
+	p.adapts.Drain(func(i command.Issued[AdaptShadows]) { p.write.AdaptShadows(i.Command.On) })
 }
 
-// read takes the sources as they stand: the one distant light and every lamp; before Install,
-// the scene's own alone
-func (p *Plugin) read() {
-	if p.fresh {
-		return
-	}
+// refresh takes the sources as they stand as the clock's Replay ends: the one distant light and
+// every lamp; before the sources are queried, the scene's own alone
+func (p *Plugin) refresh() {
 	if p.sources == nil {
 		if p.own != nil {
 			p.distant, p.lit = *p.own, true
 		}
 		return
 	}
-	p.fresh = true
 	p.lamps = p.lamps[:0]
 	p.distant, p.distantOf, p.lit = White, 0, false
 	for p.sources.All(); p.sources.Next(); {
@@ -265,16 +256,13 @@ func shone(sun Distant, s Source) Distant {
 	return sun
 }
 
-// Join adds the light's columns to the world renderer's query.
-func (p *Plugin) Join(qb *goke.QueryBuilder) { qb.Optional(&p.shadow) }
-
 // Init is nothing: the plugin's queries are its module's.
 func (p *Plugin) Init(*goke.SysInit) {}
 
 // Begin readies the light for a picture through cam: the distant light's uniforms, and the
 // lamps nearest the camera, MaxLamps at most, theirs.
-func (p *Plugin) Begin(f *render.Frame, cam camera.Camera) {
-	p.read()
+func (w *Write) Begin(f *render.Frame, cam camera.Camera) {
+	p := w.p
 	if !f.Uniformed("LightWay") {
 		p.distant.Frame(f)
 	}
@@ -324,12 +312,15 @@ func (p *Plugin) Begin(f *render.Frame, cam camera.Camera) {
 
 // Casting are the lamps of the picture begun that cast shadows: the nearest its camera, as many
 // as LampShadows says.
-func (p *Plugin) Casting() []Lamp { return p.near[:min(len(p.near), p.Res.Settings.LampShadows)] }
+func (r *Read) Casting() []Lamp {
+	return r.p.near[:min(len(r.p.near), r.p.Res.Settings.LampShadows)]
+}
 
 // Of is the light on the entity i of the chunk at cur, standing in box as z says and drawn as a,
 // taking what its Shadow says; the entity's live shadow is gathered for the picture begun.
-func (p *Plugin) Of(cur *goke.Cursor, i int, box plane.AABB, z world.Z,
+func (w *Write) Of(cur *goke.Cursor, i int, box plane.AABB, z world.Z,
 	a render.Appearance) render.Illumination {
+	p := w.p
 	takes, casting := render.TakesAll, Patch
 	if s := p.shadow.Slice(cur); s != nil {
 		takes, casting = taken(s[i].Take), s[i].Cast
@@ -340,10 +331,9 @@ func (p *Plugin) Of(cur *goke.Cursor, i int, box plane.AABB, z world.Z,
 }
 
 // At is the light on the ground at the world point, taking every shade.
-func (p *Plugin) At(x, y, z float32) render.Illumination { return p.on(x, y, z, render.TakesAll) }
+func (r *Read) At(x, y, z float32) render.Illumination { return r.p.on(x, y, z, render.TakesAll) }
 
 func (p *Plugin) on(x, y, z float32, takes render.Taking) render.Illumination {
-	p.read()
 	if takes == 0 { // shines: drawn as it is
 		return render.Illumination{Light: render.Light{1, 1, 1}}
 	}
@@ -395,7 +385,7 @@ func (p *Plugin) cast(box geom.AABB, z world.Z, a render.Appearance, declared Ca
 	if p.relief != nil {
 		return
 	}
-	for _, l := range p.Casting() {
+	for _, l := range p.read.Casting() {
 		if u, ok := l.ShadowOf(box, z, shape); ok {
 			p.gather(u, a, shape)
 		}
@@ -406,7 +396,7 @@ func (p *Plugin) cast(box geom.AABB, z world.Z, a render.Appearance, declared Ca
 // sprite faces: its left on the left of the eye's way across
 func (p *Plugin) gather(u Umbra, a render.Appearance, shape bool) {
 	var u0, v0, u1, v1 float32
-	if atlas := p.w.Atlas(); shape && atlas != nil {
+	if atlas := p.w.Read(0).Atlas(); shape && atlas != nil {
 		u0, v0, u1, v1 = atlas.UV(a.SpriteID)
 		if -u.UY*p.right[0]+u.UX*p.right[1] < 0 {
 			u0, u1 = u1, u0
@@ -441,7 +431,6 @@ func (p *Plugin) distance(box geom.AABB, z world.Z) float32 {
 // drawn in the opaque pass before the ground reads it, and lays the live shadows gathered for the
 // picture over the ground's depth.
 func (p *Plugin) Compose(f *render.Frame, _ camera.Camera) {
-	p.read()
 	blocks := p.standing()
 	if lat, ok := p.lattice(len(blocks) > 0); ok {
 		if shade, shown := p.baker.Plan(lat, p.distant.Dir, blocks); shown {
@@ -465,7 +454,7 @@ func (p *Plugin) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	case render.Opaque:
 		p.baker.Bake(u)
 	case render.SeeThrough:
-		p.caster.Draw(t, cam, p.w.Atlas(), p.casts, p.lat.Low, p.lat.Low+p.lat.Span)
+		p.caster.Draw(t, cam, p.w.Read(0).Atlas(), p.casts, p.lat.Low, p.lat.Low+p.lat.Span)
 	}
 }
 
@@ -560,75 +549,6 @@ func lying(m, dir geom.Vec, lie world.Lie, bottom, top float32) bake.Block {
 		b.UX, b.UY = float32((c[1].X-c[0].X)/length), float32((c[1].Y-c[0].Y)/length)
 	}
 	return b
-}
-
-// SetCoarseShadows has the shadows baked half as fine a side, a quarter of the GPU's work, or
-// fine again (Settings.Coarse).
-func (p *Plugin) SetCoarseShadows(on bool) {
-	p.Res.Settings.Coarse = on
-	p.baker.Coarse(on)
-}
-
-// ShadowsCoarse reports whether the shadows are baked coarse.
-func (p *Plugin) ShadowsCoarse() bool { return p.Res.Settings.Coarse }
-
-// AdaptShadows has the shadows follow the cameras' frame budget, or not
-// (Settings.AdaptiveShadows).
-func (p *Plugin) AdaptShadows(on bool) { p.Res.Settings.AdaptiveShadows = on }
-
-// ShadowsAdaptive reports whether the shadows follow the frame budget.
-func (p *Plugin) ShadowsAdaptive() bool { return p.Res.Settings.AdaptiveShadows }
-
-// Following is whether the shadows follow the frame budget (cameras.Lever).
-func (p *Plugin) Following() bool { return p.ShadowsAdaptive() }
-
-// Coarser drops the lamps' shadows, or bakes the shadows coarse once they are gone, true where
-// it could (cameras.Lever).
-func (p *Plugin) Coarser() bool {
-	switch {
-	case p.Res.Settings.LampShadows > 0:
-		p.SetLampShadows(0)
-	case !p.ShadowsCoarse():
-		p.SetCoarseShadows(true)
-	default:
-		return false
-	}
-	return true
-}
-
-// Finer bakes the shadows fine, or brings the lamps' shadows back once they are, as many as the
-// Config says, true where it could (cameras.Lever).
-func (p *Plugin) Finer() bool {
-	switch {
-	case p.ShadowsCoarse():
-		p.SetCoarseShadows(false)
-	case p.Res.Settings.LampShadows < p.cfg.LampShadows:
-		p.SetLampShadows(p.cfg.LampShadows)
-	default:
-		return false
-	}
-	return true
-}
-
-// SetLampShadows has the n lamps nearest a picture's camera cast shadows, 0 none
-// (Settings.LampShadows).
-func (p *Plugin) SetLampShadows(n int) { p.Res.Settings.LampShadows = n }
-
-// LampShadows is how many lamps nearest a picture's camera cast shadows.
-func (p *Plugin) LampShadows() int { return p.Res.Settings.LampShadows }
-
-// Reporter is the light's part of the telemetry panel: the distant light's strength, the lamps
-// and how many cast shadows.
-func (p *Plugin) Reporter() render.Reporter { return reporter{p} }
-
-type reporter struct{ p *Plugin }
-
-func (reporter) Init(*goke.SysInit) {}
-
-func (r reporter) Report(line func(label, value string)) {
-	r.p.read()
-	line("Light", fmt.Sprintf("sun %.2f\nlamps %d\nshadows of %d", r.p.distant.Strength,
-		len(r.p.lamps), min(len(r.p.lamps), r.p.Res.Settings.LampShadows)))
 }
 
 func sqrt32(v float32) float32 { return float32(math.Sqrt(float64(v))) }

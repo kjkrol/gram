@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
@@ -78,7 +79,7 @@ func newRig(t *testing.T) *rig {
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
 	})
 	cams := cameras.NewPlugin(w, cameras.Config{})
-	cam := cams.New(cameras.FromAbove, camera.Config{})
+	cam := cams.Write().New(cameras.FromAbove, camera.Config{})
 	g := &general{}
 	p := players.NewPlugin(w, cams, g)
 	local := p.Local("tester")
@@ -169,13 +170,13 @@ func TestTool_ItsBindingsTakeTheirTriggersWhileHeld(t *testing.T) {
 	if got := pass(); !slices.Equal(got, []int{1, 3}) {
 		t.Errorf("holding nothing a click and A issued orders %v, want 1 and 3", got)
 	}
-	if err := r.p.Issue(r.local, control.Take{Tool: "bridge"}); err != nil {
+	if err := r.p.Write().Issue(r.local, control.Take{Tool: "bridge"}); err != nil {
 		t.Fatal(err)
 	}
 	if got := pass(); !slices.Equal(got, []int{2, 3}) {
 		t.Errorf("holding the bridge a click and A issued orders %v, want 2 and 3", got)
 	}
-	if err := r.p.Issue(r.local, control.Drop{}); err != nil {
+	if err := r.p.Write().Issue(r.local, control.Drop{}); err != nil {
 		t.Fatal(err)
 	}
 	if got := pass(); !slices.Equal(got, []int{1, 3}) {
@@ -185,10 +186,10 @@ func TestTool_ItsBindingsTakeTheirTriggersWhileHeld(t *testing.T) {
 
 func TestIssue_RefusesACommandNobodyListensFor(t *testing.T) {
 	r := newRig(t)
-	if err := r.p.Issue(r.local, note{"hi"}); !errors.Is(err, players.ErrUnknownCommand) {
+	if err := r.p.Write().Issue(r.local, note{"hi"}); !errors.Is(err, players.ErrUnknownCommand) {
 		t.Errorf("Issue(note) = %v, want ErrUnknownCommand", err)
 	}
-	if err := r.p.Issue(nil, order{7}); err != nil {
+	if err := r.p.Write().Issue(nil, order{7}); err != nil {
 		t.Fatalf("Issue(order) = %v", err)
 	}
 	if got := r.drained(); len(got) != 1 || got[0].Command.Cell != 7 || got[0].Issuer != command.Nobody {
@@ -215,13 +216,13 @@ func TestNewPlugin_RefusesTwoHandlersOfOneType(t *testing.T) {
 func TestAdd_MakesAPlayerWithoutAKeyboard(t *testing.T) {
 	r := newRig(t)
 	bot := r.p.Add("bot")
-	if bot.ID == command.Nobody || bot.ID == r.local.ID || r.p.ByID(bot.ID) != bot || r.p.ByID(command.Nobody) != nil {
+	if bot.ID == command.Nobody || bot.ID == r.local.ID || r.p.Read(0).ByID(bot.ID) != bot || r.p.Read(0).ByID(command.Nobody) != nil {
 		t.Errorf("bot has id %d beside local %d; ByID must find it and nobody else", bot.ID, r.local.ID)
 	}
-	if locals := r.p.Locals(); len(locals) != 1 || locals[0] != r.local {
+	if locals := r.p.Read(0).Locals(); len(locals) != 1 || locals[0] != r.local {
 		t.Errorf("Locals = %v, want the keyboard player alone", locals)
 	}
-	if err := r.p.Issue(bot, order{3}); err != nil {
+	if err := r.p.Write().Issue(bot, order{3}); err != nil {
 		t.Fatal(err)
 	}
 	if got := r.drained(); len(got) != 1 || got[0].Issuer != bot.ID {
@@ -578,6 +579,7 @@ func TestCursorMove_LooksRoundWhileTheCameraRides(t *testing.T) {
 func (c *installCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
 func (c *installCtx) Draws(...render.Source) {}
 func (c *installCtx) Looks(func())           {}
+func (*installCtx) Pool() *parallel.Pool     { return nil }
 
 func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }
 

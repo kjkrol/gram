@@ -2,8 +2,79 @@
 
 ## Unreleased
 
+Needs aabbworld v1.15.0, astar v1.1.3, ceremony v0.3.1 and goke v3.6.0.
+
+**Wave 5** (2026-10-22/23, `doc/plans-perf.md` "Fala 5")
+- One pool of goroutines for the whole game (`internal/parallel`: `New`, `Begin(task, idle)`,
+  `Batch.Add`, `Batch.Wait`; tasks taken by an atomic counter, none allocating), sized by
+  `game.Props.Workers` (0 every CPU, 1 none) and handed to the plugins by
+  `plugin.Installer.Pool`. Vision scans and the board's renderer lays its tiles on it;
+  `parallel.Workers` and `parallel.Run`, which made goroutines on every call, are gone.
+  `Vision_Scan` 9 → 0 allocations a tick, with outlines 100 observers −7.7%.
+- Breaking: a plugin hands its state out through `Read(w)`, safe on goroutine `w` of the pool (0
+  the game's), and `Write()`, on the game's goroutine; configuration, registers and lifecycle
+  stay on the plugin. The board: `Read(w).Board()` a `BoardRead` (the grid, the terrain),
+  `Write().Board()` a `BoardWrite` (`Set`, `SetAll`, `SetWay`, `Touch`), `board.NewBoard` a
+  board with no plugin; a `Map`'s `Top(c, height)`; the cover kept cell by cell as cells change
+  (`ground.Readied` gone). The world: `Read(w)` with `Space` (aabbworld `SpaceRead`), `Clock`
+  (`clock.Read`), `Effects` (ceremony `EffectsRead`), `Write()` with `Space`, `Clock`, `Effects`,
+  `Carrier`, `Spawn`, `Despawn`, `NewView` and the setters. Light, topography, selection,
+  navigation, atmosphere, cameras, telemetry, players, minimap, vision, collision, motion and
+  bridges likewise, their switches, levers and setters on `Write`; `clock.Clock.Replayed`.
+- Navigation in internal packages (`order`, `bodies`, `spacing`, `routing`, `traffic`,
+  `pathfind`, `routes`), the public names by alias.
+- A unit without a route asks for one in its order (`MoveOrder.Ask`) and the routing answers it
+  the same step, the traffic moving the units that asked after the answers. The routing's
+  searches are shared on the pool among `WithRouters(k)` routers (`DefaultRouters`, 4), each a
+  finder of its own, sharing one memory of answers: a search one goroutine works out another
+  waits for instead of running it again. An idle goroutine wipes the stamps of the routers idle
+  that tick near their wrap (astar `Solver.Wipe`). A `MoveTo` no longer searches: a group's
+  targets are the cells round its goal, nearest first, one to a unit under cell spacing however
+  many they are. The crowd moves differently from the first group order on.
+- A step onto a cell allocates nothing: the occupancies hand the slice of a cell `Release`
+  emptied to the next cell entered (open 1,000 20 → 14 allocations a tick).
+
+**Wave 3** (2026-10-21, `doc/plans-perf.md` "Fala 3")
+- A route search asked again over the same board is answered as before, unrun: a search blind to
+  the others reads only the board and its question (start, target and level, domain, body, the
+  cells gone round), so its answer is kept till the board's `Version` changes (at most 4,096).
+  The crowd's Detour comes back to sets of learned cells it asked a few ticks before:
+  `Navigation_Tick` crowded 1,000 94.9 → 40.3 ms, crowded 100 −24%, open 1,000 −24%, open 100
+  −7%, every box the same tick by tick.
+- Navigation's A* on astar's slice dictionaries by the cell's ordinal, reset by a stamp
+  (`astar.WithIndexedSliceDict`): crowded 1,000 40.5 → 37.6 ms, a route across 200×200 −5%.
+- Motion moves a chunk's boxes in one call (aabbworld `Space.MoveRun`), exactly as box by box:
+  `World_Tick` 1,000 / 5,000 15.5 / 67.1 → 11.9 / 49.6 µs.
+- `clock.Clock.Settling(ctx)`: the engine hands the Stage's `Update` the clock's settling
+  context, so a Sync in a plugin's `RunPlan` outside the clock (navigation's `MoveTo`, driving's
+  hand, bullet's shoot) settles the space at once and a reader later in the tick (selection by
+  box) no longer finds a phantom id 0, misses a migrated entity or reads another's box.
+- Metal (Apple GPUs): every demo panicked at its first frame with the lamps' casts, the routes or
+  the cones ("declaration with attribute 'position' already specified"): their fragment shaders
+  took `@builtin(position)` both as a parameter and as a field of their input struct, which WGSL
+  forbids and only Vulkan let by. They read the field now; `TestWGSL_EntryPointsTakeEachBuiltinOnce`
+  walks every `.wgsl` file and every Go literal holding an entry point and fails on a builtin or
+  a location taken or given twice.
+- Fewer allocations, time not worse: ceremony's steps give their commands without allocating
+  (`Navigation_Tick` open 1,000 2,599 → 90 allocations a tick, crowded 1,000 3,946 → 1,406), and a
+  warm aabbworld `Scan` in a wrapping world allocates nothing (3 → 0 a scan across a torus's seam).
+- Wave 4, fewer allocations at a time not worse: the route finder writes its routes into buffers
+  it keeps (astar `SolveInto`; `Navigation_Tick` crowded 1,000 1,406 → 13 allocations a tick, a
+  route across 200×200 16 → 4); ceremony's steps on the other of a pair, on places and a clause
+  of the other run without allocating (2 → 0 a firing); every Direct boxes its own uniforms once
+  (the sky 28 fewer a frame, aloft 22 a layer, the drops 15, a lit and gridded flat board 23, the
+  clouds' shadows 8, the billboards 6, the casts 3) and the blits (`gpu.DrawImage`, `Sprites`,
+  `DrawImageIn`) share their uniform blocks, `DrawImageIn` gathering its triangles in the
+  device's buffers. The pictures unchanged.
+- world: the `unindexed` flag is gone; the indexer's chunk check (lengths, addresses, `TableVer`)
+  alone decides when the space gathers its runs.
+
 Saves made before the back-off of a failed search do not load: `navigation.MoveOrder` has `Retry`
 and `Fails`.
+
+Saves made before wave 5 do not load: the navigation's components are saved as `order.MoveOrder`,
+`order.LastOrder`, `order.Blocked`, `order.Arrived` and `order.Round` (were `navigation.…`), and
+`MoveOrder` has `Ask`.
 
 **The space reads every box where goke keeps it** (2026-10-21, etap 3 of `doc/plans-perf.md`)
 - Motion, the world and collision hand the space runs over the `Base` columns (aabbworld v1.14.1

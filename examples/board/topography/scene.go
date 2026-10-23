@@ -69,22 +69,22 @@ func (m *mainScene) screen() *ui.Element {
 		Style(RiverCell, painter.Style{Shine: 0.9, Flow: 22, MixWith: WaterCell}).
 		WithShading(shading(a.look))
 	for _, name := range snowable() {
-		s := a.topography.StyleOf(name)
+		s := a.topography.Read(0).StyleOf(name)
 		s.Detail = d[snowyCell(name)]
 		a.topography.Style(snowyCell(name), s)
 	}
 	a.topography.Style(IceCell, painter.Style{Under: true, Shine: 0.3})
-	a.topography.WithAtmosphere(a.atmosphere)
-	a.vision.WithViews(render.Show(a.selection.IsSelected))
+	a.topography.WithAtmosphere(a.atmosphere.Read(0))
+	a.vision.WithViews(render.Show(a.selection.Read(0).IsSelected))
 
-	cam := a.cameras.New(cameras.Isometrically, camera.Config{})
+	cam := a.cameras.Write().New(cameras.Isometrically, camera.Config{})
 	return hud.Screen(hud.Deps{
-		Feed: ui.Image(render.NewFeed(cam, a.world.Picture())).
+		Feed: ui.Image(render.NewFeed(cam, a.world.Read(0).Picture())).
 			Input(a.players.Through(a.player)),
 		Minimap:    a.minimap.For(cam, a.player.ID),
 		Compass:    a.minimap.Compass(cam),
-		Clock:      a.world.Clock().HUD(),
-		Paused:     func() bool { return a.world.Clock().State().Paused },
+		Clock:      a.world.Read(0).Clock().HUD(),
+		Paused:     func() bool { return a.world.Read(0).Clock().State().Paused },
 		Atmosphere: a.atmosphere,
 		Reason:     a.bridges.Reason(),
 		Window:     a.bridges.Window(),

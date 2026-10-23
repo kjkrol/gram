@@ -79,7 +79,7 @@ func (s *hookStage) SetupSystems() []goke.System {
 func (s *hookStage) Loaded() error { return nil }
 
 func (s *hookStage) Spawn() error {
-	s.world.Seed(s.walker.Entry(struct{}{}))
+	s.world.Write().Seed(s.walker.Entry(struct{}{}))
 	return nil
 }
 

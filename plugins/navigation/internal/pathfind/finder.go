@@ -37,6 +37,9 @@ type Finder struct {
 	reads     []read // by ordinal
 	search    uint32
 	rings     rings
+	// the solvers' last results, written over by the next search
+	path  []cell.ID
+	route []node
 }
 
 // Level is which level of its goal cell a route ends on; a goal of one level takes any.
@@ -108,10 +111,48 @@ func New(grid grid.Grid, terrain cell.Terrain, slopes Slopes, occupancy cell.Occ
 	p.built, _ = terrain.(built)
 	p.lanes, _ = terrain.(lanes)
 	p.solver = astar.New(func(a, b cell.ID) float64 { return p.least * grid.Distance(a, b) },
-		astar.WithIndexedMapDict(func(c cell.ID) int { return int(c) }),
+		astar.WithIndexedSliceDict(grid.CellCount()+1, p.slot),
 		astar.WithSuccessorCapacity[cell.ID](grid.Directions()))
 	p.plain = p.plainFrom
 	return p
+}
+
+// Reads has p search through terrain, slopes and, made WithLevels, levels from now on: the same
+// board read on another goroutine.
+func (p *Finder) Reads(terrain cell.Terrain, slopes Slopes, levels Levels) {
+	p.terrain, p.slopes, p.levels = terrain, slopes, levels
+	p.ways, _ = terrain.(ways)
+	p.built, _ = terrain.(built)
+	p.lanes, _ = terrain.(lanes)
+}
+
+// Wipe wipes the solvers' memory of their searches now, between two, where fewer than within
+// searches are left before one would.
+func (p *Finder) Wipe(within int) {
+	p.solver.Wipe(within)
+	if p.leveled != nil {
+		p.leveled.Wipe(within)
+	}
+}
+
+// a cell's slot in a solver's dictionaries; a start off the grid, the one cell of a search
+// without an ordinal, takes the slot past the last cell
+func (p *Finder) slot(c cell.ID) int {
+	if o, ok := p.grid.Ordinal(c); ok {
+		return o
+	}
+	return p.grid.CellCount()
+}
+
+// a node's slot: the levels of a cell side by side, then the goal, then a start off the grid
+func (p *Finder) nodeSlot(n node) int {
+	if n.level == goal {
+		return 2 * p.grid.CellCount()
+	}
+	if o, ok := p.grid.Ordinal(n.c); ok {
+		return 2*o + int(n.level)
+	}
+	return 2*p.grid.CellCount() + 1
 }
 
 // WithLevels has the Finder plan over the raised floors levels say.
@@ -119,7 +160,7 @@ func (p *Finder) WithLevels(levels Levels) *Finder {
 	p.levels = levels
 	// a step onto either level of every neighbour, and the goal
 	p.leveled = astar.New(func(a, b node) float64 { return p.least * p.grid.Distance(a.c, b.c) },
-		astar.WithIndexedMapDict(func(n node) int { return int(uint64(n.c)<<2 | uint64(n.level)) }),
+		astar.WithIndexedSliceDict(2*p.grid.CellCount()+2, p.nodeSlot),
 		astar.WithSuccessorCapacity[node](2*p.grid.Directions()+1))
 	p.stepped = p.leveledFrom
 	return p
@@ -172,18 +213,19 @@ func (p *Finder) Find(
 	p.decks, p.body, p.entity = 0, body, entity
 	p.begin(domain)
 	if p.levels == nil {
-		full := p.solver.Solve(from, to, p.plain)
-		if len(full) < 2 {
+		p.path = p.solver.SolveInto(p.path, from, to, p.plain)
+		if len(p.path) < 2 {
 			return 0, false
 		}
-		return copy(dst, full[1:]), true
+		return copy(dst, p.path[1:]), true
 	}
 	p.goal, p.end = to, end
 	if len(p.levelsOf(p.at(to))) == 1 {
 		p.end = Either
 	}
 	start := node{from, p.levelOf(p.at(from), body)}
-	full := p.leveled.Solve(start, node{to, goal}, p.stepped)
+	p.route = p.leveled.SolveInto(p.route, start, node{to, goal}, p.stepped)
+	full := p.route
 	if len(full) < 3 {
 		return 0, false
 	}

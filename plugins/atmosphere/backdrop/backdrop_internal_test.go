@@ -22,7 +22,7 @@ func (s shifted) Unproject(sx, sy, _ float32) (float32, float32) { return sx + s
 
 func TestBackdrop_FillsTheScreenWithTheSkyOnlyWhereTheGroundDoesNotCoverIt(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
 	sun := light.Distant{Dir: [3]float32{0, 0, 1}, Strength: 0.5, AmbientColor: render.Light{0.5, 0.7, 1}}
 	b := New(w.Res.Config.Space, func() light.Distant { return sun },
 		func() air.Weather { return air.Weather{} })
@@ -55,4 +55,15 @@ func framed(b *Renderer, cam camera.Camera) render.Uniforms {
 		u[name] = v
 	}
 	return render.UniformsOf(u)
+}
+
+func TestRenderer_SetPutsItsOwnOverTheFramesWithoutAllocating(t *testing.T) {
+	b := Renderer{uniforms: map[string]any{}}
+	b.opts.Uniforms = map[string]any{}
+	b.set("SkyView", 1, 2)
+	b.opts.Uniforms["SkyView"] = []float32{9, 9}
+	n := testing.AllocsPerRun(10, func() { b.set("SkyView", 3, 4) })
+	if got := b.opts.Uniforms["SkyView"].([]float32); n != 0 || got[0] != 3 || got[1] != 4 {
+		t.Errorf("SkyView set over another: %v allocations, %v; want none and [3 4]", n, got)
+	}
 }

@@ -15,7 +15,6 @@ import (
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras/internal/stick"
-	"github.com/kjkrol/gram/plugins/cameras/internal/topdown"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/gram/render"
@@ -116,7 +115,9 @@ type Plugin struct {
 	kept        *plugin.Kept[Settings]
 	module      *module
 
-	Res Resources
+	Res   Resources
+	read  Read
+	write Write
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -129,18 +130,19 @@ var _ plugin.Restorer = (*Plugin)(nil)
 // wraps.
 func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin, cfg: cfg, worn: map[camera.Camera]dressed{}}
+	p.read.p, p.write.p = p, p
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.zonesView = &zonesView{settings: &p.Res.Settings}
 	p.layersView = &layersView{settings: &p.Res.Settings}
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.levers = cfg.Levers
 	p.Res.Settings = Settings{Tactical: cfg.Tactical.filled(), Riding: cfg.Riding.filled()}
-	p.SetBudget(cfg.FrameBudget)
-	p.SetSampling(DefaultSampling)
-	p.SetThresholds(DefaultUnder, DefaultMet)
-	p.SetStrategy(Tactical, cfg.Tactical.Strategy)
-	p.SetStrategy(Riding, cfg.Riding.Strategy)
-	worldPlugin.Anchor(anchors{p})
+	p.write.SetBudget(cfg.FrameBudget)
+	p.write.SetSampling(DefaultSampling)
+	p.write.SetThresholds(DefaultUnder, DefaultMet)
+	p.write.SetStrategy(Tactical, cfg.Tactical.Strategy)
+	p.write.SetStrategy(Riding, cfg.Riding.Strategy)
+	worldPlugin.Write().Anchor(anchors{p})
 	if !cfg.plain() {
 		if edges := worldPlugin.Res.Config.Space.Edges; edges.WrapsX() || edges.WrapsY() {
 			panic("cameras: a world that wraps cannot be seen in relief")
@@ -166,44 +168,6 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 		p.views = stick.NewControl(free, cfg.Perspective)
 	}
 	return p
-}
-
-// New is a camera over the world beginning as start says, configured by cfg, made where a scene
-// shows it and sized by whoever shows it. It is saved with the game: one made after a Load is as
-// the camera made in its place was saved.
-func (p *Plugin) New(start Start, cfg camera.Config) camera.Camera {
-	space := p.worldPlugin.Res.Config.Space
-	var cam camera.Camera
-	switch {
-	case p.views == nil && start == Isometrically:
-		panic("cameras: a plain Config has no isometric view")
-	case p.views == nil:
-		cam = topdown.NewFromSpaceWithConfig(space.Width, space.Height, space.Edges, cfg)
-	default:
-		from := stick.FromAbove
-		if start == Isometrically {
-			from = stick.Isometrically
-		}
-		bend := float32(p.worldPlugin.Scale().Bend())
-		made := p.views.Maker(p.viewCfg, from, p.ground, p.extent, bend)
-		cam = made(space.Width, space.Height, space.Edges, cfg)
-	}
-	cam.(seeing).SetDetail(p.cfg.Detail)
-	at := len(p.cameras)
-	p.cameras = append(p.cameras, cam)
-	switch {
-	case p.loaded && at < len(p.saved):
-		p.restore(at)
-	case cfg.Follow != "":
-		f, ok := cam.(camera.Fastenable)
-		if !ok {
-			panic(fmt.Sprintf("cameras: a %T cannot be fastened, so cannot follow %q", cam,
-				cfg.Follow))
-		}
-		p.starts = append(p.starts, starting{cam: f, whom: ceremony.Named(cfg.Follow)})
-	}
-	p.dress(cam)
-	return cam
 }
 
 // a camera of the plugin's, seeing as far as it is told
@@ -242,9 +206,6 @@ type starting struct {
 	cam  camera.Fastenable
 	whom ceremony.Whom
 }
-
-// Cameras are every camera made, in order.
-func (p *Plugin) Cameras() []camera.Camera { return p.cameras }
 
 func (p *Plugin) Name() string { return "gram.cameras" }
 
@@ -308,7 +269,7 @@ func (p *Plugin) redraw(factor float32) {
 func (p *Plugin) step(factor float32) bool {
 	changed := false
 	for _, cam := range p.cameras {
-		if p.Strategy(ProfileOf(cam)) != Still && p.apply(cam, factor) {
+		if p.read.Strategy(ProfileOf(cam)) != Still && p.apply(cam, factor) {
 			changed = true
 		}
 	}
@@ -332,12 +293,6 @@ func (p *Plugin) apply(cam camera.Camera, factor float32) bool {
 	}
 	return !sameResolutions(before, resolutionsOf(cam))
 }
-
-// Reporter is the cameras' part of the telemetry panel, a line each: the lead camera's profile,
-// the share of its pixels each picture is drawn at, layer by layer, the layers' shares in layers,
-// the figures sharp where a coarser picture draws them at every pixel, and the budget it follows,
-// or still, as the lead camera's profile says.
-func (p *Plugin) Reporter() render.Reporter { return reporter{p} }
 
 type reporter struct{ p *Plugin }
 
@@ -403,9 +358,9 @@ func (p *Plugin) Restore() {
 	s.Tactical = s.Tactical.filled()
 	s.Riding = s.Riding.filled()
 	p.adapter = adapter{}
-	p.SetBudget(s.FrameBudget)
-	p.SetSampling(s.Sampling)
-	p.SetThresholds(s.Under, s.Met)
+	p.write.SetBudget(s.FrameBudget)
+	p.write.SetSampling(s.Sampling)
+	p.write.SetThresholds(s.Under, s.Met)
 	p.loaded = true
 	for at := range min(len(p.cameras), len(p.saved)) {
 		p.restore(at)

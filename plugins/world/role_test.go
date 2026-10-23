@@ -80,7 +80,7 @@ func (g *roleStage) Init(ctx game.Initializer) error {
 func (g *roleStage) Loaded() error { return nil }
 
 func (g *roleStage) Spawn() error {
-	g.world.Seed(g.unit.Entry(struct{}{}))
+	g.world.Write().Seed(g.unit.Entry(struct{}{}))
 	return nil
 }
 

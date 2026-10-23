@@ -20,7 +20,7 @@ func TestGrid_ShowsAndHidesTheGrid(t *testing.T) {
 	state := &look.RenderState{ShowGridLines: true}
 	bw.Board.Res.Render = state
 	for i, want := range []bool{false, true} {
-		if !bw.World.Carrier().Put(command.Nobody, board.Grid{Shown: want}) {
+		if !bw.World.Write().Carrier().Put(command.Nobody, board.Grid{Shown: want}) {
 			t.Fatal("the world carries no board.Grid")
 		}
 		bw.Tick()
@@ -51,7 +51,7 @@ func TestHolds_ShowsAndHidesTheCellsHeld(t *testing.T) {
 		t.Errorf("the cells held start shown: %d pieces", n)
 	}
 	for i, want := range []int{4, 0} {
-		if !bw.World.Carrier().Put(command.Nobody, board.Holds{Shown: want > 0}) {
+		if !bw.World.Write().Carrier().Put(command.Nobody, board.Holds{Shown: want > 0}) {
 			t.Fatal("the world carries no board.Holds")
 		}
 		bw.Tick()
@@ -68,17 +68,17 @@ func TestHolds_ShowsAndHidesTheCellsHeld(t *testing.T) {
 
 func TestShowGrid_HoldsThroughTheAtlasClosing(t *testing.T) {
 	bw, _ := boardtest.SquareWorld(t)
-	if !bw.Board.GridShown() {
+	if !bw.Board.Read(0).GridShown() {
 		t.Error("the grid starts hidden, want shown")
 	}
-	bw.Board.ShowGrid(false)
+	bw.Board.Write().ShowGrid(false)
 	a := bw.Board.NewAtlas(boardtest.CellSize)
 	a.Grid(board.Line{Color: color.RGBA{R: 255, A: 255}, Width: 2})
 	a.Close()
-	if bw.Board.GridShown() || bw.Board.Res.Render.ShowGridLines {
+	if bw.Board.Read(0).GridShown() || bw.Board.Res.Render.ShowGridLines {
 		t.Error("the grid hidden before the atlas closed is drawn after it")
 	}
-	bw.Board.ShowGrid(true)
+	bw.Board.Write().ShowGrid(true)
 	if _, width, shown := bw.Board.Res.Render.Grid(); !shown || width != 2 {
 		t.Errorf("ShowGrid(true) after the atlas closed draws the grid %v, %v pixels wide; want "+
 			"it in the atlas's line, 2", shown, width)

@@ -17,7 +17,7 @@ func (Haze) Command() {}
 var _ command.Command = Haze{}
 
 // Care has the ground within Rings sectors of the middle of the screen shaded with full care and
-// one care less every Rings farther ([Plugin.SetCare], Settings.Care), 0 every one. The settings
+// one care less every Rings farther ([Write.SetCare], Settings.Care), 0 every one. The settings
 // screen alone.
 type Care struct{ Rings int }
 
@@ -25,7 +25,7 @@ func (Care) Command() {}
 
 var _ command.Command = Care{}
 
-// AdaptCare has the full care's reach follow the frame budget, or not ([Plugin.AdaptCare],
+// AdaptCare has the full care's reach follow the frame budget, or not ([Write.AdaptCare],
 // Settings.AdaptiveCare): the cameras' frame budget (cameras.Config.Levers) steps it down the
 // care's ladder before the pictures' resolution as the rate falls under, and back up after it
 // as the rate stays over. The settings screen alone, no key.
@@ -35,7 +35,7 @@ func (AdaptCare) Command() {}
 
 var _ command.Command = AdaptCare{}
 
-// ShowCare has the care's bands drawn over the ground, or not ([Plugin.ShowCare],
+// ShowCare has the care's bands drawn over the ground, or not ([Write.ShowCare],
 // Settings.ShowCare): the boundaries between sectors of different care, the full care's green,
 // then yellow-green, yellow and orange. The settings screen alone, no key.
 type ShowCare struct{ Shown bool }
@@ -90,7 +90,7 @@ func (p *Plugin) Settings() []control.Setting {
 	out := []control.Setting{control.Switch{
 		Label:   "Haze over the ground",
 		Section: control.Graphics,
-		Get:     p.Hazes,
+		Get:     p.read.Hazes,
 		Set:     func(on bool) command.Command { return Haze{On: on} },
 	}}
 	if p.ground == nil {
@@ -100,7 +100,7 @@ func (p *Plugin) Settings() []control.Setting {
 		control.Switch{
 			Label:   "Full care follows the frame budget",
 			Section: control.PictureCare,
-			Get:     p.CareAdaptive,
+			Get:     p.read.CareAdaptive,
 			Set:     func(on bool) command.Command { return AdaptCare{On: on} },
 		},
 		control.Range{
@@ -110,7 +110,7 @@ func (p *Plugin) Settings() []control.Setting {
 			Max:     careMost,
 			Step:    1,
 			Get: func() float64 {
-				if care := p.Care(); care > 0 {
+				if care := p.read.Care(); care > 0 {
 					return float64(min(care, careMost))
 				}
 				return careMost
@@ -134,7 +134,7 @@ func (p *Plugin) Settings() []control.Setting {
 		control.Switch{
 			Label:   "Show the care",
 			Section: control.PictureCare,
-			Get:     p.CareShown,
+			Get:     p.read.CareShown,
 			Set:     func(on bool) command.Command { return ShowCare{Shown: on} },
 		})
 }

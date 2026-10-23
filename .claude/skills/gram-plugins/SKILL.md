@@ -87,8 +87,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   moments, a Sync, the space reading every held entity's box where goke keeps it (runs over the
   `Base` columns, `world.RunOf`, `Space.RebuildRuns`: motion hands it the runs after moving,
   collision where Caps change or sweeps stretch, and the world gathers them anew after every
-  Sync the clock replays, `Clock.OnSync`, and as its tick begins, once a chunk came, went, grew
-  or shrank or a table's `TableVer` changed; 2026-10-21, etap 3), the effects' pass. `Query`, `Scan` and collisions read that grid
+  Sync of the Stage's Update and of what the clock replays, `Clock.OnSync`, the engine handing
+  Update `Clock.Settling(rc)`, and as its tick begins, once a chunk came, went, grew or shrank or
+  a table's `TableVer` changed: spawns, despawns and marks alike, nothing else tells it, the
+  `unindexed` flag gone; 2026-10-21, etap 3 and wave 3), the effects' pass. `Query`, `Scan` and collisions read that grid
   until the next rebuild. At the start of the world's tick the `view.System` refreshes every
   `view.View` (`Plugin.View()` the camera's, `ViewFor(cam)` any's); the renderer draws what the
   View contains. The world makes no camera. It hosts rules of a `clock.Moment` (every step, just
@@ -110,7 +112,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   runs the rules of a `motion.Moving`: its words `motion.Still()`, neither walking nor strafing,
   and `motion.Braking()`, slowing down — `Moving` carries the steering's `Course`), the move pass
   (every box by its `Velocity` and `motion.Drift`, gravity's, under the edge rules, capped at half
-  its shorter side, `world.StepReach`, `Position.MaxStep`/`MaxSpeed`; then the space rebuilt), a
+  its shorter side, `world.StepReach`, `Position.MaxStep`/`MaxSpeed`; a chunk's steps worked out
+  first and moved in one call, `aabbworld.Space.MoveRun` over the chunk's run, the leavers marked
+  `Outside` from the ids it returns, wave 3; then the space rebuilt), a
   Sync, the leavers (wholly past an open edge an entity carries `motion.Outside`; rules of a
   `motion.Leaving` hear of it every tick, with none it is despawned; one back inside loses the
   mark). Running after the effects' pass, an effect on the steering tells the step it begins; what
@@ -732,9 +736,21 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   while a search runs; every public method of the `Finder` begins one); it walks `Directions()`
   with `Toward`, never `Neighbors`, asks `DiagonalNeighbors` only for a `Corner` direction and
   `Along` only where the bare ground would price a slantwise step otherwise; its solvers have
-  room for every step of a node (`astar.WithSuccessorCapacity`: astar drops what append grows)
-  and dictionaries indexed by the cell (2026-10-20, etap 2a: a route across 200×200 94 → 18 ms,
-  14,740 → 19 allocations; a crowded tick of 1,000 walkers 306 → 104 ms). `TestRoutes_AsPinned` pins every route, step and price on three
+  room for every step of a node (`astar.WithSuccessorCapacity`) and slice dictionaries by the
+  cell's ordinal (`astar.WithIndexedSliceDict`: the plain solver `CellCount()+1` slots, the
+  leveled `2·CellCount()+2`, a cell's two levels side by side, then the goal, then a start off
+  the grid; astar resets them in O(1) by a stamp); each solver writes its route into a buffer
+  the `Finder` keeps (`astar.SolveInto`), copied into the caller's `dst`, so a search allocates
+  nothing once they have grown: a route leaves the Finder only through `dst` (a `Path` holds its
+  steps in its own array, the kept answers keep Paths by value) (2026-10-20, etap 2a: a route across 200×200
+  94 → 18 ms, 14,740 → 19 allocations; a crowded tick of 1,000 walkers 306 → 104 ms). A route
+  search asked again is answered as before, unrun (`avoiding.find`, wave 3): the answer kept by
+  its question (start, target and level, domain, `pathfind.Body`, the cells gone round as a set
+  less the target, round or any way) till the board's `Version` changes (`keptAnswers` 4,096,
+  all let go when full; a finder asking the occupancy keeps none); units whose four learned
+  cells rotate ask a set again 2–10 ticks later (crowded 1,000: 94.9 → 40.3 ms, then 37.6 with
+  the slice dictionaries). Whatever changes what a search reads must count in the board's
+  Version before navigation's next search. `TestRoutes_AsPinned` pins every route, step and price on three
   boards (square with bridges and relief, a torus, hex) to `testdata/routes.golden`: a change
   meant to keep the routes keeps it; one meant to change them rewrites it with `-update-routes`
   and says why. The keepings' passes allocate nothing per unit (2026-10-20, etap 2b): the body
@@ -833,8 +849,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   clock's own entity, saved. P and Shift+P the tactical pause, ] and [ the tempo (`Config.Tempos`;
   sub-steps of one length, or one longer step with `Config.BiggerStep`). A plugin's `RunPlan` is
   the interface part of its tick; what simulates it hands to `clock.Simulate(c, ctx, d, block)`,
-  and the engine's plan wrapper replays every block after the game's `Update` as many times as the
-  tempo says (`Clock.Replay`); `Clock.Behind` lowers a tempo above 1 after 30 slow frames.
+  and the engine's plan wrapper hands the game's `Update` `Clock.Settling(rc)` (so `OnSync`
+  settles after every Sync of the interface too) and replays every block after it as many times
+  as the tempo says (`Clock.Replay`; a plan written by hand, a test or a bench, does the same); `Clock.Behind` lowers a tempo above 1 after 30 slow frames.
   `clock.Phase` tags on the clock's entity, `Clock.In(phase)`, `Clock.Entity()`, `Reporter()`,
   `HUD()`, `Shown` (game time run on past the last tick by the real time held toward the next;
   `Clock.Pending`). Rules of a `clock.Moment{Last, Now}` fire every step (`clock.Every(period,
@@ -949,7 +966,7 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   a tick), no ceiling and no narrowing but inside a unit; picking where the cage is not free)
   and refuses a wrapping world and a missing `Cell`. A relief camera's save begins with its
   form, `"stick 2"`: one saved otherwise begins afresh, logged. **Each camera is made where a scene
-  shows it**, beside the picture in the Scenes section, `render.NewFeed(s.cameras.New(start,
+  shows it**, beside the picture in the Scenes section, `render.NewFeed(s.cameras.Write().New(start,
   camera.Config{...}), picture)` with `cameras.FromAbove` or `cameras.Isometrically` (a plain
   Config has none). `camera.Config` has no pixels (`render.Feed.Resize` every frame): `Zoom`,
   `Whole` (refused in relief), `Follow` (the name of the entity it starts fastened `Centred` over),

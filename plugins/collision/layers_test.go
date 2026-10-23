@@ -35,7 +35,7 @@ func layersRun(t *testing.T, a, b world.Layers) (met bool, gap float64) {
 		comp.Const(collision.Physics{}),
 	})
 	boxes := kind.Named[layered](w.Kinds(), "box")
-	w.Seed(boxes.Entry(layered{x: 100, layers: a}), boxes.Entry(layered{x: 104, layers: b}))
+	w.Write().Seed(boxes.Entry(layered{x: 100, layers: a}), boxes.Entry(layered{x: 104, layers: b}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}

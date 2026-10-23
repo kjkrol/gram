@@ -21,7 +21,7 @@ type module struct {
 }
 
 func newModule(p *Plugin) *module {
-	m := &module{p: p, sys: newTalkSystem(p), clock: p.w.Clock()}
+	m := &module{p: p, sys: newTalkSystem(p), clock: p.w.Write().Clock()}
 	m.step = m.simulate
 	return m
 }

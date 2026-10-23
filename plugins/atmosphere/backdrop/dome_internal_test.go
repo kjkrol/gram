@@ -85,7 +85,7 @@ func TestValues_SetOnlyWhatThePartReads(t *testing.T) {
 	b := New(world.SpaceCfg{Width: 100, Height: 100}, nil, nil)
 	b.Dress(Dome{Vault: vault(red, "Glow")})
 	b.values[0].Set("Glow", 0.5)
-	if got := b.uniforms["Glow"]; len(got) != 1 || got[0] != 0.5 {
+	if got, _ := b.uniforms["Glow"].([]float32); len(got) != 1 || got[0] != 0.5 {
 		t.Errorf("the vault set Glow to 0.5, the sky holds %v", got)
 	}
 	panics(t, "backdrop: the vault sets Shine, which it does not read", func() {
@@ -149,7 +149,7 @@ func TestDome_DrawsOnlyThePartsItHasOnTheGPU(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 200, Height: 200},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	top := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
+	top := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
 	sun := light.Distant{Dir: eyedF, Strength: 0.7, AmbientColor: render.Light{0.5, 0.7, 1}}
 	b := New(w.Res.Config.Space, func() light.Distant { return sun },
 		func() air.Weather { return air.Weather{} })

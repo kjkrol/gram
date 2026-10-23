@@ -11,7 +11,7 @@ import (
 // the units sent together to the bridge's foot past the wall's gap (a crowd there), then back
 // to the west, then to the bridge again
 func (p *probe) play() {
-	g := p.a.board.Board().Grid
+	g := p.a.board.Read(0).Board().Grid
 	var to cell.ID
 	switch p.tick {
 	case 600, 4200:
@@ -32,7 +32,7 @@ func (p *probe) play() {
 		cur := p.q.Cursor()
 		for i, b := range p.base.Slice(cur) {
 			if kinds[b.TypeID] {
-				p.a.world.Carrier().PutFrom(cur.IDs[i], navigation.MoveTo{Cell: to})
+				p.a.world.Write().Carrier().PutFrom(cur.IDs[i], navigation.MoveTo{Cell: to})
 				n++
 			}
 		}

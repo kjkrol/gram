@@ -19,7 +19,7 @@ func (r *Relief) Lift(p geom.Vec, by, maxStep float64) {
 	}
 	if r.setValue(v, float32(r.heightAt(v)+by)) {
 		r.settle([]vertex{v}, maxStep)
-		r.version++
+		r.changed()
 	}
 }
 
@@ -54,7 +54,7 @@ func (r *Relief) Flatten(from, to geom.Vec, maxStep float64) {
 	}
 	if len(set) > 0 {
 		r.settle(set, maxStep)
-		r.version++
+		r.changed()
 	}
 }
 
@@ -77,7 +77,7 @@ func (r *Relief) Level(c cell.ID, h, maxStep float64) {
 	}
 	if len(set) > 0 {
 		r.settle(set, maxStep)
-		r.version++
+		r.changed()
 	}
 }
 

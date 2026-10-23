@@ -2,6 +2,7 @@ package cameras_test
 
 import (
 	"github.com/kjkrol/ceremony/host"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/ui"
 	"math"
 	"testing"
@@ -43,6 +44,7 @@ func (c *installCtx) ECS() *goke.ECS                                  { return c
 func (c *installCtx) Hosts(...host.Host)                              {}
 func (c *installCtx) Draws(...render.Source)                          {}
 func (c *installCtx) Looks(func())                                    {}
+func (*installCtx) Pool() *parallel.Pool                              { return nil }
 
 type camp struct {
 	t        *testing.T
@@ -75,7 +77,7 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	c.sel = selection.NewPlugin(c.w)
 	c.cams = cameras.NewPlugin(c.w, cameras.Config{})
 	c.players = players.NewPlugin(c.w, c.cams, c.sel)
-	cam := c.cams.New(cameras.FromAbove, camera.Config{})
+	cam := c.cams.Write().New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(200, 200)
 	cam.MoveTo(0, 0)
 	c.one, c.two = c.players.Local("one"), c.players.Add("two")
@@ -84,7 +86,7 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	if err := c.one.Bind(c.sel.FollowKey(control.KeyC)); err != nil {
 		t.Fatal(err)
 	}
-	c.w.Seed(entries(c, unit)...)
+	c.w.Write().Seed(entries(c, unit)...)
 	if err := c.w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +106,7 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	c.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		c.sel.RunPlan(rc, d)
 		c.w.RunPlan(rc, d)
-		c.w.Clock().Replay(rc, d)
+		c.w.Write().Clock().Replay(rc, d)
 		rc.Sync()
 		c.cams.RunPlan(rc, d)
 		c.players.RunPlan(rc, d)
@@ -167,7 +169,7 @@ func twoUnits(c *camp, unit kind.Of[float64]) []kind.Entry {
 func TestFollow_FastensTheCameraOverTheOneSelectedUnitAndKeepsItCentred(t *testing.T) {
 	c := newCamp(t, twoUnits)
 	mine := c.ids()[100]
-	c.w.Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{mine}})
+	c.w.Write().Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{mine}})
 	c.tick()
 	c.pressC()
 	if f := fastening(c); f != (camera.Fastening{Entity: mine, How: camera.Centred}) || !centred(c, 100, 100) {
@@ -194,19 +196,19 @@ func TestFollow_PanLetsGoAndSeveralOrAnothersSelectedFastenNone(t *testing.T) {
 		return append(twoUnits(c, unit), unit.Entry(300).Told(players.Give{To: c.one.ID}, selection.Allow{}))
 	})
 	ids := c.ids()
-	c.w.Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{ids[100]}})
-	c.w.Carrier().Put(c.two.ID, selection.Select{IDs: []uid.UID64{ids[200]}})
+	c.w.Write().Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{ids[100]}})
+	c.w.Write().Carrier().Put(c.two.ID, selection.Select{IDs: []uid.UID64{ids[200]}})
 	c.tick()
 	c.pressC()
 	if f := fastening(c); f.Entity != ids[100] {
 		t.Fatalf("one's camera is fastened %+v, want over its own selected unit, not two's", f)
 	}
-	c.w.Carrier().Put(c.one.ID, cameras.Pan{Camera: c.cam, Dx: 40})
+	c.w.Write().Carrier().Put(c.one.ID, cameras.Pan{Camera: c.cam, Dx: 40})
 	c.tick()
 	if f := fastening(c); f != (camera.Fastening{}) {
 		t.Errorf("after a Pan the camera is fastened %+v, want let go", f)
 	}
-	c.w.Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{ids[100], ids[300]}})
+	c.w.Write().Carrier().Put(c.one.ID, selection.Select{IDs: []uid.UID64{ids[100], ids[300]}})
 	c.tick()
 	c.pressC()
 	if f := fastening(c); f != (camera.Fastening{}) {
@@ -225,7 +227,7 @@ func TestFollow_ToldAtSpawnFastensTheCameraUntilTheUnitIsGone(t *testing.T) {
 	if f := fastening(c); f != (camera.Fastening{Entity: mine, How: camera.Centred}) || !centred(c, 100, 100) {
 		t.Fatalf("one's camera is fastened %+v, centred %v; want Centred over the unit told Follow", f, centred(c, 100, 100))
 	}
-	c.w.Carrier().PutFrom(mine, world.Despawn{})
+	c.w.Write().Carrier().PutFrom(mine, world.Despawn{})
 	c.tick()
 	if f := fastening(c); f != (camera.Fastening{}) {
 		t.Errorf("the unit gone, the camera is fastened %+v, want let go", f)
@@ -236,7 +238,7 @@ func TestLookAt_CentresTheCameraOnceAndLetsGo(t *testing.T) {
 	c := newCamp(t, twoUnits)
 	far := c.ids()[200]
 	c.moveTo(far, 700, 600)
-	c.w.Carrier().Put(c.one.ID, cameras.CenterOn{Camera: c.cam, Entity: far})
+	c.w.Write().Carrier().Put(c.one.ID, cameras.CenterOn{Camera: c.cam, Entity: far})
 	c.tick()
 	if !centred(c, 700, 600) || fastening(c) != (camera.Fastening{}) {
 		t.Fatalf("after LookAt: centred %v, fastened %+v; want centred and loose", centred(c, 700, 600), fastening(c))
@@ -253,7 +255,7 @@ func TestNew_ACameraStartsFastenedToTheEntityItsConfigNames(t *testing.T) {
 		return []kind.Entry{unit.Entry(100), unit.Entry(300).Named("scout")}
 	})
 	scout := c.ids()[300]
-	cam := c.cams.New(cameras.FromAbove, camera.Config{Follow: "scout"})
+	cam := c.cams.Write().New(cameras.FromAbove, camera.Config{Follow: "scout"})
 	cam.SetViewport(200, 200)
 	c.tick()
 	if f := cam.(camera.Fastenable).Fastening(); f != (camera.Fastening{Entity: scout, How: camera.Centred}) {
@@ -293,7 +295,7 @@ func emptyWorld(t *testing.T, cfg cameras.Config) (w *world.Plugin, p *cameras.P
 		ctx.ecs.Setup(systems...)
 		ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 			w.RunPlan(rc, d)
-			w.Clock().Replay(rc, d)
+			w.Write().Clock().Replay(rc, d)
 			rc.Sync()
 			p.RunPlan(rc, d)
 		})
@@ -303,10 +305,10 @@ func emptyWorld(t *testing.T, cfg cameras.Config) (w *world.Plugin, p *cameras.P
 
 func TestSight_HasACameraSeeFartherAndNearer(t *testing.T) {
 	w, p, start, tick := emptyWorld(t, cameras.Config{Detail: camera.Detail{Sight: 1000, Fog: 100}})
-	seeing := p.New(cameras.FromAbove, camera.Config{})
+	seeing := p.Write().New(cameras.FromAbove, camera.Config{})
 	start()
 	sight := func(factor float64) float64 {
-		w.Carrier().Put(command.Nobody, cameras.Sight{Camera: seeing, Factor: factor})
+		w.Write().Carrier().Put(command.Nobody, cameras.Sight{Camera: seeing, Factor: factor})
 		tick()
 		return camera.DetailOf(seeing).Sight
 	}
@@ -323,11 +325,11 @@ func TestSight_HasACameraSeeFartherAndNearer(t *testing.T) {
 
 func TestCenterAt_PutsTheCameraOverThePointUnfastened(t *testing.T) {
 	w, p, start, tick := emptyWorld(t, cameras.Config{})
-	cam := p.New(cameras.FromAbove, camera.Config{})
+	cam := p.Write().New(cameras.FromAbove, camera.Config{})
 	start()
 	cam.SetViewport(200, 200)
 	cam.(camera.Fastenable).Fasten(camera.Fastening{Entity: 7, How: camera.Loose})
-	w.Carrier().Put(command.Nobody, cameras.CenterAt{Camera: cam, X: 700, Y: 300})
+	w.Write().Carrier().Put(command.Nobody, cameras.CenterAt{Camera: cam, X: 700, Y: 300})
 	tick()
 	if x, y, _ := cam.(camera.Focused).Focus(); x != 700 || y != 300 {
 		t.Errorf("the camera's middle is at (%v, %v), want (700, 300)", x, y)
@@ -340,14 +342,15 @@ func TestCenterAt_PutsTheCameraOverThePointUnfastened(t *testing.T) {
 func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBudget(t *testing.T) {
 	w, p, start, tick := emptyWorld(t,
 		cameras.Config{Tactical: cameras.Knobs{Strategy: cameras.Uniform}})
-	cam := p.New(cameras.FromAbove, camera.Config{})
-	minimap := p.New(cameras.FromAbove, camera.Config{Whole: true})
+	cam := p.Write().New(cameras.FromAbove, camera.Config{})
+	minimap := p.Write().New(cameras.FromAbove, camera.Config{Whole: true})
 	start()
 	if got := report(p); got != "Picture: tactical\n1.00 of the pixels\nfollowing a budget of "+
 		"60 FPS" {
 		t.Fatalf("the telemetry says %q, want the one picture at all its pixels, following", got)
 	}
-	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: cameras.ResolutionStep})
+	w.Write().Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam,
+		Factor: cameras.ResolutionStep})
 	tick()
 	if got := camera.ResolutionOf(cam); got != cameras.ResolutionStep {
 		t.Errorf("after a coarser step the camera is drawn at %v, want %v", got,
@@ -356,32 +359,33 @@ func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBu
 	if got := report(p); got != "Picture: tactical\n0.85 of the pixels\nthe figures sharp\nstill" {
 		t.Errorf("the telemetry says %q, want the step and the following stopped", got)
 	}
-	if p.Strategy(cameras.Tactical) != cameras.Still ||
-		p.Resolution(cameras.Tactical) != cameras.ResolutionStep {
+	if p.Read(0).Strategy(cameras.Tactical) != cameras.Still ||
+		p.Read(0).Resolution(cameras.Tactical) != cameras.ResolutionStep {
 		t.Errorf("after the key the strategy is %v at %v, want Still, the Settings noting 0.85",
-			p.Strategy(cameras.Tactical), p.Resolution(cameras.Tactical))
+			p.Read(0).Strategy(cameras.Tactical), p.Read(0).Resolution(cameras.Tactical))
 	}
-	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: 1 / cameras.ResolutionStep})
+	w.Write().Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: 1 / cameras.ResolutionStep})
 	tick()
 	if got := camera.ResolutionOf(cam); math.Abs(float64(got-1)) > 1e-6 {
 		t.Errorf("after a finer step back the camera is drawn at %v, want 1", got)
 	}
 	for range 10 {
-		w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: cameras.ResolutionStep})
+		w.Write().Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam,
+			Factor: cameras.ResolutionStep})
 		tick()
 	}
 	if got := camera.ResolutionOf(cam); got != cameras.LeastResolution {
 		t.Errorf("stepped coarser ten times the camera is drawn at %v, want the least, %v", got,
 			cameras.LeastResolution)
 	}
-	w.Carrier().Put(command.Nobody,
+	w.Write().Carrier().Put(command.Nobody,
 		cameras.Adapt{Profile: cameras.Tactical, Strategy: cameras.Uniform})
 	tick()
 	if got := report(p); got != "Picture: tactical\n0.40 of the pixels\nthe figures sharp\n"+
 		"following a budget of 60 FPS" {
 		t.Errorf("after Adapt the telemetry says %q, want the resolution following the budget", got)
 	}
-	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: minimap, Factor: cameras.ResolutionStep})
+	w.Write().Carrier().Put(command.Nobody, cameras.Resolution{Camera: minimap, Factor: cameras.ResolutionStep})
 	tick()
 	if got := camera.ResolutionOf(minimap); got != 1 {
 		t.Errorf("a minimap's camera stepped coarser is drawn at %v, want all its pixels", got)
@@ -391,13 +395,13 @@ func TestResolution_StepsTheCamerasResolutionAndAdaptStopsOrStartsFollowingTheBu
 // the cameras' line of the telemetry panel
 func report(p *cameras.Plugin) string {
 	var got string
-	p.Reporter().Report(func(label, value string) { got = label + ": " + value })
+	p.Read(0).Reporter().Report(func(label, value string) { got = label + ": " + value })
 	return got
 }
 
 func TestAdapt_SwitchesStillTheWholePictureAndInLayers(t *testing.T) {
 	w, p, start, tick := emptyWorld(t, cameras.Config{})
-	cam := p.New(cameras.FromAbove, camera.Config{})
+	cam := p.Write().New(cameras.FromAbove, camera.Config{})
 	start()
 	for steps, want := range []struct {
 		layers   int
@@ -413,12 +417,12 @@ func TestAdapt_SwitchesStillTheWholePictureAndInLayers(t *testing.T) {
 		{0, cameras.Uniform, "Picture: tactical\n1.00 of the pixels\nfollowing a budget of 60 FPS"},
 	} {
 		if steps > 0 {
-			w.Carrier().Put(command.Nobody,
+			w.Write().Carrier().Put(command.Nobody,
 				cameras.Adapt{Profile: cameras.Tactical, Strategy: want.strategy})
 			tick()
 		}
 		layers := len(camera.LayersOf(cam))
-		on, strategy := p.Layers(cameras.Tactical), p.Strategy(cameras.Tactical)
+		on, strategy := p.Read(0).Layers(cameras.Tactical), p.Read(0).Strategy(cameras.Tactical)
 		if layers != want.layers || on != (want.layers > 0) || strategy != want.strategy {
 			t.Errorf("after %d Adapt the camera has %d layers, the plugin layers %v, strategy %v; "+
 				"want %d layers and %v", steps, layers, on, strategy, want.layers, want.strategy)
@@ -432,13 +436,14 @@ func TestAdapt_SwitchesStillTheWholePictureAndInLayers(t *testing.T) {
 func TestResolution_InLayersStepsTheOuterRingFirstAndStopsTheFollowing(t *testing.T) {
 	w, p, start, tick := emptyWorld(t,
 		cameras.Config{Tactical: cameras.Knobs{Strategy: cameras.InLayers}})
-	cam := p.New(cameras.FromAbove, camera.Config{})
+	cam := p.Write().New(cameras.FromAbove, camera.Config{})
 	start()
 	if got := report(p); got != "Picture: tactical\n0.60/0.80/1.00 of the pixels\nin layers at "+
 		"60% and 35%\nfollowing a budget of 60 FPS" {
 		t.Fatalf("the telemetry says %q, want the default layers following the budget", got)
 	}
-	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: cameras.ResolutionStep})
+	w.Write().Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam,
+		Factor: cameras.ResolutionStep})
 	tick()
 	if got := report(p); got != "Picture: tactical\n0.51/0.80/1.00 of the pixels\nin layers at "+
 		"60% and 35%\nstill" {
@@ -450,7 +455,7 @@ func TestResolution_InLayersStepsTheOuterRingFirstAndStopsTheFollowing(t *testin
 		t.Errorf("the camera is drawn at %v in the layers %v, want the centre layer's resolution",
 			camera.ResolutionOf(cam), layers)
 	}
-	if outer, _ := p.LayerResolutions(cameras.Tactical); outer != layers[0].Resolution {
+	if outer, _ := p.Read(0).LayerResolutions(cameras.Tactical); outer != layers[0].Resolution {
 		t.Errorf("the Settings say the outer layer is at %v, want the camera's %v", outer,
 			layers[0].Resolution)
 	}
@@ -458,18 +463,19 @@ func TestResolution_InLayersStepsTheOuterRingFirstAndStopsTheFollowing(t *testin
 
 func TestAdapt_FromLayersStillGoesOnFollowingInTheLayersAsTheyAre(t *testing.T) {
 	w, p, start, tick := emptyWorld(t, cameras.Config{})
-	cam := p.New(cameras.FromAbove, camera.Config{})
+	cam := p.Write().New(cameras.FromAbove, camera.Config{})
 	start()
-	w.Carrier().Put(command.Nobody, cameras.Layers{Profile: cameras.Tactical, On: true})
+	w.Write().Carrier().Put(command.Nobody, cameras.Layers{Profile: cameras.Tactical, On: true})
 	tick()
-	w.Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam, Factor: cameras.ResolutionStep})
+	w.Write().Carrier().Put(command.Nobody, cameras.Resolution{Camera: cam,
+		Factor: cameras.ResolutionStep})
 	tick()
 	if got := report(p); got != "Picture: tactical\n0.51/0.80/1.00 of the pixels\nin layers at "+
 		"60% and 35%\nstill" {
 		t.Fatalf("the telemetry says %q, want the picture still, in layers, the outer one stepped",
 			got)
 	}
-	w.Carrier().Put(command.Nobody,
+	w.Write().Carrier().Put(command.Nobody,
 		cameras.Adapt{Profile: cameras.Tactical, Strategy: cameras.InLayers})
 	tick()
 	if got := report(p); got != "Picture: tactical\n0.51/0.80/1.00 of the pixels\nin layers at "+
@@ -477,22 +483,23 @@ func TestAdapt_FromLayersStillGoesOnFollowingInTheLayersAsTheyAre(t *testing.T) 
 		t.Errorf("after Adapt the telemetry says %q, want the following resumed in the layers as "+
 			"they are, not the default again", got)
 	}
-	w.Carrier().Put(command.Nobody, cameras.Layers{Profile: cameras.Tactical, On: false})
+	w.Write().Carrier().Put(command.Nobody, cameras.Layers{Profile: cameras.Tactical, On: false})
 	tick()
-	if p.Strategy(cameras.Tactical) != cameras.Still || len(camera.LayersOf(cam)) != 0 {
+	if p.Read(0).Strategy(cameras.Tactical) != cameras.Still || len(camera.LayersOf(cam)) != 0 {
 		t.Errorf("the layers switched off under InLayers leave the strategy %v and %d layers, want "+
-			"Still and none", p.Strategy(cameras.Tactical), len(camera.LayersOf(cam)))
+			"Still and none", p.Read(0).Strategy(cameras.Tactical), len(camera.LayersOf(cam)))
 	}
 }
 
 func TestPicture_ReachesEveryCameraButAMinimapsAndStopsTheFollowing(t *testing.T) {
 	w, p, start, tick := emptyWorld(t,
 		cameras.Config{Tactical: cameras.Knobs{Strategy: cameras.Uniform}})
-	one := p.New(cameras.FromAbove, camera.Config{})
-	two := p.New(cameras.FromAbove, camera.Config{})
-	minimap := p.New(cameras.FromAbove, camera.Config{Whole: true})
+	one := p.Write().New(cameras.FromAbove, camera.Config{})
+	two := p.Write().New(cameras.FromAbove, camera.Config{})
+	minimap := p.Write().New(cameras.FromAbove, camera.Config{Whole: true})
 	start()
-	w.Carrier().Put(command.Nobody, cameras.Picture{Profile: cameras.Tactical, Resolution: 0.7})
+	w.Write().Carrier().Put(command.Nobody, cameras.Picture{Profile: cameras.Tactical,
+		Resolution: 0.7})
 	tick()
 	for i, cam := range []camera.Camera{one, two} {
 		if got := camera.ResolutionOf(cam); got != 0.7 {
@@ -502,7 +509,8 @@ func TestPicture_ReachesEveryCameraButAMinimapsAndStopsTheFollowing(t *testing.T
 	if got := camera.ResolutionOf(minimap); got != 1 {
 		t.Errorf("the minimap is drawn at %v, want all its pixels", got)
 	}
-	if s, r := p.Strategy(cameras.Tactical), p.Resolution(cameras.Tactical); s != cameras.Still ||
+	rd := p.Read(0)
+	if s, r := rd.Strategy(cameras.Tactical), rd.Resolution(cameras.Tactical); s != cameras.Still ||
 		r != 0.7 {
 		t.Errorf("after Picture the strategy is %v at %v, want Still at 0.7", s, r)
 	}
@@ -514,10 +522,10 @@ func TestPicture_ReachesEveryCameraButAMinimapsAndStopsTheFollowing(t *testing.T
 
 func TestLayerShares_ShapeEveryCamerasLayersAndTheMiddleStaysOverTheInner(t *testing.T) {
 	w, p, start, tick := emptyWorld(t, cameras.Config{Tactical: cameras.Knobs{Layers: true}})
-	one := p.New(cameras.FromAbove, camera.Config{})
-	two := p.New(cameras.FromAbove, camera.Config{})
+	one := p.Write().New(cameras.FromAbove, camera.Config{})
+	two := p.Write().New(cameras.FromAbove, camera.Config{})
 	start()
-	w.Carrier().Put(command.Nobody,
+	w.Write().Carrier().Put(command.Nobody,
 		cameras.LayerShares{Profile: cameras.Tactical, Inner: 0.3, Middle: 0.5})
 	tick()
 	for i, cam := range []camera.Camera{one, two} {
@@ -531,15 +539,15 @@ func TestLayerShares_ShapeEveryCamerasLayersAndTheMiddleStaysOverTheInner(t *tes
 		"\nin layers at 50% and 30%\nstill" {
 		t.Errorf("the telemetry says %q, want the shares set", got)
 	}
-	w.Carrier().Put(command.Nobody,
+	w.Write().Carrier().Put(command.Nobody,
 		cameras.LayerShares{Profile: cameras.Tactical, Inner: 0.5, Middle: 0.5})
 	tick()
-	if inner, middle := p.LayerShares(cameras.Tactical); inner != 0.5 ||
+	if inner, middle := p.Read(0).LayerShares(cameras.Tactical); inner != 0.5 ||
 		math.Abs(float64(middle-0.6)) > 1e-6 {
 		t.Errorf("the shares are %v and %v, want the middle a tenth over the inner, 0.5 and 0.6",
 			inner, middle)
 	}
-	w.Carrier().Put(command.Nobody,
+	w.Write().Carrier().Put(command.Nobody,
 		cameras.LayerResolutions{Profile: cameras.Tactical, Outer: 0.5, Middle: 0.7})
 	tick()
 	if layers := camera.LayersOf(one); layers[0].Resolution != 0.5 || layers[1].Resolution != 0.7 {
@@ -551,12 +559,12 @@ func TestLayerShares_ShapeEveryCamerasLayersAndTheMiddleStaysOverTheInner(t *tes
 func TestRedraw_NotesTheLeadCamerasResolutionsIntoTheSettings(t *testing.T) {
 	_, p, start, _ := emptyWorld(t,
 		cameras.Config{Tactical: cameras.Knobs{Strategy: cameras.InLayers}})
-	minimap := p.New(cameras.FromAbove, camera.Config{Whole: true})
-	lead := p.New(cameras.FromAbove, camera.Config{})
+	minimap := p.Write().New(cameras.FromAbove, camera.Config{Whole: true})
+	lead := p.Write().New(cameras.FromAbove, camera.Config{})
 	start()
 	p.Redraw(cameras.ResolutionStep)
-	outer, middle := p.LayerResolutions(cameras.Tactical)
-	centre := p.Resolution(cameras.Tactical)
+	outer, middle := p.Read(0).LayerResolutions(cameras.Tactical)
+	centre := p.Read(0).Resolution(cameras.Tactical)
 	if math.Abs(float64(outer-0.51)) > 1e-6 || middle != 0.8 || centre != 1 {
 		t.Errorf("after a coarser step the Settings say %v/%v/%v, want 0.51/0.8/1: the lead "+
 			"camera's layers", outer, middle, centre)
@@ -568,9 +576,9 @@ func TestRedraw_NotesTheLeadCamerasResolutionsIntoTheSettings(t *testing.T) {
 	if got := camera.LayersOf(lead); math.Abs(float64(got[0].Resolution-0.51)) > 1e-6 {
 		t.Errorf("the lead camera is drawn in %v, want its outer layer at 0.51", got)
 	}
-	p.SetStrategy(cameras.Tactical, cameras.Uniform)
+	p.Write().SetStrategy(cameras.Tactical, cameras.Uniform)
 	p.Redraw(cameras.ResolutionStep)
-	if got := p.Resolution(cameras.Tactical); got != cameras.ResolutionStep {
+	if got := p.Read(0).Resolution(cameras.Tactical); got != cameras.ResolutionStep {
 		t.Errorf("under Uniform a coarser step leaves the Settings at %v, want 0.85", got)
 	}
 	if got := camera.ResolutionOf(lead); got != cameras.ResolutionStep {

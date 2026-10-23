@@ -53,9 +53,9 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	c.one, c.two = c.players.Local("one"), c.players.Add("two")
 	c.players.Through(c.one).
 		Over(geom.AABB{}, render.NewFeed(cameratest.NewFromSpace(1000, 1000, 0), nil))
-	c.w.Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
-	c.haste = c.w.Effects().Named("haste")
-	c.w.Seed(entries(c, unit)...)
+	c.w.Write().Effects().Define("haste", effect.Spec{effect.Lasts(time.Hour)})
+	c.haste = c.w.Write().Effects().Named("haste")
+	c.w.Write().Seed(entries(c, unit)...)
 	if err := c.w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func newCamp(t *testing.T, entries func(c *camp, unit kind.Of[float64]) []kind.E
 	c.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		c.sel.RunPlan(rc, d)
 		c.w.RunPlan(rc, d)
-		c.w.Clock().Replay(rc, d)
+		c.w.Write().Clock().Replay(rc, d)
 		rc.Sync()
 		c.players.RunPlan(rc, d)
 	})
@@ -103,19 +103,19 @@ func (c *camp) ids() map[float64]uid.UID64 {
 func (c *camp) reached(by command.Issuer) map[float64]bool {
 	c.t.Helper()
 	everywhere := geom.NewAABBAt(geom.NewVec(0, 0), 1000, 1000)
-	c.w.Carrier().Put(by, selection.Select{Box: everywhere})
+	c.w.Write().Carrier().Put(by, selection.Select{Box: everywhere})
 	c.tick()
-	c.w.Carrier().Put(by, ceremony.Put(c.haste).On(c.sel.Selected()))
+	c.w.Write().Carrier().Put(by, ceremony.Put(c.haste).On(c.sel.Selected()))
 	c.tick()
 	out := map[float64]bool{}
 	for x, id := range c.ids() {
-		if c.w.Effects().Has(id, c.haste) {
+		if c.w.Read(0).Effects().Has(id, c.haste) {
 			out[x] = true
 		}
 	}
-	c.w.Carrier().Put(by, ceremony.Take(c.haste).On(c.sel.Selected()))
+	c.w.Write().Carrier().Put(by, ceremony.Take(c.haste).On(c.sel.Selected()))
 	c.tick()
-	c.w.Carrier().Put(by, selection.Select{IDs: []uid.UID64{}})
+	c.w.Write().Carrier().Put(by, selection.Select{IDs: []uid.UID64{}})
 	c.tick()
 	return out
 }
@@ -160,8 +160,8 @@ func TestGiveAndForbid_ChangeAUnitMidGame(t *testing.T) {
 		}
 	})
 	ids := c.ids()
-	c.w.Carrier().PutFrom(ids[100], players.Give{To: c.two.ID})
-	c.w.Carrier().PutFrom(ids[200], selection.Forbid{})
+	c.w.Write().Carrier().PutFrom(ids[100], players.Give{To: c.two.ID})
+	c.w.Write().Carrier().PutFrom(ids[200], selection.Forbid{})
 	c.tick()
 	if got := c.reached(c.one.ID); !only(got) {
 		t.Errorf("player one reaches %v, want none: one unit given away, the other forbidden", got)
@@ -178,11 +178,11 @@ func TestAllow_SelectedSelectsAtOnce(t *testing.T) {
 			unit.Entry(200).Told(players.Give{To: c.one.ID}, selection.Allow{}),
 		}
 	})
-	c.w.Carrier().Put(c.one.ID, ceremony.Put(c.haste).On(c.sel.Selected()))
+	c.w.Write().Carrier().Put(c.one.ID, ceremony.Put(c.haste).On(c.sel.Selected()))
 	c.tick()
 	ids := c.ids()
-	if !c.w.Effects().Has(ids[100], c.haste) || c.w.Effects().Has(ids[200], c.haste) {
-		t.Errorf("hasted: the unit at 100 %v, at 200 %v; want the one selected from the start alone", c.w.Effects().Has(ids[100], c.haste), c.w.Effects().Has(ids[200], c.haste))
+	if !c.w.Read(0).Effects().Has(ids[100], c.haste) || c.w.Read(0).Effects().Has(ids[200], c.haste) {
+		t.Errorf("hasted: the unit at 100 %v, at 200 %v; want the one selected from the start alone", c.w.Read(0).Effects().Has(ids[100], c.haste), c.w.Read(0).Effects().Has(ids[200], c.haste))
 	}
 }
 
@@ -196,7 +196,7 @@ func TestTold_ACommandNobodyCarriesOutIsRefused(t *testing.T) {
 		comp.Const(world.Velocity{}),
 	})
 	unit := kind.Named[float64](w.Kinds(), "unit")
-	w.Seed(unit.Entry(0).Told(selection.Allow{})) // no selection plugin in use
+	w.Write().Seed(unit.Entry(0).Told(selection.Allow{})) // no selection plugin in use
 	if err := w.Populate(); err == nil {
 		t.Error("Populate took an entry told a command nobody carries out, want an error")
 	}

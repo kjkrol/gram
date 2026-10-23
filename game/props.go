@@ -13,4 +13,7 @@ type Props struct {
 	// Saves is the directory the game keeps its saves in, a file a Stage and slot; empty, the one
 	// the game runs in.
 	Saves string
+	// Workers is how many goroutines share the work a plugin splits, the game's own among them: 0
+	// as many as there are CPUs, 1 none.
+	Workers int
 }

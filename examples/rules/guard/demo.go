@@ -104,7 +104,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
 	a.players = players.NewPlugin(a.world, a.collision,
 		a.cameras, a.board, a.selection, a.nav, a.driving)
-	a.nav.ShowRoutes(true)
+	a.nav.Write().ShowRoutes(true)
 }
 
 func (a *arena) definePlayer() error {
@@ -113,12 +113,12 @@ func (a *arena) definePlayer() error {
 }
 
 func (a *arena) defineEffects() {
-	a.world.Effects().Define(AlarmEf, effect.Spec{})
+	a.world.Write().Effects().Define(AlarmEf, effect.Spec{})
 }
 
 func (a *arena) defineCommands() {
 	a.world.Commands().Define(AlarmCmd,
-		ceremony.Toggle(a.world.Effects().Named(AlarmEf)).On(ceremony.World))
+		ceremony.Toggle(a.world.Write().Effects().Named(AlarmEf)).On(ceremony.World))
 }
 
 var profile = steering.Steering{

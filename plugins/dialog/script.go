@@ -167,7 +167,7 @@ func (p *Plugin) condition(text string) (condition, error) {
 		c.game = cond.c
 		return c, nil
 	}
-	ef, ok := p.w.Effects().Lookup(text)
+	ef, ok := p.w.Write().Effects().Lookup(text)
 	if !ok {
 		return c, fmt.Errorf("%q is neither a condition the game defined nor an effect", text)
 	}

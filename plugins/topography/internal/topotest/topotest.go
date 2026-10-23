@@ -12,6 +12,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -103,10 +104,10 @@ func NewQuasiWorldWith(
 	}
 	qw.Board = board.NewPlugin(qw.Grid, &cell.MultipleOccupancy{}, qw.World).WithMotion(qw.Motion)
 	qw.Topo = topography.NewPlugin(qw.World, qw.Board, nil, topography.Config{})
-	qw.Board.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | cell.Air})
+	qw.Board.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land | cell.Air})
 	hillCell := qw.Grid.At(2, 1)
-	qw.Board.Board().Set(hillCell, Hill)
-	RaiseHills(qw.Topo.Relief(), qw.Grid, hillCell)
+	qw.Board.Write().Board().Set(hillCell, Hill)
+	RaiseHills(qw.Topo.Write().Relief(), qw.Grid, hillCell)
 	units := board.NewUnits[Recruit](qw.Board, board.Shape{Size: 20, Height: 2}, func(r Recruit) geom.Vec { return qw.Grid.CellCenter(r.Start) })
 	entries := define(qw, units)
 
@@ -128,21 +129,22 @@ func NewQuasiWorldWith(
 	if err := qw.Topo.Install(ctx); err != nil {
 		t.Fatal(err)
 	}
-	qw.World.Seed(entries...)
+	qw.World.Write().Seed(entries...)
 	if err := qw.World.Populate(); err != nil {
 		t.Fatal(err)
 	}
 	ctx.ecs.Setup(ctx.Systems()...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
-		qw.World.RunPlan(rc, d)
-		qw.Motion.RunPlan(rc, d)
+		settling := qw.World.Write().Clock().Settling(rc)
+		qw.World.RunPlan(settling, d)
+		qw.Motion.RunPlan(settling, d)
 		if c != nil {
-			c.RunPlan(rc, d)
+			c.RunPlan(settling, d)
 		}
-		qw.Board.RunPlan(rc, d)
-		qw.Topo.RunPlan(rc, d)
-		rc.Sync()
-		qw.World.Clock().Replay(rc, d)
+		qw.Board.RunPlan(settling, d)
+		qw.Topo.RunPlan(settling, d)
+		settling.Sync()
+		qw.World.Write().Clock().Replay(rc, d)
 	})
 	qw.ECS = ctx.ecs
 	return qw
@@ -188,7 +190,7 @@ func NewWorld(edges aabbworld.Edges) *world.Plugin {
 // Camera is the main camera of a cameras plugin over w as cfg says, 128 x 64, beginning
 // isometrically.
 func Camera(w *world.Plugin, cfg cameras.Config) camera.Camera {
-	cam := cameras.NewPlugin(w, cfg).New(cameras.Isometrically, camera.Config{})
+	cam := cameras.NewPlugin(w, cfg).Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(128, 64)
 	cam.MoveTo(0, 0)
 	return cam
@@ -198,7 +200,7 @@ func Camera(w *world.Plugin, cfg cameras.Config) camera.Camera {
 func LevelBoard(w *world.Plugin) (*board.Plugin, grid.Grid) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	return b, grid
 }
 
@@ -226,7 +228,11 @@ func Drawn(t testing.TB, p plugin.Plugin) []render.Source {
 	}
 	return ctx.drawn
 }
-func (c *InstallCtx) Looks(func()) {}
+func (c *InstallCtx) Looks(func())       {}
+func (*InstallCtx) Pool() *parallel.Pool { return Pool }
+
+// Pool is the game's pool the plugins installed by an InstallCtx share their reads with.
+var Pool = parallel.New(4)
 
 // Deliver hands rules to the hosts of their moments, as the engine does once a Stage's Init
 // returns.

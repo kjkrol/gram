@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/vision"
 	"github.com/kjkrol/gram/plugins/world"
@@ -130,7 +131,7 @@ func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID
 			}
 		}
 		kind.Define[spawn](w.Kinds(), kindName(i), spec)
-		w.Seed(kind.Named[spawn](w.Kinds(), kindName(i)).Entry(s))
+		w.Write().Seed(kind.Named[spawn](w.Kinds(), kindName(i)).Entry(s))
 	}
 	if err := w.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)
@@ -151,7 +152,7 @@ func sceneWith(t *testing.T, r *relief, workers int, spawns ...spawn) ([]uid.UID
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
 		v.RunPlan(rc, d)
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	ctx.ecs.Tick(time.Second / 60)
 
@@ -360,6 +361,10 @@ func rendererOf(t *testing.T, ctx *installCtx, v *vision.Plugin) *vision.Rendere
 	t.Fatal("vision draws its sight with no *vision.Renderer")
 	return nil
 }
-func (c *installCtx) Looks(func()) {}
+func (c *installCtx) Looks(func())       {}
+func (*installCtx) Pool() *parallel.Pool { return pool }
+
+// the game's pool as an engine hands it to the plugins
+var pool = parallel.New(4)
 
 func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

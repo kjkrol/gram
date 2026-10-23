@@ -27,7 +27,7 @@ type Plugin struct {
 	renderer    *Renderer
 	groundStep  float64
 	heights     func() ground.Heights
-	cover       func() ground.Cover
+	covers      func(w int) ground.Cover // worker w's
 	workers     int
 	frequency   float64
 	log         *log.Logger
@@ -37,7 +37,9 @@ type Plugin struct {
 	drawing   render.Rules
 	kept      *plugin.Kept[Settings]
 
-	Res Resources
+	Res   Resources
+	read  Read
+	write Write
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -48,11 +50,12 @@ var _ plugin.Restorer = (*Plugin)(nil)
 // NewPlugin builds the vision plugin over worldPlugin's space; the views drawn start hidden.
 func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin}
+	p.read.p, p.write.p = p, p
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(worldPlugin, p)
-	p.renderer = NewRenderer(worldPlugin.Space()).WithGround(p.groundOf).WithCover(p.coverOf).
-		WithScale(worldPlugin.Scale()).WithDrawing(&p.drawing).WithStyles(worldPlugin.Styles).
-		WithSeen(worldPlugin.ViewFor)
+	p.renderer = NewRenderer(worldPlugin.Read(0).Space()).WithGround(p.groundOf).WithCover(p.coverOf).
+		WithScale(worldPlugin.Read(0).Scale()).WithDrawing(&p.drawing).
+		WithStyles(worldPlugin.Read(0).Styles).WithSeen(worldPlugin.Read(0).ViewFor)
 	p.renderer.Hide(true)
 	return p
 }
@@ -61,14 +64,15 @@ func (p *Plugin) Name() string { return "gram.vision" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
 	var h *heights
-	if p.worldPlugin.HasHeights() {
-		h = &heights{groundOf: p.groundOf, step: p.groundStep, bend: p.worldPlugin.Scale().Bend()}
+	if p.worldPlugin.Read(0).HasHeights() {
+		h = &heights{groundOf: p.groundOf, step: p.groundStep, bend: p.worldPlugin.Read(0).Scale().Bend()}
 	}
-	p.module = newModule(p.worldPlugin.Space(), &p.sightings, h, p.coverOf, p.workers)
+	p.module = newModule(p.worldPlugin.Read(0).Space(), &p.sightings, h, p.coverOn, p.workers)
+	p.module.sys.Pool(ctx.Pool())
 	p.module.sys.Paced(p.worldPlugin.Pace(sector.Near))
 	p.module.sys.Every(p.frequency)
-	p.module.clock = p.worldPlugin.Clock()
-	p.module.sys.tick, p.module.sys.log = p.worldPlugin.Tick, p.log
+	p.module.clock = p.worldPlugin.Write().Clock()
+	p.module.sys.tick, p.module.sys.log = p.worldPlugin.Read(0).Tick, p.log
 	ctx.UseModule(p.module)
 	ctx.Hosts(&p.sightings)
 	ctx.Draws(p.renderer)
@@ -102,15 +106,6 @@ func (p *Plugin) WithViews(rules ...render.Rule) *Plugin {
 	return p
 }
 
-// ShowCones shows every view drawn, as the Cones command does (Settings.Cones).
-func (p *Plugin) ShowCones() { p.setHidden(false) }
-
-// HideCones hides every view drawn; the scan goes on.
-func (p *Plugin) HideCones() { p.setHidden(true) }
-
-// ConesShown reports whether the views drawn are shown.
-func (p *Plugin) ConesShown() bool { return p.Res.Settings.Cones }
-
 func (p *Plugin) setHidden(hidden bool) {
 	p.Res.Settings.Cones = !hidden
 	p.renderer.Hide(hidden)
@@ -131,7 +126,8 @@ func (p *Plugin) WithShadow(shadow Shadow) *Plugin {
 
 // WithBoard has sight follow brd's ground and be held back by its cover; call before Use.
 func (p *Plugin) WithBoard(brd *board.Plugin) *Plugin {
-	return p.WithHeights(brd.Heights).WithCover(brd.Cover)
+	p.covers = func(w int) ground.Cover { return brd.Read(w).Cover() }
+	return p.WithHeights(brd.Read(0).Heights)
 }
 
 // WithHeights has sight follow the ground heights gives when a scan starts; nil, flat.
@@ -140,9 +136,13 @@ func (p *Plugin) WithHeights(heights func() ground.Heights) *Plugin {
 	return p
 }
 
-// WithCover has sight held back by the cover cover gives when a scan starts; nil, nothing.
+// WithCover has sight held back by the cover cover gives when a scan starts, on every goroutine
+// the scan is shared among; nil, nothing.
 func (p *Plugin) WithCover(cover func() ground.Cover) *Plugin {
-	p.cover = cover
+	p.covers = nil
+	if cover != nil {
+		p.covers = func(int) ground.Cover { return cover() }
+	}
 	return p
 }
 
@@ -153,11 +153,14 @@ func (p *Plugin) groundOf() ground.Heights {
 	return p.heights()
 }
 
-func (p *Plugin) coverOf() ground.Cover {
-	if p.cover == nil {
+func (p *Plugin) coverOf() ground.Cover { return p.coverOn(0) }
+
+// the cover worker w of the game's pool reads
+func (p *Plugin) coverOn(w int) ground.Cover {
+	if p.covers == nil {
 		return nil
 	}
-	return p.cover()
+	return p.covers(w)
 }
 
 // WithGroundStep sets how far apart a scan with heights samples a ground without a
@@ -181,8 +184,8 @@ func (p *Plugin) WithFrequency(perSecond float64) *Plugin {
 	return p
 }
 
-// WithWorkers sets how many goroutines at most share a scan: 0 (as it starts) as many as there
-// are CPUs, 1 none. Call before Use.
+// WithWorkers sets how many goroutines of the game's pool at most share a scan: 0 (as it starts)
+// all, 1 none. Call before Use.
 func (p *Plugin) WithWorkers(n int) *Plugin {
 	p.workers = n
 	return p

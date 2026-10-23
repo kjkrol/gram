@@ -72,9 +72,11 @@ func (f *StarField) Draw(t render.Target) {
 		return
 	}
 	if f.opts.Uniforms == nil {
-		f.opts = render.DrawMeshOptions{Vertices: 6, Uniforms: map[string]any{}}
+		f.opts = render.DrawMeshOptions{
+			Vertices: 6,
+			Uniforms: map[string]any{"StarView": f.view[:]},
+		}
 	}
-	f.opts.Uniforms["StarView"] = f.view[:]
 	f.opts.Instances, f.opts.Depth = f.inst, t.Depth
 	t.Screen.DrawMesh(nil, starShader, &f.opts)
 }

@@ -42,9 +42,7 @@ type module struct {
 
 	drawing render.Rules
 
-	// a spawn or a despawn since the space last took every entity
-	unindexed bool
-	indexer   *indexer
+	indexer *indexer
 
 	views        []*view.View
 	viewRunnable goke.Runnable
@@ -99,8 +97,9 @@ func newModule(cfg Config) *module {
 }
 
 func (w *module) tick(d time.Duration) host.Tick {
+	clk := w.clock.Read()
 	return host.Tick{Now: time.Now(), Dt: d, Commands: &w.commands, Effects: w.effects,
-		Time: w.clock.Time() + d, Seed: w.config.Seed, World: w.clock.Entity(), Roles: w.rolesOf}
+		Time: clk.Time() + d, Seed: w.config.Seed, World: clk.Entity(), Roles: w.rolesOf}
 }
 
 func (w *module) RegSystems(ecs *goke.ECS) {
@@ -129,7 +128,7 @@ func (w *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
 	w.fasters.Drain(func(command.Issued[Faster]) { w.clock.Faster() })
 	w.slowers.Drain(func(command.Issued[Slower]) { w.clock.Slower() })
 	w.tempos.Drain(func(i command.Issued[Tempo]) { w.clock.SetTempo(i.Command.X) })
-	w.bandSwitches.Drain(func(i command.Issued[SwitchBands]) { w.p.SetBanded(i.Command.On) })
+	w.bandSwitches.Drain(func(i command.Issued[SwitchBands]) { w.p.write.SetBanded(i.Command.On) })
 	w.switchSectors()
 	ctx.Run(w.clockRunnable, d)
 	ctx.Run(w.sectorsRunnable, d)
@@ -208,7 +207,6 @@ func (w *module) despawn(cb *goke.CmdBuf, id uid.UID64) {
 		return
 	}
 	w.despawned[id] = struct{}{}
-	w.unindexed = true
 	cb.RemoveOne(id)
 	w.spawnedCount--
 	w.telemetry.Count--

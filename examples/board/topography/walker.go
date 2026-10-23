@@ -42,7 +42,7 @@ var _ board.Figure = walker{}
 func (wk walker) Define(b *board.Plugin) {
 	units := board.NewUnits[unitRow](b,
 		board.Shape{Size: scale.Figure(0.6), Height: figure},
-		func(u unitRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+		func(u unitRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
 	profile := steering.Steering{
 		MaxSpeed: walkerSpeed,
 		Sprint:   sprint,
@@ -52,7 +52,7 @@ func (wk walker) Define(b *board.Plugin) {
 		TurnRate: 0.15,
 	}
 	extra := append(looking(),
-		ceremony.Plays(b.World().Roles().Named(MortalRole)),
+		ceremony.Plays(b.Read(0).World().Roles().Named(MortalRole)),
 		comp.Const(gravity.Body{Leap: scale.Figure(1.5)}))
 	if wk.ordered {
 		extra = append(extra, ordered())

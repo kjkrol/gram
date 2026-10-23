@@ -17,7 +17,7 @@ import (
 func TestDrops_FallUnderTheLowCloudsWhereTheyAreBigEnoughToMakeOut(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(640, 480)
 	bases := air.Bases(world.Scale{})
 	var weather air.Weather
@@ -55,5 +55,16 @@ func needGPU(t *testing.T) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
 		t.Skipf("no GPU: %v", err)
+	}
+}
+
+func TestDrops_SetPutsItsOwnOverTheFramesWithoutAllocating(t *testing.T) {
+	d := Drops{uniforms: map[string]any{}}
+	d.opts.Uniforms = map[string]any{}
+	d.set("DropView", 1, 2)
+	d.opts.Uniforms["DropView"] = []float32{9, 9}
+	n := testing.AllocsPerRun(10, func() { d.set("DropView", 3, 4) })
+	if got := d.opts.Uniforms["DropView"].([]float32); n != 0 || got[0] != 3 || got[1] != 4 {
+		t.Errorf("DropView set over another: %v allocations, %v; want none and [3 4]", n, got)
 	}
 }

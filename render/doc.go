@@ -37,7 +37,7 @@
 // # Composer, Frame and Source
 //
 // A [Composer] is the Picture of a world, drawn from several [Source]s (a Stage's is
-// world.Plugin.Picture, of every source its plugins draw). Each source hands its pieces to a
+// world.Read.Picture, of every source its plugins draw). Each source hands its pieces to a
 // [Frame] in screen pixels, each where it lies ([At]: [Frame.At], [Frame.Lifted] a height in the
 // world; [OnTop] a mark at its level): sprites, lines, fans, soft quads, each in a [Shade] of
 // [Light]; a [Frame.Edge]'s ends lie at heights of their own. What is drawn over what is the

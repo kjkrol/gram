@@ -28,7 +28,7 @@ var (
 )
 
 func (host) Rules(b *board.Plugin) {
-	roles, fx := b.World().Roles(), b.World().Effects()
+	roles, fx := b.Read(0).World().Roles(), b.Read(0).World().Write().Effects()
 	talking, talked := fx.Named(dialog.TalkingEf), fx.Named(dialog.TalkedEf)
 	roles.Define(HostRole,
 		act.Branch[vision.Sighting]{
@@ -48,7 +48,7 @@ func (host) Rules(b *board.Plugin) {
 
 func (h host) Define(b *board.Plugin) {
 	units(b).Define(HostKind, unit.Mover{Domain: cell.Land}, walks,
-		ceremony.Plays(b.World().Roles().Named(HostRole)),
+		ceremony.Plays(b.Read(0).World().Roles().Named(HostRole)),
 		comp.Const(vision.Sight{Facing: geom.NewVec(-1, 0), Radius: CellSize * 2.5}),
 		comp.Const(world.Eye{Angle: math.Pi / 3}),
 		comp.Load(func(u unitRow) dialog.Script { return h.talks.Script(u.Talks) }),

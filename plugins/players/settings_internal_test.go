@@ -66,9 +66,9 @@ func TestSettings_F10OpensTheScreenHoldingTheClockAndEscClosesIt(t *testing.T) {
 	events := &control.InputEvents{}
 	events.AddKeyEvent(control.KeyF10, control.ActionPress)
 	p.Handle(events, rt, comp)
-	if len(comp.names) != 1 || comp.names[0] != SettingsName || !w.Clock().State().Paused {
+	if len(comp.names) != 1 || comp.names[0] != SettingsName || !w.Read(0).Clock().State().Paused {
 		t.Fatalf("F10 showed %v, clock paused %v; want the settings shown and the clock held",
-			comp.names, w.Clock().State().Paused)
+			comp.names, w.Read(0).Clock().State().Paused)
 	}
 	if rt.paused {
 		t.Error("the settings paused the engine, want the clock alone: the plugins carry on")
@@ -76,19 +76,19 @@ func TestSettings_F10OpensTheScreenHoldingTheClockAndEscClosesIt(t *testing.T) {
 	events = &control.InputEvents{}
 	events.AddKeyEvent(control.KeyEscape, control.ActionPress)
 	p.settings.HandleEvents(events, rt, comp)
-	if len(comp.names) != 0 || w.Clock().State().Paused {
+	if len(comp.names) != 0 || w.Read(0).Clock().State().Paused {
 		t.Errorf("Esc left %v shown, clock paused %v; want the settings hidden and the clock going",
-			comp.names, w.Clock().State().Paused)
+			comp.names, w.Read(0).Clock().State().Paused)
 	}
 }
 
 func TestSettings_AClockPausedBeforeStaysPaused(t *testing.T) {
 	p, _, w := settingsRig(t)
-	w.Clock().TogglePause()
+	w.Write().Clock().TogglePause()
 	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1920, ScreenHeight: 1080}}, &composed{}
 	p.settings.Open(rt, comp)
 	p.settings.Close(rt, comp)
-	if !w.Clock().State().Paused {
+	if !w.Read(0).Clock().State().Paused {
 		t.Error("closing the settings let a clock go that was paused before them")
 	}
 }
@@ -178,12 +178,13 @@ func TestSettings_KeepRunningLetsTheClockGoAndIsSaved(t *testing.T) {
 	p, _, w := settingsRig(t)
 	rt, comp := &engineStub{props: game.Props{ScreenWidth: 1920, ScreenHeight: 1080}}, &composed{}
 	p.settings.Open(rt, comp)
-	if err := p.Issue(nil, KeepRunning{On: true}); err != nil {
+	if err := p.write.Issue(nil, KeepRunning{On: true}); err != nil {
 		t.Fatal(err)
 	}
 	p.carry(rt, comp)
-	if w.Clock().State().Paused || !p.Res.Settings.Running {
-		t.Fatalf("running behind the settings: clock paused %v, Running %v", w.Clock().State().Paused,
+	if w.Read(0).Clock().State().Paused || !p.Res.Settings.Running {
+		t.Fatalf("running behind the settings: clock paused %v, Running %v",
+			w.Read(0).Clock().State().Paused,
 			p.Res.Settings.Running)
 	}
 	var buf bytes.Buffer
@@ -237,24 +238,24 @@ func TestSettings_TheTelemetryPanelShownAndWhatItShows(t *testing.T) {
 	}
 	give := func(cmd command.Command) {
 		t.Helper()
-		if err := p.Issue(nil, cmd); err != nil {
+		if err := p.write.Issue(nil, cmd); err != nil {
 			t.Fatal(err)
 		}
 		p.carry(rt, comp)
 	}
 	give(shows.Set(1))
-	if tp.Shown(comp) || tp.Mode() != telemetry.Extended || shows.Get() != 1 {
+	if tp.Read(0).Shown(comp) || tp.Read(0).Mode() != telemetry.Extended || shows.Get() != 1 {
 		t.Errorf("everything chosen: shown %v, mode %v, the choice %d; want hidden, extended, 1",
-			tp.Shown(comp), tp.Mode(), shows.Get())
+			tp.Read(0).Shown(comp), tp.Read(0).Mode(), shows.Get())
 	}
 	give(shown.Set(true))
-	if !shown.Get() || tp.Mode() != telemetry.Extended {
+	if !shown.Get() || tp.Read(0).Mode() != telemetry.Extended {
 		t.Errorf("switched on: shown %v in mode %v, want shown, still extended", shown.Get(),
-			tp.Mode())
+			tp.Read(0).Mode())
 	}
 	give(shows.Set(0))
-	if !tp.Shown(comp) || tp.Mode() != telemetry.Basic || shows.Get() != 0 {
+	if !tp.Read(0).Shown(comp) || tp.Read(0).Mode() != telemetry.Basic || shows.Get() != 0 {
 		t.Errorf("the basics chosen: shown %v, mode %v, the choice %d; want shown, basic, 0",
-			tp.Shown(comp), tp.Mode(), shows.Get())
+			tp.Read(0).Shown(comp), tp.Read(0).Mode(), shows.Get())
 	}
 }

@@ -25,7 +25,7 @@ func TestHand_EndsTheOrderOfTheUnitItIsOn(t *testing.T) {
 		t.Fatalf("no hand on it, the unit has order %+v, want one on its way", o)
 	}
 	ahead := o.Leg.To
-	if !rw.nav.worldPlugin.Carrier().Put(1, driving.Turn{Camera: rw.cams[0], Way: 1}) {
+	if !rw.nav.worldPlugin.Write().Carrier().Put(1, driving.Turn{Camera: rw.cams[0], Way: 1}) {
 		t.Fatal("the world carries no Turn")
 	}
 	rw.tick(1)
@@ -33,7 +33,7 @@ func TestHand_EndsTheOrderOfTheUnitItIsOn(t *testing.T) {
 	if o != nil {
 		t.Fatalf("the unit keeps its order %+v under a hand, want it given up", o)
 	}
-	occupancy := rw.nav.boardPlugin.Occupancy()
+	occupancy := rw.nav.boardPlugin.Write().Occupancy()
 	stranger := uid.UID64(1 << 20)
 	if ahead != now && !occupancy.CanEnter(ahead, false, stranger, cell.Land) {
 		t.Error("the cell the order's step was heading into is still held")

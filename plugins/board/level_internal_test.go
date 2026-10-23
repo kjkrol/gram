@@ -38,7 +38,7 @@ func newLevelBoard(t *testing.T, g grid.Grid, metres float64) *Plugin {
 		Scale:    world.Scale{Metres: metres},
 	})
 	p := NewPlugin(g, &cell.MultipleOccupancy{}, w)
-	kinds := p.CellKinds()
+	kinds := p.Read(0).CellKinds()
 	kinds.Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
 	kinds.Define("water", cell.Kind{Cost: 1, Allows: cell.Water})
 	kinds.Define("wall", cell.Kind{Cost: 1, Solid: true})
@@ -101,7 +101,7 @@ board:
 	if err := p.Populate(); err != nil {
 		t.Fatal(err)
 	}
-	if got := p.Board().Kind(g.At(3, 0)).Name.String(); got != "grass" {
+	if got := p.Read(0).Board().Kind(g.At(3, 0)).Name.String(); got != "grass" {
 		t.Errorf("a cell of the default is %q, want grass", got)
 	}
 }
@@ -125,7 +125,7 @@ board:
 		q, r uint32
 		want string
 	}{{1, 0, "water"}, {0, 1, "water"}, {0, 0, "grass"}, {1, 1, "grass"}} {
-		if got := p.Board().Kind(g.At(c.q, c.r)).Name.String(); got != c.want {
+		if got := p.Read(0).Board().Kind(g.At(c.q, c.r)).Name.String(); got != c.want {
 			t.Errorf("(q %d, r %d) is %q, want %q", c.q, c.r, got, c.want)
 		}
 	}
@@ -172,7 +172,7 @@ ways:
 	if err := p.Populate(); err != nil {
 		t.Fatal(err)
 	}
-	brd := p.Board()
+	brd := p.Read(0).Board()
 	if w := brd.Way(g.At(3, 2)); w.Kind.Name.String() != "river" {
 		t.Errorf("under the bridge: a way of %q, want the river", w.Kind.Name)
 	}
@@ -213,7 +213,7 @@ ways:
 	if err := p.Populate(); err != nil {
 		t.Fatal(err)
 	}
-	brd := p.Board()
+	brd := p.Read(0).Board()
 	for x, want := range []struct {
 		kind  string
 		width float32

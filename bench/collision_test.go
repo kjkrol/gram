@@ -78,7 +78,7 @@ func benchCollision(b *testing.B, rect uint32, percent float64) (*goke.ECS, int,
 	for i := range entries {
 		entries[i] = boxes.Entry(body{pos: placement.Place(i, count), vel: randomVelocity(rng)})
 	}
-	w.Seed(entries...)
+	w.Write().Seed(entries...)
 
 	ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
@@ -225,7 +225,7 @@ func benchSwept(b *testing.B, shots int) (*goke.ECS, *collision.ContactStats) {
 		pos.AABB = plane.NewAABB(geom.NewVec(2, y), 4, 4)
 		entries = append(entries, bullets.Entry(shot{pos: pos, dir: geom.NewVec(1, 0)}))
 	}
-	w.Seed(entries...)
+	w.Write().Seed(entries...)
 
 	var fly goke.Runnable
 	ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {

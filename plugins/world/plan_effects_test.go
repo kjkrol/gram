@@ -40,7 +40,7 @@ func (g *effectStage) Init(ctx game.Initializer) error {
 		comp.Const(world.Position{AABB: plane.NewAABB(geom.NewVec(100, 100), 10, 10)}),
 		comp.Const(world.Velocity{}),
 		comp.Const(tally{}),
-		g.plan(g.world.Effects()).on(g.world),
+		g.plan(g.world.Write().Effects()).on(g.world),
 	})
 	g.unit = kind.Named[struct{}](g.world.Kinds(), "glower")
 	return nil
@@ -55,7 +55,7 @@ func (p effectProbe) SetupSystems() []goke.System {
 }
 
 func (g *effectStage) Loaded() error                           { return nil }
-func (g *effectStage) Spawn() error                            { g.world.Seed(g.unit.Entry(struct{}{})); return nil }
+func (g *effectStage) Spawn() error                            { g.world.Write().Seed(g.unit.Entry(struct{}{})); return nil }
 func (g *effectStage) Update(ctx goke.RunCtx, d time.Duration) { g.world.RunPlan(ctx, d) }
 func (g *effectStage) Stack() game.Scenes {
 	if g.stack == nil {

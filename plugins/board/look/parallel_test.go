@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -63,18 +64,18 @@ func piecesOf(r *look.Renderer, cam camera.Camera) (out [][]render.Vertex, n int
 
 func TestRenderer_Compose_WorkersDrawWhatOneGoroutineDoes(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(16, 16, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	cam := cameratest.NewFromSpace(512, 512, 0)
 	one, many := &stripes{}, &stripes{}
 	serial := newRenderer(brd, flatAtlas{}, gridOf(black, 1),
 		stripedMap{lookMap{look.FlatLook()}, one})
 	serial.Workers(1)
-	parallel := newRenderer(brd, flatAtlas{}, gridOf(black, 1),
+	several := newRenderer(brd, flatAtlas{}, gridOf(black, 1),
 		stripedMap{lookMap{look.FlatLook()}, many})
-	parallel.Workers(4)
+	several.UsePool(parallel.New(4))
 	want, wantN := piecesOf(serial, cam)
-	got, gotN := piecesOf(parallel, cam)
+	got, gotN := piecesOf(several, cam)
 	if many.warmed.Load() != 256 || many.readied != 1 || many.workers < 2 || one.warmed.Load() != 0 {
 		t.Fatalf("%d tiles warmed, readied %d times, for %d workers; %d warmed drawing on one goroutine; want all 256 once for several, none for one", many.warmed.Load(), many.readied, many.workers, one.warmed.Load())
 	}
@@ -95,8 +96,8 @@ func TestRenderer_Compose_WorkersDrawWhatOneGoroutineDoes(t *testing.T) {
 
 func TestRenderer_Compose_APlainLookKeepsOneGoroutine(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(16, 16, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	d := &stripes{}
 	seen := 0
 	lk := lookFn(func(f *render.Frame, cam camera.Camera, tile *look.Tile) {
@@ -113,8 +114,8 @@ func TestRenderer_Compose_APlainLookKeepsOneGoroutine(t *testing.T) {
 
 func TestRenderer_Compose_NothingLaysNoTile(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd := board.NewBoard(grid)
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd, brdW := board.NewBoard(grid)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	d := &stripes{}
 	r := newRenderer(brd, flatAtlas{}, gridOf(black, 1), stripedMap{lookMap{look.Nothing}, d})
 	cam := cameratest.NewFromSpace(128, 128, 0)

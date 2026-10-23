@@ -1,13 +1,16 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"testing"
 	"time"
 
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/unit"
@@ -30,15 +33,15 @@ type legUnit struct {
 
 type legWorld struct {
 	grid      grid.Grid
-	terrain   *board.Board
+	terrain   testBoard
 	occupancy *cell.SingleOccupancy
 	ecs       *goke.ECS
 	ids       []uid.UID64
 
-	pos   goke.Comp[world.Base]
-	cell  goke.Comp[unit.At]
-	order goke.OptComp[MoveOrder]
-	q     *goke.Query
+	pos       goke.Comp[world.Base]
+	cell      goke.Comp[unit.At]
+	orderComp goke.OptComp[MoveOrder]
+	q         *goke.Query
 }
 
 func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
@@ -54,7 +57,7 @@ func newLegWorld(t *testing.T, w, h uint32, units ...legUnit) *legWorld {
 		}
 	}
 	nw := newNavWorld(t, w, h, legCellSize, rows, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		lw.q = si.NewQueryBuilder(&lw.pos, &lw.cell).Optional(&lw.order).Build()
+		lw.q = si.NewQueryBuilder(&lw.pos, &lw.cell).Optional(&lw.orderComp).Build()
 	}})
 	lw.grid, lw.terrain, lw.occupancy, lw.ecs, lw.ids = nw.grid, nw.board, nw.occupancy, nw.ecs, nw.ids
 	return lw
@@ -72,7 +75,7 @@ func (lw *legWorld) read() map[uid.UID64]legState {
 	lw.q.All()
 	for lw.q.Next() {
 		cur := lw.q.Cursor()
-		positions, cells, orders := lw.pos.Slice(cur), lw.cell.Slice(cur), lw.order.Slice(cur)
+		positions, cells, orders := lw.pos.Slice(cur), lw.cell.Slice(cur), lw.orderComp.Slice(cur)
 		for i, id := range cur.IDs {
 			st := legState{pos: positions[i].Pos, cell: cells[i].Cell}
 			if orders != nil {
@@ -230,7 +233,7 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
 	moves := &command.Queue[MoveTo]{}
-	cmds := newMoveCommandSystem(newPathFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := routing.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), moves, &command.Queue[LookAt]{}, selTags.Selected)
 
 	from := grid.At(0, 0)
 	to := grid.At(1, 0)
@@ -238,24 +241,24 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	leg := Leg{From: from, To: to, Active: true}
 
 	var at goke.Comp[unit.At]
-	var order goke.Comp[MoveOrder]
+	var orders goke.Comp[MoveOrder]
 	var selected goke.Comp[tag.Tags[selection.Family]]
 	var q *goke.Query
 
 	ecs := goke.New()
 	ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		f := si.NewFactory(&at, &order, &selected)
+		f := si.NewFactory(&at, &orders, &selected)
 		f.Create(1)
 		f.Next()
 		selected.Slice(&f.Cursor)[0] = selectedMarks
 		id := f.Cursor.IDs[0]
 		at.Slice(&f.Cursor)[0] = unit.At{Cell: from}
-		order.Slice(&f.Cursor)[0] = MoveOrder{Target: to, Leg: leg}
-		cells, n := leg.cells()
+		orders.Slice(&f.Cursor)[0] = MoveOrder{Target: to, Leg: leg}
+		cells, n := order.Cells(leg)
 		for _, c := range cells[:n] {
 			occupancy.Enter(c, false, id, cell.Land)
 		}
-		q = si.NewQueryBuilder(&at, &order).Build()
+		q = si.NewQueryBuilder(&at, &orders).Build()
 		cmds.Init(si)
 	}})
 	cmdHandle := ecs.RegSys(cmds)
@@ -267,16 +270,15 @@ func TestCommandSystem_Update_RetargetMidLegKeepsLeg(t *testing.T) {
 	moves.Add(command.Nobody, MoveTo{Cell: newTarget})
 	ecs.Tick(time.Second)
 
-	_, mt := readCellAndMoveOrder(t, q, &at, &order)
+	_, mt := readCellAndMoveOrder(t, q, &at, &orders)
 	if mt.Target != newTarget {
 		t.Fatalf("Target = %v, want %v", mt.Target, newTarget)
 	}
 	if mt.Leg != leg {
 		t.Errorf("Leg = %+v, want the in-progress step %+v carried over", mt.Leg, leg)
 	}
-	next := grid.At(2, 0)
-	if mt.Path.Length == 0 || mt.Path.Steps[0] != next {
-		t.Errorf("Path = %+v, want it to continue from Leg.To (first step %v)", mt.Path, next)
+	if mt.Path.Length != 0 {
+		t.Errorf("Path = %+v, want none: the routing plans it from Leg.To", mt.Path)
 	}
 }
 
@@ -285,7 +287,7 @@ func TestModule_Setup_RestoresLegCells(t *testing.T) {
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	occupancy := &cell.SingleOccupancy{}
-	m := &module{navigationSystem: newNavigationSystem(newPathFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)}
+	m := &module{navigationSystem: traffic.NewSystem(spacing.NewFinder(grid, terrain, nil, occupancy), grid, terrain, occupancy)}
 
 	from := grid.At(0, 0)
 	to := grid.At(1, 1)
@@ -295,20 +297,20 @@ func TestModule_Setup_RestoresLegCells(t *testing.T) {
 	goke.New().Setup(
 		goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			var cell goke.Comp[unit.At]
-			var order goke.Comp[MoveOrder]
+			var orderComp goke.Comp[MoveOrder]
 			var base goke.Comp[world.Base]
 			var steer goke.Comp[steering.Steering]
 			var course goke.Comp[steering.Course]
-			f := si.NewFactory(&cell, &order, &base, &steer, &course)
+			f := si.NewFactory(&cell, &orderComp, &base, &steer, &course)
 			f.Create(1)
 			f.Next()
 			cell.Slice(&f.Cursor)[0] = unit.At{Cell: from}
-			order.Slice(&f.Cursor)[0] = MoveOrder{Target: to, Leg: leg}
+			orderComp.Slice(&f.Cursor)[0] = MoveOrder{Target: to, Leg: leg}
 		}},
 		m.navigationSystem, // its Init seeds the occupancy
 	)
 
-	cells, n := leg.cells()
+	cells, n := order.Cells(leg)
 	for _, c := range cells[:n] {
 		if occupancy.CanEnter(c, false, otherEntity, cell.Land) {
 			t.Errorf("cell %v not held after Setup, want every Leg cell restored", c)

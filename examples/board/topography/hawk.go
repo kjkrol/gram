@@ -25,7 +25,7 @@ var _ board.Figure = hawk{}
 func (hawk) Define(b *board.Plugin) {
 	units := board.NewUnits[unitRow](b,
 		board.Shape{Size: scale.Figure(0.6), Height: figure},
-		func(u unitRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+		func(u unitRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
 	flyer := unit.Mover{
 		Domain:    cell.Air,
 		Lift:      scale.Units(300),

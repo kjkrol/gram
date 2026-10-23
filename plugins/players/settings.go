@@ -67,14 +67,14 @@ var titleFont = sync.OnceValue(func() *render.Font {
 // Open shows the screen on top, built afresh of the plugins' settings, and holds the game.
 func (s *SettingsScene) Open(runtime game.Runtime, composition game.Composition) {
 	var issuer *Player
-	if locals := s.p.Locals(); len(locals) > 0 {
+	if locals := s.p.read.Locals(); len(locals) > 0 {
 		issuer = locals[0]
 	}
 	s.screen.Issue(s.p.IssueAs(issuer))
 	s.build(screenSize(s.screen, runtime.Props()))
 	composition.Show(SettingsName)
 	s.shown = true
-	s.paused = s.p.worldPlugin.Clock().State().Paused
+	s.paused = s.p.worldPlugin.Read(0).Clock().State().Paused
 	s.hold(!s.p.Res.Settings.Running)
 }
 
@@ -87,8 +87,8 @@ func (s *SettingsScene) Close(runtime game.Runtime, composition game.Composition
 
 // hold has the clock stand while on, as it stood before the screen opened otherwise.
 func (s *SettingsScene) hold(on bool) {
-	clk := s.p.worldPlugin.Clock()
-	if want := on || s.paused; clk.State().Paused != want {
+	clk := s.p.worldPlugin.Write().Clock()
+	if want := on || s.paused; clk.Read().State().Paused != want {
 		clk.TogglePause()
 	}
 }
@@ -556,7 +556,7 @@ func (p *Plugin) Settings() []control.Setting {
 			control.Choice{
 				Label:   "Telemetry panel shows",
 				Options: []string{"the basics", "everything"},
-				Get:     func() int { return int(tp.Mode()) },
+				Get:     func() int { return int(tp.Read(0).Mode()) },
 				Set: func(i int) command.Command {
 					return telemetry.Panel{Shown: p.panelShown(), Extended: i == 1}
 				},

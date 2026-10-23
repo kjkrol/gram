@@ -20,7 +20,7 @@ var (
 
 func (trapdoor) Effects(b *board.Plugin) {
 	open := effect.Alter(func(f *cell.Floor) { f.Allows = 0 })
-	b.World().Effects().Define(OpenEf, effect.Spec{open})
+	b.Read(0).World().Write().Effects().Define(OpenEf, effect.Spec{open})
 }
 
 func (trapdoor) Define(b *board.Plugin) {
@@ -30,5 +30,5 @@ func (trapdoor) Define(b *board.Plugin) {
 
 func (trapdoor) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[standingRow](w.Kinds(), TrapdoorKind), CellSize, render.Solid(boardsColor)).
-		Under(w.Effects().Named(OpenEf), render.Solid(pitColor))
+		Under(w.Write().Effects().Named(OpenEf), render.Solid(pitColor))
 }

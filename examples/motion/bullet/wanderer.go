@@ -39,10 +39,10 @@ func (wanderer) Define(b *board.Plugin) {
 		return navigation.NewRound(u.To, u.Start)
 	})
 	units(b).Define(WandererKind, unit.Mover{Domain: cell.Land}, walking(),
-		ceremony.Plays(b.World().Roles().Named(MortalRole)), round, patrol)
+		ceremony.Plays(b.Read(0).World().Roles().Named(MortalRole)), round, patrol)
 }
 
 func (wanderer) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[unitRow](w.Kinds(), WandererKind), unitSize, render.Solid(wandererColor)).
-		Under(w.Effects().Named(WoundedEf), render.Solid(paleColor))
+		Under(w.Write().Effects().Named(WoundedEf), render.Solid(paleColor))
 }

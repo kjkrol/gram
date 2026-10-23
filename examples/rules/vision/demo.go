@@ -96,7 +96,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 	a.cameras = cameras.NewPlugin(a.world, cameras.Config{})
 	a.telemetry = telemetry.NewPlugin(a.world)
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.vision)
-	a.vision.ShowCones()
+	a.vision.Write().ShowCones()
 }
 
 func (a *arena) definePlayer() error {
@@ -106,14 +106,14 @@ func (a *arena) definePlayer() error {
 
 // the flight is a state of the whole world
 func (a *arena) defineEffects() {
-	a.world.Effects().Define(FleeingEf, effect.Spec{})
+	a.world.Write().Effects().Define(FleeingEf, effect.Spec{})
 }
 
 // prey is what the hunter hunts: a role named by its rules, played by the prey
 func (a *arena) defineRoles() { a.world.Roles().Define(PreyRole) }
 
 func (a *arena) defineCommands() {
-	flee := ceremony.Toggle(a.world.Effects().Named(FleeingEf)).On(ceremony.World)
+	flee := ceremony.Toggle(a.world.Write().Effects().Named(FleeingEf)).On(ceremony.World)
 	a.world.Commands().Define(FleeCmd, flee)
 }
 
@@ -145,8 +145,8 @@ func (a *arena) spawnUnits() {
 		entries = append(entries, preyKind.Entry(roam(i, 90)))
 	}
 	entries = append(entries, hunterKind.Entry(roam(PreyCount, 81)))
-	a.world.Seed(entries...)
-	a.world.Carrier().Put(a.player.ID, a.world.Commands().Named(FleeCmd))
+	a.world.Write().Seed(entries...)
+	a.world.Write().Carrier().Put(a.player.ID, a.world.Commands().Named(FleeCmd))
 }
 
 func sees() kind.Spec {

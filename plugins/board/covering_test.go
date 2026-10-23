@@ -20,9 +20,9 @@ func TestCovering_AnEffectOnACellShowsOnTheBoardAndToTheRules(t *testing.T) {
 	var iced effect.Effect
 	var slot [2]int
 	bw := boardtest.NewWorldWith(t, g, 4*boardtest.CellSize, 4*boardtest.CellSize, func(w *world.Plugin, brd *board.Plugin) []act.Rule {
-		brd.Board().SetAll(cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Land})
-		w.Effects().Define("iced", effect.Spec{})
-		iced = w.Effects().Named("iced")
+		brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Land})
+		w.Write().Effects().Define("iced", effect.Spec{})
+		iced = w.Write().Effects().Named("iced")
 		slot[0], slot[1] = int(brd.Covering(iced)), int(brd.Covering(iced))
 		return []act.Rule{
 			act.Branch[unit.Standing]{
@@ -43,7 +43,7 @@ func TestCovering_AnEffectOnACellShowsOnTheBoardAndToTheRules(t *testing.T) {
 	if slot[0] != slot[1] {
 		t.Errorf("the cover's slot is %d, then %d; want the same", slot[0], slot[1])
 	}
-	brd := bw.Board.Board()
+	brd := bw.Board.Read(0).Board()
 	before := brd.Changes()
 	for range 4 {
 		bw.Tick()

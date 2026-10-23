@@ -108,12 +108,13 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		MinPitch:    2,
 		Cell:        CellSize,
 		HeightUnit:  1,
-		Cage:        a.topography,
+		Cage:        a.topography.Read(0),
 	})
-	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Reporter(), a.light.Reporter())
+	a.telemetry = telemetry.NewPlugin(a.world).With(a.atmosphere.Read(0).Reporter(),
+		a.light.Read(0).Reporter())
 	a.players = players.NewPlugin(a.world, a.cameras, a.board, a.atmosphere, a.topography,
 		a.light)
-	a.atmosphere.ShowClouds(atmosphere.AllBodies)
+	a.atmosphere.Write().ShowClouds(atmosphere.AllBodies)
 	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})
 }
 
@@ -133,7 +134,7 @@ func (a *arena) spawn() error {
 	if err != nil {
 		return err
 	}
-	a.topography.Seed(level.Heights())
+	a.topography.Write().Seed(level.Heights())
 	return nil
 }
 

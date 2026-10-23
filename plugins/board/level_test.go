@@ -38,8 +38,8 @@ units:
   - {kind: walker, name: ann, start: [0, 0]}
 `)}}
 	prepare := func(w *world.Plugin, brd *board.Plugin) []act.Rule {
-		brd.CellKinds().Define("grass", grass)
-		brd.CellKinds().Define("pit", pit)
+		brd.Read(0).CellKinds().Define("grass", grass)
+		brd.Read(0).CellKinds().Define("pit", pit)
 		shape := board.Shape{Size: boardtest.UnitSize}
 		standing := board.NewEntities(brd, shape, func(r standingRow) cell.ID { return r.At })
 		standing.Define("trapdoor", comp.Const(cell.Floor{Allows: cell.Land}))
@@ -64,7 +64,7 @@ units:
 	}
 	bw := boardtest.NewWorldWith(t, g, 5*boardtest.CellSize, boardtest.CellSize, prepare, nil)
 	bw.Tick()
-	brd := bw.Board.Board()
+	brd := bw.Board.Read(0).Board()
 	if got := brd.Kind(g.At(1, 0)).Name.String(); got != "grass" {
 		t.Errorf("beside the pit: %q, want grass", got)
 	}

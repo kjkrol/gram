@@ -59,7 +59,7 @@ func TestMoon_AGamesOwnLightsTheNightFromTheStart(t *testing.T) {
 	for range 3 {
 		n.ecs.Tick(tick)
 	}
-	if got := n.a.Sun().Color; got != red {
+	if got := n.a.Read(0).Sun().Color; got != red {
 		t.Errorf("under the game's own moon the night is lit %v, want %v", got, red)
 	}
 }
@@ -69,17 +69,18 @@ func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 	var blood effect.Effect
 	early := atmosphere.Config{Calendar: calendar.Config{Start: time.Hour}} // one in the morning
 	n := newNight(t, early, func(n *night) {
-		n.w.Effects().Define("blood moon", effect.Spec{effect.Alter(func(m *sky.Moon) { m.Color = red })})
-		blood = n.w.Effects().Named("blood moon")
+		n.w.Write().Effects().Define("blood moon",
+			effect.Spec{effect.Alter(func(m *sky.Moon) { m.Color = red })})
+		blood = n.w.Write().Effects().Named("blood moon")
 	}, nil)
 	n.ecs.Tick(tick)
-	pale := n.a.Sun().Color
+	pale := n.a.Read(0).Sun().Color
 	if pale != sky.DefaultMoon().Color {
 		t.Fatalf("the night is lit %v, want the moon's own %v", pale, sky.DefaultMoon().Color)
 	}
 	give := func(cmd command.Command) {
 		t.Helper()
-		if !n.w.Carrier().Put(command.Nobody, cmd) {
+		if !n.w.Write().Carrier().Put(command.Nobody, cmd) {
 			t.Fatalf("the world carries no %T", cmd)
 		}
 		for range 3 {
@@ -87,11 +88,11 @@ func TestMoon_AnEffectOnTheAtmosphereColoursTheNight(t *testing.T) {
 		}
 	}
 	give(ceremony.Put(blood).On(n.a))
-	if got := n.a.Sun().Color; got != red {
+	if got := n.a.Read(0).Sun().Color; got != red {
 		t.Errorf("under the blood moon the night is lit %v, want %v", got, red)
 	}
 	give(ceremony.Take(blood).On(n.a))
-	if got := n.a.Sun().Color; got != pale {
+	if got := n.a.Read(0).Sun().Color; got != pale {
 		t.Errorf("the blood moon lifted, the night is lit %v, want the %v it was", got, pale)
 	}
 }
@@ -101,10 +102,10 @@ func TestMoonrise_FiresOnceARiseAndFullPicksTheFullOnes(t *testing.T) {
 	day := 2 * time.Second // 120 ticks; the moon of a GameYear goes round in four days
 	cfg := atmosphere.Config{Calendar: calendar.Config{DayRealTime: day}}
 	n := newNight(t, cfg, func(n *night) {
-		n.w.Effects().Define("risen", effect.Spec{effect.Lasts(4 * tick)})
-		risen = n.w.Effects().Named("risen")
-		n.w.Effects().Define("full risen", effect.Spec{effect.Lasts(4 * tick)})
-		full = n.w.Effects().Named("full risen")
+		n.w.Write().Effects().Define("risen", effect.Spec{effect.Lasts(4 * tick)})
+		risen = n.w.Write().Effects().Named("risen")
+		n.w.Write().Effects().Define("full risen", effect.Spec{effect.Lasts(4 * tick)})
+		full = n.w.Write().Effects().Named("full risen")
 	}, func(n *night) {
 		n.w.Roles().Define("moon watcher",
 			act.Branch[sky.Moonrise]{Name: "a rise", When: cond.Self.If(cond.Always), Then: act.Self.Put(risen)},
@@ -119,7 +120,8 @@ func TestMoonrise_FiresOnceARiseAndFullPicksTheFullOnes(t *testing.T) {
 	wasRisen, wasFull := false, false
 	for range 8 * 120 { // eight days: the moon twice round
 		n.ecs.Tick(tick)
-		r, f := n.w.Effects().Has(n.a.Entity(), risen), n.w.Effects().Has(n.a.Entity(), full)
+		r, f := n.w.Read(0).Effects().Has(n.a.Entity(),
+			risen), n.w.Read(0).Effects().Has(n.a.Entity(), full)
 		if r && !wasRisen {
 			rises++
 		}

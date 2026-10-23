@@ -11,10 +11,10 @@ import (
 	"github.com/kjkrol/gram/plugins/world"
 )
 
-func TestField_ReadyReadsTheCoverOnceAndAnewWhenACellChanges(t *testing.T) {
+func TestField_TheCoverFollowsEveryChangeOfACell(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
-	f := New(grid, cells, func(cell.ID) float64 { return 0 })
+	f := newField(grid, cells, func(cell.ID) float64 { return 0 })
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	forest := cell.Kind{Cost: 1, Allows: cell.Land, Veil: 0.5, Veils: cell.Land}
 	c3 := grid.At(3, 0)
@@ -27,7 +27,6 @@ func TestField_ReadyReadsTheCoverOnceAndAnewWhenACellChanges(t *testing.T) {
 		})
 		return stretches
 	}
-	f.Ready()
 	if got := walk(); len(got) != 1 || got[0] != [2]float64{30, 40} {
 		t.Fatalf("walked through %v, want the forest cell from 30 to 40", got)
 	}
@@ -37,6 +36,13 @@ func TestField_ReadyReadsTheCoverOnceAndAnewWhenACellChanges(t *testing.T) {
 	}
 }
 
+// a field kept by the cells as they change, as a board keeps its own
+func newField(g grid.Grid, cells *terrain.Cells, altitude func(cell.ID) float64) *Field {
+	f := New(g, cells.Read(), altitude)
+	cells.Notify(f.Veil, f.Veils)
+	return f
+}
+
 var water = cell.Kind{Name: cell.Named("water"), Cost: 1, Allows: cell.Water}
 
 func TestGround_OverhangIsTheAreaOverGroundThatDoesNotTakeTheEntity(t *testing.T) {
@@ -44,7 +50,7 @@ func TestGround_OverhangIsTheAreaOverGroundThatDoesNotTakeTheEntity(t *testing.T
 	grid := grid.DefaultGrids{}.Square(4, 4, size)
 	cellAt := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
 	cells := terrain.New(grid)
-	f := New(grid, cells, func(cell.ID) float64 { return 0 })
+	f := newField(grid, cells, func(cell.ID) float64 { return 0 })
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	cells.Set(cellAt(2, 1), water)
 	edge := float64(2 * size)
@@ -65,7 +71,7 @@ func TestGround_OverhangIsTheAreaOverGroundThatDoesNotTakeTheEntity(t *testing.T
 func TestField_VersionAndChangesAreTheCells(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(8, 1, 10)
 	cells := terrain.New(grid)
-	f := New(grid, cells, func(cell.ID) float64 { return 0 })
+	f := newField(grid, cells, func(cell.ID) float64 { return 0 })
 	cells.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	same := func() {
 		t.Helper()

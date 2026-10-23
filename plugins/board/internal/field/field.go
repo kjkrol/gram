@@ -17,29 +17,34 @@ import (
 
 var (
 	_ ground.Cover    = (*Field)(nil)
-	_ ground.Readied  = (*Field)(nil)
 	_ collision.Field = (*Field)(nil)
 )
 
-// Field is a board's ground for the others: what holds sight back (Walk, Ready) and what collision
-// pushes colliders out of and never over (Solid, Overhang), read from the cells' terrain.
+// Field is a board's ground for the others: what holds sight back (Walk) and what collision
+// pushes colliders out of and never over (Solid, Overhang), read from the cells' terrain, for one
+// goroutine at a time.
 type Field struct {
-	grid         grid.Grid
-	square       *grids.Square // nil for any other grid
-	cells        *terrain.Cells
-	altitude     func(c cell.ID) float64
-	boxes        []geom.AABB
-	decks        []terrain.Deck
-	seen         []cell.ID
-	veils        []veil // by ordinal
-	veilsChanges uint64
-	veilsVersion uint64
+	grid     grid.Grid
+	square   *grids.Square // nil for any other grid
+	cells    *terrain.Read
+	altitude func(c cell.ID) float64
+	veils    *[]veil // by ordinal, the board's: kept by Veil and Veils as the cells change
+	boxes    []geom.AABB
+	decks    []terrain.Deck
+	seen     []cell.ID
 }
 
-// New is the ground of the board over g with its cells, its levels as altitude says.
-func New(g grid.Grid, cells *terrain.Cells, altitude func(c cell.ID) float64) *Field {
+// New is the ground of the board over g read through cells, its levels as altitude says.
+func New(g grid.Grid, cells *terrain.Read, altitude func(c cell.ID) float64) *Field {
 	sq, _ := g.(*grids.Square)
-	return &Field{grid: g, square: sq, cells: cells, altitude: altitude}
+	veils := make([]veil, g.CellCount())
+	return &Field{grid: g, square: sq, cells: cells, altitude: altitude, veils: &veils}
+}
+
+// Fork is the same ground read through cells and altitude of another goroutine, with scratch of
+// its own.
+func (f *Field) Fork(cells *terrain.Read, altitude func(c cell.ID) float64) *Field {
+	return &Field{grid: f.grid, square: f.square, cells: cells, altitude: altitude, veils: f.veils}
 }
 
 // Version and Changes are the cells' counts: the cover's copies are kept by them.
@@ -62,8 +67,7 @@ func (f *Field) covers(c cell.ID, blockers world.Layers) (bottom, top, tau float
 	if !ok {
 		return 0, 0, 0, false
 	}
-	f.Ready()
-	v := &f.veils[i]
+	v := &(*f.veils)[i]
 	if !v.ok || !v.veils.Meets(blockers) {
 		return 0, 0, 0, false
 	}
@@ -76,36 +80,28 @@ type veil struct {
 	ok               bool
 }
 
-// Ready reads every cell's cover at once when any cell has changed, the Readied contract; walked
-// from several goroutines after it, the board reads nothing.
-func (f *Field) Ready() {
-	n := f.grid.CellCount()
-	if len(f.veils) == n && f.veilsChanges == f.cells.Changes() && f.veilsVersion == f.cells.Version() {
+// Veil reads c's cover anew, the cell changed; on the goroutine writing the cells.
+func (f *Field) Veil(c cell.ID) {
+	i, ok := f.cells.Ordinal(c)
+	if !ok {
 		return
 	}
-	if len(f.veils) != n {
-		f.veils = make([]veil, n)
+	v := &(*f.veils)[i]
+	k := f.cells.KindOf(c)
+	if k == nil || k.Veil <= 0 {
+		*v = veil{}
+		return
 	}
-	f.veilsChanges, f.veilsVersion = f.cells.Changes(), f.cells.Version()
-	f.grid.EachCell(func(c cell.ID) {
-		i, ok := f.cells.Ordinal(c)
-		if !ok {
-			return
-		}
-		v := &f.veils[i]
-		k := f.cells.KindOf(c)
-		if k == nil || k.Veil <= 0 {
-			*v = veil{}
-			return
-		}
-		*v = veil{bottom: math.Inf(-1), top: math.Inf(1), tau: 1 - min(k.Veil, 1), veils: world.Layers(k.Veils), ok: true}
-		// a veil of no height stands at every height, as a wall of none does
-		if k.Height > 0 {
-			v.bottom = f.altitude(c)
-			v.top = v.bottom + k.Height
-		}
-	})
+	*v = veil{bottom: math.Inf(-1), top: math.Inf(1), tau: 1 - min(k.Veil, 1), veils: world.Layers(k.Veils), ok: true}
+	// a veil of no height stands at every height, as a wall of none does
+	if k.Height > 0 {
+		v.bottom = f.altitude(c)
+		v.top = v.bottom + k.Height
+	}
 }
+
+// Veils reads every cell's cover anew, all of them changed; on the goroutine writing the cells.
+func (f *Field) Veils() { f.grid.EachCell(f.Veil) }
 
 func (f *Field) walkSquare(origin, dir geom.Vec, length float64, blockers world.Layers, visit func(near, far, bottom, top, tau float64) bool) {
 	sq := f.square

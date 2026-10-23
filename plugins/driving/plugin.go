@@ -103,18 +103,18 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 	shared := &units{}
 	drive := &driveSystem{keeping: p.keeping, tap: p.tap, units: shared}
 	if p.board != nil {
-		drive.board, drive.occupancy = p.board.Board(), p.board.Occupancy()
-		drive.surfaces = p.board.Footing
+		drive.board, drive.occupancy = p.board.Read(0).Board(), p.board.Write().Occupancy()
+		drive.surfaces = p.board.Read(0).Footing
 	}
 	p.module = &module{
 		hand: &handSystem{
 			hands:    &p.hands,
 			selected: p.selected,
-			carrier:  p.worldPlugin.Carrier(),
+			carrier:  p.worldPlugin.Write().Carrier(),
 			units:    shared,
 		},
 		drive: drive,
-		clock: p.worldPlugin.Clock(),
+		clock: p.worldPlugin.Write().Clock(),
 	}
 	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)

@@ -121,7 +121,7 @@ func (pw *profiledWorld) state() (world.Base, *MoveOrder) {
 	}
 	cur := pw.q.Cursor()
 	b := pw.pos.Slice(cur)[0]
-	if orders := pw.order.Slice(cur); orders != nil {
+	if orders := pw.orderComp.Slice(cur); orders != nil {
 		o := orders[0]
 		return b, &o
 	}
@@ -164,9 +164,9 @@ func TestNavigation_CrossesABridgeRunningSlantwise(t *testing.T) {
 	g := grid.DefaultGrids{}.Square(5, 5, 32)
 	start, goal := g.At(0, 0), g.At(4, 4)
 	prepare := func(w *world.Plugin, brd *board.Plugin) {
-		brd.Board().SetAll(water)
-		brd.Board().Set(start, cell.Kind{Cost: 1, Allows: cell.Land})
-		brd.Board().Set(goal, cell.Kind{Cost: 1, Allows: cell.Land})
+		brd.Write().Board().SetAll(water)
+		brd.Write().Board().Set(start, cell.Kind{Cost: 1, Allows: cell.Land})
+		brd.Write().Board().Set(goal, cell.Kind{Cost: 1, Allows: cell.Land})
 		nw, _ := grid.Direction(g, -1, -1)
 		se, _ := grid.Direction(g, 1, 1)
 		decks := board.NewEntities(brd, board.Shape{Size: 10},
@@ -175,11 +175,11 @@ func TestNavigation_CrossesABridgeRunningSlantwise(t *testing.T) {
 			comp.Const(cell.Floor{Allows: cell.Land, Links: 1<<nw | 1<<se, Width: 24}),
 			comp.Const(cell.Rail{Keeps: cell.Land}))
 		for _, c := range []cell.ID{g.At(1, 1), g.At(2, 2), g.At(3, 3)} {
-			w.Seed(decks.Named("deck").Entry(slantRow{At: c}))
+			w.Write().Seed(decks.Named("deck").Entry(slantRow{At: c}))
 		}
 	}
 	var at goke.Comp[unit.At]
-	var order goke.OptComp[MoveOrder]
+	var orderComp goke.OptComp[MoveOrder]
 	var q *goke.Query
 	nw := newNavWorldWith(t, 5, 5, 32, []navUnit{{
 		box:     cellBox(g, start, 10),
@@ -187,7 +187,7 @@ func TestNavigation_CrossesABridgeRunningSlantwise(t *testing.T) {
 		profile: &steering.Steering{MaxSpeed: 64},
 		order:   &MoveOrder{Target: goal},
 	}}, prepare, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		q = si.NewQueryBuilder(&at).Optional(&order).Build()
+		q = si.NewQueryBuilder(&at).Optional(&orderComp).Build()
 	}})
 	var here cell.ID
 	for tick := range 60 * 5 {

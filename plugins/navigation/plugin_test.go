@@ -11,6 +11,7 @@ import (
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -28,6 +29,7 @@ type stubInstallCtx struct {
 	ecs     *goke.ECS
 	pending []func() []goke.System
 	drawn   []render.Source
+	pool    *parallel.Pool // nil: one goroutine
 }
 
 func (c *stubInstallCtx) UseModule(m goke.Module) {
@@ -53,7 +55,7 @@ func TestPlugin_DefaultBindings_TurnARightClickIntoMoveTo(t *testing.T) {
 	})
 	m := motion.NewPlugin(worldPlugin)
 	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin).WithMotion(m)
-	boardPlugin.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	boardPlugin.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(worldPlugin)
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, m, sel, driving.NewPlugin(worldPlugin, m, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
@@ -116,7 +118,7 @@ func TestPlugin_DefaultBindings_ARightDragTurnsTheUnitsAndMovesNothing(t *testin
 	})
 	m := motion.NewPlugin(worldPlugin)
 	boardPlugin := board.NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin).WithMotion(m)
-	boardPlugin.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	boardPlugin.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(worldPlugin)
 	navPlugin := NewPlugin(boardPlugin, worldPlugin, m, sel, driving.NewPlugin(worldPlugin, m, sel))
 	pl := players.NewPlugin(worldPlugin, navPlugin)
@@ -177,11 +179,11 @@ func TestPlugin_TheRoutesAreTheSettingsScreensAndSaved(t *testing.T) {
 			t.Errorf("Routes is bound to %v, want the settings screen alone", b.Trigger)
 		}
 	}
-	if navPlugin.RoutesShown() || navPlugin.pathRenderer.RoutesShown() {
+	if navPlugin.read.RoutesShown() || navPlugin.pathRenderer.RoutesShown() {
 		t.Error("the routes start shown, want hidden until asked for")
 	}
-	navPlugin.ShowRoutes(true)
-	if !navPlugin.RoutesShown() || !navPlugin.pathRenderer.RoutesShown() {
+	navPlugin.write.ShowRoutes(true)
+	if !navPlugin.read.RoutesShown() || !navPlugin.pathRenderer.RoutesShown() {
 		t.Error("ShowRoutes(true) did not reach the renderer")
 	}
 	routes := navPlugin.Settings()[0].(control.Switch)
@@ -190,11 +192,11 @@ func TestPlugin_TheRoutesAreTheSettingsScreensAndSaved(t *testing.T) {
 			routes.Set(false))
 	}
 	saved := append([]byte(nil), *navPlugin.Serializable().Persisted()[0].(*[]byte)...)
-	navPlugin.ShowRoutes(false)
+	navPlugin.write.ShowRoutes(false)
 	loading := navPlugin.Serializable().Persisted()
 	*loading[0].(*[]byte) = saved
 	navPlugin.Restore()
-	if !navPlugin.RoutesShown() || !navPlugin.pathRenderer.RoutesShown() {
+	if !navPlugin.read.RoutesShown() || !navPlugin.pathRenderer.RoutesShown() {
 		t.Error("loaded, the routes are hidden, want shown as saved and reaching the renderer")
 	}
 }
@@ -202,6 +204,7 @@ func TestPlugin_TheRoutesAreTheSettingsScreensAndSaved(t *testing.T) {
 func (c *stubInstallCtx) Hosts(h ...host.Host)     { c.hosts = append(c.hosts, h...) }
 func (c *stubInstallCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
 func (c *stubInstallCtx) Looks(func())             {}
+func (c *stubInstallCtx) Pool() *parallel.Pool     { return c.pool }
 
 // as the engine does with the roles played once a Stage's Init returns
 func (c *stubInstallCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

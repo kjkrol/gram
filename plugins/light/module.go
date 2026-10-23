@@ -45,5 +45,4 @@ func (s *ownSun) Update(*goke.CmdBuf, time.Duration) {
 	if s.p.own != nil && s.q.Seek(s.p.Entity()) {
 		s.shining.At(s.q.Cursor()).Light = *s.p.own
 	}
-	s.p.fresh = false
 }

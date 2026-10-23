@@ -5,7 +5,7 @@
 // # Making cameras
 //
 // [NewPlugin] takes the world and a [Config] and makes no camera: each is made where a scene
-// shows it ([Plugin.New], render.NewFeed), beginning as its [Start] says, with a camera.Config of
+// shows it ([Write.New], render.NewFeed), beginning as its [Start] says, with a camera.Config of
 // its own, and sized by whoever shows it. The zero Config is the plain camera from above, which
 // wraps on a wrapping axis; one that turns, tilts, reaches the perspective or has a [Cage] sees
 // the world in relief, a Cell of it drawn isometrically as a TileW x TileH diamond, and refuses a
@@ -36,7 +36,7 @@
 // layer at a time: coarser the outermost first, each down to a floor, finer the innermost first.
 // A hand on the resolution or a layer's stops its profile's following (Still); the Settings show
 // the first camera's picture in its profile's knobs, the settings screen a section a profile. The
-// telemetry panel shows it, naming the profile ([Plugin.Reporter]); [ShowLayers] outlines a
+// telemetry panel shows it, naming the profile ([Read.Reporter]); [ShowLayers] outlines a
 // profile's layers.
 //
 // # Cage

@@ -5,6 +5,7 @@ import (
 	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/render"
@@ -88,6 +89,7 @@ func (c *stubInstallCtx) ECS() *goke.ECS { return c.ecs }
 func (c *stubInstallCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
 func (c *stubInstallCtx) Draws(...render.Source) {}
 func (c *stubInstallCtx) Looks(func())           {}
+func (*stubInstallCtx) Pool() *parallel.Pool     { return nil }
 
 // as the engine does with the roles played once a Stage's Init returns
 func (c *stubInstallCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }

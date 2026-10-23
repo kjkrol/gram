@@ -120,7 +120,7 @@ func (a *arena) definePlayer() error {
 
 // the states every unit may be in: fallen into the lake, walking the ice, hastened
 func (a *arena) defineEffects() {
-	effects := a.world.Effects()
+	effects := a.world.Write().Effects()
 	effects.Define(FrozenEf, effect.Spec{
 		effect.Described("Frozen stiff: stood dead still, an immovable block."),
 		effect.Alter(func(p *collision.Physics) { p.Mass = math.Inf(1) }),
@@ -142,7 +142,7 @@ func (a *arena) defineEffects() {
 
 // mortal is everyone's: the witch, the walker and the boat
 func (a *arena) defineRoles() {
-	effects := a.world.Effects()
+	effects := a.world.Write().Effects()
 	iced, frozen, slip := effects.Named(IcedEf), effects.Named(FrozenEf), effects.Named(SlipEf)
 	a.world.Roles().Define(MortalRole,
 		act.Branch[unit.Standing]{
@@ -166,9 +166,9 @@ func (a *arena) defineRoles() {
 }
 
 func (a *arena) defineCommands() {
-	freeze := ceremony.Put(a.world.Effects().Named(FrozenEf)).On(a.selection.Pointed())
+	freeze := ceremony.Put(a.world.Write().Effects().Named(FrozenEf)).On(a.selection.Pointed())
 	a.world.Commands().Define(FreezeCmd, freeze.For(3*time.Second))
-	hasten := ceremony.Put(a.world.Effects().Named(HasteEf)).On(a.selection.Selected())
+	hasten := ceremony.Put(a.world.Write().Effects().Named(HasteEf)).On(a.selection.Selected())
 	a.world.Commands().Define(HastenCmd, hasten)
 }
 
@@ -179,7 +179,7 @@ type unitRow struct {
 
 func units(b *board.Plugin) *board.Units[unitRow] {
 	return board.NewUnits[unitRow](b, board.Shape{Size: unitSize},
-		func(u unitRow) geom.Vec { return b.Board().CellCenter(u.Start) })
+		func(u unitRow) geom.Vec { return b.Read(0).Board().CellCenter(u.Start) })
 }
 
 func profile(brake float64) steering.Steering {

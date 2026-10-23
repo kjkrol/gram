@@ -1,6 +1,8 @@
 package navigation
 
 import (
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"testing"
 	"time"
 
@@ -16,11 +18,11 @@ import (
 )
 
 type commandWorld struct {
-	grid  grid.Grid
-	moves *command.Queue[MoveTo]
-	ecs   *goke.ECS
-	order goke.OptComp[MoveOrder]
-	q     *goke.Query
+	grid      grid.Grid
+	moves     *command.Queue[MoveTo]
+	ecs       *goke.ECS
+	orderComp goke.OptComp[MoveOrder]
+	q         *goke.Query
 
 	moving, idle uid.UID64
 	oldTarget    cell.ID
@@ -31,7 +33,7 @@ func newCommandWorld(t *testing.T) *commandWorld {
 	cw := &commandWorld{grid: grid.DefaultGrids{}.Square(10, 1, 10), moves: &command.Queue[MoveTo]{}}
 	terrain := cell.NewTerrainMap()
 	terrain.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	cmds := newMoveCommandSystem(newPathFinder(cw.grid, terrain, nil, &cell.SingleOccupancy{}), cw.moves, &command.Queue[LookAt]{}, selTags.Selected)
+	cmds := routing.NewSystem(spacing.NewFinder(cw.grid, terrain, nil, &cell.SingleOccupancy{}), cw.moves, &command.Queue[LookAt]{}, selTags.Selected)
 	cw.oldTarget = cw.cellAt(3)
 
 	cw.ecs = goke.New()
@@ -39,16 +41,16 @@ func newCommandWorld(t *testing.T) *commandWorld {
 		var cell goke.Comp[unit.At]
 		var pos goke.Comp[world.Base]
 		var sel goke.Comp[tag.Tags[selection.Family]]
-		var order goke.Comp[MoveOrder]
+		var orderComp goke.Comp[MoveOrder]
 
-		f := si.NewFactory(&cell, &pos, &sel, &order)
+		f := si.NewFactory(&cell, &pos, &sel, &orderComp)
 		f.Create(1)
 		f.Next()
 		sel.Slice(&f.Cursor)[0] = selectedMarks
 		cw.moving = f.Cursor.IDs[0]
 		cell.Slice(&f.Cursor)[0] = unit.At{Cell: cw.cellAt(0)}
 		pos.Slice(&f.Cursor)[0].Pos = world.Position{AABB: cellBox(cw.grid, cw.cellAt(0), 8)}
-		order.Slice(&f.Cursor)[0] = MoveOrder{Target: cw.oldTarget, Path: Path{Length: 1}}
+		orderComp.Slice(&f.Cursor)[0] = MoveOrder{Target: cw.oldTarget, Path: Path{Length: 1}}
 
 		g := si.NewFactory(&cell, &pos, &sel)
 		g.Create(1)
@@ -58,7 +60,7 @@ func newCommandWorld(t *testing.T) *commandWorld {
 		cell.Slice(&g.Cursor)[0] = unit.At{Cell: cw.cellAt(5)}
 		pos.Slice(&g.Cursor)[0].Pos = world.Position{AABB: cellBox(cw.grid, cw.cellAt(5), 8)}
 
-		cw.q = si.NewQueryBuilder(&cell).Optional(&cw.order).Build()
+		cw.q = si.NewQueryBuilder(&cell).Optional(&cw.orderComp).Build()
 		cmds.Init(si)
 	}})
 	h := cw.ecs.RegSys(cmds)
@@ -78,7 +80,7 @@ func (cw *commandWorld) orders() map[uid.UID64]*MoveOrder {
 	cw.q.All()
 	for cw.q.Next() {
 		cur := cw.q.Cursor()
-		orders := cw.order.Slice(cur)
+		orders := cw.orderComp.Slice(cur)
 		for i, id := range cur.IDs {
 			if orders != nil {
 				o := orders[i]

@@ -120,7 +120,7 @@ func TestRenderer_DrawsTheCloudsFromAboveOverTheirMassAlone(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(640, 480)
 	weather := westCloudy()
 	weatherNow := func() air.Weather { return weather }
@@ -160,7 +160,7 @@ func TestRenderer_InOneLayerDrawsTheLowOnesHighAlone(t *testing.T) {
 	cam := cameras.NewPlugin(world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 640, Height: 480},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8},
-	}), cameras.Config{}).New(cameras.FromAbove, camera.Config{})
+	}), cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
 	low, high := New(weatherNow, air.Low), New(weatherNow, air.High)
 	low.Show(true)
 	high.Show(true)
@@ -207,7 +207,7 @@ func TestRenderer_HidesTheCloudsInsideTheGround(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(640, 480)
 	ground := westRaised()
 	for _, layer := range []air.Layer{air.Low, air.High} {
@@ -283,7 +283,7 @@ func TestRenderer_DrawsTheLowCloudsBeforeTheSlopesFromUnderThem(t *testing.T) {
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(640, 480)
 	relief := air.ReliefOf(world.Scale{}, 0, 1860)
 	weather := air.Weather{Clouds: 0.9, Billow: 1, Relief: relief,
@@ -381,7 +381,7 @@ func TestRenderer_OverAGroundAtHalfThePixelsDrawsTheCloudsAtItsPixelsOnceAFrame(
 	needGPU(t)
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 640, Height: 480},
 		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 8}})
-	cam := cameras.NewPlugin(w, cameras.Config{}).New(cameras.FromAbove, camera.Config{})
+	cam := cameras.NewPlugin(w, cameras.Config{}).Write().New(cameras.FromAbove, camera.Config{})
 	cam.SetViewport(640, 480)
 	weather := westCloudy()
 	weatherNow := func() air.Weather { return weather }
@@ -420,5 +420,16 @@ func TestRenderer_OverAGroundAtHalfThePixelsDrawsTheCloudsAtItsPixelsOnceAFrame(
 	if west, east := cover(0, 280), cover(360, 640); west < 0.1 || east > 0.01 {
 		t.Errorf("laid over the screen the clouds cover %.2f of the west and %.2f of the east, "+
 			"want the west alone", west, east)
+	}
+}
+
+func TestRenderer_SetPutsItsOwnOverTheFramesWithoutAllocating(t *testing.T) {
+	r := Renderer{uniforms: map[string]any{}}
+	r.opts.Uniforms = map[string]any{}
+	r.set("AloftView", 1, 2)
+	r.opts.Uniforms["AloftView"] = []float32{9, 9}
+	n := testing.AllocsPerRun(10, func() { r.set("AloftView", 3, 4) })
+	if got := r.opts.Uniforms["AloftView"].([]float32); n != 0 || got[0] != 3 || got[1] != 4 {
+		t.Errorf("AloftView set over another: %v allocations, %v; want none and [3 4]", n, got)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/minimap"
@@ -39,6 +40,7 @@ func (c *installCtx) ECS() *goke.ECS         { return c.ecs }
 func (c *installCtx) Hosts(...host.Host)     {}
 func (c *installCtx) Draws(...render.Source) {}
 func (c *installCtx) Looks(func())           {}
+func (*installCtx) Pool() *parallel.Pool     { return nil }
 
 // a scene of a player's picture of a world 4000 a side and its minimap 200 a side top-right, on a
 // screen 1200 by 800, the plugins installed and stepped as a game steps them
@@ -55,7 +57,7 @@ func minimapScene(t *testing.T) (scene *ui.Scene, cam camera.Camera, tick func()
 	if err := pl.Bind(cams.DefaultBindings()...); err != nil {
 		t.Fatal(err)
 	}
-	cam = cams.New(cameras.FromAbove, camera.Config{})
+	cam = cams.Write().New(cameras.FromAbove, camera.Config{})
 	scene = ui.NewScene("main", ui.Layers(
 		ui.Image(render.NewFeed(cam, nil)).Input(ps.Through(pl)),
 		ui.TopRight(mini.For(cam, pl.ID)).Size(200, 200),
@@ -74,7 +76,7 @@ func minimapScene(t *testing.T) (scene *ui.Scene, cam camera.Camera, tick func()
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 		rc.Sync()
 		cams.RunPlan(rc, d)
 		mini.RunPlan(rc, d)

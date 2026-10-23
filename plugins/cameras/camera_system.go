@@ -64,29 +64,29 @@ func (s *cameraSystem) Update(*goke.CmdBuf, time.Duration) {
 		}
 	})
 	s.p.adapts.Drain(func(i command.Issued[Adapt]) {
-		s.p.SetStrategy(i.Command.Profile, i.Command.Strategy)
+		s.p.write.SetStrategy(i.Command.Profile, i.Command.Strategy)
 	})
 	s.p.pictures.Drain(func(i command.Issued[Picture]) {
-		s.p.SetResolution(i.Command.Profile, i.Command.Resolution)
+		s.p.write.SetResolution(i.Command.Profile, i.Command.Resolution)
 	})
 	s.p.sharps.Drain(func(i command.Issued[SharpFigures]) {
-		s.p.SetSharpFigures(i.Command.Profile, i.Command.On)
+		s.p.write.SetSharpFigures(i.Command.Profile, i.Command.On)
 	})
 	s.p.layers.Drain(func(i command.Issued[Layers]) {
-		s.p.SetLayers(i.Command.Profile, i.Command.On)
+		s.p.write.SetLayers(i.Command.Profile, i.Command.On)
 	})
 	s.p.layerShares.Drain(func(i command.Issued[LayerShares]) {
-		s.p.SetLayerShares(i.Command.Profile, i.Command.Inner, i.Command.Middle)
+		s.p.write.SetLayerShares(i.Command.Profile, i.Command.Inner, i.Command.Middle)
 	})
 	s.p.layerRes.Drain(func(i command.Issued[LayerResolutions]) {
-		s.p.SetLayerResolutions(i.Command.Profile, i.Command.Outer, i.Command.Middle)
+		s.p.write.SetLayerResolutions(i.Command.Profile, i.Command.Outer, i.Command.Middle)
 	})
-	s.p.budgets.Drain(func(i command.Issued[Budget]) { s.p.SetBudget(i.Command.Frame) })
-	s.p.samplings.Drain(func(i command.Issued[Sampling]) { s.p.SetSampling(i.Command.Over) })
+	s.p.budgets.Drain(func(i command.Issued[Budget]) { s.p.write.SetBudget(i.Command.Frame) })
+	s.p.samplings.Drain(func(i command.Issued[Sampling]) { s.p.write.SetSampling(i.Command.Over) })
 	s.p.thresholds.Drain(func(i command.Issued[Thresholds]) {
-		s.p.SetThresholds(i.Command.Under, i.Command.Met)
+		s.p.write.SetThresholds(i.Command.Under, i.Command.Met)
 	})
-	s.p.showLayers.Drain(func(i command.Issued[ShowLayers]) { s.p.ShowLayers(i.Command.Profile, i.Command.Shown) })
+	s.p.showLayers.Drain(func(i command.Issued[ShowLayers]) { s.p.write.ShowLayers(i.Command.Profile, i.Command.Shown) })
 	s.p.follows.Drain(func(i command.Issued[Follow]) {
 		cam, ok := i.Command.Camera.(camera.Fastenable)
 		if !ok {

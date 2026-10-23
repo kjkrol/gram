@@ -21,10 +21,10 @@ them too, and a probe left in by an interrupted run is a broken demo.
    into a module of its own with its own `go.work` (gram and the modules gram's `go.work`
    joins), adds the arena field `probe *probe`, `a.probe = newProbe(a)` after `players` in
    `makePlugins` and `defer a.probe.RunPlan(ctx, d)` first in `update`, sets the clock to x4
-   (`Clock().Faster()` twice on the first tick), builds and runs it, and prints the `P:` lines.
+   (`Write().Clock().Faster()` twice on the first tick), builds and runs it, and prints the `P:` lines.
    Exit 0 is the probe's `os.Exit`, 124 the timeout, 2 a panic (`panic` in `probe.log`); a
    failed build stops it. A GPU is needed; `GRAM_GPU=software` draws wrong but runs.
-3. **Time is the game's**: `p.a.world.Clock().Time()`. `update` and the probe run once an engine
+3. **Time is the game's**: `p.a.world.Read(0).Clock().Time()`. `update` and the probe run once an engine
    tick, and at x4 the clock replays the simulation four times in it, so ticks count real time.
    End and space the logs by game time (40 s of game take about 10 s at x4); a key script by
    ticks still works, each tick spanning four steps — at tempo 1 (drop the two `Faster`) where a
@@ -73,14 +73,14 @@ them too, and a probe left in by an interrupted run is a broken demo.
 - Keys go through `p.a.players.EventHandler().HandleEvents(ev)`, one `InputEvents` a tick, so
   the players' bindings, contexts and cameras are the real ones; `KeyHeld` fires on the ticks
   between press and release.
-- Commands bypassing keys: `p.a.world.Carrier().Put(p.a.player.ID, cmd)` (a `selection.Select`
-  with `Camera: p.a.cameras.Cameras()[0]`, a `ceremony.Command` from `Commands().Named`),
+- Commands bypassing keys: `p.a.world.Write().Carrier().Put(p.a.player.ID, cmd)` (a `selection.Select`
+  with `Camera: p.a.cameras.Read(0).Cameras()[0]`, a `ceremony.Command` from `Commands().Named`),
   `PutFrom(entity, cmd)` for an entity's own.
 - Direct state for a setup: move a unit by writing its `Base.Pos.AABB`, set `Vel.Dir`, write
-  `steering.Course.Want`; cast an effect with `p.a.world.Effects().CastFor(id, e, d)`; remove a
+  `steering.Course.Want`; cast an effect with `p.a.world.Write().Effects().CastFor(id, e, d)`; remove a
   `MoveOrder` through a tiny system's `cb.RemoveCompOne`. A demo's walkers may carry orders or
   plans that walk them away: remove or watch for it.
-- Cameras: `p.a.cameras.Cameras()[0].(camera.Fastenable).Fastening()` says `How` and `Entity`.
+- Cameras: `p.a.cameras.Read(0).Cameras()[0].(camera.Fastenable).Fastening()` says `How` and `Entity`.
 
 ## Traps
 

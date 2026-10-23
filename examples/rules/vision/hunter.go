@@ -28,11 +28,11 @@ var (
 )
 
 func (hunter) Effects(w *world.Plugin) {
-	w.Effects().Define(TurnedEf, effect.Spec{effect.Lasts(time.Second)})
+	w.Write().Effects().Define(TurnedEf, effect.Spec{effect.Lasts(time.Second)})
 }
 
 func (hunter) Rules(w *world.Plugin) {
-	roles, turned := w.Roles(), w.Effects().Named(TurnedEf)
+	roles, turned := w.Roles(), w.Write().Effects().Named(TurnedEf)
 	prey := roles.Named(PreyRole)
 	left, right := steering.Turn{Angle: math.Pi / 2}, steering.Turn{Angle: -math.Pi / 2}
 	roles.Define(PredatorRole,

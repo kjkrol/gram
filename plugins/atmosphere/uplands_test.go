@@ -79,8 +79,8 @@ func uplandsFrom(t *testing.T, covered float32, shower effect.Spec, load bool) *
 		Effects(func(ctx game.Initializer) {
 			u.ecs = ctx.ECS()
 			ctx.Setup(u)
-			u.w.Effects().Define("shower", shower)
-			u.shower = u.w.Effects().Named("shower")
+			u.w.Write().Effects().Define("shower", shower)
+			u.shower = u.w.Write().Effects().Named("shower")
 		}).
 		Rules(func() {
 			u.w.Roles().Define("hill",
@@ -99,11 +99,11 @@ func uplandsFrom(t *testing.T, covered float32, shower effect.Spec, load bool) *
 				})
 		}).
 		Kinds(func() {
-			u.b.CellKinds().Define("hill", cell.Kind{Cost: 1, Allows: cell.Land},
+			u.b.Read(0).CellKinds().Define("hill", cell.Kind{Cost: 1, Allows: cell.Land},
 				u.w.Roles().Named("hill"))
 		}).
 		Spawn(func() error {
-			u.b.Seed(board.Layout{Default: "hill"})
+			u.b.Write().Seed(board.Layout{Default: "hill"})
 			return u.b.Populate()
 		}).
 		Update(func(ctx goke.RunCtx, d time.Duration) {
@@ -158,18 +158,18 @@ func TestWeathering_ARuleOfACellWringsRainOutOfTheAirOverIt(t *testing.T) {
 	u := newUplands(t, 0.5, effect.Spec{effect.Lasts(2 * time.Second),
 		effect.Alter(func(w *weathering.Wring) { w.Falls = 1 })})
 	u.run(time.Second / 60)
-	changes := u.b.Board().Changes()
+	changes := u.b.Read(0).Board().Changes()
 	u.run(6 * time.Second)
-	if got := u.b.Board().Changes(); got != changes {
+	if got := u.b.Read(0).Board().Changes(); got != changes {
 		t.Errorf("the hills' showers changed the board %d times, want none: they turn the air's "+
 			"knob alone", got-changes)
 	}
-	c, _ := u.b.Board().CellAt(geom.NewVec(320, 240))
-	id, _ := u.b.CellEntity(c)
-	if !u.w.Effects().Has(id, u.shower) {
+	c, _ := u.b.Read(0).Board().CellAt(geom.NewVec(320, 240))
+	id, _ := u.b.Read(0).Board().CellEntity(c)
+	if !u.w.Read(0).Effects().Has(id, u.shower) {
 		t.Fatal("under low clouds 0.9 the hill's shower is not on")
 	}
-	if rain, _ := u.a.Air().FallsAt(320, 240); rain < 0.5 {
+	if rain, _ := u.a.Read(0).Air().FallsAt(320, 240); rain < 0.5 {
 		t.Errorf("a hill wringing all of the low clouds over it: it rains %v there, want most of "+
 			"them", rain)
 	}
@@ -190,9 +190,9 @@ func TestSpread_AnEffectTurnsHowMuchOfTheWorldTheRainTakes(t *testing.T) {
 		}).
 		Effects(func(ctx game.Initializer) {
 			ecs = ctx.ECS()
-			w.Effects().Define("wide rain", effect.Spec{
+			w.Write().Effects().Define("wide rain", effect.Spec{
 				effect.Alter(func(s *climate.Spread) { s.Rain = 0.5 })})
-			wide = w.Effects().Named("wide rain")
+			wide = w.Write().Effects().Named("wide rain")
 		}).
 		Update(func(ctx goke.RunCtx, d time.Duration) {
 			w.RunPlan(ctx, d)
@@ -207,15 +207,15 @@ func TestSpread_AnEffectTurnsHowMuchOfTheWorldTheRainTakes(t *testing.T) {
 		}
 	}
 	tick(time.Second / 10)
-	w.Effects().Cast(a.Entity(), wide)
+	w.Write().Effects().Cast(a.Entity(), wide)
 	tick(time.Second / 10)
-	a.Climate().Set(weather.Rain)
+	a.Write().Climate().Set(weather.Rain)
 	tick(12 * time.Second)
 	raining, n := 0, 0
 	for x := float32(25); x < 6400; x += 50 {
 		for y := float32(25); y < 3200; y += 50 {
 			n++
-			if a.Air().At(x, y).Falls > 0.3 {
+			if a.Read(0).Air().At(x, y).Falls > 0.3 {
 				raining++
 			}
 		}

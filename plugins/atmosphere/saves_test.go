@@ -60,7 +60,7 @@ func TestAtmosphere_TheAirMassesOutlastASaveThroughTheEngine(t *testing.T) {
 	clouded := false
 	// from the horizon the wind blows from, where the clouds are born, over the world
 	for x := float32(-6000); x < 1600; x += 40 {
-		a, b := was.a.Air().At(x, 240), now.a.Air().At(x, 240)
+		a, b := was.a.Read(0).Air().At(x, 240), now.a.Read(0).Air().At(x, 240)
 		if math.Abs(float64(a.Cover-b.Cover)) > 1e-3 {
 			t.Errorf("at %v the cover is %v, read back from a save %v", x, a.Cover, b.Cover)
 		}

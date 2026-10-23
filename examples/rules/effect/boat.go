@@ -17,13 +17,13 @@ var _ board.Figure = boat{}
 
 func (boat) Define(b *board.Plugin) {
 	units(b).Define(BoatKind, unit.Mover{Domain: cell.Water}, profile(unitSpeed/4), ordered(),
-		ceremony.Plays(b.World().Roles().Named(MortalRole)))
+		ceremony.Plays(b.Read(0).World().Roles().Named(MortalRole)))
 }
 
 func (boat) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[unitRow](w.Kinds(), BoatKind), unitSize, render.Solid(boatColor)).
-		Under(w.Effects().Named(FrozenEf), iced).
-		Under(w.Effects().Named(HasteEf), render.Solid(boatHasteColor))
+		Under(w.Write().Effects().Named(FrozenEf), iced).
+		Under(w.Write().Effects().Named(HasteEf), render.Solid(boatHasteColor))
 }
 
 func iced(dst *render.Canvas, size int) {

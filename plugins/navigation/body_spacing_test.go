@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"fmt"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
 	"math"
 	"testing"
 	"time"
@@ -43,26 +44,26 @@ func (fw *fieldWorld) standAt(p geom.Vec) *MoveOrder {
 }
 
 type fieldWorld struct {
-	t     *testing.T
-	grid  grid.Grid
-	ecs   *goke.ECS
-	nav   *Plugin
-	base  goke.Comp[world.Base]
-	cell  goke.Comp[unit.At]
-	order goke.OptComp[MoveOrder]
-	coll  goke.OptComp[collision.Collider]
-	q     *goke.Query
-	ids   []uid.UID64 // in the order given
+	t         *testing.T
+	grid      grid.Grid
+	ecs       *goke.ECS
+	nav       *Plugin
+	base      goke.Comp[world.Base]
+	cell      goke.Comp[unit.At]
+	orderComp goke.OptComp[MoveOrder]
+	coll      goke.OptComp[collision.Collider]
+	q         *goke.Query
+	ids       []uid.UID64 // in the order given
 }
 
 const fieldCell = 32
 
-func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b *board.Board, at func(x, y uint32) cell.ID), units []fieldUnit) *fieldWorld {
+func newFieldWorld(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b testBoard, at func(x, y uint32) cell.ID), units []fieldUnit) *fieldWorld {
 	t.Helper()
 	return newFieldWorldWith(t, cols, rows, spacing, lay, units, nil)
 }
 
-func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b *board.Board, at func(x, y uint32) cell.ID), units []fieldUnit, configure func(*Plugin)) *fieldWorld {
+func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay func(b testBoard, at func(x, y uint32) cell.ID), units []fieldUnit, configure func(*Plugin)) *fieldWorld {
 	t.Helper()
 	fw := &fieldWorld{t: t, grid: grid.DefaultGrids{}.Square(cols, rows, fieldCell)}
 	largest := uint32(1)
@@ -77,9 +78,9 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m)
 	brd := board.NewPlugin(fw.grid, &cell.SingleOccupancy{}, w).WithMotion(m).WithCollision(c)
-	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	if lay != nil {
-		lay(brd.Board(), fw.at)
+		lay(boardOf(brd), fw.at)
 	}
 	sel := selection.NewPlugin(w)
 	drv := driving.NewPlugin(w, m, sel).WithGround(brd)
@@ -141,7 +142,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 		kind.Define[fieldUnit](w.Kinds(), fmt.Sprintf("u%d", i), s)
 		k := kind.Named[fieldUnit](w.Kinds(), fmt.Sprintf("u%d", i))
 		kinds[i] = k.ID()
-		w.Seed(k.Entry(u))
+		w.Write().Seed(k.Entry(u))
 	}
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
@@ -151,7 +152,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 		systems = append(systems, produce()...)
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		fw.q = si.NewQueryBuilder(&fw.base, &fw.cell).Optional(&fw.order).Optional(&fw.coll).Build()
+		fw.q = si.NewQueryBuilder(&fw.base, &fw.cell).Optional(&fw.orderComp).Optional(&fw.coll).Build()
 	}})
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
@@ -162,7 +163,7 @@ func newFieldWorldWith(t *testing.T, cols, rows uint32, spacing Spacing, lay fun
 		fw.nav.RunPlan(rc, d)
 		drv.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	fw.ecs = ctx.ecs
 	fw.ids = make([]uid.UID64, len(units))
@@ -181,7 +182,7 @@ func (fw *fieldWorld) at(x, y uint32) cell.ID { c := fw.grid.At(x, y); return c 
 func (fw *fieldWorld) each(fn func(id uid.UID64, b *world.Base, cell cell.ID, o *MoveOrder, c *collision.Collider)) {
 	for fw.q.All(); fw.q.Next(); {
 		cur := fw.q.Cursor()
-		bases, cells, orders, colls := fw.base.Slice(cur), fw.cell.Slice(cur), fw.order.Slice(cur), fw.coll.Slice(cur)
+		bases, cells, orders, colls := fw.base.Slice(cur), fw.cell.Slice(cur), fw.orderComp.Slice(cur), fw.coll.Slice(cur)
 		for i, id := range cur.IDs {
 			var o *MoveOrder
 			if orders != nil {
@@ -276,11 +277,11 @@ func (fw *fieldWorld) overlaps() []string {
 
 func TestBodySpacing_AutoPicksBodiesForUnitsSmallAgainstTheCells(t *testing.T) {
 	small := newFieldWorld(t, 4, 1, AutoSpacing, nil, []fieldUnit{{at: geom.NewVec(16, 16), side: 4}})
-	if got := small.nav.Spacing(); got != BodySpacing {
+	if got := small.nav.read.Spacing(); got != BodySpacing {
 		t.Errorf("units 4 a side on cells 32 keep apart by %v, want bodies", got)
 	}
 	large := newFieldWorld(t, 4, 1, AutoSpacing, nil, []fieldUnit{{at: geom.NewVec(16, 16), side: 22}})
-	if got := large.nav.Spacing(); got != CellSpacing {
+	if got := large.nav.read.Spacing(); got != CellSpacing {
 		t.Errorf("units 22 a side on cells 32 keep apart by %v, want cells", got)
 	}
 }
@@ -381,14 +382,14 @@ func TestBodySpacing_CrowdsStandRoundThePointWithoutPushing(t *testing.T) {
 		for _, layout := range []string{"column from the west", "block from the south", "scattered", "from the north-east"} {
 			for _, side := range []float64{3, 6, 10} {
 				settled, longest, overlaps, spread := sendCrowd(t, n, layout, side)
-				spacing := side * (1 + spacingGap)
+				apart := side * (1 + spacing.SpacingGap)
 				if !settled || overlaps > 0 {
 					t.Errorf("%d units %v a side, %s: settled %v, %d pairs overlapping", n, side, layout, settled, overlaps)
 				}
-				if limit := spacing * (2 + math.Sqrt(float64(n))) * 1.5; spread > limit {
+				if limit := apart * (2 + math.Sqrt(float64(n))) * 1.5; spread > limit {
 					t.Errorf("%d units %v a side, %s: one stands %.0f off the point, want within %.0f", n, side, layout, spread, limit)
 				}
-				if limit := int(stallAfter / (time.Second / 60)); longest >= limit {
+				if limit := int(spacing.StallAfter / (time.Second / 60)); longest >= limit {
 					t.Errorf("%d units %v a side, %s: two touched for %d ticks on end, want under %d: in passing", n, side, layout, longest, limit)
 				}
 			}
@@ -398,7 +399,7 @@ func TestBodySpacing_CrowdsStandRoundThePointWithoutPushing(t *testing.T) {
 
 func TestBodySpacing_OneStandingInTheWayIsGoneRoundAndWithNoWayRoundTheUnitStands(t *testing.T) {
 	probe := &fieldWorld{grid: grid.DefaultGrids{}.Square(9, 3, fieldCell)}
-	road := func(b *board.Board, at func(x, y uint32) cell.ID) {
+	road := func(b testBoard, at func(x, y uint32) cell.ID) {
 		for x := uint32(0); x < 9; x++ {
 			b.Set(at(x, 0), cell.Kind{Cost: 3, Allows: cell.Land})
 			b.Set(at(x, 2), cell.Kind{Cost: 1, Allows: cell.Water})
@@ -451,7 +452,7 @@ func TestBodySpacing_ASpotTakenMeanwhileGivesAnother(t *testing.T) {
 		switch d := math.Hypot(at.X-goal.X, at.Y-goal.Y); {
 		case d <= 3:
 			onPoint++
-		case d <= 3*6*(1+spacingGap):
+		case d <= 3*6*(1+spacing.SpacingGap):
 			beside++
 		}
 	}
@@ -537,7 +538,7 @@ func TestBodySpacing_ByHandAUnitStopsShortOfAnother(t *testing.T) {
 }
 
 func TestBodySpacing_StrikingSomeoneByTheShoreItStepsRoundByLand(t *testing.T) {
-	shore := func(b *board.Board, at func(x, y uint32) cell.ID) {
+	shore := func(b testBoard, at func(x, y uint32) cell.ID) {
 		for x := uint32(0); x < 10; x++ {
 			b.Set(at(x, 0), cell.Kind{Cost: 1, Allows: cell.Water})
 		}
@@ -558,7 +559,8 @@ func TestBodySpacing_StrikingSomeoneByTheShoreItStepsRoundByLand(t *testing.T) {
 	if wet > 0 {
 		t.Errorf("the unit stood over the water for %d ticks", wet)
 	}
-	if at, o := fw.centre(0); o != nil || math.Hypot(at.X-goal.X, at.Y-goal.Y) > 6*(1+spacingGap) {
+	if at, o := fw.centre(0); o != nil ||
+		math.Hypot(at.X-goal.X, at.Y-goal.Y) > 6*(1+spacing.SpacingGap) {
 		t.Errorf("the unit stands at %v with order %v, want by the goal %v", at, o, goal)
 	}
 }

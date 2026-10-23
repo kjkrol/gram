@@ -46,7 +46,7 @@ func TestBounce_AWallTurnsNoUnitAHandSteers(t *testing.T) {
 				spec = append(spec, comp.Const(*hand))
 			}
 			kind.Define[raised](w.Kinds(), "walker", spec)
-			w.Seed(kind.Named[raised](w.Kinds(), "walker").Entry(raised{x: 180}))
+			w.Write().Seed(kind.Named[raised](w.Kinds(), "walker").Entry(raised{x: 180}))
 			if err := w.Populate(); err != nil {
 				t.Fatal(err)
 			}

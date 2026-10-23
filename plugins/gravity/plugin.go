@@ -51,15 +51,15 @@ func NewPlugin(w *world.Plugin, m *motion.Plugin, cfg Config) *Plugin {
 		panic("gravity: a body drifts by motion, and none was given")
 	}
 	pull := cfg.Pull
-	g := w.Scale().Figure(earth)
+	g := w.Read(0).Scale().Figure(earth)
 	switch {
-	case pull == Pull{} && w.HasHeights():
+	case pull == Pull{} && w.Read(0).HasHeights():
 		pull.Z = -g
 	case pull == Pull{}:
 		pull.Y = g
 	case pull.Z != 0 && (pull.X != 0 || pull.Y != 0):
 		panic(fmt.Sprintf("gravity: a pull along Z or across, not both: %+v", pull))
-	case !w.HasHeights() && pull.Z != 0:
+	case !w.Read(0).HasHeights() && pull.Z != 0:
 		panic(fmt.Sprintf("gravity: a flat world pulls across, not along Z: %+v", pull))
 	}
 	p := &Plugin{worldPlugin: w, across: pull.Z == 0}

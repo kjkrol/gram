@@ -15,7 +15,7 @@ func (eastwards) At(p geom.Vec) float64 { return p.X - 50 }
 func (eastwards) Step() float64         { return 1 }
 
 func TestReliefOf_IsTheLowGroundAndTheHighest(t *testing.T) {
-	b := board.NewBoard(grid.DefaultGrids{}.Square(10, 4, 32))
+	b, _ := board.NewBoard(grid.DefaultGrids{}.Square(10, 4, 32))
 	// the cells' middles 16 to 304 across, the ground there -34 to 254 up
 	if low, peaks := reliefOf(eastwards{}, b); low != 0 || peaks != 254 {
 		t.Errorf("the ground -34 to 254 up, the lowest tenth under the sea: relief from %v to %v, "+

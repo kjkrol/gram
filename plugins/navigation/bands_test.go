@@ -31,13 +31,13 @@ func TestNavigation_GoesOnInAFartherBandAndStandsBeyondTheLast(t *testing.T) {
 	units := []navUnit{walker(2, 8), walker(40, 46), walker(70, 76)}
 	var base goke.Comp[world.Base]
 	var q *goke.Query
-	nw := newNavWorldIn(t, cols, rows, legCellSize, units, world.SectorsCfg{
+	nw := newNavWorldIn(t, nil, cols, rows, legCellSize, units, world.SectorsCfg{
 		Buckets: 2,
 		Bands: []sector.Band{
 			{Reach: 600},
 			{Reach: 1200, Pace: 4},
 		},
-	}, func(w *world.Plugin, _ *board.Plugin) { w.Anchor(anchor{x: 80, y: 48}) },
+	}, func(w *world.Plugin, _ *board.Plugin) { w.Write().Anchor(anchor{x: 80, y: 48}) },
 		goke.SystemFn{OnInit: func(si *goke.SysInit) { q = si.NewQueryBuilder(&base).Build() }})
 	xs := func() map[int]float64 {
 		got := map[int]float64{}

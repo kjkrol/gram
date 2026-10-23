@@ -26,7 +26,7 @@ var (
 
 func (s *span) Effects(p *bridges.Plugin) {
 	s.ran = append(s.ran, "effects")
-	p.World().Effects().Define("rotten", effect.Spec{})
+	p.World().Write().Effects().Define("rotten", effect.Spec{})
 }
 
 func (s *span) Define(p *bridges.Plugin) {

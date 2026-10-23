@@ -31,7 +31,7 @@ i = s.index('a.players = players.NewPlugin(')
 j = s.index('\n}\n', i)
 s = s[:j] + '\n\ta.probe = newProbe(a)' + s[j:]
 s = re.sub(r'(func \(a \*arena\) update\(ctx goke\.RunCtx, d time\.Duration\) \{\n)',
-	r'\1\tif a.probe.tick == 0 {\n\t\ta.world.Clock().Faster()\n\t\ta.world.Clock().Faster()\n\t}\n'
+	r'\1\tif a.probe.tick == 0 {\n\t\ta.world.Write().Clock().Faster()\n\t\ta.world.Write().Clock().Faster()\n\t}\n'
 	r'\tdefer a.probe.RunPlan(ctx, d)\n', s, count=1)
 open(p, 'w').write(s)
 PY

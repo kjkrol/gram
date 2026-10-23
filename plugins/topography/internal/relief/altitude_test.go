@@ -44,14 +44,14 @@ func TestAltitude_IsTheGroundUnderTheUnitPlusItsLift(t *testing.T) {
 		alts[z.Altitude] = true
 	}
 	onHill := qw.Grid.At(2, 1)
-	hillGround := qw.Topo.Relief().At(qw.Grid.CellCenter(onHill))
+	hillGround := qw.Topo.Write().Relief().At(qw.Grid.CellCenter(onHill))
 	if hillGround <= 0 || !alts[hillGround] || !alts[0] {
 		t.Errorf("walkers stand at %v, want one at the hill's ground %v and one at 0 on the grass", alts, hillGround)
 	}
 	if got := zs[hawk.ID()]; len(got) != 1 || got[0].Altitude != hillGround+40 || got[0].Height != 2 {
 		t.Errorf("hawk's Z = %v, want altitude %v (the hill plus its lift) and height 2", got, hillGround+40)
 	}
-	if qw.Board.Heights() != qw.Topo.Relief() {
+	if qw.Board.Read(0).Heights() != qw.Topo.Write().Relief() {
 		t.Error("the board's heights are not the topography's relief")
 	}
 }
@@ -75,8 +75,8 @@ func TestAltitude_AFloorCarriesItsDomainsAtItsHeight(t *testing.T) {
 	}
 	qw := topotest.NewQuasiWorldWith(t, false, define)
 	onHill := qw.Grid.At(2, 1)
-	ground := qw.Topo.Relief().At(qw.Grid.CellCenter(onHill))
-	deck := qw.Topo.Relief().Altitude(onHill) + 30
+	ground := qw.Topo.Write().Relief().At(qw.Grid.CellCenter(onHill))
+	deck := qw.Topo.Write().Relief().Altitude(onHill) + 30
 	qw.ECS.Tick(time.Second / 60)
 	standAt(qw, cell.Land, deck)
 	qw.ECS.Tick(time.Second / 60)
@@ -106,7 +106,7 @@ func TestAltitude_ADeckIsSteppedOntoWithinAStep(t *testing.T) {
 		}
 	}
 	qw := topotest.NewQuasiWorldWith(t, false, define)
-	deck := qw.Topo.Relief().Altitude(qw.Grid.At(1, 2)) + 10
+	deck := qw.Topo.Write().Relief().Altitude(qw.Grid.At(1, 2)) + 10
 	step := func(alt float64) float64 {
 		flown(qw, func(_ *world.Base, z *world.Z, _ *unit.Mover, _ *steering.Driven,
 			_ *steering.Course) {
@@ -138,7 +138,7 @@ func TestAltitude_ADeckIsSteppedOntoWithinAStep(t *testing.T) {
 func TestStanding_UnderADeckOverWaterHasFallenIn(t *testing.T) {
 	define := func(qw *topotest.QuasiWorld, units *board.Units[topotest.Recruit]) []kind.Entry {
 		river := qw.Grid.At(1, 2)
-		qw.Board.Board().Set(river, cell.Kind{Name: cell.Named("river"), Cost: 1,
+		qw.Board.Write().Board().Set(river, cell.Kind{Name: cell.Named("river"), Cost: 1,
 			Allows: cell.Water})
 		units.Define("walker", unit.Mover{Domain: cell.Land}, steering.Steering{MaxSpeed: 10})
 		standing := board.NewEntities(qw.Board, board.Shape{Size: 20, Height: 1},
@@ -150,7 +150,7 @@ func TestStanding_UnderADeckOverWaterHasFallenIn(t *testing.T) {
 	qw := topotest.NewQuasiWorldWith(t, false, define)
 	var out bytes.Buffer
 	qw.Board.WithLog(log.New(&out, "", 0))
-	deck := qw.Topo.Relief().Altitude(qw.Grid.At(1, 2)) + 10
+	deck := qw.Topo.Write().Relief().Altitude(qw.Grid.At(1, 2)) + 10
 	standAt(qw, cell.Land, deck)
 	qw.ECS.Tick(time.Second / 60)
 	qw.ECS.Tick(time.Second / 60)
@@ -187,7 +187,7 @@ func TestAltitude_AFlyerFlownByHandHoldsItsHeightOverSeaLevel(t *testing.T) {
 		})
 		return alt, lift
 	}
-	hill := qw.Topo.Relief().At(qw.Grid.CellCenter(onHill))
+	hill := qw.Topo.Write().Relief().At(qw.Grid.CellCenter(onHill))
 	if alt, _ := step(func(*world.Base, *world.Z, *unit.Mover, *steering.Driven, *steering.Course) {}); alt != 40 {
 		t.Fatalf("steered from nowhere it flies at %v, want its lift 40 over the grass", alt)
 	}
@@ -241,7 +241,7 @@ func TestAltitude_AFlyerKeepsUnderItsCeiling(t *testing.T) {
 	})
 	qw.ECS.Tick(time.Second / 60)
 	onHill := qw.Grid.At(2, 1)
-	hill := qw.Topo.Relief().At(qw.Grid.CellCenter(onHill))
+	hill := qw.Topo.Write().Relief().At(qw.Grid.CellCenter(onHill))
 	if hill <= 1 || hill+40 <= 41 {
 		t.Fatalf("the hill stands %v high: too low to test the ceiling on", hill)
 	}
@@ -308,7 +308,7 @@ func TestSurface_ASlantwiseDeckCarriesOverTheCornerItCuts(t *testing.T) {
 		decks.Define("deck", comp.Load(func(r slantRow) cell.Floor {
 			return cell.Floor{
 				Allows:    cell.Land,
-				Height:    r.Top - qw.Topo.Relief().Altitude(r.At),
+				Height:    r.Top - qw.Topo.Write().Relief().Altitude(r.At),
 				Thickness: thick,
 				Links:     1<<nw | 1<<se,
 				Width:     width,
@@ -322,8 +322,8 @@ func TestSurface_ASlantwiseDeckCarriesOverTheCornerItCuts(t *testing.T) {
 	}
 	qw := topotest.NewQuasiWorldWith(t, false, define)
 	qw.ECS.Tick(time.Second / 60)
-	surfaces := qw.Board.Footing()
-	ground := qw.Topo.Relief()
+	surfaces := qw.Board.Read(0).Footing()
+	ground := qw.Topo.Write().Relief()
 	for _, c := range []struct {
 		name string
 		at   geom.Vec

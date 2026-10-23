@@ -10,7 +10,7 @@ import (
 
 // Reporter is the clock's line for the telemetry panel: the game time as minutes and
 // seconds, and whether it stands or goes at another tempo.
-func (c *Clock) Reporter() render.Reporter { return reporter{c} }
+func (r *Read) Reporter() render.Reporter { return reporter{r.c} }
 
 type reporter struct{ c *Clock }
 
@@ -33,7 +33,7 @@ func (c *Clock) written() string {
 }
 
 // HUD is a screen renderer showing the clock in the window's bottom-left corner, for a ui.Drawer.
-func (c *Clock) HUD() render.Renderer { return &hud{c: c} }
+func (r *Read) HUD() render.Renderer { return &hud{c: r.c} }
 
 type hud struct{ c *Clock }
 

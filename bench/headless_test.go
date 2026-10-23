@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/game"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/cameras"
 	"github.com/kjkrol/gram/plugins/world"
@@ -28,6 +29,7 @@ type headless struct {
 	pending []func() []goke.System
 	tps     game.TPS
 	drawn   []render.Source
+	looks   []func()
 }
 
 var _ game.Initializer = (*headless)(nil)
@@ -76,14 +78,23 @@ func (c *headless) camera(cfg cameras.Config, start cameras.Start, w, h float32)
 		space := c.world.Res.Config.Space
 		w, h = float32(space.Width), float32(space.Height)
 	}
-	cam := cameras.NewPlugin(c.world, cfg).New(start, camera.Config{})
+	cam := cameras.NewPlugin(c.world, cfg).Write().New(start, camera.Config{})
 	cam.SetViewport(w, h)
 	cam.MoveTo(0, 0)
 	return cam
 }
 
+// look declares the installed plugins' looks, as the engine does once they are all installed
+func (c *headless) look() {
+	for _, f := range c.looks {
+		f()
+	}
+	c.looks = nil
+}
+
 func (c *headless) start(tb testing.TB, plan func(goke.RunCtx, time.Duration)) *goke.ECS {
 	tb.Helper()
+	c.look()
 	for _, v := range c.tracked {
 		if p, ok := v.(plugin.Populator); ok {
 			if err := p.Populate(); err != nil {
@@ -92,10 +103,14 @@ func (c *headless) start(tb testing.TB, plan func(goke.RunCtx, time.Duration)) *
 		}
 	}
 	c.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
-		plan(rc, d)
-		if c.world != nil {
-			c.world.Clock().Replay(rc, d) // as the engine does after the game's Update
+		if c.world == nil {
+			plan(rc, d)
+			return
 		}
+		// as the engine runs the game's Update and the clock's replay after it
+		clk := c.world.Write().Clock()
+		plan(clk.Settling(rc), d)
+		clk.Replay(rc, d)
 	})
 	var systems []goke.System
 	for _, produce := range c.pending {
@@ -111,7 +126,11 @@ func entities(n int) string { return fmt.Sprintf("entities=%d", n) }
 
 func (c *headless) Hosts(h ...host.Host)     { c.hosts = append(c.hosts, h...) }
 func (c *headless) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
-func (c *headless) Looks(func())             {}
+func (c *headless) Looks(f func())           { c.looks = append(c.looks, f) }
+func (*headless) Pool() *parallel.Pool       { return pool }
+
+// the game's pool, every CPU, as the engine hands it to the plugins
+var pool = parallel.New(0)
 
 // Drawn is what the installed plugins draw, for the world's picture.
 func (c *headless) Drawn() []render.Source { return c.drawn }

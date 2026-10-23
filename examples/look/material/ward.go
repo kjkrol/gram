@@ -36,14 +36,14 @@ var (
 )
 
 func (ward) Effects(b *board.Plugin) {
-	b.World().Effects().Define(CalmEf, effect.Spec{
+	b.Read(0).World().Write().Effects().Define(CalmEf, effect.Spec{
 		effect.Described("Calmed: the ward's glow put out for a while."),
 		effect.Lasts(2 * time.Second),
 	})
 }
 
 func (ward) Define(b *board.Plugin) {
-	kind.Define[wardRow](b.World().Kinds(), WardKind, kind.Spec{
+	kind.Define[wardRow](b.Read(0).World().Kinds(), WardKind, kind.Spec{
 		comp.Load(func(w wardRow) world.Position {
 			return world.Position{
 				AABB: plane.NewAABB(geom.NewVec(w.At.X-wardPx/2, w.At.Y-wardPx/2), wardPx, wardPx),
@@ -55,5 +55,5 @@ func (ward) Define(b *board.Plugin) {
 
 func (ward) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[wardRow](w.Kinds(), WardKind), wardPx, wardMaterial).
-		Under(w.Effects().Named(CalmEf), render.Dot(8, ashColor))
+		Under(w.Write().Effects().Named(CalmEf), render.Dot(8, ashColor))
 }

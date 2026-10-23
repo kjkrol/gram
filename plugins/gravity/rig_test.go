@@ -15,6 +15,7 @@ import (
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -52,6 +53,7 @@ func (c *installCtx) ECS() *goke.ECS                  { return c.ecs }
 func (c *installCtx) Hosts(h ...host.Host)            { c.hosts = append(c.hosts, h...) }
 func (c *installCtx) Draws(...render.Source)          {}
 func (c *installCtx) Looks(func())                    {}
+func (*installCtx) Pool() *parallel.Pool              { return nil }
 func (c *installCtx) Deliver(rules ...act.Rule) error { return ceremony.Deliver(c.hosts, rules...) }
 func (c *installCtx) systems() []goke.System {
 	var systems []goke.System
@@ -157,7 +159,7 @@ func newRig(t *testing.T, sc scene) *rig {
 		Heights:  true,
 		Sectors:  sc.sectors,
 	})
-	w.Anchor(anchor(sc.anchor))
+	w.Write().Anchor(anchor(sc.anchor))
 	r := &rig{t: t, w: w}
 	if err := w.Carry(&r.heard); err != nil {
 		t.Fatal(err)
@@ -166,11 +168,11 @@ func newRig(t *testing.T, sc scene) *rig {
 	r.c = collision.NewPlugin(w, r.m)
 	g := grid.DefaultGrids{}.Square(4, 4, 10)
 	r.brd = board.NewPlugin(g, &cell.MultipleOccupancy{}, w).WithMotion(r.m)
-	r.brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	r.brd.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	for y, line := range sc.level {
 		for x, c := range line {
 			if c == '#' {
-				r.brd.Board().Set(g.At(uint32(x), uint32(y)), cell.Kind{Solid: true})
+				r.brd.Write().Board().Set(g.At(uint32(x), uint32(y)), cell.Kind{Solid: true})
 			}
 		}
 	}
@@ -179,10 +181,10 @@ func newRig(t *testing.T, sc scene) *rig {
 	}
 	if sc.water {
 		for y := range uint32(4) {
-			r.brd.Board().Set(g.At(2, y), cell.Kind{Cost: 1, Allows: cell.Water})
+			r.brd.Write().Board().Set(g.At(2, y), cell.Kind{Cost: 1, Allows: cell.Water})
 		}
 		if sc.deck { // the deck runs over water too
-			r.brd.Board().Set(g.At(1, 1), cell.Kind{Cost: 1, Allows: cell.Water})
+			r.brd.Write().Board().Set(g.At(1, 1), cell.Kind{Cost: 1, Allows: cell.Water})
 		}
 	}
 	if sc.fence {
@@ -194,7 +196,7 @@ func newRig(t *testing.T, sc scene) *rig {
 		fences.Define("fence",
 			comp.Const(cell.Floor{Allows: cell.Land, Links: 1<<north | 1<<south, Width: 10}),
 			comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
-		w.Seed(fences.Named("fence").Entry(g.At(1, 1)))
+		w.Write().Seed(fences.Named("fence").Entry(g.At(1, 1)))
 	}
 	if sc.deck {
 		r.brd.WithCollision(r.c)
@@ -206,7 +208,7 @@ func newRig(t *testing.T, sc scene) *rig {
 			comp.Const(cell.Floor{Allows: cell.Land, Links: 1<<north | 1<<south, Width: 10,
 				Height: 10, Thickness: 1}),
 			comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
-		w.Seed(decks.Named("deck").Entry(g.At(1, 1)))
+		w.Write().Seed(decks.Named("deck").Entry(g.At(1, 1)))
 	}
 	pull := gravity.Pull{Z: -10}
 	if sc.level != nil {
@@ -233,7 +235,7 @@ func newRig(t *testing.T, sc scene) *rig {
 		comp.Const(collision.Physics{Mass: 1}),
 		comp.Load(func(b body) world.Velocity { return world.Velocity{Dir: b.facing} }))
 	for _, b := range sc.bodies {
-		w.Seed(units.Named("body").Entry(b))
+		w.Write().Seed(units.Named("body").Entry(b))
 	}
 	r.start(sc)
 	return r
@@ -268,7 +270,7 @@ func (r *rig) start(sc scene) {
 		r.g.RunPlan(rc, d)
 		r.brd.RunPlan(rc, d)
 		rc.Sync()
-		r.w.Clock().Replay(rc, d)
+		r.w.Write().Clock().Replay(rc, d)
 	})
 	r.ids = make([]uid.UID64, len(sc.bodies))
 	for r.q.All(); r.q.Next(); {
@@ -289,7 +291,7 @@ func (r *rig) start(sc scene) {
 
 func (r *rig) tick() { r.ecs.Tick(time.Second / tps) }
 
-func (r *rig) leap(k int) { r.w.Carrier().PutFrom(r.ids[k], gravity.Leap{}) }
+func (r *rig) leap(k int) { r.w.Write().Carrier().PutFrom(r.ids[k], gravity.Leap{}) }
 
 func (r *rig) walk(k int, speed float64) {
 	r.t.Helper()

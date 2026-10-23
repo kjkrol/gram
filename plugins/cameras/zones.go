@@ -93,28 +93,8 @@ func (v *zonesView) DrawGlass(dst *render.Image, cam camera.Camera) {
 	zone(w-side, h-side, w, h)
 }
 
-// ShowZones shows the scroll zones over every picture, or hides them (Settings.Zones).
-func (p *Plugin) ShowZones(shown bool) { p.Res.Settings.Zones = shown }
-
-// ZonesShown reports whether the scroll zones are shown.
-func (p *Plugin) ZonesShown() bool { return p.Res.Settings.Zones }
-
-// ScrollFromEdges has the cursor at a picture's edge scroll the camera, or not
-// (Settings.StillEdges); on from the start.
-func (p *Plugin) ScrollFromEdges(on bool) { p.Res.Settings.StillEdges = !on }
-
-// EdgesScroll reports whether the cursor at a picture's edge scrolls the camera.
-func (p *Plugin) EdgesScroll() bool { return !p.Res.Settings.StillEdges }
-
-// SetEdgeSpeed sets how fast the cursor at the very edge scrolls, screen pixels a tick
-// (Settings.EdgeSpeed); 0 or less, the keys' own.
-func (p *Plugin) SetEdgeSpeed(speed float32) { p.Res.Settings.EdgeSpeed = max(speed, 0) }
-
-// EdgeSpeed is how fast the cursor at the very edge scrolls, 0 for the keys' own.
-func (p *Plugin) EdgeSpeed() float32 { return p.Res.Settings.EdgeSpeed }
-
 func (p *Plugin) switchZones() {
-	p.zones.Drain(func(i command.Issued[Zones]) { p.ShowZones(i.Command.Shown) })
-	p.edgeScrolls.Drain(func(i command.Issued[EdgeScroll]) { p.ScrollFromEdges(i.Command.On) })
-	p.edgeSpeeds.Drain(func(i command.Issued[EdgeSpeed]) { p.SetEdgeSpeed(i.Command.Speed) })
+	p.zones.Drain(func(i command.Issued[Zones]) { p.write.ShowZones(i.Command.Shown) })
+	p.edgeScrolls.Drain(func(i command.Issued[EdgeScroll]) { p.write.ScrollFromEdges(i.Command.On) })
+	p.edgeSpeeds.Drain(func(i command.Issued[EdgeSpeed]) { p.write.SetEdgeSpeed(i.Command.Speed) })
 }

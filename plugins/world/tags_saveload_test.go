@@ -66,7 +66,7 @@ func (g *tagStage) Init(ctx game.Initializer) error {
 func (g *tagStage) Loaded() error { return nil }
 
 func (g *tagStage) Spawn() error {
-	g.world.Seed(g.unit.Entry(struct{}{}))
+	g.world.Write().Seed(g.unit.Entry(struct{}{}))
 	return nil
 }
 

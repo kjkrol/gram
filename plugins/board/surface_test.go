@@ -106,8 +106,8 @@ func TestSetAtlas_AForeignAtlasDrawsTheDefaults(t *testing.T) {
 	a.Close()
 	foreign := render.NewAtlas()
 	foreign.Close()
-	bw.Board.SetAtlas(foreign)
-	want := board.DefaultGridLine(bw.Board.Board().Grid)
+	bw.Board.Write().SetAtlas(foreign)
+	want := board.DefaultGridLine(bw.Board.Read(0).Board().Grid)
 	if rs := bw.Board.Res.Render; rs.GridLine != want.Color || rs.GridWidth != want.Width {
 		t.Errorf("over a foreign atlas the grid is drawn in %v %v pixels wide, want %v",
 			rs.GridLine, rs.GridWidth, want)
@@ -117,10 +117,10 @@ func TestSetAtlas_AForeignAtlasDrawsTheDefaults(t *testing.T) {
 // how wide the holds view outlines the cell a unit holds, its lines' quads being a pixel wider
 func holdWidth(t *testing.T, b *board.Plugin) float32 {
 	t.Helper()
-	g := b.Board().Grid
+	g := b.Read(0).Board().Grid
 	c := g.At(1, 1)
-	b.Occupancy().Enter(c, false, 7, cell.Land)
-	b.ShowHolds(true)
+	b.Write().Occupancy().Enter(c, false, 7, cell.Land)
+	b.Write().ShowHolds(true)
 	cam := cameratest.NewFromSpace(256, 256, 0)
 	var f render.Frame
 	f.Reset(cam)

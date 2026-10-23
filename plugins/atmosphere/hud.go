@@ -70,7 +70,7 @@ type framed struct {
 }
 
 func (f *framed) of(p *Plugin, say func() string) string {
-	if t := p.worldPlugin.Clock().Time(); !f.read || t != f.at {
+	if t := p.worldPlugin.Read(0).Clock().Time(); !f.read || t != f.at {
 		f.text, f.at, f.read = say(), t, true
 	}
 	return f.text
@@ -93,7 +93,7 @@ type dateWords struct {
 
 // the icon is shown or hidden here, its words read before it is laid
 func (d *dateWords) Text(uid.UID64, bool) (string, bool) {
-	if d.p.Running().Moon {
+	if d.p.read.Running().Moon {
 		d.icon.Show()
 	} else {
 		d.icon.Hide()

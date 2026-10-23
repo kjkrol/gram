@@ -1,6 +1,11 @@
 // Package navigation moves entities along a MoveOrder's path across a board, re-pathing when the
 // ground along the route changes, and carries out MoveTo commands for Selected entities.
 //
+// Its machinery is in plugins/navigation/internal: the order and its commands (order), the units
+// of a tick (bodies), how they keep apart (spacing), the commands planning their routes
+// (routing), their moves along them (traffic), the search (pathfind) and the routes drawn
+// (routes); the types a game names are this package's by alias.
+//
 // # MoveOrder and Path
 //
 // A [MoveOrder] on an entity sends it to a Target cell and then through up to [MaxWaypoints]
@@ -51,7 +56,7 @@
 // a route goes by the unit's Z: onto the deck within its step, along it, off it only onto a surface
 // within the step, under it only where the unit fits; a step across a railing is never planned. A
 // step along a deck's band is planned only for a unit no wider across it than the band's lane
-// (board.Board.Lane).
+// (board.BoardRead.Lane).
 //
 // A route once planned is followed: it is planned again when it breaks (the ground under it turns
 // against the unit, a step is refused, the unit is pushed off it or strikes someone), not when a
@@ -70,7 +75,7 @@
 //
 // The plugin draws the routes: for every selected entity its goals, the entity's outline lying
 // where it will stand, always, and its routes as thin lines over the ground while [Routes] shows
-// them ([Plugin.ShowRoutes], [Plugin.RoutesShown]); [RouteStyle]
+// them ([Write.ShowRoutes], [Read.RoutesShown]); [RouteStyle]
 // ([Plugin.WithRouteStyle], [DefaultRouteStyle]) is the lines' colour and width and the goals'
 // colour.
 //

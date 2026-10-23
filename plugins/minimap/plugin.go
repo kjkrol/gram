@@ -44,7 +44,9 @@ type Plugin struct {
 	turns    command.Queue[Turn]
 	kept     *plugin.Kept[Settings]
 
-	Res Resources
+	Res   Resources
+	read  Read
+	write Write
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -57,6 +59,7 @@ var _ plugin.Restorer = (*Plugin)(nil)
 func NewPlugin(w *world.Plugin, ground Ground, cfg Config) *Plugin {
 	checkReach(w, cfg.Reach)
 	p := &Plugin{w: w, ground: ground, cfg: cfg}
+	p.read.p, p.write.p = p, p
 	p.Res.Settings.Turning = cfg.Turning
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(w, p)
@@ -81,13 +84,13 @@ func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
 // Restore takes the Settings loaded and shows or hides the minimaps as they say.
 func (p *Plugin) Restore() {
 	p.kept.Restore()
-	p.Show(!p.Res.Settings.Hidden)
+	p.write.Show(!p.Res.Settings.Hidden)
 }
 
 // RunPlan carries the minimaps' commands out and has each follow its camera; after the cameras'.
 func (p *Plugin) RunPlan(goke.RunCtx, time.Duration) {
-	p.switches.Drain(func(i command.Issued[Switch]) { p.Show(i.Command.Shown) })
-	p.turns.Drain(func(i command.Issued[Turn]) { p.SetTurning(i.Command.On) })
+	p.switches.Drain(func(i command.Issued[Switch]) { p.write.Show(i.Command.Shown) })
+	p.turns.Drain(func(i command.Issued[Turn]) { p.write.SetTurning(i.Command.On) })
 	for _, m := range p.maps {
 		m.follow(p.Res.Settings.Turning)
 	}
@@ -107,35 +110,4 @@ func (p *Plugin) For(cam camera.Camera, issuer command.Issuer) *ui.Element {
 	}
 	p.maps = append(p.maps, m)
 	return m.element
-}
-
-// Show has the minimaps shown, or hidden (Settings.Hidden).
-func (p *Plugin) Show(on bool) {
-	p.Res.Settings.Hidden = !on
-	for _, m := range p.maps {
-		if on {
-			m.element.Show()
-		} else {
-			m.element.Hide()
-		}
-	}
-}
-
-// Shown reports whether the minimaps are shown.
-func (p *Plugin) Shown() bool { return !p.Res.Settings.Hidden }
-
-// SetTurning has the minimaps turn with their cameras, or keep north up (Settings.Turning).
-func (p *Plugin) SetTurning(on bool) { p.Res.Settings.Turning = on }
-
-// Turning reports whether the minimaps turn with their cameras.
-func (p *Plugin) Turning() bool { return p.Res.Settings.Turning }
-
-// SetReach has the minimaps show reach round their cameras; past the world's last band panics.
-func (p *Plugin) SetReach(reach float64) {
-	checkReach(p.w, reach)
-	p.cfg.Reach = reach
-	for _, m := range p.maps {
-		m.lens.reach = reach
-		m.lens.fit()
-	}
 }

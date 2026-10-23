@@ -33,10 +33,10 @@ var (
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	a.vision.WithViews(render.Show(a.selection.IsSelected))
+	a.vision.WithViews(render.Show(a.selection.Read(0).IsSelected))
 	a.light.WithDistant(sky.DefaultSun)
 
 	return ui.Image(render.NewFeed(
-		a.cameras.New(cameras.FromAbove, camera.Config{}),
-		a.world.Picture())).Input(a.players.Through(a.player))
+		a.cameras.Write().New(cameras.FromAbove, camera.Config{}),
+		a.world.Read(0).Picture())).Input(a.players.Through(a.player))
 }

@@ -34,15 +34,15 @@ func isometricIsland() (*world.Plugin, *topography.Plugin, camera.Camera) {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(4, 4, 32), &cell.MultipleOccupancy{}, w)
-	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	cam := cameras.NewPlugin(w, cameras.Config{
 		Turn:       true,
 		Tilt:       true,
 		Cell:       32,
 		HeightUnit: 1,
-		Cage:       p,
-	}).New(cameras.Isometrically, camera.Config{})
+		Cage:       p.Read(0),
+	}).Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(128, 64)
 	cam.MoveTo(0, 0)
 	return w, p, cam
@@ -51,7 +51,7 @@ func isometricIsland() (*world.Plugin, *topography.Plugin, camera.Camera) {
 func TestBillboards_StandEntitiesUprightOnTheirCentre(t *testing.T) {
 	w, _, cam := isometricIsland()
 	cam.CenterOn(64, 64, 0)
-	look := w.Look()
+	look := w.Read(0).Look()
 	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
 	stand := func(z world.Z) [][6]float32 {
 		var f render.Frame
@@ -95,7 +95,7 @@ func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 	cam.CenterOn(48, 48, 0)
 	p.WithAtmosphere(fixedSky{sun: sky.DefaultSun, air: air.Weather{Wind: [2]float32{40, 0}}})
 
-	look := w.Look()
+	look := w.Read(0).Look()
 	box := plane.NewAABB(geom.NewVec(40, 40), 10, 10)
 	lean := func(sway float32) float32 {
 		var f render.Frame
@@ -112,7 +112,7 @@ func TestBillboards_LeanWithTheWindWhatSways(t *testing.T) {
 func TestBillboards_LayADeckOnItsBeam(t *testing.T) {
 	w, _, cam := isometricIsland()
 	cam.CenterOn(64, 64, 0)
-	look := w.Look()
+	look := w.Read(0).Look()
 	var f render.Frame
 	f.Reset(cam)
 	look.(world.DirectLook).Begin(&render.Frame{}, cam)
@@ -137,18 +137,18 @@ func TestBillboards_HazeFarOffOnlyWhenAsked(t *testing.T) {
 		Heights:  true,
 	})
 	b := board.NewPlugin(grid.DefaultGrids{}.Square(128, 128, 32), &cell.MultipleOccupancy{}, w)
-	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	p.WithAtmosphere(fixedSky{sun: sky.DefaultSun, air: air.Weather{Sight: 300}})
 	cam := cameras.NewPlugin(w, cameras.Config{
 		Perspective: true,
 		Cell:        32,
-		Cage:        p,
-	}).New(cameras.Isometrically, camera.Config{})
+		Cage:        p.Read(0),
+	}).Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(320, 240)
 	cam.CenterOn(2048, 2048, 0)
 	cameratest.Switch(cam)
-	look := w.Look()
+	look := w.Read(0).Look()
 	haze := func() []float32 {
 		var f render.Frame
 		f.Reset(cam)
@@ -160,7 +160,7 @@ func TestBillboards_HazeFarOffOnlyWhenAsked(t *testing.T) {
 	if got := haze(); len(got) != 1 || got[0] != 0 {
 		t.Errorf("in perspective in thick air a billboard is hazed %v, want clear: not asked", got)
 	}
-	p.WithHaze(true)
+	p.Write().SetHaze(true)
 	if got := haze(); len(got) != 1 || got[0] <= 0 {
 		t.Errorf("asked, in thick air a billboard is hazed %v, want some", got)
 	}

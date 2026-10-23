@@ -22,17 +22,17 @@ func TestBoxes_TheCommandShowsTheBasesTheSolidsOrNone(t *testing.T) {
 	if err := w.Carry(p); err != nil {
 		t.Fatal(err)
 	}
-	if p.BoxesShown() != NoBoxes {
+	if p.read.BoxesShown() != NoBoxes {
 		t.Fatal("the boxes are shown before anyone asked")
 	}
 	if options := p.Settings()[0].(control.Choice).Options; len(options) != 3 {
 		t.Errorf("with heights the choice is %v, want none, bases and solids", options)
 	}
 	for _, want := range []BoxesShown{Bases, Solids, NoBoxes} {
-		w.Carrier().Put(command.Nobody, Boxes{Shown: want})
+		w.Write().Carrier().Put(command.Nobody, Boxes{Shown: want})
 		p.switchBoxes()
-		if p.BoxesShown() != want {
-			t.Errorf("Boxes of %v: %v shown", want, p.BoxesShown())
+		if p.read.BoxesShown() != want {
+			t.Errorf("Boxes of %v: %v shown", want, p.read.BoxesShown())
 		}
 	}
 }
@@ -48,18 +48,18 @@ func TestBoxes_TheSettingChoosesAndIsSaved(t *testing.T) {
 		t.Fatalf("flat, the choice is %v at %d, want none and bases at none", choice.Options,
 			choice.Get())
 	}
-	w.Carrier().Put(command.Nobody, choice.Set(1))
+	w.Write().Carrier().Put(command.Nobody, choice.Set(1))
 	p.switchBoxes()
-	if p.BoxesShown() != Bases || choice.Get() != 1 {
-		t.Fatalf("chose the bases: %v shown, the choice at %d", p.BoxesShown(), choice.Get())
+	if p.read.BoxesShown() != Bases || choice.Get() != 1 {
+		t.Fatalf("chose the bases: %v shown, the choice at %d", p.read.BoxesShown(), choice.Get())
 	}
 	saved := p.Serializable().Persisted()
 	q := newTestPlugin(testWorldPlugin())
 	loading := q.Serializable().Persisted()
 	*loading[0].(*[]byte) = append([]byte(nil), *saved[0].(*[]byte)...)
 	q.Restore()
-	if q.BoxesShown() != Bases {
-		t.Errorf("loaded: %v shown, want the bases saved", q.BoxesShown())
+	if q.read.BoxesShown() != Bases {
+		t.Errorf("loaded: %v shown, want the bases saved", q.read.BoxesShown())
 	}
 }
 

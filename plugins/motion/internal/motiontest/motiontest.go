@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/ceremony/act"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
@@ -40,6 +41,7 @@ func (c *InstallCtx) ECS() *goke.ECS { return c.ecs }
 func (c *InstallCtx) Hosts(h ...host.Host)   { c.hosts = append(c.hosts, h...) }
 func (c *InstallCtx) Draws(...render.Source) {}
 func (c *InstallCtx) Looks(func())           {}
+func (*InstallCtx) Pool() *parallel.Pool     { return nil }
 
 // Start installs w and m on a new ECS, hands rules to the hosts of their moments, sets up their
 // systems and after, and plans Step. Seed and populate before it.
@@ -73,9 +75,10 @@ func Start(
 // Step is a step as a game takes it: the world, motion, the clock's replay.
 func Step(w *world.Plugin, m *motion.Plugin) func(goke.RunCtx, time.Duration) {
 	return func(rc goke.RunCtx, d time.Duration) {
-		w.RunPlan(rc, d)
-		m.RunPlan(rc, d)
-		rc.Sync()
-		w.Clock().Replay(rc, d)
+		settling := w.Write().Clock().Settling(rc)
+		w.RunPlan(settling, d)
+		m.RunPlan(settling, d)
+		settling.Sync()
+		w.Write().Clock().Replay(rc, d)
 	}
 }

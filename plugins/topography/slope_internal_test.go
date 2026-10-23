@@ -16,7 +16,7 @@ func TestSlope_SlowsAClimbAndASteepDescent(t *testing.T) {
 	grid := grid.DefaultGrids{}.Square(4, 1, 10)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
 	p := NewPlugin(w, b, nil, Config{})
-	p.Relief().SetHeights(func(q geom.Vec) float64 { return 0.2 * q.X })
+	p.write.Relief().SetHeights(func(q geom.Vec) float64 { return 0.2 * q.X })
 	east, west := geom.NewVec(1, 0), geom.NewVec(-1, 0)
 	for _, c := range []struct {
 		x    float64
@@ -32,7 +32,7 @@ func TestSlope_SlowsAClimbAndASteepDescent(t *testing.T) {
 			t.Errorf("at x %v going %v in %v: ×%v as long, want ×%v", c.x, c.dir, c.d, got, c.want)
 		}
 	}
-	if got := b.Map().Slope(geom.NewVec(15, 5), east, cell.Land); math.Abs(got-3) > 1e-6 {
+	if got := b.Read(0).Board().Map().Slope(geom.NewVec(15, 5), east, cell.Land); math.Abs(got-3) > 1e-6 {
 		t.Errorf("the board's map prices the climb ×%v, want the topography's ×3", got)
 	}
 }

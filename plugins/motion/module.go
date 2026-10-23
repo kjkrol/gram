@@ -45,9 +45,9 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 	pace := m.w.Pace(sector.Paced)
 	m.steeringRunnable = ecs.RegSys(m.steer.Paced(pace))
 	velocity := newVelocitySystem(m.movers)
-	velocity.tick, velocity.rhythm = m.w.Tick, pace
+	velocity.tick, velocity.rhythm = m.w.Read(0).Tick, pace
 	m.velocityRunnable = ecs.RegSys(velocity)
-	move := newMoveSystem(m.w.Space())
+	move := newMoveSystem(m.w.Write().Space())
 	move.pace = pace
 	m.moveRunnable = ecs.RegSys(move)
 	exit := newExitSystem(m)
@@ -56,7 +56,7 @@ func (m *module) RegSystems(ecs *goke.ECS) {
 }
 
 func (m *module) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	clock.Simulate(m.w.Clock(), ctx, d, m.step)
+	clock.Simulate(m.w.Write().Clock(), ctx, d, m.step)
 }
 
 func (m *module) simulate(ctx goke.RunCtx, step time.Duration) {

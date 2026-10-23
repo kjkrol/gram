@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"cmp"
+	"github.com/kjkrol/gram/plugins/navigation/internal/order"
 	"math"
 	"slices"
 	"testing"
@@ -87,11 +88,11 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 	sel := selection.NewPlugin(w)
 	drive := driving.NewPlugin(w, m, sel).WithGround(brd)
 	nav := NewPlugin(brd, w, m, sel, drive).WithCollision(c).WithSpacing(spacing)
-	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	for _, c := range site.wet {
-		brd.Board().Set(c, cell.Kind{Cost: 1, Allows: cell.Water})
+		brd.Write().Board().Set(c, cell.Kind{Cost: 1, Allows: cell.Water})
 	}
-	topo.Relief().SetHeights(site.heights)
+	topo.Write().Relief().SetHeights(site.heights)
 	x0, y0, _ := g.Coords(site.from)
 	x1, y1, _ := g.Coords(site.to)
 	dx, dy := cmp.Compare(x1, x0), cmp.Compare(y1, y0)
@@ -108,7 +109,7 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 		}
 		return cell.Floor{
 			Allows:    cell.Land,
-			Height:    10 - topo.Relief().Altitude(r.At),
+			Height:    10 - topo.Write().Relief().Altitude(r.At),
 			Thickness: 0.5,
 			Cost:      1,
 			Graded:    true,
@@ -118,7 +119,8 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 	}), comp.Const(cell.Rail{Keeps: cell.Land, Height: 1}))
 	for x, y := int(x0), int(y0); ; x, y = x+dx, y+dy {
 		at := g.At(uint32(x), uint32(y))
-		w.Seed(spans.Named("bridge").Entry(spanRow{At: at, Head: at == site.from || at == site.to}))
+		w.Write().Seed(spans.Named("bridge").Entry(spanRow{At: at,
+			Head: at == site.from || at == site.to}))
 		if at == site.to {
 			break
 		}
@@ -130,9 +132,9 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 		comp.Load(func(r walkerRow) MoveOrder {
 			return MoveOrder{Target: r.Target, Level: r.Level}
 		}))
-	w.Seed(units.Named("walker").Entry(walkerRow{At: at, Target: target, Level: level}))
+	w.Write().Seed(units.Named("walker").Entry(walkerRow{At: at, Target: target, Level: level}))
 	for _, r := range site.others {
-		w.Seed(units.Named("walker").Entry(r))
+		w.Write().Seed(units.Named("walker").Entry(r))
 	}
 	if err := w.Carry(nav); err != nil {
 		t.Fatal(err)
@@ -175,7 +177,7 @@ func bridged(t *testing.T, site bridgeSite, at geom.Vec, target cell.ID, level L
 		nav.RunPlan(rc, d)
 		drive.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	return ctx.ecs, q, &base, w
 }
@@ -298,7 +300,7 @@ func TestNavigation_FromABridgeDownUnderIt(t *testing.T) {
 				at, tc.stand)
 		}
 		order := MoveTo{Cell: tc.goal, At: g.CellCenter(tc.goal), Level: OnGround}
-		if !w.Carrier().PutFrom(id, order) {
+		if !w.Write().Carrier().PutFrom(id, order) {
 			t.Fatal("nobody takes MoveTo")
 		}
 		for range 60 * 40 {
@@ -361,14 +363,14 @@ func TestNavigation_KeptACellEachUnderAWalkerOnADeck(t *testing.T) {
 
 func TestLeg_AlongADeckPassesOverItsCornersHoldingNone(t *testing.T) {
 	leg := Leg{From: 1, To: 2, C1: 3, C2: 4, Diagonal: true, Decked: true, Active: true}
-	if got, n := leg.cells(); n != 4 {
+	if got, n := order.Cells(leg); n != 4 {
 		t.Errorf("a decked leg passes over %v, want its corners too", got[:n])
 	}
-	if got, n := leg.held(); n != 2 {
+	if got, n := order.Held(leg); n != 2 {
 		t.Errorf("a decked leg holds %v, want From and To alone", got[:n])
 	}
 	leg.Decked = false
-	if got, n := leg.held(); n != 4 {
+	if got, n := order.Held(leg); n != 4 {
 		t.Errorf("a leg cutting a corner over the ground holds %v, want its corners too", got[:n])
 	}
 }

@@ -116,7 +116,7 @@ func TestShortcuts_ListWhatHoldsInTheCamerasMode(t *testing.T) {
 	w := world.NewPlugin(world.Config{Space: world.SpaceCfg{Width: 100, Height: 100}, Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10}})
 	cams := cameras.NewPlugin(w, cameras.Config{})
 	p := NewPlugin(w, cams)
-	cam := &ridingCam{Camera: cams.New(cameras.FromAbove, camera.Config{})}
+	cam := &ridingCam{Camera: cams.Write().New(cameras.FromAbove, camera.Config{})}
 	pl := p.Local("one")
 	p.Through(pl).Over(geom.AABB{}, render.NewFeed(cam, nil))
 	if err := pl.Bind(p.Defaults()...); err != nil {
@@ -345,9 +345,9 @@ func TestHandle_TheTildeTurnsTheTelemetryPanelBasicExtendedHiddenUnderGeneral(t 
 		{true, telemetry.Basic},
 	} {
 		press()
-		if tp.Shown(comp) != want.shown || tp.Mode() != want.mode {
+		if tp.Read(0).Shown(comp) != want.shown || tp.Read(0).Mode() != want.mode {
 			t.Errorf("after %d presses of ~ the panel is shown %v in mode %v, want shown %v in %v",
-				presses+1, tp.Shown(comp), tp.Mode(), want.shown, want.mode)
+				presses+1, tp.Read(0).Shown(comp), tp.Read(0).Mode(), want.shown, want.mode)
 		}
 	}
 }

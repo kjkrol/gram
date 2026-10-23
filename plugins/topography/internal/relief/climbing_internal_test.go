@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	public "github.com/kjkrol/gram/plugins/topography/relief"
@@ -13,7 +12,7 @@ import (
 
 func reliefOf(cols, rows, size uint32) (*Relief, grid.Grid) {
 	grid := grid.DefaultGrids{}.Square(cols, rows, size)
-	return New(board.NewBoard(grid)), grid
+	return onBoard(grid), grid
 }
 
 func TestClimb_ReadsTheSlopeOffTheCorners(t *testing.T) {

@@ -47,8 +47,8 @@ func (g *fieldStage) Init(ctx game.Initializer) error {
 	g.board = board.NewPlugin(g.grid, &cell.MultipleOccupancy{}, g.world).
 		WithMotion(g.motion).
 		WithCollision(g.collision)
-	g.board.CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
-	g.board.CellKinds().Define("wall", cell.Kind{Cost: 1, Solid: true})
+	g.board.Read(0).CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
+	g.board.Read(0).CellKinds().Define("wall", cell.Kind{Cost: 1, Solid: true})
 	if err := ctx.Use(g.board); err != nil {
 		return err
 	}
@@ -63,7 +63,7 @@ func (g *fieldStage) Spawn() error {
 		c := g.grid.At(3, y)
 		cells = append(cells, cell.Entry{Kind: "wall", Cell: c})
 	}
-	g.board.Seed(board.Layout{Default: "grass", Cells: cells})
+	g.board.Write().Seed(board.Layout{Default: "grass", Cells: cells})
 	return nil
 }
 
@@ -85,7 +85,7 @@ func (g *fieldStage) Stack() game.Scenes {
 func (g *fieldStage) solidCells() int {
 	n := 0
 	all := geom.NewAABBAt(geom.NewVec(0, 0), 6*boardtest.CellSize, 16*boardtest.CellSize)
-	g.board.Cover().(collision.Field).Solid(world.Layers(cell.Land), collision.Everywhere, all, func(collision.FieldBox) bool { n++; return true })
+	g.board.Read(0).Cover().(collision.Field).Solid(world.Layers(cell.Land), collision.Everywhere, all, func(collision.FieldBox) bool { n++; return true })
 	return n
 }
 

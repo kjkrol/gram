@@ -11,7 +11,7 @@ import (
 func (p *Plugin) Pace(policy sector.Policy) goke.Opt {
 	m := p.module
 	if m.sectors.grid == nil {
-		return goke.PacedBy(m.clock.Steps)
+		return goke.PacedBy(m.clock.Read().Steps)
 	}
 	rules := []goke.PaceRule{goke.Never[sector.Off]()}
 	for k, b := range m.config.Sectors.Bands[1:] {
@@ -22,7 +22,7 @@ func (p *Plugin) Pace(policy sector.Policy) goke.Opt {
 			rules = append(rules, every(k+1, uint64(b.Pace)))
 		}
 	}
-	return goke.PacedBy(m.clock.Steps, rules...)
+	return goke.PacedBy(m.clock.Read().Steps, rules...)
 }
 
 func every(band int, n uint64) goke.PaceRule {

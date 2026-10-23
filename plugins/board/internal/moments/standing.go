@@ -96,7 +96,7 @@ func (s *standingSystem) share(i int) float64 {
 		return 1
 	}
 	feet, reach := s.feet(i)
-	kind, d := s.r.cells.KindFor(c, at, feet, reach, s.r.level), unit.DomainAt(s.movers, i)
+	kind, d := s.r.cells.Read().KindFor(c, at, feet, reach, s.r.level), unit.DomainAt(s.movers, i)
 	share := 1.0
 	if cost := kind.CostFor(d); cost > 0 {
 		share /= cost
@@ -132,7 +132,7 @@ func (s *standingSystem) standing(i int) unit.Standing {
 	if !ok {
 		c = s.ats[i].Cell
 	}
-	cells := s.r.cells
+	cells := s.r.cells.Read()
 	feet, reach := s.feet(i)
 	level := 0.0
 	if s.r.level != nil {

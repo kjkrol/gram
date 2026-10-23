@@ -5,14 +5,13 @@ import (
 
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/ceremony/comp"
-	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/motion"
 	"github.com/kjkrol/gram/plugins/world"
-	"github.com/kjkrol/uid"
 )
 
 // Plugin wires selection into a Game; it depends on world and defines the Select command.
@@ -30,6 +29,9 @@ type Plugin struct {
 	module       *module
 	renderer     *Renderer
 	tags         Tags
+	read         Read
+	reads        parallel.Reads[*Read]
+	forks        []*Read
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -45,8 +47,10 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 		Hovered:    reg.DefineTag[Family]("selection.hovered"),
 	}
 	p := &Plugin{worldPlugin: worldPlugin, tags: tags}
+	p.read.p = p
+	p.reads = parallel.Reads[*Read]{&p.read}
 	p.Self = world.NewSelf(worldPlugin, p)
-	p.renderer = NewRenderer(tags.Selected, worldPlugin.Look, worldPlugin.Styles)
+	p.renderer = NewRenderer(tags.Selected, worldPlugin.Read(0).Look, worldPlugin.Read(0).Styles)
 	p.renderer.marquees = &p.marquees
 	return p
 }
@@ -60,29 +64,19 @@ func (p *Plugin) KindTemplates(r *kind.Roster) {
 	r.Default(motion.UnitTemplate, comp.Marks[Family]())
 }
 
-// Chosen is the one Selected unit player by owns; false with none, or several. Nothing before
-// the plugin is installed.
-func (p *Plugin) Chosen(by command.Issuer) (uid.UID64, bool) {
-	if p.module == nil {
-		return 0, false
-	}
-	return p.module.sys.chosen(by)
-}
-
-// IsSelected reports whether an entity carrying marks is selected: a drawing rule's condition.
-func (p *Plugin) IsSelected(marks tag.Tags[Family]) bool { return marks.Has(p.tags.Selected) }
-
 func (p *Plugin) Name() string { return "gram.selection" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Space(), p.tags, p.worldPlugin.Look)
+	sys := NewSelectionSystem(&p.selects, p.worldPlugin.Write().Space(), p.tags,
+		p.worldPlugin.Read(0).Look)
 	sys.marqueeQueue, sys.marquees = &p.marqueeQueue, &p.marquees
-	sys.effectCmds, sys.effects = &p.effectCmds, p.worldPlugin.Effects()
+	sys.effectCmds, sys.effects = &p.effectCmds, p.worldPlugin.Write().Effects()
 	sys.hovers = &p.hovers
 	sys.allows, sys.forbids = &p.allows, &p.forbids
-	p.module = &module{sys: sys}
+	p.module = &module{sys: sys, ready: p.readied}
 	ctx.UseModule(p.module)
 	ctx.Draws(p.renderer)
+	p.reads = parallel.NewReads(&p.read, ctx.Pool())
 	return nil
 }
 

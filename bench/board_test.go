@@ -53,9 +53,9 @@ func Benchmark_Board_GroundAt(b *testing.B) {
 	if err := ctx.Use(topo); err != nil {
 		b.Fatal(err)
 	}
-	brd := p.Board()
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	relief := topo.Relief()
+	brdW := p.Write().Board()
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	relief := topo.Write().Relief()
 	relief.SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 12
@@ -96,16 +96,16 @@ func Benchmark_Board_Shadows(b *testing.B) {
 	if err := ctx.Use(topo); err != nil {
 		b.Fatal(err)
 	}
-	brd := p.Board()
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	topo.Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
+	brdW := p.Write().Board()
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	topo.Write().Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); (x/4+y/4)%2 == 0 {
 			return 20
 		}
 		return 0
 	}))
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
-	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo},
+	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo.Read(0)},
 		cameras.FromAbove, 0, 0)
 	var f render.Frame
 	for _, sc := range []struct {
@@ -145,24 +145,24 @@ func Benchmark_Board_Shores(b *testing.B) {
 	if err := ctx.Use(topo); err != nil {
 		b.Fatal(err)
 	}
-	brd := p.Board()
+	brdW := p.Write().Board()
 	sea := cell.Kind{Name: cell.Named("sea"), Cost: 1, Allows: cell.Water}
-	brd.SetAll(sea)
+	brdW.SetAll(sea)
 	land := cell.Kind{Cost: 1, Allows: cell.Land}
 	for y := range uint32(h) {
 		for x := range uint32(w) {
 			if c := grid.At(x, y); x%8 < 4 && y%8 < 4 {
-				brd.Set(c, land)
+				brdW.Set(c, land)
 			}
 		}
 	}
 	atlas := render.NewAtlas()
 	atlas.Add(render.SpriteID(0), 8, render.Solid(color.RGBA{A: 255}))
 	atlas.Close()
-	p.SetAtlas(atlas)
+	p.Write().SetAtlas(atlas)
 	ctx.start(b, func(goke.RunCtx, time.Duration) {})
 	src := drawnAs[*look.Renderer](b, ctx)
-	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo},
+	cam := ctx.camera(cameras.Config{Turn: true, Tilt: true, Cell: size, Cage: topo.Read(0)},
 		cameras.FromAbove, 0, 0)
 	var f render.Frame
 	far := grid.At(6, 6)
@@ -178,7 +178,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 			for b.Loop() {
 				if sc.changed {
 					shallows.Cost = 3 - shallows.Cost
-					brd.Set(far, shallows)
+					brdW.Set(far, shallows)
 				}
 				f.Reset(cam)
 				src.Compose(&f, cam)
@@ -188,7 +188,7 @@ func Benchmark_Board_Shores(b *testing.B) {
 }
 
 // view is "above", "iso" or "persp"; far shows the whole island on a screen of 576 by 384
-func island(b *testing.B, view string, far bool, workers int) (*headless, *board.Board, render.Source) {
+func island(b *testing.B, view string, far bool, workers int) (*headless, *board.Plugin, render.Source) {
 	ctx, brd, src, _ := islandWith(b, view, far, workers, true, false, false)
 	return ctx, brd, src
 }
@@ -197,7 +197,7 @@ func island(b *testing.B, view string, far bool, workers int) (*headless, *board
 // distant sun with the ground's shade baked or in no light at all, and cut into sectors of 256
 // or whole; the topography is handed back for its care
 func islandWith(b *testing.B, view string, far bool, workers int, shine, lit, sectored bool) (
-	*headless, *board.Board, render.Source, *topography.Plugin) {
+	*headless, *board.Plugin, render.Source, *topography.Plugin) {
 	const w, h, size = 96, 64, 32
 	ctx := newHeadless()
 	cfg := world.Config{
@@ -232,9 +232,9 @@ func islandWith(b *testing.B, view string, far bool, workers int, shine, lit, se
 		Perspective: view == "persp",
 		Cell:        size,
 		HeightUnit:  1,
-		Cage:        topo,
+		Cage:        topo.Read(0),
 	}, start, screenW, screenH)
-	kinds := p.CellKinds()
+	kinds := p.Read(0).CellKinds()
 	kinds.Define("sea", cell.Kind{Cost: 1, Allows: cell.Water})
 	kinds.Define("earth", cell.Kind{Cost: 1, Allows: cell.Land})
 	kinds.Define("sand", cell.Kind{Cost: 1, Allows: cell.Land})
@@ -289,7 +289,7 @@ func islandWith(b *testing.B, view string, far bool, workers int, shine, lit, se
 		b.Fatal(err)
 	}
 	layout := board.Layout{Default: "sea"}
-	topo.Seed(rivers.Carved(heights))
+	topo.Write().Seed(rivers.Carved(heights))
 	grid.EachCell(func(c cell.ID) {
 		if land[c] {
 			at := grid.CellCenter(c)
@@ -305,14 +305,15 @@ func islandWith(b *testing.B, view string, far bool, workers int, shine, lit, se
 	})
 	layout.Ways = rivers.Net(map[water.Course]string{water.Brook: "stream", water.Stream: "stream", water.River: "stream",
 		water.Ford: "stream", water.Mouth: "estuary"}).Ways()
-	p.Seed(layout)
+	p.Write().Seed(layout)
 	atlas := render.NewAtlas()
 	for _, k := range kinds.All() {
 		atlas.Add(k.SpriteID, 8, render.Solid(color.RGBA{R: 100, G: 150, B: 80, A: 255}))
 	}
 	atlas.Close()
-	p.WithWorkers(workers).SetAtlas(atlas)
-	picture := ctx.world.Picture().(*render.Composer)
+	p.WithWorkers(workers).Write().SetAtlas(atlas)
+	ctx.look()
+	picture := ctx.world.Read(0).Picture().(*render.Composer)
 	ctx.pending = append(ctx.pending, func() []goke.System {
 		return []goke.System{goke.SystemFn{OnInit: picture.Init}}
 	})
@@ -330,7 +331,7 @@ func islandWith(b *testing.B, view string, far bool, workers int, shine, lit, se
 	if far {
 		ctx.cam.ZoomOut(100, w*size/2, h*size/2)
 	}
-	return ctx, p.Board(), drawnAs[*look.Renderer](b, ctx), topo
+	return ctx, p, drawnAs[*look.Renderer](b, ctx), topo
 }
 
 // Benchmark_Board_Island composes the island through every view, near, far and on a 1080p
@@ -342,7 +343,8 @@ func Benchmark_Board_Island(b *testing.B) {
 		workers     int
 	}{{"above", false, false, 0}, {"iso", false, false, 0}, {"iso", false, true, 0}, {"persp", false, true, 0}, {"above", true, false, 0}, {"iso", true, false, 0},
 		{"above", false, false, 1}, {"iso", false, false, 1}, {"iso", false, true, 1}, {"persp", false, true, 1}, {"above", true, false, 1}, {"iso", true, false, 1}} {
-		ctx, brd, src := island(b, v.view, v.far, v.workers)
+		ctx, p, src := island(b, v.view, v.far, v.workers)
+		brd, write := p.Read(0).Board(), p.Write().Board()
 		cam := ctx.cam
 		if v.screen {
 			cam.SetViewport(1920, 1080)
@@ -370,9 +372,9 @@ func Benchmark_Board_Island(b *testing.B) {
 				for i := 0; b.Loop(); i++ {
 					if changed {
 						if i%2 == 0 {
-							brd.Set(far, brd.Kind(rock))
+							write.Set(far, brd.Kind(rock))
 						} else {
-							brd.Set(far, brd.Kind(far))
+							write.Set(far, brd.Kind(far))
 						}
 					}
 					f.Reset(cam)

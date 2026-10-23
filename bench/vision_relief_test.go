@@ -57,7 +57,7 @@ func Benchmark_Vision_Relief(b *testing.B) {
 			v := vision.NewPlugin(w).WithBoard(p).WithFrequency(c.every)
 			if c.step > 0 {
 				v.WithGroundStep(scale.Units(c.step)).
-					WithHeights(func() ground.Heights { return sampled{p.Heights()} })
+					WithHeights(func() ground.Heights { return sampled{p.Read(0).Heights()} })
 			}
 			if err := ctx.Use(p); err != nil {
 				b.Fatal(err)
@@ -68,8 +68,8 @@ func Benchmark_Vision_Relief(b *testing.B) {
 			if err := ctx.Use(v); err != nil {
 				b.Fatal(err)
 			}
-			p.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-			topo.Relief().SetHeights(func(q geom.Vec) float64 {
+			p.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+			topo.Write().Relief().SetHeights(func(q geom.Vec) float64 {
 				return scale.Units(600 + 500*math.Sin(q.X/150)*math.Cos(q.Y/110))
 			})
 			units := board.NewUnits(p, board.Shape{Size: 3, Height: 9},
@@ -84,7 +84,7 @@ func Benchmark_Vision_Relief(b *testing.B) {
 					At: g.At(uint32(20+(i%8)*20), uint32(10+(i/8)*18)),
 				}))
 			}
-			w.Seed(entries...)
+			w.Write().Seed(entries...)
 			ecs := ctx.start(b, func(rc goke.RunCtx, d time.Duration) {
 				w.RunPlan(rc, d)
 				m.RunPlan(rc, d)

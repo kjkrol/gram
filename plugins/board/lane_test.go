@@ -84,7 +84,7 @@ func TestBoard_UnitsOnABoardWithoutMotionPanic(t *testing.T) {
 	board.NewUnits(p, board.Shape{Size: 10}, func(v geom.Vec) geom.Vec { return v })
 }
 
-func banded(t *testing.T, g grid.Grid, height float64, keeps cell.Domain) *board.Board {
+func banded(t *testing.T, g grid.Grid, height float64, keeps cell.Domain) *board.BoardRead {
 	t.Helper()
 	wd := world.NewPlugin(world.Config{
 		Space:    world.SpaceCfg{Width: 50, Height: 30},
@@ -92,7 +92,7 @@ func banded(t *testing.T, g grid.Grid, height float64, keeps cell.Domain) *board
 		Heights:  true,
 	})
 	p := board.NewPlugin(g, &cell.MultipleOccupancy{}, wd)
-	p.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Water})
+	p.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Water})
 	west, _ := grid.Direction(g, -1, 0)
 	east, _ := grid.Direction(g, 1, 0)
 	floor := cell.Floor{Allows: cell.Land, Height: height, Links: 1<<west | 1<<east, Width: 8}
@@ -102,7 +102,7 @@ func banded(t *testing.T, g grid.Grid, height float64, keeps cell.Domain) *board
 	decks := board.NewEntities(p, board.Shape{Size: 10}, func(c cell.ID) cell.ID { return c })
 	decks.Define("deck", comp.Const(floor), comp.Const(cell.Rail{Keeps: keeps, Height: 1}))
 	for x := range uint32(5) {
-		wd.Seed(decks.Named("deck").Entry(g.At(x, 1)))
+		wd.Write().Seed(decks.Named("deck").Entry(g.At(x, 1)))
 	}
 	ctx := boardtest.NewInstallCtx()
 	if err := wd.Install(ctx); err != nil {
@@ -119,8 +119,8 @@ func banded(t *testing.T, g grid.Grid, height float64, keeps cell.Domain) *board
 		wd.RunPlan(rc, d)
 		p.RunPlan(rc, d)
 		rc.Sync()
-		wd.Clock().Replay(rc, d)
+		wd.Write().Clock().Replay(rc, d)
 	})
 	ctx.ECS().Tick(time.Second / 60)
-	return p.Board()
+	return p.Read(0).Board()
 }

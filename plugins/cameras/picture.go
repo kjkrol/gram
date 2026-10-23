@@ -107,147 +107,6 @@ type Resources struct {
 
 func (p *Plugin) knobs(profile Profile) *Knobs { return p.Res.Settings.knobs(profile) }
 
-// SetStrategy has the resolution of profile's pictures follow the frame budget as s says, or
-// stay (Knobs.Strategy): the pictures drawn in layers under InLayers, whole under Uniform.
-func (p *Plugin) SetStrategy(profile Profile, s Strategy) {
-	k := p.knobs(profile)
-	k.Strategy = s
-	if s != Still {
-		k.Layers = s == InLayers
-	}
-	p.redress()
-}
-
-// Strategy is how the resolution of profile's pictures follows the frame budget.
-func (p *Plugin) Strategy(profile Profile) Strategy { return p.knobs(profile).Strategy }
-
-// SetLayers has profile's pictures drawn in layers, or whole (Knobs.Layers); a Strategy saying
-// otherwise stops (Still).
-func (p *Plugin) SetLayers(profile Profile, on bool) {
-	k := p.knobs(profile)
-	k.Layers = on
-	if s := k.Strategy; s == InLayers && !on || s == Uniform && on {
-		p.still(profile)
-	}
-	p.redress()
-}
-
-// Layers reports whether profile's pictures are drawn in layers.
-func (p *Plugin) Layers(profile Profile) bool { return p.knobs(profile).Layers }
-
-// SetResolution has profile's pictures drawn at r of their pixels, the centre layer's in
-// layers, LeastResolution up to 1 (Knobs.Resolution), and stops the following (Still).
-func (p *Plugin) SetResolution(profile Profile, r float32) {
-	p.knobs(profile).Resolution = clamped(r)
-	p.still(profile)
-	p.redress()
-}
-
-// Resolution is the share of their pixels profile's pictures are drawn at, the centre layer's
-// in layers.
-func (p *Plugin) Resolution(profile Profile) float32 { return p.knobs(profile).Resolution }
-
-// SetSharpFigures has profile's pictures draw their figures, all that lies over the ground, at
-// every shown pixel while the ground is drawn at the resolution, or at the resolution too
-// (Knobs.SoftFigures); a picture drawn in layers is drawn as it is.
-func (p *Plugin) SetSharpFigures(profile Profile, on bool) {
-	p.knobs(profile).SoftFigures = !on
-	p.redress()
-}
-
-// SharpFigures reports whether profile's pictures draw their figures at every pixel.
-func (p *Plugin) SharpFigures(profile Profile) bool { return !p.knobs(profile).SoftFigures }
-
-// SetLayerShares has the inner layer of profile's pictures cover inner of the frame and the
-// middle layer middle, at least a tenth over the inner (Knobs.Inner, Middle).
-func (p *Plugin) SetLayerShares(profile Profile, inner, middle float32) {
-	k := p.knobs(profile)
-	inner = min(max(inner, 0.1), 0.8)
-	k.Inner = inner
-	k.Middle = min(max(middle, inner+0.1), 0.9)
-	p.redress()
-}
-
-// LayerShares are the inner and the middle layer's shares of the frame in profile's pictures.
-func (p *Plugin) LayerShares(profile Profile) (inner, middle float32) {
-	k := p.knobs(profile)
-	return k.Inner, k.Middle
-}
-
-// SetLayerResolutions has the outer layer of profile's pictures drawn at outer of its pixels and
-// the middle layer at middle, LeastResolution up to 1 (Knobs.OuterRes, MiddleRes), and stops
-// the following (Still).
-func (p *Plugin) SetLayerResolutions(profile Profile, outer, middle float32) {
-	k := p.knobs(profile)
-	k.OuterRes = clamped(outer)
-	k.MiddleRes = clamped(middle)
-	p.still(profile)
-	p.redress()
-}
-
-// LayerResolutions are the outer and the middle layer's resolutions in profile's pictures.
-func (p *Plugin) LayerResolutions(profile Profile) (outer, middle float32) {
-	k := p.knobs(profile)
-	return k.OuterRes, k.MiddleRes
-}
-
-// SetBudget sets the time a frame may take, which the resolution follows
-// (Settings.FrameBudget); zero or less, a sixtieth of a second.
-func (p *Plugin) SetBudget(d time.Duration) {
-	if d <= 0 {
-		d = time.Second / 60
-	}
-	p.Res.Settings.FrameBudget = d
-	p.adapter.budget = d
-}
-
-// SetThresholds sets the shares of the budget's rate the following steps at (Settings.Under,
-// Settings.Met): coarser once a window's rate falls under the first, finer once two have met
-// the second, each between a half and the whole, the second never under the first; zero or
-// less, DefaultUnder and DefaultMet.
-func (p *Plugin) SetThresholds(under, met float32) {
-	if under <= 0 {
-		under = DefaultUnder
-	}
-	if met <= 0 {
-		met = DefaultMet
-	}
-	under = min(max(under, 0.5), 1)
-	met = min(max(met, under), 1)
-	p.Res.Settings.Under, p.Res.Settings.Met = under, met
-	p.adapter.underAt, p.adapter.metAt = float64(under), float64(met)
-}
-
-// Thresholds are the shares of the budget's rate the following steps at: coarser under the
-// first, finer over the second.
-func (p *Plugin) Thresholds() (under, met float32) {
-	return p.Res.Settings.Under, p.Res.Settings.Met
-}
-
-// SetSampling sets how long the frame rate is averaged over before the pictures follow it
-// (Settings.Sampling), LeastSampling up to MostSampling; zero or less, DefaultSampling.
-func (p *Plugin) SetSampling(d time.Duration) {
-	if d <= 0 {
-		d = DefaultSampling
-	}
-	d = min(max(d, LeastSampling), MostSampling)
-	p.Res.Settings.Sampling = d
-	p.adapter.sampling = d
-}
-
-// Sampling is how long the frame rate is averaged over before the pictures follow it.
-func (p *Plugin) Sampling() time.Duration { return p.Res.Settings.Sampling }
-
-// Budget is the time a frame may take, which the resolution follows.
-func (p *Plugin) Budget() time.Duration { return p.Res.Settings.FrameBudget }
-
-// ShowLayers shows the layers' edges over every picture drawn in layers by profile, or hides
-// them (Knobs.ShowLayers).
-func (p *Plugin) ShowLayers(profile Profile, shown bool) { p.knobs(profile).ShowLayers = shown }
-
-// LayersShown reports whether profile's layers' edges are shown.
-func (p *Plugin) LayersShown(profile Profile) bool { return p.knobs(profile).ShowLayers }
-
 // still stops profile's following: a hand on a knob the adapter turns
 func (p *Plugin) still(profile Profile) {
 	p.knobs(profile).Strategy = Still
@@ -359,12 +218,12 @@ func (p *Plugin) Settings() []control.Setting {
 	out := []control.Setting{
 		control.Switch{
 			Label: "Scroll zones",
-			Get:   p.EdgesScroll,
+			Get:   p.read.EdgesScroll,
 			Set:   func(on bool) command.Command { return EdgeScroll{On: on} },
 		},
 		control.Switch{
 			Label: "Show the zones",
-			Get:   p.ZonesShown,
+			Get:   p.read.ZonesShown,
 			Set:   func(on bool) command.Command { return Zones{Shown: on} },
 		},
 		control.Range{
@@ -373,7 +232,7 @@ func (p *Plugin) Settings() []control.Setting {
 			Max:   24,
 			Step:  1,
 			Get: func() float64 {
-				if s := p.EdgeSpeed(); s > 0 {
+				if s := p.read.EdgeSpeed(); s > 0 {
 					return float64(s)
 				}
 				return DefaultScrollSpeed

@@ -57,8 +57,8 @@ type Renderer struct {
 
 	opts     render.DrawMeshOptions
 	layOpts  render.DrawMeshOptions
-	uniforms map[string][]float32 // boxed once in the options
-	sizes    []size               // the screens drawn on of late, by size
+	uniforms map[string]any // boxed once in the options
+	sizes    []size         // the screens drawn on of late, by size
 }
 
 // what the clouds are drawn with on a screen w by h: their image cw by ch, how deep they lie
@@ -77,7 +77,7 @@ const keptSizes = 8
 
 // New is the layer of clouds of the weather air gives, seen from above.
 func New(weather func() air.Weather, layer air.Layer) *Renderer {
-	r := &Renderer{layer: layer, air: weather, uniforms: map[string][]float32{},
+	r := &Renderer{layer: layer, air: weather, uniforms: map[string]any{},
 		coarse: DefaultCoarse}
 	r.opts.Uniforms = map[string]any{}
 	return r
@@ -257,13 +257,13 @@ func (r *Renderer) standsUp(u render.Uniforms) bool {
 }
 
 func (r *Renderer) set(name string, v ...float32) {
-	s, ok := r.uniforms[name]
-	if !ok || len(s) != len(v) {
-		s = make([]float32, len(v))
-		r.uniforms[name] = s
+	u, ok := r.uniforms[name]
+	if s, _ := u.([]float32); !ok || len(s) != len(v) {
+		u = make([]float32, len(v))
+		r.uniforms[name] = u
 	}
-	copy(s, v)
-	r.opts.Uniforms[name] = s
+	copy(u.([]float32), v)
+	r.opts.Uniforms[name] = u
 }
 
 func flag(on bool) float32 {

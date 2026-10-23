@@ -54,10 +54,10 @@ func newHill(t *testing.T) aHill {
 	})
 	grid := grid.DefaultGrids{}.Square(8, 8, 32)
 	b := board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	b.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	b.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	p := topography.NewPlugin(w, b, nil, topography.Config{})
 	terrain := topotest.Drawn(t, p)[0]
-	p.Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
+	p.Write().Relief().SetHeights(ground.MeanOfCells(grid, func(c cell.ID) float64 {
 		if x, y, _ := grid.Coords(c); x >= 3 && x <= 4 && y >= 3 && y <= 4 {
 			return 90
 		}
@@ -68,8 +68,8 @@ func newHill(t *testing.T) aHill {
 		Tilt:       true,
 		Cell:       32,
 		HeightUnit: 1,
-		Cage:       p,
-	}).New(cameras.Isometrically, camera.Config{})
+		Cage:       p.Read(0),
+	}).Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(320, 240)
 	cam.MoveTo(0, 0)
 	cam.CenterOn(128, 128, 0)
@@ -80,7 +80,7 @@ func newHill(t *testing.T) aHill {
 	vw, vh := cam.Viewport()
 	for sy := float32(0); sy < vh; sy++ {
 		hx, hy, _, ok := picker.Pick(vw/2, sy)
-		if !ok || p.Relief().At(geom.NewVec(float64(hx), float64(hy))) < 20 {
+		if !ok || p.Write().Relief().At(geom.NewVec(float64(hx), float64(hy))) < 20 {
 			continue
 		}
 		ux, uy := cam.Unproject(vw/2, sy, 0)
@@ -95,8 +95,8 @@ func newHill(t *testing.T) aHill {
 	depth := render.NewDepth()
 	pix := make([]byte, 4*int(vw)*int(vh))
 	u := render.UniformsOf(map[string]any{"LightWay": []float32{0.4, 0.3, 0.8}, "LightStrength": []float32{1}, "LightColor": []float32{1, 1, 1}, "Ambience": []float32{0.3, 0.3, 0.3}})
-	look := w.Look().(world.DirectLook)
-	h := aHill{relief: p.Relief(), look: look, cam: cam}
+	look := w.Read(0).Look().(world.DirectLook)
+	h := aHill{relief: p.Write().Relief(), look: look, cam: cam}
 	h.slope, h.behind = seen[len(seen)/2][0], seen[len(seen)/2][1]
 	h.draw = func(lay func(f *render.Frame)) []byte {
 		screen.Clear()

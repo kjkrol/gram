@@ -20,8 +20,8 @@ type Atmosphere interface {
 // WithAtmosphere puts the board under a's weather: what sways leans with the wind and the clouds'
 // shadows lie on its ground. Call it after any other Map or Look is set, before the first frame.
 func (p *Plugin) WithAtmosphere(a Atmosphere) *Plugin {
-	p.WithMap(&windyMap{Map: p.Map(), sky: a, clouds: &draw.Clouds{}})
-	p.worldPlugin.SetLook(windyLook{Look: p.worldPlugin.Look(), sky: a})
+	p.WithMap(&windyMap{Map: p.board.mapping, sky: a, clouds: &draw.Clouds{}})
+	p.worldPlugin.Write().SetLook(windyLook{Look: p.worldPlugin.Read(0).Look(), sky: a})
 	return p
 }
 

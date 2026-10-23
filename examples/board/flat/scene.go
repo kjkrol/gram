@@ -51,14 +51,14 @@ var (
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	a.board.WithAtmosphere(a.atmosphere)
-	a.vision.WithViews(render.Show(a.selection.IsSelected))
+	a.board.WithAtmosphere(a.atmosphere.Read(0))
+	a.vision.WithViews(render.Show(a.selection.Read(0).IsSelected))
 
-	paused := func() bool { return a.world.Clock().State().Paused }
-	cam := a.cameras.New(cameras.FromAbove, camera.Config{})
+	paused := func() bool { return a.world.Read(0).Clock().State().Paused }
+	cam := a.cameras.Write().New(cameras.FromAbove, camera.Config{})
 	return ui.Layers(
-		ui.Image(render.NewFeed(cam, a.world.Picture())).Input(a.players.Through(a.player)),
-		ui.Drawer(a.world.Clock().HUD()),
+		ui.Image(render.NewFeed(cam, a.world.Read(0).Picture())).Input(a.players.Through(a.player)),
+		ui.Drawer(a.world.Read(0).Clock().HUD()),
 		ui.TopMiddle(beside(a.atmosphere.Bar(), paused)).Margin(8),
 		ui.TopRight(ui.Layers(
 			ui.Center(a.minimap.For(cam, a.player.ID).Masked(ui.Circle).Border(minimapRim, 2)).

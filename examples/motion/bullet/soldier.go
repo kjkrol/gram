@@ -21,14 +21,14 @@ var _ board.Figure = soldier{}
 
 func (soldier) Define(b *board.Plugin) {
 	units(b).Define(SoldierKind, unit.Mover{Domain: cell.Land}, walking(),
-		ceremony.Plays(b.World().Roles().Named(MortalRole)),
+		ceremony.Plays(b.Read(0).World().Roles().Named(MortalRole)),
 		comp.Const(world.Velocity{Dir: geom.NewVec(1, 0)}),
 		comp.Const(world.Eye{Height: 16}))
 }
 
 func (soldier) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[unitRow](w.Kinds(), SoldierKind), unitSize, armed(soldierColor)).
-		Under(w.Effects().Named(WoundedEf), armed(paleColor)).
+		Under(w.Write().Effects().Named(WoundedEf), armed(paleColor)).
 		Turning()
 }
 

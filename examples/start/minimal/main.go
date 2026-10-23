@@ -123,7 +123,7 @@ func (a *arena) spawnUnits() {
 		vel.SetDelta(geom.NewVec(rng.Float64()*200-100, rng.Float64()*200-100))
 		entries[i] = boxKind.Entry(boxRow{pos: placement.Place(i, boxCount), vel: vel})
 	}
-	a.world.Seed(entries...)
+	a.world.Write().Seed(entries...)
 }
 
 func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {
@@ -152,7 +152,8 @@ var (
 
 func (m *mainScene) screen() *ui.Element {
 	a := m.arena
-	view := render.NewFeed(a.cameras.New(cameras.FromAbove, camera.Config{}), a.world.Picture())
+	view := render.NewFeed(a.cameras.Write().New(cameras.FromAbove, camera.Config{}),
+		a.world.Read(0).Picture())
 	return ui.Layers(
 		ui.Blank().Fill(backgroundColor),
 		ui.Image(view).Input(a.players.Through(a.player)),

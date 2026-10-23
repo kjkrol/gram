@@ -33,7 +33,7 @@ func TestScan_FarOffAnObserverSeesNothing(t *testing.T) {
 		},
 	})
 	eyed := &anchor{x: 1200, y: 256}
-	w.Anchor(eyed)
+	w.Write().Anchor(eyed)
 	v := vision.NewPlugin(w)
 	ctx := &installCtx{ecs: goke.New()}
 	if err := w.Install(ctx); err != nil {
@@ -50,7 +50,7 @@ func TestScan_FarOffAnObserverSeesNothing(t *testing.T) {
 		comp.Const(vision.Sighted{}),
 	})
 	kind.Define[spawn](w.Kinds(), "target", kind.Spec{comp.Load(at), comp.Const(world.Velocity{})})
-	w.Seed(kind.Named[spawn](w.Kinds(), "observer").Entry(spawn{x: 1200, y: 250}),
+	w.Write().Seed(kind.Named[spawn](w.Kinds(), "observer").Entry(spawn{x: 1200, y: 250}),
 		kind.Named[spawn](w.Kinds(), "target").Entry(spawn{x: 1300, y: 250}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
@@ -68,7 +68,7 @@ func TestScan_FarOffAnObserverSeesNothing(t *testing.T) {
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
 		w.RunPlan(rc, d)
 		v.RunPlan(rc, d)
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	seen := func() uint8 {
 		for query.All(); query.Next(); {

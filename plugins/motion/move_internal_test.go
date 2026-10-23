@@ -1,8 +1,10 @@
 package motion
 
 import (
+	"cmp"
 	"math"
 	"math/rand"
+	"slices"
 	"testing"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/kjkrol/aabbworld/plane"
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/sector"
 	"github.com/kjkrol/uid"
 )
 
@@ -191,6 +194,168 @@ func TestClampStep_ScalesOnlyPastTheLimit(t *testing.T) {
 		got, want := clampStep(step, max), byHypot(step, max)
 		if math.Abs(got.X-want.X) > 1e-12 || math.Abs(got.Y-want.Y) > 1e-12 {
 			t.Errorf("clampStep(%v, %v) = %v, want %v as Hypot has it", step, max, got, want)
+		}
+	}
+}
+
+// stepwise moves every box by Space.Move alone: what the move system's runs must match
+type stepwise struct{ *moveSystem }
+
+func (s stepwise) Update(cb *goke.CmdBuf, d time.Duration) {
+	for s.moveQuery.Paced(d); s.moveQuery.Next(); {
+		cursor, step := s.moveQuery.Cursor(), s.moveQuery.Dt()
+		dt, reach := step.Seconds(), float64(max(step/d, 1))
+		bases, drifts := s.base.Slice(cursor), s.drift.Slice(cursor)
+		marked := s.outside.Present(cursor)
+		for i, id := range cursor.IDs {
+			rate := bases[i].Vel.Delta()
+			if drifts != nil {
+				rate.X += drifts[i].X
+				rate.Y += drifts[i].Y
+			}
+			by := clampStep(geom.NewVec(rate.X*dt, rate.Y*dt), bases[i].Pos.MaxStep()*reach)
+			if by.X == 0 && by.Y == 0 {
+				continue
+			}
+			if !s.space.Move(&bases[i].Pos.AABB, by) && !marked {
+				cb.AddOne(id, s.outsideID, Outside{})
+			}
+		}
+	}
+	s.rebuild()
+}
+
+type lying struct {
+	id      uid.UID64
+	box     [8]uint64
+	outside bool
+}
+
+// crowd is boxes of every size, speed, strafe and drift, near and in a band paced by four and
+// beyond the bands, moved by the move system or by the stepwise one
+type crowd struct {
+	ecs     *goke.ECS
+	all     *goke.Query
+	base    goke.Comp[world.Base]
+	outside goke.OptComp[Outside]
+}
+
+func newCrowd(t *testing.T, edges aabbworld.Edges, alone bool) *crowd {
+	t.Helper()
+	space, err := aabbworld.NewSpace(aabbworld.Config{
+		Width: 400, Height: 300, Edges: edges, BucketSize: 32,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rng := rand.New(rand.NewSource(11))
+	c := &crowd{ecs: goke.New()}
+	var drift goke.Comp[Drift]
+	c.ecs.Setup(goke.SystemFn{OnInit: func(si *goke.SysInit) {
+		for k, f := range []*goke.Factory{
+			si.NewFactory(&c.base),
+			si.NewFactory(&c.base, &drift),
+			si.NewFactory(&c.base, &goke.Comp[sector.Band2]{}),
+			si.NewFactory(&c.base, &drift, &goke.Comp[sector.Band2]{}),
+			si.NewFactory(&c.base, &goke.Comp[sector.Off]{}),
+		} {
+			f.Create(150)
+			for f.Next() {
+				for i := range c.base.Slice(&f.Cursor) {
+					c.base.Slice(&f.Cursor)[i] = randomBase(rng, space)
+				}
+				if k%2 == 1 {
+					for i := range drift.Slice(&f.Cursor) {
+						drift.Slice(&f.Cursor)[i] = Drift{X: rng.Float64()*200 - 100, Y: -40}
+					}
+				}
+			}
+		}
+		c.all = si.NewQueryBuilder(&c.base).Optional(&c.outside).Build()
+	}})
+	var steps uint64
+	sys := newMoveSystem(space)
+	sys.pace = goke.PacedBy(func() uint64 { return steps },
+		goke.Never[sector.Off](), goke.Every[sector.Band2](4))
+	var handle goke.Runnable
+	if alone {
+		handle = c.ecs.RegSys(stepwise{sys})
+	} else {
+		handle = c.ecs.RegSys(sys)
+	}
+	c.ecs.SetPlan(func(ctx goke.RunCtx, d time.Duration) {
+		ctx.Run(handle, d)
+		ctx.Sync()
+		steps++
+	})
+	return c
+}
+
+func randomBase(rng *rand.Rand, space *aabbworld.Space) world.Base {
+	side := []float64{1, 4, 20}[rng.Intn(3)]
+	at := geom.NewVec(rng.Float64()*400, rng.Float64()*300)
+	b := world.Base{Pos: world.Position{AABB: plane.NewAABB(at, side, side*(0.5+rng.Float64()))}}
+	space.Place(&b.Pos.AABB)
+	if rng.Intn(6) == 0 {
+		return b
+	}
+	angle := rng.Float64() * 2 * math.Pi
+	b.Vel = world.Velocity{
+		Dir:   geom.NewVec(math.Cos(angle), math.Sin(angle)),
+		Value: rng.Float64()*600 - 200,
+	}
+	if rng.Intn(3) == 0 {
+		b.Vel.Side = rng.Float64()*100 - 50
+	}
+	return b
+}
+
+func (c *crowd) state() []lying {
+	var all []lying
+	for c.all.All(); c.all.Next(); {
+		cursor := c.all.Cursor()
+		marked := c.outside.Present(cursor)
+		for i, b := range c.base.Slice(cursor) {
+			box := b.Pos.AABB
+			all = append(all, lying{id: cursor.IDs[i], outside: marked, box: [8]uint64{
+				math.Float64bits(box.TopLeft.X), math.Float64bits(box.TopLeft.Y),
+				math.Float64bits(box.BottomRight.X), math.Float64bits(box.BottomRight.Y),
+				math.Float64bits(box.Size.X), math.Float64bits(box.Size.Y),
+				math.Float64bits(box.Overhang.X), math.Float64bits(box.Overhang.Y),
+			}})
+		}
+	}
+	slices.SortFunc(all, func(a, b lying) int { return cmp.Compare(a.id, b.id) })
+	return all
+}
+
+func TestMoveSystem_MovesEveryBoxAsSpaceMoveDoesAlone(t *testing.T) {
+	for _, edges := range []aabbworld.Edges{
+		0, aabbworld.Torus, aabbworld.OpenX | aabbworld.OpenY, aabbworld.WrapX | aabbworld.OpenY,
+	} {
+		runs, alone := newCrowd(t, edges, false), newCrowd(t, edges, true)
+		var got []lying
+		for tick := range 200 {
+			runs.ecs.Tick(time.Second / 60)
+			alone.ecs.Tick(time.Second / 60)
+			got = runs.state()
+			if want := alone.state(); !slices.Equal(got, want) {
+				i := 0
+				for i < min(len(got), len(want)) && got[i] == want[i] {
+					i++
+				}
+				t.Fatalf("edges %b, tick %d: %d boxes, %d stepwise, apart from %d on",
+					edges, tick, len(got), len(want), i)
+			}
+		}
+		left := 0
+		for _, m := range got {
+			if m.outside {
+				left++
+			}
+		}
+		if open := edges&(aabbworld.OpenX|aabbworld.OpenY) != 0; open != (left > 0) {
+			t.Errorf("edges %b: %d boxes outside after 200 ticks", edges, left)
 		}
 	}
 }

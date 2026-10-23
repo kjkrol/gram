@@ -161,6 +161,11 @@ the library declare `@group(3) @binding(k) var <name>: texture_2d<f32>;`; WGSL r
 through `linear` (clamped) or `wrapped` (group 3's sampler, repeating: a ring buffer's seam). A
 source's Compose hands it, `f.Image(name, img)`; the composer boxes it with the uniforms
 (`c.boxed`, nil where a frame set none), so every Direct gets it through `u.Into(opts.Uniforms)`
+(putting a `[]float32` into a `map[string]any` boxes its header anew, one allocation a call: a
+Direct keeps its own uniforms boxed, `own map[string]any`, made and boxed once a name and length,
+and puts the same value into `opts.Uniforms` after `u.Into` every frame; a value drawn in place,
+`StarView` over `f.view`, is boxed once where the options are made; a blit's uniforms are
+`gpu.blitOf(linear)`, shared and never written, since a draw copies them; wave 4)
 untouched, `Shader.pack` skips it and `DrawMesh`/`DrawTrianglesShader` bind it (`frameOf`); the
 gpu side is `Draw.Frame`/`MeshDraw.Frame`, one cached group a set of textures. An image whose
 pixels need the GPU — baked, or written from the CPU — is `img.Defer(fill)`: filled the next time
@@ -248,7 +253,12 @@ already on the frame (`Frame.Uniformed`). The light by the sun's height is `sky.
 (vault, sun, moon, stars) assembled into one shader with the clouds; a game's `atmosphere.Sky`
 sets the parts it draws its own way, the Earth's in the rest. The vault is handed `s.air`, the
 air's colour the fog and the water share: a vault far from it at the horizon shows a seam with
-the ground's fog, and the water reflects the air, never the vault. gogpu's compiler (naga
+the ground's fog, and the water reflects the air, never the vault. An entry point takes each
+builtin once: a fragment shader reading the pixel takes it as its input struct's
+`@builtin(position)` field (`s.clip.xy`), never also as a parameter; WGSL forbids it, naga and
+Vulkan let it by, Metal refuses the MSL (2026-10-21, every demo on an M1 Max); `wgsl_test.go`
+guards it. On Metal gogpu ignores `@invariant` (it sets no preserveInvariance), and a shader
+writing `frag_depth` should draw with a depth buffer. gogpu's compiler (naga
 v0.19.0 and v0.19.1) leaves a WGSL `var` without an initialiser undefined (garbage, not zero: a
 `var c: CloudOver;` returned early by a branch came out as stray full shadows in single pixels,
 2026-10-16; write `var c = CloudOver(...)`) and

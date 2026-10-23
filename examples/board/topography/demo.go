@@ -154,7 +154,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		WithMotion(a.motion).
 		WithCollision(a.collision).
 		WithLog(log.Default())
-	a.gravity = gravity.NewPlugin(a.world, a.motion, gravity.Config{}).WithSurfaces(a.board.Footing)
+	a.gravity = gravity.NewPlugin(a.world, a.motion, gravity.Config{}).WithSurfaces(a.board.Read(0).Footing)
 	a.topography = topography.NewPlugin(a.world, a.board, a.light, topography.Config{
 		Shaping: topography.Shaping{
 			Step:    scale.Units(40),
@@ -166,7 +166,7 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Clearance: deckThickness + scale.Units(1),
 		Reshape:   scale.Units(200),
 		High:      scale.Units(200),
-	}}).WithShaper(a.topography)
+	}}).WithShaper(a.topography.Write())
 	a.selection = selection.NewPlugin(a.world)
 	a.driving = driving.NewPlugin(a.world, a.motion, a.selection).WithGround(a.board)
 	a.nav = navigation.NewPlugin(a.board, a.world, a.motion, a.selection, a.driving).
@@ -203,8 +203,8 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Perspective: true,
 		Cell:        CellSize,
 		HeightUnit:  1,
-		Cage:        a.topography,
-		Levers:      []cameras.Lever{a.topography, a.light, a.atmosphere},
+		Cage:        a.topography.Read(0),
+		Levers:      []cameras.Lever{a.topography.Write(), a.light.Write(), a.atmosphere.Write()},
 		Detail: camera.Detail{
 			Sight:  scale.Units(30_000),
 			Fog:    scale.Units(6_000),
@@ -213,22 +213,22 @@ func (a *arena) makePlugins(w *world.Plugin) {
 		Tactical: cameras.Knobs{Strategy: cameras.InLayers, Layers: true},
 		Riding:   cameras.Knobs{Strategy: cameras.InLayers, Layers: true},
 	})
-	a.minimap = minimap.NewPlugin(a.world, a.topography, minimap.Config{
+	a.minimap = minimap.NewPlugin(a.world, a.topography.Write(), minimap.Config{
 		Reach:   scale.Units(12_000),
 		Turning: true,
 	})
 	a.telemetry = telemetry.NewPlugin(a.world).
-		With(a.atmosphere.Reporter(), a.light.Reporter(), a.topography.Reporter(),
-			a.cameras.Reporter(), a.world.Sectors(), a.world.Seen())
+		With(a.atmosphere.Read(0).Reporter(), a.light.Read(0).Reporter(), a.topography.Read(0).Reporter(),
+			a.cameras.Read(0).Reporter(), a.world.Read(0).Sectors(), a.world.Read(0).Seen())
 	a.players = players.NewPlugin(a.world, a.collision, a.cameras, a.board, a.selection,
 		a.nav, a.driving,
 		a.atmosphere, a.topography, a.vision, a.bridges, a.minimap, a.light)
-	a.topography.AdaptCare(true)
-	a.light.AdaptShadows(true)
-	a.atmosphere.ShowClouds(atmosphere.AllBodies)
+	a.topography.Write().AdaptCare(true)
+	a.light.Write().AdaptShadows(true)
+	a.atmosphere.Write().ShowClouds(atmosphere.AllBodies)
 	a.atmosphere.CastClouds(atmosphere.CloudShadows{Ground: true, Figures: true, High: true})
-	a.cameras.ShowZones(true)
-	a.telemetry.SetMode(telemetry.Extended)
+	a.cameras.Write().ShowZones(true)
+	a.telemetry.Write().SetMode(telemetry.Extended)
 }
 
 func (a *arena) definePlayers() error {
@@ -238,17 +238,17 @@ func (a *arena) definePlayers() error {
 }
 
 func (a *arena) defineEffects() {
-	night := a.atmosphere.Calendar().Config().DayRealTime / 2
-	a.world.Effects().Define(BloodMoonEf, effect.Spec{effect.Lasts(night),
+	night := a.atmosphere.Read(0).Calendar().Config().DayRealTime / 2
+	a.world.Write().Effects().Define(BloodMoonEf, effect.Spec{effect.Lasts(night),
 		effect.Alter(func(m *sky.Moon) {
 			m.Color, m.Face = render.Light{1, 0.25, 0.2}, render.Light{1, 0.3, 0.25}
 			m.Strength *= 2
 		})})
-	a.world.Effects().Define(WindwardRainEf, effect.Spec{effect.Lasts(2 * time.Second),
+	a.world.Write().Effects().Define(WindwardRainEf, effect.Spec{effect.Lasts(2 * time.Second),
 		effect.Alter(func(w *weathering.Wring) { w.Falls = 0.8 })})
-	a.world.Effects().Define(GatheringEf, effect.Spec{effect.Lasts(2 * time.Second),
+	a.world.Write().Effects().Define(GatheringEf, effect.Spec{effect.Lasts(2 * time.Second),
 		effect.Alter(func(w *weathering.Wring) { w.Gathers = 0.05 })})
-	a.world.Effects().Define(SilhouetteEf, effect.Spec{
+	a.world.Write().Effects().Define(SilhouetteEf, effect.Spec{
 		effect.Alter(func(s *light.Shadow) { s.Cast = light.Silhouette })})
 }
 
@@ -261,28 +261,29 @@ func (a *arena) defineRules() {
 	a.world.Roles().Define(LunarRole, act.Branch[sky.Moonrise]{
 		Name: "a blood moon rises",
 		When: cond.Self.If(sky.FullMoon()),
-		Then: act.Self.Put(a.world.Effects().Named(BloodMoonEf)),
+		Then: act.Self.Put(a.world.Write().Effects().Named(BloodMoonEf)),
 	})
 	a.atmosphere.Plays(a.world.Roles().Named(LunarRole))
 	a.world.Roles().Define(UplandRole,
 		act.Branch[weathering.Overhead]{
 			Name: "rain on the windward slopes",
 			When: cond.Self.If(weathering.Reaches(0.9)).And(cond.Self.If(weathering.Clouded(0.6))),
-			Then: act.Self.Put(a.world.Effects().Named(WindwardRainEf)),
+			Then: act.Self.Put(a.world.Write().Effects().Named(WindwardRainEf)),
 		},
 		act.Branch[weathering.Overhead]{
 			Name: "clouds over the hills of an afternoon",
 			When: cond.Self.If(weathering.Hours(12*time.Hour, 17*time.Hour)).
 				And(cond.Self.If(weathering.Damp(0.3))).
 				And(cond.Self.If(weathering.Reaches(0.7))),
-			Then: act.Self.Put(a.world.Effects().Named(GatheringEf)),
+			Then: act.Self.Put(a.world.Write().Effects().Named(GatheringEf)),
 		})
 }
 
 func (a *arena) defineCommands() {
-	bleed := ceremony.Toggle(a.world.Effects().Named(BloodMoonEf)).On(a.atmosphere)
+	bleed := ceremony.Toggle(a.world.Write().Effects().Named(BloodMoonEf)).On(a.atmosphere)
 	a.world.Commands().Define(BleedCmd, bleed)
-	outline := ceremony.Toggle(a.world.Effects().Named(SilhouetteEf)).On(a.selection.Selected())
+	outline := ceremony.Toggle(a.world.Write().Effects().Named(SilhouetteEf)).
+		On(a.selection.Selected())
 	a.world.Commands().Define(SilhouetteCmd, outline)
 }
 
@@ -326,14 +327,14 @@ func (a *arena) spawn() error {
 	if err != nil {
 		return err
 	}
-	a.topography.Seed(level.Heights())
+	a.topography.Write().Seed(level.Heights())
 	if err := board.Spawn[fordRow](level, nil); err != nil {
 		return err
 	}
 	if err := board.Spawn[lanternRow](level, nil); err != nil {
 		return err
 	}
-	if err := a.bridges.Spawn(level); err != nil {
+	if err := a.bridges.Write().Spawn(level); err != nil {
 		return err
 	}
 	return board.Spawn[unitRow](level, board.Sides{

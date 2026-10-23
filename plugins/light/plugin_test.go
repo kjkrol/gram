@@ -16,6 +16,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
@@ -45,6 +46,7 @@ func (c *installCtx) ECS() *goke.ECS         { return c.ecs }
 func (c *installCtx) Hosts(...host.Host)     {}
 func (c *installCtx) Draws(...render.Source) {}
 func (c *installCtx) Looks(func())           {}
+func (*installCtx) Pool() *parallel.Pool     { return nil }
 
 type spot struct{ x, y float64 }
 
@@ -83,7 +85,7 @@ func litWorld(t *testing.T, cfg light.Config, define func(w *world.Plugin, p *li
 		w.RunPlan(rc, d)
 		p.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	return w, p, func() { ctx.ecs.Tick(time.Second / 60) }
 }
@@ -102,11 +104,12 @@ func lampKind(w *world.Plugin, name string, src light.Source) kind.Of[spot] {
 func TestPlugin_WithoutASunLightsEverythingWhiteAndCastsNoShadow(t *testing.T) {
 	_, p, tick := litWorld(t, light.Config{}, nil)
 	tick()
-	lit := p.At(500, 500, 0)
+	lit := p.Read(0).At(500, 500, 0)
 	if lit.Light != (render.Light{1, 1, 1}) || lit.Takes != render.TakesAll {
 		t.Errorf("the ground is lit %+v, want white, taking all", lit)
 	}
-	if _, ok := p.Distant().ShadowOf(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(4, 4)), world.Z{},
+	if _, ok := p.Read(0).Distant().ShadowOf(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(4, 4)),
+		world.Z{},
 		nil); ok {
 		t.Error("a world without a sun casts a shadow")
 	}
@@ -115,27 +118,27 @@ func TestPlugin_WithoutASunLightsEverythingWhiteAndCastsNoShadow(t *testing.T) {
 func TestPlugin_ShinesTheScenesSunAndAnEffectOnItTurnsItsSource(t *testing.T) {
 	var eclipse effect.Effect
 	w, p, tick := litWorld(t, light.Config{}, func(w *world.Plugin, p *light.Plugin) {
-		w.Effects().Define("eclipse", effect.Spec{effect.Lasts(time.Hour),
+		w.Write().Effects().Define("eclipse", effect.Spec{effect.Lasts(time.Hour),
 			effect.Alter(func(s *light.Source) { s.Strength = 0.1 })})
-		eclipse = w.Effects().Named("eclipse")
+		eclipse = w.Write().Effects().Named("eclipse")
 	})
 	p.WithDistant(light.Distant{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3})
 	tick()
-	if got := p.At(10, 10, 0).Light[0]; !near(got, 0.9) {
+	if got := p.Read(0).At(10, 10, 0).Light[0]; !near(got, 0.9) {
 		t.Errorf("under the scene's sun the ground is lit %v, want 0.9", got)
 	}
-	if !w.Carrier().Put(command.Nobody, ceremony.Put(eclipse).On(p)) {
+	if !w.Write().Carrier().Put(command.Nobody, ceremony.Put(eclipse).On(p)) {
 		t.Fatal("the world carries no command for the light plugin")
 	}
 	tick()
 	tick()
-	if got := p.Distant().Strength; !near(got, 0.06) {
+	if got := p.Read(0).Distant().Strength; !near(got, 0.06) {
 		t.Errorf("under the eclipse the sun is %v strong, want a tenth of 0.6", got)
 	}
-	w.Carrier().Put(command.Nobody, ceremony.Take(eclipse).On(p))
+	w.Write().Carrier().Put(command.Nobody, ceremony.Take(eclipse).On(p))
 	tick()
 	tick()
-	if got := p.Distant().Strength; !near(got, 0.6) {
+	if got := p.Read(0).Distant().Strength; !near(got, 0.6) {
 		t.Errorf("the eclipse over, the sun is %v strong, want 0.6 again", got)
 	}
 }
@@ -150,38 +153,37 @@ func TestPlugin_RefusesTwoDistantLights(t *testing.T) {
 			comp.Const(light.Source{Strength: 1, Ambient: 1}),
 			comp.Const(light.Shining{Light: sky.DefaultSun}),
 		})
-		w.Seed(kind.Named[spot](w.Kinds(), "star").Entry(spot{100, 100}))
+		w.Write().Seed(kind.Named[spot](w.Kinds(), "star").Entry(spot{100, 100}))
 	})
 	p.WithDistant(sky.DefaultSun)
-	tick()
 	defer func() {
 		if msg, _ := recover().(string); !strings.Contains(msg, "two distant lights") {
 			t.Errorf("two distant lights shining panic %q, want them refused", msg)
 		}
 	}()
-	p.Distant()
+	tick() // the light takes its sources as the tick ends
 }
 
 func TestPlugin_LampsLightWhatLiesInTheirReachFadingWithTheDistance(t *testing.T) {
 	_, p, tick := litWorld(t, light.Config{}, func(w *world.Plugin, p *light.Plugin) {
 		torch := lampKind(w, "torch", light.Source{Color: render.Light{1, 0.5, 0}, Strength: 2,
 			Reach: 100})
-		w.Seed(torch.Entry(spot{500, 500}))
+		w.Write().Seed(torch.Entry(spot{500, 500}))
 	})
 	p.WithDistant(light.Distant{Dir: [3]float32{0, 0, 1}, Ambient: 0.5})
 	tick()
-	p.Begin(&render.Frame{}, cameratest.NewFromSpace(1000, 1000, 0))
-	if lit := p.At(500, 500, 0); !near(lit.Lamps[0], 2) || !near(lit.Lamps[1], 1) ||
+	p.Write().Begin(&render.Frame{}, cameratest.NewFromSpace(1000, 1000, 0))
+	if lit := p.Read(0).At(500, 500, 0); !near(lit.Lamps[0], 2) || !near(lit.Lamps[1], 1) ||
 		!near(lit.Light[0], 2.5) {
 		t.Errorf("at the torch the light is %+v, want the sky's 0.5 and the torch's 2, 1, 0", lit)
 	}
-	if lit := p.At(550, 500, 0); !near(lit.Lamps[0], 0.5) {
+	if lit := p.Read(0).At(550, 500, 0); !near(lit.Lamps[0], 0.5) {
 		t.Errorf("halfway to the torch's reach its light is %v, want a quarter of 2", lit.Lamps)
 	}
-	if lit := p.At(650, 500, 0); lit.Lamps != (render.Light{}) {
+	if lit := p.Read(0).At(650, 500, 0); lit.Lamps != (render.Light{}) {
 		t.Errorf("past the torch's reach its light is %v, want none", lit.Lamps)
 	}
-	if n := len(p.Lamps()); n != 1 {
+	if n := len(p.Read(0).Lamps()); n != 1 {
 		t.Errorf("%d lamps, want the torch", n)
 	}
 }
@@ -207,13 +209,13 @@ func TestPlugin_BeginPicksTheLampsNearestTheCameraAndHandsTheFrameThem(t *testin
 		for i := range 10 {
 			entries = append(entries, torch.Entry(spot{float64(50 + 90*i), 500}))
 		}
-		w.Seed(entries...)
+		w.Write().Seed(entries...)
 	})
 	tick()
 	cam := cameratest.NewFromSpace(1000, 1000, 0)
 	cam.SetViewport(200, 200)
 	cam.CenterOn(900, 500, 0)
-	c := render.NewComposer(source(func(f *render.Frame) { p.Begin(f, cam) }))
+	c := render.NewComposer(source(func(f *render.Frame) { p.Write().Begin(f, cam) }))
 	c.DrawWorld(nil, cam)
 	got := c.Uniforms()
 	if got["LampCount"][0] != light.MaxLamps || got["Lamp0At"][0] != 860 ||
@@ -222,7 +224,7 @@ func TestPlugin_BeginPicksTheLampsNearestTheCameraAndHandsTheFrameThem(t *testin
 			"want 8 nearest 900: 860, 770 .. 230", got["LampCount"], got["Lamp0At"],
 			got["Lamp1At"], got["Lamp7At"])
 	}
-	if cast := p.Casting(); len(cast) != 2 || cast[0].X != 860 {
+	if cast := p.Read(0).Casting(); len(cast) != 2 || cast[0].X != 860 {
 		t.Errorf("casting %v, want the two nearest", cast)
 	}
 }
@@ -234,7 +236,7 @@ func TestPlugin_OfTakesWhatTheEntitysShadowSays(t *testing.T) {
 	var p *light.Plugin
 	joined := goke.SystemFn{OnInit: func(si *goke.SysInit) {
 		qb := si.NewQueryBuilder(&base)
-		p.Join(qb)
+		light.Lighting(p).Join(qb)
 		q = qb.Build()
 	}}
 	var tick func()
@@ -249,17 +251,17 @@ func TestPlugin_OfTakesWhatTheEntitysShadowSays(t *testing.T) {
 			comp.Const(light.Shadow{Cast: light.NoShadow, Take: render.Shines}),
 		})
 		plain = kind.Named[spot](w.Kinds(), "plain")
-		w.Seed(lantern.Entry(spot{500, 500}), plain.Entry(spot{500, 520}))
+		w.Write().Seed(lantern.Entry(spot{500, 500}), plain.Entry(spot{500, 520}))
 	}, joined)
 	p.WithDistant(light.Distant{Dir: [3]float32{0, 0, 1}, Ambient: 0.5})
 	tick()
-	p.Begin(&render.Frame{}, cameratest.NewFromSpace(1000, 1000, 0))
+	p.Write().Begin(&render.Frame{}, cameratest.NewFromSpace(1000, 1000, 0))
 	seen := 0
 	for q.All(); q.Next(); {
 		cur := q.Cursor()
 		for i := range cur.IDs {
 			box := base.Slice(cur)[i].Pos.AABB
-			lit := p.Of(cur, i, box, world.Z{}, render.Appearance{})
+			lit := p.Write().Of(cur, i, box, world.Z{}, render.Appearance{})
 			if box.TopLeft.Y == 520 { // the plain one
 				if lit.Takes != 0 || lit.Lamps != (render.Light{}) || lit.Light != (render.Light{1, 1, 1}) {
 					t.Errorf("what shines is lit %+v, want white, taking nothing", lit)
@@ -277,33 +279,33 @@ func TestPlugin_OfTakesWhatTheEntitysShadowSays(t *testing.T) {
 
 func TestPlugin_CommandsSwitchTheShadowsCoarseAndTheLampsOff(t *testing.T) {
 	w, p, tick := litWorld(t, light.Config{LampShadows: 3}, nil)
-	w.Carrier().Put(command.Nobody, light.CoarseShadows{On: true})
-	w.Carrier().Put(command.Nobody, light.LampShadows{Count: 0})
+	w.Write().Carrier().Put(command.Nobody, light.CoarseShadows{On: true})
+	w.Write().Carrier().Put(command.Nobody, light.LampShadows{Count: 0})
 	tick()
-	if !p.ShadowsCoarse() || p.LampShadows() != 0 {
-		t.Errorf("switched: coarse %v, lamps casting %d; want coarse, none", p.ShadowsCoarse(),
-			p.LampShadows())
+	if !p.Read(0).ShadowsCoarse() || p.Read(0).LampShadows() != 0 {
+		t.Errorf("switched: coarse %v, lamps casting %d; want coarse, none", p.Read(0).ShadowsCoarse(),
+			p.Read(0).LampShadows())
 	}
 	lamps := p.Settings()[2].(control.Switch)
 	if lamps.Get() {
 		t.Error("the lamps' setting says on with none casting")
 	}
-	w.Carrier().Put(command.Nobody, lamps.Set(true))
+	w.Write().Carrier().Put(command.Nobody, lamps.Set(true))
 	tick()
-	if p.LampShadows() != 3 || !lamps.Get() {
-		t.Errorf("switched again, %d lamps cast, want the Config's 3", p.LampShadows())
+	if p.Read(0).LampShadows() != 3 || !lamps.Get() {
+		t.Errorf("switched again, %d lamps cast, want the Config's 3", p.Read(0).LampShadows())
 	}
 	saved := p.Serializable().Persisted()
 	_, q, _ := litWorld(t, light.Config{LampShadows: 3}, nil)
 	loading := q.Serializable().Persisted()
 	*loading[0].(*[]byte) = append([]byte(nil), *saved[0].(*[]byte)...)
 	q.Restore()
-	if !q.ShadowsCoarse() || q.LampShadows() != 3 {
-		t.Errorf("loaded: coarse %v, lamps %d; want what was saved", q.ShadowsCoarse(),
-			q.LampShadows())
+	if !q.Read(0).ShadowsCoarse() || q.Read(0).LampShadows() != 3 {
+		t.Errorf("loaded: coarse %v, lamps %d; want what was saved", q.Read(0).ShadowsCoarse(),
+			q.Read(0).LampShadows())
 	}
 	var lines []string
-	p.Reporter().Report(func(label, value string) { lines = append(lines, label+": "+value) })
+	p.Read(0).Reporter().Report(func(label, value string) { lines = append(lines, label+": "+value) })
 	if len(lines) != 1 || lines[0] != "Light: sun 0.00\nlamps 0\nshadows of 0" {
 		t.Errorf("the panel says %v", lines)
 	}
@@ -324,26 +326,26 @@ func TestPlugin_AsksEveryKindToCastAPatchUnlessItSays(t *testing.T) {
 }
 
 func TestPlugin_AsALeverOfTheFrameBudgetDropsTheLampsShadowsThenBakesCoarseAndBack(t *testing.T) {
-	w, p, _ := litWorld(t, light.Config{LampShadows: 3}, nil)
-	_ = w
-	if p.Following() {
+	_, p, _ := litWorld(t, light.Config{LampShadows: 3}, nil)
+	rd, wr := p.Read(0), p.Write()
+	if wr.Following() {
 		t.Fatal("not adaptive, the shadows follow the frame budget")
 	}
-	p.AdaptShadows(true)
-	if !p.Following() || !p.Coarser() || p.LampShadows() != 0 || p.ShadowsCoarse() {
+	wr.AdaptShadows(true)
+	if !wr.Following() || !wr.Coarser() || rd.LampShadows() != 0 || rd.ShadowsCoarse() {
 		t.Fatalf("coarser once: lamps %d, coarse %v; want the lamps' shadows gone first",
-			p.LampShadows(), p.ShadowsCoarse())
+			rd.LampShadows(), rd.ShadowsCoarse())
 	}
-	if !p.Coarser() || !p.ShadowsCoarse() || p.Coarser() {
+	if !wr.Coarser() || !rd.ShadowsCoarse() || wr.Coarser() {
 		t.Fatalf("coarser twice: coarse %v; want the shadows coarse, then no further",
-			p.ShadowsCoarse())
+			rd.ShadowsCoarse())
 	}
-	if !p.Finer() || p.ShadowsCoarse() || p.LampShadows() != 0 {
-		t.Fatalf("finer once: coarse %v, lamps %d; want the shadows fine first", p.ShadowsCoarse(),
-			p.LampShadows())
+	if !wr.Finer() || rd.ShadowsCoarse() || rd.LampShadows() != 0 {
+		t.Fatalf("finer once: coarse %v, lamps %d; want the shadows fine first",
+			rd.ShadowsCoarse(), rd.LampShadows())
 	}
-	if !p.Finer() || p.LampShadows() != 3 || p.Finer() {
+	if !wr.Finer() || rd.LampShadows() != 3 || wr.Finer() {
 		t.Errorf("finer twice: lamps %d; want the Config's 3 back, then no further",
-			p.LampShadows())
+			rd.LampShadows())
 	}
 }

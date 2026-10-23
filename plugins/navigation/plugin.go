@@ -1,7 +1,12 @@
 package navigation
 
 import (
+	"cmp"
 	"fmt"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routes"
+	"github.com/kjkrol/gram/plugins/navigation/internal/routing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/spacing"
+	"github.com/kjkrol/gram/plugins/navigation/internal/traffic"
 	"time"
 
 	"github.com/kjkrol/ceremony/act"
@@ -32,24 +37,27 @@ type Plugin struct {
 	worldPlugin *world.Plugin
 	selected    tag.Tag[selection.Family]
 
-	board  *board.Board
+	board  *board.BoardRead
 	module *module
 
 	moves   command.Queue[MoveTo]
 	looks   command.Queue[LookAt]
 	routes  command.Queue[Routes]
 	onwards command.Queue[Onward]
-	given   givenQueues
-	finder  *pathFinder
+	given   traffic.GivenQueues
+	finder  *spacing.Finder
 
 	touches  host.PairRules[Touch]
 	crowd    []act.Rule
 	crowdSet bool
 
-	pathRenderer *pathRenderer
+	pathRenderer *routes.Renderer
 	collision    *collision.Plugin
 	spacing      Spacing
-	handKeeping  handKeeping
+	routers      int
+	handKeeping  traffic.HandKeeping
+	read         Read
+	write        Write
 	kept         *plugin.Kept[Settings]
 
 	Res Resources
@@ -77,12 +85,14 @@ func NewPlugin(
 		worldPlugin: worldPlugin,
 		selected:    selectionPlugin.Tags().Selected,
 	}
+	p.read.p, p.write.p = p, p
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.Self = world.NewSelf(worldPlugin, p)
 	drivingPlugin.WithKeeping(&p.handKeeping)
-	p.pathRenderer = newPathRenderer(boardPlugin.Board(), DefaultRouteStyle, p.selected).
-		WithHeights(boardPlugin.Heights).WithLook(worldPlugin.Look).WithStyles(worldPlugin.Styles)
-	p.pathRenderer.BindSpace(worldPlugin.Space())
+	p.pathRenderer = routes.NewRenderer(boardPlugin.Read(0).Board(), DefaultRouteStyle, p.selected).
+		WithHeights(boardPlugin.Read(0).Heights).WithLook(worldPlugin.Read(0).Look).
+		WithStyles(worldPlugin.Read(0).Styles)
+	p.pathRenderer.BindSpace(worldPlugin.Write().Space())
 	return p
 }
 
@@ -97,22 +107,39 @@ func (p *Plugin) KindTemplates(r *kind.Roster) {
 func (p *Plugin) Name() string { return "gram.navigation" }
 
 func (p *Plugin) Install(ctx plugin.Installer) error {
-	brd := p.boardPlugin.Board()
+	read := p.boardPlugin.Read(0)
+	brd := read.Board()
 	p.board = brd
 
 	w, h := brd.CellBounds()
 	p.spacing = p.spacing.resolve(float64(p.worldPlugin.Res.Config.Entities.MaxSize), min(w, h))
-	// routes are planned blind to the others: the keeping answers what a route runs into
-	finder := newPathFinder(brd, brd, p.boardPlugin, openOccupancy{})
-	finder.WithLevels(boardLevels{p.boardPlugin})
-	var keep keeping
-	if p.spacing == BodySpacing {
-		keep = newBodyKeeping(finder, p.worldPlugin.Space(), p.boardPlugin.Heights)
-	} else {
-		keep = newCellKeeping(finder, p.boardPlugin.Occupancy())
+	// routes are planned blind to the others: the keeping answers what a route runs into; the
+	// routing plans the routes, the traffic searches but round a unit, each with its own
+	keeping := func(answers *spacing.Answers) (*spacing.Finder, spacing.Keeping) {
+		finder := spacing.NewFinder(brd, brd, read, spacing.OpenOccupancy{})
+		finder.WithLevels(spacing.BoardLevels{Read: read})
+		if p.spacing == BodySpacing {
+			k := spacing.NewBodyKeeping(finder, p.worldPlugin.Write().Space(), read.Heights)
+			if answers != nil {
+				k.WithAnswers(answers)
+			}
+			return finder, k
+		}
+		k := spacing.NewCellKeeping(finder, p.boardPlugin.Write().Occupancy())
+		if answers != nil {
+			k.WithAnswers(answers)
+		}
+		return finder, k
+	}
+	routeFinder, routeKeep := keeping(nil)
+	finder, keep := keeping(nil)
+	coordinator := routing.NewCoordinator(ctx.Pool(), p.boardPlugin.Read)
+	answers := &spacing.Answers{}
+	for range cmp.Or(p.routers, DefaultRouters) {
+		coordinator.Router(keeping(answers))
 	}
 	p.finder = finder
-	p.pathRenderer.finder = finder
+	p.pathRenderer.Finder = finder
 	rules := p.crowd
 	if !p.crowdSet {
 		rules = crowd()
@@ -123,22 +150,24 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 		}
 	}
 	ctx.Hosts(&p.touches)
-	navSys := newNavigationSystem(finder, brd, brd, finder.occupancy).withKeeping(keep)
-	navSys.BindSpace(p.worldPlugin.Space())
-	navSys.given, navSys.touches, navSys.tick = &p.given, &p.touches, p.worldPlugin.Tick
-	navSys.pace = p.worldPlugin.Pace(sector.Everywhere)
+	navSys := traffic.NewSystem(finder, brd, brd, finder.Occupancy).WithKeeping(keep)
+	navSys.BindSpace(p.worldPlugin.Write().Space())
+	navSys.Given, navSys.Touches, navSys.Tick = &p.given, &p.touches, p.worldPlugin.Read(0).Tick
+	navSys.Pace = p.worldPlugin.Pace(sector.Everywhere)
+	navSys.Routing = coordinator
 
-	moveCommandSystem := newMoveCommandSystem(finder, &p.moves, &p.looks, p.selected).withKeeping(keep)
-	moveCommandSystem.onwards = &p.onwards
-	p.handKeeping.keep, p.handKeeping.nav = keep, navSys
+	moveCommandSystem := routing.NewSystem(routeFinder, &p.moves, &p.looks, p.selected).
+		WithKeeping(routeKeep)
+	moveCommandSystem.Onwards = &p.onwards
+	p.handKeeping.Keep, p.handKeeping.Nav = keep, navSys
 	if p.collision != nil {
-		navSys.bumps = anyBump
+		navSys.Bumps = traffic.AnyBump
 		if p.spacing == BodySpacing {
-			navSys.bumps = groundBump
+			navSys.Bumps = traffic.GroundBump
 		}
 	}
 
-	p.module = &module{navigationSystem: navSys, moveCommandSystem: moveCommandSystem, clock: p.worldPlugin.Clock()}
+	p.module = &module{navigationSystem: navSys, moveCommandSystem: moveCommandSystem, clock: p.worldPlugin.Write().Clock()}
 	p.module.step = p.module.simulate
 	ctx.UseModule(p.module)
 	ctx.Draws(p.pathRenderer)
@@ -148,7 +177,7 @@ func (p *Plugin) Install(ctx plugin.Installer) error {
 // RunPlan takes the orders at once and steers the units in the simulation; call it after the
 // board's RunPlan.
 func (p *Plugin) RunPlan(ctx goke.RunCtx, d time.Duration) {
-	p.routes.Drain(func(i command.Issued[Routes]) { p.ShowRoutes(i.Command.Shown) })
+	p.routes.Drain(func(i command.Issued[Routes]) { p.write.ShowRoutes(i.Command.Shown) })
 	p.module.RunPlan(ctx, d)
 }
 
@@ -159,8 +188,15 @@ func (p *Plugin) WithSpacing(s Spacing) *Plugin {
 	return p
 }
 
-// Spacing is how units keep out of each other's way: as asked until Use, then as decided.
-func (p *Plugin) Spacing() Spacing { return p.spacing }
+// DefaultRouters is how many routers search the units' routes side by side.
+const DefaultRouters = 4
+
+// WithRouters sets how many routers search the units' routes side by side, each with a search's
+// memory of its own on the board; 0, DefaultRouters. Call before Use.
+func (p *Plugin) WithRouters(k int) *Plugin {
+	p.routers = max(k, 0)
+	return p
+}
 
 // WithCollision has navigation learn what the units strike. Call before Use.
 func (p *Plugin) WithCollision(c *collision.Plugin) *Plugin {
@@ -180,7 +216,7 @@ func (p *Plugin) Serializable() plugin.Serializable { return p.kept }
 // Restore takes the Settings loaded and draws as they say.
 func (p *Plugin) Restore() {
 	p.kept.Restore()
-	p.ShowRoutes(p.Res.Settings.Routes)
+	p.write.ShowRoutes(p.Res.Settings.Routes)
 }
 
 // WithCrowd sets the rules of Touch the units get on among others by, in place of the plugin's
@@ -193,15 +229,6 @@ func (p *Plugin) WithCrowd(rules ...act.Rule) *Plugin {
 // WithRouteStyle sets how the routes and goals of the kinds without a RouteStyle of their own
 // are drawn, in place of DefaultRouteStyle.
 func (p *Plugin) WithRouteStyle(style RouteStyle) *Plugin {
-	p.pathRenderer.style, p.pathRenderer.current = style, style
+	p.pathRenderer.Style, p.pathRenderer.Current = style, style
 	return p
 }
-
-// ShowRoutes has the selected units' routes drawn, or their goals alone (Settings.Routes).
-func (p *Plugin) ShowRoutes(shown bool) {
-	p.Res.Settings.Routes = shown
-	p.pathRenderer.ShowRoutes(shown)
-}
-
-// RoutesShown reports whether the routes are drawn.
-func (p *Plugin) RoutesShown() bool { return p.Res.Settings.Routes }

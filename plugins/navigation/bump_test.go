@@ -45,20 +45,20 @@ type roadUnit struct {
 }
 
 type roadWorld struct {
-	t       *testing.T
-	grid    grid.Grid
-	w       *world.Plugin
-	ecs     *goke.ECS
-	nav     *Plugin
-	driving *driving.Plugin
-	players *players.Plugin
-	cams    []camera.Camera // each player's, by id − 1
-	cell    goke.Comp[unit.At]
-	base    goke.Comp[world.Base]
-	order   goke.OptComp[MoveOrder]
-	q       *goke.Query
-	kinds   map[uid.UID64]kind.ID
-	byRow   map[int]uid.UID64 // row index → entity
+	t         *testing.T
+	grid      grid.Grid
+	w         *world.Plugin
+	ecs       *goke.ECS
+	nav       *Plugin
+	driving   *driving.Plugin
+	players   *players.Plugin
+	cams      []camera.Camera // each player's, by id − 1
+	cell      goke.Comp[unit.At]
+	base      goke.Comp[world.Base]
+	orderComp goke.OptComp[MoveOrder]
+	q         *goke.Query
+	kinds     map[uid.UID64]kind.ID
+	byRow     map[int]uid.UID64 // row index → entity
 }
 
 const roadCell = 32
@@ -72,14 +72,14 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		Heights:  true,
 	})
 	rw.w = w
-	w.Effects().Define("alarm", effect.Spec{})
+	w.Write().Effects().Define("alarm", effect.Spec{})
 	occupancy := &cell.SingleOccupancy{}
 	m := motion.NewPlugin(w)
 	c := collision.NewPlugin(w, m)
 	brd := board.NewPlugin(rw.grid, occupancy, w).WithMotion(m)
-	brd.Board().SetAll(cell.Kind{Cost: 2, Allows: cell.Land | cell.Air})
+	brd.Write().Board().SetAll(cell.Kind{Cost: 2, Allows: cell.Land | cell.Air})
 	for x := uint32(0); x < width; x++ {
-		brd.Board().Set(rw.at(x, 1), cell.Kind{Cost: 1, Allows: cell.Land | cell.Air}) // the road
+		brd.Write().Board().Set(rw.at(x, 1), cell.Kind{Cost: 1, Allows: cell.Land | cell.Air}) // the road
 	}
 	sel := selection.NewPlugin(w)
 	rw.driving = driving.NewPlugin(w, m, sel).WithGround(brd)
@@ -161,7 +161,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		kind.Define[roadUnit](w.Kinds(), string(rune('a'+i)), spec(u.ordered, u.domain, u.wide, u.selected, u))
 		k := kind.Named[roadUnit](w.Kinds(), string(rune('a'+i)))
 		kindIDs[i] = k.ID()
-		w.Seed(k.Entry(u))
+		w.Write().Seed(k.Entry(u))
 	}
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
@@ -172,7 +172,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		systems = append(systems, produce()...)
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		rw.q = si.NewQueryBuilder(&rw.cell, &rw.base).Optional(&rw.order).Build()
+		rw.q = si.NewQueryBuilder(&rw.cell, &rw.base).Optional(&rw.orderComp).Build()
 	}})
 	ctx.ecs.Setup(systems...)
 	ctx.ecs.SetPlan(func(rc goke.RunCtx, d time.Duration) {
@@ -183,7 +183,7 @@ func newRoadWorld(t *testing.T, width uint32, units []roadUnit) *roadWorld {
 		rw.nav.RunPlan(rc, d)
 		rw.driving.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 		rw.players.RunPlan(rc, d)
 	})
 	rw.ecs = ctx.ecs
@@ -210,7 +210,7 @@ func (rw *roadWorld) state(id uid.UID64) (cell cell.ID, order *MoveOrder) {
 				continue
 			}
 			cell = rw.cell.Slice(cur)[i].Cell
-			if orders := rw.order.Slice(cur); orders != nil {
+			if orders := rw.orderComp.Slice(cur); orders != nil {
 				o := orders[i]
 				order = &o
 			}

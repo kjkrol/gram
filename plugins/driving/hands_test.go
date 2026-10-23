@@ -14,6 +14,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/entity/kind"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
@@ -50,6 +51,7 @@ func (c *installCtx) ECS() *goke.ECS                                  { return c
 func (c *installCtx) Hosts(...host.Host)                              {}
 func (c *installCtx) Draws(...render.Source)                          {}
 func (c *installCtx) Looks(func())                                    {}
+func (*installCtx) Pool() *parallel.Pool                              { return nil }
 
 type walker struct {
 	start    cell.ID
@@ -89,7 +91,7 @@ func newFencedField(t *testing.T, fences []cell.ID, walkers ...walker) *field {
 	m := motion.NewPlugin(f.w)
 	col := collision.NewPlugin(f.w, m)
 	brd := board.NewPlugin(f.grid, &cell.SingleOccupancy{}, f.w).WithMotion(m).WithCollision(col)
-	brd.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brd.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	sel := selection.NewPlugin(f.w)
 	drv := driving.NewPlugin(f.w, m, sel).WithGround(brd).WithTap(rigTap)
 	if err := f.w.Carry(drv); err != nil { // as the engine does with Use
@@ -112,7 +114,7 @@ func newFencedField(t *testing.T, fences []cell.ID, walkers ...walker) *field {
 			comp.Const(cell.Floor{Allows: cell.Land, Links: 1<<north | 1<<south, Width: 10}),
 			comp.Const(cell.Rail{Keeps: cell.Land}))
 		for _, c := range fences {
-			f.w.Seed(kinds.Named("fence").Entry(c))
+			f.w.Write().Seed(kinds.Named("fence").Entry(c))
 		}
 	}
 	kinds := make([]kind.ID, len(walkers))
@@ -142,7 +144,7 @@ func newFencedField(t *testing.T, fences []cell.ID, walkers ...walker) *field {
 		kind.Define[walker](f.w.Kinds(), name, spec)
 		k := kind.Named[walker](f.w.Kinds(), name)
 		kinds[i] = k.ID()
-		f.w.Seed(k.Entry(wk))
+		f.w.Write().Seed(k.Entry(wk))
 	}
 	if err := f.w.Populate(); err != nil {
 		t.Fatal(err)
@@ -174,13 +176,13 @@ func newFencedField(t *testing.T, fences []cell.ID, walkers ...walker) *field {
 		brd.RunPlan(rc, d)
 		drv.RunPlan(rc, d)
 		rc.Sync()
-		f.w.Clock().Replay(rc, d)
+		f.w.Write().Clock().Replay(rc, d)
 	})
 	return f
 }
 
 func (f *field) give(by command.Issuer, cmd command.Command) {
-	if !f.w.Carrier().Put(by, cmd) {
+	if !f.w.Write().Carrier().Put(by, cmd) {
 		f.t.Fatalf("the world carries no %T", cmd)
 	}
 }
@@ -403,7 +405,7 @@ func TestHand_AnEntitysOwnHandDrivesIt(t *testing.T) {
 	id := f.ids[0]
 	before := f.read()[id].at
 	for range 3 {
-		f.w.Carrier().PutFrom(id, driving.Ahead{})
+		f.w.Write().Carrier().PutFrom(id, driving.Ahead{})
 		f.tick(1)
 	}
 	if after := f.read()[id]; after.at == before || !after.driving {

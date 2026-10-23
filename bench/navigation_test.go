@@ -81,11 +81,11 @@ func benchNavigation(b *testing.B, n int, crowded bool) *navScene {
 	if err := s.w.Carry(sel, drv, nav); err != nil {
 		b.Fatal(err)
 	}
-	p.Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	p.Write().Board().SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	if crowded {
 		for y := range uint32(navSide) {
 			if y != navGapY {
-				p.Board().Set(s.g.At(navWallX, y), cell.Kind{Cost: 1, Solid: true})
+				p.Write().Board().Set(s.g.At(navWallX, y), cell.Kind{Cost: 1, Solid: true})
 			}
 		}
 	}
@@ -99,7 +99,7 @@ func benchNavigation(b *testing.B, n int, crowded bool) *navScene {
 			At: s.g.At(uint32(2+i%26), uint32(2+(i/26)%60)),
 		}))
 	}
-	s.w.Seed(entries...)
+	s.w.Write().Seed(entries...)
 	ctx.pending = append(ctx.pending, func() []goke.System {
 		return []goke.System{goke.SystemFn{OnInit: func(si *goke.SysInit) {
 			s.query = si.NewQueryBuilder(&s.base).Build()
@@ -147,7 +147,7 @@ func (s *navScene) order(back bool) {
 			x, y, _ := s.g.Coords(s.from[i])
 			to = s.g.At(navSide-1-x, y)
 		}
-		s.w.Carrier().PutFrom(id, navigation.MoveTo{Cell: to})
+		s.w.Write().Carrier().PutFrom(id, navigation.MoveTo{Cell: to})
 	}
 }
 
@@ -212,8 +212,8 @@ func Benchmark_Navigation_Path(b *testing.B) {
 	}
 	start, goals := g.At(2, 2), [2]cell.ID{g.At(pathSide-3, pathSide-3), g.At(2, pathSide-3)}
 	rng := rand.New(rand.NewPCG(7, 9))
-	brd := p.Board()
-	brd.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
+	brdW := p.Write().Board()
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
 	rock := cell.Kind{Cost: 1, Solid: true}
 	var clear []cell.ID
 	for y := range uint32(pathSide) {
@@ -223,7 +223,7 @@ func Benchmark_Navigation_Path(b *testing.B) {
 			case wall && y%67 == 33:
 				clear = append(clear, g.At(x, y))
 			case wall || rng.IntN(6) == 0:
-				brd.Set(g.At(x, y), rock)
+				brdW.Set(g.At(x, y), rock)
 			}
 		}
 	}
@@ -231,7 +231,7 @@ func Benchmark_Navigation_Path(b *testing.B) {
 		x, y, _ := g.Coords(c)
 		for dy := range uint32(5) {
 			for dx := range uint32(5) {
-				brd.Set(g.At(x+dx-2, y+dy-2), cell.Kind{Cost: 1, Allows: cell.Land})
+				brdW.Set(g.At(x+dx-2, y+dy-2), cell.Kind{Cost: 1, Allows: cell.Land})
 			}
 		}
 	}
@@ -241,7 +241,7 @@ func Benchmark_Navigation_Path(b *testing.B) {
 		MaxSpeed: 4 * pathCell, Accel: 8 * pathCell, Brake: 16 * pathCell, V0: 2 * pathCell,
 		TurnRate: 0.15,
 	})
-	w.Seed(walkers.Named("walker").Entry(navRow{At: start}))
+	w.Write().Seed(walkers.Named("walker").Entry(navRow{At: start}))
 	var orders goke.Comp[navigation.MoveOrder]
 	var base goke.Comp[world.Base]
 	var ordered, units *goke.Query
@@ -264,7 +264,7 @@ func Benchmark_Navigation_Path(b *testing.B) {
 	for units.All(); units.Next(); {
 		walker = units.Cursor().IDs[0]
 	}
-	w.Carrier().PutFrom(walker, navigation.MoveTo{Cell: goals[0]})
+	w.Write().Carrier().PutFrom(walker, navigation.MoveTo{Cell: goals[0]})
 	ecs.Tick(step)
 	planned := false
 	for ordered.All(); ordered.Next(); {
@@ -278,7 +278,7 @@ func Benchmark_Navigation_Path(b *testing.B) {
 	k := 1
 	b.ReportAllocs()
 	for b.Loop() {
-		w.Carrier().PutFrom(walker, navigation.MoveTo{Cell: goals[k%2]})
+		w.Write().Carrier().PutFrom(walker, navigation.MoveTo{Cell: goals[k%2]})
 		k++
 		ecs.Tick(step)
 	}

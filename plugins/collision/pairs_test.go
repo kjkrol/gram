@@ -75,9 +75,9 @@ func broadTick(t *testing.T, ticks int, boxes ...placed) ([]pair, []uid.UID64) {
 	inert := kind.Named[placed](w.Kinds(), "inert")
 	for _, b := range boxes {
 		if b.collides {
-			w.Seed(colliders.Entry(b))
+			w.Write().Seed(colliders.Entry(b))
 		} else {
-			w.Seed(inert.Entry(b))
+			w.Write().Seed(inert.Entry(b))
 		}
 	}
 	if err := w.Populate(); err != nil {

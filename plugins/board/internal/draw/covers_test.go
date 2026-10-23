@@ -51,7 +51,7 @@ func TestQuarters_LeaveOutWhereTheCoverShowsNowhere(t *testing.T) {
 }
 
 type under struct {
-	*board.Board
+	*board.BoardRead
 	mark  tag.Tag[effect.States]
 	cells map[cell.ID]bool
 }
@@ -79,9 +79,9 @@ func TestCover_LiesAlongALineOfItsOwn(t *testing.T) {
 	snow := color.RGBA{R: 240, G: 240, B: 250, A: 255}
 	const mark tag.Tag[effect.States] = 3
 	g := grid.DefaultGrids{}.Square(8, 8, 32)
-	brd := board.NewBoard(g)
-	brd.SetAll(grass)
-	u := under{Board: brd, mark: mark, cells: map[cell.ID]bool{}}
+	brd, brdW := board.NewBoard(g)
+	brdW.SetAll(grass)
+	u := under{BoardRead: brd, mark: mark, cells: map[cell.ID]bool{}}
 	for _, at := range [][2]uint32{{2, 2}, {3, 2}, {2, 3}, {3, 3}, {4, 3}, {4, 4}, {5, 5}} {
 		c := g.At(at[0], at[1])
 		u.cells[c] = true

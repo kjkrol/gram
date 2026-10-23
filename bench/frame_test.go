@@ -62,12 +62,12 @@ func Benchmark_Frame_Topography(b *testing.B) {
 	} {
 		b.Run(sc.name, func(b *testing.B) {
 			ctx, _, _, topo := islandWith(b, sc.view, false, 0, sc.shine, sc.lit, sc.sectored)
-			topo.SetCare(sc.care)
+			topo.Write().SetCare(sc.care)
 			cam := ctx.cam
 			cam.SetViewport(sc.w, sc.h)
 			cam.CenterOn(96*32/2, 64*32/2, 0)
 			ctx.ecs.Tick(step)
-			picture := ctx.world.Picture()
+			picture := ctx.world.Read(0).Picture()
 			screen := render.NewImage(int(sc.w), int(sc.h))
 			buf := make([]byte, 4*int(sc.w)*int(sc.h))
 			draw := func() { picture.DrawWorld(screen, cam) }

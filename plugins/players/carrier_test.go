@@ -83,9 +83,9 @@ func (s *carrierStage) Init(ctx game.Initializer) error {
 func (s *carrierStage) Loaded() error { return nil }
 
 func (s *carrierStage) Spawn() error {
-	s.world.Seed(s.leaver.Entry(500))
+	s.world.Write().Seed(s.leaver.Entry(500))
 	if s.boxes {
-		s.world.Seed(s.box.Entry(100), s.box.Entry(105))
+		s.world.Write().Seed(s.box.Entry(100), s.box.Entry(105))
 	}
 	return nil
 }
@@ -151,8 +151,8 @@ func TestCarrier_ACommandGivenAfterItsHandlersPassWaitsForTheNext(t *testing.T) 
 func TestCarrier_ATreesCommandsGoWithinTheirFrame(t *testing.T) {
 	s := &carrierStage{}
 	run(t, s, 30, func() {
-		if !s.world.Carrier().Empty() {
-			t.Fatalf("a command waits past the frame at %v of game time", s.world.Clock().Time())
+		if !s.world.Write().Carrier().Empty() {
+			t.Fatalf("a command waits past the frame at %v of game time", s.world.Read(0).Clock().Time())
 		}
 	})
 	if n := s.count(); n != 0 {

@@ -52,6 +52,7 @@ type Plugin struct {
 	marks   command.Queue[Mark]
 	builds  command.Queue[Build]
 	cancels command.Queue[Cancel]
+	write   Write
 }
 
 var (
@@ -66,6 +67,7 @@ func NewPlugin(w *world.Plugin, brd *board.Plugin, cfg Config) *Plugin {
 		cfg.Rules.Longest = 3
 	}
 	p := &Plugin{worldPlugin: w, board: brd, cfg: cfg, hands: map[command.Issuer]*hand{}}
+	p.write.p = p
 	p.types = &Types{p: p}
 	p.renderer = &renderer{p: p}
 	p.Self = world.NewSelf(w, p)
@@ -82,28 +84,6 @@ func (p *Plugin) WithShaper(s ground.Shaper) *Plugin {
 // Types is the plugin's register of the kinds of bridges.
 func (p *Plugin) Types() *Types { return p.types }
 
-// Spawn builds every bridge a level's file has, a line `{kind: <a kind of bridge>, from: [x, y],
-// to: [x, y]}`, its deck at its first head's level. One the Rules refuse fails Populate with its
-// line.
-func (p *Plugin) Spawn(level *board.Level) error {
-	g := newGround(p.board.Board(), level.Heights(), 0)
-	gr := g.Grid()
-	return board.Each(level, func(name string, r Row, at string) error {
-		t := p.types.Named(name)
-		way, spans, err := site.Line(gr, r.From, r.To, p.cfg.Rules.Longest)
-		if err != nil {
-			return err
-		}
-		b := site.Bridge{From: r.From, To: r.To, Way: way, Deck: g.level(r.From), Spans: spans}
-		if level.Heights() != nil {
-			b.Piers = site.Piers(gr, spans)
-		}
-		p.laid = append(p.laid, laid{t: t, plan: b, at: at, heights: level.Heights()})
-		p.worldPlugin.Seed(p.parts(t, b, g)...)
-		return nil
-	})
-}
-
 // Populate holds the bridges a level's file laid to the Rules; one that may not stand fails with
 // its line.
 func (p *Plugin) Populate() error {
@@ -111,10 +91,10 @@ func (p *Plugin) Populate() error {
 	p.laid = nil
 	var g *boardGround
 	rules := p.cfg.Rules
-	rules.Reshape = 1e-3 * float64(p.board.Board().Grid.CellSpan())
+	rules.Reshape = 1e-3 * float64(p.board.Read(0).Board().Grid.CellSpan())
 	for _, l := range laid {
 		if g == nil {
-			g = newGround(p.board.Board(), l.heights, 0)
+			g = newGround(p.board.Read(0).Board(), l.heights, 0)
 			rules.Heights = l.heights != nil
 		}
 		g.allows = l.t.spec.Allows
@@ -159,9 +139,9 @@ func (p *Plugin) parts(t Type, b site.Bridge, g *boardGround) []kind.Entry {
 
 func (p *Plugin) rules() site.Rules {
 	r := p.cfg.Rules
-	r.Heights = p.board.Heights() != nil
+	r.Heights = p.board.Read(0).Heights() != nil
 	if p.shaper == nil {
-		r.Reshape = 1e-3 * float64(p.board.Board().Grid.CellSpan())
+		r.Reshape = 1e-3 * float64(p.board.Read(0).Board().Grid.CellSpan())
 	}
 	return r
 }
@@ -178,10 +158,10 @@ func (p *Plugin) building() Type {
 
 func (p *Plugin) ground(t Type) *boardGround {
 	var at func(geom.Vec) float64
-	if h := p.board.Heights(); h != nil {
+	if h := p.board.Read(0).Heights(); h != nil {
 		at = h.At
 	}
-	return newGround(p.board.Board(), at, t.spec.Allows)
+	return newGround(p.board.Read(0).Board(), at, t.spec.Allows)
 }
 
 func (p *Plugin) build(b pending) {
@@ -202,7 +182,7 @@ func (p *Plugin) build(b pending) {
 			}
 		}
 	}
-	p.worldPlugin.Spawn(p.parts(b.t, plan, g)...)
+	p.worldPlugin.Write().Spawn(p.parts(b.t, plan, g)...)
 }
 
 // Window is the window asking a player whether to build the bridge it marked out, shown while it

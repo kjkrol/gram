@@ -22,7 +22,7 @@
 // visible, in what order, and which is active, the only one whose HandleEvents runs.
 // [game.Runtime] — pause, quit, switch Stage, persistence, full screen — reaches a Stage and
 // every Scene alike. A scene's screen is a tree of elements of package ui, the world among them
-// as its picture, everything the Stage's plugins draw (world.Plugin.Picture), through a camera
+// as its picture, everything the Stage's plugins draw (world.Read.Picture), through a camera
 // ([ui.Image] of a render.Feed); the cameras are the cameras plugin's, made beside the feed that
 // shows them. A player owns no camera: it acts through
 // the picture a scene wires it to.

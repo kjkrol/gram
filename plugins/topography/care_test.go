@@ -29,8 +29,8 @@ func TestPlugin_ShadesTheGroundWithFullCareAsFarAsTheConfigSays(t *testing.T) {
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
 	p := topography.NewPlugin(w, b, nil, topography.Config{Care: 2})
-	if p.Care() != 2 {
-		t.Errorf("full care within %d sectors, want the Config's 2", p.Care())
+	if p.Read(0).Care() != 2 {
+		t.Errorf("full care within %d sectors, want the Config's 2", p.Read(0).Care())
 	}
 	for _, bd := range p.DefaultBindings() {
 		if bd.Type() == reflect.TypeFor[topography.Care]() ||
@@ -47,7 +47,7 @@ func TestReporter_SaysTheReachAndEachCareALine(t *testing.T) {
 	p := topography.NewPlugin(w, b, nil, topography.Config{Care: 2})
 	report := func() string {
 		var got string
-		p.Reporter().Report(func(label, value string) { got = label + ": " + value })
+		p.Read(0).Reporter().Report(func(label, value string) { got = label + ": " + value })
 		return got
 	}
 	want := "Ground: care within 2 sectors\neverything 0\nno shore 0\nflat mirror 0\nno shade 0" +
@@ -55,7 +55,7 @@ func TestReporter_SaysTheReachAndEachCareALine(t *testing.T) {
 	if got := report(); got != want {
 		t.Errorf("the panel says %q, want %q", got, want)
 	}
-	p.SetCare(0)
+	p.Write().SetCare(0)
 	if got := report(); got != "Ground: care everywhere" {
 		t.Errorf("with full care everywhere the panel says %q", got)
 	}
@@ -65,13 +65,13 @@ func TestPlugin_CareSetsTheFullCaresReach(t *testing.T) {
 	qw := topotest.NewQuasiWorld(t, false,
 		func(*board.Units[topotest.Recruit], grid.Grid) []kind.Entry { return nil })
 	caring := queueOf[topography.Care](t, qw.Topo)
-	if qw.Topo.Care() != 0 {
-		t.Fatalf("full care within %d sectors at first, want everywhere", qw.Topo.Care())
+	if qw.Topo.Read(0).Care() != 0 {
+		t.Fatalf("full care within %d sectors at first, want everywhere", qw.Topo.Read(0).Care())
 	}
 	for _, want := range []int{3, 1, 0} {
 		caring.Put(command.Nobody, topography.Care{Rings: want})
 		qw.ECS.Tick(time.Second / 60)
-		if got := qw.Topo.Care(); got != want {
+		if got := qw.Topo.Read(0).Care(); got != want {
 			t.Errorf("Care of %d: full care within %d sectors", want, got)
 		}
 	}
@@ -116,11 +116,11 @@ func TestSettings_TheCaresReachIsASliderToEverySectorAndTheCareShownASwitch(t *t
 	if got := reach.Set(3); got != (topography.Care{Rings: 3}) {
 		t.Errorf("the reach at 3 builds %v, want Care{Rings: 3}", got)
 	}
-	p.SetCare(0)
+	p.Write().SetCare(0)
 	if got := reach.Get(); got != 8 {
 		t.Errorf("the reach reads %v with every sector cared for, want the top", got)
 	}
-	p.SetCare(12)
+	p.Write().SetCare(12)
 	if got := reach.Get(); got != 8 {
 		t.Errorf("the reach reads %v with the care past the top, want the top", got)
 	}
@@ -139,8 +139,8 @@ func TestPlugin_ShowCareThroughItsQueueShowsTheCare(t *testing.T) {
 	for _, shown := range []bool{true, false} {
 		showing.Put(command.Nobody, topography.ShowCare{Shown: shown})
 		qw.ECS.Tick(time.Second / 60)
-		if qw.Topo.CareShown() != shown {
-			t.Errorf("ShowCare{%v} leaves the care shown %v", shown, qw.Topo.CareShown())
+		if qw.Topo.Read(0).CareShown() != shown {
+			t.Errorf("ShowCare{%v} leaves the care shown %v", shown, qw.Topo.Read(0).CareShown())
 		}
 	}
 }
@@ -186,12 +186,12 @@ func TestCareView_DrawsTheBoundariesBetweenTheCaresBandsOverTheGround(t *testing
 				Heights:  true,
 				Sectors:  world.SectorsCfg{Buckets: 4, Bands: []sector.Band{{Reach: 1000}}},
 			})
-			w.Anchor(anchored{float32(size) / 2, float32(size) / 2})
+			w.Write().Anchor(anchored{float32(size) / 2, float32(size) / 2})
 			m := motion.NewPlugin(w)
 			cells := uint32(tc.sectors * 4)
 			b := board.NewPlugin(grid.DefaultGrids{}.Square(cells, cells, 32),
 				&cell.MultipleOccupancy{}, w).WithMotion(m)
-			b.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+			b.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 			p := topography.NewPlugin(w, b, nil, topography.Config{Care: 1})
 			ctx := topotest.NewInstallCtx()
 			for _, plugin := range []interface {
@@ -214,11 +214,11 @@ func TestCareView_DrawsTheBoundariesBetweenTheCaresBandsOverTheGround(t *testing
 				b.RunPlan(rc, d)
 				p.RunPlan(rc, d)
 				rc.Sync()
-				w.Clock().Replay(rc, d)
+				w.Write().Clock().Replay(rc, d)
 			})
 			// the view sees every sector once the bands are laid
 			cam := cameratest.NewFromSpace(size, size, 0)
-			w.ViewFor(cam)
+			w.Write().NewView(cam)
 			ecs.Tick(time.Second / 60)
 			ecs.Tick(time.Second / 60)
 			drawn := func() (pieces int, onTop bool) {
@@ -234,7 +234,7 @@ func TestCareView_DrawsTheBoundariesBetweenTheCaresBandsOverTheGround(t *testing
 			if pieces, _ := drawn(); pieces != 0 {
 				t.Errorf("%d pieces with the care not shown, want none", pieces)
 			}
-			p.ShowCare(true)
+			p.Write().ShowCare(true)
 			pieces, onTop := drawn()
 			if pieces != tc.pieces {
 				t.Errorf("%d pieces with the care shown, want %d: the boundaries' segments a "+
@@ -243,7 +243,7 @@ func TestCareView_DrawsTheBoundariesBetweenTheCaresBandsOverTheGround(t *testing
 			if onTop {
 				t.Error("a boundary's segment lies on top of the world, want it in the world")
 			}
-			p.SetCare(0)
+			p.Write().SetCare(0)
 			if pieces, _ := drawn(); pieces != 0 {
 				t.Errorf("%d pieces with every sector shaded with full care, want none", pieces)
 			}
@@ -256,26 +256,26 @@ func TestPlugin_AsALeverOfTheFrameBudgetStepsTheCareDownTheLadderAndBackWhileAda
 	w := topotest.NewWorld(0)
 	b, _ := topotest.LevelBoard(w)
 	p := topography.NewPlugin(w, b, nil, topography.Config{})
-	if p.Following() {
+	if p.Write().Following() {
 		t.Fatal("not adaptive, the care follows the frame budget")
 	}
-	p.AdaptCare(true)
-	if !p.Following() {
+	p.Write().AdaptCare(true)
+	if !p.Write().Following() {
 		t.Fatal("adaptive, the care does not follow")
 	}
 	var cares []int
-	for p.Coarser() {
-		cares = append(cares, p.Care())
+	for p.Write().Coarser() {
+		cares = append(cares, p.Read(0).Care())
 	}
 	if want := []int{3, 2, 1}; !slices.Equal(cares, want) {
 		t.Errorf("coarser from every sector the care went %v, want %v then no further", cares, want)
 	}
 	cares = nil
-	for p.Finer() {
-		cares = append(cares, p.Care())
+	for p.Write().Finer() {
+		cares = append(cares, p.Read(0).Care())
 	}
 	if want := []int{2, 3, 0}; !slices.Equal(cares, want) {
 		t.Errorf("finer from a sector the care went %v, want %v then no further", cares, want)
 	}
-	var _ cameras.Lever = p
+	var _ cameras.Lever = p.Write()
 }

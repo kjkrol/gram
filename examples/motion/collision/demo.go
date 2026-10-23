@@ -106,14 +106,14 @@ func (a *arena) definePlayer() error {
 }
 
 func (a *arena) defineEffects() {
-	a.world.Effects().Define(HitEf, effect.Spec{effect.Lasts(hitDuration)})
+	a.world.Write().Effects().Define(HitEf, effect.Spec{effect.Lasts(hitDuration)})
 }
 
 func (a *arena) defineRules() {
 	a.world.Roles().Define(BodyRole, act.Branch[collision.Struck]{
 		Name: "hit",
 		When: cond.Self.If(cond.Always),
-		Then: act.Self.Put(a.world.Effects().Named(HitEf)),
+		Then: act.Self.Put(a.world.Write().Effects().Named(HitEf)),
 	})
 }
 
@@ -135,7 +135,7 @@ func (b ball) Define(w *world.Plugin) {
 func (b ball) Look(a *world.Atlas, w *world.Plugin) {
 	draw := shapes[b.shape]
 	a.Add(kind.Named[body](w.Kinds(), bodyKind(b.color, b.shape)), RectSize, draw(palette[b.color])).
-		Under(w.Effects().Named(HitEf), draw(palette[entityColors]))
+		Under(w.Write().Effects().Named(HitEf), draw(palette[entityColors]))
 }
 
 func (a *arena) defineFigures() {
@@ -159,7 +159,7 @@ func (a *arena) spawnUnits() {
 		entries[i] = bodyKindOf(rand.IntN(entityColors), rand.IntN(entityShapes)).Entry(
 			body{pos: placement.Place(i, EntityCount), vel: motion.initialVelocity(i)})
 	}
-	a.world.Seed(entries...)
+	a.world.Write().Seed(entries...)
 }
 
 func (a *arena) defineScenes(ctx game.Initializer) []game.Scene {

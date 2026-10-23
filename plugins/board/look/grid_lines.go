@@ -33,7 +33,7 @@ var gridShader = render.NewMeshShaderWith(
 
 type gridLines struct {
 	opts render.DrawMeshOptions
-	own  map[string][]float32
+	own  map[string]any
 }
 
 func (g *gridLines) draw(
@@ -53,7 +53,7 @@ func (g *gridLines) draw(
 		return
 	}
 	if g.own == nil {
-		g.own, g.opts.Uniforms = map[string][]float32{}, map[string]any{}
+		g.own, g.opts.Uniforms = map[string]any{}, map[string]any{}
 	}
 	u.Into(g.opts.Uniforms)
 	at := t.Screen.Bounds().Min
@@ -79,13 +79,13 @@ func (g *gridLines) draw(
 }
 
 func (g *gridLines) set(name string, v ...float32) {
-	s, ok := g.own[name]
-	if !ok || len(s) != len(v) {
-		s = make([]float32, len(v))
-		g.own[name] = s
+	u, ok := g.own[name]
+	if s, _ := u.([]float32); !ok || len(s) != len(v) {
+		u = make([]float32, len(v))
+		g.own[name] = u
 	}
-	copy(s, v)
-	g.opts.Uniforms[name] = s
+	copy(u.([]float32), v)
+	g.opts.Uniforms[name] = u
 }
 
 func flag(b bool) float32 {

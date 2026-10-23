@@ -19,7 +19,7 @@ import (
 var _ goke.System = (*driveSystem)(nil)
 
 type driveSystem struct {
-	board     *board.Board
+	board     *board.BoardRead
 	surfaces  func() ground.Surfaces
 	occupancy cell.Occupancy
 	keeping   Keeping

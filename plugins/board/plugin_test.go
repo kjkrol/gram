@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/ceremony/comp"
 	"github.com/kjkrol/ceremony/host"
 	"github.com/kjkrol/goke/v3"
+	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/atmosphere/air"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -68,8 +69,8 @@ func newSeedTestPlugin(t *testing.T) (*Plugin, cell.ID) {
 		Heights:  true,
 	})
 	p := NewPlugin(grid, &cell.SingleOccupancy{}, worldPlugin)
-	p.CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
-	p.CellKinds().Define("wall", cell.Kind{Cost: 1, Solid: true})
+	p.Read(0).CellKinds().Define("grass", cell.Kind{Cost: 1, Allows: cell.Land})
+	p.Read(0).CellKinds().Define("wall", cell.Kind{Cost: 1, Solid: true})
 	cell := grid.At(2, 2)
 	return p, cell
 }
@@ -92,28 +93,28 @@ func TestNewPlugin_RequiresACellAndAMoverOfEveryUnit(t *testing.T) {
 
 func TestPlugin_SeedPopulate_AppliesLayout(t *testing.T) {
 	p, wallCell := newSeedTestPlugin(t)
-	other := p.Board().At(0, 0)
-	p.Seed(Layout{Default: "grass", Cells: []cell.Entry{{Kind: "wall", Cell: wallCell}}})
+	other := p.Read(0).Board().At(0, 0)
+	p.Write().Seed(Layout{Default: "grass", Cells: []cell.Entry{{Kind: "wall", Cell: wallCell}}})
 
 	if err := p.Populate(); err != nil {
 		t.Fatalf("Populate: %v", err)
 	}
-	if got := p.Board().Kind(wallCell).Name.String(); got != "wall" {
+	if got := p.Read(0).Board().Kind(wallCell).Name.String(); got != "wall" {
 		t.Errorf("Kind(wallCell) = %q, want %q", got, "wall")
 	}
-	if got := p.Board().Kind(other).Name.String(); got != "grass" {
+	if got := p.Read(0).Board().Kind(other).Name.String(); got != "grass" {
 		t.Errorf("Kind(other) = %q, want %q (Default)", got, "grass")
 	}
 }
 
 func TestPlugin_Populate_UnknownKindChangesNothing(t *testing.T) {
 	p, lava := newSeedTestPlugin(t)
-	p.Seed(Layout{Default: "grass", Cells: []cell.Entry{{Kind: "lava", Cell: lava}}})
+	p.Write().Seed(Layout{Default: "grass", Cells: []cell.Entry{{Kind: "lava", Cell: lava}}})
 
 	if err := p.Populate(); err == nil {
 		t.Fatal("Populate: expected an error for unknown kind, got nil")
 	}
-	if got := p.Board().Kind(lava).Name.String(); got != "" {
+	if got := p.Read(0).Board().Kind(lava).Name.String(); got != "" {
 		t.Errorf("Kind(lava) = %q, want untouched terrain", got)
 	}
 }
@@ -125,7 +126,7 @@ func TestPlugin_DrawsFromTheGamesAtlasAlone(t *testing.T) {
 		Heights:  true,
 	})
 	p := NewPlugin(grid.DefaultGrids{}.Square(5, 5, 10), &cell.SingleOccupancy{}, worldPlugin)
-	if p.Atlas() != nil {
+	if p.Read(0).Atlas() != nil {
 		t.Fatal("an atlas before the renderer")
 	}
 	func() {
@@ -134,11 +135,11 @@ func TestPlugin_DrawsFromTheGamesAtlasAlone(t *testing.T) {
 				t.Error("a renderer without an atlas: want a panic")
 			}
 		}()
-		p.SetAtlas(nil)
+		p.Write().SetAtlas(nil)
 	}()
 	atlas := p.NewAtlas(10)
 	atlas.Close()
-	if p.Atlas() != atlas {
+	if p.Read(0).Atlas() != atlas {
 		t.Error("the atlas closed is not the board's")
 	}
 }
@@ -153,6 +154,7 @@ func (*drawsCtx) UseModule(goke.Module)      {}
 func (*drawsCtx) Hosts(...host.Host)         {}
 func (c *drawsCtx) Draws(s ...render.Source) { c.drawn = append(c.drawn, s...) }
 func (c *drawsCtx) Looks(func())             { c.looks++ }
+func (*drawsCtx) Pool() *parallel.Pool       { return nil }
 
 type stillSky struct{}
 
@@ -175,11 +177,11 @@ func TestPlugin_DrawsItsGroundAndItsHoldsAndDressesTheGroundUnderASky(t *testing
 		t.Fatalf("drew %v with %d looks, want the ground and the holds, one look", ctx.drawn,
 			ctx.looks)
 	}
-	if _, ok := p.Map().Dressing().(look.GroundDressing); ok {
+	if _, ok := p.Read(0).Board().Map().Dressing().(look.GroundDressing); ok {
 		t.Error("under no sky the ground is dressed")
 	}
 	p.WithAtmosphere(stillSky{})
-	if _, ok := p.Map().Dressing().(look.GroundDressing); !ok {
+	if _, ok := p.Read(0).Board().Map().Dressing().(look.GroundDressing); !ok {
 		t.Error("under a sky the ground is not dressed with the clouds' shadows")
 	}
 }

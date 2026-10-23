@@ -63,7 +63,7 @@ func sectorWorldOf(t *testing.T, edges aabbworld.Edges, bands ...sector.Band) *s
 		Entities: EntitiesCfg{MaxCount: 8, MinSize: 5, MaxSize: 20},
 		Sectors:  SectorsCfg{Buckets: 2, Bands: bands},
 	})
-	r.p.Anchor(r.anchor)
+	r.p.write.Anchor(r.anchor)
 	kind.Define[thing](r.p.Kinds(), "thing", kind.Spec{
 		comp.Load(func(t thing) Position {
 			return Position{AABB: plane.NewAABB(geom.NewVec(t.x, t.y), t.size, t.size)}
@@ -96,7 +96,7 @@ var twoBands = []sector.Band{
 
 func (r *sectorRig) spawn(xs ...float64) {
 	for _, x := range xs {
-		r.p.Spawn(r.things.Entry(thing{x: x, y: 250, size: 10}))
+		r.p.write.Spawn(r.things.Entry(thing{x: x, y: 250, size: 10}))
 	}
 	r.run()
 }
@@ -206,7 +206,7 @@ func TestSectors_ReportTheSectorsAndEntitiesByBand(t *testing.T) {
 	r.run()
 	r.run()
 	got := map[string]string{}
-	r.p.Sectors().Report(func(label, value string) { got[label] = value })
+	r.p.read.Sectors().Report(func(label, value string) { got[label] = value })
 	if want := "first 2\nsecond 1\nbeyond 5"; got["Sectors"] != want {
 		t.Errorf("sectors %q, want %q", got["Sectors"], want)
 	}
@@ -223,12 +223,12 @@ func TestSectors_SwitchedOffLiveEverywhereAndOnAgainGoBackPastTheMargin(t *testi
 	r.run()
 	r.run()
 	near, second, off := r.bands()
-	if r.p.Banded() || len(near) != 4 || len(second) != 0 || len(off) != 0 {
+	if r.p.read.Banded() || len(near) != 4 || len(second) != 0 || len(off) != 0 {
 		t.Errorf("bands off (banded %v): near %v, second %v, beyond %v; want every entity near",
-			r.p.Banded(), near, second, off)
+			r.p.read.Banded(), near, second, off)
 	}
 	got := map[string]string{}
-	r.p.Sectors().Report(func(label, value string) { got[label] = value })
+	r.p.read.Sectors().Report(func(label, value string) { got[label] = value })
 	if want := "first 8\nsecond 0\nbeyond 0\nbands off"; got["Sectors"] != want {
 		t.Errorf("sectors %q, want %q", got["Sectors"], want)
 	}
@@ -237,9 +237,9 @@ func TestSectors_SwitchedOffLiveEverywhereAndOnAgainGoBackPastTheMargin(t *testi
 	r.run()
 	// the sector of 2000 lies 1436 off, short of the second band's 1200 and its margin of 256
 	near, second, off = r.bands()
-	if !r.p.Banded() || !same(near, 100) || !same(second, 1200, 2000) || !same(off, 3500) {
+	if !r.p.read.Banded() || !same(near, 100) || !same(second, 1200, 2000) || !same(off, 3500) {
 		t.Errorf("bands on (banded %v): near %v, second %v, beyond %v; want 100, 1200 and 2000, "+
-			"3500", r.p.Banded(), near, second, off)
+			"3500", r.p.read.Banded(), near, second, off)
 	}
 }
 
@@ -304,7 +304,7 @@ func TestPace_GoesInTheBandsAsItsPolicySays(t *testing.T) {
 	for range 4 {
 		r.run()
 		paced := map[float64]time.Duration{100: d}
-		if r.p.Clock().Steps()%4 == 3 {
+		if r.p.read.Clock().Steps()%4 == 3 {
 			paced[1200] = 4 * d
 		}
 		for policy, want := range map[sector.Policy]map[float64]time.Duration{
@@ -313,7 +313,7 @@ func TestPace_GoesInTheBandsAsItsPolicySays(t *testing.T) {
 			sector.Near:       {100: d},
 		} {
 			if got := r.going(policy); !maps.Equal(got, want) {
-				t.Errorf("step %d, policy %d: going %v, want %v", r.p.Clock().Steps(), policy,
+				t.Errorf("step %d, policy %d: going %v, want %v", r.p.read.Clock().Steps(), policy,
 					got, want)
 			}
 		}
@@ -333,7 +333,7 @@ func TestPace_LetsEveryBlockGoWithoutBands(t *testing.T) {
 func (r *sectorRig) held(x float64) bool {
 	found := false
 	box := geom.NewAABB(geom.NewVec(x, 250), geom.NewVec(x+10, 260))
-	r.p.Space().Query(box, aabbworld.AnyCapability, func(uid.UID64) { found = true })
+	r.p.read.Space().Query(box, aabbworld.AnyCapability, func(uid.UID64) { found = true })
 	return found
 }
 
@@ -349,6 +349,26 @@ func TestSectors_LeaveWhatLiesBeyondOutOfTheSpaceAndBringItBack(t *testing.T) {
 	r.run()
 	if !r.held(2000) {
 		t.Error("the entity woken is not back in the space")
+	}
+}
+
+// each pass reads the space first, so it answers from cells built before the crossing
+func TestSectors_TheSpaceReadBeforeACrossingLetsGoOfThoseGoneBeyondAndTakesThemBack(t *testing.T) {
+	r := sectorWorld(t, twoBands...)
+	r.spawn(100, 300)
+	r.run()
+	if !r.held(100) || !r.held(300) {
+		t.Fatalf("the space holds %v and %v near the anchor, want both", r.held(100), r.held(300))
+	}
+	r.anchor.at[0] = geom.NewVec(3500, 256)
+	r.run()
+	if r.held(100) || r.held(300) {
+		t.Errorf("the space holds %v and %v gone beyond, want neither", r.held(100), r.held(300))
+	}
+	r.anchor.at[0] = geom.NewVec(100, 256)
+	r.run()
+	if !r.held(100) || !r.held(300) {
+		t.Errorf("the space holds %v and %v woken, want both", r.held(100), r.held(300))
 	}
 }
 

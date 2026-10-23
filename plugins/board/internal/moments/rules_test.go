@@ -42,11 +42,11 @@ func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *pl
 		Entities: world.EntitiesCfg{MaxCount: 4, MinSize: 8, MaxSize: 8},
 		Heights:  true,
 	})
-	pw.w, pw.fx = w, w.Effects()
+	pw.w, pw.fx = w, w.Write().Effects()
 	pw.fx.Define("scorched", effect.Spec{})
 	pw.scorched = pw.fx.Named("scorched")
 	pw.brd = board.NewPlugin(grid, &cell.MultipleOccupancy{}, w)
-	pw.brd.Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
+	pw.brd.Write().Board().SetAll(cell.Kind{Name: cell.Named("grass"), Cost: 1, Allows: cell.Land})
 	rules := hook(pw)
 	if err := pw.brd.Populate(); err != nil {
 		t.Fatal(err)
@@ -59,7 +59,7 @@ func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *pl
 			comp.Const(unit.Mover{Domain: cell.Land}),
 		})
 		k := kind.Named[struct{}](w.Kinds(), "unit")
-		w.Seed(k.Entry(struct{}{}))
+		w.Write().Seed(k.Entry(struct{}{}))
 		if err := w.Populate(); err != nil {
 			t.Fatal(err)
 		}
@@ -87,7 +87,7 @@ func newPlaceWorld(t *testing.T, grid grid.Grid, withUnit bool, hook func(pw *pl
 		rc.Sync()
 		w.RunPlan(rc, d)
 		pw.brd.RunPlan(rc, d)
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 		rc.Sync()
 	})
 	pw.ecs = ctx.ECS()
@@ -102,8 +102,8 @@ func (pw *placeWorld) tick(n int) {
 
 func (pw *placeWorld) under(e effect.Effect) map[cell.ID]bool {
 	out := map[cell.ID]bool{}
-	pw.brd.Board().EachCell(func(c cell.ID) {
-		if id, ok := pw.brd.CellEntity(c); ok && pw.fx.Has(id, e) {
+	pw.brd.Read(0).Board().EachCell(func(c cell.ID) {
+		if id, ok := pw.brd.Read(0).Board().CellEntity(c); ok && pw.fx.Has(id, e) {
 			out[c] = true
 		}
 	})
@@ -262,7 +262,7 @@ func TestCell_FireSpreadsFromCellToCell(t *testing.T) {
 				Then: act.At(board.Around(1)).Put(pw.scorched),
 			}}
 		})
-		start, _ := pw.brd.CellEntity(pw.middle)
+		start, _ := pw.brd.Read(0).Board().CellEntity(pw.middle)
 		pw.casting = func(cb *goke.CmdBuf) { pw.fx.Cast(start, pw.scorched) }
 		grown := 0
 		for tick := 1; tick <= 40; tick++ {
@@ -295,8 +295,8 @@ func TestPlaces_ARuleOfARoleFiresForTheCellsPlayingIt(t *testing.T) {
 			Then: act.Self.Put(pw.scorched),
 		})
 		marked := pw.w.Roles().Named("marked")
-		pw.brd.CellKinds().Define("marked", cell.Kind{Cost: 1, Allows: cell.Land}, marked)
-		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Kind: "marked", Cell: a}, {Kind: "marked", Cell: b}}})
+		pw.brd.Read(0).CellKinds().Define("marked", cell.Kind{Cost: 1, Allows: cell.Land}, marked)
+		pw.brd.Write().Seed(board.Layout{Cells: []cell.Entry{{Kind: "marked", Cell: a}, {Kind: "marked", Cell: b}}})
 		return marked.Rules()
 	})
 	pw.tick(3)
@@ -316,9 +316,9 @@ func TestPlaces_ARuleOfARoleFiresForTheOneCellTheEntryHasPlayIt(t *testing.T) {
 			Then: act.Self.Put(pw.scorched),
 		})
 		lake := pw.w.Roles().Named("lake")
-		pw.brd.CellKinds().Define("water", cell.Kind{Cost: 1, Allows: cell.Water})
-		water := pw.brd.CellKinds().Named("water")
-		pw.brd.Seed(board.Layout{Cells: []cell.Entry{water.Entry(a).Plays(lake), water.Entry(b)}})
+		pw.brd.Read(0).CellKinds().Define("water", cell.Kind{Cost: 1, Allows: cell.Water})
+		water := pw.brd.Read(0).CellKinds().Named("water")
+		pw.brd.Write().Seed(board.Layout{Cells: []cell.Entry{water.Entry(a).Plays(lake), water.Entry(b)}})
 		return lake.Rules()
 	})
 	pw.tick(3)
@@ -333,8 +333,8 @@ func TestStanding_ReachesThePlaceUnderTheUnitByItsRole(t *testing.T) {
 	pw := newPlaceWorld(t, grid, true, func(pw *placeWorld) []act.Rule {
 		pw.w.Roles().Define("plate")
 		plate := pw.w.Roles().Named("plate")
-		pw.brd.CellKinds().Define("plate", cell.Kind{Cost: 1, Allows: cell.Land}, plate)
-		pw.brd.Seed(board.Layout{Cells: []cell.Entry{{Kind: "plate", Cell: middle}}})
+		pw.brd.Read(0).CellKinds().Define("plate", cell.Kind{Cost: 1, Allows: cell.Land}, plate)
+		pw.brd.Write().Seed(board.Layout{Cells: []cell.Entry{{Kind: "plate", Cell: middle}}})
 		return []act.Rule{act.Branch[unit.Standing]{
 			Name: "press",
 			When: cond.Self.If(cond.Always),

@@ -20,7 +20,7 @@ var (
 
 func (gate) Effects(b *board.Plugin) {
 	ajar := effect.Alter(func(w *cell.Wall) { w.Keeps = 0 })
-	b.World().Effects().Define(AjarEf, effect.Spec{ajar})
+	b.Read(0).World().Write().Effects().Define(AjarEf, effect.Spec{ajar})
 }
 
 func (gate) Define(b *board.Plugin) {
@@ -32,5 +32,5 @@ func (gate) Define(b *board.Plugin) {
 
 func (gate) Look(a *world.Atlas, w *world.Plugin) {
 	a.Add(kind.Named[standingRow](w.Kinds(), GateKind), CellSize, render.Solid(gateColor)).
-		Under(w.Effects().Named(AjarEf), render.Solid(gatewayColor))
+		Under(w.Write().Effects().Named(AjarEf), render.Solid(gatewayColor))
 }

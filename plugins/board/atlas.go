@@ -28,7 +28,7 @@ func (p *Plugin) NewAtlas(size int) *Atlas {
 		atlas:  render.NewAtlas(),
 		size:   size,
 		shaded: map[cell.Name]render.MaterialID{},
-		grid:   DefaultGridLine(p.Board().Grid),
+		grid:   DefaultGridLine(p.board.Grid),
 		holds:  DefaultHoldWidth,
 	}
 }
@@ -63,11 +63,11 @@ func (a *Atlas) Grid(l Line) { a.grid = l }
 // Holds sets how many pixels wide a cell held is outlined.
 func (a *Atlas) Holds(width float32) { a.holds = width }
 
-// Close lays the sheet out, bakes it and hands it to the board (Plugin.SetAtlas); call once,
+// Close lays the sheet out, bakes it and hands it to the board (Write.SetAtlas); call once,
 // after the last look.
 func (a *Atlas) Close() {
 	a.atlas.Close()
-	a.p.SetAtlas(a)
+	a.p.write.SetAtlas(a)
 }
 
 // Atlas is the baked sheet.

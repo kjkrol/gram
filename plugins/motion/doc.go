@@ -20,7 +20,7 @@
 //
 // An entity wholly past an open edge carries [Outside]; the rules of a [Leaving] hear of it every
 // tick, and with none it is despawned. A plugin moving entities itself marks one it put out with
-// [Plugin.Leave].
+// [Write.Leave].
 //
 // # Vocabulary
 //

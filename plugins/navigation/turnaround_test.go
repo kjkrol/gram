@@ -31,15 +31,15 @@ type unitRow struct {
 }
 
 type turnaroundWorld struct {
-	t     *testing.T
-	grid  grid.Grid
-	ecs   *goke.ECS
-	nav   *Plugin
-	cell  goke.Comp[unit.At]
-	base  goke.Comp[world.Base]
-	order goke.OptComp[MoveOrder]
-	q     *goke.Query
-	blue  uid.UID64
+	t         *testing.T
+	grid      grid.Grid
+	ecs       *goke.ECS
+	nav       *Plugin
+	cell      goke.Comp[unit.At]
+	base      goke.Comp[world.Base]
+	orderComp goke.OptComp[MoveOrder]
+	q         *goke.Query
+	blue      uid.UID64
 }
 
 func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
@@ -54,9 +54,9 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	occupancy := &cell.SingleOccupancy{}
 	m := motion.NewPlugin(w)
 	brd := board.NewPlugin(tw.grid, occupancy, w).WithMotion(m)
-	brd.Board().SetAll(cell.Kind{Cost: 2, Allows: cell.Land}) // grass, as in the demo
+	brd.Write().Board().SetAll(cell.Kind{Cost: 2, Allows: cell.Land}) // grass, as in the demo
 	for y := uint32(0); y < 4; y++ {
-		brd.Board().Set(tw.at(0, y), cell.Kind{Cost: 1, Solid: true})
+		brd.Write().Board().Set(tw.at(0, y), cell.Kind{Cost: 1, Solid: true})
 	}
 	sel := selection.NewPlugin(w)
 	tw.nav = NewPlugin(brd, w, m, sel, driving.NewPlugin(w, m, sel))
@@ -106,7 +106,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 	red := kind.Named[unitRow](w.Kinds(), "red")
 	kind.Define[unitRow](w.Kinds(), "blue", spec(true))
 	blue := kind.Named[unitRow](w.Kinds(), "blue")
-	w.Seed(red.Entry(unitRow{start: tw.at(1, 2)}), blue.Entry(unitRow{start: tw.at(1, 1), target: tw.at(1, 3), ordered: true}))
+	w.Write().Seed(red.Entry(unitRow{start: tw.at(1, 2)}), blue.Entry(unitRow{start: tw.at(1, 1), target: tw.at(1, 3), ordered: true}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 		systems = append(systems, produce()...)
 	}
 	systems = append(systems, goke.SystemFn{OnInit: func(si *goke.SysInit) {
-		tw.q = si.NewQueryBuilder(&tw.cell, &tw.base).Optional(&tw.order).Build()
+		tw.q = si.NewQueryBuilder(&tw.cell, &tw.base).Optional(&tw.orderComp).Build()
 		for tw.q.All(); tw.q.Next(); { // the units hold the cells they start in
 			cur := tw.q.Cursor()
 			for i, id := range cur.IDs {
@@ -133,13 +133,13 @@ func newTurnaroundWorld(t *testing.T, collide bool) *turnaroundWorld {
 		}
 		tw.nav.RunPlan(rc, d)
 		rc.Sync()
-		w.Clock().Replay(rc, d)
+		w.Write().Clock().Replay(rc, d)
 	})
 	tw.ecs = ctx.ecs
 	for tw.q.All(); tw.q.Next(); {
 		cur := tw.q.Cursor()
 		for i, id := range cur.IDs {
-			if tw.order.Slice(cur) != nil && tw.base.Slice(cur)[i].TypeID == blue.ID() {
+			if tw.orderComp.Slice(cur) != nil && tw.base.Slice(cur)[i].TypeID == blue.ID() {
 				tw.blue = id
 			}
 		}
@@ -157,7 +157,7 @@ func (tw *turnaroundWorld) blueState() (cell cell.ID, mt *MoveOrder) {
 				continue
 			}
 			cell = tw.cell.Slice(cur)[i].Cell
-			if orders := tw.order.Slice(cur); orders != nil {
+			if orders := tw.orderComp.Slice(cur); orders != nil {
 				o := orders[i]
 				mt = &o
 			}

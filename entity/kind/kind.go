@@ -57,7 +57,7 @@ func Named[P any](reg Registry, name string) Of[P] {
 	return Of[P]{name: name, id: id, sprite: sprite}
 }
 
-// Entry is one entity of this kind, described by row — hand it to world.Plugin.Seed.
+// Entry is one entity of this kind, described by row — hand it to world.Write.Seed.
 func (k Of[P]) Entry(row P) Entry { return Entry{kind: k.name, row: row} }
 
 // ID is what every entity of this kind carries to say so.

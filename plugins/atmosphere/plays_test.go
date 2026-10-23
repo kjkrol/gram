@@ -34,8 +34,8 @@ func TestPlays_ARuleOfTheWeatherFiresForTheAtmospheresOwnEntity(t *testing.T) {
 			Plugins(func(made *world.Plugin) { w, a = made, atmosphere.NewPlugin(made, nil, atmosphere.Config{}) }).
 			Effects(func(ctx game.Initializer) {
 				ecs = ctx.ECS()
-				w.Effects().Define("noted", effect.Spec{})
-				noted = w.Effects().Named("noted")
+				w.Write().Effects().Define("noted", effect.Spec{})
+				noted = w.Write().Effects().Named("noted")
 			}).
 			Rules(func() {
 				w.Roles().Define("weatherwise",
@@ -64,10 +64,10 @@ func TestPlays_ARuleOfTheWeatherFiresForTheAtmospheresOwnEntity(t *testing.T) {
 		if a.Entity() == w.Entity() {
 			t.Fatalf("the atmosphere's entity is the world's, %d", w.Entity())
 		}
-		if got := w.Effects().Has(a.Entity(), noted); got != plays {
+		if got := w.Read(0).Effects().Has(a.Entity(), noted); got != plays {
 			t.Errorf("played by the atmosphere %v: its entity is noted %v", plays, got)
 		}
-		if w.Effects().Has(w.Entity(), noted) {
+		if w.Read(0).Effects().Has(w.Entity(), noted) {
 			t.Errorf("played by the atmosphere %v: the world's entity is noted, want never", plays)
 		}
 	}

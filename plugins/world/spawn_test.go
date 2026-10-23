@@ -45,7 +45,7 @@ func TestSpawn_MakesAnEntityOfTheKindAtTheNextStep(t *testing.T) {
 	if !wm.commands.Put(command.Nobody, Spawn{Entry: things.Entry(thing{x: 100, y: 100, size: 10})}) {
 		t.Fatal("the world carries no Spawn")
 	}
-	p.Spawn(things.Entry(thing{x: 300, y: 300, size: 10}))
+	p.write.Spawn(things.Entry(thing{x: 300, y: 300, size: 10}))
 	run(ecs, wm, func(*goke.CmdBuf) {})
 	if n := len(living(q)); n != 2 {
 		t.Fatalf("%d entities after the step, want the two spawned", n)
@@ -88,19 +88,19 @@ func TestSpawn_RefusesWhatTheWorldDoesNotTake(t *testing.T) {
 func TestSpawn_FillsTheRoomADespawnLeaves(t *testing.T) {
 	p, things, ecs, q, _ := spawnWorld(t, 0, 1)
 	wm := p.module
-	p.Spawn(things.Entry(thing{x: 100, y: 100, size: 10}))
+	p.write.Spawn(things.Entry(thing{x: 100, y: 100, size: 10}))
 	run(ecs, wm, func(*goke.CmdBuf) {})
 	var first uid.UID64
 	for id := range living(q) {
 		first = id
 	}
-	p.Spawn(things.Entry(thing{x: 200, y: 100, size: 10}))
+	p.write.Spawn(things.Entry(thing{x: 200, y: 100, size: 10}))
 	run(ecs, wm, func(cb *goke.CmdBuf) { wm.despawn(cb, first) })
 	alive := living(q)
 	if len(alive) != 1 || alive[first] {
 		t.Fatalf("%v alive after the despawn, want the one spawned in the room left, not %v", alive, first)
 	}
-	p.Spawn(things.Entry(thing{x: 300, y: 100, size: 10}))
+	p.write.Spawn(things.Entry(thing{x: 300, y: 100, size: 10}))
 	run(ecs, wm, func(*goke.CmdBuf) {})
 	if n := len(living(q)); n != 1 {
 		t.Errorf("%d entities after a spawn into the full world, want 1 still", n)
@@ -121,7 +121,7 @@ func TestSpawn_AnEntitySpawnedThisStepTakesAComponentAtOnce(t *testing.T) {
 		stamp = si.RegComp[stamped]()
 		marked = si.NewQueryBuilder(new(goke.Comp[Base])).Include(goke.Include[stamped]()).Build()
 	}})
-	p.Spawn(things.Entry(thing{x: 100, y: 100, size: 10}))
+	p.write.Spawn(things.Entry(thing{x: 100, y: 100, size: 10}))
 	run(ecs, wm, func(*goke.CmdBuf) {})
 	handle := ecs.RegSys(goke.SystemFn{OnUpdate: func(cb *goke.CmdBuf, _ time.Duration) {
 		for id := range living(q) {
@@ -141,7 +141,7 @@ func TestSpawn_AnEntitySpawnedThisStepTakesAComponentAtOnce(t *testing.T) {
 func TestSpawn_TheRoomIsCountedAfterALoad(t *testing.T) {
 	p, things, ecs, _, _ := spawnWorld(t, 0, 2)
 	wm := p.module
-	p.Spawn(things.Entry(thing{x: 100, y: 100, size: 10}), things.Entry(thing{x: 200, y: 100, size: 10}))
+	p.write.Spawn(things.Entry(thing{x: 100, y: 100, size: 10}), things.Entry(thing{x: 200, y: 100, size: 10}))
 	run(ecs, wm, func(*goke.CmdBuf) {})
 	path := t.TempDir() + "/save.bin"
 	ecs.Pause()
@@ -171,7 +171,7 @@ func TestSpawn_TheRoomIsCountedAfterALoad(t *testing.T) {
 	if loaded.module.spawnedCount != 2 {
 		t.Fatalf("after the load %d are counted as spawned, want the 2 loaded", loaded.module.spawnedCount)
 	}
-	loaded.Spawn(kinds.Entry(thing{x: 300, y: 100, size: 10}))
+	loaded.write.Spawn(kinds.Entry(thing{x: 300, y: 100, size: 10}))
 	run(ecs2, loaded.module, func(*goke.CmdBuf) {})
 	if n := len(living(q)); n != 2 {
 		t.Errorf("%d entities after a spawn into the loaded full world, want the 2 loaded alone", n)
@@ -193,7 +193,7 @@ func TestSpawn_PopulateStillRefusesASizeOutOfBounds(t *testing.T) {
 		comp.Const(Velocity{}),
 	})
 	things := kind.Named[thing](p.Kinds(), "thing")
-	p.Seed(things.Entry(thing{x: 100, y: 100, size: 50}))
+	p.write.Seed(things.Entry(thing{x: 100, y: 100, size: 50}))
 	if err := p.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +206,7 @@ func TestSpawn_AStepsGroupsReuseTheArraysOfTheLast(t *testing.T) {
 	ecs.RegSys(s)
 	batch := func(n int) {
 		for i := range n {
-			p.Spawn(things.Entry(thing{x: 100 + 20*float64(i), y: 100, size: 10}))
+			p.write.Spawn(things.Entry(thing{x: 100 + 20*float64(i), y: 100, size: 10}))
 		}
 		s.Update(nil, 0)
 	}

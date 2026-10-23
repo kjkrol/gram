@@ -33,7 +33,7 @@ func newWorld() *world.Plugin {
 
 func TestCameras_AreSavedAndRestoredWithTheGame(t *testing.T) {
 	newCamera := func(p *cameras.Plugin, w, h float32) camera.Camera {
-		cam := p.New(cameras.FromAbove, camera.Config{})
+		cam := p.Write().New(cameras.FromAbove, camera.Config{})
 		cam.SetViewport(w, h)
 		return cam
 	}
@@ -66,15 +66,15 @@ func TestCameras_AreSavedAndRestoredWithTheGame(t *testing.T) {
 	if got := again.(camera.Fastenable).Fastening(); got != (camera.Fastening{Entity: 7, How: camera.Centred}) {
 		t.Errorf("the second camera after a load is fastened %+v, want to entity 7, Centred", got)
 	}
-	if got := len(loaded.Cameras()); got != 2 || loaded.Cameras()[0] != first || loaded.Cameras()[1] != again {
+	if got := len(loaded.Read(0).Cameras()); got != 2 || loaded.Read(0).Cameras()[0] != first || loaded.Read(0).Cameras()[1] != again {
 		t.Errorf("%d cameras in the order made: want 2", got)
 	}
 }
 
 func TestNew_EveryCameraHasAConfigOfItsOwn(t *testing.T) {
 	p := cameras.NewPlugin(newWorld(), cameras.Config{})
-	red := p.New(cameras.FromAbove, camera.Config{Zoom: 2})
-	blue := p.New(cameras.FromAbove, camera.Config{})
+	red := p.Write().New(cameras.FromAbove, camera.Config{Zoom: 2})
+	blue := p.Write().New(cameras.FromAbove, camera.Config{})
 	if red.Zoom() != 2 || blue.Zoom() != 1 {
 		t.Errorf("red's camera at zoom %v, blue's at %v; want each its own: 2 and 1", red.Zoom(), blue.Zoom())
 	}
@@ -107,14 +107,14 @@ func carried(t *testing.T, from saving, to *cameras.Plugin) {
 
 func TestCameras_InReliefAreSavedAsTheirStick(t *testing.T) {
 	saved := reliefCameras()
-	cam := saved.New(cameras.Isometrically, camera.Config{})
+	cam := saved.Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(300, 200)
 	cam.CenterOn(400, 500, 30)
 	cameratest.Turn(cam, 0.4)
 	cameratest.Tilt(cam, 0.3)
 	cam.ZoomIn(2, 400, 500)
 	loaded := reliefCameras()
-	again := loaded.New(cameras.FromAbove, camera.Config{})
+	again := loaded.Write().New(cameras.FromAbove, camera.Config{})
 	again.SetViewport(300, 200)
 	carried(t, saved, loaded)
 	for _, q := range [][3]float32{{400, 500, 30}, {420, 470, 0}} {
@@ -143,7 +143,7 @@ func TestCameras_InReliefSavedBeforeTheStickBeginAfresh(t *testing.T) {
 	log.SetOutput(&logged)
 	defer log.SetOutput(os.Stderr)
 	p := reliefCameras()
-	cam := p.New(cameras.Isometrically, camera.Config{})
+	cam := p.Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(300, 200)
 	bx, by := cam.Project(500, 500, 0)
 	// the save holds the cameras alone, from before the Settings were kept after them
@@ -163,8 +163,8 @@ func TestCameras_InReliefSavedBeforeTheStickBeginAfresh(t *testing.T) {
 
 func TestNew_ACameraIsDrawnAtTheConfigsResolutionAMinimapsAtAll(t *testing.T) {
 	p := cameras.NewPlugin(newWorld(), cameras.Config{Tactical: cameras.Knobs{Resolution: 0.7}})
-	cam := p.New(cameras.FromAbove, camera.Config{})
-	whole := p.New(cameras.FromAbove, camera.Config{Whole: true})
+	cam := p.Write().New(cameras.FromAbove, camera.Config{})
+	whole := p.Write().New(cameras.FromAbove, camera.Config{Whole: true})
 	if got := camera.ResolutionOf(cam); got != 0.7 {
 		t.Errorf("the camera is drawn at %v of its pixels, want the Config's 0.7", got)
 	}
@@ -173,11 +173,12 @@ func TestNew_ACameraIsDrawnAtTheConfigsResolutionAMinimapsAtAll(t *testing.T) {
 			got)
 	}
 	relief := reliefCameras()
-	if got := camera.ResolutionOf(relief.New(cameras.Isometrically, camera.Config{})); got != 1 {
+	if got := camera.ResolutionOf(relief.Write().New(cameras.Isometrically,
+		camera.Config{})); got != 1 {
 		t.Errorf("a camera of a zero Resolution is drawn at %v, want all its pixels", got)
 	}
 	least := cameras.NewPlugin(newWorld(), cameras.Config{Tactical: cameras.Knobs{Resolution: 0.1}})
-	lowest := least.New(cameras.FromAbove, camera.Config{})
+	lowest := least.Write().New(cameras.FromAbove, camera.Config{})
 	if got := camera.ResolutionOf(lowest); got != cameras.LeastResolution {
 		t.Errorf("a Resolution of 0.1 draws at %v, want the least, %v", got, cameras.LeastResolution)
 	}
@@ -185,14 +186,14 @@ func TestNew_ACameraIsDrawnAtTheConfigsResolutionAMinimapsAtAll(t *testing.T) {
 
 func TestSettings_AreSavedWithTheCamerasAndAZeroSavedComesBackSo(t *testing.T) {
 	saved := cameras.NewPlugin(newWorld(), cameras.Config{})
-	saved.ShowZones(true)
+	saved.Write().ShowZones(true)
 	loaded := cameras.NewPlugin(newWorld(),
 		cameras.Config{Tactical: cameras.Knobs{Strategy: cameras.Uniform}})
 	carried(t, saved, loaded)
-	if !loaded.ZonesShown() {
+	if !loaded.Read(0).ZonesShown() {
 		t.Error("the zones shown were not saved with the cameras")
 	}
-	if loaded.Strategy(cameras.Tactical) != cameras.Still {
+	if loaded.Read(0).Strategy(cameras.Tactical) != cameras.Still {
 		t.Error("the resolution follows the budget after a load that saved it still")
 	}
 }
@@ -206,8 +207,8 @@ var defaultLayers = []camera.Layer{
 func TestNew_UnderLayersACameraIsDrawnInTheDefaultLayersAMinimapsWhole(t *testing.T) {
 	layered := cameras.Config{Tactical: cameras.Knobs{Layers: true}}
 	p := cameras.NewPlugin(newWorld(), layered)
-	cam := p.New(cameras.FromAbove, camera.Config{})
-	whole := p.New(cameras.FromAbove, camera.Config{Whole: true})
+	cam := p.Write().New(cameras.FromAbove, camera.Config{})
+	whole := p.Write().New(cameras.FromAbove, camera.Config{Whole: true})
 	if got := camera.LayersOf(cam); !slices.Equal(got, defaultLayers) ||
 		camera.ResolutionOf(cam) != 1 {
 		t.Errorf("the camera is drawn in %v at %v, want the default %v at all its centre's pixels",
@@ -222,13 +223,14 @@ func TestNew_UnderLayersACameraIsDrawnInTheDefaultLayersAMinimapsWhole(t *testin
 		Cell:     32,
 		Tactical: cameras.Knobs{Layers: true},
 	})
-	if got := camera.LayersOf(relief.New(cameras.Isometrically, camera.Config{})); !slices.Equal(
+	if got := camera.LayersOf(relief.Write().New(cameras.Isometrically,
+		camera.Config{})); !slices.Equal(
 		got, defaultLayers) {
 		t.Errorf("a camera in relief is drawn in %v, want the default", got)
 	}
 	centre := cameras.NewPlugin(newWorld(),
 		cameras.Config{Tactical: cameras.Knobs{Layers: true, Resolution: 0.7}})
-	cam = centre.New(cameras.FromAbove, camera.Config{})
+	cam = centre.Write().New(cameras.FromAbove, camera.Config{})
 	if got := camera.LayersOf(cam); got[2].Resolution != 0.7 || camera.ResolutionOf(cam) != 0.7 {
 		t.Errorf("at a Resolution of 0.7 the camera is drawn in %v at %v, want its centre layer "+
 			"at 0.7", got, camera.ResolutionOf(cam))
@@ -376,7 +378,7 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 				c.profile, got)
 		}
 	}
-	p.SetResolution(cameras.Riding, 0.5)
+	p.Write().SetResolution(cameras.Riding, 0.5)
 	if tactical, riding := settings[8].(control.Range).Get(),
 		settings[17].(control.Range).Get(); tactical != 1 || riding != 0.5 {
 		t.Errorf("the riding resolution set to 0.5, the settings show %v tactical and %v riding, "+
@@ -391,10 +393,10 @@ func TestSettings_AreTheZonesTheBudgetAndEachProfilesKnobsInTheirSectionsEachBui
 
 func TestRestore_DrawsTheCamerasInLayersAsTheSettingsLoadedSay(t *testing.T) {
 	saved := cameras.NewPlugin(newWorld(), cameras.Config{Tactical: cameras.Knobs{Layers: true}})
-	saved.SetLayerShares(cameras.Tactical, 0.3, 0.5)
-	saved.SetLayerResolutions(cameras.Tactical, 0.5, 0.7)
+	saved.Write().SetLayerShares(cameras.Tactical, 0.3, 0.5)
+	saved.Write().SetLayerResolutions(cameras.Tactical, 0.5, 0.7)
 	loaded := cameras.NewPlugin(newWorld(), cameras.Config{})
-	before := loaded.New(cameras.FromAbove, camera.Config{})
+	before := loaded.Write().New(cameras.FromAbove, camera.Config{})
 	before.(camera.Resolved).SetResolution(0.7)
 	carried(t, saved, loaded)
 	want := []camera.Layer{
@@ -407,31 +409,31 @@ func TestRestore_DrawsTheCamerasInLayersAsTheSettingsLoadedSay(t *testing.T) {
 		t.Errorf("after the load the camera made before it is drawn in %v at %v, want the layers "+
 			"saved at all its centre's pixels", got, camera.ResolutionOf(before))
 	}
-	after := loaded.New(cameras.FromAbove, camera.Config{})
+	after := loaded.Write().New(cameras.FromAbove, camera.Config{})
 	if got := camera.LayersOf(after); !slices.Equal(got, want) {
 		t.Errorf("a camera made after the load is drawn in %v, want the layers saved", got)
 	}
 	whole := cameras.NewPlugin(newWorld(), cameras.Config{})
 	layered := cameras.NewPlugin(newWorld(),
 		cameras.Config{Tactical: cameras.Knobs{Layers: true}})
-	cam := layered.New(cameras.FromAbove, camera.Config{})
+	cam := layered.Write().New(cameras.FromAbove, camera.Config{})
 	carried(t, whole, layered)
-	if got := camera.LayersOf(cam); len(got) != 0 || layered.Layers(cameras.Tactical) {
+	if got := camera.LayersOf(cam); len(got) != 0 || layered.Read(0).Layers(cameras.Tactical) {
 		t.Errorf("after a load saved whole the camera is drawn in %v, want whole", got)
 	}
 }
 
 func TestNew_ACameraDrawsItsFiguresAtEveryPixelUnlessTheConfigSaysSoft(t *testing.T) {
 	p := cameras.NewPlugin(newWorld(), cameras.Config{})
-	if cam := p.New(cameras.FromAbove, camera.Config{}); !camera.SharpFiguresOf(cam) ||
-		!p.SharpFigures(cameras.Tactical) {
+	if cam := p.Write().New(cameras.FromAbove, camera.Config{}); !camera.SharpFiguresOf(cam) ||
+		!p.Read(0).SharpFigures(cameras.Tactical) {
 		t.Error("a camera of the zero Config draws its figures at the ground's resolution, want " +
 			"at every pixel")
 	}
 	soft := cameras.NewPlugin(newWorld(),
 		cameras.Config{Tactical: cameras.Knobs{SoftFigures: true}})
-	if cam := soft.New(cameras.FromAbove, camera.Config{}); camera.SharpFiguresOf(cam) ||
-		soft.SharpFigures(cameras.Tactical) {
+	if cam := soft.Write().New(cameras.FromAbove, camera.Config{}); camera.SharpFiguresOf(cam) ||
+		soft.Read(0).SharpFigures(cameras.Tactical) {
 		t.Error("under Config.SoftFigures a camera draws its figures at every pixel, want the " +
 			"ground's resolution")
 	}
@@ -441,7 +443,7 @@ func TestNew_ACameraDrawsItsFiguresAtEveryPixelUnlessTheConfigSaysSoft(t *testin
 		Cell:     32,
 		Tactical: cameras.Knobs{SoftFigures: true},
 	})
-	if cam := relief.New(cameras.Isometrically, camera.Config{}); camera.SharpFiguresOf(cam) {
+	if cam := relief.Write().New(cameras.Isometrically, camera.Config{}); camera.SharpFiguresOf(cam) {
 		t.Error("under Config.SoftFigures a camera in relief draws its figures at every pixel, " +
 			"want the ground's resolution")
 	}
@@ -449,27 +451,27 @@ func TestNew_ACameraDrawsItsFiguresAtEveryPixelUnlessTheConfigSaysSoft(t *testin
 
 func TestSharpFigures_ReachesEveryCameraAndTheTelemetry(t *testing.T) {
 	w, p, start, tick := emptyWorld(t, cameras.Config{Tactical: cameras.Knobs{Resolution: 0.7}})
-	cam := p.New(cameras.FromAbove, camera.Config{})
+	cam := p.Write().New(cameras.FromAbove, camera.Config{})
 	start()
 	if got := report(p); got != "Picture: tactical\n0.70 of the pixels\nthe figures sharp\nstill" {
 		t.Fatalf("the telemetry says %q, want the figures sharp at 0.70", got)
 	}
-	w.Carrier().Put(command.Nobody, cameras.SharpFigures{Profile: cameras.Tactical, On: false})
+	w.Write().Carrier().Put(command.Nobody, cameras.SharpFigures{Profile: cameras.Tactical, On: false})
 	tick()
-	if camera.SharpFiguresOf(cam) || p.SharpFigures(cameras.Tactical) {
+	if camera.SharpFiguresOf(cam) || p.Read(0).SharpFigures(cameras.Tactical) {
 		t.Error("after SharpFigures{On: false} the figures are drawn at every pixel, want the " +
 			"ground's resolution")
 	}
 	if got := report(p); got != "Picture: tactical\n0.70 of the pixels\nstill" {
 		t.Errorf("the telemetry says %q, want nothing of the figures", got)
 	}
-	w.Carrier().Put(command.Nobody, cameras.SharpFigures{Profile: cameras.Tactical, On: true})
+	w.Write().Carrier().Put(command.Nobody, cameras.SharpFigures{Profile: cameras.Tactical, On: true})
 	tick()
-	if !camera.SharpFiguresOf(cam) || !p.SharpFigures(cameras.Tactical) {
+	if !camera.SharpFiguresOf(cam) || !p.Read(0).SharpFigures(cameras.Tactical) {
 		t.Error("after SharpFigures{On: true} the figures are drawn at the ground's resolution, " +
 			"want every pixel")
 	}
-	w.Carrier().Put(command.Nobody, cameras.Picture{Profile: cameras.Tactical, Resolution: 1})
+	w.Write().Carrier().Put(command.Nobody, cameras.Picture{Profile: cameras.Tactical, Resolution: 1})
 	tick()
 	if got := report(p); got != "Picture: tactical\n1.00 of the pixels\nstill" {
 		t.Errorf("at all the pixels the telemetry says %q, want nothing of the figures", got)
@@ -478,24 +480,24 @@ func TestSharpFigures_ReachesEveryCameraAndTheTelemetry(t *testing.T) {
 
 func TestRestore_DrawsTheFiguresSoftAsTheSettingsLoadedSay(t *testing.T) {
 	saved := cameras.NewPlugin(newWorld(), cameras.Config{})
-	saved.SetSharpFigures(cameras.Tactical, false)
+	saved.Write().SetSharpFigures(cameras.Tactical, false)
 	loaded := cameras.NewPlugin(newWorld(), cameras.Config{})
-	before := loaded.New(cameras.FromAbove, camera.Config{})
+	before := loaded.Write().New(cameras.FromAbove, camera.Config{})
 	carried(t, saved, loaded)
-	after := loaded.New(cameras.FromAbove, camera.Config{})
-	if sharp := loaded.SharpFigures(cameras.Tactical); sharp || camera.SharpFiguresOf(before) ||
-		camera.SharpFiguresOf(after) {
+	after := loaded.Write().New(cameras.FromAbove, camera.Config{})
+	keeps := loaded.Read(0).SharpFigures(cameras.Tactical)
+	if keeps || camera.SharpFiguresOf(before) || camera.SharpFiguresOf(after) {
 		t.Errorf("after a load saved soft the figures are drawn at every pixel: the plugin %v, "+
-			"the camera made before the load %v, after it %v; want none", sharp,
+			"the camera made before the load %v, after it %v; want none", keeps,
 			camera.SharpFiguresOf(before), camera.SharpFiguresOf(after))
 	}
 	// a save of sharp figures holds no field for them, as a save from before the setting
 	sharp := cameras.NewPlugin(newWorld(), cameras.Config{})
 	soft := cameras.NewPlugin(newWorld(),
 		cameras.Config{Tactical: cameras.Knobs{SoftFigures: true}})
-	cam := soft.New(cameras.FromAbove, camera.Config{})
+	cam := soft.Write().New(cameras.FromAbove, camera.Config{})
 	carried(t, sharp, soft)
-	if !soft.SharpFigures(cameras.Tactical) || !camera.SharpFiguresOf(cam) {
+	if !soft.Read(0).SharpFigures(cameras.Tactical) || !camera.SharpFiguresOf(cam) {
 		t.Error("after a load saved sharp the figures stay at the ground's resolution, want " +
 			"every pixel")
 	}
@@ -564,22 +566,23 @@ func TestKnobs_FilledGivesAZeroSaveTheDefaults(t *testing.T) {
 		Tactical: cameras.Knobs{Strategy: cameras.Uniform, Resolution: 0.5, Inner: 0.2},
 		Riding:   cameras.Knobs{Strategy: cameras.InLayers, Layers: true, OuterRes: 0.4},
 	})
-	cam := p.New(cameras.FromAbove, camera.Config{})
+	cam := p.Write().New(cameras.FromAbove, camera.Config{})
 	carried(t, old, p)
-	if !p.ZonesShown() || p.Budget() != time.Second/30 {
+	if !p.Read(0).ZonesShown() || p.Read(0).Budget() != time.Second/30 {
 		t.Errorf("an old save loaded shows the zones %v at a budget of %v, want them shown at a "+
-			"thirtieth of a second, as saved", p.ZonesShown(), p.Budget())
+			"thirtieth of a second, as saved", p.Read(0).ZonesShown(), p.Read(0).Budget())
 	}
 	for _, profile := range []cameras.Profile{cameras.Tactical, cameras.Riding} {
-		inner, middle := p.LayerShares(profile)
-		outer, middleRes := p.LayerResolutions(profile)
-		if p.Strategy(profile) != cameras.Still || p.Resolution(profile) != 1 ||
-			!p.SharpFigures(profile) || p.Layers(profile) || inner != 0.35 || middle != 0.6 ||
+		inner, middle := p.Read(0).LayerShares(profile)
+		outer, middleRes := p.Read(0).LayerResolutions(profile)
+		rd := p.Read(0)
+		if rd.Strategy(profile) != cameras.Still || rd.Resolution(profile) != 1 ||
+			!rd.SharpFigures(profile) || rd.Layers(profile) || inner != 0.35 || middle != 0.6 ||
 			outer != 0.6 || middleRes != 0.8 {
 			t.Errorf("%v after an old save: %v at %v, sharp %v, in layers %v of %v/%v at %v/%v; "+
 				"want the defaults: still at 1, sharp, whole, of 0.35/0.6 at 0.6/0.8", profile,
-				p.Strategy(profile), p.Resolution(profile), p.SharpFigures(profile),
-				p.Layers(profile), inner, middle, outer, middleRes)
+				p.Read(0).Strategy(profile), p.Read(0).Resolution(profile), p.Read(0).SharpFigures(profile),
+				p.Read(0).Layers(profile), inner, middle, outer, middleRes)
 		}
 	}
 	if got := camera.ResolutionOf(cam); got != 1 || len(camera.LayersOf(cam)) != 0 {
@@ -602,7 +605,7 @@ func ridden(t *testing.T, tactical, riding cameras.Knobs) (p *cameras.Plugin, ca
 		Tactical:    tactical,
 		Riding:      riding,
 	})
-	cam = p.New(cameras.Isometrically, camera.Config{})
+	cam = p.Write().New(cameras.Isometrically, camera.Config{})
 	cam.SetViewport(400, 300)
 	kind.Define[float64](w.Kinds(), "rider", kind.Spec{
 		comp.Load(func(x float64) world.Position {
@@ -611,7 +614,7 @@ func ridden(t *testing.T, tactical, riding cameras.Knobs) (p *cameras.Plugin, ca
 		comp.Const(world.Velocity{}),
 	})
 	rider := kind.Named[float64](w.Kinds(), "rider")
-	w.Seed(rider.Entry(500).Told(cameras.Follow{Camera: cam}))
+	w.Write().Seed(rider.Entry(500).Told(cameras.Follow{Camera: cam}))
 	if err := w.Populate(); err != nil {
 		t.Fatal(err)
 	}
@@ -621,7 +624,7 @@ func ridden(t *testing.T, tactical, riding cameras.Knobs) (p *cameras.Plugin, ca
 		t.Fatalf("the camera is fastened %v, want Centred over the entity", how)
 	}
 	return p, cam, func(cmd command.Command) {
-		w.Carrier().Put(command.Nobody, cmd)
+		w.Write().Carrier().Put(command.Nobody, cmd)
 		tick()
 	}
 }
@@ -705,7 +708,7 @@ func TestLevers_GoCoarserBeforeThePicturesAndFinerAfterThemWhileFollowing(t *tes
 	d := &dial{at: 1, following: true}
 	p := cameras.NewPlugin(newWorld(), cameras.Config{Levers: []cameras.Lever{d},
 		Tactical: cameras.Knobs{Strategy: cameras.Uniform}})
-	cam := p.New(cameras.FromAbove, camera.Config{})
+	cam := p.Write().New(cameras.FromAbove, camera.Config{})
 	p.Redraw(cameras.ResolutionStep)
 	if d.at != 0 || camera.ResolutionOf(cam) != 1 {
 		t.Fatalf("coarser: the dial at %d, the picture at %v; want the dial turned first, the "+

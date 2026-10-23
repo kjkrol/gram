@@ -108,7 +108,7 @@ func (c *Conditions) Define(name string, cond Condition) {
 	if _, ok := c.byName[name]; ok {
 		panic(fmt.Sprintf("dialog: the condition %q is defined already", name))
 	}
-	if _, ok := c.p.w.Effects().Lookup(name); ok {
+	if _, ok := c.p.w.Write().Effects().Lookup(name); ok {
 		panic(fmt.Sprintf("dialog: the condition %q is named as an effect is: an answer's if would not tell them apart", name))
 	}
 	if c.byName == nil {
