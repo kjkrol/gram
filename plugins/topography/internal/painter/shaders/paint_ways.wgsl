@@ -1,9 +1,9 @@
 // The ways across the board's tiles (painter's bake_gpu.go), an instance a cell a way runs across
-// (its column and row), each laid in pieces as wayAnew lays them: bands from the cell's middle
-// out to the neighbours its Links name, curving round the middle, a way out to one neighbour
-// ending square, to more running as a stem through the two widest with the rest joining it
-// halfway, a way out to a cell lying under the rest running on under it, as wide and faded as the
-// way and its partner across the side say, masked by the land round it on a square board. A
+// (its column and row), each laid in pieces: bands from the cell's middle out to the neighbours
+// its Links name, curving round the middle, a way out to one neighbour ending square, to more
+// running as a stem through the two widest with the rest joining it halfway, a way out to a cell
+// lying under the rest running on under it, as wide and faded as the way and its partner across
+// the side say, masked by the land round it on a square board. A
 // world unit lies U.PaintScale pixels apart in a target U.PaintTarget large. A square board's
 // cells are U.PaintCell across; a hex board's (U.PaintHex) pointy-top, U.PaintCell from centre to
 // corner. The ground is U.PaintLow plus U.PaintSpan at its corners (cells.go); U.PaintFine has
@@ -29,7 +29,7 @@ const laneMixes: u32 = 2u;
 const laneRuns: u32 = 4u;
 const laneGlints: u32 = 8u;
 
-// rise over run under which water lies level (way.go)
+// rise over run under which water lies level
 const stillFall: f32 = 0.01;
 
 // Way is what runs across a cell (cells.go's lane).

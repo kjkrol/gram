@@ -6,6 +6,9 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
+// cells from a shore within which its waves turn to face it
+const shoreReach = 3
+
 // shoreMap is the way to the shore from every corner as Shores works it out: the cells that
 // shone when it last did, a count of the board's changes seen and of its own
 type shoreMap struct {

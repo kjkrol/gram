@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/render"
@@ -32,7 +31,7 @@ func TestCells_HoldWhatTheBakeReadsOfEachCell(t *testing.T) {
 		atlas.Add(id, 8, render.Solid(color.RGBA{A: 255}))
 	}
 	atlas.Close()
-	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
+	d := New(brd, reliefFor(brd), true, st)
 	d.kinds = kindsOf{land, sea, river}
 	if !d.refresh(atlas) || d.refresh(atlas) {
 		t.Fatal("the cells laid at first and again unchanged, want laid once")

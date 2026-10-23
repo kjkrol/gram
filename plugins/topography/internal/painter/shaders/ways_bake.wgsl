@@ -1,8 +1,7 @@
 // The ways' pieces painted into the layer U.PaintLayer says (paint_ways.wgsl), nothing outside
-// the cells painted anew: the albedo as WayPiece.draw lays them, the way's sprite blended over
-// its weight where it fades, then turned into its mix's sprite; the kinds' the way's detail
-// edged hard; the water's as layWater lays them, the water running and glinting on the way where
-// it does, dark where it does not.
+// the cells painted anew: the albedo the way's sprite blended over its weight where it fades,
+// then turned into its mix's sprite; the kinds' the way's detail edged hard; the water's the
+// water running and glinting on the way where it does, dark where it does not.
 
 @fragment
 fn fs_main(in: Lane) -> @location(0) vec4<f32> {

@@ -57,6 +57,7 @@ type cells struct {
 	atlas   render.AtlasSource
 	vers    []uint64 // one more than each cell's version the image holds, by ordinal
 	at      uint64   // one more than the board's count of changes it holds; 0 none
+	prev    uint64   // what at was before the last refresh that changed it
 	styled  uint64
 	low     float32 // the relief's lowest and its span the heights are held in
 	span    float32
@@ -86,7 +87,9 @@ func (l *Painter) refresh(atlas render.AtlasSource) bool {
 	if len(g.vers) != n {
 		g.vers = make([]uint64, n)
 	}
-	g.at, g.styled, g.low, g.span = l.board.Changes()+1, l.styleVersion, float32(low), float32(high-low)
+	g.prev = g.at
+	g.at, g.styled = l.board.Changes()+1, l.styleVersion
+	g.low, g.span = float32(low), float32(high-low)
 	l.tables()
 	if !all {
 		g.changed = g.changed[:0]

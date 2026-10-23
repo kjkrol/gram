@@ -57,9 +57,9 @@ type baking struct {
 }
 
 // toPaint are the cells to paint anew after the cells changed as the last refresh says: every
-// cell within two of a changed one, whose blends or ways may have; all of them where the cells
-// were laid whole or over an eighth would be
-func (l *Painter) toPaint() []float32 {
+// cell within two of a changed one, whose blends or ways may have; all of them where whole says
+// so, the cells were laid whole or over an eighth would be
+func (l *Painter) toPaint(whole bool) []float32 {
 	g, b := &l.cells, &l.baking
 	cols, rows := int(l.sq.Cols), int(l.sq.Rows)
 	n := cols * rows
@@ -71,7 +71,7 @@ func (l *Painter) toPaint() []float32 {
 		}
 		return b.at
 	}
-	if g.changed == nil {
+	if whole || g.changed == nil {
 		return all()
 	}
 	if len(b.marks) != n {

@@ -141,7 +141,7 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 	}
 	p.relief = irelief.New(brd, boardPlugin.Write().Board().Touch)
 	p.shaper = &shaper{relief: p.relief, cfg: shaping}
-	p.painter = ipainter.New(brd, p.relief, liveSky{p}, true, map[cell.Name]painter.Style{}).WithKinds(boardPlugin.Read(0).CellKinds())
+	p.painter = ipainter.New(brd, p.relief, true, map[cell.Name]painter.Style{}).WithKinds(boardPlugin.Read(0).CellKinds())
 	boardPlugin.WithMap(p)
 	if _, _, _, _, square := p.relief.Lattice(); square {
 		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{

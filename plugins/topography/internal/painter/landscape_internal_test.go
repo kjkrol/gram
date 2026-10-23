@@ -1,6 +1,7 @@
 package painter
 
 import (
+	"image/color"
 	"math"
 	"os"
 	"strings"
@@ -8,49 +9,16 @@ import (
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/ceremony"
-	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/plugins/atmosphere/air"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/ground"
 	"github.com/kjkrol/gram/plugins/board/look"
-	"github.com/kjkrol/gram/plugins/cameras/cameratest"
-	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gpu"
 )
-
-type lookFn func(f *render.Frame, cam camera.Camera, t *tile)
-
-// dressing is d dressing brd's tiles, each handed to fn as a frame through a camera visits it
-type dressing struct {
-	brd *board.BoardRead
-	d   *Painter
-	fn  lookFn
-}
-
-func dressed(brd *board.BoardRead, d *Painter, fn lookFn) *dressing {
-	return &dressing{brd: brd, d: d, fn: fn}
-}
-
-type testSky struct {
-	sun light.Distant
-	air air.Weather
-}
-
-func (s testSky) Distant() light.Distant { return s.sun }
-func (s testSky) Air() air.Weather       { return s.air }
-
-func skyOf(s light.Distant) testSky { return testSky{sun: s} }
-
-type movingSky struct{ sun *light.Distant }
-
-func (s *movingSky) Distant() light.Distant { return *s.sun }
-func (*movingSky) Air() air.Weather         { return air.Weather{} }
 
 type testMap struct {
 	look look.Look
@@ -90,374 +58,272 @@ func reliefFor(brd *board.BoardRead) *relief.Relief {
 	return r
 }
 
-// compose readies the painter for a frame through cam and hands every tile under it to fn
-func compose(r *dressing, cam camera.Camera) {
-	var f render.Frame
-	f.Reset(cam)
-	r.d.Begin(&f, cam)
-	r.brd.CellsUnder(cam.Bounds(), func(c cell.ID) { r.fn(&f, cam, r.d.cellTile(c)) })
+// solids is an atlas of a sprite of each colour
+func solids(colours map[render.SpriteID]color.RGBA) render.AtlasSource {
+	atlas := render.NewAtlas()
+	for id, c := range colours {
+		atlas.Add(id, 16, render.Solid(c))
+	}
+	atlas.Close()
+	return atlas
 }
+
+// baked is the board's Surface as the GPU bakes it, read at points of the world
+type baked struct {
+	s            *groundSheet
+	cell         float32
+	albedo, wpix []byte
+}
+
+// bakedOf bakes d's board out of atlas, cells cell wide
+func bakedOf(t *testing.T, d *Painter, atlas render.AtlasSource, cell float32) *baked {
+	t.Helper()
+	img, wtr, _, _ := d.Surface(atlas)
+	if img == nil {
+		t.Fatal("no albedo baked")
+	}
+	b := &baked{s: d.albedo, cell: cell}
+	b.albedo = make([]byte, 4*img.Bounds().Dx()*img.Bounds().Dy())
+	img.ReadPixels(b.albedo)
+	if wtr != nil {
+		b.wpix = make([]byte, 4*wtr.Bounds().Dx()*wtr.Bounds().Dy())
+		wtr.ReadPixels(b.wpix)
+	}
+	return b
+}
+
+// at is the pixel of pix, w wide, at the world point x, y, px pixels a cell from origin
+func (b *baked) at(pix []byte, w, px int, ox, oy int, x, y float32) color.RGBA {
+	k := float32(px) / b.cell
+	i := 4 * ((oy+int(y*k))*w + ox + int(x*k))
+	return color.RGBA{pix[i], pix[i+1], pix[i+2], pix[i+3]}
+}
+
+// albedoAt is the albedo at the world point x, y
+func (b *baked) albedoAt(x, y float32) color.RGBA {
+	return b.at(b.albedo, b.s.img.Bounds().Dx(), b.s.px, 0, 0, x, y)
+}
+
+// waterAt is the water's layer q at the world point x, y
+func (b *baked) waterAt(q int, x, y float32) color.RGBA {
+	o := b.s.waterLayer(q).Min
+	return b.at(b.wpix, b.s.water.Bounds().Dx(), b.s.wpx, o.X, o.Y, x, y)
+}
+
+// close reports whether a and b differ by at most d in every colour
+func close(a, b color.RGBA, d int) bool {
+	for _, p := range [][2]uint8{{a.R, b.R}, {a.G, b.G}, {a.B, b.B}} {
+		if k := int(p[0]) - int(p[1]); k > d || k < -d {
+			return false
+		}
+	}
+	return true
+}
+
+// between reports whether c lies between a and b, near neither
+func between(c, a, b color.RGBA) bool { return !close(c, a, 8) && !close(c, b, 8) }
+
+var (
+	green = color.RGBA{90, 160, 70, 255}
+	blue  = color.RGBA{40, 80, 170, 255}
+	brown = color.RGBA{150, 110, 70, 255}
+	sandy = color.RGBA{210, 190, 120, 255}
+)
 
 func styled(st map[cell.Name]Style, k cell.Kind, s Style) cell.Kind {
 	st[k.Name] = s
 	return k
 }
 
-func TestTile_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
+func TestBake_RunningWaterRunsDownItsSlopeAndNotIntoItsBanks(t *testing.T) {
+	needGPU(t)
 	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(3, 3, 10)
-	brd, brdW := newBoard(grid)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
+	g := grid.DefaultGrids{}.Square(3, 3, 32)
+	brd, brdW := newBoard(g)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
 	for y := range uint32(3) {
-		brdW.Set(at(1, y), styled(st, cell.Kind{Name: cell.Named("k1"), Allows: cell.Water}, Style{Shine: 1, Flow: 10}))
+		brdW.Set(g.At(1, y), styled(st, cell.Kind{Name: cell.Named("k1"), Allows: cell.Water,
+			SpriteID: 2}, Style{Shine: 1, Flow: 10}))
 	}
-	still := grid.At(0, 1)
-	brdW.Set(still, styled(st, cell.Kind{Name: cell.Named("k2"), Allows: cell.Water}, Style{Shine: 1}))
+	brdW.Set(g.At(0, 1), styled(st, cell.Kind{Name: cell.Named("k2"), Allows: cell.Water,
+		SpriteID: 2}, Style{Shine: 1}))
 	// falling 0.4 southward, the banks rising half as fast away from the stream
-	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - 0.4*p.Y + 0.5*math.Abs(p.X-15) })
-	flows, runs := map[cell.ID]water.Flow{}, map[cell.ID]bool{}
-	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { flows[t.ID], runs[t.ID] = t.Flow() })
-	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
-	r := dressed(brd, d, look)
-	compose(r, cameratest.NewFromSpace(30, 30, 0))
-
-	want := float32(10 * math.Sqrt(0.4))
-	for k, v := range flows[at(1, 1)] {
-		if math.Abs(float64(v[0])) > 1e-5 || math.Abs(float64(v[1]-want)) > 1e-4 {
-			t.Errorf("corner %d runs at %v, want (0, %v): down the valley, not into a bank", k, v, want)
-		}
+	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - 0.4*p.Y + 0.5*math.Abs(p.X-48) })
+	d := New(brd, reliefFor(brd), true, st)
+	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 2: blue}), 32)
+	south := 0.5 + 10*math.Sqrt(0.4)/(2*water.FlowSpan)
+	if f := b.waterAt(water.FlowLayer, 49, 49); !close(f, color.RGBA{128,
+		uint8(south*255 + 0.5), 255, 255}, 2) {
+		t.Errorf("the stream flows %v, want south, down the valley, not into a bank", f)
 	}
-	if runs[still] || runs[at(2, 1)] {
-		t.Errorf("still water runs: %v, a bank runs: %v; want neither", runs[still], runs[at(2, 1)])
+	if f, s := b.waterAt(water.FlowLayer, 17, 49), b.waterAt(water.ShineLayer, 17, 49); f.A != 0 ||
+		!close(s, color.RGBA{0, 255, 255, 255}, 1) {
+		t.Errorf("still water flows %v and shines %v, want no flow and still water's shine", f, s)
+	}
+	if s := b.waterAt(water.ShineLayer, 81, 49); s.A != 0 {
+		t.Errorf("a bank shines %v, want no water", s)
 	}
 }
 
-func wayPieces(
-	t *testing.T, brd *board.BoardRead, st map[cell.Name]Style, w, h uint32,
-) map[cell.ID][]WayPiece {
-	t.Helper()
-	return wayPiecesAt(t, brd, st, w, h, 2)
-}
-
-func wayPiecesAt(
-	t *testing.T, brd *board.BoardRead, st map[cell.Name]Style, w, h uint32, zoom float32,
-) map[cell.ID][]WayPiece {
-	t.Helper()
-	got := map[cell.ID][]WayPiece{}
-	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { got[t.ID] = append([]WayPiece(nil), t.Way()...) })
-	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
-	r := dressed(brd, d, look)
-	cam := cameratest.NewFromSpace(w, h, 0)
-	cam.ZoomIn(zoom, float32(w)/2, float32(h)/2)
-	if z := cam.Zoom(); math.Abs(float64(z-zoom)) > 1e-4 {
-		t.Fatalf("the camera zoomed to %v, want %v", z, zoom)
-	}
-	cam.CenterOn(float64(w)/2, float64(h)/2, 0)
-	compose(r, cam)
-	return got
-}
-
-// k is 0 where the piece starts, 1 where it ends
-func mid(p WayPiece, k int) [2]float32 {
-	return [2]float32{(p.World[k][0] + p.World[k+2][0]) / 2, (p.World[k][1] + p.World[k+2][1]) / 2}
-}
-
-func near2(a, b [2]float32) bool {
-	return math.Abs(float64(a[0]-b[0])) < 1e-4 && math.Abs(float64(a[1]-b[1])) < 1e-4
-}
-
-func TestTile_AWayStraightAcrossIsOneBandFromSideToSide(t *testing.T) {
+func TestBake_AWayStraightAcrossIsOneBandFromSideToSide(t *testing.T) {
+	needGPU(t)
 	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(3, 3, 10)
-	brd, brdW := newBoard(grid)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 20 - 0.5*p.X }) // falling east
-	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	stream := styled(st, cell.Kind{Name: cell.Named("k3"), Allows: cell.Land | cell.Water}, Style{Shine: 1, Flow: 10})
+	g := grid.DefaultGrids{}.Square(3, 3, 32)
+	brd, brdW := newBoard(g)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
+	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - 0.5*p.X }) // falling east
+	stream := styled(st, cell.Kind{Name: cell.Named("k3"), Allows: cell.Land | cell.Water,
+		SpriteID: 2}, Style{Shine: 1, Flow: 10})
 	west, east := cell.Links(1<<2), cell.Links(1<<3)
-	brdW.SetWay(at(1, 1), cell.Way{Kind: stream, Width: 4, Links: west | east})
-	brdW.SetWay(at(0, 1), cell.Way{Kind: stream, Width: 8, Links: east})
-
-	pieces := wayPieces(t, brd, st, 30, 30)[at(1, 1)]
-	if len(pieces) != 6 {
-		t.Fatalf("%d pieces, want the one band in 6", len(pieces))
-	}
-	first, last := pieces[0], pieces[len(pieces)-1]
-	if first.World[0] != [2]float32{10, 18} || first.World[2] != [2]float32{10, 12} {
-		t.Errorf("the band starts %v–%v, want 6 wide on the west side: the mean of 4 and 8", first.World[0], first.World[2])
-	}
-	if !near2(last.World[1], [2]float32{20, 17}) || !near2(last.World[3], [2]float32{20, 13}) {
-		t.Errorf("the band ends %v–%v, want 4 wide on the east side", last.World[1], last.World[3])
-	}
-	far := wayPiecesAt(t, brd, st, 30, 30, 1)[at(1, 1)]
-	if len(far) != 2 || far[0].World[0] != first.World[0] || !near2(far[1].World[3], last.World[3]) {
-		t.Errorf("from far %d pieces; want the band in 2 from %v to %v", len(far), first.World[0], last.World[3])
-	}
-	speed := float32(10 * math.Sqrt(0.5))
-	for _, p := range pieces {
-		for k, f := range p.Flow {
-			if math.Abs(float64(f[0]-speed)) > 1e-4 || math.Abs(float64(f[1])) > 1e-4 {
-				t.Errorf("piece from %v corner %d runs at %v, want %v eastward, down the slope", mid(p, 0), k, f, speed)
-			}
-		}
-		if z := p.Z[0]; math.Abs(float64(z-(20-0.5*p.World[0][0]))) > 1e-4 {
-			t.Errorf("band corner at %v stands at %v, want on the ground", p.World[0], z)
-		}
-	}
-	if len(wayPieces(t, brd, st, 30, 30)[at(2, 2)]) != 0 {
-		t.Error("a cell with no way drew pieces")
-	}
-}
-
-func TestTile_AWayTurningCurvesRoundTheMiddle(t *testing.T) {
-	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(3, 3, 10)
-	brd, brdW := newBoard(grid)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	c := grid.At(1, 1)
-	brdW.SetWay(c, cell.Way{Kind: cell.Kind{Allows: cell.Land}, Width: 4, Links: 1<<2 | 1<<1}) // west and south
-	pieces := wayPieces(t, brd, st, 30, 30)[c]
-	if len(pieces) != 6 {
-		t.Fatalf("%d pieces, want the curve in 6", len(pieces))
-	}
-	if s, e := mid(pieces[0], 0), mid(pieces[5], 1); !near2(s, [2]float32{10, 15}) && !near2(s, [2]float32{15, 20}) ||
-		!near2(e, [2]float32{10, 15}) && !near2(e, [2]float32{15, 20}) || near2(s, e) {
-		t.Errorf("the curve runs from %v to %v, want from the west side's middle to the south's", s, e)
-	}
-	if m := mid(pieces[2], 1); !near2(m, [2]float32{13.75, 16.25}) {
-		t.Errorf("halfway the curve is at %v, want (13.75, 16.25): round the middle", m)
-	}
-	for _, across := range [][2][2]float32{{pieces[0].World[0], pieces[0].World[2]}, {pieces[5].World[1], pieces[5].World[3]}} {
-		if dx, dy := across[0][0]-across[1][0], across[0][1]-across[1][1]; math.Abs(float64(dx)) > 1e-4 && math.Abs(float64(dy)) > 1e-4 {
-			t.Errorf("at the side the band lies across from %v to %v, at a slant", across[0], across[1])
-		}
-	}
-}
-
-func TestTile_AWayFadingOutShowsLessAndRunsOnTheWayItFades(t *testing.T) {
-	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(4, 1, 10)
-	brd, brdW := newBoard(grid)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Water})
-	at := func(x uint32) cell.ID { c := grid.At(x, 0); return c }
-	river := styled(st, cell.Kind{Name: cell.Named("k4"), Allows: cell.Water}, Style{Shine: 1, Flow: 40})
-	west, east := cell.Links(1<<2), cell.Links(1<<3)
-	brdW.SetWay(at(0), cell.Way{Kind: river, Width: 4, Links: east})
-	brdW.SetWay(at(1), cell.Way{Kind: river, Width: 4, Links: west | east, Fade: 0.5})
-	brdW.SetWay(at(2), cell.Way{Kind: river, Width: 4, Links: west, Fade: 0.75})
-	pieces := wayPieces(t, brd, st, 40, 10)
-
-	mid := pieces[at(1)]
-	if w0, w1 := mid[0].Weight[0], mid[len(mid)-1].Weight[1]; !mid[0].Faded || math.Abs(float64(w0-0.75)) > 1e-5 || math.Abs(float64(w1-0.375)) > 1e-5 {
-		t.Errorf("the band shows %v at its west end and %v at its east, faded %v; want 0.75 and 0.375", w0, w1, mid[0].Faded)
-	}
-	speed := float32(40 * 0.1)
-	for _, p := range mid {
-		if f := p.Flow[0]; math.Abs(float64(f[0]-speed)) > 1e-4 {
-			t.Errorf("level water runs at %v, want %v eastward, the way it fades", f, speed)
-		}
-	}
-	end := pieces[at(2)]
-	if w := end[0].Weight[0]; w != 0 {
-		t.Errorf("the end of the way shows %v at its tip, want nothing", w)
-	}
-	if pieces[at(0)][0].Faded {
-		t.Error("a way not fading is drawn faded")
-	}
-}
-
-func TestTile_AWayRunsSlantwiseToTheCornerAndEndsSquareAcrossItself(t *testing.T) {
-	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(3, 3, 10)
-	brd, brdW := newBoard(grid)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	c := grid.At(1, 1)
-	brdW.SetWay(c, cell.Way{Kind: cell.Kind{Allows: cell.Land}, Width: 2, Links: 1 << 7}) // south-east
-	pieces := wayPieces(t, brd, st, 30, 30)[c]
-	if len(pieces) != 5 {
-		t.Fatalf("%d pieces, want its end and the band in 4", len(pieces))
-	}
-	d := float32(1 / math.Sqrt2)
-	if b, m := mid(pieces[0], 0), mid(pieces[0], 1); !near2(b, [2]float32{15 - d, 15 - d}) || !near2(m, [2]float32{15, 15}) {
-		t.Errorf("the end runs from %v to %v, want from 1 behind the middle, slantwise, to the middle", b, m)
-	}
-	last := pieces[4]
-	if !near2(mid(last, 1), [2]float32{20, 20}) || !last.Across || last.Corner != [2]float32{20, 20} {
-		t.Errorf("the band ends at %v, across %v at %v; want across the corner (20, 20)", mid(last, 1), last.Across, last.Corner)
-	}
-	for _, p := range pieces[:3] {
-		for _, at := range p.World {
-			if at[0] < 10 || at[0] > 20 || at[1] < 10 || at[1] > 20 || p.Across {
-				t.Errorf("a piece within the cell reaches %v, out of it", at)
-			}
-		}
-	}
-}
-
-func TestTile_BlendsWeighTheNeighboursGroundsAtTheTilesPoints(t *testing.T) {
-	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(3, 3, 10)
-	brd, brdW := newBoard(grid)
-	earth := styled(st, cell.Kind{Name: cell.Named("k5"), Allows: cell.Land, SpriteID: 1}, Style{Spread: 0.2})
-	sand := styled(st, cell.Kind{Name: cell.Named("k6"), Allows: cell.Land, SpriteID: 2}, Style{Spread: 0.4})
-	brdW.SetAll(earth)
-	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	brdW.Set(at(2, 1), sand)
-	blends := func() map[cell.ID][]BlendPiece {
-		got := map[cell.ID][]BlendPiece{}
-		look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { got[t.ID] = append([]BlendPiece(nil), t.Blends()...) })
-		d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
-		r := dressed(brd, d, look)
-		compose(r, cameratest.NewFromSpace(30, 30, 0))
-		return got
-	}
-	got := blends()
-	pieces := got[at(1, 1)]
-	if len(pieces) != 2 {
-		t.Fatalf("%d quarters, want the two by the sand: %+v", len(pieces), pieces)
-	}
-	want := map[render.World][4]float32{
-		{{15, 10}, {20, 10}, {15, 15}, {20, 15}}: {0, 0.25, 0, 0.5},
-		{{15, 15}, {20, 15}, {15, 20}, {20, 20}}: {0, 0.5, 0, 0.25},
-	}
-	for _, p := range pieces {
-		if w, ok := want[p.World]; !ok || p.Weight != w || p.Sprite != sand.SpriteID || math.Abs(float64(p.Soft-0.3)) > 1e-6 {
-			t.Errorf("quarter %v weighs %v, sprite %v, soft %v; want %v of the sand, 0.3 soft", p.World, p.Weight, p.Sprite, p.Soft, w)
-		}
-	}
-	var corner [4]float32
-	for _, p := range got[at(2, 1)] {
-		if p.World[0] == [2]float32{20, 10} {
-			corner = p.Weight
-		}
-	}
-	if corner != [4]float32{0.75, 0.5, 0.5, 0} {
-		t.Errorf("the earth over the sand's top-left quarter weighs %v, want 0.75 at the corner, 0.5 at the sides, 0 at the middle", corner)
-	}
-
-	brdW.Set(at(2, 1), cell.Kind{Allows: cell.Water, SpriteID: 3}) // the sea keeps its cells square
-	if n := len(blends()[at(1, 1)]); n != 0 {
-		t.Errorf("%d quarters blend with the sea, want none", n)
-	}
-}
-
-func TestTile_ByTheSeaTheLandIsLaidOverTheSeaUnderIt(t *testing.T) {
-	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(3, 3, 10)
-	brd, brdW := newBoard(grid)
-	earth := styled(st, cell.Kind{Name: cell.Named("k7"), Allows: cell.Land, SpriteID: 1}, Style{Spread: 0.25})
-	sea := styled(st, cell.Kind{Name: cell.Named("k8"), Allows: cell.Water, SpriteID: 4}, Style{Under: true})
-	brdW.SetAll(earth)
-	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	brdW.Set(at(0, 1), sea)
-	bases, blends := map[cell.ID]render.SpriteID{}, map[cell.ID][]BlendPiece{}
-	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) {
-		bases[t.ID], blends[t.ID] = t.baseTop().sprite, append([]BlendPiece(nil), t.Blends()...)
-	})
-	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
-	r := dressed(brd, d, look)
-	compose(r, cameratest.NewFromSpace(30, 30, 0))
-
-	if bases[at(1, 1)] != sea.SpriteID || bases[at(2, 1)] != earth.SpriteID {
-		t.Errorf("bases %v by the sea, %v away from it; want the sea and the earth", bases[at(1, 1)], bases[at(2, 1)])
-	}
-	var nw [4]float32
-	for _, p := range blends[at(1, 1)] {
-		if p.Sprite == earth.SpriteID && p.World[0] == [2]float32{10, 10} {
-			nw = p.Weight
-		}
-	}
-	if len(blends[at(1, 1)]) != 4 || nw != [4]float32{0.75, 1, 0.5, 1} {
-		t.Errorf("the land tile lays %d quarters of its earth, the north-west weighing %v; want 4, 0.75 at the corner by the sea, 0.5 at its side, 1 inland",
-			len(blends[at(1, 1)]), nw)
-	}
-	var ne [4]float32
-	for _, p := range blends[at(0, 1)] {
-		if p.Sprite == earth.SpriteID && p.World[0] == [2]float32{5, 10} {
-			ne = p.Weight
-		}
-	}
-	if ne != [4]float32{0.5, 0.75, 0, 0.5} {
-		t.Errorf("the sea's north-east quarter weighs the earth %v, want 0.5 at its sides, 0.75 at the corner, none at its middle", ne)
-	}
-}
-
-func TestRenderer_KeepsATilesBakeUntilACellRoundItChanges(t *testing.T) {
-	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(6, 3, 10)
-	brd, brdW := newBoard(grid)
-	earth := styled(st, cell.Kind{Name: cell.Named("k9"), Allows: cell.Land, SpriteID: 1}, Style{Spread: 0.3})
-	sand := styled(st, cell.Kind{Name: cell.Named("k10"), Allows: cell.Land, SpriteID: 2}, Style{Spread: 0.3})
-	brdW.SetAll(earth)
-	at := func(x uint32) cell.ID { c := grid.At(x, 1); return c }
-	var got []BlendPiece
-	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) {
-		if t.ID == at(1) {
-			got = append(got[:0], t.Blends()...)
-		}
-	})
-	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
-	r := dressed(brd, d, look)
-	cam := cameratest.NewFromSpace(60, 30, 0)
-	compose(r, cam)
-	baked := d.bakes[1*6+1].ver
-	if len(got) != 0 {
-		t.Fatalf("%d blends among earth alone", len(got))
-	}
-
-	brdW.Set(at(5), sand) // four cells off
-	compose(r, cam)
-	if d.bakes[1*6+1].ver != baked {
-		t.Error("a change four cells off worked the bake out anew")
-	}
-	brdW.Set(at(2), sand) // next door
-	compose(r, cam)
-	if d.bakes[1*6+1].ver == baked || len(got) == 0 {
-		t.Errorf("after the cell next door turned to sand the bake is %d (was %d) with %d blends; want it anew, blending",
-			d.bakes[1*6+1].ver, baked, len(got))
-	}
-}
-
-func TestTile_FarOffTheWaterGlintsLessAndThenNot(t *testing.T) {
-	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd, brdW := newBoard(grid)
-	brdW.SetAll(styled(st, cell.Kind{Name: cell.Named("k11"), Allows: cell.Water, SpriteID: 1}, Style{Shine: 0.8}))
-	land := grid.At(0, 0)
-	brdW.Set(land, cell.Kind{Allows: cell.Land, SpriteID: 2})
-	sea := grid.At(1, 1)
-	var shine float32
-	var glints bool
-	var shore water.Shores
-	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) {
-		if t.ID == sea {
-			var s float32
-			s, _, glints = t.Shine()
-			shine, shore = s, t.Shore()
-		}
-	})
-	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
-	r := dressed(brd, d, look)
+	brdW.SetWay(g.At(1, 1), cell.Way{Kind: stream, Width: 8, Links: west | east})
+	brdW.SetWay(g.At(0, 1), cell.Way{Kind: stream, Width: 16, Links: east})
+	d := New(brd, reliefFor(brd), true, st)
+	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 2: blue}), 32)
+	// 12 wide on the west side, the mean of 8 and 16; 8 on the east
 	for _, c := range []struct {
-		zoom   float32
-		shine  float32
-		glints bool
-		shore  bool
-	}{{1, 0.8, true, true}, {9.0 / 32, 0.4, true, false}, {4.0 / 32, 0, false, false}} {
-		// room to zoom out to 1/8
-		cam := cameratest.NewFromSpace(128, 128, 0, geom.NewAABBAt(geom.NewVec(0, 0), 16, 16))
-		cam.ZoomIn(c.zoom, 64, 64)
-		if z := cam.Zoom(); math.Abs(float64(z-c.zoom)) > 1e-4 {
-			t.Fatalf("the camera zoomed to %v, want %v", z, c.zoom)
+		x, y float32
+		want color.RGBA
+	}{{41, 51, blue}, {49, 55, green}, {63, 51, blue}, {63, 53, green}, {81, 81, green}} {
+		if got := b.albedoAt(c.x, c.y); !close(got, c.want, 2) {
+			t.Errorf("at %v, %v the albedo is %v, want %v", c.x, c.y, got, c.want)
 		}
-		cam.CenterOn(48, 48, 0) // over the sea cell
-		shine, glints, shore = -1, false, water.Shores{}
-		compose(r, cam)
-		if math.Abs(float64(shine-c.shine)) > 1e-4 || glints != c.glints || (shore != water.Shores{}) != c.shore {
-			t.Errorf("at %v px a cell: shine %v, glints %v, a shore %v; want %v, %v, %v",
-				32*c.zoom, shine, glints, shore != water.Shores{}, c.shine, c.glints, c.shore)
+	}
+	run := 0.5 + 10*math.Sqrt(0.5)/(2*water.FlowSpan)
+	if f := b.waterAt(water.FlowLayer, 49, 49); !close(f, color.RGBA{uint8(run*255 + 0.5), 128,
+		255, 255}, 2) {
+		t.Errorf("the way's water flows %v, want east, down the slope", f)
+	}
+}
+
+func TestBake_AWayTurningCurvesRoundTheMiddle(t *testing.T) {
+	needGPU(t)
+	g := grid.DefaultGrids{}.Square(3, 3, 32)
+	brd, brdW := newBoard(g)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
+	brdW.SetWay(g.At(1, 1), cell.Way{Kind: cell.Kind{Allows: cell.Land, SpriteID: 2}, Width: 8,
+		Links: 1<<2 | 1<<1}) // west and south
+	d := New(brd, reliefFor(brd), false, map[cell.Name]Style{})
+	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 2: brown}), 32)
+	for _, c := range []struct {
+		x, y float32
+		want color.RGBA
+		what string
+	}{{33, 49, brown, "the west side's middle"}, {49, 63, brown, "the south side's middle"},
+		{43, 53, brown, "halfway, round the middle"}, {35, 61, green, "the corner inside the turn"},
+		{61, 35, green, "the corner across from it"}} {
+		if got := b.albedoAt(c.x, c.y); !close(got, c.want, 2) {
+			t.Errorf("%s is %v, want %v", c.what, got, c.want)
 		}
+	}
+}
+
+func TestBake_AWayFadingOutShowsLessAndRunsOnTheWayItFades(t *testing.T) {
+	needGPU(t)
+	st := map[cell.Name]Style{}
+	g := grid.DefaultGrids{}.Square(4, 1, 32)
+	brd, brdW := newBoard(g)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Water, SpriteID: 1})
+	river := styled(st, cell.Kind{Name: cell.Named("k4"), Allows: cell.Water, SpriteID: 2},
+		Style{Shine: 1, Flow: 40})
+	west, east := cell.Links(1<<2), cell.Links(1<<3)
+	brdW.SetWay(g.At(0, 0), cell.Way{Kind: river, Width: 8, Links: east})
+	brdW.SetWay(g.At(1, 0), cell.Way{Kind: river, Width: 8, Links: west | east, Fade: 0.5})
+	brdW.SetWay(g.At(2, 0), cell.Way{Kind: river, Width: 8, Links: west, Fade: 0.75})
+	d := New(brd, reliefFor(brd), true, st)
+	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 2: blue}), 32)
+	if got := b.albedoAt(17, 17); !close(got, blue, 2) {
+		t.Errorf("the way not fading is %v, want its own %v", got, blue)
+	}
+	if got := b.albedoAt(49, 17); !between(got, blue, green) {
+		t.Errorf("the way faded by half is %v, want it between %v and %v", got, blue, green)
+	}
+	if got := b.albedoAt(85, 17); !close(got, green, 2) {
+		t.Errorf("past the way's faded end it is %v, want the ground's %v", got, green)
+	}
+	// level water runs on the way the way fades: east
+	f := b.waterAt(water.FlowLayer, 49, 17)
+	if run := float64(f.R) / float64(f.B); f.B == 0 ||
+		math.Abs(run-(0.5+40*0.1/(2*water.FlowSpan))) > 0.02 {
+		t.Errorf("the fading way's water flows %v, want east at %v", f, 40*0.1)
+	}
+}
+
+func TestBake_AWayRunsSlantwiseToTheCornerAndEndsSquareAcrossItself(t *testing.T) {
+	needGPU(t)
+	g := grid.DefaultGrids{}.Square(3, 3, 32)
+	brd, brdW := newBoard(g)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
+	brdW.SetWay(g.At(1, 1), cell.Way{Kind: cell.Kind{Allows: cell.Land, SpriteID: 2}, Width: 4,
+		Links: 1 << 7}) // south-east
+	d := New(brd, reliefFor(brd), false, map[cell.Name]Style{})
+	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 2: brown}), 32)
+	for _, c := range []struct {
+		x, y float32
+		want color.RGBA
+		what string
+	}{{57, 57, brown, "the band to the corner"}, {47, 47, brown, "its end behind the middle"},
+		{43, 43, green, "past its end"}, {61, 51, green, "beside the band"}} {
+		if got := b.albedoAt(c.x, c.y); !close(got, c.want, 2) {
+			t.Errorf("%s is %v, want %v", c.what, got, c.want)
+		}
+	}
+}
+
+func TestBake_BlendsWeighTheNeighboursGroundsAtTheTilesPoints(t *testing.T) {
+	needGPU(t)
+	st := map[cell.Name]Style{}
+	g := grid.DefaultGrids{}.Square(3, 3, 32)
+	brd, brdW := newBoard(g)
+	earth := styled(st, cell.Kind{Name: cell.Named("k5"), Allows: cell.Land, SpriteID: 1},
+		Style{Spread: 0.2})
+	sand := styled(st, cell.Kind{Name: cell.Named("k6"), Allows: cell.Land, SpriteID: 2},
+		Style{Spread: 0.4})
+	brdW.SetAll(earth)
+	brdW.Set(g.At(2, 1), sand)
+	atlas := solids(map[render.SpriteID]color.RGBA{1: green, 2: sandy, 3: blue})
+	d := New(brd, reliefFor(brd), true, st)
+	b := bakedOf(t, d, atlas, 32)
+	if got := b.albedoAt(63, 47); !between(got, green, sandy) {
+		t.Errorf("by the sand the earth is %v, want the sand running in", got)
+	}
+	if got := b.albedoAt(41, 41); !close(got, green, 2) {
+		t.Errorf("away from the sand the earth is %v, want %v", got, green)
+	}
+	brdW.Set(g.At(2, 1), cell.Kind{Allows: cell.Water, SpriteID: 3}) // the sea keeps its cells square
+	b = bakedOf(t, d, atlas, 32)
+	if got := b.albedoAt(63, 47); !close(got, green, 2) {
+		t.Errorf("by the sea the earth is %v, want its own %v", got, green)
+	}
+}
+
+func TestBake_ByTheSeaTheLandIsLaidOverTheSeaUnderIt(t *testing.T) {
+	needGPU(t)
+	st := map[cell.Name]Style{}
+	g := grid.DefaultGrids{}.Square(3, 3, 32)
+	brd, brdW := newBoard(g)
+	earth := styled(st, cell.Kind{Name: cell.Named("k7"), Allows: cell.Land, SpriteID: 1},
+		Style{Spread: 0.25})
+	sea := styled(st, cell.Kind{Name: cell.Named("k8"), Allows: cell.Water, SpriteID: 4},
+		Style{Under: true})
+	brdW.SetAll(earth)
+	brdW.Set(g.At(0, 1), sea)
+	d := New(brd, reliefFor(brd), false, st)
+	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 4: blue}), 32)
+	if d.Base(g.At(1, 1), 1) != sea.SpriteID || d.Base(g.At(2, 1), 1) != earth.SpriteID {
+		t.Errorf("bases %v by the sea, %v away from it; want the sea and the earth",
+			d.Base(g.At(1, 1), 1), d.Base(g.At(2, 1), 1))
+	}
+	for _, c := range []struct {
+		x, y float32
+		want color.RGBA
+		what string
+	}{{49, 49, green, "the land's middle"}, {17, 49, blue, "the sea's middle"}} {
+		if got := b.albedoAt(c.x, c.y); !close(got, c.want, 2) {
+			t.Errorf("%s is %v, want %v", c.what, got, c.want)
+		}
+	}
+	if got := b.albedoAt(33, 49); !between(got, green, blue) {
+		t.Errorf("the land's side by the sea is %v, want it running over the sea", got)
 	}
 }
 
@@ -483,7 +349,7 @@ func TestPainter_OverlaysTheStillWaterGlintingOnAHexBoard(t *testing.T) {
 		brd, brdW := newBoard(g)
 		brdW.SetAll(sea)
 		brdW.Set(g.At(0, 0), land)
-		d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
+		d := New(brd, reliefFor(brd), true, st)
 		d.Above()
 		m, red, ok := d.Overlay(g.At(1, 1))
 		shape, _ := brd.Shape()
@@ -502,74 +368,59 @@ func TestPainter_OverlaysTheStillWaterGlintingOnAHexBoard(t *testing.T) {
 
 func TestTile_AShinyCellShines(t *testing.T) {
 	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd, brdW := newBoard(grid)
+	g := grid.DefaultGrids{}.Square(4, 4, 32)
+	brd, brdW := newBoard(g)
 	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	sea := grid.At(1, 1)
-	grass := grid.At(3, 3)
-	brdW.Set(sea, styled(st, cell.Kind{Name: cell.Named("k14"), Cost: 1, Allows: cell.Water}, Style{Shine: 0.8}))
-	type shining struct {
-		shine float32
-		lit   [4]float32
-	}
-	shines := func(sun light.Distant, heights bool) map[cell.ID]shining {
-		out := map[cell.ID]shining{}
-		look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) {
-			if s, lit, ok := t.Shine(); ok {
-				out[t.ID] = shining{s, lit}
-			}
-		})
-		d := New(brd, reliefFor(brd), skyOf(sun), heights, st)
-		r := dressed(brd, d, look)
-		compose(r, cameratest.NewFromSpace(256, 256, 0))
-		return out
-	}
-	day := light.Distant{Dir: [3]float32{0, 0, 1}, Strength: 0.6, Ambient: 0.3}
-	got := shines(day, true)
-	if got[sea] != (shining{0.8, [4]float32{1, 1, 1, 1}}) {
-		t.Errorf("the sea shines %v, want its kind's 0.8, all the sun at every corner", got[sea])
-	}
-	if _, ok := got[grass]; ok {
-		t.Errorf("grass shines %v, want nothing", got[grass])
-	}
-	if got := shines(day, false); len(got) > 0 {
-		t.Errorf("in a flat world %d cells shine, want none: it is drawn as its sprites are", len(got))
+	sea := g.At(1, 1)
+	brdW.Set(sea, styled(st, cell.Kind{Name: cell.Named("k14"), Cost: 1, Allows: cell.Water},
+		Style{Shine: 0.8}))
+	for _, heights := range []bool{true, false} {
+		d := New(brd, reliefFor(brd), heights, st)
+		d.Above()
+		s, ok := d.cellTile(sea).Shine()
+		if ok != heights || heights && math.Abs(float64(s-0.8)) > 1e-6 {
+			t.Errorf("with heights %v the sea shines %v, %v; want its kind's 0.8 in relief alone",
+				heights, s, ok)
+		}
+		if _, ok := d.cellTile(g.At(3, 3)).Shine(); ok {
+			t.Error("land shines, want nothing")
+		}
 	}
 }
 
-func TestTile_TheShoreLiesTheWayOfTheNearestCellThatDoesNotShine(t *testing.T) {
+func TestShores_LieTheWayOfTheNearestCellThatDoesNotShine(t *testing.T) {
+	needGPU(t)
 	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(10, 4, 32)
-	brd, brdW := newBoard(grid)
-	brdW.SetAll(styled(st, cell.Kind{Name: cell.Named("k15"), Cost: 1, Allows: cell.Water}, Style{Shine: 1}))
+	g := grid.DefaultGrids{}.Square(10, 4, 32)
+	brd, brdW := newBoard(g)
+	brdW.SetAll(styled(st, cell.Kind{Name: cell.Named("k15"), Cost: 1, Allows: cell.Water},
+		Style{Shine: 1}))
 	for y := range uint32(4) {
-		land := grid.At(0, y)
-		brdW.Set(land, cell.Kind{Cost: 1, Allows: cell.Land}) // a coast along x = 32, the sea east of it
+		brdW.Set(g.At(0, y), cell.Kind{Cost: 1, Allows: cell.Land}) // a coast along x = 32
 	}
-	shores := map[cell.ID]water.Shores{}
-	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) { shores[t.ID] = t.Shore() })
-	sun := light.Distant{Dir: [3]float32{0, 0, 1}, Strength: 0.6}
-	d := New(brd, reliefFor(brd), skyOf(sun), true, st)
-	r := dressed(brd, d, look)
-	compose(r, cameratest.NewFromSpace(320, 128, 0))
-	at := func(x uint32) water.Shores { c := grid.At(x, 1); return shores[c] }
-
-	if c := at(1)[0]; c.Dist != 0 || c.Near != 1 || abs32(c.X+1) > 1e-4 || abs32(c.Y) > 1e-4 {
-		t.Errorf("on the coast a corner sees the shore %+v, want it right there to the west", c)
+	d := New(brd, reliefFor(brd), true, st)
+	img, reach, _ := d.Shores(nil)
+	if reach != 96 || img.Bounds().Dx() != 11 || img.Bounds().Dy() != 5 {
+		t.Fatalf("the shores are %v reaching %v, want 11 by 5 corners reaching 3 cells", img.Bounds(),
+			reach)
 	}
-	if c := at(2)[1]; abs32(c.Dist-64) > 1e-4 || abs32(c.Near-1.0/3) > 1e-4 || abs32(c.X+1) > 1e-4 {
-		t.Errorf("two cells out a corner sees the shore %+v, want it 64 to the west, a third near", c)
+	pix := make([]byte, 4*11*5)
+	img.ReadPixels(pix)
+	at := func(x, y int) color.RGBA {
+		i := 4 * (y*11 + x)
+		return color.RGBA{pix[i], pix[i+1], pix[i+2], pix[i+3]}
 	}
-	if c := at(6)[0]; c.Near != 0 || c.X != 0 || c.Y != 0 {
-		t.Errorf("out at sea a corner sees the shore %+v, want open water", c)
+	for _, c := range []struct {
+		x, y int
+		want color.RGBA
+		what string
+	}{{1, 1, color.RGBA{0, 128, 0, 255}, "on the coast, the land right there to the west"},
+		{3, 1, color.RGBA{0, 128, 170, 255}, "two cells out, the land 64 to the west"},
+		{6, 1, color.RGBA{128, 128, 255, 255}, "out at sea, open water"}} {
+		if got := at(c.x, c.y); !close(got, c.want, 1) {
+			t.Errorf("%s: the corner holds %v, want %v", c.what, got, c.want)
+		}
 	}
-}
-
-func abs32(v float32) float32 {
-	if v < 0 {
-		return -v
-	}
-	return v
 }
 
 // 8 pixels a sprite
@@ -599,164 +450,144 @@ func (k kindsOf) Get(name string) (cell.Kind, bool) {
 	return cell.Kind{}, false
 }
 
-func TestTile_AWayTurnsIntoTheKindItMixesWith(t *testing.T) {
-	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(3, 3, 10)
-	brd, brdW := newBoard(grid)
-	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land})
-	sea := cell.Kind{Name: cell.Named("k44"), Allows: cell.Water, SpriteID: 7}
-	stream := styled(st, cell.Kind{Name: cell.Named("k45"), Allows: cell.Land | cell.Water, SpriteID: 3}, Style{MixWith: "k44"})
-	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	west, east := cell.Links(1<<2), cell.Links(1<<3)
-	brdW.SetWay(at(0, 1), cell.Way{Kind: stream, Width: 4, Links: east, Mix: 0})
-	brdW.SetWay(at(1, 1), cell.Way{Kind: stream, Width: 4, Links: west | east, Mix: 0.5})
-	brdW.SetWay(at(2, 1), cell.Way{Kind: stream, Width: 4, Links: west, Mix: 1})
-
-	var pieces []WayPiece
-	look := lookFn(func(_ *render.Frame, _ camera.Camera, t *tile) {
-		if t.ID == at(1, 1) {
-			pieces = append([]WayPiece(nil), t.Way()...)
-		}
-	})
-	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
-	d.kinds = kindsOf{sea, stream}
-	r := dressed(brd, d, look)
-	compose(r, cameratest.NewFromSpace(30, 30, 0))
-	if len(pieces) == 0 {
-		t.Fatal("no pieces")
-	}
-	first, last := pieces[0], pieces[len(pieces)-1]
-	if !first.Mixes || first.MixSprite != 7 {
-		t.Fatalf("the way mixes %v with sprite %v, want the sea's, 7", first.Mixes, first.MixSprite)
-	}
-	if math.Abs(float64(first.Mix[0]-0.25)) > 1e-5 || math.Abs(float64(last.Mix[1]-0.75)) > 1e-5 {
-		t.Errorf("the band turns from %v to %v, want 0.25 on the west side to 0.75 on the east", first.Mix[0], last.Mix[1])
-	}
-}
-
-func TestTile_AWayRunsOnUnderTheWaterItRunsInto(t *testing.T) {
-	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(3, 3, 10)
-	brd, brdW := newBoard(grid)
-	brdW.SetAll(styled(st, cell.Kind{Name: cell.Named("k49"), Allows: cell.Land, SpriteID: 1}, Style{Spread: 0.3}))
-	sea := styled(st, cell.Kind{Name: cell.Named("k50"), Allows: cell.Water, SpriteID: 4}, Style{Under: true})
-	stream := styled(st, cell.Kind{Name: cell.Named("k51"), Allows: cell.Land | cell.Water, SpriteID: 5}, Style{})
-	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	for x := range uint32(3) {
-		brdW.Set(at(x, 2), sea)
-	}
-	north, south := cell.Links(1<<0), cell.Links(1<<1)
-	brdW.SetWay(at(1, 0), cell.Way{Kind: stream, Width: 4, Links: south})
-	brdW.SetWay(at(1, 1), cell.Way{Kind: stream, Width: 4, Links: north | south})
-
-	pieces := wayPieces(t, brd, st, 30, 30)[at(1, 1)]
-	deepest := pieces[0]
-	for _, p := range pieces {
-		if p.World[3][1] > deepest.World[3][1] {
-			deepest = p
-		}
-	}
-	if y := deepest.World[3][1]; y < 24.9 {
-		t.Fatalf("the way ends at y %v, want on to the water's middle, 25", y)
-	}
-	if !deepest.Faded || deepest.Weight[3] != 0 || deepest.Soft != 0.3 {
-		t.Errorf("at the water's middle the way shows %v (faded %v, soft %v), want nothing, blended as the coast is", deepest.Weight, deepest.Faded, deepest.Soft)
-	}
-	for _, p := range pieces {
-		if p.World[3][1] <= 12 && p.Faded {
-			t.Errorf("a piece well ashore, down to y %v, lies under water", p.World[3][1])
-		}
-	}
-}
-
-func TestPainter_TheAlbedoPaintsEveryCellsBaseUnderItsGroundsAndWays(t *testing.T) {
+func TestBake_AWayTurnsIntoTheKindItMixesWith(t *testing.T) {
 	needGPU(t)
 	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd, brdW := newBoard(grid)
-	land := styled(st, cell.Kind{Name: cell.Named("k44"), Allows: cell.Land, SpriteID: 1}, Style{Spread: 0.3})
-	sea := styled(st, cell.Kind{Name: cell.Named("k45"), Allows: cell.Water, SpriteID: 2}, Style{Under: true})
-	road := styled(st, cell.Kind{Name: cell.Named("k46"), Allows: cell.Land, SpriteID: 0}, Style{})
+	g := grid.DefaultGrids{}.Square(3, 3, 32)
+	brd, brdW := newBoard(g)
+	brdW.SetAll(cell.Kind{Cost: 1, Allows: cell.Land, SpriteID: 1})
+	sea := cell.Kind{Name: cell.Named("k44"), Allows: cell.Water, SpriteID: 7}
+	stream := styled(st, cell.Kind{Name: cell.Named("k45"), Allows: cell.Land | cell.Water,
+		SpriteID: 3}, Style{MixWith: "k44"})
+	west, east := cell.Links(1<<2), cell.Links(1<<3)
+	brdW.SetWay(g.At(0, 1), cell.Way{Kind: stream, Width: 8, Links: east, Mix: 0})
+	brdW.SetWay(g.At(1, 1), cell.Way{Kind: stream, Width: 8, Links: west | east, Mix: 0.5})
+	brdW.SetWay(g.At(2, 1), cell.Way{Kind: stream, Width: 8, Links: west, Mix: 1})
+	d := New(brd, reliefFor(brd), false, st)
+	d.kinds = kindsOf{sea, stream}
+	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 3: brown, 7: blue}), 32)
+	half := color.RGBA{(brown.R + blue.R) / 2, (brown.G + blue.G) / 2, (brown.B + blue.B) / 2, 255}
+	for _, c := range []struct {
+		x, y float32
+		want color.RGBA
+		what string
+	}{{17, 49, brown, "where it has not turned"}, {49, 49, half, "halfway turned"},
+		{81, 49, blue, "turned all the way"}} {
+		if got := b.albedoAt(c.x, c.y); !close(got, c.want, 3) {
+			t.Errorf("the way %s is %v, want %v", c.what, got, c.want)
+		}
+	}
+}
+
+func TestBake_AWayRunsOnUnderTheWaterItRunsInto(t *testing.T) {
+	needGPU(t)
+	st := map[cell.Name]Style{}
+	g := grid.DefaultGrids{}.Square(3, 3, 32)
+	brd, brdW := newBoard(g)
+	brdW.SetAll(styled(st, cell.Kind{Name: cell.Named("k49"), Allows: cell.Land, SpriteID: 1},
+		Style{Spread: 0.3}))
+	sea := styled(st, cell.Kind{Name: cell.Named("k50"), Allows: cell.Water, SpriteID: 4},
+		Style{Under: true})
+	stream := styled(st, cell.Kind{Name: cell.Named("k51"), Allows: cell.Land | cell.Water,
+		SpriteID: 5}, Style{})
+	for x := range uint32(3) {
+		brdW.Set(g.At(x, 2), sea)
+	}
+	north, south := cell.Links(1<<0), cell.Links(1<<1)
+	brdW.SetWay(g.At(1, 0), cell.Way{Kind: stream, Width: 8, Links: south})
+	brdW.SetWay(g.At(1, 1), cell.Way{Kind: stream, Width: 8, Links: north | south})
+	d := New(brd, reliefFor(brd), false, st)
+	b := bakedOf(t, d, solids(map[render.SpriteID]color.RGBA{1: green, 4: blue, 5: brown}), 32)
+	if got := b.albedoAt(49, 49); !close(got, brown, 2) {
+		t.Errorf("the way well ashore is %v, want %v", got, brown)
+	}
+	if got := b.albedoAt(49, 69); !between(got, brown, blue) {
+		t.Errorf("the way running into the water is %v, want it fading under it", got)
+	}
+	if got := b.albedoAt(49, 81); !close(got, blue, 2) {
+		t.Errorf("at the water's middle it is %v, want the water alone", got)
+	}
+}
+
+func TestPainter_TheAlbedoIsPaintedAnewOnlyAsTheBoardChanges(t *testing.T) {
+	needGPU(t)
+	st := map[cell.Name]Style{}
+	g := grid.DefaultGrids{}.Square(4, 4, 32)
+	brd, brdW := newBoard(g)
+	land := styled(st, cell.Kind{Name: cell.Named("k44"), Allows: cell.Land, SpriteID: 1},
+		Style{Spread: 0.3})
+	sea := styled(st, cell.Kind{Name: cell.Named("k45"), Allows: cell.Water, SpriteID: 2},
+		Style{Under: true})
+	road := styled(st, cell.Kind{Name: cell.Named("k46"), Allows: cell.Land, SpriteID: 3},
+		Style{})
 	brdW.SetAll(land)
-	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	brdW.Set(at(0, 0), sea)
-	brdW.SetWay(at(2, 2), cell.Way{Kind: road, Width: 8, Links: cell.Links(1<<0 | 1<<1)})
-	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), false, st)
-	img, _, px, _ := d.Surface(sheetAtlas{render.NewImage(24, 8)})
+	brdW.Set(g.At(0, 0), sea)
+	brdW.SetWay(g.At(2, 2), cell.Way{Kind: road, Width: 8, Links: cell.Links(1<<0 | 1<<1)})
+	atlas := solids(map[render.SpriteID]color.RGBA{1: green, 2: blue, 3: brown})
+	d := New(brd, reliefFor(brd), false, st)
+	img, _, px, _ := d.Surface(atlas)
 	if img == nil || px != 16 || img.Bounds().Dx() != 64 || img.Bounds().Dy() != 64 {
 		t.Fatalf("the albedo is %v pixels a cell, want 16 on a 64 by 64 sheet", px)
 	}
-	bases, blends, ways := 0, 0, 0
-	seaUnderCoast := false
-	d.canvas.Each(func(_ render.At, v []render.Vertex) {
-		switch {
-		case v[0].Custom3 > 50000:
-			blends++
-		case v[0].ColorA == 1 && v[3].DstX-v[0].DstX == 16 && v[3].DstY-v[0].DstY == 16 && float32(int(v[0].DstX))/16 == v[0].DstX/16:
-			bases++
-			if v[0].DstX == 16 && v[0].DstY == 0 && v[0].SrcX >= 16 { // the coast east of the sea, in the sea's sprite
-				seaUnderCoast = true
-			}
-		default:
-			ways++
+	b := bakedOf(t, d, atlas, 32)
+	for _, c := range []struct {
+		x, y float32
+		want color.RGBA
+	}{{17, 17, blue}, {49, 17, green}, {81, 81, brown}, {113, 113, green}} {
+		if got := b.albedoAt(c.x, c.y); !close(got, c.want, 2) {
+			t.Errorf("at %v, %v the albedo is %v, want %v", c.x, c.y, got, c.want)
 		}
-	})
-	if bases != 16 || !seaUnderCoast || blends == 0 || ways == 0 {
-		t.Errorf("painted %d bases (the sea under the coast: %v), %d grounds running in and %d pieces of the way; want 16 bases, the sea under, some of each", bases, seaUnderCoast, blends, ways)
 	}
 	seen := d.albedo.seen
-	d.Surface(sheetAtlas{render.NewImage(24, 8)})
+	d.Surface(atlas)
 	if d.albedo.seen != seen {
 		t.Error("the albedo was painted again with the board as it was")
 	}
-	brdW.Set(at(3, 3), sea)
-	d.Surface(sheetAtlas{render.NewImage(24, 8)})
-	if d.albedo.seen == seen || d.canvas.Len() == 0 || d.canvas.Len() > 9*16 {
-		t.Errorf("after a cell changed the albedo painted %d pieces at version %d (was %d); want the changed cells alone, anew", d.canvas.Len(), d.albedo.seen, seen)
+	brdW.Set(g.At(3, 3), sea)
+	b = bakedOf(t, d, atlas, 32)
+	if d.albedo.seen == seen || !close(b.albedoAt(113, 113), blue, 2) {
+		t.Errorf("after a cell turned to sea the albedo was painted at %d (was %d), the cell %v; "+
+			"want it anew, the sea", d.albedo.seen, seen, b.albedoAt(113, 113))
 	}
 }
 
 func TestPainter_PaintsTheWaterBesideTheAlbedo(t *testing.T) {
 	needGPU(t)
 	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(4, 4, 32)
-	brd, brdW := newBoard(grid)
-	land := styled(st, cell.Kind{Name: cell.Named("k47"), Allows: cell.Land, SpriteID: 1}, Style{Spread: 0.3})
-	sea := styled(st, cell.Kind{Name: cell.Named("k48"), Allows: cell.Water, SpriteID: 2}, Style{Under: true, Shine: 0.9})
-	river := styled(st, cell.Kind{Name: cell.Named("k49"), Allows: cell.Land | cell.Water, SpriteID: 0}, Style{Shine: 0.9, Flow: 30})
+	g := grid.DefaultGrids{}.Square(4, 4, 32)
+	brd, brdW := newBoard(g)
+	land := styled(st, cell.Kind{Name: cell.Named("k47"), Allows: cell.Land, SpriteID: 1},
+		Style{Spread: 0.3})
+	sea := styled(st, cell.Kind{Name: cell.Named("k48"), Allows: cell.Water, SpriteID: 2},
+		Style{Under: true, Shine: 0.9})
+	river := styled(st, cell.Kind{Name: cell.Named("k49"), Allows: cell.Land | cell.Water,
+		SpriteID: 3}, Style{Shine: 0.9, Flow: 30})
 	brdW.SetAll(land)
-	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	brdW.Set(at(0, 0), sea)
+	brdW.Set(g.At(0, 0), sea)
 	for y := uint32(1); y < 4; y++ {
-		brdW.SetWay(at(2, y), cell.Way{Kind: river, Width: 8, Links: cell.Links(1<<0 | 1<<1)})
+		brdW.SetWay(g.At(2, y), cell.Way{Kind: river, Width: 8, Links: cell.Links(1<<0 | 1<<1)})
 	}
-	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - p.Y/4 }) // falling to the south
-	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
-	_, sheet, _, wpx := d.Surface(sheetAtlas{render.NewImage(24, 8)})
+	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - p.Y/4 }) // falling south
+	d := New(brd, reliefFor(brd), true, st)
+	_, sheet, _, wpx := d.Surface(solids(map[render.SpriteID]color.RGBA{1: green, 2: blue,
+		3: brown}))
 	if sheet == nil || wpx != 16 || sheet.Bounds().Dx() != 128 || sheet.Bounds().Dy() != 128 {
-		t.Fatalf("the water is %v pixels a cell, want 16 in quadrants of the board's 64 by 64", wpx)
+		t.Fatalf("the water is %v pixels a cell, want 16 in quadrants of the board's 64 by 64",
+			wpx)
 	}
-	sea00, seaCoast, covered, riverShine := false, false, 0, 0
-	d.albedo.wcanvas[water.ShineLayer].Each(func(_ render.At, v []render.Vertex) {
-		switch {
-		case v[0].Custom3 > 50000 && v[0].ColorR == 0 && v[0].ColorG == 0 && v[0].ColorB == 0:
-			covered++
-		case v[0].ColorB == 1 && near(v[0].ColorG, 0.9) && v[0].DstX == 64 && v[0].DstY == 0:
-			sea00 = true
-		case v[0].ColorB == 1 && near(v[0].ColorG, 0.9) && v[0].DstX == 80 && v[0].DstY == 0:
-			seaCoast = true
-		case near(v[0].ColorR, 0.9) && v[0].ColorG == 0:
-			riverShine++
-		}
-	})
-	flows := 0
-	d.albedo.wcanvas[water.FlowLayer].Each(func(_ render.At, v []render.Vertex) {
-		if v[0].ColorB == 1 && v[0].ColorG > 0.5 && near(v[0].ColorR, 0.5) {
-			flows++ // running south, down the slope
-		}
-	})
-	if !sea00 || !seaCoast || covered == 0 || riverShine == 0 || flows == 0 {
-		t.Errorf("the sea's shine over the sea %v and under the coast %v, %d grounds covering it, %d pieces of the river shining and %d running south; want all", sea00, seaCoast, covered, riverShine, flows)
+	b := bakedOf(t, d, d.albedo.atlas, 32)
+	if s := b.waterAt(water.ShineLayer, 17, 17); !close(s, color.RGBA{0, 230, 255, 255}, 1) {
+		t.Errorf("the sea shines %v, want still water at 0.9", s)
+	}
+	if s := b.waterAt(water.ShineLayer, 81, 81); !close(s, color.RGBA{230, 0, 0, 255}, 1) {
+		t.Errorf("the river shines %v, want running water at 0.9", s)
+	}
+	if f := b.waterAt(water.FlowLayer, 81, 81); !close(f, color.RGBA{128, f.G, 255, 255}, 1) ||
+		f.G <= 130 {
+		t.Errorf("the river flows %v, want south, down the slope", f)
+	}
+	if s := b.waterAt(water.ShineLayer, 49, 49); s.A != 0 && (s.R != 0 || s.G != 0) {
+		t.Errorf("the land shines %v, want no water", s)
 	}
 }
 
@@ -774,7 +605,7 @@ func TestPainter_TheWetCellsAreTheWaterAndTheCellsBesideIt(t *testing.T) {
 	for y := uint32(2); y < 5; y++ {
 		brdW.SetWay(at(6, y), cell.Way{Kind: river, Width: 8, Links: cell.Links(1<<0 | 1<<1)})
 	}
-	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
+	d := New(brd, reliefFor(brd), true, st)
 	d.Surface(sheetAtlas{render.NewImage(24, 8)})
 	wet, v := d.Wet()
 	if len(wet) != 8*6 || v == 0 {
@@ -796,38 +627,39 @@ func TestPainter_TheWetCellsAreTheWaterAndTheCellsBesideIt(t *testing.T) {
 	}
 }
 
-func TestPainter_TheCoastFollowsTheShineNotTheRelief(t *testing.T) {
+func TestShores_FollowTheShineNotTheRelief(t *testing.T) {
+	needGPU(t)
 	st := map[cell.Name]Style{}
-	grid := grid.DefaultGrids{}.Square(10, 8, 32)
-	brd, brdW := newBoard(grid)
+	g := grid.DefaultGrids{}.Square(10, 8, 32)
+	brd, brdW := newBoard(g)
 	land := styled(st, cell.Kind{Name: cell.Named("k50"), Allows: cell.Land, SpriteID: 1}, Style{})
-	sea := styled(st, cell.Kind{Name: cell.Named("k51"), Allows: cell.Water, SpriteID: 2}, Style{Under: true, Shine: 0.9})
+	sea := styled(st, cell.Kind{Name: cell.Named("k51"), Allows: cell.Water, SpriteID: 2},
+		Style{Under: true, Shine: 0.9})
 	brdW.SetAll(sea)
-	at := func(x, y uint32) cell.ID { c := grid.At(x, y); return c }
-	brdW.Set(at(4, 4), land)
-	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
-	check := func(when string) uint64 {
-		shores, reach, v := d.Coast()
-		if len(shores) != 11*9 || reach != 96 {
-			t.Fatalf("%s: %d shores reaching %v, want one a corner of 11 by 9, 3 cells", when, len(shores), reach)
-		}
-		for gy := range 9 {
-			for gx := range 11 {
-				if want := water.Shore(d.workShore(int64(gx), int64(gy), 32)); shores[gy*11+gx] != want {
-					t.Fatalf("%s: corner (%d, %d) has %+v, want %+v", when, gx, gy, shores[gy*11+gx], want)
-				}
-			}
-		}
-		return v
+	brdW.Set(g.At(4, 4), land)
+	d := New(brd, reliefFor(brd), true, st)
+	corner := func(x, y int) color.RGBA {
+		img, _, _ := d.Shores(nil)
+		pix := make([]byte, 4*11*9)
+		img.ReadPixels(pix)
+		i := 4 * (y*11 + x)
+		return color.RGBA{pix[i], pix[i+1], pix[i+2], pix[i+3]}
 	}
-	v := check("at first")
+	if c := corner(4, 4); c.B != 0 {
+		t.Errorf("the land's corner is %v off the shore, want on it", c)
+	}
+	if c := corner(0, 0); c.B != 255 {
+		t.Errorf("a corner four cells from the land holds %v, want open water", c)
+	}
+	_, _, v := d.Shores(nil)
 	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return p.X / 8 })
-	if check("the ground raised") != v {
+	if _, _, w := d.Shores(nil); w != v {
 		t.Error("the ground raised moved the coast")
 	}
-	brdW.Set(at(8, 1), land)
-	if check("a cell turned to land") == v {
-		t.Error("a cell turned to land left the coast as it was")
+	brdW.Set(g.At(1, 1), land)
+	if _, _, w := d.Shores(nil); w == v || corner(0, 0).B == 255 {
+		t.Errorf("a cell turned to land left the coast as it was: the corner by it %v",
+			corner(0, 0))
 	}
 }
 

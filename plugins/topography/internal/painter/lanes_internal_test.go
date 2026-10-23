@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/look"
@@ -75,7 +74,7 @@ func TestPainter_DrawsAHexBoardsTopsOnTheGPU(t *testing.T) {
 	w, h := int(space.Width*px), int(space.Height*px)
 	u := render.UniformsOf(map[string]any{"Pixel": []float32{1.0 / px}, "Clock": []float32{1.3},
 		"Toward": []float32{0, 0, 1}})
-	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
+	d := New(brd, reliefFor(brd), true, st)
 	d.kinds = kindsOf{land, meadow, sea, river, road}
 	top := render.NewImage(w, h)
 	d.Above()
@@ -130,25 +129,5 @@ func TestPainter_DrawsAHexBoardsTopsOnTheGPU(t *testing.T) {
 	}
 	if !glints {
 		t.Errorf("the sea is drawn as its sprite alone, %v, want it glinting", colours[3])
-	}
-}
-
-// the ways over a hex board's tops laid on the GPU as the pieces the CPU lays
-func TestPainter_DrawsAHexBoardsWaysAsTheCPULaysThem(t *testing.T) {
-	needGPU(t)
-	g := grid.DefaultGrids{}.Hex(10, 8, 16)
-	d, _, atlas := wayBoard(t, g)
-	space := world.SpaceCfg{Width: 400, Height: 260}
-	const px = 2
-	w, h := int(space.Width*px), int(space.Height*px)
-	u := render.UniformsOf(map[string]any{"Pixel": []float32{1.0 / px}, "Clock": []float32{1.3},
-		"Toward": []float32{0, 0, 1}})
-	cpu, laid := render.NewImage(w, h), render.NewImage(w, h)
-	d.Above()
-	d.drawWaysCPU(cpu, atlas, px, u)
-	d.DrawWays(laid, atlas, px, u)
-	if off := differ(t, laid, cpu); off > w*h/1000 {
-		t.Errorf("%d pixels of the hex board's ways differ from the CPU's, want at most a "+
-			"thousandth", off)
 	}
 }

@@ -1,7 +1,6 @@
-// The ways' pieces over a hex board's tops (paint_ways.wgsl), as DrawWay laid them: the way's
-// sprite, blended where it fades, turned into its mix's sprite, water running over it
-// (U.LaneStream) as far as it has not turned and glinting (U.LaneGlint) as far as it has, where
-// it does not fade.
+// The ways' pieces over a hex board's tops (paint_ways.wgsl): the way's sprite, blended where it
+// fades, turned into its mix's sprite, water running over it (U.LaneStream) as far as it has not
+// turned and glinting (U.LaneGlint) as far as it has, where it does not fade.
 
 @fragment
 fn fs_main(in: Lane) -> @location(0) vec4<f32> {

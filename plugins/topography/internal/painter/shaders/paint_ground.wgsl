@@ -1,11 +1,11 @@
 // The board painted flat (painter's bake_gpu.go), an instance a cell to paint anew (its column and
 // row), U.PaintPx pixels a cell from U.PaintOrigin in a target U.PaintTarget large, the layer
 // U.PaintLayer says: the sprite the cell's top is drawn in (its own or that of a cell under it
-// it runs into) over the whole cell, then the grounds round it running in as blendsAnew lays
-// them — over each quarter of the cell a ground's whole sprite, shown where the share of the
-// cells meeting at the quarter's corners it lies on comes over a half, fading in over its
-// spread. The kinds' layer lays each one's detail instead, edged hard; the water's lay the water
-// of a top that shines, running or still, and the grounds running in darken it.
+// it runs into) over the whole cell, then the grounds round it running in — over each quarter
+// of the cell a ground's whole sprite, shown where the share of the cells meeting at the
+// quarter's corners it lies on comes over a half, fading in over its spread. The kinds' layer
+// lays each one's detail instead, edged hard; the water's lay the water of a top that shines,
+// running or still, and the grounds running in darken it.
 
 struct Cell {
     @builtin(position) clip: vec4<f32>,

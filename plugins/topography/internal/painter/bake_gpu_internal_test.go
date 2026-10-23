@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
-	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -69,7 +68,7 @@ func bakedBoard(t *testing.T) (*Painter, *board.BoardWrite, render.AtlasSource, 
 		atlas.Add(id, 16, sprite(c))
 	}
 	atlas.Close()
-	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
+	d := New(brd, reliefFor(brd), true, st)
 	d.kinds = kindsOf{grass, sand, rock, sea, brook}
 	return d, brdW, atlas, g
 }
@@ -101,21 +100,21 @@ func differ(t *testing.T, a, b *render.Image) int {
 	return off
 }
 
-// bakedApart bakes the board on the GPU into a sheet of its own as the CPU paints its Surface,
-// and counts the pixels of each layer apart: the albedo, the kinds' details, the water
-func bakedApart(t *testing.T, d *Painter, atlas render.AtlasSource, laid *groundSheet) [3]int {
+// bakedApart brings d's Surface up to the board out of atlas, paints the board whole into a
+// sheet of its own, and counts the pixels of each layer apart: the albedo, the kinds' details,
+// the water
+func bakedApart(t *testing.T, d *Painter, atlas render.AtlasSource) [3]int {
 	t.Helper()
 	d.Surface(atlas)
-	cpu := d.albedo
-	d.refresh(atlas)
-	d.bake(laid, atlas, d.toPaint())
+	got, whole := d.albedo, d.newSheet(atlas)
+	d.bake(whole, atlas, d.toPaint(true))
 	var off [3]int
-	for k, x := range [3][2]*render.Image{{laid.img, cpu.img}, {laid.kinds, cpu.kinds},
-		{laid.water, cpu.water}} {
+	for k, x := range [3][2]*render.Image{{got.img, whole.img}, {got.kinds, whole.kinds},
+		{got.water, whole.water}} {
 		t.Run([]string{"albedo", "kinds", "water"}[k], func(t *testing.T) {
 			off[k] = differ(t, x[0], x[1])
 			if !painted(x[1]) {
-				t.Error("the CPU painted nothing into it, want a layer to compare")
+				t.Error("nothing painted into it, want a layer to compare")
 			}
 		})
 	}
@@ -134,24 +133,22 @@ func painted(img *render.Image) bool {
 	return false
 }
 
-func TestPainter_BakesTheGroundOnTheGPUAsOnTheCPU(t *testing.T) {
+func TestPainter_PaintsTheGroundAnewRoundACellAsWhole(t *testing.T) {
 	needGPU(t)
 	d, brdW, atlas, g := bakedBoard(t)
-	laid := d.newSheet(atlas, true)
-	if off := bakedApart(t, d, atlas, laid); off != [3]int{} {
-		t.Errorf("%v pixels of the albedo, the kinds and the water differ from the CPU's, want "+
+	if off := bakedApart(t, d, atlas); off != [3]int{} {
+		t.Errorf("%v pixels of the albedo, the kinds and the water differ painted twice, want "+
 			"none", off)
 	}
-	// a cell changed, painted anew round it alone
 	brdW.Set(g.At(8, 1), d.kinds.(kindsOf)[3])
 	d.refresh(atlas)
-	if at := d.toPaint(); len(at) != 4*20 {
+	if at := d.toPaint(false); len(at) != 4*20 {
 		t.Errorf("one cell by the edge changed, %d cells painted anew, want the 20 within two "+
 			"on the board", len(at)/4)
 	}
-	if off := bakedApart(t, d, atlas, laid); off != [3]int{} {
-		t.Errorf("a cell changed, %v pixels of the albedo, the kinds and the water differ from "+
-			"the CPU's, want none", off)
+	if off := bakedApart(t, d, atlas); off != [3]int{} {
+		t.Errorf("a cell changed, %v pixels of the albedo, the kinds and the water painted round "+
+			"it differ from the board painted whole, want none", off)
 	}
 }
 
@@ -222,65 +219,43 @@ func wayBoard(t *testing.T, g grid.Grid) (*Painter, *board.BoardWrite, render.At
 		atlas.Add(id, 16, sprite(c))
 	}
 	atlas.Close()
-	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
+	d := New(brd, reliefFor(brd), true, st)
 	d.kinds = kindsOf{grass, sea, road, river}
 	return d, brdW, atlas
 }
 
-func TestPainter_BakesTheWaysOnTheGPUAsOnTheCPU(t *testing.T) {
+func TestPainter_PaintsTheWaysAnewRoundACellAsWhole(t *testing.T) {
 	needGPU(t)
 	g := grid.DefaultGrids{}.Square(16, 12, 32)
 	d, brdW, atlas := wayBoard(t, g)
-	laid := d.newSheet(atlas, true)
-	if off := bakedApart(t, d, atlas, laid); off != [3]int{} {
-		t.Errorf("%v pixels of the albedo, the kinds and the water with the ways differ from the "+
-			"CPU's, want none", off)
+	if off := bakedApart(t, d, atlas); off != [3]int{} {
+		t.Errorf("%v pixels of the albedo, the kinds and the water with the ways differ painted "+
+			"twice, want none", off)
 	}
 	brdW.SetWay(g.At(8, 4), cell.Way{Kind: d.kinds.(kindsOf)[2], Width: 7, Links: 0x0f})
-	if off := bakedApart(t, d, atlas, laid); off != [3]int{} {
-		t.Errorf("a way laid, %v pixels of the albedo, the kinds and the water differ from the "+
-			"CPU's, want none", off)
+	if off := bakedApart(t, d, atlas); off != [3]int{} {
+		t.Errorf("a way laid, %v pixels of the albedo, the kinds and the water painted round it "+
+			"differ from the board painted whole, want none", off)
 	}
 }
 
-// the way to the shore from every corner worked out on the GPU as the CPU works it out; the cells
-// whose kind alone lies on them as the CPU's pieces say, more of them dressed at most
-func TestPainter_WorksTheShoresAndTheCellsOutAsTheCPUDoes(t *testing.T) {
+// a cell holds its kind's detail where nothing else may lie on it, Dressed by a way or a ground
+// running in
+func TestPainter_TellsTheCellsTheirDetails(t *testing.T) {
 	needGPU(t)
 	g := grid.DefaultGrids{}.Square(16, 12, 32)
 	d, _, atlas := wayBoard(t, g)
 	d.Surface(atlas)
-	shores, reach, _ := d.Coast()
-	img, gpuReach, _ := d.Shores(atlas)
-	if gpuReach != reach {
-		t.Fatalf("the shores are seen %v off, want the CPU's %v", gpuReach, reach)
-	}
-	w, h := img.Bounds().Dx(), img.Bounds().Dy()
-	if w*h != len(shores) {
-		t.Fatalf("%d by %d corners, want the CPU's %d", w, h, len(shores))
-	}
-	pix := make([]byte, 4*w*h)
-	img.ReadPixels(pix)
-	unit := func(v float32) int { return int(min(max(v, 0), 1)*255 + 0.5) }
-	off := 0
-	for i, s := range shores {
-		want := [3]int{unit((s.X + 1) / 2), unit((s.Y + 1) / 2), unit(s.Dist / reach)}
-		for k := range 3 {
-			if d := int(pix[4*i+k]) - want[k]; d > 2 || d < -2 {
-				off++
-				t.Logf("corner %d, %d holds %v, want %v", i%w, i/w, pix[4*i:4*i+3], want)
-				break
-			}
-		}
-	}
-	if off > 0 {
-		t.Errorf("%d corners' shores differ from the CPU's, want none", off)
-	}
 	cells, _ := d.CellDetails()
-	for i, k := range cells {
-		if want := d.albedo.dressed[i]; want && k != Dressed {
-			t.Errorf("cell %d, %d holds detail %d, want it dressed as the CPU's pieces lie", i%16,
-				i/16, k)
+	for _, c := range []struct {
+		x, y int
+		want byte
+		what string
+	}{{14, 7, d.detailOf(1), "grass far from the ways and the sea"},
+		{3, 1, Dressed, "a road's fork"}, {6, 4, Dressed, "the grass by the river"},
+		{12, 8, Dressed, "the grass by the sea"}} {
+		if got := cells[c.y*16+c.x]; got != c.want {
+			t.Errorf("%s holds detail %d, want %d", c.what, got, c.want)
 		}
 	}
 }
