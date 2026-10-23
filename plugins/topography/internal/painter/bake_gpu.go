@@ -3,25 +3,47 @@ package painter
 import (
 	"image"
 
+	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/render"
 )
 
-// the bake's passes over the cells to paint anew, an instance a cell
-var albedoShader = render.NewMeshShaderWith("painter's albedo", render.Files(shaders,
-	"shaders/paint_common.wgsl", "shaders/paint_albedo.wgsl"), paintUniforms).Instanced(1)
+// the bake's passes over the cells to paint anew and the ways across them, an instance a cell
+var (
+	albedoShader = render.NewMeshShaderWith("painter's albedo", render.Files(shaders,
+		"shaders/paint_common.wgsl", "shaders/paint_albedo.wgsl"), paintUniforms).Instanced(1)
+	waysShader = render.NewMeshShaderWith("painter's ways", render.Files(shaders,
+		"shaders/paint_common.wgsl", "shaders/paint_ways.wgsl", "shaders/ways_albedo.wgsl"),
+		paintUniforms).Instanced(1)
+	topsShader = render.NewMeshShaderWith("painter's ways over the tops", render.Files(shaders,
+		"shaders/paint_common.wgsl", "shaders/paint_ways.wgsl", "shaders/ways_tops.wgsl"),
+		paintUniforms).Instanced(1)
+)
 
 var paintUniforms = []render.Uniform{
 	{Name: "PaintCells", Size: 2}, {Name: "PaintWrap", Size: 2}, {Name: "PaintPx", Size: 1},
-	{Name: "PaintTarget", Size: 2},
+	{Name: "PaintTarget", Size: 2}, {Name: "PaintHex", Size: 1}, {Name: "PaintCell", Size: 1},
+	{Name: "PaintLow", Size: 1}, {Name: "PaintSpan", Size: 1}, {Name: "PaintFine", Size: 1},
+	{Name: "PaintDetail", Size: 1}, {Name: "PaintHeights", Size: 1}, {Name: "PaintScale", Size: 1},
+	{Name: "PaintMasked", Size: 1}, {Name: "LaneGlint", Size: 1}, {Name: "LaneStream", Size: 1},
 }
+
+// the vertices of a way's instance: six a piece
+const wayVertices = 6 * lanePieces
+
+// the largest number of pieces a way lays: a stem through eight, six joining it, all running
+// into water (paint_ways.wgsl)
+const lanePieces = 46
 
 // baking is what the bake's passes keep from one bake to the next
 type baking struct {
 	opts  render.DrawMeshOptions
 	own   map[string]any
 	at    []float32 // the cells to paint anew: column, row, a vec4 each
+	ways  []float32 // the cells whose ways reach them, row by row
 	marks []uint32
 	stamp uint32
+	mask  *render.Image // the cells to paint anew, white
+	pix   []byte
 }
 
 // toPaint are the cells to paint anew after the cells changed as the last refresh says: every
@@ -86,23 +108,99 @@ func (l *Painter) bakeAlbedo(dst *render.Image, atlas render.AtlasSource, px int
 		}
 	}
 	b := &l.baking
-	l.paintSet(dst, px)
+	l.paintSet(dst, float32(px), float32(px)/float32(l.sq.Cell), 1, false)
 	b.opts.Images = [4]*render.Image{atlas.Atlas(), l.cells.rects, l.cells.img, nil}
 	b.opts.Instances, b.opts.Vertices = at, 6
 	dst.DrawMesh(nil, albedoShader, &b.opts)
 }
 
-// paintSet sets the passes' uniforms for a target dst, px pixels a cell
-func (l *Painter) paintSet(dst *render.Image, px int) {
+// bakeWays paints the ways across the cells at anew into dst over their albedo, px pixels a cell,
+// out of atlas: every way reaching them, row by row, nothing outside them
+func (l *Painter) bakeWays(dst *render.Image, atlas render.AtlasSource, px int, at []float32) {
+	cols, rows := int(l.sq.Cols), int(l.sq.Rows)
+	n := cols * rows
+	whole := len(at) == 4*n
+	b := &l.baking
+	if !whole {
+		b.paintMask(at, cols, rows)
+	}
+	b.ways = b.ways[:0]
+	for i := range n {
+		x, y := i%cols, i/cols
+		c, _ := l.cellAt(int64(x), int64(y))
+		if !l.topOf(c).way.Runs() || !whole && !l.nearMask(x, y) {
+			continue
+		}
+		b.ways = append(b.ways, float32(x), float32(y), 0, 0)
+	}
+	if len(b.ways) == 0 {
+		return
+	}
+	l.paintSet(dst, float32(px), float32(px)/float32(l.sq.Cell), 1, !whole)
+	b.opts.Images = [4]*render.Image{atlas.Atlas(), l.cells.rects, l.cells.img, b.mask}
+	b.opts.Instances, b.opts.Vertices = b.ways, wayVertices
+	dst.DrawMesh(nil, waysShader, &b.opts)
+}
+
+// paintMask marks the cells at in the mask, white, the rest clear
+func (b *baking) paintMask(at []float32, cols, rows int) {
+	if b.mask == nil || b.mask.Bounds().Dx() != cols || b.mask.Bounds().Dy() != rows {
+		b.mask = render.NewImage(cols, rows)
+	}
+	if len(b.pix) != 4*cols*rows {
+		b.pix = make([]byte, 4*cols*rows)
+	}
+	clear(b.pix)
+	for k := 0; k < len(at); k += 4 {
+		i := 4 * (int(at[k+1])*cols + int(at[k]))
+		b.pix[i], b.pix[i+3] = 255, 255
+	}
+	b.mask.WritePixels(b.pix)
+}
+
+// nearMask reports whether the cell x, y or one round it is in the mask: whose ways may reach it
+func (l *Painter) nearMask(x, y int) bool {
+	b, cols := &l.baking, int(l.sq.Cols)
+	for dy := -1; dy <= 1; dy++ {
+		for dx := -1; dx <= 1; dx++ {
+			c, ok := l.cellAt(int64(x+dx), int64(y+dy))
+			if !ok {
+				continue
+			}
+			j, _ := l.ordinal(c)
+			if b.pix[4*((j/cols)*cols+j%cols)] != 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// paintSet sets the passes' uniforms for a target dst, px pixels a cell and scale a world unit,
+// the ways in their fine steps where fine, their water's shine times detail, only the cells
+// marked painted where masked
+func (l *Painter) paintSet(dst *render.Image, px, scale, detail float32, masked bool) {
 	b := &l.baking
 	if b.own == nil {
 		b.own, b.opts.Uniforms = map[string]any{}, map[string]any{}
 	}
 	t := dst.Bounds()
+	shape, _ := l.board.Shape()
 	b.set("PaintCells", float32(l.sq.Cols), float32(l.sq.Rows))
 	b.set("PaintWrap", flag(l.sq.WrapX), flag(l.sq.WrapY))
-	b.set("PaintPx", float32(px))
+	b.set("PaintPx", px)
 	b.set("PaintTarget", float32(t.Dx()), float32(t.Dy()))
+	b.set("PaintHex", flag(shape.Hex))
+	b.set("PaintCell", float32(shape.Cell))
+	b.set("PaintLow", l.cells.low)
+	b.set("PaintSpan", l.cells.span)
+	b.set("PaintFine", flag(l.cellPx >= nearCell || l.square))
+	b.set("PaintDetail", detail)
+	b.set("PaintHeights", flag(l.heights))
+	b.set("PaintScale", scale)
+	b.set("PaintMasked", flag(masked))
+	b.set("LaneGlint", float32(water.SeaGlint()))
+	b.set("LaneStream", float32(water.RunningWater()))
 }
 
 func (b *baking) set(name string, v ...float32) {

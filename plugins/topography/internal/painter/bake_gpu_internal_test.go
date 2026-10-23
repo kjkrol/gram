@@ -118,3 +118,98 @@ func TestPainter_BakesTheAlbedoOnTheGPUAsOnTheCPU(t *testing.T) {
 		t.Errorf("a cell changed, %d pixels of the albedo differ from the CPU's, want none", off)
 	}
 }
+
+// a board of land round a sea, ways across it: a road straight, turning and forking, a track
+// fading out, a river turning into the sea and running into it, a road along the shore
+func wayBoard(t *testing.T, g grid.Grid) (*Painter, *board.BoardWrite, render.AtlasSource) {
+	t.Helper()
+	st := map[cell.Name]Style{}
+	brd, brdW := newBoard(g)
+	grass := styled(st, cell.Kind{Name: cell.Named("w1"), Allows: cell.Land, SpriteID: 1},
+		Style{Spread: 0.3})
+	sea := styled(st, cell.Kind{Name: cell.Named("w2"), Allows: cell.Water, SpriteID: 2},
+		Style{Under: true, Shine: 0.8})
+	road := styled(st, cell.Kind{Name: cell.Named("w3"), Allows: cell.Land, SpriteID: 3},
+		Style{})
+	river := styled(st, cell.Kind{Name: cell.Named("w4"), Allows: cell.Land | cell.Water,
+		SpriteID: 4}, Style{Shine: 0.9, Flow: 22, MixWith: "w2"})
+	brdW.SetAll(grass)
+	shape, _ := brd.Shape()
+	cols, rows := shape.Cols, shape.Rows
+	for y := range rows {
+		for x := range cols {
+			if y >= rows-3 {
+				brdW.Set(g.At(x, y), sea)
+			}
+		}
+	}
+	// along each grid's own directions: the first two opposite, the rest round
+	dirs := g.Directions()
+	link := func(ds ...int) cell.Links {
+		var l cell.Links
+		for _, d := range ds {
+			l |= 1 << d
+		}
+		return l
+	}
+	back := func(d int) int { return g.Opposite(d) }
+	for x := uint32(1); x < cols-2; x++ {
+		brdW.SetWay(g.At(x, 1), cell.Way{Kind: road, Width: 7, Links: link(2%dirs, back(2%dirs))})
+	}
+	brdW.SetWay(g.At(cols-2, 1), cell.Way{Kind: road, Width: 7, Links: link(back(2 % dirs)),
+		Fade: 0.6})
+	brdW.SetWay(g.At(3, 1), cell.Way{Kind: road, Width: 7,
+		Links: link(2%dirs, back(2%dirs), 1)})
+	for y := uint32(0); y < rows-3; y++ {
+		brdW.SetWay(g.At(5, y), cell.Way{Kind: river, Width: 8, Links: link(0, 1),
+			Mix: float32(y) / float32(rows)})
+	}
+	brdW.SetWay(g.At(5, rows-4), cell.Way{Kind: river, Width: 8, Links: link(0, 1), Mix: 0.8})
+	if dirs == 8 {
+		// a road turning and slanting: west, north-east, then south-west, east
+		brdW.SetWay(g.At(9, 7), cell.Way{Kind: road, Width: 6, Links: link(3)})
+		brdW.SetWay(g.At(10, 7), cell.Way{Kind: road, Width: 6, Links: link(2, 5)})
+		brdW.SetWay(g.At(11, 6), cell.Way{Kind: road, Width: 6, Links: link(6, 3)})
+		brdW.SetWay(g.At(12, 6), cell.Way{Kind: road, Width: 6, Links: link(2, 0)})
+		brdW.SetWay(g.At(12, 5), cell.Way{Kind: road, Width: 6, Links: link(1)})
+		// a fork of three widths: the stem through the two widest
+		brdW.SetWay(g.At(12, 3), cell.Way{Kind: road, Width: 10, Links: link(3)})
+		brdW.SetWay(g.At(13, 3), cell.Way{Kind: road, Width: 7, Links: link(2, 3, 1)})
+		brdW.SetWay(g.At(14, 3), cell.Way{Kind: road, Width: 4, Links: link(2)})
+		brdW.SetWay(g.At(13, 4), cell.Way{Kind: road, Width: 6, Links: link(0), Fade: 0.3})
+	}
+	reliefFor(brd).SetHeights(func(p geom.Vec) float64 { return 40 - p.Y/8 + p.X/32 })
+	atlas := render.NewAtlas()
+	for id, c := range map[render.SpriteID]color.RGBA{1: {90, 160, 70, 255},
+		2: {40, 80, 170, 255}, 3: {150, 110, 70, 255}, 4: {60, 110, 190, 255}} {
+		atlas.Add(id, 16, sprite(c))
+	}
+	atlas.Close()
+	d := New(brd, reliefFor(brd), skyOf(sky.DefaultSun), true, st)
+	d.kinds = kindsOf{grass, sea, road, river}
+	return d, brdW, atlas
+}
+
+func TestPainter_BakesTheWaysOnTheGPUAsOnTheCPU(t *testing.T) {
+	needGPU(t)
+	g := grid.DefaultGrids{}.Square(16, 12, 32)
+	d, brdW, atlas := wayBoard(t, g)
+	cpu, _, px, _ := d.Surface(atlas)
+	laid := render.NewImage(cpu.Bounds().Dx(), cpu.Bounds().Dy())
+	bake := func() {
+		d.refresh(atlas)
+		at := d.toPaint()
+		d.bakeAlbedo(laid, atlas, px, at)
+		d.bakeWays(laid, atlas, px, at)
+	}
+	bake()
+	if off := differ(t, laid, cpu); off > 0 {
+		t.Errorf("%d pixels of the albedo with its ways differ from the CPU's, want none", off)
+	}
+	brdW.SetWay(g.At(8, 4), cell.Way{Kind: d.kinds.(kindsOf)[2], Width: 7, Links: 0x0f})
+	cpu, _, _, _ = d.Surface(atlas)
+	bake()
+	if off := differ(t, laid, cpu); off > 0 {
+		t.Errorf("a way laid, %d pixels of the albedo differ from the CPU's, want none", off)
+	}
+}
