@@ -3,6 +3,7 @@ package painter
 import (
 	"image"
 
+	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/render"
 )
@@ -37,19 +38,13 @@ const (
 	layerWater  = 2
 )
 
-// the vertices of a way's instance: six a piece
-const wayVertices = 6 * lanePieces
-
-// the largest number of pieces a way lays: a stem through eight, six joining it, all running
-// into water (paint_ways.wgsl)
-const lanePieces = 46
-
 // baking is what the bake's passes keep from one bake to the next
 type baking struct {
 	opts  render.DrawMeshOptions
 	own   map[string]any
 	at    []float32 // the cells to paint anew: column, row, a vec4 each
 	ways  []float32 // the cells whose ways reach them, row by row
+	most  int       // the most pieces one of the ways lays
 	marks []uint32
 	stamp uint32
 	mask  *render.Image // the cells to paint anew, white
@@ -133,7 +128,7 @@ func (l *Painter) bake(s *groundSheet, atlas render.AtlasSource, at []float32) {
 			dst.DrawMesh(nil, groundShader, &b.opts)
 		}
 		if len(b.ways) > 0 {
-			b.opts.Instances, b.opts.Vertices = b.ways, wayVertices
+			b.opts.Instances, b.opts.Vertices = b.ways, 6*b.most
 			dst.DrawMesh(nil, waysShader, &b.opts)
 		}
 	}
@@ -152,15 +147,49 @@ func (l *Painter) bake(s *groundSheet, atlas render.AtlasSource, at []float32) {
 func (l *Painter) wayCells(at []float32, whole bool) {
 	cols, rows := int(l.sq.Cols), int(l.sq.Rows)
 	b := &l.baking
-	b.ways = b.ways[:0]
+	b.ways, b.most = b.ways[:0], 0
 	for i := range cols * rows {
 		x, y := i%cols, i/cols
 		c, _ := l.cellAt(int64(x), int64(y))
-		if !l.topOf(c).way.Runs() || !whole && !l.nearMask(x, y) {
+		w := l.topOf(c).way
+		if !w.Runs() || !whole && !l.nearMask(x, y) {
 			continue
 		}
 		b.ways = append(b.ways, float32(x), float32(y), 0, 0)
+		b.most = max(b.most, l.piecesOf(c, w))
 	}
+}
+
+// piecesOf is how many pieces the way w across c lays at most (paint_ways.wgsl, pieceOf): alone
+// one; out to one neighbour its end and the band out; to more the stem through two and a band
+// joining it for each of the rest; and one out to a cell lying under the rest running on under
+// it, each in as many steps as U.PaintFine has
+func (l *Painter) piecesOf(c cell.ID, w lane) int {
+	steps := func(n int) int {
+		if l.cellPx >= nearCell || l.square {
+			return n
+		}
+		return max(n/3, 1)
+	}
+	outs, under := 0, 0
+	for d := range l.board.Directions() {
+		if w.Links&(1<<d) == 0 {
+			continue
+		}
+		outs++
+		if n, ok := l.board.Toward(c, d); ok {
+			if t := l.topOf(n); !t.way.Runs() && t.under {
+				under++
+			}
+		}
+	}
+	switch outs {
+	case 0:
+		return 1
+	case 1:
+		return 1 + steps(4) + steps(2)*under
+	}
+	return steps(6) + steps(4)*(outs-2) + steps(2)*under
 }
 
 // paintMask marks the cells at in the mask, white, the rest clear

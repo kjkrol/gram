@@ -440,10 +440,6 @@ fn pieceOf(c: vec2<f32>, b: vec2<f32>, w: Way, p: i32) -> Piece {
     return none;
 }
 
-// the largest number of pieces a way lays: a stem through eight, six joining it, all running
-// into water
-const lanePieces: i32 = 46;
-
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>) -> Lane {
     var out: Lane;

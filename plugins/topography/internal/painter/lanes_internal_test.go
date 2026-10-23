@@ -131,3 +131,38 @@ func TestPainter_DrawsAHexBoardsTopsOnTheGPU(t *testing.T) {
 		t.Errorf("the sea is drawn as its sprite alone, %v, want it glinting", colours[3])
 	}
 }
+
+// the ways laid in as many pieces as the most any of them lays, every piece there: as laid in as
+// many as any way could, a stem through eight with six joining it, all running into water
+func TestPainter_LaysEveryPieceOfTheWays(t *testing.T) {
+	needGPU(t)
+	for _, g := range []grid.Grid{grid.DefaultGrids{}.Square(16, 12, 32),
+		grid.DefaultGrids{}.Hex(10, 8, 16)} {
+		d, _, atlas := wayBoard(t, g)
+		const px = 2
+		w, h := 2*16*32, 2*12*32
+		u := render.UniformsOf(map[string]any{"Pixel": []float32{1.0 / px},
+			"Clock": []float32{1.3}, "Toward": []float32{0, 0, 1}})
+		laid, all := render.NewImage(w, h), render.NewImage(w, h)
+		d.Above()
+		d.DrawWays(laid, atlas, px, u)
+		if most := d.baking.most; most <= 0 || most >= 46 {
+			t.Fatalf("the ways lay %d pieces at most, want fewer than the 46 any could", most)
+		}
+		d.baking.opts.Vertices = 6 * 46
+		all.DrawMesh(nil, topsShader, &d.baking.opts)
+		a, b := make([]byte, 4*w*h), make([]byte, 4*w*h)
+		laid.ReadPixels(a)
+		all.ReadPixels(b)
+		off := 0
+		for i := 0; i < len(a); i += 4 {
+			if [4]byte(a[i:i+4]) != [4]byte(b[i:i+4]) {
+				off++
+			}
+		}
+		if off > 0 {
+			t.Errorf("%d pixels of the ways laid in %d pieces at most differ from them laid in 46",
+				off, d.baking.most)
+		}
+	}
+}

@@ -24,14 +24,16 @@ func (l *Painter) DrawWays(dst *render.Image, atlas render.AtlasSource, px float
 	}
 	l.refresh(atlas)
 	b, g := &l.baking, &l.lanes
-	b.ways, g.moving = b.ways[:0], false
+	b.ways, b.most, g.moving = b.ways[:0], 0, false
 	for i := range l.board.CellCount() {
 		x, y := uint32(i)%l.sq.Cols, uint32(i)/l.sq.Cols
-		w := l.topOf(l.board.At(x, y)).way
+		c := l.board.At(x, y)
+		w := l.topOf(c).way
 		if !w.Runs() {
 			continue
 		}
 		b.ways = append(b.ways, float32(x), float32(y), 0, 0)
+		b.most = max(b.most, l.piecesOf(c, w))
 		g.moving = g.moving || l.heights && (w.shine > 0 || w.mixes && w.mixShine > 0)
 	}
 	if len(b.ways) == 0 {
@@ -44,7 +46,7 @@ func (l *Painter) DrawWays(dst *render.Image, atlas render.AtlasSource, px float
 	detail := min(max((l.cellPx-farCell)/(nearCell-farCell), 0), 1)
 	l.paintSet(dst, layerAlbedo, image.Point{}, 0, px, detail, false)
 	b.opts.Images = [4]*render.Image{atlas.Atlas(), l.cells.rects, l.cells.img, nil}
-	b.opts.Instances, b.opts.Vertices = b.ways, wayVertices
+	b.opts.Instances, b.opts.Vertices = b.ways, 6*b.most
 	dst.DrawMesh(nil, topsShader, &b.opts)
 }
 
