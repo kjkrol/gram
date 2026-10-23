@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"math"
 	"os"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
+	drain "github.com/kjkrol/gram/plugins/board/water"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -258,4 +260,112 @@ func TestPainter_TellsTheCellsTheirDetails(t *testing.T) {
 			t.Errorf("%s holds detail %d, want %d", c.what, got, c.want)
 		}
 	}
+}
+
+// an island of 96 by 64 cells as the benchmarks' (bench/board_test.go): earth, sand by the coast
+// and rock up high round the sea, rivers drained down it as ways, the sea and the rivers shining
+func island(tb testing.TB) (*Painter, *board.BoardWrite, render.AtlasSource, grid.Grid) {
+	tb.Helper()
+	const w, h, size = 96, 64, 32
+	st := map[cell.Name]Style{}
+	g := grid.DefaultGrids{}.Square(w, h, size)
+	brd, brdW := newBoard(g)
+	kinds := map[string]cell.Kind{
+		"sea": styled(st, cell.Kind{Name: cell.Named("sea"), Allows: cell.Water, SpriteID: 1},
+			Style{Shine: 0.9, Under: true}),
+		"earth": styled(st, cell.Kind{Name: cell.Named("earth"), Allows: cell.Land, SpriteID: 2},
+			Style{Spread: 0.3}),
+		"sand": styled(st, cell.Kind{Name: cell.Named("sand"), Allows: cell.Land, SpriteID: 3},
+			Style{Spread: 0.35}),
+		"rock": styled(st, cell.Kind{Name: cell.Named("rock"), Allows: cell.Land, SpriteID: 4},
+			Style{Spread: 0.25}),
+		"stream": styled(st, cell.Kind{Name: cell.Named("stream"), Allows: cell.Land | cell.Water,
+			SpriteID: 5}, Style{Shine: 0.9, Flow: 60}),
+		"estuary": styled(st, cell.Kind{Name: cell.Named("estuary"), Allows: cell.Water,
+			SpriteID: 6}, Style{Shine: 0.9, Flow: 45}),
+	}
+	inside := func(x, y float64) float64 { // 1 in the middle, 0 at the coast
+		dx, dy := (x-w/2)/34, (y-h/2)/22
+		return 1 - math.Hypot(dx, dy)*(1+0.1*math.Sin(5*math.Atan2(dy, dx)))
+	}
+	land := map[cell.ID]bool{}
+	g.EachCell(func(c cell.ID) {
+		x, y, _ := g.Coords(c)
+		land[c] = inside(float64(x)+0.5, float64(y)+0.5) > 0
+	})
+	heights := func(q geom.Vec) float64 {
+		x, y := q.X/size, q.Y/size
+		for _, d := range [4][2]float64{{-0.5, -0.5}, {0.5, -0.5}, {-0.5, 0.5}, {0.5, 0.5}} {
+			if c, ok := g.CellAt(geom.NewVec((x+d[0])*size, (y+d[1])*size)); !ok || !land[c] {
+				return 0
+			}
+		}
+		in := inside(x, y)
+		return 8 + 160*in*in*(0.7+0.3*math.Sin(x/3)*math.Cos(y/4)) + 10*math.Sin(x/2+y/3)
+	}
+	rivers, err := drain.Drain(g, heights, func(c cell.ID) bool { return !land[c] }, drain.Config{
+		BrookAt: 30, StreamAt: 60, RiverAt: 170, BrookDepth: 1, StreamDepth: 2, RiverDepth: 5,
+		WidthPerRoot: 1.4, Meander: 6, Plume: 0.25,
+	})
+	if err != nil {
+		tb.Fatal(err)
+	}
+	reliefFor(brd).SetHeights(rivers.Carved(heights))
+	brdW.SetAll(kinds["sea"])
+	g.EachCell(func(c cell.ID) {
+		if !land[c] {
+			return
+		}
+		at := g.CellCenter(c)
+		kind := "earth"
+		switch in := inside(at.X/size, at.Y/size); {
+		case in < 0.08:
+			kind = "sand"
+		case heights(at) > 110:
+			kind = "rock"
+		}
+		brdW.Set(c, kinds[kind])
+	})
+	for _, e := range rivers.Net(map[drain.Course]string{drain.Brook: "stream",
+		drain.Stream: "stream", drain.River: "stream", drain.Ford: "stream",
+		drain.Mouth: "estuary"}).Ways() {
+		brdW.SetWay(e.Cell, cell.Way{Kind: kinds[e.Kind], Width: e.Width, Links: e.Links,
+			Fade: e.Fade, Mix: e.Mix})
+	}
+	colours := map[render.SpriteID]color.RGBA{}
+	for _, k := range kinds {
+		colours[k.SpriteID] = color.RGBA{uint8(40 * k.SpriteID), 150, 80, 255}
+	}
+	d := New(brd, reliefFor(brd), true, st)
+	return d, brdW, solids(colours), g
+}
+
+// Benchmark_Painter_Bake paints the island anew and waits for the GPU: whole, a Style changed
+// every time, and round a cell changed every time.
+func Benchmark_Painter_Bake(b *testing.B) {
+	needGPU(b)
+	d, brdW, atlas, g := island(b)
+	d.Surface(atlas)
+	one, px := render.NewImage(1, 1), make([]byte, 4)
+	wait := func() {
+		one.CopyFrom(d.albedo.water.SubImage(image.Rect(0, 0, 1, 1)))
+		one.ReadPixels(px)
+	}
+	wait()
+	b.Run("whole", func(b *testing.B) {
+		for i := 0; b.Loop(); i++ {
+			d.Style("earth", Style{Spread: 0.3 + 0.01*float32(i%2)})
+			d.Surface(atlas)
+			wait()
+		}
+	})
+	b.Run("cell", func(b *testing.B) {
+		c := g.At(40, 30)
+		kinds := [2]cell.Kind{d.board.Kind(c), d.board.Kind(g.At(48, 2))}
+		for i := 0; b.Loop(); i++ {
+			brdW.Set(c, kinds[1-i%2])
+			d.Surface(atlas)
+			wait()
+		}
+	})
 }

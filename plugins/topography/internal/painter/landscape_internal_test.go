@@ -665,7 +665,7 @@ func TestShores_FollowTheShineNotTheRelief(t *testing.T) {
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
 
-func needGPU(t *testing.T) {
+func needGPU(t testing.TB) {
 	t.Helper()
 	if err := gpu.Headless(os.Getenv("GRAM_GPU") == "software"); err != nil {
 		t.Skipf("no GPU: %v", err)
