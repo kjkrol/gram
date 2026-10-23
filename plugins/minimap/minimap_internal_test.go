@@ -269,6 +269,8 @@ func TestMarks_ADotForEveryEntityRoundWhoseKindHasAMark(t *testing.T) {
 	ecs := start(t, w, goke.SystemFn{OnInit: marks.Init})
 	ecs.Tick(time.Second / 60)
 	p.RunPlan(nil, 0)
+	marks.publish(time.Now())
+	marks.swap()
 	var f render.Frame
 	f.Reset(m.lens)
 	marks.Compose(&f, m.lens)
@@ -408,5 +410,21 @@ func TestCompass_HangsOnTheCirclesEdgePointingNorthTurningWithTheMinimap(t *test
 	}
 	if img := surface.Draw(); img == nil || img.Bounds().Dx() != side {
 		t.Errorf("the compass drew %v, want a picture %d wide", img, side)
+	}
+}
+
+func TestMarks_ArePublishedOnceARedrawAtMost(t *testing.T) {
+	v := &marksView{m: &minimap{p: &Plugin{w: flatWorld(nil)}}}
+	now := time.Now()
+	for _, step := range []struct {
+		after time.Duration
+		want  uint64
+	}{{0, 1}, {redraw / 2, 1}, {redraw, 2}, {redraw + redraw/2, 2}, {2 * redraw, 3}} {
+		v.publish(now.Add(step.after))
+		v.swap()
+		if got := v.drawn.Front().version; got != step.want {
+			t.Errorf("%v on, the marks drawn are the %dth published, want the %dth", step.after,
+				got, step.want)
+		}
 	}
 }

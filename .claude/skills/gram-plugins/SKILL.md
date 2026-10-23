@@ -92,8 +92,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   a table's `TableVer` changed: spawns, despawns and marks alike, nothing else tells it, the
   `unindexed` flag gone; 2026-10-21, etap 3 and wave 3), the effects' pass. `Query`, `Scan` and collisions read that grid
   until the next rebuild. At the start of the world's tick the `view.System` refreshes every
-  `view.View` (`Plugin.View()` the camera's, `ViewFor(cam)` any's); the renderer draws what the
-  View contains. The world makes no camera. It hosts rules of a `clock.Moment` (every step, just
+  `view.View` (`Plugin.View()` the camera's); `Read.ViewFor(cam)` is a camera's as the frame
+  drawn was published (one copy a frame, 2026-10-23, the live one before the first publish),
+  `Read.Views()`/`InView(id)` the live ones for what publishes to cull by; the renderer draws
+  what the View contains. The world makes no camera. It hosts rules of a `clock.Moment` (every step, just
   before the effects' pass) and handles the commands about effects, `Pause` (P and Shift+P),
   `Faster` (]) and `Slower` ([).
   `Figures(f...)` notes kinds of entity in one piece (`world.Figure`: `Define(w)`, `Look(a, w)`;
@@ -1210,8 +1212,9 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   circle's edge three quarters out, pointing north, turned round the circle and with it as the
   minimap turns, a transparent picture
   the scene lays over the minimap in a box `minimap.Overhang` (20) bigger on every side
-  (`ui.Layers(ui.Center(minimap).Size(220, 220), compass)` sized 260). Drawn anew at most 30
-  times a second (`paced`), the last picture in between. A press on it is its own
+  (`ui.Layers(ui.Center(minimap).Size(220, 220), compass)` sized 260). Its marks are published
+  at most 30 times a second (`allMarks`, a deadline and a version) and the minimap drawn anew as
+  they are (`paced`), the last picture in between. A press on it is its own
   (`ui.Clicked`): `cameras.CenterAt` with the world point under it as the issuer's; the player's
   picture under it is covered (`ui.Hovered`), so the cursor there neither scrolls nor turns.
   `Switch{Shown}` shows or hides them (`Show`, `Shown`), `Turn{On}` turns them with the

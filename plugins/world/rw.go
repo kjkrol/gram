@@ -60,9 +60,33 @@ func (r *Read) Look() Look { return r.p.look }
 // FlatLook is the world's own Look, seen from above.
 func (r *Read) FlatLook() Look { return flatLook(r.p.Res.Config.Space) }
 
-// ViewFor is the View of what cam sees, kept current from the tick after Write.NewView made it;
-// nil for a camera of none.
-func (r *Read) ViewFor(cam camera.Camera) *view.View { return r.p.views[cam] }
+// ViewFor is the View of what cam saw as the frame drawn was published, for what draws; before
+// the first, as the last tick left it; nil for a camera of none.
+func (r *Read) ViewFor(cam camera.Camera) *view.View {
+	if v := r.p.renderer.figures.Front().views[cam]; v != nil {
+		return v
+	}
+	return r.p.views[cam]
+}
+
+// Views are the Views of every camera Write.NewView made, as the last tick left them: what
+// publishes for a frame culls by them.
+func (r *Read) Views() []*view.View { return r.p.module.views }
+
+// InView reports whether some camera's View holds id, as the last tick left them; with no
+// camera, everything is.
+func (r *Read) InView(id uid.UID64) bool {
+	views := r.p.module.views
+	if len(views) == 0 {
+		return true
+	}
+	for _, v := range views {
+		if v.Contains(id) {
+			return true
+		}
+	}
+	return false
+}
 
 // Picture is everything the Stage's plugins draw, one picture for every scene showing the world;
 // nil before the plugins have declared their looks.

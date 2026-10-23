@@ -115,9 +115,10 @@
 //
 // # Views
 //
-// [Write.NewView] makes the view.View of a camera, as the cameras plugin makes the camera, and
-// [Read.ViewFor] reads it; refreshed once a tick after movement, the renderer draws only what
-// the camera's View contains.
+// [Write.NewView] makes the view.View of a camera, as the cameras plugin makes the camera,
+// refreshed once a tick after movement. What publishes for a frame culls by every camera's
+// ([Read.Views], [Read.InView]); what draws reads a camera's as the frame was published
+// ([Read.ViewFor]), one copy a frame for all of it, and draws only what it contains.
 //
 // # Telemetry
 //

@@ -235,6 +235,8 @@ func recordFans(r *Renderer) *[][]ConePoint {
 }
 
 func composeWith(r *Renderer) *render.Frame {
+	r.Publish()
+	r.Swap()
 	var f render.Frame
 	f.Reset(r.camera)
 	r.Compose(&f, r.camera)

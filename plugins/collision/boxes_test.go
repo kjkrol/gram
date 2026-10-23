@@ -48,6 +48,8 @@ func TestBoxes_ABaseLiesUnderItsFigureAndASolidStandsFromItsAltitudeToItsTop(t *
 	cam := raising{cameratest.NewFromSpace(1000, 1000, 0)}
 	drawn := func(shown collision.BoxesShown) (ats []render.At, heights []float32) {
 		c.Write().ShowBoxes(shown)
+		boxes.(plugin.Publisher).Publish()
+		boxes.(plugin.Publisher).Swap()
 		var f render.Frame
 		f.Reset(cam)
 		boxes.Compose(&f, cam)

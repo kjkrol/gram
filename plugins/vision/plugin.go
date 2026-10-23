@@ -54,7 +54,7 @@ func NewPlugin(worldPlugin *world.Plugin) *Plugin {
 	p.Self = world.NewSelf(worldPlugin, p)
 	p.renderer = NewRenderer(worldPlugin.Read(0).Space()).WithGround(p.groundOf).WithCover(p.coverOf).
 		WithScale(worldPlugin.Read(0).Scale()).WithDrawing(&p.drawing).
-		WithStyles(worldPlugin.Read(0).Styles).WithSeen(worldPlugin.Read(0).ViewFor)
+		WithStyles(worldPlugin.Read(0).Styles).WithSeen(worldPlugin.Read(0).ViewFor).WithInView(worldPlugin.Read(0).InView)
 	p.renderer.Hide(true)
 	return p
 }

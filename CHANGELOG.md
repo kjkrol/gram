@@ -39,6 +39,14 @@
   be paid on the ticks' side once the frame is drawn beside them.
 - Breaking: `world.Lighting` marks an entity as it is published (`Mark(cur, i) uint16`) and lights
   it by the mark (`Of(mark, box, z, a)`); `light.Write.Of` takes the mark.
+- What is drawn over the entities is published once a frame too: the selection's outlines and
+  the box being dragged, the collision boxes, the cells held (their outlines with their heights),
+  the bridges in hand, the views (their Show rules run once a frame, their outlines copied), the
+  routes and goals (the route to a queued goal found as it is published, no longer as it is
+  drawn) and the minimap's marks (at most 30 times a second, a deadline and a version; the
+  minimap is drawn anew as they are). `world.Read.ViewFor` is a camera's view as the frame drawn
+  was published, one copy a frame for everything that draws; `Read.Views` and `Read.InView` are
+  the views as the last tick left them, for what publishes. New: `vision.Renderer.WithInView`.
 
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an

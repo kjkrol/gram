@@ -255,6 +255,8 @@ func TestTool_TheBridgeInHandLiesOverItsCells(t *testing.T) {
 	d.give(bridges.Aim{At: at(5, 3)})
 	hand := d.drawn[len(d.drawn)-1] // the bridges' own, installed last
 	cam := cameratest.NewFromSpace(100, 60, 0)
+	hand.(plugin.Publisher).Publish()
+	hand.(plugin.Publisher).Swap()
 	var f render.Frame
 	f.Reset(cam)
 	hand.Compose(&f, cam)

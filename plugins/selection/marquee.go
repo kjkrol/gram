@@ -2,6 +2,7 @@ package selection
 
 import (
 	"image/color"
+	"maps"
 
 	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
@@ -27,6 +28,15 @@ func (m *marquees) show(cam camera.Camera, box geom.AABB) {
 }
 
 func (m *marquees) hide(cam camera.Camera) { delete(m.boxes, cam) }
+
+// copyInto has dst hold the boxes m holds, keeping its memory
+func (m *marquees) copyInto(dst *marquees) {
+	if dst.boxes == nil {
+		dst.boxes = map[camera.Camera]geom.AABB{}
+	}
+	clear(dst.boxes)
+	maps.Copy(dst.boxes, m.boxes)
+}
 
 func (m *marquees) compose(f *render.Frame, cam camera.Camera) {
 	b, ok := m.boxes[cam]

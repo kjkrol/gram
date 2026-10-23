@@ -56,15 +56,17 @@ func (m *minimap) middle() (float32, float32) {
 	return float32(b.TopLeft.X+b.BottomRight.X) / 2, float32(b.TopLeft.Y+b.BottomRight.Y) / 2
 }
 
-// redraw is how often at most a minimap is drawn anew: in between it shows its last picture
+// redraw is how often at most a minimap's marks are published, and the minimap drawn anew: in
+// between it shows its last picture
 const redraw = time.Second / 30
 
-// paced is a minimap's feed drawn anew at most once a redraw
+// paced is a minimap's feed drawn anew as its marks are published
 type paced struct {
 	*render.Feed
-	w, h  int
-	last  *render.Image
-	drawn time.Time
+	marks   *marksView
+	w, h    int
+	last    *render.Image
+	version uint64
 }
 
 // Resize is laid out every frame: a picture of another size is drawn anew at once
@@ -76,8 +78,8 @@ func (p *paced) Resize(w, h int) {
 }
 
 func (p *paced) Draw() *render.Image {
-	if p.last == nil || time.Since(p.drawn) >= redraw {
-		p.last, p.drawn = p.Feed.Draw(), time.Now()
+	if v := p.marks.drawn.Front().version; p.last == nil || v != p.version {
+		p.last, p.version = p.Feed.Draw(), v
 	}
 	return p.last
 }
@@ -88,15 +90,34 @@ func (m *minimap) picture() *render.Composer {
 	return render.NewComposer(&groundView{m: m}, m.marks, &outlineView{m: m})
 }
 
-// marksSetup readies the marks of every minimap, made with the Stage's scenes, at its Setup
-type marksSetup struct{ p *Plugin }
+// allMarks are the marks of every minimap, made with the Stage's scenes: readied at its Setup,
+// published once a frame
+type allMarks struct{ p *Plugin }
 
-func (s marksSetup) SetupSystems() []goke.System {
+func (s allMarks) SetupSystems() []goke.System {
 	var out []goke.System
 	for _, m := range s.p.maps {
 		out = append(out, goke.SystemFn{OnInit: m.marks.Init})
 	}
 	return out
+}
+
+// Publish takes every minimap's marks once a redraw at most, while the minimaps are shown.
+func (s allMarks) Publish() {
+	if s.p.Res.Settings.Hidden {
+		return
+	}
+	now := time.Now()
+	for _, m := range s.p.maps {
+		m.marks.publish(now)
+	}
+}
+
+// Swap has the marks published last drawn.
+func (s allMarks) Swap() {
+	for _, m := range s.p.maps {
+		m.marks.swap()
+	}
 }
 
 // groundView lays the ground's miniature under the minimap, a copy a world away round a torus
@@ -135,7 +156,7 @@ func (g *groundView) Draw(t render.Target, _ camera.Camera, _ render.Uniforms) {
 	}
 }
 
-// marksView draws a dot for every entity round the minimap whose kind has a Mark
+// marksView draws a dot for every entity round the minimap whose kind has a Mark, as published
 type marksView struct {
 	m     *minimap
 	q     *goke.Query
@@ -144,13 +165,34 @@ type marksView struct {
 	found view.EntitySet
 	ids   []uid.UID64
 	marks []knownMark // by sprite
+	drawn render.Buffered[dots]
+	due   time.Time
+	fresh bool // published since the last swap
+}
+
+// dots are the marks round a minimap where they stand, as of the version-th publish
+type dots struct {
+	all     []dot
+	version uint64
+}
+
+type dot struct {
+	x, y float32
+	mark Mark
 }
 
 func (v *marksView) Init(si *goke.SysInit) {
 	v.q = si.NewQueryBuilder(&v.base, &v.app).Build()
 }
 
-func (v *marksView) Compose(f *render.Frame, _ camera.Camera) {
+// publish takes the marks round the minimap once their time comes
+func (v *marksView) publish(now time.Time) {
+	if now.Before(v.due) {
+		return
+	}
+	v.due, v.fresh = now.Add(redraw), true
+	b := v.drawn.Back()
+	b.all, b.version = b.all[:0], v.drawn.Front().version+1
 	styles := v.m.p.w.Read(0).Styles()
 	if styles == nil {
 		return
@@ -174,7 +216,21 @@ func (v *marksView) Compose(f *render.Frame, _ camera.Camera) {
 			continue
 		}
 		c := v.base.At(cur).Pos.Center()
-		sx, sy := v.m.lens.Project(float32(c.X), float32(c.Y), 0)
+		b.all = append(b.all, dot{x: float32(c.X), y: float32(c.Y), mark: mark})
+	}
+}
+
+func (v *marksView) swap() {
+	if v.fresh {
+		v.drawn.Swap()
+		v.fresh = false
+	}
+}
+
+func (v *marksView) Compose(f *render.Frame, _ camera.Camera) {
+	for _, d := range v.drawn.Front().all {
+		mark := d.mark
+		sx, sy := v.m.lens.Project(d.x, d.y, 0)
 		r := mark.Size / 2
 		if sx+r < 0 || sx-r > v.m.lens.w || sy+r < 0 || sy-r > v.m.lens.h {
 			continue

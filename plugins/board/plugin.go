@@ -143,7 +143,7 @@ func (p *Plugin) KindTemplates(r *kind.Roster) {
 }
 
 func (p *Plugin) newHoldsView() *occupancy.View {
-	v := occupancy.NewView(p.board.Grid, p.occupancy, p.holdAt)
+	v := occupancy.NewView(p.board.Grid, p.occupancy, p.holdAt, p.worldPlugin.Read(0).Views)
 	v.Width(DefaultHoldWidth)
 	return v
 }

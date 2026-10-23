@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/game/stage"
 	"github.com/kjkrol/gram/internal/engine"
+	"github.com/kjkrol/gram/plugin"
 	"github.com/kjkrol/gram/plugins/board"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
@@ -122,9 +123,12 @@ func holdWidth(t *testing.T, b *board.Plugin) float32 {
 	b.Write().Occupancy().Enter(c, false, 7, cell.Land)
 	b.Write().ShowHolds(true)
 	cam := cameratest.NewFromSpace(256, 256, 0)
+	view := b.HoldsView()
+	view.(plugin.Publisher).Publish()
+	view.(plugin.Publisher).Swap()
 	var f render.Frame
 	f.Reset(cam)
-	b.HoldsView().Compose(&f, cam)
+	view.Compose(&f, cam)
 	var across float64
 	f.Each(func(_ render.At, v []render.Vertex) {
 		across = math.Hypot(float64(v[0].DstX-v[2].DstX), float64(v[0].DstY-v[2].DstY))

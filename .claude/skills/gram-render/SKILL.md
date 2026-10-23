@@ -79,8 +79,8 @@ its ticks and swaps a `render.Buffered` before the frame is drawn: the world's e
 rules run once for every camera's sight together, each camera's `view.View` copied
 (`CopyInto`), the drawing reading the front alone, 2026-10-23). The one other composer is a minimap's (`plugins/minimap`): its own
 three sources, none in `ctx.Draws`, its marks readied through a Setup provider, through an inner
-camera of its own, drawn anew at most 30 times a second (a `render.Surface` returning its last
-image in between; `ui.Image` lays it out every frame, so a resize alone forces a redraw).
+camera of its own, drawn anew as its marks are published, at most 30 times a second (a
+`render.Surface` returning its last image in between; `ui.Image` lays it out every frame, so a resize alone forces a redraw).
 `Image.StrokePolygon` is one draw however many sides (a round element's border). A demo that makes a plugin
 draws all it draws: selection and routes in bullet, platformer and split-screen, holds (the board's "Cells held" setting)
 in every demo with a board. **What is drawn over what is Z's alone (2026-10-15), never a layer
