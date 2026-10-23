@@ -11,7 +11,6 @@ import (
 	"github.com/gogpu/gogpu"
 	"github.com/kjkrol/gram/control"
 	"github.com/kjkrol/gram/game"
-	"github.com/kjkrol/gram/internal/gpu"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/render"
 )
@@ -152,7 +151,7 @@ func (e *Engine) Run() {
 	if err := e.Init(); err != nil {
 		log.Fatal(err)
 	}
-	gpu.Windowed()
+	render.Windowed()
 	e.shot = shotFromEnv()
 	// paced by the swapchain alone: on Wayland gogpu otherwise waits for the compositor's word
 	// after every frame, drawing each only once the last is on the screen
@@ -180,7 +179,7 @@ func (e *Engine) frame(dc *gogpu.Context) {
 	if p == nil || view == nil {
 		return
 	}
-	if err := gpu.Use(p.Device()); err != nil {
+	if err := render.UseDevice(p.Device()); err != nil {
 		log.Fatal(err)
 	}
 	began := time.Now()
@@ -208,7 +207,7 @@ func (e *Engine) frame(dc *gogpu.Context) {
 	drawn := time.Now()
 	fw, fh := dc.FramebufferSize()
 	if enc := dc.CommandEncoder(); enc != nil {
-		if err := gpu.Present(enc, view, p.SurfaceFormat(), fw, fh, e.window.Texture()); err != nil {
+		if err := render.Present(enc, view, p.SurfaceFormat(), fw, fh, e.window); err != nil {
 			log.Printf("gram: a frame not shown: %v", err)
 		}
 	}

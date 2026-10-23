@@ -9,10 +9,9 @@ import (
 
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/entity/kind"
-	"github.com/kjkrol/gram/internal/gpu"
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 	"github.com/kjkrol/gram/ui"
 	"github.com/kjkrol/uid"
 )
@@ -52,7 +51,7 @@ func drawFrame(screen *render.Image, drawers []render.Drawer) {
 	for _, d := range drawers {
 		d.(render.Renderer).Draw(screen)
 	}
-	gpu.Submit()
+	render.Submit()
 }
 
 // Benchmark_Text_Panel is one frame of a panel of 20 lines of text changing every frame, as a

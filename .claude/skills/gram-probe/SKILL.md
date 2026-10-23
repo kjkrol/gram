@@ -36,7 +36,7 @@ them too, and a probe left in by an interrupted run is a broken demo.
 1. **The demos that use what changed, and only those**: `grep -rl
    '"github.com/kjkrol/gram/plugins/<pkg>"' examples` (the atmosphere: board/topography,
    board/flat, look/sky). A demo without the package shows nothing of the change: motion/collision
-   has no atmosphere. Every demo is the field only for a change to `render`, `internal/gpu`, the
+   has no atmosphere. Every demo is the field only for a change to `render` (its device too), the
    engine or the world, which they all go through; there motion/collision is the one without a
    board or a sky.
 2. **A baseline**: a copy of the tree from before the change in the scratchpad (`cp -r`, never

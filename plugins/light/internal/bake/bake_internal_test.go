@@ -5,8 +5,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 // a ground of 17 by 17 corners 32 apart, its heights as a test raises them

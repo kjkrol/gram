@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/render/gputest"
 	"github.com/kjkrol/gram/render/internal/atlas"
 	"github.com/kjkrol/gram/render/internal/compose"
 	"github.com/kjkrol/gram/render/internal/gfx"

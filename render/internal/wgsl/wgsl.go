@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/render/internal/gpu"
 )
 
 //go:embed library.wgsl noise.wgsl

@@ -4,9 +4,8 @@ import (
 	"testing"
 
 	"github.com/kjkrol/gram/camera"
-	"github.com/kjkrol/gram/internal/gpu"
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 // the screen the island's frames are drawn into: a 1440p display
@@ -85,14 +84,14 @@ func Benchmark_Frame_Topography(b *testing.B) {
 			// the camera's view is made at the first frame and sees its sectors from the next
 			// tick on; the first frame paints the ground, waited for, as a game's first does
 			draw()
-			gpu.Submit()
+			render.Submit()
 			screen.ReadPixels(buf)
 			ctx.ecs.Tick(step)
 			b.ReportAllocs()
 			for b.Loop() {
 				screen.Clear()
 				draw()
-				gpu.Submit()
+				render.Submit()
 				screen.ReadPixels(buf)
 			}
 		})
@@ -102,7 +101,7 @@ func Benchmark_Frame_Topography(b *testing.B) {
 		buf := make([]byte, 4*frameW*frameH)
 		for b.Loop() {
 			screen.Clear()
-			gpu.Submit()
+			render.Submit()
 			screen.ReadPixels(buf)
 		}
 	})

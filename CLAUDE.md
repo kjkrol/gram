@@ -72,16 +72,16 @@ make bench                                                      # every benchmar
 make bench-save                                                 # 5 repeats into bench_results/ (ignored by git)
 ```
 
-Only `internal/gpu` and `internal/engine` import gogpu (and wgpu, gputypes); plugins see `render`
-and `control`. Tests that draw ready a headless device (`gputest.Need(t)`, `internal/gpu/gputest`;
-`GRAM_GPU=software` for the software rasteriser, which draws wrong) and skip without a GPU. A
-running game logs its frame rate and where a frame's time goes every second with `GRAM_FPS_LOG=1`,
-starts fullscreen with `GRAM_FULLSCREEN=1` (F11 switches) and runs unpaced with `GRAM_VSYNC=off`;
-headless probes of a demo's frame include about 10 ms of the GPU's readback at 2560x1440, so
-compare them with each other, not with a frame rate. `GRAM_SHOT=<file.png>` saves frame
-`GRAM_SHOT_FRAME` (120) and quits, the world taking one step a frame till then: shots of a baseline
-tree and of the working one compare a change's pictures (the telemetry panel, random weather and
-random scenes are noise).
+Only `render` (its device in `render/internal/gpu`) and `internal/engine` import gogpu (and wgpu,
+gputypes); plugins see `render` and `control`. Tests that draw ready a headless device
+(`gputest.Need(t)`, `render/gputest`; `GRAM_GPU=software` for the software rasteriser, which draws
+wrong) and skip without a GPU. A running game logs its frame rate and where a frame's time goes
+every second with `GRAM_FPS_LOG=1`, starts fullscreen with `GRAM_FULLSCREEN=1` (F11 switches) and
+runs unpaced with `GRAM_VSYNC=off`; headless probes of a demo's frame include about 10 ms of the
+GPU's readback at 2560x1440, so compare them with each other, not with a frame rate.
+`GRAM_SHOT=<file.png>` saves frame `GRAM_SHOT_FRAME` (120) and quits, the world taking one step a
+frame till then: shots of a baseline tree and of the working one compare a change's pictures (the
+telemetry panel, random weather and random scenes are noise).
 
 The `examples/<group>/<name>` programs are real GUI apps — `go test` cannot exercise them. To
 check one still runs after a change: build to a temp path, run under `timeout <n>s`, treat exit
@@ -91,11 +91,10 @@ skill.
 
 **A change is checked on the demos that use what it changed**: `grep -rl
 '"github.com/kjkrol/gram/plugins/<pkg>"' examples` lists them (the atmosphere: board/topography,
-board/flat, look/sky); a demo without the package shows nothing of it. Every demo is the field
-only for a change to `render`, `internal/gpu`, the engine or the world. Pictures and frame rates
-compare a copy of the tree from before the change with the working one, alternately, in each
-regime the change has (steady, and the moment it works hardest): `gram-probe`, § Checking a
-change.
+board/flat, look/sky); a demo without the package shows nothing of it. Every demo is the field only
+for a change to `render`, the engine or the world. Pictures and frame rates compare a copy of the
+tree from before the change with the working one, alternately, in each regime the change has
+(steady, and the moment it works hardest): `gram-probe`, § Checking a change.
 
 CI (`.github/workflows/go.yml`) runs
 `xvfb-run -a go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...` on Go 1.27.0.
@@ -267,7 +266,7 @@ Decisions the user has made; they are not up for revisiting in passing.
 
 Dependency direction is one-way: `render` ← `plugin` ← `game` ← `internal/engine` ← `gram`.
 `render` draws with no knowledge of Stages, Scenes or plugins, its machinery in `render/internal`
-over the device (`internal/gpu`); `plugin` is the extension contract
+over the device (`render/internal/gpu`); `plugin` is the extension contract
 (`Plugin`/`Installer`/`Serializable`/`PostLoader`/`Populator`/`CommandHandler`/
 `KindTemplater`/`Tunable`/`Keep`/`Made`, `plugin/section`); `game` is what a Stage implements and
 receives; `internal/engine` the `Engine`. Built-in plugins (`plugins/*`) import `plugin`/`render`

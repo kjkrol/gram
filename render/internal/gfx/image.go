@@ -7,7 +7,7 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/kjkrol/gram/internal/gpu"
+	"github.com/kjkrol/gram/render/internal/gpu"
 	"github.com/kjkrol/gram/render/internal/wgsl"
 )
 
@@ -322,6 +322,3 @@ func (s *Shader) pack(u map[string]any) []byte {
 	}
 	return s.buf
 }
-
-// Texture is the image's texture.
-func (i *Image) Texture() *gpu.Texture { return i.tex }

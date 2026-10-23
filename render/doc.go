@@ -1,5 +1,6 @@
 // Package render is the drawing side of gram, knowing nothing of Stages, Scenes or plugins: what
-// a Scene and a plugin draw with. Everything is drawn on the GPU (internal/gpu), in WGSL.
+// a Scene and a plugin draw with. Everything is drawn on the GPU (internal/gpu), in WGSL; the
+// engine hands render its window's device ([UseDevice], [Present]).
 //
 // A Scene's parts are [Drawer]s. A [Renderer] draws on the screen once a frame; a [Picture] is
 // what is in the world before a camera, drawn through the camera it is handed and shown by a
@@ -18,7 +19,7 @@
 // say how an entity is drawn. A color.RGBA given to render is straight alpha; render
 // premultiplies it for the GPU.
 //
-// The machinery is render/internal's: wgsl (the shaders' library, the materials and the frame's
-// images), gfx (images, depths, meshes, shaders), atlas, text, feed, compose (the composer and
-// its frame) and instanced (sprites as instances); render names their types by alias.
+// The machinery is render/internal's: gpu (the device), wgsl (the shaders' library, the materials
+// and the frame's images), gfx (images, depths, meshes, shaders), atlas, text, feed, compose (the
+// composer and its frame) and instanced (sprites as instances); render names their types by alias.
 package render

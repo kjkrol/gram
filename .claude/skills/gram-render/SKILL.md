@@ -19,7 +19,10 @@ defines the rest (`Drawer`, `Renderer`, `Reporter`, `Surface`, `Illumination`, `
 internal packages reach into each other through exported functions, never methods
 (`gfx.GPU(img)`, `gfx.Program(s)`, `gfx.PlaceDepth`), so no alias shows them; their tests never
 import `render` (a cycle) and keep the few helpers they need (`even`, `solid`) as their own. The
-device is `internal/gpu`; a test that draws readies it with `gputest.Need(t)`.
+device is `render/internal/gpu`, the engine reaching it through `render.UseDevice`, `Windowed`,
+`Present` and `Submit`; a test that draws readies it with `gputest.Need(t)` (`render/gputest`).
+`render` and `ui` are meant to leave gram one day as a module of their own (`kjkrol/uxgpu`):
+they import nothing more of gram than they do now.
 
 ## Atlases and looks
 

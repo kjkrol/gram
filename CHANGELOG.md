@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**The renderer's boundary** (2026-10-23, branch `feat/render-boundary`)
+- Breaking: the device is render's own, `render/internal/gpu`; the engine reaches it through
+  `render.UseDevice`, `render.Windowed`, `render.Present` and `render.Submit`, a test that draws
+  readies it with `gputest.Need(t)` from `render/gputest`. `Image.Texture` is gone.
+
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an
   image of its cells (`look/tiles.go`): the sprites, the ways, the covers, what sways, the cells

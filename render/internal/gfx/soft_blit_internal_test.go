@@ -5,7 +5,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/kjkrol/gram/internal/gpu/gputest"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 func TestImage_DrawImageWithAFadeFeathersEachEdge(t *testing.T) {

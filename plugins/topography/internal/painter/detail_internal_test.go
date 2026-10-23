@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/kjkrol/ceremony"
-	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 )
 
 type testKinds map[string]cell.Kind
