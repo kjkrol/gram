@@ -47,15 +47,28 @@ struct Top {
 
 // topOf is the cell b's Top.
 fn topOf(b: vec2<f32>) -> Top {
+    return topIn(wordsOf(b));
+}
+
+// wordsOf is the first two pixels of the cell b's block, a word each, low byte first: what
+// topOf reads of it.
+fn wordsOf(b: vec2<f32>) -> vec2<u32> {
     let t0 = texelOf(b, 0.0, 0.0);
     let t1 = texelOf(b, 1.0, 0.0);
+    return vec2<u32>(byteIn(t0, 0) | (byteIn(t0, 1) << 8u) | (byteIn(t0, 2) << 16u) |
+        (byteIn(t0, 3) << 24u), byteIn(t1, 0) | (byteIn(t1, 1) << 8u) | (byteIn(t1, 2) << 16u) |
+        (byteIn(t1, 3) << 24u));
+}
+
+// topIn is the Top the words w of a cell's block hold (wordsOf).
+fn topIn(w: vec2<u32>) -> Top {
     var out: Top;
-    out.sprite = byteIn(t0, 0) | (byteIn(t0, 1) << 8u);
-    out.flags = byteIn(t0, 2);
-    out.spread = f32(byteIn(t0, 3)) / 510.0;
-    out.shine = f32(byteIn(t1, 0)) / 255.0;
-    out.flow = f32(byteIn(t1, 1) | (byteIn(t1, 2) << 8u)) / 16.0;
-    out.detail = byteIn(t1, 3);
+    out.sprite = w.x & 0xffffu;
+    out.flags = (w.x >> 16u) & 0xffu;
+    out.spread = f32(w.x >> 24u) / 510.0;
+    out.shine = f32(w.y & 0xffu) / 255.0;
+    out.flow = f32((w.y >> 8u) & 0xffffu) / 16.0;
+    out.detail = w.y >> 24u;
     return out;
 }
 

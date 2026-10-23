@@ -5,12 +5,29 @@
 // of the cell a ground's whole sprite, shown where the share of the cells meeting at the
 // quarter's corners it lies on comes over a half, fading in over its spread. The kinds' layer
 // lays each one's detail instead, edged hard; the flow's and the shine's lay the water of a top
-// that shines, running or still, and the grounds running in darken it.
+// that shines, running or still, and the grounds running in darken it. What holds for the whole
+// cell is worked out at its corners, its pixels left the quarters' weights and the sprites.
 
 struct Cell {
     @builtin(position) clip: vec4<f32>,
     @location(0) @interpolate(flat) at: vec2<f32>,
+    // the 3×3 cells round it, row by row, as their blocks' words hold them (wordsOf); a cell off
+    // the board as the cell itself
+    @location(1) @interpolate(flat) near0: vec4<u32>,
+    @location(2) @interpolate(flat) near1: vec4<u32>,
+    @location(3) @interpolate(flat) near2: vec4<u32>,
+    @location(4) @interpolate(flat) near3: vec4<u32>,
+    @location(5) @interpolate(flat) near4: vec2<u32>,
+    // the round cell the top is drawn in, the ground on top (none past 8), the round cells running
+    // in (a bit each) and whether the base lies alone (1) and the top over it (2)
+    @location(6) @interpolate(flat) plan: vec4<u32>,
+    // the water's flow at the cell's corners across and down, where the layer is the flow's
+    @location(7) @interpolate(flat) fx: vec4<f32>,
+    @location(8) @interpolate(flat) fy: vec4<f32>,
 }
+
+const planAlone: u32 = 1u;
+const planTop: u32 = 2u;
 
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>) -> Cell {
@@ -24,92 +41,154 @@ fn vs_main(@builtin(vertex_index) vid: u32, @location(0) at: vec4<f32>) -> Cell 
     out.clip = vec4<f32>(p.x / U.PaintTarget.x * 2.0 - 1.0, 1.0 - p.y / U.PaintTarget.y * 2.0,
         0.0, 1.0);
     out.at = at.xy;
+    var words: array<vec2<u32>, 9>;
+    let own = wordsOf(at.xy);
+    for (var j = 0; j < 9; j++) {
+        let c = folded(at.xy + vec2<f32>(f32(j % 3) - 1.0, f32(j / 3) - 1.0));
+        words[j] = own;
+        if c.z > 0.5 {
+            words[j] = wordsOf(c.xy);
+        }
+    }
+    out.near0 = vec4<u32>(words[0], words[1]);
+    out.near1 = vec4<u32>(words[2], words[3]);
+    out.near2 = vec4<u32>(words[4], words[5]);
+    out.near3 = vec4<u32>(words[6], words[7]);
+    out.near4 = words[8];
+    var near: array<Top, 9>;
+    for (var j = 0; j < 9; j++) {
+        near[j] = topIn(words[j]);
+    }
+    let mine = near[4];
+    // the sprite the top is drawn in: its own, or that of the first neighbour it runs into that
+    // lies under it (one off the board is the cell itself, which does not)
+    var base = 4;
+    if land(mine) {
+        for (var i = 0; i < 8; i++) {
+            let d = stepOf(i);
+            let n = i32(d.y + 1.0) * 3 + i32(d.x + 1.0);
+            if base == 4 && (near[n].flags & flagUnder) != 0u {
+                base = n;
+            }
+        }
+    }
+    out.plan = vec4<u32>(u32(base), 9u, 0u, 0u);
+    if layer() == layerFlow && near[base].shine > 0.0 && near[base].flow > 0.0 {
+        for (var corner = 0; corner < 4; corner++) {
+            let d = at.xy + vec2<f32>(f32(corner % 2), f32(corner / 2));
+            var sum = vec2<f32>(0.0);
+            var n = 0.0;
+            for (var o = 0; o < 4; o++) {
+                let c = folded(d + vec2<f32>(f32(o % 2) - 1.0, f32(o / 2) - 1.0));
+                if c.z < 0.5 {
+                    continue;
+                }
+                let t = topOf(c.xy);
+                if t.flow <= 0.0 {
+                    continue;
+                }
+                sum += runOf(groundOf(c.xy), t.flow);
+                n += 1.0;
+            }
+            if n > 0.0 {
+                sum = sum / n;
+            }
+            out.fx[corner] = flowOf(sum.x);
+            out.fy[corner] = flowOf(sum.y);
+        }
+    }
+    if (mine.flags & flagRaised) != 0u || ((mine.flags & flagUnder) == 0u && mine.spread <= 0.0) {
+        out.plan.w = planAlone;
+        return out;
+    }
+    // the ground on top: its own, or the land round it most of the cells hold, row by row the
+    // first to come to that many
+    var top = 4;
+    if (mine.flags & flagUnder) != 0u {
+        top = 9;
+        var most = 0;
+        var reached = 9;
+        for (var j = 0; j < 9; j++) {
+            if !land(near[j]) || earlier(near, j) {
+                continue;
+            }
+            var n = 0;
+            var last = j;
+            for (var i = j; i < 9; i++) {
+                if land(near[i]) && near[i].sprite == near[j].sprite {
+                    n += 1;
+                    last = i;
+                }
+            }
+            if n > most || (n == most && last < reached) {
+                top = j;
+                most = n;
+                reached = last;
+            }
+        }
+        if top == 9 {
+            return out;
+        }
+    }
+    out.plan.y = u32(top);
+    if (mine.flags & flagUnder) != 0u || base != 4 {
+        out.plan.w = planTop;
+    }
+    let t = near[top];
+    var running = 0u;
+    for (var j = 0; j < 9; j++) {
+        let o = near[j];
+        if land(o) && o.sprite != t.sprite && !earlier(near, j) {
+            running = running | (1u << u32(j));
+        }
+    }
+    out.plan.z = running;
     return out;
 }
 
 @fragment
 fn fs_main(in: Cell) -> @location(0) vec4<f32> {
     let uv = (in.clip.xy - U.PaintOrigin - in.at * U.PaintPx) / U.PaintPx;
+    var words: array<vec2<u32>, 9>;
+    words[0] = in.near0.xy;
+    words[1] = in.near0.zw;
+    words[2] = in.near1.xy;
+    words[3] = in.near1.zw;
+    words[4] = in.near2.xy;
+    words[5] = in.near2.zw;
+    words[6] = in.near3.xy;
+    words[7] = in.near3.zw;
+    words[8] = in.near4;
     var near: array<Top, 9>;
-    let mine = topOf(in.at);
-    for (var k = 0; k < 9; k++) {
-        let c = folded(in.at + vec2<f32>(f32(k % 3) - 1.0, f32(k / 3) - 1.0));
-        near[k] = mine;
-        if c.z > 0.5 {
-            near[k] = topOf(c.xy);
-        }
+    for (var j = 0; j < 9; j++) {
+        near[j] = topIn(words[j]);
     }
-    // the sprite the top is drawn in: its own, or that of the first neighbour it runs into that
-    // lies under it
-    var base = mine;
-    var based = false;
-    if land(mine) {
-        for (var i = 0; i < 8; i++) {
-            let n = folded(in.at + stepOf(i));
-            if n.z > 0.5 && !based {
-                let t = topOf(n.xy);
-                if (t.flags & flagUnder) != 0u {
-                    base = t;
-                    based = true;
-                }
-            }
-        }
-    }
-    var laid = baseOf(base, in.at, uv);
-    if (mine.flags & flagRaised) != 0u ||
-        ((mine.flags & flagUnder) == 0u && mine.spread <= 0.0) {
+    var laid = baseOf(near[in.plan.x], uv, in.fx, in.fy);
+    if (in.plan.w & planAlone) != 0u || in.plan.y > 8u {
         return laid;
-    }
-    // the ground on top: its own, or the land round it most of the cells hold, row by row the
-    // first to come to that many
-    var top = 4;
-    if (mine.flags & flagUnder) != 0u {
-        top = -1;
-        var most = 0;
-        var reached = 9;
-        for (var k = 0; k < 9; k++) {
-            if !land(near[k]) || earlier(near, k) {
-                continue;
-            }
-            var n = 0;
-            var last = k;
-            for (var j = k; j < 9; j++) {
-                if land(near[j]) && near[j].sprite == near[k].sprite {
-                    n += 1;
-                    last = j;
-                }
-            }
-            if n > most || (n == most && last < reached) {
-                top = k;
-                most = n;
-                reached = last;
-            }
-        }
-        if top < 0 {
-            return laid;
-        }
     }
     let q = min(floor(uv * 2.0), vec2<f32>(1.0));
     let s = uv * 2.0 - q;
-    let t = near[top];
-    if (mine.flags & flagUnder) != 0u || based {
+    let t = near[in.plan.y];
+    if (in.plan.w & planTop) != 0u {
         laid = over(quarterOf(t, weighed(near, q, t.sprite, true), s, t.spread), laid);
     }
-    for (var k = 0; k < 9; k++) {
-        let o = near[k];
-        if !land(o) || o.sprite == t.sprite || earlier(near, k) {
+    for (var j = 0; j < 9; j++) {
+        if ((in.plan.z >> u32(j)) & 1u) == 0u {
             continue;
         }
+        let o = near[j];
         let w = weighed(near, q, o.sprite, false);
         laid = over(quarterOf(o, w, s, (t.spread + o.spread) / 2.0), laid);
     }
     return laid;
 }
 
-// baseOf is the layer's own of a cell at at whose top is drawn in base, at uv across it: the
-// sprite, its detail, or the water lying on it where base shines — running where its kind flows,
-// as fast at the cell's corners as the slopes of the cells meeting there run down, else still.
-fn baseOf(base: Top, at: vec2<f32>, uv: vec2<f32>) -> vec4<f32> {
+// baseOf is the layer's own of a cell whose top is drawn in base, at uv across it: the sprite,
+// its detail, or the water lying on it where base shines — running where its kind flows at fx,
+// fy at the cell's corners (vs_main: as fast as the slopes of the cells meeting there run down),
+// else still.
+fn baseOf(base: Top, uv: vec2<f32>, fx: vec4<f32>, fy: vec4<f32>) -> vec4<f32> {
     let l = layer();
     if l == layerAlbedo {
         return sampled(base.sprite, uv);
@@ -128,30 +207,6 @@ fn baseOf(base: Top, at: vec2<f32>, uv: vec2<f32>) -> vec4<f32> {
     }
     if l == layerShine {
         return vec4<f32>(base.shine, 0.0, 0.0, 1.0);
-    }
-    var fx: vec4<f32>;
-    var fy: vec4<f32>;
-    for (var corner = 0; corner < 4; corner++) {
-        let d = at + vec2<f32>(f32(corner % 2), f32(corner / 2));
-        var sum = vec2<f32>(0.0);
-        var n = 0.0;
-        for (var o = 0; o < 4; o++) {
-            let c = folded(d + vec2<f32>(f32(o % 2) - 1.0, f32(o / 2) - 1.0));
-            if c.z < 0.5 {
-                continue;
-            }
-            let t = topOf(c.xy);
-            if t.flow <= 0.0 {
-                continue;
-            }
-            sum += runOf(groundOf(c.xy), t.flow);
-            n += 1.0;
-        }
-        if n > 0.0 {
-            sum = sum / n;
-        }
-        fx[corner] = flowOf(sum.x);
-        fy[corner] = flowOf(sum.y);
     }
     return vec4<f32>(blendAt(fx, uv), blendAt(fy, uv), 1.0, 1.0);
 }
