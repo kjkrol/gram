@@ -4,7 +4,9 @@
 // grid of U.GridCells cells U.GridCell across or a hex grid of pointy-top cells U.GridCell from
 // centre to corner, are drawn U.GridWidth pixels wide in U.GridLine, premultiplied, fading over a
 // pixel either side. U.GridWrap says which axes wrap: there the cells run on; elsewhere only the
-// edges of the board's own cells are drawn.
+// edges of the board's own cells are drawn. Where U.GridSeen, only the edges of the cells whose
+// middles lie in sectors seen exactly (image 0, a pixel a sector, red its view.Level;
+// U.GridSectors.xy of them across and down, U.GridSectors.zw large).
 
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
@@ -36,10 +38,10 @@ fn squareEdge(p: vec2<f32>, unit: f32) -> vec4<f32> {
     let edge = round(g);
     let d = abs(g - edge) * U.GridCell / unit; // pixels to the nearest edge on each axis
     var near = 0.0;
-    if onBoard(vec2<f32>(edge.x - 1.0, cell.y)) || onBoard(vec2<f32>(edge.x, cell.y)) {
+    if drawn(vec2<f32>(edge.x - 1.0, cell.y)) || drawn(vec2<f32>(edge.x, cell.y)) {
         near = cover(d.x);
     }
-    if onBoard(vec2<f32>(cell.x, edge.y - 1.0)) || onBoard(vec2<f32>(cell.x, edge.y)) {
+    if drawn(vec2<f32>(cell.x, edge.y - 1.0)) || drawn(vec2<f32>(cell.x, edge.y)) {
         near = max(near, cover(d.y));
     }
     if near <= 0.0 {
@@ -72,8 +74,8 @@ fn hexEdge(p: vec2<f32>, unit: f32) -> vec4<f32> {
     } else if a.z >= a.x && a.z >= a.y {
         step = vec2<f32>(-sign(k.z), sign(k.z));
     }
-    let here = onBoard(cell);
-    let there = onBoard(cell + step);
+    let here = drawn(cell);
+    let there = drawn(cell + step);
     if !here && !there {
         discard;
     }
@@ -96,6 +98,31 @@ fn axialRound(c: vec2<f32>) -> vec2<f32> {
         r = -q - t;
     }
     return vec2<f32>(q, r);
+}
+
+// drawn reports whether the cell at column or axial cell c is the board's and its middle lies in
+// a sector seen exactly, if the sectors are seen.
+fn drawn(c: vec2<f32>) -> bool {
+    if !onBoard(c) {
+        return false;
+    }
+    if U.GridSeen < 0.5 {
+        return true;
+    }
+    var f = c;
+    if U.GridWrap.x > 0.5 {
+        f.x = modulo(f.x, U.GridCells.x);
+    }
+    if U.GridWrap.y > 0.5 {
+        f.y = modulo(f.y, U.GridCells.y);
+    }
+    var mid = (f + 0.5) * U.GridCell;
+    if U.GridHex > 0.5 {
+        let s = U.GridCell;
+        mid = vec2<f32>(s * (sqrt(3.0) * f.x + sqrt(3.0) / 2.0 * f.y) + s, s * 1.5 * f.y + s);
+    }
+    let s = clamp(floor(mid / U.GridSectors.zw), vec2<f32>(0.0), U.GridSectors.xy - 1.0);
+    return u32(imageSrc0At(imageSrc0Origin() + s + 0.5).r * 255.0 + 0.5) == 1u;
 }
 
 // onBoard reports whether the cell at column or axial cell c is the board's: any along an axis

@@ -35,6 +35,9 @@ var tilesShader = render.NewMeshShaderWith(
 		{Name: "TileCoverCount", Size: 1},
 		{Name: "TileCovers", Size: 4},
 		{Name: "TileCoversOn", Size: 4},
+		{Name: "TileSeen", Size: 1},
+		{Name: "TileSectors", Size: 4},
+		{Name: "TileFogging", Size: 4},
 	},
 )
 
@@ -311,10 +314,10 @@ func (g *tiles) writeRect(k int) {
 	g.rects.SubImage(image.Rect(x, y, x+2, y+1)).WritePixels(r[:])
 }
 
-// draw lays the tiles through cam into t's screen, lit as lit says, in tint; their ground's depth
-// into t's depth where it has one
+// draw lays the tiles through cam into t's screen, lit as lit says, in tint, of the sectors seen
+// at their levels; their ground's depth into t's depth where it has one
 func (g *tiles) draw(t render.Target, cam camera.Camera, u render.Uniforms, l *Renderer,
-	tint render.Light, lit bool) {
+	tint render.Light, lit bool, seen *seenSectors) {
 	if g.cells == nil || g.sheet == nil {
 		return
 	}
@@ -371,7 +374,8 @@ func (g *tiles) draw(t render.Target, cam camera.Camera, u render.Uniforms, l *R
 	g.set("TileCoverCount", float32(len(g.covers)))
 	g.set("TileCovers", covers[:4]...)
 	g.set("TileCoversOn", covers[4:]...)
-	g.opts.Images = [4]*render.Image{g.sheet.Atlas(), g.rects, g.cells}
+	g.opts.Images = [4]*render.Image{g.sheet.Atlas(), g.rects, g.cells,
+		seen.uniforms(g.set, "Tile")}
 	t.Screen.DrawMesh(nil, tilesShader, &g.opts)
 }
 

@@ -28,6 +28,8 @@ var gridShader = render.NewMeshShaderWith(
 		{Name: "GridWrap", Size: 2},
 		{Name: "GridLine", Size: 4},
 		{Name: "GridWidth", Size: 1},
+		{Name: "GridSeen", Size: 1},
+		{Name: "GridSectors", Size: 4},
 	},
 )
 
@@ -38,7 +40,7 @@ type gridLines struct {
 
 func (g *gridLines) draw(
 	t render.Target, cam camera.Camera, u render.Uniforms, brd Board, state *RenderState,
-	wrapX, wrapY bool,
+	wrapX, wrapY bool, seen *seenSectors,
 ) {
 	line, width, shown := state.Grid()
 	if !shown {
@@ -74,6 +76,7 @@ func (g *gridLines) draw(
 	g.set("GridWrap", flag(wrapX), flag(wrapY))
 	g.set("GridLine", line[:]...)
 	g.set("GridWidth", width)
+	g.opts.Images[0] = seen.uniforms(g.set, "Grid")
 	g.opts.Vertices = 3
 	t.Screen.DrawMesh(nil, gridShader, &g.opts)
 }

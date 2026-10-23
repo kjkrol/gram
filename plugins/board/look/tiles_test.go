@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kjkrol/aabbworld"
 	"github.com/kjkrol/ceremony/effect"
 	"github.com/kjkrol/ceremony/tag"
 	"github.com/kjkrol/goke/v3"
@@ -21,6 +22,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/world"
+	"github.com/kjkrol/gram/plugins/world/view"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -263,5 +265,92 @@ func TestTiles_LayTheBoardUnderATurnedAndTiltedCamera(t *testing.T) {
 	}
 	if checked < 100 {
 		t.Errorf("only %d pixels lay over the board, want the view to see it", checked)
+	}
+}
+
+func (s sighted) Rays() (camera.RayField, bool) {
+	r, ok := s.Camera.(camera.Rays)
+	if !ok {
+		return camera.RayField{}, false
+	}
+	return r.Rays()
+}
+
+// the tiles of a 4 by 4 board of cells 32 wide, a way across its first row and a cover on its
+// last, laid on the GPU through a camera seeing its halves as d says
+func laidSeen(t *testing.T, d camera.Detail) func(x, y int) color.RGBA {
+	t.Helper()
+	g := grid.DefaultGrids{}.Square(4, 4, 32)
+	brd, brdW := board.NewBoard(g)
+	grass := cell.Kind{SpriteID: 1, Cost: 1, Allows: cell.Land}
+	road := cell.Kind{SpriteID: 3, Cost: 1, Allows: cell.Land}
+	brdW.SetAll(grass)
+	const mark tag.Tag[effect.States] = 3
+	m := marked{BoardRead: brd, mark: mark, cells: map[cell.ID]bool{}}
+	for x := range uint32(4) {
+		brdW.SetWay(g.At(x, 0), cell.Way{Kind: road, Width: 12, Links: 0x0c})
+		m.cells[g.At(x, 3)] = true
+	}
+	atlas := render.NewAtlas()
+	atlas.Add(render.SpriteID(1), 32, render.Solid(color.RGBA{R: 60, G: 160, B: 60, A: 255}))
+	atlas.Add(render.SpriteID(2), 32, render.Solid(color.RGBA{R: 240, G: 240, B: 250, A: 255}))
+	atlas.Add(render.SpriteID(3), 32, render.Solid(color.RGBA{R: 150, G: 110, B: 70, A: 255}))
+	atlas.Close()
+	bands := draw.NewBands(m)
+	bands.Cover(mark, 2)
+	cam := sighted{Camera: cameratest.NewFromSpace(128, 128, 0), d: d}
+	v := view.NewSeen(cam, halves{})
+	space, err := aabbworld.NewSpace(aabbworld.Config{Width: 128, Height: 128, BucketSize: 32})
+	if err != nil {
+		t.Fatal(err)
+	}
+	views := []*view.View{v}
+	view.NewSystem(space, &views, 128, 128).Update(nil, 0)
+	r := look.NewRenderer(brd, atlas, dressed{look.FlatLook(), bands},
+		world.SpaceCfg{Width: 128, Height: 128}).
+		WithSeen(func(camera.Camera) *view.View { return v })
+	screen := render.NewImage(128, 128)
+	screen.Fill(color.RGBA{A: 255})
+	render.NewComposer(r).DrawWorld(screen, cam)
+	pix := make([]byte, 4*128*128)
+	screen.ReadPixels(pix)
+	if !look.Tiled(r) {
+		t.Fatal("the board's tiles were not laid on the GPU")
+	}
+	return func(x, y int) color.RGBA {
+		i := 4 * (y*128 + x)
+		return color.RGBA{pix[i], pix[i+1], pix[i+2], pix[i+3]}
+	}
+}
+
+func TestTiles_LayTheCellsOfTheSectorsSeenAtTheirLevels(t *testing.T) {
+	needGPU(t)
+	grass := color.RGBA{R: 60, G: 160, B: 60, A: 255}
+	road := color.RGBA{R: 150, G: 110, B: 70, A: 255}
+	snow := color.RGBA{R: 240, G: 240, B: 250, A: 255}
+	at := laidSeen(t, camera.Detail{Coarse: 0.5})
+	for _, c := range []struct {
+		x, y int
+		want color.RGBA
+		what string
+	}{
+		{16, 16, road, "the way in the left half, seen exactly"},
+		{80, 16, grass, "the way in the right half, seen coarsely"},
+		{16, 112, snow, "the cover in the left half"},
+		{112, 112, grass, "the cover in the right half"},
+	} {
+		if got := at(c.x, c.y); got != c.want {
+			t.Errorf("%s is %v, want %v", c.what, got, c.want)
+		}
+	}
+	at = laidSeen(t, camera.Detail{Sight: 60, Fog: 40})
+	if got := at(96, 16); got != (color.RGBA{A: 255}) {
+		t.Errorf("the right half, out of sight, is %v, want nothing drawn", got)
+	}
+	// the middles 23 and 51 off the left edge's middle, into the fog from 20 to 60
+	near, far := at(16, 48), at(48, 80)
+	if far.G >= grass.G*3/4 || near.G <= far.G {
+		t.Errorf("the cells 23 and 51 off are %v and %v, want them fading into the fog, the "+
+			"farther more", near, far)
 	}
 }

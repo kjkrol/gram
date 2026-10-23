@@ -14,7 +14,11 @@
 // cell shows (image 2, a block of 2×2 pixels a cell: see look's tiles.go). A square board's cells
 // are U.TileBox across; a hex board's (U.TileHex) are pointy-top, U.TileSide from centre to
 // corner, their axial q and r its columns and rows. Along an axis U.TileWrap says wraps the cells
-// run on.
+// run on. Where U.TileSeen, the world's sectors are seen at their levels (image 3, a pixel a
+// sector, red its view.Level; U.TileSectors.xy of them across and down, U.TileSectors.zw large):
+// a cell whose middle lies in a sector hidden is not drawn, in one seen coarsely it has neither
+// its covers nor its way, and it fades into U.Fog as far into the fog before the sight's end as
+// its middle lies (U.TileFogging: from where, where it begins and ends).
 
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> @builtin(position) vec4<f32> {
@@ -218,7 +222,8 @@ fn tileAt(c: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
         return vec4<f32>(0.0);
     }
     let flags = byteOf(b.xy, 0.0, 0.0, 3);
-    if (flags & flagShaded) != 0u {
+    let level = levelOf(b.xy);
+    if (flags & flagShaded) != 0u || level == 0u {
         return vec4<f32>(0.0);
     }
     let base = centreOf(c);
@@ -230,7 +235,8 @@ fn tileAt(c: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
         return vec4<f32>(0.0);
     }
     var laid = spriteAt(pairOf(b.xy, 0.0, 0.0, 0), lo, hi, p);
-    if U.TileCoverCount > 0.5 {
+    laid = vec4<f32>(mix(laid.rgb, U.Fog * laid.a, fogOf(b.xy)), laid.a);
+    if U.TileCoverCount > 0.5 && level == 1u {
         let t = (p - lo) / (hi - lo);
         for (var i = 0; i < 8; i++) {
             if f32(i) >= U.TileCoverCount {
@@ -339,7 +345,7 @@ fn stepOf(i: i32) -> vec4<f32> {
 // comes.
 fn waysOf(c: vec2<f32>, p: vec2<f32>, laid: vec4<f32>) -> vec4<f32> {
     let b = folded(c);
-    if b.z < 0.5 || (byteOf(b.xy, 0.0, 0.0, 3) & flagWay) == 0u {
+    if b.z < 0.5 || (byteOf(b.xy, 0.0, 0.0, 3) & flagWay) == 0u || levelOf(b.xy) != 1u {
         return laid;
     }
     let mid = centreOf(c);
@@ -390,7 +396,7 @@ fn waysOf(c: vec2<f32>, p: vec2<f32>, laid: vec4<f32>) -> vec4<f32> {
 // sprite or its box does not reach.
 fn materialAt(c: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
     let b = folded(c);
-    if b.z < 0.5 || (byteOf(b.xy, 0.0, 0.0, 3) & flagShaded) == 0u {
+    if b.z < 0.5 || (byteOf(b.xy, 0.0, 0.0, 3) & flagShaded) == 0u || levelOf(b.xy) == 0u {
         return vec4<f32>(0.0);
     }
     let mid = centreOf(c);
@@ -402,6 +408,26 @@ fn materialAt(c: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
     }
     let k = f32(byteOf(b.xy, 1.0, 1.0, 2));
     return material(k, p, 1.0, 0.0, vec4<f32>(mid, half.x, 0.0));
+}
+
+// levelOf is the level the sector the middle of the board's cell b lies in is seen at
+// (view.Level): Exact, 1, without sectors.
+fn levelOf(b: vec2<f32>) -> u32 {
+    if U.TileSeen < 0.5 {
+        return 1u;
+    }
+    let s = clamp(floor(centreOf(b) / U.TileSectors.zw), vec2<f32>(0.0), U.TileSectors.xy - 1.0);
+    return u32(imageSrc3At(imageSrc3Origin() + s + 0.5).r * 255.0 + 0.5);
+}
+
+// fogOf is how far into the fog before the sight's end the middle of the board's cell b lies, 0
+// short of it to 1 at the end.
+fn fogOf(b: vec2<f32>) -> f32 {
+    let f = U.TileFogging;
+    if U.TileSeen < 0.5 || f.w <= f.z {
+        return 0.0;
+    }
+    return smoothstep(f.z, f.w, distance(centreOf(b), f.xy));
 }
 
 // lightAt is the light on the ground at p in the cell c: the ambient light, the distant light on

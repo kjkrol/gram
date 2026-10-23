@@ -104,6 +104,7 @@ type Renderer struct {
 	shade      groundShade
 	ground     GroundDressing // this frame's, nil for none
 	tiles      tiles
+	sectors    seenSectors  // the sectors the frame's camera sees, as the shaders read them
 	tiled      bool         // this frame's tiles are laid on the GPU
 	tint       render.Light // the light every tile is lit in this frame
 	cpu        bool         // the tiles are composed on the CPU whatever the map
@@ -234,6 +235,7 @@ func (l *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 		l.tile.Atlas, l.tile.dress = sheet, d
 		l.nextTops()
 		l.tiles.refresh(l, sheet)
+		l.sectors.see(l.sight)
 		f.DrawOpaque()
 		if l.gridDrawn(cam) {
 			f.DrawAt(f.OnGround(gridLift))
@@ -304,11 +306,11 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 		if t.Pass == render.SeeThrough {
 			if l.gridDrawn(cam) {
 				l.grid.draw(t, cam, u, l.board, &l.state, l.space.Edges.WrapsX(),
-					l.space.Edges.WrapsY())
+					l.space.Edges.WrapsY(), &l.sectors)
 			}
 			return
 		}
-		l.tiles.draw(t, cam, u, l, l.tint, l.lit() != nil)
+		l.tiles.draw(t, cam, u, l, l.tint, l.lit() != nil, &l.sectors)
 		if l.ground != nil {
 			l.ground.DressGround(t, cam, u)
 		}
@@ -323,7 +325,7 @@ func (l *Renderer) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	if t.Pass == render.SeeThrough {
 		if l.gridDrawn(cam) {
 			l.grid.draw(t, cam, u, l.board, &l.state, l.space.Edges.WrapsX(),
-				l.space.Edges.WrapsY())
+				l.space.Edges.WrapsY(), &seenSectors{})
 		}
 		return
 	}
