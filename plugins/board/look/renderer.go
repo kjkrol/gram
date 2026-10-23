@@ -354,6 +354,10 @@ func (l *Renderer) Whole(dst *render.Image, px float32, light render.Light, u re
 	l.tiles.materials(t)
 }
 
+// Animated reports whether what Whole draws changes with the clock: some cells drawn by a
+// material or under one.
+func (l *Renderer) Animated() bool { return l.tiles.shaded > 0 || l.tiles.overlaid > 0 }
+
 // how high over the board Whole looks down from
 const wholeEye = 1 << 16
 

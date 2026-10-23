@@ -19,7 +19,7 @@ func TestGround_OutlinesThePrismsInTheBoardsGridLine(t *testing.T) {
 	g := grid.DefaultGrids{}.Hex(4, 4, 20)
 	b := board.NewPlugin(g, &cell.MultipleOccupancy{}, w)
 	b.NewAtlas(32).Close()
-	h := New(w, b, nil, nil, nil)
+	h := New(w, b, nil, nil, nil, nil)
 	cam := cameratest.NewFromSpace(256, 256, 0)
 	want := board.DefaultGridLine(g)
 	a := float32(want.Color.A) / 255

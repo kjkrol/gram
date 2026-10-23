@@ -13,6 +13,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/grid"
 	"github.com/kjkrol/gram/plugins/board/look"
+	"github.com/kjkrol/gram/plugins/topography/internal/painter"
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/plugins/world/view"
@@ -53,23 +54,24 @@ const (
 var _ render.Direct = (*Ground)(nil)
 
 // Ground is the ground of a hex board in relief drawn on the GPU, a render.Direct in the opaque
-// pass in place of the tiles: every cell a prism to its top, coloured from the tiles composed
-// once from above.
+// pass in place of the tiles: every cell a prism to its top, coloured from the tiles and the ways
+// drawn from above.
 type Ground struct {
-	world  *world.Plugin
-	board  *board.Plugin
-	m      board.MapRead
-	relief *relief.Relief
-	sky    Sky
-	grid   grid.Grid
-	hazed  bool
-	size   float32 // from a cell's centre to its corner
-	still  *render.Still
-	tiles  *look.Renderer
-	at     [2]uint64
-	top    *render.Image
-	px     float32   // pixels a world unit
-	cells  []float32 // three vec4s a cell: centre and top, the six neighbours' tops
+	world   *world.Plugin
+	board   *board.Plugin
+	m       board.MapRead
+	relief  *relief.Relief
+	sky     Sky
+	painter *painter.Painter
+	grid    grid.Grid
+	hazed   bool
+	size    float32 // from a cell's centre to its corner
+	tiles   *look.Renderer
+	at      [2]uint64
+	top     *render.Image
+	stale   bool      // the tops drawn before the board or the relief last changed
+	px      float32   // pixels a world unit
+	cells   []float32 // three vec4s a cell: centre and top, the six neighbours' tops
 	// the sectors the cells are laid by, nil for none, and each one's run of them
 	sectors view.Sectors
 	runs    []run
@@ -80,11 +82,13 @@ type Ground struct {
 }
 
 // New is the ground of b's hex board in the relief r over w, the cells standing as m says,
-// under sky.
-func New(w *world.Plugin, b *board.Plugin, m board.MapRead, r *relief.Relief, sky Sky) *Ground {
+// under sky, the ways across their tops drawn by p.
+func New(w *world.Plugin, b *board.Plugin, m board.MapRead, r *relief.Relief, sky Sky,
+	p *painter.Painter) *Ground {
 	brd := b.Read(0).Board()
-	h := &Ground{world: w, board: b, m: m, relief: r, sky: sky, grid: brd.Grid, size: float32(brd.CellSpan()),
-		own: map[string]any{}, uv: map[string]any{}, pixel: []float32{0}}
+	h := &Ground{world: w, board: b, m: m, relief: r, sky: sky, painter: p, grid: brd.Grid,
+		size: float32(brd.CellSpan()), own: map[string]any{}, uv: map[string]any{},
+		pixel: []float32{0}}
 	h.opts = render.DrawMeshOptions{WriteDepth: true, Vertices: prismVertices, Uniforms: map[string]any{}}
 	return h
 }
@@ -122,9 +126,9 @@ func (h *Ground) Draw(t render.Target, cam camera.Camera, u render.Uniforms) {
 	u.Into(h.uv)
 	h.pixel.([]float32)[0] = 1 / h.px
 	h.uv["Pixel"] = h.pixel
-	h.top.Fill(color.Transparent)
-	top := render.Target{Screen: h.top}
-	h.still.Draw(top, nil, render.UniformsOf(h.uv), h.px, 0, 0, render.Light{1, 1, 1})
+	if h.stale || h.tiles.Animated() || h.painter.WaysMoving() {
+		h.drawTop(render.UniformsOf(h.uv))
+	}
 
 	u.Into(h.opts.Uniforms)
 	h.set("ViewProj", tr.M[:]...)
@@ -202,21 +206,29 @@ func (h *Ground) refresh() bool {
 	}
 	brd := h.board.Read(0).Board()
 	at := [2]uint64{brd.Changes() + 1, h.relief.Version() + 1}
-	if h.still != nil && at == h.at {
+	if h.tiles != nil && at == h.at {
 		return true
 	}
-	space := h.world.Res.Config.Space
-	ww, wh := float32(space.Width), float32(space.Height)
-	if h.still == nil {
-		h.still = render.NewStill()
-		h.tiles = look.NewRenderer(brd, atlas, fromAbove{h.m}, world.SpaceCfg{})
+	if h.tiles == nil {
+		space := h.world.Res.Config.Space
+		ww, wh := float32(space.Width), float32(space.Height)
+		h.tiles = look.NewRenderer(brd, atlas, h.m, space)
 		h.px = min(topPx, maxTop/ww, maxTop/wh)
 		h.top = render.NewImage(int(math.Ceil(float64(ww*h.px))), int(math.Ceil(float64(wh*h.px))))
 	}
-	h.still.Compose(ww, wh, h.tiles.Compose)
 	h.lay()
-	h.at = at
+	h.at, h.stale = at, true
 	return true
+}
+
+// drawTop draws the tops from above, px pixels a world unit, under the uniforms u: the tiles,
+// then the ways across them
+func (h *Ground) drawTop(u render.Uniforms) {
+	h.painter.Above()
+	h.top.Fill(color.Transparent)
+	h.tiles.Whole(h.top, h.px, render.Light{1, 1, 1}, u)
+	h.painter.DrawWays(h.top, h.board.Read(0).Atlas(), h.px, u)
+	h.stale = false
 }
 
 // the cells' instances, sector after sector where the world has them
@@ -293,10 +305,6 @@ func (h *Ground) set(name string, v ...float32) {
 	copy(u.([]float32), v)
 	h.opts.Uniforms[name] = u
 }
-
-type fromAbove struct{ board.MapRead }
-
-func (m fromAbove) Look() look.Look { return look.FlatLook() }
 
 // the shade a cell takes, every bit for a kind saying none, no bit for one that Shines
 func takesOf(t render.Taking) render.Taking {

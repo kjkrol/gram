@@ -52,6 +52,13 @@ type Laid interface {
 	Covered(c cell.ID) uint8
 }
 
+// Overlaid is a Dressing laying a material over the tile of some cells, as render.Overlay lays one
+// over a sprite: World the tile's box, Red red, Fraction 1.
+type Overlaid interface {
+	// Overlay is the material laid over c's tile and its red; false for none.
+	Overlay(c cell.ID) (m render.MaterialID, red float32, ok bool)
+}
+
 // Swaying is a Look that leans the tile of a kind that sways (cell.Kind.Sway) and stands at a
 // Height with the frame's wind, as air.Weather.Sway leans a unit of height.
 type Swaying interface {

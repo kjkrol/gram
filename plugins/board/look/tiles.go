@@ -60,7 +60,7 @@ var tilesUniforms = []render.Uniform{
 // pair's: its base sprite (low, high), the shade it takes (render.Taking), its flags; its way's
 // sprite, the way's Links, the covers on it (bit i the i-th); the way's width in 64ths (low,
 // high), how far it has faded in 255ths, how far the cell's kind sways in 255ths; how high it
-// stands in 64ths (low, high) and its material
+// stands in 64ths (low, high), its material and the red of the one laid over it in 255ths
 const (
 	blockSprite    = 0
 	blockTakes     = 2
@@ -73,6 +73,7 @@ const (
 	blockSway      = 11
 	blockHeight    = 12
 	blockMaterial  = 14
+	blockOverlay   = 15
 	blockBytes     = 16
 )
 
@@ -83,6 +84,7 @@ const (
 	flagSways     = 4 // what stands on it sways
 	flagNearCover = 8
 	flagNearSway  = 16
+	flagOverlaid  = 32 // a material lies over its sprite
 )
 
 // sprites a row of the rectangles' image holds, two pixels each
@@ -113,10 +115,10 @@ type tiles struct {
 	buf    []byte
 	rect   [8]byte
 	// each cell's flags and covers as the image holds them, by ordinal, and how many cells hold
-	// what sways and what is drawn by its material
-	flags, covered  []byte
-	swaying, shaded int
-	covers          []render.SpriteID
+	// what sways, what is drawn by its material and what has one laid over it
+	flags, covered            []byte
+	swaying, shaded, overlaid int
+	covers                    []render.SpriteID
 	// the instances of the cells a way runs across and of a cell and a cover lying on it or a
 	// neighbour: column, row, cover, a vec4 each
 	wayAt, coverAt []float32
@@ -146,7 +148,7 @@ func (g *tiles) refresh(l *Renderer, sheet render.AtlasSource) {
 	if len(g.vers) != n {
 		g.vers, g.marks = make([]uint64, n), make([]uint32, n)
 		g.flags, g.covered = make([]byte, n), make([]byte, n)
-		g.swaying, g.shaded, g.stamp = 0, 0, 0
+		g.swaying, g.shaded, g.overlaid, g.stamp = 0, 0, 0, 0
 	}
 	if !all && g.at == l.board.Changes()+1 {
 		return
@@ -231,6 +233,12 @@ func (g *tiles) fill(l *Renderer, c cell.ID, i int) {
 	} else {
 		l.place(&l.tile, c)
 		g.sprite(blockSprite, l.tile.Base())
+		if o, ok := l.tile.dress.(Overlaid); ok {
+			if m, red, ok := o.Overlay(c); ok {
+				b[blockFlags] |= flagOverlaid
+				b[blockMaterial], b[blockOverlay] = byte(m), unit255(red)
+			}
+		}
 	}
 	b[blockTakes] = byte(takesOf(kind.Takes))
 	laid := laidOf(l)
@@ -282,10 +290,10 @@ func (g *tiles) near(l *Renderer, laid laid, c cell.ID) byte {
 func (g *tiles) count(i int, f byte) {
 	was := g.flags[i]
 	g.flags[i] = f
-	for _, k := range [2]struct {
+	for _, k := range [3]struct {
 		bit byte
 		n   *int
-	}{{flagSways, &g.swaying}, {flagShaded, &g.shaded}} {
+	}{{flagSways, &g.swaying}, {flagShaded, &g.shaded}, {flagOverlaid, &g.overlaid}} {
 		switch {
 		case was&k.bit == 0 && f&k.bit != 0:
 			*k.n++

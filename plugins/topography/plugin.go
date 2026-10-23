@@ -151,7 +151,7 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 		p.careView = &careView{p}
 		p.write.SetCare(cfg.Care)
 	} else {
-		p.hexes = hexes.New(worldPlugin, boardPlugin, brd.Map(), p.relief, liveSky{p})
+		p.hexes = hexes.New(worldPlugin, boardPlugin, brd.Map(), p.relief, liveSky{p}, p.painter)
 	}
 	p.look = billboards.New(worldPlugin.Read(0).FlatLook(), liveSky{p}, p.relief)
 	worldPlugin.Write().SetLook(p.look)

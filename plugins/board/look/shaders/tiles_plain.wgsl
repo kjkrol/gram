@@ -19,13 +19,14 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> Laid {
     if !plainly(byteIn(t0, 3)) || levelOf(b.xy) == 0u {
         discard; // the full pass's or the material's, or out of sight
     }
-    let mid = (here + 0.5) * U.TileBox;
-    var laid = spriteAt(byteIn(t0, 0) | (byteIn(t0, 1) << 8u), mid - U.TileBox * 0.5,
-        mid + U.TileBox * 0.5, p);
+    let lo = here * U.TileBox;
+    let hi = lo + U.TileBox;
+    var laid = spriteAt(byteIn(t0, 0) | (byteIn(t0, 1) << 8u), lo, hi, p);
     if U.TileSeen > 0.5 {
         laid = vec4<f32>(mix(laid.rgb, U.Fog * laid.a, fogOf(b.xy)), laid.a);
     }
     laid = vec4<f32>(laid.rgb * U.TileTint * lightAt(f32(byteIn(t0, 2)), p), laid.a);
+    laid = over(overlayOf(b.xy, byteIn(t0, 3), lo, hi, p), laid);
     if laid.a <= 0.0 {
         discard;
     }

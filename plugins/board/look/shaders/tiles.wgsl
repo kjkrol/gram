@@ -2,7 +2,8 @@
 // those of the cells something sways on or beside, where the tiles sway; the plain pass has the
 // rest. Every cell whose box covers the point is laid there in the order the cells are, its sprite
 // stretched over its box leant with the wind (U.Wind) as air.Weather.Sway leans what stands on it,
-// faded into the fog as the plain pass fades it, and the covers on it over it.
+// faded into the fog as the plain pass fades it, the material laid over it and the covers on it
+// over that, the tile and the covers lit by the light on the ground at the point.
 
 @fragment
 fn fs_main(@builtin(position) frag: vec4<f32>) -> Laid {
@@ -19,24 +20,25 @@ fn fs_main(@builtin(position) frag: vec4<f32>) -> Laid {
             discard; // the plain pass's
         }
     }
+    let light = U.TileTint * lightAt(takenAt(p), p);
     var laid = vec4<f32>(0.0);
     for (var k = 0; k < 9; k++) {
         let n = near(here, k);
         if n.z > 0.5 {
-            laid = over(tileAt(n.xy, p), laid);
+            laid = over(tileAt(n.xy, p, light), laid);
         }
     }
-    laid = litAt(laid, p);
     if laid.a <= 0.0 {
         discard;
     }
     return laidAt(laid, p);
 }
 
-// tileAt is what the tile of the cell c lays at p and the covers on it over it: the tile nothing
-// where its box, leant with the wind, does not reach, where its material draws it or where it lies
-// out of sight; the covers only where it is seen exactly.
-fn tileAt(c: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
+// tileAt is what the tile of the cell c lays at p, the material over it and the covers on it over
+// that, the tile and the covers in light: the tile nothing where its box, leant with the wind,
+// does not reach, where its material draws it or where it lies out of sight; the covers only
+// where it is seen exactly.
+fn tileAt(c: vec2<f32>, p: vec2<f32>, light: vec3<f32>) -> vec4<f32> {
     let b = folded(c);
     if b.z < 0.5 {
         return vec4<f32>(0.0);
@@ -60,9 +62,12 @@ fn tileAt(c: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
         if U.TileSeen > 0.5 {
             laid = vec4<f32>(mix(laid.rgb, U.Fog * laid.a, fogOf(b.xy)), laid.a);
         }
+        laid = vec4<f32>(laid.rgb * light, laid.a);
+        laid = over(overlayOf(b.xy, flags, lo, hi, p), laid);
     }
     if level == 1u {
-        laid = over(coversAt(b.xy, flags, lo, p), laid);
+        let covers = coversAt(b.xy, flags, lo, p);
+        laid = over(vec4<f32>(covers.rgb * light, covers.a), laid);
     }
     return laid;
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/look"
 	"github.com/kjkrol/gram/plugins/light"
 	"github.com/kjkrol/gram/plugins/topography/internal/relief"
+	"github.com/kjkrol/gram/plugins/topography/internal/water"
 	"github.com/kjkrol/gram/render"
 )
 
@@ -54,9 +55,13 @@ type Painter struct {
 	scratch      look.Tile
 	bakeTile     tile
 	coast        coast
+	lanes        lanes
 }
 
-var _ look.Dressing = (*Painter)(nil)
+var (
+	_ look.Dressing = (*Painter)(nil)
+	_ look.Overlaid = (*Painter)(nil)
+)
 
 // Sky is the sky over the board as the painter reads it: the sun that lights the tiles and the
 // weather.
@@ -167,6 +172,29 @@ func (l *Painter) Begin(f *render.Frame, cam camera.Camera) {
 	x, y = cam.Unproject(w/2, h, 0)
 	l.varies = far != camera.ScaleAt(cam, x, y, 0) || far != cam.Zoom()
 	l.nextShores()
+}
+
+// Above readies the Painter for the board drawn whole from above, a world unit a pixel, as Begin
+// readies it for a frame through a camera.
+func (l *Painter) Above() {
+	l.camera, l.tile = nil, tile{}
+	l.lighted, l.weather = l.sky.Distant(), l.sky.Air()
+	l.tables()
+	l.cellPx, l.varies = float32(min(l.cellW, l.cellH)), false
+	l.nextShores()
+}
+
+// Overlay is the still water glinting over c's top where its kind shines, off a square grid,
+// whose water neither runs nor meets a shore; a square grid's the terrain paints.
+func (l *Painter) Overlay(c cell.ID) (render.MaterialID, float32, bool) {
+	if l.square {
+		return 0, 0, false
+	}
+	shine, _, ok := l.cellTile(c).Shine()
+	if !ok {
+		return 0, 0, false
+	}
+	return water.SeaGlint(), shine, true
 }
 
 func (l *Painter) tables() {

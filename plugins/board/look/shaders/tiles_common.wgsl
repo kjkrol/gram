@@ -14,6 +14,7 @@ const flagShaded: u32 = 1u;
 const flagSways: u32 = 4u;
 const flagNearCover: u32 = 8u;
 const flagNearSway: u32 = 16u;
+const flagOverlaid: u32 = 32u;
 
 // the share of a cover's weight it fades in over (draw.coverSoft)
 const coverSoft: f32 = 0.2;
@@ -261,6 +262,18 @@ fn plainly(flags: u32) -> bool {
         mask |= flagNearSway;
     }
     return (flags & mask) == 0u;
+}
+
+// overlayOf is the material laid over the tile of the board's cell b, flagged flags, its box from
+// lo to hi, at p, in U.TileTint (render.Overlay: World the box, Red the block's, Fraction 1);
+// nothing where none is or the box does not reach.
+fn overlayOf(b: vec2<f32>, flags: u32, lo: vec2<f32>, hi: vec2<f32>, p: vec2<f32>) -> vec4<f32> {
+    if (flags & flagOverlaid) == 0u || p.x < lo.x || p.y < lo.y || p.x >= hi.x || p.y >= hi.y {
+        return vec4<f32>(0.0);
+    }
+    let t = texelOf(b, 1.0, 1.0);
+    let c = material(f32(byteIn(t, 2)), p, f32(byteIn(t, 3)) / 255.0, 1.0, vec4<f32>(0.0));
+    return vec4<f32>(c.rgb * U.TileTint, c.a);
 }
 
 // coversAt is what the covers lying on the board's cell b or round it, flagged flags, lay at p
