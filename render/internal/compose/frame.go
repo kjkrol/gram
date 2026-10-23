@@ -1,10 +1,11 @@
-package render
+package compose
 
 import (
 	"image/color"
 	"math"
 	"slices"
 
+	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render/internal/gfx"
 	"github.com/kjkrol/gram/render/internal/wgsl"
@@ -12,7 +13,7 @@ import (
 
 // Source is what draws a part of the world by handing its pieces to a Frame.
 type Source interface {
-	Drawer
+	Init(*goke.SysInit)
 	Compose(f *Frame, cam camera.Camera)
 }
 
@@ -225,27 +226,9 @@ const (
 	TakesAll = TakesRelief | TakesBlocks | TakesClouds | TakesLamps
 )
 
-// Illumination is the light a thing is drawn in: Light on a surface facing up, the sun's and the
-// lamps', Lamps the lamps' alone, and which shade it Takes.
-type Illumination struct {
-	Light, Lamps Light
-	// Direct is the share of Light that is the distant light's, 0 to 1: what a shadow takes away.
-	Direct float32
-	Takes  Taking
-}
-
-// WhiteLight is a thing drawn as it is, taking every shade: a world without a light plugin.
-var WhiteLight = Illumination{Light: Light{1, 1, 1}, Takes: TakesAll}
-
 // Shade is the light a piece is drawn in at its corners, top-left, top-right, bottom-left,
 // bottom-right, blended across it.
 type Shade [4]Light
-
-// Even is a white Shade of v at every corner; Even(1) draws a sprite as it is.
-func Even(v float32) Shade { return Lit(Light{v, v, v}) }
-
-// Lit is a Shade of l at every corner.
-func Lit(l Light) Shade { return Shade{l, l, l, l} }
 
 func lit(l Light) [4]float32 { return [4]float32{l[0], l[1], l[2], 1} }
 
@@ -326,9 +309,6 @@ func (f *Frame) SpriteRectUV(
 
 // World is where each corner of a piece lies in the world, in the order of its Corners on screen.
 type World [4][2]float32
-
-// Box is the World of the world box (x0, y0)-(x1, y1).
-func Box(x0, y0, x1, y1 float32) World { return World{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}} }
 
 // Overlay is a quad laid over a sprite for a material to work out in the shader: where the
 // sprite's corners lie in the world, and what the material reads at each corner, blended across
@@ -545,15 +525,6 @@ func (f *Frame) Soft(at At, dst Corners, c color.RGBA, fade Fade) {
 	f.add(at, nil, quad, 4)
 }
 
-// ProjectCorners is the four corners of the world box (x0, y0)-(x1, y1) at height z through cam.
-func ProjectCorners(cam camera.Camera, x0, y0, x1, y1, z float32) Corners {
-	var out Corners
-	for i, p := range [4][2]float32{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}} {
-		out[i][0], out[i][1] = cam.Project(p[0], p[1], z)
-	}
-	return out
-}
-
 // half a texel in, so a quad's edge never samples the neighbouring sprite of the sheet
 func inset(sx0, sy0, sx1, sy1 float32) (float32, float32, float32, float32) {
 	return sx0 + 0.5, sy0 + 0.5, sx1 - 0.5, sy1 - 0.5
@@ -585,4 +556,21 @@ func (f *Frame) Append(o *Frame) {
 		f.lastAtlas = o.lastAtlas
 		f.quads = append(f.quads[:0], o.quads...)
 	}
+}
+
+// spritePieces lays sprite id of atlas, its part u0..u1, v0..v1, over the world rectangle
+// (x0, y0)-(x1, y1) through cam, a piece where it crosses a wrap seam
+func spritePieces(
+	cam camera.Camera, atlas AtlasSource, id SpriteID, x0, y0, x1, y1, u0, v0, u1, v1 float32,
+	quads []camera.Quad, piece func(q camera.Quad, a0, b0, a1, b1 float32),
+) []camera.Quad {
+	sx0, sy0, sx1, sy1 := inset(atlas.UV(id))
+	w, h := sx1-sx0, sy1-sy0
+	quads = cam.ToScreenQuads(x0, y0, x1, y1, quads)
+	for _, q := range quads {
+		pu0, pu1 := u0+q.T0X*(u1-u0), u0+q.T1X*(u1-u0)
+		pv0, pv1 := v0+q.T0Y*(v1-v0), v0+q.T1Y*(v1-v0)
+		piece(q, sx0+pu0*w, sy0+pv0*h, sx0+pu1*w, sy0+pv1*h)
+	}
+	return quads
 }

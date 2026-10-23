@@ -89,7 +89,7 @@ func (s *Sprites) Rect(
 	w, h := sx1-sx0, sy1-sy0
 	s.piece(atlas)
 	s.instances = append(s.instances, x0, y0, x1, y1, sx0+u0*w, sy0+v0*h, sx0+u1*w, sy0+v1*h,
-		light[0], light[1], light[2], 0, s.layer.at.z, s.fog, float32(s.takes), s.sun)
+		light[0], light[1], light[2], 0, s.layer.at.Z(), s.fog, float32(s.takes), s.sun)
 }
 
 // Take has the pieces added next take the shade takes says.
@@ -106,7 +106,7 @@ func (s *Sprites) Turned(
 	sx0, sy0, sx1, sy1 := atlas.UV(id)
 	s.piece(atlas)
 	s.instances = append(s.instances, x0, y0, x1, y1, sx0, sy0, sx1, sy1,
-		light[0], light[1], light[2], angle, s.layer.at.z, s.fog, float32(s.takes), s.sun)
+		light[0], light[1], light[2], angle, s.layer.at.Z(), s.fog, float32(s.takes), s.sun)
 }
 
 const spriteFloats = 16
@@ -184,9 +184,9 @@ func (s *Sprites) byLayer() ([]float32, []spriteRun) {
 	before := func(a, b int32) int {
 		x, y := s.layers[a], s.layers[b]
 		switch {
-		case x.at.key < y.at.key, x.at.key == y.at.key && x.under && !y.under:
+		case x.at.Before(y.at), !y.at.Before(x.at) && x.under && !y.under:
 			return -1
-		case x.at.key > y.at.key, x.at.key == y.at.key && !x.under && y.under:
+		case y.at.Before(x.at), !x.at.Before(y.at) && !x.under && y.under:
 			return 1
 		}
 		return 0
@@ -207,17 +207,7 @@ func (s *Sprites) byLayer() ([]float32, []spriteRun) {
 	return s.drawn, s.drawnRuns
 }
 
-func spritePieces(
-	cam camera.Camera, atlas AtlasSource, id SpriteID, x0, y0, x1, y1, u0, v0, u1, v1 float32,
-	quads []camera.Quad, piece func(q camera.Quad, a0, b0, a1, b1 float32),
-) []camera.Quad {
-	sx0, sy0, sx1, sy1 := inset(atlas.UV(id))
-	w, h := sx1-sx0, sy1-sy0
-	quads = cam.ToScreenQuads(x0, y0, x1, y1, quads)
-	for _, q := range quads {
-		pu0, pu1 := u0+q.T0X*(u1-u0), u0+q.T1X*(u1-u0)
-		pv0, pv1 := v0+q.T0Y*(v1-v0), v0+q.T1Y*(v1-v0)
-		piece(q, sx0+pu0*w, sy0+pv0*h, sx0+pu1*w, sy0+pv1*h)
-	}
-	return quads
+// half a texel in, so a quad's edge never samples the neighbouring sprite of the sheet
+func inset(sx0, sy0, sx1, sy1 float32) (float32, float32, float32, float32) {
+	return sx0 + 0.5, sy0 + 0.5, sx1 - 0.5, sy1 - 0.5
 }

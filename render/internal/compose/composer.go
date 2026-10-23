@@ -1,4 +1,4 @@
-package render
+package compose
 
 import (
 	"slices"
@@ -54,11 +54,6 @@ type laidLayer struct {
 	ground *Depth
 	at     camera.Window
 }
-
-var (
-	_ Picture = (*Composer)(nil)
-	_ Laid    = (*Composer)(nil)
-)
 
 // NewComposer composes sources into one picture; a nil source is left out.
 func NewComposer(sources ...Source) *Composer {
@@ -306,8 +301,8 @@ func (c *Composer) depthsFor(screen *Image, layer int) *depths {
 		c.depths[0].ground.Release()
 		c.depths = append(c.depths[:0], c.depths[1:]...)
 	}
-	c.depths = append(c.depths, depths{w: w, h: h, layer: layer, main: NewDepth(),
-		ground: NewDepth().Readable()})
+	c.depths = append(c.depths, depths{w: w, h: h, layer: layer, main: gfx.NewDepth(),
+		ground: gfx.NewDepth().Readable()})
 	return &c.depths[len(c.depths)-1]
 }
 
@@ -548,7 +543,7 @@ type whiteSheet struct{ img *Image }
 
 func (w *whiteSheet) Atlas() *Image {
 	if w.img == nil {
-		w.img = NewImage(3, 3)
+		w.img = gfx.NewImage(3, 3)
 		w.img.WritePixels(white9)
 	}
 	return w.img

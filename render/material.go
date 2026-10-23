@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kjkrol/gram/render/internal/compose"
 	"github.com/kjkrol/gram/render/internal/wgsl"
 )
 
@@ -36,8 +37,6 @@ type Look interface {
 	~func(dst *Canvas, size int) | MaterialID | Phases | Loops
 }
 
-var composer = NewShaderWith("composer", Files(shaderFiles, "shaders/compose.wgsl"), nil)
-
 // RegisterMaterials adds to the composer's shader the materials of source, WGSL with the uniforms
 // it reads (U.Name), one material for each of entries, the function an Overlay of it is handed to:
 //
@@ -58,13 +57,7 @@ func RegisterImage(name string) { wgsl.RegisterImage(name) }
 func SharedUniforms() []Uniform { return wgsl.Uniforms() }
 
 // ShaderSource is the composer's shader as it compiles.
-func ShaderSource() string { return composer.Source() }
+func ShaderSource() string { return compose.ShaderSource() }
 
 // Compile compiles the composer's shader now rather than at its first draw.
-func Compile() error {
-	if err := composer.Compile(); err != nil {
-		return fmt.Errorf("render: the composer's shader, with %s: %w",
-			strings.Join(wgsl.Entries(), ", "), err)
-	}
-	return nil
-}
+func Compile() error { return compose.Compile() }

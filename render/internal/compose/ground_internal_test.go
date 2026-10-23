@@ -1,4 +1,4 @@
-package render
+package compose
 
 import (
 	"image"
@@ -8,11 +8,12 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/internal/gpu/gputest"
+	"github.com/kjkrol/gram/render/internal/gfx"
 )
 
 // the ground's height along a line of world points U.Step apart, as 16 bits in red and green over
 // U.Most
-var groundProbe = NewMeshShaderWith("ground probe", []byte(`
+var groundProbe = gfx.NewMeshShaderWith("ground probe", []byte(`
 struct Out { @builtin(position) clip: vec4<f32>, @location(0) px: vec2<f32> }
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> Out {
@@ -35,7 +36,7 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> {
     let v = clamp(h / U.Most, 0.0, 1.0) * 65535.0;
     return vec4<f32>(floor(v / 256.0) / 255.0, (v % 256.0) / 255.0, 0.0, 1.0);
 }
-`), []Uniform{{Name: "Pixels", Size: 2}, {Name: "Step", Size: 1}, {Name: "Most", Size: 1}})
+`), []gfx.Uniform{{Name: "Pixels", Size: 2}, {Name: "Step", Size: 1}, {Name: "Most", Size: 1}})
 
 type heighted struct{ g *GroundHeights }
 
@@ -51,7 +52,7 @@ func TestGroundHeights_ShadersReadTheGroundBlendedBetweenItsCorners(t *testing.T
 	// a ridge across x on a lattice 4 by 3, 10 world units a cell, its heights 100 up to 500,
 	// laid from (2, 1) in a bigger picture
 	heights := [4]float32{100, 500, 300, 100}
-	pic := NewImage(8, 6)
+	pic := gfx.NewImage(8, 6)
 	pix := make([]byte, 4*4*3)
 	for y := range 3 {
 		for x := range 4 {
@@ -73,9 +74,9 @@ func TestGroundHeights_ShadersReadTheGroundBlendedBetweenItsCorners(t *testing.T
 		if img, ok := c.boxed["GroundHeights"]; ok {
 			u["GroundHeights"] = img
 		}
-		screen := NewImage(w, 1)
+		screen := gfx.NewImage(w, 1)
 		defer screen.Deallocate()
-		screen.DrawMesh(nil, groundProbe, &DrawMeshOptions{Vertices: 3, Uniforms: u})
+		screen.DrawMesh(nil, groundProbe, &gfx.DrawMeshOptions{Vertices: 3, Uniforms: u})
 		out := make([]byte, 4*w)
 		screen.ReadPixels(out)
 		return out

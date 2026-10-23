@@ -1,4 +1,4 @@
-package render
+package compose
 
 import (
 	"fmt"
@@ -12,11 +12,11 @@ func Benchmark_Composer_Render(b *testing.B) {
 		c := NewComposer(items(func(f *Frame) {
 			for i := range n {
 				depth := float32(i)
-				f.Sprite(h(depth), a, 0, unit, Even(1))
+				f.Sprite(h(depth), a, 0, unit, even(1))
 				f.Overlay(&Overlay{})
 				f.Line(h(depth), 0, 0, 1, 1, 1, white)
 				if i%50 == 0 {
-					f.Sprite(h(depth), o, 0, unit, Even(1))
+					f.Sprite(h(depth), o, 0, unit, even(1))
 				}
 			}
 		}))

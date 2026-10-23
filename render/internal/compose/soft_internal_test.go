@@ -1,4 +1,4 @@
-package render
+package compose
 
 import (
 	"image/color"
@@ -24,7 +24,7 @@ func TestSoft_NeverPassesForABlendedSprite(t *testing.T) {
 	var g Frame
 	g.Reset(nil)
 	square := Corners{{0, 0}, {8, 0}, {0, 8}, {8, 8}}
-	g.SpriteBlend(h(0), blendSheet{}, 0, square, Even(1), [4]float32{0, 1, 0, 1}, 0.2)
+	g.SpriteBlend(h(0), blendSheet{}, 0, square, even(1), [4]float32{0, 1, 0, 1}, 0.2)
 	g.Each(func(_ At, v []Vertex) {
 		for _, x := range v {
 			if x.Custom3 <= blendMark/2 || x.Custom3 > blendMark+0.5 {
@@ -52,7 +52,7 @@ func (blendSheet) White() (u, v float32)                    { return 9, 9 }
 func TestFog_TheSpriteReadsItInItsAlphaUnderTheOverlaysMark(t *testing.T) {
 	var f Frame
 	f.Reset(nil)
-	f.Sprite(h(0), blendSheet{}, 0, Corners{{0, 0}, {8, 0}, {0, 8}, {8, 8}}, Even(1))
+	f.Sprite(h(0), blendSheet{}, 0, Corners{{0, 0}, {8, 0}, {0, 8}, {8, 8}}, even(1))
 	f.Fog([4]float32{0, 0.5, 1, 2})
 	f.Each(func(_ At, v []Vertex) {
 		if v[0].ColorA != 1 || v[1].ColorA != 1+fogSpan/2 || v[3].ColorA != 1+fogSpan || v[3].ColorA >= overlayMark-0.5 {
@@ -62,7 +62,7 @@ func TestFog_TheSpriteReadsItInItsAlphaUnderTheOverlaysMark(t *testing.T) {
 	var g Frame
 	g.Reset(nil)
 	square := Corners{{0, 0}, {8, 0}, {0, 8}, {8, 8}}
-	g.SpriteBlend(h(0), blendSheet{}, 0, square, Even(1), [4]float32{0, 1, 0, 1}, 0.2)
+	g.SpriteBlend(h(0), blendSheet{}, 0, square, even(1), [4]float32{0, 1, 0, 1}, 0.2)
 	g.Fog([4]float32{1, 1, 1, 1})
 	g.Each(func(_ At, v []Vertex) {
 		if v[1].ColorA != 1 {

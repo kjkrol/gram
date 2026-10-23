@@ -1,4 +1,4 @@
-package render
+package compose
 
 import (
 	"image/color"
@@ -13,6 +13,8 @@ import (
 	"github.com/kjkrol/gram/internal/gpu"
 	"github.com/kjkrol/gram/internal/gpu/gputest"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
+	"github.com/kjkrol/gram/render/internal/gfx"
+	"github.com/kjkrol/gram/render/internal/wgsl"
 )
 
 type sheet struct{ name string }
@@ -62,14 +64,14 @@ func TestComposer_DrawsTheWorldBackToFrontAndTheMarksLastAsTheyCame(t *testing.T
 	a, b := sheet{"a"}, sheet{"b"}
 	_, got := drawn(topDown(),
 		items(func(f *Frame) {
-			f.Sprite(h(1), a, 0, unit, Even(1))
-			f.Sprite(OnTop(0), a, 0, unit, Even(0.5))
-			f.Sprite(h(9), a, 0, unit, Even(1))
+			f.Sprite(h(1), a, 0, unit, even(1))
+			f.Sprite(OnTop(0), a, 0, unit, even(0.5))
+			f.Sprite(h(9), a, 0, unit, even(1))
 		}),
 		items(func(f *Frame) {
-			f.Sprite(h(1), b, 0, unit, Even(1)) // as high: after the first, as it came
-			f.Sprite(OnTop(0), b, 0, unit, Even(1))
-			f.Sprite(h(5), b, 0, unit, Even(1))
+			f.Sprite(h(1), b, 0, unit, even(1)) // as high: after the first, as it came
+			f.Sprite(OnTop(0), b, 0, unit, even(1))
+			f.Sprite(h(5), b, 0, unit, even(1))
 		}))
 	want := []At{h(1), h(1), h(5), h(9), OnTop(0), OnTop(0)}
 	for i, w := range want {
@@ -90,12 +92,12 @@ func TestComposer_DrawsTheMarksByLevelAndAtOneLevelAsTheyCame(t *testing.T) {
 	for _, order := range [][2]int{{0, 1}, {1, 0}} {
 		sources := []Source{
 			items(func(f *Frame) {
-				f.Sprite(OnTop(3), a, 0, unit, Even(1))
-				f.Sprite(OnTop(1), a, 0, unit, Even(1))
+				f.Sprite(OnTop(3), a, 0, unit, even(1))
+				f.Sprite(OnTop(1), a, 0, unit, even(1))
 			}),
 			items(func(f *Frame) {
-				f.Sprite(OnTop(2), b, 0, unit, Even(1))
-				f.Sprite(OnTop(1), b, 0, unit, Even(1))
+				f.Sprite(OnTop(2), b, 0, unit, even(1))
+				f.Sprite(OnTop(1), b, 0, unit, even(1))
 			}),
 		}
 		_, got := drawn(topDown(), sources[order[0]], sources[order[1]])
@@ -170,20 +172,20 @@ func calls(c *Composer) []string {
 func TestComposer_DrawsARunSharingASheetInOneCallColoursIncluded(t *testing.T) {
 	a, b := &sheet{"a"}, &sheet{"b"}
 	c, _ := drawn(sorted(), items(func(f *Frame) {
-		f.Sprite(h(1), a, 0, unit, Even(1))
+		f.Sprite(h(1), a, 0, unit, even(1))
 		f.Line(h(1.5), 0, 0, 10, 0, 1, white)
 		f.Soft(h(2), unit, black, Fade{Left: 2})
-		f.Sprite(h(3), a, 0, unit, Even(1))
+		f.Sprite(h(3), a, 0, unit, even(1))
 	}))
 	if n := len(calls(c)); n != 1 {
 		t.Errorf("%d calls for one sheet with lines and a shadow among its sprites, want 1", n)
 	}
 
 	c, _ = drawn(sorted(), items(func(f *Frame) {
-		f.Sprite(h(1), a, 0, unit, Even(1))
-		f.Sprite(h(2), b, 0, unit, Even(1))
+		f.Sprite(h(1), a, 0, unit, even(1))
+		f.Sprite(h(2), b, 0, unit, even(1))
 		f.Line(h(3), 0, 0, 10, 0, 1, white) // joins b's run
-		f.Sprite(h(4), a, 0, unit, Even(1))
+		f.Sprite(h(4), a, 0, unit, even(1))
 	}))
 	if n := len(calls(c)); n != 3 {
 		t.Errorf("%d calls for sheets a, b, a, want 3", n)
@@ -193,7 +195,7 @@ func TestComposer_DrawsARunSharingASheetInOneCallColoursIncluded(t *testing.T) {
 func TestComposer_AColourJoiningARunSamplesItsSheetsWhite(t *testing.T) {
 	a := &sheet{"a"}
 	c, _ := drawn(topDown(), items(func(f *Frame) {
-		f.Sprite(h(0), a, 0, unit, Even(1))
+		f.Sprite(h(0), a, 0, unit, even(1))
 		f.Line(h(0), 0, 0, 10, 0, 1, white)
 	}))
 	var verts []Vertex
@@ -211,7 +213,7 @@ func TestComposer_SplitsACallBeforeItsIndicesOverflow(t *testing.T) {
 	quads := chunkVertices/4 + 5
 	c, _ := drawn(topDown(), items(func(f *Frame) {
 		for range quads {
-			f.Sprite(h(0), a, 0, unit, Even(1))
+			f.Sprite(h(0), a, 0, unit, even(1))
 		}
 	}))
 	var sizes []int
@@ -250,17 +252,17 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 	a := &sheet{"a"}
 	c := NewComposer(items(func(f *Frame) {
 		for i := range 200 {
-			f.Sprite(h(float32(i%7)), a, 0, unit, Even(1))
+			f.Sprite(h(float32(i%7)), a, 0, unit, even(1))
 			f.Line(h(float32(i%5)), 0, 0, 5, 5, 1, white)
 			f.Soft(h(1), unit, black, Fade{Top: 3})
-			f.Overlay(&Overlay{Material: tint, World: Box(0, 0, 32, 32), Red: [4]float32{1, 1, 1, 1}})
+			f.Overlay(&Overlay{Material: tint, World: box(0, 0, 32, 32), Red: [4]float32{1, 1, 1, 1}})
 		}
 		f.Uniform("LightWay", 0, 0, 1)
 		f.Image("TestProbe", nil)
 		f.SpriteFan(h(2), a, 0, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}}, [4]float32{0, 0, 5, 5}, 1)
 	}), overlyingSource{items(func(f *Frame) {
 		for i := range 50 {
-			f.Sprite(h(float32(2+i%3)), a, 0, unit, Even(1))
+			f.Sprite(h(float32(2+i%3)), a, 0, unit, even(1))
 			f.Line(OnTop(1), 0, 0, 5, 5, 1, white)
 		}
 	})})
@@ -279,7 +281,7 @@ func TestComposer_AWarmFrameAllocatesNothing(t *testing.T) {
 		t.Errorf("a warm frame of the ground and what lies over it allocates %v times, want none",
 			n)
 	}
-	outer, inner, screen := NewImage(32, 32), NewImage(24, 24), NewImage(64, 64)
+	outer, inner, screen := gfx.NewImage(32, 32), gfx.NewImage(24, 24), gfx.NewImage(64, 64)
 	layered := func() {
 		c.Lay(cam, true)
 		c.DrawLayer(outer, cam, camera.Window{W: 64, H: 64}, camera.Window{})
@@ -297,7 +299,7 @@ func TestFrame_SpriteRectSplitsAtAWrapSeamWithoutStretching(t *testing.T) {
 	cam.Translate(1000, 0)
 	var f Frame
 	f.Reset(cam)
-	f.SpriteRect(h(0), sheet{}, 0, 998, 0, 1010, 10, Even(1))
+	f.SpriteRect(h(0), sheet{}, 0, 998, 0, 1010, 10, even(1))
 	if f.Len() != 2 {
 		t.Fatalf("%d quads across the seam, want 2", f.Len())
 	}
@@ -351,7 +353,7 @@ func TestFrame_SoftFadesOnlyTheSidesAsked(t *testing.T) {
 func TestFrame_AFanIsTrianglesRoundItsFirstPoint(t *testing.T) {
 	a := &sheet{}
 	c, _ := drawn(topDown(), items(func(f *Frame) {
-		f.Sprite(h(0), a, 0, unit, Even(1))
+		f.Sprite(h(0), a, 0, unit, even(1))
 		f.SpriteFan(h(0), a, 0, [][2]float32{{0, 0}, {5, 0}, {5, 5}, {0, 5}, {-5, 5}}, [4]float32{-5, 0, 5, 5}, 1)
 	}))
 	var idx []uint16
@@ -388,7 +390,7 @@ func TestFrame_ASpriteFanIsThePartOfTheSpriteUnderIt(t *testing.T) {
 	}
 }
 
-var tint = RegisterMaterials([]byte(`// TestTint paints red, the fraction and the first custom.
+var tint = wgsl.RegisterMaterials([]byte(`// TestTint paints red, the fraction and the first custom.
 fn TestTint(p: vec2<f32>, red: f32, fraction: f32, custom: vec4<f32>) -> vec4<f32> {
     return vec4<f32>(red, fraction, custom.x, 1.0);
 }
@@ -408,8 +410,8 @@ func TestFrame_AnOverlayIsAQuadOverTheSpriteMarkedWithItsMaterialAndWhatItReads(
 	var f Frame
 	f.Reset(topDown())
 	dst := Corners{{0, 0}, {10, 0}, {0, 20}, {10, 20}}
-	f.Sprite(h(3), sheet{}, 0, dst, Even(0.5))
-	f.Overlay(&Overlay{Material: 3, World: Box(100, 200, 132, 232), Red: [4]float32{0.9, 0.9, 0.9, 0.9},
+	f.Sprite(h(3), sheet{}, 0, dst, even(0.5))
+	f.Overlay(&Overlay{Material: 3, World: box(100, 200, 132, 232), Red: [4]float32{0.9, 0.9, 0.9, 0.9},
 		Fraction: [4]float32{1, 0.5, 0, 0.25}, Custom: [4][4]float32{{1, 0, 8, 0.75}, {1, 0, 40, 0}, {1, 0, 8, 0.75}, {1, 0, 40, 0}}})
 	if f.Len() != 2 || len(f.items) != 1 {
 		t.Fatalf("%d pieces in %d items, want the sprite and its overlay in one", f.Len(),
@@ -435,8 +437,8 @@ func TestFrame_AnOverlayFollowsEachPieceOfARectSplitAtASeam(t *testing.T) {
 	cam.Translate(1000, 0)
 	var f Frame
 	f.Reset(cam)
-	f.SpriteRect(h(0), sheet{}, 0, 992, 0, 1008, 10, Even(1)) // 8 before the seam, 8 after
-	f.Overlay(&Overlay{World: Box(992, 0, 1008, 10), Fraction: [4]float32{0, 1, 0, 1}, Custom: [4][4]float32{{0}, {16}, {0}, {16}}})
+	f.SpriteRect(h(0), sheet{}, 0, 992, 0, 1008, 10, even(1)) // 8 before the seam, 8 after
+	f.Overlay(&Overlay{World: box(992, 0, 1008, 10), Fraction: [4]float32{0, 1, 0, 1}, Custom: [4][4]float32{{0}, {16}, {0}, {16}}})
 	v := f.verts
 	if len(v) != 16 {
 		t.Fatalf("%d vertices, want the two pieces' 8 and their overlays' 8", len(v))
@@ -452,7 +454,7 @@ func TestFrame_AGlazeShowsAsMuchAsItsOpacity(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
 	square := Corners{{0, 0}, {10, 0}, {0, 10}, {10, 10}}
-	f.Glaze(h(0), sheet{}, 0, square, Even(0.8), [4]float32{0, 0.5, 1, 2})
+	f.Glaze(h(0), sheet{}, 0, square, even(0.8), [4]float32{0, 0.5, 1, 2})
 	for k, want := range [4]float32{0, 0.5, 1, 1} {
 		if v := f.verts[k]; v.ColorA != want || math.Abs(float64(v.ColorR-0.8*want)) > 1e-6 {
 			t.Errorf("corner %d glazed %v, alpha %v; want %v, %v", k, v.ColorR, v.ColorA, 0.8*want, want)
@@ -464,7 +466,7 @@ func TestFrame_APartOfASheetSamplesThePixelsAskedFor(t *testing.T) {
 	var f Frame
 	f.Reset(topDown())
 	square := Corners{{0, 0}, {10, 0}, {0, 10}, {10, 10}}
-	f.SpritePart(h(0), sheet{}, [4]float32{16, 32, 24, 40}, square, Even(1))
+	f.SpritePart(h(0), sheet{}, [4]float32{16, 32, 24, 40}, square, even(1))
 	v := f.verts
 	if v[0].SrcX != 16 || v[0].SrcY != 32 || v[3].SrcX != 24 || v[3].SrcY != 40 {
 		t.Errorf("the part samples %v,%v to %v,%v; want 16,32 to 24,40", v[0].SrcX, v[0].SrcY, v[3].SrcX, v[3].SrcY)
@@ -477,7 +479,7 @@ func TestFrame_AnOverlayTakesWhatItShouldOfTheSpriteUnderIt(t *testing.T) {
 	dst := Corners{{0, 0}, {8, 0}, {0, 10}, {8, 10}}
 	band := World{{10, 0}, {14, 4}, {0, 10}, {4, 14}}
 	weight := [4]float32{0, 0.5, 0.25, 1}
-	f.SpriteBlend(h(0), sheet{}, 0, dst, Even(1), weight, 0.2)
+	f.SpriteBlend(h(0), sheet{}, 0, dst, even(1), weight, 0.2)
 	f.Overlay(&Overlay{Material: 2, World: band, Custom: [4][4]float32{{3}, {3}, {3}, {3}}, Blended: true})
 	v := f.verts
 	for k, w := range weight {
@@ -576,9 +578,9 @@ func TestComposer_ADirectDrawsWhereItAskedAndOnlyThere(t *testing.T) {
 	figures := &direct{at: &[]At{h(2)}[0], after: &calls}
 	nothing := &direct{after: &calls}
 	c := NewComposer(figures, &direct{at: &rain, after: &calls}, items(func(f *Frame) {
-		f.Sprite(h(0.75), a, 0, unit, Even(1))  // a route
-		f.Sprite(h(5), a, 0, unit, Even(1))     // a figure's material
-		f.Sprite(OnTop(0), a, 0, unit, Even(1)) // a mark
+		f.Sprite(h(0.75), a, 0, unit, even(1))  // a route
+		f.Sprite(h(5), a, 0, unit, even(1))     // a figure's material
+		f.Sprite(OnTop(0), a, 0, unit, even(1)) // a mark
 		f.Uniform("Seen", 7)
 	}), nil, views, ground, &direct{at: &sky, after: &calls}, nothing)
 	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) { calls++ }
@@ -620,11 +622,11 @@ func TestComposer_ADirectDrawsWhereItAskedAndOnlyThere(t *testing.T) {
 
 func TestNewShaderWith_BuildsOnTheLibraryAndSealsTheMaterials(t *testing.T) {
 	gputest.Need(t)
-	s := NewShaderWith("test", []byte(`
+	s := gfx.NewShaderWith("test", []byte(`
 fn Fragment(dst: vec4<f32>, src: vec2<f32>, color: vec4<f32>, custom: vec4<f32>) -> vec4<f32> {
     return TestTint(vec2<f32>(0.0), U.Shade, noise(src), vec4<f32>(U.Clock));
 }
-`), []Uniform{{Name: "Shade", Size: 1}})
+`), []gfx.Uniform{{Name: "Shade", Size: 1}})
 	if err := s.Compile(); err != nil {
 		t.Fatalf("a fragment on the library does not compile: %v", err)
 	}
@@ -640,7 +642,7 @@ fn Fragment(dst: vec4<f32>, src: vec2<f32>, color: vec4<f32>, custom: vec4<f32>)
 			t.Error("a material registered after a shader was built on them did not panic")
 		}
 	}()
-	RegisterMaterials([]byte("fn Late(p: vec2<f32>, red: f32, fraction: f32, custom: vec4<f32>) -> vec4<f32> { return vec4<f32>(0.0); }"), nil, "Late")
+	wgsl.RegisterMaterials([]byte("fn Late(p: vec2<f32>, red: f32, fraction: f32, custom: vec4<f32>) -> vec4<f32> { return vec4<f32>(0.0); }"), nil, "Late")
 }
 
 func TestComposer_TheMarksTakeNoSight(t *testing.T) {
@@ -767,7 +769,7 @@ func TestComposer_DrawLayerPlacesThePiecesAndDrawsTheDirectsThroughTheCroppedCam
 	var log []string
 	route := &staged{name: "route", draws: true, at: h(0.75), log: &log}
 	a := &sheet{"a"}
-	c := NewComposer(route, items(func(f *Frame) { f.Sprite(h(1), a, 0, unit, Even(1)) }))
+	c := NewComposer(route, items(func(f *Frame) { f.Sprite(h(1), a, 0, unit, even(1)) }))
 	var places [][4]float32
 	c.draw = func(_ *Image, _ []Vertex, _ []uint16, _ *Image, place [4]float32) {
 		places = append(places, place)
@@ -779,9 +781,9 @@ func TestComposer_DrawLayerPlacesThePiecesAndDrawsTheDirectsThroughTheCroppedCam
 	c.Lay(cam, false)
 	crop.Uncrop()
 	crop.Crop(camera.Window{X: 16, Y: 12, W: 32, H: 24}, 0.5)
-	c.DrawLayer(NewImage(16, 12), cam, camera.Window{X: 16, Y: 12, W: 32, H: 24}, camera.Window{})
+	c.DrawLayer(gfx.NewImage(16, 12), cam, camera.Window{X: 16, Y: 12, W: 32, H: 24}, camera.Window{})
 	crop.Uncrop()
-	c.DrawWorld(NewImage(64, 48), cam)
+	c.DrawWorld(gfx.NewImage(64, 48), cam)
 	if want := [][4]float32{{0.5, 0.5, -8, -6}, {}}; !slices.Equal(places, want) {
 		t.Errorf("the pieces were placed %v, want %v: scaled by the layer's half and moved by its "+
 			"window's corner, a whole frame after them not at all", places, want)
@@ -789,39 +791,6 @@ func TestComposer_DrawLayerPlacesThePiecesAndDrawsTheDirectsThroughTheCroppedCam
 	if want := [][2]float32{{16, 12}, {64, 48}}; !slices.Equal(route.views, want) {
 		t.Errorf("the Direct drew through viewports %v, want %v: the camera cropped to the layer, "+
 			"then whole", route.views, want)
-	}
-}
-
-func TestComposer_ALayerLeavesOutTheGroundUnderTheHole(t *testing.T) {
-	gputest.Need(t)
-	a := atlasOf(t)
-	c := NewComposer(groundOf(a), skySource{}, &figureSource{atlas: a, z: 10, id: 2})
-	cam := cameratest.NewFromSpace(64, 64, 0)
-	cam.SetViewport(64, 64)
-	crop := cam.(camera.Cropping)
-	whole := camera.Window{W: 64, H: 64}
-	crop.Crop(whole, 1)
-	c.Lay(cam, false)
-	crop.Uncrop()
-	crop.Crop(whole, 0.5)
-	layer := NewImage(32, 32)
-	// the layer's pixels 12 to 24 across, 8 to 24 down: over half the figure, the ground and sky
-	c.DrawLayer(layer, cam, whole, camera.Window{X: 24, Y: 16, W: 24, H: 32})
-	crop.Uncrop()
-	at := pixelsOf(layer)
-	for _, p := range [][2]int{{13, 12}, {13, 20}, {20, 20}, {23, 23}} {
-		if px := at(p[0], p[1]); px != [4]byte{} {
-			t.Errorf("under the hole (%d, %d) shows %v, want nothing drawn", p[0], p[1], px)
-		}
-	}
-	if px := at(3, 3); px != [4]byte{0, 200, 0, 255} {
-		t.Errorf("beside the hole the ground shows %v, want green", px)
-	}
-	if px := at(28, 4); px != [4]byte{0, 0, 230, 255} {
-		t.Errorf("beside the hole the sky shows %v, want blue", px)
-	}
-	if px := at(10, 12); px != [4]byte{220, 0, 0, 255} {
-		t.Errorf("the figure beside the hole shows %v, want red", px)
 	}
 }
 
@@ -835,8 +804,8 @@ func TestComposer_DrawLayerTwiceDrawsEveryDirectTwice(t *testing.T) {
 	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) {}
 	cam := topDown()
 	c.Lay(cam, false)
-	c.DrawLayer(NewImage(32, 32), cam, camera.Window{W: 64, H: 64}, camera.Window{})
-	c.DrawLayer(NewImage(16, 16), cam, camera.Window{X: 16, Y: 16, W: 32, H: 32}, camera.Window{})
+	c.DrawLayer(gfx.NewImage(32, 32), cam, camera.Window{W: 64, H: 64}, camera.Window{})
+	c.DrawLayer(gfx.NewImage(16, 16), cam, camera.Window{X: 16, Y: 16, W: 32, H: 32}, camera.Window{})
 	want := []string{"ground composed", "route composed", "figures composed",
 		"ground drawn", "route drawn", "figures drawn", "ground drawn", "route drawn",
 		"figures drawn"}
@@ -856,8 +825,8 @@ func TestComposer_TwoLayersOfOneSizeKeepTheirGroundsApart(t *testing.T) {
 	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) {}
 	cam := topDown()
 	c.Lay(cam, true)
-	c.DrawLayer(NewImage(32, 32), cam, camera.Window{W: 64, H: 64}, camera.Window{})
-	c.DrawLayer(NewImage(32, 32), cam, camera.Window{X: 16, Y: 16, W: 32, H: 32}, camera.Window{})
+	c.DrawLayer(gfx.NewImage(32, 32), cam, camera.Window{W: 64, H: 64}, camera.Window{})
+	c.DrawLayer(gfx.NewImage(32, 32), cam, camera.Window{X: 16, Y: 16, W: 32, H: 32}, camera.Window{})
 	if len(c.laid) != 2 || c.laid[0].ground == c.laid[1].ground {
 		t.Errorf("two layers of 32 by 32 laid %d grounds, the same depth %v; want two apart",
 			len(c.laid), len(c.laid) == 2 && c.laid[0].ground == c.laid[1].ground)
@@ -870,7 +839,7 @@ func TestComposer_TwoLayersOfOneSizeKeepTheirGroundsApart(t *testing.T) {
 
 func TestComposer_TheOverPassInheritsTheGroundPassesUniformsAndImages(t *testing.T) {
 	var log []string
-	img := NewImage(1, 1)
+	img := gfx.NewImage(1, 1)
 	var fogged, imaged bool
 	ground := &staged{name: "ground", log: &log, set: func(f *Frame) {
 		f.Uniform("Fog", 0.1, 0.2, 0.3)

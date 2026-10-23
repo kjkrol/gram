@@ -1,4 +1,4 @@
-package render
+package compose
 
 // GroundHeights is the ground's heights for the shaders to read (WGSL groundHeightAt): a lattice
 // of Corners corners Cell world units apart from the world's origin, each a pixel of Image, its

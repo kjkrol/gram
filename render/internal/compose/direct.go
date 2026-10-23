@@ -1,4 +1,4 @@
-package render
+package compose
 
 import (
 	"github.com/kjkrol/gram/camera"
@@ -51,4 +51,11 @@ func (u Uniforms) Into(dst map[string]any) {
 func (u Uniforms) Get(name string) []float32 {
 	v, _ := u.m[name].([]float32)
 	return v
+}
+
+// Glass is a Source drawing on the glass over its picture: DrawGlass draws onto dst, the picture
+// as it is shown, in its pixels, after everything the scene lays over the picture, so nothing
+// covers what it draws (the scroll zones).
+type Glass interface {
+	DrawGlass(dst *Image, cam camera.Camera)
 }

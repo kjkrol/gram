@@ -10,7 +10,35 @@ import (
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 )
 
+// the composer's tests' sources, out here with the sprites a figure is drawn with
+type items func(f *Frame)
+
+func (items) Init(*goke.SysInit)                  {}
+func (s items) Compose(f *Frame, _ camera.Camera) { s(f) }
+
+type viewed func(f *Frame, cam camera.Camera)
+
+func (viewed) Init(*goke.SysInit)                    {}
+func (s viewed) Compose(f *Frame, cam camera.Camera) { s(f, cam) }
+
+type overlyingSource struct{ Source }
+
+func (overlyingSource) Overlies() {}
+
+type overlyingDirect struct{ Direct }
+
+func (overlyingDirect) Overlies() {}
+
+// an Overlying Direct noting the depths the pass over the figures hands it
+type overPeek struct{ depth, ground *Depth }
+
+func (*overPeek) Init(*goke.SysInit)                           {}
+func (*overPeek) Overlies()                                    {}
+func (*overPeek) Compose(f *Frame, _ camera.Camera)            { f.DrawAt(Nearest) }
+func (p *overPeek) Draw(t Target, _ camera.Camera, _ Uniforms) { p.depth, p.ground = t.Depth, t.Ground }
+
 var (
+	white       = color.RGBA{255, 255, 255, 255}
 	groundGreen = color.RGBA{G: 200, A: 255}
 	figureRed   = color.RGBA{R: 220, A: 255}
 	skyBlue     = color.RGBA{B: 230, A: 255}
@@ -245,9 +273,10 @@ func TestComposer_TheOverPassBindsOverFiguresToTheGroundsDepth(t *testing.T) {
 		})}
 	}
 	figure := overlyingDirect{&figureSource{atlas: a, z: 10, id: 2}}
-	c := NewComposer(groundOf(a), figure, over(1))
+	peek := &overPeek{}
+	c := NewComposer(groundOf(a), figure, over(1), peek)
 	at := groundShot(t, c)
-	if c.ground == nil || c.depth == c.ground {
+	if peek.ground == nil || peek.depth == peek.ground {
 		t.Error("over the figures the composer bound what lies over them to the figures' depth, " +
 			"want the ground's apart")
 	}
@@ -371,13 +400,13 @@ func checkeredGround(*Atlas) *groundSource {
 func TestFeed_DrawsAFigureAtEveryPixelOverAHalfResolutionGround(t *testing.T) {
 	gputest.Need(t)
 	a := atlasOf(t)
-	line := overlyingSource{items(func(f *Frame) {
-		x0, y0 := f.cam.Project(4, 16.5, 0)
-		x1, _ := f.cam.Project(60, 16.5, 0)
+	line := overlyingSource{viewed(func(f *Frame, cam camera.Camera) {
+		x0, y0 := cam.Project(4, 16.5, 0)
+		x1, _ := cam.Project(60, 16.5, 0)
 		f.Line(OnTop(0), x0, y0, x1, y0, 1, white)
 	})}
-	figure := overlyingSource{items(func(f *Frame) {
-		corners := ProjectCorners(f.cam, 16, 40, 48, 56, 10)
+	figure := overlyingSource{viewed(func(f *Frame, cam camera.Camera) {
+		corners := ProjectCorners(cam, 16, 40, 48, 56, 10)
 		f.Sprite(f.At(32, 48, 10), a, 2, corners, Even(1))
 	})}
 	picture := NewComposer(checkeredGround(a), figure, line)
@@ -469,8 +498,8 @@ func ridgedGround(*Atlas) *groundSource {
 func TestLaid_AFigureBehindAHillIsHiddenThroughAnInnerLayersDepth(t *testing.T) {
 	gputest.Need(t)
 	a := atlasOf(t)
-	figure := overlyingSource{items(func(f *Frame) {
-		corners := ProjectCorners(f.cam, 20, 20, 44, 44, 10)
+	figure := overlyingSource{viewed(func(f *Frame, cam camera.Camera) {
+		corners := ProjectCorners(cam, 20, 20, 44, 44, 10)
 		f.Sprite(f.At(32, 32, 10), a, 2, corners, Even(1))
 	})}
 	picture := NewComposer(ridgedGround(a), figure)
@@ -499,5 +528,38 @@ func TestLaid_AFigureBehindAHillIsHiddenThroughAnInnerLayersDepth(t *testing.T) 
 		if p := at(x, 30); p != [4]byte{220, 0, 0, 255} {
 			t.Errorf("beside the ridge at (%d, 30) the figure shows %v, want it red", x, p)
 		}
+	}
+}
+
+func TestComposer_ALayerLeavesOutTheGroundUnderTheHole(t *testing.T) {
+	gputest.Need(t)
+	a := atlasOf(t)
+	c := NewComposer(groundOf(a), skySource{}, &figureSource{atlas: a, z: 10, id: 2})
+	cam := cameratest.NewFromSpace(64, 64, 0)
+	cam.SetViewport(64, 64)
+	crop := cam.(camera.Cropping)
+	whole := camera.Window{W: 64, H: 64}
+	crop.Crop(whole, 1)
+	c.Lay(cam, false)
+	crop.Uncrop()
+	crop.Crop(whole, 0.5)
+	layer := NewImage(32, 32)
+	// the layer's pixels 12 to 24 across, 8 to 24 down: over half the figure, the ground and sky
+	c.DrawLayer(layer, cam, whole, camera.Window{X: 24, Y: 16, W: 24, H: 32})
+	crop.Uncrop()
+	at := pixelsOf(layer)
+	for _, p := range [][2]int{{13, 12}, {13, 20}, {20, 20}, {23, 23}} {
+		if px := at(p[0], p[1]); px != [4]byte{} {
+			t.Errorf("under the hole (%d, %d) shows %v, want nothing drawn", p[0], p[1], px)
+		}
+	}
+	if px := at(3, 3); px != [4]byte{0, 200, 0, 255} {
+		t.Errorf("beside the hole the ground shows %v, want green", px)
+	}
+	if px := at(28, 4); px != [4]byte{0, 0, 230, 255} {
+		t.Errorf("beside the hole the sky shows %v, want blue", px)
+	}
+	if px := at(10, 12); px != [4]byte{220, 0, 0, 255} {
+		t.Errorf("the figure beside the hole shows %v, want red", px)
 	}
 }

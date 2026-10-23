@@ -1,4 +1,4 @@
-package render
+package compose
 
 import (
 	"image/color"
@@ -14,7 +14,7 @@ import (
 )
 
 // registered before any shader is built, as a package's init would
-var _ = func() bool { RegisterImage("TestProbe"); return true }()
+var _ = func() bool { wgsl.RegisterImage("TestProbe"); return true }()
 
 type probing struct {
 	img  *Image
@@ -33,12 +33,12 @@ func (p *probing) Draw(t Target, _ camera.Camera, u Uniforms) {
 	if t.Screen == nil {
 		return
 	}
-	opts := DrawMeshOptions{Uniforms: map[string]any{}, Vertices: 3}
+	opts := gfx.DrawMeshOptions{Uniforms: map[string]any{}, Vertices: 3}
 	u.Into(opts.Uniforms)
 	t.Screen.DrawMesh(nil, probeShader, &opts)
 }
 
-var probeShader = NewMeshShaderWith("probe", []byte(`
+var probeShader = gfx.NewMeshShaderWith("probe", []byte(`
 struct Out { @builtin(position) clip: vec4<f32> }
 @vertex
 fn vs_main(@builtin(vertex_index) vid: u32) -> Out {
@@ -58,7 +58,7 @@ fn fs_main(o: Out) -> @location(0) vec4<f32> {
 `), nil)
 
 func TestFrame_HandsADirectItsImageAsAUniformAndNothingOnceItIsNotSet(t *testing.T) {
-	img := NewImage(1, 1)
+	img := gfx.NewImage(1, 1)
 	p := &probing{img: img}
 	c := NewComposer(p)
 	c.draw = func(*Image, []Vertex, []uint16, *Image, [4]float32) {}
@@ -80,9 +80,9 @@ func TestFrame_HandsADirectItsImageAsAUniformAndNothingOnceItIsNotSet(t *testing
 
 func TestFrame_AShaderReadsTheFramesImageByName(t *testing.T) {
 	gputest.Need(t)
-	red := NewImage(1, 1)
+	red := gfx.NewImage(1, 1)
 	red.Fill(color.RGBA{R: 255, A: 255})
-	screen := NewImage(4, 4)
+	screen := gfx.NewImage(4, 4)
 	NewComposer(&probing{img: red}).DrawWorld(screen, topDown())
 	pix := make([]byte, 4*16)
 	screen.ReadPixels(pix)
@@ -106,7 +106,7 @@ func TestRegisterImage_RefusesALateNameAndAFrameAnUnregisteredOne(t *testing.T) 
 		f()
 	}
 	ShaderSource()
-	panics("an image registered after a shader was built", func() { RegisterImage("Late") })
+	panics("an image registered after a shader was built", func() { wgsl.RegisterImage("Late") })
 	panics("a frame handed an image never registered", func() {
 		var f Frame
 		f.Image("Unknown", nil)
