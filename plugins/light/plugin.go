@@ -25,19 +25,13 @@ import (
 // MaxLamps is how many lamps at most light a picture: the nearest its camera.
 const MaxLamps = 8
 
-// the lamps' uniforms declared, and the names each lamp's place and colour go to the frame by
-var lampUniforms, lampNames = func() ([]render.Uniform, [MaxLamps][2]string) {
-	u := []render.Uniform{{Name: "LampCount", Size: 1}}
-	var names [MaxLamps][2]string
+// the names each lamp's place and colour go to the frame by (render's light.wgsl)
+var lampNames = func() (names [MaxLamps][2]string) {
 	for k := range MaxLamps {
 		names[k] = [2]string{fmt.Sprintf("Lamp%dAt", k), fmt.Sprintf("Lamp%dColor", k)}
-		u = append(u, render.Uniform{Name: names[k][0], Size: 4},
-			render.Uniform{Name: names[k][1], Size: 3})
 	}
-	return u, names
+	return names
 }()
-
-var _ = render.RegisterMaterials(render.Files(shaders, "shaders/lamps.wgsl"), lampUniforms)
 
 // how far over the ground the live shadows lie among what lies on it: under the board's grid
 const castLift = 0.05

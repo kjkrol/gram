@@ -7,7 +7,6 @@ import (
 	"math"
 
 	"github.com/kjkrol/gram/camera"
-	_ "github.com/kjkrol/gram/plugins/light/internal/distant" // the light in the shaders
 	"github.com/kjkrol/gram/render"
 
 	"embed"

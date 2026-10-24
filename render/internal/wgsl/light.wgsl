@@ -1,6 +1,14 @@
-// The lamps in the picture: U.Lamp0At .. U.Lamp7At are where each stands (x, y, z) and how far
-// it reaches (w), U.Lamp0Color .. U.Lamp7Color its light at full strength, U.LampCount how many
-// shine. light.Plugin hands the frame them.
+// The frame's light, in every shader: U.LightWay is the way towards the distant light,
+// U.LightStrength how much it lights a surface facing it square on, U.LightColor and
+// U.AmbientColor the colours of its light and of the ambient light, U.Ambience the light every
+// surface gets anyway; U.Lamp0At .. U.Lamp7At are where each lamp in the picture stands (x, y, z)
+// and how far it reaches (w), U.Lamp0Color .. U.Lamp7Color its light at full strength,
+// U.LampCount how many shine.
+
+// lightWay is the way towards the distant light, of length 1.
+fn lightWay() -> vec3<f32> {
+    return U.LightWay / max(length(U.LightWay), 1e-6);
+}
 
 // lampAt is the lamp k's place and reach.
 fn lampAt(k: u32) -> vec4<f32> {

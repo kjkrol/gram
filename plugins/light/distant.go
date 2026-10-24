@@ -1,17 +1,12 @@
 package light
 
 import (
-	"embed"
 	"math"
 
 	"github.com/kjkrol/aabbworld/geom"
-	_ "github.com/kjkrol/gram/plugins/light/internal/distant" // the light in the shaders
 	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 )
-
-//go:embed shaders/*.wgsl
-var shaders embed.FS
 
 // Distant is a light from far off, the same everywhere, the light of a sky or a scene's own
 // (Plugin.WithDistant): Dir points from the ground towards it (z up), Strength is how much it
@@ -69,7 +64,7 @@ func (l Beam) Shaded(nx, ny, nz, lit float32) render.Light {
 // AmbientLight is the colour of the ambient light, white for the zero one.
 func (s Distant) AmbientLight() render.Light { return white(s.AmbientColor) }
 
-// Frame hands f the light's uniforms (internal/distant's light.wgsl).
+// Frame hands f the light's uniforms (render's light.wgsl).
 func (s Distant) Frame(f *render.Frame) {
 	sky := white(s.AmbientColor)
 	sun := white(s.Color)

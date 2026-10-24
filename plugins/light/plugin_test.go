@@ -190,7 +190,7 @@ func TestPlugin_LampsLightWhatLiesInTheirReachFadingWithTheDistance(t *testing.T
 
 func TestLamps_UniformNamesAreTheDeclaredOnes(t *testing.T) {
 	declared := map[string]int{}
-	for _, u := range light.LampUniforms {
+	for _, u := range render.SharedUniforms() {
 		declared[u.Name] = u.Size
 	}
 	for k, names := range light.LampNames {

@@ -11,7 +11,6 @@ import (
 	"math"
 	"slices"
 
-	_ "github.com/kjkrol/gram/plugins/light/internal/distant" // the light in the shaders
 	"github.com/kjkrol/gram/render"
 
 	"embed"
