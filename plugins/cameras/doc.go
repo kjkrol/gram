@@ -82,7 +82,9 @@
 // profile each; [Budget] sets the frame budget for both and [Sampling] how long the rate is
 // averaged over before it is followed. What else follows the budget is a [Lever] given in
 // [Config.Levers], the topography's care: turned coarser before the pictures' resolution and
-// finer after it. The plugin writes only the eye's part
+// finer after it. The budget is followed on the frame's barrier ([Plugin.Pace], told each
+// frame's times): coarser only while the drawing's side holds the frames back, not the
+// simulation, which no lever lightens. The plugin writes only the eye's part
 // of a ridden entity's steering.Driven (Look, Flown, Climb).
 //
 // # Keys

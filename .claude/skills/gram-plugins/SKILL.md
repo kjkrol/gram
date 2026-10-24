@@ -1081,8 +1081,10 @@ facts for plans, knobs and commands (who may give each). That section is the aut
   Coarser, Finer}`) are turned before the pictures both ways — the first first going coarser,
   the last first coming back — so the cheapest to the eye takes the rate's wavering and the
   pictures move under a lasting change alone; the topography's care is one; the setters take
-  the profile first (`SetStrategy(profile, s)`); the adapter steps every camera by its profile's
-  strategy, `note` writes the lead's back into its profile; the settings screen lists "Frame
+  the profile first (`SetStrategy(profile, s)`); the adapter, on the frame's barrier
+  (`Plugin.Pace`, a `plugin.Paced` told each frame's `plugin.FrameTimes`, 2026-10-24), steps
+  coarser only while the drawing's side (drawing, presenting, the wait for the GPU) took longer
+  than the simulation over the window, and every camera by its profile's strategy, `note` writes the lead's back into its profile; the settings screen lists "Frame
   budget" under `control.Picture`, then each profile's nine knobs under `control.PictureTactical`
   and `PictureTacticalLayers`, `PictureRiding` and `PictureRidingLayers` (20 settings; the two
   profiles are twin sections, laid side by side by the settings screen; an element is named `setting:<section path>/<label>`); the
