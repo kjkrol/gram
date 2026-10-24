@@ -9,6 +9,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # as the Makefile: aabbworld's pair sweep four boxes at a time where the CPU has AVX2
+    env:
+      GOEXPERIMENT: simd
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

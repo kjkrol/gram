@@ -104,7 +104,8 @@ tree from before the change with the working one, alternately, in each regime th
 (steady, and the moment it works hardest): `gram-probe`, § Checking a change.
 
 CI (`.github/workflows/go.yml`) runs
-`xvfb-run -a go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...` on Go 1.27.0.
+`xvfb-run -a go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...` on Go 1.27.0,
+with `GOEXPERIMENT=simd` as the Makefile.
 
 ## A stage in parts
 
