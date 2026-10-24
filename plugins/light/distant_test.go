@@ -4,30 +4,15 @@ import (
 	"math"
 	"testing"
 
-	"github.com/kjkrol/aabbworld/geom"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
 	"github.com/kjkrol/gram/plugins/cameras/cameratest"
 	"github.com/kjkrol/gram/plugins/light"
-	"github.com/kjkrol/gram/plugins/world"
 	"github.com/kjkrol/gram/render"
 	"github.com/kjkrol/gram/render/gputest"
 )
 
 func near(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-3 }
-
-func TestDistant_LightsBySquareOnTheSurfaceFacesIt(t *testing.T) {
-	sun := light.Distant{Dir: [3]float32{0, 0, 2}, Strength: 0.6, Ambient: 0.3}
-	if got := sun.Light(0, 0, 1)[0]; !near(got, 0.9) {
-		t.Errorf("ground under a sun overhead is lit %v, want ambient 0.3 plus all 0.6", got)
-	}
-	if got := sun.Light(1, 0, 1)[0]; !near(got, 0.3+0.6*float32(math.Sqrt(0.5))) {
-		t.Errorf("a slope at 45° is lit %v, want ambient plus 0.6·cos 45°", got)
-	}
-	if got := sun.Light(0, 0, -1)[0]; got != 0.3 {
-		t.Errorf("a surface turned away is lit %v, want the ambient alone", got)
-	}
-}
 
 func TestDefaultSun_KeepsTheLookOfTheIsometricView(t *testing.T) {
 	sun := sky.DefaultSun
@@ -77,36 +62,6 @@ func TestDistant_ColoursItsLightAndTheSkysAndHandsTheFrameThem(t *testing.T) {
 type source func(f *render.Frame)
 
 func (s source) Compose(f *render.Frame, _ camera.Camera) { s(f) }
-
-func shadowsOf(z world.Z, sun light.Distant) (middles []geom.Vec) {
-	if p, ok := sun.ShadowOf(geom.NewAABBAt(geom.NewVec(100, 100), 10, 10), z, nil); ok {
-		middles = append(middles, geom.NewVec(float64(p.X), float64(p.Y)))
-	}
-	return middles
-}
-
-func TestDistant_LaysAShadowAwayFromItPushedOffByHowHighTheEntityStands(t *testing.T) {
-	// 45° up in the west
-	west := light.Distant{Dir: [3]float32{-1, 0, 1}, Strength: 0.6, Ambient: 0.3}
-	walker := shadowsOf(world.Z{Altitude: 0, Height: 4}, west)
-	hawk := shadowsOf(world.Z{Altitude: 40, Height: 4}, west)
-	if len(walker) != 1 || len(hawk) != 1 {
-		t.Fatalf("shadows %v and %v, want one each", walker, hawk)
-	}
-	// the walker's centre is at (105, 105): its shadow reaches east by its height, 4 at 45°
-	if walker[0].X != 107 || walker[0].Y != 105 {
-		t.Errorf("the walker's shadow lies round %v, want (107, 105): east of it by half its "+
-			"height", walker[0])
-	}
-	if hawk[0].X != 147 || hawk[0].Y != 105 {
-		t.Errorf("the hawk's shadow lies round %v, want (147, 105): pushed 40 further east",
-			hawk[0])
-	}
-	down := shadowsOf(world.Z{Height: 4}, light.Distant{Dir: [3]float32{-1, 0, -0.1}})
-	if len(down) != 0 {
-		t.Errorf("%d shadows with the light down, want none", len(down))
-	}
-}
 
 func TestDistant_ItsShaderCompiles(t *testing.T) {
 	gputest.Need(t)

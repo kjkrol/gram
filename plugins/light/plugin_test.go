@@ -109,8 +109,7 @@ func TestPlugin_WithoutASunLightsEverythingWhiteAndCastsNoShadow(t *testing.T) {
 		t.Errorf("the ground is lit %+v, want white, taking all", lit)
 	}
 	if _, ok := p.Read(0).Distant().ShadowOf(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(4, 4)),
-		world.Z{},
-		nil); ok {
+		0, 0, nil); ok {
 		t.Error("a world without a sun casts a shadow")
 	}
 }

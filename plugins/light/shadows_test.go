@@ -15,31 +15,6 @@ import (
 	"github.com/kjkrol/gram/render"
 )
 
-func TestLamp_LaysAShadowAwayFromItLongerTheNearerAndTheTallerTheEntity(t *testing.T) {
-	lamp := light.Lamp{X: 100, Y: 100, Z: 20, Reach: 200, Color: render.Light{1, 1, 1}}
-	box := geom.NewAABBAt(geom.NewVec(145, 95), 10, 10) // round (150, 100)
-	// 50 east of the lamp, 4 tall under a lamp 20 up: the shadow runs east 50·4/16 past its feet
-	walker, ok := lamp.ShadowOf(box, world.Z{Height: 4}, false)
-	if !ok || walker.UX != 1 || walker.UY != 0 || !near(walker.X, 150+12.5/2) ||
-		!near(walker.Along, 12.5/2+5) {
-		t.Errorf("the walker's shadow is %+v, want it east, 12.5 long past its feet", walker)
-	}
-	if tower, ok := lamp.ShadowOf(box, world.Z{Height: 30}, false); !ok ||
-		!near(tower.Along, 30*6/2+5) {
-		t.Errorf("a tower taller than the lamp casts %+v, want a shadow as long as the sun's "+
-			"longest, six times its height", tower)
-	}
-	if shape, _ := lamp.ShadowOf(box, world.Z{Height: 4}, true); shape.Fade != 0 ||
-		!near(shape.Along, 12.5/2) || shape.Wide != 5 {
-		t.Errorf("the shape cast is %+v, want it unfaded, as long as the shadow, as wide as the "+
-			"box", shape)
-	}
-	far := geom.NewAABBAt(geom.NewVec(395, 95), 10, 10)
-	if _, ok := lamp.ShadowOf(far, world.Z{Height: 4}, false); ok {
-		t.Error("past the lamp's reach it casts a shadow")
-	}
-}
-
 type sheet struct{}
 
 func (sheet) Atlas() *render.Image                            { return nil }

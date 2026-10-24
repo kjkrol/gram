@@ -55,8 +55,9 @@ type Relief interface {
 }
 
 // ShadowPolicy is how an entity casts its live shadow at distance world units from the eye (0
-// through a camera without one), its Shadow declaring declared: Patch, Silhouette or NoShadow.
-type ShadowPolicy func(declared Casting, distance float32) Casting
+// through a camera without one), its Shadow declaring declared: Patch, Silhouette or NoShadow
+// (render.ShadowPolicy).
+type ShadowPolicy = render.ShadowPolicy
 
 // Plugin is the light over a world: a Distant light some entity shines with (the sun), and the
 // lamps, the Sources that reach; what lights the entities and the ground, and what shade each
@@ -337,7 +338,7 @@ func (p *Plugin) on(x, y, z float32, takes render.Taking) render.Illumination {
 		return lit
 	}
 	for _, l := range p.near {
-		if c, ok := l.light(x, y, z); ok {
+		if c, ok := l.Light(x, y, z); ok {
 			for k := range lit.Lamps {
 				lit.Lamps[k] += c[k]
 			}
@@ -366,9 +367,9 @@ func (p *Plugin) cast(box geom.AABB, z world.Z, a render.Appearance, declared Ca
 		return
 	}
 	shape := casting == Silhouette
-	if u, ok := p.distant.ShadowOf(box, z, p.groundAt()); ok {
+	if u, ok := p.distant.ShadowOf(box, z.Altitude, z.Height, p.groundAt()); ok {
 		if shape {
-			u, _ = p.distant.SilhouetteOf(box, z, p.groundAt())
+			u, _ = p.distant.SilhouetteOf(box, z.Altitude, z.Height, p.groundAt())
 		}
 		p.gather(u, a, shape)
 	}
@@ -376,7 +377,7 @@ func (p *Plugin) cast(box geom.AABB, z world.Z, a render.Appearance, declared Ca
 		return
 	}
 	for _, l := range p.read.Casting() {
-		if u, ok := l.ShadowOf(box, z, shape); ok {
+		if u, ok := l.ShadowOf(box, z.Altitude, z.Height, shape); ok {
 			p.gather(u, a, shape)
 		}
 	}

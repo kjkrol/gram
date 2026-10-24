@@ -7,6 +7,7 @@ import (
 
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/render/internal/gfx"
+	"github.com/kjkrol/gram/render/internal/light"
 	"github.com/kjkrol/gram/render/internal/wgsl"
 )
 
@@ -205,23 +206,20 @@ func premultiplied(c color.RGBA) [4]float32 {
 	return [4]float32{float32(c.R) / 0xff * a, float32(c.G) / 0xff * a, float32(c.B) / 0xff * a, a}
 }
 
-// Light is a colour of light, red, green and blue, a colour drawn in it is scaled by; 1 each is
-// white.
-type Light [3]float32
+// Light is a colour of light (light.Light).
+type Light = light.Light
 
-// Taking is which shade a drawn thing takes, bits of it: the relief's shadow, the baked blocks',
-// the clouds', and which light, the lamps'. One taking none shines as it is drawn.
-type Taking uint8
+// Taking is which shade a drawn thing takes (light.Taking).
+type Taking = light.Taking
 
+// The shades a drawn thing takes (light.TakesAll…).
 const (
-	TakesRelief Taking = 1 << iota
-	TakesBlocks
-	TakesClouds
-	TakesLamps
-	// Shines takes nothing: the thing is drawn as it is.
-	Shines Taking = 1 << 7
-	// TakesAll takes every shade and the lamps' light, as a zero Taking does.
-	TakesAll = TakesRelief | TakesBlocks | TakesClouds | TakesLamps
+	TakesRelief = light.TakesRelief
+	TakesBlocks = light.TakesBlocks
+	TakesClouds = light.TakesClouds
+	TakesLamps  = light.TakesLamps
+	Shines      = light.Shines
+	TakesAll    = light.TakesAll
 )
 
 // Shade is the light a piece is drawn in at its corners, top-left, top-right, bottom-left,
