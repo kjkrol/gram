@@ -9,6 +9,7 @@ import (
 	"github.com/kjkrol/ceremony/command"
 	"github.com/kjkrol/gram/camera"
 	"github.com/kjkrol/gram/control"
+	"github.com/kjkrol/gram/render"
 )
 
 // Strategy is how the pictures' resolution follows the frame budget: not at all, the whole
@@ -98,6 +99,30 @@ func (s *Settings) knobs(profile Profile) *Knobs {
 		return &s.Riding
 	}
 	return &s.Tactical
+}
+
+// drawnSettings are the cameras' settings as the frame drawn holds them, the live ones before any
+// was published
+type drawnSettings struct {
+	live    *Settings
+	buf     render.Buffered[Settings]
+	swapped bool
+}
+
+// Publish hands the frame drawn next the settings as they stand.
+func (d *drawnSettings) Publish() { *d.buf.Back() = *d.live }
+
+// Swap has the settings published last drawn.
+func (d *drawnSettings) Swap() {
+	d.buf.Swap()
+	d.swapped = true
+}
+
+func (d *drawnSettings) drawn() *Settings {
+	if !d.swapped {
+		return d.live
+	}
+	return d.buf.Front()
 }
 
 // Resources is what the cameras publish: their Settings.

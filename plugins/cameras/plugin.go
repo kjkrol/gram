@@ -132,8 +132,8 @@ func NewPlugin(worldPlugin *world.Plugin, cfg Config) *Plugin {
 	p := &Plugin{worldPlugin: worldPlugin, cfg: cfg, worn: map[camera.Camera]dressed{}}
 	p.read.p, p.write.p = p, p
 	p.Self = world.NewSelf(worldPlugin, p)
-	p.zonesView = &zonesView{settings: &p.Res.Settings}
-	p.layersView = &layersView{settings: &p.Res.Settings}
+	p.zonesView = &zonesView{drawnSettings{live: &p.Res.Settings}}
+	p.layersView = &layersView{drawnSettings{live: &p.Res.Settings}}
 	p.kept = plugin.Keep(&p.Res.Settings)
 	p.levers = cfg.Levers
 	p.Res.Settings = Settings{Tactical: cfg.Tactical.filled(), Riding: cfg.Riding.filled()}

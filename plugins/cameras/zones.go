@@ -43,7 +43,7 @@ const zoneGap = 6
 
 // zonesView draws the scroll zones on the glass over every picture but one of the whole world:
 // in shown pixels, over whatever the scene lays over the picture (render.Glass).
-type zonesView struct{ settings *Settings }
+type zonesView struct{ drawnSettings }
 
 var _ render.Source = (*zonesView)(nil)
 var _ render.Glass = (*zonesView)(nil)
@@ -54,7 +54,7 @@ func (*zonesView) Compose(*render.Frame, camera.Camera) {}
 // DrawGlass draws the zones over dst, the picture as shown: the strips control.EdgeMargin wide,
 // the corners control.CornerSide a side, each clear inside and zoneColor at the edge.
 func (v *zonesView) DrawGlass(dst *render.Image, cam camera.Camera) {
-	if !v.settings.Zones || fitsWhole(cam) {
+	if !v.drawn().Zones || fitsWhole(cam) {
 		return
 	}
 	b := dst.Bounds()
