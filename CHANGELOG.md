@@ -132,7 +132,7 @@ collision's pair sweep tests a crowded cell four boxes at a time, finding the sa
   their own, started as the barrier ends; the next barrier waits for them, swaps what they
   published in and takes the frame's input there, so what the input does is shown a frame later.
   A stage's first frame, the frame a stage switch shows its overlay in and every frame with
-  `GRAM_SERIAL` set run as before. The game's pool is one short of the CPUs then, the drawing's
+  `Props.Serial` (or `GRAM_SERIAL`, whatever the game says) set run as before. The game's pool is one short of the CPUs then, the drawing's
   thread left a core (`Props.Workers` says otherwise). `GRAM_FPS_LOG` notes how long a frame
   awaited its ticks. A minimap hidden still publishes where it looks, for its compass; a ui
   picture is drawn straight onto a target only at the size it was laid out at.

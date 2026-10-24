@@ -8,10 +8,10 @@
 // its visible scenes. It is also the game.Runtime every Stage and Scene sees. The next frame's
 // ticks and publishing run on a goroutine of their own while a frame is drawn; the barrier
 // between waits for them, takes the input and lays the scenes out. A stage's first frame, a
-// switch's and, with GRAM_SERIAL set, every frame tick before they are drawn. GRAM_FPS_LOG has it
-// log the frame rate every second, GRAM_FULLSCREEN starts it fullscreen (F11 switches),
-// GRAM_VSYNC=off unpaces it, GRAM_SHOT=<file.png> saves the frame GRAM_SHOT_FRAME (120) and quits,
-// the world taking one step a frame till then.
+// switch's and, with Props.Serial or GRAM_SERIAL set, every frame tick before they are drawn.
+// GRAM_FPS_LOG has it log the frame rate every second, GRAM_FULLSCREEN starts it fullscreen (F11
+// switches), GRAM_VSYNC=off unpaces it, GRAM_SHOT=<file.png> saves the frame GRAM_SHOT_FRAME (120)
+// and quits, the world taking one step a frame till then.
 //
 // # Initializer, runtime and persistence
 //

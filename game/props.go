@@ -17,4 +17,7 @@ type Props struct {
 	// as many as there are CPUs, one left to the drawing where the ticks run while a frame is
 	// drawn; 1 none.
 	Workers int
+	// Serial has every frame ticked before it is drawn, as GRAM_SERIAL does whatever it says. Off,
+	// the next frame is ticked while a frame is drawn, the input shown a frame later.
+	Serial bool
 }

@@ -163,3 +163,19 @@ func TestWorkers_LeaveOneToTheDrawingWhereTheTicksRunApart(t *testing.T) {
 		}
 	}
 }
+
+func TestEngine_IsSerialAsThePropsSayOrGRAM_SERIAL(t *testing.T) {
+	st := stage.New("meadow").Update(func(goke.RunCtx, time.Duration) {})
+	for _, c := range []struct {
+		serial bool
+		env    string
+		want   bool
+	}{{false, "", false}, {true, "", true}, {false, "1", true}} {
+		t.Setenv("GRAM_SERIAL", c.env)
+		e := NewEngine(oneStageGame{stage: st, props: game.Props{Serial: c.serial}})
+		if e.serial != c.want {
+			t.Errorf("Props.Serial %v, GRAM_SERIAL %q: serial %v, want %v", c.serial, c.env,
+				e.serial, c.want)
+		}
+	}
+}

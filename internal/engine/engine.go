@@ -56,7 +56,7 @@ type Engine struct {
 	awaited       time.Duration     // the last frame's wait for its simulation
 	timed         bool              // a frame timed since the last barrier
 
-	serial    bool               // GRAM_SERIAL: every frame's ticks run before it is drawn
+	serial    bool               // Props.Serial, GRAM_SERIAL: each frame ticked before it is drawn
 	running   bool               // a simulation simulate started, not joined yet
 	simulated chan time.Duration // how long it took
 }
@@ -78,7 +78,7 @@ func NewEngine(g game.Game) *Engine {
 	}
 	adapter := &DesktopAdapter{}
 	controller := NewDefaultController(adapter, inputs)
-	serial := os.Getenv("GRAM_SERIAL") != ""
+	serial := props.Serial || os.Getenv("GRAM_SERIAL") != ""
 	e := &Engine{
 		adapter:           adapter,
 		game:              g,
@@ -288,7 +288,7 @@ func (e *Engine) advance(w, h int, t *plugin.FrameTimes) (readied bool, awaited 
 }
 
 // concurrent reports whether the next frame's simulation may run while this one is drawn: not
-// with GRAM_SERIAL, nor while a stage waits to be entered or readied, nor once the game quits
+// serially, nor while a stage waits to be entered or readied, nor once the game quits
 func (e *Engine) concurrent() bool {
 	return !e.serial && e.pendingSwitch == "" && e.current.prepared && !e.quit
 }
