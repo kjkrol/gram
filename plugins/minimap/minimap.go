@@ -155,14 +155,12 @@ func (s allMarks) SetupSystems() []goke.System {
 	return out
 }
 
-// Publish takes every minimap's marks once a redraw at most, while the minimaps are shown.
+// Publish takes every minimap's marks once a redraw at most, while the minimaps are shown; hidden,
+// only where each looks, for its compass.
 func (s allMarks) Publish() {
-	if s.p.Res.Settings.Hidden {
-		return
-	}
 	now := time.Now()
 	for _, m := range s.p.maps {
-		m.marks.publish(now)
+		m.marks.publish(now, !s.p.Res.Settings.Hidden)
 	}
 }
 
@@ -244,13 +242,18 @@ func (v *marksView) Init(si *goke.SysInit) {
 }
 
 // publish takes the marks round the minimap once their time comes
-func (v *marksView) publish(now time.Time) {
+// publish takes where the minimap looks, and with marked its marks and its camera's outline
+func (v *marksView) publish(now time.Time, marked bool) {
 	if now.Before(v.due) {
 		return
 	}
 	v.due, v.fresh = now.Add(redraw), true
 	b := v.drawn.Back()
 	b.all, b.at, b.reach, b.version = b.all[:0], v.m.at, v.m.p.cfg.Reach, v.drawn.Front().version+1
+	if !marked {
+		b.outlined = false
+		return
+	}
 	b.outlined = v.m.outline(&b.outline)
 	styles := v.m.p.w.Read(0).Styles()
 	if styles == nil {

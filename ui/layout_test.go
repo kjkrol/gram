@@ -189,6 +189,17 @@ func TestImage_FillingTheScreenDrawsStraightOntoIt(t *testing.T) {
 	}
 }
 
+func TestImage_DrawnOntoATargetOfAnotherSizeThanLaidIsNotResized(t *testing.T) {
+	src := &straight{}
+	e := Image(src)
+	e.lay(screen)
+	e.content.draw(e, render.NewImage(600, 300))
+	if src.onto || src.w != 1200 || src.h != 600 {
+		t.Errorf("laid 1200x600 and drawn onto 600x300, it was drawn straight onto it %v at "+
+			"%dx%d, want drawn at the size laid", src.onto, src.w, src.h)
+	}
+}
+
 func TestImage_OverhangingTheScreenIsLaidAtTheScreensSizeItIsDrawnAt(t *testing.T) {
 	big := &straight{}
 	s := NewScene("main", Center(Image(big)).Size(1600, 1000))

@@ -107,7 +107,7 @@ func TestMinimap_IsDrawnLookingWhereItWasPublished(t *testing.T) {
 	p.For(cam, command.Nobody)
 	m := p.maps[0]
 	m.lens.SetViewport(100, 100)
-	m.marks.publish(time.Now())
+	m.marks.publish(time.Now(), true)
 	m.marks.swap()
 	cam.CenterOn(500, 500, 0)
 	p.RunPlan(nil, 0)
@@ -115,7 +115,7 @@ func TestMinimap_IsDrawnLookingWhereItWasPublished(t *testing.T) {
 		t.Errorf("moved after the minimap was published, it is drawn over (%v, %v), want "+
 			"(300, 700) till the next", at.cx, at.cy)
 	}
-	m.marks.publish(time.Now().Add(redraw))
+	m.marks.publish(time.Now().Add(redraw), true)
 	m.marks.swap()
 	if at := m.shown(); at.cx != 500 || at.cy != 500 {
 		t.Errorf("published again, it is drawn over (%v, %v), want (500, 500)", at.cx, at.cy)
@@ -291,7 +291,7 @@ func TestMarks_ADotForEveryEntityRoundWhoseKindHasAMark(t *testing.T) {
 	ecs := start(t, w, goke.SystemFn{OnInit: marks.Init})
 	ecs.Tick(time.Second / 60)
 	p.RunPlan(nil, 0)
-	marks.publish(time.Now())
+	marks.publish(time.Now(), true)
 	marks.swap()
 	var f render.Frame
 	f.Reset(m.lens)
@@ -442,7 +442,7 @@ func TestMarks_ArePublishedOnceARedrawAtMost(t *testing.T) {
 		after time.Duration
 		want  uint64
 	}{{0, 1}, {redraw / 2, 1}, {redraw, 2}, {redraw + redraw/2, 2}, {2 * redraw, 3}} {
-		v.publish(now.Add(step.after))
+		v.publish(now.Add(step.after), true)
 		v.swap()
 		if got := v.drawn.Front().version; got != step.want {
 			t.Errorf("%v on, the marks drawn are the %dth published, want the %dth", step.after,
@@ -482,7 +482,7 @@ func spans(m *minimap) (x0, x1, y0, y1 float32) {
 
 func TestOutline_IsDrawnAsPublished(t *testing.T) {
 	m, cam := outlined()
-	m.marks.publish(time.Now())
+	m.marks.publish(time.Now(), true)
 	m.marks.swap()
 	before0, before1, _, _ := spans(m)
 	cam.CenterOn(300, 300, 0)
@@ -490,7 +490,7 @@ func TestOutline_IsDrawnAsPublished(t *testing.T) {
 		t.Errorf("the camera moved after the publish, the outline spans x %v..%v, want %v..%v "+
 			"as published", x0, x1, before0, before1)
 	}
-	m.marks.publish(time.Now().Add(redraw))
+	m.marks.publish(time.Now().Add(redraw), true)
 	m.marks.swap()
 	if x0, _, _, _ := spans(m); x0 == before0 {
 		t.Error("published again, the outline stays where the camera was")
@@ -504,5 +504,28 @@ func TestMinimap_CoversWhereTheTicksHaveItLookNotWhereItIsDrawn(t *testing.T) {
 	if got := m.covered(); got != want {
 		t.Errorf("the lens drawn aimed elsewhere, the minimap covers %v, want %v: where the "+
 			"ticks have it look", got, want)
+	}
+}
+
+func TestCompass_PointsAsPublishedWhileTheMinimapsAreHidden(t *testing.T) {
+	w := world.NewPlugin(world.Config{
+		Space:    world.SpaceCfg{Width: 1000, Height: 1000},
+		Entities: world.EntitiesCfg{MaxCount: 1, MinSize: 1, MaxSize: 10},
+	})
+	p := NewPlugin(w, nil, Config{Reach: 100, Turning: true})
+	cam := cameratest.NewFromSpace(1000, 1000, 0)
+	cam.SetViewport(400, 300)
+	p.For(cam, command.Issuer(0))
+	p.Res.Settings.Hidden = true
+	m := p.maps[0]
+	m.of = turned{cam, 1, 0}
+	m.follow(true)
+	allMarks{p}.Publish()
+	allMarks{p}.Swap()
+	m.of = turned{cam, 0, 1}
+	m.follow(true)
+	if dx, dy := (&compass{m: m}).north(); math.Abs(dx+1) > 1e-9 || math.Abs(dy) > 1e-9 {
+		t.Errorf("hidden, headed east as published and south since, north runs (%.2f, %.2f), "+
+			"want (-1, 0): as published", dx, dy)
 	}
 }

@@ -162,6 +162,7 @@ type picture struct {
 	input Input
 	glass geom.AABB // where the picture was drawn this frame, for its source's glass
 	drawn bool
+	laid  [2]int // the size its source was laid out at
 }
 
 // glassed is a picture's source drawing on the glass over it, last of all (render.Feed)
@@ -175,17 +176,22 @@ func (p *picture) place(e *Element, box geom.AABB) {
 			w, h = sw, sh
 		}
 	}
-	p.src.Resize(int(math.Round(w)), int(math.Round(h)))
+	p.laid = [2]int{int(math.Round(w)), int(math.Round(h))}
+	p.src.Resize(p.laid[0], p.laid[1])
 }
 
 type direct interface{ DrawOn(dst *render.Image) }
 
+// draw paints the source in its box: straight onto a dst it fills at the size it was laid out at,
+// so that drawing resizes nothing
 func (p *picture) draw(e *Element, dst *render.Image) {
 	box := shrink(e.box, e.padding)
 	if _, ok := p.src.(glassed); ok {
 		p.glass, p.drawn = box, true
 	}
-	if d, ok := p.src.(direct); ok && e.mask == nil && fills(box, dst) {
+	b := dst.Bounds()
+	if d, ok := p.src.(direct); ok && e.mask == nil && fills(box, dst) &&
+		b.Dx() == p.laid[0] && b.Dy() == p.laid[1] {
 		d.DrawOn(dst)
 		return
 	}
