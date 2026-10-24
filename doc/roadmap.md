@@ -84,6 +84,19 @@ What is left to do. Take an item out when it lands.
   shot touching), a wounded unit slowed by its own Z in `collision.Field.Overhang`.
 - **Live hydrology** — the water worked out as the game goes: rivers swelling after rain, drying
   in summer, courses changing with the weather and the season.
+- **Sight's cost** — the scan of `vision` reads the ground along every ray exactly
+  (`ground.Profile`, the topography's `relief.Along`: about two points a crossed cell, each
+  handed to aabbworld's raycast by a callback). `Benchmark_Vision_Relief` (2026-10-24): the
+  profile 1.60 ms a tick, sampled a cell apart 1.31 ms, every 50 m 6.15 ms; of the scan the
+  relief 53%, aabbworld's raycast 24%, the board's cover 14%. Every entity with a `Sight` and an
+  `Eye` is scanned, though the views on screen are worked out on the GPU apart: in
+  board/topography nothing reads the result. Ways, for the coming AI plugin that filters what
+  its entities see: scanning only whom something reads (an AI's entities, a `Sighted` asked for,
+  `SightOutline`, `Sighting` rules); skipping ground that cannot raise a ray's horizon (a
+  max-height mip of the relief, `ground.Profile` told the angle to beat — both repos); fewer rays
+  or sampling far off (with the LOD); SIMD in aabbworld (24% at most, more only with the profile
+  handed over in batches or rays walked in lockstep — both repos). Measured: `Along` clamping
+  with comparisons and folding a cell's corners once, −3–4% of the scan, the same points.
 
 ## Landscape and Madeira
 
