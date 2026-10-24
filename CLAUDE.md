@@ -70,7 +70,13 @@ make demo-motion-bullet                                         # a soldier on W
 make demo-motion-platformer                                     # a hero in a side view under gravity: A/D walk, W jumps, G turns gravity over
 make bench                                                      # every benchmark once, with allocations
 make bench-save                                                 # 5 repeats into bench_results/ (ignored by git)
+make build                                                      # every package, the examples too
+make test                                                       # every test
 ```
+
+The Makefile builds, tests, benches and runs with `GOEXPERIMENT=simd` (aabbworld's pair sweep
+four boxes at a time on a CPU with AVX2); `GOEXPERIMENT=` on its command line goes without it,
+and a plain `go` command goes without it unless the variable is set.
 
 Only `render` (its device in `render/internal/gpu`) and `internal/engine` import gogpu (and wgpu,
 gputypes); plugins see `render` and `control`. Tests that draw ready a headless device
