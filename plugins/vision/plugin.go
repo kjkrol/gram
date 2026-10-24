@@ -21,16 +21,17 @@ import (
 type Plugin struct {
 	*world.Self
 
-	worldPlugin *world.Plugin
-	module      *module
-	renderer    *Renderer
-	groundStep  float64
-	heights     func() ground.Heights
-	covers      func(w int) ground.Cover // worker w's
-	workers     int
-	frequency   float64
-	log         *log.Logger
-	cones       command.Queue[Cones]
+	worldPlugin  *world.Plugin
+	module       *module
+	renderer     *Renderer
+	groundStep   float64
+	heights      func() ground.Heights
+	drawnHeights func() ground.Heights    // the frame's, what the views are drawn over
+	covers       func(w int) ground.Cover // worker w's
+	workers      int
+	frequency    float64
+	log          *log.Logger
+	cones        command.Queue[Cones]
 
 	sightings host.PairRules[Sighting]
 	drawing   world.Rules
@@ -123,9 +124,11 @@ func (p *Plugin) WithShadow(shadow Shadow) *Plugin {
 	return p
 }
 
-// WithBoard has sight follow brd's ground and be held back by its cover; call before Use.
+// WithBoard has sight follow brd's ground and be held back by its cover, and the views drawn
+// over the ground as the frame drawn holds it; call before Use.
 func (p *Plugin) WithBoard(brd *board.Plugin) *Plugin {
 	p.covers = func(w int) ground.Cover { return brd.Read(w).Cover() }
+	p.drawnHeights = brd.Read(0).DrawnHeights
 	return p.WithHeights(brd.Read(0).Heights)
 }
 
@@ -145,11 +148,15 @@ func (p *Plugin) WithCover(cover func() ground.Cover) *Plugin {
 	return p
 }
 
+// the ground the views are drawn over: the frame's where the board gives it
 func (p *Plugin) groundOf() ground.Heights {
-	if p.heights == nil {
-		return nil
+	switch {
+	case p.drawnHeights != nil:
+		return p.drawnHeights()
+	case p.heights != nil:
+		return p.heights()
 	}
-	return p.heights()
+	return nil
 }
 
 func (p *Plugin) coverOf() ground.Cover { return p.coverOn(0) }

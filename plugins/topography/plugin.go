@@ -180,6 +180,15 @@ func (m drawnMap) Top(c cell.ID) (corners [4]float32, level float32) {
 	return m.p.drawnRelief().Top(c, m.p.drawnBoard.Kind(c).Height)
 }
 
+// DrawnHeights is the ground's height as the frame drawn holds it (board.Read.DrawnHeights).
+func (p *Plugin) DrawnHeights() ground.Heights { return drawnHeights{p} }
+
+// drawnHeights is the frame's relief, for what draws on it
+type drawnHeights struct{ p *Plugin }
+
+func (h drawnHeights) At(at geom.Vec) float64 { return h.p.drawnRelief().At(at) }
+func (h drawnHeights) Step() float64          { return h.p.drawnRelief().Step() }
+
 // drawnGround is the relief the terrain draws, the frame's
 type drawnGround struct{ p *Plugin }
 

@@ -75,10 +75,11 @@ type Renderer struct {
 	frame   *render.Frame // the one being composed
 	camera  camera.Camera // the one of the frame being composed
 	space   *aabbworld.Space
-	// nil: level at 0
-	heights func() ground.Heights
-	ground  ground.Heights
-	step    float64
+	// nil: level at 0; those of the frame drawn, nil: heights
+	heights      func() ground.Heights
+	drawnHeights func() ground.Heights
+	ground       ground.Heights
+	step         float64
 	// nil: the box as it lies
 	look   func() world.Look
 	routes bool
@@ -157,6 +158,12 @@ func (r *Renderer) WithStyles(styles func() *render.Styles) *Renderer {
 
 func (r *Renderer) WithHeights(heights func() ground.Heights) *Renderer {
 	r.heights = heights
+	return r
+}
+
+// WithDrawnHeights has the routes drawn over the ground as the frame drawn holds it.
+func (r *Renderer) WithDrawnHeights(heights func() ground.Heights) *Renderer {
+	r.drawnHeights = heights
 	return r
 }
 
@@ -239,8 +246,12 @@ func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	r.frame, r.camera = f, cam
 	r.gpu.Reset()
 	r.ground, r.step = nil, 0
-	if r.heights != nil {
-		if r.ground = r.heights(); r.ground != nil {
+	heights := r.drawnHeights
+	if heights == nil {
+		heights = r.heights
+	}
+	if heights != nil {
+		if r.ground = heights(); r.ground != nil {
 			r.step = r.ground.Step()
 		}
 	}

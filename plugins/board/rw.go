@@ -36,6 +36,15 @@ func (r *Read) CellKinds() cell.Kinds { return r.p.kinds }
 // Heights is the board's ground heights, its Map's; nil on a flat map.
 func (r *Read) Heights() ground.Heights { return r.p.board.mapping.Heights() }
 
+// DrawnHeights is the height of the ground as the frame drawn holds it, for what draws: the
+// Map's DrawnHeights where it has them, its Heights else; nil on a flat map.
+func (r *Read) DrawnHeights() ground.Heights {
+	if d, ok := r.p.board.mapping.(interface{ DrawnHeights() ground.Heights }); ok {
+		return d.DrawnHeights()
+	}
+	return r.p.board.mapping.Heights()
+}
+
 // Footing is where whoever moves over the board stands, the ground or a deck; nil on a flat map.
 func (r *Read) Footing() ground.Surfaces {
 	if r.Heights() == nil {
