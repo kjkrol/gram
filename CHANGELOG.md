@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+Needs aabbworld v1.16.0: built with `GOEXPERIMENT=simd` and run on a CPU with AVX2, the
+collision's pair sweep tests a crowded cell four boxes at a time, finding the same pairs.
+
 **The renderer's boundary** (2026-10-23, branch `feat/render-boundary`)
 - Breaking: the device is render's own, `render/internal/gpu`; the engine reaches it through
   `render.UseDevice`, `render.Windowed`, `render.Present` and `render.Submit`, a test that draws

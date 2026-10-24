@@ -8,7 +8,7 @@ require (
 	github.com/gogpu/gputypes v0.8.0
 	github.com/gogpu/naga v0.19.0
 	github.com/gogpu/wgpu v0.34.5
-	github.com/kjkrol/aabbworld v1.15.0
+	github.com/kjkrol/aabbworld v1.16.0
 	github.com/kjkrol/astar v1.1.3
 	github.com/kjkrol/ceremony v0.3.1
 	github.com/kjkrol/goke/v3 v3.6.0
