@@ -116,6 +116,8 @@ type Config struct {
 	Scale world.Scale
 	// what a camera sees of the world's sectors, the ground drawn of those alone; nil, all of it
 	Seen func(camera.Camera) *view.View
+	// how the frame drawn is set: its care's rings and its haze; nil, as SetCare and Haze set
+	Drawn func() (care int, hazed bool)
 }
 
 // Renderer draws the ground as a mesh: a render.Direct source in the opaque pass.
@@ -181,14 +183,13 @@ func (r *Renderer) Care() int { return r.care }
 func (r *Renderer) Cared() [cares]int { return r.counts }
 
 // Compose has the ground drawn Direct, in the opaque pass, and hands the frame its heights
-// (render.GroundHeights).
-func (r *Renderer) Compose(f *render.Frame, _ camera.Camera) {
+// (render.GroundHeights), as the image holds them from this frame on.
+func (r *Renderer) Compose(f *render.Frame, cam camera.Camera) {
 	f.DrawOpaque()
-	cols, rows, cell, _, ok := r.ground.Lattice()
-	if !ok || r.lattice == nil || r.heightsAt == 0 {
+	cols, rows, cell, _, _ := r.ground.Lattice()
+	if !r.heightsOf(cam) {
 		return
 	}
-	// the heights as the last frame drew them: they change as the relief is shaped, by hand
 	f.GroundHeights(render.GroundHeights{Image: r.lattice, Corners: [2]int{cols, rows}, Cell: cell,
 		Low: r.low, Span: r.span})
 }
@@ -265,7 +266,9 @@ func flag(b bool) float32 {
 	return 0
 }
 
-func (r *Renderer) refresh(cam camera.Camera) bool {
+// heightsOf has the lattice hold the ground's heights and their normals, and the triangles laid
+// by the sectors cam sees, as they stand; false off a lattice the renderer draws
+func (r *Renderer) heightsOf(cam camera.Camera) bool {
 	cols, rows, cell, heights, ok := r.ground.Lattice()
 	if !ok || cols < 2 || rows < 2 || 2*cols > maxLattice || 2*rows > maxLattice {
 		return false
@@ -281,11 +284,19 @@ func (r *Renderer) refresh(cam camera.Camera) bool {
 		r.relay(cam, cols, rows, cell)
 		r.buf = normals(cols, rows, cell, heights, r.buf[:0])
 		r.write(cols, 0, cols, rows)
-	} else if r.cfg.Seen != nil && r.cfg.Seen(cam).Grid() != r.grid {
+	} else if r.seenGrid(cam) != r.grid {
 		r.buf = r.buf[:0]
 		_, _, r.buf = encode(heights, r.buf)
 		r.relay(cam, cols, rows, cell)
 	}
+	return true
+}
+
+func (r *Renderer) refresh(cam camera.Camera) bool {
+	if !r.heightsOf(cam) {
+		return false
+	}
+	cols, rows, _, _, _ := r.ground.Lattice()
 	r.painted = r.surface.Surface()
 	if v := r.painted.Coast + 1; r.coastAt != v {
 		r.coastAt = v
@@ -306,12 +317,20 @@ func (r *Renderer) refresh(cam camera.Camera) bool {
 	return true
 }
 
+// the sectors cam's View sees, nil for none: a camera of no View, or a world of no sectors
+func (r *Renderer) seenGrid(cam camera.Camera) view.Sectors {
+	if r.cfg.Seen == nil {
+		return nil
+	}
+	if v := r.cfg.Seen(cam); v != nil {
+		return v.Grid()
+	}
+	return nil
+}
+
 // the triangles laid anew by the sectors cam's View sees, from the heights encoded in r.buf
 func (r *Renderer) relay(cam camera.Camera, cols, rows int, cell float32) {
-	r.grid = nil
-	if r.cfg.Seen != nil {
-		r.grid = r.cfg.Seen(cam).Grid()
-	}
+	r.grid = r.seenGrid(cam)
 	r.lay(cols, rows, cell, r.buf)
 	if r.mesh != nil {
 		r.mesh.Release()
@@ -468,6 +487,14 @@ func decode(hi, lo byte, low, span float32) float32 {
 // Haze says whether the air hazes the ground through any camera; off, it is drawn clear.
 func (r *Renderer) Haze(on bool) { r.hazed = on }
 
+// settings are the care's rings and the haze the frame drawn is set to
+func (r *Renderer) settings() (care int, hazed bool) {
+	if r.cfg.Drawn != nil {
+		return r.cfg.Drawn()
+	}
+	return r.care, r.hazed
+}
+
 // SetShading styles the light on the ground as s says.
 func (r *Renderer) SetShading(s painter.Shading) { r.shading = s }
 
@@ -508,7 +535,8 @@ func (r *Renderer) setUniforms(t camera.Transform, cam camera.Camera) {
 	var seeing, up float32
 	var way [3]float32
 	if r.sky != nil {
-		seeing, up, way = r.sky.Air().Seen(cam, r.hazed)
+		_, hazed := r.settings()
+		seeing, up, way = r.sky.Air().Seen(cam, hazed)
 	}
 	r.set("Visibility", seeing)
 	r.set("HazeUp", up)

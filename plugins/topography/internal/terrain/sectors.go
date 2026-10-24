@@ -197,10 +197,11 @@ func (r *Renderer) runs(cam camera.Camera, dst []span) []span {
 func (r *Renderer) CareOf(cam camera.Camera) func(i int) int {
 	full := func(int) int { return FullCare }
 	f, ok := cam.(camera.Focused)
-	if r.care <= 0 || !ok || r.cfg.Seen == nil {
+	care, _ := r.settings()
+	if care <= 0 || !ok {
 		return full
 	}
-	g := r.cfg.Seen(cam).Grid()
+	g := r.seenGrid(cam)
 	if g == nil {
 		return full
 	}
@@ -220,7 +221,7 @@ func (r *Renderer) CareOf(cam camera.Camera) func(i int) int {
 		d := min(rings(i, middle, cols), rings(i, eye, cols))
 		band := 0
 		if d > 0 {
-			band = (d - 1) / r.care
+			band = (d - 1) / care
 		}
 		return max(FullCare-band, 0)
 	}

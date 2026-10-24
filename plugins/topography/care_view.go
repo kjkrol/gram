@@ -34,10 +34,10 @@ var _ render.Source = (*careView)(nil)
 
 func (v *careView) Compose(f *render.Frame, cam camera.Camera) {
 	p := v.p
-	if !p.read.CareShown() || p.ground == nil || p.read.Care() <= 0 {
+	if s := p.drawnSettings(); !s.ShowCare || p.ground == nil || s.Care <= 0 {
 		return
 	}
-	cols, rows, cell, _, ok := p.relief.Lattice()
+	cols, rows, cell, _, ok := p.drawnRelief().Lattice()
 	if !ok || cell <= 0 {
 		return
 	}
@@ -114,7 +114,7 @@ func (l careLines) draw(ax, ay, bx, by float32, c color.RGBA) {
 
 // at is the screen point and the height of the care line over the ground at (x, y)
 func (l careLines) at(x, y float32) (sx, sy, z float32) {
-	z = float32(l.p.relief.GroundAt(geom.NewVec(float64(x), float64(y)))) + careLift
+	z = float32(l.p.drawnRelief().GroundAt(geom.NewVec(float64(x), float64(y)))) + careLift
 	sx, sy = l.cam.Project(x, y, z)
 	return sx, sy, z
 }

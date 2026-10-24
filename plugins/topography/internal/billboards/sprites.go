@@ -36,7 +36,8 @@ const (
 
 type sprites struct {
 	sky    Sky
-	relief *relief.Relief
+	drawn  func() (ground *relief.Relief, hazed bool)
+	relief *relief.Relief // the frame's
 	on     bool
 
 	batches []spriteBatch
@@ -53,8 +54,8 @@ type spriteBatch struct {
 	inst  []float32
 }
 
-func newSprites(sky Sky, r *relief.Relief) *sprites {
-	s := &sprites{sky: sky, relief: r, own: map[string]any{}}
+func newSprites(sky Sky, drawn func() (*relief.Relief, bool)) *sprites {
+	s := &sprites{sky: sky, drawn: drawn, own: map[string]any{}}
 	s.opts = render.DrawMeshOptions{WriteDepth: true, Vertices: 6, Uniforms: map[string]any{}}
 	return s
 }
@@ -68,6 +69,7 @@ func (s *sprites) begin(cam camera.Camera) {
 	}
 	_, rays := cam.(camera.Rays)
 	s.on = rays && inRelief(cam)
+	s.relief, s.hazed = s.drawn()
 	s.haze = air.Hazer{}
 	if s.hazed {
 		s.haze = s.sky.Air().Hazer(cam)

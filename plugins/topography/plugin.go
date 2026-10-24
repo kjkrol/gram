@@ -99,10 +99,13 @@ type Plugin struct {
 	taking   []render.Taking // by cell, as the kinds last stood
 	swaying  []float32
 	takesAt  uint64
-	module   *module
-	read     Read
-	reads    []*Read
-	write    Write
+	// the relief and the settings as the frame drawn holds them
+	drawn   render.Buffered[drawnTopography]
+	swapped bool
+	module  *module
+	read    Read
+	reads   []*Read
+	write   Write
 }
 
 var _ plugin.Plugin = (*Plugin)(nil)
@@ -111,6 +114,64 @@ var _ plugin.CommandHandler = (*Plugin)(nil)
 var _ plugin.Tunable = (*Plugin)(nil)
 var _ plugin.Restorer = (*Plugin)(nil)
 var _ board.Map = (*Plugin)(nil)
+var _ plugin.Publisher = (*Plugin)(nil)
+
+// drawnTopography is the relief and the settings a frame is drawn by
+type drawnTopography struct {
+	relief   irelief.Relief
+	settings Settings
+}
+
+// Publish hands the frame drawn next the relief as it stands, its heights copied as they change,
+// and the topography's settings.
+func (p *Plugin) Publish() {
+	b := p.drawn.Back()
+	p.relief.CopyInto(&b.relief)
+	b.settings = p.Res.Settings
+}
+
+// Swap has the relief and the settings published last drawn.
+func (p *Plugin) Swap() {
+	p.drawn.Swap()
+	p.swapped = true
+}
+
+// drawnRelief is the relief the frame drawn holds, the live one before any was published
+func (p *Plugin) drawnRelief() *irelief.Relief {
+	if !p.swapped {
+		return p.relief
+	}
+	return &p.drawn.Front().relief
+}
+
+// drawnSettings are the settings the frame drawn holds
+func (p *Plugin) drawnSettings() Settings {
+	if !p.swapped {
+		return p.Res.Settings
+	}
+	return p.drawn.Front().settings
+}
+
+// drawnGround is the relief the terrain draws, the frame's
+type drawnGround struct{ p *Plugin }
+
+func (g drawnGround) Lattice() (cols, rows int, cell float32, heights []float32, ok bool) {
+	return g.p.drawnRelief().Lattice()
+}
+
+func (g drawnGround) Version() uint64 { return g.p.drawnRelief().Version() }
+
+// lightRelief is the relief as the light takes it: its heights as they stand, for the shade it
+// bakes as it publishes, and the ground the frame drawn holds, under the shadows cast in it
+type lightRelief struct{ p *Plugin }
+
+func (r lightRelief) Lattice() (cols, rows int, cell float32, heights []float32, ok bool) {
+	return r.p.relief.Lattice()
+}
+
+func (r lightRelief) Version() uint64 { return r.p.relief.Version() }
+
+func (r lightRelief) GroundAt(at geom.Vec) float64 { return r.p.drawnRelief().GroundAt(at) }
 
 // NewPlugin puts boardPlugin, over worldPlugin, in relief as cfg says, lit by lightPlugin (nil,
 // light.White), whose shadows fall on the relief from then on: the topography is the
@@ -142,19 +203,24 @@ func NewPlugin(worldPlugin *world.Plugin, boardPlugin *board.Plugin, lightPlugin
 	p.painter = ipainter.New(brd, p.relief, true, map[cell.Name]painter.Style{}).WithKinds(boardPlugin.Read(0).CellKinds())
 	boardPlugin.WithMap(p)
 	if _, _, _, _, square := p.relief.Lattice(); square {
-		p.ground = terrain.New(p.relief, boardSurface{p}, liveSky{p}, terrain.Config{
+		p.ground = terrain.New(drawnGround{p}, boardSurface{p}, liveSky{p}, terrain.Config{
 			Scale: worldPlugin.Read(0).Scale(),
 			Seen:  worldPlugin.Read(0).ViewFor,
+			Drawn: func() (int, bool) {
+				s := p.drawnSettings()
+				return s.Care, s.Haze
+			},
 		})
 		p.careView = &careView{p}
 		p.write.SetCare(cfg.Care)
 	} else {
 		p.hexes = hexes.New(worldPlugin, boardPlugin, brd.Map(), p.relief, liveSky{p}, p.painter)
 	}
-	p.look = billboards.New(worldPlugin.Read(0).FlatLook(), liveSky{p}, p.relief)
+	p.look = billboards.New(worldPlugin.Read(0).FlatLook(), liveSky{p},
+		func() (*irelief.Relief, bool) { return p.drawnRelief(), p.drawnSettings().Haze })
 	worldPlugin.Write().SetLook(p.look)
 	if lightPlugin != nil {
-		lightPlugin.OverRelief(p.relief)
+		lightPlugin.OverRelief(lightRelief{p})
 	}
 	return p
 }

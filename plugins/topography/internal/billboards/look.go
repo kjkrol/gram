@@ -33,14 +33,11 @@ type Look struct {
 	gpu  *sprites
 }
 
-// New is the look of the entities standing on the relief r under sky, flat the world's own look
-// from above.
-func New(flat world.Look, sky Sky, r *relief.Relief) Look {
-	return Look{flat: flat, sky: sky, gpu: newSprites(sky, r)}
+// New is the look of the entities standing on the relief under sky as the frame drawn holds it,
+// hazed as it says (drawn), flat the world's own look from above.
+func New(flat world.Look, sky Sky, drawn func() (ground *relief.Relief, hazed bool)) Look {
+	return Look{flat: flat, sky: sky, gpu: newSprites(sky, drawn)}
 }
-
-// Haze says whether the air hazes the billboards far off from an eye; off, they are drawn clear.
-func (l Look) Haze(on bool) { l.gpu.hazed = on }
 
 // Fog has the billboards and the flat sprites laid next turn into the fog by amount.
 func (l Look) Fog(amount float32) {
