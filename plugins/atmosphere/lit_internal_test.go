@@ -10,7 +10,6 @@ import (
 	"github.com/kjkrol/goke/v3"
 	"github.com/kjkrol/gram/internal/parallel"
 	"github.com/kjkrol/gram/plugin"
-	"github.com/kjkrol/gram/plugins/atmosphere/aloft"
 	"github.com/kjkrol/gram/plugins/atmosphere/backdrop"
 	"github.com/kjkrol/gram/plugins/atmosphere/precipitation"
 	"github.com/kjkrol/gram/plugins/atmosphere/sky"
@@ -55,14 +54,16 @@ func TestPlugin_DrawsTheSkyTheCloudsAndWhatFalls(t *testing.T) {
 	if _, ok := ctx.drawn[0].(*backdrop.Renderer); !ok {
 		t.Errorf("the atmosphere draws %T first, want the sky", ctx.drawn[0])
 	}
-	if _, ok := ctx.drawn[1].(*aloft.Renderer); !ok {
+	if _, ok := ctx.drawn[1].(lowClouds); !ok {
 		t.Errorf("the atmosphere draws %T second, want the low clouds seen from above",
 			ctx.drawn[1])
 	}
 	if _, ok := ctx.drawn[2].(*precipitation.Drops); !ok {
 		t.Errorf("the atmosphere draws %T last, want what falls drop by drop", ctx.drawn[2])
 	}
+	cam := cameratest.NewFromSpace(128, 128, 0)
 	look := func() (CloudLook, bool, [2]bool) {
+		render.NewComposer(ctx.drawn[1]).DrawWorld(nil, cam)
 		return a.read.ShownClouds(), a.aloft.Shown(), a.skyClouds().Bodies
 	}
 	for _, want := range []struct {

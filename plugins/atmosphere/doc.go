@@ -43,7 +43,9 @@
 // (plugins/atmosphere/aloft), hiding and hidden by what stands nearer — the high ones never over
 // the map from above, where they veiled it; and the rain and the snow before it
 // (plugins/atmosphere/precipitation); whoever draws the ground shadows it under the clouds, each
-// layer's along the way to the sun.
+// layer's along the way to the sun. All of it draws the atmosphere as published once a frame
+// ([Plugin.Publish]): the weather, its air masses copied where they changed, the sun, the heavens
+// and the Settings; [Read.DrawnAir] is that weather, [Read.Air] the live one the simulation reads.
 // [Read.Reporter] adds the daylight, how the clouds look and share their bands and whose
 // shadows they cast to the telemetry panel; a game showing the time, the season, the moon and
 // the weather nowhere else adds the calendar's and the climate's reporters too
@@ -64,7 +66,8 @@
 //
 // The sky is the Earth's unless a game gives its own: a [Sky], in a file of its own (sky.go),
 // noted in the Stage's Figures link ([Plugin.Skies]). Its Look sets the parts of the dome
-// (plugins/atmosphere/backdrop) it draws its own way: the vault, the sun, the moon, the stars.
+// (plugins/atmosphere/backdrop) it draws its own way: the vault, the sun, the moon, the stars; a
+// part's Feed reads the heavens the sky is drawn under from its backdrop.Values.
 //
 // # Vocabulary
 //

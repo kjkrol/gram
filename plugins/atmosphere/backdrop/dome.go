@@ -12,7 +12,8 @@ import (
 
 // Part is a part of the sky, drawn by the sky's shader: WGSL defining the part's entry
 // (shaders/sky.wgsl) and whatever it calls, the uniforms of its own it reads (U.Name) and the Feed
-// setting them each frame the sky is drawn. A Part with no Source draws nothing.
+// setting them each frame the sky is drawn, from what its Values say. A Part with no Source draws
+// nothing.
 type Part struct {
 	Source []byte
 	Reads  []render.Uniform
@@ -80,12 +81,16 @@ func EarthStars() Stars { return Stars{Catalogue: celestial.Stars()} }
 // ScatteredStars are made-up stars, Dots twinkling a pixel or two wide.
 func ScatteredStars() Part { return Part{Source: render.Files(shaders, "shaders/scattered.wgsl")} }
 
-// Values are a part's own uniforms, which its Feed sets.
+// Values are a part's own uniforms, which its Feed sets, and the heavens the sky is drawn under.
 type Values struct {
-	b     *Renderer
-	part  string
-	reads []render.Uniform
+	b       *Renderer
+	part    string
+	reads   []render.Uniform
+	heavens celestial.Heavens
 }
+
+// Heavens is where the sun, the moon and the stars stand as the sky is drawn.
+func (v *Values) Heavens() celestial.Heavens { return v.heavens }
 
 // Set sets the part's uniform name to v; a name the part does not read panics.
 func (v *Values) Set(name string, x ...float32) {
