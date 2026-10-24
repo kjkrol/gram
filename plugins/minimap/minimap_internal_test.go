@@ -529,3 +529,17 @@ func TestCompass_PointsAsPublishedWhileTheMinimapsAreHidden(t *testing.T) {
 			"want (-1, 0): as published", dx, dy)
 	}
 }
+
+// run with -race
+func TestMinimap_AimsTheLensDrawnWithoutReadingTheTicksOncePublished(t *testing.T) {
+	m, _ := outlined()
+	m.marks.publish(time.Now(), true)
+	m.marks.swap()
+	ticked := make(chan struct{})
+	go func() {
+		m.follow(false)
+		close(ticked)
+	}()
+	m.aimLens()
+	<-ticked
+}

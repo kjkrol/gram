@@ -72,9 +72,10 @@ func (m *minimap) covered() camera.AABB {
 
 // aimLens has the lens drawn look and reach as last published, as the ticks have it before any was
 func (m *minimap) aimLens() {
-	at, reach := m.at, m.p.cfg.Reach
-	if f := m.marks.drawn.Front(); f.version > 0 {
-		at, reach = f.at, f.reach
+	f := m.marks.drawn.Front()
+	at, reach := f.at, f.reach
+	if f.version == 0 {
+		at, reach = m.at, m.p.cfg.Reach
 	}
 	m.lens.aim(at.cx, at.cy, at.ax, at.ay)
 	if m.lens.reach != reach {
