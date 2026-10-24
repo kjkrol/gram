@@ -200,7 +200,7 @@ func (e *Engine) frame(dc *gogpu.Context) {
 		}
 		e.window = render.NewImage(w, h)
 	}
-	if e.barrier() {
+	if e.barrier(w, h) {
 		began = time.Now()
 	}
 	updated := time.Now()
@@ -245,10 +245,20 @@ func (e *Engine) frame(dc *gogpu.Context) {
 var logRates = os.Getenv("GRAM_FPS_LOG") != ""
 
 // barrier is the frame's step where nothing ticks and nothing draws: what was published swapped
-// in to be drawn, and a stage entered readied before its first frame, reporting whether it was
-func (e *Engine) barrier() (readied bool) {
+// in to be drawn, the scenes shown laid out over a screen w by h, and a stage entered readied
+// before its first frame, reporting whether it was
+func (e *Engine) barrier(w, h int) (readied bool) {
 	e.current.swap()
 	e.order = append(e.order[:0], e.current.stage.Stack().Composition().Order()...)
+	if e.pendingSwitch == "" {
+		for _, name := range e.order {
+			for _, d := range e.current.sceneDrawers[name] {
+				if l, ok := d.(game.Laying); ok {
+					l.Lay(w, h)
+				}
+			}
+		}
+	}
 	if e.current.prepared || e.pendingSwitch != "" {
 		return false
 	}

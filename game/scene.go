@@ -22,6 +22,12 @@ type Scene interface {
 	Focusable() bool
 }
 
+// Laying is a scene's drawer laid out before its frame is drawn: on the frame's barrier, where
+// nothing ticks or draws, over a screen w by h pixels.
+type Laying interface {
+	Lay(w, h int)
+}
+
 // Scenic is a plugin with scenes of its own, which a Stage defined in sections keeps in its stack
 // hidden until something shows them.
 type Scenic interface {

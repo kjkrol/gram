@@ -37,6 +37,7 @@ type Scene struct {
 }
 
 var _ game.Scene = (*Scene)(nil)
+var _ game.Laying = (*drawing)(nil)
 var _ plugin.Serializable = (*Scene)(nil)
 var _ plugin.Restorer = (*Scene)(nil)
 
@@ -225,6 +226,7 @@ type drawing struct {
 
 	published render.Buffered[published]
 	swapped   bool
+	laid      bool // laid on the barrier for the frame drawn next
 	// the cameras GoToIt moves onto an entity: asked as the scene is laid, handed over at Swap,
 	// moved at the next Publish
 	wished, looks []look
@@ -417,14 +419,24 @@ func (d *drawing) Init(si *goke.SysInit) {
 	}
 }
 
+// Lay lays the scene out over a screen w by h, for the frame drawn next (game.Laying).
+func (d *drawing) Lay(w, h int) {
+	d.scene.Lay(geom.NewAABB(geom.NewVec(0, 0), geom.NewVec(float64(w), float64(h))))
+	d.laid = true
+}
+
+// Draw paints the scene as the barrier laid it, laid over screen first where nothing did.
 func (d *drawing) Draw(screen *render.Image) {
 	root := d.scene.root
 	if root == nil {
 		return
 	}
-	b := screen.Bounds()
-	box := geom.NewAABB(geom.NewVec(float64(b.Min.X), float64(b.Min.Y)), geom.NewVec(float64(b.Max.X), float64(b.Max.Y)))
-	d.scene.Lay(box)
+	if !d.laid {
+		b := screen.Bounds()
+		d.scene.Lay(geom.NewAABB(geom.NewVec(float64(b.Min.X), float64(b.Min.Y)),
+			geom.NewVec(float64(b.Max.X), float64(b.Max.Y))))
+	}
+	d.laid = false
 	root.paint(screen)
 	if ov := d.scene.overlay; ov != nil {
 		ov.paint(screen)

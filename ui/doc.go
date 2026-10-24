@@ -10,7 +10,8 @@
 // plugin.Publisher: once a frame, after the ticks, it reads off the game where its pinned
 // elements' entities stand, every Text's words, every control's value and what is hidden, and
 // the frame is laid, drawn and clicked as that says; an element put in since reads them as it
-// is laid.
+// is laid. It is laid on the frame's barrier, where nothing ticks or draws (game.Laying), and
+// drawing only paints it.
 //
 // # Layout
 //

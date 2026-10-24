@@ -3,6 +3,8 @@ package ui
 import (
 	"testing"
 
+	"github.com/kjkrol/gram/render"
+	"github.com/kjkrol/gram/render/gputest"
 	"github.com/kjkrol/uid"
 )
 
@@ -83,5 +85,23 @@ func TestPin_GoToItMovesTheCameraAtThePublishAfterTheFrameDrawn(t *testing.T) {
 	frame(d)
 	if len(red.looked) != 1 || red.looked[0] != 7 {
 		t.Errorf("the camera was asked to look at %v, want entity 7 once", red.looked)
+	}
+}
+
+func TestScene_DrawsAsTheBarrierLaidIt(t *testing.T) {
+	gputest.Need(t)
+	s := NewScene("main", TopLeft(Label("x")))
+	d := drawingOf(s)
+	d.Lay(200, 100)
+	screen := render.NewImage(400, 300)
+	defer screen.Deallocate()
+	d.Draw(screen)
+	if got := s.Laid(); got != box(0, 0, 200, 100) {
+		t.Errorf("laid on the barrier, the scene drawn is laid over %v, want 200 by 100", got)
+	}
+	d.Draw(screen)
+	if got := s.Laid(); got != box(0, 0, 400, 300) {
+		t.Errorf("drawn with no barrier, the scene is laid over %v, want the screen's 400 by 300",
+			got)
 	}
 }
