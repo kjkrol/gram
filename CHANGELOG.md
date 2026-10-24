@@ -47,6 +47,24 @@
   minimap is drawn anew as they are). `world.Read.ViewFor` is a camera's view as the frame drawn
   was published, one copy a frame for everything that draws; `Read.Views` and `Read.InView` are
   the views as the last tick left them, for what publishes. New: `vision.Renderer.WithInView`.
+- render lights the frame; the light plugin declares and publishes. The composer, given a scene's
+  lights (`render.Composer.Light`, `render.Lights`), hands each part of a frame the sun and the
+  lamps nearest its camera — the ground of a sharp-figures frame lit by the lamps too, which it
+  was not —, lights what a source draws (`render.Frame.Lit`), lays the live shadows of what
+  a source declares (`render.Frame.Cast`) once every source of the part has composed — the
+  camera's own, of the frame drawn, where a sharp-figures frame drew those of the composition
+  before or of another camera — and bakes the ground's shade first of the opaque pass. The
+  light's math, its WGSL (`lightWay`, `lampLightAt` and their uniforms, render's library now),
+  its baker and its caster are render's: `render.Distant`, `Lamp`, `Umbra`, `Beam`, `Casting`
+  (`Patch`, `Silhouette`, `Baked`, `NoShadow`), `Shadowing`, `ShadowPolicy`, `Block`,
+  `Lattice`, `MaxLamps`. The light plugin publishes `render.Lights` once a frame (the Baked
+  blocks scanned once a frame, not at every composition of every camera; blocks beyond every
+  band left out) through `world.Write.SetLights`; `world.Read.Lights` is what draws reads.
+- Breaking: `world.Lighting` is `Join` and `Mark(cur, i) render.Shadowing`; gone:
+  `light.Write.Begin`, `Of`, `light.Read.At`, `Casting`, the light plugin as a render source,
+  `world.Read.Lighting`, `look.Renderer.WithLighting` (now `WithLights`). `light.Distant`,
+  `Lamp`, `Umbra`, `Beam`, `Casting` and `ShadowPolicy` are render's; a shadow is of what stands
+  from an altitude up a height.
 
 **The flat board drawn by the GPU** (2026-10-23, branch `perf/flat-gpu`)
 - No tile is composed on the CPU any more. A flat board is laid on the GPU every frame out of an
