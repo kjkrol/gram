@@ -53,7 +53,8 @@ func (s *Scene) Input(fn func(*control.InputEvents, game.Runtime, game.Compositi
 
 func (s *Scene) Name() string { return s.name }
 
-// Drawers is the one drawer drawing the screen.
+// Drawers is the one drawer drawing the screen, which publishes what it reads off the game once a
+// frame (plugin.Publisher).
 func (s *Scene) Drawers() []render.Renderer {
 	s.dress()
 	if s.loaded {
@@ -62,7 +63,21 @@ func (s *Scene) Drawers() []render.Renderer {
 		s.note()
 	}
 	s.drawing = &drawing{scene: s}
+	s.bind()
 	return []render.Renderer{s.drawing}
+}
+
+// bind has the elements read what the scene's drawing publishes
+func (s *Scene) bind() {
+	if s.root == nil || s.drawing == nil {
+		return
+	}
+	s.root.walk(func(e *Element) {
+		e.d = s.drawing
+		if e.pin != nil && e.pin.show != nil {
+			e.pin.show.d = s.drawing
+		}
+	})
 }
 
 func (s *Scene) Focusable() bool { return true }
@@ -75,6 +90,7 @@ func (s *Scene) Replace(screen *Element) {
 	s.overlay, s.held = nil, nil
 	s.dress()
 	s.note()
+	s.bind()
 }
 
 // Unfolded reports whether a dropdown's options lie open: Esc closes them before anything else.
@@ -100,10 +116,15 @@ func (s *Scene) Lay(screen geom.AABB) {
 		ov.lay(geom.NewAABB(at, at.Add(geom.NewVec(max(w, fw), h))))
 	}
 	if d := s.drawing; d != nil && len(d.pins) > 0 {
-		d.find()
+		spots := d.spots
+		if f := d.front(); f != nil {
+			spots = f.spots
+		} else {
+			d.find(spots)
+		}
 		vs := views(s.root)
 		for _, e := range d.pins {
-			e.pin.stand(e, d.spots[e], vs, screen)
+			e.pin.stand(e, spots[e], vs, screen)
 			// laid where it stands, so its Box is by its entity
 			e.pin.each(e, e.parent, func(*instance) {})
 		}
@@ -200,7 +221,171 @@ type drawing struct {
 	base   goke.OptComp[entity.Base]
 	z      goke.OptComp[entity.Z]
 	label  goke.OptComp[ceremony.Label]
+	spots  map[*Element][]spot // found as the scene is laid, before any is published
+
+	published render.Buffered[published]
+	swapped   bool
+	// the cameras GoToIt moves onto an entity: asked as the scene is laid, handed over at Swap,
+	// moved at the next Publish
+	wished, looks []look
+}
+
+// published is what a scene draws of the game, as a Publish read it: where its pinned elements'
+// entities stand and whether each picture shows them, each label's words for the entity it is
+// drawn for, each checkbox's tick, each slider's number and which elements are hidden
+type published struct {
 	spots  map[*Element][]spot
+	shows  map[showing]bool
+	words  map[saying]said
+	ticks  map[*checkbox]bool
+	values map[*slider]float64
+	hidden map[*Element]bool
+}
+
+type showing struct {
+	pic *Element
+	id  uid.UID64
+}
+
+type saying struct {
+	l      *label
+	of     uid.UID64
+	pinned bool
+}
+
+type said struct {
+	text string
+	ok   bool
+}
+
+type look struct {
+	looker Looker
+	id     uid.UID64
+}
+
+func (p *published) reset() {
+	if p.spots == nil {
+		*p = published{spots: map[*Element][]spot{}, shows: map[showing]bool{},
+			words: map[saying]said{}, ticks: map[*checkbox]bool{}, values: map[*slider]float64{},
+			hidden: map[*Element]bool{}}
+		return
+	}
+	for e, s := range p.spots {
+		p.spots[e] = s[:0]
+	}
+	clear(p.shows)
+	clear(p.words)
+	clear(p.ticks)
+	clear(p.values)
+	clear(p.hidden)
+}
+
+// Publish reads what the scene draws off the game, for the frame drawn next: the entities of its
+// pinned elements, its words, its controls and what is hidden; and moves the cameras its pinned
+// elements asked to.
+func (d *drawing) Publish() {
+	for _, l := range d.looks {
+		l.looker.LookAt(l.id)
+	}
+	d.looks = d.looks[:0]
+	b := d.published.Back()
+	b.reset()
+	root := d.scene.root
+	if root == nil {
+		return
+	}
+	if len(d.pins) > 0 {
+		d.find(b.spots)
+		d.showing(b, root)
+	}
+	d.read(b, root, nil)
+	root.walk(func(e *Element) {
+		if p, ok := drawerOf(e).(plugin.Publisher); ok {
+			p.Publish()
+		}
+	})
+}
+
+// Swap has what was published last drawn, and hands the cameras asked to move to Publish.
+func (d *drawing) Swap() {
+	d.published.Swap()
+	d.swapped = true
+	d.looks = append(d.looks, d.wished...)
+	d.wished = d.wished[:0]
+	if root := d.scene.root; root != nil {
+		root.walk(func(e *Element) {
+			if p, ok := drawerOf(e).(plugin.Publisher); ok {
+				p.Swap()
+			}
+		})
+	}
+}
+
+// front is what was published last, nil before any was
+func (d *drawing) front() *published {
+	if d == nil || !d.swapped {
+		return nil
+	}
+	return d.published.Front()
+}
+
+// drawerOf is the renderer an element draws, nil for any other
+func drawerOf(e *Element) render.Renderer {
+	if l, ok := e.content.(*layered); ok {
+		return l.r
+	}
+	return nil
+}
+
+// read reads off the game what e and its children draw: of a pinned one's, for each of spots
+func (d *drawing) read(b *published, e *Element, spots []spot) {
+	b.hidden[e] = e.hidden
+	if e.hidden {
+		return
+	}
+	if e.pin != nil {
+		spots = b.spots[e]
+	}
+	switch c := e.content.(type) {
+	case *label:
+		if c.src != nil {
+			b.say(c, 0, false)
+			for _, s := range spots {
+				b.say(c, s.id, true)
+			}
+		}
+	case *checkbox:
+		b.ticks[c] = c.get()
+	case *slider:
+		b.values[c] = c.get()
+	}
+	for _, c := range e.children {
+		d.read(b, c, spots)
+	}
+}
+
+func (b *published) say(l *label, of uid.UID64, pinned bool) {
+	text, ok := l.src.Text(of, pinned)
+	b.words[saying{l, of, pinned}] = said{text, ok}
+}
+
+// showing notes whether each picture's Owner shows the pinned elements' entities
+func (d *drawing) showing(b *published, root *Element) {
+	root.walk(func(e *Element) {
+		p, ok := e.content.(*picture)
+		if !ok {
+			return
+		}
+		o, ok := p.input.(Owner)
+		if !ok {
+			return
+		}
+		for _, pinned := range d.pins {
+			for _, s := range b.spots[pinned] {
+				b.shows[showing{e, s.id}] = o.Shows(s.id)
+			}
+		}
+	})
 }
 
 func (d *drawing) Init(si *goke.SysInit) {
@@ -251,9 +436,10 @@ func (d *drawing) Draw(screen *render.Image) {
 	})
 }
 
-func (d *drawing) find() {
+// find finds the entities of the pinned elements, into spots
+func (d *drawing) find(spots map[*Element][]spot) {
 	for _, e := range d.pins {
-		d.spots[e] = d.spots[e][:0]
+		spots[e] = spots[e][:0]
 	}
 	for d.query.All(); d.query.Next(); {
 		cur := d.query.Cursor()
@@ -267,20 +453,21 @@ func (d *drawing) find() {
 				default:
 					continue
 				}
-				d.note(e, id, at(bases, i), at(zs, i), at(labels, i))
+				note(spots, e, id, at(bases, i), at(zs, i), at(labels, i))
 			}
 		}
 	}
 	for _, e := range d.pins {
 		if e.pin.where != nil {
 			e.pin.where.each(func(id uid.UID64, base *entity.Base, z *entity.Z, label *ceremony.Label) {
-				d.note(e, id, base, z, label)
+				note(spots, e, id, base, z, label)
 			})
 		}
 	}
 }
 
-func (d *drawing) note(e *Element, id uid.UID64, base *entity.Base, z *entity.Z, label *ceremony.Label) {
+func note(spots map[*Element][]spot, e *Element, id uid.UID64, base *entity.Base, z *entity.Z,
+	label *ceremony.Label) {
 	s := spot{id: id}
 	if base != nil {
 		s.placed = true
@@ -288,5 +475,5 @@ func (d *drawing) note(e *Element, id uid.UID64, base *entity.Base, z *entity.Z,
 	} else if label == nil || *label == (ceremony.Label{}) {
 		return // a cell: no place and no name
 	}
-	d.spots[e] = append(d.spots[e], s)
+	spots[e] = append(spots[e], s)
 }

@@ -49,7 +49,14 @@ func drawersOf(ctx *headless, scene *ui.Scene) []render.Renderer {
 	return drawers
 }
 
+// drawFrame publishes what the drawers draw and draws it into screen.
 func drawFrame(screen *render.Image, drawers []render.Renderer) {
+	for _, d := range drawers {
+		if p, ok := d.(plugin.Publisher); ok {
+			p.Publish()
+			p.Swap()
+		}
+	}
 	screen.Clear()
 	for _, d := range drawers {
 		d.Draw(screen)

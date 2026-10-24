@@ -46,8 +46,8 @@ const (
 	title
 )
 
-// Text is what an element reads its words off every frame, for the entity it is pinned to.
-// False leaves the element out: it takes no room and nothing hits it.
+// Text is what an element reads its words off once a frame, as its scene is published, for the
+// entity it is pinned to. False leaves the element out: it takes no room and nothing hits it.
 type Text interface {
 	Text(of uid.UID64, pinned bool) (string, bool)
 }
@@ -105,9 +105,19 @@ func (l *label) font(th *Theme) *render.Font {
 	return th.Font
 }
 
+// words are the label's as published for the entity it is drawn for: read now for one not yet
+// published, none for an entity of a pin's not published
 func (l *label) words(e *Element) (string, bool) {
 	if l.src == nil {
 		return l.text, true
+	}
+	if f := e.front(); f != nil {
+		if w, ok := f.words[saying{l, e.of, e.ofPinned}]; ok {
+			return w.text, w.ok
+		}
+		if e.ofPinned {
+			return "", false
+		}
 	}
 	return l.src.Text(e.of, e.ofPinned)
 }
@@ -239,7 +249,7 @@ func (blank) draw(*Element, *render.Image)  {}
 func (blank) needs(*Element) (w, h float64) { return 0, 0 }
 
 // Drawer is an element drawn by r, a screen renderer drawing in the screen's pixels: the
-// telemetry line.
+// telemetry line. An r that is a plugin.Publisher is published and swapped with the scene.
 func Drawer(r render.Renderer) *Element { return newElement(&layered{r: r}) }
 
 type layered struct{ r render.Renderer }

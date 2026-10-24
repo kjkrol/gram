@@ -35,6 +35,7 @@ type Element struct {
 	box      geom.AABB
 	of       uid.UID64
 	ofPinned bool
+	d        *drawing // its scene's, nil out of one
 }
 
 type content interface {
@@ -58,7 +59,20 @@ func (e *Element) absent() bool {
 	return ok && l.absent(e)
 }
 
-func (e *Element) gone() bool { return e.hidden || e.absent() }
+func (e *Element) gone() bool { return e.shut() || e.absent() }
+
+// front is what the element's scene published last, nil before any was
+func (e *Element) front() *published { return e.d.front() }
+
+// shut reports whether the element is hidden as drawn: as published, as it is before
+func (e *Element) shut() bool {
+	if f := e.front(); f != nil {
+		if hidden, ok := f.hidden[e]; ok {
+			return hidden
+		}
+	}
+	return e.hidden
+}
 
 func (e *Element) drawnFor(id uid.UID64, pinned bool) {
 	e.walk(func(c *Element) { c.of, c.ofPinned = id, pinned })
@@ -152,7 +166,7 @@ func (e *Element) Box() geom.AABB { return e.box }
 // Hits reports whether the screen point p hits the element: a container where one of its children
 // is hit, any other inside its box, and its mask if it has one.
 func (e *Element) Hits(p geom.Vec) bool {
-	if e.hidden {
+	if e.shut() {
 		return false
 	}
 	if e.pin != nil {
@@ -209,7 +223,7 @@ func (e *Element) lay(box geom.AABB) {
 }
 
 func (e *Element) paint(dst *render.Image) {
-	if e.hidden {
+	if e.shut() {
 		return
 	}
 	if e.pin == nil {

@@ -48,10 +48,20 @@ func (c *checkbox) draw(e *Element, dst *render.Image) {
 	th := e.look()
 	// half a pixel in: a one-pixel stroke on whole pixels
 	dst.StrokeRect(x+0.5, y+0.5, s-1, s-1, 1, th.Border)
-	if c.get() {
+	if c.ticked(e) {
 		dst.StrokeLine(x+s*0.2, y+s*0.5, x+s*0.45, y+s*0.8, 2, th.Accent)
 		dst.StrokeLine(x+s*0.45, y+s*0.8, x+s*0.85, y+s*0.2, 2, th.Accent)
 	}
+}
+
+// ticked is the box's tick as published, read now before
+func (c *checkbox) ticked(e *Element) bool {
+	if f := e.front(); f != nil {
+		if on, ok := f.ticks[c]; ok {
+			return on
+		}
+	}
+	return c.get()
 }
 
 func (c *checkbox) needs(e *Element) (w, h float64) {
@@ -90,9 +100,15 @@ func (*slider) place(*Element, geom.AABB) {}
 
 func (sl *slider) needs(*Element) (w, h float64) { return sliderLength, sliderHeight }
 
-func (sl *slider) shown() float64 {
+// shown is the number the knob stands at: dragged, its own, else as published, read now before
+func (sl *slider) shown(e *Element) float64 {
 	if sl.dragging {
 		return sl.value
+	}
+	if f := e.front(); f != nil {
+		if v, ok := f.values[sl]; ok {
+			return v
+		}
 	}
 	return sl.get()
 }
@@ -128,7 +144,7 @@ func (sl *slider) draw(e *Element, dst *render.Image) {
 	th := e.look()
 	left, right := float32(box.TopLeft.X+h/2), float32(box.TopLeft.X+w-h/2)
 	mid := float32(box.TopLeft.Y + h/2)
-	knob := sl.at(box, sl.shown())
+	knob := sl.at(box, sl.shown(e))
 	dst.StrokeLine(left, mid, right, mid, 2, th.Border)
 	dst.StrokeLine(left, mid, knob, mid, 2, th.Accent)
 	dst.FillCircle(knob, mid, float32(h/2), th.Accent)
