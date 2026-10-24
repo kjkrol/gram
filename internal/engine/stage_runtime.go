@@ -129,8 +129,8 @@ func publishersOf(tracked []any, sources []render.Source, drawers []any) []plugi
 	return out
 }
 
-// publish has every Publisher of the stage and of the scenes shown publish, then swap: a hidden
-// scene's drawers read nothing
+// publish has every Publisher of the stage and of the scenes shown publish: a hidden scene's
+// drawers read nothing
 func (r *stageRuntime) publish(shown []string) {
 	now := append(r.publishing[:0], r.publishers...)
 	for _, name := range shown {
@@ -144,9 +144,14 @@ func (r *stageRuntime) publish(shown []string) {
 	for _, p := range now {
 		p.Publish()
 	}
-	for _, p := range now {
+}
+
+// swap has what the last publish read drawn; nothing without one
+func (r *stageRuntime) swap() {
+	for _, p := range r.publishing {
 		p.Swap()
 	}
+	r.publishing = r.publishing[:0]
 }
 
 // holds reports whether ps holds p itself

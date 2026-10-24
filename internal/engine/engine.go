@@ -48,6 +48,7 @@ type Engine struct {
 	quit          bool
 	width, height int
 	shot          *shot
+	order         []string // the scenes drawn, bottom to top, as the barrier found them shown
 }
 
 var _ game.Runtime = (*Engine)(nil)
@@ -184,14 +185,14 @@ func (e *Engine) frame(dc *gogpu.Context) {
 		log.Fatal(err)
 	}
 	began := time.Now()
-	if err := e.Frame(); err != nil {
+	if err := e.Update(); err != nil {
 		if errors.Is(err, Termination) {
 			e.app.Quit()
 			return
 		}
 		log.Fatal(err)
 	}
-	updated := time.Now()
+	e.publish()
 	w, h := e.Layout(dc.Size())
 	if e.window == nil || e.window.Bounds().Dx() != w || e.window.Bounds().Dy() != h {
 		if e.window != nil {
@@ -199,10 +200,10 @@ func (e *Engine) frame(dc *gogpu.Context) {
 		}
 		e.window = render.NewImage(w, h)
 	}
-	if !e.current.prepared && e.pendingSwitch == "" {
-		e.prepare()
-		began, updated = time.Now(), time.Now()
+	if e.barrier() {
+		began = time.Now()
 	}
+	updated := time.Now()
 	e.window.Clear()
 	e.Draw(e.window)
 	if e.shot != nil && e.shot.take(e.window) {
@@ -243,6 +244,18 @@ func (e *Engine) frame(dc *gogpu.Context) {
 
 var logRates = os.Getenv("GRAM_FPS_LOG") != ""
 
+// barrier is the frame's step where nothing ticks and nothing draws: what was published swapped
+// in to be drawn, and a stage entered readied before its first frame, reporting whether it was
+func (e *Engine) barrier() (readied bool) {
+	e.current.swap()
+	e.order = append(e.order[:0], e.current.stage.Stack().Composition().Order()...)
+	if e.current.prepared || e.pendingSwitch != "" {
+		return false
+	}
+	e.prepare()
+	return true
+}
+
 // prepare readies a stage entered for its first frame: every shader compiled, what waits on the
 // CPU on the GPU, and a frame drawn and thrown away, for all that is baked, laid out or built as
 // it is first drawn. The time it takes is not the world's.
@@ -268,23 +281,30 @@ func (e *Engine) prepare() {
 type spent struct{ update, publish, draw, present time.Duration }
 
 // Frame runs a frame's Update and hands the renderer what it draws: every Publisher of the stage
-// publishes, then swaps; not while a stage switch is pending. It returns Termination once the
-// game has quit.
+// and of the scenes shown publishes, then swaps; not while a stage switch is pending. It returns
+// Termination once the game has quit.
 func (e *Engine) Frame() error {
 	if err := e.Update(); err != nil {
 		return err
 	}
-	if e.pendingSwitch == "" {
-		began := time.Now()
-		e.current.publish(e.current.stage.Stack().Composition().Order())
-		e.spent.publish += time.Since(began)
-	}
+	e.publish()
+	e.current.swap()
 	return nil
 }
 
-// Update runs a tick: the input, a switch of stage, the world stepped as many times as the time
-// gone says. It returns Termination once the game has quit.
+// Update runs a frame's input, then its ticks. It returns Termination once the game has quit.
 func (e *Engine) Update() error {
+	if err := e.input(); err != nil {
+		return err
+	}
+	e.tick()
+	return nil
+}
+
+// input takes the frame's input: a switch of stage asked for, the events handed to the active
+// scene, the engine's own commands (save, load, quit). It returns Termination once the game has
+// quit.
+func (e *Engine) input() error {
 	if e.quit {
 		return Termination
 	}
@@ -313,9 +333,13 @@ func (e *Engine) Update() error {
 	e.controller.Update(nil, 0)
 	e.inputs.ResetTransient()
 	e.carry()
+	return nil
+}
 
+// tick steps the world as many times as the time gone says, none while it stands
+func (e *Engine) tick() {
 	if e.current.host.ecs.Paused() {
-		return nil
+		return
 	}
 
 	steps := e.timeTracker.calculateSteps(e.step, maxStepsAFrame)
@@ -335,8 +359,16 @@ func (e *Engine) Update() error {
 		e.tps.Ticks = e.ticks
 		e.ticks = 0
 	}
+}
 
-	return nil
+// publish has the stage's Publishers read what is drawn next; not while a stage switch is pending
+func (e *Engine) publish() {
+	if e.pendingSwitch != "" {
+		return
+	}
+	began := time.Now()
+	e.current.publish(e.current.stage.Stack().Composition().Order())
+	e.spent.publish += time.Since(began)
 }
 
 func (e *Engine) takeLoad() *string {
@@ -348,14 +380,15 @@ func (e *Engine) takeLoad() *string {
 // a frame further behind drops the rest: the game slows instead of spiralling
 const maxStepsAFrame = 5
 
-// Draw draws the active stage's scenes, bottom to top, onto screen.
+// Draw draws the active stage's scenes shown as the barrier found them, bottom to top, onto
+// screen.
 func (e *Engine) Draw(screen *render.Image) {
 	if e.pendingSwitch != "" {
 		e.transitionOverlay.Draw(screen)
 		return
 	}
 	stack := e.current.stage.Stack()
-	for _, name := range stack.Composition().Order() {
+	for _, name := range e.order {
 		if sc, ok := stack.Get(name); ok {
 			e.current.drawScene(screen, sc)
 		}
